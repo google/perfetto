@@ -28,6 +28,8 @@ import tempfile
 import time
 import uuid
 
+from perfetto.prebuilts.manifests.heapprofd_glibc_preload import *
+from perfetto.prebuilts.manifests.tracebox import *
 from perfetto.prebuilts.manifests.traceconv import *
 from perfetto.prebuilts.perfetto_prebuilts import *
 
@@ -252,6 +254,88 @@ def process_trace(trace_file, profile_target, traceconv_binary, args,
   return 0
 
 
+def linux_main(args, cfg, cmd, traceconv_binary):
+  """Run a local heap profile session on Linux using LD_PRELOAD."""
+  tracebox_binary = args.tracebox_binary
+  if tracebox_binary is None:
+    tracebox_binary = get_perfetto_prebuilt(TRACEBOX_MANIFEST)
+
+  preload_library = args.preload_library
+  if preload_library is None:
+    preload_library = get_perfetto_prebuilt(
+        HEAPPROFD_GLIBC_PRELOAD_MANIFEST, soft_fail=True)
+    if preload_library is None:
+      print(
+          'ERROR: libheapprofd_glibc_preload.so prebuilt is not yet available '
+          'for this platform.',
+          file=sys.stderr)
+      print(
+          'Build it from a Perfetto checkout and pass the path explicitly:',
+          file=sys.stderr)
+      print(
+          '  tools/ninja -C <out_dir> heapprofd_glibc_preload', file=sys.stderr)
+      print(
+          '  heap_profile host --preload-library'
+          ' <out_dir>/libheapprofd_glibc_preload.so ...',
+          file=sys.stderr)
+      return 1
+
+  profile_target = PROFILE_LOCAL_PATH
+  if args.output is not None:
+    profile_target = args.output
+  else:
+    os.mkdir(profile_target)
+
+  if not os.path.isdir(profile_target):
+    print(
+        'Output directory {} not found'.format(profile_target), file=sys.stderr)
+    return 1
+
+  if os.listdir(profile_target):
+    print(
+        'Output directory {} not empty'.format(profile_target), file=sys.stderr)
+    return 1
+
+  trace_output = os.path.join(profile_target, 'raw-trace')
+
+  # Start the perfetto session. --system-sockets starts a bundled traced
+  # daemon automatically on Linux. --notify-fd lets us wait until the session
+  # is fully active before launching the profiled binary.
+  notify_r, notify_w = os.pipe()
+  perfetto_proc = subprocess.Popen([
+      tracebox_binary, '--system-sockets', '--txt', '-c', '-', '-o',
+      trace_output, '--notify-fd',
+      str(notify_w)
+  ],
+                                   stdin=subprocess.PIPE,
+                                   stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL,
+                                   pass_fds=(notify_w,))
+  os.close(notify_w)
+  perfetto_proc.stdin.write(cfg.encode())
+  perfetto_proc.stdin.close()
+
+  # Block until the session is active before launching the profiled binary.
+  os.read(notify_r, 1)
+  os.close(notify_r)
+
+  cmd_env = dict(
+      os.environ,
+      LD_PRELOAD=preload_library,
+      PERFETTO_HEAPPROFD_BLOCKING_INIT='1')
+  proc = subprocess.Popen(cmd, env=cmd_env)
+  old_handler = signal.signal(signal.SIGINT, sigint_handler)
+  proc.wait()
+  signal.signal(signal.SIGINT, old_handler)
+  perfetto_proc.send_signal(signal.SIGINT)
+
+  print('Waiting for profiler shutdown...')
+  perfetto_proc.wait()
+
+  return process_trace(
+      trace_output, profile_target, traceconv_binary, args, android_mode=False)
+
+
 def print_options(parser):
   for action in sorted(parser._actions, key=arg_order):
     if action.help is argparse.SUPPRESS:
@@ -414,6 +498,24 @@ def main(argv):
       help='Profile a process on a connected Android device via adb (default).',
       formatter_class=argparse.RawDescriptionHelpFormatter)
 
+  host_parser = subparsers.add_parser(
+      'host',
+      parents=[common],
+      help='Profile a local Linux process via LD_PRELOAD.',
+      formatter_class=argparse.RawDescriptionHelpFormatter)
+  host_parser.add_argument(
+      '--preload-library',
+      help='Path to libheapprofd_glibc_preload.so. '
+      'If omitted the prebuilt is downloaded automatically.',
+      default=None)
+  host_parser.add_argument(
+      '--tracebox-binary',
+      help='Path to local tracebox binary. For debugging.',
+      default=None)
+  # Remainder after '--' is the command to launch (e.g. '-- mybinary arg1').
+  host_parser.add_argument(
+      'cmd', nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
+
   args = parser.parse_args(argv[1:])
   if args.print_options:
     print_options(parser)
@@ -423,6 +525,27 @@ def main(argv):
   # pass a subcommand.
   if args.subcommand is None:
     args.subcommand = 'android'
+
+  # For host mode, extract the trailing command and infer process name from it.
+  cmd = None
+  if args.subcommand == 'host':
+    if sys.platform != 'linux':
+      print(
+          'FATAL: host subcommand is only supported on Linux.', file=sys.stderr)
+      return 1
+    cmd = list(args.cmd)
+    if cmd and cmd[0] == '--':
+      cmd.pop(0)
+    cmd = cmd if cmd else None
+    if cmd is None:
+      print(
+          'FATAL: host subcommand requires a command after --.',
+          file=sys.stderr)
+      print(
+          '  heap_profile host [flags] -- mybinary arg1 arg2', file=sys.stderr)
+      return 1
+    if args.name is None:
+      args.name = os.path.basename(cmd[0])
 
   fail = False
   if args.block_client and args.no_block_client:
@@ -493,7 +616,7 @@ def main(argv):
       target_cfg=target_cfg,
       shmem_size=args.shmem_size)
   # android.packages_list is Android-only.
-  if not args.no_versions:
+  if args.subcommand == 'android' and not args.no_versions:
     cfg += PACKAGES_LIST_CFG
 
   if args.print_config:
@@ -504,6 +627,9 @@ def main(argv):
   # print out the config.
   if traceconv_binary is None:
     traceconv_binary = get_perfetto_prebuilt(TRACECONV_MANIFEST, soft_fail=True)
+
+  if args.subcommand == 'host':
+    return linux_main(args, cfg, cmd, traceconv_binary)
 
   # --- Android path ---
 
