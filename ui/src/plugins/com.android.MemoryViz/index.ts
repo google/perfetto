@@ -55,9 +55,15 @@ export default class MemoryViz implements PerfettoPlugin {
               ),
               -- 2. Get and merge kswapd0 thread slices.
               kswapd_slices AS (
-                SELECT ts, dur
-                FROM thread_slice
-                WHERE thread_name = 'kswapd0' AND dur > 0
+                SELECT
+                  ts,
+                  dur
+                FROM sched
+                JOIN thread
+                  USING (utid)
+                WHERE
+                  thread.name = 'kswapd0' AND
+                  dur > 0
               ),
               -- 3. Combine both sources with priorities and unique IDs for intersection.
               all_intervals AS (
@@ -82,15 +88,22 @@ export default class MemoryViz implements PerfettoPlugin {
                   ii.id
                 FROM interval_self_intersect!(all_intervals) ii
                 WHERE ii.interval_ends_at_ts = FALSE
-              )
+              ),
               -- 5. For each piece of time (group_id), pick the source with the highest priority.
-              SELECT
-                ii.ts,
-                ii.dur,
-                CASE WHEN MAX(ai.priority) = 1 THEN 'direct reclaim' ELSE 'kswapd0' END AS name
-              FROM intersected ii
-              JOIN all_intervals ai ON ii.id = ai.id
-              GROUP BY ii.group_id
+              final AS (
+                SELECT
+                  ii.ts,
+                  ii.dur,
+                  CASE WHEN MAX(ai.priority) = 1 THEN 'direct reclaim' ELSE 'kswapd0' END AS name
+                FROM intersected ii
+                JOIN all_intervals ai ON ii.id = ai.id
+                GROUP BY ii.group_id
+              )
+              -- 6. Re-merge same-type intervals fragmented by the self-intersect.
+              SELECT ts, dur, name FROM interval_merge_overlapping_partitioned!(
+                final,
+                (name)
+              )
             `,
           },
           title: 'Kswapd0 / Direct Reclaim',
