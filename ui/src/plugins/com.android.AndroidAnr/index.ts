@@ -12,7 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
+import {
+  LONG,
+  LONG_NULL,
+  NUM,
+  NUM_NULL,
+  STR,
+} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {SliceTrack} from '../../components/tracks/slice_track';
@@ -116,7 +122,7 @@ export default class AndroidAnr implements PerfettoPlugin {
     });
     ctx.defaultWorkspace.addChildInOrder(anrTrack);
 
-    await this.selectAnrMainThread(ctx, anrArgs);
+    await this.selectAnr(ctx, anrArgs);
   }
 
   private pinAnrTrack(ctx: Trace) {
@@ -126,7 +132,7 @@ export default class AndroidAnr implements PerfettoPlugin {
     }
   }
 
-  private async selectAnrMainThread(ctx: Trace, args: AnrArgs) {
+  private async selectAnr(ctx: Trace, args: AnrArgs) {
     const e = ctx.engine;
 
     const whereFilters = [];
@@ -145,11 +151,8 @@ export default class AndroidAnr implements PerfettoPlugin {
     let whereClause = '';
 
     if (whereFilters.length > 0) {
-      whereClause =
-        'WHERE ' + whereFilters.join(' AND ') + ' AND t.is_main_thread = 1';
-    } else if (args.autoSelect) {
-      whereClause = 'WHERE t.is_main_thread = 1';
-    } else {
+      whereClause = 'WHERE ' + whereFilters.join(' AND ');
+    } else if (!args.autoSelect) {
       return;
     }
 
@@ -161,14 +164,15 @@ export default class AndroidAnr implements PerfettoPlugin {
       SELECT
         anr.ts - coalesce(anr.anr_dur_ms, anr.default_anr_dur_ms) * 1000000 AS ts,
         coalesce(anr.anr_dur_ms, anr.default_anr_dur_ms) * 1000000 AS dur,
+        anr.upid,
         tt.id AS main_thread_track_id
       FROM
         android_anrs anr
       JOIN
         android_process_metadata apm ON anr.upid = apm.upid
-      JOIN
-        thread t ON anr.upid = t.upid
-      JOIN
+      LEFT JOIN
+        thread t ON anr.upid = t.upid AND t.is_main_thread = 1
+      LEFT JOIN
         thread_track tt ON t.utid = tt.utid
       ${whereClause}
       ${orderByClause}
@@ -179,86 +183,8 @@ export default class AndroidAnr implements PerfettoPlugin {
     const it = result.iter({
       ts: LONG,
       dur: LONG_NULL,
-      main_thread_track_id: NUM,
-    });
-
-    if (!it.valid()) {
-      // Main thread not found, fallback to process track
-      await this.selectAnrProcessTrack(ctx, args, whereFilters);
-      return;
-    }
-
-    const anrInfo = {
-      ts: it.ts,
-      dur: it.dur ?? 0n, // Default duration to 0 if null
-      mainThreadTrackId: it.main_thread_track_id,
-    };
-
-    this.pinAnrTrack(ctx);
-
-    ctx.onTraceReady.addListener(async () => {
-      // Find the main thread track by its track ID via the track tags.
-      const mainThreadTrackNode = ctx.currentWorkspace.flatTracks.find(
-        (track) => {
-          if (!track.uri) {
-            return false;
-          }
-          const trackDesc = ctx.tracks.getTrack(track.uri);
-          return trackDesc?.tags?.trackIds?.includes(anrInfo.mainThreadTrackId);
-        },
-      );
-
-      if (!mainThreadTrackNode?.uri) {
-        return;
-      }
-      const mainThreadTrackUri = mainThreadTrackNode.uri;
-
-      this.scrollToAndSelect(
-        ctx,
-        mainThreadTrackUri,
-        [mainThreadTrackUri],
-        anrInfo.ts,
-        anrInfo.dur,
-      );
-    });
-  }
-
-  private async selectAnrProcessTrack(
-    ctx: Trace,
-    args: AnrArgs,
-    whereFilters: string[],
-  ) {
-    const e = ctx.engine;
-
-    // Order by descending ts to get the last anr first
-    const orderByClause = 'ORDER BY anr.ts DESC';
-    let whereClause = '';
-
-    if (whereFilters.length > 0) {
-      whereClause = 'WHERE ' + whereFilters.join(' AND ');
-    } else if (!args.autoSelect) {
-      return;
-    }
-
-    const query = `
-      SELECT
-        anr.ts - coalesce(anr.anr_dur_ms, anr.default_anr_dur_ms) * 1000000 AS ts,
-        coalesce(anr.anr_dur_ms, anr.default_anr_dur_ms) * 1000000 AS dur,
-        anr.upid
-      FROM
-        android_anrs anr
-      JOIN
-        android_process_metadata apm ON anr.upid = apm.upid
-      ${whereClause}
-      ${orderByClause}
-      LIMIT 1;
-    `;
-
-    const result = await e.query(query);
-    const it = result.iter({
-      ts: LONG,
-      dur: LONG_NULL,
       upid: NUM,
+      main_thread_track_id: NUM_NULL,
     });
 
     if (!it.valid()) {
@@ -269,6 +195,7 @@ export default class AndroidAnr implements PerfettoPlugin {
       ts: it.ts,
       dur: it.dur ?? 0n,
       upid: it.upid,
+      mainThreadTrackId: it.main_thread_track_id,
     };
 
     this.pinAnrTrack(ctx);
@@ -286,8 +213,31 @@ export default class AndroidAnr implements PerfettoPlugin {
       group.expand();
 
       const processTrackUri = group.uri;
+      const tracksToSelect = [];
+      if (anrInfo.mainThreadTrackId !== null) {
+        const mainThreadTrackNode = ctx.currentWorkspace.flatTracks.find(
+          (track) => {
+            if (!track.uri) {
+              return false;
+            }
+            const trackDesc = ctx.tracks.getTrack(track.uri);
+            return trackDesc?.tags?.trackIds?.includes(
+              anrInfo.mainThreadTrackId!,
+            );
+          },
+        );
+        if (mainThreadTrackNode?.uri) {
+          tracksToSelect.push(mainThreadTrackNode.uri);
+        }
+      }
 
-      this.scrollToAndSelect(ctx, processTrackUri, [], anrInfo.ts, anrInfo.dur);
+      this.scrollToAndSelect(
+        ctx,
+        processTrackUri,
+        tracksToSelect,
+        anrInfo.ts,
+        anrInfo.dur,
+      );
     });
   }
 
@@ -298,8 +248,8 @@ export default class AndroidAnr implements PerfettoPlugin {
     ts: bigint,
     dur: bigint,
   ) {
-    const startTime = Time.fromRaw(BigInt(ts));
-    const endTime = Time.fromRaw(BigInt(ts + dur));
+    const startTime = Time.fromRaw(ts);
+    const endTime = Time.fromRaw(ts + dur);
 
     ctx.scrollTo({
       track: {
