@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {addWattsonThreadTrack} from './wattson_thread_utils';
+import {App} from '../../public/app';
 import {createAggregationTab} from '../../components/aggregation_adapter';
 import {
   BaseCounterTrack,
@@ -25,6 +27,7 @@ import {TrackNode} from '../../public/workspace';
 import {Engine} from '../../trace_processor/engine';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
+import {RouteArgs} from '../../public/route_schema';
 import {WattsonEstimateSelectionAggregator} from './estimate_aggregator';
 import {WattsonPackageSelectionAggregator} from './package_aggregator';
 import {WattsonProcessSelectionAggregator} from './process_aggregator';
@@ -36,9 +39,25 @@ import {
 import SchedPlugin from '../dev.perfetto.Sched';
 import {createCpuWarnings, missingWattsonCpuConfigs} from './warning';
 
-export default class implements PerfettoPlugin {
+const WINDOW_MAP: Record<string, string> = {
+  perfetto_wattson_markers: 'markers',
+  perfetto_wattson_trace: 'trace',
+  perfetto_wattson_apps: 'atrace_apps',
+  perfetto_wattson_app_startup: 'app_startup',
+};
+
+export default class Wattson implements PerfettoPlugin {
   static readonly id = `org.kernel.Wattson`;
   static readonly dependencies = [SchedPlugin];
+  public static windowsOfInterest = new Set<string>();
+
+  static onActivate(_app: App, args: RouteArgs): void {
+    const metrics: string[] = [];
+    if (typeof args.metrics === 'string') {
+      metrics.push(...args.metrics.split('--'));
+    }
+    Wattson.updateWindowsOfInterest(metrics);
+  }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const markersSupported = await hasWattsonMarkersSupport(ctx.engine);
@@ -68,6 +87,60 @@ export default class implements PerfettoPlugin {
     }
     if (gpuSupported) {
       await addWattsonGpuElements(ctx, group);
+    }
+
+    if (Wattson.windowsOfInterest.size > 0) {
+      await this.pinThreadPowerTracks(ctx);
+      Wattson.windowsOfInterest.clear();
+    }
+  }
+
+  async pinThreadPowerTracks(ctx: Trace) {
+    if (Wattson.windowsOfInterest.size === 0) return;
+
+    // Gather all utids from all windows
+    const windowQueries = Array.from(Wattson.windowsOfInterest)
+      .map((window) => {
+        const suffix = WINDOW_MAP[window];
+        if (suffix === undefined) return undefined;
+        return `
+          INCLUDE PERFETTO MODULE wattson.aggregation;
+          INCLUDE PERFETTO MODULE wattson.windows;
+
+          SELECT utid
+          FROM wattson_threads_aggregation!(wattson_window_${suffix})
+          GROUP BY utid
+          ORDER BY SUM(total_mws) DESC
+          LIMIT 3
+        `;
+      })
+      .filter((q): q is string => q !== undefined);
+
+    const queryResults = await Promise.all(
+      windowQueries.map((q) => ctx.engine.query(q)),
+    );
+
+    const utidsToPin = new Set<number>();
+    for (const result of queryResults) {
+      const it = result.iter({utid: NUM});
+      for (; it.valid(); it.next()) {
+        utidsToPin.add(it.utid);
+      }
+    }
+
+    // Only add tracks of unique utids
+    for (const utid of utidsToPin) {
+      await addWattsonThreadTrack(ctx, utid, {pin: true});
+    }
+  }
+
+  private static updateWindowsOfInterest(metrics: string[]) {
+    for (const metric of metrics) {
+      for (const key of Object.keys(WINDOW_MAP)) {
+        if (metric.includes(key)) {
+          Wattson.windowsOfInterest.add(key);
+        }
+      }
     }
   }
 }
