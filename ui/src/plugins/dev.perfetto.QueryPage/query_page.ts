@@ -37,7 +37,7 @@ import {Tabs, TabsTab} from '../../widgets/tabs';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Anchor} from '../../widgets/anchor';
-import {getSliceId, isSliceish} from '../../components/query_table/query_table';
+import {getSliceId, isSliceish} from './query_table';
 import {Row} from '../../trace_processor/query_result';
 import {Select} from '../../widgets/select';
 import {DataSource} from '../../components/widgets/datagrid/data_source';

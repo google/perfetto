@@ -13,25 +13,25 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {QueryResponse} from './queries';
+import {QueryResponse} from '../../components/query_table/queries';
 import {Row} from '../../trace_processor/query_result';
 import {Callout} from '../../widgets/callout';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Trace} from '../../public/trace';
 import {Icons} from '../../base/semantic_icons';
-import {DataGrid, renderCell, DataGridApi} from '../widgets/datagrid/datagrid';
+import {DataGrid, renderCell, DataGridApi} from '../../components/widgets/datagrid/datagrid';
 import {
   CellRenderer,
   ColumnSchema,
   SchemaRegistry,
-} from '../widgets/datagrid/datagrid_schema';
-import {InMemoryDataSource} from '../widgets/datagrid/in_memory_data_source';
+} from '../../components/widgets/datagrid/datagrid_schema';
+import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
 import {Anchor} from '../../widgets/anchor';
 import {Box} from '../../widgets/box';
-import {DataGridExportButton} from '../widgets/datagrid/export_button';
+import {DataGridExportButton} from '../../components/widgets/datagrid/export_button';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
-import {DataSource} from '../widgets/datagrid/data_source';
-import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
+import {DataSource} from '../../components/widgets/datagrid/data_source';
+import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
 import {Button} from '../../widgets/button';
 import {PopupMenu} from '../../widgets/menu';
 import {PopupPosition} from '../../widgets/popup';
