@@ -21,6 +21,7 @@ import {TrackNode} from '../../public/workspace';
 import {Time} from '../../base/time';
 import {App} from '../../public/app';
 import {RouteArgs} from '../../public/route_schema';
+import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 
 const ANR_TRACK_URI = '/android_anrs';
 
@@ -67,6 +68,7 @@ let anrArgs: AnrArgs;
 
 export default class AndroidAnr implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidAnr';
+  static readonly dependencies = [ProcessThreadGroupsPlugin];
 
   static onActivate(app: App): void {
     const args: RouteArgs = app.initialRouteArgs;
@@ -115,6 +117,13 @@ export default class AndroidAnr implements PerfettoPlugin {
     ctx.defaultWorkspace.addChildInOrder(anrTrack);
 
     await this.selectAnrMainThread(ctx, anrArgs);
+  }
+
+  private pinAnrTrack(ctx: Trace) {
+    const trackNode = ctx.currentWorkspace.getTrackByUri(ANR_TRACK_URI);
+    if (trackNode) {
+      trackNode.pin();
+    }
   }
 
   private async selectAnrMainThread(ctx: Trace, args: AnrArgs) {
@@ -172,7 +181,10 @@ export default class AndroidAnr implements PerfettoPlugin {
       dur: LONG_NULL,
       main_thread_track_id: NUM,
     });
+
     if (!it.valid()) {
+      // Main thread not found, fallback to process track
+      await this.selectAnrProcessTrack(ctx, args, whereFilters);
       return;
     }
 
@@ -182,14 +194,7 @@ export default class AndroidAnr implements PerfettoPlugin {
       mainThreadTrackId: it.main_thread_track_id,
     };
 
-    // 1. Pin the Android ANRs track first.
-    const trackNode = ctx.currentWorkspace.getTrackByUri(ANR_TRACK_URI);
-    if (trackNode) {
-      trackNode.pin();
-    }
-
-    const startTime = Time.fromRaw(BigInt(anrInfo.ts));
-    const endTime = Time.fromRaw(BigInt(anrInfo.ts + anrInfo.dur));
+    this.pinAnrTrack(ctx);
 
     ctx.onTraceReady.addListener(async () => {
       // Find the main thread track by its track ID via the track tags.
@@ -208,36 +213,121 @@ export default class AndroidAnr implements PerfettoPlugin {
       }
       const mainThreadTrackUri = mainThreadTrackNode.uri;
 
-      // 2. Scroll to the main thread track and focus into view
-      ctx.scrollTo({
-        track: {
-          uri: mainThreadTrackUri,
-          expandGroup: true,
-        },
-        time:
-          anrInfo.dur > 0n
-            ? {
-                start: startTime,
-                end: endTime,
-                behavior: {viewPercentage: 0.8},
-              }
-            : {
-                start: startTime,
-                behavior: 'focus',
-              },
-      });
-
-      // 3. Select the area on the main thread track
-      ctx.selection.selectArea(
-        {
-          start: startTime,
-          end: endTime,
-          trackUris: [mainThreadTrackUri],
-        },
-        {
-          switchToCurrentSelectionTab: true,
-        },
+      this.scrollToAndSelect(
+        ctx,
+        mainThreadTrackUri,
+        [mainThreadTrackUri],
+        anrInfo.ts,
+        anrInfo.dur,
       );
     });
+  }
+
+  private async selectAnrProcessTrack(
+    ctx: Trace,
+    args: AnrArgs,
+    whereFilters: string[],
+  ) {
+    const e = ctx.engine;
+
+    // Order by descending ts to get the last anr first
+    const orderByClause = 'ORDER BY anr.ts DESC';
+    let whereClause = '';
+
+    if (whereFilters.length > 0) {
+      whereClause = 'WHERE ' + whereFilters.join(' AND ');
+    } else if (!args.autoSelect) {
+      return;
+    }
+
+    const query = `
+      SELECT
+        anr.ts - coalesce(anr.anr_dur_ms, anr.default_anr_dur_ms) * 1000000 AS ts,
+        coalesce(anr.anr_dur_ms, anr.default_anr_dur_ms) * 1000000 AS dur,
+        anr.upid
+      FROM
+        android_anrs anr
+      JOIN
+        android_process_metadata apm ON anr.upid = apm.upid
+      ${whereClause}
+      ${orderByClause}
+      LIMIT 1;
+    `;
+
+    const result = await e.query(query);
+    const it = result.iter({
+      ts: LONG,
+      dur: LONG_NULL,
+      upid: NUM,
+    });
+
+    if (!it.valid()) {
+      return;
+    }
+
+    const anrInfo = {
+      ts: it.ts,
+      dur: it.dur ?? 0n,
+      upid: it.upid,
+    };
+
+    this.pinAnrTrack(ctx);
+
+    ctx.onTraceReady.addListener(async () => {
+      const group = (
+        ctx.plugins.getPlugin(
+          ProcessThreadGroupsPlugin,
+        ) as ProcessThreadGroupsPlugin
+      ).getGroupForProcess(anrInfo.upid);
+
+      if (!group?.uri) {
+        return;
+      }
+      group.expand();
+
+      const processTrackUri = group.uri;
+
+      this.scrollToAndSelect(ctx, processTrackUri, [], anrInfo.ts, anrInfo.dur);
+    });
+  }
+
+  private scrollToAndSelect(
+    ctx: Trace,
+    trackToScroll: string,
+    tracksToSelect: string[],
+    ts: bigint,
+    dur: bigint,
+  ) {
+    const startTime = Time.fromRaw(BigInt(ts));
+    const endTime = Time.fromRaw(BigInt(ts + dur));
+
+    ctx.scrollTo({
+      track: {
+        uri: trackToScroll,
+        expandGroup: true,
+      },
+      time:
+        dur > 0n
+          ? {
+              start: startTime,
+              end: endTime,
+              behavior: {viewPercentage: 0.8},
+            }
+          : {
+              start: startTime,
+              behavior: 'focus',
+            },
+    });
+
+    ctx.selection.selectArea(
+      {
+        start: startTime,
+        end: endTime,
+        trackUris: tracksToSelect,
+      },
+      {
+        switchToCurrentSelectionTab: true,
+      },
+    );
   }
 }
