@@ -399,6 +399,28 @@ source_set("trace_type") {
   ]
 }
 
+source_set("flatbuf_reader") {
+  sources = [
+    "flatbuf_reader.cc",
+    "flatbuf_reader.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
+}
+
+source_set("flatbuf_writer") {
+  sources = [
+    "flatbuf_writer.cc",
+    "flatbuf_writer.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
+}
+
 source_set("tar_writer") {
   sources = [
     "tar_writer.cc",
@@ -427,6 +449,7 @@ source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
     "debug_annotation_parser_unittest.cc",
+    "flatbuf_reader_unittest.cc",
     "galloping_search_unittest.cc",
     "glob_unittest.cc",
     "json_parser_unittest.cc",
@@ -453,6 +476,8 @@ source_set("unittests") {
   deps = [
     ":bump_allocator",
     ":descriptors",
+    ":flatbuf_reader",
+    ":flatbuf_writer",
     ":galloping_search",
     ":glob",
     ":gzip",

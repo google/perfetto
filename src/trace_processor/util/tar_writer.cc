@@ -17,12 +17,14 @@
 #include "src/trace_processor/util/tar_writer.h"
 
 #include <fcntl.h>
-#include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -48,43 +50,165 @@ void SafeCopyToCharArray(char (&dest)[DestN], const char (&src)[SrcN]) {
     memset(dest + copy_len, 0, DestN - copy_len);
   }
 }
+// Writes to a file descriptor. Internal-only; not exposed in the header.
+class FdTarWriterSink : public TarWriterSink {
+ public:
+  explicit FdTarWriterSink(base::ScopedFile fd) : fd_(std::move(fd)) {
+    PERFETTO_CHECK(fd_);
+  }
+  base::Status Write(const void* data, size_t len) override {
+    ssize_t written =
+        base::WriteAll(fd_.get(), static_cast<const char*>(data), len);
+    if (written != static_cast<ssize_t>(len))
+      return base::ErrStatus("Failed to write to TAR output");
+    return base::OkStatus();
+  }
+  base::Status WriteFromFd(int fd, size_t /*len*/) override {
+    // Efficient fd-to-fd copy without intermediate buffer.
+    return base::CopyFileContents(fd, *fd_);
+  }
+
+ private:
+  base::ScopedFile fd_;
+};
+
 }  // namespace
+
+// --- Sink implementations ---
+
+TarWriterSink::~TarWriterSink() = default;
+
+BufferTarWriterSink::BufferTarWriterSink(std::vector<uint8_t>* buffer)
+    : buffer_(buffer) {
+  PERFETTO_CHECK(buffer_);
+}
+
+base::Status BufferTarWriterSink::Write(const void* data, size_t len) {
+  auto* bytes = static_cast<const uint8_t*>(data);
+  buffer_->insert(buffer_->end(), bytes, bytes + len);
+  return base::OkStatus();
+}
+
+base::Status BufferTarWriterSink::WriteFromFd(int fd, size_t len) {
+  size_t old_size = buffer_->size();
+  buffer_->resize(old_size + len);
+  ssize_t rd =
+      base::Read(fd, reinterpret_cast<char*>(buffer_->data() + old_size), len);
+  if (rd != static_cast<ssize_t>(len)) {
+    buffer_->resize(old_size);
+    return base::ErrStatus("Failed to read from fd");
+  }
+  return base::OkStatus();
+}
+
+// --- CallbackTarWriterSink ---
+
+CallbackTarWriterSink::CallbackTarWriterSink(WriteCallback callback)
+    : callback_(std::move(callback)) {
+  PERFETTO_CHECK(callback_);
+}
+
+base::Status CallbackTarWriterSink::Write(const void* data, size_t len) {
+  callback_(data, len);
+  return base::OkStatus();
+}
+
+base::Status CallbackTarWriterSink::WriteFromFd(int fd, size_t len) {
+  // Read from fd into a temporary buffer and forward to callback.
+  std::vector<uint8_t> buf(len);
+  ssize_t rd = base::Read(fd, reinterpret_cast<char*>(buf.data()), len);
+  if (rd != static_cast<ssize_t>(len))
+    return base::ErrStatus("Failed to read from fd");
+  callback_(buf.data(), buf.size());
+  return base::OkStatus();
+}
+
+// --- TarWriter ---
 
 TarWriter::TarWriter(const std::string& output_path)
     : TarWriter(
           base::OpenFile(output_path, O_CREAT | O_WRONLY | O_TRUNC, 0644)) {}
 
 TarWriter::TarWriter(base::ScopedFile output_file)
-    : output_file_(std::move(output_file)) {
-  PERFETTO_CHECK(output_file_);
+    : owned_sink_(new FdTarWriterSink(std::move(output_file))),
+      sink_(owned_sink_.get()) {}
+
+TarWriter::TarWriter(TarWriterSink* sink) : sink_(sink) {
+  PERFETTO_CHECK(sink_);
 }
 
 TarWriter::~TarWriter() {
-  // Write two 512-byte blocks of zeros to mark end of archive
-  char zero_block[512] = {0};
-  ssize_t written1 = base::WriteAll(output_file_.get(), zero_block, 512);
-  PERFETTO_CHECK(written1 == 512);
+  Finalize();
+}
 
-  ssize_t written2 = base::WriteAll(output_file_.get(), zero_block, 512);
-  PERFETTO_CHECK(written2 == 512);
+void TarWriter::Finalize() {
+  if (finalized_)
+    return;
+  finalized_ = true;
+  // Write two 512-byte blocks of zeros to mark end of archive.
+  char zero_block[512] = {0};
+  auto s1 = sink_->Write(zero_block, 512);
+  PERFETTO_CHECK(s1.ok());
+  auto s2 = sink_->Write(zero_block, 512);
+  PERFETTO_CHECK(s2.ok());
 }
 
 base::Status TarWriter::AddFile(const std::string& filename,
                                 const std::string& content) {
+  return AddFile(filename, reinterpret_cast<const uint8_t*>(content.data()),
+                 content.size());
+}
+
+base::Status TarWriter::AddFile(const std::string& filename,
+                                const uint8_t* data,
+                                size_t size) {
   RETURN_IF_ERROR(ValidateFilename(filename));
-  RETURN_IF_ERROR(CreateAndWriteHeader(filename, content.size()));
-
-  // Write file content
-  ssize_t bytes_written =
-      base::WriteAll(output_file_.get(), content.data(), content.size());
-  if (bytes_written != static_cast<ssize_t>(content.size())) {
-    return base::Status("Failed to write file content");
-  }
-
-  // Write padding to align to 512-byte boundary
-  RETURN_IF_ERROR(WritePadding(content.size()));
-
+  RETURN_IF_ERROR(CreateAndWriteHeader(filename, size));
+  RETURN_IF_ERROR(sink_->Write(data, size));
+  RETURN_IF_ERROR(WritePadding(size));
   return base::OkStatus();
+}
+
+// --- ScopedFileWriter ---
+
+TarWriter::ScopedFileWriter::ScopedFileWriter(TarWriterSink* sink, size_t size)
+    : sink_(sink), size_(size) {}
+
+TarWriter::ScopedFileWriter::ScopedFileWriter(ScopedFileWriter&& o) noexcept
+    : sink_(o.sink_), size_(o.size_) {
+  o.sink_ = nullptr;
+}
+
+TarWriter::ScopedFileWriter& TarWriter::ScopedFileWriter::operator=(
+    ScopedFileWriter&& o) noexcept {
+  sink_ = o.sink_;
+  size_ = o.size_;
+  o.sink_ = nullptr;
+  return *this;
+}
+
+TarWriter::ScopedFileWriter::~ScopedFileWriter() {
+  if (!sink_)
+    return;
+  // Write TAR padding to 512-byte boundary.
+  size_t padding_needed = (512 - (size_ % 512)) % 512;
+  if (padding_needed > 0) {
+    char zeros[512] = {0};
+    auto s = sink_->Write(zeros, padding_needed);
+    PERFETTO_CHECK(s.ok());
+  }
+}
+
+base::Status TarWriter::ScopedFileWriter::Write(const void* data, size_t len) {
+  return sink_->Write(data, len);
+}
+
+base::StatusOr<TarWriter::ScopedFileWriter> TarWriter::BeginFile(
+    const std::string& filename,
+    size_t size) {
+  RETURN_IF_ERROR(ValidateFilename(filename));
+  RETURN_IF_ERROR(CreateAndWriteHeader(filename, size));
+  return ScopedFileWriter(sink_, size);
 }
 
 base::Status TarWriter::AddFileFromPath(const std::string& filename,
@@ -93,23 +217,18 @@ base::Status TarWriter::AddFileFromPath(const std::string& filename,
 
   // Get file size
   auto file_size_opt = base::GetFileSize(file_path);
-  if (!file_size_opt) {
-    return base::Status("Failed to get file size: " + file_path);
-  }
+  if (!file_size_opt)
+    return base::ErrStatus("Failed to get file size: %s", file_path.c_str());
   size_t file_size = static_cast<size_t>(*file_size_opt);
 
   base::ScopedFile file = base::OpenFile(file_path, O_RDONLY);
-  if (!file) {
-    return base::Status("Failed to open file: " + file_path);
-  }
+  if (!file)
+    return base::ErrStatus("Failed to open file: %s", file_path.c_str());
 
   RETURN_IF_ERROR(CreateAndWriteHeader(filename, file_size));
+  RETURN_IF_ERROR(sink_->WriteFromFd(*file, file_size));
 
-  RETURN_IF_ERROR(base::CopyFileContents(*file, *output_file_));
-
-  // Write padding to align to 512-byte boundary
   RETURN_IF_ERROR(WritePadding(file_size));
-
   return base::OkStatus();
 }
 
@@ -145,21 +264,14 @@ base::Status TarWriter::CreateAndWriteHeader(const std::string& filename,
   // Compute checksum
   unsigned int sum = 0;
   const unsigned char* bytes = reinterpret_cast<const unsigned char*>(&header);
-  for (size_t i = 0; i < sizeof(TarHeader); i++) {
+  for (size_t i = 0; i < sizeof(TarHeader); i++)
     sum += bytes[i];
-  }
   snprintf(header.checksum, sizeof(header.checksum), "%06o", sum);
   header.checksum[6] = '\0';
   header.checksum[7] = ' ';
 
   // Write header
-  ssize_t written =
-      base::WriteAll(output_file_.get(), reinterpret_cast<const char*>(&header),
-                     sizeof(header));
-  if (written != static_cast<ssize_t>(sizeof(header))) {
-    return base::Status("Failed to write TAR header");
-  }
-  return base::OkStatus();
+  return sink_->Write(&header, sizeof(header));
 }
 
 base::Status TarWriter::WritePadding(size_t size) {
@@ -167,27 +279,22 @@ base::Status TarWriter::WritePadding(size_t size) {
   size_t padding_needed = (512 - (size % 512)) % 512;
   if (padding_needed > 0) {
     char zeros[512] = {0};
-    ssize_t written = base::WriteAll(output_file_.get(), zeros, padding_needed);
-    if (written != static_cast<ssize_t>(padding_needed)) {
-      return base::Status("Failed to write TAR padding");
-    }
+    RETURN_IF_ERROR(sink_->Write(zeros, padding_needed));
   }
   return base::OkStatus();
 }
 
 base::Status TarWriter::ValidateFilename(const std::string& filename) {
   // TAR header name field is 100 bytes, but we need null termination
-  if (filename.empty()) {
-    return base::Status("Filename cannot be empty");
-  }
-  if (filename.length() > 99) {
-    return base::Status("Filename too long for TAR format (max 99 chars): " +
-                        filename);
-  }
+  if (filename.empty())
+    return base::ErrStatus("Filename cannot be empty");
+  if (filename.length() > 99)
+    return base::ErrStatus(
+        "Filename too long for TAR format (max 99 chars): %s",
+        filename.c_str());
   // Check for invalid characters that might cause issues
-  if (filename.find('\0') != std::string::npos) {
-    return base::Status("Filename contains null character: " + filename);
-  }
+  if (filename.find('\0') != std::string::npos)
+    return base::ErrStatus("Filename contains null character");
   return base::OkStatus();
 }
 

@@ -38,6 +38,20 @@
 #include "src/trace_processor/core/util/bit_vector.h"
 
 namespace perfetto::trace_processor::core::dataframe {
+
+// String Null Handling (kStringNullLegacy)
+// =========================================
+// For legacy reasons, trace processor has two ways to represent null strings:
+// 1. std::nullopt (the standard way for nullable columns)
+// 2. StringPool::Id::Null() (a special sentinel value)
+//
+// The dataframe normalizes these on write and validates on read:
+// - Insert/Set: StringPool::Id::Null() is silently converted to a true null
+//   for nullable columns. For NonNull columns, passing StringPool::Id::Null()
+//   triggers a DCHECK.
+// - Get: DCHECKs that values read from storage are never
+//   StringPool::Id::Null() (since we should have converted them on write).
+
 namespace {
 
 template <typename T>

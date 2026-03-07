@@ -47,6 +47,7 @@ enum TraceType {
   kSimpleperfProtoTraceType,
   kTarTraceType,
   kPrimesTraceType,
+  kArrowIpcTraceType,
 };
 
 constexpr size_t kGuessTraceMaxLookahead = 128;

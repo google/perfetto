@@ -132,6 +132,12 @@ class TraceProcessorImpl : public TraceProcessor,
   std::vector<uint8_t> GetMetricDescriptors() override;
 
   // ===================
+  // |  Arrow export   |
+  // ===================
+
+  base::Status ExportToArrow(ExportArrowCallback callback) override;
+
+  // ===================
   // |   Summarizer    |
   // ===================
 

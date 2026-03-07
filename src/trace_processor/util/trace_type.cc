@@ -44,6 +44,7 @@ constexpr char kGzipMagic[] = {'\x1f', '\x8b'};
 constexpr char kArtMethodStreamingMagic[] = {'S', 'L', 'O', 'W'};
 constexpr char kArtHprofStreamingMagic[] = {'J', 'A', 'V', 'A', ' ', 'P',
                                             'R', 'O', 'F', 'I', 'L', 'E'};
+constexpr char kArrowIpcMagic[] = {'A', 'R', 'R', 'O', 'W', '1'};
 constexpr char kTarPosixMagic[] = {'u', 's', 't', 'a', 'r', '\0'};
 constexpr char kTarGnuMagic[] = {'u', 's', 't', 'a', 'r', ' ', ' ', '\0'};
 constexpr size_t kTarMagicOffset = 257;
@@ -298,6 +299,8 @@ const char* TraceTypeToString(TraceType trace_type) {
       return "unknown";
     case kTarTraceType:
       return "tar";
+    case kArrowIpcTraceType:
+      return "arrow_ipc";
   }
   PERFETTO_FATAL("For GCC");
 }
@@ -328,6 +331,7 @@ bool IsContainerTraceType(TraceType trace_type) {
     case kArtHprofTraceType:
     case kPerfTextTraceType:
     case kSimpleperfProtoTraceType:
+    case kArrowIpcTraceType:
     case kUnknownTraceType:
       return false;
   }
@@ -345,6 +349,10 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
 
   if (MatchesMagic(data, size, kTarGnuMagic, kTarMagicOffset)) {
     return kTarTraceType;
+  }
+
+  if (MatchesMagic(data, size, kArrowIpcMagic)) {
+    return kArrowIpcTraceType;
   }
 
   if (MatchesMagic(data, size, kFuchsiaMagic)) {

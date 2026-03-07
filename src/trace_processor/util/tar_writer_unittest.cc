@@ -328,5 +328,86 @@ TEST_F(TarWriterTest, DisableWindows(AutomaticFinalization)) {
   EXPECT_EQ(headers[0].name, "test.txt");
 }
 
+TEST_F(TarWriterTest, BufferSinkSingleFile) {
+  const std::string test_content = "In-memory TAR content";
+
+  std::vector<uint8_t> buffer;
+  {
+    BufferTarWriterSink sink(&buffer);
+    TarWriter writer(&sink);
+    ASSERT_OK(writer.AddFile("inmem.txt", test_content));
+  }
+
+  // Parse the in-memory TAR the same way we parse file-based ones.
+  std::string tar_content(buffer.begin(), buffer.end());
+  auto headers = ParseTarFile(tar_content);
+
+  ASSERT_EQ(headers.size(), 1u);
+  EXPECT_EQ(headers[0].name, "inmem.txt");
+  EXPECT_EQ(headers[0].size, test_content.size());
+
+  size_t content_offset = 512;
+  std::string extracted =
+      tar_content.substr(content_offset, test_content.size());
+  EXPECT_EQ(extracted, test_content);
+}
+
+TEST_F(TarWriterTest, BufferSinkMultipleFiles) {
+  std::vector<uint8_t> buffer;
+  {
+    BufferTarWriterSink sink(&buffer);
+    TarWriter writer(&sink);
+    ASSERT_OK(writer.AddFile("a.txt", "alpha"));
+    ASSERT_OK(writer.AddFile("b.txt", "bravo"));
+  }
+
+  std::string tar_content(buffer.begin(), buffer.end());
+  auto headers = ParseTarFile(tar_content);
+
+  ASSERT_EQ(headers.size(), 2u);
+  EXPECT_EQ(headers[0].name, "a.txt");
+  EXPECT_EQ(headers[0].size, 5u);
+  EXPECT_EQ(headers[1].name, "b.txt");
+  EXPECT_EQ(headers[1].size, 5u);
+}
+
+TEST_F(TarWriterTest, DisableWindows(AddFileRawBytes)) {
+  const uint8_t data[] = {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x42};
+
+  {
+    TarWriter writer(output_path_);
+    ASSERT_OK(writer.AddFile("raw.bin", data, sizeof(data)));
+  }
+
+  std::string tar_content = ReadFile(output_path_);
+  auto headers = ParseTarFile(tar_content);
+
+  ASSERT_EQ(headers.size(), 1u);
+  EXPECT_EQ(headers[0].name, "raw.bin");
+  EXPECT_EQ(headers[0].size, sizeof(data));
+
+  // Verify raw bytes are preserved exactly.
+  size_t content_offset = 512;
+  EXPECT_EQ(memcmp(tar_content.data() + content_offset, data, sizeof(data)), 0);
+}
+
+TEST_F(TarWriterTest, BufferSinkRawBytes) {
+  const uint8_t data[] = {0x50, 0x41, 0x52, 0x31};  // "PAR1"
+
+  std::vector<uint8_t> buffer;
+  {
+    BufferTarWriterSink sink(&buffer);
+    TarWriter writer(&sink);
+    ASSERT_OK(writer.AddFile("magic.bin", data, sizeof(data)));
+  }
+
+  std::string tar_content(buffer.begin(), buffer.end());
+  auto headers = ParseTarFile(tar_content);
+
+  ASSERT_EQ(headers.size(), 1u);
+  EXPECT_EQ(headers[0].name, "magic.bin");
+  EXPECT_EQ(headers[0].size, sizeof(data));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::util

@@ -41,13 +41,16 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
+#include "perfetto/trace_processor/summarizer.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/core/dataframe/arrow_ipc.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.h"
@@ -56,10 +59,10 @@
 #include "src/trace_processor/importers/archive/gzip_trace_parser.h"
 #include "src/trace_processor/importers/archive/tar_trace_reader.h"
 #include "src/trace_processor/importers/archive/zip_trace_reader.h"
+#include "src/trace_processor/importers/arrow/arrow_ipc_trace_reader.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_parser.h"
 #include "src/trace_processor/importers/art_method/art_method_tokenizer.h"
 #include "src/trace_processor/importers/collapsed_stack/collapsed_stack_trace_reader.h"
-#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/registered_file_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
@@ -85,7 +88,6 @@
 #include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/engine/table_pointer_module.h"
-#include "src/trace_processor/perfetto_sql/generator/structured_query_generator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/args.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/base64.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h"
@@ -155,13 +157,13 @@
 #include "src/trace_processor/util/protozero_to_json.h"
 #include "src/trace_processor/util/protozero_to_text.h"
 #include "src/trace_processor/util/sql_modules.h"
+#include "src/trace_processor/util/tar_writer.h"
 #include "src/trace_processor/util/trace_type.h"
 
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "protos/perfetto/trace_summary/file.pbzero.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_INSTRUMENTS)
 #include "src/trace_processor/importers/instruments/instruments_xml_tokenizer.h"
@@ -559,6 +561,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
           kSimpleperfProtoTraceType);
   context()->reader_registry->RegisterTraceReader<TarTraceReader>(
       kTarTraceType);
+  context()->reader_registry->RegisterTraceReader<ArrowIpcTraceReader>(
+      kArrowIpcTraceType);
   context()->reader_registry->RegisterTraceReader<primes::PrimesTraceTokenizer>(
       kPrimesTraceType);
 
@@ -1479,6 +1483,46 @@ base::Status TraceProcessorImpl::CreateSummarizer(
   std::string id = std::to_string(next_summarizer_id_++);
   *out = std::make_unique<summary::SummarizerImpl>(
       this, &metrics_descriptor_pool_, std::move(id));
+  return base::OkStatus();
+}
+
+base::Status TraceProcessorImpl::ExportToArrow(ExportArrowCallback callback) {
+  auto* storage = context_.storage.get();
+  auto dataframes = storage->GetStaticDataframes();
+
+  // Use a CallbackTarWriterSink that forwards Write() calls to the callback
+  // with has_more=true. After finalization, we send has_more=false.
+  util::CallbackTarWriterSink sink([&callback](const void* data, size_t len) {
+    callback(static_cast<const uint8_t*>(data), len, /*has_more=*/true);
+  });
+  util::TarWriter tar(&sink);
+
+  core::dataframe::ArrowWriter arrow_writer;
+  for (auto& entry : dataframes) {
+    if (entry.dataframe->row_count() == 0)
+      continue;
+    // Skip import-metadata tables that are session-specific.
+    base::StringView name(entry.name);
+    if (name == "__intrinsic_trace_file" ||
+        name == "__intrinsic_trace_import_logs") {
+      continue;
+    }
+    std::string arrow_filename = std::string(entry.name) + ".arrow";
+
+    auto* string_pool = storage->mutable_string_pool();
+    size_t arrow_size = arrow_writer.Prepare(*entry.dataframe, string_pool);
+    ASSIGN_OR_RETURN(auto file_writer,
+                     tar.BeginFile(arrow_filename, arrow_size));
+    RETURN_IF_ERROR(
+        arrow_writer.Write(*entry.dataframe, string_pool,
+                           [&file_writer](const uint8_t* data, size_t len) {
+                             auto status = file_writer.Write(data, len);
+                             PERFETTO_CHECK(status.ok());
+                           }));
+  }
+
+  // Signal end of stream.
+  callback(nullptr, 0, /*has_more=*/false);
   return base::OkStatus();
 }
 

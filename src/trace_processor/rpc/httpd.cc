@@ -249,6 +249,29 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     return conn.SendResponse("200 OK", default_headers);
   }
 
+  if (req.uri == "/export_to_arrow") {
+    // Streams raw TAR bytes directly, same pattern as /query.
+    conn.SendResponseHeaders("200 OK", chunked_headers,
+                             base::HttpServerConnection::kOmitContentLength);
+    auto on_chunk = [&](const uint8_t* buf, size_t len, bool has_more) {
+      PERFETTO_DLOG("Sending arrow chunk, len=%zu eof=%d", len, !has_more);
+      if (buf && len > 0) {
+        base::StackString<32> chunk_hdr("%zx\r\n", len);
+        conn.SendResponseBody(chunk_hdr.c_str(), chunk_hdr.len());
+        conn.SendResponseBody(buf, len);
+        conn.SendResponseBody("\r\n", 2);
+      }
+      if (!has_more)
+        conn.SendResponseBody("0\r\n\r\n", 5);
+    };
+    base::Status status = global_trace_processor_rpc_.ExportToArrow(on_chunk);
+    if (!status.ok()) {
+      return conn.SendResponseAndClose("500 Internal Server Error",
+                                       default_headers, status.c_message());
+    }
+    return;
+  }
+
   if (req.uri == "/disable_and_read_metatrace") {
     std::vector<uint8_t> res =
         global_trace_processor_rpc_.DisableAndReadMetatrace();

@@ -235,5 +235,53 @@ TEST(TraceProcessorShellIntegrationTest, StdioSimpleRequestResponse) {
               ElementsAre(10852771242000, 3000));
 }
 
+TEST(TraceProcessorShellIntegrationTest, StdioExportToArrow) {
+  TraceProcessorRpcStream req;
+
+  auto* rpc = req.add_msg();
+  rpc->set_append_trace_data(kSimpleSystrace.data(), kSimpleSystrace.size());
+  rpc->set_request(TraceProcessorRpc::TPM_APPEND_TRACE_DATA);
+
+  rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_FINALIZE_TRACE_DATA);
+
+  rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_EXPORT_ARROW);
+
+  base::Subprocess process(
+      {base::GetCurExecutableDir() + "/trace_processor_shell", "--stdiod"});
+  process.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  process.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.stderr_mode = base::Subprocess::OutputMode::kInherit;
+  process.args.input = req.SerializeAsString();
+  process.Start();
+
+  ASSERT_TRUE(process.Wait(kDefaultTestTimeoutMs));
+
+  TraceProcessorRpcStream stream;
+  stream.ParseFromString(process.output());
+
+  // First two responses should be APPEND and FINALIZE.
+  ASSERT_GE(stream.msg_size(), 3);
+  ASSERT_EQ(stream.msg()[0].response(),
+            TraceProcessorRpc::TPM_APPEND_TRACE_DATA);
+  ASSERT_EQ(stream.msg()[1].response(),
+            TraceProcessorRpc::TPM_FINALIZE_TRACE_DATA);
+
+  // Remaining responses should all be TPM_EXPORT_ARROW.
+  // Concatenate the TAR data from all export chunks.
+  std::string tar_bytes;
+  for (size_t i = 2; i < static_cast<size_t>(stream.msg_size()); ++i) {
+    const auto& msg = stream.msg()[i];
+    ASSERT_EQ(msg.response(), TraceProcessorRpc::TPM_EXPORT_ARROW);
+    ASSERT_THAT(msg.export_arrow_result().error(), IsEmpty());
+    tar_bytes += msg.export_arrow_result().data();
+  }
+
+  // TAR headers contain "ustar" magic at offset 257.
+  ASSERT_GT(tar_bytes.size(), 512u);
+  ASSERT_EQ(std::string(tar_bytes.data() + 257, 5), "ustar");
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor

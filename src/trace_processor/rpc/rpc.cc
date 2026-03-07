@@ -459,6 +459,26 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       resp.Send(rpc_response_fn_);
       break;
     }
+    case RpcProto::TPM_EXPORT_ARROW: {
+      auto status = trace_processor_->ExportToArrow(
+          [&](const uint8_t* data, size_t len, bool has_more) {
+            Response resp(tx_seq_id_++, req_type);
+            auto* result = resp->set_export_arrow_result();
+            if (data && len > 0) {
+              result->set_data(data, len);
+            }
+            result->set_has_more(has_more);
+            resp.Send(rpc_response_fn_);
+          });
+      if (!status.ok()) {
+        Response resp(tx_seq_id_++, req_type);
+        auto* result = resp->set_export_arrow_result();
+        result->set_error(status.message());
+        result->set_has_more(false);
+        resp.Send(rpc_response_fn_);
+      }
+      break;
+    }
     case RpcProto::TPM_DESTROY_SUMMARIZER: {
       Response resp(tx_seq_id_++, req_type);
       protozero::ConstBytes args = req.destroy_summarizer_args();
@@ -829,6 +849,10 @@ std::vector<uint8_t> Rpc::GetStatus() {
   }
   status->set_api_version(protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
   return status.SerializeAsArray();
+}
+
+base::Status Rpc::ExportToArrow(const ExportArrowCallback& callback) {
+  return trace_processor_->ExportToArrow(callback);
 }
 
 }  // namespace perfetto::trace_processor
