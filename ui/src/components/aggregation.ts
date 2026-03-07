@@ -12,32 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
 import {ColorScheme} from '../base/color_scheme';
-import {Row, SqlValue} from '../trace_processor/query_result';
-import {CellRenderResult} from './widgets/datagrid/datagrid_schema';
-
-export interface ColumnDef {
-  readonly columnId: string;
-  readonly title: string;
-  readonly formatHint?: string;
-  readonly sum?: boolean;
-  readonly sort?: 'ASC' | 'DESC';
-  // Custom renderer for this column's cells. If provided, this takes precedence
-  // over the formatHint-based renderer.
-  readonly cellRenderer?: (
-    value: SqlValue,
-    row: Row,
-  ) => m.Children | CellRenderResult;
-}
 
 export interface BarChartData {
   readonly title: string;
   readonly value: number;
   readonly color: ColorScheme;
-}
-
-export interface Sorting {
-  readonly column: string;
-  readonly direction: 'DESC' | 'ASC';
 }

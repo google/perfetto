@@ -1,20 +1,23 @@
 // Copyright (C) 2020 The Android Open Source Project
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Apache License, Version 2.0 (the \"License\");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
 //      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
+// distributed under the License is distributed on an \"AS IS\" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import {ColumnDef} from '../../components/aggregation';
-import {Aggregation, Aggregator} from '../../components/aggregation_adapter';
+import {
+  Aggregation,
+  Aggregator,
+  AggregatorGridConfig,
+} from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
@@ -126,55 +129,31 @@ export class CounterSelectionAggregator implements Aggregator {
     };
   }
 
-  getColumnDefinitions(): ColumnDef[] {
-    return [
-      {
-        title: 'Name',
-        columnId: 'name',
-        sort: 'DESC',
+  getGridConfig(): AggregatorGridConfig {
+    return {
+      schema: {
+        name: {title: 'Name', columnType: 'text'},
+        delta_value: {title: 'Delta value', columnType: 'quantitative'},
+        rate: {title: 'Rate /s', columnType: 'quantitative'},
+        avg_value: {title: 'Weighted avg value', columnType: 'quantitative'},
+        count: {title: 'Count', columnType: 'quantitative'},
+        first_value: {title: 'First value', columnType: 'quantitative'},
+        last_value: {title: 'Last value', columnType: 'quantitative'},
+        min_value: {title: 'Min value', columnType: 'quantitative'},
+        max_value: {title: 'Max value', columnType: 'quantitative'},
       },
-      {
-        title: 'Delta value',
-        columnId: 'delta_value',
-        formatHint: 'NUMERIC',
-      },
-      {
-        title: 'Rate /s',
-        columnId: 'rate',
-        formatHint: 'NUMERIC',
-      },
-      {
-        title: 'Weighted avg value',
-        columnId: 'avg_value',
-        formatHint: 'NUMERIC',
-      },
-      {
-        title: 'Count',
-        columnId: 'count',
-        sum: true,
-        formatHint: 'NUMERIC',
-      },
-      {
-        title: 'First value',
-        columnId: 'first_value',
-        formatHint: 'NUMERIC',
-      },
-      {
-        title: 'Last value',
-        columnId: 'last_value',
-        formatHint: 'NUMERIC',
-      },
-      {
-        title: 'Min value',
-        columnId: 'min_value',
-        formatHint: 'NUMERIC',
-      },
-      {
-        title: 'Max value',
-        columnId: 'max_value',
-        formatHint: 'NUMERIC',
-      },
-    ];
+      initialColumns: [
+        {id: 'name', field: 'name', sort: 'DESC'},
+        {id: 'delta_value', field: 'delta_value'},
+        {id: 'rate', field: 'rate'},
+        {id: 'avg_value', field: 'avg_value'},
+        {id: 'count', field: 'count', aggregate: 'SUM'},
+        {id: 'first_value', field: 'first_value'},
+        {id: 'last_value', field: 'last_value'},
+        {id: 'min_value', field: 'min_value'},
+        {id: 'max_value', field: 'max_value'},
+      ],
+    };
   }
 
   getTabName() {
