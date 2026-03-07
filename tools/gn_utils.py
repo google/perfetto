@@ -26,6 +26,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -110,11 +111,76 @@ def create_build_description(gn_args, root=repo_root()):
 
     The temporary out directory is automatically deleted.
     """
-  out = prepare_out_directory(gn_args, 'tmp.gn_utils', root=root)
+  out_dir = os.path.join(root, 'out')
+  os.makedirs(out_dir, exist_ok=True)
+  out = tempfile.mkdtemp(prefix='tmp.gn_utils.', dir=out_dir)
   try:
+    _check_command_output(
+        _tool_path('gn') + ['gen', out, '--args=%s' % gn_args], cwd=repo_root())
     return load_build_description(out)
   finally:
     shutil.rmtree(out)
+
+
+class BuildDescription:
+  """Holds a GN build description and its temporary output directory.
+
+  Use as a context manager to automatically clean up the temp directory.
+  The .desc attribute holds the parsed JSON build description.
+  """
+
+  def __init__(self, gn_args, root=repo_root()):
+    self.gn_args = gn_args
+    self.root = root
+    self.out = None
+    self.desc = None
+
+  def __enter__(self):
+    out_dir = os.path.join(self.root, 'out')
+    os.makedirs(out_dir, exist_ok=True)
+    self.out = tempfile.mkdtemp(prefix='tmp.gn_utils.', dir=out_dir)
+    _check_command_output(
+        _tool_path('gn') +
+        ['gen', self.out, '--args=%s' % self.gn_args],
+        cwd=repo_root())
+    self.desc = load_build_description(self.out)
+    return self
+
+  def __exit__(self, *args):
+    if self.out:
+      shutil.rmtree(self.out)
+
+  def build_buildflags(self, target_file):
+    """Builds the buildflags target reusing this directory (no extra gn gen).
+    """
+    build_targets(self.out, [BUILDFLAGS_TARGET], quiet=True)
+    src = os.path.join(self.out, 'gen', 'build_config',
+                       'perfetto_build_flags.h')
+    shutil.copy(src, os.path.join(repo_root(), target_file))
+
+
+def create_build_descriptions(gn_args_list, root=repo_root()):
+  """Like create_build_description but runs multiple GN descriptions in
+    parallel. Returns a list of BuildDescription context managers (already
+    entered). The caller must call .close() or use cleanup_build_descriptions()
+    when done.
+    """
+  from concurrent.futures import ThreadPoolExecutor
+
+  def _create(gn_args):
+    bd = BuildDescription(gn_args, root)
+    bd.__enter__()
+    return bd
+
+  with ThreadPoolExecutor() as pool:
+    return list(pool.map(_create, gn_args_list))
+
+
+def cleanup_build_descriptions(descs):
+  """Cleans up a list of BuildDescription objects in parallel."""
+  from concurrent.futures import ThreadPoolExecutor
+  with ThreadPoolExecutor() as pool:
+    list(pool.map(lambda bd: bd.__exit__(None, None, None), descs))
 
 
 def build_targets(out, targets, quiet=False, system_buildtools=False):
@@ -187,11 +253,19 @@ def gen_buildflags(gn_args, target_file):
     target_file: the path, relative to the repo root, where the generated
         buildflag header will be copied into.
     """
-  tmp_out = prepare_out_directory(gn_args, 'tmp.gen_buildflags')
-  build_targets(tmp_out, [BUILDFLAGS_TARGET], quiet=True)
-  src = os.path.join(tmp_out, 'gen', 'build_config', 'perfetto_build_flags.h')
-  shutil.copy(src, os.path.join(repo_root(), target_file))
-  shutil.rmtree(tmp_out)
+  out_dir = os.path.join(repo_root(), 'out')
+  os.makedirs(out_dir, exist_ok=True)
+  tmp_out = tempfile.mkdtemp(prefix='tmp.gen_buildflags.', dir=out_dir)
+  try:
+    _check_command_output(
+        _tool_path('gn') +
+        ['gen', tmp_out, '--args=%s' % gn_args],
+        cwd=repo_root())
+    build_targets(tmp_out, [BUILDFLAGS_TARGET], quiet=True)
+    src = os.path.join(tmp_out, 'gen', 'build_config', 'perfetto_build_flags.h')
+    shutil.copy(src, os.path.join(repo_root(), target_file))
+  finally:
+    shutil.rmtree(tmp_out)
 
 
 def check_or_commit_generated_files(tmp_files, check):
