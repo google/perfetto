@@ -45,5 +45,6 @@ export interface RecordingTarget extends WithPreflightChecks {
 
   startTracing(
     traceConfig: protos.ITraceConfig,
+    fileHandle?: FileSystemFileHandle,
   ): Promise<Result<TracingSession>>;
 }
