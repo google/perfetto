@@ -96,6 +96,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/dominator_tree.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/graph_scan.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/graph_traversal.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/heap_graph_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/import.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/interval_intersect.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h"
@@ -1131,6 +1132,8 @@ std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
   AddStaticTable(tables, storage->mutable_experimental_proto_path_table());
   AddStaticTable(tables, storage->mutable_arg_table());
   AddStaticTable(tables, storage->mutable_heap_graph_object_table());
+  AddStaticTable(tables, storage->mutable_heap_graph_object_field_table());
+  AddStaticTable(tables, storage->mutable_heap_graph_object_data_table());
   AddStaticTable(tables, storage->mutable_heap_graph_reference_table());
   AddStaticTable(tables, storage->mutable_heap_graph_class_table());
   AddStaticTable(tables, storage->mutable_heap_profile_allocation_table());
@@ -1269,6 +1272,11 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   }
   {
     base::Status status = RegisterStackFunctions(engine.get(), context);
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
+  {
+    base::Status status = RegisterHeapGraphFunctions(engine.get(), context);
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }

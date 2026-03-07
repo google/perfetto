@@ -1,0 +1,2219 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Styles for the Ahat plugin.
+// The CSS reset is provided by Perfetto's global styles.
+
+// ─── Theme tokens ────────────────────────────────────────────────────────────
+
+:root {
+  // Surfaces
+  --ah-surface: #ffffff;
+  --ah-surface-alt: #fafaf9; // stone-50
+  --ah-surface-muted: #f5f5f4; // stone-100
+  --ah-surface-page: #fafaf9; // stone-50
+
+  // Text
+  --ah-text: #292524; // stone-800
+  --ah-text-secondary: #57534e; // stone-600
+  --ah-text-muted: #78716c; // stone-500
+  --ah-text-faint: #a8a29e; // stone-400
+  --ah-text-fainter: #d6d3d1; // stone-300
+
+  // Borders
+  --ah-border: #e7e5e4; // stone-200
+  --ah-border-light: #f5f5f4; // stone-100
+  --ah-border-heavy: #d6d3d1; // stone-300
+
+  // Links
+  --ah-link: #0369a1; // sky-700
+  --ah-link-hover: #0ea5e9; // sky-500
+  --ah-link-decoration: #7dd3fc; // sky-300
+  --ah-link-decoration-hover: #0ea5e9; // sky-500
+  --ah-link-alt: #0284c7; // sky-600 (used for "show more" etc.)
+
+  // Accent
+  --ah-accent: #0284c7; // sky-600
+  --ah-accent-hover: #075985; // sky-800
+  --ah-accent-active: #38bdf8; // sky-400
+  --ah-accent-bg: #f0f9ff; // sky-50
+  --ah-accent-bg-hover: rgba(12, 74, 110, 0.3); // sky-900/30
+
+  // Semantic: delta (size changes)
+  --ah-delta-pos: #b91c1c; // red-700
+  --ah-delta-neg: #15803d; // green-700
+  --ah-delta-pos-bg-heavy: #fecaca; // red-200
+  --ah-delta-pos-bg-medium: #fee2e2; // red-100
+  --ah-delta-pos-bg-light: #fef2f2; // red-50
+  --ah-delta-neg-bg-heavy: #bbf7d0; // green-200
+  --ah-delta-neg-bg-medium: #dcfce7; // green-100
+  --ah-delta-neg-bg-light: #f0fdf4; // green-50
+
+  // Semantic: status badges
+  --ah-badge-reachability: #d97706; // amber-600
+  --ah-badge-root: #f43f5e; // rose-500
+  --ah-badge-string: #047857; // emerald-700
+  --ah-badge-warning: #d97706; // amber-600
+  --ah-badge-referent: #78716c; // stone-500
+
+  // Status: error
+  --ah-error-bg: #fff1f2; // rose-50
+  --ah-error-border: #fecdd3; // rose-200
+  --ah-error-text: #be123c; // rose-700
+
+  // Status: warning
+  --ah-warning-bg: #fffbeb; // amber-50
+  --ah-warning-border: #fde68a; // amber-200
+  --ah-warning-text: #b45309; // amber-700
+
+  // Diff/added/removed
+  --ah-diff-bg: #fde68a; // amber-200
+  --ah-diff-text: #78350f; // amber-900
+  --ah-diff-highlight: #e0f2fe; // sky-100
+  --ah-diff-marker: #d97706; // amber-600
+  --ah-status-added-bg: rgba(240, 253, 244, 0.5); // green-50/50
+  --ah-status-added-text: #16a34a; // green-600
+  --ah-status-removed-text: #dc2626; // red-600
+
+  // Progress bar
+  --ah-progress-bg: #f5f5f4; // stone-100
+  --ah-progress-fill: #0ea5e9; // sky-500
+  --ah-progress-fill-alt: #f59e0b; // amber-500
+
+  // Hover
+  --ah-hover-bg: #fafaf9; // stone-50
+  --ah-hover-accent-bg: #f0f9ff; // sky-50
+
+  // DumpButton
+  --ah-btn-accent-border: #bae6fd; // sky-200
+  --ah-btn-accent-border-hover: #38bdf8; // sky-400
+  --ah-btn-accent-disabled-border: #e7e5e4; // stone-200
+  --ah-btn-accent-disabled-text: #d6d3d1; // stone-300
+  --ah-btn-capture-border: #fcd34d; // amber-300
+  --ah-btn-capture-text: #b45309; // amber-700
+  --ah-btn-capture-border-hover: #fb7185; // rose-400
+  --ah-btn-capture-hover-text: #be123c; // rose-700
+
+  // Misc
+  --ah-scrollbar-thumb: #a8a29e;
+  --ah-scrollbar-track: transparent;
+  --ah-code-bg: #f5f5f4; // stone-100
+}
+
+.pf-theme-provider--dark {
+  --ah-surface: #1c1917;
+  --ah-surface-alt: #292524;
+  --ah-surface-muted: #44403c;
+  --ah-surface-page: #0c0a09;
+
+  --ah-text: #f5f5f4;
+  --ah-text-secondary: #d6d3d1;
+  --ah-text-muted: #a8a29e;
+  --ah-text-faint: #78716c;
+  --ah-text-fainter: #57534e;
+
+  --ah-border: #44403c;
+  --ah-border-light: #292524;
+  --ah-border-heavy: #57534e;
+
+  --ah-link: #38bdf8;
+  --ah-link-hover: #7dd3fc;
+  --ah-link-decoration: #0284c7;
+  --ah-link-decoration-hover: #38bdf8;
+  --ah-link-alt: #38bdf8;
+
+  --ah-accent: #38bdf8;
+  --ah-accent-hover: #7dd3fc;
+  --ah-accent-active: #38bdf8;
+  --ah-accent-bg: rgba(12, 74, 110, 0.3);
+  --ah-accent-bg-hover: rgba(12, 74, 110, 0.3);
+
+  --ah-delta-pos: #f87171;
+  --ah-delta-neg: #4ade80;
+  --ah-delta-pos-bg-heavy: #7f1d1d;
+  --ah-delta-pos-bg-medium: rgba(127, 29, 29, 0.5);
+  --ah-delta-pos-bg-light: #450a0a;
+  --ah-delta-neg-bg-heavy: #14532d;
+  --ah-delta-neg-bg-medium: rgba(20, 83, 45, 0.5);
+  --ah-delta-neg-bg-light: #052e16;
+
+  --ah-badge-reachability: #fbbf24;
+  --ah-badge-root: #fb7185;
+  --ah-badge-string: #34d399;
+  --ah-badge-warning: #fbbf24;
+  --ah-badge-referent: #a8a29e;
+
+  --ah-error-bg: #4c0519;
+  --ah-error-border: #9f1239;
+  --ah-error-text: #fb7185;
+
+  --ah-warning-bg: #451a03;
+  --ah-warning-border: #92400e;
+  --ah-warning-text: #fbbf24;
+
+  --ah-diff-bg: #78350f;
+  --ah-diff-text: #fde68a;
+  --ah-diff-highlight: rgba(12, 74, 110, 0.4);
+  --ah-diff-marker: #fbbf24;
+  --ah-status-added-bg: rgba(20, 83, 45, 0.3);
+  --ah-status-added-text: #4ade80;
+  --ah-status-removed-text: #f87171;
+
+  --ah-progress-bg: #44403c;
+  --ah-progress-fill: #0ea5e9;
+  --ah-progress-fill-alt: #f59e0b;
+
+  --ah-hover-bg: #292524;
+  --ah-hover-accent-bg: rgba(12, 74, 110, 0.3);
+
+  --ah-btn-accent-border: #0c4a6e;
+  --ah-btn-accent-border-hover: #0ea5e9;
+  --ah-btn-accent-disabled-border: #44403c;
+  --ah-btn-accent-disabled-text: #57534e;
+  --ah-btn-capture-border: #92400e;
+  --ah-btn-capture-text: #fbbf24;
+  --ah-btn-capture-border-hover: #f43f5e;
+  --ah-btn-capture-hover-text: #fb7185;
+
+  --ah-scrollbar-thumb: #57534e;
+  --ah-scrollbar-track: transparent;
+  --ah-code-bg: #44403c;
+}
+
+$mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+  "Courier New", monospace;
+
+// ─── Page shell ──────────────────────────────────────────────────────────────
+
+.ah-page {
+  min-height: 100vh;
+  background: var(--ah-surface-page);
+  display: flex;
+  flex-direction: column;
+  color: var(--ah-text);
+}
+
+.ah-main {
+  flex: 1;
+  padding: 1rem;
+  max-width: 95%;
+  margin: 0 auto;
+  width: 100%;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.ah-main--vmadump {
+  flex: 1;
+  padding: 1rem;
+  max-width: 95%;
+  margin: 0 auto;
+  width: 100%;
+}
+
+// ─── Sidebar sub-items ──────────────────────────────────────────────────────
+
+.ah-sidebar-active {
+  font-weight: 500;
+}
+
+// ─── Session bar (multi-tab) ─────────────────────────────────────────────────
+
+.ah-session-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--ah-border);
+  background: var(--ah-surface-alt);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.ah-session-tab {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--ah-text-muted);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    background-color 0.15s;
+  white-space: nowrap;
+  &:hover {
+    color: var(--ah-text);
+    background: var(--ah-hover-bg);
+  }
+}
+
+.ah-session-tab--active {
+  color: var(--ah-text);
+  border-bottom-color: var(--ah-accent);
+  background: var(--ah-surface);
+}
+
+.ah-session-tab__group {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  cursor: pointer;
+}
+
+.ah-session-tab__dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.ah-session-tab__dot--loading {
+  background: var(--ah-accent);
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.ah-session-tab__dot--error {
+  background: var(--ah-error-text);
+}
+
+.ah-session-tab__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
+.ah-session-tab__close {
+  font-size: 0.75rem;
+  line-height: 1;
+  flex-shrink: 0;
+  color: var(--ah-text-faint);
+  &:hover {
+    color: var(--ah-error-text);
+  }
+}
+
+.ah-session-tab__close--hidden {
+  opacity: 0;
+}
+
+.ah-session-tab__close--visible {
+  opacity: 1;
+}
+
+.ah-session-tab__add {
+  color: var(--ah-text-faint);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  padding: 0.375rem 0.5rem;
+  transition: color 0.15s;
+  &:hover {
+    color: var(--ah-text-secondary);
+  }
+}
+
+// Group hover: show close button on parent hover
+.ah-session-tab__group:hover .ah-session-tab__close--hidden {
+  opacity: 1;
+}
+
+// ─── View tabs (nav within a session) ────────────────────────────────────────
+
+.ah-view-tabs {
+  display: flex;
+  gap: 0.125rem;
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--ah-border);
+  background: var(--ah-surface);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.ah-view-tab {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  color: var(--ah-text-muted);
+  border-bottom: 2px solid transparent;
+  transition:
+    color 0.15s,
+    background-color 0.15s;
+  cursor: pointer;
+  white-space: nowrap;
+  &:hover {
+    color: var(--ah-text);
+    background: var(--ah-hover-bg);
+  }
+}
+
+.ah-view-tab--active {
+  color: var(--ah-accent);
+  border-bottom-color: var(--ah-accent);
+  font-weight: 500;
+}
+
+// ─── Toolbar (actions + diff) ────────────────────────────────────────────────
+
+.ah-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.5rem;
+  border-bottom: 1px solid var(--ah-border);
+  background: var(--ah-surface);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.ah-toolbar__session-name {
+  color: var(--ah-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+  padding-right: 0.5rem;
+  border-right: 1px solid var(--ah-border);
+  margin-right: 0.25rem;
+}
+
+.ah-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.ah-toolbar__btn {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--ah-border);
+  color: var(--ah-text-muted);
+  background: var(--ah-surface);
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+  &:hover {
+    color: var(--ah-text);
+    border-color: var(--ah-border-heavy);
+  }
+}
+
+.ah-toolbar__btn--danger {
+  &:hover {
+    color: var(--ah-error-text);
+    border-color: var(--ah-error-border);
+  }
+}
+
+// ─── Diff controls ───────────────────────────────────────────────────────────
+
+.ah-diff-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-left: auto;
+  border-left: 1px solid var(--ah-border);
+  padding-left: 0.75rem;
+}
+
+.ah-diff-controls__label {
+  color: var(--ah-text-muted);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.ah-diff-controls__select {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  background: var(--ah-surface-muted);
+  color: var(--ah-text-secondary);
+  border: 1px solid var(--ah-border);
+  padding: 0.125rem 0.375rem;
+  cursor: pointer;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ah-diff-controls__status {
+  color: var(--ah-badge-warning);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+// ─── Landing page ────────────────────────────────────────────────────────────
+
+.ah-landing {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  min-height: 100vh;
+}
+
+.ah-landing__content {
+  max-width: 32rem;
+  width: 100%;
+}
+
+.ah-landing__header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.ah-landing__logo-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.ah-landing__logo-icon {
+  width: 2rem;
+  height: 2rem;
+  background: #292524;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  .pf-theme-provider--dark & {
+    background: #44403c;
+  }
+}
+
+.ah-landing__title {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  font-weight: 700;
+  color: var(--ah-text);
+  letter-spacing: -0.025em;
+}
+
+.ah-landing__title-suffix {
+  color: #a8a29e;
+  font-weight: 400;
+  .pf-theme-provider--dark & {
+    color: #78716c;
+  }
+}
+
+.ah-landing__subtitle {
+  color: #78716c;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  .pf-theme-provider--dark & {
+    color: #a8a29e;
+  }
+}
+
+.ah-landing__dropzone {
+  background: var(--ah-surface);
+  border: 2px dashed var(--ah-border-heavy);
+  padding: 2.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  &:hover {
+    border-color: #38bdf8;
+  }
+}
+
+.ah-landing__drop-icon {
+  width: 3rem;
+  height: 3rem;
+  margin: 0 auto 1rem;
+  color: #d6d3d1;
+  .pf-theme-provider--dark & {
+    color: #57534e;
+  }
+}
+
+.ah-landing__drop-text {
+  color: var(--ah-text-secondary);
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+.ah-landing__drop-hint {
+  color: var(--ah-text-faint);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.ah-landing__actions {
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ah-landing__capture-btn {
+  padding: 0.625rem 1.25rem;
+  border: 1px solid var(--ah-border-heavy);
+  color: var(--ah-text-secondary);
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+  &:hover {
+    border-color: #a8a29e;
+    background: var(--ah-surface);
+  }
+}
+
+.ah-landing__capture-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ah-landing__capture-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+// ─── Loading / Error / Status ────────────────────────────────────────────────
+
+.ah-loading {
+  color: var(--ah-text-faint);
+  padding: 1rem;
+}
+
+.ah-error-banner {
+  padding: 0.75rem;
+  background: var(--ah-error-bg);
+  border: 1px solid var(--ah-error-border);
+  color: var(--ah-error-text);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.ah-warning-banner {
+  padding: 0.5rem 0.75rem;
+  background: var(--ah-warning-bg);
+  border: 1px solid var(--ah-warning-border);
+  color: var(--ah-warning-text);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.ah-error-text {
+  color: var(--ah-error-text);
+  padding: 1rem;
+}
+
+// ─── Parse/loading overlay ───────────────────────────────────────────────────
+
+.ah-parse-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  flex: 1;
+}
+
+.ah-parse-card {
+  max-width: 28rem;
+  width: 100%;
+  background: var(--ah-surface);
+  border: 1px solid var(--ah-border);
+  padding: 2rem;
+}
+
+.ah-parse-card--error {
+  @extend .ah-parse-card;
+  border-color: var(--ah-error-border);
+}
+
+.ah-parse-card__title {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  color: var(--ah-text);
+  margin-bottom: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ah-parse-card__title--error {
+  @extend .ah-parse-card__title;
+  color: var(--ah-error-text);
+  margin-bottom: 0.5rem;
+}
+
+.ah-progress-bar {
+  width: 100%;
+  height: 0.5rem;
+  background: var(--ah-progress-bg);
+  overflow: hidden;
+  margin-bottom: 0.75rem;
+}
+
+.ah-progress-bar__fill {
+  height: 100%;
+  background: var(--ah-progress-fill);
+  transition: width 0.3s;
+}
+
+.ah-progress-bar__fill--alt {
+  @extend .ah-progress-bar__fill;
+  background: var(--ah-progress-fill-alt);
+}
+
+.ah-parse-card__status {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--ah-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ah-parse-card__cancel {
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--ah-text-muted);
+  &:hover {
+    color: var(--ah-error-text);
+  }
+}
+
+.ah-parse-card__body {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--ah-text-secondary);
+  margin-bottom: 1rem;
+  .pf-theme-provider--dark & {
+    color: var(--ah-text-faint);
+  }
+}
+
+.ah-parse-card__close {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--ah-text-muted);
+  &:hover {
+    color: var(--ah-text-secondary);
+  }
+}
+
+// ─── Capture device header ───────────────────────────────────────────────────
+
+.ah-capture-header {
+  padding: 2rem 2rem 0;
+  max-width: 95%;
+  margin: 0 auto;
+}
+
+.ah-capture-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.ah-capture-header__title {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  color: var(--ah-text);
+}
+
+.ah-capture-wrap {
+  max-width: 95%;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.ah-capture-wrap--compact {
+  flex: 1;
+  padding: 1rem;
+  max-width: 95%;
+  margin: 0 auto;
+  width: 100%;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+// ─── View headings ───────────────────────────────────────────────────────────
+
+.ah-view-heading {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: var(--ah-text);
+}
+
+.ah-sub-heading {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  color: var(--ah-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+// ─── Card (info panel) ───────────────────────────────────────────────────────
+
+.ah-card {
+  background: var(--ah-surface);
+  border: 1px solid var(--ah-border);
+  padding: 1rem;
+}
+
+.ah-card--compact {
+  @extend .ah-card;
+  padding: 0.75rem;
+}
+
+// ─── Info grid (key-value pairs) ─────────────────────────────────────────────
+
+.ah-info-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.375rem 1rem;
+}
+
+.ah-info-grid--compact {
+  @extend .ah-info-grid;
+  gap: 0.25rem 1rem;
+}
+
+.ah-info-grid--wide {
+  @extend .ah-info-grid;
+  max-width: 28rem;
+  align-items: center;
+}
+
+.ah-info-grid__label {
+  color: var(--ah-text-muted);
+}
+
+// ─── Section (collapsible) ───────────────────────────────────────────────────
+
+.ah-section {
+  background: var(--ah-surface);
+  border: 1px solid var(--ah-border);
+}
+
+.ah-section__toggle {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+  &:hover {
+    background: var(--ah-hover-bg);
+  }
+}
+
+.ah-section__title {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  color: var(--ah-text-secondary);
+  .pf-theme-provider--dark & {
+    color: var(--ah-text-secondary);
+  }
+}
+
+.ah-section__chevron {
+  width: 0.75rem;
+  height: 0.75rem;
+  color: var(--ah-text-faint);
+  transition: transform 0.15s;
+}
+
+.ah-section__chevron--open {
+  transform: rotate(90deg);
+}
+
+.ah-section__body {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--ah-border-light);
+  overflow-x: auto;
+}
+
+// ─── Links (object/site links) ───────────────────────────────────────────────
+
+.ah-link {
+  color: var(--ah-link);
+  text-decoration: underline;
+  text-decoration-color: var(--ah-link-decoration);
+  &:hover {
+    color: var(--ah-link-hover);
+    text-decoration-color: var(--ah-link-decoration-hover);
+  }
+}
+
+.ah-link--alt {
+  color: var(--ah-link-alt);
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// ─── Badges ──────────────────────────────────────────────────────────────────
+
+.ah-badge-reachability {
+  color: var(--ah-badge-reachability);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  margin-right: 0.25rem;
+}
+
+.ah-badge-root {
+  color: var(--ah-badge-root);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  margin-right: 0.25rem;
+}
+
+.ah-badge-string {
+  color: var(--ah-badge-string);
+  margin-left: 0.25rem;
+}
+
+.ah-badge-referent {
+  color: var(--ah-badge-referent);
+  margin-left: 0.25rem;
+}
+
+// ─── SortableTable ───────────────────────────────────────────────────────────
+
+.ah-table-wrap {
+  overflow-x: auto;
+}
+
+.ah-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ah-th {
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+  background: #44403c;
+  color: #e7e5e4;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  border-bottom: 1px solid #57534e;
+}
+
+.ah-th--right {
+  text-align: right;
+}
+
+.ah-tr {
+  border-bottom: 1px solid var(--ah-border);
+  &:hover {
+    background: var(--ah-hover-bg);
+  }
+}
+
+.ah-tr--clickable {
+  cursor: pointer;
+}
+
+.ah-td {
+  padding: 0.25rem 0.5rem;
+}
+
+.ah-td--right {
+  text-align: right;
+  font-family: $mono;
+  white-space: nowrap;
+}
+
+.ah-table__more {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--ah-text-muted);
+  padding: 0.5rem 0;
+}
+
+.ah-more-link {
+  color: var(--ah-link-alt);
+  margin-left: 0.25rem;
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.ah-more-link + .ah-more-link {
+  margin-left: 0.5rem;
+}
+
+// ─── Fields table (ObjectView) ───────────────────────────────────────────────
+
+.ah-fields-th {
+  text-align: left;
+  padding: 0.25rem 0.5rem;
+  background: var(--ah-surface-muted);
+  color: var(--ah-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+}
+
+.ah-fields-tr {
+  border-top: 1px solid var(--ah-border-light);
+}
+
+.ah-fields-td {
+  padding: 0.125rem 0.5rem;
+}
+
+.ah-fields-td--type {
+  @extend .ah-fields-td;
+  color: var(--ah-text-muted);
+  font-family: $mono;
+}
+
+.ah-fields-td--name {
+  @extend .ah-fields-td;
+  font-family: $mono;
+}
+
+.ah-fields-td--index {
+  @extend .ah-fields-td;
+  text-align: right;
+  font-family: $mono;
+  color: var(--ah-text-faint);
+}
+
+.ah-fields-td--delta {
+  @extend .ah-fields-td;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  white-space: nowrap;
+}
+
+// ─── Breadcrumbs ─────────────────────────────────────────────────────────────
+
+.ah-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
+  scrollbar-width: thin;
+}
+
+.ah-breadcrumbs__back {
+  flex-shrink: 0;
+  color: var(--ah-text-faint);
+  padding-right: 0.25rem;
+  &:hover {
+    color: var(--ah-text-secondary);
+  }
+}
+
+.ah-breadcrumbs__back-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.ah-breadcrumbs__item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.ah-breadcrumbs__sep {
+  color: var(--ah-text-faint);
+}
+
+.ah-breadcrumbs__active {
+  color: var(--ah-text-secondary);
+  font-weight: 500;
+}
+
+.ah-breadcrumbs__link {
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.ah-breadcrumbs__link--past {
+  color: var(--ah-link);
+  &:hover {
+    color: var(--ah-link-hover);
+  }
+}
+
+.ah-breadcrumbs__link--future {
+  color: var(--ah-text-faint);
+  &:hover {
+    color: var(--ah-text-secondary);
+  }
+}
+
+// ─── Input ───────────────────────────────────────────────────────────────────
+
+.ah-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--ah-border-heavy);
+  background: var(--ah-surface);
+  color: var(--ah-text);
+  margin-bottom: 0.75rem;
+  &:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px #38bdf8;
+  }
+}
+
+.ah-select {
+  appearance: none;
+  padding: 0.25rem 1.5rem 0.25rem 0.5rem;
+  border: 1px solid var(--ah-border-heavy);
+  background: var(--ah-surface);
+  color: var(--ah-text);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  cursor: pointer;
+  border-radius: 0.25rem;
+  &:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px #38bdf8;
+  }
+}
+
+.ah-download-link {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--ah-link-alt);
+  cursor: pointer;
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// ─── Overview ────────────────────────────────────────────────────────────────
+
+.ah-overview-table {
+  width: 100%;
+}
+
+.ah-overview-th {
+  text-align: left;
+  padding: 0.25rem 0.5rem;
+  color: var(--ah-text-secondary);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+}
+
+.ah-overview-th--right {
+  @extend .ah-overview-th;
+  text-align: right;
+}
+
+.ah-overview-total {
+  border-bottom: 2px solid var(--ah-border-heavy);
+  font-weight: 600;
+}
+
+.ah-overview-row {
+  border-top: 1px solid var(--ah-border-light);
+  &:hover {
+    background: var(--ah-hover-bg);
+  }
+}
+
+.ah-overview-td {
+  padding: 0.25rem 0.5rem;
+}
+
+.ah-overview-td--right {
+  @extend .ah-overview-td;
+  text-align: right;
+  font-family: $mono;
+}
+
+.ah-overview-td--total {
+  @extend .ah-overview-td--right;
+  font-weight: 600;
+}
+
+// ─── Bitmap gallery ──────────────────────────────────────────────────────────
+
+.ah-bitmap-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ah-bitmap-card {
+  background: var(--ah-surface);
+  border: 1px solid var(--ah-border);
+}
+
+.ah-bitmap-card__image {
+  background: var(--ah-surface-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.ah-bitmap-card__info {
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--ah-border-light);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ah-bitmap-card__dim {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-family: $mono;
+  color: var(--ah-text-secondary);
+}
+
+.ah-bitmap-card__meta {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--ah-text-faint);
+  margin-left: 0.5rem;
+}
+
+.ah-bitmap-card__link {
+  @extend .ah-link;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.ah-bitmap-scale-toggle {
+  display: inline-flex;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  border: 1px solid var(--ah-border);
+}
+
+.ah-bitmap-scale-toggle__btn {
+  padding: 0.125rem 0.5rem;
+  color: var(--ah-text-faint);
+  &:hover {
+    color: var(--ah-text-secondary);
+  }
+}
+
+.ah-bitmap-scale-toggle__btn--active {
+  background: var(--ah-accent-bg);
+  color: var(--ah-link);
+  font-weight: 500;
+}
+
+.ah-bitmap-scale-toggle__btn + .ah-bitmap-scale-toggle__btn {
+  border-left: 1px solid var(--ah-border);
+}
+
+// ─── Hex view ────────────────────────────────────────────────────────────────
+
+.ah-hex-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.ah-hex-toolbar__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ah-hex-btn {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--ah-border);
+  color: var(--ah-text-muted);
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+  &:hover {
+    color: var(--ah-text-secondary);
+    border-color: var(--ah-border-heavy);
+  }
+}
+
+.ah-hex-btn--active {
+  color: var(--ah-link-alt);
+  border-color: var(--ah-link-decoration);
+  background: var(--ah-accent-bg);
+}
+
+.ah-hex-select {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  border: 1px solid var(--ah-border);
+  padding: 0.125rem 0.375rem;
+  color: var(--ah-text-muted);
+  background: var(--ah-surface);
+  cursor: pointer;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ah-hex-container {
+  display: flex;
+}
+
+.ah-hex-content {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+.ah-hex-scroll {
+  overflow: auto;
+  border: 1px solid var(--ah-border);
+  background: var(--ah-surface);
+}
+
+.ah-hex-row {
+  font-family: $mono;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  color: var(--ah-text);
+  user-select: text;
+  white-space: pre;
+}
+
+.ah-hex-row--diff {
+  background: var(--ah-diff-bg);
+  color: var(--ah-diff-text);
+  border-radius: 0.125rem;
+}
+
+.ah-hex-highlight {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: var(--ah-diff-highlight);
+  transition: background-color 0.15s;
+}
+
+.ah-hex-separator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed var(--ah-border-heavy);
+  pointer-events: none;
+}
+
+.ah-hex-separator__label {
+  position: absolute;
+  top: -0.75rem;
+  left: 0.5rem;
+  font-size: 10px;
+  color: var(--ah-text-faint);
+  background: var(--ah-surface);
+  padding: 0 0.25rem;
+  font-family: $mono;
+}
+
+.ah-hex-minimap {
+  position: absolute;
+  top: 0;
+  right: 0;
+  cursor: pointer;
+  z-index: 10;
+}
+
+.ah-hex-strings {
+  width: 20rem;
+  border: 1px solid var(--ah-border);
+  border-left: none;
+  background: var(--ah-surface);
+  display: flex;
+  flex-direction: column;
+}
+
+.ah-hex-strings__header {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--ah-border-light);
+}
+
+.ah-hex-strings__input {
+  width: 100%;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  border: 1px solid var(--ah-border);
+  background: var(--ah-surface);
+  padding: 0.25rem 0.5rem;
+  &::placeholder {
+    color: var(--ah-text-fainter);
+  }
+  &:focus {
+    outline: none;
+    border-color: #38bdf8;
+  }
+}
+
+.ah-hex-strings__count {
+  font-size: 10px;
+  color: var(--ah-text-faint);
+  margin-top: 0.25rem;
+}
+
+.ah-hex-strings__list {
+  flex: 1;
+  overflow: auto;
+}
+
+.ah-hex-strings__row {
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  cursor: pointer;
+  border-bottom: 1px solid var(--ah-border-light);
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  &:hover {
+    background: var(--ah-hover-accent-bg);
+  }
+}
+
+.ah-hex-strings__offset {
+  font-family: $mono;
+  color: var(--ah-text-faint);
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
+.ah-hex-strings__value {
+  font-family: $mono;
+  color: var(--ah-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ah-hex-stats {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--ah-text-faint);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ah-hex-vma-info {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--ah-text-faint);
+  margin-bottom: 0.5rem;
+  font-family: $mono;
+}
+
+// ─── Capture view ────────────────────────────────────────────────────────────
+
+.ah-capture-connect {
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.ah-capture-connect__btn {
+  padding: 0.75rem 1.5rem;
+  background: #292524;
+  color: white;
+  transition: background-color 0.15s;
+  &:hover {
+    background: #44403c;
+  }
+  &:disabled {
+    opacity: 0.5;
+  }
+  .pf-theme-provider--dark & {
+    background: #44403c;
+    &:hover {
+      background: #57534e;
+    }
+  }
+}
+
+.ah-capture-connect__hint {
+  color: var(--ah-text-faint);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  margin-top: 0.75rem;
+}
+
+.ah-capture-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.ah-capture-toolbar__device {
+  color: var(--ah-text-secondary);
+}
+
+.ah-capture-toolbar__serial {
+  color: var(--ah-text-faint);
+  font-family: $mono;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.ah-capture-toolbar__spacer {
+  margin-left: auto;
+}
+
+.ah-capture-toolbar__btn {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--ah-text-faint);
+  &:hover {
+    color: var(--ah-text-secondary);
+  }
+  &:disabled {
+    color: var(--ah-text-fainter);
+    cursor: not-allowed;
+  }
+}
+
+.ah-capture-toolbar__btn--accent {
+  color: var(--ah-link-alt);
+  border: 1px solid var(--ah-link-decoration);
+  padding: 0.125rem 0.5rem;
+  &:hover {
+    color: var(--ah-accent-hover);
+  }
+}
+
+.ah-capture-toolbar__btn--warning {
+  color: var(--ah-badge-warning);
+  border: 1px solid var(--ah-btn-capture-border);
+  padding: 0.125rem 0.5rem;
+  &:hover {
+    color: var(--ah-btn-capture-hover-text);
+  }
+}
+
+.ah-capture-toolbar__btn--connect {
+  padding: 0.125rem 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  background: #292524;
+  color: white;
+  transition: background-color 0.15s;
+  &:hover {
+    background: #44403c;
+  }
+  &:disabled {
+    opacity: 0.5;
+  }
+  .pf-theme-provider--dark & {
+    background: #44403c;
+    &:hover {
+      background: #57534e;
+    }
+  }
+}
+
+.ah-capture-toolbar__disconnected {
+  color: var(--ah-badge-warning);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.ah-capture-progress {
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--ah-text-muted);
+}
+
+.ah-capture-progress__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.ah-capture-progress__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ah-capture-progress__count {
+  color: var(--ah-text-faint);
+  white-space: nowrap;
+}
+
+.ah-capture-progress__cancel {
+  color: var(--ah-badge-root);
+  margin-left: auto;
+  &:hover {
+    color: var(--ah-error-text);
+  }
+}
+
+.ah-capture-progress-bar {
+  height: 0.25rem;
+  background: var(--ah-progress-bg);
+  border-radius: 0.25rem;
+  overflow: hidden;
+}
+
+.ah-capture-progress-bar__fill {
+  height: 100%;
+  transition: width 0.3s;
+}
+
+.ah-capture-progress-bar__fill--accent {
+  background: var(--ah-progress-fill);
+}
+
+.ah-capture-progress-bar__fill--warning {
+  background: var(--ah-progress-fill-alt);
+}
+
+// Capture process table
+.ah-capture-table-wrap {
+  background: var(--ah-surface);
+  border: 1px solid var(--ah-border);
+  overflow-x: auto;
+}
+
+.ah-capture-table {
+  width: 100%;
+  min-width: 700px;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.ah-capture-table-header {
+  background: var(--ah-surface-alt);
+  border-bottom: 1px solid var(--ah-border);
+}
+
+.ah-capture-th {
+  padding: 0.375rem 0.5rem;
+  color: var(--ah-text-muted);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+}
+
+.ah-capture-th--sortable {
+  cursor: pointer;
+  user-select: none;
+  &:hover {
+    color: var(--ah-text-secondary);
+  }
+}
+
+.ah-capture-th--right {
+  text-align: right;
+  white-space: nowrap;
+  width: 5rem;
+}
+
+.ah-capture-totals-row {
+  border-bottom: 2px solid var(--ah-border-heavy);
+  font-weight: 600;
+  background: var(--ah-surface-alt);
+}
+
+.ah-capture-row {
+  border-top: 1px solid var(--ah-border-light);
+  cursor: pointer;
+  &:hover {
+    background: var(--ah-hover-bg);
+  }
+}
+
+.ah-capture-row--expanded {
+  background: var(--ah-accent-bg);
+}
+
+.ah-capture-row--added {
+  background: var(--ah-status-added-bg);
+}
+
+.ah-capture-row--removed {
+  opacity: 0.6;
+}
+
+.ah-capture-td {
+  padding: 0.25rem 0.5rem;
+}
+
+.ah-capture-td--right {
+  @extend .ah-capture-td;
+  text-align: right;
+  font-family: $mono;
+  white-space: nowrap;
+  min-width: 5rem;
+}
+
+.ah-capture-td--center {
+  @extend .ah-capture-td;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.ah-capture-td--name {
+  @extend .ah-capture-td;
+  color: var(--ah-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 400px;
+}
+
+.ah-capture-td--pid {
+  @extend .ah-capture-td;
+  font-family: $mono;
+  color: var(--ah-text-faint);
+  white-space: nowrap;
+}
+
+// Smaps sub-table
+.ah-smaps-header {
+  background: var(--ah-surface-alt);
+  border-top: 1px solid var(--ah-border);
+}
+
+.ah-smaps-th {
+  text-align: left;
+  padding: 0.25rem 0.5rem;
+  color: var(--ah-text-muted);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+}
+
+.ah-smaps-th--right {
+  @extend .ah-smaps-th;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ah-smaps-th--sortable {
+  cursor: pointer;
+  user-select: none;
+  &:hover {
+    color: var(--ah-text-secondary);
+  }
+}
+
+.ah-smaps-total-row {
+  border-bottom: 2px solid var(--ah-border-heavy);
+  font-weight: 600;
+  background: var(--ah-surface-alt);
+}
+
+.ah-smaps-row {
+  border-top: 1px solid var(--ah-border-light);
+  cursor: pointer;
+  background: var(--ah-surface-alt);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  &:hover {
+    background: var(--ah-surface-muted);
+  }
+}
+
+.ah-smaps-row--added {
+  background: var(--ah-status-added-bg);
+}
+
+.ah-smaps-row--removed {
+  opacity: 0.6;
+}
+
+.ah-smaps-td {
+  padding: 0.125rem 0.5rem;
+}
+
+.ah-smaps-td--right {
+  @extend .ah-smaps-td;
+  text-align: right;
+  font-family: $mono;
+  white-space: nowrap;
+}
+
+.ah-smaps-td--name {
+  @extend .ah-smaps-td;
+  font-family: $mono;
+  color: var(--ah-text-secondary);
+}
+
+.ah-smaps-td--name-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.ah-smaps-td--count {
+  @extend .ah-smaps-td;
+  text-align: right;
+  font-family: $mono;
+  color: var(--ah-text-faint);
+  padding-right: 0.25rem;
+}
+
+// VMA entries
+.ah-vma-header {
+  background: var(--ah-surface-muted);
+}
+
+.ah-vma-th {
+  padding: 0.125rem 0.5rem;
+}
+
+.ah-vma-row {
+  border-top: 1px solid var(--ah-border-light);
+  &:hover {
+    background: var(--ah-surface-muted);
+  }
+}
+
+.ah-vma-row--added {
+  background: var(--ah-status-added-bg);
+}
+
+.ah-vma-row--removed {
+  opacity: 0.6;
+}
+
+.ah-vma-td {
+  padding: 0.125rem 0.5rem;
+  font-family: $mono;
+  font-size: 10px;
+  color: var(--ah-text-muted);
+  white-space: nowrap;
+}
+
+.ah-vma-td--right {
+  @extend .ah-vma-td;
+  text-align: right;
+}
+
+// DumpButton
+.ah-dump-btn-wrap {
+  position: relative;
+  display: inline-flex;
+  width: 104px;
+}
+
+.ah-dump-btn {
+  flex: 1;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--ah-link-alt);
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--ah-btn-accent-border);
+  border-right: none;
+  border-radius: 0.25rem 0 0 0.25rem;
+  white-space: nowrap;
+  &:hover {
+    color: var(--ah-accent-hover);
+    border-color: var(--ah-btn-accent-border-hover);
+  }
+  &:disabled {
+    color: var(--ah-btn-accent-disabled-text);
+    border-color: var(--ah-btn-accent-disabled-border);
+    cursor: not-allowed;
+  }
+}
+
+.ah-dump-btn__caret {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--ah-link-alt);
+  padding: 0.125rem 0.25rem;
+  border: 1px solid var(--ah-btn-accent-border);
+  border-radius: 0 0.25rem 0.25rem 0;
+  &:hover {
+    color: var(--ah-accent-hover);
+    border-color: var(--ah-btn-accent-border-hover);
+  }
+  &:disabled {
+    color: var(--ah-btn-accent-disabled-text);
+    border-color: var(--ah-btn-accent-disabled-border);
+    cursor: not-allowed;
+  }
+}
+
+.ah-dump-btn__menu {
+  position: fixed;
+  z-index: 50;
+  background: var(--ah-surface);
+  border: 1px solid var(--ah-border);
+  box-shadow:
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  width: 160px;
+}
+
+.ah-dump-btn__menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.375rem 0.75rem;
+  color: var(--ah-text-secondary);
+  border-radius: 0.25rem;
+  &:hover {
+    background: var(--ah-hover-accent-bg);
+  }
+}
+
+.ah-dump-btn__menu-item + .ah-dump-btn__menu-item {
+  border-top: 1px solid var(--ah-border-light);
+}
+
+.ah-dump-btn--active {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--ah-btn-capture-text);
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--ah-btn-capture-border);
+  white-space: nowrap;
+  width: 104px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  &:hover {
+    color: var(--ah-btn-capture-hover-text);
+    border-color: var(--ah-btn-capture-border-hover);
+  }
+}
+
+// Global memory summary
+.ah-global-mem {
+  margin-bottom: 0.75rem;
+  background: var(--ah-surface);
+  border: 1px solid var(--ah-border);
+  padding: 0.5rem 0.75rem;
+  overflow-x: auto;
+}
+
+.ah-global-mem__inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.ah-global-mem__item {
+  color: var(--ah-text-muted);
+  white-space: nowrap;
+}
+
+.ah-global-mem__value {
+  font-family: $mono;
+  color: var(--ah-text);
+}
+
+// Shared mappings table
+.ah-shared-mappings {
+  margin-top: 1rem;
+}
+
+.ah-shared-mappings__table-wrap {
+  background: var(--ah-surface);
+  border: 1px solid var(--ah-border);
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.ah-shared-mappings__table {
+  width: 100%;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.ah-shared-mappings__thead {
+  position: sticky;
+  top: 0;
+  background: var(--ah-surface-alt);
+  z-index: 10;
+}
+
+// ─── Utility classes ─────────────────────────────────────────────────────────
+
+.ah-mono {
+  font-family: $mono;
+}
+.ah-semibold {
+  font-weight: 600;
+}
+.ah-medium {
+  font-weight: 500;
+}
+.ah-nowrap {
+  white-space: nowrap;
+}
+.ah-break-all {
+  word-break: break-all;
+}
+.ah-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ah-hidden {
+  display: none;
+}
+.ah-opacity-60 {
+  opacity: 0.6;
+}
+.ah-line-through {
+  text-decoration: line-through;
+}
+.ah-select-text {
+  user-select: text;
+}
+.ah-pre {
+  white-space: pre;
+}
+.ah-text-right {
+  text-align: right;
+}
+
+// Delta colors (used in format.ts)
+.ah-delta-pos {
+  color: var(--ah-delta-pos);
+}
+.ah-delta-neg {
+  color: var(--ah-delta-neg);
+}
+.ah-delta-bg-pos-heavy {
+  background: var(--ah-delta-pos-bg-heavy);
+}
+.ah-delta-bg-pos-medium {
+  background: var(--ah-delta-pos-bg-medium);
+}
+.ah-delta-bg-pos-light {
+  background: var(--ah-delta-pos-bg-light);
+}
+.ah-delta-bg-neg-heavy {
+  background: var(--ah-delta-neg-bg-heavy);
+}
+.ah-delta-bg-neg-medium {
+  background: var(--ah-delta-neg-bg-medium);
+}
+.ah-delta-bg-neg-light {
+  background: var(--ah-delta-neg-bg-light);
+}
+
+// Status labels
+.ah-status-new {
+  color: var(--ah-status-added-text);
+  font-weight: 500;
+  font-size: 10px;
+}
+.ah-status-gone {
+  color: var(--ah-status-removed-text);
+  font-weight: 500;
+  font-size: 10px;
+}
+.ah-status-changed {
+  color: var(--ah-warning-text);
+}
+
+// Spacing (minimal set)
+.ah-mb-1 {
+  margin-bottom: 0.25rem;
+}
+.ah-mb-2 {
+  margin-bottom: 0.5rem;
+}
+.ah-mb-3 {
+  margin-bottom: 0.75rem;
+}
+.ah-mb-4 {
+  margin-bottom: 1rem;
+}
+.ah-mt-1 {
+  margin-top: 0.25rem;
+}
+.ah-mt-2 {
+  margin-top: 0.5rem;
+}
+.ah-mt-4 {
+  margin-top: 1rem;
+}
+.ah-ml-1 {
+  margin-left: 0.25rem;
+}
+.ah-ml-2 {
+  margin-left: 0.5rem;
+}
+.ah-mr-1 {
+  margin-right: 0.25rem;
+}
+.ah-p-4 {
+  padding: 1rem;
+}
+.ah-space-y-3 > * + * {
+  margin-top: 0.75rem;
+}
+
+// ─── Animations ──────────────────────────────────────────────────────────────
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.ah-animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+// ─── WebUSB unavailable ──────────────────────────────────────────────────────
+
+.ah-no-webusb {
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.ah-no-webusb__title {
+  color: var(--ah-text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.ah-no-webusb__hint {
+  color: var(--ah-text-faint);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+// Inline code
+code {
+  background: var(--ah-code-bg);
+  padding: 0 0.25rem;
+}
+
+// ─── Smaps action button (small inline dump button) ──────────────────────────
+
+.ah-smaps-action {
+  font-size: 10px;
+  color: var(--ah-text-faint);
+  &:hover {
+    color: var(--ah-link-alt);
+  }
+  &:disabled {
+    color: var(--ah-text-fainter);
+  }
+}
+
+// Triangle expander
+.ah-expander {
+  color: var(--ah-text-faint);
+  flex-shrink: 0;
+}
+
+.ah-expander--loading {
+  color: var(--ah-text-faint);
+  margin-right: 0.25rem;
+}
+
+// ─── ObjectView path from root ───────────────────────────────────────────────
+
+.ah-path-entry {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.ah-path-arrow {
+  color: var(--ah-text-faint);
+}
+
+.ah-path-field {
+  color: var(--ah-text-muted);
+}
+
+// ─── ObjectView / SiteView stacked sections ──────────────────────────────────
+
+.ah-view-stack > * + * {
+  margin-top: 0.75rem;
+}
+
+// ─── Download bytes link ─────────────────────────────────────────────────────
+
+.ah-download-link {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--ah-link-alt);
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// ─── ObjectsView info box ────────────────────────────────────────────────────
+
+.ah-instances-heading {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: var(--ah-text);
+}
+
+// ─── Scrollbar ───────────────────────────────────────────────────────────────
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ah-scrollbar-thumb) var(--ah-scrollbar-track);
+}
