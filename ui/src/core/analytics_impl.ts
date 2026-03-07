@@ -61,7 +61,10 @@ function getReferrer(): string {
 
 // Interface exposed only to core (for the initialize method).
 export interface AnalyticsInternal extends Analytics {
-  initialize(isInternalUser: boolean): void;
+  addDimension(
+    arg: {key: string; value: string} | Promise<{key: string; value: string}>,
+  ): void;
+  initialize(): Promise<void>;
 }
 
 export function initAnalytics(
@@ -88,7 +91,10 @@ const gtagGlobals = window as {} as {
 };
 
 class NullAnalytics implements AnalyticsInternal {
-  initialize(_: boolean) {}
+  addDimension(
+    _arg: {key: string; value: string} | Promise<{key: string; value: string}>,
+  ) {}
+  async initialize() {}
   logEvent(_category: TraceCategories | null, _event: string) {}
   logError(_err: ErrorDetails) {}
   isEnabled(): boolean {
@@ -99,6 +105,8 @@ class NullAnalytics implements AnalyticsInternal {
 class AnalyticsImpl implements AnalyticsInternal {
   private initialized_ = false;
   private readonly analyticsId: string;
+  private readonly dimensions: Array<Promise<{key: string; value: string}>> =
+    [];
 
   constructor(analyticsId: string) {
     this.analyticsId = analyticsId;
@@ -121,10 +129,18 @@ class AnalyticsImpl implements AnalyticsInternal {
     gtagGlobals.gtag('js', new Date());
   }
 
-  // This is callled only after the script that sets isInternalUser loads.
+  addDimension(
+    arg: {key: string; value: string} | Promise<{key: string; value: string}>,
+  ) {
+    if (this.initialized_) {
+      throw new Error('Cannot add analytics dimensions after initialization');
+    }
+    this.dimensions.push(Promise.resolve(arg));
+  }
+
   // It is fine to call updatePath() and log*() functions before initialize().
   // The gtag() function internally enqueues all requests into |dataLayer|.
-  initialize(isInternalUser: boolean) {
+  async initialize() {
     if (this.initialized_) return;
     this.initialized_ = true;
     const script = document.createElement('script');
@@ -133,10 +149,15 @@ class AnalyticsImpl implements AnalyticsInternal {
     script.defer = true;
     document.head.appendChild(script);
     const route = window.location.href;
-    console.log(
-      `GA initialized. route=${route}`,
-      `isInternalUser=${isInternalUser}`,
-    );
+
+    // Await all dimension promises and build a map of extra dimensions.
+    const resolvedDimensions = await Promise.all(this.dimensions);
+    const extraDimensions: Record<string, string> = {};
+    for (const {key, value} of resolvedDimensions) {
+      extraDimensions[key] = value;
+    }
+
+    console.log(`GA initialized. route=${route}`);
     // GA's recommendation for SPAs is to disable automatic page views and
     // manually send page_view events. See:
     // https://developers.google.com/analytics/devguides/collection/gtagjs/pages#manual_pageviews
@@ -148,12 +169,12 @@ class AnalyticsImpl implements AnalyticsInternal {
       page_referrer: getReferrer(),
       send_page_view: false,
       page_title: PAGE_TITLE,
-      perfetto_is_internal_user: isInternalUser ? '1' : '0',
       perfetto_version: VERSION,
       // Release channel (canary, stable, autopush)
       perfetto_channel: getCurrentChannel(),
       // Referrer *if overridden* via the query string else empty string.
       perfetto_referrer_override: getReferrerOverride() ?? '',
+      ...extraDimensions,
     });
 
     gtagGlobals.gtag('event', 'page_view', {

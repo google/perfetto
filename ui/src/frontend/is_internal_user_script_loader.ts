@@ -68,7 +68,7 @@ declare global {
   }
 }
 
-export function tryLoadIsInternalUserScript(app: AppImpl): Promise<void> {
+export function tryLoadIsInternalUserScript(app: AppImpl): void {
   // Set up the global object and attach it to `window` before loading the
   // script.
   const globals: Globals = {
@@ -114,8 +114,4 @@ export function tryLoadIsInternalUserScript(app: AppImpl): Promise<void> {
   app.addSqlPackages(
     scriptLoaded.then(({extraSqlPackages}) => extraSqlPackages),
   );
-
-  return scriptLoaded.then((globals) => {
-    app.isInternalUser = globals.isInternalUser;
-  });
 }
