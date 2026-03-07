@@ -12,40 +12,55 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {RelatedEventData} from '../../components/related_events/interface';
+import {RelatedEventsOverlay} from '../../components/related_events/related_events_overlay';
+import {TrackPinningManager} from '../../components/related_events/utils';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
-import {LifecycleOverlay} from './overlay';
-import {AndroidInputTab} from './tab';
+
+import {AndroidInputEventSource} from './android_input_event_source';
+import {AndroidInputLifecycleTab} from './tab';
 
 export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidInputLifecycle';
-  static readonly description = `
-    Visualise connected input events in the lifecycle from touch to frame, with latencies for the various input stages. 
-    Activate by running the command 'Android: View Input Flow'
-    `;
+  static readonly description =
+    'Visualise connected input events in the lifecycle from touch to frame, ' +
+    "with latencies for the various input stages. Activate by running the command 'Android: View Input Lifecycle'.";
 
   async onTraceLoad(trace: Trace): Promise<void> {
     await trace.engine.query('INCLUDE PERFETTO MODULE android.input;');
 
-    const overlay = new LifecycleOverlay(trace);
+    const overlay = new RelatedEventsOverlay(trace);
     trace.tracks.registerOverlay(overlay);
 
-    const tab = new AndroidInputTab(trace, overlay);
-    const tabUri = 'com.android.InputLifecycles';
+    const source = new AndroidInputEventSource(trace);
+
+    const pinningManager = new TrackPinningManager();
+
+    const tab = new AndroidInputLifecycleTab(
+      trace,
+      source,
+      pinningManager,
+      (data: RelatedEventData) => {
+        overlay.update(data);
+      },
+    );
 
     trace.tabs.registerTab({
-      uri: tabUri,
+      uri: 'com.android.AndroidInputLifecycleTab',
       isEphemeral: false,
       content: tab,
       onHide() {
-        tab.onHide();
+        overlay.update({events: [], relations: []});
       },
     });
 
     trace.commands.registerCommand({
-      id: 'com.android.AndroidInputLifecycle#ViewFlow',
-      name: 'Android: View Input Flow',
-      callback: () => trace.tabs.showTab(tabUri),
+      id: 'openAndroidInputLifecycleTab',
+      name: 'Android: View Input Lifecycle',
+      callback: () => {
+        trace.tabs.showTab('com.android.AndroidInputLifecycleTab');
+      },
     });
   }
 }
