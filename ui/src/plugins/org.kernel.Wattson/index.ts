@@ -134,7 +134,7 @@ export default class Wattson implements PerfettoPlugin {
     }
   }
 
-  private static updateWindowsOfInterest(metrics: string[]) {
+  public static updateWindowsOfInterest(metrics: string[]) {
     for (const metric of metrics) {
       for (const key of Object.keys(WINDOW_MAP)) {
         if (metric.includes(key)) {
