@@ -969,6 +969,7 @@ perfetto_cc_library(
             ":src_kernel_utils_kernel_wakelock_errors",
             ":src_kernel_utils_syscall_table",
             ":src_protozero_proto_ring_buffer",
+            ":src_traced_probes_android_aflags_android_aflags",
             ":src_traced_probes_android_cpu_per_uid_android_cpu_per_uid",
             ":src_traced_probes_android_game_intervention_list_android_game_intervention_list",
             ":src_traced_probes_android_kernel_wakelocks_android_kernel_wakelocks",
@@ -4768,6 +4769,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/traced/probes/android_aflags:android_aflags
+perfetto_filegroup(
+    name = "src_traced_probes_android_aflags_android_aflags",
+    srcs = [
+        "src/traced/probes/android_aflags/android_aflags_data_source.cc",
+        "src/traced/probes/android_aflags/android_aflags_data_source.h",
+    ],
+)
+
 # GN target: //src/traced/probes/android_cpu_per_uid:android_cpu_per_uid
 perfetto_filegroup(
     name = "src_traced_probes_android_cpu_per_uid_android_cpu_per_uid",
@@ -6214,6 +6224,7 @@ perfetto_cc_protocpp_library(
 perfetto_proto_library(
     name = "protos_perfetto_config_android_protos",
     srcs = [
+        "protos/perfetto/config/android/android_aflags_config.proto",
         "protos/perfetto/config/android/android_game_intervention_list_config.proto",
         "protos/perfetto/config/android/android_input_event_config.proto",
         "protos/perfetto/config/android/android_log_config.proto",
@@ -7177,6 +7188,7 @@ perfetto_proto_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_android_protos",
     srcs = [
+        "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
         "protos/perfetto/trace/android/android_system_property.proto",
