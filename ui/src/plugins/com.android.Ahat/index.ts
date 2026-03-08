@@ -18,7 +18,12 @@ import {Trace} from '../../public/trace';
 import {App} from '../../public/app';
 import {SidebarManager} from '../../public/sidebar';
 import {NUM} from '../../trace_processor/query_result';
-import {HeapDumpPage} from './heap_dump_page';
+import HeapProfilePlugin from '../dev.perfetto.HeapProfile';
+import {
+  HeapDumpPage,
+  resetCachedFlamegraphSelection,
+  resetCachedOverview,
+} from './heap_dump_page';
 import {nav} from './nav_state';
 import {resetBitmapDumpDataCache} from './queries';
 
@@ -26,6 +31,7 @@ let sidebarManager: SidebarManager;
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.Ahat';
+  static readonly dependencies = [HeapProfilePlugin];
 
   static onActivate(app: App): void {
     sidebarManager = app.sidebar;
@@ -50,10 +56,13 @@ export default class implements PerfettoPlugin {
       'INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_tree',
     );
 
-    // Make the engine available to the page component.
+    // Make the engine and trace available to the page component.
     HeapDumpPage.engine = ctx.engine;
+    HeapDumpPage.trace = ctx;
     HeapDumpPage.hasHeapData = true;
     resetBitmapDumpDataCache();
+    resetCachedFlamegraphSelection();
+    resetCachedOverview();
 
     // Register sidebar items under the Ahat section. Disposed on trace unload.
     const viewItems = [

@@ -14,7 +14,9 @@
 
 import m from 'mithril';
 import type {Engine} from '../../trace_processor/engine';
+import type {Trace} from '../../public/trace';
 import {Spinner} from '../../widgets/spinner';
+import HeapProfilePlugin from '../dev.perfetto.HeapProfile';
 import type {NavState} from './nav_state';
 import type {OverviewData} from './types';
 import {Breadcrumbs} from './components';
@@ -36,6 +38,59 @@ import ObjectsView from './views/objects_view';
 import BitmapGalleryView from './views/bitmap_gallery_view';
 import AllocationsView from './views/allocations_view';
 import StringsView from './views/strings_view';
+import FlamegraphObjectsView from './views/flamegraph_objects_view';
+import {
+  consumeFlamegraphAhatSelection,
+  type FlamegraphAhatSelection,
+} from '../dev.perfetto.HeapProfile/flamegraph_to_ahat';
+
+// ─── View in Timeline ─────────────────────────────────────────────────────────
+
+async function viewInTimeline(objectId: number): Promise<void> {
+  const trace = HeapDumpPage.trace;
+  if (!trace) return;
+
+  const info = await queries.getHeapGraphTrackInfo(trace.engine, objectId);
+  if (!info) return;
+
+  // Set a pending SHOW_FROM_FRAME filter so the flamegraph auto-focuses on
+  // the object. Prefer path hash (exact tree node) over class name (all
+  // allocations of that class).
+  const filter = info.pathHash
+    ? `^${info.pathHash}$`
+    : info.className
+      ? `^${info.className}$`
+      : undefined;
+  if (filter) {
+    const hp = trace.plugins.getPlugin(HeapProfilePlugin);
+    hp.setJavaHeapGraphFlamegraphFilter(filter);
+  }
+
+  // URI matches HeapProfile plugin's trackUri(upid, 'java_heap_graph').
+  const uri = `/process_${info.upid}/java_heap_graph_heap_profile`;
+  trace.navigate('#!/viewer');
+  trace.selection.selectTrackEvent(uri, info.eventId);
+  trace.scrollTo({track: {uri, expandGroup: true}});
+}
+
+// Cached flamegraph selection consumed from HeapProfile. Consumed once on first
+// render of the flamegraph-objects view, then reused for subsequent renders.
+let cachedFlamegraphSelection: FlamegraphAhatSelection | null = null;
+
+/** Reset cached selection on trace change to prevent stale cross-trace data. */
+export function resetCachedFlamegraphSelection(): void {
+  cachedFlamegraphSelection = null;
+}
+
+// Module-level overview cache. Survives component remounts (e.g. theme toggle).
+let cachedOverview: OverviewData | null = null;
+let overviewLoading = false;
+
+/** Reset cached overview on trace change. */
+export function resetCachedOverview(): void {
+  cachedOverview = null;
+  overviewLoading = false;
+}
 
 // ─── Content View Router ──────────────────────────────────────────────────────
 
@@ -62,6 +117,7 @@ function renderContentView(
         heaps: overview.heaps,
         navigate,
         params: state.params,
+        onViewInTimeline: viewInTimeline,
       });
     case 'objects':
       return m(ObjectsView, {engine, navigate, params: state.params});
@@ -79,6 +135,22 @@ function renderContentView(
         navigate,
         initialQuery: state.params.q,
       });
+    case 'flamegraph-objects': {
+      const pending = consumeFlamegraphAhatSelection();
+      if (pending) cachedFlamegraphSelection = pending;
+      const sel = cachedFlamegraphSelection;
+      return m(FlamegraphObjectsView, {
+        engine,
+        navigate,
+        nodeName: state.params.name,
+        pathHashes: sel?.pathHashes,
+        isDominator: sel?.isDominator,
+        onBackToTimeline: () => {
+          const trace = HeapDumpPage.trace;
+          if (trace) trace.navigate('#!/viewer');
+        },
+      });
+    }
   }
 }
 
@@ -91,10 +163,8 @@ interface HeapDumpPageAttrs {
 export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
   // Set by the plugin's onTraceLoad.
   static engine: Engine | null = null;
+  static trace: Trace | null = null;
   static hasHeapData = false;
-
-  private overview: OverviewData | null = null;
-  private loading = false;
 
   oncreate(vnode: m.VnodeDOM<HeapDumpPageAttrs>) {
     setNavigateCallback((subpage) => {
@@ -110,14 +180,14 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
   }
 
   private async loadOverview() {
-    if (!HeapDumpPage.engine || this.loading || this.overview) return;
-    this.loading = true;
+    if (!HeapDumpPage.engine || overviewLoading || cachedOverview) return;
+    overviewLoading = true;
     try {
-      this.overview = await queries.getOverview(HeapDumpPage.engine);
+      cachedOverview = await queries.getOverview(HeapDumpPage.engine);
     } catch (err) {
       console.error('Failed to load overview:', err);
     } finally {
-      this.loading = false;
+      overviewLoading = false;
       m.redraw();
     }
   }
@@ -133,7 +203,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
       );
     }
 
-    if (!this.overview) {
+    if (!cachedOverview) {
       return m(
         'div',
         {class: 'ah-page'},
@@ -152,7 +222,7 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
           activeIndex: trailIndex,
           onNavigate: onBreadcrumbNavigate,
         }),
-        renderContentView(nav, HeapDumpPage.engine, this.overview),
+        renderContentView(nav, HeapDumpPage.engine, cachedOverview),
       ),
     );
   }

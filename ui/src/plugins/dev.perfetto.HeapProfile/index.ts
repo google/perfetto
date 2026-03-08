@@ -62,6 +62,23 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
 
   private readonly trackMap = new Map<string, Track>();
   private store?: Store<HeapProfilePluginState>;
+  private pendingFlamegraphFilter: string | undefined;
+
+  /**
+   * Set a pending SHOW_FROM_FRAME filter for the next java heap graph
+   * flamegraph details panel that is opened. Used by the Ahat plugin to
+   * auto-focus the flamegraph on a specific class when navigating from an
+   * object detail view back to the timeline.
+   */
+  setJavaHeapGraphFlamegraphFilter(className: string): void {
+    this.pendingFlamegraphFilter = className;
+  }
+
+  consumePendingFlamegraphFilter(): string | undefined {
+    const f = this.pendingFlamegraphFilter;
+    this.pendingFlamegraphFilter = undefined;
+    return f;
+  }
 
   private migrateHeapProfilePluginState(init: unknown): HeapProfilePluginState {
     const result = HEAP_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
@@ -215,6 +232,9 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
                 draft[descriptor.type].trackFlamegraphState = state;
               });
             },
+            heapType === 'java_heap_graph'
+              ? () => this.consumePendingFlamegraphFilter()
+              : undefined,
           ),
         };
         trace.tracks.registerTrack(track);

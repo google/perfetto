@@ -37,6 +37,7 @@ interface ObjectViewAttrs {
   heaps: HeapInfo[];
   navigate: NavFn;
   params: ObjectParams;
+  onViewInTimeline?: (objectId: number) => void;
 }
 
 function ObjectView(): m.Component<ObjectViewAttrs> {
@@ -77,7 +78,7 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
       alive = false;
     },
     view(vnode) {
-      const {heaps, navigate, params} = vnode.attrs;
+      const {heaps, navigate, params, onViewInTimeline} = vnode.attrs;
 
       if (detail === 'loading') {
         return m('div', {class: 'ah-loading'}, m(Spinner, {easing: true}));
@@ -102,7 +103,23 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
             },
             'Object ' + fmtHex(row.id),
           ),
-          m('div', m(InstanceLink, {row, navigate})),
+          m(
+            'div',
+            {style: {display: 'flex', alignItems: 'center', gap: '0.75rem'}},
+            [
+              m(InstanceLink, {row, navigate}),
+              onViewInTimeline
+                ? m(
+                    'button',
+                    {
+                      class: 'ah-download-link',
+                      onclick: () => onViewInTimeline(row.id),
+                    },
+                    'View in Timeline',
+                  )
+                : null,
+            ],
+          ),
         ]),
 
         detail.bitmap

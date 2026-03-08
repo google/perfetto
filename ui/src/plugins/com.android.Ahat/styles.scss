@@ -767,6 +767,18 @@ $mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
   color: var(--ah-text);
 }
 
+.ah-heading-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ah-muted-heading {
+  font-size: 0.875rem;
+  color: var(--md-sys-color-outline);
+  margin-bottom: 0.5rem;
+}
+
 .ah-sub-heading {
   font-size: 0.75rem;
   line-height: 1rem;
@@ -788,6 +800,37 @@ $mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
 .ah-card--compact {
   @extend .ah-card;
   padding: 0.75rem;
+}
+
+// ─── Bitmap card ─────────────────────────────────────────────────────────────
+
+.ah-bitmap-card {
+  border: 1px solid var(--ah-border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.ah-bitmap-card__image {
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+}
+
+.ah-bitmap-card__info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--ah-border);
+  font-size: 0.875rem;
+}
+
+.ah-bitmap-card__secondary {
+  margin-left: 0.75rem;
+  color: var(--md-sys-color-outline);
 }
 
 // ─── Info grid (key-value pairs) ─────────────────────────────────────────────
@@ -1168,80 +1211,6 @@ $mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
 .ah-overview-td--total {
   @extend .ah-overview-td--right;
   font-weight: 600;
-}
-
-// ─── Bitmap gallery ──────────────────────────────────────────────────────────
-
-.ah-bitmap-feed {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.ah-bitmap-card {
-  background: var(--ah-surface);
-  border: 1px solid var(--ah-border);
-}
-
-.ah-bitmap-card__image {
-  background: var(--ah-surface-alt);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.ah-bitmap-card__info {
-  padding: 0.5rem 0.75rem;
-  border-top: 1px solid var(--ah-border-light);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.ah-bitmap-card__dim {
-  font-size: 0.75rem;
-  line-height: 1rem;
-  font-family: $mono;
-  color: var(--ah-text-secondary);
-}
-
-.ah-bitmap-card__meta {
-  font-size: 0.75rem;
-  line-height: 1rem;
-  color: var(--ah-text-faint);
-  margin-left: 0.5rem;
-}
-
-.ah-bitmap-card__link {
-  @extend .ah-link;
-  font-size: 0.75rem;
-  line-height: 1rem;
-}
-
-.ah-bitmap-scale-toggle {
-  display: inline-flex;
-  font-size: 0.75rem;
-  line-height: 1rem;
-  border: 1px solid var(--ah-border);
-}
-
-.ah-bitmap-scale-toggle__btn {
-  padding: 0.125rem 0.5rem;
-  color: var(--ah-text-faint);
-  &:hover {
-    color: var(--ah-text-secondary);
-  }
-}
-
-.ah-bitmap-scale-toggle__btn--active {
-  background: var(--ah-accent-bg);
-  color: var(--ah-link);
-  font-weight: 500;
-}
-
-.ah-bitmap-scale-toggle__btn + .ah-bitmap-scale-toggle__btn {
-  border-left: 1px solid var(--ah-border);
 }
 
 // ─── Hex view ────────────────────────────────────────────────────────────────

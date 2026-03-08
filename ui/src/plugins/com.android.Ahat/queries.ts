@@ -18,6 +18,7 @@
 import {Engine} from '../../trace_processor/engine';
 import {
   BLOB_NULL,
+  LONG_NULL,
   NUM,
   NUM_NULL,
   STR,
@@ -446,7 +447,7 @@ export async function getInstance(
         char_value: NUM_NULL,
         short_value: NUM_NULL,
         int_value: NUM_NULL,
-        long_value: NUM_NULL,
+        long_value: LONG_NULL,
         float_value: NUM_NULL,
         double_value: NUM_NULL,
         string_value: STR_NULL,
@@ -708,7 +709,7 @@ export async function getInstance(
         char_value: NUM_NULL,
         short_value: NUM_NULL,
         int_value: NUM_NULL,
-        long_value: NUM_NULL,
+        long_value: LONG_NULL,
         float_value: NUM_NULL,
         double_value: NUM_NULL,
         string_value: STR_NULL,
@@ -861,9 +862,9 @@ export async function getRawBitmapBlob(
     WHERE od.object_id = ${objectId}
       AND f.field_name GLOB '*mNativePtr'
   `);
-  const fit = fieldRes.iter({long_value: NUM_NULL});
+  const fit = fieldRes.iter({long_value: LONG_NULL});
   if (!fit.valid() || fit.long_value === null) return null;
-  const nativePtr = BigInt(fit.long_value);
+  const nativePtr = fit.long_value;
 
   const dumpData = await loadBitmapDumpData(engine);
   if (!dumpData) return null;
@@ -1094,7 +1095,7 @@ async function extractBitmapPixels(
     const it = dimRes.iter({
       field_name: STR,
       int_value: NUM_NULL,
-      long_value: NUM_NULL,
+      long_value: LONG_NULL,
     });
     it.valid();
     it.next()
@@ -1102,7 +1103,7 @@ async function extractBitmapPixels(
     if (it.field_name.endsWith('mWidth')) width = it.int_value ?? 0;
     if (it.field_name.endsWith('mHeight')) height = it.int_value ?? 0;
     if (it.field_name.endsWith('mNativePtr')) {
-      nativePtr = BigInt(it.long_value ?? 0);
+      nativePtr = it.long_value ?? 0n;
     }
   }
   if (width <= 0 || height <= 0 || nativePtr === 0n) return null;
@@ -1124,6 +1125,21 @@ async function extractBitmapPixels(
 
   const format = DUMP_DATA_FORMAT_NAMES[dumpData.format] ?? 'png';
   return {width, height, format, data: bufIt.data};
+}
+
+/** Load bitmap pixel data for a single object by ID. */
+export async function getBitmapPixels(
+  engine: Engine,
+  objectId: number,
+): Promise<InstanceDetail['bitmap']> {
+  const res = await engine.query(`
+    SELECT od.field_set_id
+    FROM heap_graph_object_data od
+    WHERE od.object_id = ${objectId}
+    LIMIT 1
+  `);
+  const row = res.maybeFirstRow({field_set_id: NUM_NULL});
+  return extractBitmapPixels(engine, row?.field_set_id ?? null);
 }
 
 // ─── Search ───────────────────────────────────────────────────────────────────
@@ -1190,6 +1206,98 @@ export async function getObjects(
     LIMIT 5000
   `);
   return collectRows(res);
+}
+
+// ─── getObjectsByFlamegraphSelection ──────────────────────────────────────────
+
+export async function getObjectsByFlamegraphSelection(
+  engine: Engine,
+  pathHashes: string,
+  isDominator: boolean,
+): Promise<InstanceRow[]> {
+  // Query objects matching the given path hashes from the flamegraph.
+  // Path hashes are comma-separated integers identifying class tree nodes.
+  const hashTable = isDominator
+    ? '_heap_graph_dominator_path_hashes'
+    : '_heap_graph_path_hashes';
+  const values = pathHashes
+    .split(',')
+    .map((v) => `(${v.trim()})`)
+    .join(', ');
+  const res = await engine.query(`
+    WITH _ahat_sel(path_hash) AS (VALUES ${values})
+    SELECT ${INSTANCE_COLS}
+    FROM _ahat_sel f
+    JOIN ${hashTable} h ON h.path_hash = f.path_hash
+    JOIN heap_graph_object o ON o.id = h.id
+    JOIN heap_graph_class c ON o.type_id = c.id
+    LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
+    LEFT JOIN heap_graph_object_data od ON od.object_id = o.id
+    ORDER BY o.self_size + o.native_size DESC
+    LIMIT 5000
+  `);
+  return collectRows(res);
+}
+
+// ─── getHeapGraphTrackInfo ─────────────────────────────────────────────────────
+
+export async function getHeapGraphTrackInfo(
+  engine: Engine,
+  objectId: number,
+): Promise<{
+  upid: number;
+  eventId: number;
+  className: string | null;
+  pathHash: string | null;
+} | null> {
+  const res = await engine.query(`
+    SELECT
+      o.upid,
+      c.name AS class_name,
+      (SELECT MIN(e.id)
+       FROM heap_graph_object e
+       WHERE e.upid = o.upid
+         AND e.graph_sample_ts = o.graph_sample_ts) AS event_id
+    FROM heap_graph_object o
+    JOIN heap_graph_class c ON o.type_id = c.id
+    WHERE o.id = ${objectId}
+  `);
+  const row = res.maybeFirstRow({
+    upid: NUM,
+    event_id: NUM,
+    class_name: STR_NULL,
+  });
+  if (!row) return null;
+
+  // Look up the object's path hash in both class tree and dominator tree.
+  // The dominator tree is always materialized by the Ahat plugin; the class
+  // tree tables exist if the HeapProfile plugin rendered a flamegraph.
+  let pathHash: string | null = null;
+  for (const table of [
+    '_heap_graph_dominator_path_hashes',
+    '_heap_graph_path_hashes',
+  ]) {
+    try {
+      const ph = await engine.query(`
+        SELECT CAST(path_hash AS TEXT) AS ph
+        FROM ${table} WHERE id = ${objectId} LIMIT 1
+      `);
+      const phRow = ph.maybeFirstRow({ph: STR_NULL});
+      if (phRow?.ph) {
+        pathHash = phRow.ph;
+        break;
+      }
+    } catch (_) {
+      // Table may not exist if the module hasn't been loaded yet.
+    }
+  }
+
+  return {
+    upid: row.upid,
+    eventId: row.event_id,
+    className: row.class_name,
+    pathHash,
+  };
 }
 
 // ─── getStringList ────────────────────────────────────────────────────────────
@@ -1303,7 +1411,7 @@ export async function getBitmapList(engine: Engine): Promise<BitmapListRow[]> {
       width: NUM_NULL,
       height: NUM_NULL,
       density: NUM_NULL,
-      native_ptr: NUM_NULL,
+      native_ptr: LONG_NULL,
     });
     it.valid();
     it.next()
@@ -1313,7 +1421,7 @@ export async function getBitmapList(engine: Engine): Promise<BitmapListRow[]> {
     // Check if DumpData has a buffer for this bitmap's native pointer.
     let hasPixelData = false;
     if (dumpData !== null && it.native_ptr !== null && w > 0 && h > 0) {
-      hasPixelData = dumpData.bufferMap.has(BigInt(it.native_ptr));
+      hasPixelData = dumpData.bufferMap.has(it.native_ptr);
     }
     rows.push({
       row: rowFromIter(it),
@@ -1337,7 +1445,7 @@ function primFieldValue(it: {
   char_value: number | null;
   short_value: number | null;
   int_value: number | null;
-  long_value: number | null;
+  long_value: bigint | null;
   float_value: number | null;
   double_value: number | null;
   string_value: string | null;

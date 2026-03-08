@@ -28,7 +28,8 @@ export type NavState =
     }
   | {view: 'search'; params: {q: string}}
   | {view: 'bitmaps'; params: {id?: number}}
-  | {view: 'strings'; params: {q?: string}};
+  | {view: 'strings'; params: {q?: string}}
+  | {view: 'flamegraph-objects'; params: {name?: string}};
 
 export function navLabel(state: NavState): string {
   switch (state.view) {
@@ -53,6 +54,10 @@ export function navLabel(state: NavState): string {
       return 'Bitmaps';
     case 'strings':
       return 'Strings';
+    case 'flamegraph-objects': {
+      const n = state.params.name;
+      return n ? `Flamegraph: ${n}` : 'Flamegraph Objects';
+    }
   }
 }
 
@@ -96,6 +101,12 @@ export function stateToSubpage(state: NavState): string {
     case 'strings': {
       const q = state.params.q;
       return q ? `strings?q=${encodeURIComponent(q)}` : 'strings';
+    }
+    case 'flamegraph-objects': {
+      const n = state.params.name;
+      return n
+        ? `flamegraph-objects/${encodeURIComponent(n)}`
+        : 'flamegraph-objects';
     }
   }
 }
@@ -150,6 +161,10 @@ export function subpageToState(subpage: string | undefined): NavState {
       const q = sp.get('q') ?? '';
       return {view: 'strings', params: q ? {q} : {}};
     }
+    case 'flamegraph-objects': {
+      const n = parts[1] ? decodeURIComponent(parts[1]) : undefined;
+      return {view: 'flamegraph-objects', params: n ? {name: n} : {}};
+    }
     default:
       return {view: 'overview', params: {}};
   }
@@ -201,15 +216,26 @@ export function resetToOverview(): void {
 export function syncFromSubpage(subpage: string | undefined): void {
   // Perfetto passes subpage with a leading '/' (e.g. '/rooted') — strip it.
   if (subpage?.startsWith('/')) subpage = subpage.slice(1);
-  // Compare subpage strings, not params objects — subpageToState strips
-  // non-routing params like object labels, so JSON comparison would reset
-  // the breadcrumb trail on every redraw after navigating with a label.
+  // Perfetto's router (Router.parseFragment) uses new URL(hash) which strips
+  // query parameters from the subpage into route.args. So we only get the path
+  // portion here. Compare path-only to avoid resetting the trail on every
+  // redraw when the current state has query params (e.g. objects?class=...).
   const currentSubpage = stateToSubpage(nav);
-  if ((subpage ?? '') !== currentSubpage) {
+  const currentPath = currentSubpage.split('?')[0];
+  const incomingPath = (subpage ?? '').split('?')[0];
+  if (incomingPath !== currentPath) {
     const state = subpageToState(subpage);
     nav = state;
-    trail = [makeCrumb(state)];
-    trailIndex = 0;
+    // flamegraph-objects is only reachable via "Open in Ahat" from the
+    // timeline — preserve the existing trail so the user can navigate back
+    // through their previous Ahat views.
+    if (state.view === 'flamegraph-objects' && trail.length > 1) {
+      trail = [...trail.slice(0, trailIndex + 1), makeCrumb(state)];
+      trailIndex = trail.length - 1;
+    } else {
+      trail = [makeCrumb(state)];
+      trailIndex = 0;
+    }
   }
 }
 
