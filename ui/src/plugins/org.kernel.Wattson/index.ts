@@ -130,7 +130,7 @@ export default class Wattson implements PerfettoPlugin {
 
     // Only add tracks of unique utids
     for (const utid of utidsToPin) {
-      await addWattsonThreadTrack(ctx, utid, {pin: true});
+      await addWattsonThreadTrack(ctx, utid, {pin: true, scrollTo: false});
     }
   }
 

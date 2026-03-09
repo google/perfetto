@@ -24,6 +24,7 @@ export async function addWattsonThreadTrack(
   options?: {
     threadTrackUri?: string;
     pin?: boolean;
+    scrollTo?: boolean;
   },
 ): Promise<void> {
   const uri = `dev.perfetto.Sched#WattsonThreadCounter_${utid}`;
@@ -32,7 +33,9 @@ export async function addWattsonThreadTrack(
     if (options?.pin && !existingTrack.isPinned) {
       existingTrack.pin();
     }
-    trace.scrollTo({track: {uri, expandGroup: true}});
+    if (options?.scrollTo ?? !options?.pin) {
+      trace.scrollTo({track: {uri, expandGroup: true}});
+    }
     return;
   }
 
@@ -125,5 +128,7 @@ export async function addWattsonThreadTrack(
     newNode.pin();
   }
 
-  trace.scrollTo({track: {uri, expandGroup: true}});
+  if (options?.scrollTo ?? !options?.pin) {
+    trace.scrollTo({track: {uri, expandGroup: true}});
+  }
 }
