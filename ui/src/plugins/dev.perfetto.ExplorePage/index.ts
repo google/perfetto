@@ -290,6 +290,17 @@ export default class implements PerfettoPlugin {
     // SQL modules are ready, mark load as attempted regardless of outcome
     this.hasAttemptedStateLoad = true;
 
+    this.loadStateFromSources(trace, sqlModules);
+
+    // Sync loaded state to the permalink store so that "Share trace" includes
+    // the Data Explorer state even if the user hasn't modified anything.
+    // Without this, state loaded from localStorage or recent graphs would
+    // never be written to the permalink store, causing permalinks to lose
+    // the Data Explorer state.
+    this.saveToPermalinkStore();
+  }
+
+  private loadStateFromSources(trace: Trace, sqlModules: SqlModules): void {
     // Priority 1: Check permalink store
     const permalinkState = this.permalinkStore?.state;
     if (permalinkState) {
