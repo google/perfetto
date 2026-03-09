@@ -20,9 +20,6 @@ import {EChartView} from '../../components/widgets/charts/echart_view';
 import type {EChartsCoreOption} from 'echarts/core';
 import {buildChartOption} from '../../components/widgets/charts/chart_option_builder';
 
-// Default chart colors - EChartView will apply theme colors for axes/tooltip
-const DEFAULT_CHART_COLORS = ['#5470c6', '#91cc75', '#fac858'];
-
 const INPUT_CATEGORY = 'Input';
 const PRESENTED_CATEGORY = 'Presented';
 const PRESENTED_JANKY_CATEGORY = 'Presented with Predictor Jank';
@@ -287,7 +284,7 @@ function buildScrollGraphOption(
         }
       : undefined;
 
-  // Input series (blue) - EChartView will apply theme color palette
+  // Input series
   // Attach markArea to this series so it renders properly
   if (inputData.length > 0) {
     series.push({
@@ -295,7 +292,6 @@ function buildScrollGraphOption(
       type: 'scatter',
       data: inputData.map((d) => [d.ts, d.offset, d]),
       symbolSize: 6,
-      itemStyle: {color: DEFAULT_CHART_COLORS[0]},
       markArea: jankMarkArea,
     });
   } else if (jankMarkArea !== undefined) {
@@ -308,25 +304,23 @@ function buildScrollGraphOption(
     });
   }
 
-  // Presented series (green)
+  // Presented series
   if (presentedData.length > 0) {
     series.push({
       name: PRESENTED_CATEGORY,
       type: 'scatter',
       data: presentedData.map((d) => [d.ts, d.offset, d]),
       symbolSize: 6,
-      itemStyle: {color: DEFAULT_CHART_COLORS[1]},
     });
   }
 
-  // Predictor jank series (orange)
+  // Predictor jank series
   if (predictorData.length > 0) {
     series.push({
       name: PRESENTED_JANKY_CATEGORY,
       type: 'scatter',
       data: predictorData.map((d) => [d.ts, d.offset, d]),
       symbolSize: 8,
-      itemStyle: {color: DEFAULT_CHART_COLORS[2]},
     });
   }
 
@@ -359,7 +353,7 @@ function buildScrollGraphOption(
     },
   });
 
-  // Add legend - EChartView will apply theme colors for text
+  // Add legend
   (option as Record<string, unknown>).legend = {
     data: [INPUT_CATEGORY, PRESENTED_CATEGORY, PRESENTED_JANKY_CATEGORY],
     bottom: 0,

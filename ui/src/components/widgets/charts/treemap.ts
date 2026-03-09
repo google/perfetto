@@ -18,18 +18,6 @@ import {formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler, EChartClickParams} from './echart_view';
 import {buildTooltipOption} from './chart_option_builder';
 
-// Default chart colors - these will be overridden by EChartView's theme application
-const DEFAULT_CHART_COLORS = [
-  '#5470c6',
-  '#91cc75',
-  '#fac858',
-  '#ee6666',
-  '#73c0de',
-  '#3ba272',
-  '#fc8452',
-  '#9a60b4',
-];
-
 /**
  * A node in the treemap hierarchy.
  */
@@ -38,8 +26,6 @@ export interface TreemapNode {
   readonly name: string;
   /** Size value (determines rectangle area) */
   readonly value: number;
-  /** Optional category for coloring (uses theme chart color palette) */
-  readonly category?: string;
   /** Optional children for hierarchical treemaps */
   readonly children?: readonly TreemapNode[];
 }
@@ -134,11 +120,6 @@ function buildTreemapOption(
     enableDrillDown = false,
   } = attrs;
 
-  // Build category-to-color mapping using default colors
-  // EChartView will apply theme colors for text/border styling
-  const categoryColors = new Map<string, string>();
-  assignColors(data.nodes, categoryColors, DEFAULT_CHART_COLORS);
-
   const total = data.nodes.reduce((sum, n) => sum + computeTotal(n), 0);
 
   return {
@@ -155,7 +136,7 @@ function buildTreemapOption(
     series: [
       {
         type: 'treemap',
-        data: convertNodes(data.nodes, categoryColors),
+        data: convertNodes(data.nodes),
         roam: enableDrillDown ? 'move' : false,
         nodeClick: enableDrillDown ? 'zoomToNode' : false,
         visibleMin,
@@ -210,37 +191,12 @@ function buildTreemapOption(
 }
 
 /**
- * Recursively assign colors to categories found in nodes.
- */
-function assignColors(
-  nodes: readonly TreemapNode[],
-  categoryColors: Map<string, string>,
-  chartColors: readonly string[],
-): void {
-  for (const node of nodes) {
-    const category = node.category ?? node.name;
-    if (!categoryColors.has(category)) {
-      categoryColors.set(
-        category,
-        chartColors[categoryColors.size % chartColors.length],
-      );
-    }
-    if (node.children !== undefined) {
-      assignColors(node.children, categoryColors, chartColors);
-    }
-  }
-}
-
-/**
  * Convert TreemapNode tree to ECharts data format.
  */
 function convertNodes(
   nodes: readonly TreemapNode[],
-  categoryColors: Map<string, string>,
 ): Array<Record<string, unknown>> {
   return nodes.map((node) => {
-    const category = node.category ?? node.name;
-    const color = categoryColors.get(category);
     const children = node.children;
     const hasChildren = children !== undefined && children.length > 0;
     // For nodes with children, use computed value from children if value is 0
@@ -249,10 +205,9 @@ function convertNodes(
     const result: Record<string, unknown> = {
       name: node.name,
       value,
-      itemStyle: {color},
     };
     if (hasChildren) {
-      result.children = convertNodes(children, categoryColors);
+      result.children = convertNodes(children);
     }
     return result;
   });

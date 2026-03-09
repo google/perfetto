@@ -242,7 +242,7 @@ function buildBarOption(
     option.toolbox = {show: false};
   }
 
-  return option as EChartsCoreOption;
+  return option;
 }
 
 function buildBarEventHandlers(
