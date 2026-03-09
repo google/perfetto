@@ -12,8 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/**
+ * Chart option builder utilities.
+ *
+ * These functions build ECharts option objects with a consistent structure.
+ * Theme colors are NOT included here - EChartView applies theme colors
+ * automatically by reading CSS variables from the DOM element.
+ */
+
 import type {EChartsCoreOption} from 'echarts/core';
-import {getChartThemeColors} from './chart_theme';
 
 /**
  * Configuration for an axis in a chart.
@@ -48,35 +55,28 @@ export interface BrushConfig {
 
 /**
  * Build an axis option from config.
- * Explicitly includes theme colors because ECharts doesn't deep merge
- * option objects with theme objects - setting axisLabel overrides the theme's
- * axisLabel entirely, so we must include colors here.
+ * Theme colors are applied by EChartView, so we omit color settings here.
  */
 export function buildAxisOption(
   config: AxisConfig,
   isXAxis: boolean,
 ): Record<string, unknown> {
-  const theme = getChartThemeColors();
   const axis: Record<string, unknown> = {
     type: config.type,
     name: config.name,
     nameLocation: isXAxis ? ('middle' as const) : ('end' as const),
     nameGap: config.nameGap ?? (isXAxis ? 25 : 10),
-    nameTextStyle: {fontSize: 11, color: theme.textColor},
+    nameTextStyle: {fontSize: 11},
     axisLabel: {
       fontSize: 10,
-      color: theme.textColor,
       ...(config.formatter !== undefined && {formatter: config.formatter}),
       ...(config.labelOverflow !== undefined && {
         overflow: config.labelOverflow,
       }),
       ...(config.labelWidth !== undefined && {width: config.labelWidth}),
     },
-    axisTick: {lineStyle: {color: theme.borderColor}},
-    axisLine: {lineStyle: {color: theme.borderColor}},
     splitLine: {
       show: config.showSplitLine ?? false,
-      lineStyle: {color: theme.borderColor},
     },
   };
 
@@ -100,7 +100,7 @@ export function buildAxisOption(
 }
 
 /**
- * Build a themed grid option.
+ * Build a grid option.
  */
 export function buildGridOption(opts?: {
   top?: number;
@@ -119,28 +119,23 @@ export function buildGridOption(opts?: {
 }
 
 /**
- * Build a themed tooltip option.
- * Explicitly includes theme colors so tooltips adapt when the theme changes.
+ * Build a tooltip option.
+ * Theme colors are applied by EChartView.
  * Extra options are merged in (e.g. trigger, formatter).
  */
 export function buildTooltipOption(
   extra?: Record<string, unknown>,
 ): Record<string, unknown> {
-  const theme = getChartThemeColors();
   return {
-    backgroundColor: theme.backgroundColor,
-    borderColor: theme.borderColor,
-    textStyle: {color: theme.textColor},
     ...extra,
   };
 }
 
 /**
  * Build a brush configuration.
- * Uses accent color from theme (ECharts doesn't theme brush colors).
+ * Theme colors are applied by EChartView.
  */
 export function buildBrushOption(config: BrushConfig): Record<string, unknown> {
-  const theme = getChartThemeColors();
   return {
     ...(config.xAxisIndex !== undefined && {xAxisIndex: config.xAxisIndex}),
     ...(config.yAxisIndex !== undefined && {yAxisIndex: config.yAxisIndex}),
@@ -149,7 +144,6 @@ export function buildBrushOption(config: BrushConfig): Record<string, unknown> {
     brushStyle: {
       borderWidth: 1,
       color: 'rgba(0, 0, 0, 0.1)',
-      borderColor: theme.accentColor,
     },
     throttleType: 'debounce' as const,
     throttleDelay: 100,
@@ -158,13 +152,11 @@ export function buildBrushOption(config: BrushConfig): Record<string, unknown> {
 
 /**
  * Build a legend option.
- * Explicitly includes theme colors because ECharts doesn't deep merge
- * option objects with theme objects.
+ * Theme colors are applied by EChartView.
  */
 export function buildLegendOption(
   position: 'top' | 'right' = 'top',
 ): Record<string, unknown> {
-  const theme = getChartThemeColors();
   if (position === 'right') {
     return {
       show: true,
@@ -178,7 +170,6 @@ export function buildLegendOption(
         width: 120,
         overflow: 'truncate',
         ellipsis: '\u2026',
-        color: theme.textColor,
       },
       tooltip: {show: true},
       pageButtonPosition: 'end',
@@ -187,7 +178,7 @@ export function buildLegendOption(
   return {
     show: true,
     top: 0,
-    textStyle: {fontSize: 10, color: theme.textColor},
+    textStyle: {fontSize: 10},
   };
 }
 
@@ -195,9 +186,8 @@ export function buildLegendOption(
  * Build a complete base chart option with grid, axes, and optional
  * tooltip/brush/legend. Charts add their own `series` on top.
  *
- * The `color` array (series colors) and tooltip theme colors are included
- * so that charts update automatically when the Mithril component re-renders
- * after a theme change — without needing to reinitialize the ECharts instance.
+ * Theme colors (series colors, text colors, etc.) are applied by EChartView
+ * which reads CSS variables from the DOM element.
  */
 export function buildChartOption(config: {
   readonly grid?: Parameters<typeof buildGridOption>[0];
@@ -208,11 +198,9 @@ export function buildChartOption(config: {
   readonly legend?: Record<string, unknown>;
 }): EChartsCoreOption {
   const {grid, xAxis, yAxis, tooltip, brush, legend} = config;
-  const theme = getChartThemeColors();
 
   const option: Record<string, unknown> = {
     animation: false,
-    color: [...theme.chartColors],
     grid: buildGridOption(grid),
     xAxis: buildAxisOption(xAxis, true),
     yAxis: buildAxisOption(yAxis, false),

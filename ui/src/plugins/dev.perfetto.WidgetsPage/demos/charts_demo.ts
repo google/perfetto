@@ -1416,21 +1416,19 @@ const TREEMAP_HIERARCHICAL_DATA: TreemapData = {
     {
       name: 'UI Processes',
       value: 650, // Sum of children: 350 + 200 + 100
-      category: 'ui',
       children: [
-        {name: 'Chrome', value: 350, category: 'ui'},
-        {name: 'SystemUI', value: 200, category: 'ui'},
-        {name: 'Launcher', value: 100, category: 'ui'},
+        {name: 'Chrome', value: 350},
+        {name: 'SystemUI', value: 200},
+        {name: 'Launcher', value: 100},
       ],
     },
     {
       name: 'System Services',
       value: 350, // Sum of children: 150 + 75 + 125
-      category: 'system',
       children: [
-        {name: 'SurfaceFlinger', value: 150, category: 'system'},
-        {name: 'InputDispatcher', value: 75, category: 'system'},
-        {name: 'AudioFlinger', value: 125, category: 'system'},
+        {name: 'SurfaceFlinger', value: 150},
+        {name: 'InputDispatcher', value: 75},
+        {name: 'AudioFlinger', value: 125},
       ],
     },
   ],
