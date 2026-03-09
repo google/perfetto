@@ -17,20 +17,22 @@
 -- intervals by matching each start with the next end timestamp strictly greater
 -- than it.
 --
--- Both input tables must have a column named `ts`. Uses an efficient O(n+m)
--- two-pointer algorithm implemented in C++.
+-- Both input tables must have columns named `id` and `ts`. Uses an efficient
+-- O(n+m) two-pointer algorithm implemented in C++.
 --
 -- Example:
 -- ```
 -- SELECT * FROM _interval_create!(
---   (SELECT ts FROM starts_table),
---   (SELECT ts FROM ends_table)
+--   (SELECT id, ts FROM starts_table),
+--   (SELECT id, ts FROM ends_table)
 -- )
 -- ```
 CREATE PERFETTO MACRO _interval_create(
-    -- Table or subquery containing start timestamps (must have a `ts` column).
+    -- Table or subquery containing start timestamps (must have `id` and `ts`
+    -- columns).
     starts_table TableOrSubquery,
-    -- Table or subquery containing end timestamps (must have a `ts` column).
+    -- Table or subquery containing end timestamps (must have `id` and `ts`
+    -- columns).
     ends_table TableOrSubquery
 )
 -- Table with the schema:
@@ -38,18 +40,25 @@ CREATE PERFETTO MACRO _interval_create(
 --     The start timestamp.
 -- dur DURATION,
 --     The duration from start to the matched end.
+-- start_id LONG,
+--     The id of the matched start row.
+-- end_id LONG,
+--     The id of the matched end row.
 RETURNS TableOrSubquery AS
 (
   SELECT
     c0 AS ts,
-    c1 AS dur
+    c1 AS dur,
+    c2 AS start_id,
+    c3 AS end_id
   FROM __intrinsic_table_ptr(
     __intrinsic_interval_create(
       (
         SELECT
-          __intrinsic_timestamp_set_agg(ordered_s.ts)
+          __intrinsic_timestamp_set_agg(ordered_s.id, ordered_s.ts)
         FROM (
           SELECT
+            id,
             ts
           FROM $starts_table
           ORDER BY
@@ -58,9 +67,10 @@ RETURNS TableOrSubquery AS
       ),
       (
         SELECT
-          __intrinsic_timestamp_set_agg(ordered_e.ts)
+          __intrinsic_timestamp_set_agg(ordered_e.id, ordered_e.ts)
         FROM (
           SELECT
+            id,
             ts
           FROM $ends_table
           ORDER BY
@@ -70,5 +80,8 @@ RETURNS TableOrSubquery AS
     )
   )
   WHERE
-    __intrinsic_table_ptr_bind(c0, 'ts') AND __intrinsic_table_ptr_bind(c1, 'dur')
+    __intrinsic_table_ptr_bind(c0, 'ts')
+    AND __intrinsic_table_ptr_bind(c1, 'dur')
+    AND __intrinsic_table_ptr_bind(c2, 'start_id')
+    AND __intrinsic_table_ptr_bind(c3, 'end_id')
 );
