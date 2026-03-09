@@ -250,13 +250,13 @@
         "primaryInputId": "1",
         "secondaryInputNodeId": "2",
         "selectedColumns": [
-          "name"
+          "is_main_thread"
         ],
         "leftColumn": "utid",
         "rightColumn": "id",
         "suggestionSelections": {
           "thread": [
-            "name"
+            "is_main_thread"
           ]
         },
         "expandedSuggestions": [],
