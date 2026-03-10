@@ -142,6 +142,10 @@ config("abseil_config") {
       "-Wno-gcc-compat",
       "-Wno-nullability-extension",
       "-Wno-unknown-warning-option",
+      "-Wno-redundant-parens",
+      "-Wno-double-promotion",
+      "-Wno-thread-safety-negative",
+      "-Wno-used-but-marked-unused",
     ]
   }
   if (is_gcc) {
@@ -866,7 +870,10 @@ config("protobuf_full_public_config") {
   visibility = _buildtools_visibility
   cflags = []
   if (is_clang) {
-    cflags += [ "-Wno-switch-enum" ]
+    cflags += [
+      "-Wno-switch-enum",
+      "-Wno-covered-switch-default",
+    ]
     if (is_win) {
       cflags += [ "-Wno-undef" ]
     }
@@ -1000,6 +1007,9 @@ source_set("protobuf_lite") {
   if (is_win) {
     # Protobuf has its own #define WIN32_LEAN_AND_MEAN.
     configs -= [ "//gn/standalone:win32_lean_and_mean" ]
+
+    # For CommandLineToArgvW required by protobuf's main.
+    libs = [ "shell32.lib" ]
   }
   configs += [ ":protobuf_config" ]
   public_configs = [ "//gn:protobuf_gen_config" ]
@@ -1996,37 +2006,6 @@ config("bionic_kernel_uapi_headers") {
     perfetto_isystem_cflag,
     rebase_path("bionic/libc/kernel", root_build_dir),
   ]
-}
-
-config("jsoncpp_config") {
-  visibility = _buildtools_visibility
-  cflags = [ "-DJSON_USE_EXCEPTION=0" ]
-  cflags += [
-    # Using -isystem instead of include_dirs (-I), so we don't need to suppress
-    # warnings coming from third-party headers. Doing so would mask warnings in
-    # our own code.
-    perfetto_isystem_cflag,
-    rebase_path("jsoncpp/include", root_build_dir),
-  ]
-  if (!is_win) {
-    cflags += [ "-Wno-deprecated-declarations" ]
-  }
-  if (is_clang && is_win) {
-    # JSON uses __int64 which clang complains about unless we specify this flag.
-    cflags += [ "-Wno-language-extension-token" ]
-  }
-}
-
-source_set("jsoncpp") {
-  visibility = _buildtools_visibility
-  sources = [
-    "jsoncpp/src/lib_json/json_reader.cpp",
-    "jsoncpp/src/lib_json/json_value.cpp",
-    "jsoncpp/src/lib_json/json_writer.cpp",
-  ]
-  configs -= [ "//gn/standalone:extra_warnings" ]
-  public_configs = [ ":jsoncpp_config" ]
-  deps = [ "//gn:default_deps" ]
 }
 
 config("no_format_warning") {

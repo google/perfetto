@@ -91,6 +91,7 @@ action("gen_buildflags") {
     "PERFETTO_FORCE_DLOG_OFF=$perfetto_force_dlog_off",
     "PERFETTO_FORCE_DCHECK_ON=$perfetto_force_dcheck_on",
     "PERFETTO_FORCE_DCHECK_OFF=$perfetto_force_dcheck_off",
+    "PERFETTO_HTTP_ADDITIONAL_CORS_ORIGINS=\"$perfetto_http_additional_cors_origins\"",
     "PERFETTO_VERBOSE_LOGS=$perfetto_verbose_logs_enabled",
     "PERFETTO_VERSION_GEN=$enable_perfetto_version_gen",
     "PERFETTO_TP_PERCENTILE=$enable_perfetto_trace_processor_percentile",
@@ -228,10 +229,12 @@ group("gtest_main") {
 protobuf_full_deps_allowlist = [
   "../buildtools/grpc:*",
   "../src/ipc/protoc_plugin:*",
+  "../src/tools:tracing_proto_extensions_lib",
   "../src/protozero/protoc_plugin:*",
+  "../src/protozero:multifile_error_collector",
   "../src/protozero/filtering:filter_util",
   "../src/trace_processor:trace_processor_shell_lib",
-  "../src/protozero/filtering:filter_util",
+  "../src/trace_processor/shell:*",
   "../tools/*",
   "../src/tools/*",
   "../contrib/rust-sdk/tools/*",
@@ -395,17 +398,6 @@ if (enable_perfetto_trace_processor_mac_instruments) {
       public_deps = [ "//buildtools:expat" ]
     } else {
       public_deps = [ "//third_party/expat:expat" ]
-    }
-  }
-}
-
-if (enable_perfetto_trace_processor_json) {
-  group("jsoncpp") {
-    if (perfetto_root_path == "//") {
-      public_configs = [ "//buildtools:jsoncpp_config" ]
-      public_deps = [ "//buildtools:jsoncpp" ]
-    } else {
-      public_deps = [ "//third_party/jsoncpp:jsoncpp" ]
     }
   }
 }

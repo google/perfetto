@@ -21,6 +21,7 @@
 // - Not directly rely on any other plugins.
 // - Be approved by one of Perfetto UI owners.
 export const defaultPlugins = [
+  'com.android.AndroidAnr',
   'com.android.AndroidClientServer',
   'com.android.AndroidCujs',
   'com.android.AndroidDmabuf',

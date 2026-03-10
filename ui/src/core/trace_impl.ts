@@ -52,6 +52,7 @@ import {SettingDescriptor} from '../public/settings';
 import {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
 import {TraceStream} from '../public/stream';
+import {OmniboxModeDescriptor} from '../public/omnibox';
 
 /**
  * This implementation provides the plugin access to trace related resources,
@@ -143,8 +144,8 @@ export class TraceImpl implements Trace, Disposable {
         this.trash.use(disposable);
         return disposable;
       },
-      registerMacro: (macro) => {
-        const disposable = app.commands.registerMacro(macro);
+      registerMacro: (macro, source) => {
+        const disposable = app.commands.registerMacro(macro, source);
         this.trash.use(disposable);
         return disposable;
       },
@@ -170,6 +171,14 @@ export class TraceImpl implements Trace, Disposable {
     this.settingsProxy = createProxy(app.settings, {
       register: <T>(setting: SettingDescriptor<T>) => {
         const disposable = app.settings.register(setting);
+        this.trash.use(disposable);
+        return disposable;
+      },
+    });
+
+    this.omniboxProxy = createProxy(app.omnibox, {
+      registerMode: (descriptor: OmniboxModeDescriptor) => {
+        const disposable = app.omnibox.registerMode(descriptor);
         this.trash.use(disposable);
         return disposable;
       },
@@ -202,6 +211,7 @@ export class TraceImpl implements Trace, Disposable {
   private readonly sidebarProxy: SidebarManagerImpl;
   private readonly pageMgrProxy: PageManagerImpl;
   private readonly settingsProxy: SettingsManagerImpl;
+  private readonly omniboxProxy: OmniboxManagerImpl;
 
   scrollTo(where: ScrollToArgs): void {
     this.scrollHelper.scrollTo(where);
@@ -261,7 +271,7 @@ export class TraceImpl implements Trace, Disposable {
   }
 
   get omnibox(): OmniboxManagerImpl {
-    return this.app.omnibox;
+    return this.omniboxProxy;
   }
 
   get plugins(): PluginManagerImpl {

@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {findRef} from '../../base/dom_utils';
-import {assertUnreachable} from '../../base/logging';
+import {assertUnreachable} from '../../base/assert';
 import {Trace} from '../../public/trace';
 import {Form, FormLabel, FormSection} from '../../widgets/form';
 import {Select} from '../../widgets/select';

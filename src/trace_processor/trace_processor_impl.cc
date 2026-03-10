@@ -91,6 +91,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/counter_intervals.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/create_intervals.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/dominator_tree.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/graph_scan.h"
@@ -153,7 +154,6 @@
 #include "src/trace_processor/util/gzip_utils.h"
 #include "src/trace_processor/util/protozero_to_json.h"
 #include "src/trace_processor/util/protozero_to_text.h"
-#include "src/trace_processor/util/regex.h"
 #include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/trace_type.h"
 
@@ -1252,10 +1252,9 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
       engine.get(),
       std::make_unique<PerfCounterForSampleFunction::Context>(storage));
 
-  if constexpr (regex::IsRegexSupported()) {
-    RegisterFunction<Regexp>(engine.get());
-    RegisterFunction<RegexpExtract>(engine.get());
-  }
+  RegisterFunction<Regexp>(engine.get());
+  RegisterFunction<RegexpExtract>(engine.get());
+  RegisterFunction<RegexpReplaceSimple>(engine.get());
 
   RegisterFunction<UnHex>(engine.get());
 
@@ -1327,6 +1326,10 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   }
   {
     base::Status status = perfetto_sql::RegisterCounterIntervalsFunctions(
+        *engine, storage->mutable_string_pool());
+  }
+  {
+    base::Status status = perfetto_sql::RegisterIntervalCreateFunctions(
         *engine, storage->mutable_string_pool());
   }
   {
@@ -1470,8 +1473,12 @@ base::Status TraceProcessorImpl::CreateSummarizer(
         kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size());
   }
 
-  *out = std::make_unique<summary::SummarizerImpl>(this,
-                                                   &metrics_descriptor_pool_);
+  // Auto-generate a unique id for table namespacing. The id is embedded in
+  // SQL table names (e.g. "_exp_mat_{id}_{seq}") to prevent collisions
+  // between multiple summarizer instances.
+  std::string id = std::to_string(next_summarizer_id_++);
+  *out = std::make_unique<summary::SummarizerImpl>(
+      this, &metrics_descriptor_pool_, std::move(id));
   return base::OkStatus();
 }
 

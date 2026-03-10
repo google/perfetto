@@ -119,13 +119,14 @@ export class CommandManagerImpl implements CommandManager {
     return res;
   }
 
-  registerMacro({id, name, run}: Macro) {
+  registerMacro({id, name, run}: Macro, source?: string) {
     const stack = new DisposableStack();
     stack.use(this.macros.register(id));
     stack.use(
       this.registerCommand({
         id,
         name,
+        source,
         callback: async () => {
           // Macros could run multiple commands, some of which might prompt the
           // user in an optional way. But macros should be self-contained

@@ -21,7 +21,7 @@ import {
 import fs from 'fs';
 import path from 'path';
 import {IdleDetectorWindow} from '../frontend/idle_detector_interface';
-import {assertExists} from '../base/logging';
+import {assertExists} from '../base/assert';
 import {Size2D} from '../base/geom';
 import {AppImpl} from '../core/app_impl';
 
@@ -89,7 +89,12 @@ export class PerfettoTestHelper {
     });
   }
 
-  waitForPerfettoIdle(idleHysteresisMs?: number): Promise<void> {
+  async waitForPerfettoIdle(idleHysteresisMs?: number): Promise<void> {
+    await this.page.waitForFunction(
+      () =>
+        typeof (window as {} as {waitForPerfettoIdle?: unknown})
+          .waitForPerfettoIdle === 'function',
+    );
     return this.page.evaluate(
       async (ms) =>
         (window as {} as IdleDetectorWindow).waitForPerfettoIdle(ms),

@@ -37,7 +37,9 @@ import {Tabs, TabsTab} from '../../widgets/tabs';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Anchor} from '../../widgets/anchor';
-import {getSliceId, isSliceish} from '../../components/query_table/query_table';
+import {getSliceId, isSliceish} from './query_table';
+import {Row} from '../../trace_processor/query_result';
+import {Select} from '../../widgets/select';
 import {DataSource} from '../../components/widgets/datagrid/data_source';
 import {PopupMenu} from '../../widgets/menu';
 import {PopupPosition} from '../../widgets/popup';
@@ -45,8 +47,18 @@ import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {TableList} from './table_list';
 import {Icon} from '../../widgets/icon';
+import {Chip} from '../../widgets/chip';
 
 const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
+
+// Tables whose IDs can be linked from the query results.
+// 'auto' uses heuristics to detect slice-like rows.
+const ID_TABLE_OPTIONS: ReadonlyArray<{label: string; sqlTable: string}> = [
+  {label: 'Auto-Detect', sqlTable: 'auto'},
+  {label: 'slice.id', sqlTable: 'slice'},
+  {label: 'sched.id', sqlTable: 'sched_slice'},
+  {label: 'thread_state.id', sqlTable: 'thread_state'},
+];
 
 // Represents a single query editor tab with its own state.
 export interface QueryEditorTab {
@@ -101,6 +113,9 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
 
   // Track previous query results to detect changes
   private prevQueryResults = new Map<string, QueryResponse | undefined>();
+
+  // The selected table for linking ID column values.
+  private selectedIdTable = ID_TABLE_OPTIONS[0].sqlTable;
 
   view({attrs}: m.CVnode<QueryPageAttrs>) {
     const {editorTabs, activeTabId} = attrs;
@@ -382,33 +397,38 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             const cellRenderer: CellRenderer | undefined =
               column === 'id'
                 ? (value, row) => {
-                    const sliceId = getSliceId(row);
                     const cell = renderCell(value, column);
-                    if (sliceId !== undefined && isSliceish(row)) {
+                    const resolved = this.resolveIdTable(row, value);
+                    if (resolved !== undefined) {
                       return m(
                         Anchor,
                         {
-                          title: 'Go to slice on the timeline',
+                          title: `Go to ${resolved.table} on the timeline`,
                           icon: Icons.UpdateSelection,
                           onclick: () => {
-                            // Navigate to the timeline page
                             trace.navigate('#!/viewer');
-                            trace.selection.selectSqlEvent('slice', sliceId, {
-                              switchToCurrentSelectionTab: false,
-                              scrollToSelection: true,
-                            });
+                            trace.selection.selectSqlEvent(
+                              resolved.table,
+                              resolved.id,
+                              {
+                                switchToCurrentSelectionTab: false,
+                                scrollToSelection: true,
+                              },
+                            );
                           },
                         },
                         cell,
                       );
                     } else {
-                      return renderCell(value, column);
+                      return cell;
                     }
                   }
                 : undefined;
             columnSchema[column] = {cellRenderer};
           }
           const schema: SchemaRegistry = {data: columnSchema};
+          const hasIdColumn = queryResult.columns.includes('id');
+          const autoDetected = this.detectAutoTable(queryResult.rows);
           const lastStatement = queryResult.lastStatementSql;
 
           return m(DataGrid, {
@@ -423,10 +443,37 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             data: dataSource,
             showExportButton: true,
             emptyStateMessage: 'Query returned no rows',
-            toolbarItemsLeft: m(
-              'span.pf-query-page__results-summary',
-              `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${queryTimeString}`,
-            ),
+            toolbarItemsLeft: [
+              m(Chip, {
+                intent: Intent.Success,
+                label: `${queryResult.totalRowCount.toLocaleString()} rows`,
+              }),
+              m(Chip, {label: queryTimeString}),
+              hasIdColumn &&
+                m('label.pf-query-page__id-table-select', [
+                  m('span.pf-query-page__id-table-label', 'Interpret id as:'),
+                  m(
+                    Select,
+                    {
+                      value: this.selectedIdTable,
+                      onchange: (e: Event) => {
+                        this.selectedIdTable = (
+                          e.target as HTMLSelectElement
+                        ).value;
+                      },
+                    },
+                    ID_TABLE_OPTIONS.map((opt) =>
+                      m(
+                        'option',
+                        {value: opt.sqlTable},
+                        opt.sqlTable === 'auto'
+                          ? `Auto-Detect (${autoDetected})`
+                          : `${opt.label}`,
+                      ),
+                    ),
+                  ),
+                ]),
+            ],
             toolbarItemsRight: [
               m(
                 PopupMenu,
@@ -478,6 +525,44 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         attrs.onTabAdd?.(tableName, query, true);
       },
     });
+  }
+
+  // Check the first row to determine what 'auto' would detect.
+  private detectAutoTable(rows: Row[]): string {
+    if (rows.length > 0) {
+      const row = rows[0];
+      if (getSliceId(row) !== undefined && isSliceish(row)) {
+        return 'slice.id';
+      }
+    }
+    return 'none';
+  }
+
+  // Given the current selectedIdTable setting, resolve the SQL table name and
+  // ID to use for navigation. Returns undefined if no link should be shown.
+  private resolveIdTable(
+    row: Row,
+    value: Row[string],
+  ): {table: string; id: number} | undefined {
+    const idFromValue =
+      typeof value === 'bigint'
+        ? Number(value)
+        : typeof value === 'number'
+          ? value
+          : undefined;
+
+    if (this.selectedIdTable === 'auto') {
+      const sliceId = getSliceId(row);
+      if (sliceId !== undefined && isSliceish(row)) {
+        return {table: 'slice', id: sliceId};
+      }
+      return undefined;
+    }
+
+    if (idFromValue !== undefined) {
+      return {table: this.selectedIdTable, id: idFromValue};
+    }
+    return undefined;
   }
 
   private shouldDisplayPerfettoSqlAgentBanner(attrs: QueryPageAttrs) {

@@ -12,60 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/**
- * Generate nice tick values for a chart axis.
- *
- * @param min Minimum value of the axis range.
- * @param max Maximum value of the axis range.
- * @param count Number of ticks to generate.
- * @param integer When true, ticks are rounded to integers and deduplicated.
- */
-export function generateTicks(
-  min: number,
-  max: number,
-  count: number,
-  integer = false,
-): number[] {
-  if (min === max) return [min];
-  if (count <= 1) return [min];
-
-  const range = max - min;
-  const step = range / (count - 1);
-  const ticks: number[] = [];
-
-  for (let i = 0; i < count; i++) {
-    let tick = min + i * step;
-    if (integer) tick = Math.round(tick);
-    ticks.push(tick);
-  }
-
-  // Deduplicate when rounding creates duplicates (small integer ranges)
-  if (integer) {
-    return [...new Set(ticks)];
-  }
-  return ticks;
-}
+import {AggregateFunction} from '../datagrid/model';
 
 /**
- * Estimate how many axis ticks fit without overlapping, given the available
- * width (in SVG viewbox units) and a formatter. Samples several values
- * across the range to find the widest label, then computes how many fit.
+ * Aggregation functions available for charts.
+ * Extends the datagrid's AggregateFunction with COUNT, which is
+ * field-independent (counts rows rather than aggregating a column).
  */
-export function estimateTickCount(
-  availableWidth: number,
-  min: number,
-  max: number,
-  formatter: (v: number) => string = formatNumber,
-): number {
-  const charWidth = 6;
-  const minGap = 15;
-  // Sample min, max, and a few intermediate values to find worst-case width.
-  const samples = [min, max, (min + max) / 2, min + (max - min) * 0.25];
-  const maxLen = Math.max(...samples.map((v) => formatter(v).length));
-  const labelWidth = maxLen * charWidth;
-  const tickSlotWidth = labelWidth + minGap;
-  return Math.min(7, Math.max(2, Math.floor(availableWidth / tickSlotWidth)));
-}
+export type ChartAggregation = AggregateFunction | 'COUNT';
 
 /**
  * Format a number for display on chart axes.
@@ -85,108 +39,81 @@ export function formatNumber(value: number): string {
 }
 
 /**
- * Generate tick values for a logarithmic scale (powers of 10).
- */
-export function generateLogTicks(max: number): number[] {
-  if (max <= 1) return [1];
-  const ticks: number[] = [1];
-  let power = 1;
-  while (Math.pow(10, power) <= max) {
-    ticks.push(Math.pow(10, power));
-    power++;
-  }
-  return ticks;
-}
-
-/**
- * Aggregation types supported by chart loaders.
- */
-export type AggregationType =
-  | 'SUM'
-  | 'AVG'
-  | 'MIN'
-  | 'MAX'
-  | 'COUNT'
-  | 'COUNT_DISTINCT';
-
-/**
  * Whether an aggregation always produces integer results.
  */
-export function isIntegerAggregation(agg: AggregationType): boolean {
+export function isIntegerAggregation(agg: ChartAggregation): boolean {
   return agg === 'COUNT' || agg === 'COUNT_DISTINCT';
-}
-
-/**
- * Default chart colors for multi-series charts.
- */
-export const CHART_COLORS = [
-  'var(--pf-chart-color-1, #4285f4)',
-  'var(--pf-chart-color-2, #ea4335)',
-  'var(--pf-chart-color-3, #fbbc04)',
-  'var(--pf-chart-color-4, #34a853)',
-  'var(--pf-chart-color-5, #ff6d01)',
-  'var(--pf-chart-color-6, #46bdc6)',
-  'var(--pf-chart-color-7, #9334e6)',
-  'var(--pf-chart-color-8, #185abc)',
-];
-
-/**
- * Truncate a label to fit within a maximum character count.
- * Adds an ellipsis if truncation is needed.
- *
- * @param label The text to truncate.
- * @param maxChars Maximum characters to allow.
- */
-export function truncateLabel(label: string, maxChars: number): string {
-  if (label.length <= maxChars) return label;
-  return label.substring(0, maxChars - 1) + '\u2026';
 }
 
 // ---------------------------------------------------------------------------
 // SQL helpers shared across chart loaders
 // ---------------------------------------------------------------------------
 
+// Valid SQL column name: identifier chars only (letters, digits, underscore).
+const VALID_COLUMN_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
 /**
- * Build the SQL aggregation expression for a column.
+ * Validate that a string is a safe SQL column identifier.
+ * Throws if the name contains non-identifier characters.
  */
-export function sqlAggExpression(column: string, agg: AggregationType): string {
-  switch (agg) {
-    case 'SUM':
-      return `SUM(${column})`;
-    case 'AVG':
-      return `AVG(${column})`;
-    case 'MIN':
-      return `MIN(${column})`;
-    case 'MAX':
-      return `MAX(${column})`;
-    case 'COUNT':
-      return `COUNT(${column})`;
-    case 'COUNT_DISTINCT':
-      return `COUNT(DISTINCT ${column})`;
+export function validateColumnName(name: string): void {
+  if (!VALID_COLUMN_RE.test(name)) {
+    throw new Error(`Invalid SQL column name: '${name}'`);
   }
 }
 
+// ---------------------------------------------------------------------------
+// ECharts brush helpers
+// ---------------------------------------------------------------------------
+
+// Re-export EChartBrushEndParams for use by other chart modules.
+export {type EChartBrushEndParams} from './echart_view';
+
 /**
- * Build a SQL `column IN (...)` clause from a list of values.
- * String values are properly escaped. Returns empty string if values is empty.
+ * Extract the numeric brush range from an ECharts brushEnd event.
+ * Returns [min, max] if a valid range was selected, undefined otherwise.
+ *
+ * This utility centralizes the brush range extraction logic used across
+ * different chart types (line, bar, histogram).
  */
-export function sqlInClause(
-  column: string,
-  values: ReadonlyArray<string | number>,
-): string {
-  if (values.length === 0) return '';
-  const literals = values.map((v) =>
-    typeof v === 'string' ? `'${v.replace(/'/g, "''")}'` : `${v}`,
-  );
-  return `${column} IN (${literals.join(', ')})`;
+export function extractBrushRange(
+  params: unknown,
+): [number, number] | undefined {
+  const p = params as {
+    areas?: ReadonlyArray<{coordRange?: [number, number]}>;
+  };
+  const areas = p.areas;
+  if (areas !== undefined && areas.length > 0 && areas[0].coordRange) {
+    const [a, b] = areas[0].coordRange;
+    return [Math.min(a, b), Math.max(a, b)];
+  }
+  return undefined;
 }
 
 /**
- * Build a SQL range filter clause: `column >= min AND column <= max`.
+ * Extract the 2D brush rect from an ECharts `brushEnd` event (rect brush).
+ * Returns {xMin, xMax, yMin, yMax} if a valid rect was selected, undefined
+ * otherwise.
+ *
+ * For a rect brush, ECharts puts [[xMin, xMax], [yMin, yMax]] in coordRange.
  */
-export function sqlRangeClause(
-  column: string,
-  range: {readonly min: number; readonly max: number},
-): string {
-  return `${column} >= ${range.min} AND ${column} <= ${range.max}`;
+export function extractBrushRect(
+  params: unknown,
+): {xMin: number; xMax: number; yMin: number; yMax: number} | undefined {
+  const p = params as {
+    areas?: ReadonlyArray<{
+      coordRange?: [[number, number], [number, number]];
+    }>;
+  };
+  const areas = p.areas;
+  if (areas === undefined || areas.length === 0) return undefined;
+  const coordRange = areas[0].coordRange;
+  if (coordRange === undefined) return undefined;
+  const [[x1, x2], [y1, y2]] = coordRange;
+  return {
+    xMin: Math.min(x1, x2),
+    xMax: Math.max(x1, x2),
+    yMin: Math.min(y1, y2),
+    yMax: Math.max(y1, y2),
+  };
 }

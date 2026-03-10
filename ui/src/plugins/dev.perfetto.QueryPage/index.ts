@@ -13,9 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {z} from 'zod';
+import {uuidv4, z} from 'zod';
 import {runQueryForQueryTable} from '../../components/query_table/queries';
-import {QueryResultsTable} from '../../components/query_table/query_table';
+import {QueryResultTab} from './query_result_tab';
+import {QueryResultsTable} from './query_table';
+import {undoCommonChatAppReplacements} from '../../base/string_utils';
 import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Setting} from '../../public/settings';
@@ -86,6 +88,24 @@ export default class QueryPagePlugin implements PerfettoPlugin {
   static readonly dependencies = [SqlModulesPlugin];
 
   private static queryTabPersistenceSetting: Setting<boolean>;
+
+  constructor(private readonly trace: Trace) {}
+
+  addQueryResultsTab(
+    config: {query: string; title: string},
+    tag?: string,
+  ): void {
+    const queryResultsTab = new QueryResultTab(this.trace, config);
+
+    const uri = 'queryResults#' + (tag ?? uuidv4());
+
+    this.trace.tabs.registerTab({
+      uri,
+      content: queryResultsTab,
+      isEphemeral: true,
+    });
+    this.trace.tabs.showTab(uri);
+  }
 
   static onActivate(app: App): void {
     QueryPagePlugin.queryTabPersistenceSetting = app.settings.register({
@@ -265,6 +285,29 @@ export default class QueryPagePlugin implements PerfettoPlugin {
 
       debouncedSave();
     }
+
+    trace.omnibox.registerMode({
+      trigger: ':',
+      hint: "':' for SQL query",
+      placeholder:
+        'e.g. select * from sched left join thread using(utid) limit 10',
+      className: 'pf-omnibox--query-mode',
+      onSubmit: (query, alt) => {
+        const config = {
+          query: undoCommonChatAppReplacements(query),
+          title: alt ? 'Pinned query' : 'Omnibox query',
+        };
+        const tag = alt ? undefined : 'omnibox_query';
+        this.addQueryResultsTab(config, tag);
+      },
+    });
+
+    // Add a command to activate the query mode
+    trace.commands.registerCommand({
+      id: 'dev.perfetto.SwitchToQueryMode',
+      name: 'Switch to query mode',
+      callback: () => trace.omnibox.activateRegisteredMode(':'),
+    });
 
     trace.pages.registerPage({
       route: '/query',

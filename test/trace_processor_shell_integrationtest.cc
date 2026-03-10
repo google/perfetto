@@ -16,7 +16,9 @@
 
 #include <string_view>
 
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/subprocess.h"
+#include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
 #include "protos/perfetto/trace_processor/trace_processor.gen.h"
 #include "test/gtest_and_gmock.h"
@@ -31,6 +33,7 @@ using CellsBatch = protos::gen::QueryResult::CellsBatch;
 
 using testing::AllOf;
 using testing::ElementsAre;
+using testing::HasSubstr;
 using testing::IsEmpty;
 using testing::Property;
 using testing::SizeIs;
@@ -39,6 +42,158 @@ const std::string_view kSimpleSystrace = R"(# tracer
 surfaceflinger-598   (  598) [004] .... 10852.771242: tracing_mark_write: B|598|some event
 surfaceflinger-598   (  598) [004] .... 10852.771245: tracing_mark_write: E|598
 )";
+
+std::string ShellPath() {
+  return base::GetCurExecutableDir() + "/trace_processor_shell";
+}
+
+// Writes kSimpleSystrace to a temp file and returns the TempFile object.
+base::TempFile WriteSimpleSystrace() {
+  auto f = base::TempFile::Create();
+  base::WriteAll(f.fd(), kSimpleSystrace.data(),
+                 static_cast<size_t>(kSimpleSystrace.size()));
+  return f;
+}
+
+// Writes arbitrary content to a temp file and returns the TempFile object.
+base::TempFile WriteTempFile(const std::string& content) {
+  auto f = base::TempFile::Create();
+  base::WriteAll(f.fd(), content.data(), content.size());
+  return f;
+}
+
+struct SubprocessResult {
+  int exit_code;
+  std::string out;
+};
+
+// Runs trace_processor_shell with the given args. stdout and stderr are both
+// captured into `out`.
+SubprocessResult RunShell(std::initializer_list<std::string> extra_args) {
+  base::Subprocess p;
+  p.args.exec_cmd.push_back(ShellPath());
+  for (const auto& a : extra_args) {
+    p.args.exec_cmd.push_back(a);
+  }
+  p.args.stdin_mode = base::Subprocess::InputMode::kDevNull;
+  p.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  p.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  p.Start();
+  PERFETTO_CHECK(p.Wait(kDefaultTestTimeoutMs));
+  return {p.returncode(), std::move(p.output())};
+}
+
+// ---------------------------------------------------------------------------
+// Classic CLI backcompat tests
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, ClassicVersion) {
+  auto result = RunShell({"-v"});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("Trace Processor RPC API version"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicHelp) {
+  auto result = RunShell({"-h"});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("Interactive trace processor shell"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicUnknownFlag) {
+  auto result = RunShell({"--nonexistent"});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicQueryString) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"-Q", "SELECT 1 AS x", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("x"));
+  EXPECT_THAT(result.out, HasSubstr("1"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicQueryFile) {
+  auto trace = WriteSimpleSystrace();
+  auto query = WriteTempFile("SELECT 42 AS val;");
+  auto result = RunShell({"-q", query.path(), trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("val"));
+  EXPECT_THAT(result.out, HasSubstr("42"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicQueryStringNoTrace) {
+  auto result = RunShell({"-Q", "SELECT 1"});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicQueryFileBadPath) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"-q", "/nonexistent.sql", trace.path()});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicFullSort) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"--full-sort", "-Q", "SELECT 1", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicNoFtraceRaw) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"--no-ftrace-raw", "-Q", "SELECT 1", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicCropTrackEvents) {
+  auto trace = WriteSimpleSystrace();
+  auto result =
+      RunShell({"--crop-track-events", "-Q", "SELECT 1", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicAnalyzeProtoContent) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell(
+      {"--analyze-trace-proto-content", "-Q", "SELECT 1", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicExport) {
+  auto trace = WriteSimpleSystrace();
+  auto out_db = base::TempFile::Create();
+  auto result = RunShell({"-e", out_db.path(), trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_TRUE(base::FileExists(out_db.path()));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicSummary) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"--summary", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicDev) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"--dev", "-Q", "SELECT 1", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicExtraChecks) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"--extra-checks", "-Q", "SELECT 1", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicSummaryAndMetricsConflict) {
+  auto trace = WriteSimpleSystrace();
+  auto result =
+      RunShell({"--summary", "--run-metrics", "android_cpu", trace.path()});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Existing RPC test
+// ---------------------------------------------------------------------------
 
 TEST(TraceProcessorShellIntegrationTest, StdioSimpleRequestResponse) {
   TraceProcessorRpcStream req;

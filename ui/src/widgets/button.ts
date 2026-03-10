@@ -17,7 +17,7 @@ import {classNames} from '../base/classnames';
 import {HTMLAttrs, HTMLButtonAttrs, Intent, classForIntent} from './common';
 import {Icon} from './icon';
 import {Popup, PopupPosition} from './popup';
-import {assertUnreachable} from '../base/logging';
+import {assertUnreachable} from '../base/assert';
 import {isEmptyVnodes} from '../base/mithril_utils';
 import {Tooltip} from './tooltip';
 

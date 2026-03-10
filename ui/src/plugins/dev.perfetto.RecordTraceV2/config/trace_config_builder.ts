@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists, assertFalse} from '../../../base/logging';
+import {assertExists, assertFalse} from '../../../base/assert';
 import {getOrCreate} from '../../../base/utils';
 import protos from '../../../protos';
 

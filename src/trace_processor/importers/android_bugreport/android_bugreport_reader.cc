@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
@@ -37,6 +38,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/trace_type.h"
 #include "src/trace_processor/util/zip_reader.h"
 
@@ -94,7 +96,14 @@ std::optional<FindBugReportFileResult> FindBugReportFile(
 
 AndroidBugreportReader::AndroidBugreportReader(TraceProcessorContext* context)
     : context_(context),
-      dumpstate_reader_(std::make_unique<AndroidDumpstateReader>(context_)) {}
+      dumpstate_reader_(std::make_unique<AndroidDumpstateReader>(context_)) {
+  // All logs in Android bugreports use wall time (which creates problems
+  // in case of early boot events before NTP kicks in, which get emitted as
+  // 1970), but that is the state of affairs.
+  using ClockId = ClockTracker::ClockId;
+  context_->clock_tracker->SetGlobalClock(
+      ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_REALTIME));
+}
 
 AndroidBugreportReader::~AndroidBugreportReader() = default;
 
@@ -127,12 +136,6 @@ base::Status AndroidBugreportReader::Parse(std::vector<util::ZipFile> files) {
     int64_t timestamp = files[i].GetDatetime();
     ordered_log_files.insert(LogFile{id, timestamp, std::move(files[i])});
   }
-
-  // All logs in Android bugreports use wall time (which creates problems
-  // in case of early boot events before NTP kicks in, which get emitted as
-  // 1970), but that is the state of affairs.
-  context_->clock_tracker->SetTraceTimeClock(
-      ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_REALTIME));
 
   ASSIGN_OR_RETURN(std::vector<TimestampedAndroidLogEvent> logcat_events,
                    ParseDumpstateTxt(bug_report));

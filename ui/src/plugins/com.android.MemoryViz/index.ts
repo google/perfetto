@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
@@ -24,26 +25,152 @@ export default class MemoryViz implements PerfettoPlugin {
   static readonly id = 'com.android.MemoryViz';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    await ctx.engine.query(`
-      INCLUDE PERFETTO MODULE intervals.intersect;
-      INCLUDE PERFETTO MODULE android.memory.memory_breakdown;
-    `);
+    ctx.commands.registerCommand({
+      id: 'com.android.visualizeMemoryReclaim',
+      name: 'Memory: reclaim events',
+      callback: async () => {
+        await ctx.engine.query(`
+          INCLUDE PERFETTO MODULE intervals.overlap;
+          INCLUDE PERFETTO MODULE intervals.intersect;
+          INCLUDE PERFETTO MODULE slices.with_context;
+        `);
+        await addDebugSliceTrack({
+          trace: ctx,
+          data: {
+            sqlSource: `
+              -- 1. Get and merge Direct Reclaim slices globally.
+              WITH direct_reclaim_merged AS (
+                SELECT
+                  m.ts,
+                  m.dur
+                FROM interval_merge_overlapping!(
+                  (
+                    SELECT ts, dur
+                    FROM thread_slice
+                    WHERE name LIKE 'mm_vmscan_direct_reclaim'
+                  ),
+                  0
+                ) m
+                WHERE m.dur > 0
+              ),
+              -- 2. Get and merge kswapd0 thread slices.
+              kswapd_slices AS (
+                SELECT
+                  ts,
+                  dur
+                FROM sched
+                JOIN thread
+                  USING (utid)
+                WHERE
+                  thread.name = 'kswapd0' AND
+                  dur > 0
+              ),
+              -- 3. Combine both sources with priorities and unique IDs for intersection.
+              all_intervals AS (
+                SELECT
+                  *, row_number() OVER () AS id
+                FROM (
+                  SELECT
+                    *, 1 AS priority
+                  FROM direct_reclaim_merged
+                  UNION ALL
+                  SELECT
+                    *, 0 AS priority
+                  FROM kswapd_slices
+                )
+              ),
+              -- 4. Calculate sub-intervals where the source intervals overlap.
+              intersected AS (
+                SELECT
+                  ii.ts,
+                  ii.dur,
+                  ii.group_id,
+                  ii.id
+                FROM interval_self_intersect!(all_intervals) ii
+                WHERE ii.interval_ends_at_ts = FALSE
+              ),
+              -- 5. For each piece of time (group_id), pick the source with the highest priority.
+              final AS (
+                SELECT
+                  ii.ts,
+                  ii.dur,
+                  CASE WHEN MAX(ai.priority) = 1 THEN 'direct reclaim' ELSE 'kswapd0' END AS name
+                FROM intersected ii
+                JOIN all_intervals ai ON ii.id = ai.id
+                GROUP BY ii.group_id
+              )
+              -- 6. Re-merge same-type intervals fragmented by the self-intersect.
+              SELECT ts, dur, name FROM interval_merge_overlapping_partitioned!(
+                final,
+                (name)
+              )
+            `,
+          },
+          title: 'Kswapd0 / Direct Reclaim',
+        });
+
+        await ctx.engine.query(`
+          INCLUDE PERFETTO MODULE android.memory.lmk;
+        `);
+        await addDebugSliceTrack({
+          trace: ctx,
+          data: {
+            sqlSource: `
+              SELECT
+                ts,
+                0 as dur,
+                upid,
+                pid,
+                process_name,
+                oom_score_adj,
+                android_oom_adj_score_to_bucket_name(oom_score_adj) AS oom_bucket,
+                kill_reason
+              FROM android_lmk_events
+            `,
+          },
+          title: 'LMK',
+          columns: {
+            name: 'process_name',
+          },
+          pivotOn: 'oom_bucket',
+        });
+      },
+    });
 
     ctx.commands.registerCommand({
       id: `com.android.visualizeMemory`,
       name: 'Memory: Visualize (over selection)',
       callback: async () => {
+        await ctx.engine.query(`
+          INCLUDE PERFETTO MODULE intervals.intersect;
+          INCLUDE PERFETTO MODULE android.memory.memory_breakdown;
+        `);
         const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
-        const rssAnonSwapTrack = await this.createRssAnonSwapTrack(ctx, window);
-        ctx.defaultWorkspace.pinnedTracksNode.addChildLast(rssAnonSwapTrack);
 
-        const rssFileTrack = await this.createBreakdownTrack(
-          ctx,
-          window,
-          'mem.rss.file',
-          'RSS File',
+        const tracks = [
+          ['mem.rss.file', 'RSS File'],
+          ['mem.rss.shmem', 'RSS Shmem'],
+          ['mem.dmabuf_rss', 'DMA buffer RSS'],
+          ['mem.heap', 'Heap Size'],
+          ['mem.locked', 'Locked Memory'],
+          ['GPU Memory', 'GPU Memory'],
+        ];
+
+        const trackPromises: Promise<TrackNode | undefined>[] = [
+          this.createRssAnonSwapTrack(ctx, window),
+        ];
+        trackPromises.push(
+          ...tracks.map(([trackName, displayName]) =>
+            this.createBreakdownTrack(ctx, window, trackName, displayName),
+          ),
         );
-        ctx.defaultWorkspace.pinnedTracksNode.addChildLast(rssFileTrack);
+        const createdTracks = await Promise.all(trackPromises);
+
+        for (const track of createdTracks) {
+          if (track) {
+            ctx.defaultWorkspace.pinnedTracksNode.addChildLast(track);
+          }
+        }
       },
     });
   }
@@ -55,6 +182,7 @@ export default class MemoryViz implements PerfettoPlugin {
     name: string,
     description: string,
     removable = true,
+    sortOrder?: number,
   ): Promise<TrackNode> {
     const track = await createQueryCounterTrack({
       trace: ctx,
@@ -78,16 +206,17 @@ export default class MemoryViz implements PerfettoPlugin {
       uri,
       name,
       removable,
+      sortOrder,
     });
   }
 
   private async createRssAnonSwapTrack(
     ctx: Trace,
     window: TimeSpan,
-  ): Promise<TrackNode> {
+  ): Promise<TrackNode | undefined> {
     const uri = `${MemoryViz.id}.rss_anon_swap.${uuidv4()}`;
     const sqlSource = this.getSqlSource(window, [
-      `track_name IN ('mem.rss.anon', 'mem.swap')`,
+      `memory_track_name IN ('mem.rss.anon', 'mem.swap')`,
     ]);
     const rootNode = await this.createTrack(
       ctx,
@@ -111,8 +240,12 @@ export default class MemoryViz implements PerfettoPlugin {
       'Swap',
     );
 
-    rootNode.addChildLast(rssAnonNode);
-    rootNode.addChildLast(swapNode);
+    if (rssAnonNode) {
+      rootNode.addChildLast(rssAnonNode);
+    }
+    if (swapNode) {
+      rootNode.addChildLast(swapNode);
+    }
 
     return rootNode;
   }
@@ -122,10 +255,10 @@ export default class MemoryViz implements PerfettoPlugin {
     window: TimeSpan,
     trackName: string,
     name: string,
-  ): Promise<TrackNode> {
+  ): Promise<TrackNode | undefined> {
     const uri = `${MemoryViz.id}.${trackName}.${uuidv4()}`;
     const sqlSource = this.getSqlSource(window, [
-      `track_name = '${trackName}'`,
+      `memory_track_name = '${trackName}'`,
     ]);
     const breakdownNode = await this.createTrack(
       ctx,
@@ -138,8 +271,8 @@ export default class MemoryViz implements PerfettoPlugin {
 
     const buckets = await ctx.engine.query(`
       SELECT DISTINCT bucket
-      FROM _memory_breakdown_mem_with_buckets
-      WHERE track_name = '${trackName}'
+      FROM android_process_memory_intervals_by_oom_bucket
+      WHERE memory_track_name = '${trackName}'
       ORDER BY bucket ASC
     `);
 
@@ -151,7 +284,9 @@ export default class MemoryViz implements PerfettoPlugin {
         trackName,
         bucket,
       );
-      breakdownNode.addChildLast(bucketNode);
+      if (bucketNode) {
+        breakdownNode.addChildInOrder(bucketNode);
+      }
     }
 
     return breakdownNode;
@@ -162,33 +297,42 @@ export default class MemoryViz implements PerfettoPlugin {
     window: TimeSpan,
     trackName: string,
     bucket: string,
-  ): Promise<TrackNode> {
+  ): Promise<TrackNode | undefined> {
     const processes = await ctx.engine.query(`
-      SELECT upid, pid, process_name, MAX(IIF(iss.interval_ends_at_ts = FALSE, m.zygote_adjusted_value, 0)) as max_value FROM interval_self_intersect!((
-        SELECT
-          id,
-          MAX(ts, ${window.start}) as ts,
-          MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
-        FROM _memory_breakdown_mem_with_buckets
-        WHERE bucket = '${bucket}' AND track_name = '${trackName}' AND ts < ${
-          window.end
-        } AND ts + dur > ${window.start}
-      )) iss
-      JOIN _memory_breakdown_mem_with_buckets m USING(id)
+      SELECT
+        upid,
+        pid,
+        process_name,
+        MAX(zygote_adjusted_value) AS max_value
+      FROM android_process_memory_intervals_by_oom_bucket
+      WHERE
+        bucket = '${bucket}' AND
+        memory_track_name = '${trackName}' AND
+        ts < ${window.end} AND
+        ts + dur > ${window.start}
       GROUP BY upid, pid, process_name
       HAVING max_value > 0
       ORDER BY max_value DESC
-      `);
+    `);
 
     const numProcesses = processes.numRows();
+    if (numProcesses === 0) {
+      return undefined;
+    }
+
     const plural = numProcesses === 1 ? '' : 'es';
     const name = `${bucket} (${numProcesses} process${plural})`;
 
     const uri = `${MemoryViz.id}.${trackName}.${bucket}.${uuidv4()}`;
     const sqlSource = this.getSqlSource(window, [
       `bucket = '${bucket}'`,
-      `track_name = '${trackName}'`,
+      `memory_track_name = '${trackName}'`,
     ]);
+    const peak = await ctx.engine.query(
+      `SELECT MAX(value) AS peak FROM (${sqlSource})`,
+    );
+    const peakValue = peak.iter({}).get('peak') as number;
+
     const bucketNode = await this.createTrack(
       ctx,
       uri,
@@ -198,6 +342,7 @@ export default class MemoryViz implements PerfettoPlugin {
         bucket
       }' OOM bucket (0 otherwise).`,
       true,
+      -peakValue, // Sort buckets in descending order of peak memory usage
     );
 
     for (
@@ -235,7 +380,7 @@ export default class MemoryViz implements PerfettoPlugin {
     const uri = `${MemoryViz.id}.process.${upid}.${trackName}.${uuidv4()}`;
     const sqlSource = this.getSqlSource(window, [
       `bucket = '${bucket}'`,
-      `track_name = '${trackName}'`,
+      `memory_track_name = '${trackName}'`,
       `upid = ${upid}`,
     ]);
     return this.createTrack(
@@ -259,9 +404,9 @@ export default class MemoryViz implements PerfettoPlugin {
           id,
           MAX(ts, ${window.start}) as ts,
           MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
-        FROM _memory_breakdown_mem_with_buckets
+        FROM android_process_memory_intervals_by_oom_bucket
         ${whereClause} AND ts < ${window.end} and ts + dur > ${window.start}
-      )) iss JOIN _memory_breakdown_mem_with_buckets m USING(id)
+      )) iss JOIN android_process_memory_intervals_by_oom_bucket m USING(id)
       GROUP BY group_id
     `;
   }

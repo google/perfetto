@@ -12,16 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {materialColorScheme} from '../../components/colorizer';
 import {Time} from '../../base/time';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {FlamegraphState} from '../../widgets/flamegraph';
-import {
-  HeapProfileFlamegraphDetailsPanel,
-  profileType,
-} from './heap_profile_details_panel';
+import {profileDescriptor} from './common';
+import {HeapProfileFlamegraphDetailsPanel} from './heap_profile_details_panel';
 
 export function createHeapProfileTrack(
   trace: Trace,
@@ -39,27 +38,30 @@ export function createHeapProfileTrack(
       src: tableName,
       schema: {
         ts: LONG,
+        dur: LONG,
         type: STR,
         id: NUM,
       },
-      filter: {
-        col: 'upid',
-        eq: upid,
-      },
+      filter: {col: 'upid', eq: upid},
     }),
     detailsPanel: (row) => {
       const ts = Time.fromRaw(row.ts);
-      const type = profileType(row.type);
+      const tsEnd = Time.fromRaw(row.ts + row.dur);
+      const descriptor = profileDescriptor(row.type);
       return new HeapProfileFlamegraphDetailsPanel(
         trace,
         heapProfileIsIncomplete,
         upid,
-        type,
+        descriptor,
         ts,
+        tsEnd,
         detailsPanelState,
         onDetailsPanelStateChange,
       );
     },
     tooltip: (slice) => slice.row.type,
+    colorizer: (slice) => {
+      return materialColorScheme(slice.ts.toString());
+    },
   });
 }

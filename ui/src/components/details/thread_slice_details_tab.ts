@@ -14,15 +14,17 @@
 
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
+import {sqliteString} from '../../base/string_utils';
 import {TimeSpan} from '../../base/time';
 import {exists} from '../../base/utils';
 import {Engine} from '../../trace_processor/engine';
-import {Button} from '../../widgets/button';
+import {LONG_NULL} from '../../trace_processor/query_result';
+import {Button, ButtonVariant} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Section} from '../../widgets/section';
-import {Tree} from '../../widgets/tree';
+import {Tree, TreeNode} from '../../widgets/tree';
 import {FlowPoint} from '../../core/flow_types';
 import {hasArgs} from './args';
 import {renderDetails} from './slice_details';
@@ -34,7 +36,7 @@ import {
 import {asSliceSqlId} from '../sql_utils/core_types';
 import {DurationWidget} from '../widgets/duration';
 import {Grid, GridCell, GridHeaderCell} from '../../widgets/grid';
-import {assertIsInstance} from '../../base/logging';
+import {assertIsInstance} from '../../base/assert';
 import {Trace} from '../../public/trace';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
@@ -64,10 +66,6 @@ function getProcessNameFromSlice(slice: SliceDetails): string | undefined {
 
 function getThreadNameFromSlice(slice: SliceDetails): string | undefined {
   return slice.thread?.name;
-}
-
-function hasName(slice: SliceDetails): boolean {
-  return slice.name !== undefined;
 }
 
 function hasTid(slice: SliceDetails): boolean {
@@ -120,15 +118,6 @@ const ITEMS: ContextMenuItem[] = [
       }),
   },
   {
-    name: 'Average duration of slice name',
-    shouldDisplay: (slice: SliceDetails) => hasName(slice),
-    run: (slice: SliceDetails, trace: Trace) =>
-      extensions.addQueryResultsTab(trace, {
-        query: `SELECT AVG(dur) / 1e9 FROM slice WHERE name = '${slice.name!}'`,
-        title: `${slice.name} average dur`,
-      }),
-  },
-  {
     name: 'Binder txn names + monitor contention on thread',
     shouldDisplay: (slice) =>
       hasProcessName(slice) &&
@@ -146,42 +135,40 @@ const ITEMS: ContextMenuItem[] = [
             trace,
             data: {
               sqlSource: `
-                                WITH merged AS (
-                                  SELECT s.ts, s.dur, tx.aidl_name AS name, 0 AS depth
-                                  FROM android_binder_txns tx
-                                  JOIN slice s
-                                    ON tx.binder_txn_id = s.id
-                                  JOIN thread_track
-                                    ON s.track_id = thread_track.id
-                                  JOIN thread
-                                    USING (utid)
-                                  JOIN process
-                                    USING (upid)
-                                  WHERE pid = ${getPidFromSlice(slice)}
-                                        AND tid = ${getTidFromSlice(slice)}
-                                        AND aidl_name IS NOT NULL
-                                  UNION ALL
-                                  SELECT
-                                    s.ts,
-                                    s.dur,
-                                    short_blocked_method || ' -> ' || blocking_thread_name || ':' || short_blocking_method AS name,
-                                    1 AS depth
-                                  FROM android_binder_txns tx
-                                  JOIN android_monitor_contention m
-                                    ON m.binder_reply_tid = tx.server_tid AND m.binder_reply_ts = tx.server_ts
-                                  JOIN slice s
-                                    ON tx.binder_txn_id = s.id
-                                  JOIN thread_track
-                                    ON s.track_id = thread_track.id
-                                  JOIN thread ON thread.utid = thread_track.utid
-                                  JOIN process ON process.upid = thread.upid
-                                  WHERE process.pid = ${getPidFromSlice(slice)}
-                                        AND thread.tid = ${getTidFromSlice(
-                                          slice,
-                                        )}
-                                        AND short_blocked_method IS NOT NULL
-                                  ORDER BY depth
-                                ) SELECT ts, dur, name FROM merged`,
+                WITH merged AS (
+                  SELECT s.ts, s.dur, tx.aidl_name AS name, 0 AS depth
+                  FROM android_binder_txns tx
+                  JOIN slice s
+                    ON tx.binder_txn_id = s.id
+                  JOIN thread_track
+                    ON s.track_id = thread_track.id
+                  JOIN thread
+                    USING (utid)
+                  JOIN process
+                    USING (upid)
+                  WHERE pid = ${getPidFromSlice(slice)}
+                        AND tid = ${getTidFromSlice(slice)}
+                        AND aidl_name IS NOT NULL
+                  UNION ALL
+                  SELECT
+                    s.ts,
+                    s.dur,
+                    short_blocked_method || ' -> ' || blocking_thread_name || ':' || short_blocking_method AS name,
+                    1 AS depth
+                  FROM android_binder_txns tx
+                  JOIN android_monitor_contention m
+                    ON m.binder_reply_tid = tx.server_tid AND m.binder_reply_ts = tx.server_ts
+                  JOIN slice s
+                    ON tx.binder_txn_id = s.id
+                  JOIN thread_track
+                    ON s.track_id = thread_track.id
+                  JOIN thread ON thread.utid = thread_track.utid
+                  JOIN process ON process.upid = thread.upid
+                  WHERE process.pid = ${getPidFromSlice(slice)}
+                        AND thread.tid = ${getTidFromSlice(slice)}
+                        AND short_blocked_method IS NOT NULL
+                  ORDER BY depth
+                ) SELECT ts, dur, name FROM merged`,
             },
             title: `Binder names (${getProcessNameFromSlice(
               slice,
@@ -220,6 +207,8 @@ export interface ThreadSliceDetailsPanelAttrs {
 export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   private sliceDetails?: SliceDetails;
   private breakdownByThreadState?: BreakdownByThreadState;
+  private statsLoaded = false;
+  private avgDur?: bigint;
   private readonly trace: TraceImpl;
   private readonly attrs: ThreadSliceDetailsPanelAttrs;
 
@@ -288,6 +277,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         m(
           GridLayoutColumn,
           renderDetails(this.trace, slice, this.breakdownByThreadState),
+          this.renderStatistics(slice),
           additionalLeft,
         ),
         this.renderRhs(this.trace, slice, additionalRight),
@@ -422,6 +412,49 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     return includeProcessName
       ? `${flow.threadName} (${flow.processName})`
       : flow.threadName;
+  }
+
+  private renderStatistics(slice: SliceDetails): m.Children {
+    if (slice.name === undefined) return undefined;
+
+    if (!this.statsLoaded) {
+      return m(
+        Section,
+        {title: 'Statistics'},
+        m(Button, {
+          label: 'Load statistics',
+          variant: ButtonVariant.Filled,
+          onclick: () => {
+            this.statsLoaded = true;
+            this.trace.engine
+              .query(
+                `SELECT CAST(AVG(dur) AS INTEGER) AS avg_dur FROM slice WHERE name = ${sqliteString(slice.name!)}`,
+              )
+              .then((result) => {
+                this.avgDur =
+                  result.firstRow({avg_dur: LONG_NULL}).avg_dur ?? undefined;
+                this.trace.raf.scheduleFullRedraw();
+              });
+          },
+        }),
+      );
+    }
+
+    if (this.avgDur === undefined) {
+      return m(Section, {title: 'Statistics'}, 'Loading...');
+    }
+
+    return m(
+      Section,
+      {title: 'Statistics'},
+      m(
+        Tree,
+        m(TreeNode, {
+          left: `Avg duration (all '${slice.name}' slices)`,
+          right: m(DurationWidget, {trace: this.trace, dur: this.avgDur}),
+        }),
+      ),
+    );
   }
 
   private renderContextButton(sliceInfo: SliceDetails): m.Children {

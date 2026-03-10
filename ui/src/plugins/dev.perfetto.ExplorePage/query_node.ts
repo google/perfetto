@@ -63,8 +63,13 @@ export enum NodeType {
   kJoin = 'join',
   kCreateSlices = 'create_slices',
 
+  // Visualization
+  kVisualisation = 'visualisation',
+
   // Deprecated (kept for backward compatibility)
   kMerge = kJoin,
+  kMetrics = 'metrics',
+  kTraceSummary = 'trace_summary',
 }
 
 export function singleNodeOperation(type: NodeType): boolean {
@@ -78,6 +83,8 @@ export function singleNodeOperation(type: NodeType): boolean {
     case NodeType.kSort:
     case NodeType.kFilter:
     case NodeType.kCounterToIntervals:
+    case NodeType.kMetrics:
+    case NodeType.kVisualisation:
       return true;
     default:
       return false;
@@ -127,6 +134,10 @@ export interface QueryNodeState {
   // Actions that can be performed on the parent graph
   actions?: NodeActions;
 
+  // Returns the materialized table name for a given node ID.
+  // Set by the parent component using the QueryExecutionService.
+  getTableNameForNode?: (nodeId: string) => Promise<string | undefined>;
+
   // Caching
   hasOperationChanged?: boolean;
 
@@ -169,6 +180,10 @@ export interface QueryNode {
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
   serializeState(): object;
   onPrevNodesUpdated?(): void;
+
+  // Optional custom data explorer for the bottom drawer panel.
+  // If provided, Builder renders this instead of the standard DataExplorer.
+  customDataExplorer?(): m.Children;
 }
 
 export interface Query {

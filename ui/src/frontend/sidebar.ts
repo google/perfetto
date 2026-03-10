@@ -44,9 +44,10 @@ import {exists, getOrCreate} from '../base/utils';
 import {classNames} from '../base/classnames';
 import {formatHotkey} from '../base/hotkeys';
 import {assetSrc} from '../base/assets';
-import {assertExists} from '../base/logging';
+import {assertExists} from '../base/assert';
 import {Icon} from '../widgets/icon';
 import {Button} from '../widgets/button';
+import {Router} from '../core/router';
 
 const GITILES_URL = 'https://github.com/google/perfetto';
 const TRACE_SUFFIX = '.perfetto-trace';
@@ -386,6 +387,21 @@ export class Sidebar implements m.ClassComponent {
       m(
         `header.pf-sidebar__channel--${getCurrentChannel()}`,
         m(`img[src=${assetSrc('assets/brand.png')}].pf-sidebar__brand`),
+        app.embedder.brandingBadge &&
+          m(
+            'span.pf-sidebar__branding-badge',
+            {style: {color: app.embedder.brandingBadge.color}},
+            app.embedder.brandingBadge.image
+              ? m('img.pf-sidebar__branding-badge-img', {
+                  src: app.embedder.brandingBadge.image,
+                })
+              : app.embedder.brandingBadge.icon &&
+                  m(Icon, {
+                    icon: app.embedder.brandingBadge.icon,
+                    className: 'pf-sidebar__branding-badge-icon',
+                  }),
+            app.embedder.brandingBadge.text,
+          ),
         m(Button, {
           icon: 'menu',
           className: 'pf-sidebar-button',
@@ -473,6 +489,7 @@ export class Sidebar implements m.ClassComponent {
     let href = '#';
     let disabled = false;
     let target = null;
+    let isSelected = false;
     let command: Command | undefined = undefined;
     let tooltip = valueOrCallback(item.tooltip);
     let onclick: (() => unknown | Promise<unknown>) | undefined = undefined;
@@ -513,6 +530,7 @@ export class Sidebar implements m.ClassComponent {
     if ('href' in item && item.href !== undefined) {
       href = item.href;
       target = href.startsWith('#') ? null : '_blank';
+      isSelected = pageMatchesHref(href);
     }
     return m(
       'li',
@@ -523,6 +541,7 @@ export class Sidebar implements m.ClassComponent {
           className: classNames(
             valueOrCallback(item.cssClass),
             this._asyncJobPending.has(item.id) && 'pending',
+            isSelected && 'pf-sidebar__item--selected',
           ),
           onclick: onclick && this.wrapClickHandler(item.id, onclick),
           href,
@@ -562,6 +581,12 @@ export class Sidebar implements m.ClassComponent {
       });
     };
   }
+}
+
+export function pageMatchesHref(href: string): boolean {
+  const currentPage = Router.getCurrentRoute().page;
+  const hrefPage = Router.parseFragment(href).page;
+  return hrefPage === currentPage;
 }
 
 // TODO(primiano): The items below should be moved to dedicated

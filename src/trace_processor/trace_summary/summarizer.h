@@ -49,7 +49,9 @@ namespace summary {
 //   destroyed.
 class SummarizerImpl : public Summarizer {
  public:
-  SummarizerImpl(TraceProcessor* tp, DescriptorPool* descriptor_pool);
+  SummarizerImpl(TraceProcessor* tp,
+                 DescriptorPool* descriptor_pool,
+                 std::string id);
   ~SummarizerImpl() override;
 
   SummarizerImpl(const SummarizerImpl&) = delete;
@@ -115,6 +117,7 @@ class SummarizerImpl : public Summarizer {
 
   TraceProcessor* tp_;
   DescriptorPool* descriptor_pool_;
+  std::string id_;
   base::FlatHashMap<std::string, QueryState> query_states_;
   base::FlatHashMap<std::string, bool>
       included_modules_;  // Track included modules.

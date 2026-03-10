@@ -63,7 +63,6 @@
 //   * Single source of truth for query state
 //   * Updated by both automatic analysis (NodeExplorer) and manual execution (Builder)
 //   * Passed to NodeExplorer as a prop for rendering SQL/Proto tabs
-// - this.queryExecuted: Flag to prevent duplicate execution
 // - this.response: Query results from execution
 // - this.dataSource: Wrapped data source for DataGrid display
 //
@@ -112,7 +111,7 @@ import {QueryNode, Query} from '../query_node';
 import {getPrimarySelectedNode} from '../selection_utils';
 import {isAQuery, queryToRun} from './query_builder_utils';
 import {NodeExplorer} from './node_explorer';
-import {Graph} from './graph/graph';
+import {Graph, GraphCallbacks} from './graph/graph';
 import {DataExplorer} from './data_explorer';
 import {
   DrawerPanel,
@@ -121,7 +120,7 @@ import {
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import {QueryResponse} from '../../../components/query_table/queries';
-import {addQueryResultsTab} from '../../../components/query_table/query_result_tab';
+import QueryPagePlugin from '../../dev.perfetto.QueryPage';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
@@ -143,6 +142,8 @@ export interface BuilderAttrs {
   readonly sqlModules: SqlModules;
   readonly queryExecutionService: QueryExecutionService;
 
+  // Graph data & callbacks (forwarded to Graph component).
+  readonly graphCallbacks: GraphCallbacks;
   readonly rootNodes: QueryNode[];
   readonly selectedNodes: ReadonlySet<string>;
   readonly nodeLayouts: Map<string, {x: number; y: number}>;
@@ -154,52 +155,19 @@ export interface BuilderAttrs {
     text: string;
   }>;
   readonly loadGeneration?: number;
+
+  // Builder-specific callbacks.
   readonly isExplorerCollapsed?: boolean;
   readonly sidebarWidth?: number;
-
-  // Add nodes.
-  readonly onAddSourceNode: (id: string) => void;
-  readonly onAddOperationNode: (id: string, node: QueryNode) => void;
-
   readonly onRootNodeCreated: (node: QueryNode) => void;
-  readonly onNodeSelected: (node?: QueryNode) => void;
-  readonly onNodeAddToSelection: (node: QueryNode) => void;
-  readonly onNodeRemoveFromSelection: (nodeId: string) => void;
-  readonly onDeselect: () => void;
-  readonly onNodeLayoutChange: (
-    nodeId: string,
-    layout: {x: number; y: number},
-  ) => void;
-  readonly onLabelsChange?: (
-    labels: Array<{
-      id: string;
-      x: number;
-      y: number;
-      width: number;
-      text: string;
-    }>,
-  ) => void;
   readonly onExplorerCollapsedChange?: (collapsed: boolean) => void;
   readonly onSidebarWidthChange?: (width: number) => void;
-
-  readonly onDeleteNode: (node: QueryNode) => void;
-  readonly onClearAllNodes: () => void;
-  readonly onDuplicateNode: (node: QueryNode) => void;
-  readonly onConnectionRemove: (
-    fromNode: QueryNode,
-    toNode: QueryNode,
-    isSecondaryInput: boolean,
-  ) => void;
   readonly onFilterAdd: (
     node: QueryNode,
     filter: UIFilter | UIFilter[],
     filterOperator?: 'AND' | 'OR',
   ) => void;
   readonly onColumnAdd?: (node: QueryNode, column: Column) => void;
-
-  // Import / Export JSON
-  readonly onImport: () => void;
-  readonly onExport: () => void;
 
   // Starting templates (when page is empty)
   readonly onLoadEmptyTemplate?: () => void;
@@ -234,7 +202,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   private trace: Trace;
   private queryExecutionService: QueryExecutionService;
   private query?: Query | Error;
-  private queryExecuted: boolean = false;
   private isQueryRunning: boolean = false;
   private isAnalyzing: boolean = false;
   private previousSelectedNode?: QueryNode;
@@ -274,7 +241,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
   }
 
   view({attrs}: m.CVnode<BuilderAttrs>) {
-    const {trace, rootNodes, onNodeSelected, onClearAllNodes} = attrs;
+    const {trace, rootNodes} = attrs;
     const selectedNode = getPrimarySelectedNode(attrs.selectedNodes, rootNodes);
 
     // Store selectedNode and rootNodes for keyboard shortcuts (executeSelectedNode)
@@ -371,7 +338,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             allNodes: getAllNodes(rootNodes),
             resolveNode: (nodeId: string) =>
               this.resolveNode(nodeId, rootNodes),
-            hasExistingResult: this.queryExecuted,
             query: this.query, // Pass the query state from Builder (single source of truth)
             onQueryAnalyzed: this.onNodeQueryAnalyzed,
             onAnalysisStateChange: (isAnalyzing: boolean) => {
@@ -384,7 +350,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             },
             onExecutionStart: () => {
               this.isQueryRunning = true;
-              this.queryExecuted = false;
             },
             onExecutionSuccess: (result) => {
               this.handleExecutionSuccess(selectedNode, result);
@@ -417,7 +382,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             '.pf-unselected-explorer',
             m(NavigationSidePanel, {
               selectedNode,
-              onAddSourceNode: attrs.onAddSourceNode,
+              onAddSourceNode: attrs.graphCallbacks.onAddSourceNode,
               onLoadExampleByPath: attrs.onLoadExampleByPath,
               onLoadExploreTemplate: attrs.onLoadExploreTemplate,
               onLoadEmptyTemplate: attrs.onLoadEmptyTemplate,
@@ -437,75 +402,62 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             icon: 'info',
             title: `${attrs.selectedNodes.size} nodes selected`,
           })
-        : selectedNode
-          ? m(DataExplorer, {
-              trace: this.trace,
-              query: this.query,
-              node: selectedNode,
-              response: this.response,
-              dataSource: this.dataSource,
-              sqlModules: attrs.sqlModules,
-              queryExecutionService: this.queryExecutionService,
-              isQueryRunning: this.isQueryRunning,
-              isAnalyzing: this.isAnalyzing,
-              isStale: this.queryExecutionService.isNodeStale(
-                selectedNode.nodeId,
-              ),
-              onchange: () => {
-                attrs.onNodeStateChange?.();
-              },
-              onFilterAdd: (filter, filterOperator) => {
-                attrs.onFilterAdd(selectedNode, filter, filterOperator);
-              },
-              onColumnAdd: attrs.onColumnAdd
-                ? (column) => attrs.onColumnAdd?.(selectedNode, column)
-                : undefined,
-              isFullScreen:
-                this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN,
-              onFullScreenToggle: () => {
-                if (
-                  this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN
-                ) {
-                  this.drawerVisibility = DrawerPanelVisibility.VISIBLE;
-                } else {
-                  this.drawerVisibility = DrawerPanelVisibility.FULLSCREEN;
-                }
-              },
-              onExecute: async () => {
-                await this.executeSelectedNode();
-              },
-              onExportToTimeline: async () => {
-                await this.exportToTimeline(selectedNode);
-              },
-            })
-          : m(DataExplorerEmptyState, {
-              icon: 'info',
-              title: 'Select a node to see the data',
-            }),
+        : selectedNode?.customDataExplorer?.() ??
+          (selectedNode
+            ? m(DataExplorer, {
+                trace: this.trace,
+                query: this.query,
+                node: selectedNode,
+                response: this.response,
+                dataSource: this.dataSource,
+                sqlModules: attrs.sqlModules,
+                queryExecutionService: this.queryExecutionService,
+                isQueryRunning: this.isQueryRunning,
+                isAnalyzing: this.isAnalyzing,
+                isStale: this.queryExecutionService.isNodeStale(
+                  selectedNode.nodeId,
+                ),
+                onchange: () => {
+                  attrs.onNodeStateChange?.();
+                },
+                onFilterAdd: (filter, filterOperator) => {
+                  attrs.onFilterAdd(selectedNode, filter, filterOperator);
+                },
+                onColumnAdd: attrs.onColumnAdd
+                  ? (column) => attrs.onColumnAdd?.(selectedNode, column)
+                  : undefined,
+                isFullScreen:
+                  this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN,
+                onFullScreenToggle: () => {
+                  if (
+                    this.drawerVisibility === DrawerPanelVisibility.FULLSCREEN
+                  ) {
+                    this.drawerVisibility = DrawerPanelVisibility.VISIBLE;
+                  } else {
+                    this.drawerVisibility = DrawerPanelVisibility.FULLSCREEN;
+                  }
+                },
+                onExecute: async () => {
+                  await this.executeSelectedNode();
+                },
+                onExportToTimeline: async () => {
+                  await this.exportToTimeline(selectedNode);
+                },
+              })
+            : m(DataExplorerEmptyState, {
+                icon: 'info',
+                title: 'Select a node to see the data',
+              })),
       mainContent: [
         m(
           '.pf-qb-node-graph',
           m(Graph, {
+            ...attrs.graphCallbacks,
             rootNodes,
             selectedNodes: attrs.selectedNodes,
-            onNodeSelected,
-            onNodeAddToSelection: attrs.onNodeAddToSelection,
-            onNodeRemoveFromSelection: attrs.onNodeRemoveFromSelection,
             nodeLayouts: attrs.nodeLayouts,
             labels: attrs.labels,
             loadGeneration: attrs.loadGeneration,
-            onNodeLayoutChange: attrs.onNodeLayoutChange,
-            onLabelsChange: attrs.onLabelsChange,
-            onDeselect: attrs.onDeselect,
-            onAddSourceNode: attrs.onAddSourceNode,
-            onClearAllNodes,
-            onDuplicateNode: attrs.onDuplicateNode,
-            onAddOperationNode: (id, node) =>
-              attrs.onAddOperationNode(id, node),
-            onDeleteNode: attrs.onDeleteNode,
-            onConnectionRemove: attrs.onConnectionRemove,
-            onImport: attrs.onImport,
-            onExport: attrs.onExport,
           }),
           selectedNode &&
             m(
@@ -688,7 +640,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       sqlSchema: createSimpleSchema(result.tableName),
       rootSchemaName: 'query',
     });
-    this.queryExecuted = true;
     this.isQueryRunning = false;
 
     if (isAQuery(query)) {
@@ -723,7 +674,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       },
       onExecutionStart: () => {
         this.isQueryRunning = true;
-        this.queryExecuted = false;
         m.redraw();
       },
       onExecutionSuccess: (result: {
@@ -768,7 +718,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       getAllNodes(this.rootNodes),
       {
         manual: true, // User explicitly requested execution
-        hasExistingResult: this.queryExecuted,
         ...this.createManualExecutionCallbacks(selectedNode),
       },
     );
@@ -785,8 +734,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     }
 
     // Use the materialized table instead of re-running the original query
-    addQueryResultsTab(
-      this.trace,
+    this.trace.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab(
       {
         query: `SELECT * FROM ${tableName}`,
         title: 'Explore Query',
@@ -832,7 +780,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     this.dataSource = undefined;
     this.response = undefined;
     this.query = undefined;
-    this.queryExecuted = false;
     // Clear any pending execution in the service
     this.queryExecutionService.clearPendingExecution();
   }
@@ -842,7 +789,6 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     // Clear response and data source but keep query so Retry can re-execute
     this.dataSource = undefined;
     this.response = undefined;
-    this.queryExecuted = false;
     if (!node.state.issues) {
       node.state.issues = new NodeIssues();
     }

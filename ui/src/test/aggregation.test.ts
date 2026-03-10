@@ -14,7 +14,7 @@
 
 import {test, Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
-import {assertExists} from '../base/logging';
+import {assertExists} from '../base/assert';
 
 test.describe.configure({mode: 'serial'});
 

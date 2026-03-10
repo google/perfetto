@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertUnreachable} from '../../../base/logging';
+import {assertUnreachable} from '../../../base/assert';
 import {
   QueryResult,
   QuerySlot,
@@ -169,7 +169,6 @@ export class SQLDataSource implements DataSource {
           FROM ${baseTable} AS ${baseAlias}
           ${joinClauses}
           ORDER BY 1
-          LIMIT 1000
         `;
 
         const result = await this.engine.query(query);

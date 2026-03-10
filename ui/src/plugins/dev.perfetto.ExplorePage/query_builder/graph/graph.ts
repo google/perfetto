@@ -56,6 +56,7 @@ import {createEditableTextLabels} from './text_label';
 import {QueryNode, singleNodeOperation, NodeType} from '../../query_node';
 import {NodeBox} from './node_box';
 import {buildMenuItems} from './menu_utils';
+import {nodeRegistry} from '../node_registry';
 import {
   getAllNodes,
   findNodeById,
@@ -95,12 +96,9 @@ function shouldShowTopPort(node: QueryNode): boolean {
 // GRAPH ATTRIBUTES INTERFACE
 // ========================================
 
-export interface GraphAttrs {
-  readonly rootNodes: QueryNode[];
-  readonly selectedNodes: ReadonlySet<string>;
-  readonly nodeLayouts: LayoutMap;
-  readonly labels: ReadonlyArray<TextLabelData>;
-  readonly loadGeneration?: number;
+// Callbacks shared between BuilderAttrs and GraphAttrs.
+// Builder forwards these to Graph without transformation.
+export interface GraphCallbacks {
   readonly onNodeSelected: (node: QueryNode) => void;
   readonly onNodeAddToSelection: (node: QueryNode) => void;
   readonly onNodeRemoveFromSelection: (nodeId: string) => void;
@@ -119,6 +117,14 @@ export interface GraphAttrs {
   ) => void;
   readonly onImport: () => void;
   readonly onExport: () => void;
+}
+
+export interface GraphAttrs extends GraphCallbacks {
+  readonly rootNodes: QueryNode[];
+  readonly selectedNodes: ReadonlySet<string>;
+  readonly nodeLayouts: LayoutMap;
+  readonly labels: ReadonlyArray<TextLabelData>;
+  readonly loadGeneration?: number;
 }
 
 // ========================================
@@ -210,20 +216,43 @@ function buildAddMenuItems(
   targetNode: QueryNode,
   onAddOperationNode: (id: string, node: QueryNode) => void,
 ): m.Children[] {
-  const multisourceItems = buildMenuItems('multisource', (id) =>
-    onAddOperationNode(id, targetNode),
-  );
-  const modificationItems = buildMenuItems('modification', (id) =>
-    onAddOperationNode(id, targetNode),
-  );
+  const allowedChildren = nodeRegistry.getAllowedChildrenFor(targetNode.type);
+  if (allowedChildren.length === 0) {
+    return [];
+  }
 
-  return [
-    m(MenuTitle, {label: 'Modification nodes'}),
-    ...modificationItems,
-    m(MenuDivider),
-    m(MenuTitle, {label: 'Operations'}),
-    ...multisourceItems,
-  ];
+  const addCb = (id: string) => onAddOperationNode(id, targetNode);
+  const multisourceItems = buildMenuItems(
+    'multisource',
+    addCb,
+    allowedChildren,
+  );
+  const modificationItems = buildMenuItems(
+    'modification',
+    addCb,
+    allowedChildren,
+  );
+  const exportItems = buildMenuItems('export', addCb, allowedChildren);
+
+  const sections: {title: string; items: m.Children[]}[] = [
+    {title: 'Modification nodes', items: modificationItems},
+    {title: 'Operations', items: multisourceItems},
+    {title: 'Export', items: exportItems},
+  ].filter((s) => s.items.length > 0);
+
+  if (sections.length === 0) {
+    return [];
+  }
+
+  const menuItems: m.Children[] = [];
+  for (let i = 0; i < sections.length; i++) {
+    if (i > 0) {
+      menuItems.push(m(MenuDivider));
+    }
+    menuItems.push(m(MenuTitle, {label: sections[i].title}));
+    menuItems.push(...sections[i].items);
+  }
+  return menuItems;
 }
 
 // ========================================
@@ -336,6 +365,10 @@ function getNodeHue(node: QueryNode): number {
       return 14; // Deep Orange (#ffccbc)
     case NodeType.kCreateSlices:
       return 100; // Green (#c8e6c9)
+    case NodeType.kMetrics:
+      return 280; // Violet (#e1bee7)
+    case NodeType.kVisualisation:
+      return 30; // Orange (#ffe0b2)
     default:
       return 65; // Lime (#f0f4c3)
   }
@@ -383,17 +416,24 @@ function createNodeConfig(
   attrs: GraphAttrs,
 ): Omit<Node, 'x' | 'y'> {
   const canDockTop = shouldShowTopPort(qnode);
+  const addMenuItems = buildAddMenuItems(qnode, attrs.onAddOperationNode);
+  const outputs: NodePort[] =
+    addMenuItems.length > 0
+      ? [
+          {
+            content: 'Output',
+            direction: 'bottom',
+            contextMenuItems: addMenuItems,
+          },
+        ]
+      : nodeRegistry.getAllowedChildrenFor(qnode.type).length > 0
+        ? [{content: 'Output', direction: 'bottom'}]
+        : [];
 
   return {
     id: qnode.nodeId,
     inputs: getInputLabels(qnode),
-    outputs: [
-      {
-        content: 'Output',
-        direction: 'bottom',
-        contextMenuItems: buildAddMenuItems(qnode, attrs.onAddOperationNode),
-      },
-    ],
+    outputs,
     canDockBottom: true,
     canDockTop,
     hue: getNodeHue(qnode),
@@ -540,6 +580,10 @@ function handleConnect(conn: Connection, rootNodes: QueryNode[]): void {
     return;
   }
 
+  if (!nodeRegistry.isConnectionAllowed(fromNode.type, toNode.type)) {
+    return;
+  }
+
   const secondaryIndex = toSecondaryIndex(toNode, conn.toPort);
   addConnection(fromNode, toNode, secondaryIndex);
 
@@ -614,6 +658,11 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   private hasPerformedInitialLayout: boolean = false;
   private hasPerformedInitialRecenter: boolean = false;
   private recenterRequired: boolean = false;
+  // True while a recenter is pending. The graph is hidden (visibility:hidden)
+  // to prevent a flash of un-centered content.
+  private pendingRecenter: boolean = false;
+  // DOM reference for checking visibility (Gate may hide us with display:none).
+  private graphElement?: HTMLElement;
   private labels: Label[] = [];
   private labelTexts: Map<string, string> = new Map();
   private editingLabels: Set<string> = new Set();
@@ -625,8 +674,9 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   }
 
   oncreate(vnode: m.VnodeDOM<GraphAttrs>) {
+    this.graphElement = vnode.dom as HTMLElement;
     // Focus the graph container so WSAD keyboard controls work immediately
-    (vnode.dom as HTMLElement).focus();
+    this.graphElement.focus();
   }
 
   onbeforeupdate(vnode: m.Vnode<GraphAttrs>, old: m.VnodeDOM<GraphAttrs>) {
@@ -702,32 +752,29 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   }
 
   private renderControls(attrs: GraphAttrs) {
-    const sourceMenuItems = buildMenuItems('source', attrs.onAddSourceNode);
+    const cb = attrs.onAddSourceNode;
+    const sections: {title: string; items: m.Children[]}[] = [
+      {title: 'Sources', items: buildMenuItems('source', cb)},
+      {title: 'Operations', items: buildMenuItems('multisource', cb)},
+      {title: 'Modification nodes', items: buildMenuItems('modification', cb)},
+      {title: 'Export', items: buildMenuItems('export', cb)},
+    ].filter((s) => s.items.length > 0);
 
-    const modificationMenuItems = buildMenuItems(
-      'modification',
-      attrs.onAddSourceNode,
-    );
-
-    const operationMenuItems = buildMenuItems(
-      'multisource',
-      attrs.onAddSourceNode,
-    );
-
-    const addNodeMenuItems = [
-      m(MenuTitle, {label: 'Sources'}),
-      ...sourceMenuItems,
-      m(MenuDivider),
-      m(MenuTitle, {label: 'Operations'}),
-      ...operationMenuItems,
-      m(MenuTitle, {label: 'Modification nodes'}),
-      ...modificationMenuItems,
-      m(MenuDivider),
+    const addNodeMenuItems: m.Children[] = [];
+    for (let i = 0; i < sections.length; i++) {
+      if (i > 0) {
+        addNodeMenuItems.push(m(MenuDivider));
+      }
+      addNodeMenuItems.push(m(MenuTitle, {label: sections[i].title}));
+      addNodeMenuItems.push(...sections[i].items);
+    }
+    addNodeMenuItems.push(m(MenuDivider));
+    addNodeMenuItems.push(
       m(MenuItem, {
         label: 'Label',
         onclick: () => this.addLabel(attrs),
       }),
-    ];
+    );
 
     const moreMenuItems = [
       m(MenuItem, {
@@ -834,6 +881,12 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       this.recenterRequired = true;
     }
 
+    // Hide graph content while a recenter is pending to prevent a flash of
+    // un-centered nodes before autofit adjusts the viewport.
+    if (this.recenterRequired) {
+      this.pendingRecenter = true;
+    }
+
     return m(
       '.pf-exp-node-graph',
       {
@@ -883,13 +936,29 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
           selectedNodeIds: attrs.selectedNodes,
           hideControls: true,
           fillHeight: true,
+          // Hide the graph while a recenter is pending to avoid a flash of
+          // un-centered content.
+          style: this.pendingRecenter ? {visibility: 'hidden'} : undefined,
           onReady: (api: NodeGraphApi) => {
             this.nodeGraphApi = api;
 
-            // Check if recenter is required and execute it after render
             if (this.recenterRequired) {
-              this.nodeGraphApi.recenter();
+              // Check that our container is actually visible (non-zero size).
+              // When a tab is hidden via Gate (display:none) the canvas has
+              // 0×0 dimensions and autofit would produce bogus zoom/pan.
+              // Leave the flags in place so recenter fires the next time
+              // the tab becomes visible and onReady is called again.
+              const rect = this.graphElement?.getBoundingClientRect();
+              if (rect === undefined || rect.width === 0 || rect.height === 0) {
+                return; // Defer until canvas is visible
+              }
+
               this.recenterRequired = false;
+              api.recenter();
+              if (this.pendingRecenter) {
+                this.pendingRecenter = false;
+                m.redraw();
+              }
             }
           },
           multiselect: true,
@@ -971,6 +1040,17 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
               console.warn(
                 'Cannot dock: only single-node operations can be docked',
               );
+              m.redraw();
+              return;
+            }
+
+            // Check if the child node type is allowed as a child of the parent
+            if (
+              !nodeRegistry.isConnectionAllowed(
+                parentNode.type,
+                childQueryNode.type,
+              )
+            ) {
               m.redraw();
               return;
             }

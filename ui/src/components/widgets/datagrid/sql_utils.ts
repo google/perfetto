@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertUnreachable} from '../../../base/logging';
+import {assertUnreachable} from '../../../base/assert';
 import {SqlValue} from '../../../trace_processor/query_result';
-import {Filter} from './model';
+import {AggregateFunction, Filter} from './model';
 
 /**
  * Converts a SqlValue to its SQL string representation.
@@ -187,6 +187,27 @@ export function filterToSql(filter: Filter, sqlExpr: string): string {
       return `${sqlExpr} NOT IN (${filter.value.map(sqlValue).join(', ')})`;
     default:
       assertUnreachable(filter);
+  }
+}
+
+/**
+ * Builds an aggregate expression string from function and field.
+ * E.g., sqlAggregateExpr('SUM', 'dur') returns 'SUM(dur)'.
+ */
+export function sqlAggregateExpr(
+  func: AggregateFunction,
+  field: string,
+): string {
+  switch (func) {
+    case 'ANY':
+      return `MIN(${field})`;
+    case 'COUNT_DISTINCT':
+      return `COUNT(DISTINCT ${field})`;
+    case 'SUM':
+    case 'AVG':
+    case 'MIN':
+    case 'MAX':
+      return `${func}(${field})`;
   }
 }
 

@@ -171,12 +171,13 @@ export default class SchedPlugin implements PerfettoPlugin {
           s.ts,
           s.dur,
           s.utid,
-          IFNULL(t.upid, 0) AS pid,
+          IFNULL(p.pid, 0) AS pid,
           IFNULL(s.priority, 120) AS priority,
           ucpu,
           0 as depth
         FROM sched s
         LEFT JOIN thread t USING (utid)
+        LEFT JOIN process p USING (upid)
         WHERE NOT s.utid IN (SELECT utid FROM thread WHERE is_idle)
       `,
     });

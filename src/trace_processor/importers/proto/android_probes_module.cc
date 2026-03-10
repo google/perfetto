@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/importers/proto/android_probes_module.h"
 
-#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -30,15 +29,18 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 #include "src/trace_processor/importers/proto/android_probes_tracker.h"
 #include "src/trace_processor/importers/proto/blob_packet_writer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/importers/proto/user_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 
 #include "protos/perfetto/common/android_energy_consumer_descriptor.pbzero.h"
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
@@ -46,7 +48,6 @@
 #include "protos/perfetto/trace/android/android_log.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "protos/perfetto/trace/android/user_list.pbzero.h"
-
 #include "protos/perfetto/trace/power/android_energy_estimation_breakdown.pbzero.h"
 #include "protos/perfetto/trace/power/android_entity_state_residency.pbzero.h"
 #include "protos/perfetto/trace/power/power_rails.pbzero.h"
@@ -116,6 +117,12 @@ ModuleResult AndroidProbesModule::TokenizePacket(
 
     parser_.ParseRailDescriptor(evt);
 
+    if (!evt.has_energy_data()) {
+      context_->import_logs_tracker->RecordParserError(
+          stats::power_rail_empty_packet, packet_timestamp);
+      return ModuleResult::Handled();
+    }
+
     // For each energy data message, turn it into its own trace packet
     // making sure its timestamp is consistent between the packet level and
     // the EnergyData level.
@@ -126,8 +133,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
         // timestamp_ms is always in boottime per protobuf spec.
         int64_t ts_ns = static_cast<int64_t>(data.timestamp_ms()) * 1000000;
         auto trace_ts = context_->clock_tracker->ToTraceTime(
-            ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_BOOTTIME),
-            ts_ns);
+            ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), ts_ns);
         if (!trace_ts.has_value()) {
           // Rely on implicitly incremented error stat in ToTraceTime instead
           // of fatally erroring.
@@ -168,7 +174,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
       protos::pbzero::AndroidLogPacket::LogEvent::Decoder evt(*it);
       auto realtime_ts = static_cast<int64_t>(evt.timestamp());
       std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-          ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_REALTIME),
+          ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_REALTIME),
           realtime_ts);
       if (!trace_ts.has_value()) {
         continue;
@@ -315,7 +321,6 @@ ModuleResult AndroidProbesModule::ParseAndroidPackagesList(
 ModuleResult AndroidProbesModule::ParseAndroidUserList(
     protozero::ConstBytes blob) {
   protos::pbzero::AndroidUserList::Decoder user_list(blob.data, blob.size);
-  auto* table = context_->storage->mutable_user_list_table();
 
   if (user_list.error() < 0) {
     context_->storage->IncrementStats(stats::user_list_errors);
@@ -323,8 +328,9 @@ ModuleResult AndroidProbesModule::ParseAndroidUserList(
 
   for (auto it = user_list.users(); it; ++it) {
     protos::pbzero::AndroidUserList_UserInfo::Decoder user(*it);
-    table->Insert({context_->storage->InternString(user.type()),
-                   static_cast<int64_t>(user.uid())});
+    context_->user_tracker->AddOrUpdateUser(
+        static_cast<int64_t>(user.uid()),
+        context_->storage->InternString(user.type()));
   }
   return ModuleResult::Handled();
 }

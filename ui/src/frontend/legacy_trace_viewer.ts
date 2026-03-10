@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {inflate} from 'pako';
-import {assertTrue} from '../base/logging';
+import {assertTrue} from '../base/assert';
 import {isString} from '../base/object_utils';
 import {showModal} from '../widgets/modal';
 import {utf8Decode} from '../base/string_utils';

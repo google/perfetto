@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists, assertTrue} from '../base/logging';
+import {assertExists, assertTrue} from '../base/assert';
 import {time, Time, TimeSpan} from '../base/time';
 import {cacheTrace} from './cache_manager';
 import {
@@ -536,11 +536,25 @@ async function getTraceInfo(
   const hasFtrace =
     (await engine.query(`select * from ftrace_event limit 1`)).numRows() > 0;
 
-  // UUIDs are not always present. We fall back to a combination of trace_id and trace_type
-  // to ensure we still have a unique component for the session hash.
+  // Each trace in the session contributes to the global cache key. To maintain
+  // stable identifiers, we use the following priority:
+  // 1. Per-trace UUID: e.g. from a TraceUuid packet.
+  // 2. Global session UUID: ONLY used if no trace in the entire session has a
+  //    specific UUID.
+  // 3. Trace ID + Type: e.g. '1-perf'. The last-resort fallback.
   const uuidRes = await engine.query(`
     INCLUDE PERFETTO MODULE std.traceinfo.trace;
-    select ifnull(trace_uuid, trace_id || '-' || trace_type) as uuid from _metadata_by_trace
+    SELECT DISTINCT
+      coalesce(
+        trace_uuid,
+        iif(
+          (SELECT COUNT(trace_uuid) FROM _metadata_by_trace) = 0,
+          extract_metadata('trace_uuid'),
+          NULL
+        ),
+        trace_id || '-' || trace_type
+      ) AS uuid
+    FROM _metadata_by_trace
   `);
   const uuids: string[] = [];
   for (

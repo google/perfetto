@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {ProbeSetting} from '../../config/config_interfaces';
-import {assertTrue} from '../../../../base/logging';
+import {assertTrue} from '../../../../base/assert';
 import {exists} from '../../../../base/utils';
 import {Icon} from '../../../../widgets/icon';
 

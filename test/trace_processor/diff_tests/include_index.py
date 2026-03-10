@@ -57,6 +57,7 @@ from diff_tests.parser.android.tests_inputmethod_clients import InputMethodClien
 from diff_tests.parser.android.tests_inputmethod_manager_service import InputMethodManagerService
 from diff_tests.parser.android.tests_inputmethod_service import InputMethodService
 from diff_tests.parser.android.tests_protolog import ProtoLog
+from diff_tests.parser.android.tests_protovm_incremental_tracing import ProtoVmIncrementalTracing
 from diff_tests.parser.android.tests_shell_transitions import ShellTransitions
 from diff_tests.parser.android.tests_surfaceflinger_layers import SurfaceFlingerLayers
 from diff_tests.parser.android.tests_surfaceflinger_transactions import SurfaceFlingerTransactions
@@ -145,6 +146,7 @@ from diff_tests.stdlib.graphs.dominator_tree_tests import DominatorTree
 from diff_tests.stdlib.graphs.partition_tests import GraphPartitionTests
 from diff_tests.stdlib.graphs.scan_tests import GraphScanTests
 from diff_tests.stdlib.graphs.search_tests import GraphSearchTests
+from diff_tests.stdlib.intervals.create_intervals_tests import CreateIntervals
 from diff_tests.stdlib.intervals.intersect_tests import IntervalsIntersect
 from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.linux.cpu import LinuxCpu
@@ -157,6 +159,7 @@ from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
 from diff_tests.stdlib.prelude.package_lookup_tests import PackageLookup
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
 from diff_tests.stdlib.prelude.regexp_extract import RegexpExtract
+from diff_tests.stdlib.prelude.regexp_replace_simple import RegexpReplaceSimple
 from diff_tests.stdlib.prelude.slices_tests import PreludeSlices
 from diff_tests.stdlib.prelude.window_functions_tests import PreludeWindowFunctions
 from diff_tests.stdlib.sched.tests import StdlibSched
@@ -248,6 +251,7 @@ def fetch_all_diff_tests(
       SurfaceFlingerTransactions,
       ShellTransitions,
       ProtoLog,
+      ProtoVmIncrementalTracing,
       ViewCapture,
       WindowManager,
       TrackEvent,
@@ -329,6 +333,7 @@ def fetch_all_diff_tests(
       PreludePprofFunctions,
       PreludeWindowFunctions,
       RegexpExtract,
+      RegexpReplaceSimple,
       Pkvm,
       PreludeSlices,
       StdlibSmoke,
@@ -339,6 +344,7 @@ def fetch_all_diff_tests(
       SpanJoinRegression,
       SpanJoinSmoke,
       Stacks,
+      CreateIntervals,
       StdlibIntervals,
       SystemUICujs,
       IntervalsIntersect,

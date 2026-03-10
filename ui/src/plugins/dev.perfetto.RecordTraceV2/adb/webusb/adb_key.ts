@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {BigInteger, RSAKey} from 'jsbn-rsa';
-import {assertExists, assertTrue} from '../../../../base/logging';
+import {assertExists, assertTrue} from '../../../../base/assert';
 import {
   base64Decode,
   base64Encode,

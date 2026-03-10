@@ -104,10 +104,15 @@ class TraceBufferV1WithV2Shadow : public TraceBuffer {
   std::unique_ptr<TraceBuffer> v1_;
   std::unique_ptr<TraceBuffer> v2_;
 
-  // Packet hashes with bit flags indicating which buffer(s) contained them.
-  // bit 0 (kSeenInV1): packet was read from V1
-  // bit 1 (kSeenInV2): packet was read from V2
-  base::FlatHashMap<uint64_t, uint8_t, base::AlreadyHashed<uint64_t>>
+  struct HashPacketCounts {
+    uint16_t seen_in_v1 = 0;
+    uint16_t seen_in_v2 = 0;
+  };
+  base::FlatHashMap<uint64_t,
+                    HashPacketCounts,
+                    base::AlreadyHashed<uint64_t>,
+                    base::QuadraticProbe,
+                    /*AppendOnly=*/true>
       packet_hashes_;
   uint64_t packets_seen_ = 0;
 

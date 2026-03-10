@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/proto/network_trace_module.h"
-
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -31,7 +29,6 @@
 #include "protos/perfetto/trace/android/network_trace.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "src/trace_processor/core/dataframe/specs.h"
-#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
@@ -46,7 +43,6 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/blob_packet_writer.h"
-#include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
@@ -57,6 +53,7 @@
 #include "src/trace_processor/types/trace_processor_context_ptr.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/args_utils.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
@@ -81,10 +78,14 @@ class NetworkTraceModuleTest : public testing::Test {
     context_.metadata_tracker = std::make_unique<MetadataTracker>(&context_);
     context_.import_logs_tracker =
         std::make_unique<ImportLogsTracker>(&context_, TraceId(1));
-    context_.trace_time_state = std::make_unique<TraceTimeState>(TraceTimeState{
-        ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_BOOTTIME), false});
+    context_.trace_time_state = std::make_unique<TraceTimeState>(
+        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
+    primary_sync_ = std::make_unique<ClockSynchronizer>(
+        context_.trace_time_state.get(),
+        std::make_unique<ClockSynchronizerListenerImpl>(&context_));
     context_.clock_tracker = std::make_unique<ClockTracker>(
-        &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_));
+        &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
+        primary_sync_.get(), true);
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
     context_.global_args_tracker =
@@ -146,6 +147,7 @@ class NetworkTraceModuleTest : public testing::Test {
  protected:
   protozero::HeapBuffered<protos::pbzero::Trace> trace_;
   TraceProcessorContext context_;
+  std::unique_ptr<ClockSynchronizer> primary_sync_;
   TraceStorage* storage_;
 };
 

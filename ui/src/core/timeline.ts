@@ -14,7 +14,7 @@
 
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {HighPrecisionTime} from '../base/high_precision_time';
-import {assertUnreachable} from '../base/logging';
+import {assertUnreachable} from '../base/assert';
 import {Time, time, timezoneOffsetMap} from '../base/time';
 import {Setting} from '../public/settings';
 import {

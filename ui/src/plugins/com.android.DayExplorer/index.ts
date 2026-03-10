@@ -30,7 +30,7 @@ import {
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
 import {Store} from '../../base/store';
 import {z} from 'zod';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
 
 const DAY_EXPLORER_TRACK_KIND = 'day_explorer_counter_track';
 

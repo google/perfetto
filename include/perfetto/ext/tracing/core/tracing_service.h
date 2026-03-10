@@ -315,6 +315,20 @@ struct PERFETTO_EXPORT_COMPONENT TracingServiceInitOpts {
 
   // Whether the relay endpoint is enabled on producer transport(s).
   bool enable_relay_endpoint = false;
+
+  // An (optional) list of proto extension descriptors to dump into each trace
+  // recorded. This is to support injecting protos that are known by the
+  // embedder (e.g. the Android vendor image) but not by the upstream perfetto.
+  // See RFC-0017.
+  struct ProtoExtensionDescriptor {
+    std::string name;
+    const uint8_t* start = nullptr;
+    size_t size = 0;
+    bool gzipped = false;
+  };
+  // The caller owns the pointed memory (typically a mmaped file or a .rodata
+  // section) and must guarantee that it is indefinitely lived.
+  std::vector<ProtoExtensionDescriptor> extension_descriptors;
 };
 
 // The API for the Relay port of the Service. Subclassed by the

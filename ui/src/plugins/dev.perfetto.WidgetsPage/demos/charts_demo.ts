@@ -19,7 +19,7 @@ import {
   aggregateBarChartData,
 } from '../../../components/widgets/charts/bar_chart';
 import {
-  AggregationType,
+  ChartAggregation,
   isIntegerAggregation,
 } from '../../../components/widgets/charts/chart_utils';
 import {
@@ -48,6 +48,39 @@ import {
   SQLPieChartLoader,
   PieChartLoaderConfig,
 } from '../../../components/widgets/charts/pie_chart_loader';
+import {
+  Scatterplot,
+  ScatterChartData,
+} from '../../../components/widgets/charts/scatterplot';
+import {
+  SQLScatterChartLoader,
+  ScatterChartLoaderConfig,
+} from '../../../components/widgets/charts/scatterplot_loader';
+import {Treemap, TreemapData} from '../../../components/widgets/charts/treemap';
+import {
+  SQLTreemapLoader,
+  TreemapLoaderConfig,
+} from '../../../components/widgets/charts/treemap_loader';
+import {
+  SQLCdfLoader,
+  CdfLoaderConfig,
+} from '../../../components/widgets/charts/cdf_loader';
+import {
+  BoxplotChart,
+  BoxplotData,
+} from '../../../components/widgets/charts/boxplot';
+import {
+  SQLBoxplotLoader,
+  BoxplotLoaderConfig,
+} from '../../../components/widgets/charts/boxplot_loader';
+import {
+  HeatmapChart,
+  HeatmapData,
+} from '../../../components/widgets/charts/heatmap';
+import {
+  SQLHeatmapLoader,
+  HeatmapLoaderConfig,
+} from '../../../components/widgets/charts/heatmap_loader';
 import {App} from '../../../public/app';
 import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 import {Trace} from '../../../public/trace';
@@ -106,8 +139,8 @@ export function renderCharts(app: App): m.Children {
       '.pf-widget-intro',
       m('h1', 'Charts'),
       m('p', [
-        'Pure SVG-based chart components for visualizing data. ',
-        'Includes BarChart, LineChart, PieChart, and Histogram.',
+        'ECharts-based chart components for visualizing data. ',
+        'Includes Bar, Line, Pie/Donut, Histogram, Scatter, Treemap, CDF, Boxplot, and Heatmap charts.',
       ]),
     ),
 
@@ -121,6 +154,7 @@ export function renderCharts(app: App): m.Children {
           logScale: opts.logScale,
           showPoints: opts.showPoints,
           multiSeries: opts.multiSeries,
+          gridLines: opts.gridLines,
         });
       },
       initialOpts: {
@@ -129,6 +163,12 @@ export function renderCharts(app: App): m.Children {
         logScale: false,
         showPoints: true,
         multiSeries: false,
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
+        ] as const),
       },
     }),
 
@@ -160,7 +200,8 @@ export function renderCharts(app: App): m.Children {
           logScale: opts.logScale,
           enableBrush: opts.enableBrush,
           horizontal: opts.horizontal,
-          aggregation: opts.aggregation as AggregationType,
+          aggregation: opts.aggregation,
+          gridLines: opts.gridLines,
         });
       },
       initialOpts: {
@@ -173,8 +214,13 @@ export function renderCharts(app: App): m.Children {
           'AVG',
           'MIN',
           'MAX',
-          'COUNT',
           'COUNT_DISTINCT',
+        ] as const),
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
         ] as const),
       },
     }),
@@ -197,6 +243,86 @@ export function renderCharts(app: App): m.Children {
         enableBrush: true,
         logScale: false,
         integer: false,
+      },
+    }),
+
+    // ScatterChart section
+    m('h2', {style: {marginTop: '32px'}}, 'ScatterChart'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(ScatterChartDemo, {
+          height: opts.height,
+          showLegend: opts.showLegend,
+          bubbleMode: opts.bubbleMode,
+          scaleAxes: opts.scaleAxes,
+          enableBrush: opts.enableBrush,
+          gridLines: opts.gridLines,
+        });
+      },
+      initialOpts: {
+        height: 250,
+        showLegend: true,
+        bubbleMode: false,
+        scaleAxes: false,
+        enableBrush: true,
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
+        ] as const),
+      },
+    }),
+
+    // TreemapChart section
+    m('h2', {style: {marginTop: '32px'}}, 'TreemapChart'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(TreemapChartDemo, {
+          height: opts.height,
+          showLabels: opts.showLabels,
+          hierarchical: opts.hierarchical,
+        });
+      },
+      initialOpts: {
+        height: 300,
+        showLabels: true,
+        hierarchical: true,
+      },
+    }),
+
+    // BoxplotChart section
+    m('h2', {style: {marginTop: '32px'}}, 'BoxplotChart'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(BoxplotChartDemo, {
+          height: opts.height,
+          horizontal: opts.horizontal,
+          gridLines: opts.gridLines,
+        });
+      },
+      initialOpts: {
+        height: 300,
+        horizontal: false,
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
+        ] as const),
+      },
+    }),
+
+    // HeatmapChart section
+    m('h2', {style: {marginTop: '32px'}}, 'HeatmapChart'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(HeatmapChartDemo, {
+          height: opts.height,
+        });
+      },
+      initialOpts: {
+        height: 300,
       },
     }),
 
@@ -224,7 +350,8 @@ function renderSQLDemos(app: App): m.Children[] {
           enableBrush: opts.enableBrush,
           logScale: opts.logScale,
           horizontal: opts.horizontal,
-          aggregation: opts.aggregation as AggregationType,
+          aggregation: opts.aggregation,
+          gridLines: opts.gridLines,
         });
       },
       initialOpts: {
@@ -237,8 +364,13 @@ function renderSQLDemos(app: App): m.Children[] {
           'AVG',
           'MIN',
           'MAX',
-          'COUNT',
           'COUNT_DISTINCT',
+        ] as const),
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
         ] as const),
       },
     }),
@@ -251,6 +383,8 @@ function renderSQLDemos(app: App): m.Children[] {
           enableBrush: opts.enableBrush,
           showPoints: opts.showPoints,
           maxPoints: opts.maxPoints,
+          scaleAxes: opts.scaleAxes,
+          gridLines: opts.gridLines,
         });
       },
       initialOpts: {
@@ -258,6 +392,13 @@ function renderSQLDemos(app: App): m.Children[] {
         enableBrush: true,
         showPoints: true,
         maxPoints: 200,
+        scaleAxes: true,
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
+        ] as const),
       },
     }),
     m('h3', {style: {marginTop: '32px'}}, 'SQLPieChartLoader'),
@@ -268,7 +409,7 @@ function renderSQLDemos(app: App): m.Children[] {
           height: opts.height,
           showLegend: opts.showLegend,
           donut: opts.donut,
-          aggregation: opts.aggregation as AggregationType,
+          aggregation: opts.aggregation,
           limit: opts.limit,
         });
       },
@@ -281,7 +422,6 @@ function renderSQLDemos(app: App): m.Children[] {
           'AVG',
           'MIN',
           'MAX',
-          'COUNT',
           'COUNT_DISTINCT',
         ] as const),
         limit: 8,
@@ -303,6 +443,109 @@ function renderSQLDemos(app: App): m.Children[] {
         height: 250,
         enableBrush: true,
         logScale: false,
+      },
+    }),
+    m('h3', {style: {marginTop: '32px'}}, 'SQLScatterChartLoader'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SQLScatterChartDemo, {
+          trace,
+          height: opts.height,
+          showLegend: opts.showLegend,
+          maxPoints: opts.maxPoints,
+          scaleAxes: opts.scaleAxes,
+          enableBrush: opts.enableBrush,
+          gridLines: opts.gridLines,
+        });
+      },
+      initialOpts: {
+        height: 250,
+        showLegend: true,
+        maxPoints: 500,
+        scaleAxes: true,
+        enableBrush: true,
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
+        ] as const),
+      },
+    }),
+    m('h3', {style: {marginTop: '32px'}}, 'SQLTreemapLoader'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SQLTreemapDemo, {
+          trace,
+          height: opts.height,
+          showLabels: opts.showLabels,
+          limit: opts.limit,
+        });
+      },
+      initialOpts: {
+        height: 300,
+        showLabels: true,
+        limit: 10,
+      },
+    }),
+    m('h3', {style: {marginTop: '32px'}}, 'SQLCdfLoader'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SQLCdfDemo, {
+          trace,
+          height: opts.height,
+          maxPoints: opts.maxPoints,
+          enableBrush: opts.enableBrush,
+          gridLines: opts.gridLines,
+        });
+      },
+      initialOpts: {
+        height: 250,
+        maxPoints: 500,
+        enableBrush: true,
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
+        ] as const),
+      },
+    }),
+    m('h3', {style: {marginTop: '32px'}}, 'SQLBoxplotLoader'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SQLBoxplotDemo, {
+          trace,
+          height: opts.height,
+          limit: opts.limit,
+          gridLines: opts.gridLines,
+        });
+      },
+      initialOpts: {
+        height: 300,
+        limit: 10,
+        gridLines: new EnumOption('none', [
+          'none',
+          'horizontal',
+          'vertical',
+          'both',
+        ] as const),
+      },
+    }),
+    m('h3', {style: {marginTop: '32px'}}, 'SQLHeatmapLoader'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SQLHeatmapDemo, {
+          trace,
+          height: opts.height,
+          xLimit: opts.xLimit,
+          yLimit: opts.yLimit,
+        });
+      },
+      initialOpts: {
+        height: 300,
+        xLimit: 15,
+        yLimit: 15,
       },
     }),
   ];
@@ -375,12 +618,22 @@ function HistogramDemo(): m.Component<{
   };
 }
 
+function toGridLines(
+  value: string,
+): 'horizontal' | 'vertical' | 'both' | undefined {
+  if (value === 'horizontal' || value === 'vertical' || value === 'both') {
+    return value;
+  }
+  return undefined;
+}
+
 function BarChartDemo(): m.Component<{
   height: number;
   logScale: boolean;
   enableBrush: boolean;
   horizontal: boolean;
-  aggregation: AggregationType;
+  aggregation: ChartAggregation;
+  gridLines: string;
 }> {
   let brushedLabels: Array<string | number> | undefined;
 
@@ -402,12 +655,13 @@ function BarChartDemo(): m.Component<{
         };
       }
 
-      const measureLabels: Record<AggregationType, string> = {
+      const measureLabels: Record<ChartAggregation, string> = {
+        ANY: 'Any Duration',
+        COUNT: 'Count',
         SUM: 'Total Duration',
         AVG: 'Avg Duration',
         MIN: 'Min Duration',
         MAX: 'Max Duration',
-        COUNT: 'Slice Count',
         COUNT_DISTINCT: 'Distinct Durations',
       };
 
@@ -420,6 +674,7 @@ function BarChartDemo(): m.Component<{
           integerMeasure: isIntegerAggregation(aggregation),
           logScale: attrs.logScale,
           orientation: attrs.horizontal ? 'horizontal' : 'vertical',
+          gridLines: toGridLines(attrs.gridLines),
           onBrush: attrs.enableBrush
             ? (labels) => {
                 brushedLabels = labels;
@@ -463,7 +718,8 @@ function SQLBarChartDemo(): m.Component<{
   enableBrush: boolean;
   logScale: boolean;
   horizontal: boolean;
-  aggregation: AggregationType;
+  aggregation: ChartAggregation;
+  gridLines: string;
 }> {
   let loader: SQLBarChartLoader | undefined;
   let brushedLabels: Array<string | number> | undefined;
@@ -487,12 +743,13 @@ function SQLBarChartDemo(): m.Component<{
       };
       const {data, isPending} = loader.use(config);
 
-      const measureLabels: Record<AggregationType, string> = {
+      const measureLabels: Record<ChartAggregation, string> = {
+        ANY: 'Any Duration',
+        COUNT: 'Count',
         SUM: 'Total Duration',
         AVG: 'Avg Duration',
         MIN: 'Min Duration',
         MAX: 'Max Duration',
-        COUNT: 'Slice Count',
         COUNT_DISTINCT: 'Distinct Durations',
       };
 
@@ -505,6 +762,7 @@ function SQLBarChartDemo(): m.Component<{
           integerMeasure: isIntegerAggregation(aggregation),
           logScale: attrs.logScale,
           orientation: attrs.horizontal ? 'horizontal' : 'vertical',
+          gridLines: toGridLines(attrs.gridLines),
           onBrush: attrs.enableBrush
             ? (labels) => {
                 brushedLabels = labels;
@@ -633,6 +891,8 @@ function SQLLineChartDemo(): m.Component<{
   enableBrush: boolean;
   showPoints: boolean;
   maxPoints: number;
+  scaleAxes: boolean;
+  gridLines: string;
 }> {
   let loader: SQLLineChartLoader | undefined;
   let xRange: {min: number; max: number} | undefined;
@@ -661,6 +921,8 @@ function SQLLineChartDemo(): m.Component<{
           xAxisLabel: 'Timestamp',
           yAxisLabel: 'Value',
           showPoints: attrs.showPoints,
+          scaleAxes: attrs.scaleAxes,
+          gridLines: toGridLines(attrs.gridLines),
           onBrush: attrs.enableBrush
             ? (range) => {
                 xRange = {min: range.start, max: range.end};
@@ -710,7 +972,7 @@ function SQLPieChartDemo(): m.Component<{
   height: number;
   showLegend: boolean;
   donut: boolean;
-  aggregation: AggregationType;
+  aggregation: ChartAggregation;
   limit: number;
 }> {
   let loader: SQLPieChartLoader | undefined;
@@ -810,8 +1072,62 @@ function LineChartDemo(): m.Component<{
   logScale: boolean;
   showPoints: boolean;
   multiSeries: boolean;
+  gridLines: string;
 }> {
   let brushRange: {start: number; end: number} | undefined;
+
+  // Helper to interpolate Y value between two points at a given X
+  function interpolateY(
+    p1: {x: number; y: number},
+    p2: {x: number; y: number},
+    x: number,
+  ): number {
+    if (p1.x === p2.x) return p1.y;
+    const t = (x - p1.x) / (p2.x - p1.x);
+    return p1.y + t * (p2.y - p1.y);
+  }
+
+  // Filter points to range, with interpolation at boundaries for continuity
+  function filterPointsWithInterpolation(
+    points: ReadonlyArray<{x: number; y: number}>,
+    start: number,
+    end: number,
+  ): Array<{x: number; y: number}> {
+    if (points.length === 0) return [];
+
+    // Sort points by X (should already be sorted, but just in case)
+    const sorted = [...points].sort((a, b) => a.x - b.x);
+
+    const result: Array<{x: number; y: number}> = [];
+
+    // Find points within range and interpolate at boundaries
+    for (let i = 0; i < sorted.length; i++) {
+      const curr = sorted[i];
+      const prev = i > 0 ? sorted[i - 1] : undefined;
+
+      // Add interpolated start point if we're crossing into the range
+      if (prev !== undefined && prev.x < start && curr.x >= start) {
+        if (curr.x > start) {
+          result.push({x: start, y: interpolateY(prev, curr, start)});
+        }
+      }
+
+      // Add current point if within range
+      if (curr.x >= start && curr.x <= end) {
+        result.push({x: curr.x, y: curr.y});
+      }
+
+      // Add interpolated end point if we're leaving the range
+      const next = i < sorted.length - 1 ? sorted[i + 1] : undefined;
+      if (next !== undefined && curr.x <= end && next.x > end) {
+        if (curr.x < end) {
+          result.push({x: end, y: interpolateY(curr, next, end)});
+        }
+      }
+    }
+
+    return result;
+  }
 
   return {
     view: ({attrs}) => {
@@ -819,15 +1135,17 @@ function LineChartDemo(): m.Component<{
         ? LINE_CHART_MULTI_SERIES_DATA
         : LINE_CHART_SAMPLE_DATA;
 
-      // Filter data to the brushed X range
+      // Filter data to the brushed X range with interpolation at boundaries
       const range = brushRange;
       const data: LineChartData =
         range !== undefined
           ? {
               series: fullData.series.map((s) => ({
                 ...s,
-                points: s.points.filter(
-                  (p) => p.x >= range.start && p.x <= range.end,
+                points: filterPointsWithInterpolation(
+                  s.points,
+                  range.start,
+                  range.end,
                 ),
               })),
             }
@@ -841,9 +1159,12 @@ function LineChartDemo(): m.Component<{
           yAxisLabel: 'Value',
           logScale: attrs.logScale,
           showPoints: attrs.showPoints,
+          xAxisMin: range?.start,
+          xAxisMax: range?.end,
+          gridLines: toGridLines(attrs.gridLines),
           onBrush: attrs.enableBrush
-            ? (range) => {
-                brushRange = range;
+            ? (newRange) => {
+                brushRange = newRange;
               }
             : undefined,
         }),
@@ -937,6 +1258,736 @@ function PieChartDemo(): m.Component<{
             'Clear selection',
           ),
       ]);
+    },
+  };
+}
+
+// Simple seeded pseudo-random number generator for reproducible demo data.
+function seededRandom(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 16807) % 2147483647;
+    return s / 2147483647;
+  };
+}
+
+// Static sample data for ScatterChart demo
+const SCATTER_SAMPLE_DATA: ScatterChartData = (() => {
+  const rng = seededRandom(42);
+  return {
+    series: [
+      {
+        name: 'Group A',
+        points: Array.from({length: 30}, () => ({
+          x: rng() * 100,
+          y: rng() * 50 + 25,
+        })),
+      },
+      {
+        name: 'Group B',
+        points: Array.from({length: 25}, () => ({
+          x: rng() * 100,
+          y: rng() * 50 + 50,
+        })),
+      },
+    ],
+  };
+})();
+
+const SCATTER_BUBBLE_DATA: ScatterChartData = {
+  series: [
+    {
+      name: 'Processes',
+      points: [
+        {x: 10, y: 20, size: 100, label: 'Chrome'},
+        {x: 25, y: 45, size: 200, label: 'Firefox'},
+        {x: 40, y: 30, size: 150, label: 'Safari'},
+        {x: 55, y: 60, size: 80, label: 'Edge'},
+        {x: 70, y: 35, size: 300, label: 'System'},
+        {x: 85, y: 50, size: 120, label: 'Launcher'},
+      ],
+    },
+  ],
+};
+
+function ScatterChartDemo(): m.Component<{
+  height: number;
+  showLegend: boolean;
+  bubbleMode: boolean;
+  scaleAxes: boolean;
+  enableBrush: boolean;
+  gridLines: string;
+}> {
+  let brushRange:
+    | {xMin: number; xMax: number; yMin: number; yMax: number}
+    | undefined;
+
+  return {
+    view: ({attrs}) => {
+      const fullData = attrs.bubbleMode
+        ? SCATTER_BUBBLE_DATA
+        : SCATTER_SAMPLE_DATA;
+
+      const range = brushRange;
+      const data: ScatterChartData =
+        range !== undefined
+          ? {
+              series: fullData.series.map((s) => ({
+                ...s,
+                points: s.points.filter(
+                  (p) =>
+                    p.x >= range.xMin &&
+                    p.x <= range.xMax &&
+                    p.y >= range.yMin &&
+                    p.y <= range.yMax,
+                ),
+              })),
+            }
+          : fullData;
+
+      return m('div', [
+        m(Scatterplot, {
+          data,
+          height: attrs.height,
+          xAxisLabel: 'X Value',
+          yAxisLabel: 'Y Value',
+          showLegend: attrs.showLegend,
+          scaleAxes: attrs.scaleAxes,
+          gridLines: toGridLines(attrs.gridLines),
+          onBrush: attrs.enableBrush
+            ? (r) => {
+                brushRange = r;
+              }
+            : undefined,
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          [
+            attrs.bubbleMode
+              ? 'Bubble mode: size encodes a third dimension'
+              : 'Regular scatter plot with two series',
+            attrs.scaleAxes
+              ? '\nscaleAxes: true (axis range from data min/max)'
+              : '\nscaleAxes: false (axis range includes zero)',
+            range
+              ? `\n\nBrushed: X=[${range.xMin.toFixed(1)}, ${range.xMax.toFixed(1)}]  Y=[${range.yMin.toFixed(1)}, ${range.yMax.toFixed(1)}]`
+              : '\n\nDrag to brush-select a region',
+          ],
+        ),
+        range &&
+          m(
+            'button',
+            {
+              style: {marginTop: '8px', fontSize: '12px'},
+              onclick: () => {
+                brushRange = undefined;
+              },
+            },
+            'Clear selection',
+          ),
+      ]);
+    },
+  };
+}
+
+// Static sample data for TreemapChart demo
+const TREEMAP_FLAT_DATA: TreemapData = {
+  nodes: [
+    {name: 'Chrome', value: 350},
+    {name: 'SurfaceFlinger', value: 150},
+    {name: 'SystemUI', value: 200},
+    {name: 'Launcher', value: 100},
+    {name: 'InputDispatcher', value: 75},
+    {name: 'AudioFlinger', value: 125},
+  ],
+};
+
+const TREEMAP_HIERARCHICAL_DATA: TreemapData = {
+  nodes: [
+    {
+      name: 'UI Processes',
+      value: 650, // Sum of children: 350 + 200 + 100
+      children: [
+        {name: 'Chrome', value: 350},
+        {name: 'SystemUI', value: 200},
+        {name: 'Launcher', value: 100},
+      ],
+    },
+    {
+      name: 'System Services',
+      value: 350, // Sum of children: 150 + 75 + 125
+      children: [
+        {name: 'SurfaceFlinger', value: 150},
+        {name: 'InputDispatcher', value: 75},
+        {name: 'AudioFlinger', value: 125},
+      ],
+    },
+  ],
+};
+
+function TreemapChartDemo(): m.Component<{
+  height: number;
+  showLabels: boolean;
+  hierarchical: boolean;
+}> {
+  let clickedNode: string | undefined;
+
+  return {
+    view: ({attrs}) => {
+      const data = attrs.hierarchical
+        ? TREEMAP_HIERARCHICAL_DATA
+        : TREEMAP_FLAT_DATA;
+      return m('div', [
+        m(Treemap, {
+          data,
+          height: attrs.height,
+          showLabels: attrs.showLabels,
+          onNodeClick: (node) => {
+            clickedNode = node.name;
+          },
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          clickedNode ? `Clicked: ${clickedNode}` : 'Click a node to select it',
+        ),
+        clickedNode &&
+          m(
+            'button',
+            {
+              style: {marginTop: '8px', fontSize: '12px'},
+              onclick: () => {
+                clickedNode = undefined;
+              },
+            },
+            'Clear selection',
+          ),
+      ]);
+    },
+  };
+}
+
+function SQLScatterChartDemo(): m.Component<{
+  trace: Trace;
+  height: number;
+  showLegend: boolean;
+  maxPoints: number;
+  scaleAxes: boolean;
+  enableBrush: boolean;
+  gridLines: string;
+}> {
+  let loader: SQLScatterChartLoader | undefined;
+  let brushRange:
+    | {xMin: number; xMax: number; yMin: number; yMax: number}
+    | undefined;
+
+  return {
+    view: ({attrs}) => {
+      if (!loader) {
+        loader = new SQLScatterChartLoader({
+          engine: attrs.trace.engine,
+          query: 'SELECT ts, dur, name FROM slice WHERE dur > 0 LIMIT 1000',
+          xColumn: 'ts',
+          yColumn: 'dur',
+          seriesColumn: 'name',
+        });
+      }
+
+      // Always load with just maxPoints — brush filtering is applied
+      // client-side on the loaded points rather than via SQL-level range
+      // filters to avoid mismatches between floating-point brush coordinates
+      // and the integer values stored in SQLite.
+      const config: ScatterChartLoaderConfig = {
+        maxPoints: attrs.maxPoints,
+      };
+      const {data: rawData, isPending} = loader.use(config);
+
+      const range = brushRange;
+      const data: ScatterChartData | undefined =
+        rawData !== undefined && range !== undefined
+          ? {
+              series: rawData.series.map((s) => ({
+                ...s,
+                points: s.points.filter(
+                  (p) =>
+                    p.x >= range.xMin &&
+                    p.x <= range.xMax &&
+                    p.y >= range.yMin &&
+                    p.y <= range.yMax,
+                ),
+              })),
+            }
+          : rawData;
+
+      return m('div', [
+        m(Scatterplot, {
+          data,
+          height: attrs.height,
+          xAxisLabel: 'Timestamp',
+          yAxisLabel: 'Duration',
+          showLegend: attrs.showLegend,
+          scaleAxes: attrs.scaleAxes,
+          gridLines: toGridLines(attrs.gridLines),
+          onBrush: attrs.enableBrush
+            ? (r) => {
+                brushRange = r;
+              }
+            : undefined,
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          [
+            `query: 'SELECT ts, dur, name FROM slice WHERE dur > 0 LIMIT 1000'\n`,
+            `xColumn: 'ts', yColumn: 'dur', seriesColumn: 'name'\n`,
+            `loader.use(${JSON.stringify(config, null, 2)})`,
+            range
+              ? `\n\nBrushed: X=[${range.xMin.toFixed(0)}, ${range.xMax.toFixed(0)}]  Y=[${range.yMin.toFixed(0)}, ${range.yMax.toFixed(0)}]`
+              : '\n\nDrag to brush-select a region',
+            isPending ? '\n(loading...)' : '',
+          ],
+        ),
+        range &&
+          m(
+            'button',
+            {
+              style: {marginTop: '8px', fontSize: '12px'},
+              onclick: () => {
+                brushRange = undefined;
+              },
+            },
+            'Clear filter',
+          ),
+      ]);
+    },
+    onremove: () => {
+      loader?.dispose();
+      loader = undefined;
+    },
+  };
+}
+
+function SQLTreemapDemo(): m.Component<{
+  trace: Trace;
+  height: number;
+  showLabels: boolean;
+  limit: number;
+}> {
+  let loader: SQLTreemapLoader | undefined;
+  let clickedNode: string | undefined;
+
+  return {
+    view: ({attrs}) => {
+      if (!loader) {
+        loader = new SQLTreemapLoader({
+          engine: attrs.trace.engine,
+          query: 'SELECT name, dur, category FROM slice WHERE dur > 0',
+          labelColumn: 'name',
+          sizeColumn: 'dur',
+          groupColumn: 'category',
+        });
+      }
+
+      const config: TreemapLoaderConfig = {
+        aggregation: 'SUM',
+        limit: attrs.limit,
+      };
+      const {data, isPending} = loader.use(config);
+
+      return m('div', [
+        m(Treemap, {
+          data,
+          height: attrs.height,
+          showLabels: attrs.showLabels,
+          onNodeClick: (node) => {
+            clickedNode = node.name;
+          },
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          [
+            `query: 'SELECT name, dur, category FROM slice WHERE dur > 0'\n`,
+            `labelColumn: 'name', sizeColumn: 'dur', groupColumn: 'category'\n`,
+            `loader.use(${JSON.stringify(config, null, 2)})`,
+            isPending ? '\n(loading...)' : '',
+            clickedNode ? `\nClicked: ${clickedNode}` : '',
+          ],
+        ),
+        clickedNode &&
+          m(
+            'button',
+            {
+              style: {marginTop: '8px', fontSize: '12px'},
+              onclick: () => {
+                clickedNode = undefined;
+              },
+            },
+            'Clear selection',
+          ),
+      ]);
+    },
+    onremove: () => {
+      loader?.dispose();
+      loader = undefined;
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Static sample data for BoxplotChart demo
+// ---------------------------------------------------------------------------
+
+const BOXPLOT_SAMPLE_DATA: BoxplotData = {
+  items: [
+    {label: 'Chrome', min: 200, q1: 800, median: 1500, q3: 2300, max: 4200},
+    {
+      label: 'SurfaceFlinger',
+      min: 400,
+      q1: 500,
+      median: 850,
+      q3: 1050,
+      max: 1200,
+    },
+    {label: 'SystemUI', min: 600, q1: 700, median: 2200, q3: 2650, max: 3100},
+    {label: 'Launcher', min: 500, q1: 600, median: 1200, q3: 1500, max: 1800},
+    {
+      label: 'AudioFlinger',
+      min: 800,
+      q1: 900,
+      median: 1000,
+      q3: 1050,
+      max: 1100,
+    },
+  ],
+};
+
+function BoxplotChartDemo(): m.Component<{
+  height: number;
+  horizontal: boolean;
+  gridLines: string;
+}> {
+  return {
+    view: ({attrs}) => {
+      return m('div', [
+        m(BoxplotChart, {
+          data: BOXPLOT_SAMPLE_DATA,
+          height: attrs.height,
+          categoryLabel: 'Process',
+          valueLabel: 'Duration (ns)',
+          orientation: attrs.horizontal ? 'horizontal' : 'vertical',
+          gridLines: toGridLines(attrs.gridLines),
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          'Static boxplot with quartile statistics per process',
+        ),
+      ]);
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Static sample data for HeatmapChart demo
+// ---------------------------------------------------------------------------
+
+const HEATMAP_SAMPLE_DATA: HeatmapData = (() => {
+  const xLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+  const yLabels = ['Chrome', 'SurfaceFlinger', 'SystemUI', 'Launcher'];
+  const rng = seededRandom(123);
+  const values: Array<readonly [number, number, number]> = [];
+  let min = Infinity;
+  let max = -Infinity;
+  for (let x = 0; x < xLabels.length; x++) {
+    for (let y = 0; y < yLabels.length; y++) {
+      const val = Math.floor(rng() * 100);
+      min = Math.min(min, val);
+      max = Math.max(max, val);
+      values.push([x, y, val]);
+    }
+  }
+  return {xLabels, yLabels, values, min, max};
+})();
+
+function HeatmapChartDemo(): m.Component<{
+  height: number;
+}> {
+  return {
+    view: ({attrs}) => {
+      return m('div', [
+        m(HeatmapChart, {
+          data: HEATMAP_SAMPLE_DATA,
+          height: attrs.height,
+          xAxisLabel: 'Day',
+          yAxisLabel: 'Process',
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          'Static heatmap: process activity by day of week',
+        ),
+      ]);
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// SQL CDF demo
+// ---------------------------------------------------------------------------
+
+function SQLCdfDemo(): m.Component<{
+  trace: Trace;
+  height: number;
+  maxPoints: number;
+  enableBrush: boolean;
+  gridLines: string;
+}> {
+  let loader: SQLCdfLoader | undefined;
+  let xRange: {min: number; max: number} | undefined;
+
+  return {
+    view: ({attrs}) => {
+      if (!loader) {
+        loader = new SQLCdfLoader({
+          engine: attrs.trace.engine,
+          query: 'SELECT dur FROM slice WHERE dur > 0',
+          valueColumn: 'dur',
+        });
+      }
+
+      const config: CdfLoaderConfig = {
+        maxPoints: attrs.maxPoints,
+        filter: xRange,
+      };
+      const {data, isPending} = loader.use(config);
+
+      return m('div', [
+        m(LineChart, {
+          data,
+          height: attrs.height,
+          xAxisLabel: 'Duration (ns)',
+          yAxisLabel: 'Cumulative %',
+          showPoints: false,
+          scaleAxes: true,
+          gridLines: toGridLines(attrs.gridLines),
+          onBrush: attrs.enableBrush
+            ? (range) => {
+                xRange = {min: range.start, max: range.end};
+              }
+            : undefined,
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          [
+            `query: 'SELECT dur FROM slice WHERE dur > 0'\n`,
+            `valueColumn: 'dur'\n`,
+            `loader.use(${JSON.stringify(config, null, 2)})`,
+            isPending ? '\n(loading...)' : '',
+          ],
+        ),
+        xRange &&
+          m(
+            'button',
+            {
+              style: {marginTop: '8px', fontSize: '12px'},
+              onclick: () => {
+                xRange = undefined;
+              },
+            },
+            'Clear filter',
+          ),
+      ]);
+    },
+    onremove: () => {
+      loader?.dispose();
+      loader = undefined;
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// SQL Boxplot demo
+// ---------------------------------------------------------------------------
+
+function SQLBoxplotDemo(): m.Component<{
+  trace: Trace;
+  height: number;
+  limit: number;
+  gridLines: string;
+}> {
+  let loader: SQLBoxplotLoader | undefined;
+
+  return {
+    view: ({attrs}) => {
+      if (!loader) {
+        loader = new SQLBoxplotLoader({
+          engine: attrs.trace.engine,
+          query: 'SELECT name, dur FROM slice WHERE dur > 0',
+          categoryColumn: 'name',
+          valueColumn: 'dur',
+        });
+      }
+
+      const config: BoxplotLoaderConfig = {
+        limit: attrs.limit,
+      };
+      const {data, isPending} = loader.use(config);
+
+      return m('div', [
+        m(BoxplotChart, {
+          data,
+          height: attrs.height,
+          categoryLabel: 'Slice Name',
+          valueLabel: 'Duration (ns)',
+          gridLines: toGridLines(attrs.gridLines),
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          [
+            `query: 'SELECT name, dur FROM slice WHERE dur > 0'\n`,
+            `categoryColumn: 'name', valueColumn: 'dur'\n`,
+            `loader.use(${JSON.stringify(config, null, 2)})`,
+            isPending ? '\n(loading...)' : '',
+          ],
+        ),
+      ]);
+    },
+    onremove: () => {
+      loader?.dispose();
+      loader = undefined;
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// SQL Heatmap demo
+// ---------------------------------------------------------------------------
+
+function SQLHeatmapDemo(): m.Component<{
+  trace: Trace;
+  height: number;
+  xLimit: number;
+  yLimit: number;
+}> {
+  let loader: SQLHeatmapLoader | undefined;
+
+  return {
+    view: ({attrs}) => {
+      if (!loader) {
+        loader = new SQLHeatmapLoader({
+          engine: attrs.trace.engine,
+          query: 'SELECT priority, end_state, dur FROM sched WHERE dur > 0',
+          xColumn: 'priority',
+          yColumn: 'end_state',
+          valueColumn: 'dur',
+        });
+      }
+
+      const config: HeatmapLoaderConfig = {
+        aggregation: 'SUM',
+        xLimit: attrs.xLimit,
+        yLimit: attrs.yLimit,
+      };
+      const {data, isPending} = loader.use(config);
+
+      return m('div', [
+        m(HeatmapChart, {
+          data,
+          height: attrs.height,
+          xAxisLabel: 'Priority',
+          yAxisLabel: 'End State',
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          [
+            `query: 'SELECT priority, end_state, dur FROM sched WHERE dur > 0'\n`,
+            `xColumn: 'priority', yColumn: 'end_state', valueColumn: 'dur'\n`,
+            `loader.use(${JSON.stringify(config, null, 2)})`,
+            isPending ? '\n(loading...)' : '',
+          ],
+        ),
+      ]);
+    },
+    onremove: () => {
+      loader?.dispose();
+      loader = undefined;
     },
   };
 }

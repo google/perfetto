@@ -16,7 +16,7 @@ import m from 'mithril';
 import {canvasClip} from '../../base/canvas_utils';
 import {currentTargetOffset} from '../../base/dom_utils';
 import {Size2D} from '../../base/geom';
-import {assertUnreachable} from '../../base/logging';
+import {assertUnreachable} from '../../base/assert';
 import {TimeScale} from '../../base/time_scale';
 import {randomColor} from '../../components/colorizer';
 import {raf} from '../../core/raf_scheduler';
@@ -199,8 +199,6 @@ export class NotesPanel {
         this.drawFlag(ctx, left, size.height, '#aaa', /* fill */ true);
       }
     }
-
-    ctx.restore();
   }
 
   private drawAreaMarker(

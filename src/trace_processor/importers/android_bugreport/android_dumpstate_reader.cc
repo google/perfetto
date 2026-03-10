@@ -27,7 +27,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/string_view_splitter.h"
-#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/android_bugreport/android_battery_stats_reader.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -53,9 +52,6 @@ base::Status AndroidDumpstateReader::ParseLine(base::StringView line) {
 base::Status AndroidDumpstateReader::ParseLine(
     BufferingAndroidLogReader* const log_reader,
     base::StringView line) {
-  context_->clock_tracker->SetTraceTimeClock(
-      ClockTracker::ClockId(protos::pbzero::BUILTIN_CLOCK_REALTIME));
-
   // Dumpstate is organized in a two level hierarchy, beautifully flattened into
   // one text file with load bearing ----- markers:
   // 1. Various dumpstate sections, examples:

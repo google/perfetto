@@ -23,7 +23,7 @@ import {
   isOrContains,
   toHTMLElement,
 } from '../base/dom_utils';
-import {assertExists} from '../base/logging';
+import {assertExists} from '../base/assert';
 import {ExtendedModifiers} from './popper_utils';
 
 // Note: We could just use the Placement type from popper.js instead, which is a

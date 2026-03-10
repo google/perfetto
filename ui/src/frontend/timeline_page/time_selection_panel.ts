@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {canvasClip} from '../../base/canvas_utils';
 import {Size2D} from '../../base/geom';
-import {assertUnreachable} from '../../base/logging';
+import {assertUnreachable} from '../../base/assert';
 import {time, Time} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {formatDuration} from '../../components/time_utils';
@@ -241,8 +241,6 @@ export class TimeSelectionPanel {
         this.renderSpan(ctx, timescale, size, note.start, note.end);
       }
     }
-
-    ctx.restore();
   }
 
   renderHover(

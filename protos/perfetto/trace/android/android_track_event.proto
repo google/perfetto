@@ -217,9 +217,9 @@ message AndroidSurfaceFlingerWorkload {
 }
 
 enum ReceiverType {
-  UNKNOWN = 0;
-  RUNTIME = 1;
-  MANIFEST = 2;
+  RECEIVER_TYPE_UNKNOWN = 0;
+  RECEIVER_TYPE_RUNTIME = 1;
+  RECEIVER_TYPE_MANIFEST = 2;
 }
 
 enum ProcessStartType {
@@ -282,75 +282,76 @@ enum ProcessCapabilityEnum {
 }
 
 enum AppExitReasonCode {
-  REASON_UNKNOWN = 0;
-  REASON_EXIT_SELF = 1;
-  REASON_SIGNALED = 2;
-  REASON_LOW_MEMORY = 3;
-  REASON_CRASH = 4;
-  REASON_CRASH_NATIVE = 5;
-  REASON_ANR = 6;
-  REASON_INITIALIZATION_FAILURE = 7;
-  REASON_PERMISSION_CHANGE = 8;
-  REASON_EXCESSIVE_RESOURCE_USAGE = 9;
-  REASON_USER_REQUESTED = 10;
-  REASON_USER_STOPPED = 11;
-  REASON_DEPENDENCY_DIED = 12;
-  REASON_OTHER = 13;
-  REASON_FREEZER = 14;
-  REASON_PACKAGE_STATE_CHANGE = 15;
-  REASON_PACKAGE_UPDATED = 16;
+  APP_EXIT_REASON_UNKNOWN = 0;
+  APP_EXIT_REASON_EXIT_SELF = 1;
+  APP_EXIT_REASON_SIGNALED = 2;
+  APP_EXIT_REASON_LOW_MEMORY = 3;
+  APP_EXIT_REASON_CRASH = 4;
+  APP_EXIT_REASON_CRASH_NATIVE = 5;
+  APP_EXIT_REASON_ANR = 6;
+  APP_EXIT_REASON_INITIALIZATION_FAILURE = 7;
+  APP_EXIT_REASON_PERMISSION_CHANGE = 8;
+  APP_EXIT_REASON_EXCESSIVE_RESOURCE_USAGE = 9;
+  APP_EXIT_REASON_USER_REQUESTED = 10;
+  APP_EXIT_REASON_USER_STOPPED = 11;
+  APP_EXIT_REASON_DEPENDENCY_DIED = 12;
+  APP_EXIT_REASON_OTHER = 13;
+  APP_EXIT_REASON_FREEZER = 14;
+  APP_EXIT_REASON_PACKAGE_STATE_CHANGE = 15;
+  APP_EXIT_REASON_PACKAGE_UPDATED = 16;
 }
 
 enum AppExitSubReasonCode {
-  SUBREASON_UNKNOWN = 0;
-  SUBREASON_WAIT_FOR_DEBUGGER = 1;
-  SUBREASON_TOO_MANY_CACHED = 2;
-  SUBREASON_TOO_MANY_EMPTY = 3;
-  SUBREASON_TRIM_EMPTY = 4;
-  SUBREASON_LARGE_CACHED = 5;
-  SUBREASON_MEMORY_PRESSURE = 6;
-  SUBREASON_EXCESSIVE_CPU = 7;
-  SUBREASON_SYSTEM_UPDATE_DONE = 8;
-  SUBREASON_KILL_ALL_FG = 9;
-  SUBREASON_KILL_ALL_BG_EXCEPT = 10;
-  SUBREASON_KILL_UID = 11;
-  SUBREASON_KILL_PID = 12;
-  SUBREASON_INVALID_START = 13;
-  SUBREASON_INVALID_STATE = 14;
-  SUBREASON_IMPERCEPTIBLE = 15;
-  SUBREASON_REMOVE_LRU = 16;
-  SUBREASON_ISOLATED_NOT_NEEDED = 17;
-  SUBREASON_CACHED_IDLE_FORCED_APP_STANDBY = 18;
-  SUBREASON_FREEZER_BINDER_IOCTL = 19;
-  SUBREASON_FREEZER_BINDER_TRANSACTION = 20;
-  SUBREASON_FORCE_STOP = 21;
-  SUBREASON_REMOVE_TASK = 22;
-  SUBREASON_STOP_APP = 23;
-  SUBREASON_KILL_BACKGROUND = 24;
-  SUBREASON_PACKAGE_UPDATE = 25;
-  SUBREASON_UNDELIVERED_BROADCAST = 26;
-  SUBREASON_SDK_SANDBOX_DIED = 27;
-  SUBREASON_SDK_SANDBOX_NOT_NEEDED = 28;
-  SUBREASON_EXCESSIVE_BINDER_OBJECTS = 29;
-  SUBREASON_OOM_KILL = 30;
-  SUBREASON_FREEZER_BINDER_ASYNC_FULL = 31;
-  SUBREASON_EXCESSIVE_OUTGOING_BROADCASTS_WHILE_CACHED = 32;
-  SUBREASON_ANR_TYPE_APP_TRIGGERED = 33;
-  SUBREASON_ANR_TYPE_BIND_APPLICATION = 34;
-  SUBREASON_ANR_TYPE_BROADCAST_OF_INTENT = 35;
-  SUBREASON_ANR_TYPE_CONTENT_PROVIDER_NOT_RESPONDING = 36;
-  SUBREASON_ANR_TYPE_EXECUTING_SERVICE = 37;
-  SUBREASON_ANR_TYPE_FOREGROUND_SHORT_SERVICE_TIMEOUT = 39;
-  SUBREASON_ANR_TYPE_INPUT_DISPATCHING_TIMEOUT = 41;
-  SUBREASON_ANR_TYPE_INPUT_DISPATCHING_TIMEOUT_NO_FOCUSED_WINDOW = 42;
-  SUBREASON_ANR_TYPE_JOB_SERVICE_START = 45;
-  SUBREASON_ANR_TYPE_START_FOREGROUND_SERVICE = 47;
-  SUBREASON_EXCESSIVE_ENQUEUED_BROADCASTS_COUNT = 49;
+  APP_EXIT_SUBREASON_UNKNOWN = 0;
+  APP_EXIT_SUBREASON_WAIT_FOR_DEBUGGER = 1;
+  APP_EXIT_SUBREASON_TOO_MANY_CACHED = 2;
+  APP_EXIT_SUBREASON_TOO_MANY_EMPTY = 3;
+  APP_EXIT_SUBREASON_TRIM_EMPTY = 4;
+  APP_EXIT_SUBREASON_LARGE_CACHED = 5;
+  APP_EXIT_SUBREASON_MEMORY_PRESSURE = 6;
+  APP_EXIT_SUBREASON_EXCESSIVE_CPU = 7;
+  APP_EXIT_SUBREASON_SYSTEM_UPDATE_DONE = 8;
+  APP_EXIT_SUBREASON_KILL_ALL_FG = 9;
+  APP_EXIT_SUBREASON_KILL_ALL_BG_EXCEPT = 10;
+  APP_EXIT_SUBREASON_KILL_UID = 11;
+  APP_EXIT_SUBREASON_KILL_PID = 12;
+  APP_EXIT_SUBREASON_INVALID_START = 13;
+  APP_EXIT_SUBREASON_INVALID_STATE = 14;
+  APP_EXIT_SUBREASON_IMPERCEPTIBLE = 15;
+  APP_EXIT_SUBREASON_REMOVE_LRU = 16;
+  APP_EXIT_SUBREASON_ISOLATED_NOT_NEEDED = 17;
+  APP_EXIT_SUBREASON_CACHED_IDLE_FORCED_APP_STANDBY = 18;
+  APP_EXIT_SUBREASON_FREEZER_BINDER_IOCTL = 19;
+  APP_EXIT_SUBREASON_FREEZER_BINDER_TRANSACTION = 20;
+  APP_EXIT_SUBREASON_FORCE_STOP = 21;
+  APP_EXIT_SUBREASON_REMOVE_TASK = 22;
+  APP_EXIT_SUBREASON_STOP_APP = 23;
+  APP_EXIT_SUBREASON_KILL_BACKGROUND = 24;
+  APP_EXIT_SUBREASON_PACKAGE_UPDATE = 25;
+  APP_EXIT_SUBREASON_UNDELIVERED_BROADCAST = 26;
+  APP_EXIT_SUBREASON_SDK_SANDBOX_DIED = 27;
+  APP_EXIT_SUBREASON_SDK_SANDBOX_NOT_NEEDED = 28;
+  APP_EXIT_SUBREASON_EXCESSIVE_BINDER_OBJECTS = 29;
+  APP_EXIT_SUBREASON_OOM_KILL = 30;
+  APP_EXIT_SUBREASON_FREEZER_BINDER_ASYNC_FULL = 31;
+  APP_EXIT_SUBREASON_EXCESSIVE_OUTGOING_BROADCASTS_WHILE_CACHED = 32;
+  APP_EXIT_SUBREASON_ANR_TYPE_APP_TRIGGERED = 33;
+  APP_EXIT_SUBREASON_ANR_TYPE_BIND_APPLICATION = 34;
+  APP_EXIT_SUBREASON_ANR_TYPE_BROADCAST_OF_INTENT = 35;
+  APP_EXIT_SUBREASON_ANR_TYPE_CONTENT_PROVIDER_NOT_RESPONDING = 36;
+  APP_EXIT_SUBREASON_ANR_TYPE_EXECUTING_SERVICE = 37;
+  APP_EXIT_SUBREASON_ANR_TYPE_FOREGROUND_SHORT_SERVICE_TIMEOUT = 39;
+  APP_EXIT_SUBREASON_ANR_TYPE_INPUT_DISPATCHING_TIMEOUT = 41;
+  APP_EXIT_SUBREASON_ANR_TYPE_INPUT_DISPATCHING_TIMEOUT_NO_FOCUSED_WINDOW = 42;
+  APP_EXIT_SUBREASON_ANR_TYPE_JOB_SERVICE_START = 45;
+  APP_EXIT_SUBREASON_ANR_TYPE_START_FOREGROUND_SERVICE = 47;
+  APP_EXIT_SUBREASON_EXCESSIVE_ENQUEUED_BROADCASTS_COUNT = 49;
 }
 
 enum Importance {
   option allow_alias = true;
 
+  IMPORTANCE_UNKNOWN = 0;
   IMPORTANCE_FOREGROUND = 100;
   IMPORTANCE_FOREGROUND_SERVICE = 125;
   IMPORTANCE_TOP_SLEEPING_PRE_28 = 150;
@@ -446,7 +447,6 @@ enum TriggerType {
 }
 
 enum OomChangeReasonEnum {
-  OOM_ADJ_REASON_UNKNOWN_TO_PROTO = -1;
   OOM_ADJ_REASON_NONE = 0;
   OOM_ADJ_REASON_ACTIVITY = 1;
   OOM_ADJ_REASON_FINISH_RECEIVER = 2;
@@ -512,8 +512,8 @@ message AndroidBroadcastEvent {
   // delivered.
   optional PackageStoppedState package_stopped_state = 11;
 
-  // The type of the broadcast.
-  optional BroadcastType broadcast_type = 12;
+  // The type of the broadcast. It's a mask of BroadcastType.
+  optional int32 broadcast_type = 12;
 
   // Delivery group policy set for the broadcast.
   optional BroadcastDeliveryGroupPolicy delivery_group_policy = 13;
@@ -577,6 +577,8 @@ message AndroidProcessStartEvent {
   optional TriggerType trigger_type = 8;
 }
 
+// This can be delayed for up to 15s in some cases. It should typically
+// be paired with AndroidBinderDiedEvent which has less latency.
 message AndroidProcessDiedEvent {
   // Uid of the package of the dying process.
   optional int32 uid = 1;
@@ -584,7 +586,7 @@ message AndroidProcessDiedEvent {
   // Pid of the dying process.
   optional int32 pid = 2;
 
-  // The process name.
+  // The process name of the dying process.
   optional string process_name = 3;
 
   // The reason code of why the process dies.
@@ -603,6 +605,19 @@ message AndroidProcessDiedEvent {
   optional int32 has_foreground_services = 8;
 }
 
+// This is expected to come earlier than AndroidProcessDiedEvent.
+// For death reasons, see AndroidProcessDiedEvent.
+message AndroidBinderDiedEvent {
+  // Uid of the package of the dying process.
+  optional int32 uid = 1;
+
+  // Pid of the dying process.
+  optional int32 pid = 2;
+
+  // The process name of the dying process.
+  optional string process_name = 3;
+}
+
 message AndroidProcessStateChangedEvent {
   // Uid of the package of the process changing state.
   optional int32 uid = 1;
@@ -617,10 +632,10 @@ message AndroidProcessStateChangedEvent {
   optional ProcessStateEnum cur_proc_state = 4;
 
   // Previous capability flags.
-  optional ProcessCapabilityEnum prev_capability_flags = 5;
+  optional int32 prev_capability_flags = 5;
 
   // Current capability flags.
-  optional ProcessCapabilityEnum cur_capability_flags = 6;
+  optional int32 cur_capability_flags = 6;
 
   // Previous oom score.
   optional int32 prev_oom_score = 7;
@@ -635,11 +650,17 @@ message AndroidProcessStateChangedEvent {
   // one oom_adjuster event. See:
   // https://cs.android.com/android/platform/superproject/+/android-latest-release:frameworks/base/services/core/java/com/android/server/am/OomAdjuster.java;l=286;drc=9f59f0d6214008c9c7825102e64edb46ddb06297
   optional int64 seq_id = 10;
+
+  // Bitmask of reasons for granting PROCESS_CAPABILITY_CPU_TIME.
+  optional int32 cpu_time_reasons = 11;
+
+  // Bitmask of reasons for granting PROCESS_CAPABILITY_IMPLICIT_CPU_TIME.
+  optional int32 implicit_cpu_time_reasons = 12;
 }
 
 message AndroidTrackEvent {
   // Usable range: [2001, 2999]
-  // Next id: 2013
+  // Next id: 2014
   extend TrackEvent {
     // The name of a binder service.
     optional string binder_service_name = 2001;
@@ -666,5 +687,7 @@ message AndroidTrackEvent {
     optional AndroidProcessDiedEvent process_died_event = 2011;
     // Process state changed event.
     optional AndroidProcessStateChangedEvent process_state_changed_event = 2012;
+    // Binder died event.
+    optional AndroidBinderDiedEvent binder_died_event = 2013;
   }
 }

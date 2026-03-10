@@ -61,6 +61,28 @@ describe('QueryExecutionService', () => {
     return node;
   }
 
+  // Mock engine to simulate a successful execution of a given node.
+  // Sets wasUpdated=true (stale after sync) but querySummarizer returns a valid
+  // result, so the full execution path succeeds.
+  function mockSuccessfulExecution(nodeId: string) {
+    mockEngine.createSummarizer = jest.fn().mockResolvedValue({error: ''});
+    mockEngine.updateSummarizerSpec = jest.fn().mockResolvedValue({
+      error: '',
+      queries: [{queryId: nodeId, wasUpdated: true, error: ''}],
+    });
+    mockEngine.querySummarizer = jest.fn().mockResolvedValue({
+      exists: true,
+      tableName: 'test_table',
+      sql: 'SELECT 1',
+      textproto: '',
+      standaloneSql: 'SELECT 1',
+      rowCount: 1,
+      columns: ['col1'],
+      durationMs: 10,
+      error: '',
+    });
+  }
+
   describe('executeWithCoordination - FIFO Queue', () => {
     it('should execute operations in FIFO order', async () => {
       const executionOrder: string[] = [];
@@ -239,6 +261,219 @@ describe('QueryExecutionService', () => {
 
       expect(isExecutingDuringOp).toBe(true);
       expect(service.isQueryExecuting()).toBe(false);
+    });
+  });
+
+  describe('handleManualNodeQueryChange', () => {
+    it('returns false and marks stale for a node with no execution history', () => {
+      const result = service.handleManualNodeQueryChange('unknown-node');
+      expect(result).toBe(false);
+      expect(service.isNodeStale('unknown-node')).toBe(true);
+    });
+
+    it('returns true (column discovery) for first SQ change after successful execution', async () => {
+      const node = createTestNode('node1');
+      mockSuccessfulExecution('node1');
+      await service.processNode(node, mockEngine, [node], {manual: true});
+
+      expect(service.handleManualNodeQueryChange('node1')).toBe(true);
+    });
+
+    it('node stays fresh after column discovery (returning true)', async () => {
+      const node = createTestNode('node1');
+      mockSuccessfulExecution('node1');
+      await service.processNode(node, mockEngine, [node], {manual: true});
+
+      service.handleManualNodeQueryChange('node1');
+
+      // Column discovery should not have marked the node stale
+      expect(service.isNodeStale('node1')).toBe(false);
+    });
+
+    it('returns false for the second SQ change after execution — only one column discovery slot per execution (risk #1)', async () => {
+      const node = createTestNode('node1');
+      mockSuccessfulExecution('node1');
+      await service.processNode(node, mockEngine, [node], {manual: true});
+
+      // First change: column discovery (slot consumed)
+      service.handleManualNodeQueryChange('node1');
+
+      // Second change: treated as a real user edit
+      const result = service.handleManualNodeQueryChange('node1');
+      expect(result).toBe(false);
+      expect(service.isNodeStale('node1')).toBe(true);
+    });
+
+    it('each execution grants exactly one column discovery slot', async () => {
+      const node = createTestNode('node1');
+      mockSuccessfulExecution('node1');
+
+      // First execution
+      await service.processNode(node, mockEngine, [node], {manual: true});
+      expect(service.handleManualNodeQueryChange('node1')).toBe(true); // discovery
+      expect(service.handleManualNodeQueryChange('node1')).toBe(false); // user edit
+
+      // Second execution re-grants the slot
+      await service.processNode(node, mockEngine, [node], {manual: true});
+      expect(service.handleManualNodeQueryChange('node1')).toBe(true); // discovery again
+      expect(service.handleManualNodeQueryChange('node1')).toBe(false); // user edit again
+    });
+
+    it('tracks column discovery slots independently per node', async () => {
+      const node1 = createTestNode('node1');
+      const node2 = createTestNode('node2');
+      mockSuccessfulExecution('node1');
+
+      // Only node1 is executed
+      await service.processNode(node1, mockEngine, [node1, node2], {
+        manual: true,
+      });
+
+      // node1 gets a column discovery slot; node2 does not
+      expect(service.handleManualNodeQueryChange('node1')).toBe(true);
+      expect(service.handleManualNodeQueryChange('node2')).toBe(false);
+    });
+  });
+
+  describe('initializedNodes / skip path', () => {
+    // Stale mock: node needs re-materialization (wasUpdated=true, exists=false).
+    function mockInitialLoad(nodeId: string) {
+      mockEngine.createSummarizer = jest.fn().mockResolvedValue({error: ''});
+      mockEngine.updateSummarizerSpec = jest.fn().mockResolvedValue({
+        error: '',
+        queries: [{queryId: nodeId, wasUpdated: true, error: ''}],
+      });
+      mockEngine.querySummarizer = jest.fn().mockResolvedValue({
+        exists: false,
+      });
+    }
+
+    // Fresh mock: node is already materialized (wasUpdated=false, exists=true).
+    // This populates justExecutedNodes after the initial load, so the next
+    // !manual call is correctly classified as column discovery (not user edit).
+    function mockFreshNode(nodeId: string) {
+      mockEngine.createSummarizer = jest.fn().mockResolvedValue({error: ''});
+      mockEngine.updateSummarizerSpec = jest.fn().mockResolvedValue({
+        error: '',
+        queries: [{queryId: nodeId, wasUpdated: false, error: ''}],
+      });
+      mockEngine.querySummarizer = jest.fn().mockResolvedValue({
+        exists: true,
+        tableName: 'test_table',
+        sql: 'SELECT 1',
+        textproto: '',
+        standaloneSql: 'SELECT 1',
+        rowCount: 1,
+        columns: ['col1'],
+        durationMs: 10,
+        error: '',
+      });
+    }
+
+    it('fires onAnalysisStart on initial load and on user edits, but NOT on column discovery', async () => {
+      const node = createTestNode('node1');
+      node.state.autoExecute = false;
+      mockInitialLoad('node1');
+
+      const analysisStartCalls: number[] = [];
+
+      // First call: initial load — should fire onAnalysisStart
+      await service.processNode(node, mockEngine, [node], {
+        manual: false,
+        onAnalysisStart: () => analysisStartCalls.push(1),
+        onAnalysisComplete: () => {},
+      });
+      expect(analysisStartCalls).toHaveLength(1);
+
+      // Second call: skip path user edit (node stale, not in justExecutedNodes)
+      // — onAnalysisStart fires so the caller can clear its query state
+      await service.processNode(node, mockEngine, [node], {
+        manual: false,
+        onAnalysisStart: () => analysisStartCalls.push(2),
+        onAnalysisComplete: () => {},
+      });
+      expect(analysisStartCalls).toHaveLength(2);
+    });
+
+    it('fires onAnalysisComplete(undefined) on user edit in skip path', async () => {
+      const node = createTestNode('node1');
+      node.state.autoExecute = false;
+      mockInitialLoad('node1');
+
+      // Initialize the node
+      await service.processNode(node, mockEngine, [node], {
+        manual: false,
+        onAnalysisComplete: () => {},
+      });
+
+      const completeCalls: Array<unknown> = [];
+
+      // User edit — should clear query
+      await service.processNode(node, mockEngine, [node], {
+        manual: false,
+        onAnalysisComplete: (q) => completeCalls.push(q),
+      });
+
+      expect(completeCalls).toEqual([undefined]);
+    });
+
+    it('fires no callbacks on column discovery in skip path', async () => {
+      const node = createTestNode('node1');
+      node.state.autoExecute = false;
+      // Successful manual execution populates justExecutedNodes and initializedNodes
+      mockSuccessfulExecution('node1');
+
+      await service.processNode(node, mockEngine, [node], {manual: true});
+
+      const analysisStartCalls: number[] = [];
+      const completeCalls: unknown[] = [];
+
+      // Next !manual call: column discovery — no callbacks should fire
+      await service.processNode(node, mockEngine, [node], {
+        manual: false,
+        onAnalysisStart: () => analysisStartCalls.push(1),
+        onAnalysisComplete: (q) => completeCalls.push(q),
+      });
+
+      expect(analysisStartCalls).toHaveLength(0);
+      expect(completeCalls).toHaveLength(0);
+    });
+
+    it('resetNode forces the next processNode call to re-run initial load', async () => {
+      const node = createTestNode('node1');
+      node.state.autoExecute = false;
+      // Fresh mock: initial load retrieves existing result, populating
+      // justExecutedNodes so the second call is column discovery (no callbacks).
+      mockFreshNode('node1');
+
+      const analysisStartCalls: number[] = [];
+
+      // Initial load: fires onAnalysisStart, retrieves existing result
+      await service.processNode(node, mockEngine, [node], {
+        manual: false,
+        onAnalysisStart: () => analysisStartCalls.push(1),
+        onAnalysisComplete: () => {},
+      });
+      expect(analysisStartCalls).toHaveLength(1);
+
+      // Skip path — column discovery (justExecutedNodes has node1) — no callbacks
+      await service.processNode(node, mockEngine, [node], {
+        manual: false,
+        onAnalysisStart: () => analysisStartCalls.push(2),
+        onAnalysisComplete: () => {},
+      });
+      expect(analysisStartCalls).toHaveLength(1);
+
+      // resetNode clears initialized state (queued, so runs before next processNode)
+      service.resetNode('node1', node);
+
+      // Next call re-runs initial load — onAnalysisStart fires again
+      await service.processNode(node, mockEngine, [node], {
+        manual: false,
+        onAnalysisStart: () => analysisStartCalls.push(3),
+        onAnalysisComplete: () => {},
+      });
+      expect(analysisStartCalls).toHaveLength(2);
     });
   });
 });

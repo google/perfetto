@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {z} from 'zod';
-import {assertTrue} from '../../base/logging';
+import {assertTrue} from '../../base/assert';
 import {Card, CardStack} from '../../widgets/card';
 import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
@@ -434,8 +434,8 @@ export class RecentGraphsSection
     const allCards = [...starred, ...unstarred];
 
     return m(
-      '.pf-recent-graphs-section',
-      m('h4.pf-starting-section-title', 'Recent graphs'),
+      '.pf-recent-graphs-section.pf-nav-section',
+      m('.pf-nav-section-header', m('span', 'Recent graphs')),
       allCards.length > 0
         ? m(
             '.pf-recent-graphs-scroll-container',

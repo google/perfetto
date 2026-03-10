@@ -16,115 +16,206 @@ import m from 'mithril';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {Store} from '../../base/store';
+import {shortUuid} from '../../base/uuid';
+import {getErrorMessage} from '../../base/errors';
+import {debounce} from '../../base/rate_limiters';
+import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
-import {ExplorePage, ExplorePageState} from './explore_page';
+import {ExplorePage, ExplorePageState, ExploreTab} from './explore_page';
 import {nodeRegistry} from './query_builder/node_registry';
 import {QueryNodeState} from './query_node';
 import {deserializeState, serializeState} from './json_handler';
 import {recentGraphsStorage} from './recent_graphs';
-import {resetAnalyzeNodeSummarizer} from './query_builder/query_builder_utils';
+import {
+  exploreTabsStorage,
+  createNewTabName,
+  createEmptyState,
+} from './explore_tabs_storage';
+import type {PersistedExploreTabData} from './explore_tabs_storage';
+import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 
-const STORE_VERSION = 1;
+// --- Permalink persistence ---
+
+const STORE_VERSION = 2;
 
 interface ExplorePagePersistedState {
   version: number;
+  // Multi-tab format (version 2+)
+  tabs?: PersistedExploreTabData[];
+  activeTabId?: string;
+  // Old single-graph format (version 1) - kept for backward compat
   graphJson?: string;
 }
 
 function isValidPersistedState(
   init: unknown,
 ): init is ExplorePagePersistedState {
-  return (
-    typeof init === 'object' &&
-    init !== null &&
-    'version' in init &&
-    (init as {version: unknown}).version === STORE_VERSION
-  );
-}
-
-/**
- * Loads the Explore Page state from recent graphs storage.
- * Returns undefined if no state is found or if deserialization fails.
- */
-function loadStateFromRecentGraphs(trace: Trace): ExplorePageState | undefined {
-  try {
-    const json = recentGraphsStorage.getCurrentJson();
-    if (!json) {
-      return undefined;
-    }
-
-    const sqlModulesPlugin = trace.plugins.getPlugin(SqlModulesPlugin);
-    const sqlModules = sqlModulesPlugin.getSqlModules();
-    if (!sqlModules) {
-      // SQL modules not yet initialized - return undefined to retry later
-      return undefined;
-    }
-
-    return deserializeState(json, trace, sqlModules);
-  } catch (error) {
-    console.debug(
-      'Failed to load Explore Page state from recent graphs:',
-      error,
-    );
-    // Clear corrupted data to prevent repeated failures
-    recentGraphsStorage.clear();
-    return undefined;
+  if (typeof init !== 'object' || init === null || !('version' in init)) {
+    return false;
   }
+  const version = (init as {version: unknown}).version;
+  // Accept both v1 (old single-graph) and v2 (multi-tab)
+  return version === 1 || version === STORE_VERSION;
 }
+
+// --- Plugin ---
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ExplorePage';
-  static readonly dependencies = [SqlModulesPlugin];
+  static readonly dependencies = [QueryPagePlugin, SqlModulesPlugin];
 
-  // The following allows us to have persistent
-  // state/charts for the lifecycle of a single
-  // trace.
-  private state: ExplorePageState = {
-    rootNodes: [],
-    selectedNodes: new Set(),
-    nodeLayouts: new Map(),
-    labels: [],
-  };
+  // Multi-tab state
+  private tabs: ExploreTab[] = [];
+  private activeTabId = '';
 
   // Track whether we've successfully loaded state from local storage
   private hasAttemptedStateLoad = false;
 
-  // Track whether we've auto-initialized base JSON in this session
-  // This prevents reloading base JSON when clearing all nodes
-  private hasAutoInitialized = false;
-
   // Store for persisting state in permalinks
   private permalinkStore?: Store<ExplorePagePersistedState>;
 
-  onStateUpdate = (
-    update:
-      | ExplorePageState
-      | ((current: ExplorePageState) => ExplorePageState),
-  ) => {
-    if (typeof update === 'function') {
-      this.state = update(this.state);
-    } else {
-      this.state = update;
+  // Debounced saves to avoid expensive serialization on every state change
+  private debouncedSave = debounce(() => {
+    exploreTabsStorage.save(this.tabs, this.activeTabId);
+  }, 1000);
+
+  private debouncedPermalinkSave = debounce(() => {
+    this.saveToPermalinkStore();
+  }, 1000);
+
+  // Flush pending saves on page unload to avoid data loss
+  private readonly onBeforeUnload = () => {
+    try {
+      exploreTabsStorage.save(this.tabs, this.activeTabId);
+      this.saveToPermalinkStore();
+    } catch (e) {
+      console.warn('Failed to flush explore tabs on unload:', e);
     }
+  };
 
-    // Save current state to recent graphs (updates the first entry)
-    recentGraphsStorage.saveCurrentState(this.state);
+  // --- Tab helpers ---
 
-    // Save to permalink store for sharing (clear if graph is empty)
-    if (this.permalinkStore) {
-      const graphJson =
-        this.state.rootNodes.length > 0
-          ? serializeState(this.state)
-          : undefined;
-      this.permalinkStore.edit((draft) => {
-        draft.graphJson = graphJson;
-      });
+  private createNewTab(title?: string): ExploreTab {
+    return {
+      id: shortUuid(),
+      title: title ?? createNewTabName(this.tabs),
+      state: createEmptyState(),
+    };
+  }
+
+  private getActiveTab(): ExploreTab | undefined {
+    return this.tabs.find((t) => t.id === this.activeTabId);
+  }
+
+  private ensureAtLeastOneTab(): void {
+    if (this.tabs.length === 0) {
+      const tab = this.createNewTab();
+      this.tabs.push(tab);
+      this.activeTabId = tab.id;
     }
+  }
 
+  // --- Tab CRUD ---
+
+  private handleTabAdd = (): void => {
+    const newTab = this.createNewTab();
+    this.tabs.push(newTab);
+    this.activeTabId = newTab.id;
+    this.debouncedSave();
     m.redraw();
   };
 
-  // Mount the permalink store lazily on first page access.
+  private handleTabClose = (tabId: string): void => {
+    const index = this.tabs.findIndex((t) => t.id === tabId);
+    if (index === -1) return;
+
+    // Don't close the last tab
+    if (this.tabs.length === 1) return;
+
+    this.tabs.splice(index, 1);
+
+    // If we closed the active tab, switch to an adjacent one
+    if (this.activeTabId === tabId) {
+      const newIndex = Math.min(index, this.tabs.length - 1);
+      this.activeTabId = this.tabs[newIndex].id;
+    }
+
+    this.debouncedSave();
+    m.redraw();
+  };
+
+  private handleTabChange = (tabId: string): void => {
+    this.activeTabId = tabId;
+    this.debouncedSave();
+    m.redraw();
+  };
+
+  private handleTabRename = (tabId: string, newName: string): void => {
+    const tab = this.tabs.find((t) => t.id === tabId);
+    if (tab) {
+      tab.title = newName;
+      this.debouncedSave();
+      m.redraw();
+    }
+  };
+
+  private handleTabReorder = (
+    draggedTabId: string,
+    beforeTabId: string | undefined,
+  ): void => {
+    const draggedIndex = this.tabs.findIndex((t) => t.id === draggedTabId);
+    if (draggedIndex === -1) return;
+
+    const [draggedTab] = this.tabs.splice(draggedIndex, 1);
+
+    if (beforeTabId === undefined) {
+      this.tabs.push(draggedTab);
+    } else {
+      const beforeIndex = this.tabs.findIndex((t) => t.id === beforeTabId);
+      if (beforeIndex === -1) {
+        this.tabs.push(draggedTab);
+      } else {
+        this.tabs.splice(beforeIndex, 0, draggedTab);
+      }
+    }
+
+    this.debouncedSave();
+  };
+
+  // --- Per-tab state update ---
+
+  private makeOnStateUpdate(tabId: string) {
+    return (
+      update:
+        | ExplorePageState
+        | ((current: ExplorePageState) => ExplorePageState),
+    ) => {
+      const tab = this.tabs.find((t) => t.id === tabId);
+      if (!tab) return;
+
+      if (typeof update === 'function') {
+        tab.state = update(tab.state);
+      } else {
+        tab.state = update;
+      }
+
+      // Save active tab's state to recent graphs (updates the working slot)
+      if (tabId === this.activeTabId) {
+        recentGraphsStorage.saveCurrentState(tab.state);
+      }
+
+      // Save all tabs to permalink store (debounced)
+      this.debouncedPermalinkSave();
+
+      // Save all tabs to localStorage (debounced)
+      this.debouncedSave();
+
+      m.redraw();
+    };
+  }
+
+  // --- Permalink store ---
+
   private mountPermalinkStore(trace: Trace): void {
     if (this.permalinkStore) return;
 
@@ -139,12 +230,54 @@ export default class implements PerfettoPlugin {
     );
   }
 
-  // Try to load state from permalink store or recent graphs.
-  // Called lazily when the page renders.
+  private saveToPermalinkStore(): void {
+    if (!this.permalinkStore) return;
+
+    const tabsData: PersistedExploreTabData[] = this.tabs
+      .filter((tab) => tab.state.rootNodes.length > 0)
+      .map((tab) => ({
+        id: tab.id,
+        title: tab.title,
+        graphJson: serializeState(tab.state),
+      }));
+
+    this.permalinkStore.edit((draft) => {
+      draft.version = STORE_VERSION;
+      draft.tabs = tabsData.length > 0 ? tabsData : undefined;
+      draft.activeTabId = this.activeTabId;
+      // Clear deprecated single-graph field
+      draft.graphJson = undefined;
+    });
+  }
+
+  // --- State loading ---
+
+  /** Hydrate tabs from persisted tab data, returning the list of loaded tabs. */
+  private hydrateTabs(
+    tabsData: ReadonlyArray<{
+      id: string;
+      title: string;
+      graphJson?: string;
+    }>,
+    trace: Trace,
+    sqlModules: SqlModules,
+  ): ExploreTab[] {
+    return tabsData.map((tabData) => {
+      const state =
+        tabData.graphJson !== undefined
+          ? deserializeState(tabData.graphJson, trace, sqlModules)
+          : createEmptyState();
+      return {
+        id: tabData.id,
+        title: tabData.title,
+        state,
+      };
+    });
+  }
+
   private tryLoadState(trace: Trace): void {
     if (this.hasAttemptedStateLoad) return;
 
-    // Mount permalink store on first access
     this.mountPermalinkStore(trace);
 
     const sqlModulesPlugin = trace.plugins.getPlugin(SqlModulesPlugin);
@@ -157,61 +290,133 @@ export default class implements PerfettoPlugin {
     // SQL modules are ready, mark load as attempted regardless of outcome
     this.hasAttemptedStateLoad = true;
 
-    // First, check permalink store (for graphs restored from permalinks)
-    const permalinkJson = this.permalinkStore?.state.graphJson;
-    if (permalinkJson) {
+    this.loadStateFromSources(trace, sqlModules);
+
+    // Sync loaded state to the permalink store so that "Share trace" includes
+    // the Data Explorer state even if the user hasn't modified anything.
+    // Without this, state loaded from localStorage or recent graphs would
+    // never be written to the permalink store, causing permalinks to lose
+    // the Data Explorer state.
+    this.saveToPermalinkStore();
+  }
+
+  private loadStateFromSources(trace: Trace, sqlModules: SqlModules): void {
+    // Priority 1: Check permalink store
+    const permalinkState = this.permalinkStore?.state;
+    if (permalinkState) {
+      // Try multi-tab format first (version 2+)
+      if (permalinkState.tabs !== undefined && permalinkState.tabs.length > 0) {
+        try {
+          this.tabs = this.hydrateTabs(permalinkState.tabs, trace, sqlModules);
+          this.activeTabId =
+            permalinkState.activeTabId !== undefined &&
+            this.tabs.some((t) => t.id === permalinkState.activeTabId)
+              ? permalinkState.activeTabId
+              : this.tabs[0].id;
+          return;
+        } catch (e) {
+          const msg = getErrorMessage(e);
+          console.warn('Failed to load Explore Page tabs from permalink:', msg);
+          this.tabs = [];
+          // Fall through to try other sources
+        }
+      }
+
+      // Try old single-graph format (version 1 backward compat)
+      if (permalinkState.graphJson !== undefined) {
+        try {
+          const state = deserializeState(
+            permalinkState.graphJson,
+            trace,
+            sqlModules,
+          );
+          const tab = this.createNewTab();
+          tab.state = state;
+          this.tabs.push(tab);
+          this.activeTabId = tab.id;
+          return;
+        } catch (e) {
+          const msg = getErrorMessage(e);
+          console.warn(
+            'Failed to load Explore Page state from permalink:',
+            msg,
+          );
+          // Fall through to try other sources
+        }
+      }
+    }
+
+    // Priority 2: Check new localStorage tabs key
+    const persistedTabs = exploreTabsStorage.load();
+    if (persistedTabs !== undefined) {
       try {
-        const permalinkState = deserializeState(
-          permalinkJson,
-          trace,
-          sqlModules,
-        );
-        this.state = permalinkState;
-        this.hasAutoInitialized = true;
+        this.tabs = this.hydrateTabs(persistedTabs.tabs, trace, sqlModules);
+        this.activeTabId = this.tabs.some(
+          (t) => t.id === persistedTabs.activeTabId,
+        )
+          ? persistedTabs.activeTabId
+          : this.tabs[0].id;
         return;
       } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.warn('Failed to load Explore Page state from permalink:', msg);
+        console.debug('Failed to load Explore Page tabs from localStorage:', e);
+        this.tabs = [];
         // Fall through to try recent graphs
       }
     }
 
-    // Fall back to recent graphs (local storage)
-    const savedState = loadStateFromRecentGraphs(trace);
-    if (savedState !== undefined) {
-      // Load saved state from recent graphs (preserves work across page refreshes)
-      this.state = savedState;
-      // Only mark as auto-initialized if the saved state has nodes
-      // This allows base JSON to load after a reload when state is empty,
-      // but prevents it from loading after manual "Clear all nodes" in the same session
-      if (savedState.rootNodes.length > 0) {
-        this.hasAutoInitialized = true;
+    // Priority 3: Backward compat - try old recentGraphsStorage
+    try {
+      const json = recentGraphsStorage.getCurrentJson();
+      if (json) {
+        const state = deserializeState(json, trace, sqlModules);
+        const tab = this.createNewTab();
+        tab.state = state;
+        this.tabs.push(tab);
+        this.activeTabId = tab.id;
+        return;
       }
+    } catch (e) {
+      console.debug('Failed to load Explore Page state from recent graphs:', e);
+      recentGraphsStorage.clear();
     }
+
+    // Priority 4: Create one empty default tab
+    this.ensureAtLeastOneTab();
   }
 
+  // --- Plugin lifecycle ---
+
   async onTraceLoad(trace: Trace): Promise<void> {
-    // Reset module-level state from previous traces to prevent stale IDs.
-    resetAnalyzeNodeSummarizer();
+    // Flush pending localStorage saves on page unload
+    window.addEventListener('beforeunload', this.onBeforeUnload);
+    trace.trash.defer(() => {
+      window.removeEventListener('beforeunload', this.onBeforeUnload);
+    });
 
     trace.pages.registerPage({
       route: '/explore',
       render: () => {
-        // Ensure SQL modules initialization is triggered (no-op if already started)
-        trace.plugins.getPlugin(SqlModulesPlugin).ensureInitialized();
-
-        // Try to load saved state lazily (waits for SQL modules to be ready)
+        // Try to load saved state lazily (waits for SQL modules to be ready).
         this.tryLoadState(trace);
+
+        const activeTab = this.getActiveTab();
+        if (!activeTab) {
+          return m('.pf-explore-page', 'Loading...');
+        }
 
         return m(ExplorePage, {
           trace,
-          state: this.state,
+          tabs: this.tabs,
+          activeTabId: this.activeTabId,
+          state: activeTab.state,
           sqlModulesPlugin: trace.plugins.getPlugin(SqlModulesPlugin),
-          onStateUpdate: this.onStateUpdate,
-          hasAutoInitialized: this.hasAutoInitialized,
-          setHasAutoInitialized: (value: boolean) => {
-            this.hasAutoInitialized = value;
-          },
+          onStateUpdate: this.makeOnStateUpdate(this.activeTabId),
+          makeOnStateUpdate: (tabId: string) => this.makeOnStateUpdate(tabId),
+          onTabAdd: this.handleTabAdd,
+          onTabClose: this.handleTabClose,
+          onTabChange: this.handleTabChange,
+          onTabRename: this.handleTabRename,
+          onTabReorder: this.handleTabReorder,
         });
       },
     });
@@ -258,8 +463,12 @@ export default class implements PerfettoPlugin {
           end,
         } as unknown as QueryNodeState);
 
-        // Add node to state and select it
-        this.onStateUpdate((currentState) => ({
+        // Ensure we have an active tab
+        this.ensureAtLeastOneTab();
+
+        // Add node to active tab's state
+        const onStateUpdate = this.makeOnStateUpdate(this.activeTabId);
+        onStateUpdate((currentState) => ({
           ...currentState,
           rootNodes: [...currentState.rootNodes, newNode],
           selectedNodes: new Set([newNode.nodeId]),

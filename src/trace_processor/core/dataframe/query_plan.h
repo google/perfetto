@@ -35,6 +35,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/core/dataframe/dataframe_register_cache.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/interpreter/bytecode_builder.h"
@@ -267,7 +268,7 @@ class QueryPlanBuilder {
   //
   // Parameters:
   //   builder: The BytecodeBuilder to emit bytecode into
-  //   scope_id: Caller-managed cache scope for column register caching
+  //   cache: Register cache for column/index register caching
   //   input_indices: Input indices to filter
   //   df: The dataframe to filter
   //   specs: Filter specifications (may be reordered)
@@ -278,7 +279,7 @@ class QueryPlanBuilder {
   // Cost tracking is done internally and discarded at end of call.
   static base::StatusOr<FilterResult> Filter(
       interpreter::BytecodeBuilder& builder,
-      uint32_t scope_id,
+      DataframeRegisterCache& cache,
       IndicesReg input_indices,
       const Dataframe& df,
       std::vector<FilterSpec>& specs);
@@ -318,9 +319,9 @@ class QueryPlanBuilder {
                                         LimitOffsetRowCount>;
 
   // Constructs a builder for the given indices and columns.
-  // scope_id is used for caching column/index registers in the BytecodeBuilder.
+  // cache is used for caching column/index registers.
   QueryPlanBuilder(interpreter::BytecodeBuilder& builder,
-                   uint32_t scope_id,
+                   DataframeRegisterCache& cache,
                    IndicesReg indices,
                    uint32_t row_count,
                    const std::vector<std::shared_ptr<Column>>& columns,
@@ -460,6 +461,9 @@ class QueryPlanBuilder {
   interpreter::RwHandle<Span<uint32_t>> GetOrCreateScratchSpanRegister(
       uint32_t size);
 
+  // Alias for scratch register type.
+  using Scratch = interpreter::BytecodeBuilder::ScratchRegisters;
+
   // Parameters for conversion to row layout.
   struct RowLayoutParams {
     // The column to be copied.
@@ -508,8 +512,11 @@ class QueryPlanBuilder {
   // and scratch management.
   interpreter::BytecodeBuilder& builder_;
 
-  // Scope ID for caching column/index registers across Filter() calls.
-  uint32_t scope_id_;
+  // Register cache for caching column/index registers across Filter() calls.
+  DataframeRegisterCache& cache_;
+
+  // Last scratch registers returned by GetOrCreateScratchSpanRegister.
+  std::optional<Scratch> scratch_;
 };
 
 }  // namespace perfetto::trace_processor::core::dataframe

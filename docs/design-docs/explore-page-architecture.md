@@ -77,12 +77,14 @@ registerCoreNodes() {
 - Manages layout with resizable sidebar and split panel
 - Three views: Info, Modify (node-specific), Result
 - Handles node selection, execution callbacks, undo/redo
+- Receives `GraphCallbacks` interface and spreads it directly to Graph (no prop drilling)
 
 **Graph** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/graph/graph.ts`)
 - Visual canvas for node manipulation
 - Drag-and-drop positioning with persistent layouts
 - Connection management via draggable ports
 - Label annotations for documentation
+- Defines `GraphCallbacks` interface (14 callbacks) and `GraphAttrs extends GraphCallbacks`
 
 **NodeExplorer** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/node_explorer.ts`)
 - Sidebar panel for selected node
@@ -206,15 +208,18 @@ Auto-execute disabled for: SqlSourceNode, IntervalIntersectNode, UnionNode, Filt
 
 ### State Management
 
-**ExplorePageState** (`ui/src/plugins/dev.perfetto.ExplorePage/explore_page.ts:57-70`)
+**ExplorePageState** (`ui/src/plugins/dev.perfetto.ExplorePage/explore_page.ts`)
 ```typescript
 interface ExplorePageState {
-  rootNodes: QueryNode[];           // Nodes without parents (starting points)
-  selectedNode?: QueryNode;         // Currently selected node
-  nodeLayouts: Map<string, {x, y}>; // Visual positions
-  labels?: Array<{...}>;            // Annotations
+  rootNodes: QueryNode[];                  // Nodes without parents (starting points)
+  selectedNodes: ReadonlySet<string>;      // Set of selected node IDs (multi-selection)
+  nodeLayouts: Map<string, {x, y}>;       // Visual positions
+  labels: Array<{...}>;                   // Annotations
   isExplorerCollapsed?: boolean;
   sidebarWidth?: number;
+  loadGeneration?: number;                // Incremented on content load
+  clipboardNodes?: ClipboardEntry[];      // Multi-node copy/paste
+  clipboardConnections?: ClipboardConnection[];
 }
 ```
 
@@ -272,10 +277,10 @@ The validation ensures callbacks from old nodes are ignored after switching.
 
 ## Graph Operations
 
-**Node Creation** (`ui/src/plugins/dev.perfetto.ExplorePage/explore_page.ts:260-308`)
+**Node Creation** (`ui/src/plugins/dev.perfetto.ExplorePage/node_crud_operations.ts`)
 ```typescript
 // Source nodes
-handleAddSourceNode(id) {
+addSourceNode(deps, state, id) {
   const descriptor = nodeRegistry.get(id);
   const initialState = await descriptor.preCreate?.();  // Optional modal
   const newNode = descriptor.factory(initialState);
@@ -283,7 +288,7 @@ handleAddSourceNode(id) {
 }
 
 // Operation nodes
-handleAddOperationNode(id, parentNode) {
+addOperationNode(deps, state, parentNode, id) {
   const newNode = descriptor.factory(initialState);
   if (singleNodeOperation(newNode.type)) {
     insertNodeBetween(parentNode, newNode);  // A → C becomes A → B → C
@@ -293,10 +298,10 @@ handleAddOperationNode(id, parentNode) {
 }
 ```
 
-**Node Deletion** (`ui/src/plugins/dev.perfetto.ExplorePage/explore_page.ts:599-775`)
+**Node Deletion** (`ui/src/plugins/dev.perfetto.ExplorePage/node_crud_operations.ts`)
 ```typescript
 // Complex reconnection logic preserves data flow
-async handleDeleteNode(node) {
+deleteNode(deps, state, node) {
   1. await cleanupManager.cleanupNode(node);  // Drop SQL tables
   2. Capture graph structure (parent, children, port connections)
   3. disconnectNodeFromGraph(node)
@@ -462,13 +467,41 @@ Nodes maintain both forward and backward links:
 - Hash-based change detection (proto bytes hashed by TP)
 - Enables query analysis without SQL string manipulation
 
+### 6. Modular Pure-Function Architecture
+`explore_page.ts` delegates business logic to focused modules of pure functions:
+- Each module defines a `Deps` interface for its required dependencies
+- Functions receive dependencies explicitly (no class `this` access)
+- `explore_page.ts` constructs deps objects and delegates to module functions
+- Enables testing, reuse, and clear responsibility boundaries
+
+Modules:
+- **node_crud_operations.ts** — Node add/delete/duplicate/connect/disconnect (`NodeCrudDeps`)
+- **datagrid_node_creation.ts** — Node creation triggered from DataGrid interactions (`DatagridNodeCreationDeps`)
+- **clipboard_operations.ts** — Multi-node copy/paste
+- **graph_io.ts** — Import/export, graph loading, template initialization (`GraphIODeps`)
+- **node_actions.ts** — Closure-based callbacks for node→graph interaction (`NodeActionHandlers`)
+
+### 7. GraphCallbacks Interface (Prop Drilling Reduction)
+14 callbacks flow from `explore_page.ts` → `Builder` → `Graph`:
+- `GraphCallbacks` interface defined in `graph.ts` groups all 14 callbacks
+- `BuilderAttrs` has a single `graphCallbacks: GraphCallbacks` field
+- Builder spreads `...attrs.graphCallbacks` directly into `Graph` component
+- Eliminates manual forwarding of each callback through Builder
+
 ## File Path Reference
 
 **Core Infrastructure**:
-- `ui/src/plugins/dev.perfetto.ExplorePage/explore_page.ts` - Main plugin and state management
+- `ui/src/plugins/dev.perfetto.ExplorePage/explore_page.ts` - Main plugin, state management, keyboard handling, deps construction
 - `ui/src/plugins/dev.perfetto.ExplorePage/query_node.ts` - Node abstraction and type definitions
-- `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/builder.ts` - Main UI component
+- `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/builder.ts` - Main UI component (receives `GraphCallbacks`)
 - `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/query_execution_service.ts` - Execution coordination
+
+**Business Logic Modules** (pure functions with explicit dependency injection):
+- `ui/src/plugins/dev.perfetto.ExplorePage/node_crud_operations.ts` - Node add/delete/duplicate/connect/disconnect
+- `ui/src/plugins/dev.perfetto.ExplorePage/datagrid_node_creation.ts` - Node creation triggered from DataGrid interactions
+- `ui/src/plugins/dev.perfetto.ExplorePage/clipboard_operations.ts` - Multi-node copy/paste
+- `ui/src/plugins/dev.perfetto.ExplorePage/graph_io.ts` - Import/export, graph loading, template initialization
+- `ui/src/plugins/dev.perfetto.ExplorePage/node_actions.ts` - Closure-based callbacks for node→graph interaction
 
 **Node System**:
 - `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/node_registry.ts` - Node registration
@@ -476,7 +509,7 @@ Nodes maintain both forward and backward links:
 - `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/nodes/` - Individual node implementations
 
 **UI Components**:
-- `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/graph/graph.ts` - Visual graph canvas
+- `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/graph/graph.ts` - Visual graph canvas (defines `GraphCallbacks`)
 - `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/node_explorer.ts` - Node sidebar
 - `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/data_explorer.ts` - Results drawer
 

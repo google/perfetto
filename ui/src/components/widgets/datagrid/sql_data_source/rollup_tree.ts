@@ -25,10 +25,10 @@ import {
 } from '../../../../trace_processor/sql_utils';
 import {runQueryForQueryTable} from '../../../query_table/queries';
 import {DataSourceRows, PivotModel} from '../data_source';
-import {AggregateFunction, GroupPath} from '../model';
+import {GroupPath} from '../model';
 import {serializeFilters} from './group_by';
 import {SQLSchemaRegistry, SQLSchemaResolver} from '../sql_schema';
-import {filterToSql, toAlias} from '../sql_utils';
+import {filterToSql, sqlAggregateExpr, toAlias} from '../sql_utils';
 import {stringifyJsonWithBigints} from '../../../../base/json_utils';
 
 /**
@@ -282,7 +282,7 @@ export class SQLDataSourceRollupTree {
       if (agg.function === 'COUNT') {
         return 'COUNT(*)';
       } else {
-        return buildAggregateExpr(agg.function, agg.field);
+        return sqlAggregateExpr(agg.function, agg.field);
       }
     });
 
@@ -336,16 +336,6 @@ export class SQLDataSourceRollupTree {
     this.rollupTableSlot.dispose();
     this.summariesSlot.dispose();
   }
-}
-
-/**
- * Builds an aggregate expression string from function and field.
- */
-function buildAggregateExpr(func: AggregateFunction, field: string): string {
-  if (func === 'ANY') {
-    return `MIN(${field})`;
-  }
-  return `${func}(${field})`;
 }
 
 /**

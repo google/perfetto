@@ -120,7 +120,7 @@ std::optional<ConversionMode> DetectConversionMode(
     trace_processor::TraceProcessor* tp) {
   auto it = tp->ExecuteQuery(R"(
   SELECT
-    EXISTS (SELECT 1 FROM heap_profile_allocation LIMIT 1),
+    EXISTS (SELECT 1 FROM __intrinsic_heap_profile_allocation LIMIT 1),
     EXISTS (SELECT 1 FROM perf_sample LIMIT 1),
     EXISTS (SELECT 1 FROM __intrinsic_heap_graph_object LIMIT 1)
   )");
