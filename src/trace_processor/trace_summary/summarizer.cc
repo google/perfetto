@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -211,6 +212,19 @@ void ExtractInnerQueryIds(const uint8_t* data,
 
 }  // namespace
 
+// static
+bool SummarizerImpl::ShouldUseView(const uint8_t* data, size_t size) {
+  PerfettoSqlStructuredQuery::Decoder query(data, size);
+  if (query.has_group_by() || query.has_order_by()) {
+    return false;
+  }
+  // Simple pass-through source types where preserving index visibility is
+  // beneficial. All other source types (sql, embedded inner_query,
+  // interval_intersect, etc.) default to materialized TABLE.
+  return query.has_table() || query.has_simple_slices() ||
+         query.has_inner_query_id();
+}
+
 SummarizerImpl::SummarizerImpl(TraceProcessor* tp,
                                DescriptorPool* descriptor_pool,
                                std::string id)
@@ -277,6 +291,7 @@ base::Status SummarizerImpl::UpdateSpec(const uint8_t* spec_data,
     // table fail with "no such table" errors.
     if (existing && !existing->table_name.empty()) {
       state.old_table_name = existing->table_name;
+      state.old_is_view = existing->is_view;
     }
 
     query_states_[query_id] = std::move(state);
@@ -286,12 +301,9 @@ base::Status SummarizerImpl::UpdateSpec(const uint8_t* spec_data,
   std::vector<std::string> to_remove;
   for (auto state_it = query_states_.GetIterator(); state_it; ++state_it) {
     if (!new_query_ids.Find(state_it.key())) {
-      // Query was removed - drop its table.
+      // Query was removed - drop its table/view.
       if (!state_it.value().table_name.empty()) {
-        auto drop_it = tp_->ExecuteQuery("DROP TABLE IF EXISTS " +
-                                         state_it.value().table_name);
-        while (drop_it.Next()) {
-        }
+        DropTableOrView(state_it.value().table_name, state_it.value().is_view);
       }
       // Record the drop in the result.
       SummarizerUpdateSpecResult::QuerySyncInfo sync_info;
@@ -322,9 +334,10 @@ base::Status SummarizerImpl::UpdateSpec(const uint8_t* spec_data,
         if (dep && dep->needs_materialization) {
           // Dependency needs re-materialization, so does this query.
           state.needs_materialization = true;
-          // Defer dropping the old table until new materialization.
+          // Defer dropping the old table/view until new materialization.
           if (!state.table_name.empty()) {
             state.old_table_name = state.table_name;
+            state.old_is_view = state.is_view;
             state.table_name.clear();
           }
           changes_made = true;
@@ -493,25 +506,31 @@ base::Status SummarizerImpl::MaterializeQuery(
   // GenerateStandaloneSql(). This avoids O(N²) work during batch
   // materialization since each call would otherwise iterate all queries.
 
-  // Generate a new table name. Include the summarizer id so that multiple
-  // summarizer instances can coexist without table name collisions.
+  // Generate a new name. Include the summarizer id so that multiple
+  // summarizer instances can coexist without name collisions.
   std::string table_name =
-      "_exp_mat_" + id_ + "_" + std::to_string(next_table_id_++);
+      "_exp_mat_" + id_ + "_" + std::to_string(next_materialized_id_++);
 
-  // Track timing for materialization.
+  // Decide whether to create a VIEW (preserves source table indexes for
+  // downstream joins) or a TABLE (materializes data for caching).
+  bool use_view =
+      ShouldUseView(state.proto_data.data(), state.proto_data.size());
+
+  // Track timing. For tables, we measure only the CREATE TABLE AS SELECT
+  // (which executes the query and writes results). For views, CREATE VIEW is
+  // near-instant, so we measure the COUNT(*) query which forces execution.
   auto start_time = base::GetWallTimeNs();
 
-  // Materialize the query.
-  std::string create_sql =
-      "CREATE PERFETTO TABLE " + table_name + " AS " + query_sql;
+  // Create as VIEW or TABLE.
+  std::string create_sql;
+  if (use_view) {
+    create_sql = "CREATE PERFETTO VIEW " + table_name + " AS " + query_sql;
+  } else {
+    create_sql = "CREATE PERFETTO TABLE " + table_name + " AS " + query_sql;
+  }
   auto create_it = tp_->ExecuteQuery(create_sql);
   while (create_it.Next()) {
   }
-
-  auto end_time = base::GetWallTimeNs();
-  // GetWallTimeNs() returns nanoseconds; divide by 1e6 to convert to ms.
-  state.duration_ms =
-      static_cast<double>((end_time - start_time).count()) / 1e6;
 
   if (!create_it.Status().ok()) {
     state.error = create_it.Status().message();
@@ -519,7 +538,15 @@ base::Status SummarizerImpl::MaterializeQuery(
     return create_it.Status();
   }
 
-  // Get column information and row count from the materialized table.
+  // For tables, capture timing now (CREATE TABLE AS already executed the
+  // query). For views, we defer until after COUNT(*) which forces execution.
+  if (!use_view) {
+    auto end_time = base::GetWallTimeNs();
+    state.duration_ms =
+        static_cast<double>((end_time - start_time).count()) / 1e6;
+  }
+
+  // Get column information from the created table/view.
   auto schema_it =
       tp_->ExecuteQuery("SELECT * FROM " + table_name + " LIMIT 0");
   uint32_t col_count = schema_it.ColumnCount();
@@ -529,14 +556,32 @@ base::Status SummarizerImpl::MaterializeQuery(
   }
   while (schema_it.Next()) {
   }
+  if (!schema_it.Status().ok()) {
+    state.error = schema_it.Status().message();
+    state.needs_materialization = false;
+    return schema_it.Status();
+  }
 
-  // Get row count.
+  // Get row count. For views this executes the underlying query.
   auto count_it = tp_->ExecuteQuery("SELECT COUNT(*) FROM " + table_name);
   if (count_it.Next()) {
     state.row_count = count_it.Get(0).AsLong();
   }
+  if (!count_it.Status().ok()) {
+    state.error = count_it.Status().message();
+    state.needs_materialization = false;
+    return count_it.Status();
+  }
+
+  // For views, capture timing after COUNT(*) which forces query execution.
+  if (use_view) {
+    auto end_time = base::GetWallTimeNs();
+    state.duration_ms =
+        static_cast<double>((end_time - start_time).count()) / 1e6;
+  }
 
   state.table_name = table_name;
+  state.is_view = use_view;
   state.error = std::nullopt;
   state.needs_materialization = false;
   // Note: We intentionally keep proto_data after materialization.
@@ -544,17 +589,13 @@ base::Status SummarizerImpl::MaterializeQuery(
   // are materialized later in the same batch. The memory cost is acceptable
   // because the client re-sends the full spec on each sync anyway.
 
-  // Now that the new table is created, drop the old one if it exists.
+  // Now that the new table/view is created, drop the old one if it exists.
   // This deferred drop prevents race conditions where in-flight queries
   // against the old table would fail with "no such table" errors.
   if (!state.old_table_name.empty()) {
-    auto drop_it =
-        tp_->ExecuteQuery("DROP TABLE IF EXISTS " + state.old_table_name);
-    while (drop_it.Next()) {
-    }
-    // Drop errors are silently ignored - if the table is still locked by
-    // in-flight queries, it will be cleaned up later.
+    DropTableOrView(state.old_table_name, state.old_is_view);
     state.old_table_name.clear();
+    state.old_is_view = false;
   }
 
   return base::OkStatus();
@@ -616,23 +657,30 @@ void SummarizerImpl::GenerateStandaloneSql(QueryState& state) {
   state.standalone_sql = standalone_complete;
 }
 
+void SummarizerImpl::DropTableOrView(const std::string& name, bool is_view) {
+  std::string sql = is_view ? ("DROP VIEW IF EXISTS " + name)
+                            : ("DROP TABLE IF EXISTS " + name);
+  auto drop_it = tp_->ExecuteQuery(sql);
+  while (drop_it.Next()) {
+  }
+  // Drop failures are non-fatal: the table/view may still be referenced by
+  // in-flight queries. Log to aid debugging but don't propagate the error.
+  if (!drop_it.Status().ok()) {
+    PERFETTO_DLOG("Failed to drop %s '%s': %s", is_view ? "view" : "table",
+                  name.c_str(), drop_it.Status().c_message());
+  }
+}
+
 void SummarizerImpl::DropAll() {
   for (auto it = query_states_.GetIterator(); it; ++it) {
     if (!it.value().table_name.empty()) {
-      auto drop_it =
-          tp_->ExecuteQuery("DROP TABLE IF EXISTS " + it.value().table_name);
-      while (drop_it.Next()) {
-      }
-      // Ignore errors during drop.
+      DropTableOrView(it.value().table_name, it.value().is_view);
     }
-    // Also drop old tables that haven't been cleaned up yet (e.g., if
+    // Also drop old tables/views that haven't been cleaned up yet (e.g., if
     // UpdateSpec() marked a query for re-materialization but Query() was
     // never called to complete the swap).
     if (!it.value().old_table_name.empty()) {
-      auto drop_it = tp_->ExecuteQuery("DROP TABLE IF EXISTS " +
-                                       it.value().old_table_name);
-      while (drop_it.Next()) {
-      }
+      DropTableOrView(it.value().old_table_name, it.value().old_is_view);
     }
   }
   query_states_.Clear();
@@ -698,6 +746,7 @@ base::Status SummarizerImpl::Query(const std::string& query_id,
   GenerateStandaloneSql(*state);
 
   result->table_name = state->table_name;
+  result->is_view = state->is_view;
   result->row_count = state->row_count;
   result->columns = state->columns;
   result->duration_ms = state->duration_ms;
