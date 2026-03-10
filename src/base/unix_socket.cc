@@ -240,11 +240,13 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
       addr.svm_cid = *base::StringToUInt32(parts[0]);
       addr.svm_port = *base::StringToUInt32(parts[1]);
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#if defined(VMADDR_FLAG_TO_HOST)
       if (IsVirtualized()) {
         // VM-to-VM VSOCK communication requires messages to be
         // routed through the host.
         addr.svm_flags = VMADDR_FLAG_TO_HOST;
       }
+#endif
 #endif
       SockaddrAny res(&addr, sizeof(addr));
       return res;
