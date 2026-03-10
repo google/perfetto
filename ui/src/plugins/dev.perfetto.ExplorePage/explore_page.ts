@@ -290,10 +290,10 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
       if (state.selectedNodes.size > 0) {
         this.handleCopy(attrs);
+        event.preventDefault();
       }
-      // Always preventDefault to avoid browser copy interfering with the page,
-      // even when no node is selected.
-      event.preventDefault();
+      // When no nodes are selected, allow the default browser copy behavior
+      // so users can copy text from the sidebar, error messages, etc.
       return;
     }
 
