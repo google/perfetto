@@ -286,14 +286,16 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       return;
     }
 
-    // Handle copy/paste shortcuts - these work when nodes are selected
+    // Handle copy shortcut - text selection takes priority over node copy,
+    // so users can copy proto/SQL from the sidebar, error messages, etc.
     if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
-      if (state.selectedNodes.size > 0) {
+      const textSelection = window.getSelection();
+      const hasTextSelected =
+        textSelection !== null && textSelection.toString().length > 0;
+      if (!hasTextSelected && state.selectedNodes.size > 0) {
         this.handleCopy(attrs);
+        event.preventDefault();
       }
-      // Always preventDefault to avoid browser copy interfering with the page,
-      // even when no node is selected.
-      event.preventDefault();
       return;
     }
 
