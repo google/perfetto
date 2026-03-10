@@ -14,7 +14,12 @@
 
 import m from 'mithril';
 import {Engine} from '../../../trace_processor/engine';
-import {NUM_NULL, STR, STR_NULL} from '../../../trace_processor/query_result';
+import {
+  LONG,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../../trace_processor/query_result';
 import {Section} from '../../../widgets/section';
 import {Grid, GridCell, GridHeaderCell} from '../../../widgets/grid';
 
@@ -48,9 +53,23 @@ const androidGameInterventionRowSpec = {
 
 type AndroidGameInterventionRow = typeof androidGameInterventionRowSpec;
 
+const aflagRowSpec = {
+  ts: LONG,
+  package: STR_NULL,
+  name: STR_NULL,
+  container: STR_NULL,
+  value: STR_NULL,
+  stagedValue: STR_NULL,
+  permission: STR_NULL,
+  valuePickedFrom: STR_NULL,
+};
+
+type AflagRow = typeof aflagRowSpec;
+
 export interface AndroidData {
   packageList: PackageData[];
   gameInterventions: AndroidGameInterventionRow[];
+  aflags: AflagRow[];
 }
 
 export async function loadAndroidData(engine: Engine): Promise<AndroidData> {
@@ -122,10 +141,52 @@ export async function loadAndroidData(engine: Engine): Promise<AndroidData> {
     });
   }
 
+  // Load aflags
+  const aflagsResult = await engine.query(`
+    include perfetto module android.aflags;
+    select
+      ts,
+      package,
+      name,
+      container,
+      value,
+      staged_value as stagedValue,
+      permission,
+      value_picked_from as valuePickedFrom
+    from android_aflags
+  `);
+  const aflags: AflagRow[] = [];
+  for (
+    const iter = aflagsResult.iter(aflagRowSpec);
+    iter.valid();
+    iter.next()
+  ) {
+    aflags.push({
+      ts: iter.ts,
+      package: iter.package,
+      name: iter.name,
+      container: iter.container,
+      value: iter.value,
+      stagedValue: iter.stagedValue,
+      permission: iter.permission,
+      valuePickedFrom: iter.valuePickedFrom,
+    });
+  }
+
   return {
     packageList,
     gameInterventions,
+    aflags,
   };
+}
+
+export function hasAndroidData(data?: AndroidData): boolean {
+  if (!data) return false;
+  return (
+    data.packageList.length > 0 ||
+    data.gameInterventions.length > 0 ||
+    data.aflags.length > 0
+  );
 }
 
 export interface AndroidTabAttrs {
@@ -138,6 +199,7 @@ export class AndroidTab implements m.ClassComponent<AndroidTabAttrs> {
       '.pf-trace-info-page__tab-content',
       m(PackageListSection, {packageList: attrs.data.packageList}),
       m(AndroidGameInterventionList, {data: attrs.data.gameInterventions}),
+      m(AndroidAflagsSection, {aflags: attrs.data.aflags}),
     );
   }
 }
@@ -291,6 +353,66 @@ class AndroidGameInterventionList
               row.battery_mode_fps,
             ),
           ),
+        ]),
+        className: 'pf-trace-info-page__logs-grid',
+      }),
+    );
+  }
+}
+
+interface AndroidAflagsSectionAttrs {
+  aflags: AflagRow[];
+}
+
+class AndroidAflagsSection
+  implements m.ClassComponent<AndroidAflagsSectionAttrs>
+{
+  view({attrs}: m.CVnode<AndroidAflagsSectionAttrs>) {
+    const aflags = attrs.aflags;
+    if (aflags === undefined || aflags.length === 0) {
+      return undefined;
+    }
+
+    return m(
+      Section,
+      {
+        title: 'Android Aflags',
+        subtitle: 'List of Android aconfig flags in the trace',
+      },
+      m(Grid, {
+        columns: [
+          {
+            key: 'flag',
+            header: m(GridHeaderCell, 'Flag'),
+          },
+          {
+            key: 'value',
+            header: m(GridHeaderCell, 'Value'),
+          },
+          {
+            key: 'stagedValue',
+            header: m(GridHeaderCell, 'Staged Value'),
+          },
+          {
+            key: 'valuePickedFrom',
+            header: m(GridHeaderCell, 'Value Picked From'),
+          },
+          {
+            key: 'permission',
+            header: m(GridHeaderCell, 'Permission'),
+          },
+          {
+            key: 'container',
+            header: m(GridHeaderCell, 'Container'),
+          },
+        ],
+        rowData: aflags.map((flag) => [
+          m(GridCell, `${flag.package ?? ''}.${flag.name ?? ''}`),
+          m(GridCell, flag.value),
+          m(GridCell, flag.stagedValue ? `(->${flag.stagedValue})` : '-'),
+          m(GridCell, flag.valuePickedFrom),
+          m(GridCell, flag.permission),
+          m(GridCell, flag.container),
         ]),
         className: 'pf-trace-info-page__logs-grid',
       }),
