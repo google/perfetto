@@ -17,6 +17,15 @@ import {Icons} from '../../../base/semantic_icons';
 import {Tabs, TabsTab} from '../../../widgets/tabs';
 import {renderWidgetShowcase} from '../widgets_page_utils';
 
+const defaultTitles: Record<string, string> = {
+  tab1: 'First Tab',
+  tab2: 'Second Tab',
+  tab3: 'Third Tab',
+};
+
+// Mutable state for renamed tab titles, persisted across redraws.
+const tabTitles = new Map<string, string>(Object.entries(defaultTitles));
+
 export function renderTabs(): m.Children {
   return [
     m(
@@ -25,7 +34,8 @@ export function renderTabs(): m.Children {
       m(
         'p',
         'A simple tab bar widget with tab handles and gated content. ' +
-          'Supports both controlled and uncontrolled modes, with optional close buttons on tabs.',
+          'Supports both controlled and uncontrolled modes, with optional ' +
+          'close buttons and inline rename on double-click.',
       ),
     ),
     renderWidgetShowcase({
@@ -33,7 +43,7 @@ export function renderTabs(): m.Children {
         const tabs: TabsTab[] = [
           {
             key: 'tab1',
-            title: 'First Tab',
+            title: tabTitles.get('tab1') ?? defaultTitles['tab1'],
             leftIcon: opts.showIcons ? Icons.Info : undefined,
             content: m(
               '',
@@ -43,7 +53,7 @@ export function renderTabs(): m.Children {
           },
           {
             key: 'tab2',
-            title: 'Second Tab',
+            title: tabTitles.get('tab2') ?? defaultTitles['tab2'],
             leftIcon: opts.showIcons ? Icons.Chart : undefined,
             content: m(
               '',
@@ -54,7 +64,7 @@ export function renderTabs(): m.Children {
           },
           {
             key: 'tab3',
-            title: 'Third Tab',
+            title: tabTitles.get('tab3') ?? defaultTitles['tab3'],
             leftIcon: opts.showIcons ? Icons.Search : undefined,
             content: m(
               '',
@@ -81,12 +91,18 @@ export function renderTabs(): m.Children {
                   console.log(`Close tab: ${key}`);
                 }
               : undefined,
+            onTabRename: opts.renamable
+              ? (key, newTitle) => {
+                  tabTitles.set(key, newTitle);
+                }
+              : undefined,
           }),
         );
       },
       initialOpts: {
         closeButton: false,
         showIcons: true,
+        renamable: true,
       },
     }),
   ];
