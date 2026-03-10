@@ -98,16 +98,18 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
       }),
       m(Brush, {
         x: left,
-        onDrag: (deltaX) => {
-          const delta = timescale.pxToDuration(deltaX);
-          trace.timeline.moveStart(delta);
+        minX: 0,
+        maxX: right - 1,
+        onDrag: (x) => {
+          trace.timeline.moveStart(timescale.pxToHpTime(x));
         },
       }),
       m(Brush, {
         x: right,
-        onDrag: (deltaX) => {
-          const delta = timescale.pxToDuration(deltaX);
-          trace.timeline.moveEnd(delta);
+        minX: left + 1,
+        maxX: timelineWidth,
+        onDrag: (x) => {
+          trace.timeline.moveEnd(timescale.pxToHpTime(x));
         },
       }),
     ]);
@@ -251,7 +253,9 @@ function renderTimecode(
 
 interface BrushAttrs extends m.Attributes {
   readonly x: number;
-  onDrag(deltaX: number): void;
+  readonly minX: number;
+  readonly maxX: number;
+  onDrag(x: number): void;
 }
 
 interface DragHandleAttrs extends m.Attributes {
@@ -331,7 +335,7 @@ function DragHandle(): m.Component<DragHandleAttrs> {
 }
 
 function Brush(): m.Component<BrushAttrs> {
-  let lastClientX: number | undefined;
+  let dragging = false;
 
   return {
     view({attrs}: m.Vnode<BrushAttrs>) {
@@ -341,18 +345,23 @@ function Brush(): m.Component<BrushAttrs> {
           onpointerdown: (e: PointerEvent) => {
             const target = e.currentTarget as HTMLElement;
             target.setPointerCapture(e.pointerId);
-            lastClientX = e.clientX;
+            dragging = true;
           },
           onpointerup: (e: PointerEvent) => {
             const target = e.currentTarget as HTMLElement;
             target.releasePointerCapture(e.pointerId);
-            lastClientX = undefined;
+            dragging = false;
           },
           onpointermove: (e: PointerEvent) => {
-            if (lastClientX !== undefined) {
-              const deltaX = e.clientX - lastClientX;
-              lastClientX = e.clientX;
-              attrs.onDrag(deltaX);
+            if (dragging) {
+              const brushElement = e.currentTarget as HTMLElement;
+              const parentRect =
+                brushElement.offsetParent!.getBoundingClientRect();
+              const x = Math.max(
+                attrs.minX,
+                Math.min(attrs.maxX, e.clientX - parentRect.left),
+              );
+              attrs.onDrag(x);
             }
           },
           style: {
