@@ -35,6 +35,7 @@ import {WattsonThreadSelectionAggregator} from './thread_aggregator';
 import {
   CPUSS_ESTIMATE_TRACK_KIND,
   GPUSS_ESTIMATE_TRACK_KIND,
+  TPUSS_ESTIMATE_TRACK_KIND,
 } from './track_kinds';
 import SchedPlugin from '../dev.perfetto.Sched';
 import {createCpuWarnings, missingWattsonCpuConfigs} from './warning';
@@ -63,6 +64,7 @@ export default class Wattson implements PerfettoPlugin {
     const markersSupported = await hasWattsonMarkersSupport(ctx.engine);
     const cpuSupported = await hasWattsonCpuSupport(ctx.engine);
     const gpuSupported = await hasWattsonGpuSupport(ctx.engine);
+    const tpuSupported = await hasWattsonTpuSupport(ctx.engine);
     const realCpuIdleCounters = await hasCpuIdleCounters(ctx.engine);
     const missingEvents = markersSupported
       ? await missingWattsonCpuConfigs(ctx.engine)
@@ -87,6 +89,9 @@ export default class Wattson implements PerfettoPlugin {
     }
     if (gpuSupported) {
       await addWattsonGpuElements(ctx, group);
+    }
+    if (tpuSupported) {
+      await addWattsonTpuElements(ctx, group);
     }
 
     if (Wattson.windowsOfInterest.size > 0) {
@@ -238,6 +243,21 @@ async function hasWattsonGpuSupport(engine: Engine): Promise<boolean> {
   return true;
 }
 
+async function hasWattsonTpuSupport(engine: Engine): Promise<boolean> {
+  const queryChecks: string[] = [
+    `
+    INCLUDE PERFETTO MODULE wattson.tpu.freq_idle;
+    SELECT COUNT(*) as numRows FROM _tpu_freq WHERE dur IS NOT NULL
+    `,
+  ];
+  for (const queryCheck of queryChecks) {
+    const checkValue = await engine.query(queryCheck);
+    if (checkValue.firstRow({numRows: NUM}).numRows === 0) return false;
+  }
+
+  return true;
+}
+
 async function addWattsonMarkersElements(ctx: Trace, group: TrackNode) {
   const uri = `/wattson/markers_window`;
   const track = await SliceTrack.createMaterialized({
@@ -361,4 +381,22 @@ async function addWattsonGpuElements(ctx: Trace, group: TrackNode) {
     },
   });
   group.addChildInOrder(new TrackNode({uri: id, name: `GPU Estimate`}));
+}
+
+async function addWattsonTpuElements(ctx: Trace, group: TrackNode) {
+  const id = `/wattson/tpu_subsystem_estimate`;
+  ctx.tracks.registerTrack({
+    uri: id,
+    renderer: new WattsonSubsystemEstimateTrack(
+      ctx,
+      id,
+      `tpu_mw`,
+      `TpuSubsystem`,
+    ),
+    tags: {
+      kinds: [TPUSS_ESTIMATE_TRACK_KIND],
+      wattson: 'Tpu',
+    },
+  });
+  group.addChildInOrder(new TrackNode({uri: id, name: `TPU Estimate`}));
 }
