@@ -42,18 +42,6 @@
   &__tab-content {
     height: 100%;
   }
-
-  &__tab-rename-input {
-    border: none;
-    outline: none;
-    background: transparent;
-    font: inherit;
-    color: inherit;
-    padding: 0;
-    margin: 0;
-    width: 100%;
-    min-width: 40px;
-  }
 }
 
 // Styles for node documentation (loaded from markdown)
