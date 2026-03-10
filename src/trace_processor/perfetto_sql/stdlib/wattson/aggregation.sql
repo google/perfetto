@@ -210,6 +210,7 @@ RETURNS TableOrSubquery AS
     sum(ii.dur * ss.cpu7_mw) / nullif(sum(ii.dur), 0) AS cpu7_mw,
     sum(ii.dur * ss.dsu_scu_mw) / nullif(sum(ii.dur), 0) AS dsu_scu_mw,
     sum(ii.dur * ss.gpu_mw) / nullif(sum(ii.dur), 0) AS gpu_mw,
+    sum(ii.dur * ss.tpu_mw) / nullif(sum(ii.dur), 0) AS tpu_mw,
     sum(ii.dur) AS period_dur,
     ii.id_0 AS period_id
   FROM _interval_intersect!(
@@ -395,6 +396,22 @@ RETURNS TableOrSubquery AS
       FROM base_components AS base
       WHERE
         base.gpu_mw IS NOT NULL
+      UNION ALL
+      -- E. TPU Subsystem
+      SELECT
+        base.period_id,
+        base.period_dur,
+        'TPU' AS subsystem,
+        'TOTAL' AS breakdown_type,
+        NULL AS component_id,
+        NULL AS parent_id,
+        base.tpu_mw AS estimated_mw,
+        (
+          base.tpu_mw * base.period_dur / 1e9
+        ) AS estimated_mws
+      FROM base_components AS base
+      WHERE
+        base.tpu_mw IS NOT NULL
     )
   -- 4. Final output: Raw Data + Computed CPU Total
   SELECT

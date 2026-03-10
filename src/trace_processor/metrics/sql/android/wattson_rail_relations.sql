@@ -44,6 +44,7 @@ SELECT
   SUM(ii.dur * ss.cpu7_mw) / SUM(ii.dur) as cpu7_mw,
   SUM(ii.dur * ss.dsu_scu_mw) / SUM(ii.dur) as dsu_scu_mw,
   SUM(ii.dur * ss.gpu_mw) / SUM(ii.dur) as gpu_mw,
+  SUM(ii.dur * ss.tpu_mw) / SUM(ii.dur) as tpu_mw,
   SUM(ii.dur) as period_dur,
   ii.id_0 as period_id
 FROM _interval_intersect!(
@@ -406,16 +407,29 @@ SELECT
   ) as gpu_proto
 FROM _wattson_base_components_avg_mw;
 
+DROP VIEW IF EXISTS _estimate_tpu_subsystem_sum;
+CREATE PERFETTO VIEW _estimate_tpu_subsystem_sum AS
+SELECT
+  period_id,
+  period_dur,
+  tpu_mw IS NOT NULL as defined,
+  AndroidWattsonTpuSubsystemEstimate(
+    'estimated_mw', tpu_mw,
+    'estimated_mws', tpu_mw * period_dur / 1e9
+  ) as tpu_proto
+FROM _wattson_base_components_avg_mw;
+
 DROP VIEW IF EXISTS _estimate_subsystems_sum;
 CREATE PERFETTO VIEW _estimate_subsystems_sum AS
 SELECT
   period_id,
   period_dur,
   cpu_ss.cpu_proto,
-  IIF(gpu_ss.defined, gpu_ss.gpu_proto, NULL) as gpu_proto
+  IIF(gpu_ss.defined, gpu_ss.gpu_proto, NULL) as gpu_proto,
+  IIF(tpu_ss.defined, tpu_ss.tpu_proto, NULL) as tpu_proto
 FROM _estimate_cpu_subsystem_sum cpu_ss
-JOIN _estimate_gpu_subsystem_sum gpu_ss
-  USING (period_id, period_dur);
+JOIN _estimate_gpu_subsystem_sum gpu_ss USING (period_id, period_dur)
+JOIN _estimate_tpu_subsystem_sum tpu_ss USING (period_id, period_dur);
 
 DROP VIEW IF EXISTS _wattson_rails_metric_metadata;
 CREATE PERFETTO VIEW _wattson_rails_metric_metadata AS
