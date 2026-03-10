@@ -43,7 +43,7 @@ export function assertDefined<T>(value: T | undefined, optMsg?: string): T {
 
 // Asserts that the value is an instance of the given class. Returns the value
 // with a narrowed type if the assertion passes, otherwise throws an error.
-export function assertIsInstance<T>(
+export function ensureIsInstance<T>(
   value: unknown,
   clazz: abstract new (...args: never[]) => T,
   optMsg?: string,
@@ -53,6 +53,18 @@ export function assertIsInstance<T>(
     optMsg ?? `Value is not an instance of ${clazz.name}`,
   );
   return value as T;
+}
+
+// Asserts that the value is an instance of the given class. Returns the value
+// with a narrowed type if the assertion passes, otherwise throws an error.
+export function assertIsInstance<T>(
+  value: unknown,
+  clazz: abstract new (...args: never[]) => T,
+  optMsg?: string,
+): asserts value is T {
+  if (!(value instanceof clazz)) {
+    throw new Error(optMsg ?? `Value is not an instance of ${clazz.name}`);
+  }
 }
 
 export function assertTrue(value: boolean, optMsg?: string) {

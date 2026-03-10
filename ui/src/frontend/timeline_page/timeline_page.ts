@@ -41,6 +41,7 @@ import {
 import {TrackNode} from '../../public/workspace';
 import {maybeUndefined} from '../../base/utils';
 import {GateDetector} from '../../base/mithril_utils';
+import {assertIsInstance} from '../../base/assert';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -69,6 +70,7 @@ const USE_ALTERNATIVE_SEARCH_HOTKEY = settingsManager.register({
 
 const MIN_TRACK_SHELL_WIDTH = 100;
 const MAX_TRACK_SHELL_WIDTH = 1000;
+const HOTKEY_CONTEXT_REF = 'context';
 
 export function renderTimelinePage() {
   // Only render if a trace is loaded
@@ -106,42 +108,38 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
     return m(
       TabPanel,
       {trace},
-      this.renderMinimap(trace),
       m(
-        HotkeyContext,
+        GateDetector,
         {
-          ref: 'context',
-          hotkeys: virtualScrollingEnabled
-            ? [
-                {
-                  hotkey: useAlternativeHotkey ? 'Shift+F' : '!Mod+F',
-                  callback: () => {
-                    this.trackSearchBarVisible = true;
-                    this.trackSearchBarApi?.focus();
-                  },
-                },
-              ]
-            : [],
-          focusable: true,
-          fillHeight: true,
-          showFocusRing: true,
+          onVisibilityChanged: (visible: boolean, dom: Element) => {
+            if (visible) {
+              // Focus the search input as soon as it becomes visible.
+              const hotkeyContextEl = findRef(dom, HOTKEY_CONTEXT_REF);
+              assertIsInstance(hotkeyContextEl, HTMLElement);
+              hotkeyContextEl.focus();
+            }
+          },
         },
         m(
-          GateDetector,
+          HotkeyContext,
           {
-            onVisibilityChanged: (visible: boolean, dom: Element) => {
-              if (visible) {
-                // Focus the search input as soon as it becomes visible.
-                const input = findRef(
-                  dom,
-                  'context',
-                ) as HTMLInputElement | null;
-                if (input) {
-                  input.focus();
-                }
-              }
-            },
+            ref: HOTKEY_CONTEXT_REF,
+            hotkeys: virtualScrollingEnabled
+              ? [
+                  {
+                    hotkey: useAlternativeHotkey ? 'Shift+F' : '!Mod+F',
+                    callback: () => {
+                      this.trackSearchBarVisible = true;
+                      this.trackSearchBarApi?.focus();
+                    },
+                  },
+                ]
+              : [],
+            focusable: true,
+            fillHeight: true,
+            showFocusRing: true,
           },
+          this.renderMinimap(trace),
           this.trackSearchBarVisible && this.renderTrackSearchPanel(trace),
           this.renderTimeline(trace),
         ),
@@ -171,13 +169,20 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
           trace.tracks.scrollToTrackNodeId = firstMatch.node.id;
         }
       },
-      onClose: () => {
+      onClose: (target) => {
         this.trackSearchBarVisible = false;
         this.trackSearchModel = {
           ...this.trackSearchModel,
           searchTerm: '',
         };
         this.trackSearchMatches = [];
+        if (target instanceof Element) {
+          const hotkeyContextElem = target.closest(
+            '.pf-hotkey-context[ref="' + HOTKEY_CONTEXT_REF + '"]',
+          );
+          assertIsInstance(hotkeyContextElem, HTMLElement);
+          hotkeyContextElem.focus();
+        }
       },
       onStepForward: () => {
         // Recalculate matches to pick up any state changes (e.g., expanded groups)

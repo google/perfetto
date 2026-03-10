@@ -33,7 +33,7 @@ export interface TrackSearchBarAttrs {
   onModelChange?(newModel: TrackSearchModel): void;
   onStepForward?(): void;
   onStepBackwards?(): void;
-  onClose?(): void;
+  onClose?(dom: EventTarget | null): void;
   onReady?(api: TrackSearchBarApi): void;
 }
 
@@ -72,7 +72,7 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
           onkeydown: (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
               e.preventDefault();
-              onClose?.();
+              onClose?.(e.target);
             } else if (e.key === 'Enter' && e.shiftKey) {
               e.preventDefault();
               onStepBackwards?.();
@@ -101,7 +101,7 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
     }
   }
 
-  private renderHelpButton(onClose?: () => void): m.Children {
+  private renderHelpButton(): m.Children {
     return m(
       Popup,
       {
@@ -129,7 +129,6 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
             Anchor,
             {
               href: '#!/settings/alternativeSearchHotkey',
-              onclick: onClose,
             },
             'Rebind this to Shift+F',
           ),
@@ -138,7 +137,6 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
             Anchor,
             {
               href: '#!/settings/virtualTrackScrolling',
-              onclick: onClose,
             },
             'disable virtual scrolling',
           ),
@@ -224,7 +222,7 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
           position: PopupPosition.Top,
           trigger: m(Button, {
             icon: Icons.Close,
-            onclick: onClose,
+            onclick: (e) => onClose?.(e.target),
           }),
         },
         'Close (Escape)',
