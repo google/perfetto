@@ -135,11 +135,11 @@ export default class Wattson implements PerfettoPlugin {
 
     // Only add tracks of unique utids
     for (const utid of utidsToPin) {
-      await addWattsonThreadTrack(ctx, utid, {pin: true});
+      await addWattsonThreadTrack(ctx, utid, {pin: true, scrollTo: false});
     }
   }
 
-  private static updateWindowsOfInterest(metrics: string[]) {
+  public static updateWindowsOfInterest(metrics: string[]) {
     for (const metric of metrics) {
       for (const key of Object.keys(WINDOW_MAP)) {
         if (metric.includes(key)) {
