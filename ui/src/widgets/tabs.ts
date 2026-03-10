@@ -43,13 +43,10 @@ export interface TabsAttrs {
   onTabChange?(key: string): void;
   // Called when a tab's close button is clicked.
   onTabClose?(key: string): void;
-  // Called when a tab is double-clicked. When onTabRename is also set,
-  // double-click triggers rename mode in addition to calling this callback.
-  onTabDblClick?(key: string): void;
   // Called when a tab's title is renamed via inline editing. When set, tabs
-  // with a string title become renamable on double-click. If the input is
-  // cleared (empty after trim), the rename is cancelled and this callback is
-  // not fired.
+  // with a string title become renamable on double-click (tabs with non-string
+  // titles are not affected). If the input is cleared (empty after trim) or
+  // Escape is pressed, the rename is cancelled and this callback is not fired.
   onTabRename?(key: string, newTitle: string): void;
   // Whether tabs can be reordered via drag and drop.
   readonly reorderable?: boolean;
@@ -212,6 +209,7 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
   // Rename state.
   private renamingTabKey?: string;
   private renameInputValue = '';
+  private renameCancelled = false;
 
   view({attrs}: m.CVnode<TabsAttrs>): m.Children {
     const {
@@ -219,7 +217,6 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
       activeTabKey,
       onTabChange,
       onTabClose,
-      onTabDblClick,
       onTabRename,
       reorderable,
       onTabReorder,
@@ -276,16 +273,15 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
                   this.internalActiveTab = tab.key;
                   onTabChange?.(tab.key);
                 },
-                ondblclick:
-                  onTabRename || onTabDblClick
-                    ? () => {
-                        if (onTabRename && typeof tab.title === 'string') {
-                          this.renameInputValue = tab.title;
-                          this.renamingTabKey = tab.key;
-                        }
-                        onTabDblClick?.(tab.key);
+                ondblclick: onTabRename
+                  ? () => {
+                      if (typeof tab.title === 'string') {
+                        this.renameInputValue = tab.title;
+                        this.renamingTabKey = tab.key;
+                        this.renameCancelled = false;
                       }
-                    : undefined,
+                    }
+                  : undefined,
                 ...(this.renamingTabKey === tab.key && {
                   renaming: true,
                   renameValue: this.renameInputValue,
@@ -293,6 +289,7 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
                     this.renameInputValue = value;
                   },
                   onRenameCommit: () => {
+                    if (this.renameCancelled) return;
                     const newName = this.renameInputValue.trim();
                     if (newName) {
                       onTabRename?.(tab.key, newName);
@@ -300,6 +297,7 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
                     this.renamingTabKey = undefined;
                   },
                   onRenameCancel: () => {
+                    this.renameCancelled = true;
                     this.renamingTabKey = undefined;
                   },
                 }),
