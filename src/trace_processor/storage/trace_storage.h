@@ -413,6 +413,13 @@ class TraceStorage {
   const SqlStats& sql_stats() const { return sql_stats_; }
   SqlStats* mutable_sql_stats() { return &sql_stats_; }
 
+  const tables::AndroidAflagsTable& android_aflags_table() const {
+    return table<tables::AndroidAflagsTable>();
+  }
+  tables::AndroidAflagsTable* mutable_android_aflags_table() {
+    return mutable_table<tables::AndroidAflagsTable>();
+  }
+
   const tables::AndroidCpuPerUidTrackTable& android_cpu_per_uid_track_table()
       const {
     return table<tables::AndroidCpuPerUidTrackTable>();
