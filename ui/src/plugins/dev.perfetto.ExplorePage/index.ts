@@ -19,6 +19,7 @@ import {Store} from '../../base/store';
 import {shortUuid} from '../../base/uuid';
 import {getErrorMessage} from '../../base/errors';
 import {debounce} from '../../base/rate_limiters';
+import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {ExplorePage, ExplorePageState, ExploreTab} from './explore_page';
 import {nodeRegistry} from './query_builder/node_registry';
@@ -61,7 +62,7 @@ function isValidPersistedState(
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.ExplorePage';
-  static readonly dependencies = [SqlModulesPlugin];
+  static readonly dependencies = [QueryPagePlugin, SqlModulesPlugin];
 
   // Multi-tab state
   private tabs: ExploreTab[] = [];

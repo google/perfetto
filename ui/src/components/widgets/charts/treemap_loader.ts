@@ -158,7 +158,7 @@ export class SQLTreemapLoader extends SQLChartLoader<
         children = [];
         groupMap.set(groupName, children);
       }
-      children.push({name: labelName, value: iter._value, category: groupName});
+      children.push({name: labelName, value: iter._value});
     }
 
     const nodes: TreemapNode[] = [];
@@ -166,7 +166,6 @@ export class SQLTreemapLoader extends SQLChartLoader<
       nodes.push({
         name: groupName,
         value: children.reduce((sum, c) => sum + c.value, 0),
-        category: groupName,
         children,
       });
     }

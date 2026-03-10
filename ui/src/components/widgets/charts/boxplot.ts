@@ -21,7 +21,6 @@ import {
   buildGridOption,
   buildTooltipOption,
 } from './chart_option_builder';
-import {getChartThemeColors} from './chart_theme';
 
 /**
  * A single box in a boxplot chart.
@@ -132,7 +131,6 @@ function buildBoxplotOption(
   } = attrs;
   const fmtVal = formatValue ?? formatNumber;
   const horizontal = orientation === 'horizontal';
-  const theme = getChartThemeColors();
 
   const showXAxisGrid = gridLines === 'vertical' || gridLines === 'both';
   const showYAxisGrid = gridLines === 'horizontal' || gridLines === 'both';
@@ -177,7 +175,6 @@ function buildBoxplotOption(
 
   const option: Record<string, unknown> = {
     animation: false,
-    color: [...theme.chartColors],
     grid: buildGridOption({
       bottom: horizontal ? 25 : categoryLabel ? 40 : 25,
     }),

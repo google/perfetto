@@ -41,6 +41,7 @@ export default defineConfig({
     toHaveScreenshot: {
       // Allow for very small differences between rasterizers on different platforms.
       maxDiffPixels: 1,
+      threshold: 0.1,
     },
   },
 

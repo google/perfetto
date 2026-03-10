@@ -123,19 +123,23 @@ function createBatchProgram(gl: WebGL2RenderingContext): ChevronBatchProgram {
   `;
 
   const fsSource = `#version 300 es
-    precision mediump float;
+    precision highp float;
     in vec4 v_color;
     in vec2 v_uv;
     out vec4 fragColor;
 
     uniform sampler2D u_sdfTex;
+    uniform float u_height;
 
     const float SDF_SPREAD = 0.1;
 
     void main() {
       float sdfValue = texture(u_sdfTex, v_uv).a;
       float dist = (sdfValue - 0.5) * SDF_SPREAD;
-      float aa = fwidth(dist) * 0.75;
+      // Compute AA width analytically from marker size rather than using
+      // fwidth(), which is GPU-implementation-dependent and produces different
+      // results on different rasterizers.
+      float aa = 1.0 / u_height * 0.75;
       float alpha = 1.0 - smoothstep(-aa, aa, dist);
 
       if (alpha < 0.01) {

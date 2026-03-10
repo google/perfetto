@@ -13,8 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {v4 as uuidv4} from 'uuid';
-import {QueryResponse, runQueryForQueryTable} from './queries';
+import {
+  QueryResponse,
+  runQueryForQueryTable,
+} from '../../components/query_table/queries';
 import {QueryResultsTable} from './query_table';
 import {Trace} from '../../public/trace';
 import {Tab} from '../../public/tab';
@@ -25,25 +27,6 @@ interface QueryResultTabConfig {
   // Optional data to display in this tab instead of fetching it again
   // (e.g. when duplicating an existing tab which already has the data).
   readonly prefetchedResponse?: QueryResponse;
-}
-
-// External interface for adding a new query results tab
-// Automatically decided whether to add v1 or v2 tab
-export function addQueryResultsTab(
-  trace: Trace,
-  config: QueryResultTabConfig,
-  tag?: string,
-): void {
-  const queryResultsTab = new QueryResultTab(trace, config);
-
-  const uri = 'queryResults#' + (tag ?? uuidv4());
-
-  trace.tabs.registerTab({
-    uri,
-    content: queryResultsTab,
-    isEphemeral: true,
-  });
-  trace.tabs.showTab(uri);
 }
 
 export class QueryResultTab implements Tab {

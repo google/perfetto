@@ -21,7 +21,6 @@ import {
   buildGridOption,
   buildTooltipOption,
 } from './chart_option_builder';
-import {getChartThemeColors} from './chart_theme';
 
 /**
  * Data provided to a HeatmapChart.
@@ -111,7 +110,6 @@ function buildHeatmapOption(
 ): EChartsCoreOption {
   const {xAxisLabel, yAxisLabel, formatValue} = attrs;
   const fmtVal = formatValue ?? formatNumber;
-  const theme = getChartThemeColors();
 
   const option: Record<string, unknown> = {
     animation: false,
@@ -166,10 +164,7 @@ function buildHeatmapOption(
       orient: 'vertical',
       right: 0,
       top: 'center',
-      textStyle: {color: theme.textColor, fontSize: 10},
-      inRange: {
-        color: [theme.chartColors[0] + '22', theme.chartColors[0]],
-      },
+      textStyle: {fontSize: 10},
     },
     series: [
       {

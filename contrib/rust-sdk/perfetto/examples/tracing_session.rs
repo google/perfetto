@@ -24,7 +24,7 @@ use perfetto_sdk::{
     producer::*,
     protos::config::{
         data_source_config::DataSourceConfig,
-        trace_config::{BufferConfig, DataSource, TraceConfig},
+        trace_config::{TraceConfig, TraceConfigBufferConfig, TraceConfigDataSource},
         track_event::track_event_config::TrackEventConfig,
     },
     scoped_track_event,
@@ -67,10 +67,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut msg = PbMsg::new(&writer).unwrap();
         {
             let mut cfg = TraceConfig { msg: &mut msg };
-            cfg.set_buffers(|buf_cfg: &mut BufferConfig| {
+            cfg.set_buffers(|buf_cfg: &mut TraceConfigBufferConfig| {
                 buf_cfg.set_size_kb(1024);
             });
-            cfg.set_data_sources(|data_sources: &mut DataSource| {
+            cfg.set_data_sources(|data_sources: &mut TraceConfigDataSource| {
                 data_sources.set_config(|ds_cfg: &mut DataSourceConfig| {
                     ds_cfg.set_name("track_event");
                     ds_cfg.set_track_event_config(|te_cfg: &mut TrackEventConfig| {

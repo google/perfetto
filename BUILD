@@ -642,6 +642,12 @@ perfetto_cc_library(
         ":src_trace_processor_rpc_httpd",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_rpc_stdiod",
+        ":src_trace_processor_shell_interactive",
+        ":src_trace_processor_shell_metatrace",
+        ":src_trace_processor_shell_metrics",
+        ":src_trace_processor_shell_query",
+        ":src_trace_processor_shell_shell_utils",
+        ":src_trace_processor_shell_sql_packages",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",
         ":src_trace_processor_sqlite_sqlite",
@@ -3963,6 +3969,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_2d_1.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_2d_2.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_l3.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tpu.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/utils.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/device_infos.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/estimates.sql",
@@ -3971,6 +3978,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/attribution.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/idle_transitions_attribution.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/task_slices.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/tpu/estimates.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/tpu/freq_idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/ui/continuous_estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/utils.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/windows.sql",
@@ -4076,6 +4085,60 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/rpc/stdiod.cc",
         "src/trace_processor/rpc/stdiod.h",
+    ],
+)
+
+# GN target: //src/trace_processor/shell:interactive
+perfetto_filegroup(
+    name = "src_trace_processor_shell_interactive",
+    srcs = [
+        "src/trace_processor/shell/interactive.cc",
+        "src/trace_processor/shell/interactive.h",
+    ],
+)
+
+# GN target: //src/trace_processor/shell:metatrace
+perfetto_filegroup(
+    name = "src_trace_processor_shell_metatrace",
+    srcs = [
+        "src/trace_processor/shell/metatrace.cc",
+        "src/trace_processor/shell/metatrace.h",
+    ],
+)
+
+# GN target: //src/trace_processor/shell:metrics
+perfetto_filegroup(
+    name = "src_trace_processor_shell_metrics",
+    srcs = [
+        "src/trace_processor/shell/metrics.cc",
+        "src/trace_processor/shell/metrics.h",
+    ],
+)
+
+# GN target: //src/trace_processor/shell:query
+perfetto_filegroup(
+    name = "src_trace_processor_shell_query",
+    srcs = [
+        "src/trace_processor/shell/query.cc",
+        "src/trace_processor/shell/query.h",
+    ],
+)
+
+# GN target: //src/trace_processor/shell:shell_utils
+perfetto_filegroup(
+    name = "src_trace_processor_shell_shell_utils",
+    srcs = [
+        "src/trace_processor/shell/shell_utils.cc",
+        "src/trace_processor/shell/shell_utils.h",
+    ],
+)
+
+# GN target: //src/trace_processor/shell:sql_packages
+perfetto_filegroup(
+    name = "src_trace_processor_shell_sql_packages",
+    srcs = [
+        "src/trace_processor/shell/sql_packages.cc",
+        "src/trace_processor/shell/sql_packages.h",
     ],
 )
 

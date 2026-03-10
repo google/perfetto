@@ -120,7 +120,7 @@ import {
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import {QueryResponse} from '../../../components/query_table/queries';
-import {addQueryResultsTab} from '../../../components/query_table/query_result_tab';
+import QueryPagePlugin from '../../dev.perfetto.QueryPage';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
@@ -734,8 +734,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     }
 
     // Use the materialized table instead of re-running the original query
-    addQueryResultsTab(
-      this.trace,
+    this.trace.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab(
       {
         query: `SELECT * FROM ${tableName}`,
         title: 'Explore Query',
