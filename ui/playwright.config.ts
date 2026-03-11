@@ -31,7 +31,7 @@ export default defineConfig({
       'html',
       {
         outputFolder: `${outDir}/ui-test-artifacts`,
-        open: isCi ? 'never' : 'on-failure',
+        open: 'never',
       },
     ],
   ],

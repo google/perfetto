@@ -29,12 +29,16 @@ test.beforeAll(async ({browser}, _testInfo) => {
 test('ftrace tracks', async () => {
   const ftraceGroupTrack = pth.locateTrack('Ftrace Events');
   await pth.toggleTrackGroup(ftraceGroupTrack);
-  await pth.waitForIdleAndScreenshot('ftrace_events.png');
+  await pth.waitForIdleAndScreenshot('ftrace_events.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 });
 
 test('ftrace tab', async () => {
   await page.mouse.move(0, 0);
   await page.click('button[title="More Tabs"]');
   await page.getByRole('button', {name: 'Ftrace Events'}).click();
-  await pth.waitForIdleAndScreenshot('ftrace_tab.png');
+  await pth.waitForIdleAndScreenshot('ftrace_tab.png', {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 });
