@@ -422,7 +422,7 @@ export default class implements PerfettoPlugin {
     });
 
     trace.pages.registerPage({
-      route: '/data-explorer',
+      route: '/explore',
       render: () => {
         // Ensure SQL modules initialization is triggered (no-op if already
         // started). This kicks off the data availability checks that determine
@@ -458,7 +458,7 @@ export default class implements PerfettoPlugin {
       section: 'current_trace',
       sortOrder: 20,
       text: 'Data Explorer',
-      href: '#!/data-explorer',
+      href: '#!/explore',
       icon: 'data_exploration',
     });
 
@@ -509,7 +509,7 @@ export default class implements PerfettoPlugin {
         }));
 
         // Navigate to Data Explorer
-        trace.navigate('#!/data-explorer');
+        trace.navigate('#!/explore');
       },
     });
   }
