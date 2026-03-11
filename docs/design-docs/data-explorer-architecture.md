@@ -1,10 +1,10 @@
-# Explore Page Architecture
+# Data Explorer Architecture
 
-This document explains how Perfetto's Explore Page works, from creating visual query graphs to executing SQL queries and displaying results. It covers the key components, data flow, and architectural patterns that enable the Explore Page to provide an interactive, node-based SQL query builder for trace analysis.
+This document explains how Perfetto's Data Explorer works, from creating visual query graphs to executing SQL queries and displaying results. It covers the key components, data flow, and architectural patterns that enable the Data Explorer to provide an interactive, node-based SQL query builder for trace analysis.
 
 ## Overview
 
-The Explore Page is a visual query builder that allows users to construct complex SQL queries by connecting nodes in a directed acyclic graph (DAG). Each node represents either a data source (table, slices, custom SQL) or an operation (filter, aggregation, join, etc.). The system converts this visual graph into structured SQL queries, executes them via the trace processor, and displays results in an interactive data grid.
+The Data Explorer is a visual query builder that allows users to construct complex SQL queries by connecting nodes in a directed acyclic graph (DAG). Each node represents either a data source (table, slices, custom SQL) or an operation (filter, aggregation, join, etc.). The system converts this visual graph into structured SQL queries, executes them via the trace processor, and displays results in an interactive data grid.
 
 ## Core Data Flow
 
@@ -15,13 +15,13 @@ Query Analysis (Validation) → Query Materialization → Result Display
 
 ## Node Graph Structure
 
-**QueryNode** (`ui/src/plugins/dev.perfetto.ExplorePage/query_node.ts:128-161`)
+**QueryNode** (`ui/src/plugins/dev.perfetto.DataExplorer/query_node.ts:128-161`)
 - Base abstraction for all node types
 - Maintains bidirectional connections: `primaryInput` (upstream), `nextNodes` (downstream), `secondaryInputs` (side connections)
 - Generates structured query protobuf via `getStructuredQuery()`
 - Validates configuration and provides UI rendering methods
 
-**Node Connections** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/graph_utils.ts`)
+**Node Connections** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/graph_utils.ts`)
 - Primary Input: Vertical data flow (single parent node)
 - Secondary Inputs: Horizontal data flow (side connections with port numbers)
 - Bidirectional relationship management via `addConnection()`/`removeConnection()`
@@ -29,13 +29,13 @@ Query Analysis (Validation) → Query Materialization → Result Display
 
 ## Node Registration and Creation
 
-**NodeRegistry** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/node_registry.ts`)
+**NodeRegistry** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/node_registry.ts`)
 - Central registry for all node types
 - Descriptors specify: name, icon, type (source/modification/multisource), factory function
 - Optional `preCreate()` hook for interactive setup (e.g., table selection modal)
 - Supports keyboard shortcuts for rapid node creation
 
-**Core Nodes** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/core_nodes.ts`)
+**Core Nodes** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/core_nodes.ts`)
 ```typescript
 registerCoreNodes() {
   nodeRegistry.register('table', {...});
@@ -72,27 +72,27 @@ registerCoreNodes() {
 
 ## UI Components
 
-**Builder** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/builder.ts`)
+**Builder** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/builder.ts`)
 - Main component coordinating all sub-components
 - Manages layout with resizable sidebar and split panel
 - Three views: Info, Modify (node-specific), Result
 - Handles node selection, execution callbacks, undo/redo
 - Receives `GraphCallbacks` interface and spreads it directly to Graph (no prop drilling)
 
-**Graph** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/graph/graph.ts`)
+**Graph** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/graph/graph.ts`)
 - Visual canvas for node manipulation
 - Drag-and-drop positioning with persistent layouts
 - Connection management via draggable ports
 - Label annotations for documentation
 - Defines `GraphCallbacks` interface (14 callbacks) and `GraphAttrs extends GraphCallbacks`
 
-**NodeExplorer** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/node_explorer.ts`)
+**NodePanel** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/node_panel.ts`)
 - Sidebar panel for selected node
 - Displays node info, configuration UI, and SQL preview
 - Triggers query analysis on state changes
 - Manages execution flow via QueryExecutionService
 
-**DataExplorer** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/data_explorer.ts`)
+**DataExplorer** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/data_explorer.ts`)
 - Bottom drawer showing query results
 - Server-side pagination via SQLDataSource
 - Column-based filtering and sorting
@@ -123,7 +123,7 @@ engine.querySummarizer(summarizerId, nodeId) → TP creates/reuses table →
 
 ### QueryExecutionService
 
-**Purpose** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/query_execution_service.ts`)
+**Purpose** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/query_execution_service.ts`)
 - Prevents race conditions during rapid user interaction via FIFO execution queue
 - Debounces rapid requests to batch user input
 - Coordinates with Trace Processor's materialization API
@@ -195,7 +195,7 @@ async processNode(node: QueryNode): Promise<void> {
 }
 ```
 
-**Auto-Execute Logic** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/query_execution_service.ts`)
+**Auto-Execute Logic** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/query_execution_service.ts`)
 
 | autoExecute | manual | Behavior                              |
 |-------------|--------|---------------------------------------|
@@ -208,9 +208,9 @@ Auto-execute disabled for: SqlSourceNode, IntervalIntersectNode, UnionNode, Filt
 
 ### State Management
 
-**ExplorePageState** (`ui/src/plugins/dev.perfetto.ExplorePage/explore_page.ts`)
+**DataExplorerState** (`ui/src/plugins/dev.perfetto.DataExplorer/data_explorer.ts`)
 ```typescript
-interface ExplorePageState {
+interface DataExplorerState {
   rootNodes: QueryNode[];                  // Nodes without parents (starting points)
   selectedNodes: ReadonlySet<string>;      // Set of selected node IDs (multi-selection)
   nodeLayouts: Map<string, {x, y}>;       // Visual positions
@@ -223,33 +223,33 @@ interface ExplorePageState {
 }
 ```
 
-**Query State Management** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/builder.ts:60-86`)
+**Query State Management** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/builder.ts:60-86`)
 
 Builder maintains `this.query` as the single source of truth for query state:
-- Updated by both automatic analysis (from NodeExplorer) and manual execution (from Builder)
-- Passed to NodeExplorer as a prop for rendering SQL/Proto tabs
+- Updated by both automatic analysis (from NodePanel) and manual execution (from Builder)
+- Passed to NodePanel as a prop for rendering SQL/Proto tabs
 - Ensures consistent query display for both autoExecute=true and autoExecute=false nodes
 
 Query State Flow:
 ```
 Automatic execution (autoExecute=true):
-  NodeExplorer.updateQuery() → processNode({ manual: false })
-  → onAnalysisComplete → sets NodeExplorer.currentQuery
+  NodePanel.updateQuery() → processNode({ manual: false })
+  → onAnalysisComplete → sets NodePanel.currentQuery
   → onAnalysisComplete → calls onQueryAnalyzed callback → sets Builder.query
-  → Builder passes query as prop to NodeExplorer
-  → NodeExplorer.renderContent() uses attrs.query ?? this.currentQuery
+  → Builder passes query as prop to NodePanel
+  → NodePanel.renderContent() uses attrs.query ?? this.currentQuery
 
 Manual execution (autoExecute=false):
   User clicks "Run Query" → Builder calls processNode({ manual: true })
   → onAnalysisComplete → sets Builder.query
   → onAnalysisComplete → calls onNodeQueryAnalyzed callback → sets Builder.query
-  → Builder passes query as prop to NodeExplorer
-  → NodeExplorer.renderContent() uses attrs.query (this.currentQuery may be undefined)
+  → Builder passes query as prop to NodePanel
+  → NodePanel.renderContent() uses attrs.query (this.currentQuery may be undefined)
 ```
 
 This ensures SQL/Proto tabs display correctly for both automatic and manual execution modes.
 
-**Race Condition Prevention** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/builder.ts:283-292`)
+**Race Condition Prevention** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/builder.ts:283-292`)
 
 The callback captures the selected node at creation time to prevent stale query leakage:
 ```typescript
@@ -270,14 +270,14 @@ Without this check, rapid node switching can cause:
 
 The validation ensures callbacks from old nodes are ignored after switching.
 
-**HistoryManager** (`ui/src/plugins/dev.perfetto.ExplorePage/history_manager.ts`)
+**HistoryManager** (`ui/src/plugins/dev.perfetto.DataExplorer/history_manager.ts`)
 - Undo/redo stack with state snapshots
 - Serialization via `serializeState()` for each node
 - Deserialization reconstructs entire graph from JSON
 
 ## Graph Operations
 
-**Node Creation** (`ui/src/plugins/dev.perfetto.ExplorePage/node_crud_operations.ts`)
+**Node Creation** (`ui/src/plugins/dev.perfetto.DataExplorer/node_crud_operations.ts`)
 ```typescript
 // Source nodes
 addSourceNode(deps, state, id) {
@@ -298,7 +298,7 @@ addOperationNode(deps, state, parentNode, id) {
 }
 ```
 
-**Node Deletion** (`ui/src/plugins/dev.perfetto.ExplorePage/node_crud_operations.ts`)
+**Node Deletion** (`ui/src/plugins/dev.perfetto.DataExplorer/node_crud_operations.ts`)
 ```typescript
 // Complex reconnection logic preserves data flow
 deleteNode(deps, state, node) {
@@ -314,7 +314,7 @@ deleteNode(deps, state, node) {
 }
 ```
 
-**Graph Traversal** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/graph_utils.ts`)
+**Graph Traversal** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/graph_utils.ts`)
 - `getAllNodes()`: BFS traversal (both forward and backward)
 - `getAllDownstreamNodes()`: Forward traversal (for invalidation)
 - `getAllUpstreamNodes()`: Backward traversal (for dependency checking)
@@ -391,7 +391,7 @@ may see an error message, but clicking "Run Query" again will recover the state.
 
 ## Structured Query Generation
 
-**Query Construction** (`ui/src/plugins/dev.perfetto.ExplorePage/query_builder/query_builder_utils.ts`)
+**Query Construction** (`ui/src/plugins/dev.perfetto.DataExplorer/query_builder/query_builder_utils.ts`)
 ```typescript
 getStructuredQueries(finalNode) {
   const queries: PerfettoSqlStructuredQuery[] = [];
@@ -419,14 +419,14 @@ analyzeNode(node, engine) {
 
 ## Serialization and Examples
 
-**JSON Serialization** (`ui/src/plugins/dev.perfetto.ExplorePage/json_handler.ts`)
+**JSON Serialization** (`ui/src/plugins/dev.perfetto.DataExplorer/json_handler.ts`)
 - `exportStateAsJson()`: Serializes entire graph state to JSON file
 - `deserializeState()`: Reconstructs graph from JSON
 - Each node implements `serializeState()` for node-specific state
 - Used for: Import/Export, Examples, Undo/Redo snapshots
 
-**Examples System** (`ui/src/plugins/dev.perfetto.ExplorePage/examples_modal.ts`)
-- Pre-built graphs stored as JSON in `ui/src/assets/explore_page/`
+**Examples System** (`ui/src/plugins/dev.perfetto.DataExplorer/examples_modal.ts`)
+- Pre-built graphs stored as JSON in `ui/src/assets/data_explorer/`
 - Base page state auto-loaded on first visit
 - Modal allows users to load curated examples
 
@@ -468,10 +468,10 @@ Nodes maintain both forward and backward links:
 - Enables query analysis without SQL string manipulation
 
 ### 6. Modular Pure-Function Architecture
-`explore_page.ts` delegates business logic to focused modules of pure functions:
+`data_explorer.ts` delegates business logic to focused modules of pure functions:
 - Each module defines a `Deps` interface for its required dependencies
 - Functions receive dependencies explicitly (no class `this` access)
-- `explore_page.ts` constructs deps objects and delegates to module functions
+- `data_explorer.ts` constructs deps objects and delegates to module functions
 - Enables testing, reuse, and clear responsibility boundaries
 
 Modules:
@@ -482,7 +482,7 @@ Modules:
 - **node_actions.ts** — Closure-based callbacks for node→graph interaction (`NodeActionHandlers`)
 
 ### 7. GraphCallbacks Interface (Prop Drilling Reduction)
-14 callbacks flow from `explore_page.ts` → `Builder` → `Graph`:
+14 callbacks flow from `data_explorer.ts` → `Builder` → `Graph`:
 - `GraphCallbacks` interface defined in `graph.ts` groups all 14 callbacks
 - `BuilderAttrs` has a single `graphCallbacks: GraphCallbacks` field
 - Builder spreads `...attrs.graphCallbacks` directly into `Graph` component
@@ -491,34 +491,34 @@ Modules:
 ## File Path Reference
 
 **Core Infrastructure**:
-- `ui/src/plugins/dev.perfetto.ExplorePage/explore_page.ts` - Main plugin, state management, keyboard handling, deps construction
-- `ui/src/plugins/dev.perfetto.ExplorePage/query_node.ts` - Node abstraction and type definitions
-- `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/builder.ts` - Main UI component (receives `GraphCallbacks`)
-- `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/query_execution_service.ts` - Execution coordination
+- `ui/src/plugins/dev.perfetto.DataExplorer/data_explorer.ts` - Main plugin, state management, keyboard handling, deps construction
+- `ui/src/plugins/dev.perfetto.DataExplorer/query_node.ts` - Node abstraction and type definitions
+- `ui/src/plugins/dev.perfetto.DataExplorer/query_builder/builder.ts` - Main UI component (receives `GraphCallbacks`)
+- `ui/src/plugins/dev.perfetto.DataExplorer/query_builder/query_execution_service.ts` - Execution coordination
 
 **Business Logic Modules** (pure functions with explicit dependency injection):
-- `ui/src/plugins/dev.perfetto.ExplorePage/node_crud_operations.ts` - Node add/delete/duplicate/connect/disconnect
-- `ui/src/plugins/dev.perfetto.ExplorePage/datagrid_node_creation.ts` - Node creation triggered from DataGrid interactions
-- `ui/src/plugins/dev.perfetto.ExplorePage/clipboard_operations.ts` - Multi-node copy/paste
-- `ui/src/plugins/dev.perfetto.ExplorePage/graph_io.ts` - Import/export, graph loading, template initialization
-- `ui/src/plugins/dev.perfetto.ExplorePage/node_actions.ts` - Closure-based callbacks for node→graph interaction
+- `ui/src/plugins/dev.perfetto.DataExplorer/node_crud_operations.ts` - Node add/delete/duplicate/connect/disconnect
+- `ui/src/plugins/dev.perfetto.DataExplorer/datagrid_node_creation.ts` - Node creation triggered from DataGrid interactions
+- `ui/src/plugins/dev.perfetto.DataExplorer/clipboard_operations.ts` - Multi-node copy/paste
+- `ui/src/plugins/dev.perfetto.DataExplorer/graph_io.ts` - Import/export, graph loading, template initialization
+- `ui/src/plugins/dev.perfetto.DataExplorer/node_actions.ts` - Closure-based callbacks for node→graph interaction
 
 **Node System**:
-- `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/node_registry.ts` - Node registration
-- `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/core_nodes.ts` - Core node registration
-- `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/nodes/` - Individual node implementations
+- `ui/src/plugins/dev.perfetto.DataExplorer/query_builder/node_registry.ts` - Node registration
+- `ui/src/plugins/dev.perfetto.DataExplorer/query_builder/core_nodes.ts` - Core node registration
+- `ui/src/plugins/dev.perfetto.DataExplorer/query_builder/nodes/` - Individual node implementations
 
 **UI Components**:
-- `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/graph/graph.ts` - Visual graph canvas (defines `GraphCallbacks`)
-- `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/node_explorer.ts` - Node sidebar
-- `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/data_explorer.ts` - Results drawer
+- `ui/src/plugins/dev.perfetto.DataExplorer/query_builder/graph/graph.ts` - Visual graph canvas (defines `GraphCallbacks`)
+- `ui/src/plugins/dev.perfetto.DataExplorer/query_builder/node_panel.ts` - Node sidebar
+- `ui/src/plugins/dev.perfetto.DataExplorer/query_builder/data_explorer.ts` - Results drawer
 
 **Utilities**:
-- `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/graph_utils.ts` - Graph traversal and connection management
-- `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/query_builder_utils.ts` - Query analysis and utilities
-- `ui/src/plugins/dev.perfetto.ExplorePage/query_builder/cleanup_manager.ts` - Resource cleanup
-- `ui/src/plugins/dev.perfetto.ExplorePage/history_manager.ts` - Undo/redo management
-- `ui/src/plugins/dev.perfetto.ExplorePage/json_handler.ts` - Serialization
+- `ui/src/plugins/dev.perfetto.DataExplorer/query_builder/graph_utils.ts` - Graph traversal and connection management
+- `ui/src/plugins/dev.perfetto.DataExplorer/query_builder/query_builder_utils.ts` - Query analysis and utilities
+- `ui/src/plugins/dev.perfetto.DataExplorer/query_builder/cleanup_manager.ts` - Resource cleanup
+- `ui/src/plugins/dev.perfetto.DataExplorer/history_manager.ts` - Undo/redo management
+- `ui/src/plugins/dev.perfetto.DataExplorer/json_handler.ts` - Serialization
 
 **Trace Processor (C++)**:
 - `src/trace_processor/trace_summary/summarizer.cc` - Smart re-materialization with change detection and dependency propagation
