@@ -74,6 +74,17 @@
     user-select: none;
   }
 
+  &__tab-rename-input {
+    border: none;
+    outline: none;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+    padding: 0;
+    margin: 0 4px;
+    width: 100%;
+  }
+
   &__tab-wrapper {
     display: contents;
 

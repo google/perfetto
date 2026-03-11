@@ -43,8 +43,11 @@ export interface TabsAttrs {
   onTabChange?(key: string): void;
   // Called when a tab's close button is clicked.
   onTabClose?(key: string): void;
-  // Called when a tab is double-clicked (e.g. for renaming).
-  onTabDblClick?(key: string): void;
+  // Called when a tab's title is renamed via inline editing. When set, tabs
+  // with a string title become renamable on double-click (tabs with non-string
+  // titles are not affected). If the input is cleared (empty after trim) or
+  // Escape is pressed, the rename is cancelled and this callback is not fired.
+  onTabRename?(key: string, newTitle: string): void;
   // Whether tabs can be reordered via drag and drop.
   readonly reorderable?: boolean;
   // Called when tabs are reordered. Receives the key of the dragged tab and
@@ -63,6 +66,11 @@ interface TabHandleAttrs {
   readonly leftIcon?: string | m.Children;
   readonly tabKey?: string;
   readonly reorderable?: boolean;
+  readonly renaming?: boolean;
+  readonly renameValue?: string;
+  readonly onRenameInput?: (value: string) => void;
+  readonly onRenameCommit?: () => void;
+  readonly onRenameCancel?: () => void;
   readonly onDragStart?: (key: string) => void;
   readonly onDragEnd?: () => void;
   readonly onDragOver?: (key: string, position: 'before' | 'after') => void;
@@ -81,6 +89,11 @@ class TabHandle implements m.ClassComponent<TabHandleAttrs> {
       leftIcon,
       tabKey,
       reorderable,
+      renaming,
+      renameValue,
+      onRenameInput,
+      onRenameCommit,
+      onRenameCancel,
       onDragStart,
       onDragEnd,
       onDragOver,
@@ -147,7 +160,32 @@ class TabHandle implements m.ClassComponent<TabHandleAttrs> {
           : undefined,
       },
       renderLeftIcon(),
-      m('.pf-tabs__tab-title', children),
+      renaming
+        ? m('input.pf-tabs__tab-rename-input', {
+            value: renameValue,
+            oncreate: (vnode: m.VnodeDOM) => {
+              const el = vnode.dom as HTMLInputElement;
+              el.focus();
+              el.select();
+            },
+            oninput: (e: InputEvent) => {
+              const target = e.target as HTMLInputElement;
+              onRenameInput?.(target.value);
+            },
+            onkeydown: (e: KeyboardEvent) => {
+              if (e.key === 'Enter') {
+                onRenameCommit?.();
+                e.preventDefault();
+              } else if (e.key === 'Escape') {
+                onRenameCancel?.();
+                e.preventDefault();
+              }
+              e.stopPropagation();
+            },
+            onblur: () => onRenameCommit?.(),
+            onclick: (e: Event) => e.stopPropagation(),
+          })
+        : m('.pf-tabs__tab-title', children),
       hasCloseButton &&
         m(Button, {
           compact: true,
@@ -168,6 +206,10 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
   private draggedKey?: string;
   private dropTargetKey?: string;
   private dropPosition?: 'before' | 'after';
+  // Rename state.
+  private renamingTabKey?: string;
+  private renameInputValue = '';
+  private renameCancelled = false;
 
   view({attrs}: m.CVnode<TabsAttrs>): m.Children {
     const {
@@ -175,7 +217,7 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
       activeTabKey,
       onTabChange,
       onTabClose,
-      onTabDblClick,
+      onTabRename,
       reorderable,
       onTabReorder,
       className,
@@ -231,9 +273,34 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
                   this.internalActiveTab = tab.key;
                   onTabChange?.(tab.key);
                 },
-                ondblclick: onTabDblClick
-                  ? () => onTabDblClick(tab.key)
+                ondblclick: onTabRename
+                  ? () => {
+                      if (typeof tab.title === 'string') {
+                        this.renameInputValue = tab.title;
+                        this.renamingTabKey = tab.key;
+                        this.renameCancelled = false;
+                      }
+                    }
                   : undefined,
+                ...(this.renamingTabKey === tab.key && {
+                  renaming: true,
+                  renameValue: this.renameInputValue,
+                  onRenameInput: (value: string) => {
+                    this.renameInputValue = value;
+                  },
+                  onRenameCommit: () => {
+                    if (this.renameCancelled) return;
+                    const newName = this.renameInputValue.trim();
+                    if (newName) {
+                      onTabRename?.(tab.key, newName);
+                    }
+                    this.renamingTabKey = undefined;
+                  },
+                  onRenameCancel: () => {
+                    this.renameCancelled = true;
+                    this.renamingTabKey = undefined;
+                  },
+                }),
                 onClose: () => onTabClose?.(tab.key),
                 onDragStart: (key) => {
                   this.draggedKey = key;

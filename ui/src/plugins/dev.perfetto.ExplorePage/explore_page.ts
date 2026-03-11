@@ -127,9 +127,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   // Shared clipboard across all tabs (not persisted).
   private clipboard?: ClipboardResult;
 
-  // Tab currently being renamed via inline editing (undefined = no rename).
-  private renamingTabId?: string;
-
   // Per-tab services, keyed by tab ID.
   private tabServices = new Map<string, TabServices>();
 
@@ -185,47 +182,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       ...currentState,
       selectedNodes: new Set(),
     }));
-  }
-
-  private renderInlineRenameInput(
-    attrs: ExplorePageAttrs,
-    tab: ExploreTab,
-  ): m.Children {
-    let inputEl: HTMLInputElement | undefined;
-
-    const commit = () => {
-      if (inputEl === undefined) return;
-      const newName = inputEl.value.trim();
-      if (newName) {
-        attrs.onTabRename(tab.id, newName);
-      }
-      this.renamingTabId = undefined;
-      m.redraw();
-    };
-
-    return m('input.pf-explore-page__tab-rename-input', {
-      value: tab.title,
-      oncreate: (vnode: m.VnodeDOM) => {
-        inputEl = vnode.dom as HTMLInputElement;
-        inputEl.focus();
-        inputEl.select();
-      },
-      onkeydown: (e: KeyboardEvent) => {
-        if (e.key === 'Enter') {
-          commit();
-          e.preventDefault();
-        } else if (e.key === 'Escape') {
-          this.renamingTabId = undefined;
-          m.redraw();
-          e.preventDefault();
-        }
-        // Stop propagation so the graph doesn't handle these keys
-        e.stopPropagation();
-      },
-      onblur: () => commit(),
-      // Prevent clicks from propagating to the tab (which would switch tabs)
-      onclick: (e: Event) => e.stopPropagation(),
-    });
   }
 
   private handleCopy(attrs: ExplorePageAttrs): void {
@@ -286,14 +242,16 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       return;
     }
 
-    // Handle copy/paste shortcuts - these work when nodes are selected
+    // Handle copy shortcut - text selection takes priority over node copy,
+    // so users can copy proto/SQL from the sidebar, error messages, etc.
     if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
-      if (state.selectedNodes.size > 0) {
+      const textSelection = window.getSelection();
+      const hasTextSelected =
+        textSelection !== null && textSelection.toString().length > 0;
+      if (!hasTextSelected && state.selectedNodes.size > 0) {
         this.handleCopy(attrs);
+        event.preventDefault();
       }
-      // Always preventDefault to avoid browser copy interfering with the page,
-      // even when no node is selected.
-      event.preventDefault();
       return;
     }
 
@@ -659,10 +617,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     // Build tab entries for the Tabs widget
     const tabEntries: TabsTab[] = tabs.map((tab) => ({
       key: tab.id,
-      title:
-        this.renamingTabId === tab.id
-          ? this.renderInlineRenameInput(attrs, tab)
-          : tab.title,
+      title: tab.title,
       leftIcon: 'account_tree',
       closeButton: tabs.length > 1,
       content: this.renderTabContent(attrs, tab, sqlModules),
@@ -717,10 +672,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
             attrs.onTabChange(key);
           }
         },
-        onTabDblClick: (key) => {
-          if (key === ADD_TAB_KEY) return;
-          this.renamingTabId = key;
-          m.redraw();
+        onTabRename: (key, newTitle) => {
+          attrs.onTabRename(key, newTitle);
         },
         onTabClose: (key) => {
           // Clean up services for the closed tab eagerly
