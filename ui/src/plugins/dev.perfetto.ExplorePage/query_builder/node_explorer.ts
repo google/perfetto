@@ -25,7 +25,7 @@ import {NodeIssues} from './node_issues';
 import {TabStrip} from '../../../widgets/tab_strip';
 import {NodeModifyAttrs} from './node_explorer_types';
 import {Button, ButtonAttrs, ButtonVariant} from '../../../widgets/button';
-import {DataExplorerEmptyState, InfoBox} from './widgets';
+import {ResultsPanelEmptyState, InfoBox} from './widgets';
 import {QueryExecutionService} from './query_execution_service';
 
 export interface NodeExplorerAttrs {
@@ -320,13 +320,13 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
           this.resultTabMode === 'sql'
             ? isAQuery(query)
               ? m(CodeSnippet, {language: 'SQL', text: sql})
-              : m(DataExplorerEmptyState, {
+              : m(ResultsPanelEmptyState, {
                   icon: 'info',
                   title: 'SQL not available',
                 })
             : isAQuery(query)
               ? m(CodeSnippet, {text: textproto, language: 'textproto'})
-              : m(DataExplorerEmptyState, {
+              : m(ResultsPanelEmptyState, {
                   icon: 'info',
                   title: 'Proto not available',
                 }),

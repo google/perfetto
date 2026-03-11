@@ -31,7 +31,7 @@ import {
   NodeTitle,
 } from '../node_styling_widgets';
 import {MetricsNode} from './metrics_node';
-import {TraceSummaryDataExplorer} from './trace_summary_data_explorer';
+import {TraceSummaryResultsPanel} from './trace_summary_results_panel';
 import {Accordion} from '../../../../widgets/accordion';
 import {enumKeyToLabel} from './metrics_enum_utils';
 import {showModal} from '../../../../widgets/modal';
@@ -315,10 +315,10 @@ export class TraceSummaryNode implements QueryNode {
     return undefined;
   }
 
-  customDataExplorer(): m.Children {
+  customResultsPanel(): m.Children {
     const trace = this.state.trace;
     if (trace === undefined) return undefined;
-    return m(TraceSummaryDataExplorer, {
+    return m(TraceSummaryResultsPanel, {
       node: this,
       trace,
       onchange: () => this.state.onchange?.(),

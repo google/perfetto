@@ -13,7 +13,7 @@
 // limitations under the License.
 
 @import "./query_builder/builder.scss";
-@import "./query_builder/data_explorer.scss";
+@import "./query_builder/results_panel.scss";
 
 .pf-explore-page {
   height: 100%;
@@ -194,7 +194,7 @@
   }
 }
 
-// Chart view container (for DataExplorer integration)
+// Chart view container (for ResultsPanel integration)
 .pf-chart-view {
   display: flex;
   flex-direction: column;

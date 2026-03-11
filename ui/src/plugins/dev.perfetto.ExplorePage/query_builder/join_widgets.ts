@@ -16,7 +16,7 @@ import m from 'mithril';
 import {ColumnInfo} from './column_info';
 import {
   OutlinedField,
-  DataExplorerEmptyState,
+  ResultsPanelEmptyState,
   SelectDeselectAllButtons,
 } from './widgets';
 import {classNames} from '../../../base/classnames';
@@ -60,7 +60,7 @@ export class JoinSourceCard implements m.ClassComponent<JoinSourceCardAttrs> {
         m('.pf-join-source-card__header', label),
         m(
           '.pf-join-source-card__content',
-          m(DataExplorerEmptyState, {
+          m(ResultsPanelEmptyState, {
             icon: 'cable',
             title: `Connect a node to the ${label} input`,
           }),
@@ -355,7 +355,7 @@ export class JoinColumnSelector
         m(
           '.pf-join-column-list',
           leftColumns.length === 0
-            ? m(DataExplorerEmptyState, {
+            ? m(ResultsPanelEmptyState, {
                 icon: 'cable',
                 title: 'Connect left source',
               })
@@ -385,7 +385,7 @@ export class JoinColumnSelector
         m(
           '.pf-join-column-list',
           rightColumns.length === 0
-            ? m(DataExplorerEmptyState, {
+            ? m(ResultsPanelEmptyState, {
                 icon: 'cable',
                 title: 'Connect right source',
               })

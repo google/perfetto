@@ -54,7 +54,7 @@ import {
 } from './node_crud_operations';
 import type {NodeCrudDeps} from './node_crud_operations';
 import {addFilter, addColumnFromJoinid} from './datagrid_node_creation';
-import {showDataExplorerHelp} from './data_explorer_help_modal';
+import {showHelp} from './help_modal';
 
 import {copySelectedNodes, pasteClipboardNodes} from './clipboard_operations';
 import type {ClipboardResult} from './clipboard_operations';
@@ -224,7 +224,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     // Handle "?" to show help modal
     if (event.key === '?') {
-      showDataExplorerHelp();
+      showHelp();
       event.preventDefault();
       return;
     }

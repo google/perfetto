@@ -18,7 +18,7 @@ import {Callout} from '../../../../widgets/callout';
 import {Form, FormSection} from '../../../../widgets/form';
 import {
   TableDescription,
-  DataExplorerEmptyState,
+  ResultsPanelEmptyState,
   IssueList,
   OutlinedFieldReadOnly,
 } from '../widgets';
@@ -191,7 +191,7 @@ export class AddColumnsSuggestionModal
         '.pf-join-modal-info',
         tableInfo
           ? m(TableDescription, {table: tableInfo})
-          : m(DataExplorerEmptyState, {
+          : m(ResultsPanelEmptyState, {
               icon: 'table',
               title: 'Table information will appear here',
             }),

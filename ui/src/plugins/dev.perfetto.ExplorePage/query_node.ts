@@ -181,9 +181,9 @@ export interface QueryNode {
   serializeState(): object;
   onPrevNodesUpdated?(): void;
 
-  // Optional custom data explorer for the bottom drawer panel.
-  // If provided, Builder renders this instead of the standard DataExplorer.
-  customDataExplorer?(): m.Children;
+  // Optional custom results panel for the bottom drawer panel.
+  // If provided, Builder renders this instead of the standard ResultsPanel.
+  customResultsPanel?(): m.Children;
 }
 
 export interface Query {
