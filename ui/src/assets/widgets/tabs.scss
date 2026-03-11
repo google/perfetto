@@ -101,6 +101,11 @@
     }
   }
 
+  &__new-tab-btn {
+    align-self: center;
+    margin-left: 2px;
+  }
+
   &__content {
     flex: 1;
     overflow: auto;
