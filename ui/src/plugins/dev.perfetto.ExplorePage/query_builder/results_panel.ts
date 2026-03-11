@@ -178,7 +178,7 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
         attrs.node.state.autoExecute = target.checked;
         attrs.onchange?.();
         // Execute the query when auto-execute is toggled on
-        // Analysis will happen automatically in node_explorer when autoExecute becomes true
+        // Analysis will happen automatically in node_panel when autoExecute becomes true
         if (target.checked && attrs.node.validate()) {
           attrs.onExecute();
         }

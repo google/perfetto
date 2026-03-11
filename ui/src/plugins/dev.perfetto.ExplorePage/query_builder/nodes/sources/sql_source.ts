@@ -32,7 +32,7 @@ import {Trace} from '../../../../../public/trace';
 
 import {ColumnInfo} from '../../column_info';
 import {setValidationError} from '../../node_issues';
-import {NodeDetailsAttrs} from '../../node_explorer_types';
+import {NodeDetailsAttrs} from '../../../node_types';
 import {loadNodeDoc} from '../../node_doc_loader';
 import {NodeTitle} from '../../node_styling_widgets';
 

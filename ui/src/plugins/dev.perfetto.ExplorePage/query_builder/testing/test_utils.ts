@@ -21,7 +21,7 @@
 
 import {QueryNode, NodeType} from '../../query_node';
 import {ColumnInfo} from '../column_info';
-import {NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeDetailsAttrs} from '../../node_types';
 import {NodeIssues} from '../node_issues';
 import protos from '../../../../protos';
 

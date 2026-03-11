@@ -45,7 +45,7 @@ import {Callout} from '../../../../widgets/callout';
 import {SqlModules} from '../../../dev.perfetto.SqlModules/sql_modules';
 import {Trace} from '../../../../public/trace';
 import {Form, FormSection} from '../../../../widgets/form';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {NodeDetailsMessage, ColumnName} from '../node_styling_widgets';
 import {Spinner} from '../../../../widgets/spinner';
 import {STR} from '../../../../trace_processor/query_result';

@@ -36,7 +36,7 @@ import {TableList} from '../../table_list';
 import {redrawModal} from '../../../../../widgets/modal';
 import {setValidationError} from '../../node_issues';
 import {TableDescription} from '../../widgets';
-import {NodeDetailsAttrs} from '../../node_explorer_types';
+import {NodeDetailsAttrs} from '../../../node_types';
 import {loadNodeDoc} from '../../node_doc_loader';
 import {NodeTitle} from '../../node_styling_widgets';
 
@@ -75,7 +75,7 @@ export function modalForTableSelection(
             : 'Choose a table',
         content: () => {
           return m(
-            '.pf-exp-node-explorer-help',
+            '.pf-exp-node-panel-help',
             m(TableList, {
               sqlModules,
               onTableClick: handleTableClick,

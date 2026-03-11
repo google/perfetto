@@ -190,7 +190,7 @@ export class FunctionSelectStep
 {
   view({attrs}: m.CVnode<FunctionSelectStepAttrs>) {
     return m(
-      '.pf-exp-node-explorer-help',
+      '.pf-exp-node-panel-help',
       m(FunctionList, {
         sqlModules: attrs.sqlModules,
         onFunctionClick: attrs.onFunctionSelect,

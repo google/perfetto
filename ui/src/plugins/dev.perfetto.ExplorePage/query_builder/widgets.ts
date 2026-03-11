@@ -24,7 +24,7 @@ import {Callout} from '../../../widgets/callout';
 import {Intent} from '../../../widgets/common';
 import {EmptyState} from '../../../widgets/empty_state';
 import {QueryNode} from '../query_node';
-import {NodeModifySection} from './node_explorer_types';
+import {NodeModifySection} from '../node_types';
 import {
   PopupMultiSelect,
   MultiSelectOption,

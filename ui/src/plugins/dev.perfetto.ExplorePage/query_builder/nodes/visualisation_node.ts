@@ -35,7 +35,7 @@ import {
 import {Chip} from '../../../../widgets/chip';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {NodeIssues} from '../node_issues';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {NodeDetailsMessage, NodeTitle} from '../node_styling_widgets';
 import {loadNodeDoc} from '../node_doc_loader';
 import {AddItemPlaceholder} from '../widgets';

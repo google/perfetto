@@ -23,7 +23,7 @@ import {
 } from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import {NodeIssues} from '../node_issues';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {loadNodeDoc} from '../node_doc_loader';
 import {
   ColumnName,

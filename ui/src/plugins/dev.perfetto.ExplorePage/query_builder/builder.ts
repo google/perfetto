@@ -31,7 +31,7 @@
 //
 // PHASE 1: ANALYSIS (Validation)
 // ------------------------------
-// When node state changes, NodeExplorer calls service.processNode({ manual: false }).
+// When node state changes, NodePanel calls service.processNode({ manual: false }).
 // The service decides whether to analyze based on autoExecute flag.
 // If analysis runs:
 // 1. Sends structured queries to the engine
@@ -61,26 +61,26 @@
 // ---------------
 // - this.query: Current validated query (from analysis phase)
 //   * Single source of truth for query state
-//   * Updated by both automatic analysis (NodeExplorer) and manual execution (Builder)
-//   * Passed to NodeExplorer as a prop for rendering SQL/Proto tabs
+//   * Updated by both automatic analysis (NodePanel) and manual execution (Builder)
+//   * Passed to NodePanel as a prop for rendering SQL/Proto tabs
 // - this.response: Query results from execution
 // - this.dataSource: Wrapped data source for DataGrid display
 //
 // QUERY STATE FLOW
 // ----------------
 // Automatic execution (autoExecute=true):
-//   1. NodeExplorer.updateQuery() → processNode({ manual: false })
-//   2. onAnalysisComplete → sets NodeExplorer.currentQuery
+//   1. NodePanel.updateQuery() → processNode({ manual: false })
+//   2. onAnalysisComplete → sets NodePanel.currentQuery
 //   3. onAnalysisComplete → calls onQueryAnalyzed callback → sets Builder.query
-//   4. Builder passes query as prop to NodeExplorer
-//   5. NodeExplorer.renderContent() uses attrs.query ?? this.currentQuery
+//   4. Builder passes query as prop to NodePanel
+//   5. NodePanel.renderContent() uses attrs.query ?? this.currentQuery
 //
 // Manual execution (autoExecute=false):
 //   1. User clicks "Run Query" button → Builder calls processNode({ manual: true })
 //   2. onAnalysisComplete → sets Builder.query
 //   3. onAnalysisComplete → calls onNodeQueryAnalyzed callback → sets Builder.query
-//   4. Builder passes query as prop to NodeExplorer
-//   5. NodeExplorer.renderContent() uses attrs.query (this.currentQuery may be undefined)
+//   4. Builder passes query as prop to NodePanel
+//   5. NodePanel.renderContent() uses attrs.query (this.currentQuery may be undefined)
 //
 // This ensures SQL/Proto tabs display correctly for both automatic and manual execution.
 //
@@ -110,7 +110,7 @@ import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {QueryNode, Query} from '../query_node';
 import {getPrimarySelectedNode} from '../selection_utils';
 import {isAQuery, queryToRun} from './query_builder_utils';
-import {NodeExplorer} from './node_explorer';
+import {NodePanel} from './node_panel';
 import {Graph, GraphCallbacks} from './graph/graph';
 import {ResultsPanel} from './results_panel';
 import {
@@ -327,7 +327,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           }),
         )
       : selectedNode
-        ? m(NodeExplorer, {
+        ? m(NodePanel, {
             // The key to force mithril to re-create the component when the
             // selected node changes, preventing state from leaking between
             // different nodes.
@@ -610,7 +610,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
 
   /**
    * Handles successful query execution by updating UI state.
-   * Called from both automatic execution (via NodeExplorer) and manual execution (via onExecute).
+   * Called from both automatic execution (via NodePanel) and manual execution (via onExecute).
    */
   private handleExecutionSuccess(
     node: QueryNode,

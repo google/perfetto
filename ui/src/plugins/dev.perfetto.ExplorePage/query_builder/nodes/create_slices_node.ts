@@ -27,7 +27,7 @@ import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
 import {loadNodeDoc} from '../node_doc_loader';
 import {OutlinedField, FormListItem} from '../widgets';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {NodeTitle, ColumnName} from '../node_styling_widgets';
 import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
 import {
