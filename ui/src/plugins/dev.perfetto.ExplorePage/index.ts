@@ -152,11 +152,16 @@ export default class implements PerfettoPlugin {
 
   private handleTabRename = (tabId: string, newName: string): void => {
     const tab = this.tabs.find((t) => t.id === tabId);
-    if (tab) {
-      tab.title = newName;
-      this.debouncedSave();
-      m.redraw();
-    }
+    if (!tab) return;
+    const trimmed = newName.trim();
+    if (trimmed === '') return;
+    const isDuplicate = this.tabs.some(
+      (t) => t.id !== tabId && t.title === trimmed,
+    );
+    if (isDuplicate) return;
+    tab.title = trimmed;
+    this.debouncedSave();
+    m.redraw();
   };
 
   private handleTabReorder = (
