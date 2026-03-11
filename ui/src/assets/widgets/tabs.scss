@@ -24,7 +24,7 @@
     background-color: var(--pf-color-background-secondary);
     border-bottom: 1px solid var(--pf-color-border);
     padding-inline: 3px;
-    align-items: flex-end;
+    align-items: baseline;
   }
 
   &__tab {
@@ -49,6 +49,10 @@
     &:hover {
       background: color_hover(transparent);
       color: var(--pf-color-text);
+    }
+
+    &-icon {
+      align-self: center;
     }
 
     &--active {
@@ -111,7 +115,6 @@
   }
 
   &__new-tab-btn {
-    align-self: center;
     margin-left: 2px;
   }
 

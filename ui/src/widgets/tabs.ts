@@ -115,11 +115,10 @@ class TabHandle implements m.ClassComponent<TabHandleAttrs> {
       if (leftIcon === undefined) {
         return undefined;
       }
-      const style = {alignSelf: 'center'};
       if (typeof leftIcon === 'string') {
-        return m(Icon, {icon: leftIcon, className: 'pf-tabs__tab-icon', style});
+        return m(Icon, {icon: leftIcon, className: 'pf-tabs__tab-icon'});
       }
-      return m('.pf-tabs__tab-icon', {style}, leftIcon);
+      return m('.pf-tabs__tab-icon', leftIcon);
     };
 
     return m(
