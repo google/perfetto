@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-data-explorer-empty-state {
+.pf-results-panel-empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -51,7 +51,7 @@
   &.pf-warning {
     color: var(--pf-color-text);
 
-    .pf-data-explorer-empty-state__icon {
+    .pf-results-panel-empty-state__icon {
       color: var(--pf-color-warning);
     }
   }

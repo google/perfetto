@@ -28,10 +28,10 @@ interface HelpSection {
   readonly entries: ReadonlyArray<HelpEntry>;
 }
 
-export function showDataExplorerHelp() {
+export function showHelp() {
   return showModal({
     title: 'Data Explorer Help',
-    content: () => m(DataExplorerHelpContent),
+    content: () => m(HelpContent),
   });
 }
 
@@ -145,7 +145,7 @@ function renderSection(section: HelpSection): m.Children {
   ];
 }
 
-class DataExplorerHelpContent implements m.ClassComponent {
+class HelpContent implements m.ClassComponent {
   view(): m.Children {
     return m('.pf-help-modal', getHelpSections().map(renderSection));
   }

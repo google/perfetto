@@ -112,7 +112,7 @@ import {getPrimarySelectedNode} from '../selection_utils';
 import {isAQuery, queryToRun} from './query_builder_utils';
 import {NodeExplorer} from './node_explorer';
 import {Graph, GraphCallbacks} from './graph/graph';
-import {DataExplorer} from './data_explorer';
+import {ResultsPanel} from './results_panel';
 import {
   DrawerPanel,
   DrawerPanelVisibility,
@@ -124,7 +124,7 @@ import QueryPagePlugin from '../../dev.perfetto.QueryPage';
 import {SqlSourceNode} from './nodes/sources/sql_source';
 import {findErrors, findWarnings} from './query_builder_utils';
 import {NodeIssues} from './node_issues';
-import {DataExplorerEmptyState, RoundActionButton} from './widgets';
+import {ResultsPanelEmptyState, RoundActionButton} from './widgets';
 import {UIFilter} from './operations/filter';
 import {QueryExecutionService} from './query_execution_service';
 import {Column} from '../../../components/widgets/datagrid/model';
@@ -321,7 +321,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     const explorer = hasMultipleNodesSelected
       ? m(
           '.pf-unselected-explorer',
-          m(DataExplorerEmptyState, {
+          m(ResultsPanelEmptyState, {
             icon: 'info',
             title: `${attrs.selectedNodes.size} nodes selected`,
           }),
@@ -398,13 +398,13 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
       },
       startingHeight: 300,
       drawerContent: hasMultipleNodesSelected
-        ? m(DataExplorerEmptyState, {
+        ? m(ResultsPanelEmptyState, {
             icon: 'info',
             title: `${attrs.selectedNodes.size} nodes selected`,
           })
-        : selectedNode?.customDataExplorer?.() ??
+        : selectedNode?.customResultsPanel?.() ??
           (selectedNode
-            ? m(DataExplorer, {
+            ? m(ResultsPanel, {
                 trace: this.trace,
                 query: this.query,
                 node: selectedNode,
@@ -444,7 +444,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                   await this.exportToTimeline(selectedNode);
                 },
               })
-            : m(DataExplorerEmptyState, {
+            : m(ResultsPanelEmptyState, {
                 icon: 'info',
                 title: 'Select a node to see the data',
               })),

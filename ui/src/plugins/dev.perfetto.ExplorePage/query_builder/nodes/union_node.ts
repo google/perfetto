@@ -32,7 +32,7 @@ import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
 import {
   DraggableItem,
   SelectDeselectAllButtons,
-  DataExplorerEmptyState,
+  ResultsPanelEmptyState,
 } from '../widgets';
 import {
   NodeDetailsMessage,
@@ -238,7 +238,7 @@ export class UnionNode implements QueryNode {
     if (totalCount === 0) {
       // Show empty state when no common columns
       sections.push({
-        content: m(DataExplorerEmptyState, {
+        content: m(ResultsPanelEmptyState, {
           icon: 'table',
           title: 'No common columns between sources',
           variant: 'warning',

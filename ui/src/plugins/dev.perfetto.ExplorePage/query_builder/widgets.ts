@@ -66,22 +66,22 @@ export function RoundActionButton(attrs: RoundActionButtonAttrs) {
 }
 
 // Empty state widget for the data explorer with warning variant support
-export type DataExplorerEmptyStateVariant = 'default' | 'warning';
+export type ResultsPanelEmptyStateVariant = 'default' | 'warning';
 
-export interface DataExplorerEmptyStateAttrs {
+export interface ResultsPanelEmptyStateAttrs {
   readonly icon?: string;
   readonly title?: string;
-  readonly variant?: DataExplorerEmptyStateVariant;
+  readonly variant?: ResultsPanelEmptyStateVariant;
 }
 
-export class DataExplorerEmptyState
-  implements m.ClassComponent<DataExplorerEmptyStateAttrs>
+export class ResultsPanelEmptyState
+  implements m.ClassComponent<ResultsPanelEmptyStateAttrs>
 {
-  view({attrs, children}: m.CVnode<DataExplorerEmptyStateAttrs>) {
+  view({attrs, children}: m.CVnode<ResultsPanelEmptyStateAttrs>) {
     const {icon, title, variant = 'default'} = attrs;
 
     return m(
-      '.pf-data-explorer-empty-state',
+      '.pf-results-panel-empty-state',
       {
         className: classNames(variant === 'warning' && 'pf-warning'),
       },
@@ -90,7 +90,7 @@ export class DataExplorerEmptyState
           className: 'pf-data-explorer-empty-state__icon',
           icon,
         }),
-      title && m('.pf-data-explorer-empty-state__message', title),
+      title && m('.pf-results-panel-empty-state__message', title),
       children,
     );
   }

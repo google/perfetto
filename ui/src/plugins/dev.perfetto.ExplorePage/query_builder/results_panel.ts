@@ -30,7 +30,7 @@ import {Icons} from '../../../base/semantic_icons';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {findErrors, isAQuery} from './query_builder_utils';
 import {UIFilter, normalizeDataGridFilter} from './operations/filter';
-import {DataExplorerEmptyState} from './widgets';
+import {ResultsPanelEmptyState} from './widgets';
 import {Trace} from '../../../public/trace';
 import {Timestamp} from '../../../components/widgets/timestamp';
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
@@ -65,7 +65,7 @@ function getColumnType(type: PerfettoSqlType): ColumnType {
   return 'quantitative';
 }
 
-export interface DataExplorerAttrs {
+export interface ResultsPanelAttrs {
   readonly trace: Trace;
   readonly node: QueryNode;
   readonly query?: Query | Error;
@@ -129,11 +129,11 @@ function getColumnInfo(
   return node.finalCols.find((col) => col.name === columnName);
 }
 
-export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
+export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
   // Track columns with sort state so that sorting persists across redraws.
   private columns: readonly Column[] = [];
 
-  view({attrs}: m.CVnode<DataExplorerAttrs>) {
+  view({attrs}: m.CVnode<ResultsPanelAttrs>) {
     return m(
       DetailsShell,
       {
@@ -145,7 +145,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     );
   }
 
-  private renderMenu(attrs: DataExplorerAttrs): m.Children {
+  private renderMenu(attrs: ResultsPanelAttrs): m.Children {
     const autoExecute = attrs.node.state.autoExecute ?? true;
 
     // Only show "Run Query" button when autoExecute is off AND node is stale
@@ -270,7 +270,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     return menuItems;
   }
 
-  private renderContent(attrs: DataExplorerAttrs): m.Children {
+  private renderContent(attrs: ResultsPanelAttrs): m.Children {
     const errors = findErrors(attrs.query, attrs.response);
 
     // Show validation errors first (queryError is set by validate() methods).
@@ -279,7 +279,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     if (!attrs.node.validate() && attrs.node.state.issues?.queryError) {
       // Clear any stale execution error when validation fails
       attrs.node.state.issues.clearExecutionError();
-      return m(DataExplorerEmptyState, {
+      return m(ResultsPanelEmptyState, {
         icon: 'warning',
         variant: 'warning',
         title: attrs.node.state.issues.queryError.message,
@@ -294,7 +294,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       const failingSql = isAQuery(attrs.query) ? attrs.query.sql : undefined;
 
       return m(
-        DataExplorerEmptyState,
+        ResultsPanelEmptyState,
         {
           icon: 'warning',
           variant: 'warning',
@@ -333,7 +333,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
 
     // Show execution errors with centered warning icon
     if (errors) {
-      return m(DataExplorerEmptyState, {
+      return m(ResultsPanelEmptyState, {
         icon: 'warning',
         variant: 'warning',
         title: `Error: ${errors.message}`,
@@ -342,7 +342,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
 
     // Show response warnings with centered warning icon
     if (attrs.node.state.issues?.responseError) {
-      return m(DataExplorerEmptyState, {
+      return m(ResultsPanelEmptyState, {
         icon: 'warning',
         variant: 'warning',
         title: attrs.node.state.issues.responseError.message,
@@ -351,7 +351,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
 
     // Show data errors (like "no rows returned") with centered warning icon
     if (attrs.node.state.issues?.dataError) {
-      return m(DataExplorerEmptyState, {
+      return m(ResultsPanelEmptyState, {
         icon: 'warning',
         variant: 'warning',
         title: attrs.node.state.issues.dataError.message,
@@ -360,7 +360,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
 
     // Show spinner overlay when query is running
     if (attrs.isQueryRunning) {
-      return m(DataExplorerEmptyState, {}, m(Spinner, {easing: true}));
+      return m(ResultsPanelEmptyState, {}, m(Spinner, {easing: true}));
     }
 
     // Show data if we have response and dataSource (even without query)
@@ -380,7 +380,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       // Show warning for multiple statements with centered icon
       const warning =
         attrs.response.statementWithOutputCount > 1
-          ? m(DataExplorerEmptyState, {
+          ? m(ResultsPanelEmptyState, {
               icon: 'warning',
               variant: 'warning',
               title:
@@ -590,7 +590,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     // and this node doesn't have a response yet (queued state).
     const isServiceBusy = attrs.queryExecutionService.isQueryExecuting();
     if (isServiceBusy && !attrs.response && !attrs.isQueryRunning) {
-      return m(DataExplorerEmptyState, {}, [
+      return m(ResultsPanelEmptyState, {}, [
         m('span.pf-status-indicator', 'Queued...'),
         m(Spinner, {easing: true}),
       ]);
@@ -605,7 +605,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       !attrs.isAnalyzing
     ) {
       return m(
-        DataExplorerEmptyState,
+        ResultsPanelEmptyState,
         {},
         m(Button, {
           label: 'Run Query',
@@ -621,7 +621,7 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     // Show spinner when analyzing or when no response is available yet
     // (for autoExecute=true nodes that haven't run yet)
     if (!attrs.response || attrs.isAnalyzing) {
-      return m(DataExplorerEmptyState, {}, m(Spinner, {easing: true}));
+      return m(ResultsPanelEmptyState, {}, m(Spinner, {easing: true}));
     }
 
     return null;

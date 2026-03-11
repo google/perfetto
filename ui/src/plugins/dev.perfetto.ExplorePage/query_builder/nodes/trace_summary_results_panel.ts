@@ -29,7 +29,7 @@ import {
   getStructuredQueries,
   buildEmbeddedQueryTree,
 } from '../query_builder_utils';
-import {DataExplorerEmptyState} from '../widgets';
+import {ResultsPanelEmptyState} from '../widgets';
 
 // ============================================================================
 // Proto parsing helpers
@@ -162,20 +162,20 @@ type ExecutionState =
 // Component
 // ============================================================================
 
-export interface TraceSummaryDataExplorerAttrs {
+export interface TraceSummaryResultsPanelAttrs {
   readonly node: TraceSummaryNode;
   readonly trace: Trace;
   readonly onchange?: () => void;
 }
 
-export class TraceSummaryDataExplorer
-  implements m.ClassComponent<TraceSummaryDataExplorerAttrs>
+export class TraceSummaryResultsPanel
+  implements m.ClassComponent<TraceSummaryResultsPanelAttrs>
 {
   private executionState: ExecutionState = {kind: 'idle'};
   private activeTab?: string;
   private prevSpecHash?: string;
 
-  view({attrs}: m.CVnode<TraceSummaryDataExplorerAttrs>) {
+  view({attrs}: m.CVnode<TraceSummaryResultsPanelAttrs>) {
     const {node} = attrs;
     const autoExecute = node.state.autoExecute ?? true;
 
@@ -211,7 +211,7 @@ export class TraceSummaryDataExplorer
     return parts.join('|');
   }
 
-  private renderMenu(attrs: TraceSummaryDataExplorerAttrs): m.Children {
+  private renderMenu(attrs: TraceSummaryResultsPanelAttrs): m.Children {
     const autoExecute = attrs.node.state.autoExecute ?? true;
     const isLoading = this.executionState.kind === 'loading';
     const isStale = this.prevSpecHash !== this.computeSpecHash(attrs.node);
@@ -280,9 +280,9 @@ export class TraceSummaryDataExplorer
     return menuItems;
   }
 
-  private renderContent(attrs: TraceSummaryDataExplorerAttrs): m.Children {
+  private renderContent(attrs: TraceSummaryResultsPanelAttrs): m.Children {
     if (!attrs.node.validate()) {
-      return m(DataExplorerEmptyState, {
+      return m(ResultsPanelEmptyState, {
         icon: 'warning',
         title:
           attrs.node.state.issues?.queryError?.message ??
@@ -292,21 +292,21 @@ export class TraceSummaryDataExplorer
 
     switch (this.executionState.kind) {
       case 'idle':
-        return m(DataExplorerEmptyState, {
+        return m(ResultsPanelEmptyState, {
           icon: 'play_arrow',
           title: 'Click Run or enable Auto Execute',
         });
       case 'loading':
         return m('.pf-trace-summary-loading', m(Spinner));
       case 'error':
-        return m(DataExplorerEmptyState, {
+        return m(ResultsPanelEmptyState, {
           icon: 'error',
           title: this.executionState.message,
         });
       case 'done': {
         const {bundles} = this.executionState;
         if (bundles.length === 0) {
-          return m(DataExplorerEmptyState, {
+          return m(ResultsPanelEmptyState, {
             icon: 'info',
             title: 'No metric data returned',
           });
@@ -340,7 +340,7 @@ export class TraceSummaryDataExplorer
     }
   }
 
-  private async execute(attrs: TraceSummaryDataExplorerAttrs): Promise<void> {
+  private async execute(attrs: TraceSummaryResultsPanelAttrs): Promise<void> {
     const {node} = attrs;
     if (!node.validate()) return;
 
