@@ -18,6 +18,8 @@ import {Gate} from '../base/mithril_utils';
 import {Button} from './button';
 import {Icon} from './icon';
 import {Icons} from '../base/semantic_icons';
+import {PopupMenu} from './menu';
+import {PopupPosition} from './popup';
 import {maybeUndefined} from '../base/utils';
 
 export interface TabsTab {
@@ -31,6 +33,9 @@ export interface TabsTab {
   readonly closeButton?: boolean;
   // Icon to display on the left side of the tab title.
   readonly leftIcon?: string | m.Children;
+  // Optional menu items to show in a dropdown menu on the tab.
+  // When provided, a menu button appears on hover.
+  readonly menuItems?: m.Children;
 }
 
 export interface TabsAttrs {
@@ -79,9 +84,12 @@ interface TabHandleAttrs {
   readonly onDragOver?: (key: string, position: 'before' | 'after') => void;
   readonly onDragLeave?: () => void;
   readonly onDrop?: (key: string) => void;
+  readonly menuItems?: m.Children;
 }
 
 class TabHandle implements m.ClassComponent<TabHandleAttrs> {
+  private menuOpen = false;
+
   view({attrs, children}: m.CVnode<TabHandleAttrs>): m.Children {
     const {
       active,
@@ -102,6 +110,7 @@ class TabHandle implements m.ClassComponent<TabHandleAttrs> {
       onDragOver,
       onDragLeave,
       onDrop,
+      menuItems,
     } = attrs;
 
     const renderLeftIcon = () => {
@@ -189,6 +198,28 @@ class TabHandle implements m.ClassComponent<TabHandleAttrs> {
             onclick: (e: Event) => e.stopPropagation(),
           })
         : m('.pf-tabs__tab-title', children),
+      menuItems !== undefined &&
+        m(
+          '.pf-tabs__tab-menu',
+          {
+            className: classNames(this.menuOpen && 'pf-tabs__tab-menu--open'),
+            onclick: (e: Event) => e.stopPropagation(),
+          },
+          m(
+            PopupMenu,
+            {
+              trigger: m(Button, {
+                compact: true,
+                icon: Icons.ContextMenuAlt,
+              }),
+              position: PopupPosition.Bottom,
+              onChange: (isOpen: boolean) => {
+                this.menuOpen = isOpen;
+              },
+            },
+            menuItems,
+          ),
+        ),
       hasCloseButton &&
         m(Button, {
           compact: true,
@@ -271,6 +302,7 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
                 active: tab.key === activeKey,
                 hasCloseButton: tab.closeButton,
                 leftIcon: tab.leftIcon,
+                menuItems: tab.menuItems,
                 tabKey: tab.key,
                 reorderable,
                 onpointerdown: () => {

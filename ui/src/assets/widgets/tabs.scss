@@ -68,6 +68,23 @@
     }
   }
 
+  &__tab-menu {
+    display: flex;
+    align-items: center;
+    opacity: 0;
+    pointer-events: none;
+
+    &--open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+
+  &__tab:hover &__tab-menu {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
   &__tab-title {
     margin: 0px 4px;
     overflow: hidden;

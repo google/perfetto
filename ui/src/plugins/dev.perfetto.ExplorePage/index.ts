@@ -182,6 +182,29 @@ export default class implements PerfettoPlugin {
     this.debouncedSave();
   };
 
+  private handleTabAddWithState = (
+    title: string,
+    state: ExplorePageState,
+    afterTabId: string,
+  ): void => {
+    const newTab: ExploreTab = {
+      id: shortUuid(),
+      title,
+      state,
+    };
+
+    const afterIndex = this.tabs.findIndex((t) => t.id === afterTabId);
+    if (afterIndex !== -1) {
+      this.tabs.splice(afterIndex + 1, 0, newTab);
+    } else {
+      this.tabs.push(newTab);
+    }
+    this.activeTabId = newTab.id;
+
+    this.debouncedSave();
+    m.redraw();
+  };
+
   // --- Per-tab state update ---
 
   private makeOnStateUpdate(tabId: string) {
@@ -417,6 +440,7 @@ export default class implements PerfettoPlugin {
           onTabChange: this.handleTabChange,
           onTabRename: this.handleTabRename,
           onTabReorder: this.handleTabReorder,
+          onTabAddWithState: this.handleTabAddWithState,
         });
       },
     });

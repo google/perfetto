@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {Icons} from '../../../base/semantic_icons';
 import {Tabs, TabsTab} from '../../../widgets/tabs';
+import {MenuItem} from '../../../widgets/menu';
 import {renderWidgetShowcase} from '../widgets_page_utils';
 import {shortUuid} from '../../../base/uuid';
 
@@ -67,12 +68,27 @@ export function renderTabs(): m.Children {
     ),
     renderWidgetShowcase({
       renderWidget: (opts) => {
+        const makeMenuItems = (key: string) =>
+          opts.menuItems
+            ? [
+                m(MenuItem, {
+                  label: 'Action 1',
+                  onclick: () => console.log(`Action 1: ${key}`),
+                }),
+                m(MenuItem, {
+                  label: 'Action 2',
+                  onclick: () => console.log(`Action 2: ${key}`),
+                }),
+              ]
+            : undefined;
+
         const tabs: TabsTab[] = tabEntries.map((entry) => ({
           key: entry.key,
           title: entry.title,
           leftIcon: opts.showIcons ? entry.icon : undefined,
           content: m('', {style: {padding: '16px'}}, entry.content),
           closeButton: opts.closeButton && tabEntries.length > 1,
+          menuItems: makeMenuItems(entry.key),
         }));
 
         return m(
@@ -152,6 +168,7 @@ export function renderTabs(): m.Children {
         showIcons: true,
         renamable: true,
         reorderable: true,
+        menuItems: true,
       },
     }),
   ];
