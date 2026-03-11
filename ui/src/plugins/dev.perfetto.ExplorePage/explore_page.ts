@@ -21,6 +21,8 @@ import {ensureAllNodeActions} from './node_actions';
 import {Trace} from '../../public/trace';
 import {getOrCreate} from '../../base/utils';
 import {Tabs, TabsTab} from '../../widgets/tabs';
+import {MenuItem} from '../../widgets/menu';
+import {serializeState, deserializeState} from './json_handler';
 
 import {
   confirmAndFinalizeCurrentGraph,
@@ -107,6 +109,13 @@ interface ExplorePageAttrs {
   readonly onTabReorder: (
     draggedId: string,
     beforeId: string | undefined,
+  ) => void;
+  // Creates a new tab with the given title and state, inserted after the
+  // tab identified by afterTabId.
+  readonly onTabAddWithState: (
+    title: string,
+    state: ExplorePageState,
+    afterTabId: string,
   ) => void;
 }
 
@@ -617,6 +626,17 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       leftIcon: 'account_tree',
       closeButton: tabs.length > 1,
       content: this.renderTabContent(attrs, tab, sqlModules),
+      menuItems: m(MenuItem, {
+        label: 'Duplicate tab',
+        icon: 'content_copy',
+        onclick: () => {
+          const sqlMods = attrs.sqlModulesPlugin.getSqlModules();
+          if (sqlMods === undefined) return;
+          const json = serializeState(tab.state);
+          const clonedState = deserializeState(json, attrs.trace, sqlMods);
+          attrs.onTabAddWithState(`${tab.title} (copy)`, clonedState, tab.id);
+        },
+      }),
     }));
 
     return m(

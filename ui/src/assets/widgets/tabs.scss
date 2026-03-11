@@ -65,6 +65,18 @@
     }
   }
 
+  &__tab-menu-btn {
+    visibility: hidden;
+
+    &.pf-active {
+      visibility: visible;
+    }
+  }
+
+  &__tab:hover &__tab-menu-btn {
+    visibility: visible;
+  }
+
   &__tab-title {
     margin: 0px 4px;
     overflow: hidden;
