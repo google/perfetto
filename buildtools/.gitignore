@@ -29,6 +29,7 @@ buildtools_hash_revision_for_cache_on_ci.txt
 /libcxxabi/
 /libfuzzer/
 /libunwind/
+/nongnu-libunwind/
 /linenoise/
 /linux/
 /linux64/

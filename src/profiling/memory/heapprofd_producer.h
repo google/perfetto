@@ -43,6 +43,7 @@
 #include "src/profiling/memory/system_property.h"
 #include "src/profiling/memory/unwinding.h"
 #include "src/profiling/memory/unwound_messages.h"
+#include "src/profiling/perf/unwind_backend.h"
 
 #include "protos/perfetto/config/profiling/heapprofd_config.gen.h"
 
@@ -107,7 +108,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
 
   HeapprofdProducer(HeapprofdMode mode,
                     base::TaskRunner* task_runner,
-                    bool exit_when_done);
+                    bool exit_when_done,
+                    std::unique_ptr<UnwindBackend> backend = nullptr);
   ~HeapprofdProducer() override;
 
   // Producer Impl:
@@ -327,6 +329,10 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   SocketDelegate socket_delegate_;
 
   base::WeakPtrFactory<HeapprofdProducer> weak_factory_;
+
+  // Unwinding backend (libunwindstack or libunwind). Must outlive
+  // unwinding_workers_ since they hold raw pointers to it.
+  std::unique_ptr<UnwindBackend> backend_;
 
   // UnwindingWorker's destructor might attempt to post producer tasks, so this
   // needs to outlive weak_factory_.

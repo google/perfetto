@@ -36,6 +36,7 @@
 #include "src/profiling/perf/event_config.h"
 #include "src/profiling/perf/event_reader.h"
 #include "src/profiling/perf/proc_descriptors.h"
+#include "src/profiling/perf/unwind_backend.h"
 #include "src/profiling/perf/unwinding.h"
 #include "src/tracing/service/metatrace_writer.h"
 // TODO(rsavitski): move to e.g. src/tracefs/.
@@ -54,7 +55,8 @@ class PerfProducer : public Producer,
                      public Unwinder::Delegate {
  public:
   PerfProducer(ProcDescriptorGetter* proc_fd_getter,
-               base::TaskRunner* task_runner);
+               base::TaskRunner* task_runner,
+               UnwindBackend* unwind_backend);
   ~PerfProducer() override = default;
 
   PerfProducer(const PerfProducer&) = delete;
@@ -278,6 +280,9 @@ class PerfProducer : public Producer,
 
   // State associated with perf-sampling data sources.
   std::map<DataSourceInstanceID, DataSourceState> data_sources_;
+
+  // Unwinding backend (owned externally, outlives this).
+  UnwindBackend* const unwind_backend_;
 
   // Unwinding stage, running on a dedicated thread.
   UnwinderHandle unwinding_worker_;

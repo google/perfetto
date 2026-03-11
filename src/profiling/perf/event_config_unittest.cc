@@ -44,7 +44,7 @@ std::optional<EventConfig> CreateEventConfig(
         [](const std::string&, const std::string&) { return 0; }) {
   protos::gen::DataSourceConfig ds_cfg;
   ds_cfg.set_perf_event_config_raw(perf_cfg.SerializeAsString());
-  return EventConfig::Create(perf_cfg, ds_cfg,
+  return EventConfig::Create(/*perf_user_regs_mask=*/0x1ffff, perf_cfg, ds_cfg,
                              /*process_sharding=*/std::nullopt,
                              tracepoint_id_lookup);
 }

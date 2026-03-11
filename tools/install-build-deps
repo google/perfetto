@@ -235,6 +235,16 @@ BUILD_DEPS_HOST = [
         '0d09295938155aa84d9a6049f63df8cd2def3a28302b3550ea3ead9100b3d086',
         'all', 'all'),
 
+    # nongnu.org libunwind for remote DWARF-based stack unwinding in traced_perf
+    # on Linux. This is NOT the LLVM libunwind (buildtools/libunwind above).
+    # https://github.com/libunwind/libunwind
+    Dependency(
+        'buildtools/nongnu-libunwind',
+        'https://github.com/libunwind/libunwind.git',
+        '2c2566c79c4f9cb505e6a23e4ab884d856ef88fe',  # refs/tags/v1.8.0
+        'linux',
+        'all'),
+
     # Sqlite for the trace processing library.
     # This is the amalgamated source whose compiled output is meant to be faster.
     # We still pull the full source for the extensions (which are not available

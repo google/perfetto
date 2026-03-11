@@ -23,9 +23,6 @@
 
 #include <unistd.h>
 
-#include <unwindstack/Error.h>
-#include <unwindstack/Unwinder.h>
-
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/file_utils.h"
@@ -283,38 +280,38 @@ protos::pbzero::Profiling::CpuMode ToCpuModeEnum(uint16_t perf_cpu_mode) {
 }
 
 protos::pbzero::Profiling::StackUnwindError ToProtoEnum(
-    unwindstack::ErrorCode error_code) {
+    profiling::UnwindErrorCode error_code) {
   using Profiling = protos::pbzero::Profiling;
   switch (error_code) {
-    case unwindstack::ERROR_NONE:
+    case profiling::UnwindErrorCode::kNone:
       return Profiling::UNWIND_ERROR_NONE;
-    case unwindstack::ERROR_MEMORY_INVALID:
+    case profiling::UnwindErrorCode::kMemoryInvalid:
       return Profiling::UNWIND_ERROR_MEMORY_INVALID;
-    case unwindstack::ERROR_UNWIND_INFO:
+    case profiling::UnwindErrorCode::kUnwindInfo:
       return Profiling::UNWIND_ERROR_UNWIND_INFO;
-    case unwindstack::ERROR_UNSUPPORTED:
+    case profiling::UnwindErrorCode::kUnsupported:
       return Profiling::UNWIND_ERROR_UNSUPPORTED;
-    case unwindstack::ERROR_INVALID_MAP:
+    case profiling::UnwindErrorCode::kInvalidMap:
       return Profiling::UNWIND_ERROR_INVALID_MAP;
-    case unwindstack::ERROR_MAX_FRAMES_EXCEEDED:
+    case profiling::UnwindErrorCode::kMaxFramesExceeded:
       return Profiling::UNWIND_ERROR_MAX_FRAMES_EXCEEDED;
-    case unwindstack::ERROR_REPEATED_FRAME:
+    case profiling::UnwindErrorCode::kRepeatedFrame:
       return Profiling::UNWIND_ERROR_REPEATED_FRAME;
-    case unwindstack::ERROR_INVALID_ELF:
+    case profiling::UnwindErrorCode::kInvalidElf:
       return Profiling::UNWIND_ERROR_INVALID_ELF;
-    case unwindstack::ERROR_SYSTEM_CALL:
+    case profiling::UnwindErrorCode::kSystemCall:
       return Profiling::UNWIND_ERROR_SYSTEM_CALL;
-    case unwindstack::ERROR_THREAD_TIMEOUT:
+    case profiling::UnwindErrorCode::kThreadTimeout:
       return Profiling::UNWIND_ERROR_THREAD_TIMEOUT;
-    case unwindstack::ERROR_THREAD_DOES_NOT_EXIST:
+    case profiling::UnwindErrorCode::kThreadDoesNotExist:
       return Profiling::UNWIND_ERROR_THREAD_DOES_NOT_EXIST;
-    case unwindstack::ERROR_BAD_ARCH:
+    case profiling::UnwindErrorCode::kBadArch:
       return Profiling::UNWIND_ERROR_BAD_ARCH;
-    case unwindstack::ERROR_MAPS_PARSE:
+    case profiling::UnwindErrorCode::kMapsParse:
       return Profiling::UNWIND_ERROR_MAPS_PARSE;
-    case unwindstack::ERROR_INVALID_PARAMETER:
+    case profiling::UnwindErrorCode::kInvalidParameter:
       return Profiling::UNWIND_ERROR_INVALID_PARAMETER;
-    case unwindstack::ERROR_PTRACE_CALL:
+    case profiling::UnwindErrorCode::kPtraceCall:
       return Profiling::UNWIND_ERROR_PTRACE_CALL;
   }
   return Profiling::UNWIND_ERROR_UNKNOWN;
@@ -411,10 +408,12 @@ bool PerfProducer::ShouldRejectDueToFilter(
 }
 
 PerfProducer::PerfProducer(ProcDescriptorGetter* proc_fd_getter,
-                           base::TaskRunner* task_runner)
+                           base::TaskRunner* task_runner,
+                           UnwindBackend* unwind_backend)
     : task_runner_(task_runner),
       proc_fd_getter_(proc_fd_getter),
-      unwinding_worker_(this),
+      unwind_backend_(unwind_backend),
+      unwinding_worker_(this, unwind_backend_),
       weak_factory_(this) {
   proc_fd_getter->SetDelegate(this);
 }
@@ -465,8 +464,9 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
         GetOrChooseCallstackProcessShard(tracing_session_id, shard_count);
   }
 
-  std::optional<EventConfig> event_config = EventConfig::Create(
-      event_config_pb, config, process_sharding, tracepoint_id_lookup);
+  std::optional<EventConfig> event_config =
+      EventConfig::Create(unwind_backend_->PerfUserRegsMask(), event_config_pb,
+                          config, process_sharding, tracepoint_id_lookup);
   if (!event_config.has_value()) {
     PERFETTO_ELOG("PerfEventConfig rejected.");
     return;
@@ -480,8 +480,8 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
 
   std::vector<EventReader> per_cpu_readers;
   for (uint32_t cpu : target_cpus) {
-    std::optional<EventReader> event_reader =
-        EventReader::ConfigureEvents(cpu, event_config.value());
+    std::optional<EventReader> event_reader = EventReader::ConfigureEvents(
+        cpu, event_config.value(), unwind_backend_);
     if (!event_reader.has_value()) {
       PERFETTO_ELOG("Failed to set up perf events for cpu%" PRIu32
                     ", discarding data source.",
@@ -1038,7 +1038,7 @@ void PerfProducer::EmitSample(DataSourceInstanceID ds_id,
 
   // intern callsite
   GlobalCallstackTrie::Node* callstack_root =
-      callstack_trie_.CreateCallsite(sample.frames, sample.build_ids);
+      callstack_trie_.CreateCallsite(sample.frames);
   uint64_t callstack_iid = callstack_root->id();
 
   // start packet, timestamp domain defaults to monotonic_raw
@@ -1062,7 +1062,7 @@ void PerfProducer::EmitSample(DataSourceInstanceID ds_id,
   }
 
   perf_sample->set_callstack_iid(callstack_iid);
-  if (sample.unwind_error != unwindstack::ERROR_NONE) {
+  if (sample.unwind_error != UnwindErrorCode::kNone) {
     perf_sample->set_unwind_error(ToProtoEnum(sample.unwind_error));
   }
 }
@@ -1375,7 +1375,7 @@ void PerfProducer::Restart() {
 
   // Invoke destructor and then the constructor again.
   this->~PerfProducer();
-  new (this) PerfProducer(proc_fd_getter, task_runner);
+  new (this) PerfProducer(proc_fd_getter, task_runner, unwind_backend_);
 
   ConnectWithRetries(socket_name);
 }

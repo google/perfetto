@@ -15,20 +15,38 @@
 import("../../../gn/perfetto.gni")
 import("../../../gn/test.gni")
 
-source_set("unwind_support") {
-  public_deps = [ "../../../gn:libunwindstack" ]
+source_set("regs_common") {
+  deps = [ "../../../gn:default_deps" ]
+  sources = [ "regs_common.h" ]
+}
+
+source_set("regs_local") {
   deps = [
+    ":regs_common",
     "../../../gn:default_deps",
-    "../../../src/base",
   ]
-  sources = [
-    "unwind_support.cc",
-    "unwind_support.h",
-  ]
+  sources = [ "regs_local.h" ]
+  if (current_cpu == "x64") {
+    sources += [ "regs_local_x86_64.S" ]
+  }
+}
+
+if (enable_perfetto_libunwindstack) {
+  source_set("unwind_support") {
+    public_deps = [ "../../../gn:libunwindstack" ]
+    deps = [
+      "../../../gn:default_deps",
+      "../../../src/base",
+    ]
+    sources = [
+      "unwind_support.cc",
+      "unwind_support.h",
+    ]
+  }
 }
 
 source_set("callstack_trie") {
-  public_deps = [ ":unwind_support" ]
+  public_deps = [ "../perf:unwind_types" ]
   deps = [
     ":interner",
     "../../../gn:default_deps",

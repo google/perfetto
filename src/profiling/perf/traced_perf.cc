@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/lock_free_task_runner.h"
@@ -26,6 +27,12 @@
 #include "perfetto/tracing/default_socket.h"
 #include "src/profiling/perf/perf_producer.h"
 #include "src/profiling/perf/proc_descriptors.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_LIBUNWIND)
+#include "src/profiling/perf/libunwind_backend.h"
+#elif PERFETTO_BUILDFLAG(PERFETTO_LIBUNWINDSTACK)
+#include "src/profiling/perf/libunwindstack_backend.h"
+#endif
 
 namespace perfetto {
 
@@ -91,7 +98,15 @@ int TracedPerfMain(int argc, char** argv) {
   DirectDescriptorGetter proc_fd_getter;
 #endif
 
-  profiling::PerfProducer producer(&proc_fd_getter, &task_runner);
+#if PERFETTO_BUILDFLAG(PERFETTO_LIBUNWIND)
+  profiling::LibunwindBackend unwind_backend;
+#elif PERFETTO_BUILDFLAG(PERFETTO_LIBUNWINDSTACK)
+  profiling::LibunwindstackBackend unwind_backend;
+#else
+#error "No unwinding backend configured"
+#endif
+  profiling::PerfProducer producer(&proc_fd_getter, &task_runner,
+                                   &unwind_backend);
   const char* env_notif = getenv("TRACED_PERF_NOTIFY_FD");
   if (env_notif) {
     int notif_fd = atoi(env_notif);

@@ -16,6 +16,7 @@
 
 #include "src/profiling/memory/client_api_factory.h"
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/lock_free_task_runner.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -28,6 +29,12 @@
 #include "src/profiling/memory/client.h"
 #include "src/profiling/memory/heap_profile_internal.h"
 #include "src/profiling/memory/heapprofd_producer.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_LIBUNWIND)
+#include "src/profiling/perf/libunwind_backend.h"
+#elif PERFETTO_BUILDFLAG(PERFETTO_LIBUNWINDSTACK)
+#include "src/profiling/perf/libunwindstack_backend.h"
+#endif
 
 #include <string>
 
@@ -146,8 +153,17 @@ void StartHeapprofdIfStatic() {
 
   base::MaybeLockFreeTaskRunner task_runner;
   base::Watchdog::GetInstance()->Start();  // crash on exceedingly long tasks
+
+#if PERFETTO_BUILDFLAG(PERFETTO_LIBUNWIND)
+  auto backend = std::make_unique<LibunwindBackend>();
+#elif PERFETTO_BUILDFLAG(PERFETTO_LIBUNWINDSTACK)
+  auto backend = std::make_unique<LibunwindstackBackend>();
+#else
+#error "No unwinding backend configured"
+#endif
+
   HeapprofdProducer producer(HeapprofdMode::kChild, &task_runner,
-                             /* exit_when_done= */ false);
+                             /* exit_when_done= */ false, std::move(backend));
   producer.SetTargetProcess(pid, cmdline);
   producer.ConnectWithRetries(GetProducerSocket());
   // Signal MonitorFd in the parent process to start a session.

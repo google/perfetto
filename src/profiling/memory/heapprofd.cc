@@ -24,6 +24,7 @@
 
 #include <signal.h>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/lock_free_task_runner.h"
@@ -34,6 +35,12 @@
 #include "src/profiling/memory/heapprofd_producer.h"
 #include "src/profiling/memory/java_hprof_producer.h"
 #include "src/profiling/memory/wire_protocol.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_LIBUNWIND)
+#include "src/profiling/perf/libunwind_backend.h"
+#elif PERFETTO_BUILDFLAG(PERFETTO_LIBUNWINDSTACK)
+#include "src/profiling/perf/libunwindstack_backend.h"
+#endif
 
 // TODO(rsavitski): the task runner watchdog spawns a thread (normally for
 // tracking cpu/mem usage) that we don't strictly need.
@@ -65,8 +72,17 @@ int StartCentralHeapprofd() {
 
   base::MaybeLockFreeTaskRunner task_runner;
   base::Watchdog::GetInstance()->Start();  // crash on exceedingly long tasks
+
+#if PERFETTO_BUILDFLAG(PERFETTO_LIBUNWIND)
+  auto backend = std::make_unique<LibunwindBackend>();
+#elif PERFETTO_BUILDFLAG(PERFETTO_LIBUNWINDSTACK)
+  auto backend = std::make_unique<LibunwindstackBackend>();
+#else
+#error "No unwinding backend configured"
+#endif
+
   HeapprofdProducer producer(HeapprofdMode::kCentral, &task_runner,
-                             /* exit_when_done= */ false);
+                             /* exit_when_done= */ false, std::move(backend));
 
   int listening_raw_socket = GetListeningSocket();
   auto listening_socket = base::UnixSocket::Listen(

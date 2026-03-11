@@ -36,7 +36,13 @@ source_set("heapprofd_main") {
     "../../../src/profiling/memory:daemon",
     "../../../src/profiling/memory:wire_protocol",
     "../../../src/tracing/ipc/producer",
+    "../perf:unwind_backend",
   ]
+  if (enable_perfetto_libunwind) {
+    deps += [ "../perf:libunwind_backend" ]
+  } else {
+    deps += [ "../perf:libunwindstack_backend" ]
+  }
   sources = [
     "heapprofd.cc",
     "heapprofd.h",
@@ -102,7 +108,13 @@ source_set("client_api_standalone") {
     "../../../include/perfetto/tracing",
     "../../base",
     "../common:proc_utils",
+    "../perf:unwind_backend",
   ]
+  if (enable_perfetto_libunwind) {
+    deps += [ "../perf:libunwind_backend" ]
+  } else {
+    deps += [ "../perf:libunwindstack_backend" ]
+  }
   sources = [ "client_api_factory_standalone.cc" ]
 }
 
@@ -204,7 +216,7 @@ source_set("wrap_allocators") {
 }
 
 source_set("wire_protocol") {
-  public_deps = [ "../../../gn:libunwindstack" ]
+  public_deps = [ "../common:regs_common" ]
   deps = [
     ":bionic_libc_platform_headers_on_android",
     ":ring_buffer",
@@ -270,14 +282,14 @@ source_set("daemon") {
     "../common:proc_utils",
     "../common:producer_support",
     "../common:profiler_guardrails",
-    "../common:unwind_support",
+    "../perf:unwind_backend",
   ]
   public_deps = [
-    "../../../gn:libunwindstack",
     "../../../protos/perfetto/config/profiling:cpp",
     "../../../protos/perfetto/trace:zero",
     "../../../protos/perfetto/trace/interned_data:zero",
     "../../../protos/perfetto/trace/profiling:zero",
+    "../perf:unwind_types",
   ]
   sources = [
     "bookkeeping.cc",
@@ -306,8 +318,8 @@ source_set("client") {
     "../../../gn:default_deps",
     "../../base",
     "../../base:unix_socket",
+    "../common:regs_local",
   ]
-  public_deps = [ "../../../gn:libunwindstack" ]
   sources = [
     "client.cc",
     "client.h",
@@ -325,14 +337,26 @@ perfetto_unittest_source_set("unittests") {
     ":wire_protocol",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
-    "../../../gn:libunwindstack",
     "../../base",
     "../../base:test_support",
     "../../tracing/core",
     "../../tracing/test:test_support",
     "../common:proc_utils",
-    "../common:unwind_support",
+    "../common:regs_local",
+    "../perf:unwind_backend",
+    "../perf:unwind_types",
   ]
+  if (enable_perfetto_libunwindstack) {
+    deps += [
+      "../../../gn:libunwindstack",
+      "../common:unwind_support",
+    ]
+  }
+  if (enable_perfetto_libunwind) {
+    deps += [ "../perf:libunwind_backend" ]
+  } else {
+    deps += [ "../perf:libunwindstack_backend" ]
+  }
   sources = [
     "bookkeeping_unittest.cc",
     "client_unittest.cc",
@@ -360,7 +384,6 @@ source_set("end_to_end_tests") {
     ":wire_protocol",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
-    "../../../gn:libunwindstack",
     "../../../protos/perfetto/config/profiling:cpp",
     "../../../protos/perfetto/trace/interned_data:cpp",
     "../../../protos/perfetto/trace/profiling:cpp",
@@ -392,8 +415,13 @@ perfetto_fuzzer_test("unwinding_fuzzer") {
     "../../../gn:default_deps",
     "../../base",
     "../../tracing/core",
-    "../common:unwind_support",
+    "../perf:unwind_backend",
   ]
+  if (enable_perfetto_libunwind) {
+    deps += [ "../perf:libunwind_backend" ]
+  } else {
+    deps += [ "../perf:libunwindstack_backend" ]
+  }
 }
 
 perfetto_fuzzer_test("shared_ring_buffer_fuzzer") {

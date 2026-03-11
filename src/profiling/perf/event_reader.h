@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/perf/common_types.h"
 #include "src/profiling/perf/event_config.h"
+#include "src/profiling/perf/unwind_backend.h"
 
 namespace perfetto {
 namespace profiling {
@@ -72,7 +73,8 @@ class EventReader {
  public:
   static std::optional<EventReader> ConfigureEvents(
       uint32_t cpu,
-      const EventConfig& event_cfg);
+      const EventConfig& event_cfg,
+      UnwindBackend* unwind_backend);
 
   // Snapshots the counter values using the |read| syscall.
   // The sample will always be timestamped ourselves, using CLOCK_BOOTTIME.
@@ -107,7 +109,8 @@ class EventReader {
               perf_event_attr event_attr,
               base::ScopedFile perf_fd,
               std::vector<base::ScopedFile> followers_fds,
-              std::optional<PerfRingBuffer> ring_buffer);
+              std::optional<PerfRingBuffer> ring_buffer,
+              UnwindBackend* unwind_backend);
 
   ParsedSample ParseSampleRecord(uint32_t cpu, const char* record_start);
 
@@ -118,6 +121,7 @@ class EventReader {
   std::vector<base::ScopedFile> follower_fds_;
   // Ring buffer is absent if and only if we're polling counters.
   std::optional<PerfRingBuffer> ring_buffer_;
+  UnwindBackend* unwind_backend_;
 };
 
 }  // namespace profiling

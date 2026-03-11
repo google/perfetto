@@ -316,6 +316,24 @@ declare_args() {
 }
 
 declare_args() {
+  # Use system libunwind (nongnu.org) instead of vendored libunwindstack for
+  # stack unwinding in traced_perf and heapprofd. This allows Linux
+  # distributions to build against the system libunwind instead of carrying
+  # vendored Android dependencies.
+  # Default: false (use vendored libunwindstack).
+  enable_perfetto_libunwind = false
+}
+
+declare_args() {
+  # Use vendored libunwindstack (Android) for stack unwinding.
+  # Default: true when heapprofd or traced_perf is enabled and libunwind is
+  # not being used as the unwinding backend.
+  enable_perfetto_libunwindstack =
+      (enable_perfetto_heapprofd || enable_perfetto_traced_perf) &&
+      !enable_perfetto_libunwind
+}
+
+declare_args() {
   perfetto_enable_git_rev_version_header =
       enable_perfetto_version_gen && perfetto_build_standalone &&
       !is_perfetto_build_generator

@@ -27,7 +27,6 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/profiling/perf/common_types.h"
-#include "src/profiling/perf/regs_parsing.h"
 
 namespace perfetto {
 namespace profiling {
@@ -212,12 +211,14 @@ EventReader::EventReader(uint32_t cpu,
                          perf_event_attr event_attr,
                          base::ScopedFile perf_fd,
                          std::vector<base::ScopedFile> followers_fds,
-                         std::optional<PerfRingBuffer> ring_buffer)
+                         std::optional<PerfRingBuffer> ring_buffer,
+                         UnwindBackend* unwind_backend)
     : cpu_(cpu),
       event_attr_(event_attr),
       perf_fd_(std::move(perf_fd)),
       follower_fds_(std::move(followers_fds)),
-      ring_buffer_(std::move(ring_buffer)) {}
+      ring_buffer_(std::move(ring_buffer)),
+      unwind_backend_(unwind_backend) {}
 
 EventReader& EventReader::operator=(EventReader&& other) noexcept {
   if (this == &other)
@@ -230,7 +231,8 @@ EventReader& EventReader::operator=(EventReader&& other) noexcept {
 
 std::optional<EventReader> EventReader::ConfigureEvents(
     uint32_t cpu,
-    const EventConfig& event_cfg) {
+    const EventConfig& event_cfg,
+    UnwindBackend* unwind_backend) {
   auto timebase_fd = PerfEventOpen(cpu, event_cfg.perf_attr());
   if (!timebase_fd) {
     PERFETTO_PLOG("Failed perf_event_open");
@@ -273,7 +275,8 @@ std::optional<EventReader> EventReader::ConfigureEvents(
     }
   }
   return EventReader(cpu, *event_cfg.perf_attr(), std::move(timebase_fd),
-                     std::move(follower_fds), std::move(ring_buffer));
+                     std::move(follower_fds), std::move(ring_buffer),
+                     unwind_backend);
 }
 
 std::optional<CommonSampleData> EventReader::ReadCounters() {
@@ -445,7 +448,7 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
 
   if (event_attr_.sample_type & PERF_SAMPLE_REGS_USER) {
     // Can be empty, e.g. if we sampled a kernel thread.
-    sample.regs = ReadPerfUserRegsData(&parse_pos);
+    sample.regs = unwind_backend_->ParsePerfRegs(&parse_pos);
   }
 
   if (event_attr_.sample_type & PERF_SAMPLE_STACK_USER) {

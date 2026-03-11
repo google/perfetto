@@ -22,10 +22,8 @@
 #include <typeindex>
 #include <vector>
 
-#include <unwindstack/Unwinder.h>
-
 #include "src/profiling/common/interner.h"
-#include "src/profiling/common/unwind_support.h"
+#include "src/profiling/perf/unwind_types.h"
 
 namespace perfetto {
 namespace profiling {
@@ -153,11 +151,9 @@ class GlobalCallstackTrie {
   GlobalCallstackTrie(GlobalCallstackTrie&&) = delete;
   GlobalCallstackTrie& operator=(GlobalCallstackTrie&&) = delete;
 
-  Interned<Frame> InternCodeLocation(const unwindstack::FrameData& loc,
-                                     const std::string& build_id);
+  Interned<Frame> InternCodeLocation(const UnwindFrame& loc);
 
-  Node* CreateCallsite(const std::vector<unwindstack::FrameData>& callstack,
-                       const std::vector<std::string>& build_ids);
+  Node* CreateCallsite(const std::vector<UnwindFrame>& callstack);
   Node* CreateCallsite(const std::vector<Interned<Frame>>& callstack);
 
   static void IncrementNode(Node* node);

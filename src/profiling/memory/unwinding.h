@@ -17,25 +17,22 @@
 #ifndef SRC_PROFILING_MEMORY_UNWINDING_H_
 #define SRC_PROFILING_MEMORY_UNWINDING_H_
 
-#include <unwindstack/Regs.h>
-
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
-#include "src/profiling/common/unwind_support.h"
 #include "src/profiling/memory/bookkeeping.h"
 #include "src/profiling/memory/unwound_messages.h"
 #include "src/profiling/memory/wire_protocol.h"
+#include "src/profiling/perf/unwind_backend.h"
 
 namespace perfetto {
 namespace profiling {
 
-std::unique_ptr<unwindstack::Regs> CreateRegsFromRawData(
-    unwindstack::ArchEnum arch,
-    void* raw_data);
-
-bool DoUnwind(WireMessage*, UnwindingMetadata* metadata, AllocRecord* out);
+bool DoUnwind(WireMessage* msg,
+              UnwindBackend* backend,
+              ProcessUnwindState* state,
+              AllocRecord* out);
 
 // AllocRecords are expensive to construct and destruct. We have seen up to
 // 10 % of total CPU of heapprofd being used to destruct them. That is why
@@ -82,9 +79,12 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
     bool stream_allocations;
   };
 
-  UnwindingWorker(Delegate* delegate, base::ThreadTaskRunner thread_task_runner)
+  UnwindingWorker(Delegate* delegate,
+                  base::ThreadTaskRunner thread_task_runner,
+                  UnwindBackend* backend)
       : delegate_(delegate),
-        thread_task_runner_(std::move(thread_task_runner)) {}
+        thread_task_runner_(std::move(thread_task_runner)),
+        backend_(backend) {}
 
   ~UnwindingWorker() override;
   UnwindingWorker(UnwindingWorker&&) = default;
@@ -112,12 +112,14 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
   struct ClientData {
     DataSourceInstanceID data_source_instance_id;
     std::unique_ptr<base::UnixSocket> sock;
-    UnwindingMetadata metadata;
+    std::unique_ptr<ProcessUnwindState> unwind_state;
     SharedRingBuffer shmem;
     ClientConfiguration client_config;
     bool stream_allocations = false;
     size_t drain_bytes = 0;
     std::vector<FreeRecord> free_records;
+    base::TimeMillis last_maps_reparse_time{0};
+    uint64_t reparses = 0;
   };
 
   // public for testing/fuzzing
@@ -161,6 +163,8 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
   // destructing thread sees a consistent view of the memory due to the
   // ThreadTaskRunner's destructor joining a thread.
   base::ThreadTaskRunner thread_task_runner_;
+
+  UnwindBackend* backend_;
 };
 
 }  // namespace profiling

@@ -27,9 +27,6 @@
 #include <cinttypes>
 #include <new>
 
-#include <unwindstack/Regs.h>
-#include <unwindstack/RegsGetLocal.h>
-
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -40,6 +37,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
+#include "src/profiling/common/regs_local.h"
 #include "src/profiling/memory/sampler.h"
 #include "src/profiling/memory/scoped_spinlock.h"
 #include "src/profiling/memory/shared_ring_buffer.h"
@@ -347,36 +345,11 @@ bool Client::IsPostFork() {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_RISCV) && \
     !PERFETTO_HAS_BUILTIN_STACK_ADDRESS()
-ssize_t Client::GetStackRegister(unwindstack::ArchEnum arch) {
-  ssize_t reg_sp, reg_size;
-  switch (arch) {
-    case unwindstack::ARCH_X86:
-      reg_sp = unwindstack::X86_REG_SP;
-      reg_size = sizeof(uint32_t);
-      break;
-    case unwindstack::ARCH_X86_64:
-      reg_sp = unwindstack::X86_64_REG_SP;
-      reg_size = sizeof(uint64_t);
-      break;
-    case unwindstack::ARCH_ARM:
-      reg_sp = unwindstack::ARM_REG_SP;
-      reg_size = sizeof(uint32_t);
-      break;
-    case unwindstack::ARCH_ARM64:
-      reg_sp = unwindstack::ARM64_REG_SP;
-      reg_size = sizeof(uint64_t);
-      break;
-    case unwindstack::ARCH_RISCV64:
-      reg_sp = unwindstack::RISCV64_REG_SP;
-      reg_size = sizeof(uint64_t);
-      break;
-    case unwindstack::ARCH_UNKNOWN:
-      return -1;
-  }
-  return reg_sp * reg_size;
+ssize_t Client::GetStackRegister(ArchEnum arch) {
+  return GetStackPointerOffset(arch);
 }
 
-uintptr_t Client::GetStackAddress(char* reg_data, unwindstack::ArchEnum arch) {
+uintptr_t Client::GetStackAddress(char* reg_data, ArchEnum arch) {
   ssize_t reg = GetStackRegister(arch);
   if (reg < 0)
     return reinterpret_cast<uintptr_t>(nullptr);
@@ -413,12 +386,12 @@ bool Client::RecordMalloc(uint32_t heap_id,
 #if PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_RISCV)
 #if PERFETTO_HAS_BUILTIN_STACK_ADDRESS()
   const char* stackptr = reinterpret_cast<char*>(__builtin_stack_address());
-  unwindstack::AsmGetRegs(metadata.register_data);
+  AsmGetRegs(metadata.register_data);
 #else
   char* register_data = metadata.register_data;
-  unwindstack::AsmGetRegs(register_data);
-  const char* stackptr = reinterpret_cast<char*>(
-      GetStackAddress(register_data, unwindstack::Regs::CurrentArch()));
+  AsmGetRegs(register_data);
+  const char* stackptr =
+      reinterpret_cast<char*>(GetStackAddress(register_data, CurrentArch()));
   if (!stackptr) {
     PERFETTO_ELOG("Failed to get stack address.");
     shmem_.SetErrorState(SharedRingBuffer::kInvalidStackBounds);
@@ -427,7 +400,7 @@ bool Client::RecordMalloc(uint32_t heap_id,
 #endif /* PERFETTO_HAS_BUILTIN_STACK_ADDRESS() */
 #else
   const char* stackptr = reinterpret_cast<char*>(__builtin_frame_address(0));
-  unwindstack::AsmGetRegs(metadata.register_data);
+  AsmGetRegs(metadata.register_data);
 #endif /* PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_RISCV) */
   const char* stackend = GetStackEnd(stackptr);
   if (!stackend) {
@@ -440,7 +413,7 @@ bool Client::RecordMalloc(uint32_t heap_id,
   metadata.alloc_size = alloc_size;
   metadata.alloc_address = alloc_address;
   metadata.stack_pointer = reinterpret_cast<uint64_t>(stackptr);
-  metadata.arch = unwindstack::Regs::CurrentArch();
+  metadata.arch = CurrentArch();
   metadata.sequence_number =
       1 + sequence_number_[heap_id].fetch_add(1, std::memory_order_acq_rel);
   metadata.heap_id = heap_id;

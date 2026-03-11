@@ -72,11 +72,13 @@ constexpr int kProfilingSignal = __SIGRTMIN + 4;
 constexpr int kHeapprofdSignalValue = 0;
 
 std::vector<UnwindingWorker> MakeUnwindingWorkers(HeapprofdProducer* delegate,
-                                                  size_t n) {
+                                                  size_t n,
+                                                  UnwindBackend* backend) {
   std::vector<UnwindingWorker> ret;
   for (size_t i = 0; i < n; ++i) {
     ret.emplace_back(delegate,
-                     base::ThreadTaskRunner::CreateAndStart("heapprofdunwind"));
+                     base::ThreadTaskRunner::CreateAndStart("heapprofdunwind"),
+                     backend);
   }
   return ret;
 }
@@ -206,13 +208,16 @@ bool HeapprofdConfigToClientConfiguration(
 // thread.
 HeapprofdProducer::HeapprofdProducer(HeapprofdMode mode,
                                      base::TaskRunner* task_runner,
-                                     bool exit_when_done)
+                                     bool exit_when_done,
+                                     std::unique_ptr<UnwindBackend> backend)
     : task_runner_(task_runner),
       mode_(mode),
       exit_when_done_(exit_when_done),
       socket_delegate_(this),
       weak_factory_(this),
-      unwinding_workers_(MakeUnwindingWorkers(this, kUnwinderThreads)) {
+      backend_(std::move(backend)),
+      unwinding_workers_(
+          MakeUnwindingWorkers(this, kUnwinderThreads, backend_.get())) {
   CheckDataSourceCpuTask();
   CheckDataSourceMemoryTask();
 }
@@ -1065,16 +1070,13 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord* alloc_rec) {
 
   const auto& prefixes = ds.config.skip_symbol_prefix();
   if (!prefixes.empty()) {
-    for (unwindstack::FrameData& frame_data : alloc_rec->frames) {
-      if (frame_data.map_info == nullptr) {
-        continue;
-      }
-      const std::string& map = frame_data.map_info->name();
+    for (UnwindFrame& frame : alloc_rec->frames) {
+      const std::string& map = frame.map_name;
       if (std::find_if(prefixes.cbegin(), prefixes.cend(),
                        [&map](const std::string& prefix) {
                          return base::StartsWith(map, prefix);
                        }) != prefixes.cend()) {
-        frame_data.function_name = "FILTERED";
+        frame.function_name = "FILTERED";
       }
     }
   }
@@ -1096,11 +1098,11 @@ void HeapprofdProducer::HandleAllocRecord(AllocRecord* alloc_rec) {
   if (alloc_rec->reparsed_map)
     heap_tracker.ClearFrameCache();
 
-  heap_tracker.RecordMalloc(
-      alloc_rec->frames, alloc_rec->build_ids, alloc_metadata.alloc_address,
-      alloc_metadata.sample_size, alloc_metadata.alloc_size,
-      alloc_metadata.sequence_number,
-      alloc_metadata.clock_monotonic_coarse_timestamp);
+  heap_tracker.RecordMalloc(alloc_rec->frames, alloc_metadata.alloc_address,
+                            alloc_metadata.sample_size,
+                            alloc_metadata.alloc_size,
+                            alloc_metadata.sequence_number,
+                            alloc_metadata.clock_monotonic_coarse_timestamp);
 }
 
 void HeapprofdProducer::HandleFreeRecord(FreeRecord free_rec) {

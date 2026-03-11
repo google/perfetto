@@ -117,6 +117,7 @@ class EventConfig {
       std::function<uint32_t(const std::string&, const std::string&)>;
 
   static std::optional<EventConfig> Create(
+      uint64_t perf_user_regs_mask,
       const protos::gen::PerfEventConfig& pb_config,
       const DataSourceConfig& raw_ds_config,
       std::optional<ProcessSharding> process_sharding,
@@ -172,6 +173,7 @@ class EventConfig {
       const DataSourceConfig& raw_ds_config);
 
   static std::optional<EventConfig> CreateSampling(
+      uint64_t perf_user_regs_mask,
       PerfCounter timebase_event,
       std::vector<PerfCounter> followers,
       std::optional<ProcessSharding> process_sharding,

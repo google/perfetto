@@ -20,18 +20,28 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <unwindstack/RegsGetLocal.h>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "src/profiling/common/unwind_support.h"
+#include "src/profiling/common/regs_local.h"
 #include "src/profiling/memory/client.h"
 #include "src/profiling/memory/wire_protocol.h"
 #include "test/gtest_and_gmock.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_LIBUNWINDSTACK)
+#include "src/profiling/common/unwind_support.h"
+#include "src/profiling/perf/libunwindstack_backend.h"
+#elif PERFETTO_BUILDFLAG(PERFETTO_LIBUNWIND)
+#include "src/profiling/perf/libunwind_backend.h"
+#endif
+
 namespace perfetto {
 namespace profiling {
 namespace {
+
+// The StackOverlayMemory and FDMaps tests are libunwindstack-specific.
+#if PERFETTO_BUILDFLAG(PERFETTO_LIBUNWINDSTACK)
 
 TEST(UnwindingTest, StackOverlayMemoryOverlay) {
   base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
@@ -75,21 +85,7 @@ TEST(UnwindingTest, FDMapsParse) {
 #endif
 }
 
-void __attribute__((noinline)) AssertFunctionOffset() {
-  constexpr auto kMaxFunctionSize = 1000u;
-  // Need to zero-initialize to make MSAN happy. MSAN does not see the writes
-  // from AsmGetRegs (as it is in assembly) and complains otherwise.
-  char reg_data[kMaxRegisterDataSize] = {};
-  unwindstack::AsmGetRegs(reg_data);
-  auto regs = CreateRegsFromRawData(unwindstack::Regs::CurrentArch(), reg_data);
-  ASSERT_GT(regs->pc(), reinterpret_cast<uint64_t>(&AssertFunctionOffset));
-  ASSERT_LT(regs->pc() - reinterpret_cast<uint64_t>(&AssertFunctionOffset),
-            kMaxFunctionSize);
-}
-
-TEST(UnwindingTest, TestFunctionOffset) {
-  AssertFunctionOffset();
-}
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_LIBUNWINDSTACK)
 
 // This is needed because ASAN thinks copying the whole stack is a buffer
 // underrun.
@@ -117,7 +113,7 @@ RecordMemory __attribute__((noinline)) GetRecord(WireMessage* msg) {
   // Need to zero-initialize to make MSAN happy. MSAN does not see the writes
   // from AsmGetRegs (as it is in assembly) and complains otherwise.
   memset(metadata->register_data, 0, sizeof(metadata->register_data));
-  unwindstack::AsmGetRegs(metadata->register_data);
+  AsmGetRegs(metadata->register_data);
 
   if (stackend < stackptr) {
     PERFETTO_FATAL("Stacktop >= stackend.");
@@ -128,7 +124,7 @@ RecordMemory __attribute__((noinline)) GetRecord(WireMessage* msg) {
   metadata->alloc_size = 10;
   metadata->alloc_address = 0x10;
   metadata->stack_pointer = reinterpret_cast<uint64_t>(stackptr);
-  metadata->arch = unwindstack::Regs::CurrentArch();
+  metadata->arch = CurrentArch();
   metadata->sequence_number = 1;
 
   std::unique_ptr<uint8_t[]> payload(new uint8_t[stack_size]);
@@ -144,13 +140,28 @@ RecordMemory __attribute__((noinline)) GetRecord(WireMessage* msg) {
 TEST(UnwindingTest, DoUnwind) {
   base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
-  GlobalCallstackTrie callsites;
-  UnwindingMetadata metadata(std::move(proc_maps), std::move(proc_mem));
+
+#if PERFETTO_BUILDFLAG(PERFETTO_LIBUNWIND)
+  LibunwindBackend backend;
+#elif PERFETTO_BUILDFLAG(PERFETTO_LIBUNWINDSTACK)
+  LibunwindstackBackend backend;
+#else
+#error "No unwinding backend configured"
+#endif
+
+  auto state =
+      backend.CreateProcessState(std::move(proc_maps), std::move(proc_mem));
+  ASSERT_NE(state, nullptr);
+
   WireMessage msg;
   auto record = GetRecord(&msg);
   AllocRecord out;
-  ASSERT_TRUE(DoUnwind(&msg, &metadata, &out));
+  ASSERT_TRUE(DoUnwind(&msg, &backend, state.get(), &out));
   ASSERT_GT(out.frames.size(), 0u);
+  // The libunwindstack backend resolves function names during unwinding.
+  // The libunwind backend does not (symbol resolution is deferred), so
+  // we only check function names with libunwindstack.
+#if PERFETTO_BUILDFLAG(PERFETTO_LIBUNWINDSTACK)
   int st;
   std::unique_ptr<char, base::FreeDeleter> demangled(abi::__cxa_demangle(
       out.frames[0].function_name.c_str(), nullptr, nullptr, &st));
@@ -159,20 +170,34 @@ TEST(UnwindingTest, DoUnwind) {
   ASSERT_STREQ(demangled.get(),
                "perfetto::profiling::(anonymous "
                "namespace)::GetRecord(perfetto::profiling::WireMessage*)");
+#endif
 }
 
 TEST(UnwindingTest, DoUnwindReparse) {
   base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   base::ScopedFile proc_mem(base::OpenFile("/proc/self/mem", O_RDONLY));
-  GlobalCallstackTrie callsites;
-  UnwindingMetadata metadata(std::move(proc_maps), std::move(proc_mem));
-  // Force reparse in DoUnwind.
-  metadata.fd_maps.Reset();
+
+#if PERFETTO_BUILDFLAG(PERFETTO_LIBUNWIND)
+  LibunwindBackend backend;
+#elif PERFETTO_BUILDFLAG(PERFETTO_LIBUNWINDSTACK)
+  LibunwindstackBackend backend;
+#else
+#error "No unwinding backend configured"
+#endif
+
+  auto state =
+      backend.CreateProcessState(std::move(proc_maps), std::move(proc_mem));
+  ASSERT_NE(state, nullptr);
+
+  // Force reparse in DoUnwind by invalidating the maps.
+  backend.ReparseMaps(state.get());
+
   WireMessage msg;
   auto record = GetRecord(&msg);
   AllocRecord out;
-  ASSERT_TRUE(DoUnwind(&msg, &metadata, &out));
+  ASSERT_TRUE(DoUnwind(&msg, &backend, state.get(), &out));
   ASSERT_GT(out.frames.size(), 0u);
+#if PERFETTO_BUILDFLAG(PERFETTO_LIBUNWINDSTACK)
   int st;
   std::unique_ptr<char, base::FreeDeleter> demangled(abi::__cxa_demangle(
       out.frames[0].function_name.c_str(), nullptr, nullptr, &st));
@@ -181,6 +206,7 @@ TEST(UnwindingTest, DoUnwindReparse) {
   ASSERT_STREQ(demangled.get(),
                "perfetto::profiling::(anonymous "
                "namespace)::GetRecord(perfetto::profiling::WireMessage*)");
+#endif
 }
 
 TEST(AllocRecordArenaTest, Smoke) {

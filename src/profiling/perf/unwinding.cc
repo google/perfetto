@@ -19,13 +19,9 @@
 #include <cinttypes>
 #include <mutex>
 
-#include <unwindstack/Unwinder.h>
-
 #include "perfetto/ext/base/metatrace.h"
-#include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/utils.h"
-#include "src/profiling/perf/frame_pointer_unwinder.h"
 
 namespace {
 constexpr size_t kUnwindingMaxFrames = 1000;
@@ -38,9 +34,10 @@ namespace profiling {
 Unwinder::Delegate::~Delegate() = default;
 
 Unwinder::Unwinder(Delegate* delegate,
-                   base::MaybeLockFreeTaskRunner* task_runner)
-    : task_runner_(task_runner), delegate_(delegate) {
-  ResetAndEnableUnwindstackCache();
+                   base::MaybeLockFreeTaskRunner* task_runner,
+                   UnwindBackend* backend)
+    : backend_(backend), task_runner_(task_runner), delegate_(delegate) {
+  backend_->ResetCache();
   base::MaybeSetThreadName("stack-unwinding");
 }
 
@@ -71,19 +68,6 @@ void Unwinder::StartDataSource(DataSourceInstanceID ds_id,
 
 // c++11: use shared_ptr to transfer resource handles, so that the resources get
 // released even if the task runner is destroyed with pending tasks.
-// "Cleverness" warning:
-// the task will be executed on a different thread, and will mutate the
-// pointed-to memory. It may be the case that this posting thread will not
-// decrement its shared_ptr refcount until *after* the task has executed. In
-// that scenario, the destruction of the pointed-to memory will be happening on
-// the posting thread. This implies a data race between the mutation on the task
-// thread, and the destruction on the posting thread. *However*, we assume that
-// there is no race in practice due to refcount decrements having
-// release-acquire semantics. The refcount decrements pair with each other, and
-// therefore also serve as a memory barrier between the destructor, and any
-// previous modifications of the pointed-to memory.
-// TODO(rsavitski): present a more convincing argument, or reimplement
-// without relying on shared_ptr implementation details.
 void Unwinder::PostAdoptProcDescriptors(DataSourceInstanceID ds_id,
                                         pid_t pid,
                                         base::ScopedFile maps_fd,
@@ -114,13 +98,13 @@ void Unwinder::AdoptProcDescriptors(DataSourceInstanceID ds_id,
   ProcessState& proc_state = ds.process_states[pid];  // insert if new
   PERFETTO_DCHECK(proc_state.status == ProcessState::Status::kInitial ||
                   proc_state.status == ProcessState::Status::kFdsTimedOut);
-  PERFETTO_DCHECK(!proc_state.unwind_state.has_value());
+  PERFETTO_DCHECK(!proc_state.unwind_state);
 
   PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_MAPS_PARSE);
 
   proc_state.status = ProcessState::Status::kFdsResolved;
   proc_state.unwind_state =
-      UnwindingMetadata{std::move(maps_fd), std::move(mem_fd)};
+      backend_->CreateProcessState(std::move(maps_fd), std::move(mem_fd));
 }
 
 void Unwinder::PostRecordTimedOutProcDescriptors(DataSourceInstanceID ds_id,
@@ -160,9 +144,7 @@ void Unwinder::PostProcessQueue() {
 
 // Note: we always walk the queue in order. So if there are multiple data
 // sources, one of which is shutting down, its shutdown can be delayed by
-// unwinding of other sources' samples. Instead, we could scan the queue
-// multiple times, prioritizing the samples for shutting-down sources. At the
-// time of writing, the earlier is considered to be fair enough.
+// unwinding of other sources' samples.
 void Unwinder::ProcessQueue() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_UNWIND_TICK);
@@ -181,18 +163,12 @@ void Unwinder::ProcessQueue() {
     if (ds.status == DataSourceState::Status::kActive)
       continue;
 
-    // Data source that is shutting down. If we're still waiting on proc-fds (or
-    // the lookup to time out) for samples in the queue - repost a later
-    // attempt (as there is no guarantee that there are any readers waking up
-    // the unwinder anymore).
     if (pending_sample_sources.count(ds_id)) {
       PERFETTO_DLOG(
           "Unwinder delaying DS(%zu) stop: waiting on a pending sample",
           static_cast<size_t>(ds_id));
       post_delayed_reprocess = true;
     } else {
-      // Otherwise, proceed with tearing down data source state (after
-      // completing the loop, to avoid invalidating the iterator).
       sources_to_stop.insert(ds_id);
     }
   }
@@ -246,7 +222,6 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
       PERFETTO_DLOG("Unwinder skipping sample for pid [%d]: kFdsTimedOut",
                     static_cast<int>(pid));
 
-      // free up the sampled stack as the main thread has no use for it
       entry.sample.stack.clear();
       entry.sample.stack.shrink_to_fit();
 
@@ -266,16 +241,7 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
       continue;
     }
 
-    // b/324757089: we are not precisely tracking process lifetimes, so the
-    // sample might be for a different process that reused the pid since the
-    // start of the session. Normally this is both infrequent and not a problem
-    // since the unwinding will fail due to invalidated procfs descriptors.
-    // However we need this explicit skip for the specific case of a kernel
-    // thread reusing a userspace pid, as the unwinding doesn't expect absent
-    // userspace state for a thought-to-be-userspace process.
-    // TODO(rsavitski): start tracking process exits more accurately, either
-    // via PERF_RECORD_EXIT records or by checking the validity of the procfs
-    // descriptors.
+    // b/324757089: kernel thread reusing a userspace pid.
     if (PERFETTO_UNLIKELY(!entry.sample.regs &&
                           proc_state.status ==
                               ProcessState::Status::kFdsResolved)) {
@@ -293,19 +259,14 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
     // Sample ready - process it.
     if (proc_state.status == ProcessState::Status::kFdsResolved ||
         proc_state.status == ProcessState::Status::kNoUserspace) {
-      // Metatrace: emit both a scoped slice, as well as a "counter"
-      // representing the pid being unwound.
       PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_UNWIND_SAMPLE);
       PERFETTO_METATRACE_COUNTER(TAG_PRODUCER, PROFILER_UNWIND_CURRENT_PID,
                                  static_cast<int32_t>(pid));
 
       PERFETTO_CHECK(proc_state.status == ProcessState::Status::kNoUserspace ||
-                     proc_state.unwind_state.has_value());
+                     proc_state.unwind_state != nullptr);
 
-      UnwindingMetadata* opt_user_state =
-          (proc_state.unwind_state.has_value()
-               ? &proc_state.unwind_state.value()
-               : nullptr);
+      ProcessUnwindState* opt_user_state = proc_state.unwind_state.get();
       CompletedSample unwound_sample =
           UnwindSample(entry.sample, opt_user_state,
                        proc_state.attempted_unwinding, ds.unwind_mode);
@@ -343,7 +304,7 @@ base::FlatSet<DataSourceInstanceID> Unwinder::ConsumeAndUnwindReadySamples() {
 }
 
 CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
-                                       UnwindingMetadata* opt_user_state,
+                                       ProcessUnwindState* opt_user_state,
                                        bool pid_unwound_before,
                                        UnwindMode unwind_mode) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
@@ -352,89 +313,47 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
   ret.common = sample.common;
 
   // Symbolize kernel-unwound kernel frames, if appropriate.
-  std::vector<unwindstack::FrameData> kernel_frames =
-      SymbolizeKernelCallchain(sample);
+  std::vector<UnwindFrame> kernel_frames = SymbolizeKernelCallchain(sample);
 
   size_t kernel_frames_size = kernel_frames.size();
   ret.frames = std::move(kernel_frames);
-  ret.build_ids.resize(kernel_frames_size, "");
 
-  // Perform userspace unwinding using libunwindstack, if appropriate.
+  // Perform userspace unwinding, if appropriate.
   if (!opt_user_state)
     return ret;
 
-  // Overlay the stack bytes over /proc/<pid>/mem.
-  UnwindingMetadata* unwind_state = opt_user_state;
-  std::shared_ptr<unwindstack::Memory> overlay_memory =
-      std::make_shared<StackOverlayMemory>(
-          unwind_state->fd_mem, sample.regs->sp(),
-          reinterpret_cast<const uint8_t*>(sample.stack.data()),
-          sample.stack.size());
+  PERFETTO_DCHECK(sample.regs.has_value());
 
-  struct UnwindResult {
-    unwindstack::ErrorCode error_code;
-    uint64_t warnings;
-    std::vector<unwindstack::FrameData> frames;
-
-    UnwindResult(unwindstack::ErrorCode e,
-                 uint64_t w,
-                 std::vector<unwindstack::FrameData> f)
-        : error_code(e), warnings(w), frames(std::move(f)) {}
-    UnwindResult(const UnwindResult&) = delete;
-    UnwindResult& operator=(const UnwindResult&) = delete;
-    UnwindResult(UnwindResult&&) __attribute__((unused)) = default;
-    UnwindResult& operator=(UnwindResult&&) = default;
-  };
-  auto attempt_unwind = [&sample, unwind_state, pid_unwound_before,
-                         &overlay_memory, unwind_mode]() -> UnwindResult {
+  auto attempt_unwind = [&]() -> UnwindBackend::UnwindResult {
     metatrace::ScopedEvent m(metatrace::TAG_PRODUCER,
                              pid_unwound_before
                                  ? metatrace::PROFILER_UNWIND_ATTEMPT
                                  : metatrace::PROFILER_UNWIND_INITIAL_ATTEMPT);
 
-    // Unwindstack clobbers registers, so make a copy in case of retries.
-    auto regs_copy = std::unique_ptr<unwindstack::Regs>{sample.regs->Clone()};
-
     switch (unwind_mode) {
-      case UnwindMode::kFramePointer: {
-        FramePointerUnwinder unwinder(kUnwindingMaxFrames,
-                                      &unwind_state->fd_maps, regs_copy.get(),
-                                      overlay_memory, sample.stack.size());
-        unwinder.Unwind();
-        return {unwinder.LastErrorCode(), unwinder.warnings(),
-                unwinder.ConsumeFrames()};
-      }
-      case UnwindMode::kUnwindStack: {
-        unwindstack::Unwinder unwinder(kUnwindingMaxFrames,
-                                       &unwind_state->fd_maps, regs_copy.get(),
-                                       overlay_memory);
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-        unwinder.SetJitDebug(unwind_state->GetJitDebug(regs_copy->Arch()));
-        unwinder.SetDexFiles(unwind_state->GetDexFiles(regs_copy->Arch()));
-#endif
-        unwinder.Unwind(/*initial_map_names_to_skip=*/nullptr,
-                        /*map_suffixes_to_ignore=*/nullptr);
-        return {unwinder.LastErrorCode(), unwinder.warnings(),
-                unwinder.ConsumeFrames()};
-      }
+      case UnwindMode::kFramePointer:
+        return backend_->UnwindFramePointers(
+            opt_user_state, sample.regs.value(), sample.regs.value().sp,
+            sample.stack.data(), sample.stack.size(), kUnwindingMaxFrames);
+      case UnwindMode::kUnwindStack:
+        return backend_->Unwind(opt_user_state, sample.regs.value(),
+                                sample.regs.value().sp, sample.stack.data(),
+                                sample.stack.size(), kUnwindingMaxFrames);
     }
   };
 
   // first unwind attempt
-  UnwindResult unwind = attempt_unwind();
+  UnwindBackend::UnwindResult unwind = attempt_unwind();
 
-  bool should_retry = unwind.error_code == unwindstack::ERROR_INVALID_MAP ||
-                      unwind.warnings & unwindstack::WARNING_DEX_PC_NOT_IN_MAP;
+  bool should_retry = unwind.error_code == UnwindErrorCode::kInvalidMap ||
+                      (unwind.warnings & 1);  // WARNING_DEX_PC_NOT_IN_MAP
 
   // ERROR_INVALID_MAP means that unwinding reached a point in memory without a
   // corresponding mapping. This is possible if the parsed /proc/pid/maps is
   // outdated. Reparse and try again.
   //
   // Special case: skip reparsing if the stack sample was (most likely)
-  // truncated. We perform the best-effort unwind of the sampled part, but an
-  // error around the truncated part is not unexpected.
-  //
-  // TODO(rsavitski): consider rate-limiting unwind retries.
+  // truncated.
   if (should_retry && sample.stack_maxed) {
     PERFETTO_DLOG("Skipping reparse/reunwind due to maxed stack for tid [%d]",
                   static_cast<int>(sample.common.tid));
@@ -443,48 +362,36 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
       PERFETTO_METATRACE_SCOPED(TAG_PRODUCER, PROFILER_MAPS_REPARSE);
       PERFETTO_DLOG("Reparsing maps for pid [%d]",
                     static_cast<int>(sample.common.pid));
-      unwind_state->ReparseMaps();
+      backend_->ReparseMaps(opt_user_state);
     }
     // reunwind attempt
     unwind = attempt_unwind();
   }
 
-  ret.build_ids.reserve(kernel_frames_size + unwind.frames.size());
   ret.frames.reserve(kernel_frames_size + unwind.frames.size());
-  for (unwindstack::FrameData& frame : unwind.frames) {
-    ret.build_ids.emplace_back(unwind_state->GetBuildId(frame));
+  for (UnwindFrame& frame : unwind.frames) {
     ret.frames.emplace_back(std::move(frame));
   }
 
-  // In case of an unwinding error, add a synthetic error frame (which will
-  // appear as a caller of the partially-unwound fragment), for easier
-  // visualization of errors.
-  if (unwind.error_code != unwindstack::ERROR_NONE) {
-    PERFETTO_DLOG("Unwinding error %" PRIu8, unwind.error_code);
-    unwindstack::FrameData frame_data{};
-    frame_data.function_name =
-        "ERROR " + StringifyLibUnwindstackError(unwind.error_code);
-    ret.frames.emplace_back(std::move(frame_data));
-    ret.build_ids.emplace_back("");
+  // In case of an unwinding error, add a synthetic error frame.
+  if (unwind.error_code != UnwindErrorCode::kNone) {
+    PERFETTO_DLOG("Unwinding error %" PRIu8,
+                  static_cast<uint8_t>(unwind.error_code));
+    UnwindFrame frame{};
+    frame.function_name = "ERROR " + StringifyUnwindError(unwind.error_code);
+    ret.frames.emplace_back(std::move(frame));
     ret.unwind_error = unwind.error_code;
   }
 
-  PERFETTO_CHECK(ret.build_ids.size() == ret.frames.size());
   return ret;
 }
 
-std::vector<unwindstack::FrameData> Unwinder::SymbolizeKernelCallchain(
+std::vector<UnwindFrame> Unwinder::SymbolizeKernelCallchain(
     const ParsedSample& sample) {
-  static base::NoDestructor<std::shared_ptr<unwindstack::MapInfo>>
-      kernel_map_info(unwindstack::MapInfo::Create(0, 0, 0, 0, "kernel"));
-  std::vector<unwindstack::FrameData> ret;
+  std::vector<UnwindFrame> ret;
   if (sample.kernel_ips.empty())
     return ret;
 
-  // The list of addresses contains special context marker values (inserted by
-  // the kernel's unwinding) to indicate which section of the callchain belongs
-  // to the kernel/user mode (if the kernel can successfully unwind user
-  // stacks). In our case, we request only the kernel frames.
   if (sample.kernel_ips[0] != PERF_CONTEXT_KERNEL) {
     PERFETTO_DFATAL_OR_ELOG(
         "Unexpected: 0th frame of callchain is not PERF_CONTEXT_KERNEL.");
@@ -497,12 +404,9 @@ std::vector<unwindstack::FrameData> Unwinder::SymbolizeKernelCallchain(
   for (size_t i = 1; i < sample.kernel_ips.size(); i++) {
     std::string function_name = kernel_map->Lookup(sample.kernel_ips[i]);
 
-    // Synthesise a partially-valid libunwindstack frame struct for the kernel
-    // frame. We reuse the type for convenience. The kernel frames are marked by
-    // a magical "kernel" MapInfo object as their containing mapping.
-    unwindstack::FrameData frame{};
+    UnwindFrame frame{};
     frame.function_name = std::move(function_name);
-    frame.map_info = kernel_map_info.ref();
+    frame.map_name = "kernel";
     ret.emplace_back(std::move(frame));
   }
   return ret;
@@ -525,8 +429,6 @@ void Unwinder::InitiateDataSourceStop(DataSourceInstanceID ds_id) {
   PERFETTO_CHECK(ds.status == DataSourceState::Status::kActive);
   ds.status = DataSourceState::Status::kShuttingDown;
 
-  // Make sure that there's an outstanding task to process the unwinding queue,
-  // as it is the point that evaluates the stop condition.
   PostProcessQueue();
 }
 
@@ -540,17 +442,14 @@ void Unwinder::FinishDataSourceStop(DataSourceInstanceID ds_id) {
     return;
   DataSourceState& ds = it->second;
 
-  // Drop unwinder's state tied to the source.
   PERFETTO_CHECK(ds.status == DataSourceState::Status::kShuttingDown);
   data_sources_.erase(it);
 
-  // Clean up state if there are no more active sources.
   if (data_sources_.empty()) {
     kernel_symbolizer_.Destroy();
-    ResetAndEnableUnwindstackCache();
+    backend_->ResetCache();
   }
 
-  // Inform service thread that the unwinder is done with the source.
   delegate_->PostFinishDataSourceStop(ds_id);
 }
 
@@ -568,13 +467,9 @@ void Unwinder::PurgeDataSource(DataSourceInstanceID ds_id) {
 
   data_sources_.erase(it);
 
-  // Clean up state if there are no more active sources.
   if (data_sources_.empty()) {
     kernel_symbolizer_.Destroy();
-    ResetAndEnableUnwindstackCache();
-    // Also purge scudo on Android, which would normally be done by the service
-    // thread in |FinishDataSourceStop|. This is important as most of the scudo
-    // overhead comes from libunwindstack.
+    backend_->ResetCache();
     base::MaybeReleaseAllocatorMemToOS();
   }
 }
@@ -586,12 +481,11 @@ void Unwinder::PostClearCachedStatePeriodic(DataSourceInstanceID ds_id,
       period_ms);
 }
 
-// See header for rationale.
 void Unwinder::ClearCachedStatePeriodic(DataSourceInstanceID ds_id,
                                         uint32_t period_ms) {
   auto it = data_sources_.find(ds_id);
   if (it == data_sources_.end())
-    return;  // stop the periodic task
+    return;
 
   DataSourceState& ds = it->second;
   if (ds.status != DataSourceState::Status::kActive)
@@ -602,26 +496,12 @@ void Unwinder::ClearCachedStatePeriodic(DataSourceInstanceID ds_id,
 
   for (auto& pid_and_process : ds.process_states) {
     if (pid_and_process.second.status == ProcessState::Status::kFdsResolved)
-      pid_and_process.second.unwind_state->fd_maps.Reset();
+      backend_->ReparseMaps(pid_and_process.second.unwind_state.get());
   }
-  ResetAndEnableUnwindstackCache();
+  backend_->ResetCache();
   base::MaybeReleaseAllocatorMemToOS();
 
   PostClearCachedStatePeriodic(ds_id, period_ms);  // repost
-}
-
-void Unwinder::ResetAndEnableUnwindstackCache() {
-  PERFETTO_DLOG("Resetting unwindstack cache");
-  // Libunwindstack uses an unsynchronized variable for setting/checking whether
-  // the cache is enabled. Therefore unwinding and cache toggling should stay on
-  // the same thread, but we might be moving unwinding across threads if we're
-  // recreating |Unwinder| instances (during a reconnect to traced). Therefore,
-  // use our own static lock to synchronize the cache toggling.
-  // TODO(rsavitski): consider fixing this in libunwindstack itself.
-  static std::mutex* lock = new std::mutex{};
-  std::lock_guard<std::mutex> guard{*lock};
-  unwindstack::Elf::SetCachingEnabled(false);  // free any existing state
-  unwindstack::Elf::SetCachingEnabled(true);   // reallocate a fresh cache
 }
 
 }  // namespace profiling

@@ -24,7 +24,6 @@
 #include <thread>
 
 #include <linux/perf_event.h>
-#include <unwindstack/Error.h>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
@@ -33,8 +32,8 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "src/kallsyms/kernel_symbol_map.h"
 #include "src/kallsyms/lazy_kernel_symbolizer.h"
-#include "src/profiling/common/unwind_support.h"
 #include "src/profiling/perf/common_types.h"
+#include "src/profiling/perf/unwind_backend.h"
 #include "src/profiling/perf/unwind_queue.h"
 
 namespace perfetto {
@@ -140,7 +139,7 @@ class Unwinder {
 
     Status status = Status::kInitial;
     // Present iff status == kFdsResolved.
-    std::optional<UnwindingMetadata> unwind_state;
+    std::unique_ptr<ProcessUnwindState> unwind_state;
     // Used to distinguish first-time unwinding attempts for a process, for
     // logging purposes.
     bool attempted_unwinding = false;
@@ -166,7 +165,9 @@ class Unwinder {
   };
 
   // Must be instantiated via the |UnwinderHandle|.
-  Unwinder(Delegate* delegate, base::MaybeLockFreeTaskRunner* task_runner);
+  Unwinder(Delegate* delegate,
+           base::MaybeLockFreeTaskRunner* task_runner,
+           UnwindBackend* backend);
 
   // Marks the data source as valid and active at the unwinding stage.
   // Initializes kernel address symbolization if needed.
@@ -192,13 +193,12 @@ class Unwinder {
   base::FlatSet<DataSourceInstanceID> ConsumeAndUnwindReadySamples();
 
   CompletedSample UnwindSample(const ParsedSample& sample,
-                               UnwindingMetadata* opt_user_state,
+                               ProcessUnwindState* opt_user_state,
                                bool pid_unwound_before,
                                UnwindMode unwind_mode);
 
   // Returns a list of symbolized kernel frames in the sample (if any).
-  std::vector<unwindstack::FrameData> SymbolizeKernelCallchain(
-      const ParsedSample& sample);
+  std::vector<UnwindFrame> SymbolizeKernelCallchain(const ParsedSample& sample);
 
   // Marks the data source as shutting down at the unwinding stage. It is known
   // that no new samples for this source will be pushed into the queue, but we
@@ -219,37 +219,11 @@ class Unwinder {
                                                    std::memory_order_relaxed);
   }
 
-  // Clears the parsed maps for all previously-sampled processes, and resets the
-  // libunwindstack cache. This has the effect of deallocating the cached Elf
-  // objects within libunwindstack, which take up non-trivial amounts of memory.
-  //
-  // There are two reasons for having this operation:
-  // * over a longer trace, it's desirable to drop heavy state for processes
-  //   that haven't been sampled recently.
-  // * since libunwindstack's cache is not bounded, it'll tend towards having
-  //   state for all processes that are targeted by the profiling config.
-  //   Clearing the cache periodically helps keep its footprint closer to the
-  //   actual working set (NB: which might still be arbitrarily big, depending
-  //   on the profiling config).
-  //
-  // After this function completes, the next unwind for each process will
-  // therefore incur a guaranteed maps reparse.
-  //
-  // Unwinding for concurrent data sources will *not* be directly affected at
-  // the time of writing, as the non-cleared parsed maps will keep the cached
-  // Elf objects alive through shared_ptrs.
-  //
-  // Note that this operation is heavy in terms of cpu%, and should therefore
-  // be called only for profiling configs that require it.
-  //
-  // TODO(rsavitski): dropping the full parsed maps is somewhat excessive, could
-  // instead clear just the |MapInfo.elf| shared_ptr, but that's considered too
-  // brittle as it's an implementation detail of libunwindstack.
-  // TODO(rsavitski): improve libunwindstack cache's architecture (it is still
-  // worth having at the moment to speed up unwinds across map reparses).
+  // Periodically clears cached per-process state (reparsing maps on next
+  // unwind) and resets the backend's cache.
   void ClearCachedStatePeriodic(DataSourceInstanceID ds_id, uint32_t period_ms);
 
-  void ResetAndEnableUnwindstackCache();
+  UnwindBackend* const backend_;
 
   base::MaybeLockFreeTaskRunner* const task_runner_;
   Delegate* const delegate_;
@@ -267,7 +241,8 @@ class Unwinder {
 // owned state, and consolidate.
 class UnwinderHandle {
  public:
-  explicit UnwinderHandle(Unwinder::Delegate* delegate) {
+  explicit UnwinderHandle(Unwinder::Delegate* delegate, UnwindBackend* backend)
+      : backend_(backend) {
     std::mutex init_lock;
     std::condition_variable init_cv;
 
@@ -285,7 +260,7 @@ class UnwinderHandle {
         };
 
     thread_ = std::thread(&UnwinderHandle::RunTaskThread, this,
-                          std::move(initializer), delegate);
+                          std::move(initializer), delegate, backend_);
 
     std::unique_lock<std::mutex> lock(init_lock);
     init_cv.wait(lock, [this] { return !!task_runner_ && !!unwinder_; });
@@ -306,14 +281,16 @@ class UnwinderHandle {
  private:
   void RunTaskThread(std::function<void(base::MaybeLockFreeTaskRunner*,
                                         Unwinder*)> initializer,
-                     Unwinder::Delegate* delegate) {
+                     Unwinder::Delegate* delegate,
+                     UnwindBackend* backend) {
     base::MaybeLockFreeTaskRunner task_runner;
-    Unwinder unwinder(delegate, &task_runner);
+    Unwinder unwinder(delegate, &task_runner, backend);
     task_runner.PostTask(
         std::bind(std::move(initializer), &task_runner, &unwinder));
     task_runner.Run();
   }
 
+  UnwindBackend* const backend_;
   std::thread thread_;
   base::MaybeLockFreeTaskRunner* task_runner_ = nullptr;
   Unwinder* unwinder_ = nullptr;

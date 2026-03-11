@@ -17,15 +17,13 @@
 #ifndef SRC_PROFILING_PERF_COMMON_TYPES_H_
 #define SRC_PROFILING_PERF_COMMON_TYPES_H_
 
-#include <memory>
+#include <optional>
 #include <vector>
 
 #include <linux/perf_event.h>
 #include <stdint.h>
 
-#include <unwindstack/Error.h>
-#include <unwindstack/Regs.h>
-#include <unwindstack/Unwinder.h>  // for FrameData
+#include "src/profiling/perf/unwind_types.h"
 
 namespace perfetto {
 namespace profiling {
@@ -52,7 +50,8 @@ struct ParsedSample {
   ParsedSample& operator=(ParsedSample&&) noexcept = default;
 
   CommonSampleData common;
-  std::unique_ptr<unwindstack::Regs> regs;
+  // Parsed register state. Empty for kernel threads.
+  std::optional<RegisterData> regs;
   std::vector<char> stack;
   bool stack_maxed = false;
   std::vector<uint64_t> kernel_ips;
@@ -85,9 +84,8 @@ struct CompletedSample {
   CompletedSample& operator=(CompletedSample&&) noexcept = default;
 
   CommonSampleData common;
-  std::vector<unwindstack::FrameData> frames;
-  std::vector<std::string> build_ids;
-  unwindstack::ErrorCode unwind_error = unwindstack::ERROR_NONE;
+  std::vector<UnwindFrame> frames;
+  UnwindErrorCode unwind_error = UnwindErrorCode::kNone;
 };
 
 }  // namespace profiling

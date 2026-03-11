@@ -23,13 +23,11 @@
 #include <optional>
 #include <vector>
 
-#include <unwindstack/Regs.h>
-
 #include "perfetto/base/flat_set.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 #include "protos/perfetto/common/perf_events.gen.h"
 #include "protos/perfetto/config/profiling/perf_event_config.gen.h"
-#include "src/profiling/perf/regs_parsing.h"
 
 namespace perfetto {
 namespace profiling {
@@ -385,6 +383,7 @@ PerfCounter PerfCounter::RawEvent(std::string name,
 
 // static
 std::optional<EventConfig> EventConfig::Create(
+    uint64_t perf_user_regs_mask,
     const protos::gen::PerfEventConfig& pb_config,
     const DataSourceConfig& raw_ds_config,
     std::optional<ProcessSharding> process_sharding,
@@ -416,8 +415,9 @@ std::optional<EventConfig> EventConfig::Create(
     return CreatePolling(std::move(timebase_event), std::move(followers),
                          pb_config, raw_ds_config);
   }
-  return CreateSampling(std::move(timebase_event), std::move(followers),
-                        process_sharding, pb_config, raw_ds_config);
+  return CreateSampling(perf_user_regs_mask, std::move(timebase_event),
+                        std::move(followers), process_sharding, pb_config,
+                        raw_ds_config);
 }
 
 // Builds a config that is analogous to:
@@ -494,6 +494,7 @@ std::optional<EventConfig> EventConfig::CreatePolling(
 
 // static
 std::optional<EventConfig> EventConfig::CreateSampling(
+    uint64_t perf_user_regs_mask,
     PerfCounter timebase_event,
     std::vector<PerfCounter> followers,
     std::optional<ProcessSharding> process_sharding,
@@ -629,8 +630,7 @@ std::optional<EventConfig> EventConfig::CreateSampling(
     // can be lower than this.
     pe.sample_stack_user = (1u << 16) - 256;
     // PERF_SAMPLE_REGS_USER:
-    pe.sample_regs_user =
-        PerfUserRegsMaskForArch(unwindstack::Regs::CurrentArch());
+    pe.sample_regs_user = perf_user_regs_mask;
   }
   if (kernel_frames) {
     pe.sample_type |= PERF_SAMPLE_CALLCHAIN;

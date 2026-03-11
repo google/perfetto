@@ -1659,6 +1659,133 @@ if (is_linux || is_android) {
   }
 }
 
+# nongnu.org libunwind for remote DWARF-based stack unwinding.
+# This is NOT the LLVM libunwind (buildtools/libunwind above which is for
+# the C++ runtime). This library provides the unw_* API for remote unwinding
+# via unw_create_addr_space / unw_init_remote / unw_step.
+if (enable_perfetto_libunwind) {
+  config("nongnu_libunwind_config") {
+    visibility = _buildtools_visibility
+    include_dirs = [
+      # Our pre-baked config goes first so it shadows the .in templates.
+      "nongnu_libunwind_config",
+      "nongnu-libunwind/include",
+    ]
+    cflags = [
+      "-include",
+      rebase_path("nongnu_libunwind_config/config.h", root_build_dir),
+    ]
+  }
+
+  source_set("nongnu_libunwind") {
+    visibility = _buildtools_visibility
+    configs -= [ "//gn/standalone:extra_warnings" ]
+    public_configs = [ ":nongnu_libunwind_config" ]
+    deps = [ "//gn:default_deps" ]
+
+    include_dirs = [
+      "nongnu-libunwind/src",
+      "nongnu-libunwind/include",
+      "nongnu-libunwind/include/tdep",
+      "nongnu_libunwind_config",
+    ]
+
+    defines = [
+      "HAVE_CONFIG_H",
+      "_GNU_SOURCE",
+
+      # We only use remote unwinding (unw_init_remote), not local unwinding.
+      # This excludes code paths that require setcontext/getcontext assembly.
+      "UNW_REMOTE_ONLY",
+    ]
+
+    # Common (machine-independent) sources.
+    sources = [
+      "nongnu-libunwind/src/dl-iterate-phdr.c",
+      "nongnu-libunwind/src/mi/flush_cache.c",
+      "nongnu-libunwind/src/mi/init.c",
+      "nongnu-libunwind/src/mi/mempool.c",
+      "nongnu-libunwind/src/mi/strerror.c",
+      "nongnu-libunwind/src/os-linux.c",
+
+      # Generic (remote-capable) machine-independent sources.
+      "nongnu-libunwind/src/mi/Gaddress_validator.c",
+      "nongnu-libunwind/src/mi/Gdestroy_addr_space.c",
+      "nongnu-libunwind/src/mi/Gdyn-extract.c",
+      "nongnu-libunwind/src/mi/Gdyn-remote.c",
+      "nongnu-libunwind/src/mi/Gfind_dynamic_proc_info.c",
+      "nongnu-libunwind/src/mi/Gget_accessors.c",
+      "nongnu-libunwind/src/mi/Gget_elf_filename.c",
+      "nongnu-libunwind/src/mi/Gget_fpreg.c",
+      "nongnu-libunwind/src/mi/Gget_proc_info_by_ip.c",
+      "nongnu-libunwind/src/mi/Gget_proc_name.c",
+      "nongnu-libunwind/src/mi/Gget_reg.c",
+      "nongnu-libunwind/src/mi/Gput_dynamic_unwind_info.c",
+      "nongnu-libunwind/src/mi/Gset_cache_size.c",
+      "nongnu-libunwind/src/mi/Gset_caching_policy.c",
+      "nongnu-libunwind/src/mi/Gset_fpreg.c",
+      "nongnu-libunwind/src/mi/Gset_iterate_phdr_function.c",
+      "nongnu-libunwind/src/mi/Gset_reg.c",
+
+      # DWARF unwinding support.
+      "nongnu-libunwind/src/dwarf/Gexpr.c",
+      "nongnu-libunwind/src/dwarf/Gfde.c",
+      "nongnu-libunwind/src/dwarf/Gfind_proc_info-lsb.c",
+      "nongnu-libunwind/src/dwarf/Gfind_unwind_table.c",
+      "nongnu-libunwind/src/dwarf/Gget_proc_info_in_range.c",
+      "nongnu-libunwind/src/dwarf/Gparser.c",
+      "nongnu-libunwind/src/dwarf/Gpe.c",
+      "nongnu-libunwind/src/dwarf/global.c",
+    ]
+
+    # Architecture-specific sources.
+    if (current_cpu == "x64") {
+      include_dirs += [ "nongnu-libunwind/src/x86_64" ]
+      sources += [
+        "nongnu-libunwind/src/x86_64/Gapply_reg_state.c",
+        "nongnu-libunwind/src/x86_64/Gcreate_addr_space.c",
+        "nongnu-libunwind/src/x86_64/Gget_proc_info.c",
+        "nongnu-libunwind/src/x86_64/Gget_save_loc.c",
+        "nongnu-libunwind/src/x86_64/Gglobal.c",
+        "nongnu-libunwind/src/x86_64/Ginit.c",
+        "nongnu-libunwind/src/x86_64/Ginit_local.c",
+        "nongnu-libunwind/src/x86_64/Ginit_remote.c",
+        "nongnu-libunwind/src/x86_64/Gos-linux.c",
+        "nongnu-libunwind/src/x86_64/Greg_states_iterate.c",
+        "nongnu-libunwind/src/x86_64/Gregs.c",
+        "nongnu-libunwind/src/x86_64/Gresume.c",
+        "nongnu-libunwind/src/x86_64/Gstash_frame.c",
+        "nongnu-libunwind/src/x86_64/Gstep.c",
+        "nongnu-libunwind/src/x86_64/Gtrace.c",
+        "nongnu-libunwind/src/x86_64/is_fpreg.c",
+        "nongnu-libunwind/src/x86_64/regname.c",
+      ]
+    } else if (current_cpu == "arm64") {
+      include_dirs += [ "nongnu-libunwind/src/aarch64" ]
+      sources += [
+        "nongnu-libunwind/src/aarch64/Gapply_reg_state.c",
+        "nongnu-libunwind/src/aarch64/Gcreate_addr_space.c",
+        "nongnu-libunwind/src/aarch64/Gget_proc_info.c",
+        "nongnu-libunwind/src/aarch64/Gget_save_loc.c",
+        "nongnu-libunwind/src/aarch64/Gglobal.c",
+        "nongnu-libunwind/src/aarch64/Ginit.c",
+        "nongnu-libunwind/src/aarch64/Ginit_local.c",
+        "nongnu-libunwind/src/aarch64/Ginit_remote.c",
+        "nongnu-libunwind/src/aarch64/Gis_signal_frame.c",
+        "nongnu-libunwind/src/aarch64/Gos-linux.c",
+        "nongnu-libunwind/src/aarch64/Greg_states_iterate.c",
+        "nongnu-libunwind/src/aarch64/Gregs.c",
+        "nongnu-libunwind/src/aarch64/Gresume.c",
+        "nongnu-libunwind/src/aarch64/Gstash_frame.c",
+        "nongnu-libunwind/src/aarch64/Gstep.c",
+        "nongnu-libunwind/src/aarch64/Gtrace.c",
+        "nongnu-libunwind/src/aarch64/is_fpreg.c",
+        "nongnu-libunwind/src/aarch64/regname.c",
+      ]
+    }
+  }
+}
+
 config("sqlite_config") {
   visibility = _buildtools_visibility
   include_dirs = [ "sqlite" ]
