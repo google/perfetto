@@ -88,8 +88,6 @@ interface TabHandleAttrs {
 }
 
 class TabHandle implements m.ClassComponent<TabHandleAttrs> {
-  private menuOpen = false;
-
   view({attrs, children}: m.CVnode<TabHandleAttrs>): m.Children {
     const {
       active,
@@ -200,25 +198,16 @@ class TabHandle implements m.ClassComponent<TabHandleAttrs> {
         : m('.pf-tabs__tab-title', children),
       menuItems !== undefined &&
         m(
-          '.pf-tabs__tab-menu',
+          PopupMenu,
           {
-            className: classNames(this.menuOpen && 'pf-tabs__tab-menu--open'),
-            onclick: (e: Event) => e.stopPropagation(),
+            trigger: m(Button, {
+              compact: true,
+              icon: Icons.ContextMenuAlt,
+              className: 'pf-tabs__tab-menu-btn',
+            }),
+            position: PopupPosition.Bottom,
           },
-          m(
-            PopupMenu,
-            {
-              trigger: m(Button, {
-                compact: true,
-                icon: Icons.ContextMenuAlt,
-              }),
-              position: PopupPosition.Bottom,
-              onChange: (isOpen: boolean) => {
-                this.menuOpen = isOpen;
-              },
-            },
-            menuItems,
-          ),
+          menuItems,
         ),
       hasCloseButton &&
         m(Button, {
