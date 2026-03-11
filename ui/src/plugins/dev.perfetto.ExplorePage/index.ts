@@ -419,6 +419,11 @@ export default class implements PerfettoPlugin {
     trace.pages.registerPage({
       route: '/explore',
       render: () => {
+        // Ensure SQL modules initialization is triggered (no-op if already
+        // started). This kicks off the data availability checks that determine
+        // which modules should be marked as "No data".
+        trace.plugins.getPlugin(SqlModulesPlugin).ensureInitialized();
+
         // Try to load saved state lazily (waits for SQL modules to be ready).
         this.tryLoadState(trace);
 
