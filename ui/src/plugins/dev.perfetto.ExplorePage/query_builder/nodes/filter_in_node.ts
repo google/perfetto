@@ -62,7 +62,7 @@ import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
 import {loadNodeDoc} from '../node_doc_loader';
 import {ListItem, OutlinedField} from '../widgets';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {NodeDetailsMessage, ColumnName} from '../node_styling_widgets';
 import {notifyNextNodes} from '../graph_utils';
 import {getCommonColumns} from '../utils';

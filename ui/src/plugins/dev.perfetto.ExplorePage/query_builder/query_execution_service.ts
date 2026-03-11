@@ -253,7 +253,7 @@ export class QueryExecutionService {
   }
 
   /**
-   * Called by NodeExplorer when the structured query changes for a
+   * Called by NodePanel when the structured query changes for a
    * manual-execute (autoExecute=false) node after its initial load.
    *
    * Determines whether the change is post-execution column discovery or a
@@ -279,7 +279,7 @@ export class QueryExecutionService {
    * Routed through the execution queue so any pending column-discovery
    * operation drains before the reset clears justExecutedNodes.
    *
-   * Called by NodeExplorer when a different node is selected, so that
+   * Called by NodePanel when a different node is selected, so that
    * switching back to a previously-executed node re-checks for existing
    * materialized results.
    */

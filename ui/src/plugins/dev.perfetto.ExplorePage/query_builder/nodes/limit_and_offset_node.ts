@@ -24,7 +24,7 @@ import protos from '../../../../protos';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
 import {InlineField} from '../widgets';
-import {NodeDetailsAttrs, NodeModifyAttrs} from '../node_explorer_types';
+import {NodeDetailsAttrs, NodeModifyAttrs} from '../../node_types';
 import {createErrorSections} from '../widgets';
 import {loadNodeDoc} from '../node_doc_loader';
 

@@ -28,7 +28,7 @@ import {NodeIssues} from '../node_issues';
 import {Checkbox} from '../../../../widgets/checkbox';
 import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
 import {loadNodeDoc} from '../node_doc_loader';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {
   DraggableItem,
   SelectDeselectAllButtons,

@@ -27,7 +27,7 @@ import protos from '../../../../protos';
 import {NodeIssues} from '../node_issues';
 import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
 import {DraggableItem, SelectDeselectAllButtons} from '../widgets';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {
   NodeDetailsMessage,
   NodeDetailsSpacer,

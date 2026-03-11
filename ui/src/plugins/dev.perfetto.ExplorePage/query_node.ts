@@ -19,7 +19,7 @@ import {ColumnInfo} from './query_builder/column_info';
 import {UIFilter} from './query_builder/operations/filter';
 import {NodeIssues} from './query_builder/node_issues';
 import {Trace} from '../../public/trace';
-import {NodeDetailsAttrs} from './query_builder/node_explorer_types';
+import {NodeDetailsAttrs} from './node_types';
 
 let nodeCounter = 0;
 export function nextNodeId(): string {

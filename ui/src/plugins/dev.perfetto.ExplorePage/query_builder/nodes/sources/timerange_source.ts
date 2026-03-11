@@ -35,7 +35,7 @@ import protos from '../../../../../protos';
 import {InlineField} from '../../widgets';
 import {Callout} from '../../../../../widgets/callout';
 import {NodeIssues} from '../../node_issues';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../../../node_types';
 import {loadNodeDoc} from '../../node_doc_loader';
 import {NodeTitle} from '../../node_styling_widgets';
 

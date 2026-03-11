@@ -19,7 +19,7 @@
 
 // Override modal's main margin for table list
 // The :has() selector provides sufficient specificity to override the default margin
-.pf-modal-dialog main:has(.pf-exp-node-explorer-help) {
+.pf-modal-dialog main:has(.pf-exp-node-panel-help) {
   margin-top: 0;
   display: flex;
   flex-direction: column;
@@ -27,7 +27,7 @@
 }
 
 // Make the table list scrollable
-.pf-exp-node-explorer-help {
+.pf-exp-node-panel-help {
   display: flex;
   flex-direction: column;
   min-height: 0;

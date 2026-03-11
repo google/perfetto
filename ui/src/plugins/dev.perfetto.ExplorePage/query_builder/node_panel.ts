@@ -23,12 +23,12 @@ import {CodeSnippet} from '../../../widgets/code_snippet';
 import {AggregationNode} from './nodes/aggregation_node';
 import {NodeIssues} from './node_issues';
 import {TabStrip} from '../../../widgets/tab_strip';
-import {NodeModifyAttrs} from './node_explorer_types';
+import {NodeModifyAttrs} from '../node_types';
 import {Button, ButtonAttrs, ButtonVariant} from '../../../widgets/button';
 import {ResultsPanelEmptyState, InfoBox} from './widgets';
 import {QueryExecutionService} from './query_execution_service';
 
-export interface NodeExplorerAttrs {
+export interface NodePanelAttrs {
   readonly node?: QueryNode;
   readonly trace: Trace;
   readonly queryExecutionService: QueryExecutionService;
@@ -63,7 +63,7 @@ enum SelectedView {
   kResult = 2,
 }
 
-export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
+export class NodePanel implements m.ClassComponent<NodePanelAttrs> {
   private readonly tableAsyncLimiter = new AsyncLimiter();
 
   private prevSqString?: string;
@@ -75,12 +75,12 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
 
   private renderTitleRow(node: QueryNode): m.Child {
     return m(
-      '.pf-exp-node-explorer__title-row',
+      '.pf-exp-node-panel__title-row',
       m('.title', m('h2', node.getTitle())),
     );
   }
 
-  private updateQuery(node: QueryNode, attrs: NodeExplorerAttrs) {
+  private updateQuery(node: QueryNode, attrs: NodePanelAttrs) {
     // TODO: Re-implement WITH statement dependencies for SqlSourceNode
     // This was removed during the connection model migration
     if (node instanceof SqlSourceNode && node.state.sql) {
@@ -202,14 +202,14 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       return null;
     }
 
-    return m('.pf-exp-node-explorer__buttons-top-container', [
-      m('.pf-exp-node-explorer__buttons-top', [
+    return m('.pf-exp-node-panel__buttons-top-container', [
+      m('.pf-exp-node-panel__buttons-top', [
         m(
-          '.pf-exp-node-explorer__buttons-top-left',
+          '.pf-exp-node-panel__buttons-top-left',
           this.renderButtons(buttons.topLeftButtons),
         ),
         m(
-          '.pf-exp-node-explorer__buttons-top-right',
+          '.pf-exp-node-panel__buttons-top-right',
           this.renderButtons(buttons.topRightButtons),
         ),
       ]),
@@ -221,13 +221,13 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
       return null;
     }
 
-    return m('.pf-exp-node-explorer__buttons-bottom', [
+    return m('.pf-exp-node-panel__buttons-bottom', [
       m(
-        '.pf-exp-node-explorer__buttons-bottom-left',
+        '.pf-exp-node-panel__buttons-bottom-left',
         this.renderButtons(buttons.bottomLeftButtons),
       ),
       m(
-        '.pf-exp-node-explorer__buttons-bottom-right',
+        '.pf-exp-node-panel__buttons-bottom-right',
         this.renderButtons(buttons.bottomRightButtons),
       ),
     ]);
@@ -239,13 +239,13 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     }
 
     return m(
-      '.pf-exp-node-explorer__sections',
+      '.pf-exp-node-panel__sections',
       sections.map((section) =>
         m(
-          '.pf-exp-node-explorer__section',
+          '.pf-exp-node-panel__section',
           section.title &&
-            m('h3.pf-exp-node-explorer__section-title', section.title),
-          m('.pf-exp-node-explorer__section-content', section.content),
+            m('h3.pf-exp-node-panel__section-title', section.title),
+          m('.pf-exp-node-panel__section-content', section.content),
         ),
       ),
     );
@@ -257,7 +257,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     // Check if node returned attrs (new pattern) or m.Child (old pattern)
     if (this.isNodeModifyAttrs(modifyResult)) {
       const attrs = modifyResult as NodeModifyAttrs;
-      return m('.pf-exp-node-explorer__modify', [
+      return m('.pf-exp-node-panel__modify', [
         m(InfoBox, attrs.info),
         this.renderTopButtons(attrs),
         this.renderSections(attrs.sections),
@@ -282,7 +282,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
   private renderContent(
     node: QueryNode,
     selectedView: number,
-    attrs: NodeExplorerAttrs,
+    attrs: NodePanelAttrs,
   ): m.Child {
     // Use query from attrs (single source of truth from Builder)
     const query = attrs.query ?? this.currentQuery;
@@ -334,7 +334,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     );
   }
 
-  view({attrs}: m.CVnode<NodeExplorerAttrs>) {
+  view({attrs}: m.CVnode<NodePanelAttrs>) {
     const {node, isCollapsed, selectedView = SelectedView.kInfo} = attrs;
     if (!node) {
       return null;
@@ -359,14 +359,14 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
     this.updateQuery(node, attrs);
 
     if (isCollapsed) {
-      return m('.pf-exp-node-explorer.collapsed');
+      return m('.pf-exp-node-panel.collapsed');
     }
 
     return m(
-      `.pf-exp-node-explorer${
-        node instanceof SqlSourceNode ? '.pf-exp-node-explorer-sql-source' : ''
+      `.pf-exp-node-panel${
+        node instanceof SqlSourceNode ? '.pf-exp-node-panel-sql-source' : ''
       }`,
-      m('.pf-exp-node-explorer__header', this.renderTitleRow(node)),
+      m('.pf-exp-node-panel__header', this.renderTitleRow(node)),
       this.renderContent(node, selectedView, attrs),
     );
   }

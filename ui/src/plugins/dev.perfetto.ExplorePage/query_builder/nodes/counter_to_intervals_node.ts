@@ -23,7 +23,7 @@ import protos from '../../../../protos';
 import m from 'mithril';
 import {StructuredQueryBuilder} from '../structured_query_builder';
 import {setValidationError} from '../node_issues';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {NodeDetailsMessage} from '../node_styling_widgets';
 import {loadNodeDoc} from '../node_doc_loader';
 import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';

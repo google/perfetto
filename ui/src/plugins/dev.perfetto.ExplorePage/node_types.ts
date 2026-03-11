@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ButtonVariant} from '../../../widgets/button';
+import {ButtonVariant} from '../../widgets/button';
 
 interface CommonButtonAttrs {
   onclick: () => void;

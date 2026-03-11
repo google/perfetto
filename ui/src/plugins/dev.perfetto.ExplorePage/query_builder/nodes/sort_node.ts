@@ -34,7 +34,7 @@ import {
   MultiSelectOption,
   MultiSelectDiff,
 } from '../widgets';
-import {NodeDetailsAttrs, NodeModifyAttrs} from '../node_explorer_types';
+import {NodeDetailsAttrs, NodeModifyAttrs} from '../../node_types';
 import {loadNodeDoc} from '../node_doc_loader';
 import {createErrorSections} from '../widgets';
 import {NodeDetailsMessage} from '../node_styling_widgets';

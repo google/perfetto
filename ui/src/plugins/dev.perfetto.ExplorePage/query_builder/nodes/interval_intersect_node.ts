@@ -37,7 +37,7 @@ import {
   MultiSelectOption,
   MultiSelectDiff,
 } from '../widgets';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {NodeTitle, ColumnName} from '../node_styling_widgets';
 import {loadNodeDoc} from '../node_doc_loader';
 import {getCommonColumns} from '../utils';

@@ -14,7 +14,7 @@
 
 @import "./common.scss";
 
-.pf-exp-node-explorer {
+.pf-exp-node-panel {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -90,15 +90,15 @@
     display: none;
   }
 
-  i.pf-exp-node-explorer__warning-icon--error {
+  i.pf-exp-node-panel__warning-icon--error {
     color: var(--pf-color-danger);
   }
 
-  i.pf-exp-node-explorer__warning-icon--warning {
+  i.pf-exp-node-panel__warning-icon--warning {
     color: var(--pf-color-warning);
   }
 
-  .pf-exp-node-explorer__comment {
+  .pf-exp-node-panel__comment {
     border: 1px solid var(--pf-color-border);
     border-radius: 4px;
     background-color: var(--pf-color-background);
@@ -111,7 +111,7 @@
   }
 }
 
-.pf-exp-node-explorer-sql-source {
+.pf-exp-node-panel-sql-source {
   article {
     padding: 0;
     border: none;
@@ -170,7 +170,7 @@
 }
 
 // Structured modify view styling
-.pf-exp-node-explorer__modify {
+.pf-exp-node-panel__modify {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -178,7 +178,7 @@
 }
 
 // Top buttons container - absolutely positioned overlay
-.pf-exp-node-explorer__buttons-top-container {
+.pf-exp-node-panel__buttons-top-container {
   position: absolute;
   top: 0;
   left: 0;
@@ -191,7 +191,7 @@
   }
 }
 
-.pf-exp-node-explorer__buttons-top {
+.pf-exp-node-panel__buttons-top {
   display: flex;
   justify-content: space-between;
   padding: 1rem 0;
@@ -199,7 +199,7 @@
 }
 
 // Bottom buttons - sticky at bottom of scrolling container
-.pf-exp-node-explorer__buttons-bottom {
+.pf-exp-node-panel__buttons-bottom {
   display: flex;
   justify-content: space-between;
   padding: 1rem 0.5rem 0.5rem 0;
@@ -215,31 +215,31 @@
   }
 }
 
-.pf-exp-node-explorer__buttons-top-left,
-.pf-exp-node-explorer__buttons-top-right,
-.pf-exp-node-explorer__buttons-bottom-left,
-.pf-exp-node-explorer__buttons-bottom-right {
+.pf-exp-node-panel__buttons-top-left,
+.pf-exp-node-panel__buttons-top-right,
+.pf-exp-node-panel__buttons-bottom-left,
+.pf-exp-node-panel__buttons-bottom-right {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
 }
 
-.pf-exp-node-explorer__buttons-bottom-left,
-.pf-exp-node-explorer__buttons-bottom-right {
+.pf-exp-node-panel__buttons-bottom-left,
+.pf-exp-node-panel__buttons-bottom-right {
   .pf-button {
     pointer-events: auto;
     background-color: var(--pf-color-background);
   }
 }
 
-.pf-exp-node-explorer__sections {
+.pf-exp-node-panel__sections {
   display: flex;
   flex-direction: column;
   gap: 0;
   flex-grow: 1;
 }
 
-.pf-exp-node-explorer__section {
+.pf-exp-node-panel__section {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -256,7 +256,7 @@
   }
 }
 
-.pf-exp-node-explorer__section-title {
+.pf-exp-node-panel__section-title {
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--pf-color-text);
@@ -266,7 +266,7 @@
   font-size: 0.75rem;
 }
 
-.pf-exp-node-explorer__section-content {
+.pf-exp-node-panel__section-content {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;

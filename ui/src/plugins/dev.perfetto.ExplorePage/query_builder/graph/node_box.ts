@@ -20,7 +20,7 @@ import {QueryNode} from '../../query_node';
 import {Icon} from '../../../../widgets/icon';
 import {buildMenuItems} from './menu_utils';
 import {nodeRegistry} from '../node_registry';
-import {NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeDetailsAttrs} from '../../node_types';
 import {NodeDetailsContent} from '../node_styling_widgets';
 
 export interface NodeBoxAttrs {

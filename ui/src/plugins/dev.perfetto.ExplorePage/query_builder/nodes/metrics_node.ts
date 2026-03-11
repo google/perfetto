@@ -23,7 +23,7 @@ import protos from '../../../../protos';
 import {ColumnInfo, newColumnInfoList} from '../column_info';
 import {NodeIssues} from '../node_issues';
 import {OutlinedField} from '../widgets';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {loadNodeDoc} from '../node_doc_loader';
 import {

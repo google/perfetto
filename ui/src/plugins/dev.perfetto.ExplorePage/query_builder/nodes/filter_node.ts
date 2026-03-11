@@ -36,7 +36,7 @@ import {showModal} from '../../../../widgets/modal';
 import {Editor} from '../../../../widgets/editor';
 import {ListItem, OutlinedField, InlineEditList} from '../widgets';
 import {EmptyState} from '../../../../widgets/empty_state';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {NodeDetailsMessage} from '../node_styling_widgets';
 import {Icons} from '../../../../base/semantic_icons';

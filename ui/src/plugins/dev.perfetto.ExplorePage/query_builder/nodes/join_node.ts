@@ -31,7 +31,7 @@ import {
   JoinCondition,
 } from '../structured_query_builder';
 import {loadNodeDoc} from '../node_doc_loader';
-import {NodeModifyAttrs, NodeDetailsAttrs} from '../node_explorer_types';
+import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {NodeTitle} from '../node_styling_widgets';
 import {JoinConditionSelector, JoinConditionDisplay} from '../join_widgets';
 import {ResizableSqlEditor} from '../widgets';
