@@ -28,27 +28,22 @@ test.beforeAll(async ({browser}, _testInfo) => {
 
 test('kernel trackevent tracks', async () => {
   // cpu-scoped tracks
-  const cpuGrp = pth.locateTrack('CPU');
-  await cpuGrp.scrollIntoViewIfNeeded();
+  const cpuGrp = await pth.scrollToTrack('CPU');
   await pth.toggleTrackGroup(cpuGrp);
 
   // custom-scoped tracks
-  const kernelGrp = pth.locateTrack('Kernel');
-  await kernelGrp.scrollIntoViewIfNeeded();
+  const kernelGrp = await pth.scrollToTrack('Kernel');
   await pth.toggleTrackGroup(kernelGrp);
 
-  const kernelTrkGrp = pth.locateTrack('Kernel/Kernel track events', kernelGrp);
-  await kernelTrkGrp.scrollIntoViewIfNeeded();
+  const kernelTrkGrp = await pth.scrollToTrack('Kernel/Kernel track events');
   await pth.toggleTrackGroup(kernelTrkGrp);
 
   // process-scoped tracks
-  const processGrp = pth.locateTrack('Process 535');
-  await processGrp.scrollIntoViewIfNeeded();
+  const processGrp = await pth.scrollToTrack('Process 535');
   await pth.toggleTrackGroup(processGrp);
 
   // thread-scoped tracks
-  const ThreadGrp = pth.locateTrack('Thread 537');
-  await ThreadGrp.scrollIntoViewIfNeeded();
+  const ThreadGrp = await pth.scrollToTrack('Thread 537');
   await pth.toggleTrackGroup(ThreadGrp);
 
   await pth.waitForIdleAndScreenshot('ftrace_kernel_trackevent.png');

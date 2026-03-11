@@ -114,3 +114,51 @@
   opacity: 0.9;
   font-weight: 300;
 }
+
+.pf-track-search-bar {
+  background: var(--pf-color-background);
+  border-bottom: 1px solid var(--pf-color-border);
+  padding: 4px;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 4px;
+  font-family: var(--pf-font-family);
+  font-size: var(--pf-font-size-m);
+  flex-shrink: 0;
+
+  .pf-text-input {
+    width: 250px;
+    flex: none;
+  }
+
+  &__count {
+    color: var(--pf-color-text-muted);
+    white-space: nowrap;
+    text-align: right;
+  }
+
+  &__buttons {
+    display: flex;
+    gap: 2px;
+  }
+
+  &__bubble {
+    border-radius: 4px;
+    padding: 2px 6px;
+    gap: 4px;
+    background: var(--pf-color-background-secondary);
+    display: inline-flex;
+    align-items: baseline;
+  }
+}
+
+.pf-track-search-help {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  p {
+    margin: 0;
+  }
+}

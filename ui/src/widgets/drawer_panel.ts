@@ -20,6 +20,38 @@ import {classNames} from '../base/classnames';
 import {HTMLAttrs} from './common';
 import {Icons} from '../base/semantic_icons';
 
+// Walk up the DOM tree to find the first ancestor with a constrained height
+// (i.e. not auto). This skips over Mithril wrapper divs and Gate elements
+// (display: contents) that don't establish a height context.
+function findConstrainingAncestor(el: HTMLElement): HTMLElement | undefined {
+  let current = el.parentElement;
+  while (current) {
+    const style = getComputedStyle(current);
+    // Skip display: contents elements (e.g. Gate wrappers).
+    if (style.display === 'contents') {
+      current = current.parentElement;
+      continue;
+    }
+    // An element has a constrained height if its computed height differs
+    // significantly from its scrollHeight (overflow), or if it has an
+    // explicit height/max-height set, or if it's a flex/grid item that
+    // has been stretched. We use a simple heuristic: if the element's
+    // clientHeight is smaller than the DrawerPanel's own scrollHeight,
+    // it's constraining.
+    if (
+      style.overflow === 'hidden' ||
+      style.overflow === 'auto' ||
+      style.overflow === 'scroll' ||
+      style.height !== 'auto' ||
+      style.maxHeight !== 'none'
+    ) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+  return undefined;
+}
+
 export interface TabAttrs extends HTMLAttrs {
   // Is this tab currently active?
   readonly active?: boolean;
@@ -277,14 +309,18 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
   }
 
   oncreate(vnode: m.VnodeDOM<DrawerPanelAttrs, this>) {
-    const parent = vnode.dom.parentElement;
-    if (parent) {
-      this.fullscreenHeight = parent.clientHeight;
+    // Find the nearest ancestor that has a constrained height (not auto).
+    // This handles Mithril ClassComponent wrapper divs and Gate (display:
+    // contents) wrappers that sit between the DrawerPanel and the real
+    // containing element.
+    const container = findConstrainingAncestor(vnode.dom as HTMLElement);
+    if (container) {
+      this.fullscreenHeight = container.clientHeight;
       this.resizeObserver = new ResizeObserver(() => {
-        this.fullscreenHeight = parent.clientHeight;
+        this.fullscreenHeight = container.clientHeight;
         m.redraw();
       });
-      this.resizeObserver.observe(parent);
+      this.resizeObserver.observe(container);
     }
   }
 

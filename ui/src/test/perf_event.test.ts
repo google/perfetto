@@ -27,23 +27,18 @@ test.beforeAll(async ({browser}, _testInfo) => {
 });
 
 test('multiple callstack tracks', async () => {
-  const grp = pth.locateTrack('surfaceflinger 558');
-  await grp.scrollIntoViewIfNeeded();
+  const grp = await pth.scrollToTrack('surfaceflinger 558');
   await pth.toggleTrackGroup(grp);
 
   await pth.waitForIdleAndScreenshot('perf_event_sf.png');
 
-  const processGrp = pth.locateTrack(
+  const processGrp = await pth.scrollToTrack(
     'surfaceflinger 558/Process callstacks',
-    grp,
   );
-  await processGrp.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(processGrp);
-  const threadGrp = pth.locateTrack(
+  const threadGrp = await pth.scrollToTrack(
     'surfaceflinger 558/Thread 558 callstacks',
-    grp,
   );
-  await threadGrp.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(threadGrp);
 
   await pth.waitForIdleAndScreenshot('perf_event_sf_expanded.png');
