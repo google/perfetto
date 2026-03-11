@@ -159,6 +159,9 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       activeTabKey: activeTabId,
       reorderable: true,
       onTabChange: (key) => attrs.onTabChange?.(key),
+      onTabRename: (key, newTitle) => {
+        attrs.onTabRename?.(key, newTitle);
+      },
       onTabClose: (key) => attrs.onTabClose?.(key),
       onTabReorder: (draggedKey, beforeKey) =>
         attrs.onTabReorder?.(draggedKey, beforeKey),
@@ -254,19 +257,6 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           m(CopyToClipboardButton, {
             textToCopy: tab.editorText,
             tooltip: 'Copy query to clipboard',
-          }),
-          m(Button, {
-            icon: 'edit',
-            tooltip: 'Rename this tab',
-            onclick: async () => {
-              const newName = await trace.omnibox.prompt(
-                'Enter new tab name:',
-                tab.title,
-              );
-              if (newName && newName.trim()) {
-                attrs.onTabRename?.(tab.id, newName.trim());
-              }
-            },
           }),
         ]),
       ]),
