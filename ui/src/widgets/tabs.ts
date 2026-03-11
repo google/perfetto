@@ -53,6 +53,9 @@ export interface TabsAttrs {
   // Called when tabs are reordered. Receives the key of the dragged tab and
   // the key of the tab it was dropped before (or undefined if dropped at end).
   onTabReorder?(draggedKey: string, beforeKey: string | undefined): void;
+  // Called when the "new tab" button is clicked. When set, a "+" button is
+  // shown at the end of the tab bar.
+  onNewTab?(): void;
   // Additional class name for the container.
   readonly className?: string;
 }
@@ -61,7 +64,7 @@ interface TabHandleAttrs {
   readonly active?: boolean;
   readonly hasCloseButton?: boolean;
   readonly onClose?: () => void;
-  readonly onclick?: () => void;
+  readonly onpointerdown?: () => void;
   readonly ondblclick?: () => void;
   readonly leftIcon?: string | m.Children;
   readonly tabKey?: string;
@@ -84,7 +87,7 @@ class TabHandle implements m.ClassComponent<TabHandleAttrs> {
       active,
       hasCloseButton,
       onClose,
-      onclick,
+      onpointerdown,
       ondblclick,
       leftIcon,
       tabKey,
@@ -116,7 +119,7 @@ class TabHandle implements m.ClassComponent<TabHandleAttrs> {
       '.pf-tabs__tab',
       {
         className: classNames(active && 'pf-tabs__tab--active'),
-        onclick,
+        onpointerdown,
         ondblclick,
         onauxclick: () => onClose?.(),
         draggable: reorderable,
@@ -220,6 +223,7 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
       onTabRename,
       reorderable,
       onTabReorder,
+      onNewTab,
       className,
     } = attrs;
 
@@ -269,7 +273,7 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
                 leftIcon: tab.leftIcon,
                 tabKey: tab.key,
                 reorderable,
-                onclick: () => {
+                onpointerdown: () => {
                   this.internalActiveTab = tab.key;
                   onTabChange?.(tab.key);
                 },
@@ -346,6 +350,12 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
             ),
           );
         }),
+        onNewTab &&
+          m(Button, {
+            icon: Icons.Add,
+            className: 'pf-tabs__new-tab-btn',
+            onclick: () => onNewTab(),
+          }),
       ),
       m(
         '.pf-tabs__content',

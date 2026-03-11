@@ -19,8 +19,6 @@ import {Builder} from './query_builder/builder';
 import {QueryNode} from './query_node';
 import {ensureAllNodeActions} from './node_actions';
 import {Trace} from '../../public/trace';
-import {Icon} from '../../widgets/icon';
-import {Icons} from '../../base/semantic_icons';
 import {getOrCreate} from '../../base/utils';
 import {Tabs, TabsTab} from '../../widgets/tabs';
 
@@ -120,8 +118,6 @@ interface TabServices {
   initializedNodes: Set<string>;
   executeFn?: () => Promise<void>;
 }
-
-const ADD_TAB_KEY = '__add_tab__';
 
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   // Shared clipboard across all tabs (not persisted).
@@ -623,13 +619,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       content: this.renderTabContent(attrs, tab, sqlModules),
     }));
 
-    // Add "+" button tab
-    tabEntries.push({
-      key: ADD_TAB_KEY,
-      title: m(Icon, {icon: Icons.Add}),
-      content: null,
-    });
-
     return m(
       '.pf-explore-page',
       {
@@ -665,13 +654,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         tabs: tabEntries,
         activeTabKey: activeTabId,
         reorderable: true,
-        onTabChange: (key) => {
-          if (key === ADD_TAB_KEY) {
-            attrs.onTabAdd();
-          } else {
-            attrs.onTabChange(key);
-          }
-        },
+        onNewTab: () => attrs.onTabAdd(),
+        onTabChange: (key) => attrs.onTabChange(key),
         onTabRename: (key, newTitle) => {
           attrs.onTabRename(key, newTitle);
         },
@@ -688,12 +672,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           }
           attrs.onTabClose(key);
         },
-        onTabReorder: (draggedKey, beforeKey) => {
-          if (draggedKey === ADD_TAB_KEY || beforeKey === ADD_TAB_KEY) {
-            return;
-          }
-          attrs.onTabReorder(draggedKey, beforeKey);
-        },
+        onTabReorder: (draggedKey, beforeKey) =>
+          attrs.onTabReorder(draggedKey, beforeKey),
       }),
     );
   }

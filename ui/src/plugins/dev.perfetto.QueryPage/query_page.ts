@@ -46,7 +46,6 @@ import {PopupPosition} from '../../widgets/popup';
 import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {TableList} from './table_list';
-import {Icon} from '../../widgets/icon';
 import {Chip} from '../../widgets/chip';
 
 const HIDE_PERFETTO_SQL_AGENT_BANNER_KEY = 'hidePerfettoSqlAgentBanner';
@@ -154,33 +153,16 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       content: this.renderEditorTabContent(attrs, tab),
     }));
 
-    // Add "+" tab for creating new tabs
-    leftTabs.push({
-      key: '__add_tab__',
-      title: m(Icon, {icon: Icons.Add}),
-      content: null, // Never shown
-    });
-
     const leftPanel = m(Tabs, {
       className: 'pf-query-page__editor-tabs',
       tabs: leftTabs,
       activeTabKey: activeTabId,
       reorderable: true,
-      onTabChange: (key) => {
-        if (key === '__add_tab__') {
-          attrs.onTabAdd?.();
-        } else {
-          attrs.onTabChange?.(key);
-        }
-      },
+      onTabChange: (key) => attrs.onTabChange?.(key),
       onTabClose: (key) => attrs.onTabClose?.(key),
-      onTabReorder: (draggedKey, beforeKey) => {
-        // Don't allow reordering with the add tab button
-        if (draggedKey === '__add_tab__' || beforeKey === '__add_tab__') {
-          return;
-        }
-        attrs.onTabReorder?.(draggedKey, beforeKey);
-      },
+      onTabReorder: (draggedKey, beforeKey) =>
+        attrs.onTabReorder?.(draggedKey, beforeKey),
+      onNewTab: () => attrs.onTabAdd?.(),
     });
 
     const activeTab = editorTabs.find((t) => t.id === activeTabId);
