@@ -195,6 +195,9 @@ class GraphicsGpuTrace(TestSuite):
           depth,
           s.context_id,
           command_buffer,
+          extract_arg(s.arg_set_id, 'command_buffer[0]') as cb0,
+          extract_arg(s.arg_set_id, 'command_buffer[1]') as cb1,
+          extract_arg(s.arg_set_id, 'command_buffer[2]') as cb2,
           submission_id,
           extract_arg(s.arg_set_id, 'tid') as tid,
           extract_arg(s.arg_set_id, 'pid') as pid
@@ -203,9 +206,9 @@ class GraphicsGpuTrace(TestSuite):
         ORDER BY ts;
         """,
         out=Csv('''
-          "track_name","track_desc","ts","dur","slice_name","depth","context_id","command_buffer","submission_id","tid","pid"
-          "Vulkan Events","[NULL]",10,2,"vkQueueSubmit",0,"[NULL]",100,1,43,42
-          "Vulkan Events","[NULL]",20,2,"vkQueueSubmit",0,"[NULL]",200,2,45,44
+          "track_name","track_desc","ts","dur","slice_name","depth","context_id","command_buffer","cb0","cb1","cb2","submission_id","tid","pid"
+          "Vulkan Events","[NULL]",10,2,"vkQueueSubmit",0,"[NULL]",100,100,"[NULL]","[NULL]",1,43,42
+          "Vulkan Events","[NULL]",20,2,"vkQueueSubmit",0,"[NULL]",200,200,300,400,2,45,44
         '''))
 
   def test_gpu_log(self):
