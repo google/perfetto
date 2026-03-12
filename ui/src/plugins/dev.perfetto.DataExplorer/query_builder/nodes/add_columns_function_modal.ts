@@ -21,9 +21,15 @@ import {FunctionArgBinding, NewColumn} from './add_columns_types';
 import {SqlModules} from '../../../dev.perfetto.SqlModules/sql_modules';
 import {ColumnInfo} from '../column_info';
 import {
+  PerfettoSqlType,
   parsePerfettoSqlTypeFromString,
   isQuantitativeType,
 } from '../../../../trace_processor/perfetto_sql_type';
+
+function parseReturnType(returnType: string): PerfettoSqlType | undefined {
+  const result = parsePerfettoSqlTypeFromString({type: returnType});
+  return result.ok ? result.value : undefined;
+}
 
 /**
  * The step in the function modal flow
@@ -167,7 +173,7 @@ export function createFunctionColumn(
     module: state.selectedFunctionWithModule.module.includeKey,
     functionName: state.selectedFunctionWithModule.fn.name,
     functionArgs: state.argBindings,
-    sqlType: state.selectedFunctionWithModule.fn.returnType,
+    sqlType: parseReturnType(state.selectedFunctionWithModule.fn.returnType),
   };
 }
 

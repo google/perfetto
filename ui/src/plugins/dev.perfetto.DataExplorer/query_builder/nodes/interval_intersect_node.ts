@@ -23,7 +23,12 @@ import {
 import {notifyNextNodes} from '../graph_utils';
 import protos from '../../../../protos';
 import {ColumnInfo} from '../column_info';
-import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';
+import {
+  PerfettoSqlType,
+  PerfettoSqlTypes,
+  perfettoSqlTypeToString,
+  typesEqual,
+} from '../../../../trace_processor/perfetto_sql_type';
 import {Callout} from '../../../../widgets/callout';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {NodeIssues} from '../node_issues';
@@ -91,7 +96,6 @@ export class IntervalIntersectNode implements QueryNode {
 
       finalCols.push({
         name: 'id',
-        type: sourceIdCol?.type ?? 'NA',
         checked: true,
         column: idColumnType ? {name: 'id', type: idColumnType} : {name: 'id'},
       });
@@ -102,13 +106,11 @@ export class IntervalIntersectNode implements QueryNode {
     // but aliased from different sources based on tsDurSource
     finalCols.push({
       name: 'ts',
-      type: 'TIMESTAMP',
       checked: true,
       column: {name: 'ts', type: PerfettoSqlTypes.TIMESTAMP},
     });
     finalCols.push({
       name: 'dur',
-      type: 'DURATION',
       checked: true,
       column: {name: 'dur', type: PerfettoSqlTypes.DURATION},
     });
@@ -125,9 +127,9 @@ export class IntervalIntersectNode implements QueryNode {
         const sourceCol = firstNodeCols.find((c) => c.name === colName);
 
         // Validate that partition column types match across all input nodes
-        // Skip validation if type is unknown/NA
-        const sourceType = sourceCol?.type;
-        if (sourceType && sourceType !== 'NA' && sourceType !== 'UNKNOWN') {
+        // Skip validation if type is unknown
+        const sourceType = sourceCol?.column.type;
+        if (sourceType !== undefined) {
           for (let i = 1; i < inputNodes.length; i++) {
             const node = inputNodes[i];
             if (node === undefined) {
@@ -139,18 +141,13 @@ export class IntervalIntersectNode implements QueryNode {
 
             const nodeCols = this.getEffectiveCols(node);
             const otherCol = nodeCols.find((c) => c.name === colName);
-            const otherType = otherCol?.type;
+            const otherType = otherCol?.column.type;
 
             // Only warn if both types are known and different
-            if (
-              otherType &&
-              otherType !== 'NA' &&
-              otherType !== 'UNKNOWN' &&
-              otherType !== sourceType
-            ) {
+            if (otherType !== undefined && !typesEqual(sourceType, otherType)) {
               console.warn(
                 `[IntervalIntersect] Partition column "${colName}" has inconsistent types: ` +
-                  `node 0 has "${sourceType}", node ${i} has "${otherType}". ` +
+                  `node 0 has "${perfettoSqlTypeToString(sourceType)}", node ${i} has "${perfettoSqlTypeToString(otherType)}". ` +
                   `Using type from first node.`,
               );
             }
@@ -161,7 +158,6 @@ export class IntervalIntersectNode implements QueryNode {
         const columnType = sourceCol?.column.type;
         finalCols.push({
           name: colName,
-          type: sourceCol?.type ?? 'NA',
           checked: true,
           column: columnType
             ? {name: colName, type: columnType}
@@ -221,7 +217,6 @@ export class IntervalIntersectNode implements QueryNode {
       const idColumnType = idCol?.column.type;
       finalCols.push({
         name: `id_${i}`,
-        type: idCol?.type ?? 'NA',
         checked: true,
         column: idColumnType
           ? {name: `id_${i}`, type: idColumnType}
@@ -230,14 +225,12 @@ export class IntervalIntersectNode implements QueryNode {
       // ts_N columns are TIMESTAMP type
       finalCols.push({
         name: `ts_${i}`,
-        type: 'TIMESTAMP',
         checked: true,
         column: {name: `ts_${i}`, type: PerfettoSqlTypes.TIMESTAMP},
       });
       // dur_N columns are DURATION type
       finalCols.push({
         name: `dur_${i}`,
-        type: 'DURATION',
         checked: true,
         column: {name: `dur_${i}`, type: PerfettoSqlTypes.DURATION},
       });
@@ -551,7 +544,7 @@ export class IntervalIntersectNode implements QueryNode {
       this.inputNodesList.map((n) => n.finalCols),
       {
         excludedColumns: new Set(['id', 'ts', 'dur']),
-        excludedTypes: new Set(['STRING', 'BYTES']),
+        excludedTypes: new Set<PerfettoSqlType['kind']>(['string', 'bytes']),
       },
     );
   }

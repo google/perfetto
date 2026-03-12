@@ -18,16 +18,18 @@ import {errResult, okResult, Result} from '../base/result';
 // https://perfetto.dev/docs/analysis/perfetto-sql-syntax#types
 export type PerfettoSqlType = SimpleType | PerfettoSqlIdType;
 
+export type SimpleTypeKind =
+  | 'int'
+  | 'double'
+  | 'boolean'
+  | 'string'
+  | 'bytes'
+  | 'timestamp'
+  | 'duration'
+  | 'arg_set_id';
+
 type SimpleType = {
-  kind:
-    | 'int'
-    | 'double'
-    | 'boolean'
-    | 'string'
-    | 'bytes'
-    | 'timestamp'
-    | 'duration'
-    | 'arg_set_id';
+  kind: SimpleTypeKind;
 };
 
 type PerfettoSqlIdType = {

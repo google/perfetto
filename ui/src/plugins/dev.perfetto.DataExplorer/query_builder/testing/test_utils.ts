@@ -24,21 +24,17 @@ import {ColumnInfo} from '../column_info';
 import {NodeDetailsAttrs} from '../../node_types';
 import {NodeIssues} from '../node_issues';
 import protos from '../../../../protos';
+import {
+  PerfettoSqlType,
+  SimpleTypeKind,
+} from '../../../../trace_processor/perfetto_sql_type';
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 /** Column type strings supported by the test utilities */
-export type ColumnType =
-  | 'int'
-  | 'double'
-  | 'boolean'
-  | 'string'
-  | 'bytes'
-  | 'timestamp'
-  | 'duration'
-  | 'arg_set_id';
+export type ColumnType = SimpleTypeKind;
 
 /** Options for creating a mock node */
 export interface MockNodeOptions {
@@ -183,39 +179,37 @@ export function createColumnInfo(
   options: ColumnInfoOptions = {},
 ): ColumnInfo {
   const {checked = true, alias} = options;
+  const sqlType: PerfettoSqlType = {kind: type};
 
   return {
     name,
-    type: type.toUpperCase(),
     checked,
-    column: {name, type: {kind: type}},
+    column: {name, type: sqlType},
     alias,
   };
 }
 
 /**
- * Creates a ColumnInfo with type string format matching the perfetto SQL types.
+ * Creates a ColumnInfo with an explicit PerfettoSqlType.
  *
- * This is useful when you need the type string to match exactly what
- * perfettoSqlTypeToString returns (e.g., 'INT', 'STRING', 'TIMESTAMP').
+ * This is useful when you need to provide a specific PerfettoSqlType
+ * (e.g., id or joinid types with source information).
  *
  * @param name - Column name
- * @param type - Column type in uppercase format
+ * @param type - PerfettoSqlType to use
  * @param options - Additional options (checked, alias)
  */
-export function createColumnInfoWithTypeString(
+export function createColumnInfoWithType(
   name: string,
-  type: string,
+  type: PerfettoSqlType,
   options: ColumnInfoOptions = {},
 ): ColumnInfo {
   const {checked = true, alias} = options;
-  const kind = type.toLowerCase() as ColumnType;
 
   return {
     name,
-    type,
     checked,
-    column: {name, type: {kind}},
+    column: {name, type},
     alias,
   };
 }

@@ -105,7 +105,7 @@ export class SwitchComponent implements m.ClassComponent<SwitchComponentAttrs> {
     const selectedColumn = columns.find(
       (c) => c.column.name === column.switchOn,
     );
-    const isStringColumn = selectedColumn?.type === 'STRING';
+    const isStringColumn = selectedColumn?.column.type?.kind === 'string';
 
     return m('.pf-inline-edit-list', [
       m(

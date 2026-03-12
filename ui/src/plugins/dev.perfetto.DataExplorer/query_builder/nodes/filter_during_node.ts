@@ -80,6 +80,7 @@ import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {NodeDetailsMessage, ColumnName} from '../node_styling_widgets';
 import {notifyNextNodes} from '../graph_utils';
 import {getCommonColumns} from '../utils';
+import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
 
 export interface FilterDuringNodeState extends QueryNodeState {
   partitionColumns?: string[]; // Columns to partition by during interval intersection
@@ -162,7 +163,7 @@ export class FilterDuringNode implements QueryNode {
     ];
     return getCommonColumns(columnArrays, {
       excludedColumns: new Set(['id', 'ts', 'dur']),
-      excludedTypes: new Set(['STRING', 'BYTES']),
+      excludedTypes: new Set<PerfettoSqlType['kind']>(['string', 'bytes']),
     });
   }
 
