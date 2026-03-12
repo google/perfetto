@@ -41,11 +41,13 @@ test('omnibox query', async () => {
 
   await pth.waitForIdleAndScreenshot('query mode.png', {
     mask: [page.locator('.pf-query-table .pf-header-bar')],
+    locator: page.locator('.pf-drawer-panel__drawer'),
   });
 
   page.locator('.pf-data-grid').getByText('17806091326279').click();
   await pth.waitForIdleAndScreenshot('row 1 clicked.png', {
     mask: [page.locator('.pf-query-table .pf-header-bar')],
+    locator: page.locator('.pf-drawer-panel__drawer'),
   });
 
   page.locator('.pf-data-grid').getByText('17806092405136').click();
@@ -76,6 +78,7 @@ test('query page', async () => {
     await textbox.blur();
     await pth.waitForIdleAndScreenshot(`query limit ${i}.png`, {
       mask: [page.locator('.pf-data-grid__toolbar')],
+      locator: page.locator('.pf-query-page'),
     });
   }
 
