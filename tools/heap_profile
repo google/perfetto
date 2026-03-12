@@ -298,6 +298,7 @@ def run_perfetto_prebuilt(manifest):
 # ----- Amalgamator: end of python/perfetto/prebuilts/perfetto_prebuilts.py
 
 NULL = open(os.devnull)
+
 NOOUT = {
     'stdout': NULL,
     'stderr': NULL,
@@ -529,20 +530,16 @@ def print_options(parser):
 
 
 def main(argv):
-  parser = argparse.ArgumentParser(
-      description="""Collect a heap profile
-
-  The PERFETTO_PROGUARD_MAP=packagename=map_filename.txt[:packagename=map_filename.txt...] environment variable can be used to pass proguard deobfuscation maps for different packages.""",
-      formatter_class=argparse.RawDescriptionHelpFormatter)
-
-  parser.add_argument(
+  # Flags shared by all subcommands.
+  common = argparse.ArgumentParser(add_help=False)
+  common.add_argument(
       "-i",
       "--interval",
       help="Sampling interval. "
       "Default 4096 (4KiB)",
       type=int,
       default=4096)
-  parser.add_argument(
+  common.add_argument(
       "-d",
       "--duration",
       help="Duration of profile (ms). 0 to run until interrupted. "
@@ -551,127 +548,147 @@ def main(argv):
       default=0)
   # This flag is a no-op now. We never start heapprofd explicitly using system
   # properties.
-  parser.add_argument(
+  common.add_argument(
       "--no-start", help="Do not start heapprofd.", action='store_true')
-  parser.add_argument(
+  common.add_argument(
       "-p",
       "--pid",
       help="Comma-separated list of PIDs to "
       "profile.",
       metavar="PIDS")
-  parser.add_argument(
+  common.add_argument(
       "-n",
       "--name",
       help="Comma-separated list of process "
       "names to profile.",
       metavar="NAMES")
-  parser.add_argument(
+  common.add_argument(
       "-c",
       "--continuous-dump",
       help="Dump interval in ms. 0 to disable continuous dump.",
       type=int,
       default=0)
-  parser.add_argument(
+  common.add_argument(
       "--heaps",
       help="Comma-separated list of heaps to collect, e.g: libc.malloc,com.android.art. "
       "Requires Android 12.",
       metavar="HEAPS")
-  parser.add_argument(
+  common.add_argument(
       "--all-heaps",
       action="store_true",
       help="Collect allocations from all heaps registered by target.")
-  parser.add_argument(
+  common.add_argument(
       "--no-android-tree-symbolization",
       action="store_true",
       help="Do not symbolize using currently lunched target in the "
       "Android tree.")
-  parser.add_argument(
+  common.add_argument(
       "--disable-selinux",
       action="store_true",
       help="Disable SELinux enforcement for duration of "
       "profile.")
-  parser.add_argument(
+  common.add_argument(
       "--no-versions",
       action="store_true",
       help="Do not get version information about APKs.")
-  parser.add_argument(
+  common.add_argument(
       "--no-running",
       action="store_true",
       help="Do not target already running processes. Requires Android 11.")
-  parser.add_argument(
+  common.add_argument(
       "--no-startup",
       action="store_true",
       help="Do not target processes that start during "
       "the profile. Requires Android 11.")
-  parser.add_argument(
+  common.add_argument(
       "--shmem-size",
       help="Size of buffer between client and "
       "heapprofd. Default 8MiB. Needs to be a power of two "
       "multiple of 4096, at least 8192.",
       type=int,
       default=8 * 1048576)
-  parser.add_argument(
+  common.add_argument(
       "--block-client",
       help="When buffer is full, block the "
       "client to wait for buffer space. Use with caution as "
       "this can significantly slow down the client. "
       "This is the default",
       action="store_true")
-  parser.add_argument(
+  common.add_argument(
       "--block-client-timeout",
       help="If --block-client is given, do not block any allocation for "
       "longer than this timeout (us).",
       type=int)
-  parser.add_argument(
+  common.add_argument(
       "--no-block-client",
       help="When buffer is full, stop the "
       "profile early.",
       action="store_true")
-  parser.add_argument(
+  common.add_argument(
       "--idle-allocations",
       help="Keep track of how many "
       "bytes were unused since the last dump, per "
       "callstack",
       action="store_true")
-  parser.add_argument(
+  common.add_argument(
       "--dump-at-max",
       help="Dump the maximum memory usage "
       "rather than at the time of the dump.",
       action="store_true")
-  parser.add_argument(
+  common.add_argument(
       "--disable-fork-teardown",
       help="Do not tear down client in forks. This can be useful for programs "
       "that use vfork. Android 11+ only.",
       action="store_true")
-  parser.add_argument(
+  common.add_argument(
       "--simpleperf",
       action="store_true",
       help="Get simpleperf profile of heapprofd. This is "
       "only for heapprofd development.")
-  parser.add_argument(
+  common.add_argument(
       "--traceconv-binary", help="Path to local trace to text. For debugging.")
-  parser.add_argument(
+  common.add_argument(
       "--no-annotations",
       help="Do not suffix the pprof function names with Android ART mode "
       "annotations such as [jit].",
       action="store_true")
-  parser.add_argument(
+  common.add_argument(
       "--print-config",
       action="store_true",
       help="Print config instead of running. For debugging.")
-  parser.add_argument(
+  common.add_argument(
       "-o",
       "--output",
       help="Output directory.",
       metavar="DIRECTORY",
       default=None)
-  parser.add_argument(
+  common.add_argument(
       "--print-options", action="store_true", help=argparse.SUPPRESS)
+
+  parser = argparse.ArgumentParser(
+      parents=[common],
+      description="""Collect a heap profile
+
+  The PERFETTO_PROGUARD_MAP=packagename=map_filename.txt[:packagename=map_filename.txt...] environment variable can be used to pass proguard deobfuscation maps for different packages.""",
+      formatter_class=argparse.RawDescriptionHelpFormatter)
+
+  subparsers = parser.add_subparsers(dest='subcommand')
+  subparsers.required = False
+  subparsers.add_parser(
+      'android',
+      parents=[common],
+      help='Profile a process on a connected Android device via adb (default).',
+      formatter_class=argparse.RawDescriptionHelpFormatter)
 
   args = parser.parse_args(argv[1:])
   if args.print_options:
     print_options(parser)
     return 0
+
+  # Default to 'android' for backward compatibility with callers that do not
+  # pass a subcommand.
+  if args.subcommand is None:
+    args.subcommand = 'android'
 
   fail = False
   if args.block_client and args.no_block_client:
