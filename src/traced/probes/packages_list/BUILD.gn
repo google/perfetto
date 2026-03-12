@@ -25,37 +25,39 @@ source_set("packages_list_parser") {
   ]
 }
 
-source_set("packages_list") {
-  public_deps = [ "../../../tracing/core" ]
-  deps = [
-    ":packages_list_parser",
-    "..:data_source",
-    "../../../../gn:default_deps",
-    "../../../../include/perfetto/ext/traced",
-    "../../../../protos/perfetto/common:zero",
-    "../../../../protos/perfetto/config/android:zero",
-    "../../../../protos/perfetto/trace:zero",
-    "../../../../protos/perfetto/trace/android:zero",
-    "../../../base",
-    "../common",
-  ]
-  sources = [
-    "packages_list_data_source.cc",
-    "packages_list_data_source.h",
-  ]
-}
+if (enable_perfetto_traced_probes) {
+  source_set("packages_list") {
+    public_deps = [ "../../../tracing/core" ]
+    deps = [
+      ":packages_list_parser",
+      "..:data_source",
+      "../../../../gn:default_deps",
+      "../../../../include/perfetto/ext/traced",
+      "../../../../protos/perfetto/common:zero",
+      "../../../../protos/perfetto/config/android:zero",
+      "../../../../protos/perfetto/trace:zero",
+      "../../../../protos/perfetto/trace/android:zero",
+      "../../../base",
+      "../common",
+    ]
+    sources = [
+      "packages_list_data_source.cc",
+      "packages_list_data_source.h",
+    ]
+  }
 
-perfetto_unittest_source_set("unittests") {
-  testonly = true
-  deps = [
-    ":packages_list",
-    ":packages_list_parser",
-    "../../../../gn:default_deps",
-    "../../../../gn:gtest_and_gmock",
-    "../../../../protos/perfetto/trace/android:cpp",
-    "../../../../protos/perfetto/trace/android:zero",
-    "../../../../src/base:test_support",
-    "../../../../src/tracing/test:test_support",
-  ]
-  sources = [ "packages_list_unittest.cc" ]
+  perfetto_unittest_source_set("unittests") {
+    testonly = true
+    deps = [
+      ":packages_list",
+      ":packages_list_parser",
+      "../../../../gn:default_deps",
+      "../../../../gn:gtest_and_gmock",
+      "../../../../protos/perfetto/trace/android:cpp",
+      "../../../../protos/perfetto/trace/android:zero",
+      "../../../../src/base:test_support",
+      "../../../../src/tracing/test:test_support",
+    ]
+    sources = [ "packages_list_unittest.cc" ]
+  }
 }

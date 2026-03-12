@@ -20,9 +20,13 @@
 #include <algorithm>
 #include <optional>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_WATCHDOG)
 #include "perfetto/ext/base/watchdog_posix.h"
+#endif
 
 namespace perfetto {
 namespace profiling {
@@ -36,6 +40,7 @@ std::optional<uint64_t> GetCputimeSecForCurrentProcess(
     base::ScopedFile stat_fd) {
   if (!stat_fd)
     return std::nullopt;
+#if PERFETTO_BUILDFLAG(PERFETTO_WATCHDOG)
   base::ProcStat stat;
   if (!ReadProcStat(stat_fd.get(), &stat)) {
     PERFETTO_ELOG("Failed to read stat file to enforce guardrails.");
@@ -43,6 +48,9 @@ std::optional<uint64_t> GetCputimeSecForCurrentProcess(
   }
   return (stat.utime + stat.stime) /
          static_cast<unsigned long>(sysconf(_SC_CLK_TCK));
+#else
+  return std::nullopt;
+#endif
 }
 
 ProfilerMemoryGuardrails::ProfilerMemoryGuardrails()
