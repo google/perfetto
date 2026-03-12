@@ -148,70 +148,174 @@ function updateNav() {
   let curFileName = "";
   if (curDoc) curFileName = curDoc.dataset["mdFile"];
 
-  // First identify all the top-level nav entries (Quickstart, Data Sources,
-  // ...) and make them compressible.
-  const toplevelSections = document.querySelectorAll('.docs .nav > ul > li > ul > li');
-  const toplevelLinks = [];
-  for (const sec of toplevelSections) {
-    const childMenu = sec.querySelector("ul");
-    if (!childMenu) {
-      // Don't make it compressible if it has no children (e.g. the very
-      // first 'Introduction' link).
-      continue;
+  const nav = document.querySelector('.docs .nav');
+  if (!nav) return;
+  const rootUl = nav.querySelector(':scope > ul');
+  if (!rootUl) return;
+
+  const topSections = rootUl.querySelectorAll(':scope > li');
+
+  // Helper: get the display name of a top-level section.
+  const getSectionName = (section) => {
+    const link = section.querySelector(':scope > p > a') ||
+                 section.querySelector(':scope > a');
+    return link ? link.textContent.trim() : '';
+  };
+
+  // Helper: check if a section contains the current page.
+  const sectionContainsPage = (section) => {
+    const links = section.querySelectorAll('a[href]:not([href="#"])');
+    for (const link of links) {
+      const url = new URL(link.href);
+      if (url.pathname === curFileName ||
+          url.pathname + 'index.html' === curFileName) {
+        return true;
+      }
     }
+    return false;
+  };
 
-    // Don't make it compressible if the entry has an actual link (e.g. the very
-    // first 'Introduction' link), because otherwise it become ambiguous whether
-    // the link should toggle or open the link.
-    const link = sec.querySelector("a");
-    if (!link || !link.href.endsWith("#")) continue;
+  // --- Step 1: Find which top-level section contains the current page. ---
+  // When a page appears in multiple sections (e.g. shared tutorials),
+  // prefer the section the user last navigated into (stored in session).
+  const storedSection = sessionStorage.getItem('docs.nav.activeSection');
+  let activeTopSection = null;
+  let fallbackSection = null;
 
-    sec.classList.add("compressible");
+  for (const section of topSections) {
+    if (!sectionContainsPage(section)) continue;
+    // First match as fallback.
+    if (!fallbackSection) fallbackSection = section;
+    // Prefer the stored section if it contains this page.
+    if (getSectionName(section) === storedSection) {
+      activeTopSection = section;
+    }
+  }
+  if (!activeTopSection) activeTopSection = fallbackSection;
 
-    // Remember the compressed status as long as the page is opened, so clicking
-    // through links keeps the sidebar in a consistent visual state.
+  // Store the active section for future page loads.
+  if (activeTopSection) {
+    sessionStorage.setItem(
+      'docs.nav.activeSection', getSectionName(activeTopSection));
+  }
+
+  // --- Step 2: Set up top-level sections. ---
+  // The active section expands fully. All others collapse to a single
+  // clickable line linking to their first page, moved below the active one.
+  for (const section of topSections) {
+    const headerLink = section.querySelector(':scope > p > a') ||
+                       section.querySelector(':scope > a');
+    const childUl = section.querySelector(':scope > ul');
+
+    if (!headerLink || !headerLink.href ||
+        !headerLink.href.endsWith('#')) continue;
+
+    if (activeTopSection && section !== activeTopSection) {
+      // Inactive section: collapse and link to first page.
+      section.classList.add('inactive-section');
+      if (childUl) childUl.style.display = 'none';
+      const firstLink = section.querySelector('a[href]:not([href="#"])');
+      // Capture name before modifying text.
+      const sectionName = getSectionName(section);
+      if (firstLink) {
+        headerLink.href = firstLink.href;
+        headerLink.onclick = null;
+      }
+      // Show full name ("Perfetto for X") when collapsed as a link.
+      const text = headerLink.textContent.trim();
+      if (text.startsWith('For ')) {
+        headerLink.textContent = 'Perfetto ' + text.charAt(0).toLowerCase() + text.slice(1);
+      }
+      headerLink.addEventListener('click', () => {
+        sessionStorage.setItem('docs.nav.activeSection', sectionName);
+      });
+      // Move below the active section.
+      rootUl.appendChild(section);
+    } else {
+      // Active section: show full content.
+      section.classList.remove('inactive-section');
+      if (childUl) childUl.style.display = '';
+    }
+  }
+
+  // --- Step 3: Make inner sections (categories) compressible. ---
+  // Only process items inside the active section (or all if no active).
+  const scope = activeTopSection || nav;
+  const innerLis = scope.querySelectorAll('li');
+  for (const sec of innerLis) {
+    // Skip top-level sections — they're handled above.
+    if (sec.parentElement === rootUl) continue;
+
+    const childMenu = sec.querySelector(':scope > ul');
+    if (!childMenu) continue;
+
+    const link = sec.querySelector(':scope > p > a') ||
+                 sec.querySelector(':scope > a');
+    if (!link || !link.href || !link.href.endsWith('#')) continue;
+
+    sec.classList.add('compressible');
+
     const memoKey = `docs.nav.compressed[${link.innerHTML}]`;
-
-    if (sessionStorage.getItem(memoKey) === "1") {
-      sec.classList.add("compressed");
+    const stored = sessionStorage.getItem(memoKey);
+    if (stored === '1') {
+      sec.classList.add('compressed');
     }
+
     doAfterLoadEvent(() => {
       childMenu.style.maxHeight = `${childMenu.scrollHeight + 40}px`;
     });
 
-    toplevelLinks.push(link);
     link.onclick = (evt) => {
       evt.preventDefault();
-      sec.classList.toggle("compressed");
-      if (sec.classList.contains("compressed")) {
-        sessionStorage.setItem(memoKey, "1");
+      sec.classList.toggle('compressed');
+      if (sec.classList.contains('compressed')) {
+        sessionStorage.setItem(memoKey, '1');
       } else {
-        sessionStorage.removeItem(memoKey);
+        sessionStorage.setItem(memoKey, '0');
       }
     };
   }
 
-  const nav = document.querySelector(".docs .nav");
-  const exps = document.querySelectorAll(".docs .nav ul a");
+  // --- Step 4: Highlight the current page. ---
+  const allLinks = nav.querySelectorAll('ul a');
   let found = false;
-  for (const x of exps) {
-    // If the url of the entry matches the url of the page, mark the item as
-    // highlighted and expand all its parents.
+  for (const x of allLinks) {
     if (!x.href) continue;
     const url = new URL(x.href);
     if (x.href.endsWith("#")) {
-      // This is a non-leaf link to a menu.
-      if (toplevelLinks.indexOf(x) < 0) {
+      // Remove href from non-compressible # links.
+      const parentLi = x.closest('li');
+      if (parentLi && !parentLi.classList.contains('compressible') &&
+          !parentLi.classList.contains('inactive-section')) {
         x.removeAttribute("href");
       }
-    } else if ((url.pathname === curFileName || url.pathname + 'index.html' === curFileName) && !found) {
+    } else if ((url.pathname === curFileName ||
+                url.pathname + 'index.html' === curFileName) && !found) {
       x.classList.add('selected');
+
+      // Walk up the DOM to expand all ancestor compressible sections.
+      let el = x.closest('li');
+      while (el) {
+        if (el.classList.contains('compressible') &&
+            el.classList.contains('compressed')) {
+          el.classList.remove('compressed');
+          const elLink = el.querySelector(':scope > p > a') ||
+                         el.querySelector(':scope > a');
+          if (elLink) {
+            sessionStorage.setItem(
+              `docs.nav.compressed[${elLink.innerHTML}]`, '0');
+          }
+        }
+        el = el.parentElement ? el.parentElement.closest('li') : null;
+      }
+
       if (!onloadFired) {
         scrollIntoViewIfNeeded(x, nav);
       }
-      found = true;  // Highlight only the first occurrence.
+      found = true;
     }
   }
+
 }
 
 // If the page contains a ```mermaid ``` block, lazily loads the plugin and

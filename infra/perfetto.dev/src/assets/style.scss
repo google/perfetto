@@ -15,7 +15,7 @@
 // Common + CSS reset
 // -----------------------------------------------------------------------------
 :root {
-  --site-header-height: 50px;
+  --site-header-height: 52px;
   --home-highlights-height: 128px;
   --content-max-width: 1100px;
   --anim-ease: cubic-bezier(0.4, 0, 0.2, 1);
@@ -26,6 +26,22 @@
   --anim-enabled: 0;
 
   --anim-time: calc(0.15s * var(--anim-enabled));
+
+  // Color system
+  --color-primary: hsl(210, 30%, 16%);
+  --color-primary-light: hsl(210, 25%, 22%);
+  --color-accent: #ecba2a;
+  --color-accent-hover: #d4a620;
+  --color-text: #2d3748;
+  --color-text-secondary: #5a6577;
+  --color-text-muted: #8896a6;
+  --color-border: #e2e8f0;
+  --color-border-light: #edf2f7;
+  --color-bg: #f7fafc;
+  --color-bg-white: #fff;
+  --color-link: #0e7c86;
+  --color-link-hover: #0a9ba8;
+  --color-link-visited: #7c4014;
 }
 
 $wide: "(max-width: 1100px)";
@@ -33,12 +49,15 @@ $mobile: "(max-width: 768px)";
 
 @mixin minimal-scrollbar {
   &::-webkit-scrollbar {
-    width: 8px;
+    width: 6px;
     background-color: transparent;
   }
   &::-webkit-scrollbar-thumb {
-    background-color: #ccc;
-    border-radius: 8px;
+    background-color: #cbd5e0;
+    border-radius: 6px;
+    &:hover {
+      background-color: #a0aec0;
+    }
   }
 }
 
@@ -79,15 +98,15 @@ h3 {
 // Site header
 // -----------------------------------------------------------------------------
 .site-header {
-  background-color: hsl(210, 30%, 16%);
+  background-color: var(--color-primary);
   color: hsl(210, 17%, 98%);
   position: sticky; // Sticky so the .docs element below doesn't start @ 0.
   top: 0;
   width: 100%;
-  --sh-padding-y: 5px;
+  --sh-padding-y: 6px;
   max-height: var(--site-header-height);
   padding: var(--sh-padding-y) 30px;
-  box-shadow: rgba(0, 0, 0, 0.3) 0 3px 3px 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
   overflow: hidden;
   display: flex;
   z-index: 10;
@@ -106,7 +125,7 @@ h3 {
     .brand-docs {
       text-transform: uppercase;
       font-size: 14px;
-      color: #ecba2a;
+      color: var(--color-accent);
       vertical-align: bottom;
       line-height: 30px;
       font-weight: 400;
@@ -114,16 +133,17 @@ h3 {
   }
   > *:not(:first-child) {
     line-height: calc(var(--site-header-height) - var(--sh-padding-y) * 2);
-    font-family: "Source Sans Pro", sans-serif;
+    font-family: Roboto, sans-serif;
     font-weight: 400;
     font-size: 1.1rem;
     margin: 0 20px;
     color: hsl(210, 17%, 85%);
+    transition: color ease 0.15s;
   }
   a {
     text-decoration: none;
     &:hover {
-      color: hsl(210, 17%, 100%);
+      color: #fff;
     }
   }
   .menu {
@@ -193,46 +213,61 @@ h3 {
     height: 32px;
     font-size: 1rem;
     color: #333;
-    background-color: rgba(255, 255, 255, 0.9);
-    border: 1px solid #eee;
-    border-radius: 2px;
-    background-image: url('data:image/svg+xml;utf-8,<svg xmlns="http://www.w3.org/2000/svg" height="48" width="48"><path d="M39.8 41.95 26.65 28.8q-1.5 1.3-3.5 2.025-2 .725-4.25.725-5.4 0-9.15-3.75T6 18.75q0-5.3 3.75-9.05 3.75-3.75 9.1-3.75 5.3 0 9.025 3.75 3.725 3.75 3.725 9.05 0 2.15-.7 4.15-.7 2-2.1 3.75L42 39.75Zm-20.95-13.4q4.05 0 6.9-2.875Q28.6 22.8 28.6 18.75t-2.85-6.925Q22.9 8.95 18.85 8.95q-4.1 0-6.975 2.875T9 18.75q0 4.05 2.875 6.925t6.975 2.875Z"/></svg>');
+    background-color: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    background-image: url('data:image/svg+xml;utf-8,<svg xmlns="http://www.w3.org/2000/svg" height="48" width="48" fill="%23999"><path d="M39.8 41.95 26.65 28.8q-1.5 1.3-3.5 2.025-2 .725-4.25.725-5.4 0-9.15-3.75T6 18.75q0-5.3 3.75-9.05 3.75-3.75 9.1-3.75 5.3 0 9.025 3.75 3.725 3.75 3.725 9.05 0 2.15-.7 4.15-.7 2-2.1 3.75L42 39.75Zm-20.95-13.4q4.05 0 6.9-2.875Q28.6 22.8 28.6 18.75t-2.85-6.925Q22.9 8.95 18.85 8.95q-4.1 0-6.975 2.875T9 18.75q0 4.05 2.875 6.925t6.975 2.875Z"/></svg>');
     background-repeat: no-repeat;
     background-size: contain;
     padding-left: 40px;
     outline: none;
-    &:hover,
+    color: rgba(255, 255, 255, 0.9);
+    transition: background-color ease 0.15s, border-color ease 0.15s;
+    &::placeholder {
+      color: rgba(255, 255, 255, 0.5);
+    }
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.18);
+      border-color: rgba(255, 255, 255, 0.25);
+    }
     &:focus {
       background-color: rgba(255, 255, 255, 0.95);
+      border-color: var(--color-accent);
+      color: #333;
     }
   }
 
   #search-res {
     display: none;
     background-color: rgba(255, 255, 255, 1);
-    border: 1px solid #eee;
-    box-shadow: #aaa 0px 1px 5px;
+    border: 1px solid var(--color-border);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    border-radius: 8px;
     color: #333;
     line-height: initial;
-    margin-top: -4px;
+    margin-top: 4px;
     overflow-x: auto;
     position: fixed;
     top: var(--site-header-height);
     max-height: calc(100vh - var(--site-header-height));
     z-index: 10;
     > div {
-      padding: 10px;
+      padding: 12px 16px;
       margin: 0;
+      border-bottom: 1px solid var(--color-border-light);
+      &:last-child {
+        border-bottom: none;
+      }
       &:hover {
-        background-color: #f0f0f0;
+        background-color: #f7fafc;
       }
     }
     .sr-title {
-      color: #333;
-      font-weight: bold;
+      color: var(--color-text);
+      font-weight: 600;
     }
     .sr-snippet {
-      color: #444;
+      color: var(--color-text-secondary);
       font-size: 0.9rem;
     }
 
@@ -255,8 +290,8 @@ h3 {
 
 // Footer in the index page.
 .site-footer {
-  background-color: hsl(210, 30%, 16%);
-  padding: 1em 0;
+  background-color: var(--color-primary);
+  padding: 1.25em 0;
   font-size: 14px;
   color: #fff;
   text-align: center;
@@ -268,7 +303,7 @@ h3 {
       display: inline;
       padding: 0 10px;
       &:not(:last-child) {
-        border-right: solid 1px #fff;
+        border-right: solid 1px rgba(255, 255, 255, 0.3);
       }
     }
   }
@@ -286,10 +321,11 @@ h3 {
 .docs .site-footer {
   grid-area: footer;
   background: transparent;
-  color: #666;
+  color: var(--color-text-muted);
   text-align: left;
   margin: 0 20px;
-  padding: 12px 0;
+  padding: 16px 0;
+  font-size: 13px;
 
   .docs-footer-notice {
     padding: 0;
@@ -307,9 +343,9 @@ h3 {
 // -----------------------------------------------------------------------------
 .site-content {
   .section-wrapper {
-    border-bottom: solid 1px #eee;
+    border-bottom: solid 1px var(--color-border-light);
     &:nth-child(2n + 1) {
-      background-color: hsl(210, 17%, 98%);
+      background-color: var(--color-bg);
     }
   }
   section {
@@ -338,9 +374,9 @@ h3 {
     h1,
     h2 {
       margin: auto;
-      font-family: "Source Sans Pro", sans-serif;
+      font-family: Roboto, sans-serif;
       text-align: center;
-      color: hsl(0, 0, 35%);
+      color: var(--color-text);
       span {
         white-space: nowrap;
       }
@@ -356,6 +392,7 @@ h3 {
       font-size: calc(min(2rem, 6vw, 4vh));
       font-weight: 200;
       padding-top: 10px;
+      color: var(--color-text-secondary);
     }
     .home-img {
       padding: 1rem 0;
@@ -373,7 +410,7 @@ h3 {
 
   .home-highlights {
     &:before {
-      border-top: 1px solid hsl(210, 17%, 90%);
+      border-top: 1px solid var(--color-border);
     }
     height: var(--home-highlights-height);
     display: grid;
@@ -385,13 +422,14 @@ h3 {
       grid-template-columns: repeat(2, 1fr);
     }
     > a {
-      color: hsl(0, 0, 20%);
-      font-size: 22px;
-      font-weight: 400;
+      color: var(--color-text);
+      font-size: 20px;
+      font-weight: 500;
       text-align: center;
       padding: 20px 0;
-      font-family: "Source Sans Pro", sans-serif;
+      font-family: Roboto, sans-serif;
       text-decoration: none;
+      transition: background-color ease 0.15s;
       .icon {
         background-image: url("/assets/sprite.png");
         background-repeat: no-repeat;
@@ -415,7 +453,7 @@ h3 {
         background-position: -192px -64px;
       }
       &:hover {
-        background-color: hsl(210, 17%, 90%);
+        background-color: var(--color-bg);
         .icon {
           filter: grayscale(0);
         }
@@ -440,10 +478,10 @@ h3 {
       grid-area: content;
     }
     h2 {
-      font-family: "Source Sans Pro", sans-serif;
+      font-family: Roboto, sans-serif;
       font-weight: 600;
       font-size: 2.5rem;
-      color: #333;
+      color: var(--color-text);
       text-align: center;
     }
     &:nth-child(2n) {
@@ -482,16 +520,17 @@ h3 {
       grid-area: content;
       .button {
         display: inline-block;
-        background: #337ab7;
+        background: var(--color-link);
         font-weight: 500;
         color: #fff;
-        border-radius: 6px;
-        font-size: 18px;
-        padding: 10px 16px;
-        transition: background-color ease var(--anim-time);
+        border-radius: 8px;
+        font-size: 16px;
+        padding: 10px 20px;
+        transition: background-color ease 0.15s, transform ease 0.15s;
         text-decoration: none;
         &:hover {
-          background: #286090;
+          background: var(--color-link-hover);
+          transform: translateY(-1px);
         }
       }
     }
@@ -503,15 +542,14 @@ h3 {
       grid-column-gap: 20px;
       padding: 20px 30px;
       margin: 10px 0;
-      // border: 1px solid #eee;
-      font-family: "Source Sans Pro", sans-serif;
-      color: #111111;
+      font-family: Roboto, sans-serif;
+      color: var(--color-text);
       transition:
         filter var(--anim-ease) var(--anim-time),
         background-color var(--anim-ease) var(--anim-time),
         transform var(--anim-ease) var(--anim-time),
         box-shadow linear var(--anim-time);
-      border-radius: 6px;
+      border-radius: 8px;
       filter: opacity(0.6);
       &:hover {
         background-color: hsla(0, 0, 0, 0.02);
@@ -523,6 +561,7 @@ h3 {
         grid-area: img;
         margin: auto;
         font-size: 50px;
+        color: var(--color-text-muted);
       }
       > h3 {
         grid-area: title;
@@ -535,6 +574,7 @@ h3 {
         font-size: 1rem;
         font-weight: 400;
         margin: 1em 0;
+        color: var(--color-text-secondary);
       }
     }
   }
@@ -576,7 +616,7 @@ h3 {
 .docs {
   min-height: 100vh;
   display: grid;
-  --nav-width: 240px;
+  --nav-width: 260px;
   --toc-min-width: 180px;
   --toc-max-width: 320px;
 
@@ -590,85 +630,116 @@ h3 {
   grid-template-rows: 1fr max-content;
   grid-template-areas: "nav doc toc" "nav footer toc";
 
-  background-color: hsl(210, 10%, 97%);
+  background-color: var(--color-bg);
+
   .nav {
     grid-area: nav;
-    border-right: 1px solid hsl(210, 30%, 90%);
-    background-color: #fefefe;
-    padding: 20px 0;
-    padding-right: 16px;
-
+    border-right: 1px solid var(--color-border);
+    background-color: var(--color-bg-white);
+    padding: 0 12px 12px 0;
     position: sticky;
     top: var(--site-header-height);
     height: calc(100vh - var(--site-header-height));
     overflow-y: auto;
     @include minimal-scrollbar;
+    font-family: Roboto, sans-serif;
+    font-size: 0.9rem;
 
-    a {
-      color: inherit;
-      text-decoration: none;
-      line-height: 24px;
-      display: flex;
-      transition:
-        background-color var(--anim-ease) var(--anim-time),
-        visibility linear var(--anim-time);
-      border-radius: 0 10px 10px 0;
-      -webkit-tap-highlight-color: transparent;
-      &[href] {
-        &:hover {
-          color: #000;
-          background-color: #f1f3f4;
-        }
-        &.selected {
-          background-color: #ecba2a;
-        }
-      }
-    }
-
+    // ---- Base reset for all lists and links ----
     ul {
       list-style: none;
       margin: 0;
       padding: 0;
       overflow: hidden;
-      li {
-        font-size: 1rem;
-        font-weight: 400;
-        font-family: "Source Sans Pro", sans-serif;
-        color: #4a4a4a;
-        max-width: 100%;
-        margin: 3px 0;
+    }
+    p { margin: 0; }
+
+    a {
+      display: flex;
+      align-items: center;
+      color: var(--color-text-secondary);
+      text-decoration: none;
+      line-height: 1.4;
+      padding: 5px 16px;
+      border-radius: 0 6px 6px 0;
+      transition: background-color 0.12s ease, color 0.12s ease;
+      -webkit-tap-highlight-color: transparent;
+      &[href]:hover {
+        color: var(--color-text);
+        background-color: var(--color-bg);
       }
-      p {
-        margin: 0;
+      &.selected {
+        background-color: var(--color-bg);
+        color: var(--color-link);
+        font-weight: 600;
       }
     }
 
+    // ---- Top-level sections ----
+    // Active section shows full tree; inactive ones collapse to one line.
     > ul > li {
-      padding-bottom: 10px;
-      margin-bottom: 10px;
-      color: #000;
-
-      &:not(:last-child) {
-        border-bottom: 2px solid #ddd;
+      padding: 10px 0 4px;
+      & + li {
+        border-top: 1px solid var(--color-border-light);
       }
+
+      // Active section header.
+      > p > a {
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: var(--color-link);
+        padding: 4px 16px;
+        letter-spacing: 0.01em;
+        text-transform: none;
+        border-left: 3px solid var(--color-link);
+      }
+
+      // Inactive sections: compact one-line links.
+      &.inactive-section {
+        padding: 0;
+        > p > a {
+          font-weight: 400;
+          font-size: 0.9rem;
+          color: var(--color-text-secondary);
+          padding: 4px 16px;
+          &:hover { color: var(--color-link); }
+        }
+        & + li.inactive-section {
+          border-top: none;
+        }
+      }
+
     }
 
-    a[href="#"],
+    // Separator before the first inactive section at the bottom.
+    > ul > li:not(.inactive-section) + li.inactive-section {
+      margin-top: 4px;
+      padding-top: 8px;
+      border-top: 1px solid var(--color-border);
+    }
+
+    // ---- Category headers (Tutorials, Reference, etc.) ----
+    .compressible > p > a,
     a:not([href]) {
       font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--color-text);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding: 6px 16px 4px;
     }
 
-    // Applies only to outer-level submenus.
+    // ---- Expand/collapse chevron ----
     .compressible {
       > p > a::after {
-        content: "keyboard_arrow_up";
-        font-family: "Material Icons Round";
-        font-size: 24px;
-        width: 24px;
+        content: "\25B4"; // ▴ small up triangle
+        font-size: 0.7em;
+        flex-shrink: 0;
+        width: 20px;
+        text-align: center;
+        margin-left: auto;
+        color: var(--color-text-muted);
         transition: transform var(--anim-ease) var(--anim-time);
-        margin: 0 0 0 auto;
-        font-weight: 200;
-        color: #666;
       }
       > ul {
         transition: max-height var(--anim-ease) var(--anim-time),
@@ -676,75 +747,66 @@ h3 {
         opacity: 1;
       }
       &.compressed {
-        // The JS will compute and set the maxHeight on each
-        // element depending on the size of their children.
-        // !important is needed to override the element-inline
-        // max-height property set by JS, which is prioritary.
         > ul {
+          // !important overrides the inline max-height set by JS.
           max-height: 0 !important;
           visibility: hidden;
           opacity: 0;
         }
         > p > a::after {
-          transform: scaleY(-1);
+          transform: rotate(180deg);
         }
       }
-    } // .compressible
+    }
 
-    li a {
-      padding-left: 16px;
-    }
-    li li a {
-      padding-left: 16px;
-    }
-    li li li a {
-      padding-left: 24px;
-    }
-    li li li li a {
-      padding-left: 32px;
-    }
-    .expanded a::after {
-      transform: rotate(180deg);
-    }
+    // ---- Indentation ----
+    li a { padding-left: 16px; }
+    li li a { padding-left: 16px; }
+    li li li a { padding-left: 28px; }
+    li li li li a { padding-left: 36px; }
   }
   .doc {
     grid-area: doc;
-    background-color: #fff;
+    background-color: var(--color-bg-white);
     margin: 20px;
-    padding: 30px 40px;
+    padding: 36px 48px;
     font-family: Roboto, sans-serif;
     font-size: 1rem;
     font-weight: 400;
-    line-height: 24px;
+    line-height: 1.7;
     -webkit-font-smoothing: antialiased;
-    color: #4a4a4a;
+    color: var(--color-text);
     position: relative;
+    border-radius: 8px;
     box-shadow:
-      0 1px 2px 0 rgba(60, 64, 67, 0.1),
-      0 1px 3px 1px rgba(60, 64, 67, 0.15);
+      0 1px 3px rgba(0, 0, 0, 0.06),
+      0 1px 2px rgba(0, 0, 0, 0.08);
     overflow: hidden;
 
     a {
       text-decoration: none;
+      transition: color ease 0.1s;
       &:link {
-        color: #007b83;
+        color: var(--color-link);
       }
       &:visited {
-        color: #8e3317;
+        color: var(--color-link-visited);
       }
       &:hover {
-        color: #009da8;
+        color: var(--color-link-hover);
+        text-decoration: underline;
       }
       &[href^="http"] {
         // External link.
         &:after {
           content: "open_in_new";
           font-family: "Material Icons Round";
-          color: #666;
+          color: var(--color-text-muted);
           text-decoration: none;
           margin-left: 2px;
           margin-right: 4px;
-          vertical-align: bottom;
+          font-size: 0.85em;
+          vertical-align: middle;
         }
       }
     }
@@ -755,43 +817,50 @@ h3 {
       margin: 10px 0;
       padding: 0;
       padding-top: 30px;
+      color: var(--color-text);
     }
     h1 {
       font-size: 2.25rem;
-      line-height: 2.25rem;
+      line-height: 1.2;
       margin: 0;
       padding: 0;
       margin-bottom: 1.5rem;
-      font-family: "Source Sans Pro", sans-serif;
+      font-family: Roboto, sans-serif;
+      font-weight: 700;
+      letter-spacing: -0.02em;
     }
     h2 {
       font-size: 1.5rem;
-      border-bottom: 1px solid #e8eaed;
-      padding-bottom: 6px;
+      font-weight: 600;
+      border-bottom: 2px solid var(--color-border-light);
+      padding-bottom: 8px;
     }
     h3 {
       font-size: 1.25rem;
+      font-weight: 600;
     }
     * {
       max-width: 100%;
     }
 
     img[alt$="screenshot"] {
-      box-shadow: 0 0 10px 2px #eee;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+      border-radius: 6px;
     }
 
     code:not(.code-block) {
-      background: hsla(210, 17%, 90%, 0.2);
-      border: 1px solid #e8eaed;
-      border-radius: 6px;
-      padding: 1px 4px;
+      background: #f1f5f9;
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 0.88em;
     }
     .code-block {
       overflow-x: auto;
       white-space: pre;
-      border-radius: 6px;
-      box-shadow: 1px 1px 6px #999;
-      border-top: 5px solid #8bc34a;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      border-top: 3px solid #8bc34a;
     }
     // Hide mermaid graphs until they are rendered, this is to avoid showing
     // the mermaid source while the renderer generates the SVG.
@@ -814,8 +883,8 @@ h3 {
       &::before {
         content: "insert_link";
         font-family: "Material Icons Round";
-        color: #333;
-        font-size: 24px;
+        color: var(--color-text-muted);
+        font-size: 22px;
       }
     }
     *:hover .anchor {
@@ -830,10 +899,12 @@ h3 {
       font-size: 14px;
       border-spacing: 0;
       border-collapse: collapse;
+      border-radius: 6px;
+      overflow: hidden;
       th,
       td {
-        padding: 8px;
-        border: 0 solid #dadce0;
+        padding: 10px 12px;
+        border: 0 solid var(--color-border);
         border-top-width: 1px;
         border-bottom-width: 1px;
       }
@@ -841,12 +912,16 @@ h3 {
         height: 20px;
       }
       tr:target {
-        background-color: #ecba2a;
+        background-color: #fef3cd;
       }
       thead {
         text-align: left;
-        background-color: #e8eaed;
-        color: #202124;
+        background-color: var(--color-bg);
+        color: var(--color-text);
+        font-weight: 600;
+      }
+      tbody tr:hover {
+        background-color: #fafbfc;
       }
     }
 
@@ -856,7 +931,7 @@ h3 {
       h3 {
         code {
           margin-left: 20px;
-          color: #666;
+          color: var(--color-text-secondary);
         }
       }
       table {
@@ -866,8 +941,8 @@ h3 {
         border-collapse: collapse;
         th,
         td {
-          padding: 8px;
-          border: 0 solid #dadce0;
+          padding: 10px 12px;
+          border: 0 solid var(--color-border);
           border-top-width: 1px;
           border-bottom-width: 1px;
         }
@@ -876,12 +951,12 @@ h3 {
         }
         thead {
           text-align: left;
-          background-color: #e8eaed;
-          color: #202124;
+          background-color: var(--color-bg);
+          color: var(--color-text);
         }
         td {
           &:first-child {
-            background: #f7f7f7;
+            background: #fafbfc;
           }
 
           /* Not really 100% but makes sure that the description
@@ -894,65 +969,65 @@ h3 {
     }
 
     .callout {
-      padding: 0.5rem 0.5rem 0.5rem 2rem;
+      padding: 1rem 1rem 1rem 2.5rem;
       border: none;
-      border-radius: 2px;
-      margin-left: auto;
-      margin-right: auto;
-      width: 90%;
-      border-left: 3px solid transparent;
+      border-radius: 8px;
+      margin: 1.25em auto;
+      width: 92%;
+      border-left: 4px solid transparent;
       box-shadow:
-        0 0.2rem 0.5rem rgba(0, 0, 0, 0.05),
-        0 0 0.05rem rgba(0, 0, 0, 0.1);
+        0 1px 4px rgba(0, 0, 0, 0.06),
+        0 0 1px rgba(0, 0, 0, 0.08);
+      line-height: 1.6;
 
       &:before {
         font-family: "Material Icons Round";
         position: absolute;
-        font-size: 1.5rem;
-        margin-left: -1.75rem;
-        margin-top: -2px;
+        font-size: 1.3rem;
+        margin-left: -2rem;
+        margin-top: 0;
       }
 
       &.note {
-        background-color: #e8f0fe;
-        border-color: #1967d2;
-        color: #1967d2;
+        background-color: #eff6ff;
+        border-color: #3b82f6;
+        color: #1e40af;
         &:before {
           content: "bookmark";
         }
       }
 
       &.summary {
-        background-color: #e4f7fb;
-        border-color: #129eaf;
-        color: #129eaf;
+        background-color: #ecfeff;
+        border-color: #06b6d4;
+        color: #0e7490;
         &:before {
           content: "sms";
         }
       }
 
       &.tip {
-        background-color: #e6f4ea;
-        border-color: #188038;
-        color: #188038;
+        background-color: #f0fdf4;
+        border-color: #22c55e;
+        color: #166534;
         &:before {
           content: "star";
         }
       }
 
       &.todo {
-        background-color: #f1f3f4;
-        border-color: #5f6368;
-        color: #5f6368;
+        background-color: #f8fafc;
+        border-color: #94a3b8;
+        color: #475569;
         &:before {
           content: "error";
         }
       }
 
       &.warning {
-        background-color: #fce8e6;
-        border-color: #c5221f;
-        color: #c5221f;
+        background-color: #fef2f2;
+        border-color: #ef4444;
+        color: #991b1b;
         &:before {
           content: "warning";
         }
@@ -960,13 +1035,15 @@ h3 {
     }
 
     .tab-box {
-      border: 1px solid #eee;
-      border-radius: 2px;
-      padding: 8px;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      padding: 0;
+      overflow: hidden;
     }
 
     .tab-buttons {
-      border-bottom: 1px solid #eee;
+      border-bottom: 1px solid var(--color-border);
+      background-color: var(--color-bg);
     }
 
     .tab-button {
@@ -974,19 +1051,24 @@ h3 {
       border: none;
       background: transparent;
       font-family: Roboto, sans-serif;
-      font-size: 1rem;
-      padding: 8px;
+      font-size: 0.95rem;
+      padding: 10px 16px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      transition: color ease 0.1s, border-color ease 0.1s;
       &:hover {
-        background-color: hsl(0, 0%, 80%);
+        color: var(--color-text);
+        background-color: rgba(0, 0, 0, 0.03);
       }
       &.tab-button-selected {
-        border-bottom: 4px solid hsl(210, 29%, 30%);
+        color: var(--color-text);
+        border-bottom: 3px solid var(--color-accent);
       }
     }
 
     .tab-content {
       display: none;
-      padding: 8px;
+      padding: 12px 16px;
 
       &.tab-content-selected {
         display: block;
@@ -995,7 +1077,7 @@ h3 {
   }
   .toc {
     grid-area: toc;
-    padding: 20px 16px 20px 0;
+    padding: 24px 16px 24px 0;
     max-width: var(--toc-max-width);
 
     position: sticky;
@@ -1004,26 +1086,30 @@ h3 {
     overflow-y: auto;
     @include minimal-scrollbar;
 
-    font-family: "Source Sans Pro", sans-serif;
+    font-family: Roboto, sans-serif;
     word-break: break-word;
     a {
       text-decoration: none;
+      transition: color ease 0.1s;
     }
     a,
     a:visited {
-      color: #333;
+      color: var(--color-text-secondary);
+    }
+    a:hover {
+      color: var(--color-text);
     }
     a.highlighted {
-      font-weight: 500;
-      color: hsl(45, 100%, 40%);
+      font-weight: 600;
+      color: #b8860b;
     }
-    font-size: 0.875rem;
+    font-size: 0.85rem;
     ul {
       list-style: none;
       margin: 0;
       padding: 0;
       li {
-        margin: 5px 0;
+        margin: 4px 0;
         /* This make it so that a single word gets elided but if there
                  * are multiple words they span across lines.  */
         overflow: hidden;
@@ -1033,8 +1119,8 @@ h3 {
       }
     }
     > ul {
-      border-left: 4px solid #ecba2a;
-      padding-left: 10px;
+      border-left: 3px solid var(--color-accent);
+      padding-left: 12px;
       position: static; // Otherwise gets v-centered in the middle.
       top: calc(var(--site-header-height) + 25px);
     }
@@ -1051,6 +1137,7 @@ h3 {
     .doc {
       margin: 0;
       padding: 20px;
+      border-radius: 0;
     }
     .nav {
       // JS will persistently toggle to .after_first_click. This is to
