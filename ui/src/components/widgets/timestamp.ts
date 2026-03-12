@@ -16,24 +16,25 @@ import m from 'mithril';
 import {copyToClipboard} from '../../base/clipboard';
 import {Icons} from '../../base/semantic_icons';
 import {time, Time} from '../../base/time';
-import {Anchor} from '../../widgets/anchor';
 import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {Trace} from '../../public/trace';
 import {TimestampFormatMenuItem} from './timestamp_format_menu';
 import {renderTimecode} from '../time_utils';
 import {TimestampFormat} from '../../public/timeline';
+import {InteractiveText} from '../../widgets/interactive_text';
 
 // import {MenuItem, PopupMenu2} from './menu';
 
 interface TimestampAttrs {
-  trace: Trace;
+  readonly trace: Trace;
   // The timestamp to print, this should be the absolute, raw timestamp as
   // found in trace processor.
-  ts: time;
+  readonly ts: time;
   // Custom text value to show instead of the default HH:MM:SS.mmm uuu nnn
   // formatting.
-  display?: m.Children;
-  extraMenuItems?: m.Child[];
+  readonly display?: m.Children;
+  // Additional menu items to show in the popup menu
+  readonly extraMenuItems?: m.Child[];
 }
 
 export class Timestamp implements m.ClassComponent<TimestampAttrs> {
@@ -44,8 +45,9 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
       PopupMenu,
       {
         trigger: m(
-          Anchor,
+          InteractiveText,
           {
+            icon: Icons.ContextMenu,
             onmouseover: () => (timeline.hoverCursorTimestamp = ts),
             onmouseout: () => (timeline.hoverCursorTimestamp = undefined),
           },

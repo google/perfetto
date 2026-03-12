@@ -16,12 +16,12 @@ import m from 'mithril';
 import {copyToClipboard} from '../../base/clipboard';
 import {Icons} from '../../base/semantic_icons';
 import {duration} from '../../base/time';
-import {Anchor} from '../../widgets/anchor';
 import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {Trace} from '../../public/trace';
 import {formatDuration} from '../time_utils';
 import {DurationPrecisionMenuItem} from './duration_precision_menu_items';
 import {TimestampFormatMenuItem} from './timestamp_format_menu';
+import {InteractiveText} from '../../widgets/interactive_text';
 
 interface DurationWidgetAttrs {
   trace: Trace;
@@ -39,7 +39,7 @@ export class DurationWidget implements m.ClassComponent<DurationWidgetAttrs> {
     return m(
       PopupMenu,
       {
-        trigger: m(Anchor, value),
+        trigger: m(InteractiveText, {icon: Icons.ContextMenu}, value),
       },
       m(MenuItem, {
         icon: Icons.Copy,

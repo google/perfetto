@@ -28,7 +28,7 @@ import {
   UNKNOWN,
 } from '../../trace_processor/query_result';
 import {Dataset, UnionDatasetWithLineage} from '../../trace_processor/dataset';
-import {Anchor} from '../../widgets/anchor';
+import {InteractiveText} from '../../widgets/interactive_text';
 import {Icons} from '../../base/semantic_icons';
 import {Checkbox} from '../../widgets/checkbox';
 import {LifecycleOverlay} from './overlay';
@@ -572,7 +572,7 @@ export class AndroidInputTab implements Tab {
         ? m(DurationWidget, {dur, trace: this.trace})
         : m('span', '-'),
       nav &&
-        m(Anchor, {
+        m(InteractiveText, {
           icon: Icons.GoTo,
           onclick: () => this.goTo(nav),
           title: 'Go to event slice',

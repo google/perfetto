@@ -20,7 +20,7 @@ import {Icons} from '../../../base/semantic_icons';
 import {shortUuid} from '../../../base/uuid';
 import {exists, isNumeric, maybeUndefined} from '../../../base/utils';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {Anchor} from '../../../widgets/anchor';
+import {InteractiveText} from '../../../widgets/interactive_text';
 import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
 import {EmptyState} from '../../../widgets/empty_state';
 import {
@@ -2305,7 +2305,7 @@ export function renderCell(value: SqlValue, columnName: string) {
     return '';
   } else if (value instanceof Uint8Array) {
     return m(
-      Anchor,
+      InteractiveText,
       {
         icon: Icons.Download,
         onclick: () =>
