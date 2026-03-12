@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {Trace} from '../../../public/trace';
 import {classNames} from '../../../base/classnames';
+import {shortUuid} from '../../../base/uuid';
 import {
   perfettoSqlTypeIcon,
   perfettoSqlTypeToString,
@@ -144,8 +145,8 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
                   '.pf-dashboard__empty-overlay',
                   m(
                     EmptyState,
-                    {icon: 'bar_chart', title: 'No charts yet'},
-                    'Use the + button to add charts.',
+                    {icon: 'bar_chart', title: 'No items yet'},
+                    'Use the + button to add charts or labels.',
                   ),
                 ),
           ],
@@ -181,16 +182,32 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
 
     return m(
       '.pf-dashboard__add-button',
-      RoundActionButton({
-        icon: 'add',
-        title: 'Add chart',
-        disabled: lastSource === undefined,
-        onclick: () => {
-          if (lastSource !== undefined) {
-            this.addChartForSource(attrs, lastSource);
-          }
+      m(
+        PopupMenu,
+        {
+          trigger: RoundActionButton({
+            icon: 'add',
+            title: 'Add item',
+          }),
         },
-      }),
+        m(MenuItem, {
+          label: 'Chart',
+          icon: 'bar_chart',
+          disabled: lastSource === undefined,
+          onclick: () => {
+            if (lastSource !== undefined) {
+              this.addChartForSource(attrs, lastSource);
+            }
+          },
+        }),
+        m(MenuItem, {
+          label: 'Label',
+          icon: 'text_fields',
+          onclick: () => {
+            this.addLabel(attrs);
+          },
+        }),
+      ),
     );
   }
 
@@ -201,6 +218,9 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     items: DashboardItem[],
   ): m.Children {
     return items.map((item) => {
+      if (item.kind === 'label') {
+        return this.renderLabel(attrs, item);
+      }
       const source = attrs.sources.find((s) => s.nodeId === item.sourceNodeId);
       if (source === undefined) {
         return this.renderOrphanedChart(attrs, item);
@@ -212,7 +232,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
   private renderChart(
     attrs: DashboardAttrs,
     source: DashboardSourceWithName,
-    chart: DashboardItem,
+    chart: DashboardItem & {kind: 'chart'},
   ): m.Child {
     const config = chart.config;
     const itemId = config.id;
@@ -333,7 +353,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
 
   private renderOrphanedChart(
     attrs: DashboardAttrs,
-    chart: DashboardItem,
+    chart: DashboardItem & {kind: 'chart'},
   ): m.Child {
     const itemId = chart.config.id;
     return this.renderItemCard(attrs, itemId, chart, [
@@ -355,6 +375,27 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           'The data source for this chart is no longer available. Delete or re-assign it.',
         ),
       ),
+    ]);
+  }
+
+  private renderLabel(
+    attrs: DashboardAttrs,
+    label: DashboardItem & {kind: 'label'},
+  ): m.Child {
+    const itemId = label.id;
+
+    return this.renderItemCard(attrs, itemId, label, [
+      m('.pf-dashboard__label-delete', this.deleteButton(attrs, itemId)),
+      m('textarea.pf-dashboard__label-textarea', {
+        value: label.text,
+        placeholder: 'Type here...',
+        oninput: (e: InputEvent) => {
+          const target = e.target as HTMLTextAreaElement;
+          this.mapItems(attrs, (i) =>
+            getItemId(i) === itemId ? {...i, text: target.value} : i,
+          );
+        },
+      }),
     ]);
   }
 
@@ -395,6 +436,20 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           hasCustomHeight && 'pf-dashboard__chart--custom-height',
           isDragging && 'pf-dashboard__chart--dragging',
         ),
+        // Labels are dragged by the card body (not a header).
+        onpointerdown:
+          item.kind === 'label'
+            ? (e: PointerEvent) => {
+                if (
+                  (e.target as HTMLElement).closest(
+                    'textarea, button, input, .pf-resize-handle',
+                  )
+                ) {
+                  return;
+                }
+                this.startDrag(e, itemId);
+              }
+            : undefined,
       },
       [
         ...(Array.isArray(children) ? children : [children]),
@@ -505,6 +560,13 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
 
   // --- Item mutations ---
 
+  private addLabel(attrs: DashboardAttrs): void {
+    const items = [...attrs.items];
+    const {x, y} = getNextItemPosition(items);
+    items.push({kind: 'label', id: shortUuid(), text: '', x, y});
+    attrs.onItemsChange(items);
+  }
+
   /** Map over items, replacing those that match a predicate. */
   private mapItems(
     attrs: DashboardAttrs,
@@ -535,7 +597,9 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     name: string | undefined,
   ): void {
     this.mapItems(attrs, (i) =>
-      i.config.id === itemId ? {...i, config: {...i.config, name}} : i,
+      i.kind === 'chart' && i.config.id === itemId
+        ? {...i, config: {...i.config, name}}
+        : i,
     );
   }
 

@@ -79,12 +79,24 @@ export interface DashboardChart {
   y?: number;
 }
 
-/** A dashboard canvas item (currently only charts). */
-export type DashboardItem = {readonly kind: 'chart'} & DashboardChart;
+/** An editable text label on the dashboard canvas. */
+export interface DashboardLabel {
+  readonly id: string;
+  readonly text: string;
+  widthPx?: number;
+  heightPx?: number;
+  x?: number;
+  y?: number;
+}
+
+/** A dashboard canvas item — either a chart or a label. */
+export type DashboardItem =
+  | ({readonly kind: 'chart'} & DashboardChart)
+  | ({readonly kind: 'label'} & DashboardLabel);
 
 /** Get the unique ID for a dashboard item. */
 export function getItemId(item: DashboardItem): string {
-  return item.config.id;
+  return item.kind === 'chart' ? item.config.id : item.id;
 }
 
 /** A brush filter applied by interacting with a dashboard chart. */
@@ -210,6 +222,9 @@ export function validateDashboardItems(
       ) {
         continue;
       }
+      validated.push(item as DashboardItem);
+    } else if (obj.kind === 'label') {
+      if (typeof obj.id !== 'string' || typeof obj.text !== 'string') continue;
       validated.push(item as DashboardItem);
     }
   }
