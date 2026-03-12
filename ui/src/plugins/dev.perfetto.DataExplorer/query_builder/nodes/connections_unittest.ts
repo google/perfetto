@@ -73,27 +73,40 @@ function createMockPrevNode(id: string, columns: ColumnInfo[]): QueryNode {
 // Helper to create a ColumnInfo with basic type
 function createColumnInfo(
   name: string,
-  type: string,
+  _type: string,
   checked: boolean = true,
 ): ColumnInfo {
+  const sqlType = stringToSqlType(_type);
   return {
     name,
-    type,
     checked,
-    column: {name},
+    column: {name, type: sqlType},
   };
+}
+
+function stringToSqlType(s: string): PerfettoSqlType {
+  switch (s.toUpperCase()) {
+    case 'INT':
+    case 'INT64':
+      return PerfettoSqlTypes.INT;
+    case 'STRING':
+      return PerfettoSqlTypes.STRING;
+    case 'DOUBLE':
+      return PerfettoSqlTypes.DOUBLE;
+    default:
+      return PerfettoSqlTypes.INT;
+  }
 }
 
 // Helper to create a ColumnInfo with full SQL type
 function createColumnInfoWithSqlType(
   name: string,
-  displayType: string,
+  _displayType: string,
   sqlType: PerfettoSqlType,
   checked: boolean = true,
 ): ColumnInfo {
   return {
     name,
-    type: displayType,
     checked,
     column: {name, type: sqlType},
   };

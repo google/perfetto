@@ -474,11 +474,11 @@ describe('TimeRangeSourceNode', () => {
 
       expect(node.finalCols.length).toBe(3);
       expect(node.finalCols[0].name).toBe('id');
-      expect(node.finalCols[0].type).toBe('INT');
+      expect(node.finalCols[0].column.type).toEqual({kind: 'int'});
       expect(node.finalCols[1].name).toBe('ts');
-      expect(node.finalCols[1].type).toBe('TIMESTAMP');
+      expect(node.finalCols[1].column.type).toEqual({kind: 'timestamp'});
       expect(node.finalCols[2].name).toBe('dur');
-      expect(node.finalCols[2].type).toBe('DURATION');
+      expect(node.finalCols[2].column.type).toEqual({kind: 'duration'});
     });
   });
 

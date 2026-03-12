@@ -32,29 +32,42 @@ describe('IntervalIntersectNode', () => {
     });
   }
 
+  function stringToSqlType(s: string): PerfettoSqlType {
+    switch (s.toUpperCase()) {
+      case 'INT':
+      case 'INT64':
+        return PerfettoSqlTypes.INT;
+      case 'STRING':
+        return PerfettoSqlTypes.STRING;
+      case 'DOUBLE':
+        return PerfettoSqlTypes.DOUBLE;
+      default:
+        return PerfettoSqlTypes.INT;
+    }
+  }
+
   function createColumnInfo(
     name: string,
     type: string,
     checked: boolean = true,
   ): ColumnInfo {
+    const sqlType = stringToSqlType(type);
     return {
       name,
-      type,
       checked,
-      column: {name},
+      column: {name, type: sqlType},
     };
   }
 
   // Creates a ColumnInfo with full PerfettoSqlType for the column.type field
   function createColumnInfoWithSqlType(
     name: string,
-    displayType: string,
+    _displayType: string,
     sqlType: PerfettoSqlType,
     checked: boolean = true,
   ): ColumnInfo {
     return {
       name,
-      type: displayType,
       checked,
       column: {name, type: sqlType},
     };
@@ -150,27 +163,27 @@ describe('IntervalIntersectNode', () => {
 
       // After ts, dur (indexes 0, 1), we should have id_0, ts_0, dur_0
       expect(cols[2].name).toBe('id_0');
-      expect(cols[2].type).toBe('INT');
+      expect(cols[2].column.type).toEqual({kind: 'int'});
       expect(cols[3].name).toBe('ts_0');
-      expect(cols[3].type).toBe('TIMESTAMP'); // ts columns are TIMESTAMP type
+      expect(cols[3].column.type).toEqual({kind: 'timestamp'}); // ts columns are TIMESTAMP type
       expect(cols[4].name).toBe('dur_0');
-      expect(cols[4].type).toBe('DURATION'); // dur columns are DURATION type
+      expect(cols[4].column.type).toEqual({kind: 'duration'}); // dur columns are DURATION type
 
       // Then id_1, ts_1, dur_1
       expect(cols[5].name).toBe('id_1');
-      expect(cols[5].type).toBe('INT');
+      expect(cols[5].column.type).toEqual({kind: 'int'});
       expect(cols[6].name).toBe('ts_1');
-      expect(cols[6].type).toBe('TIMESTAMP');
+      expect(cols[6].column.type).toEqual({kind: 'timestamp'});
       expect(cols[7].name).toBe('dur_1');
-      expect(cols[7].type).toBe('DURATION');
+      expect(cols[7].column.type).toEqual({kind: 'duration'});
 
       // Then id_2, ts_2, dur_2
       expect(cols[8].name).toBe('id_2');
-      expect(cols[8].type).toBe('INT');
+      expect(cols[8].column.type).toEqual({kind: 'int'});
       expect(cols[9].name).toBe('ts_2');
-      expect(cols[9].type).toBe('TIMESTAMP');
+      expect(cols[9].column.type).toEqual({kind: 'timestamp'});
       expect(cols[10].name).toBe('dur_2');
-      expect(cols[10].type).toBe('DURATION');
+      expect(cols[10].column.type).toEqual({kind: 'duration'});
     });
 
     it('should include non-duplicated columns from all inputs', () => {
@@ -212,11 +225,11 @@ describe('IntervalIntersectNode', () => {
 
       // Verify types are preserved
       const nameCol = cols.find((c) => c.name === 'name');
-      expect(nameCol?.type).toBe('STRING');
+      expect(nameCol?.column.type).toEqual({kind: 'string'});
       const valueCol = cols.find((c) => c.name === 'value');
-      expect(valueCol?.type).toBe('INT');
+      expect(valueCol?.column.type).toEqual({kind: 'int'});
       const statusCol = cols.find((c) => c.name === 'status');
-      expect(statusCol?.type).toBe('STRING');
+      expect(statusCol?.column.type).toEqual({kind: 'string'});
     });
 
     it('should exclude duplicated columns entirely', () => {
@@ -366,39 +379,39 @@ describe('IntervalIntersectNode', () => {
       // Check id_N, ts_N, dur_N types for each input
       // ts columns are TIMESTAMP type, dur columns are DURATION type
       const id0 = cols.find((c) => c.name === 'id_0');
-      expect(id0?.type).toBe('INT');
+      expect(id0?.column.type).toEqual({kind: 'int'});
       const ts0 = cols.find((c) => c.name === 'ts_0');
-      expect(ts0?.type).toBe('TIMESTAMP');
+      expect(ts0?.column.type).toEqual({kind: 'timestamp'});
       const dur0 = cols.find((c) => c.name === 'dur_0');
-      expect(dur0?.type).toBe('DURATION');
+      expect(dur0?.column.type).toEqual({kind: 'duration'});
 
       const id1 = cols.find((c) => c.name === 'id_1');
-      expect(id1?.type).toBe('INT');
+      expect(id1?.column.type).toEqual({kind: 'int'});
       const ts1 = cols.find((c) => c.name === 'ts_1');
-      expect(ts1?.type).toBe('TIMESTAMP');
+      expect(ts1?.column.type).toEqual({kind: 'timestamp'});
       const dur1 = cols.find((c) => c.name === 'dur_1');
-      expect(dur1?.type).toBe('DURATION');
+      expect(dur1?.column.type).toEqual({kind: 'duration'});
 
       const id2 = cols.find((c) => c.name === 'id_2');
-      expect(id2?.type).toBe('INT');
+      expect(id2?.column.type).toEqual({kind: 'int'});
       const ts2 = cols.find((c) => c.name === 'ts_2');
-      expect(ts2?.type).toBe('TIMESTAMP');
+      expect(ts2?.column.type).toEqual({kind: 'timestamp'});
       const dur2 = cols.find((c) => c.name === 'dur_2');
-      expect(dur2?.type).toBe('DURATION');
+      expect(dur2?.column.type).toEqual({kind: 'duration'});
 
       // Check non-duplicated columns preserve their types
       const name = cols.find((c) => c.name === 'name');
-      expect(name?.type).toBe('STRING');
+      expect(name?.column.type).toEqual({kind: 'string'});
       const value = cols.find((c) => c.name === 'value');
-      expect(value?.type).toBe('DOUBLE');
+      expect(value?.column.type).toEqual({kind: 'double'});
       const count = cols.find((c) => c.name === 'count');
-      expect(count?.type).toBe('LONG');
+      expect(count?.column.type).toEqual({kind: 'int'});
       const status = cols.find((c) => c.name === 'status');
-      expect(status?.type).toBe('STRING');
+      expect(status?.column.type).toEqual({kind: 'string'});
       const priority = cols.find((c) => c.name === 'priority');
-      expect(priority?.type).toBe('INT');
+      expect(priority?.column.type).toEqual({kind: 'int'});
       const category = cols.find((c) => c.name === 'category');
-      expect(category?.type).toBe('STRING');
+      expect(category?.column.type).toEqual({kind: 'string'});
     });
 
     it('should exclude columns with conflicting types', () => {
@@ -935,37 +948,37 @@ describe('IntervalIntersectNode', () => {
       // Verify ts column has TIMESTAMP type
       const tsCol = selectedCols.find((c) => c.name === 'ts');
       expect(tsCol).toBeDefined();
-      expect(tsCol?.type).toBe('TIMESTAMP');
+      expect(tsCol?.column.type).toEqual({kind: 'timestamp'});
       expect(tsCol?.column.type).toEqual(PerfettoSqlTypes.TIMESTAMP);
 
       // Verify dur column has DURATION type
       const durCol = selectedCols.find((c) => c.name === 'dur');
       expect(durCol).toBeDefined();
-      expect(durCol?.type).toBe('DURATION');
+      expect(durCol?.column.type).toEqual({kind: 'duration'});
       expect(durCol?.column.type).toEqual(PerfettoSqlTypes.DURATION);
 
       // Verify ts_0 column has TIMESTAMP type
       const ts0Col = selectedCols.find((c) => c.name === 'ts_0');
       expect(ts0Col).toBeDefined();
-      expect(ts0Col?.type).toBe('TIMESTAMP');
+      expect(ts0Col?.column.type).toEqual({kind: 'timestamp'});
       expect(ts0Col?.column.type).toEqual(PerfettoSqlTypes.TIMESTAMP);
 
       // Verify dur_0 column has DURATION type
       const dur0Col = selectedCols.find((c) => c.name === 'dur_0');
       expect(dur0Col).toBeDefined();
-      expect(dur0Col?.type).toBe('DURATION');
+      expect(dur0Col?.column.type).toEqual({kind: 'duration'});
       expect(dur0Col?.column.type).toEqual(PerfettoSqlTypes.DURATION);
 
       // Verify ts_1 column has TIMESTAMP type
       const ts1Col = selectedCols.find((c) => c.name === 'ts_1');
       expect(ts1Col).toBeDefined();
-      expect(ts1Col?.type).toBe('TIMESTAMP');
+      expect(ts1Col?.column.type).toEqual({kind: 'timestamp'});
       expect(ts1Col?.column.type).toEqual(PerfettoSqlTypes.TIMESTAMP);
 
       // Verify dur_1 column has DURATION type
       const dur1Col = selectedCols.find((c) => c.name === 'dur_1');
       expect(dur1Col).toBeDefined();
-      expect(dur1Col?.type).toBe('DURATION');
+      expect(dur1Col?.column.type).toEqual({kind: 'duration'});
       expect(dur1Col?.column.type).toEqual(PerfettoSqlTypes.DURATION);
     });
 
@@ -1016,7 +1029,7 @@ describe('IntervalIntersectNode', () => {
       // Verify utid column preserves its type
       const utidCol = selectedCols.find((c) => c.name === 'utid');
       expect(utidCol).toBeDefined();
-      expect(utidCol?.type).toBe('INT');
+      expect(utidCol?.column.type).toEqual({kind: 'int'});
       expect(utidCol?.column.type).toEqual(PerfettoSqlTypes.INT);
     });
 
@@ -1112,17 +1125,17 @@ describe('IntervalIntersectNode', () => {
       // Verify non-duplicated columns preserve their types
       const nameCol = selectedCols.find((c) => c.name === 'name');
       expect(nameCol).toBeDefined();
-      expect(nameCol?.type).toBe('STRING');
+      expect(nameCol?.column.type).toEqual({kind: 'string'});
       expect(nameCol?.column.type).toEqual(PerfettoSqlTypes.STRING);
 
       const valueCol = selectedCols.find((c) => c.name === 'value');
       expect(valueCol).toBeDefined();
-      expect(valueCol?.type).toBe('DOUBLE');
+      expect(valueCol?.column.type).toEqual({kind: 'double'});
       expect(valueCol?.column.type).toEqual(PerfettoSqlTypes.DOUBLE);
 
       const statusCol = selectedCols.find((c) => c.name === 'status');
       expect(statusCol).toBeDefined();
-      expect(statusCol?.type).toBe('STRING');
+      expect(statusCol?.column.type).toEqual({kind: 'string'});
       expect(statusCol?.column.type).toEqual(PerfettoSqlTypes.STRING);
     });
 
@@ -1246,12 +1259,12 @@ describe('IntervalIntersectNode', () => {
       // Should now include utid and track_id partition columns
       const utidCol = selectedCols.find((c) => c.name === 'utid');
       expect(utidCol).toBeDefined();
-      expect(utidCol?.type).toBe('INT');
+      expect(utidCol?.column.type).toEqual({kind: 'int'});
       expect(utidCol?.column.type).toEqual(PerfettoSqlTypes.INT);
 
       const trackIdCol = selectedCols.find((c) => c.name === 'track_id');
       expect(trackIdCol).toBeDefined();
-      expect(trackIdCol?.type).toBe('INT');
+      expect(trackIdCol?.column.type).toEqual({kind: 'int'});
       expect(trackIdCol?.column.type).toEqual(PerfettoSqlTypes.INT);
 
       // Verify the column count increased by 2 (the 2 partition columns)
@@ -1298,12 +1311,12 @@ describe('IntervalIntersectNode', () => {
       // Should still create partition columns, but with 'NA' type as fallback
       const utidCol = cols.find((c) => c.name === 'utid');
       expect(utidCol).toBeDefined();
-      expect(utidCol?.type).toBe('NA');
+      expect(utidCol?.column.type).toBeUndefined();
       expect(utidCol?.column.type).toBeUndefined();
 
       const trackIdCol = cols.find((c) => c.name === 'track_id');
       expect(trackIdCol).toBeDefined();
-      expect(trackIdCol?.type).toBe('NA');
+      expect(trackIdCol?.column.type).toBeUndefined();
       expect(trackIdCol?.column.type).toBeUndefined();
     });
 
@@ -1348,7 +1361,7 @@ describe('IntervalIntersectNode', () => {
       // Should use the type from the FIRST input node
       const utidCol = cols.find((c) => c.name === 'utid');
       expect(utidCol).toBeDefined();
-      expect(utidCol?.type).toBe('INT'); // From node1, not STRING from node2
+      expect(utidCol?.column.type).toEqual({kind: 'int'}); // From node1, not STRING from node2
       expect(utidCol?.column.type).toEqual(PerfettoSqlTypes.INT);
     });
 
@@ -1522,7 +1535,7 @@ describe('IntervalIntersectNode', () => {
       // Check id type matches input 0
       let idCol = node.finalCols.find((c) => c.name === 'id');
       expect(idCol).toBeDefined();
-      expect(idCol?.type).toBe('INT');
+      expect(idCol?.column.type).toEqual({kind: 'int'});
 
       // Change to input 1
       node.state.tsDurSource = 1;
@@ -1530,7 +1543,7 @@ describe('IntervalIntersectNode', () => {
       // Check id type should now match input 1
       idCol = node.finalCols.find((c) => c.name === 'id');
       expect(idCol).toBeDefined();
-      expect(idCol?.type).toBe('STRING');
+      expect(idCol?.column.type).toEqual({kind: 'string'});
     });
 
     it('should propagate id column type change to downstream ModifyColumnsNode when tsDurSource changes', () => {
@@ -1579,7 +1592,7 @@ describe('IntervalIntersectNode', () => {
       // Verify id column has INT type from input 0
       let idCol = modifyNode.state.selectedColumns.find((c) => c.name === 'id');
       expect(idCol).toBeDefined();
-      expect(idCol?.type).toBe('INT');
+      expect(idCol?.column.type).toEqual({kind: 'int'});
 
       // Change tsDurSource to input 1
       intervalNode.state.tsDurSource = 1;
@@ -1588,7 +1601,7 @@ describe('IntervalIntersectNode', () => {
       // Verify id column type updated to STRING from input 1
       idCol = modifyNode.state.selectedColumns.find((c) => c.name === 'id');
       expect(idCol).toBeDefined();
-      expect(idCol?.type).toBe('STRING');
+      expect(idCol?.column.type).toEqual({kind: 'string'});
     });
 
     it('should preserve user-modified type in ModifyColumnsNode when tsDurSource changes', () => {
@@ -1634,13 +1647,17 @@ describe('IntervalIntersectNode', () => {
       intervalNode.nextNodes.push(modifyNode);
       modifyNode.onPrevNodesUpdated();
 
-      // Simulate user manually changing the id column type to CUSTOM_TYPE
+      // Simulate user manually changing the id column type to a custom type
+      const customType: PerfettoSqlType = {kind: 'double'};
       const idColIndex = modifyNode.state.selectedColumns.findIndex(
         (c) => c.name === 'id',
       );
       modifyNode.state.selectedColumns[idColIndex] = {
         ...modifyNode.state.selectedColumns[idColIndex],
-        type: 'CUSTOM_TYPE',
+        column: {
+          ...modifyNode.state.selectedColumns[idColIndex].column,
+          type: customType,
+        },
         typeUserModified: true,
       };
 
@@ -1653,7 +1670,7 @@ describe('IntervalIntersectNode', () => {
         (c) => c.name === 'id',
       );
       expect(idCol).toBeDefined();
-      expect(idCol?.type).toBe('CUSTOM_TYPE');
+      expect(idCol?.column.type).toEqual(customType);
       expect(idCol?.typeUserModified).toBe(true);
     });
   });

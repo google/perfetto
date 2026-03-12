@@ -15,9 +15,11 @@
 import m from 'mithril';
 import {MenuItem, PopupMenu} from '../../../../widgets/menu';
 import {
+  PerfettoSqlType,
   SIMPLE_TYPE_KINDS,
   isIdType,
   perfettoSqlTypeToString,
+  typesEqual,
 } from '../../../../trace_processor/perfetto_sql_type';
 import {ColumnInfo} from '../column_info';
 import {SqlModules} from '../../../dev.perfetto.SqlModules/sql_modules';
@@ -59,14 +61,15 @@ export function renderTypeSelector(
   col: ColumnInfo,
   index: number,
   sqlModules: SqlModules | undefined,
-  onColumnType?: (index: number, type: string) => void,
+  onColumnType?: (index: number, type: PerfettoSqlType) => void,
 ): m.Child {
   // If no callback provided, don't render type selector
   if (!onColumnType) {
     return null;
   }
 
-  const currentType = col.type ?? 'UNKNOWN';
+  const currentType = col.column.type;
+  const currentTypeStr = perfettoSqlTypeToString(currentType);
   const originalType = col.column.type;
 
   // Build the list of menu items
@@ -78,20 +81,25 @@ export function renderTypeSelector(
     menuItems.push(
       m(MenuItem, {
         label: idTypeStr,
-        active: currentType === idTypeStr,
-        onclick: () => onColumnType(index, idTypeStr),
+        active:
+          currentType !== undefined && typesEqual(currentType, originalType),
+        onclick: () => onColumnType(index, originalType),
       }),
     );
   }
 
   // Add all simple types
-  for (const type of SIMPLE_TYPE_KINDS) {
-    const typeUpper = type.toUpperCase();
+  for (const kind of SIMPLE_TYPE_KINDS) {
+    const simpleType: PerfettoSqlType = {kind};
+    const typeStr = kind.toUpperCase();
     menuItems.push(
       m(MenuItem, {
-        label: typeUpper,
-        active: currentType === typeUpper,
-        onclick: () => onColumnType(index, typeUpper),
+        label: typeStr,
+        active:
+          currentType !== undefined &&
+          currentType.kind === kind &&
+          !isIdType(currentType),
+        onclick: () => onColumnType(index, simpleType),
       }),
     );
   }
@@ -101,10 +109,14 @@ export function renderTypeSelector(
   const joinidMenuItems =
     tablesWithId.length > 0
       ? tablesWithId.map(({tableName, columnName}) => {
-          const joinidType = `JOINID(${tableName}.${columnName})`;
+          const joinidType: PerfettoSqlType = {
+            kind: 'joinid',
+            source: {table: tableName, column: columnName},
+          };
           return m(MenuItem, {
             label: `${tableName}.${columnName}`,
-            active: currentType === joinidType,
+            active:
+              currentType !== undefined && typesEqual(currentType, joinidType),
             onclick: () => onColumnType(index, joinidType),
           });
         })
@@ -130,7 +142,7 @@ export function renderTypeSelector(
   return m(
     PopupMenu,
     {
-      trigger: m('.pf-column-type', currentType),
+      trigger: m('.pf-column-type', currentTypeStr),
     },
     menuItems,
   );

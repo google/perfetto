@@ -33,10 +33,16 @@ import {
   NodeTitle,
 } from '../node_styling_widgets';
 import {isNumericType} from '../utils';
+import {
+  PerfettoSqlType,
+  perfettoSqlTypeToString,
+} from '../../../../trace_processor/perfetto_sql_type';
 
 // Metrics value columns accept numeric types and ANY (unknown/unresolved type).
-function isMetricsValueType(typeStr: string): boolean {
-  return isNumericType(typeStr) || typeStr.toUpperCase() === 'ANY';
+function isMetricsValueType(type?: PerfettoSqlType): boolean {
+  // undefined means unknown/unresolved type — treat as acceptable
+  if (type === undefined) return true;
+  return isNumericType(type);
 }
 import {classNames} from '../../../../base/classnames';
 import {Icons} from '../../../../base/semantic_icons';
@@ -127,7 +133,7 @@ export class MetricsNode implements QueryNode {
     // Remove value columns whose column no longer exists or is no longer numeric.
     this.state.valueColumns = this.state.valueColumns.filter((vc) => {
       const col = this.state.availableColumns.find((c) => c.name === vc.column);
-      return col !== undefined && isMetricsValueType(col.type);
+      return col !== undefined && isMetricsValueType(col.column.type);
     });
   }
 
@@ -174,9 +180,9 @@ export class MetricsNode implements QueryNode {
         );
         return false;
       }
-      if (!isMetricsValueType(col.type)) {
+      if (!isMetricsValueType(col.column.type)) {
         this.setValidationError(
-          `Value column '${vc.column}' must be numeric (got ${col.type})`,
+          `Value column '${vc.column}' must be numeric (got ${perfettoSqlTypeToString(col.column.type)})`,
         );
         return false;
       }
@@ -368,7 +374,7 @@ export class MetricsNode implements QueryNode {
         dimensionCols.length === 0
           ? m('.pf-metrics-v2-empty-hint', 'No dimensions')
           : dimensionCols.map((col) => {
-              const numeric = isMetricsValueType(col.type);
+              const numeric = isMetricsValueType(col.column.type);
               return m(
                 '.pf-metrics-v2-column-item',
                 {
@@ -402,7 +408,10 @@ export class MetricsNode implements QueryNode {
                     })
                   : m('span.pf-metrics-v2-drag-handle'),
                 m('span.pf-metrics-v2-col-name', col.name),
-                m('span.pf-metrics-v2-col-type', col.type),
+                m(
+                  'span.pf-metrics-v2-col-type',
+                  perfettoSqlTypeToString(col.column.type),
+                ),
                 numeric
                   ? m(Button, {
                       icon: 'arrow_forward',
@@ -427,12 +436,12 @@ export class MetricsNode implements QueryNode {
         const col = this.state.availableColumns.find(
           (c) => c.name === this.dragPayload?.columnName,
         );
-        return col !== undefined && !isMetricsValueType(col.type);
+        return col !== undefined && !isMetricsValueType(col.column.type);
       })();
 
     // Numeric (or ANY) columns available to add (not already in values).
     const numericDimensions = dimensionCols.filter((c) =>
-      isMetricsValueType(c.type),
+      isMetricsValueType(c.column.type),
     );
 
     return m(
@@ -450,7 +459,7 @@ export class MetricsNode implements QueryNode {
             const col = this.state.availableColumns.find(
               (c) => c.name === this.dragPayload?.columnName,
             );
-            if (col !== undefined && isMetricsValueType(col.type)) {
+            if (col !== undefined && isMetricsValueType(col.column.type)) {
               e.preventDefault();
             }
             // Non-numeric: don't preventDefault → drop not allowed.
@@ -511,7 +520,11 @@ export class MetricsNode implements QueryNode {
                 [
                   m('option', {value: '', disabled: true}, 'Select column...'),
                   ...numericDimensions.map((col) =>
-                    m('option', {value: col.name}, `${col.name} (${col.type})`),
+                    m(
+                      'option',
+                      {value: col.name},
+                      `${col.name} (${perfettoSqlTypeToString(col.column.type)})`,
+                    ),
                   ),
                 ],
               ),
@@ -523,7 +536,10 @@ export class MetricsNode implements QueryNode {
 
   private renderValueItem(vc: ValueColumnConfig, index: number): m.Children {
     const col = this.state.availableColumns.find((c) => c.name === vc.column);
-    const colType = col?.type ?? '?';
+    const colType =
+      col?.column.type !== undefined
+        ? perfettoSqlTypeToString(col.column.type)
+        : '?';
     const needsCustomUnit = vc.unit === 'CUSTOM';
     const isExpanded = vc.expanded ?? false;
 
@@ -646,7 +662,7 @@ export class MetricsNode implements QueryNode {
       const col = this.state.availableColumns.find(
         (c) => c.name === columnName,
       );
-      if (col === undefined || !isMetricsValueType(col.type)) return;
+      if (col === undefined || !isMetricsValueType(col.column.type)) return;
 
       // Add to values with default config.
       const alreadyExists = this.state.valueColumns.some(

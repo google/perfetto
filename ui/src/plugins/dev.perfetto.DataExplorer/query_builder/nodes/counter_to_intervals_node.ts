@@ -67,7 +67,6 @@ export class CounterToIntervalsNode implements QueryNode {
     // dur: the duration until the next counter value
     cols.push({
       name: 'dur',
-      type: 'DURATION',
       checked: true,
       column: {name: 'dur', type: PerfettoSqlTypes.DURATION},
     });
@@ -75,7 +74,6 @@ export class CounterToIntervalsNode implements QueryNode {
     // next_value: the value of the next counter
     cols.push({
       name: 'next_value',
-      type: 'DOUBLE',
       checked: true,
       column: {name: 'next_value', type: PerfettoSqlTypes.DOUBLE},
     });
@@ -83,7 +81,6 @@ export class CounterToIntervalsNode implements QueryNode {
     // delta_value: the change in value (next_value - value)
     cols.push({
       name: 'delta_value',
-      type: 'DOUBLE',
       checked: true,
       column: {name: 'delta_value', type: PerfettoSqlTypes.DOUBLE},
     });

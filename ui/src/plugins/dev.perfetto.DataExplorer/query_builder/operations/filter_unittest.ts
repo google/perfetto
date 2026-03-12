@@ -38,25 +38,21 @@ describe('filter operations', () => {
     const sourceCols: ColumnInfo[] = [
       {
         name: 'id',
-        type: 'int',
         checked: false,
         column: {name: 'id', type: {kind: 'int'}},
       },
       {
         name: 'name',
-        type: 'string',
         checked: false,
         column: {name: 'name', type: {kind: 'string'}},
       },
       {
         name: 'age',
-        type: 'int',
         checked: false,
         column: {name: 'age', type: {kind: 'int'}},
       },
       {
         name: 'status',
-        type: 'string',
         checked: false,
         column: {name: 'status', type: {kind: 'string'}},
       },

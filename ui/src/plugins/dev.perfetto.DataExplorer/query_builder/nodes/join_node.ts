@@ -23,6 +23,7 @@ import {
 import {getSecondaryInput} from '../graph_utils';
 import protos from '../../../../protos';
 import {ColumnInfo, newColumnInfoList} from '../column_info';
+import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
 import {Switch} from '../../../../widgets/switch';
@@ -49,14 +50,14 @@ export interface JoinSerializedState {
   comment?: string;
   leftColumns?: {
     name: string;
-    type: string;
+    type?: PerfettoSqlType;
     checked: boolean;
     alias?: string;
     columnName: string; // Original source column name
   }[];
   rightColumns?: {
     name: string;
-    type: string;
+    type?: PerfettoSqlType;
     checked: boolean;
     alias?: string;
     columnName: string; // Original source column name
@@ -527,14 +528,14 @@ export class JoinNode implements QueryNode {
       sqlExpression: this.state.sqlExpression,
       leftColumns: (this.state.leftColumns ?? []).map((c) => ({
         name: c.name,
-        type: c.type,
+        type: c.column.type,
         checked: c.checked,
         alias: c.alias,
         columnName: c.column.name, // Save original source column name
       })),
       rightColumns: (this.state.rightColumns ?? []).map((c) => ({
         name: c.name,
-        type: c.type,
+        type: c.column.type,
         checked: c.checked,
         alias: c.alias,
         columnName: c.column.name, // Save original source column name
@@ -554,17 +555,15 @@ export class JoinNode implements QueryNode {
       leftColumns:
         state.leftColumns?.map((c) => ({
           name: c.name,
-          type: c.type,
           checked: c.checked,
-          column: {name: c.columnName ?? c.name}, // Use original column name
+          column: {name: c.columnName ?? c.name, type: c.type}, // Use original column name
           alias: c.alias,
         })) ?? [],
       rightColumns:
         state.rightColumns?.map((c) => ({
           name: c.name,
-          type: c.type,
           checked: c.checked,
-          column: {name: c.columnName ?? c.name}, // Use original column name
+          column: {name: c.columnName ?? c.name, type: c.type}, // Use original column name
           alias: c.alias,
         })) ?? [],
     };

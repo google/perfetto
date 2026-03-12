@@ -93,7 +93,6 @@ function createMockColumnInfo(
 ): ColumnInfo {
   return {
     name,
-    type: type ? type.kind.toUpperCase() : 'UNKNOWN',
     checked: false,
     column: {name, type},
   };
@@ -346,7 +345,7 @@ describe('createFunctionColumn', () => {
     expect(result?.module).toBe('prelude.time');
     expect(result?.functionName).toBe('dur_ns_to_ms');
     expect(result?.functionArgs).toEqual(state.argBindings);
-    expect(result?.sqlType).toBe('DOUBLE');
+    expect(result?.sqlType).toEqual({kind: 'double'});
   });
 
   it('should return undefined when no function is selected', () => {
@@ -393,7 +392,7 @@ describe('createFunctionModalState', () => {
       functionArgs: [
         {argName: 'arg1', value: 'col1', isCustomExpression: false},
       ],
-      sqlType: 'INT',
+      sqlType: PerfettoSqlTypes.INT,
     };
 
     const state = createFunctionModalState(true, existingColumn, sqlModules);
@@ -412,7 +411,7 @@ describe('createFunctionModalState', () => {
       module: 'unknown.module',
       functionName: 'unknown_func',
       functionArgs: [],
-      sqlType: 'INT',
+      sqlType: PerfettoSqlTypes.INT,
     };
 
     const state = createFunctionModalState(true, existingColumn, sqlModules);
