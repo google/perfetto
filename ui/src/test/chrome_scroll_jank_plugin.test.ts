@@ -80,7 +80,9 @@ test('event_latency_track', async () => {
     'Chrome Scroll Jank/Chrome Scroll Input Latencies',
   );
   await trk.scrollIntoViewIfNeeded();
-  await pth.waitForIdleAndScreenshot('track.png');
+  await pth.waitForIdleAndScreenshot('track.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 
   // Select the 'RendererCompositorQueueingDelay' stage within the first
   // janky EventLatency.
@@ -90,16 +92,21 @@ test('event_latency_track', async () => {
     Time.fromRaw(16784825798017n),
   );
   await trk.scrollIntoViewIfNeeded();
-  await pth.waitForIdleAndScreenshot('details_panel_stage.png');
+  await pth.waitForIdleAndScreenshot('details_panel_stage.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 
   // Jump from the stage to the first janky EventLatency.
   await page.getByText('Parent EventLatency').click();
-  await pth.waitForIdleAndScreenshot('details_panel_event_latency.png');
+  await pth.waitForIdleAndScreenshot('details_panel_event_latency.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 
   // Jump from the first janky EventLatency to the corresponding scroll update.
   await page.getByText('Corresponding scroll update').click();
   await pth.waitForIdleAndScreenshot(
     'details_panel_link_to_scroll_timeline.png',
+    {locator: page.locator('.pf-timeline-page__timeline')},
   );
 
   // Go back to the first janky EventLatency and then jump the corresponding frame.
@@ -113,13 +120,16 @@ test('event_latency_track', async () => {
     .click();
   await pth.waitForIdleAndScreenshot(
     'details_panel_link_to_scroll_timeline_v4.png',
+    {locator: page.locator('.pf-timeline-page__timeline')},
   );
 });
 
 test('scroll_timeline_track', async () => {
   const trk = pth.locateTrack('Chrome Scroll Jank/Chrome Scroll Timeline');
   await trk.scrollIntoViewIfNeeded();
-  await pth.waitForIdleAndScreenshot('track.png');
+  await pth.waitForIdleAndScreenshot('track.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 
   // Select the 'GenerationToBrowserMain' stage within the first inertial scroll
   // update.
@@ -129,15 +139,24 @@ test('scroll_timeline_track', async () => {
     Time.fromRaw(16784307235017n),
   );
   await trk.scrollIntoViewIfNeeded();
-  await pth.waitForIdleAndScreenshot('details_panel_stage.png');
+  await pth.waitForIdleAndScreenshot('details_panel_stage.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 
   // Jump from the stage to the first inertial scroll update.
   await page.getByText('Parent scroll update').click();
-  await pth.waitForIdleAndScreenshot('details_panel_scroll_update.png');
+  await pth.waitForIdleAndScreenshot('details_panel_scroll_update.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 
   // Jump from the first inertial scroll update to the corresponding EventLatency.
   await page.getByText('Corresponding EventLatency').click();
-  await pth.waitForIdleAndScreenshot('details_panel_link_to_event_latency.png');
+  await pth.waitForIdleAndScreenshot(
+    'details_panel_link_to_event_latency.png',
+    {
+      locator: page.locator('.pf-timeline-page__timeline'),
+    },
+  );
 
   // Go back to the first inertial scroll update and then jump the corresponding
   // frame.
@@ -151,13 +170,16 @@ test('scroll_timeline_track', async () => {
     .click();
   await pth.waitForIdleAndScreenshot(
     'details_panel_link_to_scroll_timeline_v4.png',
+    {locator: page.locator('.pf-timeline-page__timeline')},
   );
 });
 
 test('scroll_timeline_v4_track', async () => {
   const trk = pth.locateTrack('Chrome Scroll Jank/Chrome Scroll Timeline v4');
   await trk.scrollIntoViewIfNeeded();
-  await pth.waitForIdleAndScreenshot('scroll_timeline_v4_track.png');
+  await pth.waitForIdleAndScreenshot('scroll_timeline_v4_track.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 
   // Select the 'Real scroll update input generation' stage within the second
   // janky frame.
@@ -169,18 +191,21 @@ test('scroll_timeline_v4_track', async () => {
   await trk.scrollIntoViewIfNeeded();
   await pth.waitForIdleAndScreenshot(
     'scroll_timeline_v4_details_panel_stage.png',
+    {locator: page.locator('.pf-timeline-page__timeline')},
   );
 
   // Jump from the stage to the second janky frame.
   await page.getByText('Parent frame').click();
   await pth.waitForIdleAndScreenshot(
     'scroll_timeline_v4_details_panel_frame.png',
+    {locator: page.locator('.pf-timeline-page__timeline')},
   );
 
   // Jump from the second janky frame to the corresponding EventLatency.
   await page.getByText('First EventLatency in this frame').click();
   await pth.waitForIdleAndScreenshot(
     'scroll_timeline_v4_details_panel_link_to_event_latency.png',
+    {locator: page.locator('.pf-timeline-page__timeline')},
   );
 
   // Go back to the second janky frame and then jump the corresponding frame.
@@ -192,5 +217,6 @@ test('scroll_timeline_v4_track', async () => {
   await page.getByText('First scroll update in this frame').click();
   await pth.waitForIdleAndScreenshot(
     'scroll_timeline_v4_details_panel_link_to_scroll_timeline.png',
+    {locator: page.locator('.pf-timeline-page__timeline')},
   );
 });

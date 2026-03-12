@@ -14,8 +14,8 @@
 
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp';
 import {z} from 'zod';
-import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 import {Trace} from '../../public/trace';
+import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import {Time} from '../../base/time';
 import {assertTrue} from '../../base/assert';
 
@@ -28,7 +28,7 @@ export function registerUiTools(server: McpServer, ctxt: Trace) {
       viewName: z.string(),
     },
     async ({query, viewName}) => {
-      addQueryResultsTab(ctxt, {
+      ctxt.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab({
         query: query,
         title: viewName,
       });

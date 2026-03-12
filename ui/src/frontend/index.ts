@@ -53,7 +53,6 @@ import {
   addDebugSliceTrack,
 } from '../components/tracks/debug_tracks';
 import {addVisualizedArgTracks} from '../components/tracks/visualized_args_tracks';
-import {addQueryResultsTab} from '../components/query_table/query_result_tab';
 import {assetSrc, initAssets} from '../base/assets';
 import {
   PERFETTO_SETTINGS_STORAGE_KEY,
@@ -552,7 +551,6 @@ configureExtensions({
   addDebugSliceTrack,
   addVisualizedArgTracks,
   addLegacySqlTableTab: addLegacyTableTab,
-  addQueryResultsTab,
 });
 
 main();

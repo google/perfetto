@@ -43,5 +43,7 @@ test.beforeAll(async ({browser}) => {
 });
 
 test('load trace with canvas renderer', async () => {
-  await pth.waitForIdleAndScreenshot('canvas_renderer_loaded.png');
+  await pth.waitForIdleAndScreenshot('canvas_renderer_loaded.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 });

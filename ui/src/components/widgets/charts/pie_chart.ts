@@ -17,7 +17,6 @@ import type {EChartsCoreOption} from 'echarts/core';
 import {formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler, EChartClickParams} from './echart_view';
 import {buildLegendOption, buildTooltipOption} from './chart_option_builder';
-import {getChartThemeColors} from './chart_theme';
 
 /**
  * A single slice in the pie chart.
@@ -119,8 +118,6 @@ function buildPieOption(
     innerRadiusRatio = 0,
   } = attrs;
 
-  const theme = getChartThemeColors();
-
   const pieData = slices.map((s) => ({
     name: s.label,
     value: s.value,
@@ -133,7 +130,6 @@ function buildPieOption(
 
   return {
     animation: false,
-    color: [...theme.chartColors],
     tooltip: buildTooltipOption({
       trigger: 'item' as const,
       formatter: (params: {
@@ -163,7 +159,6 @@ function buildPieOption(
           scaleSize: 5,
         },
         itemStyle: {
-          borderColor: theme.backgroundColor,
           borderWidth: 2,
         },
       },

@@ -52,6 +52,7 @@ import {SettingDescriptor} from '../public/settings';
 import {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
 import {TraceStream} from '../public/stream';
+import {OmniboxModeDescriptor} from '../public/omnibox';
 
 /**
  * This implementation provides the plugin access to trace related resources,
@@ -174,6 +175,14 @@ export class TraceImpl implements Trace, Disposable {
         return disposable;
       },
     });
+
+    this.omniboxProxy = createProxy(app.omnibox, {
+      registerMode: (descriptor: OmniboxModeDescriptor) => {
+        const disposable = app.omnibox.registerMode(descriptor);
+        this.trash.use(disposable);
+        return disposable;
+      },
+    });
   }
 
   // This method wires up changes to selection to side effects on search and
@@ -202,6 +211,7 @@ export class TraceImpl implements Trace, Disposable {
   private readonly sidebarProxy: SidebarManagerImpl;
   private readonly pageMgrProxy: PageManagerImpl;
   private readonly settingsProxy: SettingsManagerImpl;
+  private readonly omniboxProxy: OmniboxManagerImpl;
 
   scrollTo(where: ScrollToArgs): void {
     this.scrollHelper.scrollTo(where);
@@ -261,7 +271,7 @@ export class TraceImpl implements Trace, Disposable {
   }
 
   get omnibox(): OmniboxManagerImpl {
-    return this.app.omnibox;
+    return this.omniboxProxy;
   }
 
   get plugins(): PluginManagerImpl {

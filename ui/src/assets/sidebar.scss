@@ -35,6 +35,10 @@
     border-bottom: 1px solid var(--pf-sidebar-border-secondary);
   }
 
+  &__item--selected {
+    background: var(--pf-sidebar-surface);
+  }
+
   input[type="file"] {
     display: none;
   }

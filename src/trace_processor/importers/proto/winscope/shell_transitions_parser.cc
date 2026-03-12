@@ -27,6 +27,7 @@
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.h"
 #include "src/trace_processor/importers/proto/winscope/winscope_context.h"
+#include "src/trace_processor/importers/proto/winscope/winscope_geometry.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
@@ -123,19 +124,49 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   }
 
   // update participants
-  if (transition.has_targets()) {
+  if (transition.has_changes()) {
     auto* participants_table =
         storage->mutable_window_manager_shell_transition_participants_table();
-    for (auto it = transition.targets(); it; ++it) {
+    for (auto it = transition.changes(); it; ++it) {
       tables::WindowManagerShellTransitionParticipantsTable::Row
           participant_row;
       participant_row.transition_id = transition_id;
-      protos::pbzero::ShellTransition::Target::Decoder target(*it);
-      if (target.has_layer_id()) {
-        participant_row.layer_id = target.layer_id();
+      protos::pbzero::ShellTransition::Change::Decoder change(*it);
+      if (change.has_layer_id()) {
+        participant_row.layer_id = change.layer_id();
       }
-      if (target.has_window_id()) {
-        participant_row.window_id = target.window_id();
+      if (change.has_window_id()) {
+        participant_row.window_id = change.window_id();
+      }
+      if (change.has_mode()) {
+        participant_row.mode = change.mode();
+      }
+      if (change.has_flags()) {
+        participant_row.flags = change.flags();
+      }
+      if (change.has_start_display_id()) {
+        participant_row.start_display_id = change.start_display_id();
+      }
+      if (change.has_end_display_id()) {
+        participant_row.end_display_id = change.end_display_id();
+      }
+      if (change.has_start_rotation()) {
+        participant_row.start_rotation = change.start_rotation();
+      }
+      if (change.has_end_rotation()) {
+        participant_row.end_rotation = change.end_rotation();
+      }
+      if (change.has_start_absolute_bounds()) {
+        protos::pbzero::RectProto::Decoder rect(change.start_absolute_bounds());
+        winscope::geometry::Rect geometry_rect(rect);
+        participant_row.start_abs_bounds_rect_id =
+            context_->rect_tracker_.GetOrInsertRow(geometry_rect);
+      }
+      if (change.has_end_absolute_bounds()) {
+        protos::pbzero::RectProto::Decoder rect(change.end_absolute_bounds());
+        winscope::geometry::Rect geometry_rect(rect);
+        participant_row.end_abs_bounds_rect_id =
+            context_->rect_tracker_.GetOrInsertRow(geometry_rect);
       }
       participants_table->Insert(participant_row);
     }
