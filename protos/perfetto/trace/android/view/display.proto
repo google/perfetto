@@ -19,7 +19,6 @@ package perfetto.protos;
 
 message ViewDisplayProto {
   enum ColorMode {
-    COLOR_MODE_INVALID = -1;
     // The default or native gamut of the display.
     COLOR_MODE_DEFAULT = 0;
     COLOR_MODE_BT601_625 = 1;
@@ -31,5 +30,6 @@ message ViewDisplayProto {
     COLOR_MODE_SRGB = 7;
     COLOR_MODE_ADOBE_RGB = 8;
     COLOR_MODE_DISPLAY_P3 = 9;
+    COLOR_MODE_INVALID = -1;
   }
 }
