@@ -413,11 +413,11 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
           }
 
           // Check if this is a timestamp column
-          if (columnInfo.type === 'TIMESTAMP') {
+          if (columnInfo.column.type?.kind === 'timestamp') {
             cellRenderer = createTimestampCellRenderer(attrs.trace);
           }
           // Check if this is a duration column
-          else if (columnInfo.type === 'DURATION') {
+          else if (columnInfo.column.type?.kind === 'duration') {
             cellRenderer = createDurationCellRenderer(attrs.trace);
           }
         }

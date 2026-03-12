@@ -19,82 +19,96 @@ import {
   getAggregationTypeRequirements,
 } from './utils';
 import {ColumnInfo} from './column_info';
+import {
+  PerfettoSqlType,
+  PerfettoSqlTypes,
+} from '../../../trace_processor/perfetto_sql_type';
 
 describe('utils', () => {
   describe('isNumericType', () => {
     it('should return true for INT type', () => {
-      expect(isNumericType('INT')).toBe(true);
-      expect(isNumericType('int')).toBe(true);
+      expect(isNumericType(PerfettoSqlTypes.INT)).toBe(true);
     });
 
     it('should return true for DOUBLE type', () => {
-      expect(isNumericType('DOUBLE')).toBe(true);
-      expect(isNumericType('double')).toBe(true);
+      expect(isNumericType(PerfettoSqlTypes.DOUBLE)).toBe(true);
     });
 
     it('should return true for DURATION type', () => {
-      expect(isNumericType('DURATION')).toBe(true);
-      expect(isNumericType('duration')).toBe(true);
+      expect(isNumericType(PerfettoSqlTypes.DURATION)).toBe(true);
     });
 
     it('should return true for TIMESTAMP type', () => {
-      expect(isNumericType('TIMESTAMP')).toBe(true);
-      expect(isNumericType('timestamp')).toBe(true);
+      expect(isNumericType(PerfettoSqlTypes.TIMESTAMP)).toBe(true);
     });
 
     it('should return true for BOOLEAN type', () => {
-      expect(isNumericType('BOOLEAN')).toBe(true);
-      expect(isNumericType('boolean')).toBe(true);
+      expect(isNumericType(PerfettoSqlTypes.BOOLEAN)).toBe(true);
     });
 
     it('should return true for ID types', () => {
-      expect(isNumericType('ID(slice)')).toBe(true);
-      expect(isNumericType('ID(thread)')).toBe(true);
-      expect(isNumericType('id(process)')).toBe(true);
+      expect(
+        isNumericType({kind: 'id', source: {table: 'slice', column: 'id'}}),
+      ).toBe(true);
+      expect(
+        isNumericType({kind: 'id', source: {table: 'thread', column: 'id'}}),
+      ).toBe(true);
+      expect(
+        isNumericType({kind: 'id', source: {table: 'process', column: 'id'}}),
+      ).toBe(true);
     });
 
     it('should return true for JOINID types', () => {
-      expect(isNumericType('JOINID(slice.id)')).toBe(true);
-      expect(isNumericType('joinid(thread.id)')).toBe(true);
+      expect(
+        isNumericType({
+          kind: 'joinid',
+          source: {table: 'slice', column: 'id'},
+        }),
+      ).toBe(true);
+      expect(
+        isNumericType({
+          kind: 'joinid',
+          source: {table: 'thread', column: 'id'},
+        }),
+      ).toBe(true);
     });
 
     it('should return true for ARG_SET_ID type', () => {
-      expect(isNumericType('ARG_SET_ID')).toBe(true);
-      expect(isNumericType('arg_set_id')).toBe(true);
+      expect(isNumericType(PerfettoSqlTypes.ARG_SET_ID)).toBe(true);
     });
 
     it('should return false for STRING type', () => {
-      expect(isNumericType('STRING')).toBe(false);
-      expect(isNumericType('string')).toBe(false);
+      expect(isNumericType(PerfettoSqlTypes.STRING)).toBe(false);
     });
 
-    it('should return false for unknown types', () => {
-      expect(isNumericType('UNKNOWN')).toBe(false);
-      expect(isNumericType('BLOB')).toBe(false);
+    it('should return false for undefined type', () => {
+      expect(isNumericType(undefined)).toBe(false);
     });
   });
 
   describe('isStringType', () => {
     it('should return true for STRING type', () => {
-      expect(isStringType('STRING')).toBe(true);
-      expect(isStringType('string')).toBe(true);
+      expect(isStringType(PerfettoSqlTypes.STRING)).toBe(true);
     });
 
     it('should return false for non-string types', () => {
-      expect(isStringType('INT')).toBe(false);
-      expect(isStringType('DOUBLE')).toBe(false);
-      expect(isStringType('DURATION')).toBe(false);
+      expect(isStringType(PerfettoSqlTypes.INT)).toBe(false);
+      expect(isStringType(PerfettoSqlTypes.DOUBLE)).toBe(false);
+      expect(isStringType(PerfettoSqlTypes.DURATION)).toBe(false);
     });
   });
 
   describe('isColumnValidForAggregation', () => {
-    function createColumnInfo(name: string, type: string): ColumnInfo {
+    function createColumnInfo(
+      name: string,
+      type?: PerfettoSqlType,
+    ): ColumnInfo {
       return {
         name,
-        type,
         checked: false,
         column: {
           name,
+          type,
         },
       };
     }
@@ -102,17 +116,20 @@ describe('utils', () => {
     describe('MEAN operation', () => {
       it('should allow numeric columns', () => {
         expect(
-          isColumnValidForAggregation(createColumnInfo('dur', 'INT'), 'MEAN'),
-        ).toBe(true);
-        expect(
           isColumnValidForAggregation(
-            createColumnInfo('value', 'DOUBLE'),
+            createColumnInfo('dur', PerfettoSqlTypes.INT),
             'MEAN',
           ),
         ).toBe(true);
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('ts', 'TIMESTAMP'),
+            createColumnInfo('value', PerfettoSqlTypes.DOUBLE),
+            'MEAN',
+          ),
+        ).toBe(true);
+        expect(
+          isColumnValidForAggregation(
+            createColumnInfo('ts', PerfettoSqlTypes.TIMESTAMP),
             'MEAN',
           ),
         ).toBe(true);
@@ -121,7 +138,7 @@ describe('utils', () => {
       it('should reject string columns', () => {
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('name', 'STRING'),
+            createColumnInfo('name', PerfettoSqlTypes.STRING),
             'MEAN',
           ),
         ).toBe(false);
@@ -131,11 +148,14 @@ describe('utils', () => {
     describe('MEDIAN operation', () => {
       it('should allow numeric columns', () => {
         expect(
-          isColumnValidForAggregation(createColumnInfo('dur', 'INT'), 'MEDIAN'),
+          isColumnValidForAggregation(
+            createColumnInfo('dur', PerfettoSqlTypes.INT),
+            'MEDIAN',
+          ),
         ).toBe(true);
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('value', 'DOUBLE'),
+            createColumnInfo('value', PerfettoSqlTypes.DOUBLE),
             'MEDIAN',
           ),
         ).toBe(true);
@@ -144,7 +164,7 @@ describe('utils', () => {
       it('should reject string columns', () => {
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('name', 'STRING'),
+            createColumnInfo('name', PerfettoSqlTypes.STRING),
             'MEDIAN',
           ),
         ).toBe(false);
@@ -155,19 +175,22 @@ describe('utils', () => {
       it('should allow numeric columns', () => {
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('dur', 'INT'),
+            createColumnInfo('dur', PerfettoSqlTypes.INT),
             'PERCENTILE',
           ),
         ).toBe(true);
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('value', 'DOUBLE'),
+            createColumnInfo('value', PerfettoSqlTypes.DOUBLE),
             'PERCENTILE',
           ),
         ).toBe(true);
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('id', 'ID(slice)'),
+            createColumnInfo('id', {
+              kind: 'id',
+              source: {table: 'slice', column: 'id'},
+            }),
             'PERCENTILE',
           ),
         ).toBe(true);
@@ -176,7 +199,7 @@ describe('utils', () => {
       it('should reject string columns', () => {
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('name', 'STRING'),
+            createColumnInfo('name', PerfettoSqlTypes.STRING),
             'PERCENTILE',
           ),
         ).toBe(false);
@@ -187,13 +210,13 @@ describe('utils', () => {
       it('should allow numeric columns', () => {
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('value', 'INT'),
+            createColumnInfo('value', PerfettoSqlTypes.INT),
             'DURATION_WEIGHTED_MEAN',
           ),
         ).toBe(true);
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('dur', 'DURATION'),
+            createColumnInfo('dur', PerfettoSqlTypes.DURATION),
             'DURATION_WEIGHTED_MEAN',
           ),
         ).toBe(true);
@@ -202,7 +225,7 @@ describe('utils', () => {
       it('should reject string columns', () => {
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('name', 'STRING'),
+            createColumnInfo('name', PerfettoSqlTypes.STRING),
             'DURATION_WEIGHTED_MEAN',
           ),
         ).toBe(false);
@@ -213,7 +236,7 @@ describe('utils', () => {
       it('should allow string columns', () => {
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('name', 'STRING'),
+            createColumnInfo('name', PerfettoSqlTypes.STRING),
             'GLOB',
           ),
         ).toBe(true);
@@ -221,11 +244,14 @@ describe('utils', () => {
 
       it('should reject numeric columns', () => {
         expect(
-          isColumnValidForAggregation(createColumnInfo('dur', 'INT'), 'GLOB'),
+          isColumnValidForAggregation(
+            createColumnInfo('dur', PerfettoSqlTypes.INT),
+            'GLOB',
+          ),
         ).toBe(false);
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('value', 'DOUBLE'),
+            createColumnInfo('value', PerfettoSqlTypes.DOUBLE),
             'GLOB',
           ),
         ).toBe(false);
@@ -236,16 +262,19 @@ describe('utils', () => {
       it('should allow all column types', () => {
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('name', 'STRING'),
+            createColumnInfo('name', PerfettoSqlTypes.STRING),
             'COUNT',
           ),
         ).toBe(true);
         expect(
-          isColumnValidForAggregation(createColumnInfo('dur', 'INT'), 'COUNT'),
+          isColumnValidForAggregation(
+            createColumnInfo('dur', PerfettoSqlTypes.INT),
+            'COUNT',
+          ),
         ).toBe(true);
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('value', 'DOUBLE'),
+            createColumnInfo('value', PerfettoSqlTypes.DOUBLE),
             'COUNT',
           ),
         ).toBe(true);
@@ -256,13 +285,13 @@ describe('utils', () => {
       it('should allow all column types', () => {
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('name', 'STRING'),
+            createColumnInfo('name', PerfettoSqlTypes.STRING),
             'COUNT(*)',
           ),
         ).toBe(true);
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('dur', 'INT'),
+            createColumnInfo('dur', PerfettoSqlTypes.INT),
             'COUNT(*)',
           ),
         ).toBe(true);
@@ -273,12 +302,15 @@ describe('utils', () => {
       it('should allow all column types', () => {
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('name', 'STRING'),
+            createColumnInfo('name', PerfettoSqlTypes.STRING),
             'SUM',
           ),
         ).toBe(true);
         expect(
-          isColumnValidForAggregation(createColumnInfo('dur', 'INT'), 'SUM'),
+          isColumnValidForAggregation(
+            createColumnInfo('dur', PerfettoSqlTypes.INT),
+            'SUM',
+          ),
         ).toBe(true);
       });
     });
@@ -287,21 +319,27 @@ describe('utils', () => {
       it('should allow all column types', () => {
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('name', 'STRING'),
+            createColumnInfo('name', PerfettoSqlTypes.STRING),
             'MIN',
           ),
         ).toBe(true);
         expect(
-          isColumnValidForAggregation(createColumnInfo('dur', 'INT'), 'MIN'),
+          isColumnValidForAggregation(
+            createColumnInfo('dur', PerfettoSqlTypes.INT),
+            'MIN',
+          ),
         ).toBe(true);
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('name', 'STRING'),
+            createColumnInfo('name', PerfettoSqlTypes.STRING),
             'MAX',
           ),
         ).toBe(true);
         expect(
-          isColumnValidForAggregation(createColumnInfo('dur', 'INT'), 'MAX'),
+          isColumnValidForAggregation(
+            createColumnInfo('dur', PerfettoSqlTypes.INT),
+            'MAX',
+          ),
         ).toBe(true);
       });
     });
@@ -310,13 +348,13 @@ describe('utils', () => {
       it('should return true for undefined operation', () => {
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('name', 'STRING'),
+            createColumnInfo('name', PerfettoSqlTypes.STRING),
             undefined,
           ),
         ).toBe(true);
         expect(
           isColumnValidForAggregation(
-            createColumnInfo('dur', 'INT'),
+            createColumnInfo('dur', PerfettoSqlTypes.INT),
             undefined,
           ),
         ).toBe(true);

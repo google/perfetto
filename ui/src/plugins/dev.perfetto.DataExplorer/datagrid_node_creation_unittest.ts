@@ -41,7 +41,6 @@ describe('datagrid_node_creation', () => {
   ): ColumnInfo {
     return {
       name,
-      type: 'JOINID',
       checked: true,
       column: {
         name,

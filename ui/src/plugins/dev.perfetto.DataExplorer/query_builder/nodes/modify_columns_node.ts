@@ -22,7 +22,7 @@ import {
 import {Checkbox} from '../../../../widgets/checkbox';
 import {TextInput} from '../../../../widgets/text_input';
 import {ColumnInfo, newColumnInfoList} from '../column_info';
-import {parsePerfettoSqlTypeFromString} from '../../../../trace_processor/perfetto_sql_type';
+import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
 import protos from '../../../../protos';
 import {NodeIssues} from '../node_issues';
 import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
@@ -41,7 +41,7 @@ export interface ModifyColumnsSerializedState {
   primaryInputId?: string;
   selectedColumns: {
     name: string;
-    type: string;
+    type?: PerfettoSqlType;
     checked: boolean;
     alias?: string;
     typeUserModified?: boolean;
@@ -102,7 +102,6 @@ export class ModifyColumnsNode implements QueryNode {
         newCol.alias = oldCol.alias;
         // Only preserve type if user explicitly modified it
         if (oldCol.typeUserModified) {
-          newCol.type = oldCol.type;
           newCol.column = {
             ...newCol.column,
             type: oldCol.column.type,
@@ -127,9 +126,8 @@ export class ModifyColumnsNode implements QueryNode {
       sqlModules,
       selectedColumns: serializedState.selectedColumns.map((c) => ({
         name: c.name,
-        type: c.type,
         checked: c.checked,
-        column: {name: c.name},
+        column: {name: c.name, type: c.type},
         alias: c.alias,
         typeUserModified: c.typeUserModified,
       })),
@@ -353,18 +351,14 @@ export class ModifyColumnsNode implements QueryNode {
       this.state.onchange?.();
     };
 
-    const handleTypeChange = (index: number, newType: string) => {
+    const handleTypeChange = (index: number, newType: PerfettoSqlType) => {
       const newSelectedColumns = [...this.state.selectedColumns];
-
-      // Try to parse the type string (handles simple types, ID, and JOINID)
-      const parsedType = parsePerfettoSqlTypeFromString({type: newType});
 
       newSelectedColumns[index] = {
         ...newSelectedColumns[index],
-        type: newType,
         column: {
           ...newSelectedColumns[index].column,
-          type: parsedType.ok ? parsedType.value : col.column.type,
+          type: newType,
         },
         // Mark as user-modified so it's preserved when upstream changes
         typeUserModified: true,
@@ -476,7 +470,7 @@ export class ModifyColumnsNode implements QueryNode {
       primaryInputId: this.primaryInput?.nodeId,
       selectedColumns: this.state.selectedColumns.map((c) => ({
         name: c.name,
-        type: c.type,
+        type: c.column.type,
         checked: c.checked,
         alias: c.alias,
         typeUserModified: c.typeUserModified,

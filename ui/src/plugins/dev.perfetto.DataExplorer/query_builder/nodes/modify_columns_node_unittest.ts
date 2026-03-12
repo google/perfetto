@@ -19,6 +19,7 @@ import {
   createColumnInfo,
   connectNodes,
 } from '../testing/test_utils';
+import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';
 
 describe('ModifyColumnsNode', () => {
   function createMockPrevNode(): QueryNode {
@@ -230,13 +231,11 @@ describe('ModifyColumnsNode', () => {
       // Verify initial state - all columns should be from source
       expect(modifyNode.state.selectedColumns.length).toBe(3);
       expect(modifyNode.state.selectedColumns[2].name).toBe('value');
-      expect(modifyNode.state.selectedColumns[2].type).toBe('INT');
-      expect(modifyNode.state.selectedColumns[2].column.type).toEqual({
-        kind: 'int',
-      });
+      expect(modifyNode.state.selectedColumns[2].column.type).toEqual(
+        PerfettoSqlTypes.INT,
+      );
 
       // User modifies the type of 'value' column to 'duration'
-      modifyNode.state.selectedColumns[2].type = 'DURATION';
       modifyNode.state.selectedColumns[2].column = {
         ...modifyNode.state.selectedColumns[2].column,
         type: {kind: 'duration'},
@@ -244,10 +243,9 @@ describe('ModifyColumnsNode', () => {
       modifyNode.state.selectedColumns[2].typeUserModified = true;
 
       // Verify the type was modified
-      expect(modifyNode.state.selectedColumns[2].type).toBe('DURATION');
-      expect(modifyNode.state.selectedColumns[2].column.type).toEqual({
-        kind: 'duration',
-      });
+      expect(modifyNode.state.selectedColumns[2].column.type).toEqual(
+        PerfettoSqlTypes.DURATION,
+      );
 
       // Simulate inserting a new node between source and modify
       // (e.g., user adds a Limit node between slices and modify)
@@ -270,10 +268,9 @@ describe('ModifyColumnsNode', () => {
 
       // The modified type should be preserved!
       expect(modifyNode.state.selectedColumns[2].name).toBe('value');
-      expect(modifyNode.state.selectedColumns[2].type).toBe('DURATION');
-      expect(modifyNode.state.selectedColumns[2].column.type).toEqual({
-        kind: 'duration',
-      });
+      expect(modifyNode.state.selectedColumns[2].column.type).toEqual(
+        PerfettoSqlTypes.DURATION,
+      );
     });
 
     it('should preserve checked status and aliases when input changes', () => {
@@ -373,7 +370,7 @@ describe('ModifyColumnsNode', () => {
 
     it('should preserve typeUserModified flag when cloning', () => {
       const col = createColumnInfo('value', 'int');
-      col.type = 'DURATION';
+      col.column = {...col.column, type: PerfettoSqlTypes.DURATION};
       col.typeUserModified = true;
       const node = createModifyColumnsNodeWithInput(
         {
@@ -384,7 +381,9 @@ describe('ModifyColumnsNode', () => {
 
       const clonedNode = node.clone() as ModifyColumnsNode;
 
-      expect(clonedNode.state.selectedColumns[0].type).toBe('DURATION');
+      expect(clonedNode.state.selectedColumns[0].column.type).toEqual(
+        PerfettoSqlTypes.DURATION,
+      );
       expect(clonedNode.state.selectedColumns[0].typeUserModified).toBe(true);
     });
 

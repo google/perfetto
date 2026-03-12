@@ -18,6 +18,10 @@ import {
 } from './counter_to_intervals_node';
 import {QueryNode, NodeType} from '../../query_node';
 import {ColumnInfo} from '../column_info';
+import {
+  PerfettoSqlType,
+  PerfettoSqlTypes,
+} from '../../../../trace_processor/perfetto_sql_type';
 import protos from '../../../../protos';
 
 describe('CounterToIntervalsNode', () => {
@@ -46,16 +50,30 @@ describe('CounterToIntervalsNode', () => {
     } as QueryNode;
   }
 
+  function stringToSqlType(s: string): PerfettoSqlType {
+    switch (s.toUpperCase()) {
+      case 'INT':
+      case 'INT64':
+        return PerfettoSqlTypes.INT;
+      case 'STRING':
+        return PerfettoSqlTypes.STRING;
+      case 'DOUBLE':
+        return PerfettoSqlTypes.DOUBLE;
+      default:
+        return PerfettoSqlTypes.INT;
+    }
+  }
+
   function createColumnInfo(
     name: string,
     type: string,
     checked: boolean = true,
   ): ColumnInfo {
+    const sqlType = stringToSqlType(type);
     return {
       name,
-      type,
       checked,
-      column: {name},
+      column: {name, type: sqlType},
     };
   }
 
@@ -136,9 +154,9 @@ describe('CounterToIntervalsNode', () => {
       const nextValueCol = finalCols.find((c) => c.name === 'next_value');
       const deltaValueCol = finalCols.find((c) => c.name === 'delta_value');
 
-      expect(durCol?.type).toBe('DURATION');
-      expect(nextValueCol?.type).toBe('DOUBLE');
-      expect(deltaValueCol?.type).toBe('DOUBLE');
+      expect(durCol?.column.type).toEqual({kind: 'duration'});
+      expect(nextValueCol?.column.type).toEqual({kind: 'double'});
+      expect(deltaValueCol?.column.type).toEqual({kind: 'double'});
     });
 
     it('should preserve input column order', () => {

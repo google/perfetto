@@ -155,7 +155,6 @@ describe('JSON serialization/deserialization', () => {
       groupByColumns: [
         {
           name: 'name',
-          type: 'STRING',
           checked: true,
           column: sliceTable.columns[0],
         },
@@ -164,7 +163,6 @@ describe('JSON serialization/deserialization', () => {
         {
           column: {
             name: 'dur',
-            type: 'TIMESTAMP_NS',
             checked: true,
             column: sliceTable.columns[2],
           },
@@ -903,8 +901,8 @@ describe('JSON serialization/deserialization', () => {
       (c) => c.column.name === 'renamed_column',
     );
     expect(renamedCol).toBeDefined();
-    expect(renamedCol?.type).toBe(columnToRename.type);
-    expect(renamedCol?.type).not.toBe('NA'); // Type should be preserved, not 'NA'
+    expect(renamedCol?.column.type).toBe(columnToRename.column.type);
+    expect(renamedCol?.column.type).toBeDefined(); // Type should be preserved, not undefined
 
     // Now test serialization/deserialization preserves this
     const initialState: DataExplorerState = {
@@ -952,8 +950,10 @@ describe('JSON serialization/deserialization', () => {
       (c) => c.column.name === 'renamed_column',
     );
     expect(deserializedRenamedCol).toBeDefined();
-    expect(deserializedRenamedCol?.type).toBe(columnToRename.type);
-    expect(deserializedRenamedCol?.type).not.toBe('NA'); // Type should still be preserved
+    expect(deserializedRenamedCol?.column.type).toEqual(
+      columnToRename.column.type,
+    );
+    expect(deserializedRenamedCol?.column.type).toBeDefined(); // Type should still be preserved
   });
 
   test('aggregation node can group by aliased column from modify columns node', () => {
@@ -1440,13 +1440,11 @@ describe('JSON serialization/deserialization', () => {
       selectedColumns: [
         {
           name: 'name',
-          type: 'STRING',
           checked: true,
           column: sliceTable.columns[0],
         },
         {
           name: 'ts',
-          type: 'TIMESTAMP_NS',
           checked: true,
           column: sliceTable.columns[1],
         },
@@ -1574,13 +1572,11 @@ describe('JSON serialization/deserialization', () => {
       selectedColumns: [
         {
           name: 'name',
-          type: 'STRING',
           checked: true,
           column: sliceTable.columns[0],
         },
         {
           name: 'ts',
-          type: 'TIMESTAMP_NS',
           checked: false,
           column: sliceTable.columns[1],
         },
@@ -1691,13 +1687,11 @@ describe('JSON serialization/deserialization', () => {
       selectedColumns: [
         {
           name: 'name',
-          type: 'STRING',
           checked: true,
           column: sliceTable.columns[0],
         },
         {
           name: 'ts',
-          type: 'TIMESTAMP_NS',
           checked: true,
           column: sliceTable.columns[1],
         },
@@ -1765,13 +1759,11 @@ describe('JSON serialization/deserialization', () => {
       groupByColumns: [
         {
           name: 'name',
-          type: 'STRING',
           checked: true,
           column: sliceTable.columns[0],
         },
         {
           name: 'ts',
-          type: 'TIMESTAMP_NS',
           checked: true,
           column: sliceTable.columns[1],
         },
@@ -1780,7 +1772,6 @@ describe('JSON serialization/deserialization', () => {
         {
           column: {
             name: 'dur',
-            type: 'TIMESTAMP_NS',
             checked: true,
             column: sliceTable.columns[2],
           },
@@ -1790,7 +1781,6 @@ describe('JSON serialization/deserialization', () => {
         {
           column: {
             name: 'dur',
-            type: 'TIMESTAMP_NS',
             checked: true,
             column: sliceTable.columns[2],
           },
@@ -1800,7 +1790,6 @@ describe('JSON serialization/deserialization', () => {
         {
           column: {
             name: 'dur',
-            type: 'TIMESTAMP_NS',
             checked: true,
             column: sliceTable.columns[2],
           },
@@ -1872,7 +1861,6 @@ describe('JSON serialization/deserialization', () => {
       selectedColumns: [
         {
           name: 'name',
-          type: 'STRING',
           checked: true,
           column: sliceTable.columns[0],
         },
@@ -1884,7 +1872,6 @@ describe('JSON serialization/deserialization', () => {
       groupByColumns: [
         {
           name: 'name',
-          type: 'STRING',
           checked: true,
           column: sliceTable.columns[0],
         },
@@ -1893,7 +1880,6 @@ describe('JSON serialization/deserialization', () => {
         {
           column: {
             name: 'dur_ms',
-            type: 'TIMESTAMP_NS',
             checked: true,
             column: sliceTable.columns[2],
           },
@@ -1974,7 +1960,6 @@ describe('JSON serialization/deserialization', () => {
       selectedColumns: [
         {
           name: 'name',
-          type: 'STRING',
           checked: true,
           column: sliceTable.columns[0],
         },
@@ -1986,7 +1971,6 @@ describe('JSON serialization/deserialization', () => {
       selectedColumns: [
         {
           name: 'ts',
-          type: 'TIMESTAMP_NS',
           checked: true,
           column: sliceTable.columns[1],
         },
@@ -2138,7 +2122,6 @@ describe('JSON serialization/deserialization', () => {
       selectedColumns: [
         {
           name: 'name',
-          type: 'STRING',
           checked: true,
           column: sliceTable.columns[0],
         },
@@ -2204,7 +2187,6 @@ describe('JSON serialization/deserialization', () => {
       groupByColumns: [
         {
           name: 'name',
-          type: 'STRING',
           checked: true,
           column: sliceTable.columns[0],
         },
@@ -2213,7 +2195,6 @@ describe('JSON serialization/deserialization', () => {
         {
           column: {
             name: 'dur',
-            type: 'TIMESTAMP_NS',
             checked: true,
             column: sliceTable.columns[2],
           },
@@ -2298,7 +2279,6 @@ describe('JSON serialization/deserialization', () => {
       selectedColumns: [
         {
           name: 'name',
-          type: 'STRING',
           checked: true,
           column: sliceTable.columns[0],
         },
@@ -2424,7 +2404,6 @@ describe('JSON serialization/deserialization', () => {
       selectedColumns: [
         {
           name: 'name',
-          type: 'STRING',
           checked: true,
           column: sliceTable.columns[0],
         },
@@ -2479,7 +2458,6 @@ describe('JSON serialization/deserialization', () => {
       selectedColumns: [
         {
           name: 'name',
-          type: 'STRING',
           checked: true,
           column: sliceTable.columns[0],
         },

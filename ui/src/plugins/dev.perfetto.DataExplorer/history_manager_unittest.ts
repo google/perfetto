@@ -761,7 +761,6 @@ describe('HistoryManager', () => {
     // State 4: Add aggregation after filter
     const groupByColumn: ColumnInfo = {
       name: 'id',
-      type: 'STRING',
       checked: true,
       column: {name: 'id', type: {kind: 'string'}},
     };
