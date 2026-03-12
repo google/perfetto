@@ -15,7 +15,7 @@
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
-import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
+import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import {NUM} from '../../trace_processor/query_result';
 
 const PERF_TRACE_COUNTERS_PRECONDITION = `
@@ -25,6 +25,7 @@ const PERF_TRACE_COUNTERS_PRECONDITION = `
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidPerfTraceCounters';
+  static readonly dependencies = [QueryPagePlugin];
   async onTraceLoad(ctx: Trace): Promise<void> {
     const resp = await ctx.engine.query(PERF_TRACE_COUNTERS_PRECONDITION);
     if (resp.firstRow({result: NUM}).result !== 1) return;
@@ -99,7 +100,7 @@ export default class implements PerfettoPlugin {
             'l3_cache_miss',
           ],
         });
-        addQueryResultsTab(ctx, {
+        ctx.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab({
           query:
             sqlPrefix +
             `

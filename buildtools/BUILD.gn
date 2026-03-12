@@ -142,6 +142,10 @@ config("abseil_config") {
       "-Wno-gcc-compat",
       "-Wno-nullability-extension",
       "-Wno-unknown-warning-option",
+      "-Wno-redundant-parens",
+      "-Wno-double-promotion",
+      "-Wno-thread-safety-negative",
+      "-Wno-used-but-marked-unused",
     ]
   }
   if (is_gcc) {
@@ -866,7 +870,10 @@ config("protobuf_full_public_config") {
   visibility = _buildtools_visibility
   cflags = []
   if (is_clang) {
-    cflags += [ "-Wno-switch-enum" ]
+    cflags += [
+      "-Wno-switch-enum",
+      "-Wno-covered-switch-default",
+    ]
     if (is_win) {
       cflags += [ "-Wno-undef" ]
     }
@@ -1000,6 +1007,9 @@ source_set("protobuf_lite") {
   if (is_win) {
     # Protobuf has its own #define WIN32_LEAN_AND_MEAN.
     configs -= [ "//gn/standalone:win32_lean_and_mean" ]
+
+    # For CommandLineToArgvW required by protobuf's main.
+    libs = [ "shell32.lib" ]
   }
   configs += [ ":protobuf_config" ]
   public_configs = [ "//gn:protobuf_gen_config" ]

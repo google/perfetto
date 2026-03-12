@@ -17,6 +17,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {METRIC_HANDLERS} from './handlers/handlerRegistry';
 import {MetricData, MetricHandlerMatch} from './handlers/metricUtils';
 import AndroidCujsPlugin from '../com.android.AndroidCujs';
+import Wattson from '../org.kernel.Wattson';
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `
   SELECT RUN_METRIC('android/android_blocking_calls_cuj_metric.sql');
@@ -56,10 +57,11 @@ let metrics: string[];
  */
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.PinAndroidPerfMetrics';
-  static readonly dependencies = [AndroidCujsPlugin];
+  static readonly dependencies = [AndroidCujsPlugin, Wattson];
 
   static onActivate(): void {
     metrics = getMetricsFromHash();
+    Wattson.updateWindowsOfInterest(metrics);
   }
 
   async onTraceLoad(ctx: Trace) {

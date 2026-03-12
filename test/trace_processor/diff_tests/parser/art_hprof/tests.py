@@ -83,16 +83,32 @@ class ArtHprofParser(TestSuite):
         """,
         out=Csv('''
           "graph_sample_ts","self_size","native_size","reachable","heap_type","root_type","root_distance"
-          1740172787560,1000000,0,1,"app","[NULL]",-1
-          1740172787560,16384,0,1,"app","[NULL]",-1
-          1740172787560,8192,0,1,"app","[NULL]",-1
-          1740172787560,6576,0,1,"app","[NULL]",-1
-          1740172787560,2800,0,1,"app","[NULL]",-1
-          1740172787560,2388,0,1,"app","STICKY_CLASS",-1
-          1740172787560,2048,0,1,"app","[NULL]",-1
-          1740172787560,2048,0,1,"app","[NULL]",-1
-          1740172787560,2048,0,1,"app","[NULL]",-1
-          1740172787560,2048,0,1,"app","[NULL]",-1
+          1740172787560,1000012,0,1,"app","[NULL]",2
+          1740172787560,16396,0,1,"app","[NULL]",2
+          1740172787560,8204,0,1,"app","[NULL]",4
+          1740172787560,3300,0,1,"app","[NULL]",1
+          1740172787560,2388,0,1,"app","STICKY_CLASS",0
+          1740172787560,1444,0,1,"app","STICKY_CLASS",0
+          1740172787560,1412,0,1,"app","[NULL]",1
+          1740172787560,1264,0,1,"app","[NULL]",1
+          1740172787560,1248,0,1,"app","[NULL]",1
+          1740172787560,1248,0,1,"app","[NULL]",1
+        '''))
+
+  def test_art_hprof_reference_type_kinds(self):
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT kind, count(*) AS cnt FROM heap_graph_class
+          WHERE kind != '[unknown class kind]'
+          GROUP BY kind ORDER BY kind
+        """,
+        out=Csv('''
+          "kind","cnt"
+          "KIND_FINALIZER_REFERENCE",1
+          "KIND_PHANTOM_REFERENCE",4
+          "KIND_SOFT_REFERENCE",2
+          "KIND_WEAK_REFERENCE",9
         '''))
 
   def test_art_hprof_reference_count_smoke(self):
@@ -121,14 +137,14 @@ class ArtHprofParser(TestSuite):
         """,
         out=Csv('''
           "field_name","field_type_name","name","name"
-          "$VALUES","java.io.File$PathStatus[]","java.lang.Class<java.io.File$PathStatus>","java.io.File$PathStatus[]"
-          "$VALUES","libcore.io.IoTracker$Mode[]","java.lang.Class<libcore.io.IoTracker$Mode>","libcore.io.IoTracker$Mode[]"
-          "$VALUES","libcore.reflect.AnnotationMember$DefaultValues[]","java.lang.Class<libcore.reflect.AnnotationMember$DefaultValues>","libcore.reflect.AnnotationMember$DefaultValues[]"
-          "$class$classLoader","dalvik.system.PathClassLoader","java.lang.Class<DumpedStuff>","dalvik.system.PathClassLoader"
-          "$class$classLoader","dalvik.system.PathClassLoader","java.lang.Class<Main>","dalvik.system.PathClassLoader"
-          "$class$classLoader","dalvik.system.PathClassLoader","java.lang.Class<SuperDumpedStuff>","dalvik.system.PathClassLoader"
-          "$class$classLoader","dalvik.system.PathClassLoader","java.lang.Class<a.a>","dalvik.system.PathClassLoader"
-          "$class$classLoader","dalvik.system.PathClassLoader","java.lang.Class<a.b>","dalvik.system.PathClassLoader"
-          "$class$classLoader","dalvik.system.PathClassLoader","java.lang.Class<a.c>","dalvik.system.PathClassLoader"
-          "$class$classLoader","dalvik.system.PathClassLoader","java.lang.Class<a>","dalvik.system.PathClassLoader"
+          "DumpedStuff.$class$classLoader","dalvik.system.PathClassLoader","java.lang.Class<DumpedStuff>","dalvik.system.PathClassLoader"
+          "DumpedStuff.$class$dexCache","java.lang.DexCache","java.lang.Class<DumpedStuff>","java.lang.DexCache"
+          "DumpedStuff.$class$ifTable","java.lang.Object[]","java.lang.Class<DumpedStuff>","java.lang.Object[]"
+          "DumpedStuff.$class$shadow$_klass_","java.lang.Class","java.lang.Class<DumpedStuff>","java.lang.Class<java.lang.Class>"
+          "DumpedStuff.$class$superClass","SuperDumpedStuff","java.lang.Class<DumpedStuff>","java.lang.Class<SuperDumpedStuff>"
+          "DumpedStuff.$classOverhead","byte[]","java.lang.Class<DumpedStuff>","byte[]"
+          "DumpedStuff.A","java.lang.ref.WeakReference","DumpedStuff","java.lang.ref.WeakReference"
+          "DumpedStuff.B","java.lang.ref.WeakReference","DumpedStuff","java.lang.ref.WeakReference"
+          "DumpedStuff.C","java.lang.ref.SoftReference","DumpedStuff","java.lang.ref.SoftReference"
+          "DumpedStuff.D","java.lang.Object[]","DumpedStuff","java.lang.Object[]"
         '''))

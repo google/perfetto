@@ -104,7 +104,7 @@ export class PerfettoTestHelper {
 
   async waitForIdleAndScreenshot(
     screenshotName: string,
-    opts?: PageAssertionsToHaveScreenshotOptions,
+    opts?: PageAssertionsToHaveScreenshotOptions & {locator?: Locator},
   ) {
     await this.page.mouse.move(0, 0); // Move mouse out of the way.
     await this.waitForPerfettoIdle();
@@ -117,9 +117,12 @@ export class PerfettoTestHelper {
     // Combine global masks with any masks specific to this test call.
     const allMasks = [...globalMaskLocators, ...(opts?.mask || [])];
 
+    const {locator, ...screenshotOpts} = opts ?? {};
+    const target = locator ?? this.page;
+
     // Call the original expect with the combined masks.
-    await expect.soft(this.page).toHaveScreenshot(screenshotName, {
-      ...opts,
+    await expect.soft(target).toHaveScreenshot(screenshotName, {
+      ...screenshotOpts,
       mask: allMasks,
     });
   }

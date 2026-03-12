@@ -21,11 +21,11 @@ use crate::protos::common::gpu_counter_descriptor::*;
 
 pb_msg!(GpuCounterEvent {
     counter_descriptor: GpuCounterDescriptor, msg, 1,
-    counters: GpuCounter, msg, 2,
+    counters: GpuCounterEventGpuCounter, msg, 2,
     gpu_id: i32, primitive, 3,
 });
 
-pb_msg!(GpuCounter {
+pb_msg!(GpuCounterEventGpuCounter {
     counter_id: u32, primitive, 1,
     int_value: i64, primitive, 2,
     double_value: f64, primitive, 3,

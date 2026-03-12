@@ -55,9 +55,15 @@ export default class MemoryViz implements PerfettoPlugin {
               ),
               -- 2. Get and merge kswapd0 thread slices.
               kswapd_slices AS (
-                SELECT ts, dur
-                FROM thread_slice
-                WHERE thread_name = 'kswapd0' AND dur > 0
+                SELECT
+                  ts,
+                  dur
+                FROM sched
+                JOIN thread
+                  USING (utid)
+                WHERE
+                  thread.name = 'kswapd0' AND
+                  dur > 0
               ),
               -- 3. Combine both sources with priorities and unique IDs for intersection.
               all_intervals AS (
@@ -82,15 +88,22 @@ export default class MemoryViz implements PerfettoPlugin {
                   ii.id
                 FROM interval_self_intersect!(all_intervals) ii
                 WHERE ii.interval_ends_at_ts = FALSE
-              )
+              ),
               -- 5. For each piece of time (group_id), pick the source with the highest priority.
-              SELECT
-                ii.ts,
-                ii.dur,
-                CASE WHEN MAX(ai.priority) = 1 THEN 'direct reclaim' ELSE 'kswapd0' END AS name
-              FROM intersected ii
-              JOIN all_intervals ai ON ii.id = ai.id
-              GROUP BY ii.group_id
+              final AS (
+                SELECT
+                  ii.ts,
+                  ii.dur,
+                  CASE WHEN MAX(ai.priority) = 1 THEN 'direct reclaim' ELSE 'kswapd0' END AS name
+                FROM intersected ii
+                JOIN all_intervals ai ON ii.id = ai.id
+                GROUP BY ii.group_id
+              )
+              -- 6. Re-merge same-type intervals fragmented by the self-intersect.
+              SELECT ts, dur, name FROM interval_merge_overlapping_partitioned!(
+                final,
+                (name)
+              )
             `,
           },
           title: 'Kswapd0 / Direct Reclaim',
@@ -203,7 +216,7 @@ export default class MemoryViz implements PerfettoPlugin {
   ): Promise<TrackNode | undefined> {
     const uri = `${MemoryViz.id}.rss_anon_swap.${uuidv4()}`;
     const sqlSource = this.getSqlSource(window, [
-      `track_name IN ('mem.rss.anon', 'mem.swap')`,
+      `memory_track_name IN ('mem.rss.anon', 'mem.swap')`,
     ]);
     const rootNode = await this.createTrack(
       ctx,
@@ -245,7 +258,7 @@ export default class MemoryViz implements PerfettoPlugin {
   ): Promise<TrackNode | undefined> {
     const uri = `${MemoryViz.id}.${trackName}.${uuidv4()}`;
     const sqlSource = this.getSqlSource(window, [
-      `track_name = '${trackName}'`,
+      `memory_track_name = '${trackName}'`,
     ]);
     const breakdownNode = await this.createTrack(
       ctx,
@@ -258,8 +271,8 @@ export default class MemoryViz implements PerfettoPlugin {
 
     const buckets = await ctx.engine.query(`
       SELECT DISTINCT bucket
-      FROM _memory_breakdown_mem_with_buckets
-      WHERE track_name = '${trackName}'
+      FROM android_process_memory_intervals_by_oom_bucket
+      WHERE memory_track_name = '${trackName}'
       ORDER BY bucket ASC
     `);
 
@@ -291,10 +304,10 @@ export default class MemoryViz implements PerfettoPlugin {
         pid,
         process_name,
         MAX(zygote_adjusted_value) AS max_value
-      FROM _memory_breakdown_mem_with_buckets
+      FROM android_process_memory_intervals_by_oom_bucket
       WHERE
         bucket = '${bucket}' AND
-        track_name = '${trackName}' AND
+        memory_track_name = '${trackName}' AND
         ts < ${window.end} AND
         ts + dur > ${window.start}
       GROUP BY upid, pid, process_name
@@ -313,7 +326,7 @@ export default class MemoryViz implements PerfettoPlugin {
     const uri = `${MemoryViz.id}.${trackName}.${bucket}.${uuidv4()}`;
     const sqlSource = this.getSqlSource(window, [
       `bucket = '${bucket}'`,
-      `track_name = '${trackName}'`,
+      `memory_track_name = '${trackName}'`,
     ]);
     const peak = await ctx.engine.query(
       `SELECT MAX(value) AS peak FROM (${sqlSource})`,
@@ -367,7 +380,7 @@ export default class MemoryViz implements PerfettoPlugin {
     const uri = `${MemoryViz.id}.process.${upid}.${trackName}.${uuidv4()}`;
     const sqlSource = this.getSqlSource(window, [
       `bucket = '${bucket}'`,
-      `track_name = '${trackName}'`,
+      `memory_track_name = '${trackName}'`,
       `upid = ${upid}`,
     ]);
     return this.createTrack(
@@ -391,9 +404,9 @@ export default class MemoryViz implements PerfettoPlugin {
           id,
           MAX(ts, ${window.start}) as ts,
           MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
-        FROM _memory_breakdown_mem_with_buckets
+        FROM android_process_memory_intervals_by_oom_bucket
         ${whereClause} AND ts < ${window.end} and ts + dur > ${window.start}
-      )) iss JOIN _memory_breakdown_mem_with_buckets m USING(id)
+      )) iss JOIN android_process_memory_intervals_by_oom_bucket m USING(id)
       GROUP BY group_id
     `;
   }

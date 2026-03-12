@@ -598,9 +598,8 @@ Example build command:
     library = self._get_nice_path(output_prefix, 'lib%s.so')
 
     if sys.platform.startswith('linux') and not system_buildtools:
-      llvm_script = os.path.join(gn_utils.repo_root(), 'gn', 'standalone',
-                                 'toolchain', 'linux_find_llvm.py')
-      cxx = subprocess.check_output([llvm_script]).splitlines()[2].decode()
+      cxx = os.path.join(gn_utils.repo_root(),
+                         'buildtools/linux64/clang/bin/clang++')
     else:
       cxx = 'clang++'
 

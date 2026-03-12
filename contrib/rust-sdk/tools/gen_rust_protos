@@ -94,6 +94,21 @@ SOURCE_FILES = [
         "path_strip_prefix": "protos/perfetto",
         "path_add_prefix": "contrib/rust-sdk/perfetto-protos-gpu/src/protos",
     },
+    {
+        "files": [
+            "protos/perfetto/common/descriptor.proto",
+            "protos/perfetto/perfetto_sql/structured_query.proto",
+            "protos/perfetto/trace_processor/metatrace_categories.proto",
+            "protos/perfetto/trace_processor/trace_processor.proto",
+            "protos/perfetto/trace_summary/file.proto",
+            "protos/perfetto/trace_summary/v2_metric.proto",
+        ],
+        "custom_files": [],
+        "path_strip_prefix":
+            "protos/perfetto",
+        "path_add_prefix":
+            "contrib/rust-sdk/perfetto-protos-trace-processor/src/protos",
+    },
 ]
 
 ROOT_DIR = os.path.dirname(

@@ -22,16 +22,15 @@ export const RECT_PATTERN_FADE_RIGHT = 2; // Fade alpha from full left to 0 righ
 // Buffers for batch rectangle rendering.
 // All arrays must have the same length (count).
 // Colors are packed as 0xRRGGBBAA (big-endian RGBA).
-// X coordinates and widths are in data space (e.g., nanoseconds) and transformed
+// Start/end coordinates are in data space (e.g., nanoseconds) and transformed
 // by the dataTransform passed to drawRects. Y coordinates are in screen pixels.
 export interface RectBuffers {
-  // Left edge X coordinates (data space, transformed by dataTransform.scaleX/offsetX)
-  readonly xs: Float32Array;
+  // Start (left edge) positions in data space (transformed by dataTransform)
+  readonly starts: Float32Array;
+  // End (right edge) positions in data space (transformed by dataTransform)
+  readonly ends: Float32Array;
   // Top edge Y coordinates (screen pixels)
   readonly ys: Float32Array;
-  // Widths (data space, transformed by dataTransform.scaleX)
-  // Use -1 for incomplete rects that extend to screenEnd
-  readonly ws: Float32Array;
   // Height in screen pixels (uniform for all rects)
   readonly h: number;
   // Packed RGBA colors (0xRRGGBBAA)

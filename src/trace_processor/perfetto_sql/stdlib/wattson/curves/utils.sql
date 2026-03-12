@@ -21,6 +21,8 @@ INCLUDE PERFETTO MODULE wattson.curves.gpu;
 
 INCLUDE PERFETTO MODULE wattson.curves.l3;
 
+INCLUDE PERFETTO MODULE wattson.curves.tpu;
+
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
 INCLUDE PERFETTO MODULE wattson.utils;
@@ -157,6 +159,19 @@ SELECT
 FROM _gpu_filtered_curves_raw;
 
 CREATE PERFETTO INDEX gpu_freq ON _gpu_filtered_curves(freq_khz, idle);
+
+-- Device specific TPU curves
+CREATE PERFETTO TABLE _tpu_filtered_curves AS
+SELECT
+  cluster,
+  freq,
+  requests,
+  active
+FROM _tpu_device_curves AS dc
+JOIN _wattson_device AS device
+  ON dc.device = device.name;
+
+CREATE PERFETTO INDEX tpu_curves ON _tpu_filtered_curves(cluster, freq, requests);
 
 -- Constructs table specifying CPUs that are DSU dependent
 CREATE PERFETTO TABLE _cpu_w_dsu_dependency AS

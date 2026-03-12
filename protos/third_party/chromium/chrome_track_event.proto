@@ -710,6 +710,7 @@ message BackForwardCacheCanStoreDocumentResult {
     SHARED_WORKER_MESSAGE = 68;
     SHARED_WORKER_WITH_NO_ACTIVE_CLIENT = 69;
     WEB_LOCKS_CONTENTION = 70;
+    FORWARD_CACHE_DISABLED = 71;
   }
 
   optional BackForwardCacheNotRestoredReason
@@ -883,18 +884,16 @@ message EventLatency {
   // filled anymore in newer versions of Chrome.
   optional bool is_janky_scrolled_frame_v3 = 9 [deprecated = true];
 
-  // Result of the Scroll Jank V4 Metric for a scroll update. This is set only
-  // for scroll updates. See
+  // Result of the Scroll Jank V4 Metric for a frame that contains one or more
+  // scroll updates. See
   // cc::ScrollUpdateEventMetrics::ScrollJankV4MetricResults,
   // https://docs.google.com/document/d/1AaBvTIf8i-c-WTKkjaL4vyhQMkSdynxo3XEiwpofdeA
   // and the Event.ScrollJank.DelayedFramesPercentage4.FixedWindow histogram's
   // documentation for more information.
   //
-  // To simplify the documentation below, we use "this frame" to refer to the
-  // frame in which the scroll update was presented.
   // LINT.IfChange
   message ScrollJankV4Result {
-    // Next ID: 13
+    // Next ID: 14
 
     // This field is a new version of `EventLatency.is_janky_scrolled_frame`
     // based on the Event.ScrollJank.DelayedFramesPercentage4.FixedWindow
@@ -1109,6 +1108,10 @@ message EventLatency {
     // The VSync interval that this frame was produced for according to the
     // BeginFrameArgs.
     optional int64 vsync_interval_us = 12;
+
+    // The ID of this frame's result. Used to associate sub-slices (e.g.
+    // "Presentation") with the main slice ("ScrollJankV4").
+    optional int64 result_id = 13;
   }
   // LINT.ThenChange(//base/tracing/stdlib/chrome/scroll_jank_v4.sql)
 
@@ -1802,7 +1805,8 @@ message WebContentInteraction {
   }
 
   optional Type type = 1;
-  optional int64 total_duration_ms = 2;
+  reserved 2;
+  reserved "total_duration_ms";
 }
 
 // Deprecated in favor of the Perfetto Scroll Jank plugin which has a more
@@ -2590,6 +2594,9 @@ message EventTiming {
     DRAG_LEAVE_EVENT = 35;
     DRAG_OVER_EVENT = 36;
     DROP_EVENT = 37;
+    NAVIGATE_EVENT = 38;
+    POPSTATE_EVENT = 39;
+    HASHCHANGE_EVENT = 40;
   }
   optional EventType type = 9;
 }
@@ -2770,6 +2777,12 @@ message InputTransferHandler {
     MULTIPLE_BROWSER_WINDOWS_OPEN = 11;
     DOWN_TIME_AFTER_EVENT_TIME = 12;
     SEQUENCE_TRANSFERRED_BACK_FROM_VIZ = 13;
+    WEB_CONTENTS_IGNORING_INPUT_EVENTS = 14;
+    RIR_DELEGATE_CONNECTION_NOT_SETUP = 15;
+    SHARED_MEMORY_UNAVAILABLE = 16;
+    POSITIVE_EVENT_AND_DOWN_TIME_DELTA = 17;
+    XR_IS_ACTIVE = 18;
+    HAS_ACTIVE_TOUCH_INTERCEPTORS = 19;
   };
   // LINT.ThenChange(//tools/metrics/histograms/metadata/android/enums.xml:TransferInputToVizResult)
   optional TransferInputToVizResult transfer_result = 1;
@@ -2799,6 +2812,14 @@ message InputTransferHandler {
   // )
 
   optional VizSequenceDroppedReason viz_sequence_dropped_reason = 3;
+
+  message TopControlsOffset {
+    // The offset of top controls as per the metadata from last drawn frame.
+    optional float viz_y_offset_px = 1;
+    // The offset that sent over from Browser as part of state transfer.
+    optional float browser_y_offset_px = 2;
+  }
+  optional TopControlsOffset top_controls_offset = 4;
 };
 
 message ResponseInfo {
@@ -2809,11 +2830,20 @@ message ResponseInfo {
   optional bool was_http_cache = 2;
 };
 
+message MemoryDumpProvider {
+  // The name of the MemoryDumpProvider object, from the static list in
+  // `kMemoryDumpProviderNameAllowList` (see
+  // https://source.chromium.org/chromium/chromium/src/+/main:out/android-Debug/gen/base/trace_event/memory_dump_provider_name_variants.h).
+  // The provider name is validated against the static list at compile time, at
+  // https://source.chromium.org/chromium/chromium/src/+/main:base/trace_event/memory_dump_provider.h;l=65;drc=d36832392d30b9cbbd3a6ae8a37e11b92853f041.
+  optional string name = 1;
+};
+
 message ChromeTrackEvent {
   reserved 1045;
 
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1079
+  // Next ID: 1080
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -2980,5 +3010,9 @@ message ChromeTrackEvent {
     optional ResponseInfo response_info = 1077;
 
     optional EventLatency.ScrollJankV4Result scroll_jank_v4 = 1078;
+
+    // Identifies the MemoryDumpProvider object that runs in the scope of a
+    // trace event, to identify which objects cause delays in a trace.
+    optional MemoryDumpProvider memory_dump_provider = 1079;
   }
 }

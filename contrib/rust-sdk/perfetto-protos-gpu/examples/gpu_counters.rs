@@ -126,7 +126,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             ctx.add_packet(|packet: &mut TracePacket| {
                 packet.set_gpu_counter_event(|event: &mut GpuCounterEvent| {
                     for i in COUNTER_IDS.iter() {
-                        event.set_counters(|counter: &mut GpuCounter| {
+                        event.set_counters(|counter: &mut GpuCounterEventGpuCounter| {
                             counter.set_counter_id(*i);
                             match i {
                                 1 => counter.set_double_value(elapsed_secs.sin()),
@@ -138,7 +138,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     if need_descriptors {
                         event.set_counter_descriptor(|desc: &mut GpuCounterDescriptor| {
                             for i in COUNTER_IDS.iter() {
-                                desc.set_specs(|desc: &mut GpuCounterSpec| {
+                                desc.set_specs(|desc: &mut GpuCounterDescriptorGpuCounterSpec| {
                                     desc.set_counter_id(*i);
                                     match i {
                                         1 => desc.set_name("sin"),

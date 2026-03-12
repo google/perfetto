@@ -15,7 +15,44 @@
 import m from 'mithril';
 import {Icons} from '../../../base/semantic_icons';
 import {Tabs, TabsTab} from '../../../widgets/tabs';
+import {MenuItem} from '../../../widgets/menu';
 import {renderWidgetShowcase} from '../widgets_page_utils';
+import {shortUuid} from '../../../base/uuid';
+
+interface TabEntry {
+  key: string;
+  title: string;
+  icon: string;
+  content: string;
+}
+
+const defaultTabEntries: TabEntry[] = [
+  {
+    key: 'tab1',
+    title: 'First Tab',
+    icon: Icons.Info,
+    content:
+      'Content for the first tab. This content is only rendered when the tab is active.',
+  },
+  {
+    key: 'tab2',
+    title: 'Second Tab',
+    icon: Icons.Chart,
+    content:
+      'Content for the second tab. Switch between tabs to see the content change.',
+  },
+  {
+    key: 'tab3',
+    title: 'Third Tab',
+    icon: Icons.Search,
+    content:
+      'Content for the third tab. The tab bar uses the Gate component to efficiently manage content visibility.',
+  },
+];
+
+// Mutable state persisted across redraws.
+const tabEntries = [...defaultTabEntries];
+let activeTabKey: string | undefined;
 
 export function renderTabs(): m.Children {
   return [
@@ -25,45 +62,34 @@ export function renderTabs(): m.Children {
       m(
         'p',
         'A simple tab bar widget with tab handles and gated content. ' +
-          'Supports both controlled and uncontrolled modes, with optional close buttons on tabs.',
+          'Supports both controlled and uncontrolled modes, with optional ' +
+          'close buttons, inline rename on double-click, and a new tab button.',
       ),
     ),
     renderWidgetShowcase({
       renderWidget: (opts) => {
-        const tabs: TabsTab[] = [
-          {
-            key: 'tab1',
-            title: 'First Tab',
-            leftIcon: opts.showIcons ? Icons.Info : undefined,
-            content: m(
-              '',
-              {style: {padding: '16px'}},
-              'Content for the first tab. This content is only rendered when the tab is active.',
-            ),
-          },
-          {
-            key: 'tab2',
-            title: 'Second Tab',
-            leftIcon: opts.showIcons ? Icons.Chart : undefined,
-            content: m(
-              '',
-              {style: {padding: '16px'}},
-              'Content for the second tab. Switch between tabs to see the content change.',
-            ),
-            closeButton: opts.closeButton,
-          },
-          {
-            key: 'tab3',
-            title: 'Third Tab',
-            leftIcon: opts.showIcons ? Icons.Search : undefined,
-            content: m(
-              '',
-              {style: {padding: '16px'}},
-              'Content for the third tab. The tab bar uses the Gate component to efficiently manage content visibility.',
-            ),
-            closeButton: opts.closeButton,
-          },
-        ];
+        const makeMenuItems = (key: string) =>
+          opts.menuItems
+            ? [
+                m(MenuItem, {
+                  label: 'Action 1',
+                  onclick: () => console.log(`Action 1: ${key}`),
+                }),
+                m(MenuItem, {
+                  label: 'Action 2',
+                  onclick: () => console.log(`Action 2: ${key}`),
+                }),
+              ]
+            : undefined;
+
+        const tabs: TabsTab[] = tabEntries.map((entry) => ({
+          key: entry.key,
+          title: entry.title,
+          leftIcon: opts.showIcons ? entry.icon : undefined,
+          content: m('', {style: {padding: '16px'}}, entry.content),
+          closeButton: opts.closeButton && tabEntries.length > 1,
+          menuItems: makeMenuItems(entry.key),
+        }));
 
         return m(
           '',
@@ -76,17 +102,73 @@ export function renderTabs(): m.Children {
           },
           m(Tabs, {
             tabs,
-            onTabClose: opts.closeButton
-              ? (key) => {
-                  console.log(`Close tab: ${key}`);
+            activeTabKey,
+            reorderable: opts.reorderable,
+            onTabChange: (key) => {
+              activeTabKey = key;
+            },
+            onTabClose:
+              opts.closeButton && tabEntries.length > 1
+                ? (key) => {
+                    const idx = tabEntries.findIndex((e) => e.key === key);
+                    if (idx === -1) return;
+                    tabEntries.splice(idx, 1);
+                    if (activeTabKey === key) {
+                      // Switch to an adjacent tab.
+                      activeTabKey =
+                        tabEntries[Math.min(idx, tabEntries.length - 1)]?.key;
+                    }
+                  }
+                : undefined,
+            onTabRename: opts.renamable
+              ? (key, newTitle) => {
+                  const entry = tabEntries.find((e) => e.key === key);
+                  if (entry) entry.title = newTitle;
+                }
+              : undefined,
+            onTabReorder: opts.reorderable
+              ? (draggedKey, beforeKey) => {
+                  const draggedIdx = tabEntries.findIndex(
+                    (e) => e.key === draggedKey,
+                  );
+                  if (draggedIdx === -1) return;
+                  const [dragged] = tabEntries.splice(draggedIdx, 1);
+                  if (beforeKey === undefined) {
+                    tabEntries.push(dragged);
+                  } else {
+                    const beforeIdx = tabEntries.findIndex(
+                      (e) => e.key === beforeKey,
+                    );
+                    tabEntries.splice(
+                      beforeIdx === -1 ? tabEntries.length : beforeIdx,
+                      0,
+                      dragged,
+                    );
+                  }
+                }
+              : undefined,
+            onNewTab: opts.newTabButton
+              ? () => {
+                  const id = shortUuid();
+                  tabEntries.push({
+                    key: id,
+                    title: 'New Tab',
+                    icon: Icons.Star,
+                    content: `Content for dynamically added tab.`,
+                  });
+                  activeTabKey = id;
                 }
               : undefined,
           }),
         );
       },
       initialOpts: {
-        closeButton: false,
+        closeButton: true,
+        newTabButton: true,
         showIcons: true,
+        renamable: true,
+        reorderable: true,
+        menuItems: true,
       },
     }),
   ];

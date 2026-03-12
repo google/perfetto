@@ -18,7 +18,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Icons} from '../../base/semantic_icons';
 
 const EXAMPLE_ANDROID_TRACE_URL =
-  'https://storage.googleapis.com/perfetto-misc/example_android_trace_15s';
+  'https://storage.googleapis.com/perfetto-misc/example_android_trace';
 
 const EXAMPLE_CHROME_TRACE_URL =
   'https://storage.googleapis.com/perfetto-misc/chrome_example_wikipedia.perfetto_trace.gz';
