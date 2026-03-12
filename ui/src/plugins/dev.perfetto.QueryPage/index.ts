@@ -390,9 +390,9 @@ export default class QueryPagePlugin implements PerfettoPlugin {
               data,
               fillHeight: true,
               trace,
-              onIdClick: (sqlTable, id) => {
+              onIdClick: (sqlTable, id, doubleClick) => {
                 trace.selection.selectSqlEvent(sqlTable, id, {
-                  switchToCurrentSelectionTab: false,
+                  switchToCurrentSelectionTab: doubleClick,
                   scrollToSelection: true,
                 });
               },

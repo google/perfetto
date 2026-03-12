@@ -19,7 +19,6 @@ import {AddDebugTrackMenu} from '../../components/tracks/add_debug_track_menu';
 import {DataSource} from '../../components/widgets/datagrid/data_source';
 import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
 import {
-  CellRenderer,
   ColumnSchema,
   SchemaRegistry,
 } from '../../components/widgets/datagrid/datagrid_schema';
@@ -82,7 +81,11 @@ export interface ResultsTableAttrs {
   readonly trace?: Trace;
 
   // Called when a user clicks an ID link. The sqlTable and id identify the row.
-  readonly onIdClick?: (sqlTable: string, id: number) => void;
+  readonly onIdClick?: (
+    sqlTable: string,
+    id: number,
+    doubleClick: boolean,
+  ) => void;
 }
 
 export class ResultsTable implements m.Component<ResultsTableAttrs> {
@@ -129,36 +132,15 @@ export class ResultsTable implements m.Component<ResultsTableAttrs> {
     const autoDetected = this.detectAutoTable(data.columns);
     const resolvedTable = this.resolveIdTable(data.columns);
 
-    const idCellRenderer: CellRenderer | undefined =
-      attrs.onIdClick && hasIdColumn
-        ? (value) => {
-            const cell = renderCell(value, 'id');
-            const id =
-              typeof value === 'bigint'
-                ? Number(value)
-                : typeof value === 'number'
-                  ? value
-                  : undefined;
-            if (resolvedTable !== undefined && id !== undefined) {
-              return m(
-                Anchor,
-                {
-                  title: `Go to ${resolvedTable} on the timeline`,
-                  icon: Icons.UpdateSelection,
-                  onclick: () => attrs.onIdClick?.(resolvedTable, id),
-                },
-                cell,
-              );
-            }
-            return cell;
-          }
-        : undefined;
-
     for (const col of data.columns) {
+      const cellRenderer =
+        col === 'id' && attrs.onIdClick
+          ? (value: Row[string]) =>
+              this.renderIdCell(value, resolvedTable, attrs.onIdClick!)
+          : undefined;
       rootSchema[col] = {
         title: col,
-        filterType: 'text',
-        cellRenderer: col === 'id' ? idCellRenderer : undefined,
+        cellRenderer,
       };
     }
     schema['root'] = rootSchema;
@@ -170,32 +152,32 @@ export class ResultsTable implements m.Component<ResultsTableAttrs> {
           : 'Auto-Detect'
         : `${this.selectedIdTable}.id`;
 
-    const linkingButton = hasIdColumn
-      ? m(
-          PopupMenu,
-          {
-            trigger: m(Button, {
-              label: `Interpret id as: ${selectedLabel}`,
-              icon: 'link',
-            }),
-            position: PopupPosition.Bottom,
-          },
-          ID_TABLE_OPTIONS.map((opt) =>
-            m(MenuItem, {
-              label:
-                opt.sqlTable === 'auto'
-                  ? `Auto-Detect (${autoDetected})`
-                  : opt.label,
-              active: this.selectedIdTable === opt.sqlTable,
-              onclick: () => {
-                this.selectedIdTable = opt.sqlTable;
-              },
-            }),
-          ),
-        )
-      : undefined;
+    const linkingButton =
+      hasIdColumn &&
+      m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            label: `Interpret id as: ${selectedLabel}`,
+            icon: 'link',
+          }),
+          position: PopupPosition.Bottom,
+        },
+        ID_TABLE_OPTIONS.map((opt) =>
+          m(MenuItem, {
+            label:
+              opt.sqlTable === 'auto'
+                ? `Auto-Detect (${autoDetected})`
+                : opt.label,
+            active: this.selectedIdTable === opt.sqlTable,
+            onclick: () => {
+              this.selectedIdTable = opt.sqlTable;
+            },
+          }),
+        ),
+      );
 
-    const toolbarLeft: m.Children = m(
+    const toolbarLeft = m(
       Stack,
       {orientation: 'horizontal', spacing: 'small'},
       `Returned ${data.rowCount.toLocaleString()} rows in ${data.queryTimeMs.toLocaleString()} ms`,
@@ -241,6 +223,33 @@ export class ResultsTable implements m.Component<ResultsTableAttrs> {
         showExportButton: true,
       }),
     ];
+  }
+
+  private renderIdCell(
+    value: Row[string],
+    resolvedTable: string | undefined,
+    onIdClick: (sqlTable: string, id: number, doubleClick: boolean) => void,
+  ): m.Children {
+    const cell = renderCell(value, 'id');
+    const id =
+      typeof value === 'bigint'
+        ? Number(value)
+        : typeof value === 'number'
+          ? value
+          : undefined;
+    if (resolvedTable !== undefined && id !== undefined) {
+      return m(
+        Anchor,
+        {
+          title: `Go to ${resolvedTable} on the timeline`,
+          icon: Icons.UpdateSelection,
+          onclick: () => onIdClick(resolvedTable, id, false),
+          ondblclick: () => onIdClick(resolvedTable, id, true),
+        },
+        cell,
+      );
+    }
+    return cell;
   }
 
   // Resolve the SQL table name for ID linking based on the current

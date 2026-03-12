@@ -93,9 +93,9 @@ export class QueryResultsTab implements Tab {
       data,
       fillHeight: true,
       trace: this.trace,
-      onIdClick: (sqlTable, id) => {
+      onIdClick: (sqlTable, id, doubleClick) => {
         this.trace.selection.selectSqlEvent(sqlTable, id, {
-          switchToCurrentSelectionTab: false,
+          switchToCurrentSelectionTab: doubleClick,
           scrollToSelection: true,
         });
       },

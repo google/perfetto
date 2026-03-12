@@ -307,10 +307,10 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             },
         fillHeight: true,
         trace,
-        onIdClick: (sqlTable, id) => {
+        onIdClick: (sqlTable, id, doubleClick) => {
           trace.navigate('#!/viewer');
           trace.selection.selectSqlEvent(sqlTable, id, {
-            switchToCurrentSelectionTab: false,
+            switchToCurrentSelectionTab: doubleClick,
             scrollToSelection: true,
           });
         },
