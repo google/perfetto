@@ -15,6 +15,7 @@
 import {z} from 'zod';
 import {DataExplorerTab, DataExplorerState} from './data_explorer';
 import {serializeState} from './json_handler';
+import {serializeDashboardData} from './dashboard/dashboard_registry';
 
 const DATA_EXPLORER_TABS_STORAGE_KEY = 'perfettoDataExplorerTabs';
 
@@ -22,6 +23,9 @@ const PERSISTED_DATA_EXPLORER_TAB_SCHEMA = z.object({
   id: z.string(),
   title: z.string(),
   graphJson: z.string().optional(),
+  dashboardId: z.string().optional(),
+  dashboardItems: z.array(z.unknown()).optional(),
+  brushFilters: z.record(z.string(), z.array(z.unknown())).optional(),
 });
 
 const PERSISTED_DATA_EXPLORER_TABS_STATE_SCHEMA = z.object({
@@ -45,14 +49,22 @@ export type PersistedDataExplorerTabsState = z.infer<
 class DataExplorerTabsStorage {
   save(tabs: DataExplorerTab[], activeTabId: string): void {
     const state: PersistedDataExplorerTabsState = {
-      tabs: tabs.map((tab) => ({
-        id: tab.id,
-        title: tab.title,
-        graphJson:
-          tab.state.rootNodes.length > 0
-            ? serializeState(tab.state)
-            : undefined,
-      })),
+      tabs: tabs.map((tab) => {
+        const dbData = serializeDashboardData(
+          tab.dashboardId,
+          tab.dashboardItems,
+          tab.dashboardBrushFilters,
+        );
+        return {
+          id: tab.id,
+          title: tab.title,
+          graphJson:
+            tab.state.rootNodes.length > 0
+              ? serializeState(tab.state)
+              : undefined,
+          ...dbData,
+        };
+      }),
       activeTabId,
     };
     try {
@@ -85,7 +97,10 @@ class DataExplorerTabsStorage {
 // Singleton instance
 export const dataExplorerTabsStorage = new DataExplorerTabsStorage();
 
-export function createNewTabName(tabs: DataExplorerTab[], prefix = 'Graph'): string {
+export function createNewTabName(
+  tabs: DataExplorerTab[],
+  prefix = 'Graph',
+): string {
   const existingNames = new Set(tabs.map((t) => t.title));
   let count = 1;
   while (existingNames.has(`${prefix} ${count}`)) {

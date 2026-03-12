@@ -13,7 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {VisualisationNode, ChartConfig} from '../nodes/visualisation_node';
+import {ChartConfig, ChartType} from '../nodes/visualisation_node';
+import {ColumnInfo} from '../column_info';
 import {BarChart} from '../../../../components/widgets/charts/bar_chart';
 import {Histogram} from '../../../../components/widgets/charts/histogram';
 import {LineChart} from '../../../../components/widgets/charts/line_chart';
@@ -36,6 +37,7 @@ import {SQLHeatmapLoader} from '../../../../components/widgets/charts/heatmap_lo
 import {SQLCdfLoader} from '../../../../components/widgets/charts/cdf_loader';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {SqlValue} from '../../../../trace_processor/query_result';
+import {Engine} from '../../../../trace_processor/engine';
 import {isIntegerColumn, getNumericFormatter} from './chart_column_formatters';
 
 /**
@@ -58,13 +60,183 @@ export interface ChartLoaderEntry {
 }
 
 /**
+ * Interface for chart-aware nodes/adapters. Implemented by VisualisationNode
+ * and the dashboard chart adapter so that chart renderers and config popup
+ * are decoupled from the specific node implementation.
+ */
+export interface ChartColumnProvider {
+  readonly sourceCols: ReadonlyArray<ColumnInfo>;
+  getChartableColumns(chartType: ChartType): ReadonlyArray<ColumnInfo>;
+  clearChartFiltersForColumn(column: string): void;
+  setBrushSelection(column: string, values: SqlValue[]): void;
+  addRangeFilter(column: string, min: number, max: number): void;
+  updateChart(chartId: string, updates: Partial<Omit<ChartConfig, 'id'>>): void;
+  removeChart(chartId: string): void;
+  readonly state: {readonly chartConfigs: ReadonlyArray<ChartConfig>};
+}
+
+/**
  * Minimal context passed to chart render functions.
  * Avoids passing the full ChartViewAttrs (which includes Trace and
  * QueryExecutionService that renderers don't need).
  */
 export interface ChartRenderContext {
-  readonly node: VisualisationNode;
+  readonly node: ChartColumnProvider;
   readonly onFilterChange?: () => void;
+}
+
+/** Dispose all loaders on a ChartLoaderEntry. */
+export function disposeChartLoaders(entry: ChartLoaderEntry): void {
+  entry.barLoader?.dispose();
+  entry.histogramLoader?.dispose();
+  entry.lineLoader?.dispose();
+  entry.scatterLoader?.dispose();
+  entry.pieLoader?.dispose();
+  entry.treemapLoader?.dispose();
+  entry.boxplotLoader?.dispose();
+  entry.heatmapLoader?.dispose();
+  entry.cdfLoader?.dispose();
+}
+
+/** Build a stable cache key for a chart loader entry. */
+export function buildLoaderCacheKey(
+  tableName: string,
+  config: ChartConfig,
+  ...extras: string[]
+): string {
+  return [
+    tableName,
+    config.chartType,
+    config.column,
+    config.measureColumn ?? '',
+    config.yColumn ?? '',
+    config.groupColumn ?? '',
+    config.sizeColumn ?? '',
+    ...extras,
+  ].join('|');
+}
+
+/** Create the appropriate SQL loader(s) for a chart config. */
+export function createChartLoaders(
+  engine: Engine,
+  query: string,
+  config: ChartConfig,
+  entry: ChartLoaderEntry,
+): void {
+  switch (config.chartType) {
+    case 'bar':
+      entry.barLoader = new SQLBarChartLoader({
+        engine,
+        query,
+        dimensionColumn: config.column,
+        measureColumn: config.measureColumn ?? config.column,
+      });
+      break;
+    case 'histogram':
+      entry.histogramLoader = new SQLHistogramLoader({
+        engine,
+        query: `SELECT ${config.column} FROM (${query})`,
+        valueColumn: config.column,
+      });
+      break;
+    case 'line':
+      if (config.yColumn) {
+        entry.lineLoader = new SQLLineChartLoader({
+          engine,
+          query,
+          xColumn: config.column,
+          yColumn: config.yColumn,
+          seriesColumn: config.groupColumn,
+        });
+      }
+      break;
+    case 'scatter':
+      if (config.yColumn) {
+        entry.scatterLoader = new SQLScatterChartLoader({
+          engine,
+          query,
+          xColumn: config.column,
+          yColumn: config.yColumn,
+          sizeColumn: config.sizeColumn,
+          seriesColumn: config.groupColumn,
+        });
+      }
+      break;
+    case 'pie':
+      entry.pieLoader = new SQLPieChartLoader({
+        engine,
+        query,
+        dimensionColumn: config.column,
+        measureColumn: config.measureColumn ?? config.column,
+      });
+      break;
+    case 'treemap':
+      entry.treemapLoader = new SQLTreemapLoader({
+        engine,
+        query,
+        labelColumn: config.column,
+        sizeColumn: config.measureColumn ?? config.column,
+        groupColumn: config.groupColumn,
+      });
+      break;
+    case 'boxplot':
+      if (config.yColumn) {
+        entry.boxplotLoader = new SQLBoxplotLoader({
+          engine,
+          query,
+          categoryColumn: config.column,
+          valueColumn: config.yColumn,
+        });
+      }
+      break;
+    case 'heatmap':
+      if (config.yColumn) {
+        entry.heatmapLoader = new SQLHeatmapLoader({
+          engine,
+          query,
+          xColumn: config.column,
+          yColumn: config.yColumn,
+          valueColumn: config.measureColumn ?? config.column,
+        });
+      }
+      break;
+    case 'cdf':
+      entry.cdfLoader = new SQLCdfLoader({
+        engine,
+        query,
+        valueColumn: config.column,
+        seriesColumn: config.groupColumn,
+      });
+      break;
+  }
+}
+
+/** Render the appropriate chart widget for a config + loader entry. */
+export function renderChartByType(
+  ctx: ChartRenderContext,
+  config: ChartConfig,
+  entry: ChartLoaderEntry,
+): m.Child {
+  switch (config.chartType) {
+    case 'bar':
+      return renderBarChart(ctx, config, entry);
+    case 'histogram':
+      return renderHistogram(ctx, config, entry);
+    case 'line':
+      return renderLineChart(ctx, config, entry);
+    case 'scatter':
+      return renderScatterChart(ctx, config, entry);
+    case 'pie':
+      return renderPieChart(ctx, config, entry);
+    case 'treemap':
+      return renderTreemap(ctx, config, entry);
+    case 'boxplot':
+      return renderBoxplot(ctx, config, entry);
+    case 'heatmap':
+      return renderHeatmap(ctx, config, entry);
+    case 'cdf':
+      return renderCdf(ctx, config, entry);
+  }
 }
 
 export function renderBarChart(
