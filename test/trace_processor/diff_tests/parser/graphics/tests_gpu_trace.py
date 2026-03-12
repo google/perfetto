@@ -195,9 +195,9 @@ class GraphicsGpuTrace(TestSuite):
           depth,
           s.context_id,
           command_buffer,
-          extract_arg(s.arg_set_id, 'command_buffer[0]') as cb0,
-          extract_arg(s.arg_set_id, 'command_buffer[1]') as cb1,
-          extract_arg(s.arg_set_id, 'command_buffer[2]') as cb2,
+          extract_arg(s.arg_set_id, 'command_buffers[0]') as cb0,
+          extract_arg(s.arg_set_id, 'command_buffers[1]') as cb1,
+          extract_arg(s.arg_set_id, 'command_buffers[2]') as cb2,
           submission_id,
           extract_arg(s.arg_set_id, 'tid') as tid,
           extract_arg(s.arg_set_id, 'pid') as pid

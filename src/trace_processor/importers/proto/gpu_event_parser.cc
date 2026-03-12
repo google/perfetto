@@ -133,6 +133,7 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
       render_pass_name_id_(context->storage->InternString("render_pass_name")),
       render_subpasses_id_(context->storage->InternString("render_subpasses")),
       command_buffer_id_(context->storage->InternString("command_buffer")),
+      command_buffers_id_(context->storage->InternString("command_buffers")),
       command_buffer_name_id_(
           context->storage->InternString("command_buffer_name")),
       frame_id_id_(context->storage->InternString("frame_id")),
@@ -841,13 +842,13 @@ void GpuEventParser::ParseVulkanApiEvent(int64_t ts, ConstBytes blob) {
                                Variadic::UnsignedInteger(*it));
             }
             size_t array_index =
-                inserter->GetNextArrayEntryIndex(command_buffer_id_);
+                inserter->GetNextArrayEntryIndex(command_buffers_id_);
             std::string child_key =
-                "command_buffer[" + std::to_string(array_index) + "]";
-            inserter->AddArg(command_buffer_id_,
+                "command_buffers[" + std::to_string(array_index) + "]";
+            inserter->AddArg(command_buffers_id_,
                              context_->storage->InternString(child_key),
                              Variadic::UnsignedInteger(*it));
-            inserter->IncrementArrayEntryIndex(command_buffer_id_);
+            inserter->IncrementArrayEntryIndex(command_buffers_id_);
           }
         }
         inserter->AddArg(submission_id_id_,
