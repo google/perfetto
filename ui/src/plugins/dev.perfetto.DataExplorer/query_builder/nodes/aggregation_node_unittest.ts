@@ -25,6 +25,7 @@ import {
   createColumnInfo,
   connectNodes,
 } from '../testing/test_utils';
+import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';
 
 describe('AggregationNode', () => {
   function createMockTrace(): Trace {
@@ -725,7 +726,7 @@ describe('AggregationNode', () => {
 
       expect(node.finalCols.length).toBe(1);
       expect(node.finalCols[0].name).toBe('count_dur');
-      expect(node.finalCols[0].type).toBe('INT');
+      expect(node.finalCols[0].column.type).toEqual(PerfettoSqlTypes.INT);
     });
 
     it('should set INT type for COUNT(*) aggregation', () => {
@@ -748,14 +749,13 @@ describe('AggregationNode', () => {
 
       expect(node.finalCols.length).toBe(1);
       expect(node.finalCols[0].name).toBe('total_count');
-      expect(node.finalCols[0].type).toBe('INT');
+      expect(node.finalCols[0].column.type).toEqual(PerfettoSqlTypes.INT);
     });
 
     it('should preserve type for SUM aggregation', () => {
       const inputCols = [
         {
           name: 'dur',
-          type: 'DURATION',
           checked: false,
           column: {
             name: 'dur',
@@ -782,14 +782,13 @@ describe('AggregationNode', () => {
 
       expect(node.finalCols.length).toBe(1);
       expect(node.finalCols[0].name).toBe('total_dur');
-      expect(node.finalCols[0].type).toBe('DURATION');
+      expect(node.finalCols[0].column.type).toEqual(PerfettoSqlTypes.DURATION);
     });
 
     it('should preserve type for MIN/MAX aggregations', () => {
       const inputCols = [
         {
           name: 'ts',
-          type: 'TIMESTAMP',
           checked: false,
           column: {
             name: 'ts',
@@ -822,9 +821,9 @@ describe('AggregationNode', () => {
 
       expect(node.finalCols.length).toBe(2);
       expect(node.finalCols[0].name).toBe('min_ts');
-      expect(node.finalCols[0].type).toBe('TIMESTAMP');
+      expect(node.finalCols[0].column.type).toEqual(PerfettoSqlTypes.TIMESTAMP);
       expect(node.finalCols[1].name).toBe('max_ts');
-      expect(node.finalCols[1].type).toBe('TIMESTAMP');
+      expect(node.finalCols[1].column.type).toEqual(PerfettoSqlTypes.TIMESTAMP);
     });
 
     it('should set DOUBLE type for MEAN aggregation', () => {
@@ -848,7 +847,7 @@ describe('AggregationNode', () => {
 
       expect(node.finalCols.length).toBe(1);
       expect(node.finalCols[0].name).toBe('avg_value');
-      expect(node.finalCols[0].type).toBe('DOUBLE');
+      expect(node.finalCols[0].column.type).toEqual(PerfettoSqlTypes.DOUBLE);
     });
 
     it('should set DOUBLE type for MEDIAN aggregation', () => {
@@ -872,7 +871,7 @@ describe('AggregationNode', () => {
 
       expect(node.finalCols.length).toBe(1);
       expect(node.finalCols[0].name).toBe('median_dur');
-      expect(node.finalCols[0].type).toBe('DOUBLE');
+      expect(node.finalCols[0].column.type).toEqual(PerfettoSqlTypes.DOUBLE);
     });
 
     it('should set DOUBLE type for DURATION_WEIGHTED_MEAN aggregation', () => {
@@ -896,7 +895,7 @@ describe('AggregationNode', () => {
 
       expect(node.finalCols.length).toBe(1);
       expect(node.finalCols[0].name).toBe('weighted_avg_dur');
-      expect(node.finalCols[0].type).toBe('DOUBLE');
+      expect(node.finalCols[0].column.type).toEqual(PerfettoSqlTypes.DOUBLE);
     });
 
     it('should set DOUBLE type for PERCENTILE aggregation', () => {
@@ -921,14 +920,13 @@ describe('AggregationNode', () => {
 
       expect(node.finalCols.length).toBe(1);
       expect(node.finalCols[0].name).toBe('p95_dur');
-      expect(node.finalCols[0].type).toBe('DOUBLE');
+      expect(node.finalCols[0].column.type).toEqual(PerfettoSqlTypes.DOUBLE);
     });
 
     it('should include GROUP BY columns with their original types', () => {
       const inputCols = [
         {
           name: 'name',
-          type: 'STRING',
           checked: true,
           column: {
             name: 'name',
@@ -958,9 +956,9 @@ describe('AggregationNode', () => {
       // Second column should be the aggregation result (total_value) with INT type
       expect(node.finalCols.length).toBe(2);
       expect(node.finalCols[0].name).toBe('name');
-      expect(node.finalCols[0].type).toBe('STRING');
+      expect(node.finalCols[0].column.type).toEqual(PerfettoSqlTypes.STRING);
       expect(node.finalCols[1].name).toBe('total_value');
-      expect(node.finalCols[1].type).toBe('INT');
+      expect(node.finalCols[1].column.type).toEqual(PerfettoSqlTypes.INT);
     });
   });
 

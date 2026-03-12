@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
 import {QueryNodeState} from '../../query_node';
 
 /**
@@ -63,7 +64,7 @@ export interface NewColumn {
   functionArgs?: FunctionArgBinding[];
 
   // SQL type for preserving type information across serialization
-  sqlType?: string;
+  sqlType?: PerfettoSqlType;
 }
 
 /**
@@ -90,7 +91,7 @@ export interface AddColumnsNodeState extends QueryNodeState {
   suggestionAliases?: Map<string, string>;
 
   // Map from column name to its type (for type casting added columns)
-  columnTypes?: Map<string, string>;
+  columnTypes?: Map<string, PerfettoSqlType>;
 
   // Track if connection was made through guided suggestion
   isGuidedConnection?: boolean;

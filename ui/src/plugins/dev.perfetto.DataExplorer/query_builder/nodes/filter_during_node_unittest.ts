@@ -15,6 +15,10 @@
 import {FilterDuringNode, FilterDuringNodeState} from './filter_during_node';
 import {QueryNode, NodeType} from '../../query_node';
 import {ColumnInfo} from '../column_info';
+import {
+  PerfettoSqlType,
+  PerfettoSqlTypes,
+} from '../../../../trace_processor/perfetto_sql_type';
 import protos from '../../../../protos';
 
 // Interface for accessing private methods during testing
@@ -49,16 +53,32 @@ describe('FilterDuringNode', () => {
     } as QueryNode;
   }
 
+  function stringToSqlType(s: string): PerfettoSqlType {
+    switch (s.toUpperCase()) {
+      case 'INT':
+      case 'INT64':
+        return PerfettoSqlTypes.INT;
+      case 'STRING':
+        return PerfettoSqlTypes.STRING;
+      case 'DOUBLE':
+        return PerfettoSqlTypes.DOUBLE;
+      case 'BYTES':
+        return {kind: 'bytes'};
+      default:
+        return PerfettoSqlTypes.INT;
+    }
+  }
+
   function createColumnInfo(
     name: string,
     type: string,
     checked: boolean = true,
   ): ColumnInfo {
+    const sqlType = stringToSqlType(type);
     return {
       name,
-      type,
       checked,
-      column: {name},
+      column: {name, type: sqlType},
     };
   }
 

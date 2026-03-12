@@ -148,10 +148,10 @@ describe('CreateSlicesNode', () => {
 
       expect(finalCols.length).toBe(2);
       expect(finalCols[0].name).toBe('ts');
-      expect(finalCols[0].type).toBe('TIMESTAMP');
+      expect(finalCols[0].column.type).toEqual({kind: 'timestamp'});
       expect(finalCols[0].checked).toBe(true);
       expect(finalCols[1].name).toBe('dur');
-      expect(finalCols[1].type).toBe('DURATION');
+      expect(finalCols[1].column.type).toEqual({kind: 'duration'});
       expect(finalCols[1].checked).toBe(true);
     });
 

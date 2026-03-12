@@ -20,7 +20,10 @@ import {
   newColumnInfoList,
 } from './column_info';
 import {SqlColumn} from '../../dev.perfetto.SqlModules/sql_modules';
-import {PerfettoSqlType} from '../../../trace_processor/perfetto_sql_type';
+import {
+  PerfettoSqlType,
+  PerfettoSqlTypes,
+} from '../../../trace_processor/perfetto_sql_type';
 
 describe('column_info utilities', () => {
   const stringType: PerfettoSqlType = {
@@ -43,7 +46,7 @@ describe('column_info utilities', () => {
       const result = columnInfoFromSqlColumn(sqlColumn);
 
       expect(result.name).toBe('id');
-      expect(result.type).toBe('INT');
+      expect(result.column.type).toEqual(PerfettoSqlTypes.INT);
       expect(result.checked).toBe(false);
       expect(result.column).toBe(sqlColumn);
       expect(result.alias).toBeUndefined();
@@ -58,7 +61,7 @@ describe('column_info utilities', () => {
       const result = columnInfoFromSqlColumn(sqlColumn, true);
 
       expect(result.name).toBe('name');
-      expect(result.type).toBe('STRING');
+      expect(result.column.type).toEqual(PerfettoSqlTypes.STRING);
       expect(result.checked).toBe(true);
       expect(result.column).toBe(sqlColumn);
     });
@@ -72,7 +75,7 @@ describe('column_info utilities', () => {
       const result = columnInfoFromSqlColumn(sqlColumn, false);
 
       expect(result.name).toBe('ts');
-      expect(result.type).toBe('TIMESTAMP');
+      expect(result.column.type).toEqual(PerfettoSqlTypes.TIMESTAMP);
       expect(result.checked).toBe(false);
     });
   });
@@ -82,7 +85,7 @@ describe('column_info utilities', () => {
       const result = columnInfoFromName('test_column');
 
       expect(result.name).toBe('test_column');
-      expect(result.type).toBe('NA');
+      expect(result.column.type).toBeUndefined();
       expect(result.checked).toBe(false);
       expect(result.column.name).toBe('test_column');
       expect(result.column.type).toBe(undefined);
@@ -92,7 +95,7 @@ describe('column_info utilities', () => {
       const result = columnInfoFromName('another_column', true);
 
       expect(result.name).toBe('another_column');
-      expect(result.type).toBe('NA');
+      expect(result.column.type).toBeUndefined();
       expect(result.checked).toBe(true);
     });
 
@@ -100,7 +103,7 @@ describe('column_info utilities', () => {
       const result = columnInfoFromName('');
 
       expect(result.name).toBe('');
-      expect(result.type).toBe('NA');
+      expect(result.column.type).toBeUndefined();
       expect(result.checked).toBe(false);
     });
   });
@@ -109,7 +112,6 @@ describe('column_info utilities', () => {
     it('should create new ColumnInfo preserving column info', () => {
       const original: ColumnInfo = {
         name: 'id',
-        type: 'INTEGER',
         checked: false,
         column: {name: 'id', type: intType},
       };
@@ -117,7 +119,7 @@ describe('column_info utilities', () => {
       const result = newColumnInfo(original);
 
       expect(result.name).toBe('id');
-      expect(result.type).toBe('INT');
+      expect(result.column.type).toEqual(PerfettoSqlTypes.INT);
       expect(result.checked).toBe(false);
       // column is now a copy with name updated (not same reference)
       expect(result.column.name).toBe('id');
@@ -128,7 +130,6 @@ describe('column_info utilities', () => {
     it('should use alias as name if present', () => {
       const original: ColumnInfo = {
         name: 'id',
-        type: 'INTEGER',
         checked: false,
         column: {name: 'id', type: intType},
         alias: 'identifier',
@@ -137,7 +138,7 @@ describe('column_info utilities', () => {
       const result = newColumnInfo(original);
 
       expect(result.name).toBe('identifier');
-      expect(result.type).toBe('INT');
+      expect(result.column.type).toEqual(PerfettoSqlTypes.INT);
       // column.name should also be replaced with the alias so child nodes see the aliased name
       expect(result.column.name).toBe('identifier');
       expect(result.alias).toBeUndefined();
@@ -146,7 +147,6 @@ describe('column_info utilities', () => {
     it('should override checked state when specified', () => {
       const original: ColumnInfo = {
         name: 'name',
-        type: 'STRING',
         checked: false,
         column: {name: 'name', type: stringType},
       };
@@ -160,7 +160,6 @@ describe('column_info utilities', () => {
     it('should preserve checked state when not overridden', () => {
       const original: ColumnInfo = {
         name: 'name',
-        type: 'STRING',
         checked: true,
         column: {name: 'name', type: stringType},
       };
@@ -173,7 +172,6 @@ describe('column_info utilities', () => {
     it('should handle undefined checked parameter', () => {
       const original: ColumnInfo = {
         name: 'ts',
-        type: 'TIMESTAMP_NS',
         checked: true,
         column: {name: 'ts', type: timestampType},
       };
@@ -186,7 +184,6 @@ describe('column_info utilities', () => {
     it('should clear alias in new column', () => {
       const original: ColumnInfo = {
         name: 'id',
-        type: 'INTEGER',
         checked: false,
         column: {name: 'id', type: intType},
         alias: 'identifier',
@@ -203,19 +200,16 @@ describe('column_info utilities', () => {
       const original: ColumnInfo[] = [
         {
           name: 'id',
-          type: 'INTEGER',
           checked: false,
           column: {name: 'id', type: intType},
         },
         {
           name: 'name',
-          type: 'STRING',
           checked: false,
           column: {name: 'name', type: stringType},
         },
         {
           name: 'ts',
-          type: 'TIMESTAMP_NS',
           checked: true,
           column: {name: 'ts', type: timestampType},
         },
@@ -236,13 +230,11 @@ describe('column_info utilities', () => {
       const original: ColumnInfo[] = [
         {
           name: 'id',
-          type: 'INTEGER',
           checked: false,
           column: {name: 'id', type: intType},
         },
         {
           name: 'name',
-          type: 'STRING',
           checked: false,
           column: {name: 'name', type: stringType},
         },
@@ -265,14 +257,12 @@ describe('column_info utilities', () => {
       const original: ColumnInfo[] = [
         {
           name: 'id',
-          type: 'INTEGER',
           checked: false,
           column: {name: 'id', type: intType},
           alias: 'identifier',
         },
         {
           name: 'name',
-          type: 'STRING',
           checked: false,
           column: {name: 'full_name', type: stringType},
           alias: 'name',
@@ -292,7 +282,6 @@ describe('column_info utilities', () => {
       const original: ColumnInfo[] = [
         {
           name: 'id',
-          type: 'INTEGER',
           checked: false,
           column: {name: 'id', type: intType},
         },

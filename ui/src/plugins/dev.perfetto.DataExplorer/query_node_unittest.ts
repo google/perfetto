@@ -23,7 +23,10 @@ import {
 import {queryToRun, isAQuery} from './query_builder/query_builder_utils';
 import {notifyNextNodes} from './query_builder/graph_utils';
 import {ColumnInfo, newColumnInfoList} from './query_builder/column_info';
-import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
+import {
+  PerfettoSqlType,
+  PerfettoSqlTypes,
+} from '../../trace_processor/perfetto_sql_type';
 
 describe('query_node utilities', () => {
   describe('nextNodeId', () => {
@@ -69,13 +72,11 @@ describe('query_node utilities', () => {
       const sourceCols: ColumnInfo[] = [
         {
           name: 'id',
-          type: 'INTEGER',
           checked: false,
           column: {name: 'id', type: stringType},
         },
         {
           name: 'name',
-          type: 'STRING',
           checked: false,
           column: {name: 'name', type: stringType},
         },
@@ -92,7 +93,6 @@ describe('query_node utilities', () => {
       const sourceCols: ColumnInfo[] = [
         {
           name: 'id',
-          type: 'INTEGER',
           checked: false,
           column: {name: 'id', type: stringType},
           alias: 'identifier',
@@ -102,7 +102,7 @@ describe('query_node utilities', () => {
       const result = newColumnInfoList(sourceCols, true);
 
       expect(result[0].name).toBe('identifier');
-      expect(result[0].type).toBe('STRING');
+      expect(result[0].column.type).toEqual(PerfettoSqlTypes.STRING);
       // column.name should also be replaced with the alias so child nodes see the aliased name
       expect(result[0].column.name).toBe('identifier');
     });
