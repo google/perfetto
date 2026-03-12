@@ -38,19 +38,19 @@ message TransactionTraceFile {
   }
 
   // Must be the first field, set to value in MagicNumber
-  optional fixed64 magic_number = 1;
+  optional fixed64 magic_number = 1 [jstype = JS_STRING];
   repeated TransactionTraceEntry entry = 2;
 
   // offset between real-time clock and elapsed time clock in nanoseconds.
   // Calculated as: systemTime(SYSTEM_TIME_REALTIME) -
   // systemTime(SYSTEM_TIME_MONOTONIC)
-  optional fixed64 real_to_elapsed_time_offset_nanos = 3;
+  optional fixed64 real_to_elapsed_time_offset_nanos = 3 [jstype = JS_STRING];
   optional uint32 version = 4;
 }
 
 message TransactionTraceEntry {
-  optional int64 elapsed_realtime_nanos = 1;
-  optional int64 vsync_id = 2;
+  optional int64 elapsed_realtime_nanos = 1 [jstype = JS_STRING];
+  optional int64 vsync_id = 2 [jstype = JS_STRING];
   repeated TransactionState transactions = 3;
   repeated LayerCreationArgs added_layers = 4;
   repeated uint32 destroyed_layers = 5;
@@ -103,14 +103,14 @@ message TransactionBarrier {
 message TransactionState {
   optional int32 pid = 1;
   optional int32 uid = 2;
-  optional int64 vsync_id = 3;
+  optional int64 vsync_id = 3 [jstype = JS_STRING];
   optional int32 input_event_id = 4;
-  optional int64 post_time = 5;
-  optional uint64 transaction_id = 6;
+  optional int64 post_time = 5 [jstype = JS_STRING];
+  optional uint64 transaction_id = 6 [jstype = JS_STRING];
   repeated LayerState layer_changes = 7;
   repeated DisplayState display_changes = 8;
-  repeated uint64 merged_transaction_ids = 9;
-  optional uint64 apply_token = 10;
+  repeated uint64 merged_transaction_ids = 9 [jstype = JS_STRING];
+  optional uint64 apply_token = 10 [jstype = JS_STRING];
   repeated TransactionBarrier transaction_barriers = 11;
 }
 
@@ -183,7 +183,7 @@ message LayerState {
     eBoxShadowSettingsChanged = 0x00040000;
     eBorderSettingsChanged = 0x00080000;
   };
-  optional uint64 what = 2;
+  optional uint64 what = 2 [jstype = JS_STRING];
   optional float x = 3;
   optional float y = 4;
   optional int32 z = 5;
@@ -235,10 +235,10 @@ message LayerState {
   optional RectProto crop = 21;
 
   message BufferData {
-    optional uint64 buffer_id = 1;
+    optional uint64 buffer_id = 1 [jstype = JS_STRING];
     optional uint32 width = 2;
     optional uint32 height = 3;
-    optional uint64 frame_number = 4;
+    optional uint64 frame_number = 4 [jstype = JS_STRING];
 
     enum BufferDataChange {
       BufferDataChangeNone = 0;
@@ -247,7 +247,7 @@ message LayerState {
       cachedBufferChanged = 0x04;
     }
     optional uint32 flags = 5;
-    optional uint64 cached_buffer_id = 6;
+    optional uint64 cached_buffer_id = 6 [jstype = JS_STRING];
 
     enum PixelFormat {
       PIXEL_FORMAT_UNKNOWN = 0;
@@ -267,7 +267,7 @@ message LayerState {
       PIXEL_FORMAT_R_8 = 0x38;
     }
     optional PixelFormat pixel_format = 7;
-    optional uint64 usage = 8;
+    optional uint64 usage = 8 [jstype = JS_STRING];
   }
   optional BufferData buffer_data = 22;
   optional int32 api = 23;
@@ -301,7 +301,7 @@ message LayerState {
   optional int32 frame_rate_compatibility = 34;
   optional int32 change_frame_rate_strategy = 35;
   optional uint32 fixed_transform_hint = 36;
-  optional uint64 frame_number = 37;
+  optional uint64 frame_number = 37 [jstype = JS_STRING];
   optional bool auto_refresh = 38;
   // unused
   optional bool is_trusted_overlay = 39;

@@ -38,19 +38,19 @@ message LayersTraceFileProto {
   }
 
   // Must be the first field, set to value in MagicNumber
-  optional fixed64 magic_number = 1;
+  optional fixed64 magic_number = 1 [jstype = JS_STRING];
 
   repeated LayersSnapshotProto entry = 2;
 
   // Offset between real-time clock and elapsed time clock in nanoseconds.
   // Calculated as: systemTime(SYSTEM_TIME_REALTIME) -
   // systemTime(SYSTEM_TIME_MONOTONIC)
-  optional fixed64 real_to_elapsed_time_offset_nanos = 3;
+  optional fixed64 real_to_elapsed_time_offset_nanos = 3 [jstype = JS_STRING];
 }
 
 message LayersSnapshotProto {
   // elapsed realtime in nanos since boot of when this entry was logged
-  optional sfixed64 elapsed_realtime_nanos = 1;
+  optional sfixed64 elapsed_realtime_nanos = 1 [jstype = JS_STRING];
 
   // SurfaceFlinger's stage where the snapshot was triggered.
   // Currently either "visibleRegionsDirty" or "bufferLatched".
@@ -72,7 +72,7 @@ message LayersSnapshotProto {
 
   repeated DisplayProto displays = 7;
 
-  optional int64 vsync_id = 8;
+  optional int64 vsync_id = 8 [jstype = JS_STRING];
 }
 
 // Contains a list of all layers.
@@ -81,7 +81,7 @@ message LayersProto {
 }
 
 message DisplayProto {
-  optional uint64 id = 1;
+  optional uint64 id = 1 [jstype = JS_STRING];
   // Display descriptor, e.g. "Built-In Screen"
   optional string name = 2;
   optional uint32 layer_stack = 3;
@@ -190,7 +190,7 @@ message LayerProto {
   // If it's a buffer layer, indicate if the content is protected
   optional bool is_protected = 36;
   // Current frame number being rendered.
-  optional uint64 curr_frame = 37;
+  optional uint64 curr_frame = 37 [jstype = JS_STRING];
   // A list of barriers that the layer is waiting to update state.
   repeated BarrierLayerProto barrier_layer = 38;
   // If active_buffer is not null, record its transform.
@@ -291,12 +291,12 @@ message ActiveBufferProto {
   optional uint32 height = 2;
   optional uint32 stride = 3;
   optional int32 format = 4;
-  optional uint64 usage = 5;
+  optional uint64 usage = 5 [jstype = JS_STRING];
 }
 
 message BarrierLayerProto {
   // layer id the barrier is waiting on.
   optional int32 id = 1;
   // frame number the barrier is waiting on.
-  optional uint64 frame_number = 2;
+  optional uint64 frame_number = 2 [jstype = JS_STRING];
 }

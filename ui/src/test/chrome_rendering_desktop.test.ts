@@ -27,14 +27,18 @@ test.beforeAll(async ({browser}, _testInfo) => {
 });
 
 test('load trace', async () => {
-  await pth.waitForIdleAndScreenshot('loaded.png');
+  await pth.waitForIdleAndScreenshot('loaded.png', {
+    locator: page.locator('.pf-timeline-page'),
+  });
 });
 
 test('expand browser', async () => {
   const grp = pth.locateTrack('Browser 12685');
   await grp.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(grp);
-  await pth.waitForIdleAndScreenshot('browser_expanded.png');
+  await pth.waitForIdleAndScreenshot('browser_expanded.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
   await pth.toggleTrackGroup(grp);
 });
 
@@ -43,5 +47,7 @@ test('slice with flows', async () => {
   await pth.resetFocus();
   await page.keyboard.press('f');
   await pth.waitForPerfettoIdle();
-  await pth.waitForIdleAndScreenshot('slice_with_flows.png');
+  await pth.waitForIdleAndScreenshot('slice_with_flows.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 });

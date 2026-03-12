@@ -6564,11 +6564,11 @@ message PixelModemTokenDatabase {
 /* represents a single log entry */
 message ProtoLogMessage {
   /* log statement identifier, created from message string and log level. */
-  optional fixed64 message_id = 1;
+  optional fixed64 message_id = 1 [jstype = JS_STRING];
   /* string parameters passed to the log call that have been interned. */
   repeated uint32 str_param_iids = 2;
   /* integer parameters passed to the log call. */
-  repeated sint64 sint64_params = 3;
+  repeated sint64 sint64_params = 3 [jstype = JS_STRING];
   /* floating point parameters passed to the log call. */
   repeated double double_params = 4;
   /* boolean parameters passed to the log call. */
@@ -6582,7 +6582,7 @@ message ProtoLogMessage {
 message ProtoLogViewerConfig {
   message MessageData {
     // the id of the message that is logged in a ProtoLogMessage
-    optional fixed64 message_id = 1;
+    optional fixed64 message_id = 1 [jstype = JS_STRING];
     // the string representation of the message
     optional string message = 2;
     // the level of the message
@@ -6628,43 +6628,43 @@ message ShellTransition {
 
   // The time the transition was created on the WM side
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 create_time_ns = 2;
+  optional int64 create_time_ns = 2 [jstype = JS_STRING];
   // The time the transition was sent from the WM side to shell
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 send_time_ns = 3;
+  optional int64 send_time_ns = 3 [jstype = JS_STRING];
   // The time the transition was dispatched by shell to execute
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 dispatch_time_ns = 4;
+  optional int64 dispatch_time_ns = 4 [jstype = JS_STRING];
   // If the transition merge was accepted by the transition handler, this
   // contains the time the transition was merged into transition with id
   // `merge_target`.
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 merge_time_ns = 5;
+  optional int64 merge_time_ns = 5 [jstype = JS_STRING];
   // The time shell proposed the transition should be merged to the transition
   // handler into transition with id `merge_target`.
   // (using SystemClock.elapsedRealtimeNanos()).
-  optional int64 merge_request_time_ns = 6;
+  optional int64 merge_request_time_ns = 6 [jstype = JS_STRING];
   // If the transition was aborted on the shell side, this is the time that
   // occurred.
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 shell_abort_time_ns = 7;
+  optional int64 shell_abort_time_ns = 7 [jstype = JS_STRING];
   // If the transition was aborted on the wm side, this is the time that
   // occurred.
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 wm_abort_time_ns = 8;
+  optional int64 wm_abort_time_ns = 8 [jstype = JS_STRING];
   // The time WM considers the transition to be complete.
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 finish_time_ns = 9;
+  optional int64 finish_time_ns = 9 [jstype = JS_STRING];
 
   // The id of the transaction that WM proposed to use as the starting
   // transaction. It contains all the layer changes required to setup the
   // transition and should be executed right at the start of the transition
   // by the transition handler.
-  optional uint64 start_transaction_id = 10;
+  optional uint64 start_transaction_id = 10 [jstype = JS_STRING];
   // The if of the transaction that WM proposed to use as the finish
   // transaction. It contains all the layer changes required to set the final
   // state of the transition.
-  optional uint64 finish_transaction_id = 11;
+  optional uint64 finish_transaction_id = 11 [jstype = JS_STRING];
 
   // The id of the handler that executed the transition. A HandlerMappings
   // message in the trace will contain the mapping of id to a string
@@ -6686,7 +6686,7 @@ message ShellTransition {
   // until the starting window is removed. So in a sense the transition is not
   // finished until the starting window is removed. (b/284302118)
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 starting_window_remove_time_ns = 17;
+  optional int64 starting_window_remove_time_ns = 17 [jstype = JS_STRING];
 
   // Contains the information about the windows changed in a transition.
   message Change {
@@ -6845,19 +6845,19 @@ message LayersTraceFileProto {
   }
 
   // Must be the first field, set to value in MagicNumber
-  optional fixed64 magic_number = 1;
+  optional fixed64 magic_number = 1 [jstype = JS_STRING];
 
   repeated LayersSnapshotProto entry = 2;
 
   // Offset between real-time clock and elapsed time clock in nanoseconds.
   // Calculated as: systemTime(SYSTEM_TIME_REALTIME) -
   // systemTime(SYSTEM_TIME_MONOTONIC)
-  optional fixed64 real_to_elapsed_time_offset_nanos = 3;
+  optional fixed64 real_to_elapsed_time_offset_nanos = 3 [jstype = JS_STRING];
 }
 
 message LayersSnapshotProto {
   // elapsed realtime in nanos since boot of when this entry was logged
-  optional sfixed64 elapsed_realtime_nanos = 1;
+  optional sfixed64 elapsed_realtime_nanos = 1 [jstype = JS_STRING];
 
   // SurfaceFlinger's stage where the snapshot was triggered.
   // Currently either "visibleRegionsDirty" or "bufferLatched".
@@ -6879,7 +6879,7 @@ message LayersSnapshotProto {
 
   repeated DisplayProto displays = 7;
 
-  optional int64 vsync_id = 8;
+  optional int64 vsync_id = 8 [jstype = JS_STRING];
 }
 
 // Contains a list of all layers.
@@ -6888,7 +6888,7 @@ message LayersProto {
 }
 
 message DisplayProto {
-  optional uint64 id = 1;
+  optional uint64 id = 1 [jstype = JS_STRING];
   // Display descriptor, e.g. "Built-In Screen"
   optional string name = 2;
   optional uint32 layer_stack = 3;
@@ -6997,7 +6997,7 @@ message LayerProto {
   // If it's a buffer layer, indicate if the content is protected
   optional bool is_protected = 36;
   // Current frame number being rendered.
-  optional uint64 curr_frame = 37;
+  optional uint64 curr_frame = 37 [jstype = JS_STRING];
   // A list of barriers that the layer is waiting to update state.
   repeated BarrierLayerProto barrier_layer = 38;
   // If active_buffer is not null, record its transform.
@@ -7098,14 +7098,14 @@ message ActiveBufferProto {
   optional uint32 height = 2;
   optional uint32 stride = 3;
   optional int32 format = 4;
-  optional uint64 usage = 5;
+  optional uint64 usage = 5 [jstype = JS_STRING];
 }
 
 message BarrierLayerProto {
   // layer id the barrier is waiting on.
   optional int32 id = 1;
   // frame number the barrier is waiting on.
-  optional uint64 frame_number = 2;
+  optional uint64 frame_number = 2 [jstype = JS_STRING];
 }
 
 // End of protos/perfetto/trace/android/surfaceflinger_layers.proto
@@ -7129,19 +7129,19 @@ message TransactionTraceFile {
   }
 
   // Must be the first field, set to value in MagicNumber
-  optional fixed64 magic_number = 1;
+  optional fixed64 magic_number = 1 [jstype = JS_STRING];
   repeated TransactionTraceEntry entry = 2;
 
   // offset between real-time clock and elapsed time clock in nanoseconds.
   // Calculated as: systemTime(SYSTEM_TIME_REALTIME) -
   // systemTime(SYSTEM_TIME_MONOTONIC)
-  optional fixed64 real_to_elapsed_time_offset_nanos = 3;
+  optional fixed64 real_to_elapsed_time_offset_nanos = 3 [jstype = JS_STRING];
   optional uint32 version = 4;
 }
 
 message TransactionTraceEntry {
-  optional int64 elapsed_realtime_nanos = 1;
-  optional int64 vsync_id = 2;
+  optional int64 elapsed_realtime_nanos = 1 [jstype = JS_STRING];
+  optional int64 vsync_id = 2 [jstype = JS_STRING];
   repeated TransactionState transactions = 3;
   repeated LayerCreationArgs added_layers = 4;
   repeated uint32 destroyed_layers = 5;
@@ -7194,14 +7194,14 @@ message TransactionBarrier {
 message TransactionState {
   optional int32 pid = 1;
   optional int32 uid = 2;
-  optional int64 vsync_id = 3;
+  optional int64 vsync_id = 3 [jstype = JS_STRING];
   optional int32 input_event_id = 4;
-  optional int64 post_time = 5;
-  optional uint64 transaction_id = 6;
+  optional int64 post_time = 5 [jstype = JS_STRING];
+  optional uint64 transaction_id = 6 [jstype = JS_STRING];
   repeated LayerState layer_changes = 7;
   repeated DisplayState display_changes = 8;
-  repeated uint64 merged_transaction_ids = 9;
-  optional uint64 apply_token = 10;
+  repeated uint64 merged_transaction_ids = 9 [jstype = JS_STRING];
+  optional uint64 apply_token = 10 [jstype = JS_STRING];
   repeated TransactionBarrier transaction_barriers = 11;
 }
 
@@ -7274,7 +7274,7 @@ message LayerState {
     eBoxShadowSettingsChanged = 0x00040000;
     eBorderSettingsChanged = 0x00080000;
   };
-  optional uint64 what = 2;
+  optional uint64 what = 2 [jstype = JS_STRING];
   optional float x = 3;
   optional float y = 4;
   optional int32 z = 5;
@@ -7326,10 +7326,10 @@ message LayerState {
   optional RectProto crop = 21;
 
   message BufferData {
-    optional uint64 buffer_id = 1;
+    optional uint64 buffer_id = 1 [jstype = JS_STRING];
     optional uint32 width = 2;
     optional uint32 height = 3;
-    optional uint64 frame_number = 4;
+    optional uint64 frame_number = 4 [jstype = JS_STRING];
 
     enum BufferDataChange {
       BufferDataChangeNone = 0;
@@ -7338,7 +7338,7 @@ message LayerState {
       cachedBufferChanged = 0x04;
     }
     optional uint32 flags = 5;
-    optional uint64 cached_buffer_id = 6;
+    optional uint64 cached_buffer_id = 6 [jstype = JS_STRING];
 
     enum PixelFormat {
       PIXEL_FORMAT_UNKNOWN = 0;
@@ -7358,7 +7358,7 @@ message LayerState {
       PIXEL_FORMAT_R_8 = 0x38;
     }
     optional PixelFormat pixel_format = 7;
-    optional uint64 usage = 8;
+    optional uint64 usage = 8 [jstype = JS_STRING];
   }
   optional BufferData buffer_data = 22;
   optional int32 api = 23;
@@ -7392,7 +7392,7 @@ message LayerState {
   optional int32 frame_rate_compatibility = 34;
   optional int32 change_frame_rate_strategy = 35;
   optional uint32 fixed_transform_hint = 36;
-  optional uint64 frame_number = 37;
+  optional uint64 frame_number = 37 [jstype = JS_STRING];
   optional bool auto_refresh = 38;
   // unused
   optional bool is_trusted_overlay = 39;

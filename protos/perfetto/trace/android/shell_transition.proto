@@ -29,43 +29,43 @@ message ShellTransition {
 
   // The time the transition was created on the WM side
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 create_time_ns = 2;
+  optional int64 create_time_ns = 2 [jstype = JS_STRING];
   // The time the transition was sent from the WM side to shell
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 send_time_ns = 3;
+  optional int64 send_time_ns = 3 [jstype = JS_STRING];
   // The time the transition was dispatched by shell to execute
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 dispatch_time_ns = 4;
+  optional int64 dispatch_time_ns = 4 [jstype = JS_STRING];
   // If the transition merge was accepted by the transition handler, this
   // contains the time the transition was merged into transition with id
   // `merge_target`.
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 merge_time_ns = 5;
+  optional int64 merge_time_ns = 5 [jstype = JS_STRING];
   // The time shell proposed the transition should be merged to the transition
   // handler into transition with id `merge_target`.
   // (using SystemClock.elapsedRealtimeNanos()).
-  optional int64 merge_request_time_ns = 6;
+  optional int64 merge_request_time_ns = 6 [jstype = JS_STRING];
   // If the transition was aborted on the shell side, this is the time that
   // occurred.
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 shell_abort_time_ns = 7;
+  optional int64 shell_abort_time_ns = 7 [jstype = JS_STRING];
   // If the transition was aborted on the wm side, this is the time that
   // occurred.
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 wm_abort_time_ns = 8;
+  optional int64 wm_abort_time_ns = 8 [jstype = JS_STRING];
   // The time WM considers the transition to be complete.
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 finish_time_ns = 9;
+  optional int64 finish_time_ns = 9 [jstype = JS_STRING];
 
   // The id of the transaction that WM proposed to use as the starting
   // transaction. It contains all the layer changes required to setup the
   // transition and should be executed right at the start of the transition
   // by the transition handler.
-  optional uint64 start_transaction_id = 10;
+  optional uint64 start_transaction_id = 10 [jstype = JS_STRING];
   // The if of the transaction that WM proposed to use as the finish
   // transaction. It contains all the layer changes required to set the final
   // state of the transition.
-  optional uint64 finish_transaction_id = 11;
+  optional uint64 finish_transaction_id = 11 [jstype = JS_STRING];
 
   // The id of the handler that executed the transition. A HandlerMappings
   // message in the trace will contain the mapping of id to a string
@@ -87,7 +87,7 @@ message ShellTransition {
   // until the starting window is removed. So in a sense the transition is not
   // finished until the starting window is removed. (b/284302118)
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 starting_window_remove_time_ns = 17;
+  optional int64 starting_window_remove_time_ns = 17 [jstype = JS_STRING];
 
   // Contains the information about the windows changed in a transition.
   message Change {
