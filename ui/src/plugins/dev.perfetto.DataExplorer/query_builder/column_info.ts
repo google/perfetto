@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {
+  PerfettoSqlType,
+  parsePerfettoSqlTypeFromString,
+} from '../../../trace_processor/perfetto_sql_type';
 import {SqlColumn} from '../../dev.perfetto.SqlModules/sql_modules';
 
 export interface ColumnInfo {
@@ -58,6 +62,21 @@ export function newColumnInfo(
     checked: checked ?? col.checked,
     typeUserModified: col.typeUserModified,
   };
+}
+
+// Handle legacy serialized state where type was a string (e.g. "INT")
+// instead of a PerfettoSqlType object (e.g. {kind: 'int'}).
+export function legacyDeserializeType(
+  type: PerfettoSqlType | string | undefined,
+): PerfettoSqlType | undefined {
+  if (type === undefined) return undefined;
+  if (typeof type === 'string') {
+    const parsed = parsePerfettoSqlTypeFromString({type});
+    return parsed.ok ? parsed.value : undefined;
+  }
+  // Already a proper PerfettoSqlType object
+  if (type.kind !== undefined) return type;
+  return undefined;
 }
 
 export function newColumnInfoList(

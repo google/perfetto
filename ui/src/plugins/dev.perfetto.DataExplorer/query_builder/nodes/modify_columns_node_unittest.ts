@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ModifyColumnsNode, ModifyColumnsState} from './modify_columns_node';
+import {
+  ModifyColumnsNode,
+  ModifyColumnsSerializedState,
+  ModifyColumnsState,
+} from './modify_columns_node';
 import {QueryNode} from '../../query_node';
 import {
   createMockNode,
@@ -20,6 +24,7 @@ import {
   connectNodes,
 } from '../testing/test_utils';
 import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';
+import {SqlModules} from '../../../dev.perfetto.SqlModules/sql_modules';
 
 describe('ModifyColumnsNode', () => {
   function createMockPrevNode(): QueryNode {
@@ -169,6 +174,100 @@ describe('ModifyColumnsNode', () => {
 
       expect(serialized.selectedColumns[0].checked).toBe(true);
       expect(serialized.selectedColumns[1].checked).toBe(false);
+    });
+
+    it('should serialize column types as PerfettoSqlType objects', () => {
+      const col1 = createColumnInfo('id', 'int');
+      const col2 = createColumnInfo('ts', 'timestamp');
+      const node = createModifyColumnsNodeWithInput(
+        {selectedColumns: [col1, col2]},
+        createMockPrevNode(),
+      );
+
+      const serialized = node.serializeState();
+
+      expect(serialized.selectedColumns[0].type).toEqual({kind: 'int'});
+      expect(serialized.selectedColumns[1].type).toEqual({kind: 'timestamp'});
+    });
+  });
+
+  describe('legacy deserialization', () => {
+    const mockSqlModules = {
+      listTables: () => [],
+      listModules: () => [],
+    } as unknown as SqlModules;
+
+    it('should deserialize legacy string types into PerfettoSqlType', () => {
+      // Simulate old serialized state where type was a string like "INT"
+      const legacyState = {
+        selectedColumns: [
+          {name: 'id', type: 'INT', checked: true},
+          {name: 'name', type: 'STRING', checked: true},
+          {name: 'ts', type: 'TIMESTAMP', checked: false},
+        ],
+      } as unknown as ModifyColumnsSerializedState;
+
+      const state = ModifyColumnsNode.deserializeState(
+        mockSqlModules,
+        legacyState,
+      );
+
+      expect(state.selectedColumns[0].column.type).toEqual(
+        PerfettoSqlTypes.INT,
+      );
+      expect(state.selectedColumns[1].column.type).toEqual(
+        PerfettoSqlTypes.STRING,
+      );
+      expect(state.selectedColumns[2].column.type).toEqual(
+        PerfettoSqlTypes.TIMESTAMP,
+      );
+    });
+
+    it('should deserialize new PerfettoSqlType objects correctly', () => {
+      const newState: ModifyColumnsSerializedState = {
+        selectedColumns: [
+          {name: 'id', type: {kind: 'int'}, checked: true},
+          {name: 'dur', type: {kind: 'duration'}, checked: true},
+        ],
+      };
+
+      const state = ModifyColumnsNode.deserializeState(
+        mockSqlModules,
+        newState,
+      );
+
+      expect(state.selectedColumns[0].column.type).toEqual(
+        PerfettoSqlTypes.INT,
+      );
+      expect(state.selectedColumns[1].column.type).toEqual(
+        PerfettoSqlTypes.DURATION,
+      );
+    });
+
+    it('should handle undefined types gracefully', () => {
+      const stateWithNoTypes = {
+        selectedColumns: [{name: 'col1', checked: true}],
+      } as unknown as ModifyColumnsSerializedState;
+
+      const state = ModifyColumnsNode.deserializeState(
+        mockSqlModules,
+        stateWithNoTypes,
+      );
+
+      expect(state.selectedColumns[0].column.type).toBeUndefined();
+    });
+
+    it('should handle unrecognized legacy string types', () => {
+      const stateWithUnknown = {
+        selectedColumns: [{name: 'col1', type: 'NA', checked: true}],
+      } as unknown as ModifyColumnsSerializedState;
+
+      const state = ModifyColumnsNode.deserializeState(
+        mockSqlModules,
+        stateWithUnknown,
+      );
+
+      expect(state.selectedColumns[0].column.type).toBeUndefined();
     });
   });
 
