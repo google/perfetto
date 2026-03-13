@@ -82,6 +82,7 @@ bool TraceBufferV1::Initialize(size_t size) {
   wptr_ = begin();
   index_.clear();
   last_chunk_id_written_.clear();
+  consumed_chunks_.clear();
   read_iter_ = GetReadIterForSequence(index_.end());
   return true;
 }
@@ -222,6 +223,41 @@ void TraceBufferV1::CopyChunkUntrusted(
   if (PERFETTO_UNLIKELY(discard_writes_))
     return DiscardWrite();
 
+  // Check if this chunk was previously read and then evicted by the ring
+  // buffer. This happens when SMB scraping re-introduces a chunk that was
+  // already consumed: the index entry was removed by DeleteNextChunksFor()
+  // but the chunk still sits in the producer's SMB (scraping doesn't change
+  // SMB state). Without this, all fragments would be re-read, causing
+  // duplicate packets in the trace output.
+  //
+  // This check must happen before DeleteNextChunksFor() below: if all
+  // fragments were already consumed we can bail out without evicting other
+  // chunks to make room for data we'll never read.
+  auto pw = std::make_pair(producer_id_trusted, writer_id);
+  auto consumed_it = consumed_chunks_.find(pw);
+  if (consumed_it != consumed_chunks_.end()) {
+    const auto& consumed = consumed_it->second;
+    // Check 1: fully-consumed high-water mark. Any chunk at or below this
+    // ChunkID has been entirely read already. Uses the same wraparound-aware
+    // comparison as last_chunk_id_written_: if the forward distance from
+    // last_chunk_id_consumed to chunk_id is zero (same ID) or wraps past
+    // the halfway point, the chunk is at-or-behind the consumed mark.
+    if (consumed.has_last_chunk_id_consumed) {
+      ChunkID dist = chunk_id - consumed.last_chunk_id_consumed;
+      if (dist == 0 || dist >= kMaxChunkID / 2) {
+        TRACE_BUFFER_DLOG("  skipping chunk <= last_chunk_id_consumed");
+        return;
+      }
+    }
+    // Check 2: partially-consumed chunk with no new fragments.
+    if (consumed.partial_num_fragments_read > 0 &&
+        consumed.partial_chunk_id == chunk_id &&
+        consumed.partial_num_fragments_read >= num_fragments) {
+      TRACE_BUFFER_DLOG("  skipping re-scraped chunk with no new fragments");
+      return;
+    }
+  }
+
   // If there isn't enough room from the given write position. Write a padding
   // record to clear the end of the buffer and wrap back.
   const size_t cached_size_to_end = size_to_end();
@@ -270,6 +306,24 @@ void TraceBufferV1::CopyChunkUntrusted(
       index_.emplace(key, ChunkMeta(chunk_off, num_fragments, chunk_complete,
                                     chunk_flags, client_identity_trusted));
   PERFETTO_DCHECK(it_and_inserted.second);
+
+  // Restore the read progress from the previous eviction so that
+  // ReadNextTracePacket() only reads the newly added fragments.
+  // See also the early-return consumed_chunks_ check above.
+  if (consumed_it != consumed_chunks_.end()) {
+    const auto& consumed = consumed_it->second;
+    if (consumed.partial_num_fragments_read > 0 &&
+        consumed.partial_chunk_id == chunk_id) {
+      ChunkMeta& meta = it_and_inserted.first->second;
+      meta.num_fragments_read = consumed.partial_num_fragments_read;
+      meta.cur_fragment_offset = consumed.partial_cur_fragment_offset;
+      meta.set_last_read_packet_skipped(
+          consumed.partial_last_read_packet_skipped);
+      stats_.set_chunks_rewritten(stats_.chunks_rewritten() + 1);
+      // Clear the partial state now that it's been restored.
+      consumed_it->second.partial_num_fragments_read = 0;
+    }
+  }
   TRACE_BUFFER_DLOG("  copying @ [%" PRIdPTR " - %" PRIdPTR "] %zu",
                     wptr_ - begin(), uintptr_t(wptr_ - begin()) + record_size,
                     record_size);
@@ -356,6 +410,25 @@ ssize_t TraceBufferV1::DeleteNextChunksFor(size_t bytes_to_clear) {
             return -1;
           chunks_overwritten++;
           bytes_overwritten += next_chunk.size;
+        }
+        // Preserve the read progress of this chunk so that if SMB scraping
+        // re-introduces it after the index entry is gone, we don't re-read
+        // already-consumed fragments.
+        if (meta.num_fragments_read > 0) {
+          auto pw = std::make_pair(key.producer_id, key.writer_id);
+          auto& consumed = consumed_chunks_[pw];
+          if (meta.num_fragments_read >= meta.num_fragments) {
+            // Fully read: update the high-water mark.
+            consumed.last_chunk_id_consumed = key.chunk_id;
+            consumed.has_last_chunk_id_consumed = true;
+          } else {
+            // Partially read: store the read progress.
+            consumed.partial_chunk_id = key.chunk_id;
+            consumed.partial_num_fragments_read = meta.num_fragments_read;
+            consumed.partial_cur_fragment_offset = meta.cur_fragment_offset;
+            consumed.partial_last_read_packet_skipped =
+                meta.last_read_packet_skipped();
+          }
         }
         index_delete.push_back(it);
         will_remove = true;
@@ -922,6 +995,7 @@ TraceBufferV1::TraceBufferV1(CloneCtor, const TraceBufferV1& src)
   EnsureCommitted(src.used_size_);
   memcpy(data_.Get(), src.data_.Get(), src.used_size_);
   last_chunk_id_written_ = src.last_chunk_id_written_;
+  consumed_chunks_ = src.consumed_chunks_;
 
   stats_ = src.stats_;
   stats_.set_bytes_read(0);

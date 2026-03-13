@@ -690,6 +690,32 @@ class TraceBufferV1 : public TraceBuffer {
   // many producers/writers within the same trace session).
   std::map<std::pair<ProducerID, WriterID>, ChunkID> last_chunk_id_written_;
 
+  // Preserves the read state of chunks whose index entries were removed due to
+  // ring buffer wraparound. Without this, SMB scraping can re-introduce the
+  // same chunk into the buffer after its index entry is gone, causing
+  // ReadNextTracePacket() to re-read already-consumed fragments.
+  // See also TraceBufferV2::last_chunk_id_consumed_ which solves the same
+  // problem at chunk-ID granularity.
+  //
+  // Bounded to one entry per {ProducerID, WriterID} pair (same cardinality as
+  // last_chunk_id_written_).
+  struct ConsumedChunkState {
+    // Highest ChunkID whose fragments were all read before eviction. Any
+    // re-scraped chunk with chunk_id <= this value is skipped entirely.
+    ChunkID last_chunk_id_consumed = 0;
+    bool has_last_chunk_id_consumed = false;
+
+    // Read progress for a partially-read chunk (num_fragments_read > 0 but
+    // < num_fragments at eviction time). At most one such chunk exists per
+    // writer because the reader processes chunks sequentially.
+    ChunkID partial_chunk_id = 0;
+    uint16_t partial_num_fragments_read = 0;
+    uint16_t partial_cur_fragment_offset = 0;
+    bool partial_last_read_packet_skipped = false;
+  };
+  std::map<std::pair<ProducerID, WriterID>, ConsumedChunkState>
+      consumed_chunks_;
+
   // Statistics about buffer usage.
   TraceStats::BufferStats stats_;
 
