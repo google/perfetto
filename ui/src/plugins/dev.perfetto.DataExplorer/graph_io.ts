@@ -141,16 +141,47 @@ export async function loadGraphFromPath(
   }
 }
 
-export async function createDataExplorerGraph(deps: GraphIODeps): Promise<void> {
+export async function createDataExplorerGraph(
+  deps: GraphIODeps,
+): Promise<void> {
   const {sqlModules, trace} = deps;
-  const newNodes: QueryNode[] = [];
+  const coreNodes: QueryNode[] = [];
+  const rightNodes: QueryNode[] = [];
 
-  // Create slices source node
-  const slicesNode = new SlicesSourceNode({sqlModules, trace});
-  newNodes.push(slicesNode);
-
-  // Get high-frequency tables with data
   const tableDescriptor = nodeRegistry.get('table');
+
+  // Create core table nodes (left column)
+  if (tableDescriptor) {
+    const coreTables = sqlModules
+      .listTables()
+      .filter((table) => table.importance === 'core');
+
+    for (const sqlTable of coreTables) {
+      try {
+        const module = sqlModules.getModuleForTable(sqlTable.name);
+        if (module && sqlModules.isModuleDisabled(module.includeKey)) {
+          continue;
+        }
+
+        const tableNode = tableDescriptor.factory(
+          {sqlTable, sqlModules, trace},
+          {allNodes: [...coreNodes, ...rightNodes]},
+        );
+        coreNodes.push(tableNode);
+      } catch (error) {
+        console.error(
+          `Failed to create table node for ${sqlTable.name}:`,
+          error,
+        );
+      }
+    }
+  }
+
+  // Create slices source node (right side)
+  const slicesNode = new SlicesSourceNode({sqlModules, trace});
+  rightNodes.push(slicesNode);
+
+  // Create high-importance table nodes (right side)
   if (tableDescriptor) {
     const highFreqTables = sqlModules
       .listTables()
@@ -165,9 +196,9 @@ export async function createDataExplorerGraph(deps: GraphIODeps): Promise<void> 
 
         const tableNode = tableDescriptor.factory(
           {sqlTable, sqlModules, trace},
-          {allNodes: newNodes},
+          {allNodes: [...coreNodes, ...rightNodes]},
         );
-        newNodes.push(tableNode);
+        rightNodes.push(tableNode);
       } catch (error) {
         console.error(
           `Failed to create table node for ${sqlTable.name}:`,
@@ -177,33 +208,66 @@ export async function createDataExplorerGraph(deps: GraphIODeps): Promise<void> 
     }
   }
 
-  if (newNodes.length > 0) {
-    const totalNodes = newNodes.length;
-    const cols = Math.ceil(Math.sqrt(totalNodes));
+  const allNodes = [...coreNodes, ...rightNodes];
 
+  if (allNodes.length > 0) {
     const newNodeLayouts = new Map<string, {x: number; y: number}>();
     const NODE_WIDTH = 300;
-    const NODE_HEIGHT = 200;
-    const GRID_PADDING_X = 10;
-    const GRID_PADDING_Y = 10;
     const START_X = 50;
     const START_Y = 50;
 
-    newNodes.forEach((node, index) => {
-      const col = index % cols;
-      const row = Math.floor(index / cols);
+    // Left column: "Core tables" label + core nodes tightly stacked
+    const CORE_GAP_Y = 55;
+    const LABEL_WIDTH = 100;
+    const coreStartY = START_Y + CORE_GAP_Y;
+    coreNodes.forEach((node, index) => {
       newNodeLayouts.set(node.nodeId, {
-        x: START_X + col * (NODE_WIDTH + GRID_PADDING_X),
-        y: START_Y + row * (NODE_HEIGHT + GRID_PADDING_Y),
+        x: START_X,
+        y: coreStartY + index * CORE_GAP_Y,
       });
     });
 
+    // Right side: slices + high-importance tables in a tight grid,
+    // vertically centered relative to the core column.
+    const GROUP_GAP = 50;
+    const RIGHT_GAP_X = 10;
+    const RIGHT_GAP_Y = 80;
+    const rightStartX = START_X + 200 + GROUP_GAP;
+    const rightCols = Math.max(1, Math.ceil(Math.sqrt(rightNodes.length)));
+    const rightRows = Math.ceil(rightNodes.length / rightCols);
+
+    const coreColumnHeight = CORE_GAP_Y + (coreNodes.length - 1) * CORE_GAP_Y;
+    const rightGroupHeight = (rightRows - 1) * RIGHT_GAP_Y;
+    const rightStartY =
+      START_Y + Math.max(0, (coreColumnHeight - rightGroupHeight) / 2);
+
+    rightNodes.forEach((node, index) => {
+      const col = index % rightCols;
+      const row = Math.floor(index / rightCols);
+      newNodeLayouts.set(node.nodeId, {
+        x: rightStartX + col * (NODE_WIDTH + RIGHT_GAP_X),
+        y: rightStartY + row * RIGHT_GAP_Y,
+      });
+    });
+
+    // Create the "Core tables" label, aligned with the node column
+    const labelX = START_X + 30;
+    const labels = [
+      {
+        id: 'core-tables-label',
+        x: labelX,
+        y: START_Y,
+        width: LABEL_WIDTH,
+        text: 'Core tables',
+      },
+    ];
+
     deps.onStateUpdate((currentState) => ({
       ...currentState,
-      rootNodes: newNodes,
+      rootNodes: allNodes,
       nodeLayouts: newNodeLayouts,
-      selectedNodes: new Set([newNodes[0].nodeId]),
-      labels: [],
+      selectedNodes: new Set([allNodes[0].nodeId]),
+      labels,
       loadGeneration: (currentState.loadGeneration ?? 0) + 1,
     }));
   }
