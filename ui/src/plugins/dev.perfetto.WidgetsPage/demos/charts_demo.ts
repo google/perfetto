@@ -19,7 +19,6 @@ import {
   aggregateBarChartData,
 } from '../../../components/widgets/charts/bar_chart';
 import {
-  BrushMode,
   ChartAggregation,
   isIntegerAggregation,
 } from '../../../components/widgets/charts/chart_utils';
@@ -623,7 +622,7 @@ function renderSQLDemos(app: App): m.Children[] {
 function HistogramDemo(): m.Component<{
   bucketCount: number;
   height: number;
-  brushMode: BrushMode | 'off';
+  brushMode: 'off' | 'filter' | 'select';
   logScale: boolean;
   integer: boolean;
 }> {
@@ -633,7 +632,7 @@ function HistogramDemo(): m.Component<{
   const continuousLoader = new InMemoryHistogramLoader(continuousData);
   const integerLoader = new InMemoryHistogramLoader(integerData);
 
-  let brushedRange: {min: number; max: number} | undefined;
+  let brushedRange: {start: number; end: number} | undefined;
 
   return {
     view: ({attrs}) => {
@@ -642,7 +641,10 @@ function HistogramDemo(): m.Component<{
       const config: HistogramLoaderConfig = {
         bucketCount: attrs.bucketCount,
         integer: attrs.integer || undefined,
-        filter: isFilter ? brushedRange : undefined,
+        filter:
+          isFilter && brushedRange !== undefined
+            ? {min: brushedRange.start, max: brushedRange.end}
+            : undefined,
       };
       const {data} = loader.use(config);
       return m('div', [
@@ -656,10 +658,10 @@ function HistogramDemo(): m.Component<{
           onBrush:
             attrs.brushMode !== 'off'
               ? (range) => {
-                  brushedRange = {min: range.start, max: range.end};
+                  brushedRange = range;
                 }
               : undefined,
-          brushMode: attrs.brushMode as BrushMode,
+          selection: attrs.brushMode === 'select' ? brushedRange : undefined,
         }),
         m(
           'pre',
@@ -675,7 +677,7 @@ function HistogramDemo(): m.Component<{
           [
             `loader.use(${JSON.stringify(config, null, 2)})`,
             brushedRange
-              ? `\n\nBrushed: [${brushedRange.min.toFixed(2)}, ${brushedRange.max.toFixed(2)}]`
+              ? `\n\nBrushed: [${brushedRange.start.toFixed(2)}, ${brushedRange.end.toFixed(2)}]`
               : attrs.brushMode !== 'off'
                 ? '\nDrag to brush-select a range'
                 : '',
@@ -710,7 +712,7 @@ function toGridLines(
 function BarChartDemo(): m.Component<{
   height: number;
   logScale: boolean;
-  brushMode: BrushMode | 'off';
+  brushMode: 'off' | 'filter' | 'select';
   horizontal: boolean;
   aggregation: ChartAggregation;
   gridLines: string;
@@ -762,7 +764,7 @@ function BarChartDemo(): m.Component<{
                   brushedLabels = newLabels;
                 }
               : undefined,
-          brushMode: attrs.brushMode as BrushMode,
+          selection: attrs.brushMode === 'select' ? brushedLabels : undefined,
         }),
         m(
           'pre',
@@ -805,7 +807,7 @@ function BarChartDemo(): m.Component<{
 function SQLBarChartDemo(): m.Component<{
   trace: Trace;
   height: number;
-  brushMode: BrushMode | 'off';
+  brushMode: 'off' | 'filter' | 'select';
   logScale: boolean;
   horizontal: boolean;
   aggregation: ChartAggregation;
@@ -860,7 +862,7 @@ function SQLBarChartDemo(): m.Component<{
                   brushedLabels = labels;
                 }
               : undefined,
-          brushMode: attrs.brushMode !== 'off' ? attrs.brushMode : undefined,
+          selection: attrs.brushMode === 'select' ? brushedLabels : undefined,
         }),
         m(
           'pre',
@@ -908,11 +910,11 @@ function SQLHistogramDemo(): m.Component<{
   trace: Trace;
   bucketCount: number;
   height: number;
-  brushMode: BrushMode | 'off';
+  brushMode: 'off' | 'filter' | 'select';
   logScale: boolean;
 }> {
   let loader: SQLHistogramLoader | undefined;
-  let brushedRange: {min: number; max: number} | undefined;
+  let brushedRange: {start: number; end: number} | undefined;
 
   return {
     view: ({attrs}) => {
@@ -928,7 +930,10 @@ function SQLHistogramDemo(): m.Component<{
 
       const config: HistogramLoaderConfig = {
         bucketCount: attrs.bucketCount,
-        filter: isFilter ? brushedRange : undefined,
+        filter:
+          isFilter && brushedRange !== undefined
+            ? {min: brushedRange.start, max: brushedRange.end}
+            : undefined,
       };
       const {data, isPending} = loader.use(config);
 
@@ -942,10 +947,10 @@ function SQLHistogramDemo(): m.Component<{
           onBrush:
             attrs.brushMode !== 'off'
               ? (range) => {
-                  brushedRange = {min: range.start, max: range.end};
+                  brushedRange = range;
                 }
               : undefined,
-          brushMode: attrs.brushMode !== 'off' ? attrs.brushMode : undefined,
+          selection: attrs.brushMode === 'select' ? brushedRange : undefined,
         }),
         m(
           'pre',
@@ -964,7 +969,7 @@ function SQLHistogramDemo(): m.Component<{
             `loader.use(${JSON.stringify(config, null, 2)})`,
             isPending ? '\n(loading...)' : '',
             brushedRange
-              ? `\nBrushed: [${brushedRange.min.toFixed(2)}, ${brushedRange.max.toFixed(2)}]`
+              ? `\nBrushed: [${brushedRange.start.toFixed(2)}, ${brushedRange.end.toFixed(2)}]`
               : '',
             !isFilter && brushedRange ? '\n(select mode — data unchanged)' : '',
           ],
@@ -992,14 +997,14 @@ function SQLHistogramDemo(): m.Component<{
 function SQLLineChartDemo(): m.Component<{
   trace: Trace;
   height: number;
-  brushMode: BrushMode | 'off';
+  brushMode: 'off' | 'filter' | 'select';
   showPoints: boolean;
   maxPoints: number;
   scaleAxes: boolean;
   gridLines: string;
 }> {
   let loader: SQLLineChartLoader | undefined;
-  let brushedRange: {min: number; max: number} | undefined;
+  let brushedRange: {start: number; end: number} | undefined;
 
   return {
     view: ({attrs}) => {
@@ -1014,7 +1019,10 @@ function SQLLineChartDemo(): m.Component<{
       }
 
       const config: LineChartLoaderConfig = {
-        xRange: isFilter ? brushedRange : undefined,
+        xRange:
+          isFilter && brushedRange !== undefined
+            ? {min: brushedRange.start, max: brushedRange.end}
+            : undefined,
         maxPoints: attrs.maxPoints,
       };
       const {data, isPending} = loader.use(config);
@@ -1031,10 +1039,10 @@ function SQLLineChartDemo(): m.Component<{
           onBrush:
             attrs.brushMode !== 'off'
               ? (range) => {
-                  brushedRange = {min: range.start, max: range.end};
+                  brushedRange = range;
                 }
               : undefined,
-          brushMode: attrs.brushMode !== 'off' ? attrs.brushMode : undefined,
+          selection: attrs.brushMode === 'select' ? brushedRange : undefined,
         }),
         m(
           'pre',
@@ -1053,7 +1061,7 @@ function SQLLineChartDemo(): m.Component<{
             `loader.use(${JSON.stringify(config, null, 2)})`,
             isPending ? '\n(loading...)' : '',
             brushedRange
-              ? `\nBrushed: [${brushedRange.min.toFixed(2)}, ${brushedRange.max.toFixed(2)}]`
+              ? `\nBrushed: [${brushedRange.start.toFixed(2)}, ${brushedRange.end.toFixed(2)}]`
               : '',
             !isFilter && brushedRange ? '\n(select mode — data unchanged)' : '',
           ],
@@ -1179,7 +1187,7 @@ function generateMultiSeriesLineData(): LineChartData {
 
 function LineChartDemo(): m.Component<{
   height: number;
-  brushMode: BrushMode | 'off';
+  brushMode: 'off' | 'filter' | 'select';
   logScale: boolean;
   showPoints: boolean;
   multiSeries: boolean;
@@ -1280,7 +1288,7 @@ function LineChartDemo(): m.Component<{
                   brushRange = newRange;
                 }
               : undefined,
-          brushMode: attrs.brushMode !== 'off' ? attrs.brushMode : undefined,
+          selection: attrs.brushMode === 'select' ? brushRange : undefined,
         }),
         m(
           'pre',
@@ -1434,7 +1442,7 @@ function ScatterChartDemo(): m.Component<{
   showLegend: boolean;
   bubbleMode: boolean;
   scaleAxes: boolean;
-  brushMode: BrushMode | 'off';
+  brushMode: 'off' | 'filter' | 'select';
   gridLines: string;
 }> {
   let brushRange:
@@ -1481,7 +1489,7 @@ function ScatterChartDemo(): m.Component<{
                   brushRange = r;
                 }
               : undefined,
-          brushMode: attrs.brushMode !== 'off' ? attrs.brushMode : undefined,
+          selection: attrs.brushMode === 'select' ? brushRange : undefined,
         }),
         m(
           'pre',
@@ -1755,7 +1763,7 @@ function SQLScatterChartDemo(): m.Component<{
   showLegend: boolean;
   maxPoints: number;
   scaleAxes: boolean;
-  brushMode: BrushMode | 'off';
+  brushMode: 'off' | 'filter' | 'select';
   gridLines: string;
 }> {
   let loader: SQLScatterChartLoader | undefined;
@@ -1818,7 +1826,7 @@ function SQLScatterChartDemo(): m.Component<{
                   brushRange = r;
                 }
               : undefined,
-          brushMode: attrs.brushMode !== 'off' ? attrs.brushMode : undefined,
+          selection: attrs.brushMode === 'select' ? brushRange : undefined,
         }),
         m(
           'pre',
@@ -2061,11 +2069,11 @@ function SQLCdfDemo(): m.Component<{
   trace: Trace;
   height: number;
   maxPoints: number;
-  brushMode: BrushMode | 'off';
+  brushMode: 'off' | 'filter' | 'select';
   gridLines: string;
 }> {
   let loader: SQLCdfLoader | undefined;
-  let brushedRange: {min: number; max: number} | undefined;
+  let brushedRange: {start: number; end: number} | undefined;
 
   return {
     view: ({attrs}) => {
@@ -2080,7 +2088,10 @@ function SQLCdfDemo(): m.Component<{
 
       const config: CdfLoaderConfig = {
         maxPoints: attrs.maxPoints,
-        filter: isFilter ? brushedRange : undefined,
+        filter:
+          isFilter && brushedRange !== undefined
+            ? {min: brushedRange.start, max: brushedRange.end}
+            : undefined,
       };
       const {data, isPending} = loader.use(config);
 
@@ -2096,10 +2107,10 @@ function SQLCdfDemo(): m.Component<{
           onBrush:
             attrs.brushMode !== 'off'
               ? (range) => {
-                  brushedRange = {min: range.start, max: range.end};
+                  brushedRange = range;
                 }
               : undefined,
-          brushMode: attrs.brushMode !== 'off' ? attrs.brushMode : undefined,
+          selection: attrs.brushMode === 'select' ? brushedRange : undefined,
         }),
         m(
           'pre',
@@ -2118,7 +2129,7 @@ function SQLCdfDemo(): m.Component<{
             `loader.use(${JSON.stringify(config, null, 2)})`,
             isPending ? '\n(loading...)' : '',
             brushedRange
-              ? `\nBrushed: [${brushedRange.min.toFixed(2)}, ${brushedRange.max.toFixed(2)}]`
+              ? `\nBrushed: [${brushedRange.start.toFixed(2)}, ${brushedRange.end.toFixed(2)}]`
               : '',
             !isFilter && brushedRange ? '\n(select mode — data unchanged)' : '',
           ],

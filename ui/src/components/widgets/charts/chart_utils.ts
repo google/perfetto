@@ -22,20 +22,6 @@ import {AggregateFunction} from '../datagrid/model';
 export type ChartAggregation = AggregateFunction | 'COUNT';
 
 /**
- * Brush interaction mode for charts.
- *
- * - `'filter'`: Brush changes the data — after brushing, the chart is
- *   re-rendered with only the selected range. The brush visual disappears
- *   because the chart rebuilds with new data.
- * - `'select'`: Brush highlights data without changing it — the chart stays
- *   the same and the brush overlay remains visible, reporting what was
- *   selected.
- *
- * Defaults to `'filter'` for backward compatibility.
- */
-export type BrushMode = 'filter' | 'select';
-
-/**
  * Format a number for display on chart axes.
  */
 export function formatNumber(value: number): string {

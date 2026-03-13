@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
-import {BrushMode, extractBrushRange, formatNumber} from './chart_utils';
+import {extractBrushRange, formatNumber} from './chart_utils';
 import {
   HistogramBucket,
   HistogramData,
@@ -22,7 +22,7 @@ import {
   computeHistogram,
 } from './histogram_loader';
 import {EChartView, EChartEventHandler} from './echart_view';
-import {buildChartOption} from './chart_option_builder';
+import {buildChartOption, SELECTION_COLOR} from './chart_option_builder';
 
 // Re-export data types for convenience
 export {HistogramBucket, HistogramData, HistogramConfig, computeHistogram};
@@ -57,11 +57,11 @@ export interface HistogramAttrs {
   readonly onBrush?: (range: {start: number; end: number}) => void;
 
   /**
-   * Brush interaction mode. Defaults to 'filter'.
-   * - 'filter': Brush changes the displayed data (chart rebuilds).
-   * - 'select': Brush highlights a range without changing data.
+   * Selection range to highlight on the chart. Buckets overlapping this
+   * range are drawn with a highlight color. The consumer controls this
+   * state — typically by feeding the `onBrush` output back in.
    */
-  readonly brushMode?: BrushMode;
+  readonly selection?: {readonly start: number; readonly end: number};
 
   /**
    * Fill parent container. Defaults to false.
@@ -206,11 +206,25 @@ function buildOption(
     brush: attrs.onBrush ? {xAxisIndex: 0, brushType: 'lineX'} : undefined,
   });
 
+  // Build per-bar styles, highlighting buckets that overlap the selection.
+  const sel = attrs.selection;
+  const styledData = seriesData.map((count, idx) => {
+    const item: Record<string, unknown> = {value: count};
+    if (sel !== undefined && idx < data.buckets.length) {
+      const bucket = data.buckets[idx];
+      const overlaps = bucket.end > sel.start && bucket.start < sel.end;
+      if (overlaps) {
+        item.itemStyle = {color: SELECTION_COLOR};
+      }
+    }
+    return item;
+  });
+
   // Add series on top of the base option
   (option as Record<string, unknown>).series = [
     {
       type: 'bar',
-      data: seriesData,
+      data: styledData,
       barWidth: '100%',
       barCategoryGap: '0%',
       itemStyle: barColor !== undefined ? {color: barColor} : undefined,
