@@ -58,7 +58,14 @@ function makeSourceWithName(
   };
 }
 
-function makeChartItem(sourceNodeId: string, chartId?: string): DashboardItem {
+function makeLabelItem(id = 'label-1', text = ''): DashboardItem {
+  return {kind: 'label', id, text};
+}
+
+function makeChartItem(
+  sourceNodeId: string,
+  chartId?: string,
+): DashboardItem & {kind: 'chart'} {
   return {
     kind: 'chart',
     sourceNodeId,
@@ -122,6 +129,11 @@ describe('getItemId', () => {
   test('returns config.id for chart items', () => {
     const chart = makeChartItem('n1', 'chart-123');
     expect(getItemId(chart)).toBe('chart-123');
+  });
+
+  test('returns id for label items', () => {
+    const label = makeLabelItem('label-456');
+    expect(getItemId(label)).toBe('label-456');
   });
 });
 
@@ -235,6 +247,13 @@ describe('validateDashboardItems', () => {
     expect(result?.[0].kind).toBe('chart');
   });
 
+  test('validates label items', () => {
+    const items = [{kind: 'label', id: 'l1', text: 'Hello'}];
+    const result = validateDashboardItems(items);
+    expect(result).toHaveLength(1);
+    expect(result?.[0].kind).toBe('label');
+  });
+
   test('rejects chart without sourceNodeId', () => {
     const items = [
       {kind: 'chart', config: {id: 'c1', column: 'x', chartType: 'bar'}},
@@ -249,6 +268,16 @@ describe('validateDashboardItems', () => {
 
   test('rejects chart with null config', () => {
     const items = [{kind: 'chart', sourceNodeId: 'n1', config: null}];
+    expect(validateDashboardItems(items)).toBeUndefined();
+  });
+
+  test('rejects label without id', () => {
+    const items = [{kind: 'label', text: 'Hello'}];
+    expect(validateDashboardItems(items)).toBeUndefined();
+  });
+
+  test('rejects label without text', () => {
+    const items = [{kind: 'label', id: 'l1'}];
     expect(validateDashboardItems(items)).toBeUndefined();
   });
 
@@ -280,9 +309,11 @@ describe('validateDashboardItems', () => {
         config: {id: 'c1', column: 'x', chartType: 'bar'},
       },
       {kind: 'chart', sourceNodeId: 'n2'}, // missing config
+      {kind: 'label', id: 'l1', text: 'Ok'},
+      {kind: 'label', text: 'Bad'}, // missing id
     ];
     const result = validateDashboardItems(items);
-    expect(result).toHaveLength(1);
+    expect(result).toHaveLength(2);
   });
 });
 
