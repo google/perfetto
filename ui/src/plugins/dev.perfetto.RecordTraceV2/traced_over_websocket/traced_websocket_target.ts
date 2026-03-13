@@ -19,6 +19,8 @@ import {PreflightCheck} from '../interfaces/connection_check';
 import {AsyncWebsocket} from '../websocket/async_websocket';
 import {websocketInstructions} from '../websocket/websocket_utils';
 import {ConsumerIpcTracingSession} from '../tracing_protocol/consumer_ipc_tracing_session';
+import {TracingSession} from '../interfaces/tracing_session';
+import {LocalLongTraceSession} from '../tracing_protocol/local_long_trace_session';
 import {WebSocketStream} from '../websocket/websocket_stream';
 import {TracingProtocol} from '../tracing_protocol/tracing_protocol';
 import {exists} from '../../../base/utils';
@@ -113,10 +115,21 @@ export class TracedWebsocketTarget implements RecordingTarget {
 
   async startTracing(
     traceConfig: protos.ITraceConfig,
-  ): Promise<Result<ConsumerIpcTracingSession>> {
+  ): Promise<Result<TracingSession>> {
     const ipcStatus = await this.createConsumerIpcChannel();
     if (!ipcStatus.ok) return ipcStatus;
     const consumerIpc = ipcStatus.value;
+
+    if (traceConfig.writeIntoFile) {
+      const outputPath = `/tmp/perfetto-ui-${Date.now()}.pftrace`;
+      const session = new LocalLongTraceSession(
+        consumerIpc,
+        traceConfig,
+        outputPath,
+      );
+      return okResult(session);
+    }
+
     const session = new ConsumerIpcTracingSession(consumerIpc, traceConfig);
     return okResult(session);
   }

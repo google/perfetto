@@ -17,6 +17,8 @@ import {EvtSource} from '../../../base/events';
 import {ResizableArrayBuffer} from '../../../base/resizable_array_buffer';
 import {binaryDecode} from '../../../base/string_utils';
 import {
+  RecordingProgress,
+  TraceData,
   TracingSession,
   TracingSessionLogEntry,
   TracingSessionState,
@@ -55,18 +57,18 @@ export class ChromeExtensionTracingSession implements TracingSession {
     this.setState('STOPPING');
   }
 
-  async getBufferUsagePct(): Promise<number | undefined> {
+  async getRecordingProgress(): Promise<RecordingProgress | undefined> {
     if (this._state !== 'RECORDING') return undefined;
     const promise = defer<number>();
     this.pendingBufferUsage.push(promise);
     this.target.invokeExtensionMethod('GetTraceStats');
-    return promise;
+    const pct = await promise;
+    return {kind: 'BUFFER_USAGE', pct};
   }
 
-  getTraceData(): Uint8Array | undefined {
+  getTraceData(): TraceData | undefined {
     if (this._state !== 'FINISHED') return undefined;
-    const buf = this.traceBuf.get();
-    return buf;
+    return {kind: 'BUFFER', data: this.traceBuf.get()};
   }
 
   onExtensionMessage(msgType: string, msg: object) {
