@@ -14,4 +14,5 @@
 
 export const CPUSS_ESTIMATE_TRACK_KIND = 'CpuSubsystemEstimateTrack';
 export const GPUSS_ESTIMATE_TRACK_KIND = 'GpuSubsystemEstimateTrack';
+export const TPUSS_ESTIMATE_TRACK_KIND = 'TpuSubsystemEstimateTrack';
 export const WATTSON_THREAD_TRACK_KIND = 'WattsonThreadTrack';

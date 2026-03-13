@@ -102,6 +102,7 @@ class GpuEventParser {
   const StringId render_pass_name_id_;
   const StringId render_subpasses_id_;
   const StringId command_buffer_id_;
+  const StringId command_buffers_id_;
   const StringId command_buffer_name_id_;
   const StringId frame_id_id_;
   const StringId submission_id_id_;

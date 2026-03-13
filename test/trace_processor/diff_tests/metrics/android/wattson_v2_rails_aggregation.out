@@ -1,0 +1,1512 @@
+bundle_id: "wattson_v2_rails"
+row {
+  values {
+    double_value: 70.91881396551292
+  }
+  dimension {
+    int64_value: 1
+  }
+  dimension {
+    int64_value: 772195598
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    double_value: 54.76319595955
+  }
+}
+row {
+  values {
+    double_value: 48.76596356473915
+  }
+  dimension {
+    int64_value: 2
+  }
+  dimension {
+    int64_value: 1151760987
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    double_value: 56.166734327330005
+  }
+}
+row {
+  values {
+    double_value: 48.70150031063896
+  }
+  dimension {
+    int64_value: 3
+  }
+  dimension {
+    int64_value: 1154167847
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    double_value: 56.209705759200006
+  }
+}
+row {
+  values {
+    double_value: 70.9145381854313
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    int64_value: 846661499
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    double_value: 60.04060920097
+  }
+}
+row {
+  values {
+    double_value: 57.343323997995654
+  }
+  dimension {
+    int64_value: 1
+  }
+  dimension {
+    int64_value: 772195598
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 1
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    double_value: 44.280262365940004
+  }
+}
+row {
+  values {
+    double_value: 31.24373887366268
+  }
+  dimension {
+    int64_value: 2
+  }
+  dimension {
+    int64_value: 1151760987
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 1
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    double_value: 35.985319522699996
+  }
+}
+row {
+  values {
+    double_value: 31.18715643863366
+  }
+  dimension {
+    int64_value: 3
+  }
+  dimension {
+    int64_value: 1154167847
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 1
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    double_value: 35.99521320083
+  }
+}
+row {
+  values {
+    double_value: 45.07312216699723
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    int64_value: 846661499
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 1
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    double_value: 38.16167717852
+  }
+}
+row {
+  values {
+    double_value: 65.52349191967292
+  }
+  dimension {
+    int64_value: 1
+  }
+  dimension {
+    int64_value: 772195598
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 2
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    double_value: 50.59695202596
+  }
+}
+row {
+  values {
+    double_value: 38.279736688659
+  }
+  dimension {
+    int64_value: 2
+  }
+  dimension {
+    int64_value: 1151760987
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 2
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    double_value: 44.089107310630006
+  }
+}
+row {
+  values {
+    double_value: 38.20677635010395
+  }
+  dimension {
+    int64_value: 3
+  }
+  dimension {
+    int64_value: 1154167847
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 2
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    double_value: 44.09703280081
+  }
+}
+row {
+  values {
+    double_value: 34.09948152107954
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    int64_value: 846661499
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 2
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    double_value: 28.87071813976
+  }
+}
+row {
+  values {
+    double_value: 56.97490766537626
+  }
+  dimension {
+    int64_value: 1
+  }
+  dimension {
+    int64_value: 772195598
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 3
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    double_value: 43.995772895660004
+  }
+}
+row {
+  values {
+    double_value: 47.533980771498385
+  }
+  dimension {
+    int64_value: 2
+  }
+  dimension {
+    int64_value: 1151760987
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 3
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    double_value: 54.747784609419995
+  }
+}
+row {
+  values {
+    double_value: 47.408630448557275
+  }
+  dimension {
+    int64_value: 3
+  }
+  dimension {
+    int64_value: 1154167847
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 3
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    double_value: 54.717516934029995
+  }
+}
+row {
+  values {
+    double_value: 41.079580239670264
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    int64_value: 846661499
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 3
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    double_value: 34.78049898401
+  }
+}
+row {
+  values {
+    double_value: 155.32366575101867
+  }
+  dimension {
+    int64_value: 1
+  }
+  dimension {
+    int64_value: 772195598
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    double_value: 119.94025095815998
+  }
+}
+row {
+  values {
+    double_value: 48.99210108100319
+  }
+  dimension {
+    int64_value: 2
+  }
+  dimension {
+    int64_value: 1151760987
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    double_value: 56.427190696260006
+  }
+}
+row {
+  values {
+    double_value: 48.83393895276308
+  }
+  dimension {
+    int64_value: 3
+  }
+  dimension {
+    int64_value: 1154167847
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    double_value: 56.362562181639994
+  }
+}
+row {
+  values {
+    double_value: 35.94731138629466
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    int64_value: 846661499
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    double_value: 30.435204543340003
+  }
+}
+row {
+  values {
+    double_value: 125.18588238384388
+  }
+  dimension {
+    int64_value: 1
+  }
+  dimension {
+    int64_value: 772195598
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 5
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    double_value: 96.66798730854998
+  }
+}
+row {
+  values {
+    double_value: 43.2489491168188
+  }
+  dimension {
+    int64_value: 2
+  }
+  dimension {
+    int64_value: 1151760987
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 5
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    double_value: 49.8124523215
+  }
+}
+row {
+  values {
+    double_value: 43.01076063302429
+  }
+  dimension {
+    int64_value: 3
+  }
+  dimension {
+    int64_value: 1154167847
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 5
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    double_value: 49.641636997650004
+  }
+}
+row {
+  values {
+    double_value: 39.15765516955437
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    int64_value: 846661499
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 5
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    double_value: 33.15327902318
+  }
+}
+row {
+  values {
+    double_value: 330.095914000639
+  }
+  dimension {
+    int64_value: 1
+  }
+  dimension {
+    int64_value: 772195598
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 6
+  }
+  dimension {
+    int64_value: 6
+  }
+  dimension {
+    double_value: 254.89861170908003
+  }
+}
+row {
+  values {
+    double_value: 202.10845513715077
+  }
+  dimension {
+    int64_value: 2
+  }
+  dimension {
+    int64_value: 1151760987
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 6
+  }
+  dimension {
+    int64_value: 6
+  }
+  dimension {
+    double_value: 232.78063376981
+  }
+}
+row {
+  values {
+    double_value: 201.68698545438687
+  }
+  dimension {
+    int64_value: 3
+  }
+  dimension {
+    int64_value: 1154167847
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 6
+  }
+  dimension {
+    int64_value: 6
+  }
+  dimension {
+    double_value: 232.78063376981
+  }
+}
+row {
+  values {
+    double_value: 298.44400560898777
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    int64_value: 846661499
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 6
+  }
+  dimension {
+    int64_value: 6
+  }
+  dimension {
+    double_value: 252.68104915647
+  }
+}
+row {
+  values {
+    double_value: 346.7103807564052
+  }
+  dimension {
+    int64_value: 1
+  }
+  dimension {
+    int64_value: 772195598
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 7
+  }
+  dimension {
+    int64_value: 6
+  }
+  dimension {
+    double_value: 267.728229801
+  }
+}
+row {
+  values {
+    double_value: 217.45793881803013
+  }
+  dimension {
+    int64_value: 2
+  }
+  dimension {
+    int64_value: 1151760987
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 7
+  }
+  dimension {
+    int64_value: 6
+  }
+  dimension {
+    double_value: 250.45957024404
+  }
+}
+row {
+  values {
+    double_value: 216.95016699201116
+  }
+  dimension {
+    int64_value: 3
+  }
+  dimension {
+    int64_value: 1154167847
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 7
+  }
+  dimension {
+    int64_value: 6
+  }
+  dimension {
+    double_value: 250.39690714346
+  }
+}
+row {
+  values {
+    double_value: 278.8243687514247
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    int64_value: 846661499
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "CORE"
+  }
+  dimension {
+    int64_value: 7
+  }
+  dimension {
+    int64_value: 6
+  }
+  dimension {
+    double_value: 236.06985800481
+  }
+}
+row {
+  values {
+    double_value: 250.76053754855775
+  }
+  dimension {
+    int64_value: 1
+  }
+  dimension {
+    int64_value: 772195598
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "POLICY"
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 193.63618324711
+  }
+}
+row {
+  values {
+    double_value: 280.50954813486254
+  }
+  dimension {
+    int64_value: 1
+  }
+  dimension {
+    int64_value: 772195598
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "POLICY"
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 216.60823826670998
+  }
+}
+row {
+  values {
+    double_value: 676.8062947570443
+  }
+  dimension {
+    int64_value: 1
+  }
+  dimension {
+    int64_value: 772195598
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "POLICY"
+  }
+  dimension {
+    int64_value: 6
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 522.62684151008
+  }
+}
+row {
+  values {
+    double_value: 165.82341989855922
+  }
+  dimension {
+    int64_value: 2
+  }
+  dimension {
+    int64_value: 1151760987
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "POLICY"
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 190.98894577008
+  }
+}
+row {
+  values {
+    double_value: 92.24105019782199
+  }
+  dimension {
+    int64_value: 2
+  }
+  dimension {
+    int64_value: 1151760987
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "POLICY"
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 106.23964301776
+  }
+}
+row {
+  values {
+    double_value: 419.5663939551809
+  }
+  dimension {
+    int64_value: 2
+  }
+  dimension {
+    int64_value: 1151760987
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "POLICY"
+  }
+  dimension {
+    int64_value: 6
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 483.24020401385
+  }
+}
+row {
+  values {
+    double_value: 165.50406354793384
+  }
+  dimension {
+    int64_value: 3
+  }
+  dimension {
+    int64_value: 1154167847
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "POLICY"
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 191.01946869487
+  }
+}
+row {
+  values {
+    double_value: 91.84469958578737
+  }
+  dimension {
+    int64_value: 3
+  }
+  dimension {
+    int64_value: 1154167847
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "POLICY"
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 106.00419917929
+  }
+}
+row {
+  values {
+    double_value: 418.63715244639803
+  }
+  dimension {
+    int64_value: 3
+  }
+  dimension {
+    int64_value: 1154167847
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "POLICY"
+  }
+  dimension {
+    int64_value: 6
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 483.17754091327004
+  }
+}
+row {
+  values {
+    double_value: 191.16672211317834
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    int64_value: 846661499
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "POLICY"
+  }
+  dimension {
+    int64_value: 0
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 161.85350350326001
+  }
+}
+row {
+  values {
+    double_value: 75.10496655584902
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    int64_value: 846661499
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "POLICY"
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 63.58848356652
+  }
+}
+row {
+  values {
+    double_value: 577.2683743604125
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    int64_value: 846661499
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "POLICY"
+  }
+  dimension {
+    int64_value: 6
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 488.75090716128
+  }
+}
+row {
+  values {
+    double_value: 26.116619596502805
+  }
+  dimension {
+    int64_value: 1
+  }
+  dimension {
+    int64_value: 772195598
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "DSU"
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 20.167138687060003
+  }
+}
+row {
+  values {
+    double_value: 19.43780927574516
+  }
+  dimension {
+    int64_value: 2
+  }
+  dimension {
+    int64_value: 1151760987
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "DSU"
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 22.38771039655
+  }
+}
+row {
+  values {
+    double_value: 19.403425915832155
+  }
+  dimension {
+    int64_value: 3
+  }
+  dimension {
+    int64_value: 1154167847
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "DSU"
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 22.394810313700003
+  }
+}
+row {
+  values {
+    double_value: 27.79992534900893
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    int64_value: 846661499
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "DSU"
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 23.537126468079997
+  }
+}
+row {
+  values {
+    double_value: 40.519292584739645
+  }
+  dimension {
+    int64_value: 1
+  }
+  dimension {
+    int64_value: 772195598
+  }
+  dimension {
+    string_value: "GPU"
+  }
+  dimension {
+    string_value: "TOTAL"
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 31.288819368009996
+  }
+}
+row {
+  values {
+    double_value: 27.293800981357602
+  }
+  dimension {
+    int64_value: 2
+  }
+  dimension {
+    int64_value: 1151760987
+  }
+  dimension {
+    string_value: "GPU"
+  }
+  dimension {
+    string_value: "TOTAL"
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 31.435935157270002
+  }
+}
+row {
+  values {
+    double_value: 27.236883473214622
+  }
+  dimension {
+    int64_value: 3
+  }
+  dimension {
+    int64_value: 1154167847
+  }
+  dimension {
+    string_value: "GPU"
+  }
+  dimension {
+    string_value: "TOTAL"
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 31.435935157270002
+  }
+}
+row {
+  values {
+    double_value: 39.31162230902388
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    int64_value: 846661499
+  }
+  dimension {
+    string_value: "GPU"
+  }
+  dimension {
+    string_value: "TOTAL"
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 33.28363707228
+  }
+}
+row {
+  values {
+    double_value: 1234.1930000369673
+  }
+  dimension {
+    int64_value: 1
+  }
+  dimension {
+    int64_value: 772195598
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "TOTAL"
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 953.03840171096
+  }
+}
+row {
+  values {
+    double_value: 697.0686733273072
+  }
+  dimension {
+    int64_value: 2
+  }
+  dimension {
+    int64_value: 1151760987
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "TOTAL"
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 802.85650319824
+  }
+}
+row {
+  values {
+    double_value: 695.3893414959514
+  }
+  dimension {
+    int64_value: 3
+  }
+  dimension {
+    int64_value: 1154167847
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "TOTAL"
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 802.5960191011301
+  }
+}
+row {
+  values {
+    double_value: 871.3399883784488
+  }
+  dimension {
+    int64_value: 4
+  }
+  dimension {
+    int64_value: 846661499
+  }
+  dimension {
+    string_value: "CPU"
+  }
+  dimension {
+    string_value: "TOTAL"
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    null_value {
+    }
+  }
+  dimension {
+    double_value: 737.73002069914
+  }
+}
+specs {
+  id: "wattson_v2_rails"
+  dimensions: "period_id"
+  dimensions: "period_dur"
+  dimensions: "subsystem"
+  dimensions: "breakdown_type"
+  dimensions: "component_id"
+  dimensions: "parent_id"
+  dimensions: "estimated_mws"
+  value: "estimated_mw"
+  query {
+    sql {
+      sql: "SELECT * FROM wattson_rails_aggregation!(wattson_window_atrace_apps)"
+    }
+    referenced_modules: "wattson.aggregation"
+    referenced_modules: "wattson.windows"
+  }
+}
+

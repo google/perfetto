@@ -710,5 +710,411 @@ TEST_F(SummarizerTest, DestructorCleansUpOldTableName) {
       << "old_table_name should be dropped on destruction";
 }
 
+TEST_F(SummarizerTest, SimpleTableSourceCreatesView) {
+  // A query with a simple table source (no aggregation, no joins) should be
+  // created as a VIEW instead of a TABLE, preserving source table indexes.
+  protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec;
+  {
+    auto* query = spec->add_query();
+    query->set_id("table_query");
+    auto* table = query->set_table();
+    table->set_table_name("slice");
+    table->add_column_names("id");
+    table->add_column_names("ts");
+    table->add_column_names("dur");
+  }
+  auto spec_data = spec.SerializeAsArray();
+
+  SummarizerUpdateSpecResult result;
+  ASSERT_OK(
+      summarizer_->UpdateSpec(spec_data.data(), spec_data.size(), &result));
+
+  SummarizerQueryResult info;
+  ASSERT_OK(summarizer_->Query("table_query", &info));
+  ASSERT_TRUE(info.exists);
+  EXPECT_FALSE(info.table_name.empty());
+  EXPECT_TRUE(info.is_view);
+}
+
+TEST_F(SummarizerTest, SqlSourceMaterializesAsTable) {
+  // A query with SQL source should always be materialized as a TABLE.
+  auto spec_data = CreateSpec({{"sql_query", "SELECT 42 as value"}});
+
+  SummarizerUpdateSpecResult result;
+  ASSERT_OK(
+      summarizer_->UpdateSpec(spec_data.data(), spec_data.size(), &result));
+
+  SummarizerQueryResult info;
+  ASSERT_OK(summarizer_->Query("sql_query", &info));
+  ASSERT_TRUE(info.exists);
+  EXPECT_FALSE(info.table_name.empty());
+  EXPECT_FALSE(info.is_view);
+}
+
+TEST_F(SummarizerTest, TableSourceWithGroupByMaterializesAsTable) {
+  // A query with GROUP BY should always be materialized, even if source is
+  // a simple table.
+  protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec;
+  {
+    auto* query = spec->add_query();
+    query->set_id("agg_query");
+    auto* table = query->set_table();
+    table->set_table_name("slice");
+    table->add_column_names("id");
+    table->add_column_names("ts");
+    auto* group_by = query->set_group_by();
+    group_by->add_column_names("ts");
+  }
+  auto spec_data = spec.SerializeAsArray();
+
+  SummarizerUpdateSpecResult result;
+  ASSERT_OK(
+      summarizer_->UpdateSpec(spec_data.data(), spec_data.size(), &result));
+
+  SummarizerQueryResult info;
+  ASSERT_OK(summarizer_->Query("agg_query", &info));
+  ASSERT_TRUE(info.exists);
+  EXPECT_FALSE(info.table_name.empty());
+  EXPECT_FALSE(info.is_view);
+}
+
+TEST_F(SummarizerTest, ViewQueryableWithPagination) {
+  // Verify that a view can be queried with LIMIT/OFFSET (as the UI does for
+  // DataGrid pagination).
+  protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec;
+  {
+    auto* query = spec->add_query();
+    query->set_id("view_query");
+    auto* table = query->set_table();
+    table->set_table_name("slice");
+    table->add_column_names("id");
+    table->add_column_names("ts");
+    table->add_column_names("dur");
+  }
+  auto spec_data = spec.SerializeAsArray();
+
+  SummarizerUpdateSpecResult result;
+  ASSERT_OK(
+      summarizer_->UpdateSpec(spec_data.data(), spec_data.size(), &result));
+
+  SummarizerQueryResult info;
+  ASSERT_OK(summarizer_->Query("view_query", &info));
+  ASSERT_TRUE(info.exists);
+  EXPECT_TRUE(info.is_view);
+
+  // Query the view with LIMIT/OFFSET (simulates DataGrid pagination).
+  auto paginated = tp_->ExecuteQuery("SELECT * FROM " + info.table_name +
+                                     " LIMIT 10 OFFSET 0");
+  // Verify the query succeeds and returns columns.
+  EXPECT_GT(paginated.ColumnCount(), 0u);
+  while (paginated.Next()) {
+  }
+  EXPECT_TRUE(paginated.Status().ok());
+}
+
+TEST_F(SummarizerTest, ViewRematerializedOnChange) {
+  // Verify that a view is properly dropped and recreated when its source
+  // table changes.
+  protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec1;
+  {
+    auto* query = spec1->add_query();
+    query->set_id("v");
+    auto* table = query->set_table();
+    table->set_table_name("slice");
+    table->add_column_names("id");
+    table->add_column_names("ts");
+  }
+  auto spec_data1 = spec1.SerializeAsArray();
+
+  SummarizerUpdateSpecResult result1;
+  ASSERT_OK(
+      summarizer_->UpdateSpec(spec_data1.data(), spec_data1.size(), &result1));
+  SummarizerQueryResult info1;
+  ASSERT_OK(summarizer_->Query("v", &info1));
+  ASSERT_TRUE(info1.exists);
+  EXPECT_TRUE(info1.is_view);
+  std::string old_view = info1.table_name;
+
+  // Change the query (add a column).
+  protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec2;
+  {
+    auto* query = spec2->add_query();
+    query->set_id("v");
+    auto* table = query->set_table();
+    table->set_table_name("slice");
+    table->add_column_names("id");
+    table->add_column_names("ts");
+    table->add_column_names("dur");
+  }
+  auto spec_data2 = spec2.SerializeAsArray();
+
+  SummarizerUpdateSpecResult result2;
+  ASSERT_OK(
+      summarizer_->UpdateSpec(spec_data2.data(), spec_data2.size(), &result2));
+  SummarizerQueryResult info2;
+  ASSERT_OK(summarizer_->Query("v", &info2));
+  ASSERT_TRUE(info2.exists);
+
+  // Should have a new name.
+  EXPECT_NE(info2.table_name, old_view);
+
+  // Old view should be dropped.
+  auto check = tp_->ExecuteQuery("SELECT * FROM " + old_view + " LIMIT 0");
+  check.Next();
+  EXPECT_FALSE(check.Status().ok())
+      << "Old view should be dropped after rematerialization";
+}
+
+TEST_F(SummarizerTest, DestructorCleansUpViews) {
+  // Verify that destroying a summarizer cleans up views (not just tables).
+  protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec;
+  {
+    auto* query = spec->add_query();
+    query->set_id("v");
+    auto* table = query->set_table();
+    table->set_table_name("slice");
+    table->add_column_names("id");
+    table->add_column_names("ts");
+  }
+  auto spec_data = spec.SerializeAsArray();
+
+  SummarizerUpdateSpecResult result;
+  ASSERT_OK(
+      summarizer_->UpdateSpec(spec_data.data(), spec_data.size(), &result));
+  SummarizerQueryResult info;
+  ASSERT_OK(summarizer_->Query("v", &info));
+  ASSERT_TRUE(info.exists);
+  EXPECT_TRUE(info.is_view);
+  std::string view_name = info.table_name;
+
+  // Verify view exists before destruction.
+  {
+    auto check = tp_->ExecuteQuery("SELECT * FROM " + view_name + " LIMIT 0");
+    while (check.Next()) {
+    }
+    EXPECT_TRUE(check.Status().ok());
+  }
+
+  // Destroy the summarizer.
+  summarizer_.reset();
+
+  // View should be dropped.
+  auto check = tp_->ExecuteQuery("SELECT * FROM " + view_name + " LIMIT 0");
+  check.Next();
+  EXPECT_FALSE(check.Status().ok()) << "View should be dropped on destruction";
+}
+
+TEST_F(SummarizerTest, ChainedViewsQueryCorrectly) {
+  // Test a chain where B and C are views referencing A (a table).
+  // CreateChainedSpec builds: A = SQL source, B = inner_query_id("A") with
+  // a "value > 0" filter, C = inner_query_id("B") with no filter.
+  // Verify the whole chain produces correct results when C is queried.
+  auto spec_data =
+      CreateChainedSpec("SELECT 1 as value UNION ALL SELECT 2 as value");
+
+  SummarizerUpdateSpecResult result;
+  ASSERT_OK(
+      summarizer_->UpdateSpec(spec_data.data(), spec_data.size(), &result));
+
+  // Query all three to verify types.
+  SummarizerQueryResult info_a;
+  ASSERT_OK(summarizer_->Query("A", &info_a));
+  ASSERT_TRUE(info_a.exists);
+  EXPECT_FALSE(info_a.is_view) << "A has SQL source, should be a table";
+
+  SummarizerQueryResult info_b;
+  ASSERT_OK(summarizer_->Query("B", &info_b));
+  ASSERT_TRUE(info_b.exists);
+  EXPECT_TRUE(info_b.is_view) << "B is inner_query_id, should be a view";
+
+  SummarizerQueryResult info_c;
+  ASSERT_OK(summarizer_->Query("C", &info_c));
+  ASSERT_TRUE(info_c.exists);
+  EXPECT_TRUE(info_c.is_view) << "C is inner_query_id, should be a view";
+
+  // B filters value > 0, so both rows (1 and 2) should pass through.
+  // C has no additional filter, so it should have the same rows as B.
+  EXPECT_EQ(info_c.row_count, 2);
+
+  // Verify C's view resolves to the correct values.
+  auto query_c = tp_->ExecuteQuery("SELECT value FROM " + info_c.table_name +
+                                   " ORDER BY value");
+  ASSERT_TRUE(query_c.Next());
+  EXPECT_EQ(query_c.Get(0).AsLong(), 1);
+  ASSERT_TRUE(query_c.Next());
+  EXPECT_EQ(query_c.Get(0).AsLong(), 2);
+  EXPECT_FALSE(query_c.Next());
+  ASSERT_OK(query_c.Status());
+}
+
+TEST_F(SummarizerTest, QuerySwitchesFromTableToView) {
+  // A query that initially has GROUP BY (→ table) then changes to not have
+  // GROUP BY (→ view). The old TABLE should be dropped even though the new
+  // one is a VIEW.
+  protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec1;
+  {
+    auto* query = spec1->add_query();
+    query->set_id("q");
+    auto* table = query->set_table();
+    table->set_table_name("slice");
+    table->add_column_names("ts");
+    auto* group_by = query->set_group_by();
+    group_by->add_column_names("ts");
+  }
+  auto spec_data1 = spec1.SerializeAsArray();
+
+  SummarizerUpdateSpecResult result1;
+  ASSERT_OK(
+      summarizer_->UpdateSpec(spec_data1.data(), spec_data1.size(), &result1));
+  SummarizerQueryResult info1;
+  ASSERT_OK(summarizer_->Query("q", &info1));
+  ASSERT_TRUE(info1.exists);
+  EXPECT_FALSE(info1.is_view) << "GROUP BY query should be a table";
+  std::string old_name = info1.table_name;
+
+  // Change to no GROUP BY (should become a view).
+  protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec2;
+  {
+    auto* query = spec2->add_query();
+    query->set_id("q");
+    auto* table = query->set_table();
+    table->set_table_name("slice");
+    table->add_column_names("ts");
+  }
+  auto spec_data2 = spec2.SerializeAsArray();
+
+  SummarizerUpdateSpecResult result2;
+  ASSERT_OK(
+      summarizer_->UpdateSpec(spec_data2.data(), spec_data2.size(), &result2));
+  SummarizerQueryResult info2;
+  ASSERT_OK(summarizer_->Query("q", &info2));
+  ASSERT_TRUE(info2.exists);
+  EXPECT_TRUE(info2.is_view) << "Without GROUP BY should be a view";
+  EXPECT_NE(info2.table_name, old_name);
+
+  // Old table should be dropped.
+  auto check = tp_->ExecuteQuery("SELECT * FROM " + old_name + " LIMIT 0");
+  check.Next();
+  EXPECT_FALSE(check.Status().ok())
+      << "Old TABLE should be dropped when query switches to VIEW";
+}
+
+TEST_F(SummarizerTest, InnerQueryIdSourceCreatesView) {
+  // An inner_query_id source (referencing another query) should create a view.
+  protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec;
+  {
+    auto* base_query = spec->add_query();
+    base_query->set_id("base");
+    auto* sql_source = base_query->set_sql();
+    sql_source->set_sql("SELECT 1 as value");
+    sql_source->add_column_names("value");
+  }
+  {
+    auto* ref_query = spec->add_query();
+    ref_query->set_id("ref");
+    ref_query->set_inner_query_id("base");
+  }
+  auto spec_data = spec.SerializeAsArray();
+
+  SummarizerUpdateSpecResult result;
+  ASSERT_OK(
+      summarizer_->UpdateSpec(spec_data.data(), spec_data.size(), &result));
+
+  SummarizerQueryResult base_info;
+  ASSERT_OK(summarizer_->Query("base", &base_info));
+  EXPECT_FALSE(base_info.is_view) << "SQL source should be a table";
+
+  SummarizerQueryResult ref_info;
+  ASSERT_OK(summarizer_->Query("ref", &ref_info));
+  ASSERT_TRUE(ref_info.exists);
+  EXPECT_FALSE(ref_info.table_name.empty());
+  EXPECT_TRUE(ref_info.is_view) << "inner_query_id source should be a view";
+}
+
+TEST_F(SummarizerTest, TableSourceWithOrderByMaterializesAsTable) {
+  // A query with ORDER BY should always be materialized, even if source is
+  // a simple table, since re-sorting on every downstream query is wasteful.
+  protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec;
+  {
+    auto* query = spec->add_query();
+    query->set_id("ordered_query");
+    auto* table = query->set_table();
+    table->set_table_name("slice");
+    table->add_column_names("id");
+    table->add_column_names("ts");
+    auto* order_by = query->set_order_by();
+    auto* ordering = order_by->add_ordering_specs();
+    ordering->set_column_name("ts");
+  }
+  auto spec_data = spec.SerializeAsArray();
+
+  SummarizerUpdateSpecResult result;
+  ASSERT_OK(
+      summarizer_->UpdateSpec(spec_data.data(), spec_data.size(), &result));
+
+  SummarizerQueryResult info;
+  ASSERT_OK(summarizer_->Query("ordered_query", &info));
+  ASSERT_TRUE(info.exists);
+  EXPECT_FALSE(info.table_name.empty());
+  EXPECT_FALSE(info.is_view) << "ORDER BY query should be a table";
+}
+
+TEST_F(SummarizerTest, InnerQuerySourceMaterializesAsTable) {
+  // An embedded inner_query source can be arbitrarily complex, so it should
+  // always be materialized as a TABLE (not a VIEW).
+  protozero::HeapBuffered<protos::pbzero::TraceSummarySpec> spec;
+  {
+    auto* query = spec->add_query();
+    query->set_id("nested");
+    auto* inner = query->set_inner_query();
+    auto* table = inner->set_table();
+    table->set_table_name("slice");
+    table->add_column_names("id");
+    table->add_column_names("ts");
+  }
+  auto spec_data = spec.SerializeAsArray();
+
+  SummarizerUpdateSpecResult result;
+  ASSERT_OK(
+      summarizer_->UpdateSpec(spec_data.data(), spec_data.size(), &result));
+
+  SummarizerQueryResult info;
+  ASSERT_OK(summarizer_->Query("nested", &info));
+  ASSERT_TRUE(info.exists);
+  EXPECT_FALSE(info.table_name.empty());
+  EXPECT_FALSE(info.is_view) << "inner_query source should be a table";
+}
+
+TEST_F(SummarizerTest, SimpleSlicesSourceShouldUseView) {
+  // A query with a simple_slices source (no aggregation) should be classified
+  // as a view by ShouldUseView. We test the classification directly because
+  // simple_slices requires runtime PerfettoSQL modules that aren't available
+  // in the unit test environment.
+  protozero::HeapBuffered<protos::pbzero::PerfettoSqlStructuredQuery> query;
+  {
+    auto* slices = query->set_simple_slices();
+    slices->set_slice_name_glob("*");
+  }
+  auto query_data = query.SerializeAsArray();
+  EXPECT_TRUE(
+      SummarizerImpl::ShouldUseView(query_data.data(), query_data.size()))
+      << "simple_slices source should use a view";
+}
+
+TEST_F(SummarizerTest, SimpleSlicesWithGroupByShouldNotUseView) {
+  // A simple_slices source with GROUP BY should NOT be a view.
+  protozero::HeapBuffered<protos::pbzero::PerfettoSqlStructuredQuery> query;
+  {
+    auto* slices = query->set_simple_slices();
+    slices->set_slice_name_glob("*");
+    auto* group_by = query->set_group_by();
+    group_by->add_column_names("slice_name");
+  }
+  auto query_data = query.SerializeAsArray();
+  EXPECT_FALSE(
+      SummarizerImpl::ShouldUseView(query_data.data(), query_data.size()))
+      << "simple_slices with GROUP BY should materialize as a table";
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::summary

@@ -31,7 +31,7 @@ import "protos/perfetto/trace/android/view/imefocuscontroller.proto";
 // One dump entry for clients that use InputMethod
 message InputMethodClientsTraceProto {
   // elapsed realtime in nanos since boot of when this entry was logged
-  optional fixed64 elapsed_realtime_nanos = 1;
+  optional fixed64 elapsed_realtime_nanos = 1 [jstype = JS_STRING];
 
   // where the trace originated
   optional string where = 2;
@@ -55,7 +55,7 @@ message InputMethodClientsTraceProto {
 // One dump entry for InputMethodService
 message InputMethodServiceTraceProto {
   // elapsed realtime in nanos since boot of when this entry was logged
-  optional fixed64 elapsed_realtime_nanos = 1;
+  optional fixed64 elapsed_realtime_nanos = 1 [jstype = JS_STRING];
 
   // where the trace originated
   optional string where = 2;
@@ -66,7 +66,7 @@ message InputMethodServiceTraceProto {
 // One dump entry for InputMethodManagerService
 message InputMethodManagerServiceTraceProto {
   // elapsed realtime in nanos since boot of when this entry was logged
-  optional fixed64 elapsed_realtime_nanos = 1;
+  optional fixed64 elapsed_realtime_nanos = 1 [jstype = JS_STRING];
 
   // where the trace originated
   optional string where = 2;
@@ -92,13 +92,13 @@ message InputMethodClientsTraceFileProto {
 
   // Must be the first field to allow winscope to auto-detect the dump type. Set
   // to value in MagicNumber
-  optional fixed64 magic_number = 1;
+  optional fixed64 magic_number = 1 [jstype = JS_STRING];
   repeated InputMethodClientsTraceProto entry = 2;
 
   // offset between real-time clock and elapsed time clock in nanoseconds.
   // Calculated as: 1000000 * System.currentTimeMillis() -
   // SystemClock.elapsedRealtimeNanos()
-  optional fixed64 real_to_elapsed_time_offset_nanos = 3;
+  optional fixed64 real_to_elapsed_time_offset_nanos = 3 [jstype = JS_STRING];
 }
 
 // Represents a file full of InputMethodService trace entries.
@@ -119,13 +119,13 @@ message InputMethodServiceTraceFileProto {
 
   // Must be the first field to allow winscope to auto-detect the dump type. Set
   // to value in MagicNumber
-  optional fixed64 magic_number = 1;
+  optional fixed64 magic_number = 1 [jstype = JS_STRING];
   repeated InputMethodServiceTraceProto entry = 2;
 
   // offset between real-time clock and elapsed time clock in nanoseconds.
   // Calculated as: 1000000 * System.currentTimeMillis() -
   // SystemClock.elapsedRealtimeNanos()
-  optional fixed64 real_to_elapsed_time_offset_nanos = 3;
+  optional fixed64 real_to_elapsed_time_offset_nanos = 3 [jstype = JS_STRING];
 }
 
 // Represents a file full of InputMethodManagerService trace entries.
@@ -146,11 +146,11 @@ message InputMethodManagerServiceTraceFileProto {
 
   // Must be the first field to allow winscope to auto-detect the dump type. Set
   // to value in MagicNumber
-  optional fixed64 magic_number = 1;
+  optional fixed64 magic_number = 1 [jstype = JS_STRING];
   repeated InputMethodManagerServiceTraceProto entry = 2;
 
   // offset between real-time clock and elapsed time clock in nanoseconds.
   // Calculated as: 1000000 * System.currentTimeMillis() -
   // SystemClock.elapsedRealtimeNanos()
-  optional fixed64 real_to_elapsed_time_offset_nanos = 3;
+  optional fixed64 real_to_elapsed_time_offset_nanos = 3 [jstype = JS_STRING];
 }

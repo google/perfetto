@@ -1339,7 +1339,7 @@ add additional sub-sections to your page.
 
 Examples:
 
-- [dev.perfetto.ExplorePage](https://github.com/google/perfetto/blob/main/ui/src/plugins/dev.perfetto.ExplorePage/index.ts).
+- [dev.perfetto.DataExplorer](https://github.com/google/perfetto/blob/main/ui/src/plugins/dev.perfetto.DataExplorer/index.ts).
 
 ### Statusbar
 

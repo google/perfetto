@@ -77,6 +77,11 @@ import {
   HeatmapChart,
   HeatmapData,
 } from '../../../components/widgets/charts/heatmap';
+import {Sankey, SankeyData} from '../../../components/widgets/charts/sankey';
+import {
+  SQLSankeyLoader,
+  SankeyLoaderConfig,
+} from '../../../components/widgets/charts/sankey_loader';
 import {
   SQLHeatmapLoader,
   HeatmapLoaderConfig,
@@ -140,7 +145,7 @@ export function renderCharts(app: App): m.Children {
       m('h1', 'Charts'),
       m('p', [
         'ECharts-based chart components for visualizing data. ',
-        'Includes Bar, Line, Pie/Donut, Histogram, Scatter, Treemap, CDF, Boxplot, and Heatmap charts.',
+        'Includes Bar, Line, Pie/Donut, Histogram, Scatter, Treemap, Sankey, CDF, Boxplot, and Heatmap charts.',
       ]),
     ),
 
@@ -288,6 +293,19 @@ export function renderCharts(app: App): m.Children {
         height: 300,
         showLabels: true,
         hierarchical: true,
+      },
+    }),
+
+    // SankeyChart section
+    m('h2', {style: {marginTop: '32px'}}, 'SankeyChart'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SankeyChartDemo, {
+          height: opts.height,
+        });
+      },
+      initialOpts: {
+        height: 300,
       },
     }),
 
@@ -486,6 +504,20 @@ function renderSQLDemos(app: App): m.Children[] {
         height: 300,
         showLabels: true,
         limit: 10,
+      },
+    }),
+    m('h3', {style: {marginTop: '32px'}}, 'SQLSankeyLoader'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SQLSankeyDemo, {
+          trace,
+          height: opts.height,
+          limit: opts.limit,
+        });
+      },
+      initialOpts: {
+        height: 300,
+        limit: 20,
       },
     }),
     m('h3', {style: {marginTop: '32px'}}, 'SQLCdfLoader'),
@@ -1480,6 +1512,145 @@ function TreemapChartDemo(): m.Component<{
             'Clear selection',
           ),
       ]);
+    },
+  };
+}
+
+// Static sample data for SankeyChart demo
+const SANKEY_DATA: SankeyData = {
+  nodes: [
+    {name: 'App'},
+    {name: 'SurfaceFlinger'},
+    {name: 'HWC'},
+    {name: 'GPU'},
+    {name: 'Display'},
+    {name: 'Vsync'},
+  ],
+  links: [
+    {source: 'App', target: 'SurfaceFlinger', value: 400},
+    {source: 'App', target: 'GPU', value: 200},
+    {source: 'SurfaceFlinger', target: 'HWC', value: 300},
+    {source: 'SurfaceFlinger', target: 'GPU', value: 100},
+    {source: 'GPU', target: 'Display', value: 300},
+    {source: 'HWC', target: 'Display', value: 300},
+    {source: 'Vsync', target: 'App', value: 600},
+    {source: 'Vsync', target: 'SurfaceFlinger', value: 400},
+  ],
+};
+
+function SankeyChartDemo(): m.Component<{
+  height: number;
+}> {
+  let clickedNode: string | undefined;
+
+  return {
+    view: ({attrs}) => {
+      return m('div', [
+        m(Sankey, {
+          data: SANKEY_DATA,
+          height: attrs.height,
+          onNodeClick: (node) => {
+            clickedNode = node.name;
+          },
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          clickedNode ? `Clicked: ${clickedNode}` : 'Click a node to select it',
+        ),
+        clickedNode &&
+          m(
+            'button',
+            {
+              style: {marginTop: '8px', fontSize: '12px'},
+              onclick: () => {
+                clickedNode = undefined;
+              },
+            },
+            'Clear selection',
+          ),
+      ]);
+    },
+  };
+}
+
+function SQLSankeyDemo(): m.Component<{
+  trace: Trace;
+  height: number;
+  limit: number;
+}> {
+  let loader: SQLSankeyLoader | undefined;
+  let clickedNode: string | undefined;
+
+  return {
+    view: ({attrs}) => {
+      if (!loader) {
+        loader = new SQLSankeyLoader({
+          engine: attrs.trace.engine,
+          query: 'SELECT utid, state, dur FROM thread_state WHERE dur > 0',
+          sourceColumn: 'utid',
+          targetColumn: 'state',
+          valueColumn: 'dur',
+        });
+      }
+
+      const config: SankeyLoaderConfig = {
+        aggregation: 'SUM',
+        limit: attrs.limit,
+      };
+      const {data, isPending} = loader.use(config);
+
+      return m('div', [
+        m(Sankey, {
+          data,
+          height: attrs.height,
+          onNodeClick: (node) => {
+            clickedNode = node.name;
+          },
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          [
+            `query: 'SELECT upid, state, dur FROM thread_state WHERE dur > 0'\n`,
+            `sourceColumn: 'upid', targetColumn: 'state', valueColumn: 'dur'\n`,
+            `loader.use(${JSON.stringify(config, null, 2)})`,
+            isPending ? '\n(loading...)' : '',
+            clickedNode ? `\nClicked: ${clickedNode}` : '',
+          ],
+        ),
+        clickedNode &&
+          m(
+            'button',
+            {
+              style: {marginTop: '8px', fontSize: '12px'},
+              onclick: () => {
+                clickedNode = undefined;
+              },
+            },
+            'Clear selection',
+          ),
+      ]);
+    },
+    onremove: () => {
+      loader?.dispose();
+      loader = undefined;
     },
   };
 }
