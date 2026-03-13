@@ -28,7 +28,7 @@ const QUAD_INDICES = new Uint16Array([0, 1, 2, 3]);
 
 // SDF texture parameters
 const SDF_TEX_SIZE = 64;
-const SDF_SPREAD = 0.1;
+const SDF_SPREAD = 0.2;
 // Padding around the shape in the SDF texture (in normalized 0-1 coords).
 // This insets the shape so texture edges have real SDF data for the linear
 // filter to interpolate, avoiding CLAMP_TO_EDGE artifacts at corners.
@@ -139,17 +139,12 @@ function createBatchProgram(gl: WebGL2RenderingContext): ChevronBatchProgram {
 
     uniform sampler2D u_sdfTex;
 
-    const float SDF_SPREAD = 0.1;
-
     void main() {
       float sdfValue = texture(u_sdfTex, v_uv).a;
-      float dist = (sdfValue - 0.5) * SDF_SPREAD;
+      float dist = (sdfValue - 0.5) * ${SDF_SPREAD};
       float aa = fwidth(dist) * 0.75;
       float alpha = 1.0 - smoothstep(-aa, aa, dist);
 
-      if (alpha < 0.01) {
-        discard;
-      }
       // Premultiply alpha for correct compositing over page background
       float finalAlpha = v_color.a * alpha;
       fragColor = vec4(v_color.rgb * finalAlpha, finalAlpha);
