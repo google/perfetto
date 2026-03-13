@@ -22,7 +22,11 @@ import {
 } from '../../query_node';
 import {getSecondaryInput} from '../graph_utils';
 import protos from '../../../../protos';
-import {ColumnInfo, newColumnInfoList} from '../column_info';
+import {
+  ColumnInfo,
+  legacyDeserializeType,
+  newColumnInfoList,
+} from '../column_info';
 import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
@@ -556,14 +560,20 @@ export class JoinNode implements QueryNode {
         state.leftColumns?.map((c) => ({
           name: c.name,
           checked: c.checked,
-          column: {name: c.columnName ?? c.name, type: c.type}, // Use original column name
+          column: {
+            name: c.columnName ?? c.name,
+            type: legacyDeserializeType(c.type),
+          },
           alias: c.alias,
         })) ?? [],
       rightColumns:
         state.rightColumns?.map((c) => ({
           name: c.name,
           checked: c.checked,
-          column: {name: c.columnName ?? c.name, type: c.type}, // Use original column name
+          column: {
+            name: c.columnName ?? c.name,
+            type: legacyDeserializeType(c.type),
+          },
           alias: c.alias,
         })) ?? [],
     };

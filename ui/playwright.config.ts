@@ -17,6 +17,7 @@ import * as os from 'os';
 
 const isCi = Boolean(process.env.CI);
 const outDir = process.env.OUT_DIR ?? '../out/ui';
+const isRebaseline = process.argv.includes('--update-snapshots');
 
 export default defineConfig({
   timeout: 30_000,
@@ -38,11 +39,19 @@ export default defineConfig({
 
   expect: {
     timeout: 5000,
-    toHaveScreenshot: {
-      // Allow for very small differences between rasterizers on different platforms.
-      maxDiffPixels: 1,
-      threshold: 0.1,
-    },
+    toHaveScreenshot: isRebaseline
+      ? {
+          // When rebaselining, use zero tolerance so snapshots are rewritten
+          // even for tiny differences. This prevents drift where snapshots are
+          // "just within bounds" on the dev machine but fail on CI.
+          maxDiffPixels: 0,
+          threshold: 0,
+        }
+      : {
+          // Allow for small differences between CI and dev machines.
+          maxDiffPixels: 1,
+          threshold: 0.1,
+        },
   },
 
   use: {

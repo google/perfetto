@@ -66,6 +66,9 @@ export enum NodeType {
   // Visualization
   kVisualisation = 'visualisation',
 
+  // Dashboard
+  kDashboard = 'dashboard',
+
   // Deprecated (kept for backward compatibility)
   kMerge = kJoin,
   kMetrics = 'metrics',
@@ -85,6 +88,7 @@ export function singleNodeOperation(type: NodeType): boolean {
     case NodeType.kCounterToIntervals:
     case NodeType.kMetrics:
     case NodeType.kVisualisation:
+    case NodeType.kDashboard:
       return true;
     default:
       return false;
@@ -137,6 +141,10 @@ export interface QueryNodeState {
   // Returns the materialized table name for a given node ID.
   // Set by the parent component using the QueryExecutionService.
   getTableNameForNode?: (nodeId: string) => Promise<string | undefined>;
+
+  // Triggers execution (sync + materialize) of a node by ID.
+  // Used by dashboard nodes to force-execute their source nodes.
+  requestNodeExecution?: (nodeId: string) => Promise<void>;
 
   // Caching
   hasOperationChanged?: boolean;

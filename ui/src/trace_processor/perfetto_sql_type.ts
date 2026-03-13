@@ -105,7 +105,10 @@ export class PerfettoSqlTypes {
   static readonly ARG_SET_ID: PerfettoSqlType = {kind: 'arg_set_id'};
 }
 
+// Maps PerfettoSQL type name strings to their canonical SimpleTypeKind.
+// Used by parsePerfettoSqlTypeFromString (input is lowercased before lookup).
 const SIMPLE_TYPES: Record<string, SimpleType['kind']> = {
+  // Canonical PerfettoSQL type names.
   long: 'int',
   int: 'int',
   bool: 'boolean',
@@ -116,6 +119,12 @@ const SIMPLE_TYPES: Record<string, SimpleType['kind']> = {
   timestamp: 'timestamp',
   duration: 'duration',
   argsetid: 'arg_set_id',
+
+  // Legacy aliases: the old serialized format stored types as
+  // SimpleTypeKind values (e.g. "boolean", "arg_set_id") which don't
+  // match the canonical PerfettoSQL names above.
+  boolean: 'boolean',
+  arg_set_id: 'arg_set_id',
 };
 
 // List of all simple PerfettoSQL type kinds (excluding ID types).
@@ -184,6 +193,32 @@ export function parsePerfettoSqlTypeFromString(args: {
     }
   }
   return errResult(`Unknown type: ${args.type}`);
+}
+
+/** Returns a Material icon name for a given PerfettoSQL type. */
+export function perfettoSqlTypeIcon(type?: PerfettoSqlType): string {
+  if (type === undefined) return 'help_outline';
+  switch (type.kind) {
+    case 'int':
+      return 'tag';
+    case 'double':
+      return 'decimal_increase';
+    case 'string':
+      return 'text_fields';
+    case 'boolean':
+      return 'toggle_on';
+    case 'timestamp':
+      return 'schedule';
+    case 'duration':
+      return 'timer';
+    case 'bytes':
+      return 'memory';
+    case 'id':
+    case 'joinid':
+      return 'key';
+    case 'arg_set_id':
+      return 'dataset';
+  }
 }
 
 export function perfettoSqlTypeToString(type?: PerfettoSqlType): string {
