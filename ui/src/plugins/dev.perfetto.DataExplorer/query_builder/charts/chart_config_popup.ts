@@ -13,11 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  VisualisationNode,
-  ChartConfig,
-  BarOrientation,
-} from '../nodes/visualisation_node';
+import {ChartConfig, BarOrientation} from '../nodes/visualisation_node';
 import {
   CHART_TYPES,
   getChartTypeDefinition,
@@ -26,9 +22,10 @@ import {
 import {ChartAggregation} from '../../../../components/widgets/charts/chart_utils';
 import {Select} from '../../../../widgets/select';
 import {Form, FormLabel} from '../../../../widgets/form';
+import {ChartColumnProvider} from './chart_renderers';
 
 export interface ChartConfigPopupContext {
-  readonly node: VisualisationNode;
+  readonly node: ChartColumnProvider;
   readonly onFilterChange?: () => void;
 }
 

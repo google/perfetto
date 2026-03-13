@@ -19,27 +19,13 @@ import {
   ChartConfig,
   getDefaultChartLabel,
 } from '../nodes/visualisation_node';
-import {SQLBarChartLoader} from '../../../../components/widgets/charts/bar_chart_loader';
-import {SQLHistogramLoader} from '../../../../components/widgets/charts/histogram_loader';
-import {SQLLineChartLoader} from '../../../../components/widgets/charts/line_chart_loader';
-import {SQLScatterChartLoader} from '../../../../components/widgets/charts/scatterplot_loader';
-import {SQLPieChartLoader} from '../../../../components/widgets/charts/pie_chart_loader';
-import {SQLTreemapLoader} from '../../../../components/widgets/charts/treemap_loader';
-import {SQLBoxplotLoader} from '../../../../components/widgets/charts/boxplot_loader';
-import {SQLHeatmapLoader} from '../../../../components/widgets/charts/heatmap_loader';
-import {SQLCdfLoader} from '../../../../components/widgets/charts/cdf_loader';
 import {
   ChartLoaderEntry,
   ChartRenderContext,
-  renderBarChart,
-  renderHistogram,
-  renderLineChart,
-  renderScatterChart,
-  renderPieChart,
-  renderTreemap,
-  renderBoxplot,
-  renderHeatmap,
-  renderCdf,
+  buildLoaderCacheKey,
+  createChartLoaders,
+  disposeChartLoaders,
+  renderChartByType,
 } from './chart_renderers';
 import {renderChartConfigPopup} from './chart_config_popup';
 import {Button} from '../../../../widgets/button';
@@ -99,15 +85,7 @@ export class ChartView implements m.ClassComponent<ChartViewAttrs> {
       clearTimeout(this.binCountDebounceTimeout);
     }
     for (const entry of this.state.loaders.values()) {
-      entry.barLoader?.dispose();
-      entry.histogramLoader?.dispose();
-      entry.lineLoader?.dispose();
-      entry.scatterLoader?.dispose();
-      entry.pieLoader?.dispose();
-      entry.treemapLoader?.dispose();
-      entry.boxplotLoader?.dispose();
-      entry.heatmapLoader?.dispose();
-      entry.cdfLoader?.dispose();
+      disposeChartLoaders(entry);
     }
     this.state.loaders.clear();
   }
@@ -163,30 +141,13 @@ export class ChartView implements m.ClassComponent<ChartViewAttrs> {
       return entry;
     }
 
-    const key = [
-      tableName,
-      config.chartType,
-      config.column,
-      config.measureColumn ?? '',
-      config.yColumn ?? '',
-      config.groupColumn ?? '',
-      config.sizeColumn ?? '',
-    ].join('|');
+    const key = buildLoaderCacheKey(tableName, config);
     const existing = this.state.loaders.get(config.id);
 
     if (existing && existing.key === key) return existing;
 
-    // Dispose old loaders before creating new ones.
     if (existing) {
-      existing.barLoader?.dispose();
-      existing.histogramLoader?.dispose();
-      existing.lineLoader?.dispose();
-      existing.scatterLoader?.dispose();
-      existing.pieLoader?.dispose();
-      existing.treemapLoader?.dispose();
-      existing.boxplotLoader?.dispose();
-      existing.heatmapLoader?.dispose();
-      existing.cdfLoader?.dispose();
+      disposeChartLoaders(existing);
     }
 
     const entry: ChartLoaderEntry = {key};
@@ -194,93 +155,7 @@ export class ChartView implements m.ClassComponent<ChartViewAttrs> {
 
     const engine = attrs.trace.engine;
     const query = `SELECT * FROM ${tableName}`;
-
-    switch (config.chartType) {
-      case 'bar':
-        entry.barLoader = new SQLBarChartLoader({
-          engine,
-          query,
-          dimensionColumn: config.column,
-          measureColumn: config.measureColumn ?? config.column,
-        });
-        break;
-      case 'histogram':
-        entry.histogramLoader = new SQLHistogramLoader({
-          engine,
-          query: `SELECT ${config.column} FROM ${tableName}`,
-          valueColumn: config.column,
-        });
-        break;
-      case 'line':
-        if (config.yColumn) {
-          entry.lineLoader = new SQLLineChartLoader({
-            engine,
-            query,
-            xColumn: config.column,
-            yColumn: config.yColumn,
-            seriesColumn: config.groupColumn,
-          });
-        }
-        break;
-      case 'scatter':
-        if (config.yColumn) {
-          entry.scatterLoader = new SQLScatterChartLoader({
-            engine,
-            query,
-            xColumn: config.column,
-            yColumn: config.yColumn,
-            sizeColumn: config.sizeColumn,
-            seriesColumn: config.groupColumn,
-          });
-        }
-        break;
-      case 'pie':
-        entry.pieLoader = new SQLPieChartLoader({
-          engine,
-          query,
-          dimensionColumn: config.column,
-          measureColumn: config.measureColumn ?? config.column,
-        });
-        break;
-      case 'treemap':
-        entry.treemapLoader = new SQLTreemapLoader({
-          engine,
-          query,
-          labelColumn: config.column,
-          sizeColumn: config.measureColumn ?? config.column,
-          groupColumn: config.groupColumn,
-        });
-        break;
-      case 'boxplot':
-        if (config.yColumn) {
-          entry.boxplotLoader = new SQLBoxplotLoader({
-            engine,
-            query,
-            categoryColumn: config.column,
-            valueColumn: config.yColumn,
-          });
-        }
-        break;
-      case 'heatmap':
-        if (config.yColumn) {
-          entry.heatmapLoader = new SQLHeatmapLoader({
-            engine,
-            query,
-            xColumn: config.column,
-            yColumn: config.yColumn,
-            valueColumn: config.measureColumn ?? config.column,
-          });
-        }
-        break;
-      case 'cdf':
-        entry.cdfLoader = new SQLCdfLoader({
-          engine,
-          query,
-          valueColumn: config.column,
-          seriesColumn: config.groupColumn,
-        });
-        break;
-    }
+    createChartLoaders(engine, query, config, entry);
 
     return entry;
   }
@@ -403,35 +278,7 @@ export class ChartView implements m.ClassComponent<ChartViewAttrs> {
         ),
       ]);
     } else {
-      switch (config.chartType) {
-        case 'bar':
-          chartContent = renderBarChart(ctx, config, entry);
-          break;
-        case 'histogram':
-          chartContent = renderHistogram(ctx, config, entry);
-          break;
-        case 'line':
-          chartContent = renderLineChart(ctx, config, entry);
-          break;
-        case 'scatter':
-          chartContent = renderScatterChart(ctx, config, entry);
-          break;
-        case 'pie':
-          chartContent = renderPieChart(ctx, config, entry);
-          break;
-        case 'treemap':
-          chartContent = renderTreemap(ctx, config, entry);
-          break;
-        case 'boxplot':
-          chartContent = renderBoxplot(ctx, config, entry);
-          break;
-        case 'heatmap':
-          chartContent = renderHeatmap(ctx, config, entry);
-          break;
-        case 'cdf':
-          chartContent = renderCdf(ctx, config, entry);
-          break;
-      }
+      chartContent = renderChartByType(ctx, config, entry);
     }
 
     const isEditing = this.state.editingChartId === config.id;

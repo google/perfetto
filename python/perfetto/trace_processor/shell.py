@@ -113,7 +113,9 @@ def load_shell(
     stdout = temp_stdout.read().decode("utf-8")
     temp_stderr.seek(0)
     stderr = temp_stderr.read().decode("utf-8")
+    temp_stdout.close()
+    temp_stderr.close()
     raise PerfettoException("Trace processor failed to start.\n"
                             f"stdout: {stdout}\nstderr: {stderr}\n")
 
-  return url, p
+  return url, p, temp_stdout, temp_stderr

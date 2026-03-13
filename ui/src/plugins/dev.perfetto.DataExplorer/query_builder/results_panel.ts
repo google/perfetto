@@ -37,6 +37,7 @@ import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {DurationWidget} from '../../../components/widgets/duration';
 import {Time, Duration} from '../../../base/time';
 import {ColumnInfo} from './column_info';
+import {Anchor} from '../../../widgets/anchor';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {DataSource} from '../../../components/widgets/datagrid/data_source';
 import {
@@ -44,6 +45,7 @@ import {
   isIdType,
 } from '../../../trace_processor/perfetto_sql_type';
 import {ColumnType} from '../../../components/widgets/datagrid/datagrid_schema';
+import {renderCell} from '../../../components/widgets/datagrid/datagrid';
 import {QueryExecutionService} from './query_execution_service';
 import {VisualisationNode} from './nodes/visualisation_node';
 import {ChartView} from './charts/chart_view';
@@ -118,6 +120,45 @@ function createDurationCellRenderer(trace: Trace): CellRenderer {
       trace,
       dur: Duration.fromRaw(value),
     });
+  };
+}
+
+// Tables that support timeline navigation via selectSqlEvent.
+// These are tables with track renderers that set rootTableName.
+const NAVIGABLE_TABLES = new Set([
+  'slice',
+  'sched_slice',
+  'thread_state',
+  'android_logs',
+]);
+
+// Create cell renderer for ID columns that link to timeline slices
+function createIdCellRenderer(
+  trace: Trace,
+  tableName: string,
+  columnName: string,
+): CellRenderer {
+  return (value) => {
+    const cell = renderCell(value, columnName);
+    if (typeof value !== 'bigint' && typeof value !== 'number') {
+      return cell;
+    }
+    const id = typeof value === 'bigint' ? Number(value) : value;
+    return m(
+      Anchor,
+      {
+        title: `Go to ${tableName} on the timeline`,
+        icon: Icons.UpdateSelection,
+        onclick: () => {
+          trace.navigate('#!/viewer');
+          trace.selection.selectSqlEvent(tableName, id, {
+            switchToCurrentSelectionTab: false,
+            scrollToSelection: true,
+          });
+        },
+      },
+      cell,
+    );
   };
 }
 
@@ -419,6 +460,18 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
           // Check if this is a duration column
           else if (columnInfo.column.type?.kind === 'duration') {
             cellRenderer = createDurationCellRenderer(attrs.trace);
+          }
+          // Check if this is an ID column that links to a navigable table
+          else if (
+            columnInfo.column.type !== undefined &&
+            isIdType(columnInfo.column.type) &&
+            NAVIGABLE_TABLES.has(columnInfo.column.type.source.table)
+          ) {
+            cellRenderer = createIdCellRenderer(
+              attrs.trace,
+              columnInfo.column.type.source.table,
+              c,
+            );
           }
         }
 

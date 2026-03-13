@@ -36,6 +36,7 @@ import {
   PieChart as EPieChart,
   ScatterChart as EScatterChart,
   TreemapChart as ETreemapChart,
+  SankeyChart as ESankeyChart,
 } from 'echarts/charts';
 import {
   GridComponent,
@@ -71,6 +72,7 @@ function ensureEChartsSetup(): void {
     EPieChart,
     EScatterChart,
     ETreemapChart,
+    ESankeyChart,
     GridComponent,
     TooltipComponent,
     LegendComponent,

@@ -46,7 +46,7 @@ import {assertExists} from '../../../base/assert';
 export interface RoundActionButtonAttrs {
   readonly icon: string;
   readonly title: string;
-  readonly onclick: () => void;
+  readonly onclick?: () => void;
   readonly disabled?: boolean;
   readonly className?: string;
 }
