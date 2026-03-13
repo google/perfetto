@@ -49,7 +49,7 @@ def main():
   args = parser.parse_args()
 
   print('Fetching list of UI releases from GCS...')
-  rev_list = check_output(['gsutil.py', 'ls', 'gs://ui.perfetto.dev/']).decode()
+  rev_list = check_output(['gcloud', 'storage', 'ls', 'gs://ui.perfetto.dev/']).decode()
   ui_map = {}  # maps '38b7c2b12' -> 'v45.0-38b7c2b12'
   for line in rev_list.split():
     version = line.split('/')[3]
