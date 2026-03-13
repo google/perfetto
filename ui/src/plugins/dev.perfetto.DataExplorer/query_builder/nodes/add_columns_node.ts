@@ -23,6 +23,7 @@ import {
   ColumnInfo,
   columnInfoFromName,
   columnInfoFromSqlColumn,
+  legacyDeserializeType,
 } from '../column_info';
 import {
   PerfettoSqlType,
@@ -1790,7 +1791,18 @@ export class AddColumnsNode implements QueryNode {
                   string,
                   PerfettoSqlType
                 >,
-              ),
+              )
+                .map(
+                  ([k, v]) =>
+                    [k, legacyDeserializeType(v)] as [
+                      string,
+                      PerfettoSqlType | undefined,
+                    ],
+                )
+                .filter(
+                  (entry): entry is [string, PerfettoSqlType] =>
+                    entry[1] !== undefined,
+                ),
             )
           : undefined,
     };

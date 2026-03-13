@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {JoinNode} from './join_node';
+import {JoinNode, JoinSerializedState} from './join_node';
 import {QueryNode, NodeType} from '../../query_node';
 import {ColumnInfo} from '../column_info';
+import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';
 import protos from '../../../../protos';
 
 describe('JoinNode', () => {
@@ -939,6 +940,70 @@ describe('JoinNode', () => {
       expect(state.conditionType).toBe('equality');
       expect(state.leftColumn).toBe('id');
       expect(state.rightColumn).toBe('id');
+    });
+
+    it('should deserialize legacy string types into PerfettoSqlType', () => {
+      const legacySerialized = {
+        leftNodeId: 'node1',
+        rightNodeId: 'node2',
+        leftQueryAlias: 'left',
+        rightQueryAlias: 'right',
+        conditionType: 'equality' as const,
+        leftColumn: 'id',
+        rightColumn: 'id',
+        leftColumns: [
+          {name: 'id', type: 'INT', checked: true, columnName: 'id'},
+          {name: 'ts', type: 'TIMESTAMP', checked: false, columnName: 'ts'},
+        ],
+        rightColumns: [
+          {name: 'val', type: 'DOUBLE', checked: true, columnName: 'val'},
+        ],
+      } as unknown as JoinSerializedState;
+
+      const state = JoinNode.deserializeState(legacySerialized);
+
+      expect(state.leftColumns?.[0].column.type).toEqual(PerfettoSqlTypes.INT);
+      expect(state.leftColumns?.[1].column.type).toEqual(
+        PerfettoSqlTypes.TIMESTAMP,
+      );
+      expect(state.rightColumns?.[0].column.type).toEqual(
+        PerfettoSqlTypes.DOUBLE,
+      );
+    });
+
+    it('should deserialize new PerfettoSqlType objects correctly', () => {
+      const newSerialized: JoinSerializedState = {
+        leftNodeId: 'node1',
+        rightNodeId: 'node2',
+        leftQueryAlias: 'left',
+        rightQueryAlias: 'right',
+        conditionType: 'equality',
+        leftColumn: 'id',
+        rightColumn: 'id',
+        leftColumns: [
+          {
+            name: 'id',
+            type: {kind: 'int'},
+            checked: true,
+            columnName: 'id',
+          },
+        ],
+        rightColumns: [
+          {
+            name: 'dur',
+            type: {kind: 'duration'},
+            checked: true,
+            columnName: 'dur',
+          },
+        ],
+      };
+
+      const state = JoinNode.deserializeState(newSerialized);
+
+      expect(state.leftColumns?.[0].column.type).toEqual(PerfettoSqlTypes.INT);
+      expect(state.rightColumns?.[0].column.type).toEqual(
+        PerfettoSqlTypes.DURATION,
+      );
     });
   });
 
