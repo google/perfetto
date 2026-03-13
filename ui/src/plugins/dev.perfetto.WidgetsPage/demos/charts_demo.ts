@@ -353,10 +353,16 @@ export function renderCharts(app: App): m.Children {
       renderWidget: (opts) => {
         return m(HeatmapChartDemo, {
           height: opts.height,
+          brushMode: opts.brushMode,
         });
       },
       initialOpts: {
         height: 300,
+        brushMode: new EnumOption('select', [
+          'off',
+          'filter',
+          'select',
+        ] as const),
       },
     }),
 
@@ -608,12 +614,18 @@ function renderSQLDemos(app: App): m.Children[] {
           height: opts.height,
           xLimit: opts.xLimit,
           yLimit: opts.yLimit,
+          brushMode: opts.brushMode,
         });
       },
       initialOpts: {
         height: 300,
         xLimit: 15,
         yLimit: 15,
+        brushMode: new EnumOption('select', [
+          'off',
+          'filter',
+          'select',
+        ] as const),
       },
     }),
   ];
@@ -2033,15 +2045,64 @@ const HEATMAP_SAMPLE_DATA: HeatmapData = (() => {
 
 function HeatmapChartDemo(): m.Component<{
   height: number;
+  brushMode: 'off' | 'filter' | 'select';
 }> {
+  let brushedSelection: {xLabels: string[]; yLabels: string[]} | undefined;
+
   return {
     view: ({attrs}) => {
+      const isFilter = attrs.brushMode === 'filter';
+      let data = HEATMAP_SAMPLE_DATA;
+
+      // Filter by brushed selection (only in filter mode)
+      if (isFilter && brushedSelection !== undefined) {
+        const xSet = new Set(brushedSelection.xLabels);
+        const ySet = new Set(brushedSelection.yLabels);
+        const xIndices = new Map<string, number>();
+        const yIndices = new Map<string, number>();
+        const filteredXLabels = data.xLabels.filter((l) => xSet.has(l));
+        const filteredYLabels = data.yLabels.filter((l) => ySet.has(l));
+        filteredXLabels.forEach((l, i) => xIndices.set(l, i));
+        filteredYLabels.forEach((l, i) => yIndices.set(l, i));
+        let min = Infinity;
+        let max = -Infinity;
+        const filteredValues: Array<readonly [number, number, number]> = [];
+        for (const [xIdx, yIdx, val] of data.values) {
+          const xLabel = data.xLabels[xIdx];
+          const yLabel = data.yLabels[yIdx];
+          const newX = xIndices.get(xLabel);
+          const newY = yIndices.get(yLabel);
+          if (newX !== undefined && newY !== undefined) {
+            filteredValues.push([newX, newY, val]);
+            min = Math.min(min, val);
+            max = Math.max(max, val);
+          }
+        }
+        if (filteredValues.length > 0) {
+          data = {
+            xLabels: filteredXLabels,
+            yLabels: filteredYLabels,
+            values: filteredValues,
+            min,
+            max,
+          };
+        }
+      }
+
       return m('div', [
         m(HeatmapChart, {
-          data: HEATMAP_SAMPLE_DATA,
+          data,
           height: attrs.height,
           xAxisLabel: 'Day',
           yAxisLabel: 'Process',
+          onBrush:
+            attrs.brushMode !== 'off'
+              ? (sel: {xLabels: string[]; yLabels: string[]}) => {
+                  brushedSelection = sel;
+                }
+              : undefined,
+          selection:
+            attrs.brushMode === 'select' ? brushedSelection : undefined,
         }),
         m(
           'pre',
@@ -2054,8 +2115,28 @@ function HeatmapChartDemo(): m.Component<{
               borderRadius: '4px',
             },
           },
-          'Static heatmap: process activity by day of week',
+          [
+            brushedSelection
+              ? `Brushed: x=[${brushedSelection.xLabels.join(', ')}] y=[${brushedSelection.yLabels.join(', ')}]`
+              : attrs.brushMode !== 'off'
+                ? 'Drag to brush-select cells'
+                : 'Static heatmap: process activity by day of week',
+            !isFilter && brushedSelection
+              ? '\n(select mode — data unchanged)'
+              : '',
+          ],
         ),
+        brushedSelection &&
+          m(
+            'button',
+            {
+              style: {marginTop: '8px', fontSize: '12px'},
+              onclick: () => {
+                brushedSelection = undefined;
+              },
+            },
+            isFilter ? 'Clear filter' : 'Clear selection',
+          ),
       ]);
     },
   };
@@ -2226,8 +2307,10 @@ function SQLHeatmapDemo(): m.Component<{
   height: number;
   xLimit: number;
   yLimit: number;
+  brushMode: 'off' | 'filter' | 'select';
 }> {
   let loader: SQLHeatmapLoader | undefined;
+  let brushedSelection: {xLabels: string[]; yLabels: string[]} | undefined;
 
   return {
     view: ({attrs}) => {
@@ -2241,12 +2324,50 @@ function SQLHeatmapDemo(): m.Component<{
         });
       }
 
+      const isFilter = attrs.brushMode === 'filter';
+
       const config: HeatmapLoaderConfig = {
         aggregation: 'SUM',
         xLimit: attrs.xLimit,
         yLimit: attrs.yLimit,
       };
-      const {data, isPending} = loader.use(config);
+      let {data} = loader.use(config);
+      const {isPending} = loader.use(config);
+
+      // Filter by brushed selection (only in filter mode)
+      if (isFilter && brushedSelection !== undefined && data !== undefined) {
+        const xSet = new Set(brushedSelection.xLabels);
+        const ySet = new Set(brushedSelection.yLabels);
+        const xIndices = new Map<string, number>();
+        const yIndices = new Map<string, number>();
+        const filteredXLabels = data.xLabels.filter((l) => xSet.has(l));
+        const filteredYLabels = data.yLabels.filter((l) => ySet.has(l));
+        filteredXLabels.forEach((l, i) => xIndices.set(l, i));
+        filteredYLabels.forEach((l, i) => yIndices.set(l, i));
+        let min = Infinity;
+        let max = -Infinity;
+        const filteredValues: Array<readonly [number, number, number]> = [];
+        for (const [xIdx, yIdx, val] of data.values) {
+          const xLabel = data.xLabels[xIdx];
+          const yLabel = data.yLabels[yIdx];
+          const newX = xIndices.get(xLabel);
+          const newY = yIndices.get(yLabel);
+          if (newX !== undefined && newY !== undefined) {
+            filteredValues.push([newX, newY, val]);
+            min = Math.min(min, val);
+            max = Math.max(max, val);
+          }
+        }
+        if (filteredValues.length > 0) {
+          data = {
+            xLabels: filteredXLabels,
+            yLabels: filteredYLabels,
+            values: filteredValues,
+            min,
+            max,
+          };
+        }
+      }
 
       return m('div', [
         m(HeatmapChart, {
@@ -2254,6 +2375,14 @@ function SQLHeatmapDemo(): m.Component<{
           height: attrs.height,
           xAxisLabel: 'Priority',
           yAxisLabel: 'End State',
+          onBrush:
+            attrs.brushMode !== 'off'
+              ? (sel: {xLabels: string[]; yLabels: string[]}) => {
+                  brushedSelection = sel;
+                }
+              : undefined,
+          selection:
+            attrs.brushMode === 'select' ? brushedSelection : undefined,
         }),
         m(
           'pre',
@@ -2271,8 +2400,22 @@ function SQLHeatmapDemo(): m.Component<{
             `xColumn: 'priority', yColumn: 'end_state', valueColumn: 'dur'\n`,
             `loader.use(${JSON.stringify(config, null, 2)})`,
             isPending ? '\n(loading...)' : '',
+            brushedSelection
+              ? `\nBrushed: x=[${brushedSelection.xLabels.join(', ')}] y=[${brushedSelection.yLabels.join(', ')}]`
+              : '',
           ],
         ),
+        brushedSelection &&
+          m(
+            'button',
+            {
+              style: {marginTop: '8px', fontSize: '12px'},
+              onclick: () => {
+                brushedSelection = undefined;
+              },
+            },
+            isFilter ? 'Clear filter' : 'Clear selection',
+          ),
       ]);
     },
     onremove: () => {
