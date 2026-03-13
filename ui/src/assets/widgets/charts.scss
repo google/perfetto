@@ -64,3 +64,27 @@
     font-size: 14px;
   }
 }
+
+// StatCard component styles
+.pf-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 16px;
+  text-align: center;
+
+  &__value {
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--pf-color-text-primary);
+  }
+
+  &__label {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--pf-color-text-muted);
+  }
+}
