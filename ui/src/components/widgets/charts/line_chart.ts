@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
-import {extractBrushRange, formatNumber} from './chart_utils';
+import {BrushMode, extractBrushRange, formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
 import {buildChartOption, buildLegendOption} from './chart_option_builder';
 
@@ -75,6 +75,13 @@ export interface LineChartAttrs {
    * Called with the selected X range.
    */
   readonly onBrush?: (range: {start: number; end: number}) => void;
+
+  /**
+   * Brush interaction mode. Defaults to 'filter'.
+   * - 'filter': Brush changes the displayed data (chart rebuilds).
+   * - 'select': Brush highlights a range without changing data.
+   */
+  readonly brushMode?: BrushMode;
 
   /**
    * Fill parent container. Defaults to false.

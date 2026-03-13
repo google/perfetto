@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
-import {extractBrushRect, formatNumber} from './chart_utils';
+import {BrushMode, extractBrushRect, formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
 import {buildChartOption, buildLegendOption} from './chart_option_builder';
 
@@ -86,6 +86,13 @@ export interface ScatterChartAttrs {
     yMin: number;
     yMax: number;
   }) => void;
+
+  /**
+   * Brush interaction mode. Defaults to 'filter'.
+   * - 'filter': Brush changes the displayed data (chart rebuilds).
+   * - 'select': Brush highlights a range without changing data.
+   */
+  readonly brushMode?: BrushMode;
 
   /**
    * Fill parent container. Defaults to false.

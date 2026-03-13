@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
-import {extractBrushRange, formatNumber} from './chart_utils';
+import {BrushMode, extractBrushRange, formatNumber} from './chart_utils';
 import {
   HistogramBucket,
   HistogramData,
@@ -55,6 +55,13 @@ export interface HistogramAttrs {
    * Called with the selected range based on mousedown and mouseup positions.
    */
   readonly onBrush?: (range: {start: number; end: number}) => void;
+
+  /**
+   * Brush interaction mode. Defaults to 'filter'.
+   * - 'filter': Brush changes the displayed data (chart rebuilds).
+   * - 'select': Brush highlights a range without changing data.
+   */
+  readonly brushMode?: BrushMode;
 
   /**
    * Fill parent container. Defaults to false.

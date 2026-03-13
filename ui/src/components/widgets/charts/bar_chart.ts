@@ -14,7 +14,12 @@
 
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
-import {ChartAggregation, extractBrushRange, formatNumber} from './chart_utils';
+import {
+  BrushMode,
+  ChartAggregation,
+  extractBrushRange,
+  formatNumber,
+} from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
 import {
   buildAxisOption,
@@ -125,6 +130,13 @@ export interface BarChartAttrs {
    * Called with the labels of all bars in the brushed range.
    */
   readonly onBrush?: (labels: Array<string | number>) => void;
+
+  /**
+   * Brush interaction mode. Defaults to 'filter'.
+   * - 'filter': Brush changes the displayed data (chart rebuilds).
+   * - 'select': Brush highlights a range without changing data.
+   */
+  readonly brushMode?: BrushMode;
 }
 
 export class BarChart implements m.ClassComponent<BarChartAttrs> {
