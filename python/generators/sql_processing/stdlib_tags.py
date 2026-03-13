@@ -423,6 +423,11 @@ TABLE_IMPORTANCE = {
     # HIGH IMPORTANCE - Android inter-process communication
     'android_binder_txns': 'high',  # Binder transactions for IPC analysis
 
+    # HIGH IMPORTANCE - Android input and memory
+    'android_input_events': 'high',  # Input event tracking and analysis
+    'android_process_memory_intervals':
+        'high',  # Per-process memory usage over time
+
     # MID IMPORTANCE - Android system monitoring and diagnostics
     'android_anrs': 'mid',  # Application Not Responding events and diagnostics
     'android_battery_charge': 'mid',  # Battery charge level tracking over time
