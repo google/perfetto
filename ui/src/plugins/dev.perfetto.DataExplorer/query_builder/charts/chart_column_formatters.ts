@@ -18,13 +18,13 @@ import {
   underlyingSqlType,
   PerfettoSqlType,
 } from '../../../../trace_processor/perfetto_sql_type';
-import {VisualisationNode} from '../nodes/visualisation_node';
+import {ChartColumnProvider} from './chart_renderers';
 
 /**
  * Whether a column's underlying SQL type is INTEGER.
  */
 export function isIntegerColumn(
-  node: VisualisationNode,
+  node: ChartColumnProvider,
   columnName: string,
 ): boolean {
   const columnInfo = node.sourceCols.find((col) => col.name === columnName);
@@ -38,7 +38,7 @@ export function isIntegerColumn(
  * Get the PerfettoSQL type kind for a column, if available.
  */
 export function getColumnTypeKind(
-  node: VisualisationNode,
+  node: ChartColumnProvider,
   columnName: string,
 ): PerfettoSqlType['kind'] | undefined {
   const columnInfo = node.sourceCols.find((col) => col.name === columnName);
@@ -50,7 +50,7 @@ export function getColumnTypeKind(
  * Returns undefined if the column doesn't need special formatting.
  */
 export function getNumericFormatter(
-  node: VisualisationNode,
+  node: ChartColumnProvider,
   columnName: string,
 ): ((value: number) => string) | undefined {
   const kind = getColumnTypeKind(node, columnName);
@@ -65,7 +65,7 @@ export function getNumericFormatter(
  * (e.g., timestamp/duration columns).
  */
 export function buildCellFormatters(
-  node: VisualisationNode,
+  node: ChartColumnProvider,
   columns: readonly string[],
 ): Record<string, CellFormatter> | undefined {
   const formatters: Record<string, CellFormatter> = {};

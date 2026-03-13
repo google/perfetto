@@ -186,6 +186,32 @@ export function parsePerfettoSqlTypeFromString(args: {
   return errResult(`Unknown type: ${args.type}`);
 }
 
+/** Returns a Material icon name for a given PerfettoSQL type. */
+export function perfettoSqlTypeIcon(type?: PerfettoSqlType): string {
+  if (type === undefined) return 'help_outline';
+  switch (type.kind) {
+    case 'int':
+      return 'tag';
+    case 'double':
+      return 'decimal_increase';
+    case 'string':
+      return 'text_fields';
+    case 'boolean':
+      return 'toggle_on';
+    case 'timestamp':
+      return 'schedule';
+    case 'duration':
+      return 'timer';
+    case 'bytes':
+      return 'memory';
+    case 'id':
+    case 'joinid':
+      return 'key';
+    case 'arg_set_id':
+      return 'dataset';
+  }
+}
+
 export function perfettoSqlTypeToString(type?: PerfettoSqlType): string {
   if (type === undefined) {
     return 'ANY';

@@ -66,6 +66,19 @@
   border-radius: 4px;
 }
 
+// Shared styling for all round action buttons (undo/redo/add node/dashboard).
+.pf-qb-round-action-button {
+  width: 40px;
+  height: 40px;
+  font-size: var(--pf-font-size-xxl);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: box-shadow 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+}
+
 // Menu label with hotkey
 .pf-exp-menu-label-with-hotkey {
   display: flex;
