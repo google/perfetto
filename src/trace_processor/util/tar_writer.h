@@ -18,12 +18,48 @@
 #define SRC_TRACE_PROCESSOR_UTIL_TAR_WRITER_H_
 
 #include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <memory>
 #include <string>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/status_or.h"
 
 namespace perfetto::trace_processor::util {
+
+// Interface for writing raw bytes to a destination.
+class TarWriterSink {
+ public:
+  virtual ~TarWriterSink();
+  virtual base::Status Write(const void* data, size_t len) = 0;
+  virtual base::Status WriteFromFd(int fd, size_t len) = 0;
+};
+
+// Appends to an in-memory byte buffer.
+class BufferTarWriterSink : public TarWriterSink {
+ public:
+  explicit BufferTarWriterSink(std::vector<uint8_t>* buffer);
+  base::Status Write(const void* data, size_t len) override;
+  base::Status WriteFromFd(int fd, size_t len) override;
+
+ private:
+  std::vector<uint8_t>* buffer_;
+};
+
+// Invokes a callback for each write, forwarding raw bytes.
+class CallbackTarWriterSink : public TarWriterSink {
+ public:
+  using WriteCallback = std::function<void(const void* data, size_t len)>;
+  explicit CallbackTarWriterSink(WriteCallback callback);
+  base::Status Write(const void* data, size_t len) override;
+  base::Status WriteFromFd(int fd, size_t len) override;
+
+ private:
+  WriteCallback callback_;
+};
 
 // Simple TAR writer that creates uncompressed TAR archives.
 //
@@ -39,20 +75,56 @@ namespace perfetto::trace_processor::util {
 // - Original TAR format has more limitations (no long filenames)
 class TarWriter {
  public:
+  // Creates a TarWriter that writes to the given file path.
   explicit TarWriter(const std::string& output_path);
+
+  // Creates a TarWriter that writes to the given file descriptor.
   explicit TarWriter(base::ScopedFile output_file);
+
+  // Creates a TarWriter that uses a caller-provided sink.
+  // The sink is not owned; it must outlive the TarWriter.
+  explicit TarWriter(TarWriterSink* sink);
+
   ~TarWriter();
 
   // Adds a file to the TAR archive.
   // filename: The name of the file in the archive (max 100 chars)
-  // content: The file content
-  // Returns OkStatus() on success, error Status on failure.
+  // content: The file content as a string
   base::Status AddFile(const std::string& filename, const std::string& content);
+
+  // Adds a file to the TAR archive.
+  // filename: The name of the file in the archive (max 100 chars)
+  // data/size: The file content as raw bytes
+  base::Status AddFile(const std::string& filename,
+                       const uint8_t* data,
+                       size_t size);
+
+  // Scoped handle for streaming a file entry. Writes TAR padding on
+  // destruction. The caller should write exactly |size| bytes via Write().
+  class ScopedFileWriter {
+   public:
+    ScopedFileWriter(ScopedFileWriter&&) noexcept;
+    ScopedFileWriter& operator=(ScopedFileWriter&&) noexcept;
+    ~ScopedFileWriter();
+
+    base::Status Write(const void* data, size_t len);
+
+   private:
+    friend class TarWriter;
+    ScopedFileWriter(TarWriterSink* sink, size_t size);
+    TarWriterSink* sink_;
+    size_t size_;
+  };
+
+  // Opens a streaming file entry. Writes the TAR header immediately;
+  // the caller writes data via the returned ScopedFileWriter, and TAR
+  // padding is written automatically when the writer is destroyed.
+  base::StatusOr<ScopedFileWriter> BeginFile(const std::string& filename,
+                                             size_t size);
 
   // Adds a file to the TAR archive from a file path.
   // filename: The name of the file in the archive (max 100 chars)
   // file_path: Path to the file to add
-  // Returns OkStatus() on success, error Status on failure.
   base::Status AddFileFromPath(const std::string& filename,
                                const std::string& file_path);
 
@@ -83,8 +155,13 @@ class TarWriter {
   base::Status CreateAndWriteHeader(const std::string& filename,
                                     size_t file_size);
   base::Status WritePadding(size_t size);
+  void Finalize();
 
-  base::ScopedFile output_file_;
+  // Owned sink created by convenience constructors, null if caller-provided.
+  std::unique_ptr<TarWriterSink> owned_sink_;
+  // Points to either owned_sink_ or a caller-provided sink.
+  TarWriterSink* sink_;
+  bool finalized_ = false;
 };
 
 }  // namespace perfetto::trace_processor::util

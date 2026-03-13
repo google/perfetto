@@ -106,3 +106,13 @@ class TraceProcessorHttp:
       result = self.protos.DisableAndReadMetatraceResult()
       result.ParseFromString(f.read())
       return result
+
+  def export_to_arrow(self, output_file):
+    """Streams the arrow TAR archive directly to an open file object."""
+    self.conn.request('POST', '/export_to_arrow')
+    with self.conn.getresponse() as f:
+      while True:
+        chunk = f.read(65536)
+        if not chunk:
+          break
+        output_file.write(chunk)

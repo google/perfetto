@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -29,6 +30,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -37,6 +39,10 @@
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
+
+namespace perfetto::trace_processor::util {
+class TraceBlobViewReader;
+}  // namespace perfetto::trace_processor::util
 
 namespace perfetto::trace_processor::core::dataframe {
 
@@ -415,6 +421,11 @@ class Dataframe {
   // TODO(lalitm): remove this once we have a proper static builder for
   // dataframe.
   friend class DataframeBytecodeTest;
+
+  friend class ArrowWriter;
+  friend base::Status DeserializeFromArrowIpc(Dataframe&,
+                                              StringPool*,
+                                              const util::TraceBlobViewReader&);
 
   Dataframe(bool finalized,
             std::vector<std::string> column_names,
