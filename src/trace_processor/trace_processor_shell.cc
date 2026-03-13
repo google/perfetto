@@ -73,6 +73,8 @@
 #include "src/trace_processor/shell/metrics.h"
 #include "src/trace_processor/shell/query.h"
 #include "src/trace_processor/shell/query_subcommand.h"
+#include "src/trace_processor/shell/repl_subcommand.h"
+#include "src/trace_processor/shell/serve_subcommand.h"
 #include "src/trace_processor/shell/shell_utils.h"
 #include "src/trace_processor/shell/sql_packages.h"
 #include "src/trace_processor/shell/subcommand.h"
@@ -915,8 +917,12 @@ TraceProcessorShell::CreateWithDefaultPlatform() {
 base::Status TraceProcessorShell::Run(int argc, char** argv) {
   // Check for subcommands before classic flag parsing.
   shell::QuerySubcommand query_subcommand;
+  shell::ReplSubcommand repl_subcommand;
+  shell::ServeSubcommand serve_subcommand;
   std::vector<shell::Subcommand*> subcommands = {
       &query_subcommand,
+      &repl_subcommand,
+      &serve_subcommand,
   };
 
   // All flags (both global and classic) that consume a following argument.

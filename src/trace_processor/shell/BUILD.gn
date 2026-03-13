@@ -140,6 +140,42 @@ source_set("query_subcommand") {
   ]
 }
 
+source_set("repl_subcommand") {
+  sources = [
+    "repl_subcommand.cc",
+    "repl_subcommand.h",
+  ]
+  deps = [
+    ":common_flags",
+    ":interactive",
+    ":metatrace",
+    ":subcommand",
+    "../../../gn:default_deps",
+    "../../../gn:protobuf_full",
+    "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
+    "../../base",
+  ]
+}
+
+source_set("serve_subcommand") {
+  sources = [
+    "serve_subcommand.cc",
+    "serve_subcommand.h",
+  ]
+  deps = [
+    ":common_flags",
+    ":subcommand",
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
+    "../../base",
+    "../rpc",
+    "../rpc:stdiod",
+  ]
+  if (enable_perfetto_trace_processor_httpd) {
+    deps += [ "../rpc:httpd" ]
+  }
+}
+
 source_set("unittests") {
   testonly = true
   sources = [ "find_subcommand_unittest.cc" ]
