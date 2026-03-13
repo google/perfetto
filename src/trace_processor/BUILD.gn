@@ -254,20 +254,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "perfetto_sql/generator",
       "rpc",
       "rpc:stdiod",
-      "shell:common_flags",
-      "shell:interactive",
-      "shell:metatrace",
-      "shell:metrics",
-      "shell:query",
-      "shell:query_subcommand",
-      "shell:export_subcommand",
-      "shell:metrics_subcommand",
-      "shell:repl_subcommand",
-      "shell:serve_subcommand",
-      "shell:shell_utils",
-      "shell:summarize_subcommand",
-      "shell:sql_packages",
-      "shell:subcommand",
+      "shell",
       "sqlite",
       "trace_summary",
       "util:stdlib",
@@ -275,9 +262,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "util/symbolizer",
       "util/symbolizer:symbolize_database",
     ]
-    if (enable_perfetto_trace_processor_linenoise) {
-      deps += [ "../../gn:linenoise" ]
-    }
     if (enable_perfetto_trace_processor_httpd) {
       deps += [ "rpc:httpd" ]
     }
