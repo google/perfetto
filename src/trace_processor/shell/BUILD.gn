@@ -176,6 +176,40 @@ source_set("serve_subcommand") {
   }
 }
 
+source_set("summarize_subcommand") {
+  sources = [
+    "summarize_subcommand.cc",
+    "summarize_subcommand.h",
+  ]
+  deps = [
+    ":common_flags",
+    ":interactive",
+    ":metatrace",
+    ":query",
+    ":subcommand",
+    "../../../gn:default_deps",
+    "../../../gn:protobuf_full",
+    "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
+    "../../base",
+    "../trace_summary",
+  ]
+}
+
+source_set("export_subcommand") {
+  sources = [
+    "export_subcommand.cc",
+    "export_subcommand.h",
+  ]
+  deps = [
+    ":common_flags",
+    ":shell_utils",
+    ":subcommand",
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
+    "../../base",
+  ]
+}
+
 source_set("unittests") {
   testonly = true
   sources = [ "find_subcommand_unittest.cc" ]

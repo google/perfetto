@@ -68,6 +68,7 @@
 #include "src/trace_processor/rpc/rpc.h"
 #include "src/trace_processor/rpc/stdiod.h"
 #include "src/trace_processor/shell/common_flags.h"
+#include "src/trace_processor/shell/export_subcommand.h"
 #include "src/trace_processor/shell/interactive.h"
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/metrics.h"
@@ -78,6 +79,7 @@
 #include "src/trace_processor/shell/shell_utils.h"
 #include "src/trace_processor/shell/sql_packages.h"
 #include "src/trace_processor/shell/subcommand.h"
+#include "src/trace_processor/shell/summarize_subcommand.h"
 #include "src/trace_processor/trace_summary/summary.h"
 #include "src/trace_processor/util/deobfuscation/deobfuscator.h"
 #include "src/trace_processor/util/sql_modules.h"
@@ -919,10 +921,11 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
   shell::QuerySubcommand query_subcommand;
   shell::ReplSubcommand repl_subcommand;
   shell::ServeSubcommand serve_subcommand;
+  shell::SummarizeSubcommand summarize_subcommand;
+  shell::ExportSubcommand export_subcommand;
   std::vector<shell::Subcommand*> subcommands = {
-      &query_subcommand,
-      &repl_subcommand,
-      &serve_subcommand,
+      &query_subcommand,     &repl_subcommand,   &serve_subcommand,
+      &summarize_subcommand, &export_subcommand,
   };
 
   // All flags (both global and classic) that consume a following argument.
