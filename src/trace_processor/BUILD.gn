@@ -259,20 +259,15 @@ if (enable_perfetto_trace_processor_sqlite) {
       "shell:metatrace",
       "shell:metrics",
       "shell:query",
-      "shell:query_subcommand",
       "shell:export_subcommand",
+      "shell:query_subcommand",
       "shell:repl_subcommand",
       "shell:serve_subcommand",
-      "shell:shell_utils",
       "shell:summarize_subcommand",
-      "shell:sql_packages",
+      "shell:shell_utils",
       "shell:subcommand",
       "sqlite",
       "trace_summary",
-      "util:stdlib",
-      "util/deobfuscation:deobfuscator",
-      "util/symbolizer",
-      "util/symbolizer:symbolize_database",
     ]
     if (enable_perfetto_trace_processor_linenoise) {
       deps += [ "../../gn:linenoise" ]

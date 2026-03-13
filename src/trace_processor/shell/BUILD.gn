@@ -19,7 +19,10 @@ source_set("subcommand") {
     "subcommand.cc",
     "subcommand.h",
   ]
-  deps = [ "../../../gn:default_deps" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+  ]
 }
 
 source_set("interactive") {
@@ -117,9 +120,11 @@ source_set("common_flags") {
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
     "../../base",
+    "../util/deobfuscation:deobfuscator",
+    "../util/symbolizer",
+    "../util/symbolizer:symbolize_database",
   ]
-  public_deps =
-      [ "../../../include/perfetto/trace_processor:trace_processor" ]
+  public_deps = [ "../../../include/perfetto/trace_processor:trace_processor" ]
 }
 
 source_set("query_subcommand") {
@@ -217,5 +222,6 @@ source_set("unittests") {
     ":subcommand",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../base",
   ]
 }

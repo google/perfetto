@@ -27,6 +27,7 @@ class ReplSubcommand : public Subcommand {
   const char* description() const override;
   int Run(const SubcommandContext& ctx, int argc, char** argv) override;
   void PrintUsage(const char* argv0) override;
+  const option* GetLongOptions() const override;
 };
 
 }  // namespace perfetto::trace_processor::shell

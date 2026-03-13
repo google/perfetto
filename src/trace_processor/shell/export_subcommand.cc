@@ -49,17 +49,21 @@ Formats: sqlite
                 argv0);
 }
 
+static const option kExportLongOptions[] = {
+    {"output", required_argument, nullptr, 'o'},
+    GLOBAL_LONG_OPTIONS{nullptr, 0, nullptr, 0}};
+
+const option* ExportSubcommand::GetLongOptions() const {
+  return kExportLongOptions;
+}
+
 int ExportSubcommand::Run(const SubcommandContext& ctx, int argc, char** argv) {
   GlobalOptions global;
   std::string output_path;
 
-  static const option long_options[] = {
-      {"output", required_argument, nullptr, 'o'},
-      GLOBAL_LONG_OPTIONS{nullptr, 0, nullptr, 0}};
-
   optind = 1;
   for (;;) {
-    int option = getopt_long(argc, argv, "o:m:h", long_options, nullptr);
+    int option = getopt_long(argc, argv, "o:m:h", kExportLongOptions, nullptr);
     if (option == -1)
       break;
     if (HandleGlobalOption(option, optarg, global))
