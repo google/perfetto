@@ -67,12 +67,15 @@
 #include "src/trace_processor/read_trace_internal.h"
 #include "src/trace_processor/rpc/rpc.h"
 #include "src/trace_processor/rpc/stdiod.h"
+#include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/interactive.h"
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/metrics.h"
 #include "src/trace_processor/shell/query.h"
+#include "src/trace_processor/shell/query_subcommand.h"
 #include "src/trace_processor/shell/shell_utils.h"
 #include "src/trace_processor/shell/sql_packages.h"
+#include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/trace_summary/summary.h"
 #include "src/trace_processor/util/deobfuscation/deobfuscator.h"
 #include "src/trace_processor/util/sql_modules.h"
@@ -910,6 +913,71 @@ TraceProcessorShell::CreateWithDefaultPlatform() {
 }
 
 base::Status TraceProcessorShell::Run(int argc, char** argv) {
+  // Check for subcommands before classic flag parsing.
+  shell::QuerySubcommand query_subcommand;
+  std::vector<shell::Subcommand*> subcommands = {
+      &query_subcommand,
+  };
+
+  // All flags (both global and classic) that consume a following argument.
+  // Needed so FindSubcommandInArgs can skip flag values during the scan.
+  // Using a C array of string_view to avoid exit-time destructor warnings.
+  static constexpr std::string_view kFlagsWithArgArr[] = {
+      // Global flags.
+      "--dev-flag",
+      "--add-sql-package",
+      "--override-sql-package",
+      "--override-stdlib",
+      "--metatrace",
+      "-m",
+      "--metatrace-buffer-capacity",
+      "--metatrace-categories",
+      "--register-files-dir",
+      // Classic-only flags (still needed so scanner skips their values).
+      "--http-port",
+      "--http-ip-address",
+      "--http-additional-cors-origins",
+      "--query-file",
+      "-q",
+      "--query-string",
+      "-Q",
+      "--structured-query-spec",
+      "--structured-query-id",
+      "--summary-metrics-v2",
+      "--summary-metadata-query",
+      "--summary-spec",
+      "--summary-format",
+      "--export",
+      "-e",
+      "--perf-file",
+      "-p",
+      "--run-metrics",
+      "--pre-metrics",
+      "--metrics-output",
+      "--metric-extension",
+  };
+  std::vector<std::string> flags_with_arg(std::begin(kFlagsWithArgArr),
+                                          std::end(kFlagsWithArgArr));
+
+  auto result =
+      shell::FindSubcommandInArgs(argc, argv, subcommands, flags_with_arg);
+  if (result.subcommand) {
+    // Build a new argv with the subcommand name removed.
+    std::vector<char*> new_argv;
+    for (int i = 0; i < argc; ++i) {
+      if (i != result.argv_index) {
+        new_argv.push_back(argv[i]);
+      }
+    }
+    shell::SubcommandContext ctx;
+    ctx.platform = platform_interface_.get();
+    int ret = result.subcommand->Run(ctx, static_cast<int>(new_argv.size()),
+                                     new_argv.data());
+    // The subcommand handles its own error reporting. Use exit() to avoid
+    // TraceProcessorShellMain printing a redundant error message.
+    exit(ret);
+  }
+
   CommandLineOptions options = ParseCommandLineOptions(argc, argv);
 
   Config config = platform_interface_->DefaultConfig();
