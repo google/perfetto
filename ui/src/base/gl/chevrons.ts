@@ -138,11 +138,18 @@ function createBatchProgram(gl: WebGL2RenderingContext): ChevronBatchProgram {
     out vec4 fragColor;
 
     uniform sampler2D u_sdfTex;
+    uniform float u_width;
+    uniform vec2 u_viewScale;
+
+    // Adjust for sharper or softer edges - larger = softer, smaller = sharper
+    const float aaFactor = 2.0; 
 
     void main() {
       float sdfValue = texture(u_sdfTex, v_uv).a;
       float dist = (sdfValue - 0.5) * ${SDF_SPREAD};
-      float aa = fwidth(dist) * 0.75;
+      // Use the bounding box width to compute an anti-aliasing factor that keeps edges smooth at all sizes.
+      // Width is more important than height for AA since chevrons have more obvious vertical edges.
+      float aa = aaFactor * ${SDF_SPREAD} / (u_width * u_viewScale.y);
       float alpha = 1.0 - smoothstep(-aa, aa, dist);
 
       // Premultiply alpha for correct compositing over page background
