@@ -327,7 +327,7 @@ class SidebarFooter implements m.ClassComponent<OptionalTraceImplAttrs> {
       m(EngineRPCWidget, attrs),
       m(ServiceWorkerWidget),
       m(
-        '.pf-sidebar__version',
+        '.pf-sidebar__version.pf-test-volatile',
         m(
           'a',
           {

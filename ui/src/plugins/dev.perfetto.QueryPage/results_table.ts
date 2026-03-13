@@ -180,7 +180,8 @@ export class ResultsTable implements m.Component<ResultsTableAttrs> {
     const toolbarLeft = m(
       Stack,
       {orientation: 'horizontal', spacing: 'small'},
-      `Returned ${data.rowCount.toLocaleString()} rows in ${data.queryTimeMs.toLocaleString()} ms`,
+      `Returned ${data.rowCount.toLocaleString()} rows in `,
+      m('span.pf-test-volatile', `${data.queryTimeMs.toLocaleString()} ms`),
     );
 
     const debugTrackButton =
