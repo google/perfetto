@@ -19,7 +19,10 @@ source_set("subcommand") {
     "subcommand.cc",
     "subcommand.h",
   ]
-  deps = [ "../../../gn:default_deps" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+  ]
 }
 
 source_set("interactive") {
@@ -105,6 +108,43 @@ source_set("query") {
   public_deps = [ "../../../include/perfetto/trace_processor:trace_processor" ]
 }
 
+source_set("common_flags") {
+  sources = [
+    "common_flags.cc",
+    "common_flags.h",
+  ]
+  deps = [
+    ":metatrace",
+    ":shell_utils",
+    ":sql_packages",
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
+    "../../base",
+    "../util/deobfuscation:deobfuscator",
+    "../util/symbolizer",
+    "../util/symbolizer:symbolize_database",
+  ]
+  public_deps = [ "../../../include/perfetto/trace_processor:trace_processor" ]
+}
+
+source_set("query_subcommand") {
+  sources = [
+    "query_subcommand.cc",
+    "query_subcommand.h",
+  ]
+  deps = [
+    ":common_flags",
+    ":interactive",
+    ":metatrace",
+    ":query",
+    ":subcommand",
+    "../../../gn:default_deps",
+    "../../../gn:protobuf_full",
+    "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
+    "../../base",
+  ]
+}
+
 source_set("unittests") {
   testonly = true
   sources = [ "find_subcommand_unittest.cc" ]
@@ -112,5 +152,6 @@ source_set("unittests") {
     ":subcommand",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../base",
   ]
 }
