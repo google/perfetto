@@ -60,6 +60,13 @@ ARTIFACTS = [
         'name': 'traced_probes',
         'exclude_platforms': ['windows-amd64']
     },
+    {
+        # GN shared_library target name; the output file is
+        # libheapprofd_glibc_preload.so (GN adds lib prefix + .so suffix).
+        'name': 'heapprofd_glibc_preload',
+        'file': 'libheapprofd_glibc_preload.so',
+        'include_platforms': ['linux-amd64', 'linux-arm', 'linux-arm64'],
+    },
 ]
 
 
@@ -83,18 +90,30 @@ def GnArgs(platform):
   return base_args + ' target_os="{}" target_cpu="{}"'.format(os, cpu)
 
 
+def should_build_artifact(artifact, platform):
+  if platform in artifact.get('exclude_platforms', []):
+    return False
+  include_platforms = artifact.get('include_platforms', None)
+  if include_platforms is not None and platform not in include_platforms:
+    return False
+  return True
+
+
 def UploadArtifact(api, ctx, platform, out_dir, artifact):
-  exclude_platforms = artifact.get('exclude_platforms', [])
-  if platform in exclude_platforms:
+  if not should_build_artifact(artifact, platform):
     return
 
   # We want to use the stripped binaries except on Windows where we don't generate
   # them.
   exe_dir = out_dir if api.platform.is_win else out_dir.join('stripped')
 
-  # Compute the exact artifact path
+  # Compute the exact artifact path. Use 'file' override when present (e.g.
+  # for shared libraries whose output name differs from the GN target name).
   gcs_upload_dir = ctx.maybe_git_tag if ctx.maybe_git_tag else ctx.git_revision
-  artifact_ext = artifact['name'] + ('.exe' if api.platform.is_win else '')
+  if 'file' in artifact:
+    artifact_ext = artifact['file']
+  else:
+    artifact_ext = artifact['name'] + ('.exe' if api.platform.is_win else '')
   source_path = exe_dir.join(artifact_ext)
 
   # Upload to GCS bucket - build all target paths first
@@ -196,9 +215,7 @@ def BuildForPlatform(api, ctx, platform):
 
   with api.context(cwd=ctx.src_dir), api.macos_sdk(), api.windows_sdk():
     targets = [
-        x['name']
-        for x in ARTIFACTS
-        if platform not in x.get('exclude_platforms', [])
+        x['name'] for x in ARTIFACTS if should_build_artifact(x, platform)
     ]
     args = GnArgs(platform)
     api.step('gn gen',

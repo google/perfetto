@@ -61,6 +61,9 @@ export interface TabsAttrs {
   // Called when the "new tab" button is clicked. When set, a "+" button is
   // shown at the end of the tab bar.
   onNewTab?(): void;
+  // Custom content to render in place of the default "+" button. When set,
+  // onNewTab is ignored and this content is rendered instead.
+  readonly newTabContent?: m.Children;
   // Additional class name for the container.
   readonly className?: string;
 }
@@ -243,6 +246,7 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
       reorderable,
       onTabReorder,
       onNewTab,
+      newTabContent,
       className,
     } = attrs;
 
@@ -370,12 +374,13 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
             ),
           );
         }),
-        onNewTab &&
-          m(Button, {
-            icon: Icons.Add,
-            className: 'pf-tabs__new-tab-btn',
-            onclick: () => onNewTab(),
-          }),
+        newTabContent ??
+          (onNewTab &&
+            m(Button, {
+              icon: Icons.Add,
+              className: 'pf-tabs__new-tab-btn',
+              onclick: () => onNewTab(),
+            })),
       ),
       m(
         '.pf-tabs__content',

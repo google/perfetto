@@ -49,13 +49,11 @@ describe('StructuredQueryBuilder', () => {
       const columns: ColumnInfo[] = [
         {
           name: 'id',
-          type: 'INTEGER',
           checked: true,
           column: {name: 'id', type: intType},
         },
         {
           name: 'name',
-          type: 'STRING',
           checked: true,
           column: {name: 'name', type: stringType},
         },
@@ -72,19 +70,16 @@ describe('StructuredQueryBuilder', () => {
       const columns: ColumnInfo[] = [
         {
           name: 'id',
-          type: 'INTEGER',
           checked: true,
           column: {name: 'id', type: intType},
         },
         {
           name: 'name',
-          type: 'STRING',
           checked: false,
           column: {name: 'name', type: stringType},
         },
         {
           name: 'age',
-          type: 'INTEGER',
           checked: true,
           column: {name: 'age', type: intType},
         },
@@ -103,14 +98,12 @@ describe('StructuredQueryBuilder', () => {
       const columns: ColumnInfo[] = [
         {
           name: 'id',
-          type: 'INTEGER',
           checked: true,
           column: {name: 'id', type: intType},
           alias: 'identifier',
         },
         {
           name: 'name',
-          type: 'STRING',
           checked: false,
           column: {name: 'name', type: stringType},
         },
@@ -139,13 +132,11 @@ describe('StructuredQueryBuilder', () => {
       const columns: ColumnInfo[] = [
         {
           name: 'id',
-          type: 'INTEGER',
           checked: false,
           column: {name: 'id', type: intType},
         },
         {
           name: 'name',
-          type: 'STRING',
           checked: false,
           column: {name: 'name', type: stringType},
         },

@@ -86,6 +86,7 @@ import {
   VisualisationNode,
   VisualisationNodeState,
 } from './nodes/visualisation_node';
+import {DashboardNode, DashboardSerializedState} from './nodes/dashboard_node';
 import {Icons} from '../../../base/semantic_icons';
 import {NodeType} from '../query_node';
 
@@ -606,6 +607,22 @@ export function registerCoreNodes() {
       }),
   });
 
+  nodeRegistry.register('dashboard', {
+    name: 'Export to Dashboard',
+    description: 'Export this data source so it can be used on dashboards.',
+    icon: 'dashboard',
+    type: 'export',
+    nodeType: NodeType.kDashboard,
+    hasPrimaryInput: true,
+    allowedChildren: [],
+    factory: (state) => new DashboardNode(state),
+    deserialize: (state) =>
+      new DashboardNode(
+        DashboardNode.deserializeState(state as DashboardSerializedState),
+      ),
+    postDeserializeLate: (node) => (node as DashboardNode).onPrevNodesUpdated(),
+  });
+
   nodeRegistry.register('trace_summary', {
     name: 'Trace Summary',
     description:
@@ -661,6 +678,7 @@ export function registerCoreNodes() {
     'join',
     'create_slices',
     'union_node',
+    'dashboard',
   ]);
 
   // Validate that all allowedChildren references point to registered nodes.

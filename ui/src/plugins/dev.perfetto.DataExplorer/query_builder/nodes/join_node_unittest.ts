@@ -38,12 +38,11 @@ describe('JoinNode', () => {
 
   function createColumnInfo(
     name: string,
-    type: string,
+    _type: string,
     checked: boolean = true,
   ): ColumnInfo {
     return {
       name,
-      type,
       checked,
       column: {name},
     };
@@ -55,7 +54,6 @@ describe('JoinNode', () => {
   ): ColumnInfo[] {
     return columns.map((c) => ({
       name: c.name,
-      type: c.type,
       checked: c.checked ?? true,
       column: {name: c.name},
     }));

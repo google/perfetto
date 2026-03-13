@@ -25,8 +25,8 @@ import {
   columnInfoFromSqlColumn,
 } from '../column_info';
 import {
+  PerfettoSqlType,
   PerfettoSqlTypes,
-  parsePerfettoSqlTypeFromString,
 } from '../../../../trace_processor/perfetto_sql_type';
 import protos from '../../../../protos';
 import m from 'mithril';
@@ -155,17 +155,7 @@ export class AddColumnsNode implements QueryNode {
           const sourceCol = this.rightCols.find((col) => col.name === c);
           if (sourceCol) {
             // Use stored type if available, otherwise use source type
-            let finalType = sourceCol.column.type;
-
-            if (storedType) {
-              // Parse the stored type string
-              const parsedType = parsePerfettoSqlTypeFromString({
-                type: storedType,
-              });
-              if (parsedType.ok) {
-                finalType = parsedType.value;
-              }
-            }
+            const finalType = storedType ?? sourceCol.column.type;
 
             return columnInfoFromSqlColumn({
               name: alias ?? c,
@@ -183,28 +173,19 @@ export class AddColumnsNode implements QueryNode {
       this.state.computedColumns
         ?.filter((c) => this.isComputedColumnValid(c))
         .map((col) => {
-          // Use stored sqlType if available (from deserialization)
+          // Use stored sqlType if available (from deserialization or user change)
           if (col.sqlType) {
-            // Parse the stored type string and use it
-            const parsedType = parsePerfettoSqlTypeFromString({
-              type: col.sqlType,
-            });
-            if (!parsedType.ok) {
-              console.warn(
-                `Failed to parse stored type '${col.sqlType}' for column '${col.name}', defaulting to INT`,
-              );
-            }
             return columnInfoFromSqlColumn({
               name: col.name,
-              type: parsedType.ok ? parsedType.value : PerfettoSqlTypes.INT,
+              type: col.sqlType,
             });
           }
           // Try to preserve type information if the expression is a simple column reference
           const sourceCol = this.sourceCols.find(
             (c) => c.column.name === col.expression,
           );
-          if (sourceCol && sourceCol.column.type) {
-            col.sqlType = sourceCol.type;
+          if (sourceCol?.column.type) {
+            col.sqlType = sourceCol.column.type;
             return columnInfoFromSqlColumn({
               name: col.name,
               type: sourceCol.column.type,
@@ -1230,12 +1211,11 @@ export class AddColumnsNode implements QueryNode {
     // Create a ColumnInfo-like object for renderTypeSelector
     const colInfo: ColumnInfo = {
       name: col.name || '(unnamed)',
-      type: col.sqlType ?? 'UNKNOWN',
       checked: true,
-      column: {name: col.name},
+      column: {name: col.name, type: col.sqlType},
     };
 
-    const handleTypeChange = (_index: number, newType: string) => {
+    const handleTypeChange = (_index: number, newType: PerfettoSqlType) => {
       if (!this.state.computedColumns) return;
       const newComputedColumns = [...this.state.computedColumns];
       newComputedColumns[index] = {
@@ -1800,13 +1780,15 @@ export class AddColumnsNode implements QueryNode {
             )
           : undefined,
       columnTypes:
-        (serializedState.columnTypes as unknown as Record<string, string>) !==
-        undefined
+        (serializedState.columnTypes as unknown as Record<
+          string,
+          PerfettoSqlType
+        >) !== undefined
           ? new Map(
               Object.entries(
                 serializedState.columnTypes as unknown as Record<
                   string,
-                  string
+                  PerfettoSqlType
                 >,
               ),
             )
