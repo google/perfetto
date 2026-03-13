@@ -148,6 +148,13 @@ export interface LineChartAttrs {
    * Defaults to no grid lines.
    */
   readonly gridLines?: 'horizontal' | 'vertical' | 'both';
+
+  /**
+   * When true, series are stacked and shown as filled areas.
+   * The total height is the sum of all series values. Defaults to false.
+   * Note: When stacked, all series must be aligned to the same X values.
+   */
+  readonly stacked?: boolean;
 }
 
 export class LineChart implements m.ClassComponent<LineChartAttrs> {
@@ -189,27 +196,14 @@ function buildLineOption(
     showPoints = true,
     lineWidth = 2,
     gridLines,
+    stacked = false,
   } = attrs;
   const fmtX = formatXValue ?? formatNumber;
   const fmtY = formatYValue ?? formatNumber;
 
   const displayLegend = showLegend ?? data.series.length > 1;
 
-  const series = data.series.map((s) => {
-    return {
-      type: 'line' as const,
-      name: s.name,
-      data: s.points.map((p) => [p.x, p.y]),
-      lineStyle:
-        s.color !== undefined
-          ? {width: lineWidth, color: s.color}
-          : {width: lineWidth},
-      itemStyle: s.color !== undefined ? {color: s.color} : undefined,
-      showSymbol: showPoints,
-      symbolSize: 6,
-      emphasis: {itemStyle: {borderWidth: 2}},
-    };
-  });
+  const series = buildLineSeries(data, stacked, lineWidth, showPoints);
 
   const option = buildChartOption({
     grid: {
@@ -217,12 +211,13 @@ function buildLineOption(
       bottom: xAxisLabel ? 40 : 25,
     },
     xAxis: {
-      type: 'value',
+      // Nasty ECharts quirk: when stacking, the xAxis must be type 'category'
+      // or 'time'. Since we want to support x-values at irregular intervals, we
+      // use 'time' type which allows numeric timestamps, and override the label
+      // formatter to show numbers.
+      type: stacked ? 'time' : 'value',
       name: xAxisLabel,
-      formatter:
-        formatXValue !== undefined
-          ? (v) => formatXValue(v as number)
-          : undefined,
+      formatter: (v) => fmtX(v as number),
       minInterval: integerX ? 1 : undefined,
       min: attrs.xAxisMin,
       max: attrs.xAxisMax,
@@ -293,4 +288,32 @@ function buildLineEventHandlers(
       },
     },
   ];
+}
+
+/**
+ * Build ECharts series configs. When stacked, aligns all series to
+ * shared x-values and uses ECharts native stack + areaStyle.
+ */
+function buildLineSeries(
+  data: LineChartData,
+  stacked: boolean,
+  lineWidth: number,
+  showPoints: boolean,
+): Array<Record<string, unknown>> {
+  return data.series.map((s) => ({
+    type: 'line',
+    name: s.name,
+    data: s.points.map((p) => [p.x, p.y]),
+    lineStyle:
+      s.color !== undefined
+        ? {width: lineWidth, color: s.color}
+        : {width: lineWidth},
+    itemStyle: s.color !== undefined ? {color: s.color} : undefined,
+    showSymbol: showPoints,
+    symbolSize: 6,
+    triggerLineEvent: true,
+    emphasis: {focus: 'series', itemStyle: {borderWidth: 2}},
+    stack: stacked ? 'total' : undefined,
+    areaStyle: stacked ? {} : undefined,
+  }));
 }
