@@ -29,11 +29,14 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/trace_processor/trace_processor_shell.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/shell_utils.h"
 #include "src/trace_processor/shell/sql_packages.h"
+#include "src/trace_processor/util/deobfuscation/deobfuscator.h"
+#include "src/trace_processor/util/symbolizer/symbolize_database.h"
 
 namespace perfetto::trace_processor::shell {
 
@@ -166,6 +169,71 @@ base::StatusOr<base::TimeNanos> LoadTraceFile(
     return base::ErrStatus("Could not read trace file (path: %s): %s",
                            trace_file.c_str(), status.c_message());
   }
+
+  // Symbolize and deobfuscate before finalizing the trace.
+  bool is_proto_trace = false;
+  {
+    auto it = tp->ExecuteQuery(
+        "SELECT str_value FROM metadata WHERE name = 'trace_type'");
+    while (it.Next()) {
+      if (it.Get(0).type == SqlValue::kString &&
+          std::string_view(it.Get(0).AsString()) == "proto") {
+        is_proto_trace = true;
+        break;
+      }
+    }
+  }
+
+  profiling::SymbolizerConfig sym_config;
+  const char* mode = getenv("PERFETTO_SYMBOLIZER_MODE");
+  std::vector<std::string> paths = profiling::GetPerfettoBinaryPath();
+  if (mode && std::string_view(mode) == "find") {
+    sym_config.find_symbol_paths = std::move(paths);
+  } else {
+    sym_config.index_symbol_paths = std::move(paths);
+  }
+  if (!sym_config.index_symbol_paths.empty() ||
+      !sym_config.find_symbol_paths.empty()) {
+    if (is_proto_trace) {
+      tp->Flush();
+      auto sym_result =
+          profiling::SymbolizeDatabaseAndLog(tp, sym_config, /*verbose=*/false);
+      if (sym_result.error == profiling::SymbolizerError::kOk &&
+          !sym_result.symbols.empty()) {
+        std::unique_ptr<uint8_t[]> buf(new uint8_t[sym_result.symbols.size()]);
+        memcpy(buf.get(), sym_result.symbols.data(), sym_result.symbols.size());
+        auto parse_status =
+            tp->Parse(std::move(buf), sym_result.symbols.size());
+        if (!parse_status.ok()) {
+          PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
+                                  parse_status.message().c_str());
+        }
+      }
+    } else {
+      PERFETTO_ELOG("Skipping symbolization for non-proto trace");
+    }
+  }
+
+  auto maybe_map = profiling::GetPerfettoProguardMapPath();
+  if (!maybe_map.empty()) {
+    if (is_proto_trace) {
+      tp->Flush();
+      profiling::ReadProguardMapsToDeobfuscationPackets(
+          maybe_map, [tp](const std::string& trace_proto) {
+            std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
+            memcpy(buf.get(), trace_proto.data(), trace_proto.size());
+            auto parse_status = tp->Parse(std::move(buf), trace_proto.size());
+            if (!parse_status.ok()) {
+              PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
+                                      parse_status.message().c_str());
+              return;
+            }
+          });
+    } else {
+      PERFETTO_ELOG("Skipping deobfuscation for non-proto trace");
+    }
+  }
+
   RETURN_IF_ERROR(tp->NotifyEndOfFile());
   base::TimeNanos t_load = base::GetWallTimeNs() - t_load_start;
 

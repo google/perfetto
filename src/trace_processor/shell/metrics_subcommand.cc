@@ -59,6 +59,27 @@ Flags:
                 argv0);
 }
 
+enum MetricsLocalOption {
+  OPT_RUN = 500,
+  OPT_PRE,
+  OPT_OUTPUT,
+  OPT_EXTENSION,
+  OPT_POST_QUERY,
+};
+
+static const option kMetricsLongOptions[] = {
+    {"run", required_argument, nullptr, OPT_RUN},
+    {"pre", required_argument, nullptr, OPT_PRE},
+    {"output", required_argument, nullptr, OPT_OUTPUT},
+    {"extension", required_argument, nullptr, OPT_EXTENSION},
+    {"post-query", required_argument, nullptr, OPT_POST_QUERY},
+    {"interactive", no_argument, nullptr, 'i'},
+    GLOBAL_LONG_OPTIONS{nullptr, 0, nullptr, 0}};
+
+const option* MetricsSubcommand::GetLongOptions() const {
+  return kMetricsLongOptions;
+}
+
 int MetricsSubcommand::Run(const SubcommandContext& ctx,
                            int argc,
                            char** argv) {
@@ -70,26 +91,9 @@ int MetricsSubcommand::Run(const SubcommandContext& ctx,
   std::string post_query_path;
   bool interactive = false;
 
-  enum LocalOption {
-    OPT_RUN = 500,
-    OPT_PRE,
-    OPT_OUTPUT,
-    OPT_EXTENSION,
-    OPT_POST_QUERY,
-  };
-
-  static const option long_options[] = {
-      {"run", required_argument, nullptr, OPT_RUN},
-      {"pre", required_argument, nullptr, OPT_PRE},
-      {"output", required_argument, nullptr, OPT_OUTPUT},
-      {"extension", required_argument, nullptr, OPT_EXTENSION},
-      {"post-query", required_argument, nullptr, OPT_POST_QUERY},
-      {"interactive", no_argument, nullptr, 'i'},
-      GLOBAL_LONG_OPTIONS{nullptr, 0, nullptr, 0}};
-
   optind = 1;
   for (;;) {
-    int option = getopt_long(argc, argv, "im:h", long_options, nullptr);
+    int option = getopt_long(argc, argv, "im:h", kMetricsLongOptions, nullptr);
     if (option == -1)
       break;
     if (HandleGlobalOption(option, optarg, global))

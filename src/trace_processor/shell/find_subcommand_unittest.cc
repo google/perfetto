@@ -15,6 +15,8 @@
  */
 
 #include "src/trace_processor/shell/subcommand.h"
+
+#include "perfetto/ext/base/getopt.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::shell {
@@ -23,14 +25,20 @@ namespace {
 // A minimal Subcommand implementation for testing.
 class FakeSubcommand : public Subcommand {
  public:
-  explicit FakeSubcommand(const char* n) : name_(n) {}
+  explicit FakeSubcommand(const char* n, const option* opts = nullptr)
+      : name_(n), opts_(opts) {}
   const char* name() const override { return name_; }
   const char* description() const override { return ""; }
   int Run(const SubcommandContext&, int, char**) override { return 0; }
   void PrintUsage(const char*) override {}
+  const option* GetLongOptions() const override {
+    static const option kEmpty[] = {{nullptr, 0, nullptr, 0}};
+    return opts_ ? opts_ : kEmpty;
+  }
 
  private:
   const char* name_;
+  const option* opts_;
 };
 
 // Helper to build an argv array from an initializer list. The returned
@@ -59,7 +67,7 @@ TEST(FindSubcommandTest, EmptyArgvReturnsNull) {
   std::vector<Subcommand*> subs = {&query};
 
   auto args = ArgvHolder::Make({"tp_shell"});
-  auto result = FindSubcommandInArgs(args.argc(), args.argv(), subs, {});
+  auto result = FindSubcommandInArgs(args.argc(), args.argv(), subs, subs);
   EXPECT_EQ(result.subcommand, nullptr);
 }
 
@@ -68,7 +76,7 @@ TEST(FindSubcommandTest, OnlyFlagsReturnsNull) {
   std::vector<Subcommand*> subs = {&query};
 
   auto args = ArgvHolder::Make({"tp_shell", "-v", "--full-sort"});
-  auto result = FindSubcommandInArgs(args.argc(), args.argv(), subs, {});
+  auto result = FindSubcommandInArgs(args.argc(), args.argv(), subs, subs);
   EXPECT_EQ(result.subcommand, nullptr);
 }
 
@@ -77,7 +85,7 @@ TEST(FindSubcommandTest, UnknownPositionalReturnsNull) {
   std::vector<Subcommand*> subs = {&query};
 
   auto args = ArgvHolder::Make({"tp_shell", "trace.pb"});
-  auto result = FindSubcommandInArgs(args.argc(), args.argv(), subs, {});
+  auto result = FindSubcommandInArgs(args.argc(), args.argv(), subs, subs);
   EXPECT_EQ(result.subcommand, nullptr);
 }
 
@@ -87,20 +95,26 @@ TEST(FindSubcommandTest, KnownSubcommandReturnsPtr) {
   std::vector<Subcommand*> subs = {&query, &serve};
 
   auto args = ArgvHolder::Make({"tp_shell", "query", "-c", "SELECT 1"});
-  auto result = FindSubcommandInArgs(args.argc(), args.argv(), subs, {});
+  auto result = FindSubcommandInArgs(args.argc(), args.argv(), subs, subs);
   EXPECT_EQ(result.subcommand, &query);
   EXPECT_EQ(result.argv_index, 1);
 }
 
 TEST(FindSubcommandTest, FlagWithArgSkipsValue) {
+  // A "classic" subcommand that declares --dev-flag with required_argument.
+  static const option classic_opts[] = {
+      {"dev-flag", required_argument, nullptr, 1000},
+      {nullptr, 0, nullptr, 0},
+  };
+  FakeSubcommand classic("classic", classic_opts);
   FakeSubcommand query("query");
   std::vector<Subcommand*> subs = {&query};
+  std::vector<Subcommand*> all = {&query, &classic};
 
   // --dev-flag takes an argument "x=y", so "query" at index 3 should be found.
   auto args =
       ArgvHolder::Make({"tp_shell", "--dev-flag", "x=y", "query", "trace.pb"});
-  auto result =
-      FindSubcommandInArgs(args.argc(), args.argv(), subs, {"--dev-flag"});
+  auto result = FindSubcommandInArgs(args.argc(), args.argv(), subs, all);
   EXPECT_EQ(result.subcommand, &query);
   EXPECT_EQ(result.argv_index, 3);
 }
@@ -111,7 +125,7 @@ TEST(FindSubcommandTest, SubcommandAfterFlags) {
 
   auto args =
       ArgvHolder::Make({"tp_shell", "--dev", "query", "-c", "sql", "trace.pb"});
-  auto result = FindSubcommandInArgs(args.argc(), args.argv(), subs, {});
+  auto result = FindSubcommandInArgs(args.argc(), args.argv(), subs, subs);
   EXPECT_EQ(result.subcommand, &query);
   EXPECT_EQ(result.argv_index, 2);
 }

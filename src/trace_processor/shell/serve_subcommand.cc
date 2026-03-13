@@ -62,28 +62,32 @@ Flags (http mode only):
                 argv0);
 }
 
+enum ServeLocalOption {
+  OPT_PORT = 500,
+  OPT_IP_ADDRESS,
+  OPT_ADDITIONAL_CORS_ORIGINS,
+};
+
+static const option kServeLongOptions[] = {
+    {"port", required_argument, nullptr, OPT_PORT},
+    {"ip-address", required_argument, nullptr, OPT_IP_ADDRESS},
+    {"additional-cors-origins", required_argument, nullptr,
+     OPT_ADDITIONAL_CORS_ORIGINS},
+    GLOBAL_LONG_OPTIONS{nullptr, 0, nullptr, 0}};
+
+const option* ServeSubcommand::GetLongOptions() const {
+  return kServeLongOptions;
+}
+
 int ServeSubcommand::Run(const SubcommandContext& ctx, int argc, char** argv) {
   GlobalOptions global;
   std::string port_number;
   std::string listen_ip;
   std::vector<std::string> additional_cors_origins;
 
-  enum LocalOption {
-    OPT_PORT = 500,
-    OPT_IP_ADDRESS,
-    OPT_ADDITIONAL_CORS_ORIGINS,
-  };
-
-  static const option long_options[] = {
-      {"port", required_argument, nullptr, OPT_PORT},
-      {"ip-address", required_argument, nullptr, OPT_IP_ADDRESS},
-      {"additional-cors-origins", required_argument, nullptr,
-       OPT_ADDITIONAL_CORS_ORIGINS},
-      GLOBAL_LONG_OPTIONS{nullptr, 0, nullptr, 0}};
-
   optind = 1;
   for (;;) {
-    int option = getopt_long(argc, argv, "m:h", long_options, nullptr);
+    int option = getopt_long(argc, argv, "m:h", kServeLongOptions, nullptr);
     if (option == -1)
       break;
     if (HandleGlobalOption(option, optarg, global))
