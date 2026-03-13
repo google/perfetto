@@ -14,94 +14,54 @@
 
 import("../../../gn/perfetto.gni")
 
-source_set("subcommand") {
+source_set("shell") {
   sources = [
-    "subcommand.cc",
-    "subcommand.h",
-  ]
-  deps = [ "../../../gn:default_deps" ]
-}
-
-source_set("interactive") {
-  sources = [
+    "common_flags.cc",
+    "common_flags.h",
+    "export_subcommand.cc",
+    "export_subcommand.h",
     "interactive.cc",
     "interactive.h",
+    "metatrace.cc",
+    "metatrace.h",
+    "metrics.cc",
+    "metrics.h",
+    "metrics_subcommand.cc",
+    "metrics_subcommand.h",
+    "query.cc",
+    "query.h",
+    "query_subcommand.cc",
+    "query_subcommand.h",
+    "repl_subcommand.cc",
+    "repl_subcommand.h",
+    "serve_subcommand.cc",
+    "serve_subcommand.h",
+    "shell_utils.cc",
+    "shell_utils.h",
+    "sql_packages.cc",
+    "sql_packages.h",
+    "subcommand.cc",
+    "subcommand.h",
+    "summarize_subcommand.cc",
+    "summarize_subcommand.h",
   ]
   deps = [
-    ":metrics",
-    ":query",
-    ":shell_utils",
     "../../../gn:default_deps",
+    "../../../gn:protobuf_full",
+    "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
     "../../base",
+    "../metrics",
+    "../rpc",
+    "../rpc:stdiod",
+    "../trace_summary",
+    "../util:stdlib",
   ]
   if (enable_perfetto_trace_processor_linenoise) {
     deps += [ "../../../gn:linenoise" ]
   }
-  public_deps = [ "../../../include/perfetto/trace_processor:trace_processor" ]
-}
-
-source_set("metatrace") {
-  sources = [
-    "metatrace.cc",
-    "metatrace.h",
-  ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../base",
-  ]
-  public_deps = [ "../../../include/perfetto/trace_processor:trace_processor" ]
-}
-
-source_set("metrics") {
-  sources = [
-    "metrics.cc",
-    "metrics.h",
-  ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../base",
-    "../metrics",
-  ]
-  public_deps = [
-    "../../../gn:protobuf_full",
-    "../../../include/perfetto/trace_processor:trace_processor",
-  ]
-}
-
-source_set("sql_packages") {
-  sources = [
-    "sql_packages.cc",
-    "sql_packages.h",
-  ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../base",
-    "../util:stdlib",
-  ]
-  public_deps = [ "../../../include/perfetto/trace_processor:trace_processor" ]
-}
-
-source_set("shell_utils") {
-  sources = [
-    "shell_utils.cc",
-    "shell_utils.h",
-  ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../base",
-  ]
-  public_deps = [ "../../../include/perfetto/trace_processor:trace_processor" ]
-}
-
-source_set("query") {
-  sources = [
-    "query.cc",
-    "query.h",
-  ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../base",
-  ]
+  if (enable_perfetto_trace_processor_httpd) {
+    deps += [ "../rpc:httpd" ]
+  }
   public_deps = [ "../../../include/perfetto/trace_processor:trace_processor" ]
 }
 
@@ -109,7 +69,7 @@ source_set("unittests") {
   testonly = true
   sources = [ "find_subcommand_unittest.cc" ]
   deps = [
-    ":subcommand",
+    ":shell",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
   ]

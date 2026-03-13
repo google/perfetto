@@ -16,6 +16,7 @@
 
 #include <string_view>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/base/temp_file.h"
@@ -23,6 +24,12 @@
 #include "protos/perfetto/trace_processor/trace_processor.gen.h"
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <unistd.h>
+#include <climits>
+#endif
 
 namespace perfetto::trace_processor {
 namespace {
@@ -94,10 +101,78 @@ TEST(TraceProcessorShellIntegrationTest, ClassicVersion) {
 }
 
 TEST(TraceProcessorShellIntegrationTest, ClassicHelp) {
+  // --help now shows the subcommand-aware help.
   auto result = RunShell({"-h"});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("Perfetto Trace Processor"));
+  EXPECT_THAT(result.out, HasSubstr("Commands:"));
+  EXPECT_THAT(result.out, HasSubstr("query"));
+  EXPECT_THAT(result.out, HasSubstr("repl"));
+  EXPECT_THAT(result.out, HasSubstr("serve"));
+  EXPECT_THAT(result.out, HasSubstr("summarize"));
+  EXPECT_THAT(result.out, HasSubstr("metrics"));
+  EXPECT_THAT(result.out, HasSubstr("export"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, HelpClassic) {
+  auto result = RunShell({"--help-classic"});
   EXPECT_EQ(result.exit_code, 0);
   EXPECT_THAT(result.out, HasSubstr("Interactive trace processor shell"));
 }
+
+TEST(TraceProcessorShellIntegrationTest, HelpCommand) {
+  auto result = RunShell({"help", "query"});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("Run SQL queries"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, HelpBare) {
+  auto result = RunShell({"help"});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("Commands:"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, HelpUnknownCommand) {
+  auto result = RunShell({"help", "nonexistent"});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, NoFileCollisionHintOnNormalUsage) {
+  // Normal subcommand usage should not emit the file collision hint.
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"query", "-c", "SELECT 1", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, Not(HasSubstr("matches both a subcommand")));
+}
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+TEST(TraceProcessorShellIntegrationTest, FileCollisionHint) {
+  // Create a file named "query" in a temp dir, chdir there, and run the shell
+  // with bare "query" as an arg. The dispatcher should match "query" as a
+  // subcommand but also notice the file and emit a hint.
+  auto tmpdir = base::TempDir::Create();
+  std::string file_path = std::string(tmpdir.path()) + "/query";
+  base::WriteAll(*base::OpenFile(file_path, O_WRONLY | O_CREAT | O_TRUNC, 0600),
+                 kSimpleSystrace.data(),
+                 static_cast<size_t>(kSimpleSystrace.size()));
+
+  // RAII guard: restore CWD and clean up the file no matter how the test exits.
+  char old_cwd[PATH_MAX];
+  ASSERT_NE(getcwd(old_cwd, sizeof(old_cwd)), nullptr);
+  ASSERT_EQ(chdir(tmpdir.path().c_str()), 0);
+  auto cleanup = base::OnScopeExit([&] {
+    chdir(old_cwd);
+    remove(file_path.c_str());
+  });
+
+  // "query" is interpreted as the subcommand (which fails — no -f/-c), but
+  // the hint should appear because a file named "query" exists in CWD.
+  auto result = RunShell({"query"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("matches both a subcommand and a file"));
+}
+#endif
 
 TEST(TraceProcessorShellIntegrationTest, ClassicUnknownFlag) {
   auto result = RunShell({"--nonexistent"});
@@ -188,6 +263,250 @@ TEST(TraceProcessorShellIntegrationTest, ClassicSummaryAndMetricsConflict) {
   auto trace = WriteSimpleSystrace();
   auto result =
       RunShell({"--summary", "--run-metrics", "android_cpu", trace.path()});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicWide) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"-W", "-Q", "SELECT 1", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicPerfFile) {
+  auto trace = WriteSimpleSystrace();
+  auto perf = base::TempFile::Create();
+  auto result = RunShell({"-p", perf.path(), "-Q", "SELECT 1", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicPerfFileWithoutQueryFails) {
+  auto trace = WriteSimpleSystrace();
+  auto perf = base::TempFile::Create();
+  // -p without -q/-Q means interactive mode, which rejects -p.
+  auto result = RunShell({"-p", perf.path(), trace.path()});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicExportWithQuery) {
+  auto trace = WriteSimpleSystrace();
+  auto out_db = base::TempFile::Create();
+  auto query = WriteTempFile("SELECT 1;");
+  auto result =
+      RunShell({"-e", out_db.path(), "-q", query.path(), trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_TRUE(base::FileExists(out_db.path()));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicSummaryWithQuery) {
+  // --summary + -q: summary output suppressed, query runs.
+  auto trace = WriteSimpleSystrace();
+  auto query = WriteTempFile("SELECT 42 AS val;");
+  auto result = RunShell({"--summary", "-q", query.path(), trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("42"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicInteractiveWithQuery) {
+  // -i + -Q: runs query then drops into REPL (which exits on /dev/null stdin).
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"-i", "-Q", "SELECT 1 AS x", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("x"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicDefaultInteractive) {
+  // No flags other than trace = interactive mode (exits on /dev/null stdin).
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicOverrideStdlibWithoutDevFails) {
+  auto trace = WriteSimpleSystrace();
+  auto result =
+      RunShell({"--override-stdlib", "/tmp", "-Q", "SELECT 1", trace.path()});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicStdiodNoTrace) {
+  // --stdiod without trace file should work.
+  TraceProcessorRpcStream req;
+  auto* rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_QUERY_STREAMING);
+  rpc->mutable_query_args()->set_sql_query("SELECT 1 AS x");
+
+  base::Subprocess process({ShellPath(), "--stdiod"});
+  process.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  process.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.input = req.SerializeAsString();
+  process.Start();
+
+  ASSERT_TRUE(process.Wait(kDefaultTestTimeoutMs));
+
+  TraceProcessorRpcStream stream;
+  stream.ParseFromString(process.output());
+  ASSERT_THAT(stream.msg(), SizeIs(1));
+  ASSERT_EQ(stream.msg()[0].response(), TraceProcessorRpc::TPM_QUERY_STREAMING);
+}
+
+// ---------------------------------------------------------------------------
+// Subcommand: query
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, QuerySubcommandSqlString) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"query", "-c", "SELECT 1 AS x", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("x"));
+  EXPECT_THAT(result.out, HasSubstr("1"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, QuerySubcommandSqlFile) {
+  auto trace = WriteSimpleSystrace();
+  auto query = WriteTempFile("SELECT 42 AS val;");
+  auto result = RunShell({"query", "-f", query.path(), trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("val"));
+  EXPECT_THAT(result.out, HasSubstr("42"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, QuerySubcommandGlobalFlagBefore) {
+  auto trace = WriteSimpleSystrace();
+  auto result =
+      RunShell({"--dev", "query", "-c", "SELECT 1 AS x", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("1"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, QuerySubcommandNoQueryFails) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"query", trace.path()});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, QuerySubcommandNoTraceFails) {
+  auto result = RunShell({"query", "-c", "SELECT 1"});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, QuerySubcommandBadFileFails) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"query", "-f", "/nonexistent.sql", trace.path()});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Subcommand: repl
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, ReplSubcommand) {
+  // With stdin=/dev/null the REPL exits immediately.
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"repl", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ReplSubcommandWide) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"repl", "-W", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ReplSubcommandNoTraceFails) {
+  auto result = RunShell({"repl"});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ReplSubcommandGlobalFlagBefore) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"--dev", "repl", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Subcommand: serve
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, ServeSubcommandStdio) {
+  TraceProcessorRpcStream req;
+  auto* rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_QUERY_STREAMING);
+  rpc->mutable_query_args()->set_sql_query("SELECT 1 AS x");
+
+  base::Subprocess process({ShellPath(), "serve", "stdio"});
+  process.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  process.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.input = req.SerializeAsString();
+  process.Start();
+
+  ASSERT_TRUE(process.Wait(kDefaultTestTimeoutMs));
+
+  TraceProcessorRpcStream stream;
+  stream.ParseFromString(process.output());
+
+  ASSERT_THAT(stream.msg(), SizeIs(1));
+  ASSERT_EQ(stream.msg()[0].response(), TraceProcessorRpc::TPM_QUERY_STREAMING);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServeSubcommandNoModeFails) {
+  auto result = RunShell({"serve"});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServeSubcommandBadModeFails) {
+  auto result = RunShell({"serve", "badmode"});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Subcommand: summarize
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, SummarizeSubcommand) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"summarize", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, SummarizeSubcommandNoTraceFails) {
+  auto result = RunShell({"summarize"});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Subcommand: metrics
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, MetricsSubcommandNoRunFails) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"metrics", trace.path()});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Subcommand: export
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, ExportSubcommandSqlite) {
+  auto trace = WriteSimpleSystrace();
+  auto out_db = base::TempFile::Create();
+  auto result =
+      RunShell({"export", "sqlite", "-o", out_db.path(), trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_TRUE(base::FileExists(out_db.path()));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ExportSubcommandNoFormatFails) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"export", trace.path()});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ExportSubcommandNoOutputFails) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"export", "sqlite", trace.path()});
   EXPECT_NE(result.exit_code, 0);
 }
 

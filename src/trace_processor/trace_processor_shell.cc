@@ -67,12 +67,20 @@
 #include "src/trace_processor/read_trace_internal.h"
 #include "src/trace_processor/rpc/rpc.h"
 #include "src/trace_processor/rpc/stdiod.h"
+#include "src/trace_processor/shell/common_flags.h"
+#include "src/trace_processor/shell/export_subcommand.h"
 #include "src/trace_processor/shell/interactive.h"
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/metrics.h"
+#include "src/trace_processor/shell/metrics_subcommand.h"
 #include "src/trace_processor/shell/query.h"
+#include "src/trace_processor/shell/query_subcommand.h"
+#include "src/trace_processor/shell/repl_subcommand.h"
+#include "src/trace_processor/shell/serve_subcommand.h"
 #include "src/trace_processor/shell/shell_utils.h"
 #include "src/trace_processor/shell/sql_packages.h"
+#include "src/trace_processor/shell/subcommand.h"
+#include "src/trace_processor/shell/summarize_subcommand.h"
 #include "src/trace_processor/trace_summary/summary.h"
 #include "src/trace_processor/util/deobfuscation/deobfuscator.h"
 #include "src/trace_processor/util/sql_modules.h"
@@ -115,8 +123,10 @@ TraceSummarySpecBytes::Format GuessSummarySpecFormat(
     const std::string& content);
 
 struct CommandLineOptions {
-  std::string trace_file_path;
+  // Global options shared with subcommands (TP config, metatrace, etc.).
+  shell::GlobalOptions global;
 
+  // Classic-only options.
   bool enable_httpd = false;
   std::string port_number;
   std::string listen_ip;
@@ -124,15 +134,10 @@ struct CommandLineOptions {
   bool enable_stdiod = false;
   bool launch_shell = false;
 
-  bool force_full_sort = false;
-  bool no_ftrace_raw = false;
-
   std::string query_file_path;
   std::string query_string;
   std::vector<std::string> structured_query_specs;
   std::string structured_query_id;
-  std::vector<std::string> sql_package_paths;
-  std::vector<std::string> override_sql_package_paths;
 
   bool summary = false;
   std::string summary_metrics_v2;
@@ -140,23 +145,9 @@ struct CommandLineOptions {
   std::vector<std::string> summary_specs;
   std::string summary_output;
 
-  std::string metatrace_path;
-  size_t metatrace_buffer_capacity = 0;
-  metatrace::MetatraceCategories metatrace_categories =
-      static_cast<metatrace::MetatraceCategories>(
-          metatrace::MetatraceCategories::QUERY_TIMELINE |
-          metatrace::MetatraceCategories::API_TIMELINE);
-
-  bool dev = false;
-  std::vector<std::string> dev_flags;
-  bool extra_checks = false;
   std::string export_file_path;
   std::string perf_file_path;
   bool wide = false;
-  bool analyze_trace_proto_content = false;
-  bool crop_track_events = false;
-  std::string register_files_dir;
-  std::string override_stdlib_path;
 
   std::string pre_metrics_v1_path;
   std::string metric_v1_names;
@@ -164,7 +155,59 @@ struct CommandLineOptions {
   std::vector<std::string> raw_metric_v1_extensions;
 };
 
-void PrintUsage(char** argv) {
+void PrintSubcommandHelp(const char* argv0) {
+  PERFETTO_ELOG(R"(
+Perfetto Trace Processor.
+Usage: %s [command] [flags] [trace_file]
+
+If no command is given, opens an interactive SQL shell on the trace file.
+
+Commands:
+
+  query         Run SQL queries against a trace.
+                  %s query -c "SELECT ts, dur FROM slice" trace.pb
+                  %s query -f query.sql trace.pb
+                Flags: -f FILE, -c STRING, -i (interactive after), -W (wide)
+
+  repl          Interactive SQL shell (default).
+                  %s trace.pb
+                  %s repl trace.pb
+                Flags: -W (wide)
+
+  serve         Start an RPC server.
+                  %s serve http trace.pb
+                  %s serve http --port 9001 trace.pb
+                  %s serve stdio
+                Modes: http, stdio
+
+  summarize     Run trace summarization.
+                  %s summarize --metrics-v2 all --spec spec.textproto trace.pb
+                Flags: --spec PATH, --metrics-v2 IDS, --format [text|binary]
+
+  metrics       Run v1 metrics (deprecated).
+                  %s metrics --run android_cpu trace.pb
+                Flags: --run NAMES, --output [binary|text|json]
+
+  export        Export trace to a database file.
+                  %s export sqlite -o out.db trace.pb
+                Formats: sqlite
+
+Global flags (apply to all commands):
+  --dev, --full-sort, --no-ftrace-raw, --metatrace FILE, ...
+  Run '%s help <command>' for full flag details.
+
+Previous versions of trace_processor_shell used a flat flag interface
+(e.g. -q file.sql, --httpd, --summary, -e output.db). This interface
+is fully supported and will remain so permanently. If you have existing
+scripts or are following older documentation that uses these flags, they
+will continue to work exactly as before.
+  Run '%s --help-classic' to see the flat flag reference.
+)",
+                argv0, argv0, argv0, argv0, argv0, argv0, argv0, argv0, argv0,
+                argv0, argv0, argv0, argv0);
+}
+
+void PrintClassicUsage(char** argv) {
   PERFETTO_ELOG(R"(
 Interactive trace processor shell.
 Usage: %s [FLAGS] trace_file.pb
@@ -408,10 +451,13 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_PRE_METRICS,
     OPT_METRICS_OUTPUT,
     OPT_METRIC_EXTENSION,
+
+    OPT_HELP_CLASSIC,
   };
 
   static const option long_options[] = {
       {"help", no_argument, nullptr, 'h'},
+      {"help-classic", no_argument, nullptr, OPT_HELP_CLASSIC},
       {"version", no_argument, nullptr, 'v'},
 
       {"httpd", no_argument, nullptr, 'D'},
@@ -545,59 +591,60 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     }
 
     if (option == 'm') {
-      command_line_options.metatrace_path = optarg;
+      command_line_options.global.metatrace_path = optarg;
       continue;
     }
 
     if (option == OPT_METATRACE_BUFFER_CAPACITY) {
-      command_line_options.metatrace_buffer_capacity =
+      command_line_options.global.metatrace_buffer_capacity =
           static_cast<size_t>(atoi(optarg));
       continue;
     }
 
     if (option == OPT_METATRACE_CATEGORIES) {
-      command_line_options.metatrace_categories =
+      command_line_options.global.metatrace_categories =
           ParseMetatraceCategories(optarg);
       continue;
     }
 
     if (option == OPT_FORCE_FULL_SORT) {
-      command_line_options.force_full_sort = true;
+      command_line_options.global.force_full_sort = true;
       continue;
     }
 
     if (option == OPT_NO_FTRACE_RAW) {
-      command_line_options.no_ftrace_raw = true;
+      command_line_options.global.no_ftrace_raw = true;
       continue;
     }
 
     if (option == OPT_ANALYZE_TRACE_PROTO_CONTENT) {
-      command_line_options.analyze_trace_proto_content = true;
+      command_line_options.global.analyze_trace_proto_content = true;
       continue;
     }
 
     if (option == OPT_CROP_TRACK_EVENTS) {
-      command_line_options.crop_track_events = true;
+      command_line_options.global.crop_track_events = true;
       continue;
     }
 
     if (option == OPT_DEV) {
-      command_line_options.dev = true;
+      command_line_options.global.dev = true;
       continue;
     }
 
     if (option == OPT_EXTRA_CHECKS) {
-      command_line_options.extra_checks = true;
+      command_line_options.global.extra_checks = true;
       continue;
     }
 
     if (option == OPT_ADD_SQL_PACKAGE) {
-      command_line_options.sql_package_paths.emplace_back(optarg);
+      command_line_options.global.sql_package_paths.emplace_back(optarg);
       continue;
     }
 
     if (option == OPT_OVERRIDE_SQL_PACKAGE) {
-      command_line_options.override_sql_package_paths.emplace_back(optarg);
+      command_line_options.global.override_sql_package_paths.emplace_back(
+          optarg);
       continue;
     }
 
@@ -612,7 +659,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     }
 
     if (option == OPT_OVERRIDE_STDLIB) {
-      command_line_options.override_stdlib_path = optarg;
+      command_line_options.global.override_stdlib_path = optarg;
       continue;
     }
 
@@ -637,12 +684,12 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     }
 
     if (option == OPT_DEV_FLAG) {
-      command_line_options.dev_flags.emplace_back(optarg);
+      command_line_options.global.dev_flags.emplace_back(optarg);
       continue;
     }
 
     if (option == OPT_REGISTER_FILES_DIR) {
-      command_line_options.register_files_dir = optarg;
+      command_line_options.global.register_files_dir = optarg;
       continue;
     }
 
@@ -671,8 +718,16 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       continue;
     }
 
-    PrintUsage(argv);
-    exit(option == 'h' ? 0 : 1);
+    if (option == OPT_HELP_CLASSIC) {
+      PrintClassicUsage(argv);
+      exit(0);
+    }
+    if (option == 'h') {
+      PrintSubcommandHelp(argv[0]);
+      exit(0);
+    }
+    PrintClassicUsage(argv);
+    exit(1);
   }
 
   command_line_options.launch_shell =
@@ -687,7 +742,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   // Only allow non-interactive queries to emit perf data.
   if (!command_line_options.perf_file_path.empty() &&
       command_line_options.launch_shell) {
-    PrintUsage(argv);
+    PrintClassicUsage(argv);
     exit(1);
   }
 
@@ -701,10 +756,10 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   // in --httpd or --stdiod mode. In all other cases, the last argument must be
   // the trace file.
   if (optind == argc - 1 && argv[optind]) {
-    command_line_options.trace_file_path = argv[optind];
+    command_line_options.global.trace_file = argv[optind];
   } else if (!command_line_options.enable_httpd &&
              !command_line_options.enable_stdiod) {
-    PrintUsage(argv);
+    PrintClassicUsage(argv);
     exit(1);
   }
 
@@ -803,42 +858,6 @@ MetricV1OutputFormat ParseMetricV1OutputFormat(
   return MetricV1OutputFormat::kTextProto;
 }
 
-base::Status MaybeUpdateSqlPackages(TraceProcessor* trace_processor,
-                                    const CommandLineOptions& options) {
-  if (!options.override_stdlib_path.empty()) {
-    if (!options.dev)
-      return base::ErrStatus("Overriding stdlib requires --dev flag");
-
-    auto status =
-        LoadOverridenStdlib(trace_processor, options.override_stdlib_path);
-    if (!status.ok())
-      return base::ErrStatus("Couldn't override stdlib: %s",
-                             status.c_message());
-  }
-
-  if (!options.override_sql_package_paths.empty()) {
-    for (const auto& override_sql_package_path :
-         options.override_sql_package_paths) {
-      auto status =
-          IncludeSqlPackage(trace_processor, override_sql_package_path, true);
-      if (!status.ok())
-        return base::ErrStatus("Couldn't override stdlib package: %s",
-                               status.c_message());
-    }
-  }
-
-  if (!options.sql_package_paths.empty()) {
-    for (const auto& add_sql_package_path : options.sql_package_paths) {
-      auto status =
-          IncludeSqlPackage(trace_processor, add_sql_package_path, false);
-      if (!status.ok())
-        return base::ErrStatus("Couldn't add SQL package: %s",
-                               status.c_message());
-    }
-  }
-  return base::OkStatus();
-}
-
 TraceSummarySpecBytes::Format GuessSummarySpecFormat(
     const std::string& path,
     const std::string& content) {
@@ -910,58 +929,129 @@ TraceProcessorShell::CreateWithDefaultPlatform() {
 }
 
 base::Status TraceProcessorShell::Run(int argc, char** argv) {
+  // Check for subcommands before classic flag parsing.
+  shell::QuerySubcommand query_subcommand;
+  shell::ReplSubcommand repl_subcommand;
+  shell::ServeSubcommand serve_subcommand;
+  shell::SummarizeSubcommand summarize_subcommand;
+  shell::MetricsSubcommand metrics_subcommand;
+  shell::ExportSubcommand export_subcommand;
+  std::vector<shell::Subcommand*> subcommands = {
+      &query_subcommand,     &repl_subcommand,    &serve_subcommand,
+      &summarize_subcommand, &metrics_subcommand, &export_subcommand,
+  };
+
+  // All flags (both global and classic) that consume a following argument.
+  // Needed so FindSubcommandInArgs can skip flag values during the scan.
+  // Using a C array of string_view to avoid exit-time destructor warnings.
+  static constexpr std::string_view kFlagsWithArgArr[] = {
+      // Global flags.
+      "--dev-flag",
+      "--add-sql-package",
+      "--override-sql-package",
+      "--override-stdlib",
+      "--metatrace",
+      "-m",
+      "--metatrace-buffer-capacity",
+      "--metatrace-categories",
+      "--register-files-dir",
+      // Classic-only flags (still needed so scanner skips their values).
+      "--http-port",
+      "--http-ip-address",
+      "--http-additional-cors-origins",
+      "--query-file",
+      "-q",
+      "--query-string",
+      "-Q",
+      "--structured-query-spec",
+      "--structured-query-id",
+      "--summary-metrics-v2",
+      "--summary-metadata-query",
+      "--summary-spec",
+      "--summary-format",
+      "--export",
+      "-e",
+      "--perf-file",
+      "-p",
+      "--run-metrics",
+      "--pre-metrics",
+      "--metrics-output",
+      "--metric-extension",
+  };
+  std::vector<std::string> flags_with_arg(std::begin(kFlagsWithArgArr),
+                                          std::end(kFlagsWithArgArr));
+
+  // Handle "help" pseudo-subcommand: `tp help <command>` or bare `tp help`.
+  for (int i = 1; i < argc; ++i) {
+    if (argv[i][0] == '-')
+      continue;
+    if (strcmp(argv[i], "help") == 0) {
+      if (i + 1 < argc) {
+        // `help <command>` — find the named subcommand and print its usage.
+        for (auto* sc : subcommands) {
+          if (strcmp(sc->name(), argv[i + 1]) == 0) {
+            sc->PrintUsage(argv[0]);
+            exit(0);
+          }
+        }
+        PERFETTO_ELOG("Unknown command '%s'.", argv[i + 1]);
+        PrintSubcommandHelp(argv[0]);
+        exit(1);
+      }
+      // Bare `help` — same as --help.
+      PrintSubcommandHelp(argv[0]);
+      exit(0);
+    }
+    break;  // First non-flag, non-help positional → stop.
+  }
+
+  auto result =
+      shell::FindSubcommandInArgs(argc, argv, subcommands, flags_with_arg);
+  if (result.subcommand) {
+    // If the matched word is also a file on disk, it's ambiguous — the user
+    // might have meant it as a trace file. Emit a hint.
+    if (base::FileExists(argv[result.argv_index])) {
+      PERFETTO_ELOG(
+          "Note: '%s' matches both a subcommand and a file on disk. "
+          "Interpreting as subcommand. To use it as a trace file, use './%s'.",
+          argv[result.argv_index], argv[result.argv_index]);
+    }
+    // Build a new argv with the subcommand name removed.
+    std::vector<char*> new_argv;
+    for (int i = 0; i < argc; ++i) {
+      if (i != result.argv_index) {
+        new_argv.push_back(argv[i]);
+      }
+    }
+    shell::SubcommandContext ctx;
+    ctx.platform = platform_interface_.get();
+    int ret = result.subcommand->Run(ctx, static_cast<int>(new_argv.size()),
+                                     new_argv.data());
+    // The subcommand handles its own error reporting. Use exit() to avoid
+    // TraceProcessorShellMain printing a redundant error message. This
+    // matches the precedent set by ParseCommandLineOptions which also
+    // calls exit() on errors.
+    exit(ret);
+  }
+
   CommandLineOptions options = ParseCommandLineOptions(argc, argv);
 
-  Config config = platform_interface_->DefaultConfig();
-  config.sorting_mode = options.force_full_sort
-                            ? SortingMode::kForceFullSort
-                            : SortingMode::kDefaultHeuristics;
-  config.ingest_ftrace_in_raw_table = !options.no_ftrace_raw;
-  config.analyze_trace_proto_content = options.analyze_trace_proto_content;
-  config.drop_track_event_data_before =
-      options.crop_track_events
-          ? DropTrackEventDataBefore::kTrackEventRangeOfInterest
-          : DropTrackEventDataBefore::kNoDrop;
+  // Build config and apply metric extension skip paths before TP creation.
+  const auto& global = options.global;
+  Config config = shell::BuildConfig(global, platform_interface_.get());
 
   std::vector<MetricExtension> metric_extensions;
   RETURN_IF_ERROR(ParseMetricExtensionPaths(
-      options.dev, options.raw_metric_v1_extensions, metric_extensions));
-
+      global.dev, options.raw_metric_v1_extensions, metric_extensions));
   for (const auto& extension : metric_extensions) {
     config.skip_builtin_metric_paths.push_back(extension.virtual_path());
   }
 
-  if (options.dev) {
-    config.enable_dev_features = true;
-    for (const auto& flag_pair : options.dev_flags) {
-      auto kv = base::SplitString(flag_pair, "=");
-      if (kv.size() != 2) {
-        PERFETTO_ELOG("Ignoring unknown dev flag format %s", flag_pair.c_str());
-        continue;
-      }
-      config.dev_flags.emplace(kv[0], kv[1]);
-    }
-  }
-
-  if (options.extra_checks) {
-    config.enable_extra_checks = true;
-  }
-
-  std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
-  platform_interface_->OnTraceProcessorCreated(tp.get());
-  RETURN_IF_ERROR(MaybeUpdateSqlPackages(tp.get(), options));
-
-  // Enable metatracing as soon as possible.
-  if (!options.metatrace_path.empty()) {
-    metatrace::MetatraceConfig metatrace_config;
-    metatrace_config.override_buffer_size = options.metatrace_buffer_capacity;
-    metatrace_config.categories = options.metatrace_categories;
-    tp->EnableMetatrace(metatrace_config);
-  }
-
-  if (!options.register_files_dir.empty()) {
-    RETURN_IF_ERROR(RegisterAllFilesInFolder(options.register_files_dir, *tp));
-  }
+  // Create TP with the modified config, then apply SQL packages, metatrace,
+  // and file registration.
+  ASSIGN_OR_RETURN(
+      std::unique_ptr<TraceProcessor> tp,
+      shell::SetupTraceProcessor(global, config, platform_interface_.get()));
 
   // Descriptor pool used for printing output as textproto. Building on top of
   // generated pool so default protos in google.protobuf.descriptor.proto are
@@ -981,11 +1071,11 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
   }
 
   base::TimeNanos t_load{};
-  if (!options.trace_file_path.empty()) {
+  if (!global.trace_file.empty()) {
     base::TimeNanos t_load_start = base::GetWallTimeNs();
     double size_mb = 0;
     RETURN_IF_ERROR(LoadTrace(tp.get(), platform_interface_.get(),
-                              options.trace_file_path, &size_mb));
+                              global.trace_file, &size_mb));
     t_load = base::GetWallTimeNs() - t_load_start;
 
     double t_load_s = static_cast<double>(t_load.count()) / 1E9;
@@ -1076,7 +1166,7 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
         RunQueriesFromFile(tp.get(), options.query_file_path, true);
     if (!status.ok()) {
       // Write metatrace if needed before exiting.
-      RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), options.metatrace_path));
+      RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), global.metatrace_path));
       return status;
     }
   }
@@ -1085,7 +1175,7 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     base::Status status = RunQueries(tp.get(), options.query_string, true);
     if (!status.ok()) {
       // Write metatrace if needed before exiting.
-      RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), options.metatrace_path));
+      RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), global.metatrace_path));
       return status;
     }
   }
@@ -1120,7 +1210,7 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
         tp.get(), specs, options.structured_query_id, &output);
     if (!status.ok()) {
       // Write metatrace if needed before exiting.
-      RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), options.metatrace_path));
+      RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), global.metatrace_path));
       return status;
     }
 
@@ -1136,7 +1226,7 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
 
   if (options.enable_httpd) {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
-    Rpc rpc(std::move(tp), !options.trace_file_path.empty(), config,
+    Rpc rpc(std::move(tp), !global.trace_file.empty(), config,
             [this](TraceProcessor* tp) {
               platform_interface_->OnTraceProcessorCreated(tp);
             });
@@ -1144,13 +1234,13 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
 #if PERFETTO_HAS_SIGNAL_H()
     static Rpc* g_rpc_for_signal_handler = &rpc;
 
-    if (options.metatrace_path.empty()) {
+    if (global.metatrace_path.empty()) {
       // Restore the default signal handler to allow the user to terminate
       // httpd server via Ctrl-C.
       signal(SIGINT, SIG_DFL);
     } else {
       // Write metatrace to file before exiting.
-      static std::string* metatrace_path = &options.metatrace_path;
+      static const std::string* metatrace_path = &global.metatrace_path;
       signal(SIGINT, [](int) {
         MaybeWriteMetatrace(g_rpc_for_signal_handler->trace_processor(),
                             *metatrace_path);
@@ -1178,7 +1268,7 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
   }
 
   if (options.enable_stdiod) {
-    Rpc rpc(std::move(tp), !options.trace_file_path.empty(), config,
+    Rpc rpc(std::move(tp), !global.trace_file.empty(), config,
             [this](TraceProcessor* tp) {
               platform_interface_->OnTraceProcessorCreated(tp);
             });
@@ -1200,7 +1290,7 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     RETURN_IF_ERROR(PrintPerfFile(options.perf_file_path, t_load, t_query));
   }
 
-  RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), options.metatrace_path));
+  RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), global.metatrace_path));
 
   return base::OkStatus();
 }
