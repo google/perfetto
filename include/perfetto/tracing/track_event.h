@@ -374,6 +374,11 @@ constexpr bool IsDynamicCategory(const ::perfetto::DynamicCategory&) {
       TraceForCategory, category, name,        \
       ::perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_BEGIN, ##__VA_ARGS__)
 
+#define TRACE_EVENT_STEP(category, name, ...) \
+  PERFETTO_INTERNAL_TRACK_EVENT_WITH_METHOD(  \
+      TraceForCategory, category, name,       \
+      ::perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_STEP, ##__VA_ARGS__)
+
 // End a slice under |category|.
 #define TRACE_EVENT_END(category, ...)              \
   PERFETTO_INTERNAL_TRACK_EVENT_WITH_METHOD(        \
