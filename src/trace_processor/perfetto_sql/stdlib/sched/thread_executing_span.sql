@@ -55,6 +55,34 @@ FROM thread_state
 WHERE
   thread_state.dur != -1 AND thread_state.waker_id IS NOT NULL;
 
+-- Defines if the trace is a Fuchsia trace.
+CREATE PERFETTO TABLE _is_fuchsia AS
+SELECT
+  EXISTS(
+    SELECT
+      1
+    FROM metadata
+    WHERE
+      name = 'trace_type' AND str_value = 'fuchsia'
+  ) AS is_fuchsia;
+
+-- Check whether a given scheduler event is for a task becoming runnable.
+-- Linux always has a Waking duration *and* Runnable before each Running duration.
+-- Fuchsia only has a Waking duration before the first Running duration, Runnable durations
+-- are used if the initial activation's timeslice expires or is interrupted.
+CREATE PERFETTO MACRO _is_runnable_state(
+    state Expr
+)
+RETURNS Expr AS
+$state = 'R'
+OR (
+  $state = 'W' AND (
+    SELECT
+      is_fuchsia
+    FROM _is_fuchsia
+  )
+);
+
 -- Similar to |_runnable_state| but finds the first runnable state at thread.
 CREATE PERFETTO TABLE _first_runnable_state AS
 WITH
@@ -82,7 +110,7 @@ FROM thread_state
 JOIN first_state
   USING (id)
 WHERE
-  thread_state.dur != -1 AND thread_state.state = 'R';
+  thread_state.dur != -1 AND _is_runnable_state!(thread_state.state);
 
 --
 -- Finds all sleep states including interruptible (S) and uninterruptible (D).
@@ -230,7 +258,7 @@ WITH
       id AS waker_id,
       state,
       max(id) FILTER(WHERE
-        state = 'R') OVER (PARTITION BY utid ORDER BY id) AS id
+        _is_runnable_state!(state)) OVER (PARTITION BY utid ORDER BY id) AS id
     FROM x
   )
 SELECT
