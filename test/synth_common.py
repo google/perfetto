@@ -362,7 +362,10 @@ class Trace(object):
     gpu_counters = self.packet.gpu_counter_event
     gpu_counter = gpu_counters.counters.add()
     gpu_counter.counter_id = counter_id
-    gpu_counter.int_value = value
+    if isinstance(value, float):
+      gpu_counter.double_value = value
+    else:
+      gpu_counter.int_value = value
 
   def add_gpu_render_stages_hw_queue_spec(self, specs=[]):
     packet = self.add_packet()
@@ -394,6 +397,7 @@ class Trace(object):
                             render_subpass_index_mask=None,
                             command_buffer_handle=None,
                             submission_id=None,
+                            render_pass_instance_id=None,
                             extra_data={}):
     packet = self.add_packet()
     packet.timestamp = ts
@@ -414,6 +418,9 @@ class Trace(object):
       render_stage.command_buffer_handle = command_buffer_handle
     if submission_id is not None:
       render_stage.submission_id = submission_id
+    if render_pass_instance_id is not None:
+      render_stage.render_pass_instance_id = render_pass_instance_id
+
     for key, value in extra_data.items():
       data = render_stage.extra_data.add()
       data.name = key
