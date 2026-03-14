@@ -67,6 +67,7 @@
 #include "src/trace_processor/shell/interactive.h"
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/metrics.h"
+#include "src/trace_processor/shell/metrics_subcommand.h"
 #include "src/trace_processor/shell/query.h"
 #include "src/trace_processor/shell/query_subcommand.h"
 #include "src/trace_processor/shell/repl_subcommand.h"
@@ -1020,18 +1021,20 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
   shell::ReplSubcommand repl_subcommand;
   shell::ServeSubcommand serve_subcommand;
   shell::SummarizeSubcommand summarize_subcommand;
+  shell::MetricsSubcommand metrics_subcommand;
   shell::ExportSubcommand export_subcommand;
   ClassicSubcommand classic_subcommand;
 
   // Subcommands to match against (classic is the fallback, not matched).
   std::vector<shell::Subcommand*> subcommands = {
-      &query_subcommand,     &repl_subcommand,   &serve_subcommand,
-      &summarize_subcommand, &export_subcommand,
+      &query_subcommand,     &repl_subcommand,    &serve_subcommand,
+      &summarize_subcommand, &metrics_subcommand, &export_subcommand,
   };
   // All subcommands including classic (for flags_with_arg derivation).
   std::vector<shell::Subcommand*> all = {
-      &query_subcommand,     &repl_subcommand,   &serve_subcommand,
-      &summarize_subcommand, &export_subcommand, &classic_subcommand,
+      &query_subcommand,     &repl_subcommand,    &serve_subcommand,
+      &summarize_subcommand, &metrics_subcommand, &export_subcommand,
+      &classic_subcommand,
   };
 
   auto result = shell::FindSubcommandInArgs(argc, argv, subcommands, all);

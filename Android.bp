@@ -16784,6 +16784,14 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/shell:metrics_subcommand
+filegroup {
+    name: "perfetto_src_trace_processor_shell_metrics_subcommand",
+    srcs: [
+        "src/trace_processor/shell/metrics_subcommand.cc",
+    ],
+}
+
 // GN: //src/trace_processor/shell:query
 filegroup {
     name: "perfetto_src_trace_processor_shell_query",
@@ -17186,6 +17194,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_shell_interactive",
         ":perfetto_src_trace_processor_shell_metatrace",
         ":perfetto_src_trace_processor_shell_metrics",
+        ":perfetto_src_trace_processor_shell_metrics_subcommand",
         ":perfetto_src_trace_processor_shell_query",
         ":perfetto_src_trace_processor_shell_query_subcommand",
         ":perfetto_src_trace_processor_shell_repl_subcommand",

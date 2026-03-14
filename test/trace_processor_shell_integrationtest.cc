@@ -343,6 +343,16 @@ TEST(TraceProcessorShellIntegrationTest, ExportSubcommandNoOutputFails) {
 }
 
 // ---------------------------------------------------------------------------
+// Subcommand: metrics
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, MetricsSubcommandNoRunFails) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"metrics", trace.path()});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+// ---------------------------------------------------------------------------
 // Existing RPC test
 // ---------------------------------------------------------------------------
 

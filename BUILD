@@ -647,6 +647,7 @@ perfetto_cc_library(
         ":src_trace_processor_shell_interactive",
         ":src_trace_processor_shell_metatrace",
         ":src_trace_processor_shell_metrics",
+        ":src_trace_processor_shell_metrics_subcommand",
         ":src_trace_processor_shell_query",
         ":src_trace_processor_shell_query_subcommand",
         ":src_trace_processor_shell_repl_subcommand",
@@ -4137,6 +4138,15 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/shell/metrics.cc",
         "src/trace_processor/shell/metrics.h",
+    ],
+)
+
+# GN target: //src/trace_processor/shell:metrics_subcommand
+perfetto_filegroup(
+    name = "src_trace_processor_shell_metrics_subcommand",
+    srcs = [
+        "src/trace_processor/shell/metrics_subcommand.cc",
+        "src/trace_processor/shell/metrics_subcommand.h",
     ],
 )
 

@@ -215,6 +215,25 @@ source_set("export_subcommand") {
   ]
 }
 
+source_set("metrics_subcommand") {
+  sources = [
+    "metrics_subcommand.cc",
+    "metrics_subcommand.h",
+  ]
+  deps = [
+    ":common_flags",
+    ":interactive",
+    ":metatrace",
+    ":metrics",
+    ":query",
+    ":subcommand",
+    "../../../gn:default_deps",
+    "../../../gn:protobuf_full",
+    "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
+    "../../base",
+  ]
+}
+
 source_set("unittests") {
   testonly = true
   sources = [ "find_subcommand_unittest.cc" ]
