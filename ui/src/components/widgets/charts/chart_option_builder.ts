@@ -183,6 +183,33 @@ export function buildLegendOption(
 }
 
 /**
+ * Color used to highlight selected items (bars, buckets) in charts.
+ */
+export const SELECTION_COLOR = 'rgba(0, 120, 212, 0.45)';
+
+/**
+ * Build a markArea option to visually highlight a selection region.
+ * Each entry in `areas` is a pair of coordinate objects that define
+ * opposite corners of the highlighted rectangle.
+ *
+ * Coordinate objects use axis-specific keys (e.g. `{xAxis: 10}` or
+ * `{yAxis: 'label'}`).
+ */
+export function buildSelectionMarkArea(
+  areas: Array<[Record<string, unknown>, Record<string, unknown>]>,
+): Record<string, unknown> {
+  return {
+    silent: true,
+    itemStyle: {
+      color: 'rgba(0, 120, 212, 0.08)',
+      borderColor: 'rgba(0, 120, 212, 0.3)',
+      borderWidth: 1,
+    },
+    data: areas,
+  };
+}
+
+/**
  * Build a complete base chart option with grid, axes, and optional
  * tooltip/brush/legend. Charts add their own `series` on top.
  *
