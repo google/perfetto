@@ -26,7 +26,7 @@ class FakeSubcommand : public Subcommand {
   explicit FakeSubcommand(const char* n) : name_(n) {}
   const char* name() const override { return name_; }
   const char* description() const override { return ""; }
-  int Run(int, char**) override { return 0; }
+  int Run(const SubcommandContext&, int, char**) override { return 0; }
   void PrintUsage(const char*) override {}
 
  private:

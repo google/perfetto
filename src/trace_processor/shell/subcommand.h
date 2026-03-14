@@ -20,7 +20,16 @@
 #include <string>
 #include <vector>
 
+namespace perfetto::trace_processor {
+class TraceProcessorShell_PlatformInterface;
+}  // namespace perfetto::trace_processor
+
 namespace perfetto::trace_processor::shell {
+
+// Context passed to subcommands, providing access to shared resources.
+struct SubcommandContext {
+  TraceProcessorShell_PlatformInterface* platform = nullptr;
+};
 
 // Base class for all subcommands (query, export, serve, etc.).
 class Subcommand {
@@ -34,10 +43,11 @@ class Subcommand {
   // A short one-line description shown in help output.
   virtual const char* description() const = 0;
 
-  // Runs the subcommand. |argc| and |argv| point to the subcommand's own
-  // argument vector (i.e. argv[0] is the subcommand name).
+  // Runs the subcommand. |ctx| provides access to shared resources like the
+  // platform interface. |argc| and |argv| are the original command line with
+  // the subcommand name removed (argv[0] is the program name).
   // Returns 0 on success, non-zero on failure.
-  virtual int Run(int argc, char** argv) = 0;
+  virtual int Run(const SubcommandContext& ctx, int argc, char** argv) = 0;
 
   // Prints subcommand-specific usage to stderr.
   virtual void PrintUsage(const char* argv0) = 0;
