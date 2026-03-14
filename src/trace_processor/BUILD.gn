@@ -255,6 +255,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "rpc",
       "rpc:stdiod",
       "shell:common_flags",
+      "shell:export_subcommand",
       "shell:interactive",
       "shell:metatrace",
       "shell:metrics",
@@ -264,6 +265,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "shell:serve_subcommand",
       "shell:shell_utils",
       "shell:subcommand",
+      "shell:summarize_subcommand",
       "sqlite",
       "trace_summary",
     ]
