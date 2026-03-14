@@ -648,6 +648,8 @@ perfetto_cc_library(
         ":src_trace_processor_shell_metrics",
         ":src_trace_processor_shell_query",
         ":src_trace_processor_shell_query_subcommand",
+        ":src_trace_processor_shell_repl_subcommand",
+        ":src_trace_processor_shell_serve_subcommand",
         ":src_trace_processor_shell_shell_utils",
         ":src_trace_processor_shell_sql_packages",
         ":src_trace_processor_shell_subcommand",
@@ -4142,6 +4144,24 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/shell/query_subcommand.cc",
         "src/trace_processor/shell/query_subcommand.h",
+    ],
+)
+
+# GN target: //src/trace_processor/shell:repl_subcommand
+perfetto_filegroup(
+    name = "src_trace_processor_shell_repl_subcommand",
+    srcs = [
+        "src/trace_processor/shell/repl_subcommand.cc",
+        "src/trace_processor/shell/repl_subcommand.h",
+    ],
+)
+
+# GN target: //src/trace_processor/shell:serve_subcommand
+perfetto_filegroup(
+    name = "src_trace_processor_shell_serve_subcommand",
+    srcs = [
+        "src/trace_processor/shell/serve_subcommand.cc",
+        "src/trace_processor/shell/serve_subcommand.h",
     ],
 )
 
