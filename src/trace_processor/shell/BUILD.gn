@@ -55,6 +55,9 @@ source_set("shell") {
     "../rpc:stdiod",
     "../trace_summary",
     "../util:stdlib",
+    "../util/deobfuscation:deobfuscator",
+    "../util/symbolizer",
+    "../util/symbolizer:symbolize_database",
   ]
   if (enable_perfetto_trace_processor_linenoise) {
     deps += [ "../../../gn:linenoise" ]
@@ -72,5 +75,6 @@ source_set("unittests") {
     ":shell",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../base",
   ]
 }

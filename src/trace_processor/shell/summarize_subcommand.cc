@@ -61,6 +61,27 @@ Flags:
                 argv0);
 }
 
+enum SummarizeLocalOption {
+  OPT_SPEC = 500,
+  OPT_METRICS_V2,
+  OPT_METADATA_QUERY,
+  OPT_FORMAT,
+  OPT_POST_QUERY,
+};
+
+static const option kSummarizeLongOptions[] = {
+    {"spec", required_argument, nullptr, OPT_SPEC},
+    {"metrics-v2", required_argument, nullptr, OPT_METRICS_V2},
+    {"metadata-query", required_argument, nullptr, OPT_METADATA_QUERY},
+    {"format", required_argument, nullptr, OPT_FORMAT},
+    {"post-query", required_argument, nullptr, OPT_POST_QUERY},
+    {"interactive", no_argument, nullptr, 'i'},
+    GLOBAL_LONG_OPTIONS{nullptr, 0, nullptr, 0}};
+
+const option* SummarizeSubcommand::GetLongOptions() const {
+  return kSummarizeLongOptions;
+}
+
 int SummarizeSubcommand::Run(const SubcommandContext& ctx,
                              int argc,
                              char** argv) {
@@ -72,26 +93,10 @@ int SummarizeSubcommand::Run(const SubcommandContext& ctx,
   std::string post_query_path;
   bool interactive = false;
 
-  enum LocalOption {
-    OPT_SPEC = 500,
-    OPT_METRICS_V2,
-    OPT_METADATA_QUERY,
-    OPT_FORMAT,
-    OPT_POST_QUERY,
-  };
-
-  static const option long_options[] = {
-      {"spec", required_argument, nullptr, OPT_SPEC},
-      {"metrics-v2", required_argument, nullptr, OPT_METRICS_V2},
-      {"metadata-query", required_argument, nullptr, OPT_METADATA_QUERY},
-      {"format", required_argument, nullptr, OPT_FORMAT},
-      {"post-query", required_argument, nullptr, OPT_POST_QUERY},
-      {"interactive", no_argument, nullptr, 'i'},
-      GLOBAL_LONG_OPTIONS{nullptr, 0, nullptr, 0}};
-
   optind = 1;
   for (;;) {
-    int option = getopt_long(argc, argv, "im:h", long_options, nullptr);
+    int option =
+        getopt_long(argc, argv, "im:h", kSummarizeLongOptions, nullptr);
     if (option == -1)
       break;
     if (HandleGlobalOption(option, optarg, global))
