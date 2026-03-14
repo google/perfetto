@@ -16792,22 +16792,6 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor/shell:repl_subcommand
-filegroup {
-    name: "perfetto_src_trace_processor_shell_repl_subcommand",
-    srcs: [
-        "src/trace_processor/shell/repl_subcommand.cc",
-    ],
-}
-
-// GN: //src/trace_processor/shell:serve_subcommand
-filegroup {
-    name: "perfetto_src_trace_processor_shell_serve_subcommand",
-    srcs: [
-        "src/trace_processor/shell/serve_subcommand.cc",
-    ],
-}
-
 // GN: //src/trace_processor/shell:shell_utils
 filegroup {
     name: "perfetto_src_trace_processor_shell_shell_utils",
@@ -17171,8 +17155,6 @@ cc_library_static {
         ":perfetto_src_trace_processor_shell_metrics",
         ":perfetto_src_trace_processor_shell_query",
         ":perfetto_src_trace_processor_shell_query_subcommand",
-        ":perfetto_src_trace_processor_shell_repl_subcommand",
-        ":perfetto_src_trace_processor_shell_serve_subcommand",
         ":perfetto_src_trace_processor_shell_shell_utils",
         ":perfetto_src_trace_processor_shell_sql_packages",
         ":perfetto_src_trace_processor_shell_subcommand",
