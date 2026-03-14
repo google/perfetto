@@ -19589,6 +19589,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_simple_json_serializer",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_stdlib",
+        ":perfetto_src_trace_processor_util_symbolizer_symbolize_database",
         ":perfetto_src_trace_processor_util_symbolizer_symbolizer",
         ":perfetto_src_trace_processor_util_symbolizer_unittests",
         ":perfetto_src_trace_processor_util_tar_writer",
