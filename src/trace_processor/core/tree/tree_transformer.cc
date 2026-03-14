@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
@@ -36,8 +37,6 @@
 #include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/core/dataframe/dataframe_register_cache.h"
-#include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/interpreter/bytecode_builder.h"
 #include "src/trace_processor/core/interpreter/bytecode_instructions.h"
@@ -49,6 +48,8 @@
 
 namespace perfetto::trace_processor::core::tree {
 namespace {
+
+namespace i = interpreter;
 
 struct IdCallback : core::dataframe::CellCallback {
   void OnCell(int64_t id) {
@@ -157,12 +158,9 @@ struct TreeValueFetcher : core::ValueFetcher {
   const SqlValue* values = nullptr;
 };
 
-// Creates a TreeState with pre-allocated buffers and parent/original_rows
-// initialized from the normalized parent storage.
-std::unique_ptr<interpreter::TreeState> CreateTreeState(
-    const uint32_t* parent_data,
-    uint32_t row_count) {
-  auto ts = std::make_unique<interpreter::TreeState>();
+std::unique_ptr<i::TreeState> CreateTreeState(const uint32_t* parent_data,
+                                              uint32_t row_count) {
+  auto ts = std::make_unique<i::TreeState>();
   ts->row_count = row_count;
 
   ts->parent = Slab<uint32_t>::Alloc(row_count);
@@ -180,104 +178,323 @@ std::unique_ptr<interpreter::TreeState> CreateTreeState(
   ts->scratch1 = Slab<uint32_t>::Alloc(static_cast<uint64_t>(row_count) * 2);
   ts->scratch2 = Slab<uint32_t>::Alloc(row_count);
 
+  ts->keep_bv = BitVector::CreateWithSize(row_count, false);
+
   return ts;
+}
+
+// Returns true if the column has sparse null storage (requires densification
+// before the filter bytecodes can access storage with table indices).
+bool IsSparseNull(const dataframe::Column& col) {
+  return !col.null_storage.nullability().Is<NonNull>() &&
+         !col.null_storage.nullability().Is<DenseNull>();
+}
+
+// Returns the size in bytes of one element for the given storage type.
+uint32_t ElementSize(StorageType type) {
+  switch (type.index()) {
+    case StorageType::GetTypeIndex<Uint32>():
+      return sizeof(uint32_t);
+    case StorageType::GetTypeIndex<Int32>():
+      return sizeof(int32_t);
+    case StorageType::GetTypeIndex<Int64>():
+      return sizeof(int64_t);
+    case StorageType::GetTypeIndex<Double>():
+      return sizeof(double);
+    case StorageType::GetTypeIndex<String>():
+      return sizeof(StringPool::Id);
+    default:
+      PERFETTO_FATAL("Unsupported storage type for densification");
+  }
+}
+
+// Scatters sparse data into a dense buffer using the null bitvector.
+// Templated to avoid per-row memcpy overhead for common element sizes.
+template <typename T>
+void ScatterSparse(const void* sparse_ptr,
+                   const BitVector& bv,
+                   uint8_t* dst,
+                   uint32_t row_count) {
+  const auto* src = static_cast<const T*>(sparse_ptr);
+  auto* out = reinterpret_cast<T*>(dst);
+  uint32_t sparse_idx = 0;
+  for (uint32_t row = 0; row < row_count; ++row) {
+    if (bv.is_set(row)) {
+      out[row] = src[sparse_idx++];
+    }
+  }
+}
+
+// Converts a sparse null column's storage to dense format.
+Slab<uint8_t> DensifySparseColumn(const dataframe::Column& col,
+                                  uint32_t row_count) {
+  uint32_t elem_size = ElementSize(col.storage.type());
+  auto byte_count = static_cast<uint64_t>(row_count) * elem_size;
+  auto dense = Slab<uint8_t>::Alloc(byte_count);
+  memset(dense.begin(), 0, byte_count);
+
+  const auto& bv = col.null_storage.GetNullBitVector();
+  const void* sparse_ptr = nullptr;
+  std::visit([&sparse_ptr](
+                 const auto* p) { sparse_ptr = static_cast<const void*>(p); },
+             col.storage.data());
+
+  switch (elem_size) {
+    case 4:
+      ScatterSparse<uint32_t>(sparse_ptr, bv, dense.begin(), row_count);
+      break;
+    case 8:
+      ScatterSparse<uint64_t>(sparse_ptr, bv, dense.begin(), row_count);
+      break;
+    default:
+      PERFETTO_FATAL("Unexpected element size %u", elem_size);
+  }
+  return dense;
 }
 
 }  // namespace
 
 TreeTransformer::TreeTransformer(dataframe::Dataframe df, StringPool* pool)
-    : df_(std::move(df)), pool_(pool) {}
+    : df_(std::move(df)),
+      pool_(pool),
+      builder_(std::make_unique<i::BytecodeBuilder>()) {
+  uint32_t n = df_.row_count();
+  if (n == 0) {
+    return;
+  }
+
+  // Allocate registers used across all calls.
+  auto range_reg = builder_->AllocateRegister<Range>();
+  {
+    using B = i::InitRange;
+    auto& op = builder_->AddOpcode<B>(i::Index<B>());
+    op.arg<B::size>() = n;
+    op.arg<B::dest_register>() = range_reg;
+  }
+  auto slab_reg = builder_->AllocateRegister<Slab<uint32_t>>();
+  auto span_reg = builder_->AllocateRegister<Span<uint32_t>>();
+  span_reg_index_ = span_reg.index;
+  {
+    using B = i::AllocateIndices;
+    auto& op = builder_->AddOpcode<B>(i::Index<B>());
+    op.arg<B::size>() = n;
+    op.arg<B::dest_slab_register>() = slab_reg;
+    op.arg<B::dest_span_register>() = span_reg;
+  }
+  {
+    using B = i::Iota;
+    auto& op = builder_->AddOpcode<B>(i::Index<B>());
+    op.arg<B::source_register>() = range_reg;
+    op.arg<B::update_register>() = span_reg;
+  }
+
+  // TreeState register — shared across all FilterTree calls.
+  auto ts_reg = builder_->AllocateRegister<std::unique_ptr<i::TreeState>>();
+  tree_state_reg_index_ = ts_reg.index;
+}
+
+TreeTransformer::~TreeTransformer() = default;
+TreeTransformer::TreeTransformer(TreeTransformer&&) noexcept = default;
+TreeTransformer& TreeTransformer::operator=(TreeTransformer&&) noexcept =
+    default;
 
 base::Status TreeTransformer::FilterTree(
     std::vector<dataframe::FilterSpec> specs,
     std::vector<SqlValue> values) {
-  if (df_.row_count() == 0 || specs.empty()) {
+  uint32_t n = df_.row_count();
+  if (n == 0 || specs.empty()) {
     return base::OkStatus();
   }
 
-  // Accumulate filter specs and values with source_index tracking the
-  // original position in filter_values_.
-  for (size_t i = 0; i < specs.size(); ++i) {
-    specs[i].source_index = static_cast<uint32_t>(filter_values_.size());
-    filter_values_.push_back(values[i]);
-    filter_specs_.push_back(specs[i]);
+  has_filters_ = true;
+  i::RwHandle<Span<uint32_t>> span_reg(span_reg_index_);
+
+  for (size_t si = 0; si < specs.size(); ++si) {
+    auto& spec = specs[si];
+    const auto& col = *df_.columns_[spec.col];
+    StorageType ct = col.storage.type();
+    const BitVector* null_bv = col.null_storage.MaybeGetNullBitVector();
+
+    // Handle null ops (IsNull/IsNotNull).
+    if (auto null_op = spec.op.TryDowncast<i::NullOp>()) {
+      spec.value_index = filter_value_count_++;
+      filter_values_.push_back(values[si]);
+      if (null_bv) {
+        auto reg = builder_->AllocateRegister<const BitVector*>();
+        using B = i::NullFilterBase;
+        auto& bc = builder_->AddOpcode<B>(i::Index<i::NullFilter>(*null_op));
+        bc.arg<B::null_bv_register>() = reg;
+        bc.arg<B::update_register>() = span_reg;
+        reg_inits_.push_back({RegInit::kNullBv, reg.index, spec.col});
+      }
+      continue;
+    }
+
+    // In is not supported for tree filters.
+    PERFETTO_CHECK(!spec.op.Is<In>());
+
+    auto non_null_op = spec.op.TryDowncast<i::NonNullOp>();
+    PERFETTO_CHECK(non_null_op);
+
+    // Cast filter value.
+    auto value_reg = builder_->AllocateRegister<i::CastFilterValueResult>();
+    {
+      using B = i::CastFilterValueBase;
+      auto& bc = builder_->AddOpcode<B>(i::Index<i::CastFilterValue>(ct));
+      bc.arg<B::fval_handle>() = {filter_value_count_};
+      bc.arg<B::write_register>() = value_reg;
+      bc.arg<B::op>() = *non_null_op;
+      spec.value_index = filter_value_count_++;
+      filter_values_.push_back(values[si]);
+    }
+
+    // Prune null indices if column has nulls.
+    if (null_bv) {
+      auto reg = builder_->AllocateRegister<const BitVector*>();
+      using B = i::NullFilter<IsNotNull>;
+      auto& bc = builder_->AddOpcode<B>(i::Index<B>());
+      bc.arg<B::null_bv_register>() = reg;
+      bc.arg<B::update_register>() = span_reg;
+      reg_inits_.push_back({RegInit::kNullBv, reg.index, spec.col});
+    }
+
+    // Allocate storage register and emit filter bytecode.
+    auto storage_reg = builder_->AllocateRegister<i::StoragePtr>();
+    reg_inits_.push_back({RegInit::kStorage, storage_reg.index, spec.col});
+
+    if (ct.Is<String>()) {
+      auto op = non_null_op->TryDowncast<i::StringOp>();
+      PERFETTO_CHECK(op);
+      using B = i::StringFilterBase;
+      auto& bc = builder_->AddOpcode<B>(i::Index<i::StringFilter>(*op));
+      bc.arg<B::storage_register>() = storage_reg;
+      bc.arg<B::val_register>() = value_reg;
+      bc.arg<B::source_register>() = span_reg;
+      bc.arg<B::update_register>() = span_reg;
+    } else {
+      auto nst = ct.TryDowncast<i::NonStringType>();
+      PERFETTO_CHECK(nst);
+      auto op = non_null_op->TryDowncast<i::NonStringOp>();
+      PERFETTO_CHECK(op);
+      using B = i::NonStringFilterBase;
+      auto& bc =
+          builder_->AddOpcode<B>(i::Index<i::NonStringFilter>(*nst, *op));
+      bc.arg<B::storage_register>() = storage_reg;
+      bc.arg<B::val_register>() = value_reg;
+      bc.arg<B::source_register>() = span_reg;
+      bc.arg<B::update_register>() = span_reg;
+    }
+  }
+
+  // Emit FilterTreeState: reparents, compacts tree + column data,
+  // and resets the span to [0..new_row_count-1].
+  i::RwHandle<std::unique_ptr<i::TreeState>> ts_reg(tree_state_reg_index_);
+  {
+    using F = i::FilterTreeState;
+    auto& op = builder_->AddOpcode<F>(i::Index<F>());
+    op.arg<F::tree_state_register>() = ts_reg;
+    op.arg<F::indices_register>() = span_reg;
   }
 
   return base::OkStatus();
 }
 
 base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
-  using TreeState = interpreter::TreeState;
+  using TreeState = i::TreeState;
 
   ASSIGN_OR_RETURN(auto id_to_row, BuildIdToRowMap(df_));
   ASSIGN_OR_RETURN(auto normalized_parent,
                    BuildNormalizedParentStorage(df_, id_to_row));
 
   uint32_t n = df_.row_count();
-  if (n == 0 || filter_specs_.empty()) {
+  if (n == 0 || !has_filters_) {
     ASSIGN_OR_RETURN(auto tree_cols,
                      BuildTreeColumns(normalized_parent.begin(), n, pool_));
     return dataframe::Dataframe::HorizontalConcat(std::move(tree_cols),
                                                   std::move(df_));
   }
 
-  // Create bytecode builder and register cache.
-  interpreter::BytecodeBuilder builder;
-  dataframe::DataframeRegisterCache cache(builder);
+  // Create TreeState and copy column data into it.
+  auto ts = CreateTreeState(normalized_parent.begin(), n);
 
-  // Use FilterOnly to emit standard filter bytecodes.
-  ASSIGN_OR_RETURN(auto filter_result, dataframe::QueryPlanBuilder::FilterOnly(
-                                           builder, cache, n, df_.columns_,
-                                           df_.indexes_, filter_specs_));
+  // Deduplicate columns: map col_index → TreeState index.
+  base::FlatHashMap<uint32_t, uint32_t> col_to_storage;
+  base::FlatHashMap<uint32_t, uint32_t> col_to_null_bv;
 
-  // Allocate TreeState register and emit FilterTreeState bytecode.
-  auto tree_state_reg = builder.AllocateRegister<std::unique_ptr<TreeState>>();
-  {
-    using F = interpreter::FilterTreeState;
-    auto& op = builder.AddOpcode<F>(interpreter::Index<F>());
-    op.arg<F::tree_state_register>() = tree_state_reg;
-    op.arg<F::filtered_indices>() = filter_result.indices_reg;
-  }
-
-  // Reorder filter values to match the order assigned by Filter().
-  std::vector<SqlValue> reordered(filter_result.filter_value_count);
-  for (const auto& spec : filter_specs_) {
-    if (spec.value_index.has_value()) {
-      reordered[*spec.value_index] = filter_values_[spec.source_index];
+  for (const auto& ri : reg_inits_) {
+    const auto& col = *df_.columns_[ri.col];
+    switch (ri.kind) {
+      case RegInit::kStorage: {
+        auto* existing = col_to_storage.Find(ri.col);
+        if (!existing) {
+          uint32_t idx = static_cast<uint32_t>(ts->columns.size());
+          uint32_t elem_size = ElementSize(col.storage.type());
+          TreeState::ColumnStorage cs;
+          cs.elem_size = elem_size;
+          if (IsSparseNull(col)) {
+            cs.data = DensifySparseColumn(col, n);
+          } else {
+            auto byte_count = static_cast<uint64_t>(n) * elem_size;
+            cs.data = Slab<uint8_t>::Alloc(byte_count);
+            const void* src = nullptr;
+            std::visit(
+                [&src](const auto* p) { src = static_cast<const void*>(p); },
+                col.storage.data());
+            memcpy(cs.data.begin(), src, byte_count);
+          }
+          ts->columns.push_back(std::move(cs));
+          col_to_storage[ri.col] = idx;
+        }
+        break;
+      }
+      case RegInit::kNullBv: {
+        if (!col_to_null_bv.Find(ri.col)) {
+          uint32_t idx = static_cast<uint32_t>(ts->null_bitvectors.size());
+          const BitVector* bv = col.null_storage.MaybeGetNullBitVector();
+          ts->null_bitvectors.push_back(bv ? bv->Clone() : BitVector());
+          col_to_null_bv[ri.col] = idx;
+        }
+        break;
+      }
     }
   }
 
-  // Create TreeState.
-  auto ts = CreateTreeState(normalized_parent.begin(), n);
+  // Initialize interpreter and set TreeState register.
+  i::Interpreter<TreeValueFetcher> interp;
+  interp.Initialize(builder_->bytecode(), builder_->register_count(), pool_);
+  interp.SetRegisterValue(
+      i::WriteHandle<std::unique_ptr<TreeState>>(tree_state_reg_index_),
+      std::move(ts));
 
-  // Initialize interpreter.
-  interpreter::Interpreter<TreeValueFetcher> interp;
-  interp.Initialize(builder.bytecode(), builder.register_count(), pool_);
+  // Set StoragePtr and null bitvector registers, pointing into TreeState.
+  const auto* ts_ptr = interp.GetRegisterValue(
+      i::ReadHandle<std::unique_ptr<TreeState>>(tree_state_reg_index_));
+  PERFETTO_CHECK(ts_ptr && *ts_ptr);
+  const auto& ts_ref = **ts_ptr;
 
-  // Set TreeState register.
-  interp.SetRegisterValue(interpreter::WriteHandle<std::unique_ptr<TreeState>>(
-                              tree_state_reg.index),
-                          std::move(ts));
-
-  // Initialize source column registers.
-  for (const auto& init : filter_result.register_inits) {
-    auto val = dataframe::QueryPlanImpl::GetRegisterInitValue(init, df_);
-    interp.SetRegisterValue(interpreter::HandleBase{init.dest_register},
-                            std::move(val));
+  for (const auto& ri : reg_inits_) {
+    const auto& col = *df_.columns_[ri.col];
+    switch (ri.kind) {
+      case RegInit::kStorage: {
+        uint32_t idx = *col_to_storage.Find(ri.col);
+        interp.SetRegisterValue(i::WriteHandle<i::StoragePtr>(ri.reg),
+                                i::StoragePtr{ts_ref.columns[idx].data.begin(),
+                                              col.storage.type()});
+        break;
+      }
+      case RegInit::kNullBv: {
+        uint32_t idx = *col_to_null_bv.Find(ri.col);
+        interp.SetRegisterValue(i::WriteHandle<const BitVector*>(ri.reg),
+                                &ts_ref.null_bitvectors[idx]);
+        break;
+      }
+    }
   }
 
-  // Execute all bytecodes.
-  TreeValueFetcher fetcher(reordered.data());
+  TreeValueFetcher fetcher(filter_values_.data());
   interp.Execute(fetcher);
 
-  // Read results from TreeState.
-  const auto* ts_result = interp.GetRegisterValue(
-      interpreter::ReadHandle<std::unique_ptr<TreeState>>(
-          tree_state_reg.index));
-  if (!ts_result || !*ts_result) {
-    return base::ErrStatus("Failed to get TreeState from interpreter");
-  }
-  const auto& final_ts = **ts_result;
+  const auto& final_ts = **ts_ptr;
 
   uint32_t final_count = final_ts.row_count;
   ASSIGN_OR_RETURN(auto tree_cols, BuildTreeColumns(final_ts.parent.begin(),

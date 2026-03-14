@@ -1636,40 +1636,40 @@ inline void BuildP2CFromTreeState(TreeState* ts) {
 }
 
 // Reparents and compacts a tree based on pre-filtered indices.
+// Also compacts all column storage and null bitvectors registered in
+// the TreeState, and resets the indices span to [0..new_row_count-1].
 inline PERFETTO_ALWAYS_INLINE void FilterTreeState(
     InterpreterState& state,
     const struct FilterTreeState& bc) {
   using B = struct FilterTreeState;
 
   auto& ts = state.ReadFromRegister(bc.arg<B::tree_state_register>());
-  const auto& filtered = state.ReadFromRegister(bc.arg<B::filtered_indices>());
+  auto& indices = state.ReadFromRegister(bc.arg<B::indices_register>());
   uint32_t n = ts->row_count;
 
-  if (n == 0 || filtered.size() == n) {
+  if (n == 0 || indices.size() == n) {
     return;
   }
 
   // Ensure P2C is valid.
   BuildP2CFromTreeState(ts.get());
 
-  // Convert filtered indices to keep bitvector.
-  BitVector keep_bv = BitVector::CreateWithSize(n, false);
-  for (const uint32_t* it = filtered.b; it != filtered.e; ++it) {
-    keep_bv.set(*it);
+  // Reuse pre-allocated keep_bv (avoids allocation per call).
+  ts->keep_bv.resize(n);
+  ts->keep_bv.ClearAllBits();
+  for (const uint32_t* it = indices.b; it != indices.e; ++it) {
+    ts->keep_bv.set(*it);
   }
+  const auto& keep_bv = ts->keep_bv;
 
-  // Run FilterTree logic (BFS, surviving ancestors, old_to_new).
-  // scratch1: first n for surviving_ancestor, remaining n for queue.
+  // BFS to compute surviving ancestors.
   uint32_t* surviving_ancestor = ts->scratch1.begin();
   uint32_t* queue = ts->scratch1.begin() + n;
-
-  // scratch2: old_to_new mapping.
   uint32_t* old_to_new = ts->scratch2.begin();
 
   memset(surviving_ancestor, 0xFF, n * sizeof(uint32_t));
   memset(old_to_new, 0xFF, n * sizeof(uint32_t));
 
-  // BFS to compute surviving ancestors.
   uint32_t queue_end = 0;
   for (uint32_t i = 0; i < ts->p2c_root_count; ++i) {
     uint32_t root = ts->p2c_roots[i];
@@ -1691,41 +1691,64 @@ inline PERFETTO_ALWAYS_INLINE void FilterTreeState(
     }
   }
 
-  // Count surviving nodes and build old_to_new mapping.
+  // Pass 1 (fused): build old_to_new + compact original_rows.
   uint32_t new_count = 0;
   for (uint32_t i = 0; i < n; ++i) {
-    if (keep_bv.is_set(i)) {
-      old_to_new[i] = new_count++;
+    if (!keep_bv.is_set(i)) {
+      continue;
     }
+    uint32_t new_idx = new_count++;
+    old_to_new[i] = new_idx;
+    ts->original_rows[new_idx] = ts->original_rows[i];
   }
 
   if (new_count == 0) {
     ts->row_count = 0;
     ts->p2c_valid = false;
+    indices.e = indices.b;
     return;
   }
 
-  // In-place compaction of parent and original_rows.
+  // Pass 2: parent reparenting (needs full old_to_new from pass 1).
   for (uint32_t i = 0; i < n; ++i) {
     if (!keep_bv.is_set(i)) {
       continue;
     }
     uint32_t new_idx = old_to_new[i];
-
-    // Compact parent with reparenting.
     uint32_t old_parent = ts->parent[i];
     uint32_t ancestor = (old_parent != kNullParent)
                             ? surviving_ancestor[old_parent]
                             : kNullParent;
     ts->parent[new_idx] =
         (ancestor != kNullParent) ? old_to_new[ancestor] : kNullParent;
+  }
 
-    // Compact original_rows.
-    ts->original_rows[new_idx] = ts->original_rows[i];
+  // Compact each column in-place.
+  for (auto& col : ts->columns) {
+    auto es = static_cast<uint64_t>(col.elem_size);
+    uint8_t* data = col.data.begin();
+    for (uint32_t i = 0; i < n; ++i) {
+      if (!keep_bv.is_set(i)) {
+        continue;
+      }
+      uint32_t new_idx = old_to_new[i];
+      if (new_idx != i) {
+        memcpy(data + new_idx * es, data + i * es, col.elem_size);
+      }
+    }
+  }
+
+  // Compact null bitvectors.
+  for (auto& bv : ts->null_bitvectors) {
+    bv = std::move(bv).Compact(keep_bv);
   }
 
   ts->row_count = new_count;
   ts->p2c_valid = false;
+
+  // Reset indices to [0..new_count-1] for subsequent operations.
+  std::iota(indices.b, indices.b + new_count, 0u);
+  indices.e = indices.b + new_count;
 }
 
 }  // namespace ops

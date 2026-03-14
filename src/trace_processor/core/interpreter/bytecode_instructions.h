@@ -612,23 +612,20 @@ struct Reverse : Bytecode {
 
 // Reparents and compacts a tree based on pre-filtered indices.
 //
-// Takes a set of filtered indices (produced by standard filter bytecodes)
+// Takes a span of filtered indices (produced by standard filter bytecodes)
 // and uses them to determine which tree nodes survive. Filtered-out nodes
 // have their children reparented to the closest surviving ancestor.
 //
-// Steps:
-//   1. Ensure P2C is valid (build CSR if needed)
-//   2. Convert filtered indices to keep bitvector
-//   3. BFS to compute surviving ancestors
-//   4. Compact parent and original_rows
-//   5. Update row_count, invalidate P2C
+// Compacts parent, original_rows, all registered column storage and null
+// bitvectors in the TreeState. After compaction, resets indices_register
+// to [0..new_row_count-1] for subsequent operations.
 struct FilterTreeState : Bytecode {
   static constexpr Cost kCost = LinearPerRowCost{20};
 
   PERFETTO_DATAFRAME_BYTECODE_IMPL_2(RwHandle<std::unique_ptr<TreeState>>,
                                      tree_state_register,
-                                     ReadHandle<Span<uint32_t>>,
-                                     filtered_indices);
+                                     RwHandle<Span<uint32_t>>,
+                                     indices_register);
 };
 
 // Bytecode ops that require FilterValueFetcher access.

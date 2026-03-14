@@ -219,10 +219,6 @@ struct QueryPlanImpl {
       const Column* const* columns,
       const Index* indexes);
 
-  // Convenience overload that extracts pointers from a Dataframe.
-  static interpreter::RegValue GetRegisterInitValue(const RegisterInit& init,
-                                                    const Dataframe& df);
-
   ExecutionParams params;
   interpreter::BytecodeVector bytecode;
   base::SmallVector<uint32_t, 24> col_to_output_offset;
@@ -242,14 +238,6 @@ class QueryPlanBuilder {
   using IndicesReg = std::variant<interpreter::RwHandle<Range>,
                                   interpreter::RwHandle<Span<uint32_t>>>;
 
-  // Result of FilterOnly(): contains the register holding filtered indices,
-  // register initialization specs, and the count of filter values consumed.
-  struct FilterResult {
-    interpreter::RwHandle<Span<uint32_t>> indices_reg;
-    base::SmallVector<RegisterInit, 16> register_inits;
-    uint32_t filter_value_count = 0;
-  };
-
   static base::StatusOr<QueryPlanImpl> Build(
       uint32_t row_count,
       const std::vector<std::shared_ptr<Column>>& columns,
@@ -259,17 +247,6 @@ class QueryPlanBuilder {
       const std::vector<SortSpec>& sort_specs,
       const LimitSpec& limit_spec,
       uint64_t cols_used);
-
-  // Emits only the filter bytecodes for the given specs into |builder|.
-  // Returns a FilterResult with the register holding the filtered indices,
-  // register init specs, and the number of filter values consumed.
-  static base::StatusOr<FilterResult> FilterOnly(
-      interpreter::BytecodeBuilder& builder,
-      DataframeRegisterCache& cache,
-      uint32_t row_count,
-      const std::vector<std::shared_ptr<Column>>& columns,
-      const std::vector<Index>& indexes,
-      std::vector<FilterSpec>& specs);
 
  private:
   // Indicates that the bytecode does not change the estimated or maximum number
