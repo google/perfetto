@@ -35,6 +35,7 @@ using testing::AllOf;
 using testing::ElementsAre;
 using testing::HasSubstr;
 using testing::IsEmpty;
+using testing::Not;
 using testing::Property;
 using testing::SizeIs;
 
@@ -191,90 +192,6 @@ TEST(TraceProcessorShellIntegrationTest, ClassicSummaryAndMetricsConflict) {
   EXPECT_NE(result.exit_code, 0);
 }
 
-TEST(TraceProcessorShellIntegrationTest, ClassicWide) {
-  auto trace = WriteSimpleSystrace();
-  auto result = RunShell({"-W", "-Q", "SELECT 1", trace.path()});
-  EXPECT_EQ(result.exit_code, 0);
-}
-
-TEST(TraceProcessorShellIntegrationTest, ClassicPerfFile) {
-  auto trace = WriteSimpleSystrace();
-  auto perf = base::TempFile::Create();
-  auto result = RunShell({"-p", perf.path(), "-Q", "SELECT 1", trace.path()});
-  EXPECT_EQ(result.exit_code, 0);
-}
-
-TEST(TraceProcessorShellIntegrationTest, ClassicPerfFileWithoutQueryFails) {
-  auto trace = WriteSimpleSystrace();
-  auto perf = base::TempFile::Create();
-  // -p without -q/-Q means interactive mode, which rejects -p.
-  auto result = RunShell({"-p", perf.path(), trace.path()});
-  EXPECT_NE(result.exit_code, 0);
-}
-
-TEST(TraceProcessorShellIntegrationTest, ClassicExportWithQuery) {
-  auto trace = WriteSimpleSystrace();
-  auto out_db = base::TempFile::Create();
-  auto query = WriteTempFile("SELECT 1;");
-  auto result =
-      RunShell({"-e", out_db.path(), "-q", query.path(), trace.path()});
-  EXPECT_EQ(result.exit_code, 0);
-  EXPECT_TRUE(base::FileExists(out_db.path()));
-}
-
-TEST(TraceProcessorShellIntegrationTest, ClassicSummaryWithQuery) {
-  // --summary + -q: summary output suppressed, query runs.
-  auto trace = WriteSimpleSystrace();
-  auto query = WriteTempFile("SELECT 42 AS val;");
-  auto result = RunShell({"--summary", "-q", query.path(), trace.path()});
-  EXPECT_EQ(result.exit_code, 0);
-  EXPECT_THAT(result.out, HasSubstr("42"));
-}
-
-TEST(TraceProcessorShellIntegrationTest, ClassicInteractiveWithQuery) {
-  // -i + -Q: runs query then drops into REPL (which exits on /dev/null stdin).
-  auto trace = WriteSimpleSystrace();
-  auto result = RunShell({"-i", "-Q", "SELECT 1 AS x", trace.path()});
-  EXPECT_EQ(result.exit_code, 0);
-  EXPECT_THAT(result.out, HasSubstr("x"));
-}
-
-TEST(TraceProcessorShellIntegrationTest, ClassicDefaultInteractive) {
-  // No flags other than trace = interactive mode (exits on /dev/null stdin).
-  auto trace = WriteSimpleSystrace();
-  auto result = RunShell({trace.path()});
-  EXPECT_EQ(result.exit_code, 0);
-}
-
-TEST(TraceProcessorShellIntegrationTest, ClassicOverrideStdlibWithoutDevFails) {
-  auto trace = WriteSimpleSystrace();
-  auto result =
-      RunShell({"--override-stdlib", "/tmp", "-Q", "SELECT 1", trace.path()});
-  EXPECT_NE(result.exit_code, 0);
-}
-
-TEST(TraceProcessorShellIntegrationTest, ClassicStdiodNoTrace) {
-  // --stdiod without trace file should work.
-  TraceProcessorRpcStream req;
-  auto* rpc = req.add_msg();
-  rpc->set_request(TraceProcessorRpc::TPM_QUERY_STREAMING);
-  rpc->mutable_query_args()->set_sql_query("SELECT 1 AS x");
-
-  base::Subprocess process({ShellPath(), "--stdiod"});
-  process.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
-  process.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
-  process.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
-  process.args.input = req.SerializeAsString();
-  process.Start();
-
-  ASSERT_TRUE(process.Wait(kDefaultTestTimeoutMs));
-
-  TraceProcessorRpcStream stream;
-  stream.ParseFromString(process.output());
-  ASSERT_THAT(stream.msg(), SizeIs(1));
-  ASSERT_EQ(stream.msg()[0].response(), TraceProcessorRpc::TPM_QUERY_STREAMING);
-}
-
 // ---------------------------------------------------------------------------
 // Subcommand: query
 // ---------------------------------------------------------------------------
@@ -318,6 +235,70 @@ TEST(TraceProcessorShellIntegrationTest, QuerySubcommandNoTraceFails) {
 TEST(TraceProcessorShellIntegrationTest, QuerySubcommandBadFileFails) {
   auto trace = WriteSimpleSystrace();
   auto result = RunShell({"query", "-f", "/nonexistent.sql", trace.path()});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Subcommand: repl
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, ReplSubcommand) {
+  // With stdin=/dev/null the REPL exits immediately.
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"repl", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ReplSubcommandWide) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"repl", "-W", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ReplSubcommandNoTraceFails) {
+  auto result = RunShell({"repl"});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ReplSubcommandGlobalFlagBefore) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"--dev", "repl", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Subcommand: serve
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, ServeSubcommandStdio) {
+  TraceProcessorRpcStream req;
+  auto* rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_QUERY_STREAMING);
+  rpc->mutable_query_args()->set_sql_query("SELECT 1 AS x");
+
+  base::Subprocess process({ShellPath(), "serve", "stdio"});
+  process.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  process.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.input = req.SerializeAsString();
+  process.Start();
+
+  ASSERT_TRUE(process.Wait(kDefaultTestTimeoutMs));
+
+  TraceProcessorRpcStream stream;
+  stream.ParseFromString(process.output());
+
+  ASSERT_THAT(stream.msg(), SizeIs(1));
+  ASSERT_EQ(stream.msg()[0].response(), TraceProcessorRpc::TPM_QUERY_STREAMING);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServeSubcommandNoModeFails) {
+  auto result = RunShell({"serve"});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServeSubcommandBadModeFails) {
+  auto result = RunShell({"serve", "badmode"});
   EXPECT_NE(result.exit_code, 0);
 }
 

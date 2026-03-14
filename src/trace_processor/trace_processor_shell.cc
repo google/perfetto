@@ -68,6 +68,8 @@
 #include "src/trace_processor/shell/metrics.h"
 #include "src/trace_processor/shell/query.h"
 #include "src/trace_processor/shell/query_subcommand.h"
+#include "src/trace_processor/shell/repl_subcommand.h"
+#include "src/trace_processor/shell/serve_subcommand.h"
 #include "src/trace_processor/shell/shell_utils.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/trace_summary/summary.h"
@@ -1013,13 +1015,23 @@ TraceProcessorShell::CreateWithDefaultPlatform() {
 
 base::Status TraceProcessorShell::Run(int argc, char** argv) {
   shell::QuerySubcommand query_subcommand;
+  shell::ReplSubcommand repl_subcommand;
+  shell::ServeSubcommand serve_subcommand;
   ClassicSubcommand classic_subcommand;
 
   // Subcommands to match against (classic is the fallback, not matched).
-  std::vector<shell::Subcommand*> subcommands = {&query_subcommand};
+  std::vector<shell::Subcommand*> subcommands = {
+      &query_subcommand,
+      &repl_subcommand,
+      &serve_subcommand,
+  };
   // All subcommands including classic (for flags_with_arg derivation).
-  std::vector<shell::Subcommand*> all = {&query_subcommand,
-                                         &classic_subcommand};
+  std::vector<shell::Subcommand*> all = {
+      &query_subcommand,
+      &repl_subcommand,
+      &serve_subcommand,
+      &classic_subcommand,
+  };
 
   auto result = shell::FindSubcommandInArgs(argc, argv, subcommands, all);
 
