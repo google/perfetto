@@ -17,6 +17,9 @@
 #include "src/trace_processor/shell/subcommand.h"
 
 #include <cstring>
+#include <unordered_set>
+
+#include "perfetto/ext/base/getopt.h"
 
 namespace perfetto::trace_processor::shell {
 
@@ -26,18 +29,26 @@ FindSubcommandResult FindSubcommandInArgs(
     int argc,
     char** argv,
     const std::vector<Subcommand*>& subcommands,
-    const std::vector<std::string>& flags_with_arg) {
+    const std::vector<Subcommand*>& all_subcommands) {
+  // Build the set of long flags that consume the next argument, derived
+  // from the getopt_long options of all registered subcommands.
+  std::unordered_set<std::string> flags_with_arg;
+  for (const auto* sc : all_subcommands) {
+    for (const option* o = sc->GetLongOptions(); o && o->name; ++o) {
+      if (o->has_arg == required_argument) {
+        flags_with_arg.insert("--" + std::string(o->name));
+      }
+    }
+  }
+
   for (int i = 1; i < argc; ++i) {
     const char* arg = argv[i];
 
     // Skip flags.
     if (arg[0] == '-') {
       // Check if this flag consumes the next argument.
-      for (const auto& f : flags_with_arg) {
-        if (f == arg) {
-          ++i;  // Skip the flag's argument.
-          break;
-        }
+      if (flags_with_arg.count(arg)) {
+        ++i;  // Skip the flag's argument.
       }
       continue;
     }

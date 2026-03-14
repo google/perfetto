@@ -642,12 +642,15 @@ perfetto_cc_library(
         ":src_trace_processor_rpc_httpd",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_rpc_stdiod",
+        ":src_trace_processor_shell_common_flags",
         ":src_trace_processor_shell_interactive",
         ":src_trace_processor_shell_metatrace",
         ":src_trace_processor_shell_metrics",
         ":src_trace_processor_shell_query",
+        ":src_trace_processor_shell_query_subcommand",
         ":src_trace_processor_shell_shell_utils",
         ":src_trace_processor_shell_sql_packages",
+        ":src_trace_processor_shell_subcommand",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",
         ":src_trace_processor_sqlite_sqlite",
@@ -4088,6 +4091,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/shell:common_flags
+perfetto_filegroup(
+    name = "src_trace_processor_shell_common_flags",
+    srcs = [
+        "src/trace_processor/shell/common_flags.cc",
+        "src/trace_processor/shell/common_flags.h",
+    ],
+)
+
 # GN target: //src/trace_processor/shell:interactive
 perfetto_filegroup(
     name = "src_trace_processor_shell_interactive",
@@ -4124,6 +4136,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/shell:query_subcommand
+perfetto_filegroup(
+    name = "src_trace_processor_shell_query_subcommand",
+    srcs = [
+        "src/trace_processor/shell/query_subcommand.cc",
+        "src/trace_processor/shell/query_subcommand.h",
+    ],
+)
+
 # GN target: //src/trace_processor/shell:shell_utils
 perfetto_filegroup(
     name = "src_trace_processor_shell_shell_utils",
@@ -4139,6 +4160,15 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/shell/sql_packages.cc",
         "src/trace_processor/shell/sql_packages.h",
+    ],
+)
+
+# GN target: //src/trace_processor/shell:subcommand
+perfetto_filegroup(
+    name = "src_trace_processor_shell_subcommand",
+    srcs = [
+        "src/trace_processor/shell/subcommand.cc",
+        "src/trace_processor/shell/subcommand.h",
     ],
 )
 
