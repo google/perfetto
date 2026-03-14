@@ -49,17 +49,21 @@ Flags:
                 argv0);
 }
 
+static const option kReplLongOptions[] = {
+    {"wide", no_argument, nullptr, 'W'},
+    GLOBAL_LONG_OPTIONS{nullptr, 0, nullptr, 0}};
+
+const option* ReplSubcommand::GetLongOptions() const {
+  return kReplLongOptions;
+}
+
 int ReplSubcommand::Run(const SubcommandContext& ctx, int argc, char** argv) {
   GlobalOptions global;
   bool wide = false;
 
-  static const option long_options[] = {
-      {"wide", no_argument, nullptr, 'W'},
-      GLOBAL_LONG_OPTIONS{nullptr, 0, nullptr, 0}};
-
   optind = 1;
   for (;;) {
-    int option = getopt_long(argc, argv, "Wm:h", long_options, nullptr);
+    int option = getopt_long(argc, argv, "Wm:h", kReplLongOptions, nullptr);
     if (option == -1)
       break;
     if (HandleGlobalOption(option, optarg, global))

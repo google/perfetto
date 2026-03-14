@@ -20,6 +20,8 @@
 #include <string>
 #include <vector>
 
+struct option;  // Forward declaration for getopt.h's struct option.
+
 namespace perfetto::trace_processor {
 class TraceProcessorShell_PlatformInterface;
 }  // namespace perfetto::trace_processor
@@ -51,6 +53,10 @@ class Subcommand {
 
   // Prints subcommand-specific usage to stderr.
   virtual void PrintUsage(const char* argv0) = 0;
+
+  // Returns the null-terminated getopt_long options array for this subcommand.
+  // Used by FindSubcommandInArgs to determine which flags consume an argument.
+  virtual const option* GetLongOptions() const = 0;
 };
 
 // Result of FindSubcommandInArgs(). If |subcommand| is non-null, a subcommand
@@ -63,16 +69,17 @@ struct FindSubcommandResult {
 
 // Searches |argv[1..argc-1]| for the first positional argument that matches
 // a registered subcommand name. Skips flags (arguments starting with '-') and
-// their required arguments (for flags that take a value).
+// their required arguments (derived from the long options of all subcommands
+// in |all_subcommands|).
 //
-// |subcommands| is the list of registered subcommands to match against.
-// |flags_with_arg| is a list of flags that consume the next argv element as
-// their argument (e.g. "--dev-flag" takes a value).
+// |subcommands| is the list of subcommands to match against.
+// |all_subcommands| is the full list including those not matched (e.g. classic)
+// whose flags still need to be skipped during scanning.
 FindSubcommandResult FindSubcommandInArgs(
     int argc,
     char** argv,
     const std::vector<Subcommand*>& subcommands,
-    const std::vector<std::string>& flags_with_arg);
+    const std::vector<Subcommand*>& all_subcommands);
 
 }  // namespace perfetto::trace_processor::shell
 

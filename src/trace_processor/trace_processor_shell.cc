@@ -48,10 +48,6 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"  // IWYU pragma: keep
-#include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/scoped_mmap.h"
-#include "perfetto/ext/base/status_macros.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
@@ -59,7 +55,6 @@
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/read_trace.h"
-#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
 #include "src/trace_processor/metrics/all_webview_metrics.descriptor.h"
@@ -78,13 +73,9 @@
 #include "src/trace_processor/shell/repl_subcommand.h"
 #include "src/trace_processor/shell/serve_subcommand.h"
 #include "src/trace_processor/shell/shell_utils.h"
-#include "src/trace_processor/shell/sql_packages.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/shell/summarize_subcommand.h"
 #include "src/trace_processor/trace_summary/summary.h"
-#include "src/trace_processor/util/deobfuscation/deobfuscator.h"
-#include "src/trace_processor/util/sql_modules.h"
-#include "src/trace_processor/util/symbolizer/symbolize_database.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
@@ -123,10 +114,8 @@ TraceSummarySpecBytes::Format GuessSummarySpecFormat(
     const std::string& content);
 
 struct CommandLineOptions {
-  // Global options shared with subcommands (TP config, metatrace, etc.).
   shell::GlobalOptions global;
 
-  // Classic-only options.
   bool enable_httpd = false;
   std::string port_number;
   std::string listen_ip;
@@ -414,114 +403,98 @@ Metrics (v1):
                 argv[0]);
 }
 
+// Bring GlobalLongOption values into scope for GLOBAL_LONG_OPTIONS macro.
+using shell::OPT_GLOBAL_ADD_SQL_PACKAGE;
+using shell::OPT_GLOBAL_ANALYZE_TRACE_PROTO_CONTENT;
+using shell::OPT_GLOBAL_CROP_TRACK_EVENTS;
+using shell::OPT_GLOBAL_DEV;
+using shell::OPT_GLOBAL_DEV_FLAG;
+using shell::OPT_GLOBAL_EXTRA_CHECKS;
+using shell::OPT_GLOBAL_FULL_SORT;
+using shell::OPT_GLOBAL_METATRACE_BUFFER_CAPACITY;
+using shell::OPT_GLOBAL_METATRACE_CATEGORIES;
+using shell::OPT_GLOBAL_NO_FTRACE_RAW;
+using shell::OPT_GLOBAL_OVERRIDE_SQL_PACKAGE;
+using shell::OPT_GLOBAL_OVERRIDE_STDLIB;
+using shell::OPT_GLOBAL_REGISTER_FILES_DIR;
+
+// Classic-specific long option IDs. Start at 2000 to avoid conflicts with
+// GlobalLongOption values in common_flags.h (which start at 1000).
+enum ClassicLongOption {
+  OPT_HTTP_PORT = 2000,
+  OPT_HTTP_IP,
+  OPT_HTTP_ADDITIONAL_CORS_ORIGINS,
+  OPT_STDIOD,
+
+  OPT_STRUCTURED_QUERY_SPEC,
+  OPT_STRUCTURED_QUERY_ID,
+
+  OPT_SUMMARY,
+  OPT_SUMMARY_METRICS_V2,
+  OPT_SUMMARY_METADATA_QUERY,
+  OPT_SUMMARY_SPEC,
+  OPT_SUMMARY_FORMAT,
+
+  OPT_RUN_METRICS,
+  OPT_PRE_METRICS,
+  OPT_METRICS_OUTPUT,
+  OPT_METRIC_EXTENSION,
+
+  OPT_HELP_CLASSIC,
+};
+
+static const option kClassicLongOptions[] = {
+    {"help", no_argument, nullptr, 'h'},
+    {"help-classic", no_argument, nullptr, OPT_HELP_CLASSIC},
+    {"version", no_argument, nullptr, 'v'},
+
+    {"httpd", no_argument, nullptr, 'D'},
+    {"http-port", required_argument, nullptr, OPT_HTTP_PORT},
+    {"http-ip-address", required_argument, nullptr, OPT_HTTP_IP},
+    {"http-additional-cors-origins", required_argument, nullptr,
+     OPT_HTTP_ADDITIONAL_CORS_ORIGINS},
+    {"stdiod", no_argument, nullptr, OPT_STDIOD},
+    {"interactive", no_argument, nullptr, 'i'},
+
+    {"query-file", required_argument, nullptr, 'q'},
+    {"query-string", required_argument, nullptr, 'Q'},
+    {"structured-query-spec", required_argument, nullptr,
+     OPT_STRUCTURED_QUERY_SPEC},
+    {"structured-query-id", required_argument, nullptr,
+     OPT_STRUCTURED_QUERY_ID},
+
+    {"summary", no_argument, nullptr, OPT_SUMMARY},
+    {"summary-metrics-v2", required_argument, nullptr, OPT_SUMMARY_METRICS_V2},
+    {"summary-metadata-query", required_argument, nullptr,
+     OPT_SUMMARY_METADATA_QUERY},
+    {"summary-spec", required_argument, nullptr, OPT_SUMMARY_SPEC},
+    {"summary-format", required_argument, nullptr, OPT_SUMMARY_FORMAT},
+
+    {"export", required_argument, nullptr, 'e'},
+    {"perf-file", required_argument, nullptr, 'p'},
+    {"wide", no_argument, nullptr, 'W'},
+
+    {"run-metrics", required_argument, nullptr, OPT_RUN_METRICS},
+    {"pre-metrics", required_argument, nullptr, OPT_PRE_METRICS},
+    {"metrics-output", required_argument, nullptr, OPT_METRICS_OUTPUT},
+    {"metric-extension", required_argument, nullptr, OPT_METRIC_EXTENSION},
+
+    GLOBAL_LONG_OPTIONS{nullptr, 0, nullptr, 0}};
+
 CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   CommandLineOptions command_line_options;
-  enum LongOption {
-    OPT_HTTP_PORT = 1000,
-    OPT_HTTP_IP,
-    OPT_HTTP_ADDITIONAL_CORS_ORIGINS,
-    OPT_STDIOD,
-
-    OPT_FORCE_FULL_SORT,
-    OPT_NO_FTRACE_RAW,
-
-    OPT_ADD_SQL_PACKAGE,
-    OPT_OVERRIDE_SQL_PACKAGE,
-    OPT_STRUCTURED_QUERY_SPEC,
-    OPT_STRUCTURED_QUERY_ID,
-
-    OPT_SUMMARY,
-    OPT_SUMMARY_METRICS_V2,
-    OPT_SUMMARY_METADATA_QUERY,
-    OPT_SUMMARY_SPEC,
-    OPT_SUMMARY_FORMAT,
-
-    OPT_METATRACE_BUFFER_CAPACITY,
-    OPT_METATRACE_CATEGORIES,
-
-    OPT_DEV,
-    OPT_DEV_FLAG,
-    OPT_EXTRA_CHECKS,
-    OPT_ANALYZE_TRACE_PROTO_CONTENT,
-    OPT_CROP_TRACK_EVENTS,
-    OPT_REGISTER_FILES_DIR,
-    OPT_OVERRIDE_STDLIB,
-
-    OPT_RUN_METRICS,
-    OPT_PRE_METRICS,
-    OPT_METRICS_OUTPUT,
-    OPT_METRIC_EXTENSION,
-
-    OPT_HELP_CLASSIC,
-  };
-
-  static const option long_options[] = {
-      {"help", no_argument, nullptr, 'h'},
-      {"help-classic", no_argument, nullptr, OPT_HELP_CLASSIC},
-      {"version", no_argument, nullptr, 'v'},
-
-      {"httpd", no_argument, nullptr, 'D'},
-      {"http-port", required_argument, nullptr, OPT_HTTP_PORT},
-      {"http-ip-address", required_argument, nullptr, OPT_HTTP_IP},
-      {"http-additional-cors-origins", required_argument, nullptr,
-       OPT_HTTP_ADDITIONAL_CORS_ORIGINS},
-      {"stdiod", no_argument, nullptr, OPT_STDIOD},
-      {"interactive", no_argument, nullptr, 'i'},
-
-      {"full-sort", no_argument, nullptr, OPT_FORCE_FULL_SORT},
-      {"no-ftrace-raw", no_argument, nullptr, OPT_NO_FTRACE_RAW},
-
-      {"query-file", required_argument, nullptr, 'q'},
-      {"query-string", required_argument, nullptr, 'Q'},
-      {"structured-query-spec", required_argument, nullptr,
-       OPT_STRUCTURED_QUERY_SPEC},
-      {"structured-query-id", required_argument, nullptr,
-       OPT_STRUCTURED_QUERY_ID},
-      {"add-sql-package", required_argument, nullptr, OPT_ADD_SQL_PACKAGE},
-      {"override-sql-package", required_argument, nullptr,
-       OPT_OVERRIDE_SQL_PACKAGE},
-
-      {"summary", no_argument, nullptr, OPT_SUMMARY},
-      {"summary-metrics-v2", required_argument, nullptr,
-       OPT_SUMMARY_METRICS_V2},
-      {"summary-metadata-query", required_argument, nullptr,
-       OPT_SUMMARY_METADATA_QUERY},
-      {"summary-spec", required_argument, nullptr, OPT_SUMMARY_SPEC},
-      {"summary-format", required_argument, nullptr, OPT_SUMMARY_FORMAT},
-
-      {"metatrace", required_argument, nullptr, 'm'},
-      {"metatrace-buffer-capacity", required_argument, nullptr,
-       OPT_METATRACE_BUFFER_CAPACITY},
-      {"metatrace-categories", required_argument, nullptr,
-       OPT_METATRACE_CATEGORIES},
-
-      {"dev", no_argument, nullptr, OPT_DEV},
-      {"dev-flag", required_argument, nullptr, OPT_DEV_FLAG},
-      {"extra-checks", no_argument, nullptr, OPT_EXTRA_CHECKS},
-      {"export", required_argument, nullptr, 'e'},
-      {"perf-file", required_argument, nullptr, 'p'},
-      {"wide", no_argument, nullptr, 'W'},
-      {"analyze-trace-proto-content", no_argument, nullptr,
-       OPT_ANALYZE_TRACE_PROTO_CONTENT},
-      {"crop-track-events", no_argument, nullptr, OPT_CROP_TRACK_EVENTS},
-      {"register-files-dir", required_argument, nullptr,
-       OPT_REGISTER_FILES_DIR},
-      {"override-stdlib", required_argument, nullptr, OPT_OVERRIDE_STDLIB},
-
-      {"run-metrics", required_argument, nullptr, OPT_RUN_METRICS},
-      {"pre-metrics", required_argument, nullptr, OPT_PRE_METRICS},
-      {"metrics-output", required_argument, nullptr, OPT_METRICS_OUTPUT},
-      {"metric-extension", required_argument, nullptr, OPT_METRIC_EXTENSION},
-
-      {nullptr, 0, nullptr, 0}};
 
   bool explicit_interactive = false;
+  optind = 1;
   for (;;) {
-    int option =
-        getopt_long(argc, argv, "hvWiDdm:p:q:Q:e:", long_options, nullptr);
+    int option = getopt_long(argc, argv,
+                             "hvWiDdm:p:q:Q:e:", kClassicLongOptions, nullptr);
 
     if (option == -1)
       break;  // EOF.
+
+    if (shell::HandleGlobalOption(option, optarg, command_line_options.global))
+      continue;
 
     if (option == 'v') {
       printf("%s\n", base::GetVersionString());
@@ -590,64 +563,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       continue;
     }
 
-    if (option == 'm') {
-      command_line_options.global.metatrace_path = optarg;
-      continue;
-    }
-
-    if (option == OPT_METATRACE_BUFFER_CAPACITY) {
-      command_line_options.global.metatrace_buffer_capacity =
-          static_cast<size_t>(atoi(optarg));
-      continue;
-    }
-
-    if (option == OPT_METATRACE_CATEGORIES) {
-      command_line_options.global.metatrace_categories =
-          ParseMetatraceCategories(optarg);
-      continue;
-    }
-
-    if (option == OPT_FORCE_FULL_SORT) {
-      command_line_options.global.force_full_sort = true;
-      continue;
-    }
-
-    if (option == OPT_NO_FTRACE_RAW) {
-      command_line_options.global.no_ftrace_raw = true;
-      continue;
-    }
-
-    if (option == OPT_ANALYZE_TRACE_PROTO_CONTENT) {
-      command_line_options.global.analyze_trace_proto_content = true;
-      continue;
-    }
-
-    if (option == OPT_CROP_TRACK_EVENTS) {
-      command_line_options.global.crop_track_events = true;
-      continue;
-    }
-
-    if (option == OPT_DEV) {
-      command_line_options.global.dev = true;
-      continue;
-    }
-
-    if (option == OPT_EXTRA_CHECKS) {
-      command_line_options.global.extra_checks = true;
-      continue;
-    }
-
-    if (option == OPT_ADD_SQL_PACKAGE) {
-      command_line_options.global.sql_package_paths.emplace_back(optarg);
-      continue;
-    }
-
-    if (option == OPT_OVERRIDE_SQL_PACKAGE) {
-      command_line_options.global.override_sql_package_paths.emplace_back(
-          optarg);
-      continue;
-    }
-
     if (option == OPT_STRUCTURED_QUERY_SPEC) {
       command_line_options.structured_query_specs.emplace_back(optarg);
       continue;
@@ -655,11 +570,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_STRUCTURED_QUERY_ID) {
       command_line_options.structured_query_id = optarg;
-      continue;
-    }
-
-    if (option == OPT_OVERRIDE_STDLIB) {
-      command_line_options.global.override_stdlib_path = optarg;
       continue;
     }
 
@@ -680,16 +590,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_METRIC_EXTENSION) {
       command_line_options.raw_metric_v1_extensions.emplace_back(optarg);
-      continue;
-    }
-
-    if (option == OPT_DEV_FLAG) {
-      command_line_options.global.dev_flags.emplace_back(optarg);
-      continue;
-    }
-
-    if (option == OPT_REGISTER_FILES_DIR) {
-      command_line_options.global.register_files_dir = optarg;
       continue;
     }
 
@@ -766,87 +666,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   return command_line_options;
 }
 
-base::Status LoadTrace(TraceProcessor* trace_processor,
-                       TraceProcessorShell::PlatformInterface* platform,
-                       const std::string& trace_file_path,
-                       double* size_mb) {
-  base::Status load_status = platform->LoadTrace(
-      trace_processor, trace_file_path, [&size_mb](size_t parsed_size) {
-        *size_mb = static_cast<double>(parsed_size) / 1E6;
-        fprintf(stderr, "\rLoading trace: %.2f MB\r", *size_mb);
-      });
-  if (!load_status.ok()) {
-    return base::ErrStatus("Could not read trace file (path: %s): %s",
-                           trace_file_path.c_str(), load_status.c_message());
-  }
-
-  bool is_proto_trace = false;
-  {
-    auto it = trace_processor->ExecuteQuery(
-        "SELECT str_value FROM metadata WHERE name = 'trace_type'");
-    while (it.Next()) {
-      if (it.Get(0).type == SqlValue::kString &&
-          std::string_view(it.Get(0).AsString()) == "proto") {
-        is_proto_trace = true;
-        break;
-      }
-    }
-  }
-
-  profiling::SymbolizerConfig sym_config;
-  const char* mode = getenv("PERFETTO_SYMBOLIZER_MODE");
-  std::vector<std::string> paths = profiling::GetPerfettoBinaryPath();
-  if (mode && std::string_view(mode) == "find") {
-    sym_config.find_symbol_paths = std::move(paths);
-  } else {
-    sym_config.index_symbol_paths = std::move(paths);
-  }
-  if (!sym_config.index_symbol_paths.empty() ||
-      !sym_config.find_symbol_paths.empty()) {
-    if (is_proto_trace) {
-      trace_processor->Flush();
-      auto sym_result = profiling::SymbolizeDatabaseAndLog(
-          trace_processor, sym_config, /*verbose=*/false);
-      if (sym_result.error == profiling::SymbolizerError::kOk &&
-          !sym_result.symbols.empty()) {
-        std::unique_ptr<uint8_t[]> buf(new uint8_t[sym_result.symbols.size()]);
-        memcpy(buf.get(), sym_result.symbols.data(), sym_result.symbols.size());
-        auto status =
-            trace_processor->Parse(std::move(buf), sym_result.symbols.size());
-        if (!status.ok()) {
-          PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
-                                  status.message().c_str());
-        }
-      }
-    } else {
-      // TODO(lalitm): support symbolization for non-proto traces.
-      PERFETTO_ELOG("Skipping symbolization for non-proto trace");
-    }
-  }
-  auto maybe_map = profiling::GetPerfettoProguardMapPath();
-  if (!maybe_map.empty()) {
-    if (is_proto_trace) {
-      trace_processor->Flush();
-      profiling::ReadProguardMapsToDeobfuscationPackets(
-          maybe_map, [trace_processor](const std::string& trace_proto) {
-            std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
-            memcpy(buf.get(), trace_proto.data(), trace_proto.size());
-            auto status =
-                trace_processor->Parse(std::move(buf), trace_proto.size());
-            if (!status.ok()) {
-              PERFETTO_DFATAL_OR_ELOG("Failed to parse: %s",
-                                      status.message().c_str());
-              return;
-            }
-          });
-    } else {
-      // TODO(lalitm): support deobfuscation for non-proto traces.
-      PERFETTO_ELOG("Skipping deobfuscation for non-proto trace");
-    }
-  }
-  return trace_processor->NotifyEndOfFile();
-}
-
 MetricV1OutputFormat ParseMetricV1OutputFormat(
     const CommandLineOptions& options) {
   if (!options.query_file_path.empty())
@@ -889,6 +708,338 @@ TraceSummaryOutputSpec::Format GetSummaryOutputFormat(
   exit(1);
 }
 
+class ClassicSubcommand : public shell::Subcommand {
+ public:
+  const char* name() const override { return "classic"; }
+  const char* description() const override {
+    return "Classic flag-based interface.";
+  }
+  const option* GetLongOptions() const override { return kClassicLongOptions; }
+  void PrintUsage(const char*) override {
+    // PrintClassicUsage expects char** argv; we just pass nullptr since it only
+    // uses argv[0] and the caller context handles that.
+  }
+
+  int Run(const shell::SubcommandContext& ctx, int argc, char** argv) override {
+    CommandLineOptions options = ParseCommandLineOptions(argc, argv);
+
+    auto config = shell::BuildConfig(options.global, ctx.platform);
+
+    std::vector<MetricExtension> metric_extensions;
+    auto me_status = ParseMetricExtensionPaths(options.global.dev,
+                                               options.raw_metric_v1_extensions,
+                                               metric_extensions);
+    if (!me_status.ok()) {
+      PERFETTO_ELOG("%s", me_status.c_message());
+      return 1;
+    }
+
+    for (const auto& extension : metric_extensions) {
+      config.skip_builtin_metric_paths.push_back(extension.virtual_path());
+    }
+
+    auto tp_or =
+        shell::SetupTraceProcessor(options.global, config, ctx.platform);
+    if (!tp_or.ok()) {
+      PERFETTO_ELOG("%s", tp_or.status().c_message());
+      return 1;
+    }
+    auto tp = std::move(*tp_or);
+
+    // Descriptor pool used for printing output as textproto. Building on top
+    // of generated pool so default protos in
+    // google.protobuf.descriptor.proto are available.
+    // For some insane reason, the descriptor pool is not movable so we need to
+    // create it here so we can create references and pass it everywhere.
+    google::protobuf::DescriptorPool pool(
+        google::protobuf::DescriptorPool::generated_pool());
+    {
+      auto status = PopulateDescriptorPool(pool, metric_extensions);
+      if (!status.ok()) {
+        PERFETTO_ELOG("%s", status.c_message());
+        return 1;
+      }
+    }
+
+    // We load all the metric extensions even when --run-metrics arg is not
+    // there, because we want the metrics to be available in interactive mode
+    // or when used in UI using httpd.
+    // Metric extensions are also used to populate the descriptor pool.
+    for (const auto& extension : metric_extensions) {
+      auto status = LoadMetricExtension(tp.get(), extension, pool);
+      if (!status.ok()) {
+        PERFETTO_ELOG("%s", status.c_message());
+        return 1;
+      }
+    }
+
+    base::TimeNanos t_load{};
+    if (!options.global.trace_file.empty()) {
+      auto t_load_or = shell::LoadTraceFile(tp.get(), ctx.platform,
+                                            options.global.trace_file);
+      if (!t_load_or.ok()) {
+        PERFETTO_ELOG("%s", t_load_or.status().c_message());
+        return 1;
+      }
+      t_load = *t_load_or;
+    }
+
+#if PERFETTO_HAS_SIGNAL_H()
+    // Set up interrupt signal to allow the user to abort query.
+    static TraceProcessor* g_tp_for_signal_handler = tp.get();
+    signal(SIGINT, [](int) { g_tp_for_signal_handler->InterruptQuery(); });
+#endif
+
+    base::TimeNanos t_query_start = base::GetWallTimeNs();
+    if (!options.pre_metrics_v1_path.empty()) {
+      auto status =
+          RunQueriesFromFile(tp.get(), options.pre_metrics_v1_path, false);
+      if (!status.ok()) {
+        PERFETTO_ELOG("%s", status.c_message());
+        return 1;
+      }
+    }
+
+    // Trace summarization
+    if (options.summary) {
+      PERFETTO_CHECK(options.metric_v1_names.empty());
+
+      std::vector<std::string> spec_content;
+      spec_content.reserve(options.summary_specs.size());
+      for (const auto& s : options.summary_specs) {
+        spec_content.emplace_back();
+        if (!base::ReadFile(s, &spec_content.back())) {
+          PERFETTO_ELOG("Unable to read summary spec file %s", s.c_str());
+          return 1;
+        }
+      }
+
+      std::vector<TraceSummarySpecBytes> specs;
+      specs.reserve(options.summary_specs.size());
+      for (uint32_t i = 0; i < options.summary_specs.size(); ++i) {
+        specs.emplace_back(TraceSummarySpecBytes{
+            reinterpret_cast<const uint8_t*>(spec_content[i].data()),
+            spec_content[i].size(),
+            GuessSummarySpecFormat(options.summary_specs[i], spec_content[i]),
+        });
+      }
+
+      TraceSummaryComputationSpec computation_config;
+
+      if (options.summary_metrics_v2.empty()) {
+        computation_config.v2_metric_ids = std::vector<std::string>();
+      } else if (base::CaseInsensitiveEqual(options.summary_metrics_v2,
+                                            "all")) {
+        computation_config.v2_metric_ids = std::nullopt;
+      } else {
+        computation_config.v2_metric_ids =
+            base::SplitString(options.summary_metrics_v2, ",");
+      }
+
+      computation_config.metadata_query_id =
+          options.summary_metadata_query.empty()
+              ? std::nullopt
+              : std::make_optional(options.summary_metadata_query);
+
+      TraceSummaryOutputSpec output_spec;
+      output_spec.format = GetSummaryOutputFormat(options);
+
+      std::vector<uint8_t> output;
+      auto status =
+          tp->Summarize(computation_config, specs, &output, output_spec);
+      if (!status.ok()) {
+        PERFETTO_ELOG("%s", status.c_message());
+        return 1;
+      }
+      if (options.query_file_path.empty()) {
+        fwrite(output.data(), sizeof(char), output.size(), stdout);
+      }
+    }
+
+    // v1 metrics.
+    std::vector<MetricNameAndPath> metrics;
+    if (!options.metric_v1_names.empty()) {
+      PERFETTO_CHECK(!options.summary);
+      auto status =
+          LoadMetrics(tp.get(), options.metric_v1_names, pool, metrics);
+      if (!status.ok()) {
+        PERFETTO_ELOG("%s", status.c_message());
+        return 1;
+      }
+    }
+
+    MetricV1OutputFormat metric_format = ParseMetricV1OutputFormat(options);
+    if (!metrics.empty()) {
+      auto status = RunMetrics(tp.get(), metrics, metric_format);
+      if (!status.ok()) {
+        PERFETTO_ELOG("%s", status.c_message());
+        return 1;
+      }
+    }
+
+    if (!options.query_file_path.empty()) {
+      base::Status status =
+          RunQueriesFromFile(tp.get(), options.query_file_path, true);
+      if (!status.ok()) {
+        // Write metatrace if needed before exiting.
+        MaybeWriteMetatrace(tp.get(), options.global.metatrace_path);
+        PERFETTO_ELOG("%s", status.c_message());
+        return 1;
+      }
+    }
+
+    if (!options.query_string.empty()) {
+      base::Status status = RunQueries(tp.get(), options.query_string, true);
+      if (!status.ok()) {
+        // Write metatrace if needed before exiting.
+        MaybeWriteMetatrace(tp.get(), options.global.metatrace_path);
+        PERFETTO_ELOG("%s", status.c_message());
+        return 1;
+      }
+    }
+
+    if (!options.structured_query_id.empty()) {
+      // Load spec files.
+      std::vector<std::string> spec_content;
+      spec_content.reserve(options.structured_query_specs.size());
+      for (const auto& s : options.structured_query_specs) {
+        spec_content.emplace_back();
+        if (!base::ReadFile(s, &spec_content.back())) {
+          PERFETTO_ELOG("Unable to read structured query spec file %s",
+                        s.c_str());
+          return 1;
+        }
+      }
+
+      // Convert to TraceSummarySpecBytes.
+      std::vector<TraceSummarySpecBytes> specs;
+      specs.reserve(options.structured_query_specs.size());
+      for (uint32_t i = 0; i < options.structured_query_specs.size(); ++i) {
+        specs.emplace_back(TraceSummarySpecBytes{
+            reinterpret_cast<const uint8_t*>(spec_content[i].data()),
+            spec_content[i].size(),
+            GuessSummarySpecFormat(options.structured_query_specs[i],
+                                   spec_content[i]),
+        });
+      }
+
+      // Execute the structured query.
+      std::string output;
+      base::Status status = summary::ExecuteStructuredQuery(
+          tp.get(), specs, options.structured_query_id, &output);
+      if (!status.ok()) {
+        // Write metatrace if needed before exiting.
+        MaybeWriteMetatrace(tp.get(), options.global.metatrace_path);
+        PERFETTO_ELOG("%s", status.c_message());
+        return 1;
+      }
+
+      // Print the result.
+      fprintf(stdout, "%s", output.c_str());
+    }
+
+    base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
+
+    if (!options.export_file_path.empty()) {
+      auto status = ExportTraceToDatabase(tp.get(), options.export_file_path);
+      if (!status.ok()) {
+        PERFETTO_ELOG("%s", status.c_message());
+        return 1;
+      }
+    }
+
+    if (options.enable_httpd) {
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
+      Rpc rpc(std::move(tp), !options.global.trace_file.empty(), config,
+              [&ctx](TraceProcessor* tp) {
+                ctx.platform->OnTraceProcessorCreated(tp);
+              });
+
+#if PERFETTO_HAS_SIGNAL_H()
+      static Rpc* g_rpc_for_signal_handler = &rpc;
+
+      if (options.global.metatrace_path.empty()) {
+        // Restore the default signal handler to allow the user to terminate
+        // httpd server via Ctrl-C.
+        signal(SIGINT, SIG_DFL);
+      } else {
+        // Write metatrace to file before exiting.
+        static std::string* metatrace_path = &options.global.metatrace_path;
+        signal(SIGINT, [](int) {
+          MaybeWriteMetatrace(g_rpc_for_signal_handler->trace_processor(),
+                              *metatrace_path);
+          exit(1);
+        });
+      }
+#endif
+      std::vector<std::string> additional_cors_origins = base::SplitString(
+          PERFETTO_BUILDFLAG(PERFETTO_HTTP_ADDITIONAL_CORS_ORIGINS), ",");
+
+      for (const auto& origin : options.additional_cors_origins) {
+        PERFETTO_ILOG("Adding additional CORS origin: %s", origin.c_str());
+        additional_cors_origins.push_back(origin);
+      }
+
+      RunHttpRPCServer(
+          /*rpc=*/rpc,
+          /*listen_ip=*/options.listen_ip,
+          /*port_number=*/options.port_number,
+          /*additional_cors_origins=*/additional_cors_origins);
+      PERFETTO_FATAL("Should never return");
+#else
+      PERFETTO_FATAL("HTTP not available");
+#endif
+    }
+
+    if (options.enable_stdiod) {
+      Rpc rpc(std::move(tp), !options.global.trace_file.empty(), config,
+              [&ctx](TraceProcessor* tp) {
+                ctx.platform->OnTraceProcessorCreated(tp);
+              });
+#if PERFETTO_HAS_SIGNAL_H()
+      static Rpc* g_rpc_for_signal_handler = &rpc;
+      g_tp_for_signal_handler = nullptr;
+      signal(SIGINT, [](int) {
+        g_rpc_for_signal_handler->trace_processor()->InterruptQuery();
+      });
+#endif
+      auto status = RunStdioRpcServer(rpc);
+      if (!status.ok()) {
+        PERFETTO_ELOG("%s", status.c_message());
+        return 1;
+      }
+      return 0;
+    }
+
+    if (options.launch_shell) {
+      auto status = StartInteractiveShell(
+          tp.get(), InteractiveOptions{options.wide ? 40u : 20u, metric_format,
+                                       metric_extensions, metrics, &pool});
+      if (!status.ok()) {
+        PERFETTO_ELOG("%s", status.c_message());
+        return 1;
+      }
+    } else if (!options.perf_file_path.empty()) {
+      auto status = PrintPerfFile(options.perf_file_path, t_load, t_query);
+      if (!status.ok()) {
+        PERFETTO_ELOG("%s", status.c_message());
+        return 1;
+      }
+    }
+
+    {
+      auto status =
+          MaybeWriteMetatrace(tp.get(), options.global.metatrace_path);
+      if (!status.ok()) {
+        PERFETTO_ELOG("%s", status.c_message());
+        return 1;
+      }
+    }
+
+    return 0;
+  }
+};
+
 class DefaultPlatformInterface : public TraceProcessorShell::PlatformInterface {
  public:
   ~DefaultPlatformInterface() override;
@@ -929,57 +1080,25 @@ TraceProcessorShell::CreateWithDefaultPlatform() {
 }
 
 base::Status TraceProcessorShell::Run(int argc, char** argv) {
-  // Check for subcommands before classic flag parsing.
   shell::QuerySubcommand query_subcommand;
   shell::ReplSubcommand repl_subcommand;
   shell::ServeSubcommand serve_subcommand;
   shell::SummarizeSubcommand summarize_subcommand;
   shell::MetricsSubcommand metrics_subcommand;
   shell::ExportSubcommand export_subcommand;
+  ClassicSubcommand classic_subcommand;
+
+  // Subcommands to match against (classic is the fallback, not matched).
   std::vector<shell::Subcommand*> subcommands = {
       &query_subcommand,     &repl_subcommand,    &serve_subcommand,
       &summarize_subcommand, &metrics_subcommand, &export_subcommand,
   };
-
-  // All flags (both global and classic) that consume a following argument.
-  // Needed so FindSubcommandInArgs can skip flag values during the scan.
-  // Using a C array of string_view to avoid exit-time destructor warnings.
-  static constexpr std::string_view kFlagsWithArgArr[] = {
-      // Global flags.
-      "--dev-flag",
-      "--add-sql-package",
-      "--override-sql-package",
-      "--override-stdlib",
-      "--metatrace",
-      "-m",
-      "--metatrace-buffer-capacity",
-      "--metatrace-categories",
-      "--register-files-dir",
-      // Classic-only flags (still needed so scanner skips their values).
-      "--http-port",
-      "--http-ip-address",
-      "--http-additional-cors-origins",
-      "--query-file",
-      "-q",
-      "--query-string",
-      "-Q",
-      "--structured-query-spec",
-      "--structured-query-id",
-      "--summary-metrics-v2",
-      "--summary-metadata-query",
-      "--summary-spec",
-      "--summary-format",
-      "--export",
-      "-e",
-      "--perf-file",
-      "-p",
-      "--run-metrics",
-      "--pre-metrics",
-      "--metrics-output",
-      "--metric-extension",
+  // All subcommands including classic (for flags_with_arg derivation).
+  std::vector<shell::Subcommand*> all = {
+      &query_subcommand,     &repl_subcommand,    &serve_subcommand,
+      &summarize_subcommand, &metrics_subcommand, &export_subcommand,
+      &classic_subcommand,
   };
-  std::vector<std::string> flags_with_arg(std::begin(kFlagsWithArgArr),
-                                          std::end(kFlagsWithArgArr));
 
   // Handle "help" pseudo-subcommand: `tp help <command>` or bare `tp help`.
   for (int i = 1; i < argc; ++i) {
@@ -987,7 +1106,7 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
       continue;
     if (strcmp(argv[i], "help") == 0) {
       if (i + 1 < argc) {
-        // `help <command>` — find the named subcommand and print its usage.
+        // `help <command>` -- find the named subcommand and print its usage.
         for (auto* sc : subcommands) {
           if (strcmp(sc->name(), argv[i + 1]) == 0) {
             sc->PrintUsage(argv[0]);
@@ -998,17 +1117,25 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
         PrintSubcommandHelp(argv[0]);
         exit(1);
       }
-      // Bare `help` — same as --help.
+      // Bare `help` -- same as --help.
       PrintSubcommandHelp(argv[0]);
       exit(0);
     }
-    break;  // First non-flag, non-help positional → stop.
+    break;  // First non-flag, non-help positional -> stop.
   }
 
-  auto result =
-      shell::FindSubcommandInArgs(argc, argv, subcommands, flags_with_arg);
-  if (result.subcommand) {
-    // If the matched word is also a file on disk, it's ambiguous — the user
+  auto result = shell::FindSubcommandInArgs(argc, argv, subcommands, all);
+
+  shell::SubcommandContext ctx;
+  ctx.platform = platform_interface_.get();
+
+  shell::Subcommand* target = result.subcommand;
+  int target_argc = argc;
+  char** target_argv = argv;
+  std::vector<char*> new_argv;
+
+  if (target) {
+    // If the matched word is also a file on disk, it's ambiguous -- the user
     // might have meant it as a trace file. Emit a hint.
     if (base::FileExists(argv[result.argv_index])) {
       PERFETTO_ELOG(
@@ -1016,283 +1143,19 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
           "Interpreting as subcommand. To use it as a trace file, use './%s'.",
           argv[result.argv_index], argv[result.argv_index]);
     }
-    // Build a new argv with the subcommand name removed.
-    std::vector<char*> new_argv;
+    // Remove subcommand name from argv.
     for (int i = 0; i < argc; ++i) {
-      if (i != result.argv_index) {
+      if (i != result.argv_index)
         new_argv.push_back(argv[i]);
-      }
     }
-    shell::SubcommandContext ctx;
-    ctx.platform = platform_interface_.get();
-    int ret = result.subcommand->Run(ctx, static_cast<int>(new_argv.size()),
-                                     new_argv.data());
-    // The subcommand handles its own error reporting. Use exit() to avoid
-    // TraceProcessorShellMain printing a redundant error message. This
-    // matches the precedent set by ParseCommandLineOptions which also
-    // calls exit() on errors.
-    exit(ret);
+    target_argc = static_cast<int>(new_argv.size());
+    target_argv = new_argv.data();
+  } else {
+    target = &classic_subcommand;
   }
 
-  CommandLineOptions options = ParseCommandLineOptions(argc, argv);
-
-  // Build config and apply metric extension skip paths before TP creation.
-  const auto& global = options.global;
-  Config config = shell::BuildConfig(global, platform_interface_.get());
-
-  std::vector<MetricExtension> metric_extensions;
-  RETURN_IF_ERROR(ParseMetricExtensionPaths(
-      global.dev, options.raw_metric_v1_extensions, metric_extensions));
-  for (const auto& extension : metric_extensions) {
-    config.skip_builtin_metric_paths.push_back(extension.virtual_path());
-  }
-
-  // Create TP with the modified config, then apply SQL packages, metatrace,
-  // and file registration.
-  ASSIGN_OR_RETURN(
-      std::unique_ptr<TraceProcessor> tp,
-      shell::SetupTraceProcessor(global, config, platform_interface_.get()));
-
-  // Descriptor pool used for printing output as textproto. Building on top of
-  // generated pool so default protos in google.protobuf.descriptor.proto are
-  // available.
-  // For some insane reason, the descriptor pool is not movable so we need to
-  // create it here so we can create references and pass it everywhere.
-  google::protobuf::DescriptorPool pool(
-      google::protobuf::DescriptorPool::generated_pool());
-  RETURN_IF_ERROR(PopulateDescriptorPool(pool, metric_extensions));
-
-  // We load all the metric extensions even when --run-metrics arg is not there,
-  // because we want the metrics to be available in interactive mode or when
-  // used in UI using httpd.
-  // Metric extensions are also used to populate the descriptor pool.
-  for (const auto& extension : metric_extensions) {
-    RETURN_IF_ERROR(LoadMetricExtension(tp.get(), extension, pool));
-  }
-
-  base::TimeNanos t_load{};
-  if (!global.trace_file.empty()) {
-    base::TimeNanos t_load_start = base::GetWallTimeNs();
-    double size_mb = 0;
-    RETURN_IF_ERROR(LoadTrace(tp.get(), platform_interface_.get(),
-                              global.trace_file, &size_mb));
-    t_load = base::GetWallTimeNs() - t_load_start;
-
-    double t_load_s = static_cast<double>(t_load.count()) / 1E9;
-    PERFETTO_ILOG("Trace loaded: %.2f MB in %.2fs (%.1f MB/s)", size_mb,
-                  t_load_s, size_mb / t_load_s);
-
-    RETURN_IF_ERROR(PrintStats(tp.get()));
-  }
-
-#if PERFETTO_HAS_SIGNAL_H()
-  // Set up interrupt signal to allow the user to abort query.
-  static TraceProcessor* g_tp_for_signal_handler = tp.get();
-  signal(SIGINT, [](int) { g_tp_for_signal_handler->InterruptQuery(); });
-#endif
-
-  base::TimeNanos t_query_start = base::GetWallTimeNs();
-  if (!options.pre_metrics_v1_path.empty()) {
-    RETURN_IF_ERROR(
-        RunQueriesFromFile(tp.get(), options.pre_metrics_v1_path, false));
-  }
-
-  // Trace summarization
-  if (options.summary) {
-    PERFETTO_CHECK(options.metric_v1_names.empty());
-
-    std::vector<std::string> spec_content;
-    spec_content.reserve(options.summary_specs.size());
-    for (const auto& s : options.summary_specs) {
-      spec_content.emplace_back();
-      if (!base::ReadFile(s, &spec_content.back())) {
-        return base::ErrStatus("Unable to read summary spec file %s",
-                               s.c_str());
-      }
-    }
-
-    std::vector<TraceSummarySpecBytes> specs;
-    specs.reserve(options.summary_specs.size());
-    for (uint32_t i = 0; i < options.summary_specs.size(); ++i) {
-      specs.emplace_back(TraceSummarySpecBytes{
-          reinterpret_cast<const uint8_t*>(spec_content[i].data()),
-          spec_content[i].size(),
-          GuessSummarySpecFormat(options.summary_specs[i], spec_content[i]),
-      });
-    }
-
-    TraceSummaryComputationSpec computation_config;
-
-    if (options.summary_metrics_v2.empty()) {
-      computation_config.v2_metric_ids = std::vector<std::string>();
-    } else if (base::CaseInsensitiveEqual(options.summary_metrics_v2, "all")) {
-      computation_config.v2_metric_ids = std::nullopt;
-    } else {
-      computation_config.v2_metric_ids =
-          base::SplitString(options.summary_metrics_v2, ",");
-    }
-
-    computation_config.metadata_query_id =
-        options.summary_metadata_query.empty()
-            ? std::nullopt
-            : std::make_optional(options.summary_metadata_query);
-
-    TraceSummaryOutputSpec output_spec;
-    output_spec.format = GetSummaryOutputFormat(options);
-
-    std::vector<uint8_t> output;
-    RETURN_IF_ERROR(
-        tp->Summarize(computation_config, specs, &output, output_spec));
-    if (options.query_file_path.empty()) {
-      fwrite(output.data(), sizeof(char), output.size(), stdout);
-    }
-  }
-
-  // v1 metrics.
-  std::vector<MetricNameAndPath> metrics;
-  if (!options.metric_v1_names.empty()) {
-    PERFETTO_CHECK(!options.summary);
-    RETURN_IF_ERROR(
-        LoadMetrics(tp.get(), options.metric_v1_names, pool, metrics));
-  }
-
-  MetricV1OutputFormat metric_format = ParseMetricV1OutputFormat(options);
-  if (!metrics.empty()) {
-    RETURN_IF_ERROR(RunMetrics(tp.get(), metrics, metric_format));
-  }
-
-  if (!options.query_file_path.empty()) {
-    base::Status status =
-        RunQueriesFromFile(tp.get(), options.query_file_path, true);
-    if (!status.ok()) {
-      // Write metatrace if needed before exiting.
-      RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), global.metatrace_path));
-      return status;
-    }
-  }
-
-  if (!options.query_string.empty()) {
-    base::Status status = RunQueries(tp.get(), options.query_string, true);
-    if (!status.ok()) {
-      // Write metatrace if needed before exiting.
-      RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), global.metatrace_path));
-      return status;
-    }
-  }
-
-  if (!options.structured_query_id.empty()) {
-    // Load spec files.
-    std::vector<std::string> spec_content;
-    spec_content.reserve(options.structured_query_specs.size());
-    for (const auto& s : options.structured_query_specs) {
-      spec_content.emplace_back();
-      if (!base::ReadFile(s, &spec_content.back())) {
-        return base::ErrStatus("Unable to read structured query spec file %s",
-                               s.c_str());
-      }
-    }
-
-    // Convert to TraceSummarySpecBytes.
-    std::vector<TraceSummarySpecBytes> specs;
-    specs.reserve(options.structured_query_specs.size());
-    for (uint32_t i = 0; i < options.structured_query_specs.size(); ++i) {
-      specs.emplace_back(TraceSummarySpecBytes{
-          reinterpret_cast<const uint8_t*>(spec_content[i].data()),
-          spec_content[i].size(),
-          GuessSummarySpecFormat(options.structured_query_specs[i],
-                                 spec_content[i]),
-      });
-    }
-
-    // Execute the structured query.
-    std::string output;
-    base::Status status = summary::ExecuteStructuredQuery(
-        tp.get(), specs, options.structured_query_id, &output);
-    if (!status.ok()) {
-      // Write metatrace if needed before exiting.
-      RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), global.metatrace_path));
-      return status;
-    }
-
-    // Print the result.
-    fprintf(stdout, "%s", output.c_str());
-  }
-
-  base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
-
-  if (!options.export_file_path.empty()) {
-    RETURN_IF_ERROR(ExportTraceToDatabase(tp.get(), options.export_file_path));
-  }
-
-  if (options.enable_httpd) {
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
-    Rpc rpc(std::move(tp), !global.trace_file.empty(), config,
-            [this](TraceProcessor* tp) {
-              platform_interface_->OnTraceProcessorCreated(tp);
-            });
-
-#if PERFETTO_HAS_SIGNAL_H()
-    static Rpc* g_rpc_for_signal_handler = &rpc;
-
-    if (global.metatrace_path.empty()) {
-      // Restore the default signal handler to allow the user to terminate
-      // httpd server via Ctrl-C.
-      signal(SIGINT, SIG_DFL);
-    } else {
-      // Write metatrace to file before exiting.
-      static const std::string* metatrace_path = &global.metatrace_path;
-      signal(SIGINT, [](int) {
-        MaybeWriteMetatrace(g_rpc_for_signal_handler->trace_processor(),
-                            *metatrace_path);
-        exit(1);
-      });
-    }
-#endif
-    std::vector<std::string> additional_cors_origins = base::SplitString(
-        PERFETTO_BUILDFLAG(PERFETTO_HTTP_ADDITIONAL_CORS_ORIGINS), ",");
-
-    for (const auto& origin : options.additional_cors_origins) {
-      PERFETTO_ILOG("Adding additional CORS origin: %s", origin.c_str());
-      additional_cors_origins.push_back(origin);
-    }
-
-    RunHttpRPCServer(
-        /*rpc=*/rpc,
-        /*listen_ip=*/options.listen_ip,
-        /*port_number=*/options.port_number,
-        /*additional_cors_origins=*/additional_cors_origins);
-    PERFETTO_FATAL("Should never return");
-#else
-    PERFETTO_FATAL("HTTP not available");
-#endif
-  }
-
-  if (options.enable_stdiod) {
-    Rpc rpc(std::move(tp), !global.trace_file.empty(), config,
-            [this](TraceProcessor* tp) {
-              platform_interface_->OnTraceProcessorCreated(tp);
-            });
-#if PERFETTO_HAS_SIGNAL_H()
-    static Rpc* g_rpc_for_signal_handler = &rpc;
-    g_tp_for_signal_handler = nullptr;
-    signal(SIGINT, [](int) {
-      g_rpc_for_signal_handler->trace_processor()->InterruptQuery();
-    });
-#endif
-    return RunStdioRpcServer(rpc);
-  }
-
-  if (options.launch_shell) {
-    RETURN_IF_ERROR(StartInteractiveShell(
-        tp.get(), InteractiveOptions{options.wide ? 40u : 20u, metric_format,
-                                     metric_extensions, metrics, &pool}));
-  } else if (!options.perf_file_path.empty()) {
-    RETURN_IF_ERROR(PrintPerfFile(options.perf_file_path, t_load, t_query));
-  }
-
-  RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), global.metatrace_path));
-
-  return base::OkStatus();
+  int ret = target->Run(ctx, target_argc, target_argv);
+  return ret == 0 ? base::OkStatus() : base::ErrStatus("Command failed");
 }
 
 TraceProcessorShell_PlatformInterface::

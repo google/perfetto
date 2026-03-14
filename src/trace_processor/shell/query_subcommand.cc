@@ -58,6 +58,18 @@ Flags:
                 argv0);
 }
 
+static const option kQueryLongOptions[] = {
+    {"file", required_argument, nullptr, 'f'},
+    {"sql", required_argument, nullptr, 'c'},
+    {"interactive", no_argument, nullptr, 'i'},
+    {"wide", no_argument, nullptr, 'W'},
+    {"perf-file", required_argument, nullptr, 'p'},
+    GLOBAL_LONG_OPTIONS{nullptr, 0, nullptr, 0}};
+
+const option* QuerySubcommand::GetLongOptions() const {
+  return kQueryLongOptions;
+}
+
 int QuerySubcommand::Run(const SubcommandContext& ctx, int argc, char** argv) {
   GlobalOptions global;
   std::string query_file;
@@ -66,17 +78,10 @@ int QuerySubcommand::Run(const SubcommandContext& ctx, int argc, char** argv) {
   bool wide = false;
   std::string perf_file;
 
-  static const option long_options[] = {
-      {"file", required_argument, nullptr, 'f'},
-      {"sql", required_argument, nullptr, 'c'},
-      {"interactive", no_argument, nullptr, 'i'},
-      {"wide", no_argument, nullptr, 'W'},
-      {"perf-file", required_argument, nullptr, 'p'},
-      GLOBAL_LONG_OPTIONS{nullptr, 0, nullptr, 0}};
-
   optind = 1;
   for (;;) {
-    int option = getopt_long(argc, argv, "f:c:iWp:m:h", long_options, nullptr);
+    int option =
+        getopt_long(argc, argv, "f:c:iWp:m:h", kQueryLongOptions, nullptr);
     if (option == -1)
       break;
     if (HandleGlobalOption(option, optarg, global))
