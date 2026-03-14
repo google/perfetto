@@ -48,7 +48,7 @@
  * ```
  */
 import m from 'mithril';
-import {Button, ButtonVariant} from './button';
+import {Button, ButtonGroup, ButtonVariant} from './button';
 import {Icon} from './icon';
 import {PopupMenu} from './menu';
 import {classNames} from '../base/classnames';
@@ -80,6 +80,7 @@ export interface Connection {
 
 export interface NodeTitleBar {
   readonly title: m.Children;
+  readonly icon?: string;
 }
 
 export interface NodePort {
@@ -190,6 +191,11 @@ export interface NodeGraphApi {
    * @param centerY - Y coordinate to zoom around (in viewport space). Defaults to canvas center.
    */
   zoomBy: (deltaZoom: number, centerX?: number, centerY?: number) => void;
+  /**
+   * Reset the canvas zoom level to the default (1.0) retaining the current
+   * center point.
+   */
+  resetZoom: () => void;
 }
 
 export interface NodeGraphAttrs {
@@ -414,6 +420,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
   // These are initialized in oncreate and can be used in subsequent lifecycle hooks
   let autoLayoutApi: (() => void) | null = null;
   let recenterApi: (() => void) | null = null;
+  let resetZoom: (() => void) | null = null;
   let findPlacementForNodeApi:
     | ((newNode: Omit<Node, 'x' | 'y'>) => Position)
     | null = null;
@@ -1799,6 +1806,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         // Render node title if it exists
         titleBar !== undefined &&
           m('.pf-node-header', [
+            titleBar.icon !== undefined &&
+              m(Icon, {icon: titleBar.icon, className: 'pf-node-title-icon'}),
             m('.pf-node-title', titleBar.title),
             contextMenuItems !== undefined &&
               m(
@@ -2084,45 +2093,48 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         tempContainer.style.visibility = 'hidden';
         canvas.appendChild(tempContainer);
 
-        // Render the node into the temporary container
+        // Render the node into the temporary container with animation disabled
         m.render(
           tempContainer,
           m(
-            '.pf-node',
-            {
-              'data-node': tempNode.id,
-              'style': {
-                ...(tempNode.hue !== undefined
-                  ? {'--pf-node-hue': `${tempNode.hue}`}
-                  : {}),
+            '.pf-node-wrapper.pf-node-wrapper--no-animation',
+            m(
+              '.pf-node',
+              {
+                'data-node': tempNode.id,
+                'style': {
+                  ...(tempNode.hue !== undefined
+                    ? {'--pf-node-hue': `${tempNode.hue}`}
+                    : {}),
+                },
               },
-            },
-            [
-              tempNode.titleBar &&
-                m('.pf-node-header', [
-                  m('.pf-node-title', tempNode.titleBar.title),
+              [
+                tempNode.titleBar &&
+                  m('.pf-node-header', [
+                    m('.pf-node-title', tempNode.titleBar.title),
+                  ]),
+                m('.pf-node-body', [
+                  tempNode.content !== undefined &&
+                    m('.pf-node-content', tempNode.content),
+                  tempNode.inputs
+                    ?.filter((p) => p.direction === 'left')
+                    .map((port) =>
+                      m('.pf-port-row.pf-port-input', [
+                        m('.pf-port'),
+                        port.content,
+                      ]),
+                    ),
+                  tempNode.outputs
+                    ?.filter((p) => p.direction === 'right')
+                    .map((port) =>
+                      m('.pf-port-row.pf-port-output', [
+                        port.content,
+                        m('.pf-port'),
+                      ]),
+                    ),
                 ]),
-              m('.pf-node-body', [
-                tempNode.content !== undefined &&
-                  m('.pf-node-content', tempNode.content),
-                tempNode.inputs
-                  ?.filter((p) => p.direction === 'left')
-                  .map((port) =>
-                    m('.pf-port-row.pf-port-input', [
-                      m('.pf-port'),
-                      port.content,
-                    ]),
-                  ),
-                tempNode.outputs
-                  ?.filter((p) => p.direction === 'right')
-                  .map((port) =>
-                    m('.pf-port-row.pf-port-output', [
-                      port.content,
-                      m('.pf-port'),
-                    ]),
-                  ),
-              ]),
-            ],
+              ],
+            ),
           ),
         );
 
@@ -2153,6 +2165,31 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         return finalPos;
       };
 
+      // Reset zoom to 100% (1.0x) around canvas center
+      resetZoom = () => {
+        if (!canvasElement) return;
+
+        const canvas = canvasElement;
+        const canvasRect = canvas.getBoundingClientRect();
+        const centerX = canvasRect.width / 2;
+        const centerY = canvasRect.height / 2;
+
+        // Calculate the point in canvas space (before zoom)
+        const canvasX = (centerX - canvasState.panOffset.x) / canvasState.zoom;
+        const canvasY = (centerY - canvasState.panOffset.y) / canvasState.zoom;
+
+        // Reset zoom to 1.0
+        canvasState.zoom = 1.0;
+
+        // Adjust pan to keep the same point under the center
+        canvasState.panOffset = {
+          x: centerX - canvasX,
+          y: centerY - canvasY,
+        };
+
+        m.redraw();
+      };
+
       // Provide API to parent
       if (
         onReady !== undefined &&
@@ -2166,6 +2203,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           findPlacementForNode: findPlacementForNodeApi,
           panBy,
           zoomBy,
+          resetZoom,
         });
       }
     },
@@ -2196,7 +2234,8 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
         onReady !== undefined &&
         autoLayoutApi !== null &&
         recenterApi !== null &&
-        findPlacementForNodeApi !== null
+        findPlacementForNodeApi !== null &&
+        resetZoom !== null
       ) {
         onReady({
           autoLayout: autoLayoutApi,
@@ -2204,6 +2243,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           findPlacementForNode: findPlacementForNodeApi,
           panBy,
           zoomBy,
+          resetZoom,
         });
       }
     },
@@ -2219,7 +2259,6 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       const {
         nodes,
         selectedNodeIds = new Set<string>(),
-        hideControls = false,
         multiselect = true,
         contextMenuOnHover = false,
         fillHeight,
@@ -2337,37 +2376,44 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           },
         },
         [
-          // Control buttons (can be hidden via hideControls prop)
-          !hideControls &&
+          (vnode.attrs.toolbarItems !== undefined ||
+            !vnode.attrs.hideControls) &&
             m('.pf-nodegraph-controls', [
               vnode.attrs.toolbarItems,
-              m(Button, {
-                label: 'Auto Layout',
-                icon: 'account_tree',
-                variant: ButtonVariant.Filled,
-                onclick: () => {
-                  const {
-                    nodes = [],
-                    connections = [],
-                    onNodeMove,
-                  } = vnode.attrs;
-                  autoLayoutGraph(nodes, connections, onNodeMove);
-                },
-              }),
-              m(Button, {
-                label: 'Fit to Screen',
-                icon: 'center_focus_strong',
-                variant: ButtonVariant.Filled,
-                onclick: (e: PointerEvent) => {
-                  const {nodes = [], labels = []} = vnode.attrs;
-                  const canvas = (e.currentTarget as HTMLElement).closest(
-                    '.pf-canvas',
-                  );
-                  if (canvas) {
-                    autofit(nodes, labels, canvas as HTMLElement);
-                  }
-                },
-              }),
+              !vnode.attrs.hideControls &&
+                m(Button, {
+                  title: 'Auto layout',
+                  icon: 'account_tree',
+                  variant: ButtonVariant.Filled,
+                  onclick: () => autoLayoutApi?.(),
+                }),
+              m(
+                ButtonGroup,
+                m(Button, {
+                  title: 'Fit to screen',
+                  icon: 'center_focus_strong',
+                  variant: ButtonVariant.Filled,
+                  onclick: () => recenterApi?.(),
+                }),
+                m(Button, {
+                  title: 'Reset zoom to 100%',
+                  icon: 'view_real_size',
+                  variant: ButtonVariant.Filled,
+                  onclick: () => resetZoom?.(),
+                }),
+                m(Button, {
+                  title: 'Zoom in',
+                  icon: 'zoom_in',
+                  variant: ButtonVariant.Filled,
+                  onclick: () => zoomBy(0.2),
+                }),
+                m(Button, {
+                  title: 'Zoom out',
+                  icon: 'zoom_out',
+                  variant: ButtonVariant.Filled,
+                  onclick: () => zoomBy(-0.2),
+                }),
+              ),
             ]),
 
           // Container for nodes and SVG that gets transformed
@@ -2417,6 +2463,14 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                           canvasState.draggedNode === id &&
                             'pf-node-wrapper--dragging',
                         ),
+                        onbeforeremove: (vnode: m.VnodeDOM) => {
+                          return new Promise((resolve) => {
+                            vnode.dom.classList.add(
+                              'pf-node-wrapper--removing',
+                            );
+                            setTimeout(resolve, 200); // Match animation duration
+                          });
+                        },
                       },
                       chain.map((chainNode) => {
                         const cIsDockedChild = 'x' in chainNode === false;
@@ -2449,6 +2503,14 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
                           canvasState.draggedNode === id &&
                             'pf-node-wrapper--dragging',
                         ),
+                        onbeforeremove: (vnode: m.VnodeDOM) => {
+                          return new Promise((resolve) => {
+                            vnode.dom.classList.add(
+                              'pf-node-wrapper--removing',
+                            );
+                            setTimeout(resolve, 200); // Match animation duration
+                          });
+                        },
                       },
                       renderNode(node, vnode, {
                         isDockedChild: false,
