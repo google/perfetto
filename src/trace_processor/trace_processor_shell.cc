@@ -144,6 +144,58 @@ struct CommandLineOptions {
   std::vector<std::string> raw_metric_v1_extensions;
 };
 
+void PrintSubcommandHelp(const char* argv0) {
+  PERFETTO_ELOG(R"(
+Perfetto Trace Processor.
+Usage: %s [command] [flags] [trace_file]
+
+If no command is given, opens an interactive SQL shell on the trace file.
+
+Commands:
+
+  query         Run SQL queries against a trace.
+                  %s query -c "SELECT ts, dur FROM slice" trace.pb
+                  %s query -f query.sql trace.pb
+                Flags: -f FILE, -c STRING, -i (interactive after), -W (wide)
+
+  repl          Interactive SQL shell (default).
+                  %s trace.pb
+                  %s repl trace.pb
+                Flags: -W (wide)
+
+  serve         Start an RPC server.
+                  %s serve http trace.pb
+                  %s serve http --port 9001 trace.pb
+                  %s serve stdio
+                Modes: http, stdio
+
+  summarize     Run trace summarization.
+                  %s summarize --metrics-v2 all --spec spec.textproto trace.pb
+                Flags: --spec PATH, --metrics-v2 IDS, --format [text|binary]
+
+  metrics       Run v1 metrics (deprecated).
+                  %s metrics --run android_cpu trace.pb
+                Flags: --run NAMES, --output [binary|text|json]
+
+  export        Export trace to a database file.
+                  %s export sqlite -o out.db trace.pb
+                Formats: sqlite
+
+Global flags (apply to all commands):
+  --dev, --full-sort, --no-ftrace-raw, --metatrace FILE, ...
+  Run '%s help <command>' for full flag details.
+
+Previous versions of trace_processor_shell used a flat flag interface
+(e.g. -q file.sql, --httpd, --summary, -e output.db). This interface
+is fully supported and will remain so permanently. If you have existing
+scripts or are following older documentation that uses these flags, they
+will continue to work exactly as before.
+  Run '%s --help-classic' to see the flat flag reference.
+)",
+                argv0, argv0, argv0, argv0, argv0, argv0, argv0, argv0, argv0,
+                argv0, argv0, argv0, argv0);
+}
+
 void PrintClassicUsage(char** argv) {
   PERFETTO_ELOG(R"(
 Interactive trace processor shell.
@@ -387,10 +439,13 @@ enum ClassicLongOption {
   OPT_PRE_METRICS,
   OPT_METRICS_OUTPUT,
   OPT_METRIC_EXTENSION,
+
+  OPT_HELP_CLASSIC,
 };
 
 static const option kClassicLongOptions[] = {
     {"help", no_argument, nullptr, 'h'},
+    {"help-classic", no_argument, nullptr, OPT_HELP_CLASSIC},
     {"version", no_argument, nullptr, 'v'},
 
     {"httpd", no_argument, nullptr, 'D'},
@@ -563,8 +618,16 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       continue;
     }
 
+    if (option == OPT_HELP_CLASSIC) {
+      PrintClassicUsage(argv);
+      exit(0);
+    }
+    if (option == 'h') {
+      PrintSubcommandHelp(argv[0]);
+      exit(0);
+    }
     PrintClassicUsage(argv);
-    exit(option == 'h' ? 0 : 1);
+    exit(1);
   }
 
   command_line_options.launch_shell =
@@ -1037,6 +1100,30 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
       &classic_subcommand,
   };
 
+  // Handle "help" pseudo-subcommand: `tp help <command>` or bare `tp help`.
+  for (int i = 1; i < argc; ++i) {
+    if (argv[i][0] == '-')
+      continue;
+    if (strcmp(argv[i], "help") == 0) {
+      if (i + 1 < argc) {
+        // `help <command>` -- find the named subcommand and print its usage.
+        for (auto* sc : subcommands) {
+          if (strcmp(sc->name(), argv[i + 1]) == 0) {
+            sc->PrintUsage(argv[0]);
+            exit(0);
+          }
+        }
+        PERFETTO_ELOG("Unknown command '%s'.", argv[i + 1]);
+        PrintSubcommandHelp(argv[0]);
+        exit(1);
+      }
+      // Bare `help` -- same as --help.
+      PrintSubcommandHelp(argv[0]);
+      exit(0);
+    }
+    break;  // First non-flag, non-help positional -> stop.
+  }
+
   auto result = shell::FindSubcommandInArgs(argc, argv, subcommands, all);
 
   shell::SubcommandContext ctx;
@@ -1048,6 +1135,14 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
   std::vector<char*> new_argv;
 
   if (target) {
+    // If the matched word is also a file on disk, it's ambiguous -- the user
+    // might have meant it as a trace file. Emit a hint.
+    if (base::FileExists(argv[result.argv_index])) {
+      PERFETTO_ELOG(
+          "Note: '%s' matches both a subcommand and a file on disk. "
+          "Interpreting as subcommand. To use it as a trace file, use './%s'.",
+          argv[result.argv_index], argv[result.argv_index]);
+    }
     // Remove subcommand name from argv.
     for (int i = 0; i < argc; ++i) {
       if (i != result.argv_index)
