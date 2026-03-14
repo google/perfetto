@@ -254,25 +254,14 @@ if (enable_perfetto_trace_processor_sqlite) {
       "perfetto_sql/generator",
       "rpc",
       "rpc:stdiod",
-      "shell:common_flags",
-      "shell:export_subcommand",
-      "shell:interactive",
-      "shell:metatrace",
-      "shell:metrics",
-      "shell:metrics_subcommand",
-      "shell:query",
-      "shell:query_subcommand",
-      "shell:repl_subcommand",
-      "shell:serve_subcommand",
-      "shell:shell_utils",
-      "shell:subcommand",
-      "shell:summarize_subcommand",
+      "shell",
       "sqlite",
       "trace_summary",
+      "util:stdlib",
+      "util/deobfuscation:deobfuscator",
+      "util/symbolizer",
+      "util/symbolizer:symbolize_database",
     ]
-    if (enable_perfetto_trace_processor_linenoise) {
-      deps += [ "../../gn:linenoise" ]
-    }
     if (enable_perfetto_trace_processor_httpd) {
       deps += [ "rpc:httpd" ]
     }
