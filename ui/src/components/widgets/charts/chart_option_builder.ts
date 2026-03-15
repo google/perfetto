@@ -26,7 +26,7 @@ import type {EChartsCoreOption} from 'echarts/core';
  * Configuration for an axis in a chart.
  */
 export interface AxisConfig {
-  readonly type: 'value' | 'category' | 'log';
+  readonly type: 'value' | 'category' | 'log' | 'time';
   readonly name?: string;
   readonly nameGap?: number;
   readonly data?: readonly string[];
