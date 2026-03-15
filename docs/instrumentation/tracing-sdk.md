@@ -320,7 +320,7 @@ data as it might disclose information about other processes and allow
 side-channel attacks.
 
 - On Android 9 (Pie) and beyond, traced is shipped as part of the platform.
-- On older versions of Android, traced can be built from sources using the the
+- On older versions of Android, traced can be built from sources using the
 [standalone NDK-based workflow](/docs/contributing/build-instructions.md) and
 sideloaded via adb shell.
 <!-- * On Linux and MacOS and Windows `traced` must be built and run separately. See
