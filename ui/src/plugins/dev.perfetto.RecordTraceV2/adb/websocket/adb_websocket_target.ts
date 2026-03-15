@@ -15,15 +15,20 @@
 import protos from '../../../../protos';
 import {errResult, okResult, Result} from '../../../../base/result';
 import {PreflightCheck} from '../../interfaces/connection_check';
-import {RecordingTarget} from '../../interfaces/recording_target';
+import {
+  ProcessMemoryStats,
+  RecordingTarget,
+} from '../../interfaces/recording_target';
 import {ConsumerIpcTracingSession} from '../../tracing_protocol/consumer_ipc_tracing_session';
 import {checkAndroidTarget} from '../adb_platform_checks';
 import {
+  cloneAdbTracingSession,
   createAdbTracingSession,
   getAdbTracingServiceState,
 } from '../adb_tracing_session';
 import {AdbWebsocketDevice} from './adb_websocket_device';
 import {AsyncLazy} from '../../../../base/async_lazy';
+import {parseDumpsysMeminfo} from '../parse_dumpsys_meminfo';
 
 export class AdbWebsocketTarget implements RecordingTarget {
   readonly kind = 'LIVE_RECORDING';
@@ -85,11 +90,25 @@ export class AdbWebsocketTarget implements RecordingTarget {
     return getAdbTracingServiceState(this.adbDevice.value);
   }
 
+  async pollMemoryStats(): Promise<ProcessMemoryStats[] | undefined> {
+    const dev = this.adbDevice.value;
+    if (dev === undefined) return undefined;
+    const result = await dev.shell('dumpsys meminfo');
+    if (!result.ok) return undefined;
+    return parseDumpsysMeminfo(result.value);
+  }
+
   async startTracing(
     traceConfig: protos.ITraceConfig,
   ): Promise<Result<ConsumerIpcTracingSession>> {
     const adbDeviceStatus = await this.connectIfNeeded();
     if (!adbDeviceStatus.ok) return adbDeviceStatus;
     return await createAdbTracingSession(adbDeviceStatus.value, traceConfig);
+  }
+
+  async cloneSession(uniqueSessionName: string): Promise<Result<Uint8Array>> {
+    const adbDeviceStatus = await this.connectIfNeeded();
+    if (!adbDeviceStatus.ok) return adbDeviceStatus;
+    return cloneAdbTracingSession(adbDeviceStatus.value, uniqueSessionName);
   }
 }

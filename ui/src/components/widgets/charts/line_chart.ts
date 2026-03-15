@@ -148,6 +148,24 @@ export interface LineChartAttrs {
    * Defaults to no grid lines.
    */
   readonly gridLines?: 'horizontal' | 'vertical' | 'both';
+
+  /**
+   * When true, series are stacked and shown as filled areas.
+   * The total height is the sum of all series values. Defaults to false.
+   * Note: When stacked, all series must be aligned to the same X values.
+   */
+  readonly stacked?: boolean;
+
+  /**
+   * Position of the legend. Defaults to 'right' when multiple series,
+   * 'top' otherwise.
+   */
+  readonly legendPosition?: 'top' | 'right';
+
+  /**
+   * Callback when a series is clicked. Called with the series name.
+   */
+  readonly onSeriesClick?: (seriesName: string) => void;
 }
 
 export class LineChart implements m.ClassComponent<LineChartAttrs> {
@@ -189,40 +207,32 @@ function buildLineOption(
     showPoints = true,
     lineWidth = 2,
     gridLines,
+    stacked = false,
+    legendPosition,
   } = attrs;
   const fmtX = formatXValue ?? formatNumber;
   const fmtY = formatYValue ?? formatNumber;
 
   const displayLegend = showLegend ?? data.series.length > 1;
+  const legendPos =
+    legendPosition ?? (data.series.length > 1 ? 'right' : 'top');
 
-  const series = data.series.map((s) => {
-    return {
-      type: 'line' as const,
-      name: s.name,
-      data: s.points.map((p) => [p.x, p.y]),
-      lineStyle:
-        s.color !== undefined
-          ? {width: lineWidth, color: s.color}
-          : {width: lineWidth},
-      itemStyle: s.color !== undefined ? {color: s.color} : undefined,
-      showSymbol: showPoints,
-      symbolSize: 6,
-      emphasis: {itemStyle: {borderWidth: 2}},
-    };
-  });
+  const series = buildLineSeries(data, stacked, lineWidth, showPoints);
 
   const option = buildChartOption({
     grid: {
-      top: displayLegend ? 30 : 10,
+      top: legendPos === 'top' && displayLegend ? 30 : 10,
+      right: legendPos === 'right' && displayLegend ? 150 : undefined,
       bottom: xAxisLabel ? 40 : 25,
     },
     xAxis: {
-      type: 'value',
+      // Nasty ECharts quirk: when stacking, the xAxis must be type 'category'
+      // or 'time'. Since we want to support x-values at irregular intervals, we
+      // use 'time' type which allows numeric timestamps, and override the label
+      // formatter to show numbers.
+      type: stacked ? 'time' : 'value',
       name: xAxisLabel,
-      formatter:
-        formatXValue !== undefined
-          ? (v) => formatXValue(v as number)
-          : undefined,
+      formatter: (v) => fmtX(v as number),
       minInterval: integerX ? 1 : undefined,
       min: attrs.xAxisMin,
       max: attrs.xAxisMax,
@@ -260,7 +270,7 @@ function buildLineOption(
       },
     },
     brush: attrs.onBrush ? {xAxisIndex: 0, brushType: 'lineX'} : undefined,
-    legend: displayLegend ? buildLegendOption() : {show: false},
+    legend: displayLegend ? buildLegendOption(legendPos) : {show: false},
   });
 
   (option as Record<string, unknown>).series = series;
@@ -271,18 +281,16 @@ function buildLineEventHandlers(
   attrs: LineChartAttrs,
   data: LineChartData | undefined,
 ): ReadonlyArray<EChartEventHandler> {
-  if (
-    !attrs.onBrush ||
-    data === undefined ||
-    data.series.length === 0 ||
-    data.series.every((s) => s.points.length === 0)
-  ) {
-    return [];
-  }
-  const onBrush = attrs.onBrush;
+  const handlers: EChartEventHandler[] = [];
 
-  return [
-    {
+  if (
+    attrs.onBrush &&
+    data !== undefined &&
+    data.series.length > 0 &&
+    data.series.some((s) => s.points.length > 0)
+  ) {
+    const onBrush = attrs.onBrush;
+    handlers.push({
       eventName: 'brushEnd',
       handler: (params) => {
         const range = extractBrushRange(params);
@@ -291,6 +299,49 @@ function buildLineEventHandlers(
           onBrush({start, end});
         }
       },
-    },
-  ];
+    });
+  }
+
+  if (attrs.onSeriesClick) {
+    const onSeriesClick = attrs.onSeriesClick;
+    handlers.push({
+      eventName: 'click',
+      handler: (params) => {
+        const p = params as {seriesName?: string};
+        if (p.seriesName !== undefined) {
+          onSeriesClick(p.seriesName);
+        }
+      },
+    });
+  }
+
+  return handlers;
+}
+
+/**
+ * Build ECharts series configs. When stacked, aligns all series to
+ * shared x-values and uses ECharts native stack + areaStyle.
+ */
+function buildLineSeries(
+  data: LineChartData,
+  stacked: boolean,
+  lineWidth: number,
+  showPoints: boolean,
+): Array<Record<string, unknown>> {
+  return data.series.map((s) => ({
+    type: 'line',
+    name: s.name,
+    data: s.points.map((p) => [p.x, p.y]),
+    lineStyle:
+      s.color !== undefined
+        ? {width: lineWidth, color: s.color}
+        : {width: lineWidth},
+    itemStyle: s.color !== undefined ? {color: s.color} : undefined,
+    showSymbol: showPoints,
+    symbolSize: 6,
+    triggerLineEvent: true,
+    emphasis: {focus: 'series', itemStyle: {borderWidth: 2}},
+    stack: stacked ? 'total' : undefined,
+    areaStyle: stacked ? {} : undefined,
+  }));
 }
