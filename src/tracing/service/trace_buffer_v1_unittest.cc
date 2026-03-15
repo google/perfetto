@@ -2105,4 +2105,252 @@ TEST_F(TraceBufferTest, Clone_CommitOnlyUsedSize) {
   ASSERT_TRUE(is_only_first_page_mapped(*snap));
 }
 
+// -------------------------------------------
+// Re-scrape after ring-buffer eviction tests
+// -------------------------------------------
+
+// Simulates the scenario where:
+// 1. A chunk is written and fully read.
+// 2. The ring buffer wraps, evicting the chunk's index entry.
+// 3. The same chunk is re-written (simulating SMB scraping re-introducing it).
+// Without the fix, all fragments would be re-read as if it were a new chunk.
+TEST_F(TraceBufferTest, RescrapeAfterEviction_FullyRead) {
+  // Use a small buffer so we can easily force eviction via wraparound.
+  ResetBuffer(4096);
+
+  // Write chunk {1,1,0} with two packets.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .PadTo(512)
+      .CopyIntoTraceBuffer();
+
+  // Read both packets.
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'a')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'b')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  // Fill the buffer to force wraparound, evicting chunk {1,1,0}'s index entry.
+  // Each chunk is 1024 bytes, so 4 chunks will overflow the 4096-byte buffer.
+  for (ChunkID c = 1; c <= 4; c++) {
+    CreateChunk(ProducerID(2), WriterID(1), ChunkID(c))
+        .AddPacket(1024 - 16, static_cast<char>('x'))
+        .CopyIntoTraceBuffer();
+  }
+
+  // Re-introduce the same chunk {1,1,0} (simulates SMB scraping).
+  SuppressClientDchecksForTesting();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .PadTo(512)
+      .CopyIntoTraceBuffer();
+
+  // Collect all readable packets. The re-scraped chunk's packets must not
+  // appear again since they were already fully consumed.
+  trace_buffer()->BeginRead();
+  bool found_a = false;
+  bool found_b = false;
+  for (;;) {
+    auto p = ReadPacket();
+    if (p.empty())
+      break;
+    if (p.size() == 1 && p[0] == FakePacketFragment(20, 'a'))
+      found_a = true;
+    if (p.size() == 1 && p[0] == FakePacketFragment(30, 'b'))
+      found_b = true;
+  }
+  EXPECT_FALSE(found_a) << "Packet 'a' was re-read after eviction+rescrape";
+  EXPECT_FALSE(found_b) << "Packet 'b' was re-read after eviction+rescrape";
+}
+
+// Same as above but the chunk was only partially read before eviction.
+// After re-scraping, only the unread fragments should be emitted.
+TEST_F(TraceBufferTest, RescrapeAfterEviction_PartiallyRead) {
+  ResetBuffer(4096);
+
+  // Write chunk {1,1,0} with three packets, mark as incomplete so we can
+  // re-write it later.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .AddPacket(40, 'c')
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+
+  // Read only the first packet.
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'a')));
+
+  // Force wraparound to evict the index entry.
+  for (ChunkID c = 1; c <= 4; c++) {
+    CreateChunk(ProducerID(2), WriterID(1), ChunkID(c))
+        .AddPacket(1024 - 16, static_cast<char>('x'))
+        .CopyIntoTraceBuffer();
+  }
+
+  // Re-introduce chunk {1,1,0} with an additional packet (simulates scraping
+  // a chunk that got more data written after the first scrape).
+  SuppressClientDchecksForTesting();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .AddPacket(40, 'c')
+      .AddPacket(50, 'd')
+      .PadTo(512)
+      .CopyIntoTraceBuffer();
+
+  // Collect all readable packets in a single pass.
+  trace_buffer()->BeginRead();
+  bool found_a = false;
+  bool found_b = false;
+  bool found_d = false;
+  for (;;) {
+    auto p = ReadPacket();
+    if (p.empty())
+      break;
+    if (p.size() == 1 && p[0] == FakePacketFragment(20, 'a'))
+      found_a = true;
+    if (p.size() == 1 && p[0] == FakePacketFragment(30, 'b'))
+      found_b = true;
+    if (p.size() == 1 && p[0] == FakePacketFragment(50, 'd'))
+      found_d = true;
+  }
+  // 'a' was already read before eviction — must not be re-read.
+  EXPECT_FALSE(found_a) << "Packet 'a' was re-read after eviction+rescrape";
+  // 'b' and 'd' were not read before eviction — must be readable now.
+  EXPECT_TRUE(found_b) << "Packet 'b' should be readable after rescrape";
+  EXPECT_TRUE(found_d) << "Packet 'd' should be readable after rescrape";
+}
+
+// Multiple fully-read chunks from the same writer are evicted and then
+// re-scraped. The high-water mark (last_chunk_id_consumed) should cover all
+// of them.
+TEST_F(TraceBufferTest, RescrapeAfterEviction_MultipleFullyReadSameWriter) {
+  ResetBuffer(4096);
+
+  // Write two chunks from the same writer.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .PadTo(512)
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(30, 'b')
+      .PadTo(512)
+      .CopyIntoTraceBuffer();
+
+  // Read both chunks fully.
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'a')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'b')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  // Force wraparound to evict both chunks.
+  for (ChunkID c = 1; c <= 4; c++) {
+    CreateChunk(ProducerID(2), WriterID(1), ChunkID(c))
+        .AddPacket(1024 - 16, static_cast<char>('x'))
+        .CopyIntoTraceBuffer();
+  }
+
+  // Re-scrape both chunks.
+  SuppressClientDchecksForTesting();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .PadTo(512)
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(30, 'b')
+      .PadTo(512)
+      .CopyIntoTraceBuffer();
+
+  // Neither 'a' nor 'b' should be re-read.
+  trace_buffer()->BeginRead();
+  bool found_a = false;
+  bool found_b = false;
+  for (;;) {
+    auto p = ReadPacket();
+    if (p.empty())
+      break;
+    if (p.size() == 1 && p[0] == FakePacketFragment(20, 'a'))
+      found_a = true;
+    if (p.size() == 1 && p[0] == FakePacketFragment(30, 'b'))
+      found_b = true;
+  }
+  EXPECT_FALSE(found_a) << "Packet 'a' was re-read after eviction+rescrape";
+  EXPECT_FALSE(found_b) << "Packet 'b' was re-read after eviction+rescrape";
+}
+
+// One fully-read chunk and one partially-read chunk from the same writer are
+// evicted and then re-scraped. The fully-read one should be skipped via the
+// high-water mark; the partially-read one should restore its read progress.
+TEST_F(TraceBufferTest, RescrapeAfterEviction_FullAndPartialSameWriter) {
+  ResetBuffer(4096);
+
+  // Write chunk {1,1,0} — will be fully read.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .PadTo(512)
+      .CopyIntoTraceBuffer();
+  // Write chunk {1,1,1} — will be partially read (incomplete).
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(20, 'b')
+      .AddPacket(30, 'c')
+      .AddPacket(40, 'd')
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+
+  // Read chunk 0 fully and chunk 1 partially (just 'b').
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'a')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'b')));
+
+  // Force wraparound to evict both chunks.
+  for (ChunkID c = 1; c <= 4; c++) {
+    CreateChunk(ProducerID(2), WriterID(1), ChunkID(c))
+        .AddPacket(1024 - 16, static_cast<char>('x'))
+        .CopyIntoTraceBuffer();
+  }
+
+  // Re-scrape both chunks.
+  SuppressClientDchecksForTesting();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .PadTo(512)
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(20, 'b')
+      .AddPacket(30, 'c')
+      .AddPacket(40, 'd')
+      .PadTo(512)
+      .CopyIntoTraceBuffer();
+
+  // Collect all readable packets.
+  trace_buffer()->BeginRead();
+  bool found_a = false;
+  bool found_b = false;
+  bool found_c = false;
+  bool found_d = false;
+  for (;;) {
+    auto p = ReadPacket();
+    if (p.empty())
+      break;
+    if (p.size() == 1 && p[0] == FakePacketFragment(20, 'a'))
+      found_a = true;
+    if (p.size() == 1 && p[0] == FakePacketFragment(20, 'b'))
+      found_b = true;
+    if (p.size() == 1 && p[0] == FakePacketFragment(30, 'c'))
+      found_c = true;
+    if (p.size() == 1 && p[0] == FakePacketFragment(40, 'd'))
+      found_d = true;
+  }
+  // 'a' (chunk 0, fully consumed) and 'b' (chunk 1, already read) must not
+  // appear again.
+  EXPECT_FALSE(found_a) << "Packet 'a' was re-read (fully consumed chunk)";
+  EXPECT_FALSE(found_b) << "Packet 'b' was re-read (partially consumed chunk)";
+  // 'c' and 'd' (unread fragments of chunk 1) must be readable.
+  EXPECT_TRUE(found_c) << "Packet 'c' should be readable after rescrape";
+  EXPECT_TRUE(found_d) << "Packet 'd' should be readable after rescrape";
+}
+
 }  // namespace perfetto

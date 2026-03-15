@@ -2345,4 +2345,106 @@ TEST_F(TraceBufferV2Test, Overwrite_SizeDiffLessThanChunkHeader) {
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32 - 16, 'c')));
 }
 
+// -------------------------------------------
+// Re-scrape after ring-buffer eviction tests
+// -------------------------------------------
+
+// V2 is immune to the rescrape-after-eviction bug because it tracks
+// last_chunk_id_consumed per writer and rejects chunks with IDs that have
+// already been consumed. These tests verify that invariant.
+
+// After a chunk is fully read and the buffer wraps, re-introducing the same
+// chunk (simulating SMB scraping) should not produce duplicate packets.
+TEST_F(TraceBufferV2Test, RescrapeAfterEviction_FullyRead) {
+  ResetBuffer(4096);
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .PadTo(512)
+      .CopyIntoTraceBuffer();
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'a')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'b')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  // Fill to force wraparound.
+  for (ChunkID c = 1; c <= 4; c++) {
+    CreateChunk(ProducerID(2), WriterID(1), ChunkID(c))
+        .AddPacket(1024 - 16, static_cast<char>('x'))
+        .CopyIntoTraceBuffer();
+  }
+
+  // Re-introduce chunk {1,1,0} (simulates SMB scraping).
+  SuppressClientDchecksForTesting();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .PadTo(512)
+      .CopyIntoTraceBuffer();
+
+  // Drain everything.
+  trace_buffer()->BeginRead();
+  while (!ReadPacket().empty()) {
+  }
+
+  // 'a' and 'b' must not appear again.
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// After a chunk is partially read and the buffer wraps, re-introducing the
+// same chunk should not produce duplicate packets for already-read fragments.
+TEST_F(TraceBufferV2Test, RescrapeAfterEviction_PartiallyRead) {
+  ResetBuffer(4096);
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .AddPacket(40, 'c')
+      .PadTo(512)
+      .CopyIntoTraceBuffer();
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'a')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'b')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(40, 'c')));
+
+  // Force wraparound.
+  for (ChunkID c = 1; c <= 4; c++) {
+    CreateChunk(ProducerID(2), WriterID(1), ChunkID(c))
+        .AddPacket(1024 - 16, static_cast<char>('x'))
+        .CopyIntoTraceBuffer();
+  }
+
+  // Re-introduce chunk {1,1,0} with extra data.
+  SuppressClientDchecksForTesting();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .AddPacket(40, 'c')
+      .AddPacket(50, 'd')
+      .PadTo(512)
+      .CopyIntoTraceBuffer();
+
+  // Drain and collect.
+  trace_buffer()->BeginRead();
+  std::vector<std::vector<FakePacketFragment>> packets;
+  for (;;) {
+    auto p = ReadPacket();
+    if (p.empty())
+      break;
+    packets.push_back(std::move(p));
+  }
+
+  // 'a' must not be re-read. V2 rejects the entire chunk since its ID has
+  // already been consumed.
+  bool found_a = false;
+  for (const auto& pkt : packets) {
+    if (pkt.size() == 1 && pkt[0] == FakePacketFragment(20, 'a'))
+      found_a = true;
+  }
+  EXPECT_FALSE(found_a) << "Packet 'a' was re-read after eviction+rescrape";
+}
+
 }  // namespace perfetto
