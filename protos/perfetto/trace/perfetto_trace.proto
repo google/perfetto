@@ -7066,6 +7066,12 @@ message LayerProto {
 
   // "True" corner radii of the layer computed by SurfaceFlinger.
   optional CornerRadiiProto effective_radii = 67;
+
+  // Whether the client drawn radii are disabled
+  optional bool disable_client_drawn_radii = 68;
+
+  // Corner radius reported by SF to client.
+  optional CornerRadiiProto reported_radii = 69;
 }
 
 message PositionProto {
