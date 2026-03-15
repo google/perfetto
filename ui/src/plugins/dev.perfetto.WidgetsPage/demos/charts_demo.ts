@@ -86,6 +86,11 @@ import {
   SQLHeatmapLoader,
   HeatmapLoaderConfig,
 } from '../../../components/widgets/charts/heatmap_loader';
+import {StatCard} from '../../../components/widgets/charts/stat_card';
+import {
+  SQLStatCardLoader,
+  StatCardLoaderConfig,
+} from '../../../components/widgets/charts/stat_card_loader';
 import {App} from '../../../public/app';
 import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 import {Trace} from '../../../public/trace';
@@ -145,7 +150,7 @@ export function renderCharts(app: App): m.Children {
       m('h1', 'Charts'),
       m('p', [
         'ECharts-based chart components for visualizing data. ',
-        'Includes Bar, Line, Pie/Donut, Histogram, Scatter, Treemap, Sankey, CDF, Boxplot, and Heatmap charts.',
+        'Includes Bar, Line, Pie/Donut, Histogram, Scatter, Treemap, Sankey, CDF, Boxplot, Heatmap, and Stat Card charts.',
       ]),
     ),
 
@@ -578,6 +583,24 @@ function renderSQLDemos(app: App): m.Children[] {
         height: 300,
         xLimit: 15,
         yLimit: 15,
+      },
+    }),
+    m('h3', {style: {marginTop: '32px'}}, 'SQLStatCardLoader'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SQLStatCardDemo, {
+          trace,
+          aggregation: opts.aggregation,
+        });
+      },
+      initialOpts: {
+        aggregation: new EnumOption('COUNT', [
+          'COUNT',
+          'SUM',
+          'AVG',
+          'MIN',
+          'MAX',
+        ] as const),
       },
     }),
   ];
@@ -2150,6 +2173,74 @@ function SQLHeatmapDemo(): m.Component<{
           [
             `query: 'SELECT priority, end_state, dur FROM sched WHERE dur > 0'\n`,
             `xColumn: 'priority', yColumn: 'end_state', valueColumn: 'dur'\n`,
+            `loader.use(${JSON.stringify(config, null, 2)})`,
+            isPending ? '\n(loading...)' : '',
+          ],
+        ),
+      ]);
+    },
+    onremove: () => {
+      loader?.dispose();
+      loader = undefined;
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// SQL Stat Card demo
+// ---------------------------------------------------------------------------
+
+function SQLStatCardDemo(): m.Component<{
+  trace: Trace;
+  aggregation: ChartAggregation;
+}> {
+  let loader: SQLStatCardLoader | undefined;
+
+  return {
+    view: ({attrs}) => {
+      if (!loader) {
+        loader = new SQLStatCardLoader({
+          engine: attrs.trace.engine,
+          query: 'SELECT dur FROM slice WHERE dur > 0',
+          measureColumn: 'dur',
+        });
+      }
+
+      const config: StatCardLoaderConfig = {
+        aggregation: attrs.aggregation,
+      };
+      const {data, isPending} = loader.use(config);
+
+      const label =
+        attrs.aggregation === 'COUNT' ? 'Count' : `${attrs.aggregation}(dur)`;
+
+      return m('div', [
+        m(
+          'div',
+          {
+            style: {
+              width: '200px',
+              height: '120px',
+              border: '1px solid var(--pf-color-border)',
+              borderRadius: '8px',
+            },
+          },
+          m(StatCard, {data, isPending, label}),
+        ),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          [
+            `query: 'SELECT dur FROM slice WHERE dur > 0'\n`,
+            `measureColumn: 'dur'\n`,
             `loader.use(${JSON.stringify(config, null, 2)})`,
             isPending ? '\n(loading...)' : '',
           ],
