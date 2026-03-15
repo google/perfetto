@@ -1,13 +1,13 @@
 // Copyright (C) 2020 The Android Open Source Project
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
+// Licensed under the Apache License, Version 2.0 (the \"License\");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
 //      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
+// distributed under the License is distributed on an \"AS IS\" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
@@ -16,9 +16,9 @@ import m from 'mithril';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {Icons} from '../../base/semantic_icons';
 import {
-  AggregatePivotModel,
   Aggregation,
   Aggregator,
+  AggregatorGridConfig,
   createIITable,
 } from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
@@ -40,6 +40,7 @@ import {
 } from '../../trace_processor/query_result';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {Anchor} from '../../widgets/anchor';
+import {formatDurationValue} from '../../components/aggregation_panel';
 
 const SLICE_WITH_PARENT_SPEC = {
   id: NUM,
@@ -47,6 +48,7 @@ const SLICE_WITH_PARENT_SPEC = {
   ts: LONG,
   dur: LONG,
   parent_id: NUM_NULL,
+  arg_set_id: NUM_NULL,
 };
 
 const SLICELIKE_SPEC = {
@@ -54,6 +56,7 @@ const SLICELIKE_SPEC = {
   name: STR_NULL,
   ts: LONG,
   dur: LONG,
+  arg_set_id: NUM_NULL,
 };
 
 export class SliceSelectionAggregator implements Aggregator {
@@ -133,7 +136,8 @@ export class SliceSelectionAggregator implements Aggregator {
             json_object('id', id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
             name,
             dur,
-            self_dur
+            self_dur,
+            arg_set_id
           FROM (${unionQueries.join(' UNION ALL ')})
         `);
 
@@ -205,6 +209,7 @@ export class SliceSelectionAggregator implements Aggregator {
           ts,
           dur,
           dur - COALESCE(child_dur, 0) AS self_dur,
+          arg_set_id,
           __groupid,
           __partition
         FROM ${iiTable.name}
@@ -264,6 +269,7 @@ export class SliceSelectionAggregator implements Aggregator {
           ts,
           dur,
           dur AS self_dur,
+          arg_set_id,
           __groupid,
           __partition
         FROM ${iiTable.name}
@@ -277,20 +283,12 @@ export class SliceSelectionAggregator implements Aggregator {
     return 'Slices';
   }
 
-  getColumnDefinitions(): AggregatePivotModel {
+  getGridConfig(): AggregatorGridConfig {
     return {
-      groupBy: [{id: 'name', field: 'name'}],
-      aggregates: [
-        {id: 'count', function: 'COUNT'},
-        {id: 'total_time_sum', field: 'dur', function: 'SUM', sort: 'DESC'},
-        {id: 'self_time_sum', field: 'self_dur', function: 'SUM'},
-        {id: 'total_time_avg', field: 'dur', function: 'AVG'},
-      ],
-      columns: [
-        {
+      schema: {
+        id_with_lineage: {
           title: 'ID',
-          columnId: 'id_with_lineage',
-          formatHint: 'ID',
+          columnType: 'identifier',
           cellRenderer: (value: unknown) => {
             // Value is a JSON object {id, groupid, partition}
             if (typeof value !== 'string') {
@@ -325,22 +323,34 @@ export class SliceSelectionAggregator implements Aggregator {
             );
           },
         },
-        {
+        name: {
           title: 'Name',
-          columnId: 'name',
-          formatHint: 'STRING',
+          columnType: 'text',
         },
-        {
+        dur: {
           title: 'Wall Duration',
-          formatHint: 'DURATION_NS',
-          columnId: 'dur',
+          columnType: 'quantitative',
+          cellRenderer: formatDurationValue,
         },
-        {
+        self_dur: {
           title: 'Self Duration',
-          formatHint: 'DURATION_NS',
-          columnId: 'self_dur',
+          columnType: 'quantitative',
+          cellRenderer: formatDurationValue,
         },
-      ],
+        args: {
+          title: 'Args',
+          parameterized: true,
+        },
+      },
+      initialPivot: {
+        groupBy: [{id: 'name', field: 'name'}],
+        aggregates: [
+          {id: 'count', function: 'COUNT'},
+          {id: 'dur_sum', field: 'dur', function: 'SUM', sort: 'DESC'},
+          {id: 'self_dur_sum', field: 'self_dur', function: 'SUM'},
+          {id: 'dur_avg', field: 'dur', function: 'AVG'},
+        ],
+      },
     };
   }
 
