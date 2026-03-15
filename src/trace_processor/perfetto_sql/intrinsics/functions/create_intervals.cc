@@ -63,8 +63,9 @@ struct IntervalCreate : public sqlite::Function<IntervalCreate> {
     auto* ends = sqlite::value::Pointer<SortedTimestamps>(
         argv[1], SortedTimestamps::kName);
 
-    std::vector<std::string> col_names{"ts", "dur"};
-    std::vector<ColType> col_types{ColType::kInt64, ColType::kInt64};
+    std::vector<std::string> col_names{"ts", "dur", "start_id", "end_id"};
+    std::vector<ColType> col_types{ColType::kInt64, ColType::kInt64,
+                                   ColType::kInt64, ColType::kInt64};
 
     dataframe::AdhocDataframeBuilder builder(
         col_names, GetUserData(ctx)->pool,
@@ -80,7 +81,9 @@ struct IntervalCreate : public sqlite::Function<IntervalCreate> {
     }
 
     const auto& start_ts = starts->timestamps;
+    const auto& start_ids = starts->ids;
     const auto& end_ts = ends->timestamps;
+    const auto& end_ids = ends->ids;
 
     // Two-pointer matching: O(n + m).
     // Both arrays are already sorted (guaranteed by ORDER BY in the SQL macro).
@@ -96,6 +99,8 @@ struct IntervalCreate : public sqlite::Function<IntervalCreate> {
       }
       builder.PushNonNullUnchecked(0, start_ts[i]);
       builder.PushNonNullUnchecked(1, end_ts[end_idx] - start_ts[i]);
+      builder.PushNonNullUnchecked(2, start_ids[i]);
+      builder.PushNonNullUnchecked(3, end_ids[end_idx]);
     }
 
     SQLITE_ASSIGN_OR_RETURN(ctx, auto ret_table, std::move(builder).Build());

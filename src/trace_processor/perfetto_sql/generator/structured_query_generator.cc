@@ -1202,11 +1202,13 @@ base::StatusOr<std::string> GeneratorImpl::CreateSlices(
 
   // Use _interval_create! macro which delegates to
   // __intrinsic_interval_create, an O(n+m) two-pointer C++ implementation.
-  // The macro expects inputs with a `ts` column, so we rename if needed.
+  // The macro expects inputs with `id` and `ts` columns. We pass a dummy id
+  // since structured queries don't need start_id/end_id, and exclude those
+  // columns from the output.
   return base::StackString<1024>(
-             "(SELECT * FROM _interval_create!("
-             "(SELECT %s AS ts FROM %s), "
-             "(SELECT %s AS ts FROM %s)))",
+             "(SELECT ts, dur FROM _interval_create!("
+             "(SELECT 1 AS id, %s AS ts FROM %s), "
+             "(SELECT 1 AS id, %s AS ts FROM %s)))",
              starts_ts_col.c_str(), starts_table.c_str(), ends_ts_col.c_str(),
              ends_table.c_str())
       .ToStdString();
