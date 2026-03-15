@@ -533,31 +533,28 @@ void GpuEventParser::ParseGpuRenderStageEvent(
 
           // TODO: Create table for graphics context and lookup
           // InternedGraphicsContext.
+          inserter->AddArg(context_id_id_,
+                           Variadic::UnsignedInteger(event.context()));
           inserter->AddArg(
-              context_id_id_,
-              Variadic::Integer(static_cast<int64_t>(event.context())));
-          inserter->AddArg(render_target_id_,
-                           Variadic::Integer(static_cast<int64_t>(
-                               event.render_target_handle())));
+              render_target_id_,
+              Variadic::UnsignedInteger(event.render_target_handle()));
           inserter->AddArg(render_target_name_id_,
                            Variadic::String(render_target_name_id));
-          inserter->AddArg(render_pass_id_,
-                           Variadic::Integer(static_cast<int64_t>(
-                               event.render_pass_handle())));
+          inserter->AddArg(render_pass_id_, Variadic::UnsignedInteger(
+                                                event.render_pass_handle()));
           inserter->AddArg(render_pass_name_id_,
                            Variadic::String(render_pass_name_id));
           inserter->AddArg(render_subpasses_id_,
                            Variadic::String(ParseRenderSubpasses(event)));
-          inserter->AddArg(command_buffer_id_,
-                           Variadic::Integer(static_cast<int64_t>(
-                               event.command_buffer_handle())));
+          inserter->AddArg(
+              command_buffer_id_,
+              Variadic::UnsignedInteger(event.command_buffer_handle()));
           inserter->AddArg(command_buffer_name_id_,
                            Variadic::String(command_buffer_name_id));
           inserter->AddArg(submission_id_id_,
                            Variadic::Integer(event.submission_id()));
-          inserter->AddArg(
-              hw_queue_id_id_,
-              Variadic::Integer(static_cast<int64_t>(hw_queue_id)));
+          inserter->AddArg(hw_queue_id_id_,
+                           Variadic::UnsignedInteger(hw_queue_id));
           inserter->AddArg(
               upid_id_,
               Variadic::Integer(context_->process_tracker->GetOrCreateProcess(
