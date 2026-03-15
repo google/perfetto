@@ -18,6 +18,10 @@ export const SIDEBAR_SECTIONS = {
     title: 'Current Trace',
     summary: 'Actions on the current trace',
   },
+  ahat: {
+    title: 'Ahat',
+    summary: 'Android Heap Analysis Tool',
+  },
   trace_files: {
     title: 'New Trace',
     summary: 'Open or record a new trace',
@@ -46,7 +50,7 @@ export interface SidebarManager {
    * All entries must map to a command. This will allow the shortcut and
    * optional shortcut to be displayed on the UI.
    */
-  addMenuItem(menuItem: SidebarMenuItem): void;
+  addMenuItem(menuItem: SidebarMenuItem): Disposable;
 
   /**
    * Gets the current visibility of the sidebar.

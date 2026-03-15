@@ -45,6 +45,7 @@ import {SqlTableDefinition} from '../../components/widgets/sql/table/table_descr
 import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import {Stack} from '../../widgets/stack';
 import {ProfileDescriptor, ProfileType} from './common';
+import {setFlamegraphAhatSelection} from './flamegraph_to_ahat';
 
 interface Props {
   ts: time;
@@ -79,6 +80,7 @@ export class HeapProfileFlamegraphDetailsPanel
     private readonly tsEnd: time,
     private state: FlamegraphState | undefined,
     private readonly onStateChange: (state: FlamegraphState) => void,
+    pendingFlamegraphFilter?: string,
   ) {
     this.props = {ts, type: profileDescriptor.type};
     this.flamegraph = new QueryFlamegraph(trace);
@@ -91,6 +93,18 @@ export class HeapProfileFlamegraphDetailsPanel
     );
     if (this.state === undefined) {
       this.state = Flamegraph.createDefaultState(this.metrics);
+      onStateChange(this.state);
+    }
+    // Apply a pending SHOW_FROM_FRAME filter if set (e.g. by the Ahat plugin
+    // navigating back to the timeline to focus on a specific class).
+    if (pendingFlamegraphFilter !== undefined) {
+      this.state = {
+        ...this.state,
+        filters: [
+          ...this.state.filters,
+          {kind: 'SHOW_FROM_FRAME' as const, filter: pendingFlamegraphFilter},
+        ],
+      };
       onStateChange(this.state);
     }
   }
@@ -624,6 +638,21 @@ function getHeapGraphNodeOptionalActions(
   isDominator: boolean,
 ): ReadonlyArray<FlamegraphOptionalAction> {
   return [
+    {
+      name: 'Open in Ahat',
+      execute: async (kv: ReadonlyMap<string, string>) => {
+        const pathHashes = kv.get('path_hash_stable');
+        if (pathHashes === undefined) return;
+
+        const name = kv.get('name');
+
+        // Store selection for the Ahat plugin to consume — no temp tables.
+        setFlamegraphAhatSelection({pathHashes, isDominator, name});
+
+        const nameSuffix = name ? `/${encodeURIComponent(name)}` : '';
+        trace.navigate(`#!/ahat/flamegraph-objects${nameSuffix}`);
+      },
+    },
     {
       name: 'Objects',
       execute: async (kv: ReadonlyMap<string, string>) => {

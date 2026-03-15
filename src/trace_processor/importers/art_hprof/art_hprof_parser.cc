@@ -18,11 +18,13 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <memory>
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -70,7 +72,7 @@ base::Status ArtHprofParser::OnPushDataToSorter() {
     return base::OkStatus();
   }
 
-  const HeapGraph graph = parser_->BuildGraph();
+  HeapGraph graph = parser_->BuildGraph();
 
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(0);
 
@@ -83,6 +85,9 @@ base::Status ArtHprofParser::OnPushDataToSorter() {
   PopulateClasses(graph);
   PopulateObjects(graph, ts, upid);
   PopulateReferences(graph);
+  PopulateFieldValues(graph);
+
+  graph.ClearAll();
 
   class_map_.Clear();
   class_object_map_.Clear();
@@ -219,15 +224,16 @@ bool ArtHprofParser::TraceBlobViewIterator::CanReadRecord() const {
 
   memcpy(bytes, slice->data(), 4);
 
-  uint64_t record_length = (static_cast<uint32_t>(bytes[0]) << 24) |
+  uint32_t record_length = (static_cast<uint32_t>(bytes[0]) << 24) |
                            (static_cast<uint32_t>(bytes[1]) << 16) |
                            (static_cast<uint32_t>(bytes[2]) << 8) |
                            static_cast<uint32_t>(bytes[3]);
 
-  // Check if we can read an entire record from the chunk.
+  // Check if we can read the full record (header + body) from the chunk.
   // If we can't we should fail so that we can receive another
   // chunk to continue.
-  return static_cast<bool>(reader_.SliceOff(current_offset_, record_length));
+  return static_cast<bool>(
+      reader_.SliceOff(current_offset_, kRecordHeaderSize + record_length));
 }
 
 void ArtHprofParser::TraceBlobViewIterator::PushBlob(TraceBlobView blob) {
@@ -468,6 +474,210 @@ void ArtHprofParser::PopulateReferences(const HeapGraph& graph) {
 
       reference_table.Insert(reference_row);
     }
+  }
+}
+
+namespace {
+const char* FieldTypeName(FieldType type) {
+  switch (type) {
+    case FieldType::kBoolean:
+      return "boolean";
+    case FieldType::kByte:
+      return "byte";
+    case FieldType::kChar:
+      return "char";
+    case FieldType::kShort:
+      return "short";
+    case FieldType::kInt:
+      return "int";
+    case FieldType::kLong:
+      return "long";
+    case FieldType::kFloat:
+      return "float";
+    case FieldType::kDouble:
+      return "double";
+    case FieldType::kObject:
+      return "object";
+  }
+  return "unknown";
+}
+}  // namespace
+
+void ArtHprofParser::PopulateFieldValues(const HeapGraph& graph) {
+  auto& data_table = *context_->storage->mutable_heap_graph_object_data_table();
+  auto& field_table =
+      *context_->storage->mutable_heap_graph_object_field_table();
+
+  for (auto it = graph.GetObjects().GetIterator(); it; ++it) {
+    auto obj_id = it.key();
+    auto& obj = it.value();
+
+    auto* owner_table_id = FindObjectId(obj_id);
+    if (!owner_table_id)
+      continue;
+
+    bool has_value_fields = false;
+    bool has_array_data = false;
+    bool has_string = obj.GetDecodedString().has_value();
+
+    if (obj.GetObjectType() == ObjectType::kInstance ||
+        obj.GetObjectType() == ObjectType::kClass) {
+      for (const auto& field : obj.GetFields()) {
+        if (field.GetType() == FieldType::kObject) {
+          auto target_id = field.GetValue<uint64_t>();
+          if (target_id && *target_id != 0) {
+            auto* target = graph.GetObjects().Find(*target_id);
+            if (target && target->GetDecodedString().has_value()) {
+              auto* cls_name = class_name_map_.Find(target->GetClassId());
+              if (cls_name && *cls_name == kJavaLangString) {
+                has_value_fields = true;
+                break;
+              }
+            }
+          }
+          continue;
+        }
+        if (field.HasValue()) {
+          has_value_fields = true;
+          break;
+        }
+      }
+    } else if (obj.GetObjectType() == ObjectType::kPrimitiveArray) {
+      has_array_data = obj.HasArrayData();
+    }
+
+    if (!has_value_fields && !has_array_data && !has_string)
+      continue;
+
+    // Create a row in heap_graph_object_data for this object.
+    tables::HeapGraphObjectDataTable::Row data_row;
+    data_row.object_id = *owner_table_id;
+
+    if (has_string) {
+      StringId str_id =
+          context_->storage->InternString(*obj.GetDecodedString());
+      data_row.value_string = str_id;
+    }
+
+    uint32_t field_set_id = 0;
+    if (has_value_fields) {
+      field_set_id = static_cast<uint32_t>(field_table.row_count());
+      data_row.field_set_id = field_set_id;
+    }
+
+    if (has_value_fields) {
+      StringId string_type_id = context_->storage->InternString("string");
+
+      for (const auto& field : obj.GetFields()) {
+        if (field.GetType() == FieldType::kObject) {
+          auto target_id = field.GetValue<uint64_t>();
+          if (!target_id || *target_id == 0)
+            continue;
+          auto* target = graph.GetObjects().Find(*target_id);
+          if (!target || !target->GetDecodedString().has_value())
+            continue;
+          auto* cls_name = class_name_map_.Find(target->GetClassId());
+          if (!cls_name || *cls_name != kJavaLangString)
+            continue;
+
+          tables::HeapGraphObjectFieldTable::Row row;
+          row.field_set_id = field_set_id;
+          row.object_id = *owner_table_id;
+          row.field_name = context_->storage->InternString(field.GetName());
+          row.field_type = string_type_id;
+          row.string_value =
+              context_->storage->InternString(*target->GetDecodedString());
+          field_table.Insert(row);
+          continue;
+        }
+
+        if (!field.HasValue())
+          continue;
+
+        tables::HeapGraphObjectFieldTable::Row row;
+        row.field_set_id = field_set_id;
+        row.object_id = *owner_table_id;
+        row.field_name = context_->storage->InternString(field.GetName());
+        row.field_type =
+            context_->storage->InternString(FieldTypeName(field.GetType()));
+
+        switch (field.GetType()) {
+          case FieldType::kBoolean:
+            row.bool_value = field.GetValue<bool>().value_or(false) ? 1u : 0u;
+            break;
+          case FieldType::kByte:
+            row.byte_value =
+                static_cast<int64_t>(field.GetValue<uint8_t>().value_or(0));
+            break;
+          case FieldType::kChar:
+            row.char_value =
+                static_cast<int64_t>(field.GetValue<uint16_t>().value_or(0));
+            break;
+          case FieldType::kShort:
+            row.short_value =
+                static_cast<int64_t>(field.GetValue<int16_t>().value_or(0));
+            break;
+          case FieldType::kInt:
+            row.int_value =
+                static_cast<int64_t>(field.GetValue<int32_t>().value_or(0));
+            break;
+          case FieldType::kLong:
+            row.long_value = field.GetValue<int64_t>().value_or(0);
+            break;
+          case FieldType::kFloat:
+            row.float_value =
+                static_cast<double>(field.GetValue<float>().value_or(0.0f));
+            break;
+          case FieldType::kDouble:
+            row.double_value = field.GetValue<double>().value_or(0.0);
+            break;
+          case FieldType::kObject:
+            break;
+        }
+
+        field_table.Insert(row);
+      }
+    }
+
+    if (has_array_data) {
+      // Serialize primitive array elements into a contiguous blob (LE byte
+      // order) and store on TraceStorage.  The blob can be retrieved via
+      // the __intrinsic_heap_graph_get_array() SQL function.
+      std::vector<uint8_t> blob;
+      uint32_t element_count = 0;
+
+      std::visit(
+          [&](const auto& vec) {
+            using T = std::decay_t<decltype(vec)>;
+            if constexpr (!std::is_same_v<T, std::monostate>) {
+              element_count = static_cast<uint32_t>(vec.size());
+              using ElemT = typename T::value_type;
+              if constexpr (std::is_same_v<ElemT, bool>) {
+                blob.resize(vec.size());
+                for (size_t i = 0; i < vec.size(); ++i)
+                  blob[i] = vec[i] ? 1 : 0;
+              } else {
+                blob.resize(vec.size() * sizeof(ElemT));
+                memcpy(blob.data(), vec.data(), blob.size());
+              }
+            }
+          },
+          obj.GetArrayDataVariant());
+
+      if (!blob.empty()) {
+        StringId type_id = context_->storage->InternString(
+            FieldTypeName(obj.GetArrayElementType()));
+        auto* blobs = context_->storage->mutable_hprof_array_blobs();
+        uint32_t blob_id = static_cast<uint32_t>(blobs->size());
+        blobs->push_back(std::move(blob));
+
+        data_row.array_element_type = type_id;
+        data_row.array_element_count = element_count;
+        data_row.array_data_id = blob_id;
+      }
+    }
+
+    data_table.Insert(data_row);
   }
 }
 

@@ -676,6 +676,23 @@ class TraceStorage {
     return mutable_table<tables::HeapGraphReferenceTable>();
   }
 
+  const tables::HeapGraphObjectFieldTable& heap_graph_object_field_table()
+      const {
+    return table<tables::HeapGraphObjectFieldTable>();
+  }
+
+  tables::HeapGraphObjectFieldTable* mutable_heap_graph_object_field_table() {
+    return mutable_table<tables::HeapGraphObjectFieldTable>();
+  }
+
+  const tables::HeapGraphObjectDataTable& heap_graph_object_data_table() const {
+    return table<tables::HeapGraphObjectDataTable>();
+  }
+
+  tables::HeapGraphObjectDataTable* mutable_heap_graph_object_data_table() {
+    return mutable_table<tables::HeapGraphObjectDataTable>();
+  }
+
   const tables::AggregateProfileTable& aggregate_profile_table() const {
     return table<tables::AggregateProfileTable>();
   }
@@ -819,6 +836,13 @@ class TraceStorage {
   }
   std::vector<TraceBlobView>* mutable_etm_v4_chunk_data() {
     return &etm_v4_chunk_data_;
+  }
+  // Indexed by heap_graph_object.array_data_id
+  const std::vector<std::vector<uint8_t>>& hprof_array_blobs() const {
+    return hprof_array_blobs_;
+  }
+  std::vector<std::vector<uint8_t>>* mutable_hprof_array_blobs() {
+    return &hprof_array_blobs_;
   }
   const tables::FileTable& file_table() const {
     return table<tables::FileTable>();
@@ -1134,6 +1158,10 @@ class TraceStorage {
   // Indexed by tables::EtmV4TraceTable::Id
   std::vector<TraceBlobView> etm_v4_chunk_data_;
   std::unique_ptr<Destructible> etm_target_memory_;
+
+  // HPROF primitive array blobs.
+  // Indexed by heap_graph_object_data.array_data_id
+  std::vector<std::vector<uint8_t>> hprof_array_blobs_;
 
   // Aligned storage for all table dataframes.
   alignas(

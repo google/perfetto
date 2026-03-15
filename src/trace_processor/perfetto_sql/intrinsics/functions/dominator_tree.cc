@@ -234,6 +234,10 @@ void Graph::ComputeSemiDominatorAndPartialDominator(Forest& forest) {
     Node w = GetNodeForTreeNumber(TreeNumber{i});
     NodeState& w_state = GetStateForNode(w);
     for (Node v : w_state.predecessors) {
+      // Skip predecessors not visited during DFS (unreachable from root).
+      if (!GetStateForNode(v).semi_dominator) {
+        continue;
+      }
       Node u = forest.GetMinSemiDominatorToAncestor(v, *this);
       w_state.semi_dominator =
           std::min(*w_state.semi_dominator, GetSemiDominator(u));

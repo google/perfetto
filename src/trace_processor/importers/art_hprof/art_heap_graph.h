@@ -48,6 +48,17 @@ class HeapGraph {
     strings_[id] = interned_id;
   }
 
+  // Bulk-set maps by move (avoids element-by-element rehashing).
+  void SetObjects(base::FlatHashMap<uint64_t, Object> objs) {
+    objects_ = std::move(objs);
+  }
+  void SetClasses(base::FlatHashMap<uint64_t, ClassDefinition> cls) {
+    classes_ = std::move(cls);
+  }
+  void SetStrings(base::FlatHashMap<uint64_t, StringId> strs) {
+    strings_ = std::move(strs);
+  }
+
   const base::FlatHashMap<uint64_t, Object>& GetObjects() const {
     return objects_;
   }
@@ -60,6 +71,14 @@ class HeapGraph {
   size_t GetClassCount() const { return classes_.size(); }
   size_t GetStringCount() const { return strings_.size(); }
   uint64_t GetTimestamp() const { return timestamp_; }
+
+  // Release all object data after SQL population is complete.
+  void ClearAll() {
+    objects_.Clear();
+    classes_.Clear();
+    strings_.Clear();
+    heap_id_to_name_.Clear();
+  }
 
   static std::string GetRootTypeName(HprofHeapRootTag root_type_id) {
     switch (root_type_id) {

@@ -148,3 +148,430 @@ class ArtHprofParser(TestSuite):
           "DumpedStuff.C","java.lang.ref.SoftReference","DumpedStuff","java.lang.ref.SoftReference"
           "DumpedStuff.D","java.lang.Object[]","DumpedStuff","java.lang.Object[]"
         '''))
+
+  def test_art_hprof_field_count_smoke(self):
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT COUNT() FROM heap_graph_object_field
+        """,
+        out=Csv('''
+          "COUNT()"
+          47605
+        '''))
+
+  def test_art_hprof_field_type_distribution(self):
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT field_type, COUNT() as cnt
+          FROM heap_graph_object_field
+          GROUP BY field_type
+          ORDER BY cnt DESC
+        """,
+        out=Csv('''
+          "field_type","cnt"
+          "int",40751
+          "long",3078
+          "short",2532
+          "byte",397
+          "boolean",312
+          "string",305
+          "char",160
+          "float",44
+          "double",26
+        '''))
+
+  def test_art_hprof_field_value_integrity(self):
+    """Verify each row has at most one value column set."""
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT COUNT() as rows_with_multiple_values
+          FROM heap_graph_object_field
+          WHERE (CASE WHEN bool_value IS NOT NULL THEN 1 ELSE 0 END
+               + CASE WHEN byte_value IS NOT NULL THEN 1 ELSE 0 END
+               + CASE WHEN char_value IS NOT NULL THEN 1 ELSE 0 END
+               + CASE WHEN short_value IS NOT NULL THEN 1 ELSE 0 END
+               + CASE WHEN int_value IS NOT NULL THEN 1 ELSE 0 END
+               + CASE WHEN long_value IS NOT NULL THEN 1 ELSE 0 END
+               + CASE WHEN float_value IS NOT NULL THEN 1 ELSE 0 END
+               + CASE WHEN double_value IS NOT NULL THEN 1 ELSE 0 END
+               + CASE WHEN string_value IS NOT NULL THEN 1 ELSE 0 END) > 1
+        """,
+        out=Csv('''
+          "rows_with_multiple_values"
+          0
+        '''))
+
+  def test_art_hprof_field_nonnull_per_type(self):
+    """Verify non-null value counts per typed column."""
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT
+            SUM(CASE WHEN bool_value IS NOT NULL THEN 1 ELSE 0 END) as has_bool,
+            SUM(CASE WHEN byte_value IS NOT NULL THEN 1 ELSE 0 END) as has_byte,
+            SUM(CASE WHEN char_value IS NOT NULL THEN 1 ELSE 0 END) as has_char,
+            SUM(CASE WHEN short_value IS NOT NULL THEN 1 ELSE 0 END) as has_short,
+            SUM(CASE WHEN int_value IS NOT NULL THEN 1 ELSE 0 END) as has_int,
+            SUM(CASE WHEN long_value IS NOT NULL THEN 1 ELSE 0 END) as has_long,
+            SUM(CASE WHEN float_value IS NOT NULL THEN 1 ELSE 0 END) as has_float,
+            SUM(CASE WHEN double_value IS NOT NULL THEN 1 ELSE 0 END) as has_double,
+            SUM(CASE WHEN string_value IS NOT NULL THEN 1 ELSE 0 END) as has_string
+          FROM heap_graph_object_field
+        """,
+        out=Csv('''
+          "has_bool","has_byte","has_char","has_short","has_int","has_long","has_float","has_double","has_string"
+          312,397,160,2532,40751,3078,42,24,305
+        '''))
+
+  def test_art_hprof_decoded_string_smoke(self):
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT od.value_string
+          FROM heap_graph_object o
+          JOIN heap_graph_class c ON o.type_id = c.id
+          JOIN heap_graph_object_data od ON od.object_id = o.id
+          WHERE c.name = 'java.lang.String'
+            AND od.value_string IS NOT NULL
+            AND length(od.value_string) > 1
+          ORDER BY od.value_string
+          LIMIT 5
+        """,
+        out=Csv('''
+          "value_string"
+          "!/"
+          "$Proxy"
+          ", dst.length="
+          "-Infinity"
+          "./out/soong/.intermediates/art/tools/ahat/ahat-test-dump/android_common/dex/ahat-test-dump.jar"
+        '''))
+
+  def test_art_hprof_primitive_array_no_value_string(self):
+    """Primitive array data is stored as blobs, not value_string."""
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT COUNT() as cnt
+          FROM heap_graph_object o
+          JOIN heap_graph_class c ON o.type_id = c.id
+          JOIN heap_graph_object_data od ON od.object_id = o.id
+          WHERE c.name LIKE '%[]'
+            AND od.value_string IS NOT NULL
+        """,
+        out=Csv('''
+          "cnt"
+          0
+        '''))
+
+  def test_art_hprof_dumped_stuff_string_fields(self):
+    """ahat test fixture: DumpedStuff string field values."""
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT f.field_name, f.field_type, f.string_value
+          FROM heap_graph_object_field f
+          JOIN heap_graph_object o ON f.object_id = o.id
+          JOIN heap_graph_class c ON o.type_id = c.id
+          WHERE c.name = 'DumpedStuff'
+            AND f.field_type = 'string'
+          ORDER BY f.field_name
+        """,
+        out=Csv('''
+          "field_name","field_type","string_value"
+          "DumpedStuff.d","string","hello, world"
+          "DumpedStuff.e","string","Sigma (Ʃ) is not ASCII"
+          "DumpedStuff.f","string","embedded"
+        '''))
+
+  def test_art_hprof_math_double_constants(self):
+    """ahat parity: java.lang.Math double constants."""
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT f.field_name, f.double_value
+          FROM heap_graph_object_field f
+          JOIN heap_graph_object o ON f.object_id = o.id
+          JOIN heap_graph_class c ON o.type_id = c.id
+          WHERE c.name = 'java.lang.Class<java.lang.Math>'
+            AND f.field_type = 'double'
+          ORDER BY f.field_name
+        """,
+        out=Csv('''
+          "field_name","double_value"
+          "DEGREES_TO_RADIANS",0.017453
+          "E",2.718282
+          "PI",3.141593
+          "RADIANS_TO_DEGREES",57.295780
+          "TAU",6.283185
+          "twoToTheDoubleScaleDown",0.000000
+          "twoToTheDoubleScaleUp",13407807929942597099574024998205846127479365820592393377723561443721764030073546976801874298166903427690031858186486050853753882811946569946433649006084096.000000
+        '''))
+
+  def test_art_hprof_float_special_values(self):
+    """Float special values: inf, -inf, NaN (NULL), MAX_VALUE."""
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT f.field_name, f.float_value
+          FROM heap_graph_object_field f
+          JOIN heap_graph_object o ON f.object_id = o.id
+          JOIN heap_graph_class c ON o.type_id = c.id
+          WHERE c.name = 'java.lang.Class<java.lang.Float>'
+            AND f.field_type = 'float'
+          ORDER BY f.field_name
+        """,
+        out=Csv('''
+          "field_name","float_value"
+          "MAX_VALUE",340282346638528859811704183484516925440.000000
+          "MIN_NORMAL",0.000000
+          "MIN_VALUE",0.000000
+          "NEGATIVE_INFINITY",-inf
+          "NaN","[NULL]"
+          "POSITIVE_INFINITY",inf
+        '''))
+
+  def test_art_hprof_boolean_values(self):
+    """Boolean field values: java.lang.Boolean.value true and false."""
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT f.field_name, f.bool_value
+          FROM heap_graph_object_field f
+          JOIN heap_graph_object o ON f.object_id = o.id
+          JOIN heap_graph_class c ON o.type_id = c.id
+          WHERE c.name = 'java.lang.Boolean'
+            AND f.field_type = 'boolean'
+          ORDER BY f.bool_value
+        """,
+        out=Csv('''
+          "field_name","bool_value"
+          "java.lang.Boolean.value",0
+          "java.lang.Boolean.value",1
+        '''))
+
+  def test_art_hprof_int_array_blob(self):
+    """ahat test fixture: DumpedStuff.K = int[]{3, 1, 2, 0} stored as blob."""
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT
+            od.array_element_type,
+            od.array_element_count,
+            length(__intrinsic_heap_graph_get_array(od.array_data_id)) as blob_len
+          FROM heap_graph_reference r
+          JOIN heap_graph_object owner ON r.owner_id = owner.id
+          JOIN heap_graph_class oc ON owner.type_id = oc.id
+          JOIN heap_graph_object o ON r.owned_id = o.id
+          JOIN heap_graph_object_data od ON od.object_id = o.id
+          WHERE oc.name = 'DumpedStuff'
+            AND r.field_name = 'DumpedStuff.K'
+        """,
+        out=Csv('''
+          "array_element_type","array_element_count","blob_len"
+          "int",4,16
+        '''))
+
+  def test_art_hprof_byte_array_blob(self):
+    """ahat test fixture: DumpedStuff.i = byte[]{0, 1, 2, 3, 4, 5} as blob."""
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT
+            od.array_element_type,
+            od.array_element_count,
+            length(__intrinsic_heap_graph_get_array(od.array_data_id)) as blob_len
+          FROM heap_graph_reference r
+          JOIN heap_graph_object owner ON r.owner_id = owner.id
+          JOIN heap_graph_class oc ON owner.type_id = oc.id
+          JOIN heap_graph_object o ON r.owned_id = o.id
+          JOIN heap_graph_object_data od ON od.object_id = o.id
+          WHERE oc.name = 'DumpedStuff'
+            AND r.field_name = 'DumpedStuff.i'
+        """,
+        out=Csv('''
+          "array_element_type","array_element_count","blob_len"
+          "byte",6,6
+        '''))
+
+  def test_art_hprof_char_array_blob(self):
+    """ahat test fixture: DumpedStuff.g = char[]('char thing') as blob."""
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT
+            od.array_element_type,
+            od.array_element_count,
+            length(__intrinsic_heap_graph_get_array(od.array_data_id)) as blob_len
+          FROM heap_graph_reference r
+          JOIN heap_graph_object owner ON r.owner_id = owner.id
+          JOIN heap_graph_class oc ON owner.type_id = oc.id
+          JOIN heap_graph_object o ON r.owned_id = o.id
+          JOIN heap_graph_object_data od ON od.object_id = o.id
+          WHERE oc.name = 'DumpedStuff'
+            AND r.field_name = 'DumpedStuff.g'
+        """,
+        out=Csv('''
+          "array_element_type","array_element_count","blob_len"
+          "char",10,20
+        '''))
+
+  def test_art_hprof_hashmap_load_factor(self):
+    """ahat parity: HashMap loadFactor = 0.75."""
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT f.field_name, f.float_value, COUNT() as cnt
+          FROM heap_graph_object_field f
+          WHERE f.field_name = 'java.util.HashMap.loadFactor'
+          GROUP BY f.field_name, f.float_value
+        """,
+        out=Csv('''
+          "field_name","float_value","cnt"
+          "java.util.HashMap.loadFactor",0.750000,20
+        '''))
+
+  def test_art_hprof_big_array_self_size(self):
+    """ahat test fixture: bigArray byte[1000000] has correct self_size."""
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT
+            o.self_size,
+            od.array_element_type,
+            od.array_element_count
+          FROM heap_graph_object o
+          JOIN heap_graph_class c ON o.type_id = c.id
+          JOIN heap_graph_object_data od ON od.object_id = o.id
+          WHERE c.name = 'byte[]'
+            AND o.self_size > 100000
+        """,
+        out=Csv('''
+          "self_size","array_element_type","array_element_count"
+          1000012,"byte",1000000
+        '''))
+
+  def test_art_hprof_array_blob_count(self):
+    """All primitive arrays have blob metadata columns populated."""
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT COUNT() as cnt
+          FROM heap_graph_object_data
+          WHERE array_data_id IS NOT NULL
+        """,
+        out=Csv('''
+          "cnt"
+          2037
+        '''))
+
+  def test_art_hprof_array_blob_type_distribution(self):
+    """Distribution of primitive array types stored as blobs."""
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT array_element_type, COUNT() as cnt
+          FROM heap_graph_object_data
+          WHERE array_data_id IS NOT NULL
+          GROUP BY array_element_type
+          ORDER BY cnt DESC
+        """,
+        out=Csv('''
+          "array_element_type","cnt"
+          "byte",1268
+          "long",756
+          "char",9
+          "int",4
+        '''))
+
+  def test_art_hprof_array_blob_size_consistency(self):
+    """Blob byte length matches element_count * element_size for each type."""
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT COUNT() as mismatches
+          FROM heap_graph_object_data od
+          WHERE od.array_data_id IS NOT NULL
+            AND length(__intrinsic_heap_graph_get_array(od.array_data_id)) !=
+              od.array_element_count * CASE od.array_element_type
+                WHEN 'boolean' THEN 1
+                WHEN 'byte' THEN 1
+                WHEN 'char' THEN 2
+                WHEN 'short' THEN 2
+                WHEN 'int' THEN 4
+                WHEN 'float' THEN 4
+                WHEN 'long' THEN 8
+                WHEN 'double' THEN 8
+              END
+        """,
+        out=Csv('''
+          "mismatches"
+          0
+        '''))
+
+  def test_art_hprof_no_array_element_rows(self):
+    """Primitive array elements are stored as blobs, not per-element rows."""
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT COUNT() as array_rows
+          FROM heap_graph_object_field
+          WHERE field_name LIKE '[%'
+        """,
+        out=Csv('''
+          "array_rows"
+          0
+        '''))
+
+  def test_art_hprof_big_array_blob(self):
+    """ahat test fixture: bigArray byte[1000000] stored as 1MB blob."""
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT
+            od.array_element_type,
+            od.array_element_count,
+            length(__intrinsic_heap_graph_get_array(od.array_data_id)) as blob_len
+          FROM heap_graph_object o
+          JOIN heap_graph_class c ON o.type_id = c.id
+          JOIN heap_graph_object_data od ON od.object_id = o.id
+          WHERE c.name = 'byte[]'
+            AND o.self_size > 100000
+        """,
+        out=Csv('''
+          "array_element_type","array_element_count","blob_len"
+          "byte",1000000,1000000
+        '''))
+
+  def test_art_hprof_get_array_null_handling(self):
+    """__intrinsic_heap_graph_get_array returns NULL for NULL input."""
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT __intrinsic_heap_graph_get_array(NULL) IS NULL as is_null
+        """,
+        out=Csv('''
+          "is_null"
+          1
+        '''))
+
+  def test_art_hprof_non_array_no_blob(self):
+    """Non-array objects have NULL array columns."""
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT COUNT() as cnt
+          FROM heap_graph_object o
+          JOIN heap_graph_class c ON o.type_id = c.id
+          LEFT JOIN heap_graph_object_data od ON od.object_id = o.id
+          WHERE c.name = 'DumpedStuff'
+            AND (od.array_element_type IS NOT NULL
+              OR od.array_element_count IS NOT NULL
+              OR od.array_data_id IS NOT NULL)
+        """,
+        out=Csv('''
+          "cnt"
+          0
+        '''))

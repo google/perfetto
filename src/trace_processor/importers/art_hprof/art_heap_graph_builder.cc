@@ -18,6 +18,7 @@
 #include <cinttypes>
 
 namespace perfetto::trace_processor::art_hprof {
+
 namespace {
 
 // Root type precedence ranking. Lower rank = higher priority.
@@ -85,7 +86,6 @@ void HeapGraphBuilder::PushBlob(TraceBlobView&& blob) {
 }
 
 HeapGraph HeapGraphBuilder::BuildGraph() {
-  // Phase 3: Resolve the heap graph
   resolver_ = std::make_unique<HeapGraphResolver>(context_, header_, objects_,
                                                   classes_, roots_, stats_);
   resolver_->ResolveGraph();
@@ -93,17 +93,10 @@ HeapGraph HeapGraphBuilder::BuildGraph() {
   stats_.Write(context_);
   HeapGraph graph(header_.GetTimestamp());
 
-  for (auto it = strings_.GetIterator(); it; ++it) {
-    graph.AddString(it.key(), it.value());
-  }
-
-  for (auto it = classes_.GetIterator(); it; ++it) {
-    graph.AddClass(std::move(it.value()));
-  }
-
-  for (auto it = objects_.GetIterator(); it; ++it) {
-    graph.AddObject(std::move(it.value()));
-  }
+  // Move entire maps at once (avoids per-element rehashing + reallocation).
+  graph.SetStrings(std::move(strings_));
+  graph.SetClasses(std::move(classes_));
+  graph.SetObjects(std::move(objects_));
 
   return graph;
 }
@@ -200,6 +193,10 @@ bool HeapGraphBuilder::ParseRecord() {
 bool HeapGraphBuilder::ParseUtf8StringRecord(uint32_t length) {
   uint64_t id;
   if (!iterator_->ReadId(id, header_.GetIdSize())) {
+    return false;
+  }
+
+  if (length < header_.GetIdSize()) {
     return false;
   }
 
@@ -663,8 +660,9 @@ bool HeapGraphBuilder::ParsePrimitiveArrayObject() {
 
   size_t type_size = GetFieldTypeSize(element_type, header_.GetIdSize());
 
+  size_t data_length = static_cast<size_t>(element_count) * type_size;
   std::vector<uint8_t> data;
-  if (!iterator_->ReadBytes(data, element_count * type_size)) {
+  if (!iterator_->ReadBytes(data, data_length)) {
     return false;
   }
 
