@@ -34,6 +34,7 @@ source_set("subcommand") {
     ":shell_utils",
     ":sql_packages",
     "../../../gn:default_deps",
+    "../../../gn:protobuf_full",
     "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
