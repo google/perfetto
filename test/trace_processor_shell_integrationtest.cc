@@ -168,7 +168,7 @@ TEST(TraceProcessorShellIntegrationTest, FileCollisionHint) {
   ASSERT_NE(getcwd(old_cwd, sizeof(old_cwd)), nullptr);
   ASSERT_EQ(chdir(tmpdir.path().c_str()), 0);
   auto cleanup = base::OnScopeExit([&] {
-    chdir(old_cwd);
+    PERFETTO_CHECK(chdir(old_cwd) == 0);
     remove(file_path.c_str());
   });
 
