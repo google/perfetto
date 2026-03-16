@@ -77,6 +77,11 @@ import {
   HeatmapChart,
   HeatmapData,
 } from '../../../components/widgets/charts/heatmap';
+import {Sankey, SankeyData} from '../../../components/widgets/charts/sankey';
+import {
+  SQLSankeyLoader,
+  SankeyLoaderConfig,
+} from '../../../components/widgets/charts/sankey_loader';
 import {
   SQLHeatmapLoader,
   HeatmapLoaderConfig,
@@ -140,7 +145,7 @@ export function renderCharts(app: App): m.Children {
       m('h1', 'Charts'),
       m('p', [
         'ECharts-based chart components for visualizing data. ',
-        'Includes Bar, Line, Pie/Donut, Histogram, Scatter, Treemap, CDF, Boxplot, and Heatmap charts.',
+        'Includes Bar, Line, Pie/Donut, Histogram, Scatter, Treemap, Sankey, CDF, Boxplot, and Heatmap charts.',
       ]),
     ),
 
@@ -150,7 +155,7 @@ export function renderCharts(app: App): m.Children {
       renderWidget: (opts) => {
         return m(LineChartDemo, {
           height: opts.height,
-          enableBrush: opts.enableBrush,
+          brushMode: opts.brushMode,
           logScale: opts.logScale,
           showPoints: opts.showPoints,
           multiSeries: opts.multiSeries,
@@ -159,7 +164,11 @@ export function renderCharts(app: App): m.Children {
       },
       initialOpts: {
         height: 250,
-        enableBrush: true,
+        brushMode: new EnumOption('filter', [
+          'off',
+          'filter',
+          'select',
+        ] as const),
         logScale: false,
         showPoints: true,
         multiSeries: false,
@@ -198,7 +207,7 @@ export function renderCharts(app: App): m.Children {
         return m(BarChartDemo, {
           height: opts.height,
           logScale: opts.logScale,
-          enableBrush: opts.enableBrush,
+          brushMode: opts.brushMode,
           horizontal: opts.horizontal,
           aggregation: opts.aggregation,
           gridLines: opts.gridLines,
@@ -207,7 +216,11 @@ export function renderCharts(app: App): m.Children {
       initialOpts: {
         height: 250,
         logScale: false,
-        enableBrush: true,
+        brushMode: new EnumOption('filter', [
+          'off',
+          'filter',
+          'select',
+        ] as const),
         horizontal: false,
         aggregation: new EnumOption('SUM', [
           'SUM',
@@ -232,7 +245,7 @@ export function renderCharts(app: App): m.Children {
         return m(HistogramDemo, {
           bucketCount: opts.bucketCount,
           height: opts.height,
-          enableBrush: opts.enableBrush,
+          brushMode: opts.brushMode,
           logScale: opts.logScale,
           integer: opts.integer,
         });
@@ -240,7 +253,11 @@ export function renderCharts(app: App): m.Children {
       initialOpts: {
         bucketCount: 20,
         height: 250,
-        enableBrush: true,
+        brushMode: new EnumOption('filter', [
+          'off',
+          'filter',
+          'select',
+        ] as const),
         logScale: false,
         integer: false,
       },
@@ -255,7 +272,7 @@ export function renderCharts(app: App): m.Children {
           showLegend: opts.showLegend,
           bubbleMode: opts.bubbleMode,
           scaleAxes: opts.scaleAxes,
-          enableBrush: opts.enableBrush,
+          brushMode: opts.brushMode,
           gridLines: opts.gridLines,
         });
       },
@@ -264,7 +281,11 @@ export function renderCharts(app: App): m.Children {
         showLegend: true,
         bubbleMode: false,
         scaleAxes: false,
-        enableBrush: true,
+        brushMode: new EnumOption('filter', [
+          'off',
+          'filter',
+          'select',
+        ] as const),
         gridLines: new EnumOption('none', [
           'none',
           'horizontal',
@@ -288,6 +309,19 @@ export function renderCharts(app: App): m.Children {
         height: 300,
         showLabels: true,
         hierarchical: true,
+      },
+    }),
+
+    // SankeyChart section
+    m('h2', {style: {marginTop: '32px'}}, 'SankeyChart'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SankeyChartDemo, {
+          height: opts.height,
+        });
+      },
+      initialOpts: {
+        height: 300,
       },
     }),
 
@@ -319,10 +353,16 @@ export function renderCharts(app: App): m.Children {
       renderWidget: (opts) => {
         return m(HeatmapChartDemo, {
           height: opts.height,
+          brushMode: opts.brushMode,
         });
       },
       initialOpts: {
         height: 300,
+        brushMode: new EnumOption('select', [
+          'off',
+          'filter',
+          'select',
+        ] as const),
       },
     }),
 
@@ -347,7 +387,7 @@ function renderSQLDemos(app: App): m.Children[] {
         return m(SQLBarChartDemo, {
           trace,
           height: opts.height,
-          enableBrush: opts.enableBrush,
+          brushMode: opts.brushMode,
           logScale: opts.logScale,
           horizontal: opts.horizontal,
           aggregation: opts.aggregation,
@@ -356,7 +396,11 @@ function renderSQLDemos(app: App): m.Children[] {
       },
       initialOpts: {
         height: 250,
-        enableBrush: true,
+        brushMode: new EnumOption('filter', [
+          'off',
+          'filter',
+          'select',
+        ] as const),
         logScale: false,
         horizontal: false,
         aggregation: new EnumOption('SUM', [
@@ -380,7 +424,7 @@ function renderSQLDemos(app: App): m.Children[] {
         return m(SQLLineChartDemo, {
           trace,
           height: opts.height,
-          enableBrush: opts.enableBrush,
+          brushMode: opts.brushMode,
           showPoints: opts.showPoints,
           maxPoints: opts.maxPoints,
           scaleAxes: opts.scaleAxes,
@@ -389,7 +433,11 @@ function renderSQLDemos(app: App): m.Children[] {
       },
       initialOpts: {
         height: 250,
-        enableBrush: true,
+        brushMode: new EnumOption('filter', [
+          'off',
+          'filter',
+          'select',
+        ] as const),
         showPoints: true,
         maxPoints: 200,
         scaleAxes: true,
@@ -434,14 +482,18 @@ function renderSQLDemos(app: App): m.Children[] {
           trace,
           bucketCount: opts.bucketCount,
           height: opts.height,
-          enableBrush: opts.enableBrush,
+          brushMode: opts.brushMode,
           logScale: opts.logScale,
         });
       },
       initialOpts: {
         bucketCount: 20,
         height: 250,
-        enableBrush: true,
+        brushMode: new EnumOption('filter', [
+          'off',
+          'filter',
+          'select',
+        ] as const),
         logScale: false,
       },
     }),
@@ -454,7 +506,7 @@ function renderSQLDemos(app: App): m.Children[] {
           showLegend: opts.showLegend,
           maxPoints: opts.maxPoints,
           scaleAxes: opts.scaleAxes,
-          enableBrush: opts.enableBrush,
+          brushMode: opts.brushMode,
           gridLines: opts.gridLines,
         });
       },
@@ -463,7 +515,11 @@ function renderSQLDemos(app: App): m.Children[] {
         showLegend: true,
         maxPoints: 500,
         scaleAxes: true,
-        enableBrush: true,
+        brushMode: new EnumOption('filter', [
+          'off',
+          'filter',
+          'select',
+        ] as const),
         gridLines: new EnumOption('none', [
           'none',
           'horizontal',
@@ -488,6 +544,20 @@ function renderSQLDemos(app: App): m.Children[] {
         limit: 10,
       },
     }),
+    m('h3', {style: {marginTop: '32px'}}, 'SQLSankeyLoader'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SQLSankeyDemo, {
+          trace,
+          height: opts.height,
+          limit: opts.limit,
+        });
+      },
+      initialOpts: {
+        height: 300,
+        limit: 20,
+      },
+    }),
     m('h3', {style: {marginTop: '32px'}}, 'SQLCdfLoader'),
     renderWidgetShowcase({
       renderWidget: (opts) => {
@@ -495,14 +565,18 @@ function renderSQLDemos(app: App): m.Children[] {
           trace,
           height: opts.height,
           maxPoints: opts.maxPoints,
-          enableBrush: opts.enableBrush,
+          brushMode: opts.brushMode,
           gridLines: opts.gridLines,
         });
       },
       initialOpts: {
         height: 250,
         maxPoints: 500,
-        enableBrush: true,
+        brushMode: new EnumOption('filter', [
+          'off',
+          'filter',
+          'select',
+        ] as const),
         gridLines: new EnumOption('none', [
           'none',
           'horizontal',
@@ -540,12 +614,18 @@ function renderSQLDemos(app: App): m.Children[] {
           height: opts.height,
           xLimit: opts.xLimit,
           yLimit: opts.yLimit,
+          brushMode: opts.brushMode,
         });
       },
       initialOpts: {
         height: 300,
         xLimit: 15,
         yLimit: 15,
+        brushMode: new EnumOption('select', [
+          'off',
+          'filter',
+          'select',
+        ] as const),
       },
     }),
   ];
@@ -554,7 +634,7 @@ function renderSQLDemos(app: App): m.Children[] {
 function HistogramDemo(): m.Component<{
   bucketCount: number;
   height: number;
-  enableBrush: boolean;
+  brushMode: 'off' | 'filter' | 'select';
   logScale: boolean;
   integer: boolean;
 }> {
@@ -564,15 +644,19 @@ function HistogramDemo(): m.Component<{
   const continuousLoader = new InMemoryHistogramLoader(continuousData);
   const integerLoader = new InMemoryHistogramLoader(integerData);
 
-  let showcaseFilter: {min: number; max: number} | undefined;
+  let brushedRange: {start: number; end: number} | undefined;
 
   return {
     view: ({attrs}) => {
+      const isFilter = attrs.brushMode === 'filter';
       const loader = attrs.integer ? integerLoader : continuousLoader;
       const config: HistogramLoaderConfig = {
         bucketCount: attrs.bucketCount,
         integer: attrs.integer || undefined,
-        filter: showcaseFilter,
+        filter:
+          isFilter && brushedRange !== undefined
+            ? {min: brushedRange.start, max: brushedRange.end}
+            : undefined,
       };
       const {data} = loader.use(config);
       return m('div', [
@@ -583,11 +667,13 @@ function HistogramDemo(): m.Component<{
           yAxisLabel: 'Count',
           logScale: attrs.logScale,
           integerDimension: attrs.integer,
-          onBrush: attrs.enableBrush
-            ? (range) => {
-                showcaseFilter = {min: range.start, max: range.end};
-              }
-            : undefined,
+          onBrush:
+            attrs.brushMode !== 'off'
+              ? (range) => {
+                  brushedRange = range;
+                }
+              : undefined,
+          selection: attrs.brushMode === 'select' ? brushedRange : undefined,
         }),
         m(
           'pre',
@@ -600,18 +686,26 @@ function HistogramDemo(): m.Component<{
               borderRadius: '4px',
             },
           },
-          `loader.use(${JSON.stringify(config, null, 2)})`,
+          [
+            `loader.use(${JSON.stringify(config, null, 2)})`,
+            brushedRange
+              ? `\n\nBrushed: [${brushedRange.start.toFixed(2)}, ${brushedRange.end.toFixed(2)}]`
+              : attrs.brushMode !== 'off'
+                ? '\nDrag to brush-select a range'
+                : '',
+            !isFilter && brushedRange ? '\n(select mode — data unchanged)' : '',
+          ],
         ),
-        showcaseFilter &&
+        brushedRange &&
           m(
             'button',
             {
               style: {marginTop: '8px', fontSize: '12px'},
               onclick: () => {
-                showcaseFilter = undefined;
+                brushedRange = undefined;
               },
             },
-            'Clear filter',
+            isFilter ? 'Clear filter' : 'Clear selection',
           ),
       ]);
     },
@@ -630,7 +724,7 @@ function toGridLines(
 function BarChartDemo(): m.Component<{
   height: number;
   logScale: boolean;
-  enableBrush: boolean;
+  brushMode: 'off' | 'filter' | 'select';
   horizontal: boolean;
   aggregation: ChartAggregation;
   gridLines: string;
@@ -639,6 +733,7 @@ function BarChartDemo(): m.Component<{
 
   return {
     view: ({attrs}) => {
+      const isFilter = attrs.brushMode === 'filter';
       const {aggregation} = attrs;
       let data: BarChartData = aggregateBarChartData(
         SAMPLE_SLICES,
@@ -647,9 +742,9 @@ function BarChartDemo(): m.Component<{
         aggregation,
       );
 
-      // Filter by brushed labels
+      // Filter by brushed labels (only in filter mode)
       const labels = brushedLabels;
-      if (labels !== undefined) {
+      if (isFilter && labels !== undefined) {
         data = {
           items: data.items.filter((item) => labels.includes(item.label)),
         };
@@ -675,11 +770,13 @@ function BarChartDemo(): m.Component<{
           logScale: attrs.logScale,
           orientation: attrs.horizontal ? 'horizontal' : 'vertical',
           gridLines: toGridLines(attrs.gridLines),
-          onBrush: attrs.enableBrush
-            ? (labels) => {
-                brushedLabels = labels;
-              }
-            : undefined,
+          onBrush:
+            attrs.brushMode !== 'off'
+              ? (newLabels) => {
+                  brushedLabels = newLabels;
+                }
+              : undefined,
+          selection: attrs.brushMode === 'select' ? brushedLabels : undefined,
         }),
         m(
           'pre',
@@ -692,9 +789,16 @@ function BarChartDemo(): m.Component<{
               borderRadius: '4px',
             },
           },
-          brushedLabels
-            ? `Brushed: [${brushedLabels.join(', ')}]`
-            : 'Drag to brush-select bars',
+          [
+            brushedLabels
+              ? `Brushed: [${brushedLabels.join(', ')}]`
+              : attrs.brushMode !== 'off'
+                ? 'Drag to brush-select bars'
+                : '',
+            !isFilter && brushedLabels
+              ? '\n(select mode — data unchanged)'
+              : '',
+          ],
         ),
         brushedLabels &&
           m(
@@ -705,7 +809,7 @@ function BarChartDemo(): m.Component<{
                 brushedLabels = undefined;
               },
             },
-            'Clear filter',
+            isFilter ? 'Clear filter' : 'Clear selection',
           ),
       ]);
     },
@@ -715,7 +819,7 @@ function BarChartDemo(): m.Component<{
 function SQLBarChartDemo(): m.Component<{
   trace: Trace;
   height: number;
-  enableBrush: boolean;
+  brushMode: 'off' | 'filter' | 'select';
   logScale: boolean;
   horizontal: boolean;
   aggregation: ChartAggregation;
@@ -735,11 +839,12 @@ function SQLBarChartDemo(): m.Component<{
         });
       }
 
+      const isFilter = attrs.brushMode === 'filter';
       const {aggregation} = attrs;
       const config: BarChartLoaderConfig = {
         aggregation,
         limit: 10,
-        filter: brushedLabels,
+        filter: isFilter ? brushedLabels : undefined,
       };
       const {data, isPending} = loader.use(config);
 
@@ -763,11 +868,13 @@ function SQLBarChartDemo(): m.Component<{
           logScale: attrs.logScale,
           orientation: attrs.horizontal ? 'horizontal' : 'vertical',
           gridLines: toGridLines(attrs.gridLines),
-          onBrush: attrs.enableBrush
-            ? (labels) => {
-                brushedLabels = labels;
-              }
-            : undefined,
+          onBrush:
+            attrs.brushMode !== 'off'
+              ? (labels) => {
+                  brushedLabels = labels;
+                }
+              : undefined,
+          selection: attrs.brushMode === 'select' ? brushedLabels : undefined,
         }),
         m(
           'pre',
@@ -785,6 +892,10 @@ function SQLBarChartDemo(): m.Component<{
             `dimensionColumn: 'name', measureColumn: 'dur'\n`,
             `loader.use(${JSON.stringify(config, null, 2)})`,
             isPending ? '\n(loading...)' : '',
+            brushedLabels ? `\nBrushed: [${brushedLabels.join(', ')}]` : '',
+            !isFilter && brushedLabels
+              ? '\n(select mode — data unchanged)'
+              : '',
           ],
         ),
         brushedLabels &&
@@ -796,7 +907,7 @@ function SQLBarChartDemo(): m.Component<{
                 brushedLabels = undefined;
               },
             },
-            'Clear filter',
+            isFilter ? 'Clear filter' : 'Clear selection',
           ),
       ]);
     },
@@ -811,14 +922,15 @@ function SQLHistogramDemo(): m.Component<{
   trace: Trace;
   bucketCount: number;
   height: number;
-  enableBrush: boolean;
+  brushMode: 'off' | 'filter' | 'select';
   logScale: boolean;
 }> {
   let loader: SQLHistogramLoader | undefined;
-  let filter: {min: number; max: number} | undefined;
+  let brushedRange: {start: number; end: number} | undefined;
 
   return {
     view: ({attrs}) => {
+      const isFilter = attrs.brushMode === 'filter';
       // Create loader on first render (or if trace changes)
       if (!loader) {
         loader = new SQLHistogramLoader({
@@ -830,7 +942,10 @@ function SQLHistogramDemo(): m.Component<{
 
       const config: HistogramLoaderConfig = {
         bucketCount: attrs.bucketCount,
-        filter,
+        filter:
+          isFilter && brushedRange !== undefined
+            ? {min: brushedRange.start, max: brushedRange.end}
+            : undefined,
       };
       const {data, isPending} = loader.use(config);
 
@@ -841,11 +956,13 @@ function SQLHistogramDemo(): m.Component<{
           xAxisLabel: 'Duration (ns)',
           yAxisLabel: 'Count',
           logScale: attrs.logScale,
-          onBrush: attrs.enableBrush
-            ? (range) => {
-                filter = {min: range.start, max: range.end};
-              }
-            : undefined,
+          onBrush:
+            attrs.brushMode !== 'off'
+              ? (range) => {
+                  brushedRange = range;
+                }
+              : undefined,
+          selection: attrs.brushMode === 'select' ? brushedRange : undefined,
         }),
         m(
           'pre',
@@ -863,18 +980,22 @@ function SQLHistogramDemo(): m.Component<{
             `valueColumn: 'dur'\n`,
             `loader.use(${JSON.stringify(config, null, 2)})`,
             isPending ? '\n(loading...)' : '',
+            brushedRange
+              ? `\nBrushed: [${brushedRange.start.toFixed(2)}, ${brushedRange.end.toFixed(2)}]`
+              : '',
+            !isFilter && brushedRange ? '\n(select mode — data unchanged)' : '',
           ],
         ),
-        filter &&
+        brushedRange &&
           m(
             'button',
             {
               style: {marginTop: '8px', fontSize: '12px'},
               onclick: () => {
-                filter = undefined;
+                brushedRange = undefined;
               },
             },
-            'Clear filter',
+            isFilter ? 'Clear filter' : 'Clear selection',
           ),
       ]);
     },
@@ -888,17 +1009,18 @@ function SQLHistogramDemo(): m.Component<{
 function SQLLineChartDemo(): m.Component<{
   trace: Trace;
   height: number;
-  enableBrush: boolean;
+  brushMode: 'off' | 'filter' | 'select';
   showPoints: boolean;
   maxPoints: number;
   scaleAxes: boolean;
   gridLines: string;
 }> {
   let loader: SQLLineChartLoader | undefined;
-  let xRange: {min: number; max: number} | undefined;
+  let brushedRange: {start: number; end: number} | undefined;
 
   return {
     view: ({attrs}) => {
+      const isFilter = attrs.brushMode === 'filter';
       if (!loader) {
         loader = new SQLLineChartLoader({
           engine: attrs.trace.engine,
@@ -909,7 +1031,10 @@ function SQLLineChartDemo(): m.Component<{
       }
 
       const config: LineChartLoaderConfig = {
-        xRange,
+        xRange:
+          isFilter && brushedRange !== undefined
+            ? {min: brushedRange.start, max: brushedRange.end}
+            : undefined,
         maxPoints: attrs.maxPoints,
       };
       const {data, isPending} = loader.use(config);
@@ -923,11 +1048,13 @@ function SQLLineChartDemo(): m.Component<{
           showPoints: attrs.showPoints,
           scaleAxes: attrs.scaleAxes,
           gridLines: toGridLines(attrs.gridLines),
-          onBrush: attrs.enableBrush
-            ? (range) => {
-                xRange = {min: range.start, max: range.end};
-              }
-            : undefined,
+          onBrush:
+            attrs.brushMode !== 'off'
+              ? (range) => {
+                  brushedRange = range;
+                }
+              : undefined,
+          selection: attrs.brushMode === 'select' ? brushedRange : undefined,
         }),
         m(
           'pre',
@@ -945,18 +1072,22 @@ function SQLLineChartDemo(): m.Component<{
             `xColumn: 'ts', yColumn: 'dur'\n`,
             `loader.use(${JSON.stringify(config, null, 2)})`,
             isPending ? '\n(loading...)' : '',
+            brushedRange
+              ? `\nBrushed: [${brushedRange.start.toFixed(2)}, ${brushedRange.end.toFixed(2)}]`
+              : '',
+            !isFilter && brushedRange ? '\n(select mode — data unchanged)' : '',
           ],
         ),
-        xRange &&
+        brushedRange &&
           m(
             'button',
             {
               style: {marginTop: '8px', fontSize: '12px'},
               onclick: () => {
-                xRange = undefined;
+                brushedRange = undefined;
               },
             },
-            'Clear filter',
+            isFilter ? 'Clear filter' : 'Clear selection',
           ),
       ]);
     },
@@ -1068,7 +1199,7 @@ function generateMultiSeriesLineData(): LineChartData {
 
 function LineChartDemo(): m.Component<{
   height: number;
-  enableBrush: boolean;
+  brushMode: 'off' | 'filter' | 'select';
   logScale: boolean;
   showPoints: boolean;
   multiSeries: boolean;
@@ -1131,14 +1262,15 @@ function LineChartDemo(): m.Component<{
 
   return {
     view: ({attrs}) => {
+      const isFilter = attrs.brushMode === 'filter';
       const fullData = attrs.multiSeries
         ? LINE_CHART_MULTI_SERIES_DATA
         : LINE_CHART_SAMPLE_DATA;
 
-      // Filter data to the brushed X range with interpolation at boundaries
+      // Filter data to the brushed X range (only in filter mode)
       const range = brushRange;
       const data: LineChartData =
-        range !== undefined
+        isFilter && range !== undefined
           ? {
               series: fullData.series.map((s) => ({
                 ...s,
@@ -1159,14 +1291,16 @@ function LineChartDemo(): m.Component<{
           yAxisLabel: 'Value',
           logScale: attrs.logScale,
           showPoints: attrs.showPoints,
-          xAxisMin: range?.start,
-          xAxisMax: range?.end,
+          xAxisMin: isFilter ? range?.start : undefined,
+          xAxisMax: isFilter ? range?.end : undefined,
           gridLines: toGridLines(attrs.gridLines),
-          onBrush: attrs.enableBrush
-            ? (newRange) => {
-                brushRange = newRange;
-              }
-            : undefined,
+          onBrush:
+            attrs.brushMode !== 'off'
+              ? (newRange) => {
+                  brushRange = newRange;
+                }
+              : undefined,
+          selection: attrs.brushMode === 'select' ? brushRange : undefined,
         }),
         m(
           'pre',
@@ -1179,9 +1313,14 @@ function LineChartDemo(): m.Component<{
               borderRadius: '4px',
             },
           },
-          brushRange
-            ? `Brushed range: [${brushRange.start.toFixed(2)}, ${brushRange.end.toFixed(2)}]`
-            : 'Drag to brush-select a range',
+          [
+            brushRange
+              ? `Brushed range: [${brushRange.start.toFixed(2)}, ${brushRange.end.toFixed(2)}]`
+              : attrs.brushMode !== 'off'
+                ? 'Drag to brush-select a range'
+                : '',
+            !isFilter && brushRange ? '\n(select mode — data unchanged)' : '',
+          ],
         ),
         brushRange &&
           m(
@@ -1192,7 +1331,7 @@ function LineChartDemo(): m.Component<{
                 brushRange = undefined;
               },
             },
-            'Clear selection',
+            isFilter ? 'Clear filter' : 'Clear selection',
           ),
       ]);
     },
@@ -1315,7 +1454,7 @@ function ScatterChartDemo(): m.Component<{
   showLegend: boolean;
   bubbleMode: boolean;
   scaleAxes: boolean;
-  enableBrush: boolean;
+  brushMode: 'off' | 'filter' | 'select';
   gridLines: string;
 }> {
   let brushRange:
@@ -1324,13 +1463,15 @@ function ScatterChartDemo(): m.Component<{
 
   return {
     view: ({attrs}) => {
+      const isFilter = attrs.brushMode === 'filter';
       const fullData = attrs.bubbleMode
         ? SCATTER_BUBBLE_DATA
         : SCATTER_SAMPLE_DATA;
 
+      // Filter points only in filter mode
       const range = brushRange;
       const data: ScatterChartData =
-        range !== undefined
+        isFilter && range !== undefined
           ? {
               series: fullData.series.map((s) => ({
                 ...s,
@@ -1354,11 +1495,13 @@ function ScatterChartDemo(): m.Component<{
           showLegend: attrs.showLegend,
           scaleAxes: attrs.scaleAxes,
           gridLines: toGridLines(attrs.gridLines),
-          onBrush: attrs.enableBrush
-            ? (r) => {
-                brushRange = r;
-              }
-            : undefined,
+          onBrush:
+            attrs.brushMode !== 'off'
+              ? (r) => {
+                  brushRange = r;
+                }
+              : undefined,
+          selection: attrs.brushMode === 'select' ? brushRange : undefined,
         }),
         m(
           'pre',
@@ -1380,7 +1523,10 @@ function ScatterChartDemo(): m.Component<{
               : '\nscaleAxes: false (axis range includes zero)',
             range
               ? `\n\nBrushed: X=[${range.xMin.toFixed(1)}, ${range.xMax.toFixed(1)}]  Y=[${range.yMin.toFixed(1)}, ${range.yMax.toFixed(1)}]`
-              : '\n\nDrag to brush-select a region',
+              : attrs.brushMode !== 'off'
+                ? '\n\nDrag to brush-select a region'
+                : '',
+            !isFilter && range ? '\n(select mode — data unchanged)' : '',
           ],
         ),
         range &&
@@ -1392,7 +1538,7 @@ function ScatterChartDemo(): m.Component<{
                 brushRange = undefined;
               },
             },
-            'Clear selection',
+            isFilter ? 'Clear filter' : 'Clear selection',
           ),
       ]);
     },
@@ -1484,13 +1630,152 @@ function TreemapChartDemo(): m.Component<{
   };
 }
 
+// Static sample data for SankeyChart demo
+const SANKEY_DATA: SankeyData = {
+  nodes: [
+    {name: 'App'},
+    {name: 'SurfaceFlinger'},
+    {name: 'HWC'},
+    {name: 'GPU'},
+    {name: 'Display'},
+    {name: 'Vsync'},
+  ],
+  links: [
+    {source: 'App', target: 'SurfaceFlinger', value: 400},
+    {source: 'App', target: 'GPU', value: 200},
+    {source: 'SurfaceFlinger', target: 'HWC', value: 300},
+    {source: 'SurfaceFlinger', target: 'GPU', value: 100},
+    {source: 'GPU', target: 'Display', value: 300},
+    {source: 'HWC', target: 'Display', value: 300},
+    {source: 'Vsync', target: 'App', value: 600},
+    {source: 'Vsync', target: 'SurfaceFlinger', value: 400},
+  ],
+};
+
+function SankeyChartDemo(): m.Component<{
+  height: number;
+}> {
+  let clickedNode: string | undefined;
+
+  return {
+    view: ({attrs}) => {
+      return m('div', [
+        m(Sankey, {
+          data: SANKEY_DATA,
+          height: attrs.height,
+          onNodeClick: (node) => {
+            clickedNode = node.name;
+          },
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          clickedNode ? `Clicked: ${clickedNode}` : 'Click a node to select it',
+        ),
+        clickedNode &&
+          m(
+            'button',
+            {
+              style: {marginTop: '8px', fontSize: '12px'},
+              onclick: () => {
+                clickedNode = undefined;
+              },
+            },
+            'Clear selection',
+          ),
+      ]);
+    },
+  };
+}
+
+function SQLSankeyDemo(): m.Component<{
+  trace: Trace;
+  height: number;
+  limit: number;
+}> {
+  let loader: SQLSankeyLoader | undefined;
+  let clickedNode: string | undefined;
+
+  return {
+    view: ({attrs}) => {
+      if (!loader) {
+        loader = new SQLSankeyLoader({
+          engine: attrs.trace.engine,
+          query: 'SELECT utid, state, dur FROM thread_state WHERE dur > 0',
+          sourceColumn: 'utid',
+          targetColumn: 'state',
+          valueColumn: 'dur',
+        });
+      }
+
+      const config: SankeyLoaderConfig = {
+        aggregation: 'SUM',
+        limit: attrs.limit,
+      };
+      const {data, isPending} = loader.use(config);
+
+      return m('div', [
+        m(Sankey, {
+          data,
+          height: attrs.height,
+          onNodeClick: (node) => {
+            clickedNode = node.name;
+          },
+        }),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          [
+            `query: 'SELECT upid, state, dur FROM thread_state WHERE dur > 0'\n`,
+            `sourceColumn: 'upid', targetColumn: 'state', valueColumn: 'dur'\n`,
+            `loader.use(${JSON.stringify(config, null, 2)})`,
+            isPending ? '\n(loading...)' : '',
+            clickedNode ? `\nClicked: ${clickedNode}` : '',
+          ],
+        ),
+        clickedNode &&
+          m(
+            'button',
+            {
+              style: {marginTop: '8px', fontSize: '12px'},
+              onclick: () => {
+                clickedNode = undefined;
+              },
+            },
+            'Clear selection',
+          ),
+      ]);
+    },
+    onremove: () => {
+      loader?.dispose();
+      loader = undefined;
+    },
+  };
+}
+
 function SQLScatterChartDemo(): m.Component<{
   trace: Trace;
   height: number;
   showLegend: boolean;
   maxPoints: number;
   scaleAxes: boolean;
-  enableBrush: boolean;
+  brushMode: 'off' | 'filter' | 'select';
   gridLines: string;
 }> {
   let loader: SQLScatterChartLoader | undefined;
@@ -1510,6 +1795,7 @@ function SQLScatterChartDemo(): m.Component<{
         });
       }
 
+      const isFilter = attrs.brushMode === 'filter';
       // Always load with just maxPoints — brush filtering is applied
       // client-side on the loaded points rather than via SQL-level range
       // filters to avoid mismatches between floating-point brush coordinates
@@ -1519,9 +1805,10 @@ function SQLScatterChartDemo(): m.Component<{
       };
       const {data: rawData, isPending} = loader.use(config);
 
+      // Filter points only in filter mode
       const range = brushRange;
       const data: ScatterChartData | undefined =
-        rawData !== undefined && range !== undefined
+        isFilter && rawData !== undefined && range !== undefined
           ? {
               series: rawData.series.map((s) => ({
                 ...s,
@@ -1545,11 +1832,13 @@ function SQLScatterChartDemo(): m.Component<{
           showLegend: attrs.showLegend,
           scaleAxes: attrs.scaleAxes,
           gridLines: toGridLines(attrs.gridLines),
-          onBrush: attrs.enableBrush
-            ? (r) => {
-                brushRange = r;
-              }
-            : undefined,
+          onBrush:
+            attrs.brushMode !== 'off'
+              ? (r) => {
+                  brushRange = r;
+                }
+              : undefined,
+          selection: attrs.brushMode === 'select' ? brushRange : undefined,
         }),
         m(
           'pre',
@@ -1568,7 +1857,10 @@ function SQLScatterChartDemo(): m.Component<{
             `loader.use(${JSON.stringify(config, null, 2)})`,
             range
               ? `\n\nBrushed: X=[${range.xMin.toFixed(0)}, ${range.xMax.toFixed(0)}]  Y=[${range.yMin.toFixed(0)}, ${range.yMax.toFixed(0)}]`
-              : '\n\nDrag to brush-select a region',
+              : attrs.brushMode !== 'off'
+                ? '\n\nDrag to brush-select a region'
+                : '',
+            !isFilter && range ? '\n(select mode — data unchanged)' : '',
             isPending ? '\n(loading...)' : '',
           ],
         ),
@@ -1581,7 +1873,7 @@ function SQLScatterChartDemo(): m.Component<{
                 brushRange = undefined;
               },
             },
-            'Clear filter',
+            isFilter ? 'Clear filter' : 'Clear selection',
           ),
       ]);
     },
@@ -1753,15 +2045,64 @@ const HEATMAP_SAMPLE_DATA: HeatmapData = (() => {
 
 function HeatmapChartDemo(): m.Component<{
   height: number;
+  brushMode: 'off' | 'filter' | 'select';
 }> {
+  let brushedSelection: {xLabels: string[]; yLabels: string[]} | undefined;
+
   return {
     view: ({attrs}) => {
+      const isFilter = attrs.brushMode === 'filter';
+      let data = HEATMAP_SAMPLE_DATA;
+
+      // Filter by brushed selection (only in filter mode)
+      if (isFilter && brushedSelection !== undefined) {
+        const xSet = new Set(brushedSelection.xLabels);
+        const ySet = new Set(brushedSelection.yLabels);
+        const xIndices = new Map<string, number>();
+        const yIndices = new Map<string, number>();
+        const filteredXLabels = data.xLabels.filter((l) => xSet.has(l));
+        const filteredYLabels = data.yLabels.filter((l) => ySet.has(l));
+        filteredXLabels.forEach((l, i) => xIndices.set(l, i));
+        filteredYLabels.forEach((l, i) => yIndices.set(l, i));
+        let min = Infinity;
+        let max = -Infinity;
+        const filteredValues: Array<readonly [number, number, number]> = [];
+        for (const [xIdx, yIdx, val] of data.values) {
+          const xLabel = data.xLabels[xIdx];
+          const yLabel = data.yLabels[yIdx];
+          const newX = xIndices.get(xLabel);
+          const newY = yIndices.get(yLabel);
+          if (newX !== undefined && newY !== undefined) {
+            filteredValues.push([newX, newY, val]);
+            min = Math.min(min, val);
+            max = Math.max(max, val);
+          }
+        }
+        if (filteredValues.length > 0) {
+          data = {
+            xLabels: filteredXLabels,
+            yLabels: filteredYLabels,
+            values: filteredValues,
+            min,
+            max,
+          };
+        }
+      }
+
       return m('div', [
         m(HeatmapChart, {
-          data: HEATMAP_SAMPLE_DATA,
+          data,
           height: attrs.height,
           xAxisLabel: 'Day',
           yAxisLabel: 'Process',
+          onBrush:
+            attrs.brushMode !== 'off'
+              ? (sel: {xLabels: string[]; yLabels: string[]}) => {
+                  brushedSelection = sel;
+                }
+              : undefined,
+          selection:
+            attrs.brushMode === 'select' ? brushedSelection : undefined,
         }),
         m(
           'pre',
@@ -1774,8 +2115,28 @@ function HeatmapChartDemo(): m.Component<{
               borderRadius: '4px',
             },
           },
-          'Static heatmap: process activity by day of week',
+          [
+            brushedSelection
+              ? `Brushed: x=[${brushedSelection.xLabels.join(', ')}] y=[${brushedSelection.yLabels.join(', ')}]`
+              : attrs.brushMode !== 'off'
+                ? 'Drag to brush-select cells'
+                : 'Static heatmap: process activity by day of week',
+            !isFilter && brushedSelection
+              ? '\n(select mode — data unchanged)'
+              : '',
+          ],
         ),
+        brushedSelection &&
+          m(
+            'button',
+            {
+              style: {marginTop: '8px', fontSize: '12px'},
+              onclick: () => {
+                brushedSelection = undefined;
+              },
+            },
+            isFilter ? 'Clear filter' : 'Clear selection',
+          ),
       ]);
     },
   };
@@ -1789,14 +2150,15 @@ function SQLCdfDemo(): m.Component<{
   trace: Trace;
   height: number;
   maxPoints: number;
-  enableBrush: boolean;
+  brushMode: 'off' | 'filter' | 'select';
   gridLines: string;
 }> {
   let loader: SQLCdfLoader | undefined;
-  let xRange: {min: number; max: number} | undefined;
+  let brushedRange: {start: number; end: number} | undefined;
 
   return {
     view: ({attrs}) => {
+      const isFilter = attrs.brushMode === 'filter';
       if (!loader) {
         loader = new SQLCdfLoader({
           engine: attrs.trace.engine,
@@ -1807,7 +2169,10 @@ function SQLCdfDemo(): m.Component<{
 
       const config: CdfLoaderConfig = {
         maxPoints: attrs.maxPoints,
-        filter: xRange,
+        filter:
+          isFilter && brushedRange !== undefined
+            ? {min: brushedRange.start, max: brushedRange.end}
+            : undefined,
       };
       const {data, isPending} = loader.use(config);
 
@@ -1820,11 +2185,13 @@ function SQLCdfDemo(): m.Component<{
           showPoints: false,
           scaleAxes: true,
           gridLines: toGridLines(attrs.gridLines),
-          onBrush: attrs.enableBrush
-            ? (range) => {
-                xRange = {min: range.start, max: range.end};
-              }
-            : undefined,
+          onBrush:
+            attrs.brushMode !== 'off'
+              ? (range) => {
+                  brushedRange = range;
+                }
+              : undefined,
+          selection: attrs.brushMode === 'select' ? brushedRange : undefined,
         }),
         m(
           'pre',
@@ -1842,18 +2209,22 @@ function SQLCdfDemo(): m.Component<{
             `valueColumn: 'dur'\n`,
             `loader.use(${JSON.stringify(config, null, 2)})`,
             isPending ? '\n(loading...)' : '',
+            brushedRange
+              ? `\nBrushed: [${brushedRange.start.toFixed(2)}, ${brushedRange.end.toFixed(2)}]`
+              : '',
+            !isFilter && brushedRange ? '\n(select mode — data unchanged)' : '',
           ],
         ),
-        xRange &&
+        brushedRange &&
           m(
             'button',
             {
               style: {marginTop: '8px', fontSize: '12px'},
               onclick: () => {
-                xRange = undefined;
+                brushedRange = undefined;
               },
             },
-            'Clear filter',
+            isFilter ? 'Clear filter' : 'Clear selection',
           ),
       ]);
     },
@@ -1936,8 +2307,10 @@ function SQLHeatmapDemo(): m.Component<{
   height: number;
   xLimit: number;
   yLimit: number;
+  brushMode: 'off' | 'filter' | 'select';
 }> {
   let loader: SQLHeatmapLoader | undefined;
+  let brushedSelection: {xLabels: string[]; yLabels: string[]} | undefined;
 
   return {
     view: ({attrs}) => {
@@ -1951,12 +2324,50 @@ function SQLHeatmapDemo(): m.Component<{
         });
       }
 
+      const isFilter = attrs.brushMode === 'filter';
+
       const config: HeatmapLoaderConfig = {
         aggregation: 'SUM',
         xLimit: attrs.xLimit,
         yLimit: attrs.yLimit,
       };
-      const {data, isPending} = loader.use(config);
+      let {data} = loader.use(config);
+      const {isPending} = loader.use(config);
+
+      // Filter by brushed selection (only in filter mode)
+      if (isFilter && brushedSelection !== undefined && data !== undefined) {
+        const xSet = new Set(brushedSelection.xLabels);
+        const ySet = new Set(brushedSelection.yLabels);
+        const xIndices = new Map<string, number>();
+        const yIndices = new Map<string, number>();
+        const filteredXLabels = data.xLabels.filter((l) => xSet.has(l));
+        const filteredYLabels = data.yLabels.filter((l) => ySet.has(l));
+        filteredXLabels.forEach((l, i) => xIndices.set(l, i));
+        filteredYLabels.forEach((l, i) => yIndices.set(l, i));
+        let min = Infinity;
+        let max = -Infinity;
+        const filteredValues: Array<readonly [number, number, number]> = [];
+        for (const [xIdx, yIdx, val] of data.values) {
+          const xLabel = data.xLabels[xIdx];
+          const yLabel = data.yLabels[yIdx];
+          const newX = xIndices.get(xLabel);
+          const newY = yIndices.get(yLabel);
+          if (newX !== undefined && newY !== undefined) {
+            filteredValues.push([newX, newY, val]);
+            min = Math.min(min, val);
+            max = Math.max(max, val);
+          }
+        }
+        if (filteredValues.length > 0) {
+          data = {
+            xLabels: filteredXLabels,
+            yLabels: filteredYLabels,
+            values: filteredValues,
+            min,
+            max,
+          };
+        }
+      }
 
       return m('div', [
         m(HeatmapChart, {
@@ -1964,6 +2375,14 @@ function SQLHeatmapDemo(): m.Component<{
           height: attrs.height,
           xAxisLabel: 'Priority',
           yAxisLabel: 'End State',
+          onBrush:
+            attrs.brushMode !== 'off'
+              ? (sel: {xLabels: string[]; yLabels: string[]}) => {
+                  brushedSelection = sel;
+                }
+              : undefined,
+          selection:
+            attrs.brushMode === 'select' ? brushedSelection : undefined,
         }),
         m(
           'pre',
@@ -1981,8 +2400,22 @@ function SQLHeatmapDemo(): m.Component<{
             `xColumn: 'priority', yColumn: 'end_state', valueColumn: 'dur'\n`,
             `loader.use(${JSON.stringify(config, null, 2)})`,
             isPending ? '\n(loading...)' : '',
+            brushedSelection
+              ? `\nBrushed: x=[${brushedSelection.xLabels.join(', ')}] y=[${brushedSelection.yLabels.join(', ')}]`
+              : '',
           ],
         ),
+        brushedSelection &&
+          m(
+            'button',
+            {
+              style: {marginTop: '8px', fontSize: '12px'},
+              onclick: () => {
+                brushedSelection = undefined;
+              },
+            },
+            isFilter ? 'Clear filter' : 'Clear selection',
+          ),
       ]);
     },
     onremove: () => {

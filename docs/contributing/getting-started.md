@@ -95,7 +95,7 @@ Please note our project follows the [Google C++ style](https://google.github.io/
 
 #### External contributors
 
-Please contribute the same way as you would to any other Github repository.
+Please contribute the same way as you would to any other GitHub repository.
 A good explanation of how to do it can be found [here](https://docs.github.com/en/get-started/exploring-projects-on-github/contributing-to-a-project).
 
 ### Testing
