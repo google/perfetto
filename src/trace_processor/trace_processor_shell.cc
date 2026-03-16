@@ -121,7 +121,6 @@ struct CommandLineOptions {
 
   std::string metatrace_path;
   size_t metatrace_buffer_capacity = 0;
-  std::string metatrace_categories_raw;
   metatrace::MetatraceCategories metatrace_categories =
       static_cast<metatrace::MetatraceCategories>(
           metatrace::MetatraceCategories::QUERY_TIMELINE |
@@ -591,7 +590,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     }
 
     if (option == OPT_METATRACE_CATEGORIES) {
-      command_line_options.metatrace_categories_raw = optarg;
       command_line_options.metatrace_categories =
           ParseMetatraceCategories(optarg);
       continue;
@@ -944,10 +942,6 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
       args.emplace_back("--metatrace-buffer-capacity");
       args.emplace_back(std::to_string(options.metatrace_buffer_capacity));
     }
-    if (!options.metatrace_categories_raw.empty()) {
-      args.emplace_back("--metatrace-categories");
-      args.emplace_back(options.metatrace_categories_raw);
-    }
   };
 
   // Determine which subcommand to dispatch to.
@@ -976,12 +970,6 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     if (!options.trace_file_path.empty())
       args.emplace_back(options.trace_file_path);
   } else if (options.summary) {
-    if (!options.query_string.empty()) {
-      return base::ErrStatus(
-          "Cannot combine --summary with -Q (query string). "
-          "Use -q (query file) with --summary, or use the 'summarize' "
-          "subcommand directly.");
-    }
     args.emplace_back("summarize");
     if (!options.summary_metrics_v2.empty()) {
       args.emplace_back("--metrics-v2");
@@ -1011,12 +999,6 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     for (const auto& s : options.summary_specs)
       args.emplace_back(s);
   } else if (!options.metric_v1_names.empty()) {
-    if (!options.query_string.empty()) {
-      return base::ErrStatus(
-          "Cannot combine --run-metrics with -Q (query string). "
-          "Use -q (query file) with --run-metrics, or use the 'metrics' "
-          "subcommand directly.");
-    }
     args.emplace_back("metrics");
     args.emplace_back("--run");
     args.emplace_back(options.metric_v1_names);

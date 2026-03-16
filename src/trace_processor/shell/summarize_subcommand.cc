@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/shell/summarize_subcommand.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <optional>
@@ -35,6 +36,29 @@
 #include "src/trace_processor/trace_summary/summary.h"
 
 namespace perfetto::trace_processor::shell {
+namespace {
+
+TraceSummarySpecBytes::Format GuessSummarySpecFormat(
+    const std::string& path,
+    const std::string& content) {
+  if (base::EndsWith(path, ".pb")) {
+    return TraceSummarySpecBytes::Format::kBinaryProto;
+  }
+  if (base::EndsWith(path, ".textproto")) {
+    return TraceSummarySpecBytes::Format::kTextProto;
+  }
+  // Content-sniffing fallback: if the first 128 bytes are all printable or
+  // whitespace, assume text proto; otherwise binary.
+  std::string_view prefix(content.c_str(),
+                          std::min<size_t>(content.size(), 128));
+  if (std::all_of(prefix.begin(), prefix.end(),
+                  [](char c) { return std::isspace(c) || std::isprint(c); })) {
+    return TraceSummarySpecBytes::Format::kTextProto;
+  }
+  return TraceSummarySpecBytes::Format::kBinaryProto;
+}
+
+}  // namespace
 
 const char* SummarizeSubcommand::name() const {
   return "summarize";
@@ -96,10 +120,7 @@ base::Status SummarizeSubcommand::Run(const SubcommandContext& ctx) {
   std::vector<TraceSummarySpecBytes> specs;
   specs.reserve(spec_paths.size());
   for (uint32_t i = 0; i < spec_paths.size(); ++i) {
-    auto format = TraceSummarySpecBytes::Format::kTextProto;
-    if (base::EndsWith(spec_paths[i], ".pb")) {
-      format = TraceSummarySpecBytes::Format::kBinaryProto;
-    }
+    auto format = GuessSummarySpecFormat(spec_paths[i], spec_content[i]);
     specs.emplace_back(TraceSummarySpecBytes{
         reinterpret_cast<const uint8_t*>(spec_content[i].data()),
         spec_content[i].size(),
