@@ -45,7 +45,7 @@ trace_processor_shell <subcommand> [FLAGS] [trace_file]
 | Subcommand  | Replaces              | Description                     |
 | ----------- | --------------------- | ------------------------------- |
 | `query`     | `-q`, `-Q`            | Run SQL queries                 |
-| `repl`      | (default interactive) | Interactive SQL shell (default) |
+| `interactive` | (default interactive) | Interactive SQL shell (default) |
 | `serve`     | `--httpd`, `--stdiod` | Start RPC server                |
 | `summarize` | `--summary`           | Trace summarization             |
 | `metrics`   | `--run-metrics`       | v1 metrics (soft-deprecated)    |
@@ -73,15 +73,21 @@ trace_processor_shell query --dev -f q.sql trace.pb   # equivalent
 
 **`query`**
 
+SQL can be provided as a positional argument, via `-f FILE`, or piped to stdin:
+
 ```
-  -f, --file FILE        SQL file to execute.
-  -c, --sql STRING       SQL string to execute.
+  trace_processor_shell query trace.pb "SELECT ts, dur FROM slice"
+  trace_processor_shell query -f query.sql trace.pb
+  trace_processor_shell query trace.pb < query.sql
+  trace_processor_shell query -f - trace.pb   # explicit stdin
+
+  -f, --query-file FILE  SQL file to execute (use '-' for stdin).
   -i, --interactive      Drop into REPL after query.
   -W, --wide             Double column width.
   -p, --perf-file FILE   Write timing data.
 ```
 
-**`repl`**
+**`interactive`**
 
 ```
   -W, --wide             Double column width.
@@ -157,13 +163,14 @@ If no command is given, opens an interactive SQL shell on the trace file.
 Commands:
 
   query         Run SQL queries against a trace.
-                  trace_processor_shell query -c "SELECT ts, dur FROM slice" trace.pb
+                  trace_processor_shell query trace.pb "SELECT ts, dur FROM slice"
                   trace_processor_shell query -f query.sql trace.pb
-                Flags: -f FILE, -c STRING, -i (interactive after), -W (wide)
+                  trace_processor_shell query trace.pb < query.sql
+                Flags: -f FILE, -i (interactive after), -W (wide)
 
-  repl          Interactive SQL shell (default).
+  interactive   Interactive SQL shell (default).
                   trace_processor_shell trace.pb
-                  trace_processor_shell repl trace.pb
+                  trace_processor_shell interactive trace.pb
                 Flags: -W (wide)
 
   serve         Start an RPC server.
@@ -206,11 +213,12 @@ $ trace_processor_shell help query
 
 Run SQL queries against a trace.
 
-Usage: trace_processor_shell query [flags] trace_file
+Usage: trace_processor_shell query [flags] <trace_file> [SQL]
+
+SQL can be provided as a positional argument, via -f FILE, or piped to stdin.
 
 Flags:
-  -f, --file FILE        Read and execute SQL from a file.
-  -c, --sql STRING       Execute the given SQL string.
+  -f, --query-file FILE  Read and execute SQL from a file (use '-' for stdin).
   -i, --interactive      Drop into REPL after query.
   -W, --wide             Double column width for output.
   -p, --perf-file FILE   Write timing data to FILE.
@@ -228,8 +236,9 @@ Global flags:
   (... and other global flags)
 
 Examples:
-  trace_processor_shell query -c "SELECT ts, dur FROM slice LIMIT 10" trace.pb
+  trace_processor_shell query trace.pb "SELECT ts, dur FROM slice LIMIT 10"
   trace_processor_shell query -f query.sql trace.pb
+  trace_processor_shell query trace.pb < query.sql
   trace_processor_shell query -f query.sql -i trace.pb   # interactive after
 ```
 
