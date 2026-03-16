@@ -141,22 +141,23 @@ export async function loadGraphFromPath(
   }
 }
 
-export async function createDataExplorerGraph(deps: GraphIODeps): Promise<void> {
+export async function createDataExplorerGraph(
+  deps: GraphIODeps,
+): Promise<void> {
   const {sqlModules, trace} = deps;
-  const newNodes: QueryNode[] = [];
+  const coreNodes: QueryNode[] = [];
+  const rightNodes: QueryNode[] = [];
 
-  // Create slices source node
-  const slicesNode = new SlicesSourceNode({sqlModules, trace});
-  newNodes.push(slicesNode);
-
-  // Get high-frequency tables with data
   const tableDescriptor = nodeRegistry.get('table');
-  if (tableDescriptor) {
-    const highFreqTables = sqlModules
-      .listTables()
-      .filter((table) => table.importance === 'high');
 
-    for (const sqlTable of highFreqTables) {
+  // Helper to create table nodes for a given importance level.
+  function createTableNodes(importance: string, target: QueryNode[]): void {
+    if (!tableDescriptor) return;
+    const tables = sqlModules
+      .listTables()
+      .filter((table) => table.importance === importance);
+
+    for (const sqlTable of tables) {
       try {
         const module = sqlModules.getModuleForTable(sqlTable.name);
         if (module && sqlModules.isModuleDisabled(module.includeKey)) {
@@ -165,9 +166,9 @@ export async function createDataExplorerGraph(deps: GraphIODeps): Promise<void> 
 
         const tableNode = tableDescriptor.factory(
           {sqlTable, sqlModules, trace},
-          {allNodes: newNodes},
+          {allNodes: [...coreNodes, ...rightNodes]},
         );
-        newNodes.push(tableNode);
+        target.push(tableNode);
       } catch (error) {
         console.error(
           `Failed to create table node for ${sqlTable.name}:`,
@@ -177,33 +178,94 @@ export async function createDataExplorerGraph(deps: GraphIODeps): Promise<void> 
     }
   }
 
-  if (newNodes.length > 0) {
-    const totalNodes = newNodes.length;
-    const cols = Math.ceil(Math.sqrt(totalNodes));
+  // Create core table nodes (left column)
+  createTableNodes('core', coreNodes);
 
+  // Create slices source node (right side)
+  const slicesNode = new SlicesSourceNode({sqlModules, trace});
+  rightNodes.push(slicesNode);
+
+  // Create high-importance table nodes (right side)
+  createTableNodes('high', rightNodes);
+
+  const allNodes = [...coreNodes, ...rightNodes];
+
+  if (allNodes.length > 0) {
     const newNodeLayouts = new Map<string, {x: number; y: number}>();
     const NODE_WIDTH = 300;
-    const NODE_HEIGHT = 200;
-    const GRID_PADDING_X = 10;
-    const GRID_PADDING_Y = 10;
+    const CORE_COL_WIDTH = 200;
     const START_X = 50;
     const START_Y = 50;
 
-    newNodes.forEach((node, index) => {
-      const col = index % cols;
-      const row = Math.floor(index / cols);
+    // Left column: "Core tables" label + core nodes tightly stacked.
+    // LABEL_HEIGHT accounts for the label above the first core node.
+    const CORE_GAP_Y = 55;
+    const LABEL_HEIGHT = CORE_GAP_Y;
+    const LABEL_WIDTH = 100;
+    const coreStartY = START_Y + LABEL_HEIGHT;
+    coreNodes.forEach((node, index) => {
       newNodeLayouts.set(node.nodeId, {
-        x: START_X + col * (NODE_WIDTH + GRID_PADDING_X),
-        y: START_Y + row * (NODE_HEIGHT + GRID_PADDING_Y),
+        x: START_X,
+        y: coreStartY + index * CORE_GAP_Y,
       });
     });
 
+    // Right side: slices + high-importance tables in a tight grid,
+    // vertically centered relative to the core column.
+    const GROUP_GAP = 50;
+    const RIGHT_GAP_X = 10;
+    const RIGHT_GAP_Y = 80;
+    const rightStartX = START_X + CORE_COL_WIDTH + GROUP_GAP;
+    const rightCols = Math.max(1, Math.ceil(Math.sqrt(rightNodes.length)));
+    const rightRows = Math.ceil(rightNodes.length / rightCols);
+
+    const coreColumnHeight = LABEL_HEIGHT + (coreNodes.length - 1) * CORE_GAP_Y;
+    const rightGroupHeight = (rightRows - 1) * RIGHT_GAP_Y;
+    const rightStartY =
+      START_Y + Math.max(0, (coreColumnHeight - rightGroupHeight) / 2);
+
+    rightNodes.forEach((node, index) => {
+      const col = index % rightCols;
+      const row = Math.floor(index / rightCols);
+      newNodeLayouts.set(node.nodeId, {
+        x: rightStartX + col * (NODE_WIDTH + RIGHT_GAP_X),
+        y: rightStartY + row * RIGHT_GAP_Y,
+      });
+    });
+
+    // Add labels above each group when the group has nodes.
+    const labels: Array<{
+      id: string;
+      x: number;
+      y: number;
+      width: number;
+      text: string;
+    }> = [];
+    if (coreNodes.length > 0) {
+      labels.push({
+        id: 'core-tables-label',
+        x: START_X + 30,
+        y: START_Y,
+        width: LABEL_WIDTH,
+        text: 'Core tables',
+      });
+    }
+    if (rightNodes.length > 0) {
+      labels.push({
+        id: 'right-tables-label',
+        x: rightStartX,
+        y: rightStartY - LABEL_HEIGHT,
+        width: 200,
+        text: 'Tables important for this trace',
+      });
+    }
+
     deps.onStateUpdate((currentState) => ({
       ...currentState,
-      rootNodes: newNodes,
+      rootNodes: allNodes,
       nodeLayouts: newNodeLayouts,
-      selectedNodes: new Set([newNodes[0].nodeId]),
-      labels: [],
+      selectedNodes: new Set([allNodes[0].nodeId]),
+      labels,
       loadGeneration: (currentState.loadGeneration ?? 0) + 1,
     }));
   }

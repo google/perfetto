@@ -952,12 +952,23 @@
   }
 }
 
-// Dimensions item: inline layout (handle + name + type + optional arrow btn)
-.pf-metrics-v2-columns-layout .pf-metrics-v2-column-panel:first-child {
-  .pf-metrics-v2-column-item {
-    flex-direction: row;
-    align-items: center;
-    gap: 4px;
+/// Dimensions item: header is inline, config expands below
+.pf-metrics-v2-dim-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+
+.pf-metrics-v2-dim-config {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 0 4px 18px;
+
+  > .pf-outlined-field {
+    flex: 1;
+    min-width: 100px;
   }
 }
 
