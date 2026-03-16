@@ -20,6 +20,9 @@ import {Filter} from '../datagrid/model';
 import {filterToSql, sqlAggregateExpr} from '../datagrid/sql_utils';
 import {ChartAggregation, validateColumnName} from './chart_utils';
 
+/** Default column alias for the first measure in aggregated queries. */
+export const DEFAULT_MEASURE_ALIAS = '_value';
+
 // ---------------------------------------------------------------------------
 // Schema types
 // ---------------------------------------------------------------------------
@@ -265,10 +268,21 @@ export class ChartSource {
     ];
 
     const whereClause = this.buildWhereClause(config.filters);
+    const havingClause = this.buildHavingClause(config.measures);
+
+    // Scalar aggregation (no dimensions) — single row, no GROUP BY.
+    if (config.dimensions.length === 0 && config.measures.length > 0) {
+      return `
+SELECT
+  ${selectParts.join(',\n  ')}
+FROM (${this.query})
+${whereClause}
+${havingClause}`.trim();
+    }
+
     const groupByExprs = config.dimensions.map((d) => d.column);
     const direction = config.orderDirection ?? 'desc';
     const orderAlias = this.measureAlias(config.measures, 0);
-    const havingClause = this.buildHavingClause(config.measures);
     const limitClause =
       config.limit !== undefined ? `LIMIT ${config.limit}` : '';
 
@@ -561,7 +575,7 @@ ORDER BY _bucket_idx`.trim();
       validateColumnName(meas.alias);
       return meas.alias;
     }
-    return index === 0 ? '_value' : `_value_${index}`;
+    return index === 0 ? DEFAULT_MEASURE_ALIAS : `_value_${index}`;
   }
 
   private dimSelectExprs(dims: ReadonlyArray<DimensionSpec>): string[] {

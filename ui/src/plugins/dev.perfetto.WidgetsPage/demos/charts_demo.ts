@@ -86,6 +86,11 @@ import {
   SQLHeatmapLoader,
   HeatmapLoaderConfig,
 } from '../../../components/widgets/charts/heatmap_loader';
+import {StatCard} from '../../../components/widgets/charts/stat_card';
+import {
+  SQLStatCardLoader,
+  StatCardLoaderConfig,
+} from '../../../components/widgets/charts/stat_card_loader';
 import {App} from '../../../public/app';
 import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 import {Trace} from '../../../public/trace';
@@ -145,7 +150,7 @@ export function renderCharts(app: App): m.Children {
       m('h1', 'Charts'),
       m('p', [
         'ECharts-based chart components for visualizing data. ',
-        'Includes Bar, Line, Pie/Donut, Histogram, Scatter, Treemap, Sankey, CDF, Boxplot, and Heatmap charts.',
+        'Includes Bar, Line, Pie/Donut, Histogram, Scatter, Treemap, Sankey, CDF, Boxplot, Heatmap, and Stat Card charts.',
       ]),
     ),
 
@@ -365,6 +370,32 @@ export function renderCharts(app: App): m.Children {
           'filter',
           'select',
         ] as const),
+      },
+    }),
+
+    // StatCard section
+    m('h2', {style: {marginTop: '32px'}}, 'StatCard'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(StatCard, {
+          data: {value: opts.value},
+          isPending: false,
+          label: opts.label,
+          height: opts.height,
+          min: opts.min,
+          max: opts.max,
+          showGauge: opts.showGauge,
+          diameter: opts.diameter,
+        });
+      },
+      initialOpts: {
+        height: 300,
+        value: 70,
+        min: 0,
+        max: 100,
+        label: 'CPU Usage %',
+        showGauge: true,
+        diameter: '75%',
       },
     }),
 
@@ -628,6 +659,28 @@ function renderSQLDemos(app: App): m.Children[] {
           'filter',
           'select',
         ] as const),
+      },
+    }),
+    m('h3', {style: {marginTop: '32px'}}, 'SQLStatCardLoader'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SQLStatCardDemo, {
+          trace,
+          aggregation: opts.aggregation,
+          column: opts.column,
+          label: opts.label,
+        });
+      },
+      initialOpts: {
+        aggregation: new EnumOption('COUNT', [
+          'COUNT',
+          'SUM',
+          'AVG',
+          'MIN',
+          'MAX',
+        ] as const),
+        column: new EnumOption('dur', ['dur', 'ts', 'depth'] as const),
+        label: 'Slice duration',
       },
     }),
   ];
@@ -2418,6 +2471,81 @@ function SQLHeatmapDemo(): m.Component<{
             },
             isFilter ? 'Clear filter' : 'Clear selection',
           ),
+      ]);
+    },
+    onremove: () => {
+      loader?.dispose();
+      loader = undefined;
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// SQL Stat Card demo
+// ---------------------------------------------------------------------------
+
+function SQLStatCardDemo(): m.Component<{
+  trace: Trace;
+  aggregation: ChartAggregation;
+  column: string;
+  label: string;
+}> {
+  let loader: SQLStatCardLoader | undefined;
+  let currentColumn: string | undefined;
+
+  return {
+    view: ({attrs}) => {
+      if (!loader || currentColumn !== attrs.column) {
+        loader?.dispose();
+        currentColumn = attrs.column;
+        loader = new SQLStatCardLoader({
+          engine: attrs.trace.engine,
+          query: `SELECT ${attrs.column} FROM slice WHERE ${attrs.column} > 0`,
+          measureColumn: attrs.column,
+        });
+      }
+
+      const config: StatCardLoaderConfig = {
+        aggregation: attrs.aggregation,
+      };
+      const {data, isPending} = loader.use(config);
+
+      return m('div', [
+        m(
+          'div',
+          {
+            style: {
+              width: '250px',
+              height: '200px',
+              border: '1px solid var(--pf-color-border)',
+              borderRadius: '8px',
+            },
+          },
+          m(StatCard, {
+            data,
+            isPending,
+            label: attrs.label,
+            fillParent: true,
+          }),
+        ),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          [
+            `query: 'SELECT ${attrs.column} FROM slice WHERE ${attrs.column} > 0'\n`,
+            `measureColumn: '${attrs.column}'\n`,
+            `loader.use(${JSON.stringify(config, null, 2)})`,
+            isPending ? '\n(loading...)' : '',
+          ],
+        ),
       ]);
     },
     onremove: () => {

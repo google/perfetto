@@ -20,11 +20,8 @@ import {
   getItemId,
   getNextItemPosition,
   parseBrushFilters,
-  serializeDashboardData,
   snapToGrid,
   validateDashboardItems,
-  sourceDisplayName,
-  DashboardSourceWithName,
 } from './dashboard_registry';
 
 let nextChartId = 0;
@@ -41,21 +38,6 @@ function makeSource(
   graphId = 'test-graph',
 ): DashboardDataSource {
   return {nodeId, name, columns, graphId};
-}
-
-function makeSourceWithName(
-  nodeId: string,
-  name: string,
-  graphId: string,
-  graphName: string,
-): DashboardSourceWithName {
-  return {
-    nodeId,
-    name,
-    columns: [{name: 'id', type: {kind: 'int'}}],
-    graphId,
-    graphName,
-  };
 }
 
 function makeLabelItem(id = 'label-1', text = ''): DashboardItem {
@@ -172,54 +154,6 @@ describe('getNextItemPosition', () => {
     // 10 % 10 = 0, same as empty
     expect(pos.x).toBe(20);
     expect(pos.y).toBe(20);
-  });
-});
-
-// --- Serialization ---
-
-describe('serializeDashboardData', () => {
-  test('returns empty object for undefined dashboardId', () => {
-    expect(serializeDashboardData(undefined)).toEqual({});
-  });
-
-  test('returns dashboardId with no items', () => {
-    const data = serializeDashboardData('db-1');
-    expect(data.dashboardId).toBe('db-1');
-    expect(data.dashboardItems).toBeUndefined();
-    expect(data.brushFilters).toBeUndefined();
-  });
-
-  test('serializes items when present', () => {
-    const chart = makeChartItem('n1');
-    const data = serializeDashboardData('db-1', [chart]);
-    expect(data.dashboardId).toBe('db-1');
-    expect(data.dashboardItems).toHaveLength(1);
-  });
-
-  test('serializes brush filters when present', () => {
-    const filters = new Map([
-      ['n1', [{column: 'x', op: '=' as const, value: 42}]],
-    ]);
-    const data = serializeDashboardData('db-1', [], filters);
-    expect(data.brushFilters).toEqual({
-      n1: [{column: 'x', op: '=', value: 42}],
-    });
-  });
-
-  test('omits empty items and filters', () => {
-    const data = serializeDashboardData('db-1', [], new Map());
-    expect(data.dashboardItems).toBeUndefined();
-    expect(data.brushFilters).toBeUndefined();
-  });
-
-  test('converts bigint values in filters to numbers', () => {
-    const filters = new Map([
-      ['n1', [{column: 'x', op: '=' as const, value: BigInt(42)}]],
-    ]);
-    const data = serializeDashboardData('db-1', [], filters);
-    expect(data.brushFilters).toEqual({
-      n1: [{column: 'x', op: '=', value: 42}],
-    });
   });
 });
 
@@ -373,73 +307,26 @@ describe('parseBrushFilters', () => {
   });
 });
 
-// --- sourceDisplayName ---
+// --- getExportedSourcesForGraph ---
 
-describe('sourceDisplayName', () => {
-  test('returns plain name when all charts use one graph', () => {
-    const s1 = makeSourceWithName('n1', 'thread_state', 'g1', 'Graph 1');
-    const s2 = makeSourceWithName('n2', 'sched', 'g1', 'Graph 1');
-    const items = [makeChartItem('n1'), makeChartItem('n2')];
-    const sources = [s1, s2];
-    expect(sourceDisplayName(s1, items, sources)).toBe('thread_state');
-    expect(sourceDisplayName(s2, items, sources)).toBe('sched');
+describe('getExportedSourcesForGraph', () => {
+  beforeEach(() => {
+    dashboardRegistry.clear();
   });
 
-  test('appends graph name when charts use multiple graphs', () => {
-    const s1 = makeSourceWithName('n1', 'thread_state', 'g1', 'Graph 1');
-    const s2 = makeSourceWithName('n2', 'thread_state', 'g2', 'Graph 2');
-    const items = [makeChartItem('n1'), makeChartItem('n2')];
-    const sources = [s1, s2];
-    expect(sourceDisplayName(s1, items, sources)).toBe(
-      'thread_state · Graph 1',
+  test('returns only sources matching graphId', () => {
+    dashboardRegistry.setExportedSource(makeSource('n1', 'A', [], 'g1'));
+    dashboardRegistry.setExportedSource(makeSource('n2', 'B', [], 'g2'));
+    dashboardRegistry.setExportedSource(makeSource('n3', 'C', [], 'g1'));
+    const g1Sources = dashboardRegistry.getExportedSourcesForGraph('g1');
+    expect(g1Sources).toHaveLength(2);
+    expect(g1Sources.map((s) => s.name)).toEqual(['A', 'C']);
+  });
+
+  test('returns empty array for unknown graphId', () => {
+    dashboardRegistry.setExportedSource(makeSource('n1', 'A', [], 'g1'));
+    expect(dashboardRegistry.getExportedSourcesForGraph('g999')).toHaveLength(
+      0,
     );
-    expect(sourceDisplayName(s2, items, sources)).toBe(
-      'thread_state · Graph 2',
-    );
-  });
-
-  test('no namespacing when only one graph is used even if others available', () => {
-    const s1 = makeSourceWithName('n1', 'A', 'g1', 'Graph 1');
-    const s2 = makeSourceWithName('n2', 'B', 'g2', 'Graph 2');
-    // Only s1 is used in charts; s2 is available but unused.
-    const items = [makeChartItem('n1')];
-    expect(sourceDisplayName(s1, items, [s1, s2])).toBe('A');
-  });
-
-  test('namespacing when two graphs are used even with different names', () => {
-    const s1 = makeSourceWithName('n1', 'A', 'g1', 'Graph 1');
-    const s2 = makeSourceWithName('n2', 'B', 'g2', 'Graph 2');
-    const items = [makeChartItem('n1'), makeChartItem('n2')];
-    const sources = [s1, s2];
-    expect(sourceDisplayName(s1, items, sources)).toBe('A · Graph 1');
-    expect(sourceDisplayName(s2, items, sources)).toBe('B · Graph 2');
-  });
-
-  test('returns plain name with no charts', () => {
-    const s1 = makeSourceWithName('n1', 'A', 'g1', 'Graph 1');
-    expect(sourceDisplayName(s1, [], [s1])).toBe('A');
-  });
-});
-
-// --- sourceDisplayName with forceNamespace ---
-
-describe('sourceDisplayName with forceNamespace', () => {
-  test('returns plain name when all sources are from one graph', () => {
-    const s1 = makeSourceWithName('n1', 'A', 'g1', 'Graph 1');
-    const s2 = makeSourceWithName('n2', 'B', 'g1', 'Graph 1');
-    expect(sourceDisplayName(s1, [], [s1, s2], true)).toBe('A');
-    expect(sourceDisplayName(s2, [], [s1, s2], true)).toBe('B');
-  });
-
-  test('appends graph name when sources span multiple graphs', () => {
-    const s1 = makeSourceWithName('n1', 'A', 'g1', 'Graph 1');
-    const s2 = makeSourceWithName('n2', 'B', 'g2', 'Graph 2');
-    expect(sourceDisplayName(s1, [], [s1, s2], true)).toBe('A · Graph 1');
-    expect(sourceDisplayName(s2, [], [s1, s2], true)).toBe('B · Graph 2');
-  });
-
-  test('returns plain name with single source', () => {
-    const s1 = makeSourceWithName('n1', 'A', 'g1', 'Graph 1');
-    expect(sourceDisplayName(s1, [], [s1], true)).toBe('A');
   });
 });

@@ -81,7 +81,7 @@ export async function loadGraphFromJson(
 
 export async function importGraph(
   deps: GraphIODeps,
-  state: DataExplorerState,
+  onCreateTab: (title: string, state: DataExplorerState) => void,
 ): Promise<void> {
   const input = document.createElement('input');
   input.type = 'file';
@@ -90,9 +90,6 @@ export async function importGraph(
     const files = (event.target as HTMLInputElement).files;
     if (files && files.length > 0) {
       const file = files[0];
-
-      if (!(await confirmAndFinalizeCurrentGraph(state))) return;
-
       const reader = new FileReader();
       reader.onload = async (e) => {
         const json = e.target?.result as string;
@@ -100,7 +97,9 @@ export async function importGraph(
           console.error('The selected file is empty or could not be read.');
           return;
         }
-        await loadGraphFromJson(deps, state.rootNodes, json);
+        const newState = deserializeState(json, deps.trace, deps.sqlModules);
+        const name = file.name.replace(/\.json$/i, '');
+        onCreateTab(name, newState);
       };
       reader.readAsText(file);
     }
