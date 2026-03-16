@@ -285,3 +285,9 @@ class Fuchsia(TestSuite):
         "upid",1,"[NULL]","[NULL]","int","1"
         "utid",2,"[NULL]","[NULL]","int","2"
         """))
+
+  def test_fuchsia_critical_path(self):
+    return DiffTestBlueprint(
+        trace=DataPath('fuchsia_trace_sched_with_waker.fxt'),
+        query=Path('fuchsia_critical_path.sql'),
+        out=Path('fuchsia_critical_path.out'))

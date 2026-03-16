@@ -100,6 +100,7 @@ class ProtoTraceReader : public ChunkedTraceReader {
   void HandleFirstPacketOnSequence(uint32_t packet_sequence_id);
   void HandlePreviousPacketDropped(const protos::pbzero::TracePacket_Decoder&,
                                    const TraceBlobView& packet);
+  void HandleTraceAttributes(ConstBytes);
   void ParseTracePacketDefaults(const protos::pbzero::TracePacket_Decoder&,
                                 TraceBlobView trace_packet_defaults);
   void ParseInternedData(const protos::pbzero::TracePacket_Decoder&,
