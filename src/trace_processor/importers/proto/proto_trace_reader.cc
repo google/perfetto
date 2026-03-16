@@ -60,7 +60,7 @@
 #include "src/trace_processor/util/gzip_utils.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
-#include "protos/perfetto/common/trace_metadata.pbzero.h"
+#include "protos/perfetto/common/trace_attributes.pbzero.h"
 #include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -285,8 +285,8 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     }
   }
 
-  if (decoder.has_trace_metadata()) {
-    HandleTraceMetadata(decoder.trace_metadata());
+  if (decoder.has_trace_attributes()) {
+    HandleTraceAttributes(decoder.trace_attributes());
   }
 
   if (decoder.first_packet_on_sequence()) {
@@ -525,20 +525,21 @@ void ProtoTraceReader::HandleFirstPacketOnSequence(
   }
 }
 
-void ProtoTraceReader::HandleTraceMetadata(protozero::ConstBytes blob) {
-  protos::pbzero::TraceMetadata::Decoder decoder(blob);
-  for (auto it_buf = decoder.metadata(); it_buf; ++it_buf) {
-    protos::pbzero::TraceMetadata_Metadata::Decoder decoded_metadata(*it_buf);
-    auto key = decoded_metadata.key();
-    // Prefix all custom metadata keys with `trace_metadata.`
-    auto prefixed_key = "trace_metadata." + key.ToStdString();
+void ProtoTraceReader::HandleTraceAttributes(protozero::ConstBytes blob) {
+  protos::pbzero::TraceAttributes::Decoder decoder(blob);
+  for (auto it_buf = decoder.attribute(); it_buf; ++it_buf) {
+    protos::pbzero::TraceAttributes_Attribute::Decoder decoded_attribute(
+        *it_buf);
+    auto key = decoded_attribute.key();
+    // Prefix all custom attribute keys with `trace_attribute.`
+    auto prefixed_key = "trace_attribute." + key.ToStdString();
     auto key_id = context_->storage->InternString(prefixed_key);
-    if (decoded_metadata.has_long_value()) {
-      auto value = Variadic::Integer(decoded_metadata.long_value());
+    if (decoded_attribute.has_long_value()) {
+      auto value = Variadic::Integer(decoded_attribute.long_value());
       context_->metadata_tracker->SetDynamicMetadata(key_id, value);
-    } else if (decoded_metadata.has_string_value()) {
+    } else if (decoded_attribute.has_string_value()) {
       auto value = Variadic::String(
-          context_->storage->InternString(decoded_metadata.string_value()));
+          context_->storage->InternString(decoded_attribute.string_value()));
       context_->metadata_tracker->SetDynamicMetadata(key_id, value);
     }
   }
