@@ -70,12 +70,11 @@ base::Status ValidateRegistry(const Registry& registry);
 // and returns a serialized FileDescriptorSet containing only the extension
 // descriptors (using the field subset from our descriptor.proto).
 //
-// |proto_paths| are the -I include directories for protoc.
-// |root_dir| is the base directory for resolving relative paths in the JSON.
+// |proto_paths| are the -I include directories for protoc and for resolving
+// relative .json registry and .proto paths referenced in allocations.
 base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
     const std::string& root_json_path,
-    const std::vector<std::string>& proto_paths,
-    const std::string& root_dir);
+    const std::vector<std::string>& proto_paths);
 
 }  // namespace gen_proto_extensions
 }  // namespace perfetto

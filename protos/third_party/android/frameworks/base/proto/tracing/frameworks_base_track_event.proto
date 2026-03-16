@@ -18,7 +18,7 @@ syntax = "proto2";
 
 import public "protos/perfetto/trace/track_event/track_event.proto";
 
-package perfetto.protos;
+package com.android.internal;
 
 // Information about sending and receiving messages on threads with
 // Looper and MessageQueue.
@@ -136,84 +136,6 @@ message AndroidBitmap {
   optional int32 pixel_storage_type = 7;
   // Bitmap id; see android.graphics.Bitmap#mId.
   optional int64 id = 8;
-}
-
-// Information about a compositing workload submitted by SurfaceFlinger.
-message AndroidSurfaceFlingerWorkload {
-  // ID of the "parent" requesting the workload
-  enum Source {
-    // Unknown source
-    UNKNOWN = 0;
-    // Workload was triggered by a frame signal event
-    FRAME_SIGNAL = 1;
-  }
-  optional Source source = 1;
-
-  // Output that the workload is eventually compositing into
-  optional string output_name = 2;
-
-  // Frame timeline vsync ID corresponding to this workload.
-  optional int64 vsync_id = 3;
-
-  // Interesting properties for a workload
-  message Summary {
-    // Corresponds to Atrace slices, but with stable names
-    message Timings {
-      // Walltime for slices corresponding to CPU work done by SurfaceFlinger
-      message SfCpu {
-        // Top-level time spent signaling a frame update
-        optional int64 frame_signal_nanos = 1;
-        // Time spent committing new transactions to be composited
-        optional int64 commit_nanos = 2;
-        // Time spent for the compositing operation itself
-        optional int64 composite_nanos = 3;
-      }
-      optional SfCpu sf_cpu = 1;
-
-      // Walltime for slices corresponding to HWC work, observed by
-      // SurfaceFlinger
-      message Hwc {
-        // Time spent presenting a frame
-        optional int64 present_nanos = 1;
-        // Time spent validating a frame
-        optional int64 validate_nanos = 2;
-        // Time spent either validating or presenting, if HWC is choosing a path
-        // to take
-        optional int64 present_or_validate_nanos = 3;
-      }
-      optional Hwc hwc = 2;
-
-      // Walltime for slices corresponding to RenderEngine work
-      message Re {
-        // Time spent drawing layers on the CPU
-        optional int64 draw_layers_nanos = 1;
-        // Time spent waiting for a GPU fence to signal GPU completion
-        optional int64 gpu_completion_nanos = 2;
-      }
-      optional Re re = 3;
-
-      // Walltime for slices corresponding to Skia work, observed by
-      // SurfaceFlinger
-      message Skia {
-        // Time spent flushing commands
-        optional int64 flush_nanos = 1;
-        // Time spent submitting commands to the GPU driver
-        optional int64 submit_nanos = 2;
-      }
-      optional Skia skia = 4;
-    }
-    optional Timings timings = 1;
-
-    // Statistics tracked that describes a workload
-    message Stats {
-      // Number of layers that needed to be composited via the GPU.
-      optional int32 gpu_composited_layers = 1;
-      // Number of layers that needed to be composited via the DPU.
-      optional int32 dpu_composited_layers = 2;
-    }
-    optional Stats stats = 2;
-  }
-  optional Summary summary = 4;
 }
 
 enum ReceiverType {
@@ -658,25 +580,20 @@ message AndroidProcessStateChangedEvent {
   optional int32 implicit_cpu_time_reasons = 12;
 }
 
-message AndroidTrackEvent {
-  // Usable range: [2001, 2999]
+message AndroidFrameworksBaseTrackEvent {
+  // Usable range: [2001, 2199]
   // Next id: 2014
-  extend TrackEvent {
-    // The name of a binder service.
-    optional string binder_service_name = 2001;
-    // The name of a binder interface.
-    optional string binder_interface_name = 2002;
-    // The name of an apex.
-    optional string apex_name = 2003;
-
+  extend perfetto.protos.TrackEvent {
     // MessageQueue messages.
     optional AndroidMessageQueue message_queue = 2004;
     // Bitmaps
     optional AndroidBitmap bitmap = 2005;
     // JobScheduler jobs.
     optional AndroidJobSchedulerJob job_scheduler_job = 2006;
-    // SurfaceFlinger workload.
-    optional AndroidSurfaceFlingerWorkload surfaceflinger_workload = 2007;
+
+    // 2007 is AndroidSurfaceFlingerWorkload surfaceflinger_workload, moved
+    // to frameworks_native_track_event.proto
+
     // Broadcasts delivered.
     optional AndroidBroadcastEvent broadcast_event = 2008;
     // Freezer event.

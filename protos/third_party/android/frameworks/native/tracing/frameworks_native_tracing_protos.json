@@ -1,0 +1,22 @@
+{
+  "extensions": [
+    {
+      "scope": "perfetto.protos.TrackEvent",
+      "ranges": [[2001, 2003], [2007, 2007], [2100, 2199]],
+      "allocations": [
+        {
+          "name": "frameworks_native",
+          "comment": ["//frameworks/native tracing protos"],
+          "ranges": [[2001, 2003], [2007, 2007]],
+          "proto": "frameworks/native/tracing/frameworks_native_track_event.proto"
+        },
+        {
+          "name": "unallocated",
+          "comment": ["The next allocation goes here. Shrink and take from here."],
+          "range": [2100, 2199]
+        }
+
+      ]
+    }
+  ]
+}

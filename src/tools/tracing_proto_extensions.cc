@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// TODO make this skip 'protos/perfetto/*'
+
 #include "src/tools/tracing_proto_extensions.h"
 
 #include <algorithm>
@@ -565,26 +567,59 @@ struct ProtoEntry {
   std::vector<Range> ranges;
 };
 
+// Searches for |rel_path| under each directory in |search_paths|. Returns
+// the first existing path found, or an error if none match.
+base::StatusOr<std::string> ResolvePathInSearchDirs(
+    const std::string& rel_path,
+    const std::vector<std::string>& search_paths) {
+  for (const auto& dir : search_paths) {
+    std::string candidate = dir + "/" + rel_path;
+    if (base::FileExists(candidate)) {
+      return candidate;
+    }
+  }
+  return base::ErrStatus("Could not find '%s' in any -I path",
+                          rel_path.c_str());
+}
+
 // Walks allocations from an already-parsed registry. For sub-registries,
 // reads and parses them using the flat (non-wrapped) format.
-base::Status CollectProtosFromRegistry(const Registry& reg,
-                                       const std::string& root_dir,
-                                       std::vector<ProtoEntry>* out) {
+base::Status CollectProtosFromRegistry(
+    const Registry& reg,
+    const std::vector<std::string>& search_paths,
+    std::vector<ProtoEntry>* out) {
   for (const auto& alloc : reg.allocations) {
     if (!alloc.proto.empty() && alloc.repo.empty()) {
-      // Local proto leaf.
-      out->push_back({root_dir + "/" + alloc.proto, reg.scope, alloc.ranges});
+      // Local proto leaf. If the proto file can't be found in any -I path,
+      // skip it (it may live in a different repo).
+      auto path_or = ResolvePathInSearchDirs(alloc.proto, search_paths);
+      if (!path_or.ok()) {
+        PERFETTO_ILOG("Skipping proto '%s' (not found in any -I path)",
+                      alloc.proto.c_str());
+        continue;
+      }
+      out->push_back({std::move(*path_or), reg.scope, alloc.ranges});
     } else if (!alloc.registry.empty() && alloc.repo.empty()) {
       // Local sub-registry (same {"extensions": [...]} format).
-      std::string sub_path = root_dir + "/" + alloc.registry;
-      std::string contents;
-      if (!base::ReadFile(sub_path, &contents)) {
-        return base::ErrStatus("Failed to read '%s'", sub_path.c_str());
+      // If the registry file can't be found in any -I path, skip it
+      // (it may live in a different repo).
+      auto sub_path_or =
+          ResolvePathInSearchDirs(alloc.registry, search_paths);
+      if (!sub_path_or.ok()) {
+        PERFETTO_ILOG("Skipping registry '%s' (not found in any -I path)",
+                      alloc.registry.c_str());
+        continue;
       }
-      ASSIGN_OR_RETURN(auto sub_regs, ParseRegistryFile(contents, sub_path));
+      std::string contents;
+      if (!base::ReadFile(*sub_path_or, &contents)) {
+        return base::ErrStatus("Failed to read '%s'", sub_path_or->c_str());
+      }
+      ASSIGN_OR_RETURN(auto sub_regs,
+                       ParseRegistryFile(contents, *sub_path_or));
       for (const auto& sub_reg : sub_regs) {
         RETURN_IF_ERROR(ValidateRegistry(sub_reg));
-        RETURN_IF_ERROR(CollectProtosFromRegistry(sub_reg, root_dir, out));
+        RETURN_IF_ERROR(
+            CollectProtosFromRegistry(sub_reg, search_paths, out));
       }
     }
     // Remote entries (repo is set) are skipped.
@@ -596,8 +631,7 @@ base::Status CollectProtosFromRegistry(const Registry& reg,
 
 base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
     const std::string& root_json_path,
-    const std::vector<std::string>& proto_paths,
-    const std::string& root_dir) {
+    const std::vector<std::string>& proto_paths) {
   // 1. Read and parse the root registry file (uses the "extensions" wrapper).
   std::string root_contents;
   if (!base::ReadFile(root_json_path, &root_contents)) {
@@ -610,7 +644,7 @@ base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
   std::vector<ProtoEntry> entries;
   for (const auto& reg : extensions) {
     RETURN_IF_ERROR(ValidateRegistry(reg));
-    RETURN_IF_ERROR(CollectProtosFromRegistry(reg, root_dir, &entries));
+    RETURN_IF_ERROR(CollectProtosFromRegistry(reg, proto_paths, &entries));
   }
 
   if (entries.empty()) {
@@ -635,14 +669,15 @@ base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
   protozero::HeapBuffered<pbzero::FileDescriptorSet> fds;
 
   for (const auto& entry : entries) {
-    // The proto path in the JSON is relative to root_dir, but protoc needs
-    // it relative to one of the -I paths. Since root_dir is typically one
-    // of the -I paths, we use the path as-is from the allocation.
-    // We need to derive the proto import path from the full path.
+    // The proto path is an absolute/resolved path from CollectProtosFromRegistry.
+    // Protoc needs it relative to one of the -I paths. Strip the matching
+    // prefix so that protoc's DiskSourceTree can find it.
     std::string proto_import_path = entry.proto_path;
-    // Strip root_dir prefix if present.
-    if (base::StartsWith(proto_import_path, root_dir + "/")) {
-      proto_import_path = proto_import_path.substr(root_dir.size() + 1);
+    for (const auto& path : proto_paths) {
+      if (base::StartsWith(proto_import_path, path + "/")) {
+        proto_import_path = proto_import_path.substr(path.size() + 1);
+        break;
+      }
     }
 
     const auto* file_desc = importer.Import(proto_import_path);

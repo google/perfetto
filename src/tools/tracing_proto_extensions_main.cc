@@ -157,12 +157,7 @@ int Main(int argc, char** argv) {
     return 1;
   }
 
-  // Derive root_dir from json_path (the directory containing the JSON).
-  // Actually, we use the first -I path as the root_dir for resolving
-  // relative paths in the JSON.
-  const std::string& root_dir = proto_paths[0];
-
-  auto result = GenerateExtensionDescriptors(json_path, proto_paths, root_dir);
+  auto result = GenerateExtensionDescriptors(json_path, proto_paths);
   if (!result.ok()) {
     PERFETTO_ELOG("Error: %s", result.status().message().c_str());
     return 1;

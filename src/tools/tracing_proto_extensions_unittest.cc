@@ -444,7 +444,7 @@ TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsNoExtend) {
   })");
 
   auto result = GenerateExtensionDescriptors(tmp.AbsolutePath("registry.json"),
-                                             {tmp.path()}, tmp.path());
+                                             {tmp.path()});
   ASSERT_FALSE(result.ok());
   EXPECT_THAT(result.status().message(),
               testing::HasSubstr("no extensions targeting"));
@@ -455,7 +455,7 @@ TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsWithTestProto) {
   // It requires proto include paths to work.
   std::string proto_path = base::GetTestDataPath(
       "protos/perfetto/trace/track_event/track_event_extensions.json");
-  auto result = GenerateExtensionDescriptors(proto_path, {"."}, ".");
+  auto result = GenerateExtensionDescriptors(proto_path, {"."});
   // This should succeed for local protos (test_extensions.proto and
   // android_track_event.proto). Remote entries (chromium) are skipped.
   ASSERT_TRUE(result.ok()) << result.status().message();

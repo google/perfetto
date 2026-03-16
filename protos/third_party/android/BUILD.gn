@@ -1,0 +1,56 @@
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("../../../gn/perfetto.gni")
+
+action("extension_descriptor") {
+  if (host_os == "win") {
+    _host_executable_suffix = ".exe"
+  } else {
+    _host_executable_suffix = ""
+  }
+
+  binary_label = "${perfetto_root_path}/src/tools:tracing_proto_extensions($host_toolchain)"
+  binary_path = get_label_info(binary_label, "root_out_dir") +
+                "/tracing_proto_extensions" + _host_executable_suffix
+  binary_rebased_path = "./" + rebase_path(binary_path, root_build_dir)
+
+  deps = [ binary_label ]
+  script = "${perfetto_root_path}/gn/run_binary.py"
+
+  outputs = [ "$target_gen_dir/android_track_event_extension.descriptor" ]
+
+  args = [
+    binary_rebased_path,
+    "-I",
+    rebase_path("${perfetto_root_path}", root_build_dir),
+    "-I",
+    rebase_path("${perfetto_root_path}/protos/third_party/android",
+                root_build_dir),
+    "--json",
+    rebase_path(
+        "${perfetto_root_path}/protos/third_party/android/system_tracing_protos.json",
+        root_build_dir),
+    "--descriptor-out",
+    rebase_path(outputs[0], root_build_dir),
+  ]
+
+  inputs =
+      [ "${perfetto_root_path}/protos/third_party/android/system_tracing_protos.json" ]
+
+  metadata = {
+    perfetto_action_type_for_generator =
+        [ "tracing_proto_extensions_descriptor" ]
+  }
+}

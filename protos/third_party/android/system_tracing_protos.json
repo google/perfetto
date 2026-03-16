@@ -1,0 +1,30 @@
+{
+  "extensions": [
+    {
+      "scope": "perfetto.protos.TrackEvent",
+      "range": [2000, 2999],
+      "comment": [
+        "This is a copy of Android's /system/core/tracing/system_tracing_protos.json"
+      ],
+      "allocations": [
+        {
+          "name": "frameworks_base",
+          "ranges": [[2004, 2006], [2008, 2099]],
+          "registry": "frameworks/base/proto/tracing/frameworks_base_tracing_protos.json"
+        },
+        {
+          "name": "frameworks_native",
+          "ranges": [[2000, 2003], [2007, 2007], [2100, 2199]],
+          "registry": "frameworks/native/tracing/frameworks_native_tracing_protos.json"
+        },
+        {
+          "name": "unallocated",
+          "comment": [
+            "The next allocation goes here. Shrink and take from here."
+          ],
+          "range": [2200, 2999]
+        }
+      ]
+    }
+  ]
+}
