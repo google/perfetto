@@ -26,15 +26,18 @@ FindSubcommandResult FindSubcommandInArgs(
     int argc,
     char** argv,
     const std::vector<Subcommand*>& subcommands,
-    const std::unordered_set<std::string>& flags_with_arg) {
+    const std::vector<std::string>& flags_with_arg) {
   for (int i = 1; i < argc; ++i) {
     const char* arg = argv[i];
 
     // Skip flags.
     if (arg[0] == '-') {
       // Check if this flag consumes the next argument.
-      if (flags_with_arg.count(arg)) {
-        ++i;  // Skip the flag's argument.
+      for (const auto& f : flags_with_arg) {
+        if (f == arg) {
+          ++i;  // Skip the flag's argument.
+          break;
+        }
       }
       continue;
     }
