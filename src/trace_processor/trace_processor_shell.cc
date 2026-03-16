@@ -121,6 +121,7 @@ struct CommandLineOptions {
 
   std::string metatrace_path;
   size_t metatrace_buffer_capacity = 0;
+  std::string metatrace_categories_raw;
   metatrace::MetatraceCategories metatrace_categories =
       static_cast<metatrace::MetatraceCategories>(
           metatrace::MetatraceCategories::QUERY_TIMELINE |
@@ -590,6 +591,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     }
 
     if (option == OPT_METATRACE_CATEGORIES) {
+      command_line_options.metatrace_categories_raw = optarg;
       command_line_options.metatrace_categories =
           ParseMetatraceCategories(optarg);
       continue;
@@ -941,6 +943,10 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     if (options.metatrace_buffer_capacity > 0) {
       args.emplace_back("--metatrace-buffer-capacity");
       args.emplace_back(std::to_string(options.metatrace_buffer_capacity));
+    }
+    if (!options.metatrace_categories_raw.empty()) {
+      args.emplace_back("--metatrace-categories");
+      args.emplace_back(options.metatrace_categories_raw);
     }
   };
 
