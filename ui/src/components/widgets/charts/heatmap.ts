@@ -14,12 +14,14 @@
 
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
-import {formatNumber} from './chart_utils';
-import {EChartView} from './echart_view';
+import {extractBrushRect, formatNumber} from './chart_utils';
+import {EChartView, EChartEventHandler} from './echart_view';
 import {
   buildAxisOption,
+  buildBrushOption,
   buildGridOption,
   buildTooltipOption,
+  SELECTION_COLOR,
 } from './chart_option_builder';
 
 /**
@@ -78,11 +80,31 @@ export interface HeatmapAttrs {
    * Format function for cell values.
    */
   readonly formatValue?: (value: number) => string;
+
+  /**
+   * Callback when brush selection completes (on mouseup).
+   * Called with the x and y labels of all cells in the brushed rectangle.
+   */
+  readonly onBrush?: (selection: {
+    xLabels: string[];
+    yLabels: string[];
+  }) => void;
+
+  /**
+   * Selection to highlight on the chart. Cells at the intersection of
+   * the selected xLabels and yLabels are drawn with a highlight color.
+   * The consumer controls this state — typically by feeding the
+   * `onBrush` output back in.
+   */
+  readonly selection?: {
+    readonly xLabels: ReadonlyArray<string>;
+    readonly yLabels: ReadonlyArray<string>;
+  };
 }
 
 export class HeatmapChart implements m.ClassComponent<HeatmapAttrs> {
   view({attrs}: m.CVnode<HeatmapAttrs>) {
-    const {data, height = 300, fillParent, className} = attrs;
+    const {data, height = 300, fillParent, className, onBrush} = attrs;
 
     const isEmpty =
       data !== undefined &&
@@ -100,6 +122,8 @@ export class HeatmapChart implements m.ClassComponent<HeatmapAttrs> {
       fillParent,
       className,
       empty: isEmpty,
+      eventHandlers: buildHeatmapEventHandlers(attrs, data),
+      activeBrushType: onBrush !== undefined ? 'rect' : undefined,
     });
   }
 }
@@ -169,7 +193,7 @@ function buildHeatmapOption(
     series: [
       {
         type: 'heatmap',
-        data: [...data.values],
+        data: buildHeatmapSeriesData(data, attrs.selection),
         label: {show: false},
         emphasis: {
           itemStyle: {
@@ -181,5 +205,89 @@ function buildHeatmapOption(
     ],
   };
 
+  if (attrs.onBrush) {
+    option.brush = buildBrushOption({
+      xAxisIndex: 0,
+      yAxisIndex: 0,
+      brushType: 'rect',
+    });
+    option.toolbox = {show: false};
+  }
+
   return option as EChartsCoreOption;
+}
+
+function buildHeatmapSeriesData(
+  data: HeatmapData,
+  selection: HeatmapAttrs['selection'],
+): Array<Record<string, unknown>> {
+  const xSet = selection !== undefined ? new Set(selection.xLabels) : undefined;
+  const ySet = selection !== undefined ? new Set(selection.yLabels) : undefined;
+
+  return data.values.map((triple) => {
+    const [xIdx, yIdx, value] = triple;
+    const item: Record<string, unknown> = {value: [xIdx, yIdx, value]};
+    if (xSet !== undefined && ySet !== undefined) {
+      const xLabel = data.xLabels[xIdx];
+      const yLabel = data.yLabels[yIdx];
+      if (
+        xLabel !== undefined &&
+        yLabel !== undefined &&
+        xSet.has(xLabel) &&
+        ySet.has(yLabel)
+      ) {
+        item.itemStyle = {
+          color: SELECTION_COLOR,
+          borderColor: 'rgba(0, 120, 212, 0.6)',
+          borderWidth: 2,
+        };
+      }
+    }
+    return item;
+  });
+}
+
+function buildHeatmapEventHandlers(
+  attrs: HeatmapAttrs,
+  data: HeatmapData | undefined,
+): ReadonlyArray<EChartEventHandler> {
+  if (
+    !attrs.onBrush ||
+    data === undefined ||
+    data.xLabels.length === 0 ||
+    data.yLabels.length === 0
+  ) {
+    return [];
+  }
+  const onBrush = attrs.onBrush;
+  const xLabels = data.xLabels;
+  const yLabels = data.yLabels;
+
+  return [
+    {
+      eventName: 'brushEnd',
+      handler: (params) => {
+        const range = extractBrushRect(params);
+        if (range !== undefined) {
+          const xMin = Math.max(0, Math.round(range.xMin));
+          const xMax = Math.min(xLabels.length - 1, Math.round(range.xMax));
+          const yMin = Math.max(0, Math.round(range.yMin));
+          const yMax = Math.min(yLabels.length - 1, Math.round(range.yMax));
+          if (xMin <= xMax && yMin <= yMax) {
+            const selectedX: string[] = [];
+            for (let i = xMin; i <= xMax; i++) {
+              selectedX.push(xLabels[i]);
+            }
+            const selectedY: string[] = [];
+            for (let i = yMin; i <= yMax; i++) {
+              selectedY.push(yLabels[i]);
+            }
+            if (selectedX.length > 0 && selectedY.length > 0) {
+              onBrush({xLabels: selectedX, yLabels: selectedY});
+            }
+          }
+        }
+      },
+    },
+  ];
 }

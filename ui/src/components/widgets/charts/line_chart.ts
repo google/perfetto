@@ -16,7 +16,11 @@ import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {extractBrushRange, formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
-import {buildChartOption, buildLegendOption} from './chart_option_builder';
+import {
+  buildChartOption,
+  buildLegendOption,
+  buildSelectionMarkArea,
+} from './chart_option_builder';
 
 /**
  * A single data point in a line chart series.
@@ -75,6 +79,13 @@ export interface LineChartAttrs {
    * Called with the selected X range.
    */
   readonly onBrush?: (range: {start: number; end: number}) => void;
+
+  /**
+   * Selection range to highlight on the chart. When provided, a shaded
+   * region is drawn over the specified X range. The consumer controls this
+   * state — typically by feeding the `onBrush` output back in.
+   */
+  readonly selection?: {readonly start: number; readonly end: number};
 
   /**
    * Fill parent container. Defaults to false.
@@ -195,8 +206,8 @@ function buildLineOption(
 
   const displayLegend = showLegend ?? data.series.length > 1;
 
-  const series = data.series.map((s) => {
-    return {
+  const series = data.series.map((s, i) => {
+    const base: Record<string, unknown> = {
       type: 'line' as const,
       name: s.name,
       data: s.points.map((p) => [p.x, p.y]),
@@ -209,6 +220,14 @@ function buildLineOption(
       symbolSize: 6,
       emphasis: {itemStyle: {borderWidth: 2}},
     };
+
+    // Render selection highlight on the first series only.
+    if (i === 0 && attrs.selection !== undefined) {
+      base.markArea = buildSelectionMarkArea([
+        [{xAxis: attrs.selection.start}, {xAxis: attrs.selection.end}],
+      ]);
+    }
+    return base;
   });
 
   const option = buildChartOption({
