@@ -5521,6 +5521,42 @@ message SystemInfo {
 
 // End of protos/perfetto/common/system_info.proto
 
+// Begin of protos/perfetto/common/trace_metadata.proto
+
+// Arbitrary key value pairs which can attached to a trace to provide context
+// about any facet of the trace. This can include, what data it contains,
+// properties of the host / machine the trace was collected on, and other
+// interesting information about a trace.
+///
+// Examples include:
+// gradle_version = "9.0.10-alpha01"
+// java_major_version = 24
+///
+// All keys get prefixed with `trace_metadata.` in the UI and in
+// `traceprocessor`. If there are multiple trace metadata packets that use the
+// same key, then the latest value wins.
+// These key value pairs show up in the `Overview` section in
+// Perfetto UI. Additionally, these key, value pairs can also be queried using
+// Pefetto SQL by using the following query:
+///
+//`SELECT * FROM metadata WHERE name GLOB 'trace_metadata.*';`
+
+message TraceMetadata {
+  message Metadata {
+    // The key
+    optional string key = 1;
+    // The value
+    oneof value {
+      int64 long_value = 2;
+      string string_value = 3;
+    }
+  }
+
+  repeated Metadata metadata = 1;
+}
+
+// End of protos/perfetto/common/trace_metadata.proto
+
 // Begin of protos/perfetto/common/trace_stats.proto
 
 // Statistics for the internals of the tracing service.
@@ -18278,7 +18314,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 126.
+// Next id: 127.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -18366,6 +18402,7 @@ message TracePacket {
     EntityStateResidency entity_state_residency = 91;
     TraceProvenance trace_provenance = 124;
     ProtoVms protovms = 125;
+    TraceMetadata trace_metadata = 126;
 
     // Only used in profile packets.
     ModuleSymbols module_symbols = 61;
