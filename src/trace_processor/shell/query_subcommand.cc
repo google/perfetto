@@ -54,7 +54,7 @@ std::vector<FlagSpec> QuerySubcommand::GetFlags() {
       BoolFlag("interactive", 'i', "Start interactive shell after query.",
                &interactive_),
       BoolFlag("wide", 'W', "Double column width for output.", &wide_),
-      StringFlag("perf-file", 'p', "FILE", "Write perf timing data to FILE.",
+      StringFlag("perf-file", '\0', "FILE", "Write perf timing data to FILE.",
                  &perf_file_),
   };
 }

@@ -37,6 +37,7 @@ class SummarizeSubcommand : public Subcommand {
   std::string metadata_query_;
   std::string output_format_;
   std::string post_query_path_;
+  std::string perf_file_;
   bool interactive_ = false;
 };
 

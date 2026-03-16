@@ -383,11 +383,11 @@ TEST(TraceProcessorShellIntegrationTest, ClassicExportQueryDisallowed) {
 }
 
 TEST(TraceProcessorShellIntegrationTest, ClassicPerfFile) {
-  // -p perf_file -Q "SQL" -> query -p perf_file trace "SQL"
+  // --perf-file FILE -Q "SQL" -> query --perf-file FILE trace "SQL"
   auto trace = WriteSimpleSystrace();
   auto perf = base::TempFile::Create();
-  auto result =
-      RunShell({"-p", perf.path(), "-Q", "SELECT 200 + 61", trace.path()});
+  auto result = RunShell(
+      {"--perf-file", perf.path(), "-Q", "SELECT 200 + 61", trace.path()});
   EXPECT_EQ(result.exit_code, 0);
   // Verify perf file was written with timing data.
   std::string perf_content;

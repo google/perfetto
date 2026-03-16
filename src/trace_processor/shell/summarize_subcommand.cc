@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -57,6 +58,8 @@ std::vector<FlagSpec> SummarizeSubcommand::GetFlags() {
                  &output_format_),
       StringFlag("post-query", '\0', "FILE",
                  "SQL file to run after summarization.", &post_query_path_),
+      StringFlag("perf-file", '\0', "FILE", "Write perf timing data to FILE.",
+                 &perf_file_),
       BoolFlag("interactive", 'i',
                "Start interactive shell after summarization.", &interactive_),
   };
@@ -77,7 +80,8 @@ base::Status SummarizeSubcommand::Run(const SubcommandContext& ctx) {
   auto config = BuildConfig(*ctx.global, ctx.platform);
   ASSIGN_OR_RETURN(auto tp,
                    SetupTraceProcessor(*ctx.global, config, ctx.platform));
-  RETURN_IF_ERROR(LoadTraceFile(tp.get(), ctx.platform, trace_file).status());
+  ASSIGN_OR_RETURN(auto t_load,
+                   LoadTraceFile(tp.get(), ctx.platform, trace_file));
 
   // Load spec files.
   std::vector<std::string> spec_content;
@@ -122,6 +126,7 @@ base::Status SummarizeSubcommand::Run(const SubcommandContext& ctx) {
     output_spec.format = TraceSummaryOutputSpec::Format::kTextProto;
   }
 
+  base::TimeNanos t_query_start = base::GetWallTimeNs();
   std::vector<uint8_t> output;
   RETURN_IF_ERROR(
       tp->Summarize(computation_config, specs, &output, output_spec));
@@ -132,6 +137,11 @@ base::Status SummarizeSubcommand::Run(const SubcommandContext& ctx) {
 
   if (!post_query_path_.empty()) {
     RETURN_IF_ERROR(RunQueriesFromFile(tp.get(), post_query_path_, true));
+  }
+  base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
+
+  if (!perf_file_.empty()) {
+    RETURN_IF_ERROR(PrintPerfFile(perf_file_, t_load, t_query));
   }
 
   if (interactive_) {

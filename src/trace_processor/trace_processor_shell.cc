@@ -16,19 +16,15 @@
 
 #include "perfetto/ext/trace_processor/trace_processor_shell.h"
 
-#include <algorithm>
 #include <cctype>
 #include <cerrno>
 #include <cstddef>
-#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <memory>
-#include <optional>
 #include <string>
-#include <string_view>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -44,14 +40,12 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"  // IWYU pragma: keep
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/read_trace.h"
 #include "perfetto/trace_processor/trace_processor.h"
@@ -60,20 +54,13 @@
 #include "src/trace_processor/rpc/stdiod.h"
 #include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/export_subcommand.h"
-#include "src/trace_processor/shell/interactive.h"
 #include "src/trace_processor/shell/interactive_subcommand.h"
 #include "src/trace_processor/shell/metatrace.h"
-#include "src/trace_processor/shell/metrics.h"
 #include "src/trace_processor/shell/metrics_subcommand.h"
-#include "src/trace_processor/shell/query.h"
 #include "src/trace_processor/shell/query_subcommand.h"
 #include "src/trace_processor/shell/server_subcommand.h"
-#include "src/trace_processor/shell/shell_utils.h"
-#include "src/trace_processor/shell/sql_packages.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/shell/summarize_subcommand.h"
-#include "src/trace_processor/trace_summary/summary.h"
-#include "src/trace_processor/util/deobfuscation/deobfuscator.h"
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
@@ -92,7 +79,6 @@
 #endif
 
 #if PERFETTO_HAS_SIGNAL_H()
-#include <signal.h>
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -912,175 +898,183 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
 
   // Build a synthetic argv for the target subcommand.
   std::vector<std::string> args;
-  args.push_back(argv[0]);
+  args.emplace_back(argv[0]);
 
   // Forward global flags.
   auto add_global_flags = [&]() {
     if (options.force_full_sort)
-      args.push_back("--full-sort");
+      args.emplace_back("--full-sort");
     if (options.no_ftrace_raw)
-      args.push_back("--no-ftrace-raw");
+      args.emplace_back("--no-ftrace-raw");
     if (options.analyze_trace_proto_content)
-      args.push_back("--analyze-trace-proto-content");
+      args.emplace_back("--analyze-trace-proto-content");
     if (options.crop_track_events)
-      args.push_back("--crop-track-events");
+      args.emplace_back("--crop-track-events");
     if (options.dev)
-      args.push_back("--dev");
+      args.emplace_back("--dev");
     for (const auto& f : options.dev_flags) {
-      args.push_back("--dev-flag");
-      args.push_back(f);
+      args.emplace_back("--dev-flag");
+      args.emplace_back(f);
     }
     if (options.extra_checks)
-      args.push_back("--extra-checks");
+      args.emplace_back("--extra-checks");
     for (const auto& p : options.sql_package_paths) {
-      args.push_back("--add-sql-package");
-      args.push_back(p);
+      args.emplace_back("--add-sql-package");
+      args.emplace_back(p);
     }
     for (const auto& p : options.override_sql_package_paths) {
-      args.push_back("--override-sql-package");
-      args.push_back(p);
+      args.emplace_back("--override-sql-package");
+      args.emplace_back(p);
     }
     if (!options.override_stdlib_path.empty()) {
-      args.push_back("--override-stdlib");
-      args.push_back(options.override_stdlib_path);
+      args.emplace_back("--override-stdlib");
+      args.emplace_back(options.override_stdlib_path);
     }
     if (!options.register_files_dir.empty()) {
-      args.push_back("--register-files-dir");
-      args.push_back(options.register_files_dir);
+      args.emplace_back("--register-files-dir");
+      args.emplace_back(options.register_files_dir);
     }
     if (!options.metatrace_path.empty()) {
-      args.push_back("--metatrace");
-      args.push_back(options.metatrace_path);
+      args.emplace_back("--metatrace");
+      args.emplace_back(options.metatrace_path);
     }
     if (options.metatrace_buffer_capacity > 0) {
-      args.push_back("--metatrace-buffer-capacity");
-      args.push_back(std::to_string(options.metatrace_buffer_capacity));
+      args.emplace_back("--metatrace-buffer-capacity");
+      args.emplace_back(std::to_string(options.metatrace_buffer_capacity));
     }
   };
 
   // Determine which subcommand to dispatch to.
   if (options.enable_httpd) {
-    args.push_back("server");
-    args.push_back("http");
+    args.emplace_back("server");
+    args.emplace_back("http");
     if (!options.port_number.empty()) {
-      args.push_back("--port");
-      args.push_back(options.port_number);
+      args.emplace_back("--port");
+      args.emplace_back(options.port_number);
     }
     if (!options.listen_ip.empty()) {
-      args.push_back("--ip-address");
-      args.push_back(options.listen_ip);
+      args.emplace_back("--ip-address");
+      args.emplace_back(options.listen_ip);
     }
     for (const auto& o : options.additional_cors_origins) {
-      args.push_back("--additional-cors-origins");
-      args.push_back(o);
+      args.emplace_back("--additional-cors-origins");
+      args.emplace_back(o);
     }
     add_global_flags();
     if (!options.trace_file_path.empty())
-      args.push_back(options.trace_file_path);
+      args.emplace_back(options.trace_file_path);
   } else if (options.enable_stdiod) {
-    args.push_back("server");
-    args.push_back("stdio");
+    args.emplace_back("server");
+    args.emplace_back("stdio");
     add_global_flags();
     if (!options.trace_file_path.empty())
-      args.push_back(options.trace_file_path);
+      args.emplace_back(options.trace_file_path);
   } else if (options.summary) {
-    args.push_back("summarize");
+    args.emplace_back("summarize");
     if (!options.summary_metrics_v2.empty()) {
-      args.push_back("--metrics-v2");
-      args.push_back(options.summary_metrics_v2);
+      args.emplace_back("--metrics-v2");
+      args.emplace_back(options.summary_metrics_v2);
     }
     if (!options.summary_metadata_query.empty()) {
-      args.push_back("--metadata-query");
-      args.push_back(options.summary_metadata_query);
+      args.emplace_back("--metadata-query");
+      args.emplace_back(options.summary_metadata_query);
     }
     if (!options.summary_output.empty()) {
-      args.push_back("--format");
-      args.push_back(options.summary_output);
+      args.emplace_back("--format");
+      args.emplace_back(options.summary_output);
     }
     if (!options.query_file_path.empty()) {
-      args.push_back("--post-query");
-      args.push_back(options.query_file_path);
+      args.emplace_back("--post-query");
+      args.emplace_back(options.query_file_path);
+    }
+    if (!options.perf_file_path.empty()) {
+      args.emplace_back("--perf-file");
+      args.emplace_back(options.perf_file_path);
     }
     if (options.launch_shell)
-      args.push_back("-i");
+      args.emplace_back("-i");
     add_global_flags();
     if (!options.trace_file_path.empty())
-      args.push_back(options.trace_file_path);
+      args.emplace_back(options.trace_file_path);
     for (const auto& s : options.summary_specs)
-      args.push_back(s);
+      args.emplace_back(s);
   } else if (!options.metric_v1_names.empty()) {
-    args.push_back("metrics");
-    args.push_back("--run");
-    args.push_back(options.metric_v1_names);
+    args.emplace_back("metrics");
+    args.emplace_back("--run");
+    args.emplace_back(options.metric_v1_names);
     if (!options.pre_metrics_v1_path.empty()) {
-      args.push_back("--pre");
-      args.push_back(options.pre_metrics_v1_path);
+      args.emplace_back("--pre");
+      args.emplace_back(options.pre_metrics_v1_path);
     }
     if (!options.metric_v1_output.empty()) {
-      args.push_back("--output");
-      args.push_back(options.metric_v1_output);
+      args.emplace_back("--output");
+      args.emplace_back(options.metric_v1_output);
     }
     for (const auto& e : options.raw_metric_v1_extensions) {
-      args.push_back("--extension");
-      args.push_back(e);
+      args.emplace_back("--extension");
+      args.emplace_back(e);
     }
     if (!options.query_file_path.empty()) {
-      args.push_back("--post-query");
-      args.push_back(options.query_file_path);
+      args.emplace_back("--post-query");
+      args.emplace_back(options.query_file_path);
+    }
+    if (!options.perf_file_path.empty()) {
+      args.emplace_back("--perf-file");
+      args.emplace_back(options.perf_file_path);
     }
     if (options.launch_shell)
-      args.push_back("-i");
+      args.emplace_back("-i");
     add_global_flags();
     if (!options.trace_file_path.empty())
-      args.push_back(options.trace_file_path);
+      args.emplace_back(options.trace_file_path);
   } else if (!options.export_file_path.empty()) {
     if (!options.query_file_path.empty()) {
       return base::ErrStatus(
           "Cannot combine -e (export) with -q (query). "
           "Use the 'export' subcommand directly.");
     }
-    args.push_back("export");
-    args.push_back("sqlite");
-    args.push_back("-o");
-    args.push_back(options.export_file_path);
+    args.emplace_back("export");
+    args.emplace_back("sqlite");
+    args.emplace_back("-o");
+    args.emplace_back(options.export_file_path);
     add_global_flags();
     if (!options.trace_file_path.empty())
-      args.push_back(options.trace_file_path);
+      args.emplace_back(options.trace_file_path);
   } else if (!options.query_file_path.empty() ||
              !options.query_string.empty()) {
-    args.push_back("query");
+    args.emplace_back("query");
     if (!options.query_file_path.empty()) {
-      args.push_back("-f");
-      args.push_back(options.query_file_path);
+      args.emplace_back("-f");
+      args.emplace_back(options.query_file_path);
     }
     if (options.launch_shell)
-      args.push_back("-i");
+      args.emplace_back("-i");
     if (options.wide)
-      args.push_back("-W");
+      args.emplace_back("-W");
     if (!options.perf_file_path.empty()) {
-      args.push_back("-p");
-      args.push_back(options.perf_file_path);
+      args.emplace_back("--perf-file");
+      args.emplace_back(options.perf_file_path);
     }
     add_global_flags();
     if (!options.trace_file_path.empty())
-      args.push_back(options.trace_file_path);
+      args.emplace_back(options.trace_file_path);
     if (!options.query_string.empty())
-      args.push_back(options.query_string);
+      args.emplace_back(options.query_string);
   } else {
     // Default: interactive shell.
-    args.push_back("interactive");
+    args.emplace_back("interactive");
     if (options.wide)
-      args.push_back("-W");
+      args.emplace_back("-W");
     add_global_flags();
     if (!options.trace_file_path.empty())
-      args.push_back(options.trace_file_path);
+      args.emplace_back(options.trace_file_path);
   }
 
   // Convert to argc/argv and re-enter Run() which will match the subcommand.
   std::vector<char*> new_argv;
   new_argv.reserve(args.size());
   for (auto& a : args)
-    new_argv.push_back(a.data());
+    new_argv.emplace_back(a.data());
   return Run(static_cast<int>(new_argv.size()), new_argv.data());
 }
 
