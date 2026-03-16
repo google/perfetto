@@ -17,7 +17,7 @@
 syntax = "proto2";
 
 import "protos/perfetto/common/system_info.proto";
-import "protos/perfetto/common/trace_metadata.proto";
+import "protos/perfetto/common/trace_attributes.proto";
 import "protos/perfetto/common/trace_stats.proto";
 import "protos/perfetto/config/trace_config.proto";
 import "protos/perfetto/protovm/vm_program.proto";
@@ -203,7 +203,7 @@ message TracePacket {
     EntityStateResidency entity_state_residency = 91;
     TraceProvenance trace_provenance = 124;
     ProtoVms protovms = 125;
-    TraceMetadata trace_metadata = 126;
+    TraceAttributes trace_attributes = 126;
 
     // Only used in profile packets.
     ModuleSymbols module_symbols = 61;

@@ -26,17 +26,17 @@ package perfetto.protos;
 // gradle_version = "9.0.10-alpha01"
 // java_major_version = 24
 ///
-// All keys get prefixed with `trace_metadata.` in the UI and in
-// `traceprocessor`. If there are multiple trace metadata packets that use the
+// All keys get prefixed with `trace_attribute.` in the UI and in
+// `traceprocessor`. If there are multiple trace attribute packets that use the
 // same key, then the latest value wins.
 // These key value pairs show up in the `Overview` section in
 // Perfetto UI. Additionally, these key, value pairs can also be queried using
 // Pefetto SQL by using the following query:
 ///
-//`SELECT * FROM metadata WHERE name GLOB 'trace_metadata.*';`
+//`SELECT * FROM metadata WHERE name GLOB 'trace_attribute.*';`
 
-message TraceMetadata {
-  message Metadata {
+message TraceAttributes {
+  message Attribute {
     // The key
     optional string key = 1;
     // The value
@@ -46,5 +46,5 @@ message TraceMetadata {
     }
   }
 
-  repeated Metadata metadata = 1;
+  repeated Attribute attribute = 1;
 }
