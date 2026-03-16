@@ -94,7 +94,7 @@ container with a unique class name.
 
 - Update `ui/src/plugins/<your-plugin-name>/OWNERS` to include your email.
 - Follow the [Contributing](./getting-started#contributing) instructions to
-  upload your PR to Github.
+  upload your PR to GitHub.
 - Once uploaded add `stevegolton@google.com` as a reviewer for your PR.
 
 ## Plugin lifecycle
@@ -1306,7 +1306,7 @@ name a few common examples.
 E.g.
 
 ```
-http://ui.perfetto.dev/#!/viewer <-- 'viewer' is is the current page.
+http://ui.perfetto.dev/#!/viewer <-- 'viewer' is the current page.
 ```
 
 Pages are added from a plugin by calling the `pages.registerPage` function.

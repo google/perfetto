@@ -52,8 +52,12 @@ type MatchType =
   | 'column-description';
 
 // Helper function to get the display label for importance levels.
-function getImportanceLabel(importance: 'high' | 'mid' | 'low'): string {
+function getImportanceLabel(
+  importance: 'core' | 'high' | 'mid' | 'low',
+): string {
   switch (importance) {
+    case 'core':
+      return 'Core';
     case 'high':
       return 'Very common';
     case 'mid':
@@ -452,13 +456,14 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
         matchType: MatchType;
       }>,
     ) => {
+      const core = results.filter((r) => r.item.table.importance === 'core');
       const high = results.filter((r) => r.item.table.importance === 'high');
       const mid = results.filter((r) => r.item.table.importance === 'mid');
       const normal = results.filter(
         (r) => r.item.table.importance === undefined,
       );
       const low = results.filter((r) => r.item.table.importance === 'low');
-      return [...high, ...mid, ...normal, ...low];
+      return [...core, ...high, ...mid, ...normal, ...low];
     };
 
     // Group by match type (already ordered by searchTables), then sort by importance within each group

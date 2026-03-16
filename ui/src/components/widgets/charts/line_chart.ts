@@ -16,7 +16,11 @@ import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {extractBrushRange, formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
-import {buildChartOption, buildLegendOption} from './chart_option_builder';
+import {
+  buildChartOption,
+  buildLegendOption,
+  buildSelectionMarkArea,
+} from './chart_option_builder';
 
 /**
  * A single data point in a line chart series.
@@ -75,6 +79,13 @@ export interface LineChartAttrs {
    * Called with the selected X range.
    */
   readonly onBrush?: (range: {start: number; end: number}) => void;
+
+  /**
+   * Selection range to highlight on the chart. When provided, a shaded
+   * region is drawn over the specified X range. The consumer controls this
+   * state — typically by feeding the `onBrush` output back in.
+   */
+  readonly selection?: {readonly start: number; readonly end: number};
 
   /**
    * Fill parent container. Defaults to false.
@@ -148,6 +159,13 @@ export interface LineChartAttrs {
    * Defaults to no grid lines.
    */
   readonly gridLines?: 'horizontal' | 'vertical' | 'both';
+
+  /**
+   * When true, series are stacked and shown as filled areas.
+   * The total height is the sum of all series values. Defaults to false.
+   * Note: When stacked, all series must be aligned to the same X values.
+   */
+  readonly stacked?: boolean;
 }
 
 export class LineChart implements m.ClassComponent<LineChartAttrs> {
@@ -189,15 +207,16 @@ function buildLineOption(
     showPoints = true,
     lineWidth = 2,
     gridLines,
+    stacked = false,
   } = attrs;
   const fmtX = formatXValue ?? formatNumber;
   const fmtY = formatYValue ?? formatNumber;
 
   const displayLegend = showLegend ?? data.series.length > 1;
 
-  const series = data.series.map((s) => {
-    return {
-      type: 'line' as const,
+  const series = data.series.map((s, i) => {
+    const base: Record<string, unknown> = {
+      type: 'line',
       name: s.name,
       data: s.points.map((p) => [p.x, p.y]),
       lineStyle:
@@ -207,8 +226,19 @@ function buildLineOption(
       itemStyle: s.color !== undefined ? {color: s.color} : undefined,
       showSymbol: showPoints,
       symbolSize: 6,
-      emphasis: {itemStyle: {borderWidth: 2}},
+      triggerLineEvent: true,
+      emphasis: {focus: 'series', itemStyle: {borderWidth: 2}},
+      stack: stacked ? 'total' : undefined,
+      areaStyle: stacked ? {} : undefined,
     };
+
+    // Render selection highlight on the first series only.
+    if (i === 0 && attrs.selection !== undefined) {
+      base.markArea = buildSelectionMarkArea([
+        [{xAxis: attrs.selection.start}, {xAxis: attrs.selection.end}],
+      ]);
+    }
+    return base;
   });
 
   const option = buildChartOption({
@@ -217,12 +247,13 @@ function buildLineOption(
       bottom: xAxisLabel ? 40 : 25,
     },
     xAxis: {
-      type: 'value',
+      // Nasty ECharts quirk: when stacking, the xAxis must be type 'category'
+      // or 'time'. Since we want to support x-values at irregular intervals, we
+      // use 'time' type which allows numeric timestamps, and override the label
+      // formatter to show numbers.
+      type: stacked ? 'time' : 'value',
       name: xAxisLabel,
-      formatter:
-        formatXValue !== undefined
-          ? (v) => formatXValue(v as number)
-          : undefined,
+      formatter: (v) => fmtX(v as number),
       minInterval: integerX ? 1 : undefined,
       min: attrs.xAxisMin,
       max: attrs.xAxisMax,
