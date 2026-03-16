@@ -159,6 +159,7 @@ export function renderCharts(app: App): m.Children {
           logScale: opts.logScale,
           showPoints: opts.showPoints,
           multiSeries: opts.multiSeries,
+          stacked: opts.stacked,
           gridLines: opts.gridLines,
         });
       },
@@ -172,6 +173,7 @@ export function renderCharts(app: App): m.Children {
         logScale: false,
         showPoints: true,
         multiSeries: false,
+        stacked: false,
         gridLines: new EnumOption('none', [
           'none',
           'horizontal',
@@ -1177,18 +1179,16 @@ function generateLineChartSampleData(): LineChartData {
 }
 
 function generateMultiSeriesLineData(): LineChartData {
-  const series1 = [];
-  const series2 = [];
-  for (let i = 0; i < 20; i++) {
-    series1.push({
-      x: i,
-      y: Math.sin(i * 0.5) * 30 + 50 + Math.random() * 5,
-    });
-    series2.push({
-      x: i,
-      y: Math.cos(i * 0.5) * 25 + 60 + Math.random() * 5,
-    });
-  }
+  // Shared irregular x-values (e.g. simulating real timestamps).
+  const xValues = [0, 2, 3, 7, 8, 12, 15, 18, 20, 25, 28, 30, 35, 42, 50];
+  const series1 = xValues.map((x) => ({
+    x,
+    y: Math.abs(Math.sin(x * 0.15)) * 30 + Math.random() * 5,
+  }));
+  const series2 = xValues.map((x) => ({
+    x,
+    y: Math.abs(Math.cos(x * 0.1)) * 20 + Math.random() * 5,
+  }));
   return {
     series: [
       {name: 'Series A', points: series1},
@@ -1203,6 +1203,7 @@ function LineChartDemo(): m.Component<{
   logScale: boolean;
   showPoints: boolean;
   multiSeries: boolean;
+  stacked: boolean;
   gridLines: string;
 }> {
   let brushRange: {start: number; end: number} | undefined;
@@ -1293,6 +1294,7 @@ function LineChartDemo(): m.Component<{
           showPoints: attrs.showPoints,
           xAxisMin: isFilter ? range?.start : undefined,
           xAxisMax: isFilter ? range?.end : undefined,
+          stacked: attrs.stacked,
           gridLines: toGridLines(attrs.gridLines),
           onBrush:
             attrs.brushMode !== 'off'
