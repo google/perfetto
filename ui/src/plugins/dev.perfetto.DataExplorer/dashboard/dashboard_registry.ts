@@ -33,42 +33,6 @@ export interface DashboardDataSource {
   requestExecution?: () => Promise<void>;
 }
 
-/** A data source enriched with its owning graph tab's display name. */
-export type DashboardSourceWithName = DashboardDataSource & {
-  graphName: string;
-};
-
-/**
- * Build a display label for a data source, optionally appending the graph name.
- *
- * When `forceNamespace` is true (sidebar), the graph name is shown whenever
- * the available sources span more than one graph.
- *
- * When `forceNamespace` is false (chart labels), the graph name is shown only
- * when the charts currently in use pull from more than one graph.
- */
-export function sourceDisplayName(
-  source: DashboardSourceWithName,
-  items: ReadonlyArray<DashboardItem>,
-  sources: ReadonlyArray<DashboardSourceWithName>,
-  forceNamespace = false,
-): string {
-  let candidates: ReadonlyArray<DashboardSourceWithName>;
-  if (forceNamespace) {
-    candidates = sources;
-  } else {
-    const usedNodeIds = new Set(
-      items.filter((i) => i.kind === 'chart').map((i) => i.sourceNodeId),
-    );
-    candidates = sources.filter((s) => usedNodeIds.has(s.nodeId));
-  }
-  const graphs = new Set(candidates.map((s) => s.graphId));
-  if (graphs.size > 1) {
-    return `${source.name} · ${source.graphName}`;
-  }
-  return source.name;
-}
-
 /** A single chart on a dashboard, linked to its data source. */
 export interface DashboardChart {
   readonly sourceNodeId: string;
@@ -138,6 +102,13 @@ class ExportedSourcesPool {
     return [...this.sources.values()];
   }
 
+  /** Get exported sources belonging to a specific graph tab. */
+  getExportedSourcesForGraph(
+    graphId: string,
+  ): ReadonlyArray<DashboardDataSource> {
+    return [...this.sources.values()].filter((s) => s.graphId === graphId);
+  }
+
   clear(): void {
     this.sources.clear();
   }
@@ -160,38 +131,14 @@ export function getNextItemPosition(items: ReadonlyArray<DashboardItem>): {
 }
 
 /**
- * Serialized dashboard data for persistence (localStorage / permalinks).
+ * Convert dashboard items to a serializable array, or undefined if empty.
  */
-export interface SerializedDashboardData {
-  dashboardId?: string;
-  dashboardItems?: unknown[];
-  brushFilters?: Record<string, unknown[]>;
-}
-
-/**
- * Collect dashboard-related data for a tab into a serializable form.
- * Shared between localStorage persistence and permalink persistence.
- */
-export function serializeDashboardData(
-  dashboardId: string | undefined,
+export function serializeDashboardItems(
   items?: DashboardItem[],
-  brushFiltersMap?: Map<string, DashboardBrushFilter[]>,
-): SerializedDashboardData {
-  if (dashboardId === undefined) return {};
-  const dashboardItems =
-    items !== undefined && items.length > 0 ? (items as unknown[]) : undefined;
-  // Convert brush filters map to a plain record, bigint → number.
-  let brushFilters: Record<string, unknown[]> | undefined;
-  if (brushFiltersMap !== undefined && brushFiltersMap.size > 0) {
-    const raw: Record<string, DashboardBrushFilter[]> = {};
-    for (const [sourceNodeId, filters] of brushFiltersMap) {
-      raw[sourceNodeId] = filters;
-    }
-    brushFilters = JSON.parse(
-      JSON.stringify(raw, (_k, v) => (typeof v === 'bigint' ? Number(v) : v)),
-    );
-  }
-  return {dashboardId, dashboardItems, brushFilters};
+): unknown[] | undefined {
+  return items !== undefined && items.length > 0
+    ? (items as unknown[])
+    : undefined;
 }
 
 /**

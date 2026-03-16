@@ -37,11 +37,27 @@
     }
   }
 
+  // Wrapper with nested sub-tabs (Graph | Dashboard). Uses flex column
+  // so the sub-tab bar gets its natural height and the content fills rest.
+  &__tab-with-subtabs {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  &__sub-tab-bar {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--pf-color-border);
+  }
+
   // Wrapper for each tab's Builder content. The Tabs widget uses Gate
   // (display:contents) which has clientHeight === 0; DrawerPanel needs
   // a real sized parent to measure its container height.
   &__tab-content {
     height: 100%;
+    min-height: 0;
+    flex: 1;
   }
 }
 
