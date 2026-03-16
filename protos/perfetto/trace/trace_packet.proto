@@ -17,6 +17,7 @@
 syntax = "proto2";
 
 import "protos/perfetto/common/system_info.proto";
+import "protos/perfetto/common/trace_attributes.proto";
 import "protos/perfetto/common/trace_stats.proto";
 import "protos/perfetto/config/trace_config.proto";
 import "protos/perfetto/protovm/vm_program.proto";
@@ -114,7 +115,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 126.
+// Next id: 127.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -202,6 +203,7 @@ message TracePacket {
     EntityStateResidency entity_state_residency = 91;
     TraceProvenance trace_provenance = 124;
     ProtoVms protovms = 125;
+    TraceAttributes trace_attributes = 126;
 
     // Only used in profile packets.
     ModuleSymbols module_symbols = 61;

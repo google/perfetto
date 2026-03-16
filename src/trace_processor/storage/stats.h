@@ -586,7 +586,7 @@ namespace perfetto::trace_processor::stats {
       "Number of class parsing errors encountered. This indicates a "          \
       "malformed hprof file. Check if the hprof opens correctly in a tool "    \
       "like AHAT. Missing classes could cause missing references, thus "       \
-      "affecting the overall size of the the heap graph."),                    \
+      "affecting the overall size of the heap graph."),                    \
   F(hprof_header_errors,                   kSingle,  kError,   kAnalysis,      \
       "Number of header parsing errors. This indicates a malformed hprof "     \
       "file with invalid or missing header information. The file may be "      \
