@@ -134,7 +134,7 @@ export class ChartView implements m.ClassComponent<ChartViewAttrs> {
     const needsColumn = config.column === '';
     if (tableName === undefined || needsColumn) {
       let entry = this.state.loaders.get(config.id);
-      if (!entry) {
+      if (entry === undefined) {
         entry = {key: ''};
         this.state.loaders.set(config.id, entry);
       }
@@ -144,9 +144,9 @@ export class ChartView implements m.ClassComponent<ChartViewAttrs> {
     const key = buildLoaderCacheKey(tableName, config);
     const existing = this.state.loaders.get(config.id);
 
-    if (existing && existing.key === key) return existing;
+    if (existing !== undefined && existing.key === key) return existing;
 
-    if (existing) {
+    if (existing !== undefined) {
       disposeChartLoaders(existing);
     }
 

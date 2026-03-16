@@ -323,7 +323,7 @@ export class DashboardChartView
     );
     if (tableName === undefined || config.column === '' || !columnValid) {
       let entry = this.loaders.get(config.id);
-      if (!entry) {
+      if (entry === undefined) {
         entry = {key: ''};
         this.loaders.set(config.id, entry);
       }
@@ -341,9 +341,9 @@ export class DashboardChartView
     const key = buildLoaderCacheKey(tableName, config, filterKey);
 
     const existing = this.loaders.get(config.id);
-    if (existing && existing.key === key) return existing;
+    if (existing !== undefined && existing.key === key) return existing;
 
-    if (existing) {
+    if (existing !== undefined) {
       disposeChartLoaders(existing);
     }
 
