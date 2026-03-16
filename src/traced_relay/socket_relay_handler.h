@@ -49,7 +49,7 @@ class FdPoller {
     virtual void OnFdReadable(base::PlatformHandle fd) = 0;
     // Called when |fd| can be written to without blocking. For a socket
     // connection, this indicates that the socket write buffer has some capacity
-    // for writting data into.
+    // for writing data into.
     virtual void OnFdWritable(base::PlatformHandle fd) = 0;
   };
 
