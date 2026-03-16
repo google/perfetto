@@ -4149,6 +4149,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/shell/common_flags.cc",
         "src/trace_processor/shell/common_flags.h",
+        "src/trace_processor/shell/export_subcommand.cc",
+        "src/trace_processor/shell/export_subcommand.h",
         "src/trace_processor/shell/interactive_subcommand.cc",
         "src/trace_processor/shell/interactive_subcommand.h",
         "src/trace_processor/shell/query_subcommand.cc",
@@ -4157,6 +4159,8 @@ perfetto_filegroup(
         "src/trace_processor/shell/server_subcommand.h",
         "src/trace_processor/shell/subcommand.cc",
         "src/trace_processor/shell/subcommand.h",
+        "src/trace_processor/shell/summarize_subcommand.cc",
+        "src/trace_processor/shell/summarize_subcommand.h",
     ],
 )
 
