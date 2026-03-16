@@ -16799,6 +16799,7 @@ filegroup {
         "src/trace_processor/shell/common_flags.cc",
         "src/trace_processor/shell/export_subcommand.cc",
         "src/trace_processor/shell/interactive_subcommand.cc",
+        "src/trace_processor/shell/metrics_subcommand.cc",
         "src/trace_processor/shell/query_subcommand.cc",
         "src/trace_processor/shell/server_subcommand.cc",
         "src/trace_processor/shell/subcommand.cc",

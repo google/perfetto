@@ -64,6 +64,7 @@
 #include "src/trace_processor/shell/interactive_subcommand.h"
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/metrics.h"
+#include "src/trace_processor/shell/metrics_subcommand.h"
 #include "src/trace_processor/shell/query.h"
 #include "src/trace_processor/shell/query_subcommand.h"
 #include "src/trace_processor/shell/server_subcommand.h"
@@ -915,9 +916,10 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     shell::ServerSubcommand server_subcommand;
     shell::SummarizeSubcommand summarize_subcommand;
     shell::ExportSubcommand export_subcommand;
+    shell::MetricsSubcommand metrics_subcommand;
     std::vector<shell::Subcommand*> subcommands = {
         &query_subcommand,     &interactive_subcommand, &server_subcommand,
-        &summarize_subcommand, &export_subcommand,
+        &summarize_subcommand, &export_subcommand,      &metrics_subcommand,
     };
 
     // Build the set of flags that consume an argument, derived from the
