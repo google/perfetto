@@ -135,6 +135,12 @@ class Rpc {
       void(const uint8_t* /*buf*/, size_t /*len*/, bool /*has_more*/)>;
   void Query(const uint8_t*, size_t, const QueryResultBatchCallback&);
 
+  // Exports all intrinsic tables as a TAR of Arrow IPC files.
+  // Same streaming callback pattern as Query().
+  using ExportArrowCallback =
+      std::function<void(const uint8_t* data, size_t len, bool has_more)>;
+  base::Status ExportToArrow(const ExportArrowCallback&);
+
   TraceProcessor* trace_processor() const { return trace_processor_.get(); }
 
  private:

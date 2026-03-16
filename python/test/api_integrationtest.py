@@ -646,3 +646,31 @@ class TestApi(unittest.TestCase):
           '_path': example_android_trace_path()
       }
       self.assertEqual(tp.metadata, expected_metadata)
+
+  def test_export_to_arrow(self):
+    import tarfile
+    with create_tp(trace=example_android_trace_path()) as tp:
+      with tempfile.NamedTemporaryFile(suffix='.tar', delete=False) as f:
+        output_path = f.name
+      try:
+        tp.export_to_arrow(output_path)
+
+        # Verify the output is a valid TAR archive.
+        self.assertTrue(tarfile.is_tarfile(output_path))
+
+        with tarfile.open(output_path) as tf:
+          names = tf.getnames()
+          # Should contain metadata.json and at least one .arrow file.
+          self.assertIn('metadata.json', names)
+          arrow_files = [n for n in names if n.endswith('.arrow')]
+          self.assertGreater(len(arrow_files), 0)
+
+          # Verify arrow files have ARROW1 magic bytes.
+          for name in arrow_files:
+            member = tf.extractfile(name)
+            self.assertIsNotNone(member)
+            data = member.read()
+            self.assertTrue(data[:6] == b'ARROW1',
+                            f'{name} missing ARROW1 header')
+      finally:
+        os.unlink(output_path)

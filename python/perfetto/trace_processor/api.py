@@ -272,6 +272,17 @@ class TraceProcessor:
     metrics.ParseFromString(response.metrics)
     return metrics
 
+  def export_to_arrow(self, output_path: str):
+    """Export all intrinsic tables as a TAR archive of Arrow IPC files.
+
+    The archive is streamed directly to disk without materializing in memory.
+
+    Args:
+      output_path: Path to write the TAR archive to.
+    """
+    with open(output_path, 'wb') as f:
+      self.http.export_to_arrow(f)
+
   @property
   def metadata(self) -> Dict[str, str]:
     """Returns metadata associated with this trace.

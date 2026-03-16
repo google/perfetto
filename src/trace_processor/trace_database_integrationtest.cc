@@ -886,6 +886,100 @@ TEST_F(TraceProcessorIntegrationTest, PackageSameNameOverride) {
   ASSERT_OK(Processor()->RegisterSqlPackage(pkg2));
 }
 
+TEST_F(TraceProcessorIntegrationTest, ExportToArrow) {
+  ASSERT_TRUE(LoadTrace("example_android_trace_30s.pb").ok());
+
+  std::string tar_bytes;
+  auto status =
+      Processor()->ExportToArrow([&](const uint8_t* data, size_t len, bool) {
+        tar_bytes.append(reinterpret_cast<const char*>(data), len);
+      });
+  ASSERT_OK(status);
+
+  // TAR headers contain "ustar" magic at offset 257.
+  ASSERT_GT(tar_bytes.size(), 512u);
+  ASSERT_EQ(std::string(tar_bytes.data() + 257, 5), "ustar");
+
+  // Walk TAR headers and verify we find at least one .arrow file.
+  bool found_arrow = false;
+  size_t offset = 0;
+  while (offset + 512 <= tar_bytes.size()) {
+    // A block of all zeros signals end-of-archive.
+    bool all_zero = true;
+    for (size_t i = 0; i < 512; ++i) {
+      if (tar_bytes[offset + i] != '\0') {
+        all_zero = false;
+        break;
+      }
+    }
+    if (all_zero)
+      break;
+
+    std::string name(tar_bytes.data() + offset,
+                     strnlen(tar_bytes.data() + offset, 100));
+    // Parse size from octal field at offset 124, length 12.
+    uint64_t size = 0;
+    for (size_t i = 0; i < 11; ++i) {
+      char c = tar_bytes[offset + 124 + i];
+      if (c < '0' || c > '7')
+        break;
+      size = size * 8 + static_cast<uint64_t>(c - '0');
+    }
+
+    if (name.size() > 6 && name.substr(name.size() - 6) == ".arrow") {
+      found_arrow = true;
+      // Arrow IPC files start with "ARROW1" magic.
+      size_t data_offset = offset + 512;
+      ASSERT_GE(size, 6u);
+      ASSERT_LE(data_offset + size, tar_bytes.size());
+      ASSERT_EQ(std::string(tar_bytes.data() + data_offset, 6), "ARROW1");
+    }
+
+    // Advance past header + data (rounded up to 512-byte blocks).
+    offset += 512 + ((size + 511) / 512) * 512;
+  }
+
+  ASSERT_TRUE(found_arrow);
+}
+
+TEST_F(TraceProcessorIntegrationTest, ExportToArrowRoundTrip) {
+  ASSERT_TRUE(LoadTrace("example_android_trace_30s.pb").ok());
+
+  // Query a table before export for comparison.
+  auto it_before = Query("SELECT count() AS cnt FROM thread");
+  ASSERT_TRUE(it_before.Next());
+  int64_t thread_count = it_before.Get(0).long_value;
+  ASSERT_GT(thread_count, 0);
+  ASSERT_FALSE(it_before.Next());
+
+  // Export to Arrow TAR.
+  std::string tar_bytes;
+  auto status =
+      Processor()->ExportToArrow([&](const uint8_t* data, size_t len, bool) {
+        tar_bytes.append(reinterpret_cast<const char*>(data), len);
+      });
+  ASSERT_OK(status);
+
+  // Re-import the TAR into a fresh TraceProcessor instance.
+  auto reimport = TraceProcessor::CreateInstance(Config());
+  // Feed the TAR in chunks to exercise the streaming path.
+  size_t chunk_size = 4096;
+  for (size_t i = 0; i < tar_bytes.size(); i += chunk_size) {
+    size_t len = std::min(chunk_size, tar_bytes.size() - i);
+    auto buf = std::make_unique<uint8_t[]>(len);
+    memcpy(buf.get(), tar_bytes.data() + i, len);
+    ASSERT_OK(reimport->Parse(std::move(buf), len));
+  }
+  ASSERT_OK(reimport->NotifyEndOfFile());
+
+  // Verify the thread table was round-tripped.
+  auto it_after = reimport->ExecuteQuery("SELECT count() AS cnt FROM thread");
+  ASSERT_TRUE(it_after.Next());
+  ASSERT_EQ(it_after.Get(0).long_value, thread_count);
+  ASSERT_FALSE(it_after.Next());
+  ASSERT_OK(it_after.Status());
+}
+
 TEST_F(TraceProcessorIntegrationTest, MultiLevelPackageInclude) {
   ASSERT_OK(NotifyEndOfFile());
 

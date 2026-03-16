@@ -114,6 +114,7 @@ message TraceProcessorRpc {
     TPM_UPDATE_SUMMARIZER_SPEC = 17;
     TPM_QUERY_SUMMARIZER = 18;
     TPM_DESTROY_SUMMARIZER = 19;
+    TPM_EXPORT_ARROW = 20;
   }
 
   oneof type {
@@ -185,6 +186,8 @@ message TraceProcessorRpc {
     QuerySummarizerResult query_summarizer_result = 217;
     // For TPM_DESTROY_SUMMARIZER.
     DestroySummarizerResult destroy_summarizer_result = 218;
+    // For TPM_EXPORT_ARROW.
+    ExportArrowResult export_arrow_result = 219;
   }
 
   // Previously: RawQueryArgs for TPM_QUERY_RAW_DEPRECATED
@@ -494,4 +497,17 @@ message DestroySummarizerArgs {
 // Output for TPM_DESTROY_SUMMARIZER.
 message DestroySummarizerResult {
   optional string error = 1;
+}
+
+// Output for TPM_EXPORT_ARROW.
+// Carries a chunk of the TAR archive containing Arrow IPC files.
+// Over /rpc, multiple ExportArrowResult messages are sent (one per chunk),
+// each wrapped in a TraceProcessorRpc envelope.
+// Over the legacy /export_to_arrow HTTP endpoint, the raw TAR bytes are
+// streamed directly (same pattern as /query streaming QueryResult bytes).
+message ExportArrowResult {
+  optional bytes data = 1;
+  optional string error = 2;
+  // Used in the /rpc streaming responses to signal whether more chunks follow.
+  optional bool has_more = 3;
 }
