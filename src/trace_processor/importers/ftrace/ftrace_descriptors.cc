@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 603> descriptors{{
+std::array<FtraceMessageDescriptor, 604> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -6708,6 +6708,26 @@ std::array<FtraceMessageDescriptor, 603> descriptors{{
             {},
             {"panel_index", ProtoSchemaType::kInt32},
             {"collision_cnt", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "f2fs_lock_elapsed_time",
+        13,
+        {
+            {},
+            {"dev", ProtoSchemaType::kUint64},
+            {"comm", ProtoSchemaType::kString},
+            {"pid", ProtoSchemaType::kInt32},
+            {"prio", ProtoSchemaType::kInt32},
+            {"ioprio_class", ProtoSchemaType::kInt32},
+            {"ioprio_data", ProtoSchemaType::kInt32},
+            {"lock_name", ProtoSchemaType::kUint32},
+            {"is_write", ProtoSchemaType::kUint32},
+            {"total_time", ProtoSchemaType::kUint64},
+            {"running_time", ProtoSchemaType::kUint64},
+            {"runnable_time", ProtoSchemaType::kUint64},
+            {"io_sleep_time", ProtoSchemaType::kUint64},
+            {"other_time", ProtoSchemaType::kUint64},
         },
     },
 }};

@@ -168,6 +168,119 @@ message TrackEventDescriptor {
 
 // End of protos/perfetto/common/track_event_descriptor.proto
 
+// Begin of protos/perfetto/protovm/vm_program.proto
+
+message VmProgram {
+  optional uint32 version = 1;
+  repeated VmInstruction instructions = 2;
+}
+
+message VmInstruction {
+  oneof operation {
+    VmOpSelect select = 1;
+    VmOpRegLoad reg_load = 2;
+    VmOpMerge merge = 3;
+    VmOpSet set = 4;
+    VmOpDel del = 5;
+  }
+
+  enum AbortLevel {
+    // Skip current instruction but execute following ones
+    SKIP_CURRENT_INSTRUCTION = 1;
+    // Skip current instruction as well as following ones (default)
+    SKIP_CURRENT_INSTRUCTION_AND_BREAK_OUTER = 2;
+    // Abort whole program
+    ABORT = 3;
+  };
+  optional AbortLevel abort_level = 6;
+
+  // Sub-instructions executed if the current instruction succeeds
+  repeated VmInstruction nested_instructions = 7;
+}
+
+message VmOpSelect {
+  // Enum SRC|DST|BOTH. Default=SRC.
+  optional VmCursorEnum cursor = 1;
+  repeated PathComponent relative_path = 2;
+
+  // Creates the submessage if doesn't exist in the DST cursor
+  // (think of mkdir -p). Only valid when cursor=DST|BOTH.
+  optional bool create_if_not_exist = 3;
+
+  // A path component is either: (1) a field id to descend into (common case);
+  // (2) an array index (for repeated fields); (3) a map lookup operation (for
+  // repeated fields, where we snoop a sub-field as a map key)
+  message PathComponent {
+    oneof field {
+      uint32 field_id = 1;
+      uint32 array_index = 2;
+
+      // The ID of the field in the repeated submessage that we
+      // use as a key (e.g. LayerState.layer_id). When setting this
+      // register_to_match must also be set, to tell what's the
+      // expected value of the key we are looking up.
+      uint32 map_key_field_id = 3;
+    }
+
+    // When we are selecting a leaf field, tell what's the field type
+    // to disambiguate integer types. Using uint64 by default will likely
+    // do the right thing in 99% cases (so probably we don't need to impl
+    // this until much later if somebody does a map with a fixed64 key)
+    // enum ProtoFieldType field_type = 4;  // bool | int32 | fixed32 | ...
+
+    // Only valid when using field_id. This makes select have foreach
+    // semantics. This means that the body of nested_instructions is
+    // executed several times, once per each repeated submessage.
+    optional bool is_repeated = 5;
+
+    // Only valid when using map_key_field_id. This defines which
+    // register (R1..R32) should be used to match the key of the dict
+    // in a map lookup operation.
+    // In other words:
+    // foreach msg in repeated message {
+    //   if msg[map_key_field_id] == R[register_to_match] {
+    //      break;  // Lookup succeeded, PathComponent resolves here.
+    //   }
+    // }
+    optional uint32 register_to_match = 6;
+
+    // Only valid when using field_id and is_repeated=true. When iterating
+    // over repeated fields, stores the current iteration index into the
+    // the register R1..R32 defined below. This can be used to do complex
+    // operations like "find the entry in the array that has width==100,
+    // remember its offset in the SRC array and overwrite the matching
+    // i-th element in the DST array. We will probably never implement
+    // this but it's here for completeness.
+    optional uint32 store_foreach_index_into_register = 7;
+  }
+}
+
+message VmOpRegLoad {
+  // SRC(default) | DST.
+  optional VmCursorEnum cursor = 1;
+  // 1=R1, 2=R2... 32=R32
+  optional uint32 dst_register = 2;
+}
+
+// Merges SRC into DST. Both need to point to a message (not a field).
+message VmOpMerge {}
+
+// Copies SRC into DST. If a message, replaces the DST node, discarding any
+// pre-existing field.
+message VmOpSet {}
+
+// Delete the field or message pointed by DST.
+message VmOpDel {}
+
+enum VmCursorEnum {
+  VM_CURSOR_UNSPECIFIED = 0;
+  VM_CURSOR_SRC = 1;
+  VM_CURSOR_DST = 2;
+  VM_CURSOR_BOTH = 3;
+}
+
+// End of protos/perfetto/protovm/vm_program.proto
+
 // Begin of protos/perfetto/common/data_source_descriptor.proto
 
 // This message is sent from Producer(s) to the tracing Service when registering
@@ -207,6 +320,13 @@ message DataSourceDescriptor {
   // scraping.
   // Introduced in v39 / Android V.
   optional bool no_flush = 9;
+
+  // If present, the tracing service executes this program within a ProtoVM to
+  // process overwritten packets (patches). The service computes a hash of the
+  // program to detect and disambiguate between different versions; if multiple
+  // versions (from different producers) are specified for the same data source,
+  // the service instantiates a dedicated ProtoVM for each.
+  optional VmProgram protovm_program = 10;
 
   // Optional specification about available GPU counters.
   optional GpuCounterDescriptor gpu_counter_descriptor = 5 [lazy = true];
@@ -336,16 +456,55 @@ message TracingServiceState {
 
 // Begin of protos/perfetto/common/builtin_clock.proto
 
+// Builtin clock domains used in Perfetto traces.
+//
+// The default trace time clock is BUILTIN_CLOCK_TRACE_FILE: a synthetic clock
+// representing the trace file's own timeline. Each trace file gets its own
+// instance (scoped by trace file index).
+//
+// For backwards compatibility, Perfetto proto traces register BOOTTIME as a
+// fallback: if the first timestamp conversion uses a clock other than the
+// trace file clock and no explicit clock snapshot data exists, the trace time
+// is switched to BOOTTIME. This fallback does not fire for modern traces that
+// include ClockSnapshots or that only use the trace file clock directly.
+//
+// The `primary_trace_clock` field in ClockSnapshot can definitively override
+// the trace time clock regardless of the above.
 enum BuiltinClock {
   BUILTIN_CLOCK_UNKNOWN = 0;
+
+  // Corresponds to CLOCK_REALTIME. See clock_gettime(2).
   BUILTIN_CLOCK_REALTIME = 1;
+
+  // Corresponds to CLOCK_REALTIME_COARSE. See clock_gettime(2).
   BUILTIN_CLOCK_REALTIME_COARSE = 2;
+
+  // Corresponds to CLOCK_MONOTONIC. See clock_gettime(2).
   BUILTIN_CLOCK_MONOTONIC = 3;
+
+  // Corresponds to CLOCK_MONOTONIC_COARSE. See clock_gettime(2).
   BUILTIN_CLOCK_MONOTONIC_COARSE = 4;
+
+  // Corresponds to CLOCK_MONOTONIC_RAW. See clock_gettime(2).
   BUILTIN_CLOCK_MONOTONIC_RAW = 5;
+
+  // Corresponds to CLOCK_BOOTTIME. See clock_gettime(2).
+  // For proto traces, this is used as a backwards-compatible fallback trace
+  // time clock when no explicit clock snapshots are present.
   BUILTIN_CLOCK_BOOTTIME = 6;
+
+  // TSC (Time Stamp Counter). Architecture-specific high-resolution counter.
   BUILTIN_CLOCK_TSC = 9;
+
+  // Corresponds to the perf event clock (PERF_CLOCK).
   BUILTIN_CLOCK_PERF = 10;
+
+  // A synthetic clock representing the trace file's own timeline. Each trace
+  // file gets its own instance (scoped by trace file index). This is the
+  // default trace time clock before any clock snapshot or format-specific
+  // override takes effect.
+  BUILTIN_CLOCK_TRACE_FILE = 11;
+
   BUILTIN_CLOCK_MAX_ID = 63;
 
   reserved 7, 8;
@@ -545,6 +704,13 @@ message AndroidLogConfig {
   // If non-empty ignores all log messages whose tag doesn't match one of the
   // specified values.
   repeated string filter_tags = 4;
+
+  // If true, includes the contents of the logcat buffers that were already
+  // present before the data source started. By default (false), only new
+  // log entries produced after the data source starts are recorded.
+  // Can be useful for boot traces or situations where logs from before
+  // traced started are important.
+  optional bool preserve_log_buffer = 5;
 }
 
 // End of protos/perfetto/config/android/android_log_config.proto
@@ -2381,6 +2547,48 @@ message PerfEventConfig {
 
 // End of protos/perfetto/config/profiling/perf_event_config.proto
 
+// Begin of protos/perfetto/config/protovm/protovm_config.proto
+
+message ProtoVmConfig {
+  optional uint32 memory_limit_kb = 1;
+}
+
+// End of protos/perfetto/config/protovm/protovm_config.proto
+
+// Begin of protos/perfetto/config/qnx/qnx_config.proto
+
+// QnxConfig is used with trace_qnx_probes build from
+// https://github.com/qnx-ports/perfetto
+message QnxConfig {
+  // The number of buffers that tracelog will init for the QNX trace.
+  optional uint32 qnx_kernel_buffers = 1;
+
+  // The number of kernel buffers that tracelog will init for the QNX trace.
+  optional uint32 qnx_kernel_kbuffers = 2;
+
+  // Flag indicating whether the QNX kernel tracing should produce wide
+  // events which contain additional data or fast events which are most
+  // concise. In fast mode we lose the priority information
+  optional bool qnx_kernel_wide_events = 3;
+
+  // The number of pages initialized by default the parser's page cache.
+  optional uint32 qnx_cache_pages = 4;
+
+  // The max pages the page cache should allocate (must be at least as big)
+  // as the qnx_cache_pages value. Using -1 will allow the cache to grow
+  // unbounded. The cache will prefer to re-use existing pages so growth will
+  // only happen when needed (when parser is not keeping up).
+  optional int32 qnx_cache_max_pages = 5;
+
+  // The initial size of the the buffer used to hold the trace header values
+  // this dynamic buffer will grow as needed but reallocs can be avoided by
+  // selecting an initial size large enough to hold all the initial header
+  // data.
+  optional uint32 qnx_trace_buffer_init_bytes = 6;
+}
+
+// End of protos/perfetto/config/qnx/qnx_config.proto
+
 // Begin of protos/perfetto/config/statsd/atom_ids.proto
 
 // This enum is obtained by post-processing
@@ -4139,6 +4347,20 @@ message DataSourceConfig {
 
   optional PriorityBoostConfig priority_boost = 10;
 
+  // If specified, the data source requires the tracing service to process
+  // overwritten packets (patches) using a ProtoVM instance with this config.
+  // The ProtoVM program is specified at data source registration time through
+  // the descriptor.
+
+  // TODO(primiano): today when we enable a protovm_config, we actually accept
+  // that if N producers advertise M different versions of the same program we
+  // will create M instances of that program.
+  // To overcome this, we could move the program to the TraceConfig. But doing
+  // so would bloat the trace config size too big and create problems to statsd.
+  // Once the config store (b/482305876) exists we should move protovm programs
+  // onto that.
+  optional ProtoVmConfig protovm_config = 12;
+
   // Keep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.
 
@@ -4270,6 +4492,9 @@ message DataSourceConfig {
   // Data source name: android.inputmethod
   optional InputMethodConfig inputmethod_config = 139 [lazy = true];
 
+  // Data source name: qnx.kernel
+  optional QnxConfig qnx_config = 150 [lazy = true];
+
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
   // is part of the platform (i.e. traced service) is supposed to *not* truncate
@@ -4295,7 +4520,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 45.
+// Next id: 47.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -5205,6 +5430,15 @@ message TraceConfig {
   //
   // Introduced in: perfetto v54.
   optional bool trace_all_machines = 43;
+
+  // Allow key, value pairs to save arbitrary data about trace.
+  message Note {
+    // Required.
+    optional string key = 1;
+    // Required.
+    optional string value = 2;
+  }
+  repeated Note notes = 46;
 }
 
 // End of protos/perfetto/config/trace_config.proto
@@ -5286,6 +5520,42 @@ message SystemInfo {
 }
 
 // End of protos/perfetto/common/system_info.proto
+
+// Begin of protos/perfetto/common/trace_attributes.proto
+
+// Arbitrary key value pairs which can attached to a trace to provide context
+// about any facet of the trace. This can include, what data it contains,
+// properties of the host / machine the trace was collected on, and other
+// interesting information about a trace.
+///
+// Examples include:
+// gradle_version = "9.0.10-alpha01"
+// java_major_version = 24
+///
+// All keys get prefixed with `trace_attribute.` in the UI and in
+// `traceprocessor`. If there are multiple trace attribute packets that use the
+// same key, then the latest value wins.
+// These key value pairs show up in the `Overview` section in
+// Perfetto UI. Additionally, these key, value pairs can also be queried using
+// Pefetto SQL by using the following query:
+///
+//`SELECT * FROM metadata WHERE name GLOB 'trace_attribute.*';`
+
+message TraceAttributes {
+  message Attribute {
+    // The key
+    optional string key = 1;
+    // The value
+    oneof value {
+      int64 long_value = 2;
+      string string_value = 3;
+    }
+  }
+
+  repeated Attribute attribute = 1;
+}
+
+// End of protos/perfetto/common/trace_attributes.proto
 
 // Begin of protos/perfetto/common/trace_stats.proto
 
@@ -5413,6 +5683,10 @@ message TraceStats {
       optional uint64 v1_patches_succeeded = 6;
       // Num. patches that succeeded on V2 buffer.
       optional uint64 v2_patches_succeeded = 7;
+
+      // This is to distinguish the updated calculations after fixing the
+      // hashes. This field is either empty or "2"
+      optional uint32 stats_version = 8;
     }
     optional ShadowBufferStats shadow_buffer_stats = 21;
   }
@@ -5920,6 +6194,7 @@ message FrameTimelineEvent {
     JANK_APP_RESYNCED_JITTER = 4096;
     JANK_DISPLAY_NOT_ON = 8192;
     JANK_DISPLAY_MODE_CHANGE_IN_PROGRESS = 16384;
+    JANK_DISPLAY_POWER_MODE_CHANGE_IN_PROGRESS = 32768;
   };
 
   // Specifies the severity of a jank.
@@ -6325,11 +6600,11 @@ message PixelModemTokenDatabase {
 /* represents a single log entry */
 message ProtoLogMessage {
   /* log statement identifier, created from message string and log level. */
-  optional fixed64 message_id = 1;
+  optional fixed64 message_id = 1 [jstype = JS_STRING];
   /* string parameters passed to the log call that have been interned. */
   repeated uint32 str_param_iids = 2;
   /* integer parameters passed to the log call. */
-  repeated sint64 sint64_params = 3;
+  repeated sint64 sint64_params = 3 [jstype = JS_STRING];
   /* floating point parameters passed to the log call. */
   repeated double double_params = 4;
   /* boolean parameters passed to the log call. */
@@ -6343,7 +6618,7 @@ message ProtoLogMessage {
 message ProtoLogViewerConfig {
   message MessageData {
     // the id of the message that is logged in a ProtoLogMessage
-    optional fixed64 message_id = 1;
+    optional fixed64 message_id = 1 [jstype = JS_STRING];
     // the string representation of the message
     optional string message = 2;
     // the level of the message
@@ -6367,6 +6642,17 @@ message ProtoLogViewerConfig {
 
 // End of protos/perfetto/trace/android/protolog.proto
 
+// Begin of protos/perfetto/trace/android/graphics/rect.proto
+
+message RectProto {
+  optional int32 left = 1;
+  optional int32 top = 2;
+  optional int32 right = 3;
+  optional int32 bottom = 4;
+}
+
+// End of protos/perfetto/trace/android/graphics/rect.proto
+
 // Begin of protos/perfetto/trace/android/shell_transition.proto
 
 // ShellTransition messages record information about the shell transitions in
@@ -6378,43 +6664,43 @@ message ShellTransition {
 
   // The time the transition was created on the WM side
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 create_time_ns = 2;
+  optional int64 create_time_ns = 2 [jstype = JS_STRING];
   // The time the transition was sent from the WM side to shell
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 send_time_ns = 3;
+  optional int64 send_time_ns = 3 [jstype = JS_STRING];
   // The time the transition was dispatched by shell to execute
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 dispatch_time_ns = 4;
+  optional int64 dispatch_time_ns = 4 [jstype = JS_STRING];
   // If the transition merge was accepted by the transition handler, this
   // contains the time the transition was merged into transition with id
   // `merge_target`.
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 merge_time_ns = 5;
+  optional int64 merge_time_ns = 5 [jstype = JS_STRING];
   // The time shell proposed the transition should be merged to the transition
   // handler into transition with id `merge_target`.
   // (using SystemClock.elapsedRealtimeNanos()).
-  optional int64 merge_request_time_ns = 6;
+  optional int64 merge_request_time_ns = 6 [jstype = JS_STRING];
   // If the transition was aborted on the shell side, this is the time that
   // occurred.
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 shell_abort_time_ns = 7;
+  optional int64 shell_abort_time_ns = 7 [jstype = JS_STRING];
   // If the transition was aborted on the wm side, this is the time that
   // occurred.
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 wm_abort_time_ns = 8;
+  optional int64 wm_abort_time_ns = 8 [jstype = JS_STRING];
   // The time WM considers the transition to be complete.
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 finish_time_ns = 9;
+  optional int64 finish_time_ns = 9 [jstype = JS_STRING];
 
   // The id of the transaction that WM proposed to use as the starting
   // transaction. It contains all the layer changes required to setup the
   // transition and should be executed right at the start of the transition
   // by the transition handler.
-  optional uint64 start_transaction_id = 10;
+  optional uint64 start_transaction_id = 10 [jstype = JS_STRING];
   // The if of the transaction that WM proposed to use as the finish
   // transaction. It contains all the layer changes required to set the final
   // state of the transition.
-  optional uint64 finish_transaction_id = 11;
+  optional uint64 finish_transaction_id = 11 [jstype = JS_STRING];
 
   // The id of the handler that executed the transition. A HandlerMappings
   // message in the trace will contain the mapping of id to a string
@@ -6423,8 +6709,8 @@ message ShellTransition {
   // The transition type of this transition (e.g. TO_FRONT, OPEN, CLOSE).
   optional int32 type = 13;
 
-  // The list of targets that are part of this transition.
-  repeated Target targets = 14;
+  // The list of changes that are part of this transition.
+  repeated Change changes = 14;
   // The id of the transition we have requested to merge or have merged this
   // transition into.
   optional int32 merge_target = 15;
@@ -6436,18 +6722,30 @@ message ShellTransition {
   // until the starting window is removed. So in a sense the transition is not
   // finished until the starting window is removed. (b/284302118)
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 starting_window_remove_time_ns = 17;
+  optional int64 starting_window_remove_time_ns = 17 [jstype = JS_STRING];
 
-  // Contains the information about the windows targeted in a transition.
-  message Target {
-    // The transition mode of this target (e.g. TO_FRONT, CLOSE...)
+  // Contains the information about the windows changed in a transition.
+  message Change {
+    // The transition mode of this change (e.g. TO_FRONT, CLOSE...)
     optional int32 mode = 1;
-    // The layer id of this target.
+    // The layer id of this change.
     optional int32 layer_id = 2;
-    // The window id of this target.
+    // The window id of this change.
     optional int32 window_id = 3;
-    // The flags set on this target.
+    // The flags set on this change.
     optional int32 flags = 4;
+    // The display id the change is transitioning on before the transition.
+    optional int32 start_display_id = 5;
+    // The display id the change is transitioning on after the transition.
+    optional int32 end_display_id = 6;
+    // The rotation of the change before the transition.
+    optional int32 start_rotation = 7;
+    // The rotation of the change after the transition.
+    optional int32 end_rotation = 8;
+    // The absolute screen bounds of the change before the transition.
+    optional RectProto start_absolute_bounds = 9;
+    // The absolute screen bounds of the change after the transition.
+    optional RectProto end_absolute_bounds = 10;
   }
 }
 
@@ -6464,17 +6762,6 @@ message ShellHandlerMapping {
 }
 
 // End of protos/perfetto/trace/android/shell_transition.proto
-
-// Begin of protos/perfetto/trace/android/graphics/rect.proto
-
-message RectProto {
-  optional int32 left = 1;
-  optional int32 top = 2;
-  optional int32 right = 3;
-  optional int32 bottom = 4;
-}
-
-// End of protos/perfetto/trace/android/graphics/rect.proto
 
 // Begin of protos/perfetto/trace/android/surfaceflinger_common.proto
 
@@ -6594,19 +6881,19 @@ message LayersTraceFileProto {
   }
 
   // Must be the first field, set to value in MagicNumber
-  optional fixed64 magic_number = 1;
+  optional fixed64 magic_number = 1 [jstype = JS_STRING];
 
   repeated LayersSnapshotProto entry = 2;
 
   // Offset between real-time clock and elapsed time clock in nanoseconds.
   // Calculated as: systemTime(SYSTEM_TIME_REALTIME) -
   // systemTime(SYSTEM_TIME_MONOTONIC)
-  optional fixed64 real_to_elapsed_time_offset_nanos = 3;
+  optional fixed64 real_to_elapsed_time_offset_nanos = 3 [jstype = JS_STRING];
 }
 
 message LayersSnapshotProto {
   // elapsed realtime in nanos since boot of when this entry was logged
-  optional sfixed64 elapsed_realtime_nanos = 1;
+  optional sfixed64 elapsed_realtime_nanos = 1 [jstype = JS_STRING];
 
   // SurfaceFlinger's stage where the snapshot was triggered.
   // Currently either "visibleRegionsDirty" or "bufferLatched".
@@ -6628,7 +6915,7 @@ message LayersSnapshotProto {
 
   repeated DisplayProto displays = 7;
 
-  optional int64 vsync_id = 8;
+  optional int64 vsync_id = 8 [jstype = JS_STRING];
 }
 
 // Contains a list of all layers.
@@ -6637,7 +6924,7 @@ message LayersProto {
 }
 
 message DisplayProto {
-  optional uint64 id = 1;
+  optional uint64 id = 1 [jstype = JS_STRING];
   // Display descriptor, e.g. "Built-In Screen"
   optional string name = 2;
   optional uint32 layer_stack = 3;
@@ -6746,7 +7033,7 @@ message LayerProto {
   // If it's a buffer layer, indicate if the content is protected
   optional bool is_protected = 36;
   // Current frame number being rendered.
-  optional uint64 curr_frame = 37;
+  optional uint64 curr_frame = 37 [jstype = JS_STRING];
   // A list of barriers that the layer is waiting to update state.
   repeated BarrierLayerProto barrier_layer = 38;
   // If active_buffer is not null, record its transform.
@@ -6841,14 +7128,14 @@ message ActiveBufferProto {
   optional uint32 height = 2;
   optional uint32 stride = 3;
   optional int32 format = 4;
-  optional uint64 usage = 5;
+  optional uint64 usage = 5 [jstype = JS_STRING];
 }
 
 message BarrierLayerProto {
   // layer id the barrier is waiting on.
   optional int32 id = 1;
   // frame number the barrier is waiting on.
-  optional uint64 frame_number = 2;
+  optional uint64 frame_number = 2 [jstype = JS_STRING];
 }
 
 // End of protos/perfetto/trace/android/surfaceflinger_layers.proto
@@ -6872,19 +7159,19 @@ message TransactionTraceFile {
   }
 
   // Must be the first field, set to value in MagicNumber
-  optional fixed64 magic_number = 1;
+  optional fixed64 magic_number = 1 [jstype = JS_STRING];
   repeated TransactionTraceEntry entry = 2;
 
   // offset between real-time clock and elapsed time clock in nanoseconds.
   // Calculated as: systemTime(SYSTEM_TIME_REALTIME) -
   // systemTime(SYSTEM_TIME_MONOTONIC)
-  optional fixed64 real_to_elapsed_time_offset_nanos = 3;
+  optional fixed64 real_to_elapsed_time_offset_nanos = 3 [jstype = JS_STRING];
   optional uint32 version = 4;
 }
 
 message TransactionTraceEntry {
-  optional int64 elapsed_realtime_nanos = 1;
-  optional int64 vsync_id = 2;
+  optional int64 elapsed_realtime_nanos = 1 [jstype = JS_STRING];
+  optional int64 vsync_id = 2 [jstype = JS_STRING];
   repeated TransactionState transactions = 3;
   repeated LayerCreationArgs added_layers = 4;
   repeated uint32 destroyed_layers = 5;
@@ -6937,14 +7224,14 @@ message TransactionBarrier {
 message TransactionState {
   optional int32 pid = 1;
   optional int32 uid = 2;
-  optional int64 vsync_id = 3;
+  optional int64 vsync_id = 3 [jstype = JS_STRING];
   optional int32 input_event_id = 4;
-  optional int64 post_time = 5;
-  optional uint64 transaction_id = 6;
+  optional int64 post_time = 5 [jstype = JS_STRING];
+  optional uint64 transaction_id = 6 [jstype = JS_STRING];
   repeated LayerState layer_changes = 7;
   repeated DisplayState display_changes = 8;
-  repeated uint64 merged_transaction_ids = 9;
-  optional uint64 apply_token = 10;
+  repeated uint64 merged_transaction_ids = 9 [jstype = JS_STRING];
+  optional uint64 apply_token = 10 [jstype = JS_STRING];
   repeated TransactionBarrier transaction_barriers = 11;
 }
 
@@ -7017,7 +7304,7 @@ message LayerState {
     eBoxShadowSettingsChanged = 0x00040000;
     eBorderSettingsChanged = 0x00080000;
   };
-  optional uint64 what = 2;
+  optional uint64 what = 2 [jstype = JS_STRING];
   optional float x = 3;
   optional float y = 4;
   optional int32 z = 5;
@@ -7069,10 +7356,10 @@ message LayerState {
   optional RectProto crop = 21;
 
   message BufferData {
-    optional uint64 buffer_id = 1;
+    optional uint64 buffer_id = 1 [jstype = JS_STRING];
     optional uint32 width = 2;
     optional uint32 height = 3;
-    optional uint64 frame_number = 4;
+    optional uint64 frame_number = 4 [jstype = JS_STRING];
 
     enum BufferDataChange {
       BufferDataChangeNone = 0;
@@ -7081,7 +7368,7 @@ message LayerState {
       cachedBufferChanged = 0x04;
     }
     optional uint32 flags = 5;
-    optional uint64 cached_buffer_id = 6;
+    optional uint64 cached_buffer_id = 6 [jstype = JS_STRING];
 
     enum PixelFormat {
       PIXEL_FORMAT_UNKNOWN = 0;
@@ -7101,7 +7388,7 @@ message LayerState {
       PIXEL_FORMAT_R_8 = 0x38;
     }
     optional PixelFormat pixel_format = 7;
-    optional uint64 usage = 8;
+    optional uint64 usage = 8 [jstype = JS_STRING];
   }
   optional BufferData buffer_data = 22;
   optional int32 api = 23;
@@ -7135,7 +7422,7 @@ message LayerState {
   optional int32 frame_rate_compatibility = 34;
   optional int32 change_frame_rate_strategy = 35;
   optional uint32 fixed_transform_hint = 36;
-  optional uint64 frame_number = 37;
+  optional uint64 frame_number = 37 [jstype = JS_STRING];
   optional bool auto_refresh = 38;
   // unused
   optional bool is_trusted_overlay = 39;
@@ -7653,6 +7940,20 @@ message V8JsCode {
     bytes machine_code = 7;
     bytes bytecode = 8;
   }
+  oneof source_map {
+    // For Ignition / bytecode:
+    //  - Maps bytecode-ranges to byte offsets (for the same script as the
+    //    related js function)
+    bytes source_positions = 9;
+    // For Sparkplug code:
+    //  - Maps machine-code ranges to bytecode ranges in the corresponding
+    //    ignition code object for the same js-function.
+    bytes bytecode_positions = 10;
+    // For optimized code:
+    // - Maps machine-code-ranges to bytecode ranges in various
+    //   ignition code objects (inlining might happen from multiple functions)
+    bytes inlined_bytecode_positions = 11;
+  }
 }
 
 message V8InternalCode {
@@ -7782,10 +8083,13 @@ message ClockSnapshot {
   }
   repeated Clock clocks = 1;
 
-  // The authoritative clock domain for the trace. Defaults to BOOTTIME, but can
-  // be overridden in TraceConfig's builtin_data_sources. Trace processor will
-  // attempt to translate packet/event timestamps from various data sources (and
-  // their chosen clock domains) to this domain during import.
+  // The authoritative clock domain for the trace. When set, this definitively
+  // overrides the trace time clock. If not set, the trace time clock remains
+  // at its default (BUILTIN_CLOCK_TRACE_FILE), unless a format-specific
+  // fallback applies (e.g. BOOTTIME for legacy proto traces without clock
+  // snapshots). Trace processor will attempt to translate packet/event
+  // timestamps from various data sources (and their chosen clock domains) to
+  // this domain during import.
   optional BuiltinClock primary_trace_clock = 2;
 }
 
@@ -8087,7 +8391,7 @@ message EtwTraceEventBundle {
 // Records an event in the evdev protocol, as used by Linux and some other *nix
 // kernels to report events from human interface devices.
 //
-// Next ID: 3
+// Next ID: 5
 message EvdevEvent {
   // The device's unique ID number. This need not be the number of its
   // /dev/input/event node.
@@ -8095,6 +8399,8 @@ message EvdevEvent {
 
   oneof event {
     InputEvent input_event = 2;
+    DeviceAddition add_event = 3;
+    DeviceRemoval remove_event = 4;
   }
 
   // Proto version of Linux's struct input_event. The meaning of types and codes
@@ -8117,6 +8423,117 @@ message EvdevEvent {
     // The new value of the axis described by type and code.
     optional sint32 value = 4;
   }
+
+  // Describes an evdev device being added to the system.
+  //
+  // Next ID: 2
+  message DeviceAddition {
+    optional EvdevDevice device = 1;
+  }
+
+  // Describes an evdev device being removed from the system.
+  //
+  // Next ID: 1
+  message DeviceRemoval {
+    // Empty — we don't need to record any data other than the device ID for
+    // this event type.
+  }
+}
+
+// The properties of an input device that don't change during the time that it's
+// connected, as well as the current values for all of its axes.
+//
+// Next ID: 13
+message EvdevDevice {
+  // The device's unique ID number. This need not be the number of its
+  // /dev/input/event node.
+  optional uint32 device_id = 1;
+  // The number of the evdev device (i.e. from its /dev/input/eventX node path).
+  optional uint32 device_num = 2;
+
+  // The device's name.
+  optional string name = 3;
+  // The physical path to the device in the system hierarchy.
+  optional string phys = 4;
+  // The unique identification code for the device (if it has one).
+  optional string uniq = 5;
+
+  // Proto version of Linux's struct input_id. Although uint32s are used for the
+  // fields, the kernel uses 16-bit ints so values will be less than 2^16.
+  //
+  // Next ID: 5
+  message Identifier {
+    // The bus that the device is connected to. Values will be one of Linux's
+    // BUS_* constants.
+    optional uint32 bustype = 1;
+    // A number identifying the vendor of the device. Often a USB or Bluetooth
+    // vendor ID, but not always.
+    optional uint32 vendor = 2;
+    optional uint32 product = 3;
+    optional uint32 version = 4;
+  }
+  // The device's ID numbers.
+  optional Identifier id = 6;
+
+  // Proto version of Linux's struct input_absinfo, excluding the value field
+  // (which is tracked elsewhere).
+  //
+  // Next ID: 6
+  message AbsInfo {
+    optional sint32 minimum = 1;
+    optional sint32 maximum = 2;
+    optional int32 fuzz = 3;
+    optional int32 flat = 4;
+    optional int32 resolution = 5;
+  }
+  // A map of information for each of the device's absolute axes. Keys are the
+  // Linux ABS_* constants.
+  map<uint32, AbsInfo> absolute_axis_infos = 7;
+
+  // Bitmask specifying which types of events the device declares.
+  optional bytes ev_bitmask = 8;
+  // A map of bitmasks specifying which axes of each type the device declares.
+  // Keys are the Linux EV_* constants.
+  map<uint32, bytes> event_type_bitmasks = 9;
+  // Bitmask of properties declared by the device.
+  optional bytes prop_bitmask = 10;
+
+  // Contains the current values of all axes of a particular type (e.g. EV_ABS,
+  // EV_KEY, etc.).
+  //
+  // Next ID: 2
+  message AxisMap {
+    // Current values of all axes, other than ABS_MT_* axes (which have multiple
+    // slots), which are kept in abs_mt_states instead.
+    //
+    // The keys are the Linux axis codes, e.g. ABS_* for absolute axes. If there
+    // is no entry for a particular axis, assume that its value is 0.
+    map<uint32, sint32> axis_states = 1;
+  }
+
+  // Current states of device axes.
+  //
+  // The keys are the Linux event type constants (e.g. EV_KEY, EV_ABS, etc.). We
+  // don't need to keep track of states for all axis types, only KEY, SW, LED,
+  // and ABS, so only those will have entries in this map. States for ABS_MT_*
+  // axes (which have multiple slots) will be kept in abs_mt_states instead.
+  map<uint32, AxisMap> axis_states = 11;
+
+  // Contains the current values of a single ABS_MT_* axis across all of its
+  // slots.
+  //
+  // Next ID: 2
+  message SlotValuesMap {
+    // Current values for all slots.
+    //
+    // The keys are the slot numbers. If there is no entry for a particular
+    // slot, assume that its value is 0.
+    map<uint32, sint32> slot_values = 1;
+  }
+
+  // Current states of ABS_MT_* axes other than ABS_MT_SLOT. The keys are the
+  // ABS axis codes.
+  map<uint32, SlotValuesMap> abs_mt_states = 12;
 }
 
 // End of protos/perfetto/trace/evdev.proto
@@ -8350,7 +8767,18 @@ message OneofOptions {
 //
 // See docs/design-docs/extensions.md for more details.
 message ExtensionDescriptor {
-  optional FileDescriptorSet extension_set = 1;
+  oneof descriptor {
+    FileDescriptorSet extension_set = 1;
+
+    // Same as extension_set, but gzip-compressed. This is used by the tracing
+    // service on Android to emit pre-compressed descriptor files from
+    // /etc/tracing_descriptors.gz without decompressing them first.
+    bytes extension_set_gzip = 2;
+  }
+
+  // Optional, for debugging only. The file name or path of the descriptor
+  // source. Can be omitted without affecting functionality.
+  optional string file_name = 3;
 }
 
 // End of protos/perfetto/trace/extension_descriptor.proto
@@ -10187,6 +10615,21 @@ message F2fsGcEndFtraceEvent {
   optional uint32 free_seg = 9;
   optional int32 reserved_seg = 10;
   optional uint32 prefree_seg = 11;
+}
+message F2fsLockElapsedTimeFtraceEvent {
+  optional uint64 dev = 1;
+  optional string comm = 2;
+  optional int32 pid = 3;
+  optional int32 prio = 4;
+  optional int32 ioprio_class = 5;
+  optional int32 ioprio_data = 6;
+  optional uint32 lock_name = 7;
+  optional uint32 is_write = 8;
+  optional uint64 total_time = 9;
+  optional uint64 running_time = 10;
+  optional uint64 runnable_time = 11;
+  optional uint64 io_sleep_time = 12;
+  optional uint64 other_time = 13;
 }
 
 // End of protos/perfetto/trace/ftrace/f2fs.proto
@@ -13201,6 +13644,7 @@ message FtraceEvent {
     FwtpPerfettoSliceFtraceEvent fwtp_perfetto_slice = 600;
     GpuPowerStateFtraceEvent gpu_power_state = 601;
     GramCollisionFtraceEvent gram_collision = 602;
+    F2fsLockElapsedTimeFtraceEvent f2fs_lock_elapsed_time = 603;
   }
 }
 
@@ -15324,28 +15768,10 @@ message TrackEvent {
 
   // New argument types go here :)
 
-  // Extension range for typed events defined externally.
-  // See docs/design-docs/extensions.md for more details.
-  //
-  // Extension support is work-in-progress, in the future the way to reserve a
-  // subrange for a particular project will be described here and in the design
-  // document linked above.
-  //
-  // Contact perfetto-dev@googlegroups.com if you are interested in a subrange
-  // for your project.
-
-  // Extension range reserved for chromium:
-  // https://source.chromium.org/chromium/chromium/src/+/main:base/tracing/protos/chrome_track_event.proto
-  extensions 1000 to 1999;
-  // Extension range reserved for https://b.corp.google.com/issues/301227627.
-  extensions 2000 to 2000;
-  // Extension range reserved for android:
-  // protos/perfetto/trace/android/android_track_event.proto
-  extensions 2001 to 2999;
-  // Extension range for future use.
-  extensions 3000 to 9899;
-  // Reserved for Perfetto unit and integration tests.
-  extensions 9900 to 10000;
+  // Extension range for typed events defined in external projects.
+  // See track_event_extensions.json for the allocation registry and
+  // docs/design-docs/extensions.md for more details.
+  extensions 1000 to 10000;
 
   // ---------------------------------------------------------------------------
   // Deprecated / legacy event fields, which will be removed in the future:
@@ -17117,6 +17543,19 @@ message TestEvent {
     repeated DebugAnnotation debug_annotations = 7;
   }
   optional TestPayload payload = 5;
+
+  // Simple ProtoVm patch and incremental state formats used for integration
+  // testing
+  message ProtoVmPatch {
+    optional string string_to_merge = 1;
+    optional int32 int_to_merge = 2;
+  }
+  message ProtoVmIncrementalState {
+    optional string string_merged = 1;
+    optional int32 int_merged = 2;
+  }
+  optional ProtoVmPatch protovm_patch = 6;
+  optional ProtoVmIncrementalState protovm_incremental_state = 7;
 }
 
 // End of protos/perfetto/trace/test_event.proto
@@ -17875,8 +18314,23 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 125.
+// Next id: 127.
 message TracePacket {
+  // Encapsulates the state and configuration of the ProtoVM instances running
+  // when the trace was snapshotted. This allows TP to re-instantiate the VMs
+  // and use them to inflate patches into full-state packets.
+  // Note: this message can't be defined in a dedicated file because it has a
+  // recursive dependency with TracePacket (see 'state' field below).
+  message ProtoVms {
+    message Instance {
+      optional VmProgram program = 1;
+      optional TracePacket state = 2;
+      optional uint32 memory_limit_kb = 3;
+      repeated int32 producer_id = 4;
+    }
+    repeated Instance instance = 1;
+  }
+
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
   // Android). It can be overridden using a different timestamp_clock_id.
@@ -17947,6 +18401,8 @@ message TracePacket {
     AndroidSystemProperty android_system_property = 86;
     EntityStateResidency entity_state_residency = 91;
     TraceProvenance trace_provenance = 124;
+    ProtoVms protovms = 125;
+    TraceAttributes trace_attributes = 126;
 
     // Only used in profile packets.
     ModuleSymbols module_symbols = 61;

@@ -84,8 +84,6 @@ using CallsiteId = tables::StackProfileCallsiteTable_Id;
 
 using MetadataId = tables::MetadataTable_Id;
 
-using FlamegraphId = tables::ExperimentalFlamegraphTable_Id;
-
 using VulkanAllocId = tables::VulkanMemoryAllocationsTable_Id;
 
 using ProcessMemorySnapshotId = tables::ProcessMemorySnapshotTable_Id;

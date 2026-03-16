@@ -28,18 +28,16 @@ const QUAD_INDICES = new Uint16Array([0, 1, 2, 3]);
 interface RectBatchProgram {
   readonly program: WebGLProgram;
   readonly quadCornerLoc: number;
-  readonly xLoc: number;
-  readonly yLoc: number;
-  readonly wLoc: number;
+  readonly leftLoc: number;
+  readonly topLoc: number;
+  readonly rightLoc: number;
   readonly colorLoc: number;
-  readonly flagsLoc: number;
+  readonly patternLoc: number;
   readonly resolutionLoc: WebGLUniformLocation;
-  readonly viewOffsetLoc: WebGLUniformLocation;
-  readonly viewScaleLoc: WebGLUniformLocation;
-  readonly dataScaleLoc: WebGLUniformLocation;
-  readonly dataOffsetLoc: WebGLUniformLocation;
-  readonly heightLoc: WebGLUniformLocation;
+  readonly dataTransformLoc: WebGLUniformLocation;
+  readonly viewTransformLoc: WebGLUniformLocation;
   readonly clipRectLoc: WebGLUniformLocation;
+  readonly heightLoc: WebGLUniformLocation;
 }
 
 function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
@@ -48,83 +46,73 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
   // - Apply minimum width
   const vsSource = `#version 300 es
     in vec2 a_quadCorner;     // (0,0), (1,0), (0,1), (1,1) for the corners of the rect (per vertex)
-    in float a_x;             // X position in data space (per instance)
-    in float a_y;             // Y position in data space (per instance)
-    in float a_w;             // Width in data space (per instance)
+    in float a_left;          // Left in data space (per instance)
+    in float a_right;         // Right in data space (per instance)
+    in float a_top;           // Top in data space (per instance)
     in uint a_color;          // Packed RGBA color (0xRRGGBBAA) (per instance)
-    in uint a_patterns;       // Bitfield for patterns like hatch/fadeout (e.g., RECT_PATTERN_HATCHED) (per instance)
+    in uint a_pattern;        // Bitfield for patterns like hatch/fadeout (e.g., RECT_PATTERN_HATCHED) (per instance)
     
-    uniform float u_height;   // Rect height in CSS pixels
-
-    // The transform from data space to screen space (CSS pixels).
-    uniform vec2 u_dataScale;
-    uniform vec2 u_dataOffset;
-    
-    // The transform from CSS pixels to real pixels.
-    uniform vec2 u_viewOffset;
-    uniform vec2 u_viewScale;
-
-    // The resolution of the canvas in real pixels (for clip space conversion).
-    uniform vec2 u_resolution;
-
-    // Clip rect in screen space (left, top, right, bottom).
-    uniform vec4 u_clipRect;
+    uniform vec4 u_dataTransform;  // Data space -> CSS pixels (scaleX, scaleY, offsetX, offsetY)
+    uniform vec4 u_viewTransform;  // CSS pixels -> device pixels (scaleX, scaleY, offsetX, offsetY)
+    uniform vec2 u_resolution;     // Canvas size in device pixels
+    uniform vec4 u_clipRect;       // Clip rect in device pixels (LTRB)
+    uniform float u_height;        // Row height in CSS pixels
 
     out vec4 v_color;
     out vec2 v_localPos;
-    flat out uint v_flags;
+    flat out uint v_pattern;
     flat out float v_rectWidth;
 
+    // Minimum width in CSS pixels to ensure visibility
+    const float MIN_WIDTH = 1.0;
+
+    // Transform a LTRB rect through a scale+translate transform.
+    // Transform is vec4(scaleX, scaleY, offsetX, offsetY).
+    vec4 transformRect(vec4 t, vec4 r) {
+      return vec4(r.xy * t.xy + t.zw, r.zw * t.xy + t.zw);
+    }
+
+    // Clamp an LTRB rect to the bounds defined by another LTRB rect, ensuring 
+    // the result is still a valid rect (right >= left, bottom >= top).
+    vec4 clampRect(vec4 r, vec4 clip) {
+      r = clamp(r, clip.xyxy, clip.zwzw);
+      r.zw = max(r.xy, r.zw);
+      return r;
+    }
+
     void main() {
-      // Transform vertex from data space to screen space (CSS pixels)
-      float screenX = a_x * u_dataScale.x + u_dataOffset.x;
-      float screenW = a_w * u_dataScale.x;
+      // Build the rect in data space as a LTRB vec4
+      vec4 rectData = vec4(a_left, a_top, a_right, a_top);
 
-      // Calculate local position for patterns and fadeout in the fragment shader
-      v_localPos = a_quadCorner * vec2(screenW, u_height);
+      // Data space -> CSS pixels
+      vec4 rectCss = transformRect(u_dataTransform, rectData);
 
-      // Limit rects to a minimum of 1px wide in screen space
-      // TODO(stevegolton): This is specific to slice rendering, maybe use a uniform for this threshold?
-      screenW = max(screenW, 1.0);
+      // Apply height in CSS pixel space
+      rectCss.w = rectCss.y + u_height;
 
-      // Apply view transform to get pixel coordinates
-      float pixelX = u_viewOffset.x + screenX * u_viewScale.x;
-      float pixelY = u_viewOffset.y + (a_y * u_dataScale.y + u_dataOffset.y) * u_viewScale.y;
-      float pixelW = screenW * u_viewScale.x;
-      float pixelH = u_height * u_viewScale.y;
+      // Apply minimum width in CSS pixels by adjusting the right edge
+      rectCss.z = max(rectCss.x + MIN_WIDTH, rectCss.z);
 
-      // Clamp rect bounds to clip rect
-      float left = pixelX;
-      float top = pixelY;
-      float right = pixelX + pixelW;
-      float bottom = pixelY + pixelH;
+      // CSS pixels -> device pixels
+      vec4 rect = transformRect(u_viewTransform, rectCss);
 
-      float cLeft = max(left, u_clipRect.x);
-      float cTop = max(top, u_clipRect.y);
-      float cRight = min(right, u_clipRect.z);
-      float cBottom = min(bottom, u_clipRect.w);
+      // Clamp to clip rect
+      rect = clampRect(rect, u_clipRect);
 
-      // Ensure valid rect (zero area if fully clipped)
-      cRight = max(cLeft, cRight);
-      cBottom = max(cTop, cBottom);
+      // Interpolate vertex position within clipped rect
+      vec2 pixelPos = mix(rect.xy, rect.zw, a_quadCorner);
+      vec2 viewScale = u_viewTransform.xy;
 
-      // Interpolate position based on quad corner
-      vec2 pixelPos = vec2(
-        mix(cLeft, cRight, a_quadCorner.x),
-        mix(cTop, cBottom, a_quadCorner.y)
-      );
-
-      vec2 clipSpace = ((pixelPos / u_resolution) * 2.0) - 1.0;
-      gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
-
+      gl_Position = vec4((pixelPos / u_resolution * 2.0 - 1.0) * vec2(1, -1), 0, 1);
+      v_localPos = (pixelPos - rect.xy) / viewScale;
+      v_rectWidth = (rect.z - rect.x) / viewScale.x;
       v_color = vec4(
         float((a_color >> 24) & 0xffu) / 255.0,
         float((a_color >> 16) & 0xffu) / 255.0,
         float((a_color >> 8) & 0xffu) / 255.0,
         float(a_color & 0xffu) / 255.0
       );
-      v_rectWidth = screenW;
-      v_flags = a_patterns;
+      v_pattern = a_pattern;
     }
   `;
 
@@ -132,7 +120,7 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
     precision mediump float;
     in vec4 v_color;
     in vec2 v_localPos;
-    flat in uint v_flags;
+    flat in uint v_pattern;
     flat in float v_rectWidth;
     out vec4 fragColor;
 
@@ -145,14 +133,15 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
     void main() {
       fragColor = v_color;
 
-      if ((v_flags & FLAG_FADEOUT) != 0u) {
+      if ((v_pattern & FLAG_FADEOUT) != 0u) {
         float fadeProgress = v_localPos.x / v_rectWidth;
         float fadeAmount = clamp((fadeProgress - 0.66) / 0.34, 0.0, 1.0);
         fragColor.a *= 1.0 - fadeAmount;
       }
 
-      if ((v_flags & FLAG_HATCHED) != 0u && v_rectWidth >= HATCH_MIN_WIDTH) {
-        float diag = v_localPos.x + v_localPos.y;
+      if ((v_pattern & FLAG_HATCHED) != 0u && v_rectWidth >= HATCH_MIN_WIDTH) {
+        // Use mod on x first to avoid precision loss with large rect widths
+        float diag = mod(v_localPos.x, HATCH_SPACING) + v_localPos.y;
         float stripe = mod(diag, HATCH_SPACING);
         if (stripe < HATCH_WIDTH) {
           fragColor.rgb = mix(fragColor.rgb, vec3(1.0), 0.3);
@@ -169,18 +158,16 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
   return {
     program,
     quadCornerLoc: gl.getAttribLocation(program, 'a_quadCorner'),
-    xLoc: gl.getAttribLocation(program, 'a_x'),
-    yLoc: gl.getAttribLocation(program, 'a_y'),
-    wLoc: gl.getAttribLocation(program, 'a_w'),
+    leftLoc: gl.getAttribLocation(program, 'a_left'),
+    topLoc: gl.getAttribLocation(program, 'a_top'),
+    rightLoc: gl.getAttribLocation(program, 'a_right'),
     colorLoc: gl.getAttribLocation(program, 'a_color'),
-    flagsLoc: gl.getAttribLocation(program, 'a_patterns'),
+    patternLoc: gl.getAttribLocation(program, 'a_pattern'),
     resolutionLoc: getUniformLocation(gl, program, 'u_resolution'),
-    viewOffsetLoc: getUniformLocation(gl, program, 'u_viewOffset'),
-    viewScaleLoc: getUniformLocation(gl, program, 'u_viewScale'),
-    dataScaleLoc: getUniformLocation(gl, program, 'u_dataScale'),
-    dataOffsetLoc: getUniformLocation(gl, program, 'u_dataOffset'),
-    heightLoc: getUniformLocation(gl, program, 'u_height'),
+    dataTransformLoc: getUniformLocation(gl, program, 'u_dataTransform'),
+    viewTransformLoc: getUniformLocation(gl, program, 'u_viewTransform'),
     clipRectLoc: getUniformLocation(gl, program, 'u_clipRect'),
+    heightLoc: getUniformLocation(gl, program, 'u_height'),
   };
 }
 
@@ -197,9 +184,9 @@ export class RectBatch {
   private readonly quadIndexBuffer: WebGLBuffer;
   private readonly colorBuffer: WebGLBuffer;
   private readonly flagsBuffer: WebGLBuffer;
-  private readonly xBuffer: WebGLBuffer;
-  private readonly yBuffer: WebGLBuffer;
-  private readonly wBuffer: WebGLBuffer;
+  private readonly leftBuffer: WebGLBuffer;
+  private readonly topBuffer: WebGLBuffer;
+  private readonly rightBuffer: WebGLBuffer;
 
   constructor(gl: WebGL2RenderingContext) {
     this.gl = gl;
@@ -217,9 +204,9 @@ export class RectBatch {
     // Create dynamic instance buffers
     this.colorBuffer = createBuffer(gl);
     this.flagsBuffer = createBuffer(gl);
-    this.xBuffer = createBuffer(gl);
-    this.yBuffer = createBuffer(gl);
-    this.wBuffer = createBuffer(gl);
+    this.leftBuffer = createBuffer(gl);
+    this.topBuffer = createBuffer(gl);
+    this.rightBuffer = createBuffer(gl);
   }
 
   /**
@@ -232,7 +219,7 @@ export class RectBatch {
     viewTransform: Transform2D,
     clipRect: {left: number; top: number; right: number; bottom: number},
   ): void {
-    const {xs, ys, ws, h, colors, patterns, count} = buffers;
+    const {starts, ends, ys, h, colors, patterns, count} = buffers;
     if (count === 0) return;
 
     const gl = this.gl;
@@ -244,19 +231,20 @@ export class RectBatch {
 
     // Set uniforms
     gl.uniform2f(prog.resolutionLoc, gl.canvas.width, gl.canvas.height);
-    gl.uniform2f(
-      prog.viewOffsetLoc,
-      viewTransform.offsetX,
-      viewTransform.offsetY,
-    );
-    gl.uniform2f(prog.viewScaleLoc, viewTransform.scaleX, viewTransform.scaleY);
-    gl.uniform2f(prog.dataScaleLoc, dataTransform.scaleX, dataTransform.scaleY);
-    gl.uniform2f(
-      prog.dataOffsetLoc,
+    gl.uniform4f(
+      prog.dataTransformLoc,
+      dataTransform.scaleX,
+      dataTransform.scaleY,
       dataTransform.offsetX,
       dataTransform.offsetY,
     );
-    gl.uniform1f(prog.heightLoc, h);
+    gl.uniform4f(
+      prog.viewTransformLoc,
+      viewTransform.scaleX,
+      viewTransform.scaleY,
+      viewTransform.offsetX,
+      viewTransform.offsetY,
+    );
     gl.uniform4f(
       prog.clipRectLoc,
       clipRect.left,
@@ -264,6 +252,7 @@ export class RectBatch {
       clipRect.right,
       clipRect.bottom,
     );
+    gl.uniform1f(prog.heightLoc, h);
 
     // Bind static quad
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadCornerBuffer);
@@ -272,9 +261,9 @@ export class RectBatch {
     gl.vertexAttribDivisor(prog.quadCornerLoc, 0);
 
     // Upload buffers directly - no CPU transformation!
-    this.bindFloatBuffer(prog.xLoc, this.xBuffer, xs, count);
-    this.bindFloatBuffer(prog.yLoc, this.yBuffer, ys, count);
-    this.bindFloatBuffer(prog.wLoc, this.wBuffer, ws, count);
+    this.bindFloatBuffer(prog.leftLoc, this.leftBuffer, starts, count);
+    this.bindFloatBuffer(prog.topLoc, this.topBuffer, ys, count);
+    this.bindFloatBuffer(prog.rightLoc, this.rightBuffer, ends, count);
 
     // Colors and flags
     gl.bindBuffer(gl.ARRAY_BUFFER, this.colorBuffer);
@@ -289,20 +278,20 @@ export class RectBatch {
       patterns.subarray(0, count),
       gl.DYNAMIC_DRAW,
     );
-    gl.enableVertexAttribArray(prog.flagsLoc);
-    gl.vertexAttribIPointer(prog.flagsLoc, 1, gl.UNSIGNED_BYTE, 0, 0);
-    gl.vertexAttribDivisor(prog.flagsLoc, 1);
+    gl.enableVertexAttribArray(prog.patternLoc);
+    gl.vertexAttribIPointer(prog.patternLoc, 1, gl.UNSIGNED_BYTE, 0, 0);
+    gl.vertexAttribDivisor(prog.patternLoc, 1);
 
     // Draw
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
     gl.drawElementsInstanced(gl.TRIANGLE_STRIP, 4, gl.UNSIGNED_SHORT, 0, count);
 
     // Reset divisors
-    gl.vertexAttribDivisor(prog.xLoc, 0);
-    gl.vertexAttribDivisor(prog.yLoc, 0);
-    gl.vertexAttribDivisor(prog.wLoc, 0);
+    gl.vertexAttribDivisor(prog.leftLoc, 0);
+    gl.vertexAttribDivisor(prog.topLoc, 0);
+    gl.vertexAttribDivisor(prog.rightLoc, 0);
     gl.vertexAttribDivisor(prog.colorLoc, 0);
-    gl.vertexAttribDivisor(prog.flagsLoc, 0);
+    gl.vertexAttribDivisor(prog.patternLoc, 0);
   }
 
   private bindFloatBuffer(

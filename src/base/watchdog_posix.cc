@@ -50,6 +50,7 @@ namespace {
 constexpr uint32_t kDefaultPollingInterval = 30 * 1000;
 
 base::CrashKey g_crash_key_reason("wdog_reason");
+base::CrashKey g_crash_key_timer_ms("wdog_ms");
 
 bool IsMultipleOf(uint32_t number, uint32_t divisor) {
   return number >= divisor && number % divisor == 0;
@@ -214,6 +215,7 @@ void Watchdog::SetCpuLimit(uint32_t percentage, uint32_t window_ms) {
 void Watchdog::ThreadMain() {
   // Register crash keys explicitly to avoid running out of slots at crash time.
   g_crash_key_reason.Register();
+  g_crash_key_timer_ms.Register();
 
   base::ScopedFile stat_fd(base::OpenFile("/proc/self/stat", O_RDONLY));
   if (!stat_fd) {
@@ -258,6 +260,7 @@ void Watchdog::ThreadMain() {
 
     // Check if any of the timers expired.
     int tid_to_kill = 0;
+    uint32_t wdog_timer_ms = 0;
     WatchdogCrashReason crash_reason{};
     {
       std::lock_guard<std::mutex> guard(mutex_);
@@ -265,13 +268,16 @@ void Watchdog::ThreadMain() {
         if (now >= timer.deadline) {
           tid_to_kill = timer.thread_id;
           crash_reason = timer.crash_reason;
+          wdog_timer_ms = timer.duration_ms;
           break;
         }
       }
     }
 
-    if (tid_to_kill)
+    if (tid_to_kill) {
+      g_crash_key_timer_ms.Set(static_cast<int>(wdog_timer_ms));
       SerializeLogsAndKillThread(tid_to_kill, crash_reason);
+    }
 
     // Check CPU and memory guardrails (if enabled).
     lseek(stat_fd.get(), 0, SEEK_SET);
@@ -414,6 +420,7 @@ Watchdog::Timer::Timer(Watchdog* watchdog,
   if (!ms)
     return;  // No-op timer created when the watchdog is disabled.
   timer_data_.deadline = GetWallTimeMs() + std::chrono::milliseconds(ms);
+  timer_data_.duration_ms = ms;
   timer_data_.thread_id = GetThreadId();
   timer_data_.crash_reason = crash_reason;
   PERFETTO_DCHECK(watchdog_);

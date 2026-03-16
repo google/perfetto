@@ -16,6 +16,7 @@
 
 #include "perfetto/ext/base/circular_queue.h"
 
+#include <array>
 #include <random>
 
 #include "test/gtest_and_gmock.h"

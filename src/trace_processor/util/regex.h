@@ -122,6 +122,53 @@ class Regex {
 #endif
   }
 
+  // Returns a string with every occurrence of this regexp replaced by a
+  // constant string.
+  std::string Replace(const char* s, const char* replacement) {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    PERFETTO_CHECK(regex_);
+    const auto& rgx = regex_.value();
+    size_t nmatch = rgx.re_nsub + 1;
+    pmatch_.resize(nmatch);
+
+    std::string result;
+    const auto len = strlen(s);
+    result.reserve(len);
+
+    const char* end = s + len;
+    int status = regexec(&rgx, s, nmatch, pmatch_.data(), 0);
+    while (status != REG_NOMATCH) {
+      const auto match_start = size_t(pmatch_[0].rm_so);
+      const auto match_end = size_t(pmatch_[0].rm_eo);
+      if (match_start == match_end) {
+        // Don't enter an infinite loop if someone gives us a regex that
+        // somehow matches "".
+        result.append(replacement);
+        result.append(s, 0, 1);
+        s++;
+        if (s >= end) {
+          result.append(replacement);
+          break;
+        }
+      } else {
+        result.append(s, 0, match_start);
+        result.append(replacement);
+        s = s + match_end;
+      }
+      status = regexec(&rgx, s, nmatch, pmatch_.data(), 0);
+    }
+    result.append(s);
+    return result;
+
+#else
+    base::ignore_result(s, replacement);
+    if (s)
+      PERFETTO_FATAL("Windows regex is not supported.");
+    // Return empty string to fix warnings of no return from non-void.
+    return "";
+#endif
+  }
+
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
  private:
   explicit Regex(regex_t regex) : regex_(regex) {}

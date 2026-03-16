@@ -23,6 +23,8 @@ describe('RECORD_SESSION_SCHEMA', () => {
   it('uses defaults when empty object is provided', () => {
     const result = RECORD_SESSION_SCHEMA.parse({});
 
+    expect(result.kind).toBe('probes');
+    if (result.kind !== 'probes') throw new Error('unexpected kind');
     expect(result.mode).toBe('STOP_WHEN_FULL');
     expect(result.bufSizeKb).toBe(64 * 1024);
     expect(result.durationMs).toBe(10_000);
@@ -30,6 +32,19 @@ describe('RECORD_SESSION_SCHEMA', () => {
     expect(result.fileWritePeriodMs).toBe(2500);
     expect(result.compression).toBe(false);
     expect(result.probes).toEqual({});
+  });
+
+  it('parses custom session config', () => {
+    const result = RECORD_SESSION_SCHEMA.parse({
+      kind: 'custom',
+      customTraceConfigBase64: 'dGVzdA==',
+      customConfigFileName: 'test.textproto',
+    });
+
+    expect(result.kind).toBe('custom');
+    if (result.kind !== 'custom') throw new Error('Expected custom');
+    expect(result.customTraceConfigBase64).toBe('dGVzdA==');
+    expect(result.customConfigFileName).toBe('test.textproto');
   });
 });
 
@@ -42,6 +57,8 @@ describe('SAVED_SESSION_SCHEMA', () => {
     const result = SAVED_SESSION_SCHEMA.parse(input);
 
     expect(result.name).toBe('My Saved Config');
+    expect(result.config.kind).toBe('probes');
+    if (result.config.kind !== 'probes') throw new Error('Expected probes');
     expect(result.config.mode).toBe('STOP_WHEN_FULL');
     expect(result.config.bufSizeKb).toBe(64 * 1024);
     expect(result.config.durationMs).toBe(10_000);
@@ -74,6 +91,10 @@ describe('RECORD_PLUGIN_SCHEMA', () => {
   it('uses RECORD_SESSION_SCHEMA defaults when lastSession is omitted', () => {
     const result = RECORD_PLUGIN_SCHEMA.parse({});
 
+    expect(result.lastSession.kind).toBe('probes');
+    if (result.lastSession.kind !== 'probes') {
+      throw new Error('Expected probes');
+    }
     expect(result.lastSession.mode).toBe('STOP_WHEN_FULL');
     expect(result.lastSession.bufSizeKb).toBe(64 * 1024);
     expect(result.lastSession.durationMs).toBe(10_000);

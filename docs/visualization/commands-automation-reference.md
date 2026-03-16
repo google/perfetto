@@ -441,6 +441,29 @@ Executes a PerfettoSQL query and displays results in a new query tab.
 }
 ```
 
+### Note Commands
+
+#### `dev.perfetto.AddNoteAtTimestamp`
+
+Add a note for a given timestamp in trace clock with specific text.
+
+**Arguments:**
+
+1. `timestamp` (string, required): Timestamp in trace clock (in nanoseconds)
+2. `text` (string, required): Text for the note
+
+**Example:**
+
+```json
+{
+  "id": "dev.perfetto.AddNoteAtTimestamp",
+  "args": [
+    "1771711048774386000",
+    "A specific event happened",
+  ]
+}
+```
+
 ### Macro Commands
 
 Macros are user-defined sequences of commands that execute in order. They

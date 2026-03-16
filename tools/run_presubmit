@@ -347,8 +347,11 @@ def CheckIncludeViolations(changed_files: List[str]) -> List[str]:
     run_command([sys.executable, tool], cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
-  except subprocess.CalledProcessError:
-    return [f'{tool} failed.']
+  except subprocess.CalledProcessError as e:
+    return [
+        f'{tool} failed:\n{e.stdout}'
+        f'\nPlease run python {tool} and fix violations manually.'
+    ]
   return []
 
 
@@ -397,7 +400,8 @@ def CheckIncludePaths(changed_files: List[str]) -> List[str]:
               f'(src/...) ')
 
   return [] if not error_lines else [
-      'Invalid #include paths detected:\n' + '\n'.join(error_lines)
+      'Invalid #include paths detected (fix manually):\n' +
+      '\n'.join(error_lines)
   ]
 
 
@@ -422,8 +426,11 @@ def CheckProtoComments(changed_files: List[str]) -> List[str]:
     run_command([sys.executable, tool], cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
-  except subprocess.CalledProcessError:
-    return [f'{tool} failed']
+  except subprocess.CalledProcessError as e:
+    return [
+        f'{tool} failed:\n{e.stdout}'
+        f'\nPlease run python {tool} and fix violations manually.'
+    ]
   return []
 
 
@@ -664,7 +671,8 @@ def CheckBannedCpp(changed_files: List[str]) -> List[str]:
         for regex_str, message in bad_cpp:
           # Use re.search for checking content
           if re.search(regex_str, line):
-            errors.append(f'Banned pattern:\n  {f_path}:{i+1}: {message}')
+            errors.append(f'Banned pattern (fix manually):\n'
+                          f'  {f_path}:{i+1}: {message}')
   return errors
 
 
@@ -694,8 +702,11 @@ def CheckSqlModules(changed_files: List[str]) -> List[str]:
         cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
-  except subprocess.CalledProcessError:
-    return [f'{tool} failed']
+  except subprocess.CalledProcessError as e:
+    return [
+        f'{tool} failed:\n{e.stdout}'
+        f'\nPlease run python {tool_rel_path} and fix violations manually.'
+    ]
   return []
 
 
@@ -721,8 +732,11 @@ def CheckSqlMetrics(changed_files: List[str]) -> List[str]:
     run_command([sys.executable, tool], cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
-  except subprocess.CalledProcessError:
-    return [f'{tool} failed']
+  except subprocess.CalledProcessError as e:
+    return [
+        f'{tool} failed:\n{e.stdout}'
+        f'\nPlease run python {tool_rel_path} and fix violations manually.'
+    ]
   return []
 
 
@@ -860,8 +874,8 @@ def CheckAbsolutePathsInGn(changed_files: List[str]) -> List[str]:
   if not error_lines:
     return []
   return [
-      'Use relative paths in GN rather than absolute ("//..."): Check these '
-      'lines:\n' + '\n'.join(error_lines)
+      'Use relative paths in GN rather than absolute ("//...") (fix manually).'
+      ' Check these lines:\n' + '\n'.join(error_lines)
   ]
 
 
@@ -876,7 +890,10 @@ def CheckUiImports(changed_files: List[str]) -> List[str]:
   try:
     run_command([sys.executable, tool], cwd=REPO_ROOT, stderr=subprocess.STDOUT)
   except subprocess.CalledProcessError:
-    return [f'Import violations detected in ui/ sources. See {tool_rel_path}']
+    return [
+        f'Import violations detected in ui/ sources.'
+        f' Please run python {tool_rel_path} and fix violations manually.'
+    ]
   return []
 
 
@@ -891,7 +908,10 @@ def CheckUiRatchet(changed_files: List[str]) -> List[str]:
   try:
     run_command([sys.executable, tool], cwd=REPO_ROOT, stderr=subprocess.STDOUT)
   except subprocess.CalledProcessError:
-    return [f'Bad patterns detected in ui/ sources. See {tool_rel_path}']
+    return [
+        f'Bad patterns detected in ui/ sources.'
+        f' Please run python {tool_rel_path} and fix violations manually.'
+    ]
   return []
 
 

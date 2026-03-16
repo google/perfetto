@@ -16,7 +16,7 @@ import m from 'mithril';
 import z from 'zod';
 import {searchSegment} from '../../base/binary_search';
 import {Point2D} from '../../base/geom';
-import {assertTrue, assertUnreachable} from '../../base/logging';
+import {assertTrue, assertUnreachable} from '../../base/assert';
 import {Monitor} from '../../base/monitor';
 import {duration, Time, time} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
@@ -707,7 +707,11 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     return m(
       PopupMenu,
       {
-        trigger: m(Button, {icon: 'show_chart', compact: true}),
+        trigger: m(Button, {
+          className: 'pf-visible-on-hover',
+          icon: 'show_chart',
+          compact: true,
+        }),
       },
       this.getCounterContextMenuItems(),
     );

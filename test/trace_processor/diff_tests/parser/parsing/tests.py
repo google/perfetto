@@ -511,6 +511,7 @@ class Parsing(TestSuite):
                   patches_attempted: 13499
                   v1_patches_succeeded: 1150
                   v2_patches_succeeded: 1150
+                  stats_version: 2
                 }
               }
             }
@@ -529,6 +530,7 @@ class Parsing(TestSuite):
         "traced_buf_v2s_patches_attempted","trace",13499
         "traced_buf_v2s_v1_patches_succeeded","trace",1150
         "traced_buf_v2s_v2_patches_succeeded","trace",1150
+        "traced_buf_v2s_stats_version","trace",2
         """))
 
   # Syscalls

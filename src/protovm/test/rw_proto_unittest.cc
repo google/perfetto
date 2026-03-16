@@ -95,6 +95,12 @@ class RwProtoTest : public ::testing::Test {
     ASSERT_EQ(entry.elements(1).value(), 11);
   }
 
+  std::string SerializeAsString(const RwProto& rw_proto) const {
+    protozero::HeapBuffered<protozero::Message> proto;
+    rw_proto.Serialize(proto.get());
+    return proto.SerializeAsString();
+  }
+
   Allocator allocator_{10 * 1024 * 1024};
   RwProto data_empty_{&allocator_};
   RwProto data_trace_entry_with_two_elements_{&allocator_};
@@ -196,7 +202,7 @@ TEST_F(RwProtoTest, EnterField_FieldNotAvailableGetsCreated) {
   cursor.SetScalar(Scalar::VarInt(10));
 
   protos::TraceEntry entry;
-  entry.ParseFromString(data_empty_.SerializeAsString());
+  entry.ParseFromString(SerializeAsString(data_empty_));
   ASSERT_EQ(entry.elements_size(), 1);
   ASSERT_EQ(entry.elements(0).id(), 10);
 }
@@ -209,7 +215,7 @@ TEST_F(RwProtoTest, EnterField_FieldAvailable) {
   ASSERT_TRUE(cursor.EnterField(protos::Element::kIdFieldNumber).IsOk());
 
   CheckProtoWithTwoElements(
-      data_trace_entry_with_two_elements_.SerializeAsString());
+      SerializeAsString(data_trace_entry_with_two_elements_));
 }
 
 TEST_F(RwProtoTest, EnterField_FieldNotAvailableAsBytesGetsCreated) {
@@ -225,7 +231,7 @@ TEST_F(RwProtoTest, EnterField_FieldNotAvailableAsBytesGetsCreated) {
   cursor.EnterField(protos::Element::kValueFieldNumber);
   cursor.SetScalar(Scalar::VarInt(10));
 
-  CheckProtoWithTwoElements(data_empty_.SerializeAsString());
+  CheckProtoWithTwoElements(SerializeAsString(data_empty_));
 }
 
 TEST_F(RwProtoTest, EnterField_FieldAvailableAsBytes) {
@@ -325,7 +331,7 @@ TEST_F(RwProtoTest, EnterIndexedRepeatedField_FieldNotAvailable_Append) {
     element.SetBytes(AsConstBytes(proto));
   }
 
-  CheckProtoWithTwoElements(data_empty_.SerializeAsString());
+  CheckProtoWithTwoElements(SerializeAsString(data_empty_));
 }
 
 TEST_F(RwProtoTest, EnterIndexedRepeatedField_FieldAvailable) {
@@ -351,7 +357,7 @@ TEST_F(RwProtoTest, EnterIndexedRepeatedField_FieldAvailable) {
     id.SetScalar(Scalar::VarInt(101));
   }
 
-  auto proto = data_trace_entry_with_two_elements_.SerializeAsString();
+  auto proto = SerializeAsString(data_trace_entry_with_two_elements_);
   protos::TraceEntry entry;
   entry.ParseFromString(proto);
   ASSERT_EQ(entry.elements_size(), 2);
@@ -379,7 +385,7 @@ TEST_F(RwProtoTest,
                             .SerializeAsString();
   cursor.SetBytes(AsConstBytes(proto_element1));
 
-  CheckProtoWithTwoElements(data_empty_.SerializeAsString());
+  CheckProtoWithTwoElements(SerializeAsString(data_empty_));
 }
 
 TEST_F(RwProtoTest, IterateRepeatedField_IncompatibleWireType) {
@@ -424,7 +430,7 @@ TEST_F(RwProtoTest, IterateRepeatedField_FieldsAvailable) {
     ASSERT_FALSE(static_cast<bool>(it));
   }
 
-  auto proto = data_trace_entry_with_two_elements_.SerializeAsString();
+  auto proto = SerializeAsString(data_trace_entry_with_two_elements_);
   protos::TraceEntry entry;
   entry.ParseFromString(proto);
 
@@ -463,7 +469,7 @@ TEST_F(RwProtoTest,
   }
 
   protos::TraceEntry entry;
-  entry.ParseFromString(data_empty_.SerializeAsString());
+  entry.ParseFromString(SerializeAsString(data_empty_));
 
   ASSERT_EQ(entry.elements_size(), 1);
   ASSERT_EQ(entry.elements(0).id(), 0);
@@ -490,7 +496,7 @@ TEST_F(RwProtoTest, EnterMappedRepeatedField_FieldNotAvailable) {
   cursor.SetScalar(Scalar::VarInt(100));
 
   protos::TraceEntry entry;
-  entry.ParseFromString(data_empty_.SerializeAsString());
+  entry.ParseFromString(SerializeAsString(data_empty_));
 
   ASSERT_EQ(entry.elements_size(), 1);
   ASSERT_EQ(entry.elements(0).value(), 100);
@@ -509,8 +515,7 @@ TEST_F(RwProtoTest, EnterMappedRepeatedField_FieldAvailable) {
   cursor.SetScalar(Scalar::VarInt(100));
 
   protos::TraceEntry entry;
-  entry.ParseFromString(
-      data_trace_entry_with_two_elements_.SerializeAsString());
+  entry.ParseFromString(SerializeAsString(data_trace_entry_with_two_elements_));
 
   ASSERT_EQ(entry.elements_size(), 2);
   ASSERT_EQ(entry.elements(0).id(), 0);
@@ -536,7 +541,7 @@ TEST_F(RwProtoTest, EnterMappedRepeatedField_FieldAvailableAsBytes) {
   cursor.SetScalar(Scalar::VarInt(100));
 
   protos::TraceEntry entry;
-  entry.ParseFromString(data_empty_.SerializeAsString());
+  entry.ParseFromString(SerializeAsString(data_empty_));
 
   ASSERT_EQ(entry.elements_size(), 2);
   ASSERT_EQ(entry.elements(0).id(), 0);
@@ -579,7 +584,7 @@ TEST_F(RwProtoTest,
   }
 
   protos::TraceEntry entry;
-  entry.ParseFromString(data_empty_.SerializeAsString());
+  entry.ParseFromString(SerializeAsString(data_empty_));
 
   ASSERT_EQ(entry.elements_size(), 2);
   ASSERT_EQ(entry.elements(0).value(), 100);
@@ -609,8 +614,7 @@ TEST_F(RwProtoTest, Delete_RootMessage) {
   ASSERT_TRUE(cursor.Delete().IsOk());
 
   protos::TraceEntry entry;
-  entry.ParseFromString(
-      data_trace_entry_with_two_elements_.SerializeAsString());
+  entry.ParseFromString(SerializeAsString(data_trace_entry_with_two_elements_));
 
   ASSERT_EQ(entry.elements_size(), 0);
 }
@@ -632,8 +636,7 @@ TEST_F(RwProtoTest, Delete_Scalar) {
   }
 
   protos::TraceEntry entry;
-  entry.ParseFromString(
-      data_trace_entry_with_two_elements_.SerializeAsString());
+  entry.ParseFromString(SerializeAsString(data_trace_entry_with_two_elements_));
 
   ASSERT_EQ(entry.elements_size(), 2);
   ASSERT_FALSE(entry.elements(0).has_id());
@@ -653,7 +656,7 @@ TEST_F(RwProtoTest, Delete_Message) {
   cursor.Delete();
 
   protos::TraceEntry entry;
-  entry.ParseFromString(data_empty_.SerializeAsString());
+  entry.ParseFromString(SerializeAsString(data_empty_));
 }
 
 // TODO: deleting an element from an indexed repeated field currently creates a
@@ -666,8 +669,7 @@ TEST_F(RwProtoTest, Delete_IndexedRepeatedField) {
   ASSERT_TRUE(cursor.Delete().IsOk());
 
   protos::TraceEntry entry;
-  entry.ParseFromString(
-      data_trace_entry_with_two_elements_.SerializeAsString());
+  entry.ParseFromString(SerializeAsString(data_trace_entry_with_two_elements_));
 
   ASSERT_EQ(entry.elements_size(), 1);
   ASSERT_EQ(entry.elements(0).id(), 1);
@@ -681,8 +683,7 @@ TEST_F(RwProtoTest, Delete_MappedRepeatedField) {
   ASSERT_TRUE(cursor.Delete().IsOk());
 
   protos::TraceEntry entry;
-  entry.ParseFromString(
-      data_trace_entry_with_two_elements_.SerializeAsString());
+  entry.ParseFromString(SerializeAsString(data_trace_entry_with_two_elements_));
   ASSERT_EQ(entry.elements_size(), 1);
   ASSERT_EQ(entry.elements(0).id(), 1);
   ASSERT_EQ(entry.elements(0).value(), 11);
@@ -700,7 +701,7 @@ TEST_F(RwProtoTest, Merge_EmptySrc) {
   cursor.EnterRepeatedFieldAt(protos::TraceEntry::kElementsFieldNumber, 0);
   ASSERT_TRUE(cursor.Merge(bytes_empty_).IsOk());
   CheckProtoWithTwoElements(
-      data_trace_entry_with_two_elements_.SerializeAsString());
+      SerializeAsString(data_trace_entry_with_two_elements_));
 }
 
 TEST_F(RwProtoTest, Merge_EmptyDst) {
@@ -714,7 +715,7 @@ TEST_F(RwProtoTest, Merge_EmptyDst) {
   ASSERT_TRUE(cursor.Merge(AsConstBytes(proto)).IsOk());
 
   protos::TraceEntry entry;
-  entry.ParseFromString(data_empty_.SerializeAsString());
+  entry.ParseFromString(SerializeAsString(data_empty_));
   ASSERT_EQ(entry.elements_size(), 1);
   ASSERT_EQ(entry.elements(0).id(), 1);
   ASSERT_EQ(entry.elements(0).value(), 11);
@@ -741,7 +742,7 @@ TEST_F(RwProtoTest, Merge_FieldsUnion) {
   }
 
   protos::TraceEntry entry;
-  entry.ParseFromString(data_empty_.SerializeAsString());
+  entry.ParseFromString(SerializeAsString(data_empty_));
   ASSERT_EQ(entry.elements_size(), 1);
   ASSERT_EQ(entry.elements(0).id(), 1);
   ASSERT_EQ(entry.elements(0).value(), 11);
@@ -770,7 +771,7 @@ TEST_F(RwProtoTest, Merge_FieldsReplacement) {
   }
 
   protos::TraceEntry entry;
-  entry.ParseFromString(data_empty_.SerializeAsString());
+  entry.ParseFromString(SerializeAsString(data_empty_));
   ASSERT_EQ(entry.elements_size(), 1);
   ASSERT_EQ(entry.elements(0).id(), 1);
   ASSERT_EQ(entry.elements(0).value(), 11);
@@ -811,7 +812,7 @@ TEST_F(RwProtoTest, Merge_RepeatedField) {
   // check
   {
     protos::TraceEntry entry;
-    entry.ParseFromString(data_empty_.SerializeAsString());
+    entry.ParseFromString(SerializeAsString(data_empty_));
     ASSERT_EQ(entry.elements_size(), 2);
     ASSERT_EQ(entry.elements(0).id(), 1);
     ASSERT_EQ(entry.elements(0).value(), 10);
@@ -835,7 +836,7 @@ TEST_F(RwProtoTest, Merge_RepeatedField) {
   // check
   {
     protos::TraceEntry entry;
-    entry.ParseFromString(data_empty_.SerializeAsString());
+    entry.ParseFromString(SerializeAsString(data_empty_));
     ASSERT_EQ(entry.elements_size(), 1);
     ASSERT_EQ(entry.elements(0).id(), 0);
     ASSERT_EQ(entry.elements(0).value(), 1);
@@ -859,7 +860,7 @@ TEST_F(RwProtoTest, SetBytes_CanHandleEmptyPayload) {
     cursor.SetBytes(AsConstBytes(""));
 
     protos::TraceEntry entry;
-    auto proto = data_empty_.SerializeAsString();
+    auto proto = SerializeAsString(data_empty_);
     entry.ParseFromString(proto);
 
     ASSERT_EQ(entry.elements_size(), 0);
@@ -871,7 +872,7 @@ TEST_F(RwProtoTest, SetBytes_CanHandleEmptyPayload) {
     cursor.SetBytes(AsConstBytes(""));
 
     protos::TraceEntry entry;
-    auto proto = data_empty_.SerializeAsString();
+    auto proto = SerializeAsString(data_empty_);
     entry.ParseFromString(proto);
 
     ASSERT_EQ(entry.elements_size(), 1);
@@ -884,7 +885,7 @@ TEST_F(RwProtoTest, SetBytes_InitializesEmptyField) {
   auto cursor = data_empty_.GetRoot();
   auto proto = SamplePackets{}.TraceEntryWithTwoElements().SerializeAsString();
   ASSERT_TRUE(cursor.SetBytes(AsConstBytes(proto)).IsOk());
-  CheckProtoWithTwoElements(data_empty_.SerializeAsString());
+  CheckProtoWithTwoElements(SerializeAsString(data_empty_));
 }
 
 TEST_F(RwProtoTest, SetBytes_UpdatesExistingField) {
@@ -928,7 +929,7 @@ TEST_F(RwProtoTest, SetBytes_UpdatesExistingField) {
     element.SetBytes(AsConstBytes(proto));
   }
 
-  CheckProtoWithTwoElements(data_empty_.SerializeAsString());
+  CheckProtoWithTwoElements(SerializeAsString(data_empty_));
 }
 
 TEST_F(RwProtoTest, SetScalar_IncompatibleWireType) {
@@ -961,7 +962,7 @@ TEST_F(RwProtoTest, SetScalar_Success) {
   value_fixed64.SetScalar(Scalar::Fixed64(64));
 
   protos::TraceEntry entry;
-  entry.ParseFromString(data_empty_.SerializeAsString());
+  entry.ParseFromString(SerializeAsString(data_empty_));
 
   ASSERT_EQ(entry.elements_size(), 1);
   ASSERT_EQ(entry.elements(0).value(), 10);
@@ -971,7 +972,7 @@ TEST_F(RwProtoTest, SetScalar_Success) {
 
 TEST_F(RwProtoTest, SerializeAsString) {
   CheckProtoWithTwoElements(
-      data_trace_entry_with_two_elements_.SerializeAsString());
+      SerializeAsString(data_trace_entry_with_two_elements_));
 }
 
 }  // namespace test

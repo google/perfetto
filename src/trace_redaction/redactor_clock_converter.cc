@@ -15,24 +15,24 @@
  */
 
 #include "src/trace_redaction/redactor_clock_converter.h"
+
 #include <cinttypes>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <vector>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/public/compiler.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 
 namespace perfetto::trace_redaction {
 
-using ClockId = RedactorClockSynchronizer::ClockId;
-
-RedactorClockSynchronizerListenerImpl::RedactorClockSynchronizerListenerImpl()
-    : trace_time_updates_(0) {}
+RedactorClockSynchronizerListenerImpl::RedactorClockSynchronizerListenerImpl() =
+    default;
 
 base::Status RedactorClockSynchronizerListenerImpl::OnClockSyncCacheMiss() {
   return base::OkStatus();
@@ -42,47 +42,28 @@ base::Status RedactorClockSynchronizerListenerImpl::OnInvalidClockSnapshot() {
   return base::ErrStatus("Invalid clocks snapshot found during redaction");
 }
 
-base::Status RedactorClockSynchronizerListenerImpl::OnTraceTimeClockIdChanged(
-    ClockId) {
-  ++trace_time_updates_;
-  if (PERFETTO_UNLIKELY(trace_time_updates_ > 1)) {
-    // We expect the trace time to remain constant for a trace.
-    return base::ErrStatus(
-        "Redactor clock conversion trace time unexpectedly changed %u times",
-        trace_time_updates_);
-  }
-  return base::OkStatus();
-}
-
-base::Status RedactorClockSynchronizerListenerImpl::OnSetTraceTimeClock(
-    ClockId) {
-  return base::OkStatus();
-}
-
 void RedactorClockSynchronizerListenerImpl::RecordConversionError(
-    Synchronizer::ErrorType,
-    Synchronizer::ClockId,
-    Synchronizer::ClockId,
+    trace_processor::ClockSyncErrorType,
+    trace_processor::ClockId,
+    trace_processor::ClockId,
     int64_t,
     std::optional<size_t>) {
   // Redactor doesn't need to record conversion errors to a database
   // Errors are handled via status returns in ConvertToTrace
 }
 
-bool RedactorClockSynchronizerListenerImpl::IsLocalHost() {
-  // Redactor does not support multi-machine clock conversion
-  return true;
-}
-
 RedactorClockConverter::RedactorClockConverter()
-    : clock_synchronizer_(
+    : trace_time_state_{ClockId::Machine(
+          protos::pbzero::BuiltinClock::BUILTIN_CLOCK_BOOTTIME)},
+      clock_synchronizer_(
+          &trace_time_state_,
           std::make_unique<RedactorClockSynchronizerListenerImpl>()) {}
 
 base::StatusOr<ClockId> RedactorClockConverter::GetTraceClock() {
   if (!primary_trace_clock_.has_value()) {
     // Set the default clocks if none has been provided.
-    RETURN_IF_ERROR(
-        SetTraceClock(protos::pbzero::BuiltinClock::BUILTIN_CLOCK_BOOTTIME));
+    RETURN_IF_ERROR(SetTraceClock(ClockId::Machine(
+        protos::pbzero::BuiltinClock::BUILTIN_CLOCK_BOOTTIME)));
   }
   PERFETTO_DCHECK(primary_trace_clock_.has_value());
   return primary_trace_clock_.value();
@@ -90,7 +71,7 @@ base::StatusOr<ClockId> RedactorClockConverter::GetTraceClock() {
 
 base::Status RedactorClockConverter::SetTraceClock(ClockId clock_id) {
   primary_trace_clock_ = clock_id;
-  RETURN_IF_ERROR(clock_synchronizer_.SetTraceTimeClock(clock_id));
+  trace_time_state_.clock_id = clock_id;
   return base::OkStatus();
 }
 
@@ -116,7 +97,8 @@ base::StatusOr<ClockId> RedactorClockConverter::GetGlobalDefaultDataSourceClock(
     const DataSourceType& clock_type) const {
   switch (clock_type) {
     case DataSourceType::kPerfDataSource:
-      return protos::pbzero::BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW;
+      return ClockId::Machine(
+          protos::pbzero::BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW);
     case DataSourceType::kUnknown:
       // A default needs to be set for the data source if you get here.
       return base::ErrStatus(
@@ -140,7 +122,7 @@ base::StatusOr<ClockId> RedactorClockConverter::GetDataSourceClock(
 }
 
 base::Status RedactorClockConverter::AddClockSnapshot(
-    std::vector<RedactorClockSynchronizer::ClockTimestamp>& clock_snapshot) {
+    std::vector<ClockTimestamp>& clock_snapshot) {
   base::StatusOr<uint32_t> snapshot_id =
       clock_synchronizer_.AddSnapshot(clock_snapshot);
   RETURN_IF_ERROR(snapshot_id.status());
@@ -150,12 +132,17 @@ base::Status RedactorClockConverter::AddClockSnapshot(
 base::StatusOr<uint64_t> RedactorClockConverter::ConvertToTrace(
     ClockId source_clock_id,
     uint64_t source_ts) const {
-  std::optional<int64_t> trace_ts = clock_synchronizer_.ToTraceTime(
-      source_clock_id, static_cast<int64_t>(source_ts));
+  if (!primary_trace_clock_.has_value()) {
+    return base::ErrStatus(
+        "Cannot convert timestamp: no trace clock has been set");
+  }
+  std::optional<int64_t> trace_ts = clock_synchronizer_.Convert(
+      source_clock_id, static_cast<int64_t>(source_ts), *primary_trace_clock_,
+      std::nullopt);
   if (!trace_ts.has_value()) {
-    return base::ErrStatus("Failed to convert timestamp from clock id=%" PRId64
+    return base::ErrStatus("Failed to convert timestamp from clock id=%" PRIu32
                            " to trace time clock",
-                           source_clock_id);
+                           source_clock_id.clock_id);
   }
   return static_cast<uint64_t>(trace_ts.value());
 }

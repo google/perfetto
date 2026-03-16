@@ -16,7 +16,7 @@ import {createStore, Store} from '../../base/store';
 import {exists} from '../../base/utils';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
+import QueryPagePlugin from '../dev.perfetto.QueryPage';
 
 interface State {
   counter: number;
@@ -26,6 +26,7 @@ interface State {
 // permalink.
 export default class implements PerfettoPlugin {
   static readonly id = 'com.example.State';
+  static readonly dependencies = [QueryPagePlugin];
   private store: Store<State> = createStore({counter: 0});
 
   private migrate(initialState: unknown): State {
@@ -51,7 +52,7 @@ export default class implements PerfettoPlugin {
       name: 'Show ExampleState counter',
       callback: () => {
         const counter = this.store.state.counter;
-        addQueryResultsTab(ctx, {
+        ctx.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab({
           query: `SELECT ${counter} as counter;`,
           title: `Show counter ${counter}`,
         });

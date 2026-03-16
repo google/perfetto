@@ -1509,6 +1509,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseFwtpPerfettoCounter(fld_bytes);
         break;
       }
+      case FtraceEvent::kFwtpPerfettoSliceFieldNumber: {
+        ParseFwtpPerfettoSlice(ts, fld_bytes);
+        break;
+      }
       case FtraceEvent::kF2fsWriteCheckpointFieldNumber: {
         ParseF2fsWriteCheckpoint(ts, pid, fld_bytes);
         break;
@@ -4430,6 +4434,31 @@ void FtraceParser::ParseFwtpPerfettoCounter(protozero::ConstBytes blob) {
       kBlueprint, tracks::Dimensions(event.name()));
   context_->event_tracker->PushCounter(static_cast<int64_t>(event.timestamp()),
                                        event.value(), track_id);
+}
+
+void FtraceParser::ParseFwtpPerfettoSlice(int64_t ts,
+                                          protozero::ConstBytes blob) {
+  constexpr auto kSliceBlueprint =
+      tracks::SliceBlueprint("pixel_fwtp_slices", tracks::DimensionBlueprints(),
+                             tracks::DynamicNameBlueprint());
+
+  // Get the trace info.
+  protos::pbzero::FwtpPerfettoSliceFtraceEvent::Decoder event(blob);
+  StringId track_name_id = context_->storage->InternString(event.name());
+  StringId track_category_id =
+      context_->storage->InternString(event.category());
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kSliceBlueprint, tracks::Dimensions(), track_name_id);
+
+  // Add a slice begin or end event. Before beginning a slice, end the slice
+  // first to prevent any open slice existing.
+  if (event.begin()) {
+    context_->slice_tracker->End(ts, track_id);
+    context_->slice_tracker->Begin(ts, track_id, track_category_id,
+                                   track_name_id);
+  } else {
+    context_->slice_tracker->End(ts, track_id);
+  }
 }
 
 void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,

@@ -14,7 +14,7 @@
 
 import {BigintMath} from './bigint_math';
 import {Brand} from './brand';
-import {assertTrue} from './logging';
+import {assertTrue} from './assert';
 
 // The |time| type represents trace time in the same units and domain as trace
 // processor (i.e. typically boot time in nanoseconds, but most of the UI should

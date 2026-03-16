@@ -87,6 +87,9 @@ The following applets are available:
 `traced_probes`
 :    Probes for system-wide tracing (ftrace, /proc pollers).
 
+`traced_relay`
+:    Relays trace data to a remote tracing service.
+
 `traced_perf`
 :    Perf-based CPU profiling data source.
 

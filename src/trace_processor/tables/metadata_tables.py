@@ -34,7 +34,8 @@ from python.generators.trace_processor_table.public import WrappingSqlView
 MACHINE_TABLE = Table(
     python_module=__file__,
     class_name='MachineTable',
-    sql_name='machine',
+    sql_name='__intrinsic_machine',
+    wrapping_sql_view=WrappingSqlView('machine'),
     columns=[
         C('raw_id', CppUint32()),
         C(
@@ -741,7 +742,8 @@ METADATA_TABLE = Table(
 FILEDESCRIPTOR_TABLE = Table(
     python_module=__file__,
     class_name='FiledescriptorTable',
-    sql_name='filedescriptor',
+    sql_name='__intrinsic_filedescriptor',
+    wrapping_sql_view=WrappingSqlView('filedescriptor'),
     columns=[
         C('ufd', CppInt64()),
         C('fd', CppInt64()),
@@ -778,7 +780,8 @@ number.'''
 EXP_MISSING_CHROME_PROC_TABLE = Table(
     python_module=__file__,
     class_name='ExpMissingChromeProcTable',
-    sql_name='experimental_missing_chrome_processes',
+    sql_name='__intrinsic_experimental_missing_chrome_processes',
+    wrapping_sql_view=WrappingSqlView('experimental_missing_chrome_processes'),
     columns=[
         C('upid', CppUint32()),
         C('reliable_from', CppOptional(CppInt64())),
@@ -811,7 +814,8 @@ CPU_FREQ_TABLE = Table(
 CLOCK_SNAPSHOT_TABLE = Table(
     python_module=__file__,
     class_name='ClockSnapshotTable',
-    sql_name='clock_snapshot',
+    sql_name='__intrinsic_clock_snapshot',
+    wrapping_sql_view=WrappingSqlView('clock_snapshot'),
     columns=[
         C(
             'ts',

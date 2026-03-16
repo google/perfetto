@@ -33,19 +33,11 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
 from python.generators.sql_processing.stdlib_parser import parse_all_modules, format_entities
-from python.generators.sql_processing.utils import check_banned_create_table_as
-from python.generators.sql_processing.utils import check_banned_create_view_as
-from python.generators.sql_processing.utils import check_banned_words
-from python.generators.sql_processing.utils import check_banned_drop
-from python.generators.sql_processing.utils import check_banned_include_all
+from python.generators.sql_processing.utils import check_banned_patterns
 from python.generators.sql_processing.utils import is_internal
 from python.generators.sql_processing.stdlib_tags import MODULE_TAGS, VALID_TAGS
 
 # Package name constants
-PKG_COMMON = "common"
-PKG_VIZ = "viz"
-PKG_CHROME = "chrome"
-PKG_ANDROID = "android"
 PKG_PRELUDE = "prelude"
 
 # Frozen set of allowed top-level public packages.
@@ -734,49 +726,7 @@ def main() -> int:
     with open(abs_path, 'r', encoding='utf-8') as f:
       sql = f.read()
 
-    # Check for banned statements
-    lines = [l.strip() for l in sql.split('\n')]
-    for line in lines:
-      if line.startswith('--'):
-        continue
-      if 'run_metric' in line.casefold():
-        errors.append("RUN_METRIC is banned in standard library.")
-      if 'insert into' in line.casefold():
-        errors.append("INSERT INTO table is not allowed in standard library.")
-
-    # Validate includes
-    package = parsed.package_name.lower() if parsed.package_name else ''
-    for include in parsed.includes:
-      include_package = include.package.lower() if include.package else ''
-
-      if include_package == PKG_COMMON:
-        errors.append(
-            "Common module has been deprecated in the standard library. "
-            "Please check `slices.with_context` for a replacement for "
-            "`common.slices` and `time.conversion` for replacement for "
-            "`common.timestamps`")
-
-      if package != PKG_VIZ and include_package == PKG_VIZ:
-        errors.append(
-            f"No modules can depend on '{PKG_VIZ}' outside '{PKG_VIZ}' package."
-        )
-
-      if package == PKG_CHROME and include_package == PKG_ANDROID:
-        errors.append(
-            f"Modules from package '{PKG_CHROME}' can't include '{include.module}' "
-            f"from package '{PKG_ANDROID}'")
-
-      if package == PKG_ANDROID and include_package == PKG_CHROME:
-        errors.append(
-            f"Modules from package '{PKG_ANDROID}' can't include '{include.module}' "
-            f"from package '{PKG_CHROME}'")
-
-    # Add parsing errors and validation errors
-    errors += [
-        *parsed.errors, *check_banned_words(sql),
-        *check_banned_create_table_as(sql), *check_banned_create_view_as(sql),
-        *check_banned_include_all(sql), *check_banned_drop(sql)
-    ]
+    errors += check_banned_patterns(parsed, sql)
 
     if errors:
       sys.stderr.write(f"\nFound {len(errors)} errors in file "

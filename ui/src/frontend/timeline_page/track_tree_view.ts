@@ -36,7 +36,7 @@ import {
 } from '../../base/geom';
 import {HighPrecisionTime} from '../../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
 import {Time} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {
@@ -90,7 +90,7 @@ const WEBGL_RENDERING = featureFlags.register({
   name: 'WebGL rendering',
   description: `Use WebGL for rendering track rectangles. Falls back to
     Canvas 2D when disabled or unavailable.`,
-  defaultValue: false,
+  defaultValue: true,
 });
 
 // Snap-to-boundaries feature constants
@@ -514,26 +514,26 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
 
     // Create buffers for WebGL rendering
     const count = tickPositions.length;
-    const xs = new Float32Array(count);
+    const starts = new Float32Array(count);
+    const ends = new Float32Array(count);
     const ys = new Float32Array(count);
-    const ws = new Float32Array(count);
     const colors = new Uint32Array(count);
     const patterns = new Uint8Array(count);
     const gridColor = cssColorToRgba(COLOR_BORDER_SECONDARY);
 
     for (let i = 0; i < count; i++) {
-      xs[i] = tickPositions[i];
+      starts[i] = tickPositions[i];
+      ends[i] = tickPositions[i] + 1;
       ys[i] = 0;
-      ws[i] = 1;
       colors[i] = gridColor;
       patterns[i] = 0;
     }
 
     renderer.drawRects(
       {
-        xs,
+        starts,
+        ends,
         ys,
-        ws,
         h: timelineRect.height,
         colors,
         patterns,

@@ -28,6 +28,8 @@ source_set("functions") {
     "counter_intervals.h",
     "create_function.cc",
     "create_function.h",
+    "create_intervals.cc",
+    "create_intervals.h",
     "create_view_function.cc",
     "create_view_function.h",
     "dominator_tree.cc",
@@ -101,7 +103,6 @@ source_set("functions") {
     "../../parser",
     "../types",
   ]
-  public_deps = [ ":interface" ]
   if (enable_perfetto_llvm_symbolizer) {
     sources += [
       "symbolize.cc",
@@ -112,19 +113,6 @@ source_set("functions") {
       "../../../util/symbolizer:llvm_symbolizer_c_api",
     ]
   }
-}
-
-source_set("interface") {
-  sources = [
-    "sql_function.cc",
-    "sql_function.h",
-  ]
-  deps = [
-    "../../../../../gn:default_deps",
-    "../../../../../gn:sqlite",
-    "../../../../../include/perfetto/trace_processor:basic_types",
-    "../../../../base",
-  ]
 }
 
 perfetto_tp_tables("tables") {

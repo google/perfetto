@@ -36,7 +36,7 @@ class GraphicsGpuTrace(TestSuite):
         11,10.000000,"Vertex / Second",0,"Number of vertices per second","25/22"
         12,14.000000,"Fragment / Second",0,"Number of fragments per second","26/22"
         14,9.000000,"Triangle Acceleration",1,"Number of triangles per ms-ms","27/21:21"
-        21,15.000000,"Vertex / Second",0,"Number of vertices per second","25/22"
+        21,15.500000,"Vertex / Second",0,"Number of vertices per second","25/22"
         22,21.000000,"Fragment / Second",0,"Number of fragments per second","26/22"
         24,7.000000,"Triangle Acceleration",1,"Number of triangles per ms-ms","27/21:21"
         31,0.000000,"Vertex / Second",0,"Number of vertices per second","25/22"
@@ -122,7 +122,7 @@ class GraphicsGpuTrace(TestSuite):
           "queue 0","queue desc 0",90,5,"stage 0",0,"[NULL]","[NULL]",42,16,"[NULL]",32,"[NULL]",48,"[NULL]",0,0,"[NULL]"
           "queue 0","queue desc 0",100,5,"stage 0",0,"[NULL]","[NULL]",42,16,"[NULL]",16,"[NULL]",16,"command_buffer",0,0,"[NULL]"
           "queue 0","queue desc 0",110,5,"stage 0",0,"[NULL]","[NULL]",42,16,"[NULL]",16,"render_pass",16,"command_buffer",0,0,"[NULL]"
-          "queue 0","queue desc 0",120,5,"stage 0",0,"[NULL]","[NULL]",42,16,"framebuffer",16,"render_pass",16,"command_buffer",0,0,"[NULL]"
+          "queue 0","queue desc 0",120,5,"stage 0",0,"correlation_id","rp:#42",42,16,"framebuffer",16,"render_pass",16,"command_buffer",0,0,"[NULL]"
           "queue 0","queue desc 0",130,5,"stage 0",0,"[NULL]","[NULL]",42,16,"renamed_buffer",0,"[NULL]",0,"[NULL]",0,0,"[NULL]"
           "Unknown GPU Queue 4294967295","[NULL]",140,5,"render stage(18446744073709551615)",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,4294967295,"[NULL]"
           "queue 0","queue desc 0",150,5,"stage 0",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0,"0"
@@ -195,6 +195,9 @@ class GraphicsGpuTrace(TestSuite):
           depth,
           s.context_id,
           command_buffer,
+          extract_arg(s.arg_set_id, 'command_buffers[0]') as cb0,
+          extract_arg(s.arg_set_id, 'command_buffers[1]') as cb1,
+          extract_arg(s.arg_set_id, 'command_buffers[2]') as cb2,
           submission_id,
           extract_arg(s.arg_set_id, 'tid') as tid,
           extract_arg(s.arg_set_id, 'pid') as pid
@@ -203,9 +206,9 @@ class GraphicsGpuTrace(TestSuite):
         ORDER BY ts;
         """,
         out=Csv('''
-          "track_name","track_desc","ts","dur","slice_name","depth","context_id","command_buffer","submission_id","tid","pid"
-          "Vulkan Events","[NULL]",10,2,"vkQueueSubmit",0,"[NULL]",100,1,43,42
-          "Vulkan Events","[NULL]",20,2,"vkQueueSubmit",0,"[NULL]",200,2,45,44
+          "track_name","track_desc","ts","dur","slice_name","depth","context_id","command_buffer","cb0","cb1","cb2","submission_id","tid","pid"
+          "Vulkan Events","[NULL]",10,2,"vkQueueSubmit",0,"[NULL]",100,100,"[NULL]","[NULL]",1,43,42
+          "Vulkan Events","[NULL]",20,2,"vkQueueSubmit",0,"[NULL]",200,200,300,400,2,45,44
         '''))
 
   def test_gpu_log(self):

@@ -201,6 +201,11 @@
         font-size: smaller;
       }
 
+      .pf-omnibox__source {
+        font-size: smaller;
+        flex-shrink: 0;
+      }
+
       &:hover {
         background-color: color_hover(transparent);
       }

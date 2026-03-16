@@ -196,7 +196,8 @@ INPUTMETHOD_SERVICE_TABLE = Table(
 SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE = Table(
     python_module=__file__,
     class_name='SurfaceFlingerLayersSnapshotTable',
-    sql_name='surfaceflinger_layers_snapshot',
+    sql_name='__intrinsic_surfaceflinger_layers_snapshot',
+    wrapping_sql_view=WrappingSqlView('surfaceflinger_layers_snapshot'),
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C(
@@ -265,7 +266,8 @@ SURFACE_FLINGER_DISPLAY_TABLE = Table(
 SURFACE_FLINGER_LAYER_TABLE = Table(
     python_module=__file__,
     class_name='SurfaceFlingerLayerTable',
-    sql_name='surfaceflinger_layer',
+    sql_name='__intrinsic_surfaceflinger_layer',
+    wrapping_sql_view=WrappingSqlView('surfaceflinger_layer'),
     columns=[
         C('snapshot_id', CppTableId(SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE)),
         C(
@@ -355,7 +357,8 @@ WINSCOPE_FILL_REGION_TABLE = Table(
 SURFACE_FLINGER_TRANSACTIONS_TABLE = Table(
     python_module=__file__,
     class_name='SurfaceFlingerTransactionsTable',
-    sql_name='surfaceflinger_transactions',
+    sql_name='__intrinsic_surfaceflinger_transactions',
+    wrapping_sql_view=WrappingSqlView('surfaceflinger_transactions'),
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C(
@@ -577,7 +580,8 @@ VIEWCAPTURE_INTERNED_DATA_TABLE = Table(
 WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
     python_module=__file__,
     class_name='WindowManagerShellTransitionsTable',
-    sql_name='window_manager_shell_transitions',
+    sql_name='__intrinsic_window_manager_shell_transitions',
+    wrapping_sql_view=WrappingSqlView('window_manager_shell_transitions'),
     columns=[
         C('ts', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
         C('transition_id', CppInt64()),
@@ -613,6 +617,21 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
         ),
         C(
             'shell_abort_time_ns',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'wm_abort_time_ns',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'merge_time_ns',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'create_time_ns',
             CppOptional(CppInt64()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
@@ -664,6 +683,12 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
                 'Transition finish time',
             'shell_abort_time_ns':
                 'Transition shell abort time',
+            'wm_abort_time_ns':
+                'Transition wm abort time',
+            'merge_time_ns':
+                'Transition merge time',
+            'create_time_ns':
+                'Transition create time',
             'handler':
                 'Handler id',
             'status':
@@ -679,7 +704,9 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
 WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE = Table(
     python_module=__file__,
     class_name='WindowManagerShellTransitionHandlersTable',
-    sql_name='window_manager_shell_transition_handlers',
+    sql_name='__intrinsic_window_manager_shell_transition_handlers',
+    wrapping_sql_view=WrappingSqlView(
+        'window_manager_shell_transition_handlers'),
     columns=[
         C('handler_id', CppInt64()),
         C('handler_name', CppString()),
@@ -707,14 +734,43 @@ WINDOW_MANAGER_SHELL_TRANSITION_PARTICIPANTS_TABLE = Table(
         C('transition_id', CppInt64()),
         C('layer_id', CppOptional(CppUint32())),
         C('window_id', CppOptional(CppUint32())),
+        C('mode', CppOptional(CppUint32())),
+        C('flags', CppOptional(CppUint32())),
+        C('start_display_id', CppOptional(CppUint32())),
+        C('end_display_id', CppOptional(CppUint32())),
+        C('start_rotation', CppOptional(CppUint32())),
+        C('end_rotation', CppOptional(CppUint32())),
+        C('start_abs_bounds_rect_id',
+          CppOptional(CppTableId(WINSCOPE_RECT_TABLE))),
+        C('end_abs_bounds_rect_id',
+          CppOptional(CppTableId(WINSCOPE_RECT_TABLE))),
     ],
     tabledoc=TableDoc(
         doc='Window Manager Shell Transition Participants',
         group='Winscope',
         columns={
-            'transition_id': 'Transition id',
-            'layer_id': 'Id of layer participant',
-            'window_id': 'Id of window participant',
+            'transition_id':
+                'Transition id',
+            'layer_id':
+                'Id of layer participant',
+            'window_id':
+                'Id of window participant',
+            'mode':
+                'Transition mode of the participant',
+            'flags':
+                'Flags of the participant',
+            'start_display_id':
+                'Display id the change is transitioning on before the transition',
+            'end_display_id':
+                'Display id the change is transitioning on after the transition',
+            'start_rotation':
+                'Rotation of the change before the transition',
+            'end_rotation':
+                'Rotation of the change after the transition',
+            'start_abs_bounds_rect_id':
+                'Absolute screen bounds of the change before the transition',
+            'end_abs_bounds_rect_id':
+                'Absolute screen bounds of the change after the transition',
         }))
 
 WINDOW_MANAGER_SHELL_TRANSITION_PROTOS_TABLE = Table(
@@ -876,7 +932,8 @@ WINDOW_MANAGER_WINDOW_CONTAINER_TABLE = Table(
 PROTOLOG_TABLE = Table(
     python_module=__file__,
     class_name='ProtoLogTable',
-    sql_name='protolog',
+    sql_name='__intrinsic_protolog',
+    wrapping_sql_view=WrappingSqlView('protolog'),
     columns=[
         C(
             'ts',

@@ -35,6 +35,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/core/dataframe/dataframe_register_cache.h"
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/interpreter/bytecode_builder.h"
@@ -76,16 +77,6 @@ struct RegisterInit {
   uint16_t pad_ = 0;          // Explicit trailing padding
 };
 static_assert(std::is_trivially_copyable_v<RegisterInit>);
-
-// Result of applying filters via the static Filter() method.
-// Contains both the filtered indices register and the RegisterInit specs
-// needed to initialize storage registers before bytecode execution.
-struct FilterResult {
-  std::variant<interpreter::RwHandle<Range>,
-               interpreter::RwHandle<Span<uint32_t>>>
-      indices;
-  base::SmallVector<RegisterInit, 16> register_inits;
-};
 
 // A QueryPlan encapsulates all the information needed to execute a query,
 // including the bytecode instructions and interpreter configuration.
@@ -228,10 +219,6 @@ struct QueryPlanImpl {
       const Column* const* columns,
       const Index* indexes);
 
-  // Convenience overload that extracts pointers from a Dataframe.
-  static interpreter::RegValue GetRegisterInitValue(const RegisterInit& init,
-                                                    const Dataframe& df);
-
   ExecutionParams params;
   interpreter::BytecodeVector bytecode;
   base::SmallVector<uint32_t, 24> col_to_output_offset;
@@ -260,28 +247,6 @@ class QueryPlanBuilder {
       const std::vector<SortSpec>& sort_specs,
       const LimitSpec& limit_spec,
       uint64_t cols_used);
-
-  // Applies filter constraints to an existing BytecodeBuilder.
-  // This is useful for callers (like TreeTransformer) that want to reuse
-  // the filtering logic without building a full query plan.
-  //
-  // Parameters:
-  //   builder: The BytecodeBuilder to emit bytecode into
-  //   scope_id: Caller-managed cache scope for column register caching
-  //   input_indices: Input indices to filter
-  //   df: The dataframe to filter
-  //   specs: Filter specifications (may be reordered)
-  //
-  // Returns a FilterResult containing:
-  //   - The filtered indices register
-  //   - RegisterInit specs needed to initialize storage registers
-  // Cost tracking is done internally and discarded at end of call.
-  static base::StatusOr<FilterResult> Filter(
-      interpreter::BytecodeBuilder& builder,
-      uint32_t scope_id,
-      IndicesReg input_indices,
-      const Dataframe& df,
-      std::vector<FilterSpec>& specs);
 
  private:
   // Indicates that the bytecode does not change the estimated or maximum number
@@ -318,9 +283,9 @@ class QueryPlanBuilder {
                                         LimitOffsetRowCount>;
 
   // Constructs a builder for the given indices and columns.
-  // scope_id is used for caching column/index registers in the BytecodeBuilder.
+  // cache is used for caching column/index registers.
   QueryPlanBuilder(interpreter::BytecodeBuilder& builder,
-                   uint32_t scope_id,
+                   DataframeRegisterCache& cache,
                    IndicesReg indices,
                    uint32_t row_count,
                    const std::vector<std::shared_ptr<Column>>& columns,
@@ -460,6 +425,9 @@ class QueryPlanBuilder {
   interpreter::RwHandle<Span<uint32_t>> GetOrCreateScratchSpanRegister(
       uint32_t size);
 
+  // Alias for scratch register type.
+  using Scratch = interpreter::BytecodeBuilder::ScratchRegisters;
+
   // Parameters for conversion to row layout.
   struct RowLayoutParams {
     // The column to be copied.
@@ -508,8 +476,11 @@ class QueryPlanBuilder {
   // and scratch management.
   interpreter::BytecodeBuilder& builder_;
 
-  // Scope ID for caching column/index registers across Filter() calls.
-  uint32_t scope_id_;
+  // Register cache for caching column/index registers across Filter() calls.
+  DataframeRegisterCache& cache_;
+
+  // Last scratch registers returned by GetOrCreateScratchSpanRegister.
+  std::optional<Scratch> scratch_;
 };
 
 }  // namespace perfetto::trace_processor::core::dataframe

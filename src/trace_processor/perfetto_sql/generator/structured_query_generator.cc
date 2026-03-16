@@ -1196,26 +1196,19 @@ base::StatusOr<std::string> GeneratorImpl::CreateSlices(
   std::string starts_table = NestedSource(create_slices.starts_query());
   std::string ends_table = NestedSource(create_slices.ends_query());
 
-  // Build the SQL to create slices
-  // For each start, find the first end that comes after it
+  // Reference the intervals.create_intervals module which contains
+  // _interval_create
+  referenced_modules_.Insert("intervals.create_intervals", nullptr);
+
+  // Use _interval_create! macro which delegates to
+  // __intrinsic_interval_create, an O(n+m) two-pointer C++ implementation.
+  // The macro expects inputs with a `ts` column, so we rename if needed.
   return base::StackString<1024>(
-             R"(
-(WITH starts AS (SELECT * FROM %s),
-     ends AS (SELECT * FROM %s),
-     matched AS (
-       SELECT
-         starts.%s AS start_ts,
-         (SELECT MIN(ends.%s) FROM ends WHERE ends.%s > starts.%s) AS end_ts
-       FROM starts
-     )
-SELECT
-  start_ts AS ts,
-  end_ts - start_ts AS dur
-FROM matched
-WHERE end_ts IS NOT NULL)
-)",
-             starts_table.c_str(), ends_table.c_str(), starts_ts_col.c_str(),
-             ends_ts_col.c_str(), ends_ts_col.c_str(), starts_ts_col.c_str())
+             "(SELECT * FROM _interval_create!("
+             "(SELECT %s AS ts FROM %s), "
+             "(SELECT %s AS ts FROM %s)))",
+             starts_ts_col.c_str(), starts_table.c_str(), ends_ts_col.c_str(),
+             ends_table.c_str())
       .ToStdString();
 }
 
@@ -1691,15 +1684,27 @@ base::StatusOr<std::string> StructuredQueryGenerator::GenerateById(
 base::StatusOr<std::string> StructuredQueryGenerator::AddQuery(
     const uint8_t* data,
     size_t size) {
-  protozero::ProtoDecoder decoder(data, size);
-  auto field = decoder.FindField(
-      protos::pbzero::PerfettoSqlStructuredQuery::kIdFieldNumber);
-  if (!field) {
+  StructuredQuery::Decoder decoder(data, size);
+  if (!decoder.has_id()) {
     return base::ErrStatus(
         "Unable to find id for shared query: all shared queries must have an "
         "id specified");
   }
-  std::string id = field.as_std_string();
+  std::string id = decoder.id().ToStdString();
+
+  // Extract module references so ComputeReferencedModules() returns them
+  // before Generate() is called. This ensures PrepareGenerator can include
+  // modules before materialization.
+  for (auto it = decoder.referenced_modules(); it; ++it) {
+    referenced_modules_.Insert(it->as_std_string(), nullptr);
+  }
+  if (decoder.has_table()) {
+    StructuredQuery::Table::Decoder table(decoder.table());
+    if (table.module_name().size > 0) {
+      referenced_modules_.Insert(table.module_name().ToStdString(), nullptr);
+    }
+  }
+
   auto ptr = std::make_unique<uint8_t[]>(size);
   memcpy(ptr.get(), data, size);
   auto [it, inserted] =

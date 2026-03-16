@@ -33,7 +33,7 @@ import m from 'mithril';
 import {DisposableStack} from '../base/disposable_stack';
 import {findRef, toHTMLElement} from '../base/dom_utils';
 import {Rect2D, Size2D} from '../base/geom';
-import {assertExists} from '../base/logging';
+import {assertExists} from '../base/assert';
 import {VirtualCanvas} from '../base/virtual_canvas';
 import {WebGLRenderer} from '../base/gl/webgl_renderer';
 import {Canvas2DRenderer} from '../base/canvas2d_renderer';
@@ -47,6 +47,9 @@ const CANVAS_TOLERANCE_PX = 100;
 export interface VirtualOverlayCanvasDrawContext {
   // Canvas rendering context.
   readonly ctx: CanvasRenderingContext2D;
+
+  // The virtual canvas DOM element.
+  readonly dom: Element;
 
   // The size of the virtual canvas element.
   readonly virtualCanvasSize: Size2D;
@@ -127,6 +130,7 @@ export class VirtualOverlayCanvas
   private attrs?: VirtualOverlayCanvasAttrs;
   private webglCanvas?: HTMLCanvasElement;
   private webglRenderer?: WebGLRenderer;
+  private dom?: Element;
 
   view({attrs, children}: m.CVnode<VirtualOverlayCanvasAttrs>) {
     this.attrs = attrs;
@@ -162,6 +166,7 @@ export class VirtualOverlayCanvas
   }
 
   oncreate({attrs, dom}: m.CVnodeDOM<VirtualOverlayCanvasAttrs>) {
+    this.dom = dom;
     const canvasContainerElement = toHTMLElement(
       assertExists(findRef(dom, CANVAS_CONTAINER_REF)),
     );
@@ -271,6 +276,8 @@ export class VirtualOverlayCanvas
   private redrawCanvas() {
     const ctx = assertExists(this.ctx);
     const virtualCanvas = assertExists(this.virtualCanvas);
+    const attrs = assertExists(this.attrs);
+    const containerElement = assertExists(this.dom);
 
     // Create the appropriate renderer: WebGLRenderer if available, otherwise
     // Canvas2DRenderer as fallback.
@@ -292,7 +299,8 @@ export class VirtualOverlayCanvas
     });
 
     // Call the user-provided draw callback to render into the canvas
-    assertExists(this.attrs).onCanvasRedraw?.({
+    attrs.onCanvasRedraw?.({
+      dom: containerElement,
       ctx,
       virtualCanvasSize: virtualCanvas.size,
       canvasRect: virtualCanvas.canvasRect,

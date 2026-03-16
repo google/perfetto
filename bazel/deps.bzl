@@ -74,14 +74,6 @@ def perfetto_deps():
 
     _add_repo_if_not_existing(
         new_git_repository,
-        name = "perfetto_dep_jsoncpp",
-        remote = "https://github.com/open-source-parsers/jsoncpp",
-        commit = "6aba23f4a8628d599a9ef7fa4811c4ff6e4070e2",  # v1.9.3
-        build_file = "//bazel:jsoncpp.BUILD",
-    )
-
-    _add_repo_if_not_existing(
-        new_git_repository,
         name = "perfetto_dep_expat",
         remote = "https://github.com/libexpat/libexpat",
         commit = "fa75b96546c069d17b8f80d91e0f4ef0cde3790d",  # R_2_6_2

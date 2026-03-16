@@ -88,6 +88,9 @@ StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
     jank_reasons.emplace_back("Display not ON");
   if (jank_type & FrameTimelineEvent::JANK_DISPLAY_MODE_CHANGE_IN_PROGRESS)
     jank_reasons.emplace_back("ModeChange in progress");
+  if (jank_type &
+      FrameTimelineEvent::JANK_DISPLAY_POWER_MODE_CHANGE_IN_PROGRESS)
+    jank_reasons.emplace_back("PowerModeChange in progress");
 
   std::string jank_str(
       std::accumulate(jank_reasons.begin(), jank_reasons.end(), std::string(),
@@ -233,10 +236,8 @@ FrameTimelineEventParser::FrameTimelineEventParser(
           context->storage->InternString("Buffer Stuffing")),
       jank_tag_sf_stuffing_id_(
           context->storage->InternString("SurfaceFlinger Stuffing")),
-      jank_tag_none_animating_id_(
-          context->storage->InternString("Non Animating")),
-      jank_tag_display_not_on_id_(
-          context->storage->InternString("Display not ON")) {}
+      jank_tag_none_perceivable_id_(
+          context->storage->InternString("Non-perceivable Jank")) {}
 
 void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(int64_t timestamp,
                                                               ConstBytes blob) {
@@ -276,10 +277,11 @@ StringId FrameTimelineEventParser::CalculateDisplayFrameJankTag(
     jank_tag = jank_tag_sf_stuffing_id_;
   } else if (jank_type == FrameTimelineEvent::JANK_DROPPED) {
     jank_tag = jank_tag_dropped_id_;
-  } else if (jank_type == FrameTimelineEvent::JANK_NON_ANIMATING) {
-    jank_tag = jank_tag_none_animating_id_;
-  } else if (jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON) {
-    jank_tag = jank_tag_display_not_on_id_;
+  } else if (jank_type == FrameTimelineEvent::JANK_NON_ANIMATING ||
+             jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON ||
+             jank_type == FrameTimelineEvent::
+                              JANK_DISPLAY_POWER_MODE_CHANGE_IN_PROGRESS) {
+    jank_tag = jank_tag_none_perceivable_id_;
   } else {
     jank_tag = jank_tag_none_id_;
   }
@@ -473,10 +475,11 @@ StringId FrameTimelineEventParser::CalculateSurfaceFrameJankTag(
   } else if (present_type_opt.has_value() &&
              *present_type_opt == FrameTimelineEvent::PRESENT_DROPPED) {
     jank_tag = jank_tag_dropped_id_;
-  } else if (jank_type == FrameTimelineEvent::JANK_NON_ANIMATING) {
-    jank_tag = jank_tag_none_animating_id_;
-  } else if (jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON) {
-    jank_tag = jank_tag_display_not_on_id_;
+  } else if (jank_type == FrameTimelineEvent::JANK_NON_ANIMATING ||
+             jank_type == FrameTimelineEvent::JANK_DISPLAY_NOT_ON ||
+             jank_type == FrameTimelineEvent::
+                              JANK_DISPLAY_POWER_MODE_CHANGE_IN_PROGRESS) {
+    jank_tag = jank_tag_none_perceivable_id_;
   } else {
     jank_tag = jank_tag_none_id_;
   }
