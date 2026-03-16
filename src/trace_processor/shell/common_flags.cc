@@ -50,33 +50,34 @@ namespace perfetto::trace_processor::shell {
 
 namespace {
 
-void PrintFlagList(const std::vector<FlagSpec>& flags) {
+void PrintFlagList(FILE* out, const std::vector<FlagSpec>& flags) {
   for (const auto& f : flags) {
     if (f.short_name) {
-      fprintf(stderr, "  -%c, --%-24s %s\n", f.short_name, f.long_name, f.help);
+      fprintf(out, "  -%c, --%-24s %s\n", f.short_name, f.long_name, f.help);
     } else {
-      fprintf(stderr, "      --%-24s %s\n", f.long_name, f.help);
+      fprintf(out, "      --%-24s %s\n", f.long_name, f.help);
     }
   }
 }
 
 }  // namespace
 
-void PrintSubcommandUsage(const char* argv0, Subcommand* cmd) {
-  fprintf(stderr, "Usage: %s %s [FLAGS] <trace_file> [SQL]\n\n", argv0,
-          cmd->name());
-  fprintf(stderr, "%s\n\n", cmd->description());
+void PrintSubcommandUsage(const char* argv0, Subcommand* cmd, FILE* out) {
+  fprintf(out, "Usage: %s %s [FLAGS] %s\n\n", argv0, cmd->name(),
+          cmd->usage_args());
+  fprintf(out, "%s\n\n", cmd->description());
+  fprintf(out, "%s\n\n", cmd->detailed_help());
 
   auto sub_flags = cmd->GetFlags();
   if (!sub_flags.empty()) {
-    fprintf(stderr, "Subcommand flags:\n");
-    PrintFlagList(sub_flags);
-    fprintf(stderr, "\n");
+    fprintf(out, "Subcommand flags:\n");
+    PrintFlagList(out, sub_flags);
+    fprintf(out, "\n");
   }
 
   GlobalOptions dummy;
-  fprintf(stderr, "Global flags:\n");
-  PrintFlagList(GetGlobalFlagSpecs(&dummy));
+  fprintf(out, "Global flags:\n");
+  PrintFlagList(out, GetGlobalFlagSpecs(&dummy));
 }
 
 std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts) {
