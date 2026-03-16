@@ -21,7 +21,11 @@ import {
 } from '../../query_node';
 import {Checkbox} from '../../../../widgets/checkbox';
 import {TextInput} from '../../../../widgets/text_input';
-import {ColumnInfo, newColumnInfoList} from '../column_info';
+import {
+  ColumnInfo,
+  legacyDeserializeType,
+  newColumnInfoList,
+} from '../column_info';
 import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
 import protos from '../../../../protos';
 import {NodeIssues} from '../node_issues';
@@ -127,7 +131,7 @@ export class ModifyColumnsNode implements QueryNode {
       selectedColumns: serializedState.selectedColumns.map((c) => ({
         name: c.name,
         checked: c.checked,
-        column: {name: c.name, type: c.type},
+        column: {name: c.name, type: legacyDeserializeType(c.type)},
         alias: c.alias,
         typeUserModified: c.typeUserModified,
       })),

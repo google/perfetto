@@ -79,6 +79,10 @@
       font-weight: 500;
     }
 
+    .pf-importance-core {
+      background-color: var(--pf-color-primary);
+    }
+
     .pf-importance-high {
       background-color: var(--pf-color-success);
     }

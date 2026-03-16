@@ -16,7 +16,11 @@ import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {extractBrushRange, formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
-import {buildChartOption, buildLegendOption} from './chart_option_builder';
+import {
+  buildChartOption,
+  buildLegendOption,
+  buildSelectionMarkArea,
+} from './chart_option_builder';
 
 /**
  * A single data point in a line chart series.
@@ -75,6 +79,13 @@ export interface LineChartAttrs {
    * Called with the selected X range.
    */
   readonly onBrush?: (range: {start: number; end: number}) => void;
+
+  /**
+   * Selection range to highlight on the chart. When provided, a shaded
+   * region is drawn over the specified X range. The consumer controls this
+   * state — typically by feeding the `onBrush` output back in.
+   */
+  readonly selection?: {readonly start: number; readonly end: number};
 
   /**
    * Fill parent container. Defaults to false.
@@ -203,7 +214,32 @@ function buildLineOption(
 
   const displayLegend = showLegend ?? data.series.length > 1;
 
-  const series = buildLineSeries(data, stacked, lineWidth, showPoints);
+  const series = data.series.map((s, i) => {
+    const base: Record<string, unknown> = {
+      type: 'line',
+      name: s.name,
+      data: s.points.map((p) => [p.x, p.y]),
+      lineStyle:
+        s.color !== undefined
+          ? {width: lineWidth, color: s.color}
+          : {width: lineWidth},
+      itemStyle: s.color !== undefined ? {color: s.color} : undefined,
+      showSymbol: showPoints,
+      symbolSize: 6,
+      triggerLineEvent: true,
+      emphasis: {focus: 'series', itemStyle: {borderWidth: 2}},
+      stack: stacked ? 'total' : undefined,
+      areaStyle: stacked ? {} : undefined,
+    };
+
+    // Render selection highlight on the first series only.
+    if (i === 0 && attrs.selection !== undefined) {
+      base.markArea = buildSelectionMarkArea([
+        [{xAxis: attrs.selection.start}, {xAxis: attrs.selection.end}],
+      ]);
+    }
+    return base;
+  });
 
   const option = buildChartOption({
     grid: {
@@ -288,32 +324,4 @@ function buildLineEventHandlers(
       },
     },
   ];
-}
-
-/**
- * Build ECharts series configs. When stacked, aligns all series to
- * shared x-values and uses ECharts native stack + areaStyle.
- */
-function buildLineSeries(
-  data: LineChartData,
-  stacked: boolean,
-  lineWidth: number,
-  showPoints: boolean,
-): Array<Record<string, unknown>> {
-  return data.series.map((s) => ({
-    type: 'line',
-    name: s.name,
-    data: s.points.map((p) => [p.x, p.y]),
-    lineStyle:
-      s.color !== undefined
-        ? {width: lineWidth, color: s.color}
-        : {width: lineWidth},
-    itemStyle: s.color !== undefined ? {color: s.color} : undefined,
-    showSymbol: showPoints,
-    symbolSize: 6,
-    triggerLineEvent: true,
-    emphasis: {focus: 'series', itemStyle: {borderWidth: 2}},
-    stack: stacked ? 'total' : undefined,
-    areaStyle: stacked ? {} : undefined,
-  }));
 }

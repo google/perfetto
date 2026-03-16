@@ -91,7 +91,7 @@ export interface SqlTable {
   readonly includeKey?: string;
   readonly description: string;
   readonly type: string;
-  readonly importance?: 'high' | 'mid' | 'low';
+  readonly importance?: 'core' | 'high' | 'mid' | 'low';
   readonly columns: SqlColumn[];
 
   // Returns all columns as TableColumns.

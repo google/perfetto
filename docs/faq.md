@@ -42,7 +42,7 @@ TrackEvent.
 The Perfetto UI and trace processor do not support overlapping B/E/X events, in
 compliance with the
 [JSON spec](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview#heading=h.nso4gcezn7n1).
-As stated in the spec, events are only allowed to perfecty nest.
+As stated in the spec, events are only allowed to perfectly nest.
 
 Users are recommended to emit
 [TrackEvent](/docs/instrumentation/track-events.md)

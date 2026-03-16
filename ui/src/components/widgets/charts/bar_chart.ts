@@ -21,6 +21,7 @@ import {
   buildGridOption,
   buildBrushOption,
   buildTooltipOption,
+  SELECTION_COLOR,
 } from './chart_option_builder';
 
 /**
@@ -125,6 +126,13 @@ export interface BarChartAttrs {
    * Called with the labels of all bars in the brushed range.
    */
   readonly onBrush?: (labels: Array<string | number>) => void;
+
+  /**
+   * Selection labels to highlight on the chart. Bars whose labels are in
+   * this array are drawn with a highlight color. The consumer controls
+   * this state — typically by feeding the `onBrush` output back in.
+   */
+  readonly selection?: ReadonlyArray<string | number>;
 }
 
 export class BarChart implements m.ClassComponent<BarChartAttrs> {
@@ -222,7 +230,15 @@ function buildBarOption(
     series: [
       {
         type: 'bar',
-        data: data.items.map((item) => item.value),
+        data: data.items.map((item) => {
+          const selected =
+            attrs.selection !== undefined &&
+            attrs.selection.includes(item.label);
+          return {
+            value: item.value,
+            ...(selected ? {itemStyle: {color: SELECTION_COLOR}} : {}),
+          };
+        }),
         itemStyle: barColor !== undefined ? {color: barColor} : undefined,
         emphasis:
           barHoverColor !== undefined

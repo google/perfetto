@@ -367,7 +367,7 @@ class SqlTableImpl implements SqlTable {
   includeKey?: string;
   description: string;
   type: string;
-  importance?: 'high' | 'mid' | 'low';
+  importance?: 'core' | 'high' | 'mid' | 'low';
   columns: SqlColumn[];
   idColumn: SqlColumn | undefined;
 
@@ -441,7 +441,7 @@ const DATA_OBJECT_SCHEMA = z.object({
   desc: z.string(),
   summary_desc: z.string(),
   type: z.string(),
-  importance: z.enum(['high', 'mid', 'low']).nullish(),
+  importance: z.enum(['core', 'high', 'mid', 'low']).nullish(),
   cols: z.array(ARG_OR_COL_SCHEMA),
 });
 type DocsDataObjectSchemaType = z.infer<typeof DATA_OBJECT_SCHEMA>;
