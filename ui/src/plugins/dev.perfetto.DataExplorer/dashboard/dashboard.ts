@@ -31,11 +31,9 @@ import {
   DashboardBrushFilter,
   DashboardDataSource,
   DashboardItem,
-  DashboardSourceWithName,
   getItemId,
   getNextItemPosition,
   snapToGrid,
-  sourceDisplayName,
 } from './dashboard_registry';
 import {
   DashboardChartView,
@@ -94,15 +92,11 @@ function summarizeBrushFilters(
   return parts.join(', ');
 }
 
-// Re-export types that are defined in dashboard_registry but used by callers
-// of this module (e.g. DataExplorer).
-export type {DashboardSourceWithName} from './dashboard_registry';
-
 export interface DashboardAttrs {
   dashboardId: string;
   trace: Trace;
   items: DashboardItem[];
-  sources: ReadonlyArray<DashboardSourceWithName>;
+  sources: ReadonlyArray<DashboardDataSource>;
   brushFilters: Map<string, DashboardBrushFilter[]>;
   onItemsChange: (items: DashboardItem[]) => void;
   onBrushFiltersChange: (filters: Map<string, DashboardBrushFilter[]>) => void;
@@ -231,7 +225,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
 
   private renderChart(
     attrs: DashboardAttrs,
-    source: DashboardSourceWithName,
+    source: DashboardDataSource,
     chart: DashboardItem & {kind: 'chart'},
   ): m.Child {
     const config = chart.config;
@@ -262,7 +256,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       PopupMenu,
       {
         trigger: m(Chip, {
-          label: sourceDisplayName(source, attrs.items, attrs.sources),
+          label: source.name,
           icon: 'database',
           compact: true,
           className: 'pf-dashboard__source-chip',
@@ -675,7 +669,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       if (filters.length > 0) {
         allEntries.push({
           sourceNodeId: source.nodeId,
-          sourceName: sourceDisplayName(source, attrs.items, attrs.sources),
+          sourceName: source.name,
           filters,
         });
       }
@@ -776,16 +770,11 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     const used = allExported.filter((s) => usedNodeIds.has(s.nodeId));
     const unused = allExported.filter((s) => !usedNodeIds.has(s.nodeId));
 
-    const makeSourceItems = (
-      srcs: DashboardSourceWithName[],
-    ): AccordionItem[] =>
+    const makeSourceItems = (srcs: DashboardDataSource[]): AccordionItem[] =>
       srcs.map((source) => ({
         id: source.nodeId,
         header: m('.pf-dashboard__source-row', [
-          m(
-            'code.pf-dashboard__input-name',
-            sourceDisplayName(source, attrs.items, attrs.sources, true),
-          ),
+          m('code.pf-dashboard__input-name', source.name),
         ]),
         content: this.renderInputContent(source, attrs),
       }));
