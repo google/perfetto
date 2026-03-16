@@ -17,16 +17,20 @@
 #include "src/trace_processor/shell/common_flags.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/trace_processor/trace_processor_shell.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
@@ -35,58 +39,279 @@
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/shell_utils.h"
 #include "src/trace_processor/shell/sql_packages.h"
+#include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/util/deobfuscation/deobfuscator.h"
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
 
 namespace perfetto::trace_processor::shell {
 
-bool HandleGlobalOption(int option, const char* optarg, GlobalOptions& opts) {
+const option* GetGlobalLongOptions(size_t* out_size) {
+  static const option kGlobalLongOptions[] = {
+      {"full-sort", no_argument, nullptr, OPT_GLOBAL_FULL_SORT},
+      {"no-ftrace-raw", no_argument, nullptr, OPT_GLOBAL_NO_FTRACE_RAW},
+      {"analyze-trace-proto-content", no_argument, nullptr,
+       OPT_GLOBAL_ANALYZE_TRACE_PROTO_CONTENT},
+      {"crop-track-events", no_argument, nullptr, OPT_GLOBAL_CROP_TRACK_EVENTS},
+      {"dev", no_argument, nullptr, OPT_GLOBAL_DEV},
+      {"dev-flag", required_argument, nullptr, OPT_GLOBAL_DEV_FLAG},
+      {"extra-checks", no_argument, nullptr, OPT_GLOBAL_EXTRA_CHECKS},
+      {"add-sql-package", required_argument, nullptr,
+       OPT_GLOBAL_ADD_SQL_PACKAGE},
+      {"override-sql-package", required_argument, nullptr,
+       OPT_GLOBAL_OVERRIDE_SQL_PACKAGE},
+      {"override-stdlib", required_argument, nullptr,
+       OPT_GLOBAL_OVERRIDE_STDLIB},
+      {"register-files-dir", required_argument, nullptr,
+       OPT_GLOBAL_REGISTER_FILES_DIR},
+      {"metatrace", required_argument, nullptr, 'm'},
+      {"metatrace-buffer-capacity", required_argument, nullptr,
+       OPT_GLOBAL_METATRACE_BUFFER_CAPACITY},
+      {"metatrace-categories", required_argument, nullptr,
+       OPT_GLOBAL_METATRACE_CATEGORIES},
+  };
+  if (out_size)
+    *out_size = base::ArraySize(kGlobalLongOptions);
+  return kGlobalLongOptions;
+}
+
+bool HandleGlobalOption(int option, const char* optarg, GlobalOptions* opts) {
   switch (option) {
     case 'm':
-      opts.metatrace_path = optarg;
+      opts->metatrace_path = optarg;
       return true;
     case OPT_GLOBAL_FULL_SORT:
-      opts.force_full_sort = true;
+      opts->force_full_sort = true;
       return true;
     case OPT_GLOBAL_NO_FTRACE_RAW:
-      opts.no_ftrace_raw = true;
+      opts->no_ftrace_raw = true;
       return true;
     case OPT_GLOBAL_ANALYZE_TRACE_PROTO_CONTENT:
-      opts.analyze_trace_proto_content = true;
+      opts->analyze_trace_proto_content = true;
       return true;
     case OPT_GLOBAL_CROP_TRACK_EVENTS:
-      opts.crop_track_events = true;
+      opts->crop_track_events = true;
       return true;
     case OPT_GLOBAL_DEV:
-      opts.dev = true;
+      opts->dev = true;
       return true;
     case OPT_GLOBAL_DEV_FLAG:
-      opts.dev_flags.emplace_back(optarg);
+      opts->dev_flags.emplace_back(optarg);
       return true;
     case OPT_GLOBAL_EXTRA_CHECKS:
-      opts.extra_checks = true;
+      opts->extra_checks = true;
       return true;
     case OPT_GLOBAL_ADD_SQL_PACKAGE:
-      opts.sql_package_paths.emplace_back(optarg);
+      opts->sql_package_paths.emplace_back(optarg);
       return true;
     case OPT_GLOBAL_OVERRIDE_SQL_PACKAGE:
-      opts.override_sql_package_paths.emplace_back(optarg);
+      opts->override_sql_package_paths.emplace_back(optarg);
       return true;
     case OPT_GLOBAL_OVERRIDE_STDLIB:
-      opts.override_stdlib_path = optarg;
+      opts->override_stdlib_path = optarg;
       return true;
     case OPT_GLOBAL_REGISTER_FILES_DIR:
-      opts.register_files_dir = optarg;
+      opts->register_files_dir = optarg;
       return true;
     case OPT_GLOBAL_METATRACE_BUFFER_CAPACITY:
-      opts.metatrace_buffer_capacity = static_cast<size_t>(atoi(optarg));
+      opts->metatrace_buffer_capacity = static_cast<size_t>(atoi(optarg));
       return true;
     case OPT_GLOBAL_METATRACE_CATEGORIES:
-      opts.metatrace_categories = ParseMetatraceCategories(optarg);
+      opts->metatrace_categories = ParseMetatraceCategories(optarg);
       return true;
     default:
       return false;
   }
+}
+
+std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts) {
+  return {
+      BoolFlag("full-sort", 0, "Force full sort.", &opts->force_full_sort),
+      BoolFlag("no-ftrace-raw", 0, "Skip typed ftrace in raw table.",
+               &opts->no_ftrace_raw),
+      BoolFlag("analyze-trace-proto-content", 0,
+               "Enable trace proto content analysis.",
+               &opts->analyze_trace_proto_content),
+      BoolFlag("crop-track-events", 0,
+               "Ignore track events outside range of interest.",
+               &opts->crop_track_events),
+      BoolFlag("dev", 0, "Enable development-only features.", &opts->dev),
+      {
+          "dev-flag",
+          0,
+          true,
+          "KEY=VALUE",
+          "Set a dev flag (requires --dev).",
+          [opts](const char* a) { opts->dev_flags.emplace_back(a); },
+      },
+      BoolFlag("extra-checks", 0, "Enable additional SQL validation.",
+               &opts->extra_checks),
+      {
+          "add-sql-package",
+          0,
+          true,
+          "PATH[@PKG]",
+          "Register SQL package directory.",
+          [opts](const char* a) { opts->sql_package_paths.emplace_back(a); },
+      },
+      {
+          "override-sql-package",
+          0,
+          true,
+          "PATH[@PKG]",
+          "Override existing SQL package.",
+          [opts](const char* a) {
+            opts->override_sql_package_paths.emplace_back(a);
+          },
+      },
+      StringFlag("override-stdlib", 0, "PATH",
+                 "Override stdlib (requires --dev).",
+                 &opts->override_stdlib_path),
+      StringFlag("register-files-dir", 0, "PATH",
+                 "Directory with files for importers.",
+                 &opts->register_files_dir),
+      StringFlag("metatrace", 'm', "FILE", "Write TP metatrace to FILE.",
+                 &opts->metatrace_path),
+      {
+          "metatrace-buffer-capacity",
+          0,
+          true,
+          "N",
+          "Metatrace event buffer size.",
+          [opts](const char* a) {
+            opts->metatrace_buffer_capacity = static_cast<size_t>(atoi(a));
+          },
+      },
+      {
+          "metatrace-categories",
+          0,
+          true,
+          "CATS",
+          "Comma-separated metatrace categories.",
+          [opts](const char* a) {
+            opts->metatrace_categories = ParseMetatraceCategories(a);
+          },
+      },
+  };
+}
+
+namespace {
+
+void PrintSubcommandUsage(Subcommand* cmd,
+                          const std::vector<FlagSpec>& subcmd_flags,
+                          const std::vector<FlagSpec>& global_flags,
+                          const char* argv0) {
+  fprintf(stderr, "\n%s\n\n", cmd->description());
+  fprintf(stderr, "Usage: %s %s [flags] trace_file\n\n", argv0, cmd->name());
+
+  auto print_flags = [](const char* heading,
+                        const std::vector<FlagSpec>& flags) {
+    if (flags.empty())
+      return;
+    fprintf(stderr, "%s:\n", heading);
+    for (const auto& f : flags) {
+      std::string lhs = "  ";
+      if (f.short_name) {
+        lhs += '-';
+        lhs += f.short_name;
+        lhs += ", ";
+      } else {
+        lhs += "    ";
+      }
+      lhs += "--";
+      lhs += f.long_name;
+      if (f.has_arg && f.arg_name[0]) {
+        lhs += ' ';
+        lhs += f.arg_name;
+      }
+      constexpr size_t kPadTo = 36;
+      if (lhs.size() < kPadTo) {
+        lhs.resize(kPadTo, ' ');
+      } else {
+        lhs += "  ";
+      }
+      fprintf(stderr, "%s%s\n", lhs.c_str(), f.help);
+    }
+    fprintf(stderr, "\n");
+  };
+
+  print_flags("Flags", subcmd_flags);
+  print_flags("Global flags", global_flags);
+}
+
+}  // namespace
+
+base::Status ParseFlags(Subcommand* cmd,
+                        SubcommandContext* ctx,
+                        int argc,
+                        char** argv) {
+  auto subcmd_flags = cmd->GetFlags();
+  auto global_flags = GetGlobalFlagSpecs(ctx->global);
+
+  // Build the getopt_long option array and handler map.
+  std::unordered_map<int, std::function<void(const char*)>> handlers;
+  std::vector<option> opts;
+  std::string short_opts = "h";
+  int next_id = 256;
+
+  auto register_flag = [&](const FlagSpec& f) {
+    int id;
+    if (f.short_name != 0) {
+      id = static_cast<int>(static_cast<unsigned char>(f.short_name));
+      short_opts += f.short_name;
+      if (f.has_arg)
+        short_opts += ':';
+    } else {
+      id = next_id++;
+    }
+    option o;
+    o.name = f.long_name;
+    o.has_arg = f.has_arg ? required_argument : no_argument;
+    o.flag = nullptr;
+    o.val = id;
+    opts.push_back(o);
+    handlers[id] = f.handler;
+  };
+
+  for (const auto& f : subcmd_flags)
+    register_flag(f);
+  for (const auto& f : global_flags)
+    register_flag(f);
+
+  // Add --help as a long option.
+  opts.push_back({"help", no_argument, nullptr, 'h'});
+  // Sentinel.
+  opts.push_back({nullptr, 0, nullptr, 0});
+
+  // Parse.
+  optind = 1;
+  for (;;) {
+    int opt = getopt_long(argc, argv, short_opts.c_str(), opts.data(), nullptr);
+    if (opt == -1)
+      break;
+
+    if (opt == 'h') {
+      PrintSubcommandUsage(cmd, subcmd_flags, global_flags, argv[0]);
+      ctx->help_requested = true;
+      return base::OkStatus();
+    }
+
+    auto it = handlers.find(opt);
+    if (it != handlers.end()) {
+      it->second(optarg);
+      continue;
+    }
+
+    // Unknown option (getopt already printed an error to stderr).
+    return base::ErrStatus("Run '%s %s --help' for usage.", argv[0],
+                           cmd->name());
+  }
+
+  // Collect positional arguments.
+  for (int i = optind; i < argc; ++i) {
+    ctx->positional_args.emplace_back(argv[i]);
+  }
+
+  return base::OkStatus();
 }
 
 Config BuildConfig(const GlobalOptions& opts,

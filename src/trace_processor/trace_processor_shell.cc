@@ -48,8 +48,10 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"  // IWYU pragma: keep
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
@@ -346,21 +348,6 @@ Metrics (v1):
                 argv[0]);
 }
 
-// Bring GlobalLongOption values into scope for GLOBAL_LONG_OPTIONS macro.
-using shell::OPT_GLOBAL_ADD_SQL_PACKAGE;
-using shell::OPT_GLOBAL_ANALYZE_TRACE_PROTO_CONTENT;
-using shell::OPT_GLOBAL_CROP_TRACK_EVENTS;
-using shell::OPT_GLOBAL_DEV;
-using shell::OPT_GLOBAL_DEV_FLAG;
-using shell::OPT_GLOBAL_EXTRA_CHECKS;
-using shell::OPT_GLOBAL_FULL_SORT;
-using shell::OPT_GLOBAL_METATRACE_BUFFER_CAPACITY;
-using shell::OPT_GLOBAL_METATRACE_CATEGORIES;
-using shell::OPT_GLOBAL_NO_FTRACE_RAW;
-using shell::OPT_GLOBAL_OVERRIDE_SQL_PACKAGE;
-using shell::OPT_GLOBAL_OVERRIDE_STDLIB;
-using shell::OPT_GLOBAL_REGISTER_FILES_DIR;
-
 // Classic-specific long option IDs. Start at 2000 to avoid conflicts with
 // GlobalLongOption values in common_flags.h (which start at 1000).
 enum ClassicLongOption {
@@ -384,7 +371,8 @@ enum ClassicLongOption {
   OPT_METRIC_EXTENSION,
 };
 
-static const option kClassicLongOptions[] = {
+// Classic-specific options (without global flags or sentinel).
+static const option kClassicOnlyOptions[] = {
     {"help", no_argument, nullptr, 'h'},
     {"version", no_argument, nullptr, 'v'},
 
@@ -418,22 +406,33 @@ static const option kClassicLongOptions[] = {
     {"pre-metrics", required_argument, nullptr, OPT_PRE_METRICS},
     {"metrics-output", required_argument, nullptr, OPT_METRICS_OUTPUT},
     {"metric-extension", required_argument, nullptr, OPT_METRIC_EXTENSION},
+};
 
-    GLOBAL_LONG_OPTIONS{nullptr, 0, nullptr, 0}};
+// Builds the full classic option array: classic-specific + global + sentinel.
+std::vector<option> BuildClassicLongOptions() {
+  std::vector<option> opts(std::begin(kClassicOnlyOptions),
+                           std::end(kClassicOnlyOptions));
+  size_t global_size = 0;
+  const option* global = shell::GetGlobalLongOptions(&global_size);
+  opts.insert(opts.end(), global, global + global_size);
+  opts.push_back({nullptr, 0, nullptr, 0});
+  return opts;
+}
 
 CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   CommandLineOptions command_line_options;
+  auto classic_long_options = BuildClassicLongOptions();
 
   bool explicit_interactive = false;
   optind = 1;
   for (;;) {
-    int option = getopt_long(argc, argv,
-                             "hvWiDdm:p:q:Q:e:", kClassicLongOptions, nullptr);
+    int option = getopt_long(
+        argc, argv, "hvWiDdm:p:q:Q:e:", classic_long_options.data(), nullptr);
 
     if (option == -1)
       break;  // EOF.
 
-    if (shell::HandleGlobalOption(option, optarg, command_line_options.global))
+    if (shell::HandleGlobalOption(option, optarg, &command_line_options.global))
       continue;
 
     if (option == 'v') {
@@ -640,337 +639,254 @@ TraceSummaryOutputSpec::Format GetSummaryOutputFormat(
   exit(1);
 }
 
-class ClassicSubcommand : public shell::Subcommand {
- public:
-  const char* name() const override { return "classic"; }
-  const char* description() const override {
-    return "Classic flag-based interface.";
+// The classic (legacy) command-line interface. Not a Subcommand; it handles
+// its own flag parsing via ParseCommandLineOptions.
+base::Status RunClassic(TraceProcessorShell_PlatformInterface* platform,
+                        int argc,
+                        char** argv) {
+  CommandLineOptions options = ParseCommandLineOptions(argc, argv);
+
+  auto config = shell::BuildConfig(options.global, platform);
+
+  std::vector<MetricExtension> metric_extensions;
+  RETURN_IF_ERROR(ParseMetricExtensionPaths(
+      options.global.dev, options.raw_metric_v1_extensions, metric_extensions));
+
+  for (const auto& extension : metric_extensions) {
+    config.skip_builtin_metric_paths.push_back(extension.virtual_path());
   }
-  const option* GetLongOptions() const override { return kClassicLongOptions; }
-  void PrintUsage(const char*) override {
-    // PrintClassicUsage expects char** argv; we just pass nullptr since it only
-    // uses argv[0] and the caller context handles that.
+
+  ASSIGN_OR_RETURN(
+      auto tp, shell::SetupTraceProcessor(options.global, config, platform));
+
+  // Descriptor pool used for printing output as textproto. Building on top
+  // of generated pool so default protos in
+  // google.protobuf.descriptor.proto are available.
+  // For some insane reason, the descriptor pool is not movable so we need to
+  // create it here so we can create references and pass it everywhere.
+  google::protobuf::DescriptorPool pool(
+      google::protobuf::DescriptorPool::generated_pool());
+  RETURN_IF_ERROR(PopulateDescriptorPool(pool, metric_extensions));
+
+  // We load all the metric extensions even when --run-metrics arg is not
+  // there, because we want the metrics to be available in interactive mode
+  // or when used in UI using httpd.
+  // Metric extensions are also used to populate the descriptor pool.
+  for (const auto& extension : metric_extensions) {
+    RETURN_IF_ERROR(LoadMetricExtension(tp.get(), extension, pool));
   }
 
-  int Run(const shell::SubcommandContext& ctx, int argc, char** argv) override {
-    CommandLineOptions options = ParseCommandLineOptions(argc, argv);
-
-    auto config = shell::BuildConfig(options.global, ctx.platform);
-
-    std::vector<MetricExtension> metric_extensions;
-    auto me_status = ParseMetricExtensionPaths(options.global.dev,
-                                               options.raw_metric_v1_extensions,
-                                               metric_extensions);
-    if (!me_status.ok()) {
-      PERFETTO_ELOG("%s", me_status.c_message());
-      return 1;
-    }
-
-    for (const auto& extension : metric_extensions) {
-      config.skip_builtin_metric_paths.push_back(extension.virtual_path());
-    }
-
-    auto tp_or =
-        shell::SetupTraceProcessor(options.global, config, ctx.platform);
-    if (!tp_or.ok()) {
-      PERFETTO_ELOG("%s", tp_or.status().c_message());
-      return 1;
-    }
-    auto tp = std::move(*tp_or);
-
-    // Descriptor pool used for printing output as textproto. Building on top
-    // of generated pool so default protos in
-    // google.protobuf.descriptor.proto are available.
-    // For some insane reason, the descriptor pool is not movable so we need to
-    // create it here so we can create references and pass it everywhere.
-    google::protobuf::DescriptorPool pool(
-        google::protobuf::DescriptorPool::generated_pool());
-    {
-      auto status = PopulateDescriptorPool(pool, metric_extensions);
-      if (!status.ok()) {
-        PERFETTO_ELOG("%s", status.c_message());
-        return 1;
-      }
-    }
-
-    // We load all the metric extensions even when --run-metrics arg is not
-    // there, because we want the metrics to be available in interactive mode
-    // or when used in UI using httpd.
-    // Metric extensions are also used to populate the descriptor pool.
-    for (const auto& extension : metric_extensions) {
-      auto status = LoadMetricExtension(tp.get(), extension, pool);
-      if (!status.ok()) {
-        PERFETTO_ELOG("%s", status.c_message());
-        return 1;
-      }
-    }
-
-    base::TimeNanos t_load{};
-    if (!options.global.trace_file.empty()) {
-      auto t_load_or = shell::LoadTraceFile(tp.get(), ctx.platform,
-                                            options.global.trace_file);
-      if (!t_load_or.ok()) {
-        PERFETTO_ELOG("%s", t_load_or.status().c_message());
-        return 1;
-      }
-      t_load = *t_load_or;
-    }
+  base::TimeNanos t_load{};
+  if (!options.global.trace_file.empty()) {
+    ASSIGN_OR_RETURN(t_load, shell::LoadTraceFile(tp.get(), platform,
+                                                  options.global.trace_file));
+  }
 
 #if PERFETTO_HAS_SIGNAL_H()
-    // Set up interrupt signal to allow the user to abort query.
-    static TraceProcessor* g_tp_for_signal_handler = tp.get();
-    signal(SIGINT, [](int) { g_tp_for_signal_handler->InterruptQuery(); });
+  // Set up interrupt signal to allow the user to abort query.
+  static TraceProcessor* g_tp_for_signal_handler = tp.get();
+  signal(SIGINT, [](int) { g_tp_for_signal_handler->InterruptQuery(); });
 #endif
 
-    base::TimeNanos t_query_start = base::GetWallTimeNs();
-    if (!options.pre_metrics_v1_path.empty()) {
-      auto status =
-          RunQueriesFromFile(tp.get(), options.pre_metrics_v1_path, false);
-      if (!status.ok()) {
-        PERFETTO_ELOG("%s", status.c_message());
-        return 1;
+  base::TimeNanos t_query_start = base::GetWallTimeNs();
+  if (!options.pre_metrics_v1_path.empty()) {
+    RETURN_IF_ERROR(
+        RunQueriesFromFile(tp.get(), options.pre_metrics_v1_path, false));
+  }
+
+  // Trace summarization
+  if (options.summary) {
+    PERFETTO_CHECK(options.metric_v1_names.empty());
+
+    std::vector<std::string> spec_content;
+    spec_content.reserve(options.summary_specs.size());
+    for (const auto& s : options.summary_specs) {
+      spec_content.emplace_back();
+      if (!base::ReadFile(s, &spec_content.back())) {
+        return base::ErrStatus("Unable to read summary spec file %s",
+                               s.c_str());
       }
     }
 
-    // Trace summarization
-    if (options.summary) {
-      PERFETTO_CHECK(options.metric_v1_names.empty());
-
-      std::vector<std::string> spec_content;
-      spec_content.reserve(options.summary_specs.size());
-      for (const auto& s : options.summary_specs) {
-        spec_content.emplace_back();
-        if (!base::ReadFile(s, &spec_content.back())) {
-          PERFETTO_ELOG("Unable to read summary spec file %s", s.c_str());
-          return 1;
-        }
-      }
-
-      std::vector<TraceSummarySpecBytes> specs;
-      specs.reserve(options.summary_specs.size());
-      for (uint32_t i = 0; i < options.summary_specs.size(); ++i) {
-        specs.emplace_back(TraceSummarySpecBytes{
-            reinterpret_cast<const uint8_t*>(spec_content[i].data()),
-            spec_content[i].size(),
-            GuessSummarySpecFormat(options.summary_specs[i], spec_content[i]),
-        });
-      }
-
-      TraceSummaryComputationSpec computation_config;
-
-      if (options.summary_metrics_v2.empty()) {
-        computation_config.v2_metric_ids = std::vector<std::string>();
-      } else if (base::CaseInsensitiveEqual(options.summary_metrics_v2,
-                                            "all")) {
-        computation_config.v2_metric_ids = std::nullopt;
-      } else {
-        computation_config.v2_metric_ids =
-            base::SplitString(options.summary_metrics_v2, ",");
-      }
-
-      computation_config.metadata_query_id =
-          options.summary_metadata_query.empty()
-              ? std::nullopt
-              : std::make_optional(options.summary_metadata_query);
-
-      TraceSummaryOutputSpec output_spec;
-      output_spec.format = GetSummaryOutputFormat(options);
-
-      std::vector<uint8_t> output;
-      auto status =
-          tp->Summarize(computation_config, specs, &output, output_spec);
-      if (!status.ok()) {
-        PERFETTO_ELOG("%s", status.c_message());
-        return 1;
-      }
-      if (options.query_file_path.empty()) {
-        fwrite(output.data(), sizeof(char), output.size(), stdout);
-      }
-    }
-
-    // v1 metrics.
-    std::vector<MetricNameAndPath> metrics;
-    if (!options.metric_v1_names.empty()) {
-      PERFETTO_CHECK(!options.summary);
-      auto status =
-          LoadMetrics(tp.get(), options.metric_v1_names, pool, metrics);
-      if (!status.ok()) {
-        PERFETTO_ELOG("%s", status.c_message());
-        return 1;
-      }
-    }
-
-    MetricV1OutputFormat metric_format = ParseMetricV1OutputFormat(options);
-    if (!metrics.empty()) {
-      auto status = RunMetrics(tp.get(), metrics, metric_format);
-      if (!status.ok()) {
-        PERFETTO_ELOG("%s", status.c_message());
-        return 1;
-      }
-    }
-
-    if (!options.query_file_path.empty()) {
-      base::Status status =
-          RunQueriesFromFile(tp.get(), options.query_file_path, true);
-      if (!status.ok()) {
-        // Write metatrace if needed before exiting.
-        MaybeWriteMetatrace(tp.get(), options.global.metatrace_path);
-        PERFETTO_ELOG("%s", status.c_message());
-        return 1;
-      }
-    }
-
-    if (!options.query_string.empty()) {
-      base::Status status = RunQueries(tp.get(), options.query_string, true);
-      if (!status.ok()) {
-        // Write metatrace if needed before exiting.
-        MaybeWriteMetatrace(tp.get(), options.global.metatrace_path);
-        PERFETTO_ELOG("%s", status.c_message());
-        return 1;
-      }
-    }
-
-    if (!options.structured_query_id.empty()) {
-      // Load spec files.
-      std::vector<std::string> spec_content;
-      spec_content.reserve(options.structured_query_specs.size());
-      for (const auto& s : options.structured_query_specs) {
-        spec_content.emplace_back();
-        if (!base::ReadFile(s, &spec_content.back())) {
-          PERFETTO_ELOG("Unable to read structured query spec file %s",
-                        s.c_str());
-          return 1;
-        }
-      }
-
-      // Convert to TraceSummarySpecBytes.
-      std::vector<TraceSummarySpecBytes> specs;
-      specs.reserve(options.structured_query_specs.size());
-      for (uint32_t i = 0; i < options.structured_query_specs.size(); ++i) {
-        specs.emplace_back(TraceSummarySpecBytes{
-            reinterpret_cast<const uint8_t*>(spec_content[i].data()),
-            spec_content[i].size(),
-            GuessSummarySpecFormat(options.structured_query_specs[i],
-                                   spec_content[i]),
-        });
-      }
-
-      // Execute the structured query.
-      std::string output;
-      base::Status status = summary::ExecuteStructuredQuery(
-          tp.get(), specs, options.structured_query_id, &output);
-      if (!status.ok()) {
-        // Write metatrace if needed before exiting.
-        MaybeWriteMetatrace(tp.get(), options.global.metatrace_path);
-        PERFETTO_ELOG("%s", status.c_message());
-        return 1;
-      }
-
-      // Print the result.
-      fprintf(stdout, "%s", output.c_str());
-    }
-
-    base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
-
-    if (!options.export_file_path.empty()) {
-      auto status = ExportTraceToDatabase(tp.get(), options.export_file_path);
-      if (!status.ok()) {
-        PERFETTO_ELOG("%s", status.c_message());
-        return 1;
-      }
-    }
-
-    if (options.enable_httpd) {
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
-      Rpc rpc(std::move(tp), !options.global.trace_file.empty(), config,
-              [&ctx](TraceProcessor* tp) {
-                ctx.platform->OnTraceProcessorCreated(tp);
-              });
-
-#if PERFETTO_HAS_SIGNAL_H()
-      static Rpc* g_rpc_for_signal_handler = &rpc;
-
-      if (options.global.metatrace_path.empty()) {
-        // Restore the default signal handler to allow the user to terminate
-        // httpd server via Ctrl-C.
-        signal(SIGINT, SIG_DFL);
-      } else {
-        // Write metatrace to file before exiting.
-        static std::string* metatrace_path = &options.global.metatrace_path;
-        signal(SIGINT, [](int) {
-          MaybeWriteMetatrace(g_rpc_for_signal_handler->trace_processor(),
-                              *metatrace_path);
-          exit(1);
-        });
-      }
-#endif
-      std::vector<std::string> additional_cors_origins = base::SplitString(
-          PERFETTO_BUILDFLAG(PERFETTO_HTTP_ADDITIONAL_CORS_ORIGINS), ",");
-
-      for (const auto& origin : options.additional_cors_origins) {
-        PERFETTO_ILOG("Adding additional CORS origin: %s", origin.c_str());
-        additional_cors_origins.push_back(origin);
-      }
-
-      RunHttpRPCServer(
-          /*rpc=*/rpc,
-          /*listen_ip=*/options.listen_ip,
-          /*port_number=*/options.port_number,
-          /*additional_cors_origins=*/additional_cors_origins);
-      PERFETTO_FATAL("Should never return");
-#else
-      PERFETTO_FATAL("HTTP not available");
-#endif
-    }
-
-    if (options.enable_stdiod) {
-      Rpc rpc(std::move(tp), !options.global.trace_file.empty(), config,
-              [&ctx](TraceProcessor* tp) {
-                ctx.platform->OnTraceProcessorCreated(tp);
-              });
-#if PERFETTO_HAS_SIGNAL_H()
-      static Rpc* g_rpc_for_signal_handler = &rpc;
-      g_tp_for_signal_handler = nullptr;
-      signal(SIGINT, [](int) {
-        g_rpc_for_signal_handler->trace_processor()->InterruptQuery();
+    std::vector<TraceSummarySpecBytes> specs;
+    specs.reserve(options.summary_specs.size());
+    for (uint32_t i = 0; i < options.summary_specs.size(); ++i) {
+      specs.emplace_back(TraceSummarySpecBytes{
+          reinterpret_cast<const uint8_t*>(spec_content[i].data()),
+          spec_content[i].size(),
+          GuessSummarySpecFormat(options.summary_specs[i], spec_content[i]),
       });
-#endif
-      auto status = RunStdioRpcServer(rpc);
-      if (!status.ok()) {
-        PERFETTO_ELOG("%s", status.c_message());
-        return 1;
-      }
-      return 0;
     }
 
-    if (options.launch_shell) {
-      auto status = StartInteractiveShell(
-          tp.get(), InteractiveOptions{options.wide ? 40u : 20u, metric_format,
-                                       metric_extensions, metrics, &pool});
-      if (!status.ok()) {
-        PERFETTO_ELOG("%s", status.c_message());
-        return 1;
-      }
-    } else if (!options.perf_file_path.empty()) {
-      auto status = PrintPerfFile(options.perf_file_path, t_load, t_query);
-      if (!status.ok()) {
-        PERFETTO_ELOG("%s", status.c_message());
-        return 1;
-      }
+    TraceSummaryComputationSpec computation_config;
+
+    if (options.summary_metrics_v2.empty()) {
+      computation_config.v2_metric_ids = std::vector<std::string>();
+    } else if (base::CaseInsensitiveEqual(options.summary_metrics_v2, "all")) {
+      computation_config.v2_metric_ids = std::nullopt;
+    } else {
+      computation_config.v2_metric_ids =
+          base::SplitString(options.summary_metrics_v2, ",");
     }
 
-    {
-      auto status =
-          MaybeWriteMetatrace(tp.get(), options.global.metatrace_path);
-      if (!status.ok()) {
-        PERFETTO_ELOG("%s", status.c_message());
-        return 1;
-      }
-    }
+    computation_config.metadata_query_id =
+        options.summary_metadata_query.empty()
+            ? std::nullopt
+            : std::make_optional(options.summary_metadata_query);
 
-    return 0;
+    TraceSummaryOutputSpec output_spec;
+    output_spec.format = GetSummaryOutputFormat(options);
+
+    std::vector<uint8_t> output;
+    RETURN_IF_ERROR(
+        tp->Summarize(computation_config, specs, &output, output_spec));
+    if (options.query_file_path.empty()) {
+      fwrite(output.data(), sizeof(char), output.size(), stdout);
+    }
   }
-};
+
+  // v1 metrics.
+  std::vector<MetricNameAndPath> metrics;
+  if (!options.metric_v1_names.empty()) {
+    PERFETTO_CHECK(!options.summary);
+    RETURN_IF_ERROR(
+        LoadMetrics(tp.get(), options.metric_v1_names, pool, metrics));
+  }
+
+  MetricV1OutputFormat metric_format = ParseMetricV1OutputFormat(options);
+  if (!metrics.empty()) {
+    RETURN_IF_ERROR(RunMetrics(tp.get(), metrics, metric_format));
+  }
+
+  if (!options.query_file_path.empty()) {
+    auto status = RunQueriesFromFile(tp.get(), options.query_file_path, true);
+    if (!status.ok()) {
+      MaybeWriteMetatrace(tp.get(), options.global.metatrace_path);
+      return status;
+    }
+  }
+
+  if (!options.query_string.empty()) {
+    auto status = RunQueries(tp.get(), options.query_string, true);
+    if (!status.ok()) {
+      MaybeWriteMetatrace(tp.get(), options.global.metatrace_path);
+      return status;
+    }
+  }
+
+  if (!options.structured_query_id.empty()) {
+    // Load spec files.
+    std::vector<std::string> spec_content;
+    spec_content.reserve(options.structured_query_specs.size());
+    for (const auto& s : options.structured_query_specs) {
+      spec_content.emplace_back();
+      if (!base::ReadFile(s, &spec_content.back())) {
+        return base::ErrStatus("Unable to read structured query spec file %s",
+                               s.c_str());
+      }
+    }
+
+    // Convert to TraceSummarySpecBytes.
+    std::vector<TraceSummarySpecBytes> specs;
+    specs.reserve(options.structured_query_specs.size());
+    for (uint32_t i = 0; i < options.structured_query_specs.size(); ++i) {
+      specs.emplace_back(TraceSummarySpecBytes{
+          reinterpret_cast<const uint8_t*>(spec_content[i].data()),
+          spec_content[i].size(),
+          GuessSummarySpecFormat(options.structured_query_specs[i],
+                                 spec_content[i]),
+      });
+    }
+
+    // Execute the structured query.
+    std::string output;
+    auto status = summary::ExecuteStructuredQuery(
+        tp.get(), specs, options.structured_query_id, &output);
+    if (!status.ok()) {
+      MaybeWriteMetatrace(tp.get(), options.global.metatrace_path);
+      return status;
+    }
+
+    // Print the result.
+    fprintf(stdout, "%s", output.c_str());
+  }
+
+  base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
+
+  if (!options.export_file_path.empty()) {
+    RETURN_IF_ERROR(ExportTraceToDatabase(tp.get(), options.export_file_path));
+  }
+
+  if (options.enable_httpd) {
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
+    Rpc rpc(std::move(tp), !options.global.trace_file.empty(), config,
+            [platform](TraceProcessor* tp) {
+              platform->OnTraceProcessorCreated(tp);
+            });
+
+#if PERFETTO_HAS_SIGNAL_H()
+    static Rpc* g_rpc_for_signal_handler = &rpc;
+
+    if (options.global.metatrace_path.empty()) {
+      // Restore the default signal handler to allow the user to terminate
+      // httpd server via Ctrl-C.
+      signal(SIGINT, SIG_DFL);
+    } else {
+      // Write metatrace to file before exiting.
+      static std::string* metatrace_path = &options.global.metatrace_path;
+      signal(SIGINT, [](int) {
+        MaybeWriteMetatrace(g_rpc_for_signal_handler->trace_processor(),
+                            *metatrace_path);
+        exit(1);
+      });
+    }
+#endif
+    std::vector<std::string> additional_cors_origins = base::SplitString(
+        PERFETTO_BUILDFLAG(PERFETTO_HTTP_ADDITIONAL_CORS_ORIGINS), ",");
+
+    for (const auto& origin : options.additional_cors_origins) {
+      PERFETTO_ILOG("Adding additional CORS origin: %s", origin.c_str());
+      additional_cors_origins.push_back(origin);
+    }
+
+    RunHttpRPCServer(
+        /*rpc=*/rpc,
+        /*listen_ip=*/options.listen_ip,
+        /*port_number=*/options.port_number,
+        /*additional_cors_origins=*/additional_cors_origins);
+    PERFETTO_FATAL("Should never return");
+#else
+    PERFETTO_FATAL("HTTP not available");
+#endif
+  }
+
+  if (options.enable_stdiod) {
+    Rpc rpc(std::move(tp), !options.global.trace_file.empty(), config,
+            [platform](TraceProcessor* tp) {
+              platform->OnTraceProcessorCreated(tp);
+            });
+#if PERFETTO_HAS_SIGNAL_H()
+    static Rpc* g_rpc_for_signal_handler = &rpc;
+    g_tp_for_signal_handler = nullptr;
+    signal(SIGINT, [](int) {
+      g_rpc_for_signal_handler->trace_processor()->InterruptQuery();
+    });
+#endif
+    RETURN_IF_ERROR(RunStdioRpcServer(rpc));
+    return base::OkStatus();
+  }
+
+  if (options.launch_shell) {
+    RETURN_IF_ERROR(StartInteractiveShell(
+        tp.get(), InteractiveOptions{options.wide ? 40u : 20u, metric_format,
+                                     metric_extensions, metrics, &pool}));
+  } else if (!options.perf_file_path.empty()) {
+    RETURN_IF_ERROR(PrintPerfFile(options.perf_file_path, t_load, t_query));
+  }
+
+  RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), options.global.metatrace_path));
+  return base::OkStatus();
+}
 
 class DefaultPlatformInterface : public TraceProcessorShell::PlatformInterface {
  public:
@@ -993,6 +909,107 @@ class DefaultPlatformInterface : public TraceProcessorShell::PlatformInterface {
 
 DefaultPlatformInterface::~DefaultPlatformInterface() = default;
 
+// Runs a subcommand through ParseFlags + Run using the given argv.
+base::Status RunSubcommand(shell::Subcommand* cmd,
+                           TraceProcessorShell_PlatformInterface* platform,
+                           int argc,
+                           char** argv) {
+  shell::GlobalOptions global;
+  shell::SubcommandContext ctx;
+  ctx.platform = platform;
+  ctx.global = &global;
+
+  RETURN_IF_ERROR(shell::ParseFlags(cmd, &ctx, argc, argv));
+  if (ctx.help_requested)
+    return base::OkStatus();
+  return cmd->Run(ctx);
+}
+
+// Attempts to translate classic (flat-flag) argv into a modern subcommand
+// invocation. Rewrites the argv so the subcommand's ParseFlags can handle it.
+//
+// Currently translates:
+//   -q FILE  →  query -f FILE
+//   -Q STR   →  query -c STR
+//
+// Returns the target subcommand and rewritten args, or nullptr if the
+// invocation uses flag combinations that don't map to a single subcommand
+// (e.g. -q combined with --run-metrics). Those stay on the RunClassic path
+// until the corresponding subcommands are added in later PRs.
+struct TranslateResult {
+  shell::Subcommand* subcommand = nullptr;
+  std::vector<std::string> new_args;
+};
+
+TranslateResult TryTranslateClassic(int argc,
+                                    char** argv,
+                                    shell::Subcommand* query_cmd) {
+  auto classic_opts = BuildClassicLongOptions();
+
+  // Build the set of option IDs the query subcommand accepts (its own flags
+  // plus globals). Any classic flag NOT in this set blocks translation.
+  std::unordered_set<int> accepted_opts;
+  for (const auto& f : query_cmd->GetFlags()) {
+    if (f.short_name)
+      accepted_opts.insert(
+          static_cast<int>(static_cast<unsigned char>(f.short_name)));
+  }
+  size_t global_size = 0;
+  const option* global_opts = shell::GetGlobalLongOptions(&global_size);
+  for (size_t i = 0; i < global_size; i++)
+    accepted_opts.insert(global_opts[i].val);
+
+  // Single-pass: use getopt_long to parse, detect intent, and rewrite.
+  // If we see a flag the query subcommand doesn't understand, bail out.
+  TranslateResult r;
+  r.subcommand = query_cmd;
+  r.new_args.emplace_back(argv[0]);
+  bool has_query = false;
+  std::string deferred_sql;
+
+  optind = 1;
+  for (;;) {
+    int prev_optind = optind;
+    int opt = getopt_long(argc, argv, "hvWiDdm:p:q:Q:e:", classic_opts.data(),
+                          nullptr);
+    if (opt == -1)
+      break;
+
+    if (opt == 'q') {
+      // -q FILE → -f FILE
+      has_query = true;
+      r.new_args.emplace_back("-f");
+      r.new_args.emplace_back(optarg);
+    } else if (opt == 'Q') {
+      // -Q STRING → deferred positional SQL (appended after trace file).
+      has_query = true;
+      deferred_sql = optarg;
+    } else if (accepted_opts.count(opt)) {
+      // Flag accepted by the query subcommand — pass through.
+      for (int j = prev_optind; j < optind; j++)
+        r.new_args.emplace_back(argv[j]);
+    } else {
+      // Flag the query subcommand doesn't understand — bail to classic.
+      // Reset getopt state so RunClassic can parse from scratch.
+      optind = 0;
+      return {};
+    }
+  }
+
+  if (!has_query) {
+    optind = 0;
+    return {};
+  }
+
+  // Positional args (trace file etc.).
+  for (int i = optind; i < argc; i++)
+    r.new_args.emplace_back(argv[i]);
+  // Append deferred SQL string after the trace file.
+  if (!deferred_sql.empty())
+    r.new_args.emplace_back(std::move(deferred_sql));
+  return r;
+}
+
 }  // namespace
 
 TraceProcessorShell::TraceProcessorShell(
@@ -1013,38 +1030,71 @@ TraceProcessorShell::CreateWithDefaultPlatform() {
 
 base::Status TraceProcessorShell::Run(int argc, char** argv) {
   shell::QuerySubcommand query_subcommand;
-  ClassicSubcommand classic_subcommand;
 
-  // Subcommands to match against (classic is the fallback, not matched).
+  // Subcommands to match against.
   std::vector<shell::Subcommand*> subcommands = {&query_subcommand};
-  // All subcommands including classic (for flags_with_arg derivation).
-  std::vector<shell::Subcommand*> all = {&query_subcommand,
-                                         &classic_subcommand};
 
-  auto result = shell::FindSubcommandInArgs(argc, argv, subcommands, all);
+  // Build the set of flags that consume an argument (for the pre-scan).
+  // Includes global, classic, and subcommand-specific flags so
+  // FindSubcommandInArgs can correctly skip flag arguments.
+  std::unordered_set<std::string> flags_with_arg;
 
-  shell::SubcommandContext ctx;
-  ctx.platform = platform_interface_.get();
+  auto add_long_options = [&](const option* opts, size_t count) {
+    for (size_t i = 0; i < count; i++) {
+      if (opts[i].has_arg == required_argument)
+        flags_with_arg.insert("--" + std::string(opts[i].name));
+    }
+  };
 
-  shell::Subcommand* target = result.subcommand;
-  int target_argc = argc;
-  char** target_argv = argv;
-  std::vector<char*> new_argv;
+  // Global flags.
+  size_t global_size = 0;
+  add_long_options(shell::GetGlobalLongOptions(&global_size), global_size);
+  // Classic-specific flags.
+  add_long_options(kClassicOnlyOptions, base::ArraySize(kClassicOnlyOptions));
+  // Classic short flags that take arguments.
+  for (char c : std::string("mpqQe")) {
+    flags_with_arg.insert(std::string(1, '-') + c);
+  }
+  // Subcommand-specific flags.
+  for (auto* sc : subcommands) {
+    for (const auto& f : sc->GetFlags()) {
+      if (f.has_arg) {
+        flags_with_arg.insert("--" + std::string(f.long_name));
+        if (f.short_name)
+          flags_with_arg.insert(std::string(1, '-') + f.short_name);
+      }
+    }
+  }
 
-  if (target) {
+  // Step 1: Check for an explicit subcommand name (e.g. "tps query ...").
+  auto result =
+      shell::FindSubcommandInArgs(argc, argv, subcommands, flags_with_arg);
+  if (result.subcommand) {
     // Remove subcommand name from argv.
+    std::vector<char*> new_argv;
     for (int i = 0; i < argc; ++i) {
       if (i != result.argv_index)
         new_argv.push_back(argv[i]);
     }
-    target_argc = static_cast<int>(new_argv.size());
-    target_argv = new_argv.data();
-  } else {
-    target = &classic_subcommand;
+    return RunSubcommand(result.subcommand, platform_interface_.get(),
+                         static_cast<int>(new_argv.size()), new_argv.data());
   }
 
-  int ret = target->Run(ctx, target_argc, target_argv);
-  return ret == 0 ? base::OkStatus() : base::ErrStatus("Command failed");
+  // Step 2: Try to translate classic flags into a subcommand invocation
+  // (e.g. "tps -q file.sql trace.pb" → query subcommand with -f file.sql).
+  auto translated = TryTranslateClassic(argc, argv, &query_subcommand);
+  if (translated.subcommand) {
+    std::vector<char*> new_argv;
+    for (auto& s : translated.new_args)
+      new_argv.push_back(s.data());
+    return RunSubcommand(translated.subcommand, platform_interface_.get(),
+                         static_cast<int>(new_argv.size()), new_argv.data());
+  }
+
+  // Step 3: Fallback for classic invocations that can't yet be translated
+  // (e.g. --httpd, --summary, --run-metrics). This path shrinks as more
+  // subcommands are added in later PRs.
+  return RunClassic(platform_interface_.get(), argc, argv);
 }
 
 TraceProcessorShell_PlatformInterface::

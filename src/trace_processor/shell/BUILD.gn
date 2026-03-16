@@ -117,6 +117,7 @@ source_set("common_flags") {
     ":metatrace",
     ":shell_utils",
     ":sql_packages",
+    ":subcommand",
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
     "../../base",
@@ -139,7 +140,6 @@ source_set("query_subcommand") {
     ":query",
     ":subcommand",
     "../../../gn:default_deps",
-    "../../../gn:protobuf_full",
     "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
     "../../base",
   ]

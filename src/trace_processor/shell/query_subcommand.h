@@ -17,6 +17,10 @@
 #ifndef SRC_TRACE_PROCESSOR_SHELL_QUERY_SUBCOMMAND_H_
 #define SRC_TRACE_PROCESSOR_SHELL_QUERY_SUBCOMMAND_H_
 
+#include <string>
+#include <vector>
+
+#include "perfetto/base/status.h"
 #include "src/trace_processor/shell/subcommand.h"
 
 namespace perfetto::trace_processor::shell {
@@ -25,9 +29,14 @@ class QuerySubcommand : public Subcommand {
  public:
   const char* name() const override;
   const char* description() const override;
-  int Run(const SubcommandContext& ctx, int argc, char** argv) override;
-  void PrintUsage(const char* argv0) override;
-  const option* GetLongOptions() const override;
+  std::vector<FlagSpec> GetFlags() override;
+  base::Status Run(const SubcommandContext& ctx) override;
+
+ private:
+  std::string query_file_;
+  bool interactive_ = false;
+  bool wide_ = false;
+  std::string perf_file_;
 };
 
 }  // namespace perfetto::trace_processor::shell

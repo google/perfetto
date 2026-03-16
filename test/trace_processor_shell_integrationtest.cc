@@ -279,14 +279,6 @@ TEST(TraceProcessorShellIntegrationTest, ClassicStdiodNoTrace) {
 // Subcommand: query
 // ---------------------------------------------------------------------------
 
-TEST(TraceProcessorShellIntegrationTest, QuerySubcommandSqlString) {
-  auto trace = WriteSimpleSystrace();
-  auto result = RunShell({"query", "-c", "SELECT 1 AS x", trace.path()});
-  EXPECT_EQ(result.exit_code, 0);
-  EXPECT_THAT(result.out, HasSubstr("x"));
-  EXPECT_THAT(result.out, HasSubstr("1"));
-}
-
 TEST(TraceProcessorShellIntegrationTest, QuerySubcommandSqlFile) {
   auto trace = WriteSimpleSystrace();
   auto query = WriteTempFile("SELECT 42 AS val;");
@@ -298,8 +290,7 @@ TEST(TraceProcessorShellIntegrationTest, QuerySubcommandSqlFile) {
 
 TEST(TraceProcessorShellIntegrationTest, QuerySubcommandGlobalFlagBefore) {
   auto trace = WriteSimpleSystrace();
-  auto result =
-      RunShell({"--dev", "query", "-c", "SELECT 1 AS x", trace.path()});
+  auto result = RunShell({"--dev", "query", trace.path(), "SELECT 1 AS x"});
   EXPECT_EQ(result.exit_code, 0);
   EXPECT_THAT(result.out, HasSubstr("1"));
 }
@@ -311,7 +302,8 @@ TEST(TraceProcessorShellIntegrationTest, QuerySubcommandNoQueryFails) {
 }
 
 TEST(TraceProcessorShellIntegrationTest, QuerySubcommandNoTraceFails) {
-  auto result = RunShell({"query", "-c", "SELECT 1"});
+  auto query = WriteTempFile("SELECT 1;");
+  auto result = RunShell({"query", "-f", query.path()});
   EXPECT_NE(result.exit_code, 0);
 }
 
@@ -319,6 +311,147 @@ TEST(TraceProcessorShellIntegrationTest, QuerySubcommandBadFileFails) {
   auto trace = WriteSimpleSystrace();
   auto result = RunShell({"query", "-f", "/nonexistent.sql", trace.path()});
   EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, QuerySubcommandStdinFile) {
+  // -f - reads SQL from stdin.
+  auto trace = WriteSimpleSystrace();
+
+  base::Subprocess p;
+  p.args.exec_cmd.push_back(ShellPath());
+  p.args.exec_cmd.push_back("query");
+  p.args.exec_cmd.push_back("-f");
+  p.args.exec_cmd.push_back("-");
+  p.args.exec_cmd.push_back(trace.path());
+  p.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  p.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  p.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  p.args.input = "SELECT 77 AS stdin_val;";
+  p.Start();
+  ASSERT_TRUE(p.Wait(kDefaultTestTimeoutMs));
+  EXPECT_EQ(p.returncode(), 0);
+  EXPECT_THAT(p.output(), HasSubstr("stdin_val"));
+  EXPECT_THAT(p.output(), HasSubstr("77"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, QuerySubcommandPositionalSql) {
+  // DuckDB-style: query trace.pb "SELECT ..."
+  auto trace = WriteSimpleSystrace();
+  auto result =
+      RunShell({"query", trace.path(), "SELECT 99 AS positional_val"});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("positional_val"));
+  EXPECT_THAT(result.out, HasSubstr("99"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, QuerySubcommandStdinPipe) {
+  // DuckDB-style: query trace.pb < file.sql (stdin auto-detect)
+  auto trace = WriteSimpleSystrace();
+
+  base::Subprocess p;
+  p.args.exec_cmd.push_back(ShellPath());
+  p.args.exec_cmd.push_back("query");
+  p.args.exec_cmd.push_back(trace.path());
+  p.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  p.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  p.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  p.args.input = "SELECT 55 AS pipe_val;";
+  p.Start();
+  ASSERT_TRUE(p.Wait(kDefaultTestTimeoutMs));
+  EXPECT_EQ(p.returncode(), 0);
+  EXPECT_THAT(p.output(), HasSubstr("pipe_val"));
+  EXPECT_THAT(p.output(), HasSubstr("55"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, QuerySubcommandHelp) {
+  auto result = RunShell({"query", "--help"});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("Run SQL queries against a trace"));
+  EXPECT_THAT(result.out, HasSubstr("--file"));
+}
+
+// Issue 1: -f flag argument that happens to be named "query" should NOT be
+// treated as a subcommand name.
+TEST(TraceProcessorShellIntegrationTest, ClassicQueryFileNamedQuery) {
+  auto trace = WriteSimpleSystrace();
+  // Create a file named "query" containing SQL.
+  auto query = WriteTempFile("SELECT 1 AS x;");
+  // "tps -q <file> <trace>" should use classic path, not detect "query" as
+  // a subcommand. We use a real temp file here, so the name won't collide,
+  // but this tests that -q's argument is properly skipped.
+  auto result = RunShell({"-q", query.path(), trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("x"));
+}
+
+// Issue 2: Classic -q with --structured-query-spec should NOT be translated
+// to the query subcommand (it should fall through to classic).
+TEST(TraceProcessorShellIntegrationTest,
+     ClassicStructuredQuerySpecBlocksTranslation) {
+  auto trace = WriteSimpleSystrace();
+  auto query = WriteTempFile("SELECT 1 AS x;");
+  // --structured-query-spec without --structured-query-id is harmless in
+  // classic mode but should prevent translation to query subcommand.
+  auto result = RunShell({"--structured-query-spec", "/dev/null", "-q",
+                          query.path(), trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("x"));
+}
+
+// Issue 3: Classic -Q translation should properly handle global flags that
+// take arguments (e.g. --metatrace) without misclassifying the argument.
+TEST(TraceProcessorShellIntegrationTest, ClassicTranslationWithMetatraceFlag) {
+  auto trace = WriteSimpleSystrace();
+  auto metatrace = base::TempFile::Create();
+  // --metatrace takes an argument. The translation pre-scan must skip it.
+  auto result = RunShell(
+      {"--metatrace", metatrace.path(), "-Q", "SELECT 1 AS x", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("x"));
+}
+
+// Issue 3b: If a flag argument to --metric-extension happens to look like
+// --summary, the pre-scan must not misclassify it as a mode flag.
+TEST(TraceProcessorShellIntegrationTest,
+     ClassicTranslationFlagArgNotMisclassified) {
+  auto trace = WriteSimpleSystrace();
+  // -e takes an argument. If the pre-scan doesn't skip it, the argument
+  // (which could be anything) might be misclassified. Here we test that
+  // -e blocks translation entirely (it IS a mode flag), confirming the
+  // pre-scan correctly identifies -e itself as a blocker.
+  auto out_db = base::TempFile::Create();
+  auto result =
+      RunShell({"-e", out_db.path(), "-Q", "SELECT 1 AS x", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  // This should go through classic path (export + query), not fail.
+}
+
+// Classic -Q with --metric-extension must not be translated to query
+// subcommand. Classic mode loads extensions even for plain queries.
+TEST(TraceProcessorShellIntegrationTest,
+     ClassicQueryWithMetricExtensionNotTranslated) {
+  auto trace = WriteSimpleSystrace();
+  // --metric-extension with a bogus path will fail in classic mode, but the
+  // important thing is that the translation layer bails out (doesn't try
+  // to route to the query subcommand which doesn't know --metric-extension).
+  auto result = RunShell({"--metric-extension", "/nonexistent@virt", "-Q",
+                          "SELECT 1 AS x", trace.path()});
+  // Classic parses this but fails because the extension path doesn't exist.
+  EXPECT_NE(result.exit_code, 0);
+  // The error should come from classic's metric extension loading, NOT from
+  // "unknown option" in the query subcommand parser.
+  EXPECT_THAT(result.out, Not(HasSubstr("unknown option")));
+}
+
+// Classic -p flag takes an argument. If -p's argument happens to equal a
+// subcommand name, FindSubcommandInArgs must not misdetect it.
+TEST(TraceProcessorShellIntegrationTest,
+     ClassicPerfFileNamedQueryNotMisdetected) {
+  auto trace = WriteSimpleSystrace();
+  auto perf = base::TempFile::Create();
+  auto result =
+      RunShell({"-p", perf.path(), "-Q", "SELECT 1 AS x", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
 }
 
 // ---------------------------------------------------------------------------

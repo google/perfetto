@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/shell/subcommand.h"
 
 namespace perfetto::trace_processor {
 class TraceProcessorShell_PlatformInterface;
@@ -59,6 +60,8 @@ struct GlobalOptions {
 
 // Long option IDs for global flags, starting at 1000 to avoid collisions
 // with subcommand-specific option IDs (which should start below 1000).
+// NOTE: These are used by the classic (legacy) flag parsing path. New
+// subcommands use the declarative FlagSpec system via GetGlobalFlagSpecs().
 enum GlobalLongOption {
   OPT_GLOBAL_FULL_SORT = 1000,
   OPT_GLOBAL_NO_FTRACE_RAW,
@@ -75,36 +78,28 @@ enum GlobalLongOption {
   OPT_GLOBAL_METATRACE_CATEGORIES,
 };
 
-// getopt_long entries for global flags. Subcommands should append these
-// to their own option arrays. The 'm' short option is for --metatrace.
-// Note: does NOT include the terminating {nullptr,0,nullptr,0} sentinel.
-#define GLOBAL_LONG_OPTIONS                                              \
-  {"full-sort", no_argument, nullptr, OPT_GLOBAL_FULL_SORT},             \
-      {"no-ftrace-raw", no_argument, nullptr, OPT_GLOBAL_NO_FTRACE_RAW}, \
-      {"analyze-trace-proto-content", no_argument, nullptr,              \
-       OPT_GLOBAL_ANALYZE_TRACE_PROTO_CONTENT},                          \
-      {"crop-track-events", no_argument, nullptr,                        \
-       OPT_GLOBAL_CROP_TRACK_EVENTS},                                    \
-      {"dev", no_argument, nullptr, OPT_GLOBAL_DEV},                     \
-      {"dev-flag", required_argument, nullptr, OPT_GLOBAL_DEV_FLAG},     \
-      {"extra-checks", no_argument, nullptr, OPT_GLOBAL_EXTRA_CHECKS},   \
-      {"add-sql-package", required_argument, nullptr,                    \
-       OPT_GLOBAL_ADD_SQL_PACKAGE},                                      \
-      {"override-sql-package", required_argument, nullptr,               \
-       OPT_GLOBAL_OVERRIDE_SQL_PACKAGE},                                 \
-      {"override-stdlib", required_argument, nullptr,                    \
-       OPT_GLOBAL_OVERRIDE_STDLIB},                                      \
-      {"register-files-dir", required_argument, nullptr,                 \
-       OPT_GLOBAL_REGISTER_FILES_DIR},                                   \
-      {"metatrace", required_argument, nullptr, 'm'},                    \
-      {"metatrace-buffer-capacity", required_argument, nullptr,          \
-       OPT_GLOBAL_METATRACE_BUFFER_CAPACITY},                            \
-      {"metatrace-categories", required_argument, nullptr,               \
-       OPT_GLOBAL_METATRACE_CATEGORIES},
+// getopt_long entries for global flags. Used by the classic flag parsing path.
+// Does NOT include the terminating {nullptr,0,nullptr,0} sentinel.
+// Returns the number of entries via |out_size| if non-null.
+const option* GetGlobalLongOptions(size_t* out_size = nullptr);
 
 // Attempts to handle |option| as a global flag, updating |opts|.
 // Returns true if handled, false if the option is not a global flag.
-bool HandleGlobalOption(int option, const char* optarg, GlobalOptions& opts);
+// Used only by the classic flag parsing path.
+bool HandleGlobalOption(int option, const char* optarg, GlobalOptions* opts);
+
+// Returns FlagSpecs for global options with handlers that modify |*opts|.
+// Used by the declarative flag parsing path (ParseFlags).
+std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts);
+
+// Parses flags for a subcommand. Combines the subcommand's flags (from
+// cmd->GetFlags()) with global flags (modifying *ctx->global). Stores
+// remaining positional arguments in ctx->positional_args.
+// Sets ctx->help_requested if -h/--help was given.
+base::Status ParseFlags(Subcommand* cmd,
+                        SubcommandContext* ctx,
+                        int argc,
+                        char** argv);
 
 // Builds a TraceProcessor Config from global options.
 Config BuildConfig(const GlobalOptions& opts,

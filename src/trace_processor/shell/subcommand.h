@@ -17,10 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_SHELL_SUBCOMMAND_H_
 #define SRC_TRACE_PROCESSOR_SHELL_SUBCOMMAND_H_
 
+#include <functional>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
-struct option;  // Forward declaration for getopt.h's struct option.
+#include "perfetto/base/status.h"
 
 namespace perfetto::trace_processor {
 class TraceProcessorShell_PlatformInterface;
@@ -28,10 +30,55 @@ class TraceProcessorShell_PlatformInterface;
 
 namespace perfetto::trace_processor::shell {
 
+struct GlobalOptions;
+
 // Context passed to subcommands, providing access to shared resources.
 struct SubcommandContext {
   TraceProcessorShell_PlatformInterface* platform = nullptr;
+
+  // Parsed global options. Set by ParseFlags() before Run() is called.
+  GlobalOptions* global = nullptr;
+
+  // Positional arguments remaining after flag parsing (e.g., trace file path).
+  std::vector<std::string> positional_args;
+
+  // Set by ParseFlags() when -h/--help is given. When true, Run() should not
+  // be called (usage has already been printed).
+  bool help_requested = false;
 };
+
+// Specifies a single command-line flag for a subcommand.
+struct FlagSpec {
+  const char* long_name;
+  char short_name = 0;
+  bool has_arg = false;
+  const char* arg_name = "";
+  const char* help = "";
+  std::function<void(const char*)> handler;
+};
+
+// Helper: creates a FlagSpec that stores the argument into a std::string.
+inline FlagSpec StringFlag(const char* long_name,
+                           char short_name,
+                           const char* arg_name,
+                           const char* help,
+                           std::string* target) {
+  return {
+      long_name, short_name, true,
+      arg_name,  help,       [target](const char* a) { *target = a; },
+  };
+}
+
+// Helper: creates a FlagSpec that sets a bool to true.
+inline FlagSpec BoolFlag(const char* long_name,
+                         char short_name,
+                         const char* help,
+                         bool* target) {
+  return {
+      long_name, short_name, false,
+      "",        help,       [target](const char*) { *target = true; },
+  };
+}
 
 // Base class for all subcommands (query, export, serve, etc.).
 class Subcommand {
@@ -45,23 +92,17 @@ class Subcommand {
   // A short one-line description shown in help output.
   virtual const char* description() const = 0;
 
-  // Runs the subcommand. |ctx| provides access to shared resources like the
-  // platform interface. |argc| and |argv| are the original command line with
-  // the subcommand name removed (argv[0] is the program name).
-  // Returns 0 on success, non-zero on failure.
-  virtual int Run(const SubcommandContext& ctx, int argc, char** argv) = 0;
+  // Returns the flags this subcommand accepts. The returned FlagSpecs
+  // typically have handlers that capture references to member variables.
+  virtual std::vector<FlagSpec> GetFlags() = 0;
 
-  // Prints subcommand-specific usage to stderr.
-  virtual void PrintUsage(const char* argv0) = 0;
-
-  // Returns the null-terminated getopt_long options array for this subcommand.
-  // Used by FindSubcommandInArgs to determine which flags consume an argument.
-  virtual const option* GetLongOptions() const = 0;
+  // Runs the subcommand after flags have been parsed. |ctx| provides
+  // access to the platform interface, parsed global options, and
+  // positional arguments.
+  virtual base::Status Run(const SubcommandContext& ctx) = 0;
 };
 
-// Result of FindSubcommandInArgs(). If |subcommand| is non-null, a subcommand
-// was found. |argv_index| is the index of the subcommand name in the original
-// argv.
+// Result of FindSubcommandInArgs().
 struct FindSubcommandResult {
   Subcommand* subcommand = nullptr;
   int argv_index = -1;
@@ -69,17 +110,13 @@ struct FindSubcommandResult {
 
 // Searches |argv[1..argc-1]| for the first positional argument that matches
 // a registered subcommand name. Skips flags (arguments starting with '-') and
-// their required arguments (derived from the long options of all subcommands
-// in |all_subcommands|).
-//
-// |subcommands| is the list of subcommands to match against.
-// |all_subcommands| is the full list including those not matched (e.g. classic)
-// whose flags still need to be skipped during scanning.
+// their required arguments (those listed in |flags_with_arg|, e.g., "--file"
+// or "-f").
 FindSubcommandResult FindSubcommandInArgs(
     int argc,
     char** argv,
     const std::vector<Subcommand*>& subcommands,
-    const std::vector<Subcommand*>& all_subcommands);
+    const std::unordered_set<std::string>& flags_with_arg);
 
 }  // namespace perfetto::trace_processor::shell
 
