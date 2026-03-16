@@ -343,6 +343,28 @@ TEST(TraceProcessorShellIntegrationTest, QueryBadTraceFile) {
   EXPECT_NE(result.exit_code, 0);
 }
 
+TEST(TraceProcessorShellIntegrationTest, QuerySubcommandInteractive) {
+  // -i runs the query then drops into the interactive shell. We prove the
+  // shell actually started by having the query CREATE a table (via positional
+  // SQL so stdin is NOT consumed), then piping a SELECT on that table via
+  // stdin to the REPL.
+  auto trace = WriteSimpleSystrace();
+
+  base::Subprocess p;
+  p.args.exec_cmd = {ShellPath(), "query", "-i", trace.path(),
+                     "CREATE PERFETTO TABLE __test AS SELECT 42 AS val;"};
+  p.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  p.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  p.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  p.args.input = "SELECT val FROM __test;\n";
+  p.Start();
+  ASSERT_TRUE(p.Wait(kDefaultTestTimeoutMs));
+  EXPECT_EQ(p.returncode(), 0);
+  // The interactive shell must have run and produced the query result.
+  EXPECT_THAT(p.output(), HasSubstr("val"));
+  EXPECT_THAT(p.output(), HasSubstr("42"));
+}
+
 // ---------------------------------------------------------------------------
 // Subcommand: interactive
 // ---------------------------------------------------------------------------
