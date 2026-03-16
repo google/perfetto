@@ -17,16 +17,18 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_INTERPRETER_INTERPRETER_TYPES_H_
 #define SRC_TRACE_PROCESSOR_CORE_INTERPRETER_INTERPRETER_TYPES_H_
 
-#include <cstddef>
 #include <cstdint>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/type_set.h"
 
 namespace perfetto::trace_processor::core::interpreter {
@@ -184,6 +186,43 @@ struct CastFilterValueListResult {
   }
   CastFilterValueResult::Validity validity;
   ValueList value_list;
+};
+
+// Opaque state for tree operations. Bundles tree structure, column data
+// copies, P2C cache, and scratch buffers into a single object that
+// bytecodes modify in-place.
+//
+// Column data and null bitvectors are registered by the TreeTransformer
+// and compacted alongside the tree structure by FilterTreeState.
+struct TreeState {
+  // Tree structure.
+  Slab<uint32_t> parent;  // parent[i] = row index (kNullParent for roots)
+  Slab<uint32_t> original_rows;  // original_rows[i] = original df row index
+  uint32_t row_count = 0;
+
+  // Column data copies (compacted alongside parent by FilterTreeState).
+  struct ColumnStorage {
+    Slab<uint8_t> data;
+    uint32_t elem_size;
+  };
+  std::vector<ColumnStorage> columns;
+
+  // Null bitvector copies (compacted alongside parent by FilterTreeState).
+  std::vector<BitVector> null_bitvectors;
+
+  // Reusable keep bitvector (allocated once at max size, cleared each use).
+  BitVector keep_bv;
+
+  // P2C CSR cache (rebuilt lazily).
+  Slab<uint32_t> p2c_offsets;
+  Slab<uint32_t> p2c_children;
+  Slab<uint32_t> p2c_roots;
+  uint32_t p2c_root_count = 0;
+  bool p2c_valid = false;
+
+  // Scratch buffers (allocated once at max size, reused).
+  Slab<uint32_t> scratch1;  // initial_row_count * 2
+  Slab<uint32_t> scratch2;  // initial_row_count
 };
 
 }  // namespace perfetto::trace_processor::core::interpreter

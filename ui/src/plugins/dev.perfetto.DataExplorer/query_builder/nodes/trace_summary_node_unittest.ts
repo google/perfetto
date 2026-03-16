@@ -33,6 +33,7 @@ function makeMetricsNode(
     valueColumns: [
       {column: 'value', unit: 'COUNT', polarity: 'NOT_APPLICABLE'},
     ],
+    dimensionConfigs: {},
     dimensionUniqueness: 'NOT_UNIQUE',
     availableColumns: [
       createColumnInfo('name', 'string'),

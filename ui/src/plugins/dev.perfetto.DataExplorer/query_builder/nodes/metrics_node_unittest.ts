@@ -39,6 +39,7 @@ function makeState(
     valueColumns: [
       {column: 'value', unit: 'COUNT', polarity: 'NOT_APPLICABLE'},
     ],
+    dimensionConfigs: {},
     dimensionUniqueness: 'NOT_UNIQUE',
     availableColumns: [],
     ...overrides,
@@ -556,8 +557,17 @@ describe('MetricsNode', () => {
       connectNodes(inputNode, node);
 
       const spec = node.getMetricTemplateSpec();
+      expect(spec).toBeDefined();
 
-      expect(spec?.dimensions).toEqual(['dim1', 'dim2']);
+      const dimNames = spec!.dimensionsSpecs?.map((d) => d.name);
+      expect(dimNames).toEqual(['dim1', 'dim2']);
+      // Verify types are inferred from column types.
+      expect(spec!.dimensionsSpecs?.[0].type).toBe(
+        protos.TraceMetricV2Spec.DimensionType.STRING,
+      );
+      expect(spec!.dimensionsSpecs?.[1].type).toBe(
+        protos.TraceMetricV2Spec.DimensionType.INT64,
+      );
     });
 
     it('should compute dimensions excluding all value columns', () => {
@@ -577,8 +587,83 @@ describe('MetricsNode', () => {
       connectNodes(inputNode, node);
 
       const spec = node.getMetricTemplateSpec();
+      expect(spec).toBeDefined();
 
-      expect(spec?.dimensions).toEqual(['proc']);
+      const dimNames = spec!.dimensionsSpecs?.map((d) => d.name);
+      expect(dimNames).toEqual(['proc']);
+    });
+
+    it('should include display_name and display_help in dimension specs', () => {
+      const inputCols = [
+        createColumnInfo('value1', 'double'),
+        createColumnInfo('bucket', 'string'),
+        createColumnInfo('proc', 'string'),
+      ];
+      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
+
+      const node = new MetricsNode(
+        makeState({
+          valueColumns: [makeValueCol('value1')],
+          dimensionConfigs: {
+            bucket: {
+              displayName: 'OOM bucket',
+              displayHelp: 'OOM bucket (e.g. unknown, cached, etc).',
+            },
+          },
+          availableColumns: inputCols,
+        }),
+      );
+      connectNodes(inputNode, node);
+
+      const spec = node.getMetricTemplateSpec();
+      expect(spec).toBeDefined();
+      expect(spec!.dimensionsSpecs?.length).toBe(2);
+
+      const bucketSpec = spec!.dimensionsSpecs?.find(
+        (d) => d.name === 'bucket',
+      );
+      expect(bucketSpec).toBeDefined();
+      expect(bucketSpec!.displayName).toBe('OOM bucket');
+      expect(bucketSpec!.displayHelp).toBe(
+        'OOM bucket (e.g. unknown, cached, etc).',
+      );
+      expect(bucketSpec!.type).toBe(
+        protos.TraceMetricV2Spec.DimensionType.STRING,
+      );
+
+      // proc has no config, so display_name/help should be falsy.
+      const procSpec = spec!.dimensionsSpecs?.find((d) => d.name === 'proc');
+      expect(procSpec).toBeDefined();
+      expect(procSpec!.displayName).toBeFalsy();
+      expect(procSpec!.displayHelp).toBeFalsy();
+    });
+
+    it('should include display_name and display_help in value column specs', () => {
+      const inputCols = [createColumnInfo('cpu_time', 'double')];
+      const inputNode = createMockNodeWithStructuredQuery('input', inputCols);
+
+      const node = new MetricsNode(
+        makeState({
+          valueColumns: [
+            {
+              column: 'cpu_time',
+              unit: 'TIME_NANOS',
+              polarity: 'LOWER_IS_BETTER',
+              displayName: 'CPU Time',
+              displayHelp: 'Total CPU time in nanoseconds.',
+            },
+          ],
+          availableColumns: inputCols,
+        }),
+      );
+      connectNodes(inputNode, node);
+
+      const spec = node.getMetricTemplateSpec();
+      expect(spec).toBeDefined();
+      expect(spec!.valueColumnSpecs?.[0].displayName).toBe('CPU Time');
+      expect(spec!.valueColumnSpecs?.[0].displayHelp).toBe(
+        'Total CPU time in nanoseconds.',
+      );
     });
 
     it('should include single value column spec', () => {
@@ -1080,12 +1165,8 @@ describe('MetricsNode', () => {
       expect(spec?.valueColumnSpecs?.[0].unit).toBe(
         protos.TraceMetricV2Spec.MetricUnit.TIME_NANOS,
       );
-      expect(spec?.dimensions).toEqual([
-        'id',
-        'ts',
-        'process_name',
-        'thread_name',
-      ]);
+      const dimNames = spec?.dimensionsSpecs?.map((d) => d.name);
+      expect(dimNames).toEqual(['id', 'ts', 'process_name', 'thread_name']);
     });
 
     it('should work end-to-end with multiple value columns', () => {
@@ -1112,7 +1193,8 @@ describe('MetricsNode', () => {
 
       const spec = node.getMetricTemplateSpec();
       expect(spec?.valueColumnSpecs?.length).toBe(2);
-      expect(spec?.dimensions).toEqual(['process_name']);
+      const dimNames = spec?.dimensionsSpecs?.map((d) => d.name);
+      expect(dimNames).toEqual(['process_name']);
     });
 
     it('should handle serialization round-trip', () => {

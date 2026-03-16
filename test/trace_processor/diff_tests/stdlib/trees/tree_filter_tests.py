@@ -141,3 +141,234 @@ class TreeFilter(TestSuite):
         1,"[NULL]",3,0
         2,1,4,1
         """))
+
+  def test_filter_multiple_constraints_different_columns(self):
+    """Multiple constraints on different columns (AND logic)."""
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE std.trees.table_conversion;
+          INCLUDE PERFETTO MODULE std.trees.filter;
+
+          CREATE PERFETTO TABLE input_tree AS
+          SELECT 1 AS id, NULL AS parent_id, 'a' AS tag, 10 AS val
+          UNION ALL SELECT 2, 1, 'b', 20
+          UNION ALL SELECT 3, 1, 'c', 30
+          UNION ALL SELECT 4, 2, 'b', 40
+          UNION ALL SELECT 5, 3, 'c', 50;
+
+          -- Keep only nodes where tag != 'a' AND val < 45
+          SELECT _tree_id, _tree_parent_id, id, tag, val
+          FROM _tree_to_table!(
+            _tree_filter(
+              _tree_from_table!((SELECT * FROM input_tree), (tag, val)),
+              _tree_where(
+                _tree_constraint('tag', '!=', 'a'),
+                _tree_constraint('val', '<', 45)
+              )
+            ),
+            (tag, val)
+          )
+          ORDER BY id;
+        """,
+        out=Csv("""
+        "_tree_id","_tree_parent_id","id","tag","val"
+        0,"[NULL]",2,"b",20
+        1,"[NULL]",3,"c",30
+        2,0,4,"b",40
+        """))
+
+  def test_filter_multiple_constraints_same_column_range(self):
+    """Multiple constraints on the same column forming a range."""
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE std.trees.table_conversion;
+          INCLUDE PERFETTO MODULE std.trees.filter;
+
+          CREATE PERFETTO TABLE input_tree AS
+          SELECT 1 AS id, NULL AS parent_id, 1 AS depth
+          UNION ALL SELECT 2, 1, 2
+          UNION ALL SELECT 3, 2, 3
+          UNION ALL SELECT 4, 3, 4
+          UNION ALL SELECT 5, 4, 5;
+
+          -- Keep only nodes where 2 <= depth <= 4
+          SELECT _tree_id, _tree_parent_id, id, depth
+          FROM _tree_to_table!(
+            _tree_filter(
+              _tree_from_table!((SELECT * FROM input_tree), (depth)),
+              _tree_where(
+                _tree_constraint('depth', '>=', 2),
+                _tree_constraint('depth', '<=', 4)
+              )
+            ),
+            (depth)
+          )
+          ORDER BY id;
+        """,
+        out=Csv("""
+        "_tree_id","_tree_parent_id","id","depth"
+        0,"[NULL]",2,2
+        1,0,3,3
+        2,1,4,4
+        """))
+
+  def test_filter_multiple_constraints_filters_everything(self):
+    """Multiple constraints whose intersection is empty."""
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE std.trees.table_conversion;
+          INCLUDE PERFETTO MODULE std.trees.filter;
+
+          CREATE PERFETTO TABLE input_tree AS
+          SELECT 1 AS id, NULL AS parent_id, 'x' AS tag, 10 AS val
+          UNION ALL SELECT 2, 1, 'y', 20
+          UNION ALL SELECT 3, 2, 'z', 30;
+
+          -- tag = 'x' AND val > 100: no node satisfies both
+          SELECT _tree_id, _tree_parent_id, id, tag, val
+          FROM _tree_to_table!(
+            _tree_filter(
+              _tree_from_table!((SELECT * FROM input_tree), (tag, val)),
+              _tree_where(
+                _tree_constraint('tag', '=', 'x'),
+                _tree_constraint('val', '>', 100)
+              )
+            ),
+            (tag, val)
+          )
+          ORDER BY id;
+        """,
+        out=Csv("""
+        "_tree_id","_tree_parent_id","id","tag","val"
+        """))
+
+  def test_filter_multiple_constraints_with_reparenting(self):
+    """Multiple constraints that remove intermediate nodes, causing reparenting."""
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE std.trees.table_conversion;
+          INCLUDE PERFETTO MODULE std.trees.filter;
+
+          CREATE PERFETTO TABLE input_tree AS
+          SELECT 1 AS id, NULL AS parent_id, 'root' AS name, 0 AS val
+          UNION ALL SELECT 2, 1, 'mid1', 10
+          UNION ALL SELECT 3, 2, 'mid2', 20
+          UNION ALL SELECT 4, 3, 'leaf', 30;
+
+          -- Keep name != 'mid1' AND name != 'mid2': removes both
+          -- intermediates, reparenting leaf -> root
+          SELECT _tree_id, _tree_parent_id, id, name, val
+          FROM _tree_to_table!(
+            _tree_filter(
+              _tree_from_table!((SELECT * FROM input_tree), (name, val)),
+              _tree_where(
+                _tree_constraint('name', '!=', 'mid1'),
+                _tree_constraint('name', '!=', 'mid2')
+              )
+            ),
+            (name, val)
+          )
+          ORDER BY id;
+        """,
+        out=Csv("""
+        "_tree_id","_tree_parent_id","id","name","val"
+        0,"[NULL]",1,"root",0
+        1,0,4,"leaf",30
+        """))
+
+  def test_filter_chained_filters(self):
+    """Two _tree_filter calls chained: first removes by tag, second by val."""
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE std.trees.table_conversion;
+          INCLUDE PERFETTO MODULE std.trees.filter;
+
+          CREATE PERFETTO TABLE input_tree AS
+          SELECT 1 AS id, NULL AS parent_id, 'a' AS tag, 10 AS val
+          UNION ALL SELECT 2, 1, 'b', 20
+          UNION ALL SELECT 3, 1, 'a', 30
+          UNION ALL SELECT 4, 2, 'b', 40
+          UNION ALL SELECT 5, 3, 'c', 50
+          UNION ALL SELECT 6, 4, 'c', 60;
+
+          -- First filter: remove tag='a' (nodes 1,3).
+          --   Node 2 becomes root, node 5 (child of 3) reparented to root.
+          -- Second filter: remove val >= 50 (node 5, 6).
+          --   Node 6 (child of 4) is removed, node 5 already gone.
+          SELECT _tree_id, _tree_parent_id, id, tag, val
+          FROM _tree_to_table!(
+            _tree_filter(
+              _tree_filter(
+                _tree_from_table!((SELECT * FROM input_tree), (tag, val)),
+                _tree_where(_tree_constraint('tag', '!=', 'a'))
+              ),
+              _tree_where(_tree_constraint('val', '<', 50))
+            ),
+            (tag, val)
+          )
+          ORDER BY id;
+        """,
+        out=Csv("""
+        "_tree_id","_tree_parent_id","id","tag","val"
+        0,"[NULL]",2,"b",20
+        1,0,4,"b",40
+        """))
+
+  def test_filter_three_chained_filters_with_reparenting(self):
+    """Three chained _tree_filter calls progressively pruning a deep tree.
+
+    Tree: 1(root) -> {2(mid), 3(skip)},
+          2 -> {4(keep), 5(skip)}, 3 -> {6(leaf)},
+          4 -> {7(deep)}, 5 -> {8(deep)}, 7 -> {9(bottom)}
+
+    Filter 1 (tag != 'skip'): removes 3,5; reparents 6->1, 8->2.
+    Filter 2 (depth <= 4): removes 9.
+    Filter 3 (val > 15): removes 1,2; reparents 4->root, 6->root, 8->root.
+    Result: 4(root), 6(root), 7(child of 4), 8(root).
+    """
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE std.trees.table_conversion;
+          INCLUDE PERFETTO MODULE std.trees.filter;
+
+          CREATE PERFETTO TABLE input_tree AS
+          SELECT 1 AS id, NULL AS parent_id, 'root' AS tag, 0 AS val, 1 AS depth
+          UNION ALL SELECT 2, 1, 'mid', 10, 2
+          UNION ALL SELECT 3, 1, 'skip', 20, 2
+          UNION ALL SELECT 4, 2, 'keep', 30, 3
+          UNION ALL SELECT 5, 2, 'skip', 40, 3
+          UNION ALL SELECT 6, 3, 'leaf', 50, 3
+          UNION ALL SELECT 7, 4, 'deep', 60, 4
+          UNION ALL SELECT 8, 5, 'deep', 70, 4
+          UNION ALL SELECT 9, 7, 'bottom', 80, 5;
+
+          SELECT _tree_id, _tree_parent_id, id, tag, val, depth
+          FROM _tree_to_table!(
+            _tree_filter(
+              _tree_filter(
+                _tree_filter(
+                  _tree_from_table!(
+                    (SELECT * FROM input_tree), (tag, val, depth)),
+                  _tree_where(_tree_constraint('tag', '!=', 'skip'))
+                ),
+                _tree_where(_tree_constraint('depth', '<=', 4))
+              ),
+              _tree_where(_tree_constraint('val', '>', 15))
+            ),
+            (tag, val, depth)
+          )
+          ORDER BY id;
+        """,
+        out=Csv("""
+        "_tree_id","_tree_parent_id","id","tag","val","depth"
+        0,"[NULL]",4,"keep",30,3
+        1,"[NULL]",6,"leaf",50,3
+        2,0,7,"deep",60,4
+        3,"[NULL]",8,"deep",70,4
+        """))
