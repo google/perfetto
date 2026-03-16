@@ -20,6 +20,7 @@
 #include <string_view>
 #include <utility>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/subprocess.h"
@@ -28,6 +29,12 @@
 #include "protos/perfetto/trace_processor/trace_processor.gen.h"
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <unistd.h>
+#include <climits>
+#endif
 
 namespace perfetto::trace_processor {
 namespace {
@@ -100,10 +107,78 @@ TEST(TraceProcessorShellIntegrationTest, ClassicVersion) {
 }
 
 TEST(TraceProcessorShellIntegrationTest, ClassicHelp) {
+  // --help now shows the subcommand-aware help.
   auto result = RunShell({"-h"});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("Perfetto Trace Processor"));
+  EXPECT_THAT(result.out, HasSubstr("Commands:"));
+  EXPECT_THAT(result.out, HasSubstr("query"));
+  EXPECT_THAT(result.out, HasSubstr("interactive"));
+  EXPECT_THAT(result.out, HasSubstr("server"));
+  EXPECT_THAT(result.out, HasSubstr("summarize"));
+  EXPECT_THAT(result.out, HasSubstr("metrics"));
+  EXPECT_THAT(result.out, HasSubstr("export"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, HelpClassic) {
+  auto result = RunShell({"--help-classic"});
   EXPECT_EQ(result.exit_code, 0);
   EXPECT_THAT(result.out, HasSubstr("Interactive trace processor shell"));
 }
+
+TEST(TraceProcessorShellIntegrationTest, HelpCommand) {
+  auto result = RunShell({"help", "query"});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("run a SQL query"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, HelpBare) {
+  auto result = RunShell({"help"});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("Commands:"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, HelpUnknownCommand) {
+  auto result = RunShell({"help", "nonexistent"});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, NoFileCollisionHintOnNormalUsage) {
+  // Normal subcommand usage should not emit the file collision hint.
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"query", trace.path(), "SELECT 1"});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, Not(HasSubstr("matches both a subcommand")));
+}
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+TEST(TraceProcessorShellIntegrationTest, FileCollisionHint) {
+  // Create a file named "query" in a temp dir, chdir there, and run the shell
+  // with bare "query" as an arg. The dispatcher should match "query" as a
+  // subcommand but also notice the file and emit a hint.
+  auto tmpdir = base::TempDir::Create();
+  std::string file_path = std::string(tmpdir.path()) + "/query";
+  base::WriteAll(*base::OpenFile(file_path, O_WRONLY | O_CREAT | O_TRUNC, 0600),
+                 kSimpleSystrace.data(),
+                 static_cast<size_t>(kSimpleSystrace.size()));
+
+  // RAII guard: restore CWD and clean up the file no matter how the test exits.
+  char old_cwd[PATH_MAX];
+  ASSERT_NE(getcwd(old_cwd, sizeof(old_cwd)), nullptr);
+  ASSERT_EQ(chdir(tmpdir.path().c_str()), 0);
+  auto cleanup = base::OnScopeExit([&] {
+    chdir(old_cwd);
+    remove(file_path.c_str());
+  });
+
+  // "query" is interpreted as the subcommand (which fails — no -f/-c), but
+  // the hint should appear because a file named "query" exists in CWD.
+  auto result = RunShell({"query"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("matches both a subcommand and a file"));
+}
+#endif
 
 TEST(TraceProcessorShellIntegrationTest, ClassicUnknownFlag) {
   auto result = RunShell({"--nonexistent"});
