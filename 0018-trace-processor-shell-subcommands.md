@@ -46,7 +46,7 @@ trace_processor_shell <subcommand> [FLAGS] [trace_file]
 | ----------- | --------------------- | ------------------------------- |
 | `query`     | `-q`, `-Q`            | Run SQL queries                 |
 | `interactive` | (default interactive) | Interactive SQL shell (default) |
-| `serve`     | `--httpd`, `--stdiod` | Start RPC server                |
+| `server`    | `--httpd`, `--stdiod` | Start RPC server                |
 | `summarize` | `--summary`           | Trace summarization             |
 | `metrics`   | `--run-metrics`       | v1 metrics (soft-deprecated)    |
 | `export`    | `-e`                  | Export to database              |
@@ -93,10 +93,10 @@ SQL can be provided as a positional argument, via `-f FILE`, or piped to stdin:
   -W, --wide             Double column width.
 ```
 
-**`serve`** — mode is positional (`serve http` or `serve stdio`):
+**`server`** — mode is positional (`server http` or `server stdio`):
 
 ```
-  trace_processor_shell serve <mode> [FLAGS] [trace_file]
+  trace_processor_shell server <mode> [FLAGS] [trace_file]
   --port PORT            HTTP port (http mode only).
   --ip-address IP        HTTP bind address (http mode only).
   --additional-cors-origins O1,O2,...
@@ -173,10 +173,10 @@ Commands:
                   trace_processor_shell interactive trace.pb
                 Flags: -W (wide)
 
-  serve         Start an RPC server.
-                  trace_processor_shell serve http trace.pb
-                  trace_processor_shell serve http --port 9001 trace.pb
-                  trace_processor_shell serve stdio
+  server        Start an RPC server.
+                  trace_processor_shell server http trace.pb
+                  trace_processor_shell server http --port 9001 trace.pb
+                  trace_processor_shell server stdio
                 Modes: http, stdio
 
   summarize     Run trace summarization.
