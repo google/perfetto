@@ -1989,13 +1989,13 @@ mod tests {
                     .set_timestamp(42)
                     .set_clock_snapshot(|clock_snapshot: &mut ClockSnapshot| {
                         clock_snapshot
-                            .set_clocks(|clock: &mut Clock| {
+                            .set_clocks(|clock: &mut ClockSnapshotClock| {
                                 clock.set_clock_id(
                                     PerfettoTeTimestampType_PERFETTO_TE_TIMESTAMP_TYPE_BOOT,
                                 );
                                 clock.set_timestamp(42);
                             })
-                            .set_clocks(|clock: &mut Clock| {
+                            .set_clocks(|clock: &mut ClockSnapshotClock| {
                                 clock.set_clock_id(CUSTOM_CLOCK_ID);
                                 clock.set_timestamp(10000);
                             });

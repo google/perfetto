@@ -514,26 +514,26 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
 
     // Create buffers for WebGL rendering
     const count = tickPositions.length;
-    const xs = new Float32Array(count);
+    const starts = new Float32Array(count);
+    const ends = new Float32Array(count);
     const ys = new Float32Array(count);
-    const ws = new Float32Array(count);
     const colors = new Uint32Array(count);
     const patterns = new Uint8Array(count);
     const gridColor = cssColorToRgba(COLOR_BORDER_SECONDARY);
 
     for (let i = 0; i < count; i++) {
-      xs[i] = tickPositions[i];
+      starts[i] = tickPositions[i];
+      ends[i] = tickPositions[i] + 1;
       ys[i] = 0;
-      ws[i] = 1;
       colors[i] = gridColor;
       patterns[i] = 0;
     }
 
     renderer.drawRects(
       {
-        xs,
+        starts,
+        ends,
         ys,
-        ws,
         h: timelineRect.height,
         colors,
         patterns,

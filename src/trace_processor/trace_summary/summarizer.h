@@ -45,11 +45,13 @@ namespace summary {
 // - Change detection: Uses proto hash to detect changes.
 // - Dependency propagation: If A changes, dependents B->C->D re-materialize.
 // - Table substitution: Unchanged queries reference their materialized tables.
-// - Cleanup: All materialized tables are dropped when the SummarizerImpl is
-//   destroyed.
+// - Cleanup: All materialized tables/views are dropped when the SummarizerImpl
+//   is destroyed.
 class SummarizerImpl : public Summarizer {
  public:
-  SummarizerImpl(TraceProcessor* tp, DescriptorPool* descriptor_pool);
+  SummarizerImpl(TraceProcessor* tp,
+                 DescriptorPool* descriptor_pool,
+                 std::string id);
   ~SummarizerImpl() override;
 
   SummarizerImpl(const SummarizerImpl&) = delete;
@@ -62,6 +64,11 @@ class SummarizerImpl : public Summarizer {
 
   base::Status Query(const std::string& query_id,
                      SummarizerQueryResult* result) override;
+
+  // Determines whether a query should be created as a VIEW instead of a
+  // materialized TABLE. Uses an allowlist of simple pass-through source types;
+  // unrecognized or complex sources default to TABLE (safe by default).
+  static bool ShouldUseView(const uint8_t* data, size_t size);
 
  private:
   struct QueryState {
@@ -80,7 +87,10 @@ class SummarizerImpl : public Summarizer {
     // if any dependency changes, this query must also be re-materialized.
     std::vector<std::string> inner_query_ids;
     bool needs_materialization = true;  // True until successfully materialized.
-    std::string old_table_name;  // Old table to drop after new materialization.
+    bool is_view = false;  // Whether materialized as VIEW (not TABLE).
+    std::string
+        old_table_name;        // Old table/view to drop after new one created.
+    bool old_is_view = false;  // Whether old_table_name is a VIEW.
 
     // Analysis results (populated during materialization):
     std::string sql;  // Complete runnable SQL (includes + preambles + query).
@@ -107,7 +117,10 @@ class SummarizerImpl : public Summarizer {
       perfetto_sql::generator::StructuredQueryGenerator& generator,
       std::vector<std::vector<uint8_t>>& table_source_protos);
 
-  // Drops all materialized tables.
+  // Drops a table or view by name.
+  void DropTableOrView(const std::string& name, bool is_view);
+
+  // Drops all materialized tables and views.
   void DropAll();
 
   // Generates standalone SQL for a query (deferred from materialization).
@@ -115,10 +128,11 @@ class SummarizerImpl : public Summarizer {
 
   TraceProcessor* tp_;
   DescriptorPool* descriptor_pool_;
+  std::string id_;
   base::FlatHashMap<std::string, QueryState> query_states_;
   base::FlatHashMap<std::string, bool>
       included_modules_;  // Track included modules.
-  uint32_t next_table_id_ = 0;
+  uint32_t next_materialized_id_ = 0;
 };
 
 }  // namespace summary

@@ -15,16 +15,19 @@
 import {test, Page} from '@playwright/test';
 import {PerfettoTestHelper} from './perfetto_ui_test_helper';
 import {assertExists} from '../base/assert';
+import {Locator} from '@playwright/test';
 
 test.describe.configure({mode: 'serial'});
 
 let pth: PerfettoTestHelper;
 let page: Page;
+let drawerPanel: Locator;
 
 test.beforeAll(async ({browser}, _testInfo) => {
   page = await browser.newPage();
   pth = new PerfettoTestHelper(page);
   await pth.openTraceFile('api34_startup_cold.perfetto-trace');
+  drawerPanel = page.locator('.pf-drawer-panel__drawer');
 });
 
 test('sched', async () => {
@@ -33,10 +36,14 @@ test('sched', async () => {
   await page.mouse.move(800, 350);
   await page.mouse.up();
   await pth.waitForPerfettoIdle();
-  await pth.waitForIdleAndScreenshot('cpu-by-thread.png');
+  await pth.waitForIdleAndScreenshot('cpu-by-thread.png', {
+    locator: drawerPanel,
+  });
 
   await page.click('button[label="CPU by process"]');
-  await pth.waitForIdleAndScreenshot('cpu-by-process.png');
+  await pth.waitForIdleAndScreenshot('cpu-by-process.png', {
+    locator: drawerPanel,
+  });
 
   // Now test sorting.
   const hdr = page
@@ -47,11 +54,15 @@ test('sched', async () => {
 
   // Press the sort button to sort ascending.
   await hdr.getByRole('button', {name: 'Sort column'}).click();
-  await pth.waitForIdleAndScreenshot('sort-by-wall-duration.png');
+  await pth.waitForIdleAndScreenshot('sort-by-wall-duration.png', {
+    locator: drawerPanel,
+  });
 
   // Press the button again to sort descending.
   await hdr.getByRole('button', {name: 'Sort column'}).click();
-  await pth.waitForIdleAndScreenshot('sort-by-wall-duration-desc.png');
+  await pth.waitForIdleAndScreenshot('sort-by-wall-duration-desc.png', {
+    locator: drawerPanel,
+  });
 
   const hdrCount = page
     .getByRole('columnheader')
@@ -60,7 +71,9 @@ test('sched', async () => {
 
   // Press the sort button to sort ascending on this column.
   await hdrCount.getByRole('button', {name: 'Sort column'}).click();
-  await pth.waitForIdleAndScreenshot('sort-by-occurrences.png');
+  await pth.waitForIdleAndScreenshot('sort-by-occurrences.png', {
+    locator: drawerPanel,
+  });
 });
 
 test('gpu counter', async () => {
@@ -79,7 +92,9 @@ test('gpu counter', async () => {
   await page.mouse.down();
   await page.mouse.move(800, coords.y + 60);
   await page.mouse.up();
-  await pth.waitForIdleAndScreenshot('gpu-counter-aggregation.png');
+  await pth.waitForIdleAndScreenshot('gpu-counter-aggregation.png', {
+    locator: drawerPanel,
+  });
 });
 
 test('frametimeline', async () => {
@@ -96,7 +111,9 @@ test('frametimeline', async () => {
   await page.mouse.down();
   await page.mouse.move(1000, coords.y + 20);
   await page.mouse.up();
-  await pth.waitForIdleAndScreenshot('frame-timeline-aggregation.png');
+  await pth.waitForIdleAndScreenshot('frame-timeline-aggregation.png', {
+    locator: drawerPanel,
+  });
 });
 
 test('slices', async () => {
@@ -114,5 +131,7 @@ test('slices', async () => {
   await page.mouse.down();
   await page.mouse.move(1000, coords.y + 20);
   await page.mouse.up();
-  await pth.waitForIdleAndScreenshot('slice-aggregation.png');
+  await pth.waitForIdleAndScreenshot('slice-aggregation.png', {
+    locator: drawerPanel,
+  });
 });

@@ -320,7 +320,7 @@ A Chunk defines the granularity of the interaction between the Producer and
 tracing Service. When a producer fills a chunk it sends `CommitData` IPC to the
 service, asking it to copy its contents into the central non-shared buffers.
 
-A a chunk can be in one of the following four states:
+A chunk can be in one of the following four states:
 
 * `Free` : The Chunk is free. The Service shall never touch it, the Producer
    can acquire it when writing and transition it into the `BeingWritten` state.

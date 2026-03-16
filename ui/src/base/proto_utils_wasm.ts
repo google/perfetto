@@ -66,31 +66,38 @@ export async function traceConfigToTxt(
   return pbToText(config, protos.TraceConfig.encode, 'trace_config_pb_to_txt');
 }
 
-/** Convert a pbtxt (text-proto) text to a proto-encoded TraceConfig. */
-export async function traceConfigToPb(
-  configTxt: string,
+/**
+ * Generic helper: sends a text proto string to WASM for conversion to binary
+ * proto format. Mirrors pbToText but in the opposite direction.
+ */
+async function textToPb(
+  input: string,
+  ccallName: string,
 ): Promise<Result<Uint8Array>> {
   const wasm = await initWasmOnce();
 
-  const configUtf8 = utf8Encode(configTxt);
-  if (configUtf8.length > wasm.buf.length) {
+  const inputUtf8 = utf8Encode(input);
+  if (inputUtf8.length > wasm.buf.length) {
     return errResult(
-      `Config text too large: ${configUtf8.length} bytes exceeds buffer size ${wasm.buf.length}`,
+      `Text too large: ${inputUtf8.length} bytes exceeds buffer size ${wasm.buf.length}`,
     );
   }
-  wasm.buf.set(configUtf8);
+  wasm.buf.set(inputUtf8);
 
   const resSize =
-    wasm.module.ccall(
-      'trace_config_txt_to_pb',
-      'number',
-      ['number'],
-      [configUtf8.length],
-    ) >>> 0;
+    wasm.module.ccall(ccallName, 'number', ['number'], [inputUtf8.length]) >>>
+    0;
 
   const success = wasm.buf.at(0) === 1;
   const payload = wasm.buf.slice(1, 1 + resSize);
   return success ? okResult(payload) : errResult(utf8Decode(payload));
+}
+
+/** Convert a pbtxt (text-proto) text to a proto-encoded TraceConfig. */
+export async function traceConfigToPb(
+  configTxt: string,
+): Promise<Result<Uint8Array>> {
+  return textToPb(configTxt, 'trace_config_txt_to_pb');
 }
 
 /**
@@ -104,6 +111,15 @@ export async function traceSummarySpecToText(
     protos.TraceSummarySpec.encode,
     'trace_summary_spec_to_text',
   );
+}
+
+/**
+ * Convert a text proto (pbtxt) string to a proto-encoded TraceSummarySpec.
+ */
+export async function traceSummarySpecToPb(
+  specTxt: string,
+): Promise<Result<Uint8Array>> {
+  return textToPb(specTxt, 'trace_summary_spec_txt_to_pb');
 }
 
 async function initWasmOnce(): Promise<WasmModule> {
@@ -122,8 +138,7 @@ async function initWasmOnce(): Promise<WasmModule> {
       wasmBinary,
     } as WasmModuleGen.ModuleArgs);
     await deferredRuntimeInitialized;
-    const bufAddr =
-      instance.ccall('proto_utils_buf', 'number', [], []) >>> 0;
+    const bufAddr = instance.ccall('proto_utils_buf', 'number', [], []) >>> 0;
     const bufSize =
       instance.ccall('proto_utils_buf_size', 'number', [], []) >>> 0;
     moduleInstance = {

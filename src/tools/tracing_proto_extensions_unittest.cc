@@ -25,29 +25,34 @@ namespace perfetto {
 namespace gen_proto_extensions {
 namespace {
 
-TEST(GenProtoExtensionsTest, ParseRegistryBasic) {
+TEST(GenProtoExtensionsTest, ParseRegistryFileBasic) {
   const char kJson[] = R"({
-    "scope": "perfetto.protos.TrackEvent",
-    "range": [1000, 2000],
-    "allocations": [
+    "extensions": [
       {
-        "name": "project_a",
-        "range": [1000, 1499],
-        "contact": "foo@example.com",
-        "description": "Project A",
-        "proto": "path/to/a.proto"
-      },
-      {
-        "name": "unallocated",
-        "range": [1500, 2000]
+        "scope": "perfetto.protos.TrackEvent",
+        "range": [1000, 2000],
+        "allocations": [
+          {
+            "name": "project_a",
+            "range": [1000, 1499],
+            "contact": "foo@example.com",
+            "description": "Project A",
+            "proto": "path/to/a.proto"
+          },
+          {
+            "name": "unallocated",
+            "range": [1500, 2000]
+          }
+        ]
       }
     ]
   })";
 
-  auto result = ParseRegistry(kJson, "test.json");
+  auto result = ParseRegistryFile(kJson, "test.json");
   ASSERT_TRUE(result.ok()) << result.status().message();
 
-  const Registry& reg = *result;
+  ASSERT_EQ(result->size(), 1u);
+  const Registry& reg = (*result)[0];
   EXPECT_EQ(reg.scope, "perfetto.protos.TrackEvent");
   ASSERT_EQ(reg.ranges.size(), 1u);
   EXPECT_EQ(reg.ranges[0], Range(1000, 2000));
@@ -64,32 +69,194 @@ TEST(GenProtoExtensionsTest, ParseRegistryBasic) {
   EXPECT_EQ(reg.allocations[1].ranges[0], Range(1500, 2000));
 }
 
-TEST(GenProtoExtensionsTest, ParseRegistryWithSubRegistry) {
+TEST(GenProtoExtensionsTest, ParseRegistryFileWithSubRegistry) {
   const char kJson[] = R"({
-    "range": [1000, 2000],
-    "allocations": [
+    "extensions": [
       {
-        "name": "project_a",
-        "range": [1000, 1499],
-        "registry": "path/to/sub.json"
-      },
-      {
-        "name": "project_b",
-        "range": [1500, 1999],
-        "repo": "https://example.com/repo",
-        "proto": "some/path.proto"
-      },
-      {
-        "name": "unallocated",
-        "range": [2000, 2000]
+        "range": [1000, 2000],
+        "allocations": [
+          {
+            "name": "project_a",
+            "range": [1000, 1499],
+            "registry": "path/to/sub.json"
+          },
+          {
+            "name": "project_b",
+            "range": [1500, 1999],
+            "repo": "https://example.com/repo",
+            "proto": "some/path.proto"
+          },
+          {
+            "name": "unallocated",
+            "range": [2000, 2000]
+          }
+        ]
       }
     ]
   })";
 
-  auto result = ParseRegistry(kJson, "test.json");
+  auto result = ParseRegistryFile(kJson, "test.json");
   ASSERT_TRUE(result.ok()) << result.status().message();
-  EXPECT_EQ(result->allocations[0].registry, "path/to/sub.json");
-  EXPECT_EQ(result->allocations[1].repo, "https://example.com/repo");
+  ASSERT_EQ(result->size(), 1u);
+  EXPECT_EQ((*result)[0].allocations[0].registry, "path/to/sub.json");
+  EXPECT_EQ((*result)[0].allocations[1].repo, "https://example.com/repo");
+}
+
+TEST(GenProtoExtensionsTest, ParseRegistryFileMultipleExtensions) {
+  const char kJson[] = R"({
+    "extensions": [
+      {
+        "scope": "perfetto.protos.TrackEvent",
+        "range": [1000, 1999],
+        "allocations": [
+          {"name": "a", "range": [1000, 1999], "proto": "a.proto"}
+        ]
+      },
+      {
+        "scope": "perfetto.protos.TrackEvent",
+        "range": [2000, 2999],
+        "allocations": [
+          {"name": "b", "range": [2000, 2999], "proto": "b.proto"}
+        ]
+      }
+    ]
+  })";
+
+  auto result = ParseRegistryFile(kJson, "test.json");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  ASSERT_EQ(result->size(), 2u);
+  EXPECT_EQ((*result)[0].scope, "perfetto.protos.TrackEvent");
+  EXPECT_EQ((*result)[1].scope, "perfetto.protos.TrackEvent");
+  EXPECT_EQ((*result)[0].allocations[0].name, "a");
+  EXPECT_EQ((*result)[1].allocations[0].name, "b");
+}
+
+TEST(GenProtoExtensionsTest, ParseRegistryFileWithComment) {
+  const char kJson[] = R"({
+    "comment": ["Top-level comment"],
+    "extensions": [
+      {
+        "scope": "perfetto.protos.TrackEvent",
+        "range": [100, 199],
+        "allocations": [
+          {"name": "a", "range": [100, 199], "proto": "a.proto"}
+        ]
+      }
+    ]
+  })";
+
+  auto result = ParseRegistryFile(kJson, "test.json");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  ASSERT_EQ(result->size(), 1u);
+}
+
+TEST(GenProtoExtensionsTest, ParseRegistryFileUnknownField) {
+  const char kJson[] = R"({
+    "extensions": [],
+    "unknown_field": 42
+  })";
+  auto result = ParseRegistryFile(kJson, "test.json");
+  EXPECT_FALSE(result.ok());
+  EXPECT_THAT(result.status().message(), testing::HasSubstr("Unknown field"));
+}
+
+TEST(GenProtoExtensionsTest, ParseRegistryFileInvalidJson) {
+  auto result = ParseRegistryFile("{invalid", "test.json");
+  EXPECT_FALSE(result.ok());
+}
+
+TEST(GenProtoExtensionsTest, ParseRegistryFileWithRanges) {
+  const char kJson[] = R"({
+    "extensions": [
+      {
+        "ranges": [[1000, 1499], [2000, 2999]],
+        "allocations": [
+          {
+            "name": "project_a",
+            "range": [1000, 1499],
+            "proto": "a.proto"
+          },
+          {
+            "name": "project_b",
+            "range": [2000, 2999],
+            "proto": "b.proto"
+          }
+        ]
+      }
+    ]
+  })";
+
+  auto result = ParseRegistryFile(kJson, "test.json");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+
+  ASSERT_EQ(result->size(), 1u);
+  ASSERT_EQ((*result)[0].ranges.size(), 2u);
+  EXPECT_EQ((*result)[0].ranges[0], Range(1000, 1499));
+  EXPECT_EQ((*result)[0].ranges[1], Range(2000, 2999));
+}
+
+TEST(GenProtoExtensionsTest, ParseRegistryFileAllocWithRanges) {
+  const char kJson[] = R"({
+    "extensions": [
+      {
+        "range": [1000, 2999],
+        "allocations": [
+          {
+            "name": "project_a",
+            "ranges": [[1000, 1499], [2000, 2499]],
+            "proto": "a.proto"
+          },
+          {
+            "name": "unallocated",
+            "ranges": [[1500, 1999], [2500, 2999]]
+          }
+        ]
+      }
+    ]
+  })";
+
+  auto result = ParseRegistryFile(kJson, "test.json");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+
+  ASSERT_EQ(result->size(), 1u);
+  ASSERT_EQ((*result)[0].allocations[0].ranges.size(), 2u);
+  EXPECT_EQ((*result)[0].allocations[0].ranges[0], Range(1000, 1499));
+  EXPECT_EQ((*result)[0].allocations[0].ranges[1], Range(2000, 2499));
+}
+
+TEST(GenProtoExtensionsTest, ParseRegistryFileRangeAndRangesMutuallyExclusive) {
+  const char kJson[] = R"({
+    "extensions": [
+      {
+        "range": [1000, 2000],
+        "ranges": [[1000, 1500], [1501, 2000]],
+        "allocations": []
+      }
+    ]
+  })";
+
+  auto result = ParseRegistryFile(kJson, "test.json");
+  EXPECT_FALSE(result.ok());
+  EXPECT_THAT(result.status().message(), testing::HasSubstr("both"));
+}
+
+TEST(GenProtoExtensionsTest, ParseRegistryFileMissingRange) {
+  const char kJson[] = R"({
+    "extensions": [
+      {
+        "allocations": [
+          {"name": "a", "range": [1, 10], "proto": "a.proto"}
+        ]
+      }
+    ]
+  })";
+  auto result = ParseRegistryFile(kJson, "test.json");
+  ASSERT_TRUE(result.ok());
+  ASSERT_EQ(result->size(), 1u);
+  // ranges will be empty (no range specified in the entry).
+  // ValidateRegistry should catch this.
+  auto status = ValidateRegistry((*result)[0]);
+  EXPECT_FALSE(status.ok());
 }
 
 TEST(GenProtoExtensionsTest, ValidateRegistryValid) {
@@ -169,25 +336,6 @@ TEST(GenProtoExtensionsTest, ValidateRegistryUnallocatedWithProto) {
   EXPECT_THAT(status.message(), testing::HasSubstr("Unallocated"));
 }
 
-TEST(GenProtoExtensionsTest, ParseRegistryInvalidJson) {
-  auto result = ParseRegistry("{invalid", "test.json");
-  EXPECT_FALSE(result.ok());
-}
-
-TEST(GenProtoExtensionsTest, ParseRegistryMissingRange) {
-  const char kJson[] = R"({
-    "allocations": [
-      {"name": "a", "range": [1, 10], "proto": "a.proto"}
-    ]
-  })";
-  auto result = ParseRegistry(kJson, "test.json");
-  ASSERT_TRUE(result.ok());
-  // ranges will be empty (no top-level range specified).
-  // ValidateRegistry should catch this.
-  auto status = ValidateRegistry(*result);
-  EXPECT_FALSE(status.ok());
-}
-
 TEST(GenProtoExtensionsTest, ValidateRegistryRemoteEntrySkipsProtoCheck) {
   Registry reg;
   reg.source_path = "test.json";
@@ -199,67 +347,6 @@ TEST(GenProtoExtensionsTest, ValidateRegistryRemoteEntrySkipsProtoCheck) {
   reg.allocations.push_back({"unallocated", {{200, 299}}, "", "", "", "", ""});
 
   EXPECT_TRUE(ValidateRegistry(reg).ok());
-}
-
-TEST(GenProtoExtensionsTest, ParseRegistryWithRanges) {
-  const char kJson[] = R"({
-    "ranges": [[1000, 1499], [2000, 2999]],
-    "allocations": [
-      {
-        "name": "project_a",
-        "range": [1000, 1499],
-        "proto": "a.proto"
-      },
-      {
-        "name": "project_b",
-        "range": [2000, 2999],
-        "proto": "b.proto"
-      }
-    ]
-  })";
-
-  auto result = ParseRegistry(kJson, "test.json");
-  ASSERT_TRUE(result.ok()) << result.status().message();
-
-  ASSERT_EQ(result->ranges.size(), 2u);
-  EXPECT_EQ(result->ranges[0], Range(1000, 1499));
-  EXPECT_EQ(result->ranges[1], Range(2000, 2999));
-}
-
-TEST(GenProtoExtensionsTest, ParseRegistryAllocWithRanges) {
-  const char kJson[] = R"({
-    "range": [1000, 2999],
-    "allocations": [
-      {
-        "name": "project_a",
-        "ranges": [[1000, 1499], [2000, 2499]],
-        "proto": "a.proto"
-      },
-      {
-        "name": "unallocated",
-        "ranges": [[1500, 1999], [2500, 2999]]
-      }
-    ]
-  })";
-
-  auto result = ParseRegistry(kJson, "test.json");
-  ASSERT_TRUE(result.ok()) << result.status().message();
-
-  ASSERT_EQ(result->allocations[0].ranges.size(), 2u);
-  EXPECT_EQ(result->allocations[0].ranges[0], Range(1000, 1499));
-  EXPECT_EQ(result->allocations[0].ranges[1], Range(2000, 2499));
-}
-
-TEST(GenProtoExtensionsTest, ParseRegistryRangeAndRangesMutuallyExclusive) {
-  const char kJson[] = R"({
-    "range": [1000, 2000],
-    "ranges": [[1000, 1500], [1501, 2000]],
-    "allocations": []
-  })";
-
-  auto result = ParseRegistry(kJson, "test.json");
-  EXPECT_FALSE(result.ok());
-  EXPECT_THAT(result.status().message(), testing::HasSubstr("both"));
 }
 
 TEST(GenProtoExtensionsTest, ValidateRegistryScatteredRangesValid) {
@@ -302,26 +389,6 @@ TEST(GenProtoExtensionsTest, ValidateRegistryScatteredRangesOverlap) {
   EXPECT_THAT(status.message(), testing::HasSubstr("overlap"));
 }
 
-TEST(GenProtoExtensionsTest, ParseRegistryWithComment) {
-  const char kJson[] = R"({
-    "comment": ["This is a comment", "Another line"],
-    "range": [100, 199],
-    "allocations": [
-      {
-        "name": "a",
-        "comment": ["Allocation comment"],
-        "range": [100, 199],
-        "proto": "a.proto"
-      }
-    ]
-  })";
-
-  auto result = ParseRegistry(kJson, "test.json");
-  ASSERT_TRUE(result.ok()) << result.status().message();
-  ASSERT_EQ(result->ranges.size(), 1u);
-  EXPECT_EQ(result->ranges[0], Range(100, 199));
-}
-
 TEST(GenProtoExtensionsTest, ValidateRegistryMissingScope) {
   Registry reg;
   reg.source_path = "test.json";
@@ -361,13 +428,17 @@ TEST(GenProtoExtensionsTest, GenerateExtensionDescriptorsNoExtend) {
     }
   )");
   tmp.AddFile("registry.json", R"({
-    "scope": "perfetto.protos.TrackEvent",
-    "range": [9900, 9999],
-    "allocations": [
+    "extensions": [
       {
-        "name": "test",
+        "scope": "perfetto.protos.TrackEvent",
         "range": [9900, 9999],
-        "proto": "protos/perfetto/trace/track_event/no_extend.proto"
+        "allocations": [
+          {
+            "name": "test",
+            "range": [9900, 9999],
+            "proto": "protos/perfetto/trace/track_event/no_extend.proto"
+          }
+        ]
       }
     ]
   })");

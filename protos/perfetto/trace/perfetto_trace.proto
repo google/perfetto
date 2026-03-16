@@ -5521,6 +5521,42 @@ message SystemInfo {
 
 // End of protos/perfetto/common/system_info.proto
 
+// Begin of protos/perfetto/common/trace_metadata.proto
+
+// Arbitrary key value pairs which can attached to a trace to provide context
+// about any facet of the trace. This can include, what data it contains,
+// properties of the host / machine the trace was collected on, and other
+// interesting information about a trace.
+///
+// Examples include:
+// gradle_version = "9.0.10-alpha01"
+// java_major_version = 24
+///
+// All keys get prefixed with `trace_metadata.` in the UI and in
+// `traceprocessor`. If there are multiple trace metadata packets that use the
+// same key, then the latest value wins.
+// These key value pairs show up in the `Overview` section in
+// Perfetto UI. Additionally, these key, value pairs can also be queried using
+// Pefetto SQL by using the following query:
+///
+//`SELECT * FROM metadata WHERE name GLOB 'trace_metadata.*';`
+
+message TraceMetadata {
+  message Metadata {
+    // The key
+    optional string key = 1;
+    // The value
+    oneof value {
+      int64 long_value = 2;
+      string string_value = 3;
+    }
+  }
+
+  repeated Metadata metadata = 1;
+}
+
+// End of protos/perfetto/common/trace_metadata.proto
+
 // Begin of protos/perfetto/common/trace_stats.proto
 
 // Statistics for the internals of the tracing service.
@@ -6564,11 +6600,11 @@ message PixelModemTokenDatabase {
 /* represents a single log entry */
 message ProtoLogMessage {
   /* log statement identifier, created from message string and log level. */
-  optional fixed64 message_id = 1;
+  optional fixed64 message_id = 1 [jstype = JS_STRING];
   /* string parameters passed to the log call that have been interned. */
   repeated uint32 str_param_iids = 2;
   /* integer parameters passed to the log call. */
-  repeated sint64 sint64_params = 3;
+  repeated sint64 sint64_params = 3 [jstype = JS_STRING];
   /* floating point parameters passed to the log call. */
   repeated double double_params = 4;
   /* boolean parameters passed to the log call. */
@@ -6582,7 +6618,7 @@ message ProtoLogMessage {
 message ProtoLogViewerConfig {
   message MessageData {
     // the id of the message that is logged in a ProtoLogMessage
-    optional fixed64 message_id = 1;
+    optional fixed64 message_id = 1 [jstype = JS_STRING];
     // the string representation of the message
     optional string message = 2;
     // the level of the message
@@ -6606,6 +6642,17 @@ message ProtoLogViewerConfig {
 
 // End of protos/perfetto/trace/android/protolog.proto
 
+// Begin of protos/perfetto/trace/android/graphics/rect.proto
+
+message RectProto {
+  optional int32 left = 1;
+  optional int32 top = 2;
+  optional int32 right = 3;
+  optional int32 bottom = 4;
+}
+
+// End of protos/perfetto/trace/android/graphics/rect.proto
+
 // Begin of protos/perfetto/trace/android/shell_transition.proto
 
 // ShellTransition messages record information about the shell transitions in
@@ -6617,43 +6664,43 @@ message ShellTransition {
 
   // The time the transition was created on the WM side
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 create_time_ns = 2;
+  optional int64 create_time_ns = 2 [jstype = JS_STRING];
   // The time the transition was sent from the WM side to shell
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 send_time_ns = 3;
+  optional int64 send_time_ns = 3 [jstype = JS_STRING];
   // The time the transition was dispatched by shell to execute
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 dispatch_time_ns = 4;
+  optional int64 dispatch_time_ns = 4 [jstype = JS_STRING];
   // If the transition merge was accepted by the transition handler, this
   // contains the time the transition was merged into transition with id
   // `merge_target`.
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 merge_time_ns = 5;
+  optional int64 merge_time_ns = 5 [jstype = JS_STRING];
   // The time shell proposed the transition should be merged to the transition
   // handler into transition with id `merge_target`.
   // (using SystemClock.elapsedRealtimeNanos()).
-  optional int64 merge_request_time_ns = 6;
+  optional int64 merge_request_time_ns = 6 [jstype = JS_STRING];
   // If the transition was aborted on the shell side, this is the time that
   // occurred.
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 shell_abort_time_ns = 7;
+  optional int64 shell_abort_time_ns = 7 [jstype = JS_STRING];
   // If the transition was aborted on the wm side, this is the time that
   // occurred.
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 wm_abort_time_ns = 8;
+  optional int64 wm_abort_time_ns = 8 [jstype = JS_STRING];
   // The time WM considers the transition to be complete.
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 finish_time_ns = 9;
+  optional int64 finish_time_ns = 9 [jstype = JS_STRING];
 
   // The id of the transaction that WM proposed to use as the starting
   // transaction. It contains all the layer changes required to setup the
   // transition and should be executed right at the start of the transition
   // by the transition handler.
-  optional uint64 start_transaction_id = 10;
+  optional uint64 start_transaction_id = 10 [jstype = JS_STRING];
   // The if of the transaction that WM proposed to use as the finish
   // transaction. It contains all the layer changes required to set the final
   // state of the transition.
-  optional uint64 finish_transaction_id = 11;
+  optional uint64 finish_transaction_id = 11 [jstype = JS_STRING];
 
   // The id of the handler that executed the transition. A HandlerMappings
   // message in the trace will contain the mapping of id to a string
@@ -6662,8 +6709,8 @@ message ShellTransition {
   // The transition type of this transition (e.g. TO_FRONT, OPEN, CLOSE).
   optional int32 type = 13;
 
-  // The list of targets that are part of this transition.
-  repeated Target targets = 14;
+  // The list of changes that are part of this transition.
+  repeated Change changes = 14;
   // The id of the transition we have requested to merge or have merged this
   // transition into.
   optional int32 merge_target = 15;
@@ -6675,18 +6722,30 @@ message ShellTransition {
   // until the starting window is removed. So in a sense the transition is not
   // finished until the starting window is removed. (b/284302118)
   // (using SystemClock.elapsedRealtimeNanos())
-  optional int64 starting_window_remove_time_ns = 17;
+  optional int64 starting_window_remove_time_ns = 17 [jstype = JS_STRING];
 
-  // Contains the information about the windows targeted in a transition.
-  message Target {
-    // The transition mode of this target (e.g. TO_FRONT, CLOSE...)
+  // Contains the information about the windows changed in a transition.
+  message Change {
+    // The transition mode of this change (e.g. TO_FRONT, CLOSE...)
     optional int32 mode = 1;
-    // The layer id of this target.
+    // The layer id of this change.
     optional int32 layer_id = 2;
-    // The window id of this target.
+    // The window id of this change.
     optional int32 window_id = 3;
-    // The flags set on this target.
+    // The flags set on this change.
     optional int32 flags = 4;
+    // The display id the change is transitioning on before the transition.
+    optional int32 start_display_id = 5;
+    // The display id the change is transitioning on after the transition.
+    optional int32 end_display_id = 6;
+    // The rotation of the change before the transition.
+    optional int32 start_rotation = 7;
+    // The rotation of the change after the transition.
+    optional int32 end_rotation = 8;
+    // The absolute screen bounds of the change before the transition.
+    optional RectProto start_absolute_bounds = 9;
+    // The absolute screen bounds of the change after the transition.
+    optional RectProto end_absolute_bounds = 10;
   }
 }
 
@@ -6703,17 +6762,6 @@ message ShellHandlerMapping {
 }
 
 // End of protos/perfetto/trace/android/shell_transition.proto
-
-// Begin of protos/perfetto/trace/android/graphics/rect.proto
-
-message RectProto {
-  optional int32 left = 1;
-  optional int32 top = 2;
-  optional int32 right = 3;
-  optional int32 bottom = 4;
-}
-
-// End of protos/perfetto/trace/android/graphics/rect.proto
 
 // Begin of protos/perfetto/trace/android/surfaceflinger_common.proto
 
@@ -6833,19 +6881,19 @@ message LayersTraceFileProto {
   }
 
   // Must be the first field, set to value in MagicNumber
-  optional fixed64 magic_number = 1;
+  optional fixed64 magic_number = 1 [jstype = JS_STRING];
 
   repeated LayersSnapshotProto entry = 2;
 
   // Offset between real-time clock and elapsed time clock in nanoseconds.
   // Calculated as: systemTime(SYSTEM_TIME_REALTIME) -
   // systemTime(SYSTEM_TIME_MONOTONIC)
-  optional fixed64 real_to_elapsed_time_offset_nanos = 3;
+  optional fixed64 real_to_elapsed_time_offset_nanos = 3 [jstype = JS_STRING];
 }
 
 message LayersSnapshotProto {
   // elapsed realtime in nanos since boot of when this entry was logged
-  optional sfixed64 elapsed_realtime_nanos = 1;
+  optional sfixed64 elapsed_realtime_nanos = 1 [jstype = JS_STRING];
 
   // SurfaceFlinger's stage where the snapshot was triggered.
   // Currently either "visibleRegionsDirty" or "bufferLatched".
@@ -6867,7 +6915,7 @@ message LayersSnapshotProto {
 
   repeated DisplayProto displays = 7;
 
-  optional int64 vsync_id = 8;
+  optional int64 vsync_id = 8 [jstype = JS_STRING];
 }
 
 // Contains a list of all layers.
@@ -6876,7 +6924,7 @@ message LayersProto {
 }
 
 message DisplayProto {
-  optional uint64 id = 1;
+  optional uint64 id = 1 [jstype = JS_STRING];
   // Display descriptor, e.g. "Built-In Screen"
   optional string name = 2;
   optional uint32 layer_stack = 3;
@@ -6985,7 +7033,7 @@ message LayerProto {
   // If it's a buffer layer, indicate if the content is protected
   optional bool is_protected = 36;
   // Current frame number being rendered.
-  optional uint64 curr_frame = 37;
+  optional uint64 curr_frame = 37 [jstype = JS_STRING];
   // A list of barriers that the layer is waiting to update state.
   repeated BarrierLayerProto barrier_layer = 38;
   // If active_buffer is not null, record its transform.
@@ -7080,14 +7128,14 @@ message ActiveBufferProto {
   optional uint32 height = 2;
   optional uint32 stride = 3;
   optional int32 format = 4;
-  optional uint64 usage = 5;
+  optional uint64 usage = 5 [jstype = JS_STRING];
 }
 
 message BarrierLayerProto {
   // layer id the barrier is waiting on.
   optional int32 id = 1;
   // frame number the barrier is waiting on.
-  optional uint64 frame_number = 2;
+  optional uint64 frame_number = 2 [jstype = JS_STRING];
 }
 
 // End of protos/perfetto/trace/android/surfaceflinger_layers.proto
@@ -7111,19 +7159,19 @@ message TransactionTraceFile {
   }
 
   // Must be the first field, set to value in MagicNumber
-  optional fixed64 magic_number = 1;
+  optional fixed64 magic_number = 1 [jstype = JS_STRING];
   repeated TransactionTraceEntry entry = 2;
 
   // offset between real-time clock and elapsed time clock in nanoseconds.
   // Calculated as: systemTime(SYSTEM_TIME_REALTIME) -
   // systemTime(SYSTEM_TIME_MONOTONIC)
-  optional fixed64 real_to_elapsed_time_offset_nanos = 3;
+  optional fixed64 real_to_elapsed_time_offset_nanos = 3 [jstype = JS_STRING];
   optional uint32 version = 4;
 }
 
 message TransactionTraceEntry {
-  optional int64 elapsed_realtime_nanos = 1;
-  optional int64 vsync_id = 2;
+  optional int64 elapsed_realtime_nanos = 1 [jstype = JS_STRING];
+  optional int64 vsync_id = 2 [jstype = JS_STRING];
   repeated TransactionState transactions = 3;
   repeated LayerCreationArgs added_layers = 4;
   repeated uint32 destroyed_layers = 5;
@@ -7176,14 +7224,14 @@ message TransactionBarrier {
 message TransactionState {
   optional int32 pid = 1;
   optional int32 uid = 2;
-  optional int64 vsync_id = 3;
+  optional int64 vsync_id = 3 [jstype = JS_STRING];
   optional int32 input_event_id = 4;
-  optional int64 post_time = 5;
-  optional uint64 transaction_id = 6;
+  optional int64 post_time = 5 [jstype = JS_STRING];
+  optional uint64 transaction_id = 6 [jstype = JS_STRING];
   repeated LayerState layer_changes = 7;
   repeated DisplayState display_changes = 8;
-  repeated uint64 merged_transaction_ids = 9;
-  optional uint64 apply_token = 10;
+  repeated uint64 merged_transaction_ids = 9 [jstype = JS_STRING];
+  optional uint64 apply_token = 10 [jstype = JS_STRING];
   repeated TransactionBarrier transaction_barriers = 11;
 }
 
@@ -7256,7 +7304,7 @@ message LayerState {
     eBoxShadowSettingsChanged = 0x00040000;
     eBorderSettingsChanged = 0x00080000;
   };
-  optional uint64 what = 2;
+  optional uint64 what = 2 [jstype = JS_STRING];
   optional float x = 3;
   optional float y = 4;
   optional int32 z = 5;
@@ -7308,10 +7356,10 @@ message LayerState {
   optional RectProto crop = 21;
 
   message BufferData {
-    optional uint64 buffer_id = 1;
+    optional uint64 buffer_id = 1 [jstype = JS_STRING];
     optional uint32 width = 2;
     optional uint32 height = 3;
-    optional uint64 frame_number = 4;
+    optional uint64 frame_number = 4 [jstype = JS_STRING];
 
     enum BufferDataChange {
       BufferDataChangeNone = 0;
@@ -7320,7 +7368,7 @@ message LayerState {
       cachedBufferChanged = 0x04;
     }
     optional uint32 flags = 5;
-    optional uint64 cached_buffer_id = 6;
+    optional uint64 cached_buffer_id = 6 [jstype = JS_STRING];
 
     enum PixelFormat {
       PIXEL_FORMAT_UNKNOWN = 0;
@@ -7340,7 +7388,7 @@ message LayerState {
       PIXEL_FORMAT_R_8 = 0x38;
     }
     optional PixelFormat pixel_format = 7;
-    optional uint64 usage = 8;
+    optional uint64 usage = 8 [jstype = JS_STRING];
   }
   optional BufferData buffer_data = 22;
   optional int32 api = 23;
@@ -7374,7 +7422,7 @@ message LayerState {
   optional int32 frame_rate_compatibility = 34;
   optional int32 change_frame_rate_strategy = 35;
   optional uint32 fixed_transform_hint = 36;
-  optional uint64 frame_number = 37;
+  optional uint64 frame_number = 37 [jstype = JS_STRING];
   optional bool auto_refresh = 38;
   // unused
   optional bool is_trusted_overlay = 39;
@@ -10568,6 +10616,21 @@ message F2fsGcEndFtraceEvent {
   optional int32 reserved_seg = 10;
   optional uint32 prefree_seg = 11;
 }
+message F2fsLockElapsedTimeFtraceEvent {
+  optional uint64 dev = 1;
+  optional string comm = 2;
+  optional int32 pid = 3;
+  optional int32 prio = 4;
+  optional int32 ioprio_class = 5;
+  optional int32 ioprio_data = 6;
+  optional uint32 lock_name = 7;
+  optional uint32 is_write = 8;
+  optional uint64 total_time = 9;
+  optional uint64 running_time = 10;
+  optional uint64 runnable_time = 11;
+  optional uint64 io_sleep_time = 12;
+  optional uint64 other_time = 13;
+}
 
 // End of protos/perfetto/trace/ftrace/f2fs.proto
 
@@ -13581,6 +13644,7 @@ message FtraceEvent {
     FwtpPerfettoSliceFtraceEvent fwtp_perfetto_slice = 600;
     GpuPowerStateFtraceEvent gpu_power_state = 601;
     GramCollisionFtraceEvent gram_collision = 602;
+    F2fsLockElapsedTimeFtraceEvent f2fs_lock_elapsed_time = 603;
   }
 }
 
@@ -18250,7 +18314,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 126.
+// Next id: 127.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -18338,6 +18402,7 @@ message TracePacket {
     EntityStateResidency entity_state_residency = 91;
     TraceProvenance trace_provenance = 124;
     ProtoVms protovms = 125;
+    TraceMetadata trace_metadata = 126;
 
     // Only used in profile packets.
     ModuleSymbols module_symbols = 61;

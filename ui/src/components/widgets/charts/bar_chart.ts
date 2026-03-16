@@ -21,8 +21,8 @@ import {
   buildGridOption,
   buildBrushOption,
   buildTooltipOption,
+  SELECTION_COLOR,
 } from './chart_option_builder';
-import {getChartThemeColors} from './chart_theme';
 
 /**
  * A single bar in the bar chart.
@@ -126,6 +126,13 @@ export interface BarChartAttrs {
    * Called with the labels of all bars in the brushed range.
    */
   readonly onBrush?: (labels: Array<string | number>) => void;
+
+  /**
+   * Selection labels to highlight on the chart. Bars whose labels are in
+   * this array are drawn with a highlight color. The consumer controls
+   * this state — typically by feeding the `onBrush` output back in.
+   */
+  readonly selection?: ReadonlyArray<string | number>;
 }
 
 export class BarChart implements m.ClassComponent<BarChartAttrs> {
@@ -168,8 +175,6 @@ function buildBarOption(
   } = attrs;
   const fmtDimension = formatDimension ?? String;
   const fmtMeasure = formatMeasure ?? formatNumber;
-
-  const theme = getChartThemeColors();
   const horizontal = orientation === 'horizontal';
   const labels = data.items.map((item) => fmtDimension(item.label));
 
@@ -209,7 +214,6 @@ function buildBarOption(
 
   const option: Record<string, unknown> = {
     animation: false,
-    color: [...theme.chartColors],
     grid: buildGridOption({
       bottom: dimensionLabel && !horizontal ? 45 : 25,
     }),
@@ -226,13 +230,20 @@ function buildBarOption(
     series: [
       {
         type: 'bar',
-        data: data.items.map((item) => item.value),
+        data: data.items.map((item) => {
+          const selected =
+            attrs.selection !== undefined &&
+            attrs.selection.includes(item.label);
+          return {
+            value: item.value,
+            ...(selected ? {itemStyle: {color: SELECTION_COLOR}} : {}),
+          };
+        }),
         itemStyle: barColor !== undefined ? {color: barColor} : undefined,
-        emphasis: {
-          itemStyle: {
-            color: barHoverColor ?? theme.accentColor,
-          },
-        },
+        emphasis:
+          barHoverColor !== undefined
+            ? {itemStyle: {color: barHoverColor}}
+            : undefined,
       },
     ],
   };
@@ -247,7 +258,7 @@ function buildBarOption(
     option.toolbox = {show: false};
   }
 
-  return option as EChartsCoreOption;
+  return option;
 }
 
 function buildBarEventHandlers(

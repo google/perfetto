@@ -21,11 +21,21 @@ import {WATTSON_THREAD_TRACK_KIND} from './track_kinds';
 export async function addWattsonThreadTrack(
   trace: Trace,
   utid: number,
-  threadTrackUri?: string,
+  options?: {
+    threadTrackUri?: string;
+    pin?: boolean;
+    scrollTo?: boolean;
+  },
 ): Promise<void> {
   const uri = `dev.perfetto.Sched#WattsonThreadCounter_${utid}`;
-  if (trace.currentWorkspace.getTrackByUri(uri)) {
-    trace.scrollTo({track: {uri, expandGroup: true}});
+  const existingTrack = trace.currentWorkspace.getTrackByUri(uri);
+  if (existingTrack) {
+    if (options?.pin && !existingTrack.isPinned) {
+      existingTrack.pin();
+    }
+    if (options?.scrollTo ?? !options?.pin) {
+      trace.scrollTo({track: {uri, expandGroup: true}});
+    }
     return;
   }
 
@@ -87,8 +97,8 @@ export async function addWattsonThreadTrack(
 
   // Find the thread track and add the new track as a sibling
   let threadNode: TrackNode | undefined;
-  if (threadTrackUri) {
-    threadNode = trace.currentWorkspace.getTrackByUri(threadTrackUri);
+  if (options?.threadTrackUri) {
+    threadNode = trace.currentWorkspace.getTrackByUri(options.threadTrackUri);
   } else {
     const threadTrack = trace.tracks
       .getAllTracks()
@@ -102,20 +112,23 @@ export async function addWattsonThreadTrack(
     }
   }
 
+  const name = threadNode?.name ?? (utid === 0 ? 'swapper' : `utid ${utid}`);
+  const newNode = new TrackNode({
+    uri,
+    name: `${name} Wattson power estimates`,
+  });
+
   if (threadNode?.parent) {
-    const newNode = new TrackNode({
-      uri,
-      name: `${threadNode.name} Wattson power estimates`,
-    });
     threadNode.parent.addChildBefore(newNode, threadNode);
   } else {
-    const name = threadNode?.name ?? (utid === 0 ? 'swapper' : `utid ${utid}`);
-    const newNode = new TrackNode({
-      uri,
-      name: `${name} Wattson power estimates`,
-    });
     trace.currentWorkspace.addChildLast(newNode);
   }
 
-  trace.scrollTo({track: {uri, expandGroup: true}});
+  if (options?.pin) {
+    newNode.pin();
+  }
+
+  if (options?.scrollTo ?? !options?.pin) {
+    trace.scrollTo({track: {uri, expandGroup: true}});
+  }
 }
