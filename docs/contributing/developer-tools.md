@@ -20,7 +20,7 @@ You can also
 ## "Stacked diffs" with GitHub
 
 From our days on Android, Perfetto has long worked on a "stacked-diff" model and
-its one that we like a lot inside the team. However, Github is very much _not_
+its one that we like a lot inside the team. However, GitHub is very much _not_
 optimized for stack diffs.
 
 We've explored a bunch of tools in the ecosystem (git-town, Graphite, git-spice,
@@ -123,7 +123,7 @@ git commit -a -m 'Respond to review'
 # Update the stack so that my-feature-2 also has this commit.
 git update-stack
 
-# Sync to Github.
+# Sync to GitHub.
 git sync-all
 
 # ... my-feature is approved and merged on GitHub.
