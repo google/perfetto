@@ -19,6 +19,7 @@ import {AppImpl} from '../core/app_impl';
 import {OmniboxMode} from '../core/omnibox_manager';
 import {Router} from '../core/router';
 import {TraceImpl, TraceImplAttrs} from '../core/trace_impl';
+import {SidePanelManagerImpl} from '../core/side_panel_manager';
 import {Button} from '../widgets/button';
 import {Intent} from '../widgets/common';
 import {Popup, PopupPosition} from '../widgets/popup';
@@ -74,18 +75,46 @@ export interface TopbarAttrs {
   readonly trace?: TraceImpl;
 }
 
+function renderSidePanelToggle(mgr: SidePanelManagerImpl): m.Children {
+  const hasTabs = mgr.registeredTabs.length > 0;
+  if (!hasTabs) return undefined;
+  return m(Button, {
+    icon: 'dock_to_left',
+    title: 'Toggle AI sidebar',
+    active: mgr.visible,
+    className: classNames('pf-topbar__side-panel-btn'),
+    onclick: () => {
+      if (mgr.visible) {
+        mgr.visible = false;
+      } else {
+        // If no tab is open, show the first registered one.
+        if (!mgr.currentTabUri && mgr.registeredTabs.length > 0) {
+          mgr.showTab(mgr.registeredTabs[0].uri);
+        } else {
+          mgr.visible = true;
+        }
+      }
+    },
+  });
+}
+
 export class Topbar implements m.ClassComponent<TopbarAttrs> {
   view({attrs}: m.Vnode<TopbarAttrs>) {
     const {trace} = attrs;
+    const app = AppImpl.instance;
     return m(
       '.pf-topbar',
       {
         className: classNames(
-          !AppImpl.instance.sidebar.visible && 'pf-topbar--hide-sidebar',
+          !app.sidebar.visible && 'pf-topbar--hide-sidebar',
         ),
       },
       m(Omnibox, {trace}),
-      trace && m(TraceErrorIcon, {trace}),
+      m(
+        '.pf-topbar__right',
+        trace && m(TraceErrorIcon, {trace}),
+        renderSidePanelToggle(app.sidePanel),
+      ),
     );
   }
 }
