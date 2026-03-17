@@ -20,6 +20,7 @@ import {LinearProgress} from '../widgets/linear_progress';
 import {maybeRenderFullscreenModalDialog} from '../widgets/modal';
 import {initCssConstants} from './css_constants';
 import {Sidebar} from './sidebar';
+import {SidePanelContainer} from './side_panel';
 import {renderStatusBar} from './statusbar';
 import {taskTracker} from './task_tracker';
 import {Topbar} from './topbar';
@@ -66,7 +67,13 @@ export class UiMain implements m.ClassComponent {
         className: 'pf-ui-main__loading',
         state: isSomethingLoading ? 'indeterminate' : 'none',
       }),
-      m('.pf-ui-main__page-container', app.pages.renderPageForCurrentRoute()),
+      m(
+        '.pf-ui-main__page-container',
+        m(SidePanelContainer, {
+          sidePanelMgr: app.sidePanel,
+          pageContent: app.pages.renderPageForCurrentRoute(),
+        }),
+      ),
       m(CookieConsent),
       maybeRenderFullscreenModalDialog(),
       showStatusBarFlag.get() && renderStatusBar(app),
