@@ -287,10 +287,14 @@ export class Sidebar implements m.ClassComponent {
                 }),
           app.embedder.brandingBadge.text,
         ),
-      m('button.pf-sidebar-button', {
-        onclick: () => sidebar.toggleVisibility(),
-        title: sidebar.visible ? 'Hide sidebar' : 'Show sidebar',
-      }, m(Icon, {icon: 'menu'})),
+      m(
+        'button.pf-sidebar-button',
+        {
+          onclick: () => sidebar.toggleVisibility(),
+          title: sidebar.visible ? 'Hide sidebar' : 'Show sidebar',
+        },
+        m(Icon, {icon: 'menu'}),
+      ),
     );
   }
 
