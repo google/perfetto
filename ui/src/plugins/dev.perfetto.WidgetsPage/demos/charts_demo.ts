@@ -86,11 +86,12 @@ import {
   SQLHeatmapLoader,
   HeatmapLoaderConfig,
 } from '../../../components/widgets/charts/heatmap_loader';
-import {StatCard} from '../../../components/widgets/charts/stat_card';
+import {Gauge} from '../../../components/widgets/charts/gauge';
+import {Scorecard} from '../../../components/widgets/charts/scorecard';
 import {
-  SQLStatCardLoader,
-  StatCardLoaderConfig,
-} from '../../../components/widgets/charts/stat_card_loader';
+  SQLSingleValueLoader,
+  SingleValueLoaderConfig,
+} from '../../../components/widgets/charts/single_value_loader';
 import {App} from '../../../public/app';
 import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 import {Trace} from '../../../public/trace';
@@ -373,18 +374,17 @@ export function renderCharts(app: App): m.Children {
       },
     }),
 
-    // StatCard section
-    m('h2', {style: {marginTop: '32px'}}, 'StatCard'),
+    // Gauge section
+    m('h2', {style: {marginTop: '32px'}}, 'Gauge'),
     renderWidgetShowcase({
       renderWidget: (opts) => {
-        return m(StatCard, {
+        return m(Gauge, {
           data: {value: opts.value},
           isPending: false,
           label: opts.label,
           height: opts.height,
           min: opts.min,
           max: opts.max,
-          showGauge: opts.showGauge,
           diameter: opts.diameter,
         });
       },
@@ -394,8 +394,24 @@ export function renderCharts(app: App): m.Children {
         min: 0,
         max: 100,
         label: 'CPU Usage %',
-        showGauge: true,
         diameter: '75%',
+      },
+    }),
+
+    // Scorecard section
+    m('h2', {style: {marginTop: '32px'}}, 'Scorecard'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(Scorecard, {
+          label: opts.label,
+          value: opts.value,
+          fillParent: opts.fillParent,
+        });
+      },
+      initialOpts: {
+        value: 1234,
+        label: 'Total Events',
+        fillParent: false,
       },
     }),
 
@@ -661,14 +677,43 @@ function renderSQLDemos(app: App): m.Children[] {
         ] as const),
       },
     }),
-    m('h3', {style: {marginTop: '32px'}}, 'SQLStatCardLoader'),
+    m('h3', {style: {marginTop: '32px'}}, 'SQLSingleValueLoader (Gauge)'),
     renderWidgetShowcase({
       renderWidget: (opts) => {
-        return m(SQLStatCardDemo, {
+        return m(SQLGaugeDemo, {
           trace,
           aggregation: opts.aggregation,
           column: opts.column,
           label: opts.label,
+          height: opts.height,
+          min: opts.min,
+          max: opts.max,
+        });
+      },
+      initialOpts: {
+        aggregation: new EnumOption('COUNT', [
+          'COUNT',
+          'SUM',
+          'AVG',
+          'MIN',
+          'MAX',
+        ] as const),
+        column: new EnumOption('dur', ['dur', 'ts', 'depth'] as const),
+        label: 'Slice count',
+        height: 300,
+        min: 0,
+        max: 10000,
+      },
+    }),
+    m('h3', {style: {marginTop: '32px'}}, 'SQLSingleValueLoader (Scorecard)'),
+    renderWidgetShowcase({
+      renderWidget: (opts) => {
+        return m(SQLScorecardDemo, {
+          trace,
+          aggregation: opts.aggregation,
+          column: opts.column,
+          label: opts.label,
+          fillParent: opts.fillParent,
         });
       },
       initialOpts: {
@@ -681,6 +726,7 @@ function renderSQLDemos(app: App): m.Children[] {
         ] as const),
         column: new EnumOption('dur', ['dur', 'ts', 'depth'] as const),
         label: 'Slice duration',
+        fillParent: false,
       },
     }),
   ];
@@ -2481,16 +2527,17 @@ function SQLHeatmapDemo(): m.Component<{
 }
 
 // ---------------------------------------------------------------------------
-// SQL Stat Card demo
+// SQL Scorecard demo
 // ---------------------------------------------------------------------------
 
-function SQLStatCardDemo(): m.Component<{
+function SQLScorecardDemo(): m.Component<{
   trace: Trace;
   aggregation: ChartAggregation;
   column: string;
   label: string;
+  fillParent?: boolean;
 }> {
-  let loader: SQLStatCardLoader | undefined;
+  let loader: SQLSingleValueLoader | undefined;
   let currentColumn: string | undefined;
 
   return {
@@ -2498,14 +2545,14 @@ function SQLStatCardDemo(): m.Component<{
       if (!loader || currentColumn !== attrs.column) {
         loader?.dispose();
         currentColumn = attrs.column;
-        loader = new SQLStatCardLoader({
+        loader = new SQLSingleValueLoader({
           engine: attrs.trace.engine,
           query: `SELECT ${attrs.column} FROM slice WHERE ${attrs.column} > 0`,
           measureColumn: attrs.column,
         });
       }
 
-      const config: StatCardLoaderConfig = {
+      const config: SingleValueLoaderConfig = {
         aggregation: attrs.aggregation,
       };
       const {data, isPending} = loader.use(config);
@@ -2516,18 +2563,87 @@ function SQLStatCardDemo(): m.Component<{
           {
             style: {
               width: '250px',
-              height: '200px',
+              height: '120px',
               border: '1px solid var(--pf-color-border)',
               borderRadius: '8px',
             },
           },
-          m(StatCard, {
-            data,
+          m(Scorecard, {
+            value: data?.value,
             isPending,
             label: attrs.label,
-            fillParent: true,
+            fillParent: attrs.fillParent,
           }),
         ),
+        m(
+          'pre',
+          {
+            style: {
+              marginTop: '8px',
+              fontSize: '11px',
+              background: 'var(--pf-color-background-secondary)',
+              padding: '8px',
+              borderRadius: '4px',
+            },
+          },
+          [
+            `query: 'SELECT ${attrs.column} FROM slice WHERE ${attrs.column} > 0'\n`,
+            `measureColumn: '${attrs.column}'\n`,
+            `loader.use(${JSON.stringify(config, null, 2)})`,
+            isPending ? '\n(loading...)' : '',
+          ],
+        ),
+      ]);
+    },
+    onremove: () => {
+      loader?.dispose();
+      loader = undefined;
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// SQL Gauge demo
+// ---------------------------------------------------------------------------
+
+function SQLGaugeDemo(): m.Component<{
+  trace: Trace;
+  aggregation: ChartAggregation;
+  column: string;
+  label: string;
+  height: number;
+  min: number;
+  max: number;
+}> {
+  let loader: SQLSingleValueLoader | undefined;
+  let currentColumn: string | undefined;
+
+  return {
+    view: ({attrs}) => {
+      if (!loader || currentColumn !== attrs.column) {
+        loader?.dispose();
+        currentColumn = attrs.column;
+        loader = new SQLSingleValueLoader({
+          engine: attrs.trace.engine,
+          query: `SELECT ${attrs.column} FROM slice WHERE ${attrs.column} > 0`,
+          measureColumn: attrs.column,
+        });
+      }
+
+      const config: SingleValueLoaderConfig = {
+        aggregation: attrs.aggregation,
+      };
+      const {data, isPending} = loader.use(config);
+
+      return m('div', [
+        m(Gauge, {
+          data,
+          isPending,
+          label: attrs.label,
+          height: attrs.height,
+          min: attrs.min,
+          max: attrs.max,
+        }),
         m(
           'pre',
           {
