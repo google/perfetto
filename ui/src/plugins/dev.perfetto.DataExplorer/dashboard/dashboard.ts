@@ -34,6 +34,7 @@ import {
   getItemId,
   getLinkedSourceNodeIds,
   getNextItemPosition,
+  isDriverChart,
   snapToGrid,
 } from './dashboard_registry';
 import {
@@ -52,6 +53,11 @@ const DEFAULT_CHART_WIDTH = 400;
 const DEFAULT_CHART_HEIGHT = 294;
 const MIN_CHART_WIDTH = 200;
 const MIN_CHART_HEIGHT = 150;
+// Must match .pf-dashboard__divider height in dashboard.scss.
+const DIVIDER_HEIGHT = 32;
+const DEFAULT_DIVIDER_LABEL = 'Filter boundary';
+// Vertical gap (px) between the bottom of existing items and a new divider.
+const DIVIDER_GAP = 40;
 
 function formatBrushFilter(f: DashboardBrushFilter): string {
   if (f.op === 'is null') return 'IS NULL';
@@ -110,6 +116,9 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
   private filtersExpanded = true;
   private expandedInput: string | undefined = undefined;
   private editingChartId?: string;
+  // Incremented when filters are removed from the filter bar, so that
+  // chart brush overlays are cleared in sync.
+  private brushClearGen = 0;
 
   // Pointer-event drag state.
   private draggingItemId?: string;
@@ -214,6 +223,13 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
             this.addLabel(attrs);
           },
         }),
+        m(MenuItem, {
+          label: 'Segment Divider',
+          icon: 'horizontal_rule',
+          onclick: () => {
+            this.addDivider(attrs);
+          },
+        }),
       ),
     );
   }
@@ -227,6 +243,9 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     return items.map((item) => {
       if (item.kind === 'label') {
         return this.renderLabel(attrs, item);
+      }
+      if (item.kind === 'divider') {
+        return this.renderDivider(attrs, item);
       }
       const source = attrs.sources.find((s) => s.nodeId === item.sourceNodeId);
       if (source === undefined) {
@@ -244,6 +263,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     const config = chart.config;
     const itemId = config.id;
     const headerLabel = config.name ?? getDefaultChartLabel(config);
+    const chartIsDriver = isDriverChart(chart, attrs.items);
 
     const editButton = m(
       Popup,
@@ -349,6 +369,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       m(
         '.pf-dashboard__chart-content',
         m(DashboardChartView, {
+          key: `${config.id}-${this.brushClearGen}`,
           trace: attrs.trace,
           source,
           config,
@@ -358,6 +379,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           brushFilters: attrs.brushFilters,
           onItemsChange: attrs.onItemsChange,
           onBrushFiltersChange: attrs.onBrushFiltersChange,
+          isDriverChart: chartIsDriver,
         }),
       ),
     ]);
@@ -411,12 +433,59 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     ]);
   }
 
+  private renderDivider(
+    attrs: DashboardAttrs,
+    divider: DashboardItem & {kind: 'divider'},
+  ): m.Child {
+    const itemId = divider.id;
+    const isDragging = this.draggingItemId === itemId;
+    const temp = this.tempPositions.get(itemId);
+    const y = temp?.y ?? divider.y ?? 0;
+
+    return m(
+      '.pf-dashboard__divider',
+      {
+        key: itemId,
+        style: `top: ${y}px`,
+        className: classNames(isDragging && 'pf-dashboard__divider--dragging'),
+        onpointerdown: (e: PointerEvent) => {
+          if (
+            (e.target as HTMLElement).closest(
+              'button, input, .pf-resize-handle',
+            )
+          ) {
+            return;
+          }
+          this.startDividerDrag(e, itemId, y);
+        },
+      },
+      [
+        m('.pf-dashboard__divider-line'),
+        m(
+          '.pf-dashboard__divider-label',
+          divider.label ?? DEFAULT_DIVIDER_LABEL,
+        ),
+        m('.pf-dashboard__divider-actions', [
+          m(Button, {
+            icon: 'close',
+            title: 'Remove divider',
+            compact: true,
+            onclick: (e: MouseEvent) => {
+              e.stopPropagation();
+              this.removeItem(attrs, itemId);
+            },
+          }),
+        ]),
+      ],
+    );
+  }
+
   // --- Shared card wrapper with resize + absolute positioning ---
 
   private renderItemCard(
     attrs: DashboardAttrs,
     itemId: string,
-    item: DashboardItem,
+    item: Exclude<DashboardItem, {kind: 'divider'}>,
     children: m.Children,
   ): m.Child {
     const isDragging = this.draggingItemId === itemId;
@@ -518,6 +587,27 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     };
   }
 
+  /** Start drag for a divider — only vertical movement matters. */
+  private startDividerDrag(
+    e: PointerEvent,
+    itemId: string,
+    currentY: number,
+  ): void {
+    if (e.button !== 0) return;
+
+    const canvasEl = (e.currentTarget as HTMLElement).closest(
+      '.pf-dashboard__canvas',
+    ) as HTMLElement | null;
+    if (canvasEl === null) return;
+
+    const canvasRect = canvasEl.getBoundingClientRect();
+    this.draggingItemId = itemId;
+    this.dragOffset = {
+      x: 0,
+      y: e.clientY - canvasRect.top + canvasEl.scrollTop - currentY,
+    };
+  }
+
   private handlePointerMove(e: PointerEvent): void {
     if (this.draggingItemId === undefined) return;
 
@@ -533,7 +623,15 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       e.clientY - canvasRect.top + canvasEl.scrollTop - this.dragOffset.y,
     );
 
-    this.tempPositions.set(this.draggingItemId, {x, y});
+    // Dividers only move vertically — keep x at 0.
+    const draggingItem = this.latestAttrs?.items.find(
+      (i) => getItemId(i) === this.draggingItemId,
+    );
+    if (draggingItem?.kind === 'divider') {
+      this.tempPositions.set(this.draggingItemId, {x: 0, y});
+    } else {
+      this.tempPositions.set(this.draggingItemId, {x, y});
+    }
     m.redraw();
   }
 
@@ -545,9 +643,29 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     const temp = this.tempPositions.get(this.draggingItemId);
     if (temp !== undefined) {
       const itemId = this.draggingItemId;
-      const x = snapToGrid(temp.x);
-      const y = snapToGrid(temp.y);
-      this.mapItems(attrs, (i) => (getItemId(i) === itemId ? {...i, x, y} : i));
+      const draggingItem = attrs.items.find((i) => getItemId(i) === itemId);
+      const bounds =
+        draggingItem !== undefined
+          ? getItemBounds(draggingItem)
+          : {w: DEFAULT_CHART_WIDTH, h: DEFAULT_CHART_HEIGHT};
+      const pos = findNonOverlappingPosition(
+        snapToGrid(temp.x),
+        snapToGrid(temp.y),
+        bounds.w,
+        bounds.h,
+        attrs.items,
+        itemId,
+      );
+
+      if (draggingItem?.kind === 'divider') {
+        this.mapItems(attrs, (i) =>
+          getItemId(i) === itemId ? {...i, y: pos.y} : i,
+        );
+      } else {
+        this.mapItems(attrs, (i) =>
+          getItemId(i) === itemId ? {...i, x: pos.x, y: pos.y} : i,
+        );
+      }
     }
     this.cancelDrag();
   }
@@ -574,8 +692,39 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
 
   private addLabel(attrs: DashboardAttrs): void {
     const items = [...attrs.items];
-    const {x, y} = getNextItemPosition(items);
-    items.push({kind: 'label', id: shortUuid(), text: '', x, y});
+    const id = shortUuid();
+    const candidate = getNextItemPosition(items);
+    const pos = findNonOverlappingPosition(
+      candidate.x,
+      candidate.y,
+      DEFAULT_CHART_WIDTH,
+      DEFAULT_CHART_HEIGHT,
+      items,
+      id,
+    );
+    items.push({kind: 'label', id, text: '', x: pos.x, y: pos.y});
+    attrs.onItemsChange(items);
+  }
+
+  private addDivider(attrs: DashboardAttrs): void {
+    const items = [...attrs.items];
+    const id = shortUuid();
+    // Place the divider below all existing items.
+    let maxY = 0;
+    for (const item of items) {
+      const b = getItemBounds(item);
+      maxY = Math.max(maxY, b.y + b.h);
+    }
+    const candidate = snapToGrid(maxY + DIVIDER_GAP);
+    const pos = findNonOverlappingPosition(
+      0,
+      candidate,
+      Infinity,
+      DIVIDER_HEIGHT,
+      items,
+      id,
+    );
+    items.push({kind: 'divider', id, y: pos.y});
     attrs.onItemsChange(items);
   }
 
@@ -620,6 +769,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     sourceNodeId: string,
     column: string,
   ): void {
+    this.brushClearGen++;
     const newFilters = new Map(attrs.brushFilters);
 
     // Clear the column from the specified source and all other sources that
@@ -646,6 +796,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     sourceNodeId: string,
     filter: DashboardBrushFilter,
   ): void {
+    this.brushClearGen++;
     const newFilters = new Map(attrs.brushFilters);
 
     // Remove the filter from the specified source and all other sources that
@@ -816,6 +967,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           label: 'Clear all',
           compact: true,
           onclick: () => {
+            this.brushClearGen++;
             attrs.onBrushFiltersChange(new Map());
           },
         }),
@@ -1031,14 +1183,98 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
   ): void {
     const items = [...attrs.items];
     const newConfig = createDefaultChartConfig(source.columns);
-    const {x, y} = getNextItemPosition(items);
+    const candidate = getNextItemPosition(items);
+    const pos = findNonOverlappingPosition(
+      candidate.x,
+      candidate.y,
+      DEFAULT_CHART_WIDTH,
+      DEFAULT_CHART_HEIGHT,
+      items,
+      newConfig.id,
+    );
     items.push({
       kind: 'chart',
       sourceNodeId: source.nodeId,
       config: newConfig,
-      x,
-      y,
+      x: pos.x,
+      y: pos.y,
     });
     attrs.onItemsChange(items);
   }
+}
+
+/** Get the bounding box of a dashboard item. */
+function getItemBounds(item: DashboardItem): {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+} {
+  if (item.kind === 'divider') {
+    // Dividers span the full width — Infinity ensures overlap detection
+    // treats them as full-width barriers.
+    return {x: 0, y: item.y, w: Infinity, h: DIVIDER_HEIGHT};
+  }
+  return {
+    x: item.x ?? 0,
+    y: item.y ?? 0,
+    w: item.widthPx ?? DEFAULT_CHART_WIDTH,
+    h: item.heightPx ?? DEFAULT_CHART_HEIGHT,
+  };
+}
+
+const OVERLAP_PADDING = 10;
+
+/** Check if a rectangle overlaps any item except `skipId`. */
+function checkOverlap(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  items: ReadonlyArray<DashboardItem>,
+  skipId: string,
+): boolean {
+  for (const item of items) {
+    if (getItemId(item) === skipId) continue;
+    const b = getItemBounds(item);
+    const overlaps = !(
+      x + w + OVERLAP_PADDING <= b.x ||
+      x >= b.x + b.w + OVERLAP_PADDING ||
+      y + h + OVERLAP_PADDING <= b.y ||
+      y >= b.y + b.h + OVERLAP_PADDING
+    );
+    if (overlaps) return true;
+  }
+  return false;
+}
+
+/**
+ * Find the nearest non-overlapping position using a spiral search,
+ * matching the nodegraph pattern.
+ */
+function findNonOverlappingPosition(
+  startX: number,
+  startY: number,
+  w: number,
+  h: number,
+  items: ReadonlyArray<DashboardItem>,
+  skipId: string,
+): {x: number; y: number} {
+  if (!checkOverlap(startX, startY, w, h, items, skipId)) {
+    return {x: startX, y: startY};
+  }
+  const step = 20;
+  const maxRadius = 500;
+  for (let radius = step; radius <= maxRadius; radius += step) {
+    const numSteps = Math.ceil((2 * Math.PI * radius) / step);
+    for (let i = 0; i < numSteps; i++) {
+      const angle = (2 * Math.PI * i) / numSteps;
+      const x = snapToGrid(Math.round(startX + radius * Math.cos(angle)));
+      const y = snapToGrid(Math.round(startY + radius * Math.sin(angle)));
+      if (y >= 0 && !checkOverlap(x, y, w, h, items, skipId)) {
+        return {x, y};
+      }
+    }
+  }
+  return {x: startX, y: startY};
 }
