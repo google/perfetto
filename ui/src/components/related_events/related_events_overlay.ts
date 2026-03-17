@@ -13,19 +13,19 @@
 // limitations under the License.
 
 import {Trace} from '../../public/trace';
-import {drawRelatedEvents} from './arrow_visualiser';
-import {RelatedEventData} from './interface';
+import {ArrowConnection, ArrowVisualiser} from './arrow_visualiser';
 import {Overlay, TrackBounds} from '../../public/track';
 import {TimeScale} from '../../base/time_scale';
 import {Size2D} from '../../base/geom';
 
 export class RelatedEventsOverlay implements Overlay {
-  private data: RelatedEventData = {events: [], relations: []};
+  private readonly visualiser: ArrowVisualiser;
 
-  constructor(public trace: Trace) {}
-
-  update(data: RelatedEventData) {
-    this.data = data;
+  constructor(
+    trace: Trace,
+    private readonly getConnections: () => ArrowConnection[],
+  ) {
+    this.visualiser = new ArrowVisualiser(trace);
   }
 
   render(
@@ -34,6 +34,9 @@ export class RelatedEventsOverlay implements Overlay {
     _size: Size2D,
     tracks: ReadonlyArray<TrackBounds>,
   ): void {
-    drawRelatedEvents(ctx, this.trace, ts, tracks, this.data);
+    const connections = this.getConnections();
+    if (connections.length > 0) {
+      this.visualiser.draw(ctx, ts, tracks, connections);
+    }
   }
 }

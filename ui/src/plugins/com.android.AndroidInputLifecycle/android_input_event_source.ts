@@ -14,29 +14,69 @@
 
 import {Trace} from '../../public/trace';
 import {
-  RelatedEventData,
-  RelatedEvent,
-  Relation,
-  NavTarget,
-} from '../../components/related_events/interface';
-import {
   LONG_NULL,
   NUM_NULL,
   STR_NULL,
 } from '../../trace_processor/query_result';
-import {time, duration, Time} from '../../base/time';
-import {getTrackUriForTrackId} from '../../components/related_events/utils';
+import {duration, time, Time, Duration} from '../../base/time';
+import {
+  getTrackUriForTrackId,
+  enrichDepths,
+} from '../../components/related_events/utils';
+import {QuerySlot, QueryResult, SerialTaskQueue} from '../../base/query_slot';
+
+export interface NavTarget {
+  id: number;
+  trackUri: string;
+  ts: time;
+  dur: duration;
+  depth: number;
+}
+
+export interface InputChainRow {
+  uiRowId: string;
+  channel: string;
+  totalLatency: duration | null;
+
+  durReader: duration | null;
+  deltaDispatch: duration | null;
+  deltaReceive: duration | null;
+  deltaConsume: duration | null;
+  deltaFrame: duration | null;
+
+  navReader?: NavTarget;
+  navDispatch?: NavTarget;
+  navConsume?: NavTarget;
+  navReceive?: NavTarget;
+  navFrame?: NavTarget;
+
+  allTrackUris: string[];
+}
 
 export class AndroidInputEventSource {
-  constructor(private trace: Trace) {}
+  private readonly queue = new SerialTaskQueue();
+  private readonly dataSlot = new QuerySlot<InputChainRow[]>(this.queue);
 
-  async getRelatedEventData(eventId: number): Promise<RelatedEventData> {
+  constructor(private readonly trace: Trace) {}
+
+  use(sliceId: number): QueryResult<InputChainRow[]> {
+    return this.dataSlot.use({
+      key: {sliceId},
+      queryFn: async () => {
+        const rows = await this.fetchRows(sliceId);
+        await this.enrichAllDepths(rows);
+        return rows;
+      },
+    });
+  }
+
+  private async fetchRows(sliceId: number): Promise<InputChainRow[]> {
     const result = await this.trace.engine.query(
-      `SELECT * FROM _android_input_lifecycle_by_slice_id(${eventId})`,
+      `SELECT * FROM _android_input_lifecycle_by_slice_id(${sliceId})`,
     );
 
-    const events: RelatedEvent[] = [];
-    const relations: Relation[] = [];
+    const rows: InputChainRow[] = [];
+    let index = 0;
 
     const it = result.iter({
       input_id: STR_NULL,
@@ -68,154 +108,117 @@ export class AndroidInputEventSource {
       track_frame: NUM_NULL,
       dur_frame: LONG_NULL,
     });
-    if (!it.valid()) {
-      return {events: [], relations: []};
-    }
 
     while (it.valid()) {
-      const channel = it.channel;
-      const totalLatency = it.total_latency !== null ? it.total_latency : null;
+      const navReader = this.makeNav(
+        it.id_reader,
+        it.track_reader,
+        it.ts_reader,
+        it.dur_reader,
+      );
+      const navDispatch = this.makeNav(
+        it.id_dispatch,
+        it.track_dispatch,
+        it.ts_dispatch,
+        it.dur_dispatch,
+      );
+      const navReceive = this.makeNav(
+        it.id_receive,
+        it.track_receive,
+        it.ts_receive,
+        it.dur_receive,
+      );
+      const navConsume = this.makeNav(
+        it.id_consume,
+        it.track_consume,
+        it.ts_consume,
+        it.dur_consume,
+      );
+      const navFrame = this.makeNav(
+        it.id_frame,
+        it.track_frame,
+        it.ts_frame,
+        it.dur_frame,
+      );
 
-      const stages: (RelatedEvent | undefined)[] = [
-        this.parseStage(
-          'InputReader',
-          channel,
-          totalLatency,
-          it.id_reader,
-          it.ts_reader,
-          it.dur_reader,
-          it.track_reader,
-        ),
-        this.parseStage(
-          'InputDispatcher',
-          channel,
-          totalLatency,
-          it.id_dispatch,
-          it.ts_dispatch,
-          it.dur_dispatch,
-          it.track_dispatch,
-        ),
-        this.parseStage(
-          'AppReceive',
-          channel,
-          totalLatency,
-          it.id_receive,
-          it.ts_receive,
-          it.dur_receive,
-          it.track_receive,
-        ),
-        this.parseStage(
-          'AppConsume',
-          channel,
-          totalLatency,
-          it.id_consume,
-          it.ts_consume,
-          it.dur_consume,
-          it.track_consume,
-        ),
-        this.parseStage(
-          'AppFrame',
-          channel,
-          totalLatency,
-          it.id_frame,
-          it.ts_frame,
-          it.dur_frame,
-          it.track_frame,
-        ),
-      ];
+      const allTrackUris: string[] = [];
+      for (const nav of [
+        navReader,
+        navDispatch,
+        navReceive,
+        navConsume,
+        navFrame,
+      ]) {
+        if (nav) allTrackUris.push(nav.trackUri);
+      }
 
-      const [
-        readerEvent,
-        dispatchEvent,
-        receiveEvent,
-        consumeEvent,
-        frameEvent,
-      ] = stages;
+      rows.push({
+        uiRowId: `row-${index++}`,
+        channel: it.channel ?? '',
+        totalLatency:
+          it.total_latency !== null ? Duration.fromRaw(it.total_latency) : null,
+        durReader:
+          it.dur_reader !== null ? Duration.fromRaw(it.dur_reader) : null,
+        deltaDispatch:
+          it.ts_dispatch !== null && it.ts_reader !== null
+            ? Duration.fromRaw(it.ts_dispatch - it.ts_reader)
+            : null,
+        deltaReceive:
+          it.ts_receive !== null && it.ts_dispatch !== null
+            ? Duration.fromRaw(it.ts_receive - it.ts_dispatch)
+            : null,
+        deltaConsume:
+          it.ts_consume !== null && it.ts_receive !== null
+            ? Duration.fromRaw(it.ts_consume - it.ts_receive)
+            : null,
+        deltaFrame:
+          it.ts_frame !== null && it.ts_consume !== null
+            ? Duration.fromRaw(it.ts_frame - it.ts_consume)
+            : null,
+        navReader,
+        navDispatch,
+        navReceive,
+        navConsume,
+        navFrame,
+        allTrackUris,
+      });
 
-      const tabEvent: RelatedEvent = {
-        id: eventId,
-        ts: (readerEvent?.ts ??
-          dispatchEvent?.ts ??
-          receiveEvent?.ts ??
-          0n) as time,
-        dur: totalLatency ?? 0n,
-        trackUri: '',
-        type: 'InputLifecycle',
-        customArgs: {
-          channel,
-          totalLatency,
-          reader: this.createStageArgs(readerEvent),
-          dispatcher: this.createStageArgs(dispatchEvent, readerEvent),
-          receiver: this.createStageArgs(receiveEvent, dispatchEvent),
-          consumer: this.createStageArgs(consumeEvent, receiveEvent),
-          frame: this.createStageArgs(frameEvent, consumeEvent),
-          allTrackIds: [
-            it.track_reader,
-            it.track_dispatch,
-            it.track_receive,
-            it.track_consume,
-            it.track_frame,
-          ].filter((t) => t !== null) as number[],
-        },
-      };
-
-      events.push(tabEvent);
       it.next();
     }
 
-    return {events, relations};
+    return rows;
   }
 
-  private parseStage(
-    type: string,
-    channel: string | null,
-    totalLatency: duration | null,
+  private async enrichAllDepths(rows: InputChainRow[]) {
+    const targets: NavTarget[] = [];
+    for (const row of rows) {
+      for (const nav of [
+        row.navReader,
+        row.navDispatch,
+        row.navReceive,
+        row.navConsume,
+        row.navFrame,
+      ]) {
+        if (nav) targets.push(nav);
+      }
+    }
+    if (targets.length === 0) return;
+    await enrichDepths(this.trace, targets);
+  }
+
+  private makeNav(
     id: number | null,
+    trackId: number | null,
     ts: bigint | null,
     dur: bigint | null,
-    trackId: number | null,
-  ): RelatedEvent | undefined {
-    if (id === null || ts === null || dur === null || trackId === null) {
-      return undefined;
-    }
-
-    const trackUri = getTrackUriForTrackId(this.trace, trackId);
-    if (!trackUri) return undefined;
-
+  ): NavTarget | undefined {
+    if (id === null || trackId === null || ts === null) return undefined;
     return {
       id,
+      trackUri: getTrackUriForTrackId(this.trace, trackId),
       ts: Time.fromRaw(ts),
-      dur,
-      trackUri,
-      type,
-      customArgs: {
-        channel,
-        totalLatency,
-        stageDur: dur,
-      },
-    };
-  }
-
-  private createStageArgs(
-    event: RelatedEvent | undefined,
-    prevEvent?: RelatedEvent,
-  ) {
-    if (!event) return null;
-    return {
-      delta: prevEvent ? event.ts - (prevEvent.ts + prevEvent.dur) : null,
-      dur: (event.customArgs as {stageDur?: duration})?.stageDur,
-      nav: this.createNavTarget(event),
-    };
-  }
-
-  private createNavTarget(event: RelatedEvent): NavTarget | undefined {
-    if (event == undefined) return undefined;
-    return {
-      id: event.id,
-      trackUri: event.trackUri,
-      ts: event.ts,
-      dur: event.dur,
-      depth: event.depth !== undefined ? event.depth : 0,
+      dur: Duration.fromRaw(dur ?? 0n),
+      depth: 0,
     };
   }
 }
