@@ -29,7 +29,6 @@ import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
 import {Command} from '../public/command';
 import {SIDEBAR_SECTIONS, SidebarSections} from '../public/sidebar';
 import {EngineMode} from '../trace_processor/engine';
-import {Button} from '../widgets/button';
 import {Icon} from '../widgets/icon';
 import {Icons} from '../base/semantic_icons';
 import {showModal} from '../widgets/modal';
@@ -288,11 +287,10 @@ export class Sidebar implements m.ClassComponent {
                 }),
           app.embedder.brandingBadge.text,
         ),
-      m(Button, {
-        icon: 'menu',
-        className: 'pf-sidebar-button',
+      m('button.pf-sidebar-button', {
         onclick: () => sidebar.toggleVisibility(),
-      }),
+        title: sidebar.visible ? 'Hide sidebar' : 'Show sidebar',
+      }, m(Icon, {icon: 'menu'})),
     );
   }
 

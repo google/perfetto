@@ -172,19 +172,46 @@ li.pf-sidebar__item {
   visibility: hidden;
   margin-left: calc(var(--sidebar-width) * -1);
   .pf-sidebar-button {
-    left: 4px;
+    left: 10px;
     color: var(--pf-color-text);
+    &:hover {
+      background: color_hover(transparent);
+    }
+    &:active {
+      background: color_active(transparent);
+    }
   }
 }
 
 .pf-sidebar .pf-sidebar-button {
-  font-size: var(--pf-font-size-xl);
+  font-size: 26px;
   position: fixed;
   z-index: 5;
-  left: calc(var(--sidebar-width) - 38px);
-  top: 9px;
+  left: calc(var(--sidebar-width) - 44px);
+  top: 6px;
   visibility: visible; // So stays visible when the sidebar is hidden.
   transition: left var(--anim-easing) var(--sidebar-timing);
+
+  // Custom button styles
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  width: 32px;
+  border-radius: $border-radius;
+  cursor: pointer;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--pf-sidebar-on-surface);
+
+  &:hover {
+    background: color-hover-surface(transparent, currentColor);
+  }
+
+  &:active {
+    background: color-active-surface(transparent, currentColor);
+  }
 }
 
 .pf-sidebar__header--canary::before,
@@ -192,6 +219,7 @@ li.pf-sidebar__item {
   display: block;
   position: absolute;
   font-size: var(--pf-font-size-xs);
+  font-weight: 700;
   line-height: 5px;
   font-family: var(--pf-font);
   top: 7px;
