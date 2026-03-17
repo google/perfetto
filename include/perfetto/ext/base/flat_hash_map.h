@@ -126,6 +126,60 @@ static constexpr uint8_t kTombstone = 0xFE;  // Deleted slot
 // The default load limit percent before growing the table.
 static constexpr int kDefaultLoadLimitPct = 75;
 
+// Sentinel type for set mode (no value stored).
+struct EmptyValue {};
+
+// Slot for map case: stores key + value.
+template <typename Key, typename Value>
+struct Slot {
+  static constexpr bool kHasValue = true;
+
+  Key key;
+  Value value;
+
+  using FindResultType = Value*;
+  using InsertResultType = std::pair<Value*, bool>;
+
+  static FindResultType FoundResult(Slot& s) { return &s.value; }
+  static FindResultType NotFoundResult() { return nullptr; }
+  static InsertResultType InsertFound(Slot& s) { return {&s.value, false}; }
+  static InsertResultType InsertDone(Slot& s) { return {&s.value, true}; }
+
+  template <typename V>
+  void Construct(Key&& k, V&& v) {
+    new (&key) Key(std::move(k));
+    new (&value) Value(std::forward<V>(v));
+  }
+  void MoveConstructFrom(Slot& other) {
+    new (&key) Key(std::move(other.key));
+    new (&value) Value(std::move(other.value));
+  }
+  void Destroy() {
+    key.~Key();
+    value.~Value();
+  }
+};
+
+// Slot for set case: inherits from EmptyValue for EBO, no value member.
+template <typename Key>
+struct Slot<Key, EmptyValue> : EmptyValue {
+  static constexpr bool kHasValue = false;
+
+  Key key;
+
+  using FindResultType = bool;
+  using InsertResultType = bool;
+
+  static FindResultType FoundResult(Slot&) { return true; }
+  static FindResultType NotFoundResult() { return false; }
+  static InsertResultType InsertFound(Slot&) { return false; }
+  static InsertResultType InsertDone(Slot&) { return true; }
+
+  void Construct(Key&& k) { new (&key) Key(std::move(k)); }
+  void MoveConstructFrom(Slot& other) { new (&key) Key(std::move(other.key)); }
+  void Destroy() { key.~Key(); }
+};
+
 }  // namespace flat_hash_map_v2_internal
 
 template <typename Key,
@@ -140,11 +194,7 @@ class FlatHashMapV2 {
   static constexpr int kDefaultLoadLimitPct =
       flat_hash_map_v2_internal::kDefaultLoadLimitPct;
 
-  // Slot structure holds both key and value
-  struct Slot {
-    Key key;
-    Value value;
-  };
+  using Slot = flat_hash_map_v2_internal::Slot<Key, Value>;
 
  public:
   class Iterator {
@@ -160,9 +210,18 @@ class FlatHashMapV2 {
     Iterator& operator=(Iterator&&) noexcept = default;
 
     const Key& key() { return slot_->key; }
-    Value& value() { return slot_->value; }
     const Key& key() const { return slot_->key; }
-    const Value& value() const { return slot_->value; }
+
+    template <bool HasValue = Slot::kHasValue,
+              typename = std::enable_if_t<HasValue>>
+    Value& value() {
+      return slot_->value;
+    }
+    template <bool HasValue = Slot::kHasValue,
+              typename = std::enable_if_t<HasValue>>
+    const Value& value() const {
+      return slot_->value;
+    }
 
     explicit operator bool() const { return ctrl_ != ctrl_end_; }
     Iterator& operator++() {
@@ -219,14 +278,15 @@ class FlatHashMapV2 {
   FlatHashMapV2& operator=(const FlatHashMapV2&) = delete;
 
   template <typename K = Key>
-  PERFETTO_ALWAYS_INLINE Value* Find(const K& key) const {
+  PERFETTO_ALWAYS_INLINE typename Slot::FindResultType Find(
+      const K& key) const {
     size_t key_hash = Hasher{}(key);
     uint8_t h2 = H2(key_hash);
     FindResult res = FindSlotIgnoringTombstones<false>(key, key_hash, h2);
     if (PERFETTO_UNLIKELY(res.needs_insert)) {
-      return nullptr;
+      return Slot::NotFoundResult();
     }
-    return &slots_[res.idx].value;
+    return Slot::FoundResult(slots_[res.idx]);
   }
 
   template <typename K = Key>
@@ -239,24 +299,26 @@ class FlatHashMapV2 {
     }
     PERFETTO_DCHECK(size_ > 0);
     SetCtrl(res.idx, kTombstone);
-    slots_[res.idx].key.~Key();
-    slots_[res.idx].value.~Value();
+    slots_[res.idx].Destroy();
     size_--;
     growth_info_.has_tombstones = 1;
     return true;
   }
 
-  PERFETTO_ALWAYS_INLINE std::pair<Value*, bool> Insert(Key key, Value value) {
+  // For map: Insert(key, value) returns {pointer to value, whether inserted}.
+  // For set: Insert(key) returns whether the key was newly inserted.
+  template <typename... Args>
+  PERFETTO_ALWAYS_INLINE typename Slot::InsertResultType Insert(
+      Key key,
+      Args&&... args) {
     size_t key_hash = Hasher{}(key);
     uint8_t h2 = H2(key_hash);
     FindResult res = FindSlotIgnoringTombstones<true>(key, key_hash, h2);
     if (PERFETTO_UNLIKELY(!res.needs_insert)) {
-      return {&slots_[res.idx].value, false};
+      return Slot::InsertFound(slots_[res.idx]);
     }
     if (PERFETTO_UNLIKELY(growth_info_.growth_left == 0)) {
       GrowAndRehash();
-      // After rehash, table has no tombstones. Find an empty slot directly
-      // instead of recursing (which would prevent inlining).
       res.idx = FindFirstEmptyOrTombstone(key_hash);
     }
     PERFETTO_DCHECK(res.idx != kNotFound);
@@ -266,16 +328,17 @@ class FlatHashMapV2 {
       insert_idx = FindFirstEmptyOrTombstone(key_hash);
       is_freeslot = ctrl_[insert_idx] != kTombstone;
     }
-    new (&slots_[insert_idx].key) Key(std::move(key));
-    new (&slots_[insert_idx].value) Value(std::move(value));
+    slots_[insert_idx].Construct(std::move(key), std::forward<Args>(args)...);
     SetCtrl(insert_idx, h2);
     size_++;
     if (is_freeslot) {
       growth_info_.growth_left--;
     }
-    return {&slots_[insert_idx].value, true};
+    return Slot::InsertDone(slots_[insert_idx]);
   }
 
+  template <bool HasValue = Slot::kHasValue,
+            typename = std::enable_if_t<HasValue>>
   Value& operator[](Key key) {
     auto it_and_inserted = Insert(std::move(key), Value{});
     return *it_and_inserted.first;
@@ -291,8 +354,7 @@ class FlatHashMapV2 {
       if (tag == kFreeSlot || tag == kTombstone) {
         continue;
       }
-      slots_[i].key.~Key();
-      slots_[i].value.~Value();
+      slots_[i].Destroy();
     }
     Reset(capacity_, false);
   }
@@ -549,12 +611,16 @@ class FlatHashMapV2 {
 
     size_t new_size = 0;
     for (size_t i = 0; i < old_capacity; ++i) {
-      if (uint8_t t = old_ctrl[i]; t == kFreeSlot || t == kTombstone) {
+      uint8_t t = old_ctrl[i];
+      if (t == kFreeSlot || t == kTombstone) {
         continue;
       }
-      Insert(std::move(old_slots[i].key), std::move(old_slots[i].value));
-      old_slots[i].key.~Key();  // Destroy the old objects.
-      old_slots[i].value.~Value();
+      size_t key_hash = Hasher{}(old_slots[i].key);
+      size_t idx = FindFirstEmptyOrTombstone(key_hash);
+      slots_[idx].MoveConstructFrom(old_slots[i]);
+      SetCtrl(idx, H2(key_hash));
+      old_slots[i].Destroy();
+      growth_info_.growth_left--;
       new_size++;
     }
     PERFETTO_DCHECK(new_size == old_size);
@@ -638,6 +704,10 @@ class FlatHashMapV2 {
   uint8_t* ctrl_ = nullptr;  // Points to control bytes
   Slot* slots_ = nullptr;    // Points to slot array
 };
+
+template <typename Key, typename Hasher = base::MurmurHash<Key>>
+using FlatHashSetV2 =
+    FlatHashMapV2<Key, flat_hash_map_v2_internal::EmptyValue, Hasher>;
 
 // Alias FlatHashMap to FlatHashMapV1 for backward compatibility.
 //
