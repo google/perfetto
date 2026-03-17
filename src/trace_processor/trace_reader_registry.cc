@@ -40,6 +40,7 @@ bool RequiresZlibSupport(TraceType type) {
     case kZipFile:
       return true;
 
+    case kCollapsedStackTraceType:
     case kNinjaLogTraceType:
     case kSystraceTraceType:
     case kPerfDataTraceType:
@@ -58,6 +59,7 @@ bool RequiresZlibSupport(TraceType type) {
     case kPerfTextTraceType:
     case kSimpleperfProtoTraceType:
     case kTarTraceType:
+    case kPrimesTraceType:
       return false;
   }
   PERFETTO_FATAL("For GCC");

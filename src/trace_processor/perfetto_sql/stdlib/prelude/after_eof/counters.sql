@@ -47,8 +47,8 @@ CREATE PERFETTO VIEW counter_track (
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
-  -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG,
+  -- Machine identifier
+  machine_id JOINID(machine.id),
   -- The units of the counter. This column is rarely filled.
   unit STRING,
   -- The description for this track. For debugging purposes only.
@@ -88,8 +88,8 @@ CREATE PERFETTO TABLE cpu_counter_track (
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
-  -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG,
+  -- Machine identifier
+  machine_id JOINID(machine.id),
   -- The units of the counter. This column is rarely filled.
   unit STRING,
   -- The description for this track. For debugging purposes only.
@@ -133,8 +133,8 @@ CREATE PERFETTO TABLE gpu_counter_track (
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
-  -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG,
+  -- Machine identifier
+  machine_id JOINID(machine.id),
   -- The units of the counter. This column is rarely filled.
   unit STRING,
   -- The description for this track. For debugging purposes only.
@@ -178,8 +178,8 @@ CREATE PERFETTO TABLE process_counter_track (
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
-  -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG,
+  -- Machine identifier
+  machine_id JOINID(machine.id),
   -- The units of the counter. This column is rarely filled.
   unit STRING,
   -- The description for this track. For debugging purposes only.
@@ -223,8 +223,8 @@ CREATE PERFETTO TABLE thread_counter_track (
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
   source_arg_set_id JOINID(track.id),
-  -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG,
+  -- Machine identifier
+  machine_id JOINID(machine.id),
   -- The units of the counter. This column is rarely filled.
   unit STRING,
   -- The description for this track. For debugging purposes only.
@@ -268,8 +268,8 @@ CREATE PERFETTO TABLE perf_counter_track (
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
-  -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG,
+  -- Machine identifier
+  machine_id JOINID(machine.id),
   -- The units of the counter. This column is rarely filled.
   unit STRING,
   -- The description for this track. For debugging purposes only.

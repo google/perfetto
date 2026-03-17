@@ -31,7 +31,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/engine/static_table_function_module.h"
@@ -440,8 +440,8 @@ base::Status PerfettoSqlEngine::RegisterFunction(
   function_count_++;
   const char* name = args.name ? args.name : Function::kName;
   int argc = args.argc.has_value() ? args.argc.value() : Function::kArgCount;
-  return engine_->RegisterFunction(name, argc, Function::Step, ctx, nullptr,
-                                   args.deterministic);
+  return RegisterFunctionAndAddToRegistry(name, argc, Function::Step, ctx,
+                                          nullptr, args.deterministic);
 }
 
 template <typename Function>
@@ -451,7 +451,7 @@ base::Status PerfettoSqlEngine::RegisterFunction(
   function_count_++;
   const char* name = args.name ? args.name : Function::kName;
   int argc = args.argc.has_value() ? args.argc.value() : Function::kArgCount;
-  return engine_->RegisterFunction(
+  return RegisterFunctionAndAddToRegistry(
       name, argc, Function::Step, ctx.release(),
       [](void* ptr) {
         std::unique_ptr<typename Function::UserData>(

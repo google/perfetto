@@ -40,12 +40,13 @@ class EventTrackerTest : public ::testing::Test {
  public:
   EventTrackerTest() {
     context.storage = std::make_unique<TraceStorage>();
+    context.machine_tracker =
+        std::make_unique<MachineTracker>(&context, kDefaultMachineId);
     context.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context.storage.get());
     context.process_tracker = std::make_unique<ProcessTracker>(&context);
     context.event_tracker = std::make_unique<EventTracker>(&context);
     context.track_tracker = std::make_unique<TrackTracker>(&context);
-    context.machine_tracker = std::make_unique<MachineTracker>(&context, 0);
     context.cpu_tracker = std::make_unique<CpuTracker>(&context);
   }
 

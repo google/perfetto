@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import protos from '../../../protos';
-import {assertExists, assertFalse, assertTrue} from '../../../base/logging';
+import {assertExists, assertFalse, assertTrue} from '../../../base/assert';
 import {getOrCreate} from '../../../base/utils';
 import {ProbesSchema} from '../serialization_schema';
 import {TargetPlatformId} from '../interfaces/target_platform';

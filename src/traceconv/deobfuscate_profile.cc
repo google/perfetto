@@ -22,7 +22,7 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/profiling/deobfuscator.h"
+#include "src/trace_processor/util/deobfuscation/deobfuscator.h"
 #include "src/traceconv/deobfuscate_profile.h"
 #include "src/traceconv/utils.h"
 

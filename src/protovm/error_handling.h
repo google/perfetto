@@ -29,8 +29,19 @@
 #include "perfetto/base/logging.h"
 
 #if defined(__GNUC__) || defined(__clang__)
+#if defined(__clang__)
+#pragma clang diagnostic push
+// Fix 'error: #pragma system_header ignored in main file' for amalgamated
+// build.
+#pragma clang diagnostic ignored "-Wpragma-system-header-outside-header"
+#endif
+
 // Ignore GCC warning about a missing argument for a variadic macro parameter.
 #pragma GCC system_header
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 #endif
 
 namespace perfetto {
@@ -91,9 +102,6 @@ enum class Status : uint8_t {
 };
 
 namespace internal {
-
-template <class T>
-constexpr bool is_empty_class_v = std::is_class_v<T> && std::is_empty_v<T>;
 
 template <class T, class Arg, class... Args>
 static constexpr bool is_copy_or_move_ctor_arg_v =

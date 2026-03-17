@@ -39,7 +39,8 @@ export function createCpuProfileTrack(
           SELECT
             id,
             ts,
-            callsite_id AS callsiteId
+            callsite_id AS callsiteId,
+            utid
           FROM cpu_profile_stack_sample
         `,
         filter: {

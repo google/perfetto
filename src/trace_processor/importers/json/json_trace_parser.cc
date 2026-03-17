@@ -49,8 +49,8 @@
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/json_args.h"
 #include "src/trace_processor/util/json_parser.h"
-#include "src/trace_processor/util/json_utils.h"
 
 namespace perfetto::trace_processor {
 

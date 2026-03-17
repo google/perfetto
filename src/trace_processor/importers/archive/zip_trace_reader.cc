@@ -39,21 +39,29 @@
 namespace perfetto::trace_processor {
 
 ZipTraceReader::ZipTraceReader(TraceProcessorContext* context)
-    : context_(context),
-      android_bugreport_reader_(
-          std::make_unique<AndroidBugreportReader>(context)) {}
+    : context_(context) {}
 ZipTraceReader::~ZipTraceReader() = default;
 
 base::Status ZipTraceReader::Parse(TraceBlobView blob) {
   return zip_reader_.Parse(std::move(blob));
 }
 
-base::Status ZipTraceReader::NotifyEndOfFile() {
+base::Status ZipTraceReader::OnPushDataToSorter() {
+  if (!parsers_.empty()) {
+    return base::OkStatus();
+  }
+
   std::vector<util::ZipFile> files = zip_reader_.TakeFiles();
 
   // Android bug reports are ZIP files and its files do not get handled
   // separately.
-  if (android_bugreport_reader_->IsAndroidBugReport(files)) {
+  if (AndroidBugreportReader::IsAndroidBugReport(files)) {
+    // TODO(lalitm): this is a bit of a hack to workaround the fact that we
+    // don't have access to the zip file id here.
+    auto bugreport_file = context_->trace_file_tracker->AddFile("");
+    auto* context = context_->ForkContextForTrace(bugreport_file, 0);
+    android_bugreport_reader_ =
+        std::make_unique<AndroidBugreportReader>(context);
     return android_bugreport_reader_->Parse(std::move(files));
   }
 
@@ -81,13 +89,19 @@ base::Status ZipTraceReader::NotifyEndOfFile() {
     parsers_.push_back(std::move(chunk_reader));
 
     RETURN_IF_ERROR(parser.Parse(std::move(file.second.data)));
-    RETURN_IF_ERROR(parser.NotifyEndOfFile());
+    RETURN_IF_ERROR(parser.OnPushDataToSorter());
     // Make sure the ForwardingTraceParser determined the same trace type as we
     // did.
     PERFETTO_CHECK(parser.trace_type() == file.first.trace_type);
   }
 
   return base::OkStatus();
+}
+
+void ZipTraceReader::OnEventsFullyExtracted() {
+  for (auto it = parsers_.rbegin(); it != parsers_.rend(); ++it) {
+    (*it)->OnEventsFullyExtracted();
+  }
 }
 
 }  // namespace perfetto::trace_processor

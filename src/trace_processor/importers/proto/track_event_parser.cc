@@ -54,6 +54,7 @@
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
+#include "protos/third_party/chromium/chrome_enums.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -321,19 +322,25 @@ UniquePid TrackEventParser::ParseProcessDescriptor(
   active_chrome_processes_tracker_.AddProcessDescriptor(packet_timestamp, upid);
   if (decoder.has_process_name() && decoder.process_name().size) {
     // Don't override system-provided names.
-    context_->process_tracker->SetProcessNameIfUnset(
-        upid, context_->storage->InternString(decoder.process_name()));
+    context_->process_tracker->UpdateProcessName(
+        upid, context_->storage->InternString(decoder.process_name()),
+        ProcessNamePriority::kTrackDescriptor);
   }
   if (decoder.has_start_timestamp_ns() && decoder.start_timestamp_ns() > 0) {
     context_->process_tracker->SetStartTsIfUnset(upid,
                                                  decoder.start_timestamp_ns());
   }
   // TODO(skyostil): Remove parsing for legacy chrome_process_type field.
+  // TODO(lalitm): this maze of priorities around Chrome process labels is
+  // because of us trying to fix process naming without breaking backcompat.
+  // https://github.com/google/perfetto/issues/4738
   if (decoder.has_chrome_process_type()) {
-    StringId name_id =
-        chrome_string_lookup_.GetProcessName(decoder.chrome_process_type());
-    // Don't override system-provided names.
-    context_->process_tracker->SetProcessNameIfUnset(upid, name_id);
+    auto type = decoder.chrome_process_type();
+    StringId name_id = chrome_string_lookup_.GetProcessName(type);
+    auto priority = type == protos::pbzero::ProcessDescriptor::PROCESS_RENDERER
+                        ? ProcessNamePriority::kChromeProcessLabelRenderer
+                        : ProcessNamePriority::kChromeProcessLabel;
+    context_->process_tracker->UpdateProcessName(upid, name_id, priority);
   }
   int label_index = 0;
   for (auto it = decoder.process_labels(); it; it++) {
@@ -355,10 +362,14 @@ void TrackEventParser::ParseChromeProcessDescriptor(
   protos::pbzero::ChromeProcessDescriptor::Decoder decoder(
       chrome_process_descriptor);
 
-  StringId name_id =
-      chrome_string_lookup_.GetProcessName(decoder.process_type());
-  // Don't override system-provided names.
-  context_->process_tracker->SetProcessNameIfUnset(upid, name_id);
+  auto type = decoder.process_type();
+  StringId name_id = chrome_string_lookup_.GetProcessName(type);
+  namespace ce = protos::chrome_enums::pbzero;
+  auto priority =
+      type == ce::PROCESS_RENDERER || type == ce::PROCESS_RENDERER_EXTENSION
+          ? ProcessNamePriority::kChromeProcessLabelRenderer
+          : ProcessNamePriority::kChromeProcessLabel;
+  context_->process_tracker->UpdateProcessName(upid, name_id, priority);
 
   ArgsTracker::BoundInserter process_args =
       context_->process_tracker->AddArgsToProcess(upid);
@@ -452,8 +463,8 @@ DummyMemoryMapping* TrackEventParser::GetOrCreateInlineCallstackDummyMapping() {
   return inline_callstack_dummy_mapping_;
 }
 
-void TrackEventParser::NotifyEndOfFile() {
-  active_chrome_processes_tracker_.NotifyEndOfFile();
+void TrackEventParser::OnEventsFullyExtracted() {
+  active_chrome_processes_tracker_.OnEventsFullyExtracted();
 }
 
 }  // namespace perfetto::trace_processor

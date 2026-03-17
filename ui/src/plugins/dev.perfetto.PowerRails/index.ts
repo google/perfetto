@@ -19,7 +19,7 @@ import {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {getTrackName} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
-import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
+import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {PowerCounterSelectionAggregator} from './power_counter_selection_aggregator';
 
@@ -57,7 +57,7 @@ export default class implements PerfettoPlugin {
     const it = result.iter({
       trackId: NUM,
       name: STR_NULL,
-      machine: NUM_NULL,
+      machine: NUM,
     });
 
     const powerRailsGroup = new TrackNode({

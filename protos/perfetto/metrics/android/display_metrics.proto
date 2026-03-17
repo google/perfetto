@@ -80,4 +80,21 @@ message AndroidDisplayMetrics {
   }
 
   optional DpuState dpu_state = 7;
+
+  message DdicUnderrunDetail {
+    // panel index
+    optional string name = 1;
+
+    // The number of dpu underrun occurs.
+    optional uint32 ddic_underrun_count = 2;
+  }
+
+  message PanelState {
+    // Stat that reports the number of dpu underrrun occurs count.
+    optional uint32 total_ddic_underrun_count = 1;
+
+    repeated DdicUnderrunDetail ddic_underrun_detail = 2;
+  }
+
+  optional PanelState panel_state = 8;
 }

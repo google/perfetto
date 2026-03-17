@@ -15,6 +15,7 @@
 @import "typefaces";
 @import "common";
 @import "timeline_page";
+@import "minimap";
 @import "home_page";
 @import "sidebar";
 @import "topbar";
@@ -75,6 +76,7 @@
 @import "widgets/stack";
 @import "widgets/tab_strip";
 @import "widgets/tabs";
+@import "widgets/task_status";
 @import "widgets/tag_input";
 @import "widgets/text_input";
 @import "widgets/text_paragraph";
@@ -84,7 +86,6 @@
 @import "widgets/tree";
 @import "widgets/treetable";
 @import "widgets/ui_main";
-@import "widgets/vega_view";
 @import "widgets/virtual_overlay_canvas";
 
 // Auto generated imports

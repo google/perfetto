@@ -20,7 +20,6 @@ from __future__ import print_function
 import argparse
 import json
 import os
-import signal
 import sys
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -49,13 +48,13 @@ Alternatively, run this script using the venv python directly:
 ''')
   sys.exit(1)
 
-from python.generators.diff_tests.utils import ctrl_c_handler
+from python.generators.diff_tests.utils import setup_ctrl_c_handler
 from python.generators.diff_tests.runner import DiffTestsRunner
 from python.generators.diff_tests.models import Config
 
 
 def main():
-  signal.signal(signal.SIGINT, ctrl_c_handler)
+  setup_ctrl_c_handler()
   parser = argparse.ArgumentParser()
   parser.add_argument('--test-type', type=str, default='all')
   parser.add_argument('--trace-descriptor', type=str)
@@ -86,6 +85,12 @@ def main():
       '--print-slowest-tests',
       action='store_true',
       help='Print the slowest tests')
+  parser.add_argument(
+      '-j',
+      '--jobs',
+      type=int,
+      default=0,
+      help='Number of parallel jobs (default: 0 = use all CPUs)')
   parser.add_argument(
       'trace_processor', type=str, help='location of trace processor binary')
   args = parser.parse_args()
@@ -125,7 +130,8 @@ def main():
       winscope_extensions=args.winscope_extensions,
       simpleperf_descriptor=args.simpleperf_descriptor,
       keep_input=args.keep_input,
-      print_slowest_tests=args.print_slowest_tests)
+      print_slowest_tests=args.print_slowest_tests,
+      jobs=args.jobs)
   test_runner = DiffTestsRunner(config)
   results = test_runner.run()
   sys.stderr.write(results.str(args.no_colors))

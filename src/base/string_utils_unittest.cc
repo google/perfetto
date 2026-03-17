@@ -48,6 +48,27 @@ TEST(StringUtilsTest, Uppercase) {
   EXPECT_EQ(Uppercase('!'), '!');
 }
 
+TEST(StringUtilsTest, IsSpace) {
+  // ASCII whitespace characters
+  EXPECT_TRUE(IsSpace(' '));   // space
+  EXPECT_TRUE(IsSpace('\t'));  // horizontal tab
+  EXPECT_TRUE(IsSpace('\n'));  // newline
+  EXPECT_TRUE(IsSpace('\v'));  // vertical tab
+  EXPECT_TRUE(IsSpace('\f'));  // form feed
+  EXPECT_TRUE(IsSpace('\r'));  // carriage return
+
+  // Non-whitespace characters
+  EXPECT_FALSE(IsSpace('a'));
+  EXPECT_FALSE(IsSpace('Z'));
+  EXPECT_FALSE(IsSpace('0'));
+  EXPECT_FALSE(IsSpace('!'));
+  EXPECT_FALSE(IsSpace('\0'));
+
+  // Characters that might be whitespace in some locales but not in ASCII
+  EXPECT_FALSE(IsSpace('\x85'));  // NEL (Next Line) in some encodings
+  EXPECT_FALSE(IsSpace('\xa0'));  // Non-breaking space in Latin-1
+}
+
 TEST(StringUtilsTest, CStringToUInt32) {
   EXPECT_EQ(CStringToUInt32("0"), std::make_optional<uint32_t>(0U));
   EXPECT_EQ(CStringToUInt32("1"), std::make_optional<uint32_t>(1U));

@@ -252,16 +252,6 @@ BUILD_DEPS_HOST = [
         'all',
         'all'),
 
-    # JsonCpp for legacy json import. Used only by the trace processor in
-    # standalone builds.
-    # If updating the version, also update bazel/deps.bzl.
-    Dependency(
-        'buildtools/jsoncpp',
-        'https://chromium.googlesource.com/external/github.com/open-source-parsers/jsoncpp.git',
-        '6aba23f4a8628d599a9ef7fa4811c4ff6e4070e2',  # refs/tags/1.9.3.
-        'all',
-        'all'),
-
     # Libexpat for Instruments XML import.
     # If updating the version, also update bazel/deps.bzl.
     Dependency(
@@ -430,7 +420,7 @@ EMULATOR_DEPS_ANDROID = [
 # This variable is updated by tools/roll-catapult-trace-viewer.
 CATAPULT_SHA256 = 'b30108e05268ce6c65bb4126b65f6bfac165d17f5c1fd285046e7e6fd76c209f'
 
-TYPEFACES_SHA256 = 'a26274ca7c3d97a37c29de0ffa5c41a8d6431fc8e07ecdd5856dde143999dcd3'
+TYPEFACES_SHA256 = 'd8e62cb0df55043cd3bccb20fb65008a2f4a98f3ba7d8f2f5b81e5eb46c011da'
 
 UI_DEPS = [
     Dependency(
@@ -798,29 +788,30 @@ def CheckPythonVenv():
 
 
 def InstallPythonVenv():
-  # Give actionable instructions to Googlers on how to go/corp-airlock.
-  if shutil.which("gpkg"):
-    DEVNULL = subprocess.DEVNULL
-    res = subprocess.run(["gpkg", "auth"], stderr=DEVNULL, stdout=DEVNULL)
-    if res.returncode != 0:
-      print('Python packages require an update. Please run in a new terminal:')
-      print('gcert; gpkg setup  # See go/corp-airlock')
-      if sys.stdin.isatty:
-        input('Press a key to continue...')
-      else:
-        sys.exit(1)
-
   venv_pip = os.path.join(PYTHON_VENV_BIN_DIR, 'pip3')
-  cur_python_interpreter = sys.executable
+  # Do not use sys.executable since that binary might live in the venv dir
+  # we're about to remove right below.
+  python_interpreter = 'python3' if sys.platform != 'win32' else 'python3.exe'
 
   shutil.rmtree(PYTHON_VENV_DIR, ignore_errors=True)
-  cmd = [cur_python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
+  cmd = [python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
   logging.info(f'Installing python venv {" ".join(cmd)}')
   subprocess.check_call(cmd)
-
   cmd = [venv_pip, 'install', '-r', PYTHON_REQUIREMENTS]
   logging.info(f'Updating python packages {" ".join(cmd)}')
-  subprocess.check_call(cmd)
+  if subprocess.call(cmd) != 0:
+    if shutil.which("gpkg"):
+      # Give actionable instructions to Googlers on how to go/corp-airlock.
+      print(
+          '''\033[33m
++---------------------------------------------------------+
+| venv installation failed, likely due to go/corp-airlock |
+| Run `gcert && gpkg setup` and try again                 |
++---------------------------------------------------------+
+\033[0m''',
+          file=sys.stderr)
+    sys.exit(1)
+
   with open(PYTHON_STATUS_FILE, 'w') as f:
     f.write(HashLocalFile(PYTHON_REQUIREMENTS))
 

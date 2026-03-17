@@ -18,6 +18,36 @@
 #include <cinttypes>
 
 namespace perfetto::trace_processor::art_hprof {
+namespace {
+
+// Root type precedence ranking. Lower rank = higher priority.
+// Matches proto heap graph's kRootTypePrecedence:
+//   STICKY_CLASS (0) > JNI_GLOBAL (1) > JNI_LOCAL (2) > everything else (3)
+size_t RankRootType(HprofHeapRootTag tag) {
+  switch (tag) {
+    case HprofHeapRootTag::kStickyClass:
+      return 0;
+    case HprofHeapRootTag::kJniGlobal:
+      return 1;
+    case HprofHeapRootTag::kJniLocal:
+      return 2;
+    case HprofHeapRootTag::kJavaFrame:
+    case HprofHeapRootTag::kNativeStack:
+    case HprofHeapRootTag::kThreadBlock:
+    case HprofHeapRootTag::kMonitorUsed:
+    case HprofHeapRootTag::kThreadObj:
+    case HprofHeapRootTag::kInternedString:
+    case HprofHeapRootTag::kFinalizing:
+    case HprofHeapRootTag::kDebugger:
+    case HprofHeapRootTag::kVmInternal:
+    case HprofHeapRootTag::kJniMonitor:
+    case HprofHeapRootTag::kUnknown:
+      return 3;
+  }
+  return 3;
+}
+
+}  // namespace
 
 constexpr std::array<std::pair<const char*, FieldType>, 8> kPrimitiveArrayTypes{
     {
@@ -68,14 +98,23 @@ HeapGraph HeapGraphBuilder::BuildGraph() {
   }
 
   for (auto it = classes_.GetIterator(); it; ++it) {
-    graph.AddClass(it.value());
+    graph.AddClass(std::move(it.value()));
   }
 
   for (auto it = objects_.GetIterator(); it; ++it) {
-    graph.AddObject(it.value());
+    graph.AddObject(std::move(it.value()));
   }
 
   return graph;
+}
+
+void HeapGraphBuilder::Clear() {
+  strings_.Clear();
+  classes_.Clear();
+  objects_.Clear();
+  roots_.Clear();
+  resolver_.reset();
+  current_heap_.clear();
 }
 
 bool HeapGraphBuilder::ParseHeader() {
@@ -315,7 +354,18 @@ bool HeapGraphBuilder::ParseRootRecord(HprofHeapRootTag tag) {
   }
 
   stats_.root_count++;
-  roots_[object_id] = tag;
+
+  // Root type precedence: only upgrade to a higher-priority root type.
+  // Matches proto heap graph's kRootTypePrecedence logic: STICKY_CLASS >
+  // JNI_GLOBAL > JNI_LOCAL > everything else (including VM_INTERNAL).
+  auto* existing = roots_.Find(object_id);
+  if (existing) {
+    if (RankRootType(tag) < RankRootType(*existing)) {
+      *existing = tag;
+    }
+  } else {
+    roots_[object_id] = tag;
+  }
   return true;
 }
 

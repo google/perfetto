@@ -312,6 +312,8 @@ CREATE PERFETTO TABLE actual_frame_timeline_slice (
   jank_tag STRING,
   -- Jank tag (experimental) based on jank type, used for slice visualization.
   jank_tag_experimental STRING,
+  -- Jank severity score.
+  jank_score DOUBLE,
   -- Whether the frame was latched while its buffer was still unsignaled.
   latched_unsignaled LONG
 ) AS
@@ -337,6 +339,7 @@ SELECT
   extract_arg(s.arg_set_id, 'Prediction type') AS prediction_type,
   extract_arg(s.arg_set_id, 'Jank tag') AS jank_tag,
   extract_arg(s.arg_set_id, 'Jank tag (experimental)') AS jank_tag_experimental,
+  extract_arg(s.arg_set_id, 'Jank Severity Score (experimental)') AS jank_score,
   extract_arg(s.arg_set_id, 'Latched unsignaled') AS latched_unsignaled
 FROM slice AS s
 JOIN process_track AS t

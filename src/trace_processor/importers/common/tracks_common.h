@@ -162,7 +162,7 @@ inline constexpr auto kCpuMinFrequencyLimitBlueprint = tracks::CounterBlueprint(
 
 inline constexpr auto kGpuFrequencyBlueprint = tracks::CounterBlueprint(
     "gpu_frequency",
-    tracks::StaticUnitBlueprint("MHz"),
+    tracks::StaticUnitBlueprint("kHz"),
     tracks::DimensionBlueprints(kGpuDimensionBlueprint),
     tracks::StaticNameBlueprint("gpufreq"));
 

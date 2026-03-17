@@ -112,6 +112,7 @@ const cfg = {
   outExtDir: '',
   outBigtraceDistDir: '',
   outOpenPerfettoTraceDistDir: '',
+  lockFile: '',
 };
 
 const RULES = [
@@ -119,9 +120,9 @@ const RULES = [
   {r: /ui\/src\/assets\/bigtrace.html/, f: copyBigtraceHtml},
   {r: /ui\/src\/open_perfetto_trace\/index.html/, f: copyOpenPerfettoTraceHtml},
   {r: /ui\/src\/assets\/((.*)[.]png)/, f: copyAssets},
-  {r: /ui\/src\/assets\/(explore_page\/base-page\.json)/, f: copyAssets},
-  {r: /ui\/src\/assets\/(explore_page\/examples\/(.*)[.]json)/, f: copyAssets},
-  {r: /ui\/src\/assets\/(explore_page\/node_info\/(.*)[.]md)/, f: copyAssets},
+  {r: /ui\/src\/assets\/(data_explorer\/base-page\.json)/, f: copyAssets},
+  {r: /ui\/src\/assets\/(data_explorer\/examples\/(.*)[.]json)/, f: copyAssets},
+  {r: /ui\/src\/assets\/(data_explorer\/node_info\/(.*)[.]md)/, f: copyAssets},
   {r: /buildtools\/typefaces\/(.+[.]woff2)/, f: copyAssets},
   {r: /buildtools\/catapult_trace_viewer\/(.+(js|html))/, f: copyAssets},
   {r: /ui\/src\/assets\/.+[.]scss|ui\/src\/(?:plugins|core_plugins)\/.+[.]scss/, f: compileScss},
@@ -172,6 +173,15 @@ async function main() {
   const args = parser.parse_args();
   const clean = !args.no_build;
   cfg.outDir = path.resolve(ensureDir(args.out || cfg.outDir));
+  cfg.lockFile = pjoin(cfg.outDir, "watch.lock");
+
+  // Only create the build lock if we are actually going to build If --no-build
+  // is passed, we can run simultaneoushy without worrying about the build lock,
+  // since we won't be writing to the output directories.
+  if (!args.no_build) {
+    prepareBuildLock();
+  }
+
   cfg.outUiDir = ensureDir(pjoin(cfg.outDir, 'ui'), clean);
   cfg.outUiTestArtifactsDir = ensureDir(pjoin(cfg.outDir, 'ui-test-artifacts'));
   cfg.outExtDir = ensureDir(pjoin(cfg.outUiDir, 'chrome_extension'));
@@ -215,7 +225,7 @@ async function main() {
     cfg.crossOriginIsolation = true;
   }
   cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
-  cfg.wasmModules = ['traceconv', 'trace_config_utils', 'trace_processor_memory64'];
+  cfg.wasmModules = ['traceconv', 'proto_utils', 'trace_processor_memory64'];
   if (!cfg.onlyWasmMemory64) {
     cfg.wasmModules.push('trace_processor');
   }
@@ -225,6 +235,7 @@ async function main() {
     for (const proc of subprocesses) {
       if (proc) proc.kill('SIGKILL');
     }
+    releaseBuildLock();
     process.kill(0, 'SIGKILL');  // Kill the whole process group.
     process.exit(130);  // 130 -> Same behavior of bash when killed by SIGINT.
   });
@@ -920,6 +931,39 @@ function mklink(src, dst) {
     }
   }
   fs.symlinkSync(src, dst);
+}
+
+function prepareBuildLock() {
+  if (fs.existsSync(cfg.lockFile)) {
+    const oldPid = fs.readFileSync(cfg.lockFile, 'utf8').trim();
+    let running = true;
+    try {
+      // Check if oldPid exists.
+      process.kill(parseInt(oldPid), 0);
+    } catch (e) {
+      running = false;
+    }
+    if (running) {
+      console.error(`Error: a build.js instance is already running (${cfg.lockFile} PID=${oldPid}).`);
+      process.exit(1);
+    } else {
+      console.log(`Removing stale lock file for PID ${oldPid}`);
+      fs.unlinkSync(cfg.lockFile);
+    }
+  }
+  fs.writeFileSync(cfg.lockFile, process.pid.toString());
+  process.on('exit', () => releaseBuildLock());
+}
+
+function releaseBuildLock() {
+  if (fs.existsSync(cfg.lockFile)) {
+    const pid = fs.readFileSync(cfg.lockFile, 'utf8').trim();
+    if (pid === process.pid.toString()) {
+      fs.unlinkSync(cfg.lockFile);
+    } else {
+      console.warn(`Ignoring stale lock file PID ${pid}`)
+    }
+  }
 }
 
 main();

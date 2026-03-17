@@ -24,6 +24,7 @@ import {FeatureFlagManager} from './feature_flag';
 import {Raf} from './raf';
 import {SettingsManager} from './settings';
 import {TraceStream} from './stream';
+import {TaskTracker} from './task_tracker';
 
 /**
  * The API endpoint to interact programmatically with the UI before a trace has
@@ -55,6 +56,11 @@ export interface App {
    * Used to schedule things.
    */
   readonly raf: Raf;
+
+  /**
+   * Tracks async tasks for observability and idle detection.
+   */
+  readonly taskTracker: TaskTracker;
 
   // True if the current user is an 'internal' user. E.g. a Googler on
   // ui.perfetto.dev. Plugins might use this to determine whether to show

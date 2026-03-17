@@ -25,7 +25,6 @@ android_test_helper_app {
     name: "CtsPerfettoDebuggableApp",
     // tag this module as a cts test artifact
     test_suites: [
-        "cts",
         "vts10",
         "general-tests",
     ],
@@ -48,7 +47,6 @@ android_test_helper_app {
     name: "CtsPerfettoReleaseApp",
     // tag this module as a cts test artifact
     test_suites: [
-        "cts",
         "vts10",
         "general-tests",
     ],
@@ -71,7 +69,6 @@ android_test_helper_app {
     name: "CtsPerfettoProfileableApp",
     // tag this module as a cts test artifact
     test_suites: [
-        "cts",
         "vts10",
         "general-tests",
     ],
@@ -94,7 +91,6 @@ android_test_helper_app {
     name: "CtsPerfettoNonProfileableApp",
     // tag this module as a cts test artifact
     test_suites: [
-        "cts",
         "vts10",
         "general-tests",
     ],

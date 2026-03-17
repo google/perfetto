@@ -542,7 +542,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
       gpu_power_state_unknown_id_(context->storage->InternString("Unknown")),
       gpu_power_state_off_id_(context->storage->InternString("OFF")),
       gpu_power_state_pg_id_(context->storage->InternString("PG")),
-      gpu_power_state_on_id_(context->storage->InternString("ON")) {
+      gpu_power_state_on_id_(context->storage->InternString("ON")),
+      ddic_underrun_id_(context_->storage->InternString("ddic_underrun")) {
   static const char* kReasonStrings[] = {
       "Umount",  "Fastboot", "Sync",  "Recovery",
       "Discard", "Trimmed",  "Pause", "Resize",
@@ -1151,6 +1152,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseDpuDispDpuUnderrun(ts, fld_bytes);
         break;
       }
+      case FtraceEvent::kGramCollisionFieldNumber: {
+        ParseGramCollision(ts, fld_bytes);
+        break;
+      }
       case FtraceEvent::kDpuDispVblankIrqEnableFieldNumber: {
         ParseDpuDispVblankIrqEnable(ts, fld_bytes);
         break;
@@ -1502,6 +1507,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kFwtpPerfettoCounterFieldNumber: {
         ParseFwtpPerfettoCounter(fld_bytes);
+        break;
+      }
+      case FtraceEvent::kFwtpPerfettoSliceFieldNumber: {
+        ParseFwtpPerfettoSlice(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kF2fsWriteCheckpointFieldNumber: {
@@ -2021,6 +2030,29 @@ void FtraceParser::ParseDpuDispDpuUnderrun(int64_t timestamp, ConstBytes blob) {
         inserter->AddArg(
             context_->storage->InternString(base::StringView("pending_frame")),
             Variadic::Integer(ex.frames_pending()));
+      });
+}
+
+void FtraceParser::ParseGramCollision(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::GramCollisionFtraceEvent::Decoder ex(blob);
+  static constexpr auto kBluePrint = tracks::SliceBlueprint(
+      "ddic_underrun",
+      tracks::DimensionBlueprints(
+          tracks::UintDimensionBlueprint("panel_index")),
+      tracks::FnNameBlueprint([](uint32_t panel_index) {
+        return base::StackString<256>("ddic_underrun[%u]", panel_index);
+      }));
+
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kBluePrint, tracks::Dimensions(ex.panel_index()));
+  StringId slice_name_id = ddic_underrun_id_;
+
+  context_->slice_tracker->Scoped(
+      timestamp, track_id, kNullStringId, slice_name_id, 0,
+      [&](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(
+            context_->storage->InternString(base::StringView("collision_cnt")),
+            Variadic::Integer(ex.collision_cnt()));
       });
 }
 
@@ -4402,6 +4434,31 @@ void FtraceParser::ParseFwtpPerfettoCounter(protozero::ConstBytes blob) {
       kBlueprint, tracks::Dimensions(event.name()));
   context_->event_tracker->PushCounter(static_cast<int64_t>(event.timestamp()),
                                        event.value(), track_id);
+}
+
+void FtraceParser::ParseFwtpPerfettoSlice(int64_t ts,
+                                          protozero::ConstBytes blob) {
+  constexpr auto kSliceBlueprint =
+      tracks::SliceBlueprint("pixel_fwtp_slices", tracks::DimensionBlueprints(),
+                             tracks::DynamicNameBlueprint());
+
+  // Get the trace info.
+  protos::pbzero::FwtpPerfettoSliceFtraceEvent::Decoder event(blob);
+  StringId track_name_id = context_->storage->InternString(event.name());
+  StringId track_category_id =
+      context_->storage->InternString(event.category());
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kSliceBlueprint, tracks::Dimensions(), track_name_id);
+
+  // Add a slice begin or end event. Before beginning a slice, end the slice
+  // first to prevent any open slice existing.
+  if (event.begin()) {
+    context_->slice_tracker->End(ts, track_id);
+    context_->slice_tracker->Begin(ts, track_id, track_category_id,
+                                   track_name_id);
+  } else {
+    context_->slice_tracker->End(ts, track_id);
+  }
 }
 
 void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,

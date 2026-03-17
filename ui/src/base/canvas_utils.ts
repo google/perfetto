@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Color} from './color';
 import {Size2D, Point2D} from './geom';
 
 export function drawDoubleHeadedArrow(
@@ -47,45 +46,6 @@ export function drawDoubleHeadedArrow(
     ctx.stroke();
     ctx.closePath();
   }
-}
-
-export function drawIncompleteSlice(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  color: Color,
-  showGradient: boolean = true,
-) {
-  if (width <= 0 || height <= 0) {
-    return;
-  }
-  ctx.beginPath();
-  const triangleSize = height / 4;
-  ctx.moveTo(x, y);
-  ctx.lineTo(x + width, y);
-  ctx.lineTo(x + width - 3, y + triangleSize * 0.5);
-  ctx.lineTo(x + width, y + triangleSize);
-  ctx.lineTo(x + width - 3, y + triangleSize * 1.5);
-  ctx.lineTo(x + width, y + 2 * triangleSize);
-  ctx.lineTo(x + width - 3, y + triangleSize * 2.5);
-  ctx.lineTo(x + width, y + 3 * triangleSize);
-  ctx.lineTo(x + width - 3, y + triangleSize * 3.5);
-  ctx.lineTo(x + width, y + 4 * triangleSize);
-  ctx.lineTo(x, y + height);
-
-  const originalFillStyle = ctx.fillStyle;
-
-  if (showGradient) {
-    const gradient = ctx.createLinearGradient(x, y, x + width, y + height);
-    gradient.addColorStop(0.66, color.cssString);
-    gradient.addColorStop(1, color.setAlpha(0).cssString);
-    ctx.fillStyle = gradient;
-  }
-
-  ctx.fill();
-  ctx.fillStyle = originalFillStyle;
 }
 
 /**

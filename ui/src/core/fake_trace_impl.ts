@@ -99,7 +99,7 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     unixOffset: Time.ZERO,
     tzOffMin: 0,
     importErrors: 0,
-    traceType: 'proto',
+    traceTypes: ['proto'],
     hasFtrace: false,
     uuid: '',
     cached: false,

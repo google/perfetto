@@ -48,6 +48,12 @@ void TracePacket::AddSlice(const void* start, size_t size) {
   slices_.emplace_back(start, size);
 }
 
+void TracePacket::Clear() {
+  slices_.clear();
+  size_ = 0;
+  buffer_index_for_stats_ = 0;
+}
+
 std::tuple<char*, size_t> TracePacket::GetProtoPreamble() {
   using protozero::proto_utils::MakeTagLengthDelimited;
   using protozero::proto_utils::WriteVarInt;
@@ -64,15 +70,19 @@ std::tuple<char*, size_t> TracePacket::GetProtoPreamble() {
   return std::make_tuple(&preamble_[0], preamble_size);
 }
 
-std::string TracePacket::GetRawBytesForTesting() {
-  std::string data;
-  data.resize(size());
-  size_t pos = 0;
-  for (const Slice& slice : slices()) {
-    PERFETTO_CHECK(pos + slice.size <= data.size());
-    memcpy(&data[pos], slice.start, slice.size);
+void TracePacket::GetRawBytes(std::string* out_data) const {
+  out_data->resize(size());
+  uint64_t pos = 0;
+  for (const auto& slice : slices()) {
+    PERFETTO_CHECK(pos + slice.size <= out_data->size());
+    memcpy(out_data->data() + pos, slice.start, slice.size);
     pos += slice.size;
   }
+}
+
+std::string TracePacket::GetRawBytesForTesting() const {
+  std::string data;
+  GetRawBytes(&data);
   return data;
 }
 

@@ -40,10 +40,12 @@ class ShellTransitionsTracker {
   void SetSendTime(int32_t transition_id, int64_t timestamp_ns);
   void SetDispatchTime(int32_t transition_id, int64_t timestamp_ns);
   void SetShellAbortTime(int32_t transition_id, int64_t timestamp_ns);
+  void SetWmAbortTime(int32_t transition_id, int64_t timestamp_ns);
   void SetFinishTime(int32_t transition_id, int64_t finish_time_ns);
+  void SetMergeTime(int32_t transition_id, int64_t merge_time_ns);
+  void SetCreateTime(int32_t transition_id, int64_t create_time_ns);
   void SetHandler(int32_t transition_id, int64_t handler);
   void SetFlags(int32_t transition_id, int32_t flags);
-  void SetStatus(int32_t transition_id, StringPool::Id status);
   void SetStartTransactionId(int32_t transition_id, uint64_t transaction_id);
   void SetFinishTransactionId(int32_t transition_id, uint64_t transaction_id);
 
@@ -59,6 +61,8 @@ class ShellTransitionsTracker {
 
   std::optional<tables::WindowManagerShellTransitionsTable::RowReference>
   GetRowReference(int32_t transition_id);
+
+  void SetStatusesAndDurations();
 
   TraceProcessorContext* context_;
   std::unordered_map<int32_t, TransitionInfo> transitions_infos_;

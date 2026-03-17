@@ -98,3 +98,8 @@ CREATE PERFETTO TABLE _system_state_gpu_mw AS
 SELECT
   *
 FROM _get_continuous_estimates!(gpu_mw);
+
+CREATE PERFETTO TABLE _system_state_tpu_mw AS
+SELECT
+  *
+FROM _get_continuous_estimates!(tpu_mw);

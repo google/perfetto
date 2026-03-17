@@ -25,6 +25,7 @@ export const ALL_TAB_KEYS = [
   'overview',
   'config',
   'android',
+  'traces',
   'machines',
   'import_errors',
   'trace_errors',
@@ -52,6 +53,34 @@ export const statsSpec = {
 };
 
 export type StatsSectionRow = typeof statsSpec;
+
+export interface TraceInfo {
+  readonly id: number;
+  readonly traceIndex: number;
+}
+
+export async function getTraceInfos(
+  engine: Engine,
+): Promise<Map<number, TraceInfo>> {
+  const result = await engine.query(`
+    select id
+    from __intrinsic_trace_file
+    where is_container = 0
+    order by id
+  `);
+
+  const map = new Map<number, TraceInfo>();
+  let traceIndex = 0;
+  for (const it = result.iter({id: NUM_NULL}); it.valid(); it.next()) {
+    const id = it.id;
+    if (id === null) continue;
+    map.set(id, {
+      id,
+      traceIndex: traceIndex++,
+    });
+  }
+  return map;
+}
 
 // Generic error category interface
 export interface ErrorCategory {
@@ -112,28 +141,6 @@ export function groupByCategory(stats: StatsSectionRow[]): ErrorCategory[] {
     }
   }
   return Array.from(categoryMap.values());
-}
-
-// Format file size from bytes to human-readable string
-export function formatFileSize(bytes: bigint | number): {
-  formatted: string;
-  exact: string;
-} {
-  const numBytes = Number(bytes);
-  const exact = `${numBytes.toLocaleString()} bytes`;
-
-  let formatted: string;
-  if (numBytes >= 1024 * 1024 * 1024) {
-    formatted = `${(numBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-  } else if (numBytes >= 1024 * 1024) {
-    formatted = `${(numBytes / (1024 * 1024)).toFixed(2)} MB`;
-  } else if (numBytes >= 1024) {
-    formatted = `${(numBytes / 1024).toFixed(2)} KB`;
-  } else {
-    formatted = `${numBytes} bytes`;
-  }
-
-  return {formatted, exact};
 }
 
 // Render an error category card

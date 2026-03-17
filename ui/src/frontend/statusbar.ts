@@ -13,17 +13,27 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Trace} from '../public/trace';
+import {featureFlags} from '../core/feature_flags';
 import {Button, ButtonVariant} from '../widgets/button';
 import {Popup, PopupPosition} from '../widgets/popup';
+import {TaskStatus} from './task_status';
+import {App} from '../public/app';
+
+const SHOW_TASK_TRACKER_FLAG = featureFlags.register({
+  id: 'showTaskTracker',
+  name: 'Show task tracker',
+  description: 'Show the task tracker widget in the status bar',
+  defaultValue: false,
+});
 
 /**
  * A persistent status bar component typically rendered at the bottom of the UI.
  */
-export function renderStatusBar(trace: Trace | undefined): m.Children {
+export function renderStatusBar(app: App): m.Children {
   return m(
     '.pf-statusbar',
-    trace?.statusbar.statusBarItems.map((item) => {
+    SHOW_TASK_TRACKER_FLAG.get() && m(TaskStatus, {app}),
+    app.trace?.statusbar.statusBarItems.map((item) => {
       const {icon, label, intent, onclick} = item.renderItem();
       const popupContent = item.popupContent?.();
       const itemContent = m(Button, {

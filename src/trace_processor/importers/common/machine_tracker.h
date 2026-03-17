@@ -17,7 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_MACHINE_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_MACHINE_TRACKER_H_
 
-#include <cmath>
 #include <cstdint>
 
 #include "src/trace_processor/storage/trace_storage.h"
@@ -32,9 +31,7 @@ class MachineTracker {
   ~MachineTracker();
 
   // Converts bytes to GB using power of 10.
-  static inline int64_t BytesToGB(int64_t bytes) {
-    return static_cast<int64_t>(std::round(static_cast<double>(bytes) / 1e9));
-  }
+  static int64_t BytesToGB(int64_t bytes);
 
   void SetMachineInfo(StringId sysname,
                       StringId release,
@@ -46,12 +43,12 @@ class MachineTracker {
   void SetAndroidSdkVersion(int64_t sdk_version);
   void SetSystemRamBytes(int64_t system_ram_bytes);
 
-  std::optional<MachineId> machine_id() const { return machine_id_; }
+  MachineId machine_id() const { return machine_id_; }
 
  private:
   std::optional<tables::MachineTable::RowReference> getRow();
 
-  std::optional<MachineId> machine_id_;
+  MachineId machine_id_;
   TraceProcessorContext* const context_;
 };
 

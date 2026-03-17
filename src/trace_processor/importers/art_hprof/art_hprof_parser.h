@@ -45,14 +45,14 @@ class ArtHprofParser : public ChunkedTraceReader {
   explicit ArtHprofParser(TraceProcessorContext* context);
   ~ArtHprofParser() override;
   base::Status Parse(TraceBlobView blob) override;
-  base::Status NotifyEndOfFile() override;
+  base::Status OnPushDataToSorter() override;
+  void OnEventsFullyExtracted() override {}
 
  private:
   void PopulateClasses(const HeapGraph& graph);
   void PopulateObjects(const HeapGraph& graph, int64_t ts, UniquePid upid);
   void PopulateReferences(const HeapGraph& graph);
 
-  // Helper methods
   tables::HeapGraphClassTable::Id* FindClassId(uint64_t class_id) const;
   tables::HeapGraphObjectTable::Id* FindObjectId(uint64_t obj_id) const;
   tables::HeapGraphClassTable::Id* FindClassObjectId(uint64_t obj_id) const;
@@ -85,16 +85,14 @@ class ArtHprofParser : public ChunkedTraceReader {
 
   TraceProcessorContext* const context_;
 
-  // Parser components
   std::unique_ptr<ByteIterator> byte_iterator_;
   std::unique_ptr<HeapGraphBuilder> parser_;
 
-  // Maps moved to instance variables
+  // HPROF ID → table row ID mappings, used during PopulateObjects/References.
   base::FlatHashMap<uint64_t, tables::HeapGraphClassTable::Id> class_map_;
   base::FlatHashMap<uint64_t, tables::HeapGraphClassTable::Id>
       class_object_map_;
   base::FlatHashMap<uint64_t, tables::HeapGraphObjectTable::Id> object_map_;
-  // For class objects that are denoted with "java.lang.Class<"
   base::FlatHashMap<uint64_t, std::string> class_name_map_;
 };
 }  // namespace perfetto::trace_processor::art_hprof

@@ -312,12 +312,14 @@ void GenericKernelParser::ParseGenericProcessTree(protozero::ConstBytes data) {
     const int64_t pid = thread.pid();
     const int64_t tid = thread.tid();
     const bool is_main_thread = thread.is_main_thread();
+    const bool is_idle = thread.is_idle();
 
     auto upid = process_tracker->GetOrCreateProcessWithoutMainThread(pid);
 
     auto utid = process_tracker->GetOrCreateThreadWithParent(tid, upid, false);
 
     process_tracker->SetMainThread(utid, is_main_thread);
+    process_tracker->SetIdleThread(utid, is_idle);
 
     if (thread.has_comm()) {
       StringId comm_id = context_->storage->InternString(thread.comm());

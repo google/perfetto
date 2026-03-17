@@ -13,13 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import multiprocessing
 import os
 import signal
 import sys
+import time
 from typing import Any, Dict, IO, List
 
 from google.protobuf import descriptor_pb2, message_factory
 from python.generators.diff_tests import models
+
+# PID of the main process, used to distinguish from forked workers
+_main_pid = None
 
 
 class ProtoManager:
@@ -98,14 +103,41 @@ def get_env(root_dir: str) -> Dict[str, str]:
 
 
 def ctrl_c_handler(_num: int, _frame: Any):
-  """Handles Ctrl+C by killing the whole process group."""
-  # Send a sigkill to the whole process group. Our process group looks like:
-  # - Main python interpreter running the main()
-  #   - N python interpreters coming from ProcessPoolExecutor workers.
-  #     - 1 trace_processor_shell subprocess from subprocess.Popen().
-  # We don't need any graceful termination as the diff tests are stateless and
-  # don't write any file. Just kill them all immediately.
-  os.killpg(os.getpid(), signal.SIGKILL)
+  """Handles Ctrl+C by waiting for child processes to exit, then exiting.
+
+  When Ctrl+C is pressed, the terminal sends SIGINT to the entire foreground
+  process group. Child processes (executor workers, trace_processor_shell)
+  receive SIGINT directly and will terminate. We just wait for them to finish,
+  then exit cleanly.
+  """
+  global _main_pid
+
+  # Child processes just exit silently
+  if _main_pid is not None and os.getpid() != _main_pid:
+    os._exit(0)
+
+  # Main process: print message and wait for children to exit
+  os.write(sys.stderr.fileno(), b'\nShutting down...\n')
+
+  # Wait for child processes to terminate (they got SIGINT too)
+  deadline = time.time() + 3.0
+  while time.time() < deadline:
+    if not multiprocessing.active_children():
+      break
+    time.sleep(0.01)
+
+  # If any children are still alive after timeout, kill them
+  for child in multiprocessing.active_children():
+    child.kill()
+
+  os._exit(0)
+
+
+def setup_ctrl_c_handler():
+  """Sets up Ctrl+C handler. Must be called once at start of main()."""
+  global _main_pid
+  _main_pid = os.getpid()
+  signal.signal(signal.SIGINT, ctrl_c_handler)
 
 
 def serialize_textproto_trace(trace_descriptor_path: str,

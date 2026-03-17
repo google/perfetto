@@ -37,8 +37,8 @@ CREATE PERFETTO VIEW cpu (
   cluster_id LONG,
   -- A string describing this core.
   processor STRING,
-  -- Machine identifier, non-null for CPUs on a remote machine.
-  machine_id LONG,
+  -- Machine identifier
+  machine_id JOINID(machine.id),
   -- Capacity of a CPU of a device, a metric which indicates the
   -- relative performance of a CPU on a device
   -- For details see:
@@ -192,7 +192,7 @@ CREATE PERFETTO VIEW thread_state (
   -- Whether the wakeup was from interrupt context or process context.
   irq_context LONG,
   -- The unique CPU identifier that the thread executed on.
-  ucpu LONG
+  ucpu JOINID(cpu.id)
 ) AS
 SELECT
   id,

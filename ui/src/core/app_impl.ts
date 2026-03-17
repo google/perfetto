@@ -14,7 +14,7 @@
 
 import {AsyncLimiter} from '../base/async_limiter';
 import {defer} from '../base/deferred';
-import {assertExists, assertTrue} from '../base/logging';
+import {assertExists, assertTrue} from '../base/assert';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
 import {App} from '../public/app';
 import {SqlPackage} from '../public/extra_sql_packages';
@@ -40,6 +40,9 @@ import {SidebarManagerImpl} from './sidebar_manager';
 import {SerializedAppState} from './state_serialization_schema';
 import {TraceImpl} from './trace_impl';
 import {TraceArrayBufferSource, TraceSource} from './trace_source';
+import {TaskTrackerImpl} from '../frontend/task_tracker/task_tracker';
+import {Embedder} from './embedder/embedder';
+import {createEmbedder} from './embedder/create_embedder';
 
 export type OpenTraceArrayBufArgs = Omit<
   Omit<TraceArrayBufferSource, 'type'>,
@@ -70,12 +73,13 @@ export interface AppInitArgs {
 export class AppImpl implements App {
   readonly omnibox = new OmniboxManagerImpl();
   readonly commands = new CommandManagerImpl(this.omnibox);
-  readonly pages = new PageManagerImpl();
+  readonly pages: PageManagerImpl;
   readonly sidebar: SidebarManagerImpl;
   readonly plugins = new PluginManagerImpl();
   readonly perfDebugging = new PerfManager();
   readonly analytics: AnalyticsInternal;
   readonly serviceWorkerController = new ServiceWorkerController();
+  readonly taskTracker = new TaskTrackerImpl();
   httpRpc = {
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE' as NewEngineMode,
     httpRpcAvailable: false,
@@ -87,6 +91,7 @@ export class AppImpl implements App {
   readonly testingMode: boolean;
   readonly openTraceAsyncLimiter = new AsyncLimiter();
   readonly settings: SettingsManagerImpl;
+  readonly embedder: Embedder;
 
   // The current active trace (if any).
   private _activeTrace: TraceImpl | undefined;
@@ -102,7 +107,9 @@ export class AppImpl implements App {
   >();
 
   // Command macros. Injected from extensions.
-  private _macrosPromises = new Array<Promise<ReadonlyArray<Macro>>>();
+  private _macrosPromises = new Array<
+    Promise<ReadonlyArray<Macro & {source?: string}>>
+  >();
 
   // Initializes the singleton instance - must be called only once and before
   // AppImpl.instance is used.
@@ -145,11 +152,14 @@ export class AppImpl implements App {
       disabled: this.embeddedMode,
       hidden: this.initialRouteArgs.hideSidebar,
     });
+    this.embedder = createEmbedder();
     this.analytics = initAnalytics(
       this.testingMode,
       this.embeddedMode,
       initArgs.analyticsSetting.get(),
+      this.embedder.analyticsId,
     );
+    this.pages = new PageManagerImpl(this.analytics);
   }
 
   setActiveTrace(trace: TraceImpl) {
@@ -309,11 +319,15 @@ export class AppImpl implements App {
     );
   }
 
-  addMacros(args: ReadonlyArray<Macro> | Promise<ReadonlyArray<Macro>>) {
+  addMacros(
+    args:
+      | ReadonlyArray<Macro & {source?: string}>
+      | Promise<ReadonlyArray<Macro & {source?: string}>>,
+  ) {
     this._macrosPromises.push(Promise.resolve(args));
   }
 
-  async macros(): Promise<ReadonlyArray<Macro>> {
+  async macros(): Promise<ReadonlyArray<Macro & {source?: string}>> {
     const macrosArray = await Promise.all(this._macrosPromises);
     return macrosArray.flat();
   }

@@ -14,35 +14,65 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {NUM} from '../../trace_processor/query_result';
+import {NUM, STR} from '../../trace_processor/query_result';
 import {createHeapProfileTrack} from './heap_profile_track';
 import {TrackNode} from '../../public/workspace';
-import {createPerfettoTable} from '../../trace_processor/sql_utils';
+import {
+  createPerfettoTable,
+  createPerfettoView,
+} from '../../trace_processor/sql_utils';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import {Track} from '../../public/track';
 import {FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {Store} from '../../base/store';
 import {z} from 'zod';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
+import {
+  isProfileDescriptor,
+  ProfileDescriptor,
+  profileDescriptor,
+  ProfileType,
+} from './common';
+import {
+  AreaSelection,
+  areaSelectionsEqual,
+  AreaSelectionTab,
+} from '../../public/selection';
+import {HeapProfileFlamegraphDetailsPanel} from './heap_profile_details_panel';
 
 const EVENT_TABLE_NAME = 'heap_profile_events';
 
-const HEAP_PROFILE_PLUGIN_STATE_SCHEMA = z.object({
-  detailsPanelFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
-});
+const HEAP_PROFILE_PLUGIN_STATE_SCHEMA = z.record(
+  z.enum(ProfileType),
+  z.object({
+    trackFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+    areaSelectionFlamegraphState: FLAMEGRAPH_STATE_SCHEMA.optional(),
+  }),
+);
 
 type HeapProfilePluginState = z.infer<typeof HEAP_PROFILE_PLUGIN_STATE_SCHEMA>;
+
+function trackUri(upid: number, type: string): string {
+  return `/process_${upid}/${type}_heap_profile`;
+}
 
 export default class HeapProfilePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.HeapProfile';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
-  private readonly trackMap = new Map<number, Track>();
+  private readonly trackMap = new Map<string, Track>();
   private store?: Store<HeapProfilePluginState>;
 
   private migrateHeapProfilePluginState(init: unknown): HeapProfilePluginState {
     const result = HEAP_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
-    return result.data ?? {};
+    return (
+      result.data ?? {
+        [ProfileType.NATIVE_HEAP_PROFILE]: {},
+        [ProfileType.GENERIC_HEAP_PROFILE]: {},
+        [ProfileType.JAVA_HEAP_SAMPLES]: {},
+        [ProfileType.JAVA_HEAP_GRAPH]: {},
+      }
+    );
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
@@ -50,10 +80,23 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       this.migrateHeapProfilePluginState(init),
     );
     await this.createHeapProfileTable(trace);
-    await this.addProcessTracks(trace);
+    const heapTypes = await this.getHeapTypes(trace);
+    await this.addProcessTracks(trace, heapTypes);
+
+    // For applicable heap types, register an area selection
+    for (const heapType of heapTypes) {
+      const descriptor = profileDescriptor(heapType);
+      if (descriptor.type === ProfileType.JAVA_HEAP_GRAPH) {
+        // There's no area selection for java heap dumps.
+        continue;
+      }
+      trace.selection.registerAreaSelectionTab(
+        this.heapProfileSelectionHandler(trace, descriptor),
+      );
+    }
 
     trace.onTraceReady.addListener(async () => {
-      await this.selectFirstHeapProfile(trace);
+      await this.selectHeapProfile(trace);
     });
   }
 
@@ -62,76 +105,128 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
       engine: trace.engine,
       name: EVENT_TABLE_NAME,
       as: `
+        WITH heap_profile_points AS (
+          SELECT
+            MIN(id) as id,
+            ts,
+            upid,
+            heap_name
+          FROM heap_profile_allocation
+          GROUP BY ts, upid, heap_name
+        ), heap_profile_slices AS (
+          SELECT
+            id,
+            upid,
+            heap_name,
+            LAG(ts, 1, trace_start()) OVER (PARTITION BY upid, heap_name ORDER BY ts) + 1 AS ts,
+            ts AS ts_end
+          FROM heap_profile_points
+        )
+
         SELECT
           MIN(id) as id,
           graph_sample_ts AS ts,
           upid,
           0 AS dur,
           0 AS depth,
-          'graph' AS type
+          'java_heap_graph' AS type
         FROM heap_graph_object
         GROUP BY graph_sample_ts, upid
 
         UNION ALL
 
         SELECT
-          MIN(id) as id,
+          id,
           ts,
           upid,
-          0 AS dur,
+          ts_end - ts AS dur,
           0 AS depth,
-          'heap_profile:' || GROUP_CONCAT(DISTINCT heap_name) AS type
-        FROM heap_profile_allocation
-        GROUP BY ts, upid
+          'heap_profile:' || heap_name AS type
+        FROM heap_profile_slices
       `,
     });
   }
 
-  private async addProcessTracks(trace: Trace) {
+  private async getHeapTypes(trace: Trace): Promise<string[]> {
+    const heapTypesResult = await trace.engine.query(`
+      SELECT DISTINCT type
+      FROM ${EVENT_TABLE_NAME}
+    `);
+    const heapTypes = [];
+    for (const it = heapTypesResult.iter({type: STR}); it.valid(); it.next()) {
+      heapTypes.push(it.type);
+    }
+    return heapTypes;
+  }
+
+  private async addProcessTracks(trace: Trace, heapTypes: readonly string[]) {
     const trackGroupsPlugin = trace.plugins.getPlugin(
       ProcessThreadGroupsPlugin,
     );
     const incomplete = await this.getIncomplete(trace);
-    const result = await trace.engine.query(`
-      SELECT DISTINCT 
-        upid
-      FROM ${EVENT_TABLE_NAME}
-    `);
-    for (const it = result.iter({upid: NUM}); it.valid(); it.next()) {
-      const upid = it.upid;
-      const uri = `/process_${upid}/heap_profile`;
 
-      const store = assertExists(this.store);
-      const track: Track = {
-        uri,
-        tags: {
-          upid,
-        },
-        renderer: createHeapProfileTrack(
-          trace,
-          uri,
-          EVENT_TABLE_NAME,
-          upid,
-          incomplete,
-          store.state.detailsPanelFlamegraphState,
-          (state) => {
-            store.edit((draft) => {
-              draft.detailsPanelFlamegraphState = state;
-            });
-          },
-        ),
-      };
-
-      trace.tracks.registerTrack(track);
-      this.trackMap.set(upid, track);
-
-      const group = trackGroupsPlugin.getGroupForProcess(upid);
-      const trackNode = new TrackNode({
-        uri,
-        name: 'Heap Profile',
-        sortOrder: -30,
+    let typeIdx = 0;
+    for (const heapType of heapTypes) {
+      // Create a view for this particular type
+      const viewName = `${EVENT_TABLE_NAME}_view_${typeIdx}`;
+      await createPerfettoView({
+        engine: trace.engine,
+        name: viewName,
+        as: `
+          SELECT *
+          FROM ${EVENT_TABLE_NAME}
+          WHERE type = '${heapType}'
+        `,
       });
-      group?.addChildInOrder(trackNode);
+      typeIdx++;
+
+      const upidResult = await trace.engine.query(`
+        SELECT DISTINCT upid
+        FROM ${viewName}
+      `);
+
+      const upids = [];
+      for (const it = upidResult.iter({upid: NUM}); it.valid(); it.next()) {
+        upids.push(it.upid);
+      }
+
+      for (const upid of upids) {
+        const group = trackGroupsPlugin.getGroupForProcess(upid);
+        if (!group) continue;
+
+        const store = assertExists(this.store);
+        const uri = trackUri(upid, heapType);
+        const descriptor = profileDescriptor(heapType);
+        const track: Track = {
+          uri,
+          tags: {
+            upid: upid,
+            kinds: [heapType],
+          },
+          renderer: createHeapProfileTrack(
+            trace,
+            uri,
+            viewName,
+            upid,
+            incomplete,
+            store.state[descriptor.type].trackFlamegraphState,
+            (state) => {
+              store.edit((draft) => {
+                draft[descriptor.type].trackFlamegraphState = state;
+              });
+            },
+          ),
+        };
+        trace.tracks.registerTrack(track);
+
+        this.trackMap.set(uri, track);
+        const trackNode = new TrackNode({
+          uri,
+          name: descriptor.label,
+          sortOrder: -30,
+        });
+        group.addChildInOrder(trackNode);
+      }
     }
   }
 
@@ -145,23 +240,96 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     return incomplete;
   }
 
-  private async selectFirstHeapProfile(ctx: Trace) {
-    // Select the first sample from each track
+  private async selectHeapProfile(ctx: Trace) {
     const result = await ctx.engine.query(`
         SELECT
           id,
-          upid
+          upid,
+          type
         FROM ${EVENT_TABLE_NAME}
-        ORDER BY ts
+        ORDER BY type, ts
         LIMIT 1
       `);
 
-    const iter = result.maybeFirstRow({id: NUM, upid: NUM});
+    const iter = result.maybeFirstRow({id: NUM, upid: NUM, type: STR});
     if (!iter) return;
 
-    const track = this.trackMap.get(iter.upid);
+    const uri = trackUri(iter.upid, iter.type);
+    const track = this.trackMap.get(uri);
     if (!track) return;
 
-    ctx.selection.selectTrackEvent(track.uri, iter.id);
+    if (profileDescriptor(iter.type).type === ProfileType.JAVA_HEAP_GRAPH) {
+      ctx.selection.selectTrackEvent(track.uri, iter.id);
+    } else {
+      ctx.selection.selectArea({
+        start: ctx.traceInfo.start,
+        end: ctx.traceInfo.end,
+        trackUris: [uri],
+      });
+    }
   }
+
+  private heapProfileSelectionHandler(
+    trace: Trace,
+    descriptor: ProfileDescriptor,
+  ): AreaSelectionTab {
+    let previousSelection: AreaSelection | undefined;
+    let flamegraphPanel: HeapProfileFlamegraphDetailsPanel | undefined;
+    return {
+      id: `heap_profiler_flamegraph_selection_${descriptor.heapName}`,
+      name: `${descriptor.label} flamegraph`,
+      render: (selection: AreaSelection) => {
+        const store = assertExists(this.store);
+        const selectionChanged =
+          previousSelection === undefined ||
+          !areaSelectionsEqual(previousSelection, selection);
+        previousSelection = selection;
+        if (!selectionChanged) {
+          return {isLoading: false, content: flamegraphPanel?.render()};
+        }
+        const upids = matchingTracks(selection, descriptor.type).map(
+          (track) => track.tags!.upid,
+        );
+        // For the time being support selecting exactly one process.
+        flamegraphPanel =
+          upids.length !== 1
+            ? undefined
+            : new HeapProfileFlamegraphDetailsPanel(
+                trace,
+                false,
+                upids[0]!,
+                descriptor,
+                selection.start,
+                selection.end,
+                store.state[descriptor.type].areaSelectionFlamegraphState,
+                (state) => {
+                  store.edit((draft) => {
+                    draft[descriptor.type].areaSelectionFlamegraphState = state;
+                  });
+                },
+              );
+        return {
+          isLoading: false,
+          content: flamegraphPanel?.render(),
+        };
+      },
+    };
+  }
+}
+
+function matchingTracks(
+  selection: AreaSelection,
+  profileType: ProfileType,
+): Track[] {
+  return selection.tracks.filter((track) => {
+    for (const kind of track.tags?.kinds || []) {
+      if (
+        isProfileDescriptor(kind) &&
+        profileDescriptor(kind).type === profileType
+      ) {
+        return true;
+      }
+    }
+    return false;
+  });
 }

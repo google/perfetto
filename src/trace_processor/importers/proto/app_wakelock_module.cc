@@ -25,7 +25,6 @@
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/ref_counted.h"
-#include "perfetto/trace_processor/trace_blob.h"
 #include "protos/perfetto/trace/android/app_wakelock_data.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -33,6 +32,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/tracks.h"
+#include "src/trace_processor/importers/proto/blob_packet_writer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -93,12 +93,16 @@ ModuleResult AppWakelockModule::TokenizePacket(
       continue;
     }
 
-    packet_buffer_->set_timestamp(static_cast<uint64_t>(real_ts));
-    auto* event = packet_buffer_->set_app_wakelock_bundle();
-    size_t length = static_cast<size_t>(interned->end() - interned->begin());
-    event->set_info()->AppendRawProtoBytes(interned->begin(), length);
-    event->set_acquired(acquired);
-    PushPacketBufferForSort(real_ts, state);
+    TraceBlobView tbv =
+        context_->blob_packet_writer->WritePacket([&](auto* pkt) {
+          pkt->set_timestamp(static_cast<uint64_t>(real_ts));
+          auto* event = pkt->set_app_wakelock_bundle();
+          auto length =
+              static_cast<size_t>(interned->end() - interned->begin());
+          event->set_info()->AppendRawProtoBytes(interned->begin(), length);
+          event->set_acquired(acquired);
+        });
+    PushPacketBufferForSort(real_ts, std::move(tbv), state);
   }
 
   return ModuleResult::Handled();
@@ -159,12 +163,10 @@ void AppWakelockModule::ParseWakelockBundle(int64_t ts, ConstBytes blob) {
 
 void AppWakelockModule::PushPacketBufferForSort(
     int64_t timestamp,
+    TraceBlobView tbv,
     RefPtr<PacketSequenceStateGeneration> state) {
-  auto [vec, size] = packet_buffer_.SerializeAsUniquePtr();
-  TraceBlobView tbv(TraceBlob::TakeOwnership(std::move(vec), size));
   module_context_->trace_packet_stream->Push(
       timestamp, TracePacketData{std::move(tbv), std::move(state)});
-  packet_buffer_.Reset();
 }
 
 }  // namespace perfetto::trace_processor

@@ -219,6 +219,8 @@ ProtoSchemaType ToGenericProtoField(FtraceFieldType ftrace_type) {
     case kFtraceStringPtr:
     case kFtraceDataLoc:
       return ProtoSchemaType::kString;
+    case kFtraceDataLocUint8:
+      return ProtoSchemaType::kBytes;
     case kFtraceInt8:
     case kFtraceInt16:
     case kFtraceInt32:
@@ -319,14 +321,25 @@ bool InferFtraceType(const std::string& type_and_name,
 
   // String pointers: "__data_loc char[] foo" (as in
   // 'cpufreq_interactive_boost').
-  // TODO(fmayer): Handle u32[], u8[], __u8[] as well.
-  if (Contains(type_and_name, "__data_loc char[] ")) {
+  // TODO(fmayer): Handle u32[], u16[] as well.
+  if (Contains(type_and_name, "__data_loc ")) {
     if (size != 4) {
       PERFETTO_ELOG("__data_loc with incorrect size: %s (%zu)",
                     type_and_name.c_str(), size);
       return false;
     }
-    *out = kFtraceDataLoc;
+
+    if (Contains(type_and_name, "__data_loc char[] ")) {
+      *out = kFtraceDataLoc;
+    } else if (Contains(type_and_name, "__data_loc u8[] ") ||
+               Contains(type_and_name, "__data_loc __u8[] ") ||
+               Contains(type_and_name, "__data_loc unsigned char[] ")) {
+      *out = kFtraceDataLocUint8;
+    } else {
+      PERFETTO_DLOG("__data_loc with unsupported type: %s",
+                    type_and_name.c_str());
+      *out = kFtraceDataLoc;
+    }
     return true;
   }
 

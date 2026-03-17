@@ -22,7 +22,7 @@
 #include <utility>
 #include <vector>
 
-#include "src/profiling/symbolizer/llvm_symbolizer_c_api.h"
+#include "src/trace_processor/util/symbolizer/llvm_symbolizer_c_api.h"
 
 namespace perfetto::trace_processor::perfetto_sql {
 

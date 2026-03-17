@@ -41,6 +41,10 @@ constexpr size_t kHprofHeaderLength = 20;           // Header size in bytes
 
 constexpr const char* kJavaLangString = "java.lang.String";
 constexpr const char* kSunMiscCleaner = "sun.misc.Cleaner";
+constexpr const char* kNativeAllocationRegistryCleanerThunk =
+    "libcore.util.NativeAllocationRegistry$CleanerThunk";
+constexpr const char* kNativeAllocationRegistry =
+    "libcore.util.NativeAllocationRegistry";
 
 class ByteIterator {
  public:
@@ -105,29 +109,18 @@ class HeapGraphResolver {
                     base::FlatHashMap<uint64_t, HprofHeapRootTag>& roots,
                     DebugStats& stats);
 
-  // Build the complete object graph with references and field values
   void ResolveGraph();
 
  private:
-  // Extract data for all objects
   void ExtractAllObjectData();
-
-  // Mark objects reachable from roots
   void MarkReachableObjects();
-
-  // Extract references from array elements
   void ExtractArrayElementReferences(Object& obj);
-
-  // Helper methods for data extraction
   bool ExtractObjectReferences(Object& obj, const ClassDefinition& cls);
   void ExtractFieldValues(Object& obj, const ClassDefinition& cls);
   void ExtractPrimitiveArrayValues(Object& obj);
   std::optional<std::string> DecodeJavaString(const Object& string_obj) const;
-
-  // Utility methods
-  std::vector<Field> GetClassHierarchyFields(uint64_t class_id) const;
-
-  // Calculate native memory sizes for objects
+  const std::vector<Field>& GetClassHierarchyFields(uint64_t class_id);
+  void ComputeSelfSizes();
   void CalculateNativeSizes();
 
   // Data references (not owned)
@@ -137,6 +130,9 @@ class HeapGraphResolver {
   base::FlatHashMap<uint64_t, HprofHeapRootTag>& roots_;
   base::FlatHashMap<uint64_t, ClassDefinition>& classes_;
   DebugStats& stats_;
+
+  // Cache for class hierarchy fields (avoids repeated hierarchy walks)
+  base::FlatHashMap<uint64_t, std::vector<Field>> field_cache_;
 };
 
 // Main parser class that builds a heap graph from HPROF data
@@ -160,6 +156,9 @@ class HeapGraphBuilder {
 
   // Build and return the final heap graph
   HeapGraph BuildGraph();
+
+  // Clear all parsed data for idempotency
+  void Clear();
 
  private:
   //--------------------------------------------------------------------------
@@ -241,7 +240,6 @@ class HeapGraphBuilder {
   TraceProcessorContext* context_;
 };
 
-// Helper method
 inline size_t GetFieldTypeSize(FieldType type, size_t id_size) {
   switch (type) {
     case FieldType::kObject:

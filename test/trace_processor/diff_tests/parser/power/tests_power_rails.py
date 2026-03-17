@@ -389,6 +389,11 @@ class PowerPowerRails(TestSuite):
           }
         }
         packet {
+          clock_snapshot {
+            primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
+          }
+        }
+        packet {
           timestamp: 1000000
           power_rails {
             energy_data {
@@ -487,8 +492,8 @@ class PowerPowerRails(TestSuite):
         """,
         out=Csv("""
         "name","ts","value","machine_id"
-        "power.SHARED_RAIL_uws",1000000,100.000000,"[NULL]"
-        "power.SHARED_RAIL_uws",3000000,300.000000,"[NULL]"
+        "power.SHARED_RAIL_uws",1000000,100.000000,0
+        "power.SHARED_RAIL_uws",3000000,300.000000,0
         "power.SHARED_RAIL_uws",2990000,200.000000,1
         "power.SHARED_RAIL_uws",4990000,400.000000,1
         """))

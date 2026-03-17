@@ -29,14 +29,14 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/args_utils.h"
-#include "src/trace_processor/util/json_writer.h"
+#include "src/trace_processor/util/simple_json_serializer.h"
 
 namespace perfetto::trace_processor {
 namespace {
 
 void WriteVariadic(const Variadic& v,
                    const TraceStorage* storage,
-                   json::JsonValueWriter&& writer) {
+                   json::JsonValueSerializer&& writer) {
   switch (v.type) {
     case Variadic::Type::kNull:
       std::move(writer).WriteNull();
@@ -82,55 +82,56 @@ void WriteVariadic(const Variadic& v,
 
 void WriteArgNode(const ArgNode& node,
                   const TraceStorage* storage,
-                  json::JsonValueWriter&& writer);
+                  json::JsonValueSerializer&& writer);
 
 void WriteArgNode(const ArgNode& node,
                   const TraceStorage* storage,
-                  json::JsonArrayWriter& writer);
+                  json::JsonArraySerializer& writer);
 
 void WriteArgNode(const ArgNode& node,
                   const TraceStorage* storage,
-                  json::JsonDictWriter& writer,
+                  json::JsonDictSerializer& writer,
                   std::string_view key);
 
 void WriteArgNode(const ArgNode& node,
                   const TraceStorage* storage,
-                  json::JsonValueWriter&& writer) {
+                  json::JsonValueSerializer&& writer) {
   switch (node.GetType()) {
     case ArgNode::Type::kPrimitive:
       WriteVariadic(node.GetPrimitiveValue(), storage, std::move(writer));
       break;
     case ArgNode::Type::kArray:
       std::move(writer).WriteArray(
-          [&node, storage](json::JsonArrayWriter& arr) {
+          [&node, storage](json::JsonArraySerializer& arr) {
             for (const auto& child : node.GetArray()) {
               WriteArgNode(child, storage, arr);
             }
           });
       break;
     case ArgNode::Type::kDict:
-      std::move(writer).WriteDict([&node, storage](json::JsonDictWriter& dict) {
-        for (const auto& [k, v] : node.GetDict()) {
-          WriteArgNode(v, storage, dict, k);
-        }
-      });
+      std::move(writer).WriteDict(
+          [&node, storage](json::JsonDictSerializer& dict) {
+            for (const auto& [k, v] : node.GetDict()) {
+              WriteArgNode(v, storage, dict, k);
+            }
+          });
       break;
   }
 }
 
 void WriteArgNode(const ArgNode& node,
                   const TraceStorage* storage,
-                  json::JsonArrayWriter& writer) {
-  writer.Append([&node, storage](json::JsonValueWriter&& value_writer) {
+                  json::JsonArraySerializer& writer) {
+  writer.Append([&node, storage](json::JsonValueSerializer&& value_writer) {
     WriteArgNode(node, storage, std::move(value_writer));
   });
 }
 
 void WriteArgNode(const ArgNode& node,
                   const TraceStorage* storage,
-                  json::JsonDictWriter& writer,
+                  json::JsonDictSerializer& writer,
                   std::string_view key) {
-  writer.Add(key, [&node, storage](json::JsonValueWriter&& value_writer) {
+  writer.Add(key, [&node, storage](json::JsonValueSerializer&& value_writer) {
     WriteArgNode(node, storage, std::move(value_writer));
   });
 }
@@ -206,7 +207,7 @@ void ArgSetToJson::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
   auto* storage = user_data->storage;
   auto& args_cursor = user_data->arg_cursor;
   auto& arg_set = user_data->arg_set;
-  auto& json_writer = user_data->json_writer;
+  auto& json_serializer = user_data->json_serializer;
 
   // Set filter value and execute cursor
   args_cursor.SetFilterValueUnchecked(0, arg_set_id);
@@ -222,15 +223,15 @@ void ArgSetToJson::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
     }
   }
 
-  // Reuse json_writer - clear but retain capacity
-  json_writer.Clear();
-  json::JsonValueWriter(json_writer)
-      .WriteDict([&](json::JsonDictWriter& writer) {
+  // Reuse json_serializer - clear but retain capacity
+  json_serializer.Clear();
+  json::JsonValueSerializer(json_serializer)
+      .WriteDict([&](json::JsonDictSerializer& writer) {
         for (const auto& [key, value] : arg_set.root().GetDict()) {
           WriteArgNode(value, storage, writer, key);
         }
       });
-  auto json_sv = json_writer.GetStringView();
+  auto json_sv = json_serializer.GetStringView();
   return sqlite::result::TransientString(ctx, json_sv.data(),
                                          static_cast<int>(json_sv.size()));
 }

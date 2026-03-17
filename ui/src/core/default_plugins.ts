@@ -21,6 +21,7 @@
 // - Not directly rely on any other plugins.
 // - Be approved by one of Perfetto UI owners.
 export const defaultPlugins = [
+  'com.android.AndroidAnr',
   'com.android.AndroidClientServer',
   'com.android.AndroidCujs',
   'com.android.AndroidDmabuf',
@@ -54,7 +55,7 @@ export const defaultPlugins = [
   'dev.perfetto.DeeplinkQuerystring',
   'dev.perfetto.EntityStateResidency',
   'dev.perfetto.ExampleTraces',
-  'dev.perfetto.ExplorePage',
+  'dev.perfetto.DataExplorer',
   'dev.perfetto.FlagsPage',
   'dev.perfetto.FlowEventsPanel',
   'dev.perfetto.Frames',
@@ -68,7 +69,7 @@ export const defaultPlugins = [
   'dev.perfetto.MetricsPage',
   'dev.perfetto.Notes',
   'dev.perfetto.PowerRails',
-  'dev.perfetto.PprofProfiles',
+  'dev.perfetto.AggregateProfiles',
   'dev.perfetto.Process',
   'dev.perfetto.ProcessSummary',
   'dev.perfetto.ProcessThreadGroups',

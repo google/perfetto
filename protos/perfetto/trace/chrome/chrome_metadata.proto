@@ -39,6 +39,10 @@ message ChromeMetadataPacket {
 
   // List of Finch study/groups that apply to this trace.
   repeated FinchHash field_trial_hashes = 4;
+
+  // The package name of the app which is being traced. This field is only set
+  // on Android.
+  optional string app_package_name = 5;
 }
 
 // Metadata related to background tracing scenarios, states and triggers.

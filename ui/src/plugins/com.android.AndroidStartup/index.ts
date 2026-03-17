@@ -220,41 +220,58 @@ export default class AndroidStartup implements PerfettoPlugin {
       trackNode.pin();
     }
 
-    // 2. Scroll the main thread track and focus into view
-
-    // Construct the track URI. Typically, thread tracks use the format /slice_{track_id}.
-    const mainThreadTrackUri = `/slice_${startupInfo.mainThreadTrackId}`;
     const startTime = Time.fromRaw(BigInt(startupInfo.ts));
     const endTime = Time.fromRaw(BigInt(startupInfo.ts + startupInfo.dur));
 
-    ctx.scrollTo({
-      track: {
-        uri: mainThreadTrackUri,
-        expandGroup: true,
-      },
-      time:
-        startupInfo.dur > 0n
-          ? {
-              start: startTime,
-              end: endTime,
-              behavior: {viewPercentage: 0.8},
-            }
-          : {
-              start: startTime,
-              behavior: 'focus',
-            },
-    });
+    ctx.onTraceReady.addListener(async () => {
+      // Find the main thread track by its track ID via the track tags.
+      const mainThreadTrackNode = ctx.currentWorkspace.flatTracks.find(
+        (track) => {
+          if (!track.uri) {
+            return false;
+          }
+          const trackDesc = ctx.tracks.getTrack(track.uri);
+          return trackDesc?.tags?.trackIds?.includes(
+            startupInfo.mainThreadTrackId,
+          );
+        },
+      );
 
-    // 3. Select the area on the main thread track
-    ctx.selection.selectArea(
-      {
-        start: startTime,
-        end: endTime,
-        trackUris: [mainThreadTrackUri],
-      },
-      {
-        switchToCurrentSelectionTab: true,
-      },
-    );
+      if (!mainThreadTrackNode?.uri) {
+        return;
+      }
+      const mainThreadTrackUri = mainThreadTrackNode.uri;
+
+      // 2. Scroll to the main thread track and focus into view
+      ctx.scrollTo({
+        track: {
+          uri: mainThreadTrackUri,
+          expandGroup: true,
+        },
+        time:
+          startupInfo.dur > 0n
+            ? {
+                start: startTime,
+                end: endTime,
+                behavior: {viewPercentage: 0.8},
+              }
+            : {
+                start: startTime,
+                behavior: 'focus',
+              },
+      });
+
+      // 3. Select the area on the main thread track
+      ctx.selection.selectArea(
+        {
+          start: startTime,
+          end: endTime,
+          trackUris: [mainThreadTrackUri],
+        },
+        {
+          switchToCurrentSelectionTab: true,
+        },
+      );
+    });
   }
 }

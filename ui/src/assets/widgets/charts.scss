@@ -35,3 +35,32 @@
     cursor: text;
   }
 }
+
+// EChartView component styles
+.pf-echart-view {
+  position: relative;
+  width: 100%;
+
+  &--fill-parent {
+    height: 100%;
+  }
+
+  &__canvas {
+    width: 100%;
+    height: 100%;
+
+    &--hidden {
+      display: none;
+    }
+  }
+
+  &__loading,
+  &__empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--pf-color-text-muted);
+    font-size: 14px;
+  }
+}

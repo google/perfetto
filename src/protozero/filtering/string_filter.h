@@ -41,9 +41,10 @@ class StringFilter {
     static constexpr size_t kBitsPerWord = sizeof(Word) * 8;
     static constexpr size_t kLimit = 128;
 
-    // Returns a SemanticTypeMask with all bits set (applies to all types).
-    static constexpr SemanticTypeMask All() {
-      return SemanticTypeMask(Word(-1), Word(-1));
+    // Returns a SemanticTypeMask with only bit 0 set (UNSPECIFIED only).
+    // UNSPECIFIED is its own category and only matches if bit 0 is set.
+    static constexpr SemanticTypeMask Unspecified() {
+      return SemanticTypeMask(Word(1), Word(0));
     }
 
     // Creates a SemanticTypeMask from raw word values (for testing).
@@ -93,12 +94,14 @@ class StringFilter {
   // will be replaced; otherwise the rule is appended.
   //
   // `semantic_type_mask` is a bitmask indicating which semantic types this rule
-  // applies to. Defaults to all bits set (applies to all semantic types).
-  void AddRule(Policy policy,
-               std::string_view pattern,
-               std::string atrace_payload_starts_with,
-               std::string name = {},
-               SemanticTypeMask semantic_type_mask = SemanticTypeMask::All());
+  // applies to. UNSPECIFIED (0) is its own category and only matches if bit 0
+  // is explicitly set. Defaults to matching only UNSPECIFIED.
+  void AddRule(
+      Policy policy,
+      std::string_view pattern,
+      std::string atrace_payload_starts_with,
+      std::string name = {},
+      SemanticTypeMask semantic_type_mask = SemanticTypeMask::Unspecified());
 
   // Tries to filter the given string. Returns true if the string was modified
   // in any way, false otherwise. Uses semantic_type=0 (unspecified).
@@ -122,8 +125,7 @@ class StringFilter {
     std::regex pattern;
     std::string atrace_payload_starts_with;
     std::string name;
-    // Bitmask of semantic types this rule applies to.
-    SemanticTypeMask semantic_type_mask = SemanticTypeMask::All();
+    SemanticTypeMask semantic_type_mask = SemanticTypeMask::Unspecified();
   };
 
   bool MaybeFilterInternal(char* ptr, size_t len, uint32_t semantic_type) const;

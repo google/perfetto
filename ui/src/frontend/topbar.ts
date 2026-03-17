@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {assertFalse} from '../base/logging';
+import {assertFalse} from '../base/assert';
 import {AppImpl} from '../core/app_impl';
 import {OmniboxMode} from '../core/omnibox_manager';
 import {Router} from '../core/router';

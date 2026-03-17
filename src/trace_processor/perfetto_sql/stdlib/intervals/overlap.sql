@@ -521,6 +521,13 @@ RETURNS TableOrSubquery AS
     value = 0
 );
 
+-- Helper to unparenthesize a column list with __intrinsic_token_apply.
+CREATE PERFETTO MACRO _imop_identity(
+    col ColumnName
+)
+RETURNS Expr AS
+$col;
+
 -- Merge overlapping intervals within each partition group to generate a minimum
 -- covering set of intervals with no overlap within each partition.
 --
@@ -531,66 +538,45 @@ RETURNS TableOrSubquery AS
 -- For example, with partition 'A':
 --   Input: (ts=1, dur=10), (ts=5, dur=12)
 --   Output: (ts=1, dur=16)
-CREATE PERFETTO MACRO _interval_merge_overlapping_partitioned(
+CREATE PERFETTO MACRO interval_merge_overlapping_partitioned(
     -- Table or subquery containing interval data.
     intervals TableOrSubquery,
     -- Column name for partition grouping.
-    partition_column ColumnName
+    partition_columns ColumnNameList
 )
--- The returned table has the schema (ts TIMESTAMP, dur DURATION, partition).
+-- The returned table has the schema (ts TIMESTAMP, dur DURATION, partitions).
 -- |ts| is the start of the merged interval. |dur| is the duration of the
--- merged interval. |partition| is the partition key.
+-- merged interval. |partitions| is all of the columns in partition_columns.
 RETURNS TableOrSubquery AS
 (
-  -- Algorithm: For each partition, use intervals_overlap_count_by_group to
-  -- generate a counter track. Pass over the counter track from left to right,
-  -- creating an interval when the counter first becomes non-zero and ending
-  -- an interval when it becomes zero again.
+  -- Algorithm: For each partition, merge overlaps in three steps:
+  -- 1. Find the max endpoint for **preceding** slices in the same partition.
+  -- 2. Number groups by counting times when a slices timestamp is greater than
+  --    the maximum endpoint so far. This indicates a gap, and thus new group.
+  -- 3. Aggreagate slices in the same group to find the start and end time.
   WITH
-    _sorted_intervals AS (
+    _max_endpoint_so_far AS (
       SELECT
-        *
+        ts,
+        dur,
+        __intrinsic_token_apply!(_imop_identity, $partition_columns),
+        max(ts + dur) OVER (PARTITION BY __intrinsic_token_apply!(_imop_identity, $partition_columns) ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS max_endpoint_so_far
       FROM $intervals
-      ORDER BY
-        $partition_column,
-        ts
-    ),
-    _w_prev_count AS (
-      SELECT
-        ts,
-        value,
-        lag(value, 1, 0) OVER (PARTITION BY group_name ORDER BY ts) AS prev_value,
-        group_name
-      FROM intervals_overlap_count_by_group !(_sorted_intervals, ts, dur, $partition_column)
-      ORDER BY
-        group_name,
-        ts ASC
-    ),
-    _end_points AS (
-      SELECT
-        ts,
-        value,
-        group_name
-      FROM _w_prev_count
       WHERE
-        -- start of merged intervals
-        prev_value = 0
-        -- end of merged intervals
-        OR value = 0
+        dur >= 0
     ),
-    _together AS (
+    _numbered_groups AS (
       SELECT
-        ts,
-        value,
-        lag(ts, 1, NULL) OVER (PARTITION BY group_name ORDER BY ts) AS prev_ts,
-        group_name
-      FROM _end_points
+        *,
+        sum(coalesce(ts > max_endpoint_so_far, TRUE)) OVER (PARTITION BY __intrinsic_token_apply!(_imop_identity, $partition_columns) ORDER BY ts) AS overlap_group_number
+      FROM _max_endpoint_so_far
     )
   SELECT
-    prev_ts AS ts,
-    ts - prev_ts AS dur,
-    group_name AS $partition_column
-  FROM _together
-  WHERE
-    value = 0
+    min(ts) AS ts,
+    max(ts + dur) - min(ts) AS dur,
+    __intrinsic_token_apply!(_imop_identity, $partition_columns)
+  FROM _numbered_groups
+  GROUP BY
+    __intrinsic_token_apply!(_imop_identity, $partition_columns),
+    overlap_group_number
 );

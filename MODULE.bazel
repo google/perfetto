@@ -82,7 +82,6 @@ perfetto_deps = use_extension(
 use_repo(
     perfetto_deps,
     "perfetto_dep_expat",
-    "perfetto_dep_jsoncpp",
     "perfetto_dep_linenoise",
     "perfetto_dep_llvm_demangle",
     "perfetto_dep_open_csd",

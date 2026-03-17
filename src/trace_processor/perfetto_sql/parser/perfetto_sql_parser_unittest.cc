@@ -258,6 +258,66 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionIntrinsicError) {
   ASSERT_FALSE(Parse(res).status().ok());
 }
 
+TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionVariadicDelegate) {
+  // Variadic arguments should work in delegate functions
+  auto res = SqlSource::FromExecuteQuery(
+      "create perfetto function foo(args ANY...) returns INT delegates to "
+      "my_intrinsic");
+  auto parsed = Parse(res);
+  ASSERT_TRUE(parsed.status().ok()) << parsed.status().message();
+  ASSERT_EQ(parsed->size(), 1u);
+  auto& stmt = (*parsed)[0];
+  ASSERT_TRUE(std::holds_alternative<CreateFn>(stmt));
+  auto& create_fn = std::get<CreateFn>(stmt);
+  EXPECT_EQ(create_fn.prototype.function_name, "foo");
+  ASSERT_EQ(create_fn.prototype.arguments.size(), 1u);
+  EXPECT_EQ(create_fn.prototype.arguments[0].name().ToStdString(), "args");
+  EXPECT_EQ(create_fn.prototype.arguments[0].type(), sql_argument::Type::kAny);
+  EXPECT_TRUE(create_fn.prototype.arguments[0].is_variadic());
+  EXPECT_TRUE(create_fn.target_function.has_value());
+}
+
+TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionVariadicWithOtherArgs) {
+  // Variadic argument can follow non-variadic arguments
+  auto res = SqlSource::FromExecuteQuery(
+      "create perfetto function foo(x INT, args ANY...) returns INT delegates "
+      "to my_intrinsic");
+  auto parsed = Parse(res);
+  ASSERT_TRUE(parsed.status().ok()) << parsed.status().message();
+  ASSERT_EQ(parsed->size(), 1u);
+  auto& stmt = (*parsed)[0];
+  ASSERT_TRUE(std::holds_alternative<CreateFn>(stmt));
+  auto& create_fn = std::get<CreateFn>(stmt);
+  ASSERT_EQ(create_fn.prototype.arguments.size(), 2u);
+  EXPECT_EQ(create_fn.prototype.arguments[0].name().ToStdString(), "x");
+  EXPECT_FALSE(create_fn.prototype.arguments[0].is_variadic());
+  EXPECT_EQ(create_fn.prototype.arguments[1].name().ToStdString(), "args");
+  EXPECT_TRUE(create_fn.prototype.arguments[1].is_variadic());
+}
+
+TEST_F(PerfettoSqlParserTest,
+       CreatePerfettoFunctionVariadicInSqlFunctionError) {
+  // Variadic arguments should NOT work in SQL functions (with AS body)
+  auto res = SqlSource::FromExecuteQuery(
+      "create perfetto function foo(args ANY...) returns INT as select 1");
+  auto parsed = Parse(res);
+  ASSERT_FALSE(parsed.status().ok());
+  EXPECT_THAT(parsed.status().message(),
+              testing::HasSubstr("Variadic arguments are only allowed in "
+                                 "delegate functions"));
+}
+
+TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionVariadicNotLastError) {
+  // Variadic argument must be the last argument
+  auto res = SqlSource::FromExecuteQuery(
+      "create perfetto function foo(args ANY..., x INT) returns INT delegates "
+      "to my_intrinsic");
+  auto parsed = Parse(res);
+  ASSERT_FALSE(parsed.status().ok());
+  EXPECT_THAT(parsed.status().message(),
+              testing::HasSubstr("Variadic argument must be the last"));
+}
+
 TEST_F(PerfettoSqlParserTest, IncludePerfettoTrivial) {
   auto res =
       SqlSource::FromExecuteQuery("include perfetto module cheese.bre_ad;");

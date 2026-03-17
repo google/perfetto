@@ -56,7 +56,8 @@ class PerfDataTokenizer : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation
   base::Status Parse(TraceBlobView) override;
-  base::Status NotifyEndOfFile() override;
+  base::Status OnPushDataToSorter() override;
+  void OnEventsFullyExtracted() override;
 
  private:
   enum class ParsingState : uint8_t {
@@ -110,7 +111,20 @@ class PerfDataTokenizer : public ChunkedTraceReader {
 
   util::TraceBlobViewReader buffer_;
 
-  int64_t latest_timestamp_ = 0;
+  // Records without timestamps (e.g. MMAP, MMAP2) are buffered here
+  // until we see the first record with a valid timestamp. Then they are
+  // flushed with that timestamp.
+  std::vector<Record> pending_records_without_timestamp_;
+
+  // All COMM records are buffered and pushed in file order at NotifyEndOfFile.
+  struct BufferedCommRecord {
+    Record record;
+    std::optional<int64_t> timestamp;
+  };
+  std::vector<BufferedCommRecord> buffered_comm_records_;
+
+  // Minimum timestamp seen across all records (for records without timestamps)
+  std::optional<int64_t> min_timestamp_;
 
   std::optional<AuxtraceRecord> current_auxtrace_;
   AuxStreamManager aux_manager_;

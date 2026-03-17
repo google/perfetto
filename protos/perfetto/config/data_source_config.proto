@@ -48,6 +48,7 @@ import "protos/perfetto/config/gpu/gpu_renderstages_config.proto";
 import "protos/perfetto/config/inode_file/inode_file_config.proto";
 import "protos/perfetto/config/interceptor_config.proto";
 import "protos/perfetto/config/power/android_power_config.proto";
+import "protos/perfetto/config/protovm/protovm_config.proto";
 import "protos/perfetto/config/statsd/statsd_tracing_config.proto";
 import "protos/perfetto/config/priority_boost/priority_boost_config.proto";
 import "protos/perfetto/config/process_stats/process_stats_config.proto";
@@ -59,6 +60,7 @@ import "protos/perfetto/config/test_config.proto";
 import "protos/perfetto/config/track_event/track_event_config.proto";
 import "protos/perfetto/config/system_info/system_info_config.proto";
 import "protos/perfetto/config/chrome/histogram_samples.proto";
+import "protos/perfetto/config/qnx/qnx_config.proto";
 
 // The configuration that is passed to each data source when starting tracing.
 // Next id: 140
@@ -153,6 +155,20 @@ message DataSourceConfig {
   optional BufferExhaustedPolicy buffer_exhausted_policy = 9;
 
   optional PriorityBoostConfig priority_boost = 10;
+
+  // If specified, the data source requires the tracing service to process
+  // overwritten packets (patches) using a ProtoVM instance with this config.
+  // The ProtoVM program is specified at data source registration time through
+  // the descriptor.
+
+  // TODO(primiano): today when we enable a protovm_config, we actually accept
+  // that if N producers advertise M different versions of the same program we
+  // will create M instances of that program.
+  // To overcome this, we could move the program to the TraceConfig. But doing
+  // so would bloat the trace config size too big and create problems to statsd.
+  // Once the config store (b/482305876) exists we should move protovm programs
+  // onto that.
+  optional ProtoVmConfig protovm_config = 12;
 
   // Keep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.
@@ -284,6 +300,9 @@ message DataSourceConfig {
 
   // Data source name: android.inputmethod
   optional InputMethodConfig inputmethod_config = 139 [lazy = true];
+
+  // Data source name: qnx.kernel
+  optional QnxConfig qnx_config = 150 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that

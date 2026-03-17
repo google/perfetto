@@ -43,7 +43,7 @@ import {ActiveCPUCountTrack, CPUType} from './active_cpu_count';
 import {uriForSchedTrack} from './common';
 import {CpuSliceByProcessSelectionAggregator} from './cpu_slice_by_process_selection_aggregator';
 import {CpuSliceSelectionAggregator} from './cpu_slice_selection_aggregator';
-import {CpuSliceTrack} from './cpu_slice_track';
+import {createCpuSliceTrack} from './cpu_slice_track';
 import {
   RunnableThreadCountTrack,
   UninterruptibleSleepThreadCountTrack,
@@ -162,6 +162,26 @@ export default class SchedPlugin implements PerfettoPlugin {
 
     const cpuToClusterType = await this.getAndroidCpuClusterTypes(ctx.engine);
 
+    const table = await createPerfettoTable({
+      engine: ctx.engine,
+      name: 'non_idle_sched_slices',
+      as: `
+        SELECT
+          s.id,
+          s.ts,
+          s.dur,
+          s.utid,
+          IFNULL(p.pid, 0) AS pid,
+          IFNULL(s.priority, 120) AS priority,
+          ucpu,
+          0 as depth
+        FROM sched s
+        LEFT JOIN thread t USING (utid)
+        LEFT JOIN process p USING (upid)
+        WHERE NOT s.utid IN (SELECT utid FROM thread WHERE is_idle)
+      `,
+    });
+
     const group = new TrackNode({
       name: 'CPU Scheduling',
       sortOrder: -50,
@@ -196,7 +216,7 @@ export default class SchedPlugin implements PerfettoPlugin {
           kinds: [CPU_SLICE_TRACK_KIND],
           cpu: cpu.ucpu,
         },
-        renderer: new CpuSliceTrack(ctx, uri, cpu.ucpu, threads),
+        renderer: createCpuSliceTrack(ctx, uri, table.name, cpu.ucpu, threads),
       });
       group.addChildInOrder(new TrackNode({name, uri}));
     }
@@ -511,7 +531,7 @@ async function getSchedCpus(ctx: Trace): Promise<Cpu[]> {
   const queryRes = await ctx.engine.query(`
     SELECT DISTINCT
       ucpu,
-      IFNULL(cpu.machine_id, 0) AS machine_id,
+      cpu.machine_id AS machine_id,
       cpu.cpu AS cpu
     FROM sched
     JOIN cpu USING (ucpu)

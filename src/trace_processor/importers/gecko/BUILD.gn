@@ -23,27 +23,25 @@ source_set("gecko_event") {
   ]
 }
 
-if (enable_perfetto_trace_processor_json) {
-  source_set("gecko") {
-    sources = [
-      "gecko_trace_parser.cc",
-      "gecko_trace_parser.h",
-      "gecko_trace_tokenizer.cc",
-      "gecko_trace_tokenizer.h",
-    ]
-    deps = [
-      ":gecko_event",
-      "../../../../gn:default_deps",
-      "../../../../gn:jsoncpp",
-      "../../../../include/perfetto/trace_processor:storage",
-      "../../../../protos/perfetto/trace:zero",
-      "../../../base",
-      "../../importers/common",
-      "../../sorter",
-      "../../storage",
-      "../../tables",
-      "../../types",
-      "../../util:json_parser",
-    ]
-  }
+source_set("gecko") {
+  sources = [
+    "gecko_trace_parser.cc",
+    "gecko_trace_parser.h",
+    "gecko_trace_tokenizer.cc",
+    "gecko_trace_tokenizer.h",
+  ]
+  deps = [
+    ":gecko_event",
+    "../../../../gn:default_deps",
+    "../../../../include/perfetto/trace_processor:storage",
+    "../../../../protos/perfetto/trace:zero",
+    "../../../base",
+    "../../importers/common",
+    "../../sorter",
+    "../../storage",
+    "../../tables",
+    "../../types",
+    "../../util:json_parser",
+    "../../util:simple_json_parser",
+  ]
 }

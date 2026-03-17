@@ -33,6 +33,7 @@ import {renderEditor} from './demos/editor_demo';
 import {renderEmptyState} from './demos/empty_state_demo';
 import {renderForm} from './demos/form_demo';
 import {renderGrid} from './demos/grid_demo';
+import {renderCharts} from './demos/charts_demo';
 import {renderHotkey} from './demos/hotkey_demo';
 import {renderIcon} from './demos/icon_demo';
 import {renderMenu} from './demos/menu_demo';
@@ -58,7 +59,6 @@ import {renderTooltip} from './demos/tooltip_demo';
 import {renderTrackShell} from './demos/track_shell_demo';
 import {renderTree} from './demos/tree_demo';
 import {renderTreeTable} from './demos/treetable_demo';
-import {renderVegaView} from './demos/vega_view_demo';
 import {renderVirtualCanvas} from './demos/virtual_canvas_demo';
 
 interface WidgetSection {
@@ -75,6 +75,7 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'callout', label: 'Callout', view: renderCallout},
   {id: 'card-stack', label: 'CardStack', view: cardStack},
   {id: 'card', label: 'Card', view: renderCard},
+  {id: 'charts', label: 'Charts', view: renderCharts},
   {id: 'checkbox', label: 'Checkbox', view: renderCheckbox},
   {id: 'chip', label: 'Chip', view: renderChip},
   {id: 'codesnippet', label: 'CodeSnippet', view: renderCodeSnippet},
@@ -102,7 +103,7 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'spinner', label: 'Spinner', view: renderSpinner},
   {id: 'split-panel', label: 'SplitPanel', view: renderSplitPanel},
   {id: 'switch', label: 'Switch', view: renderSwitch},
-  {id: 'tab-bar', label: 'TabBar', view: renderTabs},
+  {id: 'tabs', label: 'Tabs', view: renderTabs},
   {id: 'tabstrip', label: 'TabStrip', view: renderTabStrip},
   {id: 'taginput', label: 'TagInput', view: renderTagInput},
   {id: 'textinput', label: 'TextInput', view: renderTextInput},
@@ -111,7 +112,6 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'trackshell', label: 'TrackShell', view: renderTrackShell},
   {id: 'tree', label: 'Tree', view: renderTree},
   {id: 'treetable', label: 'TreeTable', view: renderTreeTable},
-  {id: 'vegaview', label: 'VegaView', view: renderVegaView},
   {id: 'virtualcanvas', label: 'VirtualCanvas', view: renderVirtualCanvas},
 ];
 

@@ -67,7 +67,7 @@ export class UiMain implements m.ClassComponent {
       m('.pf-ui-main__page-container', app.pages.renderPageForCurrentRoute()),
       m(CookieConsent),
       maybeRenderFullscreenModalDialog(),
-      showStatusBarFlag.get() && renderStatusBar(trace),
+      showStatusBarFlag.get() && renderStatusBar(app),
       app.perfDebugging.renderPerfStats(),
     ]);
   }

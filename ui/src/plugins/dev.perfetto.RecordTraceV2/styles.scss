@@ -13,6 +13,7 @@
 // limitations under the License.
 
 @import "../../assets/theme";
+@import "../../assets/widgets/checkbox";
 
 // The whole record page.
 .pf-record-page {
@@ -185,6 +186,24 @@
     pointer-events: none;
   }
 } // pf-record-page__menu
+
+.pf-probes-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.pf-custom-config-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin: 4px 8px;
+  font-size: 0.95em;
+  font-weight: 500;
+  color: var(--pf-color-primary);
+  background: color-mix(in srgb, var(--pf-color-primary) 10%, transparent);
+  border-radius: 4px;
+}
 
 .pf-record-page__section {
   grid-area: section;
@@ -364,6 +383,7 @@
   }
 
   .pf-toggle {
+    --indent: calc(30px + #{$box-label-padding});
     padding-top: calc(var(--record-section-padding) / 2);
     display: flex;
     flex-direction: column;
@@ -382,7 +402,7 @@
 
     &__desc {
       color: var(--pf-color-text-muted);
-      font-size: var(--pf-font-size-s);
+      padding-left: var(--indent);
     }
 
     > label {
@@ -392,8 +412,7 @@
 
     // The content of the toggle section.
     > div.descr {
-      padding-left: 36px;
-      font-size: var(--pf-font-size-s);
+      padding-left: var(--indent);
       color: var(--pf-color-text-muted);
     }
   } // toggle
@@ -605,20 +624,67 @@
     }
   }
 
-  .chrome-categories {
-    padding-top: calc(var(--record-section-padding) / 2);
-    padding-bottom: calc(var(--record-section-padding) / 2);
-    display: flex;
-    flex-direction: row;
-    gap: 8px;
-
-    > section {
-      flex: 1;
-      min-width: 0;
+  .chrome-probe-settings {
+    .pf-callout {
+      margin-bottom: calc(var(--record-section-padding) / 2);
     }
 
-    .pf-multiselect-panel {
-      max-height: 500px;
+    > h2 {
+      font-size: var(--pf-font-size-l);
+      padding-top: var(--record-section-padding);
+    }
+
+    > h2,
+    .chrome-categories,
+    .chrome-privacy-setting {
+      padding-bottom: calc(var(--record-section-padding) / 2);
+    }
+
+    .chrome-categories-presets .pf-tabs__tabs {
+      font-size: var(--pf-font-size-l);
+      background-color: transparent;
+    }
+
+    .chrome-tags-panel {
+      padding-bottom: calc(var(--record-section-padding) / 2);
+
+      > div {
+        overflow-y: auto;
+      }
+
+      > .pf-button {
+        font-size: var(--pf-font-size-l);
+        padding-left: 0;
+      }
+
+      > .pf-multiselect-panel {
+        height: 100%;
+        overflow: hidden;
+        padding-top: calc(var(--record-section-padding) / 2);
+      }
+    }
+
+    .chrome-tags-panel-chips {
+      padding-left: 22px;
+      .pf-chip {
+        margin-top: calc(var(--record-section-padding) / 4);
+        margin-right: calc(var(--record-section-padding) / 4);
+      }
+    }
+
+    .chrome-categories {
+      display: flex;
+      flex-direction: row;
+      gap: 8px;
+
+      > section {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .pf-multiselect-panel {
+        max-height: 500px;
+      }
     }
   }
 

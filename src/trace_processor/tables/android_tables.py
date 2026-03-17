@@ -15,6 +15,7 @@
 
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import ColumnDoc
+from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import CppDouble
@@ -26,6 +27,7 @@ from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
+from python.generators.trace_processor_table.public import WrappingSqlView
 
 from src.trace_processor.tables.metadata_tables import THREAD_TABLE
 from src.trace_processor.tables.track_tables import TRACK_TABLE
@@ -64,7 +66,10 @@ ANDROID_CPU_PER_UID_TRACK_TABLE = Table(
     class_name="AndroidCpuPerUidTrackTable",
     sql_name="__intrinsic_android_cpu_per_uid_track",
     columns=[
-        C("track_id", CppTableId(TRACK_TABLE), cpp_access=CppAccess.READ),
+        C("track_id",
+          CppTableId(TRACK_TABLE),
+          flags=ColumnFlag.SORTED,
+          cpp_access=CppAccess.READ),
         C("uid", CppInt64(), cpp_access=CppAccess.READ),
         C("cluster", CppInt64(), cpp_access=CppAccess.READ),
         C("total_cpu_millis", CppInt64(), cpp_access=CppAccess.READ),
@@ -74,7 +79,8 @@ ANDROID_CPU_PER_UID_TRACK_TABLE = Table(
 ANDROID_GAME_INTERVENTION_LIST_TABLE = Table(
     python_module=__file__,
     class_name='AndroidGameInterventionListTable',
-    sql_name='android_game_intervention_list',
+    sql_name='__intrinsic_android_game_intervention_list',
+    wrapping_sql_view=WrappingSqlView('android_game_intervention_list'),
     columns=[
         C('package_name', CppString()),
         C('uid', CppInt64()),
@@ -149,7 +155,8 @@ ANDROID_GAME_INTERVENTION_LIST_TABLE = Table(
 ANDROID_DUMPSTATE_TABLE = Table(
     python_module=__file__,
     class_name='AndroidDumpstateTable',
-    sql_name='android_dumpstate',
+    sql_name='__intrinsic_android_dumpstate',
+    wrapping_sql_view=WrappingSqlView('android_dumpstate'),
     columns=[
         C('section', CppOptional(CppString())),
         C('service', CppOptional(CppString())),
@@ -338,7 +345,7 @@ ANDROID_USER_LIST_TABLE = Table(
     class_name='AndroidUserListTable',
     sql_name='__intrinsic_android_user_list',
     columns=[
-        C('type', CppString()),
+        C('type', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
         C('android_user_id', CppInt64()),
     ],
     tabledoc=TableDoc(

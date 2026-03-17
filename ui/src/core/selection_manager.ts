@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue, assertUnreachable} from '../base/logging';
+import {assertTrue, assertUnreachable} from '../base/assert';
 import {
   Selection,
   Area,

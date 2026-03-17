@@ -66,7 +66,7 @@ export default class implements PerfettoPlugin {
 
       WITH machine_cpu_counts AS (
         SELECT
-          IFNULL(machine_id, 0) AS machine,
+          machine_id AS machine,
           COUNT(*) AS cpu_count
         FROM cpu
         GROUP BY machine
@@ -84,9 +84,9 @@ export default class implements PerfettoPlugin {
           android_process_metadata.debuggable as isDebuggable,
           case
             when process.name = 'system_server' then
-              ifnull((select int_value from metadata where name = 'android_profile_system_server'), 0)
+              ifnull(extract_metadata_for_machine(machine_id, 'android_profile_system_server'), 0)
             when process.name GLOB 'zygote*' then
-              ifnull((select int_value from metadata where name = 'android_profile_boot_classpath'), 0)
+              ifnull(extract_metadata_for_machine(machine_id, 'android_profile_boot_classpath'), 0)
             else 0
           end as isBootImageProfiling,
           ifnull((
@@ -97,13 +97,13 @@ export default class implements PerfettoPlugin {
               arg_set_id = process.arg_set_id and
               flat_key = 'chrome.process_label'
           ), '') as chromeProcessLabels,
-          ifnull(machine_id, 0) as machine,
+          machine_id as machine,
           IFNULL(machine_cpu_counts.cpu_count, 0) AS cpuCount
         from _process_available_info_summary
         join process using(upid)
         left join android_process_metadata using(upid)
         LEFT JOIN machine_cpu_counts
-          ON machine_cpu_counts.machine = IFNULL(machine_id, 0)
+          ON machine_cpu_counts.machine = machine_id
       )
       union all
       select *
@@ -119,12 +119,12 @@ export default class implements PerfettoPlugin {
           0 as isDebuggable,
           0 as isBootImageProfiling,
           '' as chromeProcessLabels,
-          ifnull(machine_id, 0) as machine,
+          machine_id as machine,
           IFNULL(machine_cpu_counts.cpu_count, 0) AS cpuCount
         from _thread_available_info_summary
         join thread using (utid)
         LEFT JOIN machine_cpu_counts
-          ON machine_cpu_counts.machine = IFNULL(machine_id, 0)
+          ON machine_cpu_counts.machine = machine_id
         where upid is null
       )
     `);

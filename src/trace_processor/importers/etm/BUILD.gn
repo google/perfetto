@@ -72,7 +72,7 @@ source_set("etm") {
     ":etm_header",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/base:base",
-    "../../dataframe",
+    "../../core/dataframe",
     "../../storage",
     "../../tables:tables_python",
     "../../types",
@@ -94,5 +94,6 @@ perfetto_unittest_source_set("unittests") {
     "../../storage",
     "../../tables:tables_python",
     "../../types",
+    "../common",
   ]
 }

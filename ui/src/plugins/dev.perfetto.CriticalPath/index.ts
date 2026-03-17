@@ -18,7 +18,7 @@ import {Trace} from '../../public/trace';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {PerfettoPlugin} from '../../public/plugin';
 import {asUtid, Utid} from '../../components/sql_utils/core_types';
-import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
+import QueryPagePlugin from '../dev.perfetto.QueryPage';
 import {showModal} from '../../widgets/modal';
 import {
   CRITICAL_PATH_CMD,
@@ -153,6 +153,7 @@ async function getUtid(trace: Trace): Promise<Utid | undefined> {
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CriticalPath';
+  static readonly dependencies = [QueryPagePlugin];
   async onTraceLoad(ctx: Trace): Promise<void> {
     // The 3 commands below are used in two contextes:
     // 1. By clicking a slice and using the command palette. In this case the
@@ -324,7 +325,7 @@ export default class implements PerfettoPlugin {
         if (trackUtid === 0) {
           return showModalErrorAreaSelectionRequired();
         }
-        addQueryResultsTab(ctx, {
+        ctx.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab({
           query: `
               INCLUDE PERFETTO MODULE sched.thread_executing_span_with_slice;
               SELECT *

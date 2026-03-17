@@ -66,11 +66,9 @@ export class WasmTraceAnalyzer implements TraceAnalyzer {
       }
     }
     const result = await engine.query(`
-        SELECT
-          parent.trace_type
-        FROM __intrinsic_trace_file parent
-        LEFT JOIN __intrinsic_trace_file child ON parent.id = child.parent_id
-        WHERE child.id IS NULL
+        SELECT trace_type
+        FROM __intrinsic_trace_file
+        WHERE is_container = 0
       `);
     const it = result.iter({trace_type: STR});
     const leafNodes = [];

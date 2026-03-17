@@ -25,7 +25,7 @@ SELECT
   utid
 FROM linux_kernel_threads
 WHERE
-  _is_linux_trace() = 1;
+  _is_linux_machine(machine_id) = 1;
 
 CREATE PERFETTO TABLE _threads_with_kernel_flag AS
 SELECT

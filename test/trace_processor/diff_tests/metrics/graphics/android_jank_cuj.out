@@ -27,6 +27,7 @@ android_jank_cuj {
       dur_expected: 16000000
       sf_callback_missed: false
       hwui_callback_missed: false
+      jank_score: 0.0
     }
     frame {
       frame_number: 2
@@ -38,6 +39,7 @@ android_jank_cuj {
       dur_expected: 20000000
       sf_callback_missed: false
       hwui_callback_missed: false
+      jank_score: 10.0
     }
     frame {
       frame_number: 3
@@ -49,6 +51,7 @@ android_jank_cuj {
       dur_expected: 20000000
       sf_callback_missed: false
       hwui_callback_missed: false
+      jank_score: 2.0
     }
     frame {
       frame_number: 4
@@ -60,6 +63,7 @@ android_jank_cuj {
       dur_expected: 20000000
       sf_callback_missed: false
       hwui_callback_missed: false
+      jank_score: 3.0
     }
     frame {
       frame_number: 5
@@ -71,6 +75,7 @@ android_jank_cuj {
       dur_expected: 20000000
       sf_callback_missed: false
       hwui_callback_missed: false
+      jank_score: 5.0
     }
     frame {
       frame_number: 6
@@ -82,6 +87,7 @@ android_jank_cuj {
       dur_expected: 20000000
       sf_callback_missed: false
       hwui_callback_missed: false
+      jank_score: 6.0
     }
     sf_frame {
       frame_number: 1
@@ -90,6 +96,7 @@ android_jank_cuj {
       dur: 8000000
       sf_missed: false
       dur_expected: 16000000
+      jank_score: 0.0
     }
     sf_frame {
       frame_number: 2
@@ -98,6 +105,7 @@ android_jank_cuj {
       dur: 9000000
       sf_missed: false
       dur_expected: 20000000
+      jank_score: 0.0
     }
     sf_frame {
       frame_number: 3
@@ -106,6 +114,7 @@ android_jank_cuj {
       dur: 13000000
       sf_missed: false
       dur_expected: 16000000
+      jank_score: 0.0
     }
     sf_frame {
       frame_number: 4
@@ -114,6 +123,7 @@ android_jank_cuj {
       dur: 12000000
       sf_missed: false
       dur_expected: 16000000
+      jank_score: 0.0
     }
     sf_frame {
       frame_number: 5
@@ -122,6 +132,7 @@ android_jank_cuj {
       dur: 10000000
       sf_missed: false
       dur_expected: 16000000
+      jank_score: 0.0
     }
     sf_frame {
       frame_number: 6
@@ -130,6 +141,7 @@ android_jank_cuj {
       dur: 10000000
       sf_missed: false
       dur_expected: 16000000
+      jank_score: 0.0
     }
     counter_metrics {
       total_frames: 6
@@ -160,6 +172,8 @@ android_jank_cuj {
       frame_dur_ms_p99: 39.400000000000006
       sf_callback_missed_frames: 0
       hwui_callback_missed_frames: 0
+      weighted_missed_app_frames: 26.0
+      weighted_missed_sf_frames: 10.0
     }
     trace_metrics {
       total_frames: 6
@@ -178,6 +192,8 @@ android_jank_cuj {
       frame_dur_ms_p99: 39.400000000000006
       sf_callback_missed_frames: 0
       hwui_callback_missed_frames: 0
+      weighted_missed_app_frames: 26.0
+      weighted_missed_sf_frames: 10.0
     }
   }
   cuj {
@@ -208,6 +224,7 @@ android_jank_cuj {
       dur_expected: 16000000
       sf_callback_missed: false
       hwui_callback_missed: false
+      jank_score: 0.0
     }
     frame {
       frame_number: 2
@@ -219,6 +236,7 @@ android_jank_cuj {
       dur_expected: 20000000
       sf_callback_missed: false
       hwui_callback_missed: false
+      jank_score: 10.0
     }
     frame {
       frame_number: 3
@@ -230,6 +248,7 @@ android_jank_cuj {
       dur_expected: 20000000
       sf_callback_missed: false
       hwui_callback_missed: false
+      jank_score: 2.0
     }
     frame {
       frame_number: 4
@@ -241,6 +260,7 @@ android_jank_cuj {
       dur_expected: 20000000
       sf_callback_missed: false
       hwui_callback_missed: false
+      jank_score: 3.0
     }
     frame {
       frame_number: 5
@@ -252,6 +272,7 @@ android_jank_cuj {
       dur_expected: 20000000
       sf_callback_missed: false
       hwui_callback_missed: false
+      jank_score: 5.0
     }
     frame {
       frame_number: 6
@@ -263,6 +284,7 @@ android_jank_cuj {
       dur_expected: 20000000
       sf_callback_missed: false
       hwui_callback_missed: false
+      jank_score: 6.0
     }
     frame {
       frame_number: 7
@@ -274,6 +296,7 @@ android_jank_cuj {
       dur_expected: 20000000
       sf_callback_missed: false
       hwui_callback_missed: false
+      jank_score: 7.0
     }
     frame {
       frame_number: 8
@@ -285,6 +308,7 @@ android_jank_cuj {
       dur_expected: 20000000
       sf_callback_missed: false
       hwui_callback_missed: false
+      jank_score: 0.0
     }
     frame {
       frame_number: 9
@@ -296,6 +320,7 @@ android_jank_cuj {
       dur_expected: 20000000
       sf_callback_missed: false
       hwui_callback_missed: false
+      jank_score: 9.0
     }
     frame {
       frame_number: 10
@@ -307,6 +332,7 @@ android_jank_cuj {
       dur_expected: 20000000
       sf_callback_missed: false
       hwui_callback_missed: false
+      jank_score: 1.0
     }
     frame {
       frame_number: 11
@@ -318,6 +344,7 @@ android_jank_cuj {
       dur_expected: 20000000
       sf_callback_missed: false
       hwui_callback_missed: false
+      jank_score: 11.0
     }
     frame {
       frame_number: 12
@@ -329,6 +356,7 @@ android_jank_cuj {
       dur_expected: 20000000
       sf_callback_missed: false
       hwui_callback_missed: false
+      jank_score: 12.0
     }
     frame {
       frame_number: 13
@@ -340,6 +368,7 @@ android_jank_cuj {
       dur_expected: 20000000
       sf_callback_missed: true
       hwui_callback_missed: true
+      jank_score: 0.0
     }
     sf_frame {
       frame_number: 1
@@ -348,6 +377,7 @@ android_jank_cuj {
       dur: 8000000
       sf_missed: false
       dur_expected: 16000000
+      jank_score: 0.0
     }
     sf_frame {
       frame_number: 2
@@ -356,6 +386,7 @@ android_jank_cuj {
       dur: 9000000
       sf_missed: false
       dur_expected: 20000000
+      jank_score: 0.0
     }
     sf_frame {
       frame_number: 3
@@ -364,6 +395,7 @@ android_jank_cuj {
       dur: 13000000
       sf_missed: false
       dur_expected: 16000000
+      jank_score: 0.0
     }
     sf_frame {
       frame_number: 4
@@ -372,6 +404,7 @@ android_jank_cuj {
       dur: 12000000
       sf_missed: false
       dur_expected: 16000000
+      jank_score: 0.0
     }
     sf_frame {
       frame_number: 5
@@ -380,6 +413,7 @@ android_jank_cuj {
       dur: 10000000
       sf_missed: false
       dur_expected: 16000000
+      jank_score: 0.0
     }
     sf_frame {
       frame_number: 6
@@ -388,6 +422,7 @@ android_jank_cuj {
       dur: 10000000
       sf_missed: false
       dur_expected: 16000000
+      jank_score: 0.0
     }
     sf_frame {
       frame_number: 7
@@ -396,6 +431,7 @@ android_jank_cuj {
       dur: 32000000
       sf_missed: true
       dur_expected: 16000000
+      jank_score: 0.0
     }
     counter_metrics {
       total_frames: 13
@@ -427,6 +463,8 @@ android_jank_cuj {
       frame_dur_ms_p99: 61.000000
       sf_callback_missed_frames: 1
       hwui_callback_missed_frames: 1
+      weighted_missed_app_frames: 38.0
+      weighted_missed_sf_frames: 17.0
     }
     trace_metrics {
       total_frames: 13
@@ -445,6 +483,8 @@ android_jank_cuj {
       frame_dur_ms_p99: 61.000000
       sf_callback_missed_frames: 1
       hwui_callback_missed_frames: 1
+      weighted_missed_app_frames: 38.0
+      weighted_missed_sf_frames: 17.0
     }
   }
 }
