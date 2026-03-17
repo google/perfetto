@@ -36,6 +36,7 @@ import {PluginManagerImpl} from './plugin_manager';
 import {raf} from './raf_scheduler';
 import {Router} from './router';
 import {SettingsManagerImpl} from './settings_manager';
+import {SidePanelManagerImpl} from './side_panel_manager';
 import {SidebarManagerImpl} from './sidebar_manager';
 import {SerializedAppState} from './state_serialization_schema';
 import {TraceImpl} from './trace_impl';
@@ -75,6 +76,7 @@ export class AppImpl implements App {
   readonly commands = new CommandManagerImpl(this.omnibox);
   readonly pages: PageManagerImpl;
   readonly sidebar: SidebarManagerImpl;
+  readonly sidePanel = new SidePanelManagerImpl();
   readonly plugins = new PluginManagerImpl();
   readonly perfDebugging = new PerfManager();
   readonly analytics: AnalyticsInternal;
