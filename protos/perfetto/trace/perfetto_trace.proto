@@ -6294,6 +6294,8 @@ message FrameTimelineEvent {
 
     // jank metadata information (for debug).
     optional float jank_debug_metadata = 18;
+
+    optional bool latched_unsignaled = 19;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.

@@ -751,7 +751,8 @@ class Trace(object):
                                            jank_type,
                                            prediction_type,
                                            jank_severity_type=None,
-                                           jank_score=0):
+                                           jank_score=0,
+                                           latched_unsignaled=None):
     packet = self.add_packet()
     packet.timestamp = ts
     event = packet.frame_timeline_event.actual_surface_frame_start
@@ -773,6 +774,8 @@ class Trace(object):
         event.jank_severity_type = jank_severity_type
       event.prediction_type = prediction_type
       event.jank_severity_score = jank_score
+      if latched_unsignaled is not None:
+        event.latched_unsignaled = latched_unsignaled
 
   def add_frame_end_event(self, ts, cookie):
     packet = self.add_packet()

@@ -15,7 +15,7 @@
 import {HSLColor} from '../../base/color';
 import {makeColorScheme} from '../../components/colorizer';
 import {ColorScheme} from '../../base/color_scheme';
-import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import {LONG, NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {SliceTrack} from '../../components/tracks/slice_track';
@@ -59,6 +59,7 @@ export function createActualFramesTrack(
         jank_tag: STR_NULL,
         jank_tag_experimental: STR_NULL,
         jank_severity_type: STR_NULL,
+        latched_unsignaled: NUM_NULL,
         arg_set_id: NUM,
         track_id: NUM,
       },
