@@ -23,7 +23,7 @@ SELECT RUN_METRIC('android/jank/cujs.sql');
 -- and GPU completion threads.
 -- Also stores the (not CUJ-specific) threads of SF: main, render engine,
 -- and GPU completion threads.
-INCLUDE PERFETTO MODULE android.cujs.threads;
+SELECT RUN_METRIC('android/jank/relevant_threads.sql');
 
 -- Create tables to store the main slices on each of the relevant threads
 -- * `Choreographer#doFrame` on the main thread
