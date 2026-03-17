@@ -43,6 +43,15 @@ class TypedCursor {
  public:
   using FilterValue =
       std::variant<std::nullptr_t, int64_t, double, const char*>;
+
+  // State for iterating over a list of filter values (used by In filters).
+  // Points to caller-owned data; no allocation required.
+  struct FilterValueListState {
+    const FilterValue* data = nullptr;
+    uint32_t size = 0;
+    uint32_t current = 0;
+  };
+
   struct Fetcher : ValueFetcher {
     using Type = size_t;
     static const Type kInt64 = base::variant_index<FilterValue, int64_t>();
@@ -62,9 +71,26 @@ class TypedCursor {
     Type GetValueType(uint32_t col) const {
       return filter_values_[col].index();
     }
-    static bool IteratorInit(uint32_t) { PERFETTO_FATAL("Unsupported"); }
-    static bool IteratorNext(uint32_t) { PERFETTO_FATAL("Unsupported"); }
+    bool IteratorInit(uint32_t col) {
+      FilterValueListState& s = filter_value_list_states_[col];
+      s.current = 0;
+      if (s.size == 0) {
+        return false;
+      }
+      filter_values_[col] = s.data[0];
+      return true;
+    }
+    bool IteratorNext(uint32_t col) {
+      FilterValueListState& s = filter_value_list_states_[col];
+      ++s.current;
+      if (s.current >= s.size) {
+        return false;
+      }
+      filter_values_[col] = s.data[s.current];
+      return true;
+    }
     FilterValue* filter_values_;
+    FilterValueListState* filter_value_list_states_;
   };
 
   TypedCursor(const Dataframe* dataframe,
@@ -105,6 +131,22 @@ class TypedCursor {
   PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index,
                                                       const char* value) {
     SetFilterValueInternal(index, value);
+  }
+
+  // Sets the filter value list at the given index for an In filter.
+  // The caller must ensure that |values| remains valid until ExecuteUnchecked
+  // completes. No copy is made.
+  PERFETTO_ALWAYS_INLINE void SetFilterValueListUnchecked(
+      uint32_t index,
+      const FilterValue* values,
+      uint32_t count) {
+    if (PERFETTO_UNLIKELY(last_execution_mutation_count_ != GetMutations())) {
+      PrepareCursorInternal();
+    }
+    uint32_t mapped = filter_value_mapping_[index];
+    if (mapped != std::numeric_limits<uint32_t>::max()) {
+      filter_value_list_states_[mapped] = {values, count, 0};
+    }
   }
 
   // Executes the current query plan against the specified filter values and
@@ -159,6 +201,7 @@ class TypedCursor {
         column_mutation_count_(core::Slab<uint32_t*>::Alloc(
             filter_specs_.size() + sort_specs_.size())) {
     filter_values_.resize(filter_specs_.size());
+    filter_value_list_states_.resize(filter_specs_.size());
     filter_value_mapping_.resize(filter_specs_.size(),
                                  std::numeric_limits<uint32_t>::max());
     uint32_t i = 0;
@@ -194,6 +237,7 @@ class TypedCursor {
 
   const Dataframe* dataframe_;
   std::vector<FilterValue> filter_values_;
+  std::vector<FilterValueListState> filter_value_list_states_;
   std::vector<uint32_t> filter_value_mapping_;
   std::vector<FilterSpec> filter_specs_;
   std::vector<SortSpec> sort_specs_;
