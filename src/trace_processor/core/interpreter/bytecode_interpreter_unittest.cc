@@ -1761,6 +1761,116 @@ TEST_F(BytecodeInterpreterTest,
   EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
 }
 
+TEST_F(BytecodeInterpreterTest, IndexedFilterIn_Uint32_NonNull_MultipleValues) {
+  // Column: {10, 20, 20, 30, 20, 40}
+  // Sorted permutation: {0, 1, 4, 2, 3, 5} (10, 20, 20, 20, 30, 40)
+  AddColumn(CreateNonNullColumn<uint32_t, uint32_t>(
+      {10u, 20u, 20u, 30u, 20u, 40u}, Unsorted{}, HasDuplicates{}));
+
+  std::vector<uint32_t> p_vec = {0, 1, 4, 2, 3, 5};
+  indexes_.emplace_back(std::vector<uint32_t>{0},
+                        std::make_shared<std::vector<uint32_t>>(p_vec));
+
+  // Register layout:
+  // 0: value list, 1: popcount, 2: source/dest, 3: storage, 4: null_bv
+  std::string bytecode_str = R"(
+    IndexedFilterIn<Uint32, NonNull>: [storage_register=Register(3), null_bv_register=Register(4), value_list_register=Register(0), popcount_register=Register(1), source_register=Register(2), dest_register=Register(2)]
+  )";
+
+  // IN (20, 40) should find rows 1, 4, 2 (for 20) and 5 (for 40).
+  auto value_list =
+      CastFilterValueListResult::Valid(CastFilterValueListResult::ValueList{
+          CreateFlexVectorForTesting<uint32_t>({20u, 40u})});
+
+  SetRegistersAndExecute(bytecode_str, std::move(value_list),
+                         Slab<uint32_t>::Alloc(0), GetSpan(p_vec),
+                         GetStoragePtr<Uint32>(0), GetNullBv(0));
+
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), testing::ElementsAre(1, 4, 2, 5));
+}
+
+TEST_F(BytecodeInterpreterTest, IndexedFilterIn_Uint32_NonNull_NoMatch) {
+  AddColumn(CreateNonNullColumn<uint32_t, uint32_t>({10u, 20u, 30u}, Unsorted{},
+                                                    HasDuplicates{}));
+
+  std::vector<uint32_t> p_vec = {0, 1, 2};
+  indexes_.emplace_back(std::vector<uint32_t>{0},
+                        std::make_shared<std::vector<uint32_t>>(p_vec));
+
+  std::string bytecode_str = R"(
+    IndexedFilterIn<Uint32, NonNull>: [storage_register=Register(3), null_bv_register=Register(4), value_list_register=Register(0), popcount_register=Register(1), source_register=Register(2), dest_register=Register(2)]
+  )";
+
+  auto value_list =
+      CastFilterValueListResult::Valid(CastFilterValueListResult::ValueList{
+          CreateFlexVectorForTesting<uint32_t>({99u, 100u})});
+
+  SetRegistersAndExecute(bytecode_str, std::move(value_list),
+                         Slab<uint32_t>::Alloc(0), GetSpan(p_vec),
+                         GetStoragePtr<Uint32>(0), GetNullBv(0));
+
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+}
+
+TEST_F(BytecodeInterpreterTest, IndexedFilterIn_Uint32_NonNull_SingleValue) {
+  AddColumn(CreateNonNullColumn<uint32_t, uint32_t>(
+      {10u, 20u, 20u, 30u, 20u, 40u}, Unsorted{}, HasDuplicates{}));
+
+  std::vector<uint32_t> p_vec = {0, 1, 4, 2, 3, 5};
+  indexes_.emplace_back(std::vector<uint32_t>{0},
+                        std::make_shared<std::vector<uint32_t>>(p_vec));
+
+  std::string bytecode_str = R"(
+    IndexedFilterIn<Uint32, NonNull>: [storage_register=Register(3), null_bv_register=Register(4), value_list_register=Register(0), popcount_register=Register(1), source_register=Register(2), dest_register=Register(2)]
+  )";
+
+  // IN (30) — single value, should find row 3.
+  auto value_list =
+      CastFilterValueListResult::Valid(CastFilterValueListResult::ValueList{
+          CreateFlexVectorForTesting<uint32_t>({30u})});
+
+  SetRegistersAndExecute(bytecode_str, std::move(value_list),
+                         Slab<uint32_t>::Alloc(0), GetSpan(p_vec),
+                         GetStoragePtr<Uint32>(0), GetNullBv(0));
+
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), testing::ElementsAre(3));
+}
+
+TEST_F(BytecodeInterpreterTest,
+       IndexedFilterIn_String_SparseNull_MultipleValues) {
+  AddColumn(CreateSparseNullableStringColumn(
+      {std::make_optional("apple"), std::nullopt, std::make_optional("banana"),
+       std::make_optional("apple"), std::nullopt},
+      &spool_, Unsorted{}, HasDuplicates{}));
+
+  // Sorted permutation: nulls first, then apple(0), apple(3), banana(2)
+  std::vector<uint32_t> p_vec = {1, 4, 0, 3, 2};
+  indexes_.emplace_back(std::vector<uint32_t>{0},
+                        std::make_shared<std::vector<uint32_t>>(p_vec));
+
+  std::string bytecode_str = R"(
+    PrefixPopcount: [null_bv_register=Register(4), dest_register=Register(1)]
+    IndexedFilterIn<String, SparseNull>: [storage_register=Register(3), null_bv_register=Register(4), value_list_register=Register(0), popcount_register=Register(1), source_register=Register(2), dest_register=Register(2)]
+  )";
+
+  // IN ("apple", "banana") — should find rows 0, 3, 2.
+  // CastFilterValueList resolves strings to StringPool::Id, but here we pass
+  // the value list directly with pre-resolved ids.
+  auto apple_id = spool_.InternString("apple");
+  auto banana_id = spool_.InternString("banana");
+  FlexVector<StringPool::Id> ids;
+  ids.push_back(apple_id);
+  ids.push_back(banana_id);
+  auto value_list = CastFilterValueListResult::Valid(
+      CastFilterValueListResult::ValueList{std::move(ids)});
+
+  SetRegistersAndExecute(bytecode_str, std::move(value_list), Empty{},
+                         GetSpan(p_vec), GetStoragePtr<String>(0),
+                         GetNullBv(0));
+
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), testing::ElementsAre(0, 3, 2));
+}
+
 TEST_F(BytecodeInterpreterTest, CopySpanIntersectingRange_PartialOverlap) {
   std::vector<uint32_t> source_span_data = {10, 20, 30, 40, 50};
   std::vector<uint32_t> update_buffer(source_span_data.size());

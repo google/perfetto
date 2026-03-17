@@ -199,7 +199,8 @@ std::optional<BestIndex> GetBestIndexForFilterSpecs(
           continue;
         }
         const FilterSpec& current_spec = all_specs[spec_idx];
-        if (current_spec.col == column && current_spec.op.Is<Eq>()) {
+        if (current_spec.col == column &&
+            (current_spec.op.Is<Eq>() || current_spec.op.Is<In>())) {
           current_specs_for_this_index.push_back(spec_idx);
           found_spec_for_column = true;
           break;
@@ -840,33 +841,68 @@ void QueryPlanBuilder::IndexConstraints(
   for (uint32_t spec_idx : filter_specs) {
     FilterSpec& fs = specs[spec_idx];
     const Column& column = GetColumn(fs.col);
-    auto value_reg = CastFilterValue(fs, column.storage.type(),
-                                     *fs.op.TryDowncast<i::NonNullOp>());
     auto non_id = column.storage.type().TryDowncast<i::NonIdStorageType>();
     PERFETTO_CHECK(non_id);
-    {
-      using B = i::IndexedFilterEqBase;
+
+    auto alloc_popcount = [&]() {
       using PopcountHandle = i::ReadHandle<Slab<uint32_t>>;
-      PopcountHandle popcount_register;
+      PopcountHandle reg;
       if (column.null_storage.nullability().IsAnyOf<SparseNullTypes>()) {
-        popcount_register = PrefixPopcountRegisterFor(fs.col);
+        reg = PrefixPopcountRegisterFor(fs.col);
       } else {
-        // Dummy register for non-sparse null columns. IndexedFilterEq knows
-        // how to handle this.
-        popcount_register = builder_.AllocateRegister<Slab<uint32_t>>();
+        reg = builder_.AllocateRegister<Slab<uint32_t>>();
       }
-      auto& bc = AddOpcode<B>(
-          i::Index<i::IndexedFilterEq>(
-              *non_id, NullabilityToSparseNullCollapsedNullability(
-                           column.null_storage.nullability())),
-          RowCountModifier{EqualityFilterRowCount{column.duplicate_state}});
-      bc.arg<B::storage_register>() =
-          StorageRegisterFor(fs.col, non_id->Upcast<StorageType>());
-      bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(fs.col);
-      bc.arg<B::filter_value_reg>() = value_reg;
-      bc.arg<B::popcount_register>() = popcount_register;
-      bc.arg<B::source_register>() = source_reg;
-      bc.arg<B::dest_register>() = dest_reg;
+      return reg;
+    };
+
+    if (fs.op.Is<In>()) {
+      // Emit IndexedFilterIn for In filters.
+      StorageType ct = column.storage.type();
+      i::RwHandle<i::CastFilterValueListResult> value_list_reg =
+          builder_.AllocateRegister<i::CastFilterValueListResult>();
+      {
+        using B = i::CastFilterValueListBase;
+        auto& bc = AddOpcode<B>(i::Index<i::CastFilterValueList>(ct),
+                                UnchangedRowCount{});
+        bc.arg<B::fval_handle>() = {plan_.params.filter_value_count};
+        bc.arg<B::write_register>() = value_list_reg;
+        bc.arg<B::op>() = Eq{};
+        fs.value_index = plan_.params.filter_value_count++;
+      }
+      {
+        using B = i::IndexedFilterInBase;
+        auto& bc = AddOpcode<B>(
+            i::Index<i::IndexedFilterIn>(
+                *non_id, NullabilityToSparseNullCollapsedNullability(
+                             column.null_storage.nullability())),
+            RowCountModifier{EqualityFilterRowCount{column.duplicate_state}});
+        bc.arg<B::storage_register>() =
+            StorageRegisterFor(fs.col, non_id->Upcast<StorageType>());
+        bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(fs.col);
+        bc.arg<B::value_list_register>() = value_list_reg;
+        bc.arg<B::popcount_register>() = alloc_popcount();
+        bc.arg<B::source_register>() = source_reg;
+        bc.arg<B::dest_register>() = dest_reg;
+      }
+    } else {
+      // Emit IndexedFilterEq for Eq filters.
+      auto value_reg = CastFilterValue(fs, column.storage.type(),
+                                       *fs.op.TryDowncast<i::NonNullOp>());
+      {
+        using B = i::IndexedFilterEqBase;
+        auto& bc = AddOpcode<B>(
+            i::Index<i::IndexedFilterEq>(
+                *non_id, NullabilityToSparseNullCollapsedNullability(
+                             column.null_storage.nullability())),
+            RowCountModifier{EqualityFilterRowCount{column.duplicate_state}});
+        bc.arg<B::storage_register>() =
+            StorageRegisterFor(fs.col, non_id->Upcast<StorageType>());
+        bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(fs.col);
+        bc.arg<B::filter_value_reg>() = value_reg;
+        bc.arg<B::popcount_register>() = alloc_popcount();
+        bc.arg<B::source_register>() = source_reg;
+        bc.arg<B::dest_register>() = dest_reg;
+      }
     }
     // After first filter, subsequent filters read from dest and write back to
     // dest.

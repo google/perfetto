@@ -946,7 +946,33 @@ TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_EqFilter_NonNullInt) {
   std::string expected_bytecode = R"(
     InitRange: [size=100, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(3), op=NonNullOp(0)]
-    IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(5), null_bv_register=Register(6), filter_value_reg=Register(3), popcount_register=Register(4), source_register=Register(1), dest_register=Register(2)]
+    IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(5), filter_value_reg=Register(3), popcount_register=Register(6), source_register=Register(1), dest_register=Register(2)]
+    AllocateIndices: [size=100, dest_slab_register=Register(7), dest_span_register=Register(8)]
+    CopySpanIntersectingRange: [source_register=Register(2), source_range_register=Register(0), update_register=Register(8)]
+  )";
+  RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode,
+                  /*cols_used=*/1);
+}
+
+TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_InFilter_NonNullInt) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"col1"}, CreateTypedColumnSpec(Uint32{}, NonNull{}, Unsorted{}));
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &string_pool_);
+  for (uint32_t i = 0; i < 100; ++i) {
+    df.InsertUnchecked(kSpec, i);
+  }
+  df.Finalize();
+
+  std::vector<uint32_t> p_vec(100);
+  std::iota(p_vec.begin(), p_vec.end(), 0);
+  df.AddIndex(
+      Index({0}, std::make_shared<std::vector<uint32_t>>(std::move(p_vec))));
+
+  std::vector<FilterSpec> filters = {{0, 0, In{}, std::nullopt}};
+  std::string expected_bytecode = R"(
+    InitRange: [size=100, dest_register=Register(0)]
+    CastFilterValueList<Uint32>: [fval_handle=FilterValue(0), write_register=Register(3), op=NonNullOp(0)]
+    IndexedFilterIn<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(5), value_list_register=Register(3), popcount_register=Register(6), source_register=Register(1), dest_register=Register(2)]
     AllocateIndices: [size=100, dest_slab_register=Register(7), dest_span_register=Register(8)]
     CopySpanIntersectingRange: [source_register=Register(2), source_range_register=Register(0), update_register=Register(8)]
   )";
@@ -976,13 +1002,13 @@ TEST_F(DataframeBytecodeTest,
   std::string expected_bytecode = R"(
     InitRange: [size=4, dest_register=Register(0)]
     CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(3), op=NonNullOp(0)]
-    PrefixPopcount: [null_bv_register=Register(5), dest_register=Register(4)]
-    IndexedFilterEq<String, SparseNull>: [storage_register=Register(6), null_bv_register=Register(5), filter_value_reg=Register(3), popcount_register=Register(4), source_register=Register(1), dest_register=Register(2)]
+    IndexedFilterEq<String, SparseNull>: [storage_register=Register(4), null_bv_register=Register(5), filter_value_reg=Register(3), popcount_register=Register(6), source_register=Register(1), dest_register=Register(2)]
+    PrefixPopcount: [null_bv_register=Register(5), dest_register=Register(6)]
     AllocateIndices: [size=4, dest_slab_register=Register(7), dest_span_register=Register(8)]
     CopySpanIntersectingRange: [source_register=Register(2), source_range_register=Register(0), update_register=Register(8)]
     AllocateIndices: [size=8, dest_slab_register=Register(9), dest_span_register=Register(10)]
     StrideCopy: [source_register=Register(8), update_register=Register(10), stride=2]
-    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(5), popcount_register=Register(4), update_register=Register(10), offset=1, stride=2]
+    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(5), popcount_register=Register(6), update_register=Register(10), offset=1, stride=2]
   )";
   RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode);
 }
@@ -1005,12 +1031,12 @@ TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_EqFilter_DenseNullInt) {
   std::string expected_bytecode = R"(
     InitRange: [size=4, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(3), op=NonNullOp(0)]
-    IndexedFilterEq<Uint32, DenseNull>: [storage_register=Register(5), null_bv_register=Register(6), filter_value_reg=Register(3), popcount_register=Register(4), source_register=Register(1), dest_register=Register(2)]
+    IndexedFilterEq<Uint32, DenseNull>: [storage_register=Register(4), null_bv_register=Register(5), filter_value_reg=Register(3), popcount_register=Register(6), source_register=Register(1), dest_register=Register(2)]
     AllocateIndices: [size=4, dest_slab_register=Register(7), dest_span_register=Register(8)]
     CopySpanIntersectingRange: [source_register=Register(2), source_range_register=Register(0), update_register=Register(8)]
     AllocateIndices: [size=8, dest_slab_register=Register(9), dest_span_register=Register(10)]
     StrideCopy: [source_register=Register(8), update_register=Register(10), stride=2]
-    StrideCopyDenseNullIndices: [null_bv_register=Register(6), update_register=Register(10), offset=1, stride=2]
+    StrideCopyDenseNullIndices: [null_bv_register=Register(5), update_register=Register(10), offset=1, stride=2]
   )";
   RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode);
 }
@@ -1040,9 +1066,9 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MultiColIndex_PrefixEqFilters) {
   std::string expected_bytecode = R"(
     InitRange: [size=4, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(3), op=NonNullOp(0)]
-    IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(5), null_bv_register=Register(6), filter_value_reg=Register(3), popcount_register=Register(4), source_register=Register(1), dest_register=Register(2)]
+    IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(5), filter_value_reg=Register(3), popcount_register=Register(6), source_register=Register(1), dest_register=Register(2)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(1), write_register=Register(7), op=NonNullOp(0)]
-    IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(9), null_bv_register=Register(10), filter_value_reg=Register(7), popcount_register=Register(8), source_register=Register(2), dest_register=Register(2)]
+    IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(8), null_bv_register=Register(9), filter_value_reg=Register(7), popcount_register=Register(10), source_register=Register(2), dest_register=Register(2)]
     AllocateIndices: [size=4, dest_slab_register=Register(11), dest_span_register=Register(12)]
     CopySpanIntersectingRange: [source_register=Register(2), source_range_register=Register(0), update_register=Register(12)]
   )";
@@ -1672,6 +1698,42 @@ TEST(DataframeTest, TypedCursorInFilterReexecute) {
   ASSERT_EQ(cursor.GetCellUnchecked<1>(kSpec), 20u);
   cursor.Next();
   ASSERT_TRUE(cursor.Eof());
+}
+
+TEST(DataframeTest, TypedCursorInFilterWithIndex) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"id", "track_id"}, CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  // Insert rows with track_ids: 1, 2, 1, 3, 2, 1
+  df.InsertUnchecked(kSpec, std::monostate(), 1u);
+  df.InsertUnchecked(kSpec, std::monostate(), 2u);
+  df.InsertUnchecked(kSpec, std::monostate(), 1u);
+  df.InsertUnchecked(kSpec, std::monostate(), 3u);
+  df.InsertUnchecked(kSpec, std::monostate(), 2u);
+  df.InsertUnchecked(kSpec, std::monostate(), 1u);
+  df.Finalize();
+
+  // Build an index on track_id (column 1). Sorted order: 1,1,1,2,2,3
+  // Permutation: {0, 2, 5, 1, 4, 3}
+  df.AddIndex(Index({1}, std::make_shared<std::vector<uint32_t>>(
+                             std::vector<uint32_t>{0, 2, 5, 1, 4, 3})));
+
+  // IN (1, 3) should return rows 0, 2, 5 (track_id=1) and 3 (track_id=3).
+  using FV = TypedCursor::FilterValue;
+  TypedCursor cursor(&df, {FilterSpec{1, 0, In{}, {}}}, {});
+  FV values[] = {int64_t(1), int64_t(3)};
+  cursor.SetFilterValueListUnchecked(0, values, 2);
+  cursor.ExecuteUnchecked();
+
+  std::vector<uint32_t> result_ids;
+  while (!cursor.Eof()) {
+    result_ids.push_back(cursor.GetCellUnchecked<0>(kSpec));
+    cursor.Next();
+  }
+  // Results should contain ids for rows 0, 2, 3, 5 (in some order).
+  EXPECT_THAT(result_ids, testing::UnorderedElementsAre(0, 2, 3, 5));
 }
 
 TEST(DataframeTest,

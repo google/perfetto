@@ -1481,6 +1481,82 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
   state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
 }
 
+// IndexedFilterIn: for each value in the list, binary-searches the index
+// permutation vector and concatenates matching ranges into dest.
+template <typename T, typename N>
+inline PERFETTO_ALWAYS_INLINE void IndexedFilterIn(
+    InterpreterState& state,
+    const IndexedFilterInBase& bytecode) {
+  using B = IndexedFilterInBase;
+  const auto& value_list =
+      state.ReadFromRegister(bytecode.arg<B::value_list_register>());
+  const auto& source =
+      state.ReadFromRegister(bytecode.arg<B::source_register>());
+  Span<uint32_t> dest(source.b, source.b);
+
+  if (!HandleInvalidCastFilterValueResult(value_list.validity, dest)) {
+    state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
+    return;
+  }
+
+  const auto* data =
+      state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
+  const Slab<uint32_t>* popcnt =
+      state.MaybeReadFromRegister(bytecode.arg<B::popcount_register>());
+  const BitVector* const* null_bv =
+      state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
+
+  const auto& lookup = value_list.lookup;
+
+  // Extract the value list. For the indexed path, we always need the
+  // FlexVector to iterate individual values for binary search.
+  using M =
+      StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::ValueList>;
+  const M* val = nullptr;
+  if (auto* vl = std::get_if<CastFilterValueListResult::ValueList>(&lookup)) {
+    val = &base::unchecked_get<M>(*vl);
+  }
+  if (!val) {
+    // BitVector/HashMap lookup — fall through to empty result.
+    // This shouldn't happen since the planner only uses this bytecode
+    // for small In lists (which stay as ValueList).
+    state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
+    return;
+  }
+
+  // For each value, binary search the permutation vector and append matches.
+  // The value list stores StringPool::Id for strings (already resolved during
+  // CastFilterValueList), and native types for everything else.
+  using ValElem =
+      StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>;
+  uint32_t* write = dest.b;
+  for (size_t v = 0; v < val->size(); ++v) {
+    ValElem cmp_val = (*val)[v];
+
+    auto* lb = std::lower_bound(
+        source.b, source.e, cmp_val,
+        [&](uint32_t index, const ValElem& target) {
+          uint32_t si = IndexToStorageIndex<N>(index, null_bv, popcnt);
+          if (si == std::numeric_limits<uint32_t>::max())
+            return true;
+          return data[si] < target;
+        });
+    auto* ub = std::upper_bound(
+        lb, source.e, cmp_val, [&](const ValElem& target, uint32_t index) {
+          uint32_t si = IndexToStorageIndex<N>(index, null_bv, popcnt);
+          if (si == std::numeric_limits<uint32_t>::max())
+            return false;
+          return target < data[si];
+        });
+    // Copy matching range to output.
+    auto count = static_cast<size_t>(ub - lb);
+    memmove(write, lb, count * sizeof(uint32_t));
+    write += count;
+  }
+  dest.e = write;
+  state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
+}
+
 inline PERFETTO_ALWAYS_INLINE void Uint32SetIdSortedEq(
     InterpreterState& state,
     const Uint32SetIdSortedEq& bytecode) {

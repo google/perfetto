@@ -580,6 +580,35 @@ struct LinearFilterEq : LinearFilterEqBase {
   static_assert(TS1::Contains<T>());
 };
 
+// Filters a column sorted by an index using a list of values (IN operator).
+// For each value in the list, performs binary search on the index permutation
+// vector and concatenates matching ranges.
+struct IndexedFilterInBase
+    : TemplatedBytecode2<NonIdStorageType, SparseNullCollapsedNullability> {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = LogPerRowCost{10};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_6(ReadHandle<StoragePtr>,
+                                     storage_register,
+                                     ReadHandle<const BitVector*>,
+                                     null_bv_register,
+                                     ReadHandle<CastFilterValueListResult>,
+                                     value_list_register,
+                                     ReadHandle<Slab<uint32_t>>,
+                                     popcount_register,
+                                     ReadHandle<Span<uint32_t>>,
+                                     source_register,
+                                     WriteHandle<Span<uint32_t>>,
+                                     dest_register);
+};
+template <typename T, typename N>
+struct IndexedFilterIn : IndexedFilterInBase {
+  static_assert(TS1::Contains<T>());
+  static_assert(TS2::Contains<N>());
+};
+
 // Filters rows based on a list of values (IN operator).
 struct InBase : TemplatedBytecode1<StorageType> {
   // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
@@ -766,6 +795,21 @@ struct FilterTreeState : Bytecode {
   X(IndexedFilterEq<String, NonNull>)                  \
   X(IndexedFilterEq<String, SparseNull>)               \
   X(IndexedFilterEq<String, DenseNull>)                \
+  X(IndexedFilterIn<Uint32, NonNull>)                  \
+  X(IndexedFilterIn<Uint32, SparseNull>)               \
+  X(IndexedFilterIn<Uint32, DenseNull>)                \
+  X(IndexedFilterIn<Int32, NonNull>)                   \
+  X(IndexedFilterIn<Int32, SparseNull>)                \
+  X(IndexedFilterIn<Int32, DenseNull>)                 \
+  X(IndexedFilterIn<Int64, NonNull>)                   \
+  X(IndexedFilterIn<Int64, SparseNull>)                \
+  X(IndexedFilterIn<Int64, DenseNull>)                 \
+  X(IndexedFilterIn<Double, NonNull>)                  \
+  X(IndexedFilterIn<Double, SparseNull>)               \
+  X(IndexedFilterIn<Double, DenseNull>)                \
+  X(IndexedFilterIn<String, NonNull>)                  \
+  X(IndexedFilterIn<String, SparseNull>)               \
+  X(IndexedFilterIn<String, DenseNull>)                \
   X(CopySpanIntersectingRange)                         \
   X(InitRankMap)                                       \
   X(CollectIdIntoRankMap)                              \
