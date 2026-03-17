@@ -79,7 +79,7 @@ export default class AndroidInputLifecyclePlugin implements PerfettoPlugin {
     });
 
     trace.commands.registerCommand({
-      id: 'openAndroidInputLifecycleTab',
+      id: 'com.android.openAndroidInputLifecycleTab',
       name: 'Android: View Input Lifecycle',
       callback: () => {
         trace.tabs.showTab('com.android.AndroidInputLifecycleTab');
