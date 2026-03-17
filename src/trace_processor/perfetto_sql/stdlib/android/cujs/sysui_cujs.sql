@@ -169,7 +169,9 @@ CREATE PERFETTO TABLE android_sysui_latency_cujs (
   state STRING
 ) AS
 SELECT
-  row_number() OVER (ORDER BY ts) AS cuj_id,
+  -- slice.id is equivalent to ordering by ts (slices are inserted in ts
+  -- order) but is resilient to ties when multiple CUJs share the same ts.
+  row_number() OVER (ORDER BY slice.id) AS cuj_id,
   process.upid AS upid,
   process.name AS process_name,
   slice.name AS cuj_slice_name,
