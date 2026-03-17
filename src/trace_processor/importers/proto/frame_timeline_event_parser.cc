@@ -228,7 +228,7 @@ FrameTimelineEventParser::FrameTimelineEventParser(
           context->storage->InternString("Jank tag (experimental)")),
       is_buffer_id_(context->storage->InternString("Is Buffer?")),
       latched_unsignaled_id_(
-          context->storage->InternString("Latched unsignaled")),
+          context->storage->InternString("Latched Unsignaled?")),
       jank_tag_unspecified_id_(context->storage->InternString("Unspecified")),
       jank_tag_none_id_(context->storage->InternString("No Jank")),
       jank_tag_self_id_(context->storage->InternString("Self Jank")),

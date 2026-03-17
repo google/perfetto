@@ -340,7 +340,7 @@ SELECT
   extract_arg(s.arg_set_id, 'Jank tag') AS jank_tag,
   extract_arg(s.arg_set_id, 'Jank tag (experimental)') AS jank_tag_experimental,
   extract_arg(s.arg_set_id, 'Jank Severity Score (experimental)') AS jank_score,
-  extract_arg(s.arg_set_id, 'Latched unsignaled') AS latched_unsignaled
+  extract_arg(s.arg_set_id, 'Latched Unsignaled?') AS latched_unsignaled
 FROM slice AS s
 JOIN process_track AS t
   ON s.track_id = t.id
