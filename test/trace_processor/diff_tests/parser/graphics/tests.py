@@ -225,6 +225,24 @@ class GraphicsParser(TestSuite):
           160,10,666,4,"[NULL]","[NULL]","On-time Present",1,0,"Display not ON","Valid Prediction","Non-perceivable Jank","Unknown"
         """))
 
+  def test_latched_unsignaled(self):
+    return DiffTestBlueprint(
+        trace=Path('latched_unsignaled.py'),
+        query='''
+          SELECT
+            ts,
+            latched_unsignaled,
+            extract_arg(arg_set_id, 'Latched unsignaled') IS NOT NULL AS has_arg
+          FROM actual_frame_timeline_slice
+          ORDER BY ts;
+        ''',
+        out=Csv("""
+          "ts","latched_unsignaled","has_arg"
+          10,1,1
+          30,0,1
+          50,"[NULL]",0
+        """))
+
   # Video 4 Linux 2 related tests
   def test_v4l2_vidioc_slice(self):
     return DiffTestBlueprint(
