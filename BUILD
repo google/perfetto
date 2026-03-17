@@ -1143,6 +1143,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/getopt.h",
         "include/perfetto/ext/base/getopt_compat.h",
         "include/perfetto/ext/base/hash.h",
+        "include/perfetto/ext/base/hyper_log_log.h",
         "include/perfetto/ext/base/intrusive_list.h",
         "include/perfetto/ext/base/intrusive_tree.h",
         "include/perfetto/ext/base/lock_free_task_runner.h",

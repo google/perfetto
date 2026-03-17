@@ -16,8 +16,10 @@
 
 #include "src/trace_processor/core/dataframe/dataframe.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -27,6 +29,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/hyper_log_log.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -58,6 +62,31 @@ void GatherBitsInPlace(core::BitVector& bv,
     bv.change(i, bv.is_set(indices[i]));
   }
   bv.resize(count);
+}
+
+// Counts unique values in a sorted column by counting transitions.
+template <typename T>
+uint32_t CountUniqueSorted(const T* data, uint64_t size) {
+  if (size == 0) {
+    return 0;
+  }
+  uint32_t count = 1;
+  for (uint64_t i = 1; i < size; ++i) {
+    if (memcmp(&data[i], &data[i - 1], sizeof(T)) != 0) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+// Estimates unique values in an unsorted column using HyperLogLog.
+template <typename T>
+uint32_t EstimateUniqueHll(const T* data, uint64_t size) {
+  base::HyperLogLog hll;
+  for (uint64_t i = 0; i < size; ++i) {
+    hll.Add(base::MurmurHashValue(data[i]));
+  }
+  return std::max(1u, static_cast<uint32_t>(hll.Estimate()));
 }
 
 }  // namespace
@@ -241,6 +270,56 @@ void Dataframe::Finalize() {
         PERFETTO_FATAL("Invalid nullability type");
     }
   }
+  // Compute estimated unique counts for HasDuplicates columns.
+  for (const auto& c : columns_) {
+    if (!c->duplicate_state.Is<HasDuplicates>()) {
+      continue;
+    }
+    bool sorted = c->sort_state.Is<Sorted>() || c->sort_state.Is<SetIdSorted>();
+    switch (c->storage.type().index()) {
+      case StorageType::GetTypeIndex<Uint32>(): {
+        const auto& v = c->storage.unchecked_get<Uint32>();
+        c->estimated_unique_count = sorted
+                                        ? CountUniqueSorted(v.data(), v.size())
+                                        : EstimateUniqueHll(v.data(), v.size());
+        break;
+      }
+      case StorageType::GetTypeIndex<Int32>(): {
+        const auto& v = c->storage.unchecked_get<Int32>();
+        c->estimated_unique_count = sorted
+                                        ? CountUniqueSorted(v.data(), v.size())
+                                        : EstimateUniqueHll(v.data(), v.size());
+        break;
+      }
+      case StorageType::GetTypeIndex<Int64>(): {
+        const auto& v = c->storage.unchecked_get<Int64>();
+        c->estimated_unique_count = sorted
+                                        ? CountUniqueSorted(v.data(), v.size())
+                                        : EstimateUniqueHll(v.data(), v.size());
+        break;
+      }
+      case StorageType::GetTypeIndex<Double>(): {
+        const auto& v = c->storage.unchecked_get<Double>();
+        c->estimated_unique_count = sorted
+                                        ? CountUniqueSorted(v.data(), v.size())
+                                        : EstimateUniqueHll(v.data(), v.size());
+        break;
+      }
+      case StorageType::GetTypeIndex<String>(): {
+        const auto& v = c->storage.unchecked_get<String>();
+        c->estimated_unique_count = sorted
+                                        ? CountUniqueSorted(v.data(), v.size())
+                                        : EstimateUniqueHll(v.data(), v.size());
+        break;
+      }
+      case StorageType::GetTypeIndex<Id>():
+        // Id columns are always NoDuplicates, so we shouldn't reach here.
+        break;
+      default:
+        PERFETTO_FATAL("Invalid storage type");
+    }
+  }
+
   // Bump the mutation counter so that any cursors with cached pointers
   // know to refresh them: shrink_to_fit() may have reallocated the internal
   // storage.

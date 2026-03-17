@@ -333,6 +333,13 @@ struct Column {
   SortState sort_state;
   DuplicateState duplicate_state;
   SpecializedStorage specialized_storage = SpecializedStorage{};
+
+  // Estimated number of unique non-null values in the column, computed at
+  // finalization time. For HasDuplicates columns, this is populated via
+  // HyperLogLog (unsorted) or transition counting (sorted). Used by the query
+  // planner to produce better row count estimates for equality filters.
+  uint32_t estimated_unique_count = 0;
+
   uint32_t mutations = 0;
 };
 
