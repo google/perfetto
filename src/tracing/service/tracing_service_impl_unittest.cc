@@ -6868,6 +6868,86 @@ TEST_F(TracingServiceImplTest, StringFilteringSemanticTypeUnspecified) {
   }
 }
 
+// Regression test: the service was ignoring the bytecode_overlay_v54 field
+// from the trace config, so semantic types carried in the overlay were lost.
+//
+// Setup: generate v2 bytecode with an ATRACE semantic type on the str field.
+// Because the target is v2, the semantic type goes into the v54 overlay
+// (v2 bytecode only gets a plain FilterString for that field). A string
+// filter rule scoped to SEMANTIC_TYPE_ATRACE is added.
+//
+// If the overlay is loaded correctly, the str field carries the ATRACE
+// semantic type, the rule matches, and the string is redacted.
+// If the overlay is NOT loaded, the field has no semantic type, the
+// ATRACE rule is skipped, and the string passes through unchanged.
+TEST_F(TracingServiceImplTest, StringFilteringWithV54Overlay) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(32);
+  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds_1");
+  ds_cfg->set_target_buffer(0);
+
+  protozero::FilterBytecodeGenerator filt(
+      protozero::FilterBytecodeGenerator::BytecodeVersion::kV2);
+  filt.AddNestedField(1 /* root trace.packet*/, 1);
+  filt.EndMessage();
+  filt.AddNestedField(protos::pbzero::TracePacket::kForTestingFieldNumber, 2);
+  filt.EndMessage();
+  filt.AddFilterStringField(protos::pbzero::TestEvent::kStrFieldNumber,
+                            /*semantic_type=*/1, /*allow_in_v1=*/false,
+                            /*allow_in_v2=*/true);
+  filt.EndMessage();
+  auto serialized = filt.Serialize();
+  ASSERT_FALSE(serialized.bytecode.empty());
+  ASSERT_FALSE(serialized.v54_overlay.empty());
+
+  trace_config.mutable_trace_filter()->set_bytecode_v2(serialized.bytecode);
+  trace_config.mutable_trace_filter()->set_bytecode_overlay_v54(
+      serialized.v54_overlay);
+
+  auto* chain =
+      trace_config.mutable_trace_filter()->mutable_string_filter_chain();
+  auto* rule = chain->add_rules();
+  rule->set_policy(
+      protos::gen::TraceConfig::TraceFilter::SFP_ATRACE_MATCH_REDACT_GROUPS);
+  rule->set_atrace_payload_starts_with("payload");
+  rule->set_regex_pattern(R"(B\|\d+\|pay(lo)ad(\d*))");
+  rule->add_semantic_type(protos::gen::SEMANTIC_TYPE_ATRACE);
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  std::unique_ptr<TraceWriter> writer = producer->CreateTraceWriter("ds_1");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("B|1023|payload1");
+  }
+
+  auto flush_request = consumer->Flush();
+  producer->ExpectFlush(writer.get());
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  const DataSourceInstanceID id1 = producer->GetDataSourceInstanceId("ds_1");
+  EXPECT_CALL(*producer, StopDataSource(id1));
+
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+
+  auto packets = consumer->ReadBuffers();
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("B|1023|payP6adP")))));
+}
+
 TEST_F(TracingServiceImplTest, StringFilteringAndCloneSession) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
