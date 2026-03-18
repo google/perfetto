@@ -260,6 +260,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "shell:query",
       "shell:shell_utils",
       "shell:sql_packages",
+      "shell:subcommand",
       "sqlite",
       "trace_summary",
       "util:stdlib",
