@@ -32,13 +32,26 @@
     font-weight: 500;
   }
 
+  &__row {
+    display: grid;
+    gap: 8px 16px;
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0 8px;
+    align-items: baseline;
+  }
+
   &__section {
     border: 1px solid var(--pf-color-border);
     display: flex;
     flex-direction: column;
     border-radius: 4px;
     padding: 8px;
-    margin-block: 8px;
+    margin: 0; // Reset default fieldset margin
+    margin-bottom: 8px;
 
     &-label {
       font-weight: 500;
@@ -51,8 +64,9 @@
 
   // Styles for common input elements
   .pf-checkbox,
-  .pf-switch {
-    margin-bottom: 6px;
+  .pf-switch,
+  .pf-segmented-buttons {
+    margin-bottom: 10px;
   }
 
   .pf-select,
