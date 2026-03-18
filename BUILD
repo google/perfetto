@@ -167,6 +167,7 @@ perfetto_cc_library(
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
+        ":src_protozero_filtering_message_filter_config",
         ":src_protozero_filtering_string_filter",
         ":src_shared_lib_for_testing",
         ":src_shared_lib_shared_lib",
@@ -947,6 +948,7 @@ perfetto_cc_library(
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
+        ":src_protozero_filtering_message_filter_config",
         ":src_protozero_filtering_string_filter",
         ":src_traced_service_builtin_producer",
         ":src_traced_service_service",
@@ -1952,6 +1954,15 @@ perfetto_filegroup(
         "src/protozero/filtering/message_filter.cc",
         "src/protozero/filtering/message_filter.h",
         "src/protozero/filtering/message_tokenizer.h",
+    ],
+)
+
+# GN target: //src/protozero/filtering:message_filter_config
+perfetto_filegroup(
+    name = "src_protozero_filtering_message_filter_config",
+    srcs = [
+        "src/protozero/filtering/message_filter_config.cc",
+        "src/protozero/filtering/message_filter_config.h",
     ],
 )
 
@@ -8335,6 +8346,7 @@ perfetto_cc_library(
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
+        ":src_protozero_filtering_message_filter_config",
         ":src_protozero_filtering_string_filter",
         ":src_tracing_client_api_without_backends",
         ":src_tracing_common",
