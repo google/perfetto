@@ -37,6 +37,11 @@
     }
   }
 
+  &__tab-actions {
+    display: flex;
+    align-items: center;
+  }
+
   // Wrapper with nested sub-tabs (Graph | Dashboard). Uses flex column
   // so the sub-tab bar gets its natural height and the content fills rest.
   &__tab-with-subtabs {
