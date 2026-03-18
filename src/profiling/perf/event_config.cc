@@ -22,14 +22,12 @@
 
 #include <cinttypes>
 #include <optional>
-#include <unordered_map>
 #include <vector>
 
 #include <unwindstack/Regs.h>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "protos/perfetto/common/perf_events.gen.h"
@@ -120,6 +118,8 @@ TargetFilter ParseTargetFilter(
 constexpr bool IsPowerOfTwo(size_t v) {
   return (v != 0 && ((v & (v - 1)) == 0));
 }
+
+std::optional<uint32_t> LookupPerfDeviceType(const std::string& perf_device);
 
 // returns |std::nullopt| if the input is invalid.
 std::optional<uint32_t> ChooseActualRingBufferPages(uint32_t config_value) {
@@ -306,14 +306,19 @@ std::optional<PerfCounter> MakePerfCounter(
                                      tracepoint_pb.filter(), *maybe_id);
     } else if (event_desc.has_raw_event()) {
       const auto& raw = event_desc.raw_event();
-      if (raw.has_perf_device() && !raw.perf_device().empty() &&
-          raw.has_type()) {
-        PERFETTO_ELOG("raw_event cannot specify both type and perf_device.");
+      if (raw.has_pmu_name() && !raw.pmu_name().empty() && raw.has_type()) {
+        PERFETTO_ELOG("raw_event cannot specify both type and pmu_name.");
         return std::nullopt;
       }
-      return PerfCounter::RawEvent(name, raw.has_type() ? raw.type() : 0u,
-                                   raw.config(), raw.config1(), raw.config2(),
-                                   raw.perf_device());
+      std::optional<uint32_t> raw_type =
+          raw.has_type() ? std::make_optional(raw.type())
+                         : LookupPerfDeviceType(raw.pmu_name());
+      if (!raw_type) {
+        PERFETTO_ELOG("Failed to resolve raw_event type.");
+        return std::nullopt;
+      }
+      return PerfCounter::RawEvent(name, *raw_type, raw.config(), raw.config1(),
+                                   raw.config2());
     } else {
       return PerfCounter::BuiltinCounter(
           name, protos::gen::PerfEvents::PerfEvents::SW_CPU_CLOCK,
@@ -340,6 +345,21 @@ bool IsSupportedUnwindMode(
     default:
       return false;
   }
+}
+
+std::optional<uint32_t> LookupPerfDeviceType(const std::string& perf_device) {
+  if (perf_device.empty())
+    return std::nullopt;
+  if (base::Contains(perf_device, '/') || base::StartsWith(perf_device, ".."))
+    return std::nullopt;
+
+  const std::string type_path =
+      "/sys/bus/event_source/devices/" + perf_device + "/type";
+  std::string buf;
+  if (!base::ReadFile(type_path, &buf))
+    return std::nullopt;
+
+  return base::StringToUInt32(base::TrimWhitespace(buf));
 }
 
 }  // namespace
@@ -382,49 +402,12 @@ PerfCounter PerfCounter::RawEvent(std::string name,
                                   uint32_t type,
                                   uint64_t config,
                                   uint64_t config1,
-                                  uint64_t config2,
-                                  std::string perf_device) {
+                                  uint64_t config2) {
   PerfCounter ret;
   ret.type = PerfCounter::Type::kRawEvent;
   ret.name = std::move(name);
 
   ret.attr_type = type;
-  if (!perf_device.empty()) {  // Lookup type from PMU device.
-    static const base::NoDestructor<std::unordered_map<std::string, uint32_t>>
-        perf_devices([]() {
-          std::unordered_map<std::string, uint32_t> devs;
-          const char* devices_path = "/sys/bus/event_source/devices";
-          base::ScopedDir perf_device_dir(opendir(devices_path));
-          if (!perf_device_dir)
-            return devs;
-
-          for (auto* ent = readdir(perf_device_dir.get()); ent;
-               ent = readdir(perf_device_dir.get())) {
-            if (ent->d_name[0] == '.')
-              continue;
-            const std::string dir_name =
-                std::string(devices_path) + "/" + ent->d_name;
-            std::string buf;
-            if (!base::ReadFile(dir_name + "/type", &buf))
-              continue;
-
-            std::optional<uint32_t> maybe_type =
-                base::StringToUInt32(base::TrimWhitespace(buf));
-            if (!maybe_type)
-              continue;
-            devs[ent->d_name] = *maybe_type;
-          }
-          return devs;
-        }());
-    const auto& devices = perf_devices.ref();
-    auto it = devices.find(perf_device);
-    if (it != devices.end()) {
-      ret.attr_type = it->second;
-    } else {
-      PERFETTO_ELOG("RawEvent config perf_device couldn't be found");
-    }
-  }
-
   ret.attr_config = config;
   ret.attr_config1 = config1;
   ret.attr_config2 = config2;
