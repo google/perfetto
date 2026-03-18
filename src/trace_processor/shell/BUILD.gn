@@ -16,10 +16,27 @@ import("../../../gn/perfetto.gni")
 
 source_set("subcommand") {
   sources = [
+    "common_flags.cc",
+    "common_flags.h",
+    "query_subcommand.cc",
+    "query_subcommand.h",
     "subcommand.cc",
     "subcommand.h",
   ]
-  deps = [ "../../../gn:default_deps" ]
+  deps = [
+    ":metatrace",
+    ":query",
+    ":shell_utils",
+    ":sql_packages",
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
+    "../../../protos/perfetto/trace_processor:zero",
+    "../../base",
+    "../../base:version",
+    "../util/deobfuscation:deobfuscator",
+    "../util/symbolizer:symbolize_database",
+  ]
+  public_deps = [ "../../../include/perfetto/trace_processor:trace_processor" ]
 }
 
 source_set("interactive") {
@@ -112,5 +129,6 @@ source_set("unittests") {
     ":subcommand",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../base",
   ]
 }

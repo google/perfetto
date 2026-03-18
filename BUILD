@@ -648,6 +648,7 @@ perfetto_cc_library(
         ":src_trace_processor_shell_query",
         ":src_trace_processor_shell_shell_utils",
         ":src_trace_processor_shell_sql_packages",
+        ":src_trace_processor_shell_subcommand",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",
         ":src_trace_processor_sqlite_sqlite",
@@ -4139,6 +4140,19 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/shell/sql_packages.cc",
         "src/trace_processor/shell/sql_packages.h",
+    ],
+)
+
+# GN target: //src/trace_processor/shell:subcommand
+perfetto_filegroup(
+    name = "src_trace_processor_shell_subcommand",
+    srcs = [
+        "src/trace_processor/shell/common_flags.cc",
+        "src/trace_processor/shell/common_flags.h",
+        "src/trace_processor/shell/query_subcommand.cc",
+        "src/trace_processor/shell/query_subcommand.h",
+        "src/trace_processor/shell/subcommand.cc",
+        "src/trace_processor/shell/subcommand.h",
     ],
 )
 

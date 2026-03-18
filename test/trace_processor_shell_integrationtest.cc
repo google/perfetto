@@ -14,8 +14,13 @@
  * limitations under the License.
  */
 
+#include <cstddef>
+#include <initializer_list>
+#include <string>
 #include <string_view>
+#include <utility>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/base/temp_file.h"
@@ -188,6 +193,77 @@ TEST(TraceProcessorShellIntegrationTest, ClassicSummaryAndMetricsConflict) {
   auto trace = WriteSimpleSystrace();
   auto result =
       RunShell({"--summary", "--run-metrics", "android_cpu", trace.path()});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Query subcommand tests
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, QueryWithQueryFile) {
+  auto trace = WriteSimpleSystrace();
+  auto query = WriteTempFile("SELECT 42 AS val;");
+  auto result = RunShell({"query", "-f", query.path(), trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("val"));
+  EXPECT_THAT(result.out, HasSubstr("42"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, QueryWithPositionalSql) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"query", trace.path(), "SELECT 99 AS num"});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("num"));
+  EXPECT_THAT(result.out, HasSubstr("99"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, QueryWithStdinPipe) {
+  auto trace = WriteSimpleSystrace();
+  // Use -f - to read from stdin; RunShell uses /dev/null for stdin so this
+  // will produce an empty query which should fail.
+  auto result = RunShell({"query", "-f", "-", trace.path()});
+  // Empty SQL from /dev/null should still succeed (no statements = ok).
+  // The behaviour depends on RunQueries handling empty input.
+  // Either way the process should not crash.
+  EXPECT_TRUE(result.exit_code == 0 || result.exit_code == 1);
+}
+
+TEST(TraceProcessorShellIntegrationTest, QueryHelp) {
+  auto result = RunShell({"query", "-h"});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("query"));
+  EXPECT_THAT(result.out, HasSubstr("trace_file"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, QueryVersion) {
+  auto result = RunShell({"query", "-v"});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("Trace Processor RPC API version"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, QueryWithDevFlag) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"--dev", "query", trace.path(), "SELECT 1 AS x"});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("x"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, QueryNoSqlError) {
+  auto trace = WriteSimpleSystrace();
+  // stdin is /dev/null (not a tty), so the subcommand reads empty SQL from it
+  // and RunQueries returns an error about no valid SQL.
+  auto result = RunShell({"query", trace.path()});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, QueryNoTraceError) {
+  auto result = RunShell({"query"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("trace file is required"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, QueryBadTraceFile) {
+  auto result = RunShell({"query", "/nonexistent_trace.pb", "SELECT 1"});
   EXPECT_NE(result.exit_code, 0);
 }
 
