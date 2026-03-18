@@ -247,12 +247,13 @@ export default class implements PerfettoPlugin {
     title: string,
     state: DataExplorerState,
     afterTabId: string,
+    dashboards?: DashboardTabState[],
   ): void => {
     const newTab: DataExplorerTab = {
       id: shortUuid(),
       title,
       state,
-      dashboards: [
+      dashboards: dashboards ?? [
         {
           id: shortUuid(),
           title: 'Dashboard 1',
