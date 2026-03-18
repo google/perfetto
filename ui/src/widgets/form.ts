@@ -148,6 +148,38 @@ export class FormLabel implements m.ClassComponent<HTMLLabelAttrs> {
   }
 }
 
+export interface FormRowAttrs extends HTMLAttrs {
+  // Number of columns in the grid layout (default: 2)
+  columns?: number;
+}
+
+// A container for placing multiple FormLabel elements side by side in a grid.
+export class FormRow implements m.ClassComponent<FormRowAttrs> {
+  view({attrs, children}: m.CVnode<FormRowAttrs>) {
+    const {columns = 2, ...htmlAttrs} = attrs;
+    return m(
+      '.pf-form__row',
+      {
+        ...htmlAttrs,
+        style: {
+          gridTemplateColumns: `repeat(${columns}, auto 1fr)`,
+          ...(htmlAttrs.style as object),
+        },
+      },
+      children,
+    );
+  }
+}
+
+// A two-column grid container where labels align on the left and inputs
+// stretch to fill the right column. Place FormLabel and input elements
+// as direct children - they will automatically align in rows.
+export class FormGrid implements m.ClassComponent<HTMLAttrs> {
+  view({attrs, children}: m.CVnode<HTMLAttrs>) {
+    return m('.pf-form__grid', attrs, children);
+  }
+}
+
 export interface FormSectionAttrs extends HTMLLabelAttrs {
   readonly label: string;
 }

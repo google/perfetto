@@ -42,6 +42,10 @@ test('debug tracks', async () => {
 
   await page.getByRole('button', {name: 'Add debug track'}).click();
   await pth.waitForPerfettoIdle();
+  await pth.waitForIdleAndScreenshot('debug track menu.png', {
+    locator: page.locator('.pf-add-debug-track-menu'),
+  });
+
   await page.keyboard.type('debug track'); // The track name
   await page.keyboard.press('Enter');
   await pth.waitForPerfettoIdle();
