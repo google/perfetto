@@ -18,24 +18,35 @@ source_set("subcommand") {
   sources = [
     "common_flags.cc",
     "common_flags.h",
+    "interactive_subcommand.cc",
+    "interactive_subcommand.h",
     "query_subcommand.cc",
     "query_subcommand.h",
+    "server_subcommand.cc",
+    "server_subcommand.h",
     "subcommand.cc",
     "subcommand.h",
   ]
   deps = [
+    ":interactive",
     ":metatrace",
     ":query",
     ":shell_utils",
     ":sql_packages",
     "../../../gn:default_deps",
+    "../../../gn:protobuf_full",
     "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
     "../../base:version",
+    "../rpc",
+    "../rpc:stdiod",
     "../util/deobfuscation:deobfuscator",
     "../util/symbolizer:symbolize_database",
   ]
+  if (enable_perfetto_trace_processor_httpd) {
+    deps += [ "../rpc:httpd" ]
+  }
   public_deps = [ "../../../include/perfetto/trace_processor:trace_processor" ]
 }
 
