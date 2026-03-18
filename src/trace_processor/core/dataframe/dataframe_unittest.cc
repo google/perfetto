@@ -1594,6 +1594,86 @@ TEST(DataframeTest, TypedCursorSetMultipleTimes) {
   }
 }
 
+TEST(DataframeTest, TypedCursorInFilter) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"id", "col2"}, CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, std::monostate(), 10u);
+  df.InsertUnchecked(kSpec, std::monostate(), 20u);
+  df.InsertUnchecked(kSpec, std::monostate(), 30u);
+  df.InsertUnchecked(kSpec, std::monostate(), 40u);
+  df.InsertUnchecked(kSpec, std::monostate(), 50u);
+
+  // Filter col2 IN (20, 40) using a pointer+size list.
+  using FV = TypedCursor::FilterValue;
+  TypedCursor cursor(&df, {FilterSpec{1, 0, In{}, {}}}, {});
+  FV values[] = {int64_t(20), int64_t(40)};
+  cursor.SetFilterValueListUnchecked(0, values, 2);
+  cursor.ExecuteUnchecked();
+
+  ASSERT_FALSE(cursor.Eof());
+  ASSERT_EQ(cursor.GetCellUnchecked<1>(kSpec), 20u);
+  cursor.Next();
+
+  ASSERT_FALSE(cursor.Eof());
+  ASSERT_EQ(cursor.GetCellUnchecked<1>(kSpec), 40u);
+  cursor.Next();
+
+  ASSERT_TRUE(cursor.Eof());
+}
+
+TEST(DataframeTest, TypedCursorInFilterEmpty) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"id", "col2"}, CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, std::monostate(), 10u);
+
+  // Filter col2 IN () — empty list should return no rows.
+  TypedCursor cursor(&df, {FilterSpec{1, 0, In{}, {}}}, {});
+  cursor.SetFilterValueListUnchecked(0, nullptr, 0);
+  cursor.ExecuteUnchecked();
+  ASSERT_TRUE(cursor.Eof());
+}
+
+TEST(DataframeTest, TypedCursorInFilterReexecute) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"id", "col2"}, CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.InsertUnchecked(kSpec, std::monostate(), 10u);
+  df.InsertUnchecked(kSpec, std::monostate(), 20u);
+  df.InsertUnchecked(kSpec, std::monostate(), 30u);
+
+  TypedCursor cursor(&df, {FilterSpec{1, 0, In{}, {}}}, {});
+
+  // First execution: IN (10, 30)
+  using FV = TypedCursor::FilterValue;
+  FV values1[] = {int64_t(10), int64_t(30)};
+  cursor.SetFilterValueListUnchecked(0, values1, 2);
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+  ASSERT_EQ(cursor.GetCellUnchecked<1>(kSpec), 10u);
+  cursor.Next();
+  ASSERT_FALSE(cursor.Eof());
+  ASSERT_EQ(cursor.GetCellUnchecked<1>(kSpec), 30u);
+  cursor.Next();
+  ASSERT_TRUE(cursor.Eof());
+
+  // Second execution with different values: IN (20)
+  FV values2[] = {int64_t(20)};
+  cursor.SetFilterValueListUnchecked(0, values2, 1);
+  cursor.ExecuteUnchecked();
+  ASSERT_FALSE(cursor.Eof());
+  ASSERT_EQ(cursor.GetCellUnchecked<1>(kSpec), 20u);
+  cursor.Next();
+  ASSERT_TRUE(cursor.Eof());
+}
+
 TEST(DataframeTest,
      QueryPlanEqualityFilterOnNoDuplicatesColumnEstimatesOneRow) {
   static constexpr auto kSpec = CreateTypedDataframeSpec(

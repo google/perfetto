@@ -22,6 +22,7 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
@@ -170,22 +171,25 @@ struct CastFilterValueListResult {
                                  FlexVector<int64_t>,
                                  FlexVector<double>,
                                  FlexVector<StringPool::Id>>;
+  using HashLookup = base::FlatHashMapV2<int64_t, bool>;
 
-  static CastFilterValueListResult Valid(ValueList v) {
-    return CastFilterValueListResult{CastFilterValueResult::Validity::kValid,
-                                     std::move(v)};
+  // The lookup used by In. For small lists (<=16 elements), we keep the
+  // FlexVector and do a linear scan. For dense Id/Uint32, a BitVector.
+  // For large sparse lists, a HashLookup.
+  using Lookup = std::variant<ValueList, BitVector, HashLookup>;
+
+  static CastFilterValueListResult Valid(Lookup l) {
+    return {CastFilterValueResult::Validity::kValid, std::move(l)};
   }
   static CastFilterValueListResult NoneMatch() {
-    return CastFilterValueListResult{
-        CastFilterValueResult::Validity::kNoneMatch,
-        FlexVector<CastFilterValueResult::Id>()};
+    return {CastFilterValueResult::Validity::kNoneMatch, ValueList{}};
   }
   static CastFilterValueListResult AllMatch() {
-    return CastFilterValueListResult{CastFilterValueResult::Validity::kAllMatch,
-                                     FlexVector<CastFilterValueResult::Id>()};
+    return {CastFilterValueResult::Validity::kAllMatch, ValueList{}};
   }
+
   CastFilterValueResult::Validity validity;
-  ValueList value_list;
+  Lookup lookup;
 };
 
 // Opaque state for tree operations. Bundles tree structure, column data
