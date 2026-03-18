@@ -254,6 +254,7 @@
 // Data panel — styled similarly to the query page's table list.
 .pf-dashboard__data-panel {
   width: 300px;
+  min-width: 0;
   height: 100%;
   border-left: 1px solid var(--pf-color-border);
   background: var(--pf-color-background);
@@ -388,6 +389,57 @@
     color: var(--pf-color-accent);
     background: color-mix(in srgb, var(--pf-color-accent) 5%, transparent);
   }
+}
+
+// Linked columns panel entries.
+.pf-dashboard__linked-column {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--pf-color-border-secondary);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.pf-dashboard__linked-column-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+
+  .pf-icon {
+    font-size: 14px;
+    color: var(--pf-color-text-muted);
+  }
+
+  code {
+    font-family: var(--pf-font-monospace);
+  }
+}
+
+.pf-dashboard__linked-column-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 20px;
+}
+
+.pf-dashboard__linked-column-source {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-dashboard__linked-source-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 // Side panel matching the builder's .pf-qb-side-panel style.

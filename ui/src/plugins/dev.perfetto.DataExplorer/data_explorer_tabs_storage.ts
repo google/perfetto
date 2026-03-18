@@ -122,33 +122,47 @@ export function createEmptyState(): DataExplorerState {
   };
 }
 
+/** Serialized dashboard without a graphTabId reference. */
+export interface SerializedDashboard {
+  id: string;
+  title: string;
+  items?: unknown[];
+  brushFilters?: Record<string, unknown[]>;
+}
+
+/** Serialize all dashboards for a single tab. */
+export function serializeDashboardsForTab(
+  tab: DataExplorerTab,
+): SerializedDashboard[] | undefined {
+  const result: SerializedDashboard[] = [];
+  for (const db of tab.dashboards) {
+    const items = serializeDashboardItems(db.items);
+    let brushFilters: Record<string, unknown[]> | undefined;
+    if (db.brushFilters.size > 0) {
+      const raw: Record<string, unknown[]> = {};
+      for (const [sourceNodeId, filters] of db.brushFilters) {
+        raw[sourceNodeId] = filters;
+      }
+      brushFilters = JSON.parse(
+        JSON.stringify(raw, (_k, v) => (typeof v === 'bigint' ? Number(v) : v)),
+      );
+    }
+    result.push({id: db.id, title: db.title, items, brushFilters});
+  }
+  return result.length > 0 ? result : undefined;
+}
+
 /** Flatten all dashboards across all tabs into a single serializable list. */
 export function serializeAllDashboards(
   tabs: DataExplorerTab[],
 ): PersistedDashboardData[] | undefined {
   const result: PersistedDashboardData[] = [];
   for (const tab of tabs) {
-    for (const db of tab.dashboards) {
-      const items = serializeDashboardItems(db.items);
-      let brushFilters: Record<string, unknown[]> | undefined;
-      if (db.brushFilters.size > 0) {
-        const raw: Record<string, unknown[]> = {};
-        for (const [sourceNodeId, filters] of db.brushFilters) {
-          raw[sourceNodeId] = filters;
-        }
-        brushFilters = JSON.parse(
-          JSON.stringify(raw, (_k, v) =>
-            typeof v === 'bigint' ? Number(v) : v,
-          ),
-        );
+    const serialized = serializeDashboardsForTab(tab);
+    if (serialized !== undefined) {
+      for (const db of serialized) {
+        result.push({...db, graphTabId: tab.id});
       }
-      result.push({
-        id: db.id,
-        title: db.title,
-        graphTabId: tab.id,
-        items,
-        brushFilters,
-      });
     }
   }
   return result.length > 0 ? result : undefined;
