@@ -107,6 +107,7 @@ export class AddDebugTrackMenu
     return m(
       Form,
       {
+        className: 'pf-add-debug-track-menu',
         onSubmit: () => {
           attrs.onAdd?.();
           this.createTracks(attrs);
