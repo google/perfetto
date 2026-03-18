@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_CORE_INTERPRETER_INTERPRETER_TYPES_H_
 
 #include <cstdint>
+#include <memory>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -179,21 +180,26 @@ struct CastFilterValueListResult {
   // the non-indexed In bytecode falls back to linear scan over value_list.
   using Lookup = std::variant<std::monostate, BitVector, HashLookup>;
 
-  static CastFilterValueListResult Valid(ValueList vl, Lookup l) {
-    return {CastFilterValueResult::Validity::kValid, std::move(vl),
-            std::move(l)};
+  using Ptr = std::unique_ptr<CastFilterValueListResult>;
+
+  static Ptr Valid(ValueList vl, Lookup l) {
+    return Ptr(new CastFilterValueListResult{
+        CastFilterValueResult::Validity::kValid, std::move(vl), std::move(l)});
   }
-  static CastFilterValueListResult Valid(ValueList vl) {
-    return {CastFilterValueResult::Validity::kValid, std::move(vl),
-            std::monostate{}};
+  static Ptr Valid(ValueList vl) {
+    return Ptr(
+        new CastFilterValueListResult{CastFilterValueResult::Validity::kValid,
+                                      std::move(vl), std::monostate{}});
   }
-  static CastFilterValueListResult NoneMatch() {
-    return {CastFilterValueResult::Validity::kNoneMatch, ValueList{},
-            std::monostate{}};
+  static Ptr NoneMatch() {
+    return Ptr(new CastFilterValueListResult{
+        CastFilterValueResult::Validity::kNoneMatch, ValueList{},
+        std::monostate{}});
   }
-  static CastFilterValueListResult AllMatch() {
-    return {CastFilterValueResult::Validity::kAllMatch, ValueList{},
-            std::monostate{}};
+  static Ptr AllMatch() {
+    return Ptr(new CastFilterValueListResult{
+        CastFilterValueResult::Validity::kAllMatch, ValueList{},
+        std::monostate{}});
   }
 
   CastFilterValueResult::Validity validity;

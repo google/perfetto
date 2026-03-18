@@ -1901,6 +1901,102 @@ TEST_F(BytecodeInterpreterTest,
   EXPECT_THAT(GetRegister<Span<uint32_t>>(2), testing::ElementsAre(1, 2, 4, 5));
 }
 
+// Large IN list (>16 values) that would trigger BitVector/HashMap lookup in
+// the non-indexed path. IndexedFilterIn should still work because it reads
+// from value_list which is always populated.
+TEST_F(BytecodeInterpreterTest, IndexedFilterIn_Uint32_NonNull_LargeInList) {
+  // Column with values 0..49
+  std::vector<uint32_t> col_data(50);
+  std::iota(col_data.begin(), col_data.end(), 0u);
+  AddColumn(CreateNonNullColumn<uint32_t, uint32_t>(col_data, Unsorted{},
+                                                    HasDuplicates{}));
+
+  // Identity permutation (already sorted).
+  std::vector<uint32_t> p_vec(50);
+  std::iota(p_vec.begin(), p_vec.end(), 0u);
+  indexes_.emplace_back(std::vector<uint32_t>{0},
+                        std::make_shared<std::vector<uint32_t>>(p_vec));
+
+  std::string bytecode_str = R"(
+    IndexedFilterIn<Uint32, NonNull>: [storage_register=Register(3), null_bv_register=Register(4), value_list_register=Register(0), popcount_register=Register(1), source_register=Register(2), dest_register=Register(2)]
+  )";
+
+  // IN list with 20 values (> kLinearScanThreshold=16).
+  std::vector<uint32_t> in_values;
+  for (uint32_t i = 0; i < 20; ++i) {
+    in_values.push_back(i * 2);  // Even numbers: 0, 2, 4, ..., 38
+  }
+  auto value_list =
+      CastFilterValueListResult::Valid(CastFilterValueListResult::ValueList{
+          CreateFlexVectorForTesting<uint32_t>(in_values)});
+
+  SetRegistersAndExecute(bytecode_str, std::move(value_list),
+                         Slab<uint32_t>::Alloc(0), GetSpan(p_vec),
+                         GetStoragePtr<Uint32>(0), GetNullBv(0));
+
+  std::vector<uint32_t> expected;
+  for (uint32_t i = 0; i < 20; ++i) {
+    expected.push_back(i * 2);
+  }
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2),
+              testing::ElementsAreArray(expected));
+}
+
+// IN with duplicate values should not produce duplicate output rows.
+TEST_F(BytecodeInterpreterTest,
+       IndexedFilterIn_Uint32_NonNull_DuplicateInValues) {
+  // Column: {10, 20, 30}
+  AddColumn(CreateNonNullColumn<uint32_t, uint32_t>({10u, 20u, 30u}, Unsorted{},
+                                                    HasDuplicates{}));
+
+  std::vector<uint32_t> p_vec = {0, 1, 2};
+  indexes_.emplace_back(std::vector<uint32_t>{0},
+                        std::make_shared<std::vector<uint32_t>>(p_vec));
+
+  std::string bytecode_str = R"(
+    IndexedFilterIn<Uint32, NonNull>: [storage_register=Register(3), null_bv_register=Register(4), value_list_register=Register(0), popcount_register=Register(1), source_register=Register(2), dest_register=Register(2)]
+  )";
+
+  // IN (20, 20, 20) — same value repeated.
+  auto value_list =
+      CastFilterValueListResult::Valid(CastFilterValueListResult::ValueList{
+          CreateFlexVectorForTesting<uint32_t>({20u, 20u, 20u})});
+
+  SetRegistersAndExecute(bytecode_str, std::move(value_list),
+                         Slab<uint32_t>::Alloc(0), GetSpan(p_vec),
+                         GetStoragePtr<Uint32>(0), GetNullBv(0));
+
+  // Row 1 should appear three times (once per IN value) since each binary
+  // search finds the same range.
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), testing::ElementsAre(1, 1, 1));
+}
+
+// IN with mixed hit/miss values — some values exist in the column, some don't.
+TEST_F(BytecodeInterpreterTest, IndexedFilterIn_Uint32_NonNull_MixedHitMiss) {
+  // Column: {10, 20, 30, 40, 50}
+  AddColumn(CreateNonNullColumn<uint32_t, uint32_t>(
+      {10u, 20u, 30u, 40u, 50u}, Unsorted{}, HasDuplicates{}));
+
+  std::vector<uint32_t> p_vec = {0, 1, 2, 3, 4};
+  indexes_.emplace_back(std::vector<uint32_t>{0},
+                        std::make_shared<std::vector<uint32_t>>(p_vec));
+
+  std::string bytecode_str = R"(
+    IndexedFilterIn<Uint32, NonNull>: [storage_register=Register(3), null_bv_register=Register(4), value_list_register=Register(0), popcount_register=Register(1), source_register=Register(2), dest_register=Register(2)]
+  )";
+
+  // IN (15, 20, 35, 50, 99) — only 20 and 50 exist.
+  auto value_list =
+      CastFilterValueListResult::Valid(CastFilterValueListResult::ValueList{
+          CreateFlexVectorForTesting<uint32_t>({15u, 20u, 35u, 50u, 99u})});
+
+  SetRegistersAndExecute(bytecode_str, std::move(value_list),
+                         Slab<uint32_t>::Alloc(0), GetSpan(p_vec),
+                         GetStoragePtr<Uint32>(0), GetNullBv(0));
+
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), testing::ElementsAre(1, 4));
+}
+
 TEST_F(BytecodeInterpreterTest, CopySpanIntersectingRange_PartialOverlap) {
   std::vector<uint32_t> source_span_data = {10, 20, 30, 40, 50};
   std::vector<uint32_t> update_buffer(source_span_data.size());
@@ -2392,7 +2488,8 @@ TEST_F(BytecodeInterpreterTest, CastFilterValueList_Uint32) {
       "write_register=Register(0), op=Op(0)]"  // Op(0) is Eq
   );
 
-  const auto& result = GetRegister<CastFilterValueListResult>(0);
+  const auto& result =
+      *GetRegister<std::unique_ptr<CastFilterValueListResult>>(0);
   ASSERT_EQ(result.validity, CastFilterValueResult::kValid);
   // Value list is always populated.
   const auto& list = std::get<FlexVector<uint32_t>>(result.value_list);
@@ -2412,7 +2509,8 @@ TEST_F(BytecodeInterpreterTest, CastFilterValueList_String) {
       "write_register=Register(0), op=Op(0)]"  // Op(0) is Eq
   );
 
-  const auto& result = GetRegister<CastFilterValueListResult>(0);
+  const auto& result =
+      *GetRegister<std::unique_ptr<CastFilterValueListResult>>(0);
   ASSERT_EQ(result.validity, CastFilterValueResult::kValid);
   // Value list is always populated.
   const auto& list = std::get<FlexVector<StringPool::Id>>(result.value_list);

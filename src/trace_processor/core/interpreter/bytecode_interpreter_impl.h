@@ -873,7 +873,7 @@ inline PERFETTO_ALWAYS_INLINE void CastFilterValue(
 // For small lists or doubles, Lookup is std::monostate and the non-indexed
 // In bytecode falls back to linear scan over value_list.
 template <typename T>
-CastFilterValueListResult BuildLookup(
+CastFilterValueListResult::Ptr BuildLookup(
     FlexVector<
         StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>>
         results) {
@@ -999,7 +999,7 @@ inline PERFETTO_ALWAYS_INLINE void CastFilterValueList(
       static_assert(std::is_same_v<T, Id>, "Unsupported type");
     }
   }
-  CastFilterValueListResult result;
+  CastFilterValueListResult::Ptr result;
   if (all_match) {
     result = CastFilterValueListResult::AllMatch();
   } else if (results.empty()) {
@@ -1247,7 +1247,7 @@ inline PERFETTO_ALWAYS_INLINE void In(
     const ::perfetto::trace_processor::core::interpreter::In<T>& f) {
   using B = ::perfetto::trace_processor::core::interpreter::In<T>;
   const auto& value =
-      state.ReadFromRegister(f.template arg<B::value_list_register>());
+      *state.ReadFromRegister(f.template arg<B::value_list_register>());
   const Span<uint32_t>& source =
       state.ReadFromRegister(f.template arg<B::source_register>());
   Span<uint32_t>& update =
@@ -1495,7 +1495,7 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterIn(
     const IndexedFilterInBase& bytecode) {
   using B = IndexedFilterInBase;
   const auto& cast_result =
-      state.ReadFromRegister(bytecode.arg<B::value_list_register>());
+      *state.ReadFromRegister(bytecode.arg<B::value_list_register>());
   const auto& source =
       state.ReadFromRegister(bytecode.arg<B::source_register>());
   Span<uint32_t> dest(source.b, source.b);

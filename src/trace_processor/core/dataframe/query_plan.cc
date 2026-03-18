@@ -390,8 +390,9 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
     StorageType ct = col.storage.type();
 
     if (c.op.Is<In>()) {
-      i::RwHandle<i::CastFilterValueListResult> value =
-          builder_.AllocateRegister<i::CastFilterValueListResult>();
+      i::RwHandle<std::unique_ptr<i::CastFilterValueListResult>> value =
+          builder_.AllocateRegister<
+              std::unique_ptr<i::CastFilterValueListResult>>();
       {
         using B = i::CastFilterValueListBase;
         auto& bc = AddOpcode<B>(i::Index<i::CastFilterValueList>(ct),
@@ -864,8 +865,9 @@ void QueryPlanBuilder::IndexConstraints(
     if (fs.op.Is<In>()) {
       // Emit IndexedFilterIn for In filters.
       StorageType ct = column.storage.type();
-      i::RwHandle<i::CastFilterValueListResult> value_list_reg =
-          builder_.AllocateRegister<i::CastFilterValueListResult>();
+      i::RwHandle<std::unique_ptr<i::CastFilterValueListResult>>
+          value_list_reg = builder_.AllocateRegister<
+              std::unique_ptr<i::CastFilterValueListResult>>();
       {
         using B = i::CastFilterValueListBase;
         auto& bc = AddOpcode<B>(i::Index<i::CastFilterValueList>(ct),
