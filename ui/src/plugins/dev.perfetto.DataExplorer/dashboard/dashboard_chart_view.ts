@@ -308,12 +308,13 @@ export class DashboardChartView
         this.executionRequested = true;
         attrs.source
           .requestExecution()
-          .then(() => m.redraw())
-          .catch((e) => console.debug('Dashboard source execution failed:', e));
+          .catch((e) => console.debug('Dashboard source execution failed:', e))
+          .finally(() => {
+            this.executionRequested = false;
+          });
       }
       return m(EmptyState, {icon: 'hourglass_empty', title: 'Loading data…'});
     }
-    this.executionRequested = false;
 
     const entry = this.ensureLoader(attrs, config);
     const ctx = {node: adapter, onFilterChange: () => m.redraw()};
