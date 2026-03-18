@@ -50,34 +50,44 @@ namespace perfetto::trace_processor::shell {
 
 namespace {
 
-void PrintFlagList(FILE* out, const std::vector<FlagSpec>& flags) {
+void AppendFlagList(std::string* out, const std::vector<FlagSpec>& flags) {
+  char buf[256];
   for (const auto& f : flags) {
     if (f.short_name) {
-      fprintf(out, "  -%c, --%-24s %s\n", f.short_name, f.long_name, f.help);
+      snprintf(buf, sizeof(buf), "  -%c, --%-24s %s\n", f.short_name,
+               f.long_name, f.help);
     } else {
-      fprintf(out, "      --%-24s %s\n", f.long_name, f.help);
+      snprintf(buf, sizeof(buf), "      --%-24s %s\n", f.long_name, f.help);
     }
+    *out += buf;
   }
 }
 
 }  // namespace
 
-void PrintSubcommandUsage(const char* argv0, Subcommand* cmd, FILE* out) {
-  fprintf(out, "Usage: %s %s [FLAGS] %s\n\n", argv0, cmd->name(),
-          cmd->usage_args());
-  fprintf(out, "%s\n\n", cmd->description());
-  fprintf(out, "%s\n\n", cmd->detailed_help());
+std::string FormatSubcommandUsage(const char* argv0, Subcommand* cmd) {
+  std::string out;
+  char buf[256];
+
+  snprintf(buf, sizeof(buf), "Usage: %s %s [FLAGS] %s\n\n", argv0, cmd->name(),
+           cmd->usage_args());
+  out += buf;
+  out += cmd->description();
+  out += "\n\n";
+  out += cmd->detailed_help();
+  out += "\n\n";
 
   auto sub_flags = cmd->GetFlags();
   if (!sub_flags.empty()) {
-    fprintf(out, "Subcommand flags:\n");
-    PrintFlagList(out, sub_flags);
-    fprintf(out, "\n");
+    out += "Subcommand flags:\n";
+    AppendFlagList(&out, sub_flags);
+    out += "\n";
   }
 
   GlobalOptions dummy;
-  fprintf(out, "Global flags:\n");
-  PrintFlagList(out, GetGlobalFlagSpecs(&dummy));
+  out += "Global flags:\n";
+  AppendFlagList(&out, GetGlobalFlagSpecs(&dummy));
+  return out;
 }
 
 std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts) {
@@ -224,7 +234,11 @@ base::Status ParseFlags(Subcommand* cmd,
       break;
 
     if (opt == '?') {
-      return base::ErrStatus("Unknown flag. Use --help for usage.");
+      // getopt_long already printed a diagnostic to stderr; mark the
+      // status so callers know not to print the message again.
+      base::Status s = base::ErrStatus("Unknown flag");
+      s.SetPayload("perfetto.dev/has_printed_error", "1");
+      return s;
     }
 
     bool found = false;

@@ -981,17 +981,15 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
           // `help <command>` -- find the named subcommand and print its usage.
           for (auto* sc : subcommands) {
             if (strcmp(sc->name(), argv[i + 1]) == 0) {
-              shell::PrintSubcommandUsage(argv[0], sc);
-              exit(0);
+              printf("%s", shell::FormatSubcommandUsage(argv[0], sc).c_str());
+              return base::OkStatus();
             }
           }
-          PERFETTO_ELOG("Unknown command '%s'.", argv[i + 1]);
-          PrintSubcommandHelp(argv[0]);
-          exit(1);
+          return base::ErrStatus("Unknown command '%s'.", argv[i + 1]);
         }
         // Bare `help` -- same as --help.
         PrintSubcommandHelp(argv[0]);
-        exit(0);
+        return base::OkStatus();
       }
       break;  // First non-flag, non-help positional -> stop.
     }
@@ -1042,9 +1040,23 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
       ctx.platform = platform_interface_.get();
       ctx.global = &global;
 
-      RETURN_IF_ERROR(shell::ParseFlags(result.subcommand, &ctx, argc, argv));
+      auto usage = shell::FormatSubcommandUsage(argv[0], result.subcommand);
+      {
+        auto parse_status =
+            shell::ParseFlags(result.subcommand, &ctx, argc, argv);
+        if (!parse_status.ok()) {
+          bool already_printed =
+              parse_status.GetPayload("perfetto.dev/has_printed_error")
+                  .has_value();
+          if (already_printed) {
+            return base::ErrStatus("\n%s", usage.c_str());
+          }
+          return base::ErrStatus("%s\n\n%s", parse_status.c_message(),
+                                 usage.c_str());
+        }
+      }
       if (global.help) {
-        shell::PrintSubcommandUsage(argv[0], result.subcommand);
+        printf("%s", usage.c_str());
         return base::OkStatus();
       }
       if (global.version) {
@@ -1053,7 +1065,14 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
                protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
         return base::OkStatus();
       }
-      return result.subcommand->Run(ctx);
+      {
+        auto run_status = result.subcommand->Run(ctx);
+        if (!run_status.ok()) {
+          return base::ErrStatus("%s\n\n%s", run_status.c_message(),
+                                 usage.c_str());
+        }
+        return base::OkStatus();
+      }
     }
   }
 

@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_SHELL_COMMON_FLAGS_H_
 
 #include <cstddef>
-#include <cstdio>
 #include <memory>
 #include <string>
 #include <vector>
@@ -69,11 +68,8 @@ struct GlobalOptions {
 // Returns the FlagSpec entries for all global options.
 std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts);
 
-// Prints usage for a subcommand. |out| controls the output stream
-// (stdout for user-requested help, stderr for errors).
-void PrintSubcommandUsage(const char* argv0,
-                          Subcommand* cmd,
-                          FILE* out = stdout);
+// Returns the formatted usage string for a subcommand.
+std::string FormatSubcommandUsage(const char* argv0, Subcommand* cmd);
 
 // Parses flags for a subcommand. Combines the subcommand's flags with
 // the global flags, then parses argv using getopt_long.
