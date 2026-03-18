@@ -29,7 +29,9 @@ import {serializeState, deserializeState} from './json_handler';
 import {
   confirmAndFinalizeCurrentGraph,
   exportGraph,
+  exportTab,
   importGraph,
+  importTab,
   loadGraphFromJson,
   loadGraphFromPath,
   createDataExplorerGraph,
@@ -134,11 +136,13 @@ interface DataExplorerAttrs {
     beforeId: string | undefined,
   ) => void;
   // Creates a new tab with the given title and state, inserted after the
-  // tab identified by afterTabId.
+  // tab identified by afterTabId. Optionally accepts pre-built dashboards;
+  // when omitted a single empty dashboard is created.
   readonly onTabAddWithState: (
     title: string,
     state: DataExplorerState,
     afterTabId: string,
+    dashboards?: DashboardTabState[],
   ) => void;
   // Notify the plugin that dashboard-local state changed (items/filters)
   // so it can trigger debounced saves.
@@ -345,13 +349,22 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     // Handle other shortcuts
     switch (event.key) {
       case 'i':
-        importGraph(graphIODeps, (title, newState) =>
-          attrs.onTabAddWithState(title, newState, attrs.activeTabId),
+        importTab(graphIODeps, (title, newState, dashboards) =>
+          attrs.onTabAddWithState(
+            title,
+            newState,
+            attrs.activeTabId,
+            dashboards,
+          ),
         );
         break;
-      case 'e':
-        exportGraph(state, attrs.trace);
+      case 'e': {
+        const activeTab = attrs.tabs.find((t) => t.id === attrs.activeTabId);
+        if (activeTab !== undefined) {
+          void exportTab(activeTab, attrs.trace);
+        }
         break;
+      }
     }
   }
 
@@ -733,6 +746,13 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
           title: 'Add dashboard',
           onclick: () => this.addDashboard(tab, attrs),
         }),
+        m(Button, {
+          icon: 'download',
+          title: 'Export current tab',
+          onclick: () => {
+            void exportTab(tab, attrs.trace);
+          },
+        }),
       ),
     );
 
@@ -836,11 +856,32 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
         tabs: tabEntries,
         activeTabKey: activeTabId,
         reorderable: true,
-        newTabContent: m(Button, {
-          icon: 'add',
-          className: 'pf-tabs__new-tab-btn',
-          onclick: () => attrs.onTabAdd(),
-        }),
+        newTabContent: m('.pf-data-explorer__tab-actions', [
+          m(Button, {
+            icon: 'add',
+            className: 'pf-tabs__new-tab-btn',
+            onclick: () => attrs.onTabAdd(),
+          }),
+          m(Button, {
+            icon: 'upload',
+            className: 'pf-tabs__new-tab-btn',
+            title: 'Import tab',
+            onclick: () => {
+              if (this.activeGraphIODeps) {
+                importTab(
+                  this.activeGraphIODeps,
+                  (title, newState, dashboards) =>
+                    attrs.onTabAddWithState(
+                      title,
+                      newState,
+                      attrs.activeTabId,
+                      dashboards,
+                    ),
+                );
+              }
+            },
+          }),
+        ]),
         onTabChange: (key) => attrs.onTabChange(key),
         onTabRename: (key, newTitle) => {
           attrs.onTabRename(key, newTitle);

@@ -32,6 +32,7 @@ import {
   DashboardDataSource,
   DashboardItem,
   getItemId,
+  getLinkedSourceNodeIds,
   getNextItemPosition,
   snapToGrid,
 } from './dashboard_registry';
@@ -102,8 +103,10 @@ export interface DashboardAttrs {
   onBrushFiltersChange: (filters: Map<string, DashboardBrushFilter[]>) => void;
 }
 
+type SidePanelTab = 'data' | 'linked';
+
 export class Dashboard implements m.ClassComponent<DashboardAttrs> {
-  private panelOpen = false;
+  private activePanel?: SidePanelTab;
   private filtersExpanded = true;
   private expandedInput: string | undefined = undefined;
   private editingChartId?: string;
@@ -146,19 +149,29 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           ],
         ),
       ]),
-      this.panelOpen &&
+      this.activePanel === 'data' &&
         m('.pf-dashboard__data-panel', this.renderDataPanel(attrs)),
-      m(
-        '.pf-dashboard__side-panel',
+      this.activePanel === 'linked' &&
+        m('.pf-dashboard__data-panel', this.renderLinkedColumnsPanel(attrs)),
+      m('.pf-dashboard__side-panel', [
         m(Button, {
           icon: 'dataset',
           title: 'Data',
-          className: classNames(this.panelOpen && 'pf-active'),
+          className: classNames(this.activePanel === 'data' && 'pf-active'),
           onclick: () => {
-            this.panelOpen = !this.panelOpen;
+            this.activePanel = this.activePanel === 'data' ? undefined : 'data';
           },
         }),
-      ),
+        m(Button, {
+          icon: 'link',
+          title: 'Linked columns',
+          className: classNames(this.activePanel === 'linked' && 'pf-active'),
+          onclick: () => {
+            this.activePanel =
+              this.activePanel === 'linked' ? undefined : 'linked';
+          },
+        }),
+      ]),
     ]);
   }
 
@@ -245,7 +258,11 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       },
       renderChartConfigPopup(
         {
-          node: new DashboardChartView.Adapter(source, attrs, config),
+          node: new DashboardChartView.Adapter(
+            source,
+            {...attrs, allSources: attrs.sources},
+            config,
+          ),
         },
         config,
         () => m.redraw(),
@@ -337,6 +354,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           config,
           dashboardId: attrs.dashboardId,
           items: attrs.items,
+          allSources: attrs.sources,
           brushFilters: attrs.brushFilters,
           onItemsChange: attrs.onItemsChange,
           onBrushFiltersChange: attrs.onBrushFiltersChange,
@@ -602,14 +620,23 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     sourceNodeId: string,
     column: string,
   ): void {
-    const existing = attrs.brushFilters.get(sourceNodeId);
-    if (existing === undefined) return;
-    const filtered = existing.filter((f) => f.column !== column);
     const newFilters = new Map(attrs.brushFilters);
-    if (filtered.length === 0) {
-      newFilters.delete(sourceNodeId);
-    } else {
-      newFilters.set(sourceNodeId, filtered);
+
+    // Clear the column from the specified source and all other sources that
+    // have a column with the same name (cross-datasource brushing).
+    for (const id of getLinkedSourceNodeIds(
+      attrs.sources,
+      sourceNodeId,
+      column,
+    )) {
+      const current = newFilters.get(id);
+      if (current === undefined) continue;
+      const filtered = current.filter((f) => f.column !== column);
+      if (filtered.length === 0) {
+        newFilters.delete(id);
+      } else {
+        newFilters.set(id, filtered);
+      }
     }
     attrs.onBrushFiltersChange(newFilters);
   }
@@ -619,18 +646,27 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     sourceNodeId: string,
     filter: DashboardBrushFilter,
   ): void {
-    const current = [...(attrs.brushFilters.get(sourceNodeId) ?? [])];
-    const updated = current.filter(
-      (f) =>
-        f.column !== filter.column ||
-        f.op !== filter.op ||
-        f.value !== filter.value,
-    );
     const newFilters = new Map(attrs.brushFilters);
-    if (updated.length === 0) {
-      newFilters.delete(sourceNodeId);
-    } else {
-      newFilters.set(sourceNodeId, updated);
+
+    // Remove the filter from the specified source and all other sources that
+    // have a column with the same name (cross-datasource brushing).
+    for (const id of getLinkedSourceNodeIds(
+      attrs.sources,
+      sourceNodeId,
+      filter.column,
+    )) {
+      const current = [...(newFilters.get(id) ?? [])];
+      const updated = current.filter(
+        (f) =>
+          f.column !== filter.column ||
+          f.op !== filter.op ||
+          f.value !== filter.value,
+      );
+      if (updated.length === 0) {
+        newFilters.delete(id);
+      } else {
+        newFilters.set(id, updated);
+      }
     }
     attrs.onBrushFiltersChange(newFilters);
   }
@@ -658,55 +694,101 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
 
   private renderFilterBar(attrs: DashboardAttrs): m.Child {
     const {sources, brushFilters} = attrs;
-    // Collect filters from all sources.
-    const allEntries: {
-      sourceNodeId: string;
-      sourceName: string;
-      filters: ReadonlyArray<DashboardBrushFilter>;
-    }[] = [];
-    for (const source of sources) {
-      const filters = brushFilters.get(source.nodeId) ?? [];
-      if (filters.length > 0) {
-        allEntries.push({
-          sourceNodeId: source.nodeId,
-          sourceName: source.name,
-          filters,
-        });
+
+    // Collect all active (column, sourceNodeId) filter entries.
+    const activeColumns = new Set<string>();
+    for (const filters of brushFilters.values()) {
+      for (const f of filters) {
+        activeColumns.add(f.column);
       }
     }
-    if (allEntries.length === 0) return null;
-
+    if (activeColumns.size === 0) return null;
     if (!this.filtersExpanded) return null;
 
-    // Build chips grouped by source.
+    // For each active column, compute the sorted set of source nodeIds that
+    // share it. The stringified set is the grouping key.
+    const sourceNameById = new Map(sources.map((s) => [s.nodeId, s.name]));
+    const columnToKey = new Map<string, string>();
+    const columnToSourceIds = new Map<string, string[]>();
+    for (const col of activeColumns) {
+      const ids = getLinkedSourceNodeIds(sources, '', col).sort();
+      const key = ids.join(',');
+      columnToKey.set(col, key);
+      columnToSourceIds.set(col, ids);
+    }
+
+    // Group columns by their datasource-set key.
+    const groupMap = new Map<
+      string,
+      {sourceIds: string[]; columns: string[]}
+    >();
+    for (const col of activeColumns) {
+      const key = columnToKey.get(col) ?? '';
+      const ids = columnToSourceIds.get(col) ?? [];
+      const entry = groupMap.get(key);
+      if (entry !== undefined) {
+        entry.columns.push(col);
+      } else {
+        groupMap.set(key, {sourceIds: ids, columns: [col]});
+      }
+    }
+
+    // Render each group.
     const groups: m.Child[] = [];
-    for (const {sourceNodeId, sourceName, filters} of allEntries) {
-      const columns = [...new Set(filters.map((f) => f.column))];
-      const chips = columns.map((col) => {
-        const colFilters = filters.filter((f) => f.column === col);
+    for (const {sourceIds, columns} of groupMap.values()) {
+      const label = sourceIds
+        .map((id) => sourceNameById.get(id) ?? id)
+        .join(', ');
+      // Pick any sourceNodeId in the group for clear/remove operations —
+      // those functions already propagate across linked sources.
+      const representativeSourceId = sourceIds[0];
+      const chips = columns.sort().map((col) => {
+        // Gather filters for this column from all sources in the group.
+        const colFilters: DashboardBrushFilter[] = [];
+        for (const id of sourceIds) {
+          for (const f of brushFilters.get(id) ?? []) {
+            if (f.column === col) colFilters.push(f);
+          }
+        }
+        // De-duplicate (filters are propagated identically across sources).
+        const seen = new Set<string>();
+        const uniqueFilters = colFilters.filter((f) => {
+          const k = `${f.column}|${f.op}|${f.value}`;
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        });
         return m(
           Popup,
           {
             trigger: m(Chip, {
-              label: `${col}: ${summarizeBrushFilters(colFilters)}`,
+              label: `${col}: ${summarizeBrushFilters(uniqueFilters)}`,
               icon: 'filter_alt',
               compact: true,
               rounded: true,
               removable: true,
               onRemove: () => {
-                this.clearBrushFiltersForColumn(attrs, sourceNodeId, col);
+                this.clearBrushFiltersForColumn(
+                  attrs,
+                  representativeSourceId,
+                  col,
+                );
               },
             }),
             position: PopupPosition.Bottom,
           },
           m(
             '.pf-dashboard__filter-popup',
-            colFilters.map((f) =>
+            uniqueFilters.map((f) =>
               m(MenuItem, {
                 label: formatBrushFilterValue(f),
                 icon: Icons.Checkbox,
                 onclick: () => {
-                  this.removeSingleBrushFilter(attrs, sourceNodeId, f);
+                  this.removeSingleBrushFilter(
+                    attrs,
+                    representativeSourceId,
+                    f,
+                  );
                 },
               }),
             ),
@@ -717,7 +799,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       groups.push(
         m('.pf-dashboard__filter-group', [
           m(Chip, {
-            label: sourceName,
+            label,
             icon: 'database',
             compact: true,
             className: 'pf-dashboard__source-chip',
@@ -816,6 +898,82 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     }
 
     return sections;
+  }
+
+  /**
+   * Renders the "Linked Columns" panel showing columns that appear in
+   * multiple datasources and will be cross-filtered when brushed.
+   */
+  private renderLinkedColumnsPanel(attrs: DashboardAttrs): m.Children {
+    const sources = attrs.sources;
+    if (sources.length < 2) {
+      return m(
+        EmptyState,
+        {icon: 'link', title: 'No linked columns'},
+        'Add two or more data sources to see columns that are shared across them.',
+      );
+    }
+
+    // Build a map: column name → list of sources that contain it.
+    const columnSources = new Map<
+      string,
+      {source: DashboardDataSource; type: string}[]
+    >();
+    for (const source of sources) {
+      for (const col of source.columns) {
+        const entries = columnSources.get(col.name) ?? [];
+        entries.push({
+          source,
+          type: perfettoSqlTypeToString(col.type),
+        });
+        columnSources.set(col.name, entries);
+      }
+    }
+
+    // Filter to columns that appear in 2+ sources.
+    const linked = [...columnSources.entries()]
+      .filter(([, entries]) => entries.length >= 2)
+      .sort(([a], [b]) => a.localeCompare(b));
+
+    if (linked.length === 0) {
+      return m(
+        EmptyState,
+        {icon: 'link_off', title: 'No shared columns'},
+        'None of the data sources share a column name. Brushing one source will not filter others.',
+      );
+    }
+
+    return [
+      m('.pf-dashboard__panel-section', [
+        m(
+          '.pf-dashboard__panel-section-title',
+          `Linked columns (${linked.length})`,
+        ),
+        m(
+          '.pf-dashboard__input-list',
+          linked.map(([columnName, entries]) =>
+            m('.pf-dashboard__linked-column', [
+              m('.pf-dashboard__linked-column-name', [
+                m(Icon, {icon: 'link'}),
+                m('code', columnName),
+              ]),
+              m(
+                '.pf-dashboard__linked-column-sources',
+                entries.map((entry) =>
+                  m('.pf-dashboard__linked-column-source', [
+                    m(
+                      'span.pf-dashboard__linked-source-name',
+                      entry.source.name,
+                    ),
+                    m('span.pf-dashboard__column-type', entry.type),
+                  ]),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+    ];
   }
 
   private renderInputContent(

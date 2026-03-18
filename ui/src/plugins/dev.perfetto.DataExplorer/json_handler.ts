@@ -168,22 +168,28 @@ export function serializeState(state: DataExplorerState): string {
   return JSON.stringify(serializedGraph, replacer, 2);
 }
 
-export function exportStateAsJson(state: DataExplorerState, trace: Trace): void {
-  const json = serializeState(state);
+/** Trigger a browser download of a JSON string. */
+export function downloadJsonFile(json: string, filename: string): void {
   const blob = new Blob([json], {type: 'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
+export function exportStateAsJson(
+  state: DataExplorerState,
+  trace: Trace,
+): void {
+  const json = serializeState(state);
   const traceName = trace.traceInfo.traceTitle.replace(
     /[^a-zA-Z0-9._-]+/g,
     '_',
   );
   const date = new Date().toISOString().slice(0, 10);
-  a.download = `${traceName}-graph-${date}.json`;
-
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadJsonFile(json, `${traceName}-graph-${date}.json`);
 }
 
 function createNodeInstance(
