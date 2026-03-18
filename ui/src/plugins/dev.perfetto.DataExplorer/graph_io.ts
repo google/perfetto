@@ -17,7 +17,12 @@ import {assetSrc} from '../../base/assets';
 import {showModal} from '../../widgets/modal';
 import {Trace} from '../../public/trace';
 import {QueryNode} from './query_node';
-import {exportStateAsJson, deserializeState} from './json_handler';
+import {
+  serializeState,
+  exportStateAsJson,
+  deserializeState,
+  downloadJsonFile,
+} from './json_handler';
 import {nodeRegistry} from './query_builder/node_registry';
 import {SlicesSourceNode} from './query_builder/nodes/sources/slices_source';
 import {
@@ -25,7 +30,16 @@ import {
   showExportWarning,
 } from './query_builder/widgets';
 import {recentGraphsStorage} from './recent_graphs';
-import {DataExplorerState} from './data_explorer';
+import {DataExplorerState, DashboardTabState} from './data_explorer';
+import type {DataExplorerTab} from './data_explorer';
+import {
+  serializeDashboardsForTab,
+  SerializedDashboard,
+} from './data_explorer_tabs_storage';
+import {
+  validateDashboardItems,
+  parseBrushFilters,
+} from './dashboard/dashboard_registry';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 
 // Dependencies needed by graph I/O operations.
@@ -268,4 +282,133 @@ export async function createDataExplorerGraph(
       loadGeneration: (currentState.loadGeneration ?? 0) + 1,
     }));
   }
+}
+
+// --- Whole-tab export/import ---
+
+export interface SerializedTabExport {
+  version: number;
+  title: string;
+  graph: string;
+  dashboards?: SerializedDashboard[];
+}
+
+export function isSerializedTabExport(
+  obj: unknown,
+): obj is SerializedTabExport {
+  if (typeof obj !== 'object' || obj === null) return false;
+  const rec = obj as Record<string, unknown>;
+  return (
+    typeof rec.version === 'number' &&
+    typeof rec.title === 'string' &&
+    typeof rec.graph === 'string'
+  );
+}
+
+export function hydrateDashboardsFromExport(
+  serialized?: unknown,
+): DashboardTabState[] | undefined {
+  if (!Array.isArray(serialized) || serialized.length === 0) return undefined;
+  const result: DashboardTabState[] = [];
+  for (const raw of serialized) {
+    if (typeof raw !== 'object' || raw === null) continue;
+    const db = raw as Record<string, unknown>;
+    if (typeof db.id !== 'string' || typeof db.title !== 'string') continue;
+    result.push({
+      id: db.id,
+      title: db.title,
+      items: validateDashboardItems(db.items as unknown[] | undefined) ?? [],
+      brushFilters:
+        db.brushFilters !== undefined &&
+        typeof db.brushFilters === 'object' &&
+        !Array.isArray(db.brushFilters)
+          ? parseBrushFilters(db.brushFilters as Record<string, unknown[]>)
+          : new Map(),
+    });
+  }
+  return result.length > 0 ? result : undefined;
+}
+
+export async function exportTab(
+  tab: DataExplorerTab,
+  trace: Trace,
+): Promise<void> {
+  const confirmed = await showExportWarning();
+  if (!confirmed) return;
+
+  const graphJson = serializeState(tab.state);
+  const dashboards = serializeDashboardsForTab(tab);
+
+  const exported: SerializedTabExport = {
+    version: 1,
+    title: tab.title,
+    graph: graphJson,
+    dashboards,
+  };
+
+  const json = JSON.stringify(exported, null, 2);
+  const traceName = trace.traceInfo.traceTitle.replace(
+    /[^a-zA-Z0-9._-]+/g,
+    '_',
+  );
+  const tabName = tab.title.replace(/[^a-zA-Z0-9._-]+/g, '_');
+  const date = new Date().toISOString().slice(0, 10);
+  downloadJsonFile(json, `${traceName}-tab-${tabName}-${date}.json`);
+}
+
+export function importTab(
+  deps: GraphIODeps,
+  onCreateTab: (
+    title: string,
+    state: DataExplorerState,
+    dashboards?: DashboardTabState[],
+  ) => void,
+): void {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = (event) => {
+    const files = (event.target as HTMLInputElement).files;
+    if (files === null || files.length === 0) return;
+    const file = files[0];
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result;
+      if (typeof text !== 'string' || text.length === 0) {
+        console.error('The selected file is empty or could not be read.');
+        return;
+      }
+      try {
+        const parsed: unknown = JSON.parse(text);
+        if (isSerializedTabExport(parsed)) {
+          const newState = deserializeState(
+            parsed.graph,
+            deps.trace,
+            deps.sqlModules,
+          );
+          const dashboards = hydrateDashboardsFromExport(parsed.dashboards);
+          const name = parsed.title ?? file.name.replace(/\.json$/i, '');
+          onCreateTab(name, newState, dashboards);
+        } else {
+          // Plain graph import (backward compat)
+          const newState = deserializeState(text, deps.trace, deps.sqlModules);
+          const name = file.name.replace(/\.json$/i, '');
+          onCreateTab(name, newState);
+        }
+      } catch (error) {
+        console.error('Failed to import tab:', error);
+        showModal({
+          title: 'Import Failed',
+          content: () =>
+            m(
+              'div',
+              `Failed to import: ${error instanceof Error ? error.message : String(error)}`,
+            ),
+          buttons: [],
+        });
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
 }

@@ -33,6 +33,7 @@ import {
   DashboardDataSource,
   DashboardItem,
   getItemId,
+  getLinkedSourceNodeIds,
 } from './dashboard_registry';
 import {EmptyState} from '../../../widgets/empty_state';
 import {SqlValue} from '../../../trace_processor/query_result';
@@ -47,6 +48,7 @@ export interface DashboardChartViewAttrs {
   config: ChartConfig;
   dashboardId: string;
   items: DashboardItem[];
+  allSources: ReadonlyArray<DashboardDataSource>;
   brushFilters: Map<string, DashboardBrushFilter[]>;
   onItemsChange: (items: DashboardItem[]) => void;
   onBrushFiltersChange: (filters: Map<string, DashboardBrushFilter[]>) => void;
@@ -56,6 +58,7 @@ export interface DashboardChartViewAttrs {
 export interface DashboardChartCallbacks {
   dashboardId: string;
   items: DashboardItem[];
+  allSources: ReadonlyArray<DashboardDataSource>;
   brushFilters: Map<string, DashboardBrushFilter[]>;
   onItemsChange: (items: DashboardItem[]) => void;
   onBrushFiltersChange: (filters: Map<string, DashboardBrushFilter[]>) => void;
@@ -73,6 +76,10 @@ class DashboardChartAdapter implements ChartColumnProvider {
   // clearChartFiltersForColumn + setBrushSelection works the same way as
   // the visualisation node (synchronous mutations on the same array).
   private filters: DashboardBrushFilter[];
+  // Columns explicitly cleared since the last flush — used by flushFilters
+  // to propagate clears to other datasources even when no new filters are
+  // added for the cleared column.
+  private pendingClearedColumns = new Set<string>();
   private callbacks: DashboardChartCallbacks;
   private config: ChartConfig;
 
@@ -126,16 +133,46 @@ class DashboardChartAdapter implements ChartColumnProvider {
     } else {
       newMap.set(this.sourceNodeId, [...this.filters]);
     }
+
+    // Cross-datasource brushing: propagate filters to other sources that
+    // share columns with the same name. Also clear columns that were
+    // explicitly cleared (pendingClearedColumns) even if no new filters
+    // were added for them.
+    const touchedColumns = new Set([
+      ...this.filters.map((f) => f.column),
+      ...this.pendingClearedColumns,
+    ]);
+    this.pendingClearedColumns.clear();
+
+    for (const col of touchedColumns) {
+      const newFiltersForCol = this.filters.filter((f) => f.column === col);
+      for (const id of getLinkedSourceNodeIds(
+        this.callbacks.allSources,
+        this.sourceNodeId,
+        col,
+      )) {
+        if (id === this.sourceNodeId) continue;
+        const existing = newMap.get(id) ?? [];
+        const retained = existing.filter((f) => f.column !== col);
+        const combined = [...retained, ...newFiltersForCol];
+        if (combined.length === 0) {
+          newMap.delete(id);
+        } else {
+          newMap.set(id, combined);
+        }
+      }
+    }
+
     this.callbacks.onBrushFiltersChange(newMap);
   }
 
   clearChartFiltersForColumn(column: string): void {
-    this.filters = this.filters.filter((f) => f.column !== column);
+    this.clearColumnLocally(column);
     this.flushFilters();
   }
 
   setBrushSelection(column: string, values: SqlValue[]): void {
-    this.clearChartFiltersForColumn(column);
+    this.clearColumnLocally(column);
     for (const value of values) {
       if (value === null) {
         this.filters.push({column, op: 'is null'});
@@ -148,11 +185,17 @@ class DashboardChartAdapter implements ChartColumnProvider {
   }
 
   addRangeFilter(column: string, min: number, max: number): void {
-    this.clearChartFiltersForColumn(column);
+    this.clearColumnLocally(column);
     this.filters.push({column, op: '>=', value: min});
     this.filters.push({column, op: '<', value: max});
     this.flushFilters();
     m.redraw();
+  }
+
+  /** Remove filters for `column` locally without flushing. */
+  private clearColumnLocally(column: string): void {
+    this.filters = this.filters.filter((f) => f.column !== column);
+    this.pendingClearedColumns.add(column);
   }
 
   updateChart(
@@ -280,7 +323,7 @@ export class DashboardChartView
     );
     if (tableName === undefined || config.column === '' || !columnValid) {
       let entry = this.loaders.get(config.id);
-      if (!entry) {
+      if (entry === undefined) {
         entry = {key: ''};
         this.loaders.set(config.id, entry);
       }
@@ -298,9 +341,9 @@ export class DashboardChartView
     const key = buildLoaderCacheKey(tableName, config, filterKey);
 
     const existing = this.loaders.get(config.id);
-    if (existing && existing.key === key) return existing;
+    if (existing !== undefined && existing.key === key) return existing;
 
-    if (existing) {
+    if (existing !== undefined) {
       disposeChartLoaders(existing);
     }
 
