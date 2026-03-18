@@ -67,11 +67,9 @@ void AppendFlagList(std::string* out, const std::vector<FlagSpec>& flags) {
 
 std::string FormatSubcommandUsage(const char* argv0, Subcommand* cmd) {
   std::string out;
-  char buf[256];
-
-  snprintf(buf, sizeof(buf), "Usage: %s %s [FLAGS] %s\n\n", argv0, cmd->name(),
-           cmd->usage_args());
-  out += buf;
+  base::StackString<256> buf("Usage: %s %s [FLAGS] %s\n\n", argv0, cmd->name(),
+                             cmd->usage_args());
+  out += buf.c_str();
   out += cmd->description();
   out += "\n\n";
   out += cmd->detailed_help();

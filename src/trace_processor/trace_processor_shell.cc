@@ -1076,6 +1076,12 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     }
   }
 
+  // No arguments at all: show the subcommand-based help.
+  if (argc == 1) {
+    PrintSubcommandHelp(argv[0]);
+    return base::OkStatus();
+  }
+
   CommandLineOptions options = ParseCommandLineOptions(argc, argv);
 
   Config config = platform_interface_->DefaultConfig();
