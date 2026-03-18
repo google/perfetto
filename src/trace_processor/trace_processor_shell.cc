@@ -19,8 +19,6 @@
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
-#include <chrono>
-#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -43,39 +41,34 @@
 #include <google/protobuf/text_format.h>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"  // IWYU pragma: keep
-#include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/status_macros.h"
-#include "perfetto/ext/base/status_or.h"
-#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/read_trace.h"
-#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
-#include "src/trace_processor/metrics/all_webview_metrics.descriptor.h"
-#include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/read_trace_internal.h"
 #include "src/trace_processor/rpc/rpc.h"
 #include "src/trace_processor/rpc/stdiod.h"
+#include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/interactive.h"
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/metrics.h"
 #include "src/trace_processor/shell/query.h"
+#include "src/trace_processor/shell/query_subcommand.h"
 #include "src/trace_processor/shell/shell_utils.h"
 #include "src/trace_processor/shell/sql_packages.h"
+#include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/trace_summary/summary.h"
 #include "src/trace_processor/util/deobfuscation/deobfuscator.h"
-#include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
@@ -371,108 +364,108 @@ Metrics (v1):
                 argv[0]);
 }
 
+enum LongOption {
+  OPT_HTTP_PORT = 1000,
+  OPT_HTTP_IP,
+  OPT_HTTP_ADDITIONAL_CORS_ORIGINS,
+  OPT_STDIOD,
+
+  OPT_FORCE_FULL_SORT,
+  OPT_NO_FTRACE_RAW,
+
+  OPT_ADD_SQL_PACKAGE,
+  OPT_OVERRIDE_SQL_PACKAGE,
+  OPT_STRUCTURED_QUERY_SPEC,
+  OPT_STRUCTURED_QUERY_ID,
+
+  OPT_SUMMARY,
+  OPT_SUMMARY_METRICS_V2,
+  OPT_SUMMARY_METADATA_QUERY,
+  OPT_SUMMARY_SPEC,
+  OPT_SUMMARY_FORMAT,
+
+  OPT_METATRACE_BUFFER_CAPACITY,
+  OPT_METATRACE_CATEGORIES,
+
+  OPT_DEV,
+  OPT_DEV_FLAG,
+  OPT_EXTRA_CHECKS,
+  OPT_ANALYZE_TRACE_PROTO_CONTENT,
+  OPT_CROP_TRACK_EVENTS,
+  OPT_REGISTER_FILES_DIR,
+  OPT_OVERRIDE_STDLIB,
+
+  OPT_RUN_METRICS,
+  OPT_PRE_METRICS,
+  OPT_METRICS_OUTPUT,
+  OPT_METRIC_EXTENSION,
+};
+
+constexpr char kShortOptions[] = "hvWiDdm:p:q:Q:e:";
+
+const option kLongOptions[] = {
+    {"help", no_argument, nullptr, 'h'},
+    {"version", no_argument, nullptr, 'v'},
+
+    {"httpd", no_argument, nullptr, 'D'},
+    {"http-port", required_argument, nullptr, OPT_HTTP_PORT},
+    {"http-ip-address", required_argument, nullptr, OPT_HTTP_IP},
+    {"http-additional-cors-origins", required_argument, nullptr,
+     OPT_HTTP_ADDITIONAL_CORS_ORIGINS},
+    {"stdiod", no_argument, nullptr, OPT_STDIOD},
+    {"interactive", no_argument, nullptr, 'i'},
+
+    {"full-sort", no_argument, nullptr, OPT_FORCE_FULL_SORT},
+    {"no-ftrace-raw", no_argument, nullptr, OPT_NO_FTRACE_RAW},
+
+    {"query-file", required_argument, nullptr, 'q'},
+    {"query-string", required_argument, nullptr, 'Q'},
+    {"structured-query-spec", required_argument, nullptr,
+     OPT_STRUCTURED_QUERY_SPEC},
+    {"structured-query-id", required_argument, nullptr,
+     OPT_STRUCTURED_QUERY_ID},
+    {"add-sql-package", required_argument, nullptr, OPT_ADD_SQL_PACKAGE},
+    {"override-sql-package", required_argument, nullptr,
+     OPT_OVERRIDE_SQL_PACKAGE},
+
+    {"summary", no_argument, nullptr, OPT_SUMMARY},
+    {"summary-metrics-v2", required_argument, nullptr, OPT_SUMMARY_METRICS_V2},
+    {"summary-metadata-query", required_argument, nullptr,
+     OPT_SUMMARY_METADATA_QUERY},
+    {"summary-spec", required_argument, nullptr, OPT_SUMMARY_SPEC},
+    {"summary-format", required_argument, nullptr, OPT_SUMMARY_FORMAT},
+
+    {"metatrace", required_argument, nullptr, 'm'},
+    {"metatrace-buffer-capacity", required_argument, nullptr,
+     OPT_METATRACE_BUFFER_CAPACITY},
+    {"metatrace-categories", required_argument, nullptr,
+     OPT_METATRACE_CATEGORIES},
+
+    {"dev", no_argument, nullptr, OPT_DEV},
+    {"dev-flag", required_argument, nullptr, OPT_DEV_FLAG},
+    {"extra-checks", no_argument, nullptr, OPT_EXTRA_CHECKS},
+    {"export", required_argument, nullptr, 'e'},
+    {"perf-file", required_argument, nullptr, 'p'},
+    {"wide", no_argument, nullptr, 'W'},
+    {"analyze-trace-proto-content", no_argument, nullptr,
+     OPT_ANALYZE_TRACE_PROTO_CONTENT},
+    {"crop-track-events", no_argument, nullptr, OPT_CROP_TRACK_EVENTS},
+    {"register-files-dir", required_argument, nullptr, OPT_REGISTER_FILES_DIR},
+    {"override-stdlib", required_argument, nullptr, OPT_OVERRIDE_STDLIB},
+
+    {"run-metrics", required_argument, nullptr, OPT_RUN_METRICS},
+    {"pre-metrics", required_argument, nullptr, OPT_PRE_METRICS},
+    {"metrics-output", required_argument, nullptr, OPT_METRICS_OUTPUT},
+    {"metric-extension", required_argument, nullptr, OPT_METRIC_EXTENSION},
+
+    {nullptr, 0, nullptr, 0}};
+
 CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   CommandLineOptions command_line_options;
-  enum LongOption {
-    OPT_HTTP_PORT = 1000,
-    OPT_HTTP_IP,
-    OPT_HTTP_ADDITIONAL_CORS_ORIGINS,
-    OPT_STDIOD,
-
-    OPT_FORCE_FULL_SORT,
-    OPT_NO_FTRACE_RAW,
-
-    OPT_ADD_SQL_PACKAGE,
-    OPT_OVERRIDE_SQL_PACKAGE,
-    OPT_STRUCTURED_QUERY_SPEC,
-    OPT_STRUCTURED_QUERY_ID,
-
-    OPT_SUMMARY,
-    OPT_SUMMARY_METRICS_V2,
-    OPT_SUMMARY_METADATA_QUERY,
-    OPT_SUMMARY_SPEC,
-    OPT_SUMMARY_FORMAT,
-
-    OPT_METATRACE_BUFFER_CAPACITY,
-    OPT_METATRACE_CATEGORIES,
-
-    OPT_DEV,
-    OPT_DEV_FLAG,
-    OPT_EXTRA_CHECKS,
-    OPT_ANALYZE_TRACE_PROTO_CONTENT,
-    OPT_CROP_TRACK_EVENTS,
-    OPT_REGISTER_FILES_DIR,
-    OPT_OVERRIDE_STDLIB,
-
-    OPT_RUN_METRICS,
-    OPT_PRE_METRICS,
-    OPT_METRICS_OUTPUT,
-    OPT_METRIC_EXTENSION,
-  };
-
-  static const option long_options[] = {
-      {"help", no_argument, nullptr, 'h'},
-      {"version", no_argument, nullptr, 'v'},
-
-      {"httpd", no_argument, nullptr, 'D'},
-      {"http-port", required_argument, nullptr, OPT_HTTP_PORT},
-      {"http-ip-address", required_argument, nullptr, OPT_HTTP_IP},
-      {"http-additional-cors-origins", required_argument, nullptr,
-       OPT_HTTP_ADDITIONAL_CORS_ORIGINS},
-      {"stdiod", no_argument, nullptr, OPT_STDIOD},
-      {"interactive", no_argument, nullptr, 'i'},
-
-      {"full-sort", no_argument, nullptr, OPT_FORCE_FULL_SORT},
-      {"no-ftrace-raw", no_argument, nullptr, OPT_NO_FTRACE_RAW},
-
-      {"query-file", required_argument, nullptr, 'q'},
-      {"query-string", required_argument, nullptr, 'Q'},
-      {"structured-query-spec", required_argument, nullptr,
-       OPT_STRUCTURED_QUERY_SPEC},
-      {"structured-query-id", required_argument, nullptr,
-       OPT_STRUCTURED_QUERY_ID},
-      {"add-sql-package", required_argument, nullptr, OPT_ADD_SQL_PACKAGE},
-      {"override-sql-package", required_argument, nullptr,
-       OPT_OVERRIDE_SQL_PACKAGE},
-
-      {"summary", no_argument, nullptr, OPT_SUMMARY},
-      {"summary-metrics-v2", required_argument, nullptr,
-       OPT_SUMMARY_METRICS_V2},
-      {"summary-metadata-query", required_argument, nullptr,
-       OPT_SUMMARY_METADATA_QUERY},
-      {"summary-spec", required_argument, nullptr, OPT_SUMMARY_SPEC},
-      {"summary-format", required_argument, nullptr, OPT_SUMMARY_FORMAT},
-
-      {"metatrace", required_argument, nullptr, 'm'},
-      {"metatrace-buffer-capacity", required_argument, nullptr,
-       OPT_METATRACE_BUFFER_CAPACITY},
-      {"metatrace-categories", required_argument, nullptr,
-       OPT_METATRACE_CATEGORIES},
-
-      {"dev", no_argument, nullptr, OPT_DEV},
-      {"dev-flag", required_argument, nullptr, OPT_DEV_FLAG},
-      {"extra-checks", no_argument, nullptr, OPT_EXTRA_CHECKS},
-      {"export", required_argument, nullptr, 'e'},
-      {"perf-file", required_argument, nullptr, 'p'},
-      {"wide", no_argument, nullptr, 'W'},
-      {"analyze-trace-proto-content", no_argument, nullptr,
-       OPT_ANALYZE_TRACE_PROTO_CONTENT},
-      {"crop-track-events", no_argument, nullptr, OPT_CROP_TRACK_EVENTS},
-      {"register-files-dir", required_argument, nullptr,
-       OPT_REGISTER_FILES_DIR},
-      {"override-stdlib", required_argument, nullptr, OPT_OVERRIDE_STDLIB},
-
-      {"run-metrics", required_argument, nullptr, OPT_RUN_METRICS},
-      {"pre-metrics", required_argument, nullptr, OPT_PRE_METRICS},
-      {"metrics-output", required_argument, nullptr, OPT_METRICS_OUTPUT},
-      {"metric-extension", required_argument, nullptr, OPT_METRIC_EXTENSION},
-
-      {nullptr, 0, nullptr, 0}};
 
   bool explicit_interactive = false;
   for (;;) {
-    int option =
-        getopt_long(argc, argv, "hvWiDdm:p:q:Q:e:", long_options, nullptr);
+    int option = getopt_long(argc, argv, kShortOptions, kLongOptions, nullptr);
 
     if (option == -1)
       break;  // EOF.
@@ -910,6 +903,63 @@ TraceProcessorShell::CreateWithDefaultPlatform() {
 }
 
 base::Status TraceProcessorShell::Run(int argc, char** argv) {
+  // Subcommand dispatch: if a positional argument matches a known subcommand
+  // name, route to it. Otherwise fall through to classic path.
+  {
+    shell::QuerySubcommand query_subcommand;
+    std::vector<shell::Subcommand*> subcommands = {&query_subcommand};
+
+    // Build the set of flags that consume an argument, derived from the
+    // classic kLongOptions array, kShortOptions, and subcommand FlagSpecs.
+    std::unordered_set<std::string> flags_with_arg;
+    for (const auto* o = kLongOptions; o->name; ++o) {
+      if (o->has_arg == required_argument)
+        flags_with_arg.insert("--" + std::string(o->name));
+    }
+    for (const char* p = kShortOptions; *p; ++p) {
+      if (*(p + 1) == ':') {
+        flags_with_arg.insert(std::string("-") + *p);
+        ++p;  // skip ':'
+      }
+    }
+    for (auto* sc : subcommands) {
+      for (const auto& f : sc->GetFlags()) {
+        if (f.has_arg) {
+          flags_with_arg.insert("--" + std::string(f.long_name));
+          if (f.short_name)
+            flags_with_arg.insert(std::string(1, '-') + f.short_name);
+        }
+      }
+    }
+
+    auto result =
+        shell::FindSubcommandInArgs(argc, argv, subcommands, flags_with_arg);
+    if (result.subcommand) {
+      // Remove the subcommand name from argv.
+      for (int i = result.argv_index; i < argc - 1; ++i)
+        argv[i] = argv[i + 1];
+      argc--;
+
+      shell::GlobalOptions global;
+      shell::SubcommandContext ctx;
+      ctx.platform = platform_interface_.get();
+      ctx.global = &global;
+
+      RETURN_IF_ERROR(shell::ParseFlags(result.subcommand, &ctx, argc, argv));
+      if (global.help) {
+        shell::PrintSubcommandUsage(argv[0], result.subcommand);
+        return base::OkStatus();
+      }
+      if (global.version) {
+        printf("%s\n", base::GetVersionString());
+        printf("Trace Processor RPC API version: %d\n",
+               protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
+        return base::OkStatus();
+      }
+      return result.subcommand->Run(ctx);
+    }
+  }
+
   CommandLineOptions options = ParseCommandLineOptions(argc, argv);
 
   Config config = platform_interface_->DefaultConfig();
