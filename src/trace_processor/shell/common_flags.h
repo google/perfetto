@@ -68,8 +68,8 @@ struct GlobalOptions {
 // Returns the FlagSpec entries for all global options.
 std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts);
 
-// Prints usage for a subcommand to stderr.
-void PrintSubcommandUsage(const char* argv0, Subcommand* cmd);
+// Returns the formatted usage string for a subcommand.
+std::string FormatSubcommandUsage(const char* argv0, Subcommand* cmd);
 
 // Parses flags for a subcommand. Combines the subcommand's flags with
 // the global flags, then parses argv using getopt_long.

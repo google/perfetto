@@ -86,6 +86,12 @@ class Subcommand {
   // A short one-line description shown in help output.
   virtual const char* description() const = 0;
 
+  // Positional args shown in usage line, e.g. "<trace_file> [SQL]".
+  virtual const char* usage_args() const = 0;
+
+  // Multi-line detailed help shown in per-subcommand help.
+  virtual const char* detailed_help() const = 0;
+
   // Returns the flags this subcommand accepts.
   virtual std::vector<FlagSpec> GetFlags() = 0;
 

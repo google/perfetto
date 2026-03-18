@@ -50,33 +50,42 @@ namespace perfetto::trace_processor::shell {
 
 namespace {
 
-void PrintFlagList(const std::vector<FlagSpec>& flags) {
+void AppendFlagList(std::string* out, const std::vector<FlagSpec>& flags) {
+  char buf[256];
   for (const auto& f : flags) {
     if (f.short_name) {
-      fprintf(stderr, "  -%c, --%-24s %s\n", f.short_name, f.long_name, f.help);
+      snprintf(buf, sizeof(buf), "  -%c, --%-24s %s\n", f.short_name,
+               f.long_name, f.help);
     } else {
-      fprintf(stderr, "      --%-24s %s\n", f.long_name, f.help);
+      snprintf(buf, sizeof(buf), "      --%-24s %s\n", f.long_name, f.help);
     }
+    *out += buf;
   }
 }
 
 }  // namespace
 
-void PrintSubcommandUsage(const char* argv0, Subcommand* cmd) {
-  fprintf(stderr, "Usage: %s %s [FLAGS] <trace_file> [SQL]\n\n", argv0,
-          cmd->name());
-  fprintf(stderr, "%s\n\n", cmd->description());
+std::string FormatSubcommandUsage(const char* argv0, Subcommand* cmd) {
+  std::string out;
+  base::StackString<256> buf("Usage: %s %s [FLAGS] %s\n\n", argv0, cmd->name(),
+                             cmd->usage_args());
+  out += buf.c_str();
+  out += cmd->description();
+  out += "\n\n";
+  out += cmd->detailed_help();
+  out += "\n\n";
 
   auto sub_flags = cmd->GetFlags();
   if (!sub_flags.empty()) {
-    fprintf(stderr, "Subcommand flags:\n");
-    PrintFlagList(sub_flags);
-    fprintf(stderr, "\n");
+    out += "Subcommand flags:\n";
+    AppendFlagList(&out, sub_flags);
+    out += "\n";
   }
 
   GlobalOptions dummy;
-  fprintf(stderr, "Global flags:\n");
-  PrintFlagList(GetGlobalFlagSpecs(&dummy));
+  out += "Global flags:\n";
+  AppendFlagList(&out, GetGlobalFlagSpecs(&dummy));
+  return out;
 }
 
 std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts) {
@@ -223,7 +232,11 @@ base::Status ParseFlags(Subcommand* cmd,
       break;
 
     if (opt == '?') {
-      return base::ErrStatus("Unknown flag. Use --help for usage.");
+      // getopt_long already printed a diagnostic to stderr; mark the
+      // status so callers know not to print the message again.
+      base::Status s = base::ErrStatus("Unknown flag");
+      s.SetPayload("perfetto.dev/has_printed_error", "1");
+      return s;
     }
 
     bool found = false;

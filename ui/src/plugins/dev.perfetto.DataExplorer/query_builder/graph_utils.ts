@@ -510,6 +510,21 @@ export function validateSecondaryInputs(node: QueryNode): string | undefined {
 }
 
 /**
+ * Returns true if adding a connection from `fromNode` to `toNode` would
+ * create a cycle in the graph. A cycle exists if `fromNode` is reachable
+ * from `toNode` via forward edges (i.e., `fromNode` is already downstream
+ * of `toNode`), or if `fromNode === toNode` (self-loop).
+ */
+export function wouldCreateCycle(
+  fromNode: QueryNode,
+  toNode: QueryNode,
+): boolean {
+  if (fromNode === toNode) return true;
+  const downstream = getAllDownstreamNodes(toNode);
+  return downstream.includes(fromNode);
+}
+
+/**
  * Adds a connection from one node to another, updating both forward and
  * backward links. For multi-source nodes, adds to the specified port index.
  */

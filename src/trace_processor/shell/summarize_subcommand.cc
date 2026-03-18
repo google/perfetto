@@ -43,6 +43,19 @@ const char* SummarizeSubcommand::description() const {
   return "Run trace summarization.";
 }
 
+const char* SummarizeSubcommand::usage_args() const {
+  return "<trace_file> [spec_file ...]";
+}
+
+const char* SummarizeSubcommand::detailed_help() const {
+  return R"(Compute a trace summary using spec files and/or built-in metrics.
+
+Spec files (textproto or binary proto) define which summary computations
+to run. They are passed as positional arguments after the trace file.
+Use --metrics-v2 to run built-in v2 metrics (pass "all" or comma-separated
+IDs). Output defaults to text proto; use --format binary for binary proto.)";
+}
+
 std::vector<FlagSpec> SummarizeSubcommand::GetFlags() {
   // Note: --spec is multi-valued but FlagSpec handlers are called per
   // occurrence, so we accumulate in a string with comma separation and
