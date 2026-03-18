@@ -20,6 +20,7 @@
 
 #include <set>
 #include <string>
+#include <vector>
 
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -139,6 +140,114 @@ TEST(PackagesListDataSourceTest, NameFilter) {
   EXPECT_EQ(packages.find(1000)->second.version_code, 10);
   EXPECT_EQ(packages.find(1002)->second.name, "com.test.three");
   EXPECT_EQ(packages.find(1002)->second.version_code, 30);
+}
+
+TEST(PackagesListDataSourceTest, RegexFilter) {
+  char buf[] =
+      "com.test.one 1000 0 /data/user/0/com.test.one "
+      "default:targetSdkVersion=10 none 0 10\n"
+      "com.test.two 1001 0 /data/user/0/com.test.two "
+      "default:targetSdkVersion=10 1065,3002 0 20\n"
+      "com.example.three 1002 0 /data/user/0/com.example.three "
+      "default:targetSdkVersion=10 1065,3002 0 30\n";
+
+  auto pipe = base::Pipe::Create();
+  PERFETTO_CHECK(write(pipe.wr.get(), buf, sizeof(buf) - 1) == sizeof(buf) - 1);
+  pipe.wr.reset();
+  auto fs = base::ScopedFstream(fdopen(pipe.rd.get(), "r"));
+  pipe.rd.release();
+
+  std::unordered_multimap<uint64_t, Package> packages;
+  std::set<std::string> name_filter{};
+  std::vector<std::string> regex_filter{"com\\.test\\..*"};
+
+  ASSERT_FALSE(
+      ParsePackagesListStream(packages, fs, name_filter, regex_filter));
+
+  // Only the two com.test.* packages should match.
+  EXPECT_EQ(packages.size(), 2lu);
+  EXPECT_EQ(packages.find(1000)->second.name, "com.test.one");
+  EXPECT_EQ(packages.find(1001)->second.name, "com.test.two");
+}
+
+TEST(PackagesListDataSourceTest, RegexFilterMultiplePatterns) {
+  char buf[] =
+      "com.test.one 1000 0 /data/user/0/com.test.one "
+      "default:targetSdkVersion=10 none 0 10\n"
+      "com.test.two 1001 0 /data/user/0/com.test.two "
+      "default:targetSdkVersion=10 1065,3002 0 20\n"
+      "com.example.three 1002 0 /data/user/0/com.example.three "
+      "default:targetSdkVersion=10 1065,3002 0 30\n";
+
+  auto pipe = base::Pipe::Create();
+  PERFETTO_CHECK(write(pipe.wr.get(), buf, sizeof(buf) - 1) == sizeof(buf) - 1);
+  pipe.wr.reset();
+  auto fs = base::ScopedFstream(fdopen(pipe.rd.get(), "r"));
+  pipe.rd.release();
+
+  std::unordered_multimap<uint64_t, Package> packages;
+  std::set<std::string> name_filter{};
+  std::vector<std::string> regex_filter{"com\\.test\\.one",
+                                        "com\\.example\\..*"};
+
+  ASSERT_FALSE(
+      ParsePackagesListStream(packages, fs, name_filter, regex_filter));
+
+  // com.test.one and com.example.three should match.
+  EXPECT_EQ(packages.size(), 2lu);
+  EXPECT_EQ(packages.find(1000)->second.name, "com.test.one");
+  EXPECT_EQ(packages.find(1002)->second.name, "com.example.three");
+}
+
+TEST(PackagesListDataSourceTest, ExactAndRegexFilterCombined) {
+  char buf[] =
+      "com.test.one 1000 0 /data/user/0/com.test.one "
+      "default:targetSdkVersion=10 none 0 10\n"
+      "com.test.two 1001 0 /data/user/0/com.test.two "
+      "default:targetSdkVersion=10 1065,3002 0 20\n"
+      "com.example.three 1002 0 /data/user/0/com.example.three "
+      "default:targetSdkVersion=10 1065,3002 0 30\n";
+
+  auto pipe = base::Pipe::Create();
+  PERFETTO_CHECK(write(pipe.wr.get(), buf, sizeof(buf) - 1) == sizeof(buf) - 1);
+  pipe.wr.reset();
+  auto fs = base::ScopedFstream(fdopen(pipe.rd.get(), "r"));
+  pipe.rd.release();
+
+  std::unordered_multimap<uint64_t, Package> packages;
+  std::set<std::string> name_filter{"com.test.one"};
+  std::vector<std::string> regex_filter{"com\\.example\\..*"};
+
+  ASSERT_FALSE(
+      ParsePackagesListStream(packages, fs, name_filter, regex_filter));
+
+  // com.test.one (exact) and com.example.three (regex) should match.
+  EXPECT_EQ(packages.size(), 2lu);
+  EXPECT_EQ(packages.find(1000)->second.name, "com.test.one");
+  EXPECT_EQ(packages.find(1002)->second.name, "com.example.three");
+}
+
+TEST(PackagesListDataSourceTest, BothFiltersEmptyIncludesAll) {
+  char buf[] =
+      "com.test.one 1000 0 /data/user/0/com.test.one "
+      "default:targetSdkVersion=10 none 0 10\n"
+      "com.test.two 1001 0 /data/user/0/com.test.two "
+      "default:targetSdkVersion=10 1065,3002 0 20\n";
+
+  auto pipe = base::Pipe::Create();
+  PERFETTO_CHECK(write(pipe.wr.get(), buf, sizeof(buf) - 1) == sizeof(buf) - 1);
+  pipe.wr.reset();
+  auto fs = base::ScopedFstream(fdopen(pipe.rd.get(), "r"));
+  pipe.rd.release();
+
+  std::unordered_multimap<uint64_t, Package> packages;
+  std::set<std::string> name_filter{};
+  std::vector<std::string> regex_filter{};
+
+  ASSERT_FALSE(
+      ParsePackagesListStream(packages, fs, name_filter, regex_filter));
+
+  EXPECT_EQ(packages.size(), 2lu);
 }
 
 }  // namespace

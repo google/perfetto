@@ -16,6 +16,8 @@
 
 #include "src/traced/probes/packages_list/packages_list_data_source.h"
 
+#include <regex>
+
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -47,7 +49,17 @@ const ProbesDataSource::Descriptor PackagesListDataSource::descriptor = {
 bool ParsePackagesListStream(
     std::unordered_multimap<uint64_t, Package>& packages,
     const base::ScopedFstream& fs,
-    const std::set<std::string>& package_name_filter) {
+    const std::set<std::string>& package_name_filter,
+    const std::vector<std::string>& package_name_filter_regex) {
+  // Pre-compile regex patterns.
+  std::vector<std::regex> compiled_regexes;
+  compiled_regexes.reserve(package_name_filter_regex.size());
+  for (const auto& pattern : package_name_filter_regex) {
+    compiled_regexes.emplace_back(pattern);
+  }
+
+  bool has_filter = !package_name_filter.empty() || !compiled_regexes.empty();
+
   bool parse_error = false;
   char line[2048];
   while (fgets(line, sizeof(line), *fs) != nullptr) {
@@ -56,9 +68,21 @@ bool ParsePackagesListStream(
       parse_error = true;
       continue;
     }
-    if (!package_name_filter.empty() &&
-        package_name_filter.count(pkg_struct.name) == 0) {
-      continue;
+    if (has_filter) {
+      if (package_name_filter.count(pkg_struct.name) != 0) {
+        packages.insert({pkg_struct.uid, pkg_struct});
+        continue;
+      }
+      bool regex_match_found = false;
+      for (const auto& re : compiled_regexes) {
+        if (std::regex_match(pkg_struct.name, re)) {
+          regex_match_found = true;
+          break;
+        }
+      }
+      if (!regex_match_found) {
+        continue;
+      }
     }
     packages.insert({pkg_struct.uid, pkg_struct});
   }
@@ -79,6 +103,9 @@ PackagesListDataSource::PackagesListDataSource(
   for (auto name = cfg.package_name_filter(); name; ++name) {
     package_name_filter_.emplace((*name).ToStdString());
   }
+  for (auto re = cfg.package_name_filter_regex(); re; ++re) {
+    package_name_filter_regex_.emplace_back((*re).ToStdString());
+  }
 
   only_write_on_cpu_use_every_ms_ = cfg.only_write_on_cpu_use_every_ms();
   if (only_write_on_cpu_use_every_ms_ != 0) {
@@ -97,8 +124,8 @@ PackagesListDataSource::PackagesListDataSource(
 void PackagesListDataSource::Start() {
   base::ScopedFstream fs(fopen("/data/system/packages.list", "r"));
   if (fs) {
-    packages_parse_error_ =
-        ParsePackagesListStream(packages_, fs, package_name_filter_);
+    packages_parse_error_ = ParsePackagesListStream(
+        packages_, fs, package_name_filter_, package_name_filter_regex_);
     if (ferror(*fs))
       packages_read_error_ = true;
 

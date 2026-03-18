@@ -19,9 +19,11 @@
 
 #include <functional>
 #include <memory>
+#include <regex>
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -43,7 +45,8 @@ class AndroidCpuPerUidPoller;
 bool ParsePackagesListStream(
     std::unordered_multimap<uint64_t, Package>& packages,
     const base::ScopedFstream& fs,
-    const std::set<std::string>& package_name_filter);
+    const std::set<std::string>& package_name_filter,
+    const std::vector<std::string>& package_name_filter_regex = {});
 
 class PackagesListDataSource : public ProbesDataSource {
  public:
@@ -81,6 +84,7 @@ class PackagesListDataSource : public ProbesDataSource {
   // this should be trivially small (or empty) in practice, and the latter uses
   // ever so slightly more memory.
   std::set<std::string> package_name_filter_;
+  std::vector<std::string> package_name_filter_regex_;
   std::unique_ptr<TraceWriter> writer_;
   base::WeakPtrFactory<PackagesListDataSource> weak_factory_;  // Keep last.
 };
