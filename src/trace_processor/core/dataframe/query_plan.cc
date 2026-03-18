@@ -209,6 +209,12 @@ std::optional<BestIndex> GetBestIndexForFilterSpecs(
       if (!found_spec_for_column) {
         break;
       }
+      // An In filter produces non-contiguous output, breaking the sort
+      // invariant needed by subsequent columns' binary searches. So In
+      // must be terminal: stop matching further index columns.
+      if (all_specs[current_specs_for_this_index.back()].op.Is<In>()) {
+        break;
+      }
     }
     if (current_specs_for_this_index.size() > best_index_specs.size()) {
       best_index_idx = i;

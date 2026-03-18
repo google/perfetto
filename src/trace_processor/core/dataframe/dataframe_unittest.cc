@@ -1736,6 +1736,40 @@ TEST(DataframeTest, TypedCursorInFilterWithIndex) {
   EXPECT_THAT(result_ids, testing::UnorderedElementsAre(0, 2, 3, 5));
 }
 
+// Regression test: IN values in reverse order should produce correct results.
+TEST(DataframeTest, TypedCursorInFilterWithIndexReverseOrder) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"id", "track_id"}, CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  // Insert rows with track_ids: 1, 2, 1, 3, 2, 1
+  df.InsertUnchecked(kSpec, std::monostate(), 1u);
+  df.InsertUnchecked(kSpec, std::monostate(), 2u);
+  df.InsertUnchecked(kSpec, std::monostate(), 1u);
+  df.InsertUnchecked(kSpec, std::monostate(), 3u);
+  df.InsertUnchecked(kSpec, std::monostate(), 2u);
+  df.InsertUnchecked(kSpec, std::monostate(), 1u);
+  df.Finalize();
+
+  df.AddIndex(Index({1}, std::make_shared<std::vector<uint32_t>>(
+                             std::vector<uint32_t>{0, 2, 5, 1, 4, 3})));
+
+  // IN (3, 1) — reverse order relative to index sort.
+  using FV = TypedCursor::FilterValue;
+  TypedCursor cursor(&df, {FilterSpec{1, 0, In{}, {}}}, {});
+  FV values[] = {int64_t(3), int64_t(1)};
+  cursor.SetFilterValueListUnchecked(0, values, 2);
+  cursor.ExecuteUnchecked();
+
+  std::vector<uint32_t> result_ids;
+  while (!cursor.Eof()) {
+    result_ids.push_back(cursor.GetCellUnchecked<0>(kSpec));
+    cursor.Next();
+  }
+  EXPECT_THAT(result_ids, testing::UnorderedElementsAre(0, 2, 3, 5));
+}
+
 TEST(DataframeTest,
      QueryPlanEqualityFilterOnNoDuplicatesColumnEstimatesOneRow) {
   static constexpr auto kSpec = CreateTypedDataframeSpec(

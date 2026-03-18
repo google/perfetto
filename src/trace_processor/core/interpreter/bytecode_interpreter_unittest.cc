@@ -1786,7 +1786,7 @@ TEST_F(BytecodeInterpreterTest, IndexedFilterIn_Uint32_NonNull_MultipleValues) {
                          Slab<uint32_t>::Alloc(0), GetSpan(p_vec),
                          GetStoragePtr<Uint32>(0), GetNullBv(0));
 
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), testing::ElementsAre(1, 4, 2, 5));
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), testing::ElementsAre(1, 2, 4, 5));
 }
 
 TEST_F(BytecodeInterpreterTest, IndexedFilterIn_Uint32_NonNull_NoMatch) {
@@ -1868,7 +1868,38 @@ TEST_F(BytecodeInterpreterTest,
                          GetSpan(p_vec), GetStoragePtr<String>(0),
                          GetNullBv(0));
 
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), testing::ElementsAre(0, 3, 2));
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), testing::ElementsAre(0, 2, 3));
+}
+
+// Regression test: IN values in reverse order relative to the index should
+// produce the same (sorted) result as forward order.
+TEST_F(BytecodeInterpreterTest,
+       IndexedFilterIn_Uint32_NonNull_ReverseOrderValues) {
+  // Column: {10, 20, 20, 30, 20, 40}
+  // Sorted permutation: {0, 1, 4, 2, 3, 5} (10, 20, 20, 20, 30, 40)
+  AddColumn(CreateNonNullColumn<uint32_t, uint32_t>(
+      {10u, 20u, 20u, 30u, 20u, 40u}, Unsorted{}, HasDuplicates{}));
+
+  std::vector<uint32_t> p_vec = {0, 1, 4, 2, 3, 5};
+  indexes_.emplace_back(std::vector<uint32_t>{0},
+                        std::make_shared<std::vector<uint32_t>>(p_vec));
+
+  std::string bytecode_str = R"(
+    IndexedFilterIn<Uint32, NonNull>: [storage_register=Register(3), null_bv_register=Register(4), value_list_register=Register(0), popcount_register=Register(1), source_register=Register(2), dest_register=Register(2)]
+  )";
+
+  // IN (40, 20) — reverse order. Should still find rows 1, 2, 4, 5.
+  auto value_list =
+      CastFilterValueListResult::Valid(CastFilterValueListResult::ValueList{
+          CreateFlexVectorForTesting<uint32_t>({40u, 20u})});
+
+  SetRegistersAndExecute(bytecode_str, std::move(value_list),
+                         Slab<uint32_t>::Alloc(0), GetSpan(p_vec),
+                         GetStoragePtr<Uint32>(0), GetNullBv(0));
+
+  // Output is sorted by permutation index.
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2),
+              testing::ElementsAre(1, 2, 4, 5));
 }
 
 TEST_F(BytecodeInterpreterTest, CopySpanIntersectingRange_PartialOverlap) {
@@ -2364,10 +2395,8 @@ TEST_F(BytecodeInterpreterTest, CastFilterValueList_Uint32) {
 
   const auto& result = GetRegister<CastFilterValueListResult>(0);
   ASSERT_EQ(result.validity, CastFilterValueResult::kValid);
-  // Small list (2 elements) stays as ValueList.
-  const auto& vl =
-      std::get<CastFilterValueListResult::ValueList>(result.lookup);
-  const auto& list = std::get<FlexVector<uint32_t>>(vl);
+  // Value list is always populated.
+  const auto& list = std::get<FlexVector<uint32_t>>(result.value_list);
   EXPECT_THAT(list, ElementsAre(10u, 20u));
 }
 
@@ -2386,10 +2415,8 @@ TEST_F(BytecodeInterpreterTest, CastFilterValueList_String) {
 
   const auto& result = GetRegister<CastFilterValueListResult>(0);
   ASSERT_EQ(result.validity, CastFilterValueResult::kValid);
-  // Small list (2 elements) stays as ValueList.
-  const auto& vl =
-      std::get<CastFilterValueListResult::ValueList>(result.lookup);
-  const auto& list = std::get<FlexVector<StringPool::Id>>(vl);
+  // Value list is always populated.
+  const auto& list = std::get<FlexVector<StringPool::Id>>(result.value_list);
   ASSERT_EQ(list.size(), 2u);
   EXPECT_EQ(spool_.Get(list[0]), "hello");
   EXPECT_EQ(spool_.Get(list[1]), "world");

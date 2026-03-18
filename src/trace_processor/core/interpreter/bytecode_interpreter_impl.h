@@ -28,6 +28,7 @@
 #include <optional>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -866,66 +867,72 @@ inline PERFETTO_ALWAYS_INLINE void CastFilterValue(
   state.WriteToRegister(f.arg<B::write_register>(), result);
 }
 
-// Builds the appropriate lookup structure for the In filter. For small lists,
-// keeps the FlexVector for linear scan. For dense Id/Uint32, builds a
-// BitVector. For large sparse integer/string lists, builds a FlatHashMapV2.
+// Builds a CastFilterValueListResult from a list of values. The value_list
+// field is always populated (via move). For large lists, an optimized Lookup
+// (BitVector or HashLookup) is built by reading the values before the move.
+// For small lists or doubles, Lookup is std::monostate and the non-indexed
+// In bytecode falls back to linear scan over value_list.
 template <typename T>
-CastFilterValueListResult::Lookup BuildLookup(
+CastFilterValueListResult BuildLookup(
     FlexVector<
         StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>>
         results) {
   constexpr uint32_t kLinearScanThreshold = 16;
-  if (results.size() <= kLinearScanThreshold) {
-    CastFilterValueListResult::ValueList vl = std::move(results);
-    return vl;
-  }
 
-  if constexpr (std::is_same_v<T, Id> || std::is_same_v<T, Uint32>) {
-    uint32_t max_val = 0;
-    for (size_t i = 0; i < results.size(); ++i) {
-      if constexpr (std::is_same_v<T, Id>) {
-        max_val = std::max(max_val, results[i].value);
-      } else {
-        max_val = std::max(max_val, results[i]);
-      }
-    }
-    if (max_val <= static_cast<uint32_t>(results.size()) * 16) {
-      BitVector bv = BitVector::CreateWithSize(max_val + 1, false);
+  // Build optimized lookup by reading (not consuming) results.
+  CastFilterValueListResult::Lookup lookup;
+  if (results.size() > kLinearScanThreshold) {
+    if constexpr (std::is_same_v<T, Id> || std::is_same_v<T, Uint32>) {
+      uint32_t max_val = 0;
       for (size_t i = 0; i < results.size(); ++i) {
         if constexpr (std::is_same_v<T, Id>) {
-          bv.set(results[i].value);
+          max_val = std::max(max_val, results[i].value);
         } else {
-          bv.set(results[i]);
+          max_val = std::max(max_val, results[i]);
         }
       }
-      return bv;
-    }
-    CastFilterValueListResult::HashLookup hm;
-    for (size_t i = 0; i < results.size(); ++i) {
-      if constexpr (std::is_same_v<T, Id>) {
-        hm.Insert(static_cast<int64_t>(results[i].value), true);
+      if (max_val <= static_cast<uint32_t>(results.size()) * 16) {
+        BitVector bv = BitVector::CreateWithSize(max_val + 1, false);
+        for (size_t i = 0; i < results.size(); ++i) {
+          if constexpr (std::is_same_v<T, Id>) {
+            bv.set(results[i].value);
+          } else {
+            bv.set(results[i]);
+          }
+        }
+        lookup = std::move(bv);
       } else {
+        CastFilterValueListResult::HashLookup hm;
+        for (size_t i = 0; i < results.size(); ++i) {
+          if constexpr (std::is_same_v<T, Id>) {
+            hm.Insert(static_cast<int64_t>(results[i].value), true);
+          } else {
+            hm.Insert(static_cast<int64_t>(results[i]), true);
+          }
+        }
+        lookup = std::move(hm);
+      }
+    } else if constexpr (std::is_same_v<T, Int32> ||
+                          std::is_same_v<T, Int64>) {
+      CastFilterValueListResult::HashLookup hm;
+      for (size_t i = 0; i < results.size(); ++i) {
         hm.Insert(static_cast<int64_t>(results[i]), true);
       }
+      lookup = std::move(hm);
+    } else if constexpr (std::is_same_v<T, String>) {
+      CastFilterValueListResult::HashLookup hm;
+      for (size_t i = 0; i < results.size(); ++i) {
+        hm.Insert(static_cast<int64_t>(results[i].raw_id()), true);
+      }
+      lookup = std::move(hm);
     }
-    return hm;
-  } else if constexpr (std::is_same_v<T, Int32> || std::is_same_v<T, Int64>) {
-    CastFilterValueListResult::HashLookup hm;
-    for (size_t i = 0; i < results.size(); ++i) {
-      hm.Insert(static_cast<int64_t>(results[i]), true);
-    }
-    return hm;
-  } else if constexpr (std::is_same_v<T, String>) {
-    CastFilterValueListResult::HashLookup hm;
-    for (size_t i = 0; i < results.size(); ++i) {
-      hm.Insert(static_cast<int64_t>(results[i].raw_id()), true);
-    }
-    return hm;
-  } else {
-    // Double: keep FlexVector for linear scan (hash equality is fragile).
-    CastFilterValueListResult::ValueList vl = std::move(results);
-    return vl;
+    // Double: no optimized lookup (hash equality is fragile), stays monostate.
   }
+
+  // Move results into value_list (no copy).
+  CastFilterValueListResult::ValueList value_list = std::move(results);
+  return CastFilterValueListResult::Valid(std::move(value_list),
+                                          std::move(lookup));
 }
 
 template <typename T, typename FilterValueFetcherImpl>
@@ -999,8 +1006,7 @@ inline PERFETTO_ALWAYS_INLINE void CastFilterValueList(
   } else if (results.empty()) {
     result = CastFilterValueListResult::NoneMatch();
   } else {
-    result =
-        CastFilterValueListResult::Valid(BuildLookup<T>(std::move(results)));
+    result = BuildLookup<T>(std::move(results));
   }
   state.WriteToRegister(c.arg<B::write_register>(), std::move(result));
 }
@@ -1320,8 +1326,8 @@ inline PERFETTO_ALWAYS_INLINE void In(
           Filter(data, source.b, source.e, update.b, *hm, NumericHashCmp());
     }
   } else {
-    // ValueList path: linear scan for small lists.
-    const auto& vl = std::get<CastFilterValueListResult::ValueList>(lookup);
+    // Linear scan path: use value_list (always present).
+    const auto& vl = value.value_list;
     using M =
         StorageType::VariantTypeAtIndex<T,
                                         CastFilterValueListResult::ValueList>;
@@ -1482,19 +1488,20 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
 }
 
 // IndexedFilterIn: for each value in the list, binary-searches the index
-// permutation vector and concatenates matching ranges into dest.
+// permutation vector, collects matching ranges into a scratch buffer, sorts
+// the result, and writes to dest.
 template <typename T, typename N>
 inline PERFETTO_ALWAYS_INLINE void IndexedFilterIn(
     InterpreterState& state,
     const IndexedFilterInBase& bytecode) {
   using B = IndexedFilterInBase;
-  const auto& value_list =
+  const auto& cast_result =
       state.ReadFromRegister(bytecode.arg<B::value_list_register>());
   const auto& source =
       state.ReadFromRegister(bytecode.arg<B::source_register>());
   Span<uint32_t> dest(source.b, source.b);
 
-  if (!HandleInvalidCastFilterValueResult(value_list.validity, dest)) {
+  if (!HandleInvalidCastFilterValueResult(cast_result.validity, dest)) {
     state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
     return;
   }
@@ -1506,32 +1513,21 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterIn(
   const BitVector* const* null_bv =
       state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
 
-  const auto& lookup = value_list.lookup;
-
-  // Extract the value list. For the indexed path, we always need the
-  // FlexVector to iterate individual values for binary search.
+  // Use the always-present value_list field for iteration.
   using M =
       StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::ValueList>;
-  const M* val = nullptr;
-  if (auto* vl = std::get_if<CastFilterValueListResult::ValueList>(&lookup)) {
-    val = &base::unchecked_get<M>(*vl);
-  }
-  if (!val) {
-    // BitVector/HashMap lookup — fall through to empty result.
-    // This shouldn't happen since the planner only uses this bytecode
-    // for small In lists (which stay as ValueList).
-    state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
-    return;
-  }
+  const M& val = base::unchecked_get<M>(cast_result.value_list);
 
-  // For each value, binary search the permutation vector and append matches.
-  // The value list stores StringPool::Id for strings (already resolved during
-  // CastFilterValueList), and native types for everything else.
+  // For each value, binary search the permutation vector and collect matches
+  // into a scratch buffer. We cannot write directly into source because the
+  // binary searches read from source and writing would corrupt unprocessed
+  // regions when values are not in index-sorted order.
   using ValElem =
       StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>;
-  uint32_t* write = dest.b;
-  for (size_t v = 0; v < val->size(); ++v) {
-    ValElem cmp_val = (*val)[v];
+  std::vector<uint32_t> scratch;
+  scratch.reserve(source.size());
+  for (size_t v = 0; v < val.size(); ++v) {
+    ValElem cmp_val = val[v];
 
     auto* lb = std::lower_bound(
         source.b, source.e, cmp_val,
@@ -1548,12 +1544,18 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterIn(
             return false;
           return target < data[si];
         });
-    // Copy matching range to output.
-    auto count = static_cast<size_t>(ub - lb);
-    memmove(write, lb, count * sizeof(uint32_t));
-    write += count;
+    scratch.insert(scratch.end(), lb, ub);
   }
-  dest.e = write;
+
+  // Sort results so that any downstream chained filters (which use binary
+  // search) see a correctly ordered permutation vector.
+  std::sort(scratch.begin(), scratch.end(),
+            [&](uint32_t a, uint32_t b) { return a < b; });
+
+  // Copy sorted results to dest (reusing source's memory, which is safe
+  // since all binary searches are complete).
+  memcpy(source.b, scratch.data(), scratch.size() * sizeof(uint32_t));
+  dest.e = source.b + scratch.size();
   state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
 }
 
