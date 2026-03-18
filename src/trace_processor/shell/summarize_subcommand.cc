@@ -1,0 +1,147 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "src/trace_processor/shell/summarize_subcommand.h"
+
+#include <cstdint>
+#include <cstdio>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/shell/common_flags.h"
+#include "src/trace_processor/shell/interactive.h"
+#include "src/trace_processor/shell/metatrace.h"
+#include "src/trace_processor/shell/query.h"
+#include "src/trace_processor/shell/subcommand.h"
+#include "src/trace_processor/trace_summary/summary.h"
+
+namespace perfetto::trace_processor::shell {
+
+const char* SummarizeSubcommand::name() const {
+  return "summarize";
+}
+
+const char* SummarizeSubcommand::description() const {
+  return "Run trace summarization.";
+}
+
+std::vector<FlagSpec> SummarizeSubcommand::GetFlags() {
+  // Note: --spec is multi-valued but FlagSpec handlers are called per
+  // occurrence, so we accumulate in a string with comma separation and
+  // split later. This matches the old getopt behavior where --spec could
+  // be repeated.
+  return {
+      StringFlag("metrics-v2", '\0', "IDS", "Metric IDs, or \"all\".",
+                 &metrics_v2_),
+      StringFlag("metadata-query", '\0', "ID", "Metadata query ID.",
+                 &metadata_query_),
+      StringFlag("format", '\0', "FORMAT", "Output format (text or binary).",
+                 &output_format_),
+      StringFlag("post-query", '\0', "FILE",
+                 "SQL file to run after summarization.", &post_query_path_),
+      BoolFlag("interactive", 'i',
+               "Start interactive shell after summarization.", &interactive_),
+  };
+}
+
+base::Status SummarizeSubcommand::Run(const SubcommandContext& ctx) {
+  if (ctx.positional_args.empty()) {
+    return base::ErrStatus("summarize: trace file is required");
+  }
+  std::string trace_file = ctx.positional_args[0];
+
+  // Collect spec paths from remaining positional args (if any).
+  std::vector<std::string> spec_paths;
+  for (size_t i = 1; i < ctx.positional_args.size(); ++i) {
+    spec_paths.push_back(ctx.positional_args[i]);
+  }
+
+  auto config = BuildConfig(*ctx.global, ctx.platform);
+  ASSIGN_OR_RETURN(auto tp,
+                   SetupTraceProcessor(*ctx.global, config, ctx.platform));
+  RETURN_IF_ERROR(LoadTraceFile(tp.get(), ctx.platform, trace_file).status());
+
+  // Load spec files.
+  std::vector<std::string> spec_content;
+  spec_content.reserve(spec_paths.size());
+  for (const auto& s : spec_paths) {
+    spec_content.emplace_back();
+    if (!base::ReadFile(s, &spec_content.back())) {
+      return base::ErrStatus("Unable to read summary spec file %s", s.c_str());
+    }
+  }
+
+  std::vector<TraceSummarySpecBytes> specs;
+  specs.reserve(spec_paths.size());
+  for (uint32_t i = 0; i < spec_paths.size(); ++i) {
+    auto format = TraceSummarySpecBytes::Format::kTextProto;
+    if (base::EndsWith(spec_paths[i], ".pb")) {
+      format = TraceSummarySpecBytes::Format::kBinaryProto;
+    }
+    specs.emplace_back(TraceSummarySpecBytes{
+        reinterpret_cast<const uint8_t*>(spec_content[i].data()),
+        spec_content[i].size(),
+        format,
+    });
+  }
+
+  TraceSummaryComputationSpec computation_config;
+  if (metrics_v2_.empty()) {
+    computation_config.v2_metric_ids = std::vector<std::string>();
+  } else if (base::CaseInsensitiveEqual(metrics_v2_, "all")) {
+    computation_config.v2_metric_ids = std::nullopt;
+  } else {
+    computation_config.v2_metric_ids = base::SplitString(metrics_v2_, ",");
+  }
+  computation_config.metadata_query_id =
+      metadata_query_.empty() ? std::nullopt
+                              : std::make_optional(metadata_query_);
+
+  TraceSummaryOutputSpec output_spec;
+  if (output_format_ == "binary") {
+    output_spec.format = TraceSummaryOutputSpec::Format::kBinaryProto;
+  } else {
+    output_spec.format = TraceSummaryOutputSpec::Format::kTextProto;
+  }
+
+  std::vector<uint8_t> output;
+  RETURN_IF_ERROR(
+      tp->Summarize(computation_config, specs, &output, output_spec));
+
+  if (post_query_path_.empty()) {
+    fwrite(output.data(), sizeof(char), output.size(), stdout);
+  }
+
+  if (!post_query_path_.empty()) {
+    RETURN_IF_ERROR(RunQueriesFromFile(tp.get(), post_query_path_, true));
+  }
+
+  if (interactive_) {
+    RETURN_IF_ERROR(StartInteractiveShell(
+        tp.get(),
+        InteractiveOptions{20u, MetricV1OutputFormat::kNone, {}, {}, nullptr}));
+  }
+
+  RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path));
+  return base::OkStatus();
+}
+
+}  // namespace perfetto::trace_processor::shell

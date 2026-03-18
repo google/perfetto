@@ -334,6 +334,46 @@ TEST(TraceProcessorShellIntegrationTest, ServerSubcommandBadModeFails) {
 }
 
 // ---------------------------------------------------------------------------
+// Subcommand: summarize
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, SummarizeSubcommand) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"summarize", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, SummarizeSubcommandNoTraceFails) {
+  auto result = RunShell({"summarize"});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Subcommand: export
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, ExportSubcommandSqlite) {
+  auto trace = WriteSimpleSystrace();
+  auto out_db = base::TempFile::Create();
+  auto result =
+      RunShell({"export", "sqlite", "-o", out_db.path(), trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_TRUE(base::FileExists(out_db.path()));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ExportSubcommandNoFormatFails) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"export", trace.path()});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ExportSubcommandNoOutputFails) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"export", "sqlite", trace.path()});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+// ---------------------------------------------------------------------------
 // Existing RPC test
 // ---------------------------------------------------------------------------
 

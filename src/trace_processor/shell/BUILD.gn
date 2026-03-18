@@ -18,6 +18,8 @@ source_set("subcommand") {
   sources = [
     "common_flags.cc",
     "common_flags.h",
+    "export_subcommand.cc",
+    "export_subcommand.h",
     "interactive_subcommand.cc",
     "interactive_subcommand.h",
     "query_subcommand.cc",
@@ -26,6 +28,8 @@ source_set("subcommand") {
     "server_subcommand.h",
     "subcommand.cc",
     "subcommand.h",
+    "summarize_subcommand.cc",
+    "summarize_subcommand.h",
   ]
   deps = [
     ":interactive",
@@ -41,6 +45,7 @@ source_set("subcommand") {
     "../../base:version",
     "../rpc",
     "../rpc:stdiod",
+    "../trace_summary",
     "../util/deobfuscation:deobfuscator",
     "../util/symbolizer:symbolize_database",
   ]
