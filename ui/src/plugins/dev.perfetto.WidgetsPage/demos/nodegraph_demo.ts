@@ -39,6 +39,7 @@ interface BaseNodeData {
   x: number;
   y: number;
   nextId?: string;
+  collapsed?: boolean;
 }
 
 // Individual node type interfaces
@@ -108,30 +109,41 @@ interface NodeConfig {
 
 const NODE_CONFIGS: Record<NodeData['type'], NodeConfig> = {
   table: {
+    outputs: [{content: 'Output', direction: 'right'}],
     canDockBottom: true,
     hue: 200,
     icon: 'table_chart',
   },
   select: {
+    inputs: [{content: 'Input', direction: 'left'}],
     outputs: [{content: 'Output', direction: 'right'}],
     canDockTop: true,
+    canDockBottom: true,
     hue: 100,
     icon: 'checklist',
   },
   filter: {
+    inputs: [{content: 'Input', direction: 'left'}],
+    outputs: [{content: 'Output', direction: 'right'}],
     canDockTop: true,
     canDockBottom: true,
     hue: 50,
     icon: 'filter_alt',
   },
   sort: {
+    inputs: [{content: 'Input', direction: 'left'}],
+    outputs: [{content: 'Output', direction: 'right'}],
     canDockTop: true,
     canDockBottom: true,
     hue: 150,
     icon: 'sort',
   },
   join: {
-    inputs: [{content: 'Right', direction: 'left'}],
+    inputs: [
+      {content: 'Left', direction: 'left'},
+      {content: 'Right', direction: 'left'},
+    ],
+    outputs: [{content: 'Output', direction: 'right'}],
     canDockTop: true,
     canDockBottom: true,
     hue: 300,
@@ -139,14 +151,16 @@ const NODE_CONFIGS: Record<NodeData['type'], NodeConfig> = {
   },
   union: {
     inputs: [
-      {content: 'Input 1', direction: 'left'},
-      {content: 'Input 2', direction: 'left'},
+      {content: 'Left', direction: 'left'},
+      {content: 'Right', direction: 'left'},
     ],
+    outputs: [{content: 'Output', direction: 'right'}],
     canDockBottom: true,
     hue: 240,
     icon: 'merge',
   },
   result: {
+    inputs: [{content: 'Input', direction: 'left'}],
     canDockTop: true,
     hue: 0,
     icon: 'output',
@@ -1085,6 +1099,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
             ? renderNodeContextMenu(nodeData)
             : undefined,
           invalid: store.invalidNodes.has(nodeData.id),
+          collapsed: nodeData.collapsed,
         };
       }
 
@@ -1121,6 +1136,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
             ? renderNodeContextMenu(nodeData)
             : undefined,
           invalid: store.invalidNodes.has(nodeData.id),
+          collapsed: nodeData.collapsed,
         };
       }
 
@@ -1338,6 +1354,9 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
               );
             }
           });
+        },
+        onNodeCollapse: (nodeId: string, collapsed: boolean) => {
+          updateNode(nodeId, {collapsed});
         },
         labels: store.labels,
         onLabelMove: (labelId: string, x: number, y: number) => {
