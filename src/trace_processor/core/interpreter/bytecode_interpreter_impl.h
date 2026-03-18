@@ -912,8 +912,7 @@ CastFilterValueListResult BuildLookup(
         }
         lookup = std::move(hm);
       }
-    } else if constexpr (std::is_same_v<T, Int32> ||
-                          std::is_same_v<T, Int64>) {
+    } else if constexpr (std::is_same_v<T, Int32> || std::is_same_v<T, Int64>) {
       CastFilterValueListResult::HashLookup hm;
       for (size_t i = 0; i < results.size(); ++i) {
         hm.Insert(static_cast<int64_t>(results[i]), true);

@@ -1898,8 +1898,7 @@ TEST_F(BytecodeInterpreterTest,
                          GetStoragePtr<Uint32>(0), GetNullBv(0));
 
   // Output is sorted by permutation index.
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(2),
-              testing::ElementsAre(1, 2, 4, 5));
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(2), testing::ElementsAre(1, 2, 4, 5));
 }
 
 TEST_F(BytecodeInterpreterTest, CopySpanIntersectingRange_PartialOverlap) {
