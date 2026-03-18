@@ -6948,6 +6948,89 @@ TEST_F(TracingServiceImplTest, StringFilteringWithV54Overlay) {
                                                   Eq("B|1023|payP6adP")))));
 }
 
+// Test: with v2 bytecode and no v54 overlay, a field with no explicit
+// semantic type (plain FilterString opcode) is still redacted by rules
+// targeting SEMANTIC_TYPE_UNSPECIFIED. Also verifies that a rule scoped
+// to ATRACE does NOT match such a field.
+TEST_F(TracingServiceImplTest, StringFilteringV2BytecodeUnspecifiedRedaction) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(32);
+  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds_1");
+  ds_cfg->set_target_buffer(0);
+
+  protozero::FilterBytecodeGenerator filt;
+  filt.AddNestedField(1, 1);
+  filt.EndMessage();
+  filt.AddNestedField(protos::pbzero::TracePacket::kForTestingFieldNumber, 2);
+  filt.EndMessage();
+  filt.AddFilterStringField(protos::pbzero::TestEvent::kStrFieldNumber,
+                            /*semantic_type=*/0, /*allow_in_v1=*/false,
+                            /*allow_in_v2=*/false);
+  filt.EndMessage();
+  trace_config.mutable_trace_filter()->set_bytecode_v2(
+      filt.Serialize().bytecode);
+
+  auto* chain =
+      trace_config.mutable_trace_filter()->mutable_string_filter_chain();
+
+  // Rule 1: targets UNSPECIFIED — should match and redact.
+  auto* rule1 = chain->add_rules();
+  rule1->set_policy(
+      protos::gen::TraceConfig::TraceFilter::SFP_MATCH_REDACT_GROUPS);
+  rule1->set_regex_pattern(R"(unspec:(.*))");
+  rule1->add_semantic_type(protos::gen::SEMANTIC_TYPE_UNSPECIFIED);
+
+  // Rule 2: targets ATRACE — should NOT match an UNSPECIFIED field.
+  auto* rule2 = chain->add_rules();
+  rule2->set_policy(
+      protos::gen::TraceConfig::TraceFilter::SFP_MATCH_REDACT_GROUPS);
+  rule2->set_regex_pattern(R"(atrace:(.*))");
+  rule2->add_semantic_type(protos::gen::SEMANTIC_TYPE_ATRACE);
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  std::unique_ptr<TraceWriter> writer = producer->CreateTraceWriter("ds_1");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("unspec:secret");
+  }
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("atrace:secret");
+  }
+
+  auto flush_request = consumer->Flush();
+  producer->ExpectFlush(writer.get());
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  const DataSourceInstanceID id1 = producer->GetDataSourceInstanceId("ds_1");
+  EXPECT_CALL(*producer, StopDataSource(id1));
+
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+
+  auto packets = consumer->ReadBuffers();
+  // UNSPECIFIED rule redacts the "unspec:" packet.
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("unspec:P60RED")))));
+  // ATRACE rule does NOT match — field is UNSPECIFIED, not ATRACE.
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("atrace:secret")))));
+}
+
 TEST_F(TracingServiceImplTest, StringFilteringAndCloneSession) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
