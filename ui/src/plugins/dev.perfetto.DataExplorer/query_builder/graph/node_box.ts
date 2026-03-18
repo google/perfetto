@@ -62,7 +62,7 @@ export function renderAddButton(attrs: NodeBoxAttrs): m.Child {
   const exportMenuItems = buildMenuItems('export', addCb, allowedChildren);
 
   const sections: {title: string; items: m.Children[]}[] = [
-    {title: 'Modification nodes', items: modificationMenuItems},
+    {title: 'Modifications', items: modificationMenuItems},
     {title: 'Operations', items: multisourceMenuItems},
     {title: 'Export', items: exportMenuItems},
   ].filter((s) => s.items.length > 0);

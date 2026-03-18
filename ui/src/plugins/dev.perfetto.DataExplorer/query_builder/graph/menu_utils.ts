@@ -77,36 +77,40 @@ export function buildCategorizedMenuItems(
   nodes: Array<[string, NodeDescriptor]>,
   onClickHandler: (id: string) => void,
 ): m.Children[] {
-  // Group nodes by category
+  // Group nodes by category, preserving first-seen order for interleaving.
   const grouped = new Map<
     string | undefined,
     Array<[string, NodeDescriptor]>
   >();
+  const categoryOrder: Array<string | undefined> = [];
   for (const [id, descriptor] of nodes) {
     const category = descriptor.category;
     if (!grouped.has(category)) {
       grouped.set(category, []);
+      categoryOrder.push(category);
     }
-    grouped.get(category)!.push([id, descriptor]);
+    grouped.get(category)?.push([id, descriptor]);
   }
 
   const menuItems: m.Child[] = [];
 
-  // First, add categorized nodes (like "Columns")
-  for (const [category, catNodes] of grouped.entries()) {
-    if (category === undefined) continue;
-
-    if (catNodes.length === 1) {
-      // Single node in category - show it directly without submenu
-      const [id, descriptor] = catNodes[0];
-      menuItems.push(
-        m(MenuItem, {
-          label: getLabelWithHotkey(descriptor),
-          onclick: () => onClickHandler(id),
-        }),
-      );
+  // Render in first-seen order, so uncategorized and categorized items
+  // are interleaved based on registration order.
+  for (const category of categoryOrder) {
+    const catNodes = grouped.get(category);
+    if (catNodes === undefined) continue;
+    if (category === undefined) {
+      // Uncategorized nodes - render directly
+      for (const [id, descriptor] of catNodes) {
+        menuItems.push(
+          m(MenuItem, {
+            label: getLabelWithHotkey(descriptor),
+            onclick: () => onClickHandler(id),
+          }),
+        );
+      }
     } else {
-      // Multiple nodes in category - show submenu
+      // Categorized nodes - render as submenu
       menuItems.push(
         m(
           MenuItem,
@@ -122,17 +126,6 @@ export function buildCategorizedMenuItems(
         ),
       );
     }
-  }
-
-  // Then, add uncategorized nodes
-  const uncategorized = grouped.get(undefined) ?? [];
-  for (const [id, descriptor] of uncategorized) {
-    menuItems.push(
-      m(MenuItem, {
-        label: getLabelWithHotkey(descriptor),
-        onclick: () => onClickHandler(id),
-      }),
-    );
   }
 
   return menuItems;
