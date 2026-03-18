@@ -58,7 +58,7 @@ void BM_BytecodeInterpreter_LinearFilterEqUint32(benchmark::State& state) {
   // R4: StoragePtr (column data pointer)
   // R5: Slab<uint32_t> (dummy popcount for NonNull)
   std::string bytecode_str = R"(
-    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(0), op=Op(0)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(0), op=NonNullOp(0)]
     InitRange: [size=1048576, dest_register=Register(1)]
     AllocateIndices: [size=1048576, dest_slab_register=Register(3), dest_span_register=Register(2)]
     LinearFilterEq<Uint32>: [storage_register=Register(4), filter_value_reg=Register(0), popcount_register=Register(5), source_register=Register(1), update_register=Register(2)]
@@ -111,7 +111,7 @@ void BM_BytecodeInterpreter_LinearFilterEqString(benchmark::State& state) {
   // R4: StoragePtr (column data pointer)
   // R5: Slab<uint32_t> (dummy popcount for NonNull)
   std::string bytecode_str = R"(
-    CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(0), op=Op(0)]
+    CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(0), op=NonNullOp(0)]
     InitRange: [size=1048576, dest_register=Register(1)]
     AllocateIndices: [size=1048576, dest_slab_register=Register(3), dest_span_register=Register(2)]
     LinearFilterEq<String>: [storage_register=Register(4), filter_value_reg=Register(0), popcount_register=Register(5), source_register=Register(1), update_register=Register(2)]
@@ -135,6 +135,97 @@ void BM_BytecodeInterpreter_LinearFilterEqString(benchmark::State& state) {
   }
 }
 BENCHMARK(BM_BytecodeInterpreter_LinearFilterEqString);
+
+// Benchmark for In<Uint32> with varying list sizes.
+// Measures the combined cost of CastFilterValueList + In on each Execute().
+void BM_BytecodeInterpreter_InUint32(benchmark::State& state) {
+  auto list_size = static_cast<uint32_t>(state.range(0));
+  constexpr uint32_t kTableSize = 1024 * 1024;
+
+  // Setup column with values 0..1023 repeating.
+  FlexVector<uint32_t> col_data_vec;
+  for (uint32_t i = 0; i < kTableSize; ++i) {
+    col_data_vec.push_back(i % 1024);
+  }
+  dataframe::Column col{dataframe::Storage{std::move(col_data_vec)},
+                        dataframe::NullStorage::NonNull{}, Unsorted{},
+                        HasDuplicates{}};
+
+  // Register layout:
+  // R0: CastFilterValueListResult (filter value list)
+  // R1: Range (source range)
+  // R2: Span<uint32_t> (output indices)
+  // R3: Slab<uint32_t> (backing storage for output)
+  // R4: StoragePtr (column data pointer)
+  std::string bytecode_str = R"(
+    CastFilterValueList<Uint32>: [fval_handle=FilterValue(0), write_register=Register(0), op=NonNullOp(0)]
+    InitRange: [size=1048576, dest_register=Register(1)]
+    AllocateIndices: [size=1048576, dest_slab_register=Register(3), dest_span_register=Register(2)]
+    Iota: [source_register=Register(1), update_register=Register(2)]
+    In<Uint32>: [storage_register=Register(4), value_list_register=Register(0), source_register=Register(2), update_register=Register(2)]
+  )";
+
+  StringPool spool;
+  Interpreter<Fetcher> interpreter;
+  interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
+
+  StoragePtr storage_ptr{col.storage.unchecked_data<Uint32>(), Uint32{}};
+  interpreter.SetRegisterValue(WriteHandle<StoragePtr>(4), storage_ptr);
+
+  // Build fetcher with list_size values spread across 0..1023.
+  Fetcher fetcher;
+  for (uint32_t i = 0; i < list_size; ++i) {
+    fetcher.value.push_back(int64_t(i * (1024 / list_size)));
+  }
+
+  for (auto _ : state) {
+    interpreter.Execute(fetcher);
+    benchmark::ClobberMemory();
+  }
+}
+BENCHMARK(BM_BytecodeInterpreter_InUint32)->Arg(5)->Arg(50)->Arg(500);
+
+// Same benchmark but with Id type (exercises bitvector path).
+void BM_BytecodeInterpreter_InId(benchmark::State& state) {
+  auto list_size = static_cast<uint32_t>(state.range(0));
+  constexpr uint32_t kTableSize = 1024 * 1024;
+
+  dataframe::Column col{dataframe::Storage::Id{kTableSize},
+                        dataframe::NullStorage::NonNull{}, Unsorted{},
+                        HasDuplicates{}};
+
+  // Register layout:
+  // R0: CastFilterValueListResult
+  // R1: Range (source range)
+  // R2: Span<uint32_t> (output indices)
+  // R3: Slab<uint32_t> (backing storage)
+  // R4: StoragePtr (column data pointer)
+  std::string bytecode_str = R"(
+    CastFilterValueList<Id>: [fval_handle=FilterValue(0), write_register=Register(0), op=NonNullOp(0)]
+    InitRange: [size=1048576, dest_register=Register(1)]
+    AllocateIndices: [size=1048576, dest_slab_register=Register(3), dest_span_register=Register(2)]
+    Iota: [source_register=Register(1), update_register=Register(2)]
+    In<Id>: [storage_register=Register(4), value_list_register=Register(0), source_register=Register(2), update_register=Register(2)]
+  )";
+
+  StringPool spool;
+  Interpreter<Fetcher> interpreter;
+  interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
+
+  StoragePtr storage_ptr{nullptr, Id{}};
+  interpreter.SetRegisterValue(WriteHandle<StoragePtr>(4), storage_ptr);
+
+  Fetcher fetcher;
+  for (uint32_t i = 0; i < list_size; ++i) {
+    fetcher.value.push_back(int64_t(i * (kTableSize / list_size)));
+  }
+
+  for (auto _ : state) {
+    interpreter.Execute(fetcher);
+    benchmark::ClobberMemory();
+  }
+}
+BENCHMARK(BM_BytecodeInterpreter_InId)->Arg(5)->Arg(50)->Arg(500);
 
 }  // namespace
 
