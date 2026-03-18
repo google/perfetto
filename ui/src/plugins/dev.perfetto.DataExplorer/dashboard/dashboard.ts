@@ -149,11 +149,17 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
               ? this.renderItems(attrs, items)
               : m(
                   '.pf-dashboard__empty-overlay',
-                  m(
-                    EmptyState,
-                    {icon: 'bar_chart', title: 'No items yet'},
-                    'Use the + button to add charts or labels.',
-                  ),
+                  attrs.sources.length > 0
+                    ? m(
+                        EmptyState,
+                        {icon: 'bar_chart', title: 'No items yet'},
+                        'Use the + button to add charts or labels.',
+                      )
+                    : m(
+                        EmptyState,
+                        {icon: 'bar_chart', title: 'No data exported'},
+                        'Use the "Export to Dashboard" node in the graph to export data here.',
+                      ),
                 ),
           ],
         ),

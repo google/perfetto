@@ -29,12 +29,8 @@
     margin-bottom: 12px;
   }
 
-  // Limit width to the size of the container and use no wrap & elipsis to
-  // stop the size getting out of control.
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 
   &--fill-height {
     height: 100%;
