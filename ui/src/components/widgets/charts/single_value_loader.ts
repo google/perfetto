@@ -20,32 +20,37 @@ import {
   QueryConfig,
   SQLChartLoader,
 } from './chart_sql_source';
-import {type StatCardData} from './stat_card';
 import {ChartAggregation} from './chart_utils';
 
-/** Configuration for SQLStatCardLoader. */
-export interface SQLStatCardLoaderOpts {
+/** A single aggregated numeric value, used by both Gauge and Scorecard. */
+export interface SingleValueData {
+  readonly value: number;
+}
+
+/** Constructor options for SQLSingleValueLoader. */
+export interface SQLSingleValueLoaderOpts {
   readonly engine: Engine;
   readonly query: string;
   readonly measureColumn: string;
 }
 
-/** Per-use configuration for the stat card loader. */
-export interface StatCardLoaderConfig {
+/** Per-use configuration for the single-value loader. */
+export interface SingleValueLoaderConfig {
   readonly aggregation: ChartAggregation;
 }
 
 /**
- * SQL-based stat card loader.
+ * SQL-based single-value loader.
  * Computes a single aggregated value (COUNT, SUM, AVG, etc.) from a column.
+ * Used by both Gauge and Scorecard charts.
  */
-export class SQLStatCardLoader extends SQLChartLoader<
-  StatCardLoaderConfig,
-  StatCardData
+export class SQLSingleValueLoader extends SQLChartLoader<
+  SingleValueLoaderConfig,
+  SingleValueData
 > {
   private readonly measureColumn: string;
 
-  constructor(opts: SQLStatCardLoaderOpts) {
+  constructor(opts: SQLSingleValueLoaderOpts) {
     super(
       opts.engine,
       new ChartSource({
@@ -56,7 +61,7 @@ export class SQLStatCardLoader extends SQLChartLoader<
     this.measureColumn = opts.measureColumn;
   }
 
-  protected buildQueryConfig(config: StatCardLoaderConfig): QueryConfig {
+  protected buildQueryConfig(config: SingleValueLoaderConfig): QueryConfig {
     return {
       type: 'aggregated',
       dimensions: [],
@@ -64,7 +69,7 @@ export class SQLStatCardLoader extends SQLChartLoader<
     };
   }
 
-  protected parseResult(queryResult: QueryResult): StatCardData {
+  protected parseResult(queryResult: QueryResult): SingleValueData {
     const iter = queryResult.iter({[DEFAULT_MEASURE_ALIAS]: NUM});
     if (iter.valid()) {
       return {value: iter[DEFAULT_MEASURE_ALIAS]};
