@@ -62,6 +62,7 @@ import {
   findNodeById,
   addConnection,
   removeConnection,
+  wouldCreateCycle,
 } from '../graph_utils';
 import {RoundActionButton} from '../widgets';
 
@@ -583,6 +584,13 @@ function handleConnect(conn: Connection, rootNodes: QueryNode[]): void {
   }
 
   if (!nodeRegistry.isConnectionAllowed(fromNode.type, toNode.type)) {
+    return;
+  }
+
+  if (wouldCreateCycle(fromNode, toNode)) {
+    console.warn(
+      `Cannot create connection: would create a cycle (from: ${conn.fromNode}, to: ${conn.toNode})`,
+    );
     return;
   }
 
