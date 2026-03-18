@@ -230,15 +230,19 @@ async function main() {
     cfg.wasmModules.push('trace_processor');
   }
 
-  process.on('SIGINT', () => {
-    console.log('\nSIGINT received. Killing all child processes and exiting');
+  const killSubprocessesAndExit = (signal, exitCode) => {
+    console.log(`\n${signal} received. Killing all child processes and exiting`);
     for (const proc of subprocesses) {
       if (proc) proc.kill('SIGKILL');
     }
     releaseBuildLock();
     process.kill(0, 'SIGKILL');  // Kill the whole process group.
-    process.exit(130);  // 130 -> Same behavior of bash when killed by SIGINT.
-  });
+    process.exit(exitCode);
+  };
+
+  process.on('SIGINT', () => killSubprocessesAndExit('SIGINT', 130));    // 128 + 2
+  process.on('SIGTERM', () => killSubprocessesAndExit('SIGTERM', 143));  // 128 + 15
+  process.on('SIGHUP', () => killSubprocessesAndExit('SIGHUP', 129));   // 128 + 1
 
   if (!args.no_depscheck) {
     // Check that deps are current before starting.
