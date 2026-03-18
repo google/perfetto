@@ -2083,14 +2083,12 @@ TEST_F(BytecodeInterpreterTest, InId) {
 
   std::vector<uint32_t> indices_spec = {12, 44, 10, 4, 5, 2, 3};
   {
-    // Test case 1: Values exist in range. This should trigger the bitvector
-    // optimization as max(5, 10, 44) <= 3 * 16.
+    // Test case 1: Values exist in range (small list, linear scan).
     std::vector<uint32_t> indices = indices_spec;
-    CastFilterValueListResult value_list;
-    value_list.validity = CastFilterValueResult::kValid;
-    value_list.value_list =
-        CreateFlexVectorForTesting<CastFilterValueResult::Id>(
-            {{5}, {10}, {44}});
+    auto value_list =
+        CastFilterValueListResult::Valid(CastFilterValueListResult::ValueList{
+            CreateFlexVectorForTesting<CastFilterValueResult::Id>(
+                {{5}, {10}, {44}})});
 
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices), GetStoragePtr<Id>(0));
@@ -2099,10 +2097,10 @@ TEST_F(BytecodeInterpreterTest, InId) {
   {
     // Test case 2: No values exist in range
     std::vector<uint32_t> indices = indices_spec;
-    CastFilterValueListResult value_list;
-    value_list.validity = CastFilterValueResult::kValid;
-    value_list.value_list =
-        CreateFlexVectorForTesting<CastFilterValueResult::Id>({{100}, {200}});
+    auto value_list =
+        CastFilterValueListResult::Valid(CastFilterValueListResult::ValueList{
+            CreateFlexVectorForTesting<CastFilterValueResult::Id>(
+                {{100}, {200}})});
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices), GetStoragePtr<Id>(0));
     EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
@@ -2110,8 +2108,7 @@ TEST_F(BytecodeInterpreterTest, InId) {
   {
     // Test case 3: Invalid cast result (NoneMatch)
     std::vector<uint32_t> indices = indices_spec;
-    CastFilterValueListResult value_list;
-    value_list.validity = CastFilterValueResult::kNoneMatch;
+    auto value_list = CastFilterValueListResult::NoneMatch();
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices), GetStoragePtr<Id>(0));
     EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
@@ -2132,12 +2129,11 @@ TEST_F(BytecodeInterpreterTest, InUint32) {
 
   std::vector<uint32_t> indices_spec = {3, 3, 4, 5, 0, 6, 0};
   {
-    // Test case 1: Values exist. This should not trigger the bitvector
-    // optimization as max(4, 391) > 2 * 16.
+    // Test case 1: Values exist (small list, linear scan).
     std::vector<uint32_t> indices = indices_spec;
-    CastFilterValueListResult value_list;
-    value_list.validity = CastFilterValueResult::kValid;
-    value_list.value_list = CreateFlexVectorForTesting<uint32_t>({4u, 391u});
+    auto value_list =
+        CastFilterValueListResult::Valid(CastFilterValueListResult::ValueList{
+            CreateFlexVectorForTesting<uint32_t>({4u, 391u})});
 
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices), GetStoragePtr<Uint32>(0));
@@ -2146,9 +2142,9 @@ TEST_F(BytecodeInterpreterTest, InUint32) {
   {
     // Test case 2: No values exist
     std::vector<uint32_t> indices = indices_spec;
-    CastFilterValueListResult value_list;
-    value_list.validity = CastFilterValueResult::kValid;
-    value_list.value_list = CreateFlexVectorForTesting<uint32_t>({100u, 200u});
+    auto value_list =
+        CastFilterValueListResult::Valid(CastFilterValueListResult::ValueList{
+            CreateFlexVectorForTesting<uint32_t>({100u, 200u})});
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices), GetStoragePtr<Uint32>(0));
     EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
@@ -2166,13 +2162,12 @@ TEST_F(BytecodeInterpreterTest, InIdBitVectorSparse) {
 
   std::vector<uint32_t> indices_spec = {12, 44, 10, 4, 5, 2, 3, 500};
   {
-    // Test case: Sparse values, bitvector optimization should NOT trigger.
-    // max value is 500, list size is 2. 500 > 2 * 16 (32) is true.
+    // Test case: Sparse values (small list, linear scan).
     std::vector<uint32_t> indices = indices_spec;
-    CastFilterValueListResult value_list;
-    value_list.validity = CastFilterValueResult::kValid;
-    value_list.value_list =
-        CreateFlexVectorForTesting<CastFilterValueResult::Id>({{5}, {500}});
+    auto value_list =
+        CastFilterValueListResult::Valid(CastFilterValueListResult::ValueList{
+            CreateFlexVectorForTesting<CastFilterValueResult::Id>(
+                {{5}, {500}})});
 
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices), GetStoragePtr<Id>(0));
@@ -2194,17 +2189,55 @@ TEST_F(BytecodeInterpreterTest, InUint32BitVector) {
 
   std::vector<uint32_t> indices_spec = {3, 3, 4, 5, 0, 6, 0};
   {
-    // Test case: Values exist, bitvector optimization should trigger.
-    // max value 30, list size 2. 30 <= 32 is true.
+    // Test case: Values exist (small list, linear scan).
     std::vector<uint32_t> indices = indices_spec;
-    CastFilterValueListResult value_list;
-    value_list.validity = CastFilterValueResult::kValid;
-    value_list.value_list = CreateFlexVectorForTesting<uint32_t>({4u, 30u});
+    auto value_list =
+        CastFilterValueListResult::Valid(CastFilterValueListResult::ValueList{
+            CreateFlexVectorForTesting<uint32_t>({4u, 30u})});
 
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices), GetStoragePtr<Uint32>(0));
     EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(3, 3, 5, 0, 0));
   }
+}
+
+TEST_F(BytecodeInterpreterTest, InUint32LargeList) {
+  std::string bytecode =
+      "In<Uint32>: [storage_register=Register(3), "
+      "value_list_register=Register(0), "
+      "source_register=Register(1), update_register=Register(2)]";
+
+  // Create column with values 0..99.
+  FlexVector<uint32_t> values;
+  for (uint32_t i = 0; i < 100; i++) {
+    values.push_back(i);
+  }
+  AddColumn(dataframe::Column{std::move(values),
+                              dataframe::NullStorage::NonNull{}, Unsorted{},
+                              HasDuplicates{}});
+
+  // Indices pointing to rows 0..99.
+  std::vector<uint32_t> indices;
+  for (uint32_t i = 0; i < 100; i++) {
+    indices.push_back(i);
+  }
+
+  // IN list with 50 even values: 0, 2, 4, ..., 98.
+  // This exceeds the linear scan threshold so it will use BitVector
+  // (max=98, size=50, 98 <= 50*16).
+  FlexVector<uint32_t> in_values;
+  for (uint32_t i = 0; i < 50; i++) {
+    in_values.push_back(i * 2);
+  }
+  auto value_list = CastFilterValueListResult::Valid(
+      CastFilterValueListResult::ValueList{std::move(in_values)});
+
+  SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
+                         GetSpan(indices), GetStoragePtr<Uint32>(0));
+
+  // Should match rows 0, 2, 4, ..., 98 (the 50 even-valued rows).
+  auto result = GetRegister<Span<uint32_t>>(2);
+  EXPECT_EQ(result.size(), 50u);
 }
 
 TEST_F(BytecodeInterpreterTest, CastFilterValueList_Uint32) {
@@ -2221,7 +2254,10 @@ TEST_F(BytecodeInterpreterTest, CastFilterValueList_Uint32) {
 
   const auto& result = GetRegister<CastFilterValueListResult>(0);
   ASSERT_EQ(result.validity, CastFilterValueResult::kValid);
-  const auto& list = std::get<FlexVector<uint32_t>>(result.value_list);
+  // Small list (2 elements) stays as ValueList.
+  const auto& vl =
+      std::get<CastFilterValueListResult::ValueList>(result.lookup);
+  const auto& list = std::get<FlexVector<uint32_t>>(vl);
   EXPECT_THAT(list, ElementsAre(10u, 20u));
 }
 
@@ -2240,7 +2276,10 @@ TEST_F(BytecodeInterpreterTest, CastFilterValueList_String) {
 
   const auto& result = GetRegister<CastFilterValueListResult>(0);
   ASSERT_EQ(result.validity, CastFilterValueResult::kValid);
-  const auto& list = std::get<FlexVector<StringPool::Id>>(result.value_list);
+  // Small list (2 elements) stays as ValueList.
+  const auto& vl =
+      std::get<CastFilterValueListResult::ValueList>(result.lookup);
+  const auto& list = std::get<FlexVector<StringPool::Id>>(vl);
   ASSERT_EQ(list.size(), 2u);
   EXPECT_EQ(spool_.Get(list[0]), "hello");
   EXPECT_EQ(spool_.Get(list[1]), "world");
