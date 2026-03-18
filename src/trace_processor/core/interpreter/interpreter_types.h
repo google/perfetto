@@ -175,8 +175,7 @@ struct CastFilterValueListResult {
 
   // The lookup used by In. For small lists (<=16 elements), we keep the
   // FlexVector and do a linear scan. For dense Id/Uint32, a BitVector.
-  // For large sparse lists, a HashLookup. If we build a BitVector or
-  // HashLookup, the FlexVector is not kept.
+  // For large sparse lists, a HashLookup.
   using Lookup = std::variant<ValueList, BitVector, HashLookup>;
 
   static CastFilterValueListResult Valid(Lookup l) {
