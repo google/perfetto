@@ -484,6 +484,12 @@ class {self.table_name} {{
     PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {{
       cursor_.SetFilterValueUnchecked(index, std::move(value));
     }}
+    PERFETTO_ALWAYS_INLINE void SetFilterValueListUnchecked(
+        uint32_t index,
+        const dataframe::TypedCursor::FilterValue* values,
+        uint32_t count) {{
+      cursor_.SetFilterValueListUnchecked(index, values, count);
+    }}
     RowNumber ToRowNumber() const {{
       return RowNumber{{cursor_.RowIndex()}};
     }}
@@ -509,6 +515,12 @@ class {self.table_name} {{
     template <typename C>
     PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {{
       cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }}
+    PERFETTO_ALWAYS_INLINE void SetFilterValueListUnchecked(
+        uint32_t index,
+        const dataframe::TypedCursor::FilterValue* values,
+        uint32_t count) {{
+      cursor_.SetFilterValueListUnchecked(index, values, count);
     }}
     RowNumber ToRowNumber() const {{
       return RowNumber{{cursor_.RowIndex()}};
