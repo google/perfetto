@@ -15,20 +15,16 @@
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {type ThemeColors, EChartView} from './echart_view';
+import {type SingleValueData} from './single_value_loader';
 
-/** Data returned by the stat card: a single aggregated value. */
-export interface StatCardData {
-  readonly value: number;
-}
-
-export interface StatCardAttrs {
+export interface GaugeAttrs {
   /** The aggregated data to display, or undefined if loading. */
-  readonly data: StatCardData | undefined;
+  readonly data: SingleValueData | undefined;
   /** Whether the data is still being fetched. */
   readonly isPending: boolean;
   /** Label to display below the value. */
   readonly label: string;
-  /** Height of the chart in pixels. Defaults to 120 (use ~300 with gauge). */
+  /** Height of the chart in pixels. Defaults to 300. */
   readonly height?: number;
   /** Fill parent container. Defaults to false. */
   readonly fillParent?: boolean;
@@ -37,14 +33,9 @@ export interface StatCardAttrs {
   /** Maximum value of the gauge scale. Defaults to 100. */
   readonly max?: number;
   /**
-   * Show the gauge dial (arc, progress, and pointer). Defaults to false.
-   * When false, only the value and label are displayed.
-   */
-  readonly showGauge?: boolean;
-  /**
    * Gauge diameter as a CSS-style percentage string (e.g. '80%').
    * Controls the radius of the gauge arc relative to the container.
-   * Defaults to '75%'. Only used when showGauge is true.
+   * Defaults to '75%'.
    */
   readonly diameter?: string;
   /** Custom formatter for the displayed value. */
@@ -52,13 +43,13 @@ export interface StatCardAttrs {
 }
 
 /**
- * A stat card widget that displays a single aggregated value with a label,
- * optionally rendered as an ECharts gauge with arc, progress, and pointer.
+ * A gauge widget that displays a single aggregated value as an ECharts
+ * gauge with arc, progress, and pointer.
  */
-export class StatCard implements m.ClassComponent<StatCardAttrs> {
-  view({attrs}: m.CVnode<StatCardAttrs>) {
+export class Gauge implements m.ClassComponent<GaugeAttrs> {
+  view({attrs}: m.CVnode<GaugeAttrs>) {
     const {data, isPending} = attrs;
-    const height = attrs.height ?? 120;
+    const height = attrs.height ?? 300;
     const fillParent = attrs.fillParent ?? false;
 
     const option = buildGaugeOption(attrs, data);
@@ -122,47 +113,14 @@ function applyGaugeTheme(
 }
 
 function buildGaugeOption(
-  attrs: StatCardAttrs,
-  data: StatCardData | undefined,
+  attrs: GaugeAttrs,
+  data: SingleValueData | undefined,
 ): EChartsCoreOption {
   const value = data?.value ?? 0;
   const min = attrs.min ?? 0;
   const max = attrs.max ?? 100;
-  const formatter = attrs.formatValue ?? formatStatValue;
+  const formatter = attrs.formatValue ?? formatGaugeValue;
   const formatted = formatter(value);
-  const showGauge = attrs.showGauge ?? false;
-
-  if (!showGauge) {
-    // Simple "big number" display — no arc, no pointer.
-    return {
-      series: [
-        {
-          type: 'gauge',
-          startAngle: 0,
-          endAngle: 0,
-          min,
-          max,
-          axisLine: {show: false},
-          axisTick: {show: false},
-          splitLine: {show: false},
-          axisLabel: {show: false},
-          pointer: {show: false},
-          detail: {
-            show: true,
-            offsetCenter: [0, '-15%'],
-            formatter: () => formatted,
-            fontWeight: 700,
-          },
-          title: {
-            show: true,
-            offsetCenter: [0, '20%'],
-          },
-          data: [{value, name: attrs.label}],
-        },
-      ],
-    };
-  }
-
   const diameter = attrs.diameter ?? '75%';
 
   return {
@@ -230,7 +188,7 @@ function buildGaugeOption(
   };
 }
 
-function formatStatValue(value: number): string {
+function formatGaugeValue(value: number): string {
   if (Number.isInteger(value)) return value.toLocaleString();
   return value.toLocaleString(undefined, {
     minimumFractionDigits: 0,

@@ -4153,6 +4153,8 @@ perfetto_filegroup(
         "src/trace_processor/shell/export_subcommand.h",
         "src/trace_processor/shell/interactive_subcommand.cc",
         "src/trace_processor/shell/interactive_subcommand.h",
+        "src/trace_processor/shell/metrics_subcommand.cc",
+        "src/trace_processor/shell/metrics_subcommand.h",
         "src/trace_processor/shell/query_subcommand.cc",
         "src/trace_processor/shell/query_subcommand.h",
         "src/trace_processor/shell/server_subcommand.cc",

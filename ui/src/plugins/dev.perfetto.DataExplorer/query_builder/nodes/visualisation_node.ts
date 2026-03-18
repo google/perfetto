@@ -56,7 +56,8 @@ export type ChartType =
   | 'treemap'
   | 'boxplot'
   | 'heatmap'
-  | 'cdf';
+  | 'cdf'
+  | 'scorecard';
 
 /**
  * Bar chart orientation options.
@@ -170,6 +171,10 @@ export function getDefaultChartLabel(config: ChartConfig): string {
         : `Heatmap: ${config.column}`;
     case 'cdf':
       return `CDF: ${config.column}`;
+    case 'scorecard': {
+      const agg = config.aggregation ?? 'COUNT_DISTINCT';
+      return `${agg}(${config.measureColumn ?? config.column})`;
+    }
     case 'pie':
     case 'treemap':
     case 'bar': {
