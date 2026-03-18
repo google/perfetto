@@ -129,6 +129,10 @@
   display: flex;
   flex-direction: column;
   user-select: none;
+  // Smooth settling when snapped away from a divider.
+  transition:
+    left 0.1s ease-out,
+    top 0.1s ease-out;
 
   // Custom width/height via CSS custom properties set inline.
   &--custom-width {
@@ -143,6 +147,7 @@
     opacity: 0.6;
     z-index: 100;
     cursor: grabbing;
+    transition: none;
   }
 
   // Position resize handles at the edges of the card.
@@ -249,6 +254,68 @@
   font-size: var(--pf-font-size-s);
   background: transparent;
   color: inherit;
+}
+
+// --- Segment divider ---
+// A full-width horizontal rule that separates driver and consumer charts.
+.pf-dashboard__divider {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  cursor: grab;
+  z-index: 5;
+  user-select: none;
+  transition: top 0.1s ease-out;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  &--dragging {
+    opacity: 0.6;
+    z-index: 100;
+    transition: none;
+  }
+
+  &:hover {
+    .pf-dashboard__divider-actions {
+      opacity: 1;
+    }
+  }
+}
+
+.pf-dashboard__divider-line {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: 50%;
+  height: 0;
+  border-top: 2px dashed var(--pf-color-border);
+  opacity: 0.5;
+}
+
+.pf-dashboard__divider-label {
+  position: relative;
+  margin-left: 40px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pf-color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--pf-color-background);
+  border: 1px solid var(--pf-color-border-secondary);
+  border-radius: 10px;
+}
+
+.pf-dashboard__divider-actions {
+  position: relative;
+  margin-left: 8px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
 }
 
 // Data panel — styled similarly to the query page's table list.

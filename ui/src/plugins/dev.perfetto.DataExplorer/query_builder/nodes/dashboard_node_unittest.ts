@@ -317,19 +317,25 @@ describe('DashboardNode', () => {
       expect(matching).toHaveLength(1);
     });
 
-    test('eagerly resolves tableName on publish', async () => {
+    test('resolves tableName via requestExecution', async () => {
       const mockGetTable = jest.fn().mockResolvedValue('table_42');
+      const mockRequest = jest.fn().mockResolvedValue(undefined);
       const source = createMockSourceNode('src-1');
       const node = new DashboardNode({
         getTableNameForNode: mockGetTable,
+        requestNodeExecution: mockRequest,
       });
       connectNodes(source, node);
       node.onPrevNodesUpdated();
 
-      expect(mockGetTable).toHaveBeenCalledWith('src-1');
-      // Wait for the async resolution to complete.
-      await mockGetTable.mock.results[0].value;
+      // Table name is not eagerly resolved on publish.
+      expect(mockGetTable).not.toHaveBeenCalled();
+
+      // Calling requestExecution triggers both execution and table resolution.
       const exported = dashboardRegistry.getExportedSource(node.nodeId);
+      await exported?.requestExecution?.();
+      expect(mockRequest).toHaveBeenCalledWith('src-1');
+      expect(mockGetTable).toHaveBeenCalledWith('src-1');
       expect(exported?.tableName).toBe('table_42');
     });
 
