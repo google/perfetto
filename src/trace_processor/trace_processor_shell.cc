@@ -144,54 +144,41 @@ struct CommandLineOptions {
 };
 
 void PrintSubcommandHelp(const char* argv0) {
-  printf(R"(
-Perfetto Trace Processor.
+  printf(R"(Perfetto Trace Processor.
 Usage: %s [command] [flags] [trace_file]
 
 If no command is given, opens an interactive SQL shell on the trace file.
 
 Commands:
+  query         Load a trace and run a SQL query.
+  interactive   Interactive SQL shell (default if no command is given).
+  server        Start an RPC server (http or stdio).
+  summarize     Compute a trace summary from specs and/or built-in metrics.
+  export        Export a trace to a database file.
+  metrics       Run v1 metrics (deprecated; use 'summarize --metrics-v2').
 
-  query         Run SQL queries against a trace.
-                  %s query -c "SELECT ts, dur FROM slice" trace.pb
-                  %s query -f query.sql trace.pb
-                Flags: -f FILE, -c STRING, -i (interactive after), -W (wide)
+Common flags (apply to all commands):
+  -h, --help                  Show help (per-command if after a command).
+  -v, --version               Print version.
+      --full-sort             Force full sort ignoring windowing.
+      --no-ftrace-raw         Prevent ingestion of typed ftrace into raw table.
+      --add-sql-package PATH  Register SQL files from a directory as a package.
+  -m, --metatrace FILE        Enable metatracing, write to FILE.
 
-  interactive   Interactive SQL shell (default).
-                  %s trace.pb
-                  %s interactive trace.pb
-                Flags: -W (wide)
+Run '%s help <command>' for per-command flags and details.
 
-  server        Start an RPC server.
-                  %s server http trace.pb
-                  %s server http --port 9001 trace.pb
-                  %s server stdio
-                Modes: http, stdio
+Examples:
+  tp trace.pb                                       Interactive shell.
+  tp query trace.pb "SELECT ts, dur FROM slice"     Run a query.
+  tp query -f queries.sql trace.pb                  Run queries from file.
+  tp server http                                    Start HTTP server.
+  tp summarize --metrics-v2 all trace.pb            Summarize a trace.
 
-  summarize     Run trace summarization.
-                  %s summarize --metrics-v2 all --spec spec.textproto trace.pb
-                Flags: --spec PATH, --metrics-v2 IDS, --format [text|binary]
-
-  metrics       Run v1 metrics (deprecated).
-                  %s metrics --run android_cpu trace.pb
-                Flags: --run NAMES, --output [binary|text|json]
-
-  export        Export trace to a database file.
-                  %s export sqlite -o out.db trace.pb
-                Formats: sqlite
-
-Global flags (apply to all commands):
-  --dev, --full-sort, --no-ftrace-raw, --metatrace FILE, ...
-  Run '%s help <command>' for full flag details.
-
-Previous versions of trace_processor_shell used a flat flag interface
-(e.g. -q file.sql, --httpd, --summary, -e output.db). This interface
-is fully supported and will remain so permanently. If you have existing
-scripts or are following older documentation that uses these flags, they
-will continue to work exactly as before.
-  Run '%s --help-classic' to see the flat flag reference.
+Classic interface:
+  The previous flat-flag interface (-q, --httpd, --summary, -e, etc.) is
+  fully supported and will remain so. Existing scripts will continue to work.
+  Run '%s --help-classic' to see the classic flag reference.
 )",
-         argv0, argv0, argv0, argv0, argv0, argv0, argv0, argv0, argv0, argv0,
          argv0, argv0, argv0);
 }
 
@@ -816,17 +803,15 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
           // `help <command>` -- find the named subcommand and print its usage.
           for (auto* sc : subcommands) {
             if (strcmp(sc->name(), argv[i + 1]) == 0) {
-              shell::PrintSubcommandUsage(argv[0], sc);
-              exit(0);
+              printf("%s", shell::FormatSubcommandUsage(argv[0], sc).c_str());
+              return base::OkStatus();
             }
           }
-          PERFETTO_ELOG("Unknown command '%s'.", argv[i + 1]);
-          PrintSubcommandHelp(argv[0]);
-          exit(1);
+          return base::ErrStatus("Unknown command '%s'.", argv[i + 1]);
         }
         // Bare `help` -- same as --help.
         PrintSubcommandHelp(argv[0]);
-        exit(0);
+        return base::OkStatus();
       }
       break;  // First non-flag, non-help positional -> stop.
     }
@@ -877,9 +862,23 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
       ctx.platform = platform_interface_.get();
       ctx.global = &global;
 
-      RETURN_IF_ERROR(shell::ParseFlags(result.subcommand, &ctx, argc, argv));
+      auto usage = shell::FormatSubcommandUsage(argv[0], result.subcommand);
+      {
+        auto parse_status =
+            shell::ParseFlags(result.subcommand, &ctx, argc, argv);
+        if (!parse_status.ok()) {
+          bool already_printed =
+              parse_status.GetPayload("perfetto.dev/has_printed_error")
+                  .has_value();
+          if (already_printed) {
+            return base::ErrStatus("\n%s", usage.c_str());
+          }
+          return base::ErrStatus("%s\n\n%s", parse_status.c_message(),
+                                 usage.c_str());
+        }
+      }
       if (global.help) {
-        shell::PrintSubcommandUsage(argv[0], result.subcommand);
+        printf("%s", usage.c_str());
         return base::OkStatus();
       }
       if (global.version) {
@@ -888,12 +887,28 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
                protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
         return base::OkStatus();
       }
-      return result.subcommand->Run(ctx);
+      {
+        auto run_status = result.subcommand->Run(ctx);
+        if (!run_status.ok()) {
+          return base::ErrStatus("%s\n\n%s", run_status.c_message(),
+                                 usage.c_str());
+        }
+        return base::OkStatus();
+      }
     }
   }
 
+<<<<<<< HEAD
   // Classic flag path: translate classic flags into a subcommand invocation
   // and re-dispatch through the subcommand machinery above.
+=======
+  // No arguments at all: show the subcommand-based help.
+  if (argc == 1) {
+    PrintSubcommandHelp(argv[0]);
+    return base::OkStatus();
+  }
+
+>>>>>>> origin/main
   CommandLineOptions options = ParseCommandLineOptions(argc, argv);
 
   // Build a synthetic argv for the target subcommand.

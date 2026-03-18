@@ -47,6 +47,23 @@ const char* ServerSubcommand::description() const {
   return "Start an RPC server.";
 }
 
+const char* ServerSubcommand::usage_args() const {
+  return "<mode> [trace_file]";
+}
+
+const char* ServerSubcommand::detailed_help() const {
+  return R"(Start an RPC server for remote trace processor access.
+
+Modes:
+  http   Start an HTTP server (default port 9001). This is what the
+         Perfetto UI (ui.perfetto.dev) connects to. Configure with
+         --port and --ip-address.
+  stdio  Communicate via stdin/stdout using length-prefixed RPC protocol.
+         Used by tooling that embeds trace processor as a subprocess.
+
+The trace file is optional; in http mode, traces can be loaded remotely.)";
+}
+
 std::vector<FlagSpec> ServerSubcommand::GetFlags() {
   return {
       StringFlag("port", '\0', "PORT", "HTTP port.", &port_number_),

@@ -47,6 +47,22 @@ const char* QuerySubcommand::description() const {
   return "Load a trace and run a SQL query.";
 }
 
+const char* QuerySubcommand::usage_args() const {
+  return "<trace_file> [SQL]";
+}
+
+const char* QuerySubcommand::detailed_help() const {
+  return R"(Run one or more SQL queries against a loaded trace file and print results.
+
+SQL can be provided in three ways:
+  1. Positional argument:  tp query trace.pb "SELECT ts FROM slice LIMIT 10"
+  2. From a file:          tp query -f queries.sql trace.pb
+  3. From stdin:           cat q.sql | tp query trace.pb
+
+Multiple semicolon-separated statements are supported. Use -i to drop into
+an interactive shell after the queries complete.)";
+}
+
 std::vector<FlagSpec> QuerySubcommand::GetFlags() {
   return {
       StringFlag("query-file", 'f', "FILE",
