@@ -24,7 +24,7 @@ import {Accordion, AccordionItem} from '../../../widgets/accordion';
 import {Button} from '../../../widgets/button';
 import {Icons} from '../../../base/semantic_icons';
 import {Chip} from '../../../widgets/chip';
-import {EmptyState} from '../../../widgets/empty_state';
+import {ResultsPanelEmptyState} from '../query_builder/widgets';
 import {Icon} from '../../../widgets/icon';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {
@@ -151,12 +151,12 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
                   '.pf-dashboard__empty-overlay',
                   attrs.sources.length > 0
                     ? m(
-                        EmptyState,
+                        ResultsPanelEmptyState,
                         {icon: 'bar_chart', title: 'No items yet'},
                         'Use the + button to add charts or labels.',
                       )
                     : m(
-                        EmptyState,
+                        ResultsPanelEmptyState,
                         {icon: 'bar_chart', title: 'No data exported'},
                         'Use the "Export to Dashboard" node in the graph to export data here.',
                       ),
@@ -410,7 +410,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       m(
         '.pf-dashboard__chart-content',
         m(
-          EmptyState,
+          ResultsPanelEmptyState,
           {icon: 'link_off', title: 'Data source removed'},
           'The data source for this chart is no longer available. Delete or re-assign it.',
         ),
@@ -996,7 +996,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
 
     if (allExported.length === 0) {
       return m(
-        EmptyState,
+        ResultsPanelEmptyState,
         {icon: 'dataset', title: 'No exported sources'},
         'Use "Export to Dashboard" nodes in the graph builder to make data sources available here.',
       );
@@ -1066,7 +1066,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     const sources = attrs.sources;
     if (sources.length < 2) {
       return m(
-        EmptyState,
+        ResultsPanelEmptyState,
         {icon: 'link', title: 'No linked columns'},
         'Add two or more data sources to see columns that are shared across them.',
       );
@@ -1095,7 +1095,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
 
     if (linked.length === 0) {
       return m(
-        EmptyState,
+        ResultsPanelEmptyState,
         {icon: 'link_off', title: 'No shared columns'},
         'None of the data sources share a column name. Brushing one source will not filter others.',
       );
