@@ -1088,7 +1088,10 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     const std::string& bytecode_v2 = filt.bytecode_v2();
     const std::string& bytecode =
         bytecode_v2.empty() ? bytecode_v1 : bytecode_v2;
-    if (!trace_filter->LoadFilterBytecode(bytecode.data(), bytecode.size())) {
+    const std::string& overlay = filt.bytecode_overlay_v54();
+    if (!trace_filter->LoadFilterBytecode(
+            bytecode.data(), bytecode.size(),
+            overlay.empty() ? nullptr : overlay.data(), overlay.size())) {
       MaybeLogUploadEvent(
           cfg, uuid, PerfettoStatsdAtom::kTracedEnableTracingInvalidFilter);
       return PERFETTO_SVC_ERR("Trace filter bytecode invalid, aborting");
