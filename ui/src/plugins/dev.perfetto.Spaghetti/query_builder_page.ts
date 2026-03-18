@@ -1,0 +1,1244 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import m from 'mithril';
+import {produce} from 'immer';
+import {perfettoSqlTypeToString} from '../../trace_processor/perfetto_sql_type';
+import {shortUuid} from '../../base/uuid';
+import {Button, ButtonGroup, ButtonVariant} from '../../widgets/button';
+import {MenuItem, PopupMenu} from '../../widgets/menu';
+import {
+  Connection,
+  Node,
+  NodeGraph,
+  NodeGraphApi,
+} from '../../widgets/nodegraph';
+import {SplitPanel} from '../../widgets/split_panel';
+import {Trace} from '../../public/trace';
+import {EmptyState} from '../../widgets/empty_state';
+import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
+import {DataGrid} from '../../components/widgets/datagrid/datagrid';
+import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
+import {Tabs} from '../../widgets/tabs';
+
+import {NodeData, NodeQueryBuilderStore, NODE_CONFIGS} from './node_types';
+import {createFromNode, renderFromNode} from './from';
+import {createSelectNode, renderSelectNode} from './select';
+import {createFilterNode, renderFilterNode} from './filter';
+import {createSortNode, renderSortNode} from './sort';
+import {createLimitNode, renderLimitNode} from './limit';
+import {createExtendNode, renderExtendNode} from './extend';
+import {createExtractArgNode, renderExtractArgNode} from './extract_arg';
+import {createGroupByNode, renderGroupByNode} from './groupby';
+import {
+  createIntervalIntersectNode,
+  renderIntervalIntersectNode,
+} from './interval_intersect';
+import {createSelectionNode, renderSelectionNode} from './selection';
+import {createUnionAllNode, renderUnionAllNode} from './union_all';
+import {buildIR} from './ir';
+import {
+  findConnectedInputs,
+  findDockedParent,
+  getColumnsForNode,
+  getOutputColumnsForNode,
+  getRootNodeIds,
+} from './graph_utils';
+import {
+  CacheEntry,
+  MaterializationService,
+  QueryReport,
+} from './materialization';
+import {Intent} from '../../widgets/common';
+import {Popup} from '../../widgets/popup';
+
+function formatQueryReport(report: QueryReport): string {
+  const lines: string[] = [];
+  const hits = report.entries.filter((e) => e.cacheHit).length;
+  const misses = report.entries.length - hits;
+  lines.push(
+    `${report.entries.length} entries | ${hits} cache hits | ${misses} misses | ${report.totalTimeMs.toFixed(1)}ms total`,
+  );
+  lines.push('');
+  for (const entry of report.entries) {
+    const status = entry.cacheHit ? 'HIT ' : 'MISS';
+    const time = entry.cacheHit
+      ? '     '
+      : `${entry.timeMs.toFixed(1).padStart(5)}ms`;
+    lines.push(`${status}  ${time}  ${entry.hash}`);
+    const sqlOneLine = entry.sql.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+    const truncated =
+      sqlOneLine.length > 80 ? sqlOneLine.slice(0, 77) + '...' : sqlOneLine;
+    lines.push(`                ${truncated}`);
+  }
+  return lines.join('\n');
+}
+
+function formatCacheInfo(entries: readonly CacheEntry[]): string {
+  if (entries.length === 0) return 'Cache is empty';
+  const lines: string[] = [];
+  lines.push(`${entries.length} tables cached`);
+  lines.push('');
+  // Sort by most recently hit first.
+  const sorted = [...entries].sort((a, b) => b.lastHitAt - a.lastHitAt);
+  for (const entry of sorted) {
+    const hits = entry.hitCount === 1 ? '1 hit' : `${entry.hitCount} hits`;
+    lines.push(
+      `${entry.hash}  ${hits}  ${entry.materializeTimeMs.toFixed(1)}ms`,
+    );
+    lines.push(
+      `  created ${formatTimestamp(entry.createdAt)} | last hit ${formatTimestamp(entry.lastHitAt)}`,
+    );
+    const sqlOneLine = entry.sql.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+    const truncated =
+      sqlOneLine.length > 72 ? sqlOneLine.slice(0, 69) + '...' : sqlOneLine;
+    lines.push(`  ${truncated}`);
+  }
+  return lines.join('\n');
+}
+
+function formatTimestamp(perfNow: number): string {
+  // Convert performance.now() to a wall-clock Date.
+  const wallMs = Date.now() - (performance.now() - perfNow);
+  const d = new Date(wallMs);
+  return d.toLocaleTimeString();
+}
+
+import type NodeQueryBuilderPlugin from './index';
+import type {QueryBuilderDelegate} from './index';
+
+export interface QueryBuilderPageAttrs {
+  readonly trace: Trace;
+  readonly sqlModules: SqlModules | undefined;
+  readonly plugin?: NodeQueryBuilderPlugin;
+}
+
+export function QueryBuilderPage(
+  _initialVnode: m.Vnode<QueryBuilderPageAttrs>,
+): m.Component<QueryBuilderPageAttrs> {
+  let graphApi: NodeGraphApi | undefined;
+
+  // Initialize store
+  let store: NodeQueryBuilderStore = {
+    nodes: new Map(),
+    connections: [],
+    labels: [],
+  };
+
+  // History management
+  const history: NodeQueryBuilderStore[] = [store];
+  let historyIndex = 0;
+
+  // Selection state (separate from undo/redo history)
+  const selectedNodeIds = new Set<string>();
+
+  // Pinned node: when set, results panel always shows this node's query
+  let pinnedNodeId: string | undefined;
+
+  // Helpers to get the nodes/connections for the currently active view.
+  function getActiveNodes(): Map<string, NodeData> {
+    return store.nodes;
+  }
+
+  function getActiveConnections(): Connection[] {
+    return store.connections;
+  }
+
+  let matService: MaterializationService | undefined;
+
+  const STORAGE_KEY = 'perfetto.nodeQueryBuilder.savedGraph';
+
+  function serializeStore(s: NodeQueryBuilderStore): string {
+    return JSON.stringify({
+      nodes: Array.from(s.nodes.entries()),
+      connections: s.connections,
+      labels: s.labels,
+    });
+  }
+
+  function deserializeStore(json: string): NodeQueryBuilderStore {
+    const obj = JSON.parse(json);
+    return {
+      nodes: new Map(obj.nodes),
+      connections: obj.connections ?? [],
+      labels: obj.labels ?? [],
+    };
+  }
+
+  function saveGraph() {
+    try {
+      localStorage.setItem(STORAGE_KEY, serializeStore(store));
+      console.log('[QueryBuilder] Graph saved');
+    } catch (e) {
+      console.error('[QueryBuilder] Failed to save graph:', e);
+    }
+  }
+
+  function loadGraph() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) {
+        console.log('[QueryBuilder] No saved graph found');
+        return;
+      }
+      store = deserializeStore(saved);
+      history.splice(0, history.length, store);
+      historyIndex = 0;
+      selectedNodeIds.clear();
+      pinnedNodeId = undefined;
+      console.log('[QueryBuilder] Graph loaded');
+    } catch (e) {
+      console.error('[QueryBuilder] Failed to load graph:', e);
+    }
+  }
+
+  // Update store with history
+  const updateStore = (updater: (draft: NodeQueryBuilderStore) => void) => {
+    const newStore = produce(store, updater);
+    store = newStore;
+
+    if (historyIndex < history.length - 1) {
+      history.splice(historyIndex + 1);
+    }
+
+    history.push(store);
+    historyIndex = history.length - 1;
+
+    if (history.length > 50) {
+      history.shift();
+      historyIndex--;
+    }
+  };
+
+  const undo = () => {
+    if (historyIndex > 0) {
+      historyIndex--;
+      store = history[historyIndex];
+    }
+  };
+
+  const redo = () => {
+    if (historyIndex < history.length - 1) {
+      historyIndex++;
+      store = history[historyIndex];
+    }
+  };
+
+  const canUndo = () => historyIndex > 0;
+  const canRedo = () => historyIndex < history.length - 1;
+
+  const updateNode = (
+    nodeId: string,
+    updates: Partial<Omit<NodeData, 'id'>>,
+  ) => {
+    updateStore((draft) => {
+      const node = draft.nodes.get(nodeId);
+      if (node) {
+        Object.assign(node, updates);
+      }
+    });
+  };
+
+  const removeNode = (nodeId: string) => {
+    updateStore((draft) => {
+      const nodeToDelete = draft.nodes.get(nodeId);
+      if (!nodeToDelete) return;
+
+      for (const parent of draft.nodes.values()) {
+        if (parent.nextId === nodeId) {
+          parent.nextId = nodeToDelete.nextId;
+        }
+      }
+
+      for (let i = draft.connections.length - 1; i >= 0; i--) {
+        const c = draft.connections[i];
+        if (c.fromNode === nodeId || c.toNode === nodeId) {
+          draft.connections.splice(i, 1);
+        }
+      }
+
+      draft.nodes.delete(nodeId);
+    });
+
+    selectedNodeIds.delete(nodeId);
+    if (pinnedNodeId === nodeId) pinnedNodeId = undefined;
+  };
+
+  // Load the graph from localStorage on initialization
+  loadGraph();
+
+  // --- Clipboard support ---
+
+  interface ClipboardEntry {
+    node: NodeData;
+    relativeX: number;
+    relativeY: number;
+  }
+
+  interface ClipboardConnection {
+    fromIndex: number;
+    toIndex: number;
+    fromPort: number;
+    toPort: number;
+  }
+
+  interface ClipboardDock {
+    parentIndex: number;
+    childIndex: number;
+  }
+
+  let clipboard:
+    | {
+        nodes: ClipboardEntry[];
+        connections: ClipboardConnection[];
+        docks: ClipboardDock[];
+      }
+    | undefined;
+
+  function copySelectedNodes() {
+    if (selectedNodeIds.size === 0) return;
+
+    const activeNodes = getActiveNodes();
+    const activeConns = getActiveConnections();
+
+    const selected: NodeData[] = [];
+    const idToIndex = new Map<string, number>();
+    for (const id of selectedNodeIds) {
+      const node = activeNodes.get(id);
+      if (node) {
+        idToIndex.set(id, selected.length);
+        selected.push(node);
+      }
+    }
+    if (selected.length === 0) return;
+
+    const minX = Math.min(...selected.map((n) => n.x));
+    const minY = Math.min(...selected.map((n) => n.y));
+
+    const clipNodes: ClipboardEntry[] = selected.map((n) => ({
+      node: structuredClone(n),
+      relativeX: n.x - minX,
+      relativeY: n.y - minY,
+    }));
+
+    const clipConns: ClipboardConnection[] = [];
+    for (const conn of activeConns) {
+      const fi = idToIndex.get(conn.fromNode);
+      const ti = idToIndex.get(conn.toNode);
+      if (fi !== undefined && ti !== undefined) {
+        clipConns.push({
+          fromIndex: fi,
+          toIndex: ti,
+          fromPort: conn.fromPort,
+          toPort: conn.toPort,
+        });
+      }
+    }
+
+    const clipDocks: ClipboardDock[] = [];
+    for (const node of selected) {
+      if (node.nextId && idToIndex.has(node.nextId)) {
+        clipDocks.push({
+          parentIndex: idToIndex.get(node.id)!,
+          childIndex: idToIndex.get(node.nextId)!,
+        });
+      }
+    }
+
+    clipboard = {nodes: clipNodes, connections: clipConns, docks: clipDocks};
+  }
+
+  function pasteNodes() {
+    if (!clipboard || clipboard.nodes.length === 0) return;
+
+    const pasteOffset = 50;
+    const newNodes: NodeData[] = clipboard.nodes.map((entry) => {
+      const newId = shortUuid();
+      return {
+        ...structuredClone(entry.node),
+        id: newId,
+        x: entry.relativeX + pasteOffset,
+        y: entry.relativeY + pasteOffset,
+        nextId: undefined as string | undefined,
+      };
+    });
+
+    for (const dock of clipboard.docks) {
+      newNodes[dock.parentIndex].nextId = newNodes[dock.childIndex].id;
+    }
+
+    updateStore((draft) => {
+      for (const node of newNodes) {
+        draft.nodes.set(node.id, node);
+      }
+      for (const conn of clipboard!.connections) {
+        draft.connections.push({
+          fromNode: newNodes[conn.fromIndex].id,
+          fromPort: conn.fromPort,
+          toNode: newNodes[conn.toIndex].id,
+          toPort: conn.toPort,
+        });
+      }
+    });
+
+    selectedNodeIds.clear();
+    for (const node of newNodes) {
+      selectedNodeIds.add(node.id);
+    }
+  }
+
+  function cutSelectedNodes() {
+    copySelectedNodes();
+    for (const id of [...selectedNodeIds]) {
+      removeNode(id);
+    }
+  }
+
+  const addNode = (
+    factory: (id: string, x: number, y: number) => NodeData,
+    toNodeId?: string,
+  ) => {
+    const id = shortUuid();
+
+    let x: number;
+    let y: number;
+
+    if (graphApi && !toNodeId) {
+      const tempNode = factory(id, 0, 0);
+      const config = NODE_CONFIGS[tempNode.type];
+      const placement = graphApi.findPlacementForNode({
+        id,
+        inputs: config.inputs,
+        outputs: config.outputs,
+        content: m('span', tempNode.type),
+        canDockBottom: config.canDockBottom,
+        canDockTop: config.canDockTop,
+        titleBar: {title: config.title, icon: config.icon},
+        hue: config.hue,
+      });
+      x = placement.x;
+      y = placement.y;
+    } else {
+      x = 100 + Math.random() * 200;
+      y = 50 + Math.random() * 200;
+    }
+
+    const newNode = factory(id, x, y);
+
+    updateStore((draft) => {
+      draft.nodes.set(newNode.id, newNode);
+
+      if (toNodeId) {
+        const parentNode = draft.nodes.get(toNodeId);
+        if (parentNode) {
+          newNode.nextId = parentNode.nextId;
+          parentNode.nextId = id;
+        }
+
+        const bottomConnectionIdx = draft.connections.findIndex(
+          (c: Connection) => c.fromNode === toNodeId && c.fromPort === 0,
+        );
+        if (bottomConnectionIdx > -1) {
+          draft.connections[bottomConnectionIdx] = {
+            ...draft.connections[bottomConnectionIdx],
+            fromNode: id,
+            fromPort: 0,
+          };
+        }
+      }
+    });
+  };
+
+  function renderTitleBarActions(nodeData: NodeData): m.Children {
+    return [
+      m(Button, {
+        icon: 'push_pin',
+        title: pinnedNodeId === nodeData.id ? 'Unpin results' : 'Pin results',
+        rounded: true,
+        className: pinnedNodeId === nodeData.id ? '' : 'pf-show-on-hover',
+        active: pinnedNodeId === nodeData.id,
+        onclick: (e: Event) => {
+          e.stopPropagation();
+          pinnedNodeId = pinnedNodeId === nodeData.id ? undefined : nodeData.id;
+        },
+      }),
+    ];
+  }
+
+  // Render node content with context (sqlModules, tableNames)
+  function renderNodeContentWithContext(
+    nodeData: NodeData,
+    updateNodeFn: (updates: Partial<Omit<NodeData, 'id'>>) => void,
+    tableNames: string[],
+    sqlModules: SqlModules | undefined,
+    trace: Trace,
+  ): m.Children {
+    const activeNodes = getActiveNodes();
+    const activeConns = getActiveConnections();
+
+    switch (nodeData.type) {
+      case 'from':
+        return renderFromNode(nodeData, updateNodeFn, tableNames);
+      case 'select': {
+        const cols = getColumnsForNode(
+          activeNodes,
+          activeConns,
+          nodeData.id,
+          sqlModules,
+        );
+        return renderSelectNode(nodeData, updateNodeFn, cols);
+      }
+      case 'filter': {
+        const cols = getColumnsForNode(
+          activeNodes,
+          activeConns,
+          nodeData.id,
+          sqlModules,
+        );
+        return renderFilterNode(nodeData, updateNodeFn, cols);
+      }
+      case 'sort': {
+        const cols = getColumnsForNode(
+          activeNodes,
+          activeConns,
+          nodeData.id,
+          sqlModules,
+        );
+        return renderSortNode(nodeData, updateNodeFn, cols);
+      }
+      case 'limit':
+        return renderLimitNode(nodeData, updateNodeFn);
+      case 'extend': {
+        const parent = findDockedParent(activeNodes, nodeData.id);
+        const leftInput =
+          parent ??
+          findConnectedInputs(activeNodes, activeConns, nodeData.id).get(0);
+        const leftCols = leftInput
+          ? getOutputColumnsForNode(
+              activeNodes,
+              activeConns,
+              leftInput.id,
+              sqlModules,
+            ) ?? []
+          : [];
+        const rightInput = findConnectedInputs(
+          activeNodes,
+          activeConns,
+          nodeData.id,
+        ).get(1);
+        const rightCols = rightInput
+          ? getOutputColumnsForNode(
+              activeNodes,
+              activeConns,
+              rightInput.id,
+              sqlModules,
+            ) ?? []
+          : [];
+        return renderExtendNode(nodeData, updateNodeFn, {
+          leftColumns: leftCols,
+          rightColumns: rightCols,
+        });
+      }
+      case 'extract_arg': {
+        const cols = getColumnsForNode(
+          activeNodes,
+          activeConns,
+          nodeData.id,
+          sqlModules,
+        );
+        return renderExtractArgNode(nodeData, updateNodeFn, cols);
+      }
+      case 'groupby': {
+        const cols = getColumnsForNode(
+          activeNodes,
+          activeConns,
+          nodeData.id,
+          sqlModules,
+        );
+        return renderGroupByNode(nodeData, updateNodeFn, cols);
+      }
+      case 'selection':
+        return renderSelectionNode(nodeData, updateNodeFn, trace);
+      case 'union_all':
+        return renderUnionAllNode(nodeData, updateNodeFn);
+      case 'interval_intersect':
+        return renderIntervalIntersectNode(nodeData, updateNodeFn);
+    }
+  }
+
+  function buildNodeModel(
+    nodeData: NodeData,
+    tableNames: string[],
+    trace: Trace,
+    sqlModules: SqlModules | undefined,
+  ): Omit<Node, 'x' | 'y'> {
+    const activeNodes = getActiveNodes();
+    const nextModel = nodeData.nextId
+      ? activeNodes.get(nodeData.nextId)
+      : undefined;
+
+    const config = NODE_CONFIGS[nodeData.type];
+
+    const inputs = config.inputs;
+    const outputs = config.outputs;
+
+    return {
+      id: nodeData.id,
+      inputs,
+      outputs,
+      content: renderNodeContentWithContext(
+        nodeData,
+        (updates) => updateNode(nodeData.id, updates),
+        tableNames,
+        sqlModules,
+        trace,
+      ),
+      canDockBottom: config.canDockBottom,
+      canDockTop: config.canDockTop,
+      next: nextModel
+        ? buildNodeModel(nextModel, tableNames, trace, sqlModules)
+        : undefined,
+      titleBar: {
+        title: config.title,
+        icon: config.icon,
+        actions: renderTitleBarActions(nodeData),
+      },
+      hue: config.hue,
+      contextMenuItems: [
+        m(MenuItem, {
+          label: 'Delete',
+          icon: 'delete',
+          onclick: () => removeNode(nodeData.id),
+        }),
+      ],
+      collapsed: nodeData.collapsed,
+    };
+  }
+
+  // Render a node and its docked chain
+  function renderNodeChain(
+    nodeData: NodeData,
+    tableNames: string[],
+    trace: Trace,
+    sqlModules: SqlModules | undefined,
+  ): Node {
+    const model = buildNodeModel(nodeData, tableNames, trace, sqlModules);
+    return {
+      ...model,
+      x: nodeData.x,
+      y: nodeData.y,
+    };
+  }
+
+  return {
+    oncreate({attrs}: m.VnodeDOM<QueryBuilderPageAttrs>) {
+      if (attrs.plugin) {
+        const delegate: QueryBuilderDelegate = {
+          getStore: () => store,
+          setStore: (newStore) => {
+            store = newStore;
+            history.splice(0, history.length, store);
+            historyIndex = 0;
+            selectedNodeIds.clear();
+            pinnedNodeId = undefined;
+            saveGraph();
+            m.redraw();
+          },
+          serializeStore: () => serializeStore(store),
+          deserializeAndSetStore: (json: string) => {
+            store = deserializeStore(json);
+            history.splice(0, history.length, store);
+            historyIndex = 0;
+            selectedNodeIds.clear();
+            pinnedNodeId = undefined;
+            saveGraph();
+            m.redraw();
+          },
+          selectNode: (nodeId: string) => {
+            selectedNodeIds.clear();
+            selectedNodeIds.add(nodeId);
+            pinnedNodeId = nodeId;
+            m.redraw();
+          },
+        };
+        attrs.plugin.registerDelegate(delegate);
+      }
+    },
+    onremove({attrs}: m.VnodeDOM<QueryBuilderPageAttrs>) {
+      matService?.dispose();
+      attrs.plugin?.unregisterDelegate();
+    },
+    view({attrs}: m.Vnode<QueryBuilderPageAttrs>) {
+      const {trace, sqlModules} = attrs;
+
+      // Get table names from SqlModules, falling back to a basic list
+      const tableNames = sqlModules
+        ? sqlModules.listTablesNames().sort()
+        : ['slice', 'sched', 'thread', 'process'];
+
+      // Build the rendered nodes list from the active view.
+      const activeNodes = getActiveNodes();
+      const activeConns = getActiveConnections();
+
+      const rootIds = getRootNodeIds(activeNodes);
+      const renderedNodes: Node[] = rootIds
+        .map((id) => activeNodes.get(id))
+        .filter((n): n is NodeData => n !== undefined)
+        .map((n) => renderNodeChain(n, tableNames, trace, sqlModules));
+
+      const toolbarItems: m.Children[] = [];
+
+      function nodeMenuItem(
+        type: NodeData['type'],
+        factory: (id: string, x: number, y: number) => NodeData,
+      ): m.Children {
+        const config = NODE_CONFIGS[type];
+        return m(MenuItem, {
+          label: config.title,
+          icon: config.icon,
+          style: {borderLeft: `3px solid hsl(${config.hue}, 60%, 65%)`},
+          onclick: () => addNode(factory),
+        });
+      }
+
+      const addNodeMenuItems = [
+        nodeMenuItem('from', createFromNode),
+        nodeMenuItem('selection', createSelectionNode),
+        nodeMenuItem('select', createSelectNode),
+        nodeMenuItem('filter', createFilterNode),
+        nodeMenuItem('extract_arg', createExtractArgNode),
+        nodeMenuItem('sort', createSortNode),
+        nodeMenuItem('limit', createLimitNode),
+        nodeMenuItem('groupby', createGroupByNode),
+        nodeMenuItem('extend', createExtendNode),
+        nodeMenuItem('union_all', createUnionAllNode),
+        nodeMenuItem('interval_intersect', createIntervalIntersectNode),
+      ];
+
+      toolbarItems.push(
+        m(
+          PopupMenu,
+          {
+            trigger: m(Button, {
+              variant: ButtonVariant.Filled,
+              intent: Intent.Primary,
+              label: 'Add Node',
+              icon: 'add',
+            }),
+          },
+          addNodeMenuItems,
+        ),
+      );
+
+      toolbarItems.push(
+        m('div', {style: {flex: '1'}}),
+        m(
+          Popup,
+          {
+            trigger: m(Button, {
+              variant: ButtonVariant.Filled,
+              icon: 'delete_sweep',
+              title: 'Clear workspace',
+            }),
+          },
+          m('.pf-qb-stack', [
+            m('span', 'Are you sure you want to clear everything?'),
+            m(
+              `.${Popup.DISMISS_POPUP_GROUP_CLASS}`,
+              {
+                style: {
+                  display: 'flex',
+                  gap: '4px',
+                  justifyContent: 'flex-end',
+                },
+              },
+              [
+                m(Button, {
+                  label: 'Cancel',
+                  className: Popup.DISMISS_POPUP_GROUP_CLASS,
+                }),
+                m(Button, {
+                  label: 'Clear',
+                  variant: ButtonVariant.Filled,
+                  intent: Intent.Danger,
+                  className: Popup.DISMISS_POPUP_GROUP_CLASS,
+                  onclick: () => {
+                    store = {
+                      nodes: new Map(),
+                      connections: [],
+                      labels: [],
+                    };
+                    history.splice(0, history.length, store);
+                    historyIndex = 0;
+                    selectedNodeIds.clear();
+                    pinnedNodeId = undefined;
+                  },
+                }),
+              ],
+            ),
+          ]),
+        ),
+        m(
+          ButtonGroup,
+          m(Button, {
+            variant: ButtonVariant.Filled,
+            icon: 'save',
+            onclick: saveGraph,
+          }),
+          m(Button, {
+            variant: ButtonVariant.Filled,
+            icon: 'folder_open',
+            onclick: loadGraph,
+          }),
+        ),
+        m(
+          ButtonGroup,
+          m(Button, {
+            variant: ButtonVariant.Filled,
+            icon: 'undo',
+            disabled: !canUndo(),
+            onclick: undo,
+          }),
+          m(Button, {
+            variant: ButtonVariant.Filled,
+            icon: 'redo',
+            disabled: !canRedo(),
+            onclick: redo,
+          }),
+        ),
+      );
+
+      const graphPanel = m(NodeGraph, {
+        nodes: renderedNodes,
+        connections: activeConns,
+        labels: store.labels,
+        selectedNodeIds,
+        fillHeight: true,
+        contextMenuOnHover: true,
+        toolbarItems,
+        onReady: (api: NodeGraphApi) => {
+          graphApi = api;
+        },
+        onCopy: () => copySelectedNodes(),
+        onPaste: () => pasteNodes(),
+        onCut: () => cutSelectedNodes(),
+        onConnect: (conn: Connection) => {
+          updateStore((draft) => {
+            draft.connections.push(conn);
+          });
+        },
+        onConnectionRemove: (index: number) => {
+          updateStore((draft) => {
+            draft.connections.splice(index, 1);
+          });
+        },
+        onNodeMove: (nodeId: string, x: number, y: number) => {
+          updateNode(nodeId, {x, y});
+        },
+        onNodeRemove: (nodeId: string) => {
+          removeNode(nodeId);
+        },
+        onNodeSelect: (nodeId: string) => {
+          selectedNodeIds.clear();
+          selectedNodeIds.add(nodeId);
+        },
+        onNodeAddToSelection: (nodeId: string) => {
+          selectedNodeIds.add(nodeId);
+        },
+        onNodeRemoveFromSelection: (nodeId: string) => {
+          selectedNodeIds.delete(nodeId);
+        },
+        onSelectionClear: () => {
+          selectedNodeIds.clear();
+        },
+        onDock: (targetId: string, childNode: Omit<Node, 'x' | 'y'>) => {
+          updateStore((draft) => {
+            const target = draft.nodes.get(targetId);
+            const child = draft.nodes.get(childNode.id);
+            if (target && child) {
+              target.nextId = child.id;
+            }
+            for (let i = draft.connections.length - 1; i >= 0; i--) {
+              const conn = draft.connections[i];
+              if (
+                (conn.fromNode === targetId && conn.toNode === childNode.id) ||
+                (conn.fromNode === childNode.id && conn.toNode === targetId)
+              ) {
+                draft.connections.splice(i, 1);
+              }
+            }
+          });
+        },
+        onUndock: (parentId: string, nodeId: string, x: number, y: number) => {
+          updateStore((draft) => {
+            const parent = draft.nodes.get(parentId);
+            const child = draft.nodes.get(nodeId);
+            if (parent && child) {
+              child.x = x;
+              child.y = y;
+              parent.nextId = undefined;
+            }
+          });
+        },
+        onNodeCollapse: (nodeId: string, collapsed: boolean) => {
+          updateNode(nodeId, {collapsed});
+        },
+        onLabelMove: (labelId: string, x: number, y: number) => {
+          updateStore((draft) => {
+            const label = draft.labels.find((l) => l.id === labelId);
+            if (label) {
+              label.x = x;
+              label.y = y;
+            }
+          });
+        },
+        onLabelResize: (labelId: string, width: number) => {
+          updateStore((draft) => {
+            const label = draft.labels.find((l) => l.id === labelId);
+            if (label) {
+              label.width = width;
+            }
+          });
+        },
+        onLabelRemove: (labelId: string) => {
+          updateStore((draft) => {
+            const idx = draft.labels.findIndex((l) => l.id === labelId);
+            if (idx !== -1) {
+              draft.labels.splice(idx, 1);
+            }
+          });
+          selectedNodeIds.delete(labelId);
+        },
+      });
+
+      // Use pinned node if set, otherwise fall back to selected node.
+      const activeNodeId =
+        pinnedNodeId ??
+        (selectedNodeIds.size === 1
+          ? (selectedNodeIds.values().next().value as string)
+          : undefined);
+
+      // Lazily create the materialization service.
+      if (!matService) {
+        matService = new MaterializationService(trace.engine);
+      }
+
+      // Schedule materialization on every render — the AsyncLimiter
+      // ensures only the latest invocation actually runs.
+      matService.scheduleUpdate(store, activeNodeId, sqlModules);
+
+      const displaySql = matService.displaySql;
+      const dataSource = matService.dataSource;
+      const matError = matService.error;
+      const queryReport = matService.queryReport;
+      const cacheEntries = matService.cacheEntries;
+
+      // Build DataGrid schema from the node's output columns.
+      const outputColumns = activeNodeId
+        ? getOutputColumnsForNode(
+            activeNodes,
+            activeConns,
+            activeNodeId,
+            sqlModules,
+          )
+        : undefined;
+
+      const sqlText = activeNodeId
+        ? displaySql ?? 'Incomplete query — fill in all required fields'
+        : 'Select a node to preview its SQL';
+
+      // Build IR JSON for the IR tab.
+      let irJson: string | undefined;
+      if (activeNodeId) {
+        const entries = buildIR(
+          activeNodes,
+          activeConns,
+          activeNodeId,
+          sqlModules,
+        );
+        if (entries && entries.length > 0) {
+          irJson = JSON.stringify(entries, null, 2);
+        }
+      }
+
+      function renderPreBlock(text: string, hasContent: boolean): m.Children {
+        return m(
+          'pre',
+          {
+            style: {
+              margin: '0',
+              padding: '8px',
+              overflow: 'auto',
+              flex: '1',
+              fontFamily: 'monospace',
+              fontSize: '12px',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              opacity: hasContent ? '1' : '0.5',
+            },
+          },
+          text,
+        );
+      }
+
+      const sqlPanel = m(
+        '',
+        {
+          style: {
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+            background: 'var(--surface)',
+          },
+        },
+        m(Tabs, {
+          tabs: [
+            {
+              key: 'sql',
+              title: 'SQL',
+              content: m(
+                '',
+                {
+                  style: {
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flex: '1',
+                    overflow: 'hidden',
+                  },
+                },
+                [
+                  displaySql
+                    ? m(
+                        '',
+                        {
+                          style: {
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            padding: '4px 8px 0',
+                            gap: '4px',
+                          },
+                        },
+                        m(Button, {
+                          variant: ButtonVariant.Filled,
+                          icon: 'content_copy',
+                          label: 'Copy',
+                          compact: true,
+                          onclick: () => {
+                            navigator.clipboard.writeText(displaySql);
+                          },
+                        }),
+                      )
+                    : null,
+                  renderPreBlock(sqlText, !!displaySql),
+                ],
+              ),
+            },
+            {
+              key: 'columns',
+              title: 'Columns',
+              content: m(
+                '',
+                {
+                  style: {
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flex: '1',
+                    overflow: 'hidden',
+                  },
+                },
+                renderPreBlock(
+                  outputColumns && outputColumns.length > 0
+                    ? outputColumns
+                        .map(
+                          (c) =>
+                            `${c.name}: ${perfettoSqlTypeToString(c.type)}`,
+                        )
+                        .join('\n')
+                    : activeNodeId
+                      ? 'No columns available'
+                      : 'Select a node',
+                  !!(outputColumns && outputColumns.length > 0),
+                ),
+              ),
+            },
+            {
+              key: 'ir',
+              title: 'IR',
+              content: m(
+                '',
+                {
+                  style: {
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flex: '1',
+                    overflow: 'hidden',
+                  },
+                },
+                [
+                  irJson
+                    ? m(
+                        '',
+                        {
+                          style: {
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            padding: '4px 8px 0',
+                            gap: '4px',
+                          },
+                        },
+                        m(Button, {
+                          variant: ButtonVariant.Filled,
+                          icon: 'content_copy',
+                          label: 'Copy',
+                          compact: true,
+                          onclick: () => {
+                            navigator.clipboard.writeText(irJson!);
+                          },
+                        }),
+                      )
+                    : null,
+                  renderPreBlock(
+                    irJson ??
+                      (activeNodeId ? 'No IR available' : 'Select a node'),
+                    !!irJson,
+                  ),
+                ],
+              ),
+            },
+            {
+              key: 'report',
+              title: 'Report',
+              content: m(
+                '',
+                {
+                  style: {
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flex: '1',
+                    overflow: 'hidden',
+                  },
+                },
+                queryReport
+                  ? renderPreBlock(formatQueryReport(queryReport), true)
+                  : renderPreBlock(
+                      activeNodeId ? 'No report yet' : 'Select a node',
+                      false,
+                    ),
+              ),
+            },
+            {
+              key: 'cache',
+              title: `Cache (${cacheEntries.length})`,
+              content: m(
+                '',
+                {
+                  style: {
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flex: '1',
+                    overflow: 'hidden',
+                  },
+                },
+                [
+                  cacheEntries.length > 0 &&
+                    m(
+                      '',
+                      {
+                        style: {
+                          display: 'flex',
+                          justifyContent: 'flex-end',
+                          padding: '4px 8px 0',
+                          gap: '4px',
+                        },
+                      },
+                      m(Button, {
+                        variant: ButtonVariant.Filled,
+                        icon: 'delete_sweep',
+                        label: 'Clear cache',
+                        compact: true,
+                        onclick: () => matService?.clearCache(),
+                      }),
+                    ),
+                  renderPreBlock(
+                    formatCacheInfo(cacheEntries),
+                    cacheEntries.length > 0,
+                  ),
+                ],
+              ),
+            },
+          ],
+        }),
+      );
+
+      const datagridSchema: SchemaRegistry = {
+        query: Object.fromEntries(
+          (outputColumns ?? []).map((col) => [col.name, {}]),
+        ),
+      };
+
+      const resultsPanel = dataSource
+        ? m(DataGrid, {
+            key: displaySql,
+            data: dataSource,
+            schema: datagridSchema,
+            rootSchema: 'query',
+            fillHeight: true,
+          })
+        : m(
+            EmptyState,
+            {
+              fillHeight: true,
+              title: matError
+                ? 'Query error'
+                : activeNodeId
+                  ? 'Incomplete query'
+                  : 'No node selected',
+            },
+            matError
+              ? m('pre.pf-node-query-builder-page__error', matError)
+              : activeNodeId
+                ? 'Fill in all required fields to see results.'
+                : 'Click on a node in the graph to see its query results.',
+          );
+
+      const bottomPanel = m(SplitPanel, {
+        direction: 'vertical',
+        controlledPanel: 'first',
+        initialSplit: {percent: 30},
+        minSize: 50,
+        firstPanel: sqlPanel,
+        secondPanel: resultsPanel,
+      });
+
+      return m(
+        '.pf-node-query-builder-page',
+        {
+          style: {
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+          },
+        },
+        m(SplitPanel, {
+          direction: 'horizontal',
+          controlledPanel: 'second',
+          initialSplit: {percent: 40},
+          minSize: 100,
+          firstPanel: graphPanel,
+          secondPanel: bottomPanel,
+        }),
+      );
+    },
+  };
+}
