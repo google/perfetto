@@ -232,10 +232,11 @@ function buildAddMenuItems(
     addCb,
     allowedChildren,
   );
+
   const exportItems = buildMenuItems('export', addCb, allowedChildren);
 
   const sections: {title: string; items: m.Children[]}[] = [
-    {title: 'Modification nodes', items: modificationItems},
+    {title: 'Modifications', items: modificationItems},
     {title: 'Operations', items: multisourceItems},
     {title: 'Export', items: exportItems},
   ].filter((s) => s.items.length > 0);
@@ -758,7 +759,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     const sections: {title: string; items: m.Children[]}[] = [
       {title: 'Sources', items: buildMenuItems('source', cb)},
       {title: 'Operations', items: buildMenuItems('multisource', cb)},
-      {title: 'Modification nodes', items: buildMenuItems('modification', cb)},
+      {title: 'Modifications', items: buildMenuItems('modification', cb)},
       {title: 'Export', items: buildMenuItems('export', cb)},
     ].filter((s) => s.items.length > 0);
 
