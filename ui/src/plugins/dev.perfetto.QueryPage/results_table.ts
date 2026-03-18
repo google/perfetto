@@ -30,7 +30,7 @@ import {Callout} from '../../widgets/callout';
 import {Intent} from '../../widgets/common';
 import {Icon} from '../../widgets/icon';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
-import {PopupPosition} from '../../widgets/popup';
+import {Popup, PopupPosition} from '../../widgets/popup';
 import {Stack} from '../../widgets/stack';
 
 // Reusable component for displaying SQL query results.
@@ -78,7 +78,7 @@ export type ResultsData = ResultsError | ResultsSuccess;
 export interface ResultsTableAttrs {
   readonly data: ResultsData;
   readonly fillHeight?: boolean;
-  readonly trace?: Trace;
+  readonly trace: Trace;
 
   // Called when a user clicks an ID link. The sqlTable and id identify the row.
   readonly onIdClick?: (
@@ -184,22 +184,19 @@ export class ResultsTable implements m.Component<ResultsTableAttrs> {
       m('span.pf-test-volatile', `${data.queryTimeMs.toLocaleString()} ms`),
     );
 
-    const debugTrackButton =
-      attrs.trace && data.lastStatementSql
-        ? m(
-            PopupMenu,
-            {
-              trigger: m(Button, {label: 'Add debug track', icon: 'add_chart'}),
-              position: PopupPosition.Top,
-            },
-            m(AddDebugTrackMenu, {
-              trace: attrs.trace,
-              query: data.lastStatementSql,
-              availableColumns: data.columns,
-              onAdd: () => attrs.trace?.navigate('#!/viewer'),
-            }),
-          )
-        : undefined;
+    const debugTrackButton = m(
+      Popup,
+      {
+        trigger: m(Button, {label: 'Add debug track', icon: 'add_chart'}),
+        position: PopupPosition.Top,
+      },
+      m(AddDebugTrackMenu, {
+        trace: attrs.trace,
+        query: data.lastStatementSql,
+        availableColumns: data.columns,
+        onAdd: () => attrs.trace.navigate('#!/viewer'),
+      }),
+    );
 
     const multiStatementWarning =
       data.statementWithOutputCount > 1 &&
