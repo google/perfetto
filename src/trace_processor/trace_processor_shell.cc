@@ -59,6 +59,7 @@
 #include "src/trace_processor/rpc/rpc.h"
 #include "src/trace_processor/rpc/stdiod.h"
 #include "src/trace_processor/shell/common_flags.h"
+#include "src/trace_processor/shell/export_subcommand.h"
 #include "src/trace_processor/shell/interactive.h"
 #include "src/trace_processor/shell/interactive_subcommand.h"
 #include "src/trace_processor/shell/metatrace.h"
@@ -69,6 +70,7 @@
 #include "src/trace_processor/shell/shell_utils.h"
 #include "src/trace_processor/shell/sql_packages.h"
 #include "src/trace_processor/shell/subcommand.h"
+#include "src/trace_processor/shell/summarize_subcommand.h"
 #include "src/trace_processor/trace_summary/summary.h"
 #include "src/trace_processor/util/deobfuscation/deobfuscator.h"
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
@@ -911,10 +913,11 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     shell::QuerySubcommand query_subcommand;
     shell::InteractiveSubcommand interactive_subcommand;
     shell::ServerSubcommand server_subcommand;
+    shell::SummarizeSubcommand summarize_subcommand;
+    shell::ExportSubcommand export_subcommand;
     std::vector<shell::Subcommand*> subcommands = {
-        &query_subcommand,
-        &interactive_subcommand,
-        &server_subcommand,
+        &query_subcommand,     &interactive_subcommand, &server_subcommand,
+        &summarize_subcommand, &export_subcommand,
     };
 
     // Build the set of flags that consume an argument, derived from the
