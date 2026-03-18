@@ -44,6 +44,7 @@ source_set("shell") {
     "summarize_subcommand.h",
   ]
   deps = [
+    ":subcommands",
     "../../../gn:default_deps",
     "../../../gn:protobuf_full",
     "../../../include/perfetto/ext/trace_processor:trace_processor_shell",

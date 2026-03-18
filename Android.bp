@@ -17121,6 +17121,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_rpc_rpc",
         ":perfetto_src_trace_processor_rpc_stdiod",
         ":perfetto_src_trace_processor_shell_shell",
+        ":perfetto_src_trace_processor_shell_subcommands",
         ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_bindings_bindings",
         ":perfetto_src_trace_processor_sqlite_sqlite",
