@@ -53,14 +53,93 @@ export interface DashboardLabel {
   y?: number;
 }
 
-/** A dashboard canvas item — either a chart or a label. */
+/**
+ * A horizontal divider that splits the dashboard into segments.
+ * Charts above a divider are "drivers" — they show brush selections visually
+ * but do NOT filter their own data. Charts below a divider are "consumers" —
+ * they get filtered by brush selections from driver charts above.
+ */
+export interface DashboardDivider {
+  readonly id: string;
+  /** Y position of the divider line (snapped to grid). */
+  y: number;
+  /** Optional label displayed on the divider. */
+  label?: string;
+}
+
+/** A dashboard canvas item — a chart, label, or segment divider. */
 export type DashboardItem =
   | ({readonly kind: 'chart'} & DashboardChart)
-  | ({readonly kind: 'label'} & DashboardLabel);
+  | ({readonly kind: 'label'} & DashboardLabel)
+  | ({readonly kind: 'divider'} & DashboardDivider);
 
 /** Get the unique ID for a dashboard item. */
 export function getItemId(item: DashboardItem): string {
-  return item.kind === 'chart' ? item.config.id : item.id;
+  if (item.kind === 'chart') return item.config.id;
+  return item.id;
+}
+
+/**
+ * Return all chart items that drive `target` — i.e. charts whose brush
+ * selections filter `target`'s SQL query.
+ *
+ * Chart X drives chart Y when there exists a divider D with X.y < D.y and
+ * D.y <= Y.y.
+ */
+export function getDriversOf(
+  target: DashboardItem,
+  allItems: ReadonlyArray<DashboardItem>,
+): DashboardItem[] {
+  if (target.kind !== 'chart') return [];
+  const targetY = target.y ?? 0;
+  const dividerYs: number[] = [];
+  for (const i of allItems) {
+    if (i.kind === 'divider' && i.y <= targetY) {
+      dividerYs.push(i.y);
+    }
+  }
+  if (dividerYs.length === 0) return [];
+  return allItems.filter((candidate) => {
+    if (candidate.kind !== 'chart') return false;
+    const cY = candidate.y ?? 0;
+    return dividerYs.some((dy) => cY < dy);
+  });
+}
+
+/**
+ * Return all chart items that `source` drives — i.e. charts whose SQL
+ * queries are filtered by `source`'s brush selections.
+ */
+export function getConsumersOf(
+  source: DashboardItem,
+  allItems: ReadonlyArray<DashboardItem>,
+): DashboardItem[] {
+  if (source.kind !== 'chart') return [];
+  const sourceY = source.y ?? 0;
+  const dividerYs: number[] = [];
+  for (const i of allItems) {
+    if (i.kind === 'divider' && i.y > sourceY) {
+      dividerYs.push(i.y);
+    }
+  }
+  if (dividerYs.length === 0) return [];
+  return allItems.filter((candidate) => {
+    if (candidate.kind !== 'chart') return false;
+    const cY = candidate.y ?? 0;
+    return dividerYs.some((dy) => dy <= cY);
+  });
+}
+
+/**
+ * A chart is a "driver" if it has consumers — i.e. there is a divider below
+ * it. Driver charts show brush selection overlays but do NOT apply brush
+ * filters to their own SQL queries.
+ */
+export function isDriverChart(
+  item: DashboardItem,
+  allItems: ReadonlyArray<DashboardItem>,
+): boolean {
+  return getConsumersOf(item, allItems).length > 0;
 }
 
 /** A brush filter applied by interacting with a dashboard chart. */
@@ -189,6 +268,9 @@ export function validateDashboardItems(
       validated.push(item as DashboardItem);
     } else if (obj.kind === 'label') {
       if (typeof obj.id !== 'string' || typeof obj.text !== 'string') continue;
+      validated.push(item as DashboardItem);
+    } else if (obj.kind === 'divider') {
+      if (typeof obj.id !== 'string' || typeof obj.y !== 'number') continue;
       validated.push(item as DashboardItem);
     }
   }

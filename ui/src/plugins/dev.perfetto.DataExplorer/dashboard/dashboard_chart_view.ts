@@ -52,6 +52,13 @@ export interface DashboardChartViewAttrs {
   brushFilters: Map<string, DashboardBrushFilter[]>;
   onItemsChange: (items: DashboardItem[]) => void;
   onBrushFiltersChange: (filters: Map<string, DashboardBrushFilter[]>) => void;
+  /**
+   * When true, this chart is a "driver" (above a segment divider).
+   * Driver charts show brush selection overlays but do NOT apply brush
+   * filters to their own SQL queries — they only propagate filters to
+   * consumer charts below dividers.
+   */
+  isDriverChart?: boolean;
 }
 
 /** Subset of DashboardChartViewAttrs needed by the adapter. */
@@ -330,12 +337,16 @@ export class DashboardChartView
       return entry;
     }
 
+    // Driver charts (above a divider) show brush overlays but don't filter
+    // their own data — skip the WHERE clause entirely.
     // Drop brush filters referencing columns that don't exist in the current
     // source (can happen after switching the chart's data source).
     const validColumns = new Set(attrs.source.columns.map((c) => c.name));
-    const filters = (attrs.brushFilters.get(attrs.source.nodeId) ?? []).filter(
-      (f) => validColumns.has(f.column),
-    );
+    const filters = attrs.isDriverChart
+      ? []
+      : (attrs.brushFilters.get(attrs.source.nodeId) ?? []).filter((f) =>
+          validColumns.has(f.column),
+        );
     const filterKey = JSON.stringify(filters);
 
     const key = buildLoaderCacheKey(tableName, config, filterKey);
