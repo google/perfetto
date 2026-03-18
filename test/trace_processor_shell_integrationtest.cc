@@ -40,6 +40,7 @@ using testing::AllOf;
 using testing::ElementsAre;
 using testing::HasSubstr;
 using testing::IsEmpty;
+using testing::Not;
 using testing::Property;
 using testing::SizeIs;
 
@@ -264,6 +265,71 @@ TEST(TraceProcessorShellIntegrationTest, QueryNoTraceError) {
 
 TEST(TraceProcessorShellIntegrationTest, QueryBadTraceFile) {
   auto result = RunShell({"query", "/nonexistent_trace.pb", "SELECT 1"});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Subcommand: interactive
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, InteractiveSubcommand) {
+  // With stdin=/dev/null the REPL exits immediately.
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"interactive", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, InteractiveSubcommandWide) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"interactive", "-W", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, InteractiveSubcommandNoTraceFails) {
+  auto result = RunShell({"interactive"});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest,
+     InteractiveSubcommandGlobalFlagBefore) {
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"--dev", "interactive", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Subcommand: server
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, ServerSubcommandStdio) {
+  TraceProcessorRpcStream req;
+  auto* rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_QUERY_STREAMING);
+  rpc->mutable_query_args()->set_sql_query("SELECT 1 AS x");
+
+  base::Subprocess process({ShellPath(), "server", "stdio"});
+  process.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  process.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.input = req.SerializeAsString();
+  process.Start();
+
+  ASSERT_TRUE(process.Wait(kDefaultTestTimeoutMs));
+
+  TraceProcessorRpcStream stream;
+  stream.ParseFromString(process.output());
+
+  ASSERT_THAT(stream.msg(), SizeIs(1));
+  ASSERT_EQ(stream.msg()[0].response(), TraceProcessorRpc::TPM_QUERY_STREAMING);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServerSubcommandNoModeFails) {
+  auto result = RunShell({"server"});
+  EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ServerSubcommandBadModeFails) {
+  auto result = RunShell({"server", "badmode"});
   EXPECT_NE(result.exit_code, 0);
 }
 

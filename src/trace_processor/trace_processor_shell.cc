@@ -60,10 +60,12 @@
 #include "src/trace_processor/rpc/stdiod.h"
 #include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/interactive.h"
+#include "src/trace_processor/shell/interactive_subcommand.h"
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/metrics.h"
 #include "src/trace_processor/shell/query.h"
 #include "src/trace_processor/shell/query_subcommand.h"
+#include "src/trace_processor/shell/server_subcommand.h"
 #include "src/trace_processor/shell/shell_utils.h"
 #include "src/trace_processor/shell/sql_packages.h"
 #include "src/trace_processor/shell/subcommand.h"
@@ -907,7 +909,13 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
   // name, route to it. Otherwise fall through to classic path.
   {
     shell::QuerySubcommand query_subcommand;
-    std::vector<shell::Subcommand*> subcommands = {&query_subcommand};
+    shell::InteractiveSubcommand interactive_subcommand;
+    shell::ServerSubcommand server_subcommand;
+    std::vector<shell::Subcommand*> subcommands = {
+        &query_subcommand,
+        &interactive_subcommand,
+        &server_subcommand,
+    };
 
     // Build the set of flags that consume an argument, derived from the
     // classic kLongOptions array, kShortOptions, and subcommand FlagSpecs.
