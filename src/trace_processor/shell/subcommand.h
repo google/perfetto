@@ -74,6 +74,11 @@ class Subcommand {
  public:
   virtual ~Subcommand();
 
+  Subcommand(const Subcommand&) = delete;
+  Subcommand& operator=(const Subcommand&) = delete;
+  Subcommand(Subcommand&&) = delete;
+  Subcommand& operator=(Subcommand&&) = delete;
+
   // The name of the subcommand as it appears on the command line
   // (e.g. "query", "export").
   virtual const char* name() const = 0;
@@ -86,6 +91,9 @@ class Subcommand {
 
   // Runs the subcommand. |ctx| provides access to shared resources.
   virtual base::Status Run(const SubcommandContext& ctx) = 0;
+
+ protected:
+  Subcommand() = default;
 };
 
 // Result of FindSubcommandInArgs(). If |subcommand| is non-null, a subcommand
