@@ -195,6 +195,18 @@ export const CHART_TYPES: readonly ChartTypeDefinition[] = [
     supportsGroupColumn: true,
     supportsSizeColumn: false,
   },
+  {
+    type: 'scorecard',
+    label: 'Scorecard',
+    icon: 'numbers',
+    supportsAggregation: true,
+    supportsBinning: false,
+    requiresNumericDimension: false,
+    primaryColumnLabel: 'Column',
+    supportsYColumn: false,
+    supportsGroupColumn: false,
+    supportsSizeColumn: false,
+  },
 ] as const;
 
 /**
