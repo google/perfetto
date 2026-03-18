@@ -171,12 +171,6 @@ export class DashboardNode implements QueryNode {
       },
     };
     dashboardRegistry.setExportedSource(source);
-
-    // Eagerly resolve the table name. If the upstream node has already been
-    // executed this returns immediately (cached in QueryExecutionService).
-    this.resolveTableName(source, parentNodeId).catch((e: unknown) =>
-      console.debug('Dashboard table name resolution failed:', e),
-    );
   }
 
   private async resolveTableName(
@@ -192,6 +186,7 @@ export class DashboardNode implements QueryNode {
 
   onPrevNodesUpdated(): void {
     this.publishExportedSource();
+    this.state.onchange?.();
   }
 
   serializeState(): DashboardSerializedState & {primaryInputId?: string} {
