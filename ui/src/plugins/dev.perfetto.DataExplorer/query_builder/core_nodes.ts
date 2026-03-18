@@ -223,6 +223,7 @@ export function registerCoreNodes() {
       'Add columns from another node via LEFT JOIN. Connect a node to the left-side port.',
     icon: 'add_box',
     type: 'modification',
+    category: 'Columns',
     nodeType: NodeType.kAddColumns,
     factory: (state) => {
       const fullState: AddColumnsNodeState = {
@@ -258,6 +259,7 @@ export function registerCoreNodes() {
     description: 'Select, rename, and add new columns to the data.',
     icon: 'edit',
     type: 'modification',
+    category: 'Columns',
     nodeType: NodeType.kModifyColumns,
     factory: (state) => new ModifyColumnsNode(state as ModifyColumnsState),
     deserialize: (state, _trace, sqlModules) =>
@@ -292,6 +294,7 @@ export function registerCoreNodes() {
     description: 'Filter rows based on column values.',
     icon: Icons.Filter,
     type: 'modification',
+    category: 'Filter',
     nodeType: NodeType.kFilter,
     factory: (state) => new FilterNode(state as FilterNodeState),
     deserialize: (state, _trace, sqlModules) =>
@@ -306,8 +309,8 @@ export function registerCoreNodes() {
     description:
       'Filter to only show intervals that occurred during intervals from another source.',
     icon: Icons.Filter,
-    type: 'multisource',
-    category: 'Time',
+    type: 'modification',
+    category: 'Filter',
     nodeType: NodeType.kFilterDuring,
     // Override: multisource nodes default to no primary input, but
     // FilterDuring has both a primary input and secondary inputs.
@@ -341,8 +344,8 @@ export function registerCoreNodes() {
     description:
       'Filter rows to only those where a column value exists in another query result.',
     icon: Icons.Filter,
-    type: 'multisource',
-    category: 'Filtering',
+    type: 'modification',
+    category: 'Filter',
     nodeType: NodeType.kFilterIn,
     // Override: multisource nodes default to no primary input, but
     // FilterIn has both a primary input and secondary inputs.
@@ -368,24 +371,6 @@ export function registerCoreNodes() {
         );
       }
     },
-  });
-
-  nodeRegistry.register('counter_to_intervals', {
-    name: 'Counter to Intervals',
-    description:
-      'Convert counter data (with ts but no dur) to interval data (with ts and dur).',
-    icon: 'show_chart',
-    type: 'modification',
-    nodeType: NodeType.kCounterToIntervals,
-    factory: (state) =>
-      new CounterToIntervalsNode(state as CounterToIntervalsNodeState),
-    deserialize: (state, _trace, sqlModules) =>
-      new CounterToIntervalsNode({
-        ...CounterToIntervalsNode.deserializeState(
-          state as CounterToIntervalsNodeState,
-        ),
-        sqlModules,
-      }),
   });
 
   nodeRegistry.register('interval_intersect', {
@@ -593,7 +578,7 @@ export function registerCoreNodes() {
   });
 
   nodeRegistry.register('visualisation', {
-    name: 'Visualisation',
+    name: 'Charts',
     description:
       'Visualize data with bar charts or histograms. Click to filter.',
     icon: 'bar_chart',
@@ -603,6 +588,25 @@ export function registerCoreNodes() {
     deserialize: (state, _trace, sqlModules) =>
       new VisualisationNode({
         ...VisualisationNode.deserializeState(state as VisualisationNodeState),
+        sqlModules,
+      }),
+  });
+
+  nodeRegistry.register('counter_to_intervals', {
+    name: 'Counter to Intervals',
+    description:
+      'Convert counter data (with ts but no dur) to interval data (with ts and dur).',
+    icon: 'show_chart',
+    type: 'modification',
+    category: 'Advanced',
+    nodeType: NodeType.kCounterToIntervals,
+    factory: (state) =>
+      new CounterToIntervalsNode(state as CounterToIntervalsNodeState),
+    deserialize: (state, _trace, sqlModules) =>
+      new CounterToIntervalsNode({
+        ...CounterToIntervalsNode.deserializeState(
+          state as CounterToIntervalsNodeState,
+        ),
         sqlModules,
       }),
   });

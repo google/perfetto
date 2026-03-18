@@ -18,6 +18,7 @@ import {
   getAllUpstreamNodes,
   findNodeById,
   findDockedChildren,
+  wouldCreateCycle,
 } from './graph_utils';
 import {QueryNode, NodeType} from '../query_node';
 import {TableSourceNode} from './nodes/sources/table_source';
@@ -341,6 +342,49 @@ describe('graph_utils', () => {
 
       const result = findNodeById('999', [node1, node2]);
       expect(result).toBeUndefined();
+    });
+  });
+
+  describe('wouldCreateCycle', () => {
+    it('should detect self-loop', () => {
+      const node = createTestNode();
+      expect(wouldCreateCycle(node, node)).toBe(true);
+    });
+
+    it('should detect direct cycle between two nodes', () => {
+      const node1 = createTestNode();
+      const node2 = createTestNode();
+      // node1 -> node2 already exists
+      node1.nextNodes = [node2];
+      // Connecting node2 -> node1 would create a cycle
+      expect(wouldCreateCycle(node2, node1)).toBe(true);
+    });
+
+    it('should detect indirect cycle through chain', () => {
+      const node1 = createTestNode();
+      const node2 = createTestNode();
+      const node3 = createTestNode();
+      // node1 -> node2 -> node3
+      node1.nextNodes = [node2];
+      node2.nextNodes = [node3];
+      // Connecting node3 -> node1 would create a cycle
+      expect(wouldCreateCycle(node3, node1)).toBe(true);
+    });
+
+    it('should allow valid connection with no cycle', () => {
+      const node1 = createTestNode();
+      const node2 = createTestNode();
+      const node3 = createTestNode();
+      // node1 -> node2
+      node1.nextNodes = [node2];
+      // Connecting node2 -> node3 is fine
+      expect(wouldCreateCycle(node2, node3)).toBe(false);
+    });
+
+    it('should allow connection between unrelated nodes', () => {
+      const node1 = createTestNode();
+      const node2 = createTestNode();
+      expect(wouldCreateCycle(node1, node2)).toBe(false);
     });
   });
 

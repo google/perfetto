@@ -35,6 +35,18 @@ const char* ExportSubcommand::description() const {
   return "Export trace to a database file.";
 }
 
+const char* ExportSubcommand::usage_args() const {
+  return "<format> -o FILE <trace_file>";
+}
+
+const char* ExportSubcommand::detailed_help() const {
+  return R"(Load a trace and export it to a database file.
+
+Currently the only supported format is "sqlite", which exports all trace
+processor tables to a SQLite database. The format is the first positional
+argument, and -o specifies the output path.)";
+}
+
 std::vector<FlagSpec> ExportSubcommand::GetFlags() {
   return {
       StringFlag("output", 'o', "FILE", "Output file path.", &output_path_),
