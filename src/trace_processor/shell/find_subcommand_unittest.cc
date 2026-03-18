@@ -31,6 +31,8 @@ class FakeSubcommand : public Subcommand {
   explicit FakeSubcommand(const char* n) : name_(n) {}
   const char* name() const override { return name_; }
   const char* description() const override { return ""; }
+  const char* usage_args() const override { return ""; }
+  const char* detailed_help() const override { return ""; }
   std::vector<FlagSpec> GetFlags() override { return {}; }
   base::Status Run(const SubcommandContext&) override {
     return base::OkStatus();

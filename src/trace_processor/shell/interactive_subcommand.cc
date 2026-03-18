@@ -35,6 +35,15 @@ const char* InteractiveSubcommand::description() const {
   return "Interactive SQL shell.";
 }
 
+const char* InteractiveSubcommand::usage_args() const {
+  return "<trace_file>";
+}
+
+const char* InteractiveSubcommand::detailed_help() const {
+  return R"(Open a REPL for running SQL queries interactively against a trace file.
+This is the default when no subcommand is specified.)";
+}
+
 std::vector<FlagSpec> InteractiveSubcommand::GetFlags() {
   return {
       BoolFlag("wide", 'W', "Double column width for output.", &wide_),

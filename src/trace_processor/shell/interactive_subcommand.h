@@ -28,6 +28,8 @@ class InteractiveSubcommand : public Subcommand {
  public:
   const char* name() const override;
   const char* description() const override;
+  const char* usage_args() const override;
+  const char* detailed_help() const override;
   std::vector<FlagSpec> GetFlags() override;
   base::Status Run(const SubcommandContext& ctx) override;
 

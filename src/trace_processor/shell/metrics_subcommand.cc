@@ -37,7 +37,19 @@ const char* MetricsSubcommand::name() const {
 }
 
 const char* MetricsSubcommand::description() const {
-  return "Run v1 metrics (deprecated).";
+  return "Run v1 metrics (deprecated; use 'summarize --metrics-v2').";
+}
+
+const char* MetricsSubcommand::usage_args() const {
+  return "<trace_file>";
+}
+
+const char* MetricsSubcommand::detailed_help() const {
+  return R"(Run v1 trace processor metrics. This system is deprecated; prefer
+'summarize --metrics-v2' for new workflows.
+
+Metrics are specified by name with --run (comma-separated). Use
+--output to control the format (text proto, binary proto, or JSON).)";
 }
 
 std::vector<FlagSpec> MetricsSubcommand::GetFlags() {
