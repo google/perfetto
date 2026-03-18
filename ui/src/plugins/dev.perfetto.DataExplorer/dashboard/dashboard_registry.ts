@@ -116,6 +116,23 @@ class ExportedSourcesPool {
 
 export const dashboardRegistry = new ExportedSourcesPool();
 
+/**
+ * Returns the nodeIds of all sources that have a column named `column`,
+ * including `sourceNodeId` itself.
+ */
+export function getLinkedSourceNodeIds(
+  sources: ReadonlyArray<Pick<DashboardDataSource, 'nodeId' | 'columns'>>,
+  sourceNodeId: string,
+  column: string,
+): string[] {
+  return sources
+    .filter(
+      (s) =>
+        s.nodeId === sourceNodeId || s.columns.some((c) => c.name === column),
+    )
+    .map((s) => s.nodeId);
+}
+
 const GRID_SIZE = 20;
 
 export function snapToGrid(value: number): number {

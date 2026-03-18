@@ -49,4 +49,15 @@ describe('pageMatchesHref', () => {
     window.location.hash = '#!/record';
     expect(pageMatchesHref('#!/rec')).toBe(false);
   });
+
+  test('external links', () => {
+    window.location.hash = '';
+    expect(pageMatchesHref('https://example.com/')).toBe(false);
+    expect(pageMatchesHref('https://example.com/#!/')).toBe(false);
+  });
+
+  test('external link with same fragment', () => {
+    window.location.hash = '#!/record';
+    expect(pageMatchesHref('https://example.com/#!/record')).toBe(false);
+  });
 });
