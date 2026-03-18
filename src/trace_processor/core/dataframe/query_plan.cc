@@ -871,6 +871,9 @@ void QueryPlanBuilder::IndexConstraints(
       }
       {
         using B = i::IndexedFilterInBase;
+        // Allocate popcount before AddOpcode so PrefixPopcount bytecode
+        // is emitted before IndexedFilterIn.
+        auto popcount_register = alloc_popcount();
         auto& bc = AddOpcode<B>(
             i::Index<i::IndexedFilterIn>(
                 *non_id, NullabilityToSparseNullCollapsedNullability(
@@ -880,7 +883,7 @@ void QueryPlanBuilder::IndexConstraints(
             StorageRegisterFor(fs.col, non_id->Upcast<StorageType>());
         bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(fs.col);
         bc.arg<B::value_list_register>() = value_list_reg;
-        bc.arg<B::popcount_register>() = alloc_popcount();
+        bc.arg<B::popcount_register>() = popcount_register;
         bc.arg<B::source_register>() = source_reg;
         bc.arg<B::dest_register>() = dest_reg;
       }
@@ -890,6 +893,9 @@ void QueryPlanBuilder::IndexConstraints(
                                        *fs.op.TryDowncast<i::NonNullOp>());
       {
         using B = i::IndexedFilterEqBase;
+        // Allocate popcount before AddOpcode so PrefixPopcount bytecode
+        // is emitted before IndexedFilterEq.
+        auto popcount_register = alloc_popcount();
         auto& bc = AddOpcode<B>(
             i::Index<i::IndexedFilterEq>(
                 *non_id, NullabilityToSparseNullCollapsedNullability(
@@ -899,7 +905,7 @@ void QueryPlanBuilder::IndexConstraints(
             StorageRegisterFor(fs.col, non_id->Upcast<StorageType>());
         bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(fs.col);
         bc.arg<B::filter_value_reg>() = value_reg;
-        bc.arg<B::popcount_register>() = alloc_popcount();
+        bc.arg<B::popcount_register>() = popcount_register;
         bc.arg<B::source_register>() = source_reg;
         bc.arg<B::dest_register>() = dest_reg;
       }

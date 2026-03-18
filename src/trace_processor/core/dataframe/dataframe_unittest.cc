@@ -946,7 +946,7 @@ TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_EqFilter_NonNullInt) {
   std::string expected_bytecode = R"(
     InitRange: [size=100, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(3), op=NonNullOp(0)]
-    IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(5), filter_value_reg=Register(3), popcount_register=Register(6), source_register=Register(1), dest_register=Register(2)]
+    IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(5), null_bv_register=Register(6), filter_value_reg=Register(3), popcount_register=Register(4), source_register=Register(1), dest_register=Register(2)]
     AllocateIndices: [size=100, dest_slab_register=Register(7), dest_span_register=Register(8)]
     CopySpanIntersectingRange: [source_register=Register(2), source_range_register=Register(0), update_register=Register(8)]
   )";
@@ -972,7 +972,7 @@ TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_InFilter_NonNullInt) {
   std::string expected_bytecode = R"(
     InitRange: [size=100, dest_register=Register(0)]
     CastFilterValueList<Uint32>: [fval_handle=FilterValue(0), write_register=Register(3), op=NonNullOp(0)]
-    IndexedFilterIn<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(5), value_list_register=Register(3), popcount_register=Register(6), source_register=Register(1), dest_register=Register(2)]
+    IndexedFilterIn<Uint32, NonNull>: [storage_register=Register(5), null_bv_register=Register(6), value_list_register=Register(3), popcount_register=Register(4), source_register=Register(1), dest_register=Register(2)]
     AllocateIndices: [size=100, dest_slab_register=Register(7), dest_span_register=Register(8)]
     CopySpanIntersectingRange: [source_register=Register(2), source_range_register=Register(0), update_register=Register(8)]
   )";
@@ -1002,13 +1002,13 @@ TEST_F(DataframeBytecodeTest,
   std::string expected_bytecode = R"(
     InitRange: [size=4, dest_register=Register(0)]
     CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(3), op=NonNullOp(0)]
-    IndexedFilterEq<String, SparseNull>: [storage_register=Register(4), null_bv_register=Register(5), filter_value_reg=Register(3), popcount_register=Register(6), source_register=Register(1), dest_register=Register(2)]
-    PrefixPopcount: [null_bv_register=Register(5), dest_register=Register(6)]
+    PrefixPopcount: [null_bv_register=Register(5), dest_register=Register(4)]
+    IndexedFilterEq<String, SparseNull>: [storage_register=Register(6), null_bv_register=Register(5), filter_value_reg=Register(3), popcount_register=Register(4), source_register=Register(1), dest_register=Register(2)]
     AllocateIndices: [size=4, dest_slab_register=Register(7), dest_span_register=Register(8)]
     CopySpanIntersectingRange: [source_register=Register(2), source_range_register=Register(0), update_register=Register(8)]
     AllocateIndices: [size=8, dest_slab_register=Register(9), dest_span_register=Register(10)]
     StrideCopy: [source_register=Register(8), update_register=Register(10), stride=2]
-    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(5), popcount_register=Register(6), update_register=Register(10), offset=1, stride=2]
+    StrideTranslateAndCopySparseNullIndices: [null_bv_register=Register(5), popcount_register=Register(4), update_register=Register(10), offset=1, stride=2]
   )";
   RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode);
 }
@@ -1031,12 +1031,12 @@ TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_EqFilter_DenseNullInt) {
   std::string expected_bytecode = R"(
     InitRange: [size=4, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(3), op=NonNullOp(0)]
-    IndexedFilterEq<Uint32, DenseNull>: [storage_register=Register(4), null_bv_register=Register(5), filter_value_reg=Register(3), popcount_register=Register(6), source_register=Register(1), dest_register=Register(2)]
+    IndexedFilterEq<Uint32, DenseNull>: [storage_register=Register(5), null_bv_register=Register(6), filter_value_reg=Register(3), popcount_register=Register(4), source_register=Register(1), dest_register=Register(2)]
     AllocateIndices: [size=4, dest_slab_register=Register(7), dest_span_register=Register(8)]
     CopySpanIntersectingRange: [source_register=Register(2), source_range_register=Register(0), update_register=Register(8)]
     AllocateIndices: [size=8, dest_slab_register=Register(9), dest_span_register=Register(10)]
     StrideCopy: [source_register=Register(8), update_register=Register(10), stride=2]
-    StrideCopyDenseNullIndices: [null_bv_register=Register(5), update_register=Register(10), offset=1, stride=2]
+    StrideCopyDenseNullIndices: [null_bv_register=Register(6), update_register=Register(10), offset=1, stride=2]
   )";
   RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode);
 }
@@ -1066,9 +1066,9 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MultiColIndex_PrefixEqFilters) {
   std::string expected_bytecode = R"(
     InitRange: [size=4, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(3), op=NonNullOp(0)]
-    IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(5), filter_value_reg=Register(3), popcount_register=Register(6), source_register=Register(1), dest_register=Register(2)]
+    IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(5), null_bv_register=Register(6), filter_value_reg=Register(3), popcount_register=Register(4), source_register=Register(1), dest_register=Register(2)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(1), write_register=Register(7), op=NonNullOp(0)]
-    IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(8), null_bv_register=Register(9), filter_value_reg=Register(7), popcount_register=Register(10), source_register=Register(2), dest_register=Register(2)]
+    IndexedFilterEq<Uint32, NonNull>: [storage_register=Register(9), null_bv_register=Register(10), filter_value_reg=Register(7), popcount_register=Register(8), source_register=Register(2), dest_register=Register(2)]
     AllocateIndices: [size=4, dest_slab_register=Register(11), dest_span_register=Register(12)]
     CopySpanIntersectingRange: [source_register=Register(2), source_range_register=Register(0), update_register=Register(12)]
   )";
