@@ -4150,7 +4150,7 @@ TEST(StructuredQueryGeneratorTest, ExperimentalCreateSlicesBasic) {
     sq_2 AS (SELECT * FROM end_events),
     sq_1 AS (SELECT * FROM start_events),
     sq_0 AS (
-      SELECT * FROM (SELECT * FROM _interval_create!((SELECT ts AS ts FROM sq_1), (SELECT ts AS ts FROM sq_2)))
+      SELECT * FROM (SELECT ts, dur FROM _interval_create!((SELECT 1 AS id, ts AS ts FROM sq_1), (SELECT 1 AS id, ts AS ts FROM sq_2)))
     )
     SELECT * FROM sq_0
   )"));
@@ -4200,7 +4200,7 @@ TEST(StructuredQueryGeneratorTest,
     sq_2 AS (SELECT * FROM slice WHERE name GLOB '*_end'),
     sq_1 AS (SELECT * FROM slice WHERE name GLOB '*_begin'),
     sq_0 AS (
-      SELECT * FROM (SELECT * FROM _interval_create!((SELECT ts AS ts FROM sq_1), (SELECT ts AS ts FROM sq_2)))
+      SELECT * FROM (SELECT ts, dur FROM _interval_create!((SELECT 1 AS id, ts AS ts FROM sq_1), (SELECT 1 AS id, ts AS ts FROM sq_2)))
     )
     SELECT * FROM sq_0
   )"));
@@ -4229,9 +4229,10 @@ TEST(StructuredQueryGeneratorTest,
   )");
   auto ret = gen.Generate(proto.data(), proto.size());
   ASSERT_OK_AND_ASSIGN(std::string res, ret);
-  EXPECT_THAT(
-      res, testing::HasSubstr("_interval_create!((SELECT acquire_ts AS ts FROM "
-                              "sq_1), (SELECT release_ts AS ts FROM sq_2))"));
+  EXPECT_THAT(res,
+              testing::HasSubstr(
+                  "_interval_create!((SELECT 1 AS id, acquire_ts AS ts FROM "
+                  "sq_1), (SELECT 1 AS id, release_ts AS ts FROM sq_2))"));
 }
 
 TEST(StructuredQueryGeneratorTest, ExperimentalCreateSlicesWithFilters) {
@@ -4496,8 +4497,9 @@ TEST(StructuredQueryGeneratorTest,
   auto ret = gen.Generate(proto.data(), proto.size());
   ASSERT_OK_AND_ASSIGN(std::string res, ret);
   // Should default starts_ts_column to "ts"
-  EXPECT_THAT(res, testing::HasSubstr("_interval_create!((SELECT ts AS ts FROM "
-                                      "sq_1), (SELECT ts AS ts FROM sq_2))"));
+  EXPECT_THAT(res, testing::HasSubstr(
+                       "_interval_create!((SELECT 1 AS id, ts AS ts FROM "
+                       "sq_1), (SELECT 1 AS id, ts AS ts FROM sq_2))"));
 }
 
 TEST(StructuredQueryGeneratorTest,
@@ -4523,8 +4525,9 @@ TEST(StructuredQueryGeneratorTest,
   auto ret = gen.Generate(proto.data(), proto.size());
   ASSERT_OK_AND_ASSIGN(std::string res, ret);
   // Should default ends_ts_column to "ts"
-  EXPECT_THAT(res, testing::HasSubstr("_interval_create!((SELECT ts AS ts FROM "
-                                      "sq_1), (SELECT ts AS ts FROM sq_2))"));
+  EXPECT_THAT(res, testing::HasSubstr(
+                       "_interval_create!((SELECT 1 AS id, ts AS ts FROM "
+                       "sq_1), (SELECT 1 AS id, ts AS ts FROM sq_2))"));
 }
 
 TEST(StructuredQueryGeneratorTest,
@@ -4554,7 +4557,7 @@ TEST(StructuredQueryGeneratorTest,
     sq_2 AS (SELECT * FROM end_events),
     sq_1 AS (SELECT * FROM start_events),
     sq_0 AS (
-      SELECT * FROM (SELECT * FROM _interval_create!((SELECT ts AS ts FROM sq_1), (SELECT ts AS ts FROM sq_2)))
+      SELECT * FROM (SELECT ts, dur FROM _interval_create!((SELECT 1 AS id, ts AS ts FROM sq_1), (SELECT 1 AS id, ts AS ts FROM sq_2)))
     )
     SELECT * FROM sq_0
   )"));
@@ -4642,8 +4645,9 @@ TEST(StructuredQueryGeneratorTest,
   auto ret = gen.Generate(proto.data(), proto.size());
   ASSERT_OK_AND_ASSIGN(std::string res, ret);
   // Empty string should default to "ts"
-  EXPECT_THAT(res, testing::HasSubstr("_interval_create!((SELECT ts AS ts FROM "
-                                      "sq_1), (SELECT ts AS ts FROM sq_2))"));
+  EXPECT_THAT(res, testing::HasSubstr(
+                       "_interval_create!((SELECT 1 AS id, ts AS ts FROM "
+                       "sq_1), (SELECT 1 AS id, ts AS ts FROM sq_2))"));
 }
 
 TEST(StructuredQueryGeneratorTest, ExperimentalCreateSlicesEmptyEndsTsColumn) {
@@ -4669,8 +4673,9 @@ TEST(StructuredQueryGeneratorTest, ExperimentalCreateSlicesEmptyEndsTsColumn) {
   auto ret = gen.Generate(proto.data(), proto.size());
   ASSERT_OK_AND_ASSIGN(std::string res, ret);
   // Empty string should default to "ts"
-  EXPECT_THAT(res, testing::HasSubstr("_interval_create!((SELECT ts AS ts FROM "
-                                      "sq_1), (SELECT ts AS ts FROM sq_2))"));
+  EXPECT_THAT(res, testing::HasSubstr(
+                       "_interval_create!((SELECT 1 AS id, ts AS ts FROM "
+                       "sq_1), (SELECT 1 AS id, ts AS ts FROM sq_2))"));
 }
 
 TEST(StructuredQueryGeneratorTest,
@@ -4714,7 +4719,7 @@ TEST(StructuredQueryGeneratorTest,
     sq_2 AS (SELECT * FROM end_events WHERE ts < 0),
     sq_1 AS (SELECT * FROM start_events WHERE ts < 0),
     sq_0 AS (
-      SELECT * FROM (SELECT * FROM _interval_create!((SELECT ts AS ts FROM sq_1), (SELECT ts AS ts FROM sq_2)))
+      SELECT * FROM (SELECT ts, dur FROM _interval_create!((SELECT 1 AS id, ts AS ts FROM sq_1), (SELECT 1 AS id, ts AS ts FROM sq_2)))
     )
     SELECT * FROM sq_0
   )"));
@@ -4759,7 +4764,7 @@ TEST(StructuredQueryGeneratorTest, ExperimentalCreateSlicesNoMatchingEnds) {
     sq_2 AS (SELECT * FROM events WHERE ts > 10000),
     sq_1 AS (SELECT * FROM events WHERE ts < 1000),
     sq_0 AS (
-      SELECT * FROM (SELECT * FROM _interval_create!((SELECT ts AS ts FROM sq_1), (SELECT ts AS ts FROM sq_2)))
+      SELECT * FROM (SELECT ts, dur FROM _interval_create!((SELECT 1 AS id, ts AS ts FROM sq_1), (SELECT 1 AS id, ts AS ts FROM sq_2)))
     )
     SELECT * FROM sq_0
   )"));
