@@ -175,7 +175,7 @@ export class TrackView {
       {
         id: node.id,
         title: node.name,
-        subtitle: renderer?.desc.subtitle,
+        subtitle: node.subtitle,
         ref: node.fullPath.join('/'),
         heightPx: height,
         error: renderer?.getError(),

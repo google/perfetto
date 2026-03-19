@@ -185,8 +185,15 @@ export default class implements PerfettoPlugin {
         },
         chips,
         renderer: track,
-        subtitle,
       });
+
+      // Set subtitle on the TrackNode (created by ProcessThreadGroups).
+      if (subtitle) {
+        const trackNode = ctx.defaultWorkspace.getTrackByUri(uri);
+        if (trackNode) {
+          trackNode.subtitle = subtitle;
+        }
+      }
     }
   }
 }

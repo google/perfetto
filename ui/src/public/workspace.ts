@@ -71,6 +71,7 @@ export interface TrackNodeArgs {
   collapsed: boolean;
   isSummary: boolean;
   removable: boolean;
+  subtitle: string;
   onExpand?: () => void;
 }
 
@@ -114,6 +115,9 @@ export class TrackNode {
   // track from the workspace.
   public removable: boolean;
 
+  // Optional subtitle displayed underneath the track name in the track shell.
+  public subtitle?: string;
+
   protected _collapsed = true;
   protected _children: Array<TrackNode> = [];
   protected readonly tracksById = new Map<string, TrackNode>();
@@ -135,6 +139,7 @@ export class TrackNode {
       collapsed = true,
       isSummary = false,
       removable = false,
+      subtitle,
       onExpand,
     } = args ?? {};
 
@@ -146,6 +151,7 @@ export class TrackNode {
     this.isSummary = isSummary;
     this._collapsed = collapsed;
     this.removable = removable;
+    this.subtitle = subtitle;
     this._onExpand = onExpand;
   }
 
