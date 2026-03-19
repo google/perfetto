@@ -754,7 +754,7 @@ export class OutlinedMultiSelect
 export interface AddItemPlaceholderAttrs {
   label: string;
   icon?: string;
-  onclick: () => void;
+  onclick?: () => void;
 }
 
 export class AddItemPlaceholder

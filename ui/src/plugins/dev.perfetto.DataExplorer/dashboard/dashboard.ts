@@ -43,10 +43,14 @@ import {
 } from './dashboard_chart_view';
 import {ResizeHandle} from '../../../widgets/resize_handle';
 import {Card} from '../../../widgets/card';
-import {getDefaultChartLabel} from '../query_builder/nodes/visualisation_node';
+import {
+  ChartType,
+  getDefaultChartLabel,
+} from '../query_builder/nodes/visualisation_node';
 import {Popup, PopupPosition} from '../../../widgets/popup';
 import {renderChartConfigPopup} from '../query_builder/charts/chart_config_popup';
 import {RoundActionButton} from '../query_builder/widgets';
+import {renderChartTypePickerGrid} from '../query_builder/charts/chart_type_picker';
 
 // Default dimensions for dashboard chart cards (in pixels).
 const DEFAULT_CHART_WIDTH = 400;
@@ -205,26 +209,26 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     return m(
       '.pf-dashboard__add-button',
       m(
-        PopupMenu,
+        Popup,
         {
           trigger: RoundActionButton({
             icon: 'add',
             title: 'Add item',
           }),
+          fitContent: true,
         },
-        m(MenuItem, {
-          label: 'Chart',
-          icon: 'bar_chart',
-          disabled: lastSource === undefined,
-          onclick: () => {
-            if (lastSource !== undefined) {
-              this.addChartForSource(attrs, lastSource);
-            }
-          },
-        }),
+        lastSource !== undefined
+          ? renderChartTypePickerGrid((chartType: ChartType) => {
+              this.addChartForSource(attrs, lastSource, chartType);
+            })
+          : m(
+              '.pf-chart-type-picker__empty',
+              'Add a data source first to create charts',
+            ),
         m(MenuItem, {
           label: 'Label',
           icon: 'text_fields',
+          className: 'pf-dismiss-popup-group',
           onclick: () => {
             this.addLabel(attrs);
           },
@@ -232,6 +236,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
         m(MenuItem, {
           label: 'Segment Divider',
           icon: 'horizontal_rule',
+          className: 'pf-dismiss-popup-group',
           onclick: () => {
             this.addDivider(attrs);
           },
@@ -1171,24 +1176,31 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
             ),
           ),
         ),
-      m(Button, {
-        label: 'Add Chart',
-        icon: 'bar_chart',
-        compact: true,
-        className: 'pf-dashboard__add-chart-btn',
-        onclick: () => {
-          this.addChartForSource(attrs, source);
+      m(
+        Popup,
+        {
+          trigger: m(Button, {
+            label: 'Add Chart',
+            icon: 'bar_chart',
+            compact: true,
+            className: 'pf-dashboard__add-chart-btn',
+          }),
+          fitContent: true,
         },
-      }),
+        renderChartTypePickerGrid((chartType: ChartType) => {
+          this.addChartForSource(attrs, source, chartType);
+        }),
+      ),
     ];
   }
 
   private addChartForSource(
     attrs: DashboardAttrs,
     source: DashboardDataSource,
+    chartType: ChartType,
   ): void {
     const items = [...attrs.items];
-    const newConfig = createDefaultChartConfig(source.columns);
+    const newConfig = createDefaultChartConfig(source.columns, chartType);
     const candidate = getNextItemPosition(items);
     const pos = findNonOverlappingPosition(
       candidate.x,

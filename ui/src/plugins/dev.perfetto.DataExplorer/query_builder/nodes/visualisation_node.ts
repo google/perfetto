@@ -43,6 +43,8 @@ import {Button} from '../../../../widgets/button';
 import {Icon} from '../../../../widgets/icon';
 import {Card} from '../../../../widgets/card';
 import {classNames} from '../../../../base/classnames';
+import {renderChartTypePickerGrid} from '../charts/chart_type_picker';
+import {Popup} from '../../../../widgets/popup';
 
 /**
  * Chart type options.
@@ -488,14 +490,23 @@ export class VisualisationNode implements QueryNode {
       title: 'Charts',
       content: m('.pf-chart-cards-container', [
         ...chartCards,
-        m(AddItemPlaceholder, {
-          key: 'add-chart',
-          label: 'Add Chart',
-          icon: 'add',
-          onclick: () => {
-            this.addChart();
+        m(
+          Popup,
+          {
+            key: 'add-chart',
+            trigger: m(
+              'span',
+              m(AddItemPlaceholder, {
+                label: 'Add Chart',
+                icon: 'add',
+              }),
+            ),
+            fitContent: true,
           },
-        }),
+          renderChartTypePickerGrid((chartType: ChartType) => {
+            this.addChart(chartType);
+          }),
+        ),
       ]),
     });
 
@@ -526,7 +537,7 @@ export class VisualisationNode implements QueryNode {
    * Prefers string/categorical columns for bar charts, and avoids
    * columns already used by other charts when possible.
    */
-  addChart(): void {
+  addChart(chartType: ChartType = 'bar'): void {
     // Get columns already used by existing charts
     const usedColumns = new Set(
       this.state.chartConfigs.map((c) => c.column).filter(Boolean),
@@ -534,13 +545,13 @@ export class VisualisationNode implements QueryNode {
 
     // Find a good default column:
     // 1. Prefer unused columns
-    // 2. Prefer non-numeric columns (better for bar charts)
+    // 2. Prefer non-numeric columns (better for aggregation chart types)
     // 3. Fall back to first available column
     const availableCols = this.sourceCols;
     const unusedCols = availableCols.filter((c) => !usedColumns.has(c.name));
     const colsToCheck = unusedCols.length > 0 ? unusedCols : availableCols;
 
-    // Prefer string/categorical columns for bar charts
+    // Prefer string/categorical columns for aggregation charts
     const stringCol = colsToCheck.find(
       (c) => c.column.type === undefined || !isQuantitativeType(c.column.type),
     );
@@ -549,7 +560,7 @@ export class VisualisationNode implements QueryNode {
     const newChart: ChartConfig = {
       id: generateChartId(),
       column: defaultColumn,
-      chartType: 'bar',
+      chartType,
     };
     this.state.chartConfigs.push(newChart);
     this.state.onchange?.();
