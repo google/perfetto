@@ -12323,6 +12323,12 @@ message SchedWakeupTaskAttrFtraceEvent {
   optional uint64 uclamp_min = 4;
   optional uint64 vruntime = 5;
 }
+message SchedGroupTrackerFtraceEvent {
+  optional string comm = 1;
+  optional int32 pid = 2;
+  optional string group = 3;
+  optional int32 group_num = 4;
+}
 
 // End of protos/perfetto/trace/ftrace/sched.proto
 
@@ -13646,6 +13652,7 @@ message FtraceEvent {
     GpuPowerStateFtraceEvent gpu_power_state = 601;
     GramCollisionFtraceEvent gram_collision = 602;
     F2fsLockElapsedTimeFtraceEvent f2fs_lock_elapsed_time = 603;
+    SchedGroupTrackerFtraceEvent sched_group_tracker = 604;
   }
 }
 

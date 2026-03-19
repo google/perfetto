@@ -644,6 +644,7 @@ perfetto_cc_library(
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_rpc_stdiod",
         ":src_trace_processor_shell_shell",
+        ":src_trace_processor_shell_subcommands",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",
         ":src_trace_processor_sqlite_sqlite",
@@ -4122,10 +4123,17 @@ perfetto_filegroup(
         "src/trace_processor/shell/shell_utils.h",
         "src/trace_processor/shell/sql_packages.cc",
         "src/trace_processor/shell/sql_packages.h",
-        "src/trace_processor/shell/subcommand.cc",
-        "src/trace_processor/shell/subcommand.h",
         "src/trace_processor/shell/summarize_subcommand.cc",
         "src/trace_processor/shell/summarize_subcommand.h",
+    ],
+)
+
+# GN target: //src/trace_processor/shell:subcommands
+perfetto_filegroup(
+    name = "src_trace_processor_shell_subcommands",
+    srcs = [
+        "src/trace_processor/shell/subcommand.cc",
+        "src/trace_processor/shell/subcommand.h",
     ],
 )
 
