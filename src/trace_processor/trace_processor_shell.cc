@@ -898,17 +898,8 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     }
   }
 
-<<<<<<< HEAD
   // Classic flag path: translate classic flags into a subcommand invocation
   // and re-dispatch through the subcommand machinery above.
-=======
-  // No arguments at all: show the subcommand-based help.
-  if (argc == 1) {
-    PrintSubcommandHelp(argv[0]);
-    return base::OkStatus();
-  }
-
->>>>>>> origin/main
   CommandLineOptions options = ParseCommandLineOptions(argc, argv);
 
   // Build a synthetic argv for the target subcommand.
@@ -981,6 +972,17 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
   } else if (options.enable_stdiod) {
     args.emplace_back("server");
     args.emplace_back("stdio");
+    add_global_flags();
+    if (!options.trace_file_path.empty())
+      args.emplace_back(options.trace_file_path);
+  } else if (!options.structured_query_id.empty()) {
+    args.emplace_back("query");
+    args.emplace_back("--structured-query-id");
+    args.emplace_back(options.structured_query_id);
+    for (const auto& s : options.structured_query_specs) {
+      args.emplace_back("--structured-query-spec");
+      args.emplace_back(s);
+    }
     add_global_flags();
     if (!options.trace_file_path.empty())
       args.emplace_back(options.trace_file_path);
