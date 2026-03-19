@@ -148,6 +148,7 @@ def main():
       # autopush, but cache-control and -z are mutually exclusive (b/327213431).
       cp_cmd = [
           'gsutil', '-m', 'cp', '-z', 'js,json,css,wasm,map', '-r', path,
+          'gs://%s/' % BUCKET_NAME
       ]
       check_call_and_log(cp_cmd)
     else:
