@@ -37,6 +37,7 @@ source_set("service") {
     "../../base:version",
     "../../protovm:protovm",
     "../../protozero/filtering:message_filter",
+    "../../protozero/filtering:message_filter_config",
     "../../protozero/filtering:string_filter",
     "../core",
   ]
