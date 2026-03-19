@@ -859,6 +859,12 @@ function BarChartDemo(): m.Component<{
         MIN: 'Min Duration',
         MAX: 'Max Duration',
         COUNT_DISTINCT: 'Distinct Durations',
+        P25: 'p25 Duration',
+        P50: 'p50 Duration',
+        P75: 'p75 Duration',
+        P90: 'p90 Duration',
+        P95: 'p95 Duration',
+        P99: 'p99 Duration',
       };
 
       return m('div', [
@@ -957,6 +963,12 @@ function SQLBarChartDemo(): m.Component<{
         MIN: 'Min Duration',
         MAX: 'Max Duration',
         COUNT_DISTINCT: 'Distinct Durations',
+        P25: 'p25 Duration',
+        P50: 'p50 Duration',
+        P75: 'p75 Duration',
+        P90: 'p90 Duration',
+        P95: 'p95 Duration',
+        P99: 'p99 Duration',
       };
 
       return m('div', [

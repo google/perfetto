@@ -549,7 +549,9 @@ ORDER BY _bucket_idx`.trim();
   private buildHavingClause(measures: ReadonlyArray<MeasureSpec>): string {
     const conditions: string[] = [];
     for (const m of measures) {
-      if (m.aggregation === 'COUNT') continue;
+      if (m.aggregation === 'COUNT' || m.aggregation === 'COUNT_DISTINCT') {
+        continue;
+      }
       conditions.push(
         `${sqlAggregateExpr(m.aggregation, m.column)} IS NOT NULL`,
       );

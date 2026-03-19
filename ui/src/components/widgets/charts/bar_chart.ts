@@ -14,7 +14,12 @@
 
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
-import {ChartAggregation, extractBrushRange, formatNumber} from './chart_utils';
+import {
+  ChartAggregation,
+  extractBrushRange,
+  formatNumber,
+  percentile,
+} from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
 import {
   buildAxisOption,
@@ -348,5 +353,12 @@ function aggregate(values: number[], agg: ChartAggregation): number {
       return values.reduce((a, b) => Math.max(a, b), -Infinity);
     case 'COUNT_DISTINCT':
       return new Set(values).size;
+    case 'P25':
+    case 'P50':
+    case 'P75':
+    case 'P90':
+    case 'P95':
+    case 'P99':
+      return percentile(values, Number(agg.slice(1)));
   }
 }
