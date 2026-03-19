@@ -25,6 +25,7 @@
   scrollbar-color: var(--pf-color-border) var(--pf-color-background); /* thumb color track color */
 
   &--light {
+    --pf-color-void: white;
     --pf-color-background: white;
     --pf-color-background-secondary: #edf0f1;
     --pf-color-background-tertiary: #e3e9eb;
@@ -75,6 +76,7 @@
   }
 
   &--dark {
+    --pf-color-void: #101010;
     --pf-color-background: #222226;
     --pf-color-background-secondary: #343438;
     --pf-color-background-tertiary: #4a4c52;
