@@ -29,6 +29,7 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/trace_processor/summarizer.h"
 #include "src/trace_processor/shell/common_flags.h"
+#include "src/trace_processor/shell/interactive.h"
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/query.h"
 #include "src/trace_processor/shell/subcommand.h"
@@ -87,7 +88,7 @@ std::vector<FlagSpec> QuerySubcommand::GetFlags() {
       BoolFlag("interactive", 'i', "Start interactive shell after query.",
                &interactive_),
       BoolFlag("wide", 'W', "Double column width for output.", &wide_),
-      StringFlag("perf-file", 'p', "FILE", "Write perf timing data to FILE.",
+      StringFlag("perf-file", '\0', "FILE", "Write perf timing data to FILE.",
                  &perf_file_),
   };
 }
@@ -207,6 +208,13 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
 
   if (!perf_file_.empty())
     RETURN_IF_ERROR(PrintPerfFile(perf_file_, t_load, t_query));
+
+  if (interactive_) {
+    RETURN_IF_ERROR(StartInteractiveShell(
+        tp.get(),
+        InteractiveOptions{
+            wide_ ? 40u : 20u, MetricV1OutputFormat::kNone, {}, {}, nullptr}));
+  }
 
   RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path));
   return base::OkStatus();
