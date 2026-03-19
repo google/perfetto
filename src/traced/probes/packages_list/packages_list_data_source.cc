@@ -16,18 +16,32 @@
 
 #include "src/traced/probes/packages_list/packages_list_data_source.h"
 
+#include <cinttypes>
+#include <cstdint>
+#include <cstdio>
+#include <functional>
+#include <memory>
 #include <regex>
+#include <set>
+#include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/string_splitter.h"
-
+#include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
-
+#include "perfetto/tracing/core/forward_decls.h"
+#include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "src/traced/probes/common/android_cpu_per_uid_poller.h"
 #include "src/traced/probes/packages_list/packages_list_parser.h"
+
+#include "protos/perfetto/config/android/packages_list_config.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/traced/probes/probes_data_source.h"
 
 using perfetto::protos::pbzero::PackagesListConfig;
 

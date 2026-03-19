@@ -14,18 +14,20 @@
  * limitations under the License.
  */
 
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/scoped_file.h"
 #include "src/traced/probes/packages_list/packages_list_data_source.h"
 
 #include <stdio.h>
+#include <unistd.h>
 
+#include <cstdint>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "perfetto/ext/base/pipe.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
-#include "protos/perfetto/trace/android/packages_list.gen.h"
-#include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "src/traced/probes/packages_list/packages_list_parser.h"
 #include "test/gtest_and_gmock.h"
 
@@ -100,7 +102,7 @@ TEST(PackagesListDataSourceTest, EmptyNameFilterIncludesAll) {
   std::unordered_multimap<uint64_t, Package> packages;
   std::set<std::string> filter{};
 
-  ASSERT_FALSE(ParsePackagesListStream(packages, fs, filter));
+  ASSERT_FALSE(ParsePackagesListStream(packages, fs, filter, {}));
 
   // all entries
   EXPECT_EQ(packages.size(), 3lu);
@@ -132,7 +134,7 @@ TEST(PackagesListDataSourceTest, NameFilter) {
   std::unordered_multimap<uint64_t, Package> packages;
   std::set<std::string> filter{"com.test.one", "com.test.three"};
 
-  ASSERT_FALSE(ParsePackagesListStream(packages, fs, filter));
+  ASSERT_FALSE(ParsePackagesListStream(packages, fs, filter, {}));
 
   // two named entries
   EXPECT_EQ(packages.size(), 2lu);
