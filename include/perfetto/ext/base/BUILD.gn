@@ -36,6 +36,7 @@ source_set("base") {
     "getopt.h",
     "getopt_compat.h",
     "hash.h",
+    "hyper_log_log.h",
     "intrusive_list.h",
     "intrusive_tree.h",
     "lock_free_task_runner.h",
