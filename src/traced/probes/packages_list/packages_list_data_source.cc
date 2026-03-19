@@ -133,7 +133,7 @@ PackagesListDataSource::PackagesListDataSource(
 }
 
 void PackagesListDataSource::Start() {
-  base::ScopedFstream fs(fopen("/data/system/packages.list", "r"));
+  base::ScopedFstream fs(fopen("/data/system/packages.list", "re"));
   if (fs) {
     packages_parse_error_ = ParsePackagesListStream(
         packages_, fs, package_name_filter_, package_name_regex_filter_);
