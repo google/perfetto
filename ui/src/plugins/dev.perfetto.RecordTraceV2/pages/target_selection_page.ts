@@ -25,6 +25,8 @@ import {Select} from '../../../widgets/select';
 import {DisposableStack} from '../../../base/disposable_stack';
 import {CurrentTracingSession, RecordingManager} from '../recording_manager';
 import {download} from '../../../base/download_utils';
+import {formatFileSize} from '../../../base/file_utils';
+import {TraceData} from '../interfaces/tracing_session';
 import {RecordSubpage} from '../config/config_interfaces';
 import {RecordPluginSchema, SavedSessionSchema} from '../serialization_schema';
 import {Checkbox} from '../../../widgets/checkbox';
@@ -534,7 +536,6 @@ type SessionMgmtAttrs = {recMgr: RecordingManager; target: RecordingTarget};
 class SessionMgmtRenderer implements m.ClassComponent<SessionMgmtAttrs> {
   view({attrs}: m.CVnode<SessionMgmtAttrs>) {
     const session = attrs.recMgr.currentSession;
-    const isValid = attrs.recMgr.recordConfig.traceConfig.mode !== 'LONG_TRACE';
     const isRecording = session?.state === 'RECORDING';
     return [
       m('header', 'Tracing session'),
@@ -545,7 +546,7 @@ class SessionMgmtRenderer implements m.ClassComponent<SessionMgmtAttrs> {
           icon: 'not_started',
           iconFilled: true,
           className: 'start',
-          disabled: isRecording || !isValid,
+          disabled: isRecording,
           onclick: () => attrs.recMgr.startTracing().then(() => m.redraw()),
         }),
         m(Button, {
@@ -553,7 +554,7 @@ class SessionMgmtRenderer implements m.ClassComponent<SessionMgmtAttrs> {
           icon: 'stop',
           className: 'stop',
           iconFilled: true,
-          disabled: !isRecording || !isValid,
+          disabled: !isRecording,
           onclick: () => session?.session?.stop().then(() => m.redraw()),
         }),
         m(Button, {
@@ -561,7 +562,7 @@ class SessionMgmtRenderer implements m.ClassComponent<SessionMgmtAttrs> {
           icon: 'cancel',
           className: 'cancel',
           iconFilled: true,
-          disabled: !isRecording || !isValid,
+          disabled: !isRecording,
           onclick: () => session?.session?.cancel().then(() => m.redraw()),
         }),
         m(Checkbox, {
@@ -591,20 +592,27 @@ type SessionStateAttrs = {
 class SessionStateRenderer implements m.ClassComponent<SessionStateAttrs> {
   private session: CurrentTracingSession;
   private trash = new DisposableStack();
-  private bufferUsagePct = 'N/A';
+  private progressLabel = 'Buffer usage';
+  private progressValue = 'N/A';
 
   constructor({attrs}: m.CVnode<SessionStateAttrs>) {
     this.session = attrs.session;
-    this.trash.use(this.pollBufferState());
+    this.trash.use(this.pollRecordingProgress());
   }
 
-  private pollBufferState(): Disposable {
+  private pollRecordingProgress(): Disposable {
     const timerId = window.setInterval(async () => {
-      const bufferUsagePct = await this.session.session?.getBufferUsagePct();
-      if (bufferUsagePct !== undefined) {
-        // Retain the last valid buffer usage in the dialog, so the user can
-        // get a sense of overruns even after the trace ends.
-        this.bufferUsagePct = `${bufferUsagePct} %`;
+      const progress = await this.session.session?.getRecordingProgress();
+      if (progress !== undefined) {
+        // Retain the last valid value so the user can see it after the
+        // trace ends.
+        if (progress.kind === 'BUFFER_USAGE') {
+          this.progressLabel = 'Buffer usage';
+          this.progressValue = `${progress.pct} %`;
+        } else {
+          this.progressLabel = 'Data written';
+          this.progressValue = formatFileSize(progress.bytes);
+        }
       }
       m.redraw();
     }, 1000);
@@ -624,38 +632,59 @@ class SessionStateRenderer implements m.ClassComponent<SessionStateAttrs> {
     return m(
       'table.session-status',
       m('tr', m('td', 'State'), m('td', this.session.state)),
-      m('tr', m('td', 'Buffer usage'), m('td', this.bufferUsagePct)),
+      m('tr', m('td', this.progressLabel), m('td', this.progressValue)),
       eta && m('tr', m('td', 'ETA'), m('td', eta)),
-      traceData &&
-        m(
-          'tr',
-          m('td', 'Trace file'),
-          m(
-            'td',
-            `${Math.round(traceData.length / 1e3).toLocaleString()} KB`,
-            this.session.isCompressed && ' (compressed)',
-            m(Button, {
-              label: 'Open',
-              icon: 'file_open',
-              onclick: () => this.session.openTrace(),
-            }),
-            m(Button, {
-              label: 'Download',
-              icon: 'download',
-              onclick: () =>
-                download({
-                  fileName: this.session.fileName,
-                  content: traceData,
-                }),
-            }),
-          ),
-        ),
+      traceData && this.renderTraceData(traceData),
       logs != '' && m('tr', m('td', 'Logs'), m('td', m('pre.logs', logs))),
     );
   }
 
   onremove() {
     this.trash.dispose();
+  }
+
+  private renderTraceData(traceData: TraceData): m.Children {
+    if (traceData.kind === 'BUFFER') {
+      const size = formatFileSize(traceData.data.length);
+      return m(
+        'tr',
+        m('td', 'Trace file'),
+        m(
+          'td',
+          size,
+          this.session.isCompressed && ' (compressed)',
+          m(Button, {
+            label: 'Open',
+            icon: 'file_open',
+            onclick: () => this.session.openTrace(),
+          }),
+          m(Button, {
+            label: 'Download',
+            icon: 'download',
+            onclick: () =>
+              download({
+                fileName: this.session.fileName,
+                content: traceData.data,
+              }),
+          }),
+        ),
+      );
+    } else {
+      // FILE kind — the file was saved to disk via the File System Access API.
+      return m(
+        'tr',
+        m('td', 'Trace file'),
+        m(
+          'td',
+          formatFileSize(traceData.file.size),
+          m(Button, {
+            label: 'Open',
+            icon: 'file_open',
+            onclick: () => this.session.openTrace(),
+          }),
+        ),
+      );
+    }
   }
 
   private getLogs() {

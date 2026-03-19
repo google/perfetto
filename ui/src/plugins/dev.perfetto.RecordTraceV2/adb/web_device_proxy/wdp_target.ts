@@ -16,7 +16,7 @@ import protos from '../../../../protos';
 import {errResult, okResult, Result} from '../../../../base/result';
 import {PreflightCheck} from '../../interfaces/connection_check';
 import {RecordingTarget} from '../../interfaces/recording_target';
-import {ConsumerIpcTracingSession} from '../../tracing_protocol/consumer_ipc_tracing_session';
+import {TracingSession} from '../../interfaces/tracing_session';
 import {checkAndroidTarget} from '../adb_platform_checks';
 import {
   createAdbTracingSession,
@@ -146,9 +146,14 @@ export class WebDeviceProxyTarget implements RecordingTarget {
 
   async startTracing(
     traceConfig: protos.ITraceConfig,
-  ): Promise<Result<ConsumerIpcTracingSession>> {
+    fileHandle?: FileSystemFileHandle,
+  ): Promise<Result<TracingSession>> {
     const adbDeviceStatus = await this.connectIfNeeded();
     if (!adbDeviceStatus.ok) return adbDeviceStatus;
-    return await createAdbTracingSession(adbDeviceStatus.value, traceConfig);
+    return await createAdbTracingSession(
+      adbDeviceStatus.value,
+      traceConfig,
+      fileHandle,
+    );
   }
 }

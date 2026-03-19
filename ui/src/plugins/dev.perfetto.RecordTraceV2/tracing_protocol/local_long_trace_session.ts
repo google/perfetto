@@ -1,4 +1,4 @@
-// Copyright (C) 2024 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,6 @@
 
 import protos from '../../../protos';
 import {EvtSource} from '../../../base/events';
-import {ResizableArrayBuffer} from '../../../base/resizable_array_buffer';
 import {
   RecordingProgress,
   TraceData,
@@ -25,19 +24,22 @@ import {
 import {TracingProtocol} from './tracing_protocol';
 
 /**
- * A concrete implementation of {@link TracingSession} over a
- * Perfetto IPC Tracing Procol. This class is suitable for all cases where we
- * are able to obtain, in a way or another, a byte stream to talk to the traced
- * consumer socket.
+ * A long trace session for local targets (e.g. traced over websocket on the
+ * same machine). Sets outputPath so traced writes directly to a known file.
+ * After recording stops, the session reports the file path so the user can
+ * open it via the UI's "Open trace file" mechanism.
  */
-export class ConsumerIpcTracingSession implements TracingSession {
+export class LocalLongTraceSession implements TracingSession {
   private consumerIpc: TracingProtocol;
   private _state: TracingSessionState = 'RECORDING';
   readonly logs = new Array<TracingSessionLogEntry>();
-  private traceBuf = new ResizableArrayBuffer(64 * 1024);
   readonly onSessionUpdate = new EvtSource<void>();
 
-  constructor(consumerIpc: TracingProtocol, traceConfig: protos.ITraceConfig) {
+  constructor(
+    consumerIpc: TracingProtocol,
+    traceConfig: protos.ITraceConfig,
+    private readonly outputPath: string,
+  ) {
     this.consumerIpc = consumerIpc;
     this.consumerIpc.onClose = this.onProtocolClose.bind(this);
     this.start(traceConfig);
@@ -48,8 +50,12 @@ export class ConsumerIpcTracingSession implements TracingSession {
   }
 
   private async start(traceConfig: protos.ITraceConfig): Promise<void> {
-    const req = new protos.EnableTracingRequest({traceConfig});
-    this.log(`Starting trace, durationMs: ${traceConfig.durationMs}`);
+    const cfg = {...traceConfig, outputPath: this.outputPath};
+    const req = new protos.EnableTracingRequest({traceConfig: cfg});
+    this.log(
+      `Starting long trace, durationMs: ${traceConfig.durationMs}, ` +
+        `outputPath: ${this.outputPath}`,
+    );
     const resp = await this.consumerIpc.invoke('EnableTracing', req);
     this.onTraceStopped(resp.error);
   }
@@ -57,7 +63,6 @@ export class ConsumerIpcTracingSession implements TracingSession {
   async stop(): Promise<void> {
     if (this._state !== 'RECORDING') return;
     this.setState('STOPPING');
-    // Initiator=kPerfettoCmd, Reason=kTraceStop. See flush_flags.h.
     const flags = (2 << 4) | 2;
     this.log('Flushing data sources');
     await this.consumerIpc.invoke('Flush', new protos.FlushRequest({flags}));
@@ -77,15 +82,16 @@ export class ConsumerIpcTracingSession implements TracingSession {
     if (this._state !== 'RECORDING') return undefined;
     const req = new protos.GetTraceStatsRequest({});
     const resp = await this.consumerIpc.invoke('GetTraceStats', req);
-    let totSize = 0;
-    let usedSize = 0;
+    let totalBytesWritten = 0;
     for (const buf of resp.traceStats?.bufferStats ?? []) {
-      totSize += buf.bufferSize ?? 0;
-      // bytesWritten can be >> bufferSize for ring buffer traces.
-      usedSize += Math.min(buf.bytesWritten ?? 0, buf.bufferSize ?? 0);
+      totalBytesWritten += buf.bytesWritten ?? 0;
     }
-    const pct = Math.min(Math.round((100 * usedSize) / totSize), 100);
-    return {kind: 'BUFFER_USAGE', pct};
+    return {kind: 'TOTAL_WRITTEN', bytes: totalBytesWritten};
+  }
+
+  getTraceData(): TraceData | undefined {
+    // Data is on the local filesystem; no in-browser data available.
+    return undefined;
   }
 
   private onTraceStopped(error: string) {
@@ -93,39 +99,15 @@ export class ConsumerIpcTracingSession implements TracingSession {
       this.fail(error);
       return;
     }
-    if (this.consumerIpc === undefined) {
-      return; // Spurious event after we failed.
-    }
-    // There is nothing more to do if we arrive here via cancel() or an error.
     if (!['STOPPING', 'RECORDING'].includes(this._state)) return;
 
-    // We reach this point either:
-    // 1. In state == 'RECORDING', if the durationMs expired and the
-    //    EnableTracing request is resolved.
-    // 2. In state == 'STOPPING', if the user has pressed stop().
-    this.setState('STOPPING');
-    this.log('Tracing stopped. Reading back data');
-    const rbreq = new protos.ReadBuffersRequest({});
-    const stream = this.consumerIpc.invokeStreaming('ReadBuffers', rbreq);
-    stream.onTraceData = this.onTraceData.bind(this);
-  }
-
-  getTraceData(): TraceData | undefined {
-    if (this._state !== 'FINISHED') return undefined;
-    return {kind: 'BUFFER', data: this.traceBuf.get()};
-  }
-
-  private onTraceData(packets: Uint8Array, hasMore: boolean) {
-    this.traceBuf.append(packets);
-    if (hasMore) return;
-
+    this.log(`Trace saved to ${this.outputPath}`);
+    this.consumerIpc.close();
     this.setState('FINISHED');
-    this.consumerIpc?.close();
   }
 
   private onProtocolClose() {
     if (this._state === 'RECORDING') {
-      this.setState('ERRORED');
       this.fail('Protocol disconnected');
     }
   }
@@ -136,16 +118,12 @@ export class ConsumerIpcTracingSession implements TracingSession {
   }
 
   private log(message: string, isError = false) {
-    this.logs.push({
-      message,
-      timestamp: new Date(),
-      isError,
-    });
+    this.logs.push({message, timestamp: new Date(), isError});
     this.onSessionUpdate.notify();
   }
 
-  fail(error: string) {
-    this.log(`Tracing failed: ${error}`, /* isError */ true);
+  private fail(error: string) {
+    this.log(`Tracing failed: ${error}`, true);
     this.setState('ERRORED');
     this.consumerIpc.close();
   }

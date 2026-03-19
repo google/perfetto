@@ -24,7 +24,7 @@ import {AdbWebusbDevice} from './adb_webusb_device';
 import {AdbUsbInterface, usbDeviceToStr} from './adb_webusb_utils';
 import {errResult, okResult, Result} from '../../../../base/result';
 import {checkAndroidTarget} from '../adb_platform_checks';
-import {ConsumerIpcTracingSession} from '../../tracing_protocol/consumer_ipc_tracing_session';
+import {TracingSession} from '../../interfaces/tracing_session';
 import {AsyncLazy} from '../../../../base/async_lazy';
 
 export class AdbWebusbTarget implements RecordingTarget {
@@ -81,10 +81,15 @@ export class AdbWebusbTarget implements RecordingTarget {
 
   async startTracing(
     traceConfig: protos.ITraceConfig,
-  ): Promise<Result<ConsumerIpcTracingSession>> {
+    fileHandle?: FileSystemFileHandle,
+  ): Promise<Result<TracingSession>> {
     const adbDeviceStatus = await this.connectIfNeeded();
     if (!adbDeviceStatus.ok) return adbDeviceStatus;
-    return await createAdbTracingSession(adbDeviceStatus.value, traceConfig);
+    return await createAdbTracingSession(
+      adbDeviceStatus.value,
+      traceConfig,
+      fileHandle,
+    );
   }
 
   disconnect(): void {
