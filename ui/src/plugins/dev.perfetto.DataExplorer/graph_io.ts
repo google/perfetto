@@ -32,6 +32,7 @@ import {
 import {recentGraphsStorage} from './recent_graphs';
 import {DataExplorerState, DashboardTabState} from './data_explorer';
 import type {DataExplorerTab} from './data_explorer';
+import {parsePbtxtToState} from './pbtxt_import';
 import {
   serializeDashboardsForTab,
   SerializedDashboard,
@@ -99,21 +100,37 @@ export async function importGraph(
 ): Promise<void> {
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = '.json';
+  input.accept = '.json,.pbtxt';
   input.onchange = async (event) => {
     const files = (event.target as HTMLInputElement).files;
     if (files && files.length > 0) {
       const file = files[0];
       const reader = new FileReader();
       reader.onload = async (e) => {
-        const json = e.target?.result as string;
-        if (!json) {
+        const text = e.target?.result as string;
+        if (!text) {
           console.error('The selected file is empty or could not be read.');
           return;
         }
-        const newState = deserializeState(json, deps.trace, deps.sqlModules);
-        const name = file.name.replace(/\.json$/i, '');
-        onCreateTab(name, newState);
+        try {
+          const isPbtxt = file.name.toLowerCase().endsWith('.pbtxt');
+          const newState = isPbtxt
+            ? await parsePbtxtToState(text, deps.trace, deps.sqlModules)
+            : deserializeState(text, deps.trace, deps.sqlModules);
+          const name = file.name.replace(/\.(json|pbtxt)$/i, '');
+          onCreateTab(name, newState);
+        } catch (error) {
+          console.error('Failed to import graph:', error);
+          showModal({
+            title: 'Import Failed',
+            content: () =>
+              m(
+                'div',
+                `Failed to import: ${error instanceof Error ? error.message : String(error)}`,
+              ),
+            buttons: [],
+          });
+        }
       };
       reader.readAsText(file);
     }
@@ -365,34 +382,51 @@ export function importTab(
 ): void {
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = '.json';
+  input.accept = '.json,.pbtxt';
   input.onchange = (event) => {
     const files = (event.target as HTMLInputElement).files;
     if (files === null || files.length === 0) return;
     const file = files[0];
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const text = e.target?.result;
       if (typeof text !== 'string' || text.length === 0) {
         console.error('The selected file is empty or could not be read.');
         return;
       }
       try {
-        const parsed: unknown = JSON.parse(text);
-        if (isSerializedTabExport(parsed)) {
-          const newState = deserializeState(
-            parsed.graph,
+        const isPbtxt = file.name.toLowerCase().endsWith('.pbtxt');
+        if (isPbtxt) {
+          const newState = await parsePbtxtToState(
+            text,
             deps.trace,
             deps.sqlModules,
           );
-          const dashboards = deserializeDashboardsFromExport(parsed.dashboards);
-          const name = parsed.title ?? file.name.replace(/\.json$/i, '');
-          onCreateTab(name, newState, dashboards);
-        } else {
-          // Plain graph import (backward compat)
-          const newState = deserializeState(text, deps.trace, deps.sqlModules);
-          const name = file.name.replace(/\.json$/i, '');
+          const name = file.name.replace(/\.pbtxt$/i, '');
           onCreateTab(name, newState);
+        } else {
+          const parsed: unknown = JSON.parse(text);
+          if (isSerializedTabExport(parsed)) {
+            const newState = deserializeState(
+              parsed.graph,
+              deps.trace,
+              deps.sqlModules,
+            );
+            const dashboards = deserializeDashboardsFromExport(
+              parsed.dashboards,
+            );
+            const name = parsed.title ?? file.name.replace(/\.json$/i, '');
+            onCreateTab(name, newState, dashboards);
+          } else {
+            // Plain graph import (backward compat)
+            const newState = deserializeState(
+              text,
+              deps.trace,
+              deps.sqlModules,
+            );
+            const name = file.name.replace(/\.json$/i, '');
+            onCreateTab(name, newState);
+          }
         }
       } catch (error) {
         console.error('Failed to import tab:', error);
