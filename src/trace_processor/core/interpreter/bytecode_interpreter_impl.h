@@ -1487,8 +1487,14 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
 }
 
 // IndexedFilterIn: for each value in the list, binary-searches the index
-// permutation vector, collects matching ranges into a scratch buffer, sorts
-// the result, and writes to dest.
+// permutation vector, collects matching ranges into a pre-allocated dest
+// buffer, sorts the result, and writes to dest.
+//
+// Unlike IndexedFilterEq (which returns a subspan of the source), this
+// bytecode gathers results from non-contiguous ranges, so it requires its
+// own writable memory. The dest register must be backed by a pre-allocated
+// slab (via AllocateIndices) to avoid corrupting the persistent index
+// permutation vector that source points to.
 template <typename T, typename N>
 inline PERFETTO_ALWAYS_INLINE void IndexedFilterIn(
     InterpreterState& state,
@@ -1496,15 +1502,15 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterIn(
   using B = IndexedFilterInBase;
   const auto& cast_result =
       *state.ReadFromRegister(bytecode.arg<B::value_list_register>());
-  const auto& source =
-      state.ReadFromRegister(bytecode.arg<B::source_register>());
-  Span<uint32_t> dest(source.b, source.b);
+  auto& dest = state.ReadFromRegister(bytecode.arg<B::dest_register>());
 
   if (!HandleInvalidCastFilterValueResult(cast_result.validity, dest)) {
     state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
     return;
   }
 
+  const auto& source =
+      state.ReadFromRegister(bytecode.arg<B::source_register>());
   const auto* data =
       state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
   const Slab<uint32_t>* popcnt =
@@ -1517,14 +1523,11 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterIn(
       StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::ValueList>;
   const M& val = base::unchecked_get<M>(cast_result.value_list);
 
-  // For each value, binary search the permutation vector and collect matches
-  // into a scratch buffer. We cannot write directly into source because the
-  // binary searches read from source and writing would corrupt unprocessed
-  // regions when values are not in index-sorted order.
+  // For each value, binary search the source permutation vector and copy
+  // matching ranges into dest's pre-allocated memory.
   using ValElem =
       StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>;
-  std::vector<uint32_t> scratch;
-  scratch.reserve(source.size());
+  uint32_t* write = dest.b;
   for (size_t v = 0; v < val.size(); ++v) {
     ValElem cmp_val = val[v];
 
@@ -1543,18 +1546,14 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterIn(
             return false;
           return target < data[si];
         });
-    scratch.insert(scratch.end(), lb, ub);
+    memcpy(write, lb, static_cast<size_t>(ub - lb) * sizeof(uint32_t));
+    write += (ub - lb);
   }
+  dest.e = write;
 
   // Sort results so that any downstream chained filters (which use binary
   // search) see a correctly ordered permutation vector.
-  std::sort(scratch.begin(), scratch.end(),
-            [&](uint32_t a, uint32_t b) { return a < b; });
-
-  // Copy sorted results to dest (reusing source's memory, which is safe
-  // since all binary searches are complete).
-  memcpy(source.b, scratch.data(), scratch.size() * sizeof(uint32_t));
-  dest.e = source.b + scratch.size();
+  std::sort(dest.b, dest.e);
   state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
 }
 

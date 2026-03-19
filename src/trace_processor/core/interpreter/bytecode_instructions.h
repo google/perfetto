@@ -603,7 +603,7 @@ struct IndexedFilterInBase
       popcount_register,
       ReadHandle<Span<uint32_t>>,
       source_register,
-      WriteHandle<Span<uint32_t>>,
+      RwHandle<Span<uint32_t>>,
       dest_register);
 };
 template <typename T, typename N>

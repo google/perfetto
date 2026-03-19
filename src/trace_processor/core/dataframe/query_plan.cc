@@ -877,6 +877,20 @@ void QueryPlanBuilder::IndexConstraints(
         bc.arg<B::op>() = Eq{};
         fs.value_index = plan_.params.filter_value_count++;
       }
+      // IndexedFilterIn gathers results from non-contiguous ranges, so it
+      // cannot write into the source (which points to the persistent index
+      // permutation vector). Allocate a separate slab+span for the dest.
+      i::RwHandle<Slab<uint32_t>> in_slab_reg =
+          builder_.AllocateRegister<Slab<uint32_t>>();
+      i::RwHandle<Span<uint32_t>> in_dest_reg =
+          builder_.AllocateRegister<Span<uint32_t>>();
+      {
+        using B = i::AllocateIndices;
+        auto& bc = AddOpcode<B>(UnchangedRowCount{});
+        bc.arg<B::size>() = plan_.params.max_row_count;
+        bc.arg<B::dest_slab_register>() = in_slab_reg;
+        bc.arg<B::dest_span_register>() = in_dest_reg;
+      }
       {
         using B = i::IndexedFilterInBase;
         // Allocate popcount before AddOpcode so PrefixPopcount bytecode
@@ -893,8 +907,10 @@ void QueryPlanBuilder::IndexConstraints(
         bc.arg<B::value_list_register>() = value_list_reg;
         bc.arg<B::popcount_register>() = popcount_register;
         bc.arg<B::source_register>() = source_reg;
-        bc.arg<B::dest_register>() = dest_reg;
+        bc.arg<B::dest_register>() = in_dest_reg;
       }
+      // Override dest_reg so subsequent filters use the allocated span.
+      dest_reg = in_dest_reg;
     } else {
       // Emit IndexedFilterEq for Eq filters.
       auto value_reg = CastFilterValue(fs, column.storage.type(),
