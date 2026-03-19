@@ -25,7 +25,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/getopt.h"
+#include "perfetto/ext/base/getopt.h"  // IWYU pragma: keep
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "protos/perfetto/config/trace_config.gen.h"
@@ -163,7 +163,8 @@ int Main(int argc, char** argv) {
       {"semantic_type", required_argument, nullptr, 't'},
       {"trace_in", required_argument, nullptr, 'i'},
       {"trace_out", required_argument, nullptr, 'o'},
-      {nullptr, 0, nullptr, 0}};
+      {nullptr, 0, nullptr, 0},
+  };
 
   std::string rules_path;
   std::string trace_in;
@@ -188,7 +189,7 @@ int Main(int argc, char** argv) {
     if (option == 't') {
       auto parsed = base::CStringToUInt32(optarg);
       if (!parsed.has_value()) {
-        fprintf(stderr, "Invalid semantic type: %s\n", optarg);
+        PERFETTO_ELOG("Invalid semantic type: %s\n", optarg);
         return 1;
       }
       semantic_type = *parsed;
@@ -205,12 +206,12 @@ int Main(int argc, char** argv) {
       continue;
     }
 
-    fprintf(stderr, "%s", kUsage);
+    PERFETTO_ELOG("%s", kUsage);
     return 1;
   }
 
   if (rules_path.empty()) {
-    fprintf(stderr, "%s", kUsage);
+    PERFETTO_ELOG("%s", kUsage);
     return 1;
   }
 
@@ -223,7 +224,7 @@ int Main(int argc, char** argv) {
 
   auto res = TraceConfigTxtToPb(rules_data, rules_path);
   if (!res.ok()) {
-    fprintf(stderr, "%s\n", res.status().c_message());
+    PERFETTO_ELOG("%s\n", res.status().c_message());
     return 1;
   }
 
@@ -236,7 +237,7 @@ int Main(int argc, char** argv) {
   // Trace mode: apply bytecode + string filtering to a trace file.
   if (!trace_in.empty()) {
     if (trace_out.empty()) {
-      fprintf(stderr, "--trace_out (-o) is required when using --trace_in\n");
+      PERFETTO_ELOG("--trace_out (-o) is required when using --trace_in\n");
       return 1;
     }
 
@@ -276,7 +277,7 @@ int Main(int argc, char** argv) {
 
   // String mode: apply string filtering to a single string.
   if (optind >= argc) {
-    fprintf(stderr, "%s", kUsage);
+    PERFETTO_ELOG("%s", kUsage);
     return 1;
   }
 
@@ -316,7 +317,7 @@ int Main(int argc, char** argv) {
       filter.MaybeFilter(input_str.data(), input_str.size(), semantic_type);
 
   // Print the result.
-  printf("%s\n", input_str.c_str());
+  fprintf(stdout, "%s\n", input_str.c_str());
   return was_modified ? 0 : 1;
 }
 
