@@ -183,16 +183,15 @@ export default class implements PerfettoPlugin {
         tags: {
           kinds: [SLICE_TRACK_SUMMARY_KIND],
         },
-        chips,
         renderer: track,
       });
 
-      // Set subtitle on the TrackNode (created by ProcessThreadGroups).
-      if (subtitle) {
-        const trackNode = ctx.defaultWorkspace.getTrackByUri(uri);
-        if (trackNode) {
-          trackNode.subtitle = subtitle;
-        }
+      // TODO(stevegolton): Probably add these when we create the process group
+      // node to begin with.
+      const trackNode = ctx.defaultWorkspace.getTrackByUri(uri);
+      if (trackNode) {
+        trackNode.subtitle = subtitle;
+        trackNode.chips = chips;
       }
     }
   }

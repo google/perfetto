@@ -72,6 +72,7 @@ export interface TrackNodeArgs {
   isSummary: boolean;
   removable: boolean;
   subtitle: string;
+  chips: ReadonlyArray<string>;
   onExpand?: () => void;
 }
 
@@ -118,6 +119,9 @@ export class TrackNode {
   // Optional subtitle displayed underneath the track name in the track shell.
   public subtitle?: string;
 
+  // Optional: A list of strings displayed as "chips" in the track shell.
+  public chips?: ReadonlyArray<string>;
+
   protected _collapsed = true;
   protected _children: Array<TrackNode> = [];
   protected readonly tracksById = new Map<string, TrackNode>();
@@ -140,6 +144,7 @@ export class TrackNode {
       isSummary = false,
       removable = false,
       subtitle,
+      chips,
       onExpand,
     } = args ?? {};
 
@@ -152,6 +157,7 @@ export class TrackNode {
     this._collapsed = collapsed;
     this.removable = removable;
     this.subtitle = subtitle;
+    this.chips = chips;
     this._onExpand = onExpand;
   }
 

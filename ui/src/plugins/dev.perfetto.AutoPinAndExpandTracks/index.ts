@@ -369,7 +369,7 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
       trackName: trackNode.name,
       pluginId: track?.pluginId,
       kinds: track?.tags?.kinds,
-      isMainThread: track?.chips?.includes('main thread') || false,
+      isMainThread: trackNode.chips?.includes('main thread') || false,
     };
   }
 }

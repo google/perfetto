@@ -179,7 +179,7 @@ export class TrackView {
         ref: node.fullPath.join('/'),
         heightPx: height,
         error: renderer?.getError(),
-        chips: renderer?.desc.chips,
+        chips: node.chips,
         buttons,
         scrollToOnCreate: scrollToOnCreate || scrollIntoView,
         collapsible: collapsible && node.hasChildren,

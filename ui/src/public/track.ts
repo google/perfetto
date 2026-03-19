@@ -152,10 +152,6 @@ export interface Track {
   // Used mainly for legacy purposes that predate dataset.
   readonly tags?: TrackTags;
 
-  // Optional: A list of strings which are displayed as "chips" in the track
-  // shell.
-  readonly chips?: ReadonlyArray<string>;
-
   // Filled in by the core.
   readonly pluginId?: string;
 }
