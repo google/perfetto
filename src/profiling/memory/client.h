@@ -114,6 +114,7 @@ class Client {
     return client_config_.adaptive_sampling_max_sampling_interval_bytes;
   }
   uint64_t write_avail() { return shmem_.write_avail(); }
+  size_t read_avail() { return shmem_.read_avail(); }
 
   bool IsConnected();
 
