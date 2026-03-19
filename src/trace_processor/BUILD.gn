@@ -255,6 +255,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "rpc",
       "rpc:stdiod",
       "shell",
+      "shell:subcommands",
       "sqlite",
       "trace_summary",
       "util:stdlib",

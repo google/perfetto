@@ -35,6 +35,10 @@
 #else
 #include <unistd.h>
 #endif
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && !defined(STDIN_FILENO)
+#define STDIN_FILENO 0
+#define STDOUT_FILENO 1
+#endif
 
 namespace perfetto::trace_processor::shell {
 

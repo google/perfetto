@@ -35,7 +35,7 @@ import {
   getItemId,
   getLinkedSourceNodeIds,
 } from './dashboard_registry';
-import {EmptyState} from '../../../widgets/empty_state';
+import {ResultsPanelEmptyState} from '../query_builder/widgets';
 import {SqlValue} from '../../../trace_processor/query_result';
 import {
   isQuantitativeType,
@@ -284,7 +284,7 @@ export class DashboardChartView
     const config = attrs.config;
 
     if (config.column === '') {
-      return m(EmptyState, {
+      return m(ResultsPanelEmptyState, {
         icon: 'ssid_chart',
         title: 'Select a column',
       });
@@ -296,7 +296,7 @@ export class DashboardChartView
     );
     if (!columnExists) {
       return m(
-        EmptyState,
+        ResultsPanelEmptyState,
         {icon: 'warning', title: 'Invalid column'},
         `Column "${config.column}" not found in this data source.`,
       );
@@ -313,7 +313,10 @@ export class DashboardChartView
             this.executionRequested = false;
           });
       }
-      return m(EmptyState, {icon: 'hourglass_empty', title: 'Loading data…'});
+      return m(ResultsPanelEmptyState, {
+        icon: 'hourglass_empty',
+        title: 'Loading data…',
+      });
     }
 
     const entry = this.ensureLoader(attrs, config);

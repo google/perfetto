@@ -5217,7 +5217,8 @@ message TraceConfig {
     //  - any field in both the overlay and bytecode_v2 takes the value in the
     //    overlay, the bytecode_v2 value is ignored.
     //
-    // Introduced in: Perfetto v54.
+    // Note: despite the name, this was broken in v54 (the overlay was not
+    // passed through to the bytecode parser). Only works in v55+.
     optional bytes bytecode_overlay_v54 = 4;
 
     // String filter chain for Perfetto v54+. Rules in this chain either
@@ -12331,6 +12332,12 @@ message SchedWakeupTaskAttrFtraceEvent {
   optional uint64 uclamp_min = 4;
   optional uint64 vruntime = 5;
 }
+message SchedGroupTrackerFtraceEvent {
+  optional string comm = 1;
+  optional int32 pid = 2;
+  optional string group = 3;
+  optional int32 group_num = 4;
+}
 
 // End of protos/perfetto/trace/ftrace/sched.proto
 
@@ -13654,6 +13661,7 @@ message FtraceEvent {
     GpuPowerStateFtraceEvent gpu_power_state = 601;
     GramCollisionFtraceEvent gram_collision = 602;
     F2fsLockElapsedTimeFtraceEvent f2fs_lock_elapsed_time = 603;
+    SchedGroupTrackerFtraceEvent sched_group_tracker = 604;
   }
 }
 

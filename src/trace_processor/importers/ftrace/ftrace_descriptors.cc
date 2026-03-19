@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 604> descriptors{{
+std::array<FtraceMessageDescriptor, 605> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -6728,6 +6728,17 @@ std::array<FtraceMessageDescriptor, 604> descriptors{{
             {"runnable_time", ProtoSchemaType::kUint64},
             {"io_sleep_time", ProtoSchemaType::kUint64},
             {"other_time", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "sched_group_tracker",
+        4,
+        {
+            {},
+            {"comm", ProtoSchemaType::kString},
+            {"pid", ProtoSchemaType::kInt32},
+            {"group", ProtoSchemaType::kString},
+            {"group_num", ProtoSchemaType::kInt32},
         },
     },
 }};
