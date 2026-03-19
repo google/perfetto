@@ -147,14 +147,13 @@ def main():
       # index.html to prevent that the GAE instance is subject to caching on
       # autopush, but cache-control and -z are mutually exclusive (b/327213431).
       cp_cmd = [
-          'gcloud', 'storage', 'cp', '--gzip-local=js,json,css,wasm,map', '--recursive', path,
-          'gs://%s/' % BUCKET_NAME
+          'gsutil', '-m', 'cp', '-z', 'js,json,css,wasm,map', '-r', path,
       ]
       check_call_and_log(cp_cmd)
     else:
       # /index.html or /service_worker.js{,.map}
       cp_cmd = [
-          'gcloud', 'storage', 'cp', '--cache-control=no-cache,no-transform', path,
+          'gsutil', '-h', 'Cache-Control: no-cache,no-transform', 'cp', path,
           'gs://%s/%s' % (BUCKET_NAME, name)
       ]
       check_call_and_log(cp_cmd)
