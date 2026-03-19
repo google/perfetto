@@ -305,7 +305,7 @@ export function isSerializedTabExport(
   );
 }
 
-export function hydrateDashboardsFromExport(
+export function deserializeDashboardsFromExport(
   serialized?: unknown,
 ): DashboardTabState[] | undefined {
   if (!Array.isArray(serialized) || serialized.length === 0) return undefined;
@@ -313,10 +313,9 @@ export function hydrateDashboardsFromExport(
   for (const raw of serialized) {
     if (typeof raw !== 'object' || raw === null) continue;
     const db = raw as Record<string, unknown>;
-    if (typeof db.id !== 'string' || typeof db.title !== 'string') continue;
+    if (typeof db.id !== 'string') continue;
     result.push({
       id: db.id,
-      title: db.title,
       items: validateDashboardItems(db.items as unknown[] | undefined) ?? [],
       brushFilters:
         db.brushFilters !== undefined &&
@@ -386,7 +385,7 @@ export function importTab(
             deps.trace,
             deps.sqlModules,
           );
-          const dashboards = hydrateDashboardsFromExport(parsed.dashboards);
+          const dashboards = deserializeDashboardsFromExport(parsed.dashboards);
           const name = parsed.title ?? file.name.replace(/\.json$/i, '');
           onCreateTab(name, newState, dashboards);
         } else {
