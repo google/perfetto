@@ -86,9 +86,7 @@ export class TrackNode {
   // track. If this means nothing to you, don't bother using it.
   public readonly id: string;
 
-  // A human readable string for this track - displayed in the track shell.
-  // TODO(stevegolton): Make this optional, so that if we implement a string for
-  // this track then we can implement it here as well.
+  // A human readable name for this track - displayed in the track shell.
   public name: string;
 
   // The URI of the track content to display here.
@@ -613,7 +611,9 @@ export class Workspace {
     const cloned = new TrackNode({
       uri: track.uri,
       name: track.name,
+      subtitle: track.subtitle,
       removable: track.removable,
+      chips: track.chips,
     });
     this.pinnedTracksNode.addChildLast(cloned);
   }
