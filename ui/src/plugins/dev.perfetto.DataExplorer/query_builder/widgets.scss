@@ -463,71 +463,6 @@
   flex-shrink: 0;
 }
 
-// Material Design outlined input field with label on border
-.pf-outlined-field {
-  position: relative;
-  min-width: 120px;
-  flex: 1;
-  margin: 0;
-  padding: 0;
-  border: 1px solid var(--pf-color-border);
-  border-radius: 4px;
-  transition: border-color 0.15s ease-in-out;
-
-  &:hover:not(:disabled) {
-    border-color: var(--pf-color-text-muted);
-  }
-
-  &:focus-within:not(:disabled) {
-    // Use thicker border instead of box-shadow to avoid covering the legend
-    border-color: var(--pf-color-primary);
-    border-width: 2px;
-
-    .pf-outlined-field-legend {
-      color: var(--pf-color-primary);
-    }
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    background: var(--pf-color-background-secondary);
-  }
-
-  .pf-outlined-field-legend {
-    padding: 0 4px;
-    margin-left: 8px;
-    font-size: var(--pf-font-size-s);
-    font-weight: 500;
-    color: var(--pf-color-text-muted);
-    user-select: none;
-    transition: color 0.15s ease-in-out;
-  }
-
-  .pf-outlined-field-input {
-    width: 100%;
-    padding: 4px 8px;
-    border: none;
-    background: transparent;
-    color: var(--pf-color-text);
-    font-size: var(--pf-font-size-m);
-    font-family: inherit;
-    outline: none;
-
-    &:disabled {
-      cursor: not-allowed;
-    }
-  }
-
-  select.pf-outlined-field-input {
-    cursor: pointer;
-
-    &:disabled {
-      cursor: not-allowed;
-    }
-  }
-}
-
 // Outlined multiselect - styles the PopupMultiSelect button to look like a form field
 .pf-outlined-multiselect {
   flex: 1;
@@ -684,12 +619,20 @@
   }
 }
 
-// Select/Deselect All buttons - aligns to the right with gap between buttons
 .pf-select-deselect-all-buttons {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   margin-bottom: 12px;
+}
+
+// Non-draggable column row in ColumnSelector
+.pf-column-selector-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  flex-wrap: wrap;
 }
 
 // Wider modal for computed column forms

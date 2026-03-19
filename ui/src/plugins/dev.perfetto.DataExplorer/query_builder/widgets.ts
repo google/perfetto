@@ -157,8 +157,8 @@ export class CardWithHeader implements m.ClassComponent<CardWithHeaderAttrs> {
   }
 }
 
-// Generic button group widget
-export interface ButtonGroupAttrs {
+// Generic button group widget for Data Explorer action buttons
+export interface ActionButtonGroupAttrs {
   buttons: Array<{
     label: string;
     onclick: () => void;
@@ -166,8 +166,10 @@ export interface ButtonGroupAttrs {
   }>;
 }
 
-export class ButtonGroup implements m.ClassComponent<ButtonGroupAttrs> {
-  view({attrs}: m.Vnode<ButtonGroupAttrs>) {
+export class ActionButtonGroup
+  implements m.ClassComponent<ActionButtonGroupAttrs>
+{
+  view({attrs}: m.Vnode<ActionButtonGroupAttrs>) {
     const {buttons} = attrs;
 
     return m(
@@ -183,15 +185,15 @@ export class ButtonGroup implements m.ClassComponent<ButtonGroupAttrs> {
   }
 }
 
-// Generic section with header widget
-export interface SectionAttrs {
+// Section with header widget for Data Explorer panels
+export interface ExplorerSectionAttrs {
   title: string;
   headerContent?: m.Children;
   children: m.Children;
 }
 
-export class Section implements m.ClassComponent<SectionAttrs> {
-  view({attrs}: m.Vnode<SectionAttrs>) {
+export class ExplorerSection implements m.ClassComponent<ExplorerSectionAttrs> {
+  view({attrs}: m.Vnode<ExplorerSectionAttrs>) {
     const {title, headerContent, children} = attrs;
 
     return m(
@@ -325,14 +327,14 @@ export class ActionButtons implements m.ClassComponent<ActionButtonsAttrs> {
   }
 }
 
-// Widget for a labeled form row with input
+// Widget for a labeled form row with input in Data Explorer
 // The children are placed inside the label for proper accessibility
-export interface FormRowAttrs {
+export interface LabeledFormRowAttrs {
   label: string;
 }
 
-export class FormRow implements m.ClassComponent<FormRowAttrs> {
-  view({attrs, children}: m.CVnode<FormRowAttrs>) {
+export class LabeledFormRow implements m.ClassComponent<LabeledFormRowAttrs> {
+  view({attrs, children}: m.CVnode<LabeledFormRowAttrs>) {
     return m('label.pf-exp-form-row', m('span', attrs.label), children);
   }
 }
@@ -657,79 +659,15 @@ export class FormListItem<T> implements m.ClassComponent<FormListItemAttrs<T>> {
   }
 }
 
-// Material Design outlined input field with label on border
-// Pass children as the third argument to m() for select options
-export interface OutlinedFieldAttrs {
-  label: string;
-  value: string;
-  onchange?: (e: Event) => void;
-  oninput?: (e: Event) => void;
-  disabled?: boolean;
-  placeholder?: string; // For text inputs
-}
-
-export class OutlinedField implements m.ClassComponent<OutlinedFieldAttrs> {
-  view({attrs, children}: m.Vnode<OutlinedFieldAttrs>) {
-    const {label, value, onchange, oninput, disabled, placeholder} = attrs;
-
-    // Determine if this is a select or input
-    // Children can be an array, so check if it has content
-    const isSelect =
-      children !== undefined &&
-      children !== null &&
-      (Array.isArray(children) ? children.length > 0 : true);
-
-    return m(
-      'fieldset.pf-outlined-field',
-      {
-        disabled,
-      },
-      [
-        m('legend.pf-outlined-field-legend', label),
-        isSelect
-          ? m(
-              'select.pf-outlined-field-input',
-              {
-                value,
-                onchange,
-                disabled,
-              },
-              children,
-            )
-          : m('input.pf-outlined-field-input', {
-              type: 'text',
-              value,
-              oninput,
-              disabled,
-              placeholder,
-            }),
-      ],
-    );
-  }
-}
-
-// Read-only version of OutlinedField for displaying static information
-// Uses the same visual style but shows text instead of an input
-export interface OutlinedFieldReadOnlyAttrs {
-  label: string;
-  value: string;
-  className?: string;
-}
-
-export class OutlinedFieldReadOnly
-  implements m.ClassComponent<OutlinedFieldReadOnlyAttrs>
-{
-  view({attrs}: m.Vnode<OutlinedFieldReadOnlyAttrs>) {
-    const {label, value, className} = attrs;
-
-    return m(
-      'fieldset.pf-outlined-field',
-      {className},
-      m('legend.pf-outlined-field-legend', label),
-      m('.pf-outlined-field-input.pf-read-only', value),
-    );
-  }
-}
+// OutlinedField and OutlinedFieldReadOnly promoted to global widgets
+export {
+  OutlinedField,
+  OutlinedFieldReadOnly,
+} from '../../../widgets/outlined_field';
+export type {
+  OutlinedFieldAttrs,
+  OutlinedFieldReadOnlyAttrs,
+} from '../../../widgets/outlined_field';
 
 // Wrapper around PopupMultiSelect with more obvious clickable styling
 export interface OutlinedMultiSelectAttrs {
@@ -937,36 +875,6 @@ export class InlineField implements m.ClassComponent<InlineFieldAttrs> {
           },
           errorMessage ?? 'Invalid value',
         ),
-    );
-  }
-}
-
-// Select/Deselect All buttons widget
-export interface SelectDeselectAllButtonsAttrs {
-  readonly onSelectAll: () => void;
-  readonly onDeselectAll: () => void;
-}
-
-export class SelectDeselectAllButtons
-  implements m.ClassComponent<SelectDeselectAllButtonsAttrs>
-{
-  view({attrs}: m.CVnode<SelectDeselectAllButtonsAttrs>): m.Children {
-    const {onSelectAll, onDeselectAll} = attrs;
-
-    return m(
-      '.pf-select-deselect-all-buttons',
-      m(Button, {
-        label: 'Select All',
-        onclick: onSelectAll,
-        variant: ButtonVariant.Outlined,
-        compact: true,
-      }),
-      m(Button, {
-        label: 'Deselect All',
-        onclick: onDeselectAll,
-        variant: ButtonVariant.Outlined,
-        compact: true,
-      }),
     );
   }
 }
