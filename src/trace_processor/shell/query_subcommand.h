@@ -36,6 +36,8 @@ class QuerySubcommand : public Subcommand {
 
  private:
   std::string query_file_;
+  std::string structured_query_id_;
+  std::vector<std::string> structured_query_specs_;
   bool interactive_ = false;
   bool wide_ = false;
   std::string perf_file_;
