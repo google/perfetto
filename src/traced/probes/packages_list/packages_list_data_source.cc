@@ -35,13 +35,13 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/forward_decls.h"
-#include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "src/traced/probes/common/android_cpu_per_uid_poller.h"
 #include "src/traced/probes/packages_list/packages_list_parser.h"
+#include "src/traced/probes/probes_data_source.h"
 
 #include "protos/perfetto/config/android/packages_list_config.pbzero.h"
+#include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "src/traced/probes/probes_data_source.h"
 
 using perfetto::protos::pbzero::PackagesListConfig;
 
