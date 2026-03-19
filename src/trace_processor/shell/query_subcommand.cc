@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/shell/query_subcommand.h"
 
+#include <unistd.h>
 #include <string>
 #include <vector>
 
@@ -30,10 +31,9 @@
 #include "src/trace_processor/shell/query.h"
 #include "src/trace_processor/shell/subcommand.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <io.h>
-#else
-#include <unistd.h>
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && !defined(STDIN_FILENO)
+#define STDIN_FILENO 0
+#define STDOUT_FILENO 1
 #endif
 
 namespace perfetto::trace_processor::shell {

@@ -37,12 +37,9 @@ import {
   createNewTabName,
   createEmptyState,
   serializeAllDashboards,
+  deserializeDashboardsForTab,
 } from './data_explorer_tabs_storage';
-import {
-  dashboardRegistry,
-  parseBrushFilters,
-  validateDashboardItems,
-} from './dashboard/dashboard_registry';
+import {dashboardRegistry} from './dashboard/dashboard_registry';
 import type {DashboardTabState} from './data_explorer';
 import type {
   PersistedDataExplorerTabData,
@@ -74,36 +71,6 @@ function isValidPersistedState(
   const version = (init as {version: unknown}).version;
   // Accept both v1 (old single-graph) and v2 (multi-tab)
   return version === 1 || version === STORE_VERSION;
-}
-
-// --- Dashboard deserialization helpers ---
-
-function hydrateDashboardsForTab(
-  tabId: string,
-  allDashboards?: ReadonlyArray<PersistedDashboardData>,
-): DashboardTabState[] {
-  if (allDashboards !== undefined) {
-    const matching = allDashboards.filter((db) => db.graphTabId === tabId);
-    if (matching.length > 0) {
-      return matching.map((db) => ({
-        id: db.id,
-        title: db.title,
-        items: validateDashboardItems(db.items) ?? [],
-        brushFilters:
-          db.brushFilters !== undefined
-            ? parseBrushFilters(db.brushFilters)
-            : new Map(),
-      }));
-    }
-  }
-  return [
-    {
-      id: shortUuid(),
-      title: 'Dashboard 1',
-      items: [],
-      brushFilters: new Map(),
-    },
-  ];
 }
 
 // --- Plugin ---
@@ -151,7 +118,6 @@ export default class implements PerfettoPlugin {
       dashboards: [
         {
           id: shortUuid(),
-          title: 'Dashboard 1',
           items: [],
           brushFilters: new Map(),
         },
@@ -256,7 +222,6 @@ export default class implements PerfettoPlugin {
       dashboards: dashboards ?? [
         {
           id: shortUuid(),
-          title: 'Dashboard 1',
           items: [],
           brushFilters: new Map(),
         },
@@ -377,11 +342,15 @@ export default class implements PerfettoPlugin {
         }
       }
 
+      const deserialized = deserializeDashboardsForTab(
+        tabData.id,
+        allDashboards,
+      );
       return {
         id: tabData.id,
         title: tabData.title,
         state,
-        dashboards: hydrateDashboardsForTab(tabData.id, allDashboards),
+        dashboards: deserialized,
       };
     });
   }

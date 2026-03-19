@@ -15,7 +15,7 @@
 import {DashboardTabState, DataExplorerTab} from './data_explorer';
 import {
   isSerializedTabExport,
-  hydrateDashboardsFromExport,
+  deserializeDashboardsFromExport,
   SerializedTabExport,
 } from './graph_io';
 import {
@@ -38,7 +38,7 @@ describe('isSerializedTabExport', () => {
       version: 1,
       title: 'My Tab',
       graph: '{}',
-      dashboards: [{id: 'd1', title: 'Dashboard 1'}],
+      dashboards: [{id: 'd1'}],
     };
     expect(isSerializedTabExport(obj)).toBe(true);
   });
@@ -100,82 +100,85 @@ describe('isSerializedTabExport', () => {
   });
 });
 
-describe('hydrateDashboardsFromExport', () => {
+describe('deserializeDashboardsFromExport', () => {
   test('returns undefined for undefined input', () => {
-    expect(hydrateDashboardsFromExport(undefined)).toBeUndefined();
+    expect(deserializeDashboardsFromExport(undefined)).toBeUndefined();
   });
 
   test('returns undefined for empty array', () => {
-    expect(hydrateDashboardsFromExport([])).toBeUndefined();
+    expect(deserializeDashboardsFromExport([])).toBeUndefined();
   });
 
   // Bug fix: dashboards field could be a non-array type from malformed JSON
   test('returns undefined for non-array input (string)', () => {
-    expect(hydrateDashboardsFromExport('invalid' as unknown)).toBeUndefined();
+    expect(
+      deserializeDashboardsFromExport('invalid' as unknown),
+    ).toBeUndefined();
   });
 
   test('returns undefined for non-array input (number)', () => {
-    expect(hydrateDashboardsFromExport(42 as unknown)).toBeUndefined();
+    expect(deserializeDashboardsFromExport(42 as unknown)).toBeUndefined();
   });
 
   test('returns undefined for non-array input (object)', () => {
     expect(
-      hydrateDashboardsFromExport({foo: 'bar'} as unknown),
+      deserializeDashboardsFromExport({foo: 'bar'} as unknown),
     ).toBeUndefined();
   });
 
   test('skips entries that are null', () => {
-    const result = hydrateDashboardsFromExport([
+    const result = deserializeDashboardsFromExport([
       null,
-      {id: 'db1', title: 'Valid'},
+      {id: 'db1'},
     ] as unknown as SerializedDashboard[]);
     expect(result?.length).toBe(1);
     expect(result?.[0].id).toBe('db1');
   });
 
   test('skips entries that are primitives', () => {
-    const result = hydrateDashboardsFromExport([
+    const result = deserializeDashboardsFromExport([
       42,
       'str',
-      {id: 'db1', title: 'Valid'},
+      {id: 'db1'},
     ] as unknown as SerializedDashboard[]);
     expect(result?.length).toBe(1);
     expect(result?.[0].id).toBe('db1');
   });
 
   test('skips entries with missing id', () => {
-    const result = hydrateDashboardsFromExport([
-      {title: 'No ID'},
-      {id: 'db1', title: 'Valid'},
+    const result = deserializeDashboardsFromExport([
+      {noId: true},
+      {id: 'db1'},
     ] as unknown as SerializedDashboard[]);
     expect(result?.length).toBe(1);
     expect(result?.[0].id).toBe('db1');
   });
 
-  test('skips entries with missing title', () => {
-    const result = hydrateDashboardsFromExport([
+  test('accepts entries with only id', () => {
+    const result = deserializeDashboardsFromExport([
       {id: 'db1'},
-      {id: 'db2', title: 'Valid'},
+      {id: 'db2'},
     ] as unknown as SerializedDashboard[]);
-    expect(result?.length).toBe(1);
-    expect(result?.[0].id).toBe('db2');
+    expect(result?.length).toBe(2);
+    expect(result?.[0].id).toBe('db1');
+    expect(result?.[1].id).toBe('db2');
   });
 
   test('skips entries with non-string id', () => {
-    const result = hydrateDashboardsFromExport([
-      {id: 123, title: 'Bad ID'},
-      {id: 'db1', title: 'Valid'},
+    const result = deserializeDashboardsFromExport([
+      {id: 123},
+      {id: 'db1'},
     ] as unknown as SerializedDashboard[]);
     expect(result?.length).toBe(1);
     expect(result?.[0].id).toBe('db1');
   });
 
   test('returns undefined when ALL entries are invalid', () => {
-    const result = hydrateDashboardsFromExport([
+    const result = deserializeDashboardsFromExport([
       null,
       42,
-      {title: 'No ID'},
-      {id: 123, title: 'Bad ID type'},
+      {noId: true},
+      {id: 123},
     ] as unknown as SerializedDashboard[]);
     expect(result).toBeUndefined();
   });
@@ -184,14 +187,12 @@ describe('hydrateDashboardsFromExport', () => {
     const serialized: SerializedDashboard[] = [
       {
         id: 'db1',
-        title: 'Dashboard 1',
         items: [{kind: 'label', id: 'lbl1', text: 'Hello', x: 10, y: 20}],
       },
     ];
-    const result = hydrateDashboardsFromExport(serialized);
+    const result = deserializeDashboardsFromExport(serialized);
     expect(result?.length).toBe(1);
     expect(result?.[0].id).toBe('db1');
-    expect(result?.[0].title).toBe('Dashboard 1');
     expect(result?.[0].items.length).toBe(1);
     expect(result?.[0].brushFilters).toEqual(new Map());
   });
@@ -200,7 +201,6 @@ describe('hydrateDashboardsFromExport', () => {
     const serialized: SerializedDashboard[] = [
       {
         id: 'db1',
-        title: 'D1',
         items: [
           {kind: 'label', id: 'lbl1', text: 'Good'},
           {kind: 'label'}, // missing id and text
@@ -210,7 +210,7 @@ describe('hydrateDashboardsFromExport', () => {
         ] as unknown[],
       },
     ];
-    const result = hydrateDashboardsFromExport(serialized);
+    const result = deserializeDashboardsFromExport(serialized);
     expect(result?.length).toBe(1);
     expect(result?.[0].items.length).toBe(1);
     expect((result?.[0].items[0] as {id: string}).id).toBe('lbl1');
@@ -220,14 +220,13 @@ describe('hydrateDashboardsFromExport', () => {
     const serialized: SerializedDashboard[] = [
       {
         id: 'db1',
-        title: 'D1',
         items: [
           {kind: 'chart'}, // missing required fields
           null,
         ] as unknown[],
       },
     ];
-    const result = hydrateDashboardsFromExport(serialized);
+    const result = deserializeDashboardsFromExport(serialized);
     expect(result?.length).toBe(1);
     expect(result?.[0].items).toEqual([]);
   });
@@ -236,13 +235,12 @@ describe('hydrateDashboardsFromExport', () => {
     const serialized: SerializedDashboard[] = [
       {
         id: 'db1',
-        title: 'D1',
         brushFilters: {
           node1: [{column: 'ts', op: '>=', value: 100}],
         },
       },
     ];
-    const result = hydrateDashboardsFromExport(serialized);
+    const result = deserializeDashboardsFromExport(serialized);
     expect(result?.[0].brushFilters.size).toBe(1);
     expect(result?.[0].brushFilters.get('node1')).toEqual([
       {column: 'ts', op: '>=', value: 100},
@@ -253,7 +251,6 @@ describe('hydrateDashboardsFromExport', () => {
     const serialized: SerializedDashboard[] = [
       {
         id: 'db1',
-        title: 'D1',
         brushFilters: {
           node1: [
             {column: 'ts', op: '>=', value: 100},
@@ -262,7 +259,7 @@ describe('hydrateDashboardsFromExport', () => {
         },
       },
     ];
-    const result = hydrateDashboardsFromExport(serialized);
+    const result = deserializeDashboardsFromExport(serialized);
     expect(result?.[0].brushFilters.get('node1')?.length).toBe(1);
     expect(result?.[0].brushFilters.get('node1')?.[0].op).toBe('>=');
   });
@@ -271,13 +268,12 @@ describe('hydrateDashboardsFromExport', () => {
     const serialized: SerializedDashboard[] = [
       {
         id: 'db1',
-        title: 'D1',
         brushFilters: {
           node1: [{op: '>=', value: 100}],
         } as unknown as Record<string, unknown[]>,
       },
     ];
-    const result = hydrateDashboardsFromExport(serialized);
+    const result = deserializeDashboardsFromExport(serialized);
     // All filters for node1 are invalid, so the entry is dropped entirely
     expect(result?.[0].brushFilters.size).toBe(0);
   });
@@ -286,11 +282,10 @@ describe('hydrateDashboardsFromExport', () => {
     const serialized = [
       {
         id: 'db1',
-        title: 'D1',
         brushFilters: [{column: 'ts', op: '>='}],
       },
     ] as unknown as SerializedDashboard[];
-    const result = hydrateDashboardsFromExport(serialized);
+    const result = deserializeDashboardsFromExport(serialized);
     // brushFilters is an array, not a record — should fall back to empty map
     expect(result?.[0].brushFilters).toEqual(new Map());
   });
@@ -299,26 +294,22 @@ describe('hydrateDashboardsFromExport', () => {
     const serialized = [
       {
         id: 'db1',
-        title: 'D1',
         brushFilters: 'invalid',
       },
     ] as unknown as SerializedDashboard[];
-    const result = hydrateDashboardsFromExport(serialized);
+    const result = deserializeDashboardsFromExport(serialized);
     expect(result?.[0].brushFilters).toEqual(new Map());
   });
 
   test('handles dashboards with no items field', () => {
-    const serialized: SerializedDashboard[] = [{id: 'db1', title: 'Empty'}];
-    const result = hydrateDashboardsFromExport(serialized);
+    const serialized: SerializedDashboard[] = [{id: 'db1'}];
+    const result = deserializeDashboardsFromExport(serialized);
     expect(result?.[0].items).toEqual([]);
   });
 
   test('hydrates multiple dashboards', () => {
-    const serialized: SerializedDashboard[] = [
-      {id: 'db1', title: 'First'},
-      {id: 'db2', title: 'Second'},
-    ];
-    const result = hydrateDashboardsFromExport(serialized);
+    const serialized: SerializedDashboard[] = [{id: 'db1'}, {id: 'db2'}];
+    const result = deserializeDashboardsFromExport(serialized);
     expect(result?.length).toBe(2);
     expect(result?.[0].id).toBe('db1');
     expect(result?.[1].id).toBe('db2');
@@ -328,13 +319,12 @@ describe('hydrateDashboardsFromExport', () => {
     const serialized: SerializedDashboard[] = [
       {
         id: 'db1',
-        title: 'D1',
         brushFilters: {
           node1: [{column: 'name', op: 'is null'}],
         },
       },
     ];
-    const result = hydrateDashboardsFromExport(serialized);
+    const result = deserializeDashboardsFromExport(serialized);
     expect(result?.[0].brushFilters.get('node1')).toEqual([
       {column: 'name', op: 'is null'},
     ]);
@@ -362,9 +352,7 @@ describe('serializeDashboardsForTab', () => {
   });
 
   test('serializes tab with empty dashboard items', () => {
-    const tab = makeTab([
-      {id: 'db1', title: 'D1', items: [], brushFilters: new Map()},
-    ]);
+    const tab = makeTab([{id: 'db1', items: [], brushFilters: new Map()}]);
     const result = serializeDashboardsForTab(tab);
     expect(result).toBeDefined();
     expect(result?.length).toBe(1);
@@ -376,7 +364,6 @@ describe('serializeDashboardsForTab', () => {
     const tab = makeTab([
       {
         id: 'db1',
-        title: 'D1',
         items: [{kind: 'label', id: 'lbl1', text: 'Hello', x: 0, y: 0}],
         brushFilters: new Map(),
       },
@@ -384,7 +371,6 @@ describe('serializeDashboardsForTab', () => {
     const result = serializeDashboardsForTab(tab);
     expect(result?.length).toBe(1);
     expect(result?.[0].id).toBe('db1');
-    expect(result?.[0].title).toBe('D1');
     expect(result?.[0].items?.length).toBe(1);
     expect(result?.[0].brushFilters).toBeUndefined();
   });
@@ -396,7 +382,6 @@ describe('serializeDashboardsForTab', () => {
     const tab = makeTab([
       {
         id: 'db1',
-        title: 'D1',
         items: [{kind: 'label', id: 'lbl1', text: 'Hello', x: 0, y: 0}],
         brushFilters: filters,
       },
@@ -414,13 +399,11 @@ describe('serializeDashboardsForTab', () => {
     const tab = makeTab([
       {
         id: 'db1',
-        title: 'D1',
         items: [{kind: 'label', id: 'l1', text: 'A', x: 0, y: 0}],
         brushFilters: new Map(),
       },
       {
         id: 'db2',
-        title: 'D2',
         items: [{kind: 'label', id: 'l2', text: 'B', x: 10, y: 10}],
         brushFilters: new Map(),
       },
@@ -435,7 +418,6 @@ describe('serializeDashboardsForTab', () => {
     const tab = makeTab([
       {
         id: 'db1',
-        title: 'D1',
         items: [{kind: 'label', id: 'l1', text: 'x', x: 0, y: 0}],
         brushFilters: new Map(),
       },
@@ -451,7 +433,6 @@ describe('serializeDashboardsForTab', () => {
     const tab = makeTab([
       {
         id: 'db1',
-        title: 'D1',
         items: [{kind: 'label', id: 'l1', text: 'x', x: 0, y: 0}],
         brushFilters: filters,
       },
@@ -469,7 +450,6 @@ describe('tab export/import round-trip', () => {
     const original: DashboardTabState[] = [
       {
         id: 'db1',
-        title: 'Dashboard 1',
         items: [{kind: 'label', id: 'lbl1', text: 'Test Label', x: 10, y: 20}],
         brushFilters: new Map([
           ['node1', [{column: 'dur', op: '>=' as const, value: 500}]],
@@ -477,7 +457,6 @@ describe('tab export/import round-trip', () => {
       },
       {
         id: 'db2',
-        title: 'Dashboard 2',
         items: [],
         brushFilters: new Map(),
       },
@@ -500,7 +479,7 @@ describe('tab export/import round-trip', () => {
     expect(serialized).toBeDefined();
 
     // Hydrate back
-    const hydrated = hydrateDashboardsFromExport(serialized);
+    const hydrated = deserializeDashboardsFromExport(serialized);
     expect(hydrated).toBeDefined();
 
     // Both dashboards get serialized (even the empty one)
@@ -508,7 +487,6 @@ describe('tab export/import round-trip', () => {
 
     // First dashboard: has items and brush filters
     expect(hydrated?.[0].id).toBe('db1');
-    expect(hydrated?.[0].title).toBe('Dashboard 1');
     expect(hydrated?.[0].items.length).toBe(1);
     expect(hydrated?.[0].brushFilters.size).toBe(1);
     expect(hydrated?.[0].brushFilters.get('node1')).toEqual([
@@ -517,7 +495,6 @@ describe('tab export/import round-trip', () => {
 
     // Second dashboard: empty items, no filters
     expect(hydrated?.[1].id).toBe('db2');
-    expect(hydrated?.[1].title).toBe('Dashboard 2');
     expect(hydrated?.[1].items).toEqual([]);
     expect(hydrated?.[1].brushFilters).toEqual(new Map());
   });
@@ -535,7 +512,6 @@ describe('tab export/import round-trip', () => {
       dashboards: [
         {
           id: 'db1',
-          title: 'D1',
           items: [{kind: 'label', id: 'lbl1', text: 'Label', x: 5, y: 10}],
           brushFilters: new Map([
             ['n1', [{column: 'ts', op: '>=' as const, value: 1000}]],
@@ -549,7 +525,7 @@ describe('tab export/import round-trip', () => {
     const jsonString = JSON.stringify(serialized);
     const parsed = JSON.parse(jsonString) as SerializedDashboard[];
 
-    const hydrated = hydrateDashboardsFromExport(parsed);
+    const hydrated = deserializeDashboardsFromExport(parsed);
     expect(hydrated?.length).toBe(1);
     expect(hydrated?.[0].id).toBe('db1');
     expect(hydrated?.[0].items.length).toBe(1);
