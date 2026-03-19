@@ -56,7 +56,7 @@ cc_test {
         ":CtsPerfettoDebuggableApp",
         ":perfetto_device_preparer_sh",
     ],
-    stl: "libc++_static",
+    stl: "libc++",
     // This test is also run via Mainline Testing against the ART Mainline
     // Module, which is updatable since Android 12 (API level 31).
     min_sdk_version: "31",
