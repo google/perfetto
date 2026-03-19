@@ -24,6 +24,8 @@ import {shortUuid} from '../../base/uuid';
 import {MenuItem} from '../../widgets/menu';
 import {Tabs, TabsTab} from '../../widgets/tabs';
 import {Button, ButtonBar} from '../../widgets/button';
+import {Icons} from '../../base/semantic_icons';
+import {showModal} from '../../widgets/modal';
 import {serializeState, deserializeState} from './json_handler';
 
 import {
@@ -76,7 +78,6 @@ registerCoreNodes();
 /** State for a single dashboard within a graph tab. */
 export interface DashboardTabState {
   readonly id: string;
-  title: string;
   items: DashboardItem[];
   brushFilters: Map<string, DashboardBrushFilter[]>;
 }
@@ -688,14 +689,8 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   }
 
   private addDashboard(tab: DataExplorerTab, attrs: DataExplorerAttrs): void {
-    const existingNames = new Set(tab.dashboards.map((d) => d.title));
-    let num = 1;
-    while (existingNames.has(`Dashboard ${num}`)) {
-      num++;
-    }
     const db: DashboardTabState = {
       id: shortUuid(),
-      title: `Dashboard ${num}`,
       items: [],
       brushFilters: new Map(),
     };
@@ -704,11 +699,86 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
     this.triggerSave(attrs);
   }
 
+  private removeDashboard(
+    tab: DataExplorerTab,
+    attrs: DataExplorerAttrs,
+    dbId: string,
+  ): void {
+    if (tab.dashboards.length <= 1) return;
+    const idx = tab.dashboards.findIndex((d) => d.id === dbId);
+    if (idx === -1) return;
+    const itemCount = tab.dashboards[idx].items.length;
+
+    const doRemove = () => {
+      const currentIdx = tab.dashboards.findIndex((d) => d.id === dbId);
+      if (currentIdx === -1) return;
+      tab.dashboards.splice(currentIdx, 1);
+      // If the removed dashboard was active, switch to the previous one or graph.
+      if (tab.activeSubTab === dbId) {
+        if (tab.dashboards.length > 0) {
+          const newIdx = Math.min(currentIdx, tab.dashboards.length - 1);
+          tab.activeSubTab = tab.dashboards[newIdx].id;
+        } else {
+          tab.activeSubTab = 'graph';
+        }
+      }
+      this.triggerSave(attrs);
+    };
+
+    if (itemCount === 0) {
+      doRemove();
+      return;
+    }
+
+    showModal({
+      title: 'Remove dashboard?',
+      content: m(
+        'div',
+        `This dashboard contains ${itemCount} item(s). ` +
+          'Removing it will discard all its contents.',
+      ),
+      buttons: [
+        {text: 'Remove', primary: true, action: doRemove},
+        {text: 'Cancel'},
+      ],
+    });
+  }
+
   /**
    * Render a graph tab with nested sub-tabs (Graph | Dashboard 1 | ... | +).
    * The graph builder is always initialized (for dashboard node execution),
    * but we conditionally show either the builder or the dashboard view.
    */
+  private renderDashboardButton(
+    tab: DataExplorerTab,
+    attrs: DataExplorerAttrs,
+    db: DashboardTabState,
+    index: number,
+    activeSubTab: string,
+  ): m.Children {
+    const label =
+      tab.dashboards.length === 1 ? 'Dashboard' : `Dashboard ${index + 1}`;
+    const showClose = tab.dashboards.length > 1;
+    return [
+      m(Button, {
+        label,
+        icon: 'dashboard',
+        active: activeSubTab === db.id,
+        rightIcon: showClose ? Icons.Close : undefined,
+        onclick: (e: MouseEvent) => {
+          // If the click landed on the close (right) icon, remove instead.
+          const target = e.target as HTMLElement;
+          if (showClose && target.closest('.pf-right-icon') !== null) {
+            this.removeDashboard(tab, attrs, db.id);
+            return;
+          }
+          tab.activeSubTab = db.id;
+          m.redraw();
+        },
+      }),
+    ];
+  }
+
   private renderTabWithSubTabs(
     attrs: DataExplorerAttrs,
     tab: DataExplorerTab,
@@ -730,16 +800,8 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
             m.redraw();
           },
         }),
-        ...tab.dashboards.map((db) =>
-          m(Button, {
-            label: db.title,
-            icon: 'dashboard',
-            active: activeSubTab === db.id,
-            onclick: () => {
-              tab.activeSubTab = db.id;
-              m.redraw();
-            },
-          }),
+        ...tab.dashboards.map((db, i) =>
+          this.renderDashboardButton(tab, attrs, db, i, activeSubTab),
         ),
         m(Button, {
           icon: 'add',
