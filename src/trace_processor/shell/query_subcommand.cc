@@ -16,8 +16,11 @@
 
 #include "src/trace_processor/shell/query_subcommand.h"
 
+#include <algorithm>
+#include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "perfetto/base/build_config.h"
@@ -26,12 +29,15 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/summarizer.h"
+#include "src/protozero/text_to_proto/text_to_proto.h"
 #include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/interactive.h"
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/query.h"
 #include "src/trace_processor/shell/subcommand.h"
+#include "src/trace_processor/trace_summary/trace_summary.descriptor.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <io.h>
@@ -44,6 +50,63 @@
 #endif
 
 namespace perfetto::trace_processor::shell {
+namespace {
+
+// Returns true if the file at |path| with |content| should be treated as
+// textproto rather than binary proto. Uses the same heuristic as the
+// classic codepath: .pb → binary, .textproto → text, otherwise
+// content-sniff the first 128 bytes (all printable/whitespace → text).
+bool IsTextproto(const std::string& path, const std::string& content) {
+  if (base::EndsWith(path, ".pb")) {
+    return false;
+  }
+  if (base::EndsWith(path, ".textproto")) {
+    return true;
+  }
+  std::string_view prefix(content.c_str(),
+                          std::min<size_t>(content.size(), 128));
+  return std::all_of(prefix.begin(), prefix.end(),
+                     [](char c) { return std::isspace(c) || std::isprint(c); });
+}
+
+// Reads a TraceSummarySpec file and passes it to |summarizer|, converting
+// textproto to binary proto when necessary.
+base::Status LoadSpecIntoSummarizer(Summarizer* summarizer,
+                                    const std::string& path) {
+  std::string content;
+  if (!base::ReadFile(path, &content)) {
+    return base::ErrStatus("Unable to read spec file %s", path.c_str());
+  }
+
+  const uint8_t* spec_data;
+  size_t spec_size;
+  std::vector<uint8_t> binary_proto;
+  if (IsTextproto(path, content)) {
+    ASSIGN_OR_RETURN(binary_proto,
+                     protozero::TextToProto(kTraceSummaryDescriptor.data(),
+                                            kTraceSummaryDescriptor.size(),
+                                            ".perfetto.protos.TraceSummarySpec",
+                                            "-", std::string_view(content)));
+    spec_data = binary_proto.data();
+    spec_size = binary_proto.size();
+  } else {
+    spec_data = reinterpret_cast<const uint8_t*>(content.data());
+    spec_size = content.size();
+  }
+
+  SummarizerUpdateSpecResult update_result;
+  RETURN_IF_ERROR(summarizer->UpdateSpec(spec_data, spec_size, &update_result));
+  for (const auto& q : update_result.queries) {
+    if (q.error.has_value()) {
+      return base::ErrStatus("Error in query '%s' from spec '%s': %s",
+                             q.query_id.c_str(), path.c_str(),
+                             q.error->c_str());
+    }
+  }
+  return base::OkStatus();
+}
+
+}  // namespace
 
 const char* QuerySubcommand::name() const {
   return "query";
@@ -69,9 +132,10 @@ Multiple semicolon-separated statements are supported. Use -i to drop into
 an interactive shell after the queries complete.
 
 Advanced (for debugging/testing structured queries):
-  --structured-query-id ID --structured-query-spec FILE [...]
-  Executes a single structured query by ID from the given spec files. The spec
-  files replace -f/stdin/positional SQL. Output is the query result table.)";
+  --structured-query-id ID --summary-spec FILE [...]
+  Executes a single structured query by ID from the given summary spec
+  files. The spec files replace -f/stdin/positional SQL. Output is the
+  query result table.)";
 }
 
 std::vector<FlagSpec> QuerySubcommand::GetFlags() {
@@ -81,7 +145,7 @@ std::vector<FlagSpec> QuerySubcommand::GetFlags() {
       StringFlag("structured-query-id", '\0', "ID",
                  "[Advanced] Run a single structured query by ID.",
                  &structured_query_id_),
-      {"structured-query-spec", '\0', true, "FILE",
+      {"summary-spec", '\0', true, "FILE",
        "[Advanced] Summary spec file for structured queries (repeatable).",
        [this](const char* v) { structured_query_specs_.emplace_back(v); }},
       BoolFlag("interactive", 'i', "Start interactive shell after query.",
@@ -98,64 +162,10 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
   }
   std::string trace_file = ctx.positional_args[0];
 
-  // Structured query mode: load specs via Summarizer and query by ID.
+  // Advanced: structured query mode.
   if (!structured_query_id_.empty()) {
-    if (structured_query_specs_.empty()) {
-      return base::ErrStatus(
-          "query: --structured-query-id requires at least one "
-          "--structured-query-spec");
-    }
-    auto config = BuildConfig(*ctx.global, ctx.platform);
-    ASSIGN_OR_RETURN(auto tp,
-                     SetupTraceProcessor(*ctx.global, config, ctx.platform));
-    ASSIGN_OR_RETURN(auto t_load,
-                     LoadTraceFile(tp.get(), ctx.platform, trace_file));
-
-    // Create a Summarizer and load specs.
-    std::unique_ptr<Summarizer> summarizer;
-    RETURN_IF_ERROR(tp->CreateSummarizer(&summarizer));
-
-    for (const auto& path : structured_query_specs_) {
-      std::string content;
-      if (!base::ReadFile(path, &content)) {
-        return base::ErrStatus("Unable to read spec file %s", path.c_str());
-      }
-      SummarizerUpdateSpecResult update_result;
-      RETURN_IF_ERROR(summarizer->UpdateSpec(
-          reinterpret_cast<const uint8_t*>(content.data()), content.size(),
-          &update_result));
-      for (const auto& q : update_result.queries) {
-        if (q.error.has_value()) {
-          return base::ErrStatus("Error in query '%s' from spec '%s': %s",
-                                 q.query_id.c_str(), path.c_str(),
-                                 q.error->c_str());
-        }
-      }
-    }
-
-    // Materialize and fetch the requested query.
-    base::TimeNanos t_query_start = base::GetWallTimeNs();
-    SummarizerQueryResult query_result;
-    RETURN_IF_ERROR(summarizer->Query(structured_query_id_, &query_result));
-    if (!query_result.exists) {
-      return base::ErrStatus(
-          "Structured query ID '%s' not found in the provided spec files",
-          structured_query_id_.c_str());
-    }
-
-    // Run a SELECT * on the materialized table to print results.
-    std::string sql = "SELECT * FROM " + query_result.table_name;
-    RETURN_IF_ERROR(RunQueries(tp.get(), sql, true));
-    base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
-
-    if (!perf_file_.empty())
-      RETURN_IF_ERROR(PrintPerfFile(perf_file_, t_load, t_query));
-
-    RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path));
-    return base::OkStatus();
+    return RunStructuredQuery(ctx, trace_file);
   }
-
-  // Regular SQL query mode.
 
   // Determine SQL source:
   //   1. Positional:  query trace.pb "SELECT ..."
@@ -185,8 +195,6 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
   ASSIGN_OR_RETURN(auto t_load,
                    LoadTraceFile(tp.get(), ctx.platform, trace_file));
 
-  // If we have a file, read it into sql. After this point, sql always has
-  // the SQL to execute.
   if (!query_file_.empty()) {
     if (!base::ReadFile(query_file_, &sql)) {
       return base::ErrStatus("query: unable to read file '%s'",
@@ -201,11 +209,11 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
     MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path);
     return status;
   }
-
   base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
 
-  if (!perf_file_.empty())
+  if (!perf_file_.empty()) {
     RETURN_IF_ERROR(PrintPerfFile(perf_file_, t_load, t_query));
+  }
 
   if (interactive_) {
     RETURN_IF_ERROR(StartInteractiveShell(
@@ -214,6 +222,46 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
             wide_ ? 40u : 20u, MetricV1OutputFormat::kNone, {}, {}, nullptr}));
   }
 
+  RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path));
+  return base::OkStatus();
+}
+
+base::Status QuerySubcommand::RunStructuredQuery(
+    const SubcommandContext& ctx,
+    const std::string& trace_file) {
+  if (structured_query_specs_.empty()) {
+    return base::ErrStatus(
+        "query: --structured-query-id requires at least one --summary-spec");
+  }
+
+  auto config = BuildConfig(*ctx.global, ctx.platform);
+  ASSIGN_OR_RETURN(auto tp,
+                   SetupTraceProcessor(*ctx.global, config, ctx.platform));
+  ASSIGN_OR_RETURN(auto t_load,
+                   LoadTraceFile(tp.get(), ctx.platform, trace_file));
+
+  std::unique_ptr<Summarizer> summarizer;
+  RETURN_IF_ERROR(tp->CreateSummarizer(&summarizer));
+  for (const auto& path : structured_query_specs_) {
+    RETURN_IF_ERROR(LoadSpecIntoSummarizer(summarizer.get(), path));
+  }
+
+  base::TimeNanos t_query_start = base::GetWallTimeNs();
+  SummarizerQueryResult query_result;
+  RETURN_IF_ERROR(summarizer->Query(structured_query_id_, &query_result));
+  if (!query_result.exists) {
+    return base::ErrStatus(
+        "Structured query ID '%s' not found in the provided spec files",
+        structured_query_id_.c_str());
+  }
+
+  RETURN_IF_ERROR(
+      RunQueries(tp.get(), "SELECT * FROM " + query_result.table_name, true));
+  base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
+
+  if (!perf_file_.empty()) {
+    RETURN_IF_ERROR(PrintPerfFile(perf_file_, t_load, t_query));
+  }
   RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path));
   return base::OkStatus();
 }

@@ -108,8 +108,6 @@ struct CommandLineOptions {
 
   std::string query_file_path;
   std::string query_string;
-  std::vector<std::string> structured_query_specs;
-  std::string structured_query_id;
   std::vector<std::string> sql_package_paths;
   std::vector<std::string> override_sql_package_paths;
 
@@ -448,10 +446,6 @@ const option kLongOptions[] = {
 
     {"query-file", required_argument, nullptr, 'q'},
     {"query-string", required_argument, nullptr, 'Q'},
-    {"structured-query-spec", required_argument, nullptr,
-     OPT_STRUCTURED_QUERY_SPEC},
-    {"structured-query-id", required_argument, nullptr,
-     OPT_STRUCTURED_QUERY_ID},
     {"add-sql-package", required_argument, nullptr, OPT_ADD_SQL_PACKAGE},
     {"override-sql-package", required_argument, nullptr,
      OPT_OVERRIDE_SQL_PACKAGE},
@@ -622,16 +616,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       continue;
     }
 
-    if (option == OPT_STRUCTURED_QUERY_SPEC) {
-      command_line_options.structured_query_specs.emplace_back(optarg);
-      continue;
-    }
-
-    if (option == OPT_STRUCTURED_QUERY_ID) {
-      command_line_options.structured_query_id = optarg;
-      continue;
-    }
-
     if (option == OPT_OVERRIDE_STDLIB) {
       command_line_options.override_stdlib_path = optarg;
       continue;
@@ -705,13 +689,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   }
 
   command_line_options.launch_shell =
-      explicit_interactive ||
-      (command_line_options.metric_v1_names.empty() &&
-       command_line_options.query_file_path.empty() &&
-       command_line_options.query_string.empty() &&
-       command_line_options.structured_query_id.empty() &&
-       command_line_options.export_file_path.empty() &&
-       !command_line_options.summary);
+      explicit_interactive || (command_line_options.metric_v1_names.empty() &&
+                               command_line_options.query_file_path.empty() &&
+                               command_line_options.query_string.empty() &&
+                               command_line_options.export_file_path.empty() &&
+                               !command_line_options.summary);
 
   // Only allow non-interactive queries to emit perf data.
   if (!command_line_options.perf_file_path.empty() &&
@@ -972,17 +954,6 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
   } else if (options.enable_stdiod) {
     args.emplace_back("server");
     args.emplace_back("stdio");
-    add_global_flags();
-    if (!options.trace_file_path.empty())
-      args.emplace_back(options.trace_file_path);
-  } else if (!options.structured_query_id.empty()) {
-    args.emplace_back("query");
-    args.emplace_back("--structured-query-id");
-    args.emplace_back(options.structured_query_id);
-    for (const auto& s : options.structured_query_specs) {
-      args.emplace_back("--structured-query-spec");
-      args.emplace_back(s);
-    }
     add_global_flags();
     if (!options.trace_file_path.empty())
       args.emplace_back(options.trace_file_path);
