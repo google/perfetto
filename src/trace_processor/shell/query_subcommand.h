@@ -35,6 +35,9 @@ class QuerySubcommand : public Subcommand {
   base::Status Run(const SubcommandContext& ctx) override;
 
  private:
+  base::Status RunStructuredQuery(const SubcommandContext& ctx,
+                                  const std::string& trace_file);
+
   std::string query_file_;
   std::string structured_query_id_;
   std::vector<std::string> structured_query_specs_;

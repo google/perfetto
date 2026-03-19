@@ -72,7 +72,6 @@
 #include "src/trace_processor/shell/sql_packages.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/shell/summarize_subcommand.h"
-#include "src/trace_processor/trace_summary/summary.h"
 #include "src/trace_processor/util/deobfuscation/deobfuscator.h"
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
 
@@ -127,8 +126,6 @@ struct CommandLineOptions {
 
   std::string query_file_path;
   std::string query_string;
-  std::vector<std::string> structured_query_specs;
-  std::string structured_query_id;
   std::vector<std::string> sql_package_paths;
   std::vector<std::string> override_sql_package_paths;
 
@@ -467,10 +464,6 @@ const option kLongOptions[] = {
 
     {"query-file", required_argument, nullptr, 'q'},
     {"query-string", required_argument, nullptr, 'Q'},
-    {"structured-query-spec", required_argument, nullptr,
-     OPT_STRUCTURED_QUERY_SPEC},
-    {"structured-query-id", required_argument, nullptr,
-     OPT_STRUCTURED_QUERY_ID},
     {"add-sql-package", required_argument, nullptr, OPT_ADD_SQL_PACKAGE},
     {"override-sql-package", required_argument, nullptr,
      OPT_OVERRIDE_SQL_PACKAGE},
@@ -641,16 +634,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       continue;
     }
 
-    if (option == OPT_STRUCTURED_QUERY_SPEC) {
-      command_line_options.structured_query_specs.emplace_back(optarg);
-      continue;
-    }
-
-    if (option == OPT_STRUCTURED_QUERY_ID) {
-      command_line_options.structured_query_id = optarg;
-      continue;
-    }
-
     if (option == OPT_OVERRIDE_STDLIB) {
       command_line_options.override_stdlib_path = optarg;
       continue;
@@ -724,13 +707,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   }
 
   command_line_options.launch_shell =
-      explicit_interactive ||
-      (command_line_options.metric_v1_names.empty() &&
-       command_line_options.query_file_path.empty() &&
-       command_line_options.query_string.empty() &&
-       command_line_options.structured_query_id.empty() &&
-       command_line_options.export_file_path.empty() &&
-       !command_line_options.summary);
+      explicit_interactive || (command_line_options.metric_v1_names.empty() &&
+                               command_line_options.query_file_path.empty() &&
+                               command_line_options.query_string.empty() &&
+                               command_line_options.export_file_path.empty() &&
+                               !command_line_options.summary);
 
   // Only allow non-interactive queries to emit perf data.
   if (!command_line_options.perf_file_path.empty() &&
@@ -1260,44 +1241,6 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
       RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), options.metatrace_path));
       return status;
     }
-  }
-
-  if (!options.structured_query_id.empty()) {
-    // Load spec files.
-    std::vector<std::string> spec_content;
-    spec_content.reserve(options.structured_query_specs.size());
-    for (const auto& s : options.structured_query_specs) {
-      spec_content.emplace_back();
-      if (!base::ReadFile(s, &spec_content.back())) {
-        return base::ErrStatus("Unable to read structured query spec file %s",
-                               s.c_str());
-      }
-    }
-
-    // Convert to TraceSummarySpecBytes.
-    std::vector<TraceSummarySpecBytes> specs;
-    specs.reserve(options.structured_query_specs.size());
-    for (uint32_t i = 0; i < options.structured_query_specs.size(); ++i) {
-      specs.emplace_back(TraceSummarySpecBytes{
-          reinterpret_cast<const uint8_t*>(spec_content[i].data()),
-          spec_content[i].size(),
-          GuessSummarySpecFormat(options.structured_query_specs[i],
-                                 spec_content[i]),
-      });
-    }
-
-    // Execute the structured query.
-    std::string output;
-    base::Status status = summary::ExecuteStructuredQuery(
-        tp.get(), specs, options.structured_query_id, &output);
-    if (!status.ok()) {
-      // Write metatrace if needed before exiting.
-      RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), options.metatrace_path));
-      return status;
-    }
-
-    // Print the result.
-    fprintf(stdout, "%s", output.c_str());
   }
 
   base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
