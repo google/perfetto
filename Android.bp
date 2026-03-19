@@ -648,6 +648,7 @@ cc_library_shared {
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_message_filter",
+        ":perfetto_src_protozero_filtering_message_filter_config",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_proto_ring_buffer",
         ":perfetto_src_protozero_protozero",
@@ -928,6 +929,7 @@ cc_library {
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_message_filter",
+        ":perfetto_src_protozero_filtering_message_filter_config",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_shared_lib_for_testing",
@@ -1142,6 +1144,7 @@ cc_library_static {
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_message_filter",
+        ":perfetto_src_protozero_filtering_message_filter_config",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_tracing_client_api_without_backends",
@@ -1877,6 +1880,7 @@ cc_library_static {
         ":perfetto_src_protozero_filtering_bytecode_generator",
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_message_filter",
+        ":perfetto_src_protozero_filtering_message_filter_config",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_proto_ring_buffer",
         ":perfetto_src_protozero_protozero",
@@ -2242,6 +2246,7 @@ cc_library_static {
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_message_filter",
+        ":perfetto_src_protozero_filtering_message_filter_config",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_proto_ring_buffer",
         ":perfetto_src_protozero_protozero",
@@ -2892,6 +2897,7 @@ cc_test {
         ":perfetto_src_protozero_filtering_bytecode_generator",
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_message_filter",
+        ":perfetto_src_protozero_filtering_message_filter_config",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_proto_ring_buffer",
         ":perfetto_src_protozero_protozero",
@@ -14426,6 +14432,14 @@ filegroup {
     ],
 }
 
+// GN: //src/protozero/filtering:message_filter_config
+filegroup {
+    name: "perfetto_src_protozero_filtering_message_filter_config",
+    srcs: [
+        "src/protozero/filtering/message_filter_config.cc",
+    ],
+}
+
 // GN: //src/protozero/filtering:string_filter
 filegroup {
     name: "perfetto_src_protozero_filtering_string_filter",
@@ -19446,6 +19460,7 @@ cc_test {
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_filter_util",
         ":perfetto_src_protozero_filtering_message_filter",
+        ":perfetto_src_protozero_filtering_message_filter_config",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_filtering_unittests",
         ":perfetto_src_protozero_multifile_error_collector",
@@ -20046,6 +20061,7 @@ cc_library_static {
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_message_filter",
+        ":perfetto_src_protozero_filtering_message_filter_config",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_proto_ring_buffer",
         ":perfetto_src_protozero_protozero",
@@ -21293,6 +21309,7 @@ cc_binary {
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_message_filter",
+        ":perfetto_src_protozero_filtering_message_filter_config",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_traced_probes_ftrace_tracefs",
