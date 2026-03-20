@@ -133,6 +133,8 @@ message InternedGraphicsContext {
     OPEN_GL = 1;
     VULKAN = 2;
     OPEN_CL = 3;
+    CUDA = 4;
+    HIP = 5;
   }
   optional Api api = 3;
 }
