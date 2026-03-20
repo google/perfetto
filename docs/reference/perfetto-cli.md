@@ -71,14 +71,13 @@ mode.
 :    Prints the `perfetto` version string and exits.
 
 `--dropbox` _TAG_
-:    Uploads your trace via the
+:    **Deprecated.** Uploads your trace via the
      [DropBoxManager API](https://developer.android.com/reference/android/os/DropBoxManager.html)
-     using the tag you specify. Android only. Deprecated: use `--upload`
-     instead.
+     using the tag you specify. Android only. Use `--upload` instead.
 
 `--upload`
 :    Uploads trace output to Android framework reporting paths configured in
-     `TraceConfig` (`incident_report_config` or `android_report_config`).
+     `TraceConfig` (`android_report_config`).
      Android only.
 
 `--alert-id` _ID_
