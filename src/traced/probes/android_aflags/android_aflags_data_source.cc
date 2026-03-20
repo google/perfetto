@@ -183,8 +183,6 @@ void AndroidAflagsDataSource::FinalizeAflagsCapture() {
   packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
   protos::pbzero::AndroidAflags* aflags_proto = packet->set_android_aflags();
   aflags_proto->AppendRawProtoBytes(decoded->data(), decoded->size());
-  packet->Finalize();
-  writer_->Flush();
 }
 
 void AndroidAflagsDataSource::Flush(FlushRequestID,
