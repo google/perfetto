@@ -2252,7 +2252,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       case 'tsv':
         return formatAsTSV([...columns], columnNames, formattedRows);
       case 'json':
-        return formatAsJSON(formattedRows);
+        return formatAsJSON([...columns], columnNames, formattedRows);
       case 'markdown':
         return formatAsMarkdown([...columns], columnNames, formattedRows);
     }
