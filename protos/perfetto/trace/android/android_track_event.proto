@@ -551,6 +551,55 @@ message AndroidFreezerEvent {
   optional UnfreezeReason unfreeze_reason = 5;
 }
 
+message AndroidFreezePolicyEvent {
+  // The uid of the process associated with the freezability status change.
+  optional int32 uid = 1;
+
+  // The pid of the process associated with the freezability status change.
+  optional int32 pid = 2;
+
+  // The name of the process.
+  optional string process_name = 3;
+
+  // True if the process is currently in a frozen state.
+  optional bool is_frozen = 4;
+
+  // True if a request to freeze the process has been made, but the freeze is
+  // not yet complete.
+  optional bool is_pending_freeze = 5;
+
+  // True if the process has been granted CPU time capability, preventing it
+  // from being frozen.
+  optional bool has_cpu_capability = 6;
+
+  // True if the process has implicit CPU time capability,
+  optional bool has_implicit_cpu_capability = 7;
+
+  // True if the freeze/unfreeze action was performed immediately.
+  optional bool immediate = 8;
+
+  // True if the process was determined to be eligible for freezing.
+  optional bool freeze_policy = 9;
+
+  // The process's current OOM Adjustment score (oom_score_adj).
+  optional int32 cur_adj = 10;
+
+  // The process's OOM Adjustment score before the process freezability changed.
+  optional int32 old_adj = 11;
+
+  // A bitmask or enum indicating the reasons why the process currently has CPU
+  // time capability.
+  optional int32 cpu_time_reasons = 12;
+
+  // A bitmask or enum indicating the reasons why the process has implicit CPU
+  // time capability.
+  optional int32 implicit_cpu_time_reasons = 13;
+
+  // True if an aggressive freezing mode is enabled, leading to more frequent
+  // freezing.
+  optional bool aggressive_freezing = 14;
+}
+
 message AndroidProcessStartEvent {
   // The uid of the ProcessRecord.
   optional int32 uid = 1;
@@ -660,7 +709,7 @@ message AndroidProcessStateChangedEvent {
 
 message AndroidTrackEvent {
   // Usable range: [2001, 2999]
-  // Next id: 2014
+  // Next id: 2015
   extend TrackEvent {
     // The name of a binder service.
     optional string binder_service_name = 2001;
@@ -689,5 +738,7 @@ message AndroidTrackEvent {
     optional AndroidProcessStateChangedEvent process_state_changed_event = 2012;
     // Binder died event.
     optional AndroidBinderDiedEvent binder_died_event = 2013;
+    // Freeze policy event.
+    optional AndroidFreezePolicyEvent freeze_policy_event = 2014;
   }
 }
