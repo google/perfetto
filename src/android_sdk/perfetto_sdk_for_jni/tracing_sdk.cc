@@ -144,12 +144,14 @@ void Flow::delete_flow(Flow* ptr) {
 
 NamedTrack::NamedTrack(uint64_t id,
                        uint64_t parent_uuid,
-                       const std::string& name)
+                       const std::string& name,
+                       bool is_name_static)
     : name_(name),
       track_{{PERFETTO_TE_HL_EXTRA_TYPE_NAMED_TRACK},
              name_.data(),
              id,
-             parent_uuid} {}
+             parent_uuid,
+             is_name_static} {}
 
 void NamedTrack::delete_track(NamedTrack* ptr) {
   delete ptr;
@@ -158,14 +160,16 @@ void NamedTrack::delete_track(NamedTrack* ptr) {
 RegisteredTrack::RegisteredTrack(uint64_t id,
                                  uint64_t parent_uuid,
                                  const std::string& name,
-                                 bool is_counter)
+                                 bool is_counter,
+                                 bool is_name_static)
     : registered_track_{},
       track_{{PERFETTO_TE_HL_EXTRA_TYPE_REGISTERED_TRACK},
-             &(registered_track_.impl)},
+             &registered_track_.impl},
       name_(name),
       id_(id),
       parent_uuid_(parent_uuid),
-      is_counter_(is_counter) {
+      is_counter_(is_counter),
+      is_name_static_(is_name_static) {
   register_track();
 }
 
@@ -178,11 +182,21 @@ void RegisteredTrack::register_track() {
     return;
 
   if (is_counter_) {
-    PerfettoTeCounterTrackRegister(&registered_track_, name_.data(),
-                                   parent_uuid_);
+    if (is_name_static_) {
+      PerfettoTeCounterTrackRegisterWithStaticName(&registered_track_,
+                                                   name_.data(), parent_uuid_);
+    } else {
+      PerfettoTeCounterTrackRegister(&registered_track_, name_.data(),
+                                     parent_uuid_);
+    }
   } else {
-    PerfettoTeNamedTrackRegister(&registered_track_, name_.data(), id_,
-                                 parent_uuid_);
+    if (is_name_static_) {
+      PerfettoTeNamedTrackRegisterWithStaticName(
+          &registered_track_, name_.data(), id_, parent_uuid_);
+    } else {
+      PerfettoTeNamedTrackRegister(&registered_track_, name_.data(), id_,
+                                   parent_uuid_);
+    }
   }
 }
 

@@ -357,6 +357,24 @@ public final class PerfettoTrackEventBuilder {
 
   /** Adds the events to a named track instead of the thread track where the event occurred. */
   public PerfettoTrackEventBuilder usingNamedTrack(long id, String name, long parentUuid) {
+    return usingNamedTrack(id, name, parentUuid, /* isNameStatic = */ true);
+  }
+
+  /**
+   * Adds the events to a named track with a dynamic name (populated in field 10 of
+   * TrackDescriptor).
+   */
+  public PerfettoTrackEventBuilder usingNamedTrackWithDynamicName(
+      long id, String name, long parentUuid) {
+    return usingNamedTrack(id, name, parentUuid, /* isNameStatic = */ false);
+  }
+
+  /**
+   * Adds the events to a named track with a static name (populated in field 10 of
+   * TrackDescriptor).
+   */
+  private PerfettoTrackEventBuilder usingNamedTrack(
+      long id, String name, long parentUuid, boolean isNameStatic) {
     if (!mIsCategoryEnabled) {
       return this;
     }
@@ -365,8 +383,8 @@ public final class PerfettoTrackEventBuilder {
     }
 
     NamedTrack track = mObjectsCache.mNamedTrackCache.get(name.hashCode());
-    if (track == null || !track.getName().equals(name)) {
-      track = new NamedTrack(id, name, parentUuid, mNativeMemoryCleaner);
+    if (track == null || !track.getName().equals(name) || track.isNameStatic() != isNameStatic) {
+      track = new NamedTrack(id, name, parentUuid, isNameStatic, mNativeMemoryCleaner);
       mObjectsCache.mNamedTrackCache.put(name.hashCode(), track);
     }
     addPerfettoPointerToExtra(track);
@@ -385,6 +403,18 @@ public final class PerfettoTrackEventBuilder {
   }
 
   /**
+   * Adds the events to a process scoped named track with a dynamic name instead of the thread track
+   * where the event occurred.
+   */
+  public PerfettoTrackEventBuilder usingProcessNamedTrackWithDynamicName(
+      long id,  String name) {
+    if (!mIsCategoryEnabled) {
+      return this;
+    }
+    return usingNamedTrackWithDynamicName(id, name, PerfettoTrace.getProcessTrackUuid());
+  }
+
+  /**
    * Adds the events to a thread scoped named track instead of the thread track where the event
    * occurred.
    */
@@ -395,8 +425,34 @@ public final class PerfettoTrackEventBuilder {
     return usingNamedTrack(id, name, PerfettoTrace.getThreadTrackUuid(tid));
   }
 
+  /**
+   * Adds the events to a thread scoped named track with a dynamic name instead of the thread track
+   * where the event occurred.
+   */
+  public PerfettoTrackEventBuilder usingThreadNamedTrackWithDynamicName(
+      long id, String name, long tid) {
+    if (!mIsCategoryEnabled) {
+      return this;
+    }
+    return usingNamedTrackWithDynamicName(id, name, PerfettoTrace.getThreadTrackUuid(tid));
+  }
+
   /** Adds the events to a counter track instead. This is required for setting counter values. */
   public PerfettoTrackEventBuilder usingCounterTrack(long parentUuid, String name) {
+    return usingCounterTrack(parentUuid, name, /* isNameStatic = */ true);
+  }
+
+  /**
+   * Adds the events to a counter track with a static name instead. This is required for setting
+   * counter values.
+   */
+  public PerfettoTrackEventBuilder usingCounterTrackWithDynamicName(
+      long parentUuid,  String name) {
+    return usingCounterTrack(parentUuid, name, /* isNameStatic = */ false);
+  }
+
+  private PerfettoTrackEventBuilder usingCounterTrack(
+      long parentUuid, String name, boolean isNameStatic) {
     if (!mIsCategoryEnabled) {
       return this;
     }
@@ -405,8 +461,8 @@ public final class PerfettoTrackEventBuilder {
     }
 
     CounterTrack track = mObjectsCache.mCounterTrackCache.get(name.hashCode());
-    if (track == null || !track.getName().equals(name)) {
-      track = new CounterTrack(name, parentUuid, mNativeMemoryCleaner);
+    if (track == null || !track.getName().equals(name) || track.isNameStatic() != isNameStatic) {
+      track = new CounterTrack(name, parentUuid, isNameStatic, mNativeMemoryCleaner);
       mObjectsCache.mCounterTrackCache.put(name.hashCode(), track);
     }
     addPerfettoPointerToExtra(track);
@@ -425,6 +481,18 @@ public final class PerfettoTrackEventBuilder {
   }
 
   /**
+   * Adds the events to a process scoped counter track with a static name instead. This is required
+   * for setting counter values.
+   */
+  public PerfettoTrackEventBuilder usingProcessCounterTrackWithDynamicName(
+       String name) {
+    if (!mIsCategoryEnabled) {
+      return this;
+    }
+    return usingCounterTrackWithDynamicName(PerfettoTrace.getProcessTrackUuid(), name);
+  }
+
+  /**
    * Adds the events to a thread scoped counter track instead. This is required for setting counter
    * values.
    */
@@ -433,6 +501,18 @@ public final class PerfettoTrackEventBuilder {
       return this;
     }
     return usingCounterTrack(PerfettoTrace.getThreadTrackUuid(tid), name);
+  }
+
+  /**
+   * Adds the events to a thread scoped counter track with a static name instead. This is required for
+   * setting counter values.
+   */
+  public PerfettoTrackEventBuilder usingThreadCounterTrackWithDynamicName(
+      long tid,  String name) {
+    if (!mIsCategoryEnabled) {
+      return this;
+    }
+    return usingCounterTrackWithDynamicName(PerfettoTrace.getThreadTrackUuid(tid), name);
   }
 
   /** Sets a long counter value on the event. */
