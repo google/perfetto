@@ -25,15 +25,11 @@ import protos from '../../../../protos';
 import {ColumnInfo, newColumnInfoList} from '../column_info';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
-import {Checkbox} from '../../../../widgets/checkbox';
 import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
 import {loadNodeDoc} from '../node_doc_loader';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
-import {
-  DraggableItem,
-  SelectDeselectAllButtons,
-  ResultsPanelEmptyState,
-} from '../widgets';
+import {ResultsPanelEmptyState} from '../widgets';
+import {ColumnSelector} from '../column_selector';
 import {
   NodeDetailsMessage,
   NodeTitle,
@@ -247,45 +243,15 @@ export class UnionNode implements QueryNode {
     } else {
       sections.push({
         title: `Select Common Columns (${selectedCount} / ${totalCount} selected)`,
-        content: m(
-          '.pf-modify-columns-content',
-          m(SelectDeselectAllButtons, {
-            onSelectAll: () => {
-              this.state.selectedColumns = this.state.selectedColumns.map(
-                (col) => ({
-                  ...col,
-                  checked: true,
-                }),
-              );
-              this.state.onchange?.();
-            },
-            onDeselectAll: () => {
-              this.state.selectedColumns = this.state.selectedColumns.map(
-                (col) => ({
-                  ...col,
-                  checked: false,
-                }),
-              );
-              this.state.onchange?.();
-            },
-          }),
-          m(
-            '.pf-modify-columns-node',
-            m(
-              '.pf-column-list-container',
-              m(
-                '.pf-column-list-help',
-                'Select which common columns to include in the union',
-              ),
-              m(
-                '.pf-column-list',
-                this.state.selectedColumns.map((col, index) =>
-                  this.renderSelectedColumn(col, index),
-                ),
-              ),
-            ),
-          ),
-        ),
+        content: m(ColumnSelector, {
+          columns: this.state.selectedColumns,
+          onColumnsChange: (columns) => {
+            this.state.selectedColumns = columns;
+            this.state.onchange?.();
+          },
+          helpText: 'Select which common columns to include in the union',
+          draggable: true,
+        }),
       });
     }
 
@@ -293,35 +259,6 @@ export class UnionNode implements QueryNode {
       info: 'Stacks rows from multiple inputs vertically (UNION ALL). All inputs must have compatible column schemas. Useful for combining similar data from different sources.',
       sections,
     };
-  }
-
-  private renderSelectedColumn(col: ColumnInfo, index: number): m.Child {
-    return m(
-      DraggableItem,
-      {
-        index,
-        onReorder: (from: number, to: number) => {
-          const newSelectedColumns = [...this.state.selectedColumns];
-          const [removed] = newSelectedColumns.splice(from, 1);
-          newSelectedColumns.splice(to, 0, removed);
-          this.state.selectedColumns = newSelectedColumns;
-          this.state.onchange?.();
-        },
-      },
-      m(Checkbox, {
-        checked: col.checked,
-        label: col.column.name,
-        onchange: (e) => {
-          const newSelectedColumns = [...this.state.selectedColumns];
-          newSelectedColumns[index] = {
-            ...newSelectedColumns[index],
-            checked: (e.target as HTMLInputElement).checked,
-          };
-          this.state.selectedColumns = newSelectedColumns;
-          this.state.onchange?.();
-        },
-      }),
-    );
   }
 
   clone(): QueryNode {

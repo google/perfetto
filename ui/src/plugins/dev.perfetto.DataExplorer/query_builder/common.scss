@@ -57,15 +57,6 @@
   border: 1px solid var(--pf-color-border);
 }
 
-.pf-exp-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  border: 1px solid var(--pf-color-border);
-  border-radius: 4px;
-}
-
 // Shared styling for all round action buttons (undo/redo/add node/dashboard).
 .pf-qb-round-action-button {
   width: 40px;

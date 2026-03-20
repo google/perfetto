@@ -31,7 +31,7 @@
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/query.h"
 #include "src/trace_processor/shell/subcommand.h"
-#include "src/trace_processor/trace_summary/summary.h"
+#include "src/trace_processor/trace_summary/summary.h"  // no-include-violation-check
 
 namespace perfetto::trace_processor::shell {
 

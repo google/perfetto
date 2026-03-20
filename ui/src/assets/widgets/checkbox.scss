@@ -20,6 +20,11 @@
 
 $box-label-padding: 0.5em;
 
+// 'Switch' style checkbox properties
+$switch-border-width: 2px;
+$switch-height: 1em;
+$switch-slide-distance: 0.75em;
+
 .pf-checkbox {
   $tick-anim-time: 200ms;
 
@@ -93,39 +98,56 @@ $box-label-padding: 0.5em;
     opacity: 1;
   }
 
-  // 'Switch' style checkbox
-
   &__box--switch {
-    height: 16px;
-    width: 30px;
-    border-radius: 1em; // Pill shape
-    background: var(--pf-color-border);
-    vertical-align: middle;
+    // Slice distance + thumb width
+    width: $switch-slide-distance + $switch-height;
+    height: $switch-height;
+    position: relative;
+
+    // The before element forms the track of the switch
+    &:before {
+      content: "";
+      display: block;
+      position: absolute;
+      inset: 0;
+      border-radius: 100px;
+      background: var(--pf-color-border);
+      border: solid $switch-border-width var(--pf-color-border);
+      transition:
+        border $anim-timing,
+        background $anim-timing;
+    }
 
     // The :after element forms the "thumb" of the switch
     &:after {
       content: "";
       display: block;
       position: absolute;
-      left: 2px;
+      left: 0;
       top: 0;
       bottom: 0;
-      margin-top: auto;
-      margin-bottom: auto;
-      width: 12px;
-      height: 12px;
+      width: $switch-height;
+      height: $switch-height;
       background: white;
       box-sizing: border-box;
       border-radius: 50%;
-      transition: left $anim-timing;
+      transition:
+        border $anim-timing,
+        left $anim-timing;
+      border: solid $switch-border-width var(--pf-color-border);
     }
   }
 
-  input:checked + .pf-checkbox__box--switch {
+  input:checked + .pf-checkbox__box--switch:before {
     background: var(--pf-color-primary);
+    border-color: var(--pf-color-primary);
   }
 
   input:checked + .pf-checkbox__box--switch:after {
-    left: 16px;
+    border-color: var(--pf-color-primary);
+  }
+
+  input:checked + .pf-checkbox__box--switch:after {
+    left: $switch-slide-distance;
   }
 }

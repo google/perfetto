@@ -441,11 +441,12 @@ function buildWhereClause(
  */
 export function createDefaultChartConfig(
   columns: ReadonlyArray<{name: string}>,
+  chartType: ChartType = 'bar',
 ): ChartConfig {
   const column = columns.length > 0 ? columns[0].name : '';
   return {
     id: generateChartId(),
     column,
-    chartType: 'bar',
+    chartType,
   };
 }
