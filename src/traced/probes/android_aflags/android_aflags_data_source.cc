@@ -76,6 +76,10 @@ void AndroidAflagsDataSource::Start() {
 }
 
 void AndroidAflagsDataSource::Tick() {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  PERFETTO_ELOG("Aflags only supported on Android.");
+  return;
+#else
   auto weak_this = weak_factory_.GetWeakPtr();
   if (poll_period_ms_ > 0) {
     uint32_t delay_ms =
@@ -95,7 +99,6 @@ void AndroidAflagsDataSource::Tick() {
     return;
   }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   aflags_output_pipe_ = base::Pipe::Create(base::Pipe::kRdNonBlock);
   // Watch the read end of the pipe for output from the aflags process.
   task_runner_->AddFileDescriptorWatch(*aflags_output_pipe_->rd, [weak_this] {
@@ -114,38 +117,25 @@ void AndroidAflagsDataSource::Tick() {
   aflags_process_->args.out_fd = std::move(aflags_output_pipe_->wr);
   aflags_process_->args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
   aflags_process_->Start();
-#else
-  PERFETTO_ELOG("Aflags only supported on Android.");
 #endif
 }
 
 void AndroidAflagsDataSource::OnAflagsOutput() {
-  char buf[4096];
-  for (;;) {
-    ssize_t rsize = base::Read(*aflags_output_pipe_->rd, buf, sizeof(buf));
-    if (rsize == 0) {
-      break;  // EOF
-    }
-
-    if (rsize > 0) {
-      aflags_output_.append(buf, static_cast<size_t>(rsize));
-      continue;  // More data may be available, try reading again immediately.
-    }
-
-    if (base::IsAgain(errno)) {
-      return;  // Read is blocked, wait for the next notification.
-    }
-
-    PERFETTO_PLOG("Error reading from aflags output pipe.");
+  if (base::ReadFileDescriptor(*aflags_output_pipe_->rd, &aflags_output_)) {
     task_runner_->RemoveFileDescriptorWatch(*aflags_output_pipe_->rd);
-    aflags_process_.reset();
-    aflags_output_pipe_.reset();
-    aflags_output_.clear();
+    FinalizeAflagsCapture();
     return;
   }
 
+  if (base::IsAgain(errno)) {
+    return;  // Read is blocked, wait for the next notification.
+  }
+
+  PERFETTO_PLOG("Error reading from aflags output pipe.");
   task_runner_->RemoveFileDescriptorWatch(*aflags_output_pipe_->rd);
-  FinalizeAflagsCapture();
+  aflags_process_.reset();
+  aflags_output_pipe_.reset();
+  aflags_output_.clear();
 }
 
 void AndroidAflagsDataSource::FinalizeAflagsCapture() {
@@ -167,7 +157,7 @@ void AndroidAflagsDataSource::FinalizeAflagsCapture() {
     return;
   }
 
-  auto returncode = aflags_process_->returncode();
+  int returncode = aflags_process_->returncode();
   aflags_process_.reset();
   aflags_output_pipe_.reset();
 
@@ -191,8 +181,10 @@ void AndroidAflagsDataSource::FinalizeAflagsCapture() {
 
   TraceWriter::TracePacketHandle packet = writer_->NewTracePacket();
   packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
-  auto* aflags_proto = packet->set_android_aflags();
+  protos::pbzero::AndroidAflags* aflags_proto = packet->set_android_aflags();
   aflags_proto->AppendRawProtoBytes(decoded->data(), decoded->size());
+  packet->Finalize();
+  writer_->Flush();
 }
 
 void AndroidAflagsDataSource::Flush(FlushRequestID,
