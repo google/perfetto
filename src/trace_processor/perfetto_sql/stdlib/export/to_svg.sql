@@ -374,9 +374,11 @@ SELECT
       $width_pixel,
       $height_pixel,
       _state_color($state, $io_wait),
-      'Thread State: ' || $state || ' (' || _format_duration($dur) || ')' ||
-      CASE WHEN $blocked_function IS NOT NULL THEN
-      ', blocked by ' || $blocked_function ELSE '' END,
+      'Thread State: ' || $state || ' (' || _format_duration($dur) || ')' || CASE
+        WHEN $blocked_function IS NOT NULL
+        THEN ', blocked by ' || $blocked_function
+        ELSE ''
+      END,
       $href,
       NULL
     )

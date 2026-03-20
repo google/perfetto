@@ -21,3 +21,6 @@ CREATE PERFETTO INDEX flow_out ON __intrinsic_flow(slice_out);
 CREATE PERFETTO INDEX slice_parent_id ON __intrinsic_slice(parent_id);
 
 CREATE PERFETTO INDEX slice_track_id ON __intrinsic_slice(track_id);
+
+-- HPROF object data is joined by object_id to heap_graph_object.
+CREATE PERFETTO INDEX heap_graph_object_data_object_id ON __intrinsic_heap_graph_object_data(object_id);
