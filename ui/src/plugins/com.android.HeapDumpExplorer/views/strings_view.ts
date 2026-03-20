@@ -1,0 +1,289 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import m from 'mithril';
+import type {Engine} from '../../../trace_processor/engine';
+import type {SqlValue, Row} from '../../../trace_processor/query_result';
+import {Spinner} from '../../../widgets/spinner';
+import {EmptyState} from '../../../widgets/empty_state';
+import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
+import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
+import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
+import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
+import type {StringListRow} from '../types';
+import {fmtSize, fmtHex} from '../format';
+import type {Filter} from '../../../components/widgets/datagrid/model';
+import {
+  type NavFn,
+  sizeRenderer,
+  countRenderer,
+  DOMINATOR_TREE_PREAMBLE,
+  REACHABLE_PREAMBLE,
+  ReachableToggle,
+} from '../components';
+import * as queries from '../queries';
+
+const STRINGS_QUERY = `
+  SELECT
+    o.id,
+    od.value_string AS value,
+    LENGTH(od.value_string) AS len,
+    o.self_size,
+    ifnull(d.dominated_size_bytes, o.self_size)
+      + ifnull(d.dominated_native_size_bytes, o.native_size) AS retained,
+    ifnull(o.heap_type, 'default') AS heap
+  FROM heap_graph_object o
+  JOIN heap_graph_class c ON o.type_id = c.id
+  LEFT JOIN heap_graph_object_data od ON od.object_id = o.id
+  LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
+  WHERE o.reachable != 0
+    AND od.value_string IS NOT NULL
+    AND (c.name = 'java.lang.String'
+      OR c.deobfuscated_name = 'java.lang.String')
+`;
+
+function makeUiSchema(navigate: NavFn): SchemaRegistry {
+  return {
+    query: {
+      id: {
+        title: 'Object',
+        columnType: 'identifier',
+        cellRenderer: (value: SqlValue, row) => {
+          const id = Number(value);
+          const str = row.value != null ? String(row.value) : null;
+          const display = `String ${fmtHex(id)}`;
+          return m(
+            'button',
+            {
+              class: 'ah-link',
+              onclick: () =>
+                navigate('object', {
+                  id,
+                  label: str
+                    ? `"${str.length > 40 ? str.slice(0, 40) + '\u2026' : str}"`
+                    : display,
+                }),
+            },
+            m(
+              'span',
+              {
+                class: 'ah-mono ah-break-all',
+                style: {color: 'var(--ah-badge-string)'},
+              },
+              str
+                ? '"' +
+                    (str.length > 300 ? str.slice(0, 300) + '\u2026' : str) +
+                    '"'
+                : display,
+            ),
+          );
+        },
+      },
+      retained: {
+        title: 'Retained',
+        columnType: 'quantitative',
+        cellRenderer: sizeRenderer,
+      },
+      len: {
+        title: 'Length',
+        columnType: 'quantitative',
+        cellRenderer: countRenderer,
+      },
+      heap: {
+        title: 'Heap',
+        columnType: 'text',
+      },
+      value: {
+        title: 'Value',
+        columnType: 'text',
+      },
+      self_size: {
+        title: 'Shallow',
+        columnType: 'quantitative',
+        cellRenderer: sizeRenderer,
+      },
+      reachable_size: {
+        title: 'Reachable',
+        columnType: 'quantitative',
+        cellRenderer: sizeRenderer,
+      },
+      reachable_native: {
+        title: 'Reachable native',
+        columnType: 'quantitative',
+        cellRenderer: sizeRenderer,
+      },
+      reachable_count: {
+        title: 'Reachable count',
+        columnType: 'quantitative',
+        cellRenderer: countRenderer,
+      },
+    },
+  };
+}
+
+const SUMMARY_SCHEMA: SchemaRegistry = {
+  query: {
+    property: {title: 'Property', columnType: 'text'},
+    value: {title: 'Value', columnType: 'text'},
+  },
+};
+
+const REACHABLE_STRINGS_QUERY = `
+  SELECT base.*,
+    a.cumulative_size AS reachable_size,
+    a.cumulative_native_size AS reachable_native,
+    a.cumulative_count AS reachable_count
+  FROM (${STRINGS_QUERY}) base
+  LEFT JOIN _heap_graph_object_tree_aggregation a ON a.id = base.id
+`;
+
+function createDataSource(
+  engine: Engine,
+  showReachable: boolean,
+): SQLDataSource {
+  const query = showReachable ? REACHABLE_STRINGS_QUERY : STRINGS_QUERY;
+  const preamble = showReachable ? REACHABLE_PREAMBLE : DOMINATOR_TREE_PREAMBLE;
+  return new SQLDataSource({
+    engine,
+    sqlSchema: createSimpleSchema(query),
+    rootSchemaName: 'query',
+    preamble,
+  });
+}
+
+// --- StringsView -------------------------------------------------------------
+
+interface StringsViewAttrs {
+  engine: Engine;
+  navigate: NavFn;
+  initialQuery?: string;
+  hasFieldValues?: boolean;
+}
+
+function StringsView(): m.Component<StringsViewAttrs> {
+  let allRows: StringListRow[] | null = null;
+  let alive = true;
+  let dataSource: SQLDataSource | null = null;
+  let showReachable = false;
+
+  return {
+    oninit(vnode) {
+      dataSource = createDataSource(vnode.attrs.engine, showReachable);
+      queries
+        .getStringList(vnode.attrs.engine)
+        .then((r) => {
+          if (!alive) return;
+          allRows = r;
+          m.redraw();
+        })
+        .catch(console.error);
+    },
+    onremove() {
+      alive = false;
+    },
+    view(vnode) {
+      const {navigate} = vnode.attrs;
+
+      if (!allRows) {
+        return m('div', {class: 'ah-loading'}, m(Spinner, {easing: true}));
+      }
+
+      if (allRows.length === 0) {
+        return m(EmptyState, {
+          icon: 'text_fields',
+          title:
+            vnode.attrs.hasFieldValues === false
+              ? 'String values require an ART heap dump (.hprof)'
+              : 'No string data available',
+          fillHeight: true,
+        });
+      }
+
+      const totalRetained = allRows.reduce((s, r) => s + r.retainedSize, 0);
+      const uniqueCount = (() => {
+        const seen = new Set<string>();
+        for (const r of allRows) seen.add(r.value);
+        return seen.size;
+      })();
+
+      const initialQuery = vnode.attrs.initialQuery;
+      const valueFilter: Filter[] = initialQuery
+        ? [{field: 'value', op: '=' as const, value: initialQuery}]
+        : [];
+
+      const summaryRows: Row[] = [
+        {property: 'Total strings', value: allRows.length.toLocaleString()},
+        {property: 'Unique values', value: uniqueCount.toLocaleString()},
+        {property: 'Total retained', value: fmtSize(totalRetained)},
+      ];
+
+      return m('div', {class: 'ah-view-content'}, [
+        m('div', {key: 'heading', class: 'ah-heading-row'}, [
+          m('h2', {class: 'ah-view-heading'}, 'Strings'),
+          m(ReachableToggle, {
+            checked: showReachable,
+            onchange: (checked: boolean) => {
+              showReachable = checked;
+              dataSource = createDataSource(vnode.attrs.engine, showReachable);
+            },
+          }),
+        ]),
+
+        m(
+          'div',
+          {key: 'summary', class: 'ah-card ah-mb-4', style: {flexShrink: '0'}},
+          [
+            m(DataGrid, {
+              schema: SUMMARY_SCHEMA,
+              rootSchema: 'query',
+              data: summaryRows,
+              initialColumns: [
+                {id: 'property', field: 'property'},
+                {id: 'value', field: 'value'},
+              ],
+            }),
+          ],
+        ),
+
+        dataSource
+          ? m(DataGrid, {
+              key: String(showReachable),
+              schema: makeUiSchema(navigate),
+              rootSchema: 'query',
+              data: dataSource,
+              fillHeight: true,
+              initialColumns: [
+                {id: 'retained', field: 'retained'},
+                ...(showReachable
+                  ? [
+                      {id: 'reachable_size', field: 'reachable_size'},
+                      {id: 'reachable_native', field: 'reachable_native'},
+                      {id: 'reachable_count', field: 'reachable_count'},
+                    ]
+                  : []),
+                {id: 'len', field: 'len'},
+                {id: 'value', field: 'value'},
+                {id: 'heap', field: 'heap'},
+                {id: 'id', field: 'id'},
+              ],
+              ...(valueFilter.length > 0 ? {initialFilters: valueFilter} : {}),
+              showExportButton: true,
+            })
+          : null,
+      ]);
+    },
+  };
+}
+
+export default StringsView;
