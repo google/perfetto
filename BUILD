@@ -5316,7 +5316,7 @@ perfetto_android_library(
     manifest = "src/android_sdk/java/main/AndroidManifest.xml",
     deps = [
         ":src_android_sdk_jni_libperfetto_jni",
-    ],
+    ] + PERFETTO_CONFIG.deps.error_prone_annotations,
     tags = [
         "notap",
     ],

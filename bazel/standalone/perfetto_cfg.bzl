@@ -65,6 +65,10 @@ PERFETTO_CONFIG = struct(
             "@perfetto_maven//:androidx_test_ext_junit",
         ],
 
+        error_prone_annotations = [
+            "@perfetto_maven//:com_google_errorprone_error_prone_annotations",
+        ],
+
         # The Python targets are empty on the standalone build because we assume
         # any relevant deps are installed on the system or are not applicable.
         protobuf_py = [],
