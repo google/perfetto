@@ -2370,7 +2370,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             }
           },
           style: {
-            backgroundSize: `${20 * canvasState.zoom}px ${20 * canvasState.zoom}px`,
+            backgroundSize: (() => {
+              const BASE = 20;
+              const lodSpacing = canvasState.zoom < 0.2 ? BASE * 5 : BASE;
+              const size = lodSpacing * canvasState.zoom;
+              return `${size}px ${size}px`;
+            })(),
             backgroundPosition: `${canvasState.panOffset.x}px ${canvasState.panOffset.y}px`,
             ...vnode.attrs.style,
           },
