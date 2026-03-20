@@ -44,12 +44,12 @@ if (enable_perfetto_trace_processor) {
       "../../../../include/perfetto/ext/base",
     ]
     deps = [
+      "../:build_id",
       "../../../../gn:default_deps",
       "../../../../include/perfetto/protozero",
       "../../../../include/perfetto/trace_processor:trace_processor",
       "../../../../protos/perfetto/trace:zero",
       "../../../../protos/perfetto/trace/profiling:zero",
-      "../:build_id",
     ]
     sources = [
       "symbolize_database.cc",
