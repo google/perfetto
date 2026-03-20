@@ -34,6 +34,9 @@ import {Switch} from '../widgets/switch';
 
 export class HomePage implements m.ClassComponent {
   view() {
+    const themeSetting = AppImpl.instance.settings.get<string>('theme');
+    const isDarkMode = themeSetting?.get() === 'dark';
+
     return m(
       '.pf-home-page',
       m(
@@ -44,6 +47,28 @@ export class HomePage implements m.ClassComponent {
           'Perfetto',
         ),
         m(Hints),
+        m(
+          '.pf-home-page__links',
+          m(
+            Anchor,
+            {
+              href: 'https://perfetto.dev/docs/visualization/perfetto-ui',
+              icon: Icons.ExternalLink,
+              target: '_blank',
+            },
+            'Read the docs',
+          ),
+          m('.pf-home-page__links-separator'),
+          m(Switch, {
+            label: 'Dark mode',
+            checked: isDarkMode,
+            onchange: (e) => {
+              themeSetting?.set(
+                (e.target as HTMLInputElement).checked ? 'dark' : 'light',
+              );
+            },
+          }),
+        ),
         m(ChannelSelect),
       ),
       m(
@@ -74,10 +99,6 @@ class ChannelSelect implements m.ClassComponent {
           showAutopush && 'pf-channel-select--with-autopush',
         ),
       },
-      m(
-        '.pf-channel-select__text',
-        'Feeling adventurous? Try our bleeding edge Canary version.',
-      ),
       m(
         'fieldset.pf-channel-select__switch',
         ...channels.map((channel) => {
@@ -150,7 +171,7 @@ const QUICK_START_ENTRIES: QuickStartEntry[] = [
     label: 'Record new trace',
   },
   {
-    icon: 'play_circle',
+    icon: 'science',
     label: 'Open example trace',
     items: [
       {
@@ -213,9 +234,6 @@ function renderQuickStartDropdown(entry: QuickStartDropdown): m.Children {
 
 class Hints implements m.ClassComponent {
   view() {
-    const themeSetting = AppImpl.instance.settings.get<string>('theme');
-    const isDarkMode = themeSetting?.get() === 'dark';
-
     return m(
       '.pf-home-page__hints',
       m(
@@ -232,28 +250,6 @@ class Hints implements m.ClassComponent {
             ),
           ),
         ),
-      ),
-      m(
-        '.pf-home-page__links',
-        m(
-          Anchor,
-          {
-            href: 'https://perfetto.dev/docs/visualization/perfetto-ui',
-            icon: Icons.ExternalLink,
-            target: '_blank',
-          },
-          'Read the docs',
-        ),
-        m('.pf-home-page__links-separator'),
-        m(Switch, {
-          label: 'Dark mode',
-          checked: isDarkMode,
-          onchange: (e) => {
-            themeSetting?.set(
-              (e.target as HTMLInputElement).checked ? 'dark' : 'light',
-            );
-          },
-        }),
       ),
     );
   }

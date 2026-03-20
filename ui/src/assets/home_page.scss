@@ -15,23 +15,19 @@
 @import "theme";
 
 .pf-home-page {
+  background: var(--pf-color-background);
   height: 100%;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   align-items: stretch;
-  justify-items: center;
-  grid-template-columns: 1fr;
-  grid-template-rows: 1fr auto;
-  grid-template-areas: "center" "footer";
-  font-family: var(--pf-font-compact);
 
   .pf-home-page__center {
-    grid-area: center;
-
+    flex: 1;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    gap: 32px;
+    gap: 28px;
 
     .logo {
       height: 1em;
@@ -56,16 +52,15 @@
     }
 
     .pf-home-page__links {
-      flex-basis: 100%;
       display: flex;
       flex-direction: row;
       justify-content: center;
       align-items: baseline;
       gap: 24px;
-      font-size: var(--pf-font-size-s);
       color: var(--pf-color-text-muted);
 
       &-separator {
+        align-self: center;
         width: 1px;
         height: 16px;
         background-color: var(--pf-color-border);
@@ -74,8 +69,8 @@
 
     .pf-home-page__section {
       background: var(--pf-color-background-secondary);
-      border-radius: 7px;
-      padding: 20px 24px;
+      border-radius: 6px;
+      padding: 28px;
       min-width: 300px;
       display: flex;
       flex-direction: column;
@@ -84,7 +79,6 @@
         font-size: var(--pf-font-size-s);
         font-weight: 500;
         text-transform: uppercase;
-        // letter-spacing: 0;
         color: var(--pf-color-text-muted);
         margin-bottom: 12px;
       }
@@ -111,8 +105,9 @@
     }
 
     .pf-home-page__button {
+      height: 32px;
       display: flex;
-      align-items: baseline;
+      align-items: center;
       font-family: var(--pf-font-compact);
       line-height: 1;
       user-select: none;
@@ -123,12 +118,10 @@
 
       & > .pf-left-icon {
         margin-right: 6px;
-        align-self: center;
       }
 
       & > .pf-right {
         margin-left: auto;
-        align-self: center;
       }
 
       &:hover {
@@ -142,15 +135,18 @@
   } // .pf-home-page__center
 
   .pf-home-page__privacy {
-    font-size: var(--pf-font-size-s);
-    grid-area: footer;
     align-self: center;
     margin-bottom: 24px;
   }
 } // .pf-home-page
 
+.pf-right .pf-keycap {
+  background-color: var(--pf-color-background-tertiary);
+}
+
 .pf-channel-select {
   text-align: center;
+  margin-top: 18px;
   font-size: var(--pf-font-size-m);
 
   --chan-num: 2;
