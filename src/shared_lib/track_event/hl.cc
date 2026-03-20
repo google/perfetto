@@ -16,6 +16,7 @@
 
 #include "perfetto/public/abi/track_event_hl_abi.h"
 
+#include "perfetto/tracing/internal/fnv1a.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 #include "src/shared_lib/track_event/ds.h"
 #include "src/shared_lib/track_event/serialization.h"
@@ -281,6 +282,7 @@ void WriteTrackEvent(TrackEventIncrementalState* incr,
 uint64_t EmitNamedTrack(uint64_t parent_uuid,
                         const char* name,
                         uint64_t id,
+                        bool is_name_static,
                         perfetto::shlib::TrackEventIncrementalState* incr_state,
                         perfetto::TraceWriterBase* trace_writer) {
   uint64_t uuid = parent_uuid;
@@ -293,7 +295,11 @@ uint64_t EmitNamedTrack(uint64_t parent_uuid,
     if (parent_uuid) {
       track_descriptor->set_parent_uuid(parent_uuid);
     }
-    track_descriptor->set_name(name);
+    if (is_name_static) {
+      track_descriptor->set_static_name(name);
+    } else {
+      track_descriptor->set_name(name);
+    }
   }
   return uuid;
 }
@@ -460,7 +466,8 @@ void InstanceOp(internal::DataSourceType* ds,
                  track)) {
     auto* named_track = std::get<const PerfettoTeHlExtraNamedTrack*>(track);
     track_uuid = EmitNamedTrack(named_track->parent_uuid, named_track->name,
-                                named_track->id, incr_state, trace_writer);
+                                named_track->id, named_track->is_name_static,
+                                incr_state, trace_writer);
   } else if (std::holds_alternative<const PerfettoTeHlExtraProtoTrack*>(
                  track)) {
     auto* proto_track = std::get<const PerfettoTeHlExtraProtoTrack*>(track);
@@ -482,7 +489,8 @@ void InstanceOp(internal::DataSourceType* ds,
           auto* named_track =
               reinterpret_cast<PerfettoTeHlNestedTrackNamed*>(*tp);
           uuid = EmitNamedTrack(uuid, named_track->name, named_track->id,
-                                incr_state, trace_writer);
+                                /*is_name_static_=*/false, incr_state,
+                                trace_writer);
         } break;
         case PERFETTO_TE_HL_NESTED_TRACK_TYPE_PROCESS: {
           uuid = perfetto_te_process_track_uuid;

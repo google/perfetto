@@ -132,6 +132,7 @@ struct PerfettoTeRegisteredTrackImpl {
   void* descriptor;  // Owned (malloc).
   size_t descriptor_size;
   uint64_t uuid;
+  bool is_name_static;
 };
 
 // The UUID of the process track for the current process.

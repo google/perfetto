@@ -716,6 +716,41 @@ impl TrackEventTrack {
 
     /// Register a named track.
     pub fn register_named_track(
+        name: &'static str,
+        id: u64,
+        parent_track_uuid: u64,
+    ) -> Result<Self, TrackEventError> {
+        let uuid = Self::named_track_uuid(name, id, parent_track_uuid);
+        let writer = PbMsgWriter::new();
+        let hb = HeapBuffer::new(&writer.writer);
+        let mut msg = PbMsg::new(&writer).unwrap();
+        {
+            let mut desc = TrackDescriptor { msg: &mut msg };
+            desc.set_uuid(uuid);
+            if parent_track_uuid != 0 {
+                desc.set_parent_uuid(parent_track_uuid);
+            }
+            desc.set_name(name);
+        }
+        msg.finalize();
+        let descriptor_size = writer.writer.get_written_size();
+        let mut descriptor: Vec<u8> = vec![0u8; descriptor_size];
+        hb.copy_into(&mut descriptor);
+        let descriptor_ptr = descriptor.as_mut_ptr() as *mut c_void;
+        let track = Self {
+            _descriptor: descriptor,
+            impl_: PerfettoTeRegisteredTrackImpl {
+                descriptor: descriptor_ptr,
+                descriptor_size,
+                uuid,
+                is_name_static: true,
+            },
+        };
+        Ok(track)
+    }
+
+    /// Register a named track.
+    pub fn register_named_track_with_dynamic_name(
         name: &str,
         id: u64,
         parent_track_uuid: u64,
@@ -743,6 +778,7 @@ impl TrackEventTrack {
                 descriptor: descriptor_ptr,
                 descriptor_size,
                 uuid,
+                is_name_static: false,
             },
         };
         Ok(track)
@@ -750,6 +786,43 @@ impl TrackEventTrack {
 
     /// Register a counter track.
     pub fn register_counter_track(
+        name: &'static str,
+        parent_track_uuid: u64,
+    ) -> Result<Self, TrackEventError> {
+        let uuid = Self::counter_track_uuid(name, parent_track_uuid);
+        let writer = PbMsgWriter::new();
+        let hb = HeapBuffer::new(&writer.writer);
+        let mut msg = PbMsg::new(&writer).unwrap();
+        {
+            let mut desc = TrackDescriptor { msg: &mut msg };
+            desc.set_uuid(uuid);
+            if parent_track_uuid != 0 {
+                desc.set_parent_uuid(parent_track_uuid);
+            }
+            desc.set_name(name);
+            desc.set_counter(|counter: &mut CounterDescriptor| {
+                counter.set_is_incremental(false);
+            });
+        }
+        msg.finalize();
+        let descriptor_size = writer.writer.get_written_size();
+        let mut descriptor: Vec<u8> = vec![0u8; descriptor_size];
+        hb.copy_into(&mut descriptor);
+        let descriptor_ptr = descriptor.as_mut_ptr() as *mut c_void;
+        let track = Self {
+            _descriptor: descriptor,
+            impl_: PerfettoTeRegisteredTrackImpl {
+                descriptor: descriptor_ptr,
+                descriptor_size,
+                uuid,
+                is_name_static: true,
+            },
+        };
+        Ok(track)
+    }
+
+    /// Register a counter track.
+    pub fn register_counter_track_with_dynamic_name(
         name: &str,
         parent_track_uuid: u64,
     ) -> Result<Self, TrackEventError> {
@@ -779,6 +852,7 @@ impl TrackEventTrack {
                 descriptor: descriptor_ptr,
                 descriptor_size,
                 uuid,
+                is_name_static: false,
             },
         };
         Ok(track)
@@ -1288,8 +1362,13 @@ impl EventContext {
         self
     }
 
-    /// Add named track.
-    pub fn set_named_track(&mut self, name: &str, id: u64, parent_uuid: u64) -> &mut Self {
+    /// Add named track with dynamic string.
+    pub fn set_named_track_with_dynamic_name(
+        &mut self,
+        name: &str,
+        id: u64,
+        parent_uuid: u64,
+    ) -> &mut Self {
         let cname = CString::new(name).unwrap();
         let track = PerfettoTeHlExtraNamedTrack {
             header: PerfettoTeHlExtra {
@@ -1298,7 +1377,27 @@ impl EventContext {
             name: cname.as_ptr(),
             id,
             parent_uuid,
+            is_name_static: false,
         };
+        self.extras.push(TeHlExtra::NamedTrack(track, cname));
+        self
+    }
+
+    /// Add a named track with static string.
+    pub fn set_named_track(&mut self, name: &'static str, id: u64, parent_uuid: u64) -> &mut Self {
+        let cname = CString::new(name).unwrap();
+
+        let track = PerfettoTeHlExtraNamedTrack {
+            header: PerfettoTeHlExtra {
+                type_: PerfettoTeHlExtraType_PERFETTO_TE_HL_EXTRA_TYPE_NAMED_TRACK,
+            },
+            // We cast the static str pointer directly to a C-style pointer
+            name: cname.as_ptr(),
+            id,
+            parent_uuid,
+            is_name_static: true,
+        };
+
         self.extras.push(TeHlExtra::NamedTrack(track, cname));
         self
     }

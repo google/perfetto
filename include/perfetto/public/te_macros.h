@@ -241,7 +241,7 @@ struct PerfettoTeHlMacroNameAndType {
 #define PERFETTO_TE_NAMED_TRACK(NAME, ID, PARENT_UUID) \
   PERFETTO_I_TE_EXTRA(                                 \
       PerfettoTeHlExtraNamedTrack,                     \
-      {{PERFETTO_TE_HL_EXTRA_TYPE_NAMED_TRACK}, NAME, ID, PARENT_UUID})
+      {{PERFETTO_TE_HL_EXTRA_TYPE_NAMED_TRACK}, NAME, ID, PARENT_UUID, false})
 
 // When PERFETTO_TE_DYNAMIC_CATEGORY is used, this is used to specify `const
 // char* S` as a category name.
