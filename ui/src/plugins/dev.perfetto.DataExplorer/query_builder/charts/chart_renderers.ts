@@ -45,6 +45,26 @@ import {EmptyState} from '../../../../widgets/empty_state';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {Engine} from '../../../../trace_processor/engine';
 import {isIntegerColumn, getNumericFormatter} from './chart_column_formatters';
+import {ChartAggregation} from '../../../../components/widgets/charts/chart_utils';
+
+/**
+ * Formats a human-readable measure label for chart axes.
+ */
+function formatMeasureLabel(
+  agg: ChartAggregation,
+  config: ChartConfig,
+): string {
+  switch (agg) {
+    case 'COUNT':
+      return 'Count';
+    case 'COUNT_DISTINCT':
+      // COUNT_DISTINCT uses config.column (not measureColumn) because
+      // it operates on the dimension column itself.
+      return `Count Distinct(${config.column})`;
+    default:
+      return `${agg}(${config.measureColumn ?? config.column})`;
+  }
+}
 
 /**
  * Per-chart loader state.
@@ -268,10 +288,7 @@ export function renderBarChart(
   const agg = config.aggregation ?? 'COUNT';
   const {data} = entry.barLoader.use({aggregation: agg, limit: 100});
 
-  const measureLabel =
-    agg === 'COUNT'
-      ? 'Count'
-      : `${agg}(${config.measureColumn ?? config.column})`;
+  const measureLabel = formatMeasureLabel(agg, config);
 
   const dimFormatter = getNumericFormatter(ctx.node, config.column);
   const formatDimension =
@@ -279,10 +296,10 @@ export function renderBarChart(
       ? (v: string | number) => (typeof v === 'number' ? dimFormatter(v) : v)
       : undefined;
 
-  const formatMeasure =
-    agg !== 'COUNT'
-      ? getNumericFormatter(ctx.node, config.measureColumn ?? config.column)
-      : undefined;
+  const needsMeasureFormatter = agg !== 'COUNT' && agg !== 'COUNT_DISTINCT';
+  const formatMeasure = needsMeasureFormatter
+    ? getNumericFormatter(ctx.node, config.measureColumn ?? config.column)
+    : undefined;
 
   return m(BarChart, {
     data,
@@ -397,7 +414,7 @@ export function renderPieChart(
   const {data} = entry.pieLoader.use({aggregation: agg, limit: 20});
 
   const formatValue =
-    agg !== 'COUNT'
+    agg !== 'COUNT' && agg !== 'COUNT_DISTINCT'
       ? getNumericFormatter(ctx.node, config.measureColumn ?? config.column)
       : undefined;
 

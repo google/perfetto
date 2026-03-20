@@ -14,13 +14,16 @@
 
 import {SqlValue} from '../../../trace_processor/query_result';
 
+type PercentileAggregation = 'P25' | 'P50' | 'P75' | 'P90' | 'P95' | 'P99';
+
 export type AggregateFunction =
   | 'ANY'
   | 'SUM'
   | 'AVG'
   | 'MIN'
   | 'MAX'
-  | 'COUNT_DISTINCT';
+  | 'COUNT_DISTINCT'
+  | PercentileAggregation;
 export type SortDirection = 'ASC' | 'DESC';
 export type GroupDisplay = 'flat' | 'tree';
 export const DEFAULT_GROUP_DISPLAY: GroupDisplay = 'flat';
