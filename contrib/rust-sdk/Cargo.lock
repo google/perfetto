@@ -364,7 +364,7 @@ dependencies = [
 
 [[package]]
 name = "perfetto-sdk-protos-gpu"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "paste",
  "perfetto-sdk",
