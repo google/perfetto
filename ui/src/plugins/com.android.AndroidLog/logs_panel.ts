@@ -325,6 +325,7 @@ interface LogTextWidgetAttrs {
 class LogTextWidget implements m.ClassComponent<LogTextWidgetAttrs> {
   view({attrs}: m.CVnode<LogTextWidgetAttrs>) {
     return m(TextInput, {
+      leftIcon: 'search',
       placeholder: 'Search logs...',
       onkeyup: (e: KeyboardEvent) => {
         // We want to use the value of the input field after it has been
@@ -338,7 +339,6 @@ class LogTextWidget implements m.ClassComponent<LogTextWidgetAttrs> {
 
 interface FilterByTextWidgetAttrs {
   readonly hideNonMatching: boolean;
-  readonly disabled: boolean;
   readonly onClick: () => void;
 }
 
@@ -350,8 +350,7 @@ class FilterByTextWidget implements m.ClassComponent<FilterByTextWidgetAttrs> {
       : 'Show only matching logs';
     return m(Button, {
       icon,
-      title: tooltip,
-      disabled: attrs.disabled,
+      tooltip,
       onclick: attrs.onClick,
     });
   }
@@ -380,6 +379,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
         },
       }),
       m(TagInput, {
+        leftIcon: 'label',
         placeholder: 'Filter by tag...',
         tags: attrs.store.state.tags,
         onTagAdd: (tag) => {
@@ -395,7 +395,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
       }),
       m(Button, {
         icon: 'regular_expression',
-        title: 'Use regular expression',
+        tooltip: 'Use regex',
         active: !!attrs.store.state.isTagRegex,
         onclick: () => {
           attrs.store.edit((draft) => {
@@ -418,7 +418,6 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
             draft.hideNonMatching = !draft.hideNonMatching;
           });
         },
-        disabled: attrs.store.state.textEntry === '',
       }),
       hasMachineIds && this.renderFilterPanel(attrs),
     ];

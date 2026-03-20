@@ -18,28 +18,37 @@
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
+  font-family: var(--pf-font-compact);
   font-size: inherit;
   outline: none; // Disable the default outline
-  border: none; // Disable the default border
-  background: var(--pf-color-void);
-  border-bottom: solid 1px var(--pf-color-border); // Thin underline
   border: solid 1px var(--pf-color-border-secondary);
   border-radius: $border-radius;
   padding: 2px 4px;
+  background: var(--pf-color-void);
+  transition:
+    border $anim-timing,
+    box-shadow $anim-timing,
+    background $anim-timing;
+  gap: 4px;
+
+  &__left-icon {
+    align-self: center;
+    line-height: inherit;
+    color: var(--pf-color-text-muted);
+  }
 
   input {
+    appearance: none;
     outline: none;
     border: none;
     background: none;
     font-family: inherit;
     font-size: inherit;
+    line-height: inherit;
     color: inherit;
     flex-grow: 1;
-  }
-
-  i {
-    cursor: pointer;
-    margin-left: 2px;
+    padding: 0;
+    margin: 0;
   }
 
   // The gentle hover effect indicates this component is interactive
