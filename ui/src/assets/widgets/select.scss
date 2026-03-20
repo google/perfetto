@@ -17,6 +17,7 @@
 // Select field styled to look similar to a text input with a thin underline.
 // Inspired by matherial design.
 .pf-select {
+  display: inline;
   font-family: var(--pf-font-compact);
   font-size: inherit;
   outline: none; // Disable the default outline
@@ -24,6 +25,7 @@
   background: var(--pf-color-void);
   color: inherit;
   border-radius: $border-radius;
+  padding: 2px;
   cursor: pointer;
 
   // Very opinionated min width for a select input
