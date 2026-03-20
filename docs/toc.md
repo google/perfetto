@@ -70,6 +70,7 @@
   - [Trace Visualization](#)
 
     - [Perfetto UI](visualization/perfetto-ui.md)
+    - [Data Explorer](visualization/data-explorer.md)
     - [Opening large traces](visualization/large-traces.md)
     - [Deep linking](visualization/deep-linking-to-perfetto-ui.md)
     - [Debug tracks](analysis/debug-tracks.md)
