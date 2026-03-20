@@ -52,6 +52,12 @@
     gap: 4px;
   }
 
+  &__row-count {
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
   &__groupby-column {
     background-color: color-mix(
       in srgb,

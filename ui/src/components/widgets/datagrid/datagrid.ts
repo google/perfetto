@@ -346,6 +346,13 @@ export interface DataGridAttrs {
    * Custom message to display in the empty state when there are no rows to show
    */
   readonly emptyStateMessage?: string;
+
+  /**
+   * When true, displays a row count indicator in the toolbar.
+   * Shows "X / Y rows" when filtered, "X rows" otherwise.
+   * Default = false.
+   */
+  readonly showRowCount?: boolean;
 }
 
 export interface DataGridApi {
@@ -459,6 +466,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       toolbarItemsLeft,
       toolbarItemsRight,
       showExportButton,
+      showRowCount,
       emptyStateMessage,
     } = attrs;
 
@@ -589,6 +597,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 ),
             }),
         ],
+        rowCount: showRowCount
+          ? {
+              filtered: rowsResult.totalRows,
+              total: rowsResult.unfilteredTotalRows,
+              isPending: rowsResult.isPending,
+            }
+          : undefined,
         filterChips: this.filters.map((filter, index) =>
           m(GridFilterChip, {
             content: this.formatFilter(filter, schema, rootSchema),

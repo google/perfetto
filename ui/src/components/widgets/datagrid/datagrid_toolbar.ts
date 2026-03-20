@@ -55,6 +55,13 @@ export interface DataGridToolbarAttrs {
   // Drill-down state - when set, shows "Back to pivot" and drill-down values
   readonly drillDownFields?: readonly DrillDownField[];
   readonly onExitDrillDown?: () => void;
+
+  // Row count display - shows "X rows" or "X / Y rows" when filtered.
+  readonly rowCount?: {
+    readonly filtered?: number;
+    readonly total?: number;
+    readonly isPending: boolean;
+  };
 }
 
 export class DataGridToolbar implements m.ClassComponent<DataGridToolbarAttrs> {
@@ -65,6 +72,7 @@ export class DataGridToolbar implements m.ClassComponent<DataGridToolbarAttrs> {
       filterChips,
       drillDownFields,
       onExitDrillDown,
+      rowCount,
     } = attrs;
 
     // Build drill-down indicator
@@ -87,9 +95,30 @@ export class DataGridToolbar implements m.ClassComponent<DataGridToolbarAttrs> {
         ),
       );
 
+    // Build the row count indicator
+    let rowCountIndicator: m.Children;
+    if (rowCount) {
+      if (rowCount.isPending && rowCount.filtered === undefined) {
+        rowCountIndicator = m('span.pf-data-grid__row-count', '\u2026 rows');
+      } else if (rowCount.filtered !== undefined) {
+        const isFiltered =
+          rowCount.total !== undefined && rowCount.filtered !== rowCount.total;
+        const text = isFiltered
+          ? `${rowCount.filtered.toLocaleString()} / ${rowCount.total!.toLocaleString()} rows`
+          : `${rowCount.filtered.toLocaleString()} rows`;
+        rowCountIndicator = m('span.pf-data-grid__row-count', text);
+      }
+    }
+
     // Don't render anything if toolbar is empty
     if (
-      isEmptyVnodes([leftItems, rightItems, filterChips, drillDownIndicator])
+      isEmptyVnodes([
+        leftItems,
+        rightItems,
+        filterChips,
+        drillDownIndicator,
+        rowCountIndicator,
+      ])
     ) {
       return undefined;
     }
@@ -121,6 +150,7 @@ export class DataGridToolbar implements m.ClassComponent<DataGridToolbarAttrs> {
             orientation: 'horizontal',
             spacing: 'small',
           },
+          rowCountIndicator,
           rightItems,
         ),
       ),

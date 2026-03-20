@@ -26,6 +26,7 @@ import {filterToSql, toAlias} from '../sql_utils';
 
 export class SQLDataSourceFlat {
   private readonly rowCountSlot: QuerySlot<number>;
+  private readonly unfilteredRowCountSlot: QuerySlot<number>;
   private readonly rowsSlot: QuerySlot<{
     readonly rows: readonly Row[];
     readonly rowOffset: number;
@@ -39,6 +40,7 @@ export class SQLDataSourceFlat {
     private readonly rootSchemaName: string,
   ) {
     this.rowCountSlot = new QuerySlot<number>(queue);
+    this.unfilteredRowCountSlot = new QuerySlot<number>(queue);
     this.rowsSlot = new QuerySlot<{
       readonly rows: readonly Row[];
       readonly rowOffset: number;
@@ -113,6 +115,29 @@ export class SQLDataSourceFlat {
       },
     });
 
+    // When filters are active, also compute the unfiltered total.
+    let unfilteredTotalRows: number | undefined;
+    let unfilteredPending = false;
+    if (filters.length > 0) {
+      const unfilteredResult = this.unfilteredRowCountSlot.use({
+        key: {columns},
+        queryFn: async () => {
+          const query = buildQuery(this.sqlSchema, this.rootSchemaName, {
+            mode: 'flat',
+            columns,
+          });
+          const result = await this.engine.query(
+            `SELECT COUNT(*) as count FROM (${query})`,
+          );
+          return result.firstRow({count: NUM}).count;
+        },
+      });
+      unfilteredTotalRows = unfilteredResult.data;
+      unfilteredPending = unfilteredResult.isPending;
+    } else {
+      unfilteredTotalRows = rowCountResult.data;
+    }
+
     const rowsResult = this.rowsSlot.use({
       key: {
         columns: model.columns,
@@ -129,12 +154,14 @@ export class SQLDataSourceFlat {
       },
     });
 
-    // Merge the two results into a single bundle
+    // Merge the results into a single bundle
     return {
       totalRows: rowCountResult.data,
+      unfilteredTotalRows,
       rowOffset: rowsResult.data?.rowOffset,
       rows: rowsResult.data?.rows,
-      isPending: rowCountResult.isPending || rowsResult.isPending,
+      isPending:
+        rowCountResult.isPending || rowsResult.isPending || unfilteredPending,
     };
   }
 
@@ -153,6 +180,7 @@ export class SQLDataSourceFlat {
 
   dispose(): void {
     this.rowCountSlot.dispose();
+    this.unfilteredRowCountSlot.dispose();
     this.rowsSlot.dispose();
     this.summariesSlot.dispose();
   }

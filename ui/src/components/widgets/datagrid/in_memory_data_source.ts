@@ -87,6 +87,7 @@ export class InMemoryDataSource implements DataSource {
       rowOffset: 0,
       rows: this.filteredSortedData,
       totalRows: this.filteredSortedData.length,
+      unfilteredTotalRows: this.data.length,
       isPending: false,
     };
   }
