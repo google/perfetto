@@ -251,7 +251,7 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
   {
     type: 'gpu_render_stage',
     topLevelGroup: 'GPU',
-    group: 'Render Stage',
+    group: 'Hardware Queues',
   },
   {
     type: 'vulkan_events',
