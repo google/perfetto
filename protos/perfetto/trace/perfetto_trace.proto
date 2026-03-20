@@ -14132,7 +14132,7 @@ message GpuLog {
 
 // Begin of protos/perfetto/trace/gpu/gpu_render_stage_event.proto
 
-// next id: 15
+// next id: 18
 message GpuRenderStageEvent {
   // required. Unique ID for the event.
   optional uint64 event_id = 1;
@@ -14196,6 +14196,11 @@ message GpuRenderStageEvent {
   // optional. The Vulkan command buffer handle.
   optional uint64 command_buffer_handle = 12;
 
+  // optional. Custom name for this render stage event. When set, this
+  // provides a name for the stage instead of using the name from the stage
+  // specification.
+  optional string name = 17;
+
   // DEPRECATED
 
   // Deprecated.  Use InternedGpuRenderStageSpecification instead.
@@ -14247,6 +14252,8 @@ message InternedGraphicsContext {
     OPEN_GL = 1;
     VULKAN = 2;
     OPEN_CL = 3;
+    CUDA = 4;
+    HIP = 5;
   }
   optional Api api = 3;
 }
