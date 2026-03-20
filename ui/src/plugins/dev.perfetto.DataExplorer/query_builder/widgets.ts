@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {Button, ButtonAttrs, ButtonVariant} from '../../../widgets/button';
-import {Card} from '../../../widgets/card';
 import {TextInput} from '../../../widgets/text_input';
 import {Icon} from '../../../widgets/icon';
 import {TextParagraph} from '../../../widgets/text_paragraph';
@@ -98,109 +97,6 @@ export class ResultsPanelEmptyState
 
 // Re-export multiselect types for convenience
 export type {MultiSelectOption, MultiSelectDiff};
-
-// Generic widget for a row with name input, validation, and remove button
-// Used by all "new column" types
-export interface ColumnNameRowAttrs {
-  label: string;
-  name: string;
-  placeholder?: string;
-  isValid: boolean;
-  onNameChange: (name: string) => void;
-  onRemove: () => void;
-}
-
-export class ColumnNameRow implements m.ClassComponent<ColumnNameRowAttrs> {
-  view({attrs}: m.Vnode<ColumnNameRowAttrs>) {
-    const {label, name, placeholder, isValid, onNameChange, onRemove} = attrs;
-
-    return m(
-      '.pf-exp-column-name-row',
-      m('label', label),
-      m(TextInput, {
-        oninput: (e: Event) => {
-          onNameChange((e.target as HTMLInputElement).value);
-        },
-        placeholder: placeholder ?? 'name',
-        value: name,
-      }),
-      !isValid && m(Icon, {icon: 'warning'}),
-      m(Button, {
-        icon: 'close',
-        compact: true,
-        onclick: onRemove,
-      }),
-    );
-  }
-}
-
-// Generic widget for a card with header and action buttons
-export interface CardWithHeaderAttrs {
-  title: string;
-  buttons?: m.Children;
-  children: m.Children;
-}
-
-export class CardWithHeader implements m.ClassComponent<CardWithHeaderAttrs> {
-  view({attrs}: m.Vnode<CardWithHeaderAttrs>) {
-    const {title, buttons, children} = attrs;
-
-    return m(
-      Card,
-      m(
-        '.pf-exp-card-header',
-        m('h2.pf-exp-card-header__title', title),
-        buttons,
-      ),
-      children,
-    );
-  }
-}
-
-// Generic button group widget
-export interface ButtonGroupAttrs {
-  buttons: Array<{
-    label: string;
-    onclick: () => void;
-    variant?: ButtonVariant;
-  }>;
-}
-
-export class ButtonGroup implements m.ClassComponent<ButtonGroupAttrs> {
-  view({attrs}: m.Vnode<ButtonGroupAttrs>) {
-    const {buttons} = attrs;
-
-    return m(
-      'div.pf-exp-button-group',
-      buttons.map((btn) =>
-        m(Button, {
-          label: btn.label,
-          variant: btn.variant ?? ButtonVariant.Outlined,
-          onclick: btn.onclick,
-        }),
-      ),
-    );
-  }
-}
-
-// Generic section with header widget
-export interface SectionAttrs {
-  title: string;
-  headerContent?: m.Children;
-  children: m.Children;
-}
-
-export class Section implements m.ClassComponent<SectionAttrs> {
-  view({attrs}: m.Vnode<SectionAttrs>) {
-    const {title, headerContent, children} = attrs;
-
-    return m(
-      '.pf-exp-section',
-      m('.pf-exp-section-header', m('h2', title), headerContent),
-      m('.pf-exp-section-content', children),
-    );
-  }
-}
 
 // Action button definition for ListItem
 export interface ListItemAction {
@@ -296,44 +192,6 @@ export class ListItem implements m.ClassComponent<ListItemAttrs> {
     }
 
     return buttons;
-  }
-}
-
-// Widget for a horizontal row of action buttons
-export interface ActionButtonsAttrs {
-  buttons: Array<{
-    label: string;
-    icon?: string;
-    onclick: () => void;
-    active?: boolean;
-  }>;
-}
-
-export class ActionButtons implements m.ClassComponent<ActionButtonsAttrs> {
-  view({attrs}: m.Vnode<ActionButtonsAttrs>) {
-    return m(
-      '.pf-exp-action-buttons',
-      attrs.buttons.map((btn) =>
-        m(Button, {
-          label: btn.active ? `${btn.label} ✓` : btn.label,
-          icon: btn.icon,
-          variant: ButtonVariant.Outlined,
-          onclick: btn.onclick,
-        }),
-      ),
-    );
-  }
-}
-
-// Widget for a labeled form row with input
-// The children are placed inside the label for proper accessibility
-export interface FormRowAttrs {
-  label: string;
-}
-
-export class FormRow implements m.ClassComponent<FormRowAttrs> {
-  view({attrs, children}: m.CVnode<FormRowAttrs>) {
-    return m('label.pf-exp-form-row', m('span', attrs.label), children);
   }
 }
 
@@ -480,30 +338,6 @@ export class AdvancedModeChangeButton
   }
 }
 
-// Widget for equal-width items with responsive stacking
-// Items are displayed inline with equal width when there's space,
-// and stack vertically when the container is too narrow
-export interface EqualWidthRowAttrs {
-  separator?: string; // Optional separator text between items
-}
-
-export class EqualWidthRow implements m.ClassComponent<EqualWidthRowAttrs> {
-  view({attrs, children}: m.CVnode<EqualWidthRowAttrs>) {
-    const items = Array.isArray(children) ? children : [children];
-    const {separator} = attrs;
-
-    return m(
-      '.pf-exp-equal-width-row',
-      items.map((item, index) => [
-        m('.pf-exp-equal-width-row__item', item),
-        separator && index < items.length - 1
-          ? m('.pf-exp-equal-width-row__separator', separator)
-          : null,
-      ]),
-    );
-  }
-}
-
 // Widget for displaying informational text in a styled box
 // Similar to the pattern used in timerange node for dynamic mode info
 export class InfoBox implements m.ClassComponent {
@@ -557,69 +391,6 @@ export function ModifiableItemList<T>(
     '.pf-modifiable-item-list',
     attrs.items.map((item, index) => attrs.renderItem(item, index)),
   );
-}
-
-/**
- * Row of action buttons with consistent styling
- * Used for "add item" controls at the top of modify views
- */
-export interface ActionButtonRowAttrs {
-  buttons: Array<{
-    label: string;
-    icon: string;
-    onclick: () => void;
-    variant?: ButtonVariant;
-    disabled?: boolean;
-  }>;
-}
-
-export function ActionButtonRow(attrs: ActionButtonRowAttrs): m.Child {
-  return m(
-    '.pf-exp-action-buttons',
-    attrs.buttons.map((btn) =>
-      m(Button, {
-        label: btn.label,
-        icon: btn.icon,
-        onclick: btn.onclick,
-        variant: btn.variant ?? ButtonVariant.Outlined,
-        disabled: btn.disabled,
-      }),
-    ),
-  );
-}
-
-/**
- * Creates a section with a title showing a count
- * Common pattern: "Items (X / Y selected)" or "Items (X)"
- */
-export interface CountedSectionTitleAttrs {
-  label: string;
-  count: number;
-  total?: number;
-}
-
-export function createCountedSectionTitle(
-  attrs: CountedSectionTitleAttrs,
-): string {
-  if (attrs.total !== undefined) {
-    return `${attrs.label} (${attrs.count} / ${attrs.total})`;
-  }
-  return `${attrs.label} (${attrs.count})`;
-}
-
-/**
- * Helper to create a standard "no items" message section
- */
-export function createEmptySection(
-  title: string,
-  icon?: string,
-): NodeModifySection {
-  return {
-    content: m(EmptyState, {
-      title,
-      icon,
-    }),
-  };
 }
 
 // Widget for inline filter editing form
@@ -937,36 +708,6 @@ export class InlineField implements m.ClassComponent<InlineFieldAttrs> {
           },
           errorMessage ?? 'Invalid value',
         ),
-    );
-  }
-}
-
-// Select/Deselect All buttons widget
-export interface SelectDeselectAllButtonsAttrs {
-  readonly onSelectAll: () => void;
-  readonly onDeselectAll: () => void;
-}
-
-export class SelectDeselectAllButtons
-  implements m.ClassComponent<SelectDeselectAllButtonsAttrs>
-{
-  view({attrs}: m.CVnode<SelectDeselectAllButtonsAttrs>): m.Children {
-    const {onSelectAll, onDeselectAll} = attrs;
-
-    return m(
-      '.pf-select-deselect-all-buttons',
-      m(Button, {
-        label: 'Select All',
-        onclick: onSelectAll,
-        variant: ButtonVariant.Outlined,
-        compact: true,
-      }),
-      m(Button, {
-        label: 'Deselect All',
-        onclick: onDeselectAll,
-        variant: ButtonVariant.Outlined,
-        compact: true,
-      }),
     );
   }
 }
