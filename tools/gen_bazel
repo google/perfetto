@@ -236,6 +236,9 @@ external_python_deps: Dict[str, List[str]] = {
 
 external_java_android_sdk_deps: Dict[str, List[str]] = {
     '//gn:android_test_common': ['PERFETTO_CONFIG.deps.android_test_common'],
+    '//gn:error_prone_annotations': [
+        'PERFETTO_CONFIG.deps.error_prone_annotations'
+    ],
 }
 
 # Map from GN targets to the list of Bazel deps labels

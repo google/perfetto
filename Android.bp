@@ -19220,6 +19220,9 @@ java_defaults {
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventExtra.java",
     ],
+    libs: [
+        "error_prone_annotations",
+    ],
     sdk_version: "module_current",
 }
 
