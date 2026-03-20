@@ -19,7 +19,6 @@ import {
   nextNodeId,
   NodeType,
 } from '../../query_node';
-import {Checkbox} from '../../../../widgets/checkbox';
 import {TextInput} from '../../../../widgets/text_input';
 import {
   ColumnInfo,
@@ -30,7 +29,7 @@ import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
 import protos from '../../../../protos';
 import {NodeIssues} from '../node_issues';
 import {StructuredQueryBuilder, ColumnSpec} from '../structured_query_builder';
-import {DraggableItem, SelectDeselectAllButtons} from '../widgets';
+import {ColumnSelector} from '../column_selector';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {
   NodeDetailsMessage,
@@ -294,30 +293,57 @@ export class ModifyColumnsNode implements QueryNode {
     const sections: NodeModifyAttrs['sections'] = [
       {
         title: `Select and Rename Columns (${selectedCount} / ${totalCount} selected)`,
-        content: m(
-          '.pf-modify-columns-content',
-          m(SelectDeselectAllButtons, {
-            onSelectAll: () => {
-              this.state.selectedColumns = this.state.selectedColumns.map(
-                (col) => ({
-                  ...col,
-                  checked: true,
-                }),
-              );
+        content: m(ColumnSelector, {
+          columns: this.state.selectedColumns,
+          onColumnsChange: (columns) => {
+            this.state.selectedColumns = columns;
+            this.state.onchange?.();
+          },
+          helpText:
+            'Check columns to include, add aliases to rename, and drag to reorder',
+          draggable: true,
+          renderExtra: (col, index) => {
+            const handleTypeChange = (
+              idx: number,
+              newType: PerfettoSqlType,
+            ) => {
+              const newSelectedColumns = [...this.state.selectedColumns];
+              newSelectedColumns[idx] = {
+                ...newSelectedColumns[idx],
+                column: {
+                  ...newSelectedColumns[idx].column,
+                  type: newType,
+                },
+                typeUserModified: true,
+              };
+              this.state.selectedColumns = newSelectedColumns;
               this.state.onchange?.();
-            },
-            onDeselectAll: () => {
-              this.state.selectedColumns = this.state.selectedColumns.map(
-                (col) => ({
-                  ...col,
-                  checked: false,
-                }),
-              );
-              this.state.onchange?.();
-            },
-          }),
-          this.renderColumnList(),
-        ),
+            };
+
+            return [
+              m(TextInput, {
+                oninput: (e: Event) => {
+                  const newSelectedColumns = [...this.state.selectedColumns];
+                  const inputValue = (e.target as HTMLInputElement).value;
+                  newSelectedColumns[index] = {
+                    ...newSelectedColumns[index],
+                    alias: inputValue.trim() === '' ? undefined : inputValue,
+                  };
+                  this.state.selectedColumns = newSelectedColumns;
+                  this.state.onchange?.();
+                },
+                placeholder: 'alias',
+                value: col.alias ? col.alias : '',
+              }),
+              renderTypeSelector(
+                col,
+                index,
+                this.state.sqlModules,
+                handleTypeChange,
+              ),
+            ];
+          },
+        }),
       },
     ];
 
@@ -325,88 +351,6 @@ export class ModifyColumnsNode implements QueryNode {
       info: 'Select which columns to include in the output and optionally rename them using aliases. Check columns to include, add aliases to rename, and drag to reorder.',
       sections,
     };
-  }
-
-  private renderColumnList(): m.Child {
-    return m(
-      '.pf-modify-columns-node',
-      m(
-        '.pf-column-list-container',
-        m(
-          '.pf-column-list-help',
-          'Check columns to include, add aliases to rename, and drag to reorder',
-        ),
-        m(
-          '.pf-column-list',
-          this.state.selectedColumns.map((col, index) =>
-            this.renderSelectedColumn(col, index),
-          ),
-        ),
-      ),
-    );
-  }
-
-  private renderSelectedColumn(col: ColumnInfo, index: number): m.Child {
-    const handleReorder = (from: number, to: number) => {
-      const newSelectedColumns = [...this.state.selectedColumns];
-      const [removed] = newSelectedColumns.splice(from, 1);
-      newSelectedColumns.splice(to, 0, removed);
-      this.state.selectedColumns = newSelectedColumns;
-      this.state.onchange?.();
-    };
-
-    const handleTypeChange = (index: number, newType: PerfettoSqlType) => {
-      const newSelectedColumns = [...this.state.selectedColumns];
-
-      newSelectedColumns[index] = {
-        ...newSelectedColumns[index],
-        column: {
-          ...newSelectedColumns[index].column,
-          type: newType,
-        },
-        // Mark as user-modified so it's preserved when upstream changes
-        typeUserModified: true,
-      };
-      this.state.selectedColumns = newSelectedColumns;
-      this.state.onchange?.();
-    };
-
-    return m(
-      DraggableItem,
-      {
-        index,
-        onReorder: handleReorder,
-      },
-      m(Checkbox, {
-        checked: col.checked,
-        label: col.column.name,
-        onchange: (e) => {
-          const newSelectedColumns = [...this.state.selectedColumns];
-          newSelectedColumns[index] = {
-            ...newSelectedColumns[index],
-            checked: (e.target as HTMLInputElement).checked,
-          };
-          this.state.selectedColumns = newSelectedColumns;
-          this.state.onchange?.();
-        },
-      }),
-      m(TextInput, {
-        oninput: (e: Event) => {
-          const newSelectedColumns = [...this.state.selectedColumns];
-          const inputValue = (e.target as HTMLInputElement).value;
-          newSelectedColumns[index] = {
-            ...newSelectedColumns[index],
-            // Normalize empty strings to undefined (no alias)
-            alias: inputValue.trim() === '' ? undefined : inputValue,
-          };
-          this.state.selectedColumns = newSelectedColumns;
-          this.state.onchange?.();
-        },
-        placeholder: 'alias',
-        value: col.alias ? col.alias : '',
-      }),
-      renderTypeSelector(col, index, this.state.sqlModules, handleTypeChange),
-    );
   }
 
   nodeInfo(): m.Children {

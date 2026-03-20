@@ -318,10 +318,11 @@ class StructuredQueryTestExecutor(TestExecutor):
       try:
         cmd = [
             self.trace_processor_path,
+            'query',
             '--analyze-trace-proto-content',
             '--crop-track-events',
             '--extra-checks',
-            '--structured-query-spec',
+            '--summary-spec',
             spec_file_path,
             '--structured-query-id',
             test.blueprint.query.query_id,

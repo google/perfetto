@@ -45,6 +45,20 @@ export function isIntegerAggregation(agg: ChartAggregation): boolean {
   return agg === 'COUNT' || agg === 'COUNT_DISTINCT';
 }
 
+/**
+ * Compute the p-th percentile of a numeric array using linear interpolation.
+ * Returns NaN for empty arrays.
+ */
+export function percentile(values: number[], p: number): number {
+  if (values.length === 0) return NaN;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = (p / 100) * (sorted.length - 1);
+  const lower = Math.floor(idx);
+  const upper = Math.ceil(idx);
+  if (lower === upper) return sorted[lower];
+  return sorted[lower] + (sorted[upper] - sorted[lower]) * (idx - lower);
+}
+
 // ---------------------------------------------------------------------------
 // SQL helpers shared across chart loaders
 // ---------------------------------------------------------------------------

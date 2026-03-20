@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/interactive.h"
@@ -65,6 +66,8 @@ std::vector<FlagSpec> MetricsSubcommand::GetFlags() {
        [this](const char* v) { raw_extensions_.emplace_back(v); }},
       StringFlag("post-query", '\0', "FILE", "SQL file after metrics.",
                  &post_query_path_),
+      StringFlag("perf-file", '\0', "FILE", "Write perf timing data to FILE.",
+                 &perf_file_),
       BoolFlag("interactive", 'i', "Start interactive shell after metrics.",
                &interactive_),
   };
@@ -97,7 +100,8 @@ base::Status MetricsSubcommand::Run(const SubcommandContext& ctx) {
     RETURN_IF_ERROR(LoadMetricExtension(tp.get(), extension, pool));
   }
 
-  RETURN_IF_ERROR(LoadTraceFile(tp.get(), ctx.platform, trace_file).status());
+  ASSIGN_OR_RETURN(auto t_load,
+                   LoadTraceFile(tp.get(), ctx.platform, trace_file));
 
   // Pre-metrics query.
   if (!pre_path_.empty()) {
@@ -115,11 +119,17 @@ base::Status MetricsSubcommand::Run(const SubcommandContext& ctx) {
     format = MetricV1OutputFormat::kJson;
   }
 
+  base::TimeNanos t_query_start = base::GetWallTimeNs();
   RETURN_IF_ERROR(RunMetrics(tp.get(), metrics, format));
 
   // Post-query.
   if (!post_query_path_.empty()) {
     RETURN_IF_ERROR(RunQueriesFromFile(tp.get(), post_query_path_, true));
+  }
+  base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
+
+  if (!perf_file_.empty()) {
+    RETURN_IF_ERROR(PrintPerfFile(perf_file_, t_load, t_query));
   }
 
   if (interactive_) {

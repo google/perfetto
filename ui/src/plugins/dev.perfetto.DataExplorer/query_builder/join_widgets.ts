@@ -14,11 +14,8 @@
 
 import m from 'mithril';
 import {ColumnInfo} from './column_info';
-import {
-  OutlinedField,
-  ResultsPanelEmptyState,
-  SelectDeselectAllButtons,
-} from './widgets';
+import {OutlinedField, ResultsPanelEmptyState} from './widgets';
+import {ColumnSelector} from './column_selector';
 import {classNames} from '../../../base/classnames';
 import {Card} from '../../../widgets/card';
 import {Checkbox} from '../../../widgets/checkbox';
@@ -279,64 +276,45 @@ export interface JoinColumnSelectorAttrs {
   rightAlias: string;
   leftColumns: ColumnInfo[];
   rightColumns: ColumnInfo[];
-  onLeftColumnToggle: (index: number, checked: boolean) => void;
-  onRightColumnToggle: (index: number, checked: boolean) => void;
-  onLeftColumnAlias: (index: number, alias: string) => void;
-  onRightColumnAlias: (index: number, alias: string) => void;
-  onSelectAllLeft: () => void;
-  onDeselectAllLeft: () => void;
-  onSelectAllRight: () => void;
-  onDeselectAllRight: () => void;
+  onLeftColumnsChange: (columns: ColumnInfo[]) => void;
+  onRightColumnsChange: (columns: ColumnInfo[]) => void;
 }
 
 export class JoinColumnSelector
   implements m.ClassComponent<JoinColumnSelectorAttrs>
 {
-  private renderColumnRow(
-    col: ColumnInfo,
-    index: number,
-    onToggle: (index: number, checked: boolean) => void,
-    onAlias: (index: number, alias: string) => void,
-  ): m.Child {
-    return m(
-      '.pf-join-column-row',
-      m(Checkbox, {
-        checked: col.checked,
-        label: col.column.name,
-        onchange: (e) => {
-          onToggle(index, (e.target as HTMLInputElement).checked);
-        },
-      }),
-      m(TextInput, {
-        oninput: (e: Event) => {
-          const inputValue = (e.target as HTMLInputElement).value;
-          // Normalize empty strings to undefined (no alias)
-          onAlias(index, inputValue.trim() === '' ? '' : inputValue);
-        },
-        placeholder: 'alias',
-        value: col.alias ?? '',
-      }),
-    );
-  }
-
   view({attrs}: m.Vnode<JoinColumnSelectorAttrs>) {
     const {
       leftAlias,
       rightAlias,
       leftColumns,
       rightColumns,
-      onLeftColumnToggle,
-      onRightColumnToggle,
-      onLeftColumnAlias,
-      onRightColumnAlias,
-      onSelectAllLeft,
-      onDeselectAllLeft,
-      onSelectAllRight,
-      onDeselectAllRight,
+      onLeftColumnsChange,
+      onRightColumnsChange,
     } = attrs;
 
     const leftSelectedCount = leftColumns.filter((c) => c.checked).length;
     const rightSelectedCount = rightColumns.filter((c) => c.checked).length;
+
+    const renderAliasInput = (
+      col: ColumnInfo,
+      index: number,
+      columns: ColumnInfo[],
+      onColumnsChange: (columns: ColumnInfo[]) => void,
+    ) =>
+      m(TextInput, {
+        oninput: (e: Event) => {
+          const inputValue = (e.target as HTMLInputElement).value;
+          const newColumns = [...columns];
+          newColumns[index] = {
+            ...newColumns[index],
+            alias: inputValue.trim() === '' ? undefined : inputValue,
+          };
+          onColumnsChange(newColumns);
+        },
+        placeholder: 'alias',
+        value: col.alias ?? '',
+      });
 
     return m('.pf-join-column-selector', [
       // Left columns section
@@ -347,27 +325,17 @@ export class JoinColumnSelector
             'h4',
             `${leftAlias} (${leftSelectedCount} / ${leftColumns.length} selected)`,
           ),
-          m(SelectDeselectAllButtons, {
-            onSelectAll: onSelectAllLeft,
-            onDeselectAll: onDeselectAllLeft,
+        ),
+        m(ColumnSelector, {
+          columns: leftColumns,
+          onColumnsChange: onLeftColumnsChange,
+          renderExtra: (col, index) =>
+            renderAliasInput(col, index, leftColumns, onLeftColumnsChange),
+          emptyState: m(ResultsPanelEmptyState, {
+            icon: 'cable',
+            title: 'Connect left source',
           }),
-        ),
-        m(
-          '.pf-join-column-list',
-          leftColumns.length === 0
-            ? m(ResultsPanelEmptyState, {
-                icon: 'cable',
-                title: 'Connect left source',
-              })
-            : leftColumns.map((col, i) =>
-                this.renderColumnRow(
-                  col,
-                  i,
-                  onLeftColumnToggle,
-                  onLeftColumnAlias,
-                ),
-              ),
-        ),
+        }),
       ]),
       // Right columns section
       m('.pf-join-column-section', [
@@ -377,27 +345,17 @@ export class JoinColumnSelector
             'h4',
             `${rightAlias} (${rightSelectedCount} / ${rightColumns.length} selected)`,
           ),
-          m(SelectDeselectAllButtons, {
-            onSelectAll: onSelectAllRight,
-            onDeselectAll: onDeselectAllRight,
+        ),
+        m(ColumnSelector, {
+          columns: rightColumns,
+          onColumnsChange: onRightColumnsChange,
+          renderExtra: (col, index) =>
+            renderAliasInput(col, index, rightColumns, onRightColumnsChange),
+          emptyState: m(ResultsPanelEmptyState, {
+            icon: 'cable',
+            title: 'Connect right source',
           }),
-        ),
-        m(
-          '.pf-join-column-list',
-          rightColumns.length === 0
-            ? m(ResultsPanelEmptyState, {
-                icon: 'cable',
-                title: 'Connect right source',
-              })
-            : rightColumns.map((col, i) =>
-                this.renderColumnRow(
-                  col,
-                  i,
-                  onRightColumnToggle,
-                  onRightColumnAlias,
-                ),
-              ),
-        ),
+        }),
       ]),
     ]);
   }
