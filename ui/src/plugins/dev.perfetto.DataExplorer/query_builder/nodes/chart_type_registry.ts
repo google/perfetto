@@ -78,6 +78,9 @@ export interface ChartTypeDefinition {
    * Example: Scatter plot bubble size.
    */
   readonly supportsSizeColumn: boolean;
+
+  /** Short description shown on hover in the chart type picker. */
+  readonly description: string;
 }
 
 /**
@@ -98,6 +101,7 @@ export const CHART_TYPES: readonly ChartTypeDefinition[] = [
     supportsYColumn: false,
     supportsGroupColumn: false,
     supportsSizeColumn: false,
+    description: 'Compare categories using vertical or horizontal bars',
   },
   {
     type: 'histogram',
@@ -110,6 +114,7 @@ export const CHART_TYPES: readonly ChartTypeDefinition[] = [
     supportsYColumn: false,
     supportsGroupColumn: false,
     supportsSizeColumn: false,
+    description: 'Show distribution of numeric values across bins',
   },
   {
     type: 'line',
@@ -122,6 +127,7 @@ export const CHART_TYPES: readonly ChartTypeDefinition[] = [
     supportsYColumn: true,
     supportsGroupColumn: true,
     supportsSizeColumn: false,
+    description: 'Plot trends with connected data points over a numeric axis',
   },
   {
     type: 'scatter',
@@ -134,6 +140,7 @@ export const CHART_TYPES: readonly ChartTypeDefinition[] = [
     supportsYColumn: true,
     supportsGroupColumn: true,
     supportsSizeColumn: true,
+    description: 'Reveal correlations between two numeric variables',
   },
   {
     type: 'pie',
@@ -146,6 +153,7 @@ export const CHART_TYPES: readonly ChartTypeDefinition[] = [
     supportsYColumn: false,
     supportsGroupColumn: false,
     supportsSizeColumn: false,
+    description: 'Show proportions of a whole as slices',
   },
   {
     type: 'treemap',
@@ -158,6 +166,7 @@ export const CHART_TYPES: readonly ChartTypeDefinition[] = [
     supportsYColumn: false,
     supportsGroupColumn: true,
     supportsSizeColumn: false,
+    description: 'Display hierarchical data as nested rectangles by size',
   },
   {
     type: 'boxplot',
@@ -170,6 +179,7 @@ export const CHART_TYPES: readonly ChartTypeDefinition[] = [
     supportsYColumn: true,
     supportsGroupColumn: false,
     supportsSizeColumn: false,
+    description: 'Summarize data spread with quartiles and outliers',
   },
   {
     type: 'heatmap',
@@ -182,6 +192,7 @@ export const CHART_TYPES: readonly ChartTypeDefinition[] = [
     supportsYColumn: true,
     supportsGroupColumn: false,
     supportsSizeColumn: false,
+    description: 'Visualize magnitude across two dimensions using color',
   },
   {
     type: 'cdf',
@@ -194,6 +205,21 @@ export const CHART_TYPES: readonly ChartTypeDefinition[] = [
     supportsYColumn: false,
     supportsGroupColumn: true,
     supportsSizeColumn: false,
+    description:
+      'Cumulative distribution — proportion of values below a threshold',
+  },
+  {
+    type: 'scorecard',
+    label: 'Scorecard',
+    icon: 'numbers',
+    supportsAggregation: true,
+    supportsBinning: false,
+    requiresNumericDimension: false,
+    primaryColumnLabel: 'Column',
+    supportsYColumn: false,
+    supportsGroupColumn: false,
+    supportsSizeColumn: false,
+    description: 'Display a single aggregated number prominently',
   },
 ] as const;
 

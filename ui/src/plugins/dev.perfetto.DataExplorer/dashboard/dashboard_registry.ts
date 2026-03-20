@@ -33,42 +33,6 @@ export interface DashboardDataSource {
   requestExecution?: () => Promise<void>;
 }
 
-/** A data source enriched with its owning graph tab's display name. */
-export type DashboardSourceWithName = DashboardDataSource & {
-  graphName: string;
-};
-
-/**
- * Build a display label for a data source, optionally appending the graph name.
- *
- * When `forceNamespace` is true (sidebar), the graph name is shown whenever
- * the available sources span more than one graph.
- *
- * When `forceNamespace` is false (chart labels), the graph name is shown only
- * when the charts currently in use pull from more than one graph.
- */
-export function sourceDisplayName(
-  source: DashboardSourceWithName,
-  items: ReadonlyArray<DashboardItem>,
-  sources: ReadonlyArray<DashboardSourceWithName>,
-  forceNamespace = false,
-): string {
-  let candidates: ReadonlyArray<DashboardSourceWithName>;
-  if (forceNamespace) {
-    candidates = sources;
-  } else {
-    const usedNodeIds = new Set(
-      items.filter((i) => i.kind === 'chart').map((i) => i.sourceNodeId),
-    );
-    candidates = sources.filter((s) => usedNodeIds.has(s.nodeId));
-  }
-  const graphs = new Set(candidates.map((s) => s.graphId));
-  if (graphs.size > 1) {
-    return `${source.name} · ${source.graphName}`;
-  }
-  return source.name;
-}
-
 /** A single chart on a dashboard, linked to its data source. */
 export interface DashboardChart {
   readonly sourceNodeId: string;
@@ -89,14 +53,93 @@ export interface DashboardLabel {
   y?: number;
 }
 
-/** A dashboard canvas item — either a chart or a label. */
+/**
+ * A horizontal divider that splits the dashboard into segments.
+ * Charts above a divider are "drivers" — they show brush selections visually
+ * but do NOT filter their own data. Charts below a divider are "consumers" —
+ * they get filtered by brush selections from driver charts above.
+ */
+export interface DashboardDivider {
+  readonly id: string;
+  /** Y position of the divider line (snapped to grid). */
+  y: number;
+  /** Optional label displayed on the divider. */
+  label?: string;
+}
+
+/** A dashboard canvas item — a chart, label, or segment divider. */
 export type DashboardItem =
   | ({readonly kind: 'chart'} & DashboardChart)
-  | ({readonly kind: 'label'} & DashboardLabel);
+  | ({readonly kind: 'label'} & DashboardLabel)
+  | ({readonly kind: 'divider'} & DashboardDivider);
 
 /** Get the unique ID for a dashboard item. */
 export function getItemId(item: DashboardItem): string {
-  return item.kind === 'chart' ? item.config.id : item.id;
+  if (item.kind === 'chart') return item.config.id;
+  return item.id;
+}
+
+/**
+ * Return all chart items that drive `target` — i.e. charts whose brush
+ * selections filter `target`'s SQL query.
+ *
+ * Chart X drives chart Y when there exists a divider D with X.y < D.y and
+ * D.y <= Y.y.
+ */
+export function getDriversOf(
+  target: DashboardItem,
+  allItems: ReadonlyArray<DashboardItem>,
+): DashboardItem[] {
+  if (target.kind !== 'chart') return [];
+  const targetY = target.y ?? 0;
+  const dividerYs: number[] = [];
+  for (const i of allItems) {
+    if (i.kind === 'divider' && i.y <= targetY) {
+      dividerYs.push(i.y);
+    }
+  }
+  if (dividerYs.length === 0) return [];
+  return allItems.filter((candidate) => {
+    if (candidate.kind !== 'chart') return false;
+    const cY = candidate.y ?? 0;
+    return dividerYs.some((dy) => cY < dy);
+  });
+}
+
+/**
+ * Return all chart items that `source` drives — i.e. charts whose SQL
+ * queries are filtered by `source`'s brush selections.
+ */
+export function getConsumersOf(
+  source: DashboardItem,
+  allItems: ReadonlyArray<DashboardItem>,
+): DashboardItem[] {
+  if (source.kind !== 'chart') return [];
+  const sourceY = source.y ?? 0;
+  const dividerYs: number[] = [];
+  for (const i of allItems) {
+    if (i.kind === 'divider' && i.y > sourceY) {
+      dividerYs.push(i.y);
+    }
+  }
+  if (dividerYs.length === 0) return [];
+  return allItems.filter((candidate) => {
+    if (candidate.kind !== 'chart') return false;
+    const cY = candidate.y ?? 0;
+    return dividerYs.some((dy) => dy <= cY);
+  });
+}
+
+/**
+ * A chart is a "driver" if it has consumers — i.e. there is a divider below
+ * it. Driver charts show brush selection overlays but do NOT apply brush
+ * filters to their own SQL queries.
+ */
+export function isDriverChart(
+  item: DashboardItem,
+  allItems: ReadonlyArray<DashboardItem>,
+): boolean {
+  return getConsumersOf(item, allItems).length > 0;
 }
 
 /** A brush filter applied by interacting with a dashboard chart. */
@@ -138,12 +181,36 @@ class ExportedSourcesPool {
     return [...this.sources.values()];
   }
 
+  /** Get exported sources belonging to a specific graph tab. */
+  getExportedSourcesForGraph(
+    graphId: string,
+  ): ReadonlyArray<DashboardDataSource> {
+    return [...this.sources.values()].filter((s) => s.graphId === graphId);
+  }
+
   clear(): void {
     this.sources.clear();
   }
 }
 
 export const dashboardRegistry = new ExportedSourcesPool();
+
+/**
+ * Returns the nodeIds of all sources that have a column named `column`,
+ * including `sourceNodeId` itself.
+ */
+export function getLinkedSourceNodeIds(
+  sources: ReadonlyArray<Pick<DashboardDataSource, 'nodeId' | 'columns'>>,
+  sourceNodeId: string,
+  column: string,
+): string[] {
+  return sources
+    .filter(
+      (s) =>
+        s.nodeId === sourceNodeId || s.columns.some((c) => c.name === column),
+    )
+    .map((s) => s.nodeId);
+}
 
 const GRID_SIZE = 20;
 
@@ -160,38 +227,14 @@ export function getNextItemPosition(items: ReadonlyArray<DashboardItem>): {
 }
 
 /**
- * Serialized dashboard data for persistence (localStorage / permalinks).
+ * Convert dashboard items to a serializable array, or undefined if empty.
  */
-export interface SerializedDashboardData {
-  dashboardId?: string;
-  dashboardItems?: unknown[];
-  brushFilters?: Record<string, unknown[]>;
-}
-
-/**
- * Collect dashboard-related data for a tab into a serializable form.
- * Shared between localStorage persistence and permalink persistence.
- */
-export function serializeDashboardData(
-  dashboardId: string | undefined,
+export function serializeDashboardItems(
   items?: DashboardItem[],
-  brushFiltersMap?: Map<string, DashboardBrushFilter[]>,
-): SerializedDashboardData {
-  if (dashboardId === undefined) return {};
-  const dashboardItems =
-    items !== undefined && items.length > 0 ? (items as unknown[]) : undefined;
-  // Convert brush filters map to a plain record, bigint → number.
-  let brushFilters: Record<string, unknown[]> | undefined;
-  if (brushFiltersMap !== undefined && brushFiltersMap.size > 0) {
-    const raw: Record<string, DashboardBrushFilter[]> = {};
-    for (const [sourceNodeId, filters] of brushFiltersMap) {
-      raw[sourceNodeId] = filters;
-    }
-    brushFilters = JSON.parse(
-      JSON.stringify(raw, (_k, v) => (typeof v === 'bigint' ? Number(v) : v)),
-    );
-  }
-  return {dashboardId, dashboardItems, brushFilters};
+): unknown[] | undefined {
+  return items !== undefined && items.length > 0
+    ? (items as unknown[])
+    : undefined;
 }
 
 /**
@@ -225,6 +268,9 @@ export function validateDashboardItems(
       validated.push(item as DashboardItem);
     } else if (obj.kind === 'label') {
       if (typeof obj.id !== 'string' || typeof obj.text !== 'string') continue;
+      validated.push(item as DashboardItem);
+    } else if (obj.kind === 'divider') {
+      if (typeof obj.id !== 'string' || typeof obj.y !== 'number') continue;
       validated.push(item as DashboardItem);
     }
   }

@@ -13,7 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ChartConfig, ChartType} from '../nodes/visualisation_node';
+import {
+  ChartConfig,
+  ChartType,
+  getDefaultChartLabel,
+} from '../nodes/visualisation_node';
 import {ColumnInfo} from '../column_info';
 import {BarChart} from '../../../../components/widgets/charts/bar_chart';
 import {Histogram} from '../../../../components/widgets/charts/histogram';
@@ -35,10 +39,32 @@ import {SQLTreemapLoader} from '../../../../components/widgets/charts/treemap_lo
 import {SQLBoxplotLoader} from '../../../../components/widgets/charts/boxplot_loader';
 import {SQLHeatmapLoader} from '../../../../components/widgets/charts/heatmap_loader';
 import {SQLCdfLoader} from '../../../../components/widgets/charts/cdf_loader';
+import {SQLSingleValueLoader} from '../../../../components/widgets/charts/single_value_loader';
+import {Scorecard} from '../../../../components/widgets/charts/scorecard';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {Engine} from '../../../../trace_processor/engine';
 import {isIntegerColumn, getNumericFormatter} from './chart_column_formatters';
+import {ChartAggregation} from '../../../../components/widgets/charts/chart_utils';
+
+/**
+ * Formats a human-readable measure label for chart axes.
+ */
+function formatMeasureLabel(
+  agg: ChartAggregation,
+  config: ChartConfig,
+): string {
+  switch (agg) {
+    case 'COUNT':
+      return 'Count';
+    case 'COUNT_DISTINCT':
+      // COUNT_DISTINCT uses config.column (not measureColumn) because
+      // it operates on the dimension column itself.
+      return `Count Distinct(${config.column})`;
+    default:
+      return `${agg}(${config.measureColumn ?? config.column})`;
+  }
+}
 
 /**
  * Per-chart loader state.
@@ -57,6 +83,7 @@ export interface ChartLoaderEntry {
   boxplotLoader?: SQLBoxplotLoader;
   heatmapLoader?: SQLHeatmapLoader;
   cdfLoader?: SQLCdfLoader;
+  singleValueLoader?: SQLSingleValueLoader;
 }
 
 /**
@@ -96,6 +123,7 @@ export function disposeChartLoaders(entry: ChartLoaderEntry): void {
   entry.boxplotLoader?.dispose();
   entry.heatmapLoader?.dispose();
   entry.cdfLoader?.dispose();
+  entry.singleValueLoader?.dispose();
 }
 
 /** Build a stable cache key for a chart loader entry. */
@@ -208,6 +236,13 @@ export function createChartLoaders(
         seriesColumn: config.groupColumn,
       });
       break;
+    case 'scorecard':
+      entry.singleValueLoader = new SQLSingleValueLoader({
+        engine,
+        query,
+        measureColumn: config.measureColumn ?? config.column,
+      });
+      break;
   }
 }
 
@@ -236,6 +271,8 @@ export function renderChartByType(
       return renderHeatmap(ctx, config, entry);
     case 'cdf':
       return renderCdf(ctx, config, entry);
+    case 'scorecard':
+      return renderScorecard(ctx, config, entry);
   }
 }
 
@@ -251,10 +288,7 @@ export function renderBarChart(
   const agg = config.aggregation ?? 'COUNT';
   const {data} = entry.barLoader.use({aggregation: agg, limit: 100});
 
-  const measureLabel =
-    agg === 'COUNT'
-      ? 'Count'
-      : `${agg}(${config.measureColumn ?? config.column})`;
+  const measureLabel = formatMeasureLabel(agg, config);
 
   const dimFormatter = getNumericFormatter(ctx.node, config.column);
   const formatDimension =
@@ -262,10 +296,10 @@ export function renderBarChart(
       ? (v: string | number) => (typeof v === 'number' ? dimFormatter(v) : v)
       : undefined;
 
-  const formatMeasure =
-    agg !== 'COUNT'
-      ? getNumericFormatter(ctx.node, config.measureColumn ?? config.column)
-      : undefined;
+  const needsMeasureFormatter = agg !== 'COUNT' && agg !== 'COUNT_DISTINCT';
+  const formatMeasure = needsMeasureFormatter
+    ? getNumericFormatter(ctx.node, config.measureColumn ?? config.column)
+    : undefined;
 
   return m(BarChart, {
     data,
@@ -380,7 +414,7 @@ export function renderPieChart(
   const {data} = entry.pieLoader.use({aggregation: agg, limit: 20});
 
   const formatValue =
-    agg !== 'COUNT'
+    agg !== 'COUNT' && agg !== 'COUNT_DISTINCT'
       ? getNumericFormatter(ctx.node, config.measureColumn ?? config.column)
       : undefined;
 
@@ -505,6 +539,32 @@ export function renderCdf(
     formatXValue,
     onBrush: (range) =>
       handleHistogramBrush(ctx, config, range.start, range.end),
+  });
+}
+
+export function renderScorecard(
+  ctx: ChartRenderContext,
+  config: ChartConfig,
+  entry: ChartLoaderEntry,
+): m.Child {
+  if (!entry.singleValueLoader) {
+    return m(EmptyState, {icon: 'numbers', title: 'No data to display'});
+  }
+
+  const agg = config.aggregation ?? 'COUNT_DISTINCT';
+  const {data, isPending} = entry.singleValueLoader.use({aggregation: agg});
+
+  const formatValue = getNumericFormatter(
+    ctx.node,
+    config.measureColumn ?? config.column,
+  );
+
+  return m(Scorecard, {
+    label: getDefaultChartLabel(config),
+    value: data?.value,
+    isPending,
+    fillParent: true,
+    formatValue,
   });
 }
 

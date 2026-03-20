@@ -36,14 +36,15 @@ import {
   dataExplorerTabsStorage,
   createNewTabName,
   createEmptyState,
+  serializeAllDashboards,
+  deserializeDashboardsForTab,
 } from './data_explorer_tabs_storage';
-import {
-  dashboardRegistry,
-  parseBrushFilters,
-  serializeDashboardData,
-  validateDashboardItems,
-} from './dashboard/dashboard_registry';
-import type {PersistedDataExplorerTabData} from './data_explorer_tabs_storage';
+import {dashboardRegistry} from './dashboard/dashboard_registry';
+import type {DashboardTabState} from './data_explorer';
+import type {
+  PersistedDataExplorerTabData,
+  PersistedDashboardData,
+} from './data_explorer_tabs_storage';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 
 // --- Permalink persistence ---
@@ -55,6 +56,8 @@ interface DataExplorerPersistedState {
   // Multi-tab format (version 2+)
   tabs?: PersistedDataExplorerTabData[];
   activeTabId?: string;
+  // Flat list of dashboards, each referencing its parent graph tab.
+  dashboards?: PersistedDashboardData[];
   // Old single-graph format (version 1) - kept for backward compat
   graphJson?: string;
 }
@@ -112,6 +115,13 @@ export default class implements PerfettoPlugin {
       id: shortUuid(),
       title: title ?? createNewTabName(this.tabs),
       state: createEmptyState(),
+      dashboards: [
+        {
+          id: shortUuid(),
+          items: [],
+          brushFilters: new Map(),
+        },
+      ],
     };
   }
 
@@ -133,20 +143,6 @@ export default class implements PerfettoPlugin {
     const newTab = this.createNewTab();
     this.tabs.push(newTab);
     this.activeTabId = newTab.id;
-    this.debouncedSave();
-    m.redraw();
-  };
-
-  private handleDashboardTabAdd = (): void => {
-    const dashboardId = shortUuid();
-    const tab: DataExplorerTab = {
-      id: shortUuid(),
-      title: createNewTabName(this.tabs, 'Dashboard'),
-      state: createEmptyState(),
-      dashboardId,
-    };
-    this.tabs.push(tab);
-    this.activeTabId = tab.id;
     this.debouncedSave();
     m.redraw();
   };
@@ -217,11 +213,19 @@ export default class implements PerfettoPlugin {
     title: string,
     state: DataExplorerState,
     afterTabId: string,
+    dashboards?: DashboardTabState[],
   ): void => {
     const newTab: DataExplorerTab = {
       id: shortUuid(),
       title,
       state,
+      dashboards: dashboards ?? [
+        {
+          id: shortUuid(),
+          items: [],
+          brushFilters: new Map(),
+        },
+      ],
     };
 
     const afterIndex = this.tabs.findIndex((t) => t.id === afterTabId);
@@ -287,32 +291,27 @@ export default class implements PerfettoPlugin {
   private saveToPermalinkStore(): void {
     if (!this.permalinkStore) return;
 
+    const hasDashboardContent = (tab: DataExplorerTab): boolean =>
+      tab.dashboards.some((db) => db.items.length > 0);
+
     const tabsData: PersistedDataExplorerTabData[] = this.tabs
       .filter(
-        (tab) =>
-          tab.state.rootNodes.length > 0 || tab.dashboardId !== undefined,
+        (tab) => tab.state.rootNodes.length > 0 || hasDashboardContent(tab),
       )
-      .map((tab) => {
-        const dbData = serializeDashboardData(
-          tab.dashboardId,
-          tab.dashboardItems,
-          tab.dashboardBrushFilters,
-        );
-        return {
-          id: tab.id,
-          title: tab.title,
-          graphJson:
-            tab.state.rootNodes.length > 0
-              ? serializeState(tab.state)
-              : undefined,
-          ...dbData,
-        };
-      });
+      .map((tab) => ({
+        id: tab.id,
+        title: tab.title,
+        graphJson:
+          tab.state.rootNodes.length > 0
+            ? serializeState(tab.state)
+            : undefined,
+      }));
 
     this.permalinkStore.edit((draft) => {
       draft.version = STORE_VERSION;
       draft.tabs = tabsData.length > 0 ? tabsData : undefined;
       draft.activeTabId = this.activeTabId;
+      draft.dashboards = serializeAllDashboards(this.tabs);
       // Clear deprecated single-graph field
       draft.graphJson = undefined;
     });
@@ -322,16 +321,10 @@ export default class implements PerfettoPlugin {
 
   /** Hydrate tabs from persisted tab data, returning the list of loaded tabs. */
   private hydrateTabs(
-    tabsData: ReadonlyArray<{
-      id: string;
-      title: string;
-      graphJson?: string;
-      dashboardId?: string;
-      dashboardItems?: unknown[];
-      brushFilters?: Record<string, unknown[]>;
-    }>,
+    tabsData: ReadonlyArray<PersistedDataExplorerTabData>,
     trace: Trace,
     sqlModules: SqlModules,
+    allDashboards?: ReadonlyArray<PersistedDashboardData>,
   ): DataExplorerTab[] {
     return tabsData.map((tabData) => {
       const state =
@@ -349,20 +342,15 @@ export default class implements PerfettoPlugin {
         }
       }
 
+      const deserialized = deserializeDashboardsForTab(
+        tabData.id,
+        allDashboards,
+      );
       return {
         id: tabData.id,
         title: tabData.title,
         state,
-        dashboardId: tabData.dashboardId,
-        dashboardItems:
-          tabData.dashboardId !== undefined
-            ? validateDashboardItems(tabData.dashboardItems)
-            : undefined,
-        dashboardBrushFilters:
-          tabData.dashboardId !== undefined &&
-          tabData.brushFilters !== undefined
-            ? parseBrushFilters(tabData.brushFilters)
-            : undefined,
+        dashboards: deserialized,
       };
     });
   }
@@ -399,7 +387,12 @@ export default class implements PerfettoPlugin {
       // Try multi-tab format first (version 2+)
       if (permalinkState.tabs !== undefined && permalinkState.tabs.length > 0) {
         try {
-          this.tabs = this.hydrateTabs(permalinkState.tabs, trace, sqlModules);
+          this.tabs = this.hydrateTabs(
+            permalinkState.tabs,
+            trace,
+            sqlModules,
+            permalinkState.dashboards,
+          );
           this.activeTabId =
             permalinkState.activeTabId !== undefined &&
             this.tabs.some((t) => t.id === permalinkState.activeTabId)
@@ -441,11 +434,16 @@ export default class implements PerfettoPlugin {
       }
     }
 
-    // Priority 2: Check new localStorage tabs key
+    // Priority 2: Check localStorage tabs
     const persistedTabs = dataExplorerTabsStorage.load();
     if (persistedTabs !== undefined) {
       try {
-        this.tabs = this.hydrateTabs(persistedTabs.tabs, trace, sqlModules);
+        this.tabs = this.hydrateTabs(
+          persistedTabs.tabs,
+          trace,
+          sqlModules,
+          persistedTabs.dashboards,
+        );
         this.activeTabId = this.tabs.some(
           (t) => t.id === persistedTabs.activeTabId,
         )
@@ -521,7 +519,6 @@ export default class implements PerfettoPlugin {
           onStateUpdate: this.makeOnStateUpdate(this.activeTabId),
           makeOnStateUpdate: (tabId: string) => this.makeOnStateUpdate(tabId),
           onTabAdd: this.handleTabAdd,
-          onDashboardTabAdd: this.handleDashboardTabAdd,
           onTabClose: this.handleTabClose,
           onTabChange: this.handleTabChange,
           onTabRename: this.handleTabRename,

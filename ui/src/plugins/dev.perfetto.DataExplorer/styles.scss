@@ -37,11 +37,32 @@
     }
   }
 
+  &__tab-actions {
+    display: flex;
+    align-items: center;
+  }
+
+  // Wrapper with nested sub-tabs (Graph | Dashboard). Uses flex column
+  // so the sub-tab bar gets its natural height and the content fills rest.
+  &__tab-with-subtabs {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  &__sub-tab-bar {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--pf-color-border);
+  }
+
   // Wrapper for each tab's Builder content. The Tabs widget uses Gate
   // (display:contents) which has clientHeight === 0; DrawerPanel needs
   // a real sized parent to measure its container height.
   &__tab-content {
     height: 100%;
+    min-height: 0;
+    flex: 1;
   }
 }
 
@@ -585,5 +606,76 @@
     font-style: italic;
     text-align: center;
     padding: 16px 8px;
+  }
+}
+
+// Chart type picker — visual grid of chart types shown when adding a chart.
+.pf-chart-type-picker {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 4px;
+
+  &__card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 6px;
+    border: 1px solid var(--pf-color-border);
+    border-radius: 6px;
+    background: var(--pf-color-surface);
+    cursor: pointer;
+    transition:
+      border-color 0.15s,
+      box-shadow 0.15s,
+      background 0.15s;
+    // Reset button defaults
+    font: inherit;
+    color: inherit;
+
+    &:hover {
+      border-color: var(--pf-color-primary);
+      background: var(--pf-color-surface-highlight);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--pf-color-primary);
+      outline-offset: 2px;
+    }
+
+    &:active {
+      transform: scale(0.97);
+    }
+  }
+
+  &__preview {
+    width: 48px;
+    height: 36px;
+    color: var(--pf-color-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  &__label {
+    font-size: 11px;
+    font-weight: 500;
+    text-align: center;
+    color: var(--pf-color-text);
+    white-space: nowrap;
+  }
+
+  &__empty {
+    padding: 12px 16px;
+    font-size: 12px;
+    color: var(--pf-color-text-muted);
+    text-align: center;
   }
 }

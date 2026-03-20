@@ -12,22 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Size2D} from '../../base/geom';
-import {TimeScale} from '../../base/time_scale';
 import {Trace} from '../../public/trace';
-import {Overlay, TrackBounds} from '../../public/track';
 import {ArrowConnection, ArrowVisualiser} from './arrow_visualiser';
+import {Overlay, TrackBounds} from '../../public/track';
+import {TimeScale} from '../../base/time_scale';
+import {Size2D} from '../../base/geom';
 
-export class LifecycleOverlay implements Overlay {
-  private readonly arrowVisualiser: ArrowVisualiser;
-  private connections: ArrowConnection[] = [];
+export class RelatedEventsOverlay implements Overlay {
+  private readonly visualiser: ArrowVisualiser;
 
-  constructor(trace: Trace) {
-    this.arrowVisualiser = new ArrowVisualiser(trace);
-  }
-
-  update(connections: ArrowConnection[]) {
-    this.connections = connections;
+  constructor(
+    trace: Trace,
+    private readonly getConnections: () => ArrowConnection[],
+  ) {
+    this.visualiser = new ArrowVisualiser(trace);
   }
 
   render(
@@ -36,8 +34,9 @@ export class LifecycleOverlay implements Overlay {
     _size: Size2D,
     tracks: ReadonlyArray<TrackBounds>,
   ): void {
-    if (this.connections.length > 0) {
-      this.arrowVisualiser.draw(ctx, ts, tracks, this.connections);
+    const connections = this.getConnections();
+    if (connections.length > 0) {
+      this.visualiser.draw(ctx, ts, tracks, connections);
     }
   }
 }

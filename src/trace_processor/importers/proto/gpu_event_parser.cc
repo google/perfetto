@@ -488,7 +488,12 @@ void GpuEventParser::ParseGpuRenderStageEvent(
           }
         });
 
-    StringId name_id = GetFullStageName(sequence_state, event);
+    StringId name_id = kNullStringId;
+    if (event.has_name()) {
+      name_id = context_->storage->InternString(event.name());
+    } else {
+      name_id = GetFullStageName(sequence_state, event);
+    }
     context_->slice_tracker->Scoped(
         ts, track_id, kNullStringId, name_id,
         static_cast<int64_t>(event.duration()),

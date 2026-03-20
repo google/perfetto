@@ -17,74 +17,6 @@
 
 // General widget styles
 
-.pf-exp-column-name-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--pf-color-border);
-  flex-wrap: wrap;
-
-  label {
-    font-weight: 600;
-    font-size: var(--pf-font-size-s);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--pf-color-text-muted);
-  }
-
-  // Stack vertically when container is narrow
-  @container (max-width: 400px) {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-
-    label {
-      width: 100%;
-    }
-  }
-}
-
-.pf-exp-button-group {
-  display: flex;
-  gap: 8px;
-}
-
-// Card header widget
-.pf-exp-card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-
-  &__title {
-    margin: 0;
-  }
-}
-
-// Section widget
-.pf-exp-section {
-  padding: 1rem;
-  border-bottom: 1px solid var(--pf-color-border);
-
-  &:last-child {
-    border-bottom: none;
-  }
-}
-
-.pf-exp-section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-
-  h2 {
-    font-size: var(--pf-font-size-m);
-    font-weight: 500;
-    margin: 0;
-  }
-}
-
 // List item widget - displays an item with icon, name, description, and action button
 .pf-exp-list-item {
   display: flex;
@@ -155,34 +87,6 @@
 
   button {
     justify-content: flex-start;
-  }
-}
-
-// Form row widget - labeled form row with children
-// Uses <label> as the root element for accessibility
-.pf-exp-form-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-
-  span {
-    font-weight: 500;
-    font-size: var(--pf-font-size-s);
-    color: var(--pf-color-text-muted);
-    min-width: 100px;
-  }
-
-  // Stack vertically when container is narrow
-  @container (max-width: 400px) {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-
-    span {
-      width: 100%;
-      min-width: 0;
-    }
   }
 }
 
@@ -331,45 +235,6 @@
       max-width: 80px;
     }
   }
-}
-
-// Equal width row widget - responsive layout for equal-width items
-.pf-exp-equal-width-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: stretch;
-  flex: 1;
-
-  // When container is narrow (< 400px), stack vertically
-  @container (max-width: 400px) {
-    flex-direction: column;
-
-    .pf-exp-equal-width-row__separator {
-      display: none; // Hide separator in vertical mode
-    }
-  }
-}
-
-.pf-exp-equal-width-row__item {
-  flex: 1 1 0; // Equal width, can grow and shrink
-  min-width: 0; // Allow items to shrink below content size
-  display: flex;
-  align-items: stretch;
-
-  // Make child elements fill the container
-  > * {
-    flex: 1;
-  }
-}
-
-.pf-exp-equal-width-row__separator {
-  display: flex;
-  align-items: center;
-  color: var(--pf-color-text-muted);
-  font-size: var(--pf-font-size-m);
-  font-weight: 500;
-  user-select: none;
 }
 
 // Info box widget - displays informational text in a styled box
@@ -684,12 +549,20 @@
   }
 }
 
-// Select/Deselect All buttons - aligns to the right with gap between buttons
 .pf-select-deselect-all-buttons {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   margin-bottom: 12px;
+}
+
+// Non-draggable column row in ColumnSelector
+.pf-column-selector-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  flex-wrap: wrap;
 }
 
 // Wider modal for computed column forms
@@ -952,12 +825,23 @@
   }
 }
 
-// Dimensions item: inline layout (handle + name + type + optional arrow btn)
-.pf-metrics-v2-columns-layout .pf-metrics-v2-column-panel:first-child {
-  .pf-metrics-v2-column-item {
-    flex-direction: row;
-    align-items: center;
-    gap: 4px;
+/// Dimensions item: header is inline, config expands below
+.pf-metrics-v2-dim-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+
+.pf-metrics-v2-dim-config {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 0 4px 18px;
+
+  > .pf-outlined-field {
+    flex: 1;
+    min-width: 100px;
   }
 }
 

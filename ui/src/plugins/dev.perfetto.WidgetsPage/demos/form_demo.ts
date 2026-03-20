@@ -15,13 +15,13 @@
 import m from 'mithril';
 import {Icons} from '../../../base/semantic_icons';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Form, FormLabel, FormSection} from '../../../widgets/form';
-import {MenuItem, PopupMenu} from '../../../widgets/menu';
+import {Checkbox} from '../../../widgets/checkbox';
+import {Form, FormGrid, FormLabel, FormSection} from '../../../widgets/form';
+import {Popup} from '../../../widgets/popup';
 import {Select} from '../../../widgets/select';
+import {Switch} from '../../../widgets/switch';
 import {TextInput} from '../../../widgets/text_input';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
-import {Checkbox} from '../../../widgets/checkbox';
-import {Switch} from '../../../widgets/switch';
 
 function renderFormContent(
   id: string,
@@ -95,6 +95,23 @@ function renderFormContent(
         id: `${id}-switch`,
       }),
     ),
+    m(
+      FormSection,
+      {label: 'Grid Section'},
+      m(
+        FormGrid,
+        m(FormLabel, {for: `${id}-first-name`}, 'First Name'),
+        m(TextInput, {
+          id: `${id}-first-name`,
+          placeholder: 'John',
+        }),
+        m(FormLabel, {for: `${id}-last-name`}, 'Last Name'),
+        m(TextInput, {
+          id: `${id}-last-name`,
+          placeholder: 'Doe',
+        }),
+      ),
+    ),
   );
 }
 
@@ -133,7 +150,7 @@ export function renderForm(): m.Children {
     renderWidgetShowcase({
       renderWidget: () =>
         m(
-          PopupMenu,
+          Popup,
           {
             trigger: m(Button, {
               label: 'Click me',
@@ -141,13 +158,7 @@ export function renderForm(): m.Children {
               variant: ButtonVariant.Filled,
             }),
           },
-          m(
-            MenuItem,
-            {
-              label: 'Open form...',
-            },
-            renderFormContent('popup-form'),
-          ),
+          renderFormContent('popup-form'),
         ),
     }),
   ];

@@ -37,6 +37,7 @@ import {QueryExecutionService} from '../query_execution_service';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Card} from '../../../../widgets/card';
 import {AddItemPlaceholder} from '../widgets';
+import {renderChartTypePickerGrid} from './chart_type_picker';
 
 export interface ChartViewAttrs {
   trace: Trace;
@@ -134,7 +135,7 @@ export class ChartView implements m.ClassComponent<ChartViewAttrs> {
     const needsColumn = config.column === '';
     if (tableName === undefined || needsColumn) {
       let entry = this.state.loaders.get(config.id);
-      if (!entry) {
+      if (entry === undefined) {
         entry = {key: ''};
         this.state.loaders.set(config.id, entry);
       }
@@ -144,9 +145,9 @@ export class ChartView implements m.ClassComponent<ChartViewAttrs> {
     const key = buildLoaderCacheKey(tableName, config);
     const existing = this.state.loaders.get(config.id);
 
-    if (existing && existing.key === key) return existing;
+    if (existing !== undefined && existing.key === key) return existing;
 
-    if (existing) {
+    if (existing !== undefined) {
       disposeChartLoaders(existing);
     }
 
@@ -175,14 +176,20 @@ export class ChartView implements m.ClassComponent<ChartViewAttrs> {
             title: 'No charts configured',
             fillHeight: true,
           },
-          m(Button, {
-            label: 'Add first chart',
-            icon: 'add',
-            onclick: () => {
-              attrs.node.addChart();
-              attrs.onFilterChange?.();
+          m(
+            Popup,
+            {
+              trigger: m(Button, {
+                label: 'Add first chart',
+                icon: 'add',
+              }),
+              fitContent: true,
             },
-          }),
+            renderChartTypePickerGrid((chartType) => {
+              attrs.node.addChart(chartType);
+              attrs.onFilterChange?.();
+            }),
+          ),
         ),
       );
     }
@@ -210,15 +217,25 @@ export class ChartView implements m.ClassComponent<ChartViewAttrs> {
       toolbar,
       m(`.pf-chart-view__charts.${gridClass}`, [
         ...configs.map((config) => this.renderSingleChart(attrs, config)),
-        m(AddItemPlaceholder, {
-          key: 'add-chart',
-          label: 'Add Chart',
-          icon: 'add',
-          onclick: () => {
-            attrs.node.addChart();
-            attrs.onFilterChange?.();
+        m(
+          Popup,
+          {
+            key: 'add-chart',
+            trigger: m(
+              'span',
+              m(AddItemPlaceholder, {
+                label: 'Add Chart',
+                icon: 'add',
+              }),
+            ),
+            showArrow: false,
+            fitContent: true,
           },
-        }),
+          renderChartTypePickerGrid((chartType) => {
+            attrs.node.addChart(chartType);
+            attrs.onFilterChange?.();
+          }),
+        ),
       ]),
     ]);
   }

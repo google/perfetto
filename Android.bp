@@ -648,6 +648,7 @@ cc_library_shared {
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_message_filter",
+        ":perfetto_src_protozero_filtering_message_filter_config",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_proto_ring_buffer",
         ":perfetto_src_protozero_protozero",
@@ -928,6 +929,7 @@ cc_library {
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_message_filter",
+        ":perfetto_src_protozero_filtering_message_filter_config",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_shared_lib_for_testing",
@@ -1142,6 +1144,7 @@ cc_library_static {
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_message_filter",
+        ":perfetto_src_protozero_filtering_message_filter_config",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_tracing_client_api_without_backends",
@@ -1611,6 +1614,7 @@ filegroup {
         "protos/perfetto/common/semantic_type.proto",
         "protos/perfetto/common/sys_stats_counters.proto",
         "protos/perfetto/common/system_info.proto",
+        "protos/perfetto/common/trace_attributes.proto",
         "protos/perfetto/common/trace_stats.proto",
         "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
@@ -1687,6 +1691,7 @@ java_library {
         "protos/perfetto/common/semantic_type.proto",
         "protos/perfetto/common/sys_stats_counters.proto",
         "protos/perfetto/common/system_info.proto",
+        "protos/perfetto/common/trace_attributes.proto",
         "protos/perfetto/common/trace_stats.proto",
         "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
@@ -1875,6 +1880,7 @@ cc_library_static {
         ":perfetto_src_protozero_filtering_bytecode_generator",
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_message_filter",
+        ":perfetto_src_protozero_filtering_message_filter_config",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_proto_ring_buffer",
         ":perfetto_src_protozero_protozero",
@@ -2240,6 +2246,7 @@ cc_library_static {
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_message_filter",
+        ":perfetto_src_protozero_filtering_message_filter_config",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_proto_ring_buffer",
         ":perfetto_src_protozero_protozero",
@@ -2890,6 +2897,7 @@ cc_test {
         ":perfetto_src_protozero_filtering_bytecode_generator",
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_message_filter",
+        ":perfetto_src_protozero_filtering_message_filter_config",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_proto_ring_buffer",
         ":perfetto_src_protozero_protozero",
@@ -3313,6 +3321,7 @@ filegroup {
         "protos/perfetto/common/semantic_type.proto",
         "protos/perfetto/common/sys_stats_counters.proto",
         "protos/perfetto/common/system_info.proto",
+        "protos/perfetto/common/trace_attributes.proto",
         "protos/perfetto/common/trace_stats.proto",
         "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
@@ -3689,6 +3698,7 @@ filegroup {
         "protos/perfetto/common/protolog_common.proto",
         "protos/perfetto/common/sys_stats_counters.proto",
         "protos/perfetto/common/system_info.proto",
+        "protos/perfetto/common/trace_attributes.proto",
         "protos/perfetto/common/trace_stats.proto",
         "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
@@ -3723,6 +3733,7 @@ genrule {
         "external/perfetto/protos/perfetto/common/protolog_common.gen.cc",
         "external/perfetto/protos/perfetto/common/sys_stats_counters.gen.cc",
         "external/perfetto/protos/perfetto/common/system_info.gen.cc",
+        "external/perfetto/protos/perfetto/common/trace_attributes.gen.cc",
         "external/perfetto/protos/perfetto/common/trace_stats.gen.cc",
         "external/perfetto/protos/perfetto/common/tracing_service_capabilities.gen.cc",
         "external/perfetto/protos/perfetto/common/tracing_service_state.gen.cc",
@@ -3757,6 +3768,7 @@ genrule {
         "external/perfetto/protos/perfetto/common/protolog_common.gen.h",
         "external/perfetto/protos/perfetto/common/sys_stats_counters.gen.h",
         "external/perfetto/protos/perfetto/common/system_info.gen.h",
+        "external/perfetto/protos/perfetto/common/trace_attributes.gen.h",
         "external/perfetto/protos/perfetto/common/trace_stats.gen.h",
         "external/perfetto/protos/perfetto/common/tracing_service_capabilities.gen.h",
         "external/perfetto/protos/perfetto/common/tracing_service_state.gen.h",
@@ -3786,6 +3798,7 @@ filegroup {
         "protos/perfetto/common/protolog_common.proto",
         "protos/perfetto/common/sys_stats_counters.proto",
         "protos/perfetto/common/system_info.proto",
+        "protos/perfetto/common/trace_attributes.proto",
         "protos/perfetto/common/trace_stats.proto",
         "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
@@ -3819,6 +3832,7 @@ genrule {
         "external/perfetto/protos/perfetto/common/protolog_common.pb.cc",
         "external/perfetto/protos/perfetto/common/sys_stats_counters.pb.cc",
         "external/perfetto/protos/perfetto/common/system_info.pb.cc",
+        "external/perfetto/protos/perfetto/common/trace_attributes.pb.cc",
         "external/perfetto/protos/perfetto/common/trace_stats.pb.cc",
         "external/perfetto/protos/perfetto/common/tracing_service_capabilities.pb.cc",
         "external/perfetto/protos/perfetto/common/tracing_service_state.pb.cc",
@@ -3852,6 +3866,7 @@ genrule {
         "external/perfetto/protos/perfetto/common/protolog_common.pb.h",
         "external/perfetto/protos/perfetto/common/sys_stats_counters.pb.h",
         "external/perfetto/protos/perfetto/common/system_info.pb.h",
+        "external/perfetto/protos/perfetto/common/trace_attributes.pb.h",
         "external/perfetto/protos/perfetto/common/trace_stats.pb.h",
         "external/perfetto/protos/perfetto/common/tracing_service_capabilities.pb.h",
         "external/perfetto/protos/perfetto/common/tracing_service_state.pb.h",
@@ -4011,6 +4026,7 @@ filegroup {
         "protos/perfetto/common/protolog_common.proto",
         "protos/perfetto/common/sys_stats_counters.proto",
         "protos/perfetto/common/system_info.proto",
+        "protos/perfetto/common/trace_attributes.proto",
         "protos/perfetto/common/trace_stats.proto",
         "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
@@ -4045,6 +4061,7 @@ genrule {
         "external/perfetto/protos/perfetto/common/protolog_common.pbzero.cc",
         "external/perfetto/protos/perfetto/common/sys_stats_counters.pbzero.cc",
         "external/perfetto/protos/perfetto/common/system_info.pbzero.cc",
+        "external/perfetto/protos/perfetto/common/trace_attributes.pbzero.cc",
         "external/perfetto/protos/perfetto/common/trace_stats.pbzero.cc",
         "external/perfetto/protos/perfetto/common/tracing_service_capabilities.pbzero.cc",
         "external/perfetto/protos/perfetto/common/tracing_service_state.pbzero.cc",
@@ -4079,6 +4096,7 @@ genrule {
         "external/perfetto/protos/perfetto/common/protolog_common.pbzero.h",
         "external/perfetto/protos/perfetto/common/sys_stats_counters.pbzero.h",
         "external/perfetto/protos/perfetto/common/system_info.pbzero.h",
+        "external/perfetto/protos/perfetto/common/trace_attributes.pbzero.h",
         "external/perfetto/protos/perfetto/common/trace_stats.pbzero.h",
         "external/perfetto/protos/perfetto/common/tracing_service_capabilities.pbzero.h",
         "external/perfetto/protos/perfetto/common/tracing_service_state.pbzero.h",
@@ -4514,6 +4532,7 @@ genrule {
         "protos/perfetto/common/semantic_type.proto",
         "protos/perfetto/common/sys_stats_counters.proto",
         "protos/perfetto/common/system_info.proto",
+        "protos/perfetto/common/trace_attributes.proto",
         "protos/perfetto/common/trace_stats.proto",
         "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
@@ -7894,6 +7913,7 @@ genrule {
         "protos/perfetto/common/protolog_common.proto",
         "protos/perfetto/common/sys_stats_counters.proto",
         "protos/perfetto/common/system_info.proto",
+        "protos/perfetto/common/trace_attributes.proto",
         "protos/perfetto/common/trace_stats.proto",
         "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
@@ -8590,6 +8610,7 @@ genrule {
         "protos/perfetto/common/semantic_type.proto",
         "protos/perfetto/common/sys_stats_counters.proto",
         "protos/perfetto/common/system_info.proto",
+        "protos/perfetto/common/trace_attributes.proto",
         "protos/perfetto/common/trace_stats.proto",
         "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
@@ -14411,6 +14432,14 @@ filegroup {
     ],
 }
 
+// GN: //src/protozero/filtering:message_filter_config
+filegroup {
+    name: "perfetto_src_protozero_filtering_message_filter_config",
+    srcs: [
+        "src/protozero/filtering/message_filter_config.cc",
+    ],
+}
+
 // GN: //src/protozero/filtering:string_filter
 filegroup {
     name: "perfetto_src_protozero_filtering_string_filter",
@@ -16744,57 +16773,29 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor/shell:interactive
+// GN: //src/trace_processor/shell:shell
 filegroup {
-    name: "perfetto_src_trace_processor_shell_interactive",
+    name: "perfetto_src_trace_processor_shell_shell",
     srcs: [
+        "src/trace_processor/shell/common_flags.cc",
+        "src/trace_processor/shell/export_subcommand.cc",
         "src/trace_processor/shell/interactive.cc",
-    ],
-}
-
-// GN: //src/trace_processor/shell:metatrace
-filegroup {
-    name: "perfetto_src_trace_processor_shell_metatrace",
-    srcs: [
+        "src/trace_processor/shell/interactive_subcommand.cc",
         "src/trace_processor/shell/metatrace.cc",
-    ],
-}
-
-// GN: //src/trace_processor/shell:metrics
-filegroup {
-    name: "perfetto_src_trace_processor_shell_metrics",
-    srcs: [
         "src/trace_processor/shell/metrics.cc",
-    ],
-}
-
-// GN: //src/trace_processor/shell:query
-filegroup {
-    name: "perfetto_src_trace_processor_shell_query",
-    srcs: [
+        "src/trace_processor/shell/metrics_subcommand.cc",
         "src/trace_processor/shell/query.cc",
-    ],
-}
-
-// GN: //src/trace_processor/shell:shell_utils
-filegroup {
-    name: "perfetto_src_trace_processor_shell_shell_utils",
-    srcs: [
+        "src/trace_processor/shell/query_subcommand.cc",
+        "src/trace_processor/shell/server_subcommand.cc",
         "src/trace_processor/shell/shell_utils.cc",
-    ],
-}
-
-// GN: //src/trace_processor/shell:sql_packages
-filegroup {
-    name: "perfetto_src_trace_processor_shell_sql_packages",
-    srcs: [
         "src/trace_processor/shell/sql_packages.cc",
+        "src/trace_processor/shell/summarize_subcommand.cc",
     ],
 }
 
-// GN: //src/trace_processor/shell:subcommand
+// GN: //src/trace_processor/shell:subcommands
 filegroup {
-    name: "perfetto_src_trace_processor_shell_subcommand",
+    name: "perfetto_src_trace_processor_shell_subcommands",
     srcs: [
         "src/trace_processor/shell/subcommand.cc",
     ],
@@ -17133,12 +17134,8 @@ cc_library_static {
         ":perfetto_src_trace_processor_rpc_httpd",
         ":perfetto_src_trace_processor_rpc_rpc",
         ":perfetto_src_trace_processor_rpc_stdiod",
-        ":perfetto_src_trace_processor_shell_interactive",
-        ":perfetto_src_trace_processor_shell_metatrace",
-        ":perfetto_src_trace_processor_shell_metrics",
-        ":perfetto_src_trace_processor_shell_query",
-        ":perfetto_src_trace_processor_shell_shell_utils",
-        ":perfetto_src_trace_processor_shell_sql_packages",
+        ":perfetto_src_trace_processor_shell_shell",
+        ":perfetto_src_trace_processor_shell_subcommands",
         ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_bindings_bindings",
         ":perfetto_src_trace_processor_sqlite_sqlite",
@@ -18774,6 +18771,7 @@ java_library {
         "protos/perfetto/common/semantic_type.proto",
         "protos/perfetto/common/sys_stats_counters.proto",
         "protos/perfetto/common/system_info.proto",
+        "protos/perfetto/common/trace_attributes.proto",
         "protos/perfetto/common/trace_stats.proto",
         "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
@@ -19462,6 +19460,7 @@ cc_test {
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_filter_util",
         ":perfetto_src_protozero_filtering_message_filter",
+        ":perfetto_src_protozero_filtering_message_filter_config",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_filtering_unittests",
         ":perfetto_src_protozero_multifile_error_collector",
@@ -19582,7 +19581,7 @@ cc_test {
         ":perfetto_src_trace_processor_perfetto_sql_tokenizer_unittests",
         ":perfetto_src_trace_processor_rpc_rpc",
         ":perfetto_src_trace_processor_rpc_unittests",
-        ":perfetto_src_trace_processor_shell_subcommand",
+        ":perfetto_src_trace_processor_shell_subcommands",
         ":perfetto_src_trace_processor_shell_unittests",
         ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sorter_unittests",
@@ -20062,6 +20061,7 @@ cc_library_static {
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_message_filter",
+        ":perfetto_src_protozero_filtering_message_filter_config",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_proto_ring_buffer",
         ":perfetto_src_protozero_protozero",
@@ -21309,6 +21309,7 @@ cc_binary {
         ":perfetto_src_protozero_filtering_bytecode_common",
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_message_filter",
+        ":perfetto_src_protozero_filtering_message_filter_config",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_traced_probes_ftrace_tracefs",

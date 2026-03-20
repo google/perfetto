@@ -167,6 +167,7 @@ perfetto_cc_library(
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
+        ":src_protozero_filtering_message_filter_config",
         ":src_protozero_filtering_string_filter",
         ":src_shared_lib_for_testing",
         ":src_shared_lib_shared_lib",
@@ -642,12 +643,8 @@ perfetto_cc_library(
         ":src_trace_processor_rpc_httpd",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_rpc_stdiod",
-        ":src_trace_processor_shell_interactive",
-        ":src_trace_processor_shell_metatrace",
-        ":src_trace_processor_shell_metrics",
-        ":src_trace_processor_shell_query",
-        ":src_trace_processor_shell_shell_utils",
-        ":src_trace_processor_shell_sql_packages",
+        ":src_trace_processor_shell_shell",
+        ":src_trace_processor_shell_subcommands",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",
         ":src_trace_processor_sqlite_sqlite",
@@ -952,6 +949,7 @@ perfetto_cc_library(
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
+        ":src_protozero_filtering_message_filter_config",
         ":src_protozero_filtering_string_filter",
         ":src_traced_service_builtin_producer",
         ":src_traced_service_service",
@@ -1957,6 +1955,15 @@ perfetto_filegroup(
         "src/protozero/filtering/message_filter.cc",
         "src/protozero/filtering/message_filter.h",
         "src/protozero/filtering/message_tokenizer.h",
+    ],
+)
+
+# GN target: //src/protozero/filtering:message_filter_config
+perfetto_filegroup(
+    name = "src_protozero_filtering_message_filter_config",
+    srcs = [
+        "src/protozero/filtering/message_filter_config.cc",
+        "src/protozero/filtering/message_filter_config.h",
     ],
 )
 
@@ -4088,57 +4095,45 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/shell:interactive
+# GN target: //src/trace_processor/shell:shell
 perfetto_filegroup(
-    name = "src_trace_processor_shell_interactive",
+    name = "src_trace_processor_shell_shell",
     srcs = [
+        "src/trace_processor/shell/common_flags.cc",
+        "src/trace_processor/shell/common_flags.h",
+        "src/trace_processor/shell/export_subcommand.cc",
+        "src/trace_processor/shell/export_subcommand.h",
         "src/trace_processor/shell/interactive.cc",
         "src/trace_processor/shell/interactive.h",
-    ],
-)
-
-# GN target: //src/trace_processor/shell:metatrace
-perfetto_filegroup(
-    name = "src_trace_processor_shell_metatrace",
-    srcs = [
+        "src/trace_processor/shell/interactive_subcommand.cc",
+        "src/trace_processor/shell/interactive_subcommand.h",
         "src/trace_processor/shell/metatrace.cc",
         "src/trace_processor/shell/metatrace.h",
-    ],
-)
-
-# GN target: //src/trace_processor/shell:metrics
-perfetto_filegroup(
-    name = "src_trace_processor_shell_metrics",
-    srcs = [
         "src/trace_processor/shell/metrics.cc",
         "src/trace_processor/shell/metrics.h",
-    ],
-)
-
-# GN target: //src/trace_processor/shell:query
-perfetto_filegroup(
-    name = "src_trace_processor_shell_query",
-    srcs = [
+        "src/trace_processor/shell/metrics_subcommand.cc",
+        "src/trace_processor/shell/metrics_subcommand.h",
         "src/trace_processor/shell/query.cc",
         "src/trace_processor/shell/query.h",
-    ],
-)
-
-# GN target: //src/trace_processor/shell:shell_utils
-perfetto_filegroup(
-    name = "src_trace_processor_shell_shell_utils",
-    srcs = [
+        "src/trace_processor/shell/query_subcommand.cc",
+        "src/trace_processor/shell/query_subcommand.h",
+        "src/trace_processor/shell/server_subcommand.cc",
+        "src/trace_processor/shell/server_subcommand.h",
         "src/trace_processor/shell/shell_utils.cc",
         "src/trace_processor/shell/shell_utils.h",
+        "src/trace_processor/shell/sql_packages.cc",
+        "src/trace_processor/shell/sql_packages.h",
+        "src/trace_processor/shell/summarize_subcommand.cc",
+        "src/trace_processor/shell/summarize_subcommand.h",
     ],
 )
 
-# GN target: //src/trace_processor/shell:sql_packages
+# GN target: //src/trace_processor/shell:subcommands
 perfetto_filegroup(
-    name = "src_trace_processor_shell_sql_packages",
+    name = "src_trace_processor_shell_subcommands",
     srcs = [
-        "src/trace_processor/shell/sql_packages.cc",
-        "src/trace_processor/shell/sql_packages.h",
+        "src/trace_processor/shell/subcommand.cc",
+        "src/trace_processor/shell/subcommand.h",
     ],
 )
 
@@ -6147,6 +6142,7 @@ perfetto_proto_library(
         "protos/perfetto/common/protolog_common.proto",
         "protos/perfetto/common/sys_stats_counters.proto",
         "protos/perfetto/common/system_info.proto",
+        "protos/perfetto/common/trace_attributes.proto",
         "protos/perfetto/common/trace_stats.proto",
         "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
@@ -8358,6 +8354,7 @@ perfetto_cc_library(
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
+        ":src_protozero_filtering_message_filter_config",
         ":src_protozero_filtering_string_filter",
         ":src_tracing_client_api_without_backends",
         ":src_tracing_common",

@@ -33,8 +33,9 @@ import {
   DashboardDataSource,
   DashboardItem,
   getItemId,
+  getLinkedSourceNodeIds,
 } from './dashboard_registry';
-import {EmptyState} from '../../../widgets/empty_state';
+import {ResultsPanelEmptyState} from '../query_builder/widgets';
 import {SqlValue} from '../../../trace_processor/query_result';
 import {
   isQuantitativeType,
@@ -47,15 +48,24 @@ export interface DashboardChartViewAttrs {
   config: ChartConfig;
   dashboardId: string;
   items: DashboardItem[];
+  allSources: ReadonlyArray<DashboardDataSource>;
   brushFilters: Map<string, DashboardBrushFilter[]>;
   onItemsChange: (items: DashboardItem[]) => void;
   onBrushFiltersChange: (filters: Map<string, DashboardBrushFilter[]>) => void;
+  /**
+   * When true, this chart is a "driver" (above a segment divider).
+   * Driver charts show brush selection overlays but do NOT apply brush
+   * filters to their own SQL queries — they only propagate filters to
+   * consumer charts below dividers.
+   */
+  isDriverChart?: boolean;
 }
 
 /** Subset of DashboardChartViewAttrs needed by the adapter. */
 export interface DashboardChartCallbacks {
   dashboardId: string;
   items: DashboardItem[];
+  allSources: ReadonlyArray<DashboardDataSource>;
   brushFilters: Map<string, DashboardBrushFilter[]>;
   onItemsChange: (items: DashboardItem[]) => void;
   onBrushFiltersChange: (filters: Map<string, DashboardBrushFilter[]>) => void;
@@ -73,6 +83,10 @@ class DashboardChartAdapter implements ChartColumnProvider {
   // clearChartFiltersForColumn + setBrushSelection works the same way as
   // the visualisation node (synchronous mutations on the same array).
   private filters: DashboardBrushFilter[];
+  // Columns explicitly cleared since the last flush — used by flushFilters
+  // to propagate clears to other datasources even when no new filters are
+  // added for the cleared column.
+  private pendingClearedColumns = new Set<string>();
   private callbacks: DashboardChartCallbacks;
   private config: ChartConfig;
 
@@ -126,16 +140,46 @@ class DashboardChartAdapter implements ChartColumnProvider {
     } else {
       newMap.set(this.sourceNodeId, [...this.filters]);
     }
+
+    // Cross-datasource brushing: propagate filters to other sources that
+    // share columns with the same name. Also clear columns that were
+    // explicitly cleared (pendingClearedColumns) even if no new filters
+    // were added for them.
+    const touchedColumns = new Set([
+      ...this.filters.map((f) => f.column),
+      ...this.pendingClearedColumns,
+    ]);
+    this.pendingClearedColumns.clear();
+
+    for (const col of touchedColumns) {
+      const newFiltersForCol = this.filters.filter((f) => f.column === col);
+      for (const id of getLinkedSourceNodeIds(
+        this.callbacks.allSources,
+        this.sourceNodeId,
+        col,
+      )) {
+        if (id === this.sourceNodeId) continue;
+        const existing = newMap.get(id) ?? [];
+        const retained = existing.filter((f) => f.column !== col);
+        const combined = [...retained, ...newFiltersForCol];
+        if (combined.length === 0) {
+          newMap.delete(id);
+        } else {
+          newMap.set(id, combined);
+        }
+      }
+    }
+
     this.callbacks.onBrushFiltersChange(newMap);
   }
 
   clearChartFiltersForColumn(column: string): void {
-    this.filters = this.filters.filter((f) => f.column !== column);
+    this.clearColumnLocally(column);
     this.flushFilters();
   }
 
   setBrushSelection(column: string, values: SqlValue[]): void {
-    this.clearChartFiltersForColumn(column);
+    this.clearColumnLocally(column);
     for (const value of values) {
       if (value === null) {
         this.filters.push({column, op: 'is null'});
@@ -148,11 +192,17 @@ class DashboardChartAdapter implements ChartColumnProvider {
   }
 
   addRangeFilter(column: string, min: number, max: number): void {
-    this.clearChartFiltersForColumn(column);
+    this.clearColumnLocally(column);
     this.filters.push({column, op: '>=', value: min});
     this.filters.push({column, op: '<', value: max});
     this.flushFilters();
     m.redraw();
+  }
+
+  /** Remove filters for `column` locally without flushing. */
+  private clearColumnLocally(column: string): void {
+    this.filters = this.filters.filter((f) => f.column !== column);
+    this.pendingClearedColumns.add(column);
   }
 
   updateChart(
@@ -234,7 +284,7 @@ export class DashboardChartView
     const config = attrs.config;
 
     if (config.column === '') {
-      return m(EmptyState, {
+      return m(ResultsPanelEmptyState, {
         icon: 'ssid_chart',
         title: 'Select a column',
       });
@@ -246,7 +296,7 @@ export class DashboardChartView
     );
     if (!columnExists) {
       return m(
-        EmptyState,
+        ResultsPanelEmptyState,
         {icon: 'warning', title: 'Invalid column'},
         `Column "${config.column}" not found in this data source.`,
       );
@@ -258,12 +308,16 @@ export class DashboardChartView
         this.executionRequested = true;
         attrs.source
           .requestExecution()
-          .then(() => m.redraw())
-          .catch((e) => console.debug('Dashboard source execution failed:', e));
+          .catch((e) => console.debug('Dashboard source execution failed:', e))
+          .finally(() => {
+            this.executionRequested = false;
+          });
       }
-      return m(EmptyState, {icon: 'hourglass_empty', title: 'Loading data…'});
+      return m(ResultsPanelEmptyState, {
+        icon: 'hourglass_empty',
+        title: 'Loading data…',
+      });
     }
-    this.executionRequested = false;
 
     const entry = this.ensureLoader(attrs, config);
     const ctx = {node: adapter, onFilterChange: () => m.redraw()};
@@ -280,27 +334,31 @@ export class DashboardChartView
     );
     if (tableName === undefined || config.column === '' || !columnValid) {
       let entry = this.loaders.get(config.id);
-      if (!entry) {
+      if (entry === undefined) {
         entry = {key: ''};
         this.loaders.set(config.id, entry);
       }
       return entry;
     }
 
+    // Driver charts (above a divider) show brush overlays but don't filter
+    // their own data — skip the WHERE clause entirely.
     // Drop brush filters referencing columns that don't exist in the current
     // source (can happen after switching the chart's data source).
     const validColumns = new Set(attrs.source.columns.map((c) => c.name));
-    const filters = (attrs.brushFilters.get(attrs.source.nodeId) ?? []).filter(
-      (f) => validColumns.has(f.column),
-    );
+    const filters = attrs.isDriverChart
+      ? []
+      : (attrs.brushFilters.get(attrs.source.nodeId) ?? []).filter((f) =>
+          validColumns.has(f.column),
+        );
     const filterKey = JSON.stringify(filters);
 
     const key = buildLoaderCacheKey(tableName, config, filterKey);
 
     const existing = this.loaders.get(config.id);
-    if (existing && existing.key === key) return existing;
+    if (existing !== undefined && existing.key === key) return existing;
 
-    if (existing) {
+    if (existing !== undefined) {
       disposeChartLoaders(existing);
     }
 
@@ -383,11 +441,12 @@ function buildWhereClause(
  */
 export function createDefaultChartConfig(
   columns: ReadonlyArray<{name: string}>,
+  chartType: ChartType = 'bar',
 ): ChartConfig {
   const column = columns.length > 0 ? columns[0].name : '';
   return {
     id: generateChartId(),
     column,
-    chartType: 'bar',
+    chartType,
   };
 }

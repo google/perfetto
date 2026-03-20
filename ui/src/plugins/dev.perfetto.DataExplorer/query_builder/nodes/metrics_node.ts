@@ -37,13 +37,7 @@ import {
   PerfettoSqlType,
   perfettoSqlTypeToString,
 } from '../../../../trace_processor/perfetto_sql_type';
-
-// Metrics value columns accept numeric types and ANY (unknown/unresolved type).
-function isMetricsValueType(type?: PerfettoSqlType): boolean {
-  // undefined means unknown/unresolved type — treat as acceptable
-  if (type === undefined) return true;
-  return isNumericType(type);
-}
+import {assertUnreachable} from '../../../../base/assert';
 import {classNames} from '../../../../base/classnames';
 import {Icons} from '../../../../base/semantic_icons';
 import {Icon} from '../../../../widgets/icon';
@@ -54,23 +48,65 @@ import {
 } from './metrics_enum_utils';
 import {showMetricsExportModal} from './metrics_export_modal';
 
+// Metrics value columns accept numeric types and ANY (unknown/unresolved type).
+function isMetricsValueType(type?: PerfettoSqlType): boolean {
+  // undefined means unknown/unresolved type — treat as acceptable
+  if (type === undefined) return true;
+  return isNumericType(type);
+}
+
+// Maps a PerfettoSqlType to the proto DimensionType enum.
+function sqlTypeToDimensionType(
+  type: PerfettoSqlType,
+): protos.TraceMetricV2Spec.DimensionType {
+  const DT = protos.TraceMetricV2Spec.DimensionType;
+  switch (type.kind) {
+    case 'string':
+    case 'bytes':
+      return DT.STRING;
+    case 'int':
+    case 'id':
+    case 'joinid':
+    case 'timestamp':
+    case 'duration':
+    case 'arg_set_id':
+      return DT.INT64;
+    case 'double':
+      return DT.DOUBLE;
+    case 'boolean':
+      return DT.BOOLEAN;
+    default:
+      assertUnreachable(type);
+  }
+}
+
+export interface DimensionConfig {
+  displayName?: string;
+  displayHelp?: string;
+  expanded?: boolean;
+}
+
 export interface ValueColumnConfig {
   column: string;
   unit: string;
   customUnit?: string;
   polarity: string;
+  displayName?: string;
+  displayHelp?: string;
   expanded?: boolean;
 }
 
 export interface MetricsSerializedState {
   metricIdPrefix: string;
   valueColumns?: ValueColumnConfig[];
+  dimensionConfigs?: Record<string, DimensionConfig>;
   dimensionUniqueness: string;
 }
 
 export interface MetricsNodeState extends QueryNodeState {
   metricIdPrefix: string;
   valueColumns: ValueColumnConfig[];
+  dimensionConfigs: Record<string, DimensionConfig>;
   dimensionUniqueness: string;
   availableColumns: ColumnInfo[];
 }
@@ -104,6 +140,7 @@ export class MetricsNode implements QueryNode {
       ...state,
       metricIdPrefix: state.metricIdPrefix ?? '',
       valueColumns: state.valueColumns ?? [],
+      dimensionConfigs: state.dimensionConfigs ?? {},
       dimensionUniqueness: state.dimensionUniqueness ?? 'NOT_UNIQUE',
       availableColumns: state.availableColumns ?? [],
     };
@@ -375,8 +412,10 @@ export class MetricsNode implements QueryNode {
           ? m('.pf-metrics-v2-empty-hint', 'No dimensions')
           : dimensionCols.map((col) => {
               const numeric = isMetricsValueType(col.column.type);
+              const cfg = this.state.dimensionConfigs[col.name];
+              const isExpanded = cfg?.expanded ?? false;
               return m(
-                '.pf-metrics-v2-column-item',
+                '.pf-metrics-v2-column-item.pf-metrics-v2-dim-item',
                 {
                   // Only numeric columns can be dragged to Values.
                   draggable: numeric,
@@ -401,25 +440,69 @@ export class MetricsNode implements QueryNode {
                       }
                     : undefined,
                 },
-                numeric
-                  ? m(Icon, {
-                      icon: Icons.DragHandle,
-                      className: 'pf-metrics-v2-drag-handle',
-                    })
-                  : m('span.pf-metrics-v2-drag-handle'),
-                m('span.pf-metrics-v2-col-name', col.name),
                 m(
-                  'span.pf-metrics-v2-col-type',
-                  perfettoSqlTypeToString(col.column.type),
+                  '.pf-metrics-v2-dim-header',
+                  numeric
+                    ? m(Icon, {
+                        icon: Icons.DragHandle,
+                        className: 'pf-metrics-v2-drag-handle',
+                      })
+                    : m('span.pf-metrics-v2-drag-handle'),
+                  m('span.pf-metrics-v2-col-name', col.name),
+                  m(
+                    'span.pf-metrics-v2-col-type',
+                    perfettoSqlTypeToString(col.column.type),
+                  ),
+                  m(Button, {
+                    icon: isExpanded ? 'expand_more' : 'chevron_right',
+                    compact: true,
+                    title: isExpanded ? 'Collapse config' : 'Expand config',
+                    onclick: () => {
+                      this.state.dimensionConfigs[col.name] = {
+                        ...cfg,
+                        expanded: !isExpanded,
+                      };
+                    },
+                  }),
+                  numeric
+                    ? m(Button, {
+                        icon: 'arrow_forward',
+                        compact: true,
+                        title: 'Move to values',
+                        onclick: () => this.moveToValues(col.name, true),
+                      })
+                    : undefined,
                 ),
-                numeric
-                  ? m(Button, {
-                      icon: 'arrow_forward',
-                      compact: true,
-                      title: 'Move to values',
-                      onclick: () => this.moveToValues(col.name, true),
-                    })
-                  : undefined,
+                isExpanded &&
+                  m(
+                    '.pf-metrics-v2-dim-config',
+                    m(OutlinedField, {
+                      label: 'Display name',
+                      value: cfg?.displayName ?? '',
+                      placeholder: 'e.g., OOM bucket',
+                      oninput: (e: Event) => {
+                        this.state.dimensionConfigs[col.name] = {
+                          ...cfg,
+                          displayName:
+                            (e.target as HTMLInputElement).value || undefined,
+                        };
+                        this.state.onchange?.();
+                      },
+                    }),
+                    m(OutlinedField, {
+                      label: 'Display help',
+                      value: cfg?.displayHelp ?? '',
+                      placeholder: 'Description for this dimension...',
+                      oninput: (e: Event) => {
+                        this.state.dimensionConfigs[col.name] = {
+                          ...cfg,
+                          displayHelp:
+                            (e.target as HTMLInputElement).value || undefined,
+                        };
+                        this.state.onchange?.();
+                      },
+                    }),
+                  ),
               );
             }),
       ),
@@ -647,6 +730,30 @@ export class MetricsNode implements QueryNode {
               ),
             ),
           ),
+          m(OutlinedField, {
+            label: 'Display name',
+            value: vc.displayName ?? '',
+            placeholder: 'Human-readable name...',
+            oninput: (e: Event) => {
+              this.state.valueColumns[index] = {
+                ...vc,
+                displayName: (e.target as HTMLInputElement).value || undefined,
+              };
+              this.state.onchange?.();
+            },
+          }),
+          m(OutlinedField, {
+            label: 'Display help',
+            value: vc.displayHelp ?? '',
+            placeholder: 'Description for this value...',
+            oninput: (e: Event) => {
+              this.state.valueColumns[index] = {
+                ...vc,
+                displayHelp: (e.target as HTMLInputElement).value || undefined,
+              };
+              this.state.onchange?.();
+            },
+          }),
         ),
     );
   }
@@ -718,6 +825,12 @@ export class MetricsNode implements QueryNode {
     const stateCopy: MetricsNodeState = {
       metricIdPrefix: this.state.metricIdPrefix,
       valueColumns: this.state.valueColumns.map((vc) => ({...vc})),
+      dimensionConfigs: Object.fromEntries(
+        Object.entries(this.state.dimensionConfigs).map(([k, v]) => [
+          k,
+          {...v},
+        ]),
+      ),
       dimensionUniqueness: this.state.dimensionUniqueness,
       availableColumns: newColumnInfoList(this.state.availableColumns),
       onchange: this.state.onchange,
@@ -747,7 +860,23 @@ export class MetricsNode implements QueryNode {
 
     const templateSpec = new protos.TraceMetricV2TemplateSpec();
     templateSpec.idPrefix = this.state.metricIdPrefix;
-    templateSpec.dimensions = this.getDimensions();
+    templateSpec.dimensionsSpecs = this.getDimensions().map((dimName) => {
+      const spec = new protos.TraceMetricV2Spec.DimensionSpec();
+      spec.name = dimName;
+      // Infer dimension type from the SQL column type.
+      const col = this.state.availableColumns.find((c) => c.name === dimName);
+      if (col?.column.type !== undefined) {
+        spec.type = sqlTypeToDimensionType(col.column.type);
+      }
+      const cfg = this.state.dimensionConfigs[dimName];
+      if (cfg?.displayName) {
+        spec.displayName = cfg.displayName;
+      }
+      if (cfg?.displayHelp) {
+        spec.displayHelp = cfg.displayHelp;
+      }
+      return spec;
+    });
     templateSpec.query = inputQuery;
 
     if (this.state.dimensionUniqueness === 'UNIQUE') {
@@ -782,6 +911,13 @@ export class MetricsNode implements QueryNode {
         valueSpec.polarity = polarityEnum;
       }
 
+      if (vc.displayName) {
+        valueSpec.displayName = vc.displayName;
+      }
+      if (vc.displayHelp) {
+        valueSpec.displayHelp = vc.displayHelp;
+      }
+
       return valueSpec;
     });
 
@@ -789,10 +925,20 @@ export class MetricsNode implements QueryNode {
   }
 
   serializeState(): MetricsSerializedState & {primaryInputId?: string} {
+    // Strip transient `expanded` from dimension configs before serializing.
+    const dimensionConfigs: Record<string, DimensionConfig> = {};
+    for (const [name, cfg] of Object.entries(this.state.dimensionConfigs)) {
+      const {expanded: _, ...rest} = cfg;
+      if (rest.displayName || rest.displayHelp) {
+        dimensionConfigs[name] = rest;
+      }
+    }
     return {
       primaryInputId: this.primaryInput?.nodeId,
       metricIdPrefix: this.state.metricIdPrefix,
       valueColumns: this.state.valueColumns.map(({expanded: _, ...vc}) => vc),
+      dimensionConfigs:
+        Object.keys(dimensionConfigs).length > 0 ? dimensionConfigs : undefined,
       dimensionUniqueness: this.state.dimensionUniqueness,
     };
   }
@@ -849,6 +995,7 @@ export class MetricsNode implements QueryNode {
     return {
       metricIdPrefix,
       valueColumns,
+      dimensionConfigs: state.dimensionConfigs ?? {},
       dimensionUniqueness: state.dimensionUniqueness ?? 'NOT_UNIQUE',
       availableColumns: [],
     };

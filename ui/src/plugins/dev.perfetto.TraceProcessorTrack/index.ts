@@ -214,9 +214,6 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           utid: utid ?? undefined,
           ...(isKernelThread === 1 && {kernelThread: true}),
         },
-        chips: removeFalsyValues([
-          isKernelThread === 0 && isMainThread === 1 && 'main thread',
-        ]),
         renderer: new TraceProcessorCounterTrack(
           ctx,
           uri,
@@ -239,6 +236,9 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           uri,
           name: trackName,
           sortOrder: utid !== undefined || upid !== undefined ? 30 : 0,
+          chips: removeFalsyValues([
+            isKernelThread === 0 && isMainThread === 1 && 'main thread',
+          ]),
         }),
       );
     }
@@ -401,9 +401,6 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           ...(isKernelThread === 1 && {kernelThread: true}),
           hasCallstacks: hasCallstacks === 1,
         },
-        chips: removeFalsyValues([
-          isKernelThread === 0 && isMainThread === 1 && 'main thread',
-        ]),
         renderer: await createTraceProcessorSliceTrack({
           trace: ctx,
           uri,
@@ -420,10 +417,14 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         group,
         upid,
         utid,
+
         new TrackNode({
           uri,
           name: displayName,
           sortOrder: utid !== undefined || upid !== undefined ? 20 : 0,
+          chips: removeFalsyValues([
+            isKernelThread === 0 && isMainThread === 1 && 'main thread',
+          ]),
         }),
       );
     }

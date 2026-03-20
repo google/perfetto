@@ -19,12 +19,12 @@ import {
   dashboardRegistry,
   getItemId,
   getNextItemPosition,
+  getConsumersOf,
+  getDriversOf,
+  isDriverChart,
   parseBrushFilters,
-  serializeDashboardData,
   snapToGrid,
   validateDashboardItems,
-  sourceDisplayName,
-  DashboardSourceWithName,
 } from './dashboard_registry';
 
 let nextChartId = 0;
@@ -43,28 +43,19 @@ function makeSource(
   return {nodeId, name, columns, graphId};
 }
 
-function makeSourceWithName(
-  nodeId: string,
-  name: string,
-  graphId: string,
-  graphName: string,
-): DashboardSourceWithName {
-  return {
-    nodeId,
-    name,
-    columns: [{name: 'id', type: {kind: 'int'}}],
-    graphId,
-    graphName,
-  };
-}
-
 function makeLabelItem(id = 'label-1', text = ''): DashboardItem {
   return {kind: 'label', id, text};
+}
+
+function makeDividerItem(id = 'div-1', y = 300): DashboardItem {
+  return {kind: 'divider', id, y};
 }
 
 function makeChartItem(
   sourceNodeId: string,
   chartId?: string,
+  x?: number,
+  y?: number,
 ): DashboardItem & {kind: 'chart'} {
   return {
     kind: 'chart',
@@ -74,6 +65,8 @@ function makeChartItem(
       column: 'id',
       chartType: 'bar',
     },
+    x,
+    y,
   };
 }
 
@@ -172,54 +165,6 @@ describe('getNextItemPosition', () => {
     // 10 % 10 = 0, same as empty
     expect(pos.x).toBe(20);
     expect(pos.y).toBe(20);
-  });
-});
-
-// --- Serialization ---
-
-describe('serializeDashboardData', () => {
-  test('returns empty object for undefined dashboardId', () => {
-    expect(serializeDashboardData(undefined)).toEqual({});
-  });
-
-  test('returns dashboardId with no items', () => {
-    const data = serializeDashboardData('db-1');
-    expect(data.dashboardId).toBe('db-1');
-    expect(data.dashboardItems).toBeUndefined();
-    expect(data.brushFilters).toBeUndefined();
-  });
-
-  test('serializes items when present', () => {
-    const chart = makeChartItem('n1');
-    const data = serializeDashboardData('db-1', [chart]);
-    expect(data.dashboardId).toBe('db-1');
-    expect(data.dashboardItems).toHaveLength(1);
-  });
-
-  test('serializes brush filters when present', () => {
-    const filters = new Map([
-      ['n1', [{column: 'x', op: '=' as const, value: 42}]],
-    ]);
-    const data = serializeDashboardData('db-1', [], filters);
-    expect(data.brushFilters).toEqual({
-      n1: [{column: 'x', op: '=', value: 42}],
-    });
-  });
-
-  test('omits empty items and filters', () => {
-    const data = serializeDashboardData('db-1', [], new Map());
-    expect(data.dashboardItems).toBeUndefined();
-    expect(data.brushFilters).toBeUndefined();
-  });
-
-  test('converts bigint values in filters to numbers', () => {
-    const filters = new Map([
-      ['n1', [{column: 'x', op: '=' as const, value: BigInt(42)}]],
-    ]);
-    const data = serializeDashboardData('db-1', [], filters);
-    expect(data.brushFilters).toEqual({
-      n1: [{column: 'x', op: '=', value: 42}],
-    });
   });
 });
 
@@ -373,73 +318,204 @@ describe('parseBrushFilters', () => {
   });
 });
 
-// --- sourceDisplayName ---
+// --- getExportedSourcesForGraph ---
 
-describe('sourceDisplayName', () => {
-  test('returns plain name when all charts use one graph', () => {
-    const s1 = makeSourceWithName('n1', 'thread_state', 'g1', 'Graph 1');
-    const s2 = makeSourceWithName('n2', 'sched', 'g1', 'Graph 1');
-    const items = [makeChartItem('n1'), makeChartItem('n2')];
-    const sources = [s1, s2];
-    expect(sourceDisplayName(s1, items, sources)).toBe('thread_state');
-    expect(sourceDisplayName(s2, items, sources)).toBe('sched');
+describe('getExportedSourcesForGraph', () => {
+  beforeEach(() => {
+    dashboardRegistry.clear();
   });
 
-  test('appends graph name when charts use multiple graphs', () => {
-    const s1 = makeSourceWithName('n1', 'thread_state', 'g1', 'Graph 1');
-    const s2 = makeSourceWithName('n2', 'thread_state', 'g2', 'Graph 2');
-    const items = [makeChartItem('n1'), makeChartItem('n2')];
-    const sources = [s1, s2];
-    expect(sourceDisplayName(s1, items, sources)).toBe(
-      'thread_state · Graph 1',
+  test('returns only sources matching graphId', () => {
+    dashboardRegistry.setExportedSource(makeSource('n1', 'A', [], 'g1'));
+    dashboardRegistry.setExportedSource(makeSource('n2', 'B', [], 'g2'));
+    dashboardRegistry.setExportedSource(makeSource('n3', 'C', [], 'g1'));
+    const g1Sources = dashboardRegistry.getExportedSourcesForGraph('g1');
+    expect(g1Sources).toHaveLength(2);
+    expect(g1Sources.map((s) => s.name)).toEqual(['A', 'C']);
+  });
+
+  test('returns empty array for unknown graphId', () => {
+    dashboardRegistry.setExportedSource(makeSource('n1', 'A', [], 'g1'));
+    expect(dashboardRegistry.getExportedSourcesForGraph('g999')).toHaveLength(
+      0,
     );
-    expect(sourceDisplayName(s2, items, sources)).toBe(
-      'thread_state · Graph 2',
-    );
-  });
-
-  test('no namespacing when only one graph is used even if others available', () => {
-    const s1 = makeSourceWithName('n1', 'A', 'g1', 'Graph 1');
-    const s2 = makeSourceWithName('n2', 'B', 'g2', 'Graph 2');
-    // Only s1 is used in charts; s2 is available but unused.
-    const items = [makeChartItem('n1')];
-    expect(sourceDisplayName(s1, items, [s1, s2])).toBe('A');
-  });
-
-  test('namespacing when two graphs are used even with different names', () => {
-    const s1 = makeSourceWithName('n1', 'A', 'g1', 'Graph 1');
-    const s2 = makeSourceWithName('n2', 'B', 'g2', 'Graph 2');
-    const items = [makeChartItem('n1'), makeChartItem('n2')];
-    const sources = [s1, s2];
-    expect(sourceDisplayName(s1, items, sources)).toBe('A · Graph 1');
-    expect(sourceDisplayName(s2, items, sources)).toBe('B · Graph 2');
-  });
-
-  test('returns plain name with no charts', () => {
-    const s1 = makeSourceWithName('n1', 'A', 'g1', 'Graph 1');
-    expect(sourceDisplayName(s1, [], [s1])).toBe('A');
   });
 });
 
-// --- sourceDisplayName with forceNamespace ---
+// --- getItemId for dividers ---
 
-describe('sourceDisplayName with forceNamespace', () => {
-  test('returns plain name when all sources are from one graph', () => {
-    const s1 = makeSourceWithName('n1', 'A', 'g1', 'Graph 1');
-    const s2 = makeSourceWithName('n2', 'B', 'g1', 'Graph 1');
-    expect(sourceDisplayName(s1, [], [s1, s2], true)).toBe('A');
-    expect(sourceDisplayName(s2, [], [s1, s2], true)).toBe('B');
+describe('getItemId for dividers', () => {
+  test('returns id for divider items', () => {
+    const divider = makeDividerItem('div-123');
+    expect(getItemId(divider)).toBe('div-123');
+  });
+});
+
+// --- Driver/consumer relationships ---
+//
+// The key question for any chart is:
+//   1. What drives it? (getDriversOf) — charts whose brush filters it.
+//   2. What does it drive? (getConsumersOf) — charts it brush-filters.
+//
+// Chart X drives chart Y when there exists a divider D with X.y < D.y <= Y.y.
+// isDriverChart(X) is true iff getConsumersOf(X) is non-empty — meaning X
+// skips brush filters on its own SQL query.
+
+describe('getDriversOf', () => {
+  test('no dividers — nobody drives anything', () => {
+    const a = makeChartItem('n1', 'a', 0, 100);
+    const b = makeChartItem('n2', 'b', 0, 200);
+    const items: DashboardItem[] = [a, b];
+    expect(getDriversOf(a, items)).toEqual([]);
+    expect(getDriversOf(b, items)).toEqual([]);
   });
 
-  test('appends graph name when sources span multiple graphs', () => {
-    const s1 = makeSourceWithName('n1', 'A', 'g1', 'Graph 1');
-    const s2 = makeSourceWithName('n2', 'B', 'g2', 'Graph 2');
-    expect(sourceDisplayName(s1, [], [s1, s2], true)).toBe('A · Graph 1');
-    expect(sourceDisplayName(s2, [], [s1, s2], true)).toBe('B · Graph 2');
+  test('single divider — chart above drives chart below', () => {
+    const a = makeChartItem('n1', 'a', 0, 100);
+    const div1 = makeDividerItem('div-1', 300);
+    const b = makeChartItem('n2', 'b', 0, 400);
+    const items: DashboardItem[] = [a, div1, b];
+    expect(getDriversOf(b, items)).toEqual([a]);
+    expect(getDriversOf(a, items)).toEqual([]);
   });
 
-  test('returns plain name with single source', () => {
-    const s1 = makeSourceWithName('n1', 'A', 'g1', 'Graph 1');
-    expect(sourceDisplayName(s1, [], [s1], true)).toBe('A');
+  test('non-chart items return empty', () => {
+    const label = makeLabelItem('l1', 'Hello');
+    const div1 = makeDividerItem('div-1', 300);
+    expect(getDriversOf(label, [label, div1])).toEqual([]);
+  });
+});
+
+describe('getConsumersOf', () => {
+  test('no dividers — nobody is consumed', () => {
+    const a = makeChartItem('n1', 'a', 0, 100);
+    const items: DashboardItem[] = [a];
+    expect(getConsumersOf(a, items)).toEqual([]);
+  });
+
+  test('single divider — chart above consumes chart below', () => {
+    const a = makeChartItem('n1', 'a', 0, 100);
+    const div1 = makeDividerItem('div-1', 300);
+    const b = makeChartItem('n2', 'b', 0, 400);
+    const items: DashboardItem[] = [a, div1, b];
+    expect(getConsumersOf(a, items)).toEqual([b]);
+    expect(getConsumersOf(b, items)).toEqual([]);
+  });
+
+  test('chart below divider has no consumers', () => {
+    const a = makeChartItem('n1', 'a', 0, 400);
+    const div1 = makeDividerItem('div-1', 300);
+    const items: DashboardItem[] = [a, div1];
+    expect(getConsumersOf(a, items)).toEqual([]);
+  });
+});
+
+describe('isDriverChart', () => {
+  test('true when chart has consumers (divider below)', () => {
+    const a = makeChartItem('n1', 'a', 0, 100);
+    const div1 = makeDividerItem('div-1', 300);
+    const b = makeChartItem('n2', 'b', 0, 400);
+    const items: DashboardItem[] = [a, div1, b];
+    expect(isDriverChart(a, items)).toBe(true);
+  });
+
+  test('false when chart has no consumers', () => {
+    const a = makeChartItem('n1', 'a', 0, 400);
+    const div1 = makeDividerItem('div-1', 300);
+    const items: DashboardItem[] = [a, div1];
+    expect(isDriverChart(a, items)).toBe(false);
+  });
+});
+
+// --- Stacked dividers: the full picture ---
+//
+// Layout:  A(y=100) → div1(y=300) → B(y=400) → div2(y=600) → C(y=700)
+//
+// A drives B and C.  B drives C.  C drives nobody.
+// Nothing drives A.  A drives B.  A and B drive C.
+// Only C (no consumers) applies brush filters to its own query.
+
+describe('stacked dividers', () => {
+  function makeStack() {
+    const a = makeChartItem('n1', 'a', 0, 100);
+    const div1 = makeDividerItem('div-1', 300);
+    const b = makeChartItem('n2', 'b', 0, 400);
+    const div2 = makeDividerItem('div-2', 600);
+    const c = makeChartItem('n3', 'c', 0, 700);
+    const items: DashboardItem[] = [a, div1, b, div2, c];
+    return {a, b, c, items};
+  }
+
+  test('A drives B and C', () => {
+    const {a, b, c, items} = makeStack();
+    expect(getConsumersOf(a, items)).toEqual([b, c]);
+  });
+
+  test('B drives C only', () => {
+    const {b, c, items} = makeStack();
+    expect(getConsumersOf(b, items)).toEqual([c]);
+  });
+
+  test('C drives nobody', () => {
+    const {c, items} = makeStack();
+    expect(getConsumersOf(c, items)).toEqual([]);
+  });
+
+  test('nothing drives A', () => {
+    const {a, items} = makeStack();
+    expect(getDriversOf(a, items)).toEqual([]);
+  });
+
+  test('A drives B', () => {
+    const {a, b, items} = makeStack();
+    expect(getDriversOf(b, items)).toEqual([a]);
+  });
+
+  test('A and B both drive C', () => {
+    const {a, b, c, items} = makeStack();
+    expect(getDriversOf(c, items)).toEqual([a, b]);
+  });
+
+  test('only C applies brush filters to itself', () => {
+    const {a, b, c, items} = makeStack();
+    // isDriverChart → skip own filters. Only C is not a driver.
+    expect(isDriverChart(a, items)).toBe(true);
+    expect(isDriverChart(b, items)).toBe(true);
+    expect(isDriverChart(c, items)).toBe(false);
+  });
+});
+
+// --- validateDashboardItems with dividers ---
+
+describe('validateDashboardItems with dividers', () => {
+  test('validates divider items', () => {
+    const items = [{kind: 'divider', id: 'd1', y: 300}];
+    const result = validateDashboardItems(items);
+    expect(result).toHaveLength(1);
+    expect(result?.[0].kind).toBe('divider');
+  });
+
+  test('rejects divider without id', () => {
+    const items = [{kind: 'divider', y: 300}];
+    expect(validateDashboardItems(items)).toBeUndefined();
+  });
+
+  test('rejects divider without y', () => {
+    const items = [{kind: 'divider', id: 'd1'}];
+    expect(validateDashboardItems(items)).toBeUndefined();
+  });
+
+  test('accepts mix of charts, labels, and dividers', () => {
+    const items = [
+      {
+        kind: 'chart',
+        sourceNodeId: 'n1',
+        config: {id: 'c1', column: 'x', chartType: 'bar'},
+      },
+      {kind: 'divider', id: 'd1', y: 300},
+      {kind: 'label', id: 'l1', text: 'Hello'},
+    ];
+    const result = validateDashboardItems(items);
+    expect(result).toHaveLength(3);
   });
 });
