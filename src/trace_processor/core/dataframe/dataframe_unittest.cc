@@ -954,6 +954,33 @@ TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_EqFilter_NonNullInt) {
                   /*cols_used=*/1);
 }
 
+TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_InFilter_NonNullInt) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"col1"}, CreateTypedColumnSpec(Uint32{}, NonNull{}, Unsorted{}));
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &string_pool_);
+  for (uint32_t i = 0; i < 100; ++i) {
+    df.InsertUnchecked(kSpec, i);
+  }
+  df.Finalize();
+
+  std::vector<uint32_t> p_vec(100);
+  std::iota(p_vec.begin(), p_vec.end(), 0);
+  df.AddIndex(
+      Index({0}, std::make_shared<std::vector<uint32_t>>(std::move(p_vec))));
+
+  std::vector<FilterSpec> filters = {{0, 0, In{}, std::nullopt}};
+  std::string expected_bytecode = R"(
+    InitRange: [size=100, dest_register=Register(0)]
+    CastFilterValueList<Uint32>: [fval_handle=FilterValue(0), write_register=Register(3), op=NonNullOp(0)]
+    AllocateIndices: [size=100, dest_slab_register=Register(4), dest_span_register=Register(5)]
+    IndexedFilterIn<Uint32, NonNull>: [storage_register=Register(7), null_bv_register=Register(8), value_list_register=Register(3), popcount_register=Register(6), source_register=Register(1), dest_register=Register(5)]
+    AllocateIndices: [size=100, dest_slab_register=Register(9), dest_span_register=Register(10)]
+    CopySpanIntersectingRange: [source_register=Register(5), source_range_register=Register(0), update_register=Register(10)]
+  )";
+  RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode,
+                  /*cols_used=*/1);
+}
+
 TEST_F(DataframeBytecodeTest,
        PlanQuery_SingleColIndex_EqFilter_NullableString) {
   static constexpr auto kSpec = CreateTypedDataframeSpec(
@@ -1672,6 +1699,129 @@ TEST(DataframeTest, TypedCursorInFilterReexecute) {
   ASSERT_EQ(cursor.GetCellUnchecked<1>(kSpec), 20u);
   cursor.Next();
   ASSERT_TRUE(cursor.Eof());
+}
+
+TEST(DataframeTest, TypedCursorInFilterWithIndex) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"id", "track_id"}, CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  // Insert rows with track_ids: 1, 2, 1, 3, 2, 1
+  df.InsertUnchecked(kSpec, std::monostate(), 1u);
+  df.InsertUnchecked(kSpec, std::monostate(), 2u);
+  df.InsertUnchecked(kSpec, std::monostate(), 1u);
+  df.InsertUnchecked(kSpec, std::monostate(), 3u);
+  df.InsertUnchecked(kSpec, std::monostate(), 2u);
+  df.InsertUnchecked(kSpec, std::monostate(), 1u);
+  df.Finalize();
+
+  // Build an index on track_id (column 1). Sorted order: 1,1,1,2,2,3
+  // Permutation: {0, 2, 5, 1, 4, 3}
+  df.AddIndex(Index({1}, std::make_shared<std::vector<uint32_t>>(
+                             std::vector<uint32_t>{0, 2, 5, 1, 4, 3})));
+
+  // IN (1, 3) should return rows 0, 2, 5 (track_id=1) and 3 (track_id=3).
+  using FV = TypedCursor::FilterValue;
+  TypedCursor cursor(&df, {FilterSpec{1, 0, In{}, {}}}, {});
+  FV values[] = {int64_t(1), int64_t(3)};
+  cursor.SetFilterValueListUnchecked(0, values, 2);
+  cursor.ExecuteUnchecked();
+
+  std::vector<uint32_t> result_ids;
+  while (!cursor.Eof()) {
+    result_ids.push_back(cursor.GetCellUnchecked<0>(kSpec));
+    cursor.Next();
+  }
+  // Results should contain ids for rows 0, 2, 3, 5 (in some order).
+  EXPECT_THAT(result_ids, testing::UnorderedElementsAre(0, 2, 3, 5));
+}
+
+// Regression test: IN values in reverse order should produce correct results.
+TEST(DataframeTest, TypedCursorInFilterWithIndexReverseOrder) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"id", "track_id"}, CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  // Insert rows with track_ids: 1, 2, 1, 3, 2, 1
+  df.InsertUnchecked(kSpec, std::monostate(), 1u);
+  df.InsertUnchecked(kSpec, std::monostate(), 2u);
+  df.InsertUnchecked(kSpec, std::monostate(), 1u);
+  df.InsertUnchecked(kSpec, std::monostate(), 3u);
+  df.InsertUnchecked(kSpec, std::monostate(), 2u);
+  df.InsertUnchecked(kSpec, std::monostate(), 1u);
+  df.Finalize();
+
+  df.AddIndex(Index({1}, std::make_shared<std::vector<uint32_t>>(
+                             std::vector<uint32_t>{0, 2, 5, 1, 4, 3})));
+
+  // IN (3, 1) — reverse order relative to index sort.
+  using FV = TypedCursor::FilterValue;
+  TypedCursor cursor(&df, {FilterSpec{1, 0, In{}, {}}}, {});
+  FV values[] = {int64_t(3), int64_t(1)};
+  cursor.SetFilterValueListUnchecked(0, values, 2);
+  cursor.ExecuteUnchecked();
+
+  std::vector<uint32_t> result_ids;
+  while (!cursor.Eof()) {
+    result_ids.push_back(cursor.GetCellUnchecked<0>(kSpec));
+    cursor.Next();
+  }
+  EXPECT_THAT(result_ids, testing::UnorderedElementsAre(0, 2, 3, 5));
+}
+
+// Regression test: executing an IN filter on an indexed column must not corrupt
+// the index permutation vector. A subsequent Eq query on the same index should
+// still return correct results.
+TEST(DataframeTest, TypedCursorInFilterWithIndexDoesNotCorruptIndex) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"id", "track_id"}, CreateTypedColumnSpec(Id(), NonNull(), IdSorted()),
+      CreateTypedColumnSpec(Uint32(), NonNull(), Unsorted()));
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  // Insert rows with track_ids: 1, 2, 1, 3, 2, 1
+  df.InsertUnchecked(kSpec, std::monostate(), 1u);
+  df.InsertUnchecked(kSpec, std::monostate(), 2u);
+  df.InsertUnchecked(kSpec, std::monostate(), 1u);
+  df.InsertUnchecked(kSpec, std::monostate(), 3u);
+  df.InsertUnchecked(kSpec, std::monostate(), 2u);
+  df.InsertUnchecked(kSpec, std::monostate(), 1u);
+  df.Finalize();
+
+  df.AddIndex(Index({1}, std::make_shared<std::vector<uint32_t>>(
+                             std::vector<uint32_t>{0, 2, 5, 1, 4, 3})));
+
+  // First: execute an IN filter that uses the index.
+  {
+    using FV = TypedCursor::FilterValue;
+    TypedCursor cursor(&df, {FilterSpec{1, 0, In{}, {}}}, {});
+    FV values[] = {int64_t(1), int64_t(3)};
+    cursor.SetFilterValueListUnchecked(0, values, 2);
+    cursor.ExecuteUnchecked();
+
+    std::vector<uint32_t> result_ids;
+    while (!cursor.Eof()) {
+      result_ids.push_back(cursor.GetCellUnchecked<0>(kSpec));
+      cursor.Next();
+    }
+    EXPECT_THAT(result_ids, testing::UnorderedElementsAre(0, 2, 3, 5));
+  }
+
+  // Second: execute an Eq filter on the same indexed column. If the IN filter
+  // corrupted the index permutation vector, this will return wrong results.
+  {
+    TypedCursor cursor(&df, {FilterSpec{1, 0, Eq{}, {}}}, {});
+    cursor.SetFilterValueUnchecked(0, int64_t(2));
+    cursor.ExecuteUnchecked();
+
+    std::vector<uint32_t> result_ids;
+    while (!cursor.Eof()) {
+      result_ids.push_back(cursor.GetCellUnchecked<0>(kSpec));
+      cursor.Next();
+    }
+    EXPECT_THAT(result_ids, testing::UnorderedElementsAre(1, 4));
+  }
 }
 
 TEST(DataframeTest,

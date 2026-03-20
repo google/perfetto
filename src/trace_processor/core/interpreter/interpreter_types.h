@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_CORE_INTERPRETER_INTERPRETER_TYPES_H_
 
 #include <cstdint>
+#include <memory>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -173,22 +174,43 @@ struct CastFilterValueListResult {
                                  FlexVector<StringPool::Id>>;
   using HashLookup = base::FlatHashMapV2<int64_t, bool>;
 
-  // The lookup used by In. For small lists (<=16 elements), we keep the
-  // FlexVector and do a linear scan. For dense Id/Uint32, a BitVector.
-  // For large sparse lists, a HashLookup.
-  using Lookup = std::variant<ValueList, BitVector, HashLookup>;
+  // Optimized lookup for the non-indexed In filter. For dense Id/Uint32, a
+  // BitVector. For large sparse integer/string lists, a HashLookup. For small
+  // lists or when no optimized structure applies, this is std::monostate and
+  // the non-indexed In bytecode falls back to linear scan over value_list.
+  using Lookup = std::variant<std::monostate, BitVector, HashLookup>;
 
-  static CastFilterValueListResult Valid(Lookup l) {
-    return {CastFilterValueResult::Validity::kValid, std::move(l)};
+  using Ptr = std::unique_ptr<CastFilterValueListResult>;
+
+  static Ptr Valid(ValueList vl, Lookup l) {
+    return Ptr(new CastFilterValueListResult{
+        CastFilterValueResult::Validity::kValid, std::move(vl), std::move(l)});
   }
-  static CastFilterValueListResult NoneMatch() {
-    return {CastFilterValueResult::Validity::kNoneMatch, ValueList{}};
+  static Ptr Valid(ValueList vl) {
+    return Ptr(
+        new CastFilterValueListResult{CastFilterValueResult::Validity::kValid,
+                                      std::move(vl), std::monostate{}});
   }
-  static CastFilterValueListResult AllMatch() {
-    return {CastFilterValueResult::Validity::kAllMatch, ValueList{}};
+  static Ptr NoneMatch() {
+    return Ptr(new CastFilterValueListResult{
+        CastFilterValueResult::Validity::kNoneMatch, ValueList{},
+        std::monostate{}});
+  }
+  static Ptr AllMatch() {
+    return Ptr(new CastFilterValueListResult{
+        CastFilterValueResult::Validity::kAllMatch, ValueList{},
+        std::monostate{}});
   }
 
   CastFilterValueResult::Validity validity;
+
+  // Always-present value list. Used by IndexedFilterIn (for binary search
+  // iteration) and by the non-indexed In bytecode (for linear scan on
+  // small lists).
+  ValueList value_list;
+
+  // Optional optimized lookup structure for the non-indexed In filter.
+  // std::monostate when no optimization applies (small lists).
   Lookup lookup;
 };
 
