@@ -119,12 +119,19 @@ final class PerfettoTrackEventExtra {
     private final long mExtraPtr;
     private final String mName;
     private final long mId;
+    private final boolean mIsStatic;
 
-    NamedTrack(long id, String name, long parentUuid, PerfettoNativeMemoryCleaner memoryCleaner) {
-      mPtr = native_init(id, name, parentUuid);
+    NamedTrack(
+        long id,
+        String name,
+        long parentUuid,
+        boolean isStatic,
+        PerfettoNativeMemoryCleaner memoryCleaner) {
+      mPtr = native_init(id, name, parentUuid, isStatic);
       mExtraPtr = native_get_extra_ptr(mPtr);
       mName = name;
       mId = id;
+      mIsStatic = isStatic;
       memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
@@ -137,8 +144,12 @@ final class PerfettoTrackEventExtra {
       return mName;
     }
 
+    public boolean isStatic() {
+      return mIsStatic;
+    }
+
     @FastNative
-    private static native long native_init(long id, String name, long parentUuid);
+    private static native long native_init(long id, String name, long parentUuid, boolean isStatic);
 
     @CriticalNative
     private static native long native_delete();
@@ -151,11 +162,17 @@ final class PerfettoTrackEventExtra {
     private final long mPtr;
     private final long mExtraPtr;
     private final String mName;
+    private final boolean mIsStatic;
 
-    CounterTrack(String name, long parentUuid, PerfettoNativeMemoryCleaner memoryCleaner) {
-      mPtr = native_init(name, parentUuid);
+    CounterTrack(
+        String name,
+        long parentUuid,
+        boolean isStatic,
+        PerfettoNativeMemoryCleaner memoryCleaner) {
+      mPtr = native_init(name, parentUuid, isStatic);
       mExtraPtr = native_get_extra_ptr(mPtr);
       mName = name;
+      mIsStatic = isStatic;
       memoryCleaner.registerNativeAllocation(this, mPtr, native_delete());
     }
 
@@ -168,8 +185,12 @@ final class PerfettoTrackEventExtra {
       return mName;
     }
 
+    public boolean isStatic() {
+      return mIsStatic;
+    }
+
     @FastNative
-    private static native long native_init(String name, long parentUuid);
+    private static native long native_init(String name, long parentUuid, boolean isStatic);
 
     @CriticalNative
     private static native long native_delete();

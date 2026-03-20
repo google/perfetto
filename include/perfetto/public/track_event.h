@@ -147,12 +147,17 @@ static inline void PerfettoTeCounterTrackFillDesc(
     struct perfetto_protos_TrackDescriptor* desc,
     const char* name,
     uint64_t parent_track_uuid,
-    uint64_t track_uuid) {
+    uint64_t track_uuid,
+    bool is_static) {
   perfetto_protos_TrackDescriptor_set_uuid(desc, track_uuid);
   if (parent_track_uuid) {
     perfetto_protos_TrackDescriptor_set_parent_uuid(desc, parent_track_uuid);
   }
-  perfetto_protos_TrackDescriptor_set_cstr_name(desc, name);
+  if (is_static) {
+    perfetto_protos_TrackDescriptor_set_cstr_static_name(desc, name);
+  } else {
+    perfetto_protos_TrackDescriptor_set_cstr_name(desc, name);
+  }
   {
     struct perfetto_protos_CounterDescriptor counter;
     perfetto_protos_TrackDescriptor_begin_counter(desc, &counter);
@@ -168,13 +173,18 @@ static inline void PerfettoTeNamedTrackFillDesc(
     const char* track_name,
     uint64_t id,
     uint64_t parent_track_uuid,
-    uint64_t track_uuid) {
+    uint64_t track_uuid,
+    bool is_static) {
   (void)id;
   perfetto_protos_TrackDescriptor_set_uuid(desc, track_uuid);
   if (parent_track_uuid) {
     perfetto_protos_TrackDescriptor_set_parent_uuid(desc, parent_track_uuid);
   }
-  perfetto_protos_TrackDescriptor_set_cstr_name(desc, track_name);
+  if (is_static) {
+    perfetto_protos_TrackDescriptor_set_cstr_static_name(desc, track_name);
+  } else {
+    perfetto_protos_TrackDescriptor_set_cstr_name(desc, track_name);
+  }
 }
 
 // Registers a track named `name` with unique `id` and `parent_uuid` into
@@ -193,7 +203,32 @@ static inline void PerfettoTeNamedTrackRegister(
 
   uuid = PerfettoTeNamedTrackUuid(name, id, parent_track_uuid);
 
-  PerfettoTeNamedTrackFillDesc(&desc, name, id, parent_track_uuid, uuid);
+  PerfettoTeNamedTrackFillDesc(&desc, name, id, parent_track_uuid, uuid, false);
+
+  track->impl.descriptor_size =
+      PerfettoStreamWriterGetWrittenSize(&writer.writer);
+  track->impl.descriptor = malloc(track->impl.descriptor_size);
+  track->impl.uuid = uuid;
+  PerfettoHeapBufferCopyInto(hb, &writer.writer, track->impl.descriptor,
+                             track->impl.descriptor_size);
+  PerfettoHeapBufferDestroy(hb, &writer.writer);
+}
+
+static inline void PerfettoTeNamedTrackRegisterWithStaticName(
+    struct PerfettoTeRegisteredTrack* track,
+    const char* name,
+    uint64_t id,
+    uint64_t parent_track_uuid) {
+  uint64_t uuid;
+  // Build the TrackDescriptor protobuf message.
+  struct PerfettoPbMsgWriter writer;
+  struct PerfettoHeapBuffer* hb = PerfettoHeapBufferCreate(&writer.writer);
+  struct perfetto_protos_TrackDescriptor desc;
+  PerfettoPbMsgInit(&desc.msg, &writer);
+
+  uuid = PerfettoTeNamedTrackUuid(name, id, parent_track_uuid);
+
+  PerfettoTeNamedTrackFillDesc(&desc, name, id, parent_track_uuid, uuid, true);
 
   track->impl.descriptor_size =
       PerfettoStreamWriterGetWrittenSize(&writer.writer);
@@ -217,7 +252,30 @@ static inline void PerfettoTeCounterTrackRegister(
 
   uuid = PerfettoTeCounterTrackUuid(name, parent_track_uuid);
 
-  PerfettoTeCounterTrackFillDesc(&desc, name, parent_track_uuid, uuid);
+  PerfettoTeCounterTrackFillDesc(&desc, name, parent_track_uuid, uuid, false);
+
+  track->impl.descriptor_size =
+      PerfettoStreamWriterGetWrittenSize(&writer.writer);
+  track->impl.descriptor = malloc(track->impl.descriptor_size);
+  track->impl.uuid = uuid;
+  PerfettoHeapBufferCopyInto(hb, &writer.writer, track->impl.descriptor,
+                             track->impl.descriptor_size);
+  PerfettoHeapBufferDestroy(hb, &writer.writer);
+}
+
+static inline void PerfettoTeCounterTrackRegisterWithStaticName(
+    struct PerfettoTeRegisteredTrack* track,
+    const char* name,
+    uint64_t parent_track_uuid) {
+  uint64_t uuid;
+  struct PerfettoPbMsgWriter writer;
+  struct PerfettoHeapBuffer* hb = PerfettoHeapBufferCreate(&writer.writer);
+  struct perfetto_protos_TrackDescriptor desc;
+  PerfettoPbMsgInit(&desc.msg, &writer);
+
+  uuid = PerfettoTeCounterTrackUuid(name, parent_track_uuid);
+
+  PerfettoTeCounterTrackFillDesc(&desc, name, parent_track_uuid, uuid, true);
 
   track->impl.descriptor_size =
       PerfettoStreamWriterGetWrittenSize(&writer.writer);

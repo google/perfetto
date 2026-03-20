@@ -299,6 +299,98 @@ public class PerfettoTraceTest {
   }
 
   @Test
+  public void testStaticNamedTrack() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    PerfettoTrace.begin(FOO_CATEGORY, "event")
+        .usingStaticProcessNamedTrack(123, "static_track")
+        .emit();
+
+    PerfettoTrace.end(FOO_CATEGORY)
+        .usingStaticProcessNamedTrack(123, "static_track")
+        .emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    boolean foundStaticName = false;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackDescriptor()) {
+        TrackDescriptor td = packet.getTrackDescriptor();
+        if ("static_track".equals(td.getStaticName())) {
+          foundStaticName = true;
+        }
+      }
+    }
+
+    assertThat(foundStaticName).isTrue();
+  }
+
+  @Test
+  public void testStaticAndNonStaticCacheCollision() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    // Normal track named "foo"
+    PerfettoTrace.begin(FOO_CATEGORY, "event1")
+        .usingNamedTrack(0, "foo", 0)
+        .emit();
+
+    // Static track also named "foo"
+    PerfettoTrace.begin(FOO_CATEGORY, "event2")
+        .usingStaticNamedTrack(0, "foo", 0)
+        .emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    boolean foundNormalFoo = false;
+    boolean foundStaticFoo = false;
+
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackDescriptor()) {
+        TrackDescriptor td = packet.getTrackDescriptor();
+        if ("foo".equals(td.getName())) {
+          foundNormalFoo = true;
+        }
+        if ("foo".equals(td.getStaticName())) {
+          foundStaticFoo = true;
+        }
+      }
+    }
+
+    assertThat(foundNormalFoo).isTrue();
+    assertThat(foundStaticFoo).isTrue();
+  }
+
+  @Test
+  public void testStaticCounterTrack() throws Exception {
+    TraceConfig traceConfig = getTraceConfig(FOO);
+
+    PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
+
+    PerfettoTrace.counter(FOO_CATEGORY, 42)
+        .usingStaticProcessCounterTrack("static_counter")
+        .emit();
+
+    Trace trace = Trace.parseFrom(session.close());
+
+    boolean foundStaticName = false;
+    for (TracePacket packet : trace.getPacketList()) {
+      if (packet.hasTrackDescriptor()) {
+        TrackDescriptor td = packet.getTrackDescriptor();
+        if ("static_counter".equals(td.getStaticName())) {
+          foundStaticName = true;
+        }
+      }
+    }
+
+    assertThat(foundStaticName).isTrue();
+  }
+
+
+  @Test
   public void testCounterSimple() throws Exception {
     TraceConfig traceConfig = getTraceConfig(FOO);
 
