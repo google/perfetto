@@ -128,7 +128,8 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
   }
 
   private renderPinnedTracks(trace: TraceImpl): m.Children {
-    if (trace.currentWorkspace.pinnedTracks.length === 0) return null;
+    const pinnedTracks = trace.currentWorkspace.pinnedTracks;
+    if (pinnedTracks.length === 0) return null;
 
     return [
       m(
@@ -141,8 +142,8 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
         },
         m(TrackTreeView, {
           trace,
-          rootNode: trace.currentWorkspace.pinnedTracksNode,
-          canReorderNodes: true,
+          rootNode: trace.currentWorkspace.tracks,
+          nodes: pinnedTracks,
           scrollToNewTracks: true,
         }),
       ),

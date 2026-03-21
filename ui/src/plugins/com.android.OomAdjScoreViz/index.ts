@@ -89,7 +89,8 @@ export default class OomAdjScoreViz implements PerfettoPlugin {
         for (const iter = buckets.iter({}); iter.valid(); iter.next()) {
           const bucket = iter.get('bucket') as string;
           const track = await this.createTracksForBucket(ctx, window, bucket);
-          ctx.defaultWorkspace.pinnedTracksNode.addChildLast(track);
+          ctx.defaultWorkspace.addChildLast(track);
+          track.pin();
         }
       },
     });

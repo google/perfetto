@@ -577,21 +577,18 @@ export class Workspace {
   public readonly id: string;
   public userEditable: boolean = true;
 
-  // Dummy node to contain the pinned tracks
-  public readonly pinnedTracksNode = new TrackNode();
+  private readonly _pinnedTracks = new Set<TrackNode>();
   public readonly tracks = new TrackNode();
 
   get pinnedTracks(): ReadonlyArray<TrackNode> {
-    return this.pinnedTracksNode.children;
+    return Array.from(this._pinnedTracks);
   }
 
   constructor() {
     this.id = createSessionUniqueId();
-    this.pinnedTracksNode._workspace = this;
     this.tracks._workspace = this;
 
-    // Expanding these nodes makes the logic work
-    this.pinnedTracksNode.expand();
+    // Expanding this node makes the logic work
     this.tracks.expand();
   }
 
@@ -599,42 +596,31 @@ export class Workspace {
    * Reset the entire workspace including the pinned tracks.
    */
   clear(): void {
-    this.pinnedTracksNode.clear();
+    this._pinnedTracks.clear();
     this.tracks.clear();
   }
 
   /**
-   * Adds a track node to this workspace's pinned area.
+   * Adds a track node to this workspace's pinned area. The node must already
+   * be part of this workspace's track tree - pinning creates a reference, not
+   * a clone.
    */
   pinTrack(track: TrackNode): void {
-    // Make a lightweight clone of this track - just the uri and the title.
-    const cloned = new TrackNode({
-      uri: track.uri,
-      name: track.name,
-      subtitle: track.subtitle,
-      removable: track.removable,
-      chips: track.chips,
-    });
-    this.pinnedTracksNode.addChildLast(cloned);
+    this._pinnedTracks.add(track);
   }
 
   /**
    * Removes a track node from this workspace's pinned area.
    */
   unpinTrack(track: TrackNode): void {
-    const foundNode = this.pinnedTracksNode.children.find(
-      (t) => t.uri === track.uri,
-    );
-    if (foundNode) {
-      this.pinnedTracksNode.removeChild(foundNode);
-    }
+    this._pinnedTracks.delete(track);
   }
 
   /**
-   * Check if this workspace has a pinned track with the same URI as |track|.
+   * Check if this workspace has a pinned track.
    */
   hasPinnedTrack(track: TrackNode): boolean {
-    return this.pinnedTracksNode.flatTracks.some((p) => p.uri === track.uri);
+    return this._pinnedTracks.has(track);
   }
 
   /**
@@ -658,9 +644,7 @@ export class Workspace {
    * @returns The node or undefined if no such node exists.
    */
   getTrackById(id: string): TrackNode | undefined {
-    return (
-      this.tracks.getTrackById(id) || this.pinnedTracksNode.getTrackById(id)
-    );
+    return this.tracks.getTrackById(id);
   }
 
   /**
