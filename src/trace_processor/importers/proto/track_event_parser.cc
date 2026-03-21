@@ -58,6 +58,21 @@
 
 namespace perfetto::trace_processor {
 
+// Field numbers from AndroidProcessStartEvent in android_track_event.proto.
+// pbzero isn't generated for extension-only protos; decode with raw field ids.
+namespace android_process_start_event {
+constexpr uint32_t kUidFieldNumber = 1;
+constexpr uint32_t kPidFieldNumber = 2;
+constexpr uint32_t kProcessNameFieldNumber = 3;
+}  // namespace android_process_start_event
+
+// Field numbers from AndroidBinderDiedEvent in android_track_event.proto.
+namespace android_binder_died_event {
+constexpr uint32_t kUidFieldNumber = 1;
+constexpr uint32_t kPidFieldNumber = 2;
+constexpr uint32_t kProcessNameFieldNumber = 3;
+}  // namespace android_binder_died_event
+
 namespace {
 using BoundInserter = ArgsTracker::BoundInserter;
 using protos::pbzero::TrackEvent;
@@ -271,6 +286,102 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
                                   util::ProtoToArgsParser::Delegate& delegate) {
         AddActiveProcess(delegate.packet_timestamp(), field.as_int32());
         // Fallthrough so that the parser adds pid as a regular arg.
+        return std::nullopt;
+      });
+
+  // Intercept Android framework process lifecycle events during proto arg
+  // parsing. This mirrors how ftrace handles task_newtask/sched_process_free:
+  // decode the proto inline and call process_tracker directly rather than
+  // scanning slices post-hoc.
+  args_parser_.AddParsingOverrideForType(
+      ".perfetto.protos.AndroidProcessStartEvent",
+      [this](util::ProtoToArgsParser::ScopedNestedKeyContext&,
+             const protozero::ConstBytes& data,
+             util::ProtoToArgsParser::Delegate& delegate)
+          -> std::optional<base::Status> {
+        protozero::ProtoDecoder evt(data);
+        auto pid_field =
+            evt.FindField(android_process_start_event::kPidFieldNumber);
+        if (!pid_field.valid())
+          return std::nullopt;
+
+        int64_t ts = delegate.packet_timestamp();
+        int64_t pid = pid_field.as_int32();
+        auto* proc_tracker = context_->process_tracker.get();
+        // If ftrace already created this process, don't create a duplicate.
+        // Only fill in data that ftrace didn't provide.
+        auto existing_upid = proc_tracker->UpidForPid(pid);
+        UniquePid upid;
+        if (existing_upid) {
+          upid = *existing_upid;
+        } else {
+          StringId process_name = kNullStringId;
+          auto name_field = evt.FindField(
+              android_process_start_event::kProcessNameFieldNumber);
+          if (name_field.valid()) {
+            process_name =
+                context_->storage->InternString(name_field.as_string());
+          }
+          upid = proc_tracker->StartNewProcessWithoutMainThread(
+              /*timestamp=*/ts,
+              /*parent_upid=*/std::nullopt,
+              /*pid=*/pid,
+              /*process_name=*/process_name,
+              /*priority=*/ThreadNamePriority::kOther);
+        }
+
+        auto uid_field =
+            evt.FindField(android_process_start_event::kUidFieldNumber);
+        if (uid_field.valid()) {
+          proc_tracker->SetProcessUid(
+              upid, static_cast<uint32_t>(uid_field.as_int32()));
+        }
+
+        // Fallthrough so the parser also writes args to the slice.
+        return std::nullopt;
+      });
+
+  args_parser_.AddParsingOverrideForType(
+      ".perfetto.protos.AndroidBinderDiedEvent",
+      [this](util::ProtoToArgsParser::ScopedNestedKeyContext&,
+             const protozero::ConstBytes& data,
+             util::ProtoToArgsParser::Delegate& delegate)
+          -> std::optional<base::Status> {
+        protozero::ProtoDecoder evt(data);
+        auto pid_field =
+            evt.FindField(android_binder_died_event::kPidFieldNumber);
+        if (!pid_field.valid())
+          return std::nullopt;
+
+        int64_t ts = delegate.packet_timestamp();
+        int64_t pid = pid_field.as_int32();
+        auto* proc_tracker = context_->process_tracker.get();
+
+        // Populate uid/name before ending, so data is set on the process
+        // row before it's marked as ended.
+        auto opt_upid = proc_tracker->UpidForPid(pid);
+        if (opt_upid) {
+          auto uid_field =
+              evt.FindField(android_binder_died_event::kUidFieldNumber);
+          if (uid_field.valid()) {
+            proc_tracker->SetProcessUid(
+                *opt_upid, static_cast<uint32_t>(uid_field.as_int32()));
+          }
+
+          auto name_field =
+              evt.FindField(android_binder_died_event::kProcessNameFieldNumber);
+          if (name_field.valid()) {
+            proc_tracker->UpdateProcessName(
+                *opt_upid,
+                context_->storage->InternString(name_field.as_string()),
+                ProcessNamePriority::kOther);
+          }
+        }
+
+        // End the process (handles both with-main-thread and without cases).
+        proc_tracker->EndProcess(ts, pid);
+
+        // Fallthrough so the parser also writes args to the slice.
         return std::nullopt;
       });
 

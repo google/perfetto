@@ -1262,6 +1262,7 @@ class TrackEventEventImporter {
         parser_->AddActiveProcess(ts_, *it);
       }
     }
+
     if (event_.has_correlation_id()) {
       base::StackString<512> id_str("tp:#%" PRIu64, event_.correlation_id());
       inserter->AddArg(parser_->correlation_id_key_id_,
