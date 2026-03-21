@@ -166,6 +166,17 @@ export interface LineChartAttrs {
    * Note: When stacked, all series must be aligned to the same X values.
    */
   readonly stacked?: boolean;
+
+  /**
+   * Position of the legend. Defaults to 'bottom' when multiple series,
+   * 'top' otherwise.
+   */
+  readonly legendPosition?: 'top' | 'right' | 'bottom';
+
+  /**
+   * Callback when a series is clicked. Called with the series name.
+   */
+  readonly onSeriesClick?: (seriesName: string) => void;
 }
 
 export class LineChart implements m.ClassComponent<LineChartAttrs> {
@@ -208,12 +219,17 @@ function buildLineOption(
     lineWidth = 2,
     gridLines,
     stacked = false,
+    legendPosition,
   } = attrs;
   const fmtX = formatXValue ?? formatNumber;
   const fmtY = formatYValue ?? formatNumber;
 
   const displayLegend = showLegend ?? data.series.length > 1;
+  const legendPos =
+    legendPosition ?? (data.series.length > 1 ? 'bottom' : 'top');
 
+  // When stacking, reverse the series order so that the first series is drawn
+  // on top. This aligns the series order with the legend and tooltip.
   const series = data.series.map((s, i) => {
     const base: Record<string, unknown> = {
       type: 'line',
@@ -227,9 +243,13 @@ function buildLineOption(
       showSymbol: showPoints,
       symbolSize: 6,
       triggerLineEvent: true,
-      emphasis: {focus: 'series', itemStyle: {borderWidth: 2}},
+      emphasis: stacked
+        ? {focus: 'series', blurScope: 'global' as const}
+        : {focus: 'series', itemStyle: {borderWidth: 2}},
       stack: stacked ? 'total' : undefined,
-      areaStyle: stacked ? {} : undefined,
+      areaStyle: stacked ? {opacity: 0.8} : undefined,
+      // invisible wider hitbox
+      silent: false,
     };
 
     // Render selection highlight on the first series only.
@@ -243,8 +263,16 @@ function buildLineOption(
 
   const option = buildChartOption({
     grid: {
-      top: displayLegend ? 30 : 10,
-      bottom: xAxisLabel ? 40 : 25,
+      top: legendPos === 'top' && displayLegend ? 30 : 10,
+      right: legendPos === 'right' && displayLegend ? 150 : undefined,
+      bottom:
+        legendPos === 'bottom' && displayLegend
+          ? xAxisLabel
+            ? 70
+            : 55
+          : xAxisLabel
+            ? 40
+            : 25,
     },
     xAxis: {
       // Nasty ECharts quirk: when stacking, the xAxis must be type 'category'
@@ -282,8 +310,9 @@ function buildLineOption(
       ) => {
         if (!Array.isArray(params) || params.length === 0) return '';
         const xVal = params[0].data?.[0];
-        const header = xVal !== undefined ? `X: ${fmtX(xVal)}` : '';
-        const lines = params.map(
+        const header = xVal !== undefined ? fmtX(xVal) : '';
+        const ordered = stacked ? [...params].reverse() : params;
+        const lines = ordered.map(
           (p) =>
             `${p.marker ?? ''} ${p.seriesName ?? ''}: ${fmtY(p.data?.[1] ?? 0)}`,
         );
@@ -291,7 +320,21 @@ function buildLineOption(
       },
     },
     brush: attrs.onBrush ? {xAxisIndex: 0, brushType: 'lineX'} : undefined,
-    legend: displayLegend ? buildLegendOption() : {show: false},
+    legend: displayLegend
+      ? {
+          ...buildLegendOption(legendPos),
+          ...(stacked
+            ? {data: [...data.series].reverse().map((s) => s.name)}
+            : {}),
+          formatter: (name: string) => {
+            const s = data.series.find((sr) => sr.name === name);
+            if (s !== undefined && s.points.length > 0) {
+              return `${name}  ${fmtY(s.points[s.points.length - 1].y)}`;
+            }
+            return name;
+          },
+        }
+      : {show: false},
   });
 
   (option as Record<string, unknown>).series = series;
@@ -302,18 +345,16 @@ function buildLineEventHandlers(
   attrs: LineChartAttrs,
   data: LineChartData | undefined,
 ): ReadonlyArray<EChartEventHandler> {
-  if (
-    !attrs.onBrush ||
-    data === undefined ||
-    data.series.length === 0 ||
-    data.series.every((s) => s.points.length === 0)
-  ) {
-    return [];
-  }
-  const onBrush = attrs.onBrush;
+  const handlers: EChartEventHandler[] = [];
 
-  return [
-    {
+  if (
+    attrs.onBrush &&
+    data !== undefined &&
+    data.series.length > 0 &&
+    data.series.some((s) => s.points.length > 0)
+  ) {
+    const onBrush = attrs.onBrush;
+    handlers.push({
       eventName: 'brushEnd',
       handler: (params) => {
         const range = extractBrushRange(params);
@@ -322,6 +363,21 @@ function buildLineEventHandlers(
           onBrush({start, end});
         }
       },
-    },
-  ];
+    });
+  }
+
+  if (attrs.onSeriesClick) {
+    const onSeriesClick = attrs.onSeriesClick;
+    handlers.push({
+      eventName: 'click',
+      handler: (params) => {
+        const p = params as {seriesName?: string};
+        if (p.seriesName !== undefined) {
+          onSeriesClick(p.seriesName);
+        }
+      },
+    });
+  }
+
+  return handlers;
 }

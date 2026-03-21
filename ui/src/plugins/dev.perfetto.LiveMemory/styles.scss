@@ -1,0 +1,176 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-live-memory-page__container {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  height: 100%;
+  background: var(--pf-color-background);
+}
+
+.pf-live-memory-page {
+  max-width: 1500px;
+  width: 100%;
+  margin-inline: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+// Page title bar.
+.pf-live-memory-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--pf-color-text);
+  }
+  .pf-live-memory-title-bar__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+// Status pill shown while recording.
+.pf-live-memory-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  background: var(--pf-color-background-secondary);
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-muted);
+}
+
+.pf-live-memory-status-bar__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4caf50;
+  flex-shrink: 0;
+  animation: pf-live-memory-pulse 2s ease-in-out infinite;
+}
+
+@keyframes pf-live-memory-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.pf-live-memory-error {
+  color: var(--pf-color-error);
+  font-size: var(--pf-font-size-s);
+}
+
+// Top-level tab bar.
+.pf-live-memory-tabs {
+  display: flex;
+  align-items: center;
+}
+
+// Chart panels.
+.pf-live-memory-panel {
+  border-radius: 8px;
+  background: var(--pf-color-background);
+  border: 1px solid var(--pf-color-border-secondary);
+}
+
+.pf-live-memory-panel__header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--pf-color-border-secondary);
+  h2 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--pf-color-text);
+  }
+  p {
+    margin: 4px 0 0 0;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+    line-height: 1.4;
+  }
+  .pf-segmented-buttons {
+    margin-top: 8px;
+  }
+}
+
+.pf-live-memory-panel__body {
+  padding: 12px;
+}
+
+.pf-live-memory-placeholder {
+  color: var(--pf-color-text-muted);
+  font-size: var(--pf-font-size-s);
+  font-style: italic;
+  padding: 32px 0;
+  text-align: center;
+}
+
+// Hero connect / idle state.
+.pf-live-memory-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 48px 24px;
+  border-radius: 8px;
+  border: 1px dashed var(--pf-color-border-secondary);
+  text-align: center;
+}
+
+.pf-live-memory-hero__icon {
+  font-size: 48px;
+  color: var(--pf-color-text-muted);
+  opacity: 0.5;
+}
+
+.pf-live-memory-hero__text {
+  font-size: var(--pf-font-size-m);
+  color: var(--pf-color-text-muted);
+  max-width: 420px;
+  line-height: 1.5;
+}
+
+.pf-live-memory-hero__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pf-live-memory-device-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.pf-live-memory-page {
+  .pf-data-grid {
+    height: 600px;
+  }
+}

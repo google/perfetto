@@ -53,3 +53,61 @@ export async function getAdbTracingServiceState(
   }
   return okResult(resp.serviceState);
 }
+
+export async function cloneAdbTracingSession(
+  adbDevice: AdbDevice,
+  uniqueSessionName: string,
+): Promise<Result<Uint8Array>> {
+  // Create a new connection for the clone operation
+  const streamStatus = await adbDevice.createStream(
+    `localfilesystem:${CONSUMER_SOCKET}`,
+  );
+  if (!streamStatus.ok) return streamStatus;
+  const stream = streamStatus.value;
+  const consumerIpc = await TracingProtocol.create(stream);
+
+  try {
+    // Clone the session by name
+    const cloneResp = await consumerIpc.invoke(
+      'CloneSession',
+      new protos.CloneSessionRequest({uniqueSessionName}),
+    );
+
+    if (!cloneResp.success) {
+      consumerIpc.close();
+      return errResult(cloneResp.error || 'CloneSession failed');
+    }
+
+    // Read the cloned trace data
+    const traceData = await readClonedData(consumerIpc);
+    consumerIpc.close();
+    return okResult(traceData);
+  } catch (e) {
+    consumerIpc.close();
+    return errResult(`CloneSession error: ${e}`);
+  }
+}
+
+function readClonedData(consumerIpc: TracingProtocol): Promise<Uint8Array> {
+  return new Promise((resolve) => {
+    const chunks: Uint8Array[] = [];
+    const stream = consumerIpc.invokeStreaming(
+      'ReadBuffers',
+      new protos.ReadBuffersRequest({}),
+    );
+    stream.onTraceData = (data: Uint8Array, hasMore: boolean) => {
+      chunks.push(data);
+      if (!hasMore) {
+        // Concatenate all chunks
+        const totalLen = chunks.reduce((sum, c) => sum + c.length, 0);
+        const result = new Uint8Array(totalLen);
+        let offset = 0;
+        for (const chunk of chunks) {
+          result.set(chunk, offset);
+          offset += chunk.length;
+        }
+        resolve(result);
+      }
+    };
+  });
+}
