@@ -92,6 +92,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
 
   private groups = new Map<string, TrackNode>();
   private store?: Store<TraceProcessorTrackPluginState>;
+  private gpuCount = 0;
 
   private migrateTraceProcessorTrackPluginState(
     init: unknown,
@@ -104,6 +105,15 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     this.store = ctx.mountStore(TraceProcessorTrackPlugin.id, (init) =>
       this.migrateTraceProcessorTrackPluginState(init),
     );
+
+    // Query how many distinct GPU IDs exist in the trace.
+    const gpuCountResult = await ctx.engine.query(`
+      select count(distinct extract_arg(dimension_arg_set_id, 'gpu')) as cnt
+      from track
+      where extract_arg(dimension_arg_set_id, 'gpu') is not null
+    `);
+    this.gpuCount = gpuCountResult.firstRow({cnt: NUM}).cnt;
+
     await this.addCounters(ctx);
     await this.addSlices(ctx);
     this.addAggregations(ctx);
@@ -124,6 +134,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           ct.machine_id as machine,
           extract_arg(ct.dimension_arg_set_id, 'utid') as utid,
           extract_arg(ct.dimension_arg_set_id, 'upid') as upid,
+          extract_arg(ct.dimension_arg_set_id, 'gpu') as gpu_id,
           extract_arg(ct.source_arg_set_id, 'description') as description
         from counter_track ct
         join _counter_track_summary using (id)
@@ -153,6 +164,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       unit: STR_NULL,
       utid: NUM_NULL,
       upid: NUM_NULL,
+      gpu_id: NUM_NULL,
       threadName: STR_NULL,
       processName: STR_NULL,
       tid: LONG_NULL,
@@ -170,6 +182,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         unit,
         utid,
         upid,
+        gpu_id: gpuId,
         threadName,
         processName,
         tid,
@@ -232,6 +245,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         group,
         upid,
         utid,
+        gpuId,
         new TrackNode({
           uri,
           name: trackName,
@@ -264,6 +278,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
             lower(min(t.name)) as lower_name,
             extract_arg(t.dimension_arg_set_id, 'utid') as utid,
             extract_arg(t.dimension_arg_set_id, 'upid') as upid,
+            extract_arg(t.dimension_arg_set_id, 'gpu') as gpu_id,
             extract_arg(t.source_arg_set_id, 'description') as description,
             min(t.id) minTrackId,
             group_concat(t.id) as trackIds,
@@ -277,13 +292,14 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           from _slice_track_summary s
           join track t using (id)
           left join _track_event_tracks_with_callstacks cs on cs.track_id = t.id
-          group by type, upid, utid, t.track_group_id, ifnull(t.track_group_id, t.id)
+          group by type, upid, utid, gpu_id, t.track_group_id, ifnull(t.track_group_id, t.id)
         )
         select
           s.type,
           s.name,
           s.utid,
           ifnull(s.upid, tp.upid) as upid,
+          s.gpu_id,
           s.minTrackId as minTrackId,
           s.trackIds as trackIds,
           s.trackCount,
@@ -330,6 +346,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       name: STR_NULL,
       utid: NUM_NULL,
       upid: NUM_NULL,
+      gpu_id: NUM_NULL,
       trackIds: STR,
       maxDepth: NUM,
       tid: LONG_NULL,
@@ -351,6 +368,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         maxDepth,
         utid,
         upid,
+        gpu_id: gpuId,
         threadName,
         processName,
         tid,
@@ -417,6 +435,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         group,
         upid,
         utid,
+        gpuId,
 
         new TrackNode({
           uri,
@@ -436,6 +455,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     group: string | TrackGroupSchema | undefined,
     upid: number | null,
     utid: number | null,
+    gpuId: number | null,
     track: TrackNode,
   ) {
     switch (topLevelGroup) {
@@ -466,10 +486,34 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         break;
       }
       default: {
-        const standardGroup = ctx.plugins
-          .getPlugin(StandardGroupsPlugin)
-          .getOrCreateStandardGroup(ctx.defaultWorkspace, topLevelGroup);
-        this.getGroupByName(standardGroup, group, null).addChildInOrder(track);
+        const standardGroupsPlugin =
+          ctx.plugins.getPlugin(StandardGroupsPlugin);
+        const standardGroup = standardGroupsPlugin.getOrCreateStandardGroup(
+          ctx.defaultWorkspace,
+          topLevelGroup,
+        );
+
+        // For multi-GPU traces, create per-GPU sub-groups within each
+        // group (e.g., "GPU 0 Counters" inside "Counters").
+        if (
+          topLevelGroup === 'GPU' &&
+          gpuId !== null &&
+          group !== undefined &&
+          this.gpuCount > 1
+        ) {
+          const groupName = typeof group === 'string' ? group : group.name;
+          const parentGroup = this.getGroupByName(standardGroup, group, null);
+          const gpuSubGroup = this.getGroupByName(
+            parentGroup,
+            `GPU ${gpuId} ${groupName}`,
+            gpuId,
+          );
+          gpuSubGroup.addChildInOrder(track);
+        } else {
+          this.getGroupByName(standardGroup, group, null).addChildInOrder(
+            track,
+          );
+        }
         break;
       }
     }
