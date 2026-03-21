@@ -129,6 +129,12 @@ export interface TrackTreeViewAttrs {
   // purposes if `reorderable` is set to true.
   readonly rootNode: TrackNode;
 
+  // Optional: An explicit list of nodes to render instead of rootNode.children.
+  // When provided, these nodes are rendered as top-level tracks. This is used
+  // for rendering pinned tracks which are references to nodes that live
+  // elsewhere in the track tree.
+  readonly nodes?: ReadonlyArray<TrackNode>;
+
   // Additional class names to add to the root level element.
   readonly className?: string;
 
@@ -149,6 +155,9 @@ export interface TrackTreeViewAttrs {
   readonly trackFilter?: (track: TrackNode) => boolean;
 
   readonly filtersApplied?: boolean;
+
+  // When true, show the full path as the title for each track.
+  readonly showFullPath?: boolean;
 }
 
 const TRACK_CONTAINER_REF = 'track-container';
@@ -184,9 +193,12 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       canRemoveNodes,
       className,
       rootNode,
+      nodes,
       trackFilter,
       filtersApplied,
+      showFullPath,
     } = attrs;
+    const topLevelNodes = nodes ?? rootNode.children;
     const renderedTracks = new Array<TrackView>();
     let top = 0;
 
@@ -271,6 +283,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           stickyTop,
           depth,
           collapsible: !filtersApplied,
+          showFullPath,
           onTrackMouseOver: () => {
             this.hoveredTrackNode = node;
           },
@@ -284,7 +297,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       return {vnodes, isVisible};
     };
 
-    const trackVnodes = rootNode.children
+    const trackVnodes = topLevelNodes
       .map((track) => renderTrack(track))
       .map(({vnodes}) => vnodes);
 

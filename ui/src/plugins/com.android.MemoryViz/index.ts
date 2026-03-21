@@ -168,7 +168,8 @@ export default class MemoryViz implements PerfettoPlugin {
 
         for (const track of createdTracks) {
           if (track) {
-            ctx.defaultWorkspace.pinnedTracksNode.addChildLast(track);
+            ctx.defaultWorkspace.addChildLast(track);
+            track.pin();
           }
         }
       },
