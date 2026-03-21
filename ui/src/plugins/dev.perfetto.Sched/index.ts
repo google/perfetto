@@ -192,7 +192,7 @@ export default class SchedPlugin implements PerfettoPlugin {
       const uri = uriForSchedTrack(cpu.ucpu);
       const size = cpuToClusterType.get(cpu.cpu);
       const sizeStr = size === undefined ? `` : ` (${size})`;
-      const name = `CPU ${cpu.cpu} Scheduling${sizeStr}${cpu.maybeMachineLabel()}`;
+      const name = `CPU ${cpu.cpu} ${sizeStr}${cpu.maybeMachineLabel()}`;
 
       const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
       ctx.tracks.registerTrack({
