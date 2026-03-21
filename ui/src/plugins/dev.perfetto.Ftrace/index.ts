@@ -63,7 +63,7 @@ export default class implements PerfettoPlugin {
 
     const cpus = await getFtraceCpus(ctx);
     const group = new TrackNode({
-      name: 'Ftrace',
+      name: 'Ftrace Events',
       sortOrder: -5,
       isSummary: true,
       onExpand: () => {
@@ -88,7 +88,7 @@ export default class implements PerfettoPlugin {
 
       const track = new TrackNode({
         uri,
-        name: `CPU ${cpu.toString()}`,
+        name: `Ftrace Track for CPU ${cpu.toString()}`,
       });
       group.addChildInOrder(track);
     }

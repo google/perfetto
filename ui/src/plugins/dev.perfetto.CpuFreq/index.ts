@@ -116,7 +116,7 @@ export default class implements PerfettoPlugin {
 
       const trackNode = new TrackNode({
         uri,
-        name: `CPU ${new Cpu(ucpu, cpu, machineId).toString()}`,
+        name: `CPU ${new Cpu(ucpu, cpu, machineId).toString()} Frequency`,
       });
 
       group.addChildInOrder(trackNode);
