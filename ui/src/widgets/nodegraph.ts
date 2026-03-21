@@ -81,6 +81,7 @@ export interface Connection {
 export interface NodeTitleBar {
   readonly title: m.Children;
   readonly icon?: string;
+  readonly actions?: m.Children;
 }
 
 export interface NodePort {
@@ -106,6 +107,7 @@ export interface Node {
   readonly canDockBottom?: boolean;
   readonly contextMenuItems?: m.Children;
   readonly invalid?: boolean; // Whether this node is in an invalid state
+  readonly collapsed?: boolean; // When true, hides content and shows only header + ports
 }
 
 export interface Label {
@@ -227,9 +229,13 @@ export interface NodeGraphAttrs {
     y: number,
   ) => void;
   readonly onNodeRemove?: (nodeId: string) => void;
+  readonly onNodeCollapse?: (nodeId: string, collapsed: boolean) => void;
   readonly onLabelMove?: (labelId: string, x: number, y: number) => void;
   readonly onLabelResize?: (labelId: string, width: number) => void;
   readonly onLabelRemove?: (labelId: string) => void;
+  readonly onCopy?: () => void;
+  readonly onPaste?: () => void;
+  readonly onCut?: () => void;
   readonly hideControls?: boolean;
   readonly multiselect?: boolean; // Enable multi-node selection (default: true)
   readonly contextMenuOnHover?: boolean; // Show context menu on hover (default: false)
@@ -838,11 +844,23 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     // Using document.querySelectorAll would pick up ports from other
     // NodeGraph instances (e.g. hidden tabs), causing incorrect positions.
     const container = assertExists(canvasElement);
-    const allPorts = container.querySelectorAll('.pf-port[data-port]');
-    allPorts.forEach((portElement) => {
-      const portId = portElement.getAttribute('data-port');
-      if (!portId) return;
-
+    // Query both top/bottom ports (data-port on .pf-port itself) and
+    // left/right ports (data-port on .pf-port-row wrapper, port is child).
+    const allDirectPorts = container.querySelectorAll('.pf-port[data-port]');
+    const allWrappedPorts = container.querySelectorAll(
+      '[data-port] > .pf-port',
+    );
+    const portEntries: Array<{portElement: Element; portId: string}> = [];
+    allDirectPorts.forEach((el) => {
+      const portId = el.getAttribute('data-port');
+      if (portId) portEntries.push({portElement: el, portId});
+    });
+    allWrappedPorts.forEach((el) => {
+      const parent = el.parentElement;
+      const portId = parent?.getAttribute('data-port');
+      if (portId) portEntries.push({portElement: el, portId});
+    });
+    portEntries.forEach(({portElement, portId}) => {
       const nodeElement = portElement.closest(
         '[data-node]',
       ) as HTMLElement | null;
@@ -1069,12 +1087,12 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
     portType: 'input' | 'output',
     portIndex: number,
   ): Position {
-    // For port index 0 (top/bottom), data-port is on .pf-port itself
-    // For port index 1+ (left/right), data-port is on .pf-port-row wrapper
+    // Top/bottom ports have data-port on .pf-port itself.
+    // Left/right ports have data-port on .pf-port-row wrapper.
+    // Try both selectors to handle either layout.
     const selector =
-      portIndex === 0
-        ? `[data-node="${nodeId}"] .pf-port[data-port="${portType}-${portIndex}"]`
-        : `[data-node="${nodeId}"] [data-port="${portType}-${portIndex}"] .pf-port`;
+      `[data-node="${nodeId}"] .pf-port[data-port="${portType}-${portIndex}"], ` +
+      `[data-node="${nodeId}"] [data-port="${portType}-${portIndex}"] .pf-port`;
 
     // Scope to this NodeGraph instance to avoid matching elements from other
     // instances (e.g. hidden tabs with the same node IDs).
@@ -1547,6 +1565,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       accentBar,
       contextMenuItems,
       invalid,
+      collapsed,
     } = node;
     const {
       isDockedChild,
@@ -1571,6 +1590,7 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
       isDockTarget && 'pf-dock-target',
       accentBar && 'pf-node--has-accent-bar',
       invalid && 'pf-invalid',
+      collapsed && 'pf-collapsed',
     );
 
     // Helper to render a port
@@ -1732,6 +1752,23 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
 
           const {onNodeSelect, selectedNodeIds} = vnode.attrs;
 
+          // Only allow dragging when the title bar is grabbed, unless
+          // the node has no header, in which case the whole node is
+          // draggable.
+          const hasHeader = titleBar !== undefined;
+          const onTitleBar = !!(e.target as HTMLElement).closest(
+            '.pf-node-header',
+          );
+          if (hasHeader && !onTitleBar) {
+            if (!selectedNodeIds?.has(id) && onNodeSelect !== undefined) {
+              onNodeSelect(id);
+            }
+            if (canvasElement) {
+              canvasElement.focus();
+            }
+            return;
+          }
+
           // When multiple nodes are selected, disable all dragging.
           // Only allow selection change and focus.
           if (selectedNodeIds !== undefined && selectedNodeIds.size > 1) {
@@ -1809,12 +1846,23 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             titleBar.icon !== undefined &&
               m(Icon, {icon: titleBar.icon, className: 'pf-node-title-icon'}),
             m('.pf-node-title', titleBar.title),
+            titleBar.actions,
+            // Collapse toggle button
+            vnode.attrs.onNodeCollapse !== undefined &&
+              m(Button, {
+                icon: collapsed ? 'expand_more' : 'expand_less',
+                title: collapsed ? 'Expand' : 'Collapse',
+                className: 'pf-show-on-hover',
+                onclick: (e: MouseEvent) => {
+                  e.stopPropagation();
+                  vnode.attrs.onNodeCollapse?.(id, !collapsed);
+                },
+              }),
             contextMenuItems !== undefined &&
               m(
                 PopupMenu,
                 {
                   trigger: m(Button, {
-                    rounded: true,
                     icon: Icons.ContextMenuAlt,
                     className: contextMenuOnHover ? 'pf-show-on-hover' : '',
                   }),
@@ -1833,7 +1881,6 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
               PopupMenu,
               {
                 trigger: m(Button, {
-                  rounded: true,
                   icon: Icons.ContextMenuAlt,
                 }),
               },
@@ -1841,14 +1888,16 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             ),
           ),
 
-        // Top input ports (if not docked child)
+        // Top input ports
         topInputs.map((port) => {
           const portIndex = inputs.indexOf(port);
           return renderPort(port, portIndex, 'input');
         }),
 
         m('.pf-node-body', [
-          content !== undefined &&
+          // Content hidden when collapsed
+          !collapsed &&
+            content !== undefined &&
             m(
               '.pf-node-content',
               {
@@ -1859,9 +1908,11 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
               content,
             ),
 
-          // Left input ports
+          // Left input ports (first one hidden when docked child)
           leftInputs.map((port) => {
             const portIndex = inputs.indexOf(port);
+            // Hide the primary (first) left input when this node is docked
+            if (isDockedChild && portIndex === 0) return null;
             return m(
               '.pf-port-row.pf-port-input',
               {
@@ -1871,20 +1922,21 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             );
           }),
 
-          // Right output ports
-          rightOutputs.map((port) => {
-            const portIndex = outputs.indexOf(port);
-            return m(
-              '.pf-port-row.pf-port-output',
-              {
-                'data-port': `output-${portIndex}`,
-              },
-              [port.content, renderPort(port, portIndex, 'output')],
-            );
-          }),
+          // Right output ports (hidden when has docked child)
+          !hasDockedChild &&
+            rightOutputs.map((port) => {
+              const portIndex = outputs.indexOf(port);
+              return m(
+                '.pf-port-row.pf-port-output',
+                {
+                  'data-port': `output-${portIndex}`,
+                },
+                [port.content, renderPort(port, portIndex, 'output')],
+              );
+            }),
         ]),
 
-        // Bottom output ports (if no docked child below)
+        // Bottom output ports
         bottomOutputs.map((port) => {
           const portIndex = outputs.indexOf(port);
           return renderPort(port, portIndex, 'output');
@@ -2329,7 +2381,16 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             }
           },
           onkeydown: (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+              vnode.attrs.onCopy?.();
+              e.preventDefault();
+            } else if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+              vnode.attrs.onPaste?.();
+              e.preventDefault();
+            } else if ((e.metaKey || e.ctrlKey) && e.key === 'x') {
+              vnode.attrs.onCut?.();
+              e.preventDefault();
+            } else if (e.key === 'Escape') {
               // Deselect all nodes and labels
               const hasSelection = canvasState.selectedNodes.size > 0;
               if (hasSelection) {

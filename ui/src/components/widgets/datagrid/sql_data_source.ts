@@ -99,23 +99,28 @@ export class SQLDataSource implements DataSource {
    * Fetch rows for the current model state.
    */
   useRows(model: DataSourceModel): DataSourceRows {
-    const {isPending: preamblePending} = this.usePreamble();
+    try {
+      const {isPending: preamblePending} = this.usePreamble();
 
-    // Don't trigger any other queries until the preamble has completed
-    if (preamblePending) {
-      return {isPending: true};
-    }
+      // Don't trigger any other queries until the preamble has completed
+      if (preamblePending) {
+        return {isPending: true};
+      }
 
-    const mode = model.mode;
-    switch (mode) {
-      case 'flat':
-        return this.flatEngine.getRows(model);
-      case 'pivot':
-        return this.pivotEngine.getRows(model);
-      case 'tree':
-        return this.treeEngine.getRows(model);
-      default:
-        assertUnreachable(mode);
+      const mode = model.mode;
+      switch (mode) {
+        case 'flat':
+          return this.flatEngine.getRows(model);
+        case 'pivot':
+          return this.pivotEngine.getRows(model);
+        case 'tree':
+          return this.treeEngine.getRows(model);
+        default:
+          assertUnreachable(mode);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return {isPending: false, error: msg};
     }
   }
 

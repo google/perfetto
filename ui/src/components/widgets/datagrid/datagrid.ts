@@ -22,6 +22,8 @@ import {exists, isNumeric, maybeUndefined} from '../../../base/utils';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
 import {Anchor} from '../../../widgets/anchor';
 import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
+import {Callout} from '../../../widgets/callout';
+import {Intent} from '../../../widgets/common';
 import {EmptyState} from '../../../widgets/empty_state';
 import {
   Grid,
@@ -491,6 +493,20 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     // Fetch data using the slot-like API
     const rowsResult = datasource.useRows(model);
+
+    if (rowsResult.error) {
+      return m(
+        '.pf-data-grid',
+        {
+          className: classNames(
+            fillHeight && 'pf-data-grid--fill-height',
+            className,
+          ),
+        },
+        m(Callout, {icon: 'error', intent: Intent.Danger}, rowsResult.error),
+      );
+    }
+
     const aggregateSummariesResult = datasource.useAggregateSummaries(model);
 
     // Expose the API
@@ -575,6 +591,11 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           this.renderTreeToolbarItems(attrs),
         ],
         rightItems: [
+          rowsResult.totalRows !== undefined &&
+            m(
+              'span.pf-data-grid__row-count',
+              `${rowsResult.totalRows.toLocaleString()} rows`,
+            ),
           toolbarItemsRight,
           showExportButton &&
             m(DataGridExportButton, {
@@ -2106,7 +2127,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               className:
                 'pf-visible-on-row-hover pf-datagrid__drilldown-button',
               icon: Icons.GoTo,
-              rounded: true,
               title: 'Drill down into this group',
               fillWidth: true,
               onclick: () => {

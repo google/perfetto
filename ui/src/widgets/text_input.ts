@@ -28,6 +28,11 @@ export type TextInputAttrs = HTMLInputAttrs & {
 };
 
 export class TextInput implements m.ClassComponent<TextInputAttrs> {
+  // When onChange is used without onInput, we need local state to prevent
+  // Mithril redraws from resetting the input value mid-edit.
+  private editing = false;
+  private localValue = '';
+
   oncreate(vnode: m.CVnodeDOM<TextInputAttrs>) {
     if (vnode.attrs.autofocus) {
       // Focus the actual input element inside the wrapper
@@ -41,6 +46,12 @@ export class TextInput implements m.ClassComponent<TextInputAttrs> {
   view({attrs}: m.CVnode<TextInputAttrs>) {
     const {leftIcon, className, onInput, onChange, ...inputAttrs} = attrs;
 
+    // When using onChange without onInput, manage local state to avoid
+    // Mithril resetting the input during typing.
+    const useDeferredMode = onChange && !onInput;
+    const displayValue =
+      useDeferredMode && this.editing ? this.localValue : inputAttrs.value;
+
     return m(
       '.pf-text-input',
       {
@@ -50,18 +61,24 @@ export class TextInput implements m.ClassComponent<TextInputAttrs> {
         m(Icon, {icon: leftIcon, className: 'pf-text-input__left-icon'}),
       m('input.pf-text-input__input', {
         ...inputAttrs,
-        oninput: onInput
+        value: displayValue,
+        oninput: useDeferredMode
           ? (e: InputEvent) => {
               inputAttrs.oninput?.(e);
-              const target = e.target as HTMLInputElement;
-              onInput(target.value);
+              this.editing = true;
+              this.localValue = (e.target as HTMLInputElement).value;
             }
-          : inputAttrs.oninput,
+          : onInput
+            ? (e: InputEvent) => {
+                inputAttrs.oninput?.(e);
+                onInput((e.target as HTMLInputElement).value);
+              }
+            : inputAttrs.oninput,
         onchange: onChange
           ? (e: InputEvent) => {
               inputAttrs.onchange?.(e);
-              const target = e.target as HTMLInputElement;
-              onChange(target.value);
+              this.editing = false;
+              onChange((e.target as HTMLInputElement).value);
             }
           : inputAttrs.onchange,
       }),

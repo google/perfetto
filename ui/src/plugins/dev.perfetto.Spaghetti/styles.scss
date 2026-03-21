@@ -1,0 +1,318 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Query Builder node content styles.
+// These classes standardize layout and typography across all node types.
+
+// Scope node-content overrides to the query builder page.
+.pf-node-query-builder-page {
+  // Consistent minimum width for nodes.
+  .pf-node {
+    min-width: 140px;
+  }
+
+  // Make inputs, selects, and popup triggers inside node content fill width.
+  .pf-node-content {
+    .pf-text-input,
+    .pf-select {
+      display: flex;
+      width: 100%;
+      min-width: 0;
+    }
+
+    // Inside control groups, grids, and filter rows, let sizing take over instead of width: 100%.
+    .pf-control-group .pf-select,
+    .pf-control-group .pf-text-input,
+    .pf-qb-group-grid .pf-select,
+    .pf-qb-group-grid .pf-text-input,
+    .pf-qb-3col-grid .pf-select,
+    .pf-qb-3col-grid .pf-text-input,
+    .pf-qb-agg-grid .pf-select,
+    .pf-qb-agg-grid .pf-text-input,
+    .pf-qb-filter-row .pf-select,
+    .pf-qb-filter-row .pf-text-input {
+      field-sizing: content;
+      width: auto;
+    }
+
+    // The ColumnPicker wraps a TextInput inside a Popup; the .pf-popup
+    // trigger wrapper needs the same grid sizing as other inputs.
+    .pf-qb-agg-grid > .pf-popup,
+    .pf-qb-3col-grid > .pf-popup,
+    .pf-qb-group-grid > .pf-popup {
+      .pf-text-input {
+        field-sizing: content;
+        width: auto;
+      }
+      .pf-text-input input {
+        width: 0;
+        min-width: 50px;
+      }
+    }
+
+    .pf-control-group .pf-text-input input,
+    .pf-qb-group-grid .pf-text-input input,
+    .pf-qb-3col-grid .pf-text-input input,
+    .pf-qb-agg-grid .pf-text-input input {
+      width: 0;
+      min-width: 50px;
+    }
+
+    // PopupMultiSelect / Button triggers in stacks should fill width.
+    .pf-qb-stack > .pf-popup,
+    .pf-qb-stack > .pf-button-wrapper,
+    .pf-qb-stack > button {
+      width: 100%;
+
+      > button {
+        width: 100%;
+        justify-content: flex-start;
+      }
+    }
+  }
+}
+
+// Vertical stack layout for node content (the main container).
+.pf-qb-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+// Query builder overrides for ControlGroup rows.
+.pf-node-content .pf-control-group {
+  // Text inputs grow to fill available space.
+  .pf-text-input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  // Selects shrink to content.
+  .pf-select {
+    flex: 0 0 auto;
+  }
+
+  // Close/delete buttons do not grow.
+  > button,
+  > .pf-button-wrapper {
+    flex: 0 0 auto;
+  }
+}
+
+// Tighter-spaced list of rows within a stack (e.g. conditions, expressions, aggregations).
+.pf-qb-tight-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+// Grid layout for group-by rows (column select, delete).
+.pf-qb-group-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  align-items: center;
+}
+
+// Grid layout for 3-column rows (column, alias, delete).
+.pf-qb-3col-grid {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 2px;
+  align-items: center;
+}
+
+// Grid layout for 4-column rows (func, column, alias, delete).
+.pf-qb-agg-grid {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  gap: 2px;
+  align-items: center;
+}
+
+// Filter condition list: vertical stack of draggable rows.
+.pf-qb-filter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+// Each filter row: a flex row with drag handle, controls, and delete button.
+.pf-qb-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+
+  &.pf-dragging {
+    opacity: 0.4;
+  }
+
+  &.pf-drag-over-top {
+    box-shadow: 0 -2px 0 0 var(--pf-color-primary, #6a8);
+  }
+
+  &.pf-drag-over-bottom {
+    box-shadow: 0 2px 0 0 var(--pf-color-primary, #6a8);
+  }
+
+  // Select elements shrink to current value.
+  .pf-select {
+    flex: 0 0 auto;
+    field-sizing: content;
+    width: auto;
+  }
+
+  // Value text input grows to fill remaining space.
+  .pf-text-input {
+    flex: 1;
+    min-width: 0;
+    field-sizing: content;
+    width: auto;
+
+    input {
+      width: 0;
+      min-width: 50px;
+    }
+  }
+
+  // Close button doesn't grow.
+  button,
+  .pf-button-wrapper {
+    flex: 0 0 auto;
+  }
+}
+
+// Drag handle icon.
+.pf-qb-drag-handle {
+  cursor: grab;
+  opacity: 0.4;
+  flex: 0 0 auto;
+  font-size: 16px;
+
+  &:hover {
+    opacity: 0.8;
+  }
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+// Section header label (e.g. "EXPRESSIONS", "AGGREGATIONS", "Aliases").
+.pf-qb-section-label {
+  font-weight: bold;
+  font-size: 10px;
+  opacity: 0.7;
+  text-transform: uppercase;
+}
+
+// Subtle hint text below controls.
+.pf-qb-hint {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+// Placeholder shown when a node has no upstream connection.
+.pf-qb-placeholder {
+  font-size: 11px;
+  opacity: 0.5;
+  font-style: italic;
+}
+
+// Clickable AND/OR conjunction label spanning the full grid row.
+.pf-qb-conjunction {
+  display: flex;
+  flex-direction: row;
+
+  & > * {
+    flex: 1;
+  }
+}
+
+// Column picker: TextInput with autocomplete dropdown via Popup.
+// Warning style when the column value is not in the available columns list.
+.pf-text-input.pf-column-picker--unknown {
+  border-color: var(--pf-color-warning, #c90);
+  outline-color: var(--pf-color-warning, #c90);
+}
+
+.pf-column-picker__popup {
+  .pf-popup-content {
+    padding: 0;
+  }
+}
+
+.pf-column-picker__list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.pf-column-picker__item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &.highlight {
+    background: var(--pf-color-primary, #6a8);
+    color: var(--pf-on-color-primary, #fff);
+  }
+}
+
+// Type icon next to column name in dropdown.
+.pf-column-picker__type-icon {
+  font-size: 14px;
+  opacity: 0.5;
+  flex: 0 0 auto;
+}
+
+.pf-column-picker__add {
+  font-style: italic;
+  opacity: 0.8;
+  border-top: 1px solid var(--pf-color-border, #555);
+}
+
+// Query error display with preserved whitespace for SQL error formatting.
+.pf-node-query-builder-page__error {
+  font-family: var(--pf-font-monospace);
+  font-size: 12px;
+  margin: 0;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+// Alias mapping row: label -> alias input.
+.pf-qb-alias-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pf-qb-alias-label {
+  flex: 0 0 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.7;
+}
+
+.pf-qb-alias-arrow {
+  flex: 0 0 auto;
+  opacity: 0.5;
+}

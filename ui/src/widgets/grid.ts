@@ -99,7 +99,6 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
           !sort && 'pf-visible-on-hover',
         ),
         ariaLabel: 'Sort column',
-        rounded: true,
         icon: sortIconDirection === 'DESC' ? Icons.SortDesc : Icons.SortAsc,
         onclick: (e: MouseEvent) => {
           onSort(nextDirection);
@@ -116,7 +115,6 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
           trigger: m(Button, {
             className: 'pf-visible-on-hover pf-grid-header-cell__menu-button',
             icon: Icons.ContextMenuAlt,
-            rounded: true,
             ariaLabel: 'Column menu',
           }),
         },
@@ -186,7 +184,6 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
           chevron === 'leaf' && 'pf-grid-cell__chevron--leaf',
         ),
         icon,
-        rounded: true,
         ariaLabel,
         onclick: (e: MouseEvent) => {
           if (onChevronClick) {
@@ -230,7 +227,6 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
             trigger: m(Button, {
               className: 'pf-visible-on-hover pf-grid-cell__menu-button',
               icon: Icons.ContextMenuAlt,
-              rounded: true,
               ariaLabel: 'Cell menu',
             }),
             position: PopupPosition.Bottom,

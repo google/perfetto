@@ -25,13 +25,10 @@
 
   font-family: var(--pf-font-compact); // Consistent font.
   cursor: grab; // Indicate panning by default.
+  border-radius: 3px;
 
   // Dot pattern background.
-  background-color: color-mix(
-    in srgb,
-    var(--pf-color-background) 90%,
-    var(--pf-color-border-secondary) 10%
-  );
+  background-color: var(--pf-color-void);
   background-image: radial-gradient(
     circle,
     color-mix(in srgb, var(--pf-color-border-secondary) 85%, black 15%) 1px,
@@ -41,6 +38,11 @@
 
   &--fill-height {
     height: 100%; // Fill parent height when modifier class applied.
+  }
+
+  &:focus-within {
+    outline: none; // Remove default focus outline for better aesthetics.
+    box-shadow: inset 0 0 0 3px var(--pf-color-primary); // Add custom focus indicator.
   }
 }
 
@@ -77,11 +79,11 @@
 
 .pf-node {
   position: relative;
-  background: var(--pf-color-background-secondary);
-  border: 2px solid var(--pf-color-border);
-  border-radius: 8px;
-  min-width: 180px;
-  cursor: move;
+  background: var(--pf-color-background);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  min-width: 140px;
+  cursor: default;
   pointer-events: auto;
   width: 100%;
 
@@ -119,7 +121,10 @@
 }
 
 .pf-node-body {
-  padding-block: 12px;
+  padding-block: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 // Wrapper for dock chains - uses flexbox to make children same width
@@ -130,7 +135,7 @@
   flex-direction: column;
   pointer-events: auto;
   box-shadow: 0 4px 12px var(--pf-color-box-shadow);
-  border-radius: 8px;
+  border-radius: 4px;
   width: max-content;
   transition:
     left 0.1s ease-out,
@@ -150,9 +155,9 @@
 }
 
 .pf-node.pf-selected {
-  border-color: var(--pf-color-accent);
+  border-color: var(--pf-color-primary);
   box-shadow: 0 0 0 3px
-    color-mix(in srgb, var(--pf-color-accent) 50%, transparent);
+    color-mix(in srgb, var(--pf-color-primary) 50%, transparent);
   z-index: 1; // Make sure box shadow appears above other nodes
 }
 
@@ -171,17 +176,17 @@
 
 // Dock target highlight with pulsing animation
 .pf-node.pf-dock-target {
-  box-shadow: 0 4px 0 3px var(--pf-color-accent);
+  box-shadow: 0 4px 0 3px var(--pf-color-primary);
   animation: pulse-dock 0.6s ease-in-out infinite;
 }
 
 @keyframes pulse-dock {
   0%,
   100% {
-    box-shadow: 0 4px 0 3px var(--pf-color-accent);
+    box-shadow: 0 4px 0 3px var(--pf-color-primary);
   }
   50% {
-    box-shadow: 0 6px 0 5px var(--pf-color-accent);
+    box-shadow: 0 6px 0 5px var(--pf-color-primary);
     opacity: 0.95;
   }
 }
@@ -189,13 +194,14 @@
 .pf-node-header {
   /* Default background when hue is not set */
   background: var(--pf-color-background);
-  padding: 6px 6px;
-  border-radius: 6px 6px 0 0;
+  padding: 2px 6px;
+  border-radius: 3px 3px 0 0;
   display: flex;
   border-bottom: 1px solid var(--pf-color-border);
   justify-content: space-between;
-  align-items: center;
-  gap: 6px;
+  align-items: baseline;
+  gap: 4px;
+  cursor: move;
 }
 
 /* Override with hue-based color when --pf-node-hue is set via inline styles */
@@ -208,7 +214,25 @@
 }
 
 .pf-node--has-accent-bar .pf-node-header {
-  padding-left: 22px;
+  padding-left: 18px;
+}
+
+/* Collapsed node: extend the header color into the body */
+.pf-collapsed .pf-node-header {
+  border-bottom: none;
+}
+
+.pf-collapsed .pf-node-body {
+  background: var(--pf-color-background);
+  padding-block: 2px;
+}
+
+.pf-node[style*="--pf-node-hue"].pf-collapsed .pf-node-body {
+  background: color-mix(
+    in srgb,
+    hsl(var(--pf-node-hue), 60%, 50%) 35%,
+    var(--pf-color-background)
+  );
 }
 
 .pf-docked-child .pf-node-header {
@@ -230,6 +254,7 @@
 
 .pf-node-title {
   flex: 1;
+  text-transform: uppercase;
 }
 
 .pf-node-title-icon {
@@ -243,23 +268,51 @@
 }
 
 .pf-node-content {
-  padding-inline: 12px;
+  border-block: 1px solid var(--pf-color-border-secondary);
+  padding-inline: 8px;
+  padding-block: 8px;
+  order: 1;
+}
+
+// Remove top border/padding when there are no input port rows
+.pf-node-body:not(:has(.pf-port-input)) {
+  padding-top: 0;
+
+  > .pf-node-content {
+    border-top: none;
+  }
+}
+
+// Remove bottom border/padding when there are no output port rows
+.pf-node-body:not(:has(.pf-port-output)) {
+  padding-bottom: 0;
+
+  > .pf-node-content {
+    border-bottom: none;
+  }
 }
 
 .pf-node--has-accent-bar .pf-node-content {
-  padding-left: 22px;
+  padding-left: 18px;
 }
 
 .pf-port-row {
   position: relative;
-  margin: 8px 0;
   color: var(--pf-color-text-muted);
-  font-size: 13px;
+  font-size: var(--pf-font-size-s);
   padding: 4px 16px;
 
   .pf-port {
     transform: translateY(-50%);
   }
+}
+
+.pf-port-row.pf-port-input {
+  order: 0;
+}
+
+.pf-port-row.pf-port-output {
+  order: 2;
 }
 
 .pf-node--has-accent-bar .pf-port-row {
@@ -298,8 +351,8 @@
   }
 
   &.pf-connected {
-    background: var(--pf-color-accent);
-    border-color: var(--pf-color-accent);
+    background: var(--pf-color-primary);
+    border-color: var(--pf-color-primary);
     color: var(--pf-color-text-on-accent);
   }
 }
@@ -310,8 +363,8 @@
 }
 
 .pf-output:hover {
-  background: var(--pf-color-accent);
-  border-color: var(--pf-color-accent);
+  background: var(--pf-color-primary);
+  border-color: var(--pf-color-primary);
   color: var(--pf-color-text-on-accent);
 }
 
@@ -337,8 +390,8 @@
 }
 
 .pf-connection {
-  stroke: var(--pf-color-accent);
-  color: var(--pf-color-accent);
+  stroke: var(--pf-color-primary);
+  color: var(--pf-color-primary);
   stroke-width: 2;
   fill: none;
   transition:
@@ -366,8 +419,8 @@
   cursor: crosshair;
 
   .pf-input:hover {
-    background: var(--pf-color-accent);
-    border-color: var(--pf-color-accent);
+    background: var(--pf-color-primary);
+    border-color: var(--pf-color-primary);
     cursor: copy;
   }
   .pf-output:hover {
@@ -379,8 +432,8 @@
 
 .pf-output.pf-active,
 .pf-output.pf-active:hover {
-  background: var(--pf-color-accent);
-  border-color: var(--pf-color-accent);
+  background: var(--pf-color-primary);
+  border-color: var(--pf-color-primary);
   color: var(--pf-color-text-on-accent);
   cursor: crosshair;
 }
@@ -391,8 +444,8 @@
 
 .pf-selection-rect {
   position: absolute;
-  border: 2px solid var(--pf-color-accent);
-  background: color-mix(in srgb, var(--pf-color-accent) 15%, transparent);
+  border: 2px solid var(--pf-color-primary);
+  background: color-mix(in srgb, var(--pf-color-primary) 15%, transparent);
   pointer-events: none;
   z-index: 2; // Render selection rectangle above nodes.
 }
@@ -434,7 +487,7 @@
   background: color-mix(
     in srgb,
     var(--pf-color-background-secondary) 85%,
-    var(--pf-color-accent) 15%
+    var(--pf-color-primary) 15%
   );
   border: 2px solid var(--pf-color-border);
   cursor: move;
@@ -447,9 +500,9 @@
   }
 
   &.pf-selected {
-    border-color: var(--pf-color-accent);
+    border-color: var(--pf-color-primary);
     box-shadow: 0 0 0 3px
-      color-mix(in srgb, var(--pf-color-accent) 50%, transparent);
+      color-mix(in srgb, var(--pf-color-primary) 50%, transparent);
   }
 
   .pf-label-resize-handle {
@@ -459,7 +512,7 @@
     transform: translateY(-50%);
     width: 10px;
     height: 20px;
-    background: var(--pf-color-accent);
+    background: var(--pf-color-primary);
     border-radius: 3px;
     cursor: ew-resize;
     opacity: 0;
