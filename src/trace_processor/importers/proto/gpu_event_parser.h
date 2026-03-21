@@ -84,6 +84,7 @@ class GpuEventParser {
       PacketSequenceStateGeneration* sequence_state,
       const protos::pbzero::GpuRenderStageEvent_Decoder& event) const;
   void InsertTrackForUninternedRenderStage(
+      uint32_t gpu_id,
       uint32_t id,
       const protos::pbzero::GpuRenderStageEvent::Specifications::Description::
           Decoder&);
