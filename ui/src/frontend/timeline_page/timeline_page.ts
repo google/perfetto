@@ -145,6 +145,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
           rootNode: trace.currentWorkspace.tracks,
           nodes: pinnedTracks,
           scrollToNewTracks: true,
+          showFullPath: true,
         }),
       ),
       m(ResizeHandle, {

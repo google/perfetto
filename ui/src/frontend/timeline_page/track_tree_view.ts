@@ -155,6 +155,9 @@ export interface TrackTreeViewAttrs {
   readonly trackFilter?: (track: TrackNode) => boolean;
 
   readonly filtersApplied?: boolean;
+
+  // When true, show the full path as the title for each track.
+  readonly showFullPath?: boolean;
 }
 
 const TRACK_CONTAINER_REF = 'track-container';
@@ -193,6 +196,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       nodes,
       trackFilter,
       filtersApplied,
+      showFullPath,
     } = attrs;
     const topLevelNodes = nodes ?? rootNode.children;
     const renderedTracks = new Array<TrackView>();
@@ -279,6 +283,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
           stickyTop,
           depth,
           collapsible: !filtersApplied,
+          showFullPath,
           onTrackMouseOver: () => {
             this.hoveredTrackNode = node;
           },

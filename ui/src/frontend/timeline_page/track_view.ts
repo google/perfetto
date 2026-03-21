@@ -85,6 +85,8 @@ export interface TrackViewAttrs {
   readonly depth: number;
   readonly stickyTop: number;
   readonly collapsible: boolean;
+  // When true, show the full path as the title instead of just the node name.
+  readonly showFullPath?: boolean;
   onTrackMouseOver(): void;
   onTrackMouseOut(): void;
 }
@@ -174,7 +176,7 @@ export class TrackView {
       TrackShell,
       {
         id: node.id,
-        title: node.name,
+        title: attrs.showFullPath ? node.fullPath.join(' \u203a ') : node.name,
         subtitle: node.subtitle,
         ref: node.fullPath.join('/'),
         heightPx: height,
