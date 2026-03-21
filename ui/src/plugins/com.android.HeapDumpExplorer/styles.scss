@@ -1,0 +1,491 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Styles for the Heapdump Explorer plugin.
+// The CSS reset is provided by Perfetto's global styles.
+
+// ─── Theme tokens ────────────────────────────────────────────────────────────
+// Core tokens reference Perfetto's built-in --pf-color-* variables so we
+// inherit the active theme (light/dark) automatically. Domain-specific tokens
+// (badges, etc.) have no --pf-* equivalent and stay hardcoded.
+
+:root {
+  // Surfaces — mapped to Perfetto theme
+  --ah-surface: var(--pf-color-background);
+  --ah-surface-alt: var(--pf-color-background-secondary);
+  --ah-surface-page: var(--pf-color-background-secondary);
+
+  // Text — mapped to Perfetto theme
+  --ah-text: var(--pf-color-text);
+  --ah-text-secondary: var(--pf-color-text-muted);
+  --ah-text-muted: var(--pf-color-text-muted);
+  --ah-text-faint: var(--pf-color-text-hint);
+
+  // Borders — mapped to Perfetto theme
+  --ah-border: var(--pf-color-border);
+  --ah-border-light: var(--pf-color-border-secondary);
+
+  // Links — mapped to Perfetto primary/accent
+  --ah-link: var(--pf-color-primary);
+  --ah-link-hover: var(--pf-color-accent);
+  --ah-link-decoration: var(--pf-color-primary);
+  --ah-link-decoration-hover: var(--pf-color-accent);
+  --ah-link-alt: var(--pf-color-primary);
+
+  // Accent — mapped to Perfetto accent
+  --ah-accent: var(--pf-color-accent);
+
+  // Semantic: status badges — domain-specific
+  --ah-badge-reachability: #d97706;
+  --ah-badge-root: #f43f5e;
+  --ah-badge-string: #047857;
+  --ah-badge-referent: var(--pf-color-text-hint);
+
+  // Status: error — mapped to Perfetto danger
+  --ah-error-text: var(--pf-color-danger);
+
+  // Hover
+  --ah-hover-bg: var(--pf-color-background-secondary);
+}
+
+// Dark mode overrides — only for domain-specific tokens that can't derive
+// from --pf-* variables. Core tokens (surfaces, text, borders, links, accent)
+// automatically adapt via their --pf-* references.
+.pf-theme-provider--dark {
+  // Semantic: status badges
+  --ah-badge-reachability: #fbbf24;
+  --ah-badge-root: #fb7185;
+  --ah-badge-string: #34d399;
+}
+
+$mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+  "Courier New", monospace;
+
+// ─── Page shell ──────────────────────────────────────────────────────────────
+
+.ah-page {
+  height: 100vh;
+  background: var(--ah-surface-page);
+  display: flex;
+  flex-direction: column;
+  color: var(--ah-text);
+  overflow: hidden;
+}
+
+.ah-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 1rem;
+  max-width: 95%;
+  margin: 0 auto;
+  width: 100%;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+// Flex-growing wrapper for view content with a DataGrid that fills height.
+.ah-view-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+// Scrollable wrapper for views with many stacked sections (e.g. object detail).
+.ah-view-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+// ─── Page tab bar ───────────────────────────────────────────────────────────
+
+.ah-tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--ah-border);
+  margin-bottom: 0.75rem;
+  flex-shrink: 0;
+}
+
+.ah-tab-btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  color: var(--ah-text-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+  font-family: inherit;
+  white-space: nowrap;
+
+  &:hover {
+    color: var(--ah-text);
+  }
+
+  &--active {
+    color: var(--ah-accent);
+    border-bottom-color: var(--ah-accent);
+    font-weight: 500;
+  }
+}
+
+// ─── Loading / Error ────────────────────────────────────────────────────────
+
+.ah-loading {
+  color: var(--ah-text-faint);
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+// Bounded container for DataGrid sub-tables inside scrollable views.
+// Uses max-height so short tables shrink to fit their content.
+.ah-subtable {
+  max-height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.ah-error-text {
+  color: var(--ah-error-text);
+  padding: 1rem;
+}
+
+// ─── View headings ───────────────────────────────────────────────────────────
+
+.ah-view-heading {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: var(--ah-text);
+}
+
+.ah-heading-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ah-reachable-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--ah-text-muted);
+  cursor: pointer;
+  margin-left: auto;
+  user-select: none;
+}
+
+.ah-muted-heading {
+  font-size: 0.875rem;
+  color: var(--md-sys-color-outline);
+  margin-bottom: 0.5rem;
+}
+
+.ah-sub-heading {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  color: var(--ah-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+// ─── Card (info panel) ───────────────────────────────────────────────────────
+
+.ah-card {
+  background: var(--ah-surface);
+  border: 1px solid var(--ah-border);
+  padding: 1rem;
+}
+
+.ah-card--compact {
+  @extend .ah-card;
+  padding: 0.75rem;
+}
+
+// ─── Bitmap card ─────────────────────────────────────────────────────────────
+
+.ah-bitmap-card {
+  border: 1px solid var(--ah-border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.ah-bitmap-card__image {
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+}
+
+.ah-bitmap-card__info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--ah-border);
+  font-size: 0.875rem;
+}
+
+.ah-bitmap-card__secondary {
+  margin-left: 0.75rem;
+  color: var(--md-sys-color-outline);
+}
+
+// ─── Info grid (key-value pairs) ─────────────────────────────────────────────
+
+.ah-info-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.375rem 1rem;
+}
+
+.ah-info-grid--compact {
+  @extend .ah-info-grid;
+  gap: 0.25rem 1rem;
+}
+
+.ah-info-grid__label {
+  color: var(--ah-text-muted);
+}
+
+// ─── Section (collapsible) ───────────────────────────────────────────────────
+
+.ah-section {
+  background: var(--ah-surface);
+  border: 1px solid var(--ah-border);
+}
+
+.ah-section__toggle {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+  &:hover {
+    background: var(--ah-hover-bg);
+  }
+}
+
+.ah-section__title {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  color: var(--ah-text-secondary);
+  .pf-theme-provider--dark & {
+    color: var(--ah-text-secondary);
+  }
+}
+
+.ah-section__chevron {
+  width: 0.75rem;
+  height: 0.75rem;
+  color: var(--ah-text-faint);
+  transition: transform 0.15s;
+}
+
+.ah-section__chevron--open {
+  transform: rotate(90deg);
+}
+
+.ah-section__body {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--ah-border-light);
+  overflow-x: auto;
+}
+
+// ─── Links (object/site links) ───────────────────────────────────────────────
+
+.ah-link {
+  color: var(--ah-link);
+  text-decoration: underline;
+  text-decoration-color: var(--ah-link-decoration);
+  &:hover {
+    color: var(--ah-link-hover);
+    text-decoration-color: var(--ah-link-decoration-hover);
+  }
+}
+
+.ah-link--alt {
+  color: var(--ah-link-alt);
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// ─── Badges ──────────────────────────────────────────────────────────────────
+
+.ah-badge-reachability {
+  color: var(--ah-badge-reachability);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  margin-right: 0.25rem;
+}
+
+.ah-badge-root {
+  color: var(--ah-badge-root);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  margin-right: 0.25rem;
+}
+
+.ah-badge-string {
+  color: var(--ah-badge-string);
+  margin-left: 0.25rem;
+}
+
+.ah-badge-referent {
+  color: var(--ah-badge-referent);
+  margin-left: 0.25rem;
+}
+
+// ─── Breadcrumbs ─────────────────────────────────────────────────────────────
+
+.ah-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.5rem;
+  scrollbar-width: thin;
+}
+
+.ah-breadcrumbs__back {
+  flex-shrink: 0;
+  color: var(--ah-text-faint);
+  padding-right: 0.25rem;
+  &:hover {
+    color: var(--ah-text-secondary);
+  }
+}
+
+.ah-breadcrumbs__back-icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.ah-breadcrumbs__item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.ah-breadcrumbs__sep {
+  color: var(--ah-text-faint);
+}
+
+.ah-breadcrumbs__active {
+  color: var(--ah-text-secondary);
+  font-weight: 500;
+}
+
+.ah-breadcrumbs__link {
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.ah-breadcrumbs__link--past {
+  color: var(--ah-link);
+  &:hover {
+    color: var(--ah-link-hover);
+  }
+}
+
+.ah-breadcrumbs__link--future {
+  color: var(--ah-text-faint);
+  &:hover {
+    color: var(--ah-text-secondary);
+  }
+}
+
+// ─── Download link ──────────────────────────────────────────────────────────
+
+.ah-download-link {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--ah-link-alt);
+  cursor: pointer;
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// ─── ObjectView path from root ───────────────────────────────────────────────
+
+.ah-path-arrow {
+  color: var(--ah-text-faint);
+}
+
+.ah-path-field {
+  color: var(--ah-text-muted);
+}
+
+// ─── ObjectView / SiteView stacked sections ──────────────────────────────────
+
+.ah-view-stack > * + * {
+  margin-top: 0.75rem;
+}
+
+// ─── Utility classes ─────────────────────────────────────────────────────────
+
+.ah-mono {
+  font-family: $mono;
+}
+.ah-semibold {
+  font-weight: 600;
+}
+.ah-break-all {
+  word-break: break-all;
+}
+.ah-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ah-opacity-60 {
+  opacity: 0.6;
+}
+
+// Spacing (minimal set)
+.ah-mb-3 {
+  margin-bottom: 0.75rem;
+}
+.ah-mb-4 {
+  margin-bottom: 1rem;
+}
+.ah-mt-4 {
+  margin-top: 1rem;
+}

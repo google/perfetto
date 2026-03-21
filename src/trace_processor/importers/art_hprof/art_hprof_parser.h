@@ -39,6 +39,8 @@ namespace perfetto::trace_processor::art_hprof {
 constexpr const char* kJavaLangObject = "java.lang.Object";
 constexpr const char* kUnknownClassKind = "[unknown class kind]";
 constexpr size_t kRecordLengthOffset = 5;
+// Full record header: tag(1) + time(4) + length(4) = 9 bytes.
+constexpr size_t kRecordHeaderSize = 9;
 
 class ArtHprofParser : public ChunkedTraceReader {
  public:
@@ -52,6 +54,7 @@ class ArtHprofParser : public ChunkedTraceReader {
   void PopulateClasses(const HeapGraph& graph);
   void PopulateObjects(const HeapGraph& graph, int64_t ts, UniquePid upid);
   void PopulateReferences(const HeapGraph& graph);
+  void PopulateFieldValues(const HeapGraph& graph);
 
   tables::HeapGraphClassTable::Id* FindClassId(uint64_t class_id) const;
   tables::HeapGraphObjectTable::Id* FindObjectId(uint64_t obj_id) const;

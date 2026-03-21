@@ -903,7 +903,90 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
             'root_type':
                 '''if not NULL, this object is a GC root.''',
             'root_distance':
-                ''''''
+                '''''',
+        }))
+
+HEAP_GRAPH_OBJECT_DATA_TABLE = Table(
+    python_module=__file__,
+    class_name='HeapGraphObjectDataTable',
+    sql_name='__intrinsic_heap_graph_object_data',
+    columns=[
+        C(
+            'object_id',
+            CppTableId(HEAP_GRAPH_OBJECT_TABLE),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'field_set_id',
+            CppOptional(CppUint32()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            flags=ColumnFlag.DENSE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'value_string',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'array_element_type',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'array_element_count',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'array_data_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'array_data_hash',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          HPROF-specific data for heap graph objects.
+
+          Contains decoded string content and primitive array blob
+          references. Only populated for HPROF (ART) heap dumps, not
+          for proto heap graphs.
+        ''',
+        group='ART Heap Graphs',
+        columns={
+            'object_id':
+                '''Id of the heap graph object this data belongs to.''',
+            'field_set_id':
+                '''join key with heap_graph_primitive containing
+                primitive field values for this object.''',
+            'value_string':
+                '''decoded string value for java.lang.String
+                instances.''',
+            'array_element_type':
+                '''for primitive array objects, the element type
+                (boolean, byte, char, short, int, long, float, double).''',
+            'array_element_count':
+                '''for primitive array objects, the number of elements.''',
+            'array_data_id':
+                '''for primitive array objects, opaque ID to retrieve
+                the raw element bytes via
+                __intrinsic_heap_graph_get_array().''',
+            'array_data_hash':
+                '''for primitive array objects, a 64-bit content hash
+                of the raw element bytes. Two arrays with the same
+                hash have identical content.'''
         }))
 
 HEAP_GRAPH_REFERENCE_TABLE = Table(
@@ -969,6 +1052,106 @@ HEAP_GRAPH_REFERENCE_TABLE = Table(
             'deobfuscated_field_name':
                 '''The deobfuscated name, if field_name was obfuscated and a
                 deobfuscation mapping was provided for it.'''
+        }))
+
+HEAP_GRAPH_PRIMITIVE_TABLE = Table(
+    python_module=__file__,
+    class_name='HeapGraphPrimitiveTable',
+    sql_name='__intrinsic_heap_graph_primitive',
+    columns=[
+        C(
+            'field_set_id',
+            CppUint32(),
+            flags=ColumnFlag.SORTED | ColumnFlag.SET_ID,
+        ),
+        C(
+            'object_id',
+            CppTableId(HEAP_GRAPH_OBJECT_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'field_name',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'field_type',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'bool_value',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'byte_value',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'char_value',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'short_value',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'int_value',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'long_value',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'float_value',
+            CppOptional(CppDouble()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'double_value',
+            CppOptional(CppDouble()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          Primitive field values for heap graph objects.
+
+          This associates the object with given field_set_id with its
+          primitive field values (for instances).
+        ''',
+        group='ART Heap Graphs',
+        columns={
+            'field_set_id': '''Join key to heap_graph_object.''',
+            'object_id': '''Id of object that owns this field.''',
+            'field_name': '''The field name. E.g. Foo.count.''',
+            'field_type': '''The primitive type. E.g. int, boolean, float.''',
+            'bool_value': '''Value for boolean fields (0 or 1).''',
+            'byte_value': '''Value for byte fields.''',
+            'char_value': '''Value for char fields (as integer codepoint).''',
+            'short_value': '''Value for short fields.''',
+            'int_value': '''Value for int fields.''',
+            'long_value': '''Value for long fields.''',
+            'float_value': '''Value for float fields.''',
+            'double_value': '''Value for double fields.''',
         }))
 
 AGGREGATE_PROFILE_TABLE = Table(
@@ -1206,6 +1389,8 @@ ALL_TABLES = [
     EXPERIMENTAL_FLAMEGRAPH_TABLE,
     GPU_COUNTER_GROUP_TABLE,
     HEAP_GRAPH_CLASS_TABLE,
+    HEAP_GRAPH_OBJECT_DATA_TABLE,
+    HEAP_GRAPH_PRIMITIVE_TABLE,
     HEAP_GRAPH_OBJECT_TABLE,
     HEAP_GRAPH_REFERENCE_TABLE,
     HEAP_PROFILE_ALLOCATION_TABLE,
