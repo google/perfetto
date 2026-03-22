@@ -115,11 +115,13 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
         '.pf-track-search-help',
         m(
           'p',
-          "Browser find can't see off-screen tracks (they're not rendered for performance reasons).",
+          'Tracks use virtual scrolling — only visible tracks are rendered in the DOM. This means the native browser find (',
+          m(HotkeyGlyphs, {hotkey: 'Mod+F'}),
+          ") can't find off-screen tracks.",
         ),
         m(
           'p',
-          'This search finds all tracks, supports regex, and can search within collapsed groups.',
+          'This search finds all tracks regardless of scroll position, supports regex, and can search within collapsed groups.',
         ),
         m(
           'p',
@@ -141,7 +143,7 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
             },
             'disable virtual scrolling',
           ),
-          ' (can drastically hurt performance).',
+          ' (can drastically reduce timeline performance).',
         ),
       ),
     );
