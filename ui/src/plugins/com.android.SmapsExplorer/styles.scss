@@ -1,0 +1,143 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "../../assets/theme";
+
+.pf-smaps-explorer {
+  // Full-height flex column — used as the main container for panels with a
+  // toolbar on top and a DataGrid below.
+  &__panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  // Same as __panel but as a flex child that fills remaining space.
+  &__content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  // Container that fills remaining flex space (e.g. wraps a DataGrid).
+  &__grid-container {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  // Horizontal toolbar for filters and action buttons.
+  &__toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 4px 8px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  // Non-wrapping variant for the filter toolbar.
+  &__filter-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+  }
+
+  // Tightly packed button group (e.g. type filter or r/w/x toggles).
+  &__btn-group {
+    display: flex;
+    gap: 2px;
+  }
+
+  // Small muted label used for counts and descriptions.
+  &__label {
+    color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-s);
+  }
+
+  // Pushes siblings to the right in a flex row.
+  &__spacer {
+    flex: 1;
+  }
+
+  // Non-shrinkable wrapper (e.g. holds a toolbar above a flex grid).
+  &__fixed {
+    flex-shrink: 0;
+  }
+
+  // ── Capture page specific ────────────────────────────────────────────────
+
+  &__error-banner {
+    padding: 8px 12px;
+    background: var(--pf-color-danger);
+    color: var(--pf-color-text-on-danger);
+    border-radius: $border-radius-large;
+    margin: 0 8px 8px;
+    flex-shrink: 0;
+  }
+
+  &__badge--warning {
+    padding: 1px 6px;
+    background: var(--pf-color-warning);
+    color: var(--pf-color-text-on-warning);
+    border-radius: $border-radius-large;
+    margin-left: 4px;
+  }
+
+  &__connect {
+    text-align: center;
+    padding: 48px;
+  }
+
+  &__connect-hint {
+    margin-top: 8px;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+  }
+
+  &__view-selector {
+    padding: 4px 8px;
+    flex-shrink: 0;
+  }
+
+  // ── Loading states ───────────────────────────────────────────────────────
+
+  &__loading {
+    padding: 16px;
+  }
+
+  &__loading--muted {
+    padding: 16px;
+    color: var(--pf-color-text-muted);
+  }
+
+  // ── Info bar (non-interactive label row) ─────────────────────────────────
+
+  &__info-bar {
+    padding: 4px 8px;
+    color: var(--pf-color-text-muted);
+    font-size: var(--pf-font-size-s);
+    flex-shrink: 0;
+  }
+
+  // ── Perm button strikethrough ────────────────────────────────────────────
+
+  &__perm-deselected {
+    text-decoration: line-through;
+  }
+}
