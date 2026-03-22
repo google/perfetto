@@ -57,7 +57,8 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
       '.pf-track-search-bar',
       m(
         '.pf-track-search-bar__bubble',
-        this.renderMatchCount(matchCount, currentMatchIndex),
+        model.searchTerm !== '' &&
+          this.renderMatchCount(matchCount, currentMatchIndex),
         this.renderHelpButton(),
         m(TextInput, {
           autofocus: true,

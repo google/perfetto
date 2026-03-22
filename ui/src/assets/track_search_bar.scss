@@ -35,6 +35,7 @@
     color: var(--pf-color-text-muted);
     white-space: nowrap;
     text-align: right;
+    margin-left: 4px;
   }
 
   &__buttons {
@@ -44,7 +45,7 @@
 
   &__bubble {
     border-radius: 4px;
-    padding: 2px 6px;
+    padding: 2px;
     gap: 4px;
     background: var(--pf-color-background-secondary);
     display: inline-flex;
