@@ -30,7 +30,9 @@ test('multiple callstack tracks', async () => {
   const grp = await pth.scrollToTrack('surfaceflinger 558');
   await pth.toggleTrackGroup(grp);
 
-  await pth.waitForIdleAndScreenshot('perf_event_sf.png');
+  await pth.waitForIdleAndScreenshot('perf_event_sf.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 
   const processGrp = await pth.scrollToTrack(
     'surfaceflinger 558/Process callstacks',
@@ -41,5 +43,7 @@ test('multiple callstack tracks', async () => {
   );
   await pth.toggleTrackGroup(threadGrp);
 
-  await pth.waitForIdleAndScreenshot('perf_event_sf_expanded.png');
+  await pth.waitForIdleAndScreenshot('perf_event_sf_expanded.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 });

@@ -26,10 +26,17 @@ test('debuggable chip', async ({browser}) => {
   const trackGroup = await pth.scrollToTrack(
     'androidx.benchmark.integration.macrobenchmark.test 7527',
   );
-  await pth.waitForIdleAndScreenshot('track_with_debuggable_chip.png');
+  await pth.waitForIdleAndScreenshot('track_with_debuggable_chip.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 
   await pth.toggleTrackGroup(trackGroup);
-  await pth.waitForIdleAndScreenshot('track_with_debuggable_chip_expanded.png');
+  await pth.waitForIdleAndScreenshot(
+    'track_with_debuggable_chip_expanded.png',
+    {
+      locator: page.locator('.pf-timeline-page__timeline'),
+    },
+  );
 });
 
 test('trace error notification', async ({browser}) => {

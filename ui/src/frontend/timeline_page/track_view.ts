@@ -191,11 +191,11 @@ export class TrackView {
       {
         id: node.id,
         title: node.name,
-        subtitle: renderer?.desc.subtitle,
+        subtitle: node.subtitle,
         ref: node.fullPath.join('/'),
         heightPx: height,
         error: renderer?.getError(),
-        chips: renderer?.desc.chips,
+        chips: node.chips,
         buttons,
         scrollToOnCreate: scrollToOnCreate,
         collapsible: collapsible && node.hasChildren,

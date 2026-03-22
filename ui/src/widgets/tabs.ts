@@ -18,6 +18,8 @@ import {Gate} from '../base/mithril_utils';
 import {Button} from './button';
 import {Icon} from './icon';
 import {Icons} from '../base/semantic_icons';
+import {PopupMenu} from './menu';
+import {PopupPosition} from './popup';
 import {maybeUndefined} from '../base/utils';
 
 export interface TabsTab {
@@ -31,6 +33,9 @@ export interface TabsTab {
   readonly closeButton?: boolean;
   // Icon to display on the left side of the tab title.
   readonly leftIcon?: string | m.Children;
+  // Optional menu items to show in a dropdown menu on the tab.
+  // When provided, a menu button appears on hover.
+  readonly menuItems?: m.Children;
 }
 
 export interface TabsAttrs {
@@ -53,6 +58,12 @@ export interface TabsAttrs {
   // Called when tabs are reordered. Receives the key of the dragged tab and
   // the key of the tab it was dropped before (or undefined if dropped at end).
   onTabReorder?(draggedKey: string, beforeKey: string | undefined): void;
+  // Called when the "new tab" button is clicked. When set, a "+" button is
+  // shown at the end of the tab bar.
+  onNewTab?(): void;
+  // Custom content to render in place of the default "+" button. When set,
+  // onNewTab is ignored and this content is rendered instead.
+  readonly newTabContent?: m.Children;
   // Additional class name for the container.
   readonly className?: string;
 }
@@ -61,7 +72,7 @@ interface TabHandleAttrs {
   readonly active?: boolean;
   readonly hasCloseButton?: boolean;
   readonly onClose?: () => void;
-  readonly onclick?: () => void;
+  readonly onpointerdown?: () => void;
   readonly ondblclick?: () => void;
   readonly leftIcon?: string | m.Children;
   readonly tabKey?: string;
@@ -76,6 +87,7 @@ interface TabHandleAttrs {
   readonly onDragOver?: (key: string, position: 'before' | 'after') => void;
   readonly onDragLeave?: () => void;
   readonly onDrop?: (key: string) => void;
+  readonly menuItems?: m.Children;
 }
 
 class TabHandle implements m.ClassComponent<TabHandleAttrs> {
@@ -84,7 +96,7 @@ class TabHandle implements m.ClassComponent<TabHandleAttrs> {
       active,
       hasCloseButton,
       onClose,
-      onclick,
+      onpointerdown,
       ondblclick,
       leftIcon,
       tabKey,
@@ -99,24 +111,24 @@ class TabHandle implements m.ClassComponent<TabHandleAttrs> {
       onDragOver,
       onDragLeave,
       onDrop,
+      menuItems,
     } = attrs;
 
     const renderLeftIcon = () => {
       if (leftIcon === undefined) {
         return undefined;
       }
-      const style = {alignSelf: 'center'};
       if (typeof leftIcon === 'string') {
-        return m(Icon, {icon: leftIcon, className: 'pf-tabs__tab-icon', style});
+        return m(Icon, {icon: leftIcon, className: 'pf-tabs__tab-icon'});
       }
-      return m('.pf-tabs__tab-icon', {style}, leftIcon);
+      return m('.pf-tabs__tab-icon', leftIcon);
     };
 
     return m(
       '.pf-tabs__tab',
       {
         className: classNames(active && 'pf-tabs__tab--active'),
-        onclick,
+        onpointerdown,
         ondblclick,
         onauxclick: () => onClose?.(),
         draggable: reorderable,
@@ -186,6 +198,19 @@ class TabHandle implements m.ClassComponent<TabHandleAttrs> {
             onclick: (e: Event) => e.stopPropagation(),
           })
         : m('.pf-tabs__tab-title', children),
+      menuItems !== undefined &&
+        m(
+          PopupMenu,
+          {
+            trigger: m(Button, {
+              compact: true,
+              icon: Icons.ContextMenuAlt,
+              className: 'pf-tabs__tab-menu-btn',
+            }),
+            position: PopupPosition.Bottom,
+          },
+          menuItems,
+        ),
       hasCloseButton &&
         m(Button, {
           compact: true,
@@ -220,6 +245,8 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
       onTabRename,
       reorderable,
       onTabReorder,
+      onNewTab,
+      newTabContent,
       className,
     } = attrs;
 
@@ -267,9 +294,10 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
                 active: tab.key === activeKey,
                 hasCloseButton: tab.closeButton,
                 leftIcon: tab.leftIcon,
+                menuItems: tab.menuItems,
                 tabKey: tab.key,
                 reorderable,
-                onclick: () => {
+                onpointerdown: () => {
                   this.internalActiveTab = tab.key;
                   onTabChange?.(tab.key);
                 },
@@ -346,6 +374,13 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
             ),
           );
         }),
+        newTabContent ??
+          (onNewTab &&
+            m(Button, {
+              icon: Icons.Add,
+              className: 'pf-tabs__new-tab-btn',
+              onclick: () => onNewTab(),
+            })),
       ),
       m(
         '.pf-tabs__content',

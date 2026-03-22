@@ -915,13 +915,22 @@ message NetworkPacketTraceConfig {
 // Android device.
 message PackagesListConfig {
   // If not empty, emit info about only the following list of package names
-  // (exact match, no regex). Otherwise, emit info about all packages.
+  // (exact match, no regex). Can be combined with
+  // |package_name_regex_filter|: a package is included if it matches either
+  // filter. If both filters are empty, emit info about all packages.
   repeated string package_name_filter = 1;
+
+  // If not empty, emit info about only the packages whose names match any of
+  // the following regexes (full match, not partial). Can be combined with
+  // |package_name_filter|: a package is included if it matches either filter.
+  // If both filters are empty, emit info about all packages.
+  // This field was introduced in Android 26Q2 (Perfetto v55).
+  repeated string package_name_regex_filter = 3;
 
   // If present and non-zero, the data source will periodically poll for CPU
   // use by packages and only emit results for those that it sees. If absent,
   // the data source will emit results for all packages at startup. The package
-  // name filter applies either way.
+  // name filters apply either way.
   optional uint32 only_write_on_cpu_use_every_ms = 2;
 }
 
@@ -5208,7 +5217,8 @@ message TraceConfig {
     //  - any field in both the overlay and bytecode_v2 takes the value in the
     //    overlay, the bytecode_v2 value is ignored.
     //
-    // Introduced in: Perfetto v54.
+    // Note: despite the name, this was broken in v54 (the overlay was not
+    // passed through to the bytecode parser). Only works in v55+.
     optional bytes bytecode_overlay_v54 = 4;
 
     // String filter chain for Perfetto v54+. Rules in this chain either

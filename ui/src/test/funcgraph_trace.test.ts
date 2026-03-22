@@ -34,12 +34,16 @@ test('cpu funcgraph', async () => {
   const funcgraphGrp = await pth.scrollToTrack('CPU/Funcgraph');
   await pth.toggleTrackGroup(funcgraphGrp);
   await pth.scrollToTrack('CPU/Funcgraph/swapper4 -funcgraph');
-  await pth.waitForIdleAndScreenshot('cpu_funcgraph.png');
+  await pth.waitForIdleAndScreenshot('cpu_funcgraph.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 });
 
 test('thread funcgraph', async () => {
   const grp = await pth.scrollToTrack('iperf 3442');
   await pth.toggleTrackGroup(grp);
   await pth.scrollToTrack('iperf 3442/Funcgraph (3450) (funcgraph)');
-  await pth.waitForIdleAndScreenshot('thread_funcgraph.png');
+  await pth.waitForIdleAndScreenshot('thread_funcgraph.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 });

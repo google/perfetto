@@ -45,8 +45,8 @@
   &__header {
     display: grid;
     grid-template-columns: 1fr auto;
-    box-shadow: $box-shadow-1;
     z-index: 2;
+    border-bottom: solid 1px var(--pf-color-border);
 
     &:after {
       content: "";

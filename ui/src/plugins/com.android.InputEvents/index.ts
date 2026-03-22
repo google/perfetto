@@ -61,7 +61,7 @@ export default class AndroidInputEvents implements PerfettoPlugin {
             end_to_end_latency_dur AS dur,
             CONCAT(event_type, ' ', event_action, ': ', process_name, ' (', input_event_id, ')') as name
           FROM android_input_events
-          WHERE end_to_end_latency_dur IS NOT NULL
+          WHERE end_to_end_latency_dur > 0
         `,
         schema: {
           ts: LONG,

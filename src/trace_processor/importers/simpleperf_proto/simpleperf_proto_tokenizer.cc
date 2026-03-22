@@ -25,6 +25,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -61,25 +62,29 @@ base::Status SimpleperfProtoTokenizer::Parse(TraceBlobView blob) {
   reader_.PushBack(std::move(blob));
 
   for (;;) {
+    ParseResult result;
     switch (state_) {
-      case State::kExpectingMagic:
-        RETURN_IF_ERROR(ParseMagic());
+      case State::kExpectingMagic: {
+        ASSIGN_OR_RETURN(result, ParseMagic());
         break;
-
-      case State::kExpectingVersion:
-        RETURN_IF_ERROR(ParseVersion());
+      }
+      case State::kExpectingVersion: {
+        ASSIGN_OR_RETURN(result, ParseVersion());
         break;
-
-      case State::kExpectingRecordSize:
-        RETURN_IF_ERROR(ParseRecordSize());
+      }
+      case State::kExpectingRecordSize: {
+        ASSIGN_OR_RETURN(result, ParseRecordSize());
         break;
-
-      case State::kExpectingRecord:
-        RETURN_IF_ERROR(ParseRecord());
+      }
+      case State::kExpectingRecord: {
+        ASSIGN_OR_RETURN(result, ParseRecord());
         break;
-
+      }
       case State::kFinished:
         return base::OkStatus();
+    }
+    if (result == ParseResult::kNeedsMoreData) {
+      return base::OkStatus();
     }
   }
 }
@@ -91,11 +96,12 @@ base::Status SimpleperfProtoTokenizer::OnPushDataToSorter() {
   return base::OkStatus();
 }
 
-base::Status SimpleperfProtoTokenizer::ParseMagic() {
+base::StatusOr<SimpleperfProtoTokenizer::ParseResult>
+SimpleperfProtoTokenizer::ParseMagic() {
   auto iter = reader_.GetIterator();
   auto magic_data = iter.MaybeRead(kSimpleperfMagicSize);
   if (!magic_data) {
-    return base::ErrStatus("Need more data");
+    return ParseResult::kNeedsMoreData;
   }
 
   if (std::memcmp(magic_data->data(), kSimpleperfMagic, kSimpleperfMagicSize) !=
@@ -105,14 +111,15 @@ base::Status SimpleperfProtoTokenizer::ParseMagic() {
 
   reader_.PopFrontUntil(iter.file_offset());
   state_ = State::kExpectingVersion;
-  return base::OkStatus();
+  return ParseResult::kOk;
 }
 
-base::Status SimpleperfProtoTokenizer::ParseVersion() {
+base::StatusOr<SimpleperfProtoTokenizer::ParseResult>
+SimpleperfProtoTokenizer::ParseVersion() {
   auto iter = reader_.GetIterator();
   auto version_data = iter.MaybeRead(kVersionSize);
   if (!version_data) {
-    return base::ErrStatus("Need more data");
+    return ParseResult::kNeedsMoreData;
   }
 
   uint16_t version = *reinterpret_cast<const uint16_t*>(version_data->data());
@@ -122,14 +129,15 @@ base::Status SimpleperfProtoTokenizer::ParseVersion() {
 
   reader_.PopFrontUntil(iter.file_offset());
   state_ = State::kExpectingRecordSize;
-  return base::OkStatus();
+  return ParseResult::kOk;
 }
 
-base::Status SimpleperfProtoTokenizer::ParseRecordSize() {
+base::StatusOr<SimpleperfProtoTokenizer::ParseResult>
+SimpleperfProtoTokenizer::ParseRecordSize() {
   auto iter = reader_.GetIterator();
   auto size_data = iter.MaybeRead(kRecordSizeSize);
   if (!size_data) {
-    return base::ErrStatus("Need more data");
+    return ParseResult::kNeedsMoreData;
   }
 
   current_record_size_ = *reinterpret_cast<const uint32_t*>(size_data->data());
@@ -138,18 +146,19 @@ base::Status SimpleperfProtoTokenizer::ParseRecordSize() {
   if (current_record_size_ == 0) {
     // End of records marker
     state_ = State::kFinished;
-    return base::OkStatus();
+    return ParseResult::kOk;
   }
 
   state_ = State::kExpectingRecord;
-  return base::OkStatus();
+  return ParseResult::kOk;
 }
 
-base::Status SimpleperfProtoTokenizer::ParseRecord() {
+base::StatusOr<SimpleperfProtoTokenizer::ParseResult>
+SimpleperfProtoTokenizer::ParseRecord() {
   auto iter = reader_.GetIterator();
   auto record_data = iter.MaybeRead(current_record_size_);
   if (!record_data) {
-    return base::ErrStatus("Need more data");
+    return ParseResult::kNeedsMoreData;
   }
 
   using namespace perfetto::third_party::simpleperf::proto::pbzero;
@@ -181,7 +190,7 @@ base::Status SimpleperfProtoTokenizer::ParseRecord() {
 
     reader_.PopFrontUntil(iter.file_offset());
     state_ = State::kExpectingRecordSize;
-    return base::OkStatus();
+    return ParseResult::kOk;
   }
 
   if (record.has_meta_info()) {
@@ -197,7 +206,7 @@ base::Status SimpleperfProtoTokenizer::ParseRecord() {
 
     reader_.PopFrontUntil(iter.file_offset());
     state_ = State::kExpectingRecordSize;
-    return base::OkStatus();
+    return ParseResult::kOk;
   }
 
   if (record.has_lost()) {
@@ -207,7 +216,7 @@ base::Status SimpleperfProtoTokenizer::ParseRecord() {
     // Should emit a track event or stat to indicate data loss occurred.
     reader_.PopFrontUntil(iter.file_offset());
     state_ = State::kExpectingRecordSize;
-    return base::OkStatus();
+    return ParseResult::kOk;
   }
 
   // Process timestamped records and Thread records (push to sorter)
@@ -241,7 +250,7 @@ base::Status SimpleperfProtoTokenizer::ParseRecord() {
 
   reader_.PopFrontUntil(iter.file_offset());
   state_ = State::kExpectingRecordSize;
-  return base::OkStatus();
+  return ParseResult::kOk;
 }
 
 }  // namespace perfetto::trace_processor::simpleperf_proto_importer

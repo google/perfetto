@@ -338,16 +338,20 @@ export default class SchedPlugin implements PerfettoPlugin {
           upid: upid ?? undefined,
           ...(isKernelThread === 1 && {kernelThread: true}),
         },
-        chips: removeFalsyValues([
-          isKernelThread === 0 && isMainThread === 1 && 'main thread',
-        ]),
         renderer: createThreadStateTrack(ctx, uri, utid),
       });
 
       const group = ctx.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
         .getGroupForThread(utid);
-      const track = new TrackNode({uri, name: title, sortOrder: 10});
+      const track = new TrackNode({
+        uri,
+        name: title,
+        sortOrder: 10,
+        chips: removeFalsyValues([
+          isKernelThread === 0 && isMainThread === 1 && 'main thread',
+        ]),
+      });
       group?.addChildInOrder(track);
     }
   }

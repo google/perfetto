@@ -36,6 +36,8 @@ import {
   PieChart as EPieChart,
   ScatterChart as EScatterChart,
   TreemapChart as ETreemapChart,
+  SankeyChart as ESankeyChart,
+  GaugeChart as EGaugeChart,
 } from 'echarts/charts';
 import {
   GridComponent,
@@ -71,6 +73,8 @@ function ensureEChartsSetup(): void {
     EPieChart,
     EScatterChart,
     ETreemapChart,
+    ESankeyChart,
+    EGaugeChart,
     GridComponent,
     TooltipComponent,
     LegendComponent,
@@ -188,6 +192,18 @@ export interface EChartViewAttrs {
   readonly option: echarts.EChartsCoreOption | undefined;
 
   /**
+   * Optional callback to transform the option with theme colors.
+   * Called after theme colors are read from the DOM, before the option
+   * is applied to the ECharts instance. Useful for series-level color
+   * overrides (e.g. gauge axis tracks) that the ECharts theme system
+   * does not cover.
+   */
+  readonly resolveOption?: (
+    option: echarts.EChartsCoreOption,
+    colors: ChartThemeColors,
+  ) => echarts.EChartsCoreOption;
+
+  /**
    * Height of the chart in pixels. Defaults to 200.
    */
   readonly height?: number;
@@ -268,10 +284,11 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
     }
 
     // Check if option changed
-    const optionJson = JSON.stringify(attrs.option);
+    const resolvedOption = this.applyResolveOption(attrs.option, attrs, colors);
+    const optionJson = JSON.stringify(resolvedOption);
     if (optionJson !== this.prevOptionJson) {
       this.prevOptionJson = optionJson;
-      this.chart.setOption(attrs.option, {notMerge: true});
+      this.chart.setOption(resolvedOption, {notMerge: true});
       // The canvas may have been display:none (loading state) since the
       // last option, so ECharts' cached dimensions could be stale.
       this.chart.resize();
@@ -291,14 +308,24 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
     const theme = buildEChartsTheme(colors);
     echarts.registerTheme(THEME_NAME, theme);
 
+    const resolvedOption = this.applyResolveOption(attrs.option, attrs, colors);
+
     // Initialize chart with the theme
     this.chart = echarts.init(container, THEME_NAME);
-    this.chart.setOption(attrs.option);
+    this.chart.setOption(resolvedOption);
 
-    this.prevOptionJson = JSON.stringify(attrs.option);
+    this.prevOptionJson = JSON.stringify(resolvedOption);
     this.prevThemeHash = themeHash(colors);
     this.syncHandlers(attrs.eventHandlers ?? []);
     this.activateBrush(attrs.activeBrushType);
+  }
+
+  private applyResolveOption(
+    option: echarts.EChartsCoreOption,
+    attrs: EChartViewAttrs,
+    colors: ChartThemeColors,
+  ): echarts.EChartsCoreOption {
+    return attrs.resolveOption ? attrs.resolveOption(option, colors) : option;
   }
 
   private disposeChart(): void {

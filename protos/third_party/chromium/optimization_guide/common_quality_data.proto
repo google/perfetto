@@ -408,6 +408,7 @@ message Geometry {
 
   // Whether the content node is fixed or sticky position. This may suggest
   // that the node is a header, footer, or sidebar.
+  // TODO(crbug.com/490195093): Remove this field.
   bool is_fixed_or_sticky_position = 3 [
     deprecated = true,
     features = { field_presence: EXPLICIT }
@@ -432,12 +433,13 @@ message BoundingRect {
 // Note: ScrollerInfo is populated for ANNOTATED_PAGE_CONTENT_MODE_DEFAULT. The
 // rest of the fields are only populated for
 // ANNOTATED_PAGE_CONTENT_MODE_ACTIONABLE_ELEMENTS.
-// Next ID: 18
+// Next ID: 21
 message InteractionInfo {
   // Set if the content node is scrollable.
   ScrollerInfo scroller_info = 12 [features = { field_presence: EXPLICIT }];
 
   // Whether the content node is selectable.
+  // TODO(crbug.com/490195093): Remove this field.
   bool is_selectable = 3 [
     deprecated = true,
     features = { field_presence: EXPLICIT }
@@ -446,6 +448,7 @@ message InteractionInfo {
   // Whether the content node is editable; i.e. whether the user can type into
   // it. This refers to the text actually being editable, not whether the
   // content node is a text field.
+  // TODO(crbug.com/490195093): Remove this field.
   bool is_editable = 4 [
     deprecated = true,
     features = { field_presence: EXPLICIT }
@@ -453,6 +456,7 @@ message InteractionInfo {
 
   // Whether the content node can be resized. This is relevant for scroll
   // containers and iframes which have the CSS resize behavior.
+  // TODO(crbug.com/490195093): Remove these fields.
   bool can_resize_horizontal = 5 [
     deprecated = true,
     features = { field_presence: EXPLICIT }
@@ -463,10 +467,14 @@ message InteractionInfo {
     features = { field_presence: EXPLICIT }
   ];
 
-  // Whether the content node is focusable.
+  // Whether the content node is focusable. See also `is_tabbable`.
+  // A node can be focusable even if it is not tabbable. For
+  // example, every option in a long listbox might be focusable, but
+  // only reachable using the arrow keys.
   bool is_focusable = 7 [features = { field_presence: EXPLICIT }];
 
   // Whether the content node is draggable.
+  // TODO(crbug.com/490195093): Remove this field.
   bool is_draggable = 9 [
     deprecated = true,
     features = { field_presence: EXPLICIT }
@@ -475,6 +483,7 @@ message InteractionInfo {
   // Whether the content node is clickable. This checks for whether the node is
   // a clickable control (e.g. form control elements) or has activation
   // behavior. It also checks for whether the node has a click handler.
+  // TODO(crbug.com/490195093): Remove this field.
   bool is_clickable = 10 [
     deprecated = true,
     features = { field_presence: EXPLICIT }
@@ -495,6 +504,7 @@ message InteractionInfo {
   // caused that.
   // Note: This may not capture all the reasons.
   // Deprecated: Use clickability_reasons instead.
+  // TODO(crbug.com/490195093): Remove this field.
   repeated ClickabilityReason debug_clickability_reasons = 14 [deprecated = true];
 
   // Provides signals which indicate whether the node is actionable. The action
@@ -512,6 +522,21 @@ message InteractionInfo {
   //
   // TODO(linnan): Deprecate is_disabled in favour of the list of reasons.
   repeated InteractionDisabledReason interaction_disabled_reasons = 17;
+
+  // Whether the content node is tabbable. This is determined by whether the
+  // node is focusable and has a non-negative computed tab index (usually 0,
+  // which indicates it fits into the tab cycle in its natural order).
+  bool is_tabbable = 18 [features = { field_presence: EXPLICIT }];
+
+  // Whether the content node has the aria-activedescendant attribute set. This
+  // attribute is used to indicate which element in a set of child elements is
+  // currently active.
+  bool has_aria_activedescendant = 19 [features = { field_presence: EXPLICIT }];
+
+  // Secondary-action targets for a container widget. This lets APC represent
+  // cases like split buttons or tabs with close buttons where both the
+  // container and the secondary action element are actionable.
+  repeated int32 aria_action_target_node_ids = 20;
 
   reserved 8, 1, 2, 11;
 }
@@ -704,6 +729,11 @@ message SelectOption {
 
 message TableData {
   // The name of the table, coming from the caption.
+  // Note: this field has some quirks for backwards-compatibility reasons:
+  // 1. It is only populated if the table name is an immediate child of the
+  //    table element. Table names further down in the tree are skipped, leaving
+  //    this field empty.
+  // 2. The table name also will appear in a separate child text node.
   string table_name = 1 [features = { field_presence: EXPLICIT }];
 
   reserved 2, 3, 4;
@@ -2067,7 +2097,7 @@ enum AnnotatedPageContentVersion {
   ANNOTATED_PAGE_CONTENT_VERSION_1_0 = 1;
 
   // DEPRECATED: Use AnnotatedPageContentMode mode instead.
-  // TODO(khushalsagar): Maintain both on the client until all users have been
+  // TODO(crbug.com/490195093): Maintain both on the client until all users have been
   // switched over.
   ANNOTATED_PAGE_CONTENT_VERSION_ONLY_ACTIONABLE_ELEMENTS_1_0 = 2 [deprecated = true];
 }
@@ -2154,6 +2184,7 @@ enum ClickabilityReason {
   // The node has mouse event handlers like mouseup, mousedown, mouseover and
   // mouseenter. Deprecated in favor of
   // CLICKABILITY_REASON_MOUSE_CLICK and CLICKABILITY_REASON_MOUSE_HOVER.
+  // TODO(crbug.com/490195093): Remove this value.
   CLICKABILITY_REASON_MOUSE_EVENTS = 2 [deprecated = true];
 
   // The node has keyboard event handlers like keydown, keypress, keyup.

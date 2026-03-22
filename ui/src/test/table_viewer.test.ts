@@ -68,7 +68,9 @@ test('slices with same name', async () => {
   await pth.clickMenuItem('Slices with the same name');
   await clickColumnContextMenu('id');
   await pth.clickMenuItem('Sort: lowest first');
-  await pth.waitForIdleAndScreenshot(`slices-with-same-name.png`);
+  await pth.waitForIdleAndScreenshot(`slices-with-same-name.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 });
 
 test('Table interactions', async () => {
@@ -79,54 +81,72 @@ test('Table interactions', async () => {
   // Sort the table by id for consistent ordering.
   await clickColumnContextMenu('id');
   await pth.clickMenuItem('Sort: lowest first');
-  await pth.waitForIdleAndScreenshot(`slices-table.png`);
+  await pth.waitForIdleAndScreenshot(`slices-table.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Hide `category` column.
   await clickColumnContextMenu('category');
   await pth.clickMenuItem('Hide');
-  await pth.waitForIdleAndScreenshot(`slices-table-hide-column.png`);
+  await pth.waitForIdleAndScreenshot(`slices-table-hide-column.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Sort the table by dur in descending order. Note that we must explicitly exclude
   // the "thread_dur" column, as it also contains "dur" in its name.
   await clickColumnContextMenu('dur');
   await pth.clickMenuItem('Sort: highest first');
-  await pth.waitForIdleAndScreenshot(`slices-table-sorted.png`);
+  await pth.waitForIdleAndScreenshot(`slices-table-sorted.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Filter out all "EventLatency" slices.
   await clickCellContextMenu('EventLatency');
   await pth.clickMenuItem('Add filter');
   await pth.clickMenuItem('not equals');
-  await pth.waitForIdleAndScreenshot(`slices-table-filter1.png`);
+  await pth.waitForIdleAndScreenshot(`slices-table-filter1.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Filter to thread-only slices by clicking on the second NULL value.
   await clickCellContextMenu('null');
   await pth.clickMenuItem('Add filter');
   await pth.clickMenuItem('is not null');
-  await pth.waitForIdleAndScreenshot(`slices-table-filter2.png`);
+  await pth.waitForIdleAndScreenshot(`slices-table-filter2.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Filter to LatencyInfo.Flow events.
   await clickCellContextMenu('LatencyInfo.Flow');
   await pth.clickMenuItem('Add filter');
   await pth.clickMenuItem(/^equals/);
-  await pth.waitForIdleAndScreenshot(`slices-table-filter3.png`);
+  await pth.waitForIdleAndScreenshot(`slices-table-filter3.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Add argument.
   await clickColumnContextMenu('name');
   await pth.clickMenuItem('Add column');
   await pth.clickMenuItem('arg_set_id');
   await pth.clickMenuItem('chrome_latency_info.trace_id');
-  await pth.waitForIdleAndScreenshot(`slices-table-add-argument.png`);
+  await pth.waitForIdleAndScreenshot(`slices-table-add-argument.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Sort by argument.
   await clickColumnContextMenu('arg_set_id[chrome_latency_info.trace_id]');
   await pth.clickMenuItem('Sort: highest first');
-  await pth.waitForIdleAndScreenshot(`slices-table-sort-by-argument.png`);
+  await pth.waitForIdleAndScreenshot(`slices-table-sort-by-argument.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Sort by argument.
   await clickCellContextMenu('3390');
   await pth.clickMenuItem('Add filter');
   await pth.clickMenuItem('not equals');
-  await pth.waitForIdleAndScreenshot(`slices-table-filter-by-argument.png`);
+  await pth.waitForIdleAndScreenshot(`slices-table-filter-by-argument.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 });
 
 //
@@ -143,13 +163,17 @@ test('Go to slice', async () => {
   // Sort the table by id for consistent ordering.
   await clickColumnContextMenu('id');
   await pth.clickMenuItem('Sort: lowest first');
-  await pth.waitForIdleAndScreenshot(`open-table.png`);
+  await pth.waitForIdleAndScreenshot(`open-table.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Sort the table by dur in descending order. Note that we must explicitly exclude
   // the "thread_dur" column, as it also contains "dur" in its name.
   await clickColumnContextMenu('dur');
   await pth.clickMenuItem('Sort: highest first');
-  await pth.waitForIdleAndScreenshot(`sorted.png`);
+  await pth.waitForIdleAndScreenshot(`sorted.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Go to the first slice.
   await locateDataCells().nth(0).locator('.pf-anchor').click();
@@ -157,7 +181,9 @@ test('Go to slice', async () => {
 
   // Go to current selection tab.
   await pth.switchToTab('Current Selection');
-  await pth.waitForIdleAndScreenshot(`current-selection.png`);
+  await pth.waitForIdleAndScreenshot(`current-selection.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 });
 
 test('Go to thread_state', async () => {
@@ -169,19 +195,25 @@ test('Go to thread_state', async () => {
   // Sort the table by id for consistent ordering.
   await clickColumnContextMenu('id');
   await pth.clickMenuItem('Sort: lowest first');
-  await pth.waitForIdleAndScreenshot(`open-table.png`);
+  await pth.waitForIdleAndScreenshot(`open-table.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Sort the table by dur in descending order. Note that we must explicitly exclude
   // the "thread_dur" column, as it also contains "dur" in its name.
   await clickColumnContextMenu('dur');
   await pth.clickMenuItem('Sort: highest first');
-  await pth.waitForIdleAndScreenshot(`sorted.png`);
+  await pth.waitForIdleAndScreenshot(`sorted.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Filter out sleeps.
   await clickCellContextMenu('S');
   await pth.clickMenuItem('Add filter');
   await pth.clickMenuItem('not equals');
-  await pth.waitForIdleAndScreenshot(`filtered.png`);
+  await pth.waitForIdleAndScreenshot(`filtered.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Go to the first thread_state.
   await locateDataCells().nth(0).locator('.pf-anchor').click();
@@ -189,7 +221,9 @@ test('Go to thread_state', async () => {
 
   // Go to current selection tab.
   await pth.switchToTab('Current Selection');
-  await pth.waitForIdleAndScreenshot(`current-selection.png`);
+  await pth.waitForIdleAndScreenshot(`current-selection.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 });
 
 test('Go to sched', async () => {
@@ -204,19 +238,25 @@ test('Go to sched', async () => {
   // Sort the table by id for consistent ordering.
   await clickColumnContextMenu('id');
   await pth.clickMenuItem('Sort: lowest first');
-  await pth.waitForIdleAndScreenshot(`open-table.png`);
+  await pth.waitForIdleAndScreenshot(`open-table.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Sort the table by dur in descending order. Note that we must explicitly exclude
   // the "thread_dur" column, as it also contains "dur" in its name.
   await clickColumnContextMenu('dur');
   await pth.clickMenuItem('Sort: highest first');
-  await pth.waitForIdleAndScreenshot(`sorted.png`);
+  await pth.waitForIdleAndScreenshot(`sorted.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Filter out idle.
   await clickCellContextMenu('120');
   await pth.clickMenuItem('Add filter');
   await pth.clickMenuItem('not equals to');
-  await pth.waitForIdleAndScreenshot(`filtered.png`);
+  await pth.waitForIdleAndScreenshot(`filtered.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Go to the first slice.
   await locateDataCells().nth(0).click();
@@ -224,7 +264,9 @@ test('Go to sched', async () => {
 
   // Go to current selection tab.
   await pth.switchToTab('Current Selection');
-  await pth.waitForIdleAndScreenshot(`current-selection.png`);
+  await pth.waitForIdleAndScreenshot(`current-selection.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 });
 
 //
@@ -239,18 +281,24 @@ test('Go to process', async () => {
   // Sort the table by id for consistent ordering.
   await clickColumnContextMenu('upid');
   await pth.clickMenuItem('Sort: lowest first');
-  await pth.waitForIdleAndScreenshot(`open-table.png`);
+  await pth.waitForIdleAndScreenshot(`open-table.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Sort the table by dur in descending order. Note that we must explicitly exclude
   // the "thread_dur" column, as it also contains "dur" in its name.
   await clickColumnContextMenu('name');
   await pth.clickMenuItem('Sort: highest first');
-  await pth.waitForIdleAndScreenshot(`sorted.png`);
+  await pth.waitForIdleAndScreenshot(`sorted.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Go to the first process.
   await clickCellContextMenu();
   await pth.clickMenuItem('Show process details');
-  await pth.waitForIdleAndScreenshot(`go-to.png`);
+  await pth.waitForIdleAndScreenshot(`go-to.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 });
 
 test('Go to thread', async () => {
@@ -261,16 +309,22 @@ test('Go to thread', async () => {
   // Sort the table by id for consistent ordering.
   await clickColumnContextMenu('utid');
   await pth.clickMenuItem('Sort: lowest first');
-  await pth.waitForIdleAndScreenshot(`open-table.png`);
+  await pth.waitForIdleAndScreenshot(`open-table.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Sort the table by dur in descending order. Note that we must explicitly exclude
   // the "thread_dur" column, as it also contains "dur" in its name.
   await clickColumnContextMenu('name');
   await pth.clickMenuItem('Sort: highest first');
-  await pth.waitForIdleAndScreenshot(`sorted.png`);
+  await pth.waitForIdleAndScreenshot(`sorted.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 
   // Go to the first thread.
   await clickCellContextMenu();
   await pth.clickMenuItem('Show thread details');
-  await pth.waitForIdleAndScreenshot(`go-to.png`);
+  await pth.waitForIdleAndScreenshot(`go-to.png`, {
+    locator: page.locator('.pf-drawer-panel__drawer'),
+  });
 });

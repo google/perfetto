@@ -133,6 +133,7 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
       render_pass_name_id_(context->storage->InternString("render_pass_name")),
       render_subpasses_id_(context->storage->InternString("render_subpasses")),
       command_buffer_id_(context->storage->InternString("command_buffer")),
+      command_buffers_id_(context->storage->InternString("command_buffers")),
       command_buffer_name_id_(
           context->storage->InternString("command_buffer_name")),
       frame_id_id_(context->storage->InternString("frame_id")),
@@ -487,7 +488,12 @@ void GpuEventParser::ParseGpuRenderStageEvent(
           }
         });
 
-    StringId name_id = GetFullStageName(sequence_state, event);
+    StringId name_id = kNullStringId;
+    if (event.has_name()) {
+      name_id = context_->storage->InternString(event.name());
+    } else {
+      name_id = GetFullStageName(sequence_state, event);
+    }
     context_->slice_tracker->Scoped(
         ts, track_id, kNullStringId, name_id,
         static_cast<int64_t>(event.duration()),
@@ -833,9 +839,22 @@ void GpuEventParser::ParseVulkanApiEvent(int64_t ts, ConstBytes blob) {
         inserter->AddArg(pid_id_, Variadic::Integer(event.pid()));
         inserter->AddArg(tid_id_, Variadic::Integer(event.tid()));
         if (event.has_vk_command_buffers()) {
-          inserter->AddArg(command_buffer_id_,
-                           Variadic::Integer(static_cast<int64_t>(
-                               *event.vk_command_buffers())));
+          uint32_t count = 0;
+          for (auto it = event.vk_command_buffers(); it; ++it, ++count) {
+            if (count == 0) {
+              // Compatibility: first buffer as a flat "command_buffer"
+              inserter->AddArg(command_buffer_id_,
+                               Variadic::UnsignedInteger(*it));
+            }
+            size_t array_index =
+                inserter->GetNextArrayEntryIndex(command_buffers_id_);
+            std::string child_key =
+                "command_buffers[" + std::to_string(array_index) + "]";
+            inserter->AddArg(command_buffers_id_,
+                             context_->storage->InternString(child_key),
+                             Variadic::UnsignedInteger(*it));
+            inserter->IncrementArrayEntryIndex(command_buffers_id_);
+          }
         }
         inserter->AddArg(submission_id_id_,
                          Variadic::Integer(event.submission_id()));

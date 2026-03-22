@@ -24,17 +24,15 @@
     background-color: var(--pf-color-background-secondary);
     border-bottom: 1px solid var(--pf-color-border);
     padding-inline: 3px;
-    align-items: flex-end;
+    align-items: baseline;
   }
 
   &__tab {
     display: flex;
     align-items: baseline;
     gap: 2px;
-
     font-family: var(--pf-font-compact);
-
-    padding: 5px;
+    padding: 5px 7px;
     margin-top: 2px;
     margin-bottom: -1px; // Overlap the border
     cursor: pointer;
@@ -44,21 +42,24 @@
     white-space: nowrap;
     text-overflow: ellipsis;
     border-style: solid;
-    border-color: var(--pf-color-border-secondary);
+    border-color: transparent;
     border-width: 1px 1px 0 1px;
-
-    &:not(:first-child) {
-      margin-left: -1px;
-    }
+    color: var(--pf-color-text-muted);
 
     &:hover {
       background: color_hover(transparent);
+      color: var(--pf-color-text);
+    }
+
+    &-icon {
+      align-self: center;
     }
 
     &--active {
       cursor: default;
       background-color: var(--pf-color-background);
       border-color: var(--pf-color-border);
+      color: var(--pf-color-text);
       z-index: 1;
 
       // Don't change background on hover for active tab
@@ -66,6 +67,18 @@
         background-color: var(--pf-color-background);
       }
     }
+  }
+
+  &__tab-menu-btn {
+    visibility: hidden;
+
+    &.pf-active {
+      visibility: visible;
+    }
+  }
+
+  &__tab:hover &__tab-menu-btn {
+    visibility: visible;
   }
 
   &__tab-title {
@@ -99,6 +112,10 @@
     &--drop-after > .pf-tabs__tab {
       box-shadow: 2px 0 0 0 var(--pf-color-primary);
     }
+  }
+
+  &__new-tab-btn {
+    margin-left: 2px;
   }
 
   &__content {
