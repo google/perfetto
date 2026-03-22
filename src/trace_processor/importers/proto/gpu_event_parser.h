@@ -62,8 +62,8 @@ class GpuEventParser {
       protos::pbzero::VulkanMemoryEvent::Operation;
   explicit GpuEventParser(TraceProcessorContext*);
 
-  void TokenizeGpuCounterEvent(ConstBytes);
-  void ParseGpuCounterEvent(int64_t ts, ConstBytes);
+  void TokenizeGpuCounterEvent(uint32_t seq_id, ConstBytes);
+  void ParseGpuCounterEvent(int64_t ts, uint32_t seq_id, ConstBytes);
   void ParseGpuRenderStageEvent(int64_t ts,
                                 PacketSequenceStateGeneration*,
                                 ConstBytes);
@@ -112,11 +112,15 @@ class GpuEventParser {
   const StringId tid_id_;
 
   // For GpuCounterEvent
+  static uint64_t GpuCounterKey(uint32_t seq_id, uint32_t counter_id) {
+    return (static_cast<uint64_t>(seq_id) << 32) | counter_id;
+  }
   struct GpuCounterState {
     TrackId track_id;
     std::optional<tables::CounterTable::Id> last_id;
   };
-  base::FlatHashMap<uint32_t, GpuCounterState> gpu_counter_state_;
+  // Key encodes (trusted_packet_sequence_id, counter_id) as a uint64_t.
+  base::FlatHashMap<uint64_t, GpuCounterState> gpu_counter_state_;
 
   // For GpuRenderStageEvent
   struct HwQueueInfo {

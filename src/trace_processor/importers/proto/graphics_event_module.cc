@@ -58,7 +58,8 @@ ModuleResult GraphicsEventModule::TokenizePacket(
     uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kGpuCounterEventFieldNumber:
-      parser_.TokenizeGpuCounterEvent(decoder.gpu_counter_event());
+      parser_.TokenizeGpuCounterEvent(decoder.trusted_packet_sequence_id(),
+                                      decoder.gpu_counter_event());
       break;
     case TracePacket::kFrameTimelineEventFieldNumber:
     case TracePacket::kGpuRenderStageEventFieldNumber:
@@ -84,7 +85,8 @@ void GraphicsEventModule::ParseTracePacketData(
           ts, decoder.frame_timeline_event());
       return;
     case TracePacket::kGpuCounterEventFieldNumber:
-      parser_.ParseGpuCounterEvent(ts, decoder.gpu_counter_event());
+      parser_.ParseGpuCounterEvent(ts, decoder.trusted_packet_sequence_id(),
+                                   decoder.gpu_counter_event());
       return;
     case TracePacket::kGpuRenderStageEventFieldNumber:
       parser_.ParseGpuRenderStageEvent(ts, data.sequence_state.get(),
