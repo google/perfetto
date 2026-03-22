@@ -38,8 +38,7 @@ test('verify process sort order', async () => {
   // MediumPriorityProcess (200, sort_index=5)
   // LowPriorityProcess (300, sort_index=1)
 
-  const highPriorityProcess = pth.locateTrack('HighPriorityProcess 100');
-  await highPriorityProcess.scrollIntoViewIfNeeded();
+  await pth.scrollToTrack('HighPriorityProcess 100');
   await pth.waitForIdleAndScreenshot('process_order.png', {
     locator: page.locator('.pf-timeline-page__timeline'),
   });
@@ -47,8 +46,9 @@ test('verify process sort order', async () => {
 
 test('verify thread sort order within process', async () => {
   // Expand the HighPriorityProcess to see threads
-  const highPriorityProcess = pth.locateTrack('HighPriorityProcess 100');
-  await highPriorityProcess.scrollIntoViewIfNeeded();
+  const highPriorityProcess = await pth.scrollToTrack(
+    'HighPriorityProcess 100',
+  );
   await pth.toggleTrackGroup(highPriorityProcess);
 
   // Threads should be ordered by sort_index (highest first):

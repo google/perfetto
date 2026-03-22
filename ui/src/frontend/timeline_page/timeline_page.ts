@@ -13,12 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import {DisposableStack} from '../../base/disposable_stack';
-import {toHTMLElement} from '../../base/dom_utils';
+import {findRef, toHTMLElement} from '../../base/dom_utils';
 import {Rect2D} from '../../base/geom';
 import {TimeScale} from '../../base/time_scale';
 import {AppImpl} from '../../core/app_impl';
 import {featureFlags} from '../../core/feature_flags';
+import {settingsManager} from '../../core/settings_manager';
 import {raf} from '../../core/raf_scheduler';
 import {Minimap} from './minimap';
 import {TabPanel} from './tab_panel';
@@ -27,8 +29,19 @@ import {TrackTreeView} from './track_tree_view';
 import {KeyboardNavigationHandler} from './wasd_navigation_handler';
 import {trackMatchesFilter} from '../../core/track_manager';
 import {TraceImpl} from '../../core/trace_impl';
+import {HotkeyContext} from '../../widgets/hotkey_context';
 import {ResizeHandle} from '../../widgets/resize_handle';
 import {setTrackShellWidth, TRACK_SHELL_WIDTH} from '../css_constants';
+import {TrackSearchBarApi, TrackSearchBar} from './track_search_bar';
+import {
+  searchTracks,
+  TrackSearchMatch,
+  TrackSearchModel,
+} from '../../core/track_search_manager';
+import {TrackNode} from '../../public/workspace';
+import {maybeUndefined} from '../../base/utils';
+import {GateDetector} from '../../base/mithril_utils';
+import {assertIsInstance} from '../../base/assert';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -37,8 +50,27 @@ const OVERVIEW_PANEL_FLAG = featureFlags.register({
   defaultValue: true,
 });
 
+const VIRTUAL_TRACK_SCROLLING = settingsManager.register({
+  id: 'virtualTrackScrolling',
+  name: 'Virtual track scrolling',
+  description: `Use virtual scrolling in the timeline view to improve performance on large traces.
+    WARNING: Disabling this feature can severely degrade performance on large traces.`,
+  defaultValue: true,
+  schema: z.boolean(),
+});
+
+const USE_ALTERNATIVE_SEARCH_HOTKEY = settingsManager.register({
+  id: 'alternativeSearchHotkey',
+  name: 'Use Shift+F for track search',
+  description:
+    'Use Shift+F instead of Mod+F for track search, to avoid overriding browser find.',
+  defaultValue: false,
+  schema: z.boolean(),
+});
+
 const MIN_TRACK_SHELL_WIDTH = 100;
 const MAX_TRACK_SHELL_WIDTH = 1000;
+const HOTKEY_CONTEXT_REF = 'context';
 
 export function renderTimelinePage() {
   // Only render if a trace is loaded
@@ -58,18 +90,142 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
   private readonly trash = new DisposableStack();
   private timelineBounds?: Rect2D;
   private pinnedTracksHeight: number | 'auto' = 'auto';
+  private trackSearchModel: TrackSearchModel = {
+    searchTerm: '',
+    useRegex: false,
+    searchWithinCollapsedGroups: false,
+  };
+  private trackSearchBarVisible = false;
+  private trackSearchBarApi?: TrackSearchBarApi;
+  private trackSearchMatches: readonly TrackSearchMatch[] = [];
+  private currentSearchMatchIndex = 0;
 
   view({attrs}: m.CVnode<TimelinePageAttrs>) {
     const {trace} = attrs;
+    const virtualScrollingEnabled = VIRTUAL_TRACK_SCROLLING.get();
+    const useAlternativeHotkey = USE_ALTERNATIVE_SEARCH_HOTKEY.get();
+
     return m(
-      '.pf-timeline-page',
+      TabPanel,
+      {trace},
       m(
-        TabPanel,
-        {trace},
-        this.renderMinimap(trace),
-        this.renderTimeline(trace),
+        GateDetector,
+        {
+          onVisibilityChanged: (visible: boolean, dom: Element) => {
+            if (visible) {
+              // Focus the search input as soon as it becomes visible.
+              const hotkeyContextEl = findRef(dom, HOTKEY_CONTEXT_REF);
+              assertIsInstance(hotkeyContextEl, HTMLElement);
+              hotkeyContextEl.focus();
+            }
+          },
+        },
+        m(
+          HotkeyContext,
+          {
+            ref: HOTKEY_CONTEXT_REF,
+            hotkeys: virtualScrollingEnabled
+              ? [
+                  {
+                    hotkey: useAlternativeHotkey ? 'Shift+F' : '!Mod+F',
+                    callback: () => {
+                      this.trackSearchBarVisible = true;
+                      this.trackSearchBarApi?.focus();
+                    },
+                  },
+                ]
+              : [],
+            focusable: true,
+            fillHeight: true,
+            showFocusRing: true,
+          },
+          this.renderMinimap(trace),
+          this.trackSearchBarVisible && this.renderTrackSearchPanel(trace),
+          this.renderTimeline(trace),
+        ),
       ),
     );
+  }
+
+  private renderTrackSearchPanel(trace: TraceImpl): m.Children {
+    if (!this.trackSearchBarVisible) return null;
+    const matchCount = this.trackSearchMatches.length;
+    return m(TrackSearchBar, {
+      model: this.trackSearchModel,
+      matchCount,
+      currentMatchIndex: this.currentSearchMatchIndex,
+      onModelChange: (newModel) => {
+        this.trackSearchModel = newModel;
+        // Recompute matches and scroll to first result
+        this.trackSearchMatches = searchTracks(
+          trace.currentWorkspace,
+          newModel,
+          (track) => trackMatchesFilter(trace, track),
+        );
+        this.currentSearchMatchIndex = 0;
+        const firstMatch = maybeUndefined(this.trackSearchMatches[0]);
+        if (firstMatch) {
+          firstMatch.node.reveal();
+          trace.tracks.scrollToTrackNodeId = firstMatch.node.id;
+        }
+      },
+      onClose: (target) => {
+        this.trackSearchBarVisible = false;
+        this.trackSearchModel = {
+          ...this.trackSearchModel,
+          searchTerm: '',
+        };
+        this.trackSearchMatches = [];
+        if (target instanceof Element) {
+          const hotkeyContextElem = target.closest(
+            '.pf-hotkey-context[ref="' + HOTKEY_CONTEXT_REF + '"]',
+          );
+          assertIsInstance(hotkeyContextElem, HTMLElement);
+          hotkeyContextElem.focus();
+        }
+      },
+      onStepForward: () => {
+        // Recalculate matches to pick up any state changes (e.g., expanded groups)
+        this.trackSearchMatches = searchTracks(
+          trace.currentWorkspace,
+          this.trackSearchModel,
+          (track) => trackMatchesFilter(trace, track),
+        );
+        const count = this.trackSearchMatches.length;
+        if (count > 0) {
+          this.currentSearchMatchIndex =
+            (this.currentSearchMatchIndex + 1) % count;
+          const match = maybeUndefined(
+            this.trackSearchMatches[this.currentSearchMatchIndex],
+          );
+          if (match) {
+            match.node.reveal();
+            trace.tracks.scrollToTrackNodeId = match.node.id;
+          }
+        }
+      },
+      onStepBackwards: () => {
+        // Recalculate matches to pick up any state changes (e.g., expanded groups)
+        this.trackSearchMatches = searchTracks(
+          trace.currentWorkspace,
+          this.trackSearchModel,
+          (track) => trackMatchesFilter(trace, track),
+        );
+        const count = this.trackSearchMatches.length;
+        if (count > 0) {
+          this.currentSearchMatchIndex =
+            (this.currentSearchMatchIndex - 1 + count) % count;
+          const match = maybeUndefined(
+            this.trackSearchMatches[this.currentSearchMatchIndex],
+          );
+          if (match) {
+            match.node.reveal();
+            trace.tracks.scrollToTrackNodeId = match.node.id;
+          }
+        }
+      },
+      onReady: (api) => (this.trackSearchBarApi = api),
+    });
   }
 
   private renderTimeline(trace: TraceImpl): m.Children {
@@ -124,10 +280,20 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
     // Hide tracks while the trace is loading to prevent thrashing.
     if (AppImpl.instance.isLoadingTrace) return null;
 
-    return [this.renderPinnedTracks(trace), this.renderMainTracks(trace)];
+    // Get the current search match node
+    const currentSearchMatch =
+      this.trackSearchMatches[this.currentSearchMatchIndex]?.node;
+
+    return [
+      this.renderPinnedTracks(trace, currentSearchMatch),
+      this.renderMainTracks(trace, currentSearchMatch),
+    ];
   }
 
-  private renderPinnedTracks(trace: TraceImpl): m.Children {
+  private renderPinnedTracks(
+    trace: TraceImpl,
+    currentSearchMatch: TrackNode | undefined,
+  ): m.Children {
     if (trace.currentWorkspace.pinnedTracks.length === 0) return null;
 
     return [
@@ -144,6 +310,9 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
           rootNode: trace.currentWorkspace.pinnedTracksNode,
           canReorderNodes: true,
           scrollToNewTracks: true,
+          trackSearchMatches: this.trackSearchMatches,
+          currentSearchMatch,
+          virtualScrollingEnabled: VIRTUAL_TRACK_SCROLLING.get(),
         }),
       ),
       m(ResizeHandle, {
@@ -163,7 +332,10 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
     ];
   }
 
-  private renderMainTracks(trace: TraceImpl): m.Children {
+  private renderMainTracks(
+    trace: TraceImpl,
+    currentSearchMatch: TrackNode | undefined,
+  ): m.Children {
     return m(TrackTreeView, {
       trace,
       className: 'pf-timeline-page__scrolling-track-tree',
@@ -171,6 +343,9 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
       canReorderNodes: trace.currentWorkspace.userEditable,
       canRemoveNodes: trace.currentWorkspace.userEditable,
       trackFilter: (track) => trackMatchesFilter(trace, track),
+      trackSearchMatches: this.trackSearchMatches,
+      currentSearchMatch,
+      virtualScrollingEnabled: VIRTUAL_TRACK_SCROLLING.get(),
     });
   }
 

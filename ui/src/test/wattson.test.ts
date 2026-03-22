@@ -40,10 +40,9 @@ test.beforeAll(async ({browser}, _testInfo) => {
 });
 
 test('wattson aggregations', async () => {
-  const wattsonGrp = pth.locateTrack('Wattson');
-  await wattsonGrp.scrollIntoViewIfNeeded();
+  const wattsonGrp = await pth.scrollToTrack('Wattson');
   await pth.toggleTrackGroup(wattsonGrp);
-  const cpuEstimate = pth.locateTrack('Wattson/Cpu0 estimate', wattsonGrp);
+  const cpuEstimate = await pth.scrollToTrack('Wattson/Cpu0 estimate');
   const coords = assertExists(await cpuEstimate.boundingBox());
   await page.keyboard.press('Escape');
   await page.mouse.move(600, coords.y + 10);

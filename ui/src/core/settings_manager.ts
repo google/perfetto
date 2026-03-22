@@ -20,6 +20,7 @@ import {
   SettingsManager,
 } from '../public/settings';
 import {Storage} from './storage';
+import {LocalStorage} from './local_storage';
 
 export const PERFETTO_SETTINGS_STORAGE_KEY = 'perfettoSettings';
 
@@ -209,3 +210,9 @@ export class SettingsManagerImpl implements SettingsManager {
     }
   }
 }
+
+// Create a singleton global settings manager so that settings can be registered
+// as easily as flags in order to aid migration to settings.
+export const settingsManager = new SettingsManagerImpl(
+  new LocalStorage(PERFETTO_SETTINGS_STORAGE_KEY),
+);
