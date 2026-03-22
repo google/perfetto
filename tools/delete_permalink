@@ -56,7 +56,7 @@ def main():
   print('Removing the following objects:')
   for gs_uri in gcs_delete_list:
     print('  ', gs_uri)
-  subprocess.check_call(['gsutil', '-m', 'rm', '-f', '-a'] + gcs_delete_list)
+  subprocess.check_call(['gcloud', 'storage', 'rm', '--continue-on-error', '--all-versions'] + gcs_delete_list)
 
 
 if __name__ == '__main__':
