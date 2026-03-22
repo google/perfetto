@@ -282,3 +282,81 @@ class GraphicsGpuTrace(TestSuite):
           "vkcube_process",6,3220
           "vulkan_sam_process",22,111019
         '''))
+
+  def test_gpu_counter_duplicate_ids_different_sequences(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+          packet {
+            trusted_packet_sequence_id: 1
+            timestamp: 0
+            gpu_counter_event {
+              gpu_id: 0
+              counter_descriptor {
+                specs {
+                  counter_id: 1
+                  name: "CounterA"
+                  description: "desc A"
+                }
+              }
+            }
+          }
+          packet {
+            trusted_packet_sequence_id: 2
+            timestamp: 0
+            gpu_counter_event {
+              gpu_id: 1
+              counter_descriptor {
+                specs {
+                  counter_id: 1
+                  name: "CounterA"
+                  description: "desc A"
+                }
+              }
+            }
+          }
+          packet {
+            trusted_packet_sequence_id: 1
+            timestamp: 10
+            gpu_counter_event {
+              gpu_id: 0
+              counters { counter_id: 1 int_value: 100 }
+            }
+          }
+          packet {
+            trusted_packet_sequence_id: 2
+            timestamp: 10
+            gpu_counter_event {
+              gpu_id: 1
+              counters { counter_id: 1 int_value: 200 }
+            }
+          }
+          packet {
+            trusted_packet_sequence_id: 1
+            timestamp: 20
+            gpu_counter_event {
+              gpu_id: 0
+              counters { counter_id: 1 int_value: 150 }
+            }
+          }
+          packet {
+            trusted_packet_sequence_id: 2
+            timestamp: 20
+            gpu_counter_event {
+              gpu_id: 1
+              counters { counter_id: 1 int_value: 250 }
+            }
+          }
+        """),
+        query="""
+          SELECT ts, value, name, gpu_id
+          FROM counter
+          JOIN gpu_counter_track ON counter.track_id = gpu_counter_track.id
+          ORDER BY gpu_id, ts;
+        """,
+        out=Csv("""
+          "ts","value","name","gpu_id"
+          10,150.000000,"CounterA",0
+          20,0.000000,"CounterA",0
+          10,250.000000,"CounterA",1
+          20,0.000000,"CounterA",1
+        """))

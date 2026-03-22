@@ -156,7 +156,7 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
                              "UNKNOWN_SEVERITY") /* must be last */}},
       vk_queue_submit_id_(context->storage->InternString("vkQueueSubmit")) {}
 
-void GpuEventParser::TokenizeGpuCounterEvent(ConstBytes blob) {
+void GpuEventParser::TokenizeGpuCounterEvent(uint32_t seq_id, ConstBytes blob) {
   GpuCounterEvent::Decoder event(blob);
   if (!event.has_counter_descriptor()) {
     return;
@@ -175,8 +175,9 @@ void GpuEventParser::TokenizeGpuCounterEvent(ConstBytes blob) {
     }
 
     auto counter_id = spec.counter_id();
+    auto key = GpuCounterKey(seq_id, counter_id);
     auto name = spec.name();
-    if (!gpu_counter_state_.Find(counter_id)) {
+    if (!gpu_counter_state_.Find(key)) {
       auto desc = spec.description();
 
       StringId unit_id = kNullStringId;
@@ -209,7 +210,7 @@ void GpuEventParser::TokenizeGpuCounterEvent(ConstBytes blob) {
           },
           tracks::DynamicUnit(unit_id));
       auto [cit, inserted] =
-          gpu_counter_state_.Insert(counter_id, GpuCounterState{track_id, {}});
+          gpu_counter_state_.Insert(key, GpuCounterState{track_id, {}});
       PERFETTO_CHECK(inserted);
       if (spec.has_groups()) {
         for (auto group = spec.groups(); group; ++group) {
@@ -233,13 +234,16 @@ void GpuEventParser::TokenizeGpuCounterEvent(ConstBytes blob) {
   }
 }
 
-void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
+void GpuEventParser::ParseGpuCounterEvent(int64_t ts,
+                                          uint32_t seq_id,
+                                          ConstBytes blob) {
   GpuCounterEvent::Decoder event(blob);
   for (auto it = event.counters(); it; ++it) {
     GpuCounterEvent::GpuCounter::Decoder counter(*it);
     if (counter.has_counter_id() &&
         (counter.has_int_value() || counter.has_double_value())) {
-      auto* state = gpu_counter_state_.Find(counter.counter_id());
+      auto* state =
+          gpu_counter_state_.Find(GpuCounterKey(seq_id, counter.counter_id()));
       if (!state) {
         continue;
       }
