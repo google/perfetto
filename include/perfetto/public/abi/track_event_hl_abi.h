@@ -152,7 +152,10 @@ enum PerfettoTeHlExtraType {
   PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS = 17,
   PERFETTO_TE_HL_EXTRA_TYPE_PROTO_TRACK = 18,
   PERFETTO_TE_HL_EXTRA_TYPE_NESTED_TRACKS = 19,
+  PERFETTO_TE_HL_EXTRA_TYPE_NAMED_TRACK_STATIC = 20,
 };
+
+#define PERFETTO_TE_NAMED_TRACK_MAGIC 0xCD571EC5EAD37024ul
 
 // An extra event parameter. Each type of parameter should embed this as its
 // first member.

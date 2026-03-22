@@ -164,7 +164,10 @@ class Flow {
  */
 class NamedTrack {
  public:
-  NamedTrack(uint64_t id, uint64_t parent_uuid, const std::string& name);
+  NamedTrack(uint64_t id,
+             uint64_t parent_uuid,
+             const std::string& name,
+             bool is_static);
 
   static void delete_track(NamedTrack* track);
 
@@ -184,14 +187,17 @@ class RegisteredTrack {
   RegisteredTrack(uint64_t id,
                   uint64_t parent_uuid,
                   const std::string& name,
-                  bool is_counter);
+                  bool is_counter,
+                  bool is_static);
+
   ~RegisteredTrack();
 
-  void register_track();
-  void unregister_track();
   static void delete_track(RegisteredTrack* track);
 
   const PerfettoTeHlExtraRegisteredTrack* get() const { return &track_; }
+
+  void register_track();
+  void unregister_track();
 
  private:
   DISALLOW_COPY_AND_ASSIGN(RegisteredTrack);
@@ -201,8 +207,8 @@ class RegisteredTrack {
   const uint64_t id_;
   const uint64_t parent_uuid_;
   const bool is_counter_;
+  const bool is_static_;
 };
-
 /**
  * @brief Represents a counter track event.
  */

@@ -5245,6 +5245,7 @@ perfetto_android_library(
     ],
     manifest = "src/android_sdk/java/main/AndroidManifest.xml",
     deps = [
+        ":gn_error_prone_annotations",
         ":src_android_sdk_jni_libperfetto_jni",
     ],
     tags = [
