@@ -36,6 +36,7 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/trace_processor_context_ptr.h"
@@ -255,6 +256,33 @@ TEST_F(ProtoTraceReaderTest, CalculateClockOffset_MultiRounds) {
   ASSERT_EQ(1u, clock_offsets.size());
   // Average(-105000, -110000, -122500, -120000) = -114375.
   ASSERT_EQ(-114375, clock_offsets[ClockId::Machine(BOOTTIME)]);
+}
+
+TEST_F(ProtoTraceReaderTest, DeferredClockSnapshotSequenceScopedClock) {
+  // Packet 1: has a sequence-scoped clock (64) but no clock snapshot yet.
+  // This will fail ToTraceTime and be deferred for later processing.
+  auto* packet1 = trace_->add_packet();
+  packet1->set_trusted_packet_sequence_id(1);
+  packet1->set_timestamp(1000);
+  packet1->set_timestamp_clock_id(64);
+
+  // Packet 2: clock snapshot on the same sequence mapping clock 64 -> BOOTTIME.
+  auto* packet2 = trace_->add_packet();
+  packet2->set_trusted_packet_sequence_id(1);
+  auto* snap = packet2->set_clock_snapshot();
+  auto* clk1 = snap->add_clocks();
+  clk1->set_clock_id(64);
+  clk1->set_timestamp(10);
+  auto* clk2 = snap->add_clocks();
+  clk2->set_clock_id(BOOTTIME);
+  clk2->set_timestamp(10000);
+
+  ASSERT_TRUE(Tokenize().ok());
+  ASSERT_TRUE(proto_trace_reader_->OnPushDataToSorter().ok());
+
+  // The deferred packet should have resolved without recording an error.
+  EXPECT_EQ(0, host_context_.storage->GetStats(
+                   stats::clock_sync_failure_unknown_source_clock));
 }
 
 }  // namespace

@@ -260,7 +260,8 @@ class ClockSynchronizer {
   std::optional<int64_t> Convert(ClockId src_clock_id,
                                  int64_t src_timestamp,
                                  ClockId target_clock_id,
-                                 std::optional<size_t> byte_offset) {
+                                 std::optional<size_t> byte_offset,
+                                 bool suppress_errors = false) {
     if (PERFETTO_LIKELY(src_clock_id == target_clock_id)) {
       return src_timestamp;
     }
@@ -282,7 +283,7 @@ class ClockSynchronizer {
       }
     }
     return ConvertSlowpath(src_clock_id, src_timestamp, ns, target_clock_id,
-                           byte_offset);
+                           byte_offset, suppress_errors);
   }
 
   // For testing:
@@ -386,7 +387,8 @@ class ClockSynchronizer {
                                          int64_t src_timestamp,
                                          std::optional<int64_t> src_ts_ns,
                                          ClockId target_clock_id,
-                                         std::optional<size_t> byte_offset);
+                                         std::optional<size_t> byte_offset,
+                                         bool suppress_errors);
 
   // Returns whether |global_clock_id| represents a sequence-scoped clock, i.e.
   // a ClockId returned by SequenceToGlobalClock().
