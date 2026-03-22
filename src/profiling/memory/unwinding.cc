@@ -75,7 +75,8 @@ constexpr size_t kMaxAllocRecordArenaSize = 2 * kRecordBatchSize;
 #pragma GCC diagnostic ignored "-Wglobal-constructors"
 #pragma GCC diagnostic ignored "-Wexit-time-destructors"
 static std::vector<std::string> kSkipMaps{"heapprofd_client.so",
-                                          "heapprofd_client_api.so"};
+                                          "heapprofd_client_api.so",
+                                          "libheapprofd_standalone_client.so"};
 #pragma GCC diagnostic pop
 
 size_t GetRegsSize(unwindstack::Regs* regs) {

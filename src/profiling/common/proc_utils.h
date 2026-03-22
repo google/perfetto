@@ -20,6 +20,7 @@
 #include <sys/types.h>
 
 #include <cinttypes>
+#include <cstdlib>
 #include <optional>
 #include <set>
 #include <vector>

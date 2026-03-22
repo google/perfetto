@@ -178,7 +178,7 @@ declare_args() {
   # but is built on Linux as well for test/compiler coverage.
   # On Android, it requires API level 26 due to libunwindstack.
   enable_perfetto_heapprofd =
-      perfetto_build_with_android ||
+      perfetto_build_with_android || (build_with_chromium && is_android) ||
       (perfetto_build_standalone && is_clang &&
        (is_linux || (is_android && android_api_level >= 26)))
 
