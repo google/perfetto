@@ -68,6 +68,7 @@ AndroidProbesModule::AndroidProbesModule(
   RegisterForField(TracePacket::kPowerRailsFieldNumber);
   RegisterForField(TracePacket::kAndroidEnergyEstimationBreakdownFieldNumber);
   RegisterForField(TracePacket::kEntityStateResidencyFieldNumber);
+  RegisterForField(TracePacket::kAndroidAflagsFieldNumber);
   RegisterForField(TracePacket::kAndroidLogFieldNumber);
   RegisterForField(TracePacket::kPackagesListFieldNumber);
   RegisterForField(TracePacket::kUserListFieldNumber);
@@ -230,6 +231,9 @@ void AndroidProbesModule::ParseTracePacketData(
     const TracePacketData&,
     uint32_t field_id) {
   switch (field_id) {
+    case TracePacket::kAndroidAflagsFieldNumber:
+      parser_.ParseAndroidAflags(ts, decoder.android_aflags());
+      return;
     case TracePacket::kAndroidLogFieldNumber:
       parser_.ParseAndroidLogPacket(ts, decoder.android_log());
       return;
