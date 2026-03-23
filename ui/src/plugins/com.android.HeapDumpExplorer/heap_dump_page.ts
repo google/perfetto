@@ -19,6 +19,8 @@ import {Spinner} from '../../widgets/spinner';
 import {EmptyState} from '../../widgets/empty_state';
 import {Tabs} from '../../widgets/tabs';
 import type {TabsTab} from '../../widgets/tabs';
+import HeapProfilePlugin from '../dev.perfetto.HeapProfile';
+import type {HeapdumpSelection} from '../dev.perfetto.HeapProfile';
 import type {NavState} from './nav_state';
 import type {OverviewData} from './types';
 import {nav, navigate, syncFromSubpage, setNavigateCallback} from './nav_state';
@@ -31,6 +33,49 @@ import InstancesView from './views/instances_view';
 import BitmapGalleryView from './views/bitmap_gallery_view';
 import ClassesView from './views/classes_view';
 import StringsView from './views/strings_view';
+import FlamegraphObjectsView from './views/flamegraph_objects_view';
+
+async function viewInTimeline(objectId: number): Promise<void> {
+  const trace = HeapDumpPage.trace;
+  if (!trace) return;
+
+  const hp = trace.plugins.getPlugin(HeapProfilePlugin);
+
+  // Read the flamegraph's current state to decide which path-hash table to
+  // query and which metric tab to return to.
+  const fgInfo = hp.getJavaHeapGraphFlamegraphInfo();
+
+  const info = await queries.getHeapGraphTrackInfo(
+    trace.engine,
+    objectId,
+    fgInfo?.isDominator,
+  );
+  if (!info) return;
+
+  const filter = info.pathHash
+    ? `^${info.pathHash}$`
+    : info.className
+      ? `^${info.className}$`
+      : undefined;
+  if (filter) {
+    // Navigate back to the same metric the user was last viewing.
+    hp.setJavaHeapGraphFlamegraphFilter(filter, fgInfo?.metricName);
+  }
+
+  const uri = `/process_${info.upid}/java_heap_graph_heap_profile`;
+  trace.navigate('#!/viewer');
+  trace.selection.selectTrackEvent(uri, info.eventId);
+  trace.scrollTo({track: {uri, expandGroup: true}});
+}
+
+// Cached flamegraph selection consumed from HeapProfile. Consumed once on first
+// render of the flamegraph-objects view, then reused for subsequent renders.
+let cachedFlamegraphSelection: HeapdumpSelection | null = null;
+
+/** Reset cached selection on trace change to prevent stale cross-trace data. */
+export function resetCachedFlamegraphSelection(): void {
+  cachedFlamegraphSelection = null;
+}
 
 // Module-level overview cache. Survives component remounts (e.g. theme toggle).
 let cachedOverview: OverviewData | null = null;
@@ -67,6 +112,7 @@ function classesTabContent(
         heaps: overview.heaps,
         navigate,
         params: state.params,
+        onViewInTimeline: viewInTimeline,
       });
     case 'instances':
       return m(InstancesView, {engine, navigate, params: state.params});
@@ -107,7 +153,7 @@ function buildTabs(
       content: m(BitmapGalleryView, {
         // Key on filterKey so the component remounts when the filter changes,
         // ensuring initialFilters on the inner DataGrid takes effect.
-        key: state.view === 'bitmaps' ? state.params.filterKey ?? '' : '',
+        key: state.view === 'bitmaps' ? (state.params.filterKey ?? '') : '',
         engine,
         navigate,
         hasFieldValues: overview.hasFieldValues,
@@ -119,7 +165,7 @@ function buildTabs(
       key: 'strings',
       title: 'Strings',
       content: m(StringsView, {
-        key: state.view === 'strings' ? state.params.q ?? '' : '',
+        key: state.view === 'strings' ? (state.params.q ?? '') : '',
         engine,
         navigate,
         initialQuery: state.view === 'strings' ? state.params.q : undefined,
@@ -127,6 +173,30 @@ function buildTabs(
       }),
     },
   ];
+}
+
+// Flamegraph-objects is a special entry point from the timeline, not a tab.
+// Rendered in place of the Tabs widget when active.
+function renderFlamegraphObjectsView(
+  state: NavState & {view: 'flamegraph-objects'},
+  engine: Engine,
+): m.Children {
+  const trace = HeapDumpPage.trace;
+  const pending = trace?.plugins
+    .getPlugin(HeapProfilePlugin)
+    .consumeHeapdumpSelection();
+  if (pending) cachedFlamegraphSelection = pending;
+  const sel = cachedFlamegraphSelection;
+  return m(FlamegraphObjectsView, {
+    engine,
+    navigate,
+    nodeName: state.params.name,
+    pathHashes: sel?.pathHashes,
+    isDominator: sel?.isDominator,
+    onBackToTimeline: () => {
+      if (trace) trace.navigate('#!/viewer');
+    },
+  });
 }
 
 interface HeapDumpPageAttrs {
@@ -184,6 +254,22 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
         'div',
         {class: 'ah-page'},
         m('div', {class: 'ah-loading'}, m(Spinner, {easing: true})),
+      );
+    }
+
+    // Flamegraph-objects is a special entry point from the timeline, not a tab.
+    if (nav.view === 'flamegraph-objects') {
+      return m(
+        'div',
+        {class: 'ah-page'},
+        m(
+          'main',
+          {class: 'ah-main'},
+          renderFlamegraphObjectsView(
+            nav as NavState & {view: 'flamegraph-objects'},
+            HeapDumpPage.engine,
+          ),
+        ),
       );
     }
 
