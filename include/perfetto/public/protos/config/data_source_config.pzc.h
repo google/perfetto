@@ -25,6 +25,7 @@
 
 #include "perfetto/public/pb_macros.h"
 
+PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidAflagsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidGameInterventionListConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidInputEventConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidLogConfig);
@@ -344,6 +345,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   perfetto_protos_InputMethodConfig,
                   inputmethod_config,
                   139);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_AndroidAflagsConfig,
+                  android_aflags_config,
+                  140);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   MSG,
                   perfetto_protos_QnxConfig,

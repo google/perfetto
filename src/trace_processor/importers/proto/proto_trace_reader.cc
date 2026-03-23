@@ -380,6 +380,34 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   return TimestampTokenizeAndPushToSorter(std::move(packet));
 }
 
+ProtoTraceReader::ClockResolution ProtoTraceReader::ResolveTimestampToTraceTime(
+    ClockTracker::ClockId clock_id,
+    int64_t* timestamp,
+    TraceBlobView* packet) {
+  // Before EOF, suppress errors: the clock snapshot may arrive later and
+  // the packet will be retried at EOF. At EOF, allow errors so genuinely
+  // broken clocks are reported.
+  bool suppress_errors = !received_eof_;
+  auto trace_ts = context_->clock_tracker->ToTraceTime(
+      clock_id, *timestamp, packet->offset(), suppress_errors);
+  if (PERFETTO_LIKELY(trace_ts.has_value())) {
+    *timestamp = *trace_ts;
+    return ClockResolution::kResolved;
+  }
+
+  // Conversion failed. Before EOF, try to defer for later resolution.
+  if (!received_eof_ &&
+      context_->sorter->SetSortingMode(TraceSorter::SortingMode::kFullSort)) {
+    eof_deferred_packets_.push_back(std::move(*packet));
+    return ClockResolution::kDeferred;
+  }
+
+  // Cannot defer: record the error and drop the packet.
+  context_->import_logs_tracker->RecordTokenizationError(
+      stats::clock_sync_failure_undeferrable_packet_loss, packet->offset());
+  return ClockResolution::kDropped;
+}
+
 base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
     TraceBlobView packet) {
   protos::pbzero::TracePacket::Decoder decoder(packet.data(), packet.length());
@@ -439,23 +467,12 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
       } else {
         converted_clock_id = ClockId::Machine(timestamp_clock_id);
       }
-      auto trace_ts = context_->clock_tracker->ToTraceTime(
-          converted_clock_id, timestamp, packet.offset());
-      if (!trace_ts) {
-        // We need to switch to full sorting mode to ensure that packets with
-        // missing timestamp are handled correctly. Don't save the packet unless
-        // switching to full sorting mode succeeded.
-        if (!received_eof_ && context_->sorter->SetSortingMode(
-                                  TraceSorter::SortingMode::kFullSort)) {
-          eof_deferred_packets_.push_back(std::move(packet));
-          return base::OkStatus();
-        }
-        // We don't return an error here as it will cause the trace to stop
-        // parsing. Instead, we rely on the stat increment (which happened
-        // automatically in ToTraceTime) to inform the user about the error.
+      auto resolution =
+          ResolveTimestampToTraceTime(converted_clock_id, &timestamp, &packet);
+      if (resolution == ClockResolution::kDeferred ||
+          resolution == ClockResolution::kDropped) {
         return base::OkStatus();
       }
-      timestamp = *trace_ts;
     }
   } else {
     timestamp = std::max(latest_timestamp_, context_->sorter->max_timestamp());
