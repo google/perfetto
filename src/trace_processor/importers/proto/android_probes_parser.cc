@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -748,12 +749,23 @@ StringId AndroidProbesParser::ToStorageBackendId(int32_t backend) {
 
 void AndroidProbesParser::ParseAndroidAflags(int64_t ts, ConstBytes blob) {
   protos::pbzero::AndroidAflags::Decoder decoder(blob.data, blob.size);
+  if (decoder.has_error()) {
+    context_->import_logs_tracker->RecordCollectionError(
+        stats::android_aflags_errors, ts,
+        [&](ArgsTracker::BoundInserter& inserter) {
+          inserter.AddArg(context_->storage->InternString("error"),
+                          Variadic::String(context_->storage->InternString(
+                              decoder.error())));
+        });
+    return;
+  }
+
   for (auto it = decoder.flags(); it; ++it) {
     protos::pbzero::AndroidAflags::Flag::Decoder flag(*it);
 
     tables::AndroidAflagsTable::Row row;
     row.ts = ts;
-    row.package = context_->storage->InternString(flag.package());
+    row.package = context_->storage->InternString(flag.pkg());
     row.name = context_->storage->InternString(flag.name());
     row.flag_namespace = context_->storage->InternString(flag.flag_namespace());
     row.container = context_->storage->InternString(flag.container());

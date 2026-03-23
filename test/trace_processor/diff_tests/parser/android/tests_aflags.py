@@ -28,7 +28,7 @@ class AndroidAflags(TestSuite):
           timestamp: 1000
           android_aflags {
             flags {
-              package: "com.android.settings"
+              pkg: "com.android.settings"
               name: "my_flag"
               flag_namespace: "settings_ns"
               container: "system"
@@ -49,4 +49,26 @@ class AndroidAflags(TestSuite):
         out=Csv("""
         "ts","package","name","flag_namespace","container","value","staged_value","permission","value_picked_from","storage_backend"
         1000,"com.android.settings","my_flag","settings_ns","system","enabled","disabled","read-write","local","aconfigd"
+        """))
+
+  def test_android_aflags_error(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2000
+          android_aflags {
+            error: "Failed to read aflags"
+          }
+        }
+        """),
+        query="""
+        SELECT ts, name, severity, display_value
+        FROM _trace_import_logs
+        JOIN args USING (arg_set_id)
+        WHERE name = 'android_aflags_errors';
+        """,
+        out=Csv("""
+        "ts","name","severity","display_value"
+        2000,"android_aflags_errors","error","Failed to read aflags"
         """))

@@ -24,6 +24,9 @@ namespace perfetto::trace_processor::stats {
 // Compile time list of parsing and processing stats.
 // clang-format off
 #define PERFETTO_TP_STATS(F)                                                   \
+  F(android_aflags_errors,               kSingle,  kError,    kTrace,          \
+       "Errors occurred during the collection of Android aconfig flags on "    \
+       "device."),                                                             \
   F(android_br_parse_errors,              kSingle,  kError,    kTrace,    ""), \
   F(android_log_num_failed,               kSingle,  kError,    kTrace,    ""), \
   F(android_log_format_invalid,           kSingle,  kError,    kTrace,    ""), \

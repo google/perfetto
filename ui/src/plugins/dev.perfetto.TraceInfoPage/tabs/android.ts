@@ -22,6 +22,8 @@ import {
 } from '../../../trace_processor/query_result';
 import {Section} from '../../../widgets/section';
 import {Grid, GridCell, GridHeaderCell} from '../../../widgets/grid';
+import {Callout} from '../../../widgets/callout';
+import {Intent} from '../../../widgets/common';
 
 // Row specs
 const packageDataSpec = {
@@ -70,6 +72,7 @@ export interface AndroidData {
   packageList: PackageData[];
   gameInterventions: AndroidGameInterventionRow[];
   aflags: AflagRow[];
+  aflagErrors: string[];
 }
 
 export async function loadAndroidData(engine: Engine): Promise<AndroidData> {
@@ -173,10 +176,27 @@ export async function loadAndroidData(engine: Engine): Promise<AndroidData> {
     });
   }
 
+  // Load aflag errors
+  const aflagErrorsResult = await engine.query(`
+    select distinct display_value as error
+    from _trace_import_logs
+    join args using (arg_set_id)
+    where name = 'android_aflags_errors'
+  `);
+  const aflagErrors: string[] = [];
+  for (
+    const iter = aflagErrorsResult.iter({error: STR});
+    iter.valid();
+    iter.next()
+  ) {
+    aflagErrors.push(iter.error);
+  }
+
   return {
     packageList,
     gameInterventions,
     aflags,
+    aflagErrors,
   };
 }
 
@@ -185,7 +205,8 @@ export function hasAndroidData(data?: AndroidData): boolean {
   return (
     data.packageList.length > 0 ||
     data.gameInterventions.length > 0 ||
-    data.aflags.length > 0
+    data.aflags.length > 0 ||
+    data.aflagErrors.length > 0
   );
 }
 
@@ -199,7 +220,10 @@ export class AndroidTab implements m.ClassComponent<AndroidTabAttrs> {
       '.pf-trace-info-page__tab-content',
       m(PackageListSection, {packageList: attrs.data.packageList}),
       m(AndroidGameInterventionList, {data: attrs.data.gameInterventions}),
-      m(AndroidAflagsSection, {aflags: attrs.data.aflags}),
+      m(AndroidAflagsSection, {
+        aflags: attrs.data.aflags,
+        aflagErrors: attrs.data.aflagErrors,
+      }),
     );
   }
 }
@@ -362,6 +386,7 @@ class AndroidGameInterventionList
 
 interface AndroidAflagsSectionAttrs {
   aflags: AflagRow[];
+  aflagErrors: string[];
 }
 
 class AndroidAflagsSection
@@ -369,7 +394,11 @@ class AndroidAflagsSection
 {
   view({attrs}: m.CVnode<AndroidAflagsSectionAttrs>) {
     const aflags = attrs.aflags;
-    if (aflags === undefined || aflags.length === 0) {
+    const aflagErrors = attrs.aflagErrors;
+    if (
+      (aflags === undefined || aflags.length === 0) &&
+      (aflagErrors === undefined || aflagErrors.length === 0)
+    ) {
       return undefined;
     }
 
@@ -379,43 +408,54 @@ class AndroidAflagsSection
         title: 'Android Aflags',
         subtitle: 'List of Android aconfig flags in the trace',
       },
-      m(Grid, {
-        columns: [
+      aflagErrors.length > 0 &&
+        m(
+          Callout,
           {
-            key: 'flag',
-            header: m(GridHeaderCell, 'Flag'),
+            intent: Intent.Danger,
+            className: 'pf-trace-info-page__banner',
           },
-          {
-            key: 'value',
-            header: m(GridHeaderCell, 'Value'),
-          },
-          {
-            key: 'stagedValue',
-            header: m(GridHeaderCell, 'Staged Value'),
-          },
-          {
-            key: 'valuePickedFrom',
-            header: m(GridHeaderCell, 'Value Picked From'),
-          },
-          {
-            key: 'permission',
-            header: m(GridHeaderCell, 'Permission'),
-          },
-          {
-            key: 'container',
-            header: m(GridHeaderCell, 'Container'),
-          },
-        ],
-        rowData: aflags.map((flag) => [
-          m(GridCell, `${flag.package ?? ''}.${flag.name ?? ''}`),
-          m(GridCell, flag.value),
-          m(GridCell, flag.stagedValue ? `(->${flag.stagedValue})` : '-'),
-          m(GridCell, flag.valuePickedFrom),
-          m(GridCell, flag.permission),
-          m(GridCell, flag.container),
-        ]),
-        className: 'pf-trace-info-page__logs-grid',
-      }),
+          'Errors occurred during aflags collection: ',
+          aflagErrors.map((e) => m('div', e)),
+        ),
+      aflags.length > 0 &&
+        m(Grid, {
+          columns: [
+            {
+              key: 'flag',
+              header: m(GridHeaderCell, 'Flag'),
+            },
+            {
+              key: 'value',
+              header: m(GridHeaderCell, 'Value'),
+            },
+            {
+              key: 'stagedValue',
+              header: m(GridHeaderCell, 'Staged Value'),
+            },
+            {
+              key: 'valuePickedFrom',
+              header: m(GridHeaderCell, 'Value Picked From'),
+            },
+            {
+              key: 'permission',
+              header: m(GridHeaderCell, 'Permission'),
+            },
+            {
+              key: 'container',
+              header: m(GridHeaderCell, 'Container'),
+            },
+          ],
+          rowData: aflags.map((flag) => [
+            m(GridCell, `${flag.package ?? ''}.${flag.name ?? ''}`),
+            m(GridCell, flag.value),
+            m(GridCell, flag.stagedValue ? `(->${flag.stagedValue})` : '-'),
+            m(GridCell, flag.valuePickedFrom),
+            m(GridCell, flag.permission),
+            m(GridCell, flag.container),
+          ]),
+          className: 'pf-trace-info-page__logs-grid',
+        }),
     );
   }
 }
