@@ -5135,7 +5135,7 @@ class TraceStats(_message.Message):
     def __init__(self, buffer_stats: _Optional[_Iterable[_Union[TraceStats.BufferStats, _Mapping]]] = ..., chunk_payload_histogram_def: _Optional[_Iterable[int]] = ..., writer_stats: _Optional[_Iterable[_Union[TraceStats.WriterStats, _Mapping]]] = ..., producers_connected: _Optional[int] = ..., producers_seen: _Optional[int] = ..., data_sources_registered: _Optional[int] = ..., data_sources_seen: _Optional[int] = ..., tracing_sessions: _Optional[int] = ..., total_buffers: _Optional[int] = ..., chunks_discarded: _Optional[int] = ..., patches_discarded: _Optional[int] = ..., invalid_packets: _Optional[int] = ..., filter_stats: _Optional[_Union[TraceStats.FilterStats, _Mapping]] = ..., flushes_requested: _Optional[int] = ..., flushes_succeeded: _Optional[int] = ..., flushes_failed: _Optional[int] = ..., final_flush_outcome: _Optional[_Union[TraceStats.FinalFlushOutcome, str]] = ...) -> None: ...
 
 class AndroidAflags(_message.Message):
-    __slots__ = ("flags",)
+    __slots__ = ("flags", "error")
     class FlagPermission(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         FLAG_PERMISSION_UNSPECIFIED: _ClassVar[AndroidAflags.FlagPermission]
@@ -5165,10 +5165,10 @@ class AndroidAflags(_message.Message):
     FLAG_STORAGE_BACKEND_ACONFIGD: AndroidAflags.FlagStorageBackend
     FLAG_STORAGE_BACKEND_DEVICE_CONFIG: AndroidAflags.FlagStorageBackend
     class Flag(_message.Message):
-        __slots__ = ("flag_namespace", "name", "package", "container", "value", "staged_value", "permission", "value_picked_from", "storage_backend")
+        __slots__ = ("flag_namespace", "name", "pkg", "container", "value", "staged_value", "permission", "value_picked_from", "storage_backend")
         FLAG_NAMESPACE_FIELD_NUMBER: _ClassVar[int]
         NAME_FIELD_NUMBER: _ClassVar[int]
-        PACKAGE_FIELD_NUMBER: _ClassVar[int]
+        PKG_FIELD_NUMBER: _ClassVar[int]
         CONTAINER_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
         STAGED_VALUE_FIELD_NUMBER: _ClassVar[int]
@@ -5177,17 +5177,19 @@ class AndroidAflags(_message.Message):
         STORAGE_BACKEND_FIELD_NUMBER: _ClassVar[int]
         flag_namespace: str
         name: str
-        package: str
+        pkg: str
         container: str
         value: str
         staged_value: str
         permission: AndroidAflags.FlagPermission
         value_picked_from: AndroidAflags.ValuePickedFrom
         storage_backend: AndroidAflags.FlagStorageBackend
-        def __init__(self, flag_namespace: _Optional[str] = ..., name: _Optional[str] = ..., package: _Optional[str] = ..., container: _Optional[str] = ..., value: _Optional[str] = ..., staged_value: _Optional[str] = ..., permission: _Optional[_Union[AndroidAflags.FlagPermission, str]] = ..., value_picked_from: _Optional[_Union[AndroidAflags.ValuePickedFrom, str]] = ..., storage_backend: _Optional[_Union[AndroidAflags.FlagStorageBackend, str]] = ...) -> None: ...
+        def __init__(self, flag_namespace: _Optional[str] = ..., name: _Optional[str] = ..., pkg: _Optional[str] = ..., container: _Optional[str] = ..., value: _Optional[str] = ..., staged_value: _Optional[str] = ..., permission: _Optional[_Union[AndroidAflags.FlagPermission, str]] = ..., value_picked_from: _Optional[_Union[AndroidAflags.ValuePickedFrom, str]] = ..., storage_backend: _Optional[_Union[AndroidAflags.FlagStorageBackend, str]] = ...) -> None: ...
     FLAGS_FIELD_NUMBER: _ClassVar[int]
+    ERROR_FIELD_NUMBER: _ClassVar[int]
     flags: _containers.RepeatedCompositeFieldContainer[AndroidAflags.Flag]
-    def __init__(self, flags: _Optional[_Iterable[_Union[AndroidAflags.Flag, _Mapping]]] = ...) -> None: ...
+    error: str
+    def __init__(self, flags: _Optional[_Iterable[_Union[AndroidAflags.Flag, _Mapping]]] = ..., error: _Optional[str] = ...) -> None: ...
 
 class AndroidGameInterventionList(_message.Message):
     __slots__ = ("game_packages", "parse_error", "read_error")
@@ -17191,7 +17193,7 @@ class GpuLog(_message.Message):
     def __init__(self, severity: _Optional[_Union[GpuLog.Severity, str]] = ..., tag: _Optional[str] = ..., log_message: _Optional[str] = ...) -> None: ...
 
 class GpuRenderStageEvent(_message.Message):
-    __slots__ = ("event_id", "duration", "hw_queue_iid", "stage_iid", "gpu_id", "context", "render_target_handle", "submission_id", "extra_data", "render_pass_handle", "render_pass_instance_id", "render_subpass_index_mask", "command_buffer_handle", "specifications", "hw_queue_id", "stage_id")
+    __slots__ = ("event_id", "duration", "hw_queue_iid", "stage_iid", "gpu_id", "context", "render_target_handle", "submission_id", "extra_data", "render_pass_handle", "render_pass_instance_id", "render_subpass_index_mask", "command_buffer_handle", "name", "specifications", "hw_queue_id", "stage_id")
     Extensions: _python_message._ExtensionDict
     class ExtraData(_message.Message):
         __slots__ = ("name", "value")
@@ -17236,6 +17238,7 @@ class GpuRenderStageEvent(_message.Message):
     RENDER_PASS_INSTANCE_ID_FIELD_NUMBER: _ClassVar[int]
     RENDER_SUBPASS_INDEX_MASK_FIELD_NUMBER: _ClassVar[int]
     COMMAND_BUFFER_HANDLE_FIELD_NUMBER: _ClassVar[int]
+    NAME_FIELD_NUMBER: _ClassVar[int]
     SPECIFICATIONS_FIELD_NUMBER: _ClassVar[int]
     HW_QUEUE_ID_FIELD_NUMBER: _ClassVar[int]
     STAGE_ID_FIELD_NUMBER: _ClassVar[int]
@@ -17252,10 +17255,11 @@ class GpuRenderStageEvent(_message.Message):
     render_pass_instance_id: int
     render_subpass_index_mask: _containers.RepeatedScalarFieldContainer[int]
     command_buffer_handle: int
+    name: str
     specifications: GpuRenderStageEvent.Specifications
     hw_queue_id: int
     stage_id: int
-    def __init__(self, event_id: _Optional[int] = ..., duration: _Optional[int] = ..., hw_queue_iid: _Optional[int] = ..., stage_iid: _Optional[int] = ..., gpu_id: _Optional[int] = ..., context: _Optional[int] = ..., render_target_handle: _Optional[int] = ..., submission_id: _Optional[int] = ..., extra_data: _Optional[_Iterable[_Union[GpuRenderStageEvent.ExtraData, _Mapping]]] = ..., render_pass_handle: _Optional[int] = ..., render_pass_instance_id: _Optional[int] = ..., render_subpass_index_mask: _Optional[_Iterable[int]] = ..., command_buffer_handle: _Optional[int] = ..., specifications: _Optional[_Union[GpuRenderStageEvent.Specifications, _Mapping]] = ..., hw_queue_id: _Optional[int] = ..., stage_id: _Optional[int] = ...) -> None: ...
+    def __init__(self, event_id: _Optional[int] = ..., duration: _Optional[int] = ..., hw_queue_iid: _Optional[int] = ..., stage_iid: _Optional[int] = ..., gpu_id: _Optional[int] = ..., context: _Optional[int] = ..., render_target_handle: _Optional[int] = ..., submission_id: _Optional[int] = ..., extra_data: _Optional[_Iterable[_Union[GpuRenderStageEvent.ExtraData, _Mapping]]] = ..., render_pass_handle: _Optional[int] = ..., render_pass_instance_id: _Optional[int] = ..., render_subpass_index_mask: _Optional[_Iterable[int]] = ..., command_buffer_handle: _Optional[int] = ..., name: _Optional[str] = ..., specifications: _Optional[_Union[GpuRenderStageEvent.Specifications, _Mapping]] = ..., hw_queue_id: _Optional[int] = ..., stage_id: _Optional[int] = ...) -> None: ...
 
 class InternedGraphicsContext(_message.Message):
     __slots__ = ("iid", "pid", "api")
@@ -17265,10 +17269,14 @@ class InternedGraphicsContext(_message.Message):
         OPEN_GL: _ClassVar[InternedGraphicsContext.Api]
         VULKAN: _ClassVar[InternedGraphicsContext.Api]
         OPEN_CL: _ClassVar[InternedGraphicsContext.Api]
+        CUDA: _ClassVar[InternedGraphicsContext.Api]
+        HIP: _ClassVar[InternedGraphicsContext.Api]
     UNDEFINED: InternedGraphicsContext.Api
     OPEN_GL: InternedGraphicsContext.Api
     VULKAN: InternedGraphicsContext.Api
     OPEN_CL: InternedGraphicsContext.Api
+    CUDA: InternedGraphicsContext.Api
+    HIP: InternedGraphicsContext.Api
     IID_FIELD_NUMBER: _ClassVar[int]
     PID_FIELD_NUMBER: _ClassVar[int]
     API_FIELD_NUMBER: _ClassVar[int]

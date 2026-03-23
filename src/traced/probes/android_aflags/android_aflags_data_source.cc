@@ -35,7 +35,7 @@
 namespace perfetto {
 namespace {
 constexpr uint32_t kMinPollPeriodMs = 1000;
-constexpr uint32_t kAflagsExitTimeoutMs = 1000;
+constexpr uint32_t kAflagsExitTimeoutMs = 100;
 }  // namespace
 
 // static
@@ -72,21 +72,21 @@ AndroidAflagsDataSource::~AndroidAflagsDataSource() {
 }
 
 void AndroidAflagsDataSource::Start() {
-  Tick();
-}
-
-void AndroidAflagsDataSource::Tick() {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   PERFETTO_ELOG("Aflags only supported on Android.");
   return;
 #else
-  auto weak_this = weak_factory_.GetWeakPtr();
+  Tick();
+#endif
+}
+
+void AndroidAflagsDataSource::Tick() {
   if (poll_period_ms_ > 0) {
     uint32_t delay_ms =
         poll_period_ms_ -
         static_cast<uint32_t>(base::GetWallTimeMs().count() % poll_period_ms_);
     task_runner_->PostDelayedTask(
-        [weak_this] {
+        [weak_this = weak_factory_.GetWeakPtr()] {
           if (weak_this) {
             weak_this->Tick();
           }
@@ -101,11 +101,12 @@ void AndroidAflagsDataSource::Tick() {
 
   aflags_output_pipe_ = base::Pipe::Create(base::Pipe::kRdNonBlock);
   // Watch the read end of the pipe for output from the aflags process.
-  task_runner_->AddFileDescriptorWatch(*aflags_output_pipe_->rd, [weak_this] {
-    if (weak_this) {
-      weak_this->OnAflagsOutput();
-    }
-  });
+  task_runner_->AddFileDescriptorWatch(
+      *aflags_output_pipe_->rd, [weak_this = weak_factory_.GetWeakPtr()] {
+        if (weak_this) {
+          weak_this->OnAflagsOutput();
+        }
+      });
 
   aflags_output_.clear();
 
@@ -114,13 +115,14 @@ void AndroidAflagsDataSource::Tick() {
   aflags_process_.emplace(std::initializer_list<std::string>{
       "/system/bin/aflags", "list", "--format", "proto"});
   aflags_process_->args.stdout_mode = base::Subprocess::OutputMode::kFd;
+  aflags_process_->args.stderr_mode = base::Subprocess::OutputMode::kFd;
+  // Keeps track of both stdout and stderr in the same pipe.
   aflags_process_->args.out_fd = std::move(aflags_output_pipe_->wr);
-  aflags_process_->args.stderr_mode = base::Subprocess::OutputMode::kDevNull;
   aflags_process_->Start();
-#endif
 }
 
 void AndroidAflagsDataSource::OnAflagsOutput() {
+  errno = 0;
   if (base::ReadFileDescriptor(*aflags_output_pipe_->rd, &aflags_output_)) {
     task_runner_->RemoveFileDescriptorWatch(*aflags_output_pipe_->rd);
     FinalizeAflagsCapture();
@@ -133,6 +135,9 @@ void AndroidAflagsDataSource::OnAflagsOutput() {
 
   PERFETTO_PLOG("Error reading from aflags output pipe.");
   task_runner_->RemoveFileDescriptorWatch(*aflags_output_pipe_->rd);
+
+  EmitErrorPacket("Error reading from aflags output pipe: " + aflags_output_);
+
   aflags_process_.reset();
   aflags_output_pipe_.reset();
   aflags_output_.clear();
@@ -147,9 +152,8 @@ void AndroidAflagsDataSource::FinalizeAflagsCapture() {
   auto status = aflags_process_->status();
   if (status == base::Subprocess::kRunning) {
     // Process hasn't finished running yet, reschedule and check later.
-    auto weak_this = weak_factory_.GetWeakPtr();
     task_runner_->PostDelayedTask(
-        [weak_this] {
+        [weak_this = weak_factory_.GetWeakPtr()] {
           if (weak_this)
             weak_this->FinalizeAflagsCapture();
         },
@@ -163,6 +167,10 @@ void AndroidAflagsDataSource::FinalizeAflagsCapture() {
 
   if (status != base::Subprocess::kTerminated || returncode != 0) {
     PERFETTO_ELOG("aflags failed: status: %d, code: %d", status, returncode);
+    EmitErrorPacket(
+        "aflags failed: status: " + std::to_string(static_cast<int>(status)) +
+        ", code: " + std::to_string(returncode) +
+        ". Output: " + aflags_output_);
     aflags_output_.clear();
     return;
   }
@@ -176,6 +184,7 @@ void AndroidAflagsDataSource::FinalizeAflagsCapture() {
   if (!decoded) {
     PERFETTO_ELOG("Failed to decode aflags output (length: %zu)",
                   output.size());
+    EmitErrorPacket("Failed to decode aflags output: " + output);
     return;
   }
 
@@ -183,6 +192,17 @@ void AndroidAflagsDataSource::FinalizeAflagsCapture() {
   packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
   protos::pbzero::AndroidAflags* aflags_proto = packet->set_android_aflags();
   aflags_proto->AppendRawProtoBytes(decoded->data(), decoded->size());
+  packet->Finalize();
+  writer_->Flush();
+}
+
+void AndroidAflagsDataSource::EmitErrorPacket(const std::string& error_msg) {
+  auto packet = writer_->NewTracePacket();
+  packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
+  auto* aflags_proto = packet->set_android_aflags();
+  aflags_proto->set_error(error_msg);
+  packet->Finalize();
+  writer_->Flush();
 }
 
 void AndroidAflagsDataSource::Flush(FlushRequestID,

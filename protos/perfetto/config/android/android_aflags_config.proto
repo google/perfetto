@@ -27,8 +27,8 @@ message AndroidAflagsConfig {
   // at the start of the trace.
   //
   // It is recommended to either leave this absent or set it to a large
-  // value as each invocation of the `aflags` tool can be expensive (approx.
-  // 350ms). This is required to be > 1000ms if set, to avoid excessive CPU
-  // usage.
+  // value as each invocation of the `aflags` tool can be time consuming
+  // (approx. 350ms) and also triggers an expensive flush. This is required to
+  // be > 1000ms if set, to avoid excessive CPU usage.
   optional uint32 poll_ms = 1;
 }

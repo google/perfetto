@@ -53,7 +53,7 @@ message AndroidAflags {
   message Flag {
     optional string flag_namespace = 1;
     optional string name = 2;
-    optional string package = 3;
+    optional string pkg = 3;
     optional string container = 4;
     // The flag value as a string to support different future data types.
     optional string value = 5;
@@ -67,4 +67,8 @@ message AndroidAflags {
 
   // A collection of flags.
   repeated Flag flags = 1;
+
+  // A human-readable error logged if aflags processing fails.
+  // This is a perfetto specific field used to help debugging.
+  optional string error = 2;
 }

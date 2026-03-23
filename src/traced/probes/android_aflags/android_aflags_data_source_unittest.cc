@@ -30,6 +30,8 @@
 namespace perfetto {
 namespace {
 
+using ::testing::HasSubstr;
+
 class TestAndroidAflagsDataSource : public AndroidAflagsDataSource {
  public:
   TestAndroidAflagsDataSource(const DataSourceConfig& ds_config,
@@ -42,7 +44,7 @@ class TestAndroidAflagsDataSource : public AndroidAflagsDataSource {
                                 std::move(writer)) {}
 
   struct FakeFlag {
-    std::string package;
+    std::string pkg;
     std::string name;
     std::string namespace_val;
     std::string container;
@@ -61,7 +63,7 @@ class TestAndroidAflagsDataSource : public AndroidAflagsDataSource {
       auto* flag_proto = msg->add_flags();
       flag_proto->AppendString(1, f.namespace_val);
       flag_proto->AppendString(2, f.name);
-      flag_proto->AppendString(3, f.package);
+      flag_proto->AppendString(3, f.pkg);
       flag_proto->AppendString(4, f.container);
       flag_proto->AppendString(5, f.value);
       flag_proto->AppendString(6, f.staged_value);
@@ -78,18 +80,43 @@ class TestAndroidAflagsDataSource : public AndroidAflagsDataSource {
     aflags_process_->Call();
     FinalizeAflagsCapture();
   }
+
+  void FakeSubprocessError(const std::string& output) {
+    aflags_output_ = output;
+    aflags_process_.emplace(std::initializer_list<std::string>{"/bin/false"});
+    aflags_process_->Call();
+    FinalizeAflagsCapture();
+  }
+
+  void FakeInvalidBase64() {
+    aflags_output_ = "!!!not-base64!!!";
+    aflags_process_.emplace(std::initializer_list<std::string>{"/bin/true"});
+    aflags_process_->Call();
+    FinalizeAflagsCapture();
+  }
 };
 
-TEST(AndroidAflagsDataSourceTest, EmitAflags) {
-  base::TestTaskRunner task_runner;
+class AndroidAflagsDataSourceTest : public ::testing::Test {
+ protected:
+  std::unique_ptr<TestAndroidAflagsDataSource> CreateDataSource(
+      const DataSourceConfig& ds_config) {
+    auto writer =
+        std::unique_ptr<TraceWriterForTesting>(new TraceWriterForTesting());
+    writer_raw_ = writer.get();
+    return std::unique_ptr<TestAndroidAflagsDataSource>(
+        new TestAndroidAflagsDataSource(ds_config, &task_runner_, 0,
+                                        std::move(writer)));
+  }
+
+  base::TestTaskRunner task_runner_;
+  TraceWriterForTesting* writer_raw_ = nullptr;
+};
+
+TEST_F(AndroidAflagsDataSourceTest, EmitAflags) {
   DataSourceConfig ds_config;
   ds_config.set_name("android.aflags");
 
-  auto writer =
-      std::unique_ptr<TraceWriterForTesting>(new TraceWriterForTesting());
-  auto* writer_raw = writer.get();
-
-  TestAndroidAflagsDataSource ds(ds_config, &task_runner, 0, std::move(writer));
+  auto ds = CreateDataSource(ds_config);
 
   std::vector<TestAndroidAflagsDataSource::FakeFlag> flags;
   flags.push_back({
@@ -107,16 +134,14 @@ TEST(AndroidAflagsDataSourceTest, EmitAflags) {
           protos::pbzero::AndroidAflags::FLAG_STORAGE_BACKEND_ACONFIGD),
   });
 
-  ds.FakeSubprocessCompletion(flags);
+  ds->FakeSubprocessCompletion(flags);
 
-  auto packets = writer_raw->GetAllTracePackets();
-  ASSERT_EQ(packets.size(), 1u);
+  protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_android_aflags());
 
-  ASSERT_TRUE(packets[0].has_android_aflags());
-
-  const auto& aflags = packets[0].android_aflags();
+  const auto& aflags = packet.android_aflags();
   ASSERT_EQ(aflags.flags().size(), 1u);
-  EXPECT_EQ(aflags.flags()[0].package(), "com.android.settings");
+  EXPECT_EQ(aflags.flags()[0].pkg(), "com.android.settings");
   EXPECT_EQ(aflags.flags()[0].name(), "my_flag");
   EXPECT_EQ(aflags.flags()[0].flag_namespace(), "settings_ns");
   EXPECT_EQ(aflags.flags()[0].container(), "system");
@@ -128,6 +153,38 @@ TEST(AndroidAflagsDataSourceTest, EmitAflags) {
             protos::gen::AndroidAflags::VALUE_PICKED_FROM_LOCAL);
   EXPECT_EQ(aflags.flags()[0].storage_backend(),
             protos::gen::AndroidAflags::FLAG_STORAGE_BACKEND_ACONFIGD);
+}
+
+TEST_F(AndroidAflagsDataSourceTest, SubprocessErrorEmitsErrorPacket) {
+  DataSourceConfig ds_config;
+  ds_config.set_name("android.aflags");
+
+  auto ds = CreateDataSource(ds_config);
+
+  ds->FakeSubprocessError("aflags error message");
+
+  protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_android_aflags());
+  const auto& aflags = packet.android_aflags();
+  EXPECT_TRUE(aflags.has_error());
+  EXPECT_THAT(aflags.error(),
+              testing::AllOf(HasSubstr("aflags failed"),
+                             HasSubstr("aflags error message")));
+}
+
+TEST_F(AndroidAflagsDataSourceTest, InvalidBase64EmitsErrorPacket) {
+  DataSourceConfig ds_config;
+  ds_config.set_name("android.aflags");
+
+  auto ds = CreateDataSource(ds_config);
+
+  ds->FakeInvalidBase64();
+
+  protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_android_aflags());
+  const auto& aflags = packet.android_aflags();
+  EXPECT_TRUE(aflags.has_error());
+  EXPECT_THAT(aflags.error(), HasSubstr("Failed to decode aflags output"));
 }
 
 }  // namespace

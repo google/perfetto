@@ -70,6 +70,9 @@ class AndroidAflagsDataSource : public ProbesDataSource {
   // Invoked when the `aflags list` process has output to read.
   void OnAflagsOutput();
 
+  // Emits a trace packet with AndroidAflags.error set to |error_msg|.
+  void EmitErrorPacket(const std::string& error_msg);
+
   base::TaskRunner* const task_runner_;
   std::unique_ptr<TraceWriter> writer_;
 
