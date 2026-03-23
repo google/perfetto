@@ -308,6 +308,11 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   private readonly queue = new SerialTaskQueue();
   private readonly tablesSlot = new QuerySlot<Tables>(this.queue);
   private readonly dataFrameSlot = new QuerySlot<DataFrame<T>>(this.queue);
+  private readonly selectedSliceSlot = new QuerySlot<{
+    ts: time;
+    dur: duration;
+    depth: number;
+  }>(this.queue);
   private readonly bufferedBounds = new BufferedBounds();
   private readonly hoverMonitor = new Monitor([() => this.hoveredSlice?.id]);
 
@@ -394,12 +399,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const pxPerNs = timescale.durationToPx(1n);
     const baseOffsetPx = timescale.timeToPx(dataFrame.start);
     const charWidth = this.measureCharWidth(ctx);
-    const selection = this.trace.selection.selection;
-    const selectedId =
-      selection.kind === 'track_event' && selection.trackUri === this.uri
-        ? selection.eventId
-        : undefined;
-
     const dataTransform: Transform2D = {
       scaleX: pxPerNs,
       offsetX: baseOffsetPx,
@@ -416,7 +415,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       pxPerNs,
       baseOffsetPx,
       charWidth,
-      selectedId,
     );
 
     // Render instants after slices so they appear on top
@@ -425,10 +423,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       dataFrame.instants,
       dataTransform,
       sliceHeight,
-      pxPerNs,
-      baseOffsetPx,
-      selectedId,
     );
+
+    this.renderSelectedSliceRing(trackCtx);
 
     // Checkerboard for loading areas
     const frameStartPx = timescale.timeToPx(dataFrame.start);
@@ -443,6 +440,68 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     );
   }
 
+  private renderSelectedSliceRing(trackCtx: TrackRenderContext): void {
+    const selection = this.trace.selection.selection;
+    const selectedId =
+      selection.kind === 'track_event' && selection.trackUri === this.uri
+        ? selection.eventId
+        : undefined;
+
+    // 1. Use the slot to trigger a reload of the selected track event id if the
+    // current selection is a track event selection and the uri is this track.
+    const dataset = this.getDataset();
+    const sqlSource = generateRenderQuery(dataset);
+    const {data} = this.selectedSliceSlot.use({
+      key: {selectedId, sqlSource},
+      enabled: selectedId !== undefined,
+      queryFn: async () => {
+        const result = await this.engine.query(`
+          SELECT ts, dur, depth
+          FROM (${sqlSource})
+          WHERE id = ${selectedId}
+        `);
+        const row = result.iter({ts: LONG, dur: LONG, depth: NUM});
+        if (!row.valid()) return QUERY_CANCELLED;
+        return {ts: Time.fromRaw(row.ts), dur: row.dur, depth: row.depth};
+      },
+    });
+
+    // 2. Render the selected slice with a rectangle around it.
+    if (!data) return;
+
+    const {ctx, timescale, size} = trackCtx;
+    const sliceHeight = this.sliceLayout.sliceHeight;
+    const pxEnd = size.width;
+    const y =
+      data.depth * (this.sliceLayout.sliceHeight + this.sliceLayout.rowGap) +
+      this.sliceLayout.padding;
+
+    const isInstant = data.dur === 0n;
+    const isIncomplete = data.dur === -1n;
+    let selLeft: number;
+    let selW: number;
+
+    if (isInstant) {
+      const centerPx = timescale.timeToPx(data.ts);
+      selLeft = centerPx - this.instantWidthPx / 2;
+      selW = this.instantWidthPx;
+    } else {
+      const leftPx = timescale.timeToPx(data.ts);
+      const rightPx = isIncomplete
+        ? pxEnd
+        : timescale.timeToPx(Time.add(data.ts, data.dur));
+      const SEL_OFFSCREEN_MAX_PX = 20;
+      selLeft = Math.max(leftPx, -SEL_OFFSCREEN_MAX_PX);
+      const selRight = Math.min(rightPx, pxEnd + SEL_OFFSCREEN_MAX_PX);
+      selW = selRight - selLeft;
+    }
+
+    const THICKNESS = 3;
+    ctx.strokeStyle = trackCtx.colors.COLOR_TIMELINE_OVERLAY;
+    ctx.lineWidth = THICKNESS;
+    ctx.strokeRect(selLeft, y - THICKNESS / 2, selW, sliceHeight + THICKNESS);
+  }
+
   private renderSlices(
     trackCtx: TrackRenderContext,
     sliceBuffers: SliceBuffers<T>,
@@ -452,7 +511,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     pxPerNs: number,
     baseOffsetPx: number,
     charWidth: {title: number; subtitle: number},
-    selectedId: number | undefined,
   ): void {
     const {ctx, renderer} = trackCtx;
     const {starts, ends, ys, patterns, slices, count} = sliceBuffers;
@@ -471,7 +529,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     // TODO(stevegolton): Find a way to avoid having to do this every frame.
     const colorVariants = this.onUpdatedSlices(slices);
     const colors = new Uint32Array(count);
-    let selectedIdx = -1;
 
     for (let j = 0; j < count; j++) {
       const slice = slices[j];
@@ -484,11 +541,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
             ? cs.variant
             : cs.disabled;
       colors[j] = color.rgba;
-
-      // Track selected slice index
-      if (selectedId !== undefined && slice.id === selectedId) {
-        selectedIdx = j;
-      }
 
       // Collect text labels
       const w = ends[j] - starts[j];
@@ -586,29 +638,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         ctx.globalAlpha = 1;
       }
     }
-
-    // Draw selection highlight
-    if (selectedIdx !== -1) {
-      // Huge rects can be subject to flickering due to floating point precision
-      // issues, so we clamp the selection rect to a reasonable size offscreen.
-      const SEL_OFFSCREEN_MAX_PX = 20;
-      const selLeftRaw = starts[selectedIdx] * pxPerNs + baseOffsetPx;
-      const selLeft = Math.max(selLeftRaw, -SEL_OFFSCREEN_MAX_PX);
-      const selRightRaw = ends[selectedIdx] * pxPerNs + baseOffsetPx;
-      const selRight = Math.min(selRightRaw, pxEnd + SEL_OFFSCREEN_MAX_PX);
-      const selW = selRight - selLeft;
-      const selY =
-        ys[selectedIdx] * dataTransform.scaleY + dataTransform.offsetY;
-      const THICKNESS = 3;
-      ctx.strokeStyle = trackCtx.colors.COLOR_TIMELINE_OVERLAY;
-      ctx.lineWidth = THICKNESS;
-      ctx.strokeRect(
-        selLeft,
-        selY - THICKNESS / 2,
-        selW,
-        sliceHeight + THICKNESS,
-      );
-    }
   }
 
   private renderInstants(
@@ -616,18 +645,14 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     instantBuffers: InstantBuffers<T>,
     dataTransform: Transform2D,
     sliceHeight: number,
-    pxPerNs: number,
-    baseOffsetPx: number,
-    selectedId: number | undefined,
   ): void {
-    const {ctx, renderer} = trackCtx;
+    const {renderer} = trackCtx;
     const {xs, ys, instants, count} = instantBuffers;
 
     // Recreate the colors array every time as this could have changed
     // TODO(stevegolton): Find a way to avoid having to do this every frame.
     const colorVariants = this.onUpdatedSlices(instants);
     const colors = new Uint32Array(count);
-    let selectedIdx = -1;
 
     for (let j = 0; j < count; j++) {
       const instant = instants[j];
@@ -640,11 +665,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
             ? cs.variant
             : cs.disabled;
       colors[j] = color.rgba;
-
-      // Track selected instant index
-      if (selectedId !== undefined && instant.id === selectedId) {
-        selectedIdx = j;
-      }
     }
 
     renderer.drawMarkers(
@@ -659,23 +679,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       dataTransform,
       (ctx, x, y, _w, h) => this.drawChevron(ctx, x, y, h),
     );
-
-    // Draw selection highlight for instants
-    if (selectedIdx !== -1) {
-      const selX =
-        xs[selectedIdx] * pxPerNs + baseOffsetPx - this.instantWidthPx / 2;
-      const selY =
-        ys[selectedIdx] * dataTransform.scaleY + dataTransform.offsetY;
-      const THICKNESS = 3;
-      ctx.strokeStyle = trackCtx.colors.COLOR_TIMELINE_OVERLAY;
-      ctx.lineWidth = THICKNESS;
-      ctx.strokeRect(
-        selX,
-        selY - THICKNESS / 2,
-        this.instantWidthPx,
-        sliceHeight + THICKNESS,
-      );
-    }
   }
 
   getDataset() {
