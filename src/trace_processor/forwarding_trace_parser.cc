@@ -63,6 +63,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
     case kAndroidLogcatTraceType:
     case kArtHprofTraceType:
     case kArtMethodTraceType:
+    case kArtMethodV2TraceType:
     case kCollapsedStackTraceType:
     case kCtraceTraceType:
     case kFuchsiaTraceType:
