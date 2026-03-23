@@ -42,7 +42,8 @@ export interface GroupSerializedState {
  * this structure is used for visual port display and graph rewiring.
  */
 export interface ExternalGroupConnection {
-  readonly sourceNode: QueryNode;
+  // Not readonly: updated by onPrevNodesUpdated when a port is reconnected.
+  sourceNode: QueryNode;
   readonly innerTargetNode: QueryNode;
   // Port on the inner target node (undefined = primary input)
   readonly innerTargetPort: number | undefined;
@@ -128,8 +129,11 @@ export class GroupNode implements QueryNode {
           inner.secondaryInputs.connections.delete(conn.innerTargetPort);
         }
       } else {
-        // Port was (re)connected — update the inner node's reference
-        // so SQL generation uses the new source.
+        // Port was (re)connected — keep externalConnections in sync so
+        // serialization and the inner graph preview reflect the real source.
+        conn.sourceNode = source;
+        // Update the inner node's reference so SQL generation uses the
+        // new source.
         if (conn.innerTargetPort === undefined) {
           inner.primaryInput = source;
         } else if (inner.secondaryInputs) {

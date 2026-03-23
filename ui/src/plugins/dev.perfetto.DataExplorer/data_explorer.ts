@@ -656,22 +656,25 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
             ),
           onExport: () => exportGraph(state, trace),
           onCreateGroup: (selectedNodeIds) => {
-            // Validate outside the state callback so a failed attempt
-            // does not push a no-op entry into the undo history.
-            const allNodes = getAllNodes(state.rootNodes);
-            const result = createGroupFromSelection(selectedNodeIds, allNodes);
-
-            if (!result.ok) {
-              showModal({
-                title: 'Cannot create group',
-                content: () => m('p', result.error),
-                buttons: [{text: 'OK', action: () => {}}],
-              });
-              return;
-            }
-
-            const groupNode = result.value;
             wrappedOnStateUpdate((currentState) => {
+              // Validate against currentState so we never act on a stale
+              // snapshot.
+              const allNodes = getAllNodes(currentState.rootNodes);
+              const result = createGroupFromSelection(
+                selectedNodeIds,
+                allNodes,
+              );
+
+              if (!result.ok) {
+                showModal({
+                  title: 'Cannot create group',
+                  content: () => m('p', result.error),
+                  buttons: [{text: 'OK', action: () => {}}],
+                });
+                return currentState;
+              }
+
+              const groupNode = result.value;
               applyGroupRewiring(groupNode);
 
               // Remove inner nodes from rootNodes and add the group instead.
@@ -681,9 +684,25 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
                 .filter((n) => !selectedNodeIds.has(n.nodeId))
                 .concat(groupNode);
 
+              // Place the group at the centroid of the inner nodes' layouts.
               const newNodeLayouts = new Map(currentState.nodeLayouts);
+              let sumX = 0;
+              let sumY = 0;
+              let count = 0;
               for (const id of selectedNodeIds) {
+                const layout = newNodeLayouts.get(id);
+                if (layout !== undefined) {
+                  sumX += layout.x;
+                  sumY += layout.y;
+                  count++;
+                }
                 newNodeLayouts.delete(id);
+              }
+              if (count > 0) {
+                newNodeLayouts.set(groupNode.nodeId, {
+                  x: sumX / count,
+                  y: sumY / count,
+                });
               }
 
               return {

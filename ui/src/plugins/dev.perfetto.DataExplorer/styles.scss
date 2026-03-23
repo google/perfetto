@@ -704,25 +704,6 @@
   border-radius: 0;
 }
 
-.pf-group-node-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.pf-group-node-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--pf-font-size-s);
-}
-
-.pf-group-node-type {
-  color: var(--pf-color-text-muted);
-  font-size: var(--pf-font-size-xs);
-  text-transform: uppercase;
-}
-
 // Disconnected input node in inner graph preview
 .pf-node--disconnected {
   opacity: 0.4;
