@@ -170,6 +170,9 @@ async function main() {
     help: 'filter Jest tests by regex, e.g. \'chrome_render\'',
   });
   parser.add_argument('--no-override-gn-args', {action: 'store_true'});
+  parser.add_argument('--title', {
+    help: 'Override the page title (useful for distinguishing multiple instances)',
+  });
 
   const args = parser.parse_args();
   const clean = !args.no_build;
@@ -226,6 +229,7 @@ async function main() {
     cfg.crossOriginIsolation = true;
   }
   cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
+  cfg.titleOverride = args.title || '';
   cfg.wasmModules = ['traceconv', 'proto_utils', 'trace_processor_memory64'];
   if (!cfg.onlyWasmMemory64) {
     cfg.wasmModules.push('trace_processor');
@@ -395,6 +399,15 @@ function cpHtml(src, filename) {
   const versionMap = JSON.stringify({'stable': cfg.version});
   const bodyRegex = /data-perfetto_version='[^']*'/;
   html = html.replace(bodyRegex, `data-perfetto_version='${versionMap}'`);
+
+  // If --title was provided, patch the page title. Useful when running
+  // multiple dev server instances to distinguish browser tabs.
+  if (cfg.titleOverride) {
+    html = html.replace(
+        /<title>[^<]*<\/title>/,
+        `<title>${cfg.titleOverride}</title>`);
+  }
+
   fs.writeFileSync(pjoin(cfg.outDistRootDir, filename), html);
 }
 
