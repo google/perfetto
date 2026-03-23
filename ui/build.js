@@ -230,19 +230,29 @@ async function main() {
     cfg.wasmModules.push('trace_processor');
   }
 
-  const killSubprocessesAndExit = (signal, exitCode) => {
-    console.log(`\n${signal} received. Killing all child processes and exiting`);
+  function terminateChildProcesses() {
     for (const proc of subprocesses) {
-      if (proc) proc.kill('SIGKILL');
+      console.log(`Terminating child process with PID ${proc.pid}`);
+      proc.kill(); // SIGTERM is the default
     }
-    releaseBuildLock();
-    process.kill(0, 'SIGKILL');  // Kill the whole process group.
-    process.exit(exitCode);
-  };
+  }
 
-  process.on('SIGINT', () => killSubprocessesAndExit('SIGINT', 130));    // 128 + 2
-  process.on('SIGTERM', () => killSubprocessesAndExit('SIGTERM', 143));  // 128 + 15
-  process.on('SIGHUP', () => killSubprocessesAndExit('SIGHUP', 129));   // 128 + 1
+  // Called whenever the process exits due to:
+  // 1. The JS loop running out of work - (normal exit or uncaught exception).
+  // 2. Manually calling process.exit().
+  process.on('exit', () => {
+    terminateChildProcesses();
+  });
+
+  // Register signal handlers for the usual termination signals. Only handle
+  // once per signal so we can then call process.kill(sig) in order for the
+  // process to exit with the correct exit code.
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+    process.once(sig, () => {
+      terminateChildProcesses();
+      process.kill(process.pid, sig);
+    });
+  }
 
   if (!args.no_depscheck) {
     // Check that deps are current before starting.
@@ -626,6 +636,7 @@ function startServer() {
   console.log(
       'Starting HTTP server on',
       `http://${host}:${cfg.httpServerListenPort}`);
+
   http.createServer(function(req, res) {
         console.debug(req.method, req.url);
         let uri = req.url.split('?', 1)[0];
