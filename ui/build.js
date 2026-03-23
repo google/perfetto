@@ -76,6 +76,7 @@ const pjoin = path.join;
 const ROOT_DIR = path.dirname(__dirname);  // The repo root.
 const VERSION_SCRIPT = pjoin(ROOT_DIR, 'tools/write_version_header.py');
 const GEN_IMPORTS_SCRIPT = pjoin(ROOT_DIR, 'tools/gen_ui_imports');
+const DEFAULT_PORT = 10000;
 
 const cfg = {
   minifyJs: '',
@@ -85,7 +86,7 @@ const cfg = {
   bigtrace: false,
   startHttpServer: false,
   httpServerListenHost: '127.0.0.1',
-  httpServerListenPort: 10000,
+  httpServerListenPort: undefined,
   onlyWasmMemory64: false,
   wasmModules: [],
   crossOriginIsolation: false,
@@ -632,12 +633,7 @@ function genServiceWorkerManifestJson() {
 }
 
 function startServer() {
-  const host = cfg.httpServerListenHost == '127.0.0.1' ? 'localhost' : cfg.httpServerListenHost;
-  console.log(
-      'Starting HTTP server on',
-      `http://${host}:${cfg.httpServerListenPort}`);
-
-  http.createServer(function(req, res) {
+  const server = http.createServer(function(req, res) {
         console.debug(req.method, req.url);
         let uri = req.url.split('?', 1)[0];
         if (uri.endsWith('/')) {
@@ -705,8 +701,39 @@ function startServer() {
           res.write(data);
           res.end();
         });
-      })
-      .listen(cfg.httpServerListenPort, cfg.httpServerListenHost);
+      });
+
+  let port = cfg.httpServerListenPort ?? DEFAULT_PORT;
+  let retryCount = 0;
+  
+  // Pick the next free port starting at 10000
+  server.on('error', (e) => {
+    if (e.code === 'EADDRINUSE') {
+      if (cfg.httpServerListenPort === undefined) {
+        if (retryCount <= 10) {
+          // Try the next port.
+          console.log(`Port ${port} is in use, trying ${port + 1}...`);
+          ++port;
+          ++retryCount;
+          server.listen(port, cfg.httpServerListenHost);
+        } else {
+          console.error(`ERROR: Port ${port} is in use, and no free port found after 10 tries. Exiting.`);
+        }
+      } else {
+        console.error(`ERROR: Port ${port} is in use, and --serve-port was explicitly set. Exiting.`);
+      }
+    } else {
+      console.error('HTTP SERVER ERROR:', e);
+    }
+  });
+
+  server.listen(port, cfg.httpServerListenHost);
+
+  server.on('listening', () => {
+    const {address, port} = server.address();
+    const host = address == '127.0.0.1' ? 'localhost' : address;
+    console.log(`HTTP server is listening on http://${host}:${port}`);
+  });
 }
 
 function isDistComplete() {
