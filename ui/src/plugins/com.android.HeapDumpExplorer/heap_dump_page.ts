@@ -17,6 +17,7 @@ import type {Engine} from '../../trace_processor/engine';
 import type {Trace} from '../../public/trace';
 import {Spinner} from '../../widgets/spinner';
 import {EmptyState} from '../../widgets/empty_state';
+import HeapProfilePlugin from '../dev.perfetto.HeapProfile';
 import type {NavState} from './nav_state';
 import type {OverviewData} from './types';
 import {Breadcrumbs} from './components';
@@ -38,6 +39,55 @@ import InstancesView from './views/instances_view';
 import BitmapGalleryView from './views/bitmap_gallery_view';
 import ClassesView from './views/classes_view';
 import StringsView from './views/strings_view';
+import FlamegraphObjectsView from './views/flamegraph_objects_view';
+import {
+  consumeFlamegraphHeapdumpSelection,
+  type FlamegraphHeapdumpSelection,
+} from '../dev.perfetto.HeapProfile/flamegraph_to_heapdump';
+
+// ─── View in Timeline ─────────────────────────────────────────────────────────
+
+async function viewInTimeline(objectId: number): Promise<void> {
+  const trace = HeapDumpPage.trace;
+  if (!trace) return;
+
+  const hp = trace.plugins.getPlugin(HeapProfilePlugin);
+
+  // Read the flamegraph's current state to decide which path-hash table to
+  // query and which metric tab to return to.
+  const fgInfo = hp.getJavaHeapGraphFlamegraphInfo();
+
+  const info = await queries.getHeapGraphTrackInfo(
+    trace.engine,
+    objectId,
+    fgInfo?.isDominator,
+  );
+  if (!info) return;
+
+  const filter = info.pathHash
+    ? `^${info.pathHash}$`
+    : info.className
+      ? `^${info.className}$`
+      : undefined;
+  if (filter) {
+    // Navigate back to the same metric the user was last viewing.
+    hp.setJavaHeapGraphFlamegraphFilter(filter, fgInfo?.metricName);
+  }
+
+  const uri = `/process_${info.upid}/java_heap_graph_heap_profile`;
+  trace.navigate('#!/viewer');
+  trace.selection.selectTrackEvent(uri, info.eventId);
+  trace.scrollTo({track: {uri, expandGroup: true}});
+}
+
+// Cached flamegraph selection consumed from HeapProfile. Consumed once on first
+// render of the flamegraph-objects view, then reused for subsequent renders.
+let cachedFlamegraphSelection: FlamegraphHeapdumpSelection | null = null;
+
+/** Reset cached selection on trace change to prevent stale cross-trace data. */
+export function resetCachedFlamegraphSelection(): void {
+  cachedFlamegraphSelection = null;
+}
 
 // Module-level overview cache. Survives component remounts (e.g. theme toggle).
 let cachedOverview: OverviewData | null = null;
@@ -95,6 +145,7 @@ function renderContentView(
         heaps: overview.heaps,
         navigate,
         params: state.params,
+        onViewInTimeline: viewInTimeline,
       });
     case 'instances':
       return m(InstancesView, {engine, navigate, params: state.params});
@@ -112,8 +163,22 @@ function renderContentView(
         initialQuery: state.params.q,
         hasFieldValues: overview.hasFieldValues,
       });
-    default:
-      return null;
+    case 'flamegraph-objects': {
+      const pending = consumeFlamegraphHeapdumpSelection();
+      if (pending) cachedFlamegraphSelection = pending;
+      const sel = cachedFlamegraphSelection;
+      return m(FlamegraphObjectsView, {
+        engine,
+        navigate,
+        nodeName: state.params.name,
+        pathHashes: sel?.pathHashes,
+        isDominator: sel?.isDominator,
+        onBackToTimeline: () => {
+          const trace = HeapDumpPage.trace;
+          if (trace) trace.navigate('#!/viewer');
+        },
+      });
+    }
   }
 }
 

@@ -30,6 +30,9 @@ export function createHeapProfileTrack(
   heapProfileIsIncomplete: boolean,
   detailsPanelState: FlamegraphState | undefined,
   onDetailsPanelStateChange: (state: FlamegraphState) => void,
+  consumePendingFilter?: () =>
+    | {filter: string; metricName?: string}
+    | undefined,
 ) {
   return SliceTrack.create({
     trace,
@@ -48,6 +51,7 @@ export function createHeapProfileTrack(
       const ts = Time.fromRaw(row.ts);
       const tsEnd = Time.fromRaw(row.ts + row.dur);
       const descriptor = profileDescriptor(row.type);
+      const pendingFilter = consumePendingFilter?.();
       return new HeapProfileFlamegraphDetailsPanel(
         trace,
         heapProfileIsIncomplete,
@@ -57,6 +61,7 @@ export function createHeapProfileTrack(
         tsEnd,
         detailsPanelState,
         onDetailsPanelStateChange,
+        pendingFilter,
       );
     },
     tooltip: (slice) => slice.row.type,

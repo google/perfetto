@@ -62,6 +62,54 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
 
   private readonly trackMap = new Map<string, Track>();
   private store?: Store<HeapProfilePluginState>;
+  private pendingFlamegraphFilter:
+    | {filter: string; metricName?: string}
+    | undefined;
+
+  /**
+   * Set a pending SHOW_FROM_FRAME filter for the next java heap graph
+   * flamegraph details panel that is opened. Used by the Heapdump Explorer plugin to
+   * auto-focus the flamegraph on a specific class when navigating from an
+   * object detail view back to the timeline.
+   */
+  setJavaHeapGraphFlamegraphFilter(filter: string, metricName?: string): void {
+    this.pendingFlamegraphFilter = {filter, metricName};
+  }
+
+  consumePendingFlamegraphFilter():
+    | {filter: string; metricName?: string}
+    | undefined {
+    const f = this.pendingFlamegraphFilter;
+    this.pendingFlamegraphFilter = undefined;
+    return f;
+  }
+
+  /**
+   * Returns information about the currently selected java heap graph
+   * flamegraph metric, or undefined if no flamegraph state exists yet.
+   *
+   * isDominator is true when a dominator metric is selected, undefined
+   * otherwise — callers should try both path-hash tables when undefined
+   * because the non-dominator class tree table may not be populated yet.
+   */
+  getJavaHeapGraphFlamegraphInfo():
+    | {metricName: string; isDominator: boolean | undefined}
+    | undefined {
+    const metricName =
+      this.store?.state[ProfileType.JAVA_HEAP_GRAPH]?.trackFlamegraphState
+        ?.selectedMetricName;
+    if (metricName === undefined) return undefined;
+    // Only positively identify dominator metrics; for everything else
+    // return undefined so the caller tries both tables as a fallback.
+    const DOMINATOR_METRICS = [
+      'Dominated Object Size',
+      'Dominated Object Count',
+    ];
+    const isDominator = DOMINATOR_METRICS.includes(metricName)
+      ? true
+      : undefined;
+    return {metricName, isDominator};
+  }
 
   private migrateHeapProfilePluginState(init: unknown): HeapProfilePluginState {
     const result = HEAP_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
@@ -215,6 +263,9 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
                 draft[descriptor.type].trackFlamegraphState = state;
               });
             },
+            heapType === 'java_heap_graph'
+              ? () => this.consumePendingFlamegraphFilter()
+              : undefined,
           ),
         };
         trace.tracks.registerTrack(track);
