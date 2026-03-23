@@ -86,7 +86,7 @@ class ArtMethodParser(TestSuite):
           1001000,1000,"com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run: ()V","main","RuntimeInit.java",548
           1001200,300,"java.lang.reflect.Method.invoke: (Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;","main","Method.java",598
         '''))
-  
+
   def test_art_method_track_type(self):
     return DiffTestBlueprint(
         trace=DataPath('art-method-tracing.trace'),
@@ -109,6 +109,7 @@ class ArtMethodParser(TestSuite):
           "art_method_tracing","[NULL]","Instr: androidx.test.runner.AndroidJUnitRunner"
           "art_method_tracing","[NULL]","InstrumentationConnectionThread"
         '''))
+
   def test_art_method_v2_track_type(self):
     return DiffTestBlueprint(
         trace=DataPath('art-method-v2.trace'),

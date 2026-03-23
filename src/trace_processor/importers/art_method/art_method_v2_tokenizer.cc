@@ -83,7 +83,6 @@ const uint8_t* DecodeSignedLeb128(const uint8_t* data,
   return ptr;
 }
 
-
 // Skips over an unsigned LEB128 integer without extracting its value.
 const uint8_t* SkipUnsignedLeb128(const uint8_t* data, const uint8_t* end) {
   const uint8_t* ptr = data;
@@ -133,8 +132,8 @@ base::Status ArtMethodV2Tokenizer::Parse(TraceBlobView blob) {
       return base::OkStatus();
     }
     header_parsed_ = true;
-    context_->clock_tracker->SetGlobalClock(
-        ClockTracker::ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC));
+    context_->clock_tracker->SetGlobalClock(ClockTracker::ClockId::Machine(
+        protos::pbzero::BUILTIN_CLOCK_MONOTONIC));
   }
 
   if (trace_complete_) {
@@ -166,7 +165,8 @@ base::Status ArtMethodV2Tokenizer::Parse(TraceBlobView blob) {
         if (avail > 1) {
           auto summary_opt = it.MaybeRead(avail - 1);
           if (summary_opt) {
-            summary_ += std::string(reinterpret_cast<const char*>(summary_opt->data()), avail - 1);
+            summary_ += std::string(
+                reinterpret_cast<const char*>(summary_opt->data()), avail - 1);
             reader_.PopFrontUntil(it.file_offset());
           }
         }
@@ -208,8 +208,8 @@ base::StatusOr<bool> ArtMethodV2Tokenizer::ParseHeader() {
                            version);
   }
 
-  is_dual_clock_ = (version == kVersionDualClock) ||
-                   (version == kVersionDualClockStreaming);
+  is_dual_clock_ =
+      (version == kVersionDualClock) || (version == kVersionDualClockStreaming);
   ts_ = static_cast<int64_t>(ReadNumber(header + 8, 8));
 
   reader_.PopFrontUntil(it.file_offset());
@@ -252,7 +252,6 @@ base::StatusOr<bool> ArtMethodV2Tokenizer::ParseThreadOrMethodInfo(
   return true;
 }
 
-
 void ArtMethodV2Tokenizer::ParseMethod(uint64_t id, const std::string& str) {
   auto tokens = base::SplitString(str, "\t");
   const std::string& class_name = tokens.empty() ? "" : tokens[0];
@@ -283,7 +282,7 @@ void ArtMethodV2Tokenizer::ParseMethod(uint64_t id, const std::string& str) {
   base::StackString<2048> slice_name("%s.%s: %s", class_name.c_str(),
                                      method_name.c_str(), signature.c_str());
   StringId str_id = context_->storage->InternString(slice_name.string_view());
-  
+
   method_map_.Insert(id, {str_id, pathname, line_number});
 }
 
@@ -319,7 +318,7 @@ base::StatusOr<bool> ArtMethodV2Tokenizer::ParseTraceEntries() {
         "ART Method V2 trace: trace entries encountered for unknown thread %u",
         thread_id);
   }
-  
+
   std::vector<uint64_t>& method_stack = thread_it->method_stack;
 
   for (uint32_t i = 0; i < num_records; i++) {
@@ -358,7 +357,7 @@ base::StatusOr<bool> ArtMethodV2Tokenizer::ParseTraceEntries() {
       if (current_buffer_ptr >= buffer_end) {
         break;
       }
-      
+
       const uint8_t* next_method_ptr =
           DecodeSignedLeb128(current_buffer_ptr, buffer_end, &diff);
       if (next_method_ptr == current_buffer_ptr) {
@@ -366,9 +365,9 @@ base::StatusOr<bool> ArtMethodV2Tokenizer::ParseTraceEntries() {
       }
       current_buffer_ptr = next_method_ptr;
 
-      method_id = static_cast<int64_t>(
-          static_cast<uint64_t>(prev_method_value) +
-          static_cast<uint64_t>(diff));
+      method_id =
+          static_cast<int64_t>(static_cast<uint64_t>(prev_method_value) +
+                               static_cast<uint64_t>(diff));
       prev_method_value = method_id;
       method_stack.push_back(static_cast<uint64_t>(method_id));
     } else {
@@ -438,10 +437,13 @@ base::Status ArtMethodV2Tokenizer::OnPushDataToSorter() {
       StringId key_id = context_->storage->InternString(base::StringView(key));
       auto int_val = base::StringToInt64(value);
       if (int_val) {
-        context_->metadata_tracker->SetDynamicMetadata(key_id, Variadic::Integer(*int_val));
+        context_->metadata_tracker->SetDynamicMetadata(
+            key_id, Variadic::Integer(*int_val));
       } else {
-        StringId value_id = context_->storage->InternString(base::StringView(value));
-        context_->metadata_tracker->SetDynamicMetadata(key_id, Variadic::String(value_id));
+        StringId value_id =
+            context_->storage->InternString(base::StringView(value));
+        context_->metadata_tracker->SetDynamicMetadata(
+            key_id, Variadic::String(value_id));
       }
     }
   }

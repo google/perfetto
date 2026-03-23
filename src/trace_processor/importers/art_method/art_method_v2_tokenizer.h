@@ -60,14 +60,15 @@ class ArtMethodV2Tokenizer : public ChunkedTraceReader {
   base::StatusOr<bool> ParseThreadOrMethodInfo(bool is_method);
   void ParseMethod(uint64_t id, const std::string& str);
   base::StatusOr<bool> ParseTraceEntries();
-  void PushRecord(uint32_t tid, uint32_t action, uint64_t method_id, int64_t ts);
-
-
+  void PushRecord(uint32_t tid,
+                  uint32_t action,
+                  uint64_t method_id,
+                  int64_t ts);
 
   TraceProcessorContext* context_ = nullptr;
   std::unique_ptr<TraceSorter::Stream<ArtMethodEvent>> stream_;
   util::TraceBlobViewReader reader_;
-  
+
   bool header_parsed_ = false;
   bool is_dual_clock_ = false;
   bool trace_complete_ = false;

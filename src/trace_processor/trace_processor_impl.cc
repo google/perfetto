@@ -548,8 +548,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   context()
       ->reader_registry->RegisterTraceReader<art_method::ArtMethodTokenizer>(
           kArtMethodTraceType);
-  context()->reader_registry->RegisterTraceReader<art_method::ArtMethodV2Tokenizer>(
-      kArtMethodV2TraceType);
+  context()
+      ->reader_registry->RegisterTraceReader<art_method::ArtMethodV2Tokenizer>(
+          kArtMethodV2TraceType);
   context()->reader_registry->RegisterTraceReader<art_hprof::ArtHprofParser>(
       kArtHprofTraceType);
   context()
