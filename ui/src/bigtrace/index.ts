@@ -58,7 +58,6 @@ function setupContentSecurityPolicy() {
       `'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='`,
       `'sha256-yRQRG6LLKMvjvigtzXD1f8VRZSYY7J8fM2ZLfdMaHKg='`,
     ],
-    'navigate-to': ['https://*.perfetto.dev', 'self'],
   };
   const meta = document.createElement('meta');
   meta.httpEquiv = 'Content-Security-Policy';

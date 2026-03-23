@@ -24,8 +24,20 @@ import { SplitPanel } from '../widgets/split_panel';
 import { EmptyState } from '../widgets/empty_state';
 import { Callout } from '../widgets/callout';
 import { Intent } from '../widgets/common';
-import { QueryResponse } from '../components/query_table/queries';
 import { Box } from '../widgets/box';
+
+export interface QueryResponse {
+  query: string;
+  error?: string;
+  totalRowCount: number;
+  durationMs: number;
+  columns: string[];
+  rows: DataGridRow[];
+  statementCount: number;
+  statementWithOutputCount: number;
+  lastStatementSql: string;
+}
+
 import { Stack, StackAuto } from '../widgets/stack';
 import { HotkeyGlyphs } from '../widgets/hotkey_glyphs';
 import { CopyToClipboardButton } from '../widgets/copy_to_clipboard_button';

@@ -40,20 +40,19 @@ export class RecentQueriesSection implements
   view({attrs}: m.CVnode<RecentQueriesSectionAttrs>) {
     const queries = recentQueriesStorage.data;
 
-    if (queries.length === 0) {
-      return m('.pf-recent-queries-empty', {style: {textAlign: 'center', marginTop: '16px', color: 'var(--pf-color-text-muted)'}}, 'No recent queries');
-    }
-
     return m(
         '.pf-recent-queries-section',
         {style: {width: '100%'}},
-        m(CardStack, {style: {width: '100%'}},
-          queries.map(
-              (entry) => m(
-                  RecentQueryCard,
-                  {entry, onLoadQuery: attrs.onLoadQuery},
-                  )),
-          )
+        m('.pf-nav-section-header', m('span', 'Recent Queries')),
+        queries.length > 0 ?
+            m(CardStack, {style: {width: '100%'}},
+              queries.map(
+                  (entry) => m(
+                      RecentQueryCard,
+                      {entry, onLoadQuery: attrs.onLoadQuery},
+                      )),
+              ) :
+            m('.pf-recent-queries-empty', 'No recent queries'),
     );
   }
 }
