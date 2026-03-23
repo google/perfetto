@@ -16,14 +16,18 @@ import {PerfettoSqlType} from '../../../trace_processor/perfetto_sql_type';
 import {
   DashboardDataSource,
   DashboardItem,
+  DEFAULT_COL_SPAN,
+  DEFAULT_ROW_SPAN,
+  GRID_COLUMNS,
+  checkOverlap,
   dashboardRegistry,
+  findNonOverlappingPosition,
   getItemId,
   getNextItemPosition,
   getConsumersOf,
   getDriversOf,
   isDriverChart,
   parseBrushFilters,
-  snapToGrid,
   validateDashboardItems,
 } from './dashboard_registry';
 
@@ -47,15 +51,15 @@ function makeLabelItem(id = 'label-1', text = ''): DashboardItem {
   return {kind: 'label', id, text};
 }
 
-function makeDividerItem(id = 'div-1', y = 300): DashboardItem {
-  return {kind: 'divider', id, y};
+function makeDividerItem(id = 'div-1', row = 3): DashboardItem {
+  return {kind: 'divider', id, row};
 }
 
 function makeChartItem(
   sourceNodeId: string,
   chartId?: string,
-  x?: number,
-  y?: number,
+  col?: number,
+  row?: number,
 ): DashboardItem & {kind: 'chart'} {
   return {
     kind: 'chart',
@@ -65,8 +69,8 @@ function makeChartItem(
       column: 'id',
       chartType: 'bar',
     },
-    x,
-    y,
+    col,
+    row,
   };
 }
 
@@ -130,41 +134,26 @@ describe('getItemId', () => {
   });
 });
 
-describe('snapToGrid', () => {
-  test('snaps to nearest 20px', () => {
-    expect(snapToGrid(0)).toBe(0);
-    expect(snapToGrid(10)).toBe(20);
-    expect(snapToGrid(19)).toBe(20);
-    expect(snapToGrid(20)).toBe(20);
-    expect(snapToGrid(29)).toBe(20);
-    expect(snapToGrid(30)).toBe(40);
-    expect(snapToGrid(31)).toBe(40);
-  });
-
-  test('handles negative values', () => {
-    expect(snapToGrid(-10)).toBe(-0); // Math.round(-0.5) = -0
-    expect(snapToGrid(-20)).toBe(-20);
-    expect(snapToGrid(-31)).toBe(-40);
-  });
-});
-
 describe('getNextItemPosition', () => {
-  test('returns offset based on item count', () => {
-    const pos0 = getNextItemPosition([]);
-    expect(pos0.x).toBe(20);
-    expect(pos0.y).toBe(20);
-
-    const pos1 = getNextItemPosition([makeChartItem('n1')]);
-    expect(pos1.x).toBe(60);
-    expect(pos1.y).toBe(60);
+  test('returns (0,0) for empty items', () => {
+    const pos = getNextItemPosition([]);
+    expect(pos.col).toBe(0);
+    expect(pos.row).toBe(0);
   });
 
-  test('wraps after 10 items', () => {
-    const tenItems = Array.from({length: 10}, () => makeChartItem('n1'));
-    const pos = getNextItemPosition(tenItems);
-    // 10 % 10 = 0, same as empty
-    expect(pos.x).toBe(20);
-    expect(pos.y).toBe(20);
+  test('cascades left-to-right in rows of DEFAULT_COL_SPAN', () => {
+    const itemsPerRow = Math.floor(GRID_COLUMNS / DEFAULT_COL_SPAN);
+    const pos1 = getNextItemPosition([makeChartItem('n1')]);
+    expect(pos1.col).toBe(DEFAULT_COL_SPAN);
+    expect(pos1.row).toBe(0);
+
+    // Fill first row, next item goes to second row.
+    const fullRow = Array.from({length: itemsPerRow}, () =>
+      makeChartItem('n1'),
+    );
+    const posNextRow = getNextItemPosition(fullRow);
+    expect(posNextRow.col).toBe(0);
+    expect(posNextRow.row).toBe(DEFAULT_ROW_SPAN);
   });
 });
 
@@ -357,23 +346,23 @@ describe('getItemId for dividers', () => {
 //   1. What drives it? (getDriversOf) — charts whose brush filters it.
 //   2. What does it drive? (getConsumersOf) — charts it brush-filters.
 //
-// Chart X drives chart Y when there exists a divider D with X.y < D.y <= Y.y.
-// isDriverChart(X) is true iff getConsumersOf(X) is non-empty — meaning X
-// skips brush filters on its own SQL query.
+// Chart X drives chart Y when there exists a divider D with X.row < D.row
+// and D.row <= Y.row. isDriverChart(X) is true iff getConsumersOf(X) is
+// non-empty — meaning X skips brush filters on its own SQL query.
 
 describe('getDriversOf', () => {
   test('no dividers — nobody drives anything', () => {
-    const a = makeChartItem('n1', 'a', 0, 100);
-    const b = makeChartItem('n2', 'b', 0, 200);
+    const a = makeChartItem('n1', 'a', 0, 1);
+    const b = makeChartItem('n2', 'b', 0, 2);
     const items: DashboardItem[] = [a, b];
     expect(getDriversOf(a, items)).toEqual([]);
     expect(getDriversOf(b, items)).toEqual([]);
   });
 
   test('single divider — chart above drives chart below', () => {
-    const a = makeChartItem('n1', 'a', 0, 100);
-    const div1 = makeDividerItem('div-1', 300);
-    const b = makeChartItem('n2', 'b', 0, 400);
+    const a = makeChartItem('n1', 'a', 0, 1);
+    const div1 = makeDividerItem('div-1', 3);
+    const b = makeChartItem('n2', 'b', 0, 4);
     const items: DashboardItem[] = [a, div1, b];
     expect(getDriversOf(b, items)).toEqual([a]);
     expect(getDriversOf(a, items)).toEqual([]);
@@ -381,30 +370,30 @@ describe('getDriversOf', () => {
 
   test('non-chart items return empty', () => {
     const label = makeLabelItem('l1', 'Hello');
-    const div1 = makeDividerItem('div-1', 300);
+    const div1 = makeDividerItem('div-1', 3);
     expect(getDriversOf(label, [label, div1])).toEqual([]);
   });
 });
 
 describe('getConsumersOf', () => {
   test('no dividers — nobody is consumed', () => {
-    const a = makeChartItem('n1', 'a', 0, 100);
+    const a = makeChartItem('n1', 'a', 0, 1);
     const items: DashboardItem[] = [a];
     expect(getConsumersOf(a, items)).toEqual([]);
   });
 
   test('single divider — chart above consumes chart below', () => {
-    const a = makeChartItem('n1', 'a', 0, 100);
-    const div1 = makeDividerItem('div-1', 300);
-    const b = makeChartItem('n2', 'b', 0, 400);
+    const a = makeChartItem('n1', 'a', 0, 1);
+    const div1 = makeDividerItem('div-1', 3);
+    const b = makeChartItem('n2', 'b', 0, 4);
     const items: DashboardItem[] = [a, div1, b];
     expect(getConsumersOf(a, items)).toEqual([b]);
     expect(getConsumersOf(b, items)).toEqual([]);
   });
 
   test('chart below divider has no consumers', () => {
-    const a = makeChartItem('n1', 'a', 0, 400);
-    const div1 = makeDividerItem('div-1', 300);
+    const a = makeChartItem('n1', 'a', 0, 4);
+    const div1 = makeDividerItem('div-1', 3);
     const items: DashboardItem[] = [a, div1];
     expect(getConsumersOf(a, items)).toEqual([]);
   });
@@ -412,16 +401,16 @@ describe('getConsumersOf', () => {
 
 describe('isDriverChart', () => {
   test('true when chart has consumers (divider below)', () => {
-    const a = makeChartItem('n1', 'a', 0, 100);
-    const div1 = makeDividerItem('div-1', 300);
-    const b = makeChartItem('n2', 'b', 0, 400);
+    const a = makeChartItem('n1', 'a', 0, 1);
+    const div1 = makeDividerItem('div-1', 3);
+    const b = makeChartItem('n2', 'b', 0, 4);
     const items: DashboardItem[] = [a, div1, b];
     expect(isDriverChart(a, items)).toBe(true);
   });
 
   test('false when chart has no consumers', () => {
-    const a = makeChartItem('n1', 'a', 0, 400);
-    const div1 = makeDividerItem('div-1', 300);
+    const a = makeChartItem('n1', 'a', 0, 4);
+    const div1 = makeDividerItem('div-1', 3);
     const items: DashboardItem[] = [a, div1];
     expect(isDriverChart(a, items)).toBe(false);
   });
@@ -429,7 +418,7 @@ describe('isDriverChart', () => {
 
 // --- Stacked dividers: the full picture ---
 //
-// Layout:  A(y=100) → div1(y=300) → B(y=400) → div2(y=600) → C(y=700)
+// Layout:  A(row=1) → div1(row=3) → B(row=4) → div2(row=6) → C(row=7)
 //
 // A drives B and C.  B drives C.  C drives nobody.
 // Nothing drives A.  A drives B.  A and B drive C.
@@ -437,11 +426,11 @@ describe('isDriverChart', () => {
 
 describe('stacked dividers', () => {
   function makeStack() {
-    const a = makeChartItem('n1', 'a', 0, 100);
-    const div1 = makeDividerItem('div-1', 300);
-    const b = makeChartItem('n2', 'b', 0, 400);
-    const div2 = makeDividerItem('div-2', 600);
-    const c = makeChartItem('n3', 'c', 0, 700);
+    const a = makeChartItem('n1', 'a', 0, 1);
+    const div1 = makeDividerItem('div-1', 3);
+    const b = makeChartItem('n2', 'b', 0, 4);
+    const div2 = makeDividerItem('div-2', 6);
+    const c = makeChartItem('n3', 'c', 0, 7);
     const items: DashboardItem[] = [a, div1, b, div2, c];
     return {a, b, c, items};
   }
@@ -489,18 +478,18 @@ describe('stacked dividers', () => {
 
 describe('validateDashboardItems with dividers', () => {
   test('validates divider items', () => {
-    const items = [{kind: 'divider', id: 'd1', y: 300}];
+    const items = [{kind: 'divider', id: 'd1', row: 3}];
     const result = validateDashboardItems(items);
     expect(result).toHaveLength(1);
     expect(result?.[0].kind).toBe('divider');
   });
 
   test('rejects divider without id', () => {
-    const items = [{kind: 'divider', y: 300}];
+    const items = [{kind: 'divider', row: 3}];
     expect(validateDashboardItems(items)).toBeUndefined();
   });
 
-  test('rejects divider without y', () => {
+  test('rejects divider without row', () => {
     const items = [{kind: 'divider', id: 'd1'}];
     expect(validateDashboardItems(items)).toBeUndefined();
   });
@@ -512,10 +501,147 @@ describe('validateDashboardItems with dividers', () => {
         sourceNodeId: 'n1',
         config: {id: 'c1', column: 'x', chartType: 'bar'},
       },
-      {kind: 'divider', id: 'd1', y: 300},
+      {kind: 'divider', id: 'd1', row: 3},
       {kind: 'label', id: 'l1', text: 'Hello'},
     ];
     const result = validateDashboardItems(items);
     expect(result).toHaveLength(3);
+  });
+});
+
+// --- checkOverlap ---
+
+describe('checkOverlap', () => {
+  test('no overlap when items are far apart', () => {
+    const items: DashboardItem[] = [makeChartItem('n1', 'a', 0, 0)];
+    // Place at col=16, row=0 — well away from item at (0,0) with span 8×6.
+    expect(
+      checkOverlap(16, 0, DEFAULT_COL_SPAN, DEFAULT_ROW_SPAN, items, 'other'),
+    ).toBe(false);
+  });
+
+  test('overlap when rectangles intersect', () => {
+    const items: DashboardItem[] = [makeChartItem('n1', 'a', 0, 0)];
+    // Place at col=4, row=2 — overlaps the (0,0) 8×6 item.
+    expect(
+      checkOverlap(4, 2, DEFAULT_COL_SPAN, DEFAULT_ROW_SPAN, items, 'other'),
+    ).toBe(true);
+  });
+
+  test('overlap when directly adjacent (1-cell gap enforced)', () => {
+    const items: DashboardItem[] = [makeChartItem('n1', 'a', 0, 0)];
+    // Place at col=8, row=0 — directly adjacent horizontally (no gap).
+    expect(
+      checkOverlap(8, 0, DEFAULT_COL_SPAN, DEFAULT_ROW_SPAN, items, 'other'),
+    ).toBe(true);
+  });
+
+  test('no overlap with 1-cell gap', () => {
+    const items: DashboardItem[] = [makeChartItem('n1', 'a', 0, 0)];
+    // Place at col=9, row=0 — 1-cell gap from the 8-wide item at col=0.
+    expect(
+      checkOverlap(9, 0, DEFAULT_COL_SPAN, DEFAULT_ROW_SPAN, items, 'other'),
+    ).toBe(false);
+  });
+
+  test('skips item with matching skipId', () => {
+    const items: DashboardItem[] = [makeChartItem('n1', 'a', 0, 0)];
+    // Same position as 'a' but skipId='a' — should not overlap.
+    expect(
+      checkOverlap(0, 0, DEFAULT_COL_SPAN, DEFAULT_ROW_SPAN, items, 'a'),
+    ).toBe(false);
+  });
+
+  test('divider spans full width', () => {
+    const items: DashboardItem[] = [makeDividerItem('d1', 5)];
+    // Any column at row=5 should overlap the divider.
+    expect(
+      checkOverlap(10, 5, DEFAULT_COL_SPAN, DEFAULT_ROW_SPAN, items, 'other'),
+    ).toBe(true);
+  });
+});
+
+// --- findNonOverlappingPosition ---
+
+describe('findNonOverlappingPosition', () => {
+  test('returns requested position when no overlap', () => {
+    const pos = findNonOverlappingPosition(
+      4,
+      2,
+      DEFAULT_COL_SPAN,
+      DEFAULT_ROW_SPAN,
+      [],
+      'new',
+    );
+    expect(pos).toEqual({col: 4, row: 2});
+  });
+
+  test('clamps negative col to 0', () => {
+    const pos = findNonOverlappingPosition(
+      -5,
+      0,
+      DEFAULT_COL_SPAN,
+      DEFAULT_ROW_SPAN,
+      [],
+      'new',
+    );
+    expect(pos.col).toBe(0);
+  });
+
+  test('clamps col so item fits within grid', () => {
+    const pos = findNonOverlappingPosition(
+      GRID_COLUMNS,
+      0,
+      DEFAULT_COL_SPAN,
+      DEFAULT_ROW_SPAN,
+      [],
+      'new',
+    );
+    expect(pos.col).toBe(GRID_COLUMNS - DEFAULT_COL_SPAN);
+  });
+
+  test('finds next free position when requested is occupied', () => {
+    const items: DashboardItem[] = [makeChartItem('n1', 'a', 0, 0)];
+    const pos = findNonOverlappingPosition(
+      0,
+      0,
+      DEFAULT_COL_SPAN,
+      DEFAULT_ROW_SPAN,
+      items,
+      'new',
+    );
+    // Should not overlap with 'a' at (0,0).
+    expect(
+      checkOverlap(
+        pos.col,
+        pos.row,
+        DEFAULT_COL_SPAN,
+        DEFAULT_ROW_SPAN,
+        items,
+        'new',
+      ),
+    ).toBe(false);
+  });
+
+  test('scans to next row when current row is full', () => {
+    // Fill the first row with items spaced by DEFAULT_COL_SPAN + 1 gap.
+    const items: DashboardItem[] = [];
+    for (
+      let col = 0;
+      col + DEFAULT_COL_SPAN <= GRID_COLUMNS;
+      col += DEFAULT_COL_SPAN + 1
+    ) {
+      items.push(makeChartItem('n1', `c${col}`, col, 0));
+    }
+    const pos = findNonOverlappingPosition(
+      0,
+      0,
+      DEFAULT_COL_SPAN,
+      DEFAULT_ROW_SPAN,
+      items,
+      'new',
+    );
+    // Should land on a later row since row 0 is packed.
+    expect(pos.row).toBeGreaterThan(0);
   });
 });
