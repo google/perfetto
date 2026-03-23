@@ -116,10 +116,36 @@ function main() {
 
 class BigTraceApp implements m.ClassComponent {
   private sidebarVisible = true;
-  private currentPage = 'home';
+
+  private getPageFromHash() {
+    const hash = window.location.hash;
+    if (hash.startsWith('#!/settings')) return 'settings';
+    if (hash.startsWith('#!/query')) return 'query';
+    return 'home';
+  }
+
+  private currentPage = this.getPageFromHash();
+
+  private handleHashChange = () => {
+    this.currentPage = this.getPageFromHash();
+    m.redraw();
+  };
+
+  private setPage(page: string) {
+    if (page === 'home') {
+      window.location.hash = '#!/';
+    } else {
+      window.location.hash = `#!/${page}`;
+    }
+  }
 
   oninit() {
     bigTraceSettingsManager.loadSettings();
+    window.addEventListener('hashchange', this.handleHashChange);
+  }
+
+  onremove() {
+    window.removeEventListener('hashchange', this.handleHashChange);
   }
 
   view() {
@@ -127,32 +153,26 @@ class BigTraceApp implements m.ClassComponent {
       {
         section: 'home',
         text: 'Home',
-        href: '#',
+        href: '#!/',
         icon: 'home',
         active: this.currentPage === 'home',
-        onclick: () => {
-          this.currentPage = 'home';
-        },
+        onclick: () => {},
       },
       {
-        section: 'bigtrace',
+        section: 'query',
         text: 'Query Editor',
-        href: '#',
+        href: '#!/query',
         icon: 'line_style',
-        active: this.currentPage === 'bigtrace',
-        onclick: () => {
-          this.currentPage = 'bigtrace';
-        },
+        active: this.currentPage === 'query',
+        onclick: () => {},
       },
       {
         section: 'settings',
         text: 'Settings',
-        href: '#',
+        href: '#!/settings',
         icon: 'settings',
         active: this.currentPage === 'settings',
-        onclick: () => {
-          this.currentPage = 'settings';
-        },
+        onclick: () => {},
       },
     ];
 
@@ -207,12 +227,12 @@ class BigTraceApp implements m.ClassComponent {
       case 'home':
         return m(HomePage, {
           navigateTo: (page: string) => {
-            this.currentPage = page;
+            this.setPage(page);
           },
         });
       case 'settings':
         return m(SettingsPage);
-      case 'bigtrace':
+      case 'query':
         const initialQuery = queryState.initialQuery;
         queryState.initialQuery = undefined;
         return m(QueryPage, {
@@ -222,7 +242,7 @@ class BigTraceApp implements m.ClassComponent {
       default:
         return m(HomePage, {
           navigateTo: (page: string) => {
-            this.currentPage = page;
+            this.setPage(page);
           },
         });
     }

@@ -75,7 +75,7 @@ class BigTraceSettingsCard implements m.ClassComponent<BigTraceSettingsCardAttrs
               title,
               id &&
               m(Anchor, {
-                href: `#!/bigtrace?setting=${id}`,
+                href: `#!/query?setting=${id}`,
                 className: 'pf-settings-card__link',
                 icon: 'link',
                 title: 'Link to this setting',
@@ -177,32 +177,37 @@ export class SettingsPage implements m.ClassComponent {
         },
         m(
             '.pf-settings-page',
-          bigTraceSettingsManager.isLoading ?
-            m(EmptyState, {
-              title: 'Loading settings...',
-              icon: 'hourglass_empty',
-              fillHeight: true,
-            }) :
-            bigTraceSettingsManager.loadError ?
-              m(Callout, {
-                intent: Intent.Danger,
-                icon: 'error',
-                title: 'Failed to Load Settings',
-              }, bigTraceSettingsManager.loadError) :
-              [
-                matchGeneral && m('.pf-settings-page__plugin-section',
-                  m('h2.pf-settings-page__plugin-title', 'General'),
-                  m(CardStack, [
-                    isEndpointMatch && endpointSetting && m(BigTraceSettingsCard, {
-                      id: endpointSetting.id,
-                      title: endpointSetting.name,
-                      description: endpointSetting.description,
-                      disabled: undefined,
-                      controls: this.renderEndpointControl(endpointSetting),
-                    })
-                  ])
-                ),
-                Array.from(categories.entries()).map(([category, settings]) => {
+            [
+              matchGeneral && m('.pf-settings-page__plugin-section',
+                m('h2.pf-settings-page__plugin-title', 'General'),
+                m(CardStack, [
+                  isEndpointMatch && endpointSetting && m(BigTraceSettingsCard, {
+                    id: endpointSetting.id,
+                    title: endpointSetting.name,
+                    description: endpointSetting.description,
+                    disabled: undefined,
+                    controls: this.renderEndpointControl(endpointSetting),
+                  })
+                ])
+              ),
+              (() => {
+                if (bigTraceSettingsManager.isExecConfigLoading) {
+                  return m(EmptyState, {
+                    title: 'Loading settings...',
+                    icon: 'hourglass_empty',
+                    fillHeight: true,
+                  });
+                }
+                
+                if (bigTraceSettingsManager.execConfigLoadError) {
+                  return m(Callout, {
+                    intent: Intent.Danger,
+                    icon: 'error',
+                    title: 'Failed to Load Execution Configuration',
+                  }, bigTraceSettingsManager.execConfigLoadError);
+                }
+
+                return Array.from(categories.entries()).map(([category, settings]) => {
                   let categoryHeader: m.Children = m('h2.pf-settings-page__plugin-title', category);
                   if (category === 'Trace Metadata') {
                     categoryHeader = m('h2.pf-settings-page__plugin-title', { style: { display: 'flex', alignItems: 'center', gap: '16px' } }, [
@@ -218,19 +223,31 @@ export class SettingsPage implements m.ClassComponent {
                     ]);
                   }
 
+                  let categoryContent;
+                  if (category === 'Trace Metadata' && bigTraceSettingsManager.isMetadataLoading) {
+                    categoryContent = m(EmptyState, {
+                      title: 'Loading metadata...',
+                      icon: 'hourglass_empty',
+                    });
+                  } else if (category === 'Trace Metadata' && bigTraceSettingsManager.metadataLoadError) {
+                    categoryContent = m(Callout, {
+                      intent: Intent.Danger,
+                      icon: 'error',
+                      title: 'Failed to Load Trace Metadata',
+                    }, bigTraceSettingsManager.metadataLoadError);
+                  } else {
+                    categoryContent = m(CardStack, settings.map((setting) => {
+                      return this.renderBigTraceSettingCard(setting);
+                    }));
+                  }
+
                   return m('.pf-settings-page__plugin-section',
                     categoryHeader,
-                    (settings.length === 0 && category === 'Trace Metadata' && bigTraceSettingsManager.isMetadataLoading) ?
-                      m(EmptyState, {
-                        title: 'Loading metadata...',
-                        icon: 'hourglass_empty',
-                      }) :
-                      m(CardStack, settings.map((setting) => {
-                        return this.renderBigTraceSettingCard(setting);
-                      }))
+                    categoryContent
                   );
-                })
-              ],
+                });
+              })()
+            ],
         ),
     );
   }

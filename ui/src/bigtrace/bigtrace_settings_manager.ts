@@ -114,9 +114,14 @@ export interface SettingsManager {
 class SettingsManagerImpl implements SettingsManager {
   private settings = new Map<string, Setting<unknown>>();
   private storage: LocalStorage;
-  public isLoading = false;
+  public isLoading = false; // Combined loading state
+  public isExecConfigLoading = false;
+  public execConfigLoadError: string | undefined = undefined;
   public isMetadataLoading = false;
-  public loadError: string | undefined = undefined;
+  public metadataLoadError: string | undefined = undefined;
+  public get loadError(): string | undefined {
+    return this.execConfigLoadError || this.metadataLoadError;
+  }
   private hasLoaded = false;
   private loadPromise: Promise<void> | null = null;
   private lastLoadedMetadataFilters: string | null = null;
@@ -139,42 +144,52 @@ class SettingsManagerImpl implements SettingsManager {
 
   private async _loadSettingsInternal(): Promise<void> {
     this.isLoading = true;
-    this.loadError = undefined;
+    this.isExecConfigLoading = true;
+    this.execConfigLoadError = undefined;
+    this.isMetadataLoading = false;
+    this.metadataLoadError = undefined;
+    this.settings.clear();
     m.redraw();
-    
+
     try {
-      this.settings.clear();
-      
       const execSettings = await bigTraceSettingsService.getExecutionSettings();
       for (const setting of execSettings) {
         this.register(setting);
       }
-      
+    } catch (e) {
+      this.execConfigLoadError = e instanceof Error ? e.message : String(e);
+      this.isExecConfigLoading = false;
       this.isLoading = false;
       this.hasLoaded = true;
-      this.isMetadataLoading = true;
       m.redraw();
+      return; // Stop if exec config fails
+    }
+    this.isExecConfigLoading = false;
 
+    // Proceed to load metadata only if exec config succeeded
+    this.isMetadataLoading = true;
+    m.redraw();
+
+    try {
       const filters = this.buildSettingFilters();
       this.lastLoadedMetadataFilters = JSON.stringify(filters.filter(f => f.category === 'TRACE_ADDRESS'));
-      
       const metadataSettings = await bigTraceSettingsService.getMetadataSettings(filters);
       for (const setting of metadataSettings) {
         this.register(setting);
       }
-      
     } catch (e) {
-      this.loadError = e instanceof Error ? e.message : String(e);
-      this.hasLoaded = true;
+      this.metadataLoadError = e instanceof Error ? e.message : String(e);
     } finally {
-      this.isLoading = false;
       this.isMetadataLoading = false;
+      this.isLoading = false;
+      this.hasLoaded = true;
       m.redraw();
     }
   }
 
   async reloadMetadataSettings(): Promise<void> {
     this.isMetadataLoading = true;
+    this.metadataLoadError = undefined;
     m.redraw();
 
     const existingIds = Array.from(this.settings.keys());
@@ -194,7 +209,7 @@ class SettingsManagerImpl implements SettingsManager {
         this.register(setting);
       }
     } catch (e) {
-      this.loadError = e instanceof Error ? e.message : String(e);
+      this.metadataLoadError = e instanceof Error ? e.message : String(e);
     } finally {
       this.isMetadataLoading = false;
       m.redraw();

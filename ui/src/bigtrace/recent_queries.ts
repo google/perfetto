@@ -43,7 +43,6 @@ export class RecentQueriesSection implements
     return m(
         '.pf-recent-queries-section',
         {style: {width: '100%'}},
-        m('.pf-nav-section-header', m('span', 'Recent Queries')),
         queries.length > 0 ?
             m(CardStack, {style: {width: '100%'}},
               queries.map(

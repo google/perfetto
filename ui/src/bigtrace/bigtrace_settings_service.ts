@@ -119,6 +119,9 @@ class BigTraceSettingsService {
       }
     } catch (err) {
       console.error('Error fetching bigtrace_execution_config:', err);
+      if (err instanceof TypeError) {
+        throw new Error('Cannot connect to the BigTrace backend. Please check your endpoint address and network connection.');
+      }
       throw err;
     }
 
@@ -155,6 +158,9 @@ class BigTraceSettingsService {
       }
     } catch (err) {
       console.error('Error fetching trace_metadata_settings:', err);
+      if (err instanceof TypeError) {
+        throw new Error('Cannot connect to the BigTrace backend. Please check your endpoint address and network connection.');
+      }
       throw err;
     }
 

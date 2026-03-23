@@ -10,7 +10,7 @@ export const SIDEBAR_SECTIONS = {
       summary: '',
       defaultCollapsed: false,
     },
-    bigtrace: {
+    query: {
       title: 'BigTrace',
       summary: 'Query and analyze large traces',
       defaultCollapsed: false,
