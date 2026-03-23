@@ -14,12 +14,7 @@
 
 import m from 'mithril';
 import {Engine} from '../../../trace_processor/engine';
-import {
-  LONG,
-  NUM_NULL,
-  STR,
-  STR_NULL,
-} from '../../../trace_processor/query_result';
+import {NUM_NULL, STR, STR_NULL} from '../../../trace_processor/query_result';
 import {Section} from '../../../widgets/section';
 import {Grid, GridCell, GridHeaderCell} from '../../../widgets/grid';
 import {Callout} from '../../../widgets/callout';
@@ -56,7 +51,6 @@ const androidGameInterventionRowSpec = {
 type AndroidGameInterventionRow = typeof androidGameInterventionRowSpec;
 
 const aflagRowSpec = {
-  ts: LONG,
   package: STR_NULL,
   name: STR_NULL,
   container: STR_NULL,
@@ -148,7 +142,6 @@ export async function loadAndroidData(engine: Engine): Promise<AndroidData> {
   const aflagsResult = await engine.query(`
     include perfetto module android.aflags;
     select
-      ts,
       package,
       name,
       container,
@@ -156,7 +149,19 @@ export async function loadAndroidData(engine: Engine): Promise<AndroidData> {
       staged_value as stagedValue,
       permission,
       value_picked_from as valuePickedFrom
-    from android_aflags
+    from (
+      select
+        package,
+        name,
+        container,
+        value,
+        staged_value as stagedValue,
+        permission,
+        value_picked_from as valuePickedFrom,
+        row_number() over (partition by package, name order by ts asc) as rn
+      from android_aflags
+    )
+    where rn = 1
   `);
   const aflags: AflagRow[] = [];
   for (
@@ -165,7 +170,6 @@ export async function loadAndroidData(engine: Engine): Promise<AndroidData> {
     iter.next()
   ) {
     aflags.push({
-      ts: iter.ts,
       package: iter.package,
       name: iter.name,
       container: iter.container,
@@ -406,7 +410,8 @@ class AndroidAflagsSection
       Section,
       {
         title: 'Android Aflags',
-        subtitle: 'List of Android aconfig flags in the trace',
+        subtitle:
+          'List of initial Android aconfig flags snapshots in the trace',
       },
       aflagErrors.length > 0 &&
         m(
