@@ -132,7 +132,9 @@ export class CpuSliceSelectionAggregator implements Aggregator {
     return {
       groupBy: [
         {id: 'process_name', field: 'process_name'},
+        {id: 'pid', field: 'pid'},
         {id: 'thread_name', field: 'thread_name'},
+        {id: 'tid', field: 'tid'},
       ],
       aggregates: [
         {id: 'count', function: 'COUNT'},
