@@ -14,11 +14,20 @@
 
 import m from 'mithril';
 import {Engine} from '../../../trace_processor/engine';
-import {NUM_NULL, STR, STR_NULL} from '../../../trace_processor/query_result';
+import {
+  LONG,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../../trace_processor/query_result';
 import {Section} from '../../../widgets/section';
 import {Grid, GridCell, GridHeaderCell} from '../../../widgets/grid';
 import {Callout} from '../../../widgets/callout';
 import {Intent} from '../../../widgets/common';
+import {Select} from '../../../widgets/select';
+import {FormGrid, FormLabel} from '../../../widgets/form';
+import {Time} from '../../../base/time';
+import {renderTimecode} from '../../../components/time_utils';
 
 // Row specs
 const packageDataSpec = {
@@ -51,6 +60,7 @@ const androidGameInterventionRowSpec = {
 type AndroidGameInterventionRow = typeof androidGameInterventionRowSpec;
 
 const aflagRowSpec = {
+  ts: LONG,
   package: STR_NULL,
   name: STR_NULL,
   container: STR_NULL,
@@ -142,6 +152,7 @@ export async function loadAndroidData(engine: Engine): Promise<AndroidData> {
   const aflagsResult = await engine.query(`
     include perfetto module android.aflags;
     select
+      ts,
       package,
       name,
       container,
@@ -149,19 +160,7 @@ export async function loadAndroidData(engine: Engine): Promise<AndroidData> {
       staged_value as stagedValue,
       permission,
       value_picked_from as valuePickedFrom
-    from (
-      select
-        package,
-        name,
-        container,
-        value,
-        staged_value as stagedValue,
-        permission,
-        value_picked_from as valuePickedFrom,
-        row_number() over (partition by package, name order by ts asc) as rn
-      from android_aflags
-    )
-    where rn = 1
+    from android_aflags
   `);
   const aflags: AflagRow[] = [];
   for (
@@ -170,6 +169,7 @@ export async function loadAndroidData(engine: Engine): Promise<AndroidData> {
     iter.next()
   ) {
     aflags.push({
+      ts: iter.ts,
       package: iter.package,
       name: iter.name,
       container: iter.container,
@@ -396,9 +396,10 @@ interface AndroidAflagsSectionAttrs {
 class AndroidAflagsSection
   implements m.ClassComponent<AndroidAflagsSectionAttrs>
 {
+  private selectedTs?: bigint;
+
   view({attrs}: m.CVnode<AndroidAflagsSectionAttrs>) {
-    const aflags = attrs.aflags;
-    const aflagErrors = attrs.aflagErrors;
+    const {aflags, aflagErrors} = attrs;
     if (
       (aflags === undefined || aflags.length === 0) &&
       (aflagErrors === undefined || aflagErrors.length === 0)
@@ -406,12 +407,18 @@ class AndroidAflagsSection
       return undefined;
     }
 
+    const timestamps = Array.from(new Set(aflags.map((f) => f.ts))).sort();
+    if (this.selectedTs === undefined && timestamps.length > 0) {
+      this.selectedTs = timestamps[0];
+    }
+
+    const filteredFlags = aflags.filter((f) => f.ts === this.selectedTs);
+
     return m(
       Section,
       {
         title: 'Android Aflags',
-        subtitle:
-          'List of initial Android aconfig flags snapshots in the trace',
+        subtitle: 'List of Android aconfig flags in the trace',
       },
       aflagErrors.length > 0 &&
         m(
@@ -422,6 +429,29 @@ class AndroidAflagsSection
           },
           'Errors occurred during aflags collection: ',
           aflagErrors.map((e) => m('div', e)),
+        ),
+      timestamps.length > 1 &&
+        m(
+          FormGrid,
+          m(FormLabel, {for: 'snapshot-select'}, 'Select Snapshot Timestamp:'),
+          m(
+            Select,
+            {
+              id: 'snapshot-select',
+              value: this.selectedTs?.toString(),
+              onchange: (e: Event) => {
+                const target = e.target as HTMLSelectElement;
+                this.selectedTs = BigInt(target.value);
+              },
+            },
+            timestamps.map((ts) =>
+              m(
+                'option',
+                {value: ts.toString()},
+                renderTimecode(Time.fromRaw(ts)),
+              ),
+            ),
+          ),
         ),
       aflags.length > 0 &&
         m(Grid, {
@@ -451,7 +481,7 @@ class AndroidAflagsSection
               header: m(GridHeaderCell, 'Container'),
             },
           ],
-          rowData: aflags.map((flag) => [
+          rowData: filteredFlags.map((flag) => [
             m(GridCell, `${flag.package ?? ''}.${flag.name ?? ''}`),
             m(GridCell, flag.value),
             m(GridCell, flag.stagedValue ? `(->${flag.stagedValue})` : '-'),
