@@ -16670,6 +16670,16 @@ message HeapGraphObject {
   // Ids of the Objects referred by this object, not via fields, but via
   // internal runtime structures.
   repeated uint64 runtime_internal_object_id = 10 [packed = true];
+
+  // Bitmap-specific field captures, only applicable to objects of this type.
+  // android.graphics.Bitmap.mId. Used for storage type and deduplication.
+  optional int64 bitmap_id_field = 11;
+  // android.graphics.Bitmap.mSourceId
+  optional int64 bitmap_source_id_field = 12;
+  // android.graphics.Bitmap.mWidth
+  optional uint32 bitmap_width_field = 13;
+  // android.graphics.Bitmap.mHeight
+  optional uint32 bitmap_height_field = 14;
 }
 
 message HeapGraph {
