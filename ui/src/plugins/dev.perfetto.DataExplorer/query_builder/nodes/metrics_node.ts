@@ -168,10 +168,22 @@ export class MetricsNode implements QueryNode {
     );
 
     // Remove value columns whose column no longer exists or is no longer numeric.
-    this.state.valueColumns = this.state.valueColumns.filter((vc) => {
-      const col = this.state.availableColumns.find((c) => c.name === vc.column);
-      return col !== undefined && isMetricsValueType(col.column.type);
-    });
+    // Skip filtering when available columns are empty (upstream hasn't resolved
+    // yet) to avoid destructively wiping value columns during deserialization.
+    if (this.state.availableColumns.length > 0) {
+      this.state.valueColumns = this.state.valueColumns.filter((vc) => {
+        const col = this.state.availableColumns.find(
+          (c) => c.name === vc.column,
+        );
+        // Keep value columns when the type is unknown (e.g. pbtxt import
+        // where column types aren't available yet). Once the type resolves,
+        // non-numeric columns will be filtered on the next update.
+        return (
+          col !== undefined &&
+          (col.column.type === undefined || isMetricsValueType(col.column.type))
+        );
+      });
+    }
   }
 
   validate(): boolean {

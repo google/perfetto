@@ -33,24 +33,36 @@ export interface DashboardDataSource {
   requestExecution?: () => Promise<void>;
 }
 
+// The canvas is divided into a 24-column grid of square cells.
+// Items snap to this grid for positioning and sizing.
+export const GRID_COLUMNS = 24;
+export const DEFAULT_COL_SPAN = 8;
+export const DEFAULT_ROW_SPAN = 6;
+export const MIN_COL_SPAN = 4;
+export const MIN_ROW_SPAN = 4;
+// Row span for divider items (must match inline style in dashboard.ts).
+export const DIVIDER_ROW_SPAN = 0;
+// Visual margin (in grid cells) from the canvas edges.
+export const GRID_MARGIN = 0.5;
+
 /** A single chart on a dashboard, linked to its data source. */
 export interface DashboardChart {
   readonly sourceNodeId: string;
   config: ChartConfig;
-  widthPx?: number;
-  heightPx?: number;
-  x?: number;
-  y?: number;
+  col?: number;
+  row?: number;
+  colSpan?: number;
+  rowSpan?: number;
 }
 
 /** An editable text label on the dashboard canvas. */
 export interface DashboardLabel {
   readonly id: string;
   readonly text: string;
-  widthPx?: number;
-  heightPx?: number;
-  x?: number;
-  y?: number;
+  col?: number;
+  row?: number;
+  colSpan?: number;
+  rowSpan?: number;
 }
 
 /**
@@ -61,8 +73,8 @@ export interface DashboardLabel {
  */
 export interface DashboardDivider {
   readonly id: string;
-  /** Y position of the divider line (snapped to grid). */
-  y: number;
+  /** Grid row of the divider (spans all 24 columns). */
+  row: number;
   /** Optional label displayed on the divider. */
   label?: string;
 }
@@ -83,26 +95,26 @@ export function getItemId(item: DashboardItem): string {
  * Return all chart items that drive `target` — i.e. charts whose brush
  * selections filter `target`'s SQL query.
  *
- * Chart X drives chart Y when there exists a divider D with X.y < D.y and
- * D.y <= Y.y.
+ * Chart X drives chart Y when there exists a divider D with X.row < D.row
+ * and D.row <= Y.row.
  */
 export function getDriversOf(
   target: DashboardItem,
   allItems: ReadonlyArray<DashboardItem>,
 ): DashboardItem[] {
   if (target.kind !== 'chart') return [];
-  const targetY = target.y ?? 0;
-  const dividerYs: number[] = [];
+  const targetRow = target.row ?? 0;
+  const dividerRows: number[] = [];
   for (const i of allItems) {
-    if (i.kind === 'divider' && i.y <= targetY) {
-      dividerYs.push(i.y);
+    if (i.kind === 'divider' && i.row <= targetRow) {
+      dividerRows.push(i.row);
     }
   }
-  if (dividerYs.length === 0) return [];
+  if (dividerRows.length === 0) return [];
   return allItems.filter((candidate) => {
     if (candidate.kind !== 'chart') return false;
-    const cY = candidate.y ?? 0;
-    return dividerYs.some((dy) => cY < dy);
+    const cRow = candidate.row ?? 0;
+    return dividerRows.some((dr) => cRow < dr);
   });
 }
 
@@ -115,18 +127,18 @@ export function getConsumersOf(
   allItems: ReadonlyArray<DashboardItem>,
 ): DashboardItem[] {
   if (source.kind !== 'chart') return [];
-  const sourceY = source.y ?? 0;
-  const dividerYs: number[] = [];
+  const sourceRow = source.row ?? 0;
+  const dividerRows: number[] = [];
   for (const i of allItems) {
-    if (i.kind === 'divider' && i.y > sourceY) {
-      dividerYs.push(i.y);
+    if (i.kind === 'divider' && i.row > sourceRow) {
+      dividerRows.push(i.row);
     }
   }
-  if (dividerYs.length === 0) return [];
+  if (dividerRows.length === 0) return [];
   return allItems.filter((candidate) => {
     if (candidate.kind !== 'chart') return false;
-    const cY = candidate.y ?? 0;
-    return dividerYs.some((dy) => dy <= cY);
+    const cRow = candidate.row ?? 0;
+    return dividerRows.some((dr) => dr <= cRow);
   });
 }
 
@@ -212,18 +224,99 @@ export function getLinkedSourceNodeIds(
     .map((s) => s.nodeId);
 }
 
-const GRID_SIZE = 20;
-
-export function snapToGrid(value: number): number {
-  return Math.round(value / GRID_SIZE) * GRID_SIZE;
+/** Get the bounding box of a dashboard item in grid coordinates. */
+export function getItemBounds(item: DashboardItem): {
+  col: number;
+  row: number;
+  colSpan: number;
+  rowSpan: number;
+} {
+  if (item.kind === 'divider') {
+    return {
+      col: 0,
+      row: item.row,
+      colSpan: GRID_COLUMNS,
+      rowSpan: DIVIDER_ROW_SPAN,
+    };
+  }
+  return {
+    col: item.col ?? 0,
+    row: item.row ?? 0,
+    colSpan: item.colSpan ?? DEFAULT_COL_SPAN,
+    rowSpan: item.rowSpan ?? DEFAULT_ROW_SPAN,
+  };
 }
 
+/**
+ * Check if a rectangle overlaps any item except `skipId` (grid coords),
+ * or would be directly adjacent (enforcing a 1-cell gap between items).
+ */
+export function checkOverlap(
+  col: number,
+  row: number,
+  colSpan: number,
+  rowSpan: number,
+  items: ReadonlyArray<DashboardItem>,
+  skipId: string,
+): boolean {
+  for (const item of items) {
+    if (getItemId(item) === skipId) continue;
+    const b = getItemBounds(item);
+    // Items must have at least 1 grid cell between them.
+    const overlaps = !(
+      col + colSpan < b.col ||
+      col > b.col + b.colSpan ||
+      row + rowSpan < b.row ||
+      row > b.row + b.rowSpan
+    );
+    if (overlaps) return true;
+  }
+  return false;
+}
+
+/**
+ * Find the nearest non-overlapping position by scanning grid cells
+ * row by row, left to right.
+ */
+export function findNonOverlappingPosition(
+  startCol: number,
+  startRow: number,
+  colSpan: number,
+  rowSpan: number,
+  items: ReadonlyArray<DashboardItem>,
+  skipId: string,
+): {col: number; row: number} {
+  // Clamp to grid bounds.
+  startCol = Math.max(0, Math.min(GRID_COLUMNS - colSpan, startCol));
+  startRow = Math.max(0, startRow);
+
+  if (!checkOverlap(startCol, startRow, colSpan, rowSpan, items, skipId)) {
+    return {col: startCol, row: startRow};
+  }
+
+  // Scan row by row, left to right, starting near the requested position.
+  // The grid has a finite number of columns so each row is bounded; we scan
+  // downward until a free slot is found (dashboards have a small number of
+  // items so this terminates quickly).
+  for (let row = startRow; ; row++) {
+    for (let col = 0; col <= GRID_COLUMNS - colSpan; col++) {
+      if (!checkOverlap(col, row, colSpan, rowSpan, items, skipId)) {
+        return {col, row};
+      }
+    }
+  }
+}
+
+/** Return a grid position for the next item, cascading left-to-right. */
 export function getNextItemPosition(items: ReadonlyArray<DashboardItem>): {
-  x: number;
-  y: number;
+  col: number;
+  row: number;
 } {
-  const offset = (items.length % 10) * 40;
-  return {x: snapToGrid(20 + offset), y: snapToGrid(20 + offset)};
+  const itemsPerRow = Math.floor(GRID_COLUMNS / DEFAULT_COL_SPAN);
+  const idx = items.length;
+  const col = (idx % itemsPerRow) * DEFAULT_COL_SPAN;
+  const row = Math.floor(idx / itemsPerRow) * DEFAULT_ROW_SPAN;
+  return {col, row};
 }
 
 /**
@@ -270,7 +363,7 @@ export function validateDashboardItems(
       if (typeof obj.id !== 'string' || typeof obj.text !== 'string') continue;
       validated.push(item as DashboardItem);
     } else if (obj.kind === 'divider') {
-      if (typeof obj.id !== 'string' || typeof obj.y !== 'number') continue;
+      if (typeof obj.id !== 'string' || typeof obj.row !== 'number') continue;
       validated.push(item as DashboardItem);
     }
   }

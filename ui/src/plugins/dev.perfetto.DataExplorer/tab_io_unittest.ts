@@ -187,7 +187,7 @@ describe('deserializeDashboardsFromExport', () => {
     const serialized: SerializedDashboard[] = [
       {
         id: 'db1',
-        items: [{kind: 'label', id: 'lbl1', text: 'Hello', x: 10, y: 20}],
+        items: [{kind: 'label', id: 'lbl1', text: 'Hello', col: 1, row: 2}],
       },
     ];
     const result = deserializeDashboardsFromExport(serialized);
@@ -364,7 +364,7 @@ describe('serializeDashboardsForTab', () => {
     const tab = makeTab([
       {
         id: 'db1',
-        items: [{kind: 'label', id: 'lbl1', text: 'Hello', x: 0, y: 0}],
+        items: [{kind: 'label', id: 'lbl1', text: 'Hello', col: 0, row: 0}],
         brushFilters: new Map(),
       },
     ]);
@@ -382,7 +382,7 @@ describe('serializeDashboardsForTab', () => {
     const tab = makeTab([
       {
         id: 'db1',
-        items: [{kind: 'label', id: 'lbl1', text: 'Hello', x: 0, y: 0}],
+        items: [{kind: 'label', id: 'lbl1', text: 'Hello', col: 0, row: 0}],
         brushFilters: filters,
       },
     ]);
@@ -399,12 +399,12 @@ describe('serializeDashboardsForTab', () => {
     const tab = makeTab([
       {
         id: 'db1',
-        items: [{kind: 'label', id: 'l1', text: 'A', x: 0, y: 0}],
+        items: [{kind: 'label', id: 'l1', text: 'A', col: 0, row: 0}],
         brushFilters: new Map(),
       },
       {
         id: 'db2',
-        items: [{kind: 'label', id: 'l2', text: 'B', x: 10, y: 10}],
+        items: [{kind: 'label', id: 'l2', text: 'B', col: 1, row: 1}],
         brushFilters: new Map(),
       },
     ]);
@@ -418,7 +418,7 @@ describe('serializeDashboardsForTab', () => {
     const tab = makeTab([
       {
         id: 'db1',
-        items: [{kind: 'label', id: 'l1', text: 'x', x: 0, y: 0}],
+        items: [{kind: 'label', id: 'l1', text: 'x', col: 0, row: 0}],
         brushFilters: new Map(),
       },
     ]);
@@ -433,7 +433,7 @@ describe('serializeDashboardsForTab', () => {
     const tab = makeTab([
       {
         id: 'db1',
-        items: [{kind: 'label', id: 'l1', text: 'x', x: 0, y: 0}],
+        items: [{kind: 'label', id: 'l1', text: 'x', col: 0, row: 0}],
         brushFilters: filters,
       },
     ]);
@@ -450,7 +450,9 @@ describe('tab export/import round-trip', () => {
     const original: DashboardTabState[] = [
       {
         id: 'db1',
-        items: [{kind: 'label', id: 'lbl1', text: 'Test Label', x: 10, y: 20}],
+        items: [
+          {kind: 'label', id: 'lbl1', text: 'Test Label', col: 1, row: 2},
+        ],
         brushFilters: new Map([
           ['node1', [{column: 'dur', op: '>=' as const, value: 500}]],
         ]),
@@ -512,7 +514,7 @@ describe('tab export/import round-trip', () => {
       dashboards: [
         {
           id: 'db1',
-          items: [{kind: 'label', id: 'lbl1', text: 'Label', x: 5, y: 10}],
+          items: [{kind: 'label', id: 'lbl1', text: 'Label', col: 1, row: 1}],
           brushFilters: new Map([
             ['n1', [{column: 'ts', op: '>=' as const, value: 1000}]],
           ]),
