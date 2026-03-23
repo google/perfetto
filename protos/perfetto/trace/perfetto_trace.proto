@@ -527,6 +527,25 @@ enum SemanticType {
 
 // End of protos/perfetto/common/semantic_type.proto
 
+// Begin of protos/perfetto/config/android/android_aflags_config.proto
+
+// Options for the android.aflags data source.
+// This data source captures snapshots of Android aconfig flags.
+// See https://source.android.com/docs/setup/build/feature-flagging/declare-flag
+// for more information on aconfig flags.
+message AndroidAflagsConfig {
+  // Frequency of polling. If absent or 0, the state will be recorded once,
+  // at the start of the trace.
+  //
+  // It is recommended to either leave this absent or set it to a large
+  // value as each invocation of the `aflags` tool can be time consuming
+  // (approx. 350ms) and also triggers an expensive flush. This is required to
+  // be > 1000ms if set, to avoid excessive CPU usage.
+  optional uint32 poll_ms = 1;
+}
+
+// End of protos/perfetto/config/android/android_aflags_config.proto
+
 // Begin of protos/perfetto/config/android/android_game_intervention_list_config.proto
 
 // Data source that lists game modes and game interventions of games
@@ -4263,7 +4282,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 140
+// Next id: 141
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4500,6 +4519,9 @@ message DataSourceConfig {
 
   // Data source name: android.inputmethod
   optional InputMethodConfig inputmethod_config = 139 [lazy = true];
+
+  // Data source name: android.aflags
+  optional AndroidAflagsConfig android_aflags_config = 140 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
@@ -5808,6 +5830,65 @@ message TraceStats {
 }
 
 // End of protos/perfetto/common/trace_stats.proto
+
+// Begin of protos/perfetto/trace/android/android_aflags.proto
+
+// Android aconfig flags (aflags).
+// This message captures a snapshot of the state of aconfig flags on the device.
+// Keep in sync with:
+// http://ac/packages/modules/ConfigInfrastructure/aflags/proto/aflags.proto
+message AndroidAflags {
+  // Whether a flag can be modified at runtime.
+  enum FlagPermission {
+    FLAG_PERMISSION_UNSPECIFIED = 0;
+    FLAG_PERMISSION_READ_ONLY = 1;
+    FLAG_PERMISSION_READ_WRITE = 2;
+  }
+
+  // The source of the current flag value.
+  enum ValuePickedFrom {
+    VALUE_PICKED_FROM_UNSPECIFIED = 0;
+    // The value is the build-time default.
+    VALUE_PICKED_FROM_DEFAULT = 1;
+    // The value comes from a server-side override.
+    VALUE_PICKED_FROM_SERVER = 2;
+    // The value comes from a local override on the device.
+    VALUE_PICKED_FROM_LOCAL = 3;
+  }
+
+  // The underlying storage mechanism for the flag.
+  enum FlagStorageBackend {
+    FLAG_STORAGE_BACKEND_UNSPECIFIED = 0;
+    FLAG_STORAGE_BACKEND_NONE = 1;
+    FLAG_STORAGE_BACKEND_ACONFIGD = 2;
+    FLAG_STORAGE_BACKEND_DEVICE_CONFIG = 3;
+  }
+
+  // Representation of an aconfig flag and its metadata.
+  message Flag {
+    optional string flag_namespace = 1;
+    optional string name = 2;
+    optional string pkg = 3;
+    optional string container = 4;
+    // The flag value as a string to support different future data types.
+    optional string value = 5;
+    // The value that will be applied after the next reboot, if different from
+    // the current value.
+    optional string staged_value = 6;
+    optional FlagPermission permission = 7;
+    optional ValuePickedFrom value_picked_from = 8;
+    optional FlagStorageBackend storage_backend = 9;
+  }
+
+  // A collection of flags.
+  repeated Flag flags = 1;
+
+  // A human-readable error logged if aflags processing fails.
+  // This is a perfetto specific field used to help debugging.
+  optional string error = 2;
+}
+
+// End of protos/perfetto/trace/android/android_aflags.proto
 
 // Begin of protos/perfetto/trace/android/android_game_intervention_list.proto
 
@@ -18351,7 +18432,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 127.
+// Next id: 128.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -18440,6 +18521,7 @@ message TracePacket {
     TraceProvenance trace_provenance = 124;
     ProtoVms protovms = 125;
     TraceAttributes trace_attributes = 126;
+    AndroidAflags android_aflags = 127;
 
     // Only used in profile packets.
     ModuleSymbols module_symbols = 61;
