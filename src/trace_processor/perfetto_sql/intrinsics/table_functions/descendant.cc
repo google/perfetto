@@ -71,30 +71,29 @@ bool GetDescendantsInternal(
   cursor.SetFilterValueUnchecked(0, start_ref->ts());
   cursor.SetFilterValueUnchecked(1, start_ref->track_id().value);
   cursor.SetFilterValueUnchecked(2, start_ref->depth());
-  // Intervals are closed on the left and open on the right, so we use Lt for
-  // the upper bound. However, instants (dur=0) stack on top of each other, so
-  // for an instant at ts=T we need child_ts <= T, achieved by using T+1 as
-  // the Lt bound. See SliceTracker::TryCloseStack for the matching logic.
-  int64_t ts_upper_bound;
-  if (start_ref->dur() > 0) {
-    ts_upper_bound = start_ref->ts() + start_ref->dur();
-  } else if (start_ref->dur() == 0) {
-    ts_upper_bound = start_ref->ts() + 1;
+  // Use Le for the upper bound so that slices starting exactly at the end
+  // boundary are included as candidates; we verify those with a parent chain
+  // walk below. This is necessary because an instant child emitted while its
+  // parent is still open gets parent_id set to that parent, even though its
+  // ts equals parent.ts + parent.dur (the open-right boundary).
+  int64_t ts_end;
+  if (start_ref->dur() >= 0) {
+    ts_end = start_ref->ts() + start_ref->dur();
   } else {
-    ts_upper_bound = std::numeric_limits<int64_t>::max();
+    ts_end = std::numeric_limits<int64_t>::max();
   }
-  cursor.SetFilterValueUnchecked(3, ts_upper_bound);
+  cursor.SetFilterValueUnchecked(3, ts_end);
 
-  // The timestamp filter can produce false positives at the start boundary
-  // (candidate.ts == start.ts) where a child of a slice ending at start.ts
-  // shares the same timestamp. For such candidates, walk the parent chain to
-  // verify ancestry. For candidates strictly inside the interval (ts >
-  // start.ts), same-depth non-overlapping guarantees they are true descendants.
+  // The timestamp filter can produce false positives at the start and end
+  // boundaries where a candidate shares the same timestamp but belongs to a
+  // different subtree. For such candidates, walk the parent chain to verify
+  // ancestry. For candidates strictly inside the interval, same-depth
+  // non-overlapping guarantees they are true descendants.
   int64_t start_ts = start_ref->ts();
   for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
     auto row_num = cursor.ToRowNumber();
     auto ref = row_num.ToRowReference(slices);
-    if (ref.ts() == start_ts &&
+    if ((ref.ts() == start_ts || ref.ts() == ts_end) &&
         !IsAncestor(slices, ref, starting_id, start_ref->depth())) {
       continue;
     }
@@ -206,7 +205,7 @@ tables::SliceTable::ConstCursor Descendant::MakeCursor(
       dataframe::FilterSpec{
           tables::SliceTable::ColumnIndex::ts,
           3,
-          dataframe::Lt{},
+          dataframe::Le{},
           std::nullopt,
       },
   });
