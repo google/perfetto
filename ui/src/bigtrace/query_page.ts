@@ -13,52 +13,48 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Trace} from '../public/trace';
-import {Button, ButtonVariant} from '../widgets/button';
-import {TextInput} from '../widgets/text_input';
-import {Editor} from '../widgets/editor';
-import {DataGrid, renderCell} from '../components/widgets/datagrid/datagrid';
-import {SchemaRegistry, ColumnSchema, CellRenderer} from '../components/widgets/datagrid/datagrid_schema';
-import {InMemoryDataSource} from '../components/widgets/datagrid/in_memory_data_source';
-import {Row as DataGridRow} from '../trace_processor/query_result';
-import {SplitPanel} from '../widgets/split_panel';
-import {EmptyState} from '../widgets/empty_state';
-import {Callout} from '../widgets/callout';
-import {Intent} from '../widgets/common';
-import {Anchor} from '../widgets/anchor';
-import {Icons} from '../base/semantic_icons';
-import {QueryResponse, runQueryForQueryTable} from '../components/query_table/queries';
-import {Box} from '../widgets/box';
-import {Stack, StackAuto} from '../widgets/stack';
-import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
-import {CopyToClipboardButton} from '../widgets/copy_to_clipboard_button';
-import {getSliceId, isSliceish} from '../components/query_table/query_table';
-import {DataSource} from '../components/widgets/datagrid/data_source';
-import {recentQueriesStorage} from './recent_queries_storage';
-import {bigTraceSettingsManager} from './bigtrace_settings_manager';
+import { Button, ButtonVariant } from '../widgets/button';
+import { TextInput } from '../widgets/text_input';
+import { Editor } from '../widgets/editor';
+import { DataGrid } from '../components/widgets/datagrid/datagrid';
+import { SchemaRegistry, ColumnSchema } from '../components/widgets/datagrid/datagrid_schema';
+import { InMemoryDataSource } from '../components/widgets/datagrid/in_memory_data_source';
+import { Row as DataGridRow } from '../trace_processor/query_result';
+import { SplitPanel } from '../widgets/split_panel';
+import { EmptyState } from '../widgets/empty_state';
+import { Callout } from '../widgets/callout';
+import { Intent } from '../widgets/common';
+import { QueryResponse } from '../components/query_table/queries';
+import { Box } from '../widgets/box';
+import { Stack, StackAuto } from '../widgets/stack';
+import { HotkeyGlyphs } from '../widgets/hotkey_glyphs';
+import { CopyToClipboardButton } from '../widgets/copy_to_clipboard_button';
+import { DataSource } from '../components/widgets/datagrid/data_source';
+import { recentQueriesStorage } from './recent_queries_storage';
+import { SettingFilter } from './settings_types';
+import { bigTraceSettingsManager } from './bigtrace_settings_manager';
+import { endpointManager } from './endpoint_manager';
 
 class HttpDataSource {
-  private static readonly BRUSH_API_URL =
-    'https://brush-googleapis.corp.google.com/v1/bigtrace/query';
-  private static readonly DEFAULT_LIMIT = 10000;
+  private static readonly DEFAULT_LIMIT = 1000000;
 
+  private endpoint: string;
   private baseQuery: string;
-  private traceAddress: string;
   private limit: number;
-  private traceLimit: number;
+  private settings: SettingFilter[];
   private cachedData: DataGridRow[] | null = null;
   private fetchPromise: Promise<DataGridRow[]> | null = null;
 
   constructor(
+    endpoint: string,
     baseQuery: string,
-    traceAddress = 'android_telemetry.field_trace_summaries_prod.last30days',
     limit = HttpDataSource.DEFAULT_LIMIT,
-    traceLimit: number,
+    settings: SettingFilter[],
   ) {
+    this.endpoint = endpoint;
     this.baseQuery = baseQuery;
-    this.traceAddress = traceAddress;
     this.limit = limit;
-    this.traceLimit = traceLimit;
+    this.settings = settings;
   }
 
   private async fetchData(forceRefresh = false): Promise<DataGridRow[]> {
@@ -85,14 +81,21 @@ class HttpDataSource {
   }
 
   private async performFetch(): Promise<DataGridRow[]> {
-    const url = HttpDataSource.BRUSH_API_URL;
+    const url = `${this.endpoint}/v1/execute_bigtrace_query`;
+
+    const serializedSettings = this.settings.map(s => ({
+      setting_id: s.settingId,
+      values: s.values,
+      category: s.category
+    }));
 
     const data = {
-      trace_address: this.traceAddress,
       limit: this.limit,
-      trace_limit: this.traceLimit,
       perfetto_sql: this.baseQuery,
+      settings: serializedSettings,
     };
+
+    console.log('Sending BigTrace query with data:', data);
 
     try {
       const response = await fetch(url, {
@@ -106,10 +109,16 @@ class HttpDataSource {
       });
 
       if (!response.ok) {
-        if (response.status === 403) {
-            throw new Error(`HTTP error! status: ${response.status}. This might be an authentication issue. Please make sure you are logged in to the correct Google account.`);
+        let errorText = '';
+        try {
+          errorText = await response.text();
+        } catch (e) {
+          errorText = 'Could not read error body';
         }
-        throw new Error(`HTTP error! status: ${response.status}`);
+        if (response.status === 403) {
+          throw new Error(`HTTP error! status: ${response.status}. This might be an authentication issue. Please make sure you are logged in to the correct Google account. Backend says: ${errorText}`);
+        }
+        throw new Error(`HTTP error! status: ${response.status}, backend says: ${errorText}`);
       }
 
       const result = await response.json();
@@ -121,7 +130,7 @@ class HttpDataSource {
         result.rows !== null
       ) {
         return result.rows.map(
-          (row: {values: Array<string | number | null>}) => {
+          (row: { values: Array<string | number | null> }) => {
             const rowObject: DataGridRow = {};
             result.columnNames.forEach((header: string, index: number) => {
               if (header === null) return;
@@ -157,120 +166,139 @@ class HttpDataSource {
 }
 
 interface QueryPageAttrs {
-  trace?: Trace;
   useBrushBackend?: boolean;
   initialQuery?: string;
 }
 
-const DEFAULT_SQL = `SELECT 
-  COUNT(*) 
-FROM slice 
-WHERE name GLOB '*kswapd0*' 
+const DEFAULT_SQL = `SELECT
+  COUNT(*)
+FROM slice
+WHERE name GLOB '*kswapd0*'
 LIMIT 100;`;
 
+class QuerySessionState {
+  sqlQuery = DEFAULT_SQL;
+  limit = 100;
+  queryResult?: QueryResponse;
+  isLoading = false;
+  dataSource?: DataSource;
+  querySettings: SettingFilter[] = [];
+}
+
+const sessionState = new QuerySessionState();
+
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
-  private sqlQuery = DEFAULT_SQL;
-  private trace?: Trace;
   private useBrushBackend = false;
-  private limit = 100;
 
-  private queryResult?: QueryResponse;
-  private isLoading = false;
-  private dataSource?: DataSource;
+  get sqlQuery() { return sessionState.sqlQuery; }
+  set sqlQuery(v) { sessionState.sqlQuery = v; }
 
-  oninit({attrs}: m.Vnode<QueryPageAttrs>) {
-    this.trace = attrs.trace;
+  get limit() { return sessionState.limit; }
+  set limit(v) { sessionState.limit = v; }
+
+  get queryResult() { return sessionState.queryResult; }
+  set queryResult(v) { sessionState.queryResult = v; }
+
+  get isLoading() { return sessionState.isLoading; }
+  set isLoading(v) { sessionState.isLoading = v; }
+
+  get dataSource() { return sessionState.dataSource; }
+  set dataSource(v) { sessionState.dataSource = v; }
+
+  oninit({ attrs }: m.Vnode<QueryPageAttrs>) {
     this.useBrushBackend = attrs.useBrushBackend || false;
     if (attrs.initialQuery) {
       this.sqlQuery = attrs.initialQuery;
+    }
+    if (this.useBrushBackend) {
+      bigTraceSettingsManager.loadSettings();
     }
   }
 
   view() {
     const editorPanel = m('.pf-query-page__editor-panel', [
-        m(Box, {className: 'pf-query-page__toolbar'}, [
-            m(Stack, {orientation: 'horizontal'}, [
-              m(Button, {
-                label: 'Run Query',
-                icon: 'play_arrow',
-                loading: this.isLoading,
-                intent: this.isLoading ? Intent.None : Intent.Primary,
-                variant: ButtonVariant.Filled,
-                onclick: () => {
-                  this.runQuery(this.sqlQuery);
-                },
-              }),
-              m(
-                Stack,
-                {
-                  orientation: 'horizontal',
-                  className: 'pf-query-page__hotkeys',
-                },
-                'or press',
-                m(HotkeyGlyphs, {hotkey: 'Mod+Enter'}),
-              ),
-              m(StackAuto),
-              this.useBrushBackend && [
-                m('span', 'Result limit:'),
-                m(TextInput as any, {
-                    type: 'number',
-                    value: this.limit,
-                    placeholder: 'Limit',
-                    onchange: (value: string) => {
-                        const newLimit = parseInt(value, 10);
-                        if (!isNaN(newLimit) && newLimit > 0) {
-                            this.limit = newLimit;
-                        }
-                    },
-                }),
-              ]
-            ]),
-        ]),
-        
-        this.sqlQuery.includes('"') &&
-        m(
-            Callout,
-            {icon: 'warning', intent: Intent.None},
-            `" (double quote) character observed in query; if this is being used to ` +
-            `define a string, please use ' (single quote) instead. Using double quotes ` +
-            `can cause subtle problems which are very hard to debug.`,
-        ),
-        m(Editor, {
-            text: this.sqlQuery,
-            language: 'perfetto-sql',
-            onUpdate: (text: string) => {
-                this.sqlQuery = text;
+      m(Box, { className: 'pf-query-page__toolbar' }, [
+        m(Stack, { orientation: 'horizontal' }, [
+          m(Button, {
+            label: 'Run Query',
+            icon: 'play_arrow',
+            loading: this.isLoading,
+            intent: this.isLoading ? Intent.None : Intent.Primary,
+            variant: ButtonVariant.Filled,
+            onclick: () => {
+              this.runQuery(this.sqlQuery);
             },
-            onExecute: (query: string) => this.runQuery(query),
-        }),
+          }),
+          m(
+            Stack,
+            {
+              orientation: 'horizontal',
+              className: 'pf-query-page__hotkeys',
+            },
+            'or press',
+            m(HotkeyGlyphs, { hotkey: 'Mod+Enter' }),
+          ),
+          m(StackAuto),
+          this.useBrushBackend && [
+            m('span', 'Result limit:'),
+            m(TextInput as any, {
+              type: 'number',
+              value: this.limit,
+              placeholder: 'Limit',
+              onchange: (value: string) => {
+                const newLimit = parseInt(value, 10);
+                if (!isNaN(newLimit) && newLimit > 0) {
+                  this.limit = newLimit;
+                }
+              },
+            }),
+          ]
+        ]),
+      ]),
+      this.sqlQuery.includes('"') &&
+      m(
+        Callout,
+        { icon: 'warning', intent: Intent.None },
+        `" (double quote) character observed in query; if this is being used to ` +
+        `define a string, please use ' (single quote) instead. Using double quotes ` +
+        `can cause subtle problems which are very hard to debug.`,
+      ),
+      m(Editor, {
+        text: this.sqlQuery,
+        language: 'perfetto-sql',
+        onUpdate: (text: string) => {
+          this.sqlQuery = text;
+        },
+        onExecute: (query: string) => this.runQuery(query),
+      }),
     ]);
 
     const resultsPanel = m(
-        '.pf-query-page__results-panel',
-        this.dataSource && this.queryResult
-            ? this.renderQueryResult(this.trace!, this.queryResult, this.dataSource)
-            : this.isLoading
-            ? m(EmptyState, {
-                title: 'Running query...',
-                icon: 'hourglass_empty',
-                fillHeight: true,
-                })
-            : m(EmptyState, {
-                title: 'Run a query to see results',
-                icon: 'search',
-                fillHeight: true,
-                }),
+      '.pf-query-page__results-panel',
+      this.dataSource && this.queryResult
+        ? this.renderQueryResult(this.queryResult, this.dataSource)
+        : this.isLoading
+          ? m(EmptyState, {
+            title: 'Running query...',
+            icon: 'hourglass_empty',
+            fillHeight: true,
+          })
+          : m(EmptyState, {
+            title: 'Run a query to see results',
+            icon: 'search',
+            fillHeight: true,
+          }),
     );
 
     return m(
-        '.pf-query-page',
-        m(SplitPanel, {
-            direction: 'vertical',
-            initialSplit: {percent: 35},
-            minSize: 100,
-            firstPanel: editorPanel,
-            secondPanel: resultsPanel,
-        }),
+      '.pf-query-page',
+      m(SplitPanel, {
+        direction: 'vertical',
+        initialSplit: { percent: 35 },
+        minSize: 100,
+        firstPanel: editorPanel,
+        secondPanel: resultsPanel,
+      }),
     );
   }
 
@@ -284,9 +312,15 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     m.redraw();
 
     if (this.useBrushBackend) {
-      const traceLimitSetting = bigTraceSettingsManager.get('traceLimit');
-      const traceLimit = traceLimitSetting ? traceLimitSetting.get() as number : 1_000_000;
-      const dataSource = new HttpDataSource(query, undefined, this.limit, traceLimit);
+      const endpointSetting = endpointManager.get('bigtraceEndpoint');
+      const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
+
+      await bigTraceSettingsManager.loadSettings();
+
+      const settings = bigTraceSettingsManager.buildSettingFilters();
+      sessionState.querySettings = settings;
+
+      const dataSource = new HttpDataSource(endpoint, query, this.limit, settings);
       try {
         const data = await dataSource.query();
         this.queryResult = {
@@ -315,13 +349,12 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         };
       }
     } else {
-        if (!this.trace) return;
-        this.queryResult = await runQueryForQueryTable(query, this.trace.engine);
+      throw new Error("Local query execution is unsupported in bigtrace context.");
     }
 
 
-    if (this.queryResult.rows) {
-        this.dataSource = new InMemoryDataSource(this.queryResult.rows);
+    if (this.queryResult && this.queryResult.rows) {
+      this.dataSource = new InMemoryDataSource(this.queryResult.rows);
     }
 
 
@@ -330,7 +363,6 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   }
 
   private renderQueryResult(
-    trace: Trace,
     queryResult: QueryResponse,
     dataSource: DataSource,
   ) {
@@ -343,56 +375,38 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     } else {
       return [
         queryResult.statementWithOutputCount > 1 &&
-          m(Box, [
-            m(Callout, {icon: 'warning', intent: Intent.None}, [
-              `${queryResult.statementWithOutputCount} out of ${queryResult.statementCount} `,
-              'statements returned a result. ',
-              'Only the results for the last statement are displayed.',
-            ]),
+        m(Box, [
+          m(Callout, { icon: 'warning', intent: Intent.None }, [
+            `${queryResult.statementWithOutputCount} out of ${queryResult.statementCount} `,
+            'statements returned a result. ',
+            'Only the results for the last statement are displayed.',
           ]),
+        ]),
         (() => {
           // Build schema directly
           const columnSchema: ColumnSchema = {};
           for (const column of queryResult.columns) {
-            const cellRenderer: CellRenderer | undefined =
-              column === 'id'
-                ? (value, row) => {
-                    const sliceId = getSliceId(row);
-                    const cell = renderCell(value, column);
-                    if (sliceId !== undefined && isSliceish(row)) {
-                      return m(
-                        Anchor,
-                        {
-                          title: 'Go to slice on the timeline',
-                          icon: Icons.UpdateSelection,
-                          onclick: () => {
-                            // Navigate to the timeline page
-                            trace.navigate('#!/viewer');
-                            trace.selection.selectSqlEvent('slice', sliceId, {
-                              switchToCurrentSelectionTab: false,
-                              scrollToSelection: true,
-                            });
-                          },
-                        },
-                        cell,
-                      );
-                    } else {
-                      return renderCell(value, column);
-                    }
-                  }
-                : undefined;
-            columnSchema[column] = {cellRenderer};
+            columnSchema[column] = { cellRenderer: undefined };
           }
-          const schema: SchemaRegistry = {data: columnSchema};
+          const schema: SchemaRegistry = { data: columnSchema };
 
           return m(DataGrid, {
             schema,
             rootSchema: 'data',
             enablePivotControls: false, // In-memory datasource does not support pivoting
-            initialColumns: queryResult.columns.map((col) => ({
-              id: col,
-              field: col,
-            })),
+            initialColumns: queryResult.columns
+              .filter(col => {
+                if (!col.startsWith('_')) return true;
+                if (col === '_trace_id') return true;
+                const settingId = col.substring(1);
+                return sessionState.querySettings.some(
+                  s => s.settingId === settingId && s.category === 'TRACE_METADATA'
+                );
+              })
+              .map((col) => ({
+                id: col,
+                field: col,
+              })),
             className: 'pf-query-page__results',
             data: dataSource,
             showExportButton: true,

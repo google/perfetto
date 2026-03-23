@@ -24,7 +24,7 @@ import {ThemeProvider} from '../frontend/theme_provider';
 import {OverlayContainer} from '../widgets/overlay_container';
 import {QueryPage} from './query_page';
 import {HomePage} from './home_page';
-import {BigTraceSettingsPage} from './bigtrace_settings_page';
+import {bigTraceSettingsManager} from './bigtrace_settings_manager';
 import {queryState} from './query_state';
 import {SettingsPage} from './settings_page';
 import {Topbar} from './topbar';
@@ -51,7 +51,7 @@ function setupContentSecurityPolicy() {
     'default-src': [`'self'`],
     'script-src': [`'self'`],
     'object-src': ['none'],
-    'connect-src': [`'self'`, 'https://brush-googleapis.corp.google.com'],
+    'connect-src': [`'self'`, 'https://autopush-brush-googleapis.corp.google.com', 'https://brush-googleapis.corp.google.com', 'http://127.0.0.1:5001'],
     'img-src': [`'self'`, 'data:', 'blob:'],
     'style-src': [
       `'self'`,
@@ -74,12 +74,13 @@ function main() {
   // Unregister service workers
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(registrations => {
-      for(const registration of registrations) {
+      for (const registration of registrations) {
         registration.unregister();
       }
     });
   }
   setupContentSecurityPolicy();
+  // Settings will be lazy-loaded by the UI components that require them.
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time
   // appendChild returns.
@@ -108,7 +109,7 @@ function main() {
     (e: MouseEvent) => {
       if (e.ctrlKey) e.preventDefault();
     },
-    {passive: false},
+    { passive: false },
   );
 
   cssLoadPromise.then(() => onCssLoaded());
@@ -117,6 +118,10 @@ function main() {
 class BigTraceApp implements m.ClassComponent {
   private sidebarVisible = true;
   private currentPage = 'home';
+
+  oninit() {
+    bigTraceSettingsManager.loadSettings();
+  }
 
   view() {
     const items: SidebarMenuItem[] = [
@@ -141,16 +146,6 @@ class BigTraceApp implements m.ClassComponent {
         },
       },
       {
-        section: 'bigtrace',
-        text: 'BigTrace Settings',
-        href: '#',
-        icon: 'settings',
-        active: this.currentPage === 'bigtrace_settings',
-        onclick: () => {
-          this.currentPage = 'bigtrace_settings';
-        },
-      },
-      {
         section: 'settings',
         text: 'Settings',
         href: '#',
@@ -164,8 +159,8 @@ class BigTraceApp implements m.ClassComponent {
 
     const currentItem = items.find((item) => item.active);
     const title = currentItem ?
-        `${SIDEBAR_SECTIONS[currentItem.section].title} > ${currentItem.text}` :
-        '';
+      `${SIDEBAR_SECTIONS[currentItem.section].title} > ${currentItem.text}` :
+      '';
 
     return m(
       '.pf-ui-main',
@@ -181,29 +176,29 @@ class BigTraceApp implements m.ClassComponent {
         this.sidebarVisible && m(Sidebar, {
           items,
           onToggleSidebar: () => {
-              this.sidebarVisible = !this.sidebarVisible;
+            this.sidebarVisible = !this.sidebarVisible;
           },
         }),
 
         m('.pf-main-content',
-            {
-              style: {
-                display: 'flex',
-                flexDirection: 'column',
-                flex: 1,
-                overflow: 'hidden',
-              },
+          {
+            style: {
+              display: 'flex',
+              flexDirection: 'column',
+              flex: 1,
+              overflow: 'hidden',
             },
-            [
-              m(Topbar, {
-                sidebarVisible: this.sidebarVisible,
-                onToggleSidebar: () => {
-                  this.sidebarVisible = !this.sidebarVisible;
-                },
-                title: title,
-              }),
-              this.renderPage(),
-            ]),
+          },
+          [
+            m(Topbar, {
+              sidebarVisible: this.sidebarVisible,
+              onToggleSidebar: () => {
+                this.sidebarVisible = !this.sidebarVisible;
+              },
+              title: title,
+            }),
+            this.renderPage(),
+          ]),
       ],
     );
   }
@@ -218,8 +213,6 @@ class BigTraceApp implements m.ClassComponent {
         });
       case 'settings':
         return m(SettingsPage);
-      case 'bigtrace_settings':
-        return m(BigTraceSettingsPage);
       case 'bigtrace':
         const initialQuery = queryState.initialQuery;
         queryState.initialQuery = undefined;
@@ -245,8 +238,8 @@ function onCssLoaded() {
     view: () => {
       const theme = settingsManager.get('theme');
       const themeValue = theme ? theme.get() : 'light';
-      return m(ThemeProvider, {theme: themeValue as 'dark' | 'light'}, [
-        m(OverlayContainer, {fillHeight: true}, [m(BigTraceApp)]),
+      return m(ThemeProvider, { theme: themeValue as 'dark' | 'light' }, [
+        m(OverlayContainer, { fillHeight: true }, [m(BigTraceApp)]),
       ]);
     }
   });

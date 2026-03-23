@@ -16,6 +16,9 @@ import m from 'mithril';
 import {RecentQueriesSection} from './recent_queries';
 import {Card, CardStack} from '../widgets/card';
 import {queryState} from './query_state';
+import {assetSrc} from '../base/assets';
+import {AppImpl} from '../core/app_impl';
+import {Switch} from '../widgets/switch';
 
 interface HomePageAttrs {
   navigateTo: (page: string) => void;
@@ -37,56 +40,98 @@ LIMIT 10`;
 
 export class HomePage implements m.ClassComponent<HomePageAttrs> {
   view({attrs}: m.Vnode<HomePageAttrs>) {
+    const themeSetting = AppImpl.instance.settings.get<string>('theme');
+    const isDarkMode = themeSetting?.get() === 'dark';
+
     return m(
-        '.page',
-        {style: {padding: '2em', overflowY: 'auto', height: '100%'}},
-        m('.page-title', {style: {textAlign: 'center'}}, m('h1', 'Welcome to BigTrace')),
-        m('p', 'Analyze traces at scale 🚀. BigTrace helps you find bugs 🐛 and performance issues 🐢 across thousands of traces.'),
-        
-        m('.quick-start', {style: {marginBottom: '2em'}},
-          m('.pf-nav-section-header', m('span', 'How to get started')),
-          m(CardStack,
-            m(Card,
-              m('h3', '1. Write a query'),
-              m('p', 'Use the query editor to write a PerfettoSQL query.'),
-            ),
-            m(Card,
-              m('h3', '2. Run it'),
-              m('p', 'Click "Run Query" or press Cmd/Ctrl + Enter.'),
-            ),
-            m(Card,
-              m('h3', '3. Analyze'),
-              m('p', 'Browse the results in the table below.'),
+      '.pf-home-page',
+      m(
+        '.pf-home-page__center',
+        m(
+          '.pf-home-page__title',
+          m(`img.logo[src=${assetSrc('assets/logo-3d.png')}]`),
+          'BigTrace',
+        ),
+        m(
+          'p',
+          {style: {color: 'var(--pf-color-text-muted)', fontSize: '1.2em', margin: '0 0 32px 0', textAlign: 'center'}},
+          'Analyze traces at scale. BigTrace helps you find bugs and performance issues across thousands of traces.'
+        ),
+        m(
+          '.pf-home-page__hints',
+          
+          m(
+            '.pf-home-page__section',
+            m('.pf-home-page__section-title', 'How to get started'),
+            m(
+              '.pf-home-page__section-content',
+              m('.pf-home-page__shortcut', {style: {justifyContent: 'flex-start'}},
+                m('strong', '1.'), m('span.pf-home-page__shortcut-label', {style: {marginLeft: '12px'}}, 'Write a PerfettoSQL query in the editor.')
+              ),
+              m('.pf-home-page__shortcut', {style: {justifyContent: 'flex-start'}},
+                m('strong', '2.'), m('span.pf-home-page__shortcut-label', {style: {marginLeft: '12px'}}, 'Click "Run Query" or press Cmd/Ctrl + Enter.')
+              ),
+              m('.pf-home-page__shortcut', {style: {justifyContent: 'flex-start'}},
+                m('strong', '3.'), m('span.pf-home-page__shortcut-label', {style: {marginLeft: '12px'}}, 'Analyze your results across multiple traces.')
+              )
+            )
+          ),
+          
+          m(
+            '.pf-home-page__section',
+            m('.pf-home-page__section-title', 'Examples'),
+            m(
+              '.pf-home-page__section-content',
+              m(CardStack,
+                m(Card, {
+                  interactive: true,
+                  onclick: () => {
+                    queryState.initialQuery = SLICE_COUNT_QUERY;
+                    attrs.navigateTo('bigtrace');
+                  },
+                }, m('h3', {style: {margin: '0 0 8px 0'}}, 'Slice Count'),
+                   m('p', {style: {margin: '0 0 8px 0', color: 'var(--pf-color-text-muted)'}}, 'Count the total number of slices in the trace.'),
+                   m('pre', {style: {maxHeight: '100px', overflowY: 'auto', whiteSpace: 'pre-wrap', margin: '0'}}, SLICE_COUNT_QUERY)),
+                m(Card, {
+                  interactive: true,
+                  onclick: () => {
+                    queryState.initialQuery = CPU_TIME_QUERY;
+                    attrs.navigateTo('bigtrace');
+                  },
+                }, m('h3', {style: {margin: '0 0 8px 0'}}, 'Top CPU Consumers'),
+                   m('p', {style: {margin: '0 0 8px 0', color: 'var(--pf-color-text-muted)'}}, 'Find the processes using the most CPU time.'),
+                   m('pre', {style: {maxHeight: '100px', overflowY: 'auto', whiteSpace: 'pre-wrap', margin: '0'}}, CPU_TIME_QUERY)),
+              ),
             ),
           ),
+          
+          m(
+            '.pf-home-page__section',
+            m('.pf-home-page__section-title', 'Recent Queries'),
+            m(
+              '.pf-home-page__section-content',
+              m(RecentQueriesSection, {
+                onLoadQuery: (query: string) => {
+                  queryState.initialQuery = query;
+                  attrs.navigateTo('bigtrace');
+                },
+              })
+            )
+          )
         ),
-        
-        m('.quick-links', {style: {marginBottom: '2em'}},
-          m('.pf-nav-section-header', m('span', 'Examples')),
-          m(CardStack,
-            m(Card, {
-              interactive: true,
-              onclick: () => {
-                queryState.initialQuery = SLICE_COUNT_QUERY;
-                attrs.navigateTo('bigtrace');
-              },
-            }, m('pre', {style: {maxHeight: '100px', overflowY: 'auto', whiteSpace: 'pre-wrap'}}, SLICE_COUNT_QUERY)),
-            m(Card, {
-              interactive: true,
-              onclick: () => {
-                queryState.initialQuery = CPU_TIME_QUERY;
-                attrs.navigateTo('bigtrace');
-              },
-            }, m('pre', {style: {maxHeight: '100px', overflowY: 'auto', whiteSpace: 'pre-wrap'}}, CPU_TIME_QUERY)),
-            
-          ),
+        m(
+          '.pf-home-page__links',
+          m(Switch, {
+            label: 'Dark mode',
+            checked: isDarkMode,
+            onchange: (e: Event) => {
+              themeSetting?.set(
+                (e.target as HTMLInputElement).checked ? 'dark' : 'light',
+              );
+            },
+          }),
         ),
-        m(RecentQueriesSection, {
-          onLoadQuery: (query: string) => {
-            queryState.initialQuery = query;
-            attrs.navigateTo('bigtrace');
-          },
-        }),
+      ),
     );
   }
 }
