@@ -71,7 +71,7 @@ export class Topbar implements m.ClassComponent<TopbarAttrs> {
               cursor: 'pointer',
             },
           }, 'WIP')
-        }, 'BigTrace is a work in progress. Features are subject to change.'),
+        }, 'BigTrace UI is work in progress. Features are subject to change.'),
         m('div', {style: {flex: 1, display: 'flex', justifyContent: 'center'}}, m(Omnibox)),
         
         m(Button, {
