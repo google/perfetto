@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/summarizer.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
 #include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/interactive.h"
@@ -47,6 +48,16 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && !defined(STDIN_FILENO)
 #define STDIN_FILENO 0
 #define STDOUT_FILENO 1
+#endif
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#define PERFETTO_HAS_SIGNAL_H() 1
+#include <signal.h>
+#else
+#define PERFETTO_HAS_SIGNAL_H() 0
 #endif
 
 namespace perfetto::trace_processor::shell {
@@ -202,6 +213,11 @@ base::Status QuerySubcommand::Run(const SubcommandContext& ctx) {
     }
   }
   PERFETTO_CHECK(!sql.empty());
+
+#if PERFETTO_HAS_SIGNAL_H()
+  static TraceProcessor* g_tp_for_signal_handler = tp.get();
+  signal(SIGINT, [](int) { g_tp_for_signal_handler->InterruptQuery(); });
+#endif
 
   base::TimeNanos t_query_start = base::GetWallTimeNs();
   auto status = RunQueries(tp.get(), sql, true);

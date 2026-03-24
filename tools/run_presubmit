@@ -15,6 +15,7 @@
 
 from __future__ import print_function
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import fnmatch
 import os
 import re
@@ -1026,8 +1027,13 @@ def main():
       (CheckUiRatchet, [changed_files]),
   ]
 
-  for func, args in checks_to_run:
-    all_results.extend(RunAndReportIfLong(func, *args))
+  with ThreadPoolExecutor() as executor:
+    futures = [
+        executor.submit(RunAndReportIfLong, func, *check_args)
+        for func, check_args in checks_to_run
+    ]
+    for future in futures:
+      all_results.extend(future.result())
 
   # 4. Report results
   if all_results:
