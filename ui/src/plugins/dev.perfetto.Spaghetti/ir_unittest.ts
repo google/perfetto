@@ -40,7 +40,7 @@ describe('buildIR', () => {
       id: 'f1',
       x: 0,
       y: 0,
-      table: 'slice',
+      config: {table: 'slice'},
     };
     const {nodes, connections} = makeStore([from]);
     const entries = buildIR(nodes, connections, 'f1', undefined);
@@ -56,16 +56,18 @@ describe('buildIR', () => {
       id: 'f1',
       x: 0,
       y: 0,
-      table: 'slice',
       nextId: 'flt1',
+      config: {table: 'slice'},
     };
     const filter: NodeData = {
       type: 'filter',
       id: 'flt1',
       x: 0,
       y: 0,
-      filterExpression: '',
-      conditions: [{column: 'dur', op: '>', value: '1000'}],
+      config: {
+        filterExpression: '',
+        conditions: [{column: 'dur', op: '>', value: '1000'}],
+      },
     };
     const {nodes, connections} = makeStore([from, filter]);
     const entries = buildIR(nodes, connections, 'flt1', undefined);
@@ -83,8 +85,8 @@ describe('buildIR', () => {
       id: 'f1',
       x: 0,
       y: 0,
-      table: 'slice',
       nextId: 's1',
+      config: {table: 'slice'},
     };
     const select: NodeData = {
       type: 'select',
@@ -92,16 +94,17 @@ describe('buildIR', () => {
       x: 0,
       y: 0,
       nextId: 'flt1',
-      columns: {name: true, dur: true, ts: false},
-      expressions: [],
+      config: {columns: {name: true, dur: true, ts: false}, expressions: []},
     };
     const filter: NodeData = {
       type: 'filter',
       id: 'flt1',
       x: 0,
       y: 0,
-      filterExpression: '',
-      conditions: [{column: 'dur', op: '>', value: '100'}],
+      config: {
+        filterExpression: '',
+        conditions: [{column: 'dur', op: '>', value: '100'}],
+      },
     };
     const {nodes, connections} = makeStore([from, select, filter]);
     const entries = buildIR(nodes, connections, 'flt1', undefined);
@@ -118,8 +121,8 @@ describe('buildIR', () => {
       id: 'f1',
       x: 0,
       y: 0,
-      table: 'slice',
       nextId: 'gb1',
+      config: {table: 'slice'},
     };
     const groupby: NodeData = {
       type: 'groupby',
@@ -127,8 +130,10 @@ describe('buildIR', () => {
       x: 0,
       y: 0,
       nextId: 'flt1',
-      groupColumns: ['name'],
-      aggregations: [{func: 'COUNT', column: '*', alias: 'cnt'}],
+      config: {
+        groupColumns: ['name'],
+        aggregations: [{func: 'COUNT', column: '*', alias: 'cnt'}],
+      },
     };
     // Filter after groupby can't fold into the groupby statement
     const filter: NodeData = {
@@ -136,8 +141,10 @@ describe('buildIR', () => {
       id: 'flt1',
       x: 0,
       y: 0,
-      filterExpression: '',
-      conditions: [{column: 'cnt', op: '>', value: '5'}],
+      config: {
+        filterExpression: '',
+        conditions: [{column: 'cnt', op: '>', value: '5'}],
+      },
     };
     const {nodes, connections} = makeStore([from, groupby, filter]);
     const entries = buildIR(nodes, connections, 'flt1', undefined);
@@ -156,16 +163,18 @@ describe('buildIR', () => {
       id: 'f1',
       x: 0,
       y: 0,
-      table: 'slice',
       nextId: 'flt1',
+      config: {table: 'slice'},
     };
     const filter: NodeData = {
       type: 'filter',
       id: 'flt1',
       x: 0,
       y: 0,
-      filterExpression: '',
-      conditions: [{column: 'dur', op: '>', value: '1000'}],
+      config: {
+        filterExpression: '',
+        conditions: [{column: 'dur', op: '>', value: '1000'}],
+      },
     };
     const {nodes, connections} = makeStore([from, filter]);
 
@@ -180,16 +189,20 @@ describe('buildIR', () => {
       id: 'flt1',
       x: 0,
       y: 0,
-      filterExpression: '',
-      conditions: [{column: 'dur', op: '>', value: '1000'}],
+      config: {
+        filterExpression: '',
+        conditions: [{column: 'dur', op: '>', value: '1000'}],
+      },
     };
     const filter2: NodeData = {
       type: 'filter',
       id: 'flt1',
       x: 0,
       y: 0,
-      filterExpression: '',
-      conditions: [{column: 'dur', op: '>', value: '2000'}],
+      config: {
+        filterExpression: '',
+        conditions: [{column: 'dur', op: '>', value: '2000'}],
+      },
     };
 
     const store1 = makeStore([
@@ -198,9 +211,9 @@ describe('buildIR', () => {
         id: 'f1',
         x: 0,
         y: 0,
-        table: 'slice',
         nextId: 'flt1',
-      } as NodeData,
+        config: {table: 'slice'},
+      },
       filter1,
     ]);
     const store2 = makeStore([
@@ -209,9 +222,9 @@ describe('buildIR', () => {
         id: 'f1',
         x: 0,
         y: 0,
-        table: 'slice',
         nextId: 'flt1',
-      } as NodeData,
+        config: {table: 'slice'},
+      },
       filter2,
     ]);
 
@@ -227,16 +240,18 @@ describe('buildIR', () => {
         id: 'f1',
         x: 0,
         y: 0,
-        table,
         nextId: 'flt1',
+        config: {table},
       };
       const filter: NodeData = {
         type: 'filter',
         id: 'flt1',
         x: 0,
         y: 0,
-        filterExpression: '',
-        conditions: [{column: 'dur', op: '>', value: '1000'}],
+        config: {
+          filterExpression: '',
+          conditions: [{column: 'dur', op: '>', value: '1000'}],
+        },
       };
       return makeStore([from, filter]);
     };
@@ -256,16 +271,15 @@ describe('buildIR', () => {
       id: 'f1',
       x: 0,
       y: 0,
-      table: '',
       nextId: 'flt1',
+      config: {table: ''},
     };
     const filter: NodeData = {
       type: 'filter',
       id: 'flt1',
       x: 0,
       y: 0,
-      filterExpression: '',
-      conditions: [],
+      config: {filterExpression: '', conditions: []},
     };
     const {nodes, connections} = makeStore([from, filter]);
     expect(buildIR(nodes, connections, 'flt1', undefined)).toBeUndefined();
@@ -294,16 +308,18 @@ describe('buildDisplaySql', () => {
       id: 'f1',
       x: 0,
       y: 0,
-      table: 'slice',
       nextId: 'flt1',
+      config: {table: 'slice'},
     };
     const filter: NodeData = {
       type: 'filter',
       id: 'flt1',
       x: 0,
       y: 0,
-      filterExpression: '',
-      conditions: [{column: 'dur', op: '>', value: '1000'}],
+      config: {
+        filterExpression: '',
+        conditions: [{column: 'dur', op: '>', value: '1000'}],
+      },
     };
     const entries = getEntries([from, filter], 'flt1');
     const sql = buildDisplaySql(entries)!;
@@ -320,8 +336,8 @@ describe('buildDisplaySql', () => {
       id: 'f1',
       x: 0,
       y: 0,
-      table: 'slice',
       nextId: 'gb1',
+      config: {table: 'slice'},
     };
     const groupby: NodeData = {
       type: 'groupby',
@@ -329,16 +345,20 @@ describe('buildDisplaySql', () => {
       x: 0,
       y: 0,
       nextId: 'flt1',
-      groupColumns: ['name'],
-      aggregations: [{func: 'COUNT', column: '*', alias: 'cnt'}],
+      config: {
+        groupColumns: ['name'],
+        aggregations: [{func: 'COUNT', column: '*', alias: 'cnt'}],
+      },
     };
     const filter: NodeData = {
       type: 'filter',
       id: 'flt1',
       x: 0,
       y: 0,
-      filterExpression: '',
-      conditions: [{column: 'cnt', op: '>', value: '5'}],
+      config: {
+        filterExpression: '',
+        conditions: [{column: 'cnt', op: '>', value: '5'}],
+      },
     };
     const entries = getEntries([from, groupby, filter], 'flt1');
     const sql = buildDisplaySql(entries)!;
@@ -354,8 +374,8 @@ describe('buildDisplaySql', () => {
       id: 'f1',
       x: 0,
       y: 0,
-      table: 'slice',
       nextId: 'flt1',
+      config: {table: 'slice'},
     };
     const filter: NodeData = {
       type: 'filter',
@@ -363,16 +383,17 @@ describe('buildDisplaySql', () => {
       x: 0,
       y: 0,
       nextId: 'srt1',
-      filterExpression: '',
-      conditions: [{column: 'dur', op: '>', value: '1000'}],
+      config: {
+        filterExpression: '',
+        conditions: [{column: 'dur', op: '>', value: '1000'}],
+      },
     };
     const sort: NodeData = {
       type: 'sort',
       id: 'srt1',
       x: 0,
       y: 0,
-      sortColumn: 'dur',
-      sortOrder: 'DESC',
+      config: {sortColumn: 'dur', sortOrder: 'DESC'},
     };
     const allNodes = [from, filter, sort];
 

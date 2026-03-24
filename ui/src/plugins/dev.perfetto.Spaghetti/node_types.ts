@@ -12,171 +12,135 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {Connection, Label, NodePort} from '../../widgets/nodegraph';
-import {FromNodeData} from './from';
-import {SelectNodeData} from './select';
-import {FilterNodeData} from './filter';
-import {SortNodeData} from './sort';
-import {LimitNodeData} from './limit';
-import {GroupByNodeData} from './groupby';
-import {IntervalIntersectNodeData} from './interval_intersect';
-import {SelectionNodeData} from './selection';
-import {UnionAllNodeData} from './union_all';
-import {ExtendNodeData} from './extend';
-import {ExtractArgNodeData} from './extract_arg';
+import {Trace} from '../../public/trace';
+import {ColumnDef} from './graph_utils';
+import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 
-export {FromNodeData} from './from';
-export {SelectNodeData} from './select';
-export {FilterNodeData} from './filter';
-export {SortNodeData} from './sort';
-export {LimitNodeData} from './limit';
-export {GroupByNodeData} from './groupby';
-export {IntervalIntersectNodeData} from './interval_intersect';
-export {SelectionNodeData} from './selection';
-export {UnionAllNodeData} from './union_all';
-export {ExtendNodeData} from './extend';
-export {ExtractArgNodeData} from './extract_arg';
+// ---------------------------------------------------------------------------
+// Node data: separates graph topology from node-specific config.
+// ---------------------------------------------------------------------------
 
-export interface BaseNodeData {
+/** Graph-level data shared by every node. */
+export interface NodeData<C extends object = {}> {
+  readonly type: string;
   readonly id: string;
   x: number;
   y: number;
   nextId?: string;
   collapsed?: boolean;
+  config: C;
 }
 
-export type NodeData =
-  | FromNodeData
-  | SelectNodeData
-  | FilterNodeData
-  | SortNodeData
-  | LimitNodeData
-  | GroupByNodeData
-  | IntervalIntersectNodeData
-  | SelectionNodeData
-  | UnionAllNodeData
-  | ExtendNodeData
-  | ExtractArgNodeData;
+// ---------------------------------------------------------------------------
+// SQL statement (used by tryFold in node manifests).
+// ---------------------------------------------------------------------------
+
+export interface SqlStatement {
+  distinct?: boolean;
+  columns: string;
+  from: string;
+  where?: string;
+  groupBy?: string;
+  orderBy?: string;
+  limit?: number;
+}
+
+// ---------------------------------------------------------------------------
+// Render context bag — each render function picks what it needs.
+// ---------------------------------------------------------------------------
+
+export interface RenderContext {
+  /** Columns available from the primary (upstream) input. */
+  readonly availableColumns: ColumnDef[];
+  /** All table names for FROM node pickers. */
+  readonly tableNames: string[];
+  /** The trace object for timeline access. */
+  readonly trace: Trace;
+  /** Whether this node is currently selected. */
+  readonly isSelected: boolean;
+  /** Get the output columns of a specific input port by name. */
+  getInputColumns(portName: string): ColumnDef[];
+}
+
+// ---------------------------------------------------------------------------
+// IR context — passed to emitIr for standalone SQL emission.
+// ---------------------------------------------------------------------------
+
+export interface IrContext {
+  /** Get the SQL reference (table name or CTE hash) for an input by port name. */
+  getInputRef(portName: string): string;
+  /** Get the output columns of an input by port name. */
+  getInputColumns(portName: string): ColumnDef[] | undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Manifest port: NodePort with a stable name for programmatic lookup.
+// ---------------------------------------------------------------------------
+
+export interface ManifestPort extends NodePort {
+  /** Stable identifier used by getInputColumns / getInputRef. */
+  readonly name: string;
+}
+
+// ---------------------------------------------------------------------------
+// Column context — passed to getOutputColumns.
+// ---------------------------------------------------------------------------
+
+export interface ColumnContext {
+  /** Get the output columns of a specific input port by name. */
+  getInputColumns(portName: string): ColumnDef[] | undefined;
+  /** SQL modules for schema resolution (e.g. FROM node table lookup). */
+  readonly sqlModules: SqlModules | undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Node manifest: single source of truth for each node type.
+// ---------------------------------------------------------------------------
+
+export interface NodeManifest<C extends object = {}> {
+  // Visual / graph metadata (previously in NODE_CONFIGS).
+  readonly title: string;
+  readonly icon?: string;
+  readonly inputs?: ReadonlyArray<ManifestPort>;
+  readonly outputs?: ReadonlyArray<ManifestPort>;
+  readonly canDockTop?: boolean;
+  readonly canDockBottom?: boolean;
+  readonly hue: number;
+
+  /** Return the default config for a newly-created node. */
+  defaultConfig(): C;
+
+  /** Render the node body. */
+  render(
+    config: C,
+    updateConfig: (updates: Partial<C>) => void,
+    ctx: RenderContext,
+  ): m.Children;
+
+  /** Pure config validation — no connection context. */
+  isValid(config: C): boolean;
+
+  /** Compute output columns (optional — absent means pass-through). */
+  getOutputColumns?(config: C, ctx: ColumnContext): ColumnDef[] | undefined;
+
+  /** Try to fold this node into the current SQL statement (optional). */
+  tryFold?(stmt: SqlStatement, config: C): boolean;
+
+  /**
+   * Emit standalone SQL for nodes that can't fold (e.g. from, join, union).
+   * Returns {sql, includes} or undefined to fall back to generic fold logic.
+   */
+  emitIr?(config: C, ctx: IrContext): {sql: string; includes?: string[]};
+}
+
+// ---------------------------------------------------------------------------
+// Store
+// ---------------------------------------------------------------------------
 
 export interface NodeQueryBuilderStore {
   readonly nodes: Map<string, NodeData>;
   readonly connections: Connection[];
   readonly labels: Label[];
 }
-
-export interface NodeConfig {
-  readonly title: string;
-  readonly icon?: string;
-  readonly inputs?: ReadonlyArray<NodePort>;
-  readonly outputs?: ReadonlyArray<NodePort>;
-  readonly canDockTop?: boolean;
-  readonly canDockBottom?: boolean;
-  readonly hue: number;
-}
-
-export const NODE_CONFIGS: Record<NodeData['type'], NodeConfig> = {
-  from: {
-    title: 'From',
-    icon: 'table_chart',
-    outputs: [{content: 'Output', direction: 'right'}],
-    canDockBottom: true,
-    hue: 210,
-  },
-  select: {
-    title: 'Select',
-    icon: 'view_column',
-    inputs: [{content: 'Input', direction: 'left'}],
-    outputs: [{content: 'Output', direction: 'right'}],
-    canDockTop: true,
-    canDockBottom: true,
-    hue: 145,
-  },
-  filter: {
-    title: 'Filter',
-    icon: 'filter_alt',
-    inputs: [{content: 'Input', direction: 'left'}],
-    outputs: [{content: 'Output', direction: 'right'}],
-    canDockTop: true,
-    canDockBottom: true,
-    hue: 35,
-  },
-  sort: {
-    title: 'Sort',
-    icon: 'sort',
-    inputs: [{content: 'Input', direction: 'left'}],
-    outputs: [{content: 'Output', direction: 'right'}],
-    canDockTop: true,
-    canDockBottom: true,
-    hue: 178,
-  },
-  limit: {
-    title: 'Limit',
-    icon: 'horizontal_rule',
-    inputs: [{content: 'Input', direction: 'left'}],
-    outputs: [{content: 'Output', direction: 'right'}],
-    canDockTop: true,
-    canDockBottom: true,
-    hue: 60,
-  },
-  groupby: {
-    title: 'Group By',
-    icon: 'workspaces',
-    inputs: [{content: 'Input', direction: 'left'}],
-    outputs: [{content: 'Output', direction: 'right'}],
-    canDockTop: true,
-    canDockBottom: true,
-    hue: 275,
-  },
-  interval_intersect: {
-    title: 'Interval Intersect',
-    icon: 'compare_arrows',
-    inputs: [
-      {content: 'Input 1', direction: 'left'},
-      {content: 'Input 2', direction: 'left'},
-    ],
-    outputs: [{content: 'Output', direction: 'right'}],
-    canDockTop: true,
-    canDockBottom: true,
-    hue: 340,
-  },
-  selection: {
-    title: 'Time Range',
-    icon: 'highlight_alt',
-    outputs: [{content: 'Output', direction: 'right'}],
-    canDockBottom: true,
-    hue: 15,
-  },
-  union_all: {
-    title: 'Union',
-    icon: 'merge',
-    inputs: [
-      {content: 'Input 1', direction: 'left'},
-      {content: 'Input 2', direction: 'left'},
-    ],
-    outputs: [{content: 'Output', direction: 'right'}],
-    canDockTop: true,
-    canDockBottom: true,
-    hue: 242,
-  },
-  extract_arg: {
-    title: 'Extract Arg',
-    icon: 'data_object',
-    inputs: [{content: 'Input', direction: 'left'}],
-    outputs: [{content: 'Output', direction: 'right'}],
-    canDockTop: true,
-    canDockBottom: true,
-    hue: 95,
-  },
-  extend: {
-    title: 'Join',
-    icon: 'add_circle',
-    inputs: [
-      {content: 'Left', direction: 'left'},
-      {content: 'Right', direction: 'left'},
-    ],
-    outputs: [{content: 'Output', direction: 'right'}],
-    canDockTop: true,
-    canDockBottom: true,
-    hue: 308,
-  },
-};

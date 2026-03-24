@@ -249,7 +249,7 @@ async function loadTraceIntoEngine(
   trace.timeline.setVisibleWindow(newViewport);
 
   const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';
-  Router.navigate(`#!/viewer?local_cache_key=${cacheUuid}`);
+  // Router.navigate(`#!/viewer?local_cache_key=${cacheUuid}`);
 
   // Make sure the helper views are available before we start adding tracks.
   await includeSummaryTables(trace);

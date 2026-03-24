@@ -32,26 +32,13 @@ import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
 import {Tabs} from '../../widgets/tabs';
 
-import {NodeData, NodeQueryBuilderStore, NODE_CONFIGS} from './node_types';
-import {createFromNode, renderFromNode} from './from';
-import {createSelectNode, renderSelectNode} from './select';
-import {createFilterNode, renderFilterNode} from './filter';
-import {createSortNode, renderSortNode} from './sort';
-import {createLimitNode, renderLimitNode} from './limit';
-import {createExtendNode, renderExtendNode} from './extend';
-import {createExtractArgNode, renderExtractArgNode} from './extract_arg';
-import {createGroupByNode, renderGroupByNode} from './groupby';
-import {
-  createIntervalIntersectNode,
-  renderIntervalIntersectNode,
-} from './interval_intersect';
-import {createSelectionNode, renderSelectionNode} from './selection';
-import {createUnionAllNode, renderUnionAllNode} from './union_all';
+import {NodeData, NodeQueryBuilderStore, RenderContext} from './node_types';
 import {buildIR} from './ir';
 import {
   findConnectedInputs,
   findDockedParent,
   getColumnsForNode,
+  getManifest,
   getOutputColumnsForNode,
   getRootNodeIds,
 } from './graph_utils';
@@ -220,12 +207,15 @@ export function QueryBuilderPage(
       history.shift();
       historyIndex--;
     }
+
+    saveGraph();
   };
 
   const undo = () => {
     if (historyIndex > 0) {
       historyIndex--;
       store = history[historyIndex];
+      saveGraph();
     }
   };
 
@@ -233,6 +223,7 @@ export function QueryBuilderPage(
     if (historyIndex < history.length - 1) {
       historyIndex++;
       store = history[historyIndex];
+      saveGraph();
     }
   };
 
@@ -406,27 +397,23 @@ export function QueryBuilderPage(
     }
   }
 
-  const addNode = (
-    factory: (id: string, x: number, y: number) => NodeData,
-    toNodeId?: string,
-  ) => {
+  const addNode = (type: string, toNodeId?: string) => {
+    const manifest = getManifest(type);
     const id = shortUuid();
 
     let x: number;
     let y: number;
 
     if (graphApi && !toNodeId) {
-      const tempNode = factory(id, 0, 0);
-      const config = NODE_CONFIGS[tempNode.type];
       const placement = graphApi.findPlacementForNode({
         id,
-        inputs: config.inputs,
-        outputs: config.outputs,
-        content: m('span', tempNode.type),
-        canDockBottom: config.canDockBottom,
-        canDockTop: config.canDockTop,
-        titleBar: {title: config.title, icon: config.icon},
-        hue: config.hue,
+        inputs: manifest.inputs,
+        outputs: manifest.outputs,
+        content: m('span', type),
+        canDockBottom: manifest.canDockBottom,
+        canDockTop: manifest.canDockTop,
+        titleBar: {title: manifest.title, icon: manifest.icon},
+        hue: manifest.hue,
       });
       x = placement.x;
       y = placement.y;
@@ -435,7 +422,13 @@ export function QueryBuilderPage(
       y = 50 + Math.random() * 200;
     }
 
-    const newNode = factory(id, x, y);
+    const newNode: NodeData = {
+      type,
+      id,
+      x,
+      y,
+      config: manifest.defaultConfig(),
+    };
 
     updateStore((draft) => {
       draft.nodes.set(newNode.id, newNode);
@@ -465,105 +458,70 @@ export function QueryBuilderPage(
     return [];
   }
 
-  // Render node content with context (sqlModules, tableNames)
+  // Build RenderContext and dispatch to manifest.render.
   function renderNodeContentWithContext(
     nodeData: NodeData,
-    updateNodeFn: (updates: Partial<Omit<NodeData, 'id'>>) => void,
     tableNames: string[],
     sqlModules: SqlModules | undefined,
     trace: Trace,
   ): m.Children {
     const activeNodes = getActiveNodes();
     const activeConns = getActiveConnections();
+    const manifest = getManifest(nodeData.type);
 
-    switch (nodeData.type) {
-      case 'from':
-        return renderFromNode(nodeData, updateNodeFn, tableNames);
-      case 'select': {
-        const cols = getColumnsForNode(
-          activeNodes,
-          activeConns,
-          nodeData.id,
-          sqlModules,
-        );
-        return renderSelectNode(nodeData, updateNodeFn, cols);
+    // Compute available columns (input columns from upstream parent).
+    const availableColumns = getColumnsForNode(
+      activeNodes,
+      activeConns,
+      nodeData.id,
+      sqlModules,
+    );
+
+    // Build a map from port label → connected input node for column resolution.
+    const portInputs = new Map<string, NodeData>();
+    const parent = findDockedParent(activeNodes, nodeData.id);
+    const connected = findConnectedInputs(
+      activeNodes,
+      activeConns,
+      nodeData.id,
+    );
+    const ports = manifest.inputs ?? [];
+    for (let i = 0; i < ports.length; i++) {
+      const input = i === 0 && parent ? parent : connected.get(i);
+      if (input) {
+        portInputs.set(ports[i].name, input);
       }
-      case 'filter': {
-        const cols = getColumnsForNode(
-          activeNodes,
-          activeConns,
-          nodeData.id,
-          sqlModules,
-        );
-        return renderFilterNode(nodeData, updateNodeFn, cols);
-      }
-      case 'sort': {
-        const cols = getColumnsForNode(
-          activeNodes,
-          activeConns,
-          nodeData.id,
-          sqlModules,
-        );
-        return renderSortNode(nodeData, updateNodeFn, cols);
-      }
-      case 'limit':
-        return renderLimitNode(nodeData, updateNodeFn);
-      case 'extend': {
-        const parent = findDockedParent(activeNodes, nodeData.id);
-        const leftInput =
-          parent ??
-          findConnectedInputs(activeNodes, activeConns, nodeData.id).get(0);
-        const leftCols = leftInput
-          ? getOutputColumnsForNode(
-              activeNodes,
-              activeConns,
-              leftInput.id,
-              sqlModules,
-            ) ?? []
-          : [];
-        const rightInput = findConnectedInputs(
-          activeNodes,
-          activeConns,
-          nodeData.id,
-        ).get(1);
-        const rightCols = rightInput
-          ? getOutputColumnsForNode(
-              activeNodes,
-              activeConns,
-              rightInput.id,
-              sqlModules,
-            ) ?? []
-          : [];
-        return renderExtendNode(nodeData, updateNodeFn, {
-          leftColumns: leftCols,
-          rightColumns: rightCols,
-        });
-      }
-      case 'extract_arg': {
-        const cols = getColumnsForNode(
-          activeNodes,
-          activeConns,
-          nodeData.id,
-          sqlModules,
-        );
-        return renderExtractArgNode(nodeData, updateNodeFn, cols);
-      }
-      case 'groupby': {
-        const cols = getColumnsForNode(
-          activeNodes,
-          activeConns,
-          nodeData.id,
-          sqlModules,
-        );
-        return renderGroupByNode(nodeData, updateNodeFn, cols);
-      }
-      case 'selection':
-        return renderSelectionNode(nodeData, updateNodeFn, trace);
-      case 'union_all':
-        return renderUnionAllNode(nodeData, updateNodeFn);
-      case 'interval_intersect':
-        return renderIntervalIntersectNode(nodeData, updateNodeFn);
     }
+
+    const ctx: RenderContext = {
+      availableColumns,
+      tableNames,
+      trace,
+      isSelected: selectedNodeIds.has(nodeData.id),
+      getInputColumns(portLabel: string) {
+        const input = portInputs.get(portLabel);
+        if (!input) return [];
+        return (
+          getOutputColumnsForNode(
+            activeNodes,
+            activeConns,
+            input.id,
+            sqlModules,
+          ) ?? []
+        );
+      },
+    };
+
+    const updateConfig = (updates: {}) => {
+      updateStore((draft) => {
+        const node = draft.nodes.get(nodeData.id);
+        if (node) {
+          node.config = {...node.config, ...updates};
+        }
+      });
+    };
+
+    return manifest.render(nodeData.config, updateConfig, ctx);
   }
 
   function buildNodeModel(
@@ -577,33 +535,29 @@ export function QueryBuilderPage(
       ? activeNodes.get(nodeData.nextId)
       : undefined;
 
-    const config = NODE_CONFIGS[nodeData.type];
-
-    const inputs = config.inputs;
-    const outputs = config.outputs;
+    const manifest = getManifest(nodeData.type);
 
     return {
       id: nodeData.id,
-      inputs,
-      outputs,
+      inputs: manifest.inputs,
+      outputs: manifest.outputs,
       content: renderNodeContentWithContext(
         nodeData,
-        (updates) => updateNode(nodeData.id, updates),
         tableNames,
         sqlModules,
         trace,
       ),
-      canDockBottom: config.canDockBottom,
-      canDockTop: config.canDockTop,
+      canDockBottom: manifest.canDockBottom,
+      canDockTop: manifest.canDockTop,
       next: nextModel
         ? buildNodeModel(nextModel, tableNames, trace, sqlModules)
         : undefined,
       titleBar: {
-        title: config.title,
-        icon: config.icon,
+        title: manifest.title,
+        icon: manifest.icon,
         actions: renderTitleBarActions(),
       },
-      hue: config.hue,
+      hue: manifest.hue,
       contextMenuItems: [
         m(MenuItem, {
           label: pinnedNodeId === nodeData.id ? 'Unpin node' : 'Pin node',
@@ -717,32 +671,30 @@ export function QueryBuilderPage(
 
       const toolbarItems: m.Children[] = [];
 
-      function nodeMenuItem(
-        type: NodeData['type'],
-        factory: (id: string, x: number, y: number) => NodeData,
-      ): m.Children {
-        const config = NODE_CONFIGS[type];
+      function nodeMenuItem(type: string): m.Children {
+        const manifest = getManifest(type);
         return m(MenuItem, {
-          label: config.title,
-          icon: config.icon,
-          style: {borderLeft: `3px solid hsl(${config.hue}, 60%, 65%)`},
-          onclick: () => addNode(factory),
+          label: manifest.title,
+          icon: manifest.icon,
+          style: {borderLeft: `3px solid hsl(${manifest.hue}, 60%, 65%)`},
+          onclick: () => addNode(type),
         });
       }
 
-      const addNodeMenuItems = [
-        nodeMenuItem('from', createFromNode),
-        nodeMenuItem('selection', createSelectionNode),
-        nodeMenuItem('select', createSelectNode),
-        nodeMenuItem('filter', createFilterNode),
-        nodeMenuItem('extract_arg', createExtractArgNode),
-        nodeMenuItem('sort', createSortNode),
-        nodeMenuItem('limit', createLimitNode),
-        nodeMenuItem('groupby', createGroupByNode),
-        nodeMenuItem('extend', createExtendNode),
-        nodeMenuItem('union_all', createUnionAllNode),
-        nodeMenuItem('interval_intersect', createIntervalIntersectNode),
+      const nodeTypes: string[] = [
+        'from',
+        'time_range',
+        'select',
+        'filter',
+        'extract_arg',
+        'sort',
+        'limit',
+        'groupby',
+        'join',
+        'union',
+        'interval_intersect',
       ];
+      const addNodeMenuItems = nodeTypes.map(nodeMenuItem);
 
       toolbarItems.push(
         m(

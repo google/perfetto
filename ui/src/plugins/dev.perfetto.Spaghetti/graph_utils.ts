@@ -15,10 +15,37 @@
 import {Connection} from '../../widgets/nodegraph';
 import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
 import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
-import {FilterCondition} from './filter';
-import {IntervalIntersectNodeData} from './interval_intersect';
-import {getExtendColumnAliases} from './extend';
-import {NodeData} from './node_types';
+import {manifest as filterNode} from './nodes/filter';
+import {manifest as fromNode} from './nodes/from';
+import {manifest as timeRangeNode} from './nodes/time_range';
+import {manifest as selectNode} from './nodes/select';
+import {manifest as groupByNode} from './nodes/groupby';
+import {manifest as joinNode} from './nodes/join';
+import {manifest as extractArgNode} from './nodes/extract_arg';
+import {manifest as intervalIntersectNode} from './nodes/interval_intersect';
+import {manifest as limitNode} from './nodes/limit';
+import {manifest as sortNode} from './nodes/sort';
+import {manifest as unionNode} from './nodes/union';
+import {NodeData, NodeManifest, ColumnContext} from './node_types';
+
+// Central registry mapping node type strings to their manifests.
+const NODE_REGISTRY: Record<string, NodeManifest> = {
+  from: fromNode,
+  time_range: timeRangeNode,
+  select: selectNode,
+  filter: filterNode,
+  sort: sortNode,
+  limit: limitNode,
+  groupby: groupByNode,
+  join: joinNode,
+  extract_arg: extractArgNode,
+  interval_intersect: intervalIntersectNode,
+  union: unionNode,
+};
+
+export function getManifest(type: string): NodeManifest {
+  return NODE_REGISTRY[type];
+}
 
 // A column definition with optional type information.
 export interface ColumnDef {
@@ -26,7 +53,13 @@ export interface ColumnDef {
   readonly type?: PerfettoSqlType;
 }
 
-const UNARY_OPS: Set<string> = new Set(['IS NULL', 'IS NOT NULL']);
+// Context passed to per-node getOutputColumns implementations.
+export interface OutputColumnsCtx {
+  sqlModules: SqlModules | undefined;
+  resolveColumns(nodeId: string): ColumnDef[] | undefined;
+  findConnectedInputs(nodeId: string): Map<number, NodeData>;
+  getPrimaryInput(nodeId: string): NodeData | undefined;
+}
 
 // FNV-1a hash → 8-char hex string. Used for IR entry hashing.
 export function fnvHash(s: string): string {
@@ -39,71 +72,27 @@ export function fnvHash(s: string): string {
 }
 
 // Check if a single node's configuration is valid for SQL generation.
+// Validates both graph connectivity (all required ports satisfied) and config.
 export function isNodeValid(
   node: NodeData,
   nodes: Map<string, NodeData>,
   connections: Connection[],
 ): boolean {
-  switch (node.type) {
-    case 'from':
-      return node.table !== '';
-    case 'selection':
-      return node.ts !== '0' || node.dur !== '0';
-    case 'select':
-      return node.expressions.every(
-        (e) => (!e.expression && !e.alias) || (e.expression && e.alias),
-      );
-    case 'extract_arg':
-      return node.extractions.every(
-        (e) =>
-          (!e.column && !e.argName && !e.alias) ||
-          (e.column && e.argName && e.alias),
-      );
-    case 'filter':
-      return isFilterValid(node.conditions);
-    case 'extend': {
-      const inputs = findConnectedInputs(nodes, connections, node.id);
-      const hasDockedParent = findDockedParent(nodes, node.id) !== undefined;
-      const hasLeft = hasDockedParent || inputs.has(0);
-      const hasRight = inputs.has(1);
-      return (
-        hasLeft && hasRight && node.leftColumn !== '' && node.rightColumn !== ''
-      );
-    }
-    case 'interval_intersect':
-    case 'union_all': {
-      const inputs = findConnectedInputs(nodes, connections, node.id);
-      const hasDockedParent = findDockedParent(nodes, node.id) !== undefined;
-      const hasLeft = hasDockedParent || inputs.has(0);
-      const hasRight = inputs.has(1);
-      return hasLeft && hasRight;
-    }
-    case 'sort':
-      return (
-        (node.conditions ?? []).some((c) => c.column !== '') ||
-        node.sortColumn !== ''
-      );
-    case 'limit':
-      return node.limitCount !== '' && /^\d+$/.test(node.limitCount);
-    case 'groupby': {
-      const hasGroup = node.groupColumns.some((c) => c);
-      const aggsValid = node.aggregations.every(
-        (a) => (!a.alias && !a.column) || a.alias,
-      );
-      return hasGroup && aggsValid;
-    }
-    default:
-      return true;
-  }
-}
+  const manifest = NODE_REGISTRY[node.type];
 
-function isFilterValid(conditions: readonly FilterCondition[]): boolean {
-  if (conditions.length === 0) return true;
-  return conditions.every((c) => {
-    if (!c.column) return true; // Empty conditions are skipped in SQL gen
-    if (UNARY_OPS.has(c.op)) return true;
-    return c.value !== '';
-  });
+  // Generic port validation: every declared input must be satisfied.
+  const inputs = manifest.inputs ?? [];
+  if (inputs.length > 0) {
+    const connected = findConnectedInputs(nodes, connections, node.id);
+    const hasDocked = findDockedParent(nodes, node.id) !== undefined;
+    for (let i = 0; i < inputs.length; i++) {
+      const satisfied = connected.has(i) || (i === 0 && hasDocked);
+      if (!satisfied) return false;
+    }
+  }
+
+  // Config-level validation.
+  return manifest.isValid(node.config);
 }
 
 // Helper to find the parent node (node that has this node as nextId)
@@ -148,135 +137,29 @@ export function getOutputColumnsForNode(
   const node = nodes.get(nodeId);
   if (!node) return undefined;
 
-  // Walk the chain from root to this node
-  const visited = new Set<string>();
-  const order: NodeData[] = [];
-  collectUpstream(nodes, connections, nodeId, visited, order);
+  const manifest = NODE_REGISTRY[node.type];
+  if (!manifest?.getOutputColumns) return undefined;
 
-  let columns: ColumnDef[] | undefined;
-
-  for (const n of order) {
-    switch (n.type) {
-      case 'from': {
-        if (!n.table || !sqlModules) {
-          columns = undefined;
-        } else {
-          const table = sqlModules.getTable(n.table);
-          columns = table
-            ? table.columns.map((c) => ({name: c.name, type: c.type}))
-            : undefined;
-        }
-        break;
-      }
-      case 'selection': {
-        columns = [
-          {name: 'id', type: {kind: 'int'}},
-          {name: 'ts', type: {kind: 'timestamp'}},
-          {name: 'dur', type: {kind: 'duration'}},
-        ];
-        break;
-      }
-      case 'select': {
-        // Must match tryFold: only explicitly checked columns are projected.
-        const selected = Object.entries(n.columns)
-          .filter(([_, checked]) => checked)
-          .map(([col]) => columns?.find((c) => c.name === col) ?? {name: col});
-        const exprAliases: ColumnDef[] = n.expressions
-          .filter((e) => e.alias && e.expression)
-          .map((e) => ({name: e.alias}));
-        if (selected.length > 0) {
-          columns = [...selected, ...exprAliases];
-        } else if (exprAliases.length > 0) {
-          columns = [...(columns ?? []), ...exprAliases];
-        }
-        break;
-      }
-      case 'groupby': {
-        const groupCols: ColumnDef[] = n.groupColumns
-          .filter((c) => c)
-          .map((c) => columns?.find((col) => col.name === c) ?? {name: c});
-        const aggAliases: ColumnDef[] = n.aggregations
-          .filter((a) => a.alias)
-          .map((a) => {
-            if (a.func === 'COUNT') {
-              return {name: a.alias, type: {kind: 'int' as const}};
-            }
-            const orig = columns?.find((c) => c.name === a.column);
-            return {name: a.alias, type: orig?.type};
-          });
-        const result = [...groupCols, ...aggAliases];
-        if (result.length > 0) {
-          columns = result;
-        }
-        break;
-      }
-      case 'extend': {
-        // All left columns + selected right columns with aliases.
-        const leftParent = getPrimaryInput(nodes, connections, n.id);
-        const leftAvail = leftParent
-          ? getOutputColumnsForNode(
-              nodes,
-              connections,
-              leftParent.id,
-              sqlModules,
-            )
-          : undefined;
-        const rightInput = findConnectedInputs(nodes, connections, n.id).get(1);
-        const rightAvail = rightInput
-          ? getOutputColumnsForNode(
-              nodes,
-              connections,
-              rightInput.id,
-              sqlModules,
-            )
-          : undefined;
-        const leftNames = leftAvail?.map((c) => c.name) ?? [];
-        const extendAliases = getExtendColumnAliases(n, leftNames);
-        const extendResult: ColumnDef[] = [
-          ...(leftAvail ?? []),
-          ...extendAliases.map((a) => {
-            const orig = rightAvail?.find((c) => c.name === a.column);
-            return {name: a.alias, type: orig?.type};
-          }),
-        ];
-        columns = extendResult.length > 0 ? extendResult : undefined;
-        break;
-      }
-      case 'extract_arg': {
-        const extractAliases: ColumnDef[] = n.extractions
-          .filter((e) => e.column && e.argName && e.alias)
-          .map((e) => ({name: e.alias}));
-        if (extractAliases.length > 0) {
-          columns = [...(columns ?? []), ...extractAliases];
-        }
-        break;
-      }
-      case 'interval_intersect': {
-        columns = getIntervalIntersectOutputColumns(n);
-        break;
-      }
-      case 'union_all': {
-        // Output columns come from the left input (SQL UNION ALL uses
-        // column names from the first SELECT).
-        const leftParent = getPrimaryInput(nodes, connections, n.id);
-        if (leftParent) {
-          columns =
-            getOutputColumnsForNode(
-              nodes,
-              connections,
-              leftParent.id,
-              sqlModules,
-            ) ?? columns;
-        }
-        break;
-      }
-      // filter, sort, limit don't change columns
-      default:
-        break;
-    }
+  // Build ColumnContext for this node.
+  const portInputs = new Map<string, NodeData>();
+  const dockedParent = findDockedParent(nodes, nodeId);
+  const connected = findConnectedInputs(nodes, connections, nodeId);
+  const ports = manifest.inputs ?? [];
+  for (let i = 0; i < ports.length; i++) {
+    const input = i === 0 && dockedParent ? dockedParent : connected.get(i);
+    if (input) portInputs.set(ports[i].name, input);
   }
 
-  return columns;
+  const ctx: ColumnContext = {
+    getInputColumns(portName: string) {
+      const input = portInputs.get(portName);
+      if (!input) return undefined;
+      return getOutputColumnsForNode(nodes, connections, input.id, sqlModules);
+    },
+    sqlModules,
+  };
+
+  return manifest.getOutputColumns(node.config, ctx);
 }
 
 // Get the input columns available to a node (i.e. its upstream parent's output).
@@ -291,31 +174,6 @@ export function getColumnsForNode(
   return (
     getOutputColumnsForNode(nodes, connections, parent.id, sqlModules) ?? []
   );
-}
-
-// Compute the output columns for an interval_intersect node.
-// Output: ts, dur, id_0, id_1, plus partition columns.
-export function getIntervalIntersectOutputColumns(
-  node: IntervalIntersectNodeData,
-): ColumnDef[] {
-  // _interval_intersect! outputs exactly these columns:
-  // ts, dur, id_0, id_1, plus partition columns.
-  // Note: ts_N/dur_N are NOT output by the macro (only id_N are).
-  const result: ColumnDef[] = [
-    {name: 'ts', type: {kind: 'timestamp'}},
-    {name: 'dur', type: {kind: 'duration'}},
-    {name: 'id_0', type: {kind: 'int'}},
-    {name: 'id_1', type: {kind: 'int'}},
-  ];
-
-  // Add selected partition columns.
-  for (const col of node.partitionColumns) {
-    if (col) {
-      result.push({name: col});
-    }
-  }
-
-  return result;
 }
 
 // Get the primary input node for a given node (docked parent or port 0 connection)
@@ -344,22 +202,16 @@ export function collectUpstream(
   const node = nodes.get(nodeId);
   if (!node) return;
 
-  // Visit primary input
-  const primaryInput = getPrimaryInput(nodes, connections, nodeId);
-  if (primaryInput) {
-    collectUpstream(nodes, connections, primaryInput.id, visited, order);
-  }
-
-  // Visit secondary input (extend/interval_intersect/union_all right side, port 1)
-  if (
-    node.type === 'extend' ||
-    node.type === 'interval_intersect' ||
-    node.type === 'union_all'
-  ) {
-    const connectedInputs = findConnectedInputs(nodes, connections, nodeId);
-    const rightInput = connectedInputs.get(1);
-    if (rightInput) {
-      collectUpstream(nodes, connections, rightInput.id, visited, order);
+  // Visit all inputs: port 0 can be satisfied by a docked parent,
+  // remaining ports use connections.
+  const manifest = NODE_REGISTRY[node.type];
+  const ports = manifest.inputs ?? [];
+  const connected = findConnectedInputs(nodes, connections, nodeId);
+  const dockedParent = findDockedParent(nodes, nodeId);
+  for (let i = 0; i < ports.length; i++) {
+    const input = i === 0 && dockedParent ? dockedParent : connected.get(i);
+    if (input) {
+      collectUpstream(nodes, connections, input.id, visited, order);
     }
   }
 

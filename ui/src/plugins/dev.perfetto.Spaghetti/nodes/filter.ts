@@ -13,15 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button, ButtonVariant} from '../../widgets/button';
-import {Intent} from '../../widgets/common';
-import {Icon} from '../../widgets/icon';
-import {SegmentedButtons} from '../../widgets/segmented_buttons';
-import {Select} from '../../widgets/select';
-import {TextInput} from '../../widgets/text_input';
-import {ColumnPicker} from './column_picker';
-import {ColumnDef} from './graph_utils';
-import {BaseNodeData} from './node_types';
+import {Button, ButtonVariant} from '../../../widgets/button';
+import {Intent} from '../../../widgets/common';
+import {Icon} from '../../../widgets/icon';
+import {SegmentedButtons} from '../../../widgets/segmented_buttons';
+import {Select} from '../../../widgets/select';
+import {TextInput} from '../../../widgets/text_input';
+import {ColumnPicker} from '../widgets/column_picker';
+import {NodeManifest, RenderContext, SqlStatement} from '../node_types';
 
 export type FilterOp =
   | '='
@@ -60,28 +59,10 @@ export interface FilterCondition {
 
 export type FilterConjunction = 'AND' | 'OR';
 
-export interface FilterNodeData extends BaseNodeData {
-  readonly type: 'filter';
-  // Legacy field kept for backwards compat with existing graphs.
+export interface FilterConfig {
   readonly filterExpression: string;
   readonly conditions: FilterCondition[];
   readonly conjunction?: FilterConjunction;
-}
-
-export function createFilterNode(
-  id: string,
-  x: number,
-  y: number,
-): FilterNodeData {
-  return {
-    type: 'filter',
-    id,
-    x,
-    y,
-    filterExpression: '',
-    conditions: [],
-    conjunction: 'AND',
-  };
 }
 
 export function conditionsToSql(
@@ -99,14 +80,15 @@ export function conditionsToSql(
   return parts.join(` ${conjunction} `);
 }
 
-export function renderFilterNode(
-  node: FilterNodeData,
-  updateNode: (updates: Partial<Omit<FilterNodeData, 'type' | 'id'>>) => void,
-  availableColumns: ColumnDef[],
+function renderFilterNode(
+  config: FilterConfig,
+  updateConfig: (updates: Partial<FilterConfig>) => void,
+  ctx: RenderContext,
 ): m.Children {
-  const conditions = node.conditions;
+  const availableColumns = ctx.availableColumns;
+  const conditions = config.conditions;
 
-  const conjunction = node.conjunction ?? 'AND';
+  const conjunction = config.conjunction ?? 'AND';
 
   return m('.pf-qb-stack', [
     m(SegmentedButtons, {
@@ -115,7 +97,7 @@ export function renderFilterNode(
       options: [{label: 'AND'}, {label: 'OR'}],
       selectedOption: conjunction === 'AND' ? 0 : 1,
       onOptionSelected: (i: number) =>
-        updateNode({conjunction: i === 0 ? 'AND' : 'OR'}),
+        updateConfig({conjunction: i === 0 ? 'AND' : 'OR'}),
     }),
     m('.pf-qb-filter-list', [
       ...conditions.map((cond, i) =>
@@ -123,7 +105,7 @@ export function renderFilterNode(
           '.pf-qb-filter-row',
           {
             key: i,
-            draggable: true,
+            draggable: conditions.length > 1,
             ondragstart: (e: DragEvent) => {
               e.dataTransfer!.effectAllowed = 'move';
               e.dataTransfer!.setData('text/plain', String(i));
@@ -157,12 +139,12 @@ export function renderFilterNode(
                 const [moved] = newConds.splice(fromIdx, 1);
                 if (fromIdx < toIdx) toIdx--;
                 newConds.splice(toIdx, 0, moved);
-                updateNode({conditions: newConds});
+                updateConfig({conditions: newConds});
               }
             },
           },
           [
-            m(Icon, {icon: 'drag_indicator', className: 'pf-qb-drag-handle'}),
+            ...(conditions.length > 1 ? [m(Icon, {icon: 'drag_indicator', className: 'pf-qb-drag-handle'})] : []),
             m(ColumnPicker, {
               value: cond.column,
               columns: availableColumns,
@@ -170,7 +152,7 @@ export function renderFilterNode(
               onSelect: (value: string) => {
                 const newConds = [...conditions];
                 newConds[i] = {...cond, column: value};
-                updateNode({conditions: newConds});
+                updateConfig({conditions: newConds});
               },
             }),
             m(
@@ -183,7 +165,7 @@ export function renderFilterNode(
                     ...cond,
                     op: (e.target as HTMLSelectElement).value as FilterOp,
                   };
-                  updateNode({conditions: newConds});
+                  updateConfig({conditions: newConds});
                 },
               },
               FILTER_OPS.map((op) => m('option', {value: op}, op)),
@@ -196,18 +178,20 @@ export function renderFilterNode(
                     onChange: (value: string) => {
                       const newConds = [...conditions];
                       newConds[i] = {...cond, value};
-                      updateNode({conditions: newConds});
+                      updateConfig({conditions: newConds});
                     },
                   }),
                 ]
               : []),
             m(Button, {
               icon: 'delete',
+              variant: ButtonVariant.Filled,
               intent: Intent.Danger,
+              className: 'pf-qb-row-delete',
               title: 'Remove condition',
               onclick: () => {
                 const newConds = conditions.filter((_, j) => j !== i);
-                updateNode({conditions: newConds});
+                updateConfig({conditions: newConds});
               },
             }),
           ],
@@ -219,10 +203,53 @@ export function renderFilterNode(
       icon: 'add',
       variant: ButtonVariant.Filled,
       onclick: () => {
-        updateNode({
+        updateConfig({
           conditions: [...conditions, {column: '', op: '=', value: ''}],
         });
       },
     }),
   ]);
 }
+
+const UNARY_FILTER_OPS: Set<FilterOp> = new Set(['IS NULL', 'IS NOT NULL']);
+
+function isValid(config: FilterConfig): boolean {
+  if (config.conditions.length === 0) return true;
+  return config.conditions.every((c) => {
+    if (!c.column) return true;
+    if (UNARY_FILTER_OPS.has(c.op)) return true;
+    return c.value !== '';
+  });
+}
+
+function tryFold(stmt: SqlStatement, config: FilterConfig): boolean {
+  if (
+    stmt.groupBy !== undefined ||
+    stmt.orderBy !== undefined ||
+    stmt.limit !== undefined
+  )
+    return false;
+  const expr =
+    config.conditions.length > 0
+      ? conditionsToSql(config.conditions, config.conjunction)
+      : config.filterExpression;
+  if (expr) {
+    stmt.where = stmt.where ? `(${stmt.where}) AND (${expr})` : expr;
+  }
+  return true;
+}
+
+export const manifest: NodeManifest<FilterConfig> = {
+  title: 'Filter',
+  icon: 'filter_alt',
+  inputs: [{name: 'input', content: 'Input', direction: 'left'}],
+  outputs: [{name: 'output', content: 'Output', direction: 'right'}],
+  canDockTop: true,
+  canDockBottom: true,
+  hue: 35,
+  defaultConfig: () => ({filterExpression: '', conditions: [], conjunction: 'AND'}),
+  render: renderFilterNode,
+  isValid,
+  getOutputColumns: (_config, ctx) => ctx.getInputColumns('input'),
+  tryFold,
+};

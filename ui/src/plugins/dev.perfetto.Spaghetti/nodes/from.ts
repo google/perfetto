@@ -13,19 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {BaseNodeData} from './node_types';
-import {Button, ButtonVariant} from '../../widgets/button';
-import {TextInput} from '../../widgets/text_input';
-import {Popup, PopupPosition} from '../../widgets/popup';
-import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
+import {NodeManifest, RenderContext} from '../node_types';
+import {Button, ButtonVariant} from '../../../widgets/button';
+import {TextInput} from '../../../widgets/text_input';
+import {Popup, PopupPosition} from '../../../widgets/popup';
+import {FuzzyFinder, FuzzySegment} from '../../../base/fuzzy';
 
-export interface FromNodeData extends BaseNodeData {
-  readonly type: 'from';
+export interface FromConfig {
   readonly table: string;
-}
-
-export function createFromNode(id: string, x: number, y: number): FromNodeData {
-  return {type: 'from', id, x, y, table: 'slice'};
 }
 
 function renderFuzzySegments(segments: FuzzySegment[]): m.Children {
@@ -35,8 +30,8 @@ function renderFuzzySegments(segments: FuzzySegment[]): m.Children {
 }
 
 function FromNodeContent(): m.Component<{
-  node: FromNodeData;
-  updateNode: (updates: Partial<Omit<FromNodeData, 'type' | 'id'>>) => void;
+  config: FromConfig;
+  updateConfig: (updates: Partial<FromConfig>) => void;
   tableNames: string[];
 }> {
   let isOpen = false;
@@ -44,7 +39,7 @@ function FromNodeContent(): m.Component<{
   let selectedIndex = 0;
 
   return {
-    view({attrs: {node, updateNode, tableNames}}) {
+    view({attrs: {config, updateConfig, tableNames}}) {
       const finder = new FuzzyFinder(tableNames, (t) => t);
       const results = finder.find(searchTerm);
       selectedIndex = Math.min(selectedIndex, Math.max(0, results.length - 1));
@@ -54,7 +49,7 @@ function FromNodeContent(): m.Component<{
         {
           trigger: m(Button, {
             variant: ButtonVariant.Filled,
-            label: node.table || 'Pick table...',
+            label: config.table || 'Pick table...',
             icon: 'table_chart',
             onclick: () => {
               isOpen = !isOpen;
@@ -101,7 +96,7 @@ function FromNodeContent(): m.Component<{
                   selectedIndex = Math.max(selectedIndex - 1, 0);
                   e.preventDefault();
                 } else if (e.key === 'Enter' && results.length > 0) {
-                  updateNode({table: results[selectedIndex].item});
+                  updateConfig({table: results[selectedIndex].item});
                   isOpen = false;
                   searchTerm = '';
                   selectedIndex = 0;
@@ -139,7 +134,7 @@ function FromNodeContent(): m.Component<{
                           selectedIndex = i;
                         },
                         onclick: () => {
-                          updateNode({table: result.item});
+                          updateConfig({table: result.item});
                           isOpen = false;
                           searchTerm = '';
                           selectedIndex = 0;
@@ -158,10 +153,31 @@ function FromNodeContent(): m.Component<{
   };
 }
 
-export function renderFromNode(
-  node: FromNodeData,
-  updateNode: (updates: Partial<Omit<FromNodeData, 'type' | 'id'>>) => void,
-  tableNames: string[],
-): m.Children {
-  return m(FromNodeContent, {node, updateNode, tableNames});
-}
+export const manifest: NodeManifest<FromConfig> = {
+  title: 'From',
+  icon: 'table_chart',
+  outputs: [{name: 'output', content: 'Output', direction: 'right'}],
+  canDockBottom: true,
+  hue: 210,
+  defaultConfig: () => ({table: 'slice'}),
+  isValid: (config) => config.table !== '',
+  emitIr: (config) => ({sql: `SELECT *\nFROM ${config.table}`}),
+  getOutputColumns(config, ctx) {
+    if (!config.table || !ctx.sqlModules) return undefined;
+    const table = ctx.sqlModules.getTable(config.table);
+    return table
+      ? table.columns.map((c) => ({name: c.name, type: c.type}))
+      : undefined;
+  },
+  render(
+    config: FromConfig,
+    updateConfig: (updates: Partial<FromConfig>) => void,
+    ctx: RenderContext,
+  ): m.Children {
+    return m(FromNodeContent, {
+      config,
+      updateConfig,
+      tableNames: ctx.tableNames,
+    });
+  },
+};
