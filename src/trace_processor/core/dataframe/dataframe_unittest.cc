@@ -228,7 +228,7 @@ TEST_F(DataframeBytecodeTest, InFilter) {
     CastFilterValueList<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
     Iota: [source_register=Register(0), update_register=Register(3)]
-    FilterIn<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(4294967295), value_list_register=Register(1), popcount_register=Register(4294967295), index_register=Register(4294967295), source_register=Register(3), dest_register=Register(3)]
+    FilterIn<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(4294967295), value_list_register=Register(1), popcount_register=Register(4294967295), index_register=Register(4294967295), source_range_register=Register(4294967295), source_register=Register(3), dest_register=Register(3)]
   )");
 }
 
@@ -973,7 +973,7 @@ TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_InFilter_NonNullInt) {
     InitRange: [size=100, dest_register=Register(0)]
     AllocateIndices: [size=100, dest_slab_register=Register(3), dest_span_register=Register(4)]
     CastFilterValueList<Uint32>: [fval_handle=FilterValue(0), write_register=Register(5), op=NonNullOp(0)]
-    FilterIn<Uint32, NonNull>: [storage_register=Register(6), null_bv_register=Register(4294967295), value_list_register=Register(5), popcount_register=Register(4294967295), index_register=Register(1), source_register=Register(4294967295), dest_register=Register(4)]
+    FilterIn<Uint32, NonNull>: [storage_register=Register(6), null_bv_register=Register(4294967295), value_list_register=Register(5), popcount_register=Register(4294967295), index_register=Register(1), source_range_register=Register(0), source_register=Register(4294967295), dest_register=Register(4)]
     CopySpanIntersectingRange: [source_register=Register(4), source_range_register=Register(0), update_register=Register(4)]
   )";
   RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode,

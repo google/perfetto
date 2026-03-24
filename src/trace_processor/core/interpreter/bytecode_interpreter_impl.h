@@ -1172,6 +1172,47 @@ IndexToStorageIndex(uint32_t index,
   }
 }
 
+// Binary-searches a sorted index for all entries whose resolved storage
+// value equals |target|. Returns the [lb, ub) range of matching index
+// entries.
+//
+// |target| should be a NullTermStringView for String columns (i.e. a
+// pre-resolved string_pool->Get result) or the raw value for other types.
+// This avoids repeated string_pool->Get calls inside the comparators.
+template <typename T, typename N, typename Resolved>
+inline PERFETTO_ALWAYS_INLINE std::pair<uint32_t*, uint32_t*> IndexEqualRange(
+    uint32_t* begin,
+    uint32_t* end,
+    const Resolved& target,
+    const typename T::cpp_type* data,
+    const BitVector* const* null_bv,
+    const Slab<uint32_t>* popcnt,
+    const StringPool* string_pool) {
+  auto* lb =
+      std::lower_bound(begin, end, target, [&](uint32_t idx, const Resolved&) {
+        uint32_t si = IndexToStorageIndex<N>(idx, null_bv, popcnt);
+        if (si == std::numeric_limits<uint32_t>::max())
+          return true;
+        if constexpr (std::is_same_v<T, String>) {
+          return string_pool->Get(data[si]) < target;
+        } else {
+          return data[si] < target;
+        }
+      });
+  auto* ub =
+      std::upper_bound(lb, end, target, [&](const Resolved&, uint32_t idx) {
+        uint32_t si = IndexToStorageIndex<N>(idx, null_bv, popcnt);
+        if (si == std::numeric_limits<uint32_t>::max())
+          return false;
+        if constexpr (std::is_same_v<T, String>) {
+          return target < string_pool->Get(data[si]);
+        } else {
+          return target < data[si];
+        }
+      });
+  return {lb, ub};
+}
+
 template <typename T, typename N>
 inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
     InterpreterState& state,
@@ -1194,30 +1235,9 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
       state.MaybeReadFromRegister(bytecode.arg<B::popcount_register>());
   const BitVector* const* null_bv =
       state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
-  dest.b = std::lower_bound(
-      source.b, source.e, value, [&](uint32_t index, const M& val_arg) {
-        uint32_t storage_idx = IndexToStorageIndex<N>(index, null_bv, popcnt);
-        if (storage_idx == std::numeric_limits<uint32_t>::max()) {
-          return true;
-        }
-        if constexpr (std::is_same_v<T, String>) {
-          return state.string_pool->Get(data[storage_idx]) < val_arg;
-        } else {
-          return data[storage_idx] < val_arg;
-        }
-      });
-  dest.e = std::upper_bound(
-      dest.b, source.e, value, [&](const M& val_arg, uint32_t index) {
-        uint32_t storage_idx = IndexToStorageIndex<N>(index, null_bv, popcnt);
-        if (storage_idx == std::numeric_limits<uint32_t>::max()) {
-          return false;
-        }
-        if constexpr (std::is_same_v<T, String>) {
-          return val_arg < state.string_pool->Get(data[storage_idx]);
-        } else {
-          return val_arg < data[storage_idx];
-        }
-      });
+
+  std::tie(dest.b, dest.e) = IndexEqualRange<T, N>(
+      source.b, source.e, value, data, null_bv, popcnt, state.string_pool);
   state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
 }
 
@@ -1518,8 +1538,6 @@ inline PERFETTO_ALWAYS_INLINE bool TryIndexedFilterInBinarySearch(
       return false;
     }
 
-    using ValElem =
-        StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>;
     using VL =
         StorageType::VariantTypeAtIndex<T,
                                         CastFilterValueListResult::ValueList>;
@@ -1538,31 +1556,20 @@ inline PERFETTO_ALWAYS_INLINE bool TryIndexedFilterInBinarySearch(
 
     uint32_t* write = dest.b;
     for (const auto& cmp_val : vl) {
-      auto* lb = std::lower_bound(
-          index->b, index->e, cmp_val,
-          [&](uint32_t idx, const ValElem& target) {
-            uint32_t si = IndexToStorageIndex<N>(idx, null_bv, popcnt);
-            if (si == std::numeric_limits<uint32_t>::max())
-              return true;
-            if constexpr (std::is_same_v<T, String>) {
-              return string_pool->Get(data[si]) < string_pool->Get(target);
-            } else {
-              return data[si] < target;
-            }
-          });
-      auto* ub = std::upper_bound(
-          lb, index->e, cmp_val, [&](const ValElem& target, uint32_t idx) {
-            uint32_t si = IndexToStorageIndex<N>(idx, null_bv, popcnt);
-            if (si == std::numeric_limits<uint32_t>::max())
-              return false;
-            if constexpr (std::is_same_v<T, String>) {
-              return string_pool->Get(target) < string_pool->Get(data[si]);
-            } else {
-              return target < data[si];
-            }
-          });
-      memcpy(write, lb, static_cast<size_t>(ub - lb) * sizeof(uint32_t));
-      write += (ub - lb);
+      // For String columns, resolve StringPool::Id to NullTermStringView
+      // once per value to avoid repeated lookups in the comparators.
+      std::pair<uint32_t*, uint32_t*> range;
+      if constexpr (std::is_same_v<T, String>) {
+        auto target = string_pool->Get(cmp_val);
+        range = IndexEqualRange<T, N>(index->b, index->e, target, data, null_bv,
+                                      popcnt, string_pool);
+      } else {
+        range = IndexEqualRange<T, N>(index->b, index->e, cmp_val, data,
+                                      null_bv, popcnt, string_pool);
+      }
+      auto n = static_cast<size_t>(range.second - range.first);
+      memcpy(write, range.first, n * sizeof(uint32_t));
+      write += n;
     }
     dest.e = write;
 
@@ -1572,18 +1579,79 @@ inline PERFETTO_ALWAYS_INLINE bool TryIndexedFilterInBinarySearch(
   }
 }
 
-// Returns the span of indices to scan for FilterIn. Returns the index
-// if present, otherwise source_register.
-inline PERFETTO_ALWAYS_INLINE const Span<uint32_t>& FilterInSourceSpan(
-    InterpreterState& state,
-    const FilterInBase& bytecode) {
-  using B = FilterInBase;
-  const Span<uint32_t>* index =
-      state.MaybeReadFromRegister(bytecode.arg<B::index_register>());
-  if (index) {
-    return *index;
+// Scan path for FilterIn when no index is present. The source span and dest
+// span are walked in lockstep: source[i] is the storage index for dest[i].
+// Matching dest entries are compacted in-place.
+template <typename T, typename DataType>
+inline PERFETTO_ALWAYS_INLINE void NonIndexedFilterInScan(
+    const CastFilterValueListResult& cast_result,
+    const DataType* data,
+    const Span<uint32_t>& source,
+    Span<uint32_t>& dest) {
+  using HM =
+      StorageType::VariantTypeAtIndex<T,
+                                      CastFilterValueListResult::ValueHashMap>;
+  using VL =
+      StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::ValueList>;
+  if constexpr (std::is_same_v<T, Id> || std::is_same_v<T, Uint32>) {
+    if (cast_result.bit_vector.size() > 0) {
+      dest.e = FilterInBitVector<T>(data, source.b, source.e, dest.b,
+                                    cast_result.bit_vector);
+      return;
+    }
   }
-  return state.ReadFromRegister(bytecode.arg<B::source_register>());
+  const auto& vl = base::unchecked_get<VL>(cast_result.value_list);
+  if (!vl.empty() && vl.size() <= kFilterInKeyScanThreshold) {
+    dest.e = FilterInLinearScan<T>(data, source.b, source.e, dest.b, vl);
+    return;
+  }
+  const auto& hm = base::unchecked_get<HM>(cast_result.hash_map);
+  dest.e = FilterInHashMap<T>(data, source.b, source.e, dest.b, hm);
+}
+
+// Scan path for FilterIn when an index is present but the IN list is too
+// large for binary search. The index is ignored entirely: we iterate over
+// the source range [b, e), check each row against the hash map, and write
+// matching row indices to dest.
+template <typename T, typename N>
+inline PERFETTO_ALWAYS_INLINE void IndexedFilterInRangeScan(
+    InterpreterState& state,
+    const FilterInBase& bytecode,
+    const CastFilterValueListResult& cast_result,
+    Span<uint32_t>& dest) {
+  using B = FilterInBase;
+  using HM =
+      StorageType::VariantTypeAtIndex<T,
+                                      CastFilterValueListResult::ValueHashMap>;
+  const auto* data =
+      state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
+  // |data| is unused for Id columns (the storage index IS the value).
+  base::ignore_result(data);
+  const Slab<uint32_t>* popcnt =
+      state.MaybeReadFromRegister(bytecode.arg<B::popcount_register>());
+  const BitVector* const* null_bv =
+      state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
+  const auto& hm = base::unchecked_get<HM>(cast_result.hash_map);
+  const Range& range =
+      state.ReadFromRegister(bytecode.arg<B::source_range_register>());
+
+  uint32_t* write = dest.b;
+  for (uint32_t i = range.b; i < range.e; ++i) {
+    uint32_t si = IndexToStorageIndex<N>(i, null_bv, popcnt);
+    if (si == std::numeric_limits<uint32_t>::max()) {
+      continue;
+    }
+    if constexpr (std::is_same_v<T, Id>) {
+      if (hm.Find(CastFilterValueResult::Id{si}) != nullptr) {
+        *write++ = i;
+      }
+    } else {
+      if (hm.Find(data[si]) != nullptr) {
+        *write++ = i;
+      }
+    }
+  }
+  dest.e = write;
 }
 
 // Unified filter-in bytecode entry point.
@@ -1605,30 +1673,21 @@ inline PERFETTO_ALWAYS_INLINE void FilterIn(InterpreterState& state,
     return;
   }
 
-  // Scan path: pick the best lookup structure for the source span.
-  using HM =
-      StorageType::VariantTypeAtIndex<T,
-                                      CastFilterValueListResult::ValueHashMap>;
-  using VL =
-      StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::ValueList>;
-  const auto* data =
-      state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
-  const Span<uint32_t>& source = FilterInSourceSpan(state, bytecode);
-
-  if constexpr (std::is_same_v<T, Id> || std::is_same_v<T, Uint32>) {
-    if (cast_result.bit_vector.size() > 0) {
-      dest.e = FilterInBitVector<T>(data, source.b, source.e, dest.b,
-                                    cast_result.bit_vector);
-      return;
-    }
-  }
-  const auto& vl = base::unchecked_get<VL>(cast_result.value_list);
-  if (!vl.empty() && vl.size() <= kFilterInKeyScanThreshold) {
-    dest.e = FilterInLinearScan<T>(data, source.b, source.e, dest.b, vl);
+  // Scan path: either indexed range scan or non-indexed span scan.
+  const auto* source_range =
+      state.MaybeReadFromRegister(bytecode.arg<B::source_range_register>());
+  if (source_range) {
+    // Index present but IN list too large for binary search. Ignore the
+    // index entirely and scan the row range with hash lookup.
+    IndexedFilterInRangeScan<T, N>(state, bytecode, cast_result, dest);
     return;
   }
-  const auto& hm = base::unchecked_get<HM>(cast_result.hash_map);
-  dest.e = FilterInHashMap<T>(data, source.b, source.e, dest.b, hm);
+  // Non-indexed path: scan source span with in-place compaction of dest.
+  const auto* data =
+      state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
+  const Span<uint32_t>& source =
+      state.ReadFromRegister(bytecode.arg<B::source_register>());
+  NonIndexedFilterInScan<T>(cast_result, data, source, dest);
 }
 
 // ============================================================================

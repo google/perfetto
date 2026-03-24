@@ -28,13 +28,25 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/trace_processor/trace_processor_shell.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/rpc/rpc.h"
 #include "src/trace_processor/rpc/stdiod.h"
 #include "src/trace_processor/shell/common_flags.h"
+#include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/subcommand.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
 #include "src/trace_processor/rpc/httpd.h"
+#endif
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#define PERFETTO_HAS_SIGNAL_H() 1
+#include <signal.h>
+#else
+#define PERFETTO_HAS_SIGNAL_H() 0
 #endif
 
 namespace perfetto::trace_processor::shell {
@@ -103,6 +115,12 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
     Rpc rpc(std::move(tp), has_trace, config, [&ctx](TraceProcessor* new_tp) {
       ctx.platform->OnTraceProcessorCreated(new_tp);
     });
+#if PERFETTO_HAS_SIGNAL_H()
+    static Rpc* g_rpc_for_signal_handler = &rpc;
+    signal(SIGINT, [](int) {
+      g_rpc_for_signal_handler->trace_processor()->InterruptQuery();
+    });
+#endif
     return RunStdioRpcServer(rpc);
   }
 
@@ -116,6 +134,19 @@ base::Status ServerSubcommand::Run(const SubcommandContext& ctx) {
     Rpc rpc(std::move(tp), has_trace, config, [&ctx](TraceProcessor* new_tp) {
       ctx.platform->OnTraceProcessorCreated(new_tp);
     });
+#if PERFETTO_HAS_SIGNAL_H()
+    if (ctx.global->metatrace_path.empty()) {
+      signal(SIGINT, SIG_DFL);
+    } else {
+      static std::string* metatrace_path = &ctx.global->metatrace_path;
+      static Rpc* g_rpc_for_signal_handler = &rpc;
+      signal(SIGINT, [](int) {
+        MaybeWriteMetatrace(g_rpc_for_signal_handler->trace_processor(),
+                            *metatrace_path);
+        exit(1);
+      });
+    }
+#endif
     RunHttpRPCServer(rpc, listen_ip_, port_number_, additional_cors_origins);
     PERFETTO_FATAL("Should never return");
 #else

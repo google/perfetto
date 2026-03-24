@@ -583,12 +583,16 @@ struct LinearFilterEq : LinearFilterEqBase {
 
 // Filters rows based on a list of values (IN operator). Supports both indexed
 // and non-indexed modes:
-//   - Indexed: index_register points to a sorted permutation vector. At
-//     runtime, chooses between binary search (good for small IN-lists) and
-//     linear scan with hash lookup (good for large IN-lists). See
-//     BM_FilterIn_IndexedBinarySearch / BM_FilterIn_IndexedLinearScan.
+//   - Indexed: index_register points to a sorted permutation vector and
+//     source_range_register provides the row range [0, n). At runtime,
+//     chooses binary search for small IN-lists; for large IN-lists the index
+//     is ignored and a linear scan over source_range_register is used.
+//     See BM_FilterIn_IndexedBinarySearch / BM_FilterIn_IndexedLinearScan.
 //   - Non-indexed: index_register is absent (UINT32_MAX sentinel). Scans
 //     source_register using hash/bitvector/linear lookup.
+//
+// Exactly one of {index_register + source_range_register} or
+// {source_register} must be set (exclusive-or).
 struct FilterInBase
     : TemplatedBytecode2<StorageType, SparseNullCollapsedNullability> {
   // Cost for the non-indexed (linear scan) path. The indexed path overrides
@@ -596,7 +600,7 @@ struct FilterInBase
   // See BM_BytecodeInterpreter_InUint32 benchmark.
   static constexpr Cost kCost = LinearPerRowCost{10};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_7(
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_8(
       ReadHandle<StoragePtr>,
       storage_register,
       ReadHandle<const BitVector*>,
@@ -607,6 +611,8 @@ struct FilterInBase
       popcount_register,
       ReadHandle<Span<uint32_t>>,
       index_register,
+      ReadHandle<Range>,
+      source_range_register,
       RwHandle<Span<uint32_t>>,
       source_register,
       RwHandle<Span<uint32_t>>,
