@@ -103,6 +103,18 @@ struct StoragePtr {
   StorageType type;
 };
 
+// Wraps a null bitvector and its prefix popcount cache as a single unit.
+// Used for both SparseNull and DenseNull columns:
+//  - SparseNull: both |bv| and |popcount| are populated (popcount is lazily
+//    computed by the PrefixPopcount bytecode).
+//  - DenseNull: only |bv| is populated; |popcount| remains empty.
+//  - NonNull: the register handle is empty (UINT32_MAX index), so the struct
+//    is never read.
+struct NullBitvector {
+  const BitVector* bv = nullptr;
+  Slab<uint32_t> popcount;
+};
+
 // Values that can be stored in a register.
 using RegValue = std::variant<Empty,
                               Range,
@@ -116,7 +128,8 @@ using RegValue = std::variant<Empty,
                               const BitVector*,
                               Span<const uint32_t>,
                               BitVector,
-                              std::unique_ptr<TreeState>>;
+                              std::unique_ptr<TreeState>,
+                              NullBitvector>;
 
 }  // namespace perfetto::trace_processor::core::interpreter
 
