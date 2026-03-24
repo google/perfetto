@@ -22,12 +22,15 @@
 #include <string>
 #include <vector>
 
+#include <google/protobuf/descriptor.h>
+
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/shell/metrics.h"
 #include "src/trace_processor/shell/subcommand.h"
 
 namespace perfetto::trace_processor {
@@ -53,6 +56,14 @@ struct GlobalOptions {
   std::vector<std::string> override_sql_package_paths;
   std::string override_stdlib_path;
   std::string register_files_dir;
+
+  // Raw --metric-extension strings collected during flag parsing.
+  std::vector<std::string> raw_metric_v1_extensions;
+  // Parsed metric extensions and their descriptor pool. Populated by
+  // ParseGlobalMetricExtensions() which must be called after flag parsing
+  // and before BuildConfig()/SetupTraceProcessor().
+  std::vector<MetricExtension> metric_extensions;
+  std::unique_ptr<google::protobuf::DescriptorPool> metric_descriptor_pool;
 
   std::string metatrace_path;
   size_t metatrace_buffer_capacity = 0;
