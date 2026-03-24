@@ -124,57 +124,63 @@ struct HeapGraphArrayJson : public sqlite::Function<HeapGraphArrayJson> {
     json::JsonSerializer s;
     s.OpenArray();
 
-    for (uint32_t i = 0; i < count; ++i) {
-      const uint8_t* p = data + i * elem_size;
-      switch (elem_type) {
-        case kFieldTypeBoolean:
-          s.BoolValue(p[0] != 0);
-          break;
-        case kFieldTypeByte: {
+    switch (elem_type) {
+      case kFieldTypeBoolean:
+        for (uint32_t i = 0; i < count; ++i) {
+          s.BoolValue(data[i] != 0);
+        }
+        break;
+      case kFieldTypeByte:
+        for (uint32_t i = 0; i < count; ++i) {
           int8_t v;
-          memcpy(&v, p, sizeof(v));
+          memcpy(&v, data + i, sizeof(v));
           s.NumberValue(v);
-          break;
         }
-        case kFieldTypeShort: {
+        break;
+      case kFieldTypeShort:
+        for (uint32_t i = 0; i < count; ++i) {
           int16_t v;
-          memcpy(&v, p, sizeof(v));
+          memcpy(&v, data + i * elem_size, sizeof(v));
           s.NumberValue(v);
-          break;
         }
-        case kFieldTypeInt: {
+        break;
+      case kFieldTypeInt:
+        for (uint32_t i = 0; i < count; ++i) {
           int32_t v;
-          memcpy(&v, p, sizeof(v));
+          memcpy(&v, data + i * elem_size, sizeof(v));
           s.NumberValue(v);
-          break;
         }
-        case kFieldTypeLong: {
+        break;
+      case kFieldTypeLong:
+        for (uint32_t i = 0; i < count; ++i) {
           int64_t v;
-          memcpy(&v, p, sizeof(v));
+          memcpy(&v, data + i * elem_size, sizeof(v));
           s.StringValue(std::to_string(v));
-          break;
         }
-        case kFieldTypeFloat: {
+        break;
+      case kFieldTypeFloat:
+        for (uint32_t i = 0; i < count; ++i) {
           float v;
-          memcpy(&v, p, sizeof(v));
+          memcpy(&v, data + i * elem_size, sizeof(v));
           s.FloatValue(v);
-          break;
         }
-        case kFieldTypeDouble: {
+        break;
+      case kFieldTypeDouble:
+        for (uint32_t i = 0; i < count; ++i) {
           double v;
-          memcpy(&v, p, sizeof(v));
+          memcpy(&v, data + i * elem_size, sizeof(v));
           s.DoubleValue(v);
-          break;
         }
-        case kFieldTypeChar: {
+        break;
+      case kFieldTypeChar:
+        for (uint32_t i = 0; i < count; ++i) {
           uint16_t v;
-          memcpy(&v, p, sizeof(v));
+          memcpy(&v, data + i * elem_size, sizeof(v));
           s.NumberValue(v);
-          break;
         }
-        default:
-          break;
-      }
+        break;
+      default:
+        break;
     }
 
     s.CloseArray();

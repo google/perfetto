@@ -874,9 +874,7 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
         C(
             'object_data_id',
             CppOptional(CppUint32()),
-            flags=ColumnFlag.HIDDEN,
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
     ],
     tabledoc=TableDoc(
@@ -925,39 +923,27 @@ HEAP_GRAPH_OBJECT_DATA_TABLE = Table(
             'field_set_id',
             CppOptional(CppUint32()),
             sql_access=SqlAccess.HIGH_PERF,
-            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
             flags=ColumnFlag.DENSE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'value_string',
             CppOptional(CppString()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'array_element_type',
             CppOptional(CppString()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'array_element_count',
             CppOptional(CppUint32()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'array_data_id',
             CppOptional(CppUint32()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'array_data_hash',
             CppOptional(CppInt64()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
     ],
     tabledoc=TableDoc(
@@ -1071,62 +1057,42 @@ HEAP_GRAPH_PRIMITIVE_TABLE = Table(
         C(
             'field_name',
             CppString(),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'field_type',
             CppString(),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'bool_value',
             CppOptional(CppUint32()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'byte_value',
             CppOptional(CppInt64()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'char_value',
             CppOptional(CppInt64()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'short_value',
             CppOptional(CppInt64()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'int_value',
             CppOptional(CppInt64()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'long_value',
             CppOptional(CppInt64()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'float_value',
             CppOptional(CppDouble()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'double_value',
             CppOptional(CppDouble()),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
     ],
     tabledoc=TableDoc(

@@ -628,6 +628,8 @@ void ArtHprofParser::PopulateFieldValues(const HeapGraph& graph) {
         auto* blobs = context_->storage->mutable_hprof_array_blobs();
         uint32_t blob_id = static_cast<uint32_t>(blobs->size());
 
+        // This blob is queried later by SQL functions; the local vector and
+        // graph data (cleared below) won't survive, so we must copy here.
         TraceStorage::HprofArrayBlob array_blob;
         array_blob.data =
             TraceBlobView(TraceBlob::CopyFrom(blob.data(), blob.size()));
