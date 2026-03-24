@@ -20,12 +20,12 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <regex>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/public/compiler.h"
 
 namespace protozero {
@@ -88,6 +88,15 @@ class StringFilter {
     kAtraceRepeatedSearchRedactGroups = 5,
   };
 
+  StringFilter();
+  ~StringFilter();
+
+  StringFilter(StringFilter&&) noexcept;
+  StringFilter& operator=(StringFilter&&) noexcept;
+
+  StringFilter(const StringFilter&);
+  StringFilter& operator=(const StringFilter&);
+
   // Adds a new rule for filtering strings.
   //
   // If `name` is non-empty and a rule with the same name already exists, it
@@ -122,7 +131,7 @@ class StringFilter {
  private:
   struct Rule {
     Policy policy;
-    std::regex pattern;
+    perfetto::base::Regex pattern;
     std::string atrace_payload_starts_with;
     std::string name;
     SemanticTypeMask semantic_type_mask = SemanticTypeMask::Unspecified();

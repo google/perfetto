@@ -21,12 +21,11 @@
 #include <cstdio>
 #include <functional>
 #include <memory>
-#include <regex>
-#include <set>
-#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+#include "perfetto/ext/base/regex.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
@@ -66,10 +65,15 @@ bool ParsePackagesListStream(
     const std::set<std::string>& package_name_filter,
     const std::vector<std::string>& package_name_regex_filter) {
   // Pre-compile regex patterns.
-  std::vector<std::regex> compiled_regexes;
+  std::vector<base::Regex> compiled_regexes;
   compiled_regexes.reserve(package_name_regex_filter.size());
   for (const auto& pattern : package_name_regex_filter) {
-    compiled_regexes.emplace_back(pattern);
+    auto re_or = base::Regex::Create(pattern);
+    if (re_or.ok()) {
+      compiled_regexes.emplace_back(std::move(*re_or));
+    } else {
+      PERFETTO_ELOG("Invalid package name regex: %s", pattern.c_str());
+    }
   }
 
   bool has_filter = !package_name_filter.empty() || !compiled_regexes.empty();
@@ -91,7 +95,7 @@ bool ParsePackagesListStream(
       continue;
     }
     for (const auto& re : compiled_regexes) {
-      if (std::regex_match(pkg_struct.name, re)) {
+      if (re.FullMatch(pkg_struct.name)) {
         packages.insert({pkg_struct.uid, pkg_struct});
         break;
       }

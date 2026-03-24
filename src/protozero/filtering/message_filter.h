@@ -70,6 +70,13 @@ class MessageFilter {
     StringFilter& string_filter() { return string_filter_; }
     uint32_t root_msg_index() const { return root_msg_index_; }
 
+    Config() = default;
+    ~Config() = default;
+    Config(Config&&) noexcept = default;
+    Config& operator=(Config&&) noexcept = default;
+    Config(const Config&) = default;
+    Config& operator=(const Config&) = default;
+
    private:
     FilterBytecodeParser filter_;
     StringFilter string_filter_;
@@ -79,6 +86,11 @@ class MessageFilter {
   MessageFilter();
   explicit MessageFilter(Config);
   ~MessageFilter();
+
+  MessageFilter(MessageFilter&&) noexcept = default;
+  MessageFilter& operator=(MessageFilter&&) noexcept = default;
+  MessageFilter(const MessageFilter&) = delete;
+  MessageFilter& operator=(const MessageFilter&) = delete;
 
   struct InputSlice {
     const void* data;

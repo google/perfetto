@@ -339,21 +339,6 @@ config("default") {
     }
   }
 
-  if (is_wasm) {
-    # As of writing (2023-06-12) WASM 128bit SIMD is supported on
-    # stable Chrome, Safari, and Firefox. See:
-    # - https://webassembly.org/roadmap/
-    # - https://emscripten.org/docs/porting/simd.html
-    #
-    # We pass -mavx2 also to make x86_64 hand-rolled SIMD code work when
-    # using WASM: see
-    # https://emscripten.org/docs/porting/simd.html#compiling-simd-code-targeting-x86-sse-instruction-sets.
-    cflags += [
-      "-msimd128",
-      "-mavx2",
-    ]
-  }
-
   if (is_wasm_memory64) {
     cflags += [
       "-s",
@@ -558,4 +543,13 @@ perfetto_check_build_deps("check_build_deps_android") {
     "--no-dev-tools",
     "--android",
   ]
+}
+
+config("simd") {
+  if (is_wasm) {
+    cflags = [
+      "-msimd128",
+      "-mavx2",
+    ]
+  }
 }

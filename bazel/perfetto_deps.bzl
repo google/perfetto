@@ -15,7 +15,7 @@
 """Module extension for Perfetto's third-party dependencies."""
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository", "new_git_repository")
 
 def _perfetto_deps_impl(module_ctx):
     http_archive(
@@ -55,6 +55,26 @@ def _perfetto_deps_impl(module_ctx):
         build_file = "@perfetto//bazel:zlib.BUILD",
     )
 
+    git_repository(
+        name = "perfetto_dep_re2",
+        remote = "https://chromium.googlesource.com/external/github.com/google/re2.git",
+        commit = "927f5d53caf8111721e734cf24724686bb745f55",
+    )
+
+    git_repository(
+        name = "com_google_absl",
+        remote = "https://chromium.googlesource.com/external/github.com/abseil/abseil-cpp.git",
+        commit = "76bb24329e8bf5f39704eb10d21b9a80befa7c81",
+    )
+
+
+    http_archive(
+        name = "perfetto_dep_pcre2",
+        url = "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-10.42.tar.gz",
+        sha256 = "a8e52a9bd1bca8f51c5c24823adc2a99acb12288e289a6507090c1a4a4815010",
+        strip_prefix = "pcre2-pcre2-10.42",
+        build_file = "//bazel:pcre2.BUILD",
+    )
     http_archive(
         name = "perfetto_dep_llvm_demangle",
         url = "https://storage.googleapis.com/perfetto/llvm-project-3b4c59c156919902c785ce3cbae0eee2ee53064d.tgz",

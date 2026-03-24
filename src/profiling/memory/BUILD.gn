@@ -43,9 +43,6 @@ source_set("heapprofd_main") {
   ]
 
   # Abseil is only used in Perfetto via the gRPC/libprotobuf.
-  if (perfetto_build_standalone || is_perfetto_build_generator) {
-    assert_no_deps = [ "../../../buildtools:abseil_cpp" ]
-  }
 }
 
 # This library gets loaded into (and executes in) arbitrary android processes.
@@ -121,9 +118,6 @@ shared_library("heapprofd_standalone_client") {
   ]
 
   # Abseil is only used in Perfetto via the gRPC/libprotobuf.
-  if (perfetto_build_standalone || is_perfetto_build_generator) {
-    assert_no_deps = [ "../../../buildtools:abseil_cpp" ]
-  }
 }
 
 shared_library("heapprofd_api_noop") {

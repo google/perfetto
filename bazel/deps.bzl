@@ -24,7 +24,7 @@ This file must be kept in sync with:
 - bazel/perfetto_deps.bzl (for bzlmod compatibility)
 """
 
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository", "new_git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 # To generate shallow_since fields for git repos, use:
@@ -88,6 +88,30 @@ def perfetto_deps():
         build_file = "//bazel:zlib.BUILD",
     )
 
+    _add_repo_if_not_existing(
+        git_repository,
+        name = "perfetto_dep_re2",
+        remote = "https://chromium.googlesource.com/external/github.com/google/re2.git",
+        commit = "927f5d53caf8111721e734cf24724686bb745f55",
+    )
+
+    # Abseil is required by RE2.
+    _add_repo_if_not_existing(
+        git_repository,
+        name = "com_google_absl",
+        remote = "https://chromium.googlesource.com/external/github.com/abseil/abseil-cpp.git",
+        commit = "76bb24329e8bf5f39704eb10d21b9a80befa7c81",
+    )
+
+
+    _add_repo_if_not_existing(
+        http_archive,
+        name = "perfetto_dep_pcre2",
+        url = "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-10.42.tar.gz",
+        sha256 = "a8e52a9bd1bca8f51c5c24823adc2a99acb12288e289a6507090c1a4a4815010",
+        strip_prefix = "pcre2-pcre2-10.42",
+        build_file = "//bazel:pcre2.BUILD",
+    )
     _add_repo_if_not_existing(
         http_archive,
         name = "perfetto_dep_llvm_demangle",

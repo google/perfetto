@@ -45,6 +45,8 @@ PERFETTO_CONFIG = struct(
         base_platform = ["//:perfetto_base_default_platform"],
 
         zlib = ["@perfetto_dep_zlib//:zlib"],
+                pcre2 = ["@perfetto_dep_pcre2//:pcre2"],
+        re2 = ["@perfetto_dep_re2//:re2"],
         expat = ["@perfetto_dep_expat//:expat"],
         linenoise = ["@perfetto_dep_linenoise//:linenoise"],
         sqlite = ["@perfetto_dep_sqlite//:sqlite"],
@@ -92,6 +94,9 @@ PERFETTO_CONFIG = struct(
     # initialized with the Perfetto build files (i.e. via perfetto_deps()).
     deps_copts = struct(
         zlib = [],
+        re2 = [],
+        pcre2 = [],
+        re2 = [],
         expat = [],
         linenoise = [],
         sqlite = [],

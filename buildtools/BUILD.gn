@@ -28,6 +28,7 @@ _buildtools_visibility = [
   "../gn:*",
   "../gn/standalone:*",
   "../src/base:flat_hash_map_benchmark",
+  "../src/*",
 ]
 
 # Used to suppress warnings coming from googletest macros expansions.
@@ -2151,6 +2152,51 @@ if (enable_perfetto_grpc) {
     ]
   }
 
+  config("pcre2_config") {
+    include_dirs = [ "pcre2/src" ]
+  }
+
+  static_library("pcre2") {
+    sources = [
+      "pcre2/src/config.h.generic",
+      "pcre2/src/pcre2_auto_possess.c",
+      "pcre2/src/pcre2_chartables.c",
+      "pcre2/src/pcre2_chkdint.c",
+      "pcre2/src/pcre2_compile.c",
+      "pcre2/src/pcre2_compile_class.c",
+      "pcre2/src/pcre2_config.c",
+      "pcre2/src/pcre2_context.c",
+      "pcre2/src/pcre2_convert.c",
+      "pcre2/src/pcre2_dfa_match.c",
+      "pcre2/src/pcre2_error.c",
+      "pcre2/src/pcre2_extuni.c",
+      "pcre2/src/pcre2_find_bracket.c",
+      "pcre2/src/pcre2_jit_compile.c",
+      "pcre2/src/pcre2_maketables.c",
+      "pcre2/src/pcre2_match.c",
+      "pcre2/src/pcre2_match_data.c",
+      "pcre2/src/pcre2_newline.c",
+      "pcre2/src/pcre2_ord2utf.c",
+      "pcre2/src/pcre2_pattern_info.c",
+      "pcre2/src/pcre2_script_run.c",
+      "pcre2/src/pcre2_serialize.c",
+      "pcre2/src/pcre2_string_utils.c",
+      "pcre2/src/pcre2_study.c",
+      "pcre2/src/pcre2_substitute.c",
+      "pcre2/src/pcre2_substring.c",
+      "pcre2/src/pcre2_tables.c",
+      "pcre2/src/pcre2_ucd.c",
+      "pcre2/src/pcre2_valid_utf.c",
+      "pcre2/src/pcre2_xclass.c",
+    ]
+    public_configs = [ ":pcre2_config" ]
+    cflags = [
+      "-DHAVE_CONFIG_H",
+      "-DPCRE2_CODE_UNIT_WIDTH=8",
+    ]
+    include_dirs = [ "pcre2/src" ]
+  }
+
   config("grpc_re2_config") {
     visibility = _buildtools_visibility
     include_dirs = [ "grpc/src/third_party/re2" ]
@@ -2303,5 +2349,54 @@ if (enable_perfetto_etm_importer) {
     ]
     include_dirs = [ "open_csd/decoder/include" ]
     public_configs = [ ":open_csd_config" ]
+  }
+}
+
+if (enable_perfetto_re2) {
+  config("re2_config") {
+    include_dirs = [ "re2" ]
+  }
+
+  static_library("re2") {
+    sources = [
+      "re2/re2/bitmap256.cc",
+      "re2/re2/bitmap256.h",
+      "re2/re2/bitstate.cc",
+      "re2/re2/compile.cc",
+      "re2/re2/dfa.cc",
+      "re2/re2/filtered_re2.cc",
+      "re2/re2/mimics_pcre.cc",
+      "re2/re2/nfa.cc",
+      "re2/re2/onepass.cc",
+      "re2/re2/parse.cc",
+      "re2/re2/perl_groups.cc",
+      "re2/re2/pod_array.h",
+      "re2/re2/prefilter.cc",
+      "re2/re2/prefilter.h",
+      "re2/re2/prefilter_tree.cc",
+      "re2/re2/prefilter_tree.h",
+      "re2/re2/prog.cc",
+      "re2/re2/prog.h",
+      "re2/re2/re2.cc",
+      "re2/re2/regexp.cc",
+      "re2/re2/regexp.h",
+      "re2/re2/set.cc",
+      "re2/re2/simplify.cc",
+      "re2/re2/sparse_array.h",
+      "re2/re2/sparse_set.h",
+      "re2/re2/tostring.cc",
+      "re2/re2/unicode_casefold.cc",
+      "re2/re2/unicode_casefold.h",
+      "re2/re2/unicode_groups.cc",
+      "re2/re2/unicode_groups.h",
+      "re2/re2/walker-inl.h",
+      "re2/util/rune.cc",
+      "re2/util/strutil.cc",
+      "re2/util/strutil.h",
+      "re2/util/utf.h",
+    ]
+    public_configs = [ ":re2_config" ]
+    cflags = [ "-w" ]
+    deps = [ ":abseil_cpp" ]
   }
 }

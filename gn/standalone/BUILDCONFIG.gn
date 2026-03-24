@@ -69,6 +69,7 @@ declare_args() {
 }
 default_configs = [
   "//gn/standalone:default",
+  "//gn/standalone:simd",
   "//gn/standalone:extra_warnings",
   "//gn/standalone:no_exceptions",
   "//gn/standalone:rtti_cflags",

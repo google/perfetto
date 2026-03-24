@@ -424,6 +424,24 @@ def enable_libunwind(module):
   pass
 
 
+def enable_pcre2(module):
+  if module.type == 'cc_binary_host':
+    module.static_libs.add('libpcre2')
+  elif module.host_supported:
+    module.android.static_libs.add('libpcre2')
+    module.host.static_libs.add('libpcre2')
+  else:
+    module.static_libs.add('libpcre2')
+
+
+def enable_abseil(module):
+  pass
+
+
+def enable_re2(module):
+  enable_pcre2(module)
+
+
 def enable_sqlite(module):
   if module.type == 'cc_binary_host':
     module.static_libs.add('libsqlite_static_noicu')
@@ -503,6 +521,12 @@ builtin_deps = {
         enable_protoc_lib,
     '//gn:libunwindstack':
         enable_libunwindstack,
+    '//gn:pcre2':
+        enable_pcre2,
+    '//gn:abseil':
+        enable_abseil,
+    '//gn:re2':
+        enable_re2,
     '//gn:sqlite':
         enable_sqlite,
     '//gn:zlib':

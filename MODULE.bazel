@@ -19,6 +19,10 @@ module(
     version = "0.0.0",
 )
 
+bazel_dep(name = "re2", version = "2024-07-02")
+bazel_dep(name = "abseil-cpp", version = "20250127.0")
+
+
 bazel_dep(name = "bazel_skylib", version = "1.7.1")
 bazel_dep(name = "platforms", version = "0.0.10")
 bazel_dep(name = "protobuf", version = "31.1", repo_name = "com_google_protobuf")

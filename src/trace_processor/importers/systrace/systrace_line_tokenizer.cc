@@ -16,21 +16,19 @@
 
 #include "src/trace_processor/importers/systrace/systrace_line_tokenizer.h"
 
+#include <algorithm>
+#include <cctype>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
-#include "src/trace_processor/util/regex.h"
-
-#include <algorithm>
-#include <cctype>
-#include <cstddef>
-#include <cstdint>
-#include <memory>
-#include <optional>
-#include <regex>
-#include <string>
-#include <string_view>
-#include <vector>
 
 namespace perfetto::trace_processor {
 
@@ -47,51 +45,19 @@ std::string SubstrTrim(const std::string& input) {
 }
 }  // namespace
 
-SystraceLineTokenizer::SystraceLineTokenizer()
-    : std_line_matcher_(std::regex(
-          R"(-(\d+)\s+\(?\s*(\d+|-+)?\)?\s?\[(\d+)\]\s*)"
-          R"(([a-zA-Z.]{3}[0-9a-f.]{1,2}\s*)?(\d+\.\d+):\s+(\S+):)")) {
-  if constexpr (regex::IsRegexSupported()) {
-    auto regex_or = regex::Regex::Create(
-        R"(-([0-9]+)[[:space:]]+\(?[[:space:]]*([0-9]+|-+)?\)?[[:space:]]?\[([0-9]+)\][[:space:]]*([a-zA-Z.]{3}[0-9a-f.]{1,2}[[:space:]]*)?([0-9]+\.[0-9]+):[[:space:]]+([^[:space:]]+):)");
-    if (!regex_or.ok()) {
-      PERFETTO_FATAL("%s", regex_or.status().c_message());
-    }
-    line_matcher_ = std::make_unique<regex::Regex>(std::move(regex_or.value()));
+SystraceLineTokenizer::SystraceLineTokenizer() {
+  auto regex_or = regex::Regex::Create(
+      R"(-([0-9]+)[[:space:]]+\(?[[:space:]]*([0-9]+|-+)?\)?[[:space:]]?\[([0-9]+)\][[:space:]]*([a-zA-Z.]{3}[0-9a-f.]{1,2}[[:space:]]*)?([0-9]+\.[0-9]+):[[:space:]]+([^[:space:]]+):)");
+  if (!regex_or.ok()) {
+    PERFETTO_FATAL("%s", regex_or.status().c_message());
   }
+  line_matcher_ = std::make_unique<regex::Regex>(std::move(regex_or.value()));
 }
 
-// TODO(hjd): This should be more robust to being passed random input.
-// This can happen if we mess up detecting a gzip trace for example.
 base::Status SystraceLineTokenizer::Tokenize(const std::string& buffer,
                                              SystraceLine* line) {
-  // An example line from buffer looks something like the following:
-  // kworker/u16:1-77    (   77) [004] ....   316.196720: 0:
-  // B|77|__scm_call_armv8_64|0
-  //
-  // However, sometimes the tgid can be missing and buffer looks like this:
-  // <idle>-0     [000] ...2     0.002188: task_newtask: pid=1 ...
-  //
-  // Also the irq fields can be missing (we don't parse these anyway)
-  // <idle>-0     [000]  0.002188: task_newtask: pid=1 ...
-  //
-  // The task name can contain any characters e.g -:[(/ and for this reason
-  // it is much easier to use a regex (even though it is slower than parsing
-  // manually)
-
   std::vector<std::string_view> matches;
-  bool matched;
-  if constexpr (regex::IsRegexSupported()) {
-    line_matcher_->Submatch(buffer.c_str(), matches);
-    matched = !matches.empty();
-  } else {
-    std::smatch smatches;
-    matched = std::regex_search(buffer, smatches, std_line_matcher_);
-    for (const auto& smatch : smatches) {
-      matches.emplace_back(&*smatch.first, smatch.length());
-    }
-  }
-  if (!matched) {
+  if (!line_matcher_->Submatch(buffer.c_str(), matches)) {
     return base::ErrStatus("Not a known systrace event format (line: %s)",
                            buffer.c_str());
   }
@@ -107,9 +73,11 @@ base::Status SystraceLineTokenizer::Tokenize(const std::string& buffer,
   std::string_view suffix(
       match_end,
       static_cast<size_t>(buffer.data() + buffer.size() - match_end));
+
   line->task = SubstrTrim(std::string(prefix));
-  line->tgid_str = matches[2];
-  line->event_name = matches[6];
+  line->pid_str = pid_str;
+  line->tgid_str = std::string(matches[2]);
+  line->event_name = std::string(matches[6]);
   line->args_str = SubstrTrim(std::string(suffix));
 
   std::optional<uint32_t> maybe_pid = base::StringToUInt32(pid_str);

@@ -1633,6 +1633,7 @@ perfetto_cc_library(
         "src/base/paged_memory.cc",
         "src/base/periodic_task.cc",
         "src/base/pipe.cc",
+        "src/base/regex.cc",
         "src/base/rt_mutex.cc",
         "src/base/scoped_mmap.cc",
         "src/base/scoped_sched_boost.cc",
@@ -1665,7 +1666,9 @@ perfetto_cc_library(
         "src/base/log_ring_buffer.h",
     ],
     deps = [
-    ] + PERFETTO_CONFIG.deps.base_platform,
+           ] + ["@com_google_absl//:absl"] +
+           PERFETTO_CONFIG.deps.base_platform +
+           PERFETTO_CONFIG.deps.re2,
     linkstatic = True,
 )
 
