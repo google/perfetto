@@ -1172,6 +1172,47 @@ IndexToStorageIndex(uint32_t index,
   }
 }
 
+// Binary-searches a sorted index for all entries whose resolved storage
+// value equals |target|. Returns the [lb, ub) range of matching index
+// entries.
+//
+// |target| should be a NullTermStringView for String columns (i.e. a
+// pre-resolved string_pool->Get result) or the raw value for other types.
+// This avoids repeated string_pool->Get calls inside the comparators.
+template <typename T, typename N, typename Resolved>
+inline PERFETTO_ALWAYS_INLINE std::pair<uint32_t*, uint32_t*> IndexEqualRange(
+    uint32_t* begin,
+    uint32_t* end,
+    const Resolved& target,
+    const typename T::cpp_type* data,
+    const BitVector* const* null_bv,
+    const Slab<uint32_t>* popcnt,
+    const StringPool* string_pool) {
+  auto* lb =
+      std::lower_bound(begin, end, target, [&](uint32_t idx, const Resolved&) {
+        uint32_t si = IndexToStorageIndex<N>(idx, null_bv, popcnt);
+        if (si == std::numeric_limits<uint32_t>::max())
+          return true;
+        if constexpr (std::is_same_v<T, String>) {
+          return string_pool->Get(data[si]) < target;
+        } else {
+          return data[si] < target;
+        }
+      });
+  auto* ub =
+      std::upper_bound(lb, end, target, [&](const Resolved&, uint32_t idx) {
+        uint32_t si = IndexToStorageIndex<N>(idx, null_bv, popcnt);
+        if (si == std::numeric_limits<uint32_t>::max())
+          return false;
+        if constexpr (std::is_same_v<T, String>) {
+          return target < string_pool->Get(data[si]);
+        } else {
+          return target < data[si];
+        }
+      });
+  return {lb, ub};
+}
+
 template <typename T, typename N>
 inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
     InterpreterState& state,
@@ -1194,30 +1235,9 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
       state.MaybeReadFromRegister(bytecode.arg<B::popcount_register>());
   const BitVector* const* null_bv =
       state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
-  dest.b = std::lower_bound(
-      source.b, source.e, value, [&](uint32_t index, const M& val_arg) {
-        uint32_t storage_idx = IndexToStorageIndex<N>(index, null_bv, popcnt);
-        if (storage_idx == std::numeric_limits<uint32_t>::max()) {
-          return true;
-        }
-        if constexpr (std::is_same_v<T, String>) {
-          return state.string_pool->Get(data[storage_idx]) < val_arg;
-        } else {
-          return data[storage_idx] < val_arg;
-        }
-      });
-  dest.e = std::upper_bound(
-      dest.b, source.e, value, [&](const M& val_arg, uint32_t index) {
-        uint32_t storage_idx = IndexToStorageIndex<N>(index, null_bv, popcnt);
-        if (storage_idx == std::numeric_limits<uint32_t>::max()) {
-          return false;
-        }
-        if constexpr (std::is_same_v<T, String>) {
-          return val_arg < state.string_pool->Get(data[storage_idx]);
-        } else {
-          return val_arg < data[storage_idx];
-        }
-      });
+
+  std::tie(dest.b, dest.e) = IndexEqualRange<T, N>(
+      source.b, source.e, value, data, null_bv, popcnt, state.string_pool);
   state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
 }
 
@@ -1518,8 +1538,6 @@ inline PERFETTO_ALWAYS_INLINE bool TryIndexedFilterInBinarySearch(
       return false;
     }
 
-    using ValElem =
-        StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>;
     using VL =
         StorageType::VariantTypeAtIndex<T,
                                         CastFilterValueListResult::ValueList>;
@@ -1538,31 +1556,20 @@ inline PERFETTO_ALWAYS_INLINE bool TryIndexedFilterInBinarySearch(
 
     uint32_t* write = dest.b;
     for (const auto& cmp_val : vl) {
-      auto* lb = std::lower_bound(
-          index->b, index->e, cmp_val,
-          [&](uint32_t idx, const ValElem& target) {
-            uint32_t si = IndexToStorageIndex<N>(idx, null_bv, popcnt);
-            if (si == std::numeric_limits<uint32_t>::max())
-              return true;
-            if constexpr (std::is_same_v<T, String>) {
-              return string_pool->Get(data[si]) < string_pool->Get(target);
-            } else {
-              return data[si] < target;
-            }
-          });
-      auto* ub = std::upper_bound(
-          lb, index->e, cmp_val, [&](const ValElem& target, uint32_t idx) {
-            uint32_t si = IndexToStorageIndex<N>(idx, null_bv, popcnt);
-            if (si == std::numeric_limits<uint32_t>::max())
-              return false;
-            if constexpr (std::is_same_v<T, String>) {
-              return string_pool->Get(target) < string_pool->Get(data[si]);
-            } else {
-              return target < data[si];
-            }
-          });
-      memcpy(write, lb, static_cast<size_t>(ub - lb) * sizeof(uint32_t));
-      write += (ub - lb);
+      // For String columns, resolve StringPool::Id to NullTermStringView
+      // once per value to avoid repeated lookups in the comparators.
+      std::pair<uint32_t*, uint32_t*> range;
+      if constexpr (std::is_same_v<T, String>) {
+        auto target = string_pool->Get(cmp_val);
+        range = IndexEqualRange<T, N>(index->b, index->e, target, data, null_bv,
+                                      popcnt, string_pool);
+      } else {
+        range = IndexEqualRange<T, N>(index->b, index->e, cmp_val, data,
+                                      null_bv, popcnt, string_pool);
+      }
+      auto n = static_cast<size_t>(range.second - range.first);
+      memcpy(write, range.first, n * sizeof(uint32_t));
+      write += n;
     }
     dest.e = write;
 
@@ -1618,6 +1625,8 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterInRangeScan(
                                       CastFilterValueListResult::ValueHashMap>;
   const auto* data =
       state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
+  // |data| is unused for Id columns (the storage index IS the value).
+  base::ignore_result(data);
   const Slab<uint32_t>* popcnt =
       state.MaybeReadFromRegister(bytecode.arg<B::popcount_register>());
   const BitVector* const* null_bv =
