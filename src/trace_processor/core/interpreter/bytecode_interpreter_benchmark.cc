@@ -166,7 +166,7 @@ void BM_BytecodeInterpreter_InUint32(benchmark::State& state) {
     InitRange: [size=1048576, dest_register=Register(1)]
     AllocateIndices: [size=1048576, dest_slab_register=Register(3), dest_span_register=Register(2)]
     Iota: [source_register=Register(1), update_register=Register(2)]
-    FilterIn<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(4294967295), value_list_register=Register(0), popcount_register=Register(4294967295), index_register=Register(4294967295), source_register=Register(2), dest_register=Register(2)]
+    FilterIn<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(4294967295), value_list_register=Register(0), popcount_register=Register(4294967295), index_register=Register(4294967295), source_range_register=Register(4294967295), source_register=Register(2), dest_register=Register(2)]
   )";
 
   StringPool spool;
@@ -209,7 +209,7 @@ void BM_BytecodeInterpreter_InId(benchmark::State& state) {
     InitRange: [size=1048576, dest_register=Register(1)]
     AllocateIndices: [size=1048576, dest_slab_register=Register(3), dest_span_register=Register(2)]
     Iota: [source_register=Register(1), update_register=Register(2)]
-    FilterIn<Id, NonNull>: [storage_register=Register(4), null_bv_register=Register(4294967295), value_list_register=Register(0), popcount_register=Register(4294967295), index_register=Register(4294967295), source_register=Register(2), dest_register=Register(2)]
+    FilterIn<Id, NonNull>: [storage_register=Register(4), null_bv_register=Register(4294967295), value_list_register=Register(0), popcount_register=Register(4294967295), index_register=Register(4294967295), source_range_register=Register(4294967295), source_register=Register(2), dest_register=Register(2)]
   )";
 
   StringPool spool;
@@ -316,7 +316,7 @@ void BM_FilterIn_IndexedBinarySearch(benchmark::State& state) {
     AllocateIndices: [size=)" +
       std::to_string(n) +
       R"(, dest_slab_register=Register(1), dest_span_register=Register(2)]
-    FilterIn<Uint32, NonNull>: [storage_register=Register(3), null_bv_register=Register(4294967295), value_list_register=Register(0), popcount_register=Register(4294967295), index_register=Register(4), source_register=Register(4294967295), dest_register=Register(2)]
+    FilterIn<Uint32, NonNull>: [storage_register=Register(3), null_bv_register=Register(4294967295), value_list_register=Register(0), popcount_register=Register(4294967295), index_register=Register(4), source_range_register=Register(4294967295), source_register=Register(4294967295), dest_register=Register(2)]
   )";
 
   StringPool spool;
@@ -365,7 +365,7 @@ void BM_FilterIn_IndexedLinearScan(benchmark::State& state) {
       std::to_string(n) +
       R"(, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(4), update_register=Register(2)]
-    FilterIn<Uint32, NonNull>: [storage_register=Register(3), null_bv_register=Register(4294967295), value_list_register=Register(0), popcount_register=Register(4294967295), index_register=Register(4294967295), source_register=Register(2), dest_register=Register(2)]
+    FilterIn<Uint32, NonNull>: [storage_register=Register(3), null_bv_register=Register(4294967295), value_list_register=Register(0), popcount_register=Register(4294967295), index_register=Register(4294967295), source_range_register=Register(4294967295), source_register=Register(2), dest_register=Register(2)]
   )";
 
   StringPool spool;

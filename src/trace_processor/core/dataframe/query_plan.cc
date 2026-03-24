@@ -417,6 +417,7 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
         bc.arg<B::value_list_register>() = value;
         bc.arg<B::popcount_register>() = {};
         bc.arg<B::index_register>() = {};
+        bc.arg<B::source_range_register>() = {};
         bc.arg<B::source_register>() = source;
         bc.arg<B::dest_register>() = update;
       }
@@ -851,6 +852,11 @@ void QueryPlanBuilder::IndexConstraints(
   i::RwHandle<Span<uint32_t>> dest_reg =
       builder_.AllocateRegister<Span<uint32_t>>();
 
+  // The current row range — used by FilterIn's scan fallback when the IN list
+  // is too large for binary search and the index is ignored.
+  PERFETTO_CHECK(std::holds_alternative<i::RwHandle<Range>>(indices_reg_));
+  const auto& range_reg = base::unchecked_get<i::RwHandle<Range>>(indices_reg_);
+
   // Allocate the output indices upfront. For In filters, FilterIn writes
   // directly here and CopySpanIntersectingRange runs in-place (safe because
   // its write pointer never advances past its read pointer). For Eq-only
@@ -917,6 +923,7 @@ void QueryPlanBuilder::IndexConstraints(
         bc.arg<B::value_list_register>() = value_list_reg;
         bc.arg<B::popcount_register>() = popcount_register;
         bc.arg<B::index_register>() = source_reg;
+        bc.arg<B::source_range_register>() = range_reg;
         bc.arg<B::source_register>() = {};
         bc.arg<B::dest_register>() = output_span_reg;
       }
