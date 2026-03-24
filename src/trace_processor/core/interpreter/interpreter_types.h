@@ -18,11 +18,13 @@
 #define SRC_TRACE_PROCESSOR_CORE_INTERPRETER_INTERPRETER_TYPES_H_
 
 #include <cstdint>
+#include <memory>
 #include <utility>
 #include <variant>
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
@@ -131,6 +133,11 @@ struct CastFilterValueResult {
   // Cast value for Id columns.
   struct Id {
     bool operator==(const Id& other) const { return value == other.value; }
+    bool operator<(const Id& other) const { return value < other.value; }
+    template <typename H>
+    friend H PerfettoHashValue(H h, const Id& id) {
+      return H::Combine(std::move(h), id.value);
+    }
     uint32_t value;
   };
   using Value =
@@ -157,7 +164,12 @@ struct CastFilterValueResult {
   Value value;
 };
 
-// Result of an operation that yields multiple values (e.g. from an IN clause).
+// Result of casting an IN clause's value list.
+//
+// The canonical storage is a typed HashMap (ValueHashMap) which naturally
+// deduplicates values at cast time. A typed sorted ValueList is derived
+// from it for the linear scan and indexed binary search paths. For dense
+// Id/Uint32 values, a BitVector provides O(1) membership testing.
 struct CastFilterValueListResult {
   using Value = std::variant<CastFilterValueResult::Id,
                              uint32_t,
@@ -165,31 +177,59 @@ struct CastFilterValueListResult {
                              int64_t,
                              double,
                              StringPool::Id>;
+  template <typename K>
+  using HashMap = base::FlatHashMapV2<K, bool>;
+  using ValueHashMap = std::variant<HashMap<CastFilterValueResult::Id>,
+                                    HashMap<uint32_t>,
+                                    HashMap<int32_t>,
+                                    HashMap<int64_t>,
+                                    HashMap<double>,
+                                    HashMap<StringPool::Id>>;
   using ValueList = std::variant<FlexVector<CastFilterValueResult::Id>,
                                  FlexVector<uint32_t>,
                                  FlexVector<int32_t>,
                                  FlexVector<int64_t>,
                                  FlexVector<double>,
                                  FlexVector<StringPool::Id>>;
-  using HashLookup = base::FlatHashMapV2<int64_t, bool>;
 
-  // The lookup used by In. For small lists (<=16 elements), we keep the
-  // FlexVector and do a linear scan. For dense Id/Uint32, a BitVector.
-  // For large sparse lists, a HashLookup.
-  using Lookup = std::variant<ValueList, BitVector, HashLookup>;
+  using Ptr = std::unique_ptr<CastFilterValueListResult>;
 
-  static CastFilterValueListResult Valid(Lookup l) {
-    return {CastFilterValueResult::Validity::kValid, std::move(l)};
-  }
-  static CastFilterValueListResult NoneMatch() {
-    return {CastFilterValueResult::Validity::kNoneMatch, ValueList{}};
-  }
-  static CastFilterValueListResult AllMatch() {
-    return {CastFilterValueResult::Validity::kAllMatch, ValueList{}};
+  // Initializes the hash_map and value_list variants to the correct
+  // alternative for storage type T. Must be called before accessing
+  // these fields via unchecked_get.
+  template <typename T>
+  void Init() {
+    hash_map.emplace<StorageType::VariantTypeAtIndex<T, ValueHashMap>>();
+    value_list.emplace<StorageType::VariantTypeAtIndex<T, ValueList>>();
   }
 
-  CastFilterValueResult::Validity validity;
-  Lookup lookup;
+  // Resets all fields to their default state while preserving heap
+  // allocations inside the HashMap, ValueList, and BitVector.
+  template <typename T>
+  void Clear() {
+    validity = CastFilterValueResult::Validity::kNoneMatch;
+    base::unchecked_get<StorageType::VariantTypeAtIndex<T, ValueHashMap>>(
+        hash_map)
+        .Clear();
+    base::unchecked_get<StorageType::VariantTypeAtIndex<T, ValueList>>(
+        value_list)
+        .clear();
+    bit_vector.clear();
+  }
+
+  CastFilterValueResult::Validity validity =
+      CastFilterValueResult::Validity::kNoneMatch;
+
+  // Typed HashMap for O(1) membership testing and deduplication.
+  ValueHashMap hash_map;
+
+  // For dense Id/Uint32 values, a BitVector for O(1) membership testing.
+  // Empty when not applicable.
+  BitVector bit_vector;
+
+  // Deduplicated typed values for linear scan (small lists) and indexed
+  // binary search paths. Empty for large lists.
+  ValueList value_list;
 };
 
 // Opaque state for tree operations. Bundles tree structure, column data

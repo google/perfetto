@@ -18,12 +18,12 @@
 #define SRC_TRACE_PROCESSOR_CORE_INTERPRETER_BYTECODE_INSTRUCTIONS_H_
 
 #include <cstdint>
+#include <memory>
 #include <variant>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
-#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
@@ -108,12 +108,13 @@ struct CastFilterValueListBase : TemplatedBytecode1<StorageType> {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = FixedCost{1000};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(FilterValueHandle,
-                                     fval_handle,
-                                     WriteHandle<CastFilterValueListResult>,
-                                     write_register,
-                                     NonNullOp,
-                                     op);
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(
+      FilterValueHandle,
+      fval_handle,
+      WriteHandle<std::unique_ptr<CastFilterValueListResult>>,
+      write_register,
+      NonNullOp,
+      op);
 };
 template <typename T>
 struct CastFilterValueList : CastFilterValueListBase {
@@ -580,24 +581,41 @@ struct LinearFilterEq : LinearFilterEqBase {
   static_assert(TS1::Contains<T>());
 };
 
-// Filters rows based on a list of values (IN operator).
-struct InBase : TemplatedBytecode1<StorageType> {
-  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
-  // is plucked from thin air and has no real foundation. Fix this by creating
-  // benchmarks and backing it up with actual data.
+// Filters rows based on a list of values (IN operator). Supports both indexed
+// and non-indexed modes:
+//   - Indexed: index_register points to a sorted permutation vector. At
+//     runtime, chooses between binary search (good for small IN-lists) and
+//     linear scan with hash lookup (good for large IN-lists). See
+//     BM_FilterIn_IndexedBinarySearch / BM_FilterIn_IndexedLinearScan.
+//   - Non-indexed: index_register is absent (UINT32_MAX sentinel). Scans
+//     source_register using hash/bitvector/linear lookup.
+struct FilterInBase
+    : TemplatedBytecode2<StorageType, SparseNullCollapsedNullability> {
+  // Cost for the non-indexed (linear scan) path. The indexed path overrides
+  // this via an explicit Cost argument in AddOpcode.
+  // See BM_BytecodeInterpreter_InUint32 benchmark.
   static constexpr Cost kCost = LinearPerRowCost{10};
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(ReadHandle<StoragePtr>,
-                                     storage_register,
-                                     ReadHandle<CastFilterValueListResult>,
-                                     value_list_register,
-                                     RwHandle<Span<uint32_t>>,
-                                     source_register,
-                                     RwHandle<Span<uint32_t>>,
-                                     update_register);
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_7(
+      ReadHandle<StoragePtr>,
+      storage_register,
+      ReadHandle<const BitVector*>,
+      null_bv_register,
+      ReadHandle<std::unique_ptr<CastFilterValueListResult>>,
+      value_list_register,
+      ReadHandle<Slab<uint32_t>>,
+      popcount_register,
+      ReadHandle<Span<uint32_t>>,
+      index_register,
+      RwHandle<Span<uint32_t>>,
+      source_register,
+      RwHandle<Span<uint32_t>>,
+      dest_register);
 };
-template <typename T>
-struct In : InBase {
+template <typename T, typename N>
+struct FilterIn : FilterInBase {
   static_assert(TS1::Contains<T>());
+  static_assert(TS2::Contains<N>());
 };
 
 // Reverses the order of indices in the given register.
@@ -766,17 +784,29 @@ struct FilterTreeState : Bytecode {
   X(IndexedFilterEq<String, NonNull>)                  \
   X(IndexedFilterEq<String, SparseNull>)               \
   X(IndexedFilterEq<String, DenseNull>)                \
+  X(FilterIn<Id, NonNull>)                             \
+  X(FilterIn<Id, SparseNull>)                          \
+  X(FilterIn<Id, DenseNull>)                           \
+  X(FilterIn<Uint32, NonNull>)                         \
+  X(FilterIn<Uint32, SparseNull>)                      \
+  X(FilterIn<Uint32, DenseNull>)                       \
+  X(FilterIn<Int32, NonNull>)                          \
+  X(FilterIn<Int32, SparseNull>)                       \
+  X(FilterIn<Int32, DenseNull>)                        \
+  X(FilterIn<Int64, NonNull>)                          \
+  X(FilterIn<Int64, SparseNull>)                       \
+  X(FilterIn<Int64, DenseNull>)                        \
+  X(FilterIn<Double, NonNull>)                         \
+  X(FilterIn<Double, SparseNull>)                      \
+  X(FilterIn<Double, DenseNull>)                       \
+  X(FilterIn<String, NonNull>)                         \
+  X(FilterIn<String, SparseNull>)                      \
+  X(FilterIn<String, DenseNull>)                       \
   X(CopySpanIntersectingRange)                         \
   X(InitRankMap)                                       \
   X(CollectIdIntoRankMap)                              \
   X(FinalizeRanksInMap)                                \
   X(SortRowLayout)                                     \
-  X(In<Id>)                                            \
-  X(In<Uint32>)                                        \
-  X(In<Int32>)                                         \
-  X(In<Int64>)                                         \
-  X(In<Double>)                                        \
-  X(In<String>)                                        \
   X(Reverse)                                           \
   X(FilterTreeState)
 
