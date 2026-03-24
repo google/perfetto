@@ -24,10 +24,13 @@
 #include <string_view>
 #include <vector>
 
+#include <google/protobuf/descriptor.h>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/getopt.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -38,6 +41,7 @@
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/shell/metatrace.h"
+#include "src/trace_processor/shell/metrics.h"
 #include "src/trace_processor/shell/shell_utils.h"
 #include "src/trace_processor/shell/sql_packages.h"
 #include "src/trace_processor/shell/subcommand.h"
@@ -131,6 +135,13 @@ std::vector<FlagSpec> GetGlobalFlagSpecs(GlobalOptions* opts) {
   flags.push_back(StringFlag("register-files-dir", '\0', "PATH",
                              "Register files for importers.",
                              &opts->register_files_dir));
+  flags.push_back(
+      {/*long_name=*/"metric-extension", /*short_name=*/'\0',
+       /*has_arg=*/true, /*arg_name=*/"DISK@VIRTUAL",
+       /*help=*/"Load metric extension protos/sql from DISK onto VIRTUAL.",
+       [opts](const char* v) {
+         opts->raw_metric_v1_extensions.emplace_back(v);
+       }});
   flags.push_back(StringFlag("metatrace", 'm', "FILE",
                              "Enables metatracing, writes to FILE.",
                              &opts->metatrace_path));
@@ -272,6 +283,10 @@ Config BuildConfig(const GlobalOptions& opts,
           ? DropTrackEventDataBefore::kTrackEventRangeOfInterest
           : DropTrackEventDataBefore::kNoDrop;
 
+  for (const auto& ext : opts.metric_extensions) {
+    config.skip_builtin_metric_paths.push_back(ext.virtual_path());
+  }
+
   if (opts.dev) {
     config.enable_dev_features = true;
     for (const auto& flag_pair : opts.dev_flags) {
@@ -326,6 +341,17 @@ base::StatusOr<std::unique_ptr<TraceProcessor>> SetupTraceProcessor(
     auto s = IncludeSqlPackage(tp.get(), p, false);
     if (!s.ok()) {
       return base::ErrStatus("Couldn't add SQL package: %s", s.c_message());
+    }
+  }
+
+  // Load metric extensions. We load these even when --run-metrics is not
+  // specified because we want the metrics to be available in interactive
+  // mode or when used in UI via httpd. The descriptor pool and parsed
+  // extensions are pre-populated in GlobalOptions by the caller.
+  if (opts.metric_descriptor_pool) {
+    for (const auto& extension : opts.metric_extensions) {
+      RETURN_IF_ERROR(LoadMetricExtension(tp.get(), extension,
+                                          *opts.metric_descriptor_pool));
     }
   }
 
