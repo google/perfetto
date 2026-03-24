@@ -79,6 +79,7 @@
 #endif
 
 #if PERFETTO_HAS_SIGNAL_H()
+#include <signal.h>
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -869,15 +870,14 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
                protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
         return base::OkStatus();
       }
-      {
-        auto run_status = result.subcommand->Run(ctx);
-        if (!run_status.ok()) {
-          return base::ErrStatus("%s\n\n%s", run_status.c_message(),
-                                 usage.c_str());
-        }
-        return base::OkStatus();
-      }
+      return result.subcommand->Run(ctx);
     }
+  }
+
+  // No arguments at all: show the subcommand-based help.
+  if (argc == 1) {
+    PrintSubcommandHelp(argv[0]);
+    return base::OkStatus();
   }
 
   // Classic flag path: translate classic flags into a subcommand invocation
