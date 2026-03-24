@@ -190,7 +190,7 @@ interface QueryPageAttrs {
 }
 
 const DEFAULT_SQL = `SELECT
-  COUNT(*)
+  COUNT(*) as kswapd_count
 FROM slice
 WHERE name GLOB '*kswapd0*'
 LIMIT 100;`;
