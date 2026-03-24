@@ -19,7 +19,6 @@ import {LONG, NUM} from '../../trace_processor/query_result';
 import {EChartView} from '../../components/widgets/charts/echart_view';
 import type {EChartsCoreOption} from 'echarts/core';
 import {buildChartOption} from '../../components/widgets/charts/chart_option_builder';
-import {getChartThemeColors} from '../../components/widgets/charts/chart_theme';
 
 const INPUT_CATEGORY = 'Input';
 const PRESENTED_CATEGORY = 'Presented';
@@ -258,8 +257,6 @@ function buildScrollGraphOption(
   predictorData: ScrollDeltaPlotDatum[],
   jankIntervals: JankIntervalPlotDetails[],
 ): EChartsCoreOption {
-  const theme = getChartThemeColors();
-
   // Convert jank intervals to markArea data format
   // Each area needs two coordinate pairs: [start, end]
   // When only xAxis is specified, the area spans the full Y range
@@ -272,14 +269,13 @@ function buildScrollGraphOption(
   const series: unknown[] = [];
 
   // Jank markArea configuration - will be attached to the first data series
-  // Use theme border color with transparency for a subtle highlight
+  // Uses a semi-transparent gray for subtle highlight
   const jankMarkArea =
     markAreaData.length > 0
       ? {
           silent: true,
           itemStyle: {
-            color: theme.borderColor,
-            opacity: 0.3,
+            color: 'rgba(128, 128, 128, 0.3)',
           },
           label: {
             show: false,
@@ -288,7 +284,7 @@ function buildScrollGraphOption(
         }
       : undefined;
 
-  // Input series (blue) - use theme chart color
+  // Input series
   // Attach markArea to this series so it renders properly
   if (inputData.length > 0) {
     series.push({
@@ -296,7 +292,6 @@ function buildScrollGraphOption(
       type: 'scatter',
       data: inputData.map((d) => [d.ts, d.offset, d]),
       symbolSize: 6,
-      itemStyle: {color: theme.chartColors[0] || '#5470c6'},
       markArea: jankMarkArea,
     });
   } else if (jankMarkArea !== undefined) {
@@ -309,25 +304,23 @@ function buildScrollGraphOption(
     });
   }
 
-  // Presented series (red/green) - use theme chart color
+  // Presented series
   if (presentedData.length > 0) {
     series.push({
       name: PRESENTED_CATEGORY,
       type: 'scatter',
       data: presentedData.map((d) => [d.ts, d.offset, d]),
       symbolSize: 6,
-      itemStyle: {color: theme.chartColors[1] || '#91cc75'},
     });
   }
 
-  // Predictor jank series (orange) - use theme chart color
+  // Predictor jank series
   if (predictorData.length > 0) {
     series.push({
       name: PRESENTED_JANKY_CATEGORY,
       type: 'scatter',
       data: predictorData.map((d) => [d.ts, d.offset, d]),
       symbolSize: 8,
-      itemStyle: {color: theme.chartColors[2] || '#fac858'},
     });
   }
 
@@ -360,11 +353,10 @@ function buildScrollGraphOption(
     },
   });
 
-  // Add legend with theme colors
+  // Add legend
   (option as Record<string, unknown>).legend = {
     data: [INPUT_CATEGORY, PRESENTED_CATEGORY, PRESENTED_JANKY_CATEGORY],
     bottom: 0,
-    textStyle: {color: theme.textColor},
   };
   (option as Record<string, unknown>).series = series;
 

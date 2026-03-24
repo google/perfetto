@@ -15,6 +15,7 @@ from python.tools.git_utils import (
     get_all_branches,
     get_stack_branches_ordered,
     get_branch_parent,
+    get_worktree_branches,
     run_git_command,
     MAINLINE_BRANCHES,
 )
@@ -64,31 +65,53 @@ def main():
       f"Branches to update (order: parent-first): {', '.join(ordered_branches)}"
   )
   original_branch_to_restore = get_current_branch()
+  worktree_branches = get_worktree_branches()
 
   for branch in ordered_branches:
     parent = get_branch_parent(branch)
     if parent:
-      print(f"\nUpdating '{branch}' by merging '{parent}'...")
-      try:
-        run_git_command(['checkout', branch])
-        run_git_command(['merge', parent])
-        print(f"Merge successful.")
-      except SystemExit as e:  # Indicates merge conflict from run_git_command
-        print(
-            f"MERGE FAILED: Conflicts merging '{parent}' into '{branch}'.",
-            file=sys.stderr)
-        print("Resolve conflicts manually and commit.", file=sys.stderr)
-        if original_branch_to_restore and get_current_branch(
-        ) != original_branch_to_restore:
-          print(f"Restoring original branch '{original_branch_to_restore}'...")
-          run_git_command(['checkout', original_branch_to_restore], check=False)
-        sys.exit(e.code if isinstance(e.code, int) else 1)
-      except Exception as e:
-        print(f"\nUnexpected error updating '{branch}': {e}", file=sys.stderr)
-        if original_branch_to_restore and get_current_branch(
-        ) != original_branch_to_restore:
-          run_git_command(['checkout', original_branch_to_restore], check=False)
-        sys.exit(1)
+      worktree_path = worktree_branches.get(branch)
+      if worktree_path:
+        print(f"\nUpdating '{branch}' by merging '{parent}' (in worktree)...")
+        try:
+          run_git_command(['-C', worktree_path, 'merge', parent])
+          print(f"Merge successful.")
+        except SystemExit as e:
+          print(
+              f"MERGE FAILED: Conflicts merging '{parent}' into '{branch}' "
+              f"(worktree: {worktree_path}).",
+              file=sys.stderr)
+          print(
+              "Resolve conflicts in the worktree and commit.", file=sys.stderr)
+          sys.exit(e.code if isinstance(e.code, int) else 1)
+        except Exception as e:
+          print(f"\nUnexpected error updating '{branch}': {e}", file=sys.stderr)
+          sys.exit(1)
+      else:
+        print(f"\nUpdating '{branch}' by merging '{parent}'...")
+        try:
+          run_git_command(['checkout', branch])
+          run_git_command(['merge', parent])
+          print(f"Merge successful.")
+        except SystemExit as e:
+          print(
+              f"MERGE FAILED: Conflicts merging '{parent}' into '{branch}'.",
+              file=sys.stderr)
+          print("Resolve conflicts manually and commit.", file=sys.stderr)
+          if original_branch_to_restore and get_current_branch(
+          ) != original_branch_to_restore:
+            print(
+                f"Restoring original branch '{original_branch_to_restore}'...")
+            run_git_command(['checkout', original_branch_to_restore],
+                            check=False)
+          sys.exit(e.code if isinstance(e.code, int) else 1)
+        except Exception as e:
+          print(f"\nUnexpected error updating '{branch}': {e}", file=sys.stderr)
+          if original_branch_to_restore and get_current_branch(
+          ) != original_branch_to_restore:
+            run_git_command(['checkout', original_branch_to_restore],
+                            check=False)
+          sys.exit(1)
 
   if original_branch_to_restore and get_current_branch(
   ) != original_branch_to_restore:

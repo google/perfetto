@@ -24,7 +24,7 @@ import {SelectColumnMenu} from '../table/menus/select_column_menu';
 import {SqlColumn} from '../table/sql_column';
 import {buildSqlQuery} from '../table/query_builder';
 import {Aggregation, AGGREGATIONS} from './aggregations';
-import {aggregationId, pivotId} from './ids';
+import {aggregationId, aggregationLabel, pivotId} from './ids';
 import {
   Grid,
   GridCell,
@@ -87,7 +87,7 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
                 state.sortByAggregation(agg, direction),
               menuItems: this.renderAggregationColumnMenu(attrs, agg, index),
             },
-            aggregationId(agg),
+            aggregationLabel(agg),
           ),
           reorderable: {reorderGroup: 'aggregation'},
         };

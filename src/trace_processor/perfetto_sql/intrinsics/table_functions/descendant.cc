@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/descendant.h"
 
-#include <algorithm>
 #include <cinttypes>
 #include <cstdint>
 #include <limits>
@@ -37,6 +36,25 @@
 
 namespace perfetto::trace_processor {
 namespace {
+
+// Walks the parent chain of |candidate| to check whether |ancestor_id| is an
+// ancestor. Stops early when the depth drops to |ancestor_depth| or below.
+bool IsAncestor(const tables::SliceTable& slices,
+                tables::SliceTable::ConstRowReference candidate,
+                SliceId ancestor_id,
+                uint32_t ancestor_depth) {
+  for (auto id = candidate.parent_id(); id;) {
+    if (*id == ancestor_id) {
+      return true;
+    }
+    auto ref = slices.FindById(*id);
+    if (!ref || ref->depth() <= ancestor_depth) {
+      return false;
+    }
+    id = ref->parent_id();
+  }
+  return false;
+}
 
 bool GetDescendantsInternal(
     const tables::SliceTable& slices,
@@ -66,8 +84,21 @@ bool GetDescendantsInternal(
     ts_upper_bound = std::numeric_limits<int64_t>::max();
   }
   cursor.SetFilterValueUnchecked(3, ts_upper_bound);
+
+  // The timestamp filter can produce false positives at the start boundary
+  // (candidate.ts == start.ts) where a child of a slice ending at start.ts
+  // shares the same timestamp. For such candidates, walk the parent chain to
+  // verify ancestry. For candidates strictly inside the interval (ts >
+  // start.ts), same-depth non-overlapping guarantees they are true descendants.
+  int64_t start_ts = start_ref->ts();
   for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
-    row_numbers_accumulator.emplace_back(cursor.ToRowNumber());
+    auto row_num = cursor.ToRowNumber();
+    auto ref = row_num.ToRowReference(slices);
+    if (ref.ts() == start_ts &&
+        !IsAncestor(slices, ref, starting_id, start_ref->depth())) {
+      continue;
+    }
+    row_numbers_accumulator.emplace_back(row_num);
   }
   return true;
 }

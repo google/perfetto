@@ -203,6 +203,13 @@ export function sqlAggregateExpr(
       return `MIN(${field})`;
     case 'COUNT_DISTINCT':
       return `COUNT(DISTINCT ${field})`;
+    case 'P25':
+    case 'P50':
+    case 'P75':
+    case 'P90':
+    case 'P95':
+    case 'P99':
+      return `PERCENTILE(${field}, ${func.slice(1)})`;
     case 'SUM':
     case 'AVG':
     case 'MIN':

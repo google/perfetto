@@ -265,6 +265,15 @@ def get_perfetto_prebuilt(manifest, soft_fail=False, arch=None):
         ('No prebuilts available for %s-%s\n' % (plat, machine)) +
         'See https://perfetto.dev/docs/contributing/build-instructions')
 
+  # Placeholder entries (e.g. before a release has been rolled) have an empty
+  # URL. Treat them the same as a missing entry when soft_fail is set.
+  if not manifest_entry.get('url'):
+    if soft_fail:
+      return None
+    raise Exception('No prebuilt URL available for %s on %s-%s. '
+                    'The prebuilt may not have been rolled yet.' %
+                    (manifest_entry.get('file_name', '?'), plat, machine))
+
   return download_or_get_cached(
       file_name=manifest_entry['file_name'],
       url=manifest_entry['url'],

@@ -167,6 +167,7 @@ perfetto_cc_library(
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
+        ":src_protozero_filtering_message_filter_config",
         ":src_protozero_filtering_string_filter",
         ":src_shared_lib_for_testing",
         ":src_shared_lib_shared_lib",
@@ -642,6 +643,8 @@ perfetto_cc_library(
         ":src_trace_processor_rpc_httpd",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_rpc_stdiod",
+        ":src_trace_processor_shell_shell",
+        ":src_trace_processor_shell_subcommands",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",
         ":src_trace_processor_sqlite_sqlite",
@@ -946,6 +949,7 @@ perfetto_cc_library(
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
+        ":src_protozero_filtering_message_filter_config",
         ":src_protozero_filtering_string_filter",
         ":src_traced_service_builtin_producer",
         ":src_traced_service_service",
@@ -965,6 +969,7 @@ perfetto_cc_library(
             ":src_kernel_utils_kernel_wakelock_errors",
             ":src_kernel_utils_syscall_table",
             ":src_protozero_proto_ring_buffer",
+            ":src_traced_probes_android_aflags_android_aflags",
             ":src_traced_probes_android_cpu_per_uid_android_cpu_per_uid",
             ":src_traced_probes_android_game_intervention_list_android_game_intervention_list",
             ":src_traced_probes_android_kernel_wakelocks_android_kernel_wakelocks",
@@ -1951,6 +1956,15 @@ perfetto_filegroup(
         "src/protozero/filtering/message_filter.cc",
         "src/protozero/filtering/message_filter.h",
         "src/protozero/filtering/message_tokenizer.h",
+    ],
+)
+
+# GN target: //src/protozero/filtering:message_filter_config
+perfetto_filegroup(
+    name = "src_protozero_filtering_message_filter_config",
+    srcs = [
+        "src/protozero/filtering/message_filter_config.cc",
+        "src/protozero/filtering/message_filter_config.h",
     ],
 )
 
@@ -3613,6 +3627,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_android",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/android/aflags.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/anrs.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/app_process_starts.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/battery.sql",
@@ -3963,6 +3978,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_2d_1.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_2d_2.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_l3.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tpu.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/utils.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/device_infos.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/estimates.sql",
@@ -3971,6 +3987,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/attribution.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/idle_transitions_attribution.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/task_slices.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/tpu/estimates.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/tpu/freq_idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/ui/continuous_estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/utils.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/windows.sql",
@@ -4076,6 +4094,48 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/rpc/stdiod.cc",
         "src/trace_processor/rpc/stdiod.h",
+    ],
+)
+
+# GN target: //src/trace_processor/shell:shell
+perfetto_filegroup(
+    name = "src_trace_processor_shell_shell",
+    srcs = [
+        "src/trace_processor/shell/common_flags.cc",
+        "src/trace_processor/shell/common_flags.h",
+        "src/trace_processor/shell/export_subcommand.cc",
+        "src/trace_processor/shell/export_subcommand.h",
+        "src/trace_processor/shell/interactive.cc",
+        "src/trace_processor/shell/interactive.h",
+        "src/trace_processor/shell/interactive_subcommand.cc",
+        "src/trace_processor/shell/interactive_subcommand.h",
+        "src/trace_processor/shell/metatrace.cc",
+        "src/trace_processor/shell/metatrace.h",
+        "src/trace_processor/shell/metrics.cc",
+        "src/trace_processor/shell/metrics.h",
+        "src/trace_processor/shell/metrics_subcommand.cc",
+        "src/trace_processor/shell/metrics_subcommand.h",
+        "src/trace_processor/shell/query.cc",
+        "src/trace_processor/shell/query.h",
+        "src/trace_processor/shell/query_subcommand.cc",
+        "src/trace_processor/shell/query_subcommand.h",
+        "src/trace_processor/shell/server_subcommand.cc",
+        "src/trace_processor/shell/server_subcommand.h",
+        "src/trace_processor/shell/shell_utils.cc",
+        "src/trace_processor/shell/shell_utils.h",
+        "src/trace_processor/shell/sql_packages.cc",
+        "src/trace_processor/shell/sql_packages.h",
+        "src/trace_processor/shell/summarize_subcommand.cc",
+        "src/trace_processor/shell/summarize_subcommand.h",
+    ],
+)
+
+# GN target: //src/trace_processor/shell:subcommands
+perfetto_filegroup(
+    name = "src_trace_processor_shell_subcommands",
+    srcs = [
+        "src/trace_processor/shell/subcommand.cc",
+        "src/trace_processor/shell/subcommand.h",
     ],
 )
 
@@ -4707,6 +4767,15 @@ perfetto_filegroup(
     srcs = [
         "src/traceconv/utils.cc",
         "src/traceconv/utils.h",
+    ],
+)
+
+# GN target: //src/traced/probes/android_aflags:android_aflags
+perfetto_filegroup(
+    name = "src_traced_probes_android_aflags_android_aflags",
+    srcs = [
+        "src/traced/probes/android_aflags/android_aflags_data_source.cc",
+        "src/traced/probes/android_aflags/android_aflags_data_source.h",
     ],
 )
 
@@ -6084,6 +6153,7 @@ perfetto_proto_library(
         "protos/perfetto/common/protolog_common.proto",
         "protos/perfetto/common/sys_stats_counters.proto",
         "protos/perfetto/common/system_info.proto",
+        "protos/perfetto/common/trace_attributes.proto",
         "protos/perfetto/common/trace_stats.proto",
         "protos/perfetto/common/tracing_service_capabilities.proto",
         "protos/perfetto/common/tracing_service_state.proto",
@@ -6155,6 +6225,7 @@ perfetto_cc_protocpp_library(
 perfetto_proto_library(
     name = "protos_perfetto_config_android_protos",
     srcs = [
+        "protos/perfetto/config/android/android_aflags_config.proto",
         "protos/perfetto/config/android/android_game_intervention_list_config.proto",
         "protos/perfetto/config/android/android_input_event_config.proto",
         "protos/perfetto/config/android/android_log_config.proto",
@@ -7118,6 +7189,7 @@ perfetto_proto_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_android_protos",
     srcs = [
+        "protos/perfetto/trace/android/android_aflags.proto",
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
         "protos/perfetto/trace/android/android_system_property.proto",
@@ -8295,6 +8367,7 @@ perfetto_cc_library(
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
+        ":src_protozero_filtering_message_filter_config",
         ":src_protozero_filtering_string_filter",
         ":src_tracing_client_api_without_backends",
         ":src_tracing_common",

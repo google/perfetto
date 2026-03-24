@@ -597,3 +597,4 @@ fwtp_ftrace/fwtp_perfetto_slice
 power/gpu_power_state
 panel/gram_collision
 f2fs/f2fs_lock_elapsed_time
+sched/sched_group_tracker

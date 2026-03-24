@@ -234,6 +234,7 @@ protobuf_full_deps_allowlist = [
   "../src/protozero:multifile_error_collector",
   "../src/protozero/filtering:filter_util",
   "../src/trace_processor:trace_processor_shell_lib",
+  "../src/trace_processor/shell:*",
   "../tools/*",
   "../src/tools/*",
   "../contrib/rust-sdk/tools/*",

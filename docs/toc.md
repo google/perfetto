@@ -73,7 +73,12 @@
     - [Opening large traces](visualization/large-traces.md)
     - [Deep linking](visualization/deep-linking-to-perfetto-ui.md)
     - [Debug tracks](analysis/debug-tracks.md)
-    - [UI Automation](visualization/ui-automation.md)
+
+    - [Extending the UI](#)
+
+      - [Overview](visualization/extending-the-ui.md)
+      - [Commands and Macros](visualization/ui-automation.md)
+      - [Extension Servers](visualization/extension-servers.md)
 
   - [Contributing](#)
 
@@ -166,6 +171,7 @@
   - [Advanced Trace Visualization](#)
 
     - [Commands Automation Reference](visualization/commands-automation-reference.md)
+    - [Extension Server Protocol](visualization/extension-server-protocol.md)
 
   - [Contributor Reference](#)
 

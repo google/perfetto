@@ -499,7 +499,7 @@ BIGTRACE_DEPS = [
 BUILD_DEPS_RUST = [
     Dependency(
         'buildtools/rustup/rustup-init.sh', 'https://sh.rustup.rs',
-        '17247e4bcacf6027ec2e11c79a72c494c9af69ac8d1abcc1b271fa4375a106c2',
+        '6c30b75a75b28a96fd913a037c8581b580080b6ee9b8169a3c0feb1af7fe8caf',
         'all', 'all'),
 ]
 

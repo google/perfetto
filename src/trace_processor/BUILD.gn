@@ -254,6 +254,8 @@ if (enable_perfetto_trace_processor_sqlite) {
       "perfetto_sql/generator",
       "rpc",
       "rpc:stdiod",
+      "shell",
+      "shell:subcommands",
       "sqlite",
       "trace_summary",
       "util:stdlib",
@@ -261,9 +263,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "util/symbolizer",
       "util/symbolizer:symbolize_database",
     ]
-    if (enable_perfetto_trace_processor_linenoise) {
-      deps += [ "../../gn:linenoise" ]
-    }
     if (enable_perfetto_trace_processor_httpd) {
       deps += [ "rpc:httpd" ]
     }

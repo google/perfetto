@@ -15,6 +15,11 @@
  */
 
 #include "src/trace_processor/shell/subcommand.h"
+
+#include <unordered_set>
+#include <vector>
+
+#include "perfetto/base/status.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::shell {
@@ -26,15 +31,18 @@ class FakeSubcommand : public Subcommand {
   explicit FakeSubcommand(const char* n) : name_(n) {}
   const char* name() const override { return name_; }
   const char* description() const override { return ""; }
-  int Run(int, char**) override { return 0; }
-  void PrintUsage(const char*) override {}
+  const char* usage_args() const override { return ""; }
+  const char* detailed_help() const override { return ""; }
+  std::vector<FlagSpec> GetFlags() override { return {}; }
+  base::Status Run(const SubcommandContext&) override {
+    return base::OkStatus();
+  }
 
  private:
   const char* name_;
 };
 
-// Helper to build an argv array from an initializer list. The returned
-// vector owns the strings; the second vector contains the char* pointers.
+// Helper to build an argv array from an initializer list.
 struct ArgvHolder {
   std::vector<std::string> strings;
   std::vector<char*> ptrs;
@@ -99,8 +107,8 @@ TEST(FindSubcommandTest, FlagWithArgSkipsValue) {
   // --dev-flag takes an argument "x=y", so "query" at index 3 should be found.
   auto args =
       ArgvHolder::Make({"tp_shell", "--dev-flag", "x=y", "query", "trace.pb"});
-  auto result =
-      FindSubcommandInArgs(args.argc(), args.argv(), subs, {"--dev-flag"});
+  std::unordered_set<std::string> fwa = {"--dev-flag"};
+  auto result = FindSubcommandInArgs(args.argc(), args.argv(), subs, fwa);
   EXPECT_EQ(result.subcommand, &query);
   EXPECT_EQ(result.argv_index, 3);
 }

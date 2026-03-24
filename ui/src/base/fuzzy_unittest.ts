@@ -83,6 +83,38 @@ describe('FuzzyFinder', () => {
   });
 });
 
+describe('FuzzyFinder camelCase tokenization', () => {
+  const items = [
+    'dev.perfetto.LiveMemory',
+    'dev.perfetto.RecordTraceV2',
+    'com.android.XMLParser',
+  ];
+  const finder = new FuzzyFinder(items, (x) => x);
+
+  it('finds camelCase sub-word', () => {
+    const result = finder.find('memory');
+    expect(result).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({item: 'dev.perfetto.LiveMemory'}),
+      ]),
+    );
+  });
+
+  it('finds dotted segment', () => {
+    const result = finder.find('perfetto');
+    expect(result.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('finds uppercase acronym split', () => {
+    const result = finder.find('parser');
+    expect(result).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({item: 'com.android.XMLParser'}),
+      ]),
+    );
+  });
+});
+
 test('fuzzyMatch', () => {
   expect(fuzzyMatch('foo bar baz', 'foo')).toEqual({
     matches: true,

@@ -28,9 +28,13 @@ const QUAD_INDICES = new Uint16Array([0, 1, 2, 3]);
 
 // SDF texture parameters
 const SDF_TEX_SIZE = 64;
-const SDF_SPREAD = 0.1;
+const SDF_SPREAD = 0.2;
+// Padding around the shape in the SDF texture (in normalized 0-1 coords).
+// This insets the shape so texture edges have real SDF data for the linear
+// filter to interpolate, avoiding CLAMP_TO_EDGE artifacts at corners.
+const SDF_PADDING = 0.1;
 
-// Chevron shape vertices in normalized 0-1 coordinates:
+// Chevron shape vertices in normalized 0-1 coordinates, inset by SDF_PADDING:
 //        A (0.5, 0) - top center
 //       / \
 //      /   \
@@ -43,7 +47,10 @@ const CHEVRON_VERTICES: readonly Point2D[] = [
   {x: 1, y: 1}, // B - bottom right
   {x: 0.5, y: 0.7}, // C - inner notch
   {x: 0, y: 1}, // D - bottom left
-];
+].map(({x, y}) => ({
+  x: x * (1 - 2 * SDF_PADDING) + SDF_PADDING,
+  y: y * (1 - 2 * SDF_PADDING) + SDF_PADDING,
+}));
 
 // Program for batch rendering with data-space X coordinates
 interface ChevronBatchProgram {
@@ -118,29 +125,33 @@ function createBatchProgram(gl: WebGL2RenderingContext): ChevronBatchProgram {
         float((a_color >> 8) & 0xffu) / 255.0,
         float(a_color & 0xffu) / 255.0
       );
-      v_uv = a_quadCorner;
+      // Remap quad UVs [0,1] to the padded region of the SDF texture.
+      const float padding = ${SDF_PADDING.toFixed(4)};
+      v_uv = a_quadCorner * (1.0 - 2.0 * padding) + padding;
     }
   `;
 
   const fsSource = `#version 300 es
-    precision mediump float;
+    precision highp float;
     in vec4 v_color;
     in vec2 v_uv;
     out vec4 fragColor;
 
     uniform sampler2D u_sdfTex;
+    uniform float u_width;
+    uniform vec2 u_viewScale;
 
-    const float SDF_SPREAD = 0.1;
+    // Adjust for sharper or softer edges - larger = softer, smaller = sharper
+    const float aaFactor = 2.0; 
 
     void main() {
       float sdfValue = texture(u_sdfTex, v_uv).a;
-      float dist = (sdfValue - 0.5) * SDF_SPREAD;
-      float aa = fwidth(dist) * 0.75;
+      float dist = (sdfValue - 0.5) * ${SDF_SPREAD};
+      // Use the bounding box width to compute an anti-aliasing factor that keeps edges smooth at all sizes.
+      // Width is more important than height for AA since chevrons have more obvious vertical edges.
+      float aa = aaFactor * ${SDF_SPREAD} / (u_width * u_viewScale.y);
       float alpha = 1.0 - smoothstep(-aa, aa, dist);
 
-      if (alpha < 0.01) {
-        discard;
-      }
       // Premultiply alpha for correct compositing over page background
       float finalAlpha = v_color.a * alpha;
       fragColor = vec4(v_color.rgb * finalAlpha, finalAlpha);
