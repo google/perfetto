@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Popup, PopupPosition} from '../../widgets/popup';
-import {Icon} from '../../widgets/icon';
-import {TextInput} from '../../widgets/text_input';
-import {perfettoSqlTypeIcon} from '../../trace_processor/perfetto_sql_type';
-import {ColumnDef} from './graph_utils';
+import {Popup, PopupPosition} from '../../../widgets/popup';
+import {Icon} from '../../../widgets/icon';
+import {TextInput} from '../../../widgets/text_input';
+import {perfettoSqlTypeIcon} from '../../../trace_processor/perfetto_sql_type';
+import {ColumnDef} from '../graph_utils';
 
 // A text input with an autocomplete dropdown for column names.
 //

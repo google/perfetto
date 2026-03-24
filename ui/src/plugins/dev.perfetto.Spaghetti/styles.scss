@@ -119,9 +119,8 @@
 
 // Grid layout for group-by rows (column select, delete).
 .pf-qb-group-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px;
+  display: flex;
+  gap: 4px;
   align-items: center;
 }
 
@@ -153,6 +152,23 @@
   display: flex;
   align-items: center;
   gap: 2px;
+  position: relative;
+
+  .pf-qb-row-delete {
+    position: absolute;
+    right: -12px;
+    top: -8px;
+    opacity: 0;
+    pointer-events: none;
+    border-radius: 50%;
+    z-index: 1;
+    font-size: var(--pf-font-size-sm);
+  }
+
+  &:hover .pf-qb-row-delete {
+    opacity: 1;
+    pointer-events: auto;
+  }
 
   &.pf-dragging {
     opacity: 0.4;
@@ -198,6 +214,7 @@
   cursor: grab;
   opacity: 0.4;
   flex: 0 0 auto;
+  margin-left: -6px;
   font-size: 16px;
 
   &:hover {
@@ -256,6 +273,7 @@
 .pf-column-picker__list {
   max-height: 200px;
   overflow-y: auto;
+  margin: 2px;
 }
 
 .pf-column-picker__item {

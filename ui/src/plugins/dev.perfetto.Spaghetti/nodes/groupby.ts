@@ -13,14 +13,19 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {BaseNodeData} from './node_types';
-import {Button, ButtonVariant} from '../../widgets/button';
-import {Intent} from '../../widgets/common';
-import {Icon} from '../../widgets/icon';
-import {Select} from '../../widgets/select';
-import {TextInput} from '../../widgets/text_input';
-import {ColumnPicker} from './column_picker';
-import {ColumnDef} from './graph_utils';
+import {
+  ColumnContext,
+  NodeManifest,
+  RenderContext,
+  SqlStatement,
+} from '../node_types';
+import {Button, ButtonVariant} from '../../../widgets/button';
+import {Intent} from '../../../widgets/common';
+import {Icon} from '../../../widgets/icon';
+import {Select} from '../../../widgets/select';
+import {TextInput} from '../../../widgets/text_input';
+import {ColumnPicker} from '../widgets/column_picker';
+import {ColumnDef} from '../graph_utils';
 
 export interface Aggregation {
   readonly func: 'COUNT' | 'SUM' | 'AVG' | 'MIN' | 'MAX';
@@ -28,34 +33,31 @@ export interface Aggregation {
   readonly alias: string;
 }
 
-export interface GroupByNodeData extends BaseNodeData {
-  readonly type: 'groupby';
+export interface GroupByConfig {
   readonly groupColumns: string[];
   readonly aggregations: Aggregation[];
 }
 
-export function createGroupByNode(
-  id: string,
-  x: number,
-  y: number,
-): GroupByNodeData {
-  return {type: 'groupby', id, x, y, groupColumns: [], aggregations: []};
+function aggAlias(a: Aggregation): string {
+  if (a.alias) return a.alias;
+  const col = a.column === '*' ? 'star' : a.column;
+  return `${a.func.toLowerCase()}_${col}`;
 }
 
-export function renderGroupByNode(
-  node: GroupByNodeData,
-  updateNode: (updates: Partial<Omit<GroupByNodeData, 'type' | 'id'>>) => void,
-  availableColumns: ColumnDef[],
+function render(
+  config: GroupByConfig,
+  updateConfig: (updates: Partial<GroupByConfig>) => void,
+  ctx: RenderContext,
 ): m.Children {
   return m('.pf-qb-stack', {style: {minWidth: '250px'}}, [
     m('.pf-qb-section-label', 'Group by'),
     m('.pf-qb-filter-list', [
-      ...node.groupColumns.map((col, i) =>
+      ...config.groupColumns.map((col, i) =>
         m(
           '.pf-qb-filter-row',
           {
             key: i,
-            draggable: true,
+            draggable: config.groupColumns.length > 1,
             ondragstart: (e: DragEvent) => {
               e.dataTransfer!.effectAllowed = 'move';
               e.dataTransfer!.setData('text/plain', `group:${i}`);
@@ -87,36 +89,35 @@ export function renderGroupByNode(
               const fromIdx = parseInt(data.slice(6));
               let toIdx = isBottom ? i + 1 : i;
               if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
-                const updated = [...node.groupColumns];
+                const updated = [...config.groupColumns];
                 const [moved] = updated.splice(fromIdx, 1);
                 if (fromIdx < toIdx) toIdx--;
                 updated.splice(toIdx, 0, moved);
-                updateNode({groupColumns: updated});
+                updateConfig({groupColumns: updated});
               }
             },
           },
           [
-            m(Icon, {
-              icon: 'drag_indicator',
-              className: 'pf-qb-drag-handle',
-            }),
+            ...(config.groupColumns.length > 1 ? [m(Icon, {icon: 'drag_indicator', className: 'pf-qb-drag-handle'})] : []),
             m(ColumnPicker, {
               value: col,
-              columns: availableColumns,
+              columns: ctx.availableColumns,
               placeholder: 'column',
               onSelect: (value: string) => {
-                const updated = [...node.groupColumns];
+                const updated = [...config.groupColumns];
                 updated[i] = value;
-                updateNode({groupColumns: updated});
+                updateConfig({groupColumns: updated});
               },
             }),
             m(Button, {
               icon: 'delete',
+              variant: ButtonVariant.Filled,
               intent: Intent.Danger,
+              className: 'pf-qb-row-delete',
               title: 'Remove grouping column',
               onclick: () => {
-                updateNode({
-                  groupColumns: node.groupColumns.filter((_, j) => j !== i),
+                updateConfig({
+                  groupColumns: config.groupColumns.filter((_, j) => j !== i),
                 });
               },
             }),
@@ -129,17 +130,17 @@ export function renderGroupByNode(
       icon: 'add',
       variant: ButtonVariant.Filled,
       onclick: () => {
-        updateNode({groupColumns: [...node.groupColumns, '']});
+        updateConfig({groupColumns: [...config.groupColumns, '']});
       },
     }),
     m('.pf-qb-section-label', 'Aggregations'),
     m('.pf-qb-filter-list', [
-      ...node.aggregations.map((agg, i) =>
+      ...config.aggregations.map((agg, i) =>
         m(
           '.pf-qb-filter-row',
           {
             key: i,
-            draggable: true,
+            draggable: config.aggregations.length > 1,
             ondragstart: (e: DragEvent) => {
               e.dataTransfer!.effectAllowed = 'move';
               e.dataTransfer!.setData('text/plain', `agg:${i}`);
@@ -171,31 +172,28 @@ export function renderGroupByNode(
               const fromIdx = parseInt(data.slice(4));
               let toIdx = isBottom ? i + 1 : i;
               if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
-                const newAggs = [...node.aggregations];
+                const newAggs = [...config.aggregations];
                 const [moved] = newAggs.splice(fromIdx, 1);
                 if (fromIdx < toIdx) toIdx--;
                 newAggs.splice(toIdx, 0, moved);
-                updateNode({aggregations: newAggs});
+                updateConfig({aggregations: newAggs});
               }
             },
           },
           [
-            m(Icon, {
-              icon: 'drag_indicator',
-              className: 'pf-qb-drag-handle',
-            }),
+            ...(config.aggregations.length > 1 ? [m(Icon, {icon: 'drag_indicator', className: 'pf-qb-drag-handle'})] : []),
             m(
               Select,
               {
                 value: agg.func,
                 onchange: (e: Event) => {
-                  const newAggs = [...node.aggregations];
+                  const newAggs = [...config.aggregations];
                   newAggs[i] = {
                     ...agg,
                     func: (e.target as HTMLSelectElement)
                       .value as Aggregation['func'],
                   };
-                  updateNode({aggregations: newAggs});
+                  updateConfig({aggregations: newAggs});
                 },
               },
               [
@@ -208,34 +206,33 @@ export function renderGroupByNode(
             ),
             m(ColumnPicker, {
               value: agg.column,
-              columns: [{name: '*'}, ...availableColumns],
+              columns: [{name: '*'}, ...ctx.availableColumns],
               placeholder: 'column',
               onSelect: (value: string) => {
-                const newAggs = [...node.aggregations];
-                newAggs[i] = {
-                  ...agg,
-                  column: value,
-                  alias: agg.alias || `${agg.func.toLowerCase()}_${value}`,
-                };
-                updateNode({aggregations: newAggs});
+                const newAggs = [...config.aggregations];
+                newAggs[i] = {...agg, column: value};
+                updateConfig({aggregations: newAggs});
               },
             }),
+            m('span', {style: {opacity: 0.5, fontSize: '11px'}}, 'as'),
             m(TextInput, {
-              placeholder: 'alias',
+              placeholder: aggAlias(agg),
               value: agg.alias,
               onChange: (value: string) => {
-                const newAggs = [...node.aggregations];
+                const newAggs = [...config.aggregations];
                 newAggs[i] = {...agg, alias: value};
-                updateNode({aggregations: newAggs});
+                updateConfig({aggregations: newAggs});
               },
             }),
             m(Button, {
               icon: 'delete',
+              variant: ButtonVariant.Filled,
               intent: Intent.Danger,
+              className: 'pf-qb-row-delete',
               title: 'Remove aggregation',
               onclick: () => {
-                const newAggs = node.aggregations.filter((_, j) => j !== i);
-                updateNode({aggregations: newAggs});
+                const newAggs = config.aggregations.filter((_, j) => j !== i);
+                updateConfig({aggregations: newAggs});
               },
             }),
           ],
@@ -247,9 +244,9 @@ export function renderGroupByNode(
       icon: 'add',
       variant: ButtonVariant.Filled,
       onclick: () => {
-        updateNode({
+        updateConfig({
           aggregations: [
-            ...node.aggregations,
+            ...config.aggregations,
             {func: 'COUNT', column: '*', alias: ''},
           ],
         });
@@ -257,3 +254,64 @@ export function renderGroupByNode(
     }),
   ]);
 }
+
+function getOutputColumns(
+  config: GroupByConfig,
+  ctx: ColumnContext,
+): ColumnDef[] | undefined {
+  const columns = ctx.getInputColumns('input');
+  const groupCols: ColumnDef[] = config.groupColumns
+    .filter((c) => c)
+    .map((c) => columns?.find((col) => col.name === c) ?? {name: c});
+  const aggAliases: ColumnDef[] = config.aggregations
+    .filter((a) => a.column)
+    .map((a) => {
+      const name = aggAlias(a);
+      if (a.func === 'COUNT') {
+        return {name, type: {kind: 'int' as const}};
+      }
+      const orig = columns?.find((c) => c.name === a.column);
+      return {name, type: orig?.type};
+    });
+  const result = [...groupCols, ...aggAliases];
+  return result.length > 0 ? result : columns;
+}
+
+function isValid(config: GroupByConfig): boolean {
+  const hasGroup = config.groupColumns.some((c) => c);
+  return hasGroup;
+}
+
+function tryFold(stmt: SqlStatement, config: GroupByConfig): boolean {
+  if (
+    stmt.columns !== '*' ||
+    stmt.groupBy !== undefined ||
+    stmt.orderBy !== undefined ||
+    stmt.limit !== undefined
+  ) {
+    return false;
+  }
+  const groupCols = config.groupColumns.filter((c) => c);
+  const aggExprs = config.aggregations
+    .filter((a) => a.column)
+    .map((a) => `${a.func}(${a.column}) AS ${aggAlias(a)}`);
+  const selectParts = [...groupCols, ...aggExprs];
+  if (selectParts.length > 0) stmt.columns = selectParts.join(', ');
+  if (groupCols.length > 0) stmt.groupBy = groupCols.join(', ');
+  return true;
+}
+
+export const manifest: NodeManifest<GroupByConfig> = {
+  title: 'Group By',
+  icon: 'workspaces',
+  inputs: [{name: 'input', content: 'Input', direction: 'left'}],
+  outputs: [{name: 'output', content: 'Output', direction: 'right'}],
+  canDockTop: true,
+  canDockBottom: true,
+  hue: 275,
+  defaultConfig: () => ({groupColumns: [], aggregations: []}),
+  render,
+  getOutputColumns,
+  isValid,
+  tryFold,
+};

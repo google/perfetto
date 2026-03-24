@@ -14,19 +14,17 @@
 
 import {Connection} from '../../widgets/nodegraph';
 import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
-import {conditionsToSql} from './filter';
-import {getSortConditions, sortConditionsToSql} from './sort';
 import {
   collectUpstream,
   findConnectedInputs,
   fnvHash,
+  getManifest,
   getOutputColumnsForNode,
   getPrimaryInput,
   isNodeValid,
 } from './graph_utils';
-import {getExtendColumnAliases} from './extend';
-import {NodeData} from './node_types';
-import {selectionNodeSql} from './selection';
+import {NodeData, IrContext, SqlStatement} from './node_types';
+import {FromConfig} from './nodes/from';
 
 // --- IR (Intermediate Representation) ---
 //
@@ -54,16 +52,6 @@ function irHash(sql: string, depHashes: readonly string[]): string {
 
 // --- SQL Statement folding ---
 
-interface SqlStatement {
-  distinct?: boolean;
-  columns: string;
-  from: string;
-  where?: string;
-  groupBy?: string;
-  orderBy?: string;
-  limit?: number;
-}
-
 function formatColumns(columns: string): string {
   if (columns === '*') return columns;
   const cols = columns.split(', ');
@@ -81,89 +69,11 @@ function statementToSql(s: SqlStatement): string {
   return parts.join('\n');
 }
 
+// Try to fold a node into the current SQL statement via its manifest.
 function tryFold(stmt: SqlStatement, node: NodeData): boolean {
-  switch (node.type) {
-    case 'select': {
-      if (stmt.columns !== '*') return false;
-      const selectedCols = Object.entries(node.columns)
-        .filter(([_, checked]) => checked)
-        .map(([col]) => col);
-      const exprParts = node.expressions
-        .filter((e) => e.expression && e.alias)
-        .map((e) => `${e.expression} AS ${e.alias}`);
-      if (selectedCols.length > 0) {
-        stmt.columns = [...selectedCols, ...exprParts].join(', ');
-      } else if (exprParts.length > 0) {
-        stmt.columns = ['*', ...exprParts].join(', ');
-      }
-      return true;
-    }
-    case 'filter': {
-      if (
-        stmt.groupBy !== undefined ||
-        stmt.orderBy !== undefined ||
-        stmt.limit !== undefined
-      ) {
-        return false;
-      }
-      const expr =
-        node.conditions.length > 0
-          ? conditionsToSql(node.conditions, node.conjunction)
-          : node.filterExpression;
-      if (expr) {
-        stmt.where = stmt.where ? `(${stmt.where}) AND (${expr})` : expr;
-      }
-      return true;
-    }
-    case 'sort': {
-      if (stmt.orderBy !== undefined || stmt.limit !== undefined) return false;
-      const sortConds = getSortConditions(node);
-      const orderBy = sortConditionsToSql(sortConds);
-      if (orderBy) {
-        stmt.orderBy = orderBy;
-      }
-      return true;
-    }
-    case 'limit': {
-      if (stmt.limit !== undefined) return false;
-      stmt.limit = parseInt(node.limitCount) || 100;
-      return true;
-    }
-    case 'groupby': {
-      if (
-        stmt.columns !== '*' ||
-        stmt.groupBy !== undefined ||
-        stmt.orderBy !== undefined ||
-        stmt.limit !== undefined
-      ) {
-        return false;
-      }
-      const groupCols = node.groupColumns.filter((c) => c);
-      const aggExprs = node.aggregations
-        .filter((a) => a.alias)
-        .map((a) => `${a.func}(${a.column}) AS ${a.alias}`);
-      const selectParts = [...groupCols, ...aggExprs];
-      if (selectParts.length > 0) {
-        stmt.columns = selectParts.join(', ');
-      }
-      if (groupCols.length > 0) {
-        stmt.groupBy = groupCols.join(', ');
-      }
-      return true;
-    }
-    case 'extract_arg': {
-      if (stmt.columns !== '*') return false;
-      const exprParts = node.extractions
-        .filter((e) => e.column && e.argName && e.alias)
-        .map((e) => `extract_arg(${e.column}, '${e.argName}') AS ${e.alias}`);
-      if (exprParts.length > 0) {
-        stmt.columns = ['*', ...exprParts].join(', ');
-      }
-      return true;
-    }
-    default:
-      return false;
-  }
+  const manifest = getManifest(node.type);
+  if (!manifest?.tryFold) return false;
+  return manifest.tryFold(stmt, node.config);
 }
 
 // --- IR Builder ---
@@ -199,11 +109,9 @@ export function buildIR(
     if (primary) {
       refCount.set(primary.id, (refCount.get(primary.id) ?? 0) + 1);
     }
-    if (
-      n.type === 'extend' ||
-      n.type === 'interval_intersect' ||
-      n.type === 'union_all'
-    ) {
+    // Multi-input nodes: count the right (port 1) input too.
+    const manifest = getManifest(n.type);
+    if ((manifest.inputs?.length ?? 0) >= 2) {
       const ci = findConnectedInputs(nodes, connections, n.id);
       const right = ci.get(1);
       if (right) {
@@ -287,6 +195,7 @@ export function buildIR(
   }
 
   for (const n of order) {
+    const manifest = getManifest(n.type);
     const primaryInput = getPrimaryInput(nodes, connections, n.id);
     const inputIsCurrentTail =
       primaryInput !== undefined && primaryInput.id === currentTailId;
@@ -295,12 +204,14 @@ export function buildIR(
     const canFold =
       inputIsCurrentTail && inputSingleRef && current !== undefined;
 
+    // FROM nodes are special: they register their table name directly
+    // (not a CTE hash) and resolve module includes.
     if (n.type === 'from') {
+      const cfg = n.config as FromConfig;
       emitCurrent();
-      emittedAs.set(n.id, n.table);
-      // Look up the module for this table and record the include.
+      emittedAs.set(n.id, cfg.table);
       if (sqlModules) {
-        const mod = sqlModules.getModuleForTable(n.table);
+        const mod = sqlModules.getModuleForTable(cfg.table);
         if (mod && !mod.includeKey.startsWith('prelude')) {
           nodeIncludes.set(n.id, new Set([mod.includeKey]));
         }
@@ -308,129 +219,51 @@ export function buildIR(
       continue;
     }
 
-    if (n.type === 'selection') {
+    // Nodes with emitIr produce standalone SQL entries.
+    if (manifest.emitIr) {
       emitCurrent();
-      const sql = selectionNodeSql(n);
-      const hash = emitEntry(sql, [], new Set(), [n.id]);
-      emittedAs.set(n.id, hash);
-      continue;
-    }
 
-    if (n.type === 'extend') {
-      emitCurrent();
-      const leftRef = primaryInput ? resolveRef(primaryInput) : '';
-      const ci = findConnectedInputs(nodes, connections, n.id);
-      const rightInput = ci.get(1);
-      const rightRef = rightInput ? resolveRef(rightInput) : '';
+      // Build a map from port label → connected input node.
+      const portInputs = new Map<string, NodeData>();
+      const connected = findConnectedInputs(nodes, connections, n.id);
+      const ports = manifest.inputs ?? [];
+      for (let i = 0; i < ports.length; i++) {
+        const input = i === 0 && primaryInput ? primaryInput : connected.get(i);
+        if (input) {
+          portInputs.set(ports[i].name, input);
+        }
+      }
 
-      const leftAvail = primaryInput
-        ? getOutputColumnsForNode(
+      const irCtx: IrContext = {
+        getInputRef(portLabel: string): string {
+          const input = portInputs.get(portLabel);
+          return input ? resolveRef(input) : '';
+        },
+        getInputColumns(portLabel: string) {
+          const input = portInputs.get(portLabel);
+          if (!input) return undefined;
+          return getOutputColumnsForNode(
             nodes,
             connections,
-            primaryInput.id,
+            input.id,
             sqlModules,
-          )
-        : undefined;
-
-      // All left columns pass through.
-      const selectCols: string[] = ['l.*'];
-
-      // Add selected right columns with aliases.
-      const aliases = getExtendColumnAliases(
-        n,
-        (leftAvail ?? []).map((c) => c.name),
-      );
-      for (const a of aliases) {
-        const expr = `r.${a.column}`;
-        selectCols.push(a.alias !== a.column ? `${expr} AS ${a.alias}` : expr);
-      }
-
-      let selectClause: string;
-      if (selectCols.length > 1) {
-        selectClause = '\n  ' + selectCols.join(',\n  ');
-      } else {
-        selectClause = selectCols[0];
-      }
-
-      const condition = `ON l.${n.leftColumn} = r.${n.rightColumn}`;
-      const sql = `SELECT ${selectClause}\nFROM ${leftRef} AS l\nLEFT JOIN ${rightRef} AS r ${condition}`;
+          );
+        },
+      };
+      const result = manifest.emitIr(n.config, irCtx);
 
       const deps: string[] = [];
-      if (primaryInput) {
-        const d = resolveDep(primaryInput);
-        if (d) deps.push(d);
-      }
-      if (rightInput) {
-        const d = resolveDep(rightInput);
+      const allInputs = [...portInputs.values()];
+      for (const input of allInputs) {
+        const d = resolveDep(input);
         if (d) deps.push(d);
       }
 
-      const includes = collectIncludes(primaryInput, rightInput);
-      const hash = emitEntry(sql, deps, includes, [n.id]);
-      nodeIncludes.set(n.id, includes);
-      emittedAs.set(n.id, hash);
-      continue;
-    }
-
-    if (n.type === 'interval_intersect') {
-      emitCurrent();
-      const leftRef = primaryInput ? resolveRef(primaryInput) : '';
-      const ci = findConnectedInputs(nodes, connections, n.id);
-      const rightInput = ci.get(1);
-      const rightRef = rightInput ? resolveRef(rightInput) : '';
-
-      const deps: string[] = [];
-      if (primaryInput) {
-        const d = resolveDep(primaryInput);
-        if (d) deps.push(d);
+      const includes = collectIncludes(...allInputs);
+      if (result.includes) {
+        for (const inc of result.includes) includes.add(inc);
       }
-      if (rightInput) {
-        const d = resolveDep(rightInput);
-        if (d) deps.push(d);
-      }
-
-      // Wrap refs in subqueries to filter negative durations if needed.
-      const leftArg = n.filterNegativeDur
-        ? `(SELECT * FROM ${leftRef} WHERE dur >= 0)`
-        : leftRef;
-      const rightArg = n.filterNegativeDur
-        ? `(SELECT * FROM ${rightRef} WHERE dur >= 0)`
-        : rightRef;
-
-      const partitionCols = n.partitionColumns.filter((c) => c);
-      const partitionClause =
-        partitionCols.length > 0 ? partitionCols.join(', ') : '';
-
-      const sql = `SELECT *\nFROM _interval_intersect!(\n  (${leftArg},\n   ${rightArg}),\n  (${partitionClause})\n)`;
-      const includes = collectIncludes(primaryInput, rightInput);
-      includes.add('intervals.intersect');
-      const hash = emitEntry(sql, deps, includes, [n.id]);
-      nodeIncludes.set(n.id, includes);
-      emittedAs.set(n.id, hash);
-      continue;
-    }
-
-    if (n.type === 'union_all') {
-      emitCurrent();
-      const leftRef = primaryInput ? resolveRef(primaryInput) : '';
-      const ci = findConnectedInputs(nodes, connections, n.id);
-      const rightInput = ci.get(1);
-      const rightRef = rightInput ? resolveRef(rightInput) : '';
-
-      const deps: string[] = [];
-      if (primaryInput) {
-        const d = resolveDep(primaryInput);
-        if (d) deps.push(d);
-      }
-      if (rightInput) {
-        const d = resolveDep(rightInput);
-        if (d) deps.push(d);
-      }
-
-      const unionKw = n.distinct ? 'UNION' : 'UNION ALL';
-      const sql = `SELECT *\nFROM ${leftRef}\n${unionKw}\nSELECT *\nFROM ${rightRef}`;
-      const includes = collectIncludes(primaryInput, rightInput);
-      const hash = emitEntry(sql, deps, includes, [n.id]);
+      const hash = emitEntry(result.sql, deps, includes, [n.id]);
       nodeIncludes.set(n.id, includes);
       emittedAs.set(n.id, hash);
       continue;
@@ -468,9 +301,14 @@ export function buildIR(
 
   // If the target is a FROM node, emit SELECT * FROM <table> as its entry.
   if (targetNode.type === 'from') {
-    const sql = `SELECT *\nFROM ${targetNode.table}`;
+    const manifest = getManifest('from');
+    const irCtx: IrContext = {
+      getInputRef: () => '',
+      getInputColumns: () => undefined,
+    };
+    const result = manifest.emitIr!(targetNode.config, irCtx);
     const includes = nodeIncludes.get(targetNode.id) ?? new Set();
-    emitEntry(sql, [], includes, [targetNode.id]);
+    emitEntry(result.sql, [], includes, [targetNode.id]);
   }
 
   return entries;
