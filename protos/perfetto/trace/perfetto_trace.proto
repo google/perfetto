@@ -5868,7 +5868,11 @@ message AndroidAflags {
   message Flag {
     optional string flag_namespace = 1;
     optional string name = 2;
+    // The aconfig package (e.g. "com.android.foo"). These are system-level
+    // identifiers and not privacy-impacting.
     optional string pkg = 3;
+    // The container where the flag lives (e.g. "system", "vendor", or mainline
+    // module name).
     optional string container = 4;
     // The flag value as a string to support different future data types.
     optional string value = 5;
