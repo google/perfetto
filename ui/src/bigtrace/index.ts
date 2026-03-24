@@ -18,7 +18,6 @@ import m from 'mithril';
 import {defer} from '../base/deferred';
 import {reportError, addErrorHandler, ErrorDetails} from '../base/logging';
 import {initLiveReload} from '../core/live_reload';
-import {raf} from '../core/raf_scheduler';
 import {settingsManager} from './settings/settings_manager';
 import {ThemeProvider} from '../frontend/theme_provider';
 import {OverlayContainer} from '../widgets/overlay_container';
@@ -122,45 +121,20 @@ function main() {
 class BigTraceApp implements m.ClassComponent {
   private sidebarVisible = true;
 
-  private getPageFromHash() {
-    const hash = window.location.hash;
-    if (hash.startsWith('#!/settings')) return 'settings';
-    if (hash.startsWith('#!/query')) return 'query';
-    return 'home';
-  }
-
-  private currentPage = this.getPageFromHash();
-
-  private handleHashChange = () => {
-    this.currentPage = this.getPageFromHash();
-    m.redraw();
-  };
-
-  private setPage(page: string) {
-    if (page === 'home') {
-      window.location.hash = '#!/';
-    } else {
-      window.location.hash = `#!/${page}`;
-    }
-  }
-
   oninit() {
     bigTraceSettingsManager.loadSettings();
-    window.addEventListener('hashchange', this.handleHashChange);
   }
 
-  onremove() {
-    window.removeEventListener('hashchange', this.handleHashChange);
-  }
+  view(vnode: m.Vnode) {
+    const currentRoute = m.route.get();
 
-  view() {
     const items: SidebarMenuItem[] = [
       {
         section: 'home',
         text: 'Home',
         href: '#!/',
         icon: 'home',
-        active: this.currentPage === 'home',
+        active: currentRoute === '/' || currentRoute === '',
         onclick: () => {},
       },
       {
@@ -168,7 +142,7 @@ class BigTraceApp implements m.ClassComponent {
         text: 'Query Editor',
         href: '#!/query',
         icon: 'line_style',
-        active: this.currentPage === 'query',
+        active: currentRoute === '/query',
         onclick: () => {},
       },
       {
@@ -176,7 +150,7 @@ class BigTraceApp implements m.ClassComponent {
         text: 'Settings',
         href: '#!/settings',
         icon: 'settings',
-        active: this.currentPage === 'settings',
+        active: currentRoute === '/settings',
         onclick: () => {},
       },
     ];
@@ -223,55 +197,56 @@ class BigTraceApp implements m.ClassComponent {
               },
               title: title,
             }),
-            this.renderPage(),
+            vnode.children,
           ],
         ),
       ],
     );
   }
-
-  private renderPage() {
-    switch (this.currentPage) {
-      case 'home':
-        return m(HomePage, {
-          navigateTo: (page: string) => {
-            this.setPage(page);
-          },
-        });
-      case 'settings':
-        return m(SettingsPage);
-      case 'query':
-        const initialQuery = queryState.initialQuery;
-        queryState.initialQuery = undefined;
-        return m(QueryPage, {
-          useBrushBackend: true,
-          initialQuery,
-        });
-      default:
-        return m(HomePage, {
-          navigateTo: (page: string) => {
-            this.setPage(page);
-          },
-        });
-    }
-  }
 }
+
+const BigTraceLayout: m.Component = {
+  view(vnode) {
+    const theme = settingsManager.get('theme');
+    const themeValue = theme ? theme.get() : 'light';
+    return m(ThemeProvider, {theme: themeValue as 'dark' | 'light'}, [
+      m(OverlayContainer, {fillHeight: true}, [m(BigTraceApp, vnode.children)]),
+    ]);
+  },
+};
 
 function onCssLoaded() {
   // Clear all the contents of the initial page
   document.body.innerHTML = '';
 
-  raf.mount(document.body, {
-    view: () => {
-      const theme = settingsManager.get('theme');
-      const themeValue = theme ? theme.get() : 'light';
-      return m(ThemeProvider, {theme: themeValue as 'dark' | 'light'}, [
-        m(OverlayContainer, {fillHeight: true}, [m(BigTraceApp)]),
-      ]);
+  m.route.prefix = '#!';
+  m.route(document.body, '/', {
+    '/': {
+      render: () => m(BigTraceLayout, m(HomePage)),
+    },
+    '/query': {
+      onmatch: () => {
+        const initialQuery = queryState.initialQuery;
+        queryState.initialQuery = undefined;
+        return {
+          view: () =>
+            m(
+              BigTraceLayout,
+              m(QueryPage, {
+                useBrushBackend: true,
+                initialQuery,
+              }),
+            ),
+        };
+      },
+    },
+    '/settings': {
+      render: () => m(BigTraceLayout, m(SettingsPage)),
     },
   });
 
   initLiveReload();
 }
+
 
 main();

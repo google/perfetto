@@ -19,9 +19,7 @@ import {queryState} from '../query/query_state';
 import {Card} from '../../widgets/card';
 import {recentQueriesStorage} from '../query/recent_queries_storage';
 
-interface HomePageAttrs {
-  navigateTo: (page: string) => void;
-}
+interface HomePageAttrs {}
 
 const SLICE_COUNT_QUERY = `SELECT
   COUNT(*) as slice_count
@@ -38,7 +36,7 @@ ORDER BY cpu_sec DESC
 LIMIT 10`;
 
 export class HomePage implements m.ClassComponent<HomePageAttrs> {
-  view({attrs}: m.Vnode<HomePageAttrs>) {
+  view() {
     return m(
       '.pf-home-page',
       {
@@ -126,7 +124,7 @@ export class HomePage implements m.ClassComponent<HomePageAttrs> {
               'p',
               {style: {margin: 0, color: 'var(--pf-fg-secondary)'}},
               'Define which traces you want to analyze in the ',
-              m('a', {onclick: () => attrs.navigateTo('settings')}, 'Settings'),
+              m('a', {onclick: () => m.route.set('/settings')}, 'Settings'),
               ' page.',
             ),
           ),
@@ -211,7 +209,7 @@ export class HomePage implements m.ClassComponent<HomePageAttrs> {
               interactive: true,
               onclick: () => {
                 queryState.initialQuery = SLICE_COUNT_QUERY;
-                attrs.navigateTo('query');
+                m.route.set('/query');
               },
             },
             m(
@@ -253,7 +251,7 @@ export class HomePage implements m.ClassComponent<HomePageAttrs> {
               interactive: true,
               onclick: () => {
                 queryState.initialQuery = CPU_TIME_QUERY;
-                attrs.navigateTo('query');
+                m.route.set('/query');
               },
             },
             m(
@@ -317,7 +315,7 @@ export class HomePage implements m.ClassComponent<HomePageAttrs> {
           m(RecentQueriesSection, {
             onLoadQuery: (query: string) => {
               queryState.initialQuery = query;
-              attrs.navigateTo('query');
+              m.route.set('/query');
             },
           }),
         ),
