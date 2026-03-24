@@ -1048,6 +1048,7 @@ std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
   std::vector<PerfettoSqlEngine::StaticTable> tables;
   AddStaticTable(tables, storage->mutable_aggregate_profile_table());
   AddStaticTable(tables, storage->mutable_aggregate_sample_table());
+  AddStaticTable(tables, storage->mutable_android_aflags_table());
   AddStaticTable(tables, storage->mutable_android_cpu_per_uid_track_table());
   AddStaticTable(tables, storage->mutable_android_dumpstate_table());
   AddStaticTable(tables,
