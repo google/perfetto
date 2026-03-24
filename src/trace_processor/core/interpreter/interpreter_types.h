@@ -267,6 +267,17 @@ struct TreeState {
   // Scratch buffers (allocated once at max size, reused).
   Slab<uint32_t> scratch1;  // initial_row_count * 2
   Slab<uint32_t> scratch2;  // initial_row_count
+
+  // Propagation specs: set by TreeTransformer, consumed by PropagateTreeDown.
+  // Each PropagateTreeDown bytecode processes a contiguous range of specs.
+  struct PropagateDownSpec {
+    enum class AggOp : uint8_t { kSum, kMin, kMax, kFirst, kLast };
+    AggOp agg_op;
+    uint32_t source_ts_col;  // index into |columns| to copy FROM
+    uint32_t dest_ts_col;    // index into |columns| to propagate INTO
+    StorageType storage_type;
+  };
+  std::vector<PropagateDownSpec> propagate_down_specs;
 };
 
 }  // namespace perfetto::trace_processor::core::interpreter

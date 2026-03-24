@@ -30,6 +30,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/core/tree/propagate_spec.h"
 #include "src/trace_processor/core/tree/tree_columns.h"
 
 namespace perfetto::trace_processor::core::interpreter {
@@ -48,7 +49,9 @@ namespace perfetto::trace_processor::core::tree {
 // Usage:
 //   TreeTransformer t(std::move(cols), pool);
 //   RETURN_IF_ERROR(t.FilterTree(specs, values));
-//   ASSIGN_OR_RETURN(auto result, std::move(t).ToDataframe());
+//   RETURN_IF_ERROR(t.PropagateDown(propagate_specs));
+//   RETURN_IF_ERROR(t.FilterTree(specs2, values2));  // can filter on
+//   propagated ASSIGN_OR_RETURN(auto result, std::move(t).ToDataframe());
 class TreeTransformer {
  public:
   TreeTransformer(TreeColumns cols, StringPool* pool);
@@ -72,6 +75,14 @@ class TreeTransformer {
   base::Status FilterTree(std::vector<dataframe::FilterSpec> specs,
                           std::vector<SqlValue> values);
 
+  // Propagates column values from root toward leaves. For each spec, a new
+  // output column is created and filled by copying the source column and
+  // then applying the aggregate operation downward through the tree via BFS.
+  //
+  // After this call, the new columns can be referenced by name in subsequent
+  // FilterTree() calls.
+  base::Status PropagateDown(std::vector<PropagateSpec> specs);
+
   // Finalizes bytecode, executes it, and returns the resulting dataframe.
   base::StatusOr<dataframe::Dataframe> ToDataframe() &&;
 
@@ -81,6 +92,12 @@ class TreeTransformer {
     Kind kind;
     uint32_t reg;
     uint32_t col;  // index into cols_.columns
+  };
+
+  struct PropagateInfo {
+    uint32_t source_col;  // cols_.columns index
+    uint32_t dest_col;    // cols_.columns index
+    PropagateAggOp agg_op;
   };
 
   TreeColumns cols_;
@@ -99,6 +116,9 @@ class TreeTransformer {
   // Filter values accumulated across FilterTree calls.
   std::vector<SqlValue> filter_values_;
   uint32_t filter_value_count_ = 0;
+
+  // Propagation specs accumulated across PropagateDown calls.
+  std::vector<PropagateInfo> propagate_specs_;
 
   // Whether any bytecodes have been emitted.
   bool has_operations_ = false;

@@ -1742,6 +1742,12 @@ inline PERFETTO_ALWAYS_INLINE void FindMinMaxIndex(
 // the TreeState, and resets the indices span to [0..new_row_count-1].
 void FilterTreeState(InterpreterState& state, const struct FilterTreeState& bc);
 
+// Propagates column values from roots toward leaves using BFS.
+// For each parent→child edge, applies the aggregate operation from
+// TreeState::propagate_down_specs.
+void PropagateTreeDown(InterpreterState& state,
+                       const struct PropagateTreeDown& bc);
+
 }  // namespace ops
 
 // Macros for generating case statements that dispatch to ops:: free functions.

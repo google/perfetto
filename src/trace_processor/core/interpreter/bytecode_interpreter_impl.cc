@@ -455,6 +455,57 @@ void BuildP2CFromTreeState(TreeState* ts) {
   ts->p2c_valid = true;
 }
 
+// Runs a single propagate-down pass over the BFS order for one column.
+// The type/op switch happens once here; the inner loop is tight.
+template <typename T>
+void PropagateDownBfs(T* d,
+                      TreeState::PropagateDownSpec::AggOp agg_op,
+                      const uint32_t* queue,
+                      uint32_t queue_end,
+                      const uint32_t* parent_arr) {
+  using AggOp = TreeState::PropagateDownSpec::AggOp;
+  switch (agg_op) {
+    case AggOp::kSum:
+      for (uint32_t qi = 0; qi < queue_end; ++qi) {
+        uint32_t node = queue[qi];
+        uint32_t p = parent_arr[node];
+        if (p != kNullParent) {
+          d[node] += d[p];
+        }
+      }
+      break;
+    case AggOp::kMin:
+      for (uint32_t qi = 0; qi < queue_end; ++qi) {
+        uint32_t node = queue[qi];
+        uint32_t p = parent_arr[node];
+        if (p != kNullParent) {
+          d[node] = std::min(d[p], d[node]);
+        }
+      }
+      break;
+    case AggOp::kMax:
+      for (uint32_t qi = 0; qi < queue_end; ++qi) {
+        uint32_t node = queue[qi];
+        uint32_t p = parent_arr[node];
+        if (p != kNullParent) {
+          d[node] = std::max(d[p], d[node]);
+        }
+      }
+      break;
+    case AggOp::kFirst:
+      for (uint32_t qi = 0; qi < queue_end; ++qi) {
+        uint32_t node = queue[qi];
+        uint32_t p = parent_arr[node];
+        if (p != kNullParent) {
+          d[node] = d[p];
+        }
+      }
+      break;
+    case AggOp::kLast:
+      break;  // No-op: values unchanged.
+  }
+}
+
 }  // namespace
 
 void FilterTreeState(InterpreterState& state,
@@ -567,6 +618,65 @@ void FilterTreeState(InterpreterState& state,
   // Reset indices to [0..new_count-1] for subsequent operations.
   std::iota(indices.b, indices.b + new_count, 0u);
   indices.e = indices.b + new_count;
+}
+
+void PropagateTreeDown(InterpreterState& state,
+                       const struct PropagateTreeDown& bc) {
+  using B = struct PropagateTreeDown;
+  auto& ts = state.ReadFromRegister(bc.arg<B::tree_state_register>());
+  uint32_t spec_start = bc.arg<B::spec_start>();
+  uint32_t spec_count = bc.arg<B::spec_count>();
+
+  if (ts->row_count == 0 || spec_count == 0) {
+    return;
+  }
+
+  BuildP2CFromTreeState(ts.get());
+
+  // BFS from roots, building a topological order in scratch1.
+  uint32_t* queue = ts->scratch1.begin();
+  uint32_t queue_end = 0;
+  for (uint32_t i = 0; i < ts->p2c_root_count; ++i) {
+    queue[queue_end++] = ts->p2c_roots[i];
+  }
+  for (uint32_t qi = 0; qi < queue_end; ++qi) {
+    uint32_t cs = ts->p2c_offsets[queue[qi]];
+    uint32_t ce = ts->p2c_offsets[queue[qi] + 1];
+    for (uint32_t ci = cs; ci < ce; ++ci) {
+      queue[queue_end++] = ts->p2c_children[ci];
+    }
+  }
+
+  // Process only the specs in [spec_start, spec_start + spec_count).
+  // For each: copy source → dest, then BFS propagation on dest.
+  const uint32_t* parent_arr = ts->parent.begin();
+  uint32_t n = ts->row_count;
+  for (uint32_t si = spec_start; si < spec_start + spec_count; ++si) {
+    const auto& spec = ts->propagate_down_specs[si];
+    uint8_t* src_data = ts->columns[spec.source_ts_col].data.begin();
+    uint8_t* dst_data = ts->columns[spec.dest_ts_col].data.begin();
+    uint32_t byte_count = n * ts->columns[spec.dest_ts_col].elem_size;
+
+    // Copy source data into dest column.
+    memcpy(dst_data, src_data, byte_count);
+
+    // BFS propagation on dest data.
+    if (spec.storage_type.Is<Uint32>()) {
+      PropagateDownBfs(reinterpret_cast<uint32_t*>(dst_data), spec.agg_op,
+                       queue, queue_end, parent_arr);
+    } else if (spec.storage_type.Is<Int32>()) {
+      PropagateDownBfs(reinterpret_cast<int32_t*>(dst_data), spec.agg_op, queue,
+                       queue_end, parent_arr);
+    } else if (spec.storage_type.Is<Int64>()) {
+      PropagateDownBfs(reinterpret_cast<int64_t*>(dst_data), spec.agg_op, queue,
+                       queue_end, parent_arr);
+    } else if (spec.storage_type.Is<Double>()) {
+      PropagateDownBfs(reinterpret_cast<double*>(dst_data), spec.agg_op, queue,
+                       queue_end, parent_arr);
+    } else {
+      PERFETTO_FATAL("Unsupported storage type for propagate down");
+    }
+  }
 }
 
 }  // namespace perfetto::trace_processor::core::interpreter::ops
