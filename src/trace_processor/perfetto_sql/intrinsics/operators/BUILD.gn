@@ -39,30 +39,6 @@ source_set("operators") {
     "../../../util:galloping_search",
     "../../engine",
   ]
-  if (enable_perfetto_etm_importer) {
-    deps += [ ":etm" ]
-  }
-}
-
-if (enable_perfetto_etm_importer) {
-  source_set("etm") {
-    sources = [
-      "etm_decode_trace_vtable.cc",
-      "etm_decode_trace_vtable.h",
-      "etm_iterate_range_vtable.cc",
-      "etm_iterate_range_vtable.h",
-    ]
-    deps = [
-      "../../../../../gn:default_deps",
-      "../../../../../gn:sqlite",
-      "../../../../../include/perfetto/base",
-      "../../../../../include/perfetto/ext/base:base",
-      "../../../../base",
-      "../../../importers/etm",
-      "../../../sqlite",
-      "../../../storage",
-    ]
-  }
 }
 
 perfetto_unittest_source_set("unittests") {

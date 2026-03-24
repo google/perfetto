@@ -167,13 +167,6 @@
 #include "src/trace_processor/importers/instruments/instruments_xml_tokenizer.h"
 #endif
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-#include "src/trace_processor/importers/common/registered_file_tracker.h"
-#include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.h"
-#endif
-
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_proto_to_args_with_defaults.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_surfaceflinger_hierarchy_paths.h"
@@ -402,10 +395,6 @@ void InsertIntoModulesTable(tables::ModulesTable* table,
                             StringPool* string_pool) {
   base::ignore_result(table, string_pool);
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-  table->Insert({string_pool->InternString("etm")});
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
   table->Insert({string_pool->InternString("winscope")});
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
@@ -506,8 +495,15 @@ std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
 }  // namespace
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
-    : TraceProcessorStorageImpl(cfg), config_(cfg) {
+    : TraceProcessorStorageImpl(cfg),
+      config_(cfg),
+      tp_plugins_(CreateTpPlugins()) {
   context()->register_additional_proto_modules = &RegisterAdditionalModules;
+
+  // Allow TpPlugins to register importers, create trackers, etc.
+  for (auto& m : tp_plugins_) {
+    m->RegisterImporters(context());
+  }
   context()->reader_registry->RegisterTraceReader<AndroidDumpstateReader>(
       kAndroidDumpstateTraceType);
   context()->reader_registry->RegisterTraceReader<AndroidLogReader>(
@@ -613,7 +609,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   engine_ = InitPerfettoSqlEngine(
       context(), context()->storage.get(), config_, registered_sql_packages_,
       sql_metrics_, &metrics_descriptor_pool_, &proto_fn_name_to_path_, this,
-      notify_eof_called_, cached_trace_bounds_);
+      notify_eof_called_, cached_trace_bounds_, tp_plugins_);
 
   sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
 
@@ -676,6 +672,9 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   RETURN_IF_ERROR(TraceProcessorStorageImpl::OnPushDataToSorter());
 
   // Stage 2: finalize all data.
+  for (auto& m : tp_plugins_) {
+    m->OnEventsFullyExtracted(context());
+  }
   HeapGraphTracker::Get(context())->FinalizeAllProfiles();
   TraceProcessorStorageImpl::OnEventsFullyExtracted();
   DeobfuscationTracker::Get(context())->OnEventsFullyExtracted();
@@ -687,9 +686,19 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   for (const auto& table : GetStaticTables(context()->storage.get())) {
     table.dataframe->Finalize();
   }
+  // Also finalize module-owned tables.
+  {
+    std::vector<PerfettoSqlEngine::StaticTable> module_tables;
+    for (const auto& m : tp_plugins_) {
+      m->RegisterStaticTables(context()->storage.get(), module_tables);
+    }
+    for (const auto& table : module_tables) {
+      table.dataframe->Finalize();
+    }
+  }
 
   // Stage 4: prepare the engine for queries.
-  IncludeAfterEofPrelude(engine_.get());
+  IncludeAfterEofPrelude(engine_.get(), tp_plugins_);
   sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
 
   return base::OkStatus();
@@ -914,7 +923,7 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   engine_ = InitPerfettoSqlEngine(
       context(), context()->storage.get(), config_, registered_sql_packages_,
       sql_metrics_, &metrics_descriptor_pool_, &proto_fn_name_to_path_, this,
-      notify_eof_called_, cached_trace_bounds_);
+      notify_eof_called_, cached_trace_bounds_, tp_plugins_);
 
   // The registered count should now be the same as it was in the constructor.
   uint64_t registered_count_after = engine_->SqliteRegisteredObjectCount();
@@ -1060,9 +1069,6 @@ std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
   AddStaticTable(tables, storage->mutable_cpu_freq_table());
   AddStaticTable(tables, storage->mutable_cpu_profile_stack_sample_table());
   AddStaticTable(tables, storage->mutable_elf_file_table());
-  AddStaticTable(tables, storage->mutable_etm_v4_configuration_table());
-  AddStaticTable(tables, storage->mutable_etm_v4_session_table());
-  AddStaticTable(tables, storage->mutable_etm_v4_chunk_table());
   AddStaticTable(
       tables, storage->mutable_experimental_missing_chrome_processes_table());
   AddStaticTable(tables, storage->mutable_experimental_proto_content_table());
@@ -1209,7 +1215,8 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
     std::unordered_map<std::string, std::string>* proto_fn_name_to_path,
     TraceProcessor* trace_processor,
     bool notify_eof_called,
-    std::pair<int64_t, int64_t> cached_trace_bounds) {
+    std::pair<int64_t, int64_t> cached_trace_bounds,
+    const std::vector<std::unique_ptr<TpPluginBase>>& tp_plugins) {
   auto engine = std::make_unique<PerfettoSqlEngine>(
       storage->mutable_string_pool(), config.enable_extra_checks);
 
@@ -1217,6 +1224,13 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
       CreateStaticTableFunctions(context, storage, config, engine.get());
 
   std::vector<PerfettoSqlEngine::StaticTable> tables = GetStaticTables(storage);
+
+  // Let TpPlugins contribute their tables and table functions.
+  for (auto& m : tp_plugins) {
+    m->RegisterStaticTables(storage, tables);
+    m->RegisterStaticTableFunctions(context, storage, engine.get(), functions);
+  }
+
   engine->InitializeStaticTablesAndFunctions(tables, std::move(functions));
 
   sqlite3* db = engine->sqlite_engine()->db();
@@ -1366,12 +1380,11 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   engine->RegisterVirtualTableModule<SliceMipmapOperator>(
       "__intrinsic_slice_mipmap",
       std::make_unique<SliceMipmapOperator::Context>(engine.get()));
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-  engine->RegisterVirtualTableModule<etm::EtmDecodeChunkVtable>(
-      "__intrinsic_etm_decode_chunk", storage);
-  engine->RegisterVirtualTableModule<etm::EtmIterateRangeVtable>(
-      "__intrinsic_etm_iterate_instruction_range", storage);
-#endif
+
+  // Let TpPlugins register their functions and operators.
+  for (const auto& m : tp_plugins) {
+    m->RegisterFunctionsAndOperators(storage, engine.get());
+  }
 
   // Register metrics functions.
   {
@@ -1429,7 +1442,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   }
 
   if (notify_eof_called) {
-    IncludeAfterEofPrelude(engine.get());
+    IncludeAfterEofPrelude(engine.get(), tp_plugins);
   }
 
   for (const auto& metric : sql_metrics) {
@@ -1441,11 +1454,26 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   return engine;
 }
 
-void TraceProcessorImpl::IncludeAfterEofPrelude(PerfettoSqlEngine* engine) {
+void TraceProcessorImpl::IncludeAfterEofPrelude(
+    PerfettoSqlEngine* engine,
+    const std::vector<std::unique_ptr<TpPluginBase>>& tp_plugins) {
   auto result = engine->Execute(SqlSource::FromTraceProcessorImplementation(
       "INCLUDE PERFETTO MODULE prelude.after_eof.*"));
   if (!result.status().ok()) {
     PERFETTO_FATAL("Failed to import prelude: %s", result.status().c_message());
+  }
+
+  // Let TpPlugins execute their after-EOF SQL (views, etc).
+  for (const auto& m : tp_plugins) {
+    std::string sql = m->GetAfterEofSql();
+    if (!sql.empty()) {
+      auto r =
+          engine->Execute(SqlSource::FromTraceProcessorImplementation(sql));
+      if (!r.status().ok()) {
+        PERFETTO_FATAL("Module after-EOF SQL failed: %s",
+                       r.status().c_message());
+      }
+    }
   }
 }
 

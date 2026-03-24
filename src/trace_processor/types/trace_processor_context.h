@@ -171,6 +171,15 @@ class TraceProcessorContext {
   GlobalPtr<UuidState> uuid_state;
   GlobalPtr<Destructible> heap_graph_tracker;  // HeapGraphTracker
 
+  // TpPlugin pointers (lifetime managed by TraceProcessorImpl::tp_plugins_).
+  void* etm_tp_plugin = nullptr;
+
+  // Callbacks for plugins to register on PerfTracker when it's created.
+  // Each callback receives PerfTracker (as void*) and registers aux
+  // tokenizers. This avoids plugins depending on PerfTracker's lifetime.
+  std::vector<std::function<void(void* perf_tracker)>>
+      perf_aux_tokenizer_registrations;
+
   // Per-Trace State
   // ==========================
   //

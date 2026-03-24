@@ -34,6 +34,7 @@
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/core/tp_plugin.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
@@ -155,7 +156,8 @@ class TraceProcessorImpl : public TraceProcessor,
       std::unordered_map<std::string, std::string>* proto_fn_name_to_path,
       TraceProcessor*,
       bool notify_eof_called,
-      std::pair<int64_t, int64_t> cached_trace_bounds);
+      std::pair<int64_t, int64_t> cached_trace_bounds,
+      const std::vector<std::unique_ptr<TpPluginBase>>& tp_plugins);
 
   static std::vector<PerfettoSqlEngine::StaticTable> GetStaticTables(
       TraceStorage* storage);
@@ -166,9 +168,14 @@ class TraceProcessorImpl : public TraceProcessor,
                              const Config& config,
                              PerfettoSqlEngine* engine);
 
-  static void IncludeAfterEofPrelude(PerfettoSqlEngine*);
+  static void IncludeAfterEofPrelude(
+      PerfettoSqlEngine*,
+      const std::vector<std::unique_ptr<TpPluginBase>>& tp_plugins);
 
   const Config config_;
+
+  // Registered TpPlugins, topologically sorted by dependency order.
+  std::vector<std::unique_ptr<TpPluginBase>> tp_plugins_;
 
   std::unique_ptr<PerfettoSqlEngine> engine_;
 

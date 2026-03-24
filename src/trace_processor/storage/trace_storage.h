@@ -795,38 +795,6 @@ class TraceStorage {
     return mutable_table<tables::V8RegexpCodeTable>();
   }
 
-  const tables::EtmV4ConfigurationTable& etm_v4_configuration_table() const {
-    return table<tables::EtmV4ConfigurationTable>();
-  }
-  tables::EtmV4ConfigurationTable* mutable_etm_v4_configuration_table() {
-    return mutable_table<tables::EtmV4ConfigurationTable>();
-  }
-  const std::vector<std::unique_ptr<Destructible>>& etm_v4_configuration_data()
-      const {
-    return etm_v4_configuration_data_;
-  }
-  std::vector<std::unique_ptr<Destructible>>*
-  mutable_etm_v4_configuration_data() {
-    return &etm_v4_configuration_data_;
-  }
-  const tables::EtmV4SessionTable& etm_v4_session_table() const {
-    return table<tables::EtmV4SessionTable>();
-  }
-  tables::EtmV4SessionTable* mutable_etm_v4_session_table() {
-    return mutable_table<tables::EtmV4SessionTable>();
-  }
-  const tables::EtmV4ChunkTable& etm_v4_chunk_table() const {
-    return table<tables::EtmV4ChunkTable>();
-  }
-  tables::EtmV4ChunkTable* mutable_etm_v4_chunk_table() {
-    return mutable_table<tables::EtmV4ChunkTable>();
-  }
-  const std::vector<TraceBlobView>& etm_v4_chunk_data() const {
-    return etm_v4_chunk_data_;
-  }
-  std::vector<TraceBlobView>* mutable_etm_v4_chunk_data() {
-    return &etm_v4_chunk_data_;
-  }
   const tables::FileTable& file_table() const {
     return table<tables::FileTable>();
   }
@@ -1107,12 +1075,6 @@ class TraceStorage {
   TraceStorage(TraceStorage&&) = delete;
   TraceStorage& operator=(TraceStorage&&) = delete;
 
-  friend etm::TargetMemory;
-  Destructible* etm_target_memory() { return etm_target_memory_.get(); }
-  void set_etm_target_memory(std::unique_ptr<Destructible> target_memory) {
-    etm_target_memory_ = std::move(target_memory);
-  }
-
   // Helper to get a table by type.
   template <typename T>
   T* mutable_table() {
@@ -1134,13 +1096,6 @@ class TraceStorage {
   StatsMap stats_{};
   VirtualTrackSlices virtual_track_slices_;
   SqlStats sql_stats_;
-
-  // ETM tables
-  // Indexed by tables::EtmV4ConfigurationTable::Id
-  std::vector<std::unique_ptr<Destructible>> etm_v4_configuration_data_;
-  // Indexed by tables::EtmV4TraceTable::Id
-  std::vector<TraceBlobView> etm_v4_chunk_data_;
-  std::unique_ptr<Destructible> etm_target_memory_;
 
   // Aligned storage for all table dataframes.
   alignas(

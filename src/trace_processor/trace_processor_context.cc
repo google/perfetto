@@ -198,6 +198,11 @@ void CopyGlobalState(const TraceProcessorContext* source,
   dest->register_additional_proto_modules =
       source->register_additional_proto_modules;
 
+  // TpPlugin pointers and registrations (shared across all contexts).
+  dest->etm_tp_plugin = source->etm_tp_plugin;
+  dest->perf_aux_tokenizer_registrations =
+      source->perf_aux_tokenizer_registrations;
+
   // Per-Trace State (Miscategorized).
   dest->registered_file_tracker = source->registered_file_tracker.Fork();
   dest->uuid_state = source->uuid_state.Fork();

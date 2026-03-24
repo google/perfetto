@@ -23,3 +23,16 @@ group("core") {
     "interpreter",
   ]
 }
+
+source_set("tp_plugin") {
+  sources = [
+    "tp_plugin.cc",
+    "tp_plugin.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+    "../containers",
+    "../perfetto_sql/engine",
+  ]
+}

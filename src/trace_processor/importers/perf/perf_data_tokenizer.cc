@@ -596,9 +596,6 @@ base::Status PerfDataTokenizer::OnPushDataToSorter() {
   return base::OkStatus();
 }
 
-void PerfDataTokenizer::OnEventsFullyExtracted() {
-  // Phase 3: Finalize tracker
-  perf_tracker_.OnEventsFullyExtracted();
-}
+void PerfDataTokenizer::OnEventsFullyExtracted() {}
 
 }  // namespace perfetto::trace_processor::perf_importer
