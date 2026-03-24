@@ -320,7 +320,7 @@ base::Status TreeTransformer::FilterTree(
       spec.value_index = filter_value_count_++;
       filter_values_.push_back(values[si]);
       if (null_bv) {
-        auto reg = builder_->AllocateRegister<const BitVector*>();
+        auto reg = builder_->AllocateRegister<i::NullBitvector>();
         using B = i::NullFilterBase;
         auto& bc = builder_->AddOpcode<B>(i::Index<i::NullFilter>(*null_op));
         bc.arg<B::null_bv_register>() = reg;
@@ -350,7 +350,7 @@ base::Status TreeTransformer::FilterTree(
 
     // Prune null indices if column has nulls.
     if (null_bv) {
-      auto reg = builder_->AllocateRegister<const BitVector*>();
+      auto reg = builder_->AllocateRegister<i::NullBitvector>();
       using B = i::NullFilter<IsNotNull>;
       auto& bc = builder_->AddOpcode<B>(i::Index<B>());
       bc.arg<B::null_bv_register>() = reg;
@@ -484,8 +484,10 @@ base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
       }
       case RegInit::kNullBv: {
         uint32_t idx = *col_to_null_bv.Find(ri.col);
-        interp.SetRegisterValue(i::WriteHandle<const BitVector*>(ri.reg),
-                                &ts_ref.null_bitvectors[idx]);
+        i::NullBitvector nbv;
+        nbv.bv = &ts_ref.null_bitvectors[idx];
+        interp.SetRegisterValue(i::WriteHandle<i::NullBitvector>(ri.reg),
+                                std::move(nbv));
         break;
       }
     }
