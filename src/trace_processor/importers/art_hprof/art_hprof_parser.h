@@ -55,6 +55,11 @@ class ArtHprofParser : public ChunkedTraceReader {
   void PopulateObjects(const HeapGraph& graph, int64_t ts, UniquePid upid);
   void PopulateReferences(const HeapGraph& graph);
   void PopulateFieldValues(const HeapGraph& graph);
+  void InsertPrimitiveFields(const Object& obj,
+                             uint32_t field_set_id,
+                             tables::HeapGraphPrimitiveTable& prim_table);
+  void InsertArrayData(const Object& obj,
+                       tables::HeapGraphObjectDataTable::Row& data_row);
 
   tables::HeapGraphClassTable::Id* FindClassId(uint64_t class_id) const;
   tables::HeapGraphObjectTable::Id* FindObjectId(uint64_t obj_id) const;
