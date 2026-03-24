@@ -866,145 +866,6 @@ inline PERFETTO_ALWAYS_INLINE void CastFilterValue(
   state.WriteToRegister(f.arg<B::write_register>(), result);
 }
 
-// Builds the appropriate lookup structure for the In filter. For small lists,
-// keeps the FlexVector for linear scan. For dense Id/Uint32, builds a
-// BitVector. For large sparse integer/string lists, builds a FlatHashMapV2.
-template <typename T>
-CastFilterValueListResult::Lookup BuildLookup(
-    FlexVector<
-        StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>>
-        results) {
-  constexpr uint32_t kLinearScanThreshold = 16;
-  if (results.size() <= kLinearScanThreshold) {
-    CastFilterValueListResult::ValueList vl = std::move(results);
-    return vl;
-  }
-
-  if constexpr (std::is_same_v<T, Id> || std::is_same_v<T, Uint32>) {
-    uint32_t max_val = 0;
-    for (size_t i = 0; i < results.size(); ++i) {
-      if constexpr (std::is_same_v<T, Id>) {
-        max_val = std::max(max_val, results[i].value);
-      } else {
-        max_val = std::max(max_val, results[i]);
-      }
-    }
-    if (max_val <= static_cast<uint32_t>(results.size()) * 16) {
-      BitVector bv = BitVector::CreateWithSize(max_val + 1, false);
-      for (size_t i = 0; i < results.size(); ++i) {
-        if constexpr (std::is_same_v<T, Id>) {
-          bv.set(results[i].value);
-        } else {
-          bv.set(results[i]);
-        }
-      }
-      return bv;
-    }
-    CastFilterValueListResult::HashLookup hm;
-    for (size_t i = 0; i < results.size(); ++i) {
-      if constexpr (std::is_same_v<T, Id>) {
-        hm.Insert(static_cast<int64_t>(results[i].value), true);
-      } else {
-        hm.Insert(static_cast<int64_t>(results[i]), true);
-      }
-    }
-    return hm;
-  } else if constexpr (std::is_same_v<T, Int32> || std::is_same_v<T, Int64>) {
-    CastFilterValueListResult::HashLookup hm;
-    for (size_t i = 0; i < results.size(); ++i) {
-      hm.Insert(static_cast<int64_t>(results[i]), true);
-    }
-    return hm;
-  } else if constexpr (std::is_same_v<T, String>) {
-    CastFilterValueListResult::HashLookup hm;
-    for (size_t i = 0; i < results.size(); ++i) {
-      hm.Insert(static_cast<int64_t>(results[i].raw_id()), true);
-    }
-    return hm;
-  } else {
-    // Double: keep FlexVector for linear scan (hash equality is fragile).
-    CastFilterValueListResult::ValueList vl = std::move(results);
-    return vl;
-  }
-}
-
-template <typename T, typename FilterValueFetcherImpl>
-inline PERFETTO_ALWAYS_INLINE void CastFilterValueList(
-    InterpreterState& state,
-    FilterValueFetcherImpl& fetcher,
-    const CastFilterValueListBase& c) {
-  using B = CastFilterValueListBase;
-  FilterValueHandle handle = c.arg<B::fval_handle>();
-  using ValueType =
-      StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>;
-  FlexVector<ValueType> results;
-  bool all_match = false;
-  for (bool has_more = fetcher.IteratorInit(handle.index); has_more;
-       has_more = fetcher.IteratorNext(handle.index)) {
-    typename FilterValueFetcherImpl::Type filter_value_type =
-        fetcher.GetValueType(handle.index);
-    if constexpr (std::is_same_v<T, Id>) {
-      auto op = *c.arg<B::op>().TryDowncast<NonStringOp>();
-      uint32_t result_value;
-      auto validity =
-          CastFilterValueToInteger<uint32_t, FilterValueFetcherImpl>(
-              handle, filter_value_type, fetcher, op, result_value);
-      if (PERFETTO_LIKELY(validity == CastFilterValueResult::kValid)) {
-        results.push_back(CastFilterValueResult::Id{result_value});
-      } else if (validity == CastFilterValueResult::kAllMatch) {
-        all_match = true;
-        break;
-      }
-    } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
-      auto op = *c.arg<B::op>().TryDowncast<NonStringOp>();
-      ValueType result_value;
-      auto validity =
-          CastFilterValueToIntegerOrDouble<ValueType, FilterValueFetcherImpl>(
-              handle, filter_value_type, fetcher, op, result_value);
-      if (PERFETTO_LIKELY(validity == CastFilterValueResult::kValid)) {
-        results.push_back(result_value);
-      } else if (validity == CastFilterValueResult::kAllMatch) {
-        all_match = true;
-        break;
-      }
-    } else if constexpr (std::is_same_v<T, String>) {
-      static_assert(std::is_same_v<ValueType, StringPool::Id>);
-      auto op = *c.arg<B::op>().TryDowncast<StringOp>();
-      // We only support equality checks for strings in this context. This is
-      // because mapping to StringPool::Id could not possibly work for
-      // non-equality checks.
-      PERFETTO_CHECK(op.Is<Eq>());
-      const char* result_value;
-      auto validity = CastFilterValueToString<FilterValueFetcherImpl>(
-          handle, filter_value_type, fetcher, op, result_value);
-      if (PERFETTO_LIKELY(validity == CastFilterValueResult::kValid)) {
-        auto id = state.string_pool->GetId(result_value);
-        if (id) {
-          results.push_back(*id);
-        } else {
-          // Because we only support equality, we know for sure that nothing
-          // matches this value.
-        }
-      } else if (validity == CastFilterValueResult::kAllMatch) {
-        all_match = true;
-        break;
-      }
-    } else {
-      static_assert(std::is_same_v<T, Id>, "Unsupported type");
-    }
-  }
-  CastFilterValueListResult result;
-  if (all_match) {
-    result = CastFilterValueListResult::AllMatch();
-  } else if (results.empty()) {
-    result = CastFilterValueListResult::NoneMatch();
-  } else {
-    result =
-        CastFilterValueListResult::Valid(BuildLookup<T>(std::move(results)));
-  }
-  state.WriteToRegister(c.arg<B::write_register>(), std::move(result));
-}
-
 template <typename T, typename Op>
 inline PERFETTO_ALWAYS_INLINE void NonStringFilter(
     InterpreterState& state,
@@ -1237,127 +1098,6 @@ inline PERFETTO_ALWAYS_INLINE void SortedFilter(
 }
 
 template <typename T>
-inline PERFETTO_ALWAYS_INLINE void In(
-    InterpreterState& state,
-    const ::perfetto::trace_processor::core::interpreter::In<T>& f) {
-  using B = ::perfetto::trace_processor::core::interpreter::In<T>;
-  const auto& value =
-      state.ReadFromRegister(f.template arg<B::value_list_register>());
-  const Span<uint32_t>& source =
-      state.ReadFromRegister(f.template arg<B::source_register>());
-  Span<uint32_t>& update =
-      state.ReadFromRegister(f.template arg<B::update_register>());
-  if (!HandleInvalidCastFilterValueResult(value.validity, update)) {
-    return;
-  }
-
-  const auto& lookup = value.lookup;
-
-  // Dispatch based on the pre-built lookup structure.
-  if constexpr (std::is_same_v<T, Id> || std::is_same_v<T, Uint32>) {
-    if (auto* bv = std::get_if<BitVector>(&lookup)) {
-      // BitVector path: O(1) per row. Only valid for Id/Uint32.
-      struct InBitVectorCmp {
-        PERFETTO_ALWAYS_INLINE bool operator()(uint32_t lhs,
-                                               const BitVector& b) const {
-          return lhs < b.size() && b.is_set(lhs);
-        }
-      };
-      if constexpr (std::is_same_v<T, Id>) {
-        update.e =
-            IdentityFilter(source.b, source.e, update.b, *bv, InBitVectorCmp());
-      } else {
-        const auto* data = state.ReadStorageFromRegister<T>(
-            f.template arg<B::storage_register>());
-        update.e =
-            Filter(data, source.b, source.e, update.b, *bv, InBitVectorCmp());
-      }
-      return;
-    }
-  }
-  if (auto* hm = std::get_if<CastFilterValueListResult::HashLookup>(&lookup)) {
-    // HashLookup path: O(1) per row.
-    struct HashCmp {
-      PERFETTO_ALWAYS_INLINE bool operator()(
-          int64_t lhs,
-          const CastFilterValueListResult::HashLookup& h) const {
-        return h.Find(lhs) != nullptr;
-      }
-    };
-    if constexpr (std::is_same_v<T, Id>) {
-      struct IdHashCmp {
-        PERFETTO_ALWAYS_INLINE bool operator()(
-            uint32_t lhs,
-            const CastFilterValueListResult::HashLookup& h) const {
-          return h.Find(static_cast<int64_t>(lhs)) != nullptr;
-        }
-      };
-      update.e = IdentityFilter(source.b, source.e, update.b, *hm, IdHashCmp());
-    } else if constexpr (std::is_same_v<T, String>) {
-      const auto* data = state.ReadStorageFromRegister<T>(
-          f.template arg<B::storage_register>());
-      struct StringHashCmp {
-        PERFETTO_ALWAYS_INLINE bool operator()(
-            StringPool::Id lhs,
-            const CastFilterValueListResult::HashLookup& h) const {
-          return h.Find(static_cast<int64_t>(lhs.raw_id())) != nullptr;
-        }
-      };
-      update.e =
-          Filter(data, source.b, source.e, update.b, *hm, StringHashCmp());
-    } else {
-      const auto* data = state.ReadStorageFromRegister<T>(
-          f.template arg<B::storage_register>());
-      using D = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
-      struct NumericHashCmp {
-        PERFETTO_ALWAYS_INLINE bool operator()(
-            D lhs,
-            const CastFilterValueListResult::HashLookup& h) const {
-          return h.Find(static_cast<int64_t>(lhs)) != nullptr;
-        }
-      };
-      update.e =
-          Filter(data, source.b, source.e, update.b, *hm, NumericHashCmp());
-    }
-  } else {
-    // ValueList path: linear scan for small lists.
-    const auto& vl = std::get<CastFilterValueListResult::ValueList>(lookup);
-    using M =
-        StorageType::VariantTypeAtIndex<T,
-                                        CastFilterValueListResult::ValueList>;
-    const M& val = base::unchecked_get<M>(vl);
-    if constexpr (std::is_same_v<T, Id>) {
-      struct Cmp {
-        bool operator()(
-            uint32_t lhs,
-            const FlexVector<CastFilterValueResult::Id>& rhs) const {
-          for (const auto& r : rhs) {
-            if (lhs == r.value)
-              return true;
-          }
-          return false;
-        }
-      };
-      update.e = IdentityFilter(source.b, source.e, update.b, val, Cmp());
-    } else {
-      const auto* data = state.ReadStorageFromRegister<T>(
-          f.template arg<B::storage_register>());
-      using D = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
-      struct Cmp {
-        bool operator()(D lhs, const FlexVector<D>& rhs) const {
-          for (const auto& r : rhs) {
-            if (std::equal_to<>()(lhs, r))
-              return true;
-          }
-          return false;
-        }
-      };
-      update.e = Filter(data, source.b, source.e, update.b, val, Cmp());
-    }
-  }
-}
-
-template <typename T>
 inline PERFETTO_ALWAYS_INLINE void LinearFilterEq(
     InterpreterState& state,
     const ::perfetto::trace_processor::core::interpreter::LinearFilterEq<T>&
@@ -1432,6 +1172,47 @@ IndexToStorageIndex(uint32_t index,
   }
 }
 
+// Binary-searches a sorted index for all entries whose resolved storage
+// value equals |target|. Returns the [lb, ub) range of matching index
+// entries.
+//
+// |target| should be a NullTermStringView for String columns (i.e. a
+// pre-resolved string_pool->Get result) or the raw value for other types.
+// This avoids repeated string_pool->Get calls inside the comparators.
+template <typename T, typename N, typename Resolved>
+inline PERFETTO_ALWAYS_INLINE std::pair<uint32_t*, uint32_t*> IndexEqualRange(
+    uint32_t* begin,
+    uint32_t* end,
+    const Resolved& target,
+    const typename T::cpp_type* data,
+    const BitVector* const* null_bv,
+    const Slab<uint32_t>* popcnt,
+    const StringPool* string_pool) {
+  auto* lb =
+      std::lower_bound(begin, end, target, [&](uint32_t idx, const Resolved&) {
+        uint32_t si = IndexToStorageIndex<N>(idx, null_bv, popcnt);
+        if (si == std::numeric_limits<uint32_t>::max())
+          return true;
+        if constexpr (std::is_same_v<T, String>) {
+          return string_pool->Get(data[si]) < target;
+        } else {
+          return data[si] < target;
+        }
+      });
+  auto* ub =
+      std::upper_bound(lb, end, target, [&](const Resolved&, uint32_t idx) {
+        uint32_t si = IndexToStorageIndex<N>(idx, null_bv, popcnt);
+        if (si == std::numeric_limits<uint32_t>::max())
+          return false;
+        if constexpr (std::is_same_v<T, String>) {
+          return target < string_pool->Get(data[si]);
+        } else {
+          return target < data[si];
+        }
+      });
+  return {lb, ub};
+}
+
 template <typename T, typename N>
 inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
     InterpreterState& state,
@@ -1454,32 +1235,464 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
       state.MaybeReadFromRegister(bytecode.arg<B::popcount_register>());
   const BitVector* const* null_bv =
       state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
-  dest.b = std::lower_bound(
-      source.b, source.e, value, [&](uint32_t index, const M& val_arg) {
-        uint32_t storage_idx = IndexToStorageIndex<N>(index, null_bv, popcnt);
-        if (storage_idx == std::numeric_limits<uint32_t>::max()) {
-          return true;
-        }
-        if constexpr (std::is_same_v<T, String>) {
-          return state.string_pool->Get(data[storage_idx]) < val_arg;
-        } else {
-          return data[storage_idx] < val_arg;
-        }
-      });
-  dest.e = std::upper_bound(
-      dest.b, source.e, value, [&](const M& val_arg, uint32_t index) {
-        uint32_t storage_idx = IndexToStorageIndex<N>(index, null_bv, popcnt);
-        if (storage_idx == std::numeric_limits<uint32_t>::max()) {
-          return false;
-        }
-        if constexpr (std::is_same_v<T, String>) {
-          return val_arg < state.string_pool->Get(data[storage_idx]);
-        } else {
-          return val_arg < data[storage_idx];
-        }
-      });
+
+  std::tie(dest.b, dest.e) = IndexEqualRange<T, N>(
+      source.b, source.e, value, data, null_bv, popcnt, state.string_pool);
   state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
 }
+
+// ============================================================================
+// FilterIn: IN-clause filtering
+//
+// This section implements the FilterIn bytecode which handles SQL IN(...)
+// clauses. The code is organized as follows:
+//
+//   1. Constants (thresholds for algorithm selection)
+//   2. Helpers for building lookup structures (MaybeBuildBitVector,
+//      MaybeBuildValueList)
+//   3. CastFilterValueList: casts raw filter values into typed lookup
+//      structures (HashMap, BitVector, sorted ValueList)
+//   4. NonIndexedFilterInImpl: scans indices with hash/bitvector/linear lookup
+//   5. IndexedFilterInBinarySearch: binary-searches a sorted index
+//   6. IndexedFilterIn: dispatches between binary search and linear scan
+//   7. FilterIn: the public bytecode entry point
+// ============================================================================
+
+namespace {
+
+// Below this threshold, the non-indexed FilterIn path does a linear scan
+// over the value list instead of a HashMap lookup (avoids hashing overhead).
+constexpr uint32_t kFilterInKeyScanThreshold = 16;
+
+// Above this threshold, the indexed FilterIn path switches from binary
+// search to copying the index and filtering in-place with the HashMap.
+//
+// Benchmarks (BM_FilterIn_IndexedBinarySearch / BM_FilterIn_IndexedLinearScan,
+// run with BENCHMARK_CONSTANT_SWEEPING=1) show the crossover is consistently
+// between k=50 and k=200 regardless of n, because the O(m·log(m)) sort of
+// matched results dominates the binary search path when k is large. A threshold
+// of 64 catches the crossover conservatively.
+constexpr uint32_t kFilterInIndexedBinarySearchThreshold = 64;
+
+// value_list is needed by both the key-scan and binary-search paths.
+constexpr uint32_t kFilterInValueListThreshold =
+    std::max(kFilterInKeyScanThreshold, kFilterInIndexedBinarySearchThreshold);
+
+}  // namespace
+
+// Extracts the raw uint32_t from an Id or Uint32 key.
+template <typename T>
+uint32_t FilterInKeyToUint32(const T& key) {
+  if constexpr (std::is_same_v<T, CastFilterValueResult::Id>) {
+    return key.value;
+  } else {
+    static_assert(std::is_same_v<T, uint32_t>);
+    return key;
+  }
+}
+
+// If values are dense Id/Uint32, builds a BitVector from the HashMap.
+template <typename T>
+void MaybeBuildBitVector(CastFilterValueListResult& result) {
+  if constexpr (std::is_same_v<T, Id> || std::is_same_v<T, Uint32>) {
+    using HM = StorageType::VariantTypeAtIndex<
+        T, CastFilterValueListResult::ValueHashMap>;
+    auto& hm = base::unchecked_get<HM>(result.hash_map);
+    uint32_t max_val = 0;
+    for (auto it = hm.GetIterator(); it; ++it) {
+      max_val = std::max(max_val, FilterInKeyToUint32(it.key()));
+    }
+    if (max_val <= static_cast<uint32_t>(hm.size()) * 16) {
+      result.bit_vector.resize(max_val + 1);
+      result.bit_vector.ClearAllBits();
+      for (auto it = hm.GetIterator(); it; ++it) {
+        result.bit_vector.set(FilterInKeyToUint32(it.key()));
+      }
+    }
+  }
+}
+
+// Builds a value_list from the HashMap when the key count is small enough
+// for the linear scan or indexed binary search paths.
+template <typename T>
+void MaybeBuildValueList(CastFilterValueListResult& result) {
+  using HM =
+      StorageType::VariantTypeAtIndex<T,
+                                      CastFilterValueListResult::ValueHashMap>;
+  using VL =
+      StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::ValueList>;
+  auto& hm = base::unchecked_get<HM>(result.hash_map);
+  if (hm.size() > kFilterInValueListThreshold) {
+    return;
+  }
+  auto& vl = base::unchecked_get<VL>(result.value_list);
+  for (auto it = hm.GetIterator(); it; ++it) {
+    vl.push_back(it.key());
+  }
+}
+
+// Casts raw filter values into typed lookup structures for IN-clause
+// filtering. Populates a HashMap (canonical), and optionally a BitVector
+// (for dense Id/Uint32) and a sorted ValueList (for small lists).
+//
+// Reuses existing allocations when a previous result is present in the
+// register, avoiding repeated heap allocation across query iterations.
+template <typename T, typename FilterValueFetcherImpl>
+inline PERFETTO_ALWAYS_INLINE void CastFilterValueList(
+    InterpreterState& state,
+    FilterValueFetcherImpl& fetcher,
+    const CastFilterValueListBase& c) {
+  using B = CastFilterValueListBase;
+  using ValueType =
+      StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>;
+  using HM =
+      StorageType::VariantTypeAtIndex<T,
+                                      CastFilterValueListResult::ValueHashMap>;
+  FilterValueHandle handle = c.arg<B::fval_handle>();
+
+  // Reuse existing allocation if available, otherwise allocate fresh.
+  CastFilterValueListResult::Ptr* existing =
+      state.MaybeReadFromRegister(c.arg<B::write_register>());
+  CastFilterValueListResult::Ptr result;
+  if (existing && *existing) {
+    result = std::move(*existing);
+    result->Clear<T>();
+  } else {
+    result = std::make_unique<CastFilterValueListResult>();
+    result->Init<T>();
+  }
+  auto& hm = base::unchecked_get<HM>(result->hash_map);
+  bool all_match = false;
+  for (bool has_more = fetcher.IteratorInit(handle.index); has_more;
+       has_more = fetcher.IteratorNext(handle.index)) {
+    typename FilterValueFetcherImpl::Type filter_value_type =
+        fetcher.GetValueType(handle.index);
+    if constexpr (std::is_same_v<T, Id>) {
+      auto op = *c.arg<B::op>().TryDowncast<NonStringOp>();
+      uint32_t result_value;
+      auto validity =
+          CastFilterValueToInteger<uint32_t, FilterValueFetcherImpl>(
+              handle, filter_value_type, fetcher, op, result_value);
+      if (PERFETTO_LIKELY(validity == CastFilterValueResult::kValid)) {
+        hm.Insert(CastFilterValueResult::Id{result_value}, true);
+      } else if (validity == CastFilterValueResult::kAllMatch) {
+        all_match = true;
+        break;
+      }
+    } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
+      auto op = *c.arg<B::op>().TryDowncast<NonStringOp>();
+      ValueType result_value;
+      auto validity =
+          CastFilterValueToIntegerOrDouble<ValueType, FilterValueFetcherImpl>(
+              handle, filter_value_type, fetcher, op, result_value);
+      if (PERFETTO_LIKELY(validity == CastFilterValueResult::kValid)) {
+        hm.Insert(result_value, true);
+      } else if (validity == CastFilterValueResult::kAllMatch) {
+        all_match = true;
+        break;
+      }
+    } else if constexpr (std::is_same_v<T, String>) {
+      auto op = *c.arg<B::op>().TryDowncast<StringOp>();
+      PERFETTO_CHECK(op.Is<Eq>());
+      const char* result_value;
+      auto validity = CastFilterValueToString<FilterValueFetcherImpl>(
+          handle, filter_value_type, fetcher, op, result_value);
+      if (PERFETTO_LIKELY(validity == CastFilterValueResult::kValid)) {
+        auto id = state.string_pool->GetId(result_value);
+        if (id) {
+          hm.Insert(*id, true);
+        }
+      } else if (validity == CastFilterValueResult::kAllMatch) {
+        all_match = true;
+        break;
+      }
+    } else {
+      static_assert(std::is_same_v<T, Id>, "Unsupported type");
+    }
+  }
+  if (all_match) {
+    result->validity = CastFilterValueResult::Validity::kAllMatch;
+  } else if (hm.size() == 0) {
+    result->validity = CastFilterValueResult::Validity::kNoneMatch;
+  } else {
+    result->validity = CastFilterValueResult::Validity::kValid;
+    MaybeBuildBitVector<T>(*result);
+    MaybeBuildValueList<T>(*result);
+  }
+  state.WriteToRegister(c.arg<B::write_register>(), std::move(result));
+}
+
+// BitVector membership filter for FilterIn. O(1) per row.
+// Only applicable to Id/Uint32 columns with dense value ranges.
+template <typename T, typename DataType>
+[[nodiscard]] inline PERFETTO_ALWAYS_INLINE uint32_t* FilterInBitVector(
+    const DataType* data,
+    const uint32_t* source_begin,
+    const uint32_t* source_end,
+    uint32_t* dest,
+    const BitVector& bv) {
+  struct Cmp {
+    PERFETTO_ALWAYS_INLINE bool operator()(uint32_t lhs,
+                                           const BitVector& b) const {
+      return lhs < b.size() && b.is_set(lhs);
+    }
+  };
+  if constexpr (std::is_same_v<T, Id>) {
+    base::ignore_result(data);
+    return IdentityFilter(source_begin, source_end, dest, bv, Cmp());
+  } else {
+    return Filter(data, source_begin, source_end, dest, bv, Cmp());
+  }
+}
+
+// Linear scan membership filter for FilterIn. Iterates over a small sorted
+// value list for each row. Avoids HashMap hashing overhead for small lists.
+template <typename T, typename DataType, typename VL>
+[[nodiscard]] inline PERFETTO_ALWAYS_INLINE uint32_t* FilterInLinearScan(
+    const DataType* data,
+    const uint32_t* source_begin,
+    const uint32_t* source_end,
+    uint32_t* dest,
+    const VL& vl) {
+  using ValElem =
+      StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>;
+  if constexpr (std::is_same_v<T, Id>) {
+    struct Cmp {
+      PERFETTO_ALWAYS_INLINE bool operator()(
+          uint32_t lhs,
+          const FlexVector<ValElem>& k) const {
+        for (const auto& v : k) {
+          if (lhs == v.value)
+            return true;
+        }
+        return false;
+      }
+    };
+    return IdentityFilter(source_begin, source_end, dest, vl, Cmp());
+  } else {
+    using D = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
+    struct Cmp {
+      PERFETTO_ALWAYS_INLINE bool operator()(
+          D lhs,
+          const FlexVector<ValElem>& k) const {
+        for (const auto& v : k) {
+          if (std::equal_to<>()(lhs, v))
+            return true;
+        }
+        return false;
+      }
+    };
+    return Filter(data, source_begin, source_end, dest, vl, Cmp());
+  }
+}
+
+// HashMap membership filter for FilterIn. O(1) per row via hash lookup.
+template <typename T, typename DataType, typename HM>
+[[nodiscard]] inline PERFETTO_ALWAYS_INLINE uint32_t* FilterInHashMap(
+    const DataType* data,
+    const uint32_t* source_begin,
+    const uint32_t* source_end,
+    uint32_t* dest,
+    const HM& hm) {
+  if constexpr (std::is_same_v<T, Id>) {
+    struct Cmp {
+      PERFETTO_ALWAYS_INLINE bool operator()(uint32_t lhs, const HM& h) const {
+        return h.Find(CastFilterValueResult::Id{lhs}) != nullptr;
+      }
+    };
+    return IdentityFilter(source_begin, source_end, dest, hm, Cmp());
+  } else {
+    using D = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
+    struct Cmp {
+      PERFETTO_ALWAYS_INLINE bool operator()(D lhs, const HM& h) const {
+        return h.Find(lhs) != nullptr;
+      }
+    };
+    return Filter(data, source_begin, source_end, dest, hm, Cmp());
+  }
+}
+
+// Attempts the indexed binary search path for FilterIn. Looks up the
+// index register; if present and the IN list is small enough, binary-
+// searches the sorted index for each value and populates dest. Returns
+// true if binary search was performed, false if the caller should use
+// a different strategy.
+//
+// TODO(lalitm): since the index is sorted, galloping search could replace
+// repeated std::lower_bound for better locality.
+template <typename T, typename N>
+inline PERFETTO_ALWAYS_INLINE bool TryIndexedFilterInBinarySearch(
+    InterpreterState& state,
+    const FilterInBase& bytecode,
+    const CastFilterValueListResult& cast_result,
+    Span<uint32_t>& dest) {
+  using B = FilterInBase;
+
+  // Id columns have no backing storage and are never indexed.
+  if constexpr (std::is_same_v<T, Id>) {
+    return false;
+  } else {
+    const Span<uint32_t>* index =
+        state.MaybeReadFromRegister(bytecode.arg<B::index_register>());
+    if (!index) {
+      return false;
+    }
+
+    using VL =
+        StorageType::VariantTypeAtIndex<T,
+                                        CastFilterValueListResult::ValueList>;
+    const VL& vl = base::unchecked_get<VL>(cast_result.value_list);
+    if (vl.empty() || vl.size() > kFilterInIndexedBinarySearchThreshold) {
+      return false;
+    }
+
+    const auto* data =
+        state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
+    const Slab<uint32_t>* popcnt =
+        state.MaybeReadFromRegister(bytecode.arg<B::popcount_register>());
+    const BitVector* const* null_bv =
+        state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
+    const StringPool* string_pool = state.string_pool;
+
+    uint32_t* write = dest.b;
+    for (const auto& cmp_val : vl) {
+      // For String columns, resolve StringPool::Id to NullTermStringView
+      // once per value to avoid repeated lookups in the comparators.
+      std::pair<uint32_t*, uint32_t*> range;
+      if constexpr (std::is_same_v<T, String>) {
+        auto target = string_pool->Get(cmp_val);
+        range = IndexEqualRange<T, N>(index->b, index->e, target, data, null_bv,
+                                      popcnt, string_pool);
+      } else {
+        range = IndexEqualRange<T, N>(index->b, index->e, cmp_val, data,
+                                      null_bv, popcnt, string_pool);
+      }
+      auto n = static_cast<size_t>(range.second - range.first);
+      memcpy(write, range.first, n * sizeof(uint32_t));
+      write += n;
+    }
+    dest.e = write;
+
+    // Binary search produces output in key order. Sort by raw index.
+    std::sort(dest.b, dest.e);
+    return true;
+  }
+}
+
+// Scan path for FilterIn when no index is present. The source span and dest
+// span are walked in lockstep: source[i] is the storage index for dest[i].
+// Matching dest entries are compacted in-place.
+template <typename T, typename DataType>
+inline PERFETTO_ALWAYS_INLINE void NonIndexedFilterInScan(
+    const CastFilterValueListResult& cast_result,
+    const DataType* data,
+    const Span<uint32_t>& source,
+    Span<uint32_t>& dest) {
+  using HM =
+      StorageType::VariantTypeAtIndex<T,
+                                      CastFilterValueListResult::ValueHashMap>;
+  using VL =
+      StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::ValueList>;
+  if constexpr (std::is_same_v<T, Id> || std::is_same_v<T, Uint32>) {
+    if (cast_result.bit_vector.size() > 0) {
+      dest.e = FilterInBitVector<T>(data, source.b, source.e, dest.b,
+                                    cast_result.bit_vector);
+      return;
+    }
+  }
+  const auto& vl = base::unchecked_get<VL>(cast_result.value_list);
+  if (!vl.empty() && vl.size() <= kFilterInKeyScanThreshold) {
+    dest.e = FilterInLinearScan<T>(data, source.b, source.e, dest.b, vl);
+    return;
+  }
+  const auto& hm = base::unchecked_get<HM>(cast_result.hash_map);
+  dest.e = FilterInHashMap<T>(data, source.b, source.e, dest.b, hm);
+}
+
+// Scan path for FilterIn when an index is present but the IN list is too
+// large for binary search. The index is ignored entirely: we iterate over
+// the source range [b, e), check each row against the hash map, and write
+// matching row indices to dest.
+template <typename T, typename N>
+inline PERFETTO_ALWAYS_INLINE void IndexedFilterInRangeScan(
+    InterpreterState& state,
+    const FilterInBase& bytecode,
+    const CastFilterValueListResult& cast_result,
+    Span<uint32_t>& dest) {
+  using B = FilterInBase;
+  using HM =
+      StorageType::VariantTypeAtIndex<T,
+                                      CastFilterValueListResult::ValueHashMap>;
+  const auto* data =
+      state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
+  // |data| is unused for Id columns (the storage index IS the value).
+  base::ignore_result(data);
+  const Slab<uint32_t>* popcnt =
+      state.MaybeReadFromRegister(bytecode.arg<B::popcount_register>());
+  const BitVector* const* null_bv =
+      state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
+  const auto& hm = base::unchecked_get<HM>(cast_result.hash_map);
+  const Range& range =
+      state.ReadFromRegister(bytecode.arg<B::source_range_register>());
+
+  uint32_t* write = dest.b;
+  for (uint32_t i = range.b; i < range.e; ++i) {
+    uint32_t si = IndexToStorageIndex<N>(i, null_bv, popcnt);
+    if (si == std::numeric_limits<uint32_t>::max()) {
+      continue;
+    }
+    if constexpr (std::is_same_v<T, Id>) {
+      if (hm.Find(CastFilterValueResult::Id{si}) != nullptr) {
+        *write++ = i;
+      }
+    } else {
+      if (hm.Find(data[si]) != nullptr) {
+        *write++ = i;
+      }
+    }
+  }
+  dest.e = write;
+}
+
+// Unified filter-in bytecode entry point.
+template <typename T, typename N>
+inline PERFETTO_ALWAYS_INLINE void FilterIn(InterpreterState& state,
+                                            const FilterInBase& bytecode) {
+  using B = FilterInBase;
+  const auto& cast_result =
+      *state.ReadFromRegister(bytecode.arg<B::value_list_register>());
+  auto& dest = state.ReadFromRegister(bytecode.arg<B::dest_register>());
+
+  if (!HandleInvalidCastFilterValueResult(cast_result.validity, dest)) {
+    return;
+  }
+
+  // Try indexed binary search for small IN lists on indexed columns.
+  if (TryIndexedFilterInBinarySearch<T, N>(state, bytecode, cast_result,
+                                           dest)) {
+    return;
+  }
+
+  // Scan path: either indexed range scan or non-indexed span scan.
+  const auto* source_range =
+      state.MaybeReadFromRegister(bytecode.arg<B::source_range_register>());
+  if (source_range) {
+    // Index present but IN list too large for binary search. Ignore the
+    // index entirely and scan the row range with hash lookup.
+    IndexedFilterInRangeScan<T, N>(state, bytecode, cast_result, dest);
+    return;
+  }
+  // Non-indexed path: scan source span with in-place compaction of dest.
+  const auto* data =
+      state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
+  const Span<uint32_t>& source =
+      state.ReadFromRegister(bytecode.arg<B::source_register>());
+  NonIndexedFilterInScan<T>(cast_result, data, source, dest);
+}
+
+// ============================================================================
+// End FilterIn
+// ============================================================================
 
 inline PERFETTO_ALWAYS_INLINE void Uint32SetIdSortedEq(
     InterpreterState& state,

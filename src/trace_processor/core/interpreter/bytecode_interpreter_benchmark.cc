@@ -15,7 +15,10 @@
  */
 
 #include <benchmark/benchmark.h>
+#include <algorithm>
 #include <cstdint>
+#include <cstdlib>
+#include <numeric>
 #include <random>
 #include <string>
 #include <utility>
@@ -33,6 +36,7 @@
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/slab.h"
+#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::interpreter {
 namespace {
@@ -162,7 +166,7 @@ void BM_BytecodeInterpreter_InUint32(benchmark::State& state) {
     InitRange: [size=1048576, dest_register=Register(1)]
     AllocateIndices: [size=1048576, dest_slab_register=Register(3), dest_span_register=Register(2)]
     Iota: [source_register=Register(1), update_register=Register(2)]
-    In<Uint32>: [storage_register=Register(4), value_list_register=Register(0), source_register=Register(2), update_register=Register(2)]
+    FilterIn<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(4294967295), value_list_register=Register(0), popcount_register=Register(4294967295), index_register=Register(4294967295), source_range_register=Register(4294967295), source_register=Register(2), dest_register=Register(2)]
   )";
 
   StringPool spool;
@@ -205,7 +209,7 @@ void BM_BytecodeInterpreter_InId(benchmark::State& state) {
     InitRange: [size=1048576, dest_register=Register(1)]
     AllocateIndices: [size=1048576, dest_slab_register=Register(3), dest_span_register=Register(2)]
     Iota: [source_register=Register(1), update_register=Register(2)]
-    In<Id>: [storage_register=Register(4), value_list_register=Register(0), source_register=Register(2), update_register=Register(2)]
+    FilterIn<Id, NonNull>: [storage_register=Register(4), null_bv_register=Register(4294967295), value_list_register=Register(0), popcount_register=Register(4294967295), index_register=Register(4294967295), source_range_register=Register(4294967295), source_register=Register(2), dest_register=Register(2)]
   )";
 
   StringPool spool;
@@ -226,6 +230,162 @@ void BM_BytecodeInterpreter_InId(benchmark::State& state) {
   }
 }
 BENCHMARK(BM_BytecodeInterpreter_InId)->Arg(5)->Arg(50)->Arg(500);
+
+// Returns true if BENCHMARK_CONSTANT_SWEEPING env var is set. These benchmarks
+// are disabled by default since they sweep many (n, k) combinations and take a
+// long time. They exist solely to determine the threshold constant for the
+// binary-search-vs-linear-scan decision in FilterIn.
+bool IsBenchmarkConstantSweeping() {
+  return getenv("BENCHMARK_CONSTANT_SWEEPING") != nullptr;
+}
+bool IsBenchmarkFunctionalOnly() {
+  return getenv("BENCHMARK_FUNCTIONAL_TEST_ONLY") != nullptr;
+}
+
+// Args: n (table size), k (IN-list size).
+static void FilterInConstantSweepingArgs(benchmark::internal::Benchmark* b) {
+  // Always register at least one small arg so the benchmark doesn't crash
+  // when run without BENCHMARK_CONSTANT_SWEEPING.
+  if (!IsBenchmarkConstantSweeping() || IsBenchmarkFunctionalOnly()) {
+    b->Args({1024, 5});
+    return;
+  }
+  for (int n : {1024, 65536, 1048576}) {
+    for (int k : {5, 20, 50, 200, 500, 2000}) {
+      if (k < n) {
+        b->Args({n, k});
+      }
+    }
+  }
+}
+
+// Helper: builds column data and a sorted permutation vector for the indexed
+// FilterIn benchmarks.
+struct IndexedFilterInSetup {
+  FlexVector<uint32_t> col_data_vec;
+  std::vector<uint32_t> perm;
+  dataframe::Column col;
+  Slab<uint32_t> perm_slab;
+
+  static IndexedFilterInSetup Create(uint32_t n) {
+    FlexVector<uint32_t> col_data;
+    for (uint32_t i = 0; i < n; ++i) {
+      col_data.push_back(i % 1024);
+    }
+    // Build a second copy for the column (FlexVector is non-copyable).
+    FlexVector<uint32_t> col_data_copy;
+    for (uint32_t i = 0; i < n; ++i) {
+      col_data_copy.push_back(i % 1024);
+    }
+    dataframe::Column c{dataframe::Storage{std::move(col_data_copy)},
+                        dataframe::NullStorage::NonNull{}, Unsorted{},
+                        HasDuplicates{}};
+
+    // Build sorted permutation vector.
+    std::vector<uint32_t> p(n);
+    std::iota(p.begin(), p.end(), 0u);
+    const uint32_t* data = col_data.data();
+    std::stable_sort(p.begin(), p.end(), [data](uint32_t a, uint32_t b) {
+      return data[a] < data[b];
+    });
+
+    // Copy to a Slab for the register.
+    Slab<uint32_t> slab = Slab<uint32_t>::Alloc(n);
+    memcpy(slab.data(), p.data(), n * sizeof(uint32_t));
+
+    return {std::move(col_data), std::move(p), std::move(c), std::move(slab)};
+  }
+};
+
+// Benchmarks the indexed binary search path of FilterIn.
+// Forces binary search by setting kFilterInLinearScanThreshold very high.
+void BM_FilterIn_IndexedBinarySearch(benchmark::State& state) {
+  auto n = static_cast<uint32_t>(state.range(0));
+  auto k = static_cast<uint32_t>(state.range(1));
+  auto setup = IndexedFilterInSetup::Create(n);
+
+  // Register layout:
+  // R0: CastFilterValueListResult
+  // R1: Slab<uint32_t> (backing for dest)
+  // R2: Span<uint32_t> (dest span)
+  // R3: StoragePtr
+  // R4: Span<uint32_t> (index permutation vector)
+  std::string bytecode_str =
+      R"(
+    CastFilterValueList<Uint32>: [fval_handle=FilterValue(0), write_register=Register(0), op=NonNullOp(0)]
+    AllocateIndices: [size=)" +
+      std::to_string(n) +
+      R"(, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    FilterIn<Uint32, NonNull>: [storage_register=Register(3), null_bv_register=Register(4294967295), value_list_register=Register(0), popcount_register=Register(4294967295), index_register=Register(4), source_range_register=Register(4294967295), source_register=Register(4294967295), dest_register=Register(2)]
+  )";
+
+  StringPool spool;
+  Interpreter<Fetcher> interpreter;
+  interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
+
+  StoragePtr storage_ptr{setup.col.storage.unchecked_data<Uint32>(), Uint32{}};
+  interpreter.SetRegisterValue(WriteHandle<StoragePtr>(3), storage_ptr);
+
+  Span<uint32_t> perm_span(setup.perm_slab.data(), setup.perm_slab.data() + n);
+  interpreter.SetRegisterValue(WriteHandle<Span<uint32_t>>(4), perm_span);
+
+  Fetcher fetcher;
+  for (uint32_t i = 0; i < k; ++i) {
+    fetcher.value.push_back(static_cast<int64_t>(i * (1024 / k)));
+  }
+
+  for (auto _ : state) {
+    interpreter.Execute(fetcher);
+    benchmark::ClobberMemory();
+  }
+}
+BENCHMARK(BM_FilterIn_IndexedBinarySearch)->Apply(FilterInConstantSweepingArgs);
+
+// Benchmarks the non-indexed linear scan path of FilterIn on the same data
+// that the binary search benchmark uses. This simulates what happens when the
+// linear scan fallback is chosen: all N rows are scanned with hash lookup.
+// Uses Iota to populate source indices 0..n, then FilterIn scans in-place.
+void BM_FilterIn_IndexedLinearScan(benchmark::State& state) {
+  auto n = static_cast<uint32_t>(state.range(0));
+  auto k = static_cast<uint32_t>(state.range(1));
+  auto setup = IndexedFilterInSetup::Create(n);
+
+  // Register layout:
+  // R0: CastFilterValueListResult
+  // R1: Slab<uint32_t> (backing for span)
+  // R2: Span<uint32_t> (source and dest, in-place filtering)
+  // R3: StoragePtr
+  // R4: Range (for Iota)
+  std::string bytecode_str =
+      R"(
+    CastFilterValueList<Uint32>: [fval_handle=FilterValue(0), write_register=Register(0), op=NonNullOp(0)]
+    InitRange: [size=)" +
+      std::to_string(n) + R"(, dest_register=Register(4)]
+    AllocateIndices: [size=)" +
+      std::to_string(n) +
+      R"(, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    Iota: [source_register=Register(4), update_register=Register(2)]
+    FilterIn<Uint32, NonNull>: [storage_register=Register(3), null_bv_register=Register(4294967295), value_list_register=Register(0), popcount_register=Register(4294967295), index_register=Register(4294967295), source_range_register=Register(4294967295), source_register=Register(2), dest_register=Register(2)]
+  )";
+
+  StringPool spool;
+  Interpreter<Fetcher> interpreter;
+  interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
+
+  StoragePtr storage_ptr{setup.col.storage.unchecked_data<Uint32>(), Uint32{}};
+  interpreter.SetRegisterValue(WriteHandle<StoragePtr>(3), storage_ptr);
+
+  Fetcher fetcher;
+  for (uint32_t i = 0; i < k; ++i) {
+    fetcher.value.push_back(static_cast<int64_t>(i * (1024 / k)));
+  }
+
+  for (auto _ : state) {
+    interpreter.Execute(fetcher);
+    benchmark::ClobberMemory();
+  }
+}
+BENCHMARK(BM_FilterIn_IndexedLinearScan)->Apply(FilterInConstantSweepingArgs);
 
 }  // namespace
 
