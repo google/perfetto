@@ -33,6 +33,7 @@ export interface ColumnPickerAttrs {
   readonly columns: ColumnDef[];
   readonly onSelect: (value: string) => void;
   readonly placeholder?: string;
+  readonly className?: string;
 }
 
 export class ColumnPicker implements m.ClassComponent<ColumnPickerAttrs> {
@@ -139,7 +140,7 @@ export class ColumnPicker implements m.ClassComponent<ColumnPickerAttrs> {
         position: PopupPosition.Bottom,
         closeOnEscape: true,
         closeOnOutsideClick: true,
-        className: 'pf-column-picker__popup',
+        className: `pf-column-picker__popup${attrs.className ? ` ${attrs.className}` : ''}`,
       },
       m('.pf-column-picker__list', [
         ...filtered.map((col, idx) =>

@@ -15,7 +15,6 @@
 import m from 'mithril';
 import {NodeManifest, RenderContext, IrContext} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Intent} from '../../../widgets/common';
 import {Icon} from '../../../widgets/icon';
 import {TextInput} from '../../../widgets/text_input';
 import {ColumnPicker} from '../widgets/column_picker';
@@ -23,6 +22,44 @@ import {ColumnPicker} from '../widgets/column_picker';
 export interface JoinColumn {
   readonly column: string;
   readonly alias: string;
+}
+
+// A tiny tag that expands into a text input when clicked.
+// If blurred with an empty value, collapses back to the tag.
+function AliasTag(): m.Component<{
+  alias: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+}> {
+  let editing = false;
+
+  return {
+    view({attrs: {alias, placeholder, onChange}}) {
+      if (editing || alias) {
+        return m('.pf-qb-alias-tag', [
+          m('span', {style: {opacity: 0.5, fontSize: '11px'}}, 'as'),
+          m(TextInput, {
+            placeholder,
+            value: alias,
+            autofocus: editing && !alias,
+            onChange: (value: string) => onChange(value),
+            onblur: () => {
+              if (!alias) editing = false;
+            },
+          }),
+        ]);
+      }
+      return m(Button, {
+        icon: 'label',
+        compact: true,
+        className: 'pf-qb-alias-btn',
+        title: 'Add alias',
+        onclick: () => {
+          editing = true;
+        },
+      });
+    },
+  };
 }
 
 export interface JoinConfig {
@@ -43,136 +80,184 @@ export function getExtendColumnAliases(
   }));
 }
 
+function JoinNodeContent(): m.Component<{
+  config: JoinConfig;
+  updateConfig: (updates: Partial<JoinConfig>) => void;
+  ctx: RenderContext;
+}> {
+  let dragging = false;
+  let binHover = false;
+
+  return {
+    view({attrs: {config, updateConfig, ctx}}) {
+      const leftColumns = ctx.getInputColumns('left');
+      const rightColumns = ctx.getInputColumns('right');
+      const leftSet = new Set(leftColumns.map((c) => c.name));
+
+      return m('.pf-qb-stack', {style: {minWidth: '200px'}}, [
+        m('.pf-qb-section-label', 'Join on'),
+        m('.pf-qb-group-grid', [
+          m(ColumnPicker, {
+            value: config.leftColumn,
+            columns: leftColumns,
+            placeholder: 'left col',
+            className: 'pf-qb-join-col',
+            onSelect: (value: string) => {
+              updateConfig({leftColumn: value});
+            },
+          }),
+          m('span', {style: {opacity: 0.5}}, '='),
+          m(ColumnPicker, {
+            value: config.rightColumn,
+            columns: rightColumns,
+            placeholder: 'right col',
+            className: 'pf-qb-join-col',
+            onSelect: (value: string) => {
+              updateConfig({rightColumn: value});
+            },
+          }),
+        ]),
+
+        m('.pf-qb-section-label', 'Columns to add'),
+        m('.pf-qb-filter-list', [
+          ...config.columns.map((entry, i) => {
+            const defaultAlias = leftSet.has(entry.column)
+              ? `right_${entry.column}`
+              : entry.column;
+            return m(
+              '.pf-qb-filter-row',
+              {
+                key: i,
+                draggable: true,
+                ondragstart: (e: DragEvent) => {
+                  e.dataTransfer!.effectAllowed = 'move';
+                  e.dataTransfer!.setData('text/plain', String(i));
+                  (e.currentTarget as HTMLElement).classList.add('pf-dragging');
+                  dragging = true;
+                },
+                ondragend: (e: DragEvent) => {
+                  (e.currentTarget as HTMLElement).classList.remove(
+                    'pf-dragging',
+                  );
+                  dragging = false;
+                  binHover = false;
+                },
+                ondragover: (e: DragEvent) => {
+                  e.preventDefault();
+                  e.dataTransfer!.dropEffect = 'move';
+                  const el = e.currentTarget as HTMLElement;
+                  const rect = el.getBoundingClientRect();
+                  const isBottom = e.clientY > rect.top + rect.height / 2;
+                  el.classList.toggle('pf-drag-over-top', !isBottom);
+                  el.classList.toggle('pf-drag-over-bottom', isBottom);
+                },
+                ondragleave: (e: DragEvent) => {
+                  const el = e.currentTarget as HTMLElement;
+                  el.classList.remove(
+                    'pf-drag-over-top',
+                    'pf-drag-over-bottom',
+                  );
+                },
+                ondrop: (e: DragEvent) => {
+                  e.preventDefault();
+                  const el = e.currentTarget as HTMLElement;
+                  const isBottom = el.classList.contains('pf-drag-over-bottom');
+                  el.classList.remove(
+                    'pf-drag-over-top',
+                    'pf-drag-over-bottom',
+                  );
+                  const fromIdx = parseInt(
+                    e.dataTransfer!.getData('text/plain'),
+                  );
+                  let toIdx = isBottom ? i + 1 : i;
+                  if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
+                    const updated = [...config.columns];
+                    const [moved] = updated.splice(fromIdx, 1);
+                    if (fromIdx < toIdx) toIdx--;
+                    updated.splice(toIdx, 0, moved);
+                    updateConfig({columns: updated});
+                  }
+                },
+              },
+              [
+                m(Icon, {
+                  icon: 'drag_indicator',
+                  className: 'pf-qb-drag-handle',
+                }),
+                m(ColumnPicker, {
+                  value: entry.column,
+                  columns: rightColumns,
+                  placeholder: 'column',
+                  onSelect: (value: string) => {
+                    const updated = [...config.columns];
+                    updated[i] = {...entry, column: value};
+                    updateConfig({columns: updated});
+                  },
+                }),
+                m(AliasTag, {
+                  alias: entry.alias,
+                  placeholder: defaultAlias,
+                  onChange: (value: string) => {
+                    const updated = [...config.columns];
+                    updated[i] = {...entry, alias: value};
+                    updateConfig({columns: updated});
+                  },
+                }),
+              ],
+            );
+          }),
+        ]),
+        m('.pf-qb-add-bin-wrapper', [
+          m(Button, {
+            label: 'Column',
+            icon: 'add',
+            variant: ButtonVariant.Filled,
+            onclick: () => {
+              updateConfig({
+                columns: [...config.columns, {column: '', alias: ''}],
+              });
+            },
+          }),
+          dragging
+            ? m(
+                '.pf-qb-drag-bin',
+                {
+                  className: binHover ? 'pf-drag-bin-hover' : '',
+                  ondragover: (e: DragEvent) => {
+                    e.preventDefault();
+                    e.dataTransfer!.dropEffect = 'move';
+                    binHover = true;
+                  },
+                  ondragleave: () => {
+                    binHover = false;
+                  },
+                  ondrop: (e: DragEvent) => {
+                    e.preventDefault();
+                    binHover = false;
+                    dragging = false;
+                    const fromIdx = parseInt(
+                      e.dataTransfer!.getData('text/plain'),
+                    );
+                    updateConfig({
+                      columns: config.columns.filter((_, j) => j !== fromIdx),
+                    });
+                  },
+                },
+                m(Icon, {icon: 'delete'}),
+              )
+            : null,
+        ]),
+      ]);
+    },
+  };
+}
+
 function render(
   config: JoinConfig,
   updateConfig: (updates: Partial<JoinConfig>) => void,
   ctx: RenderContext,
 ): m.Children {
-  const leftColumns = ctx.getInputColumns('left');
-  const rightColumns = ctx.getInputColumns('right');
-  const leftSet = new Set(leftColumns.map((c) => c.name));
-
-  return m('.pf-qb-stack', {style: {minWidth: '200px'}}, [
-    // Join key pickers side-by-side
-    m('.pf-qb-section-label', 'Join on'),
-    m('.pf-qb-group-grid', [
-      m(ColumnPicker, {
-        value: config.leftColumn,
-        columns: leftColumns,
-        placeholder: 'left col',
-        onSelect: (value: string) => {
-          updateConfig({leftColumn: value});
-        },
-      }),
-      m('span', {style: {opacity: 0.5}}, '='),
-      m(ColumnPicker, {
-        value: config.rightColumn,
-        columns: rightColumns,
-        placeholder: 'right col',
-        onSelect: (value: string) => {
-          updateConfig({rightColumn: value});
-        },
-      }),
-    ]),
-
-    // Columns to add from right side
-    m('.pf-qb-section-label', 'Columns to add'),
-    m('.pf-qb-filter-list', [
-      ...config.columns.map((entry, i) => {
-        const defaultAlias = leftSet.has(entry.column)
-          ? `right_${entry.column}`
-          : entry.column;
-        return m(
-          '.pf-qb-filter-row',
-          {
-            key: i,
-            draggable: config.columns.length > 1,
-            ondragstart: (e: DragEvent) => {
-              e.dataTransfer!.effectAllowed = 'move';
-              e.dataTransfer!.setData('text/plain', String(i));
-              (e.currentTarget as HTMLElement).classList.add('pf-dragging');
-            },
-            ondragend: (e: DragEvent) => {
-              (e.currentTarget as HTMLElement).classList.remove('pf-dragging');
-            },
-            ondragover: (e: DragEvent) => {
-              e.preventDefault();
-              e.dataTransfer!.dropEffect = 'move';
-              const el = e.currentTarget as HTMLElement;
-              const rect = el.getBoundingClientRect();
-              const isBottom = e.clientY > rect.top + rect.height / 2;
-              el.classList.toggle('pf-drag-over-top', !isBottom);
-              el.classList.toggle('pf-drag-over-bottom', isBottom);
-            },
-            ondragleave: (e: DragEvent) => {
-              const el = e.currentTarget as HTMLElement;
-              el.classList.remove('pf-drag-over-top', 'pf-drag-over-bottom');
-            },
-            ondrop: (e: DragEvent) => {
-              e.preventDefault();
-              const el = e.currentTarget as HTMLElement;
-              const isBottom = el.classList.contains('pf-drag-over-bottom');
-              el.classList.remove('pf-drag-over-top', 'pf-drag-over-bottom');
-              const fromIdx = parseInt(e.dataTransfer!.getData('text/plain'));
-              let toIdx = isBottom ? i + 1 : i;
-              if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
-                const updated = [...config.columns];
-                const [moved] = updated.splice(fromIdx, 1);
-                if (fromIdx < toIdx) toIdx--;
-                updated.splice(toIdx, 0, moved);
-                updateConfig({columns: updated});
-              }
-            },
-          },
-          [
-            ...(config.columns.length > 1 ? [m(Icon, {icon: 'drag_indicator', className: 'pf-qb-drag-handle'})] : []),
-            m(ColumnPicker, {
-              value: entry.column,
-              columns: rightColumns,
-              placeholder: 'column',
-              onSelect: (value: string) => {
-                const updated = [...config.columns];
-                updated[i] = {...entry, column: value};
-                updateConfig({columns: updated});
-              },
-            }),
-            m('span', {style: {opacity: 0.5, fontSize: '11px'}}, 'as'),
-            m(TextInput, {
-              placeholder: defaultAlias,
-              value: entry.alias,
-              onChange: (value: string) => {
-                const updated = [...config.columns];
-                updated[i] = {...entry, alias: value};
-                updateConfig({columns: updated});
-              },
-            }),
-            m(Button, {
-              icon: 'delete',
-              variant: ButtonVariant.Filled,
-              intent: Intent.Danger,
-              className: 'pf-qb-row-delete',
-              title: 'Remove column',
-              onclick: () => {
-                updateConfig({
-                  columns: config.columns.filter((_, j) => j !== i),
-                });
-              },
-            }),
-          ],
-        );
-      }),
-    ]),
-    m(Button, {
-      label: 'Column',
-      icon: 'add',
-      variant: ButtonVariant.Filled,
-      onclick: () => {
-        updateConfig({
-          columns: [...config.columns, {column: '', alias: ''}],
-        });
-      },
-    }),
-  ]);
+  return m(JoinNodeContent, {config, updateConfig, ctx});
 }
 
 function isValid(config: JoinConfig): boolean {

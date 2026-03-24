@@ -78,6 +78,7 @@ function FromNodeContent(): m.Component<{
           },
           [
             m(TextInput, {
+              leftIcon: 'search',
               placeholder: 'Search tables...',
               value: searchTerm,
               autofocus: true,

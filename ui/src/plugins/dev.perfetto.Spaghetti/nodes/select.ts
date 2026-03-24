@@ -20,10 +20,15 @@ import {
   SqlStatement,
 } from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Intent} from '../../../widgets/common';
-import {MultiSelectDiff, PopupMultiSelect} from '../../../widgets/multiselect';
+import {Icon} from '../../../widgets/icon';
 import {TextInput} from '../../../widgets/text_input';
+import {ColumnPicker} from '../widgets/column_picker';
 import {ColumnDef} from '../graph_utils';
+
+export interface SelectEntry {
+  readonly column: string;
+  readonly alias: string;
+}
 
 export interface SelectExpression {
   readonly expression: string;
@@ -31,91 +36,317 @@ export interface SelectExpression {
 }
 
 export interface SelectConfig {
-  readonly columns: Record<string, boolean>;
+  readonly entries: SelectEntry[];
   readonly expressions: SelectExpression[];
 }
 
-function renderSelectNode(
-  config: SelectConfig,
-  updateConfig: (updates: Partial<SelectConfig>) => void,
-  ctx: RenderContext,
-): m.Children {
-  const availableColumns = ctx.availableColumns;
+function exprAlias(e: SelectExpression): string {
+  if (e.alias) return e.alias;
+  // Use expression text sanitized as a column name.
+  if (e.expression) return e.expression.replace(/[^a-zA-Z0-9_]/g, '_');
+  return '';
+}
 
-  if (availableColumns.length === 0) {
-    return m('span.pf-qb-placeholder', 'Connect to a table source');
+// A tiny tag that expands into a text input when clicked.
+// If blurred with an empty value, collapses back to the tag.
+function AliasTag(): m.Component<{
+  alias: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+}> {
+  let editing = false;
+
+  return {
+    view({attrs: {alias, placeholder, onChange}}) {
+      if (editing || alias) {
+        return m('.pf-qb-alias-tag', [
+          m('span', {style: {opacity: 0.5, fontSize: '11px'}}, 'as'),
+          m(TextInput, {
+            placeholder,
+            value: alias,
+            autofocus: editing && !alias,
+            onChange: (value: string) => onChange(value),
+            onblur: () => {
+              if (!alias) editing = false;
+            },
+          }),
+        ]);
+      }
+      return m(Button, {
+        icon: 'label',
+        compact: true,
+        className: 'pf-qb-alias-btn',
+        title: 'Add alias',
+        onclick: () => {
+          editing = true;
+        },
+      });
+    },
+  };
+}
+
+function SelectNodeContent(): m.Component<{
+  config: SelectConfig;
+  updateConfig: (updates: Partial<SelectConfig>) => void;
+  ctx: RenderContext;
+}> {
+  let draggingEntry = false;
+  let draggingExpr = false;
+  let binHover = false;
+
+  function makeDragBin(
+    onDrop: (fromIdx: number) => void,
+    isDragging: boolean,
+  ): m.Children {
+    if (!isDragging) return null;
+    return m(
+      '.pf-qb-drag-bin',
+      {
+        className: binHover ? 'pf-drag-bin-hover' : '',
+        ondragover: (e: DragEvent) => {
+          e.preventDefault();
+          e.dataTransfer!.dropEffect = 'move';
+          binHover = true;
+        },
+        ondragleave: () => {
+          binHover = false;
+        },
+        ondrop: (e: DragEvent) => {
+          e.preventDefault();
+          binHover = false;
+          draggingEntry = false;
+          draggingExpr = false;
+          const data = e.dataTransfer!.getData('text/plain');
+          const idx = parseInt(data.includes(':') ? data.split(':')[1] : data);
+          onDrop(idx);
+        },
+      },
+      m(Icon, {icon: 'delete'}),
+    );
   }
 
-  // Merge available columns with current selection state.
-  // Columns that exist upstream but aren't in config.columns yet default to true.
-  const mergedColumns: Record<string, boolean> = {};
-  for (const col of availableColumns) {
-    mergedColumns[col.name] =
-      col.name in config.columns ? config.columns[col.name] : true;
-  }
+  return {
+    view({attrs: {config, updateConfig, ctx}}) {
+      const availableColumns = ctx.availableColumns;
+      const entries = config.entries;
 
-  const options = availableColumns.map((col) => ({
-    id: col.name,
-    name: col.name,
-    checked: mergedColumns[col.name],
-  }));
+      return m('.pf-qb-stack', [
+        m('.pf-qb-section-label', 'Columns'),
+        m('.pf-qb-filter-list', [
+          ...entries.map((entry, i) =>
+            m(
+              '.pf-qb-filter-row',
+              {
+                key: `entry:${i}`,
+                draggable: true,
+                ondragstart: (e: DragEvent) => {
+                  e.dataTransfer!.effectAllowed = 'move';
+                  e.dataTransfer!.setData('text/plain', `entry:${i}`);
+                  (e.currentTarget as HTMLElement).classList.add('pf-dragging');
+                  draggingEntry = true;
+                },
+                ondragend: (e: DragEvent) => {
+                  (e.currentTarget as HTMLElement).classList.remove(
+                    'pf-dragging',
+                  );
+                  draggingEntry = false;
+                  binHover = false;
+                },
+                ondragover: (e: DragEvent) => {
+                  e.preventDefault();
+                  e.dataTransfer!.dropEffect = 'move';
+                  const el = e.currentTarget as HTMLElement;
+                  const rect = el.getBoundingClientRect();
+                  const isBottom = e.clientY > rect.top + rect.height / 2;
+                  el.classList.toggle('pf-drag-over-top', !isBottom);
+                  el.classList.toggle('pf-drag-over-bottom', isBottom);
+                },
+                ondragleave: (e: DragEvent) => {
+                  const el = e.currentTarget as HTMLElement;
+                  el.classList.remove(
+                    'pf-drag-over-top',
+                    'pf-drag-over-bottom',
+                  );
+                },
+                ondrop: (e: DragEvent) => {
+                  e.preventDefault();
+                  const el = e.currentTarget as HTMLElement;
+                  const isBottom = el.classList.contains('pf-drag-over-bottom');
+                  el.classList.remove(
+                    'pf-drag-over-top',
+                    'pf-drag-over-bottom',
+                  );
+                  const data = e.dataTransfer!.getData('text/plain');
+                  if (!data.startsWith('entry:')) return;
+                  const fromIdx = parseInt(data.slice(6));
+                  let toIdx = isBottom ? i + 1 : i;
+                  if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
+                    const updated = [...entries];
+                    const [moved] = updated.splice(fromIdx, 1);
+                    if (fromIdx < toIdx) toIdx--;
+                    updated.splice(toIdx, 0, moved);
+                    updateConfig({entries: updated});
+                  }
+                },
+              },
+              [
+                m(Icon, {
+                  icon: 'drag_indicator',
+                  className: 'pf-qb-drag-handle',
+                }),
+                m(ColumnPicker, {
+                  value: entry.column,
+                  columns: availableColumns,
+                  placeholder: 'column',
+                  onSelect: (value: string) => {
+                    const updated = [...entries];
+                    updated[i] = {...entry, column: value};
+                    updateConfig({entries: updated});
+                  },
+                }),
+                m(AliasTag, {
+                  alias: entry.alias,
+                  placeholder: entry.column || 'alias',
+                  onChange: (value: string) => {
+                    const updated = [...entries];
+                    updated[i] = {...entry, alias: value};
+                    updateConfig({entries: updated});
+                  },
+                }),
+              ],
+            ),
+          ),
+        ]),
+        m('.pf-qb-add-bin-wrapper', [
+          m(Button, {
+            label: 'Add column',
+            icon: 'add',
+            variant: ButtonVariant.Filled,
+            onclick: () => {
+              updateConfig({
+                entries: [...entries, {column: '', alias: ''}],
+              });
+            },
+          }),
+          makeDragBin(
+            (idx) =>
+              updateConfig({
+                entries: entries.filter((_, j) => j !== idx),
+              }),
+            draggingEntry,
+          ),
+        ]),
 
-  return m('.pf-qb-stack', [
-    m(PopupMultiSelect, {
-      label: 'Columns',
-      showNumSelected: true,
-      options,
-      onChange: (diffs: MultiSelectDiff[]) => {
-        const updated = {...mergedColumns};
-        for (const diff of diffs) {
-          updated[diff.id] = diff.checked;
-        }
-        updateConfig({columns: updated});
-      },
-    }),
-    m('.pf-qb-section-label', 'Expressions'),
-    m('.pf-qb-3col-grid', [
-      ...config.expressions.flatMap((expr, i) => [
-        m(TextInput, {
-          placeholder: 'expression',
-          value: expr.expression,
-          onChange: (value: string) => {
-            const newExprs = [...config.expressions];
-            newExprs[i] = {...expr, expression: value};
-            updateConfig({expressions: newExprs});
-          },
-        }),
-        m(TextInput, {
-          placeholder: 'alias',
-          value: expr.alias,
-          onChange: (value: string) => {
-            const newExprs = [...config.expressions];
-            newExprs[i] = {...expr, alias: value};
-            updateConfig({expressions: newExprs});
-          },
-        }),
-        m(Button, {
-          icon: 'delete',
-          intent: Intent.Danger,
-          title: 'Remove expression',
-          onclick: () => {
-            const newExprs = config.expressions.filter((_, j) => j !== i);
-            updateConfig({expressions: newExprs});
-          },
-        }),
-      ]),
-    ]),
-    m(Button, {
-      label: 'Add expression',
-      variant: ButtonVariant.Filled,
-      icon: 'add',
-      onclick: () => {
-        updateConfig({
-          expressions: [...config.expressions, {expression: '', alias: ''}],
-        });
-      },
-    }),
-  ]);
+        m('.pf-qb-section-label', 'Expressions'),
+        m('.pf-qb-filter-list', [
+          ...config.expressions.map((expr, i) =>
+            m(
+              '.pf-qb-filter-row',
+              {
+                key: `expr:${i}`,
+                draggable: true,
+                ondragstart: (e: DragEvent) => {
+                  e.dataTransfer!.effectAllowed = 'move';
+                  e.dataTransfer!.setData('text/plain', `expr:${i}`);
+                  (e.currentTarget as HTMLElement).classList.add('pf-dragging');
+                  draggingExpr = true;
+                },
+                ondragend: (e: DragEvent) => {
+                  (e.currentTarget as HTMLElement).classList.remove(
+                    'pf-dragging',
+                  );
+                  draggingExpr = false;
+                  binHover = false;
+                },
+                ondragover: (e: DragEvent) => {
+                  e.preventDefault();
+                  e.dataTransfer!.dropEffect = 'move';
+                  const el = e.currentTarget as HTMLElement;
+                  const rect = el.getBoundingClientRect();
+                  const isBottom = e.clientY > rect.top + rect.height / 2;
+                  el.classList.toggle('pf-drag-over-top', !isBottom);
+                  el.classList.toggle('pf-drag-over-bottom', isBottom);
+                },
+                ondragleave: (e: DragEvent) => {
+                  const el = e.currentTarget as HTMLElement;
+                  el.classList.remove(
+                    'pf-drag-over-top',
+                    'pf-drag-over-bottom',
+                  );
+                },
+                ondrop: (e: DragEvent) => {
+                  e.preventDefault();
+                  const el = e.currentTarget as HTMLElement;
+                  const isBottom = el.classList.contains('pf-drag-over-bottom');
+                  el.classList.remove(
+                    'pf-drag-over-top',
+                    'pf-drag-over-bottom',
+                  );
+                  const data = e.dataTransfer!.getData('text/plain');
+                  if (!data.startsWith('expr:')) return;
+                  const fromIdx = parseInt(data.slice(5));
+                  let toIdx = isBottom ? i + 1 : i;
+                  if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
+                    const updated = [...config.expressions];
+                    const [moved] = updated.splice(fromIdx, 1);
+                    if (fromIdx < toIdx) toIdx--;
+                    updated.splice(toIdx, 0, moved);
+                    updateConfig({expressions: updated});
+                  }
+                },
+              },
+              [
+                m(Icon, {
+                  icon: 'drag_indicator',
+                  className: 'pf-qb-drag-handle',
+                }),
+                m(TextInput, {
+                  placeholder: 'expression',
+                  value: expr.expression,
+                  onChange: (value: string) => {
+                    const newExprs = [...config.expressions];
+                    newExprs[i] = {...expr, expression: value};
+                    updateConfig({expressions: newExprs});
+                  },
+                }),
+                m(AliasTag, {
+                  alias: expr.alias,
+                  placeholder: exprAlias(expr) || 'alias',
+                  onChange: (value: string) => {
+                    const newExprs = [...config.expressions];
+                    newExprs[i] = {...expr, alias: value};
+                    updateConfig({expressions: newExprs});
+                  },
+                }),
+              ],
+            ),
+          ),
+        ]),
+        m('.pf-qb-add-bin-wrapper', [
+          m(Button, {
+            label: 'Add expression',
+            variant: ButtonVariant.Filled,
+            icon: 'add',
+            onclick: () => {
+              updateConfig({
+                expressions: [
+                  ...config.expressions,
+                  {expression: '', alias: ''},
+                ],
+              });
+            },
+          }),
+          makeDragBin(
+            (idx) =>
+              updateConfig({
+                expressions: config.expressions.filter((_, j) => j !== idx),
+              }),
+            draggingExpr,
+          ),
+        ]),
+      ]);
+    },
+  };
 }
 
 function getOutputColumns(
@@ -123,38 +354,38 @@ function getOutputColumns(
   ctx: ColumnContext,
 ): ColumnDef[] | undefined {
   const columns = ctx.getInputColumns('input');
-  const selected = Object.entries(config.columns)
-    .filter(([_, checked]) => checked)
-    .map(([col]) => columns?.find((c) => c.name === col) ?? {name: col});
+  const selectedEntries: ColumnDef[] = config.entries
+    .filter((e) => e.column)
+    .map((e) => {
+      const name = e.alias || e.column;
+      const orig = columns?.find((c) => c.name === e.column);
+      return {name, type: orig?.type};
+    });
   const exprAliases: ColumnDef[] = config.expressions
-    .filter((e) => e.alias && e.expression)
-    .map((e) => ({name: e.alias}));
-  if (selected.length > 0) {
-    return [...selected, ...exprAliases];
-  } else if (exprAliases.length > 0) {
-    return [...(columns ?? []), ...exprAliases];
+    .filter((e) => e.expression)
+    .map((e) => ({name: exprAlias(e)}));
+  const result = [...selectedEntries, ...exprAliases];
+  if (result.length > 0) {
+    return result;
   }
   return columns;
 }
 
 function isValid(config: SelectConfig): boolean {
-  return config.expressions.every(
-    (e) => (!e.expression && !e.alias) || (e.expression && e.alias),
-  );
+  return config.expressions.every((e) => !e.alias || e.expression);
 }
 
 function tryFold(stmt: SqlStatement, config: SelectConfig): boolean {
   if (stmt.columns !== '*') return false;
-  const selectedCols = Object.entries(config.columns)
-    .filter(([_, checked]) => checked)
-    .map(([col]) => col);
+  const entryParts = config.entries
+    .filter((e) => e.column)
+    .map((e) => (e.alias ? `${e.column} AS ${e.alias}` : e.column));
   const exprParts = config.expressions
-    .filter((e) => e.expression && e.alias)
-    .map((e) => `${e.expression} AS ${e.alias}`);
-  if (selectedCols.length > 0) {
-    stmt.columns = [...selectedCols, ...exprParts].join(', ');
-  } else if (exprParts.length > 0) {
-    stmt.columns = ['*', ...exprParts].join(', ');
+    .filter((e) => e.expression)
+    .map((e) => `${e.expression} AS ${exprAlias(e)}`);
+  const allParts = [...entryParts, ...exprParts];
+  if (allParts.length > 0) {
+    stmt.columns = allParts.join(', ');
   }
   return true;
 }
@@ -167,8 +398,10 @@ export const manifest: NodeManifest<SelectConfig> = {
   canDockTop: true,
   canDockBottom: true,
   hue: 145,
-  defaultConfig: () => ({columns: {}, expressions: []}),
-  render: renderSelectNode,
+  defaultConfig: () => ({entries: [], expressions: []}),
+  render(config, updateConfig, ctx) {
+    return m(SelectNodeContent, {config, updateConfig, ctx});
+  },
   getOutputColumns,
   isValid,
   tryFold,

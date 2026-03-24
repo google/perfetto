@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Intent} from '../../../widgets/common';
 import {Icon} from '../../../widgets/icon';
 import {SegmentedButtons} from '../../../widgets/segmented_buttons';
 import {Select} from '../../../widgets/select';
@@ -80,135 +79,184 @@ export function conditionsToSql(
   return parts.join(` ${conjunction} `);
 }
 
+function FilterNodeContent(): m.Component<{
+  config: FilterConfig;
+  updateConfig: (updates: Partial<FilterConfig>) => void;
+  ctx: RenderContext;
+}> {
+  let dragging = false;
+  let binHover = false;
+
+  return {
+    view({attrs: {config, updateConfig, ctx}}) {
+      const availableColumns = ctx.availableColumns;
+      const conditions = config.conditions;
+      const conjunction = config.conjunction ?? 'AND';
+
+      return m('.pf-qb-stack', [
+        m(SegmentedButtons, {
+          fillWidth: true,
+          className: 'pf-qb-conjunction',
+          options: [{label: 'AND'}, {label: 'OR'}],
+          selectedOption: conjunction === 'AND' ? 0 : 1,
+          onOptionSelected: (i: number) =>
+            updateConfig({conjunction: i === 0 ? 'AND' : 'OR'}),
+        }),
+        m('.pf-qb-filter-list', [
+          ...conditions.map((cond, i) =>
+            m(
+              '.pf-qb-filter-row',
+              {
+                key: i,
+                draggable: true,
+                ondragstart: (e: DragEvent) => {
+                  e.dataTransfer!.effectAllowed = 'move';
+                  e.dataTransfer!.setData('text/plain', String(i));
+                  (e.currentTarget as HTMLElement).classList.add('pf-dragging');
+                  dragging = true;
+                },
+                ondragend: (e: DragEvent) => {
+                  (e.currentTarget as HTMLElement).classList.remove(
+                    'pf-dragging',
+                  );
+                  dragging = false;
+                  binHover = false;
+                },
+                ondragover: (e: DragEvent) => {
+                  e.preventDefault();
+                  e.dataTransfer!.dropEffect = 'move';
+                  const el = e.currentTarget as HTMLElement;
+                  const rect = el.getBoundingClientRect();
+                  const isBottom = e.clientY > rect.top + rect.height / 2;
+                  el.classList.toggle('pf-drag-over-top', !isBottom);
+                  el.classList.toggle('pf-drag-over-bottom', isBottom);
+                },
+                ondragleave: (e: DragEvent) => {
+                  const el = e.currentTarget as HTMLElement;
+                  el.classList.remove(
+                    'pf-drag-over-top',
+                    'pf-drag-over-bottom',
+                  );
+                },
+                ondrop: (e: DragEvent) => {
+                  e.preventDefault();
+                  const el = e.currentTarget as HTMLElement;
+                  const isBottom = el.classList.contains('pf-drag-over-bottom');
+                  el.classList.remove(
+                    'pf-drag-over-top',
+                    'pf-drag-over-bottom',
+                  );
+                  const fromIdx = parseInt(
+                    e.dataTransfer!.getData('text/plain'),
+                  );
+                  let toIdx = isBottom ? i + 1 : i;
+                  if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
+                    const newConds = [...conditions];
+                    const [moved] = newConds.splice(fromIdx, 1);
+                    if (fromIdx < toIdx) toIdx--;
+                    newConds.splice(toIdx, 0, moved);
+                    updateConfig({conditions: newConds});
+                  }
+                },
+              },
+              [
+                m(Icon, {
+                  icon: 'drag_indicator',
+                  className: 'pf-qb-drag-handle',
+                }),
+                m(ColumnPicker, {
+                  value: cond.column,
+                  columns: availableColumns,
+                  placeholder: 'column',
+                  onSelect: (value: string) => {
+                    const newConds = [...conditions];
+                    newConds[i] = {...cond, column: value};
+                    updateConfig({conditions: newConds});
+                  },
+                }),
+                m(
+                  Select,
+                  {
+                    value: cond.op,
+                    onchange: (e: Event) => {
+                      const newConds = [...conditions];
+                      newConds[i] = {
+                        ...cond,
+                        op: (e.target as HTMLSelectElement).value as FilterOp,
+                      };
+                      updateConfig({conditions: newConds});
+                    },
+                  },
+                  FILTER_OPS.map((op) => m('option', {value: op}, op)),
+                ),
+                ...(!UNARY_OPS.has(cond.op)
+                  ? [
+                      m(TextInput, {
+                        placeholder: 'value',
+                        value: cond.value,
+                        onChange: (value: string) => {
+                          const newConds = [...conditions];
+                          newConds[i] = {...cond, value};
+                          updateConfig({conditions: newConds});
+                        },
+                      }),
+                    ]
+                  : []),
+              ],
+            ),
+          ),
+        ]),
+        m('.pf-qb-add-bin-wrapper', [
+          m(Button, {
+            label: 'Add condition',
+            icon: 'add',
+            variant: ButtonVariant.Filled,
+            onclick: () => {
+              updateConfig({
+                conditions: [...conditions, {column: '', op: '=', value: ''}],
+              });
+            },
+          }),
+          dragging
+            ? m(
+                '.pf-qb-drag-bin',
+                {
+                  className: binHover ? 'pf-drag-bin-hover' : '',
+                  ondragover: (e: DragEvent) => {
+                    e.preventDefault();
+                    e.dataTransfer!.dropEffect = 'move';
+                    binHover = true;
+                  },
+                  ondragleave: () => {
+                    binHover = false;
+                  },
+                  ondrop: (e: DragEvent) => {
+                    e.preventDefault();
+                    binHover = false;
+                    dragging = false;
+                    const fromIdx = parseInt(
+                      e.dataTransfer!.getData('text/plain'),
+                    );
+                    updateConfig({
+                      conditions: conditions.filter((_, j) => j !== fromIdx),
+                    });
+                  },
+                },
+                m(Icon, {icon: 'delete'}),
+              )
+            : null,
+        ]),
+      ]);
+    },
+  };
+}
+
 function renderFilterNode(
   config: FilterConfig,
   updateConfig: (updates: Partial<FilterConfig>) => void,
   ctx: RenderContext,
 ): m.Children {
-  const availableColumns = ctx.availableColumns;
-  const conditions = config.conditions;
-
-  const conjunction = config.conjunction ?? 'AND';
-
-  return m('.pf-qb-stack', [
-    m(SegmentedButtons, {
-      fillWidth: true,
-      className: 'pf-qb-conjunction',
-      options: [{label: 'AND'}, {label: 'OR'}],
-      selectedOption: conjunction === 'AND' ? 0 : 1,
-      onOptionSelected: (i: number) =>
-        updateConfig({conjunction: i === 0 ? 'AND' : 'OR'}),
-    }),
-    m('.pf-qb-filter-list', [
-      ...conditions.map((cond, i) =>
-        m(
-          '.pf-qb-filter-row',
-          {
-            key: i,
-            draggable: conditions.length > 1,
-            ondragstart: (e: DragEvent) => {
-              e.dataTransfer!.effectAllowed = 'move';
-              e.dataTransfer!.setData('text/plain', String(i));
-              (e.currentTarget as HTMLElement).classList.add('pf-dragging');
-            },
-            ondragend: (e: DragEvent) => {
-              (e.currentTarget as HTMLElement).classList.remove('pf-dragging');
-            },
-            ondragover: (e: DragEvent) => {
-              e.preventDefault();
-              e.dataTransfer!.dropEffect = 'move';
-              const el = e.currentTarget as HTMLElement;
-              const rect = el.getBoundingClientRect();
-              const isBottom = e.clientY > rect.top + rect.height / 2;
-              el.classList.toggle('pf-drag-over-top', !isBottom);
-              el.classList.toggle('pf-drag-over-bottom', isBottom);
-            },
-            ondragleave: (e: DragEvent) => {
-              const el = e.currentTarget as HTMLElement;
-              el.classList.remove('pf-drag-over-top', 'pf-drag-over-bottom');
-            },
-            ondrop: (e: DragEvent) => {
-              e.preventDefault();
-              const el = e.currentTarget as HTMLElement;
-              const isBottom = el.classList.contains('pf-drag-over-bottom');
-              el.classList.remove('pf-drag-over-top', 'pf-drag-over-bottom');
-              const fromIdx = parseInt(e.dataTransfer!.getData('text/plain'));
-              let toIdx = isBottom ? i + 1 : i;
-              if (fromIdx !== toIdx && fromIdx + 1 !== toIdx) {
-                const newConds = [...conditions];
-                const [moved] = newConds.splice(fromIdx, 1);
-                if (fromIdx < toIdx) toIdx--;
-                newConds.splice(toIdx, 0, moved);
-                updateConfig({conditions: newConds});
-              }
-            },
-          },
-          [
-            ...(conditions.length > 1 ? [m(Icon, {icon: 'drag_indicator', className: 'pf-qb-drag-handle'})] : []),
-            m(ColumnPicker, {
-              value: cond.column,
-              columns: availableColumns,
-              placeholder: 'column',
-              onSelect: (value: string) => {
-                const newConds = [...conditions];
-                newConds[i] = {...cond, column: value};
-                updateConfig({conditions: newConds});
-              },
-            }),
-            m(
-              Select,
-              {
-                value: cond.op,
-                onchange: (e: Event) => {
-                  const newConds = [...conditions];
-                  newConds[i] = {
-                    ...cond,
-                    op: (e.target as HTMLSelectElement).value as FilterOp,
-                  };
-                  updateConfig({conditions: newConds});
-                },
-              },
-              FILTER_OPS.map((op) => m('option', {value: op}, op)),
-            ),
-            ...(!UNARY_OPS.has(cond.op)
-              ? [
-                  m(TextInput, {
-                    placeholder: 'value',
-                    value: cond.value,
-                    onChange: (value: string) => {
-                      const newConds = [...conditions];
-                      newConds[i] = {...cond, value};
-                      updateConfig({conditions: newConds});
-                    },
-                  }),
-                ]
-              : []),
-            m(Button, {
-              icon: 'delete',
-              variant: ButtonVariant.Filled,
-              intent: Intent.Danger,
-              className: 'pf-qb-row-delete',
-              title: 'Remove condition',
-              onclick: () => {
-                const newConds = conditions.filter((_, j) => j !== i);
-                updateConfig({conditions: newConds});
-              },
-            }),
-          ],
-        ),
-      ),
-    ]),
-    m(Button, {
-      label: 'Add condition',
-      icon: 'add',
-      variant: ButtonVariant.Filled,
-      onclick: () => {
-        updateConfig({
-          conditions: [...conditions, {column: '', op: '=', value: ''}],
-        });
-      },
-    }),
-  ]);
+  return m(FilterNodeContent, {config, updateConfig, ctx});
 }
 
 const UNARY_FILTER_OPS: Set<FilterOp> = new Set(['IS NULL', 'IS NOT NULL']);
@@ -227,8 +275,9 @@ function tryFold(stmt: SqlStatement, config: FilterConfig): boolean {
     stmt.groupBy !== undefined ||
     stmt.orderBy !== undefined ||
     stmt.limit !== undefined
-  )
+  ) {
     return false;
+  }
   const expr =
     config.conditions.length > 0
       ? conditionsToSql(config.conditions, config.conjunction)
@@ -247,7 +296,11 @@ export const manifest: NodeManifest<FilterConfig> = {
   canDockTop: true,
   canDockBottom: true,
   hue: 35,
-  defaultConfig: () => ({filterExpression: '', conditions: [], conjunction: 'AND'}),
+  defaultConfig: () => ({
+    filterExpression: '',
+    conditions: [],
+    conjunction: 'AND',
+  }),
   render: renderFilterNode,
   isValid,
   getOutputColumns: (_config, ctx) => ctx.getInputColumns('input'),

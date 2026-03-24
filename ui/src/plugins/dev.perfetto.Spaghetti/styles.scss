@@ -15,6 +15,8 @@
 // Query Builder node content styles.
 // These classes standardize layout and typography across all node types.
 
+@import "../../assets/theme.scss";
+
 // Scope node-content overrides to the query builder page.
 .pf-node-query-builder-page {
   // Consistent minimum width for nodes.
@@ -124,6 +126,11 @@
   align-items: center;
 }
 
+.pf-qb-join-col {
+  flex: 1;
+  min-width: 0;
+}
+
 // Grid layout for 3-column rows (column, alias, delete).
 .pf-qb-3col-grid {
   display: grid;
@@ -226,6 +233,72 @@
   }
 }
 
+// Bottom bar: add button + drag-to-delete bin side by side.
+.pf-qb-bottom-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+// Drag-to-delete bin: appears during drag, grows on hover.
+// Wrapper: positions the bin overlay on top of the add button.
+.pf-qb-add-bin-wrapper {
+  position: relative;
+
+  > .pf-button {
+    width: 100%;
+  }
+}
+
+// Column name label in select node rows.
+.pf-qb-col-label {
+  font-size: var(--pf-font-size-sm);
+  padding: 2px 4px;
+}
+
+.pf-qb-drag-bin {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $border-radius;
+  border: 1px dashed var(--pf-color-on-surface, #888);
+  background: var(--pf-color-surface);
+  opacity: 0.6;
+
+  &.pf-drag-bin-hover {
+    opacity: 1;
+    background: color-mix(in srgb, var(--pf-color-danger) 15%, transparent);
+    border-color: var(--pf-color-danger);
+    color: var(--pf-color-danger);
+  }
+}
+
+// Always-visible inline delete button, tucked to the right.
+.pf-qb-row-delete-inline {
+  flex: 0 0 auto;
+  margin-right: -9px;
+  opacity: 0.3;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+// Inline alias tag: "as" label + text input.
+.pf-qb-alias-tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+// Compact "as" button that expands into the alias editor.
+.pf-qb-alias-btn {
+  opacity: 0.5;
+  font-size: var(--pf-font-size-sm);
+}
+
 // Section header label (e.g. "EXPRESSIONS", "AGGREGATIONS", "Aliases").
 .pf-qb-section-label {
   font-weight: bold;
@@ -272,6 +345,7 @@
 
 .pf-column-picker__list {
   max-height: 200px;
+  min-width: 150px;
   overflow-y: auto;
   margin: 2px;
 }
