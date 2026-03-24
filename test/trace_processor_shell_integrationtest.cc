@@ -624,6 +624,29 @@ TEST(TraceProcessorShellIntegrationTest, MetricsSubcommandNoRunFails) {
   EXPECT_NE(result.exit_code, 0);
 }
 
+TEST(TraceProcessorShellIntegrationTest, NoArgsShowsSubcommandHelp) {
+  // Running with no arguments should show the subcommand help (not classic).
+  auto result = RunShell({});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("Commands:"));
+  EXPECT_THAT(result.out, HasSubstr("query"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, BadTraceFileShowsOnlyError) {
+  // When a trace file doesn't exist, only the error should be shown,
+  // not the full usage text.
+  auto result = RunShell({"interactive", "/nonexistent_trace.pb"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, Not(HasSubstr("Usage:")));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicBadTraceFileShowsOnlyError) {
+  // Classic path: bare nonexistent file should show only an error, not usage.
+  auto result = RunShell({"/nonexistent_trace.pb"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, Not(HasSubstr("Usage:")));
+}
+
 // ---------------------------------------------------------------------------
 // Existing RPC test
 // ---------------------------------------------------------------------------
