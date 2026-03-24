@@ -166,9 +166,10 @@ class ArtHprofParser(TestSuite):
               printf('%f', float_value),
               printf('%f', double_value)
             ) as val
-          FROM heap_graph_primitive f
-          JOIN heap_graph_object o ON f.object_id = o.id
+          FROM heap_graph_object o
           JOIN heap_graph_class c ON o.type_id = c.id
+          JOIN heap_graph_object_data od ON od.id = o.object_data_id
+          JOIN heap_graph_primitive f ON f.field_set_id = od.field_set_id
           WHERE (c.name = 'java.lang.Boolean' AND f.field_name = 'java.lang.Boolean.value')
              OR (c.name = 'java.lang.Character' AND f.field_name = 'java.lang.Character.value')
              OR (c.name = 'java.util.HashMap' AND f.field_name = 'java.util.HashMap.loadFactor')
@@ -199,7 +200,7 @@ class ArtHprofParser(TestSuite):
           SELECT od.value_string
           FROM heap_graph_object o
           JOIN heap_graph_class c ON o.type_id = c.id
-          JOIN heap_graph_object_data od ON od.object_id = o.id
+          JOIN heap_graph_object_data od ON od.id = o.object_data_id
           WHERE c.name = 'java.lang.String'
             AND od.value_string IN ('!/', '$Proxy', 'java.lang.String')
           GROUP BY 1
@@ -219,15 +220,15 @@ class ArtHprofParser(TestSuite):
           SELECT
             od.array_element_type,
             od.array_element_count,
-            length(__intrinsic_heap_graph_get_array(od.array_data_id)) as blob_len,
-            __intrinsic_heap_graph_get_array_json(
-              od.array_data_id, od.array_element_type, od.array_element_count
+            length(__intrinsic_heap_graph_array(od.array_data_id)) as blob_len,
+            __intrinsic_heap_graph_array_json(
+              od.array_data_id
             ) as json_val
           FROM heap_graph_reference r
           JOIN heap_graph_object owner ON r.owner_id = owner.id
           JOIN heap_graph_class oc ON owner.type_id = oc.id
           JOIN heap_graph_object o ON r.owned_id = o.id
-          JOIN heap_graph_object_data od ON od.object_id = o.id
+          JOIN heap_graph_object_data od ON od.id = o.object_data_id
           WHERE oc.name = 'DumpedStuff'
             AND r.field_name IN ('DumpedStuff.K', 'DumpedStuff.i', 'DumpedStuff.g')
           ORDER BY od.array_element_type
@@ -245,12 +246,12 @@ class ArtHprofParser(TestSuite):
         trace=DataPath('test-dump.hprof'),
         query="""
           SELECT
-            hex(__intrinsic_heap_graph_get_array(od.array_data_id)) as blob_hex
+            hex(__intrinsic_heap_graph_array(od.array_data_id)) as blob_hex
           FROM heap_graph_reference r
           JOIN heap_graph_object owner ON r.owner_id = owner.id
           JOIN heap_graph_class oc ON owner.type_id = oc.id
           JOIN heap_graph_object o ON r.owned_id = o.id
-          JOIN heap_graph_object_data od ON od.object_id = o.id
+          JOIN heap_graph_object_data od ON od.id = o.object_data_id
           WHERE oc.name = 'DumpedStuff'
             AND r.field_name = 'DumpedStuff.i'
         """,
@@ -269,7 +270,7 @@ class ArtHprofParser(TestSuite):
              JOIN heap_graph_object owner ON r.owner_id = owner.id
              JOIN heap_graph_class oc ON owner.type_id = oc.id
              JOIN heap_graph_object o ON r.owned_id = o.id
-             JOIN heap_graph_object_data od ON od.object_id = o.id
+             JOIN heap_graph_object_data od ON od.id = o.object_data_id
              WHERE oc.name = 'DumpedStuff' AND r.field_name = 'DumpedStuff.K') as known_hash,
             (SELECT COUNT(DISTINCT array_data_hash) FROM heap_graph_object_data) <
             (SELECT COUNT(*) FROM heap_graph_object_data WHERE array_data_id IS NOT NULL) as has_duplicates
@@ -284,8 +285,8 @@ class ArtHprofParser(TestSuite):
         trace=DataPath('test-dump.hprof'),
         query="""
           SELECT
-            __intrinsic_heap_graph_get_array(NULL) IS NULL as null_blob,
-            __intrinsic_heap_graph_get_array_json(NULL, 'int', 0) IS NULL as null_json
+            __intrinsic_heap_graph_array(NULL) IS NULL as null_blob,
+            __intrinsic_heap_graph_array_json(NULL) IS NULL as null_json
         """,
         out=Csv('''
           "null_blob","null_json"

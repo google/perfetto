@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/art_hprof/art_heap_graph.h"
 #include "src/trace_processor/importers/art_hprof/art_heap_graph_builder.h"
@@ -536,7 +537,6 @@ void ArtHprofParser::PopulateFieldValues(const HeapGraph& graph) {
       continue;
 
     tables::HeapGraphObjectDataTable::Row data_row;
-    data_row.object_id = *owner_table_id;
 
     if (has_string) {
       StringId str_id =
@@ -555,7 +555,6 @@ void ArtHprofParser::PopulateFieldValues(const HeapGraph& graph) {
 
         tables::HeapGraphPrimitiveTable::Row row;
         row.field_set_id = field_set_id;
-        row.object_id = *owner_table_id;
         row.field_name = context_->storage->InternString(field.GetName());
         row.field_type =
             context_->storage->InternString(FieldTypeName(field.GetType()));
@@ -628,7 +627,14 @@ void ArtHprofParser::PopulateFieldValues(const HeapGraph& graph) {
             FieldTypeName(obj.GetArrayElementType()));
         auto* blobs = context_->storage->mutable_hprof_array_blobs();
         uint32_t blob_id = static_cast<uint32_t>(blobs->size());
-        blobs->push_back(std::move(blob));
+
+        TraceStorage::HprofArrayBlob array_blob;
+        array_blob.data =
+            TraceBlobView(TraceBlob::CopyFrom(blob.data(), blob.size()));
+        array_blob.element_type =
+            static_cast<uint8_t>(obj.GetArrayElementType());
+        array_blob.element_count = element_count;
+        blobs->push_back(std::move(array_blob));
 
         data_row.array_element_type = type_id;
         data_row.array_element_count = element_count;
@@ -637,7 +643,11 @@ void ArtHprofParser::PopulateFieldValues(const HeapGraph& graph) {
       }
     }
 
-    data_table.Insert(data_row);
+    auto data_id = data_table.Insert(data_row).id;
+
+    // Set reverse FK on the object table for direct lookup.
+    auto& object_table = *context_->storage->mutable_heap_graph_object_table();
+    object_table.FindById(*owner_table_id)->set_object_data_id(data_id.value);
   }
 }
 

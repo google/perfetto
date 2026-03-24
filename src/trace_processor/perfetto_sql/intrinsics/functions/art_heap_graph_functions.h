@@ -26,21 +26,16 @@ class TraceProcessorContext;
 
 // Registers heap graph helper functions:
 //
-// __INTRINSIC_HEAP_GRAPH_GET_ARRAY(array_data_id INT) -> BLOB
+// __INTRINSIC_HEAP_GRAPH_ARRAY(array_data_id INT) -> BLOB
 //   Returns the raw bytes of a primitive array stored during HPROF import.
-//   The blob is in native little-endian format; element type and count are
-//   available via heap_graph_object.array_element_type and
-//   heap_graph_object.array_element_count.
+//   The blob is in native little-endian format.
 //   Returns NULL if array_data_id is NULL or out of range.
 //
-// __INTRINSIC_HEAP_GRAPH_GET_ARRAY_JSON(array_data_id INT,
-//                                       element_type TEXT,
-//                                       element_count INT) -> TEXT
+// __INTRINSIC_HEAP_GRAPH_ARRAY_JSON(array_data_id INT) -> TEXT
 //   Decodes a primitive array blob and returns it as a JSON array string.
-//   Element types: boolean, byte, short, int, long, float, double, char.
+//   Element type and count are stored alongside the blob data.
 //   Long values are encoded as JSON strings to preserve 64-bit precision.
-//   Returns NULL if any argument is NULL, blob_id is out of range, or
-//   element_type is unrecognised.
+//   Returns NULL if array_data_id is NULL or out of range.
 base::Status RegisterArtHeapGraphFunctions(PerfettoSqlEngine* engine,
                                            TraceProcessorContext* context);
 

@@ -871,6 +871,13 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C(
+            'object_data_id',
+            CppOptional(CppUint32()),
+            flags=ColumnFlag.HIDDEN,
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -904,6 +911,9 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
                 '''if not NULL, this object is a GC root.''',
             'root_distance':
                 '''''',
+            'object_data_id':
+                '''optional ID into heap_graph_object_data for HPROF
+                primitive field values and array data.''',
         }))
 
 HEAP_GRAPH_OBJECT_DATA_TABLE = Table(
@@ -911,12 +921,6 @@ HEAP_GRAPH_OBJECT_DATA_TABLE = Table(
     class_name='HeapGraphObjectDataTable',
     sql_name='__intrinsic_heap_graph_object_data',
     columns=[
-        C(
-            'object_id',
-            CppTableId(HEAP_GRAPH_OBJECT_TABLE),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
-        ),
         C(
             'field_set_id',
             CppOptional(CppUint32()),
@@ -966,8 +970,6 @@ HEAP_GRAPH_OBJECT_DATA_TABLE = Table(
         ''',
         group='ART Heap Graphs',
         columns={
-            'object_id':
-                '''Id of the heap graph object this data belongs to.''',
             'field_set_id':
                 '''join key with heap_graph_primitive containing
                 primitive field values for this object.''',
@@ -982,9 +984,9 @@ HEAP_GRAPH_OBJECT_DATA_TABLE = Table(
             'array_data_id':
                 '''for primitive array objects, opaque ID to retrieve
                 the raw element bytes via
-                __intrinsic_heap_graph_get_array() or its JSON
+                __intrinsic_heap_graph_array() or its JSON
                 representation via
-                __intrinsic_heap_graph_get_array_json().''',
+                __intrinsic_heap_graph_array_json().''',
             'array_data_hash':
                 '''for primitive array objects, a 64-bit content hash
                 of the raw element bytes. Two arrays with the same
@@ -1067,12 +1069,6 @@ HEAP_GRAPH_PRIMITIVE_TABLE = Table(
             flags=ColumnFlag.SORTED | ColumnFlag.SET_ID,
         ),
         C(
-            'object_id',
-            CppTableId(HEAP_GRAPH_OBJECT_TABLE),
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
-        ),
-        C(
             'field_name',
             CppString(),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
@@ -1142,18 +1138,28 @@ HEAP_GRAPH_PRIMITIVE_TABLE = Table(
         ''',
         group='ART Heap Graphs',
         columns={
-            'field_set_id': '''Join key to heap_graph_object.''',
-            'object_id': '''Id of object that owns this field.''',
-            'field_name': '''The field name. E.g. Foo.count.''',
-            'field_type': '''The primitive type. E.g. int, boolean, float.''',
-            'bool_value': '''Value for boolean fields (0 or 1).''',
-            'byte_value': '''Value for byte fields.''',
-            'char_value': '''Value for char fields (as integer codepoint).''',
-            'short_value': '''Value for short fields.''',
-            'int_value': '''Value for int fields.''',
-            'long_value': '''Value for long fields.''',
-            'float_value': '''Value for float fields.''',
-            'double_value': '''Value for double fields.''',
+            'field_set_id':
+                '''Join key to heap_graph_object_data.field_set_id.''',
+            'field_name':
+                '''The field name. E.g. Foo.count.''',
+            'field_type':
+                '''The primitive type. E.g. int, boolean, float.''',
+            'bool_value':
+                '''Value for boolean fields (0 or 1).''',
+            'byte_value':
+                '''Value for byte fields.''',
+            'char_value':
+                '''Value for char fields (as integer codepoint).''',
+            'short_value':
+                '''Value for short fields.''',
+            'int_value':
+                '''Value for int fields.''',
+            'long_value':
+                '''Value for long fields.''',
+            'float_value':
+                '''Value for float fields.''',
+            'double_value':
+                '''Value for double fields.''',
         }))
 
 AGGREGATE_PROFILE_TABLE = Table(

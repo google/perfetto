@@ -843,11 +843,16 @@ class TraceStorage {
   std::vector<TraceBlobView>* mutable_etm_v4_chunk_data() {
     return &etm_v4_chunk_data_;
   }
-  // Indexed by heap_graph_object.array_data_id
-  const std::vector<std::vector<uint8_t>>& hprof_array_blobs() const {
+  struct HprofArrayBlob {
+    TraceBlobView data;
+    uint8_t element_type;  // art_hprof::FieldType as uint8_t
+    uint32_t element_count;
+  };
+  // Indexed by heap_graph_object_data.array_data_id
+  const std::vector<HprofArrayBlob>& hprof_array_blobs() const {
     return hprof_array_blobs_;
   }
-  std::vector<std::vector<uint8_t>>* mutable_hprof_array_blobs() {
+  std::vector<HprofArrayBlob>* mutable_hprof_array_blobs() {
     return &hprof_array_blobs_;
   }
   const tables::FileTable& file_table() const {
@@ -1167,7 +1172,7 @@ class TraceStorage {
 
   // HPROF primitive array blobs.
   // Indexed by heap_graph_object_data.array_data_id
-  std::vector<std::vector<uint8_t>> hprof_array_blobs_;
+  std::vector<HprofArrayBlob> hprof_array_blobs_;
 
   // Aligned storage for all table dataframes.
   alignas(

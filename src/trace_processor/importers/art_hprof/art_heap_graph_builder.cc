@@ -86,8 +86,8 @@ void HeapGraphBuilder::PushBlob(TraceBlobView&& blob) {
 }
 
 HeapGraph HeapGraphBuilder::BuildGraph() {
-  resolver_ = std::make_unique<HeapGraphResolver>(context_, header_, objects_,
-                                                  classes_, roots_, stats_);
+  resolver_ = std::make_unique<HeapGraphResolver>(
+      context_, header_, objects_, classes_, roots_, string_class_id_, stats_);
   resolver_->ResolveGraph();
 
   stats_.Write(context_);
@@ -232,6 +232,10 @@ bool HeapGraphBuilder::ParseClassDefinition() {
   ClassDefinition class_def(class_obj_id, class_name);
   classes_[class_obj_id] = class_def;
   stats_.class_count++;
+
+  if (class_name == kJavaLangString) {
+    string_class_id_ = class_obj_id;
+  }
 
   for (const auto& [type_name, field_type] : kPrimitiveArrayTypes) {
     if (class_name == type_name) {

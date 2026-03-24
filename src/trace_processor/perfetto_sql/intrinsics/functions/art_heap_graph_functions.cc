@@ -19,7 +19,6 @@
 #include <cstdint>
 #include <cstring>
 #include <string>
-#include <string_view>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -37,8 +36,37 @@
 namespace perfetto::trace_processor {
 namespace {
 
-struct HeapGraphGetArray : public sqlite::Function<HeapGraphGetArray> {
-  static constexpr char kName[] = "__intrinsic_heap_graph_get_array";
+// Element type values matching art_hprof::FieldType.
+constexpr uint8_t kFieldTypeBoolean = 4;
+constexpr uint8_t kFieldTypeChar = 5;
+constexpr uint8_t kFieldTypeFloat = 6;
+constexpr uint8_t kFieldTypeDouble = 7;
+constexpr uint8_t kFieldTypeByte = 8;
+constexpr uint8_t kFieldTypeShort = 9;
+constexpr uint8_t kFieldTypeInt = 10;
+constexpr uint8_t kFieldTypeLong = 11;
+
+size_t ElementSize(uint8_t type) {
+  switch (type) {
+    case kFieldTypeBoolean:
+    case kFieldTypeByte:
+      return 1;
+    case kFieldTypeChar:
+    case kFieldTypeShort:
+      return 2;
+    case kFieldTypeInt:
+    case kFieldTypeFloat:
+      return 4;
+    case kFieldTypeLong:
+    case kFieldTypeDouble:
+      return 8;
+    default:
+      return 0;
+  }
+}
+
+struct HeapGraphArray : public sqlite::Function<HeapGraphArray> {
+  static constexpr char kName[] = "__intrinsic_heap_graph_array";
   static constexpr int kArgCount = 1;
   using UserData = TraceStorage;
 
@@ -57,99 +85,102 @@ struct HeapGraphGetArray : public sqlite::Function<HeapGraphGetArray> {
       return sqlite::utils::ReturnNullFromFunction(ctx);
     }
 
-    const auto& blob = blobs[blob_id];
+    const auto& blob = blobs[blob_id].data;
     sqlite::result::StaticBytes(ctx, blob.data(),
-                                static_cast<int>(blob.size()));
+                                static_cast<int>(blob.length()));
   }
 };
 
-struct HeapGraphGetArrayJson : public sqlite::Function<HeapGraphGetArrayJson> {
-  static constexpr char kName[] = "__intrinsic_heap_graph_get_array_json";
-  static constexpr int kArgCount = 3;
+struct HeapGraphArrayJson : public sqlite::Function<HeapGraphArrayJson> {
+  static constexpr char kName[] = "__intrinsic_heap_graph_array_json";
+  static constexpr int kArgCount = 1;
   using UserData = TraceStorage;
 
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
-    PERFETTO_DCHECK(argc == 3);
+    PERFETTO_DCHECK(argc == 1);
 
-    // Return NULL if any argument is NULL.
-    for (int i = 0; i < 3; ++i) {
-      if (sqlite::value::Type(argv[i]) == sqlite::Type::kNull) {
-        return sqlite::utils::ReturnNullFromFunction(ctx);
-      }
+    if (sqlite::value::Type(argv[0]) == sqlite::Type::kNull) {
+      return sqlite::utils::ReturnNullFromFunction(ctx);
     }
 
     TraceStorage* storage = GetUserData(ctx);
     auto blob_id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
-    std::string_view elem_type(sqlite::value::Text(argv[1]));
-    auto count = static_cast<uint32_t>(sqlite::value::Int64(argv[2]));
 
     const auto& blobs = storage->hprof_array_blobs();
     if (blob_id >= blobs.size()) {
       return sqlite::utils::ReturnNullFromFunction(ctx);
     }
-    const auto& blob = blobs[blob_id];
+    const auto& array_blob = blobs[blob_id];
+    uint8_t elem_type = array_blob.element_type;
+    uint32_t count = array_blob.element_count;
+    const uint8_t* data = array_blob.data.data();
+    size_t data_len = array_blob.data.length();
 
-    // Determine element size and validate blob length.
-    size_t elem_size = 0;
-    if (elem_type == "boolean" || elem_type == "byte") {
-      elem_size = 1;
-    } else if (elem_type == "char" || elem_type == "short") {
-      elem_size = 2;
-    } else if (elem_type == "int" || elem_type == "float") {
-      elem_size = 4;
-    } else if (elem_type == "long" || elem_type == "double") {
-      elem_size = 8;
-    } else {
-      return sqlite::utils::ReturnNullFromFunction(ctx);
-    }
-
-    if (static_cast<size_t>(count) * elem_size > blob.size()) {
+    size_t elem_size = ElementSize(elem_type);
+    if (elem_size == 0 || static_cast<size_t>(count) * elem_size > data_len) {
       return sqlite::utils::ReturnNullFromFunction(ctx);
     }
 
     json::JsonSerializer s;
     s.OpenArray();
 
-    const uint8_t* data = blob.data();
     for (uint32_t i = 0; i < count; ++i) {
       const uint8_t* p = data + i * elem_size;
-      if (elem_type == "boolean") {
-        s.BoolValue(p[0] != 0);
-      } else if (elem_type == "byte") {
-        int8_t v;
-        memcpy(&v, p, sizeof(v));
-        s.NumberValue(v);
-      } else if (elem_type == "short") {
-        int16_t v;
-        memcpy(&v, p, sizeof(v));
-        s.NumberValue(v);
-      } else if (elem_type == "int") {
-        int32_t v;
-        memcpy(&v, p, sizeof(v));
-        s.NumberValue(v);
-      } else if (elem_type == "long") {
-        int64_t v;
-        memcpy(&v, p, sizeof(v));
-        s.StringValue(std::to_string(v));
-      } else if (elem_type == "float") {
-        float v;
-        memcpy(&v, p, sizeof(v));
-        s.FloatValue(v);
-      } else if (elem_type == "double") {
-        double v;
-        memcpy(&v, p, sizeof(v));
-        s.DoubleValue(v);
-      } else if (elem_type == "char") {
-        uint16_t v;
-        memcpy(&v, p, sizeof(v));
-        s.NumberValue(v);
+      switch (elem_type) {
+        case kFieldTypeBoolean:
+          s.BoolValue(p[0] != 0);
+          break;
+        case kFieldTypeByte: {
+          int8_t v;
+          memcpy(&v, p, sizeof(v));
+          s.NumberValue(v);
+          break;
+        }
+        case kFieldTypeShort: {
+          int16_t v;
+          memcpy(&v, p, sizeof(v));
+          s.NumberValue(v);
+          break;
+        }
+        case kFieldTypeInt: {
+          int32_t v;
+          memcpy(&v, p, sizeof(v));
+          s.NumberValue(v);
+          break;
+        }
+        case kFieldTypeLong: {
+          int64_t v;
+          memcpy(&v, p, sizeof(v));
+          s.StringValue(std::to_string(v));
+          break;
+        }
+        case kFieldTypeFloat: {
+          float v;
+          memcpy(&v, p, sizeof(v));
+          s.FloatValue(v);
+          break;
+        }
+        case kFieldTypeDouble: {
+          double v;
+          memcpy(&v, p, sizeof(v));
+          s.DoubleValue(v);
+          break;
+        }
+        case kFieldTypeChar: {
+          uint16_t v;
+          memcpy(&v, p, sizeof(v));
+          s.NumberValue(v);
+          break;
+        }
+        default:
+          break;
       }
     }
 
     s.CloseArray();
-    std::string json = s.ToString();
-    sqlite::result::TransientString(ctx, json.c_str(),
-                                    static_cast<int>(json.size()));
+    auto sv = s.GetStringView();
+    sqlite::result::TransientString(ctx, sv.data(),
+                                    static_cast<int>(sv.size()));
   }
 };
 
@@ -158,9 +189,8 @@ struct HeapGraphGetArrayJson : public sqlite::Function<HeapGraphGetArrayJson> {
 base::Status RegisterArtHeapGraphFunctions(PerfettoSqlEngine* engine,
                                            TraceProcessorContext* context) {
   RETURN_IF_ERROR(
-      engine->RegisterFunction<HeapGraphGetArray>(context->storage.get()));
-  return engine->RegisterFunction<HeapGraphGetArrayJson>(
-      context->storage.get());
+      engine->RegisterFunction<HeapGraphArray>(context->storage.get()));
+  return engine->RegisterFunction<HeapGraphArrayJson>(context->storage.get());
 }
 
 }  // namespace perfetto::trace_processor

@@ -72,13 +72,15 @@ HeapGraphResolver::HeapGraphResolver(
     base::FlatHashMap<uint64_t, Object>& objects,
     base::FlatHashMap<uint64_t, ClassDefinition>& classes,
     base::FlatHashMap<uint64_t, HprofHeapRootTag>& roots,
+    uint64_t string_class_id,
     DebugStats& stats)
     : context_(context),
       header_(header),
       objects_(objects),
       roots_(roots),
       classes_(classes),
-      stats_(stats) {}
+      stats_(stats),
+      string_class_id_(string_class_id) {}
 
 void HeapGraphResolver::ResolveGraph() {
   ExtractAllObjectData();
@@ -98,6 +100,10 @@ void HeapGraphResolver::ExtractAllObjectData() {
       if (cls) {
         ExtractObjectReferences(obj, *cls);
         ExtractFieldValues(obj, *cls);
+      }
+      // Collect string object IDs for DecodeJavaStrings().
+      if (string_class_id_ != 0 && obj.GetClassId() == string_class_id_) {
+        string_object_ids_.push_back(obj.GetId());
       }
     } else if (obj.GetObjectType() == ObjectType::kObjectArray) {
       ExtractArrayElementReferences(obj);
@@ -484,23 +490,16 @@ std::optional<std::string> HeapGraphResolver::DecodeJavaString(
 }
 
 void HeapGraphResolver::DecodeJavaStrings() {
-  uint64_t string_class_id = 0;
-  for (auto it = classes_.GetIterator(); it; ++it) {
-    if (it.value().GetName() == kJavaLangString) {
-      string_class_id = it.key();
-      break;
-    }
-  }
-  if (string_class_id == 0)
+  if (string_class_id_ == 0)
     return;
 
-  for (auto it = objects_.GetIterator(); it; ++it) {
-    auto& obj = it.value();
-    if (obj.GetClassId() != string_class_id)
+  for (uint64_t obj_id : string_object_ids_) {
+    auto* obj = objects_.Find(obj_id);
+    if (!obj)
       continue;
-    auto decoded = DecodeJavaString(obj);
+    auto decoded = DecodeJavaString(*obj);
     if (decoded) {
-      obj.SetDecodedString(std::move(*decoded));
+      obj->SetDecodedString(std::move(*decoded));
     }
   }
 }

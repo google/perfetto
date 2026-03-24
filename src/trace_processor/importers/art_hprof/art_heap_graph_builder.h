@@ -107,6 +107,7 @@ class HeapGraphResolver {
                     base::FlatHashMap<uint64_t, Object>& objects,
                     base::FlatHashMap<uint64_t, ClassDefinition>& classes,
                     base::FlatHashMap<uint64_t, HprofHeapRootTag>& roots,
+                    uint64_t string_class_id,
                     DebugStats& stats);
 
   void ResolveGraph();
@@ -134,6 +135,11 @@ class HeapGraphResolver {
 
   // Cache for class hierarchy fields (avoids repeated hierarchy walks)
   base::FlatHashMap<uint64_t, std::vector<Field>> field_cache_;
+
+  // Set during construction, used by DecodeJavaStrings().
+  uint64_t string_class_id_;
+  // Collected during ExtractAllObjectData() for efficient DecodeJavaStrings().
+  std::vector<uint64_t> string_object_ids_;
 };
 
 // Main parser class that builds a heap graph from HPROF data
@@ -231,6 +237,7 @@ class HeapGraphBuilder {
 
   // Type mapping and root tracking
   std::array<uint64_t, 12> prim_array_class_ids_ = {};
+  uint64_t string_class_id_ = 0;
   base::FlatHashMap<uint64_t, HprofHeapRootTag> roots_;
 
   // Debug statistics

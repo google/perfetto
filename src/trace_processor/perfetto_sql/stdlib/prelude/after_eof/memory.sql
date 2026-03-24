@@ -82,7 +82,9 @@ CREATE PERFETTO VIEW heap_graph_object (
   -- If not NULL, this object is a GC root.
   root_type STRING,
   -- Distance from the root object.
-  root_distance LONG
+  root_distance LONG,
+  -- Optional ID into heap_graph_object_data for HPROF data.
+  object_data_id LONG
 ) AS
 SELECT
   id,
@@ -95,19 +97,18 @@ SELECT
   heap_type,
   type_id,
   root_type,
-  root_distance
+  root_distance,
+  object_data_id
 FROM __intrinsic_heap_graph_object;
 
 -- HPROF-specific data for heap graph objects.
 --
 -- Contains decoded string content and primitive array blob references.
 -- Only populated for HPROF (ART) heap dumps, not for proto heap graphs.
--- Join with heap_graph_object on object_id.
+-- Linked from heap_graph_object.object_data_id.
 CREATE PERFETTO VIEW heap_graph_object_data (
   -- Unique identifier for this data entry.
   id ID,
-  -- Id of the heap graph object this data belongs to.
-  object_id JOINID(heap_graph_object.id),
   -- Join key with heap_graph_primitive containing primitive field values.
   field_set_id JOINID(heap_graph_primitive.field_set_id),
   -- Decoded string value for java.lang.String instances.
@@ -118,7 +119,7 @@ CREATE PERFETTO VIEW heap_graph_object_data (
   -- For primitive array objects, the number of elements.
   array_element_count LONG,
   -- For primitive array objects, opaque ID to retrieve raw element bytes via
-  -- __intrinsic_heap_graph_get_array().
+  -- __intrinsic_heap_graph_array().
   array_data_id LONG,
   -- For primitive array objects, a 64-bit content hash of the raw element
   -- bytes. Two arrays with the same hash have identical content.
@@ -126,7 +127,6 @@ CREATE PERFETTO VIEW heap_graph_object_data (
 ) AS
 SELECT
   id,
-  object_id,
   field_set_id,
   value_string,
   array_element_type,
@@ -173,10 +173,8 @@ FROM __intrinsic_heap_graph_reference;
 CREATE PERFETTO VIEW heap_graph_primitive (
   -- Unique identifier for this field entry.
   id ID,
-  -- Join key to heap_graph_object field_set_id.
-  field_set_id JOINID(heap_graph_object.field_set_id),
-  -- Id of object that owns this field.
-  object_id JOINID(heap_graph_object.id),
+  -- Join key to heap_graph_object_data.field_set_id.
+  field_set_id JOINID(heap_graph_object_data.field_set_id),
   -- The field name. E.g. Foo.count.
   field_name STRING,
   -- The primitive type. E.g. int, boolean, float.
@@ -201,7 +199,6 @@ CREATE PERFETTO VIEW heap_graph_primitive (
 SELECT
   id,
   field_set_id,
-  object_id,
   field_name,
   field_type,
   bool_value,
