@@ -234,6 +234,20 @@ class AdhocDataframeBuilder {
   // - Construct and return the final `Dataframe` instance.
   base::StatusOr<Dataframe> Build() &&;
 
+  // Raw column data without Dataframe wrapping or optimization.
+  struct RawColumn {
+    std::string name;
+    std::optional<Storage> storage;  // Int64, Double, or String FlexVector.
+    core::BitVector null_bv;         // Dense null: empty if all non-null.
+  };
+
+  // Returns raw column data without sort analysis, type downcasting, or
+  // Dataframe creation. No _auto_id column is added.
+  //
+  // This is useful when the caller needs direct access to the underlying
+  // FlexVectors and doesn't need the Dataframe's query optimization metadata.
+  base::StatusOr<std::vector<RawColumn>> BuildRaw() &&;
+
   // Returns the current status of the builder.
   //
   // If `AddRow` returned `false`, this method can be used to retrieve the

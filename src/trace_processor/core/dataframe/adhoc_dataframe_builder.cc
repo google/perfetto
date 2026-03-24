@@ -88,6 +88,25 @@ void AdhocDataframeBuilder::AddPlaceholderValue(uint32_t col, uint32_t count) {
   }
 }
 
+base::StatusOr<std::vector<AdhocDataframeBuilder::RawColumn>>
+AdhocDataframeBuilder::BuildRaw() && {
+  RETURN_IF_ERROR(current_status_);
+
+  std::vector<RawColumn> raw_columns;
+  raw_columns.reserve(column_states_.size());
+  for (uint32_t i = 0; i < column_states_.size(); ++i) {
+    auto& state = column_states_[i];
+    RawColumn rc;
+    rc.name = std::move(column_names_[i]);
+    rc.storage = std::move(state.storage);
+    if (state.null_overlay) {
+      rc.null_bv = std::move(*state.null_overlay);
+    }
+    raw_columns.push_back(std::move(rc));
+  }
+  return raw_columns;
+}
+
 base::StatusOr<Dataframe> AdhocDataframeBuilder::Build() && {
   uint64_t row_count = std::numeric_limits<uint64_t>::max();
   RETURN_IF_ERROR(current_status_);
