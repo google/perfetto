@@ -161,6 +161,7 @@ export async function loadAndroidData(engine: Engine): Promise<AndroidData> {
       permission,
       value_picked_from as valuePickedFrom
     from android_aflags
+    order by package, name
   `);
   const aflags: AflagRow[] = [];
   for (

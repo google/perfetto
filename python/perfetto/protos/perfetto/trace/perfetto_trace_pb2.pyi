@@ -19078,7 +19078,7 @@ class HeapGraphType(_message.Message):
     def __init__(self, id: _Optional[int] = ..., location_id: _Optional[int] = ..., class_name: _Optional[str] = ..., object_size: _Optional[int] = ..., superclass_id: _Optional[int] = ..., reference_field_id: _Optional[_Iterable[int]] = ..., kind: _Optional[_Union[HeapGraphType.Kind, str]] = ..., classloader_id: _Optional[int] = ...) -> None: ...
 
 class HeapGraphObject(_message.Message):
-    __slots__ = ("id", "id_delta", "type_id", "self_size", "reference_field_id_base", "reference_field_id", "reference_object_id", "native_allocation_registry_size_field", "heap_type_delta", "runtime_internal_object_id")
+    __slots__ = ("id", "id_delta", "type_id", "self_size", "reference_field_id_base", "reference_field_id", "reference_object_id", "heap_type_delta", "runtime_internal_object_id", "native_allocation_registry_size_field", "bitmap_id_field", "bitmap_source_id_field", "bitmap_width_field", "bitmap_height_field")
     class HeapType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         HEAP_TYPE_UNKNOWN: _ClassVar[HeapGraphObject.HeapType]
@@ -19096,9 +19096,13 @@ class HeapGraphObject(_message.Message):
     REFERENCE_FIELD_ID_BASE_FIELD_NUMBER: _ClassVar[int]
     REFERENCE_FIELD_ID_FIELD_NUMBER: _ClassVar[int]
     REFERENCE_OBJECT_ID_FIELD_NUMBER: _ClassVar[int]
-    NATIVE_ALLOCATION_REGISTRY_SIZE_FIELD_FIELD_NUMBER: _ClassVar[int]
     HEAP_TYPE_DELTA_FIELD_NUMBER: _ClassVar[int]
     RUNTIME_INTERNAL_OBJECT_ID_FIELD_NUMBER: _ClassVar[int]
+    NATIVE_ALLOCATION_REGISTRY_SIZE_FIELD_FIELD_NUMBER: _ClassVar[int]
+    BITMAP_ID_FIELD_FIELD_NUMBER: _ClassVar[int]
+    BITMAP_SOURCE_ID_FIELD_FIELD_NUMBER: _ClassVar[int]
+    BITMAP_WIDTH_FIELD_FIELD_NUMBER: _ClassVar[int]
+    BITMAP_HEIGHT_FIELD_FIELD_NUMBER: _ClassVar[int]
     id: int
     id_delta: int
     type_id: int
@@ -19106,10 +19110,14 @@ class HeapGraphObject(_message.Message):
     reference_field_id_base: int
     reference_field_id: _containers.RepeatedScalarFieldContainer[int]
     reference_object_id: _containers.RepeatedScalarFieldContainer[int]
-    native_allocation_registry_size_field: int
     heap_type_delta: HeapGraphObject.HeapType
     runtime_internal_object_id: _containers.RepeatedScalarFieldContainer[int]
-    def __init__(self, id: _Optional[int] = ..., id_delta: _Optional[int] = ..., type_id: _Optional[int] = ..., self_size: _Optional[int] = ..., reference_field_id_base: _Optional[int] = ..., reference_field_id: _Optional[_Iterable[int]] = ..., reference_object_id: _Optional[_Iterable[int]] = ..., native_allocation_registry_size_field: _Optional[int] = ..., heap_type_delta: _Optional[_Union[HeapGraphObject.HeapType, str]] = ..., runtime_internal_object_id: _Optional[_Iterable[int]] = ...) -> None: ...
+    native_allocation_registry_size_field: int
+    bitmap_id_field: int
+    bitmap_source_id_field: int
+    bitmap_width_field: int
+    bitmap_height_field: int
+    def __init__(self, id: _Optional[int] = ..., id_delta: _Optional[int] = ..., type_id: _Optional[int] = ..., self_size: _Optional[int] = ..., reference_field_id_base: _Optional[int] = ..., reference_field_id: _Optional[_Iterable[int]] = ..., reference_object_id: _Optional[_Iterable[int]] = ..., heap_type_delta: _Optional[_Union[HeapGraphObject.HeapType, str]] = ..., runtime_internal_object_id: _Optional[_Iterable[int]] = ..., native_allocation_registry_size_field: _Optional[int] = ..., bitmap_id_field: _Optional[int] = ..., bitmap_source_id_field: _Optional[int] = ..., bitmap_width_field: _Optional[int] = ..., bitmap_height_field: _Optional[int] = ...) -> None: ...
 
 class HeapGraph(_message.Message):
     __slots__ = ("pid", "objects", "roots", "types", "field_names", "location_names", "continued", "index")
