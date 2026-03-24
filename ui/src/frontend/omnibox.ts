@@ -18,9 +18,7 @@ import {findRef} from '../base/dom_utils';
 import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
 import {assertExists, assertUnreachable} from '../base/assert';
 import {isString} from '../base/object_utils';
-import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {exists} from '../base/utils';
-import {addQueryResultsTab} from '../components/query_table/query_result_tab';
 import {AppImpl} from '../core/app_impl';
 import {OmniboxMode} from '../core/omnibox_manager';
 import {raf} from '../core/raf_scheduler';
@@ -65,10 +63,10 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
       return this.renderCommandOmnibox();
     } else if (omniboxMode === OmniboxMode.Prompt) {
       return this.renderPromptOmnibox();
-    } else if (omniboxMode === OmniboxMode.Query) {
-      return this.renderQueryOmnibox(trace);
     } else if (omniboxMode === OmniboxMode.Search) {
       return this.renderSearchOmnibox(trace);
+    } else if (omniboxMode === OmniboxMode.RegisteredMode) {
+      return this.renderRegisteredMode();
     } else {
       assertUnreachable(omniboxMode);
     }
@@ -192,53 +190,66 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
       .splice(-RECENT_COMMANDS_LIMIT); // Limit items
   }
 
-  private renderQueryOmnibox(trace: TraceImpl | undefined): m.Children {
-    const ph = 'e.g. select * from sched left join thread using(utid) limit 10';
+  private renderRegisteredMode(): m.Children {
+    const omnibox = AppImpl.instance.omnibox;
+    const desc = assertExists(omnibox.activeRegisteredMode);
     return m(OmniboxWidget, {
-      value: AppImpl.instance.omnibox.text,
-      placeholder: ph,
+      value: omnibox.text,
+      placeholder: desc.placeholder,
       inputRef: OMNIBOX_INPUT_REF,
-      className: 'pf-omnibox--query-mode',
-
+      className: desc.className,
       onInput: (value) => {
-        AppImpl.instance.omnibox.setText(value);
+        if (desc.onInput) {
+          desc.onInput(value);
+        } else {
+          omnibox.setText(value);
+        }
       },
-      onSubmit: (query, alt) => {
-        const config = {
-          query: undoCommonChatAppReplacements(query),
-          title: alt ? 'Pinned query' : 'Omnibox query',
-        };
-        const tag = alt ? undefined : 'omnibox_query';
-        if (trace === undefined) return;
-        addQueryResultsTab(trace, config, tag);
+      onSubmit: (value, alt) => {
+        desc.onSubmit(value, alt);
       },
       onClose: () => {
-        AppImpl.instance.omnibox.setText('');
-        if (this.omniboxInputEl) {
-          this.omniboxInputEl.blur();
+        if (desc.onClose) {
+          desc.onClose();
+        } else {
+          omnibox.setText('');
+          if (this.omniboxInputEl) {
+            this.omniboxInputEl.blur();
+          }
+          omnibox.reset();
         }
-        AppImpl.instance.omnibox.reset();
       },
       onGoBack: () => {
-        AppImpl.instance.omnibox.reset();
+        if (desc.onGoBack) {
+          desc.onGoBack();
+        } else {
+          omnibox.reset();
+        }
       },
     });
   }
 
   private renderSearchOmnibox(trace: TraceImpl | undefined): m.Children {
+    const omnibox = AppImpl.instance.omnibox;
+    const hints = ["'>' for commands"];
+    for (const desc of omnibox.registeredModes.values()) {
+      if (desc.hint) hints.push(desc.hint);
+    }
     return m(OmniboxWidget, {
-      value: AppImpl.instance.omnibox.text,
-      placeholder: "Search or type '>' for commands or ':' for SQL mode",
+      value: omnibox.text,
+      placeholder: `Search or type ${hints.join(', ')}`,
       inputRef: OMNIBOX_INPUT_REF,
       onInput: (value, _prev) => {
         if (value === '>') {
-          AppImpl.instance.omnibox.setMode(OmniboxMode.Command);
-          return;
-        } else if (value === ':') {
-          AppImpl.instance.omnibox.setMode(OmniboxMode.Query);
+          omnibox.setMode(OmniboxMode.Command);
           return;
         }
-        AppImpl.instance.omnibox.setText(value);
+        // Check registered mode triggers.
+        if (value.length === 1 && omnibox.registeredModes.has(value)) {
+          omnibox.activateRegisteredMode(value);
+          return;
+        }
+        omnibox.setText(value);
         if (trace === undefined) return; // No trace loaded.
         if (value.length >= 4) {
           trace.search.search(value);

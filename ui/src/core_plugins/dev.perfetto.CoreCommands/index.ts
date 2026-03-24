@@ -18,7 +18,7 @@ import {copyToClipboard} from '../../base/clipboard';
 import {formatTimezone, Time, time, timezoneOffsetMap} from '../../base/time';
 import {exists} from '../../base/utils';
 import {JsonSettingsEditor} from '../../components/json_settings_editor';
-import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
+import QueryPagePlugin from '../../plugins/dev.perfetto.QueryPage';
 import {AppImpl} from '../../core/app_impl';
 import {commandInvocationSchema, macroSchema} from '../../core/command_manager';
 import {featureFlags} from '../../core/feature_flags';
@@ -146,6 +146,7 @@ type LegacyMacrosConfig = z.infer<typeof legacyMacrosConfigSchema>;
 
 export default class CoreCommands implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CoreCommands';
+  static readonly dependencies = [QueryPagePlugin];
 
   static macrosSetting: Setting<MacrosConfig> | undefined = undefined;
   static legacyMacrosSetting: Setting<LegacyMacrosConfig> | undefined =
@@ -303,11 +304,13 @@ export default class CoreCommands implements PerfettoPlugin {
       }
     });
 
+    const queryPlugin = ctx.plugins.getPlugin(QueryPagePlugin);
+
     ctx.commands.registerCommand({
       id: 'dev.perfetto.RunQueryAllProcesses',
       name: 'Run query: All processes',
       callback: () => {
-        addQueryResultsTab(ctx, {
+        queryPlugin.addQueryResultsTab({
           query: ALL_PROCESSES_QUERY,
           title: 'All Processes',
         });
@@ -318,7 +321,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.RunQueryCpuTimeByProcess',
       name: 'Run query: CPU time by process',
       callback: () => {
-        addQueryResultsTab(ctx, {
+        queryPlugin.addQueryResultsTab({
           query: CPU_TIME_FOR_PROCESSES,
           title: 'CPU time by process',
         });
@@ -329,7 +332,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.RunQueryCyclesByStateByCpu',
       name: 'Run query: cycles by p-state by CPU',
       callback: () => {
-        addQueryResultsTab(ctx, {
+        queryPlugin.addQueryResultsTab({
           query: CYCLES_PER_P_STATE_PER_CPU,
           title: 'Cycles by p-state by CPU',
         });
@@ -340,7 +343,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.RunQueryCyclesByCpuByProcess',
       name: 'Run query: CPU Time by CPU by process',
       callback: () => {
-        addQueryResultsTab(ctx, {
+        queryPlugin.addQueryResultsTab({
           query: CPU_TIME_BY_CPU_BY_PROCESS,
           title: 'CPU time by CPU by process',
         });
@@ -351,7 +354,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.RunQueryHeapGraphBytesPerType',
       name: 'Run query: heap graph bytes per type',
       callback: () => {
-        addQueryResultsTab(ctx, {
+        queryPlugin.addQueryResultsTab({
           query: HEAP_GRAPH_BYTES_PER_TYPE,
           title: 'Heap graph bytes per type',
         });
@@ -362,7 +365,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.DebugSqlPerformance',
       name: 'Debug SQL performance',
       callback: () => {
-        addQueryResultsTab(ctx, {
+        queryPlugin.addQueryResultsTab({
           query: SQL_STATS,
           title: 'Recent SQL queries',
         });
@@ -563,14 +566,8 @@ export default class CoreCommands implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.SwitchToQueryMode',
-      name: 'Switch to query mode',
-      callback: () => ctx.omnibox.setMode(OmniboxMode.Query),
-    });
-
-    ctx.commands.registerCommand({
       id: 'dev.perfetto.RunQuery',
-      name: 'Runs an SQL query',
+      name: 'Runs a SQL query',
       callback: async (rawSql: unknown) => {
         const query =
           typeof rawSql === 'string'
@@ -597,7 +594,7 @@ export default class CoreCommands implements PerfettoPlugin {
 
         const title = typeof titleArg === 'string' ? titleArg : 'Command Query';
 
-        addQueryResultsTab(ctx, {
+        ctx.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab({
           query,
           title,
         });

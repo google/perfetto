@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
+#include <deque>
+
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/art_hprof/art_heap_graph_builder.h"
 
-#include <unordered_set>
 namespace perfetto::trace_processor::art_hprof {
 
 template <typename T>
@@ -77,31 +78,37 @@ HeapGraphResolver::HeapGraphResolver(
       stats_(stats) {}
 
 void HeapGraphResolver::ResolveGraph() {
-  // Extract field values and references for all objects
   ExtractAllObjectData();
-
-  // Mark reachability from roots
   MarkReachableObjects();
-
-  // Set native_size for native objects. See:
+  ComputeSelfSizes();
   CalculateNativeSizes();
 }
 
 void HeapGraphResolver::ExtractAllObjectData() {
+  // Identify classes whose instances need field extraction (for native size
+  // calculation and string decoding). All other instances only need references.
+  base::FlatHashMap<uint64_t, bool> needs_field_extraction;
+  for (auto it = classes_.GetIterator(); it; ++it) {
+    const auto& name = it.value().GetName();
+    if (name == "libcore.util.NativeAllocationRegistry" ||
+        name == kJavaLangString) {
+      needs_field_extraction[it.key()] = true;
+    }
+  }
+
   for (auto it = objects_.GetIterator(); it; ++it) {
     auto& obj = it.value();
-    // Extract data based on object type
     if (obj.GetObjectType() == ObjectType::kInstance ||
         obj.GetObjectType() == ObjectType::kClass) {
       auto cls = classes_.Find(obj.GetClassId());
       if (cls) {
         ExtractObjectReferences(obj, *cls);
-        ExtractFieldValues(obj, *cls);
+        if (needs_field_extraction.Find(obj.GetClassId())) {
+          ExtractFieldValues(obj, *cls);
+        }
       }
     } else if (obj.GetObjectType() == ObjectType::kObjectArray) {
       ExtractArrayElementReferences(obj);
-    } else if (obj.GetObjectType() == ObjectType::kPrimitiveArray) {
-      ExtractPrimitiveArrayValues(obj);
     }
 
     uint64_t obj_id = obj.GetId();
@@ -114,39 +121,70 @@ void HeapGraphResolver::ExtractAllObjectData() {
 }
 
 void HeapGraphResolver::MarkReachableObjects() {
-  std::unordered_set<uint64_t> visited;
-  std::vector<uint64_t> processing_stack;
+  // BFS from roots to mark reachability and compute shortest-path
+  // root_distance. Skips "referent" fields from weak/phantom/finalizer
+  // reference types to match ahat's retained=SOFT behavior (soft referent
+  // edges are followed).
 
-  // Add all root objects to the stack
-  for (auto it = objects_.GetIterator(); it; ++it) {
-    auto id = it.key();
-    auto& obj = it.value();
-    if (obj.IsRoot()) {
-      processing_stack.push_back(id);
-      obj.SetReachable();
+  // Pre-compute which class IDs are reference types by walking the hierarchy.
+  base::FlatHashMap<uint64_t, bool> ref_type_classes;
+  {
+    base::FlatHashMap<uint64_t, bool> base_refs;
+    for (auto it = classes_.GetIterator(); it; ++it) {
+      const auto& name = it.value().GetName();
+      if (name == "java.lang.ref.WeakReference" ||
+          name == "java.lang.ref.PhantomReference" ||
+          name == "java.lang.ref.FinalizerReference") {
+        base_refs[it.key()] = true;
+      }
+    }
+    for (auto it = classes_.GetIterator(); it; ++it) {
+      uint64_t current = it.key();
+      for (int depth = 0; depth < 100 && current != 0; ++depth) {
+        if (base_refs.Find(current)) {
+          ref_type_classes[it.key()] = true;
+          break;
+        }
+        auto* cls = classes_.Find(current);
+        if (!cls)
+          break;
+        current = cls->GetSuperClassId();
+      }
     }
   }
 
-  // Process reachability
-  while (!processing_stack.empty()) {
-    uint64_t current_id = processing_stack.back();
-    processing_stack.pop_back();
+  std::deque<uint64_t> queue;
 
-    // Skip if already visited
-    if (!visited.insert(current_id).second)
+  for (auto it = objects_.GetIterator(); it; ++it) {
+    auto& obj = it.value();
+    if (obj.IsRoot()) {
+      queue.push_back(it.key());
+      obj.SetReachable();
+      obj.SetRootDistance(0);
+    }
+  }
+
+  while (!queue.empty()) {
+    uint64_t current_id = queue.front();
+    queue.pop_front();
+
+    auto* obj = objects_.Find(current_id);
+    if (!obj) {
       continue;
+    }
 
-    auto& obj = objects_[current_id];
-
-    // Add reference targets to stack and mark them as reachable
-    for (const auto& ref : obj.GetReferences()) {
-      auto it = objects_.Find(ref.target_id);
-      if (it && !it->IsReachable()) {
-        // Mark target as reachable
-        it->SetReachable();
-
-        // Add to processing stack
-        processing_stack.push_back(ref.target_id);
+    bool skip_referent = ref_type_classes.Find(obj->GetClassId()) != nullptr;
+    int32_t next_distance = obj->GetRootDistance() + 1;
+    for (const auto& ref : obj->GetReferences()) {
+      if (skip_referent &&
+          ref.field_name == "java.lang.ref.Reference.referent") {
+        continue;
+      }
+      auto* target = objects_.Find(ref.target_id);
+      if (target && !target->IsReachable()) {
+        target->SetReachable();
+        target->SetRootDistance(next_distance);
+        queue.push_back(ref.target_id);
       }
     }
   }
@@ -154,13 +192,14 @@ void HeapGraphResolver::MarkReachableObjects() {
 
 void HeapGraphResolver::ExtractArrayElementReferences(Object& obj) {
   const auto& elements = obj.GetArrayElements();
+  char buf[24];
   for (size_t i = 0; i < elements.size(); ++i) {
     uint64_t element_id = elements[i];
     if (element_id != 0) {
-      std::string ref_name = "[" + std::to_string(i) + "]";
       auto owned_obj = objects_.Find(element_id);
       if (owned_obj) {
-        obj.AddReference(ref_name, owned_obj->GetClassId(), element_id);
+        snprintf(buf, sizeof(buf), "[%zu]", i);
+        obj.AddReference(buf, owned_obj->GetClassId(), element_id);
         stats_.reference_count++;
       }
     }
@@ -169,13 +208,14 @@ void HeapGraphResolver::ExtractArrayElementReferences(Object& obj) {
 
 bool HeapGraphResolver::ExtractObjectReferences(Object& obj,
                                                 const ClassDefinition& cls) {
-  // Handle static fields of class objects. Now that we have all objects and
-  // classes available
+  // Resolve pending static field references, qualifying names as
+  // "ClassName.fieldName" to match the proto heap graph format.
   for (const auto& ref : obj.GetPendingReferences()) {
     if (!ref.field_class_id) {
       auto it = objects_.Find(ref.target_id);
       if (it) {
-        obj.AddReference(ref.field_name, it->GetClassId(), ref.target_id);
+        std::string qualified = cls.GetName() + "." + ref.field_name;
+        obj.AddReference(qualified, it->GetClassId(), ref.target_id);
         stats_.reference_count++;
       }
     }
@@ -186,7 +226,7 @@ bool HeapGraphResolver::ExtractObjectReferences(Object& obj,
     return true;
   }
 
-  std::vector<Field> fields = GetClassHierarchyFields(cls.GetId());
+  const auto& fields = GetClassHierarchyFields(cls.GetId());
   size_t offset = 0;
 
   for (const auto& field : fields) {
@@ -195,9 +235,7 @@ bool HeapGraphResolver::ExtractObjectReferences(Object& obj,
     }
 
     if (field.GetType() == FieldType::kObject) {
-      // Make sure we have enough data to read the ID
       if (offset + header_.GetIdSize() <= data.size()) {
-        // Use the helper function consistently for all ID extractions
         uint64_t target_id = ReadBigEndian<uint64_t>(context_, data, offset,
                                                      header_.GetIdSize());
         offset += header_.GetIdSize();
@@ -217,7 +255,7 @@ bool HeapGraphResolver::ExtractObjectReferences(Object& obj,
         break;
       }
     } else {
-      offset += field.GetSize();
+      offset += GetFieldTypeSize(field.GetType(), header_.GetIdSize());
     }
   }
 
@@ -231,22 +269,15 @@ void HeapGraphResolver::ExtractFieldValues(Object& obj,
     return;
   }
 
-  // Get all fields for the class hierarchy
-  std::vector<Field> fields = GetClassHierarchyFields(cls.GetId());
-
-  // Parse the raw data to extract field values
+  const auto& fields = GetClassHierarchyFields(cls.GetId());
+  const auto& data = obj.GetRawData();
   size_t offset = 0;
   for (const auto& field_def : fields) {
-    // Skip if we've run out of data
-    if (offset >= obj.GetRawData().size()) {
+    if (offset >= data.size()) {
       break;
     }
 
-    // Create a field with the same name and type
     Field field(field_def.GetName(), field_def.GetType());
-
-    // Extract the value based on type
-    const auto& data = obj.GetRawData();
     switch (field_def.GetType()) {
       case FieldType::kBoolean: {
         bool value = data[offset] != 0;
@@ -297,7 +328,6 @@ void HeapGraphResolver::ExtractFieldValues(Object& obj,
         break;
       }
       case FieldType::kObject: {
-        // Object IDs are based on the ID size
         uint64_t id = ReadBigEndian<uint64_t>(context_, data, offset,
                                               header_.GetIdSize());
         field.SetValue(id);
@@ -306,11 +336,6 @@ void HeapGraphResolver::ExtractFieldValues(Object& obj,
       }
     }
 
-    if (auto str = DecodeJavaString(obj)) {
-      field.SetDecodedString(*str);
-    }
-
-    // Add the field with its value to the object
     obj.AddField(std::move(field));
   }
 }
@@ -325,15 +350,12 @@ void HeapGraphResolver::ExtractPrimitiveArrayValues(Object& obj) {
   const auto& data = obj.GetRawData();
   size_t element_size = GetFieldTypeSize(element_type, header_.GetIdSize());
 
-  // Skip if the data is invalid
   if (element_size == 0 || data.size() % element_size != 0) {
     return;
   }
 
-  // Calculate the number of elements
   size_t element_count = data.size() / element_size;
 
-  // Parse the array based on its element type
   switch (element_type) {
     case FieldType::kBoolean: {
       std::vector<bool> values;
@@ -345,7 +367,6 @@ void HeapGraphResolver::ExtractPrimitiveArrayValues(Object& obj) {
       break;
     }
     case FieldType::kByte: {
-      // For byte arrays, we can directly use the raw data
       std::vector<uint8_t> values(data.begin(), data.end());
       obj.SetArrayData(std::move(values));
       break;
@@ -393,14 +414,12 @@ void HeapGraphResolver::ExtractPrimitiveArrayValues(Object& obj) {
       break;
     }
     case FieldType::kObject:
-      // Object arrays should be handled by HandleObjectArrayDumpRecord
       break;
   }
 }
 
 std::optional<std::string> HeapGraphResolver::DecodeJavaString(
     const Object& string_obj) const {
-  // 1. Verify it's a java.lang.String object
   auto cls = classes_.Find(string_obj.GetClassId());
   if (!cls || cls->GetName() != kJavaLangString)
     return std::nullopt;
@@ -408,26 +427,21 @@ std::optional<std::string> HeapGraphResolver::DecodeJavaString(
   uint64_t value_array_id = 0;
   std::optional<int32_t> offset_opt;
   std::optional<int32_t> count_opt;
-  std::optional<uint8_t> coder_opt;
 
-  // 2. Extract fields: value, offset, count, coder
   for (const Field& f : string_obj.GetFields()) {
-    if (f.GetName() == "value") {
+    if (f.GetName() == "java.lang.String.value") {
       if (auto v = f.GetValue<uint64_t>())
         value_array_id = *v;
-    } else if (f.GetName() == "offset") {
+    } else if (f.GetName() == "java.lang.String.offset") {
       offset_opt = f.GetValue<int32_t>();
-    } else if (f.GetName() == "count") {
+    } else if (f.GetName() == "java.lang.String.count") {
       count_opt = f.GetValue<int32_t>();
-    } else if (f.GetName() == "coder") {
-      coder_opt = f.GetValue<uint8_t>();
     }
   }
 
   if (value_array_id == 0)
     return std::nullopt;
 
-  // 3. Get the backing array
   auto array = objects_.Find(value_array_id);
   if (!array)
     return std::nullopt;
@@ -440,7 +454,6 @@ std::optional<std::string> HeapGraphResolver::DecodeJavaString(
       static_cast<size_t>(offset + count) > array_len)
     return std::nullopt;
 
-  // 4. Decode string
   std::string result;
   result.reserve(static_cast<size_t>(count));
 
@@ -475,6 +488,81 @@ std::optional<std::string> HeapGraphResolver::DecodeJavaString(
   return std::nullopt;
 }
 
+const std::vector<Field>& HeapGraphResolver::GetClassHierarchyFields(
+    uint64_t class_id) {
+  auto* cached = field_cache_.Find(class_id);
+  if (cached) {
+    return *cached;
+  }
+
+  // HPROF instance data is laid out derived-class-first: the most-derived
+  // class's fields come first, then its superclass fields, etc.
+  // Field names are qualified as "ClassName.fieldName" to match the proto
+  // heap graph format and allow MarkReachableObjects to recognize
+  // "java.lang.ref.Reference.referent".
+  std::vector<Field> result;
+  uint64_t current_class_id = class_id;
+  while (current_class_id != 0) {
+    auto cls = classes_.Find(current_class_id);
+    if (!cls) {
+      break;
+    }
+    for (const auto& f : cls->GetInstanceFields()) {
+      result.emplace_back(cls->GetName() + "." + f.GetName(), f.GetType());
+    }
+    current_class_id = cls->GetSuperClassId();
+  }
+
+  field_cache_[class_id] = std::move(result);
+  return *field_cache_.Find(class_id);
+}
+
+void HeapGraphResolver::ComputeSelfSizes() {
+  // Match ahat's self_size computation:
+  //   Instances: CLASS_DUMP.instanceSize (not INSTANCE_DUMP.data_length).
+  //   Class objects: java.lang.Class.instanceSize + staticFieldsSize.
+  //   Arrays: CLASS_DUMP.instanceSize (header) + element_count * element_size.
+  std::optional<uint32_t> java_lang_class_size;
+  for (auto it = classes_.GetIterator(); it; ++it) {
+    if (it.value().GetName() == "java.lang.Class") {
+      java_lang_class_size = it.value().GetInstanceSize();
+      break;
+    }
+  }
+
+  for (auto it = objects_.GetIterator(); it; ++it) {
+    auto& obj = it.value();
+    if (obj.GetObjectType() == ObjectType::kClass) {
+      // java.lang.Class.instanceSize + sum of static field sizes.
+      size_t size = java_lang_class_size.value_or(0);
+      for (const auto& field : obj.GetFields()) {
+        size += GetFieldTypeSize(field.GetType(), header_.GetIdSize());
+      }
+      obj.SetSelfSizeOverride(size);
+    } else if (obj.GetObjectType() == ObjectType::kInstance) {
+      auto* cls = classes_.Find(obj.GetClassId());
+      if (cls) {
+        obj.SetSelfSizeOverride(cls->GetInstanceSize());
+      }
+    } else if (obj.GetObjectType() == ObjectType::kObjectArray) {
+      auto* cls = classes_.Find(obj.GetClassId());
+      if (cls) {
+        size_t header = cls->GetInstanceSize();
+        size_t data = obj.GetArrayElements().size() * header_.GetIdSize();
+        obj.SetSelfSizeOverride(header + data);
+      }
+    } else if (obj.GetObjectType() == ObjectType::kPrimitiveArray) {
+      auto* cls = classes_.Find(obj.GetClassId());
+      if (cls) {
+        size_t header = cls->GetInstanceSize();
+        size_t data = obj.GetRawData().size();
+        obj.SetSelfSizeOverride(header + data);
+      }
+    }
+  }
+}
+
+// Attribute native_size to objects via the Cleaner→CleanerThunk→Registry chain:
 //
 //             +-------------------------------+  .referent   +--------+
 //             |       sun.misc.Cleaner        | -----------> | Object |
@@ -493,69 +581,32 @@ std::optional<std::string> HeapGraphResolver::DecodeJavaString(
 // |                       .size                        |
 // +----------------------------------------------------+
 //
-// `.size` should be attributed as the native size of Object
-// See: perfetto/src/trace_processor/importers/proto/heap_graph_tracker.cc
-std::vector<Field> HeapGraphResolver::GetClassHierarchyFields(
-    uint64_t class_id) const {
-  std::vector<Field> result;
-
-  // Follow class hierarchy to collect all fields
-  uint64_t current_class_id = class_id;
-  while (current_class_id != 0) {
-    auto cls = classes_.Find(current_class_id);
-    if (!cls) {
-      break;
-    }
-
-    const auto& fields = cls->GetInstanceFields();
-
-    // Add fields from this class
-    result.insert(result.end(), fields.begin(), fields.end());
-
-    // Move up to superclass
-    current_class_id = cls->GetSuperClassId();
-  }
-
-  return result;
-}
-
+// Registry.size is attributed as the native_size of Object.
+// Matches ahat's AhatClassInstance.asRegisteredNativeAllocation().
 void HeapGraphResolver::CalculateNativeSizes() {
   std::vector<std::pair<uint64_t, uint64_t>>
       cleaners;  // (referent_id, thunk_id)
 
   // Find sun.misc.Cleaner objects
   for (auto it = objects_.GetIterator(); it; ++it) {
-    auto obj_id = it.key();
     auto& obj = it.value();
     auto cls = classes_.Find(obj.GetClassId());
-    if (!cls) {
-      continue;
-    }
-
-    if (cls->GetName() != kSunMiscCleaner) {
+    if (!cls || cls->GetName() != kSunMiscCleaner) {
       continue;
     }
 
     std::optional<uint64_t> referent_id;
     std::optional<uint64_t> thunk_id;
-    std::optional<uint64_t> next_id;
 
     for (const auto& ref : obj.GetReferences()) {
-      if (ref.field_name == "referent") {
+      if (ref.field_name == "java.lang.ref.Reference.referent") {
         referent_id = ref.target_id;
-      } else if (ref.field_name == "thunk") {
+      } else if (ref.field_name == "sun.misc.Cleaner.thunk") {
         thunk_id = ref.target_id;
-      } else if (ref.field_name == "next") {
-        next_id = ref.target_id;
       }
     }
 
     if (!referent_id || !thunk_id) {
-      continue;
-    }
-
-    // Skip cleaned Cleaner objects
-    if (next_id && *next_id == obj_id) {
       continue;
     }
 
@@ -569,9 +620,17 @@ void HeapGraphResolver::CalculateNativeSizes() {
       continue;
     }
 
+    // Verify thunk is a CleanerThunk (matches ahat check)
+    auto thunk_cls = classes_.Find(thunk->GetClassId());
+    if (!thunk_cls ||
+        thunk_cls->GetName() != kNativeAllocationRegistryCleanerThunk) {
+      continue;
+    }
+
     std::optional<uint64_t> registry_id;
     for (const auto& ref : thunk->GetReferences()) {
-      if (ref.field_name == "this$0") {
+      if (ref.field_name ==
+          "libcore.util.NativeAllocationRegistry$CleanerThunk.this$0") {
         registry_id = ref.target_id;
         break;
       }
@@ -586,7 +645,14 @@ void HeapGraphResolver::CalculateNativeSizes() {
       continue;
     }
 
-    auto size_field = registry->FindField("size");
+    // Verify registry is a NativeAllocationRegistry (matches ahat check)
+    auto registry_cls = classes_.Find(registry->GetClassId());
+    if (!registry_cls || registry_cls->GetName() != kNativeAllocationRegistry) {
+      continue;
+    }
+
+    auto size_field =
+        registry->FindField("libcore.util.NativeAllocationRegistry.size");
     if (!size_field) {
       continue;
     }

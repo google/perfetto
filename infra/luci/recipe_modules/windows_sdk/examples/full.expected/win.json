@@ -42,8 +42,6 @@
       "@@@STEP_LOG_LINE@json.output@  \"env\": {@@@",
       "@@@STEP_LOG_LINE@json.output@    \"PATH\": [@@@",
       "@@@STEP_LOG_LINE@json.output@      [@@@",
-      "@@@STEP_LOG_LINE@json.output@        \"..\",@@@",
-      "@@@STEP_LOG_LINE@json.output@        \"..\",@@@",
       "@@@STEP_LOG_LINE@json.output@        \"Windows Kits\",@@@",
       "@@@STEP_LOG_LINE@json.output@        \"10\",@@@",
       "@@@STEP_LOG_LINE@json.output@        \"bin\",@@@",
@@ -53,8 +51,7 @@
       "@@@STEP_LOG_LINE@json.output@    ],@@@",
       "@@@STEP_LOG_LINE@json.output@    \"VSINSTALLDIR\": [@@@",
       "@@@STEP_LOG_LINE@json.output@      [@@@",
-      "@@@STEP_LOG_LINE@json.output@        \"..\",@@@",
-      "@@@STEP_LOG_LINE@json.output@        \"..\\\\\"@@@",
+      "@@@STEP_LOG_LINE@json.output@        \".\\\\\"@@@",
       "@@@STEP_LOG_LINE@json.output@      ]@@@",
       "@@@STEP_LOG_LINE@json.output@    ]@@@",
       "@@@STEP_LOG_LINE@json.output@  }@@@",
@@ -69,7 +66,7 @@
       "out/Release"
     ],
     "env": {
-      "VSINSTALLDIR": "[CACHE]\\windows_sdk"
+      "VSINSTALLDIR": "[CACHE]\\windows_sdk\\.\\"
     },
     "env_prefixes": {
       "PATH": [
@@ -85,7 +82,7 @@
       "out/Release"
     ],
     "env": {
-      "VSINSTALLDIR": "[CACHE]\\windows_sdk"
+      "VSINSTALLDIR": "[CACHE]\\windows_sdk\\.\\"
     },
     "env_prefixes": {
       "PATH": [

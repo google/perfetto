@@ -70,13 +70,23 @@ ORDER BY
   event_seq;
 
 CREATE PERFETTO TABLE _input_read_time AS
+WITH
+  _extracted_input_read_args AS (
+    SELECT
+      name,
+      str_split(str_split(str_split(name, 'id=', 1), ',', 0), ')', 0) AS input_event_id,
+      str_split(str_split(name, 'eventTime=', 1), ')', 0) AS event_time_str,
+      ts AS read_time
+    FROM slice
+    WHERE
+      name GLOB 'UnwantedInteractionBlocker::notifyMotion*'
+  )
 SELECT
   name,
-  str_split(str_split(name, '=', 1), ')', 0) AS input_event_id,
-  ts AS read_time
-FROM slice
-WHERE
-  name GLOB 'UnwantedInteractionBlocker::notifyMotion*';
+  input_event_id,
+  cast_int!(event_time_str) AS event_time,
+  read_time
+FROM _extracted_input_read_args;
 
 CREATE PERFETTO TABLE _event_seq_to_input_event_id AS
 WITH
@@ -249,6 +259,7 @@ CREATE PERFETTO TABLE _first_non_dropped_frame_after_input AS
 SELECT
   _input_read_time.input_event_id,
   _input_read_time.read_time,
+  _input_read_time.event_time,
   (
     SELECT
       surface_flinger_ts + surface_flinger_dur
@@ -282,6 +293,9 @@ CREATE PERFETTO FUNCTION _normalize_event_channel(
 RETURNS STRING AS
 SELECT
   CASE
+    -- '[Gesture Monitor] swipe-up' -> '[Gesture Monitor] swipe-up'
+    WHEN $event_channel GLOB '[[]*] *'
+    THEN $event_channel
     -- 'ccf6448 PopupWindow:b20fb4d' -> 'PopupWindow'
     WHEN $event_channel GLOB '* *:*'
     THEN trim(substr(str_split($event_channel, ':', 0), instr($event_channel, ' ') + 1))
@@ -335,7 +349,7 @@ CREATE PERFETTO TABLE android_input_events (
   -- Unique identifier for the input event.
   input_event_id STRING,
   -- Timestamp input event was read by InputReader.
-  read_time LONG,
+  read_time TIMESTAMP,
   -- Thread track id of input event dispatching thread.
   dispatch_track_id JOINID(track.id),
   -- Timestamp input event was dispatched.
@@ -351,7 +365,9 @@ CREATE PERFETTO TABLE android_input_events (
   -- Vsync Id associated with the input. Null if an input event has no associated frame event.
   frame_id LONG,
   -- Indicates if the frame association was speculative rather than exact based on id match.
-  is_speculative_frame BOOL
+  is_speculative_frame BOOL,
+  -- Timestamp when the input event actually occurred.
+  event_time TIMESTAMP
 ) AS
 WITH
   dispatch AS (
@@ -421,7 +437,8 @@ SELECT
   receive.dur AS receive_dur,
   receive.track_id AS receive_track_id,
   frame.frame_id,
-  frame.is_speculative_match AS is_speculative_frame
+  frame.is_speculative_match AS is_speculative_frame,
+  frame.event_time
 FROM dispatch
 JOIN receive
   ON receive.dispatch_event_channel = dispatch.event_channel

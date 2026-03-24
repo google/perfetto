@@ -20,13 +20,20 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <utility>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/bits.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/slab.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
+#include <immintrin.h>
+#endif
 
 namespace perfetto::trace_processor::core {
 
@@ -211,6 +218,26 @@ struct BitVector {
     return res;
   }
 
+  // Creates a deep copy of this BitVector using word-level memcpy.
+  BitVector Clone() const {
+    if (size_ == 0) {
+      return {};
+    }
+    auto words = FlexVector<uint64_t>::CreateWithSize((size_ + 63u) / 64u);
+    memcpy(words.data(), words_.data(), words.size() * sizeof(uint64_t));
+    return BitVector(std::move(words), size_);
+  }
+
+  // Gathers only the bits at positions where |keep| is set into a dense
+  // result of size popcount(keep). Equivalent to:
+  //   result[j] = this[i]  for each i where keep[i] is set (j = 0,1,2,...)
+  //
+  // Both vectors must have the same size. Uses PEXT per word with bit
+  // packing across word boundaries.
+  //
+  // The && qualifier allows reusing the existing words_ buffer in-place.
+  BitVector Compact(const BitVector& keep) && { return CompactInPlace(keep); }
+
   // Clears all bits in the vector, resetting it to an empty state.
   void clear() {
     words_.clear();
@@ -258,6 +285,69 @@ struct BitVector {
   PERFETTO_ALWAYS_INLINE uint64_t size() const { return size_; }
 
  private:
+  // Software emulation of the x64 PEXT instruction. Extracts bits from |word|
+  // at positions where |mask| has set bits, packing them into the low bits.
+  // See https://www.felixcloutier.com/x86/pext for details.
+  //
+  // Scales with the number of set bits in |mask| rather than being constant
+  // time: should be avoided where real instructions are available.
+  PERFETTO_ALWAYS_INLINE static uint64_t PextSlow(uint64_t word,
+                                                  uint64_t mask) {
+    if (word == 0 || mask == std::numeric_limits<uint64_t>::max()) {
+      return word;
+    }
+    uint64_t result = 0;
+    for (uint64_t bb = 1; mask; bb += bb) {
+      if (word & mask & (0ull - mask)) {
+        result |= bb;
+      }
+      mask &= mask - 1;
+    }
+    return result;
+  }
+
+  // See |PextSlow| for information on PEXT.
+  PERFETTO_ALWAYS_INLINE static uint64_t Pext(uint64_t word, uint64_t mask) {
+#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
+    base::ignore_result(PextSlow);
+    return _pext_u64(word, mask);
+#else
+    return PextSlow(word, mask);
+#endif
+  }
+
+  // Packs bits in-place using PEXT, reusing the existing words_ buffer.
+  BitVector CompactInPlace(const BitVector& keep) {
+    PERFETTO_DCHECK(size_ == keep.size_);
+
+    const uint64_t* cur_word = words_.data();
+    const uint64_t* end_word = words_.data() + words_.size();
+    const uint64_t* cur_mask = keep.words_.data();
+
+    uint32_t out_word_bits = 0;
+    uint64_t* out_word = words_.data();
+    uint32_t total_kept = 0;
+    for (; cur_word != end_word; ++cur_word, ++cur_mask) {
+      uint64_t ext = Pext(*cur_word, *cur_mask);
+
+      *out_word = out_word_bits == 0 ? ext : *out_word | (ext << out_word_bits);
+
+      auto popcount = static_cast<uint32_t>(PERFETTO_POPCOUNT(*cur_mask));
+      out_word_bits += popcount;
+      total_kept += popcount;
+
+      bool spillover = out_word_bits > 64;
+      out_word += out_word_bits >= 64;
+      out_word_bits %= 64;
+
+      if (spillover) {
+        *out_word = ext >> (popcount - out_word_bits);
+      }
+    }
+    resize(total_kept);
+    return std::move(*this);
+  }
+
   // Constructor used by Alloc.
   explicit BitVector(FlexVector<uint64_t> data, uint64_t size)
       : words_(std::move(data)), size_(size) {}

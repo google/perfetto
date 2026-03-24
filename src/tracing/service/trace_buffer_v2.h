@@ -107,7 +107,7 @@ struct TBChunk {
   // The number of payload bytes unconsumed. This starts at payload_size and
   // shrinks until it reaches 0 as we consume fragments.
   // It is always <= size and <= payload_size.
-  // Effectively (payload_size - payload-avail) is the offset of the the next
+  // Effectively (payload_size - payload-avail) is the offset of the next
   // unconsumed fragment header (the varint with the size).
   uint16_t payload_avail = 0;
 

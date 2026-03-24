@@ -29,6 +29,7 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 #include "src/trace_processor/importers/proto/android_probes_tracker.h"
@@ -67,6 +68,7 @@ AndroidProbesModule::AndroidProbesModule(
   RegisterForField(TracePacket::kPowerRailsFieldNumber);
   RegisterForField(TracePacket::kAndroidEnergyEstimationBreakdownFieldNumber);
   RegisterForField(TracePacket::kEntityStateResidencyFieldNumber);
+  RegisterForField(TracePacket::kAndroidAflagsFieldNumber);
   RegisterForField(TracePacket::kAndroidLogFieldNumber);
   RegisterForField(TracePacket::kPackagesListFieldNumber);
   RegisterForField(TracePacket::kUserListFieldNumber);
@@ -115,6 +117,12 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     protos::pbzero::PowerRails::Decoder evt(power_rails);
 
     parser_.ParseRailDescriptor(evt);
+
+    if (!evt.has_energy_data()) {
+      context_->import_logs_tracker->RecordParserError(
+          stats::power_rail_empty_packet, packet_timestamp);
+      return ModuleResult::Handled();
+    }
 
     // For each energy data message, turn it into its own trace packet
     // making sure its timestamp is consistent between the packet level and
@@ -223,6 +231,9 @@ void AndroidProbesModule::ParseTracePacketData(
     const TracePacketData&,
     uint32_t field_id) {
   switch (field_id) {
+    case TracePacket::kAndroidAflagsFieldNumber:
+      parser_.ParseAndroidAflags(ts, decoder.android_aflags());
+      return;
     case TracePacket::kAndroidLogFieldNumber:
       parser_.ParseAndroidLogPacket(ts, decoder.android_log());
       return;

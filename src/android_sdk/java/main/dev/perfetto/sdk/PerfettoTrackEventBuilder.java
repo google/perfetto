@@ -666,10 +666,13 @@ public final class PerfettoTrackEventBuilder {
   }
 
   private void checkState() {
-    if (mIsBuilt) {
-      throw new IllegalStateException(
-          "This builder has already been used. Create a new builder for another event.");
-    }
+    if (mIsBuilt) throwStateError();
+  }
+
+  /** Outlined to keep the caller method small and more likely to be inlined. */
+  private static void throwStateError() {
+    throw new IllegalStateException(
+        "This builder has already been used. Create a new builder for another event.");
   }
 
   private boolean isBuildingTopLevelExtra() {
@@ -691,29 +694,41 @@ public final class PerfettoTrackEventBuilder {
 
   private void checkNotBuildingProto() {
     checkState();
-    if (isBuildingProtoOrNestedProto()) {
-      throw new IllegalStateException("Operation not supported for proto.");
-    }
+    if (isBuildingProtoOrNestedProto()) throwNotBuildingProtoError();
+  }
+
+  /** Outlined to keep the caller method small and more likely to be inlined. */
+  private static void throwNotBuildingProtoError() {
+    throw new IllegalStateException("Operation not supported for proto.");
   }
 
   private void checkBuildingProto() {
     checkState();
-    if (isBuildingTopLevelExtra()) {
-      throw new IllegalStateException("Field operations must be within beginProto/endProto block.");
-    }
+    if (isBuildingTopLevelExtra()) throwBuildingProtoError();
+  }
+
+  /** Outlined to keep the caller method small and more likely to be inlined. */
+  private static void throwBuildingProtoError() {
+    throw new IllegalStateException("Field operations must be within beginProto/endProto block.");
   }
 
   private void checkMatchingBeginNested() {
     checkState();
-    if (!isBuildingNestedProto()) {
-      throw new IllegalStateException("No matching beginNested call.");
-    }
+    if (!isBuildingNestedProto()) throwMatchingBeginNestedError();
+  }
+
+  /** Outlined to keep the caller method small and more likely to be inlined. */
+  private static void throwMatchingBeginNestedError() {
+    throw new IllegalStateException("No matching beginNested call.");
   }
 
   private void checkMatchingBeginProto() {
     checkState();
-    if (!isBuildingProto()) {
-      throw new IllegalStateException("No matching beginProto call.");
-    }
+    if (!isBuildingProto()) throwMatchingBeginProtoError();
+  }
+
+  /** Outlined to keep the caller method small and more likely to be inlined. */
+  private static void throwMatchingBeginProtoError() {
+    throw new IllegalStateException("No matching beginProto call.");
   }
 }

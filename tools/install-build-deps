@@ -420,7 +420,7 @@ EMULATOR_DEPS_ANDROID = [
 # This variable is updated by tools/roll-catapult-trace-viewer.
 CATAPULT_SHA256 = 'b30108e05268ce6c65bb4126b65f6bfac165d17f5c1fd285046e7e6fd76c209f'
 
-TYPEFACES_SHA256 = 'a26274ca7c3d97a37c29de0ffa5c41a8d6431fc8e07ecdd5856dde143999dcd3'
+TYPEFACES_SHA256 = 'd8e62cb0df55043cd3bccb20fb65008a2f4a98f3ba7d8f2f5b81e5eb46c011da'
 
 UI_DEPS = [
     Dependency(
@@ -499,7 +499,7 @@ BIGTRACE_DEPS = [
 BUILD_DEPS_RUST = [
     Dependency(
         'buildtools/rustup/rustup-init.sh', 'https://sh.rustup.rs',
-        '17247e4bcacf6027ec2e11c79a72c494c9af69ac8d1abcc1b271fa4375a106c2',
+        '6c30b75a75b28a96fd913a037c8581b580080b6ee9b8169a3c0feb1af7fe8caf',
         'all', 'all'),
 ]
 

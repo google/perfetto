@@ -866,6 +866,68 @@ inline PERFETTO_ALWAYS_INLINE void CastFilterValue(
   state.WriteToRegister(f.arg<B::write_register>(), result);
 }
 
+// Builds the appropriate lookup structure for the In filter. For small lists,
+// keeps the FlexVector for linear scan. For dense Id/Uint32, builds a
+// BitVector. For large sparse integer/string lists, builds a FlatHashMapV2.
+template <typename T>
+CastFilterValueListResult::Lookup BuildLookup(
+    FlexVector<
+        StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>>
+        results) {
+  constexpr uint32_t kLinearScanThreshold = 16;
+  if (results.size() <= kLinearScanThreshold) {
+    CastFilterValueListResult::ValueList vl = std::move(results);
+    return vl;
+  }
+
+  if constexpr (std::is_same_v<T, Id> || std::is_same_v<T, Uint32>) {
+    uint32_t max_val = 0;
+    for (size_t i = 0; i < results.size(); ++i) {
+      if constexpr (std::is_same_v<T, Id>) {
+        max_val = std::max(max_val, results[i].value);
+      } else {
+        max_val = std::max(max_val, results[i]);
+      }
+    }
+    if (max_val <= static_cast<uint32_t>(results.size()) * 16) {
+      BitVector bv = BitVector::CreateWithSize(max_val + 1, false);
+      for (size_t i = 0; i < results.size(); ++i) {
+        if constexpr (std::is_same_v<T, Id>) {
+          bv.set(results[i].value);
+        } else {
+          bv.set(results[i]);
+        }
+      }
+      return bv;
+    }
+    CastFilterValueListResult::HashLookup hm;
+    for (size_t i = 0; i < results.size(); ++i) {
+      if constexpr (std::is_same_v<T, Id>) {
+        hm.Insert(static_cast<int64_t>(results[i].value), true);
+      } else {
+        hm.Insert(static_cast<int64_t>(results[i]), true);
+      }
+    }
+    return hm;
+  } else if constexpr (std::is_same_v<T, Int32> || std::is_same_v<T, Int64>) {
+    CastFilterValueListResult::HashLookup hm;
+    for (size_t i = 0; i < results.size(); ++i) {
+      hm.Insert(static_cast<int64_t>(results[i]), true);
+    }
+    return hm;
+  } else if constexpr (std::is_same_v<T, String>) {
+    CastFilterValueListResult::HashLookup hm;
+    for (size_t i = 0; i < results.size(); ++i) {
+      hm.Insert(static_cast<int64_t>(results[i].raw_id()), true);
+    }
+    return hm;
+  } else {
+    // Double: keep FlexVector for linear scan (hash equality is fragile).
+    CastFilterValueListResult::ValueList vl = std::move(results);
+    return vl;
+  }
+}
+
 template <typename T, typename FilterValueFetcherImpl>
 inline PERFETTO_ALWAYS_INLINE void CastFilterValueList(
     InterpreterState& state,
@@ -933,12 +995,12 @@ inline PERFETTO_ALWAYS_INLINE void CastFilterValueList(
   }
   CastFilterValueListResult result;
   if (all_match) {
-    result.validity = CastFilterValueResult::kAllMatch;
+    result = CastFilterValueListResult::AllMatch();
   } else if (results.empty()) {
-    result.validity = CastFilterValueResult::kNoneMatch;
+    result = CastFilterValueListResult::NoneMatch();
   } else {
-    result.validity = CastFilterValueResult::kValid;
-    result.value_list = std::move(results);
+    result =
+        CastFilterValueListResult::Valid(BuildLookup<T>(std::move(results)));
   }
   state.WriteToRegister(c.arg<B::write_register>(), std::move(result));
 }
@@ -1174,47 +1236,6 @@ inline PERFETTO_ALWAYS_INLINE void SortedFilter(
   }
 }
 
-template <typename T, typename M, typename D>
-inline PERFETTO_ALWAYS_INLINE bool InBitVector(const FlexVector<M>& val,
-                                               const D* data,
-                                               const Span<uint32_t>& source,
-                                               Span<uint32_t>& update) {
-  uint32_t max = 0;
-  for (size_t i = 0; i < val.size(); ++i) {
-    if constexpr (std::is_same_v<T, Id>) {
-      max = std::max(max, val[i].value);
-    } else {
-      max = std::max(max, val[i]);
-    }
-  }
-  // If the bitvector is too sparse, don't waste memory on it.
-  if (max > val.size() * 16) {
-    return false;
-  }
-  BitVector bv = BitVector::CreateWithSize(max + 1, false);
-  for (size_t i = 0; i < val.size(); ++i) {
-    if constexpr (std::is_same_v<T, Id>) {
-      bv.set(val[i].value);
-    } else {
-      bv.set(val[i]);
-    }
-  }
-  struct InBitVectorCmp {
-    PERFETTO_ALWAYS_INLINE bool operator()(uint32_t lhs,
-                                           const BitVector& bv_arg) const {
-      return lhs < bv_arg.size() && bv_arg.is_set(lhs);
-    }
-  };
-  if constexpr (std::is_same_v<T, Id>) {
-    base::ignore_result(data);
-    update.e =
-        IdentityFilter(source.b, source.e, update.b, bv, InBitVectorCmp());
-  } else {
-    update.e = Filter(data, source.b, source.e, update.b, bv, InBitVectorCmp());
-  }
-  return true;
-}
-
 template <typename T>
 inline PERFETTO_ALWAYS_INLINE void In(
     InterpreterState& state,
@@ -1229,48 +1250,110 @@ inline PERFETTO_ALWAYS_INLINE void In(
   if (!HandleInvalidCastFilterValueResult(value.validity, update)) {
     return;
   }
-  using M =
-      StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::ValueList>;
-  const M& val = base::unchecked_get<M>(value.value_list);
 
-  // Try to use a bitvector if the value is an Id or uint32_t.
-  // This is a performance optimization to avoid iterating over the
-  // FlexVector for large lists of values.
+  const auto& lookup = value.lookup;
+
+  // Dispatch based on the pre-built lookup structure.
   if constexpr (std::is_same_v<T, Id> || std::is_same_v<T, Uint32>) {
-    const auto* data =
-        state.ReadStorageFromRegister<T>(f.template arg<B::storage_register>());
-    if (InBitVector<T>(val, data, source, update)) {
+    if (auto* bv = std::get_if<BitVector>(&lookup)) {
+      // BitVector path: O(1) per row. Only valid for Id/Uint32.
+      struct InBitVectorCmp {
+        PERFETTO_ALWAYS_INLINE bool operator()(uint32_t lhs,
+                                               const BitVector& b) const {
+          return lhs < b.size() && b.is_set(lhs);
+        }
+      };
+      if constexpr (std::is_same_v<T, Id>) {
+        update.e =
+            IdentityFilter(source.b, source.e, update.b, *bv, InBitVectorCmp());
+      } else {
+        const auto* data = state.ReadStorageFromRegister<T>(
+            f.template arg<B::storage_register>());
+        update.e =
+            Filter(data, source.b, source.e, update.b, *bv, InBitVectorCmp());
+      }
       return;
     }
   }
-  if constexpr (std::is_same_v<T, Id>) {
-    struct Comparator {
-      bool operator()(uint32_t lhs,
-                      const FlexVector<CastFilterValueResult::Id>& rhs) const {
-        for (const auto& r : rhs) {
-          if (lhs == r.value) {
-            return true;
-          }
-        }
-        return false;
+  if (auto* hm = std::get_if<CastFilterValueListResult::HashLookup>(&lookup)) {
+    // HashLookup path: O(1) per row.
+    struct HashCmp {
+      PERFETTO_ALWAYS_INLINE bool operator()(
+          int64_t lhs,
+          const CastFilterValueListResult::HashLookup& h) const {
+        return h.Find(lhs) != nullptr;
       }
     };
-    update.e = IdentityFilter(source.b, source.e, update.b, val, Comparator());
+    if constexpr (std::is_same_v<T, Id>) {
+      struct IdHashCmp {
+        PERFETTO_ALWAYS_INLINE bool operator()(
+            uint32_t lhs,
+            const CastFilterValueListResult::HashLookup& h) const {
+          return h.Find(static_cast<int64_t>(lhs)) != nullptr;
+        }
+      };
+      update.e = IdentityFilter(source.b, source.e, update.b, *hm, IdHashCmp());
+    } else if constexpr (std::is_same_v<T, String>) {
+      const auto* data = state.ReadStorageFromRegister<T>(
+          f.template arg<B::storage_register>());
+      struct StringHashCmp {
+        PERFETTO_ALWAYS_INLINE bool operator()(
+            StringPool::Id lhs,
+            const CastFilterValueListResult::HashLookup& h) const {
+          return h.Find(static_cast<int64_t>(lhs.raw_id())) != nullptr;
+        }
+      };
+      update.e =
+          Filter(data, source.b, source.e, update.b, *hm, StringHashCmp());
+    } else {
+      const auto* data = state.ReadStorageFromRegister<T>(
+          f.template arg<B::storage_register>());
+      using D = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
+      struct NumericHashCmp {
+        PERFETTO_ALWAYS_INLINE bool operator()(
+            D lhs,
+            const CastFilterValueListResult::HashLookup& h) const {
+          return h.Find(static_cast<int64_t>(lhs)) != nullptr;
+        }
+      };
+      update.e =
+          Filter(data, source.b, source.e, update.b, *hm, NumericHashCmp());
+    }
   } else {
-    const auto* data =
-        state.ReadStorageFromRegister<T>(f.template arg<B::storage_register>());
-    using D = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
-    struct Comparator {
-      bool operator()(D lhs, const FlexVector<D>& rhs) const {
-        for (const auto& r : rhs) {
-          if (std::equal_to<>()(lhs, r)) {
-            return true;
+    // ValueList path: linear scan for small lists.
+    const auto& vl = std::get<CastFilterValueListResult::ValueList>(lookup);
+    using M =
+        StorageType::VariantTypeAtIndex<T,
+                                        CastFilterValueListResult::ValueList>;
+    const M& val = base::unchecked_get<M>(vl);
+    if constexpr (std::is_same_v<T, Id>) {
+      struct Cmp {
+        bool operator()(
+            uint32_t lhs,
+            const FlexVector<CastFilterValueResult::Id>& rhs) const {
+          for (const auto& r : rhs) {
+            if (lhs == r.value)
+              return true;
           }
+          return false;
         }
-        return false;
-      }
-    };
-    update.e = Filter(data, source.b, source.e, update.b, val, Comparator());
+      };
+      update.e = IdentityFilter(source.b, source.e, update.b, val, Cmp());
+    } else {
+      const auto* data = state.ReadStorageFromRegister<T>(
+          f.template arg<B::storage_register>());
+      using D = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
+      struct Cmp {
+        bool operator()(D lhs, const FlexVector<D>& rhs) const {
+          for (const auto& r : rhs) {
+            if (std::equal_to<>()(lhs, r))
+              return true;
+          }
+          return false;
+        }
+      };
+      update.e = Filter(data, source.b, source.e, update.b, val, Cmp());
+    }
   }
 }
 
@@ -1592,65 +1675,20 @@ inline PERFETTO_ALWAYS_INLINE void FindMinMaxIndex(
   indices.e = indices.b + 1;
 }
 
-// Creates child-to-parent tree structure from parent_id column storage.
-// The _tree_id column is always 0..n-1 (implicit row indices).
-// The _tree_parent_id column contains parent row indices (UINT32_MAX for null).
-// Fills parent_span with parent indices and original_rows_span with identity.
-inline PERFETTO_ALWAYS_INLINE void MakeChildToParentTreeStructure(
-    InterpreterState& state,
-    const struct MakeChildToParentTreeStructure& bc) {
-  using B = struct MakeChildToParentTreeStructure;
+// Helper: builds P2C CSR structure from TreeState's parent array.
+inline void BuildP2CFromTreeState(TreeState* ts) {
+  if (ts->p2c_valid) {
+    return;
+  }
+  uint32_t n = ts->row_count;
 
-  uint32_t row_count = bc.arg<B::row_count>();
-  const StoragePtr& parent_storage =
-      state.ReadFromRegister(bc.arg<B::parent_id_storage_register>());
-  Span<uint32_t>& parent_span =
-      state.ReadFromRegister(bc.arg<B::parent_span_register>());
-  Span<uint32_t>& original_rows_span =
-      state.ReadFromRegister(bc.arg<B::original_rows_span_register>());
+  // Use scratch2 for child_counts.
+  uint32_t* child_counts = ts->scratch2.begin();
+  memset(child_counts, 0, n * sizeof(uint32_t));
 
-  // The parent_id storage is Uint32 type (already normalized by
-  // TreeTransformer) UINT32_MAX represents null (root nodes)
-  const uint32_t* parent_data =
-      static_cast<const uint32_t*>(parent_storage.ptr);
-
-  // Fill the pre-allocated spans
-  memcpy(parent_span.b, parent_data, row_count * sizeof(uint32_t));
-  std::iota(original_rows_span.b, original_rows_span.b + row_count, 0u);
-
-  // Update span.e to reflect the valid element count
-  parent_span.e = parent_span.b + row_count;
-  original_rows_span.e = original_rows_span.b + row_count;
-}
-
-// Builds a CSR (Compressed Sparse Row) representation for parent-to-child
-// traversal from a parent span.
-inline PERFETTO_ALWAYS_INLINE void MakeParentToChildTreeStructure(
-    InterpreterState& state,
-    const struct MakeParentToChildTreeStructure& bc) {
-  using B = struct MakeParentToChildTreeStructure;
-
-  const Span<uint32_t>& parent_span =
-      state.ReadFromRegister(bc.arg<B::parent_span_register>());
-  const Span<uint32_t>& scratch =
-      state.ReadFromRegister(bc.arg<B::scratch_register>());
-  Span<uint32_t>& offsets =
-      state.ReadFromRegister(bc.arg<B::offsets_register>());
-  Span<uint32_t>& children =
-      state.ReadFromRegister(bc.arg<B::children_register>());
-  Span<uint32_t>& roots = state.ReadFromRegister(bc.arg<B::roots_register>());
-
-  // Get count from parent_span.size()
-  uint32_t node_count = static_cast<uint32_t>(parent_span.size());
-
-  // Use scratch for child_counts
-  uint32_t* child_counts = scratch.b;
-  memset(child_counts, 0, node_count * sizeof(uint32_t));
-
-  // First pass: count children per node and count roots
   uint32_t root_count = 0;
-  for (uint32_t i = 0; i < node_count; ++i) {
-    uint32_t parent = parent_span.b[i];
+  for (uint32_t i = 0; i < n; ++i) {
+    uint32_t parent = ts->parent[i];
     if (parent == kNullParent) {
       ++root_count;
     } else {
@@ -1658,176 +1696,142 @@ inline PERFETTO_ALWAYS_INLINE void MakeParentToChildTreeStructure(
     }
   }
 
-  // Adjust span sizes based on actual counts
-  offsets.e = offsets.b + node_count + 1;
-  children.e = children.b + (node_count - root_count);
-  roots.e = roots.b + root_count;
-
-  // Compute offsets (prefix sum)
-  offsets.b[0] = 0;
-  for (uint32_t i = 0; i < node_count; ++i) {
-    offsets.b[i + 1] = offsets.b[i] + child_counts[i];
+  // Compute offsets (prefix sum).
+  ts->p2c_offsets[0] = 0;
+  for (uint32_t i = 0; i < n; ++i) {
+    ts->p2c_offsets[i + 1] = ts->p2c_offsets[i] + child_counts[i];
   }
 
-  // Second pass: fill children array and roots.
-  // Reuse child_counts as write cursors by counting down from offsets[p+1].
-  // This avoids needing to reset child_counts to zero.
+  // Fill children and roots.
   uint32_t root_idx = 0;
-  for (uint32_t i = 0; i < node_count; ++i) {
-    uint32_t parent = parent_span.b[i];
+  for (uint32_t i = 0; i < n; ++i) {
+    uint32_t parent = ts->parent[i];
     if (parent == kNullParent) {
-      roots.b[root_idx++] = i;
+      ts->p2c_roots[root_idx++] = i;
     } else {
-      // child_counts[parent] starts at the total count and decrements.
-      // offsets[parent+1] - count gives positions: offsets[parent], +1, +2, ...
-      uint32_t pos = offsets.b[parent + 1] - child_counts[parent];
-      children.b[pos] = i;
+      uint32_t pos = ts->p2c_offsets[parent + 1] - child_counts[parent];
+      ts->p2c_children[pos] = i;
       --child_counts[parent];
     }
   }
+  ts->p2c_root_count = root_count;
+  ts->p2c_valid = true;
 }
 
-// Converts a span of indices to a BitVector with bits set at those indices.
-inline PERFETTO_ALWAYS_INLINE void IndexSpanToBitvector(
+// Reparents and compacts a tree based on pre-filtered indices.
+// Also compacts all column storage and null bitvectors registered in
+// the TreeState, and resets the indices span to [0..new_row_count-1].
+inline PERFETTO_ALWAYS_INLINE void FilterTreeState(
     InterpreterState& state,
-    const struct IndexSpanToBitvector& bc) {
-  using B = struct IndexSpanToBitvector;
+    const struct FilterTreeState& bc) {
+  using B = struct FilterTreeState;
 
-  const Span<uint32_t>& indices =
-      state.ReadFromRegister(bc.arg<B::indices_register>());
-  uint32_t bv_size = bc.arg<B::bitvector_size>();
+  auto& ts = state.ReadFromRegister(bc.arg<B::tree_state_register>());
+  auto& indices = state.ReadFromRegister(bc.arg<B::indices_register>());
+  uint32_t n = ts->row_count;
 
-  BitVector* bv = state.MaybeReadFromRegister(bc.arg<B::dest_register>());
-  if (bv) {
-    // Reuse existing BitVector: resize and clear all bits.
-    bv->resize(bv_size, false);
-    bv->ClearAllBits();
-  } else {
-    state.WriteToRegister(bc.arg<B::dest_register>(),
-                          BitVector::CreateWithSize(bv_size, false));
-    bv = state.MaybeReadFromRegister(bc.arg<B::dest_register>());
-  }
-
-  for (const uint32_t* it = indices.b; it != indices.e; ++it) {
-    bv->set(*it);
-  }
-}
-
-// Filters a tree by keeping only nodes specified in the bitvector.
-// Children of removed nodes are reparented to their closest surviving ancestor.
-inline PERFETTO_ALWAYS_INLINE void FilterTree(InterpreterState& state,
-                                              const struct FilterTree& bc) {
-  using B = struct FilterTree;
-
-  const Span<uint32_t>& offsets =
-      state.ReadFromRegister(bc.arg<B::offsets_register>());
-  const Span<uint32_t>& children =
-      state.ReadFromRegister(bc.arg<B::children_register>());
-  const Span<uint32_t>& roots =
-      state.ReadFromRegister(bc.arg<B::roots_register>());
-  const BitVector& keep_bv =
-      state.ReadFromRegister(bc.arg<B::keep_bitvector_register>());
-  Span<uint32_t>& parent_span =
-      state.ReadFromRegister(bc.arg<B::parent_span_register>());
-  Span<uint32_t>& original_rows_span =
-      state.ReadFromRegister(bc.arg<B::original_rows_span_register>());
-  const Span<uint32_t>& scratch1 =
-      state.ReadFromRegister(bc.arg<B::scratch1_register>());
-  const Span<uint32_t>& scratch2 =
-      state.ReadFromRegister(bc.arg<B::scratch2_register>());
-
-  // Get count from parent_span.size()
-  auto old_count = static_cast<uint32_t>(parent_span.size());
-  if (old_count == 0) {
+  if (n == 0 || indices.size() == n) {
     return;
   }
 
-  // scratch1: first n for surviving_ancestor, remaining n for queue
-  uint32_t* surviving_ancestor = scratch1.b;
-  uint32_t* queue = scratch1.b + old_count;
+  // Ensure P2C is valid.
+  BuildP2CFromTreeState(ts.get());
 
-  // scratch2: old_to_new mapping
-  uint32_t* old_to_new = scratch2.b;
+  // Reuse pre-allocated keep_bv (avoids allocation per call).
+  ts->keep_bv.resize(n);
+  ts->keep_bv.ClearAllBits();
+  for (const uint32_t* it = indices.b; it != indices.e; ++it) {
+    ts->keep_bv.set(*it);
+  }
+  const auto& keep_bv = ts->keep_bv;
 
-  // Initialize with UINT32_MAX (0xFF bytes)
-  memset(surviving_ancestor, 0xFF, old_count * sizeof(uint32_t));
-  memset(old_to_new, 0xFF, old_count * sizeof(uint32_t));
+  // BFS to compute surviving ancestors.
+  uint32_t* surviving_ancestor = ts->scratch1.begin();
+  uint32_t* queue = ts->scratch1.begin() + n;
+  uint32_t* old_to_new = ts->scratch2.begin();
 
-  // BFS to compute surviving ancestors
+  memset(surviving_ancestor, 0xFF, n * sizeof(uint32_t));
+  memset(old_to_new, 0xFF, n * sizeof(uint32_t));
+
   uint32_t queue_end = 0;
-
-  // Initialize with roots
-  for (uint32_t i = 0; i < roots.size(); ++i) {
-    uint32_t root = roots.b[i];
+  for (uint32_t i = 0; i < ts->p2c_root_count; ++i) {
+    uint32_t root = ts->p2c_roots[i];
     if (keep_bv.is_set(root)) {
       surviving_ancestor[root] = root;
     }
-    // else: surviving_ancestor[root] remains UINT32_MAX
     queue[queue_end++] = root;
   }
 
-  // BFS traversal
-  for (uint32_t queue_idx = 0; queue_idx < queue_end; ++queue_idx) {
-    uint32_t node = queue[queue_idx];
+  for (uint32_t qi = 0; qi < queue_end; ++qi) {
+    uint32_t node = queue[qi];
     uint32_t node_ancestor = surviving_ancestor[node];
-
-    // Process children
-    uint32_t children_start = offsets.b[node];
-    uint32_t children_end = offsets.b[node + 1];
-    for (uint32_t ci = children_start; ci < children_end; ++ci) {
-      uint32_t child = children.b[ci];
-      if (keep_bv.is_set(child)) {
-        surviving_ancestor[child] = child;
-      } else {
-        surviving_ancestor[child] = node_ancestor;
-      }
+    uint32_t cs = ts->p2c_offsets[node];
+    uint32_t ce = ts->p2c_offsets[node + 1];
+    for (uint32_t ci = cs; ci < ce; ++ci) {
+      uint32_t child = ts->p2c_children[ci];
+      surviving_ancestor[child] = keep_bv.is_set(child) ? child : node_ancestor;
       queue[queue_end++] = child;
     }
   }
 
-  // Count surviving nodes and build old_to_new mapping
+  // Pass 1 (fused): build old_to_new + compact original_rows.
   uint32_t new_count = 0;
-  for (uint32_t i = 0; i < old_count; ++i) {
-    if (keep_bv.is_set(i)) {
-      old_to_new[i] = new_count++;
-    }
-  }
-
-  if (new_count == 0) {
-    // All nodes filtered out - update span.e to reflect empty
-    parent_span.e = parent_span.b;
-    original_rows_span.e = original_rows_span.b;
-    return;
-  }
-
-  // In-place compaction: since new_idx <= i always (we skip filtered nodes),
-  // we can safely write to earlier positions without overwriting unread data.
-  for (uint32_t i = 0; i < old_count; ++i) {
+  for (uint32_t i = 0; i < n; ++i) {
     if (!keep_bv.is_set(i)) {
       continue;
     }
+    uint32_t new_idx = new_count++;
+    old_to_new[i] = new_idx;
+    ts->original_rows[new_idx] = ts->original_rows[i];
+  }
 
+  if (new_count == 0) {
+    ts->row_count = 0;
+    ts->p2c_valid = false;
+    indices.e = indices.b;
+    return;
+  }
+
+  // Pass 2: parent reparenting (needs full old_to_new from pass 1).
+  for (uint32_t i = 0; i < n; ++i) {
+    if (!keep_bv.is_set(i)) {
+      continue;
+    }
     uint32_t new_idx = old_to_new[i];
-
-    // Read FIRST from position i (before we potentially overwrite)
-    uint32_t old_parent = parent_span.b[i];
-    uint32_t old_original = original_rows_span.b[i];
-
-    // Compute new parent by finding surviving ancestor
+    uint32_t old_parent = ts->parent[i];
     uint32_t ancestor = (old_parent != kNullParent)
                             ? surviving_ancestor[old_parent]
                             : kNullParent;
-    uint32_t new_parent_val =
+    ts->parent[new_idx] =
         (ancestor != kNullParent) ? old_to_new[ancestor] : kNullParent;
-
-    // Write SECOND to position new_idx (which is <= i, so safe)
-    parent_span.b[new_idx] = new_parent_val;
-    original_rows_span.b[new_idx] = old_original;
   }
 
-  // Update span.e to reflect new_count
-  parent_span.e = parent_span.b + new_count;
-  original_rows_span.e = original_rows_span.b + new_count;
+  // Compact each column in-place.
+  for (auto& col : ts->columns) {
+    auto es = static_cast<uint64_t>(col.elem_size);
+    uint8_t* data = col.data.begin();
+    for (uint32_t i = 0; i < n; ++i) {
+      if (!keep_bv.is_set(i)) {
+        continue;
+      }
+      uint32_t new_idx = old_to_new[i];
+      if (new_idx != i) {
+        memcpy(data + new_idx * es, data + i * es, col.elem_size);
+      }
+    }
+  }
+
+  // Compact null bitvectors.
+  for (auto& bv : ts->null_bitvectors) {
+    bv = std::move(bv).Compact(keep_bv);
+  }
+
+  ts->row_count = new_count;
+  ts->p2c_valid = false;
+
+  // Reset indices to [0..new_count-1] for subsequent operations.
+  std::iota(indices.b, indices.b + new_count, 0u);
+  indices.e = indices.b + new_count;
 }
 
 }  // namespace ops

@@ -269,6 +269,30 @@ def get_stack_branches_ordered(
   return ordered_stack
 
 
+def get_worktree_branches() -> Dict[str, str]:
+  """Returns a dict mapping branch names to worktree paths.
+
+  Only includes branches checked out in linked worktrees, not the main
+  worktree."""
+  result = run_git_command(['worktree', 'list', '--porcelain'], check=False)
+  if result.returncode != 0:
+    return {}
+
+  worktrees: Dict[str, str] = {}
+  current_path: Optional[str] = None
+  is_main = True
+  for line in result.stdout.split('\n'):
+    if line.startswith('worktree '):
+      current_path = line[len('worktree '):]
+      if is_main:
+        is_main = False
+        current_path = None
+    elif line.startswith('branch refs/heads/') and current_path:
+      branch = line[len('branch refs/heads/'):]
+      worktrees[branch] = current_path
+  return worktrees
+
+
 def topological_sort_branches() -> Tuple[List[str], Dict[str, Optional[str]]]:
   """
     Performs a topological sort of branches based on parent config.

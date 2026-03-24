@@ -64,14 +64,15 @@ class ClockTracker {
   PERFETTO_ALWAYS_INLINE std::optional<int64_t> ToTraceTime(
       ClockId clock_id,
       int64_t timestamp,
-      std::optional<size_t> byte_offset = std::nullopt) {
+      std::optional<size_t> byte_offset = std::nullopt,
+      bool suppress_errors = false) {
     if (PERFETTO_UNLIKELY(deferred_identity_clock_.has_value())) {
       FlushDeferredIdentitySync();
     }
     auto* state = context_->trace_time_state.get();
     ++num_conversions_;
     auto ts = active_sync_->Convert(clock_id, timestamp, state->clock_id,
-                                    byte_offset);
+                                    byte_offset, suppress_errors);
     return ts ? std::optional(ToHostTraceTime(*ts)) : ts;
   }
 

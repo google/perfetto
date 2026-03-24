@@ -14,34 +14,19 @@
 
 @import "../theme";
 
-// This checkbox element is expected to contain a checkbox type input followed
-// by an empty span element.
-// The input is completely hidden and an entirely new checkbox is drawn inside
-// the span element. This allows us to style it how we like, and also add some
-// fancy transitions.
-// The box of the checkbox is a fixed sized span element. The tick is also a
-// fixed sized rectange rotated 45 degrees with only the bottom and right
-// borders visible.
-// When unchecked, the tick size and border width is 0, so the tick is
-// completely invsible. When we transition to checked, the border size on the
-// bottom and right sides is immmdiately set to full width, and the tick morphs
-// into view first by expanding along the x axis first, then expanding up the
-// y-axis. This has the effect of making the tick look like it's being drawn
-// onto the page with a pen.
-// When transitioning from checked to unchecked, the animation plays in reverse,
-// and the border width is set to 0 right at the end in order to make the tick
-// completely invisible again.
+// Custom checkbox element: a hidden native input followed by a styled span.
+// The tick is an inline SVG path, which gives crisp antialiased rendering at
+// any size. The switch variant uses CSS for the sliding thumb.
 
-$box-label-padding: 0.33em;
+$box-label-padding: 0.5em;
+
+// 'Switch' style checkbox properties
+$switch-border-width: 2px;
+$switch-height: 1em;
+$switch-slide-distance: 0.75em;
 
 .pf-checkbox {
-  $tick-anim-time-width: 100ms;
-  $tick-anim-time-height: 150ms;
-  $tick-anim-time: $tick-anim-time-width + $tick-anim-time-height;
-  $tick-easing: linear;
-
-  $tick-height: 0.55em;
-  $tick-width: 0.3em;
+  $tick-anim-time: 200ms;
 
   display: inline;
   align-items: baseline;
@@ -58,16 +43,10 @@ $box-label-padding: 0.33em;
 
   &__box {
     display: inline-block;
-    position: relative; // Align ::after to this box
+    position: relative;
     top: -0.1em;
     vertical-align: middle;
     height: 1em;
-    transition: background $anim-timing;
-
-    &:after {
-      content: "";
-      position: absolute;
-    }
   }
 
   input:focus-visible + .pf-checkbox__box {
@@ -89,29 +68,21 @@ $box-label-padding: 0.33em;
   }
 
   // 'Check' style checkbox
-
   &__box--check {
     aspect-ratio: 1;
     border-radius: $border-radius;
-    border: solid 2px currentColor;
+    border: solid 1px currentColor;
     background: none;
+    position: relative;
+  }
 
-    // The :after element forms the "tick" of the checkbox
-    &:after {
-      bottom: 0.4em;
-      left: 0em;
-      width: 0px;
-      height: 0px;
-      border-color: var(--pf-color-text-on-primary);
-      border-style: solid;
-      border-width: 0;
-      transform-origin: 0% 100%; // Put the origin at the short edge of the tick
-      transform: rotate(45deg);
-      transition:
-        height $tick-anim-time-height $tick-easing,
-        width $tick-anim-time-width $tick-anim-time-height $tick-easing,
-        border-width 0ms $tick-anim-time;
-    }
+  &__tick {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    color: var(--pf-color-text-on-primary);
+    opacity: 0;
   }
 
   &:hover .pf-checkbox__box--check {
@@ -123,49 +94,60 @@ $box-label-padding: 0.33em;
     background: var(--pf-color-primary);
   }
 
-  input:checked + .pf-checkbox__box--check:after {
-    width: $tick-width;
-    height: $tick-height;
-    border-width: 0 0.15em 0.15em 0;
-    transition:
-      width $tick-anim-time-height $tick-easing,
-      height $tick-anim-time-height $tick-anim-time-width $tick-easing,
-      border-width 0ms;
+  input:checked + .pf-checkbox__box--check .pf-checkbox__tick {
+    opacity: 1;
   }
 
-  // 'Switch' style checkbox
-
   &__box--switch {
-    height: 16px;
-    width: 30px;
-    border-radius: 1em; // Pill shape
-    background: var(--pf-color-border);
-    vertical-align: middle;
+    // Slice distance + thumb width
+    width: $switch-slide-distance + $switch-height;
+    height: $switch-height;
+    position: relative;
+
+    // The before element forms the track of the switch
+    &:before {
+      content: "";
+      display: block;
+      position: absolute;
+      inset: 0;
+      border-radius: 100px;
+      background: var(--pf-color-border);
+      border: solid $switch-border-width var(--pf-color-border);
+      transition:
+        border $anim-timing,
+        background $anim-timing;
+    }
 
     // The :after element forms the "thumb" of the switch
     &:after {
       content: "";
       display: block;
       position: absolute;
-      left: 2px;
+      left: 0;
       top: 0;
       bottom: 0;
-      margin-top: auto;
-      margin-bottom: auto;
-      width: 12px;
-      height: 12px;
+      width: $switch-height;
+      height: $switch-height;
       background: white;
       box-sizing: border-box;
       border-radius: 50%;
-      transition: left $anim-timing;
+      transition:
+        border $anim-timing,
+        left $anim-timing;
+      border: solid $switch-border-width var(--pf-color-border);
     }
   }
 
-  input:checked + .pf-checkbox__box--switch {
+  input:checked + .pf-checkbox__box--switch:before {
     background: var(--pf-color-primary);
+    border-color: var(--pf-color-primary);
   }
 
   input:checked + .pf-checkbox__box--switch:after {
-    left: 16px;
+    border-color: var(--pf-color-primary);
+  }
+
+  input:checked + .pf-checkbox__box--switch:after {
+    left: $switch-slide-distance;
   }
 }

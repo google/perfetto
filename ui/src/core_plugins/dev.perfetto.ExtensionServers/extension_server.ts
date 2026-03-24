@@ -385,7 +385,7 @@ export function showErrorsOnCompletion(results: Result<unknown>[]): void {
           m(
             Anchor,
             {
-              href: 'https://perfetto.dev/docs/visualization/extensions',
+              href: 'https://perfetto.dev/docs/visualization/extension-servers#troubleshooting',
               target: '_blank',
             },
             'extension servers documentation',

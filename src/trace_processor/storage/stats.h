@@ -24,6 +24,10 @@ namespace perfetto::trace_processor::stats {
 // Compile time list of parsing and processing stats.
 // clang-format off
 #define PERFETTO_TP_STATS(F)                                                   \
+  F(android_aflags_errors,               kSingle,  kError,    kTrace,          \
+       "Errors occurred during the collection of Android aconfig flags by the "\
+       "android.aflags data source. This typically happens if the aflags tool "\
+       "fails or its output is malformed."),                                   \
   F(android_br_parse_errors,              kSingle,  kError,    kTrace,    ""), \
   F(android_log_num_failed,               kSingle,  kError,    kTrace,    ""), \
   F(android_log_format_invalid,           kSingle,  kError,    kTrace,    ""), \
@@ -136,6 +140,7 @@ namespace perfetto::trace_processor::stats {
   F(mismatched_sched_switch_tids,         kSingle,  kError,    kAnalysis, ""), \
   F(mm_unknown_type,                      kSingle,  kError,    kAnalysis, ""), \
   F(parse_trace_duration_ns,              kSingle,  kInfo,     kAnalysis, ""), \
+  F(power_rail_empty_packet,              kSingle,  kError,    kAnalysis, ""), \
   F(power_rail_unknown_index,             kSingle,  kError,    kTrace,    ""), \
   F(proc_stat_unknown_counters,           kSingle,  kError,    kAnalysis, ""), \
   F(rss_stat_unknown_keys,                kSingle,  kError,    kAnalysis, ""), \
@@ -233,6 +238,8 @@ namespace perfetto::trace_processor::stats {
        "Shadow mode: patches that succeeded on V1 buffer."),                   \
   F(traced_buf_v2s_v2_patches_succeeded,  kIndexed, kInfo,     kTrace,         \
        "Shadow mode: patches that succeeded on V2 buffer."),                   \
+  F(traced_buf_v2s_stats_version,         kIndexed, kInfo,     kTrace,         \
+       "Shadow mode: version of the comparison stats."),                       \
   F(traced_clone_started_timestamp_ns,    kSingle,  kInfo,     kTrace,         \
     "The timestamp when the clone snapshot operation for this trace started"), \
   F(traced_clone_trigger_timestamp_ns,    kSingle,  kInfo,     kTrace,         \
@@ -301,6 +308,15 @@ namespace perfetto::trace_processor::stats {
       "snapshots and its own for timestamp conversion. Timestamps "            \
       "converted before the first own clock snapshot used the primary "        \
       "trace's clocks which may differ."),                                     \
+  F(clock_sync_failure_undeferrable_packet_loss, kSingle, kDataLoss,          \
+      kAnalysis,                                                               \
+      "A packet had a timestamp with a clock ID that could not be resolved "   \
+      "to trace time and the packet could not be deferred for later "          \
+      "resolution (the trace sorter was unable to switch to full-sort mode). " \
+      "The packet was dropped and its data will be missing from query "        \
+      "results. This can happen when a sequence-scoped clock (64-127) is "    \
+      "used before the ClockSnapshot defining it arrives, and the sorter "     \
+      "has already started flushing."),                                        \
   F(clock_sync_cache_miss,                kSingle,  kInfo,     kAnalysis, ""), \
   F(process_tracker_errors,               kSingle,  kError,    kAnalysis, ""), \
   F(namespaced_thread_missing_process,    kSingle,  kError,    kAnalysis,      \
@@ -583,7 +599,7 @@ namespace perfetto::trace_processor::stats {
       "Number of class parsing errors encountered. This indicates a "          \
       "malformed hprof file. Check if the hprof opens correctly in a tool "    \
       "like AHAT. Missing classes could cause missing references, thus "       \
-      "affecting the overall size of the the heap graph."),                    \
+      "affecting the overall size of the heap graph."),                    \
   F(hprof_header_errors,                   kSingle,  kError,   kAnalysis,      \
       "Number of header parsing errors. This indicates a malformed hprof "     \
       "file with invalid or missing header information. The file may be "      \

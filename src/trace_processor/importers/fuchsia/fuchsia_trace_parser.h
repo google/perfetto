@@ -84,7 +84,10 @@ class FuchsiaTraceParser
                   uint32_t cpu,
                   uint32_t thread_state);
   void SwitchTo(Thread* thread, int64_t ts, uint32_t cpu, int32_t weight);
-  void Wake(Thread* thread, int64_t ts, uint32_t cpu);
+  void Wake(Thread* thread,
+            int64_t ts,
+            uint32_t cpu,
+            std::optional<UniqueTid> waker_utid = std::nullopt);
 
   StringId IdForOutgoingThreadState(uint32_t state);
 
@@ -92,6 +95,7 @@ class FuchsiaTraceParser
 
   // Interned string ids for record arguments.
   const StringId weight_id_;
+  const StringId waker_id_;
   const StringId incoming_weight_id_;
   const StringId outgoing_weight_id_;
 

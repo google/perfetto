@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from python.generators.diff_tests.testing import Path, DataPath, Metric, Systrace
-from python.generators.diff_tests.testing import Csv, Json, TextProto, BinaryProto
+from python.generators.diff_tests.testing import Csv, Json, TextProto, BinaryProto, MetricV2SpecTextproto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 from python.generators.diff_tests.testing import PrintProfileProto
@@ -640,3 +640,52 @@ class AndroidMetrics(TestSuite):
         trace=DataPath('android_calculator_startup.pb'),
         query=Metric("wattson_app_startup_threads"),
         out=Path('wattson_app_startup_threads.out'))
+
+  def test_wattson_v2_threads_aggregation(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sysui_qsmedia_microbenchmark.pb'),
+        query=MetricV2SpecTextproto(r"""
+          id: "wattson_v2_threads"
+          dimensions: "period_id"
+          dimensions: "period_dur"
+          dimensions: "utid"
+          dimensions: "tid"
+          dimensions: "pid"
+          dimensions: "thread_name"
+          dimensions: "process_name"
+          dimensions: "estimated_mws"
+          dimensions: "idle_transitions_mws"
+          dimensions: "total_mws"
+          value: "estimated_mw"
+          query {
+            sql {
+              sql: "SELECT * FROM wattson_threads_aggregation!(wattson_window_atrace_apps)"
+            }
+            referenced_modules: "wattson.aggregation"
+            referenced_modules: "wattson.windows"
+          }
+        """),
+        out=Path('wattson_v2_threads_aggregation.out'))
+
+  def test_wattson_v2_rails_aggregation(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sysui_qsmedia_microbenchmark.pb'),
+        query=MetricV2SpecTextproto(r"""
+          id: "wattson_v2_rails"
+          dimensions: "period_id"
+          dimensions: "period_dur"
+          dimensions: "subsystem"
+          dimensions: "breakdown_type"
+          dimensions: "component_id"
+          dimensions: "parent_id"
+          dimensions: "estimated_mws"
+          value: "estimated_mw"
+          query {
+            sql {
+              sql: "SELECT * FROM wattson_rails_aggregation!(wattson_window_atrace_apps)"
+            }
+            referenced_modules: "wattson.aggregation"
+            referenced_modules: "wattson.windows"
+          }
+        """),
+        out=Path('wattson_v2_rails_aggregation.out'))
