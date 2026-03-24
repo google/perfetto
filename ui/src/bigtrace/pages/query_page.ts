@@ -37,6 +37,7 @@ import {SettingFilter} from '../settings/settings_types';
 import {bigTraceSettingsManager} from '../settings/bigtrace_settings_manager';
 import {endpointManager} from '../settings/endpoint_manager';
 import {Tabs} from '../../widgets/tabs';
+import {linkify} from '../../widgets/anchor';
 
 export interface QueryResponse {
   query: string;
@@ -455,7 +456,18 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           // Build schema directly
           const columnSchema: ColumnSchema = {};
           for (const column of queryResult.columns) {
-            columnSchema[column] = {cellRenderer: undefined};
+            if (column === 'link') {
+              columnSchema[column] = {
+                cellRenderer: (value) => {
+                  if (value === null || value === undefined) {
+                    return '';
+                  }
+                  return linkify(String(value));
+                },
+              };
+            } else {
+              columnSchema[column] = {cellRenderer: undefined};
+            }
           }
           const schema: SchemaRegistry = {data: columnSchema};
 

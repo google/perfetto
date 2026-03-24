@@ -248,5 +248,4 @@ function onCssLoaded() {
   initLiveReload();
 }
 
-
 main();
