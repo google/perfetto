@@ -29,8 +29,6 @@
 #include "src/trace_processor/shell/query.h"
 #include "src/trace_processor/shell/subcommand.h"
 
-#include <google/protobuf/descriptor.h>
-
 namespace perfetto::trace_processor::shell {
 
 const char* MetricsSubcommand::name() const {
@@ -60,10 +58,6 @@ std::vector<FlagSpec> MetricsSubcommand::GetFlags() {
       StringFlag("pre", '\0', "FILE", "SQL file before metrics.", &pre_path_),
       StringFlag("output", '\0', "FORMAT", "Output format (binary|text|json).",
                  &metric_output_),
-      {/*long_name=*/"extension", /*short_name=*/'\0',
-       /*has_arg=*/true, /*arg_name=*/"DISK@VIRTUAL",
-       /*help=*/"Metric extension path.",
-       [this](const char* v) { raw_extensions_.emplace_back(v); }},
       StringFlag("post-query", '\0', "FILE", "SQL file after metrics.",
                  &post_query_path_),
       StringFlag("perf-file", '\0', "FILE", "Write perf timing data to FILE.",
@@ -83,22 +77,14 @@ base::Status MetricsSubcommand::Run(const SubcommandContext& ctx) {
   }
   std::string trace_file = ctx.positional_args[0];
 
-  // Parse metric extensions.
-  std::vector<MetricExtension> metric_extensions;
-  RETURN_IF_ERROR(ParseMetricExtensionPaths(ctx.global->dev, raw_extensions_,
-                                            metric_extensions));
-
+  // Metric extensions and their descriptor pool are pre-populated in
+  // GlobalOptions; SetupTraceProcessor loads them into TP.
   auto config = BuildConfig(*ctx.global, ctx.platform);
   ASSIGN_OR_RETURN(auto tp,
                    SetupTraceProcessor(*ctx.global, config, ctx.platform));
 
-  // Descriptor pool for metric output.
-  google::protobuf::DescriptorPool pool(
-      google::protobuf::DescriptorPool::generated_pool());
-  RETURN_IF_ERROR(PopulateDescriptorPool(pool, metric_extensions));
-  for (const auto& extension : metric_extensions) {
-    RETURN_IF_ERROR(LoadMetricExtension(tp.get(), extension, pool));
-  }
+  PERFETTO_CHECK(ctx.global->metric_descriptor_pool);
+  auto& pool = *ctx.global->metric_descriptor_pool;
 
   ASSIGN_OR_RETURN(auto t_load,
                    LoadTraceFile(tp.get(), ctx.platform, trace_file));
@@ -134,8 +120,8 @@ base::Status MetricsSubcommand::Run(const SubcommandContext& ctx) {
 
   if (interactive_) {
     RETURN_IF_ERROR(StartInteractiveShell(
-        tp.get(),
-        InteractiveOptions{20u, format, metric_extensions, metrics, &pool}));
+        tp.get(), InteractiveOptions{20u, format, ctx.global->metric_extensions,
+                                     metrics, &pool}));
   }
 
   RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), ctx.global->metatrace_path));
