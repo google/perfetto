@@ -18,7 +18,6 @@ import {Button, ButtonVariant} from '../../../widgets/button';
 import {Icon} from '../../../widgets/icon';
 import {SegmentedButtons} from '../../../widgets/segmented_buttons';
 import {ColumnPicker} from '../widgets/column_picker';
-import {Intent} from '../../../widgets/common';
 
 export interface SortCondition {
   readonly column: string;
@@ -56,6 +55,9 @@ function SortNodeContent(): m.Component<{
   updateConfig: (updates: Partial<SortConfig>) => void;
   ctx: RenderContext;
 }> {
+  let dragging = false;
+  let binHover = false;
+
   return {
     view({attrs: {config, updateConfig, ctx}}) {
       const availableColumns = ctx.availableColumns;
@@ -81,11 +83,14 @@ function SortNodeContent(): m.Component<{
                   e.dataTransfer!.effectAllowed = 'move';
                   e.dataTransfer!.setData('text/plain', String(i));
                   (e.currentTarget as HTMLElement).classList.add('pf-dragging');
+                  dragging = true;
                 },
                 ondragend: (e: DragEvent) => {
                   (e.currentTarget as HTMLElement).classList.remove(
                     'pf-dragging',
                   );
+                  dragging = false;
+                  binHover = false;
                 },
                 ondragover: (e: DragEvent) => {
                   e.preventDefault();
@@ -152,28 +157,44 @@ function SortNodeContent(): m.Component<{
                     updateConditions(updated);
                   },
                 }),
-                m(Button, {
-                  icon: 'delete',
-                  variant: ButtonVariant.Filled,
-                  intent: Intent.Danger,
-                  className: 'pf-qb-row-delete',
-                  title: 'Remove sort condition',
-                  onclick: () => {
-                    updateConditions(conditions.filter((_, j) => j !== i));
-                  },
-                }),
               ],
             ),
           ),
         ]),
-        m(Button, {
-          label: 'Add sort by',
-          icon: 'add',
-          variant: ButtonVariant.Filled,
-          onclick: () => {
-            updateConditions([...conditions, {column: '', order: 'ASC'}]);
-          },
-        }),
+        m('.pf-qb-add-bin-wrapper', [
+          m(Button, {
+            label: 'Add sort by',
+            icon: 'add',
+            variant: ButtonVariant.Filled,
+            onclick: () => {
+              updateConditions([...conditions, {column: '', order: 'ASC'}]);
+            },
+          }),
+          dragging
+            ? m('.pf-qb-drag-bin', {
+                className: binHover ? 'pf-drag-bin-hover' : '',
+                ondragover: (e: DragEvent) => {
+                  e.preventDefault();
+                  e.dataTransfer!.dropEffect = 'move';
+                  binHover = true;
+                },
+                ondragleave: () => {
+                  binHover = false;
+                },
+                ondrop: (e: DragEvent) => {
+                  e.preventDefault();
+                  binHover = false;
+                  dragging = false;
+                  const fromIdx = parseInt(
+                    e.dataTransfer!.getData('text/plain'),
+                  );
+                  updateConditions(
+                    conditions.filter((_, j) => j !== fromIdx),
+                  );
+                },
+              }, m(Icon, {icon: 'delete'}))
+            : null,
+        ]),
       ]);
     },
   };
