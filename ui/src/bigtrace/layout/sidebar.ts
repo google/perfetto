@@ -1,7 +1,7 @@
 import m from 'mithril';
-import {Icon} from '../widgets/icon';
-import {Button} from '../widgets/button';
-import {getOrCreate} from '../base/utils';
+import {Icon} from '../../widgets/icon';
+import {Button} from '../../widgets/button';
+import {getOrCreate} from '../../base/utils';
 
 
 export const SIDEBAR_SECTIONS = {
@@ -10,7 +10,7 @@ export const SIDEBAR_SECTIONS = {
       summary: '',
       defaultCollapsed: false,
     },
-    bigtrace: {
+    query: {
       title: 'BigTrace',
       summary: 'Query and analyze large traces',
       defaultCollapsed: false,

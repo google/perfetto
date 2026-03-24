@@ -14,8 +14,8 @@
 
 import {z} from 'zod';
 
-import {LocalStorage} from '../core/local_storage';
-import {BIGTRACE_SETTINGS_STORAGE_KEY} from './settings_manager';
+import {LocalStorage} from '../../core/local_storage';
+import {BIGTRACE_SETTINGS_STORAGE_KEY} from '../settings/settings_manager';
 
 const RECENT_QUERY_ENTRY_SCHEMA = z.object({
   query: z.string(),
@@ -64,12 +64,8 @@ export class RecentQueriesStorage {
     if (value === undefined) {
       return [];
     }
-    try {
-      const res = RECENT_QUERIES_SCHEMA.safeParse(value);
-      return res.success ? res.data : [];
-    } catch {
-      return [];
-    }
+    const res = RECENT_QUERIES_SCHEMA.safeParse(value);
+    return res.success ? res.data : [];
   }
 
   private save(): void {

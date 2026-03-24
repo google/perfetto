@@ -13,25 +13,32 @@
 // limitations under the License.
 
 import {z} from 'zod';
-import {Setting, SettingDescriptor, SettingsManager} from '../public/settings';
+import {Setting, SettingDescriptor, SettingsManager} from '../../public/settings';
+import {LocalStorage} from '../../core/local_storage';
 import m from 'mithril';
 
-class SettingImpl<T> implements Setting<T> {
+export const BIGTRACE_SETTINGS_STORAGE_KEY = 'bigtraceSettings';
+
+export class SettingImpl<T> implements Setting<T> {
+  public readonly requiresReload?: boolean;
   constructor(
-    private settingsManager: SettingsManagerImpl,
+    private manager: LocalSettingsManager,
     public readonly id: string,
     public readonly name: string,
     public readonly description: string,
     public readonly schema: z.ZodType<T>,
     public readonly defaultValue: T,
-  ) {}
+    requiresReload?: boolean,
+  ) {
+    this.requiresReload = requiresReload;
+  }
 
   get isDefault(): boolean {
     return this.get() === this.defaultValue;
   }
 
   get(): T {
-    const storedValue = this.settingsManager.getStoredValue(this.id);
+    const storedValue = this.manager.getStoredValue(this.id);
     const parsed = this.schema.safeParse(storedValue);
     if (parsed.success) {
       return parsed.data;
@@ -40,12 +47,12 @@ class SettingImpl<T> implements Setting<T> {
   }
 
   set(value: T): void {
-    this.settingsManager.setStoredValue(this.id, value);
+    this.manager.setStoredValue(this.id, value);
     m.redraw();
   }
 
   reset(): void {
-    this.settingsManager.setStoredValue(this.id, this.defaultValue);
+    this.manager.setStoredValue(this.id, this.defaultValue);
     m.redraw();
   }
 
@@ -54,11 +61,9 @@ class SettingImpl<T> implements Setting<T> {
   }
 }
 
-import {LocalStorage} from '../core/local_storage';
-import {BIGTRACE_SETTINGS_STORAGE_KEY} from './settings_manager';
-
-class SettingsManagerImpl implements SettingsManager {
+export class LocalSettingsManager implements SettingsManager {
   private settings = new Map<string, Setting<unknown>>();
+  private initialValues = new Map<string, unknown>();
   private storage: LocalStorage;
 
   constructor(storage: LocalStorage) {
@@ -73,8 +78,10 @@ class SettingsManagerImpl implements SettingsManager {
         descriptor.description,
         descriptor.schema,
         descriptor.defaultValue,
+        descriptor.requiresReload,
     );
     this.settings.set(descriptor.id, setting);
+    this.initialValues.set(descriptor.id, setting.get());
     return setting;
   }
 
@@ -102,16 +109,27 @@ class SettingsManagerImpl implements SettingsManager {
   }
 
   isReloadRequired(): boolean {
+    for (const setting of this.settings.values()) {
+      if (setting.requiresReload) {
+        const current = setting.get();
+        const initial = this.initialValues.get(setting.id);
+        if (current !== initial) {
+          return true;
+        }
+      }
+    }
     return false;
   }
 }
 
-export const bigTraceSettingsManager = new SettingsManagerImpl(new LocalStorage(BIGTRACE_SETTINGS_STORAGE_KEY));
+export const settingsManager = new LocalSettingsManager(
+    new LocalStorage(BIGTRACE_SETTINGS_STORAGE_KEY),
+);
 
-bigTraceSettingsManager.register({
-    id: 'traceLimit',
-    name: 'Trace Limit',
-    description: 'The maximum number of traces to query from the backend.',
-    schema: z.number(),
-    defaultValue: 1_000_000,
+settingsManager.register({
+    id: 'theme',
+    name: 'UI Theme',
+    description: 'Changes the color palette used throughout the UI.',
+    schema: z.enum(['light', 'dark']),
+    defaultValue: 'light',
 });

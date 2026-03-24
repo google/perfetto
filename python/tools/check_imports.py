@@ -121,8 +121,8 @@ DEPS_ALLOWLIST = [
 
     # Bigtrace deps.
     ('/bigtrace/*', [
-        '/base/*', '/widgets/*', '/trace_processor/*', '/components/*',
-        '/public/*', '/core/local_storage'
+        '/bigtrace/*', '/base/*', '/widgets/*', '/trace_processor/*',
+        '/components/*', '/public/*', '/core/local_storage'
     ]),
 
     # TODO(primiano): misc tech debt.

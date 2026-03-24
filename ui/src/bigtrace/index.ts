@@ -19,16 +19,16 @@ import {defer} from '../base/deferred';
 import {reportError, addErrorHandler, ErrorDetails} from '../base/logging';
 import {initLiveReload} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
-import {settingsManager} from './settings_manager';
+import {settingsManager} from './settings/settings_manager';
 import {ThemeProvider} from '../frontend/theme_provider';
 import {OverlayContainer} from '../widgets/overlay_container';
-import {QueryPage} from './query_page';
-import {HomePage} from './home_page';
-import {BigTraceSettingsPage} from './bigtrace_settings_page';
-import {queryState} from './query_state';
-import {SettingsPage} from './settings_page';
-import {Topbar} from './topbar';
-import {Sidebar, SidebarMenuItem, SIDEBAR_SECTIONS} from './sidebar';
+import {QueryPage} from './pages/query_page';
+import {HomePage} from './pages/home_page';
+import {bigTraceSettingsManager} from './settings/bigtrace_settings_manager';
+import {queryState} from './query/query_state';
+import {SettingsPage} from './pages/settings_page';
+import {Topbar} from './layout/topbar';
+import {Sidebar, SidebarMenuItem, SIDEBAR_SECTIONS} from './layout/sidebar';
 
 function getRoot() {
   // Works out the root directory where the content should be served from
@@ -51,14 +51,13 @@ function setupContentSecurityPolicy() {
     'default-src': [`'self'`],
     'script-src': [`'self'`],
     'object-src': ['none'],
-    'connect-src': [`'self'`, 'https://brush-googleapis.corp.google.com'],
+    'connect-src': [`'self'`, 'https://autopush-brush-googleapis.corp.google.com', 'https://brush-googleapis.corp.google.com', 'http://127.0.0.1:5001'],
     'img-src': [`'self'`, 'data:', 'blob:'],
     'style-src': [
       `'self'`,
       `'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='`,
       `'sha256-yRQRG6LLKMvjvigtzXD1f8VRZSYY7J8fM2ZLfdMaHKg='`,
     ],
-    'navigate-to': ['https://*.perfetto.dev', 'self'],
   };
   const meta = document.createElement('meta');
   meta.httpEquiv = 'Content-Security-Policy';
@@ -74,12 +73,13 @@ function main() {
   // Unregister service workers
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(registrations => {
-      for(const registration of registrations) {
+      for (const registration of registrations) {
         registration.unregister();
       }
     });
   }
   setupContentSecurityPolicy();
+  // Settings will be lazy-loaded by the UI components that require them.
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time
   // appendChild returns.
@@ -108,7 +108,7 @@ function main() {
     (e: MouseEvent) => {
       if (e.ctrlKey) e.preventDefault();
     },
-    {passive: false},
+    { passive: false },
   );
 
   cssLoadPromise.then(() => onCssLoaded());
@@ -116,56 +116,70 @@ function main() {
 
 class BigTraceApp implements m.ClassComponent {
   private sidebarVisible = true;
-  private currentPage = 'home';
+
+  private getPageFromHash() {
+    const hash = window.location.hash;
+    if (hash.startsWith('#!/settings')) return 'settings';
+    if (hash.startsWith('#!/query')) return 'query';
+    return 'home';
+  }
+
+  private currentPage = this.getPageFromHash();
+
+  private handleHashChange = () => {
+    this.currentPage = this.getPageFromHash();
+    m.redraw();
+  };
+
+  private setPage(page: string) {
+    if (page === 'home') {
+      window.location.hash = '#!/';
+    } else {
+      window.location.hash = `#!/${page}`;
+    }
+  }
+
+  oninit() {
+    bigTraceSettingsManager.loadSettings();
+    window.addEventListener('hashchange', this.handleHashChange);
+  }
+
+  onremove() {
+    window.removeEventListener('hashchange', this.handleHashChange);
+  }
 
   view() {
     const items: SidebarMenuItem[] = [
       {
         section: 'home',
         text: 'Home',
-        href: '#',
+        href: '#!/',
         icon: 'home',
         active: this.currentPage === 'home',
-        onclick: () => {
-          this.currentPage = 'home';
-        },
+        onclick: () => {},
       },
       {
-        section: 'bigtrace',
+        section: 'query',
         text: 'Query Editor',
-        href: '#',
+        href: '#!/query',
         icon: 'line_style',
-        active: this.currentPage === 'bigtrace',
-        onclick: () => {
-          this.currentPage = 'bigtrace';
-        },
-      },
-      {
-        section: 'bigtrace',
-        text: 'BigTrace Settings',
-        href: '#',
-        icon: 'settings',
-        active: this.currentPage === 'bigtrace_settings',
-        onclick: () => {
-          this.currentPage = 'bigtrace_settings';
-        },
+        active: this.currentPage === 'query',
+        onclick: () => {},
       },
       {
         section: 'settings',
         text: 'Settings',
-        href: '#',
+        href: '#!/settings',
         icon: 'settings',
         active: this.currentPage === 'settings',
-        onclick: () => {
-          this.currentPage = 'settings';
-        },
+        onclick: () => {},
       },
     ];
 
     const currentItem = items.find((item) => item.active);
     const title = currentItem ?
-        `${SIDEBAR_SECTIONS[currentItem.section].title} > ${currentItem.text}` :
-        '';
+      `${SIDEBAR_SECTIONS[currentItem.section].title} > ${currentItem.text}` :
+      '';
 
     return m(
       '.pf-ui-main',
@@ -181,29 +195,29 @@ class BigTraceApp implements m.ClassComponent {
         this.sidebarVisible && m(Sidebar, {
           items,
           onToggleSidebar: () => {
-              this.sidebarVisible = !this.sidebarVisible;
+            this.sidebarVisible = !this.sidebarVisible;
           },
         }),
 
         m('.pf-main-content',
-            {
-              style: {
-                display: 'flex',
-                flexDirection: 'column',
-                flex: 1,
-                overflow: 'hidden',
-              },
+          {
+            style: {
+              display: 'flex',
+              flexDirection: 'column',
+              flex: 1,
+              overflow: 'hidden',
             },
-            [
-              m(Topbar, {
-                sidebarVisible: this.sidebarVisible,
-                onToggleSidebar: () => {
-                  this.sidebarVisible = !this.sidebarVisible;
-                },
-                title: title,
-              }),
-              this.renderPage(),
-            ]),
+          },
+          [
+            m(Topbar, {
+              sidebarVisible: this.sidebarVisible,
+              onToggleSidebar: () => {
+                this.sidebarVisible = !this.sidebarVisible;
+              },
+              title: title,
+            }),
+            this.renderPage(),
+          ]),
       ],
     );
   }
@@ -213,14 +227,12 @@ class BigTraceApp implements m.ClassComponent {
       case 'home':
         return m(HomePage, {
           navigateTo: (page: string) => {
-            this.currentPage = page;
+            this.setPage(page);
           },
         });
       case 'settings':
         return m(SettingsPage);
-      case 'bigtrace_settings':
-        return m(BigTraceSettingsPage);
-      case 'bigtrace':
+      case 'query':
         const initialQuery = queryState.initialQuery;
         queryState.initialQuery = undefined;
         return m(QueryPage, {
@@ -230,7 +242,7 @@ class BigTraceApp implements m.ClassComponent {
       default:
         return m(HomePage, {
           navigateTo: (page: string) => {
-            this.currentPage = page;
+            this.setPage(page);
           },
         });
     }
@@ -245,8 +257,8 @@ function onCssLoaded() {
     view: () => {
       const theme = settingsManager.get('theme');
       const themeValue = theme ? theme.get() : 'light';
-      return m(ThemeProvider, {theme: themeValue as 'dark' | 'light'}, [
-        m(OverlayContainer, {fillHeight: true}, [m(BigTraceApp)]),
+      return m(ThemeProvider, { theme: themeValue as 'dark' | 'light' }, [
+        m(OverlayContainer, { fillHeight: true }, [m(BigTraceApp)]),
       ]);
     }
   });
