@@ -1418,6 +1418,7 @@ template <typename T, typename DataType>
     }
   };
   if constexpr (std::is_same_v<T, Id>) {
+    base::ignore_result(data);
     return IdentityFilter(source_begin, source_end, dest, bv, Cmp());
   } else {
     return Filter(data, source_begin, source_end, dest, bv, Cmp());
