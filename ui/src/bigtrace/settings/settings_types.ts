@@ -14,7 +14,11 @@
 
 import {z} from 'zod';
 
-export type SettingCategory = 'SETTING_CATEGORY_UNSPECIFIED' | 'TRACE_ADDRESS' | 'TRACE_METADATA' | 'BIGTRACE_QUERY_OPTIONS';
+export type SettingCategory =
+  | 'SETTING_CATEGORY_UNSPECIFIED'
+  | 'TRACE_ADDRESS'
+  | 'TRACE_METADATA'
+  | 'BIGTRACE_QUERY_OPTIONS';
 
 export interface EnumOption {
   readonly value: string;
@@ -32,7 +36,13 @@ export interface SettingDescriptor<T> {
   readonly description: string;
 
   // The type of the setting.
-  readonly type: 'string' | 'number' | 'boolean' | 'enum' | 'multi-select' | 'string-array';
+  readonly type:
+    | 'string'
+    | 'number'
+    | 'boolean'
+    | 'enum'
+    | 'multi-select'
+    | 'string-array';
 
   // The Zod schema for validating the setting's value.
   readonly schema: z.ZodType<T>;

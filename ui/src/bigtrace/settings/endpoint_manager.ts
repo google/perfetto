@@ -14,17 +14,20 @@
 
 import {z} from 'zod';
 import {LocalStorage} from '../../core/local_storage';
-import {LocalSettingsManager, BIGTRACE_SETTINGS_STORAGE_KEY} from './settings_manager';
+import {
+  LocalSettingsManager,
+  BIGTRACE_SETTINGS_STORAGE_KEY,
+} from './settings_manager';
 
 export const endpointManager = new LocalSettingsManager(
-    new LocalStorage(BIGTRACE_SETTINGS_STORAGE_KEY),
+  new LocalStorage(BIGTRACE_SETTINGS_STORAGE_KEY),
 );
 
 endpointManager.register({
-    id: 'bigtraceEndpoint',
-    name: 'BigTrace Endpoint',
-    description: 'The URL of the BigTrace backend service.',
-    schema: z.string(),
-    defaultValue: 'https://autopush-brush-googleapis.corp.google.com/v1',
-    requiresReload: true,
+  id: 'bigtraceEndpoint',
+  name: 'BigTrace Endpoint',
+  description: 'The URL of the BigTrace backend service.',
+  schema: z.string(),
+  defaultValue: 'https://autopush-brush-googleapis.corp.google.com/v1',
+  requiresReload: true,
 });

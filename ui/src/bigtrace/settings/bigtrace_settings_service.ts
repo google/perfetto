@@ -12,9 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { z } from 'zod';
-import { SettingDescriptor, SettingCategory, SettingFilter } from './settings_types';
-import { endpointManager } from './endpoint_manager';
+import {z} from 'zod';
+import {
+  SettingDescriptor,
+  SettingCategory,
+  SettingFilter,
+} from './settings_types';
+import {endpointManager} from './endpoint_manager';
 
 interface BackendSettingOption {
   value?: string;
@@ -28,39 +32,62 @@ interface BackendSetting {
   disabled?: boolean;
   category?: SettingCategory;
 
-  number?: { defaultValue?: number; min?: number; max?: number };
-  stringEnum?: { defaultValue?: string; options?: BackendSettingOption[] };
-  multiSelect?: { defaultValues?: string[]; options?: BackendSettingOption[] };
-  plainString?: { defaultValue?: string };
-  stringArray?: { defaultValues?: string[] };
-  booleanOptions?: { defaultValue?: boolean };
+  number?: {defaultValue?: number; min?: number; max?: number};
+  stringEnum?: {defaultValue?: string; options?: BackendSettingOption[]};
+  multiSelect?: {defaultValues?: string[]; options?: BackendSettingOption[]};
+  plainString?: {defaultValue?: string};
+  stringArray?: {defaultValues?: string[]};
+  booleanOptions?: {defaultValue?: boolean};
 }
 
-function toSettingDescriptor(option: BackendSetting): SettingDescriptor<unknown> {
-  const { id = '', name = '', description = '', disabled, category } = option;
+function toSettingDescriptor(
+  option: BackendSetting,
+): SettingDescriptor<unknown> {
+  const {id = '', name = '', description = '', disabled, category} = option;
 
-  let type: 'string' | 'number' | 'boolean' | 'enum' | 'multi-select' | 'string-array' = 'string';
+  let type:
+    | 'string'
+    | 'number'
+    | 'boolean'
+    | 'enum'
+    | 'multi-select'
+    | 'string-array' = 'string';
   let schema: z.ZodType<unknown> = z.any();
   let defaultValue: unknown = undefined;
-  let optionsList: { value: string, label: string }[] | undefined = undefined;
+  let optionsList: {value: string; label: string}[] | undefined = undefined;
 
   if (option.number) {
     type = 'number';
     schema = z.number();
-    if (option.number.min !== undefined && option.number.min !== 0) schema = (schema as z.ZodNumber).min(option.number.min);
-    if (option.number.max !== undefined && option.number.max !== 0) schema = (schema as z.ZodNumber).max(option.number.max);
+    if (option.number.min !== undefined && option.number.min !== 0) {
+      schema = (schema as z.ZodNumber).min(option.number.min);
+    }
+    if (option.number.max !== undefined && option.number.max !== 0) {
+      schema = (schema as z.ZodNumber).max(option.number.max);
+    }
     defaultValue = option.number.defaultValue ?? 0;
   } else if (option.stringEnum) {
     type = 'enum';
-    const enumOptions = (option.stringEnum.options || []).map(o => o.value || '');
-    schema = enumOptions.length > 0 ? z.enum(enumOptions as [string, ...string[]]) : z.string();
+    const enumOptions = (option.stringEnum.options || []).map(
+      (o) => o.value || '',
+    );
+    schema =
+      enumOptions.length > 0
+        ? z.enum(enumOptions as [string, ...string[]])
+        : z.string();
     defaultValue = option.stringEnum.defaultValue ?? '';
-    optionsList = (option.stringEnum.options || []).map(o => ({ value: o.value || '', label: o.label || o.value || '' }));
+    optionsList = (option.stringEnum.options || []).map((o) => ({
+      value: o.value || '',
+      label: o.label || o.value || '',
+    }));
   } else if (option.multiSelect) {
     type = 'multi-select';
     schema = z.array(z.string());
     defaultValue = option.multiSelect.defaultValues || [];
-    optionsList = (option.multiSelect.options || []).map(o => ({ value: o.value || '', label: o.label || o.value || '' }));
+    optionsList = (option.multiSelect.options || []).map((o) => ({
+      value: o.value || '',
+      label: o.label || o.value || '',
+    }));
   } else if (option.plainString) {
     type = 'string';
     schema = z.string();
@@ -99,7 +126,7 @@ class BigTraceSettingsService {
 
   async getExecutionSettings(): Promise<SettingDescriptor<unknown>[]> {
     const endpointSetting = endpointManager.get('bigtraceEndpoint');
-    const endpoint = endpointSetting ? endpointSetting.get() as string : '';
+    const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
 
     this.execConfigAbortController?.abort();
     this.execConfigAbortController = new AbortController();
@@ -109,7 +136,7 @@ class BigTraceSettingsService {
     try {
       const response = await fetch(`${endpoint}/bigtrace_execution_config`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {'Content-Type': 'application/json'},
         body: '{}',
         credentials: 'include',
         mode: 'cors',
@@ -120,13 +147,18 @@ class BigTraceSettingsService {
         const text = await response.text();
         try {
           const data = JSON.parse(text);
-          options = data.setting || [];
+          options = Array.isArray(data.setting) ? data.setting : [];
         } catch (e) {
-          console.error('Failed to parse bigtrace_execution_config response:', text.substring(0, 100));
+          console.error(
+            'Failed to parse bigtrace_execution_config response:',
+            text.substring(0, 100),
+          );
           throw new Error('Failed to parse bigtrace_execution_config response');
         }
       } else {
-        console.error(`bigtrace_execution_config failed with status ${response.status}`);
+        console.error(
+          `bigtrace_execution_config failed with status ${response.status}`,
+        );
         throw new Error(`Execution config failed: HTTP ${response.status}`);
       }
     } catch (err) {
@@ -135,7 +167,9 @@ class BigTraceSettingsService {
       }
       console.error('Error fetching bigtrace_execution_config:', err);
       if (err instanceof TypeError) {
-        throw new Error('Cannot connect to the BigTrace backend. Please check your endpoint address and network connection.');
+        throw new Error(
+          'Cannot connect to the BigTrace backend. Please check your endpoint address and network connection.',
+        );
       }
       throw err;
     }
@@ -143,9 +177,11 @@ class BigTraceSettingsService {
     return options.map(toSettingDescriptor);
   }
 
-  async getMetadataSettings(filters: SettingFilter[]): Promise<SettingDescriptor<unknown>[]> {
+  async getMetadataSettings(
+    filters: SettingFilter[],
+  ): Promise<SettingDescriptor<unknown>[]> {
     const endpointSetting = endpointManager.get('bigtraceEndpoint');
-    const endpoint = endpointSetting ? endpointSetting.get() as string : '';
+    const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
 
     this.metadataAbortController?.abort();
     this.metadataAbortController = new AbortController();
@@ -155,8 +191,8 @@ class BigTraceSettingsService {
     try {
       const response = await fetch(`${endpoint}/trace_metadata_settings`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: filters }),
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({settings: filters}),
         credentials: 'include',
         mode: 'cors',
         signal: this.metadataAbortController.signal,
@@ -166,14 +202,21 @@ class BigTraceSettingsService {
         const text = await response.text();
         try {
           const data = JSON.parse(text);
-          options = data.setting || [];
+          options = Array.isArray(data.setting) ? data.setting : [];
         } catch (e) {
-          console.error('Failed to parse trace_metadata_settings response:', text.substring(0, 100));
+          console.error(
+            'Failed to parse trace_metadata_settings response:',
+            text.substring(0, 100),
+          );
           throw new Error('Failed to parse trace_metadata_settings response');
         }
       } else {
-        console.error(`trace_metadata_settings failed with status ${response.status}`);
-        throw new Error(`Trace metadata config failed: HTTP ${response.status}`);
+        console.error(
+          `trace_metadata_settings failed with status ${response.status}`,
+        );
+        throw new Error(
+          `Trace metadata config failed: HTTP ${response.status}`,
+        );
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
@@ -181,7 +224,9 @@ class BigTraceSettingsService {
       }
       console.error('Error fetching trace_metadata_settings:', err);
       if (err instanceof TypeError) {
-        throw new Error('Cannot connect to the BigTrace backend. Please check your endpoint address and network connection.');
+        throw new Error(
+          'Cannot connect to the BigTrace backend. Please check your endpoint address and network connection.',
+        );
       }
       throw err;
     }

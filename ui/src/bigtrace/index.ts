@@ -51,7 +51,12 @@ function setupContentSecurityPolicy() {
     'default-src': [`'self'`],
     'script-src': [`'self'`],
     'object-src': ['none'],
-    'connect-src': [`'self'`, 'https://autopush-brush-googleapis.corp.google.com', 'https://brush-googleapis.corp.google.com', 'http://127.0.0.1:5001'],
+    'connect-src': [
+      `'self'`,
+      'https://autopush-brush-googleapis.corp.google.com',
+      'https://brush-googleapis.corp.google.com',
+      'http://127.0.0.1:5001',
+    ],
     'img-src': [`'self'`, 'data:', 'blob:'],
     'style-src': [
       `'self'`,
@@ -72,7 +77,7 @@ function setupContentSecurityPolicy() {
 function main() {
   // Unregister service workers
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(registrations => {
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
       for (const registration of registrations) {
         registration.unregister();
       }
@@ -108,7 +113,7 @@ function main() {
     (e: MouseEvent) => {
       if (e.ctrlKey) e.preventDefault();
     },
-    { passive: false },
+    {passive: false},
   );
 
   cssLoadPromise.then(() => onCssLoaded());
@@ -177,9 +182,9 @@ class BigTraceApp implements m.ClassComponent {
     ];
 
     const currentItem = items.find((item) => item.active);
-    const title = currentItem ?
-      `${SIDEBAR_SECTIONS[currentItem.section].title} > ${currentItem.text}` :
-      '';
+    const title = currentItem
+      ? `${SIDEBAR_SECTIONS[currentItem.section].title} > ${currentItem.text}`
+      : '';
 
     return m(
       '.pf-ui-main',
@@ -192,14 +197,16 @@ class BigTraceApp implements m.ClassComponent {
       },
       [
         // Left Sidebar (only render when visible)
-        this.sidebarVisible && m(Sidebar, {
-          items,
-          onToggleSidebar: () => {
-            this.sidebarVisible = !this.sidebarVisible;
-          },
-        }),
+        this.sidebarVisible &&
+          m(Sidebar, {
+            items,
+            onToggleSidebar: () => {
+              this.sidebarVisible = !this.sidebarVisible;
+            },
+          }),
 
-        m('.pf-main-content',
+        m(
+          '.pf-main-content',
           {
             style: {
               display: 'flex',
@@ -217,7 +224,8 @@ class BigTraceApp implements m.ClassComponent {
               title: title,
             }),
             this.renderPage(),
-          ]),
+          ],
+        ),
       ],
     );
   }
@@ -257,10 +265,10 @@ function onCssLoaded() {
     view: () => {
       const theme = settingsManager.get('theme');
       const themeValue = theme ? theme.get() : 'light';
-      return m(ThemeProvider, { theme: themeValue as 'dark' | 'light' }, [
-        m(OverlayContainer, { fillHeight: true }, [m(BigTraceApp)]),
+      return m(ThemeProvider, {theme: themeValue as 'dark' | 'light'}, [
+        m(OverlayContainer, {fillHeight: true}, [m(BigTraceApp)]),
       ]);
-    }
+    },
   });
 
   initLiveReload();

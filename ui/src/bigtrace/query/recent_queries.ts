@@ -20,38 +20,60 @@ export interface RecentQueriesSectionAttrs {
   onLoadQuery: (query: string) => void;
 }
 
-class RecentQueryCard implements m.ClassComponent<{entry: RecentQueryEntry, onLoadQuery: (query: string) => void}> {
-  view({attrs}: m.CVnode<{entry: RecentQueryEntry, onLoadQuery: (query: string) => void}>) {
+class RecentQueryCard
+  implements
+    m.ClassComponent<{
+      entry: RecentQueryEntry;
+      onLoadQuery: (query: string) => void;
+    }>
+{
+  view({
+    attrs,
+  }: m.CVnode<{
+    entry: RecentQueryEntry;
+    onLoadQuery: (query: string) => void;
+  }>) {
     const {entry, onLoadQuery} = attrs;
     return m(
-        Card,
+      Card,
+      {
+        interactive: true,
+        onclick: () => onLoadQuery(entry.query),
+      },
+      m('p', new Date(entry.timestamp).toLocaleString()),
+      m(
+        'pre',
         {
-          interactive: true,
-          onclick: () => onLoadQuery(entry.query),
+          style: {
+            maxHeight: '100px',
+            overflowY: 'auto',
+            whiteSpace: 'pre-wrap',
+          },
         },
-        m('p', new Date(entry.timestamp).toLocaleString()),
-        m('pre', {style: {maxHeight: '100px', overflowY: 'auto', whiteSpace: 'pre-wrap'}}, entry.query),
+        entry.query,
+      ),
     );
   }
 }
 
-export class RecentQueriesSection implements
-    m.ClassComponent<RecentQueriesSectionAttrs> {
+export class RecentQueriesSection
+  implements m.ClassComponent<RecentQueriesSectionAttrs>
+{
   view({attrs}: m.CVnode<RecentQueriesSectionAttrs>) {
     const queries = recentQueriesStorage.data;
 
     return m(
-        '.pf-recent-queries-section',
-        {style: {width: '100%'}},
-        queries.length > 0 ?
-            m(CardStack, {style: {width: '100%'}},
-              queries.map(
-                  (entry) => m(
-                      RecentQueryCard,
-                      {entry, onLoadQuery: attrs.onLoadQuery},
-                      )),
-              ) :
-            m('.pf-recent-queries-empty', 'No recent queries'),
+      '.pf-recent-queries-section',
+      {style: {width: '100%'}},
+      queries.length > 0
+        ? m(
+            CardStack,
+            {style: {width: '100%'}},
+            queries.map((entry) =>
+              m(RecentQueryCard, {entry, onLoadQuery: attrs.onLoadQuery}),
+            ),
+          )
+        : m('.pf-recent-queries-empty', 'No recent queries'),
     );
   }
 }

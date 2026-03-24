@@ -13,7 +13,11 @@
 // limitations under the License.
 
 import {z} from 'zod';
-import {Setting, SettingDescriptor, SettingsManager} from '../../public/settings';
+import {
+  Setting,
+  SettingDescriptor,
+  SettingsManager,
+} from '../../public/settings';
 import {LocalStorage} from '../../core/local_storage';
 import m from 'mithril';
 
@@ -72,13 +76,13 @@ export class LocalSettingsManager implements SettingsManager {
 
   register<T>(descriptor: SettingDescriptor<T>): Setting<T> {
     const setting = new SettingImpl(
-        this,
-        descriptor.id,
-        descriptor.name,
-        descriptor.description,
-        descriptor.schema,
-        descriptor.defaultValue,
-        descriptor.requiresReload,
+      this,
+      descriptor.id,
+      descriptor.name,
+      descriptor.description,
+      descriptor.schema,
+      descriptor.defaultValue,
+      descriptor.requiresReload,
     );
     this.settings.set(descriptor.id, setting);
     this.initialValues.set(descriptor.id, setting.get());
@@ -123,13 +127,13 @@ export class LocalSettingsManager implements SettingsManager {
 }
 
 export const settingsManager = new LocalSettingsManager(
-    new LocalStorage(BIGTRACE_SETTINGS_STORAGE_KEY),
+  new LocalStorage(BIGTRACE_SETTINGS_STORAGE_KEY),
 );
 
 settingsManager.register({
-    id: 'theme',
-    name: 'UI Theme',
-    description: 'Changes the color palette used throughout the UI.',
-    schema: z.enum(['light', 'dark']),
-    defaultValue: 'light',
+  id: 'theme',
+  name: 'UI Theme',
+  description: 'Changes the color palette used throughout the UI.',
+  schema: z.enum(['light', 'dark']),
+  defaultValue: 'light',
 });

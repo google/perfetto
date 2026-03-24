@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {classNames} from '../../base/classnames';
 import {Button} from '../../widgets/button';
-import { Tooltip } from '../../widgets/tooltip';
+import {Tooltip} from '../../widgets/tooltip';
 import {settingsManager} from '../settings/settings_manager';
 
 class Omnibox implements m.ClassComponent {
@@ -51,29 +51,42 @@ export class Topbar implements m.ClassComponent<TopbarAttrs> {
         ),
       },
       [
-        !attrs.sidebarVisible && m(Button, {
-          icon: 'menu',
-          onclick: attrs.onToggleSidebar,
-          style: {height: '48px', width: '48px'},
-        }),
-        m(Tooltip, {
-          trigger: m('.pf-wip-pill', {
-            style: {
-              fontSize: '12px',
-              color: 'var(--pf-warning-text, #856404)',
-              backgroundColor: 'var(--pf-warning-background, #fff3cd)',
-              padding: '4px 12px',
-              borderRadius: '16px',
-              marginLeft: '16px',
-              fontWeight: '500',
-              border: '1px solid var(--pf-warning-border, #ffeeba)',
-              whiteSpace: 'nowrap',
-              cursor: 'pointer',
-            },
-          }, 'WIP')
-        }, 'BigTrace UI is work in progress. Features are subject to change.'),
-        m('div', {style: {flex: 1, display: 'flex', justifyContent: 'center'}}, m(Omnibox)),
-        
+        !attrs.sidebarVisible &&
+          m(Button, {
+            icon: 'menu',
+            onclick: attrs.onToggleSidebar,
+            style: {height: '48px', width: '48px'},
+          }),
+        m(
+          Tooltip,
+          {
+            trigger: m(
+              '.pf-wip-pill',
+              {
+                style: {
+                  fontSize: '12px',
+                  color: 'var(--pf-warning-text, #856404)',
+                  backgroundColor: 'var(--pf-warning-background, #fff3cd)',
+                  padding: '4px 12px',
+                  borderRadius: '16px',
+                  marginLeft: '16px',
+                  fontWeight: '500',
+                  border: '1px solid var(--pf-warning-border, #ffeeba)',
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                },
+              },
+              'WIP',
+            ),
+          },
+          'BigTrace UI is work in progress. Features are subject to change.',
+        ),
+        m(
+          'div',
+          {style: {flex: 1, display: 'flex', justifyContent: 'center'}},
+          m(Omnibox),
+        ),
+
         m(Button, {
           icon: themeValue === 'light' ? 'dark_mode' : 'light_mode',
           onclick: () => {
@@ -86,4 +99,3 @@ export class Topbar implements m.ClassComponent<TopbarAttrs> {
     );
   }
 }
-

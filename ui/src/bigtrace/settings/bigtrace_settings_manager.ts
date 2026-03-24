@@ -13,7 +13,13 @@
 // limitations under the License.
 
 import {z} from 'zod';
-import {Setting, SettingDescriptor, EnumOption, SettingFilter, SettingCategory} from './settings_types';
+import {
+  Setting,
+  SettingDescriptor,
+  EnumOption,
+  SettingFilter,
+  SettingCategory,
+} from './settings_types';
 import {bigTraceSettingsService} from './bigtrace_settings_service';
 import {LocalStorage} from '../../core/local_storage';
 import {BIGTRACE_SETTINGS_STORAGE_KEY} from './settings_manager';
@@ -23,7 +29,13 @@ class SettingImpl<T> implements Setting<T> {
   public readonly id: string;
   public readonly name: string;
   public readonly description: string;
-  public readonly type: 'string' | 'number' | 'boolean' | 'enum' | 'multi-select' | 'string-array';
+  public readonly type:
+    | 'string'
+    | 'number'
+    | 'boolean'
+    | 'enum'
+    | 'multi-select'
+    | 'string-array';
   public readonly schema: z.ZodType<T>;
   public readonly defaultValue: T;
   public readonly category?: string;
@@ -171,8 +183,11 @@ class SettingsManagerImpl implements SettingsManager {
 
     try {
       const filters = this.buildSettingFilters();
-      this.lastLoadedMetadataFilters = JSON.stringify(filters.filter(f => f.category === 'TRACE_ADDRESS'));
-      const metadataSettings = await bigTraceSettingsService.getMetadataSettings(filters);
+      this.lastLoadedMetadataFilters = JSON.stringify(
+        filters.filter((f) => f.category === 'TRACE_ADDRESS'),
+      );
+      const metadataSettings =
+        await bigTraceSettingsService.getMetadataSettings(filters);
       for (const setting of metadataSettings) {
         this.register(setting);
       }
@@ -201,9 +216,12 @@ class SettingsManagerImpl implements SettingsManager {
 
     try {
       const filters = this.buildSettingFilters();
-      this.lastLoadedMetadataFilters = JSON.stringify(filters.filter(f => f.category === 'TRACE_ADDRESS'));
+      this.lastLoadedMetadataFilters = JSON.stringify(
+        filters.filter((f) => f.category === 'TRACE_ADDRESS'),
+      );
 
-      const metadataSettings = await bigTraceSettingsService.getMetadataSettings(filters);
+      const metadataSettings =
+        await bigTraceSettingsService.getMetadataSettings(filters);
       for (const setting of metadataSettings) {
         this.register(setting);
       }
@@ -229,9 +247,11 @@ class SettingsManagerImpl implements SettingsManager {
 
         if (setting.options && setting.options.length > 0) {
           const validOptionValues = new Set(
-            setting.options.map(opt => typeof opt === 'string' ? opt : String(opt.value))
+            setting.options.map((opt) =>
+              typeof opt === 'string' ? opt : String(opt.value),
+            ),
           );
-          values = values.filter(v => validOptionValues.has(v));
+          values = values.filter((v) => validOptionValues.has(v));
         }
 
         filters.push({
@@ -274,13 +294,21 @@ class SettingsManagerImpl implements SettingsManager {
   }
 
   isReloadRequired(): boolean {
-    if (!this.hasLoaded || this.lastLoadedMetadataFilters === null) return false;
-    const currentFilters = this.buildSettingFilters().filter(f => f.category === 'TRACE_ADDRESS');
+    if (!this.hasLoaded || this.lastLoadedMetadataFilters === null) {
+      return false;
+    }
+    const currentFilters = this.buildSettingFilters().filter(
+      (f) => f.category === 'TRACE_ADDRESS',
+    );
     return JSON.stringify(currentFilters) !== this.lastLoadedMetadataFilters;
   }
 }
 
 const SETTINGS_DISABLED_STATE_STORAGE_KEY = 'bigtraceSettingsDisabledState';
-const disabledStateStorage = new LocalStorage(SETTINGS_DISABLED_STATE_STORAGE_KEY);
+const disabledStateStorage = new LocalStorage(
+  SETTINGS_DISABLED_STATE_STORAGE_KEY,
+);
 
-export const bigTraceSettingsManager = new SettingsManagerImpl(new LocalStorage(BIGTRACE_SETTINGS_STORAGE_KEY));
+export const bigTraceSettingsManager = new SettingsManagerImpl(
+  new LocalStorage(BIGTRACE_SETTINGS_STORAGE_KEY),
+);

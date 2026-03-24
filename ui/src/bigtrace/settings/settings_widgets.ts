@@ -16,7 +16,11 @@ import m from 'mithril';
 import {Setting, EnumOption} from './settings_types';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
-import {PopupMultiSelect, MultiSelectDiff, MultiSelectOption} from '../../widgets/multiselect';
+import {
+  PopupMultiSelect,
+  MultiSelectDiff,
+  MultiSelectOption,
+} from '../../widgets/multiselect';
 import {Checkbox} from '../../widgets/checkbox';
 import {Editor} from '../../widgets/editor';
 
@@ -58,86 +62,90 @@ export function renderSetting(setting: Setting<unknown>): m.Children {
         },
       });
     case 'boolean':
-        return m(Checkbox, {
-            checked: Boolean(currentValue),
-            disabled,
-            onchange: (e: Event) => {
-                if (e.currentTarget instanceof HTMLLabelElement) {
-                    const input = e.currentTarget.querySelector('input');
-                    if (input) {
-                        setting.set(input.checked);
-                    }
-                }
-            },
-        });
+      return m(Checkbox, {
+        checked: Boolean(currentValue),
+        disabled,
+        onchange: (e: Event) => {
+          if (e.currentTarget instanceof HTMLLabelElement) {
+            const input = e.currentTarget.querySelector('input');
+            if (input) {
+              setting.set(input.checked);
+            }
+          }
+        },
+      });
     case 'enum':
       const options = setting.options || [];
       return m(
-          Select,
-          {
-            value: String(currentValue),
-            disabled,
-            onchange: (e: Event) => {
-              const target = e.target as HTMLSelectElement;
-              setting.set(target.value);
-            },
+        Select,
+        {
+          value: String(currentValue),
+          disabled,
+          onchange: (e: Event) => {
+            const target = e.target as HTMLSelectElement;
+            setting.set(target.value);
           },
-          options.map((option: string | EnumOption) => {
-            const value = typeof option === 'string' ? option : option.value;
-            const label = typeof option === 'string' ? option : option.label;
-            return m(
-                'option',
-                {
-                  value: value,
-                  selected: currentValue === value,
-                },
-                label,
-            );
-          }),
+        },
+        options.map((option: string | EnumOption) => {
+          const value = typeof option === 'string' ? option : option.value;
+          const label = typeof option === 'string' ? option : option.label;
+          return m(
+            'option',
+            {
+              value: value,
+              selected: currentValue === value,
+            },
+            label,
+          );
+        }),
       );
     case 'multi-select':
-        const multiSelectOptions: MultiSelectOption[] = (setting.options || []).map((option) => {
-            const value = typeof option === 'string' ? option : option.value;
-            const label = typeof option === 'string' ? option : option.label;
-            return {
-              id: value,
-              name: label,
-              checked: (currentValue as string[]).includes(value),
-            };
-        });
+      const multiSelectOptions: MultiSelectOption[] = (
+        setting.options || []
+      ).map((option) => {
+        const value = typeof option === 'string' ? option : option.value;
+        const label = typeof option === 'string' ? option : option.label;
+        return {
+          id: value,
+          name: label,
+          checked: (currentValue as string[]).includes(value),
+        };
+      });
 
-        const validSelectedCount = multiSelectOptions.filter(o => o.checked).length;
+      const validSelectedCount = multiSelectOptions.filter(
+        (o) => o.checked,
+      ).length;
 
-        return m(PopupMultiSelect, {
-            label: `${setting.name} (${validSelectedCount} selected)`,
-            options: multiSelectOptions,
-            onChange: (diffs: MultiSelectDiff[]) => {
-                const newValue = [...(currentValue as string[])];
-                for (const diff of diffs) {
-                if (diff.checked) {
-                    if (!newValue.includes(diff.id)) {
-                    newValue.push(diff.id);
-                    }
-                } else {
-                    const index = newValue.indexOf(diff.id);
-                    if (index > -1) {
-                    newValue.splice(index, 1);
-                    }
-                }
-                }
-                setting.set(newValue);
-            },
-        });
+      return m(PopupMultiSelect, {
+        label: `${setting.name} (${validSelectedCount} selected)`,
+        options: multiSelectOptions,
+        onChange: (diffs: MultiSelectDiff[]) => {
+          const newValue = [...(currentValue as string[])];
+          for (const diff of diffs) {
+            if (diff.checked) {
+              if (!newValue.includes(diff.id)) {
+                newValue.push(diff.id);
+              }
+            } else {
+              const index = newValue.indexOf(diff.id);
+              if (index > -1) {
+                newValue.splice(index, 1);
+              }
+            }
+          }
+          setting.set(newValue);
+        },
+      });
     case 'string-array':
-        return m('textarea', {
-            value: (currentValue as string[]).join(','),
-            placeholder: setting.placeholder || 'value1, value2, ...',
-            disabled,
-            oninput: (e: Event) => {
-                const target = e.target as HTMLTextAreaElement;
-                setting.set(target.value.split(',').map((s) => s.trim()));
-            },
-        });
+      return m('textarea', {
+        value: (currentValue as string[]).join(','),
+        placeholder: setting.placeholder || 'value1, value2, ...',
+        disabled,
+        oninput: (e: Event) => {
+          const target = e.target as HTMLTextAreaElement;
+          setting.set(target.value.split(',').map((s) => s.trim()));
+        },
+      });
     default:
       return `Unsupported setting type: ${setting.type}`;
   }
