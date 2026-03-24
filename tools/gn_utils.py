@@ -18,6 +18,7 @@
 from __future__ import print_function
 import collections
 from compat import iteritems
+from concurrent.futures import ThreadPoolExecutor
 import errno
 import filecmp
 import json
@@ -165,7 +166,6 @@ def create_build_descriptions(gn_args_list, root=repo_root()):
     entered). The caller must call .close() or use cleanup_build_descriptions()
     when done.
     """
-  from concurrent.futures import ThreadPoolExecutor
 
   def _create(gn_args):
     bd = BuildDescription(gn_args, root)
@@ -178,7 +178,6 @@ def create_build_descriptions(gn_args_list, root=repo_root()):
 
 def cleanup_build_descriptions(descs):
   """Cleans up a list of BuildDescription objects in parallel."""
-  from concurrent.futures import ThreadPoolExecutor
   with ThreadPoolExecutor() as pool:
     list(pool.map(lambda bd: bd.__exit__(None, None, None), descs))
 

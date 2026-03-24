@@ -15,7 +15,7 @@
 
 from __future__ import print_function
 import argparse
-import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
 import fnmatch
 import os
 import re
@@ -1027,7 +1027,7 @@ def main():
       (CheckUiRatchet, [changed_files]),
   ]
 
-  with concurrent.futures.ThreadPoolExecutor() as executor:
+  with ThreadPoolExecutor() as executor:
     futures = [
         executor.submit(RunAndReportIfLong, func, *check_args)
         for func, check_args in checks_to_run
