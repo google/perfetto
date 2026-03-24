@@ -117,6 +117,7 @@ using protos::pbzero::VulkanMemoryEvent;
 constexpr auto kRenderStageBlueprint = TrackCompressor::SliceBlueprint(
     "gpu_render_stage",
     tracks::DimensionBlueprints(
+        tracks::kGpuDimensionBlueprint,
         tracks::StringDimensionBlueprint("render_stage_source"),
         tracks::UintDimensionBlueprint("hwqueue_id"),
         tracks::StringIdDimensionBlueprint("hwqueue_name")),
@@ -376,6 +377,7 @@ StringId GpuEventParser::GetFullStageName(
 }
 
 void GpuEventParser::InsertTrackForUninternedRenderStage(
+    uint32_t gpu_id,
     uint32_t hw_queue_id,
     const GpuRenderStageEvent::Specifications::Description::Decoder& hw_queue) {
   if (!hw_queue.has_name()) {
@@ -407,7 +409,7 @@ void GpuEventParser::InsertTrackForUninternedRenderStage(
 
   auto factory = context_->track_compressor->CreateTrackFactory(
       kRenderStageBlueprint,
-      tracks::Dimensions("id", hw_queue_id, kNullStringId),
+      tracks::Dimensions(gpu_id, "id", hw_queue_id, kNullStringId),
       tracks::DynamicName(name),
       [&, this](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(description_id_, Variadic::String(description));
@@ -472,12 +474,14 @@ void GpuEventParser::ParseGpuRenderStageEvent(
   GpuRenderStageEvent::Decoder event(blob);
 
   int32_t pid = 0;
+  uint32_t gpu_id =
+      event.has_gpu_id() ? static_cast<uint32_t>(event.gpu_id()) : 0;
   if (event.has_specifications()) {
     GpuRenderStageEvent::Specifications::Decoder spec(event.specifications());
     uint32_t hw_queue_id = 0;
     for (auto it = spec.hw_queue(); it; ++it) {
       GpuRenderStageEvent::Specifications::Description::Decoder hw_queue(*it);
-      InsertTrackForUninternedRenderStage(hw_queue_id++, hw_queue);
+      InsertTrackForUninternedRenderStage(gpu_id, hw_queue_id++, hw_queue);
     }
     for (auto it = spec.stage(); it; ++it) {
       GpuRenderStageEvent::Specifications::Description::Decoder stage(*it);
@@ -570,7 +574,7 @@ void GpuEventParser::ParseGpuRenderStageEvent(
                                       : kNullStringId;
     TrackId track_id = context_->track_compressor->InternScoped(
         kRenderStageBlueprint,
-        tracks::Dimensions(base::StringView(source),
+        tracks::Dimensions(gpu_id, base::StringView(source),
                            static_cast<uint32_t>(hw_queue_id), dimension_name),
         ts, static_cast<int64_t>(event.duration()),
         tracks::DynamicName(track_name),

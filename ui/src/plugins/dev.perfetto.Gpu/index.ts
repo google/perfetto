@@ -17,7 +17,7 @@ import {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {getTrackName} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
-import {NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
@@ -61,8 +61,16 @@ export default class GpuPlugin implements PerfettoPlugin {
   ];
 
   private groups = new Map<string, TrackNode>();
+  private gpuCount = 0;
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    const gpuCountResult = await ctx.engine.query(`
+      select count(distinct extract_arg(dimension_arg_set_id, 'gpu')) as cnt
+      from track
+      where extract_arg(dimension_arg_set_id, 'gpu') is not null
+    `);
+    this.gpuCount = gpuCountResult.firstRow({cnt: NUM}).cnt;
+
     await this.addGpuFreq(ctx);
     await this.addCounters(ctx);
     await this.addSlices(ctx);
@@ -89,7 +97,7 @@ export default class GpuPlugin implements PerfettoPlugin {
     // Only create a sub-group if there's more than one track.
     let parent: TrackNode;
     if (tracks.length > 1) {
-      parent = this.getGroupByName(gpuGroup, 'GPU Frequency');
+      parent = this.getGroupByName(gpuGroup, 'GPU Frequency', null);
     } else {
       parent = gpuGroup;
     }
@@ -124,20 +132,33 @@ export default class GpuPlugin implements PerfettoPlugin {
   private addToGpuGroup(
     ctx: Trace,
     group: string | undefined,
+    gpuId: number | null,
     track: TrackNode,
   ) {
     const gpuGroup = this.getGpuGroup(ctx);
-    this.getGroupByName(gpuGroup, group).addChildInOrder(track);
+
+    if (gpuId !== null && group !== undefined && this.gpuCount > 1) {
+      const parentGroup = this.getGroupByName(gpuGroup, group, null);
+      const gpuSubGroup = this.getGroupByName(
+        parentGroup,
+        `GPU ${gpuId} ${group}`,
+        gpuId,
+      );
+      gpuSubGroup.addChildInOrder(track);
+    } else {
+      this.getGroupByName(gpuGroup, group, null).addChildInOrder(track);
+    }
   }
 
   private getGroupByName(
     node: TrackNode,
     group: string | undefined,
+    scopeId: number | null,
   ): TrackNode {
     if (group === undefined) {
       return node;
     }
-    const groupId = `gpu_group_${group.toLowerCase().replace(' ', '_')}`;
+    const groupId = `gpu_group_${scopeId}_${group.toLowerCase().replace(' ', '_')}`;
     const groupNode = this.groups.get(groupId);
     if (groupNode) {
       return groupNode;
@@ -164,6 +185,7 @@ export default class GpuPlugin implements PerfettoPlugin {
           ct.name,
           ct.id,
           ct.unit,
+          extract_arg(ct.dimension_arg_set_id, 'gpu') as gpu_id,
           extract_arg(ct.source_arg_set_id, 'description') as description
         from counter_track ct
         join _counter_track_summary using (id)
@@ -180,10 +202,11 @@ export default class GpuPlugin implements PerfettoPlugin {
       type: STR,
       name: STR_NULL,
       unit: STR_NULL,
+      gpu_id: NUM_NULL,
       description: STR_NULL,
     });
     for (; it.valid(); it.next()) {
-      const {type, id: trackId, name, unit, description} = it;
+      const {type, id: trackId, name, unit, gpu_id: gpuId, description} = it;
       const schema = schemas.get(type);
       if (schema === undefined) {
         continue;
@@ -213,6 +236,7 @@ export default class GpuPlugin implements PerfettoPlugin {
       this.addToGpuGroup(
         ctx,
         schema.group,
+        gpuId,
         new TrackNode({uri, name: trackName, sortOrder: 0}),
       );
     }
@@ -230,6 +254,7 @@ export default class GpuPlugin implements PerfettoPlugin {
             t.type,
             min(t.name) as name,
             lower(min(t.name)) as lower_name,
+            extract_arg(t.dimension_arg_set_id, 'gpu') as gpu_id,
             extract_arg(t.source_arg_set_id, 'description') as description,
             min(t.id) minTrackId,
             group_concat(t.id) as trackIds,
@@ -238,7 +263,8 @@ export default class GpuPlugin implements PerfettoPlugin {
           from _slice_track_summary s
           join track t using (id)
           where t.type in (${sliceTypes})
-          group by type, t.track_group_id, ifnull(t.track_group_id, t.id)
+          group by type, t.track_group_id, ifnull(t.track_group_id, t.id),
+            extract_arg(t.dimension_arg_set_id, 'gpu')
         )
         select * from grouped
         order by lower_name
@@ -253,12 +279,13 @@ export default class GpuPlugin implements PerfettoPlugin {
     const it = result.iter({
       type: STR,
       name: STR_NULL,
+      gpu_id: NUM_NULL,
       trackIds: STR,
       maxDepth: NUM,
       description: STR_NULL,
     });
     for (; it.valid(); it.next()) {
-      const {trackIds: rawTrackIds, type, name, maxDepth} = it;
+      const {trackIds: rawTrackIds, type, name, maxDepth, gpu_id: gpuId} = it;
       const schema = schemas.get(type);
       if (schema === undefined) {
         continue;
@@ -287,6 +314,7 @@ export default class GpuPlugin implements PerfettoPlugin {
       this.addToGpuGroup(
         ctx,
         schema.group,
+        gpuId,
         new TrackNode({uri, name: trackName, sortOrder: 0}),
       );
     }
