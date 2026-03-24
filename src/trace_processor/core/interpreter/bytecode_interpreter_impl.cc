@@ -19,7 +19,9 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <string_view>
 #include <unordered_set>
@@ -231,6 +233,340 @@ uint32_t* StringFilterRegexImpl(const StringPool* string_pool,
   }
   return ops::Filter(data, begin, end, output, regex.value(),
                      RegexComparator{string_pool});
+}
+
+void LimitOffsetIndices(InterpreterState& state,
+                        const struct LimitOffsetIndices& bytecode) {
+  using B = struct LimitOffsetIndices;
+  uint32_t offset_value = bytecode.arg<B::offset_value>();
+  uint32_t limit_value = bytecode.arg<B::limit_value>();
+  auto& span = state.ReadFromRegister(bytecode.arg<B::update_register>());
+
+  // Apply offset
+  auto original_size = static_cast<uint32_t>(span.size());
+  uint32_t actual_offset = std::min(offset_value, original_size);
+  span.b += actual_offset;
+
+  // Apply limit
+  auto size_after_offset = static_cast<uint32_t>(span.size());
+  uint32_t actual_limit = std::min(limit_value, size_after_offset);
+  span.e = span.b + actual_limit;
+}
+
+void CopySpanIntersectingRange(
+    InterpreterState& state,
+    const struct CopySpanIntersectingRange& bytecode) {
+  using B = struct CopySpanIntersectingRange;
+  const auto& source =
+      state.ReadFromRegister(bytecode.arg<B::source_register>());
+  const auto& source_range =
+      state.ReadFromRegister(bytecode.arg<B::source_range_register>());
+  auto& update = state.ReadFromRegister(bytecode.arg<B::update_register>());
+  PERFETTO_DCHECK(source.size() <= update.size());
+  uint32_t* write_ptr = update.b;
+  for (const uint32_t* it = source.b; it != source.e; ++it) {
+    *write_ptr = *it;
+    write_ptr += (*it >= source_range.b && *it < source_range.e);
+  }
+  update.e = write_ptr;
+}
+
+void InitRankMap(InterpreterState& state, const struct InitRankMap& bytecode) {
+  using B = struct InitRankMap;
+
+  StringIdToRankMap* rank_map =
+      state.MaybeReadFromRegister(bytecode.arg<B::dest_register>());
+  if (rank_map) {
+    rank_map->get()->Clear();
+  } else {
+    state.WriteToRegister(
+        bytecode.arg<B::dest_register>(),
+        std::make_unique<base::FlatHashMap<StringPool::Id, uint32_t>>());
+  }
+}
+
+void FinalizeRanksInMap(InterpreterState& state,
+                        const struct FinalizeRanksInMap& bytecode) {
+  using B = struct FinalizeRanksInMap;
+  StringIdToRankMap& rank_map_ptr =
+      state.ReadFromRegister(bytecode.arg<B::update_register>());
+  FinalizeRanksInMapImpl(state.string_pool, rank_map_ptr);
+}
+
+void Distinct(InterpreterState& state, const struct Distinct& bytecode) {
+  using B = struct Distinct;
+  auto& indices = state.ReadFromRegister(bytecode.arg<B::indices_register>());
+  if (indices.empty()) {
+    return;
+  }
+  const auto& buffer =
+      state.ReadFromRegister(bytecode.arg<B::buffer_register>());
+  uint32_t stride = bytecode.arg<B::total_row_stride>();
+  DistinctImpl(buffer, stride, indices);
+}
+
+void SortRowLayout(InterpreterState& state,
+                   const struct SortRowLayout& bytecode) {
+  using B = struct SortRowLayout;
+  auto& indices = state.ReadFromRegister(bytecode.arg<B::indices_register>());
+  // Single element is always sorted.
+  if (indices.size() <= 1) {
+    return;
+  }
+  const auto& buffer =
+      state.ReadFromRegister(bytecode.arg<B::buffer_register>());
+  uint32_t stride = bytecode.arg<B::total_row_stride>();
+  SortRowLayoutImpl(buffer, stride, indices);
+}
+
+void TranslateSparseNullIndices(
+    InterpreterState& state,
+    const struct TranslateSparseNullIndices& bytecode) {
+  using B = struct TranslateSparseNullIndices;
+  const BitVector* bv =
+      state.ReadFromRegister(bytecode.arg<B::null_bv_register>());
+
+  const auto& source =
+      state.ReadFromRegister(bytecode.arg<B::source_register>());
+  auto& update = state.ReadFromRegister(bytecode.arg<B::update_register>());
+  PERFETTO_DCHECK(source.size() <= update.size());
+
+  const Slab<uint32_t>& popcnt =
+      state.ReadFromRegister(bytecode.arg<B::popcount_register>());
+  uint32_t* out = update.b;
+  for (uint32_t* it = source.b; it != source.e; ++it, ++out) {
+    uint32_t s = *it;
+    *out = static_cast<uint32_t>(popcnt[s / 64] +
+                                 bv->count_set_bits_until_in_word(s));
+  }
+  update.e = out;
+}
+
+void AllocateRowLayoutBuffer(InterpreterState& state,
+                             const struct AllocateRowLayoutBuffer& bytecode) {
+  using B = struct AllocateRowLayoutBuffer;
+  uint32_t size = bytecode.arg<B::buffer_size>();
+  auto dest_reg = bytecode.arg<B::dest_buffer_register>();
+  // Return early if buffer already allocated.
+  if (state.MaybeReadFromRegister(dest_reg)) {
+    return;
+  }
+  state.WriteToRegister(dest_reg, Slab<uint8_t>::Alloc(size));
+}
+
+void CollectIdIntoRankMap(InterpreterState& state,
+                          const struct CollectIdIntoRankMap& bytecode) {
+  using B = struct CollectIdIntoRankMap;
+
+  StringIdToRankMap& rank_map_ptr =
+      state.ReadFromRegister(bytecode.arg<B::rank_map_register>());
+  PERFETTO_DCHECK(rank_map_ptr);
+  auto& rank_map = *rank_map_ptr;
+
+  const StringPool::Id* data = state.ReadStorageFromRegister<String>(
+      bytecode.arg<B::storage_register>());
+  const auto& source =
+      state.ReadFromRegister(bytecode.arg<B::source_register>());
+  for (const uint32_t* it = source.b; it != source.e; ++it) {
+    rank_map.Insert(data[*it], 0);
+  }
+}
+
+void StrideTranslateAndCopySparseNullIndices(
+    InterpreterState& state,
+    const struct StrideTranslateAndCopySparseNullIndices& bytecode) {
+  using B = struct StrideTranslateAndCopySparseNullIndices;
+  const BitVector* bv =
+      state.ReadFromRegister(bytecode.arg<B::null_bv_register>());
+
+  auto& update = state.ReadFromRegister(bytecode.arg<B::update_register>());
+  uint32_t stride = bytecode.arg<B::stride>();
+  uint32_t offset = bytecode.arg<B::offset>();
+  const Slab<uint32_t>& popcnt =
+      state.ReadFromRegister(bytecode.arg<B::popcount_register>());
+  for (uint32_t* it = update.b; it != update.e; it += stride) {
+    uint32_t index = *it;
+    if (bv->is_set(index)) {
+      it[offset] = static_cast<uint32_t>(
+          popcnt[index / 64] + bv->count_set_bits_until_in_word(index));
+    } else {
+      it[offset] = std::numeric_limits<uint32_t>::max();
+    }
+  }
+}
+
+void StrideCopyDenseNullIndices(
+    InterpreterState& state,
+    const struct StrideCopyDenseNullIndices& bytecode) {
+  using B = struct StrideCopyDenseNullIndices;
+  const BitVector* bv =
+      state.ReadFromRegister(bytecode.arg<B::null_bv_register>());
+
+  auto& update = state.ReadFromRegister(bytecode.arg<B::update_register>());
+  uint32_t stride = bytecode.arg<B::stride>();
+  uint32_t offset = bytecode.arg<B::offset>();
+  for (uint32_t* it = update.b; it != update.e; it += stride) {
+    it[offset] = bv->is_set(*it) ? *it : std::numeric_limits<uint32_t>::max();
+  }
+}
+
+namespace {
+
+// Helper: builds P2C CSR structure from TreeState's parent array.
+void BuildP2CFromTreeState(TreeState* ts) {
+  if (ts->p2c_valid) {
+    return;
+  }
+  uint32_t n = ts->row_count;
+
+  // Use scratch2 for child_counts.
+  uint32_t* child_counts = ts->scratch2.begin();
+  memset(child_counts, 0, n * sizeof(uint32_t));
+
+  uint32_t root_count = 0;
+  for (uint32_t i = 0; i < n; ++i) {
+    uint32_t parent = ts->parent[i];
+    if (parent == kNullParent) {
+      ++root_count;
+    } else {
+      ++child_counts[parent];
+    }
+  }
+
+  // Compute offsets (prefix sum).
+  ts->p2c_offsets[0] = 0;
+  for (uint32_t i = 0; i < n; ++i) {
+    ts->p2c_offsets[i + 1] = ts->p2c_offsets[i] + child_counts[i];
+  }
+
+  // Fill children and roots.
+  uint32_t root_idx = 0;
+  for (uint32_t i = 0; i < n; ++i) {
+    uint32_t parent = ts->parent[i];
+    if (parent == kNullParent) {
+      ts->p2c_roots[root_idx++] = i;
+    } else {
+      uint32_t pos = ts->p2c_offsets[parent + 1] - child_counts[parent];
+      ts->p2c_children[pos] = i;
+      --child_counts[parent];
+    }
+  }
+  ts->p2c_root_count = root_count;
+  ts->p2c_valid = true;
+}
+
+}  // namespace
+
+void FilterTreeState(InterpreterState& state,
+                     const struct FilterTreeState& bc) {
+  using B = struct FilterTreeState;
+
+  auto& ts = state.ReadFromRegister(bc.arg<B::tree_state_register>());
+  auto& indices = state.ReadFromRegister(bc.arg<B::indices_register>());
+  uint32_t n = ts->row_count;
+
+  if (n == 0 || indices.size() == n) {
+    return;
+  }
+
+  // Ensure P2C is valid.
+  BuildP2CFromTreeState(ts.get());
+
+  // Reuse pre-allocated keep_bv (avoids allocation per call).
+  ts->keep_bv.resize(n);
+  ts->keep_bv.ClearAllBits();
+  for (const uint32_t* it = indices.b; it != indices.e; ++it) {
+    ts->keep_bv.set(*it);
+  }
+  const auto& keep_bv = ts->keep_bv;
+
+  // BFS to compute surviving ancestors.
+  uint32_t* surviving_ancestor = ts->scratch1.begin();
+  uint32_t* queue = ts->scratch1.begin() + n;
+  uint32_t* old_to_new = ts->scratch2.begin();
+
+  memset(surviving_ancestor, 0xFF, n * sizeof(uint32_t));
+  memset(old_to_new, 0xFF, n * sizeof(uint32_t));
+
+  uint32_t queue_end = 0;
+  for (uint32_t i = 0; i < ts->p2c_root_count; ++i) {
+    uint32_t root = ts->p2c_roots[i];
+    if (keep_bv.is_set(root)) {
+      surviving_ancestor[root] = root;
+    }
+    queue[queue_end++] = root;
+  }
+
+  for (uint32_t qi = 0; qi < queue_end; ++qi) {
+    uint32_t node = queue[qi];
+    uint32_t node_ancestor = surviving_ancestor[node];
+    uint32_t cs = ts->p2c_offsets[node];
+    uint32_t ce = ts->p2c_offsets[node + 1];
+    for (uint32_t ci = cs; ci < ce; ++ci) {
+      uint32_t child = ts->p2c_children[ci];
+      surviving_ancestor[child] = keep_bv.is_set(child) ? child : node_ancestor;
+      queue[queue_end++] = child;
+    }
+  }
+
+  // Pass 1 (fused): build old_to_new + compact original_rows.
+  uint32_t new_count = 0;
+  for (uint32_t i = 0; i < n; ++i) {
+    if (!keep_bv.is_set(i)) {
+      continue;
+    }
+    uint32_t new_idx = new_count++;
+    old_to_new[i] = new_idx;
+    ts->original_rows[new_idx] = ts->original_rows[i];
+  }
+
+  if (new_count == 0) {
+    ts->row_count = 0;
+    ts->p2c_valid = false;
+    indices.e = indices.b;
+    return;
+  }
+
+  // Pass 2: parent reparenting (needs full old_to_new from pass 1).
+  for (uint32_t i = 0; i < n; ++i) {
+    if (!keep_bv.is_set(i)) {
+      continue;
+    }
+    uint32_t new_idx = old_to_new[i];
+    uint32_t old_parent = ts->parent[i];
+    uint32_t ancestor = (old_parent != kNullParent)
+                            ? surviving_ancestor[old_parent]
+                            : kNullParent;
+    ts->parent[new_idx] =
+        (ancestor != kNullParent) ? old_to_new[ancestor] : kNullParent;
+  }
+
+  // Compact each column in-place.
+  for (auto& col : ts->columns) {
+    auto es = static_cast<uint64_t>(col.elem_size);
+    uint8_t* data = col.data.begin();
+    for (uint32_t i = 0; i < n; ++i) {
+      if (!keep_bv.is_set(i)) {
+        continue;
+      }
+      uint32_t new_idx = old_to_new[i];
+      if (new_idx != i) {
+        memcpy(data + new_idx * es, data + i * es, col.elem_size);
+      }
+    }
+  }
+
+  // Compact null bitvectors.
+  for (auto& bv : ts->null_bitvectors) {
+    bv = std::move(bv).Compact(keep_bv);
+  }
+
+  ts->row_count = new_count;
+  ts->p2c_valid = false;
+
+  // Reset indices to [0..new_count-1] for subsequent operations.
+  std::iota(indices.b, indices.b + new_count, 0u);
+  indices.e = indices.b + new_count;
 }
 
 }  // namespace perfetto::trace_processor::core::interpreter::ops
