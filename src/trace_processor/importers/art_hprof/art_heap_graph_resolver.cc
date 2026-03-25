@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
+#include <algorithm>
 #include <deque>
+#include <string>
+#include <variant>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/art_hprof/art_heap_graph_builder.h"
@@ -69,33 +72,26 @@ HeapGraphResolver::HeapGraphResolver(
     base::FlatHashMap<uint64_t, Object>& objects,
     base::FlatHashMap<uint64_t, ClassDefinition>& classes,
     base::FlatHashMap<uint64_t, HprofHeapRootTag>& roots,
+    uint64_t string_class_id,
     DebugStats& stats)
     : context_(context),
       header_(header),
       objects_(objects),
       roots_(roots),
       classes_(classes),
-      stats_(stats) {}
+      stats_(stats),
+      string_class_id_(string_class_id) {}
 
 void HeapGraphResolver::ResolveGraph() {
   ExtractAllObjectData();
+  field_cache_.Clear();
+  DecodeJavaStrings();
   MarkReachableObjects();
   ComputeSelfSizes();
   CalculateNativeSizes();
 }
 
 void HeapGraphResolver::ExtractAllObjectData() {
-  // Identify classes whose instances need field extraction (for native size
-  // calculation and string decoding). All other instances only need references.
-  base::FlatHashMap<uint64_t, bool> needs_field_extraction;
-  for (auto it = classes_.GetIterator(); it; ++it) {
-    const auto& name = it.value().GetName();
-    if (name == "libcore.util.NativeAllocationRegistry" ||
-        name == kJavaLangString) {
-      needs_field_extraction[it.key()] = true;
-    }
-  }
-
   for (auto it = objects_.GetIterator(); it; ++it) {
     auto& obj = it.value();
     if (obj.GetObjectType() == ObjectType::kInstance ||
@@ -103,12 +99,16 @@ void HeapGraphResolver::ExtractAllObjectData() {
       auto cls = classes_.Find(obj.GetClassId());
       if (cls) {
         ExtractObjectReferences(obj, *cls);
-        if (needs_field_extraction.Find(obj.GetClassId())) {
-          ExtractFieldValues(obj, *cls);
-        }
+        ExtractFieldValues(obj, *cls);
+      }
+      // Collect string object IDs for DecodeJavaStrings().
+      if (string_class_id_ != 0 && obj.GetClassId() == string_class_id_) {
+        string_object_ids_.push_back(obj.GetId());
       }
     } else if (obj.GetObjectType() == ObjectType::kObjectArray) {
       ExtractArrayElementReferences(obj);
+    } else if (obj.GetObjectType() == ObjectType::kPrimitiveArray) {
+      ExtractPrimitiveArrayValues(obj);
     }
 
     uint64_t obj_id = obj.GetId();
@@ -338,6 +338,8 @@ void HeapGraphResolver::ExtractFieldValues(Object& obj,
 
     obj.AddField(std::move(field));
   }
+
+  obj.ClearRawData();
 }
 
 void HeapGraphResolver::ExtractPrimitiveArrayValues(Object& obj) {
@@ -451,7 +453,7 @@ std::optional<std::string> HeapGraphResolver::DecodeJavaString(
   int32_t count = count_opt.value_or(static_cast<int32_t>(array_len) - offset);
 
   if (offset < 0 || count < 0 ||
-      static_cast<size_t>(offset + count) > array_len)
+      static_cast<size_t>(offset) + static_cast<size_t>(count) > array_len)
     return std::nullopt;
 
   std::string result;
@@ -470,22 +472,36 @@ std::optional<std::string> HeapGraphResolver::DecodeJavaString(
     }
   };
 
-  const auto type = array->GetArrayElementType();
+  const auto& array_data = array->GetArrayDataVariant();
 
-  if (type == FieldType::kByte) {
-    const auto& bytes = array->GetArrayData<uint8_t>();
+  if (const auto* bytes = std::get_if<std::vector<uint8_t>>(&array_data)) {
     for (int32_t i = 0; i < count; ++i)
       result.push_back(
-          static_cast<char>(bytes[static_cast<size_t>(offset + i)]));
+          static_cast<char>((*bytes)[static_cast<size_t>(offset + i)]));
     return result;
-  } else if (type == FieldType::kChar) {
-    const auto& chars = array->GetArrayData<uint16_t>();
+  }
+  if (const auto* chars = std::get_if<std::vector<uint16_t>>(&array_data)) {
     for (int32_t i = 0; i < count; ++i)
-      append_utf8_from_utf16(chars[static_cast<size_t>(offset + i)]);
+      append_utf8_from_utf16((*chars)[static_cast<size_t>(offset + i)]);
     return result;
   }
 
   return std::nullopt;
+}
+
+void HeapGraphResolver::DecodeJavaStrings() {
+  if (string_class_id_ == 0)
+    return;
+
+  for (uint64_t obj_id : string_object_ids_) {
+    auto* obj = objects_.Find(obj_id);
+    if (!obj)
+      continue;
+    auto decoded = DecodeJavaString(*obj);
+    if (decoded) {
+      obj->SetDecodedString(std::move(*decoded));
+    }
+  }
 }
 
 const std::vector<Field>& HeapGraphResolver::GetClassHierarchyFields(
