@@ -38,6 +38,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -584,8 +585,10 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   }
 
   for (auto it = sys_stats.gpufreq_mhz(); it; ++it, ++c) {
+    auto ugpu = context_->gpu_tracker->GetOrCreateGpu(0);
     TrackId track = context_->track_tracker->InternTrack(
-        tracks::kGpuFrequencyBlueprint, tracks::Dimensions(0));
+        tracks::kGpuFrequencyBlueprint,
+        tracks::Dimensions(ugpu.value, uint32_t{0}));
     context_->event_tracker->PushCounter(ts, static_cast<double>(*it), track);
   }
 }
