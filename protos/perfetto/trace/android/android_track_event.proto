@@ -656,6 +656,22 @@ message AndroidProcessStateChangedEvent {
 
   // Bitmask of reasons for granting PROCESS_CAPABILITY_IMPLICIT_CPU_TIME.
   optional int32 implicit_cpu_time_reasons = 12;
+
+  // True if the process is currently in a frozen state.
+  optional bool is_frozen = 13;
+
+  // True if a request to freeze has been made, but the freeze is not yet
+  // complete.
+  optional bool is_pending_freeze = 14;
+
+  // True if the process should be frozen immediately
+  optional bool freeze_immediately = 15;
+
+  // True if the process was determined to be eligible for freezing by policy.
+  optional bool freeze_policy = 16;
+
+  // True if aggressive freezing mode is enabled.
+  optional bool aggressive_freezing = 17;
 }
 
 message AndroidTrackEvent {
