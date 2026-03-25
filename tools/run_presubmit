@@ -983,11 +983,31 @@ def main():
   # 1. Determine files to check.
   merge_base = args.merge_base
   if merge_base is None:
-    remote = 'origin'
+    # Build a list of candidate refs to find the merge-base.
+    candidates = []
     if not sys.stdin.isatty() and len(positional_args) > 1:
-      remote = positional_args[0]  # Get the remote fromt the git hook cmdline.
-    merge_base = subprocess.check_output(
-        ['git', 'merge-base', 'HEAD', remote + '/main'], text=True).strip()
+      hook_remote = positional_args[0]
+      # Only add the hook remote if it doesn't look like a URL.
+      if '://' not in hook_remote:
+        candidates.append(f'{hook_remote}/main')
+
+    for fallback in ['origin/main', 'goog/main']:
+      if fallback not in candidates:
+        candidates.append(fallback)
+
+    for ref in candidates:
+      res = subprocess.run(['git', 'merge-base', 'HEAD', ref],
+                           capture_output=True,
+                           text=True)
+      if res.returncode == 0:
+        merge_base = res.stdout.strip()
+        break
+
+  if merge_base is None:
+    print(
+        "Error: Could not determine merge-base. Please use --merge-base.",
+        file=sys.stderr)
+    sys.exit(1)
 
   changed_files = get_changed_files(merge_base)
 
