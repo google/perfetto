@@ -2477,6 +2477,10 @@ message FollowerEvent {
   // trace. Does *not* affect the profiling itself. If unset, the trace
   // parser will choose a suitable name.
   optional string name = 4;
+  oneof interval {
+    uint64 frequency = 6;
+    uint64 period = 7;
+  }
 }
 
 // End of protos/perfetto/common/perf_events.proto

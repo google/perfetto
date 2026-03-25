@@ -272,6 +272,12 @@ std::optional<EventReader> EventReader::ConfigureEvents(
       return std::nullopt;
     }
   }
+
+  // redirect the follower events to the leader's buffer.
+  for (size_t i = 0; i < follower_fds.size(); ++i) {
+    ioctl(follower_fds[i].get(), PERF_EVENT_IOC_SET_OUTPUT, timebase_fd.get());
+  }
+
   return EventReader(cpu, *event_cfg.perf_attr(), std::move(timebase_fd),
                      std::move(follower_fds), std::move(ring_buffer));
 }
