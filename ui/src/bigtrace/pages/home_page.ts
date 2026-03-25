@@ -107,6 +107,10 @@ export class HomePage implements m.ClassComponent<HomePageAttrs> {
           },
           m(
             Card,
+            {
+              interactive: true,
+              onclick: () => m.route.set('/settings'),
+            },
             m(
               'div',
               {
@@ -123,13 +127,15 @@ export class HomePage implements m.ClassComponent<HomePageAttrs> {
             m(
               'p',
               {style: {margin: 0, color: 'var(--pf-fg-secondary)'}},
-              'Define which traces you want to analyze in the ',
-              m('a', {onclick: () => m.route.set('/settings')}, 'Settings'),
-              ' page.',
+              'Define which traces you want to analyze in the Settings page.',
             ),
           ),
           m(
             Card,
+            {
+              interactive: true,
+              onclick: () => m.route.set('/query'),
+            },
             m(
               'div',
               {
@@ -151,6 +157,10 @@ export class HomePage implements m.ClassComponent<HomePageAttrs> {
           ),
           m(
             Card,
+            {
+              interactive: true,
+              onclick: () => m.route.set('/query'),
+            },
             m(
               'div',
               {
