@@ -18,7 +18,7 @@ import {
   SettingCategory,
   SettingFilter,
 } from './settings_types';
-import {endpointManager} from './endpoint_manager';
+import {endpointStorage} from './endpoint_storage';
 
 interface BackendSettingOption {
   value?: string;
@@ -125,7 +125,7 @@ class BigTraceSettingsService {
   }
 
   async getExecutionSettings(): Promise<SettingDescriptor<unknown>[]> {
-    const endpointSetting = endpointManager.get('bigtraceEndpoint');
+    const endpointSetting = endpointStorage.get('bigtraceEndpoint');
     const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
 
     this.execConfigAbortController?.abort();
@@ -180,7 +180,7 @@ class BigTraceSettingsService {
   async getMetadataSettings(
     filters: SettingFilter[],
   ): Promise<SettingDescriptor<unknown>[]> {
-    const endpointSetting = endpointManager.get('bigtraceEndpoint');
+    const endpointSetting = endpointStorage.get('bigtraceEndpoint');
     const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
 
     this.metadataAbortController?.abort();

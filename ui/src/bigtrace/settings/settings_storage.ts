@@ -26,7 +26,7 @@ export const BIGTRACE_SETTINGS_STORAGE_KEY = 'bigtraceSettings';
 export class SettingImpl<T> implements Setting<T> {
   public readonly requiresReload?: boolean;
   constructor(
-    private manager: LocalSettingsManager,
+    private storage: LocalSettingsStorage,
     public readonly id: string,
     public readonly name: string,
     public readonly description: string,
@@ -42,7 +42,7 @@ export class SettingImpl<T> implements Setting<T> {
   }
 
   get(): T {
-    const storedValue = this.manager.getStoredValue(this.id);
+    const storedValue = this.storage.getStoredValue(this.id);
     const parsed = this.schema.safeParse(storedValue);
     if (parsed.success) {
       return parsed.data;
@@ -51,12 +51,12 @@ export class SettingImpl<T> implements Setting<T> {
   }
 
   set(value: T): void {
-    this.manager.setStoredValue(this.id, value);
+    this.storage.setStoredValue(this.id, value);
     m.redraw();
   }
 
   reset(): void {
-    this.manager.setStoredValue(this.id, this.defaultValue);
+    this.storage.setStoredValue(this.id, this.defaultValue);
     m.redraw();
   }
 
@@ -65,7 +65,7 @@ export class SettingImpl<T> implements Setting<T> {
   }
 }
 
-export class LocalSettingsManager implements SettingsManager {
+export class LocalSettingsStorage implements SettingsManager {
   private settings = new Map<string, Setting<unknown>>();
   private initialValues = new Map<string, unknown>();
   private storage: LocalStorage;
@@ -126,11 +126,11 @@ export class LocalSettingsManager implements SettingsManager {
   }
 }
 
-export const settingsManager = new LocalSettingsManager(
+export const settingsStorage = new LocalSettingsStorage(
   new LocalStorage(BIGTRACE_SETTINGS_STORAGE_KEY),
 );
 
-settingsManager.register({
+settingsStorage.register({
   id: 'theme',
   name: 'UI Theme',
   description: 'Changes the color palette used throughout the UI.',

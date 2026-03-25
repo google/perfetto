@@ -16,7 +16,7 @@ import m from 'mithril';
 import {classNames} from '../../base/classnames';
 import {Button} from '../../widgets/button';
 import {Tooltip} from '../../widgets/tooltip';
-import {settingsManager} from '../settings/settings_manager';
+import {settingsStorage} from '../settings/settings_storage';
 
 class Omnibox implements m.ClassComponent {
   view() {
@@ -40,7 +40,7 @@ export interface TopbarAttrs {
 
 export class Topbar implements m.ClassComponent<TopbarAttrs> {
   view({attrs}: m.CVnode<TopbarAttrs>) {
-    const theme = settingsManager.get('theme');
+    const theme = settingsStorage.get('theme');
     const themeValue = theme ? theme.get() : 'light';
 
     return m(

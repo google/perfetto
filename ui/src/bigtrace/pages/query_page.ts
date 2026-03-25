@@ -34,8 +34,8 @@ import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {DataSource} from '../../components/widgets/datagrid/data_source';
 import {recentQueriesStorage} from '../query/recent_queries_storage';
 import {SettingFilter} from '../settings/settings_types';
-import {bigTraceSettingsManager} from '../settings/bigtrace_settings_manager';
-import {endpointManager} from '../settings/endpoint_manager';
+import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
+import {endpointStorage} from '../settings/endpoint_storage';
 import {Tabs} from '../../widgets/tabs';
 import {linkify} from '../../widgets/anchor';
 
@@ -196,10 +196,8 @@ interface QueryPageAttrs {
 }
 
 const DEFAULT_SQL = `SELECT
-  COUNT(*) as kswapd_count
-FROM slice
-WHERE name GLOB '*kswapd0*'
-LIMIT 100;`;
+  COUNT(*) as slice_count
+FROM slice;`;
 
 class QuerySessionState {
   sqlQuery = DEFAULT_SQL;
@@ -257,7 +255,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       this.sqlQuery = attrs.initialQuery;
     }
     if (this.useBrushBackend) {
-      bigTraceSettingsManager.loadSettings();
+      bigTraceSettingsStorage.loadSettings();
     }
   }
 
@@ -373,12 +371,12 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     m.redraw();
 
     if (this.useBrushBackend) {
-      const endpointSetting = endpointManager.get('bigtraceEndpoint');
+      const endpointSetting = endpointStorage.get('bigtraceEndpoint');
       const endpoint = endpointSetting ? (endpointSetting.get() as string) : '';
 
-      await bigTraceSettingsManager.loadSettings();
+      await bigTraceSettingsStorage.loadSettings();
 
-      const settings = bigTraceSettingsManager.buildSettingFilters();
+      const settings = bigTraceSettingsStorage.buildSettingFilters();
       sessionState.querySettings = settings;
 
       const httpDataSource = new HttpDataSource(

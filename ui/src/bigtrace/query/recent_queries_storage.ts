@@ -15,7 +15,7 @@
 import {z} from 'zod';
 
 import {LocalStorage} from '../../core/local_storage';
-import {BIGTRACE_SETTINGS_STORAGE_KEY} from '../settings/settings_manager';
+import {BIGTRACE_SETTINGS_STORAGE_KEY} from '../settings/settings_storage';
 
 const RECENT_QUERY_ENTRY_SCHEMA = z.object({
   query: z.string(),

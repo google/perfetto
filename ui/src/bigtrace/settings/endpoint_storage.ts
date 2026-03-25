@@ -15,15 +15,15 @@
 import {z} from 'zod';
 import {LocalStorage} from '../../core/local_storage';
 import {
-  LocalSettingsManager,
+  LocalSettingsStorage,
   BIGTRACE_SETTINGS_STORAGE_KEY,
-} from './settings_manager';
+} from './settings_storage';
 
-export const endpointManager = new LocalSettingsManager(
+export const endpointStorage = new LocalSettingsStorage(
   new LocalStorage(BIGTRACE_SETTINGS_STORAGE_KEY),
 );
 
-endpointManager.register({
+endpointStorage.register({
   id: 'bigtraceEndpoint',
   name: 'BigTrace Endpoint',
   description: 'The URL of the BigTrace backend service.',

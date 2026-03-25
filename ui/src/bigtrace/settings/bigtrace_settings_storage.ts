@@ -22,7 +22,7 @@ import {
 } from './settings_types';
 import {bigTraceSettingsService} from './bigtrace_settings_service';
 import {LocalStorage} from '../../core/local_storage';
-import {BIGTRACE_SETTINGS_STORAGE_KEY} from './settings_manager';
+import {BIGTRACE_SETTINGS_STORAGE_KEY} from './settings_storage';
 import m from 'mithril';
 
 class SettingImpl<T> implements Setting<T> {
@@ -46,7 +46,7 @@ class SettingImpl<T> implements Setting<T> {
   public readonly disabled: boolean;
 
   constructor(
-    private settingsManager: SettingsManagerImpl,
+    private settingsStorage: BigTraceSettingsStorageImpl,
     descriptor: SettingDescriptor<T>,
     private disabledStateStorage: LocalStorage,
   ) {
@@ -76,7 +76,7 @@ class SettingImpl<T> implements Setting<T> {
   }
 
   get(): T {
-    const storedValue = this.settingsManager.getStoredValue(this.id);
+    const storedValue = this.settingsStorage.getStoredValue(this.id);
     const parsed = this.schema.safeParse(storedValue);
     if (parsed.success) {
       return parsed.data;
@@ -85,12 +85,12 @@ class SettingImpl<T> implements Setting<T> {
   }
 
   set(value: T): void {
-    this.settingsManager.setStoredValue(this.id, value);
+    this.settingsStorage.setStoredValue(this.id, value);
     m.redraw();
   }
 
   reset(): void {
-    this.settingsManager.setStoredValue(this.id, this.defaultValue);
+    this.settingsStorage.setStoredValue(this.id, this.defaultValue);
     m.redraw();
   }
 
@@ -111,7 +111,7 @@ class SettingImpl<T> implements Setting<T> {
   }
 }
 
-export interface SettingsManager {
+export interface BigTraceSettingsStorage {
   register<T>(setting: SettingDescriptor<T>): Setting<T>;
   resetAll(): void;
   getAllSettings(): ReadonlyArray<Setting<unknown>>;
@@ -122,7 +122,7 @@ export interface SettingsManager {
   readonly loadError: string | undefined;
 }
 
-class SettingsManagerImpl implements SettingsManager {
+class BigTraceSettingsStorageImpl implements BigTraceSettingsStorage {
   private settings = new Map<string, Setting<unknown>>();
   private storage: LocalStorage;
   public isLoading = false; // Combined loading state
@@ -309,6 +309,6 @@ const disabledStateStorage = new LocalStorage(
   SETTINGS_DISABLED_STATE_STORAGE_KEY,
 );
 
-export const bigTraceSettingsManager = new SettingsManagerImpl(
+export const bigTraceSettingsStorage = new BigTraceSettingsStorageImpl(
   new LocalStorage(BIGTRACE_SETTINGS_STORAGE_KEY),
 );

@@ -20,12 +20,12 @@ import {SettingsShell} from '../../widgets/settings_shell';
 import {Switch} from '../../widgets/switch';
 import {Card, CardStack} from '../../widgets/card';
 import {classNames} from '../../base/classnames';
-import {bigTraceSettingsManager} from '../settings/bigtrace_settings_manager';
+import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {Setting as BigTraceSetting} from '../settings/settings_types';
 import {renderSetting} from '../settings/settings_widgets';
 import {Button, ButtonVariant} from '../../widgets/button';
 
-import {endpointManager} from '../settings/endpoint_manager';
+import {endpointStorage} from '../settings/endpoint_storage';
 import {Setting} from '../../public/settings';
 
 import {TextInput} from '../../widgets/text_input';
@@ -100,11 +100,11 @@ export class SettingsPage implements m.ClassComponent {
   private searchQuery = '';
 
   oninit() {
-    bigTraceSettingsManager.loadSettings();
+    bigTraceSettingsStorage.loadSettings();
   }
 
   view() {
-    const endpointSetting = endpointManager.get('bigtraceEndpoint');
+    const endpointSetting = endpointStorage.get('bigtraceEndpoint');
     const isEndpointMatch = !!(
       endpointSetting &&
       (endpointSetting.name
@@ -117,7 +117,7 @@ export class SettingsPage implements m.ClassComponent {
 
     const matchGeneral = isEndpointMatch;
 
-    const settings = bigTraceSettingsManager
+    const settings = bigTraceSettingsStorage
       .getAllSettings()
       .filter(
         (s) =>
@@ -175,7 +175,7 @@ export class SettingsPage implements m.ClassComponent {
                 placeholder: 'Search settings...',
               }),
             ]),
-            endpointManager.isReloadRequired() &&
+            endpointStorage.isReloadRequired() &&
               m(Button, {
                 label: 'Reload required',
                 icon: 'refresh',
@@ -206,7 +206,7 @@ export class SettingsPage implements m.ClassComponent {
             ]),
           ),
         (() => {
-          if (bigTraceSettingsManager.isExecConfigLoading) {
+          if (bigTraceSettingsStorage.isExecConfigLoading) {
             return m(EmptyState, {
               title: 'Loading settings...',
               icon: 'hourglass_empty',
@@ -214,7 +214,7 @@ export class SettingsPage implements m.ClassComponent {
             });
           }
 
-          if (bigTraceSettingsManager.execConfigLoadError) {
+          if (bigTraceSettingsStorage.execConfigLoadError) {
             return m(
               Callout,
               {
@@ -222,7 +222,7 @@ export class SettingsPage implements m.ClassComponent {
                 icon: 'error',
                 title: 'Failed to Load Execution Configuration',
               },
-              bigTraceSettingsManager.execConfigLoadError,
+              bigTraceSettingsStorage.execConfigLoadError,
             );
           }
 
@@ -238,15 +238,15 @@ export class SettingsPage implements m.ClassComponent {
                   {style: {display: 'flex', alignItems: 'center', gap: '16px'}},
                   [
                     m('span', category),
-                    bigTraceSettingsManager.isReloadRequired() &&
-                    !bigTraceSettingsManager.isMetadataLoading
+                    bigTraceSettingsStorage.isReloadRequired() &&
+                    !bigTraceSettingsStorage.isMetadataLoading
                       ? m(Button, {
                           label: 'Reload',
                           icon: 'refresh',
                           intent: Intent.Primary,
                           variant: ButtonVariant.Filled,
                           onclick: () =>
-                            bigTraceSettingsManager.reloadMetadataSettings(),
+                            bigTraceSettingsStorage.reloadMetadataSettings(),
                         })
                       : null,
                   ],
@@ -256,7 +256,7 @@ export class SettingsPage implements m.ClassComponent {
               let categoryContent;
               if (
                 category === 'Trace Metadata' &&
-                bigTraceSettingsManager.isMetadataLoading
+                bigTraceSettingsStorage.isMetadataLoading
               ) {
                 categoryContent = m(EmptyState, {
                   title: 'Loading metadata...',
@@ -264,7 +264,7 @@ export class SettingsPage implements m.ClassComponent {
                 });
               } else if (
                 category === 'Trace Metadata' &&
-                bigTraceSettingsManager.metadataLoadError
+                bigTraceSettingsStorage.metadataLoadError
               ) {
                 categoryContent = m(
                   Callout,
@@ -273,7 +273,7 @@ export class SettingsPage implements m.ClassComponent {
                     icon: 'error',
                     title: 'Failed to Load Trace Metadata',
                   },
-                  bigTraceSettingsManager.metadataLoadError,
+                  bigTraceSettingsStorage.metadataLoadError,
                 );
               } else {
                 categoryContent = m(

@@ -18,12 +18,12 @@ import m from 'mithril';
 import {defer} from '../base/deferred';
 import {reportError, addErrorHandler, ErrorDetails} from '../base/logging';
 import {initLiveReload} from '../core/live_reload';
-import {settingsManager} from './settings/settings_manager';
+import {settingsStorage} from './settings/settings_storage';
 import {ThemeProvider} from '../frontend/theme_provider';
 import {OverlayContainer} from '../widgets/overlay_container';
 import {QueryPage} from './pages/query_page';
 import {HomePage} from './pages/home_page';
-import {bigTraceSettingsManager} from './settings/bigtrace_settings_manager';
+import {bigTraceSettingsStorage} from './settings/bigtrace_settings_storage';
 import {queryState} from './query/query_state';
 import {SettingsPage} from './pages/settings_page';
 import {Topbar} from './layout/topbar';
@@ -54,7 +54,6 @@ function setupContentSecurityPolicy() {
       `'self'`,
       'https://autopush-brush-googleapis.corp.google.com',
       'https://brush-googleapis.corp.google.com',
-      'http://127.0.0.1:5001',
     ],
     'img-src': [`'self'`, 'data:', 'blob:'],
     'style-src': [
@@ -122,7 +121,7 @@ class BigTraceApp implements m.ClassComponent {
   private sidebarVisible = true;
 
   oninit() {
-    bigTraceSettingsManager.loadSettings();
+    bigTraceSettingsStorage.loadSettings();
   }
 
   view(vnode: m.Vnode) {
@@ -207,7 +206,7 @@ class BigTraceApp implements m.ClassComponent {
 
 const BigTraceLayout: m.Component = {
   view(vnode) {
-    const theme = settingsManager.get('theme');
+    const theme = settingsStorage.get('theme');
     const themeValue = theme ? theme.get() : 'light';
     return m(ThemeProvider, {theme: themeValue as 'dark' | 'light'}, [
       m(OverlayContainer, {fillHeight: true}, [m(BigTraceApp, vnode.children)]),
