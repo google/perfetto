@@ -395,7 +395,7 @@ base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
 
   // Populate propagate_down_specs (column indices map 1:1).
   for (const auto& pi : propagate_specs_) {
-    using PDS = TreeState::PropagateDownSpec;
+    using PDS = interpreter::TreeState::PropagateDownSpec;
     auto to_agg = [](PropagateAggOp op) -> PDS::AggOp {
       switch (op) {
         case PropagateAggOp::kSum:
