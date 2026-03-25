@@ -197,6 +197,8 @@ void CopyGlobalState(const TraceProcessorContext* source,
   dest->track_group_idx_state = source->track_group_idx_state.Fork();
   dest->register_additional_proto_modules =
       source->register_additional_proto_modules;
+  dest->perf_aux_tokenizer_registrations =
+      source->perf_aux_tokenizer_registrations;
 
   // Per-Trace State (Miscategorized).
   dest->registered_file_tracker = source->registered_file_tracker.Fork();

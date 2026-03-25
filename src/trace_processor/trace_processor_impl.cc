@@ -171,6 +171,8 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
 #include "src/trace_processor/importers/common/registered_file_tracker.h"
 #include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
+#include "src/trace_processor/importers/perf/perf_event.h"
+#include "src/trace_processor/importers/perf/perf_tracker.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.h"
 #endif
@@ -509,6 +511,14 @@ std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     : TraceProcessorStorageImpl(cfg), config_(cfg) {
   context()->register_additional_proto_modules = &RegisterAdditionalModules;
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
+  context()->perf_aux_tokenizer_registrations.push_back(
+      [](perf_importer::PerfTracker* pt) {
+        pt->RegisterAuxTokenizer(PERF_AUXTRACE_CS_ETM,
+                                 etm::CreateEtmV4StreamDemultiplexer);
+      });
+#endif
   context()->reader_registry->RegisterTraceReader<AndroidDumpstateReader>(
       kAndroidDumpstateTraceType);
   context()->reader_registry->RegisterTraceReader<AndroidLogReader>(
