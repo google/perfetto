@@ -353,13 +353,12 @@ inline PERFETTO_ALWAYS_INLINE void PrefixPopcount(
     InterpreterState& state,
     const struct PrefixPopcount& popcount) {
   using B = struct PrefixPopcount;
-  auto dest_register = popcount.arg<B::dest_register>();
-  if (state.MaybeReadFromRegister(dest_register)) {
+  NullBitvector& nbv =
+      state.ReadFromRegister(popcount.arg<B::null_bv_register>());
+  if (nbv.popcount.size() > 0) {
     return;
   }
-  const BitVector* null_bv =
-      state.ReadFromRegister(popcount.arg<B::null_bv_register>());
-  state.WriteToRegister(dest_register, null_bv->PrefixPopcount());
+  nbv.popcount = nbv.bv->PrefixPopcount();
 }
 
 void AllocateRowLayoutBuffer(InterpreterState& state,
@@ -397,11 +396,11 @@ template <typename NullOp>
 inline PERFETTO_ALWAYS_INLINE void NullFilter(InterpreterState& state,
                                               const NullFilterBase& filter) {
   using B = NullFilterBase;
-  const BitVector* null_bv =
+  const NullBitvector& nbv =
       state.ReadFromRegister(filter.arg<B::null_bv_register>());
   auto& update = state.ReadFromRegister(filter.arg<B::update_register>());
   static constexpr bool kInvert = std::is_same_v<NullOp, IsNull>;
-  update.e = null_bv->template PackLeft<kInvert>(update.b, update.e, update.b);
+  update.e = nbv.bv->template PackLeft<kInvert>(update.b, update.e, update.b);
 }
 
 // Handles conversion of strings or nulls to integer or double types for
@@ -998,24 +997,20 @@ inline PERFETTO_ALWAYS_INLINE void LinearFilterEq(
 
 template <typename N>
 inline PERFETTO_ALWAYS_INLINE uint32_t
-IndexToStorageIndex(uint32_t index,
-                    const BitVector* const* bv_ptr,
-                    const Slab<uint32_t>* popcnt) {
+IndexToStorageIndex(uint32_t index, const NullBitvector* nbv) {
   if constexpr (std::is_same_v<N, NonNull>) {
-    base::ignore_result(bv_ptr, popcnt);
+    base::ignore_result(nbv);
     return index;
   } else if constexpr (std::is_same_v<N, SparseNull>) {
-    const BitVector* bv = *bv_ptr;
-    if (!bv->is_set(index)) {
+    if (!nbv->bv->is_set(index)) {
       // Null values are always less than non-null values.
       return std::numeric_limits<uint32_t>::max();
     }
-    return static_cast<uint32_t>((*popcnt)[index / 64] +
-                                 bv->count_set_bits_until_in_word(index));
+    return static_cast<uint32_t>(nbv->popcount[index / 64] +
+                                 nbv->bv->count_set_bits_until_in_word(index));
   } else if constexpr (std::is_same_v<N, DenseNull>) {
-    const BitVector* bv = *bv_ptr;
-    base::ignore_result(popcnt);
-    return bv->is_set(index) ? index : std::numeric_limits<uint32_t>::max();
+    return nbv->bv->is_set(index) ? index
+                                  : std::numeric_limits<uint32_t>::max();
   } else {
     static_assert(std::is_same_v<N, NonNull>, "Unsupported type");
   }
@@ -1034,12 +1029,11 @@ inline PERFETTO_ALWAYS_INLINE std::pair<uint32_t*, uint32_t*> IndexEqualRange(
     uint32_t* end,
     const Resolved& target,
     const typename T::cpp_type* data,
-    const BitVector* const* null_bv,
-    const Slab<uint32_t>* popcnt,
+    const NullBitvector* nbv,
     const StringPool* string_pool) {
   auto* lb =
       std::lower_bound(begin, end, target, [&](uint32_t idx, const Resolved&) {
-        uint32_t si = IndexToStorageIndex<N>(idx, null_bv, popcnt);
+        uint32_t si = IndexToStorageIndex<N>(idx, nbv);
         if (si == std::numeric_limits<uint32_t>::max())
           return true;
         if constexpr (std::is_same_v<T, String>) {
@@ -1050,7 +1044,7 @@ inline PERFETTO_ALWAYS_INLINE std::pair<uint32_t*, uint32_t*> IndexEqualRange(
       });
   auto* ub =
       std::upper_bound(lb, end, target, [&](const Resolved&, uint32_t idx) {
-        uint32_t si = IndexToStorageIndex<N>(idx, null_bv, popcnt);
+        uint32_t si = IndexToStorageIndex<N>(idx, nbv);
         if (si == std::numeric_limits<uint32_t>::max())
           return false;
         if constexpr (std::is_same_v<T, String>) {
@@ -1080,13 +1074,11 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
   const auto& value = base::unchecked_get<M>(filter_value.value);
   const auto* data =
       state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
-  const Slab<uint32_t>* popcnt =
-      state.MaybeReadFromRegister(bytecode.arg<B::popcount_register>());
-  const BitVector* const* null_bv =
+  const NullBitvector* nbv =
       state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
 
   std::tie(dest.b, dest.e) = IndexEqualRange<T, N>(
-      source.b, source.e, value, data, null_bv, popcnt, state.string_pool);
+      source.b, source.e, value, data, nbv, state.string_pool);
   state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
 }
 
@@ -1397,9 +1389,7 @@ inline PERFETTO_ALWAYS_INLINE bool TryIndexedFilterInBinarySearch(
 
     const auto* data =
         state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
-    const Slab<uint32_t>* popcnt =
-        state.MaybeReadFromRegister(bytecode.arg<B::popcount_register>());
-    const BitVector* const* null_bv =
+    const NullBitvector* nbv =
         state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
     const StringPool* string_pool = state.string_pool;
 
@@ -1410,11 +1400,11 @@ inline PERFETTO_ALWAYS_INLINE bool TryIndexedFilterInBinarySearch(
       std::pair<uint32_t*, uint32_t*> range;
       if constexpr (std::is_same_v<T, String>) {
         auto target = string_pool->Get(cmp_val);
-        range = IndexEqualRange<T, N>(index->b, index->e, target, data, null_bv,
-                                      popcnt, string_pool);
+        range = IndexEqualRange<T, N>(index->b, index->e, target, data, nbv,
+                                      string_pool);
       } else {
-        range = IndexEqualRange<T, N>(index->b, index->e, cmp_val, data,
-                                      null_bv, popcnt, string_pool);
+        range = IndexEqualRange<T, N>(index->b, index->e, cmp_val, data, nbv,
+                                      string_pool);
       }
       auto n = static_cast<size_t>(range.second - range.first);
       memcpy(write, range.first, n * sizeof(uint32_t));
@@ -1476,9 +1466,7 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterInRangeScan(
       state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
   // |data| is unused for Id columns (the storage index IS the value).
   base::ignore_result(data);
-  const Slab<uint32_t>* popcnt =
-      state.MaybeReadFromRegister(bytecode.arg<B::popcount_register>());
-  const BitVector* const* null_bv =
+  const NullBitvector* nbv =
       state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
   const auto& hm = base::unchecked_get<HM>(cast_result.hash_map);
   const Range& range =
@@ -1486,7 +1474,7 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterInRangeScan(
 
   uint32_t* write = dest.b;
   for (uint32_t i = range.b; i < range.e; ++i) {
-    uint32_t si = IndexToStorageIndex<N>(i, null_bv, popcnt);
+    uint32_t si = IndexToStorageIndex<N>(i, nbv);
     if (si == std::numeric_limits<uint32_t>::max()) {
       continue;
     }
@@ -1616,15 +1604,13 @@ inline PERFETTO_ALWAYS_INLINE void CopyToRowLayout(
   uint8_t* dest = dest_buffer.data() + bytecode.arg<B::row_layout_offset>();
   uint32_t stride = bytecode.arg<B::row_layout_stride>();
 
-  const auto* popcount_slab = state.MaybeReadFromRegister<Slab<uint32_t>>(
-      bytecode.arg<B::popcount_register>());
   const auto* data =
       state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
 
   // GCC complains that these variables are not used in the NonNull branches.
   [[maybe_unused]] const StringIdToRankMap* rank_map_ptr =
       state.MaybeReadFromRegister(bytecode.arg<B::rank_map_register>());
-  [[maybe_unused]] const BitVector* const* null_bv_ptr =
+  [[maybe_unused]] const NullBitvector* nbv =
       state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
   for (uint32_t* ptr = source.b; ptr != source.e; ++ptr) {
     uint32_t table_index = *ptr;
@@ -1636,20 +1622,18 @@ inline PERFETTO_ALWAYS_INLINE void CopyToRowLayout(
       storage_index = table_index;
       offset = 0;
     } else if constexpr (std::is_same_v<Nullability, SparseNull>) {
-      PERFETTO_DCHECK(popcount_slab);
-      const BitVector* null_bv = *null_bv_ptr;
-      is_non_null = null_bv->is_set(table_index);
+      PERFETTO_DCHECK(nbv && nbv->popcount.size() > 0);
+      is_non_null = nbv->bv->is_set(table_index);
       storage_index = is_non_null
                           ? static_cast<uint32_t>(
-                                (*popcount_slab)[*ptr / 64] +
-                                null_bv->count_set_bits_until_in_word(*ptr))
+                                nbv->popcount[*ptr / 64] +
+                                nbv->bv->count_set_bits_until_in_word(*ptr))
                           : std::numeric_limits<uint32_t>::max();
       uint8_t res = is_non_null ? 0xFF : 0;
       *dest = invert ? ~res : res;
       offset = 1;
     } else if constexpr (std::is_same_v<Nullability, DenseNull>) {
-      const BitVector* null_bv = *null_bv_ptr;
-      is_non_null = null_bv->is_set(table_index);
+      is_non_null = nbv->bv->is_set(table_index);
       storage_index = table_index;
       uint8_t res = is_non_null ? 0xFF : 0;
       *dest = invert ? ~res : res;

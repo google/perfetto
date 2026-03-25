@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/common/tree_types.h"
 #include "src/trace_processor/core/common/value_fetcher.h"
@@ -45,7 +46,10 @@
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
 #include "src/trace_processor/core/tree/propagate_spec.h"
 #include "src/trace_processor/core/tree/tree_columns.h"
+#include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
+#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::tree {
 namespace {
@@ -178,7 +182,7 @@ base::Status TreeTransformer::FilterTree(
       spec.value_index = filter_value_count_++;
       filter_values_.push_back(values[si]);
       if (null_bv) {
-        auto reg = builder_->AllocateRegister<const BitVector*>();
+        auto reg = builder_->AllocateRegister<i::NullBitvector>();
         using B = i::NullFilterBase;
         auto& bc = builder_->AddOpcode<B>(i::Index<i::NullFilter>(*null_op));
         bc.arg<B::null_bv_register>() = reg;
@@ -208,7 +212,7 @@ base::Status TreeTransformer::FilterTree(
 
     // Prune null indices if column has nulls.
     if (null_bv) {
-      auto reg = builder_->AllocateRegister<const BitVector*>();
+      auto reg = builder_->AllocateRegister<i::NullBitvector>();
       using B = i::NullFilter<IsNotNull>;
       auto& bc = builder_->AddOpcode<B>(i::Index<B>());
       bc.arg<B::null_bv_register>() = reg;
@@ -329,8 +333,6 @@ base::Status TreeTransformer::PropagateDown(std::vector<PropagateSpec> specs) {
 }
 
 base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
-  using TreeState = i::TreeState;
-
   uint32_t n = cols_.row_count;
 
   // No-op case: build output directly from owned data.
@@ -338,7 +340,9 @@ base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
     auto tree_builder = dataframe::AdhocDataframeBuilder(
         {"_tree_id", "_tree_parent_id"}, pool_,
         dataframe::AdhocDataframeBuilder::Options{
-            {}, dataframe::NullabilityType::kDenseNull});
+            {},
+            dataframe::NullabilityType::kDenseNull,
+        });
     for (uint32_t i = 0; i < n; ++i) {
       tree_builder.PushNonNull(0, i);
       if (cols_.parent[i] == kNullParent) {
@@ -352,7 +356,9 @@ base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
     auto data_builder = dataframe::AdhocDataframeBuilder(
         cols_.names, pool_,
         dataframe::AdhocDataframeBuilder::Options{
-            {}, dataframe::NullabilityType::kDenseNull});
+            {},
+            dataframe::NullabilityType::kDenseNull,
+        });
     for (uint32_t ci = 0; ci < cols_.columns.size(); ++ci) {
       const auto& col = cols_.columns[ci];
       bool has_null = col.null_bv.size() > 0;
@@ -370,7 +376,7 @@ base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
   }
 
   // Build TreeState by moving owned data into it.
-  auto ts = std::make_unique<TreeState>();
+  auto ts = std::make_unique<i::TreeState>();
   ts->row_count = n;
   ts->parent = std::move(cols_.parent);
 
@@ -378,7 +384,7 @@ base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
   std::iota(ts->original_rows.begin(), ts->original_rows.begin() + n, 0u);
 
   for (auto& col : cols_.columns) {
-    TreeState::ColumnStorage cs;
+    i::TreeState::ColumnStorage cs;
     cs.data = std::move(col.data);
     cs.elem_size = col.elem_size;
     ts->columns.push_back(std::move(cs));
@@ -425,25 +431,27 @@ base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
   i::Interpreter<TreeValueFetcher> interp;
   interp.Initialize(builder_->bytecode(), builder_->register_count(), pool_);
   interp.SetRegisterValue(
-      i::WriteHandle<std::unique_ptr<TreeState>>(tree_state_reg_index_),
+      i::WriteHandle<std::unique_ptr<i::TreeState>>(tree_state_reg_index_),
       std::move(ts));
 
   const auto* ts_ptr = interp.GetRegisterValue(
-      i::ReadHandle<std::unique_ptr<TreeState>>(tree_state_reg_index_));
+      i::ReadHandle<std::unique_ptr<i::TreeState>>(tree_state_reg_index_));
   PERFETTO_CHECK(ts_ptr && *ts_ptr);
   const auto& ts_ref = **ts_ptr;
 
   for (const auto& ri : reg_inits_) {
     switch (ri.kind) {
       case RegInit::kStorage:
-        interp.SetRegisterValue(
-            i::WriteHandle<i::StoragePtr>(ri.reg),
-            i::StoragePtr{ts_ref.columns[ri.col].data.begin(),
-                          cols_.columns[ri.col].type});
+        interp.SetRegisterValue(i::WriteHandle<i::StoragePtr>(ri.reg),
+                                i::StoragePtr{
+                                    ts_ref.columns[ri.col].data.begin(),
+                                    cols_.columns[ri.col].type,
+                                });
         break;
       case RegInit::kNullBv:
-        interp.SetRegisterValue(i::WriteHandle<const BitVector*>(ri.reg),
-                                &ts_ref.null_bitvectors[ri.col]);
+        interp.SetRegisterValue(
+            i::WriteHandle<i::NullBitvector>(ri.reg),
+            i::NullBitvector{&ts_ref.null_bitvectors[ri.col], {}});
         break;
     }
   }
@@ -458,7 +466,9 @@ base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
   auto tree_builder = dataframe::AdhocDataframeBuilder(
       {"_tree_id", "_tree_parent_id"}, pool_,
       dataframe::AdhocDataframeBuilder::Options{
-          {}, dataframe::NullabilityType::kDenseNull});
+          {},
+          dataframe::NullabilityType::kDenseNull,
+      });
   for (uint32_t i = 0; i < final_count; ++i) {
     tree_builder.PushNonNull(0, i);
     if (final_ts.parent[i] == kNullParent) {
@@ -472,7 +482,9 @@ base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
   auto data_builder = dataframe::AdhocDataframeBuilder(
       cols_.names, pool_,
       dataframe::AdhocDataframeBuilder::Options{
-          {}, dataframe::NullabilityType::kDenseNull});
+          {},
+          dataframe::NullabilityType::kDenseNull,
+      });
   for (uint32_t ci = 0; ci < cols_.names.size(); ++ci) {
     const auto& ts_col = final_ts.columns[ci];
     const auto& bv = final_ts.null_bitvectors[ci];

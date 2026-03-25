@@ -323,7 +323,7 @@ void TranslateSparseNullIndices(
     InterpreterState& state,
     const struct TranslateSparseNullIndices& bytecode) {
   using B = struct TranslateSparseNullIndices;
-  const BitVector* bv =
+  const NullBitvector& nbv =
       state.ReadFromRegister(bytecode.arg<B::null_bv_register>());
 
   const auto& source =
@@ -331,13 +331,11 @@ void TranslateSparseNullIndices(
   auto& update = state.ReadFromRegister(bytecode.arg<B::update_register>());
   PERFETTO_DCHECK(source.size() <= update.size());
 
-  const Slab<uint32_t>& popcnt =
-      state.ReadFromRegister(bytecode.arg<B::popcount_register>());
   uint32_t* out = update.b;
   for (uint32_t* it = source.b; it != source.e; ++it, ++out) {
     uint32_t s = *it;
-    *out = static_cast<uint32_t>(popcnt[s / 64] +
-                                 bv->count_set_bits_until_in_word(s));
+    *out = static_cast<uint32_t>(nbv.popcount[s / 64] +
+                                 nbv.bv->count_set_bits_until_in_word(s));
   }
   update.e = out;
 }
@@ -376,19 +374,18 @@ void StrideTranslateAndCopySparseNullIndices(
     InterpreterState& state,
     const struct StrideTranslateAndCopySparseNullIndices& bytecode) {
   using B = struct StrideTranslateAndCopySparseNullIndices;
-  const BitVector* bv =
+  const NullBitvector& nbv =
       state.ReadFromRegister(bytecode.arg<B::null_bv_register>());
 
   auto& update = state.ReadFromRegister(bytecode.arg<B::update_register>());
   uint32_t stride = bytecode.arg<B::stride>();
   uint32_t offset = bytecode.arg<B::offset>();
-  const Slab<uint32_t>& popcnt =
-      state.ReadFromRegister(bytecode.arg<B::popcount_register>());
   for (uint32_t* it = update.b; it != update.e; it += stride) {
     uint32_t index = *it;
-    if (bv->is_set(index)) {
-      it[offset] = static_cast<uint32_t>(
-          popcnt[index / 64] + bv->count_set_bits_until_in_word(index));
+    if (nbv.bv->is_set(index)) {
+      it[offset] =
+          static_cast<uint32_t>(nbv.popcount[index / 64] +
+                                nbv.bv->count_set_bits_until_in_word(index));
     } else {
       it[offset] = std::numeric_limits<uint32_t>::max();
     }
@@ -399,14 +396,15 @@ void StrideCopyDenseNullIndices(
     InterpreterState& state,
     const struct StrideCopyDenseNullIndices& bytecode) {
   using B = struct StrideCopyDenseNullIndices;
-  const BitVector* bv =
+  const NullBitvector& nbv =
       state.ReadFromRegister(bytecode.arg<B::null_bv_register>());
 
   auto& update = state.ReadFromRegister(bytecode.arg<B::update_register>());
   uint32_t stride = bytecode.arg<B::stride>();
   uint32_t offset = bytecode.arg<B::offset>();
   for (uint32_t* it = update.b; it != update.e; it += stride) {
-    it[offset] = bv->is_set(*it) ? *it : std::numeric_limits<uint32_t>::max();
+    it[offset] =
+        nbv.bv->is_set(*it) ? *it : std::numeric_limits<uint32_t>::max();
   }
 }
 
