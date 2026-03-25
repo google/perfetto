@@ -17,12 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_TREE_TREE_COLUMNS_BUILDER_H_
 #define SRC_TRACE_PROCESSOR_CORE_TREE_TREE_COLUMNS_BUILDER_H_
 
-#include <cstdint>
 #include <string>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
 #include "src/trace_processor/core/tree/tree_columns.h"
 

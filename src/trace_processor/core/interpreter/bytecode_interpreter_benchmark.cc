@@ -60,23 +60,20 @@ void BM_BytecodeInterpreter_LinearFilterEqUint32(benchmark::State& state) {
   // R2: Span<uint32_t> (output indices)
   // R3: Slab<uint32_t> (backing storage for output)
   // R4: StoragePtr (column data pointer)
-  // R5: Slab<uint32_t> (dummy popcount for NonNull)
   std::string bytecode_str = R"(
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(0), op=NonNullOp(0)]
     InitRange: [size=1048576, dest_register=Register(1)]
     AllocateIndices: [size=1048576, dest_slab_register=Register(3), dest_span_register=Register(2)]
-    LinearFilterEq<Uint32>: [storage_register=Register(4), filter_value_reg=Register(0), popcount_register=Register(5), source_register=Register(1), update_register=Register(2)]
+    LinearFilterEq<Uint32>: [storage_register=Register(4), filter_value_reg=Register(0), source_register=Register(1), update_register=Register(2)]
   )";
 
   StringPool spool;
   Interpreter<Fetcher> interpreter;
-  interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 6, &spool);
+  interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
 
   // Set up storage pointer in register
   StoragePtr storage_ptr{col.storage.unchecked_data<Uint32>(), Uint32{}};
   interpreter.SetRegisterValue(WriteHandle<StoragePtr>(4), storage_ptr);
-  interpreter.SetRegisterValue(WriteHandle<Slab<uint32_t>>(5),
-                               Slab<uint32_t>::Alloc(0));
 
   Fetcher fetcher;
   fetcher.value.push_back(int64_t(123));
@@ -113,22 +110,19 @@ void BM_BytecodeInterpreter_LinearFilterEqString(benchmark::State& state) {
   // R2: Span<uint32_t> (output indices)
   // R3: Slab<uint32_t> (backing storage for output)
   // R4: StoragePtr (column data pointer)
-  // R5: Slab<uint32_t> (dummy popcount for NonNull)
   std::string bytecode_str = R"(
     CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(0), op=NonNullOp(0)]
     InitRange: [size=1048576, dest_register=Register(1)]
     AllocateIndices: [size=1048576, dest_slab_register=Register(3), dest_span_register=Register(2)]
-    LinearFilterEq<String>: [storage_register=Register(4), filter_value_reg=Register(0), popcount_register=Register(5), source_register=Register(1), update_register=Register(2)]
+    LinearFilterEq<String>: [storage_register=Register(4), filter_value_reg=Register(0), source_register=Register(1), update_register=Register(2)]
   )";
 
   Interpreter<Fetcher> interpreter;
-  interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 6, &spool);
+  interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
 
   // Set up storage pointer in register
   StoragePtr storage_ptr{col.storage.unchecked_data<String>(), String{}};
   interpreter.SetRegisterValue(WriteHandle<StoragePtr>(4), storage_ptr);
-  interpreter.SetRegisterValue(WriteHandle<Slab<uint32_t>>(5),
-                               Slab<uint32_t>::Alloc(0));
 
   Fetcher fetcher;
   fetcher.value.push_back("string_123");
@@ -166,7 +160,7 @@ void BM_BytecodeInterpreter_InUint32(benchmark::State& state) {
     InitRange: [size=1048576, dest_register=Register(1)]
     AllocateIndices: [size=1048576, dest_slab_register=Register(3), dest_span_register=Register(2)]
     Iota: [source_register=Register(1), update_register=Register(2)]
-    FilterIn<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(4294967295), value_list_register=Register(0), popcount_register=Register(4294967295), index_register=Register(4294967295), source_range_register=Register(4294967295), source_register=Register(2), dest_register=Register(2)]
+    FilterIn<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(4294967295), value_list_register=Register(0), index_register=Register(4294967295), source_range_register=Register(4294967295), source_register=Register(2), dest_register=Register(2)]
   )";
 
   StringPool spool;
@@ -209,7 +203,7 @@ void BM_BytecodeInterpreter_InId(benchmark::State& state) {
     InitRange: [size=1048576, dest_register=Register(1)]
     AllocateIndices: [size=1048576, dest_slab_register=Register(3), dest_span_register=Register(2)]
     Iota: [source_register=Register(1), update_register=Register(2)]
-    FilterIn<Id, NonNull>: [storage_register=Register(4), null_bv_register=Register(4294967295), value_list_register=Register(0), popcount_register=Register(4294967295), index_register=Register(4294967295), source_range_register=Register(4294967295), source_register=Register(2), dest_register=Register(2)]
+    FilterIn<Id, NonNull>: [storage_register=Register(4), null_bv_register=Register(4294967295), value_list_register=Register(0), index_register=Register(4294967295), source_range_register=Register(4294967295), source_register=Register(2), dest_register=Register(2)]
   )";
 
   StringPool spool;
@@ -316,7 +310,7 @@ void BM_FilterIn_IndexedBinarySearch(benchmark::State& state) {
     AllocateIndices: [size=)" +
       std::to_string(n) +
       R"(, dest_slab_register=Register(1), dest_span_register=Register(2)]
-    FilterIn<Uint32, NonNull>: [storage_register=Register(3), null_bv_register=Register(4294967295), value_list_register=Register(0), popcount_register=Register(4294967295), index_register=Register(4), source_range_register=Register(4294967295), source_register=Register(4294967295), dest_register=Register(2)]
+    FilterIn<Uint32, NonNull>: [storage_register=Register(3), null_bv_register=Register(4294967295), value_list_register=Register(0), index_register=Register(4), source_range_register=Register(4294967295), source_register=Register(4294967295), dest_register=Register(2)]
   )";
 
   StringPool spool;
@@ -365,7 +359,7 @@ void BM_FilterIn_IndexedLinearScan(benchmark::State& state) {
       std::to_string(n) +
       R"(, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(4), update_register=Register(2)]
-    FilterIn<Uint32, NonNull>: [storage_register=Register(3), null_bv_register=Register(4294967295), value_list_register=Register(0), popcount_register=Register(4294967295), index_register=Register(4294967295), source_range_register=Register(4294967295), source_register=Register(2), dest_register=Register(2)]
+    FilterIn<Uint32, NonNull>: [storage_register=Register(3), null_bv_register=Register(4294967295), value_list_register=Register(0), index_register=Register(4294967295), source_range_register=Register(4294967295), source_register=Register(2), dest_register=Register(2)]
   )";
 
   StringPool spool;
@@ -414,7 +408,7 @@ static void BM_BytecodeInterpreter_SortUint32(benchmark::State& state) {
     AllocateIndices: [size=1048576, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
     AllocateRowLayoutBuffer: [buffer_size=4194304, dest_buffer_register=Register(3)]
-    CopyToRowLayout<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(4294967295), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<Uint32, NonNull>: [storage_register=Register(4), null_bv_register=Register(4294967295), source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=0, rank_map_register=Register(4294967295)]
     SortRowLayout: [buffer_register=Register(3), total_row_stride=4, indices_register=Register(2)]
   )";
 
@@ -469,7 +463,7 @@ static void BM_BytecodeInterpreter_SortString(benchmark::State& state) {
     CollectIdIntoRankMap: [storage_register=Register(5), source_register=Register(2), rank_map_register=Register(3)]
     FinalizeRanksInMap: [update_register=Register(3)]
     AllocateRowLayoutBuffer: [buffer_size=4194304, dest_buffer_register=Register(4)]
-    CopyToRowLayout<String, NonNull>: [storage_register=Register(5), null_bv_register=Register(4294967295), source_indices_register=Register(2), dest_buffer_register=Register(4), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=1, popcount_register=Register(4294967295), rank_map_register=Register(3)]
+    CopyToRowLayout<String, NonNull>: [storage_register=Register(5), null_bv_register=Register(4294967295), source_indices_register=Register(2), dest_buffer_register=Register(4), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=1, rank_map_register=Register(3)]
     SortRowLayout: [buffer_register=Register(4), total_row_stride=4, indices_register=Register(2)]
   )";
 

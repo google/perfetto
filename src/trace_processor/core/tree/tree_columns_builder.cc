@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -28,9 +29,11 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/common/tree_types.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/core/tree/tree_columns.h"
+#include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/slab.h"
 
 namespace perfetto::trace_processor::core::tree {
@@ -154,7 +157,6 @@ base::StatusOr<TreeColumns> TreeColumnsBuilder::Build() && {
     result.names.push_back(std::move(rc.name));
     result.columns.push_back(ConvertRawColumn(rc, row_count));
   }
-
   return std::move(result);
 }
 
