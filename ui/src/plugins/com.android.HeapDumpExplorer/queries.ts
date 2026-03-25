@@ -506,7 +506,7 @@ async function fetchFieldValues(
     for (
       const rit = rRes.iter({
         fname: STR,
-        ftype: STR,
+        ftype: STR_NULL,
         owned_id: NUM_NULL,
         ref_cls: STR_NULL,
         ref_deob: STR_NULL,
@@ -522,14 +522,14 @@ async function fetchFieldValues(
       if (rit.owned_id === null || rit.owned_id === 0) {
         fields.push({
           name: rit.fname,
-          typeName: rit.ftype,
+          typeName: rit.ftype ?? '',
           value: {kind: 'prim', v: 'null'},
         });
       } else {
         const refCls = className(rit.ref_cls, rit.ref_deob);
         fields.push({
           name: rit.fname,
-          typeName: rit.ftype,
+          typeName: rit.ftype ?? '',
           value: {
             kind: 'ref',
             id: rit.owned_id,

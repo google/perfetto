@@ -183,7 +183,7 @@ function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs> {
       const {pathHashes, isDominator, engine} = vnode.attrs;
       lastPathHashes = pathHashes;
       if (pathHashes) {
-        initDataSource(engine, pathHashes, isDominator ?? true);
+        initDataSource(engine, pathHashes, isDominator ?? false);
       }
     },
     onupdate(vnode) {
@@ -191,7 +191,7 @@ function FlamegraphObjectsView(): m.Component<FlamegraphObjectsViewAttrs> {
         const {pathHashes, isDominator, engine} = vnode.attrs;
         lastPathHashes = pathHashes;
         if (pathHashes) {
-          initDataSource(engine, pathHashes, isDominator ?? true);
+          initDataSource(engine, pathHashes, isDominator ?? false);
         } else {
           dataSource = null;
         }
