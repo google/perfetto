@@ -597,6 +597,10 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
       // should have been replaced.
       PERFETTO_DCHECK(all_placeholders_replaced);
 
+      if (use_shmem_emulation_) {
+        req.reset(new CommitDataRequest());
+      }
+
       uint32_t current_req_bytes = 0;
 
       // In order to allow patching in the producer we delay the kChunkComplete
@@ -619,8 +623,6 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
         }
 
         if (use_shmem_emulation_) {
-          if (!req)
-            req.reset(new CommitDataRequest());
           // When running in the emulation mode:
           // 1. serialize the chunk data to |ctm| as we won't modify the chunk
           // anymore.
