@@ -28,6 +28,6 @@ endpointStorage.register({
   name: 'BigTrace Endpoint',
   description: 'The URL of the BigTrace backend service.',
   schema: z.string(),
-  defaultValue: 'https://autopush-brush-googleapis.corp.google.com/v1',
+  defaultValue: 'https://brush-googleapis.corp.google.com/v1',
   requiresReload: true,
 });
