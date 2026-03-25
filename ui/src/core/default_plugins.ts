@@ -56,12 +56,8 @@ export const defaultPlugins = [
   'dev.perfetto.DeeplinkQuerystring',
   'dev.perfetto.EntityStateResidency',
   'dev.perfetto.ExampleTraces',
-<<<<<<< HEAD
-  'dev.perfetto.ExplorePage',
   'dev.perfetto.ExtensionServers',
-=======
   'dev.perfetto.DataExplorer',
->>>>>>> origin/main
   'dev.perfetto.FlagsPage',
   'dev.perfetto.FlowEventsPanel',
   'dev.perfetto.Frames',
