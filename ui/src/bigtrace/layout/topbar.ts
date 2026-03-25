@@ -14,21 +14,48 @@
 
 import m from 'mithril';
 import {classNames} from '../../base/classnames';
-import {Button} from '../../widgets/button';
 import {Tooltip} from '../../widgets/tooltip';
 import {settingsStorage} from '../settings/settings_storage';
 
 class Omnibox implements m.ClassComponent {
+  private value = '';
+
   view() {
     return m(
       '.pf-omnibox',
       m('input', {
-        placeholder: 'Search',
+        placeholder: 'Search or type a command...',
         style: {
           width: '500px',
         },
+        value: this.value,
+        oninput: (e: Event) => {
+          this.value = (e.target as HTMLInputElement).value;
+        },
+        onkeydown: (e: KeyboardEvent) => {
+          if (e.key === 'Enter') {
+            this.executeCommand();
+          }
+        },
       }),
     );
+  }
+
+  private executeCommand() {
+    const command = this.value.trim().toLowerCase();
+    if (
+      command === 'theme' ||
+      command === 'toggle theme' ||
+      command === '/theme'
+    ) {
+      const theme = settingsStorage.get('theme');
+      if (theme) {
+        const themeValue =
+          (theme.get() as string) === 'light' ? 'dark' : 'light';
+        theme.set(themeValue);
+      }
+    }
+    this.value = '';
   }
 }
 
@@ -40,9 +67,6 @@ export interface TopbarAttrs {
 
 export class Topbar implements m.ClassComponent<TopbarAttrs> {
   view({attrs}: m.CVnode<TopbarAttrs>) {
-    const theme = settingsStorage.get('theme');
-    const themeValue = theme ? theme.get() : 'light';
-
     return m(
       '.pf-topbar',
       {
@@ -51,12 +75,11 @@ export class Topbar implements m.ClassComponent<TopbarAttrs> {
         ),
       },
       [
-        !attrs.sidebarVisible &&
-          m(Button, {
-            icon: 'menu',
-            onclick: attrs.onToggleSidebar,
-            style: {height: '48px', width: '48px'},
-          }),
+        m(
+          'div',
+          {style: {flex: 1, display: 'flex', justifyContent: 'center'}},
+          m(Omnibox),
+        ),
         m(
           Tooltip,
           {
@@ -64,12 +87,13 @@ export class Topbar implements m.ClassComponent<TopbarAttrs> {
               '.pf-wip-pill',
               {
                 style: {
+                  position: 'absolute',
+                  right: '16px',
                   fontSize: '12px',
                   color: 'var(--pf-warning-text, #856404)',
                   backgroundColor: 'var(--pf-warning-background, #fff3cd)',
                   padding: '4px 12px',
                   borderRadius: '16px',
-                  marginLeft: '16px',
                   fontWeight: '500',
                   border: '1px solid var(--pf-warning-border, #ffeeba)',
                   whiteSpace: 'nowrap',
@@ -79,22 +103,8 @@ export class Topbar implements m.ClassComponent<TopbarAttrs> {
               'WIP',
             ),
           },
-          'BigTrace UI is work in progress. Features are subject to change.',
+          'BigTrace UI is work in progress and may be unstable.',
         ),
-        m(
-          'div',
-          {style: {flex: 1, display: 'flex', justifyContent: 'center'}},
-          m(Omnibox),
-        ),
-
-        m(Button, {
-          icon: themeValue === 'light' ? 'dark_mode' : 'light_mode',
-          onclick: () => {
-            if (theme) {
-              theme.set(themeValue === 'light' ? 'dark' : 'light');
-            }
-          },
-        }),
       ],
     );
   }

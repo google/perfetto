@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 import {Icon} from '../../widgets/icon';
-import {Button} from '../../widgets/button';
 import {getOrCreate} from '../../base/utils';
+import {classNames} from '../../base/classnames';
 
 export const SIDEBAR_SECTIONS = {
   home: {
@@ -49,6 +49,7 @@ export type SidebarMenuItem = {
 export interface SidebarAttrs {
   items: SidebarMenuItem[];
   onToggleSidebar: () => void;
+  visible: boolean;
 }
 
 export class Sidebar implements m.ClassComponent<SidebarAttrs> {
@@ -58,38 +59,28 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
     return m(
       'nav.pf-sidebar',
       {
-        style: {
-          width: '200px',
-          flexShrink: 0,
-        },
+        className: classNames(!attrs.visible && 'pf-sidebar--hidden'),
       },
       [
-        m(
-          'header',
-          {
-            style: {
-              padding: '16px',
-              borderBottom: '1px solid var(--pf-color-border)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            },
-          },
-          [
-            m('h1', {style: {margin: 0, fontSize: '18px'}}, 'BigTrace'),
-            m(Button, {
-              icon: 'menu',
-              onclick: attrs.onToggleSidebar,
-            }),
-          ],
-        ),
-        m(
-          '.pf-sidebar__scroll',
+        m('header.pf-sidebar__header', [
           m(
-            '.pf-sidebar__scroll-container',
-            Object.keys(SIDEBAR_SECTIONS).map((sectionId) =>
-              this.renderSection(sectionId as SidebarSections, attrs.items),
-            ),
+            'h1',
+            {style: {margin: 0, fontSize: '18px', fontWeight: 'bold'}},
+            'BigTrace',
+          ),
+          m(
+            'button.pf-sidebar-button',
+            {
+              onclick: attrs.onToggleSidebar,
+              title: attrs.visible ? 'Hide sidebar' : 'Show sidebar',
+            },
+            m(Icon, {icon: 'menu'}),
+          ),
+        ]),
+        m(
+          '.pf-sidebar__content',
+          Object.keys(SIDEBAR_SECTIONS).map((sectionId) =>
+            this.renderSection(sectionId as SidebarSections, attrs.items),
           ),
         ),
       ],
@@ -111,7 +102,7 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
     );
 
     return m(
-      `section${expanded ? '.pf-sidebar__section--expanded' : ''}`,
+      `section.pf-sidebar__section${expanded ? '.pf-sidebar__section--expanded' : ''}`,
       m(
         '.pf-sidebar__section-header',
         {
@@ -127,15 +118,20 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
 
   private renderItem(item: SidebarMenuItem) {
     return m(
-      'li',
+      'li.pf-sidebar__item',
+      {
+        className: classNames(item.active && 'pf-active'),
+      },
       m(
         'a',
         {
-          class: item.active ? 'active' : '',
           onclick: item.onclick,
           href: item.href,
         },
-        [m(Icon, {icon: item.icon}), item.text],
+        [
+          m(Icon, {icon: item.icon, className: 'pf-sidebar__button-icon'}),
+          item.text,
+        ],
       ),
     );
   }

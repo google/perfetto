@@ -169,14 +169,14 @@ class BigTraceApp implements m.ClassComponent {
         },
       },
       [
-        // Left Sidebar (only render when visible)
-        this.sidebarVisible &&
-          m(Sidebar, {
-            items,
-            onToggleSidebar: () => {
-              this.sidebarVisible = !this.sidebarVisible;
-            },
-          }),
+        // Left Sidebar
+        m(Sidebar, {
+          items,
+          onToggleSidebar: () => {
+            this.sidebarVisible = !this.sidebarVisible;
+          },
+          visible: this.sidebarVisible,
+        }),
 
         m(
           '.pf-main-content',
