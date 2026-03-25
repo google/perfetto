@@ -224,10 +224,7 @@ if (enable_perfetto_trace_processor_sqlite) {
     ]
 
     if (enable_perfetto_etm_importer) {
-      deps += [
-        "importers/etm",
-        "perfetto_sql/intrinsics/operators:etm",
-      ]
+      deps += [ "plugins/etm" ]
     }
 
     public_deps = [
@@ -385,7 +382,7 @@ perfetto_unittest_source_set("unittests") {
     ]
   }
   if (enable_perfetto_etm_importer) {
-    deps += [ "importers/etm:unittests" ]
+    deps += [ "plugins/etm:unittests" ]
   }
 }
 

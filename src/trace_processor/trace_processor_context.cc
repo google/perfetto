@@ -200,6 +200,9 @@ void CopyGlobalState(const TraceProcessorContext* source,
   dest->track_group_idx_state = source->track_group_idx_state.Fork();
   dest->register_additional_proto_modules =
       source->register_additional_proto_modules;
+
+  // Plugin pointers and registrations (shared across all contexts).
+  dest->etm_plugin = source->etm_plugin;
   dest->perf_aux_tokenizer_registrations =
       source->perf_aux_tokenizer_registrations;
 

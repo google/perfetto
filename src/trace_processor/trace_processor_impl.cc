@@ -169,15 +169,6 @@
 #include "src/trace_processor/importers/instruments/instruments_xml_tokenizer.h"
 #endif
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-#include "src/trace_processor/importers/common/registered_file_tracker.h"
-#include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
-#include "src/trace_processor/importers/perf/perf_event.h"
-#include "src/trace_processor/importers/perf/perf_tracker.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.h"
-#endif
-
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_proto_to_args_with_defaults.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_surfaceflinger_hierarchy_paths.h"
@@ -406,10 +397,6 @@ void InsertIntoModulesTable(tables::ModulesTable* table,
                             StringPool* string_pool) {
   base::ignore_result(table, string_pool);
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-  table->Insert({string_pool->InternString("etm")});
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
   table->Insert({string_pool->InternString("winscope")});
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
@@ -521,13 +508,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   }
   context()->register_additional_proto_modules = &RegisterAdditionalModules;
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-  context()->perf_aux_tokenizer_registrations.push_back(
-      [](perf_importer::PerfTracker* pt) {
-        pt->RegisterAuxTokenizer(PERF_AUXTRACE_CS_ETM,
-                                 etm::CreateEtmV4StreamDemultiplexer);
-      });
-#endif
   context()->reader_registry->RegisterTraceReader<AndroidDumpstateReader>(
       kAndroidDumpstateTraceType);
   context()->reader_registry->RegisterTraceReader<AndroidLogReader>(
@@ -1093,9 +1073,6 @@ std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
   AddStaticTable(tables, storage->mutable_cpu_freq_table());
   AddStaticTable(tables, storage->mutable_cpu_profile_stack_sample_table());
   AddStaticTable(tables, storage->mutable_elf_file_table());
-  AddStaticTable(tables, storage->mutable_etm_v4_configuration_table());
-  AddStaticTable(tables, storage->mutable_etm_v4_session_table());
-  AddStaticTable(tables, storage->mutable_etm_v4_chunk_table());
   AddStaticTable(
       tables, storage->mutable_experimental_missing_chrome_processes_table());
   AddStaticTable(tables, storage->mutable_experimental_proto_content_table());
@@ -1427,12 +1404,6 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   engine->RegisterVirtualTableModule<SliceMipmapOperator>(
       "__intrinsic_slice_mipmap",
       std::make_unique<SliceMipmapOperator::Context>(engine.get()));
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-  engine->RegisterVirtualTableModule<etm::EtmDecodeChunkVtable>(
-      "__intrinsic_etm_decode_chunk", storage);
-  engine->RegisterVirtualTableModule<etm::EtmIterateRangeVtable>(
-      "__intrinsic_etm_iterate_instruction_range", storage);
-#endif
 
   // Register metrics functions.
   {

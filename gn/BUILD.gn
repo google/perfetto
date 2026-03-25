@@ -493,7 +493,7 @@ perfetto_android_library("android_test_common") {
 
 if (enable_perfetto_etm_importer) {
   group("open_csd") {
-    visibility = [ "//src/trace_processor/importers/etm" ]
+    visibility = [ "//src/trace_processor/plugins/etm:*" ]
     public_deps = [ "//buildtools:open_csd" ]
   }
 }

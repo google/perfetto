@@ -171,6 +171,9 @@ class TraceProcessorContext {
       std::function<void(perf_importer::PerfTracker*)>;
   std::vector<PerfAuxTokenizerRegistration> perf_aux_tokenizer_registrations;
 
+  // Plugin pointers (lifetime managed by TraceProcessorImpl::plugins_).
+  void* etm_plugin = nullptr;
+
   // Per-Trace State (Miscategorized)
   // ==========================
   //

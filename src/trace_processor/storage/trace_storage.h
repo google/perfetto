@@ -47,9 +47,6 @@
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
-namespace etm {
-class TargetMemory;
-}
 
 // UniquePid is an offset into |unique_processes_|. This is necessary because
 // Unix pids are reused and thus not guaranteed to be unique over a long
@@ -818,38 +815,6 @@ class TraceStorage {
     return mutable_table<tables::V8RegexpCodeTable>();
   }
 
-  const tables::EtmV4ConfigurationTable& etm_v4_configuration_table() const {
-    return table<tables::EtmV4ConfigurationTable>();
-  }
-  tables::EtmV4ConfigurationTable* mutable_etm_v4_configuration_table() {
-    return mutable_table<tables::EtmV4ConfigurationTable>();
-  }
-  const std::vector<std::unique_ptr<Destructible>>& etm_v4_configuration_data()
-      const {
-    return etm_v4_configuration_data_;
-  }
-  std::vector<std::unique_ptr<Destructible>>*
-  mutable_etm_v4_configuration_data() {
-    return &etm_v4_configuration_data_;
-  }
-  const tables::EtmV4SessionTable& etm_v4_session_table() const {
-    return table<tables::EtmV4SessionTable>();
-  }
-  tables::EtmV4SessionTable* mutable_etm_v4_session_table() {
-    return mutable_table<tables::EtmV4SessionTable>();
-  }
-  const tables::EtmV4ChunkTable& etm_v4_chunk_table() const {
-    return table<tables::EtmV4ChunkTable>();
-  }
-  tables::EtmV4ChunkTable* mutable_etm_v4_chunk_table() {
-    return mutable_table<tables::EtmV4ChunkTable>();
-  }
-  const std::vector<TraceBlobView>& etm_v4_chunk_data() const {
-    return etm_v4_chunk_data_;
-  }
-  std::vector<TraceBlobView>* mutable_etm_v4_chunk_data() {
-    return &etm_v4_chunk_data_;
-  }
   struct HprofArrayBlob {
     TraceBlobView data;
     uint8_t element_type;  // art_hprof::FieldType as uint8_t
@@ -1142,12 +1107,6 @@ class TraceStorage {
   TraceStorage(TraceStorage&&) = delete;
   TraceStorage& operator=(TraceStorage&&) = delete;
 
-  friend etm::TargetMemory;
-  Destructible* etm_target_memory() { return etm_target_memory_.get(); }
-  void set_etm_target_memory(std::unique_ptr<Destructible> target_memory) {
-    etm_target_memory_ = std::move(target_memory);
-  }
-
   // Helper to get a table by type.
   template <typename T>
   T* mutable_table() {
@@ -1169,13 +1128,6 @@ class TraceStorage {
   StatsMap stats_{};
   VirtualTrackSlices virtual_track_slices_;
   SqlStats sql_stats_;
-
-  // ETM tables
-  // Indexed by tables::EtmV4ConfigurationTable::Id
-  std::vector<std::unique_ptr<Destructible>> etm_v4_configuration_data_;
-  // Indexed by tables::EtmV4TraceTable::Id
-  std::vector<TraceBlobView> etm_v4_chunk_data_;
-  std::unique_ptr<Destructible> etm_target_memory_;
 
   // HPROF primitive array blobs.
   // Indexed by heap_graph_object_data.array_data_id
