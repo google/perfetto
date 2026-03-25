@@ -236,6 +236,12 @@ class AdhocDataframeBuilder {
 
   // Raw column data without Dataframe wrapping or optimization.
   struct RawColumn {
+    RawColumn() = default;
+    RawColumn(RawColumn&&) = default;
+    RawColumn& operator=(RawColumn&&) = default;
+    RawColumn(const RawColumn&) = delete;
+    RawColumn& operator=(const RawColumn&) = delete;
+
     std::string name;
     std::optional<Storage> storage;  // Int64, Double, or String FlexVector.
     core::BitVector null_bv;         // Dense null: empty if all non-null.
