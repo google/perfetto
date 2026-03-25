@@ -144,6 +144,20 @@ class PerfettoSqlEngine {
         [](void* ptr) { delete static_cast<typename Module::Context*>(ptr); });
   }
 
+  // Registers a virtual table module from a plugin's SqliteModuleRegistration.
+  void RegisterSqliteModuleForPlugin(
+      const char* name,
+      const sqlite3_module* module,
+      void* ctx,
+      void (*destructor)(void*),
+      bool is_state_manager) {
+    if (is_state_manager) {
+      virtual_module_state_managers_.push_back(
+          static_cast<sqlite::ModuleStateManagerBase*>(ctx));
+    }
+    engine_->RegisterVirtualTableModule(name, module, ctx, destructor);
+  }
+
   // Registers a trace processor C++ function to be runnable from SQL.
   //
   // Uses the direct SQLite function interface. This is the preferred method

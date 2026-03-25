@@ -360,6 +360,7 @@ perfetto_cc_library(
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_interpreter_interpreter",
+        ":src_trace_processor_core_plugin_plugin",
         ":src_trace_processor_core_tree_tree",
         ":src_trace_processor_core_util_util",
         ":src_trace_processor_export_json",
@@ -574,6 +575,7 @@ perfetto_cc_library(
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_interpreter_interpreter",
+        ":src_trace_processor_core_plugin_plugin",
         ":src_trace_processor_core_tree_tree",
         ":src_trace_processor_core_util_util",
         ":src_trace_processor_export_json",
@@ -2136,6 +2138,15 @@ perfetto_filegroup(
         "src/trace_processor/core/interpreter/bytecode_to_string.cc",
         "src/trace_processor/core/interpreter/bytecode_to_string.h",
         "src/trace_processor/core/interpreter/interpreter_types.h",
+    ],
+)
+
+# GN target: //src/trace_processor/core/plugin:plugin
+perfetto_filegroup(
+    name = "src_trace_processor_core_plugin_plugin",
+    srcs = [
+        "src/trace_processor/core/plugin/plugin.cc",
+        "src/trace_processor/core/plugin/plugin.h",
     ],
 )
 
@@ -8594,6 +8605,7 @@ perfetto_cc_library(
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_interpreter_interpreter",
+        ":src_trace_processor_core_plugin_plugin",
         ":src_trace_processor_core_tree_tree",
         ":src_trace_processor_core_util_util",
         ":src_trace_processor_export_json",
@@ -8837,6 +8849,7 @@ perfetto_cc_binary(
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_interpreter_interpreter",
+        ":src_trace_processor_core_plugin_plugin",
         ":src_trace_processor_core_tree_tree",
         ":src_trace_processor_core_util_util",
         ":src_trace_processor_export_json",

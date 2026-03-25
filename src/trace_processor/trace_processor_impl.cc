@@ -510,6 +510,14 @@ std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     : TraceProcessorStorageImpl(cfg), config_(cfg) {
+  // Initialize plugins: create instances, allocate storage, register importers.
+  for (auto& p : CreatePlugins()) {
+    PluginEntry entry;
+    entry.storage = p->CreateStorage(context());
+    entry.plugin = std::move(p);
+    entry.plugin->RegisterImporters(context(), entry.storage.get());
+    plugins_.push_back(std::move(entry));
+  }
   context()->register_additional_proto_modules = &RegisterAdditionalModules;
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
@@ -624,7 +632,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   engine_ = InitPerfettoSqlEngine(
       context(), context()->storage.get(), config_, registered_sql_packages_,
       sql_metrics_, &metrics_descriptor_pool_, &proto_fn_name_to_path_, this,
-      notify_eof_called_, cached_trace_bounds_);
+      notify_eof_called_, cached_trace_bounds_, plugins_);
 
   sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
 
@@ -698,9 +706,19 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   for (const auto& table : GetStaticTables(context()->storage.get())) {
     table.dataframe->Finalize();
   }
+  // Also finalize plugin-owned tables.
+  {
+    std::vector<PluginDataframe> plugin_tables;
+    for (const auto& e : plugins_) {
+      e.plugin->RegisterDataframes(context(), e.storage.get(), plugin_tables);
+    }
+    for (const auto& table : plugin_tables) {
+      table.dataframe->Finalize();
+    }
+  }
 
   // Stage 4: prepare the engine for queries.
-  IncludeAfterEofPrelude(engine_.get());
+  IncludeAfterEofPrelude(engine_.get(), plugins_);
   sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
 
   return base::OkStatus();
@@ -925,7 +943,7 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   engine_ = InitPerfettoSqlEngine(
       context(), context()->storage.get(), config_, registered_sql_packages_,
       sql_metrics_, &metrics_descriptor_pool_, &proto_fn_name_to_path_, this,
-      notify_eof_called_, cached_trace_bounds_);
+      notify_eof_called_, cached_trace_bounds_, plugins_);
 
   // The registered count should now be the same as it was in the constructor.
   uint64_t registered_count_after = engine_->SqliteRegisteredObjectCount();
@@ -1222,15 +1240,35 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
     std::unordered_map<std::string, std::string>* proto_fn_name_to_path,
     TraceProcessor* trace_processor,
     bool notify_eof_called,
-    std::pair<int64_t, int64_t> cached_trace_bounds) {
+    std::pair<int64_t, int64_t> cached_trace_bounds,
+    const std::vector<PluginEntry>& plugins) {
   auto engine = std::make_unique<PerfettoSqlEngine>(
       storage->mutable_string_pool(), config.enable_extra_checks);
 
   auto functions =
       CreateStaticTableFunctions(context, storage, config, engine.get());
 
+  // Let plugins contribute their tables and table functions.
   std::vector<PerfettoSqlEngine::StaticTable> tables = GetStaticTables(storage);
+  std::vector<PluginDataframe> plugin_dataframes;
+  std::vector<SqliteModuleRegistration> sqlite_modules;
+  for (const auto& e : plugins) {
+    e.plugin->RegisterDataframes(context, e.storage.get(), plugin_dataframes);
+    e.plugin->RegisterStaticTableFunctions(context, e.storage.get(), functions);
+    e.plugin->RegisterSqliteModules(context, e.storage.get(), sqlite_modules);
+  }
+  for (auto& df : plugin_dataframes) {
+    tables.push_back({df.dataframe, std::move(df.name)});
+  }
+
   engine->InitializeStaticTablesAndFunctions(tables, std::move(functions));
+
+  // Register plugin sqlite modules.
+  for (auto& reg : sqlite_modules) {
+    engine->RegisterSqliteModuleForPlugin(reg.name.c_str(), reg.module,
+                                          reg.context, reg.destructor,
+                                          reg.is_state_manager);
+  }
 
   sqlite3* db = engine->sqlite_engine()->db();
   sqlite3_str_split_init(db);
@@ -1447,7 +1485,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   }
 
   if (notify_eof_called) {
-    IncludeAfterEofPrelude(engine.get());
+    IncludeAfterEofPrelude(engine.get(), plugins);
   }
 
   for (const auto& metric : sql_metrics) {
@@ -1459,11 +1497,26 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   return engine;
 }
 
-void TraceProcessorImpl::IncludeAfterEofPrelude(PerfettoSqlEngine* engine) {
+void TraceProcessorImpl::IncludeAfterEofPrelude(
+    PerfettoSqlEngine* engine,
+    const std::vector<PluginEntry>& plugins) {
   auto result = engine->Execute(SqlSource::FromTraceProcessorImplementation(
       "INCLUDE PERFETTO MODULE prelude.after_eof.*"));
   if (!result.status().ok()) {
     PERFETTO_FATAL("Failed to import prelude: %s", result.status().c_message());
+  }
+
+  // Let plugins execute their after-EOF SQL (views, etc).
+  for (const auto& e : plugins) {
+    std::string sql = e.plugin->GetAfterEofSql();
+    if (!sql.empty()) {
+      auto r =
+          engine->Execute(SqlSource::FromTraceProcessorImplementation(sql));
+      if (!r.status().ok()) {
+        PERFETTO_FATAL("Module after-EOF SQL failed: %s",
+                       r.status().c_message());
+      }
+    }
   }
 }
 

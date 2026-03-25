@@ -34,6 +34,7 @@
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
@@ -137,6 +138,11 @@ class TraceProcessorImpl : public TraceProcessor,
 
   base::Status CreateSummarizer(std::unique_ptr<Summarizer>* out) override;
 
+  struct PluginEntry {
+    std::unique_ptr<PluginBase> plugin;
+    std::unique_ptr<Destructible> storage;
+  };
+
  private:
   // Needed for iterators to be able to access the context.
   friend class IteratorImpl;
@@ -155,7 +161,8 @@ class TraceProcessorImpl : public TraceProcessor,
       std::unordered_map<std::string, std::string>* proto_fn_name_to_path,
       TraceProcessor*,
       bool notify_eof_called,
-      std::pair<int64_t, int64_t> cached_trace_bounds);
+      std::pair<int64_t, int64_t> cached_trace_bounds,
+      const std::vector<PluginEntry>& plugins);
 
   static std::vector<PerfettoSqlEngine::StaticTable> GetStaticTables(
       TraceStorage* storage);
@@ -166,9 +173,14 @@ class TraceProcessorImpl : public TraceProcessor,
                              const Config& config,
                              PerfettoSqlEngine* engine);
 
-  static void IncludeAfterEofPrelude(PerfettoSqlEngine*);
+  static void IncludeAfterEofPrelude(
+      PerfettoSqlEngine*,
+      const std::vector<PluginEntry>& plugins);
 
   const Config config_;
+
+  // Registered plugins, topologically sorted by dependency order.
+  std::vector<PluginEntry> plugins_;
 
   std::unique_ptr<PerfettoSqlEngine> engine_;
 
