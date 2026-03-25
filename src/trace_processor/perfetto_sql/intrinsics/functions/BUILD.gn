@@ -21,6 +21,8 @@ source_set("functions") {
   sources = [
     "args.cc",
     "args.h",
+    "art_heap_graph_functions.cc",
+    "art_heap_graph_functions.h",
     "base64.cc",
     "base64.h",
     "clock_functions.h",

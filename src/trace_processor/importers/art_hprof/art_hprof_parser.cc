@@ -18,16 +18,20 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <memory>
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/art_hprof/art_heap_graph.h"
 #include "src/trace_processor/importers/art_hprof/art_heap_graph_builder.h"
@@ -70,7 +74,7 @@ base::Status ArtHprofParser::OnPushDataToSorter() {
     return base::OkStatus();
   }
 
-  const HeapGraph graph = parser_->BuildGraph();
+  HeapGraph graph = parser_->BuildGraph();
 
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(0);
 
@@ -83,6 +87,9 @@ base::Status ArtHprofParser::OnPushDataToSorter() {
   PopulateClasses(graph);
   PopulateObjects(graph, ts, upid);
   PopulateReferences(graph);
+  PopulateFieldValues(graph);
+
+  graph.ClearAll();
 
   class_map_.Clear();
   class_object_map_.Clear();
@@ -219,15 +226,16 @@ bool ArtHprofParser::TraceBlobViewIterator::CanReadRecord() const {
 
   memcpy(bytes, slice->data(), 4);
 
-  uint64_t record_length = (static_cast<uint32_t>(bytes[0]) << 24) |
+  uint32_t record_length = (static_cast<uint32_t>(bytes[0]) << 24) |
                            (static_cast<uint32_t>(bytes[1]) << 16) |
                            (static_cast<uint32_t>(bytes[2]) << 8) |
                            static_cast<uint32_t>(bytes[3]);
 
-  // Check if we can read an entire record from the chunk.
+  // Check if we can read the full record (header + body) from the chunk.
   // If we can't we should fail so that we can receive another
   // chunk to continue.
-  return static_cast<bool>(reader_.SliceOff(current_offset_, record_length));
+  return static_cast<bool>(
+      reader_.SliceOff(current_offset_, kRecordHeaderSize + record_length));
 }
 
 void ArtHprofParser::TraceBlobViewIterator::PushBlob(TraceBlobView blob) {
@@ -469,6 +477,191 @@ void ArtHprofParser::PopulateReferences(const HeapGraph& graph) {
       reference_table.Insert(reference_row);
     }
   }
+}
+
+namespace {
+const char* FieldTypeName(FieldType type) {
+  switch (type) {
+    case FieldType::kBoolean:
+      return "boolean";
+    case FieldType::kByte:
+      return "byte";
+    case FieldType::kChar:
+      return "char";
+    case FieldType::kShort:
+      return "short";
+    case FieldType::kInt:
+      return "int";
+    case FieldType::kLong:
+      return "long";
+    case FieldType::kFloat:
+      return "float";
+    case FieldType::kDouble:
+      return "double";
+    case FieldType::kObject:
+      return "object";
+  }
+  return "unknown";
+}
+}  // namespace
+
+void ArtHprofParser::PopulateFieldValues(const HeapGraph& graph) {
+  auto& data_table = *context_->storage->mutable_heap_graph_object_data_table();
+  auto& prim_table = *context_->storage->mutable_heap_graph_primitive_table();
+
+  for (auto it = graph.GetObjects().GetIterator(); it; ++it) {
+    auto obj_id = it.key();
+    auto& obj = it.value();
+
+    auto* owner_table_id = FindObjectId(obj_id);
+    if (!owner_table_id)
+      continue;
+
+    bool has_value_fields = false;
+    bool has_array_data = false;
+    bool has_string = obj.GetDecodedString().has_value();
+
+    if (obj.GetObjectType() == ObjectType::kInstance ||
+        obj.GetObjectType() == ObjectType::kClass) {
+      for (const auto& field : obj.GetFields()) {
+        if (field.GetType() != FieldType::kObject && field.HasValue()) {
+          has_value_fields = true;
+          break;
+        }
+      }
+    } else if (obj.GetObjectType() == ObjectType::kPrimitiveArray) {
+      has_array_data = obj.HasArrayData();
+    }
+
+    if (!has_value_fields && !has_array_data && !has_string)
+      continue;
+
+    tables::HeapGraphObjectDataTable::Row data_row;
+
+    if (has_string) {
+      StringId str_id =
+          context_->storage->InternString(*obj.GetDecodedString());
+      data_row.value_string = str_id;
+    }
+
+    if (has_value_fields) {
+      uint32_t field_set_id = static_cast<uint32_t>(prim_table.row_count());
+      data_row.field_set_id = field_set_id;
+      InsertPrimitiveFields(obj, field_set_id, prim_table);
+    }
+
+    if (has_array_data) {
+      InsertArrayData(obj, data_row);
+    }
+
+    auto data_id = data_table.Insert(data_row).id;
+
+    // Set reverse FK on the object table for direct lookup.
+    auto& object_table = *context_->storage->mutable_heap_graph_object_table();
+    object_table.FindById(*owner_table_id)->set_object_data_id(data_id.value);
+  }
+}
+
+void ArtHprofParser::InsertPrimitiveFields(
+    const Object& obj,
+    uint32_t field_set_id,
+    tables::HeapGraphPrimitiveTable& prim_table) {
+  for (const auto& field : obj.GetFields()) {
+    if (field.GetType() == FieldType::kObject || !field.HasValue())
+      continue;
+
+    tables::HeapGraphPrimitiveTable::Row row;
+    row.field_set_id = field_set_id;
+    row.field_name = context_->storage->InternString(field.GetName());
+    row.field_type =
+        context_->storage->InternString(FieldTypeName(field.GetType()));
+
+    switch (field.GetType()) {
+      case FieldType::kBoolean:
+        row.bool_value = field.GetValue<bool>().value_or(false) ? 1u : 0u;
+        break;
+      case FieldType::kByte:
+        row.byte_value =
+            static_cast<int64_t>(field.GetValue<uint8_t>().value_or(0));
+        break;
+      case FieldType::kChar:
+        row.char_value =
+            static_cast<int64_t>(field.GetValue<uint16_t>().value_or(0));
+        break;
+      case FieldType::kShort:
+        row.short_value =
+            static_cast<int64_t>(field.GetValue<int16_t>().value_or(0));
+        break;
+      case FieldType::kInt:
+        row.int_value =
+            static_cast<int64_t>(field.GetValue<int32_t>().value_or(0));
+        break;
+      case FieldType::kLong:
+        row.long_value = field.GetValue<int64_t>().value_or(0);
+        break;
+      case FieldType::kFloat:
+        row.float_value =
+            static_cast<double>(field.GetValue<float>().value_or(0.0f));
+        break;
+      case FieldType::kDouble:
+        row.double_value = field.GetValue<double>().value_or(0.0);
+        break;
+      case FieldType::kObject:
+        break;
+    }
+
+    prim_table.Insert(row);
+  }
+}
+
+void ArtHprofParser::InsertArrayData(
+    const Object& obj,
+    tables::HeapGraphObjectDataTable::Row& data_row) {
+  std::vector<uint8_t> blob;
+  uint32_t element_count = 0;
+
+  std::visit(
+      [&](const auto& vec) {
+        using T = std::decay_t<decltype(vec)>;
+        if constexpr (!std::is_same_v<T, std::monostate>) {
+          element_count = static_cast<uint32_t>(vec.size());
+          using ElemT = typename T::value_type;
+          if constexpr (std::is_same_v<ElemT, bool>) {
+            blob.resize(vec.size());
+            for (size_t i = 0; i < vec.size(); ++i)
+              blob[i] = vec[i] ? 1 : 0;
+          } else {
+            blob.resize(vec.size() * sizeof(ElemT));
+            memcpy(blob.data(), vec.data(), blob.size());
+          }
+        }
+      },
+      obj.GetArrayDataVariant());
+
+  if (blob.empty())
+    return;
+
+  int64_t hash = static_cast<int64_t>(
+      base::murmur_internal::MurmurHashBytes(blob.data(), blob.size()));
+
+  StringId type_id =
+      context_->storage->InternString(FieldTypeName(obj.GetArrayElementType()));
+  auto* blobs = context_->storage->mutable_hprof_array_blobs();
+  uint32_t blob_id = static_cast<uint32_t>(blobs->size());
+
+  // Copy the blob to avoid holding onto the potentially very large
+  // allocation of the trace object itself.
+  TraceStorage::HprofArrayBlob array_blob;
+  array_blob.data =
+      TraceBlobView(TraceBlob::CopyFrom(blob.data(), blob.size()));
+  array_blob.element_type = static_cast<uint8_t>(obj.GetArrayElementType());
+  array_blob.element_count = element_count;
+  blobs->push_back(std::move(array_blob));
+
+  data_row.array_element_type = type_id;
+  data_row.array_element_count = element_count;
+  data_row.array_data_id = blob_id;
+  data_row.array_data_hash = hash;
 }
 
 }  // namespace perfetto::trace_processor::art_hprof
