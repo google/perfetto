@@ -63,11 +63,10 @@ namespace i = interpreter;
 enum RegType : uint32_t {
   kStorageReg = 0,
   kNullBvReg = 1,
-  kPrefixPopcountReg = 2,
-  kSmallValueEqBvReg = 3,
-  kSmallValueEqPopcountReg = 4,
-  kIndexReg = 5,
-  kRegTypeCount = 6,
+  kSmallValueEqBvReg = 2,
+  kSmallValueEqPopcountReg = 3,
+  kIndexReg = 4,
+  kRegTypeCount = 5,
 };
 
 // TypeSet of all possible sparse nullability states.
@@ -314,8 +313,11 @@ i::RegValue QueryPlanImpl::GetRegisterInitValue(const RegisterInit& init,
           columns[init.source_index]->storage.unchecked_data<String>(),
           String{},
       };
-    case RegisterInit::Type::GetTypeIndex<RegisterInit::NullBitvector>():
-      return columns[init.source_index]->null_storage.MaybeGetNullBitVector();
+    case RegisterInit::Type::GetTypeIndex<RegisterInit::NullBitvector>(): {
+      i::NullBitvector nbv;
+      nbv.bv = columns[init.source_index]->null_storage.MaybeGetNullBitVector();
+      return nbv;
+    }
     case RegisterInit::Type::GetTypeIndex<RegisterInit::IndexVector>():
       return Span<uint32_t>(
           indexes[init.source_index].permutation_vector()->data(),
@@ -415,7 +417,6 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
             StorageRegisterFor(c.col, col.storage.type());
         bc.arg<B::null_bv_register>() = {};
         bc.arg<B::value_list_register>() = value;
-        bc.arg<B::popcount_register>() = {};
         bc.arg<B::index_register>() = {};
         bc.arg<B::source_range_register>() = {};
         bc.arg<B::source_register>() = source;
@@ -704,11 +705,10 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
         case Nullability::GetTypeIndex<
             SparseNullWithPopcountUntilFinalization>(): {
           using B = i::StrideTranslateAndCopySparseNullIndices;
-          auto reg = PrefixPopcountRegisterFor(col);
+          auto null_bv_reg = EnsurePrefixPopcountFor(col);
           auto& bc = AddOpcode<B>(UnchangedRowCount{});
           bc.arg<B::update_register>() = storage_update_register;
-          bc.arg<B::popcount_register>() = {reg};
-          bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(col);
+          bc.arg<B::null_bv_register>() = null_bv_reg;
           bc.arg<B::offset>() = offset;
           bc.arg<B::stride>() = plan_.params.output_per_row;
           break;
@@ -880,13 +880,6 @@ void QueryPlanBuilder::IndexConstraints(
     auto non_id = column.storage.type().TryDowncast<i::NonIdStorageType>();
     PERFETTO_CHECK(non_id);
 
-    auto alloc_popcount = [&]() -> i::ReadHandle<Slab<uint32_t>> {
-      if (column.null_storage.nullability().IsAnyOf<SparseNullTypes>()) {
-        return PrefixPopcountRegisterFor(fs.col);
-      }
-      return {};
-    };
-
     if (fs.op.Is<In>()) {
       // Emit IndexedFilterIn for In filters.
       StorageType ct = column.storage.type();
@@ -908,9 +901,7 @@ void QueryPlanBuilder::IndexConstraints(
       // upfront; CopySpanIntersectingRange will then run in-place on it.
       {
         using B = i::FilterInBase;
-        // Allocate popcount before AddOpcode so PrefixPopcount bytecode
-        // is emitted before FilterIn.
-        auto popcount_register = alloc_popcount();
+        auto null_bv_reg = EnsurePrefixPopcountFor(fs.col);
         auto& bc = AddOpcode<B>(
             i::Index<i::FilterIn>(non_id->Upcast<StorageType>(),
                                   NullabilityToSparseNullCollapsedNullability(
@@ -919,9 +910,8 @@ void QueryPlanBuilder::IndexConstraints(
             i::LogPerRowCost{10});
         bc.arg<B::storage_register>() =
             StorageRegisterFor(fs.col, non_id->Upcast<StorageType>());
-        bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(fs.col);
+        bc.arg<B::null_bv_register>() = null_bv_reg;
         bc.arg<B::value_list_register>() = value_list_reg;
-        bc.arg<B::popcount_register>() = popcount_register;
         bc.arg<B::index_register>() = source_reg;
         bc.arg<B::source_range_register>() = range_reg;
         bc.arg<B::source_register>() = {};
@@ -935,9 +925,7 @@ void QueryPlanBuilder::IndexConstraints(
                                        *fs.op.TryDowncast<i::NonNullOp>());
       {
         using B = i::IndexedFilterEqBase;
-        // Allocate popcount before AddOpcode so PrefixPopcount bytecode
-        // is emitted before IndexedFilterEq.
-        auto popcount_register = alloc_popcount();
+        auto null_bv_reg = EnsurePrefixPopcountFor(fs.col);
         auto& bc = AddOpcode<B>(
             i::Index<i::IndexedFilterEq>(
                 *non_id, NullabilityToSparseNullCollapsedNullability(
@@ -945,9 +933,8 @@ void QueryPlanBuilder::IndexConstraints(
             RowCountModifier{EqualityFilterRowCount{column.duplicate_state}});
         bc.arg<B::storage_register>() =
             StorageRegisterFor(fs.col, non_id->Upcast<StorageType>());
-        bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(fs.col);
+        bc.arg<B::null_bv_register>() = null_bv_reg;
         bc.arg<B::filter_value_reg>() = value_reg;
-        bc.arg<B::popcount_register>() = popcount_register;
         bc.arg<B::source_register>() = source_reg;
         bc.arg<B::dest_register>() = dest_reg;
       }
@@ -1066,12 +1053,11 @@ i::RwHandle<Span<uint32_t>> QueryPlanBuilder::TranslateNonNullIndices(
       auto update =
           in_place ? table_indices_register
                    : GetOrCreateScratchSpanRegister(plan_.params.max_row_count);
-      auto popcount_reg = PrefixPopcountRegisterFor(col);
       {
+        auto null_bv_reg = EnsurePrefixPopcountFor(col);
         using B = i::TranslateSparseNullIndices;
         auto& bc = AddOpcode<B>(UnchangedRowCount{});
-        bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(col);
-        bc.arg<B::popcount_register>() = popcount_reg;
+        bc.arg<B::null_bv_register>() = null_bv_reg;
         bc.arg<B::source_register>() = table_indices_register;
         bc.arg<B::update_register>() = update;
       }
@@ -1241,19 +1227,6 @@ void QueryPlanBuilder::SetGuaranteedToBeEmpty() {
   indices_reg_ = span_reg;
 }
 
-i::ReadHandle<Slab<uint32_t>> QueryPlanBuilder::PrefixPopcountRegisterFor(
-    uint32_t col) {
-  auto [reg, inserted] = cache_.GetOrAllocate<Slab<uint32_t>>(
-      kPrefixPopcountReg, columns_[col].get());
-  if (inserted) {
-    using B = i::PrefixPopcount;
-    auto& bc = AddOpcode<B>(UnchangedRowCount{});
-    bc.arg<B::null_bv_register>() = NullBitvectorRegisterFor(col);
-    bc.arg<B::dest_register>() = reg;
-  }
-  return reg;
-}
-
 i::RwHandle<i::StoragePtr> QueryPlanBuilder::StorageRegisterFor(
     uint32_t col,
     StorageType type) {
@@ -1267,18 +1240,34 @@ i::RwHandle<i::StoragePtr> QueryPlanBuilder::StorageRegisterFor(
   return reg;
 }
 
-i::ReadHandle<const BitVector*> QueryPlanBuilder::NullBitvectorRegisterFor(
+i::ReadHandle<i::NullBitvector> QueryPlanBuilder::NullBitvectorRegisterFor(
     uint32_t col) {
   if (GetColumn(col).null_storage.nullability().Is<NonNull>()) {
     return {};
   }
   auto [reg, inserted] =
-      cache_.GetOrAllocate<const BitVector*>(kNullBvReg, columns_[col].get());
+      cache_.GetOrAllocate<i::NullBitvector>(kNullBvReg, columns_[col].get());
   if (inserted) {
     plan_.register_inits.emplace_back(RegisterInit{
         reg.index, RegisterInit::NullBitvector{}, static_cast<uint16_t>(col)});
   }
   return reg;
+}
+
+i::ReadHandle<i::NullBitvector> QueryPlanBuilder::EnsurePrefixPopcountFor(
+    uint32_t col) {
+  auto nbv_reg = NullBitvectorRegisterFor(col);
+  if (!GetColumn(col).null_storage.nullability().IsAnyOf<SparseNullTypes>()) {
+    return nbv_reg;
+  }
+  auto [it, inserted] = prefix_popcount_emitted_.Insert(col, true);
+  if (inserted) {
+    using B = i::PrefixPopcount;
+    auto& bc = AddOpcode<B>(UnchangedRowCount{});
+    bc.arg<B::null_bv_register>() =
+        i::RwHandle<i::NullBitvector>(nbv_reg.index);
+  }
+  return nbv_reg;
 }
 
 i::ReadHandle<const BitVector*> QueryPlanBuilder::SmallValueEqBvRegisterFor(
@@ -1396,10 +1385,7 @@ i::RwHandle<Slab<uint8_t>> QueryPlanBuilder::CopyToRowLayout(
   for (const auto& param : row_layout_params) {
     const Column& col = GetColumn(param.column);
     const auto& nullability = col.null_storage.nullability();
-    auto popcount = nullability.IsAnyOf<SparseNullTypes>()
-                        ? PrefixPopcountRegisterFor(param.column)
-                        : i::ReadHandle<Slab<uint32_t>>{
-                              std::numeric_limits<uint32_t>::max()};
+    auto null_bv_reg = EnsurePrefixPopcountFor(param.column);
     {
       using B = i::CopyToRowLayoutBase;
       auto index = i::Index<i::CopyToRowLayout>(
@@ -1408,14 +1394,13 @@ i::RwHandle<Slab<uint8_t>> QueryPlanBuilder::CopyToRowLayout(
       auto& op = AddOpcode<B>(index, UnchangedRowCount{});
       op.arg<B::storage_register>() =
           StorageRegisterFor(param.column, col.storage.type());
-      op.arg<B::null_bv_register>() = NullBitvectorRegisterFor(param.column);
+      op.arg<B::null_bv_register>() = null_bv_reg;
       op.arg<B::source_indices_register>() = indices;
       op.arg<B::dest_buffer_register>() = new_buffer_reg;
       op.arg<B::rank_map_register>() = rank_map;
       op.arg<B::row_layout_offset>() = current_offset;
       op.arg<B::row_layout_stride>() = row_stride;
       op.arg<B::invert_copied_bits>() = param.invert_copied_bits;
-      op.arg<B::popcount_register>() = popcount;
     }
     current_offset +=
         (nullability.Is<NonNull>() ? 0u : 1u) + GetDataSize(col.storage.type());
@@ -1456,9 +1441,6 @@ void QueryPlanBuilder::AddLinearFilterEqBytecode(
     bc.arg<B::storage_register>() =
         StorageRegisterFor(c.col, non_id_storage_type.Upcast<StorageType>());
     bc.arg<B::filter_value_reg>() = filter_value_result_reg;
-    // For NonNull columns, popcount_register is not used by LinearFilterEq
-    // logic. Pass a default-constructed handle.
-    bc.arg<B::popcount_register>() = i::ReadHandle<Slab<uint32_t>>{};
     bc.arg<B::source_register>() = range_reg;
     bc.arg<B::update_register>() = span_reg;
   }

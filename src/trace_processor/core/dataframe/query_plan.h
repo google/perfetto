@@ -392,10 +392,6 @@ class QueryPlanBuilder {
   // Sets the result to an empty set. Use when a filter guarantees no matches.
   void SetGuaranteedToBeEmpty();
 
-  // Returns the prefix popcount register for the given column.
-  interpreter::ReadHandle<Slab<uint32_t>> PrefixPopcountRegisterFor(
-      uint32_t col);
-
   // Allocates a register for column data pointer and adds RegisterInit entry.
   // Returns a HandleBase that can be assigned to typed data_register fields.
   interpreter::RwHandle<interpreter::StoragePtr> StorageRegisterFor(
@@ -406,7 +402,14 @@ class QueryPlanBuilder {
   interpreter::RwHandle<Span<uint32_t>> IndexRegisterFor(uint32_t pos);
 
   // Returns the null bitvector register for the given column.
-  interpreter::ReadHandle<const BitVector*> NullBitvectorRegisterFor(
+  // For NonNull columns, returns an empty handle.
+  interpreter::ReadHandle<interpreter::NullBitvector> NullBitvectorRegisterFor(
+      uint32_t col);
+
+  // Returns the null bitvector register for the given column, ensuring a
+  // PrefixPopcount bytecode has been emitted for SparseNull columns.
+  // No-op for non-SparseNull columns or if already emitted.
+  interpreter::ReadHandle<interpreter::NullBitvector> EnsurePrefixPopcountFor(
       uint32_t col);
 
   // Returns the SmallValueEq bitvector register for the given column.
@@ -478,6 +481,9 @@ class QueryPlanBuilder {
 
   // Register cache for caching column/index registers across Filter() calls.
   DataframeRegisterCache& cache_;
+
+  // Tracks which columns have had PrefixPopcount bytecode emitted.
+  base::FlatHashMap<uint32_t, bool> prefix_popcount_emitted_;
 
   // Last scratch registers returned by GetOrCreateScratchSpanRegister.
   std::optional<Scratch> scratch_;
