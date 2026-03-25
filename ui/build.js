@@ -315,9 +315,14 @@ async function main() {
       tsProjects.push('ui/src/open_perfetto_trace');
     }
 
-
     for (const prj of tsProjects) {
-      transpileTsProject(prj);
+      // When in watch mode, don't error out if we get typescript errors in the 
+      // initial build. Typescript errors on subsequent incremental builds don't
+      // error out so the initial build should behave in the same way. 
+      //
+      // Note: In non-watch mode, we do still break on typescript errors,
+      // there's no change here.
+      transpileTsProject(prj, {noErrCheck: cfg.watch});
     }
 
     if (cfg.watch) {
@@ -593,14 +598,12 @@ function transpileTsProject(project, options) {
 
   if (options !== undefined && options.watch) {
     args.push('--watch', '--preserveWatchOutput');
-    // When in watch mode, don't break if we get typescript errors in the build.
-    // Typescript errors on incremental builds don't break the build, so errors
-    // in the initial build shouldn't break it either.
-    // Note: In non-watch mode (e.g. production builds), we do want to break on
-    // typescript errors, so there's no change here.
-    addTask(execModule, ['tsc', args, {async: true, noErrCheck: true}]);
+    addTask(execModule, ['tsc', args, {
+      async: true,
+      noErrCheck: options.noErrCheck,
+    }]);
   } else {
-    addTask(execModule, ['tsc', args]);
+    addTask(execModule, ['tsc', args, {noErrCheck: options.noErrCheck}]);
   }
 }
 
