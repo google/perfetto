@@ -318,7 +318,11 @@ function flamegraphMetrics(
               isVisible: (_) => false,
             },
           ],
-          optionalNodeActions: getHeapGraphNodeOptionalActions(trace, false, setHeapdumpSelection),
+          optionalNodeActions: getHeapGraphNodeOptionalActions(
+            trace,
+            false,
+            setHeapdumpSelection,
+          ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, false),
         },
         {
@@ -351,7 +355,11 @@ function flamegraphMetrics(
               isVisible: (_) => false,
             },
           ],
-          optionalNodeActions: getHeapGraphNodeOptionalActions(trace, false, setHeapdumpSelection),
+          optionalNodeActions: getHeapGraphNodeOptionalActions(
+            trace,
+            false,
+            setHeapdumpSelection,
+          ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, false),
         },
         {
@@ -389,7 +397,11 @@ function flamegraphMetrics(
               isVisible: (_) => false,
             },
           ],
-          optionalNodeActions: getHeapGraphNodeOptionalActions(trace, true, setHeapdumpSelection),
+          optionalNodeActions: getHeapGraphNodeOptionalActions(
+            trace,
+            true,
+            setHeapdumpSelection,
+          ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, true),
         },
         {
@@ -422,7 +434,11 @@ function flamegraphMetrics(
               isVisible: (_) => false,
             },
           ],
-          optionalNodeActions: getHeapGraphNodeOptionalActions(trace, true, setHeapdumpSelection),
+          optionalNodeActions: getHeapGraphNodeOptionalActions(
+            trace,
+            true,
+            setHeapdumpSelection,
+          ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, true),
         },
       ];
