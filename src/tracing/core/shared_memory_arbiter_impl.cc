@@ -23,7 +23,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
-#include "perfetto/ext/ipc/basic_types.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
@@ -38,6 +37,10 @@ namespace {
 static_assert(sizeof(BufferID) == sizeof(uint16_t),
               "The MaybeUnboundBufferID logic requires BufferID not to grow "
               "above uint16_t.");
+
+constexpr size_t kMaxCommitDataRequestChunkSize =
+    128 * 1024 - 512;  // This is ipc::kIPCBufferSize - 512, see
+                       // |kMaxTracePacketSliceSize| in tracing_service_impl.h
 
 MaybeUnboundBufferID MakeTargetBufferIdForReservation(uint16_t reservation_id) {
   // Reservation IDs are stored in the upper bits.
@@ -631,9 +634,9 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
           // error on the receiving side. This is based on the fact that chunks
           // cannot be greater than |kMaxPageSize| in size, which is less than
           // |kIPCBufferSize|. We provide 512-bytes of headroom for message
-          // overhead (see |kMaxTracePacketSliceSize| in
-          // tracing_service_impl.h).
-          if (current_req_bytes + chunk.size() >= ipc::kIPCBufferSize - 512) {
+          // overhead.
+          if (current_req_bytes + chunk.size() >=
+              kMaxCommitDataRequestChunkSize) {
             producer_endpoint_->CommitData(*req);
             req.reset(new CommitDataRequest());
             current_req_bytes = 0;
