@@ -206,12 +206,10 @@ async function hasWattsonCpuSupport(engine: Engine): Promise<boolean> {
     SELECT COUNT(*) as numRows FROM _wattson_device
     `,
     `
-    INCLUDE PERFETTO MODULE linux.cpu.frequency;
-    SELECT COUNT(*) as numRows FROM cpu_frequency_counters
+    SELECT COUNT(*) as numRows FROM cpu_counter_track WHERE type = 'cpu_frequency'
     `,
     `
-    INCLUDE PERFETTO MODULE wattson.cpu.idle;
-    SELECT COUNT(*) as numRows FROM _adjusted_deep_idle
+    SELECT COUNT(*) as numRows FROM cpu_counter_track WHERE type = 'cpu_idle'
     `,
   ];
   for (const queryCheck of queryChecks) {
