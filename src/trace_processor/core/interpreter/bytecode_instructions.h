@@ -244,19 +244,16 @@ struct StrideCopy : Bytecode {
 // Popcount means to compute the number of set bits in a word of a BitVector. So
 // prefix popcount is a along with a prefix sum over the counts vector.
 //
-// Note: if `dest_register` already has a value, we'll assume that this bytecode
-// has already been executed and skip the computation. This allows for caching
-// the result of this bytecode across executions of the interpreter.
+// Note: if the NullBitvector's popcount is already populated, we'll assume that
+// this bytecode has already been executed and skip the computation. This allows
+// for caching the result of this bytecode across executions of the interpreter.
 struct PrefixPopcount : Bytecode {
   // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
   // is plucked from thin air and has no real foundation. Fix this by creating
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{20};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(ReadHandle<const BitVector*>,
-                                     null_bv_register,
-                                     WriteHandle<Slab<uint32_t>>,
-                                     dest_register);
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_1(RwHandle<NullBitvector>, null_bv_register);
 };
 
 // Translates a set of indices into a sparse null overlay into indices into
@@ -275,10 +272,8 @@ struct TranslateSparseNullIndices : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{10};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(ReadHandle<const BitVector*>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(ReadHandle<NullBitvector>,
                                      null_bv_register,
-                                     ReadHandle<Slab<uint32_t>>,
-                                     popcount_register,
                                      ReadHandle<Span<uint32_t>>,
                                      source_register,
                                      RwHandle<Span<uint32_t>>,
@@ -292,7 +287,7 @@ struct NullFilterBase : TemplatedBytecode1<NullOp> {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{5};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(ReadHandle<const BitVector*>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_2(ReadHandle<NullBitvector>,
                                      null_bv_register,
                                      RwHandle<Span<uint32_t>>,
                                      update_register);
@@ -322,10 +317,8 @@ struct StrideTranslateAndCopySparseNullIndices : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{10};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_5(ReadHandle<const BitVector*>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(ReadHandle<NullBitvector>,
                                      null_bv_register,
-                                     ReadHandle<Slab<uint32_t>>,
-                                     popcount_register,
                                      RwHandle<Span<uint32_t>>,
                                      update_register,
                                      uint32_t,
@@ -350,7 +343,7 @@ struct StrideCopyDenseNullIndices : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{5};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(ReadHandle<const BitVector*>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(ReadHandle<NullBitvector>,
                                      null_bv_register,
                                      RwHandle<Span<uint32_t>>,
                                      update_register,
@@ -378,9 +371,9 @@ struct CopyToRowLayoutBase
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{5};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_9(ReadHandle<StoragePtr>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_8(ReadHandle<StoragePtr>,
                                      storage_register,
-                                     ReadHandle<const BitVector*>,
+                                     ReadHandle<NullBitvector>,
                                      null_bv_register,
                                      ReadHandle<Span<uint32_t>>,
                                      source_indices_register,
@@ -392,8 +385,6 @@ struct CopyToRowLayoutBase
                                      row_layout_stride,
                                      uint32_t,
                                      invert_copied_bits,
-                                     ReadHandle<Slab<uint32_t>>,
-                                     popcount_register,
                                      ReadHandle<StringIdToRankMap>,
                                      rank_map_register);
 };
@@ -465,14 +456,12 @@ struct IndexedFilterEqBase
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LogPerRowCost{10};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_6(ReadHandle<StoragePtr>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_5(ReadHandle<StoragePtr>,
                                      storage_register,
-                                     ReadHandle<const BitVector*>,
+                                     ReadHandle<NullBitvector>,
                                      null_bv_register,
                                      ReadHandle<CastFilterValueResult>,
                                      filter_value_reg,
-                                     ReadHandle<Slab<uint32_t>>,
-                                     popcount_register,
                                      ReadHandle<Span<uint32_t>>,
                                      source_register,
                                      WriteHandle<Span<uint32_t>>,
@@ -565,12 +554,10 @@ struct LinearFilterEqBase : TemplatedBytecode1<NonIdStorageType> {
   // is plucked from thin air and has no real foundation. Fix this by creating
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{7};
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_5(ReadHandle<StoragePtr>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(ReadHandle<StoragePtr>,
                                      storage_register,
                                      ReadHandle<CastFilterValueResult>,
                                      filter_value_reg,
-                                     ReadHandle<Slab<uint32_t>>,
-                                     popcount_register,
                                      ReadHandle<Range>,
                                      source_register,
                                      RwHandle<Span<uint32_t>>,
@@ -600,15 +587,13 @@ struct FilterInBase
   // See BM_BytecodeInterpreter_InUint32 benchmark.
   static constexpr Cost kCost = LinearPerRowCost{10};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_8(
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_7(
       ReadHandle<StoragePtr>,
       storage_register,
-      ReadHandle<const BitVector*>,
+      ReadHandle<NullBitvector>,
       null_bv_register,
       ReadHandle<std::unique_ptr<CastFilterValueListResult>>,
       value_list_register,
-      ReadHandle<Slab<uint32_t>>,
-      popcount_register,
       ReadHandle<Span<uint32_t>>,
       index_register,
       ReadHandle<Range>,
