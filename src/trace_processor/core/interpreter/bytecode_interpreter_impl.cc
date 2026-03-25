@@ -605,9 +605,11 @@ void FilterTreeState(InterpreterState& state,
     }
   }
 
-  // Compact null bitvectors.
+  // Compact null bitvectors (skip non-nullable columns with empty bv).
   for (auto& bv : ts->null_bitvectors) {
-    bv = std::move(bv).Compact(keep_bv);
+    if (bv.size() > 0) {
+      bv = std::move(bv).Compact(keep_bv);
+    }
   }
 
   ts->row_count = new_count;
