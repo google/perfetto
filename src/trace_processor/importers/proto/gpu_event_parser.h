@@ -28,6 +28,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
+#include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/vulkan_memory_tracker.h"
@@ -62,8 +63,9 @@ class GpuEventParser {
       protos::pbzero::VulkanMemoryEvent::Operation;
   explicit GpuEventParser(TraceProcessorContext*);
 
-  void TokenizeGpuCounterEvent(ConstBytes);
-  void ParseGpuCounterEvent(int64_t ts, ConstBytes);
+  void ParseGpuCounterEvent(int64_t ts,
+                            PacketSequenceStateGeneration* sequence_state,
+                            ConstBytes);
   void ParseGpuRenderStageEvent(int64_t ts,
                                 PacketSequenceStateGeneration*,
                                 ConstBytes);
@@ -92,6 +94,23 @@ class GpuEventParser {
   StringId ParseRenderSubpasses(
       const protos::pbzero::GpuRenderStageEvent_Decoder& event) const;
 
+  // GPU counter helpers.
+  StringId FormatCounterUnit(
+      const protos::pbzero::GpuCounterDescriptor::GpuCounterSpec::Decoder&
+          spec);
+  TrackId InternGpuCounterTrack(
+      int32_t gpu_id,
+      const protos::pbzero::GpuCounterDescriptor::GpuCounterSpec::Decoder&
+          spec);
+  void InsertCounterGroups(
+      TrackId track_id,
+      const protos::pbzero::GpuCounterDescriptor::GpuCounterSpec::Decoder&
+          spec);
+  void PushGpuCounterValue(int64_t ts,
+                           double value,
+                           TrackId track_id,
+                           std::optional<tables::CounterTable::Id>* last_id);
+
   TraceProcessorContext* const context_;
   VulkanMemoryTracker vulkan_memory_tracker_;
 
@@ -111,12 +130,18 @@ class GpuEventParser {
   const StringId pid_id_;
   const StringId tid_id_;
 
-  // For GpuCounterEvent
+  // For GpuCounterEvent (legacy inline counter_descriptor path).
+  // Key: counter_id (global scope, backward compatible).
   struct GpuCounterState {
     TrackId track_id;
     std::optional<tables::CounterTable::Id> last_id;
   };
   base::FlatHashMap<uint32_t, GpuCounterState> gpu_counter_state_;
+
+  // Track-level last_id for the interned counter_descriptor_iid path.
+  // Key: TrackId.
+  base::FlatHashMap<TrackId, std::optional<tables::CounterTable::Id>>
+      gpu_counter_last_id_;
 
   // For GpuRenderStageEvent
   struct HwQueueInfo {
@@ -125,6 +150,8 @@ class GpuEventParser {
   };
   const StringId description_id_;
   const StringId correlation_id_;
+  const StringId counter_id_key_id_;
+  const StringId counter_name_key_id_;
   std::vector<std::optional<HwQueueInfo>> gpu_hw_queue_ids_;
   base::FlatHashMap<uint64_t, bool> gpu_hw_queue_ids_name_to_set_;
 

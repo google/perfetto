@@ -31,6 +31,7 @@
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
@@ -110,6 +111,7 @@ enum VkObjectType {
 using protos::pbzero::GpuCounterDescriptor;
 using protos::pbzero::GpuCounterEvent;
 using protos::pbzero::GpuRenderStageEvent;
+using protos::pbzero::InternedGpuCounterDescriptor;
 using protos::pbzero::VulkanMemoryEvent;
 
 constexpr auto kRenderStageBlueprint = TrackCompressor::SliceBlueprint(
@@ -144,6 +146,8 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
       tid_id_(context_->storage->InternString("tid")),
       description_id_(context->storage->InternString("description")),
       correlation_id_(context->storage->InternString("correlation_id")),
+      counter_id_key_id_(context->storage->InternString("counter_id")),
+      counter_name_key_id_(context->storage->InternString("counter_name")),
       tag_id_(context_->storage->InternString("tag")),
       log_message_id_(context->storage->InternString("message")),
       log_severity_ids_{{context_->storage->InternString("UNSPECIFIED"),
@@ -156,104 +160,193 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
                              "UNKNOWN_SEVERITY") /* must be last */}},
       vk_queue_submit_id_(context->storage->InternString("vkQueueSubmit")) {}
 
-void GpuEventParser::TokenizeGpuCounterEvent(ConstBytes blob) {
-  GpuCounterEvent::Decoder event(blob);
-  if (!event.has_counter_descriptor()) {
-    return;
+StringId GpuEventParser::FormatCounterUnit(
+    const GpuCounterDescriptor::GpuCounterSpec::Decoder& spec) {
+  if (!spec.has_numerator_units() && !spec.has_denominator_units()) {
+    return kNullStringId;
   }
-  GpuCounterDescriptor::Decoder descriptor(event.counter_descriptor());
-  for (auto it = descriptor.specs(); it; ++it) {
-    GpuCounterDescriptor::GpuCounterSpec::Decoder spec(*it);
-    if (!spec.has_counter_id()) {
-      PERFETTO_ELOG("Counter spec missing counter id");
-      context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
-      continue;
+  char buffer[1024];
+  base::FixedStringWriter unit(buffer, sizeof(buffer));
+  for (auto number = spec.numerator_units(); number; ++number) {
+    if (unit.pos()) {
+      unit.AppendChar(':');
     }
-    if (!spec.has_name()) {
-      context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
-      continue;
+    unit.AppendInt(*number);
+  }
+  char sep = '/';
+  for (auto denom = spec.denominator_units(); denom; ++denom) {
+    unit.AppendChar(sep);
+    unit.AppendInt(*denom);
+    sep = ':';
+  }
+  return context_->storage->InternString(unit.GetStringView());
+}
+
+TrackId GpuEventParser::InternGpuCounterTrack(
+    int32_t gpu_id,
+    const GpuCounterDescriptor::GpuCounterSpec::Decoder& spec) {
+  auto name = spec.name();
+  auto name_id = context_->storage->InternString(name);
+  auto desc_id = context_->storage->InternString(spec.description());
+  auto unit_id = FormatCounterUnit(spec);
+
+  return context_->track_tracker->InternTrack(
+      tracks::kGpuCounterBlueprint, tracks::Dimensions(gpu_id, name),
+      tracks::DynamicName(name_id),
+      [&, this](ArgsTracker::BoundInserter& inserter) {
+        inserter.AddArg(description_id_, Variadic::String(desc_id));
+      },
+      tracks::DynamicUnit(unit_id));
+}
+
+void GpuEventParser::InsertCounterGroups(
+    TrackId track_id,
+    const GpuCounterDescriptor::GpuCounterSpec::Decoder& spec) {
+  if (spec.has_groups()) {
+    for (auto group = spec.groups(); group; ++group) {
+      tables::GpuCounterGroupTable::Row row;
+      row.group_id = *group;
+      row.track_id = track_id;
+      context_->storage->mutable_gpu_counter_group_table()->Insert(row);
     }
-
-    auto counter_id = spec.counter_id();
-    auto name = spec.name();
-    if (!gpu_counter_state_.Find(counter_id)) {
-      auto desc = spec.description();
-
-      StringId unit_id = kNullStringId;
-      if (spec.has_numerator_units() || spec.has_denominator_units()) {
-        char buffer[1024];
-        base::FixedStringWriter unit(buffer, sizeof(buffer));
-        for (auto number = spec.numerator_units(); number; ++number) {
-          if (unit.pos()) {
-            unit.AppendChar(':');
-          }
-          unit.AppendInt(*number);
-        }
-        char sep = '/';
-        for (auto denom = spec.denominator_units(); denom; ++denom) {
-          unit.AppendChar(sep);
-          unit.AppendInt(*denom);
-          sep = ':';
-        }
-        unit_id = context_->storage->InternString(unit.GetStringView());
-      }
-
-      auto name_id = context_->storage->InternString(name);
-      auto desc_id = context_->storage->InternString(desc);
-      auto gpu_id = event.has_gpu_id() ? event.gpu_id() : 0;
-      auto track_id = context_->track_tracker->InternTrack(
-          tracks::kGpuCounterBlueprint, tracks::Dimensions(gpu_id, name),
-          tracks::DynamicName(name_id),
-          [&, this](ArgsTracker::BoundInserter& inserter) {
-            inserter.AddArg(description_id_, Variadic::String(desc_id));
-          },
-          tracks::DynamicUnit(unit_id));
-      auto [cit, inserted] =
-          gpu_counter_state_.Insert(counter_id, GpuCounterState{track_id, {}});
-      PERFETTO_CHECK(inserted);
-      if (spec.has_groups()) {
-        for (auto group = spec.groups(); group; ++group) {
-          tables::GpuCounterGroupTable::Row row;
-          row.group_id = *group;
-          row.track_id = track_id;
-          context_->storage->mutable_gpu_counter_group_table()->Insert(row);
-        }
-      } else {
-        tables::GpuCounterGroupTable::Row row;
-        row.group_id = protos::pbzero::GpuCounterDescriptor::UNCLASSIFIED;
-        row.track_id = track_id;
-        context_->storage->mutable_gpu_counter_group_table()->Insert(row);
-      }
-    } else {
-      // Either counter spec was repeated or it came after counter data.
-      PERFETTO_ELOG("Duplicated counter spec found. (counter_id=%u, name=%s)",
-                    counter_id, name.ToStdString().c_str());
-      context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
-    }
+  } else {
+    tables::GpuCounterGroupTable::Row row;
+    row.group_id = protos::pbzero::GpuCounterDescriptor::UNCLASSIFIED;
+    row.track_id = track_id;
+    context_->storage->mutable_gpu_counter_group_table()->Insert(row);
   }
 }
 
-void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
+void GpuEventParser::PushGpuCounterValue(
+    int64_t ts,
+    double value,
+    TrackId track_id,
+    std::optional<tables::CounterTable::Id>* last_id) {
+  // GPU counters are "backwards looking": each event reports the value that
+  // was active *before* the current timestamp, unlike standard Perfetto
+  // counters which are "forwards looking". To normalize this, we push a
+  // placeholder (0) at the current timestamp and retroactively set the
+  // previous counter event's value to the reported value.
+  auto id = context_->event_tracker->PushCounter(ts, 0, track_id);
+  if (*last_id) {
+    auto row = context_->storage->mutable_counter_table()->FindById(**last_id);
+    row->set_value(value);
+  }
+  *last_id = id;
+}
+
+void GpuEventParser::ParseGpuCounterEvent(
+    int64_t ts,
+    PacketSequenceStateGeneration* sequence_state,
+    ConstBytes blob) {
   GpuCounterEvent::Decoder event(blob);
-  for (auto it = event.counters(); it; ++it) {
-    GpuCounterEvent::GpuCounter::Decoder counter(*it);
-    if (counter.has_counter_id() &&
-        (counter.has_int_value() || counter.has_double_value())) {
-      auto* state = gpu_counter_state_.Find(counter.counter_id());
-      if (!state) {
+
+  // Handle the new interned descriptor path.
+  if (event.has_counter_descriptor_iid()) {
+    auto* interned = sequence_state->LookupInternedMessage<
+        protos::pbzero::InternedData::kGpuCounterDescriptorsFieldNumber,
+        InternedGpuCounterDescriptor>(event.counter_descriptor_iid());
+    if (!interned || !interned->has_counter_descriptor()) {
+      context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
+      return;
+    }
+
+    GpuCounterDescriptor::Decoder desc(interned->counter_descriptor());
+    auto gpu_id = interned->gpu_id();
+
+    for (auto it = event.counters(); it; ++it) {
+      GpuCounterEvent::GpuCounter::Decoder counter(*it);
+      if (!counter.has_counter_id() ||
+          !(counter.has_int_value() || counter.has_double_value())) {
         continue;
       }
-      double counter_val = counter.has_int_value()
-                               ? static_cast<double>(counter.int_value())
-                               : counter.double_value();
-      auto id = context_->event_tracker->PushCounter(ts, 0, state->track_id);
-      if (state->last_id) {
-        auto row = context_->storage->mutable_counter_table()->FindById(
-            *state->last_id);
-        row->set_value(counter_val);
+
+      // Find the matching spec in the descriptor.
+      bool found = false;
+      for (auto spec_it = desc.specs(); spec_it; ++spec_it) {
+        GpuCounterDescriptor::GpuCounterSpec::Decoder spec(*spec_it);
+        if (!spec.has_counter_id() ||
+            spec.counter_id() != counter.counter_id()) {
+          continue;
+        }
+        if (!spec.has_name()) {
+          context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
+          break;
+        }
+        found = true;
+
+        auto track_id = InternGpuCounterTrack(gpu_id, spec);
+        auto [last_it, inserted] =
+            gpu_counter_last_id_.Insert(track_id, std::nullopt);
+        if (inserted) {
+          InsertCounterGroups(track_id, spec);
+        }
+
+        double counter_val = counter.has_int_value()
+                                 ? static_cast<double>(counter.int_value())
+                                 : counter.double_value();
+        PushGpuCounterValue(ts, counter_val, track_id, &*last_it);
+        break;
       }
-      state->last_id = id;
+
+      if (!found) {
+        context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
+      }
     }
+    return;
+  }
+
+  // Legacy inline counter_descriptor path.
+  if (event.has_counter_descriptor()) {
+    GpuCounterDescriptor::Decoder descriptor(event.counter_descriptor());
+    for (auto it = descriptor.specs(); it; ++it) {
+      GpuCounterDescriptor::GpuCounterSpec::Decoder spec(*it);
+      if (!spec.has_counter_id()) {
+        context_->import_logs_tracker->RecordParserError(
+            stats::gpu_counters_invalid_spec, ts);
+        continue;
+      }
+      if (!spec.has_name()) {
+        context_->import_logs_tracker->RecordParserError(
+            stats::gpu_counters_invalid_spec, ts);
+        continue;
+      }
+
+      auto counter_id = spec.counter_id();
+      if (gpu_counter_state_.Find(counter_id)) {
+        context_->import_logs_tracker->RecordParserError(
+            stats::gpu_counters_invalid_spec, ts,
+            [this, counter_id, &spec](ArgsTracker::BoundInserter& inserter) {
+              inserter.AddArg(counter_id_key_id_,
+                              Variadic::UnsignedInteger(counter_id));
+              inserter.AddArg(counter_name_key_id_,
+                              Variadic::String(context_->storage->InternString(
+                                  spec.name())));
+            });
+        continue;
+      }
+
+      auto gpu_id = event.gpu_id();
+      auto track_id = InternGpuCounterTrack(gpu_id, spec);
+      InsertCounterGroups(track_id, spec);
+      gpu_counter_state_.Insert(counter_id, GpuCounterState{track_id, {}});
+    }
+  }
+
+  for (auto it = event.counters(); it; ++it) {
+    GpuCounterEvent::GpuCounter::Decoder counter(*it);
+    if (!counter.has_counter_id() ||
+        !(counter.has_int_value() || counter.has_double_value())) {
+      continue;
+    }
+    auto* state = gpu_counter_state_.Find(counter.counter_id());
+    if (!state) {
+      continue;
+    }
+    double counter_val = counter.has_int_value()
+                             ? static_cast<double>(counter.int_value())
+                             : counter.double_value();
+    PushGpuCounterValue(ts, counter_val, state->track_id, &state->last_id);
   }
 }
 
