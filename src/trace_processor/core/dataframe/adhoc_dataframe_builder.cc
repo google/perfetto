@@ -104,7 +104,7 @@ AdhocDataframeBuilder::BuildRaw() && {
     }
     raw_columns.push_back(std::move(rc));
   }
-  return raw_columns;
+  return std::move(raw_columns);
 }
 
 base::StatusOr<Dataframe> AdhocDataframeBuilder::Build() && {
