@@ -593,7 +593,12 @@ function transpileTsProject(project, options) {
 
   if (options !== undefined && options.watch) {
     args.push('--watch', '--preserveWatchOutput');
-    addTask(execModule, ['tsc', args, {async: true}]);
+    // When in watch mode, don't break if we get typescript errors in the build.
+    // Typescript errors on incremental builds don't break the build, so errors
+    // in the initial build shouldn't break it either.
+    // Note: In non-watch mode (e.g. production builds), we do want to break on
+    // typescript errors, so there's no change here.
+    addTask(execModule, ['tsc', args, {async: true, noErrCheck: true}]);
   } else {
     addTask(execModule, ['tsc', args]);
   }
@@ -731,12 +736,15 @@ function startServer() {
           server.listen(port, cfg.httpServerListenHost);
         } else {
           console.error(`ERROR: Port ${port} is in use, and no free port found after 10 tries. Exiting.`);
+          process.exit(1);
         }
       } else {
         console.error(`ERROR: Port ${port} is in use, and --serve-port was explicitly set. Exiting.`);
+        process.exit(1);
       }
     } else {
       console.error('HTTP SERVER ERROR:', e);
+      process.exit(1);
     }
   });
 
