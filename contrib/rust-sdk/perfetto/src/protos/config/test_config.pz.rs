@@ -24,10 +24,10 @@ pb_msg!(TestConfig {
     seed: u32, primitive, 3,
     message_size: u32, primitive, 4,
     send_batch_on_register: bool, primitive, 5,
-    dummy_fields: DummyFields, msg, 6,
+    dummy_fields: TestConfigDummyFields, msg, 6,
 });
 
-pb_msg!(DummyFields {
+pb_msg!(TestConfigDummyFields {
     field_uint32: u32, primitive, 1,
     field_int32: i32, primitive, 2,
     field_uint64: u64, primitive, 3,

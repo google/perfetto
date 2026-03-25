@@ -21,7 +21,7 @@ import {Icon} from '../../widgets/icon';
 import {TextInput} from '../../widgets/text_input';
 import {SqlModules, SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
 import {
-  PerfettoSqlType,
+  perfettoSqlTypeIcon,
   perfettoSqlTypeToString,
 } from '../../trace_processor/perfetto_sql_type';
 import {EmptyState} from '../../widgets/empty_state';
@@ -35,32 +35,6 @@ function renderHighlightedName(segments: FuzzySegment[]): m.Children {
   return segments.map(({matching, value}) =>
     matching ? m('span.pf-simple-table-list__highlight', value) : value,
   );
-}
-
-// Returns a Material icon name for a given PerfettoSQL type
-function getTypeIcon(type?: PerfettoSqlType): string {
-  if (type === undefined) return 'help_outline';
-  switch (type.kind) {
-    case 'int':
-      return 'tag';
-    case 'double':
-      return 'decimal_increase';
-    case 'string':
-      return 'text_fields';
-    case 'boolean':
-      return 'toggle_on';
-    case 'timestamp':
-      return 'schedule';
-    case 'duration':
-      return 'timer';
-    case 'bytes':
-      return 'memory';
-    case 'id':
-    case 'joinid':
-      return 'key';
-    case 'arg_set_id':
-      return 'dataset';
-  }
 }
 
 export interface TableListAttrs {
@@ -206,7 +180,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
               m(
                 '.pf-simple-table-list__column',
                 m(Icon, {
-                  icon: getTypeIcon(col.type),
+                  icon: perfettoSqlTypeIcon(col.type),
                   className: 'pf-simple-table-list__column-icon',
                 }),
                 m(

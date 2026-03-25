@@ -203,7 +203,7 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
   {
     type: 'gpu_counter',
     topLevelGroup: 'GPU',
-    group: 'GPU Counters',
+    group: 'Counters',
   },
   {
     type: 'gpu_memory',

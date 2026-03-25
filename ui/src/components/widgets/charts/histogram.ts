@@ -22,8 +22,7 @@ import {
   computeHistogram,
 } from './histogram_loader';
 import {EChartView, EChartEventHandler} from './echart_view';
-import {buildChartOption} from './chart_option_builder';
-import {getChartThemeColors} from './chart_theme';
+import {buildChartOption, SELECTION_COLOR} from './chart_option_builder';
 
 // Re-export data types for convenience
 export {HistogramBucket, HistogramData, HistogramConfig, computeHistogram};
@@ -56,6 +55,13 @@ export interface HistogramAttrs {
    * Called with the selected range based on mousedown and mouseup positions.
    */
   readonly onBrush?: (range: {start: number; end: number}) => void;
+
+  /**
+   * Selection range to highlight on the chart. Buckets overlapping this
+   * range are drawn with a highlight color. The consumer controls this
+   * state — typically by feeding the `onBrush` output back in.
+   */
+  readonly selection?: {readonly start: number; readonly end: number};
 
   /**
    * Fill parent container. Defaults to false.
@@ -139,7 +145,6 @@ function buildOption(
   const nullCount = data.nullCount ?? 0;
   const totalWithNull = data.totalCount + nullCount;
 
-  const theme = getChartThemeColors();
   const categories = data.buckets.map((b) => formatXValue(b.start));
   const seriesData: number[] = data.buckets.map((b) => b.count);
   const bucketCount = data.buckets.length;
@@ -201,17 +206,32 @@ function buildOption(
     brush: attrs.onBrush ? {xAxisIndex: 0, brushType: 'lineX'} : undefined,
   });
 
+  // Build per-bar styles, highlighting buckets that overlap the selection.
+  const sel = attrs.selection;
+  const styledData = seriesData.map((count, idx) => {
+    const item: Record<string, unknown> = {value: count};
+    if (sel !== undefined && idx < data.buckets.length) {
+      const bucket = data.buckets[idx];
+      const overlaps = bucket.end > sel.start && bucket.start < sel.end;
+      if (overlaps) {
+        item.itemStyle = {color: SELECTION_COLOR};
+      }
+    }
+    return item;
+  });
+
   // Add series on top of the base option
   (option as Record<string, unknown>).series = [
     {
       type: 'bar',
-      data: seriesData,
+      data: styledData,
       barWidth: '100%',
       barCategoryGap: '0%',
       itemStyle: barColor !== undefined ? {color: barColor} : undefined,
-      emphasis: {
-        itemStyle: {color: barHoverColor ?? theme.accentColor},
-      },
+      emphasis:
+        barHoverColor !== undefined
+          ? {itemStyle: {color: barHoverColor}}
+          : undefined,
     },
   ];
 

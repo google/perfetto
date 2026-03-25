@@ -16,8 +16,11 @@ import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {extractBrushRect, formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
-import {buildChartOption, buildLegendOption} from './chart_option_builder';
-import {getChartThemeColors} from './chart_theme';
+import {
+  buildChartOption,
+  buildLegendOption,
+  buildSelectionMarkArea,
+} from './chart_option_builder';
 
 /**
  * A single data point in a scatter chart.
@@ -87,6 +90,18 @@ export interface ScatterChartAttrs {
     yMin: number;
     yMax: number;
   }) => void;
+
+  /**
+   * Selection rectangle to highlight on the chart. When provided, a shaded
+   * region is drawn. The consumer controls this state — typically by feeding
+   * the `onBrush` output back in.
+   */
+  readonly selection?: {
+    readonly xMin: number;
+    readonly xMax: number;
+    readonly yMin: number;
+    readonly yMax: number;
+  };
 
   /**
    * Fill parent container. Defaults to false.
@@ -191,8 +206,6 @@ function buildScatterOption(
   } = attrs;
   const fmtX = formatXValue ?? formatNumber;
   const fmtY = formatYValue ?? formatNumber;
-
-  const theme = getChartThemeColors();
   const displayLegend = showLegend ?? data.series.length > 1;
 
   // Compute size range for normalization if any points have sizes
@@ -209,8 +222,8 @@ function buildScatterOption(
   const hasSizes = minSize !== Infinity;
   const sizeRange = maxSize - minSize || 1;
 
-  const series = data.series.map((s) => {
-    return {
+  const series = data.series.map((s, i) => {
+    const base: Record<string, unknown> = {
       type: 'scatter' as const,
       name: s.name,
       // ECharts scatter series requires data as arrays with positional indices:
@@ -246,9 +259,21 @@ function buildScatterOption(
         : symbolSize,
       itemStyle: s.color !== undefined ? {color: s.color} : undefined,
       emphasis: {
-        itemStyle: {borderWidth: 2, borderColor: theme.backgroundColor},
+        itemStyle: {borderWidth: 2},
       },
     };
+
+    // Render selection highlight on the first series only.
+    if (i === 0 && attrs.selection !== undefined) {
+      const sel = attrs.selection;
+      base.markArea = buildSelectionMarkArea([
+        [
+          {xAxis: sel.xMin, yAxis: sel.yMin},
+          {xAxis: sel.xMax, yAxis: sel.yMax},
+        ],
+      ]);
+    }
+    return base;
   });
 
   const option = buildChartOption({

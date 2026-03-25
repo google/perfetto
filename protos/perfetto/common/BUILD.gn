@@ -33,6 +33,7 @@ perfetto_proto_library("@TYPE@") {
     "protolog_common.proto",
     "sys_stats_counters.proto",
     "system_info.proto",
+    "trace_attributes.proto",
     "trace_stats.proto",
     "tracing_service_capabilities.proto",
     "tracing_service_state.proto",

@@ -435,6 +435,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
       v4l2_tracker_(context),
       virtio_gpu_tracker_(context),
       virtio_video_tracker_(context),
+      pixel_display_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
@@ -1150,6 +1151,14 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kDpuDispDpuUnderrunFieldNumber: {
         ParseDpuDispDpuUnderrun(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kDpuDispFrameStartTimeoutFieldNumber: {
+        pixel_display_tracker_.ParseDpuDispFrameStartTimeout(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kDpuDispFrameDoneTimeoutFieldNumber: {
+        pixel_display_tracker_.ParseDpuDispFrameDoneTimeout(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kGramCollisionFieldNumber: {

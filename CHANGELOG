@@ -1,6 +1,7 @@
 Unreleased:
   Tracing service and probes:
-   *
+    * Added `android.aflags` data source and associated Trace Processor and UI
+      support for capturing and visualizing Android aconfig flags.
   Trace Processor:
    *
   UI:

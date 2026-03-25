@@ -27,15 +27,16 @@ export function renderCheckbox(): m.Children {
       ),
     ),
     renderWidgetShowcase({
-      renderWidget: ({label, labelLeft, showInlineText, ...opts}) => [
-        showInlineText && 'Before',
-        m(Checkbox, {
+      renderWidget: ({label, labelLeft, showInlineText, ...opts}) => {
+        const checkbox = m(Checkbox, {
           label: label ? 'Checkbox' : undefined,
           labelLeft: labelLeft ? 'Checkbox' : undefined,
           ...opts,
-        }),
-        showInlineText && 'after',
-      ],
+        });
+        return showInlineText
+          ? m('span', 'Inline ', checkbox, ' text')
+          : checkbox;
+      },
       initialOpts: {
         label: true,
         labelLeft: false,

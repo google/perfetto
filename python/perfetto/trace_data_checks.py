@@ -83,8 +83,6 @@ MODULE_DATA_CHECK_SQL = {
     # INTRINSIC-BASED TABLES - Android
     'android.cpu.cpu_per_uid':
         'SELECT 1 FROM __intrinsic_android_cpu_per_uid_track',
-    'android.input':
-        'SELECT 1 FROM __intrinsic_android_key_events',
     'android.kernel_wakelocks':
         'SELECT 1 FROM track WHERE name = \'android_kernel_wakelock\'',
     'android.network_packets':

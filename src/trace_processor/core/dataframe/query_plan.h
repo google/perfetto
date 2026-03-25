@@ -78,16 +78,6 @@ struct RegisterInit {
 };
 static_assert(std::is_trivially_copyable_v<RegisterInit>);
 
-// Result of applying filters via the static Filter() method.
-// Contains both the filtered indices register and the RegisterInit specs
-// needed to initialize storage registers before bytecode execution.
-struct FilterResult {
-  std::variant<interpreter::RwHandle<Range>,
-               interpreter::RwHandle<Span<uint32_t>>>
-      indices;
-  base::SmallVector<RegisterInit, 16> register_inits;
-};
-
 // A QueryPlan encapsulates all the information needed to execute a query,
 // including the bytecode instructions and interpreter configuration.
 struct QueryPlanImpl {
@@ -229,10 +219,6 @@ struct QueryPlanImpl {
       const Column* const* columns,
       const Index* indexes);
 
-  // Convenience overload that extracts pointers from a Dataframe.
-  static interpreter::RegValue GetRegisterInitValue(const RegisterInit& init,
-                                                    const Dataframe& df);
-
   ExecutionParams params;
   interpreter::BytecodeVector bytecode;
   base::SmallVector<uint32_t, 24> col_to_output_offset;
@@ -261,28 +247,6 @@ class QueryPlanBuilder {
       const std::vector<SortSpec>& sort_specs,
       const LimitSpec& limit_spec,
       uint64_t cols_used);
-
-  // Applies filter constraints to an existing BytecodeBuilder.
-  // This is useful for callers (like TreeTransformer) that want to reuse
-  // the filtering logic without building a full query plan.
-  //
-  // Parameters:
-  //   builder: The BytecodeBuilder to emit bytecode into
-  //   cache: Register cache for column/index register caching
-  //   input_indices: Input indices to filter
-  //   df: The dataframe to filter
-  //   specs: Filter specifications (may be reordered)
-  //
-  // Returns a FilterResult containing:
-  //   - The filtered indices register
-  //   - RegisterInit specs needed to initialize storage registers
-  // Cost tracking is done internally and discarded at end of call.
-  static base::StatusOr<FilterResult> Filter(
-      interpreter::BytecodeBuilder& builder,
-      DataframeRegisterCache& cache,
-      IndicesReg input_indices,
-      const Dataframe& df,
-      std::vector<FilterSpec>& specs);
 
  private:
   // Indicates that the bytecode does not change the estimated or maximum number
@@ -428,10 +392,6 @@ class QueryPlanBuilder {
   // Sets the result to an empty set. Use when a filter guarantees no matches.
   void SetGuaranteedToBeEmpty();
 
-  // Returns the prefix popcount register for the given column.
-  interpreter::ReadHandle<Slab<uint32_t>> PrefixPopcountRegisterFor(
-      uint32_t col);
-
   // Allocates a register for column data pointer and adds RegisterInit entry.
   // Returns a HandleBase that can be assigned to typed data_register fields.
   interpreter::RwHandle<interpreter::StoragePtr> StorageRegisterFor(
@@ -442,7 +402,14 @@ class QueryPlanBuilder {
   interpreter::RwHandle<Span<uint32_t>> IndexRegisterFor(uint32_t pos);
 
   // Returns the null bitvector register for the given column.
-  interpreter::ReadHandle<const BitVector*> NullBitvectorRegisterFor(
+  // For NonNull columns, returns an empty handle.
+  interpreter::ReadHandle<interpreter::NullBitvector> NullBitvectorRegisterFor(
+      uint32_t col);
+
+  // Returns the null bitvector register for the given column, ensuring a
+  // PrefixPopcount bytecode has been emitted for SparseNull columns.
+  // No-op for non-SparseNull columns or if already emitted.
+  interpreter::ReadHandle<interpreter::NullBitvector> EnsurePrefixPopcountFor(
       uint32_t col);
 
   // Returns the SmallValueEq bitvector register for the given column.
@@ -514,6 +481,9 @@ class QueryPlanBuilder {
 
   // Register cache for caching column/index registers across Filter() calls.
   DataframeRegisterCache& cache_;
+
+  // Tracks which columns have had PrefixPopcount bytecode emitted.
+  base::FlatHashMap<uint32_t, bool> prefix_popcount_emitted_;
 
   // Last scratch registers returned by GetOrCreateScratchSpanRegister.
   std::optional<Scratch> scratch_;

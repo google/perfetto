@@ -43,15 +43,11 @@ export interface ChartThemeColors {
 
 /**
  * Returns the current theme colors by reading CSS variables from the given
- * element. Falls back to .pf-theme-provider then document.documentElement so
- * charts work in embedded builds that omit the theme provider.
+ * element. The element must be within the DOM tree that has the theme CSS
+ * variables defined (typically a child of .pf-theme-provider).
  */
-export function getChartThemeColors(el?: Element): ChartThemeColors {
-  const elem =
-    el ??
-    document.querySelector('.pf-theme-provider') ??
-    document.documentElement;
-  const style = getComputedStyle(elem);
+export function getChartThemeColors(el: Element): ChartThemeColors {
+  const style = getComputedStyle(el);
 
   const chartColors: string[] = [];
   for (let i = 1; i <= 8; i++) {

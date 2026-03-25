@@ -55,7 +55,7 @@ trace.add_gpu_counter_spec(
 # Add some counter value events.
 trace.add_gpu_counter(11, 31, 5)
 trace.add_gpu_counter(21, 31, 10)
-trace.add_gpu_counter(31, 31, 15)
+trace.add_gpu_counter(31, 31, 15.5)
 
 trace.add_gpu_counter(12, 32, 7)
 trace.add_gpu_counter(22, 32, 14)

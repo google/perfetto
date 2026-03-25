@@ -29,6 +29,7 @@ group("tools") {
     "proto_filter",
     "proto_merger",
     "protoprofile",
+    "string_filter_tool",
   ]
   if (is_linux || is_android) {
     deps += [

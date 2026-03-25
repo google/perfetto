@@ -42,7 +42,9 @@ export class FuzzyFinder<T> {
     const docs = items.map((item, i) => ({id: i, text: keyLookup(item)}));
     this.miniSearch = new MiniSearch({
       fields: ['text'],
+      tokenize: camelCaseTokenize,
       searchOptions: {
+        tokenize: camelCaseTokenize,
         // Allow 1 edit for short terms, ~20% for longer ones.
         fuzzy: (term: string) =>
           term.length <= 3 ? 1 : Math.ceil(term.length * 0.2),
@@ -71,6 +73,24 @@ export class FuzzyFinder<T> {
       return {item, segments: computeHighlightSegments(searchTerm, text)};
     });
   }
+}
+
+// Tokenize text by splitting on whitespace/punctuation AND camelCase boundaries.
+// E.g. "dev.perfetto.LiveMemory" -> ["dev", "perfetto", "Live", "Memory"]
+// This allows searching for "memory" to match "LiveMemory".
+function camelCaseTokenize(text: string): string[] {
+  // First split on non-alphanumeric characters (dots, spaces, underscores, etc.)
+  const coarseTokens = text.split(/[^a-zA-Z0-9]+/).filter(Boolean);
+  const tokens: string[] = [];
+  for (const token of coarseTokens) {
+    // Split camelCase: insert boundary before uppercase letter preceded by
+    // a lowercase letter, or before an uppercase letter followed by a
+    // lowercase letter when preceded by uppercase (e.g. "XMLParser" ->
+    // ["XML", "Parser"]).
+    const parts = token.split(/(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])/);
+    tokens.push(...parts);
+  }
+  return tokens;
 }
 
 // Given a query (possibly multi-word) and candidate text, compute highlight

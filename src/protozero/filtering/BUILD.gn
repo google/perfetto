@@ -33,6 +33,20 @@ source_set("message_filter") {
   ]
 }
 
+source_set("message_filter_config") {
+  sources = [
+    "message_filter_config.cc",
+    "message_filter_config.h",
+  ]
+  deps = [
+    ":message_filter",
+    ":string_filter",
+    "../../../gn:default_deps",
+    "../../../protos/perfetto/config:cpp",
+    "../../base",
+  ]
+}
+
 source_set("bytecode_common") {
   sources = [ "filter_bytecode_common.h" ]
   deps = [ "../../../gn:default_deps" ]

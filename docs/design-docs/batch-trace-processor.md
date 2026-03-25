@@ -65,8 +65,8 @@ In this section, we briefly discuss some of the most impactful design decisions
 taken when building batch trace processor and the reasons behind them.
 
 ### Language
-The choice of langugage is pretty straightforward. Python is already the go-to
-langugage for data analysis in a wide variety of domains and our problem
+The choice of language is pretty straightforward. Python is already the go-to
+language for data analysis in a wide variety of domains and our problem
 is not unique enough to warrant making a different decision. Moreover, another
 point in favour is the existence of the Python API for trace processor. This
 further eases the implementation as we do not have to start from scratch.
@@ -82,14 +82,14 @@ to describe both the protocol (i.e. the source) from which traces should be
 fetched and the arguments (i.e. query parameters) which the traces should match.
 
 Batch trace processor should integrate tightly with trace URIs and their
-resolvers. Users should be able to pass either just the URI (whcih is really
+resolvers. Users should be able to pass either just the URI (which is really
 just a string for maximum flexibility) or a resolver object which can yield a
 list of trace file paths.
 
-To handle URI strings, there should be some mecahinsm of "registering" resolvers
+To handle URI strings, there should be some mechanism of "registering" resolvers
 to make them eligible to resolve a certain "protocol". By default, we should
 provide a resolver to handle filesystem. We should ensure that the resolver
-design is such that resolvers can be closed soruce while the rest of batch trace
+design is such that resolvers can be closed source while the rest of batch trace
 processor is open.
 
 Along with the job of yielding a list of traces, resolvers should also be

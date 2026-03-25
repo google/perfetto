@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {RecordingTarget} from '../interfaces/recording_target';
-import {SegmentedButtons} from '../../../widgets/segmented_buttons';
 import {TARGET_PLATFORMS} from '../interfaces/target_platform';
 import {RecordingTargetProvider} from '../interfaces/recording_target_provider';
 import {Icon} from '../../../widgets/icon';
@@ -115,18 +114,23 @@ class OverviewPage implements m.ClassComponent<RecMgrAttrs> {
 
     return [
       m('header', 'Target platform'),
-      m(SegmentedButtons, {
-        className: 'platform-selector',
-        options: TARGET_PLATFORMS.map((p) => ({label: p.name, icon: p.icon})),
-        selectedOption: TARGET_PLATFORMS.findIndex(
-          (p) => p.id === recMgr.currentPlatform,
+      m(
+        '.record-platform-buttons',
+        TARGET_PLATFORMS.map((p) =>
+          m(
+            'button',
+            {
+              className: p.id === recMgr.currentPlatform ? 'selected' : '',
+              onclick: () => {
+                recMgr.setPlatform(p.id);
+                recMgr.loadDefaultConfig();
+              },
+            },
+            m(Icon, {icon: p.icon}),
+            p.name,
+          ),
         ),
-        onOptionSelected: (num) => {
-          const platformId = TARGET_PLATFORMS[num].id;
-          recMgr.setPlatform(platformId);
-          recMgr.loadDefaultConfig();
-        },
-      }),
+      ),
 
       m(RecordConfigSelector, {recMgr}),
 

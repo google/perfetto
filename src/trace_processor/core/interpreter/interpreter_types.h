@@ -17,16 +17,21 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_INTERPRETER_INTERPRETER_TYPES_H_
 #define SRC_TRACE_PROCESSOR_CORE_INTERPRETER_INTERPRETER_TYPES_H_
 
-#include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <utility>
 #include <variant>
+#include <vector>
 
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/type_set.h"
 
 namespace perfetto::trace_processor::core::interpreter {
@@ -128,6 +133,11 @@ struct CastFilterValueResult {
   // Cast value for Id columns.
   struct Id {
     bool operator==(const Id& other) const { return value == other.value; }
+    bool operator<(const Id& other) const { return value < other.value; }
+    template <typename H>
+    friend H PerfettoHashValue(H h, const Id& id) {
+      return H::Combine(std::move(h), id.value);
+    }
     uint32_t value;
   };
   using Value =
@@ -154,7 +164,12 @@ struct CastFilterValueResult {
   Value value;
 };
 
-// Result of an operation that yields multiple values (e.g. from an IN clause).
+// Result of casting an IN clause's value list.
+//
+// The canonical storage is a typed HashMap (ValueHashMap) which naturally
+// deduplicates values at cast time. A typed sorted ValueList is derived
+// from it for the linear scan and indexed binary search paths. For dense
+// Id/Uint32 values, a BitVector provides O(1) membership testing.
 struct CastFilterValueListResult {
   using Value = std::variant<CastFilterValueResult::Id,
                              uint32_t,
@@ -162,6 +177,14 @@ struct CastFilterValueListResult {
                              int64_t,
                              double,
                              StringPool::Id>;
+  template <typename K>
+  using HashMap = base::FlatHashMapV2<K, bool>;
+  using ValueHashMap = std::variant<HashMap<CastFilterValueResult::Id>,
+                                    HashMap<uint32_t>,
+                                    HashMap<int32_t>,
+                                    HashMap<int64_t>,
+                                    HashMap<double>,
+                                    HashMap<StringPool::Id>>;
   using ValueList = std::variant<FlexVector<CastFilterValueResult::Id>,
                                  FlexVector<uint32_t>,
                                  FlexVector<int32_t>,
@@ -169,21 +192,81 @@ struct CastFilterValueListResult {
                                  FlexVector<double>,
                                  FlexVector<StringPool::Id>>;
 
-  static CastFilterValueListResult Valid(ValueList v) {
-    return CastFilterValueListResult{CastFilterValueResult::Validity::kValid,
-                                     std::move(v)};
+  using Ptr = std::unique_ptr<CastFilterValueListResult>;
+
+  // Initializes the hash_map and value_list variants to the correct
+  // alternative for storage type T. Must be called before accessing
+  // these fields via unchecked_get.
+  template <typename T>
+  void Init() {
+    hash_map.emplace<StorageType::VariantTypeAtIndex<T, ValueHashMap>>();
+    value_list.emplace<StorageType::VariantTypeAtIndex<T, ValueList>>();
   }
-  static CastFilterValueListResult NoneMatch() {
-    return CastFilterValueListResult{
-        CastFilterValueResult::Validity::kNoneMatch,
-        FlexVector<CastFilterValueResult::Id>()};
+
+  // Resets all fields to their default state while preserving heap
+  // allocations inside the HashMap, ValueList, and BitVector.
+  template <typename T>
+  void Clear() {
+    validity = CastFilterValueResult::Validity::kNoneMatch;
+    base::unchecked_get<StorageType::VariantTypeAtIndex<T, ValueHashMap>>(
+        hash_map)
+        .Clear();
+    base::unchecked_get<StorageType::VariantTypeAtIndex<T, ValueList>>(
+        value_list)
+        .clear();
+    bit_vector.clear();
   }
-  static CastFilterValueListResult AllMatch() {
-    return CastFilterValueListResult{CastFilterValueResult::Validity::kAllMatch,
-                                     FlexVector<CastFilterValueResult::Id>()};
-  }
-  CastFilterValueResult::Validity validity;
+
+  CastFilterValueResult::Validity validity =
+      CastFilterValueResult::Validity::kNoneMatch;
+
+  // Typed HashMap for O(1) membership testing and deduplication.
+  ValueHashMap hash_map;
+
+  // For dense Id/Uint32 values, a BitVector for O(1) membership testing.
+  // Empty when not applicable.
+  BitVector bit_vector;
+
+  // Deduplicated typed values for linear scan (small lists) and indexed
+  // binary search paths. Empty for large lists.
   ValueList value_list;
+};
+
+// Opaque state for tree operations. Bundles tree structure, column data
+// copies, P2C cache, and scratch buffers into a single object that
+// bytecodes modify in-place.
+//
+// Column data and null bitvectors are registered by the TreeTransformer
+// and compacted alongside the tree structure by FilterTreeState.
+struct TreeState {
+  // Tree structure.
+  Slab<uint32_t> parent;  // parent[i] = row index (kNullParent for roots)
+  Slab<uint32_t> original_rows;  // original_rows[i] = original df row index
+  uint32_t row_count = 0;
+
+  // Column data copies (compacted alongside parent by FilterTreeState).
+  struct ColumnStorage {
+    Slab<uint8_t> data;
+    uint32_t elem_size;
+  };
+  std::vector<ColumnStorage> columns;
+
+  // Null bitvector copies (compacted alongside parent by FilterTreeState).
+  std::vector<BitVector> null_bitvectors;
+
+  // Reusable keep bitvector (allocated once at max size, cleared each use).
+  BitVector keep_bv;
+
+  // P2C CSR cache (rebuilt lazily).
+  Slab<uint32_t> p2c_offsets;
+  Slab<uint32_t> p2c_children;
+  Slab<uint32_t> p2c_roots;
+  uint32_t p2c_root_count = 0;
+  bool p2c_valid = false;
+
+  // Scratch buffers (allocated once at max size, reused).
+  Slab<uint32_t> scratch1;  // initial_row_count * 2
+  Slab<uint32_t> scratch2;  // initial_row_count
 };
 
 }  // namespace perfetto::trace_processor::core::interpreter

@@ -21,7 +21,9 @@ use perfetto_sdk::{
         trace::{
             test_event::*,
             trace_packet::TracePacket,
-            track_event::debug_annotation::{DebugAnnotation, NestedValue, NestedValueNestedType},
+            track_event::debug_annotation::{
+                DebugAnnotation, DebugAnnotationNestedValue, NestedValueNestedType,
+            },
         },
     },
 };
@@ -51,20 +53,20 @@ struct DummyFields {
 impl DummyFields {
     fn decode(&mut self, data: &[u8]) -> &mut Self {
         use PbDecoderField::*;
-        const UINT32_ID: u32 = DummyFieldsFieldNumber::FieldUint32 as u32;
-        const INT32_ID: u32 = DummyFieldsFieldNumber::FieldInt32 as u32;
-        const UINT64_ID: u32 = DummyFieldsFieldNumber::FieldUint64 as u32;
-        const INT64_ID: u32 = DummyFieldsFieldNumber::FieldInt64 as u32;
-        const FIXED64_ID: u32 = DummyFieldsFieldNumber::FieldFixed64 as u32;
-        const SFIXED64_ID: u32 = DummyFieldsFieldNumber::FieldSfixed64 as u32;
-        const FIXED32_ID: u32 = DummyFieldsFieldNumber::FieldFixed32 as u32;
-        const SFIXED32_ID: u32 = DummyFieldsFieldNumber::FieldSfixed32 as u32;
-        const DOUBLE_ID: u32 = DummyFieldsFieldNumber::FieldDouble as u32;
-        const FLOAT_ID: u32 = DummyFieldsFieldNumber::FieldFloat as u32;
-        const SINT64_ID: u32 = DummyFieldsFieldNumber::FieldSint64 as u32;
-        const SINT32_ID: u32 = DummyFieldsFieldNumber::FieldSint32 as u32;
-        const STRING_ID: u32 = DummyFieldsFieldNumber::FieldString as u32;
-        const BYTES_ID: u32 = DummyFieldsFieldNumber::FieldBytes as u32;
+        const UINT32_ID: u32 = TestConfigDummyFieldsFieldNumber::FieldUint32 as u32;
+        const INT32_ID: u32 = TestConfigDummyFieldsFieldNumber::FieldInt32 as u32;
+        const UINT64_ID: u32 = TestConfigDummyFieldsFieldNumber::FieldUint64 as u32;
+        const INT64_ID: u32 = TestConfigDummyFieldsFieldNumber::FieldInt64 as u32;
+        const FIXED64_ID: u32 = TestConfigDummyFieldsFieldNumber::FieldFixed64 as u32;
+        const SFIXED64_ID: u32 = TestConfigDummyFieldsFieldNumber::FieldSfixed64 as u32;
+        const FIXED32_ID: u32 = TestConfigDummyFieldsFieldNumber::FieldFixed32 as u32;
+        const SFIXED32_ID: u32 = TestConfigDummyFieldsFieldNumber::FieldSfixed32 as u32;
+        const DOUBLE_ID: u32 = TestConfigDummyFieldsFieldNumber::FieldDouble as u32;
+        const FLOAT_ID: u32 = TestConfigDummyFieldsFieldNumber::FieldFloat as u32;
+        const SINT64_ID: u32 = TestConfigDummyFieldsFieldNumber::FieldSint64 as u32;
+        const SINT32_ID: u32 = TestConfigDummyFieldsFieldNumber::FieldSint32 as u32;
+        const STRING_ID: u32 = TestConfigDummyFieldsFieldNumber::FieldString as u32;
+        const BYTES_ID: u32 = TestConfigDummyFieldsFieldNumber::FieldBytes as u32;
         for item in PbDecoder::new(data) {
             match item.as_ref().unwrap_or_else(|e| panic!("Error: {}", e)) {
                 (UINT32_ID, Varint(v)) => self.field_uint32 = Some(*v as u32),
@@ -195,12 +197,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                     .set_for_testing(|for_testing: &mut TestEvent| {
                         for_testing.set_str("This is a long string");
                         for_testing.set_counter(10);
-                        for_testing.set_payload(|payload: &mut TestPayload| {
+                        for_testing.set_payload(|payload: &mut TestEventTestPayload| {
                             payload.set_debug_annotations(
                                 |debug_annotation: &mut DebugAnnotation| {
                                     debug_annotation.set_name("This is a payload debug annotation");
                                     debug_annotation.set_nested_value(
-                                        |nested_value: &mut NestedValue| {
+                                        |nested_value: &mut DebugAnnotationNestedValue| {
                                             nested_value.set_nested_type(
                                                 NestedValueNestedType::Unspecified,
                                             );

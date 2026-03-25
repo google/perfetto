@@ -40,18 +40,13 @@
 
   &__overview {
     z-index: 3;
-
-    .pf-overview-timeline {
-      height: 70px;
-      border-bottom: solid 1px var(--pf-color-border);
-    }
   }
 
   &__header {
     display: grid;
     grid-template-columns: 1fr auto;
-    box-shadow: $box-shadow-1;
     z-index: 2;
+    border-bottom: solid 1px var(--pf-color-border);
 
     &:after {
       content: "";
