@@ -57,7 +57,6 @@ export const defaultPlugins = [
   'dev.perfetto.ExampleTraces',
   'dev.perfetto.ExtensionServers',
   'dev.perfetto.DataExplorer',
-  'dev.perfetto.ExtensionServers',
   'dev.perfetto.FlagsPage',
   'dev.perfetto.FlowEventsPanel',
   'dev.perfetto.Frames',
