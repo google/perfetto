@@ -33,14 +33,6 @@
   flex-direction: column;
   color: var(--pf-color-text);
   overflow: hidden;
-
-  // Scroll views (object, overview, bitmaps) flow naturally into the
-  // Perfetto page-container's own scroll — no intermediate scrollbar.
-  &--scroll {
-    height: auto;
-    min-height: 100%;
-    overflow: visible;
-  }
 }
 
 .ah-main {
@@ -56,9 +48,11 @@
   font-size: 0.875rem;
   line-height: 1.25rem;
 
-  .ah-page--scroll & {
-    flex: none;
-    overflow: visible;
+  // The Tabs widget's content area must be a flex column so that DataGrid
+  // views (which use flex: 1 on .ah-view-content) fill the available height.
+  .pf-tabs__content {
+    display: flex;
+    flex-direction: column;
   }
 }
 
@@ -68,45 +62,6 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-}
-
-// Container for views with stacked sections (e.g. object detail).
-// No scroll — the Perfetto page-container handles scrolling.
-.ah-view-scroll {
-}
-
-.ah-tab-bar {
-  display: flex;
-  gap: 0;
-  border-bottom: 1px solid var(--pf-color-border);
-  margin-bottom: 0.75rem;
-  flex-shrink: 0;
-}
-
-.ah-tab-btn {
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  color: var(--pf-color-text-muted);
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  cursor: pointer;
-  transition:
-    color 0.15s,
-    border-color 0.15s;
-  font-family: inherit;
-  white-space: nowrap;
-
-  &:hover {
-    color: var(--pf-color-text);
-  }
-
-  &--active {
-    color: var(--pf-color-accent);
-    border-bottom-color: var(--pf-color-accent);
-    font-weight: 500;
-  }
 }
 
 // Empty state for scroll views (bitmaps, etc.) where fillHeight cannot resolve
@@ -136,12 +91,6 @@
   font-weight: 600;
   margin-bottom: 0.75rem;
   color: var(--pf-color-text);
-}
-
-.ah-heading-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
 }
 
 .ah-muted-heading {
@@ -311,72 +260,6 @@
   margin-left: 0.25rem;
 }
 
-.ah-breadcrumbs {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  overflow-x: auto;
-  padding-bottom: 0.25rem;
-  margin-bottom: 0.5rem;
-  scrollbar-width: thin;
-}
-
-.ah-breadcrumbs__back {
-  position: sticky;
-  left: 0;
-  z-index: 1;
-  flex-shrink: 0;
-  color: var(--pf-color-text-hint);
-  padding-right: 0.25rem;
-  background: var(--pf-color-background-secondary);
-  &:hover {
-    color: var(--pf-color-text-muted);
-  }
-}
-
-.ah-breadcrumbs__back-icon {
-  width: 0.875rem;
-  height: 0.875rem;
-}
-
-.ah-breadcrumbs__item {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  flex-shrink: 0;
-}
-
-.ah-breadcrumbs__sep {
-  color: var(--pf-color-text-hint);
-}
-
-.ah-breadcrumbs__active {
-  color: var(--pf-color-text-muted);
-  font-weight: 500;
-}
-
-.ah-breadcrumbs__link {
-  &:hover {
-    text-decoration: underline;
-  }
-}
-
-.ah-breadcrumbs__link--past {
-  color: var(--pf-color-primary);
-  &:hover {
-    color: var(--pf-color-accent);
-  }
-}
-
-.ah-breadcrumbs__link--future {
-  color: var(--pf-color-text-hint);
-  &:hover {
-    color: var(--pf-color-text-muted);
-  }
-}
-
 .ah-download-link {
   font-size: 0.875rem;
   line-height: 1.25rem;
@@ -411,11 +294,6 @@
 }
 .ah-break-all {
   word-break: break-all;
-}
-.ah-truncate {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .ah-opacity-60 {
   opacity: 0.6;

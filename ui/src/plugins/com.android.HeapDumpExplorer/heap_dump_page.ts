@@ -17,18 +17,11 @@ import type {Engine} from '../../trace_processor/engine';
 import type {Trace} from '../../public/trace';
 import {Spinner} from '../../widgets/spinner';
 import {EmptyState} from '../../widgets/empty_state';
+import {Tabs} from '../../widgets/tabs';
+import type {TabsTab} from '../../widgets/tabs';
 import type {NavState} from './nav_state';
 import type {OverviewData} from './types';
-import {Breadcrumbs} from './components';
-import {
-  nav,
-  trail,
-  trailIndex,
-  navigate,
-  onBreadcrumbNavigate,
-  syncFromSubpage,
-  setNavigateCallback,
-} from './nav_state';
+import {nav, navigate, syncFromSubpage, setNavigateCallback} from './nav_state';
 import * as queries from './queries';
 import OverviewView from './views/overview_view';
 import DominatorsView from './views/dominators_view';
@@ -49,15 +42,6 @@ export function resetCachedOverview(): void {
   overviewLoading = false;
 }
 
-const PAGE_TABS: ReadonlyArray<{key: string; label: string; view: string}> = [
-  {key: 'overview', label: 'Overview', view: 'overview'},
-  {key: 'classes', label: 'Classes', view: 'classes'},
-  {key: 'objects', label: 'Objects', view: 'objects'},
-  {key: 'dominators', label: 'Dominators', view: 'dominators'},
-  {key: 'bitmaps', label: 'Bitmaps', view: 'bitmaps'},
-  {key: 'strings', label: 'Strings', view: 'strings'},
-];
-
 // Maps drill-down views to their parent tab.
 function activeTabKey(view: string): string {
   switch (view) {
@@ -69,23 +53,14 @@ function activeTabKey(view: string): string {
   }
 }
 
-function renderContentView(
+// Renders the content for the "classes" tab, which also hosts drill-down
+// views (instances, object detail) based on the current nav state.
+function classesTabContent(
   state: NavState,
   engine: Engine,
   overview: OverviewData,
 ): m.Children {
   switch (state.view) {
-    case 'overview':
-      return m(OverviewView, {
-        overview,
-        navigate,
-      });
-    case 'classes':
-      return m(ClassesView, {engine, navigate});
-    case 'dominators':
-      return m(DominatorsView, {engine, navigate});
-    case 'objects':
-      return m(AllObjectsView, {engine, navigate});
     case 'object':
       return m(ObjectView, {
         engine,
@@ -95,23 +70,63 @@ function renderContentView(
       });
     case 'instances':
       return m(InstancesView, {engine, navigate, params: state.params});
-    case 'bitmaps':
-      return m(BitmapGalleryView, {
-        engine,
-        navigate,
-        hasFieldValues: overview.hasFieldValues,
-        filterKey: state.params.filterKey,
-      });
-    case 'strings':
-      return m(StringsView, {
-        engine,
-        navigate,
-        initialQuery: state.params.q,
-        hasFieldValues: overview.hasFieldValues,
-      });
     default:
-      return null;
+      return m(ClassesView, {engine, navigate});
   }
+}
+
+function buildTabs(
+  state: NavState,
+  engine: Engine,
+  overview: OverviewData,
+): TabsTab[] {
+  return [
+    {
+      key: 'overview',
+      title: 'Overview',
+      content: m(OverviewView, {overview, navigate}),
+    },
+    {
+      key: 'classes',
+      title: 'Classes',
+      content: classesTabContent(state, engine, overview),
+    },
+    {
+      key: 'objects',
+      title: 'Objects',
+      content: m(AllObjectsView, {engine, navigate}),
+    },
+    {
+      key: 'dominators',
+      title: 'Dominators',
+      content: m(DominatorsView, {engine, navigate}),
+    },
+    {
+      key: 'bitmaps',
+      title: 'Bitmaps',
+      content: m(BitmapGalleryView, {
+        // Key on filterKey so the component remounts when the filter changes,
+        // ensuring initialFilters on the inner DataGrid takes effect.
+        key: state.view === 'bitmaps' ? state.params.filterKey ?? '' : '',
+        engine,
+        navigate,
+        hasFieldValues: overview.hasFieldValues,
+        filterKey:
+          state.view === 'bitmaps' ? state.params.filterKey : undefined,
+      }),
+    },
+    {
+      key: 'strings',
+      title: 'Strings',
+      content: m(StringsView, {
+        key: state.view === 'strings' ? state.params.q ?? '' : '',
+        engine,
+        navigate,
+        initialQuery: state.view === 'strings' ? state.params.q : undefined,
+        hasFieldValues: overview.hasFieldValues,
+      }),
+    },
+  ];
 }
 
 interface HeapDumpPageAttrs {
@@ -172,42 +187,17 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
       );
     }
 
-    const currentTab = activeTabKey(nav.view);
-    const showBreadcrumbs = nav.view === 'object' || nav.view === 'instances';
-    const isScrollView =
-      nav.view === 'object' ||
-      nav.view === 'overview' ||
-      nav.view === 'bitmaps';
-
     return m(
       'div',
-      {class: 'ah-page' + (isScrollView ? ' ah-page--scroll' : '')},
+      {class: 'ah-page'},
       m(
         'main',
         {class: 'ah-main'},
-        m('div', {class: 'ah-tab-bar'}, [
-          PAGE_TABS.map((tab) =>
-            m(
-              'button',
-              {
-                key: tab.key,
-                class:
-                  'ah-tab-btn' +
-                  (currentTab === tab.key ? ' ah-tab-btn--active' : ''),
-                onclick: () => navigate(tab.view as NavState['view']),
-              },
-              tab.label,
-            ),
-          ),
-        ]),
-        showBreadcrumbs
-          ? m(Breadcrumbs, {
-              trail,
-              activeIndex: trailIndex,
-              onNavigate: onBreadcrumbNavigate,
-            })
-          : null,
-        renderContentView(nav, HeapDumpPage.engine, cachedOverview),
+        m(Tabs, {
+          tabs: buildTabs(nav, HeapDumpPage.engine, cachedOverview),
+          activeTabKey: activeTabKey(nav.view),
+          onTabChange: (key) => navigate(key as NavState['view']),
+        }),
       ),
     );
   }

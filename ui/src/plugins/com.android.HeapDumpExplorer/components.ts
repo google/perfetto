@@ -21,8 +21,7 @@ import {filterToSql} from '../../components/widgets/datagrid/sql_utils';
 import type {Engine} from '../../trace_processor/engine';
 import type {InstanceRow, PrimOrRef} from './types';
 import {fmtSize} from './format';
-import type {BreadcrumbEntry, NavState} from './nav_state';
-export type {BreadcrumbEntry};
+import type {NavState} from './nav_state';
 
 export type NavFn = (
   view: NavState['view'],
@@ -320,66 +319,6 @@ export function BitmapImage(): m.Component<BitmapImageAttrs> {
       // Always render the img element so oncreate fires and creates the blob URL.
       // Before the blob URL is ready, src is empty (blank image).
       return m('img', {src: blobUrl ?? '', class: 'ah-bitmap-image'});
-    },
-  };
-}
-
-interface BreadcrumbsAttrs {
-  readonly trail: ReadonlyArray<BreadcrumbEntry>;
-  readonly activeIndex: number;
-  readonly onNavigate: (index: number) => void;
-}
-export function Breadcrumbs(): m.Component<BreadcrumbsAttrs> {
-  return {
-    view(vnode) {
-      const {trail, activeIndex, onNavigate} = vnode.attrs;
-      if (trail.length <= 1) return null;
-      return m(
-        'nav',
-        {'class': 'ah-breadcrumbs', 'aria-label': 'Breadcrumb'},
-        m(
-          'button',
-          {
-            'class': 'ah-breadcrumbs__back',
-            'onclick': () => {
-              if (activeIndex > 0) onNavigate(activeIndex - 1);
-            },
-            'title': 'Back',
-            'aria-label': 'Back',
-          },
-          m(
-            'svg',
-            {
-              class: 'ah-breadcrumbs__back-icon',
-              viewBox: '0 0 20 20',
-              fill: 'currentColor',
-            },
-            m('path', {
-              'fill-rule': 'evenodd',
-              'd': 'M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z',
-              'clip-rule': 'evenodd',
-            }),
-          ),
-        ),
-        trail.map((crumb, i) => {
-          const isActive = i === activeIndex;
-          return m(
-            'span',
-            {key: i, class: 'ah-breadcrumbs__item'},
-            i > 0 ? m('span', {class: 'ah-breadcrumbs__sep'}, '/') : null,
-            isActive
-              ? m('span', {class: 'ah-breadcrumbs__active'}, crumb.label)
-              : m(
-                  'button',
-                  {
-                    class: `ah-breadcrumbs__link ${i > activeIndex ? 'ah-breadcrumbs__link--future' : 'ah-breadcrumbs__link--past'}`,
-                    onclick: () => onNavigate(i),
-                  },
-                  crumb.label,
-                ),
-          );
-        }),
-      );
     },
   };
 }

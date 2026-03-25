@@ -30,45 +30,6 @@ export type NavState =
   | {view: 'strings'; params: {q?: string}}
   | {view: 'flamegraph-objects'; params: {name?: string}};
 
-export function navLabel(state: NavState): string {
-  switch (state.view) {
-    case 'overview':
-      return 'Overview';
-    case 'classes':
-      return 'Classes';
-    case 'dominators':
-      return 'Dominators';
-    case 'objects':
-      return 'Objects';
-    case 'object':
-      return state.params.label ?? `Object 0x${state.params.id.toString(16)}`;
-    case 'instances': {
-      const cls = state.params.className;
-      const short = cls.includes('.')
-        ? cls.slice(cls.lastIndexOf('.') + 1)
-        : cls;
-      return short || 'Instances';
-    }
-    case 'bitmaps':
-      return 'Bitmaps';
-    case 'strings':
-      return 'Strings';
-    case 'flamegraph-objects': {
-      const n = state.params.name;
-      return n ? `Flamegraph: ${n}` : 'Flamegraph Objects';
-    }
-  }
-}
-
-export interface BreadcrumbEntry {
-  state: NavState;
-  label: string;
-}
-
-export function makeCrumb(state: NavState): BreadcrumbEntry {
-  return {state, label: navLabel(state)};
-}
-
 export function stateToSubpage(state: NavState): string {
   switch (state.view) {
     case 'overview':
@@ -174,8 +135,6 @@ export function subpageToState(subpage: string | undefined): NavState {
 }
 
 export let nav: NavState = {view: 'overview', params: {}};
-export let trail: BreadcrumbEntry[] = [makeCrumb(nav)];
-export let trailIndex = 0;
 
 let navigateCallback: ((subpage: string) => void) | undefined;
 
@@ -190,26 +149,9 @@ export function navigate(
   p: Record<string, unknown> = {},
 ): void {
   const state = {view: v, params: p} as NavState;
-  trail = [...trail.slice(0, trailIndex + 1), makeCrumb(state)];
-  trailIndex = trail.length - 1;
   nav = state;
   navigateCallback?.(stateToSubpage(state));
   m.redraw();
-}
-
-export function onBreadcrumbNavigate(i: number): void {
-  const crumb = trail[i];
-  nav = crumb.state;
-  trailIndex = i;
-  navigateCallback?.(stateToSubpage(crumb.state));
-  m.redraw();
-}
-
-export function resetToOverview(): void {
-  const state: NavState = {view: 'overview', params: {}};
-  trail = [makeCrumb(state)];
-  trailIndex = 0;
-  nav = state;
 }
 
 export function syncFromSubpage(subpage: string | undefined): void {
@@ -219,18 +161,7 @@ export function syncFromSubpage(subpage: string | undefined): void {
   const currentPath = currentSubpage.split('?')[0];
   const incomingPath = (subpage ?? '').split('?')[0];
   if (incomingPath !== currentPath) {
-    const state = subpageToState(subpage);
-    nav = state;
-    // flamegraph-objects is only reachable via "Open in Heapdump Explorer"
-    // from the timeline — preserve the existing trail so the user can
-    // navigate back through their previous views.
-    if (state.view === 'flamegraph-objects' && trail.length > 1) {
-      trail = [...trail.slice(0, trailIndex + 1), makeCrumb(state)];
-      trailIndex = trail.length - 1;
-    } else {
-      trail = [makeCrumb(state)];
-      trailIndex = 0;
-    }
+    nav = subpageToState(subpage);
   }
 }
 
