@@ -13,28 +13,31 @@
 // limitations under the License.
 
 import m from 'mithril';
-import type {EChartsCoreOption} from 'echarts/core';
-import {extractBrushRange, formatNumber} from './chart_utils';
+import {formatNumber} from './chart_utils';
 import {
   HistogramBucket,
   HistogramData,
   HistogramConfig,
   computeHistogram,
 } from './histogram_loader';
-import {EChartView, EChartEventHandler} from './echart_view';
-import {buildChartOption, SELECTION_COLOR} from './chart_option_builder';
+import {SELECTION_COLOR} from './chart_option_builder';
+import {getChartThemeColors} from './chart_theme';
 
 // Re-export data types for convenience
 export {HistogramBucket, HistogramData, HistogramConfig, computeHistogram};
 
-// Color for the selection highlight background.
 const SELECTION_BG_COLOR = 'rgba(0, 120, 212, 0.08)';
+const DEFAULT_HEIGHT = 200;
+
+// Margins around the plot area (space for axis labels/ticks).
+const MARGIN = {top: 10, right: 10, bottom: 30, left: 50};
 
 export interface HistogramAttrs {
   /**
    * Histogram data to display, or undefined if loading.
    * When undefined, a loading spinner is shown.
-   * Use the computeHistogram() utility function to compute this from raw values.
+   * Use the computeHistogram() utility function to compute this from raw
+   * values.
    */
   readonly data: HistogramData | undefined;
 
@@ -110,192 +113,362 @@ export interface HistogramAttrs {
   readonly integerDimension?: boolean;
 }
 
-export class Histogram implements m.ClassComponent<HistogramAttrs> {
-  view({attrs}: m.Vnode<HistogramAttrs>) {
-    const {data, height, fillParent, className, onBrush} = attrs;
-
-    const nullCount = data?.nullCount ?? 0;
-    const hasData =
-      data !== undefined && (data.buckets.length > 0 || nullCount > 0);
-    const option = hasData ? buildOption(attrs, data) : undefined;
-
-    return m(EChartView, {
-      option,
-      height,
-      fillParent,
-      className,
-      empty: data !== undefined && !hasData,
-      eventHandlers: buildEventHandlers(attrs, data),
-      activeBrushType: onBrush !== undefined ? 'lineX' : undefined,
-    });
+// Compute ~5 nice tick values for an axis range.
+function computeTicks(min: number, max: number, logScale: boolean): number[] {
+  if (logScale) {
+    if (max <= 0) return [1];
+    const minLog = 0; // Always start at 10^0 = 1
+    const maxLog = Math.ceil(Math.log10(max));
+    const ticks: number[] = [];
+    for (let i = minLog; i <= maxLog; i++) {
+      ticks.push(Math.pow(10, i));
+    }
+    return ticks;
   }
+
+  const range = max - min;
+  if (range === 0) return [min];
+  const rawStep = range / 5;
+  const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const ratio = rawStep / mag;
+  let step: number;
+  if (ratio < 1.5) step = mag;
+  else if (ratio < 3.5) step = 2 * mag;
+  else if (ratio < 7.5) step = 5 * mag;
+  else step = 10 * mag;
+
+  const ticks: number[] = [];
+  const start = Math.ceil(min / step) * step;
+  for (let v = start; v <= max + step * 0.01; v += step) {
+    ticks.push(v);
+  }
+  return ticks;
 }
 
-function buildOption(
-  attrs: HistogramAttrs,
-  data: HistogramData,
-): EChartsCoreOption {
-  const {
-    xAxisLabel,
-    yAxisLabel = 'Count',
-    formatXValue = (v: number) => formatNumber(v),
-    formatYValue,
-    barColor,
-    barHoverColor,
-    logScale = false,
-  } = attrs;
-  const fmtY = formatYValue ?? formatNumber;
-  const nullCount = data.nullCount ?? 0;
-  const totalWithNull = data.totalCount + nullCount;
-  const buckets = data.buckets;
-  const sel = attrs.selection;
+export class Histogram implements m.ClassComponent<HistogramAttrs> {
+  private hoverIdx = -1;
+  private tooltip?: {x: number; y: number; html: string};
+  private containerWidth = 0;
+  private resizeObs?: ResizeObserver;
+  private dom?: Element;
 
-  // Build dataset: each row is [start, end, count, isSelected].
-  const source = buckets.map((b) => {
-    const eps = (b.end - b.start) * 0.01;
-    const inSel =
-      sel !== undefined &&
-      b.end > sel.start + eps &&
-      b.start < sel.end - eps;
-    return [b.start, b.end, b.count, inSel ? 1 : 0];
-  });
+  oncreate({dom}: m.CVnodeDOM<HistogramAttrs>) {
+    this.dom = dom;
+    this.resizeObs = new ResizeObserver(() => {
+      const w = (dom as HTMLElement).clientWidth;
+      if (w !== this.containerWidth) {
+        this.containerWidth = w;
+        m.redraw();
+      }
+    });
+    this.resizeObs.observe(dom as HTMLElement);
+    this.containerWidth = (dom as HTMLElement).clientWidth;
+  }
 
-  // Compute x-axis range from bucket extents.
-  const xMin = buckets.length > 0 ? buckets[0].start : 0;
-  const xMax = buckets.length > 0 ? buckets[buckets.length - 1].end : 1;
+  onremove() {
+    this.resizeObs?.disconnect();
+  }
 
-  const option = buildChartOption({
-    grid: {bottom: xAxisLabel ? 40 : 25},
-    xAxis: {
-      type: 'value',
-      name: xAxisLabel,
-      min: xMin,
-      max: xMax,
-      formatter: (v) => formatXValue(v as number),
-    },
-    yAxis: {
-      type: logScale ? 'log' : 'value',
-      name: yAxisLabel,
-      formatter:
-        formatYValue !== undefined
-          ? (v) => formatYValue(v as number)
-          : undefined,
-      ...(logScale ? {} : {minInterval: 1}),
-    },
-    tooltip: {
-      trigger: 'item' as const,
-      formatter: (params: {dataIndex?: number}) => {
-        const idx = params?.dataIndex;
-        if (idx === undefined || idx < 0 || idx >= buckets.length) {
-          return '';
-        }
-        const bucket = buckets[idx];
-        const pct =
-          totalWithNull > 0
-            ? ((bucket.count / totalWithNull) * 100).toFixed(1)
-            : '0';
-        return [
-          `Range: ${formatXValue(bucket.start)} \u2013 ${formatXValue(bucket.end)}`,
-          `Count: ${fmtY(bucket.count)}`,
-          `${pct}%`,
-        ].join('<br>');
-      },
-    },
-    brush: attrs.onBrush ? {xAxisIndex: 0, brushType: 'lineX'} : undefined,
-  });
+  view({attrs}: m.Vnode<HistogramAttrs>) {
+    const {data, height = DEFAULT_HEIGHT, className, fillParent} = attrs;
+    const formatXValue = attrs.formatXValue ?? formatNumber;
+    const formatYValue = attrs.formatYValue ?? formatNumber;
+    const logScale = attrs.logScale ?? false;
+    const sel = attrs.selection;
 
-  const optionAny = option as Record<string, unknown>;
+    const hasData =
+      data !== undefined &&
+      (data.buckets.length > 0 || (data.nullCount ?? 0) > 0);
 
-  // Custom series: renderItem draws each bar as a rect from bucket.start
-  // to bucket.end on a value axis, giving precise pixel alignment.
-  // We pass bucket data directly rather than using dataset/encode to avoid
-  // ECharts' dimension mapping complexities.
-  const renderItem = (
-    params: {dataIndex: number; coordSys: {x: number; y: number; width: number; height: number}},
-    api: {
-      coord: (point: [number, number]) => [number, number];
-      style: (extra?: Record<string, unknown>) => Record<string, unknown>;
-    },
-  ) => {
-    const idx = params.dataIndex;
-    const bucket = source[idx];
-    const start = bucket[0];
-    const end = bucket[1];
-    const count = bucket[2];
-    const selected = bucket[3];
-
-    const topLeft = api.coord([start, count]);
-    const bottomRight = api.coord([end, logScale ? 1 : 0]);
-    const x = topLeft[0];
-    const y = topLeft[1];
-    const width = bottomRight[0] - topLeft[0];
-    const height = bottomRight[1] - topLeft[1];
-
-    const children: Array<Record<string, unknown>> = [];
-
-    // Selection background — full height of the chart area.
-    if (selected) {
-      const coordSys = params.coordSys;
-      children.push({
-        type: 'rect',
-        shape: {x, y: coordSys.y, width, height: coordSys.height},
-        style: {fill: SELECTION_BG_COLOR},
-        silent: true,
-        z2: 0,
-      });
+    if (data === undefined) {
+      return m(
+        'div',
+        {
+          class: className,
+          style: {
+            height: `${height}px`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            ...(fillParent ? {width: '100%'} : {}),
+          },
+        },
+        'Loading...',
+      );
     }
 
-    // The bar itself. api.style() returns the theme-applied default style
-    // (including fill color from the series color palette).
-    const defaultStyle = api.style();
-    const fill = selected
-      ? SELECTION_COLOR
-      : barColor ?? defaultStyle.fill;
-    children.push({
-      type: 'rect',
-      shape: {x, y, width, height},
-      style: {...defaultStyle, fill},
-      emphasis: barHoverColor !== undefined
-        ? {style: {fill: barHoverColor}}
-        : undefined,
-      z2: 1,
-    });
+    if (!hasData) {
+      return m(
+        'div',
+        {
+          class: className,
+          style: {
+            height: `${height}px`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            ...(fillParent ? {width: '100%'} : {}),
+          },
+        },
+        'No data',
+      );
+    }
 
-    return {type: 'group', children};
-  };
+    // Read theme colors from DOM if available.
+    const colors =
+      this.dom !== undefined ? getChartThemeColors(this.dom) : undefined;
+    const barColor = attrs.barColor ?? colors?.chartColors[0] ?? '#6e93d6';
+    const textColor = colors?.textColor ?? '#999';
 
-  optionAny.series = [
-    {
-      type: 'custom',
-      renderItem,
-      encode: {x: [0, 1], y: 2},
-      data: source,
-      animation: false,
-    },
-  ];
+    const svgWidth = fillParent ? this.containerWidth || 400 : 400;
+    const svgHeight = height;
+    const plotW = svgWidth - MARGIN.left - MARGIN.right;
+    const plotH = svgHeight - MARGIN.top - MARGIN.bottom;
 
-  return option;
-}
+    const buckets = data.buckets;
+    const xMin = buckets[0].start;
+    const xMax = buckets[buckets.length - 1].end;
+    const xRange = xMax - xMin || 1;
+    const maxCount = Math.max(...buckets.map((b) => b.count), 1);
 
-function buildEventHandlers(
-  attrs: HistogramAttrs,
-  data: HistogramData | undefined,
-): ReadonlyArray<EChartEventHandler> {
-  if (!attrs.onBrush || data === undefined || data.buckets.length === 0) {
-    return [];
-  }
-  const onBrush = attrs.onBrush;
+    // Scale functions: data -> pixel
+    const xScale = (v: number) => MARGIN.left + ((v - xMin) / xRange) * plotW;
+    // For log scale, use 0.5 as the floor so bars with count=1 are visible.
+    const logMin = 0.5;
+    const yScale = (v: number): number => {
+      if (logScale) {
+        if (v <= logMin) return MARGIN.top + plotH;
+        const logRange = Math.log10(maxCount) - Math.log10(logMin);
+        const logV = Math.log10(v) - Math.log10(logMin);
+        return MARGIN.top + plotH - (logV / logRange) * plotH;
+      }
+      return MARGIN.top + plotH - (v / maxCount) * plotH;
+    };
 
-  return [
-    {
-      eventName: 'brushEnd',
-      handler: (params) => {
-        // On a value axis, coordRange returns actual values.
-        const range = extractBrushRange(params);
-        if (range !== undefined) {
-          onBrush({start: range[0], end: range[1]});
-        }
+    const totalWithNull = data.totalCount + (data.nullCount ?? 0);
+
+    // Build bar rects
+    const bars: m.Children[] = [];
+    for (let i = 0; i < buckets.length; i++) {
+      const b = buckets[i];
+      const x = Math.floor(xScale(b.start));
+      const x2 = Math.floor(xScale(b.end));
+      const w = x2 - x;
+      const y = yScale(b.count);
+      const h = yScale(0) - y;
+
+      // Selection highlight
+      const eps = (b.end - b.start) * 0.01;
+      const inSelection =
+        sel !== undefined && b.end > sel.start + eps && b.start < sel.end - eps;
+
+      if (inSelection) {
+        bars.push(
+          m('rect', {
+            x,
+            y: MARGIN.top,
+            width: w,
+            height: plotH,
+            fill: SELECTION_BG_COLOR,
+          }),
+        );
+      }
+
+      const fill = inSelection
+        ? SELECTION_COLOR
+        : this.hoverIdx === i
+          ? attrs.barHoverColor ?? barColor
+          : barColor;
+
+      bars.push(
+        m('rect', {
+          x,
+          y: b.count === 0 ? yScale(0) : y,
+          width: w,
+          height: b.count === 0 ? 0 : Math.max(h, 0),
+          fill,
+          onmouseenter: (e: MouseEvent) => {
+            this.hoverIdx = i;
+            const pct =
+              totalWithNull > 0
+                ? ((b.count / totalWithNull) * 100).toFixed(1)
+                : '0';
+            this.tooltip = {
+              x: e.offsetX,
+              y: e.offsetY,
+              html: [
+                `Range: ${formatXValue(b.start)} \u2013 ${formatXValue(b.end)}`,
+                `Count: ${formatYValue(b.count)}`,
+                `${pct}%`,
+              ].join('\n'),
+            };
+            m.redraw();
+          },
+          onmouseleave: () => {
+            this.hoverIdx = -1;
+            this.tooltip = undefined;
+            m.redraw();
+          },
+        }),
+      );
+    }
+
+    // Axes
+    const xTicks = computeTicks(xMin, xMax, false);
+    const yTicks = computeTicks(0, maxCount, logScale);
+
+    const xAxisEls: m.Children[] = [];
+    // Axis line
+    xAxisEls.push(
+      m('line', {
+        'x1': MARGIN.left,
+        'y1': MARGIN.top + plotH,
+        'x2': MARGIN.left + plotW,
+        'y2': MARGIN.top + plotH,
+        'stroke': textColor,
+        'stroke-width': 1,
+      }),
+    );
+    for (const v of xTicks) {
+      const x = xScale(v);
+      if (x < MARGIN.left - 1 || x > MARGIN.left + plotW + 1) continue;
+      xAxisEls.push(
+        m('line', {
+          'x1': x,
+          'y1': MARGIN.top + plotH,
+          'x2': x,
+          'y2': MARGIN.top + plotH + 4,
+          'stroke': textColor,
+          'stroke-width': 1,
+        }),
+      );
+      xAxisEls.push(
+        m(
+          'text',
+          {
+            x,
+            'y': MARGIN.top + plotH + 16,
+            'text-anchor': 'middle',
+            'fill': textColor,
+            'font-size': 10,
+          },
+          formatXValue(v),
+        ),
+      );
+    }
+
+    const yAxisEls: m.Children[] = [];
+    yAxisEls.push(
+      m('line', {
+        'x1': MARGIN.left,
+        'y1': MARGIN.top,
+        'x2': MARGIN.left,
+        'y2': MARGIN.top + plotH,
+        'stroke': textColor,
+        'stroke-width': 1,
+      }),
+    );
+    for (const v of yTicks) {
+      const y = yScale(v);
+      if (y < MARGIN.top - 1 || y > MARGIN.top + plotH + 1) continue;
+      yAxisEls.push(
+        m('line', {
+          'x1': MARGIN.left - 4,
+          'y1': y,
+          'x2': MARGIN.left,
+          'y2': y,
+          'stroke': textColor,
+          'stroke-width': 1,
+        }),
+      );
+      yAxisEls.push(
+        m(
+          'text',
+          {
+            'x': MARGIN.left - 6,
+            'y': y + 3,
+            'text-anchor': 'end',
+            'fill': textColor,
+            'font-size': 10,
+          },
+          formatYValue(v),
+        ),
+      );
+    }
+
+    // Axis labels
+    if (attrs.yAxisLabel) {
+      yAxisEls.push(
+        m(
+          'text',
+          {
+            'x': 12,
+            'y': MARGIN.top - 2,
+            'fill': textColor,
+            'font-size': 11,
+            'text-anchor': 'start',
+          },
+          attrs.yAxisLabel ?? 'Count',
+        ),
+      );
+    }
+    if (attrs.xAxisLabel) {
+      xAxisEls.push(
+        m(
+          'text',
+          {
+            'x': MARGIN.left + plotW / 2,
+            'y': svgHeight - 2,
+            'fill': textColor,
+            'font-size': 11,
+            'text-anchor': 'middle',
+          },
+          attrs.xAxisLabel,
+        ),
+      );
+    }
+
+    return m(
+      'div',
+      {
+        class: className,
+        style: {
+          position: 'relative',
+          ...(fillParent ? {width: '100%'} : {}),
+        },
       },
-    },
-  ];
+      m(
+        'svg',
+        {
+          width: svgWidth,
+          height: svgHeight,
+          style: {display: 'block'},
+        },
+        ...bars,
+        ...xAxisEls,
+        ...yAxisEls,
+      ),
+      this.tooltip
+        ? m(
+            'div',
+            {
+              style: {
+                position: 'absolute',
+                left: `${this.tooltip.x + 10}px`,
+                top: `${this.tooltip.y - 10}px`,
+                background: 'rgba(0, 0, 0, 0.8)',
+                color: '#fff',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '11px',
+                pointerEvents: 'none',
+                whiteSpace: 'pre',
+                zIndex: 10,
+              },
+            },
+            this.tooltip.html,
+          )
+        : null,
+    );
+  }
 }

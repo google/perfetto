@@ -506,6 +506,8 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
       {title: 'Statistics'},
       m(Histogram, {
         data,
+        height: 150,
+        logScale: true,
         selection: bucket ? {start: bucket.start, end: bucket.end} : undefined,
         formatXValue: (value) => Duration.format(BigInt(Math.round(value))),
       } satisfies HistogramAttrs),
