@@ -296,25 +296,11 @@ async function computeFlamegraphTree(
   const unaggCols = unagg.map((x) => x.name);
 
   const matchingColumns = ['name', ...unaggCols];
-  // Aggregatable properties using CONCAT_WITH_COMMA store comma-separated
-  // values when nodes are merged. For exact match filters (^...$), we use
-  // comma-delimited search to match individual elements.
-  const concatCols = agg
-    .filter((a) => a.mergeAggregation === 'CONCAT_WITH_COMMA')
-    .map((a) => a.name);
-  const matchExpr = (x: string) => {
-    const likeFilter = sqliteString(makeSqlFilter(x));
-    const standard = matchingColumns.map(
-      (c) => `(IFNULL(${c}, '') like ${likeFilter} escape '\\')`,
-    );
-    // For comma-separated columns, wrap in delimiters for exact element match:
-    // ',' || col || ',' LIKE '%,value,%'
-    const csvMatch = concatCols.map(
+  const matchExpr = (x: string) =>
+    matchingColumns.map(
       (c) =>
-        `(',' || IFNULL(${c}, '') || ',' like '%,' || ${likeFilter} || ',%' escape '\\')`,
+        `(IFNULL(${c}, '') like ${sqliteString(makeSqlFilter(x))} escape '\\')`,
     );
-    return [...standard, ...csvMatch];
-  };
 
   const showStackFilter =
     showStackAndPivot.length === 0

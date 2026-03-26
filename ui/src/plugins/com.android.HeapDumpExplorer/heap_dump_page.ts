@@ -19,8 +19,6 @@ import {Spinner} from '../../widgets/spinner';
 import {EmptyState} from '../../widgets/empty_state';
 import {Tabs} from '../../widgets/tabs';
 import type {TabsTab} from '../../widgets/tabs';
-import HeapProfilePlugin from '../dev.perfetto.HeapProfile';
-
 interface HeapdumpSelection {
   pathHashes: string;
   isDominator: boolean;
@@ -38,40 +36,6 @@ import BitmapGalleryView from './views/bitmap_gallery_view';
 import ClassesView from './views/classes_view';
 import StringsView from './views/strings_view';
 import FlamegraphObjectsView from './views/flamegraph_objects_view';
-
-async function viewInTimeline(objectId: number): Promise<void> {
-  const trace = HeapDumpPage.trace;
-  if (!trace) return;
-
-  const hp = trace.plugins.getPlugin(HeapProfilePlugin);
-
-  // Read the flamegraph's current state to decide which path-hash table to
-  // query and which metric tab to return to.
-  const fgInfo = hp.getJavaHeapGraphFlamegraphInfo();
-  if (!fgInfo) return;
-
-  const info = await queries.getHeapGraphTrackInfo(
-    trace.engine,
-    objectId,
-    fgInfo.isDominator,
-  );
-  if (!info) return;
-
-  const filter = info.pathHash
-    ? `^${info.pathHash}$`
-    : info.className
-      ? `^${info.className}$`
-      : undefined;
-  if (filter) {
-    // Navigate back to the same metric the user was last viewing.
-    hp.setJavaHeapGraphFlamegraphFilter(filter, fgInfo.metricName);
-  }
-
-  const uri = `/process_${info.upid}/java_heap_graph_heap_profile`;
-  trace.navigate('#!/viewer');
-  trace.selection.selectTrackEvent(uri, info.eventId);
-  trace.scrollTo({track: {uri, expandGroup: true}});
-}
 
 // Selection set by HeapProfile's "Open in Heapdump Explorer" action.
 let flamegraphSelection: HeapdumpSelection | null = null;
@@ -113,21 +77,13 @@ function classesTabContent(
   overview: OverviewData,
 ): m.Children {
   switch (state.view) {
-    case 'object': {
-      const trace = HeapDumpPage.trace;
-      const hasFlamegraph = trace
-        ? trace.plugins
-            .getPlugin(HeapProfilePlugin)
-            .getJavaHeapGraphFlamegraphInfo() !== undefined
-        : false;
+    case 'object':
       return m(ObjectView, {
         engine,
         heaps: overview.heaps,
         navigate,
         params: state.params,
-        onViewInTimeline: hasFlamegraph ? viewInTimeline : undefined,
       });
-    }
     case 'instances':
       return m(InstancesView, {engine, navigate, params: state.params});
     default:

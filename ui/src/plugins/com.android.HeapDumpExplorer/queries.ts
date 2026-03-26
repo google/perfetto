@@ -1309,60 +1309,6 @@ export async function getObjectsByFlamegraphSelection(
   return collectRows(res);
 }
 
-export async function getHeapGraphTrackInfo(
-  engine: Engine,
-  objectId: number,
-  isDominator: boolean,
-): Promise<{
-  upid: number;
-  eventId: number;
-  className: string | null;
-  pathHash: string | null;
-} | null> {
-  const res = await engine.query(`
-    SELECT
-      o.upid,
-      c.name AS class_name,
-      (SELECT MIN(e.id)
-       FROM heap_graph_object e
-       WHERE e.upid = o.upid
-         AND e.graph_sample_ts = o.graph_sample_ts) AS event_id
-    FROM heap_graph_object o
-    JOIN heap_graph_class c ON o.type_id = c.id
-    WHERE o.id = ${objectId}
-  `);
-  const row = res.maybeFirstRow({
-    upid: NUM,
-    event_id: NUM,
-    class_name: STR_NULL,
-  });
-  if (!row) return null;
-
-  const table = isDominator
-    ? '_heap_graph_dominator_path_hashes'
-    : '_heap_graph_path_hashes';
-  let pathHash: string | null = null;
-  try {
-    const ph = await engine.query(`
-      SELECT CAST(path_hash AS TEXT) AS ph
-      FROM ${table} WHERE id = ${objectId}
-    `);
-    const phRow = ph.maybeFirstRow({ph: STR_NULL});
-    if (phRow?.ph) {
-      pathHash = phRow.ph;
-    }
-  } catch (_) {
-    // Table may not exist if the module hasn't been loaded yet.
-  }
-
-  return {
-    upid: row.upid,
-    eventId: row.event_id,
-    className: row.class_name,
-    pathHash,
-  };
-}
-
 export async function getStringList(engine: Engine): Promise<StringListRow[]> {
   await requireDominatorTree(engine);
   const res = await engine.query(`

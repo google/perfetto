@@ -71,37 +71,6 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     this.onNodeSelected = cb;
   }
 
-  /**
-   * Write a PIVOT filter directly into the flamegraph store so the next
-   * details panel render auto-focuses on the matching node.
-   */
-  setJavaHeapGraphFlamegraphFilter(filter: string, metricName?: string): void {
-    this.store?.edit((draft) => {
-      const s = draft[ProfileType.JAVA_HEAP_GRAPH];
-      if (s?.trackFlamegraphState) {
-        if (metricName !== undefined) {
-          s.trackFlamegraphState.selectedMetricName = metricName;
-        }
-        s.trackFlamegraphState.view = {kind: 'PIVOT', pivot: filter};
-      }
-    });
-  }
-
-  getJavaHeapGraphFlamegraphInfo():
-    | {metricName: string; isDominator: boolean}
-    | undefined {
-    const metricName =
-      this.store?.state[ProfileType.JAVA_HEAP_GRAPH]?.trackFlamegraphState
-        ?.selectedMetricName;
-    if (metricName === undefined) return undefined;
-    const DOMINATOR_METRICS = [
-      'Dominated Object Size',
-      'Dominated Object Count',
-    ];
-    const isDominator = DOMINATOR_METRICS.includes(metricName);
-    return {metricName, isDominator};
-  }
-
   private migrateHeapProfilePluginState(init: unknown): HeapProfilePluginState {
     const result = HEAP_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
     return (
@@ -248,7 +217,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
             viewName,
             upid,
             incomplete,
-            () => store.state[descriptor.type].trackFlamegraphState,
+            store.state[descriptor.type].trackFlamegraphState,
             (state) => {
               store.edit((draft) => {
                 draft[descriptor.type].trackFlamegraphState = state;

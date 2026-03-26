@@ -28,7 +28,7 @@ export function createHeapProfileTrack(
   tableName: string,
   upid: number,
   heapProfileIsIncomplete: boolean,
-  getDetailsPanelState: () => FlamegraphState | undefined,
+  detailsPanelState: FlamegraphState | undefined,
   onDetailsPanelStateChange: (state: FlamegraphState) => void,
   onNodeSelected?: (pathHashes: string, isDominator: boolean) => void,
 ) {
@@ -56,7 +56,7 @@ export function createHeapProfileTrack(
         descriptor,
         ts,
         tsEnd,
-        getDetailsPanelState(),
+        detailsPanelState,
         onDetailsPanelStateChange,
         onNodeSelected,
       );
