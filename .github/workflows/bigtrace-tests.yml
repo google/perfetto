@@ -1,0 +1,106 @@
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This workflow is triggered by analyze.yml
+name: Perfetto CI [bigtrace]
+on:
+  workflow_call:
+permissions:
+  pull-requests: write
+env:
+  PERFETTO_CACHE_DIR: /tmp/cache
+  PERFETTO_ARTIFACTS_ROOT: /tmp/artifacts
+  PYTHONUNBUFFERED: 1
+jobs:
+  bigtrace:
+    runs-on: self-hosted
+    timeout-minutes: 45
+    env:
+      PERFETTO_CI_BUILD_CACHE_KEY: build-cache-ui
+      PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-${{ github.run_attempt }}-bigtrace
+      PERFETTO_GCS_DST: perfetto-ci-artifacts/gh-${{ github.run_id }}-${{ github.run_attempt }}-bigtrace
+      CI: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/install-build-deps
+        with:
+          install-flags: --ui
+
+      - name: Restore cache
+        uses: ./.github/actions/cache-on-google-cloud-storage/restore
+        with:
+          directory: ${{ env.PERFETTO_CACHE_DIR }}
+          cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
+
+      - name: Setup ccache
+        uses: ./.github/actions/setup-ccache
+
+      - name: Build bigtrace UI
+        shell: bash
+        run: ui/build --out out/ui --bigtrace
+
+      - name: Upload bigtrace build to GCS
+        shell: bash
+        run: |
+          gcloud storage cp --no-user-output-enabled --recursive "out/ui/ui/dist/bigtrace" "gs://$PERFETTO_GCS_DST/bigtrace"
+          echo "BIGTRACE_BUILD_URL=https://storage.googleapis.com/$PERFETTO_GCS_DST/bigtrace/bigtrace.html" >> $GITHUB_ENV
+
+      - name: Comment PR with bigtrace build link
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const bigtraceBuildUrl = process.env.BIGTRACE_BUILD_URL;
+
+            if (bigtraceBuildUrl && context.issue.number) {
+              const marker = "<!-- perfetto-bigtrace-build-comment -->";
+              const header = `${marker}\n### Bigtrace UI Builds\n`;
+
+              const commitSha = context.sha.substring(0, 7);
+              const d = new Date();
+              const commitDate = d.toISOString().replace('T', ' ').substring(0, 16) + ' UTC';
+              const newEntry = `- **${commitSha}** (${commitDate}): ${bigtraceBuildUrl}`;
+
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+              });
+
+              const botComment = comments.find(c => c.body.includes(marker));
+
+              let body;
+              if (botComment) {
+                body = botComment.body + '\n' + newEntry;
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: botComment.id,
+                  body: body
+                });
+              } else {
+                body = header + '\n' + newEntry;
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body: body
+                });
+              }
+            }
+
+      - name: Print ccache stats
+        shell: bash
+        run: ccache --show-stats
