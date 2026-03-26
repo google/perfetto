@@ -27,6 +27,9 @@ import {buildChartOption, SELECTION_COLOR} from './chart_option_builder';
 // Re-export data types for convenience
 export {HistogramBucket, HistogramData, HistogramConfig, computeHistogram};
 
+// Color for the selection highlight background.
+const SELECTION_BG_COLOR = 'rgba(0, 120, 212, 0.08)';
+
 export interface HistogramAttrs {
   /**
    * Histogram data to display, or undefined if loading.
@@ -144,65 +147,55 @@ function buildOption(
   const fmtY = formatYValue ?? formatNumber;
   const nullCount = data.nullCount ?? 0;
   const totalWithNull = data.totalCount + nullCount;
+  const buckets = data.buckets;
+  const sel = attrs.selection;
 
-  const categories = data.buckets.map((b) => formatXValue(b.start));
-  const seriesData: number[] = data.buckets.map((b) => b.count);
-  const bucketCount = data.buckets.length;
+  // Build dataset: each row is [start, end, count, isSelected].
+  const source = buckets.map((b) => {
+    const eps = (b.end - b.start) * 0.01;
+    const inSel =
+      sel !== undefined &&
+      b.end > sel.start + eps &&
+      b.start < sel.end - eps;
+    return [b.start, b.end, b.count, inSel ? 1 : 0];
+  });
 
-  // Append NULL bar when there are null values
-  if (nullCount > 0) {
-    categories.push('NULL');
-    seriesData.push(nullCount);
-  }
+  // Compute x-axis range from bucket extents.
+  const xMin = buckets.length > 0 ? buckets[0].start : 0;
+  const xMax = buckets.length > 0 ? buckets[buckets.length - 1].end : 1;
 
   const option = buildChartOption({
     grid: {bottom: xAxisLabel ? 40 : 25},
     xAxis: {
-      type: 'category',
-      data: categories,
+      type: 'value',
       name: xAxisLabel,
+      min: xMin,
+      max: xMax,
+      formatter: (v) => formatXValue(v as number),
     },
     yAxis: {
       type: logScale ? 'log' : 'value',
-      min: 'dataMin',
-      max: 'dataMax',
       name: yAxisLabel,
       formatter:
         formatYValue !== undefined
           ? (v) => formatYValue(v as number)
           : undefined,
-      // minInterval: 1 ensures integer ticks for count values, but on a log
-      // axis ECharts interprets it as the min interval in log-space, capping
-      // the axis at the nearest power of 10 instead of the actual max.
       ...(logScale ? {} : {minInterval: 1}),
     },
     tooltip: {
-      trigger: 'axis' as const,
-      axisPointer: {type: 'shadow' as const},
-      formatter: (params: Array<{dataIndex?: number}>) => {
-        const p = Array.isArray(params) ? params[0] : params;
-        const idx = p?.dataIndex;
-        if (idx === undefined || idx < 0 || idx >= categories.length) {
+      trigger: 'item' as const,
+      formatter: (params: {dataIndex?: number}) => {
+        const idx = params?.dataIndex;
+        if (idx === undefined || idx < 0 || idx >= buckets.length) {
           return '';
         }
-
-        // NULL bar
-        if (idx >= bucketCount) {
-          const pct =
-            totalWithNull > 0
-              ? ((nullCount / totalWithNull) * 100).toFixed(1)
-              : '0';
-          return [`NULL`, `Count: ${fmtY(nullCount)}`, `${pct}%`].join('<br>');
-        }
-
-        // Regular bucket
-        const bucket = data.buckets[idx];
+        const bucket = buckets[idx];
         const pct =
           totalWithNull > 0
             ? ((bucket.count / totalWithNull) * 100).toFixed(1)
             : '0';
         return [
-          `Range: ${formatXValue(bucket.start)} - ${formatXValue(bucket.end)}`,
+          `Range: ${formatXValue(bucket.start)} \u2013 ${formatXValue(bucket.end)}`,
           `Count: ${fmtY(bucket.count)}`,
           `${pct}%`,
         ].join('<br>');
@@ -211,86 +204,75 @@ function buildOption(
     brush: attrs.onBrush ? {xAxisIndex: 0, brushType: 'lineX'} : undefined,
   });
 
-  // Build per-bar styles, highlighting buckets that overlap the selection.
-  // We use a separate background bar series to shade selected buckets —
-  // markArea doesn't align reliably on category axes.
-  const sel = attrs.selection;
-  const bgData: Array<Record<string, unknown>> = [];
-  let hasSelection = false;
-
-  const styledData = seriesData.map((count, idx) => {
-    const item: Record<string, unknown> = {value: count};
-    const bucket = data.buckets[idx];
-
-    if (bucket === undefined) {
-      bgData.push({value: 0});
-      return item;
-    }
-
-    // Use a small epsilon to avoid floating point inaccuracies causing
-    // adjacent buckets to be included in the selection highlight.
-    const eps = (bucket.end - bucket.start) * 0.01;
-    const inSelection =
-      sel !== undefined &&
-      bucket.end > sel.start + eps &&
-      bucket.start < sel.end - eps;
-
-    if (inSelection) {
-      item.itemStyle = {color: SELECTION_COLOR};
-      hasSelection = true;
-    }
-    bgData.push({value: inSelection ? 1 : 0});
-    return item;
-  });
-
-  const series: Array<Record<string, unknown>> = [];
-
-  // Background highlight series — uses yAxisIndex 1 (fixed 0-1 range) so
-  // bars with value=1 fill the full chart height behind selected buckets.
-  if (hasSelection) {
-    series.push({
-      type: 'bar',
-      data: bgData,
-      barWidth: '100%',
-      barCategoryGap: '0%',
-      yAxisIndex: 1,
-      silent: true,
-      itemStyle: {
-        color: 'rgba(0, 120, 212, 0.08)',
-        borderColor: 'rgba(0, 120, 212, 0.3)',
-        borderWidth: 1,
-      },
-      animation: false,
-      z: 0,
-    });
-  }
-
-  // Main data series. barGap: '-100%' ensures it overlaps the background
-  // series rather than sitting side-by-side.
-  series.push({
-    type: 'bar',
-    data: styledData,
-    barWidth: '100%',
-    barCategoryGap: '0%',
-    barGap: '-100%',
-    itemStyle: barColor !== undefined ? {color: barColor} : undefined,
-    emphasis:
-      barHoverColor !== undefined
-        ? {itemStyle: {color: barHoverColor}}
-        : undefined,
-    z: 1,
-  });
-
-  // Add a hidden secondary y-axis for the background series (fixed 0-1 range).
   const optionAny = option as Record<string, unknown>;
-  if (hasSelection) {
-    const primaryYAxis = optionAny.yAxis;
-    optionAny.yAxis = [
-      primaryYAxis,
-      {type: 'value', min: 0, max: 1, show: false},
-    ];
-  }
-  optionAny.series = series;
+
+  // Custom series: renderItem draws each bar as a rect from bucket.start
+  // to bucket.end on a value axis, giving precise pixel alignment.
+  // We pass bucket data directly rather than using dataset/encode to avoid
+  // ECharts' dimension mapping complexities.
+  const renderItem = (
+    params: {dataIndex: number; coordSys: {x: number; y: number; width: number; height: number}},
+    api: {
+      coord: (point: [number, number]) => [number, number];
+      style: (extra?: Record<string, unknown>) => Record<string, unknown>;
+    },
+  ) => {
+    const idx = params.dataIndex;
+    const bucket = source[idx];
+    const start = bucket[0];
+    const end = bucket[1];
+    const count = bucket[2];
+    const selected = bucket[3];
+
+    const topLeft = api.coord([start, count]);
+    const bottomRight = api.coord([end, logScale ? 1 : 0]);
+    const x = topLeft[0];
+    const y = topLeft[1];
+    const width = bottomRight[0] - topLeft[0];
+    const height = bottomRight[1] - topLeft[1];
+
+    const children: Array<Record<string, unknown>> = [];
+
+    // Selection background — full height of the chart area.
+    if (selected) {
+      const coordSys = params.coordSys;
+      children.push({
+        type: 'rect',
+        shape: {x, y: coordSys.y, width, height: coordSys.height},
+        style: {fill: SELECTION_BG_COLOR},
+        silent: true,
+        z2: 0,
+      });
+    }
+
+    // The bar itself. api.style() returns the theme-applied default style
+    // (including fill color from the series color palette).
+    const defaultStyle = api.style();
+    const fill = selected
+      ? SELECTION_COLOR
+      : barColor ?? defaultStyle.fill;
+    children.push({
+      type: 'rect',
+      shape: {x, y, width, height},
+      style: {...defaultStyle, fill},
+      emphasis: barHoverColor !== undefined
+        ? {style: {fill: barHoverColor}}
+        : undefined,
+      z2: 1,
+    });
+
+    return {type: 'group', children};
+  };
+
+  optionAny.series = [
+    {
+      type: 'custom',
+      renderItem,
+      encode: {x: [0, 1], y: 2},
+      data: source,
+      animation: false,
+    },
+  ];
 
   return option;
 }
@@ -303,24 +285,15 @@ function buildEventHandlers(
     return [];
   }
   const onBrush = attrs.onBrush;
-  const buckets = data.buckets;
 
   return [
     {
       eventName: 'brushEnd',
       handler: (params) => {
-        // For category axes, coordRange returns category indices
+        // On a value axis, coordRange returns actual values.
         const range = extractBrushRange(params);
         if (range !== undefined) {
-          const [startIdx, endIdx] = range;
-          const minIdx = Math.max(0, startIdx);
-          const maxIdx = Math.min(buckets.length - 1, endIdx);
-          if (minIdx <= maxIdx && minIdx < buckets.length) {
-            onBrush({
-              start: buckets[minIdx].start,
-              end: buckets[maxIdx].end,
-            });
-          }
+          onBrush({start: range[0], end: range[1]});
         }
       },
     },

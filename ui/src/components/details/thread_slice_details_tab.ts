@@ -223,11 +223,6 @@ export interface ThreadSliceDetailsPanelAttrs {
   rightSections?: TrackEventDetailsPanelSection[];
 }
 
-interface HistogramData {
-  readonly bucketSize: number;
-  readonly buckets: number[];
-}
-
 export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   private sliceDetails?: SliceDetails;
   private breakdownByThreadState?: BreakdownByThreadState;
