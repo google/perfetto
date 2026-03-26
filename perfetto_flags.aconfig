@@ -56,3 +56,10 @@ flag {
   bug: "473625429"
   is_fixed_read_only: true
 }
+flag {
+  name: "trigger_perfetto_on_traced_probes_disconnect"
+  namespace: "perfetto"
+  description: "When enabled, traced fires a trigger when traced_probes disconnects, allowing pre-configured trace sessions to capture crash diagnostics."
+  bug: "496506220"
+  is_fixed_read_only: true
+}
