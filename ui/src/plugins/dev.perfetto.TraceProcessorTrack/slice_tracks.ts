@@ -229,19 +229,9 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     group: undefined,
   },
   {
-    type: 'mali_mcu_state',
-    topLevelGroup: 'GPU',
-    group: undefined,
-  },
-  {
     type: 'pkvm_hypervisor',
     topLevelGroup: 'HYPERVISOR',
     group: undefined,
-  },
-  {
-    type: 'virtgpu_queue_event',
-    topLevelGroup: 'GPU',
-    group: 'Virtio GPU Events',
   },
   {
     type: 'virtio_video_queue_event',
@@ -256,26 +246,6 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
   {
     type: 'android_camera_event',
     topLevelGroup: 'HARDWARE',
-    group: undefined,
-  },
-  {
-    type: 'gpu_render_stage',
-    topLevelGroup: 'GPU',
-    group: 'Hardware Queues',
-  },
-  {
-    type: 'vulkan_events',
-    topLevelGroup: 'GPU',
-    group: undefined,
-  },
-  {
-    type: 'gpu_log',
-    topLevelGroup: 'GPU',
-    group: undefined,
-  },
-  {
-    type: 'graphics_frame_event',
-    topLevelGroup: 'GPU',
     group: undefined,
   },
   {
