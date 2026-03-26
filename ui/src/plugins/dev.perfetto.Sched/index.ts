@@ -16,7 +16,10 @@ import m from 'mithril';
 import {removeFalsyValues} from '../../base/array_utils';
 import {Icons} from '../../base/semantic_icons';
 import {duration, time, Time} from '../../base/time';
-import {createAggregationTab} from '../../components/aggregation_adapter';
+import {
+  createAggregationTab,
+  dataGridModelSchema,
+} from '../../components/aggregation_adapter';
 import {MinimapRow} from '../../public/minimap';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
@@ -153,11 +156,30 @@ export default class SchedPlugin implements PerfettoPlugin {
   }
 
   async addCpuSliceTracks(ctx: Trace, cpus: ReadonlyArray<Cpu>): Promise<void> {
+    const cpuSliceGridModel = ctx.memento.register({
+      id: 'dev.perfetto.CpuSliceAggregationGridModel',
+      schema: dataGridModelSchema,
+      defaultValue: {filters: []},
+    });
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new CpuSliceSelectionAggregator(ctx)),
+      createAggregationTab({
+        trace: ctx,
+        aggregator: new CpuSliceSelectionAggregator(ctx),
+        gridModelMemento: cpuSliceGridModel,
+      }),
     );
+
+    const cpuSliceByProcessGridModel = ctx.memento.register({
+      id: 'dev.perfetto.CpuSliceByProcessAggregationGridModel',
+      schema: dataGridModelSchema,
+      defaultValue: {filters: []},
+    });
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new CpuSliceByProcessSelectionAggregator(ctx)),
+      createAggregationTab({
+        trace: ctx,
+        aggregator: new CpuSliceByProcessSelectionAggregator(ctx),
+        gridModelMemento: cpuSliceByProcessGridModel,
+      }),
     );
 
     const cpuToClusterType = await this.getAndroidCpuClusterTypes(ctx.engine);
@@ -271,13 +293,32 @@ export default class SchedPlugin implements PerfettoPlugin {
   private async addThreadStateTracks(ctx: Trace) {
     const {engine} = ctx;
 
+    const threadStateGridModel = ctx.memento.register({
+      id: 'dev.perfetto.ThreadStateAggregationGridModel',
+      schema: dataGridModelSchema,
+      defaultValue: {filters: []},
+    });
+
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new ThreadStateSelectionAggregator(ctx)),
+      createAggregationTab({
+        trace: ctx,
+        aggregator: new ThreadStateSelectionAggregator(ctx),
+        gridModelMemento: threadStateGridModel,
+      }),
     );
 
     if (SchedPlugin.threadStateByCpuFlag.get()) {
+      const threadStateByCpuGridModel = ctx.memento.register({
+        id: 'dev.perfetto.ThreadStateByCpuAggregationGridModel',
+        schema: dataGridModelSchema,
+        defaultValue: {filters: []},
+      });
       ctx.selection.registerAreaSelectionTab(
-        createAggregationTab(ctx, new ThreadStateByCpuAggregator()),
+        createAggregationTab({
+          trace: ctx,
+          aggregator: new ThreadStateByCpuAggregator(),
+          gridModelMemento: threadStateByCpuGridModel,
+        }),
       );
     }
 

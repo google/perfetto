@@ -104,6 +104,39 @@ export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
               ),
             ),
           ),
+          m(
+            Popup,
+            {
+              trigger: m(Button, {
+                icon: 'delete_sweep',
+                label: 'Clear Mementos',
+              }),
+            },
+            m(
+              Box,
+              m(
+                Stack,
+                'Clear all stored UI state (panel sizes, grid configurations, etc.)? This will not affect your settings.',
+                m(
+                  Stack,
+                  {orientation: 'horizontal'},
+                  m(StackAuto),
+                  m(Button, {
+                    className: Popup.DISMISS_POPUP_GROUP_CLASS,
+                    variant: ButtonVariant.Filled,
+                    label: 'Cancel',
+                  }),
+                  m(Button, {
+                    className: Popup.DISMISS_POPUP_GROUP_CLASS,
+                    intent: Intent.Danger,
+                    variant: ButtonVariant.Filled,
+                    label: 'Clear Mementos',
+                    onclick: () => app.memento.resetAll(),
+                  }),
+                ),
+              ),
+            ),
+          ),
           reloadRequired &&
             m(Button, {
               icon: 'refresh',

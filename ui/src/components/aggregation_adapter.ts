@@ -13,9 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {z} from 'zod';
 import {AsyncLimiter} from '../base/async_limiter';
 import {time, Time} from '../base/time';
 import {exists} from '../base/utils';
+import {Memento} from '../public/memento';
 import {
   AreaSelection,
   areaSelectionsEqual,
@@ -193,10 +195,59 @@ export async function createIITable<
   });
 }
 
-interface DataGridModel {
+export interface DataGridModel {
   readonly columns?: readonly Column[];
   readonly pivot?: Pivot;
   readonly filters: readonly Filter[];
+}
+
+// Schema for persisting DataGridModel to memento storage. We use a loose
+// schema because the full Column/Pivot/Filter types are complex and may evolve.
+// If the stored value doesn't match, the memento will fall back to defaults.
+export const dataGridModelSchema: z.ZodType<DataGridModel> = z.object({
+  columns: z.array(z.any()).optional(),
+  pivot: z.any().optional(),
+  filters: z.array(z.any()),
+});
+
+// In-memory memento implementation used when no persistent memento is provided.
+class InMemoryMemento<T> implements Memento<T> {
+  readonly id: string;
+  readonly schema: z.ZodType<T>;
+  readonly defaultValue: T;
+  private value: T;
+
+  constructor(id: string, schema: z.ZodType<T>, defaultValue: T) {
+    this.id = id;
+    this.schema = schema;
+    this.defaultValue = defaultValue;
+    this.value = defaultValue;
+  }
+
+  get isDefault(): boolean {
+    return JSON.stringify(this.value) === JSON.stringify(this.defaultValue);
+  }
+
+  get(): T {
+    return this.value;
+  }
+
+  set(value: T): void {
+    this.value = value;
+  }
+
+  reset(): void {
+    this.value = this.defaultValue;
+  }
+
+  [Symbol.dispose](): void {}
+}
+
+export interface CreateAggregationTabArgs {
+  readonly trace: Trace;
+  readonly aggregator: Aggregator;
+  readonly priority?: number;
+  readonly gridModelMemento?: Memento<DataGridModel>;
 }
 
 /**
@@ -204,9 +255,44 @@ interface DataGridModel {
  * selection sub-tab.
  */
 export function createAggregationTab(
+  args: CreateAggregationTabArgs,
+): AreaSelectionTab;
+/** @deprecated Use the object form instead. */
+export function createAggregationTab(
   trace: Trace,
   aggregator: Aggregator,
-  priority: number = 0,
+  priority?: number,
+): AreaSelectionTab;
+export function createAggregationTab(
+  traceOrArgs: Trace | CreateAggregationTabArgs,
+  aggregator?: Aggregator,
+  priority?: number,
+): AreaSelectionTab {
+  // Normalize arguments
+  let trace: Trace;
+  let agg: Aggregator;
+  let prio: number;
+  let gridModelMemento: Memento<DataGridModel> | undefined;
+
+  if ('trace' in traceOrArgs && 'aggregator' in traceOrArgs) {
+    trace = traceOrArgs.trace;
+    agg = traceOrArgs.aggregator;
+    prio = traceOrArgs.priority ?? 0;
+    gridModelMemento = traceOrArgs.gridModelMemento;
+  } else {
+    trace = traceOrArgs as Trace;
+    agg = aggregator!;
+    prio = priority ?? 0;
+  }
+
+  return createAggregationTabImpl(trace, agg, prio, gridModelMemento);
+}
+
+function createAggregationTabImpl(
+  trace: Trace,
+  aggregator: Aggregator,
+  priority: number,
+  gridModelMemento?: Memento<DataGridModel>,
 ): AreaSelectionTab {
   const limiter = new AsyncLimiter();
   const queue = new SerialTaskQueue();
@@ -241,9 +327,21 @@ export function createAggregationTab(
     }
   }
 
-  // DataGrid state managed by the adapter
   const initialDataModel: DataGridModel = createInitialState();
-  let dataModel: DataGridModel = initialDataModel;
+
+  // Use the provided memento, or create an in-memory one as fallback.
+  const memento: Memento<DataGridModel> =
+    gridModelMemento ??
+    new InMemoryMemento(
+      `aggregation.${aggregator.id}.dataGridModel`,
+      dataGridModelSchema,
+      initialDataModel,
+    );
+
+  // Use the memento value if it has been set, otherwise use the initial state.
+  let dataModel: DataGridModel = memento.isDefault
+    ? initialDataModel
+    : memento.get();
 
   return {
     id: aggregator.id,
@@ -304,12 +402,15 @@ export function createAggregationTab(
         filters: dataModel.filters,
         onColumnsChanged: (c) => {
           dataModel = {...dataModel, columns: c};
+          memento.set(dataModel);
         },
         onPivotChanged: (p) => {
           dataModel = {...dataModel, pivot: p};
+          memento.set(dataModel);
         },
         onFiltersChanged: (f) => {
           dataModel = {...dataModel, filters: f};
+          memento.set(dataModel);
         },
       };
 
@@ -326,8 +427,8 @@ export function createAggregationTab(
           },
           dataGridState,
           onClearGridState: () => {
-            // Just wipe out the local data model to reset to initial state
             dataModel = initialDataModel;
+            memento.reset();
           },
         }),
         buttons:

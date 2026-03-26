@@ -35,6 +35,7 @@ import {PerfManager} from './perf_manager';
 import {PluginManagerImpl} from './plugin_manager';
 import {raf} from './raf_scheduler';
 import {Router} from './router';
+import {MementoManagerImpl} from './memento_manager';
 import {SettingsManagerImpl} from './settings_manager';
 import {SidebarManagerImpl} from './sidebar_manager';
 import {SerializedAppState} from './state_serialization_schema';
@@ -54,6 +55,7 @@ export type OpenTraceArrayBufArgs = Omit<
 export interface AppInitArgs {
   readonly initialRouteArgs: RouteArgs;
   readonly settingsManager: SettingsManagerImpl;
+  readonly mementoManager: MementoManagerImpl;
   readonly timestampFormatSetting: Setting<TimestampFormat>;
   readonly durationPrecisionSetting: Setting<DurationPrecision>;
   readonly timezoneOverrideSetting: Setting<string>;
@@ -91,6 +93,7 @@ export class AppImpl implements App {
   readonly testingMode: boolean;
   readonly openTraceAsyncLimiter = new AsyncLimiter();
   readonly settings: SettingsManagerImpl;
+  readonly memento: MementoManagerImpl;
   readonly embedder: Embedder;
 
   // The current active trace (if any).
@@ -142,6 +145,7 @@ export class AppImpl implements App {
     this.enforceStartupCommandAllowlistSetting =
       initArgs.enforceStartupCommandAllowlistSetting;
     this.settings = initArgs.settingsManager;
+    this.memento = initArgs.mementoManager;
     this.initArgs = initArgs;
     this.initialRouteArgs = initArgs.initialRouteArgs;
     this.embeddedMode = this.initialRouteArgs.mode === 'embedded';

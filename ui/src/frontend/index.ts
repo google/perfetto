@@ -55,6 +55,10 @@ import {
 import {addVisualizedArgTracks} from '../components/tracks/visualized_args_tracks';
 import {assetSrc, initAssets} from '../base/assets';
 import {
+  MementoManagerImpl,
+  PERFETTO_MEMENTO_STORAGE_KEY,
+} from '../core/memento_manager';
+import {
   PERFETTO_SETTINGS_STORAGE_KEY,
   SettingsManagerImpl,
 } from '../core/settings_manager';
@@ -206,6 +210,11 @@ function main() {
     new LocalStorage(PERFETTO_SETTINGS_STORAGE_KEY),
   );
 
+  // Create memento manager for persisted UI state
+  const mementoManager = new MementoManagerImpl(
+    new LocalStorage(PERFETTO_MEMENTO_STORAGE_KEY),
+  );
+
   // Initialize core settings...
   const timestampFormatSetting = settingsManager.register({
     id: 'timestampFormat',
@@ -296,6 +305,7 @@ function main() {
   AppImpl.initialize({
     initialRouteArgs: Router.parseUrl(window.location.href).args,
     settingsManager,
+    mementoManager,
     timestampFormatSetting,
     durationPrecisionSetting,
     timezoneOverrideSetting,

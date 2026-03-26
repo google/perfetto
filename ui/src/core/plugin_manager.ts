@@ -23,6 +23,7 @@ import {TraceImpl} from './trace_impl';
 import {AppImpl} from './app_impl';
 import {createProxy} from '../base/utils';
 import {RouteArgs} from '../public/route_schema';
+import {MementoManagerImpl} from './memento_manager';
 import {SettingsManagerImpl} from './settings_manager';
 import {PageManager} from '../public/page';
 
@@ -234,6 +235,9 @@ function createAppProxy(app: AppImpl, pluginId: string): AppImpl {
     get settings() {
       return createSettingsProxy(app.settings, pluginId);
     },
+    get memento() {
+      return createMementoProxy(app.memento, pluginId);
+    },
   });
 }
 
@@ -303,6 +307,21 @@ function createSettingsProxy<T extends SettingsManagerImpl>(
   return createProxy(settings, {
     register(setting) {
       return settings.register(setting, pluginId);
+    },
+  } as Partial<T>);
+}
+
+/**
+ * Creates a proxy for the MementoManager that automatically injects the
+ * pluginId into any registered mementos.
+ */
+function createMementoProxy<T extends MementoManagerImpl>(
+  memento: T,
+  pluginId: string,
+): T {
+  return createProxy(memento, {
+    register(descriptor) {
+      return memento.register(descriptor, pluginId);
     },
   } as Partial<T>);
 }
