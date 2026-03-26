@@ -105,14 +105,100 @@ SELECT
   *
 FROM _cpu_stats_subquery!(7, cpu7_curve, cpu7_static, freq_7, idle_7);
 
--- Does calculations for CPUs that are independent of other CPUs or frequencies
--- This is the last generic table before going to device specific table calcs
-CREATE PERFETTO TABLE _w_independent_cpus_calc AS
+CREATE PERFETTO TABLE _all_stats AS
 SELECT
   base.ts,
   base.dur,
   cast_int!(l3_hit_rate * base.dur) AS l3_hit_count,
   cast_int!(l3_miss_rate * base.dur) AS l3_miss_count,
+  freq_0,
+  idle_0,
+  freq_1,
+  idle_1,
+  freq_2,
+  idle_2,
+  freq_3,
+  idle_3,
+  freq_4,
+  idle_4,
+  freq_5,
+  idle_5,
+  freq_6,
+  idle_6,
+  freq_7,
+  idle_7,
+  _stats_cpu0.cpu0_curve,
+  _stats_cpu1.cpu1_curve,
+  _stats_cpu2.cpu2_curve,
+  _stats_cpu3.cpu3_curve,
+  _stats_cpu4.cpu4_curve,
+  _stats_cpu5.cpu5_curve,
+  _stats_cpu6.cpu6_curve,
+  _stats_cpu7.cpu7_curve,
+  _stats_cpu0.cpu0_static,
+  _stats_cpu1.cpu1_static,
+  _stats_cpu2.cpu2_static,
+  _stats_cpu3.cpu3_static,
+  _stats_cpu4.cpu4_static,
+  _stats_cpu5.cpu5_static,
+  _stats_cpu6.cpu6_static,
+  _stats_cpu7.cpu7_static,
+  _wattson_dsu_frequency.dsu_freq,
+  CAST(_bitmask8!(
+    idle_0 != deepest.idle,
+    idle_1 != deepest.idle,
+    idle_2 != deepest.idle,
+    idle_3 != deepest.idle,
+    idle_4 != deepest.idle,
+    idle_5 != deepest.idle,
+    idle_6 != deepest.idle,
+    idle_7 != deepest.idle
+  ) AS INTEGER) AS cpus_on_mask
+FROM _interval_intersect!(
+  (
+    _ii_subquery!(_stats_cpu0),
+    _ii_subquery!(_stats_cpu1),
+    _ii_subquery!(_stats_cpu2),
+    _ii_subquery!(_stats_cpu3),
+    _ii_subquery!(_stats_cpu4),
+    _ii_subquery!(_stats_cpu5),
+    _ii_subquery!(_stats_cpu6),
+    _ii_subquery!(_stats_cpu7),
+    _ii_subquery!(_wattson_dsu_frequency),
+    _ii_subquery!(_arm_l3_rates)
+  ),
+  ()
+) AS base
+JOIN _stats_cpu0
+  ON _stats_cpu0._auto_id = base.id_0
+JOIN _stats_cpu1
+  ON _stats_cpu1._auto_id = base.id_1
+JOIN _stats_cpu2
+  ON _stats_cpu2._auto_id = base.id_2
+JOIN _stats_cpu3
+  ON _stats_cpu3._auto_id = base.id_3
+JOIN _stats_cpu4
+  ON _stats_cpu4._auto_id = base.id_4
+JOIN _stats_cpu5
+  ON _stats_cpu5._auto_id = base.id_5
+JOIN _stats_cpu6
+  ON _stats_cpu6._auto_id = base.id_6
+JOIN _stats_cpu7
+  ON _stats_cpu7._auto_id = base.id_7
+JOIN _wattson_dsu_frequency
+  ON _wattson_dsu_frequency._auto_id = base.id_8
+JOIN _arm_l3_rates
+  ON _arm_l3_rates._auto_id = base.id_9
+CROSS JOIN _deepest_idle AS deepest;
+
+-- Does calculations for CPUs that are independent of other CPUs or frequencies
+-- This is the last generic table before going to device specific table calcs
+CREATE PERFETTO TABLE _w_independent_cpus_calc AS
+SELECT
+  ts,
+  dur,
+  l3_hit_count,
+  l3_miss_count,
   hash(
     freq_0,
     idle_0,
@@ -148,51 +234,28 @@ SELECT
   idle_6,
   freq_7,
   idle_7,
-  _stats_cpu0.cpu0_curve,
-  _stats_cpu1.cpu1_curve,
-  _stats_cpu2.cpu2_curve,
-  _stats_cpu3.cpu3_curve,
-  _stats_cpu4.cpu4_curve,
-  _stats_cpu5.cpu5_curve,
-  _stats_cpu6.cpu6_curve,
-  _stats_cpu7.cpu7_curve,
-  _wattson_dsu_frequency.dsu_freq,
-  cpu0_static + cpu1_static + cpu2_static + cpu3_static + cpu4_static + cpu5_static + cpu6_static + cpu7_static AS static_1d
-FROM _interval_intersect!(
-  (
-    _ii_subquery!(_stats_cpu0),
-    _ii_subquery!(_stats_cpu1),
-    _ii_subquery!(_stats_cpu2),
-    _ii_subquery!(_stats_cpu3),
-    _ii_subquery!(_stats_cpu4),
-    _ii_subquery!(_stats_cpu5),
-    _ii_subquery!(_stats_cpu6),
-    _ii_subquery!(_stats_cpu7),
-    _ii_subquery!(_wattson_dsu_frequency),
-    _ii_subquery!(_arm_l3_rates)
-  ),
-  ()
-) AS base
-JOIN _stats_cpu0
-  ON _stats_cpu0._auto_id = base.id_0
-JOIN _stats_cpu1
-  ON _stats_cpu1._auto_id = base.id_1
-JOIN _stats_cpu2
-  ON _stats_cpu2._auto_id = base.id_2
-JOIN _stats_cpu3
-  ON _stats_cpu3._auto_id = base.id_3
-JOIN _stats_cpu4
-  ON _stats_cpu4._auto_id = base.id_4
-JOIN _stats_cpu5
-  ON _stats_cpu5._auto_id = base.id_5
-JOIN _stats_cpu6
-  ON _stats_cpu6._auto_id = base.id_6
-JOIN _stats_cpu7
-  ON _stats_cpu7._auto_id = base.id_7
-JOIN _wattson_dsu_frequency
-  ON _wattson_dsu_frequency._auto_id = base.id_8
-JOIN _arm_l3_rates
-  ON _arm_l3_rates._auto_id = base.id_9;
+  cpu0_curve,
+  cpu1_curve,
+  cpu2_curve,
+  cpu3_curve,
+  cpu4_curve,
+  cpu5_curve,
+  cpu6_curve,
+  cpu7_curve,
+  dsu_freq,
+  CAST(_bitmask8!(
+    cpus_on_mask & m0,
+    cpus_on_mask & m1,
+    cpus_on_mask & m2,
+    cpus_on_mask & m3,
+    cpus_on_mask & m4,
+    cpus_on_mask & m5,
+    cpus_on_mask & m6,
+    cpus_on_mask & m7
+  ) AS INTEGER) AS policy_cpus_on_mask,
+  iif(cpus_on_mask & m0, cpu0_static, 0) + iif(cpus_on_mask & m1, cpu1_static, 0) + iif(cpus_on_mask & m2, cpu2_static, 0) + iif(cpus_on_mask & m3, cpu3_static, 0) + iif(cpus_on_mask & m4, cpu4_static, 0) + iif(cpus_on_mask & m5, cpu5_static, 0) + iif(cpus_on_mask & m6, cpu6_static, 0) + iif(cpus_on_mask & m7, cpu7_static, 0) AS static_1d
+FROM _all_stats
+CROSS JOIN _policy_masks;
 
 -- Slices view with all UNIQUE configs of independent and dependent CPU data
 CREATE PERFETTO VIEW _w_dependent_cpus_unique AS
@@ -210,17 +273,6 @@ WITH
       max(cpu = 6) AS dsu_6,
       max(cpu = 7) AS dsu_7
     FROM _cpu_w_dsu_dependency
-  ),
-  _static_checks AS (
-    SELECT
-      0 IN _cpus_for_static AS c0,
-      1 IN _cpus_for_static AS c1,
-      2 IN _cpus_for_static AS c2,
-      3 IN _cpus_for_static AS c3,
-      4 IN _cpus_for_static AS c4,
-      5 IN _cpus_for_static AS c5,
-      6 IN _cpus_for_static AS c6,
-      7 IN _cpus_for_static AS c7
   ),
   _w_unique_configs AS (
     SELECT
@@ -251,19 +303,8 @@ WITH
       cpu7_curve,
       dsu_freq,
       static_1d,
-      min(idle_0, idle_1, idle_2, idle_3, idle_4, idle_5, idle_6, idle_7) AS all_cpu_deep_idle,
-      min(
-        iif(sc.c0, idle_0, 1),
-        iif(sc.c1, idle_1, 1),
-        iif(sc.c2, idle_2, 1),
-        iif(sc.c3, idle_3, 1),
-        iif(sc.c4, idle_4, 1),
-        iif(sc.c5, idle_5, 1),
-        iif(sc.c6, idle_6, 1),
-        iif(sc.c7, idle_7, 1)
-      ) AS no_static
+      policy_cpus_on_mask
     FROM _w_independent_cpus_calc
-    CROSS JOIN _static_checks AS sc
     GROUP BY
       config_hash
   ),

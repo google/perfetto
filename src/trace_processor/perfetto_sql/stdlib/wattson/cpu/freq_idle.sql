@@ -58,18 +58,10 @@ SELECT
   -- Set idle since subsequent calculations are based on number of idle/active
   -- CPUs. If offline/suspended, set the CPU to the device specific deepest idle
   -- state.
-  iif(
-    suspend.suspended OR hotplug.offline,
-    (
-      SELECT
-        idle
-      FROM _deepest_idle
-    ),
-    idle.idle
-  ) AS idle,
+  iif(suspend.suspended OR hotplug.offline, deepest.idle, idle.idle) AS idle,
   -- If CPU is suspended or offline, set power estimate to 0
   iif(suspend.suspended OR hotplug.offline, 0, lut.curve_value) AS curve_value,
-  iif(suspend.suspended OR hotplug.offline, 0, lut.static) AS static
+  lut.static
 FROM _interval_intersect!(
   (
     _ii_subquery!(_valid_window),
@@ -90,4 +82,5 @@ JOIN _gapless_suspend_slices AS suspend
   ON suspend._auto_id = id_4
 -- Left join since some CPUs may only match the 2D LUT
 LEFT JOIN _filtered_curves_1d AS lut
-  ON freq.policy = lut.policy AND freq.freq = lut.freq_khz AND idle.idle = lut.idle;
+  ON freq.policy = lut.policy AND freq.freq = lut.freq_khz AND idle.idle = lut.idle
+CROSS JOIN _deepest_idle AS deepest;
