@@ -46,7 +46,6 @@ interface ObjectViewAttrs {
   readonly heaps: ReadonlyArray<HeapInfo>;
   readonly navigate: NavFn;
   readonly params: ObjectParams;
-  readonly onViewInTimeline?: (objectId: number) => void;
 }
 
 const JAVA_PRIM_SIZE: Record<string, number> = {
@@ -540,7 +539,7 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
       alive = false;
     },
     view(vnode) {
-      const {navigate, params, onViewInTimeline} = vnode.attrs;
+      const {navigate, params} = vnode.attrs;
 
       if (detail === 'loading') {
         return m('div', {class: 'ah-loading'}, m(Spinner, {easing: true}));
@@ -564,16 +563,6 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
           ),
           m('div', {class: 'ah-action-row'}, [
             m(InstanceLink, {row, navigate}),
-            onViewInTimeline
-              ? m(
-                  'button',
-                  {
-                    class: 'ah-download-link',
-                    onclick: () => onViewInTimeline(row.id),
-                  },
-                  'View in Timeline',
-                )
-              : null,
           ]),
         ]),
 

@@ -56,6 +56,18 @@
   }
 }
 
+.ah-heading-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+
+  // Remove the heading's own bottom margin when inside a heading row.
+  .ah-view-heading {
+    margin-bottom: 0;
+  }
+}
+
 // Flex-growing wrapper for view content with a DataGrid that fills height.
 .ah-view-content {
   flex: 1;
