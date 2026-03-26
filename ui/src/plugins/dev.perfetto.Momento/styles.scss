@@ -129,6 +129,19 @@
   margin-top: 2px;
 }
 
+.pf-live-memory-billboard__delta {
+  font-size: var(--pf-font-size-s);
+  font-weight: 600;
+  margin-left: 6px;
+  color: var(--pf-color-text-muted);
+  &--up {
+    color: #e53935;
+  }
+  &--down {
+    color: #4caf50;
+  }
+}
+
 // Chart panels.
 .pf-live-memory-panel {
   border-radius: 8px;
@@ -221,4 +234,39 @@
   .pf-grid__row:hover .pf-live-memory-profile-btn {
     visibility: visible;
   }
+}
+
+// Duration badge in title bar.
+.pf-live-memory-title-bar__duration {
+  font-size: var(--pf-font-size-m);
+  font-weight: 600;
+  color: var(--pf-color-text-muted);
+  background: var(--pf-color-background-secondary);
+  padding: 4px 10px;
+  border-radius: 4px;
+  margin-left: 12px;
+}
+
+// Profiling data source status lines.
+.pf-live-memory-profiling-status {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--pf-color-border-secondary);
+  background: var(--pf-color-background);
+}
+
+.pf-live-memory-profiling-status__line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-muted);
+}
+
+.pf-live-memory-profiling-status__active {
+  color: #4caf50;
+  font-weight: 600;
 }

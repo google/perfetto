@@ -45,11 +45,25 @@ export interface LineChartSeries {
 }
 
 /**
+ * A vertical marker line drawn at a specific x value.
+ */
+export interface LineChartMarker {
+  /** X-axis value where the marker should be drawn */
+  readonly x: number;
+  /** Label shown next to the marker line */
+  readonly label: string;
+  /** Color for the marker line and label. Defaults to red. */
+  readonly color?: string;
+}
+
+/**
  * Data provided to a LineChart.
  */
 export interface LineChartData {
   /** The series to display */
   readonly series: readonly LineChartSeries[];
+  /** Optional vertical marker lines (e.g. for events) */
+  readonly markers?: readonly LineChartMarker[];
 }
 
 export interface LineChartAttrs {
@@ -257,6 +271,30 @@ function buildLineOption(
       base.markArea = buildSelectionMarkArea([
         [{xAxis: attrs.selection.start}, {xAxis: attrs.selection.end}],
       ]);
+    }
+
+    // Render vertical marker lines on the first series only.
+    if (i === 0 && data.markers !== undefined && data.markers.length > 0) {
+      base.markLine = {
+        silent: false,
+        symbol: 'none',
+        animation: false,
+        data: data.markers.map((mk) => ({
+          xAxis: mk.x,
+          name: mk.label,
+          lineStyle: {
+            color: mk.color ?? '#e53935',
+            type: 'dashed' as const,
+            width: 2,
+          },
+          label: {
+            formatter: mk.label,
+            position: 'insideEndTop' as const,
+            fontSize: 10,
+            color: mk.color ?? '#e53935',
+          },
+        })),
+      };
     }
     return base;
   });

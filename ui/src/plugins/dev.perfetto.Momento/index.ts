@@ -19,7 +19,7 @@ import {LiveMemoryPage} from './live_memory_page';
 import RecordPageV2 from '../dev.perfetto.RecordTraceV2';
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.Momento';
+  static readonly id = 'dev.perfetto.Memento';
 
   // The live memory page depends on record page imports only, not at runtime.
   static readonly dependencies = [RecordPageV2];
@@ -27,13 +27,13 @@ export default class implements PerfettoPlugin {
   static onActivate(app: App) {
     app.sidebar.addMenuItem({
       section: 'trace_files',
-      text: 'Momento',
-      href: '#!/momento',
+      text: 'Memento',
+      href: '#!/memento',
       icon: 'memory',
       sortOrder: 2.5,
     });
     app.pages.registerPage({
-      route: '/momento',
+      route: '/memento',
       render: () => m(LiveMemoryPage, {app}),
     });
   }
