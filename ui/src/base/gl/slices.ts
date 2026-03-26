@@ -12,51 +12,54 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Transform2D} from '../geom';
+import {Transform1D, Transform2D} from '../geom';
 import {
   RECT_PATTERN_FADE_RIGHT,
   RECT_PATTERN_HATCHED,
-  RectBuffers,
-} from './../renderer';
+  RowLayout,
+  SliceBuffers,
+} from '../renderer';
 import {createBuffer, createProgram, getUniformLocation} from './gl';
 
-// Static quad geometry shared by all rect batches
+// Static quad geometry shared by all slice batches
 const QUAD_CORNERS = new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]);
 const QUAD_INDICES = new Uint16Array([0, 1, 2, 3]);
 
-// Program for batch rendering with data-space coordinates
-interface RectBatchProgram {
+interface SliceBatchProgram {
   readonly program: WebGLProgram;
   readonly quadCornerLoc: number;
   readonly leftLoc: number;
-  readonly topLoc: number;
   readonly rightLoc: number;
+  readonly depthLoc: number;
   readonly colorLoc: number;
   readonly patternLoc: number;
   readonly resolutionLoc: WebGLUniformLocation;
-  readonly dataTransformLoc: WebGLUniformLocation;
+  readonly xTransformLoc: WebGLUniformLocation;
   readonly viewTransformLoc: WebGLUniformLocation;
   readonly clipRectLoc: WebGLUniformLocation;
-  readonly heightLoc: WebGLUniformLocation;
+  readonly firstRowHeightLoc: WebGLUniformLocation;
+  readonly rowHeightLoc: WebGLUniformLocation;
+  readonly rowGapLoc: WebGLUniformLocation;
+  readonly paddingTopLoc: WebGLUniformLocation;
 }
 
-function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
-  // Shader that handles data-space coordinates and all edge cases:
-  // - Transform X/Y from data space to screen space
-  // - Apply minimum width
+function createSliceProgram(gl: WebGL2RenderingContext): SliceBatchProgram {
   const vsSource = `#version 300 es
-    in vec2 a_quadCorner;     // (0,0), (1,0), (0,1), (1,1) for the corners of the rect (per vertex)
+    in vec2 a_quadCorner;     // (0,0), (1,0), (0,1), (1,1) for the quad corners (per vertex)
     in float a_left;          // Left in data space (per instance)
     in float a_right;         // Right in data space (per instance)
-    in float a_top;           // Top in data space (per instance)
+    in uint a_depth;          // Row index (per instance)
     in uint a_color;          // Packed RGBA color (0xRRGGBBAA) (per instance)
-    in uint a_pattern;        // Bitfield for patterns like hatch/fadeout (e.g., RECT_PATTERN_HATCHED) (per instance)
-    
-    uniform vec4 u_dataTransform;  // Data space -> CSS pixels (scaleX, scaleY, offsetX, offsetY)
-    uniform vec4 u_viewTransform;  // CSS pixels -> device pixels (scaleX, scaleY, offsetX, offsetY)
-    uniform vec2 u_resolution;     // Canvas size in device pixels
-    uniform vec4 u_clipRect;       // Clip rect in device pixels (LTRB)
-    uniform float u_height;        // Row height in CSS pixels
+    in uint a_pattern;        // Bitfield for patterns (per instance)
+
+    uniform vec2 u_xTransform;      // Data space X -> CSS pixels (scaleX, offsetX)
+    uniform vec4 u_viewTransform;   // CSS pixels -> device pixels (scaleX, scaleY, offsetX, offsetY)
+    uniform vec2 u_resolution;      // Canvas size in device pixels
+    uniform vec4 u_clipRect;        // Clip rect in device pixels (LTRB)
+    uniform float u_firstRowHeight; // Height of row 0 in CSS pixels
+    uniform float u_rowHeight;      // Height of rows at depth > 0 in CSS pixels
+    uniform float u_rowGap;         // Vertical gap between rows in CSS pixels
+    uniform float u_paddingTop;     // Top padding in CSS pixels
 
     out vec4 v_color;
     out vec2 v_localPos;
@@ -67,13 +70,11 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
     const float MIN_WIDTH = 1.0;
 
     // Transform a LTRB rect through a scale+translate transform.
-    // Transform is vec4(scaleX, scaleY, offsetX, offsetY).
     vec4 transformRect(vec4 t, vec4 r) {
       return vec4(r.xy * t.xy + t.zw, r.zw * t.xy + t.zw);
     }
 
-    // Clamp an LTRB rect to the bounds defined by another LTRB rect, ensuring 
-    // the result is still a valid rect (right >= left, bottom >= top).
+    // Clamp an LTRB rect to clip bounds, ensuring valid rect.
     vec4 clampRect(vec4 r, vec4 clip) {
       r = clamp(r, clip.xyxy, clip.zwzw);
       r.zw = max(r.xy, r.zw);
@@ -81,17 +82,28 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
     }
 
     void main() {
-      // Build the rect in data space as a LTRB vec4
-      vec4 rectData = vec4(a_left, a_top, a_right, a_top);
+      // Compute row top/bottom from depth using a two-tier formula.
+      // Row 0 uses firstRowHeight; deeper rows use rowHeight with stride.
+      float stride = u_rowHeight + u_rowGap;
+      float rowTop;
+      float rowBottom;
+      if (a_depth == 0u) {
+        rowTop = u_paddingTop;
+        rowBottom = rowTop + u_firstRowHeight;
+      } else {
+        rowTop = u_paddingTop + u_firstRowHeight + u_rowGap + float(a_depth - 1u) * stride;
+        rowBottom = rowTop + u_rowHeight;
+      }
 
-      // Data space -> CSS pixels
-      vec4 rectCss = transformRect(u_dataTransform, rectData);
+      // Transform X from data space to CSS pixels
+      float leftCss = a_left * u_xTransform.x + u_xTransform.y;
+      float rightCss = a_right * u_xTransform.x + u_xTransform.y;
 
-      // Apply height in CSS pixel space
-      rectCss.w = rectCss.y + u_height;
+      // Apply minimum width in CSS pixels
+      rightCss = max(leftCss + MIN_WIDTH, rightCss);
 
-      // Apply minimum width in CSS pixels by adjusting the right edge
-      rectCss.z = max(rectCss.x + MIN_WIDTH, rectCss.z);
+      // Build rect in CSS pixel space (LTRB)
+      vec4 rectCss = vec4(leftCss, rowTop, rightCss, rowBottom);
 
       // CSS pixels -> device pixels
       vec4 rect = transformRect(u_viewTransform, rectCss);
@@ -140,7 +152,6 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
       }
 
       if ((v_pattern & FLAG_HATCHED) != 0u && v_rectWidth >= HATCH_MIN_WIDTH) {
-        // Use mod on x first to avoid precision loss with large rect widths
         float diag = mod(v_localPos.x, HATCH_SPACING) + v_localPos.y;
         float stripe = mod(diag, HATCH_SPACING);
         if (stripe < HATCH_WIDTH) {
@@ -159,38 +170,44 @@ function createBatchProgram(gl: WebGL2RenderingContext): RectBatchProgram {
     program,
     quadCornerLoc: gl.getAttribLocation(program, 'a_quadCorner'),
     leftLoc: gl.getAttribLocation(program, 'a_left'),
-    topLoc: gl.getAttribLocation(program, 'a_top'),
     rightLoc: gl.getAttribLocation(program, 'a_right'),
+    depthLoc: gl.getAttribLocation(program, 'a_depth'),
     colorLoc: gl.getAttribLocation(program, 'a_color'),
     patternLoc: gl.getAttribLocation(program, 'a_pattern'),
     resolutionLoc: getUniformLocation(gl, program, 'u_resolution'),
-    dataTransformLoc: getUniformLocation(gl, program, 'u_dataTransform'),
+    xTransformLoc: getUniformLocation(gl, program, 'u_xTransform'),
     viewTransformLoc: getUniformLocation(gl, program, 'u_viewTransform'),
     clipRectLoc: getUniformLocation(gl, program, 'u_clipRect'),
-    heightLoc: getUniformLocation(gl, program, 'u_height'),
+    firstRowHeightLoc: getUniformLocation(gl, program, 'u_firstRowHeight'),
+    rowHeightLoc: getUniformLocation(gl, program, 'u_rowHeight'),
+    rowGapLoc: getUniformLocation(gl, program, 'u_rowGap'),
+    paddingTopLoc: getUniformLocation(gl, program, 'u_paddingTop'),
   };
 }
 
 /**
- * A batch of rectangles for efficient instanced rendering.
- * Uses columnar buffers for zero-copy GPU upload.
+ * A batch renderer for slices using instanced rendering.
+ * Each slice has a left, right, depth, color, and pattern.
+ * Row positions are computed in the shader from a simple formula:
+ *   top = paddingTop + depth * rowStride
+ *   bottom = top + rowHeight
  */
-export class RectBatch {
+export class SliceBatch {
   private readonly gl: WebGL2RenderingContext;
-  private readonly batchProgram: RectBatchProgram;
+  private readonly prog: SliceBatchProgram;
 
   // GPU buffers
   private readonly quadCornerBuffer: WebGLBuffer;
   private readonly quadIndexBuffer: WebGLBuffer;
+  private readonly leftBuffer: WebGLBuffer;
+  private readonly rightBuffer: WebGLBuffer;
+  private readonly depthBuffer: WebGLBuffer;
   private readonly colorBuffer: WebGLBuffer;
   private readonly flagsBuffer: WebGLBuffer;
-  private readonly leftBuffer: WebGLBuffer;
-  private readonly topBuffer: WebGLBuffer;
-  private readonly rightBuffer: WebGLBuffer;
 
   constructor(gl: WebGL2RenderingContext) {
     this.gl = gl;
-    this.batchProgram = createBatchProgram(gl);
+    this.prog = createSliceProgram(gl);
 
     // Create static quad buffers
     this.quadCornerBuffer = createBuffer(gl);
@@ -202,28 +219,70 @@ export class RectBatch {
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, QUAD_INDICES, gl.STATIC_DRAW);
 
     // Create dynamic instance buffers
+    this.leftBuffer = createBuffer(gl);
+    this.rightBuffer = createBuffer(gl);
+    this.depthBuffer = createBuffer(gl);
     this.colorBuffer = createBuffer(gl);
     this.flagsBuffer = createBuffer(gl);
-    this.leftBuffer = createBuffer(gl);
-    this.topBuffer = createBuffer(gl);
-    this.rightBuffer = createBuffer(gl);
   }
 
   /**
-   * Draw rectangles directly from columnar buffers.
-   * Zero per-rect CPU work - shader handles all transformation and edge cases.
+   * Draw slices using instanced WebGL rendering.
+   *
+   * Each slice is a horizontal rectangle positioned by its left/right edges
+   * (in data space) and its depth (row index). The vertical position and
+   * height are computed in the shader from the row layout formula:
+   *
+   * ```
+   * depth == 0:
+   *   top = paddingTop
+   *   bottom = top + firstRowHeight
+   * depth > 0:
+   *   stride = rowHeight + rowGap
+   *   top = paddingTop + firstRowHeight + rowGap + (depth - 1) * stride
+   *   bottom = top + rowHeight
+   * ```
+   *
+   * The coordinate pipeline is:
+   *   1. X: data space → CSS pixels (via xTransform)
+   *   2. Full rect: CSS pixels → device pixels (via viewTransform)
+   *   3. Clamp to clipRect
+   *   4. Convert to NDC for rasterization
+   *
+   * @param buffers Columnar slice data:
+   *   - `starts`/`ends`: left/right edges in data space (e.g. nanoseconds
+   *      relative to trace start). Transformed to CSS pixels by xTransform.
+   *   - `depths`: row index per slice (uint16). Used to look up vertical
+   *      position from the row layout.
+   *   - `colors`: packed RGBA per slice (0xRRGGBBAA).
+   *   - `patterns`: bitfield per slice for visual effects
+   *      (RECT_PATTERN_HATCHED, RECT_PATTERN_FADE_RIGHT).
+   *   - `count`: number of valid slices in the arrays.
+   * @param rowLayout Defines the vertical geometry of rows:
+   *   - `rowHeight`: height of rows in CSS pixels (required).
+   *   - `paddingTop`: offset from the top of the track to row 0 (default 0).
+   *   - `firstRowHeight`: height of row 0, can differ from other rows
+   *      (default: rowHeight).
+   *   - `rowGap`: vertical gap between rows in CSS pixels (default 0).
+   * @param xTransform Scale+translate to convert data-space X coordinates to
+   *   CSS pixels: `cssPx = value * scale + offset`.
+   * @param viewTransform Scale+translate to convert CSS pixels to device
+   *   pixels (accounts for DPR and any scroll/pan offset).
+   * @param clipRect Axis-aligned clip rectangle in device pixels (LTRB).
+   *   Slices are clamped to this region.
    */
   draw(
-    buffers: RectBuffers,
-    dataTransform: Transform2D,
+    buffers: SliceBuffers,
+    rowLayout: RowLayout,
+    xTransform: Transform1D,
     viewTransform: Transform2D,
     clipRect: {left: number; top: number; right: number; bottom: number},
   ): void {
-    const {starts, ends, ys, h, colors, patterns, count} = buffers;
+    const {starts, ends, depths, colors, patterns, count} = buffers;
     if (count === 0) return;
 
     const gl = this.gl;
-    const prog = this.batchProgram;
+    const prog = this.prog;
 
     gl.useProgram(prog.program);
     gl.enable(gl.BLEND);
@@ -231,13 +290,7 @@ export class RectBatch {
 
     // Set uniforms
     gl.uniform2f(prog.resolutionLoc, gl.canvas.width, gl.canvas.height);
-    gl.uniform4f(
-      prog.dataTransformLoc,
-      dataTransform.scaleX,
-      dataTransform.scaleY,
-      dataTransform.offsetX,
-      dataTransform.offsetY,
-    );
+    gl.uniform2f(prog.xTransformLoc, xTransform.scale, xTransform.offset);
     gl.uniform4f(
       prog.viewTransformLoc,
       viewTransform.scaleX,
@@ -252,7 +305,13 @@ export class RectBatch {
       clipRect.right,
       clipRect.bottom,
     );
-    gl.uniform1f(prog.heightLoc, h);
+    gl.uniform1f(
+      prog.firstRowHeightLoc,
+      rowLayout.firstRowHeight ?? rowLayout.rowHeight,
+    );
+    gl.uniform1f(prog.rowHeightLoc, rowLayout.rowHeight);
+    gl.uniform1f(prog.rowGapLoc, rowLayout.rowGap ?? 0);
+    gl.uniform1f(prog.paddingTopLoc, rowLayout.paddingTop ?? 0);
 
     // Bind static quad
     gl.bindBuffer(gl.ARRAY_BUFFER, this.quadCornerBuffer);
@@ -260,18 +319,25 @@ export class RectBatch {
     gl.vertexAttribPointer(prog.quadCornerLoc, 2, gl.FLOAT, false, 0, 0);
     gl.vertexAttribDivisor(prog.quadCornerLoc, 0);
 
-    // Upload buffers directly - no CPU transformation!
+    // Upload per-instance buffers
     this.bindFloatBuffer(prog.leftLoc, this.leftBuffer, starts, count);
-    this.bindFloatBuffer(prog.topLoc, this.topBuffer, ys, count);
     this.bindFloatBuffer(prog.rightLoc, this.rightBuffer, ends, count);
 
-    // Colors and flags
+    // Depth (uint16)
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.depthBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, depths.subarray(0, count), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(prog.depthLoc);
+    gl.vertexAttribIPointer(prog.depthLoc, 1, gl.UNSIGNED_SHORT, 0, 0);
+    gl.vertexAttribDivisor(prog.depthLoc, 1);
+
+    // Colors (uint32)
     gl.bindBuffer(gl.ARRAY_BUFFER, this.colorBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, colors.subarray(0, count), gl.DYNAMIC_DRAW);
     gl.enableVertexAttribArray(prog.colorLoc);
     gl.vertexAttribIPointer(prog.colorLoc, 1, gl.UNSIGNED_INT, 0, 0);
     gl.vertexAttribDivisor(prog.colorLoc, 1);
 
+    // Patterns (uint8)
     gl.bindBuffer(gl.ARRAY_BUFFER, this.flagsBuffer);
     gl.bufferData(
       gl.ARRAY_BUFFER,
@@ -288,8 +354,8 @@ export class RectBatch {
 
     // Reset divisors
     gl.vertexAttribDivisor(prog.leftLoc, 0);
-    gl.vertexAttribDivisor(prog.topLoc, 0);
     gl.vertexAttribDivisor(prog.rightLoc, 0);
+    gl.vertexAttribDivisor(prog.depthLoc, 0);
     gl.vertexAttribDivisor(prog.colorLoc, 0);
     gl.vertexAttribDivisor(prog.patternLoc, 0);
   }
