@@ -84,7 +84,8 @@ export default class AndroidInputEvents implements PerfettoPlugin {
   async visualizeOverlaps(ctx: Trace): Promise<void> {
     const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
     const rootNode = await this.createRootTrack(ctx, window);
-    ctx.defaultWorkspace.pinnedTracksNode.addChildLast(rootNode);
+    ctx.defaultWorkspace.addChildLast(rootNode);
+    rootNode.pin();
 
     const processes = await this.getProcesses(ctx, window);
     const processTrackPromises: Promise<TrackNode>[] = [];
