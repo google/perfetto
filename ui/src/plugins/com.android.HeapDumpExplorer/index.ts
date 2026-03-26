@@ -53,7 +53,7 @@ export default class implements PerfettoPlugin {
 
     ctx.plugins
       .getPlugin(HeapProfilePlugin)
-      .setOnNodeSelected((pathHashes, isDominator) =>
+      .registerOnNodeSelectedListener(({pathHashes, isDominator}) =>
         setFlamegraphSelection({pathHashes, isDominator}),
       );
 
