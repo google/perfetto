@@ -468,6 +468,35 @@ CPU_TABLE = Table(
                 '''Extra args associated with the CPU''',
         }))
 
+GPU_TABLE = Table(
+    python_module=__file__,
+    class_name='GpuTable',
+    sql_name='__intrinsic_gpu',
+    columns=[
+        C(
+            'gpu',
+            CppOptional(CppUint32()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C('machine_id', CppTableId(MACHINE_TABLE)),
+    ],
+    wrapping_sql_view=WrappingSqlView('gpu'),
+    tabledoc=TableDoc(
+        doc='''
+          Contains information of GPUs seen during the trace.
+        ''',
+        group='Misc',
+        columns={
+            'gpu':
+                '''the index (0-based) of the GPU on the device''',
+            'machine_id':
+                '''
+                  Machine identifier, non-null for GPUs on a remote machine.
+                ''',
+        }))
+
 CHROME_RAW_TABLE = Table(
     python_module=__file__,
     class_name='ChromeRawTable',
@@ -928,6 +957,7 @@ ALL_TABLES = [
     EXP_MISSING_CHROME_PROC_TABLE,
     FILEDESCRIPTOR_TABLE,
     FTRACE_EVENT_TABLE,
+    GPU_TABLE,
     TRACE_IMPORT_LOGS_TABLE,
     MACHINE_TABLE,
     METADATA_TABLE,
