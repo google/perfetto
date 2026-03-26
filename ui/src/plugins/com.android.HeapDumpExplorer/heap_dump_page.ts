@@ -20,7 +20,11 @@ import {EmptyState} from '../../widgets/empty_state';
 import {Tabs} from '../../widgets/tabs';
 import type {TabsTab} from '../../widgets/tabs';
 import HeapProfilePlugin from '../dev.perfetto.HeapProfile';
-import type {HeapdumpSelection} from '../dev.perfetto.HeapProfile';
+
+interface HeapdumpSelection {
+  pathHashes: string;
+  isDominator: boolean;
+}
 import type {NavState} from './nav_state';
 import type {OverviewData} from './types';
 import {nav, navigate, syncFromSubpage, setNavigateCallback} from './nav_state';
@@ -69,13 +73,15 @@ async function viewInTimeline(objectId: number): Promise<void> {
   trace.scrollTo({track: {uri, expandGroup: true}});
 }
 
-// Cached flamegraph selection consumed from HeapProfile. Consumed once on first
-// render of the flamegraph-objects view, then reused for subsequent renders.
-let cachedFlamegraphSelection: HeapdumpSelection | null = null;
+// Selection set by HeapProfile's "Open in Heapdump Explorer" action.
+let flamegraphSelection: HeapdumpSelection | null = null;
 
-/** Reset cached selection on trace change to prevent stale cross-trace data. */
-export function resetCachedFlamegraphSelection(): void {
-  cachedFlamegraphSelection = null;
+export function setFlamegraphSelection(sel: HeapdumpSelection): void {
+  flamegraphSelection = sel;
+}
+
+export function resetFlamegraphSelection(): void {
+  flamegraphSelection = null;
 }
 
 // Module-level overview cache. Survives component remounts (e.g. theme toggle).
@@ -107,14 +113,21 @@ function classesTabContent(
   overview: OverviewData,
 ): m.Children {
   switch (state.view) {
-    case 'object':
+    case 'object': {
+      const trace = HeapDumpPage.trace;
+      const hasFlamegraph = trace
+        ? trace.plugins
+            .getPlugin(HeapProfilePlugin)
+            .getJavaHeapGraphFlamegraphInfo() !== undefined
+        : false;
       return m(ObjectView, {
         engine,
         heaps: overview.heaps,
         navigate,
         params: state.params,
-        onViewInTimeline: viewInTimeline,
+        onViewInTimeline: hasFlamegraph ? viewInTimeline : undefined,
       });
+    }
     case 'instances':
       return m(InstancesView, {engine, navigate, params: state.params});
     default:
@@ -183,17 +196,12 @@ function renderFlamegraphObjectsView(
   engine: Engine,
 ): m.Children {
   const trace = HeapDumpPage.trace;
-  const pending = trace?.plugins
-    .getPlugin(HeapProfilePlugin)
-    .consumeHeapdumpSelection();
-  if (pending) cachedFlamegraphSelection = pending;
-  const sel = cachedFlamegraphSelection;
   return m(FlamegraphObjectsView, {
     engine,
     navigate,
     nodeName: state.params.name,
-    pathHashes: sel?.pathHashes,
-    isDominator: sel?.isDominator,
+    pathHashes: flamegraphSelection?.pathHashes,
+    isDominator: flamegraphSelection?.isDominator,
     onBackToTimeline: () => {
       if (trace) trace.navigate('#!/viewer');
     },

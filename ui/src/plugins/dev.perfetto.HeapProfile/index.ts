@@ -56,59 +56,37 @@ function trackUri(upid: number, type: string): string {
   return `/process_${upid}/${type}_heap_profile`;
 }
 
-export interface HeapdumpSelection {
-  pathHashes: string;
-  isDominator: boolean;
-}
-
 export default class HeapProfilePlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.HeapProfile';
   static readonly dependencies = [ProcessThreadGroupsPlugin];
 
   private readonly trackMap = new Map<string, Track>();
   private store?: Store<HeapProfilePluginState>;
-  private pendingFlamegraphFilter:
-    | {filter: string; metricName?: string}
-    | undefined;
+
+  private onNodeSelected?: (pathHashes: string, isDominator: boolean) => void;
+
+  setOnNodeSelected(
+    cb: (pathHashes: string, isDominator: boolean) => void,
+  ): void {
+    this.onNodeSelected = cb;
+  }
 
   /**
-   * Set a pending SHOW_FROM_FRAME filter for the next java heap graph
-   * flamegraph details panel that is opened. Used by the Heapdump Explorer plugin to
-   * auto-focus the flamegraph on a specific class when navigating from an
-   * object detail view back to the timeline.
+   * Write a PIVOT filter directly into the flamegraph store so the next
+   * details panel render auto-focuses on the matching node.
    */
   setJavaHeapGraphFlamegraphFilter(filter: string, metricName?: string): void {
-    this.pendingFlamegraphFilter = {filter, metricName};
+    this.store?.edit((draft) => {
+      const s = draft[ProfileType.JAVA_HEAP_GRAPH];
+      if (s?.trackFlamegraphState) {
+        if (metricName !== undefined) {
+          s.trackFlamegraphState.selectedMetricName = metricName;
+        }
+        s.trackFlamegraphState.view = {kind: 'PIVOT', pivot: filter};
+      }
+    });
   }
 
-  consumePendingFlamegraphFilter():
-    | {filter: string; metricName?: string}
-    | undefined {
-    const f = this.pendingFlamegraphFilter;
-    this.pendingFlamegraphFilter = undefined;
-    return f;
-  }
-
-  private pendingHeapdumpSelection: HeapdumpSelection | undefined;
-
-  setHeapdumpSelection(sel: HeapdumpSelection): void {
-    this.pendingHeapdumpSelection = sel;
-  }
-
-  consumeHeapdumpSelection(): HeapdumpSelection | undefined {
-    const s = this.pendingHeapdumpSelection;
-    this.pendingHeapdumpSelection = undefined;
-    return s;
-  }
-
-  /**
-   * Returns information about the currently selected java heap graph
-   * flamegraph metric, or undefined if no flamegraph state exists yet.
-   *
-   * isDominator is true when a dominator metric is selected, undefined
-   * otherwise — callers should try both path-hash tables when undefined
-   * because the non-dominator class tree table may not be populated yet.
-   */
   getJavaHeapGraphFlamegraphInfo():
     | {metricName: string; isDominator: boolean}
     | undefined {
@@ -270,17 +248,14 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
             viewName,
             upid,
             incomplete,
-            store.state[descriptor.type].trackFlamegraphState,
+            () => store.state[descriptor.type].trackFlamegraphState,
             (state) => {
               store.edit((draft) => {
                 draft[descriptor.type].trackFlamegraphState = state;
               });
             },
             heapType === 'java_heap_graph'
-              ? () => this.consumePendingFlamegraphFilter()
-              : undefined,
-            heapType === 'java_heap_graph'
-              ? (sel: HeapdumpSelection) => this.setHeapdumpSelection(sel)
+              ? (...args) => this.onNodeSelected?.(...args)
               : undefined,
           ),
         };

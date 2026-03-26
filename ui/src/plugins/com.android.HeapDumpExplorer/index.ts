@@ -20,7 +20,8 @@ import {NUM} from '../../trace_processor/query_result';
 import HeapProfilePlugin from '../dev.perfetto.HeapProfile';
 import {
   HeapDumpPage,
-  resetCachedFlamegraphSelection,
+  setFlamegraphSelection,
+  resetFlamegraphSelection,
   resetCachedOverview,
 } from './heap_dump_page';
 import {resetBitmapDumpDataCache} from './queries';
@@ -47,8 +48,14 @@ export default class implements PerfettoPlugin {
     HeapDumpPage.trace = ctx;
     HeapDumpPage.hasHeapData = true;
     resetBitmapDumpDataCache();
-    resetCachedFlamegraphSelection();
+    resetFlamegraphSelection();
     resetCachedOverview();
+
+    ctx.plugins
+      .getPlugin(HeapProfilePlugin)
+      .setOnNodeSelected((pathHashes, isDominator) =>
+        setFlamegraphSelection({pathHashes, isDominator}),
+      );
 
     ctx.sidebar.addMenuItem({
       section: 'current_trace',

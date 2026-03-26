@@ -43,7 +43,6 @@ import {SqlTableDefinition} from '../../components/widgets/sql/table/table_descr
 import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 import {Stack} from '../../widgets/stack';
 import {ProfileDescriptor, ProfileType} from './common';
-import type {HeapdumpSelection} from './index';
 
 interface Props {
   ts: time;
@@ -78,8 +77,10 @@ export class HeapProfileFlamegraphDetailsPanel
     private readonly tsEnd: time,
     private state: FlamegraphState | undefined,
     private readonly onStateChange: (state: FlamegraphState) => void,
-    pendingFlamegraphFilter?: {filter: string; metricName?: string},
-    private readonly setHeapdumpSelection?: (sel: HeapdumpSelection) => void,
+    private readonly onNodeSelected?: (
+      pathHashes: string,
+      isDominator: boolean,
+    ) => void,
   ) {
     this.props = {ts, type: profileDescriptor.type};
     this.flamegraph = new QueryFlamegraph(trace);
@@ -89,25 +90,10 @@ export class HeapProfileFlamegraphDetailsPanel
       this.ts,
       this.tsEnd,
       this.upid,
-      this.setHeapdumpSelection,
+      this.onNodeSelected,
     );
     if (this.state === undefined) {
       this.state = Flamegraph.createDefaultState(this.metrics);
-      onStateChange(this.state);
-    }
-    // Apply a pending pivot if set (e.g. by the Heapdump Explorer plugin navigating back
-    // to the timeline to focus on a specific object/class).
-    if (pendingFlamegraphFilter !== undefined) {
-      this.state = {
-        ...this.state,
-        ...(pendingFlamegraphFilter.metricName !== undefined
-          ? {selectedMetricName: pendingFlamegraphFilter.metricName}
-          : {}),
-        view: {
-          kind: 'PIVOT' as const,
-          pivot: pendingFlamegraphFilter.filter,
-        },
-      };
       onStateChange(this.state);
     }
   }
@@ -201,7 +187,7 @@ function flamegraphMetrics(
   ts: time,
   tsEnd: time,
   upid: number,
-  setHeapdumpSelection?: (sel: HeapdumpSelection) => void,
+  onNodeSelected?: (pathHashes: string, isDominator: boolean) => void,
 ): ReadonlyArray<QueryFlamegraphMetric> {
   switch (descriptor.type) {
     case ProfileType.NATIVE_HEAP_PROFILE:
@@ -321,7 +307,7 @@ function flamegraphMetrics(
           optionalNodeActions: getHeapGraphNodeOptionalActions(
             trace,
             false,
-            setHeapdumpSelection,
+            onNodeSelected,
           ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, false),
         },
@@ -358,7 +344,7 @@ function flamegraphMetrics(
           optionalNodeActions: getHeapGraphNodeOptionalActions(
             trace,
             false,
-            setHeapdumpSelection,
+            onNodeSelected,
           ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, false),
         },
@@ -400,7 +386,7 @@ function flamegraphMetrics(
           optionalNodeActions: getHeapGraphNodeOptionalActions(
             trace,
             true,
-            setHeapdumpSelection,
+            onNodeSelected,
           ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, true),
         },
@@ -437,7 +423,7 @@ function flamegraphMetrics(
           optionalNodeActions: getHeapGraphNodeOptionalActions(
             trace,
             true,
-            setHeapdumpSelection,
+            onNodeSelected,
           ),
           optionalRootActions: getHeapGraphRootOptionalActions(trace, true),
         },
@@ -552,7 +538,7 @@ function getHeapGraphDuplicateObjectsView(
 function getHeapGraphNodeOptionalActions(
   trace: Trace,
   isDominator: boolean,
-  setHeapdumpSelection?: (sel: HeapdumpSelection) => void,
+  onNodeSelected?: (pathHashes: string, isDominator: boolean) => void,
 ): ReadonlyArray<FlamegraphOptionalAction> {
   return [
     {
@@ -561,10 +547,9 @@ function getHeapGraphNodeOptionalActions(
         const pathHashes = kv.get('path_hash_stable');
         if (pathHashes === undefined) return;
 
-        setHeapdumpSelection?.({pathHashes, isDominator});
+        onNodeSelected?.(pathHashes, isDominator);
 
         const name = kv.get('name');
-
         const nameSuffix = name ? `_${encodeURIComponent(name)}` : '';
         trace.navigate(`#!/heapdump/flamegraph_objects${nameSuffix}`);
       },
