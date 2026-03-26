@@ -44,12 +44,10 @@ import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {
   LineChart,
   LineChartData,
+  LineChartMarker,
   LineChartSeries,
 } from '../../components/widgets/charts/line_chart';
-import {Sankey, SankeyData} from '../../components/widgets/charts/sankey';
-import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import type {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
-import type {Row} from '../../trace_processor/query_result';
+import {SankeyData} from '../../components/widgets/charts/sankey';
 import {
   categorizeProcess,
   CATEGORIES,
@@ -58,30 +56,18 @@ import {
 import {Intent} from '../../widgets/common';
 import {App} from '../../public/app';
 import {TracedWebsocketTarget} from '../dev.perfetto.RecordTraceV2/traced_over_websocket/traced_websocket_target';
-
-type ProcessGrouping = 'category' | 'oom_score';
-
-interface OomScoreBucket {
-  readonly name: string;
-  readonly color: string;
-  readonly minScore: number;
-  readonly maxScore: number;
-}
-
-const OOM_SCORE_BUCKETS: readonly OomScoreBucket[] = [
-  {name: 'Native (< 0)', color: '#1565c0', minScore: -1000, maxScore: -1},
-  {name: 'Foreground (0)', color: '#4caf50', minScore: 0, maxScore: 0},
-  {name: 'Visible (1-99)', color: '#8bc34a', minScore: 1, maxScore: 99},
-  {
-    name: 'Perceptible (100-299)',
-    color: '#ff9800',
-    minScore: 100,
-    maxScore: 299,
-  },
-  {name: 'Service (300-599)', color: '#ff5722', minScore: 300, maxScore: 599},
-  {name: 'Cached (600-899)', color: '#9c27b0', minScore: 600, maxScore: 899},
-  {name: 'Cached (900+)', color: '#f44336', minScore: 900, maxScore: 1001},
-];
+import {formatKb, panel} from './utils';
+import {renderSystemTab} from './tab_system';
+import {renderPageCacheTab} from './tab_page_cache';
+import {renderPressureSwapTab} from './tab_pressure_swap';
+import {
+  renderProcessesTab,
+  type ProcessGrouping,
+  type ProcessMetric,
+  type ProcessMemoryRow,
+  OOM_SCORE_BUCKETS,
+  PROCESS_METRIC_OPTIONS,
+} from './tab_processes';
 
 const CLONE_INTERVAL_MS = 3_000;
 const CLONE_INITIAL_DELAY_MS = 3_000;
@@ -114,91 +100,38 @@ const SYSTEM_MEMINFO_COUNTERS = [
   'Writeback',
 ] as const;
 
-// Build a lookup from category name → color for the cell renderer.
-const CATEGORY_COLOR_MAP = new Map<string, string>(
-  (Object.values(CATEGORIES) as readonly {name: string; color: string}[]).map(
-    (c) => [c.name, c.color],
-  ),
-);
+// Raw data extracted from a trace snapshot, stored in JS for instant access.
+interface SnapshotRawData {
+  // System-level counter time series (meminfo, vmstat, PSI, dma_heap, etc.)
+  // counterName → sorted array of {ts, value} (value in raw TP units: bytes
+  // for meminfo, ns for PSI, counts for vmstat)
+  systemCounters: Map<string, {ts: number; value: number}[]>;
 
-const PROCESS_TABLE_SCHEMA: SchemaRegistry = {
-  process: {
-    process: {title: 'Process', columnType: 'text'},
-    category: {
-      title: 'Category',
-      columnType: 'text',
-      cellRenderer: (v) => {
-        const color = CATEGORY_COLOR_MAP.get(v as string);
-        return color !== undefined
-          ? m('span', {style: {color}}, v as string)
-          : (v as string);
-      },
-    },
-    pid: {title: 'PID', columnType: 'quantitative'},
-    oom_score: {
-      title: 'OOM Adj',
-      columnType: 'quantitative',
-      cellRenderer: (v) => {
-        const score = v as number;
-        const bucket = OOM_SCORE_BUCKETS.find(
-          (b) => score >= b.minScore && score <= b.maxScore,
-        );
-        if (bucket === undefined) return `${score}`;
-        // Extract just the category label (strip the range in parens).
-        const label = bucket.name.replace(/ \(.*\)$/, '');
-        return m('span', {style: {color: bucket.color}}, `${score} (${label})`);
-      },
-    },
-    rss_kb: {
-      title: 'RSS',
-      columnType: 'quantitative',
-      cellRenderer: (v) => formatKb(v as number),
-    },
-    anon_swap_kb: {
-      title: 'Anon + Swap',
-      columnType: 'quantitative',
-      cellRenderer: (v) => ((v as number) > 0 ? formatKb(v as number) : '-'),
-    },
-    file_kb: {
-      title: 'File',
-      columnType: 'quantitative',
-      cellRenderer: (v) => ((v as number) > 0 ? formatKb(v as number) : '-'),
-    },
-    shmem_kb: {
-      title: 'Shmem',
-      columnType: 'quantitative',
-      cellRenderer: (v) => ((v as number) > 0 ? formatKb(v as number) : '-'),
-    },
-    age: {
-      title: 'Age',
-      columnType: 'quantitative',
-      cellRenderer: (v) => {
-        const secs = v as number | null;
-        if (secs === null || secs < 0) return '-';
-        const d = Math.floor(secs / 86400);
-        const h = Math.floor((secs % 86400) / 3600);
-        const m = Math.floor((secs % 3600) / 60);
-        const s = Math.floor(secs % 60);
-        if (d > 0) return `${d}d ${h}h`;
-        if (h > 0) return `${h}h ${m}m`;
-        if (m > 0) return `${m}m ${s}s`;
-        return `${s}s`;
-      },
-    },
-  },
-};
+  // Per-process counter time series, aggregated by process name (summing
+  // across PIDs).
+  // processName → counterName → Map<ts, summedValueInBytes>
+  processCountersByName: Map<string, Map<string, Map<number, number>>>;
 
-// Per-process memory row (latest value only, for the table).
-interface ProcessMemoryRow {
-  processName: string;
+  // Per-PID counter time series (needed for profiling breakdown of a specific
+  // PID).
+  // pid → counterName → sorted array of {ts, value}
+  processCountersByPid: Map<number, Map<string, {ts: number; value: number}[]>>;
+
+  // Process metadata: processName → {pid, startTs, debuggable}
+  processInfo: Map<
+    string,
+    {pid: number; startTs: number | null; debuggable: boolean}
+  >;
+
+  // LMK (Low Memory Killer) events.
+  lmkEvents: LmkEvent[];
+}
+
+interface LmkEvent {
+  ts: number;
   pid: number;
-  rssKb: number;
-  anonKb: number;
-  fileKb: number;
-  shmemKb: number;
-  swapKb: number;
-  oomScore: number;
-  ageSeconds: number | null;
+  processName: string;
+  oomScoreAdj: number;
 }
 
 function createMonitoringConfig(
@@ -290,10 +223,25 @@ function createMonitoringConfig(
       },
       {
         config: {
+          name: 'android.packages_list',
+          targetBuffer: 0,
+        },
+      },
+      {
+        config: {
           name: 'linux.ftrace',
           targetBuffer: 2,
           ftraceConfig: {
-            ftraceEvents: ['dmabuf_heap/dma_heap_stat'],
+            ftraceEvents: [
+              'dmabuf_heap/dma_heap_stat',
+              'sched/sched_process_exit',
+              'sched/sched_process_free',
+              'task/task_newtask',
+              'task/task_rename',
+              'lowmemorykiller/lowmemory_kill',
+              'oom/oom_score_adj_update',
+            ],
+            atraceApps: ['lmkd'],
             symbolizeKsyms: true,
             disableGenericEvents: true,
           },
@@ -308,23 +256,6 @@ interface LiveMemoryPageAttrs {
 }
 
 type ConnectionMethod = 'usb' | 'websocket' | 'web_proxy' | 'linux';
-
-type ProcessMetric = 'rss' | 'anon_swap' | 'file' | 'dmabuf';
-
-const PROCESS_METRIC_OPTIONS: ReadonlyArray<{
-  key: ProcessMetric;
-  label: string;
-  counters: readonly string[];
-}> = [
-  {key: 'rss', label: 'Total RSS', counters: ['mem.rss']},
-  {
-    key: 'anon_swap',
-    label: 'Anon + Swap',
-    counters: ['mem.rss.anon', 'mem.swap'],
-  },
-  {key: 'file', label: 'File', counters: ['mem.rss.file']},
-  {key: 'dmabuf', label: 'DMA-BUF', counters: ['mem.dmabuf_rss']},
-];
 
 interface WsDevice {
   serial: string;
@@ -371,9 +302,19 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
 
   // Per-process memory breakdown chart shown during profiling.
   private heapProfileChartData?: LineChartData;
+  private heapProfileStartTime?: number; // Date.now() when profiling started
+  // Baseline values (KB) captured from first chart data after profiling starts.
+  private heapProfileBaseline?: {
+    anonSwap: number;
+    file: number;
+    dmabuf: number;
+  };
 
   // Reusable TP instance for processing cloned traces.
   private engine?: WasmEngineProxy;
+
+  // Raw data extracted once per snapshot; all charts are derived from this.
+  private rawData?: SnapshotRawData;
 
   // Chart data extracted from the latest cloned trace (full time-series).
   private systemChartData?: LineChartData;
@@ -386,6 +327,8 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
   private swapChartData?: LineChartData;
   private vmstatChartData?: LineChartData;
   private pageFaultChartData?: LineChartData;
+  // LMK event markers to overlay on charts.
+  private lmkMarkers: LineChartMarker[] = [];
   // Latest process table (most recent values only).
   private latestProcesses?: ProcessMemoryRow[];
 
@@ -633,7 +576,7 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
   private renderConnectedIdle(): m.Children {
     return m(
       '.pf-live-memory-page',
-      m('.pf-live-memory-title-bar', m('h1', 'Memory Monitor')),
+      m('.pf-live-memory-title-bar', m('h1', 'Memento')),
       m(
         '.pf-live-memory-hero',
         m(Icon, {icon: 'usb', className: 'pf-live-memory-hero__icon'}),
@@ -662,22 +605,33 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
   // Profiling — show per-process memory breakdown while heap profiling.
   // ---------------------------------------------------------------------------
 
+  private formatProfilingDuration(): string {
+    if (this.heapProfileStartTime === undefined) return '';
+    const elapsed = Math.floor((Date.now() - this.heapProfileStartTime) / 1000);
+    const m = Math.floor(elapsed / 60);
+    const s = elapsed % 60;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  }
+
   private renderProfiling(): m.Children {
     const processName = this.heapProfileProcessName ?? 'unknown';
     const pid = this.heapProfilePid!;
+    const duration = this.formatProfilingDuration();
     return m(
       '.pf-live-memory-page',
       m(
         '.pf-live-memory-title-bar',
         m('h1', `Profiling: ${processName} (PID ${pid})`),
+        duration && m('span.pf-live-memory-title-bar__duration', duration),
         m(
           '.pf-live-memory-title-bar__actions',
           !this.heapProfileStopping &&
             m(Button, {
-              label: 'Stop & Open',
+              label: 'Stop & Open Trace',
               icon: 'stop',
               variant: ButtonVariant.Filled,
-              intent: Intent.Danger,
+              intent: Intent.Primary,
               onclick: () => this.stopHeapProfile(),
             }),
           !this.heapProfileStopping &&
@@ -701,6 +655,8 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
       ),
       this.error && m('.pf-live-memory-error', this.error),
 
+      this.renderProcessBillboards(),
+
       panel(
         'Process Memory Breakdown',
         `Stacked area chart of memory usage for ${processName}. ` +
@@ -723,6 +679,87 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
             })
           : m('.pf-live-memory-placeholder', 'Waiting for data\u2026'),
       ),
+
+      m(
+        '.pf-live-memory-profiling-status',
+        m(
+          '.pf-live-memory-profiling-status__line',
+          m(Icon, {icon: 'memory'}),
+          'Heap profiling (heapprofd) ',
+          m('span.pf-live-memory-profiling-status__active', 'recording'),
+        ),
+        m(
+          '.pf-live-memory-profiling-status__line',
+          m(Icon, {icon: 'coffee'}),
+          'Java heap profiling (java_hprof) ',
+          m('span.pf-live-memory-profiling-status__active', 'recording'),
+        ),
+      ),
+    );
+  }
+
+  private renderProcessBillboards(): m.Children {
+    const data = this.heapProfileChartData;
+    if (data === undefined || data.series.length === 0) return null;
+    const latest = (name: string): number => {
+      const s = data.series.find((sr) => sr.name === name);
+      if (s === undefined || s.points.length === 0) return 0;
+      return s.points[s.points.length - 1].y;
+    };
+    const base = this.heapProfileBaseline;
+
+    const billboard = (
+      current: number,
+      baseline: number | undefined,
+      label: string,
+      desc: string,
+    ) => {
+      const delta = baseline !== undefined ? current - baseline : undefined;
+      const deltaStr =
+        delta !== undefined
+          ? `${delta >= 0 ? '+' : ''}${formatKb(delta)}`
+          : undefined;
+      return m(
+        '.pf-live-memory-billboard',
+        m('.pf-live-memory-billboard__value', formatKb(current)),
+        deltaStr !== undefined &&
+          m(
+            '.pf-live-memory-billboard__delta',
+            {
+              class:
+                delta! > 0
+                  ? 'pf-live-memory-billboard__delta--up'
+                  : delta! < 0
+                    ? 'pf-live-memory-billboard__delta--down'
+                    : '',
+            },
+            deltaStr,
+          ),
+        m('.pf-live-memory-billboard__label', label),
+        m('.pf-live-memory-billboard__desc', desc),
+      );
+    };
+
+    return m(
+      '.pf-live-memory-billboards',
+      billboard(
+        latest('Anon + Swap'),
+        base?.anonSwap,
+        'Anon + Swap',
+        'Anonymous resident + swapped pages',
+      ),
+      billboard(
+        latest('File'),
+        base?.file,
+        'File',
+        'File-backed resident pages',
+      ),
+      billboard(
+        latest('DMA-BUF'),
+        base?.dmabuf,
+        'DMA-BUF',
+        'GPU/DMA buffer RSS',
+      ),
     );
   }
 
@@ -735,7 +772,7 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
       '.pf-live-memory-page',
       m(
         '.pf-live-memory-title-bar',
-        m('h1', 'Memory Monitor'),
+        m('h1', 'Memento'),
         m(
           '.pf-live-memory-title-bar__actions',
           m(Button, {
@@ -794,243 +831,34 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
         }),
       ),
 
-      this.activeTab === 'processes' && this.renderProcessSection(),
-      this.activeTab === 'system' && this.renderSystemMetricsTab(),
-      this.activeTab === 'file_cache' && this.renderPageCacheTab(),
-      this.activeTab === 'pressure_swap' && this.renderPressureSwapTab(),
+      this.activeTab === 'processes' && this.renderProcessesTab(),
+      this.activeTab === 'system' &&
+        renderSystemTab({
+          systemChartData: this.systemChartData,
+          sankeyData: this.sankeyData,
+          xAxisMin: this.xAxisMin,
+          xAxisMax: this.xAxisMax,
+        }),
+      this.activeTab === 'file_cache' &&
+        renderPageCacheTab({
+          pageCacheChartData: this.pageCacheChartData,
+          fileCacheBreakdownData: this.fileCacheBreakdownData,
+          fileCacheActivityData: this.fileCacheActivityData,
+          xAxisMin: this.xAxisMin,
+          xAxisMax: this.xAxisMax,
+        }),
+      this.activeTab === 'pressure_swap' &&
+        renderPressureSwapTab({
+          psiChartData: this.psiChartData,
+          pageFaultChartData: this.pageFaultChartData,
+          swapChartData: this.swapChartData,
+          vmstatChartData: this.vmstatChartData,
+          lmkEvents: this.rawData?.lmkEvents ?? [],
+          traceT0: this.traceT0 ?? 0,
+          xAxisMin: this.xAxisMin,
+          xAxisMax: this.xAxisMax,
+        }),
     );
-  }
-
-  private renderSystemMetricsTab(): m.Children {
-    return [
-      panel(
-        'System Memory Overview',
-        'Physical RAM breakdown by category. Source: /proc/meminfo. Unaccounted = MemTotal minus all named categories.',
-        this.sankeyData
-          ? m(Sankey, {
-              data: this.sankeyData,
-              height: 350,
-              formatValue: (v: number) => formatKb(v),
-            })
-          : m('.pf-live-memory-placeholder', 'Waiting for data\u2026'),
-      ),
-
-      panel(
-        'System Memory',
-        'Stacked areas partition MemTotal. Source: /proc/meminfo. ' +
-          'Anon = Active(anon) + Inactive(anon). Page cache = Active(file) + Inactive(file) \u2212 Shmem. ' +
-          'Unaccounted = MemTotal \u2212 sum of all other categories.',
-        this.systemChartData
-          ? m(LineChart, {
-              data: this.systemChartData,
-              height: 400,
-              xAxisLabel: 'Time (s)',
-              yAxisLabel: 'Memory',
-              showLegend: true,
-              showPoints: false,
-              stacked: true,
-              gridLines: 'horizontal',
-              formatXValue: (v: number) => `${v.toFixed(0)}s`,
-              formatYValue: (v: number) => formatKb(v),
-              xAxisMin: this.xAxisMin,
-              xAxisMax: this.xAxisMax,
-            })
-          : m('.pf-live-memory-placeholder', 'Waiting for data\u2026'),
-      ),
-    ];
-  }
-
-  private getPageCacheBillboards():
-    | {total: number; dirty: number; mapped: number}
-    | undefined {
-    const data = this.fileCacheBreakdownData;
-    if (data === undefined || data.series.length < 4) return undefined;
-    // Series order: Mapped+Dirty, Mapped+Clean, Unmapped+Dirty, Unmapped+Clean
-    const last = (idx: number) => {
-      const pts = data.series[idx].points;
-      return pts.length > 0 ? pts[pts.length - 1].y : 0;
-    };
-    const mappedDirty = last(0);
-    const mappedClean = last(1);
-    const unmappedDirty = last(2);
-    const unmappedClean = last(3);
-    return {
-      total: mappedDirty + mappedClean + unmappedDirty + unmappedClean,
-      dirty: mappedDirty + unmappedDirty,
-      mapped: mappedDirty + mappedClean,
-    };
-  }
-
-  private renderPageCacheTab(): m.Children {
-    const billboards = this.getPageCacheBillboards();
-
-    return [
-      billboards !== undefined &&
-        m(
-          '.pf-live-memory-billboards',
-          m(
-            '.pf-live-memory-billboard',
-            m('.pf-live-memory-billboard__value', formatKb(billboards.total)),
-            m('.pf-live-memory-billboard__label', 'Total Page Cache'),
-            m(
-              '.pf-live-memory-billboard__desc',
-              'Derived: Active(file) + Inactive(file) from /proc/meminfo',
-            ),
-          ),
-          m(
-            '.pf-live-memory-billboard',
-            m('.pf-live-memory-billboard__value', formatKb(billboards.dirty)),
-            m('.pf-live-memory-billboard__label', 'Dirty'),
-            m(
-              '.pf-live-memory-billboard__desc',
-              'Source: Dirty from /proc/meminfo',
-            ),
-          ),
-          m(
-            '.pf-live-memory-billboard',
-            m('.pf-live-memory-billboard__value', formatKb(billboards.mapped)),
-            m('.pf-live-memory-billboard__label', 'Mapped'),
-            m(
-              '.pf-live-memory-billboard__desc',
-              'Source: Mapped from /proc/meminfo',
-            ),
-          ),
-        ),
-
-      panel(
-        'Page Cache',
-        'Source: /proc/meminfo counters Active(file), Inactive(file), Shmem. ' +
-          'Stacked: Active(file) + Inactive(file) + Shmem \u2248 Cached.',
-        this.pageCacheChartData
-          ? m(LineChart, {
-              data: this.pageCacheChartData,
-              height: 250,
-              xAxisLabel: 'Time (s)',
-              yAxisLabel: 'Cache',
-              showLegend: true,
-              showPoints: false,
-              stacked: true,
-              gridLines: 'horizontal',
-              formatXValue: (v: number) => `${v.toFixed(0)}s`,
-              formatYValue: (v: number) => formatKb(v),
-              xAxisMin: this.xAxisMin,
-              xAxisMax: this.xAxisMax,
-            })
-          : m('.pf-live-memory-placeholder', 'Waiting for data\u2026'),
-      ),
-
-      panel(
-        'Page Cache Activity',
-        'Source: /proc/vmstat counters, shown as rates (delta/s). ' +
-          'Refaults = workingset_refault_file (evicted pages needed again). ' +
-          'Stolen = pgsteal_file (pages reclaimed). ' +
-          'Scanned = pgscan_file (pages considered for reclaim).',
-        this.fileCacheActivityData
-          ? m(LineChart, {
-              data: this.fileCacheActivityData,
-              height: 200,
-              xAxisLabel: 'Time (s)',
-              yAxisLabel: 'Pages/s',
-              showLegend: true,
-              showPoints: false,
-              gridLines: 'horizontal',
-              formatXValue: (v: number) => `${v.toFixed(0)}s`,
-              formatYValue: (v: number) => v.toLocaleString(),
-              xAxisMin: this.xAxisMin,
-              xAxisMax: this.xAxisMax,
-            })
-          : m('.pf-live-memory-placeholder', 'Waiting for data\u2026'),
-      ),
-    ];
-  }
-
-  private renderPressureSwapTab(): m.Children {
-    return [
-      panel(
-        'Memory Pressure (PSI)',
-        'Source: /proc/pressure/memory (psi.mem.some, psi.mem.full). ' +
-          'Derived: cumulative \u00b5s converted to ms/s rate. ' +
-          '"some" = at least one task stalled, "full" = all tasks stalled.',
-        this.psiChartData
-          ? m(LineChart, {
-              data: this.psiChartData,
-              height: 200,
-              xAxisLabel: 'Time (s)',
-              yAxisLabel: 'Stall (ms/s)',
-              showLegend: true,
-              showPoints: false,
-              gridLines: 'horizontal',
-              formatXValue: (v: number) => `${v.toFixed(0)}s`,
-              formatYValue: (v: number) => `${v.toFixed(1)} ms/s`,
-              xAxisMin: this.xAxisMin,
-              xAxisMax: this.xAxisMax,
-            })
-          : m('.pf-live-memory-placeholder', 'Waiting for data\u2026'),
-      ),
-
-      panel(
-        'Page Faults',
-        'Source: /proc/vmstat counters pgfault, pgmajfault. ' +
-          'Derived: cumulative counts converted to faults/s rate. ' +
-          'Minor (pgfault) = page in RAM but not in TLB. Major (pgmajfault) = page must be read from disk.',
-        this.pageFaultChartData
-          ? m(LineChart, {
-              data: this.pageFaultChartData,
-              height: 200,
-              xAxisLabel: 'Time (s)',
-              yAxisLabel: 'Faults/s',
-              showLegend: true,
-              showPoints: false,
-              gridLines: 'horizontal',
-              formatXValue: (v: number) => `${v.toFixed(0)}s`,
-              formatYValue: (v: number) => `${v.toFixed(0)} f/s`,
-              xAxisMin: this.xAxisMin,
-              xAxisMax: this.xAxisMax,
-            })
-          : m('.pf-live-memory-placeholder', 'Waiting for data\u2026'),
-      ),
-
-      this.swapChartData &&
-        panel(
-          'Swap Usage',
-          'Source: /proc/meminfo counters SwapTotal, SwapFree, SwapCached. ' +
-            'Derived: Swap dirty = (SwapTotal \u2212 SwapFree) \u2212 SwapCached.',
-          m(LineChart, {
-            data: this.swapChartData,
-            height: 200,
-            xAxisLabel: 'Time (s)',
-            yAxisLabel: 'Swap',
-            showLegend: true,
-            showPoints: false,
-            stacked: true,
-            gridLines: 'horizontal',
-            formatXValue: (v: number) => `${v.toFixed(0)}s`,
-            formatYValue: (v: number) => formatKb(v),
-            xAxisMin: this.xAxisMin,
-            xAxisMax: this.xAxisMax,
-          }),
-        ),
-
-      this.vmstatChartData &&
-        panel(
-          'Swap I/O (pswpin / pswpout)',
-          'Source: /proc/vmstat counters pswpin, pswpout. ' +
-            'Derived: cumulative page counts converted to pages/s rate.',
-          m(LineChart, {
-            data: this.vmstatChartData,
-            height: 200,
-            xAxisLabel: 'Time (s)',
-            yAxisLabel: 'Pages/s',
-            showLegend: true,
-            showPoints: false,
-            gridLines: 'horizontal',
-            formatXValue: (v: number) => `${v.toFixed(0)}s`,
-            formatYValue: (v: number) => `${v.toFixed(0)} pg/s`,
-            xAxisMin: this.xAxisMin,
-            xAxisMax: this.xAxisMax,
-          }),
-        ),
-    ];
   }
 
   private computeSharedXRange() {
@@ -1064,134 +892,59 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
     }
   }
 
-  private renderProcessSection(): m.Children {
-    const isDrilledDown =
-      this.processGrouping === 'category'
-        ? this.selectedCategory !== undefined
-        : this.selectedOomBucket !== undefined;
-
-    const cat = this.selectedCategory
-      ? CATEGORIES[this.selectedCategory]
-      : undefined;
-    const oomBucket =
-      this.selectedOomBucket !== undefined
-        ? OOM_SCORE_BUCKETS[this.selectedOomBucket]
-        : undefined;
-
-    const chartData = isDrilledDown
-      ? this.drilldownChartData
-      : this.categoryChartData;
-
-    const processes = this.latestProcesses
-      ? this.processGrouping === 'category' && this.selectedCategory
-        ? this.latestProcesses.filter(
-            (p) => categorizeProcess(p.processName).name === cat!.name,
-          )
-        : this.processGrouping === 'oom_score' && oomBucket
-          ? this.latestProcesses.filter(
-              (p) =>
-                p.oomScore >= oomBucket.minScore &&
-                p.oomScore <= oomBucket.maxScore,
-            )
-          : this.latestProcesses
-      : undefined;
-
-    const metricInfo = PROCESS_METRIC_OPTIONS.find(
-      (o) => o.key === this.processMetric,
-    )!;
-    const drillName = cat?.name ?? oomBucket?.name;
-    const groupLabel =
-      this.processGrouping === 'category' ? 'Category' : 'OOM Score';
-    const title = drillName
-      ? `Process Memory: ${drillName}`
-      : `Process Memory by ${groupLabel}`;
-    const subtitle = drillName
-      ? `Stacked ${metricInfo.label} per process. Totals may exceed actual memory usage because RSS counts shared pages (COW, mmap) in every process that maps them.`
-      : `Stacked ${metricInfo.label} per ${groupLabel.toLowerCase()}. Click a ${groupLabel.toLowerCase()} to drill into individual processes.`;
-
-    return m(
-      '.pf-live-memory-panel',
-      m(
-        '.pf-live-memory-panel__header',
-        isDrilledDown &&
-          m(Button, {
-            icon: 'arrow_back',
-            label:
-              this.processGrouping === 'category'
-                ? 'All categories'
-                : 'All OOM buckets',
-            minimal: true,
-            onclick: () => {
-              this.selectedCategory = undefined;
-              this.selectedOomBucket = undefined;
-              this.drilldownChartData = undefined;
-            },
-          }),
-        m('h2', title),
-        m('p', subtitle),
-        m(SegmentedButtons, {
-          options: [{label: 'By Category'}, {label: 'By OOM Score'}],
-          selectedOption: this.processGrouping === 'category' ? 0 : 1,
-          onOptionSelected: (i: number) => {
-            const newGrouping: ProcessGrouping =
-              i === 0 ? 'category' : 'oom_score';
-            if (newGrouping === this.processGrouping) return;
-            this.processGrouping = newGrouping;
-            this.selectedCategory = undefined;
-            this.selectedOomBucket = undefined;
-            this.categoryChartData = undefined;
-            this.drilldownChartData = undefined;
-            if (this.engine) {
-              this.requeryGroupingChart();
-            }
-          },
-        }),
-        m(SegmentedButtons, {
-          options: PROCESS_METRIC_OPTIONS.map((o) => ({label: o.label})),
-          selectedOption: PROCESS_METRIC_OPTIONS.findIndex(
-            (o) => o.key === this.processMetric,
-          ),
-          onOptionSelected: (i: number) => {
-            const newMetric = PROCESS_METRIC_OPTIONS[i].key;
-            if (newMetric === this.processMetric) return;
-            this.processMetric = newMetric;
-            this.categoryChartData = undefined;
-            this.drilldownChartData = undefined;
-            if (this.engine) {
-              this.requeryGroupingChart();
-            }
-          },
-        }),
-      ),
-      m(
-        '.pf-live-memory-panel__body',
-        chartData
-          ? m(LineChart, {
-              data: chartData,
-              height: 350,
-              xAxisLabel: 'Time (s)',
-              yAxisLabel: 'RSS',
-              showLegend: true,
-              showPoints: false,
-              stacked: true,
-              gridLines: 'horizontal',
-              formatXValue: (v: number) => `${v.toFixed(0)}s`,
-              formatYValue: (v: number) => formatKb(v),
-              xAxisMin: this.xAxisMin,
-              xAxisMax: this.xAxisMax,
-              onSeriesClick: isDrilledDown
-                ? undefined
-                : (seriesName: string) => {
-                    if (this.processGrouping === 'category') {
-                      this.drillDownToCategory(seriesName);
-                    } else {
-                      this.drillDownToOomBucket(seriesName);
-                    }
-                  },
-            })
-          : m('.pf-live-memory-placeholder', 'Waiting for data\u2026'),
-        processes && this.renderProcessTable(processes),
-      ),
+  private renderProcessesTab(): m.Children {
+    return renderProcessesTab(
+      {
+        processGrouping: this.processGrouping,
+        processMetric: this.processMetric,
+        selectedCategory: this.selectedCategory,
+        selectedOomBucket: this.selectedOomBucket,
+        categoryChartData: this.categoryChartData,
+        drilldownChartData: this.drilldownChartData,
+        latestProcesses: this.latestProcesses,
+        xAxisMin: this.xAxisMin,
+        xAxisMax: this.xAxisMax,
+        heapProfilePid: this.heapProfilePid,
+        heapProfileProcessName: this.heapProfileProcessName,
+        heapProfileStopping: this.heapProfileStopping,
+      },
+      {
+        onGroupingChange: (grouping) => {
+          this.processGrouping = grouping;
+          this.selectedCategory = undefined;
+          this.selectedOomBucket = undefined;
+          this.categoryChartData = undefined;
+          this.drilldownChartData = undefined;
+          if (this.rawData) {
+            this.requeryGroupingChart();
+          }
+        },
+        onMetricChange: (metric) => {
+          this.processMetric = metric;
+          this.categoryChartData = undefined;
+          this.drilldownChartData = undefined;
+          if (this.rawData) {
+            this.requeryGroupingChart();
+          }
+        },
+        onClearDrilldown: () => {
+          this.selectedCategory = undefined;
+          this.selectedOomBucket = undefined;
+          this.drilldownChartData = undefined;
+        },
+        onSeriesClick: (seriesName) => {
+          if (this.processGrouping === 'category') {
+            this.drillDownToCategory(seriesName);
+          } else {
+            this.drillDownToOomBucket(seriesName);
+          }
+        },
+        onStartProfile: (pid, processName) => {
+          this.startHeapProfile(pid, processName);
+        },
+        onStopProfile: () => this.stopHeapProfile(),
+        onCancelProfile: () => this.cancelHeapProfile(),
+      },
     );
   }
 
@@ -1201,41 +954,30 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
   }
 
   private requeryGroupingChart() {
-    if (!this.engine) return;
+    if (this.rawData === undefined) return;
     const t0 = this.traceT0 ?? 0;
     const counter = this.activeProcessCounters();
-    const groupingPromise =
+    this.categoryChartData =
       this.processGrouping === 'category'
-        ? this.queryCategoryTimeSeries(this.engine, t0, counter)
-        : this.queryOomScoreTimeSeries(this.engine, t0, counter);
-    groupingPromise.then((data) => {
-      this.categoryChartData = data;
-      m.redraw();
-    });
+        ? this.buildCategoryTimeSeries(t0, counter)
+        : this.buildOomScoreTimeSeries(t0, counter);
     if (this.processGrouping === 'category' && this.selectedCategory) {
-      this.queryDrilldownTimeSeries(
-        this.engine,
+      this.drilldownChartData = this.buildDrilldownTimeSeries(
         this.selectedCategory,
         t0,
         counter,
-      ).then((data) => {
-        this.drilldownChartData = data;
-        m.redraw();
-      });
+      );
     } else if (
       this.processGrouping === 'oom_score' &&
       this.selectedOomBucket !== undefined
     ) {
-      this.queryOomDrilldownTimeSeries(
-        this.engine,
+      this.drilldownChartData = this.buildOomDrilldownTimeSeries(
         this.selectedOomBucket,
         t0,
         counter,
-      ).then((data) => {
-        this.drilldownChartData = data;
-        m.redraw();
-      });
+      );
     }
+    m.redraw();
   }
 
   private drillDownToCategory(seriesName: string) {
@@ -1243,132 +985,28 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
     const id = catIds.find((k) => CATEGORIES[k].name === seriesName);
     if (id === undefined) return;
     this.selectedCategory = id;
-    this.drilldownChartData = undefined;
-    if (this.engine) {
-      const counter = this.activeProcessCounters();
-      this.queryDrilldownTimeSeries(
-        this.engine,
-        id,
-        this.traceT0 ?? 0,
-        counter,
-      ).then((data) => {
-        this.drilldownChartData = data;
-        m.redraw();
-      });
-    }
+    this.drilldownChartData = this.rawData
+      ? this.buildDrilldownTimeSeries(
+          id,
+          this.traceT0 ?? 0,
+          this.activeProcessCounters(),
+        )
+      : undefined;
+    m.redraw();
   }
 
   private drillDownToOomBucket(seriesName: string) {
     const idx = OOM_SCORE_BUCKETS.findIndex((b) => b.name === seriesName);
     if (idx === -1) return;
     this.selectedOomBucket = idx;
-    this.drilldownChartData = undefined;
-    if (this.engine) {
-      const counter = this.activeProcessCounters();
-      this.queryOomDrilldownTimeSeries(
-        this.engine,
-        idx,
-        this.traceT0 ?? 0,
-        counter,
-      ).then((data) => {
-        this.drilldownChartData = data;
-        m.redraw();
-      });
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Process table
-  // ---------------------------------------------------------------------------
-
-  private renderProcessTable(processes: ProcessMemoryRow[]): m.Children {
-    const rows: Row[] = processes.map((p) => {
-      const cat = categorizeProcess(p.processName);
-      return {
-        process: p.processName,
-        category: cat.name,
-        pid: p.pid,
-        oom_score: p.oomScore,
-        rss_kb: p.rssKb,
-        anon_swap_kb: p.anonKb + p.swapKb,
-        file_kb: p.fileKb,
-        shmem_kb: p.shmemKb,
-        age: p.ageSeconds,
-        actions: '',
-      };
-    });
-
-    const schema: SchemaRegistry = {
-      process: {
-        ...PROCESS_TABLE_SCHEMA.process,
-        actions: {
-          title: '',
-          columnType: 'text' as const,
-          cellRenderer: (_v, row) => {
-            const pid = row.pid as number;
-            const isProfiling = this.heapProfilePid === pid;
-            return m(Button, {
-              label: isProfiling ? 'Stop' : 'Profile',
-              icon: isProfiling ? 'stop' : 'science',
-              minimal: true,
-              className: isProfiling ? '' : 'pf-live-memory-profile-btn',
-              onclick: (e: Event) => {
-                e.stopPropagation();
-                if (isProfiling) {
-                  this.stopHeapProfile();
-                } else {
-                  this.startHeapProfile(pid, row.process as string);
-                }
-              },
-            });
-          },
-        },
-      },
-    };
-
-    return [
-      this.heapProfilePid !== undefined &&
-        m(
-          '.pf-live-memory-status-bar',
-          m('.pf-live-memory-status-bar__dot'),
-          this.heapProfileStopping
-            ? `Stopping and reading trace for ${this.heapProfileProcessName}\u2026`
-            : `Recording heap profile for ${this.heapProfileProcessName} (PID ${this.heapProfilePid})`,
-          !this.heapProfileStopping && [
-            m(Button, {
-              label: 'Stop & Open',
-              icon: 'stop',
-              minimal: true,
-              intent: Intent.Danger,
-              onclick: () => this.stopHeapProfile(),
-            }),
-            m(Button, {
-              label: 'Cancel',
-              icon: 'close',
-              minimal: true,
-              onclick: () => this.cancelHeapProfile(),
-            }),
-          ],
-        ),
-      m(DataGrid, {
-        schema,
-        rootSchema: 'process',
-        data: rows,
-        initialColumns: [
-          {id: 'actions', field: 'actions', sort: undefined},
-          {id: 'process', field: 'process', sort: undefined},
-          {id: 'category', field: 'category', sort: undefined},
-          {id: 'pid', field: 'pid', sort: undefined},
-          {id: 'oom_score', field: 'oom_score', sort: undefined},
-          {id: 'rss_kb', field: 'rss_kb', sort: 'DESC'},
-          {id: 'anon_swap_kb', field: 'anon_swap_kb', sort: undefined},
-          {id: 'file_kb', field: 'file_kb', sort: undefined},
-          {id: 'shmem_kb', field: 'shmem_kb', sort: undefined},
-          {id: 'age', field: 'age', sort: undefined},
-        ],
-        fillHeight: false,
-      }),
-    ];
+    this.drilldownChartData = this.rawData
+      ? this.buildOomDrilldownTimeSeries(
+          idx,
+          this.traceT0 ?? 0,
+          this.activeProcessCounters(),
+        )
+      : undefined;
+    m.redraw();
   }
 
   // ---------------------------------------------------------------------------
@@ -1380,6 +1018,8 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
 
     this.heapProfilePid = pid;
     this.heapProfileProcessName = processName;
+    this.heapProfileStartTime = Date.now();
+    this.heapProfileBaseline = undefined;
     m.redraw();
 
     const config: protos.ITraceConfig = {
@@ -1457,6 +1097,8 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
     this.heapProfileProcessName = undefined;
     this.heapProfileStopping = false;
     this.heapProfileChartData = undefined;
+    this.heapProfileStartTime = undefined;
+    this.heapProfileBaseline = undefined;
     m.redraw();
   }
 
@@ -1468,6 +1110,8 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
     this.heapProfileProcessName = undefined;
     this.heapProfileStopping = false;
     this.heapProfileChartData = undefined;
+    this.heapProfileStartTime = undefined;
+    this.heapProfileBaseline = undefined;
 
     if (traceData !== undefined) {
       const fileName = `heap-${processName}-${Date.now()}.perfetto-trace`;
@@ -1787,6 +1431,7 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
     this.selectedCategory = undefined;
     this.selectedOomBucket = undefined;
     this.drilldownChartData = undefined;
+    this.lmkMarkers = [];
     this.sessionName = `livemem-${uuidv4().substring(0, 8)}`;
 
     const config = createMonitoringConfig(this.sessionName);
@@ -1851,6 +1496,7 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
     this.selectedCategory = undefined;
     this.selectedOomBucket = undefined;
     this.drilldownChartData = undefined;
+    this.lmkMarkers = [];
     this.lastTraceBuffer = undefined;
     this.traceT0 = undefined;
     m.redraw();
@@ -1895,6 +1541,168 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
     }
   }
 
+  private async extractRawData(
+    engine: WasmEngineProxy,
+  ): Promise<SnapshotRawData> {
+    const [sysResult, procResult, metaResult, lmkResult] = await Promise.all([
+      engine.query(`
+        SELECT t.name AS counter_name, c.ts, c.value
+        FROM counter c
+        JOIN counter_track t ON c.track_id = t.id
+        ORDER BY c.ts
+      `),
+      engine.query(`
+        SELECT p.name AS process_name, p.pid, t.name AS counter_name,
+               c.ts, c.value
+        FROM counter c
+        JOIN process_counter_track t ON c.track_id = t.id
+        JOIN process p ON t.upid = p.upid
+        WHERE p.name IS NOT NULL
+        ORDER BY c.ts
+      `),
+      engine.query(`
+        SELECT p.name, p.pid, p.start_ts,
+               COALESCE(pkg.profileable_from_shell, 0) AS debuggable
+        FROM process p
+        LEFT JOIN package_list pkg ON p.uid = pkg.uid
+        WHERE p.name IS NOT NULL
+      `),
+      // LMK events: lmkd writes atrace slices named "lmk,<pid>,<reason>,<oom>".
+      // Also check the legacy kill_one_process counter.
+      engine.query(`
+        SELECT ts,
+               CAST(str_split(s.name, ',', 1) AS INTEGER) AS pid,
+               CAST(str_split(s.name, ',', 3) AS INTEGER) AS oom_score_adj,
+               COALESCE(p.name, '') AS process_name
+        FROM slice s
+        LEFT JOIN process_track pt ON s.track_id = pt.id
+        LEFT JOIN process p ON CAST(str_split(s.name, ',', 1) AS INTEGER) = p.pid
+          AND s.ts >= COALESCE(p.start_ts, 0)
+          AND s.ts <= COALESCE(p.end_ts, (SELECT MAX(ts) FROM counter))
+        WHERE s.name GLOB 'lmk,*'
+        UNION ALL
+        SELECT c.ts,
+               CAST(c.value AS INTEGER) AS pid,
+               0 AS oom_score_adj,
+               COALESCE(p.name, '') AS process_name
+        FROM counter c
+        JOIN counter_track ct ON c.track_id = ct.id
+        LEFT JOIN process p ON CAST(c.value AS INTEGER) = p.pid
+          AND c.ts >= COALESCE(p.start_ts, 0)
+          AND c.ts <= COALESCE(p.end_ts, (SELECT MAX(ts) FROM counter))
+        WHERE ct.name = 'kill_one_process' AND c.value > 0
+        ORDER BY ts
+      `),
+    ]);
+
+    // Build system counters map.
+    const systemCounters = new Map<string, {ts: number; value: number}[]>();
+    const sysIter = sysResult.iter({
+      counter_name: STR,
+      ts: NUM,
+      value: NUM,
+    });
+    for (; sysIter.valid(); sysIter.next()) {
+      let arr = systemCounters.get(sysIter.counter_name);
+      if (arr === undefined) {
+        arr = [];
+        systemCounters.set(sysIter.counter_name, arr);
+      }
+      arr.push({ts: sysIter.ts, value: sysIter.value});
+    }
+
+    // Build process counters by name (summing across PIDs) and by PID.
+    const processCountersByName = new Map<
+      string,
+      Map<string, Map<number, number>>
+    >();
+    const processCountersByPid = new Map<
+      number,
+      Map<string, {ts: number; value: number}[]>
+    >();
+    const procIter = procResult.iter({
+      process_name: STR,
+      pid: NUM,
+      counter_name: STR,
+      ts: NUM,
+      value: NUM,
+    });
+    for (; procIter.valid(); procIter.next()) {
+      // By name (summing across PIDs at each ts).
+      let byCounter = processCountersByName.get(procIter.process_name);
+      if (byCounter === undefined) {
+        byCounter = new Map();
+        processCountersByName.set(procIter.process_name, byCounter);
+      }
+      let byTs = byCounter.get(procIter.counter_name);
+      if (byTs === undefined) {
+        byTs = new Map();
+        byCounter.set(procIter.counter_name, byTs);
+      }
+      byTs.set(procIter.ts, (byTs.get(procIter.ts) ?? 0) + procIter.value);
+
+      // By PID.
+      let pidCounters = processCountersByPid.get(procIter.pid);
+      if (pidCounters === undefined) {
+        pidCounters = new Map();
+        processCountersByPid.set(procIter.pid, pidCounters);
+      }
+      let pidArr = pidCounters.get(procIter.counter_name);
+      if (pidArr === undefined) {
+        pidArr = [];
+        pidCounters.set(procIter.counter_name, pidArr);
+      }
+      pidArr.push({ts: procIter.ts, value: procIter.value});
+    }
+
+    // Build process metadata.
+    const processInfo = new Map<
+      string,
+      {pid: number; startTs: number | null; debuggable: boolean}
+    >();
+    const metaIter = metaResult.iter({
+      name: STR,
+      pid: NUM,
+      start_ts: NUM_NULL,
+      debuggable: NUM,
+    });
+    for (; metaIter.valid(); metaIter.next()) {
+      const existing = processInfo.get(metaIter.name);
+      if (existing === undefined || metaIter.pid > existing.pid) {
+        processInfo.set(metaIter.name, {
+          pid: metaIter.pid,
+          startTs: metaIter.start_ts,
+          debuggable: metaIter.debuggable !== 0,
+        });
+      }
+    }
+
+    // Build LMK events.
+    const lmkEvents: LmkEvent[] = [];
+    const lmkIter = lmkResult.iter({
+      ts: NUM,
+      pid: NUM,
+      oom_score_adj: NUM,
+      process_name: STR,
+    });
+    for (; lmkIter.valid(); lmkIter.next()) {
+      lmkEvents.push({
+        ts: lmkIter.ts,
+        pid: lmkIter.pid,
+        processName: lmkIter.process_name,
+        oomScoreAdj: lmkIter.oom_score_adj,
+      });
+    }
+
+    return {
+      systemCounters,
+      processCountersByName,
+      processCountersByPid,
+      processInfo,
+      lmkEvents,
+    };
+  }
+
   private async cloneAndQuery(): Promise<void> {
     const snapNum = this.snapshotCount + 1;
     if (!this.isRecording || (!this.device && !this.linuxTarget)) {
@@ -1928,95 +1736,90 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
       await engine.parse(cloneResult.value);
       await engine.notifyEof();
 
-      // Compute shared time origin on first snapshot, reuse for all subsequent
-      // snapshots so x-axes stay synced across charts.
+      // Extract all raw data from SQL into JS data structures.
+      this.rawData = await this.extractRawData(engine);
+
+      // Compute shared time origin on first snapshot, reuse for all
+      // subsequent snapshots so x-axes stay synced across charts.
       if (this.traceT0 === undefined) {
-        const t0Result = await engine.query(
-          'SELECT MIN(ts) AS t0 FROM counter',
-        );
-        const t0Iter = t0Result.iter({t0: NUM});
-        if (t0Iter.valid()) {
-          this.traceT0 = t0Iter.t0;
+        let minTs = Infinity;
+        for (const arr of this.rawData.systemCounters.values()) {
+          if (arr.length > 0 && arr[0].ts < minTs) minTs = arr[0].ts;
         }
+        for (const counterMap of this.rawData.processCountersByName.values()) {
+          for (const byTs of counterMap.values()) {
+            const firstTs = byTs.keys().next().value;
+            if (firstTs !== undefined && firstTs < minTs) minTs = firstTs;
+          }
+        }
+        if (minTs < Infinity) this.traceT0 = minTs;
       }
       const t0 = this.traceT0 ?? 0;
 
-      // Query full time-series from the ring buffer and replace chart data.
-      const [
-        systemData,
-        pageCacheData,
-        fileCacheBreakdownData,
-        fileCacheActivityData,
-        categoryData,
-        sankeyData,
-        psiData,
-        swapData,
-        vmstatData,
-        pageFaultData,
-        drilldownData,
-        latestProcesses,
-        profileChartData,
-      ] = await Promise.all([
-        this.querySystemTimeSeries(engine, t0),
-        this.queryPageCacheTimeSeries(engine, t0),
-        this.queryFileCacheBreakdownTimeSeries(engine, t0),
-        this.queryFileCacheActivityTimeSeries(engine, t0),
+      // Build LMK markers from raw events.
+      this.lmkMarkers = this.rawData.lmkEvents.map((ev) => {
+        const label = ev.processName
+          ? `LMK: ${ev.processName} (${ev.pid})`
+          : `LMK: pid ${ev.pid}`;
+        return {x: (ev.ts - t0) / 1e9, label, color: '#e53935'};
+      });
+
+      // Build all chart data from raw data (synchronous).
+      this.systemChartData = this.addLmkMarkers(this.buildSystemTimeSeries(t0));
+      this.pageCacheChartData = this.buildPageCacheTimeSeries(t0);
+      this.fileCacheBreakdownData = this.buildFileCacheBreakdownTimeSeries(t0);
+      this.fileCacheActivityData = this.buildFileCacheActivityTimeSeries(t0);
+      this.categoryChartData =
         this.processGrouping === 'category'
-          ? this.queryCategoryTimeSeries(
-              engine,
-              t0,
-              this.activeProcessCounters(),
-            )
-          : this.queryOomScoreTimeSeries(
-              engine,
-              t0,
-              this.activeProcessCounters(),
-            ),
-        this.querySankeyData(engine),
-        this.queryPsiTimeSeries(engine, t0),
-        this.querySwapTimeSeries(engine, t0),
-        this.queryVmstatTimeSeries(engine, t0),
-        this.queryPageFaultTimeSeries(engine, t0),
-        this.selectedCategory
-          ? this.queryDrilldownTimeSeries(
-              engine,
-              this.selectedCategory,
-              t0,
-              this.activeProcessCounters(),
-            )
-          : this.selectedOomBucket !== undefined
-            ? this.queryOomDrilldownTimeSeries(
-                engine,
-                this.selectedOomBucket,
-                t0,
-                this.activeProcessCounters(),
-              )
-            : Promise.resolve(undefined),
-        this.queryLatestProcessMemory(engine),
-        this.heapProfilePid !== undefined
-          ? this.queryProcessMemoryBreakdown(engine, this.heapProfilePid, t0)
-          : Promise.resolve(undefined),
-      ]);
+          ? this.buildCategoryTimeSeries(t0, this.activeProcessCounters())
+          : this.buildOomScoreTimeSeries(t0, this.activeProcessCounters());
+      this.sankeyData = this.buildSankeyData();
+      this.psiChartData = this.addLmkMarkers(this.buildPsiTimeSeries(t0));
+      this.swapChartData = this.buildSwapTimeSeries(t0);
+      this.vmstatChartData = this.buildVmstatTimeSeries(t0);
+      this.pageFaultChartData = this.buildPageFaultTimeSeries(t0);
 
-      this.systemChartData = systemData;
-      this.pageCacheChartData = pageCacheData;
-      this.fileCacheBreakdownData = fileCacheBreakdownData;
-      this.fileCacheActivityData = fileCacheActivityData;
-      this.categoryChartData = categoryData;
-      this.sankeyData = sankeyData;
-      this.psiChartData = psiData;
-      this.swapChartData = swapData;
-      this.vmstatChartData = vmstatData;
-      this.pageFaultChartData = pageFaultData;
-
-      // Compute shared x-axis range across all line chart data.
-      this.computeSharedXRange();
-
-      if (this.selectedCategory || this.selectedOomBucket !== undefined) {
-        this.drilldownChartData = drilldownData;
+      if (this.selectedCategory) {
+        this.drilldownChartData = this.buildDrilldownTimeSeries(
+          this.selectedCategory,
+          t0,
+          this.activeProcessCounters(),
+        );
+      } else if (this.selectedOomBucket !== undefined) {
+        this.drilldownChartData = this.buildOomDrilldownTimeSeries(
+          this.selectedOomBucket,
+          t0,
+          this.activeProcessCounters(),
+        );
       }
-      this.latestProcesses = latestProcesses;
-      this.heapProfileChartData = profileChartData;
+
+      this.latestProcesses = this.buildLatestProcessMemory();
+
+      if (this.heapProfilePid !== undefined) {
+        this.heapProfileChartData = this.buildProcessMemoryBreakdown(
+          this.heapProfilePid,
+          t0,
+        );
+        // Capture baseline from the first data point on the first snapshot.
+        if (
+          this.heapProfileBaseline === undefined &&
+          this.heapProfileChartData !== undefined
+        ) {
+          const first = (name: string): number => {
+            const s = this.heapProfileChartData!.series.find(
+              (sr) => sr.name === name,
+            );
+            return s !== undefined && s.points.length > 0 ? s.points[0].y : 0;
+          };
+          this.heapProfileBaseline = {
+            anonSwap: first('Anon + Swap'),
+            file: first('File'),
+            dmabuf: first('DMA-BUF'),
+          };
+        }
+      }
+
+      this.computeSharedXRange();
       this.snapshotCount++;
       this.error = undefined;
     } catch (e) {
@@ -2033,61 +1836,45 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
   }
 
   // ---------------------------------------------------------------------------
+  // LMK marker injection helper.
+  // ---------------------------------------------------------------------------
+
+  private addLmkMarkers(
+    data: LineChartData | undefined,
+  ): LineChartData | undefined {
+    if (data === undefined || this.lmkMarkers.length === 0) return data;
+    return {...data, markers: this.lmkMarkers};
+  }
+
+  // ---------------------------------------------------------------------------
   // System memory: full time-series from TP, decomposed for stacking.
   // ---------------------------------------------------------------------------
 
-  private async querySystemTimeSeries(
-    engine: WasmEngineProxy,
-    t0: number,
-  ): Promise<LineChartData | undefined> {
-    const names = SYSTEM_MEMINFO_COUNTERS.map((n) => `'${n}'`).join(',');
-    const queryResult = await engine.query(`
-      SELECT
-        t.name AS counter_name,
-        c.ts AS ts,
-        c.value AS value_bytes
-      FROM counter c
-      JOIN counter_track t ON c.track_id = t.id
-      WHERE t.name IN (${names})
-      ORDER BY c.ts
-    `);
-
-    // Group meminfo values by timestamp. All meminfo counters share the
-    // same poll interval so they arrive at the same ts.
-    // TP stores meminfo values in bytes; convert to KB here.
+  private buildSystemTimeSeries(t0: number): LineChartData | undefined {
+    const raw = this.rawData!;
+    // Build Map<ts, Map<counterName, valueKb>> from raw system counters.
     const meminfoByTs = new Map<number, Map<string, number>>();
-    const iter = queryResult.iter({
-      counter_name: STR,
-      ts: NUM,
-      value_bytes: NUM,
-    });
-    for (; iter.valid(); iter.next()) {
-      let row = meminfoByTs.get(iter.ts);
-      if (row === undefined) {
-        row = new Map();
-        meminfoByTs.set(iter.ts, row);
+    for (const name of SYSTEM_MEMINFO_COUNTERS) {
+      const samples = raw.systemCounters.get(name);
+      if (samples === undefined) continue;
+      for (const {ts, value} of samples) {
+        let row = meminfoByTs.get(ts);
+        if (row === undefined) {
+          row = new Map();
+          meminfoByTs.set(ts, row);
+        }
+        row.set(name, Math.round(value / 1024));
       }
-      row.set(iter.counter_name, Math.round(iter.value_bytes / 1024));
     }
 
     if (meminfoByTs.size < 2) return undefined;
 
-    // Query DMA-BUF heap total separately (event-driven timestamps).
-    const dmaResult = await engine.query(`
-      SELECT c.ts AS ts, c.value AS value_bytes
-      FROM counter c
-      JOIN counter_track t ON c.track_id = t.id
-      WHERE t.name = 'mem.dma_heap'
-      ORDER BY c.ts
-    `);
-    const dmaSamples: {ts: number; kb: number}[] = [];
-    const dmaIter = dmaResult.iter({ts: NUM, value_bytes: NUM});
-    for (; dmaIter.valid(); dmaIter.next()) {
-      dmaSamples.push({
-        ts: dmaIter.ts,
-        kb: Math.round(dmaIter.value_bytes / 1024),
-      });
-    }
+    // DMA-BUF heap (from system counters).
+    const dmaSamplesRaw = raw.systemCounters.get('mem.dma_heap') ?? [];
+    const dmaSamples = dmaSamplesRaw.map((s) => ({
+      ts: s.ts,
+      kb: Math.round(s.value / 1024),
+    }));
     const hasDmaHeap = dmaSamples.length > 0;
 
     // Union all timestamps from meminfo and DMA-BUF, then sample-and-hold
@@ -2214,37 +2001,21 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
   // Page cache: stacked breakdown of Cached into page cache + shmem.
   // ---------------------------------------------------------------------------
 
-  private async queryPageCacheTimeSeries(
-    engine: WasmEngineProxy,
-    t0: number,
-  ): Promise<LineChartData | undefined> {
-    const counters = ['Cached', 'Shmem', 'Active(file)', 'Inactive(file)'];
-    const names = counters.map((n) => `'${n}'`).join(',');
-    const queryResult = await engine.query(`
-      SELECT
-        t.name AS counter_name,
-        c.ts AS ts,
-        c.value AS value_bytes
-      FROM counter c
-      JOIN counter_track t ON c.track_id = t.id
-      WHERE t.name IN (${names})
-      ORDER BY c.ts
-    `);
-
-    // TP stores meminfo values in bytes; convert to KB here.
+  private buildPageCacheTimeSeries(t0: number): LineChartData | undefined {
+    const raw = this.rawData!;
+    const counterNames = ['Cached', 'Shmem', 'Active(file)', 'Inactive(file)'];
     const byTs = new Map<number, Map<string, number>>();
-    const iter = queryResult.iter({
-      counter_name: STR,
-      ts: NUM,
-      value_bytes: NUM,
-    });
-    for (; iter.valid(); iter.next()) {
-      let row = byTs.get(iter.ts);
-      if (row === undefined) {
-        row = new Map();
-        byTs.set(iter.ts, row);
+    for (const name of counterNames) {
+      const samples = raw.systemCounters.get(name);
+      if (samples === undefined) continue;
+      for (const {ts, value} of samples) {
+        let row = byTs.get(ts);
+        if (row === undefined) {
+          row = new Map();
+          byTs.set(ts, row);
+        }
+        row.set(name, Math.round(value / 1024));
       }
-      row.set(iter.counter_name, Math.round(iter.value_bytes / 1024));
     }
 
     if (byTs.size < 2) return undefined;
@@ -2293,36 +2064,23 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
   // Page cache breakdown: Mapped/Unmapped and Dirty/Clean.
   // ---------------------------------------------------------------------------
 
-  private async queryFileCacheBreakdownTimeSeries(
-    engine: WasmEngineProxy,
+  private buildFileCacheBreakdownTimeSeries(
     t0: number,
-  ): Promise<LineChartData | undefined> {
-    const counters = ['Active(file)', 'Inactive(file)', 'Mapped', 'Dirty'];
-    const names = counters.map((n) => `'${n}'`).join(',');
-    const queryResult = await engine.query(`
-      SELECT
-        t.name AS counter_name,
-        c.ts AS ts,
-        c.value AS value_bytes
-      FROM counter c
-      JOIN counter_track t ON c.track_id = t.id
-      WHERE t.name IN (${names})
-      ORDER BY c.ts
-    `);
-
+  ): LineChartData | undefined {
+    const raw = this.rawData!;
+    const counterNames = ['Active(file)', 'Inactive(file)', 'Mapped', 'Dirty'];
     const byTs = new Map<number, Map<string, number>>();
-    const iter = queryResult.iter({
-      counter_name: STR,
-      ts: NUM,
-      value_bytes: NUM,
-    });
-    for (; iter.valid(); iter.next()) {
-      let row = byTs.get(iter.ts);
-      if (row === undefined) {
-        row = new Map();
-        byTs.set(iter.ts, row);
+    for (const name of counterNames) {
+      const samples = raw.systemCounters.get(name);
+      if (samples === undefined) continue;
+      for (const {ts, value} of samples) {
+        let row = byTs.get(ts);
+        if (row === undefined) {
+          row = new Map();
+          byTs.set(ts, row);
+        }
+        row.set(name, Math.round(value / 1024));
       }
-      row.set(iter.counter_name, Math.round(iter.value_bytes / 1024));
     }
 
     if (byTs.size < 2) return undefined;
@@ -2382,48 +2140,40 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
   // Per-process RSS by category: full time-series from TP.
   // ---------------------------------------------------------------------------
 
-  private async queryCategoryTimeSeries(
-    engine: WasmEngineProxy,
+  private buildCategoryTimeSeries(
     t0: number,
     counters: readonly string[] = ['mem.rss'],
-  ): Promise<LineChartData | undefined> {
-    const counterList = counters.map((c) => `'${c}'`).join(', ');
-    const queryResult = await engine.query(`
-      SELECT
-        p.name AS process_name,
-        c.ts AS ts,
-        SUM(c.value) AS rss_bytes
-      FROM counter c
-      JOIN process_counter_track t ON c.track_id = t.id
-      JOIN process p ON t.upid = p.upid
-      WHERE t.name IN (${counterList})
-        AND p.name IS NOT NULL
-      GROUP BY p.name, c.ts
-      ORDER BY c.ts
-    `);
-
-    // Collect all unique timestamps and sum RSS per category at each ts.
+  ): LineChartData | undefined {
+    const raw = this.rawData!;
     const catIds = Object.keys(CATEGORIES) as CategoryId[];
     const tsSet = new Set<number>();
     // Map<ts, Map<CategoryId, sumKb>>
     const byCatTs = new Map<number, Map<CategoryId, number>>();
 
-    const iter = queryResult.iter({
-      process_name: STR,
-      ts: NUM,
-      rss_bytes: NUM,
-    });
-    for (; iter.valid(); iter.next()) {
-      const ts = iter.ts;
-      tsSet.add(ts);
-      let catMap = byCatTs.get(ts);
-      if (catMap === undefined) {
-        catMap = new Map();
-        byCatTs.set(ts, catMap);
-      }
-      const cat = categorizeProcess(iter.process_name);
+    for (const [processName, counterMap] of raw.processCountersByName) {
+      const cat = categorizeProcess(processName);
       const id = catIds.find((k) => CATEGORIES[k].name === cat.name)!;
-      catMap.set(id, (catMap.get(id) ?? 0) + Math.round(iter.rss_bytes / 1024));
+
+      // Collect all timestamps for this process across the specified
+      // counters, summing counter values at each ts.
+      const tsSums = new Map<number, number>();
+      for (const counterName of counters) {
+        const byTs = counterMap.get(counterName);
+        if (byTs === undefined) continue;
+        for (const [ts, value] of byTs) {
+          tsSums.set(ts, (tsSums.get(ts) ?? 0) + value);
+        }
+      }
+
+      for (const [ts, sumBytes] of tsSums) {
+        tsSet.add(ts);
+        let catMap = byCatTs.get(ts);
+        if (catMap === undefined) {
+          catMap = new Map();
+          byCatTs.set(ts, catMap);
+        }
+        catMap.set(id, (catMap.get(id) ?? 0) + Math.round(sumBytes / 1024));
+      }
     }
 
     const timestamps = [...tsSet].sort((a, b) => a - b);
@@ -2458,27 +2208,12 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
   // Drill-down: per-process RSS time-series for a single category.
   // ---------------------------------------------------------------------------
 
-  private async queryDrilldownTimeSeries(
-    engine: WasmEngineProxy,
+  private buildDrilldownTimeSeries(
     categoryId: CategoryId,
     t0: number = 0,
     counters: readonly string[] = ['mem.rss'],
-  ): Promise<LineChartData | undefined> {
-    const counterList = counters.map((c) => `'${c}'`).join(', ');
-    const queryResult = await engine.query(`
-      SELECT
-        p.name AS process_name,
-        c.ts AS ts,
-        SUM(c.value) AS rss_bytes
-      FROM counter c
-      JOIN process_counter_track t ON c.track_id = t.id
-      JOIN process p ON t.upid = p.upid
-      WHERE t.name IN (${counterList})
-        AND p.name IS NOT NULL
-      GROUP BY p.name, c.ts
-      ORDER BY c.ts
-    `);
-
+  ): LineChartData | undefined {
+    const raw = this.rawData!;
     const targetCat = CATEGORIES[categoryId];
 
     // Collect timestamps and per-process RSS for matching processes.
@@ -2486,27 +2221,32 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
     // Map<ts, Map<processName, sumKb>> (sum handles multiple PIDs per name)
     const byProcTs = new Map<number, Map<string, number>>();
 
-    const iter = queryResult.iter({
-      process_name: STR,
-      ts: NUM,
-      rss_bytes: NUM,
-    });
-    for (; iter.valid(); iter.next()) {
-      const cat = categorizeProcess(iter.process_name);
+    for (const [processName, counterMap] of raw.processCountersByName) {
+      const cat = categorizeProcess(processName);
       if (cat.name !== targetCat.name) continue;
 
-      const ts = iter.ts;
-      tsSet.add(ts);
-      let procMap = byProcTs.get(ts);
-      if (procMap === undefined) {
-        procMap = new Map();
-        byProcTs.set(ts, procMap);
+      // Sum counter values at each ts.
+      const tsSums = new Map<number, number>();
+      for (const counterName of counters) {
+        const byTs = counterMap.get(counterName);
+        if (byTs === undefined) continue;
+        for (const [ts, value] of byTs) {
+          tsSums.set(ts, (tsSums.get(ts) ?? 0) + value);
+        }
       }
-      procMap.set(
-        iter.process_name,
-        (procMap.get(iter.process_name) ?? 0) +
-          Math.round(iter.rss_bytes / 1024),
-      );
+
+      for (const [ts, sumBytes] of tsSums) {
+        tsSet.add(ts);
+        let procMap = byProcTs.get(ts);
+        if (procMap === undefined) {
+          procMap = new Map();
+          byProcTs.set(ts, procMap);
+        }
+        procMap.set(
+          processName,
+          (procMap.get(processName) ?? 0) + Math.round(sumBytes / 1024),
+        );
+      }
     }
 
     const timestamps = [...tsSet].sort((a, b) => a - b);
@@ -2572,75 +2312,59 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
   // Per-process RSS by OOM score bucket: full time-series from TP.
   // ---------------------------------------------------------------------------
 
-  private async queryOomScoreTimeSeries(
-    engine: WasmEngineProxy,
+  private buildOomScoreTimeSeries(
     t0: number,
     counters: readonly string[] = ['mem.rss'],
-  ): Promise<LineChartData | undefined> {
-    // 1. Get latest OOM score per process name.
-    const oomResult = await engine.query(`
-      SELECT p.name AS process_name, MIN(latest.value) AS oom_score
-      FROM (
-        SELECT c.track_id, c.value,
-          ROW_NUMBER() OVER (PARTITION BY c.track_id ORDER BY c.ts DESC) AS rn
-        FROM counter c
-        JOIN process_counter_track t ON c.track_id = t.id
-        WHERE t.name = 'oom_score_adj'
-      ) latest
-      JOIN process_counter_track t ON latest.track_id = t.id
-      JOIN process p ON t.upid = p.upid
-      WHERE latest.rn = 1 AND p.name IS NOT NULL
-      GROUP BY p.name
-    `);
+  ): LineChartData | undefined {
+    const raw = this.rawData!;
 
+    // 1. Get latest OOM score per process name from raw data.
     const oomByName = new Map<string, number>();
-    const oomIter = oomResult.iter({process_name: STR, oom_score: NUM});
-    for (; oomIter.valid(); oomIter.next()) {
-      oomByName.set(oomIter.process_name, oomIter.oom_score);
+    for (const [processName, counterMap] of raw.processCountersByName) {
+      const oomTs = counterMap.get('oom_score_adj');
+      if (oomTs === undefined || oomTs.size === 0) continue;
+      // Get latest value (last entry in the Map iteration order, which is
+      // insertion order = sorted by ts since the SQL was ORDER BY c.ts).
+      let lastVal = 0;
+      for (const val of oomTs.values()) {
+        lastVal = val;
+      }
+      oomByName.set(processName, lastVal);
     }
 
-    // 2. Get RSS time series.
-    const counterList = counters.map((c) => `'${c}'`).join(', ');
-    const queryResult = await engine.query(`
-      SELECT
-        p.name AS process_name,
-        c.ts AS ts,
-        SUM(c.value) AS rss_bytes
-      FROM counter c
-      JOIN process_counter_track t ON c.track_id = t.id
-      JOIN process p ON t.upid = p.upid
-      WHERE t.name IN (${counterList})
-        AND p.name IS NOT NULL
-      GROUP BY p.name, c.ts
-      ORDER BY c.ts
-    `);
-
-    // 3. Group by OOM bucket at each timestamp.
+    // 2. Group by OOM bucket at each timestamp.
     const tsSet = new Set<number>();
     const byBucketTs = new Map<number, Map<number, number>>();
 
-    const iter = queryResult.iter({
-      process_name: STR,
-      ts: NUM,
-      rss_bytes: NUM,
-    });
-    for (; iter.valid(); iter.next()) {
-      const ts = iter.ts;
-      tsSet.add(ts);
-      let bucketMap = byBucketTs.get(ts);
-      if (bucketMap === undefined) {
-        bucketMap = new Map();
-        byBucketTs.set(ts, bucketMap);
+    for (const [processName, counterMap] of raw.processCountersByName) {
+      // Sum counter values at each ts.
+      const tsSums = new Map<number, number>();
+      for (const counterName of counters) {
+        const byTs = counterMap.get(counterName);
+        if (byTs === undefined) continue;
+        for (const [ts, value] of byTs) {
+          tsSums.set(ts, (tsSums.get(ts) ?? 0) + value);
+        }
       }
-      const oomScore = oomByName.get(iter.process_name) ?? 0;
+
+      const oomScore = oomByName.get(processName) ?? 0;
       const bucketIdx = OOM_SCORE_BUCKETS.findIndex(
         (b) => oomScore >= b.minScore && oomScore <= b.maxScore,
       );
       const idx = bucketIdx !== -1 ? bucketIdx : OOM_SCORE_BUCKETS.length - 1;
-      bucketMap.set(
-        idx,
-        (bucketMap.get(idx) ?? 0) + Math.round(iter.rss_bytes / 1024),
-      );
+
+      for (const [ts, sumBytes] of tsSums) {
+        tsSet.add(ts);
+        let bucketMap = byBucketTs.get(ts);
+        if (bucketMap === undefined) {
+          bucketMap = new Map();
+          byBucketTs.set(ts, bucketMap);
+        }
+        bucketMap.set(
+          idx,
+          (bucketMap.get(idx) ?? 0) + Math.round(sumBytes / 1024),
+        );
+      }
     }
 
     const timestamps = [...tsSet].sort((a, b) => a - b);
@@ -2675,80 +2399,57 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
   // Drill-down: per-process RSS time-series for a single OOM score bucket.
   // ---------------------------------------------------------------------------
 
-  private async queryOomDrilldownTimeSeries(
-    engine: WasmEngineProxy,
+  private buildOomDrilldownTimeSeries(
     bucketIdx: number,
     t0: number = 0,
     counters: readonly string[] = ['mem.rss'],
-  ): Promise<LineChartData | undefined> {
+  ): LineChartData | undefined {
+    const raw = this.rawData!;
     const bucket = OOM_SCORE_BUCKETS[bucketIdx];
 
-    // 1. Get latest OOM score per process name.
-    const oomResult = await engine.query(`
-      SELECT p.name AS process_name, MIN(latest.value) AS oom_score
-      FROM (
-        SELECT c.track_id, c.value,
-          ROW_NUMBER() OVER (PARTITION BY c.track_id ORDER BY c.ts DESC) AS rn
-        FROM counter c
-        JOIN process_counter_track t ON c.track_id = t.id
-        WHERE t.name = 'oom_score_adj'
-      ) latest
-      JOIN process_counter_track t ON latest.track_id = t.id
-      JOIN process p ON t.upid = p.upid
-      WHERE latest.rn = 1 AND p.name IS NOT NULL
-      GROUP BY p.name
-    `);
-
+    // 1. Get latest OOM score per process name and find matching names.
     const matchingNames = new Set<string>();
-    const oomIter = oomResult.iter({process_name: STR, oom_score: NUM});
-    for (; oomIter.valid(); oomIter.next()) {
-      if (
-        oomIter.oom_score >= bucket.minScore &&
-        oomIter.oom_score <= bucket.maxScore
-      ) {
-        matchingNames.add(oomIter.process_name);
+    for (const [processName, counterMap] of raw.processCountersByName) {
+      const oomTs = counterMap.get('oom_score_adj');
+      let oomScore = 0;
+      if (oomTs !== undefined && oomTs.size > 0) {
+        for (const val of oomTs.values()) {
+          oomScore = val;
+        }
+      }
+      if (oomScore >= bucket.minScore && oomScore <= bucket.maxScore) {
+        matchingNames.add(processName);
       }
     }
 
-    // 2. Get RSS time series.
-    const counterList = counters.map((c) => `'${c}'`).join(', ');
-    const queryResult = await engine.query(`
-      SELECT
-        p.name AS process_name,
-        c.ts AS ts,
-        SUM(c.value) AS rss_bytes
-      FROM counter c
-      JOIN process_counter_track t ON c.track_id = t.id
-      JOIN process p ON t.upid = p.upid
-      WHERE t.name IN (${counterList})
-        AND p.name IS NOT NULL
-      GROUP BY p.name, c.ts
-      ORDER BY c.ts
-    `);
-
-    // 3. Collect per-process data for matching processes.
+    // 2. Collect per-process data for matching processes.
     const tsSet = new Set<number>();
     const byProcTs = new Map<number, Map<string, number>>();
 
-    const iter = queryResult.iter({
-      process_name: STR,
-      ts: NUM,
-      rss_bytes: NUM,
-    });
-    for (; iter.valid(); iter.next()) {
-      if (!matchingNames.has(iter.process_name)) continue;
-      const ts = iter.ts;
-      tsSet.add(ts);
-      let procMap = byProcTs.get(ts);
-      if (procMap === undefined) {
-        procMap = new Map();
-        byProcTs.set(ts, procMap);
+    for (const [processName, counterMap] of raw.processCountersByName) {
+      if (!matchingNames.has(processName)) continue;
+
+      const tsSums = new Map<number, number>();
+      for (const counterName of counters) {
+        const byTs = counterMap.get(counterName);
+        if (byTs === undefined) continue;
+        for (const [ts, value] of byTs) {
+          tsSums.set(ts, (tsSums.get(ts) ?? 0) + value);
+        }
       }
-      procMap.set(
-        iter.process_name,
-        (procMap.get(iter.process_name) ?? 0) +
-          Math.round(iter.rss_bytes / 1024),
-      );
+
+      for (const [ts, sumBytes] of tsSums) {
+        tsSet.add(ts);
+        let procMap = byProcTs.get(ts);
+        if (procMap === undefined) {
+          procMap = new Map();
+          byProcTs.set(ts, procMap);
+        }
+        procMap.set(
+          processName,
+          (procMap.get(processName) ?? 0) + Math.round(sumBytes / 1024),
+        );
+      }
     }
 
     const timestamps = [...tsSet].sort((a, b) => a - b);
@@ -2811,38 +2512,9 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
   // PSI: memory pressure stall time over time (rate of change).
   // ---------------------------------------------------------------------------
 
-  private async queryPsiTimeSeries(
-    engine: WasmEngineProxy,
-    t0: number,
-  ): Promise<LineChartData | undefined> {
-    const queryResult = await engine.query(`
-      SELECT
-        t.name AS counter_name,
-        c.ts AS ts,
-        c.value AS value_ns
-      FROM counter c
-      JOIN counter_track t ON c.track_id = t.id
-      WHERE t.name IN ('psi.mem.some', 'psi.mem.full')
-      ORDER BY c.ts
-    `);
-
-    // Group by counter name, then compute rate (delta_ns / delta_s → ms/s).
-    const byName = new Map<string, {ts: number; value: number}[]>();
-    const iter = queryResult.iter({
-      counter_name: STR,
-      ts: NUM,
-      value_ns: NUM,
-    });
-    for (; iter.valid(); iter.next()) {
-      let arr = byName.get(iter.counter_name);
-      if (arr === undefined) {
-        arr = [];
-        byName.set(iter.counter_name, arr);
-      }
-      arr.push({ts: iter.ts, value: iter.value_ns});
-    }
-
-    const someRaw = byName.get('psi.mem.some');
+  private buildPsiTimeSeries(t0: number): LineChartData | undefined {
+    const raw = this.rawData!;
+    const someRaw = raw.systemCounters.get('psi.mem.some');
     if (someRaw === undefined || someRaw.length < 2) return undefined;
 
     const toRatePoints = (
@@ -2868,7 +2540,7 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
         color: '#f39c12',
       });
     }
-    const fullRaw = byName.get('psi.mem.full');
+    const fullRaw = raw.systemCounters.get('psi.mem.full');
     if (fullRaw !== undefined && fullRaw.length >= 2) {
       series.push({
         name: 'full (all tasks stalled)',
@@ -2885,34 +2557,20 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
   // Swap usage time-series.
   // ---------------------------------------------------------------------------
 
-  private async querySwapTimeSeries(
-    engine: WasmEngineProxy,
-    t0: number,
-  ): Promise<LineChartData | undefined> {
-    const queryResult = await engine.query(`
-      SELECT
-        t.name AS counter_name,
-        c.ts AS ts,
-        c.value AS value_bytes
-      FROM counter c
-      JOIN counter_track t ON c.track_id = t.id
-      WHERE t.name IN ('SwapTotal', 'SwapFree', 'SwapCached')
-      ORDER BY c.ts
-    `);
-
+  private buildSwapTimeSeries(t0: number): LineChartData | undefined {
+    const raw = this.rawData!;
     const byTs = new Map<number, Map<string, number>>();
-    const iter = queryResult.iter({
-      counter_name: STR,
-      ts: NUM,
-      value_bytes: NUM,
-    });
-    for (; iter.valid(); iter.next()) {
-      let row = byTs.get(iter.ts);
-      if (row === undefined) {
-        row = new Map();
-        byTs.set(iter.ts, row);
+    for (const name of ['SwapTotal', 'SwapFree', 'SwapCached']) {
+      const samples = raw.systemCounters.get(name);
+      if (samples === undefined) continue;
+      for (const {ts, value} of samples) {
+        let row = byTs.get(ts);
+        if (row === undefined) {
+          row = new Map();
+          byTs.set(ts, row);
+        }
+        row.set(name, Math.round(value / 1024));
       }
-      row.set(iter.counter_name, Math.round(iter.value_bytes / 1024));
     }
 
     if (byTs.size < 2) return undefined;
@@ -2957,38 +2615,9 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
   // vmstat: pswpin/pswpout rate (pages/s).
   // ---------------------------------------------------------------------------
 
-  private async queryVmstatTimeSeries(
-    engine: WasmEngineProxy,
-    t0: number,
-  ): Promise<LineChartData | undefined> {
-    const queryResult = await engine.query(`
-      SELECT
-        t.name AS counter_name,
-        c.ts AS ts,
-        c.value AS value
-      FROM counter c
-      JOIN counter_track t ON c.track_id = t.id
-      WHERE t.name IN ('pswpin', 'pswpout')
-      ORDER BY c.ts
-    `);
-
-    // Group raw cumulative values by counter name.
-    const byName = new Map<string, {ts: number; value: number}[]>();
-    const iter = queryResult.iter({
-      counter_name: STR,
-      ts: NUM,
-      value: NUM,
-    });
-    for (; iter.valid(); iter.next()) {
-      let arr = byName.get(iter.counter_name);
-      if (arr === undefined) {
-        arr = [];
-        byName.set(iter.counter_name, arr);
-      }
-      arr.push({ts: iter.ts, value: iter.value});
-    }
-
-    const pswpinRaw = byName.get('pswpin');
+  private buildVmstatTimeSeries(t0: number): LineChartData | undefined {
+    const raw = this.rawData!;
+    const pswpinRaw = raw.systemCounters.get('pswpin');
     if (pswpinRaw === undefined || pswpinRaw.length < 2) return undefined;
 
     // Convert cumulative page counts to rate (pages/second).
@@ -3009,7 +2638,7 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
     const series: LineChartSeries[] = [
       {name: 'pswpin', points: toRatePoints(pswpinRaw), color: '#3498db'},
     ];
-    const pswpoutRaw = byName.get('pswpout');
+    const pswpoutRaw = raw.systemCounters.get('pswpout');
     if (pswpoutRaw !== undefined && pswpoutRaw.length >= 2) {
       series.push({
         name: 'pswpout',
@@ -3022,37 +2651,9 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
     return {series};
   }
 
-  private async queryPageFaultTimeSeries(
-    engine: WasmEngineProxy,
-    t0: number,
-  ): Promise<LineChartData | undefined> {
-    const queryResult = await engine.query(`
-      SELECT
-        t.name AS counter_name,
-        c.ts AS ts,
-        c.value AS value
-      FROM counter c
-      JOIN counter_track t ON c.track_id = t.id
-      WHERE t.name IN ('pgfault', 'pgmajfault')
-      ORDER BY c.ts
-    `);
-
-    const byName = new Map<string, {ts: number; value: number}[]>();
-    const iter = queryResult.iter({
-      counter_name: STR,
-      ts: NUM,
-      value: NUM,
-    });
-    for (; iter.valid(); iter.next()) {
-      let arr = byName.get(iter.counter_name);
-      if (arr === undefined) {
-        arr = [];
-        byName.set(iter.counter_name, arr);
-      }
-      arr.push({ts: iter.ts, value: iter.value});
-    }
-
-    const pgfaultRaw = byName.get('pgfault');
+  private buildPageFaultTimeSeries(t0: number): LineChartData | undefined {
+    const raw = this.rawData!;
+    const pgfaultRaw = raw.systemCounters.get('pgfault');
     if (pgfaultRaw === undefined || pgfaultRaw.length < 2) return undefined;
 
     // Convert cumulative counts to rate (faults/second).
@@ -3077,7 +2678,7 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
         color: '#3498db',
       },
     ];
-    const pgmajfaultRaw = byName.get('pgmajfault');
+    const pgmajfaultRaw = raw.systemCounters.get('pgmajfault');
     if (pgmajfaultRaw !== undefined && pgmajfaultRaw.length >= 2) {
       series.push({
         name: 'pgmajfault (major)',
@@ -3094,54 +2695,30 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
   // Page cache activity: reclamation and thrashing rates from vmstat.
   // ---------------------------------------------------------------------------
 
-  private async queryFileCacheActivityTimeSeries(
-    engine: WasmEngineProxy,
+  private buildFileCacheActivityTimeSeries(
     t0: number,
-  ): Promise<LineChartData | undefined> {
-    const counters = ['workingset_refault_file', 'pgsteal_file', 'pgscan_file'];
-    const names = counters.map((n) => `'${n}'`).join(',');
-    const queryResult = await engine.query(`
-      SELECT
-        t.name AS counter_name,
-        c.ts AS ts,
-        c.value AS value
-      FROM counter c
-      JOIN counter_track t ON c.track_id = t.id
-      WHERE t.name IN (${names})
-      ORDER BY c.ts
-    `);
-
-    const byName = new Map<string, {ts: number; value: number}[]>();
-    const iter = queryResult.iter({
-      counter_name: STR,
-      ts: NUM,
-      value: NUM,
-    });
-    for (; iter.valid(); iter.next()) {
-      let arr = byName.get(iter.counter_name);
-      if (arr === undefined) {
-        arr = [];
-        byName.set(iter.counter_name, arr);
-      }
-      arr.push({ts: iter.ts, value: iter.value});
-    }
+  ): LineChartData | undefined {
+    const raw = this.rawData!;
 
     // Convert cumulative counts to rate (events/second).
     const toRatePoints = (
-      raw: {ts: number; value: number}[],
+      samples: {ts: number; value: number}[],
     ): {x: number; y: number}[] => {
       const points: {x: number; y: number}[] = [];
-      for (let i = 1; i < raw.length; i++) {
-        const dtS = (raw[i].ts - raw[i - 1].ts) / 1e9;
+      for (let i = 1; i < samples.length; i++) {
+        const dtS = (samples[i].ts - samples[i - 1].ts) / 1e9;
         if (dtS <= 0) continue;
-        const delta = raw[i].value - raw[i - 1].value;
-        points.push({x: (raw[i].ts - t0) / 1e9, y: Math.max(0, delta / dtS)});
+        const delta = samples[i].value - samples[i - 1].value;
+        points.push({
+          x: (samples[i].ts - t0) / 1e9,
+          y: Math.max(0, delta / dtS),
+        });
       }
       return points;
     };
 
     const series: LineChartSeries[] = [];
-    const refaultRaw = byName.get('workingset_refault_file');
+    const refaultRaw = raw.systemCounters.get('workingset_refault_file');
     if (refaultRaw !== undefined && refaultRaw.length >= 2) {
       series.push({
         name: 'Refaults (thrashing)',
@@ -3149,7 +2726,7 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
         color: '#e74c3c',
       });
     }
-    const stealRaw = byName.get('pgsteal_file');
+    const stealRaw = raw.systemCounters.get('pgsteal_file');
     if (stealRaw !== undefined && stealRaw.length >= 2) {
       series.push({
         name: 'Stolen (reclaimed)',
@@ -3157,7 +2734,7 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
         color: '#f39c12',
       });
     }
-    const scanRaw = byName.get('pgscan_file');
+    const scanRaw = raw.systemCounters.get('pgscan_file');
     if (scanRaw !== undefined && scanRaw.length >= 2) {
       series.push({
         name: 'Scanned',
@@ -3176,82 +2753,34 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
   // Sankey: snapshot of where MemTotal is going right now.
   // ---------------------------------------------------------------------------
 
-  private async querySankeyData(
-    engine: WasmEngineProxy,
-  ): Promise<SankeyData | undefined> {
-    // 1. Latest system meminfo values.
-    const sysCounters = [
-      'MemTotal',
-      'MemFree',
-      'Buffers',
-      'Active(anon)',
-      'Inactive(anon)',
-      'Active(file)',
-      'Inactive(file)',
-      'Shmem',
-      'Slab',
-      'KernelStack',
-      'PageTables',
-      'Zram',
-      'SwapTotal',
-      'SwapFree',
-    ];
-    const sysNames = sysCounters.map((n) => `'${n}'`).join(',');
-    const sysResult = await engine.query(`
-      SELECT counter_name, value_bytes
-      FROM (
-        SELECT
-          t.name AS counter_name,
-          c.value AS value_bytes,
-          ROW_NUMBER() OVER (PARTITION BY c.track_id ORDER BY c.ts DESC) AS rn
-        FROM counter c
-        JOIN counter_track t ON c.track_id = t.id
-        WHERE t.name IN (${sysNames})
-      )
-      WHERE rn = 1
-    `);
+  private buildSankeyData(): SankeyData | undefined {
+    const raw = this.rawData!;
 
-    const sys = new Map<string, number>();
-    const sysIter = sysResult.iter({counter_name: STR, value_bytes: NUM});
-    for (; sysIter.valid(); sysIter.next()) {
-      sys.set(sysIter.counter_name, Math.round(sysIter.value_bytes / 1024));
-    }
+    // Get latest system counter values (last element of each array).
+    const getLatestKb = (name: string): number => {
+      const arr = raw.systemCounters.get(name);
+      if (arr === undefined || arr.length === 0) return 0;
+      return Math.round(arr[arr.length - 1].value / 1024);
+    };
 
-    const memTotal = sys.get('MemTotal');
-    const memFree = sys.get('MemFree');
-    const buffers = sys.get('Buffers') ?? 0;
-    if (memTotal === undefined || memFree === undefined) {
+    const memTotal = getLatestKb('MemTotal');
+    const memFree = getLatestKb('MemFree');
+    const buffers = getLatestKb('Buffers');
+    if (memTotal === 0 || memFree === 0) {
       return undefined;
     }
 
-    const anon =
-      (sys.get('Active(anon)') ?? 0) + (sys.get('Inactive(anon)') ?? 0);
-    const fileLru =
-      (sys.get('Active(file)') ?? 0) + (sys.get('Inactive(file)') ?? 0);
-    const shmem = sys.get('Shmem') ?? 0;
+    const anon = getLatestKb('Active(anon)') + getLatestKb('Inactive(anon)');
+    const fileLru = getLatestKb('Active(file)') + getLatestKb('Inactive(file)');
+    const shmem = getLatestKb('Shmem');
     const fileCache = Math.max(0, fileLru - shmem);
-    const slab = sys.get('Slab') ?? 0;
-    const kernelStack = sys.get('KernelStack') ?? 0;
-    const pageTables = sys.get('PageTables') ?? 0;
-    const zram = sys.get('Zram') ?? 0;
+    const slab = getLatestKb('Slab');
+    const kernelStack = getLatestKb('KernelStack');
+    const pageTables = getLatestKb('PageTables');
+    const zram = getLatestKb('Zram');
 
-    // Query latest global DMA-BUF heap total (from dma_heap_stat ftrace).
-    const dmaResult = await engine.query(`
-      SELECT value_bytes
-      FROM (
-        SELECT
-          c.value AS value_bytes,
-          ROW_NUMBER() OVER (ORDER BY c.ts DESC) AS rn
-        FROM counter c
-        JOIN counter_track t ON c.track_id = t.id
-        WHERE t.name = 'mem.dma_heap'
-      )
-      WHERE rn = 1
-    `);
-    const dmaIter = dmaResult.iter({value_bytes: NUM});
-    const dmaHeap = dmaIter.valid()
-      ? Math.round(dmaIter.value_bytes / 1024)
-      : 0;
+    // Latest global DMA-BUF heap total (from dma_heap_stat ftrace).
+    const dmaHeap = getLatestKb('mem.dma_heap');
 
     const accounted =
       anon +
@@ -3267,32 +2796,23 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
     const unaccounted = Math.max(0, memTotal - accounted);
 
     // 2. Latest per-process RssAnon, grouped by category.
-    const procResult = await engine.query(`
-      SELECT process_name, rss_bytes
-      FROM (
-        SELECT
-          p.name AS process_name,
-          c.value AS rss_bytes,
-          ROW_NUMBER() OVER (PARTITION BY c.track_id ORDER BY c.ts DESC) AS rn
-        FROM counter c
-        JOIN process_counter_track t ON c.track_id = t.id
-        JOIN process p ON t.upid = p.upid
-        WHERE t.name = 'mem.rss.anon'
-          AND p.name IS NOT NULL
-      )
-      WHERE rn = 1
-    `);
-
     const catIds = Object.keys(CATEGORIES) as CategoryId[];
     const catSums = new Map<CategoryId, number>();
-    const procIter = procResult.iter({process_name: STR, rss_bytes: NUM});
-    for (; procIter.valid(); procIter.next()) {
-      const cat = categorizeProcess(procIter.process_name);
+    for (const [processName, counterMap] of raw.processCountersByName) {
+      const anonByTs = counterMap.get('mem.rss.anon');
+      if (anonByTs === undefined || anonByTs.size === 0) continue;
+      // Get latest value (highest ts).
+      let latestTs = 0;
+      let latestValue = 0;
+      for (const [ts, value] of anonByTs) {
+        if (ts >= latestTs) {
+          latestTs = ts;
+          latestValue = value;
+        }
+      }
+      const cat = categorizeProcess(processName);
       const id = catIds.find((k) => CATEGORIES[k].name === cat.name)!;
-      catSums.set(
-        id,
-        (catSums.get(id) ?? 0) + Math.round(procIter.rss_bytes / 1024),
-      );
+      catSums.set(id, (catSums.get(id) ?? 0) + Math.round(latestValue / 1024));
     }
 
     // 3. Build Sankey nodes and links.
@@ -3348,8 +2868,8 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
     // Level 2: Page cache → Active/Inactive breakdown.
     // Shmem is counted in Active(file) by the kernel but already has its own
     // node, so subtract it to keep the sub-links summing to fileCache.
-    const activeFile = Math.max(0, (sys.get('Active(file)') ?? 0) - shmem);
-    const inactiveFile = sys.get('Inactive(file)') ?? 0;
+    const activeFile = Math.max(0, getLatestKb('Active(file)') - shmem);
+    const inactiveFile = getLatestKb('Inactive(file)');
     if (activeFile > 0) {
       nodes.push({name: 'Active', color: '#e67e22', depth: 2});
       links.push({
@@ -3375,50 +2895,36 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
   // Per-process memory breakdown (for profiling view).
   // ---------------------------------------------------------------------------
 
-  private async queryProcessMemoryBreakdown(
-    engine: WasmEngineProxy,
+  private buildProcessMemoryBreakdown(
     pid: number,
     t0: number,
-  ): Promise<LineChartData | undefined> {
-    const queryResult = await engine.query(`
-      SELECT
-        t.name AS counter_name,
-        c.ts AS ts,
-        c.value AS value
-      FROM counter c
-      JOIN process_counter_track t ON c.track_id = t.id
-      JOIN process p ON t.upid = p.upid
-      WHERE p.pid = ${pid}
-        AND t.name IN ('mem.rss.anon', 'mem.swap', 'mem.rss.file', 'mem.dmabuf_rss')
-      ORDER BY c.ts
-    `);
+  ): LineChartData | undefined {
+    const raw = this.rawData!;
+    const pidCounters = raw.processCountersByPid.get(pid);
+    if (pidCounters === undefined) return undefined;
 
-    // Accumulate values per timestamp, summing anon + swap together.
     const tsSet = new Set<number>();
     const bySeriesTs = new Map<number, Map<string, number>>();
     const SERIES_NAMES = ['Anon + Swap', 'File', 'DMA-BUF'] as const;
+    const counterMapping: Record<string, string> = {
+      'mem.rss.anon': 'Anon + Swap',
+      'mem.swap': 'Anon + Swap',
+      'mem.rss.file': 'File',
+      'mem.dmabuf_rss': 'DMA-BUF',
+    };
 
-    const iter = queryResult.iter({
-      counter_name: STR,
-      ts: NUM,
-      value: NUM,
-    });
-    for (; iter.valid(); iter.next()) {
-      const ts = iter.ts;
-      tsSet.add(ts);
-      let seriesMap = bySeriesTs.get(ts);
-      if (seriesMap === undefined) {
-        seriesMap = new Map();
-        bySeriesTs.set(ts, seriesMap);
-      }
-      const kb = Math.round(iter.value / 1024);
-      const name = iter.counter_name;
-      if (name === 'mem.rss.anon' || name === 'mem.swap') {
-        seriesMap.set('Anon + Swap', (seriesMap.get('Anon + Swap') ?? 0) + kb);
-      } else if (name === 'mem.rss.file') {
-        seriesMap.set('File', (seriesMap.get('File') ?? 0) + kb);
-      } else if (name === 'mem.dmabuf_rss') {
-        seriesMap.set('DMA-BUF', (seriesMap.get('DMA-BUF') ?? 0) + kb);
+    for (const [counterName, samples] of pidCounters) {
+      const seriesName = counterMapping[counterName];
+      if (seriesName === undefined) continue;
+      for (const {ts, value} of samples) {
+        tsSet.add(ts);
+        let seriesMap = bySeriesTs.get(ts);
+        if (seriesMap === undefined) {
+          seriesMap = new Map();
+          bySeriesTs.set(ts, seriesMap);
+        }
+        const kb = Math.round(value / 1024);
+        seriesMap.set(seriesName, (seriesMap.get(seriesName) ?? 0) + kb);
       }
     }
 
@@ -3450,91 +2956,61 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
   // Latest per-process memory (for the table).
   // ---------------------------------------------------------------------------
 
-  private async queryLatestProcessMemory(
-    engine: WasmEngineProxy,
-  ): Promise<ProcessMemoryRow[]> {
-    // Pivot latest counter values per process across multiple track names.
-    // Also compute process age from start_ts (set by record_process_age).
-    const queryResult = await engine.query(`
-      SELECT
-        p.name AS process_name,
-        p.pid AS pid,
-        MAX(CASE WHEN t.name = 'mem.rss' THEN latest.value END) AS rss_bytes,
-        MAX(CASE WHEN t.name = 'mem.rss.anon' THEN latest.value END) AS anon_bytes,
-        MAX(CASE WHEN t.name = 'mem.rss.file' THEN latest.value END) AS file_bytes,
-        MAX(CASE WHEN t.name = 'mem.rss.shmem' THEN latest.value END) AS shmem_bytes,
-        MAX(CASE WHEN t.name = 'mem.swap' THEN latest.value END) AS swap_bytes,
-        MAX(CASE WHEN t.name = 'oom_score_adj' THEN latest.value END) AS oom_score,
-        CASE WHEN p.start_ts IS NOT NULL
-          THEN ((SELECT MAX(ts) FROM counter) - p.start_ts) / 1e9
-          ELSE NULL
-        END AS age_seconds
-      FROM (
-        SELECT
-          c.track_id,
-          c.value,
-          ROW_NUMBER() OVER (PARTITION BY c.track_id ORDER BY c.ts DESC) AS rn
-        FROM counter c
-        JOIN process_counter_track t ON c.track_id = t.id
-        WHERE t.name IN ('mem.rss', 'mem.rss.anon', 'mem.rss.file',
-                         'mem.rss.shmem', 'mem.swap', 'oom_score_adj')
-      ) latest
-      JOIN process_counter_track t ON latest.track_id = t.id
-      JOIN process p ON t.upid = p.upid
-      WHERE latest.rn = 1
-        AND p.name IS NOT NULL
-      GROUP BY p.upid
-      ORDER BY rss_bytes DESC
-    `);
-
+  private buildLatestProcessMemory(): ProcessMemoryRow[] {
+    const raw = this.rawData!;
     const rows: ProcessMemoryRow[] = [];
-    const iter = queryResult.iter({
-      process_name: STR,
-      pid: NUM,
-      rss_bytes: NUM,
-      anon_bytes: NUM,
-      file_bytes: NUM,
-      shmem_bytes: NUM,
-      swap_bytes: NUM,
-      oom_score: NUM,
-      age_seconds: NUM_NULL,
-    });
 
-    for (; iter.valid(); iter.next()) {
+    // Find max ts across all process counters (for age computation).
+    let maxTs = 0;
+    for (const counterMap of raw.processCountersByName.values()) {
+      for (const byTs of counterMap.values()) {
+        for (const ts of byTs.keys()) {
+          if (ts > maxTs) maxTs = ts;
+        }
+      }
+    }
+
+    for (const [processName, counterMap] of raw.processCountersByName) {
+      const info = raw.processInfo.get(processName);
+      const pid = info?.pid ?? 0;
+
+      const getLatestRaw = (counterName: string): number => {
+        const byTs = counterMap.get(counterName);
+        if (byTs === undefined || byTs.size === 0) return 0;
+        let latestTs = 0;
+        let latestValue = 0;
+        for (const [ts, value] of byTs) {
+          if (ts >= latestTs) {
+            latestTs = ts;
+            latestValue = value;
+          }
+        }
+        return latestValue;
+      };
+
+      const rssKb = Math.round(getLatestRaw('mem.rss') / 1024);
+      if (rssKb === 0) continue; // Skip processes with no RSS data
+
       rows.push({
-        processName: iter.process_name,
-        pid: iter.pid,
-        rssKb: Math.round(iter.rss_bytes / 1024),
-        anonKb: Math.round(iter.anon_bytes / 1024),
-        fileKb: Math.round(iter.file_bytes / 1024),
-        shmemKb: Math.round(iter.shmem_bytes / 1024),
-        swapKb: Math.round(iter.swap_bytes / 1024),
-        oomScore: iter.oom_score,
-        ageSeconds: iter.age_seconds,
+        processName,
+        pid,
+        rssKb,
+        anonKb: Math.round(getLatestRaw('mem.rss.anon') / 1024),
+        fileKb: Math.round(getLatestRaw('mem.rss.file') / 1024),
+        shmemKb: Math.round(getLatestRaw('mem.rss.shmem') / 1024),
+        swapKb: Math.round(getLatestRaw('mem.swap') / 1024),
+        dmabufKb: Math.round(getLatestRaw('mem.dmabuf_rss') / 1024),
+        oomScore: getLatestRaw('oom_score_adj'),
+        debuggable: info?.debuggable ?? false,
+        ageSeconds:
+          info?.startTs !== null && info?.startTs !== undefined
+            ? (maxTs - info.startTs) / 1e9
+            : null,
       });
     }
+
+    // Sort by RSS descending.
+    rows.sort((a, b) => b.rssKb - a.rssKb);
     return rows;
   }
-}
-
-function panel(
-  title: string,
-  subtitle: string | undefined,
-  body: m.Children,
-): m.Children {
-  return m(
-    '.pf-live-memory-panel',
-    m(
-      '.pf-live-memory-panel__header',
-      m('h2', title),
-      subtitle !== undefined && m('p', subtitle),
-    ),
-    m('.pf-live-memory-panel__body', body),
-  );
-}
-
-function formatKb(kb: number): string {
-  if (kb < 1024) return `${kb.toLocaleString()} KB`;
-  if (kb < 1024 * 1024) return `${(kb / 1024).toFixed(1)} MB`;
-  return `${(kb / (1024 * 1024)).toFixed(1)} GB`;
 }

@@ -202,8 +202,7 @@ export class InMemoryDataSource implements DataSource {
         const values = colsAtLevel.map((c) => rows[0][c.field]);
         // Parent path key is the key for depth-1
         const parentValues = values.slice(0, depth - 1);
-        const parentPathKey =
-          depth === 1 ? '' : makeGroupKey(parentValues);
+        const parentPathKey = depth === 1 ? '' : makeGroupKey(parentValues);
 
         // Full group values array (null-pad remaining columns)
         const groupValues = [
@@ -297,8 +296,18 @@ export class InMemoryDataSource implements DataSource {
         if (sortAlias) {
           children = [...children];
           children.sort((a, b) => {
-            const rowA = this.buildAggRow(a.childRows, aggregates, groupByCols, a.groupValues);
-            const rowB = this.buildAggRow(b.childRows, aggregates, groupByCols, b.groupValues);
+            const rowA = this.buildAggRow(
+              a.childRows,
+              aggregates,
+              groupByCols,
+              a.groupValues,
+            );
+            const rowB = this.buildAggRow(
+              b.childRows,
+              aggregates,
+              groupByCols,
+              b.groupValues,
+            );
             return compareSqlValues(rowA[sortAlias], rowB[sortAlias], sortDir);
           });
         }
@@ -708,7 +717,9 @@ function computeAggregate(fn: AggregateFunction, values: SqlValue[]): SqlValue {
     case 'ANY':
       return values.length === 0 ? null : values[0];
     case 'COUNT_DISTINCT': {
-      const unique = new Set(values.map((v) => (v === null ? '\0' : String(v))));
+      const unique = new Set(
+        values.map((v) => (v === null ? '\0' : String(v))),
+      );
       return unique.size;
     }
     case 'P25':
