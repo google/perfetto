@@ -22,7 +22,6 @@ import {
   ColumnSchema,
 } from '../../components/widgets/datagrid/datagrid_schema';
 import {InMemoryDataSource} from '../../components/widgets/datagrid/in_memory_data_source';
-import {Row as DataGridRow} from '../../trace_processor/query_result';
 import {SplitPanel} from '../../widgets/split_panel';
 import {EmptyState} from '../../widgets/empty_state';
 import {Callout} from '../../widgets/callout';
@@ -32,14 +31,21 @@ import {Stack, StackAuto} from '../../widgets/stack';
 import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {DataSource} from '../../components/widgets/datagrid/data_source';
-import {recentQueriesStorage} from '../query/recent_queries_storage';
+import {queryHistoryStorage} from '../query/query_history_storage';
+import {QueryHistoryComponent} from '../query/query_history';
+import {sqlTablesLoader} from '../query/sql_tables';
+import {TableList} from '../../plugins/dev.perfetto.QueryPage/table_list';
+import {Spinner} from '../../widgets/spinner';
 import {SettingFilter} from '../settings/settings_types';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';
 import {endpointStorage} from '../settings/endpoint_storage';
-import {Tabs} from '../../widgets/tabs';
+import {HttpDataSource} from '../query/http_data_source';
+import {Tabs, TabsTab} from '../../widgets/tabs';
 import {linkify} from '../../widgets/anchor';
+import {shortUuid} from '../../base/uuid';
+import {Row as DataGridRow} from '../../trace_processor/query_result';
 
-export interface QueryResponse {
+interface QueryResponse {
   query: string;
   error?: string;
   totalRowCount: number;
@@ -50,233 +56,223 @@ export interface QueryResponse {
   lastStatementSql: string;
 }
 
-class HttpDataSource {
-  private static readonly DEFAULT_LIMIT = 1000000;
-
-  private endpoint: string;
-  private baseQuery: string;
-  private limit: number;
-  private settings: SettingFilter[];
-  private cachedData: DataGridRow[] | null = null;
-  private fetchPromise: Promise<DataGridRow[]> | null = null;
-  private abortController: AbortController | null = null;
-
-  constructor(
-    endpoint: string,
-    baseQuery: string,
-    limit = HttpDataSource.DEFAULT_LIMIT,
-    settings: SettingFilter[],
-  ) {
-    this.endpoint = endpoint;
-    this.baseQuery = baseQuery;
-    this.limit = limit;
-    this.settings = settings;
-  }
-
-  private async fetchData(forceRefresh = false): Promise<DataGridRow[]> {
-    if (forceRefresh) {
-      this.cachedData = null;
-      this.fetchPromise = null;
-    }
-
-    if (this.cachedData !== null) {
-      return this.cachedData;
-    }
-
-    if (this.fetchPromise !== null) {
-      return this.fetchPromise;
-    }
-
-    this.fetchPromise = this.performFetch();
-    try {
-      this.cachedData = await this.fetchPromise;
-      return this.cachedData;
-    } finally {
-      this.fetchPromise = null;
-    }
-  }
-
-  private async performFetch(): Promise<DataGridRow[]> {
-    const url = `${this.endpoint}/execute_bigtrace_query`;
-
-    const serializedSettings = this.settings.map((s) => ({
-      setting_id: s.settingId,
-      values: s.values,
-      category: s.category,
-    }));
-
-    const data = {
-      limit: this.limit,
-      perfetto_sql: this.baseQuery,
-      settings: serializedSettings,
-    };
-
-    this.abortController = new AbortController();
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-        credentials: 'include',
-        mode: 'cors',
-        signal: this.abortController.signal,
-      });
-
-      if (!response.ok) {
-        let errorText = '';
-        try {
-          errorText = await response.text();
-        } catch (e) {
-          errorText = 'Could not read error body';
-        }
-        if (response.status === 403) {
-          throw new Error(
-            `HTTP error! status: ${response.status}. This might be an authentication issue. Please make sure you are logged in to the correct Google account. Backend says: ${errorText}`,
-          );
-        }
-        throw new Error(
-          `HTTP error! status: ${response.status}, backend says: ${errorText}`,
-        );
-      }
-
-      const result = await response.json();
-
-      if (
-        result.columnNames !== undefined &&
-        result.columnNames !== null &&
-        result.rows !== undefined &&
-        result.rows !== null
-      ) {
-        return result.rows.map(
-          (row: {values: Array<string | number | null>}) => {
-            const rowObject: DataGridRow = {};
-            result.columnNames.forEach((header: string, index: number) => {
-              if (header === null) return;
-              const value = row.values[index];
-              const numValue = Number(value);
-              rowObject[header] =
-                value === null || value === 'NULL' || isNaN(numValue)
-                  ? value
-                  : numValue;
-            });
-            return rowObject;
-          },
-        );
-      }
-
-      return [];
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        throw new Error('Query was cancelled.');
-      }
-      throw error;
-    }
-  }
-
-  abort(): void {
-    this.abortController?.abort();
-  }
-
-  async query(forceRefresh = false): Promise<DataGridRow[]> {
-    return this.fetchData(forceRefresh);
-  }
-
-  clearCache(): void {
-    this.cachedData = null;
-    this.fetchPromise = null;
-  }
-}
-
 interface QueryPageAttrs {
   useBrushBackend?: boolean;
   initialQuery?: string;
 }
 
-const DEFAULT_SQL = `SELECT
-  COUNT(*) as slice_count
-FROM slice;`;
+const DEFAULT_SQL = '';
 
-class QuerySessionState {
-  sqlQuery = DEFAULT_SQL;
-  limit = 100;
+// Per-tab state for each editor tab.
+interface BigTraceEditorTab {
+  readonly id: string;
+  title: string;
+  editorText: string;
+  limit: number;
   queryResult?: QueryResponse;
-  isLoading = false;
+  isLoading: boolean;
   dataSource?: DataSource;
-  querySettings: SettingFilter[] = [];
+  querySettings: SettingFilter[];
   activeHttpDataSource?: HttpDataSource;
 }
 
-const sessionState = new QuerySessionState();
+// Manages the collection of editor tabs. Survives component re-mounts.
+class QueryTabsState {
+  tabs: BigTraceEditorTab[] = [];
+  activeTabId = '';
+  private tabCounter = 0;
+
+  constructor() {
+    this.addNewTab(undefined, DEFAULT_SQL);
+  }
+
+  private nextTabName(): string {
+    const existingNames = new Set(this.tabs.map((t) => t.title));
+    let count = ++this.tabCounter;
+    while (existingNames.has(`Query ${count}`)) {
+      count = ++this.tabCounter;
+    }
+    return `Query ${count}`;
+  }
+
+  addNewTab(title?: string, initialQuery?: string): BigTraceEditorTab {
+    const tab: BigTraceEditorTab = {
+      id: shortUuid(),
+      title: title ?? this.nextTabName(),
+      editorText: initialQuery ?? '',
+      limit: 100,
+      queryResult: undefined,
+      isLoading: false,
+      dataSource: undefined,
+      querySettings: [],
+      activeHttpDataSource: undefined,
+    };
+    this.tabs.push(tab);
+    this.activeTabId = tab.id;
+    return tab;
+  }
+
+  getActiveTab(): BigTraceEditorTab | undefined {
+    return this.tabs.find((t) => t.id === this.activeTabId);
+  }
+
+  closeTab(tabId: string): void {
+    if (this.tabs.length <= 1) return;
+    const index = this.tabs.findIndex((t) => t.id === tabId);
+    if (index === -1) return;
+    this.tabs[index].activeHttpDataSource?.abort();
+    this.tabs.splice(index, 1);
+    if (this.activeTabId === tabId) {
+      const newIndex = Math.min(index, this.tabs.length - 1);
+      this.activeTabId = this.tabs[newIndex].id;
+    }
+  }
+
+  renameTab(tabId: string, newTitle: string): void {
+    const tab = this.tabs.find((t) => t.id === tabId);
+    if (tab) tab.title = newTitle;
+  }
+
+  reorderTab(draggedId: string, beforeId: string | undefined): void {
+    const draggedIndex = this.tabs.findIndex((t) => t.id === draggedId);
+    if (draggedIndex === -1) return;
+    const [dragged] = this.tabs.splice(draggedIndex, 1);
+    if (beforeId === undefined) {
+      this.tabs.push(dragged);
+    } else {
+      const beforeIndex = this.tabs.findIndex((t) => t.id === beforeId);
+      if (beforeIndex === -1) {
+        this.tabs.push(dragged);
+      } else {
+        this.tabs.splice(beforeIndex, 0, dragged);
+      }
+    }
+  }
+}
+
+const tabsState = new QueryTabsState();
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   private useBrushBackend = false;
-
-  get sqlQuery() {
-    return sessionState.sqlQuery;
-  }
-  set sqlQuery(v: string) {
-    sessionState.sqlQuery = v;
-  }
-
-  get limit() {
-    return sessionState.limit;
-  }
-  set limit(v: number) {
-    sessionState.limit = v;
-  }
-
-  get queryResult() {
-    return sessionState.queryResult;
-  }
-  set queryResult(v: QueryResponse | undefined) {
-    sessionState.queryResult = v;
-  }
-
-  get isLoading() {
-    return sessionState.isLoading;
-  }
-  set isLoading(v: boolean) {
-    sessionState.isLoading = v;
-  }
-
-  get dataSource() {
-    return sessionState.dataSource;
-  }
-  set dataSource(v: DataSource | undefined) {
-    sessionState.dataSource = v;
-  }
+  private sidebarVisible = true;
 
   oninit({attrs}: m.Vnode<QueryPageAttrs>) {
     this.useBrushBackend = attrs.useBrushBackend || false;
     if (attrs.initialQuery) {
-      this.sqlQuery = attrs.initialQuery;
+      const activeTab = tabsState.getActiveTab();
+      if (activeTab) {
+        activeTab.editorText = attrs.initialQuery;
+      }
     }
     if (this.useBrushBackend) {
       bigTraceSettingsStorage.loadSettings();
     }
+    sqlTablesLoader.load();
   }
 
   view() {
+    const activeTab = tabsState.getActiveTab();
+
+    // Build editor tabs for the Tabs widget.
+    const editorTabs: TabsTab[] = tabsState.tabs.map((tab) => ({
+      key: tab.id,
+      title: tab.title,
+      leftIcon: 'code',
+      closeButton: tabsState.tabs.length > 1,
+      content: this.renderEditorTabContent(tab),
+    }));
+
+    const leftPanel = m(Tabs, {
+      className: 'pf-query-page__editor-tabs',
+      tabs: editorTabs,
+      activeTabKey: tabsState.activeTabId,
+      reorderable: true,
+      onTabChange: (key) => {
+        tabsState.activeTabId = key;
+      },
+      onTabRename: (key, newTitle) => tabsState.renameTab(key, newTitle),
+      onTabClose: (key) => tabsState.closeTab(key),
+      onTabReorder: (draggedKey, beforeKey) =>
+        tabsState.reorderTab(draggedKey, beforeKey),
+      newTabContent: [
+        m(Button, {
+          icon: 'add',
+          className: 'pf-tabs__new-tab-btn',
+          onclick: () => tabsState.addNewTab(),
+        }),
+        m('div', {style: {flex: '1'}}),
+        m(Button, {
+          icon: this.sidebarVisible ? 'right_panel_close' : 'right_panel_open',
+          title: this.sidebarVisible ? 'Hide sidebar' : 'Show sidebar',
+          onclick: () => {
+            this.sidebarVisible = !this.sidebarVisible;
+          },
+          active: this.sidebarVisible,
+        }),
+      ],
+    });
+
+    const sidebarPanel = m(Tabs, {
+      className: 'pf-query-page__sidebar',
+      tabs: [
+        {
+          key: 'history',
+          title: 'History',
+          leftIcon: 'history',
+          content: m(QueryHistoryComponent, {
+            className: 'pf-query-page__history',
+            runQuery: (query: string) => {
+              if (activeTab) this.runQueryOnTab(activeTab, query);
+            },
+            setQuery: (query: string) => {
+              if (activeTab) activeTab.editorText = query;
+            },
+          }),
+        },
+        {
+          key: 'tables',
+          title: 'Tables',
+          leftIcon: 'table_chart',
+          content: this.renderTablesTab(),
+        },
+      ],
+    });
+
+    if (!this.sidebarVisible) {
+      return m('.pf-query-page', leftPanel);
+    }
+
+    return m(
+      '.pf-query-page',
+      m(SplitPanel, {
+        direction: 'horizontal',
+        initialSplit: {percent: 25},
+        controlledPanel: 'second',
+        minSize: 100,
+        firstPanel: leftPanel,
+        secondPanel: sidebarPanel,
+      }),
+    );
+  }
+
+  private renderEditorTabContent(tab: BigTraceEditorTab): m.Children {
     const editorPanel = m('.pf-query-page__editor-panel', [
       m(Box, {className: 'pf-query-page__toolbar'}, [
         m(Stack, {orientation: 'horizontal'}, [
-          this.isLoading
+          tab.isLoading
             ? m(Button, {
                 label: 'Cancel',
                 icon: 'stop',
                 intent: Intent.Warning,
                 variant: ButtonVariant.Filled,
-                onclick: () => this.cancelQuery(),
+                onclick: () => this.cancelQueryOnTab(tab),
               })
             : m(Button, {
                 label: 'Run Query',
                 icon: 'play_arrow',
                 intent: Intent.Primary,
                 variant: ButtonVariant.Filled,
-                onclick: () => this.runQuery(this.sqlQuery),
+                onclick: () => this.runQueryOnTab(tab, tab.editorText),
               }),
           m(
             Stack,
@@ -292,19 +288,19 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             m('span', 'Result limit:'),
             m(TextInput, {
               type: 'number',
-              value: String(this.limit),
+              value: String(tab.limit),
               placeholder: 'Limit',
               onChange: (value: string) => {
                 const newLimit = parseInt(value, 10);
                 if (!isNaN(newLimit) && newLimit > 0) {
-                  this.limit = newLimit;
+                  tab.limit = newLimit;
                 }
               },
             }),
           ],
         ]),
       ]),
-      this.sqlQuery.includes('"') &&
+      tab.editorText.includes('"') &&
         m(
           Callout,
           {icon: 'warning', intent: Intent.None},
@@ -313,20 +309,24 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             `can cause subtle problems which are very hard to debug.`,
         ),
       m(Editor, {
-        text: this.sqlQuery,
+        text: tab.editorText,
         language: 'perfetto-sql',
         onUpdate: (text: string) => {
-          this.sqlQuery = text;
+          tab.editorText = text;
         },
-        onExecute: (query: string) => this.runQuery(query),
+        onExecute: (query: string) => this.runQueryOnTab(tab, query),
       }),
     ]);
 
     const resultsPanel = m(
       '.pf-query-page__results-panel',
-      this.dataSource && this.queryResult
-        ? this.renderQueryResult(this.queryResult, this.dataSource)
-        : this.isLoading
+      tab.dataSource && tab.queryResult
+        ? this.renderQueryResult(
+            tab.queryResult,
+            tab.dataSource,
+            tab.querySettings,
+          )
+        : tab.isLoading
           ? m(EmptyState, {
               title: 'Running query...',
               icon: 'hourglass_empty',
@@ -339,35 +339,60 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             }),
     );
 
-    return m(
-      '.pf-query-page',
-      m(SplitPanel, {
-        direction: 'vertical',
-        initialSplit: {percent: 35},
-        minSize: 100,
-        firstPanel: editorPanel,
-        secondPanel: resultsPanel,
-      }),
-    );
+    return m(SplitPanel, {
+      direction: 'vertical',
+      initialSplit: {percent: 35},
+      minSize: 100,
+      firstPanel: editorPanel,
+      secondPanel: resultsPanel,
+    });
   }
 
-  private cancelQuery() {
-    sessionState.activeHttpDataSource?.abort();
-    sessionState.activeHttpDataSource = undefined;
-    this.isLoading = false;
+  private renderTablesTab(): m.Children {
+    if (sqlTablesLoader.loadError) {
+      return m(EmptyState, {
+        title: `Failed to load tables: ${sqlTablesLoader.loadError}`,
+        icon: 'error',
+        fillHeight: true,
+      });
+    }
+    const modules = sqlTablesLoader.modules;
+    if (sqlTablesLoader.isLoading || !modules) {
+      return m(
+        EmptyState,
+        {
+          title: 'Loading tables...',
+          icon: 'hourglass_empty',
+          fillHeight: true,
+        },
+        m(Spinner),
+      );
+    }
+    return m(TableList, {
+      sqlModules: modules,
+      onQueryTable: (tableName, query) => {
+        tabsState.addNewTab(tableName, query);
+      },
+    });
+  }
+
+  private cancelQueryOnTab(tab: BigTraceEditorTab) {
+    tab.activeHttpDataSource?.abort();
+    tab.activeHttpDataSource = undefined;
+    tab.isLoading = false;
     m.redraw();
   }
 
-  private async runQuery(query: string) {
+  private async runQueryOnTab(tab: BigTraceEditorTab, query: string) {
     if (!query) return;
 
-    // Abort any in-flight query before starting a new one.
-    sessionState.activeHttpDataSource?.abort();
+    // Abort any in-flight query on this tab.
+    tab.activeHttpDataSource?.abort();
 
-    recentQueriesStorage.saveQuery(query);
+    queryHistoryStorage.saveQuery(query);
 
-    this.isLoading = true;
-    this.queryResult = undefined;
+    tab.isLoading = true;
+    tab.queryResult = undefined;
     m.redraw();
 
     if (this.useBrushBackend) {
@@ -377,18 +402,18 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       await bigTraceSettingsStorage.loadSettings();
 
       const settings = bigTraceSettingsStorage.buildSettingFilters();
-      sessionState.querySettings = settings;
+      tab.querySettings = settings;
 
       const httpDataSource = new HttpDataSource(
         endpoint,
         query,
-        this.limit,
+        tab.limit,
         settings,
       );
-      sessionState.activeHttpDataSource = httpDataSource;
+      tab.activeHttpDataSource = httpDataSource;
       try {
         const data = await httpDataSource.query();
-        this.queryResult = {
+        tab.queryResult = {
           rows: data,
           columns: data.length > 0 ? Object.keys(data[0]) : [],
           error: undefined,
@@ -404,7 +429,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           return;
         }
         const error = e instanceof Error ? e.message : String(e);
-        this.queryResult = {
+        tab.queryResult = {
           rows: [],
           columns: [],
           error,
@@ -415,7 +440,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           query,
         };
       } finally {
-        sessionState.activeHttpDataSource = undefined;
+        tab.activeHttpDataSource = undefined;
       }
     } else {
       throw new Error(
@@ -423,17 +448,18 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       );
     }
 
-    if (this.queryResult !== undefined) {
-      this.dataSource = new InMemoryDataSource(this.queryResult.rows);
+    if (tab.queryResult !== undefined) {
+      tab.dataSource = new InMemoryDataSource(tab.queryResult.rows);
     }
 
-    this.isLoading = false;
+    tab.isLoading = false;
     m.redraw();
   }
 
   private renderQueryResult(
     queryResult: QueryResponse,
     dataSource: DataSource,
+    querySettings: SettingFilter[],
   ) {
     if (queryResult.error) {
       return m(
@@ -478,7 +504,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
                 if (!col.startsWith('_')) return true;
                 if (col === '_trace_id') return true;
                 const settingId = col.substring(1);
-                return sessionState.querySettings.some(
+                return querySettings.some(
                   (s) =>
                     s.settingId === settingId &&
                     s.category === 'TRACE_METADATA',

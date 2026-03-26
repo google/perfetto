@@ -29,7 +29,7 @@ import {endpointStorage} from '../settings/endpoint_storage';
 import {Setting} from '../../public/settings';
 
 import {TextInput} from '../../widgets/text_input';
-import {Icon} from '../../widgets/icon';
+import {Stack, StackAuto} from '../../widgets/stack';
 
 interface BigTraceSettingsCardAttrs extends m.Attributes {
   id?: string;
@@ -49,9 +49,9 @@ class BigTraceSettingsCard
     return m(
       'div',
       {
-        style: {
-          opacity: disabled ? 0.6 : 1,
-        },
+        className: classNames(
+          disabled && 'pf-bt-settings-card-wrapper--disabled',
+        ),
       },
       m(
         Card,
@@ -83,10 +83,11 @@ class BigTraceSettingsCard
           m(
             '.pf-settings-card__controls',
             {
-              style: {
-                pointerEvents:
-                  disabled !== undefined && disabled ? 'none' : 'auto',
-              },
+              className: classNames(
+                disabled !== undefined &&
+                  disabled &&
+                  'pf-bt-settings-controls--disabled',
+              ),
             },
             controls,
           ),
@@ -154,38 +155,27 @@ export class SettingsPage implements m.ClassComponent {
         title: 'Settings',
         className: 'page',
         stickyHeaderContent: m(
-          '.pf-settings-header-content',
-          {
-            style: {
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              justifyContent: 'flex-start',
-              width: '100%',
+          Stack,
+          {orientation: 'horizontal'},
+          endpointStorage.isReloadRequired() &&
+            m(Button, {
+              label: 'Reload required',
+              icon: 'refresh',
+              intent: Intent.Primary,
+              variant: ButtonVariant.Filled,
+              onclick: () => {
+                window.location.reload();
+              },
+            }),
+          m(StackAuto),
+          m(TextInput, {
+            placeholder: 'Search...',
+            value: this.searchQuery,
+            leftIcon: 'search',
+            oninput: (e: Event) => {
+              this.searchQuery = (e.target as HTMLInputElement).value;
             },
-          },
-          [
-            m('.pf-settings-search', [
-              m(Icon, {icon: 'search'}),
-              m(TextInput, {
-                value: this.searchQuery,
-                oninput: (e: Event) => {
-                  this.searchQuery = (e.target as HTMLInputElement).value;
-                },
-                placeholder: 'Search settings...',
-              }),
-            ]),
-            endpointStorage.isReloadRequired() &&
-              m(Button, {
-                label: 'Reload required',
-                icon: 'refresh',
-                intent: Intent.Primary,
-                variant: ButtonVariant.Filled,
-                onclick: () => {
-                  window.location.reload();
-                },
-              }),
-          ],
+          }),
         ),
       },
       m('.pf-settings-page', [
@@ -234,8 +224,7 @@ export class SettingsPage implements m.ClassComponent {
               );
               if (category === 'Trace Metadata') {
                 categoryHeader = m(
-                  'h2.pf-settings-page__plugin-title',
-                  {style: {display: 'flex', alignItems: 'center', gap: '16px'}},
+                  'h2.pf-settings-page__plugin-title.pf-bt-settings-category-header',
                   [
                     m('span', category),
                     bigTraceSettingsStorage.isReloadRequired() &&

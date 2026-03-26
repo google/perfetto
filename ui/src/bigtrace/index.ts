@@ -27,7 +27,13 @@ import {bigTraceSettingsStorage} from './settings/bigtrace_settings_storage';
 import {queryState} from './query/query_state';
 import {SettingsPage} from './pages/settings_page';
 import {Topbar} from './layout/topbar';
-import {Sidebar, SidebarMenuItem, SIDEBAR_SECTIONS} from './layout/sidebar';
+import {BigTraceApp as BigTraceAppSingleton} from './bigtrace_app';
+import {OmniboxMode} from '../core/omnibox_manager';
+import {Sidebar, SidebarMenuItem} from './layout/sidebar';
+import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
+import {initAssets} from '../base/assets';
+import {getCurrentRoute, initRouter} from './router';
+import {Routes} from './routes';
 
 function getRoot() {
   // Works out the root directory where the content should be served from
@@ -82,6 +88,7 @@ function main() {
     });
   }
   setupContentSecurityPolicy();
+  initAssets();
   // Settings will be lazy-loaded by the UI components that require them.
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time
@@ -101,7 +108,7 @@ function main() {
   document.head.append(css);
 
   // Add Error handlers for JS error and for uncaught exceptions in promises.
-  addErrorHandler((err: ErrorDetails) => console.log(err.message, err.stack));
+  addErrorHandler((err: ErrorDetails) => console.error(err.message, err.stack));
   window.addEventListener('error', (e) => reportError(e));
   window.addEventListener('unhandledrejection', (e) => reportError(e));
 
@@ -117,134 +124,158 @@ function main() {
   cssLoadPromise.then(() => onCssLoaded());
 }
 
-class BigTraceApp implements m.ClassComponent {
+// Allows the sidebar toggle command (registered globally) to reach into the
+// BigTraceApp component's local state.
+let sidebarToggleFn: (() => void) | undefined;
+
+class BigTraceLayout implements m.ClassComponent {
   private sidebarVisible = true;
 
   oninit() {
     bigTraceSettingsStorage.loadSettings();
+    sidebarToggleFn = () => {
+      this.sidebarVisible = !this.sidebarVisible;
+    };
   }
 
   view(vnode: m.Vnode) {
-    const currentRoute = m.route.get();
+    const currentRoute = getCurrentRoute();
 
     const items: SidebarMenuItem[] = [
       {
         section: 'home',
         text: 'Home',
-        href: '#!/',
+        href: `#!${Routes.HOME}`,
         icon: 'home',
-        active: currentRoute === '/' || currentRoute === '',
+        active: currentRoute === Routes.HOME || currentRoute === '',
         onclick: () => {},
       },
       {
         section: 'query',
         text: 'Query Editor',
-        href: '#!/query',
+        href: `#!${Routes.QUERY}`,
         icon: 'line_style',
-        active: currentRoute === '/query',
+        active: currentRoute === Routes.QUERY,
         onclick: () => {},
       },
       {
         section: 'settings',
         text: 'Settings',
-        href: '#!/settings',
+        href: `#!${Routes.SETTINGS}`,
         icon: 'settings',
-        active: currentRoute === '/settings',
+        active: currentRoute === Routes.SETTINGS,
         onclick: () => {},
       },
     ];
 
-    const currentItem = items.find((item) => item.active);
-    const title = currentItem
-      ? `${SIDEBAR_SECTIONS[currentItem.section].title} > ${currentItem.text}`
-      : '';
-
-    return m(
-      '.pf-ui-main',
-      {
-        style: {
-          display: 'flex',
-          height: '100vh',
-          overflow: 'hidden',
+    return m('main.pf-ui-main', [
+      m(Sidebar, {
+        items,
+        onToggleSidebar: () => {
+          this.sidebarVisible = !this.sidebarVisible;
         },
-      },
-      [
-        // Left Sidebar
-        m(Sidebar, {
-          items,
-          onToggleSidebar: () => {
-            this.sidebarVisible = !this.sidebarVisible;
-          },
-          visible: this.sidebarVisible,
-        }),
-
-        m(
-          '.pf-main-content',
-          {
-            style: {
-              display: 'flex',
-              flexDirection: 'column',
-              flex: 1,
-              overflow: 'hidden',
-            },
-          },
-          [
-            m(Topbar, {
-              sidebarVisible: this.sidebarVisible,
-              onToggleSidebar: () => {
-                this.sidebarVisible = !this.sidebarVisible;
-              },
-              title: title,
-            }),
-            vnode.children,
-          ],
-        ),
-      ],
-    );
+        visible: this.sidebarVisible,
+      }),
+      m(Topbar, {sidebarVisible: this.sidebarVisible}),
+      m('.pf-ui-main__page-container', vnode.children),
+    ]);
   }
 }
 
-const BigTraceLayout: m.Component = {
-  view(vnode) {
+// Root component: routing, theme, hotkeys, and layout.
+// Uses m.mount (not m.route) so that all rendering goes through the raf
+// scheduler's mount system. m.route() caches the original m.mount and
+// bypasses the raf scheduler, which breaks cross-tree redraws for
+// portal-based popups (e.g. the omnibox dropdown).
+class BigTraceRoot implements m.ClassComponent {
+  private prevRoute = '';
+  private queryInitialQuery: string | undefined;
+
+  view(): m.Children {
+    const route = getCurrentRoute();
+
+    // Capture initialQuery on first navigation to /query.
+    if (route === Routes.QUERY && this.prevRoute !== Routes.QUERY) {
+      this.queryInitialQuery = queryState.initialQuery;
+      queryState.initialQuery = undefined;
+    }
+    this.prevRoute = route;
+
+    const page = this.resolvePage(route);
+
     const theme = settingsStorage.get('theme');
     const themeValue = theme ? theme.get() : 'light';
+
+    const commands = BigTraceAppSingleton.instance.commands;
+    const hotkeys: HotkeyConfig[] = [];
+    for (const {id, defaultHotkey} of commands.commands) {
+      if (defaultHotkey) {
+        hotkeys.push({
+          callback: () => commands.runCommand(id),
+          hotkey: defaultHotkey,
+        });
+      }
+    }
+
     return m(ThemeProvider, {theme: themeValue as 'dark' | 'light'}, [
-      m(OverlayContainer, {fillHeight: true}, [m(BigTraceApp, vnode.children)]),
+      m(
+        HotkeyContext,
+        {hotkeys, fillHeight: true, focusable: false},
+        m(OverlayContainer, {fillHeight: true}, [m(BigTraceLayout, page)]),
+      ),
     ]);
-  },
-};
+  }
 
-function onCssLoaded() {
-  // Clear all the contents of the initial page
-  document.body.innerHTML = '';
+  private resolvePage(route: string): m.Children {
+    switch (route) {
+      case Routes.QUERY:
+        return m(QueryPage, {
+          useBrushBackend: true,
+          initialQuery: this.queryInitialQuery,
+        });
+      case Routes.SETTINGS:
+        return m(SettingsPage);
+      default:
+        return m(HomePage);
+    }
+  }
+}
 
-  m.route.prefix = '#!';
-  m.route(document.body, '/', {
-    '/': {
-      render: () => m(BigTraceLayout, m(HomePage)),
-    },
-    '/query': {
-      onmatch: () => {
-        const initialQuery = queryState.initialQuery;
-        queryState.initialQuery = undefined;
-        return {
-          view: () =>
-            m(
-              BigTraceLayout,
-              m(QueryPage, {
-                useBrushBackend: true,
-                initialQuery,
-              }),
-            ),
-        };
-      },
-    },
-    '/settings': {
-      render: () => m(BigTraceLayout, m(SettingsPage)),
+function registerCommands() {
+  const app = BigTraceAppSingleton.instance;
+
+  app.commands.registerCommand({
+    id: 'bigtrace.ToggleTheme',
+    name: 'Toggle UI Theme (Dark/Light)',
+    callback: () => {
+      const theme = settingsStorage.get('theme');
+      if (theme) theme.set(theme.get() === 'light' ? 'dark' : 'light');
     },
   });
 
+  app.commands.registerCommand({
+    id: 'bigtrace.OpenCommandPalette',
+    name: 'Open command palette',
+    callback: () => app.omnibox.setMode(OmniboxMode.Command),
+    defaultHotkey: '!Mod+Shift+P',
+  });
+
+  app.commands.registerCommand({
+    id: 'bigtrace.ToggleLeftSidebar',
+    name: 'Toggle left sidebar',
+    callback: () => {
+      sidebarToggleFn?.();
+    },
+    defaultHotkey: '!Mod+B',
+  });
+}
+
+function onCssLoaded() {
+  document.body.innerHTML = '';
+  initRouter();
+  m.mount(document.body, BigTraceRoot);
   initLiveReload();
+  registerCommands();
 }
 
 main();

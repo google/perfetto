@@ -12,24 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-import {classNames} from '../../base/classnames';
-import {Omnibox} from './omnibox';
+// BigTrace-specific styles. Classes use the .pf-bt- prefix to avoid
+// collisions with existing Perfetto UI classes.
 
-interface TopbarAttrs {
-  sidebarVisible: boolean;
+// ---------- Settings page ----------
+
+.pf-bt-settings-card-wrapper--disabled {
+  opacity: 0.6;
 }
 
-export class Topbar implements m.ClassComponent<TopbarAttrs> {
-  view({attrs}: m.CVnode<TopbarAttrs>) {
-    return m(
-      '.pf-topbar',
-      {
-        className: classNames(
-          !attrs.sidebarVisible && 'pf-topbar--hide-sidebar',
-        ),
-      },
-      m(Omnibox),
-    );
-  }
+.pf-bt-settings-controls--disabled {
+  pointer-events: none;
+}
+
+.pf-bt-settings-category-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }

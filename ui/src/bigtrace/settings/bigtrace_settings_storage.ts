@@ -111,7 +111,7 @@ class SettingImpl<T> implements Setting<T> {
   }
 }
 
-export interface BigTraceSettingsStorage {
+interface BigTraceSettingsStorage {
   register<T>(setting: SettingDescriptor<T>): Setting<T>;
   resetAll(): void;
   getAllSettings(): ReadonlyArray<Setting<unknown>>;

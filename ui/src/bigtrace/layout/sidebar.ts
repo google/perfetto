@@ -13,11 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {assetSrc} from '../../base/assets';
 import {Icon} from '../../widgets/icon';
 import {getOrCreate} from '../../base/utils';
 import {classNames} from '../../base/classnames';
 
-export const SIDEBAR_SECTIONS = {
+const SIDEBAR_SECTIONS = {
   home: {
     title: 'Home',
     summary: '',
@@ -35,7 +36,7 @@ export const SIDEBAR_SECTIONS = {
   },
 } as const;
 
-export type SidebarSections = keyof typeof SIDEBAR_SECTIONS;
+type SidebarSections = keyof typeof SIDEBAR_SECTIONS;
 
 export type SidebarMenuItem = {
   readonly section: SidebarSections;
@@ -46,7 +47,7 @@ export type SidebarMenuItem = {
   readonly onclick: () => void;
 };
 
-export interface SidebarAttrs {
+interface SidebarAttrs {
   items: SidebarMenuItem[];
   onToggleSidebar: () => void;
   visible: boolean;
@@ -65,7 +66,20 @@ export class Sidebar implements m.ClassComponent<SidebarAttrs> {
         m('header.pf-sidebar__header', [
           m(
             'h1',
-            {style: {margin: 0, fontSize: '18px', fontWeight: 'bold'}},
+            {
+              style: {
+                margin: 0,
+                fontSize: '18px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              },
+            },
+            m('img', {
+              src: assetSrc('assets/logo-128.png'),
+              style: {height: '1em'},
+            }),
             'BigTrace',
           ),
           m(

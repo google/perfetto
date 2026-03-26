@@ -12,24 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-import {classNames} from '../../base/classnames';
-import {Omnibox} from './omnibox';
-
-interface TopbarAttrs {
-  sidebarVisible: boolean;
-}
-
-export class Topbar implements m.ClassComponent<TopbarAttrs> {
-  view({attrs}: m.CVnode<TopbarAttrs>) {
-    return m(
-      '.pf-topbar',
-      {
-        className: classNames(
-          !attrs.sidebarVisible && 'pf-topbar--hide-sidebar',
-        ),
-      },
-      m(Omnibox),
-    );
-  }
-}
+export const Routes = {
+  HOME: '/',
+  QUERY: '/query',
+  SETTINGS: '/settings',
+} as const;
