@@ -1,0 +1,364 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Styles for the Heapdump Explorer plugin.
+// The CSS reset is provided by Perfetto's global styles.
+
+.ah-page {
+  // Domain-specific badge tokens — no --pf-* equivalent.
+  --ah-badge-reachability: #d97706;
+  --ah-badge-root: #f43f5e;
+  --ah-badge-string: #047857;
+
+  .pf-theme-provider--dark & {
+    --ah-badge-reachability: #fbbf24;
+    --ah-badge-root: #fb7185;
+    --ah-badge-string: #34d399;
+  }
+
+  height: 100%;
+  background: var(--pf-color-background-secondary);
+  display: flex;
+  flex-direction: column;
+  color: var(--pf-color-text);
+  overflow: hidden;
+}
+
+.ah-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 1rem;
+  max-width: 95%;
+  margin: 0 auto;
+  width: 100%;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+
+  // The Tabs widget's content area must be a flex column so that DataGrid
+  // views (which use flex: 1 on .ah-view-content) fill the available height.
+  .pf-tabs__content {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+// Flex-growing wrapper for view content with a DataGrid that fills height.
+.ah-view-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+// Empty state for scroll views (bitmaps, etc.) where fillHeight cannot resolve
+// against a fixed parent. Uses viewport-relative height minus the page shell
+// (tab bar + padding) to vertically center the icon.
+.ah-empty-fill {
+  height: calc(100vh - 200px);
+}
+
+.ah-loading {
+  color: var(--pf-color-text-hint);
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.ah-error-text {
+  color: var(--pf-color-danger);
+  padding: 1rem;
+}
+
+.ah-view-heading {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: var(--pf-color-text);
+}
+
+.ah-muted-heading {
+  font-size: 0.875rem;
+  color: var(--pf-color-text-hint);
+  margin-bottom: 0.5rem;
+}
+
+.ah-sub-heading {
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  color: var(--pf-color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.ah-card {
+  background: var(--pf-color-background);
+  border: 1px solid var(--pf-color-border);
+  padding: 1rem;
+}
+
+.ah-card--compact {
+  @extend .ah-card;
+  padding: 0.75rem;
+}
+
+.ah-bitmap-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.ah-bitmap-card {
+  border: 1px solid var(--pf-color-border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.ah-bitmap-card__image {
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+}
+
+.ah-bitmap-card__info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--pf-color-border);
+  font-size: 0.875rem;
+}
+
+.ah-bitmap-card__secondary {
+  margin-left: 0.75rem;
+  color: var(--pf-color-text-hint);
+}
+
+.ah-info-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.375rem 1rem;
+}
+
+.ah-info-grid--compact {
+  @extend .ah-info-grid;
+  gap: 0.25rem 1rem;
+}
+
+.ah-info-grid__label {
+  color: var(--pf-color-text-muted);
+}
+
+.ah-section {
+  background: var(--pf-color-background);
+  border: 1px solid var(--pf-color-border);
+}
+
+.ah-section__toggle {
+  width: 100%;
+  padding: 0.5rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+  &:hover {
+    background: var(--pf-color-background-secondary);
+  }
+}
+
+.ah-section__title {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  color: var(--pf-color-text-muted);
+}
+
+.ah-section__chevron {
+  width: 0.75rem;
+  height: 0.75rem;
+  color: var(--pf-color-text-hint);
+  transition: transform 0.15s;
+}
+
+.ah-section__chevron--open {
+  transform: rotate(90deg);
+}
+
+.ah-section__body {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--pf-color-border-secondary);
+  overflow-x: auto;
+
+  // Cap DataGrid height so each section grid scrolls internally via virtual
+  // scroll, while the page scrolls between sections. Use overflow: auto
+  // (overriding the DataGrid default of overflow: hidden) so the empty state
+  // icon is not clipped.
+  .pf-data-grid {
+    max-height: 400px;
+    overflow: auto;
+  }
+}
+
+.ah-link {
+  color: var(--pf-color-primary);
+  text-decoration: underline;
+  &:hover {
+    color: var(--pf-color-accent);
+  }
+}
+
+.ah-link--alt {
+  color: var(--pf-color-primary);
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.ah-badge-reachability {
+  color: var(--ah-badge-reachability);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  margin-right: 0.25rem;
+}
+
+.ah-badge-root {
+  color: var(--ah-badge-root);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  margin-right: 0.25rem;
+}
+
+.ah-badge-string {
+  color: var(--ah-badge-string);
+  margin-left: 0.25rem;
+}
+
+.ah-badge-referent {
+  color: var(--pf-color-text-hint);
+  margin-left: 0.25rem;
+}
+
+.ah-download-link {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--pf-color-primary);
+  cursor: pointer;
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.ah-path-arrow {
+  color: var(--pf-color-text-hint);
+}
+
+.ah-path-field {
+  color: var(--pf-color-text-muted);
+}
+
+.ah-view-stack > * + * {
+  margin-top: 0.75rem;
+}
+
+.ah-view-stack--tight > * + * {
+  margin-top: 0.125rem;
+}
+
+.ah-mono {
+  font-family: var(--pf-font-monospace);
+}
+.ah-semibold {
+  font-weight: 600;
+}
+.ah-break-all {
+  word-break: break-all;
+}
+.ah-opacity-60 {
+  opacity: 0.6;
+}
+
+.ah-view-heading--tight {
+  margin-bottom: 0.25rem;
+}
+
+.ah-action-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ah-bitmap-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--pf-color-text-muted);
+}
+
+.ah-path-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.ah-desc {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--pf-color-text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.ah-str-color {
+  color: var(--ah-badge-string);
+}
+
+.ah-str-badge {
+  color: var(--ah-badge-string);
+  margin-left: 0.25rem;
+}
+
+.ah-muted {
+  color: var(--pf-color-text-muted);
+}
+
+.ah-flex-none {
+  flex-shrink: 0;
+}
+
+// Spacing (minimal set)
+.ah-mt-1 {
+  margin-top: 0.25rem;
+}
+.ah-mb-2 {
+  margin-bottom: 0.5rem;
+}
+.ah-mb-3 {
+  margin-bottom: 0.75rem;
+}
+.ah-mb-4 {
+  margin-bottom: 1rem;
+}
+.ah-mt-4 {
+  margin-top: 1rem;
+}
