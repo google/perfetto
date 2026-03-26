@@ -39,6 +39,7 @@ import {
   AreaSelectionTab,
 } from '../../public/selection';
 import {HeapProfileFlamegraphDetailsPanel} from './heap_profile_details_panel';
+import {EvtSource} from '../../base/events';
 
 const EVENT_TABLE_NAME = 'heap_profile_events';
 
@@ -62,6 +63,17 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
 
   private readonly trackMap = new Map<string, Track>();
   private store?: Store<HeapProfilePluginState>;
+
+  private readonly nodeSelectedEvt = new EvtSource<{
+    pathHashes: string;
+    isDominator: boolean;
+  }>();
+
+  registerOnNodeSelectedListener(
+    cb: (args: {pathHashes: string; isDominator: boolean}) => void,
+  ): Disposable {
+    return this.nodeSelectedEvt.addListener(cb);
+  }
 
   private migrateHeapProfilePluginState(init: unknown): HeapProfilePluginState {
     const result = HEAP_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
@@ -215,6 +227,10 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
                 draft[descriptor.type].trackFlamegraphState = state;
               });
             },
+            heapType === 'java_heap_graph'
+              ? (pathHashes, isDominator) =>
+                  this.nodeSelectedEvt.notify({pathHashes, isDominator})
+              : undefined,
           ),
         };
         trace.tracks.registerTrack(track);
