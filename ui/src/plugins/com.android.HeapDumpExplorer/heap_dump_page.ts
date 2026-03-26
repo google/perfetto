@@ -19,6 +19,10 @@ import {Spinner} from '../../widgets/spinner';
 import {EmptyState} from '../../widgets/empty_state';
 import {Tabs} from '../../widgets/tabs';
 import type {TabsTab} from '../../widgets/tabs';
+interface HeapdumpSelection {
+  pathHashes: string;
+  isDominator: boolean;
+}
 import type {NavState} from './nav_state';
 import type {OverviewData} from './types';
 import {nav, navigate, syncFromSubpage, setNavigateCallback} from './nav_state';
@@ -31,6 +35,18 @@ import InstancesView from './views/instances_view';
 import BitmapGalleryView from './views/bitmap_gallery_view';
 import ClassesView from './views/classes_view';
 import StringsView from './views/strings_view';
+import FlamegraphObjectsView from './views/flamegraph_objects_view';
+
+// Selection set by HeapProfile's "Open in Heapdump Explorer" action.
+let flamegraphSelection: HeapdumpSelection | null = null;
+
+export function setFlamegraphSelection(sel: HeapdumpSelection): void {
+  flamegraphSelection = sel;
+}
+
+export function resetFlamegraphSelection(): void {
+  flamegraphSelection = null;
+}
 
 // Module-level overview cache. Survives component remounts (e.g. theme toggle).
 let cachedOverview: OverviewData | null = null;
@@ -129,6 +145,25 @@ function buildTabs(
   ];
 }
 
+// Flamegraph-objects is a special entry point from the timeline, not a tab.
+// Rendered in place of the Tabs widget when active.
+function renderFlamegraphObjectsView(
+  state: NavState & {view: 'flamegraph-objects'},
+  engine: Engine,
+): m.Children {
+  const trace = HeapDumpPage.trace;
+  return m(FlamegraphObjectsView, {
+    engine,
+    navigate,
+    nodeName: state.params.name,
+    pathHashes: flamegraphSelection?.pathHashes,
+    isDominator: flamegraphSelection?.isDominator,
+    onBackToTimeline: () => {
+      if (trace) trace.navigate('#!/viewer');
+    },
+  });
+}
+
 interface HeapDumpPageAttrs {
   readonly subpage: string | undefined;
 }
@@ -184,6 +219,22 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
         'div',
         {class: 'ah-page'},
         m('div', {class: 'ah-loading'}, m(Spinner, {easing: true})),
+      );
+    }
+
+    // Flamegraph-objects is a special entry point from the timeline, not a tab.
+    if (nav.view === 'flamegraph-objects') {
+      return m(
+        'div',
+        {class: 'ah-page'},
+        m(
+          'main',
+          {class: 'ah-main'},
+          renderFlamegraphObjectsView(
+            nav as NavState & {view: 'flamegraph-objects'},
+            HeapDumpPage.engine,
+          ),
+        ),
       );
     }
 
