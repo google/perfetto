@@ -19,7 +19,7 @@ import type {CellRenderResult} from '../../components/widgets/datagrid/datagrid_
 import type {Filter} from '../../components/widgets/datagrid/model';
 import {filterToSql} from '../../components/widgets/datagrid/sql_utils';
 import type {Engine} from '../../trace_processor/engine';
-import type {InstanceRow, PrimOrRef} from './types';
+import type {InstanceRow, PathEntry, PrimOrRef} from './types';
 import {fmtSize} from './format';
 import type {NavState} from './nav_state';
 
@@ -321,4 +321,27 @@ export function BitmapImage(): m.Component<BitmapImageAttrs> {
       return m('img', {src: blobUrl ?? '', class: 'ah-bitmap-image'});
     },
   };
+}
+
+/** Renders a single dominator-tree path as an indented arrow chain. */
+export function renderPath(path: PathEntry[], navigate: NavFn): m.Children {
+  return m(
+    'div',
+    {class: 'ah-view-stack--tight'},
+    path.map((pe, i) =>
+      m(
+        'div',
+        {
+          key: i,
+          class: `ah-path-entry${pe.isDominator ? ' ah-semibold' : ''}`,
+          style: {paddingLeft: Math.min(i, 20) * 12},
+        },
+        [
+          m('span', {class: 'ah-path-arrow'}, i === 0 ? '' : '\u2192'),
+          m(InstanceLink, {row: pe.row, navigate}),
+          pe.field ? m('span', {class: 'ah-path-field'}, pe.field) : null,
+        ],
+      ),
+    ),
+  );
 }

@@ -60,6 +60,12 @@ export type PrimOrRef =
       reachableCount?: number;
     };
 
+export interface PathEntry {
+  row: InstanceRow;
+  field: string;
+  isDominator: boolean;
+}
+
 export interface InstanceRow {
   id: number;
   display: string;
@@ -103,13 +109,7 @@ export interface InstanceDetail {
   } | null;
   reverseRefs: InstanceRow[];
   dominated: InstanceRow[];
-  pathFromRoot:
-    | {
-        row: InstanceRow;
-        field: string;
-        isDominator: boolean;
-      }[]
-    | null;
+  pathFromRoot: PathEntry[] | null;
   isUnreachablePath?: boolean;
 }
 
