@@ -17,11 +17,18 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {App} from '../../public/app';
 import {NUM} from '../../trace_processor/query_result';
-import {HeapDumpPage, resetCachedOverview} from './heap_dump_page';
+import HeapProfilePlugin from '../dev.perfetto.HeapProfile';
+import {
+  HeapDumpPage,
+  setFlamegraphSelection,
+  resetFlamegraphSelection,
+  resetCachedOverview,
+} from './heap_dump_page';
 import {resetBitmapDumpDataCache} from './queries';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.android.HeapDumpExplorer';
+  static readonly dependencies = [HeapProfilePlugin];
 
   static onActivate(app: App): void {
     app.pages.registerPage({
@@ -41,7 +48,14 @@ export default class implements PerfettoPlugin {
     HeapDumpPage.trace = ctx;
     HeapDumpPage.hasHeapData = true;
     resetBitmapDumpDataCache();
+    resetFlamegraphSelection();
     resetCachedOverview();
+
+    ctx.plugins
+      .getPlugin(HeapProfilePlugin)
+      .registerOnNodeSelectedListener(({pathHashes, isDominator}) =>
+        setFlamegraphSelection({pathHashes, isDominator}),
+      );
 
     ctx.sidebar.addMenuItem({
       section: 'current_trace',
