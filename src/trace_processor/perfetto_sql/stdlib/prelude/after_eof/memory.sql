@@ -123,7 +123,11 @@ CREATE PERFETTO VIEW heap_graph_object_data (
   array_data_id LONG,
   -- For primitive array objects, a 64-bit content hash of the raw element
   -- bytes. Two arrays with the same hash have identical content.
-  array_data_hash LONG
+  array_data_hash LONG,
+  -- A 64-bit identity hash of the object's primitive field values and
+  -- reference target IDs. Two objects of the same class with the same hash
+  -- have identical field values and point to the same objects.
+  object_hash LONG
 ) AS
 SELECT
   id,
@@ -132,7 +136,8 @@ SELECT
   array_element_type,
   array_element_count,
   array_data_id,
-  array_data_hash
+  array_data_hash,
+  object_hash
 FROM __intrinsic_heap_graph_object_data;
 
 -- Many-to-many mapping between heap_graph_object.

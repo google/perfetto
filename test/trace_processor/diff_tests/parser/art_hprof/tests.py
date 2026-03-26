@@ -280,6 +280,23 @@ class ArtHprofParser(TestSuite):
           -3333146854241245275,1
         '''))
 
+  def test_art_hprof_object_hashing(self):
+    return DiffTestBlueprint(
+        trace=DataPath('test-dump.hprof'),
+        query="""
+          SELECT
+            (SELECT COUNT(*) FROM heap_graph_object_data
+             WHERE object_hash IS NOT NULL) AS total,
+            (SELECT COUNT(DISTINCT object_hash) FROM heap_graph_object_data
+             WHERE object_hash IS NOT NULL) AS distinct_hashes,
+            (SELECT COUNT(*) FROM heap_graph_object_data
+             WHERE object_hash IS NULL) AS null_hashes
+        """,
+        out=Csv('''
+          "total","distinct_hashes","null_hashes"
+          25919,23640,0
+        '''))
+
   def test_art_hprof_intrinsics_edge_cases(self):
     return DiffTestBlueprint(
         trace=DataPath('test-dump.hprof'),

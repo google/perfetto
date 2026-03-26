@@ -517,42 +517,35 @@ void ArtHprofParser::PopulateFieldValues(const HeapGraph& graph) {
     if (!owner_table_id)
       continue;
 
-    bool has_value_fields = false;
-    bool has_array_data = false;
-    bool has_string = obj.GetDecodedString().has_value();
+    tables::HeapGraphObjectDataTable::Row data_row;
+
+    if (obj.GetDecodedString().has_value()) {
+      StringId str_id =
+          context_->storage->InternString(*obj.GetDecodedString());
+      data_row.value_string = str_id;
+    }
 
     if (obj.GetObjectType() == ObjectType::kInstance ||
         obj.GetObjectType() == ObjectType::kClass) {
+      bool has_value_fields = false;
       for (const auto& field : obj.GetFields()) {
         if (field.GetType() != FieldType::kObject && field.HasValue()) {
           has_value_fields = true;
           break;
         }
       }
+      if (has_value_fields) {
+        uint32_t field_set_id = static_cast<uint32_t>(prim_table.row_count());
+        data_row.field_set_id = field_set_id;
+        InsertPrimitiveFields(obj, field_set_id, prim_table);
+      }
     } else if (obj.GetObjectType() == ObjectType::kPrimitiveArray) {
-      has_array_data = obj.HasArrayData();
+      if (obj.HasArrayData()) {
+        InsertArrayData(obj, data_row);
+      }
     }
 
-    if (!has_value_fields && !has_array_data && !has_string)
-      continue;
-
-    tables::HeapGraphObjectDataTable::Row data_row;
-
-    if (has_string) {
-      StringId str_id =
-          context_->storage->InternString(*obj.GetDecodedString());
-      data_row.value_string = str_id;
-    }
-
-    if (has_value_fields) {
-      uint32_t field_set_id = static_cast<uint32_t>(prim_table.row_count());
-      data_row.field_set_id = field_set_id;
-      InsertPrimitiveFields(obj, field_set_id, prim_table);
-    }
-
-    if (has_array_data) {
-      InsertArrayData(obj, data_row);
-    }
+    data_row.object_hash = ComputeObjectHash(obj);
 
     auto data_id = data_table.Insert(data_row).id;
 
@@ -560,6 +553,47 @@ void ArtHprofParser::PopulateFieldValues(const HeapGraph& graph) {
     auto& object_table = *context_->storage->mutable_heap_graph_object_table();
     object_table.FindById(*owner_table_id)->set_object_data_id(data_id.value);
   }
+}
+
+namespace {
+void AppendBytes(std::vector<uint8_t>& buf, const void* data, size_t size) {
+  buf.insert(buf.end(), static_cast<const uint8_t*>(data),
+             static_cast<const uint8_t*>(data) + size);
+}
+}  // namespace
+
+int64_t ArtHprofParser::ComputeObjectHash(const Object& obj) {
+  std::vector<uint8_t> buf;
+
+  // Hash primitive field values using raw bytes to preserve float/double
+  // precision.
+  for (const auto& field : obj.GetFields()) {
+    if (field.GetType() == FieldType::kObject || !field.HasValue())
+      continue;
+    AppendBytes(buf, field.GetName().data(), field.GetName().size());
+    std::visit(
+        [&buf](const auto& val) {
+          using T = std::decay_t<decltype(val)>;
+          if constexpr (!std::is_same_v<T, std::monostate>) {
+            AppendBytes(buf, &val, sizeof(val));
+          }
+        },
+        field.GetValueVariant());
+  }
+
+  // Hash reference target IDs.
+  for (const auto& ref : obj.GetReferences()) {
+    AppendBytes(buf, ref.field_name.data(), ref.field_name.size());
+    AppendBytes(buf, &ref.target_id, sizeof(ref.target_id));
+  }
+
+  // Hash object array element IDs.
+  for (uint64_t elem : obj.GetArrayElements()) {
+    AppendBytes(buf, &elem, sizeof(elem));
+  }
+
+  return static_cast<int64_t>(
+      base::murmur_internal::MurmurHashBytes(buf.data(), buf.size()));
 }
 
 void ArtHprofParser::InsertPrimitiveFields(

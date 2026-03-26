@@ -88,6 +88,8 @@ class Field {
     return std::nullopt;
   }
 
+  const ValueType& GetValueVariant() const { return value_; }
+
   // Get numeric value as int64_t (useful for sizes)
   int64_t GetNumericValue() const {
     return std::visit(

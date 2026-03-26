@@ -945,6 +945,10 @@ HEAP_GRAPH_OBJECT_DATA_TABLE = Table(
             'array_data_hash',
             CppOptional(CppInt64()),
         ),
+        C(
+            'object_hash',
+            CppOptional(CppInt64()),
+        ),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -976,7 +980,12 @@ HEAP_GRAPH_OBJECT_DATA_TABLE = Table(
             'array_data_hash':
                 '''for primitive array objects, a 64-bit content hash
                 of the raw element bytes. Two arrays with the same
-                hash have identical content.'''
+                hash have identical content.''',
+            'object_hash':
+                '''a 64-bit identity hash of the object's primitive
+                field values and reference target IDs. Two objects of
+                the same class with the same hash have identical
+                field values and point to the same objects.'''
         }))
 
 HEAP_GRAPH_REFERENCE_TABLE = Table(
