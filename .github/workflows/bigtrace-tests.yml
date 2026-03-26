@@ -20,7 +20,6 @@ permissions:
   pull-requests: write
 env:
   PERFETTO_CACHE_DIR: /tmp/cache
-  PERFETTO_ARTIFACTS_ROOT: /tmp/artifacts
   PYTHONUNBUFFERED: 1
 jobs:
   bigtrace:
@@ -28,7 +27,6 @@ jobs:
     timeout-minutes: 45
     env:
       PERFETTO_CI_BUILD_CACHE_KEY: build-cache-ui
-      PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-${{ github.run_attempt }}-bigtrace
       PERFETTO_GCS_DST: perfetto-ci-artifacts/gh-${{ github.run_id }}-${{ github.run_attempt }}-bigtrace
       CI: 1
     steps:
@@ -54,8 +52,8 @@ jobs:
       - name: Upload bigtrace build to GCS
         shell: bash
         run: |
-          gcloud storage cp --no-user-output-enabled --recursive "out/ui/ui/dist/bigtrace" "gs://$PERFETTO_GCS_DST/bigtrace"
-          echo "BIGTRACE_BUILD_URL=https://storage.googleapis.com/$PERFETTO_GCS_DST/bigtrace/bigtrace.html" >> $GITHUB_ENV
+          gcloud storage cp --no-user-output-enabled --recursive "out/ui/ui/dist" "gs://$PERFETTO_GCS_DST/ui"
+          echo "BIGTRACE_BUILD_URL=https://storage.googleapis.com/$PERFETTO_GCS_DST/ui/bigtrace.html" >> $GITHUB_ENV
 
       - name: Comment PR with bigtrace build link
         if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
