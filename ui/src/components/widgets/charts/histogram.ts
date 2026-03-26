@@ -22,7 +22,11 @@ import {
   computeHistogram,
 } from './histogram_loader';
 import {EChartView, EChartEventHandler} from './echart_view';
-import {buildChartOption, SELECTION_COLOR} from './chart_option_builder';
+import {
+  buildChartOption,
+  buildSelectionMarkArea,
+  SELECTION_COLOR,
+} from './chart_option_builder';
 
 // Re-export data types for convenience
 export {HistogramBucket, HistogramData, HistogramConfig, computeHistogram};
@@ -208,17 +212,37 @@ function buildOption(
 
   // Build per-bar styles, highlighting buckets that overlap the selection.
   const sel = attrs.selection;
+  let minSelIdx = Infinity;
+  let maxSelIdx = -Infinity;
+
   const styledData = seriesData.map((count, idx) => {
     const item: Record<string, unknown> = {value: count};
-    if (sel !== undefined && idx < data.buckets.length) {
-      const bucket = data.buckets[idx];
-      const overlaps = bucket.end > sel.start && bucket.start < sel.end;
-      if (overlaps) {
-        item.itemStyle = {color: SELECTION_COLOR};
-      }
+    const bucket = data.buckets[idx];
+
+    if (bucket === undefined) return item;
+
+    // Use a small epsilon to avoid floating point inaccuracies causing
+    // adjacent buckets to be included in the selection highlight.
+    const eps = (bucket.end - bucket.start) * 0.01;
+    const inSelection =
+      sel !== undefined &&
+      bucket.end > sel.start + eps &&
+      bucket.start < sel.end - eps;
+
+    if (inSelection) {
+      item.itemStyle = {color: SELECTION_COLOR};
+      minSelIdx = Math.min(minSelIdx, idx);
+      maxSelIdx = Math.max(maxSelIdx, idx);
     }
     return item;
   });
+
+  const markArea =
+    minSelIdx !== Infinity
+      ? buildSelectionMarkArea([
+          [{xAxis: minSelIdx - 0.5}, {xAxis: maxSelIdx + 0.5}],
+        ])
+      : undefined;
 
   // Add series on top of the base option
   (option as Record<string, unknown>).series = [
@@ -232,6 +256,7 @@ function buildOption(
         barHoverColor !== undefined
           ? {itemStyle: {color: barHoverColor}}
           : undefined,
+      markArea,
     },
   ];
 

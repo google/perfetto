@@ -165,6 +165,12 @@ export interface HistogramQueryConfig {
 
   /** Filters to apply before bucketing. */
   readonly filters?: ReadonlyArray<Filter>;
+
+  /** Optional minimum value for the range. Defaults to MIN(value). */
+  readonly minValue?: number;
+
+  /** Optional maximum value for the range. Defaults to MAX(value). */
+  readonly maxValue?: number;
 }
 
 /** Union of all query config types. */
@@ -499,6 +505,15 @@ ${orderByClause}`.trim();
     const bucketCount = config.bucketCount;
     const whereClause = this.buildWhereClause(config.filters);
 
+    const minExpr =
+      config.minValue !== undefined
+        ? `${config.minValue}`
+        : `(SELECT MIN(_value) FROM _data)`;
+    const maxExpr =
+      config.maxValue !== undefined
+        ? `${config.maxValue}`
+        : `(SELECT MAX(_value) FROM _data)`;
+
     return `
 WITH _data AS (
   SELECT ${col} AS _value
@@ -506,15 +521,16 @@ WITH _data AS (
   ${whereClause}
 )
 SELECT
-  (SELECT MIN(_value) FROM _data) AS _min,
-  (SELECT MAX(_value) FROM _data) AS _max,
+  ${minExpr} AS _min,
+  ${maxExpr} AS _max,
   (SELECT COUNT(*) FROM _data) AS _total,
   CASE
-    WHEN (SELECT MAX(_value) FROM _data) = (SELECT MIN(_value) FROM _data) THEN 0
-    WHEN _value = (SELECT MAX(_value) FROM _data) THEN ${bucketCount - 1}
+    WHEN ${maxExpr} = ${minExpr} THEN 0
+    WHEN _value >= ${maxExpr} THEN ${bucketCount - 1}
+    WHEN _value <= ${minExpr} THEN 0
     ELSE MIN(${bucketCount - 1}, CAST(
-      (_value - (SELECT MIN(_value) FROM _data)) /
-      (((SELECT MAX(_value) FROM _data) - (SELECT MIN(_value) FROM _data)) / ${bucketCount}.0)
+      (_value - ${minExpr}) /
+      ((${maxExpr} - ${minExpr}) / ${bucketCount}.0)
     AS INT))
   END AS _bucket_idx,
   COUNT(*) AS _count

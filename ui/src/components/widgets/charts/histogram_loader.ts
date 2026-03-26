@@ -363,6 +363,8 @@ export class SQLHistogramLoader
       valueColumn: this.valCol,
       bucketCount,
       filters: rangeFilters(this.valCol, filter),
+      minValue: config.minValue,
+      maxValue: config.maxValue,
     };
   }
 

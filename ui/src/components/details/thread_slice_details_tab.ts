@@ -15,16 +15,16 @@
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
 import {sqliteString} from '../../base/string_utils';
-import {TimeSpan} from '../../base/time';
+import {Duration, TimeSpan} from '../../base/time';
 import {exists} from '../../base/utils';
 import {Engine} from '../../trace_processor/engine';
-import {LONG_NULL} from '../../trace_processor/query_result';
+import {NUM_NULL} from '../../trace_processor/query_result';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Section} from '../../widgets/section';
-import {Tree, TreeNode} from '../../widgets/tree';
+import {Tree} from '../../widgets/tree';
 import {FlowPoint} from '../../core/flow_types';
 import {hasArgs} from './args';
 import {renderDetails} from './slice_details';
@@ -45,6 +45,8 @@ import {TraceImpl} from '../../core/trace_impl';
 import {renderSliceArguments} from './slice_args';
 import {SLICE_TABLE} from '../widgets/sql/table_definitions';
 import {TrackEventRef} from '../widgets/track_event_ref';
+import {Histogram, HistogramAttrs} from '../widgets/charts/histogram';
+import {SQLHistogramLoader} from '../widgets/charts/histogram_loader';
 
 interface ContextMenuItem {
   name: string;
@@ -190,6 +192,23 @@ async function getSliceDetails(
   return getSlice(engine, asSliceSqlId(id));
 }
 
+const DEFAULT_BUCKET_COUNT = 100;
+
+function roundToNiceNumber(n: number): number {
+  if (n <= 0) return 1;
+  const log10 = Math.floor(Math.log10(n));
+  const pow10 = Math.pow(10, log10);
+  const ratio = n / pow10;
+
+  let niceRatio: number;
+  if (ratio < 1.5) niceRatio = 1;
+  else if (ratio < 3.5) niceRatio = 2;
+  else if (ratio < 7.5) niceRatio = 5;
+  else niceRatio = 10;
+
+  return niceRatio * pow10;
+}
+
 // Interface for additional sections that can be composed
 // with ThreadSliceDetailsPanel
 export interface TrackEventDetailsPanelSection {
@@ -204,11 +223,17 @@ export interface ThreadSliceDetailsPanelAttrs {
   rightSections?: TrackEventDetailsPanelSection[];
 }
 
+interface HistogramData {
+  readonly bucketSize: number;
+  readonly buckets: number[];
+}
+
 export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   private sliceDetails?: SliceDetails;
   private breakdownByThreadState?: BreakdownByThreadState;
   private statsLoaded = false;
-  private avgDur?: bigint;
+  private histogramLoader?: SQLHistogramLoader;
+  private maxDur?: number;
   private readonly trace: TraceImpl;
   private readonly attrs: ThreadSliceDetailsPanelAttrs;
 
@@ -424,36 +449,63 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         m(Button, {
           label: 'Load statistics',
           variant: ButtonVariant.Filled,
-          onclick: () => {
+          onclick: async () => {
             this.statsLoaded = true;
-            this.trace.engine
-              .query(
-                `SELECT CAST(AVG(dur) AS INTEGER) AS avg_dur FROM slice WHERE name = ${sqliteString(slice.name!)}`,
-              )
-              .then((result) => {
-                this.avgDur =
-                  result.firstRow({avg_dur: LONG_NULL}).avg_dur ?? undefined;
-                this.trace.raf.scheduleFullRedraw();
+
+            const maxResults = await this.trace.engine.query(`
+              SELECT max(dur) AS maxDur
+              FROM slice
+              WHERE name = ${sqliteString(slice.name!)}
+            `);
+            const maxDur = maxResults.firstRow({
+              maxDur: NUM_NULL,
+            })?.maxDur;
+
+            if (maxDur !== null) {
+              this.maxDur = maxDur;
+              this.histogramLoader = new SQLHistogramLoader({
+                engine: this.trace.engine,
+                query: `SELECT dur FROM slice WHERE name = ${sqliteString(slice.name!)}`,
+                valueColumn: 'dur',
               });
+              this.trace.raf.scheduleFullRedraw();
+            }
           },
         }),
       );
     }
 
-    if (this.avgDur === undefined) {
+    if (this.histogramLoader === undefined || this.maxDur === undefined) {
       return m(Section, {title: 'Statistics'}, 'Loading...');
     }
+
+    const bucketSize = roundToNiceNumber(this.maxDur / DEFAULT_BUCKET_COUNT);
+    const bucketCount = Math.ceil(this.maxDur / bucketSize);
+
+    const {data} = this.histogramLoader.use({
+      bucketCount,
+      minValue: 0,
+      maxValue: bucketCount * bucketSize,
+    });
+
+    if (data === undefined) {
+      return m(Section, {title: 'Statistics'}, 'Loading...');
+    }
+
+    const bucket = data.buckets.find(
+      (b) => slice.dur >= b.start && slice.dur < b.end,
+    );
+
+    console.log('Histogram data', data, 'selected bucket', bucket);
 
     return m(
       Section,
       {title: 'Statistics'},
-      m(
-        Tree,
-        m(TreeNode, {
-          left: `Avg duration (all '${slice.name}' slices)`,
-          right: m(DurationWidget, {trace: this.trace, dur: this.avgDur}),
-        }),
-      ),
+      m(Histogram, {
+        data,
+        selection: bucket ? {start: bucket.start, end: bucket.end} : undefined,
+        formatXValue: (value) => Duration.format(BigInt(Math.round(value))),
+      } satisfies HistogramAttrs),
     );
   }
 
