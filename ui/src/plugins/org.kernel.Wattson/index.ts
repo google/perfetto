@@ -37,7 +37,6 @@ import {
   GPUSS_ESTIMATE_TRACK_KIND,
   TPUSS_ESTIMATE_TRACK_KIND,
 } from './track_kinds';
-import SchedPlugin from '../dev.perfetto.Sched';
 import {createCpuWarnings, missingWattsonCpuConfigs} from './warning';
 
 const WINDOW_MAP: Record<string, string> = {
@@ -49,7 +48,7 @@ const WINDOW_MAP: Record<string, string> = {
 
 export default class Wattson implements PerfettoPlugin {
   static readonly id = `org.kernel.Wattson`;
-  static readonly dependencies = [SchedPlugin];
+  static readonly dependencies = [];
   public static windowsOfInterest = new Set<string>();
 
   static onActivate(_app: App, args: RouteArgs): void {
@@ -206,12 +205,10 @@ async function hasWattsonCpuSupport(engine: Engine): Promise<boolean> {
     SELECT COUNT(*) as numRows FROM _wattson_device
     `,
     `
-    INCLUDE PERFETTO MODULE linux.cpu.frequency;
-    SELECT COUNT(*) as numRows FROM cpu_frequency_counters
+    SELECT COUNT(*) as numRows FROM cpu_counter_track WHERE type = 'cpu_frequency'
     `,
     `
-    INCLUDE PERFETTO MODULE wattson.cpu.idle;
-    SELECT COUNT(*) as numRows FROM _adjusted_deep_idle
+    SELECT COUNT(*) as numRows FROM cpu_counter_track WHERE type = 'cpu_idle'
     `,
   ];
   for (const queryCheck of queryChecks) {
@@ -293,11 +290,13 @@ async function addWattsonCpuElements(
 
   // CPUs estimate as part of CPU subsystem
   const estimateSuffix = `${hasCpuIdleCounters ? '' : ' crude'} estimate`;
-  const schedPlugin = ctx.plugins.getPlugin(SchedPlugin);
-  const schedCpus = schedPlugin.schedCpus;
-  for (const cpu of schedCpus) {
-    const queryKey = `cpu${cpu.ucpu}_mw`;
-    const uri = `/wattson/cpu_subsystem_estimate_cpu${cpu.ucpu}`;
+  const cpuResult = await ctx.engine.query(
+    `SELECT cpu FROM cpu WHERE machine_id = 0`,
+  );
+  const it = cpuResult.iter({cpu: NUM});
+  for (; it.valid(); it.next()) {
+    const queryKey = `cpu${it.cpu}_mw`;
+    const uri = `/wattson/cpu_subsystem_estimate_cpu${it.cpu}`;
     ctx.tracks.registerTrack({
       uri,
       description: () => warningDesc,
@@ -309,13 +308,13 @@ async function addWattsonCpuElements(
       ),
       tags: {
         kinds: [CPUSS_ESTIMATE_TRACK_KIND],
-        wattson: `CPU${cpu.ucpu}`,
+        wattson: `CPU${it.cpu}`,
       },
     });
     group.addChildInOrder(
       new TrackNode({
         uri,
-        name: `Cpu${cpu.toString()}${estimateSuffix}`,
+        name: `Cpu${it.cpu}${estimateSuffix}`,
       }),
     );
   }
