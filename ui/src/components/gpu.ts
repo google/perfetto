@@ -19,7 +19,12 @@ export class Gpu {
     readonly ugpu: number,
     readonly gpu: number,
     readonly machine: number,
+    readonly name?: string,
   ) {}
+
+  get displayName(): string {
+    return this.name ? this.name : `GPU ${this.gpu}`;
+  }
 
   public maybeMachineLabel(): string {
     return maybeMachineLabel(this.machine);

@@ -52,14 +52,46 @@ class GraphicsGpuTrace(TestSuite):
     return DiffTestBlueprint(
         trace=Path('gpu_counters.py'),
         query="""
-        SELECT gpu, machine_id
+        SELECT gpu, name, vendor, model, architecture, uuid, machine_id
         FROM gpu
         ORDER BY gpu;
         """,
         out=Csv("""
-        "gpu","machine_id"
-        0,0
-        1,0
+        "gpu","name","vendor","model","architecture","uuid","machine_id"
+        0,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",0
+        1,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",0
+        """))
+
+  def test_gpu_info(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_info.textproto'),
+        query="""
+        SELECT gpu, name, vendor, model, architecture, uuid, pci_bdf
+        FROM gpu
+        ORDER BY gpu;
+        """,
+        out=Csv("""
+        "gpu","name","vendor","model","architecture","uuid","pci_bdf"
+        0,"NVIDIA A100-SXM4-80GB","NVIDIA","A100","Ampere","0123456789abcdef0123456789abcdef","0000:01:00.0"
+        1,"NVIDIA A100-SXM4-80GB","NVIDIA","A100","Ampere","abcdefabcdefabcdabcdefabcdefabcd","0000:02:00.0"
+        """))
+
+  def test_gpu_info_extra_args(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_info.textproto'),
+        query="""
+        SELECT
+          g.gpu,
+          args.key,
+          args.string_value
+        FROM gpu g
+        JOIN args USING (arg_set_id)
+        ORDER BY g.gpu, args.key;
+        """,
+        out=Csv("""
+        "gpu","key","string_value"
+        0,"driver_version","535.129.03"
+        0,"memory_total_mb","81920"
         """))
 
   def test_gpu_table_machine_id(self):
