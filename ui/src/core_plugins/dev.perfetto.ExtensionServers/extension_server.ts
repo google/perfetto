@@ -45,7 +45,7 @@ const FETCH_TIMEOUT_MS = 10000; // 10 seconds
 const EXTENSION_HEADER = 'X-Perfetto-Extension';
 
 function extensionHeaders(): Record<string, string> {
-  if (navigator.serviceWorker?.controller) {
+  if (navigator.serviceWorker?.controller?.state === 'activated') {
     return {[EXTENSION_HEADER]: '1'};
   }
   return {};
