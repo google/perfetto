@@ -1070,6 +1070,7 @@ std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
   AddStaticTable(tables, storage->mutable_file_table());
   AddStaticTable(tables, storage->mutable_filedescriptor_table());
   AddStaticTable(tables, storage->mutable_gpu_counter_group_table());
+  AddStaticTable(tables, storage->mutable_gpu_table());
   AddStaticTable(tables, storage->mutable_instruments_sample_table());
   AddStaticTable(tables, storage->mutable_machine_table());
   AddStaticTable(tables, storage->mutable_memory_snapshot_edge_table());
