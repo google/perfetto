@@ -94,6 +94,47 @@ the `query_and_flatten` function can be used:
 trace. The exact columns added depend on the resolver being used: consult your
 resolver's documentation for more information.
 
+[Polars](https://pola.rs/) DataFrames are also supported as an alternative to
+Pandas. `query_polars` mirrors `query` and returns a list of Polars DataFrames
+(one per trace); `query_and_flatten_polars` mirrors `query_and_flatten` and
+concatenates them into a single DataFrame. Polars support requires an optional
+dependency:
+
+```shell
+pip3 install perfetto[polars]
+```
+
+```python
+>>> btp.query_polars('select count(1) from slice')
+[shape: (1, 1)
+┌──────────┐
+│ count(1) │
+│ ---      │
+│ i64      │
+╞══════════╡
+│  2092592 │
+└──────────┘, shape: (1, 1)
+┌──────────┐
+│ count(1) │
+│ ---      │
+│ i64      │
+╞══════════╡
+│   156071 │
+└──────────┘, ...]
+
+>>> btp.query_and_flatten_polars('select count(1) from slice')
+shape: (3, 1)
+┌──────────┐
+│ count(1) │
+│ ---      │
+│ i64      │
+╞══════════╡
+│  2092592 │
+│   156071 │
+│   121431 │
+└──────────┘
+```
+
 ## Trace URIs
 Trace URIs are a powerful feature of the batch trace processor. URIs decouple
 the notion of "paths" to traces from the filesystem. Instead, the URI
