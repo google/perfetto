@@ -37,6 +37,7 @@ class ClockConverter;
 class ClockSynchronizer;
 class ClockTracker;
 class CpuTracker;
+class GpuTracker;
 class UserTracker;
 class DescriptorPool;
 class EventTracker;
@@ -206,6 +207,7 @@ class TraceProcessorContext {
   PerMachinePtr<MappingTracker> mapping_tracker;
   PerMachinePtr<MachineTracker> machine_tracker;
   PerMachinePtr<CpuTracker> cpu_tracker;
+  PerMachinePtr<GpuTracker> gpu_tracker;
   PerMachinePtr<UserTracker> user_tracker;
 
   // Per-Machine, Per-Trace State
