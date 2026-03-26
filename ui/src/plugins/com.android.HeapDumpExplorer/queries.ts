@@ -506,7 +506,7 @@ async function fetchFieldValues(
     for (
       const rit = rRes.iter({
         fname: STR,
-        ftype: STR,
+        ftype: STR_NULL,
         owned_id: NUM_NULL,
         ref_cls: STR_NULL,
         ref_deob: STR_NULL,
@@ -522,14 +522,14 @@ async function fetchFieldValues(
       if (rit.owned_id === null || rit.owned_id === 0) {
         fields.push({
           name: rit.fname,
-          typeName: rit.ftype,
+          typeName: rit.ftype ?? '',
           value: {kind: 'prim', v: 'null'},
         });
       } else {
         const refCls = className(rit.ref_cls, rit.ref_deob);
         fields.push({
           name: rit.fname,
-          typeName: rit.ftype,
+          typeName: rit.ftype ?? '',
           value: {
             kind: 'ref',
             id: rit.owned_id,
@@ -1307,76 +1307,6 @@ export async function getObjectsByFlamegraphSelection(
     ORDER BY o.self_size + o.native_size DESC
   `);
   return collectRows(res);
-}
-
-export async function getHeapGraphTrackInfo(
-  engine: Engine,
-  objectId: number,
-  isDominator?: boolean,
-): Promise<{
-  upid: number;
-  eventId: number;
-  className: string | null;
-  pathHash: string | null;
-  pathIsDominator: boolean | null;
-} | null> {
-  const res = await engine.query(`
-    SELECT
-      o.upid,
-      c.name AS class_name,
-      (SELECT MIN(e.id)
-       FROM heap_graph_object e
-       WHERE e.upid = o.upid
-         AND e.graph_sample_ts = o.graph_sample_ts) AS event_id
-    FROM heap_graph_object o
-    JOIN heap_graph_class c ON o.type_id = c.id
-    WHERE o.id = ${objectId}
-  `);
-  const row = res.maybeFirstRow({
-    upid: NUM,
-    event_id: NUM,
-    class_name: STR_NULL,
-  });
-  if (!row) return null;
-
-  // Look up path hash. When isDominator is known, only check the matching
-  // table so the flamegraph navigates back to the correct metric.
-  const tables =
-    isDominator === true
-      ? [{table: '_heap_graph_dominator_path_hashes', isDom: true}]
-      : isDominator === false
-        ? [{table: '_heap_graph_path_hashes', isDom: false}]
-        : [
-            {table: '_heap_graph_dominator_path_hashes', isDom: true},
-            {table: '_heap_graph_path_hashes', isDom: false},
-          ];
-
-  let pathHash: string | null = null;
-  let pathIsDominator: boolean | null = null;
-  for (const {table, isDom} of tables) {
-    try {
-      const ph = await engine.query(`
-        SELECT CAST(path_hash AS TEXT) AS ph
-        FROM ${table} WHERE id = ${objectId}
-      `);
-      const phRow = ph.maybeFirstRow({ph: STR_NULL});
-      if (phRow?.ph) {
-        pathHash = phRow.ph;
-        pathIsDominator = isDom;
-        break;
-      }
-    } catch (_) {
-      // Table may not exist if the module hasn't been loaded yet.
-    }
-  }
-
-  return {
-    upid: row.upid,
-    eventId: row.event_id,
-    className: row.class_name,
-    pathHash,
-    pathIsDominator,
-  };
 }
 
 export async function getStringList(engine: Engine): Promise<StringListRow[]> {

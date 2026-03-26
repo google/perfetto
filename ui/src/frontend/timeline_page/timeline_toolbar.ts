@@ -39,8 +39,6 @@ export interface TimelineToolbarAttrs {
 export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
   view({attrs}: m.Vnode<TimelineToolbarAttrs>) {
     const trace = attrs.trace;
-    const workspace = trace.currentWorkspace;
-    const allCollapsed = workspace.flatTracks.every((n) => n.collapsed);
     const selection = trace.selection.selection;
 
     return m(
@@ -53,18 +51,21 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
       m(Button, {
         onclick: (e: Event) => {
           e.preventDefault();
-          if (allCollapsed) {
-            trace.currentWorkspace.flatTracks.forEach((track) =>
-              track.expand(),
-            );
-          } else {
-            trace.currentWorkspace.flatTracks.forEach((track) =>
-              track.collapse(),
-            );
-          }
+          trace.currentWorkspace.flatTracks.forEach((track) => track.expand());
         },
-        title: allCollapsed ? 'Expand all' : 'Collapse all',
-        icon: allCollapsed ? 'unfold_more' : 'unfold_less',
+        title: 'Expand all',
+        icon: 'unfold_more',
+        compact: COMPACT_BUTTONS,
+      }),
+      m(Button, {
+        onclick: (e: Event) => {
+          e.preventDefault();
+          trace.currentWorkspace.flatTracks.forEach((track) =>
+            track.collapse(),
+          );
+        },
+        title: 'Collapse all',
+        icon: 'unfold_less',
         compact: COMPACT_BUTTONS,
       }),
       m(Button, {
