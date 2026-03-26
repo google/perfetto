@@ -506,7 +506,7 @@ async function fetchFieldValues(
     for (
       const rit = rRes.iter({
         fname: STR,
-        ftype: STR,
+        ftype: STR_NULL,
         owned_id: NUM_NULL,
         ref_cls: STR_NULL,
         ref_deob: STR_NULL,
@@ -522,14 +522,14 @@ async function fetchFieldValues(
       if (rit.owned_id === null || rit.owned_id === 0) {
         fields.push({
           name: rit.fname,
-          typeName: rit.ftype,
+          typeName: rit.ftype ?? '',
           value: {kind: 'prim', v: 'null'},
         });
       } else {
         const refCls = className(rit.ref_cls, rit.ref_deob);
         fields.push({
           name: rit.fname,
-          typeName: rit.ftype,
+          typeName: rit.ftype ?? '',
           value: {
             kind: 'ref',
             id: rit.owned_id,
@@ -1312,13 +1312,12 @@ export async function getObjectsByFlamegraphSelection(
 export async function getHeapGraphTrackInfo(
   engine: Engine,
   objectId: number,
-  isDominator?: boolean,
+  isDominator: boolean,
 ): Promise<{
   upid: number;
   eventId: number;
   className: string | null;
   pathHash: string | null;
-  pathIsDominator: boolean | null;
 } | null> {
   const res = await engine.query(`
     SELECT
@@ -1339,35 +1338,21 @@ export async function getHeapGraphTrackInfo(
   });
   if (!row) return null;
 
-  // Look up path hash. When isDominator is known, only check the matching
-  // table so the flamegraph navigates back to the correct metric.
-  const tables =
-    isDominator === true
-      ? [{table: '_heap_graph_dominator_path_hashes', isDom: true}]
-      : isDominator === false
-        ? [{table: '_heap_graph_path_hashes', isDom: false}]
-        : [
-            {table: '_heap_graph_dominator_path_hashes', isDom: true},
-            {table: '_heap_graph_path_hashes', isDom: false},
-          ];
-
+  const table = isDominator
+    ? '_heap_graph_dominator_path_hashes'
+    : '_heap_graph_path_hashes';
   let pathHash: string | null = null;
-  let pathIsDominator: boolean | null = null;
-  for (const {table, isDom} of tables) {
-    try {
-      const ph = await engine.query(`
-        SELECT CAST(path_hash AS TEXT) AS ph
-        FROM ${table} WHERE id = ${objectId}
-      `);
-      const phRow = ph.maybeFirstRow({ph: STR_NULL});
-      if (phRow?.ph) {
-        pathHash = phRow.ph;
-        pathIsDominator = isDom;
-        break;
-      }
-    } catch (_) {
-      // Table may not exist if the module hasn't been loaded yet.
+  try {
+    const ph = await engine.query(`
+      SELECT CAST(path_hash AS TEXT) AS ph
+      FROM ${table} WHERE id = ${objectId}
+    `);
+    const phRow = ph.maybeFirstRow({ph: STR_NULL});
+    if (phRow?.ph) {
+      pathHash = phRow.ph;
     }
+  } catch (_) {
+    // Table may not exist if the module hasn't been loaded yet.
   }
 
   return {
@@ -1375,7 +1360,6 @@ export async function getHeapGraphTrackInfo(
     eventId: row.event_id,
     className: row.class_name,
     pathHash,
-    pathIsDominator,
   };
 }
 

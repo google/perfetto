@@ -19,6 +19,7 @@ import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {FlamegraphState} from '../../widgets/flamegraph';
+import type {HeapdumpSelection} from './index';
 import {profileDescriptor} from './common';
 import {HeapProfileFlamegraphDetailsPanel} from './heap_profile_details_panel';
 
@@ -30,6 +31,10 @@ export function createHeapProfileTrack(
   heapProfileIsIncomplete: boolean,
   detailsPanelState: FlamegraphState | undefined,
   onDetailsPanelStateChange: (state: FlamegraphState) => void,
+  consumePendingFilter?: () =>
+    | {filter: string; metricName?: string}
+    | undefined,
+  setHeapdumpSelection?: (sel: HeapdumpSelection) => void,
 ) {
   return SliceTrack.create({
     trace,
@@ -48,6 +53,7 @@ export function createHeapProfileTrack(
       const ts = Time.fromRaw(row.ts);
       const tsEnd = Time.fromRaw(row.ts + row.dur);
       const descriptor = profileDescriptor(row.type);
+      const pendingFilter = consumePendingFilter?.();
       return new HeapProfileFlamegraphDetailsPanel(
         trace,
         heapProfileIsIncomplete,
@@ -57,6 +63,8 @@ export function createHeapProfileTrack(
         tsEnd,
         detailsPanelState,
         onDetailsPanelStateChange,
+        pendingFilter,
+        setHeapdumpSelection,
       );
     },
     tooltip: (slice) => slice.row.type,
