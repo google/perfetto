@@ -22,11 +22,7 @@ import {
   computeHistogram,
 } from './histogram_loader';
 import {EChartView, EChartEventHandler} from './echart_view';
-import {
-  buildChartOption,
-  buildSelectionMarkArea,
-  SELECTION_COLOR,
-} from './chart_option_builder';
+import {buildChartOption, SELECTION_COLOR} from './chart_option_builder';
 
 // Re-export data types for convenience
 export {HistogramBucket, HistogramData, HistogramConfig, computeHistogram};
@@ -168,12 +164,17 @@ function buildOption(
     },
     yAxis: {
       type: logScale ? 'log' : 'value',
+      min: 'dataMin',
+      max: 'dataMax',
       name: yAxisLabel,
       formatter:
         formatYValue !== undefined
           ? (v) => formatYValue(v as number)
           : undefined,
-      minInterval: 1,
+      // minInterval: 1 ensures integer ticks for count values, but on a log
+      // axis ECharts interprets it as the min interval in log-space, capping
+      // the axis at the nearest power of 10 instead of the actual max.
+      ...(logScale ? {} : {minInterval: 1}),
     },
     tooltip: {
       trigger: 'axis' as const,
@@ -211,15 +212,20 @@ function buildOption(
   });
 
   // Build per-bar styles, highlighting buckets that overlap the selection.
+  // We use a separate background bar series to shade selected buckets —
+  // markArea doesn't align reliably on category axes.
   const sel = attrs.selection;
-  let minSelIdx = Infinity;
-  let maxSelIdx = -Infinity;
+  const bgData: Array<Record<string, unknown>> = [];
+  let hasSelection = false;
 
   const styledData = seriesData.map((count, idx) => {
     const item: Record<string, unknown> = {value: count};
     const bucket = data.buckets[idx];
 
-    if (bucket === undefined) return item;
+    if (bucket === undefined) {
+      bgData.push({value: 0});
+      return item;
+    }
 
     // Use a small epsilon to avoid floating point inaccuracies causing
     // adjacent buckets to be included in the selection highlight.
@@ -231,34 +237,60 @@ function buildOption(
 
     if (inSelection) {
       item.itemStyle = {color: SELECTION_COLOR};
-      minSelIdx = Math.min(minSelIdx, idx);
-      maxSelIdx = Math.max(maxSelIdx, idx);
+      hasSelection = true;
     }
+    bgData.push({value: inSelection ? 1 : 0});
     return item;
   });
 
-  const markArea =
-    minSelIdx !== Infinity
-      ? buildSelectionMarkArea([
-          [{xAxis: minSelIdx - 0.5}, {xAxis: maxSelIdx + 0.5}],
-        ])
-      : undefined;
+  const series: Array<Record<string, unknown>> = [];
 
-  // Add series on top of the base option
-  (option as Record<string, unknown>).series = [
-    {
+  // Background highlight series — uses yAxisIndex 1 (fixed 0-1 range) so
+  // bars with value=1 fill the full chart height behind selected buckets.
+  if (hasSelection) {
+    series.push({
       type: 'bar',
-      data: styledData,
+      data: bgData,
       barWidth: '100%',
       barCategoryGap: '0%',
-      itemStyle: barColor !== undefined ? {color: barColor} : undefined,
-      emphasis:
-        barHoverColor !== undefined
-          ? {itemStyle: {color: barHoverColor}}
-          : undefined,
-      markArea,
-    },
-  ];
+      yAxisIndex: 1,
+      silent: true,
+      itemStyle: {
+        color: 'rgba(0, 120, 212, 0.08)',
+        borderColor: 'rgba(0, 120, 212, 0.3)',
+        borderWidth: 1,
+      },
+      animation: false,
+      z: 0,
+    });
+  }
+
+  // Main data series. barGap: '-100%' ensures it overlaps the background
+  // series rather than sitting side-by-side.
+  series.push({
+    type: 'bar',
+    data: styledData,
+    barWidth: '100%',
+    barCategoryGap: '0%',
+    barGap: '-100%',
+    itemStyle: barColor !== undefined ? {color: barColor} : undefined,
+    emphasis:
+      barHoverColor !== undefined
+        ? {itemStyle: {color: barHoverColor}}
+        : undefined,
+    z: 1,
+  });
+
+  // Add a hidden secondary y-axis for the background series (fixed 0-1 range).
+  const optionAny = option as Record<string, unknown>;
+  if (hasSelection) {
+    const primaryYAxis = optionAny.yAxis;
+    optionAny.yAxis = [
+      primaryYAxis,
+      {type: 'value', min: 0, max: 1, show: false},
+    ];
+  }
+  optionAny.series = series;
 
   return option;
 }

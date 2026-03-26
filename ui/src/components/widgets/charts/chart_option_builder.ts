@@ -31,8 +31,8 @@ export interface AxisConfig {
   readonly nameGap?: number;
   readonly data?: readonly string[];
   readonly minInterval?: number;
-  readonly min?: number;
-  readonly max?: number;
+  readonly min?: number | string;
+  readonly max?: number | string;
   readonly formatter?: (v: number | string) => string;
   readonly labelOverflow?: 'truncate';
   readonly labelWidth?: number;

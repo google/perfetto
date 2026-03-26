@@ -274,6 +274,12 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         sectionsToLoad.map((section) => section.load(selection)),
       );
     }
+
+    // TMP load stats on startup
+    const sliceName = details?.name;
+    if (sliceName) {
+      await this.loadStats(sliceName);
+    }
   }
 
   render() {
@@ -439,8 +445,31 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
       : flow.threadName;
   }
 
+  private async loadStats(sliceName: string) {
+    this.statsLoaded = true;
+
+    const maxResults = await this.trace.engine.query(`
+              SELECT max(dur) AS maxDur
+              FROM slice
+              WHERE name = ${sqliteString(sliceName)}
+            `);
+    const maxDur = maxResults.firstRow({
+      maxDur: NUM_NULL,
+    })?.maxDur;
+
+    if (maxDur !== null) {
+      this.maxDur = maxDur;
+      this.histogramLoader = new SQLHistogramLoader({
+        engine: this.trace.engine,
+        query: `SELECT dur FROM slice WHERE name = ${sqliteString(sliceName)}`,
+        valueColumn: 'dur',
+      });
+    }
+  }
+
   private renderStatistics(slice: SliceDetails): m.Children {
     if (slice.name === undefined) return undefined;
+    const sliceName = slice.name;
 
     if (!this.statsLoaded) {
       return m(
@@ -449,28 +478,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         m(Button, {
           label: 'Load statistics',
           variant: ButtonVariant.Filled,
-          onclick: async () => {
-            this.statsLoaded = true;
-
-            const maxResults = await this.trace.engine.query(`
-              SELECT max(dur) AS maxDur
-              FROM slice
-              WHERE name = ${sqliteString(slice.name!)}
-            `);
-            const maxDur = maxResults.firstRow({
-              maxDur: NUM_NULL,
-            })?.maxDur;
-
-            if (maxDur !== null) {
-              this.maxDur = maxDur;
-              this.histogramLoader = new SQLHistogramLoader({
-                engine: this.trace.engine,
-                query: `SELECT dur FROM slice WHERE name = ${sqliteString(slice.name!)}`,
-                valueColumn: 'dur',
-              });
-              this.trace.raf.scheduleFullRedraw();
-            }
-          },
+          onclick: () => this.loadStats(sliceName),
         }),
       );
     }

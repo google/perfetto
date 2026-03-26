@@ -286,6 +286,7 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
     // Check if option changed
     const resolvedOption = this.applyResolveOption(attrs.option, attrs, colors);
     const optionJson = JSON.stringify(resolvedOption);
+    console.log('EChartView option', resolvedOption);
     if (optionJson !== this.prevOptionJson) {
       this.prevOptionJson = optionJson;
       this.chart.setOption(resolvedOption, {notMerge: true});

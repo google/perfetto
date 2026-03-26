@@ -40,10 +40,6 @@ export interface HistogramBucket {
 export interface HistogramData {
   /** The computed buckets */
   readonly buckets: readonly HistogramBucket[];
-  /** Minimum value in the data */
-  readonly min: number;
-  /** Maximum value in the data */
-  readonly max: number;
   /** Total count of all values */
   readonly totalCount: number;
   /** Count of null values (excluded from histogram) */
@@ -109,8 +105,6 @@ export function computeHistogram(
   if (validValues.length === 0) {
     return {
       buckets: [],
-      min: 0,
-      max: 0,
       totalCount: 0,
       nullCount,
       nonNumericCount,
@@ -127,8 +121,6 @@ export function computeHistogram(
   if (min === max) {
     return {
       buckets: [{start: min, end: min + 1, count: validValues.length}],
-      min,
-      max,
       totalCount: validValues.length,
       nullCount,
       nonNumericCount,
@@ -191,8 +183,6 @@ export function computeHistogram(
 
   return {
     buckets,
-    min,
-    max,
     totalCount: validValues.length,
     nullCount,
     nonNumericCount,
@@ -396,8 +386,6 @@ export class SQLHistogramLoader
     if (totalCount === 0) {
       return {
         buckets: [],
-        min: 0,
-        max: 0,
         totalCount: 0,
         nullCount: 0,
         nonNumericCount: 0,
@@ -421,8 +409,6 @@ export class SQLHistogramLoader
 
     return {
       buckets,
-      min,
-      max,
       totalCount,
       nullCount: 0,
       nonNumericCount: 0,
