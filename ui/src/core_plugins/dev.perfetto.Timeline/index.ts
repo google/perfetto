@@ -130,7 +130,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
   private trackSearchModel: TrackSearchModel = {
     searchTerm: '',
     useRegex: false,
-    searchWithinCollapsedGroups: false,
+    searchWithinCollapsedGroups: true,
   };
   private trackSearchBarVisible = false;
   private trackSearchBarApi?: TrackSearchBarApi;

@@ -205,7 +205,7 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
             onclick: onStepBackwards,
           }),
         },
-        'Previous match (Shift+Enter)',
+        m('', 'Previous match ', m(HotkeyGlyphs, {hotkey: 'Shift+Enter'})),
       ),
       m(
         Tooltip,
@@ -217,7 +217,7 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
             onclick: onStepForward,
           }),
         },
-        'Next match (Enter)',
+        m('', 'Next match ', m(HotkeyGlyphs, {hotkey: 'Enter'})),
       ),
       m(
         Tooltip,
@@ -228,7 +228,7 @@ export class TrackSearchBar implements m.ClassComponent<TrackSearchBarAttrs> {
             onclick: (e) => onClose?.(e.target),
           }),
         },
-        'Close (Escape)',
+        m('', 'Close ', m(HotkeyGlyphs, {hotkey: 'Escape'})),
       ),
     );
   }
