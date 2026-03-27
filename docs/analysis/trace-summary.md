@@ -759,7 +759,9 @@ output.
 - **`value_columns` (repeated string)**: A list of columns from the query. Each
   column will generate a unique metric with the ID `<id_prefix>_<value_column>`.
 - **`value_column_specs` (repeated `ValueColumnSpec`)**: A list of value column
-  specifications, allowing each to have a unique `unit` and `polarity`.
+  specifications, allowing each to have a unique `unit` and `polarity`, as well
+  as any necessary vendor extensions configuring how to manage aggregation
+  across traces.
 - **`query`
   ([`PerfettoSqlStructuredQuery`](/protos/perfetto/perfetto_sql/structured_query.proto))**:
   The shared query that computes the data for all metrics.
