@@ -490,6 +490,7 @@ message TraceMetricV2TemplateSpec {
 
     // Vendor extensions. These might be used for system-specific
     // configuration on how to manage aggregation across traces.
+    // See https://perfetto.dev/docs/analysis/trace-summary#extending
     extensions 500 to 1000;
   }
   repeated ValueColumnSpec value_column_specs = 8;

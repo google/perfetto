@@ -648,6 +648,14 @@ Here are the key differences:
   reliable, long-term tools for analysis, visualization, and regression
   tracking.
 
+## Extending
+
+The message `ValueColumnSpec` permits vendor extensions, such as to support 
+configuring how to aggregate across traces in a dashboard.
+
+We recommend this is only used for levels "above" Perfetto, i.e. not to 
+configure how metrics are produced from a single trace.
+
 ## Reference
 
 ### Running Summaries
