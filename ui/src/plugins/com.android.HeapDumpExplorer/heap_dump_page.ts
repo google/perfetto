@@ -122,9 +122,6 @@ function buildTabs(
       key: 'bitmaps',
       title: 'Bitmaps',
       content: m(BitmapGalleryView, {
-        // Key on filterKey so the component remounts when the filter changes,
-        // ensuring initialFilters on the inner DataGrid takes effect.
-        key: state.view === 'bitmaps' ? state.params.filterKey ?? '' : '',
         engine,
         navigate,
         hasFieldValues: overview.hasFieldValues,
@@ -136,7 +133,6 @@ function buildTabs(
       key: 'strings',
       title: 'Strings',
       content: m(StringsView, {
-        key: state.view === 'strings' ? state.params.q ?? '' : '',
         engine,
         navigate,
         initialQuery: state.view === 'strings' ? state.params.q : undefined,
