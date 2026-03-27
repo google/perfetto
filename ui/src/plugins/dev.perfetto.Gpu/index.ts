@@ -224,6 +224,9 @@ export default class GpuPlugin implements PerfettoPlugin {
           kinds: [COUNTER_TRACK_KIND],
           trackIds: [trackId],
           type,
+          name: name ?? undefined,
+          unit: unit ?? undefined,
+          description: description ?? undefined,
         },
         renderer: new TraceProcessorCounterTrack(
           ctx,
