@@ -47,7 +47,6 @@ import {
   LineChartMarker,
   LineChartSeries,
 } from '../../components/widgets/charts/line_chart';
-import {SankeyData} from '../../components/widgets/charts/sankey';
 import {
   categorizeProcess,
   CATEGORIES,
@@ -322,7 +321,6 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
   private fileCacheBreakdownData?: LineChartData;
   private fileCacheActivityData?: LineChartData;
   private categoryChartData?: LineChartData;
-  private sankeyData?: SankeyData;
   private psiChartData?: LineChartData;
   private swapChartData?: LineChartData;
   private vmstatChartData?: LineChartData;
@@ -835,7 +833,6 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
       this.activeTab === 'system' &&
         renderSystemTab({
           systemChartData: this.systemChartData,
-          sankeyData: this.sankeyData,
           xAxisMin: this.xAxisMin,
           xAxisMax: this.xAxisMax,
         }),
@@ -1423,7 +1420,7 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
     this.fileCacheBreakdownData = undefined;
     this.fileCacheActivityData = undefined;
     this.categoryChartData = undefined;
-    this.sankeyData = undefined;
+
     this.psiChartData = undefined;
     this.swapChartData = undefined;
     this.vmstatChartData = undefined;
@@ -1488,7 +1485,7 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
     this.fileCacheBreakdownData = undefined;
     this.fileCacheActivityData = undefined;
     this.categoryChartData = undefined;
-    this.sankeyData = undefined;
+
     this.psiChartData = undefined;
     this.swapChartData = undefined;
     this.vmstatChartData = undefined;
@@ -1773,7 +1770,6 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
         this.processGrouping === 'category'
           ? this.buildCategoryTimeSeries(t0, this.activeProcessCounters())
           : this.buildOomScoreTimeSeries(t0, this.activeProcessCounters());
-      this.sankeyData = this.buildSankeyData();
       this.psiChartData = this.addLmkMarkers(this.buildPsiTimeSeries(t0));
       this.swapChartData = this.buildSwapTimeSeries(t0);
       this.vmstatChartData = this.buildVmstatTimeSeries(t0);
@@ -2747,148 +2743,6 @@ export class LiveMemoryPage implements m.ClassComponent<LiveMemoryPageAttrs> {
       return undefined;
     }
     return {series};
-  }
-
-  // ---------------------------------------------------------------------------
-  // Sankey: snapshot of where MemTotal is going right now.
-  // ---------------------------------------------------------------------------
-
-  private buildSankeyData(): SankeyData | undefined {
-    const raw = this.rawData!;
-
-    // Get latest system counter values (last element of each array).
-    const getLatestKb = (name: string): number => {
-      const arr = raw.systemCounters.get(name);
-      if (arr === undefined || arr.length === 0) return 0;
-      return Math.round(arr[arr.length - 1].value / 1024);
-    };
-
-    const memTotal = getLatestKb('MemTotal');
-    const memFree = getLatestKb('MemFree');
-    const buffers = getLatestKb('Buffers');
-    if (memTotal === 0 || memFree === 0) {
-      return undefined;
-    }
-
-    const anon = getLatestKb('Active(anon)') + getLatestKb('Inactive(anon)');
-    const fileLru = getLatestKb('Active(file)') + getLatestKb('Inactive(file)');
-    const shmem = getLatestKb('Shmem');
-    const fileCache = Math.max(0, fileLru - shmem);
-    const slab = getLatestKb('Slab');
-    const kernelStack = getLatestKb('KernelStack');
-    const pageTables = getLatestKb('PageTables');
-    const zram = getLatestKb('Zram');
-
-    // Latest global DMA-BUF heap total (from dma_heap_stat ftrace).
-    const dmaHeap = getLatestKb('mem.dma_heap');
-
-    const accounted =
-      anon +
-      fileCache +
-      shmem +
-      buffers +
-      slab +
-      pageTables +
-      kernelStack +
-      zram +
-      dmaHeap +
-      memFree;
-    const unaccounted = Math.max(0, memTotal - accounted);
-
-    // 2. Latest per-process RssAnon, grouped by category.
-    const catIds = Object.keys(CATEGORIES) as CategoryId[];
-    const catSums = new Map<CategoryId, number>();
-    for (const [processName, counterMap] of raw.processCountersByName) {
-      const anonByTs = counterMap.get('mem.rss.anon');
-      if (anonByTs === undefined || anonByTs.size === 0) continue;
-      // Get latest value (highest ts).
-      let latestTs = 0;
-      let latestValue = 0;
-      for (const [ts, value] of anonByTs) {
-        if (ts >= latestTs) {
-          latestTs = ts;
-          latestValue = value;
-        }
-      }
-      const cat = categorizeProcess(processName);
-      const id = catIds.find((k) => CATEGORIES[k].name === cat.name)!;
-      catSums.set(id, (catSums.get(id) ?? 0) + Math.round(latestValue / 1024));
-    }
-
-    // 3. Build Sankey nodes and links.
-    // Explicit depth: 0=MemTotal, 1=primary partitions, 2=detail breakdown.
-    const nodes: {name: string; color?: string; depth?: number}[] = [
-      {name: 'MemTotal', color: '#78909c', depth: 0},
-    ];
-    const links: {source: string; target: string; value: number}[] = [];
-
-    // Level 1: MemTotal → primary partitions (matching the system chart).
-    const addBucket = (name: string, value: number, color: string) => {
-      if (value <= 0) return;
-      nodes.push({name, color, depth: 1});
-      links.push({source: 'MemTotal', target: name, value});
-    };
-    addBucket('Anon', anon, '#e74c3c');
-    addBucket('Page cache', fileCache, '#f39c12');
-    addBucket('Shmem', shmem, '#ab47bc');
-    addBucket('Buffers', buffers, '#3498db');
-    addBucket('Slab', slab, '#9c27b0');
-    addBucket('PageTables', pageTables, '#4a148c');
-    addBucket('KernelStack', kernelStack, '#7b1fa2');
-    addBucket('DMA-BUF', dmaHeap, '#00acc1');
-    addBucket('Zram', zram, '#00897b');
-    addBucket('MemFree', memFree, '#2ecc71');
-    addBucket('Unaccounted', unaccounted, '#78909c');
-
-    // Level 2: Anon → per-process-category breakdown.
-    let accountedAnon = 0;
-    for (const id of catIds) {
-      const sum = catSums.get(id);
-      if (sum !== undefined && sum > 0) {
-        const cat = CATEGORIES[id];
-        nodes.push({name: cat.name, color: cat.color, depth: 2});
-        links.push({source: 'Anon', target: cat.name, value: sum});
-        accountedAnon += sum;
-      }
-    }
-    const unaccountedAnon = anon - accountedAnon;
-    if (unaccountedAnon > 0) {
-      nodes.push({
-        name: 'Other (untracked)',
-        color: '#9e9e9e',
-        depth: 2,
-      });
-      links.push({
-        source: 'Anon',
-        target: 'Other (untracked)',
-        value: unaccountedAnon,
-      });
-    }
-
-    // Level 2: Page cache → Active/Inactive breakdown.
-    // Shmem is counted in Active(file) by the kernel but already has its own
-    // node, so subtract it to keep the sub-links summing to fileCache.
-    const activeFile = Math.max(0, getLatestKb('Active(file)') - shmem);
-    const inactiveFile = getLatestKb('Inactive(file)');
-    if (activeFile > 0) {
-      nodes.push({name: 'Active', color: '#e67e22', depth: 2});
-      links.push({
-        source: 'Page cache',
-        target: 'Active',
-        value: activeFile,
-      });
-    }
-    if (inactiveFile > 0) {
-      nodes.push({name: 'Inactive', color: '#f5b041', depth: 2});
-      links.push({
-        source: 'Page cache',
-        target: 'Inactive',
-        value: inactiveFile,
-      });
-    }
-
-    if (links.length === 0) return undefined;
-    return {nodes, links};
   }
 
   // ---------------------------------------------------------------------------
