@@ -120,7 +120,7 @@ void TestHelper::ReadTraceData(std::vector<TracePacket> packets) {
         packet.has_trace_config() || packet.has_trace_stats() ||
         !packet.synchronization_marker().empty() || packet.has_system_info() ||
         packet.has_service_event() || packet.has_remote_clock_sync() ||
-        packet.has_trace_provenance()) {
+        packet.has_trace_provenance() || packet.has_extension_descriptor()) {
       continue;
     }
     PERFETTO_CHECK(packet.has_trusted_uid());

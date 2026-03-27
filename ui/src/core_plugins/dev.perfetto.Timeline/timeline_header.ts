@@ -25,7 +25,7 @@ import {
   VirtualOverlayCanvas,
   VirtualOverlayCanvasDrawContext,
 } from '../../widgets/virtual_overlay_canvas';
-import {TRACK_SHELL_WIDTH} from '../css_constants';
+import {TRACK_SHELL_WIDTH} from '../../frontend/css_constants';
 import {NotesPanel} from './notes_panel';
 import {TickmarkPanel} from './tickmark_panel';
 import {TimeAxisPanel} from './time_axis_panel';

@@ -168,6 +168,12 @@
   color: var(--pf-color-text-hint);
 }
 
+.ah-bitmap-card__path {
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--pf-color-border-secondary);
+  font-size: 0.8125rem;
+}
+
 .ah-info-grid {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -332,6 +338,10 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
+}
+
+.ah-dup-grid-container {
+  height: 400px;
 }
 
 .ah-desc {

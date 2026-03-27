@@ -14,7 +14,8 @@
 
 import {DisposableStack} from '../../base/disposable_stack';
 import {currentTargetOffset, elementIsEditable} from '../../base/dom_utils';
-import {Animation} from '../animation';
+import {KeyMapping} from '../../base/wasd_key_mapping';
+import {Animation} from '../../frontend/animation';
 
 // When first starting to pan or zoom, move at least this many units.
 const INITIAL_PAN_STEP_PX = 50;
@@ -36,24 +37,6 @@ const DEFAULT_ANIMATION_DURATION = 700;
 // ACCELERATION_PER_MS multiplier is applied).
 const ZOOM_RATIO_PER_FRAME = 0.008;
 const KEYBOARD_PAN_PX_PER_FRAME = 8;
-
-// Use key mapping based on the 'KeyboardEvent.code' property vs the
-// 'KeyboardEvent.key', because the former corresponds to the physical key
-// position rather than the glyph printed on top of it, and is unaffected by
-// the user's keyboard layout.
-// For example, 'KeyW' always corresponds to the key at the physical location of
-// the 'w' key on an English QWERTY keyboard, regardless of the user's keyboard
-// layout, or at least the layout they have configured in their OS.
-// Seeing as most users use the keys in the English QWERTY "WASD" position for
-// controlling kb+mouse applications like games, it's a good bet that these are
-// the keys most poeple are going to find natural for navigating the UI.
-// See https://www.w3.org/TR/uievents-code/#key-alphanumeric-writing-system
-export enum KeyMapping {
-  KEY_PAN_LEFT = 'KeyA',
-  KEY_PAN_RIGHT = 'KeyD',
-  KEY_ZOOM_IN = 'KeyW',
-  KEY_ZOOM_OUT = 'KeyS',
-}
 
 enum Pan {
   None = 0,
