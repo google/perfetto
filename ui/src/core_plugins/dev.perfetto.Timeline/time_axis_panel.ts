@@ -25,7 +25,7 @@ import {
   COLOR_TEXT_MUTED,
   COLOR_BORDER,
   TRACK_SHELL_WIDTH,
-} from '../css_constants';
+} from '../../frontend/css_constants';
 import {
   generateTicks,
   getMaxMajorTicks,
