@@ -27,6 +27,7 @@ import type {
   HeapInfo,
   InstanceRow,
   InstanceDetail,
+  PathEntry,
   PrimOrRef,
   BitmapListRow,
   StringListRow,
@@ -588,7 +589,7 @@ async function fetchFieldValues(
 }
 
 /** Fetch dominator-tree path from GC root to the given object. */
-async function fetchPathFromRoot(
+export async function fetchPathFromRoot(
   engine: Engine,
   id: number,
 ): Promise<InstanceDetail['pathFromRoot']> {
@@ -664,6 +665,147 @@ async function fetchPathFromRoot(
     });
   }
   return result.length > 0 ? result : null;
+}
+
+/** Batch-fetch dominator-tree paths for multiple objects. */
+export async function fetchPathsFromRoot(
+  engine: Engine,
+  ids: number[],
+): Promise<Map<number, PathEntry[]>> {
+  const result = new Map<number, PathEntry[]>();
+  if (ids.length === 0) return result;
+
+  await requireDominatorTree(engine);
+
+  // Reversed edges (id→idom_id) so DFS walks UP towards the root.
+  const seeds = ids
+    .map((id) => `SELECT ${id} AS root_node_id, 1 AS root_target_weight`)
+    .join(' UNION ALL ');
+  const dfsRes = await engine.query(`
+    INCLUDE PERFETTO MODULE graphs.search;
+    SELECT root_node_id, node_id
+    FROM graph_reachable_weight_bounded_dfs!(
+      (
+        SELECT id AS source_node_id, idom_id AS dest_node_id,
+          0 AS edge_weight
+        FROM heap_graph_dominator_tree
+        WHERE idom_id IS NOT NULL
+      ),
+      (${seeds}),
+      1
+    )
+  `);
+
+  const allNodeIds = new Set<number>();
+  for (const it = dfsRes.iter({node_id: NUM}); it.valid(); it.next()) {
+    allNodeIds.add(it.node_id);
+  }
+  if (allNodeIds.size === 0) return result;
+
+  const idomRes = await engine.query(`
+    SELECT id, idom_id
+    FROM heap_graph_dominator_tree
+    WHERE id IN (${Array.from(allNodeIds).join(',')})
+  `);
+  const idomMap = new Map<number, number | null>();
+  for (
+    const it = idomRes.iter({id: NUM, idom_id: NUM_NULL});
+    it.valid();
+    it.next()
+  ) {
+    idomMap.set(it.id, it.idom_id ?? null);
+  }
+
+  // Reconstruct ordered chains: walk idom_id from each ID up, then reverse.
+  const pathChains = new Map<number, number[]>();
+  for (const id of ids) {
+    const chain: number[] = [];
+    let cur: number | null = id;
+    while (cur !== null && idomMap.has(cur)) {
+      chain.push(cur);
+      cur = idomMap.get(cur) ?? null;
+    }
+    if (chain.length === 0) continue;
+    chain.reverse();
+    pathChains.set(id, chain);
+  }
+  if (pathChains.size === 0) return result;
+
+  const nodeRes = await engine.query(`
+    SELECT
+      o.id, c.name AS cls, c.deobfuscated_name AS deob,
+      o.self_size, o.native_size, o.heap_type, o.root_type,
+      dt.dominated_size_bytes AS dominated_size,
+      dt.dominated_native_size_bytes AS dominated_native,
+      dt.dominated_obj_count,
+      od.value_string, c.kind AS class_kind
+    FROM heap_graph_object o
+    JOIN heap_graph_class c ON o.type_id = c.id
+    LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
+    LEFT JOIN heap_graph_dominator_tree dt ON dt.id = o.id
+    WHERE o.id IN (${Array.from(allNodeIds).join(',')})
+  `);
+  const nodeMap = new Map<number, InstanceRow>();
+  for (
+    const it = nodeRes.iter({
+      id: NUM,
+      cls: STR,
+      deob: STR_NULL,
+      self_size: NUM,
+      native_size: NUM,
+      heap_type: STR_NULL,
+      root_type: STR_NULL,
+      dominated_size: NUM_NULL,
+      dominated_native: NUM_NULL,
+      dominated_obj_count: NUM_NULL,
+      value_string: STR_NULL,
+      class_kind: STR,
+    });
+    it.valid();
+    it.next()
+  ) {
+    nodeMap.set(it.id, rowFromIter(it));
+  }
+
+  const edgePairs: string[] = [];
+  for (const chain of pathChains.values()) {
+    for (let i = 0; i < chain.length - 1; i++) {
+      edgePairs.push(`SELECT ${chain[i]} AS pid, ${chain[i + 1]} AS cid`);
+    }
+  }
+  const fieldMap = new Map<string, string>();
+  if (edgePairs.length > 0) {
+    const fRes = await engine.query(`
+      SELECT e.pid, e.cid,
+        ifnull(r.deobfuscated_field_name, r.field_name) AS fname
+      FROM (${edgePairs.join(' UNION ALL ')}) e
+      JOIN heap_graph_object o ON o.id = e.pid
+      JOIN heap_graph_reference r
+        ON r.reference_set_id = o.reference_set_id AND r.owned_id = e.cid
+    `);
+    for (
+      const it = fRes.iter({pid: NUM, cid: NUM, fname: STR});
+      it.valid();
+      it.next()
+    ) {
+      fieldMap.set(`${it.pid}:${it.cid}`, '.' + it.fname);
+    }
+  }
+
+  for (const [targetId, chain] of pathChains) {
+    const path: PathEntry[] = [];
+    for (let i = 0; i < chain.length; i++) {
+      const row = nodeMap.get(chain[i]);
+      if (!row) continue;
+      const field =
+        i < chain.length - 1
+          ? fieldMap.get(`${chain[i]}:${chain[i + 1]}`) ?? ''
+          : '';
+      path.push({row, field, isDominator: true});
+    }
+    if (path.length > 0) result.set(targetId, path);
+  }
+  return result;
 }
 
 export async function getInstance(
