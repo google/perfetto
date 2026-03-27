@@ -38,16 +38,8 @@ import {joinPath} from './url_utils';
 
 const FETCH_TIMEOUT_MS = 10000; // 10 seconds
 
-// Marker header that tells the service worker to cache this request.
-// The SW strips it before forwarding to the network, so the server never
-// sees it and no CORS preflight is triggered. Only set when the SW is
-// actively controlling the page.
-const EXTENSION_HEADER = 'X-Perfetto-Extension';
-
 function extensionHeaders(): Record<string, string> {
-  if (navigator.serviceWorker?.controller?.state === 'activated') {
-    return {[EXTENSION_HEADER]: '1'};
-  }
+  // TODO(lalitm): readd caching once we've figured out a more correct solution.
   return {};
 }
 

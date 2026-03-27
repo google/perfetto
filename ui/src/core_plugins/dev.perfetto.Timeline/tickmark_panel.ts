@@ -18,7 +18,7 @@ import {Size2D} from '../../base/geom';
 import {TimeScale} from '../../base/time_scale';
 import {getOrCreate} from '../../base/utils';
 import {TraceImpl} from '../../core/trace_impl';
-import {COLOR_BORDER, TRACK_SHELL_WIDTH} from '../css_constants';
+import {COLOR_BORDER, TRACK_SHELL_WIDTH} from '../../frontend/css_constants';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 import {SearchOverviewTrack} from './search_overview_track';
 
