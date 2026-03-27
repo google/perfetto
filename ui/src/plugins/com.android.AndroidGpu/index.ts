@@ -56,7 +56,13 @@ export default class implements PerfettoPlugin {
         uri: newUri,
         description: description || undefined,
         tags: track.tags,
-        renderer: new CumulativeSumCounterTrack(ctx, newUri, trackId, name),
+        renderer: new CumulativeSumCounterTrack(
+          ctx,
+          newUri,
+          unit,
+          trackId,
+          name,
+        ),
       });
       console.log(newUri);
 
@@ -77,10 +83,11 @@ class CumulativeSumCounterTrack extends TraceProcessorCounterTrack {
   constructor(
     trace: Trace,
     uri: string,
+    unit: string,
     private readonly tid: number,
     trackName: string,
   ) {
-    super(trace, uri, {yMode: 'rate'}, tid, trackName);
+    super(trace, uri, {yMode: 'rate', unit}, tid, trackName);
   }
 
   override getSqlSource(): string {
