@@ -36,6 +36,10 @@ PixelDisplayTracker::PixelDisplayTracker(TraceProcessorContext* context)
           context->storage->InternString("frame_start_timeout")),
       frame_done_timeout_name_(
           context->storage->InternString("frame_done_timeout")),
+
+      vblank_irq_enable_name_(
+          context_->storage->InternString("disp_vblank_irq_enable")),
+
       display_id_arg_(context_->storage->InternString("display_id")),
       output_id_arg_(context_->storage->InternString("output_id")),
       frames_pending_arg_(context_->storage->InternString("frames_pending")),
@@ -98,4 +102,29 @@ void PixelDisplayTracker::ParseDpuDispFrameDoneTimeout(
       });
 }
 
+void PixelDisplayTracker::ParseDpuDispVblankIrqEnable(
+    int64_t timestamp,
+    protozero::ConstBytes blob) {
+  protos::pbzero::DpuDispVblankIrqEnableFtraceEvent::Decoder ex(blob);
+
+  static constexpr auto kBlueprint = tracks::SliceBlueprint(
+      "disp_vblank_irq_enable",
+      tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("display_id")),
+      tracks::FnNameBlueprint([](uint32_t display_id) {
+        return base::StackString<256>("vblank_irq_en[%u]", display_id);
+      }));
+
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kBlueprint, tracks::Dimensions(ex.output_id()));
+  if (ex.enable()) {
+    context_->slice_tracker->Begin(
+        timestamp, track_id, kNullStringId, vblank_irq_enable_name_,
+        [&](ArgsTracker::BoundInserter* inserter) {
+          inserter->AddArg(display_id_arg_, Variadic::Integer(ex.id()));
+          inserter->AddArg(output_id_arg_, Variadic::Integer(ex.output_id()));
+        });
+  } else {
+    context_->slice_tracker->End(timestamp, track_id);
+  }
+}
 }  // namespace perfetto::trace_processor
