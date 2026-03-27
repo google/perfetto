@@ -2447,4 +2447,75 @@ TEST_F(TraceBufferV2Test, RescrapeAfterEviction_PartiallyRead) {
   EXPECT_FALSE(found_a) << "Packet 'a' was re-read after eviction+rescrape";
 }
 
+// Regression test for the scrape-recommit-read interaction. When a chunk is
+// scraped (chunk_complete=false), it gets kChunkIncomplete. If the same chunk
+// is scraped again with the same payload, the recommit path must NOT clear
+// kChunkIncomplete. Otherwise the reader would consume it prematurely, and when
+// the real IPC commit arrives it's discarded as "late", orphaning the kFragEnd
+// in the next chunk.
+TEST_F(TraceBufferV2Test, ScrapeRecommitPreservesIncomplete) {
+  ResetBuffer(4096);
+  SuppressClientDchecksForTesting();
+
+  // Scrape chunk 0: [Whole 'a'] [kFragBegin 'b' kContOnNextChunk].
+  // Scraping drops the last fragment ('b'), clears kContOnNextChunk, sets
+  // kChunkIncomplete. Only fragment 'a' is visible.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(10, 'b', kContOnNextChunk)
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+
+  // Read cycle 1: gets 'a'. The chunk's payload is fully consumed but it is
+  // NOT erased because kChunkIncomplete prevents it.
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'a')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  // Second scrape of the same chunk (same payload). This triggers the recommit
+  // path. The fix ensures kChunkIncomplete is NOT cleared here.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(10, 'b', kContOnNextChunk)
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+
+  // Read cycle 2: chunk still has kChunkIncomplete, so nothing new to read.
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  // The chunk must NOT have been consumed (no chunks_discarded bump yet).
+  EXPECT_EQ(0u, trace_buffer()->stats().chunks_discarded());
+
+  // IPC recommit: producer finished writing, commits as complete. This clears
+  // kChunkIncomplete and restores the full payload including fragment 'b'.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(10, 'b', kContOnNextChunk)
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/true);
+
+  // Chunk 1: continuation of 'b' plus a whole packet 'd'.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(10, 'c', kContFromPrevChunk)
+      .AddPacket(20, 'd')
+      .CopyIntoTraceBuffer();
+
+  // Read cycle 3: 'a' was already consumed. We should get the reassembled
+  // fragmented packet ['b','c'] and then 'd'. No data loss.
+  trace_buffer()->BeginRead();
+  bool previous_packet_dropped = false;
+
+  ASSERT_THAT(
+      ReadPacket(nullptr, &previous_packet_dropped),
+      ElementsAre(FakePacketFragment(10, 'b'), FakePacketFragment(10, 'c')));
+  EXPECT_FALSE(previous_packet_dropped);
+
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(20, 'd')));
+  EXPECT_FALSE(previous_packet_dropped);
+
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
 }  // namespace perfetto
