@@ -38,6 +38,11 @@ import {joinPath} from './url_utils';
 
 const FETCH_TIMEOUT_MS = 10000; // 10 seconds
 
+function extensionHeaders(): Record<string, string> {
+  // TODO(lalitm): readd caching once we've figured out a more correct solution.
+  return {};
+}
+
 interface FetchRequest {
   url: string;
   init: RequestInit;
@@ -61,6 +66,7 @@ export function buildFetchRequest(
       const headers: Record<string, string> = {
         Accept: 'application/vnd.github.raw+json',
         Authorization: `token ${server.auth.pat}`,
+        ...extensionHeaders(),
       };
       return {url, init: {method: 'GET', headers}};
     }
@@ -70,7 +76,10 @@ export function buildFetchRequest(
     const url =
       `https://raw.githubusercontent.com/${server.repo}` +
       `/${encodeURIComponent(server.ref)}/${encodedPath}`;
-    return {url, init: {method: 'GET'}};
+    const headers: Record<string, string> = {
+      ...extensionHeaders(),
+    };
+    return {url, init: {method: 'GET', headers}};
   }
 
   // HTTPS servers — normalize URL in case https:// is missing.
@@ -79,7 +88,9 @@ export function buildFetchRequest(
     baseUrl = `https://${baseUrl}`;
   }
   const url = `${baseUrl.replace(/\/+$/, '')}/${path}`;
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    ...extensionHeaders(),
+  };
   if (server.auth.type === 'https_basic') {
     const credentials = `${server.auth.username}:${server.auth.password}`;
     headers['Authorization'] = `Basic ${base64Encode(utf8Encode(credentials))}`;

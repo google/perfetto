@@ -527,6 +527,25 @@ enum SemanticType {
 
 // End of protos/perfetto/common/semantic_type.proto
 
+// Begin of protos/perfetto/config/android/android_aflags_config.proto
+
+// Options for the android.aflags data source.
+// This data source captures snapshots of Android aconfig flags.
+// See https://source.android.com/docs/setup/build/feature-flagging/declare-flag
+// for more information on aconfig flags.
+message AndroidAflagsConfig {
+  // Frequency of polling. If absent or 0, the state will be recorded once,
+  // at the start of the trace.
+  //
+  // It is recommended to either leave this absent or set it to a large
+  // value as each invocation of the `aflags` tool can be time consuming
+  // (approx. 350ms) and also triggers an expensive flush. This is required to
+  // be > 1000ms if set, to avoid excessive CPU usage.
+  optional uint32 poll_ms = 1;
+}
+
+// End of protos/perfetto/config/android/android_aflags_config.proto
+
 // Begin of protos/perfetto/config/android/android_game_intervention_list_config.proto
 
 // Data source that lists game modes and game interventions of games
@@ -4263,7 +4282,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 140
+// Next id: 141
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4500,6 +4519,9 @@ message DataSourceConfig {
 
   // Data source name: android.inputmethod
   optional InputMethodConfig inputmethod_config = 139 [lazy = true];
+
+  // Data source name: android.aflags
+  optional AndroidAflagsConfig android_aflags_config = 140 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];

@@ -87,6 +87,7 @@
 #include "src/trace_processor/perfetto_sql/engine/table_pointer_module.h"
 #include "src/trace_processor/perfetto_sql/generator/structured_query_generator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/args.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/art_heap_graph_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/base64.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/counter_intervals.h"
@@ -1048,6 +1049,7 @@ std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
   std::vector<PerfettoSqlEngine::StaticTable> tables;
   AddStaticTable(tables, storage->mutable_aggregate_profile_table());
   AddStaticTable(tables, storage->mutable_aggregate_sample_table());
+  AddStaticTable(tables, storage->mutable_android_aflags_table());
   AddStaticTable(tables, storage->mutable_android_cpu_per_uid_track_table());
   AddStaticTable(tables, storage->mutable_android_dumpstate_table());
   AddStaticTable(tables,
@@ -1068,6 +1070,7 @@ std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
   AddStaticTable(tables, storage->mutable_file_table());
   AddStaticTable(tables, storage->mutable_filedescriptor_table());
   AddStaticTable(tables, storage->mutable_gpu_counter_group_table());
+  AddStaticTable(tables, storage->mutable_gpu_table());
   AddStaticTable(tables, storage->mutable_instruments_sample_table());
   AddStaticTable(tables, storage->mutable_machine_table());
   AddStaticTable(tables, storage->mutable_memory_snapshot_edge_table());
@@ -1131,6 +1134,8 @@ std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
   AddStaticTable(tables, storage->mutable_experimental_proto_path_table());
   AddStaticTable(tables, storage->mutable_arg_table());
   AddStaticTable(tables, storage->mutable_heap_graph_object_table());
+  AddStaticTable(tables, storage->mutable_heap_graph_primitive_table());
+  AddStaticTable(tables, storage->mutable_heap_graph_object_data_table());
   AddStaticTable(tables, storage->mutable_heap_graph_reference_table());
   AddStaticTable(tables, storage->mutable_heap_graph_class_table());
   AddStaticTable(tables, storage->mutable_heap_profile_allocation_table());
@@ -1269,6 +1274,11 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   }
   {
     base::Status status = RegisterStackFunctions(engine.get(), context);
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
+  {
+    base::Status status = RegisterArtHeapGraphFunctions(engine.get(), context);
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }

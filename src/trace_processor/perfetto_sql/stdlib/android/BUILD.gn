@@ -30,6 +30,7 @@ perfetto_sql_source_set("android") {
     "winscope",
   ]
   sources = [
+    "aflags.sql",
     "anrs.sql",
     "app_process_starts.sql",
     "battery.sql",

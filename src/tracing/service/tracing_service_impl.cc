@@ -455,10 +455,21 @@ void TracingServiceImpl::DisconnectProducer(ProducerID id) {
   PERFETTO_DLOG("Producer %" PRIu16 " disconnected", id);
   PERFETTO_DCHECK(producers_.count(id));
 
-  // Scrape remaining chunks for this producer to ensure we don't lose data.
   if (auto* producer = GetProducer(id)) {
-    for (auto& session_id_and_session : tracing_sessions_)
+    // Scrape remaining chunks for this producer to ensure we don't lose data.
+    for (auto& session_id_and_session : tracing_sessions_) {
       ScrapeSharedMemoryBuffers(&session_id_and_session.second, producer);
+    }
+
+    // Fire a disconnect trigger so pre-configured sessions can capture
+    // diagnostics when traced_probes crashes.
+    if constexpr (PERFETTO_FLAGS(
+                      TRIGGER_PERFETTO_ON_TRACED_PROBES_DISCONNECT)) {
+      if (producer->name_ == "perfetto.traced_probes") {
+        PERFETTO_ELOG("traced_probes disconnected, firing disconnect trigger");
+        ActivateTriggers(id, {"perfetto.traced_probes.disconnect"});
+      }
+    }
   }
 
   for (auto it = data_sources_.begin(); it != data_sources_.end();) {

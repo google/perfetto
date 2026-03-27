@@ -30,7 +30,15 @@
         {
           "name": "unallocated",
           "comment": ["The next allocation goes here. Shrink and take from here."],
-          "range": [3000, 8999]
+          "range": [3000, 4999]
+        },
+        {
+          "name": "android_vendor",
+          "description": "Android OS platform (Vendor image)",
+          "comment": ["Introduced by ag/39003368"],
+          "registry": "/vendor/google/data/etc/tracing/vendor_tracing_protos.json",
+          "repo": "android-internal",
+          "range": [5000, 8999]
         },
         {
           "name": "perfetto_tests",

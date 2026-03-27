@@ -24,6 +24,10 @@ namespace perfetto::trace_processor::stats {
 // Compile time list of parsing and processing stats.
 // clang-format off
 #define PERFETTO_TP_STATS(F)                                                   \
+  F(android_aflags_errors,               kSingle,  kError,    kTrace,          \
+       "Errors occurred during the collection of Android aconfig flags by the "\
+       "android.aflags data source. This typically happens if the aflags tool "\
+       "fails or its output is malformed."),                                   \
   F(android_br_parse_errors,              kSingle,  kError,    kTrace,    ""), \
   F(android_log_num_failed,               kSingle,  kError,    kTrace,    ""), \
   F(android_log_format_invalid,           kSingle,  kError,    kTrace,    ""), \
@@ -304,6 +308,15 @@ namespace perfetto::trace_processor::stats {
       "snapshots and its own for timestamp conversion. Timestamps "            \
       "converted before the first own clock snapshot used the primary "        \
       "trace's clocks which may differ."),                                     \
+  F(clock_sync_failure_undeferrable_packet_loss, kSingle, kDataLoss,          \
+      kAnalysis,                                                               \
+      "A packet had a timestamp with a clock ID that could not be resolved "   \
+      "to trace time and the packet could not be deferred for later "          \
+      "resolution (the trace sorter was unable to switch to full-sort mode). " \
+      "The packet was dropped and its data will be missing from query "        \
+      "results. This can happen when a sequence-scoped clock (64-127) is "    \
+      "used before the ClockSnapshot defining it arrives, and the sorter "     \
+      "has already started flushing."),                                        \
   F(clock_sync_cache_miss,                kSingle,  kInfo,     kAnalysis, ""), \
   F(process_tracker_errors,               kSingle,  kError,    kAnalysis, ""), \
   F(namespaced_thread_missing_process,    kSingle,  kError,    kAnalysis,      \

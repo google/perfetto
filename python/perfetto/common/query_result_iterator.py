@@ -33,6 +33,14 @@ except ModuleNotFoundError:
 except ImportError:
   HAS_NUMPY = False
 
+try:
+  import polars as pl
+  HAS_POLARS = True
+except ModuleNotFoundError:
+  HAS_POLARS = False
+except ImportError:
+  HAS_POLARS = False
+
 # Values of these constants correspond to the QueryResponse message at
 # protos/perfetto/trace_processor/trace_processor.proto
 QUERY_CELL_INVALID_FIELD_ID = 0
@@ -140,6 +148,21 @@ class QueryResultIterator(Sized):
       raise PerfettoException(
           'pandas/numpy dependency missing. Please run `pip3 install pandas numpy`'
       )
+
+  # To use the query result as a populated Polars dataframe, this
+  # function must be called directly after calling query inside
+  # TraceProcessor.
+  def as_polars_dataframe(self):
+    if not HAS_POLARS:
+      raise PerfettoException(
+          'polars dependency missing. Please run `pip3 install polars`')
+    if self.column_count == 0:
+      return pl.DataFrame()
+    col_data = {
+        name: self.cells[i::self.column_count]
+        for i, name in enumerate(self.column_names)
+    }
+    return pl.DataFrame(col_data)
 
   def __len__(self):
     return self.row_count
