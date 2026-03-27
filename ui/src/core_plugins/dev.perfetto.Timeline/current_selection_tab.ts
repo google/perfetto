@@ -27,7 +27,7 @@ import {
 } from '../../public/selection';
 import {assertUnreachable} from '../../base/assert';
 import {Button, ButtonBar} from '../../widgets/button';
-import {NoteEditor} from '../note_editor';
+import {NoteEditor} from './note_editor';
 import {Gate} from '../../base/mithril_utils';
 
 export interface CurrentSelectionTabAttrs {

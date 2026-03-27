@@ -123,6 +123,7 @@ export default class implements PerfettoPlugin {
           subsystemGroup = new TrackNode({
             name: subsystem,
             isSummary: true,
+            collapsed: false,
           });
           subsystemGroups.set(subsystem, subsystemGroup);
           powerRailsGroup.addChildInOrder(subsystemGroup);

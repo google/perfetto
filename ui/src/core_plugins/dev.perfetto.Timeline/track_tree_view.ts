@@ -31,7 +31,7 @@ import {
   HorizontalBounds,
   Rect2D,
   Size2D,
-  Transform2D,
+  Transform1D,
   VerticalBounds,
 } from '../../base/geom';
 import {HighPrecisionTime} from '../../base/high_precision_time';
@@ -59,7 +59,7 @@ import {
   COLOR_TEXT_MUTED,
   COLOR_TIMELINE_OVERLAY,
   TRACK_SHELL_WIDTH,
-} from '../css_constants';
+} from '../../frontend/css_constants';
 import {renderFlows} from './flow_events_renderer';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 import {
@@ -516,30 +516,36 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     const count = tickPositions.length;
     const starts = new Float32Array(count);
     const ends = new Float32Array(count);
-    const ys = new Float32Array(count);
     const colors = new Uint32Array(count);
     const patterns = new Uint8Array(count);
+    const depths = new Uint16Array(count);
     const gridColor = cssColorToRgba(COLOR_BORDER_SECONDARY);
 
     for (let i = 0; i < count; i++) {
       starts[i] = tickPositions[i];
       ends[i] = tickPositions[i] + 1;
-      ys[i] = 0;
       colors[i] = gridColor;
       patterns[i] = 0;
+      depths[i] = 0;
     }
 
-    renderer.drawRects(
+    // Use the slice shader to draw gridlines as 1px wide slices spanning the
+    // height of the timeline. This is sort of abusing the slice renderer, but
+    // it allows us to draw gridlines without needing a separate shader program,
+    // and seeing as slices are just rectangles, it's a decent fit.
+    renderer.drawSlices(
       {
         starts,
         ends,
-        ys,
-        h: timelineRect.height,
+        depths,
         colors,
         patterns,
         count,
       },
-      Transform2D.Identity,
+      {
+        rowHeight: timelineRect.height,
+      },
+      Transform1D.Identity,
     );
   }
 

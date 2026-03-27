@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {BigintMath} from '../../base/bigint_math';
-import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
-import {errResult, okResult, Result} from '../../base/result';
-import {duration} from '../../base/time';
+import {BigintMath} from './bigint_math';
+import {HighPrecisionTimeSpan} from './high_precision_time_span';
+import {errResult, okResult, Result} from './result';
+import {duration} from './time';
 
 /**
  * Work out an appropriate "resolution" for a given time span stretched over a
