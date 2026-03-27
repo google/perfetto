@@ -53,7 +53,7 @@ function makeMockRenderer(): Renderer {
       dispose: jest.fn(),
     }),
     drawMarkers: jest.fn(),
-    drawRects: jest.fn(),
+    drawSlices: jest.fn(),
     drawStepArea: jest.fn(),
     resetTransform: jest.fn(),
     clear: jest.fn(),

@@ -506,6 +506,8 @@ message AndroidFrameTimelineMetric {
     optional int64 missed_frames = 5;
     optional int64 missed_app_frames = 6;
     optional int64 missed_sf_frames = 7;
+    optional double weighted_missed_app_frames = 20;
+    optional double weighted_missed_sf_frames = 21;
 
     optional int64 frame_dur_max = 8;
     optional int64 frame_dur_avg = 9;

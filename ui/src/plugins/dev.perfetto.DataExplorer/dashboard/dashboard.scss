@@ -46,7 +46,29 @@
     color-mix(in srgb, var(--pf-color-border-secondary) 85%, black 15%) 1px,
     transparent 0px
   );
-  background-size: 20px 20px;
+  // --pf-grid-cell-size is set by the component based on canvas width / 25
+  // (24 columns + 2 × 0.5-cell margin).
+  background-size: var(--pf-grid-cell-size, 100px)
+    var(--pf-grid-cell-size, 100px);
+  // Offset dots to align with the grid margin.
+  background-position: var(--pf-grid-margin-px, 0) var(--pf-grid-margin-px, 0);
+
+  // Show grid lines while dragging or resizing items.
+  &.pf-dashboard__canvas--grid-visible {
+    background-image: repeating-linear-gradient(
+        to right,
+        color-mix(in srgb, var(--pf-color-border-secondary) 50%, transparent) 0
+          1px,
+        transparent 1px var(--pf-grid-cell-size)
+      ),
+      repeating-linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--pf-color-border-secondary) 50%, transparent) 0
+          1px,
+        transparent 1px var(--pf-grid-cell-size)
+      );
+    background-size: auto;
+  }
 }
 
 // Centered overlay for the empty state.
@@ -121,27 +143,25 @@
 }
 
 // Individual chart card on the dashboard canvas.
+// Width, height, left, and top are set inline from grid coordinates.
 .pf-dashboard__chart {
   position: absolute;
-  width: 400px;
-  height: 294px;
   background: var(--pf-color-background);
   display: flex;
   flex-direction: column;
   user-select: none;
-  // Smooth settling when snapped away from a divider.
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  // Smooth settling when snapped to grid.
   transition:
     left 0.1s ease-out,
-    top 0.1s ease-out;
-
-  // Custom width/height via CSS custom properties set inline.
-  &--custom-width {
-    width: var(--pf-db-chart-width);
-  }
-
-  &--custom-height {
-    height: var(--pf-db-chart-height);
-  }
+    top 0.1s ease-out,
+    width 0.1s ease-out,
+    height 0.1s ease-out;
 
   &--dragging {
     opacity: 0.6;
@@ -171,8 +191,8 @@
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  cursor: grab;
   flex-shrink: 0;
+  cursor: grab;
 
   &:active {
     cursor: grabbing;
@@ -186,7 +206,7 @@
 }
 
 .pf-dashboard__chart-header-text {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   font-size: 13px;
   font-weight: 600;
@@ -202,8 +222,10 @@
 }
 
 .pf-dashboard__chart-title-input {
-  flex: 1;
-  min-width: 0;
+  flex: 0 1 auto;
+  width: 0;
+  min-width: 40px;
+  max-width: 200px;
   font-size: 12px;
   font-weight: 500;
   border: none;
@@ -219,13 +241,19 @@
   display: flex;
   gap: 2px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .pf-dashboard__chart-content {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  padding-top: 4px;
+  // Padding around the chart creates grabbable margins for dragging.
+  padding: 4px 6px 10px;
+
+  canvas {
+    cursor: default;
+  }
 }
 
 // Label delete button — appears on hover in the top-right corner.
@@ -258,6 +286,8 @@
 
 // --- Segment divider ---
 // A full-width horizontal rule that separates driver and consumer charts.
+// Top is set inline from grid coordinates; the divider occupies zero grid rows
+// and sits exactly on a grid line.
 .pf-dashboard__divider {
   position: absolute;
   left: 0;

@@ -23,6 +23,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
+#include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/track_tables_py.h"
@@ -49,6 +50,9 @@ TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
     base::StringView str(dims[i].name.data(), dims[i].name.size());
     if (str == "cpu" && d_args[i].value.type == Variadic::kInt) {
       context_->cpu_tracker->MarkCpuValid(
+          static_cast<uint32_t>(d_args[i].value.int_value));
+    } else if (str == "gpu" && d_args[i].value.type == Variadic::kInt) {
+      context_->gpu_tracker->MarkGpuValid(
           static_cast<uint32_t>(d_args[i].value.int_value));
     } else if (str == "utid" && d_args[i].value.type == Variadic::kInt) {
       row.utid = static_cast<uint32_t>(d_args[i].value.int_value);

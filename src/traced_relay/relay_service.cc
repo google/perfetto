@@ -431,7 +431,7 @@ std::string RelayService::GetMachineIdHint(
 
     // Get current epoch time
     int rc = clock_gettime(CLOCK_REALTIME, &system_boottime);
-    if (rc == 0)
+    if (rc != 0)
       return std::string();
 
     // Get seconds since system boot

@@ -29,7 +29,7 @@
         right: 0;
         bottom: 0;
         pointer-events: none;
-        box-shadow: inset 0 0 0 3px
+        box-shadow: inset 0 0 0 2px
           color-mix(in srgb, transparent, var(--pf-color-primary) 40%);
 
         // This shouldn't be necessary - we should avoid using z-index in other

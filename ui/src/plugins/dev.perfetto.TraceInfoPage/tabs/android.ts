@@ -14,9 +14,20 @@
 
 import m from 'mithril';
 import {Engine} from '../../../trace_processor/engine';
-import {NUM_NULL, STR, STR_NULL} from '../../../trace_processor/query_result';
+import {
+  LONG,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../../trace_processor/query_result';
 import {Section} from '../../../widgets/section';
 import {Grid, GridCell, GridHeaderCell} from '../../../widgets/grid';
+import {Callout} from '../../../widgets/callout';
+import {Intent} from '../../../widgets/common';
+import {Select} from '../../../widgets/select';
+import {FormGrid, FormLabel} from '../../../widgets/form';
+import {Time} from '../../../base/time';
+import {renderTimecode} from '../../../components/time_utils';
 
 // Row specs
 const packageDataSpec = {
@@ -48,9 +59,24 @@ const androidGameInterventionRowSpec = {
 
 type AndroidGameInterventionRow = typeof androidGameInterventionRowSpec;
 
+const aflagRowSpec = {
+  ts: LONG,
+  package: STR_NULL,
+  name: STR_NULL,
+  container: STR_NULL,
+  value: STR_NULL,
+  stagedValue: STR_NULL,
+  permission: STR_NULL,
+  valuePickedFrom: STR_NULL,
+};
+
+type AflagRow = typeof aflagRowSpec;
+
 export interface AndroidData {
   packageList: PackageData[];
   gameInterventions: AndroidGameInterventionRow[];
+  aflags: AflagRow[];
+  aflagErrors: string[];
 }
 
 export async function loadAndroidData(engine: Engine): Promise<AndroidData> {
@@ -122,10 +148,71 @@ export async function loadAndroidData(engine: Engine): Promise<AndroidData> {
     });
   }
 
+  // Load aflags
+  const aflagsResult = await engine.query(`
+    include perfetto module android.aflags;
+    select
+      ts,
+      package,
+      name,
+      container,
+      value,
+      staged_value as stagedValue,
+      permission,
+      value_picked_from as valuePickedFrom
+    from android_aflags
+    order by package, name
+  `);
+  const aflags: AflagRow[] = [];
+  for (
+    const iter = aflagsResult.iter(aflagRowSpec);
+    iter.valid();
+    iter.next()
+  ) {
+    aflags.push({
+      ts: iter.ts,
+      package: iter.package,
+      name: iter.name,
+      container: iter.container,
+      value: iter.value,
+      stagedValue: iter.stagedValue,
+      permission: iter.permission,
+      valuePickedFrom: iter.valuePickedFrom,
+    });
+  }
+
+  // Load aflag errors
+  const aflagErrorsResult = await engine.query(`
+    select distinct display_value as error
+    from _trace_import_logs
+    join args using (arg_set_id)
+    where name = 'android_aflags_errors'
+  `);
+  const aflagErrors: string[] = [];
+  for (
+    const iter = aflagErrorsResult.iter({error: STR});
+    iter.valid();
+    iter.next()
+  ) {
+    aflagErrors.push(iter.error);
+  }
+
   return {
     packageList,
     gameInterventions,
+    aflags,
+    aflagErrors,
   };
+}
+
+export function hasAndroidData(data?: AndroidData): boolean {
+  if (!data) return false;
+  return (
+    data.packageList.length > 0 ||
+    data.gameInterventions.length > 0 ||
+    data.aflags.length > 0 ||
+    data.aflagErrors.length > 0
+  );
 }
 
 export interface AndroidTabAttrs {
@@ -138,6 +225,10 @@ export class AndroidTab implements m.ClassComponent<AndroidTabAttrs> {
       '.pf-trace-info-page__tab-content',
       m(PackageListSection, {packageList: attrs.data.packageList}),
       m(AndroidGameInterventionList, {data: attrs.data.gameInterventions}),
+      m(AndroidAflagsSection, {
+        aflags: attrs.data.aflags,
+        aflagErrors: attrs.data.aflagErrors,
+      }),
     );
   }
 }
@@ -294,6 +385,113 @@ class AndroidGameInterventionList
         ]),
         className: 'pf-trace-info-page__logs-grid',
       }),
+    );
+  }
+}
+
+interface AndroidAflagsSectionAttrs {
+  aflags: AflagRow[];
+  aflagErrors: string[];
+}
+
+class AndroidAflagsSection
+  implements m.ClassComponent<AndroidAflagsSectionAttrs>
+{
+  private selectedTs?: bigint;
+
+  view({attrs}: m.CVnode<AndroidAflagsSectionAttrs>) {
+    const {aflags, aflagErrors} = attrs;
+    if (
+      (aflags === undefined || aflags.length === 0) &&
+      (aflagErrors === undefined || aflagErrors.length === 0)
+    ) {
+      return undefined;
+    }
+
+    const timestamps = Array.from(new Set(aflags.map((f) => f.ts))).sort();
+    if (this.selectedTs === undefined && timestamps.length > 0) {
+      this.selectedTs = timestamps[0];
+    }
+
+    const filteredFlags = aflags.filter((f) => f.ts === this.selectedTs);
+
+    return m(
+      Section,
+      {
+        title: 'Android Aflags',
+        subtitle: 'List of Android aconfig flags in the trace',
+      },
+      aflagErrors.length > 0 &&
+        m(
+          Callout,
+          {
+            intent: Intent.Danger,
+            className: 'pf-trace-info-page__banner',
+          },
+          'Errors occurred during aflags collection: ',
+          aflagErrors.map((e) => m('div', e)),
+        ),
+      timestamps.length > 1 &&
+        m(
+          FormGrid,
+          m(FormLabel, {for: 'snapshot-select'}, 'Select Snapshot Timestamp:'),
+          m(
+            Select,
+            {
+              id: 'snapshot-select',
+              value: this.selectedTs?.toString(),
+              onchange: (e: Event) => {
+                const target = e.target as HTMLSelectElement;
+                this.selectedTs = BigInt(target.value);
+              },
+            },
+            timestamps.map((ts) =>
+              m(
+                'option',
+                {value: ts.toString()},
+                renderTimecode(Time.fromRaw(ts)),
+              ),
+            ),
+          ),
+        ),
+      aflags.length > 0 &&
+        m(Grid, {
+          columns: [
+            {
+              key: 'flag',
+              header: m(GridHeaderCell, 'Flag'),
+            },
+            {
+              key: 'value',
+              header: m(GridHeaderCell, 'Value'),
+            },
+            {
+              key: 'stagedValue',
+              header: m(GridHeaderCell, 'Staged Value'),
+            },
+            {
+              key: 'valuePickedFrom',
+              header: m(GridHeaderCell, 'Value Picked From'),
+            },
+            {
+              key: 'permission',
+              header: m(GridHeaderCell, 'Permission'),
+            },
+            {
+              key: 'container',
+              header: m(GridHeaderCell, 'Container'),
+            },
+          ],
+          rowData: filteredFlags.map((flag) => [
+            m(GridCell, `${flag.package ?? ''}.${flag.name ?? ''}`),
+            m(GridCell, flag.value),
+            m(GridCell, flag.stagedValue ? `(->${flag.stagedValue})` : '-'),
+            m(GridCell, flag.valuePickedFrom),
+            m(GridCell, flag.permission),
+            m(GridCell, flag.container),
+          ]),
+          className: 'pf-trace-info-page__logs-grid',
+        }),
     );
   }
 }

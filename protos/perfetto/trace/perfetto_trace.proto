@@ -527,6 +527,25 @@ enum SemanticType {
 
 // End of protos/perfetto/common/semantic_type.proto
 
+// Begin of protos/perfetto/config/android/android_aflags_config.proto
+
+// Options for the android.aflags data source.
+// This data source captures snapshots of Android aconfig flags.
+// See https://source.android.com/docs/setup/build/feature-flagging/declare-flag
+// for more information on aconfig flags.
+message AndroidAflagsConfig {
+  // Frequency of polling. If absent or 0, the state will be recorded once,
+  // at the start of the trace.
+  //
+  // It is recommended to either leave this absent or set it to a large
+  // value as each invocation of the `aflags` tool can be time consuming
+  // (approx. 350ms) and also triggers an expensive flush. This is required to
+  // be > 1000ms if set, to avoid excessive CPU usage.
+  optional uint32 poll_ms = 1;
+}
+
+// End of protos/perfetto/config/android/android_aflags_config.proto
+
 // Begin of protos/perfetto/config/android/android_game_intervention_list_config.proto
 
 // Data source that lists game modes and game interventions of games
@@ -4263,7 +4282,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 140
+// Next id: 141
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4500,6 +4519,9 @@ message DataSourceConfig {
 
   // Data source name: android.inputmethod
   optional InputMethodConfig inputmethod_config = 139 [lazy = true];
+
+  // Data source name: android.aflags
+  optional AndroidAflagsConfig android_aflags_config = 140 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
@@ -5808,6 +5830,69 @@ message TraceStats {
 }
 
 // End of protos/perfetto/common/trace_stats.proto
+
+// Begin of protos/perfetto/trace/android/android_aflags.proto
+
+// Android aconfig flags (aflags).
+// This message captures a snapshot of the state of aconfig flags on the device.
+// Keep in sync with:
+// http://ac/packages/modules/ConfigInfrastructure/aflags/proto/aflags.proto
+message AndroidAflags {
+  // Whether a flag can be modified at runtime.
+  enum FlagPermission {
+    FLAG_PERMISSION_UNSPECIFIED = 0;
+    FLAG_PERMISSION_READ_ONLY = 1;
+    FLAG_PERMISSION_READ_WRITE = 2;
+  }
+
+  // The source of the current flag value.
+  enum ValuePickedFrom {
+    VALUE_PICKED_FROM_UNSPECIFIED = 0;
+    // The value is the build-time default.
+    VALUE_PICKED_FROM_DEFAULT = 1;
+    // The value comes from a server-side override.
+    VALUE_PICKED_FROM_SERVER = 2;
+    // The value comes from a local override on the device.
+    VALUE_PICKED_FROM_LOCAL = 3;
+  }
+
+  // The underlying storage mechanism for the flag.
+  enum FlagStorageBackend {
+    FLAG_STORAGE_BACKEND_UNSPECIFIED = 0;
+    FLAG_STORAGE_BACKEND_NONE = 1;
+    FLAG_STORAGE_BACKEND_ACONFIGD = 2;
+    FLAG_STORAGE_BACKEND_DEVICE_CONFIG = 3;
+  }
+
+  // Representation of an aconfig flag and its metadata.
+  message Flag {
+    optional string flag_namespace = 1;
+    optional string name = 2;
+    // The aconfig package (e.g. "com.android.foo"). These are system-level
+    // identifiers and not privacy-impacting.
+    optional string pkg = 3;
+    // The container where the flag lives (e.g. "system", "vendor", or mainline
+    // module name).
+    optional string container = 4;
+    // The flag value as a string to support different future data types.
+    optional string value = 5;
+    // The value that will be applied after the next reboot, if different from
+    // the current value.
+    optional string staged_value = 6;
+    optional FlagPermission permission = 7;
+    optional ValuePickedFrom value_picked_from = 8;
+    optional FlagStorageBackend storage_backend = 9;
+  }
+
+  // A collection of flags.
+  repeated Flag flags = 1;
+
+  // A human-readable error logged if aflags processing fails.
+  // This is a perfetto specific field used to help debugging.
+  optional string error = 2;
+}
+
+// End of protos/perfetto/trace/android/android_aflags.proto
 
 // Begin of protos/perfetto/trace/android/android_game_intervention_list.proto
 
@@ -9451,6 +9536,19 @@ message DpuDispVblankIrqEnableFtraceEvent {
   optional int32 id = 1;
   optional int32 output_id = 2;
   optional int32 enable = 3;
+}
+message DpuDispFrameDoneTimeoutFtraceEvent {
+  optional int32 display_id = 1;
+  optional uint32 output_id = 2;
+  optional int32 frames_pending = 3;
+  optional int32 te_count = 4;
+  optional uint32 during_disable = 5;
+}
+message DpuDispFrameStartTimeoutFtraceEvent {
+  optional int32 display_id = 1;
+  optional uint32 output_id = 2;
+  optional int32 frames_pending = 3;
+  optional int32 te_count = 4;
 }
 
 // End of protos/perfetto/trace/ftrace/dpu.proto
@@ -13662,6 +13760,8 @@ message FtraceEvent {
     GramCollisionFtraceEvent gram_collision = 602;
     F2fsLockElapsedTimeFtraceEvent f2fs_lock_elapsed_time = 603;
     SchedGroupTrackerFtraceEvent sched_group_tracker = 604;
+    DpuDispFrameDoneTimeoutFtraceEvent dpu_disp_frame_done_timeout = 605;
+    DpuDispFrameStartTimeoutFtraceEvent dpu_disp_frame_start_timeout = 606;
   }
 }
 
@@ -14088,13 +14188,33 @@ message GenericKernelProcessTree {
 
 // Begin of protos/perfetto/trace/gpu/gpu_counter_event.proto
 
+// Events for emitting information about GPU counters.
+//
+// There are two "modes" to use these protos:
+//   1) Using GpuCounterDescriptor. This is the simplest way to use this proto
+//      but has the limitation that counter ids are*global* so must only be
+//      emitted by a single producer or requires coordination between different
+//      producers. This is the mechanism which *must* be used by Android OEMS
+//      to be complaint with CDD/CTS tests.
+//   2) Using InternedGpuCounterDescriptor. This is generally recommended for
+//      more complex use-cases involving multiple producers, multiple GPUs etc.
 message GpuCounterEvent {
-  // The first trace packet of each session should include counter_spec.
-  optional GpuCounterDescriptor counter_descriptor = 1;
+  // The specification for the GPU counters. Gives them information like the
+  // name of the counter, unit etc.
+  oneof desc {
+    // Must be specified on first trace packet of each session if using mode 1.
+    // (e.g. if you're an Android GPU vendor).
+    GpuCounterDescriptor counter_descriptor = 1;
+
+    // ID to a InternedGpuCounterDescriptor in InternedData. Must be specified
+    // on first trace packet of the trusted sequence if using mode 2.
+    uint64 counter_descriptor_iid = 4;
+  }
 
   message GpuCounter {
     // required. Identifier for counter.
     optional uint32 counter_id = 1;
+
     // required. Value of the counter.
     oneof value {
       int64 int_value = 2;
@@ -14102,6 +14222,18 @@ message GpuCounterEvent {
     }
   }
   repeated GpuCounter counters = 2;
+
+  // Identifier for GPU in a multi-gpu device.
+  //
+  // If `counter_descriptor_iid` is specified, the `gpu_id` in
+  // `InternedGpuCounterDescriptor` takes precedence over this field.
+  optional int32 gpu_id = 3;
+}
+
+// Interned GPU counter descriptor for sequence-scoped counter specs.
+message InternedGpuCounterDescriptor {
+  optional uint64 iid = 1;
+  optional GpuCounterDescriptor counter_descriptor = 2;
 
   // optional. Identifier for GPU in a multi-gpu device.
   optional int32 gpu_id = 3;
@@ -15970,7 +16102,7 @@ message EventName {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 45.
+// Next id: 48.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -16067,6 +16199,9 @@ message InternedData {
   // Interned job names for Android Job Names. These are separate from
   // other strings because they are under app control.
   repeated AndroidJobName android_job_name = 44;
+
+  // Description of GPU counters available in a data source.
+  repeated InternedGpuCounterDescriptor gpu_counter_descriptors = 47;
 
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;
@@ -16651,12 +16786,6 @@ message HeapGraphObject {
   // Ids of the Object that is referred to.
   repeated uint64 reference_object_id = 5 [packed = true];
 
-  // If this object is an instance of `libcore.util.NativeAllocationRegistry`,
-  // the value of the `size` field.
-  //
-  // N.B. This is not the native size of this object.
-  optional int64 native_allocation_registry_size_field = 8;
-
   enum HeapType {
     HEAP_TYPE_UNKNOWN = 0;
     HEAP_TYPE_APP = 1;
@@ -16670,6 +16799,25 @@ message HeapGraphObject {
   // Ids of the Objects referred by this object, not via fields, but via
   // internal runtime structures.
   repeated uint64 runtime_internal_object_id = 10 [packed = true];
+
+  // =================================================================
+  // |                      Object value fields                      |
+  // =================================================================
+
+  // `libcore.util.NativeAllocationRegistry.size`: Maps to the size (bytes) of
+  // the corresponding objects registered with the native allocation registry.
+  // N.B. this can be an approximation.
+  optional int64 native_allocation_registry_size_field = 8;
+
+  // Bitmap-specific field captures, only applicable to objects of this type.
+  // `android.graphics.Bitmap.mId`: Used for storage type and deduplication.
+  optional int64 bitmap_id_field = 11;
+  // `android.graphics.Bitmap.mSourceId`: Used to identify the source process.
+  optional int64 bitmap_source_id_field = 12;
+  // `android.graphics.Bitmap.mWidth`: Width in pixels
+  optional uint32 bitmap_width_field = 13;
+  // `android.graphics.Bitmap.mHeight`: Height in pixels
+  optional uint32 bitmap_height_field = 14;
 }
 
 message HeapGraph {
@@ -18338,7 +18486,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 127.
+// Next id: 128.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -18427,6 +18575,7 @@ message TracePacket {
     TraceProvenance trace_provenance = 124;
     ProtoVms protovms = 125;
     TraceAttributes trace_attributes = 126;
+    AndroidAflags android_aflags = 127;
 
     // Only used in profile packets.
     ModuleSymbols module_symbols = 61;

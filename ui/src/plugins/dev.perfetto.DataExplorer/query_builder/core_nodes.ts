@@ -90,6 +90,51 @@ import {DashboardNode, DashboardSerializedState} from './nodes/dashboard_node';
 import {Icons} from '../../../base/semantic_icons';
 import {NodeType} from '../query_node';
 
+// After JoinNode.onPrevNodesUpdated() defaults all columns to unchecked on
+// first initialization, check the columns that the downstream ModifyColumns
+// node needs. For JSON import this is a no-op because columns are restored
+// from serialized state (already have checked values).
+function applyJoinColumnDefaults(joinNode: JoinNode): void {
+  const leftCols = joinNode.state.leftColumns ?? [];
+  const rightCols = joinNode.state.rightColumns ?? [];
+
+  // If any columns are already checked, the serialized state was restored
+  // correctly (JSON import path) — nothing to do.
+  if (leftCols.some((c) => c.checked) || rightCols.some((c) => c.checked)) {
+    return;
+  }
+
+  // No columns checked — first initialization (e.g. pbtxt import).
+  // Check only columns needed by the downstream ModifyColumns node.
+  const mc = joinNode.nextNodes.find((n) => n.type === NodeType.kModifyColumns);
+  if (mc !== undefined) {
+    const mcState = mc.state as {
+      selectedColumns?: Array<{name: string; checked: boolean}>;
+    };
+    const needed = new Set(
+      mcState.selectedColumns?.filter((c) => c.checked).map((c) => c.name) ??
+        [],
+    );
+    const checked = new Set<string>();
+    for (const col of leftCols) {
+      if (needed.has(col.name) && !checked.has(col.name)) {
+        col.checked = true;
+        checked.add(col.name);
+      }
+    }
+    for (const col of rightCols) {
+      if (needed.has(col.name) && !checked.has(col.name)) {
+        col.checked = true;
+        checked.add(col.name);
+      }
+    }
+  } else {
+    // No downstream ModifyColumns — check all columns.
+    for (const col of leftCols) col.checked = true;
+    for (const col of rightCols) col.checked = true;
+  }
+}
+
 export function registerCoreNodes() {
   nodeRegistry.register('slice', {
     name: 'Slices',
@@ -269,7 +314,7 @@ export function registerCoreNodes() {
           state as ModifyColumnsSerializedState,
         ),
       ),
-    postDeserialize: (node) => (node as ModifyColumnsNode).resolveColumns(),
+    postDeserializeLate: (node) => (node as ModifyColumnsNode).resolveColumns(),
   });
 
   nodeRegistry.register('aggregation', {
@@ -286,7 +331,7 @@ export function registerCoreNodes() {
         ),
         sqlModules,
       }),
-    postDeserialize: (node) => (node as AggregationNode).resolveColumns(),
+    postDeserializeLate: (node) => (node as AggregationNode).resolveColumns(),
   });
 
   nodeRegistry.register('filter_node', {
@@ -452,7 +497,13 @@ export function registerCoreNodes() {
         joinNode.secondaryInputs.connections.set(1, conns.rightNode);
       }
     },
-    postDeserializeLate: (node) => (node as JoinNode).onPrevNodesUpdated(),
+    postDeserializeLate: (node) => {
+      const joinNode = node as JoinNode;
+      joinNode.onPrevNodesUpdated();
+      // After updateColumnArrays defaults all to unchecked on first init,
+      // check the columns that the downstream ModifyColumns needs.
+      applyJoinColumnDefaults(joinNode);
+    },
   });
 
   nodeRegistry.register('create_slices', {
