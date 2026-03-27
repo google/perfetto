@@ -18,6 +18,9 @@ from os import sys, path
 import synth_common
 
 # See gpu_counter_descriptor.proto
+NONE = 0
+BYTE = 7
+HERTZ = 13
 MILLISECOND = 21
 SECOND = 22
 VERTEX = 25
@@ -26,7 +29,7 @@ TRIANGLE = 27
 
 trace = synth_common.create_trace()
 
-# Add 3 counter specs.
+# Add counter specs.
 trace.add_gpu_counter_spec(
     ts=1,
     gpu_id=0,
@@ -51,6 +54,24 @@ trace.add_gpu_counter_spec(
     description="Number of triangles per ms-ms",
     unit_numerators=[TRIANGLE],
     unit_denominators=[MILLISECOND, MILLISECOND])
+# Counter with NONE denominator (should be skipped).
+trace.add_gpu_counter_spec(
+    ts=4,
+    gpu_id=0,
+    counter_id=35,
+    name="Bytes Only",
+    description="Counter with NONE denominator",
+    unit_numerators=[BYTE],
+    unit_denominators=[NONE])
+# Counter with numerator only, no denominator.
+trace.add_gpu_counter_spec(
+    ts=5,
+    gpu_id=0,
+    counter_id=36,
+    name="Frequency",
+    description="Counter with numerator only",
+    unit_numerators=[HERTZ],
+    unit_denominators=[])
 
 # Add some counter value events.
 trace.add_gpu_counter(11, 31, 5)
@@ -69,5 +90,11 @@ trace.add_gpu_counter(33, 33, 25)
 trace.add_gpu_counter(14, 34, 0)
 trace.add_gpu_counter(24, 34, 9)
 trace.add_gpu_counter(34, 34, 7)
+
+trace.add_gpu_counter(15, 35, 1024)
+trace.add_gpu_counter(25, 35, 0)
+
+trace.add_gpu_counter(16, 36, 60)
+trace.add_gpu_counter(26, 36, 0)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())
