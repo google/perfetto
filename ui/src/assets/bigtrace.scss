@@ -30,3 +30,26 @@
   align-items: center;
   gap: 16px;
 }
+
+.pf-bt-textarea {
+  width: 100%;
+  min-height: 60px;
+  max-height: 200px;
+  resize: vertical;
+  font-family: var(--pf-font-monospace);
+  font-size: var(--pf-font-size-s);
+  padding: 6px 8px;
+  border: solid 1px var(--pf-color-border-secondary);
+  border-radius: 4px;
+  background: var(--pf-color-void);
+  color: inherit;
+
+  &:hover {
+    border-color: var(--pf-color-border);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--pf-color-primary);
+  }
+}

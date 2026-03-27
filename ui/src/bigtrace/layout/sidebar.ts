@@ -19,19 +19,9 @@ import {getOrCreate} from '../../base/utils';
 import {classNames} from '../../base/classnames';
 
 const SIDEBAR_SECTIONS = {
-  home: {
-    title: 'Home',
-    summary: '',
-    defaultCollapsed: false,
-  },
-  query: {
+  bigtrace: {
     title: 'BigTrace',
     summary: 'Query and analyze large traces',
-    defaultCollapsed: false,
-  },
-  settings: {
-    title: 'Settings',
-    summary: 'Customize your BigTrace experience',
     defaultCollapsed: false,
   },
 } as const;

@@ -137,13 +137,24 @@ export function renderSetting(setting: Setting<unknown>): m.Children {
         },
       });
     case 'string-array':
-      return m('textarea', {
-        value: (currentValue as string[]).join(','),
-        placeholder: setting.placeholder || 'value1, value2, ...',
+      return m('textarea.pf-bt-textarea', {
+        placeholder: setting.placeholder || 'Comma-separated values',
         disabled,
-        oninput: (e: Event) => {
+        rows: 3,
+        spellcheck: false,
+        oncreate: (vnode: m.VnodeDOM) => {
+          (vnode.dom as HTMLTextAreaElement).value = (
+            currentValue as string[]
+          ).join(', ');
+        },
+        onblur: (e: Event) => {
           const target = e.target as HTMLTextAreaElement;
-          setting.set(target.value.split(',').map((s) => s.trim()));
+          setting.set(
+            target.value
+              .split(',')
+              .map((s) => s.trim())
+              .filter((s) => s !== ''),
+          );
         },
       });
     default:

@@ -22,9 +22,14 @@ import {settingsStorage} from '../settings/settings_storage';
 import {setRoute} from '../router';
 import {Routes} from '../routes';
 
-const SLICE_COUNT_QUERY = `SELECT
-  COUNT(*) as slice_count
-FROM slice`;
+const LMK_QUERY = `INCLUDE PERFETTO MODULE android.memory.lmk;
+
+SELECT 
+  *
+FROM android_lmk_events
+WHERE oom_score_adj <= 200
+ORDER BY oom_score_adj
+LIMIT 1;`;
 
 const CPU_TIME_QUERY = `SELECT
   p.name,
@@ -87,12 +92,12 @@ export class HomePage implements m.ClassComponent {
                   '.pf-home-page__button',
                   {
                     onclick: () => {
-                      queryState.initialQuery = SLICE_COUNT_QUERY;
+                      queryState.initialQuery = LMK_QUERY;
                       setRoute(Routes.QUERY);
                     },
                   },
                   m(Icon, {icon: 'search', className: 'pf-left-icon'}),
-                  m('span.pf-button__label', 'Slice count'),
+                  m('span.pf-button__label', 'LMK events'),
                 ),
                 m(
                   '.pf-home-page__button',

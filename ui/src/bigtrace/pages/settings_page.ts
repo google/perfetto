@@ -38,14 +38,59 @@ interface BigTraceSettingsCardAttrs extends m.Attributes {
   description?: m.Children;
   disabled?: boolean;
   onChange?: (disabled: boolean) => void;
+  fullWidthControls?: boolean;
 }
 
 class BigTraceSettingsCard
   implements m.ClassComponent<BigTraceSettingsCardAttrs>
 {
   view(vnode: m.Vnode<BigTraceSettingsCardAttrs>) {
-    const {id, title, controls, description, disabled, onChange, ...rest} =
-      vnode.attrs;
+    const {
+      id,
+      title,
+      controls,
+      description,
+      disabled,
+      onChange,
+      fullWidthControls,
+      ...rest
+    } = vnode.attrs;
+
+    const details = m(
+      '.pf-settings-card__details',
+      m('.pf-settings-card__title', [
+        disabled !== undefined &&
+          m(Switch, {
+            className: 'pf-settings-card__toggle',
+            style: {marginRight: '8px'},
+            checked: !disabled,
+            onchange: (e: Event) => {
+              const target = e.target as HTMLInputElement;
+              onChange?.(!target.checked);
+            },
+          }),
+        title,
+      ]),
+      id && m('.pf-settings-card__id', id),
+      description !== undefined &&
+        m('.pf-settings-card__description', description),
+    );
+
+    const controlsEl = m(
+      '.pf-settings-card__controls',
+      {
+        className: classNames(
+          disabled !== undefined &&
+            disabled &&
+            'pf-bt-settings-controls--disabled',
+        ),
+        style: fullWidthControls
+          ? {gridColumn: '1 / -1', minWidth: '0'}
+          : undefined,
+      },
+      controls,
+    );
+
     return m(
       'div',
       {
@@ -60,38 +105,7 @@ class BigTraceSettingsCard
           className: classNames('pf-settings-card', disabled && 'pf-disabled'),
           ...rest,
         },
-        [
-          m(
-            '.pf-settings-card__details',
-            m('.pf-settings-card__title', [
-              disabled !== undefined &&
-                m(Switch, {
-                  className: 'pf-settings-card__toggle',
-                  style: {marginRight: '8px'},
-                  checked: !disabled,
-                  onchange: (e: Event) => {
-                    const target = e.target as HTMLInputElement;
-                    onChange?.(!target.checked);
-                  },
-                }),
-              title,
-            ]),
-            id && m('.pf-settings-card__id', id),
-            description !== undefined &&
-              m('.pf-settings-card__description', description),
-          ),
-          m(
-            '.pf-settings-card__controls',
-            {
-              className: classNames(
-                disabled !== undefined &&
-                  disabled &&
-                  'pf-bt-settings-controls--disabled',
-              ),
-            },
-            controls,
-          ),
-        ],
+        [details, controlsEl],
       ),
     );
   }
@@ -104,48 +118,50 @@ export class SettingsPage implements m.ClassComponent {
     bigTraceSettingsStorage.loadSettings();
   }
 
+  private static readonly CATEGORY_DISPLAY_NAMES: ReadonlyMap<string, string> =
+    new Map([
+      ['General', 'General'],
+      ['TRACE_ADDRESS', 'Trace Address'],
+      ['TRACE_METADATA', 'Trace Metadata'],
+      ['BIGTRACE_QUERY_OPTIONS', 'Query Options'],
+    ]);
+
+  private displayCategory(raw: string): string {
+    return SettingsPage.CATEGORY_DISPLAY_NAMES.get(raw) ?? raw;
+  }
+
   view() {
     const endpointSetting = endpointStorage.get('bigtraceEndpoint');
-    const isEndpointMatch = !!(
-      endpointSetting &&
-      (endpointSetting.name
-        .toLowerCase()
-        .includes(this.searchQuery.toLowerCase()) ||
-        endpointSetting.description
-          .toLowerCase()
-          .includes(this.searchQuery.toLowerCase()))
-    );
 
-    const matchGeneral = isEndpointMatch;
+    const query = this.searchQuery.toLowerCase();
+    const categories = new Map<string, BigTraceSetting<unknown>[]>();
+
+    // Always show the General section so the endpoint is accessible.
+    if (endpointSetting) {
+      categories.set('General', []);
+    }
 
     const settings = bigTraceSettingsStorage
       .getAllSettings()
       .filter(
         (s) =>
-          s.name.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-          s.description.toLowerCase().includes(this.searchQuery.toLowerCase()),
+          s.name.toLowerCase().includes(query) ||
+          s.description.toLowerCase().includes(query),
       );
-    const categories = new Map<string, BigTraceSetting<unknown>[]>();
 
     for (const setting of settings) {
-      let categoryName = setting.category || 'General';
-      // Note: we'll place BigTrace 'General' items under a distinct name if they clash,
-      // but typically they are Trace Address etc. We'll map 'General' to 'Misc BigTrace Settings'
-      if (categoryName === 'General') categoryName = 'Misc BigTrace Settings';
-      if (categoryName === 'TRACE_ADDRESS') categoryName = 'Trace Address';
-      else if (categoryName === 'TRACE_METADATA') {
-        categoryName = 'Trace Metadata';
-      } else if (categoryName === 'BIGTRACE_QUERY_OPTIONS') {
-        categoryName = 'Query Options';
-      }
-
+      const categoryName = this.displayCategory(setting.category || 'General');
       if (!categories.has(categoryName)) {
         categories.set(categoryName, []);
       }
       categories.get(categoryName)!.push(setting);
     }
 
-    if (this.searchQuery === '' && !categories.has('Trace Metadata')) {
+    if (
+      this.searchQuery === '' &&
+      !categories.has('Trace Metadata') &&
+      !bigTraceSettingsStorage.execConfigLoadError
+    ) {
       categories.set('Trace Metadata', []);
     }
 
@@ -179,13 +195,74 @@ export class SettingsPage implements m.ClassComponent {
         ),
       },
       m('.pf-settings-page', [
-        matchGeneral &&
+        bigTraceSettingsStorage.isExecConfigLoading &&
+          m(EmptyState, {
+            title: 'Loading settings...',
+            icon: 'hourglass_empty',
+            fillHeight: true,
+          }),
+        bigTraceSettingsStorage.execConfigLoadError &&
           m(
-            '.pf-settings-page__plugin-section',
-            m('h2.pf-settings-page__plugin-title', 'General'),
-            m(CardStack, [
-              isEndpointMatch &&
-                endpointSetting !== undefined &&
+            Callout,
+            {
+              intent: Intent.Danger,
+              icon: 'error',
+              title: 'Failed to Load Execution Configuration',
+            },
+            bigTraceSettingsStorage.execConfigLoadError,
+          ),
+        Array.from(categories.entries()).map(([category, catSettings]) => {
+          let categoryHeader: m.Children = m(
+            'h2.pf-settings-page__plugin-title',
+            category,
+          );
+          if (category === 'Trace Metadata') {
+            categoryHeader = m(
+              'h2.pf-settings-page__plugin-title.pf-bt-settings-category-header',
+              [
+                m('span', category),
+                bigTraceSettingsStorage.isReloadRequired() &&
+                !bigTraceSettingsStorage.isMetadataLoading
+                  ? m(Button, {
+                      label: 'Reload',
+                      icon: 'refresh',
+                      intent: Intent.Primary,
+                      variant: ButtonVariant.Filled,
+                      onclick: () =>
+                        bigTraceSettingsStorage.reloadMetadataSettings(),
+                    })
+                  : null,
+              ],
+            );
+          }
+
+          let categoryContent;
+          if (
+            category === 'Trace Metadata' &&
+            bigTraceSettingsStorage.isMetadataLoading
+          ) {
+            categoryContent = m(EmptyState, {
+              title: 'Loading metadata...',
+              icon: 'hourglass_empty',
+            });
+          } else if (
+            category === 'Trace Metadata' &&
+            bigTraceSettingsStorage.metadataLoadError
+          ) {
+            categoryContent = m(
+              Callout,
+              {
+                intent: Intent.Danger,
+                icon: 'error',
+                title: 'Failed to Load Trace Metadata',
+              },
+              bigTraceSettingsStorage.metadataLoadError,
+            );
+          } else {
+            const cards: m.Children[] = [];
+            // Render the endpoint card inside "General".
+            if (category === 'General' && endpointSetting) {
+              cards.push(
                 m(BigTraceSettingsCard, {
                   id: endpointSetting.id,
                   title: endpointSetting.name,
@@ -193,94 +270,20 @@ export class SettingsPage implements m.ClassComponent {
                   disabled: undefined,
                   controls: this.renderEndpointControl(endpointSetting),
                 }),
-            ]),
-          ),
-        (() => {
-          if (bigTraceSettingsStorage.isExecConfigLoading) {
-            return m(EmptyState, {
-              title: 'Loading settings...',
-              icon: 'hourglass_empty',
-              fillHeight: true,
-            });
+              );
+            }
+            for (const setting of catSettings) {
+              cards.push(this.renderBigTraceSettingCard(setting));
+            }
+            categoryContent = m(CardStack, cards);
           }
 
-          if (bigTraceSettingsStorage.execConfigLoadError) {
-            return m(
-              Callout,
-              {
-                intent: Intent.Danger,
-                icon: 'error',
-                title: 'Failed to Load Execution Configuration',
-              },
-              bigTraceSettingsStorage.execConfigLoadError,
-            );
-          }
-
-          return Array.from(categories.entries()).map(
-            ([category, settings]) => {
-              let categoryHeader: m.Children = m(
-                'h2.pf-settings-page__plugin-title',
-                category,
-              );
-              if (category === 'Trace Metadata') {
-                categoryHeader = m(
-                  'h2.pf-settings-page__plugin-title.pf-bt-settings-category-header',
-                  [
-                    m('span', category),
-                    bigTraceSettingsStorage.isReloadRequired() &&
-                    !bigTraceSettingsStorage.isMetadataLoading
-                      ? m(Button, {
-                          label: 'Reload',
-                          icon: 'refresh',
-                          intent: Intent.Primary,
-                          variant: ButtonVariant.Filled,
-                          onclick: () =>
-                            bigTraceSettingsStorage.reloadMetadataSettings(),
-                        })
-                      : null,
-                  ],
-                );
-              }
-
-              let categoryContent;
-              if (
-                category === 'Trace Metadata' &&
-                bigTraceSettingsStorage.isMetadataLoading
-              ) {
-                categoryContent = m(EmptyState, {
-                  title: 'Loading metadata...',
-                  icon: 'hourglass_empty',
-                });
-              } else if (
-                category === 'Trace Metadata' &&
-                bigTraceSettingsStorage.metadataLoadError
-              ) {
-                categoryContent = m(
-                  Callout,
-                  {
-                    intent: Intent.Danger,
-                    icon: 'error',
-                    title: 'Failed to Load Trace Metadata',
-                  },
-                  bigTraceSettingsStorage.metadataLoadError,
-                );
-              } else {
-                categoryContent = m(
-                  CardStack,
-                  settings.map((setting) => {
-                    return this.renderBigTraceSettingCard(setting);
-                  }),
-                );
-              }
-
-              return m(
-                '.pf-settings-page__plugin-section',
-                categoryHeader,
-                categoryContent,
-              );
-            },
+          return m(
+            '.pf-settings-page__plugin-section',
+            categoryHeader,
+            categoryContent,
           );
-        })(),
+        }),
       ]),
     );
   }
@@ -299,12 +302,16 @@ export class SettingsPage implements m.ClassComponent {
 
   private renderBigTraceSettingCard(setting: BigTraceSetting<unknown>) {
     const disabled = setting.isDisabled();
+    const fullWidth =
+      setting.type === 'string-array' ||
+      (setting.type === 'string' && setting.format === 'sql');
     return m(BigTraceSettingsCard, {
       id: setting.id,
       title: setting.name,
       description: setting.description,
       controls: renderSetting(setting),
       disabled,
+      fullWidthControls: fullWidth,
       onChange: (newDisabled: boolean) => {
         setting.setDisabled(newDisabled);
       },

@@ -44,6 +44,7 @@ import {Tabs, TabsTab} from '../../widgets/tabs';
 import {linkify} from '../../widgets/anchor';
 import {shortUuid} from '../../base/uuid';
 import {Row as DataGridRow} from '../../trace_processor/query_result';
+import {debounce} from '../../base/rate_limiters';
 
 interface QueryResponse {
   query: string;
@@ -62,6 +63,7 @@ interface QueryPageAttrs {
 }
 
 const DEFAULT_SQL = '';
+const QUERY_TABS_STORAGE_KEY = 'bigtraceQueryTabs';
 
 // Per-tab state for each editor tab.
 interface BigTraceEditorTab {
@@ -81,9 +83,55 @@ class QueryTabsState {
   tabs: BigTraceEditorTab[] = [];
   activeTabId = '';
   private tabCounter = 0;
+  private readonly debouncedSave = debounce(() => this.saveToStorage(), 1000);
 
   constructor() {
-    this.addNewTab(undefined, DEFAULT_SQL);
+    if (!this.loadFromStorage()) {
+      this.addNewTab(undefined, DEFAULT_SQL);
+    }
+  }
+
+  private saveToStorage(): void {
+    const state = {
+      tabs: this.tabs.map((t) => ({
+        id: t.id,
+        title: t.title,
+        editorText: t.editorText,
+      })),
+      activeTabId: this.activeTabId,
+    };
+    localStorage.setItem(QUERY_TABS_STORAGE_KEY, JSON.stringify(state));
+  }
+
+  private loadFromStorage(): boolean {
+    const stored = localStorage.getItem(QUERY_TABS_STORAGE_KEY);
+    if (!stored) return false;
+    try {
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed.tabs) || parsed.tabs.length === 0) return false;
+      for (const t of parsed.tabs) {
+        this.addNewTab(t.title, t.editorText);
+      }
+      if (typeof parsed.activeTabId === 'string') {
+        const found = this.tabs.find((t) => t.id === parsed.activeTabId);
+        if (!found) {
+          // Restored tabs get new IDs, so activate by index instead.
+          const idx = parsed.tabs.findIndex(
+            (t: {id: string}) => t.id === parsed.activeTabId,
+          );
+          if (idx >= 0 && idx < this.tabs.length) {
+            this.activeTabId = this.tabs[idx].id;
+          }
+        }
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  markDirty(): void {
+    this.debouncedSave();
   }
 
   private nextTabName(): string {
@@ -109,6 +157,7 @@ class QueryTabsState {
     };
     this.tabs.push(tab);
     this.activeTabId = tab.id;
+    this.markDirty();
     return tab;
   }
 
@@ -126,11 +175,15 @@ class QueryTabsState {
       const newIndex = Math.min(index, this.tabs.length - 1);
       this.activeTabId = this.tabs[newIndex].id;
     }
+    this.markDirty();
   }
 
   renameTab(tabId: string, newTitle: string): void {
     const tab = this.tabs.find((t) => t.id === tabId);
-    if (tab) tab.title = newTitle;
+    if (tab) {
+      tab.title = newTitle;
+      this.markDirty();
+    }
   }
 
   reorderTab(draggedId: string, beforeId: string | undefined): void {
@@ -160,9 +213,12 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     this.useBrushBackend = attrs.useBrushBackend || false;
     if (attrs.initialQuery) {
       const activeTab = tabsState.getActiveTab();
-      if (activeTab) {
+      if (activeTab && activeTab.editorText.trim() === '') {
         activeTab.editorText = attrs.initialQuery;
+      } else {
+        tabsState.addNewTab(undefined, attrs.initialQuery);
       }
+      tabsState.markDirty();
     }
     if (this.useBrushBackend) {
       bigTraceSettingsStorage.loadSettings();
@@ -189,6 +245,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
       reorderable: true,
       onTabChange: (key) => {
         tabsState.activeTabId = key;
+        tabsState.markDirty();
       },
       onTabRename: (key, newTitle) => tabsState.renameTab(key, newTitle),
       onTabClose: (key) => tabsState.closeTab(key),
@@ -313,6 +370,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         language: 'perfetto-sql',
         onUpdate: (text: string) => {
           tab.editorText = text;
+          tabsState.markDirty();
         },
         onExecute: (query: string) => this.runQueryOnTab(tab, query),
       }),

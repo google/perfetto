@@ -143,23 +143,15 @@ class BigTraceLayout implements m.ClassComponent {
 
     const items: SidebarMenuItem[] = [
       {
-        section: 'home',
-        text: 'Home',
-        href: `#!${Routes.HOME}`,
-        icon: 'home',
-        active: currentRoute === Routes.HOME || currentRoute === '',
-        onclick: () => {},
-      },
-      {
-        section: 'query',
-        text: 'Query Editor',
+        section: 'bigtrace',
+        text: 'Query (SQL)',
         href: `#!${Routes.QUERY}`,
-        icon: 'line_style',
+        icon: 'database',
         active: currentRoute === Routes.QUERY,
         onclick: () => {},
       },
       {
-        section: 'settings',
+        section: 'bigtrace',
         text: 'Settings',
         href: `#!${Routes.SETTINGS}`,
         icon: 'settings',
