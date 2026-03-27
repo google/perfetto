@@ -35,12 +35,6 @@ import {postMessageHandler} from './post_message_handler';
 import {Route, Router} from '../core/router';
 import {checkHttpRpcConnection} from './rpc_http_dialog';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
-import {
-  DEFAULT_TRACK_MIN_HEIGHT_PX,
-  MINIMUM_TRACK_MIN_HEIGHT_PX,
-  TRACK_MIN_HEIGHT_SETTING,
-} from './timeline_page/track_view';
-import {renderTimelinePage} from './timeline_page/timeline_page';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
 import {IdleDetector} from './idle_detector';
@@ -348,7 +342,7 @@ function main() {
     {passive: false},
   );
 
-  cssLoadPromise.then(() => onCssLoaded());
+  cssLoadPromise.then(() => onCssLoaded(app));
 
   (window as {} as IdleDetectorWindow).waitForPerfettoIdle = (ms?: number) => {
     return new IdleDetector().waitForPerfettoIdle(ms);
@@ -362,15 +356,17 @@ function main() {
   }
 }
 
-function onCssLoaded() {
+function onCssLoaded(app: AppImpl) {
   // Clear all the contents of the initial page (e.g. the <pre> error message)
   // And replace it with the root <main> element which will be used by mithril.
   document.body.innerHTML = '';
 
+<<<<<<< HEAD
   const app = AppImpl.instance;
+=======
+>>>>>>> origin/main
   const pages = app.pages;
   pages.registerPage({route: '/', render: () => m(HomePage)});
-  pages.registerPage({route: '/viewer', render: () => renderTimelinePage()});
   const router = new Router();
   router.onRouteChanged = routeChange;
 
@@ -382,6 +378,7 @@ function onCssLoaded() {
     defaultValue: 'light',
   } as const);
 
+<<<<<<< HEAD
   app.settings.register({
     id: TRACK_MIN_HEIGHT_SETTING,
     name: 'Track Height',
@@ -391,6 +388,8 @@ function onCssLoaded() {
     defaultValue: DEFAULT_TRACK_MIN_HEIGHT_PX,
   });
 
+=======
+>>>>>>> origin/main
   // Add command to toggle the theme.
   app.commands.registerCommand({
     id: 'dev.perfetto.ToggleTheme',
@@ -497,10 +496,13 @@ function onCssLoaded() {
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
   pluginManager.activatePlugins(app, overrides);
+<<<<<<< HEAD
 
   // Initialize analytics after plugins have been activated, so that plugins
   // (e.g. ExtensionServers) can add dimensions before GA is configured.
   app.analytics.initialize();
+=======
+>>>>>>> origin/main
 }
 
 // This function is called only later after all the sub-resources (fonts,

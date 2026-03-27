@@ -22,7 +22,7 @@ import {randomColor} from '../../components/colorizer';
 import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
 import {Note, SpanNote} from '../../public/note';
-import {COLOR_BORDER, TRACK_SHELL_WIDTH} from '../css_constants';
+import {COLOR_BORDER, TRACK_SHELL_WIDTH} from '../../frontend/css_constants';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 import {TimelineToolbar} from './timeline_toolbar';
 
