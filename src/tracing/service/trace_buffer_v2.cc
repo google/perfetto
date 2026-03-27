@@ -810,9 +810,9 @@ void TraceBufferV2::CopyChunkUntrusted(
       PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
       return;
     }
-    // Only clear kChunkIncomplete on real IPC recommits. A scrape recommit
-    // with the same payload would otherwise hit the early-return below before
-    // chunk_flags (which has kChunkIncomplete) gets OR'd back in.
+    // Only clear kChunkIncomplete on real IPC recommits (chunk_complete=true).
+    // During scraping the producer may still be writing, so the chunk should
+    // remain incomplete until the producer explicitly commits it.
     if (chunk_complete)
       recommit_chunk->flags &= ~kChunkIncomplete;
     if (all_frags_size == recommit_chunk->payload_size) {

@@ -2457,26 +2457,29 @@ TEST_F(TraceBufferV2Test, ScrapeRecommitPreservesIncomplete) {
   ResetBuffer(4096);
   SuppressClientDchecksForTesting();
 
-  // Scrape chunk 0: [Whole 'a'] [kFragBegin 'b' kContOnNextChunk].
-  // Scraping drops the last fragment ('b'), clears kContOnNextChunk, sets
-  // kChunkIncomplete. Only fragment 'a' is visible.
+  // Scrape chunk 0: [Whole 'a'] [Whole 'b'] [kFragBegin 'c' kContOnNextChunk].
+  // Scraping drops the last fragment ('c'), clears kContOnNextChunk, sets
+  // kChunkIncomplete. Only fragments 'a' and 'b' are visible.
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(20, 'a')
-      .AddPacket(10, 'b', kContOnNextChunk)
+      .AddPacket(30, 'b')
+      .AddPacket(10, 'c', kContOnNextChunk)
       .PadTo(512)
       .CopyIntoTraceBuffer(/*chunk_complete=*/false);
 
-  // Read cycle 1: gets 'a'. The chunk's payload is fully consumed but it is
-  // NOT erased because kChunkIncomplete prevents it.
+  // Read cycle 1: gets 'a' and 'b'. The chunk's payload is fully consumed but
+  // it is NOT erased because kChunkIncomplete prevents it.
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'a')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'b')));
   ASSERT_THAT(ReadPacket(), IsEmpty());
 
   // Second scrape of the same chunk (same payload). This triggers the recommit
   // path. The fix ensures kChunkIncomplete is NOT cleared here.
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(20, 'a')
-      .AddPacket(10, 'b', kContOnNextChunk)
+      .AddPacket(30, 'b')
+      .AddPacket(10, 'c', kContOnNextChunk)
       .PadTo(512)
       .CopyIntoTraceBuffer(/*chunk_complete=*/false);
 
@@ -2488,31 +2491,33 @@ TEST_F(TraceBufferV2Test, ScrapeRecommitPreservesIncomplete) {
   EXPECT_EQ(0u, trace_buffer()->stats().chunks_discarded());
 
   // IPC recommit: producer finished writing, commits as complete. This clears
-  // kChunkIncomplete and restores the full payload including fragment 'b'.
+  // kChunkIncomplete and restores the full payload including the previously
+  // dropped fragment 'c'.
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(20, 'a')
-      .AddPacket(10, 'b', kContOnNextChunk)
+      .AddPacket(30, 'b')
+      .AddPacket(10, 'c', kContOnNextChunk)
       .PadTo(512)
       .CopyIntoTraceBuffer(/*chunk_complete=*/true);
 
-  // Chunk 1: continuation of 'b' plus a whole packet 'd'.
+  // Chunk 1: continuation of 'c' plus a whole packet 'e'.
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
-      .AddPacket(10, 'c', kContFromPrevChunk)
-      .AddPacket(20, 'd')
+      .AddPacket(10, 'd', kContFromPrevChunk)
+      .AddPacket(20, 'e')
       .CopyIntoTraceBuffer();
 
-  // Read cycle 3: 'a' was already consumed. We should get the reassembled
-  // fragmented packet ['b','c'] and then 'd'. No data loss.
+  // Read cycle 3: 'a' and 'b' were already consumed. We should get the
+  // reassembled fragmented packet ['c','d'] and then 'e'. No data loss.
   trace_buffer()->BeginRead();
   bool previous_packet_dropped = false;
 
   ASSERT_THAT(
       ReadPacket(nullptr, &previous_packet_dropped),
-      ElementsAre(FakePacketFragment(10, 'b'), FakePacketFragment(10, 'c')));
+      ElementsAre(FakePacketFragment(10, 'c'), FakePacketFragment(10, 'd')));
   EXPECT_FALSE(previous_packet_dropped);
 
   ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
-              ElementsAre(FakePacketFragment(20, 'd')));
+              ElementsAre(FakePacketFragment(20, 'e')));
   EXPECT_FALSE(previous_packet_dropped);
 
   ASSERT_THAT(ReadPacket(), IsEmpty());
