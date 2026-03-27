@@ -36,8 +36,8 @@ import {
   nativeKeyboardLayoutMap,
   NotSupportedError,
 } from '../base/keyboard_layout_map';
-import {KeyMapping} from './timeline_page/wasd_navigation_handler';
 import {Spinner} from '../widgets/spinner';
+import {KeyMapping} from '../base/wasd_key_mapping';
 
 export class HomePage implements m.ClassComponent {
   view() {

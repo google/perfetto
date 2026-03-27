@@ -22,7 +22,7 @@ import {colorForCpu} from '../../components/colorizer';
 import {TraceImpl} from '../../core/trace_impl';
 import {TimestampFormat} from '../../public/timeline';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
-import {COLOR_TEXT_MUTED, FONT_COMPACT, COLOR_BORDER} from '../css_constants';
+import {COLOR_TEXT_MUTED, FONT_COMPACT, COLOR_BORDER} from '../../frontend/css_constants';
 import {
   generateTicks,
   getMaxMajorTicks,
