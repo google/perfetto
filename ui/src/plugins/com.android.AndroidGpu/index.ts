@@ -64,7 +64,6 @@ export default class implements PerfettoPlugin {
           name,
         ),
       });
-      console.log(newUri);
 
       // Re-point the existing TrackNode to our new track.
       const node = ctx.defaultWorkspace.getTrackByUri(track.uri);
@@ -95,7 +94,7 @@ class CumulativeSumCounterTrack extends TraceProcessorCounterTrack {
       select
         id,
         ts,
-        sum(value) over (order by ts) as value
+        sum(value) over (order by ts) - value as value
       from counter
       where track_id = ${this.tid}
     `;
