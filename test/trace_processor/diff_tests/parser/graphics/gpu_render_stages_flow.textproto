@@ -1,0 +1,114 @@
+# Test flow events for GpuRenderStageEvent.
+# Flow 100: Host track event -> GPU render stage (terminating)
+# Flow 200: GPU render stage (begin) -> Host track event (terminating)
+
+# Interned data: graphics context and hw queue / stage specs.
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  interned_data {
+    graphics_contexts {
+      iid: 0
+      pid: 42
+      api: VULKAN
+    }
+    gpu_specifications {
+      iid: 1
+      name: "vertex"
+      description: "vertex queue"
+      category: GRAPHICS
+    }
+    gpu_specifications {
+      iid: 2
+      name: "binning"
+      description: "binning stage"
+      category: GRAPHICS
+    }
+  }
+  sequence_flags: 1  # SEQ_INCREMENTAL_STATE_CLEARED
+}
+
+# Host-side track event that begins flow 100.
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 2
+  timestamp: 0
+  interned_data {
+    event_categories { iid: 1 name: "gpu" }
+    event_names { iid: 1 name: "HostSubmit" }
+  }
+  sequence_flags: 1  # SEQ_INCREMENTAL_STATE_CLEARED
+}
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 2
+  timestamp: 20
+  track_event {
+    type: TYPE_SLICE_BEGIN
+    category_iids: 1
+    name_iid: 1
+    flow_ids: 100
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 2
+  timestamp: 22
+  track_event {
+    type: TYPE_SLICE_END
+    category_iids: 1
+  }
+  sequence_flags: 2
+}
+
+# GPU render stage event that terminates flow 100 and begins flow 200.
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 100
+  gpu_render_stage_event {
+    event_id: 1
+    duration: 50
+    hw_queue_iid: 1
+    stage_iid: 2
+    context: 0
+    terminating_flow_ids: 100
+    flow_ids: 200
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+
+# Host-side track event that terminates flow 200.
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 2
+  timestamp: 0
+  interned_data {
+    event_names { iid: 2 name: "GpuDone" }
+  }
+  sequence_flags: 2
+}
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 2
+  timestamp: 160
+  track_event {
+    type: TYPE_SLICE_BEGIN
+    category_iids: 1
+    name_iid: 2
+    terminating_flow_ids: 200
+  }
+  sequence_flags: 2
+}
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 2
+  timestamp: 162
+  track_event {
+    type: TYPE_SLICE_END
+    category_iids: 1
+  }
+  sequence_flags: 2
+}
