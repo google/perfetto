@@ -59,7 +59,7 @@ import {
   COLOR_TEXT_MUTED,
   COLOR_TIMELINE_OVERLAY,
   TRACK_SHELL_WIDTH,
-} from '../css_constants';
+} from '../../frontend/css_constants';
 import {renderFlows} from './flow_events_renderer';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 import {
