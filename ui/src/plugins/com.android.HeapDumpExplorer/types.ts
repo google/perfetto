@@ -35,11 +35,20 @@ export interface DuplicateStringGroup {
   wastedBytes: number;
 }
 
+export interface DuplicateArrayGroup {
+  className: string;
+  arrayHash: string;
+  count: number;
+  totalBytes: number;
+  wastedBytes: number;
+}
+
 export interface OverviewData {
   instanceCount: number;
   heaps: HeapInfo[];
   duplicateBitmaps?: DuplicateBitmapGroup[];
   duplicateStrings?: DuplicateStringGroup[];
+  duplicateArrays?: DuplicateArrayGroup[];
   /** True when HPROF field values are available (heap_graph_primitive). */
   hasFieldValues: boolean;
 }
@@ -59,6 +68,12 @@ export type PrimOrRef =
       reachableNative?: number;
       reachableCount?: number;
     };
+
+export interface PathEntry {
+  row: InstanceRow;
+  field: string;
+  isDominator: boolean;
+}
 
 export interface InstanceRow {
   id: number;
@@ -103,13 +118,7 @@ export interface InstanceDetail {
   } | null;
   reverseRefs: InstanceRow[];
   dominated: InstanceRow[];
-  pathFromRoot:
-    | {
-        row: InstanceRow;
-        field: string;
-        isDominator: boolean;
-      }[]
-    | null;
+  pathFromRoot: PathEntry[] | null;
   isUnreachablePath?: boolean;
 }
 

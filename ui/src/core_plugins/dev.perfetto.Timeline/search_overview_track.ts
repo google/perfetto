@@ -21,8 +21,8 @@ import {TraceImpl} from '../../core/trace_impl';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {escapeSearchQuery} from '../../trace_processor/query_utils';
 import {createVirtualTable} from '../../trace_processor/sql_utils';
-import {calculateResolution} from './resolution';
-import {COLOR_HIGHLIGHT} from '../css_constants';
+import {calculateResolution} from '../../base/resolution';
+import {COLOR_HIGHLIGHT} from '../../frontend/css_constants';
 
 interface SearchSummary {
   tsStarts: BigInt64Array;
