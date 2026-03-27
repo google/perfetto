@@ -17,30 +17,16 @@ import {
   LineChart,
   LineChartData,
 } from '../../components/widgets/charts/line_chart';
-import {Sankey, SankeyData} from '../../components/widgets/charts/sankey';
 import {formatKb, panel} from './utils';
 
 export interface SystemTabData {
   systemChartData?: LineChartData;
-  sankeyData?: SankeyData;
   xAxisMin?: number;
   xAxisMax?: number;
 }
 
 export function renderSystemTab(data: SystemTabData): m.Children {
   return [
-    panel(
-      'System Memory Overview',
-      'Physical RAM breakdown by category. Source: /proc/meminfo. Unaccounted = MemTotal minus all named categories.',
-      data.sankeyData
-        ? m(Sankey, {
-            data: data.sankeyData,
-            height: 350,
-            formatValue: (v: number) => formatKb(v),
-          })
-        : m('.pf-live-memory-placeholder', 'Waiting for data\u2026'),
-    ),
-
     panel(
       'System Memory',
       'Stacked areas partition MemTotal. Source: /proc/meminfo. ' +
