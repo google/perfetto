@@ -35,11 +35,20 @@ export interface DuplicateStringGroup {
   wastedBytes: number;
 }
 
+export interface DuplicateArrayGroup {
+  className: string;
+  arrayHash: string;
+  count: number;
+  totalBytes: number;
+  wastedBytes: number;
+}
+
 export interface OverviewData {
   instanceCount: number;
   heaps: HeapInfo[];
   duplicateBitmaps?: DuplicateBitmapGroup[];
   duplicateStrings?: DuplicateStringGroup[];
+  duplicateArrays?: DuplicateArrayGroup[];
   /** True when HPROF field values are available (heap_graph_primitive). */
   hasFieldValues: boolean;
 }

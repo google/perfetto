@@ -32,6 +32,7 @@ import type {
   StringListRow,
   DuplicateBitmapGroup,
   DuplicateStringGroup,
+  DuplicateArrayGroup,
   ClassRow,
 } from './types';
 import {fmtHex} from './format';
@@ -335,7 +336,6 @@ export async function getOverview(engine: Engine): Promise<OverviewData> {
       GROUP BY od.value_string
       HAVING cnt > 1
       ORDER BY total_bytes - min_bytes DESC
-      LIMIT 100
     `);
     for (
       const it = strRes.iter({
@@ -356,6 +356,43 @@ export async function getOverview(engine: Engine): Promise<OverviewData> {
     }
   }
 
+  const duplicateArrays: DuplicateArrayGroup[] = [];
+  const dupArrRes = await engine.query(`
+    SELECT
+      ifnull(c.deobfuscated_name, c.name) AS cls,
+      CAST(od.array_data_hash AS TEXT) AS hash,
+      COUNT(*) AS cnt,
+      SUM(o.self_size + o.native_size) AS total_bytes,
+      MIN(o.self_size + o.native_size) AS min_bytes
+    FROM heap_graph_object o
+    JOIN heap_graph_class c ON o.type_id = c.id
+    LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
+    WHERE o.reachable != 0
+      AND od.array_data_hash IS NOT NULL
+    GROUP BY o.type_id, od.array_data_hash
+    HAVING cnt > 1
+    ORDER BY total_bytes - min_bytes DESC
+  `);
+  for (
+    const it = dupArrRes.iter({
+      cls: STR,
+      hash: STR,
+      cnt: NUM,
+      total_bytes: NUM,
+      min_bytes: NUM,
+    });
+    it.valid();
+    it.next()
+  ) {
+    duplicateArrays.push({
+      className: it.cls,
+      arrayHash: it.hash,
+      count: it.cnt,
+      totalBytes: it.total_bytes,
+      wastedBytes: it.total_bytes - it.min_bytes,
+    });
+  }
+
   return {
     instanceCount,
     heaps,
@@ -363,6 +400,7 @@ export async function getOverview(engine: Engine): Promise<OverviewData> {
       duplicateBitmaps.length > 0 ? duplicateBitmaps : undefined,
     duplicateStrings:
       duplicateStrings.length > 0 ? duplicateStrings : undefined,
+    duplicateArrays: duplicateArrays.length > 0 ? duplicateArrays : undefined,
     hasFieldValues: hasPrimitives,
   };
 }
