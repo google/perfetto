@@ -288,33 +288,36 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     ]);
 
     const resp = tab.queryResult;
-    const resultsPanel =
-      resp &&
-      m(ResultsTable, {
-        data: resp.error
-          ? {kind: 'error', errorMessage: resp.error}
-          : {
-              kind: 'success',
-              columns: resp.columns,
-              rows: resp.rows,
-              dataSource: dataSource!,
-              rowCount: resp.totalRowCount,
-              queryTimeMs: resp.durationMs,
-              query: resp.query,
-              lastStatementSql: resp.lastStatementSql,
-              statementCount: resp.statementCount,
-              statementWithOutputCount: resp.statementWithOutputCount,
-            },
-        fillHeight: true,
-        trace,
-        onIdClick: (sqlTable, id, doubleClick) => {
-          trace.navigate('#!/viewer');
-          trace.selection.selectSqlEvent(sqlTable, id, {
-            switchToCurrentSelectionTab: doubleClick,
-            scrollToSelection: true,
-          });
-        },
-      });
+    const resultsPanel = resp
+      ? m(ResultsTable, {
+          data: resp.error
+            ? {kind: 'error', errorMessage: resp.error}
+            : {
+                kind: 'success',
+                columns: resp.columns,
+                rows: resp.rows,
+                dataSource: dataSource!,
+                rowCount: resp.totalRowCount,
+                queryTimeMs: resp.durationMs,
+                query: resp.query,
+                lastStatementSql: resp.lastStatementSql,
+                statementCount: resp.statementCount,
+                statementWithOutputCount: resp.statementWithOutputCount,
+              },
+          fillHeight: true,
+          trace,
+          onIdClick: (sqlTable, id, doubleClick) => {
+            trace.navigate('#!/viewer');
+            trace.selection.selectSqlEvent(sqlTable, id, {
+              switchToCurrentSelectionTab: doubleClick,
+              scrollToSelection: true,
+            });
+          },
+        })
+      : m(EmptyState, {
+          title: 'Query results will appear here',
+          fillHeight: true,
+        });
 
     return m(SplitPanel, {
       direction: 'vertical',
