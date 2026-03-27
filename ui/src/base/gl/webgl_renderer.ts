@@ -22,19 +22,20 @@ import {
   MarkerRenderFunc,
   MarkerBuffers,
   StepAreaBuffers,
-  RectBuffers,
+  SliceBuffers,
+  RowLayout,
 } from './../renderer';
 import {DisposableStack} from './../disposable_stack';
-import {RectBatch} from './rects';
+import {SliceBatch} from './slices';
 import {ChevronBatch} from './chevrons';
 import {StepAreaBatch} from './step_area';
 import {Color} from './../color';
-import {Transform2D} from '../geom';
+import {Transform1D, Transform2D} from '../geom';
 
 export class WebGLRenderer implements Renderer {
   private readonly c2d: CanvasRenderingContext2D;
   readonly gl: WebGL2RenderingContext;
-  private readonly rects: RectBatch;
+  private readonly slices: SliceBatch;
   private readonly markers: ChevronBatch;
   private readonly stepArea: StepAreaBatch;
   private transform = Transform2D.Identity;
@@ -45,7 +46,7 @@ export class WebGLRenderer implements Renderer {
   constructor(c2d: CanvasRenderingContext2D, gl: WebGL2RenderingContext) {
     this.c2d = c2d;
     this.gl = gl;
-    this.rects = new RectBatch(gl);
+    this.slices = new SliceBatch(gl);
     this.markers = new ChevronBatch(gl);
     this.stepArea = new StepAreaBatch(gl);
   }
@@ -86,13 +87,25 @@ export class WebGLRenderer implements Renderer {
 
   drawMarkers(
     buffers: MarkerBuffers,
-    dataTransform: Transform2D,
+    rowLayout: RowLayout,
+    markerWidth: number,
+    xTransform: Transform1D,
     _render: MarkerRenderFunc,
   ): void {
-    this.markers.draw(buffers, dataTransform, this.transform);
+    this.markers.draw(
+      buffers,
+      rowLayout,
+      markerWidth,
+      xTransform,
+      this.transform,
+    );
   }
 
-  drawRects(buffers: RectBuffers, dataTransform: Transform2D): void {
+  drawSlices(
+    buffers: SliceBuffers,
+    rowLayout: RowLayout,
+    xTransform: Transform1D,
+  ): void {
     // Use current clip rect, or full canvas if no clip is active
     const clipRect = this.clipRect ?? {
       left: 0,
@@ -100,7 +113,7 @@ export class WebGLRenderer implements Renderer {
       right: this.gl.canvas.width,
       bottom: this.gl.canvas.height,
     };
-    this.rects.draw(buffers, dataTransform, this.transform, clipRect);
+    this.slices.draw(buffers, rowLayout, xTransform, this.transform, clipRect);
   }
 
   drawStepArea(
