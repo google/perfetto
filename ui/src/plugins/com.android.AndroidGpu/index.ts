@@ -94,7 +94,8 @@ class CumulativeSumCounterTrack extends TraceProcessorCounterTrack {
       select
         id,
         ts,
-        sum(value) over (order by ts) - value as value
+        sum(value) over (order by ts) - value as value,
+        arg_set_id
       from counter
       where track_id = ${this.tid}
     `;
