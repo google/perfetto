@@ -109,7 +109,6 @@ class FtraceParser {
                                 protozero::ConstBytes);
   void ParseDpuDispDpuUnderrun(int64_t timestamp, protozero::ConstBytes);
   void ParseGramCollision(int64_t timestamp, protozero::ConstBytes);
-  void ParseDpuDispVblankIrqEnable(int64_t timestamp, protozero::ConstBytes);
   void ParseG2dTracingMarkWrite(int64_t timestamp,
                                 uint32_t pid,
                                 protozero::ConstBytes);
@@ -447,8 +446,6 @@ class FtraceParser {
   const StringId block_io_arg_sector_id_;
   const StringId cpuhp_action_cpu_id_;
   const StringId cpuhp_idx_id_;
-  const StringId disp_vblank_irq_enable_id_;
-  const StringId disp_vblank_irq_enable_output_id_arg_name_;
   const StringId hrtimer_id_;
   const StringId local_timer_id_;
   const StringId f2fs_checkpoint_name_id_;
