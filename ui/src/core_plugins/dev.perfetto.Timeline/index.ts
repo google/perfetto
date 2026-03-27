@@ -13,45 +13,76 @@
 // limitations under the License.
 
 import m from 'mithril';
+import z from 'zod';
 import {DisposableStack} from '../../base/disposable_stack';
 import {toHTMLElement} from '../../base/dom_utils';
 import {Rect2D} from '../../base/geom';
 import {TimeScale} from '../../base/time_scale';
 import {AppImpl} from '../../core/app_impl';
-import {featureFlags} from '../../core/feature_flags';
 import {raf} from '../../core/raf_scheduler';
+import {TraceImpl} from '../../core/trace_impl';
+import {trackMatchesFilter} from '../../core/track_manager';
+import {ResizeHandle} from '../../widgets/resize_handle';
+import {
+  setTrackShellWidth,
+  TRACK_SHELL_WIDTH,
+} from '../../frontend/css_constants';
 import {Minimap} from './minimap';
 import {TabPanel} from './tab_panel';
 import {TimelineHeader} from './timeline_header';
 import {TrackTreeView} from './track_tree_view';
+import {
+  DEFAULT_TRACK_MIN_HEIGHT_PX,
+  MINIMUM_TRACK_MIN_HEIGHT_PX,
+  TRACK_MIN_HEIGHT_SETTING,
+} from './track_view';
 import {KeyboardNavigationHandler} from './wasd_navigation_handler';
-import {trackMatchesFilter} from '../../core/track_manager';
-import {TraceImpl} from '../../core/trace_impl';
-import {ResizeHandle} from '../../widgets/resize_handle';
-import {setTrackShellWidth, TRACK_SHELL_WIDTH} from '../css_constants';
-
-const OVERVIEW_PANEL_FLAG = featureFlags.register({
-  id: 'overviewVisible',
-  name: 'Overview Panel',
-  description: 'Show the panel providing an overview of the trace',
-  defaultValue: true,
-});
+import {Flag} from '../../public/feature_flag';
+import {PerfettoPlugin} from '../../public/plugin';
 
 const MIN_TRACK_SHELL_WIDTH = 100;
 const MAX_TRACK_SHELL_WIDTH = 1000;
 
-export function renderTimelinePage() {
-  // Only render if a trace is loaded
-  const trace = AppImpl.instance.trace;
-  if (trace) {
-    return m(TimelinePage, {trace});
-  } else {
-    return undefined;
+export default class TimelinePlugin implements PerfettoPlugin {
+  static readonly id = 'dev.perfetto.Timeline';
+  static readonly description = 'The main timeline view';
+  private static minimapFlag: Flag;
+
+  static onActivate(app: AppImpl): void {
+    // This setting is referenced in the track view by name
+    app.settings.register({
+      id: TRACK_MIN_HEIGHT_SETTING,
+      name: 'Track Height',
+      description:
+        'Minimum height of tracks in the trace viewer page, in pixels.',
+      schema: z.number().int().min(MINIMUM_TRACK_MIN_HEIGHT_PX),
+      defaultValue: DEFAULT_TRACK_MIN_HEIGHT_PX,
+    });
+
+    TimelinePlugin.minimapFlag = app.featureFlags.register({
+      id: 'overviewVisible',
+      name: 'Overview Panel',
+      description: 'Show the panel providing an overview of the trace',
+      defaultValue: true,
+    });
+  }
+
+  async onTraceLoad(trace: TraceImpl): Promise<void> {
+    trace.pages.registerPage({
+      route: '/viewer',
+      render: () => {
+        return m(TimelinePage, {
+          trace,
+          showMinimap: TimelinePlugin.minimapFlag.get(),
+        });
+      },
+    });
   }
 }
 
 interface TimelinePageAttrs {
   readonly trace: TraceImpl;
+  readonly showMinimap: boolean;
 }
 
 class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
@@ -66,7 +97,7 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
       m(
         TabPanel,
         {trace},
-        this.renderMinimap(trace),
+        attrs.showMinimap && this.renderMinimap(trace),
         this.renderTimeline(trace),
       ),
     );
@@ -102,7 +133,6 @@ class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
   }
 
   private renderMinimap(trace: TraceImpl): m.Children {
-    if (!OVERVIEW_PANEL_FLAG.get()) return null;
     return m(Minimap, {
       trace,
       className: 'pf-timeline-page__overview',

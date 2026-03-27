@@ -313,6 +313,19 @@ export class Rect2D implements Bounds2D, Size2D, Point2D {
 // - Offsets add: newOffset = currentOffset + transform.offset
 // - Scales multiply: newScale = currentScale * transform.scale
 // For time-to-pixel conversion, use scaleX as pixels-per-time-unit.
+// A 1D scale+translate transform: value' = value * scale + offset
+export interface Transform1D {
+  readonly scale: number;
+  readonly offset: number;
+}
+
+export namespace Transform1D {
+  export const Identity: Transform1D = {
+    scale: 1,
+    offset: 0,
+  };
+}
+
 export interface Transform2D {
   readonly offsetX: number; // Pixel offset in X
   readonly offsetY: number; // Pixel offset in Y
