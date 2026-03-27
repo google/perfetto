@@ -40,7 +40,8 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
       select
         id,
         ts,
-        value
+        value,
+        arg_set_id
       from ${this.rootTable}
       where track_id = ${this.trackId}
     `;
@@ -113,6 +114,13 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
   }
 
   detailsPanel() {
-    return new CounterDetailsPanel(this.trace, this.trackId, this.trackName);
+    return new CounterDetailsPanel(
+      this.trace,
+      this.trackName,
+      () => this.yModeSetting.getValue(),
+      this.unit,
+      this.rateUnit,
+      this.getSqlSource(),
+    );
   }
 }
