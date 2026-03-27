@@ -29,7 +29,9 @@ import {
   countRenderer,
   shortClassName,
   BitmapImage,
+  renderPath,
 } from '../components';
+import type {PathEntry} from '../types';
 import * as queries from '../queries';
 
 const SUMMARY_SCHEMA: SchemaRegistry = {
@@ -154,6 +156,7 @@ interface BitmapCardAttrs {
   readonly row: BitmapListRow;
   readonly engine: Engine;
   readonly navigate: NavFn;
+  readonly pathData?: PathEntry[] | null;
 }
 
 function BitmapCard(): m.Component<BitmapCardAttrs> {
@@ -266,6 +269,15 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
             'Details',
           ),
         ),
+        vnode.attrs.pathData !== undefined && vnode.attrs.pathData !== null
+          ? m(
+              'div',
+              {class: 'ah-bitmap-card__path'},
+              vnode.attrs.pathData.length > 0
+                ? renderPath(vnode.attrs.pathData, navigate)
+                : m('span', {class: 'ah-muted'}, 'No path to GC root.'),
+            )
+          : null,
       );
     },
   };
@@ -281,6 +293,25 @@ interface BitmapGalleryViewAttrs {
 function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
   let rows: BitmapListRow[] | null = null;
   let alive = true;
+  let showPaths = false;
+  let pathsFetched = false;
+  const pathMap = new Map<number, PathEntry[]>();
+
+  function fetchAllPaths(engine: Engine, bitmaps: BitmapListRow[]) {
+    const ids = bitmaps.map((b) => b.row.id);
+    if (ids.length === 0) return;
+    queries
+      .fetchPathsFromRoot(engine, ids)
+      .then((paths) => {
+        if (!alive) return;
+        for (const id of ids) {
+          pathMap.set(id, paths.get(id) ?? []);
+        }
+        pathsFetched = true;
+        m.redraw();
+      })
+      .catch(console.error);
+  }
 
   return {
     oninit(vnode) {
@@ -357,11 +388,26 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
       ];
 
       return m('div', {class: 'ah-view-scroll'}, [
-        m(
-          'h2',
-          {class: 'ah-view-heading'},
-          `Bitmaps (${rows.length.toLocaleString()})`,
-        ),
+        m('div', {class: 'ah-heading-row'}, [
+          m(
+            'h2',
+            {class: 'ah-view-heading'},
+            `Bitmaps (${rows.length.toLocaleString()})`,
+          ),
+          m(
+            'button',
+            {
+              class: 'ah-link--alt',
+              onclick: () => {
+                showPaths = !showPaths;
+                if (showPaths && !pathsFetched) {
+                  fetchAllPaths(engine, rows!);
+                }
+              },
+            },
+            showPaths ? 'Hide Paths' : 'Show Paths',
+          ),
+        ]),
         m('div', {class: 'ah-card ah-mb-4'}, [
           m(DataGrid, {
             schema: SUMMARY_SCHEMA,
@@ -394,6 +440,7 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
                   row: r,
                   engine,
                   navigate,
+                  pathData: showPaths ? pathMap.get(r.row.id) ?? null : null,
                 }),
               ),
             )

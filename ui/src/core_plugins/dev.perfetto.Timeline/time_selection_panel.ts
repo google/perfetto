@@ -28,7 +28,7 @@ import {
   COLOR_BORDER,
   TRACK_SHELL_WIDTH,
   COLOR_TEXT,
-} from '../css_constants';
+} from '../../frontend/css_constants';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 
 export interface BBox {

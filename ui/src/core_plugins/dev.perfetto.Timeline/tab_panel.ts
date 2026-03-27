@@ -17,7 +17,7 @@ import {TraceImpl} from '../../core/trace_impl';
 import {Button} from '../../widgets/button';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {DrawerPanel, DrawerTab} from '../../widgets/drawer_panel';
-import {DEFAULT_DETAILS_CONTENT_HEIGHT} from '../css_constants';
+import {DEFAULT_DETAILS_CONTENT_HEIGHT} from '../../frontend/css_constants';
 import {CurrentSelectionTab} from './current_selection_tab';
 
 export interface TabPanelAttrs {
