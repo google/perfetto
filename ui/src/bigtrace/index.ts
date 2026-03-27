@@ -17,7 +17,7 @@ import '../base/static_initializers';
 import m from 'mithril';
 import {defer} from '../base/deferred';
 import {reportError, addErrorHandler, ErrorDetails} from '../base/logging';
-import {initLiveReloadIfLocalhost} from '../core/live_reload';
+import {initLiveReload} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
 
 function getRoot() {
@@ -95,11 +95,9 @@ function onCssLoaded() {
   // And replace it with the root <main> element which will be used by mithril.
   document.body.innerHTML = '';
 
-  raf.domRedraw = () => {
-    m.render(document.body, m('div'));
-  };
+  raf.mount(document.body, {view: () => m('div')});
 
-  initLiveReloadIfLocalhost(false);
+  initLiveReload();
 }
 
 main();

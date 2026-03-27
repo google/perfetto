@@ -30,6 +30,7 @@ export function createHeapProfileTrack(
   heapProfileIsIncomplete: boolean,
   detailsPanelState: FlamegraphState | undefined,
   onDetailsPanelStateChange: (state: FlamegraphState) => void,
+  onNodeSelected?: (pathHashes: string, isDominator: boolean) => void,
 ) {
   return SliceTrack.create({
     trace,
@@ -57,6 +58,7 @@ export function createHeapProfileTrack(
         tsEnd,
         detailsPanelState,
         onDetailsPanelStateChange,
+        onNodeSelected,
       );
     },
     tooltip: (slice) => slice.row.type,
