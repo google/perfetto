@@ -25,6 +25,7 @@ export const defaultPlugins = [
   'com.android.AndroidClientServer',
   'com.android.AndroidCujs',
   'com.android.AndroidDmabuf',
+  'com.android.AndroidGpu',
   'com.android.AndroidLog',
   'com.android.AndroidLongBatteryTracing',
   'com.android.AndroidNetwork',
