@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -161,6 +162,100 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
                              "UNKNOWN_SEVERITY") /* must be last */}},
       vk_queue_submit_id_(context->storage->InternString("vkQueueSubmit")) {}
 
+namespace {
+
+const char* MeasureUnitToString(int32_t unit) {
+  using MU = GpuCounterDescriptor::MeasureUnit;
+  switch (unit) {
+    case MU::NONE:
+      return "";
+    case MU::BIT:
+      return "bit";
+    case MU::KILOBIT:
+      return "Kb";
+    case MU::MEGABIT:
+      return "Mb";
+    case MU::GIGABIT:
+      return "Gb";
+    case MU::TERABIT:
+      return "Tb";
+    case MU::PETABIT:
+      return "Pb";
+    case MU::BYTE:
+      return "B";
+    case MU::KILOBYTE:
+      return "KB";
+    case MU::MEGABYTE:
+      return "MB";
+    case MU::GIGABYTE:
+      return "GB";
+    case MU::TERABYTE:
+      return "TB";
+    case MU::PETABYTE:
+      return "PB";
+    case MU::HERTZ:
+      return "Hz";
+    case MU::KILOHERTZ:
+      return "KHz";
+    case MU::MEGAHERTZ:
+      return "MHz";
+    case MU::GIGAHERTZ:
+      return "GHz";
+    case MU::TERAHERTZ:
+      return "THz";
+    case MU::PETAHERTZ:
+      return "PHz";
+    case MU::NANOSECOND:
+      return "ns";
+    case MU::MICROSECOND:
+      return "us";
+    case MU::MILLISECOND:
+      return "ms";
+    case MU::SECOND:
+      return "s";
+    case MU::MINUTE:
+      return "min";
+    case MU::HOUR:
+      return "h";
+    case MU::VERTEX:
+      return "Vertex";
+    case MU::PIXEL:
+      return "Pixel";
+    case MU::TRIANGLE:
+      return "Triangle";
+    case MU::PRIMITIVE:
+      return "Primitive";
+    case MU::FRAGMENT:
+      return "Fragment";
+    case MU::MILLIWATT:
+      return "mW";
+    case MU::WATT:
+      return "W";
+    case MU::KILOWATT:
+      return "kW";
+    case MU::JOULE:
+      return "J";
+    case MU::VOLT:
+      return "V";
+    case MU::AMPERE:
+      return "A";
+    case MU::CELSIUS:
+      return "C";
+    case MU::FAHRENHEIT:
+      return "F";
+    case MU::KELVIN:
+      return "K";
+    case MU::PERCENT:
+      return "%";
+    case MU::INSTRUCTION:
+      return "Instruction";
+    default:
+      return "Unknown";
+  }
+}
+
+}  // namespace
+
 StringId GpuEventParser::FormatCounterUnit(
     const GpuCounterDescriptor::GpuCounterSpec::Decoder& spec) {
   if (!spec.has_numerator_units() && !spec.has_denominator_units()) {
@@ -172,12 +267,16 @@ StringId GpuEventParser::FormatCounterUnit(
     if (unit.pos()) {
       unit.AppendChar(':');
     }
-    unit.AppendInt(*number);
+    unit.AppendString(base::StringView(MeasureUnitToString(*number)));
   }
   char sep = '/';
   for (auto denom = spec.denominator_units(); denom; ++denom) {
+    std::string_view str = MeasureUnitToString(*denom);
+    if (str == "") {
+      continue;
+    }
     unit.AppendChar(sep);
-    unit.AppendInt(*denom);
+    unit.AppendString(str);
     sep = ':';
   }
   return context_->storage->InternString(unit.GetStringView());
