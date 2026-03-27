@@ -72,6 +72,7 @@ class ArtMethodV2Tokenizer : public ChunkedTraceReader {
   bool header_parsed_ = false;
   bool is_dual_clock_ = false;
   bool trace_complete_ = false;
+  bool is_parsing_summary_ = false;
   int64_t ts_ = 0;
   std::string summary_;
 

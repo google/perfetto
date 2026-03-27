@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/string_splitter.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/art_method/art_method_event.h"
 #include "src/trace_processor/importers/art_method/art_method_parser.h"
@@ -105,13 +106,13 @@ uint64_t ReadNumber(const uint8_t* ptr, int num_bytes) {
   return number;
 }
 
-std::string ConstructPathname(const std::string& class_name,
-                              const std::string& pathname) {
+std::string ConstructPathname(base::StringView class_name,
+                              base::StringView pathname) {
   size_t index = class_name.rfind('/');
-  if (index != std::string::npos && base::EndsWith(pathname, ".java")) {
-    return class_name.substr(0, index + 1) + pathname;
+  if (index != base::StringView::npos && pathname.EndsWith(".java")) {
+    return class_name.substr(0, index + 1).ToStdString() + pathname.ToStdString();
   }
-  return pathname;
+  return pathname.ToStdString();
 }
 
 }  // namespace
@@ -132,8 +133,6 @@ base::Status ArtMethodV2Tokenizer::Parse(TraceBlobView blob) {
       return base::OkStatus();
     }
     header_parsed_ = true;
-    context_->clock_tracker->SetGlobalClock(ClockTracker::ClockId::Machine(
-        protos::pbzero::BUILTIN_CLOCK_MONOTONIC));
   }
 
   if (trace_complete_) {
@@ -141,6 +140,31 @@ base::Status ArtMethodV2Tokenizer::Parse(TraceBlobView blob) {
   }
 
   for (;;) {
+    if (is_parsing_summary_) {
+      auto it = reader_.GetIterator();
+      size_t avail = reader_.avail();
+      if (avail > 0) {
+        auto summary_opt = it.MaybeRead(avail);
+        if (summary_opt) {
+          std::string_view new_data(
+              reinterpret_cast<const char*>(summary_opt->data()), avail);
+
+          // To optimize the search for "*end" across streaming chunks, we only 
+          // search the newly appended data. We back up by 3 characters into the 
+          // old data in case the "*end" string was split exactly across two chunks.
+          size_t search_start = summary_.size() >= 3 ? summary_.size() - 3 : 0;
+          summary_.append(new_data);
+
+          if (summary_.find("*end", search_start) != std::string::npos) {
+            trace_complete_ = true;
+            is_parsing_summary_ = false;
+          }
+          reader_.PopFrontUntil(it.file_offset());
+        }
+      }
+      return base::OkStatus();
+    }
+
     auto it = reader_.GetIterator();
     auto header_opt = it.MaybeRead(1);
     if (!header_opt) {
@@ -161,19 +185,11 @@ base::Status ArtMethodV2Tokenizer::Parse(TraceBlobView blob) {
         break;
       }
       case kSummary: {
-        size_t avail = reader_.avail();
-        if (avail > 1) {
-          auto summary_opt = it.MaybeRead(avail - 1);
-          if (summary_opt) {
-            summary_ += std::string(
-                reinterpret_cast<const char*>(summary_opt->data()), avail - 1);
-            reader_.PopFrontUntil(it.file_offset());
-          }
-        }
-        if (base::Contains(summary_, "*end")) {
-          trace_complete_ = true;
-        }
-        return base::OkStatus();
+        is_parsing_summary_ = true;
+        auto summary_opt = it.MaybeRead(1);
+        reader_.PopFrontUntil(it.file_offset());
+        has_more = true;
+        break;
       }
       default: {
         return base::ErrStatus(
@@ -253,34 +269,41 @@ base::StatusOr<bool> ArtMethodV2Tokenizer::ParseThreadOrMethodInfo(
 }
 
 void ArtMethodV2Tokenizer::ParseMethod(uint64_t id, const std::string& str) {
-  auto tokens = base::SplitString(str, "\t");
-  const std::string& class_name = tokens.empty() ? "" : tokens[0];
-  std::string method_name;
-  std::string signature;
+  base::StringSplitter s(str, '\t');
+  std::vector<base::StringView> tokens;
+  while (s.Next()) {
+    tokens.emplace_back(s.cur_token(), s.cur_token_size());
+  }
+
+  base::StringView class_name = tokens.empty() ? base::StringView() : tokens[0];
+  base::StringView method_name;
+  base::StringView signature;
   std::optional<StringId> pathname;
   std::optional<uint32_t> line_number;
 
   if (tokens.size() == 5) {
     method_name = tokens[1];
     signature = tokens[2];
-    pathname = context_->storage->InternString(
-        base::StringView(ConstructPathname(class_name, tokens[3])));
-    line_number = base::StringToUInt32(tokens[4]);
-  } else if (tokens.size() > 1) {
-    if (base::StartsWith(tokens[2], "(")) {
+    std::string pathname_str = ConstructPathname(class_name, tokens[3]);
+    pathname = context_->storage->InternString(base::StringView(pathname_str));
+    line_number = base::StringToUInt32(tokens[4].ToStdString());
+  } else if (tokens.size() > 2) {
+    if (tokens[2].StartsWith("(")) {
       method_name = tokens[1];
       signature = tokens[2];
       if (tokens.size() >= 4) {
-        pathname = context_->storage->InternString(base::StringView(tokens[3]));
+        pathname = context_->storage->InternString(tokens[3]);
       }
     } else {
-      pathname = context_->storage->InternString(base::StringView(tokens[1]));
-      line_number = base::StringToUInt32(tokens[2]);
+      pathname = context_->storage->InternString(tokens[1]);
+      line_number = base::StringToUInt32(tokens[2].ToStdString());
     }
   }
 
-  base::StackString<2048> slice_name("%s.%s: %s", class_name.c_str(),
-                                     method_name.c_str(), signature.c_str());
+  base::StackString<2048> slice_name("%.*s.%.*s: %.*s",
+                                     static_cast<int>(class_name.size()), class_name.data(),
+                                     static_cast<int>(method_name.size()), method_name.data(),
+                                     static_cast<int>(signature.size()), signature.data());
   StringId str_id = context_->storage->InternString(slice_name.string_view());
 
   method_map_.Insert(id, {str_id, pathname, line_number});

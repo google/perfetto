@@ -158,7 +158,8 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
              trace_type_ == kSimpleperfProtoTraceType ||
              trace_type_ == kPerfTextTraceType ||
              trace_type_ == kPerfDataTraceType ||
-             trace_type_ == kArtMethodTraceType) {
+             trace_type_ == kArtMethodTraceType ||
+             trace_type_ == kArtMethodV2TraceType) {
     trace_context_->clock_tracker->SetGlobalClock(
         ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC));
   } else if (trace_type_ == kFuchsiaTraceType) {
