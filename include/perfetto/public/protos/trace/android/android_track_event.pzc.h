@@ -920,6 +920,11 @@ PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
                   int64_t,
                   job_state_flags,
                   20);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidJobSchedulerJob,
+                  VARINT,
+                  uint64_t,
+                  job_name_iid,
+                  21);
 
 PERFETTO_PB_MSG(perfetto_protos_AndroidMessageQueue);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidMessageQueue,
