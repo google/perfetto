@@ -163,6 +163,14 @@ export function navigate(
   m.redraw();
 }
 
+// Clear a single nav param without pushing a history entry.
+// Used after consuming a one-shot param (e.g. a filter from overview).
+export function clearNavParam(key: string): void {
+  const params = {...(nav.params as Record<string, unknown>)};
+  delete params[key];
+  nav = {view: nav.view, params} as NavState;
+}
+
 export function syncFromSubpage(subpage: string | undefined): void {
   if (subpage?.startsWith('/')) subpage = subpage.slice(1);
   // Compare path-only: Perfetto's router strips query params from subpage.
