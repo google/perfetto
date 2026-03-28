@@ -88,7 +88,9 @@ function parseFgTabKey(key: string): number | undefined {
 function getActiveTabKey(): string {
   if (nav.view === 'flamegraph-objects' && flamegraphTabs.length > 0) {
     const tab = flamegraphTabs.find((t) => t.id === activeFgId);
-    return fgTabKey(tab ? tab.id : flamegraphTabs[flamegraphTabs.length - 1].id);
+    return fgTabKey(
+      tab ? tab.id : flamegraphTabs[flamegraphTabs.length - 1].id,
+    );
   }
   return activeTabKey(nav.view);
 }
