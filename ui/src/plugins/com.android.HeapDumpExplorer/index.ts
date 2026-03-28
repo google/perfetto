@@ -22,6 +22,7 @@ import {
   HeapDumpPage,
   setFlamegraphSelection,
   resetFlamegraphSelection,
+  resetInstanceTabs,
   resetCachedOverview,
 } from './heap_dump_page';
 import {resetBitmapDumpDataCache} from './queries';
@@ -49,12 +50,13 @@ export default class implements PerfettoPlugin {
     HeapDumpPage.hasHeapData = true;
     resetBitmapDumpDataCache();
     resetFlamegraphSelection();
+    resetInstanceTabs();
     resetCachedOverview();
 
     ctx.plugins
       .getPlugin(HeapProfilePlugin)
       .registerOnNodeSelectedListener(({pathHashes, isDominator}) =>
-        setFlamegraphSelection({pathHashes, isDominator}),
+        setFlamegraphSelection({pathHashes, isDominator}, ctx.engine),
       );
 
     ctx.sidebar.addMenuItem({
