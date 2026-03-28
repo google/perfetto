@@ -76,10 +76,7 @@ async function selectPluginSlice(
 }
 
 test('event_latency_track', async () => {
-  const trk = pth.locateTrack(
-    'Chrome Scroll Jank/Chrome Scroll Input Latencies',
-  );
-  await trk.scrollIntoViewIfNeeded();
+  await pth.scrollToTrack('Chrome Scroll Jank/Chrome Scroll Input Latencies');
   await pth.waitForIdleAndScreenshot('track.png', {
     locator: page.locator('.pf-timeline-page__timeline'),
   });
@@ -91,7 +88,7 @@ test('event_latency_track', async () => {
     'RendererCompositorQueueingDelay',
     Time.fromRaw(16784825798017n),
   );
-  await trk.scrollIntoViewIfNeeded();
+  await pth.scrollToTrack('Chrome Scroll Jank/Chrome Scroll Input Latencies');
   await pth.waitForIdleAndScreenshot('details_panel_stage.png', {
     locator: page.locator('.pf-timeline-page__timeline'),
   });
@@ -125,8 +122,7 @@ test('event_latency_track', async () => {
 });
 
 test('scroll_timeline_track', async () => {
-  const trk = pth.locateTrack('Chrome Scroll Jank/Chrome Scroll Timeline');
-  await trk.scrollIntoViewIfNeeded();
+  await pth.scrollToTrack('Chrome Scroll Jank/Chrome Scroll Timeline');
   await pth.waitForIdleAndScreenshot('track.png', {
     locator: page.locator('.pf-timeline-page__timeline'),
   });
@@ -138,7 +134,7 @@ test('scroll_timeline_track', async () => {
     'GenerationToBrowserMain',
     Time.fromRaw(16784307235017n),
   );
-  await trk.scrollIntoViewIfNeeded();
+  await pth.scrollToTrack('Chrome Scroll Jank/Chrome Scroll Timeline');
   await pth.waitForIdleAndScreenshot('details_panel_stage.png', {
     locator: page.locator('.pf-timeline-page__timeline'),
   });
@@ -175,8 +171,7 @@ test('scroll_timeline_track', async () => {
 });
 
 test('scroll_timeline_v4_track', async () => {
-  const trk = pth.locateTrack('Chrome Scroll Jank/Chrome Scroll Timeline v4');
-  await trk.scrollIntoViewIfNeeded();
+  await pth.scrollToTrack('Chrome Scroll Jank/Chrome Scroll Timeline v4');
   await pth.waitForIdleAndScreenshot('scroll_timeline_v4_track.png', {
     locator: page.locator('.pf-timeline-page__timeline'),
   });
@@ -188,7 +183,7 @@ test('scroll_timeline_v4_track', async () => {
     'Real scroll update input generation',
     Time.fromRaw(16784838286017n),
   );
-  await trk.scrollIntoViewIfNeeded();
+  await pth.scrollToTrack('Chrome Scroll Jank/Chrome Scroll Timeline v4');
   await pth.waitForIdleAndScreenshot(
     'scroll_timeline_v4_details_panel_stage.png',
     {locator: page.locator('.pf-timeline-page__timeline')},

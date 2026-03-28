@@ -33,8 +33,7 @@ test('load trace', async () => {
 });
 
 test('expand browser', async () => {
-  const grp = pth.locateTrack('Browser 12685');
-  await grp.scrollIntoViewIfNeeded();
+  const grp = await pth.scrollToTrack('Browser 12685');
   await pth.toggleTrackGroup(grp);
   await pth.waitForIdleAndScreenshot('browser_expanded.png', {
     locator: page.locator('.pf-timeline-page__timeline'),

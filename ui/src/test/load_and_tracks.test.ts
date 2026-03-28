@@ -75,8 +75,7 @@ test('mark', async () => {
 });
 
 test('track expand and collapse', async () => {
-  const trackGroup = pth.locateTrack('traced_probes 1054');
-  await trackGroup.scrollIntoViewIfNeeded();
+  const trackGroup = await pth.scrollToTrack('traced_probes 1054');
   await pth.toggleTrackGroup(trackGroup);
   await pth.waitForIdleAndScreenshot('traced_probes_expanded.png', {
     locator: page.locator('.pf-timeline-page__timeline'),
@@ -93,16 +92,16 @@ test('track expand and collapse', async () => {
 });
 
 test('pin tracks', async () => {
-  const trackGroup = pth.locateTrack('traced 1055');
+  const trackGroup = await pth.scrollToTrack('traced 1055');
   await pth.toggleTrackGroup(trackGroup);
-  let track = pth.locateTrack('traced 1055/mem.rss', trackGroup);
+  let track = await pth.scrollToTrack('traced 1055/mem.rss');
   await pth.pinTrackUsingShellBtn(track);
   await pth.waitForPerfettoIdle();
   await pth.waitForIdleAndScreenshot('one_track_pinned.png', {
     locator: page.locator('.pf-timeline-page__timeline'),
   });
 
-  track = pth.locateTrack('traced 1055/traced 1055', trackGroup);
+  track = await pth.scrollToTrack('traced 1055/traced 1055');
   await pth.pinTrackUsingShellBtn(track);
   await pth.waitForPerfettoIdle();
   await pth.waitForIdleAndScreenshot('two_tracks_pinned.png', {

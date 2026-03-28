@@ -29,31 +29,20 @@ test.beforeAll(async ({browser}, _testInfo) => {
 });
 
 test('cpu funcgraph', async () => {
-  const grp = pth.locateTrack('CPU');
-  await grp.scrollIntoViewIfNeeded();
+  const grp = await pth.scrollToTrack('CPU');
   await pth.toggleTrackGroup(grp);
-  const funcgraphGrp = pth.locateTrack('CPU/Funcgraph', grp);
-  await funcgraphGrp.scrollIntoViewIfNeeded();
+  const funcgraphGrp = await pth.scrollToTrack('CPU/Funcgraph');
   await pth.toggleTrackGroup(funcgraphGrp);
-  const funcgraph = pth.locateTrack(
-    'CPU/Funcgraph/swapper4 -funcgraph',
-    funcgraphGrp,
-  );
-  await funcgraph.scrollIntoViewIfNeeded();
+  await pth.scrollToTrack('CPU/Funcgraph/swapper4 -funcgraph');
   await pth.waitForIdleAndScreenshot('cpu_funcgraph.png', {
     locator: page.locator('.pf-timeline-page__timeline'),
   });
 });
 
 test('thread funcgraph', async () => {
-  const grp = pth.locateTrack('iperf 3442');
-  await grp.scrollIntoViewIfNeeded();
+  const grp = await pth.scrollToTrack('iperf 3442');
   await pth.toggleTrackGroup(grp);
-  const funcgraph = pth.locateTrack(
-    'iperf 3442/Funcgraph (3450) (funcgraph)',
-    grp,
-  );
-  await funcgraph.scrollIntoViewIfNeeded();
+  await pth.scrollToTrack('iperf 3442/Funcgraph (3450) (funcgraph)');
   await pth.waitForIdleAndScreenshot('thread_funcgraph.png', {
     locator: page.locator('.pf-timeline-page__timeline'),
   });

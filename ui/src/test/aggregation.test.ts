@@ -78,15 +78,11 @@ test('sched', async () => {
 
 test('gpu counter', async () => {
   await page.keyboard.press('Escape');
-  const gpuGroup = pth.locateTrack('GPU');
-  await gpuGroup.scrollIntoViewIfNeeded();
+  const gpuGroup = await pth.scrollToTrack('GPU');
   await pth.toggleTrackGroup(gpuGroup);
-  const gpuFreqGroup = pth.locateTrack('GPU/GPU Frequency', gpuGroup);
+  const gpuFreqGroup = await pth.scrollToTrack('GPU/GPU Frequency');
   await pth.toggleTrackGroup(gpuFreqGroup);
-  const gpuTrack = pth.locateTrack(
-    'GPU/GPU Frequency/Gpu 0 Frequency',
-    gpuFreqGroup,
-  );
+  const gpuTrack = await pth.scrollToTrack('GPU/GPU Frequency/Gpu 0 Frequency');
   const coords = assertExists(await gpuTrack.boundingBox());
   await page.mouse.move(600, coords.y + 10);
   await page.mouse.down();
@@ -99,12 +95,10 @@ test('gpu counter', async () => {
 
 test('frametimeline', async () => {
   await page.keyboard.press('Escape');
-  const sysui = pth.locateTrack('com.android.systemui 25348');
-  await sysui.scrollIntoViewIfNeeded();
+  const sysui = await pth.scrollToTrack('com.android.systemui 25348');
   await pth.toggleTrackGroup(sysui);
-  const actualTimeline = pth.locateTrack(
+  const actualTimeline = await pth.scrollToTrack(
     'com.android.systemui 25348/Actual Timeline',
-    sysui,
   );
   const coords = assertExists(await actualTimeline.boundingBox());
   await page.mouse.move(600, coords.y + 10);
@@ -118,13 +112,12 @@ test('frametimeline', async () => {
 
 test('slices', async () => {
   await page.keyboard.press('Escape');
-  const syssrv = pth.locateTrack('system_server 1719');
-  await syssrv.scrollIntoViewIfNeeded();
+  const syssrv = await pth.scrollToTrack('system_server 1719');
   await pth.toggleTrackGroup(syssrv);
-  const animThread = pth
-    .locateTrack('system_server 1719/android.anim 1754', syssrv)
-    .nth(1);
-  await animThread.scrollIntoViewIfNeeded();
+  // Use scrollToTrack to ensure the track is visible, then select the second instance
+  const animThread = (
+    await pth.scrollToTrack('system_server 1719/android.anim 1754')
+  ).nth(1);
   await pth.waitForPerfettoIdle();
   const coords = assertExists(await animThread.boundingBox());
   await page.mouse.move(600, coords.y + 10);
