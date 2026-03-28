@@ -227,6 +227,8 @@ FrameTimelineEventParser::FrameTimelineEventParser(
       jank_tag_experimental_id_(
           context->storage->InternString("Jank tag (experimental)")),
       is_buffer_id_(context->storage->InternString("Is Buffer?")),
+      latched_unsignaled_id_(
+          context->storage->InternString("Latched Unsignaled?")),
       jank_tag_unspecified_id_(context->storage->InternString("Unspecified")),
       jank_tag_none_id_(context->storage->InternString("No Jank")),
       jank_tag_self_id_(context->storage->InternString("Self Jank")),
@@ -621,6 +623,10 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
         inserter->AddArg(is_buffer_id_, Variadic::String(is_buffer));
         inserter->AddArg(jank_debug_metadata_id_,
                          Variadic::Real(jank_debug_metadata));
+        if (event.has_latched_unsignaled()) {
+          inserter->AddArg(latched_unsignaled_id_,
+                           Variadic::Boolean(event.latched_unsignaled()));
+        }
       });
 
   if (opt_slice_id) {
