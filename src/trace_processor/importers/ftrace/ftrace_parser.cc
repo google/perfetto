@@ -42,6 +42,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -1885,8 +1886,10 @@ void FtraceParser::ParseCpuFreqThrottle(int64_t timestamp, ConstBytes blob) {
 
 void FtraceParser::ParseGpuFreq(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::GpuFrequencyFtraceEvent::Decoder freq(blob);
+  auto ugpu = context_->gpu_tracker->GetOrCreateGpu(freq.gpu_id());
   TrackId track = context_->track_tracker->InternTrack(
-      tracks::kGpuFrequencyBlueprint, tracks::Dimensions(freq.gpu_id()));
+      tracks::kGpuFrequencyBlueprint,
+      tracks::Dimensions(ugpu.value, freq.gpu_id()));
   context_->event_tracker->PushCounter(timestamp, freq.state(), track);
 }
 
@@ -1894,8 +1897,10 @@ void FtraceParser::ParseKgslGpuFreq(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::KgslGpuFrequencyFtraceEvent::Decoder freq(blob);
   // Source data is frequency / 1000, so we correct that here:
   double new_freq = static_cast<double>(freq.gpu_freq()) * 1000.0;
+  auto ugpu = context_->gpu_tracker->GetOrCreateGpu(freq.gpu_id());
   TrackId track = context_->track_tracker->InternTrack(
-      tracks::kGpuFrequencyBlueprint, tracks::Dimensions(freq.gpu_id()));
+      tracks::kGpuFrequencyBlueprint,
+      tracks::Dimensions(ugpu.value, freq.gpu_id()));
   context_->event_tracker->PushCounter(timestamp, new_freq, track);
 }
 

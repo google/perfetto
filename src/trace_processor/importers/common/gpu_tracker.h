@@ -34,7 +34,7 @@ class GpuTracker {
 
   // Ensures the given gpu number exists in the GPU table for this machine,
   // creating a new row if this is the first time this gpu number has been seen.
-  void MarkGpuValid(uint32_t gpu);
+  tables::GpuTable::Id GetOrCreateGpu(uint32_t gpu);
 
  private:
   TraceProcessorContext* const context_;

@@ -25,10 +25,10 @@ namespace perfetto::trace_processor {
 
 GpuTracker::GpuTracker(TraceProcessorContext* context) : context_(context) {}
 
-void GpuTracker::MarkGpuValid(uint32_t gpu) {
+tables::GpuTable::Id GpuTracker::GetOrCreateGpu(uint32_t gpu) {
   auto it = gpu_ids_.Find(gpu);
   if (it) {
-    return;
+    return *it;
   }
 
   auto machine_id = context_->machine_tracker->machine_id();
@@ -37,6 +37,7 @@ void GpuTracker::MarkGpuValid(uint32_t gpu) {
   row.machine_id = machine_id;
   auto id = context_->storage->mutable_gpu_table()->Insert(row).id;
   gpu_ids_.Insert(gpu, id);
+  return id;
 }
 
 }  // namespace perfetto::trace_processor

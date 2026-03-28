@@ -32,6 +32,7 @@
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
@@ -118,7 +119,8 @@ using protos::pbzero::VulkanMemoryEvent;
 constexpr auto kRenderStageBlueprint = TrackCompressor::SliceBlueprint(
     "gpu_render_stage",
     tracks::DimensionBlueprints(
-        tracks::kGpuDimensionBlueprint,
+        tracks::kUgpuDimensionBlueprint,
+        tracks::kGpuIdDimensionBlueprint,
         tracks::StringDimensionBlueprint("render_stage_source"),
         tracks::UintDimensionBlueprint("hwqueue_id"),
         tracks::StringIdDimensionBlueprint("hwqueue_name")),
@@ -290,8 +292,11 @@ TrackId GpuEventParser::InternGpuCounterTrack(
   auto desc_id = context_->storage->InternString(spec.description());
   auto unit_id = FormatCounterUnit(spec);
 
+  auto ugpu =
+      context_->gpu_tracker->GetOrCreateGpu(static_cast<uint32_t>(gpu_id));
   return context_->track_tracker->InternTrack(
-      tracks::kGpuCounterBlueprint, tracks::Dimensions(gpu_id, name),
+      tracks::kGpuCounterBlueprint,
+      tracks::Dimensions(ugpu.value, static_cast<uint32_t>(gpu_id), name),
       tracks::DynamicName(name_id),
       [&, this](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(description_id_, Variadic::String(desc_id));
@@ -506,9 +511,10 @@ void GpuEventParser::InsertTrackForUninternedRenderStage(
   // Mark this as handled.
   *it = false;
 
+  auto ugpu = context_->gpu_tracker->GetOrCreateGpu(gpu_id);
   auto factory = context_->track_compressor->CreateTrackFactory(
       kRenderStageBlueprint,
-      tracks::Dimensions(gpu_id, "id", hw_queue_id, kNullStringId),
+      tracks::Dimensions(ugpu.value, gpu_id, "id", hw_queue_id, kNullStringId),
       tracks::DynamicName(name),
       [&, this](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(description_id_, Variadic::String(description));
@@ -671,9 +677,10 @@ void GpuEventParser::ParseGpuRenderStageEvent(
                                       ? context_->storage->InternString(
                                             command_buffer_name.value().c_str())
                                       : kNullStringId;
+    auto ugpu = context_->gpu_tracker->GetOrCreateGpu(gpu_id);
     TrackId track_id = context_->track_compressor->InternScoped(
         kRenderStageBlueprint,
-        tracks::Dimensions(gpu_id, base::StringView(source),
+        tracks::Dimensions(ugpu.value, gpu_id, base::StringView(source),
                            static_cast<uint32_t>(hw_queue_id), dimension_name),
         ts, static_cast<int64_t>(event.duration()),
         tracks::DynamicName(track_name),

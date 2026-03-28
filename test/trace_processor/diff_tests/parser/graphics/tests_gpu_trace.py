@@ -15,7 +15,7 @@
 
 from python.generators.diff_tests.testing import Path, DataPath, Metric
 from python.generators.diff_tests.testing import Csv, Json, TextProto
-from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import DiffTestBlueprint, TraceInjector
 from python.generators.diff_tests.testing import TestSuite
 
 
@@ -60,6 +60,22 @@ class GraphicsGpuTrace(TestSuite):
         "gpu","machine_id"
         0,0
         1,0
+        """))
+
+  def test_gpu_table_machine_id(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_counters.py'),
+        trace_modifier=TraceInjector(['gpu_counter_event'],
+                                     {'machine_id': 1001}),
+        query="""
+        SELECT gpu, machine_id
+        FROM gpu
+        ORDER BY gpu;
+        """,
+        out=Csv("""
+        "gpu","machine_id"
+        0,1
+        1,1
         """))
 
   def test_gpu_counter_specs(self):
