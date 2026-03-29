@@ -284,16 +284,19 @@ inline constexpr auto kPerfCpuCounterBlueprint = tracks::CounterBlueprint(
         tracks::kNameFromTraceDimensionBlueprint),
     tracks::DynamicNameBlueprint());
 
-inline constexpr auto kGlobalGpuMemoryBlueprint =
-    tracks::CounterBlueprint("gpu_memory",
-                             tracks::kBytesUnitBlueprint,
-                             tracks::DimensionBlueprints(),
-                             tracks::StaticNameBlueprint("GPU Memory"));
+inline constexpr auto kGlobalGpuMemoryBlueprint = tracks::CounterBlueprint(
+    "gpu_memory",
+    tracks::kBytesUnitBlueprint,
+    tracks::DimensionBlueprints(kUgpuDimensionBlueprint,
+                                kGpuIdDimensionBlueprint),
+    tracks::StaticNameBlueprint("GPU Memory"));
 
 inline constexpr auto kProcessGpuMemoryBlueprint = tracks::CounterBlueprint(
     "process_gpu_memory",
     tracks::kBytesUnitBlueprint,
-    tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint),
+    tracks::DimensionBlueprints(kUgpuDimensionBlueprint,
+                                kGpuIdDimensionBlueprint,
+                                tracks::kProcessDimensionBlueprint),
     tracks::StaticNameBlueprint("GPU Memory"));
 
 inline constexpr auto kProcessMemoryBlueprint = tracks::CounterBlueprint(
