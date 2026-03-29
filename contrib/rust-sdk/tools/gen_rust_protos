@@ -84,6 +84,7 @@ SOURCE_FILES = [
             "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
             "protos/perfetto/trace/gpu/vulkan_api_event.proto",
             "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
+            "protos/perfetto/trace/system_info/gpu_info.proto",
         ],
         "custom_files": [
             "protos/perfetto/common/data_source_descriptor.proto",

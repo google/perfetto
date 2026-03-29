@@ -17,23 +17,22 @@
 // DO NOT EDIT.
 
 use crate::pb_msg;
-use crate::protos::common::gpu_counter_descriptor::*;
 
-pb_msg!(InternedGpuCounterDescriptor {
-    iid: u64, primitive, 1,
-    counter_descriptor: GpuCounterDescriptor, msg, 2,
-    gpu_id: i32, primitive, 3,
+pb_msg!(GpuInfo {
+    gpus: GpuInfoGpu, msg, 1,
 });
 
-pb_msg!(GpuCounterEvent {
-    counter_descriptor: GpuCounterDescriptor, msg, 1,
-    counter_descriptor_iid: u64, primitive, 4,
-    counters: GpuCounterEventGpuCounter, msg, 2,
-    gpu_id: i32, primitive, 3,
+pb_msg!(GpuInfoGpu {
+    name: String, primitive, 1,
+    vendor: String, primitive, 2,
+    model: String, primitive, 3,
+    architecture: String, primitive, 4,
+    uuid: String, primitive, 5,
+    pci_bdf: String, primitive, 7,
+    extra_info: GpuInfoGpuKeyValue, msg, 6,
 });
 
-pb_msg!(GpuCounterEventGpuCounter {
-    counter_id: u32, primitive, 1,
-    int_value: i64, primitive, 2,
-    double_value: f64, primitive, 3,
+pb_msg!(GpuInfoGpuKeyValue {
+    key: String, primitive, 1,
+    value: String, primitive, 2,
 });
