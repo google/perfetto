@@ -165,6 +165,45 @@ function IntervalIntersectContent(): m.Component<{
   };
 }
 
+// Columns intrinsic to _interval_intersect!() output — skip these when
+// pulling in source columns to avoid duplicates.
+const SKIP_COLS = new Set(['id', 'ts', 'dur']);
+
+interface SourceColumn {
+  readonly name: string; // original column name in the source table
+  readonly alias: string; // output name (may have _1 suffix for collisions)
+  readonly type?: ColumnDef['type'];
+}
+
+// Compute the extra columns to pull from both inputs, with collision handling.
+// Input 1 columns keep their original names; input 2 columns get a _1 suffix
+// if they collide with any already-taken name.
+function getSourceColumns(
+  input1Cols: ColumnDef[] | undefined,
+  input2Cols: ColumnDef[] | undefined,
+): {left: SourceColumn[]; right: SourceColumn[]} {
+  const taken = new Set(SKIP_COLS);
+  taken.add('id_0');
+  taken.add('id_1');
+
+  const left: SourceColumn[] = [];
+  for (const col of input1Cols ?? []) {
+    if (SKIP_COLS.has(col.name)) continue;
+    taken.add(col.name);
+    left.push({name: col.name, alias: col.name, type: col.type});
+  }
+
+  const right: SourceColumn[] = [];
+  for (const col of input2Cols ?? []) {
+    if (SKIP_COLS.has(col.name)) continue;
+    const alias = taken.has(col.name) ? `${col.name}_1` : col.name;
+    taken.add(alias);
+    right.push({name: col.name, alias, type: col.type});
+  }
+
+  return {left, right};
+}
+
 export const manifest: NodeManifest<IntervalIntersectConfig> = {
   title: 'Interval Intersect',
   icon: 'compare_arrows',
@@ -178,23 +217,32 @@ export const manifest: NodeManifest<IntervalIntersectConfig> = {
   hue: 340,
   defaultConfig: () => ({partitionColumns: [], filterNegativeDur: true}),
   isValid: () => true,
-  getOutputColumns(config, ctx) {
+  getOutputColumns(_config, ctx) {
+    const input1Cols = ctx.getInputColumns('input_1');
+    const input2Cols = ctx.getInputColumns('input_2');
+    const {left, right} = getSourceColumns(input1Cols, input2Cols);
+
     const result: ColumnDef[] = [
       {name: 'ts', type: {kind: 'timestamp' as const}},
       {name: 'dur', type: {kind: 'duration' as const}},
       {name: 'id_0', type: {kind: 'int' as const}},
       {name: 'id_1', type: {kind: 'int' as const}},
     ];
-    for (const col of config.partitionColumns) {
-      const inputCols = ctx.getInputColumns('input_1');
-      const orig = inputCols?.find((c) => c.name === col);
-      if (col) result.push({name: col, type: orig?.type});
+    for (const col of left) {
+      result.push({name: col.alias, type: col.type});
+    }
+    for (const col of right) {
+      result.push({name: col.alias, type: col.type});
     }
     return result;
   },
   emitIr(config, ctx) {
     const leftRef = ctx.getInputRef('input_1');
     const rightRef = ctx.getInputRef('input_2');
+    const input1Cols = ctx.getInputColumns('input_1');
+    const input2Cols = ctx.getInputColumns('input_2');
+    const {left, right} = getSourceColumns(input1Cols, input2Cols);
+
     const leftArg = config.filterNegativeDur
       ? `(SELECT * FROM ${leftRef} WHERE dur >= 0)`
       : leftRef;
@@ -204,7 +252,30 @@ export const manifest: NodeManifest<IntervalIntersectConfig> = {
     const partitionCols = config.partitionColumns.filter((c) => c);
     const partitionClause =
       partitionCols.length > 0 ? partitionCols.join(', ') : '';
-    const sql = `SELECT *\nFROM _interval_intersect!(\n  (${leftArg},\n   ${rightArg}),\n  (${partitionClause})\n)`;
+
+    // Build SELECT clause: intersect columns + source columns from both inputs.
+    const selectParts = ['ii.ts', 'ii.dur', 'ii.id_0', 'ii.id_1'];
+    for (const col of left) {
+      selectParts.push(`t1.${col.name}`);
+    }
+    for (const col of right) {
+      const expr = `t2.${col.name}`;
+      selectParts.push(
+        col.alias !== col.name ? `${expr} AS ${col.alias}` : expr,
+      );
+    }
+
+    const hasSourceCols = left.length > 0 || right.length > 0;
+    let sql: string;
+    if (hasSourceCols) {
+      sql =
+        `SELECT ${selectParts.join(', ')}` +
+        `\nFROM _interval_intersect!(\n  (${leftArg},\n   ${rightArg}),\n  (${partitionClause})\n) ii` +
+        `\nJOIN ${leftRef} t1 ON ii.id_0 = t1.id` +
+        `\nJOIN ${rightRef} t2 ON ii.id_1 = t2.id`;
+    } else {
+      sql = `SELECT *\nFROM _interval_intersect!(\n  (${leftArg},\n   ${rightArg}),\n  (${partitionClause})\n)`;
+    }
     return {sql, includes: ['intervals.intersect']};
   },
   render(config, updateConfig, ctx) {

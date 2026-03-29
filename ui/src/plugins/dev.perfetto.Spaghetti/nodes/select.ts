@@ -132,6 +132,19 @@ function SelectNodeContent(): m.Component<{
 
       return m('.pf-qb-stack', [
         m('.pf-qb-section-label', 'Columns'),
+        entries.length === 0 &&
+          m(
+            '.pf-qb-passthrough-hint',
+            {
+              style: {
+                opacity: 0.5,
+                fontStyle: 'italic',
+                fontSize: '11px',
+                padding: '2px 4px',
+              },
+            },
+            'All columns (passthrough)',
+          ),
         m('.pf-qb-filter-list', [
           ...entries.map((entry, i) =>
             m(
@@ -354,6 +367,17 @@ function getOutputColumns(
   ctx: ColumnContext,
 ): ColumnDef[] | undefined {
   const columns = ctx.getInputColumns('input');
+  const hasEntries = config.entries.some((e) => e.column);
+  const exprAliases: ColumnDef[] = config.expressions
+    .filter((e) => e.expression)
+    .map((e) => ({name: exprAlias(e)}));
+
+  // No explicit columns: pass through all input columns (SELECT *)
+  // plus any expressions on top.
+  if (!hasEntries) {
+    return [...(columns ?? []), ...exprAliases];
+  }
+
   const selectedEntries: ColumnDef[] = config.entries
     .filter((e) => e.column)
     .map((e) => {
@@ -361,14 +385,7 @@ function getOutputColumns(
       const orig = columns?.find((c) => c.name === e.column);
       return {name, type: orig?.type};
     });
-  const exprAliases: ColumnDef[] = config.expressions
-    .filter((e) => e.expression)
-    .map((e) => ({name: exprAlias(e)}));
-  const result = [...selectedEntries, ...exprAliases];
-  if (result.length > 0) {
-    return result;
-  }
-  return columns;
+  return [...selectedEntries, ...exprAliases];
 }
 
 function isValid(config: SelectConfig): boolean {
@@ -383,10 +400,16 @@ function tryFold(stmt: SqlStatement, config: SelectConfig): boolean {
   const exprParts = config.expressions
     .filter((e) => e.expression)
     .map((e) => `${e.expression} AS ${exprAlias(e)}`);
-  const allParts = [...entryParts, ...exprParts];
-  if (allParts.length > 0) {
-    stmt.columns = allParts.join(', ');
+
+  // No explicit columns: keep * and append expressions on top.
+  if (entryParts.length === 0) {
+    if (exprParts.length > 0) {
+      stmt.columns = `*, ${exprParts.join(', ')}`;
+    }
+    return true;
   }
+
+  stmt.columns = [...entryParts, ...exprParts].join(', ');
   return true;
 }
 

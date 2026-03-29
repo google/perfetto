@@ -18,6 +18,7 @@ import {Icon} from '../../../widgets/icon';
 import {TextInput} from '../../../widgets/text_input';
 import {perfettoSqlTypeIcon} from '../../../trace_processor/perfetto_sql_type';
 import {ColumnDef} from '../graph_utils';
+import {classNames} from '../../../base/classnames';
 
 // A text input with an autocomplete dropdown for column names.
 //
@@ -85,7 +86,10 @@ export class ColumnPicker implements m.ClassComponent<ColumnPickerAttrs> {
         trigger: m(TextInput, {
           value: displayValue,
           placeholder: attrs.placeholder ?? 'column',
-          className: isUnknown ? 'pf-column-picker--unknown' : '',
+          className: classNames(
+            isUnknown && 'pf-column-picker--unknown',
+            attrs.className,
+          ),
           onfocus: (e: FocusEvent) => {
             this.editing = true;
             this.query = attrs.value;
