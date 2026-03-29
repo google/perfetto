@@ -50,6 +50,7 @@ interface QueryResponse {
   query: string;
   error?: string;
   totalRowCount: number;
+  durationMs: number;
   columns: string[];
   rows: DataGridRow[];
   statementCount: number;
@@ -469,6 +470,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
         settings,
       );
       tab.activeHttpDataSource = httpDataSource;
+      const startMs = performance.now();
       try {
         const data = await httpDataSource.query();
         tab.queryResult = {
@@ -476,6 +478,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           columns: data.length > 0 ? Object.keys(data[0]) : [],
           error: undefined,
           totalRowCount: data.length,
+          durationMs: performance.now() - startMs,
           statementWithOutputCount: 1,
           statementCount: 1,
           lastStatementSql: query,
@@ -492,6 +495,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
           columns: [],
           error,
           totalRowCount: 0,
+          durationMs: performance.now() - startMs,
           statementWithOutputCount: 0,
           statementCount: 1,
           lastStatementSql: query,
@@ -578,7 +582,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
             emptyStateMessage: 'Query returned no rows',
             toolbarItemsLeft: m(
               'span.pf-query-page__results-summary',
-              `Returned ${queryResult.totalRowCount.toLocaleString()} rows`,
+              `Returned ${queryResult.totalRowCount.toLocaleString()} rows in ${Math.round(queryResult.durationMs).toLocaleString()} ms`,
             ),
             toolbarItemsRight: [
               m(CopyToClipboardButton, {
