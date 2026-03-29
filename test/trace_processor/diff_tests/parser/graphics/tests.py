@@ -91,39 +91,53 @@ class GraphicsParser(TestSuite):
     return DiffTestBlueprint(
         trace=Path('gpu_mem_total.py'),
         query='''
-          SELECT ct.name, ct.unit, c.ts, p.pid, cast_int!(c.value) AS value
+          SELECT
+            ct.name,
+            ct.unit,
+            extract_arg(ct.dimension_arg_set_id, 'gpu') AS gpu_id,
+            c.ts,
+            p.pid,
+            cast_int!(c.value) AS value
           FROM counter_track ct
           LEFT JOIN process_counter_track pct USING (id)
           LEFT JOIN process p USING (upid)
           LEFT JOIN counter c ON c.track_id = ct.id
-          ORDER BY ts;
+          ORDER BY gpu_id, ts, pid;
         ''',
         out=Csv("""
-          "name","unit","ts","pid","value"
-          "GPU Memory","bytes",0,"[NULL]",123
-          "GPU Memory","bytes",0,1,100
-          "GPU Memory","bytes",5,"[NULL]",256
-          "GPU Memory","bytes",5,1,233
-          "GPU Memory","bytes",10,"[NULL]",123
-          "GPU Memory","bytes",10,1,0
+          "name","unit","gpu_id","ts","pid","value"
+          "GPU Memory","bytes",0,0,"[NULL]",123
+          "GPU Memory","bytes",0,0,1,100
+          "GPU Memory","bytes",0,5,"[NULL]",256
+          "GPU Memory","bytes",0,5,1,233
+          "GPU Memory","bytes",0,10,"[NULL]",123
+          "GPU Memory","bytes",0,10,1,0
+          "GPU Memory","bytes",1,0,"[NULL]",456
+          "GPU Memory","bytes",1,5,"[NULL]",512
         """))
 
   def test_gpu_mem_total_after_free_gpu_mem_total(self):
     return DiffTestBlueprint(
         trace=Path('gpu_mem_total_after_free.py'),
         query='''
-          SELECT ct.name, ct.unit, c.ts, p.pid, cast_int!(c.value) AS value
+          SELECT
+            ct.name,
+            ct.unit,
+            extract_arg(ct.dimension_arg_set_id, 'gpu') AS gpu_id,
+            c.ts,
+            p.pid,
+            cast_int!(c.value) AS value
           FROM counter_track ct
           LEFT JOIN process_counter_track pct USING (id)
           LEFT JOIN process p USING (upid)
           LEFT JOIN counter c ON c.track_id = ct.id
-          ORDER BY ts;
+          ORDER BY gpu_id, ts;
         ''',
         out=Csv("""
-          "name","unit","ts","pid","value"
-          "GPU Memory","bytes",0,1,100
-          "GPU Memory","bytes",5,1,233
-          "GPU Memory","bytes",10,1,50
+          "name","unit","gpu_id","ts","pid","value"
+          "GPU Memory","bytes",0,0,1,100
+          "GPU Memory","bytes",0,5,1,233
+          "GPU Memory","bytes",0,10,1,50
         """))
 
   # Clock sync

@@ -20,20 +20,30 @@ import synth_common
 trace = synth_common.create_trace()
 trace.add_packet()
 
-# Global gpu_mem_total initial counter event
-trace.add_gpu_mem_total_event(pid=0, ts=0, size=123)
+# Global gpu_mem_total initial counter event (gpu 0)
+trace.add_gpu_mem_total_event(pid=0, ts=0, size=123, gpu_id=0)
 
-# Global gpu_mem_total ftrace event
+# Global gpu_mem_total ftrace event (gpu 0)
 trace.add_ftrace_packet(cpu=0)
-trace.add_gpu_mem_total_ftrace_event(ftrace_pid=0, pid=0, ts=5, size=256)
-trace.add_gpu_mem_total_ftrace_event(ftrace_pid=0, pid=0, ts=10, size=123)
+trace.add_gpu_mem_total_ftrace_event(
+    ftrace_pid=0, pid=0, ts=5, size=256, gpu_id=0)
+trace.add_gpu_mem_total_ftrace_event(
+    ftrace_pid=0, pid=0, ts=10, size=123, gpu_id=0)
 
-# gpu_mem_total initial counter event for pid = 1
-trace.add_gpu_mem_total_event(pid=1, ts=0, size=100)
+# gpu_mem_total initial counter event for pid = 1 (gpu 0)
+trace.add_gpu_mem_total_event(pid=1, ts=0, size=100, gpu_id=0)
 
-# gpu_mem_total ftrace event for pid = 1
+# gpu_mem_total ftrace event for pid = 1 (gpu 0)
 trace.add_ftrace_packet(cpu=1)
-trace.add_gpu_mem_total_ftrace_event(ftrace_pid=1, pid=1, ts=5, size=233)
-trace.add_gpu_mem_total_ftrace_event(ftrace_pid=1, pid=1, ts=10, size=0)
+trace.add_gpu_mem_total_ftrace_event(
+    ftrace_pid=1, pid=1, ts=5, size=233, gpu_id=0)
+trace.add_gpu_mem_total_ftrace_event(
+    ftrace_pid=1, pid=1, ts=10, size=0, gpu_id=0)
+
+# Global gpu_mem_total events for gpu 1
+trace.add_gpu_mem_total_event(pid=0, ts=0, size=456, gpu_id=1)
+trace.add_ftrace_packet(cpu=0)
+trace.add_gpu_mem_total_ftrace_event(
+    ftrace_pid=0, pid=0, ts=5, size=512, gpu_id=1)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())
