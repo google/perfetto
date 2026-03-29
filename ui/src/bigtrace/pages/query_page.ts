@@ -531,7 +531,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     if (queryResult.error) {
       return m(
         '.pf-query-page__query-error',
-        `SQL error: ${queryResult.error}`,
+        `Error (after ${Math.round(queryResult.durationMs).toLocaleString()} ms): ${queryResult.error}`,
       );
     } else {
       const tableContent = [
