@@ -63,6 +63,7 @@
 #include "protos/perfetto/trace/ps/process_tree.pbzero.h"
 #include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
 #include "protos/perfetto/trace/system_info/cpu_info.pbzero.h"
+#include "protos/perfetto/trace/system_info/gpu_info.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -1153,6 +1154,38 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
           .AddArg(arm_cpu_variant, Variadic::UnsignedInteger(id->variant))
           .AddArg(arm_cpu_part, Variadic::UnsignedInteger(id->part))
           .AddArg(arm_cpu_revision, Variadic::UnsignedInteger(id->revision));
+    }
+  }
+}
+
+void SystemProbesParser::ParseGpuInfo(ConstBytes blob) {
+  protos::pbzero::GpuInfo::Decoder gpu_info(blob);
+  uint32_t gpu_index = 0;
+  for (auto it = gpu_info.gpus(); it; ++it, ++gpu_index) {
+    protos::pbzero::GpuInfo::Gpu::Decoder gpu(*it);
+
+    std::string uuid_hex;
+    if (gpu.has_uuid()) {
+      auto uuid_bytes = gpu.uuid();
+      uuid_hex = base::ToHex(reinterpret_cast<const char*>(uuid_bytes.data),
+                             uuid_bytes.size);
+    }
+
+    auto ugpu = context_->gpu_tracker->SetGpuInfo(
+        gpu_index, gpu.name().ToStdStringView(), gpu.vendor().ToStdStringView(),
+        gpu.model().ToStdStringView(), gpu.architecture().ToStdStringView(),
+        std::string_view(uuid_hex), gpu.pci_bdf().ToStdStringView());
+
+    // Store vendor-specific extra_info as args.
+    ArgsTracker args_tracker(context_);
+    auto inserter = args_tracker.AddArgsTo(ugpu);
+    for (auto kv_it = gpu.extra_info(); kv_it; ++kv_it) {
+      protos::pbzero::GpuInfo::Gpu::KeyValue::Decoder kv(*kv_it);
+      if (kv.has_key() && kv.has_value()) {
+        auto key_id = context_->storage->InternString(kv.key());
+        auto val_id = context_->storage->InternString(kv.value());
+        inserter.AddArg(key_id, Variadic::String(val_id));
+      }
     }
   }
 }

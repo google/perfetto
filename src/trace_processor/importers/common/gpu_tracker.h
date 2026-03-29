@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_GPU_TRACKER_H_
 
 #include <cstdint>
+#include <string_view>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -35,6 +36,15 @@ class GpuTracker {
   // Ensures the given gpu number exists in the GPU table for this machine,
   // creating a new row if this is the first time this gpu number has been seen.
   tables::GpuTable::Id GetOrCreateGpu(uint32_t gpu);
+
+  // Sets or updates the metadata for the specified GPU in the GpuTable.
+  tables::GpuTable::Id SetGpuInfo(uint32_t gpu,
+                                  std::string_view name,
+                                  std::string_view vendor,
+                                  std::string_view model,
+                                  std::string_view architecture,
+                                  std::string_view uuid,
+                                  std::string_view pci_bdf);
 
  private:
   TraceProcessorContext* const context_;
