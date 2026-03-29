@@ -98,6 +98,7 @@ class QueryTabsState {
         id: t.id,
         title: t.title,
         editorText: t.editorText,
+        limit: t.limit,
       })),
       activeTabId: this.activeTabId,
     };
@@ -111,7 +112,7 @@ class QueryTabsState {
       const parsed = JSON.parse(stored);
       if (!Array.isArray(parsed.tabs) || parsed.tabs.length === 0) return false;
       for (const t of parsed.tabs) {
-        this.addNewTab(t.title, t.editorText);
+        this.addNewTab(t.title, t.editorText, t.limit);
       }
       if (typeof parsed.activeTabId === 'string') {
         const found = this.tabs.find((t) => t.id === parsed.activeTabId);
@@ -144,12 +145,16 @@ class QueryTabsState {
     return `Query ${count}`;
   }
 
-  addNewTab(title?: string, initialQuery?: string): BigTraceEditorTab {
+  addNewTab(
+    title?: string,
+    initialQuery?: string,
+    limit?: number,
+  ): BigTraceEditorTab {
     const tab: BigTraceEditorTab = {
       id: shortUuid(),
       title: title ?? this.nextTabName(),
       editorText: initialQuery ?? '',
-      limit: 100,
+      limit: limit ?? 100,
       queryResult: undefined,
       isLoading: false,
       dataSource: undefined,
