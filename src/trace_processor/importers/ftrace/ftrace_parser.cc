@@ -3035,12 +3035,16 @@ void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
                                     protozero::ConstBytes data) {
   protos::pbzero::GpuMemTotalFtraceEvent::Decoder gpu_mem_total(data);
 
+  const uint32_t gpu_id = gpu_mem_total.gpu_id();
+  auto ugpu = context_->gpu_tracker->GetOrCreateGpu(gpu_id);
+
   TrackId track;
   const uint32_t pid = gpu_mem_total.pid();
   if (pid == 0) {
     // Pid 0 is used to indicate the global total
-    track =
-        context_->track_tracker->InternTrack(tracks::kGlobalGpuMemoryBlueprint);
+    track = context_->track_tracker->InternTrack(
+        tracks::kGlobalGpuMemoryBlueprint,
+        tracks::Dimensions(ugpu.value, gpu_id));
   } else {
     // It's possible for GpuMemTotal ftrace events to be emitted by kworker
     // threads *after* process death. In this case, we simply want to discard
@@ -3062,7 +3066,8 @@ void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
     UniquePid upid = *context_->storage->thread_table()[*opt_utid].upid();
     PERFETTO_DCHECK(context_->storage->process_table()[upid].pid() == pid);
     track = context_->track_tracker->InternTrack(
-        tracks::kProcessGpuMemoryBlueprint, tracks::Dimensions(upid));
+        tracks::kProcessGpuMemoryBlueprint,
+        tracks::Dimensions(ugpu.value, gpu_id, upid));
   }
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(gpu_mem_total.size()), track);

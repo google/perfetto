@@ -28,6 +28,10 @@ import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrac
 interface GpuCounterSchema {
   readonly type: string;
   readonly group: string | undefined;
+  // When set, the track is named "${gpu.displayName} ${gpuTrackName}" instead
+  // of using the DB track name. This avoids redundant prefixes like
+  // "GPU 0 GPU Memory" by allowing explicit control (e.g., "GPU 0 Memory").
+  readonly gpuTrackName: string | undefined;
 }
 
 interface GpuSliceSchema {
@@ -36,13 +40,29 @@ interface GpuSliceSchema {
 }
 
 const GPU_COUNTER_SCHEMAS: ReadonlyArray<GpuCounterSchema> = [
-  {type: 'gpu_counter', group: 'Counters'},
-  {type: 'gpu_memory', group: undefined},
-  {type: 'virtgpu_latency', group: 'Virtgpu Latency'},
-  {type: 'virtgpu_num_free', group: 'Virtgpu num_free'},
-  {type: 'vulkan_device_mem_allocation', group: 'Vulkan Allocations'},
-  {type: 'vulkan_device_mem_bind', group: 'Vulkan Binds'},
-  {type: 'vulkan_driver_mem', group: 'Vulkan Driver Memory'},
+  {type: 'gpu_counter', group: 'Counters', gpuTrackName: undefined},
+  {type: 'gpu_memory', group: undefined, gpuTrackName: 'Memory'},
+  {type: 'virtgpu_latency', group: 'Virtgpu Latency', gpuTrackName: undefined},
+  {
+    type: 'virtgpu_num_free',
+    group: 'Virtgpu num_free',
+    gpuTrackName: undefined,
+  },
+  {
+    type: 'vulkan_device_mem_allocation',
+    group: 'Vulkan Allocations',
+    gpuTrackName: undefined,
+  },
+  {
+    type: 'vulkan_device_mem_bind',
+    group: 'Vulkan Binds',
+    gpuTrackName: undefined,
+  },
+  {
+    type: 'vulkan_driver_mem',
+    group: 'Vulkan Driver Memory',
+    gpuTrackName: undefined,
+  },
 ];
 
 const GPU_SLICE_SCHEMAS: ReadonlyArray<GpuSliceSchema> = [
@@ -231,6 +251,13 @@ export default class GpuPlugin implements PerfettoPlugin {
     `);
 
     const schemas = new Map(GPU_COUNTER_SCHEMAS.map((x) => [x.type, x]));
+    const counterTracks: Array<{
+      schema: GpuCounterSchema;
+      gpu: Gpu | null;
+      trackName: string;
+      baseName: string;
+      uri: string;
+    }> = [];
     const it = result.iter({
       id: NUM,
       type: STR,
@@ -262,7 +289,10 @@ export default class GpuPlugin implements PerfettoPlugin {
         gpuId !== null
           ? new Gpu(ugpu ?? trackId, gpuId, machineId, gpuName ?? undefined)
           : null;
-      const trackName = getTrackName({name, kind: COUNTER_TRACK_KIND});
+      let trackName = getTrackName({name, kind: COUNTER_TRACK_KIND});
+      if (gpu !== null && schema.gpuTrackName !== undefined) {
+        trackName = `${gpu.displayName} ${schema.gpuTrackName}${gpu.maybeMachineLabel()}`;
+      }
       const uri = `/counter_${ugpu ?? trackId}_${trackId}`;
 
       ctx.tracks.registerTrack({
@@ -284,10 +314,44 @@ export default class GpuPlugin implements PerfettoPlugin {
           trackName,
         ),
       });
+
+      counterTracks.push({
+        schema,
+        gpu,
+        trackName,
+        baseName: getTrackName({name, kind: COUNTER_TRACK_KIND}),
+        uri,
+      });
+    }
+
+    // Count ungrouped tracks per type to decide if a sub-group is needed,
+    // matching the GPU Frequency pattern: only create a sub-group when
+    // there are multiple tracks of the same type.
+    const ungroupedCounts = new Map<string, number>();
+    for (const {schema} of counterTracks) {
+      if (schema.group === undefined) {
+        ungroupedCounts.set(
+          schema.type,
+          (ungroupedCounts.get(schema.type) ?? 0) + 1,
+        );
+      }
+    }
+
+    for (const {schema, gpu, trackName, baseName, uri} of counterTracks) {
+      let group = schema.group;
+      let groupGpu = gpu;
+      if (group === undefined && (ungroupedCounts.get(schema.type) ?? 0) > 1) {
+        // Multiple tracks of the same ungrouped type: create a sub-group
+        // using the base track name (e.g., "GPU Memory") and add tracks
+        // directly under it without per-GPU sub-groups, matching how
+        // addGpuFreq handles GPU Frequency tracks.
+        group = baseName;
+        groupGpu = null;
+      }
       this.addToGpuGroup(
         ctx,
-        schema.group,
-        gpu,
+        group,
+        groupGpu,
         new TrackNode({uri, name: trackName, sortOrder: 0}),
       );
     }
