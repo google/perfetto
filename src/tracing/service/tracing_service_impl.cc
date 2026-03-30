@@ -2676,7 +2676,10 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   }
   if (!tracing_session->did_emit_initial_packets) {
     EmitUuid(tracing_session, &packets);
-    EmitExtensionDescriptors(tracing_session, &packets);
+    if (!tracing_session->config.builtin_data_sources()
+             .disable_extension_descriptors()) {
+      EmitExtensionDescriptors(tracing_session, &packets);
+    }
     EmitTraceProvenance(tracing_session, &packets);
     if (!tracing_session->config.builtin_data_sources().disable_system_info()) {
       EmitSystemInfo(&packets);
