@@ -232,19 +232,40 @@ CREATE PERFETTO TABLE android_jank_latency_cujs (
   -- Type of CUJ, i.e. jank or latency.
   cuj_type STRING
 ) AS
+WITH
+  combined_cujs AS (
+    SELECT
+      *,
+      "jank" AS cuj_type,
+      cuj_id AS original_cuj_id
+    FROM android_sysui_jank_cujs
+    UNION ALL
+    SELECT
+      *,
+      -- upid is used as the ui_thread as it's the tid of the main thread.
+      upid AS ui_thread,
+      NULL AS layer_id,
+      NULL AS begin_vsync,
+      NULL AS end_vsync,
+      "latency" AS cuj_type,
+      cuj_id AS original_cuj_id
+    FROM android_sysui_latency_cujs
+  )
 SELECT
-  *,
-  "jank" AS cuj_type,
-  cuj_id AS id
-FROM android_sysui_jank_cujs
-UNION ALL
-SELECT
-  *,
-  -- upid is used as the ui_thread as it's the tid of the main thread.
-  upid AS ui_thread,
-  NULL AS layer_id,
-  NULL AS begin_vsync,
-  NULL AS end_vsync,
-  "latency" AS cuj_type,
-  cuj_id AS id
-FROM android_sysui_latency_cujs;
+  row_number() OVER (ORDER BY cuj_type, original_cuj_id) AS cuj_id,
+  row_number() OVER (ORDER BY cuj_type, original_cuj_id) AS id,
+  upid,
+  process_name,
+  cuj_slice_name,
+  cuj_name,
+  slice_id,
+  ts,
+  ts_end,
+  dur,
+  state,
+  ui_thread,
+  layer_id,
+  begin_vsync,
+  end_vsync,
+  cuj_type
+FROM combined_cujs;
