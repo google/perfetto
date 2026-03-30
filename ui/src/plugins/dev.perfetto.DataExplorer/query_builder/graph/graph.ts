@@ -33,6 +33,7 @@
 
 import m from 'mithril';
 
+import {classNames} from '../../../../base/classnames';
 import {Icons} from '../../../../base/semantic_icons';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
@@ -65,6 +66,7 @@ import {
   wouldCreateCycle,
 } from '../graph_utils';
 import {RoundActionButton} from '../widgets';
+import {getNodeHue} from './node_config';
 
 // ========================================
 // TYPE DEFINITIONS
@@ -118,6 +120,8 @@ export interface GraphCallbacks {
   ) => void;
   readonly onImport: () => void;
   readonly onExport: () => void;
+  readonly onCreateGroup?: (selectedNodeIds: ReadonlySet<string>) => void;
+  readonly onUngroupNode?: (node: QueryNode) => void;
 }
 
 export interface GraphAttrs extends GraphCallbacks {
@@ -334,50 +338,6 @@ function ensureNodeLayouts(
 // NODE RENDERING
 // ========================================
 
-// Assigns a color hue based on the node's type for visual distinction
-function getNodeHue(node: QueryNode): number {
-  switch (node.type) {
-    case NodeType.kTable:
-      return 354; // Red (#ffcdd2)
-    case NodeType.kSimpleSlices:
-      return 122; // Green (#c8e6c9)
-    case NodeType.kSqlSource:
-      return 199; // Cyan/Light Blue (#b3e5fc)
-    case NodeType.kTimeRangeSource:
-      return 33; // Orange (#ffe0b2)
-    case NodeType.kAggregation:
-      return 339; // Pink (#f8bbd0)
-    case NodeType.kModifyColumns:
-      return 261; // Purple (#d1c4e9)
-    case NodeType.kAddColumns:
-      return 232; // Indigo (#c5cae9)
-    case NodeType.kFilterDuring:
-      return 88; // Light Green (#dcedc8)
-    case NodeType.kLimitAndOffset:
-      return 175; // Teal (#b2dfdb)
-    case NodeType.kSort:
-      return 54; // Yellow (#fff9c4)
-    case NodeType.kFilter:
-      return 207; // Blue (#bbdefb)
-    case NodeType.kIntervalIntersect:
-      return 45; // Amber/Orange (#ffecb3)
-    case NodeType.kUnion:
-      return 187; // Cyan (#b2ebf2)
-    case NodeType.kJoin:
-      return 14; // Deep Orange (#ffccbc)
-    case NodeType.kCreateSlices:
-      return 100; // Green (#c8e6c9)
-    case NodeType.kMetrics:
-      return 280; // Violet (#e1bee7)
-    case NodeType.kVisualisation:
-      return 30; // Orange (#ffe0b2)
-    case NodeType.kDashboard:
-      return 160; // Teal (#b2dfdb)
-    default:
-      return 65; // Lime (#f0f4c3)
-  }
-}
-
 // Returns the next docked child in the chain (rendered via 'next' property)
 function getNextDockedNode(
   qnode: QueryNode,
@@ -404,6 +364,12 @@ function buildNodeContextMenuItems(
   attrs: GraphAttrs,
 ): m.Children {
   return [
+    qnode.type === NodeType.kGroup && attrs.onUngroupNode !== undefined
+      ? m(MenuItem, {
+          label: 'Ungroup',
+          onclick: () => attrs.onUngroupNode?.(qnode),
+        })
+      : null,
     m(MenuItem, {
       label: 'Duplicate',
       onclick: () => attrs.onDuplicateNode(qnode),
@@ -434,14 +400,16 @@ function createNodeConfig(
         ? [{content: 'Output', direction: 'bottom'}]
         : [];
 
+  const isGroup = qnode.type === NodeType.kGroup;
   return {
     id: qnode.nodeId,
     inputs: getInputLabels(qnode),
     outputs,
-    canDockBottom: true,
+    canDockBottom: !isGroup,
     canDockTop,
-    hue: getNodeHue(qnode),
-    accentBar: true,
+    hue: isGroup ? undefined : getNodeHue(qnode),
+    accentBar: !isGroup,
+    className: classNames(isGroup && 'pf-node--group'),
     contextMenuItems: buildNodeContextMenuItems(qnode, attrs),
     content: m(NodeBox, {
       node: qnode,
@@ -477,7 +445,7 @@ function renderNodes(
   attrs: GraphAttrs,
   nodeGraphApi: NodeGraphApi | null,
 ): Node[] {
-  const allNodes = getAllNodes(rootNodes);
+  const allNodes = getAllNodes(rootNodes, {traverseGroups: false});
   const roots = getRootNodes(allNodes, attrs.nodeLayouts);
 
   ensureNodeLayouts(roots, attrs, nodeGraphApi);
@@ -520,7 +488,7 @@ function buildConnections(
   nodeLayouts: LayoutMap,
 ): Connection[] {
   const connections: Connection[] = [];
-  const allNodes = getAllNodes(rootNodes);
+  const allNodes = getAllNodes(rootNodes, {traverseGroups: false});
 
   for (const qnode of allNodes) {
     for (const child of qnode.nextNodes) {
@@ -819,6 +787,17 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
         },
         addNodeMenuItems,
       ),
+      attrs.selectedNodes.size > 1 &&
+        attrs.onCreateGroup !== undefined &&
+        m(Button, {
+          label: 'Group',
+          icon: 'group_work',
+          variant: ButtonVariant.Filled,
+          intent: Intent.Primary,
+          rounded: true,
+          title: `Group ${attrs.selectedNodes.size} selected nodes`,
+          onclick: () => attrs.onCreateGroup?.(attrs.selectedNodes),
+        }),
       m(Button, {
         icon: 'center_focus_strong',
         variant: ButtonVariant.Minimal,
