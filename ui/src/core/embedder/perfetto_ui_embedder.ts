@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Embedder} from './embedder';
+import {defaultPlugins} from './default_plugins';
 
 /** Embedder implementation for ui.perfetto.dev and localhost development. */
 export class PerfettoUiEmbedder implements Embedder {
@@ -22,4 +23,5 @@ export class PerfettoUiEmbedder implements Embedder {
     authType: 'https_sso' as const,
   };
   readonly brandingBadge = undefined;
+  readonly defaultPlugins = defaultPlugins;
 }

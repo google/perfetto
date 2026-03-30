@@ -59,4 +59,7 @@ export interface Embedder {
   // Returns the branding badge to display in the sidebar header, or undefined
   // if no custom branding should be shown.
   readonly brandingBadge: BrandingBadge | undefined;
+
+  // Returns the list of plugin IDs that should be enabled by default.
+  readonly defaultPlugins: ReadonlyArray<string>;
 }
