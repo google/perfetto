@@ -20,12 +20,8 @@ export type NavState =
   | {view: 'overview'; params: Record<string, never>}
   | {view: 'classes'; params: Record<string, never>}
   | {view: 'dominators'; params: Record<string, never>}
-  | {view: 'objects'; params: Record<string, never>}
+  | {view: 'objects'; params: {cls?: string}}
   | {view: 'object'; params: {id: number; label?: string}}
-  | {
-      view: 'instances';
-      params: {className: string; heap: string | null};
-    }
   | {view: 'bitmaps'; params: {id?: number; filterKey?: string}}
   | {view: 'strings'; params: {q?: string}}
   | {view: 'arrays'; params: {arrayHash?: string}}
@@ -39,16 +35,12 @@ export function stateToSubpage(state: NavState): string {
       return 'classes';
     case 'dominators':
       return 'dominators';
-    case 'objects':
-      return 'objects';
+    case 'objects': {
+      const cls = state.params.cls;
+      return cls ? `objects?cls=${encodeURIComponent(cls)}` : 'objects';
+    }
     case 'object':
       return `object_0x${state.params.id.toString(16)}`;
-    case 'instances': {
-      const sp = new URLSearchParams();
-      sp.set('class', state.params.className);
-      if (state.params.heap) sp.set('heap', state.params.heap);
-      return `instances?${sp.toString()}`;
-    }
     case 'bitmaps': {
       const id = state.params.id;
       const fk = state.params.filterKey;
@@ -100,19 +92,16 @@ export function subpageToState(subpage: string | undefined): NavState {
       return {view: 'classes', params: {}};
     case 'dominators':
       return {view: 'dominators', params: {}};
-    case 'objects':
-      return {view: 'objects', params: {}};
+    case 'objects': {
+      const cls = sp.get('cls') ?? undefined;
+      return {view: 'objects', params: cls ? {cls} : {}};
+    }
     case 'object': {
       const raw = param || '0';
       const id = raw.startsWith('0x')
         ? parseInt(raw.slice(2), 16)
         : parseInt(raw, 10);
       return {view: 'object', params: {id: id || 0}};
-    }
-    case 'instances': {
-      const className = sp.get('class') ?? '';
-      const heap = sp.get('heap') || null;
-      return {view: 'instances', params: {className, heap}};
     }
     case 'bitmaps': {
       const selectedId = param.startsWith('0x')
