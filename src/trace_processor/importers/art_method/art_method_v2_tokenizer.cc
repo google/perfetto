@@ -455,6 +455,10 @@ void ArtMethodV2Tokenizer::PushRecord(uint32_t tid,
 }
 
 base::Status ArtMethodV2Tokenizer::OnPushDataToSorter() {
+  if (!trace_complete_) {
+    return base::ErrStatus("ART Method trace: trace is incomplete");
+  }
+
   for (const auto& line : base::SplitString(summary_, "\n")) {
     size_t pos = line.find('=');
     if (pos != std::string::npos) {
