@@ -4695,6 +4695,9 @@ message TraceConfig {
 
     // Disables the reporting of per-trace-writer histograms in TraceStats.
     optional bool disable_chunk_usage_histograms = 8;
+
+    // Disable emitting extension descriptors into the trace.
+    optional bool disable_extension_descriptors = 9;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 
