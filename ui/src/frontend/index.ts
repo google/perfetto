@@ -317,12 +317,10 @@ function main() {
     document.body.classList.remove('pf-fonts-loading');
   });
 
-  // Load the script to detect if this is a Googler (see comments on globals.ts)
-  // and initialize GA after that (or after a timeout if something goes wrong).
+  // Load the script to detect if this is a Googler (see comments on globals.ts).
+  // This registers macros, SQL packages, and proto descriptors.
   const app = AppImpl.instance;
-  tryLoadIsInternalUserScript(app).then(() => {
-    app.analytics.initialize(app.isInternalUser);
-  });
+  tryLoadIsInternalUserScript(app);
 
   // Route errors to both the UI bugreport dialog and Analytics (if enabled).
   addErrorHandler(maybeShowErrorDialog);
@@ -482,6 +480,10 @@ function onCssLoaded(app: AppImpl) {
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
   pluginManager.activatePlugins(app, overrides);
+
+  // Initialize analytics after plugins have been activated, so that plugins
+  // (e.g. ExtensionServers) can add dimensions before GA is configured.
+  app.analytics.initialize();
 }
 
 // This function is called only later after all the sub-resources (fonts,
