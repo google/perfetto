@@ -31,8 +31,10 @@ import {BigTraceApp as BigTraceAppSingleton} from './bigtrace_app';
 import {OmniboxMode} from '../core/omnibox_manager';
 import {Sidebar, SidebarMenuItem} from './layout/sidebar';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
+import {maybeRenderFullscreenModalDialog} from '../widgets/modal';
 import {initAssets} from '../base/assets';
 import {getCurrentRoute, initRouter} from './router';
+import {toggleHelp} from './help_modal';
 import {Routes} from './routes';
 
 function getRoot() {
@@ -170,6 +172,7 @@ class BigTraceLayout implements m.ClassComponent {
       }),
       m(Topbar, {sidebarVisible: this.sidebarVisible}),
       m('.pf-ui-main__page-container', vnode.children),
+      maybeRenderFullscreenModalDialog(),
     ]);
   }
 }
@@ -259,6 +262,13 @@ function registerCommands() {
       sidebarToggleFn?.();
     },
     defaultHotkey: '!Mod+B',
+  });
+
+  app.commands.registerCommand({
+    id: 'bigtrace.ShowHelp',
+    name: 'Show help',
+    callback: () => toggleHelp(),
+    defaultHotkey: '?',
   });
 }
 
