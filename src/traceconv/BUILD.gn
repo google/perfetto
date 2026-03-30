@@ -122,6 +122,14 @@ source_set("lib") {
 
 source_set("main") {
   deps = [
+    ":traceconv_lib",
+    "../../gn:default_deps",
+  ]
+  sources = [ "main.cc" ]
+}
+
+source_set("traceconv_lib") {
+  deps = [
     ":gen_cc_trace_descriptor",
     ":lib",
     "../../gn:default_deps",
@@ -129,7 +137,8 @@ source_set("main") {
     "../base:version",
     "../protozero/text_to_proto",
   ]
-  sources = [ "main.cc" ]
+  public_deps = [ "../../include/perfetto/ext/traceconv:traceconv" ]
+  sources = [ "traceconv.cc" ]
 }
 
 if (enable_perfetto_ui) {

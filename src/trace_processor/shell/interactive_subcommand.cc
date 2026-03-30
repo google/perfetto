@@ -18,12 +18,24 @@
 
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/shell/common_flags.h"
 #include "src/trace_processor/shell/interactive.h"
 #include "src/trace_processor/shell/metatrace.h"
 #include "src/trace_processor/shell/subcommand.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FREEBSD) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#define PERFETTO_HAS_SIGNAL_H() 1
+#include <signal.h>
+#else
+#define PERFETTO_HAS_SIGNAL_H() 0
+#endif
 
 namespace perfetto::trace_processor::shell {
 
@@ -60,6 +72,11 @@ base::Status InteractiveSubcommand::Run(const SubcommandContext& ctx) {
   ASSIGN_OR_RETURN(auto tp,
                    SetupTraceProcessor(*ctx.global, config, ctx.platform));
   RETURN_IF_ERROR(LoadTraceFile(tp.get(), ctx.platform, trace_file).status());
+
+#if PERFETTO_HAS_SIGNAL_H()
+  static TraceProcessor* g_tp_for_signal_handler = tp.get();
+  signal(SIGINT, [](int) { g_tp_for_signal_handler->InterruptQuery(); });
+#endif
 
   RETURN_IF_ERROR(StartInteractiveShell(
       tp.get(),

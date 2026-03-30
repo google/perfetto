@@ -53,9 +53,11 @@ export class Icons {
   static readonly Save = 'save';
   static readonly Undo = 'undo';
   static readonly Redo = 'redo';
-  static readonly NoData = 'search_off';
+  static readonly NoData = 'inbox';
   static readonly AddColumnRight = 'add_column_right';
   static readonly AddColumnLeft = 'add_column_left';
+  static readonly UnfoldLess = 'unfold_less';
+  static readonly UnfoldMore = 'unfold_more';
 
   // Page control
   static readonly NextPage = 'chevron_right';

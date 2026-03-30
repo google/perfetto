@@ -38,7 +38,6 @@ class MetricsSubcommand : public Subcommand {
   std::string metric_names_;
   std::string pre_path_;
   std::string metric_output_;
-  std::vector<std::string> raw_extensions_;
   std::string post_query_path_;
   std::string perf_file_;
   bool interactive_ = false;

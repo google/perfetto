@@ -4695,6 +4695,9 @@ message TraceConfig {
 
     // Disables the reporting of per-trace-writer histograms in TraceStats.
     optional bool disable_chunk_usage_histograms = 8;
+
+    // Disable emitting extension descriptors into the trace.
+    optional bool disable_extension_descriptors = 9;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 
@@ -5868,7 +5871,11 @@ message AndroidAflags {
   message Flag {
     optional string flag_namespace = 1;
     optional string name = 2;
+    // The aconfig package (e.g. "com.android.foo"). These are system-level
+    // identifiers and not privacy-impacting.
     optional string pkg = 3;
+    // The container where the flag lives (e.g. "system", "vendor", or mainline
+    // module name).
     optional string container = 4;
     // The flag value as a string to support different future data types.
     optional string value = 5;
@@ -9532,6 +9539,19 @@ message DpuDispVblankIrqEnableFtraceEvent {
   optional int32 id = 1;
   optional int32 output_id = 2;
   optional int32 enable = 3;
+}
+message DpuDispFrameDoneTimeoutFtraceEvent {
+  optional int32 display_id = 1;
+  optional uint32 output_id = 2;
+  optional int32 frames_pending = 3;
+  optional int32 te_count = 4;
+  optional uint32 during_disable = 5;
+}
+message DpuDispFrameStartTimeoutFtraceEvent {
+  optional int32 display_id = 1;
+  optional uint32 output_id = 2;
+  optional int32 frames_pending = 3;
+  optional int32 te_count = 4;
 }
 
 // End of protos/perfetto/trace/ftrace/dpu.proto
@@ -13743,6 +13763,8 @@ message FtraceEvent {
     GramCollisionFtraceEvent gram_collision = 602;
     F2fsLockElapsedTimeFtraceEvent f2fs_lock_elapsed_time = 603;
     SchedGroupTrackerFtraceEvent sched_group_tracker = 604;
+    DpuDispFrameDoneTimeoutFtraceEvent dpu_disp_frame_done_timeout = 605;
+    DpuDispFrameStartTimeoutFtraceEvent dpu_disp_frame_start_timeout = 606;
   }
 }
 
@@ -14169,13 +14191,33 @@ message GenericKernelProcessTree {
 
 // Begin of protos/perfetto/trace/gpu/gpu_counter_event.proto
 
+// Events for emitting information about GPU counters.
+//
+// There are two "modes" to use these protos:
+//   1) Using GpuCounterDescriptor. This is the simplest way to use this proto
+//      but has the limitation that counter ids are*global* so must only be
+//      emitted by a single producer or requires coordination between different
+//      producers. This is the mechanism which *must* be used by Android OEMS
+//      to be complaint with CDD/CTS tests.
+//   2) Using InternedGpuCounterDescriptor. This is generally recommended for
+//      more complex use-cases involving multiple producers, multiple GPUs etc.
 message GpuCounterEvent {
-  // The first trace packet of each session should include counter_spec.
-  optional GpuCounterDescriptor counter_descriptor = 1;
+  // The specification for the GPU counters. Gives them information like the
+  // name of the counter, unit etc.
+  oneof desc {
+    // Must be specified on first trace packet of each session if using mode 1.
+    // (e.g. if you're an Android GPU vendor).
+    GpuCounterDescriptor counter_descriptor = 1;
+
+    // ID to a InternedGpuCounterDescriptor in InternedData. Must be specified
+    // on first trace packet of the trusted sequence if using mode 2.
+    uint64 counter_descriptor_iid = 4;
+  }
 
   message GpuCounter {
     // required. Identifier for counter.
     optional uint32 counter_id = 1;
+
     // required. Value of the counter.
     oneof value {
       int64 int_value = 2;
@@ -14183,6 +14225,18 @@ message GpuCounterEvent {
     }
   }
   repeated GpuCounter counters = 2;
+
+  // Identifier for GPU in a multi-gpu device.
+  //
+  // If `counter_descriptor_iid` is specified, the `gpu_id` in
+  // `InternedGpuCounterDescriptor` takes precedence over this field.
+  optional int32 gpu_id = 3;
+}
+
+// Interned GPU counter descriptor for sequence-scoped counter specs.
+message InternedGpuCounterDescriptor {
+  optional uint64 iid = 1;
+  optional GpuCounterDescriptor counter_descriptor = 2;
 
   // optional. Identifier for GPU in a multi-gpu device.
   optional int32 gpu_id = 3;
@@ -16051,7 +16105,7 @@ message EventName {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 45.
+// Next id: 48.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -16148,6 +16202,9 @@ message InternedData {
   // Interned job names for Android Job Names. These are separate from
   // other strings because they are under app control.
   repeated AndroidJobName android_job_name = 44;
+
+  // Description of GPU counters available in a data source.
+  repeated InternedGpuCounterDescriptor gpu_counter_descriptors = 47;
 
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;
@@ -17630,6 +17687,50 @@ message CpuInfo {
 
 // End of protos/perfetto/trace/system_info/cpu_info.proto
 
+// Begin of protos/perfetto/trace/system_info/gpu_info.proto
+
+// Information about GPUs on the device.
+message GpuInfo {
+  // Information about a single GPU.
+  message Gpu {
+    // GPU name (e.g., "NVIDIA A100", "Adreno 740").
+    // Used by the Perfetto UI as the display label for GPU tracks (e.g.,
+    // "NVIDIA A100 Frequency" instead of "GPU 0 Frequency"). If multiple GPUs
+    // share the same name, consider appending an index to distinguish them
+    // (e.g., "NVIDIA A100 #0", "NVIDIA A100 #1").
+    optional string name = 1;
+
+    // GPU vendor string (e.g., "NVIDIA", "AMD", "Qualcomm").
+    optional string vendor = 2;
+
+    // GPU model/product identifier.
+    optional string model = 3;
+
+    // GPU architecture (e.g., "Ampere", "RDNA 3", "Adreno").
+    optional string architecture = 4;
+
+    // 16-byte device UUID when available.
+    optional bytes uuid = 5;
+
+    // PCI bus location (domain:bus:device.function, e.g., "0000:01:00.0").
+    optional string pci_bdf = 7;
+
+    // Arbitrary key-value pairs for vendor-specific info
+    // (driver version, memory size, compute capability, clock speeds, etc.).
+    message KeyValue {
+      optional string key = 1;
+      optional string value = 2;
+    }
+    repeated KeyValue extra_info = 6;
+  }
+
+  // Describes available GPUs, one entry per GPU. The index in the list
+  // corresponds to the gpu_id used elsewhere in the trace.
+  repeated Gpu gpus = 1;
+}
+
+// End of protos/perfetto/trace/system_info/gpu_info.proto
+
 // Begin of protos/perfetto/trace/test_event.proto
 
 // Event used by testing code.
@@ -18522,6 +18623,7 @@ message TracePacket {
     ProtoVms protovms = 125;
     TraceAttributes trace_attributes = 126;
     AndroidAflags android_aflags = 127;
+    GpuInfo gpu_info = 128;
 
     // Only used in profile packets.
     ModuleSymbols module_symbols = 61;

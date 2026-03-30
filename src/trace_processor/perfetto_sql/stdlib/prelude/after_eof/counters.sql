@@ -139,7 +139,9 @@ CREATE PERFETTO TABLE gpu_counter_track (
   unit STRING,
   -- The description for this track. For debugging purposes only.
   description STRING,
-  -- The GPU that the track is associated with.
+  -- The unique GPU identifier (ugpu) from the gpu table.
+  ugpu LONG,
+  -- The raw GPU number.
   gpu_id LONG
 ) AS
 SELECT
@@ -151,12 +153,13 @@ SELECT
   ct.machine_id,
   ct.unit,
   ct.description,
-  args.int_value AS gpu_id
+  extract_arg(ct.dimension_arg_set_id, 'ugpu') AS ugpu,
+  extract_arg(ct.dimension_arg_set_id, 'gpu') AS gpu_id
 FROM counter_track AS ct
 JOIN args
   ON ct.dimension_arg_set_id = args.arg_set_id
 WHERE
-  args.key = 'gpu';
+  args.key = 'ugpu';
 
 -- Tracks containing counter-like events associated to a process.
 CREATE PERFETTO TABLE process_counter_track (

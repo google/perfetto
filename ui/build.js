@@ -170,6 +170,10 @@ async function main() {
     help: 'filter Jest tests by regex, e.g. \'chrome_render\'',
   });
   parser.add_argument('--no-override-gn-args', {action: 'store_true'});
+  parser.add_argument('--typecheck', {
+    action: 'store_true',
+    help: 'Only type-check (tsc --noEmit), skip bundling',
+  });
   parser.add_argument('--title', {
     help: 'Override the page title (useful for distinguishing multiple instances)',
   });
@@ -228,6 +232,7 @@ async function main() {
   if (args.cross_origin_isolation) {
     cfg.crossOriginIsolation = true;
   }
+  cfg.check = !!args.typecheck;
   cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
   cfg.titleOverride = args.title || '';
   cfg.wasmModules = ['traceconv', 'proto_utils', 'trace_processor_memory64'];
@@ -289,7 +294,15 @@ async function main() {
   // least one task for that.
   addTask(() => {});
 
-  if (!args.no_build) {
+  if (args.no_build && cfg.check) {
+    // --no-build --typecheck: just run tsc --noEmit assuming out dir exists.
+    const tsProjects = ['ui', 'ui/src/service_worker'];
+    if (cfg.bigtrace) tsProjects.push('ui/src/bigtrace');
+    if (cfg.openPerfettoTrace) tsProjects.push('ui/src/open_perfetto_trace');
+    for (const prj of tsProjects) {
+      transpileTsProject(prj, {noEmit: true});
+    }
+  } else if (!args.no_build) {
     updateSymlinks();  // Links //ui/out -> //out/xxx/ui/
 
     buildWasm(args.no_wasm);
@@ -315,24 +328,35 @@ async function main() {
       tsProjects.push('ui/src/open_perfetto_trace');
     }
 
-
-    for (const prj of tsProjects) {
-      transpileTsProject(prj);
-    }
-
-    if (cfg.watch) {
+    if (cfg.check) {
       for (const prj of tsProjects) {
-        transpileTsProject(prj, {watch: cfg.watch});
+        transpileTsProject(prj, {noEmit: true});
       }
+    } else {
+      for (const prj of tsProjects) {
+        // When in watch mode, don't error out if we get typescript errors in the
+        // initial build. Typescript errors on subsequent incremental builds don't
+        // error out so the initial build should behave in the same way.
+        //
+        // Note: In non-watch mode, we do still break on typescript errors,
+        // there's no change here.
+        transpileTsProject(prj, {noErrCheck: cfg.watch});
+      }
+
+      if (cfg.watch) {
+        for (const prj of tsProjects) {
+          transpileTsProject(prj, {watch: cfg.watch});
+        }
+      }
+
+      bundleJs('rollup.config.js');
+      genServiceWorkerManifestJson();
+
+      // Watches the /dist. When changed:
+      // - Notifies the HTTP live reload clients.
+      // - Regenerates the ServiceWorker file map.
+      scanDir(cfg.outDistRootDir);
     }
-
-    bundleJs('rollup.config.js');
-    genServiceWorkerManifestJson();
-
-    // Watches the /dist. When changed:
-    // - Notifies the HTTP live reload clients.
-    // - Regenerates the ServiceWorker file map.
-    scanDir(cfg.outDistRootDir);
   }
 
   // We should enter the loop only in watch mode, where tsc and rollup are
@@ -341,7 +365,7 @@ async function main() {
     console.log('No build was requested, but artifacts are not available.');
     console.log('In case of execution error, re-run without --no-build.');
   }
-  if (!args.no_build) {
+  if (!args.no_build && !cfg.check) {
     const tStart = performance.now();
     while (!isDistComplete()) {
       const secs = Math.ceil((performance.now() - tStart) / 1000);
@@ -591,11 +615,17 @@ function buildWasm(skipWasmBuild) {
 function transpileTsProject(project, options) {
   const args = ['--project', pjoin(ROOT_DIR, project)];
 
-  if (options !== undefined && options.watch) {
-    args.push('--watch', '--preserveWatchOutput');
-    addTask(execModule, ['tsc', args, {async: true}]);
-  } else {
+  if (options !== undefined && options.noEmit) {
+    args.push('--noEmit');
     addTask(execModule, ['tsc', args]);
+  } else if (options !== undefined && options.watch) {
+    args.push('--watch', '--preserveWatchOutput');
+    addTask(execModule, ['tsc', args, {
+      async: true,
+      noErrCheck: options.noErrCheck,
+    }]);
+  } else {
+    addTask(execModule, ['tsc', args, {noErrCheck: options.noErrCheck}]);
   }
 }
 
@@ -731,12 +761,15 @@ function startServer() {
           server.listen(port, cfg.httpServerListenHost);
         } else {
           console.error(`ERROR: Port ${port} is in use, and no free port found after 10 tries. Exiting.`);
+          process.exit(1);
         }
       } else {
         console.error(`ERROR: Port ${port} is in use, and --serve-port was explicitly set. Exiting.`);
+        process.exit(1);
       }
     } else {
       console.error('HTTP SERVER ERROR:', e);
+      process.exit(1);
     }
   });
 
@@ -1000,6 +1033,7 @@ function prepareBuildLock() {
     }
     if (running) {
       console.error(`Error: a build.js instance is already running (${cfg.lockFile} PID=${oldPid}).`);
+      console.error('Hint: use --no-build (-n) to skip the build and avoid the lock.');
       process.exit(1);
     } else {
       console.log(`Removing stale lock file for PID ${oldPid}`);

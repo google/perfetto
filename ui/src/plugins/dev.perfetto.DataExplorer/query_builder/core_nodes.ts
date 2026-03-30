@@ -88,7 +88,8 @@ import {
 } from './nodes/visualisation_node';
 import {DashboardNode, DashboardSerializedState} from './nodes/dashboard_node';
 import {Icons} from '../../../base/semantic_icons';
-import {NodeType} from '../query_node';
+import {NodeType, QueryNode} from '../query_node';
+import {GroupNode, GroupSerializedState} from './nodes/group_node';
 
 // After JoinNode.onPrevNodesUpdated() defaults all columns to unchecked on
 // first initialization, check the columns that the downstream ModifyColumns
@@ -710,6 +711,97 @@ export function registerCoreNodes() {
     },
   });
 
+  // Groups use type 'source' because they are root-level nodes in the outer
+  // graph (not docked children). They don't appear on the landing page and
+  // are only created programmatically via the "Group" action.
+  nodeRegistry.register('group', {
+    name: 'Group',
+    description: 'A group of nodes collapsed into a single unit.',
+    icon: 'group_work',
+    type: 'source',
+    showOnLandingPage: false,
+    nodeType: NodeType.kGroup,
+    factory: () => new GroupNode([], undefined, []),
+    deserialize: (state) => {
+      const s = state as GroupSerializedState;
+      // Create a placeholder GroupNode; inner nodes are restored in
+      // deserializeConnections once all nodes are available.
+      return new GroupNode([], undefined, [], {}, s.name ?? 'Group');
+    },
+    deserializeConnections: (node, state, allNodes) => {
+      if (!(node instanceof GroupNode)) return;
+      const s = state as GroupSerializedState;
+
+      // Inner nodes are identified by the innerNodeIds list stored in the
+      // group's own serialized state.
+      const innerNodeIds = Array.isArray(s.innerNodeIds) ? s.innerNodeIds : [];
+      const innerNodes: QueryNode[] = [];
+      for (const id of innerNodeIds) {
+        const n = allNodes.get(id);
+        if (n !== undefined) {
+          innerNodes.push(n);
+        }
+      }
+      node.innerNodes = innerNodes;
+
+      // End node is the inner node with no successors inside the group.
+      const innerSet = new Set(innerNodes.map((n) => n.nodeId));
+      const endNode = innerNodes.find((n) =>
+        n.nextNodes.every((next) => !innerSet.has(next.nodeId)),
+      );
+      if (endNode !== undefined) {
+        node.endNode = endNode;
+      }
+
+      // External connections are restored in postDeserialize, after all
+      // inner nodes have had their primaryInput/secondaryInputs set.
+    },
+    postDeserialize: (node) => {
+      if (!(node instanceof GroupNode)) return;
+      const innerNodes = node.innerNodes;
+      const innerSet = new Set(innerNodes.map((n) => n.nodeId));
+
+      // Restore external connections and secondary inputs: external
+      // sources are nodes outside the group that feed into inner nodes.
+      node.secondaryInputs.connections.clear();
+      node.externalConnections = [];
+      let port = 0;
+      for (const inner of innerNodes) {
+        if (inner.primaryInput && !innerSet.has(inner.primaryInput.nodeId)) {
+          node.secondaryInputs.connections.set(port, inner.primaryInput);
+          node.externalConnections.push({
+            sourceNode: inner.primaryInput,
+            innerTargetNode: inner,
+            innerTargetPort: undefined,
+            groupPort: port,
+          });
+          port++;
+        }
+        if (inner.secondaryInputs) {
+          for (const [innerPort, src] of inner.secondaryInputs.connections) {
+            if (src !== undefined && !innerSet.has(src.nodeId)) {
+              node.secondaryInputs.connections.set(port, src);
+              node.externalConnections.push({
+                sourceNode: src,
+                innerTargetNode: inner,
+                innerTargetPort: innerPort,
+                groupPort: port,
+              });
+              port++;
+            }
+          }
+        }
+      }
+
+      // Rebuild secondaryInputs with the correct max so no extra empty
+      // ports are shown (group nodes don't accept new connections).
+      node.secondaryInputs = {
+        ...node.secondaryInputs,
+        max: port,
+      };
+    },
+  });
+
   // Set the default allowed children for all nodes.
   // This is the full set of modification + multisource nodes, matching the
   // current behavior. Individual node registrations can override this by
@@ -734,6 +826,7 @@ export function registerCoreNodes() {
     'create_slices',
     'union_node',
     'dashboard',
+    'group',
   ]);
 
   // Validate that all allowedChildren references point to registered nodes.
