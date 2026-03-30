@@ -58,6 +58,7 @@
 #include "src/trace_processor/importers/archive/zip_trace_reader.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_parser.h"
 #include "src/trace_processor/importers/art_method/art_method_tokenizer.h"
+#include "src/trace_processor/importers/art_method/art_method_v2_tokenizer.h"
 #include "src/trace_processor/importers/collapsed_stack/collapsed_stack_trace_reader.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/registered_file_tracker.h"
@@ -566,6 +567,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   context()
       ->reader_registry->RegisterTraceReader<art_method::ArtMethodTokenizer>(
           kArtMethodTraceType);
+  context()
+      ->reader_registry->RegisterTraceReader<art_method::ArtMethodV2Tokenizer>(
+          kArtMethodV2TraceType);
   context()->reader_registry->RegisterTraceReader<art_hprof::ArtHprofParser>(
       kArtHprofTraceType);
   context()
