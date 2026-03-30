@@ -33,12 +33,20 @@ import {JoinNode} from './query_builder/nodes/join_node';
 import {UnionNode} from './query_builder/nodes/union_node';
 import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
 import {NodeType} from './query_node';
-import {addConnection, removeConnection} from './query_builder/graph_utils';
+import {
+  addConnection,
+  removeConnection,
+  createGroupFromSelection,
+  applyGroupRewiring,
+  getAllNodes,
+} from './query_builder/graph_utils';
 import {ColumnInfo} from './query_builder/column_info';
 import {FilterDuringNode} from './query_builder/nodes/filter_during_node';
 import {TimeRangeSourceNode} from './query_builder/nodes/sources/timerange_source';
 import {Time} from '../../base/time';
 import {registerCoreNodes} from './query_builder/core_nodes';
+import {GroupNode} from './query_builder/nodes/group_node';
+import {unwrapResult} from '../../base/result';
 
 registerCoreNodes();
 
@@ -2803,5 +2811,105 @@ describe('JSON serialization/deserialization', () => {
       width: 100,
       text: 'Test label',
     }); // (400-400, 250-250)
+  });
+
+  test('serializes and deserializes a group node', () => {
+    // Build a chain: tableNode → modifyNode, then group them.
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+    const modifyNode = new ModifyColumnsNode({selectedColumns: []});
+    addConnection(tableNode, modifyNode);
+
+    // Create the group
+    const group = unwrapResult(
+      createGroupFromSelection(new Set([tableNode.nodeId, modifyNode.nodeId]), [
+        tableNode,
+        modifyNode,
+      ]),
+    );
+    applyGroupRewiring(group);
+
+    group.name = 'My Test Group';
+
+    // rootNodes includes only the group (inner nodes are discovered
+    // via GroupNode.innerNodes traversal inside getAllNodes).
+    const initialState: DataExplorerState = {
+      rootNodes: [group],
+      selectedNodes: new Set(),
+      nodeLayouts: new Map(),
+      labels: [],
+    };
+
+    const json = serializeState(initialState);
+    const deserialized = deserializeState(json, trace, sqlModules);
+
+    // Find the deserialized group node
+    const allNodes = getAllNodes(deserialized.rootNodes);
+    const deserializedGroup = allNodes.find((n) => n.type === NodeType.kGroup);
+    expect(deserializedGroup).toBeDefined();
+    expect(deserializedGroup).toBeInstanceOf(GroupNode);
+
+    if (!(deserializedGroup instanceof GroupNode)) return;
+    expect(deserializedGroup.name).toBe('My Test Group');
+    expect(deserializedGroup.innerNodes).toHaveLength(2);
+    expect(deserializedGroup.endNode).toBeDefined();
+
+    // Inner nodes should be accessible through the group
+    for (const inner of deserializedGroup.innerNodes) {
+      expect(inner.nodeId).toBeDefined();
+    }
+  });
+
+  test('group node serialization preserves inner connections', () => {
+    // Build: tableNode → modifyNode → filterNode, group modify+filter
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+    const modifyNode = new ModifyColumnsNode({selectedColumns: []});
+    const filterNode = new FilterNode({filters: []});
+    addConnection(tableNode, modifyNode);
+    addConnection(modifyNode, filterNode);
+
+    // Group modify+filter (tableNode is external)
+    const group = unwrapResult(
+      createGroupFromSelection(
+        new Set([modifyNode.nodeId, filterNode.nodeId]),
+        [tableNode, modifyNode, filterNode],
+      ),
+    );
+    applyGroupRewiring(group);
+
+    const initialState: DataExplorerState = {
+      rootNodes: [tableNode, group],
+      selectedNodes: new Set(),
+      nodeLayouts: new Map(),
+      labels: [],
+    };
+
+    const json = serializeState(initialState);
+    const deserialized = deserializeState(json, trace, sqlModules);
+
+    const allNodes = getAllNodes(deserialized.rootNodes);
+    const deserializedGroup = allNodes.find((n) => n.type === NodeType.kGroup);
+
+    expect(deserializedGroup).toBeDefined();
+    expect(deserializedGroup).toBeInstanceOf(GroupNode);
+    if (!(deserializedGroup instanceof GroupNode)) return;
+
+    // Group should have secondary inputs from tableNode (external source)
+    expect(deserializedGroup.secondaryInputs.connections.size).toBeGreaterThan(
+      0,
+    );
+
+    // End node should be defined after deserialization
+    expect(deserializedGroup.endNode).toBeDefined();
+
+    // Inner nodes should be modification nodes, not source nodes
+    expect(deserializedGroup.innerNodes).toHaveLength(2);
   });
 });

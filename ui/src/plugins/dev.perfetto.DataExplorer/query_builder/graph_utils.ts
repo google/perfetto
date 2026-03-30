@@ -14,9 +14,12 @@
 
 import {
   QueryNode,
+  NodeType,
   SecondaryInputSpec,
   singleNodeOperation,
 } from '../query_node';
+import {GroupNode, ExternalGroupConnection} from './nodes/group_node';
+import {Result, errResult, okResult} from '../../../base/result';
 
 /**
  * Graph traversal and connection utilities for the Data Explorer query builder.
@@ -27,10 +30,19 @@ import {
  * Gets all nodes reachable from the given root nodes (both forward and backward).
  * Uses breadth-first traversal to avoid visiting the same node multiple times.
  *
+ * By default, when a GroupNode is encountered, its inner nodes are also
+ * included in the result (they are not in rootNodes but are owned by the
+ * group). Pass `traverseGroups: false` to skip inner nodes — useful for
+ * rendering where only outer-graph nodes should be visible.
+ *
  * @param rootNodes The starting nodes for traversal
  * @returns All reachable nodes (including root nodes)
  */
-export function getAllNodes(rootNodes: QueryNode[]): QueryNode[] {
+export function getAllNodes(
+  rootNodes: QueryNode[],
+  opts?: {traverseGroups?: boolean},
+): QueryNode[] {
+  const traverseGroups = opts?.traverseGroups ?? true;
   const allNodes: QueryNode[] = [];
   const visited = new Set<string>();
   const queue = [...rootNodes];
@@ -54,6 +66,12 @@ export function getAllNodes(rootNodes: QueryNode[]): QueryNode[] {
       for (const inputNode of node.secondaryInputs.connections.values()) {
         queue.push(inputNode);
       }
+    }
+
+    // Traverse into group inner nodes so they are discoverable even
+    // though they are not in rootNodes.
+    if (traverseGroups && node instanceof GroupNode) {
+      queue.push(...node.innerNodes);
     }
   }
 
@@ -624,6 +642,216 @@ export function removeConnection(
     const nextIndex = fromNode.nextNodes.indexOf(toNode);
     if (nextIndex !== -1) {
       fromNode.nextNodes.splice(nextIndex, 1);
+    }
+  }
+}
+
+// ============================================================================
+// Group Creation
+// ============================================================================
+
+/**
+ * Attempts to create a GroupNode from a set of selected node IDs.
+ *
+ * Validation rules:
+ *  - At least 2 nodes must be selected.
+ *  - Exactly one "end node" must exist: an inner node whose nextNodes are all
+ *    outside the selection (i.e. the group has a single output).
+ *
+ * On success the function:
+ *  1. Creates a GroupNode that proxies SQL generation to the end node.
+ *  2. Rewires external source nodes to point to the GroupNode instead of
+ *     the inner targets (so inner nodes disappear from the outer graph).
+ *  3. Rewires outer nodes (previously connected after the end node) to use
+ *     the GroupNode as their input.
+ *
+ * The inner nodes retain their original primaryInput / secondaryInputs
+ * references so that SQL generation continues to work transitively.
+ *
+ * @returns The new GroupNode on success, or an error result on failure.
+ */
+export function createGroupFromSelection(
+  selectedNodeIds: ReadonlySet<string>,
+  allNodes: readonly QueryNode[],
+): Result<GroupNode> {
+  const innerNodes = allNodes.filter((n) => selectedNodeIds.has(n.nodeId));
+
+  if (innerNodes.length < 2) {
+    return errResult('Select at least 2 nodes to create a group.');
+  }
+
+  // Reject selections that include existing group nodes — nesting is not
+  // supported because the inner rewiring and SQL proxy assumptions break down.
+  if (innerNodes.some((n) => n.type === NodeType.kGroup)) {
+    return errResult(
+      'Cannot create group: selection contains an existing group. Ungroup it first.',
+    );
+  }
+
+  const innerSet = new Set(innerNodes.map((n) => n.nodeId));
+
+  // The end node is the only inner node whose children are all outside the group.
+  const endNodes = innerNodes.filter(
+    (n) => !n.nextNodes.some((next) => innerSet.has(next.nodeId)),
+  );
+
+  if (endNodes.length === 0) {
+    return errResult(
+      'Cannot create group: the selected nodes form a cycle with no output.',
+    );
+  }
+  if (endNodes.length > 1) {
+    return errResult(
+      `Cannot create group: found ${endNodes.length} output nodes. ` +
+        'The group must have exactly one output node.',
+    );
+  }
+
+  const endNode = endNodes[0];
+
+  // Collect all external connections (sources outside the group → inner nodes).
+  const externalConnections: ExternalGroupConnection[] = [];
+  let portCounter = 0;
+
+  for (const inner of innerNodes) {
+    if (
+      inner.primaryInput !== undefined &&
+      !innerSet.has(inner.primaryInput.nodeId)
+    ) {
+      externalConnections.push({
+        sourceNode: inner.primaryInput,
+        innerTargetNode: inner,
+        innerTargetPort: undefined,
+        groupPort: portCounter++,
+      });
+    }
+    if (inner.secondaryInputs !== undefined) {
+      for (const [port, source] of inner.secondaryInputs.connections) {
+        if (source === undefined) continue;
+        if (!innerSet.has(source.nodeId)) {
+          externalConnections.push({
+            sourceNode: source,
+            innerTargetNode: inner,
+            innerTargetPort: port,
+            groupPort: portCounter++,
+          });
+        }
+      }
+    }
+  }
+
+  // Outer nodes: endNode's children that are outside the group.
+  const outerNodes = endNode.nextNodes.filter((n) => !innerSet.has(n.nodeId));
+
+  // Create the GroupNode (no mutations yet).
+  const groupNode = new GroupNode(innerNodes, endNode, externalConnections);
+  groupNode.nextNodes = [...outerNodes];
+
+  return okResult(groupNode);
+}
+
+/**
+ * Applies the graph rewiring needed after creating a GroupNode.
+ * This mutates the existing nodes (sourceNode.nextNodes, outerNode.primaryInput,
+ * etc.) so it should only be called inside a state update callback where the
+ * mutations are expected.
+ */
+export function applyGroupRewiring(groupNode: GroupNode): void {
+  const endNode = groupNode.endNode;
+  if (endNode === undefined) return;
+
+  const innerSet = new Set(groupNode.innerNodes.map((n) => n.nodeId));
+
+  // Rewire: each external source now points to GroupNode instead of inner targets.
+  // Use filter+push instead of per-connection splice to avoid index-shift bugs
+  // when a single source feeds multiple inner nodes.
+  const sourcesToRewire = new Set(
+    groupNode.externalConnections.map((c) => c.sourceNode),
+  );
+  const innerTargets = new Set(
+    groupNode.externalConnections.map((c) => c.innerTargetNode),
+  );
+  for (const source of sourcesToRewire) {
+    source.nextNodes = source.nextNodes.filter((n) => !innerTargets.has(n));
+    if (!source.nextNodes.includes(groupNode)) {
+      source.nextNodes.push(groupNode);
+    }
+  }
+
+  // Rewire: outer nodes now reference GroupNode as their input instead of endNode.
+  for (const outerNode of groupNode.nextNodes) {
+    if (outerNode.primaryInput === endNode) {
+      outerNode.primaryInput = groupNode;
+    }
+    if (outerNode.secondaryInputs !== undefined) {
+      for (const [port, src] of outerNode.secondaryInputs.connections) {
+        if (src === endNode) {
+          outerNode.secondaryInputs.connections.set(port, groupNode);
+        }
+      }
+    }
+  }
+
+  // endNode no longer has direct outer connections; GroupNode owns them.
+  // Mutate in-place so existing references to the array stay consistent.
+  for (let i = endNode.nextNodes.length - 1; i >= 0; i--) {
+    if (!innerSet.has(endNode.nextNodes[i].nodeId)) {
+      endNode.nextNodes.splice(i, 1);
+    }
+  }
+}
+
+/**
+ * Dissolves a GroupNode, restoring the inner nodes to the outer graph.
+ * This is the inverse of createGroupFromSelection + applyGroupRewiring.
+ *
+ * Rewiring performed:
+ *  1. External sources that point to the GroupNode are redirected back to
+ *     the original inner target nodes.
+ *  2. Outer nodes (GroupNode.nextNodes) that reference the GroupNode as
+ *     their input are redirected to the end node.
+ *  3. The end node's nextNodes are restored to include the outer nodes.
+ */
+export function ungroupNode(groupNode: GroupNode): void {
+  const endNode = groupNode.endNode;
+
+  // 1. Rewire external sources: point back to inner targets instead of group.
+  // Collect per-source: remove group, add back inner targets.
+  const sourcesToRestore = new Map<QueryNode, QueryNode[]>();
+  for (const conn of groupNode.externalConnections) {
+    const targets = sourcesToRestore.get(conn.sourceNode) ?? [];
+    targets.push(conn.innerTargetNode);
+    sourcesToRestore.set(conn.sourceNode, targets);
+  }
+  for (const [source, innerTargets] of sourcesToRestore) {
+    source.nextNodes = source.nextNodes.filter((n) => n !== groupNode);
+    for (const target of innerTargets) {
+      if (!source.nextNodes.includes(target)) {
+        source.nextNodes.push(target);
+      }
+    }
+  }
+
+  // 2. Rewire outer nodes: replace GroupNode input with endNode.
+  if (endNode !== undefined) {
+    for (const outerNode of groupNode.nextNodes) {
+      if (outerNode.primaryInput === groupNode) {
+        outerNode.primaryInput = endNode;
+      }
+      if (outerNode.secondaryInputs !== undefined) {
+        for (const [port, src] of outerNode.secondaryInputs.connections) {
+          if (src === groupNode) {
+            outerNode.secondaryInputs.connections.set(port, endNode);
+          }
+        }
+      }
+    }
+
+    // 3. Restore endNode's outer connections.
+    for (const outerNode of groupNode.nextNodes) {
+      if (!endNode.nextNodes.includes(outerNode)) {
+        endNode.nextNodes.push(outerNode);
+      }
     }
   }
 }
