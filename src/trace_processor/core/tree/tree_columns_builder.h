@@ -35,7 +35,7 @@ namespace perfetto::trace_processor::core::tree {
 // with a normalized parent array.
 //
 // The first two columns must be id and parent_id. They are consumed to
-// build the normalized parent array and are NOT included in the output
+// build the normalized parent array and are also included in the output
 // data columns.
 //
 // Usage:
