@@ -678,3 +678,57 @@
     text-align: center;
   }
 }
+
+// Group node — sharp rectangle with strong border
+.pf-node.pf-node--group {
+  background: var(--pf-color-background);
+  border-radius: 0;
+  border: 2px solid var(--pf-color-text);
+
+  .pf-node-header {
+    border-radius: 0;
+  }
+
+  &.pf-invalid {
+    border-color: var(--pf-color-danger);
+    background: color-mix(
+      in srgb,
+      var(--pf-color-danger) 8%,
+      var(--pf-color-background)
+    );
+  }
+}
+
+.pf-node-wrapper:has(.pf-node--group) {
+  border-radius: 0;
+}
+
+// Disconnected input node in inner graph preview
+.pf-node--disconnected {
+  opacity: 0.4;
+}
+
+// Embedded read-only graph preview for group node side panel
+.pf-group-inner-graph {
+  position: relative;
+  height: 300px;
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  overflow: hidden;
+
+  .pf-group-inner-graph__controls {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    z-index: 1;
+  }
+}
+
+// Read-only column items in group node — reuse draggable-item look without drag
+.pf-group-column-readonly {
+  cursor: default;
+
+  .pf-column-type {
+    cursor: default;
+  }
+}
