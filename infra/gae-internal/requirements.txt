@@ -1,0 +1,4 @@
+Flask==3.0.0
+Flask-Cors==4.0.0
+google-cloud-storage==2.14.0
+gunicorn==21.2.0
