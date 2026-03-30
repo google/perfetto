@@ -182,7 +182,6 @@ export class LimitAndOffsetNode implements QueryNode {
     // Only return serializable fields, excluding callbacks and objects
     // that might contain circular references
     return {
-      primaryInputId: this.primaryInput?.nodeId,
       limit: this.state.limit,
       offset: this.state.offset,
     };

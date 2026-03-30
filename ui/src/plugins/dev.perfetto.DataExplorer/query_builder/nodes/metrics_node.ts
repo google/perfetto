@@ -936,7 +936,7 @@ export class MetricsNode implements QueryNode {
     return templateSpec;
   }
 
-  serializeState(): MetricsSerializedState & {primaryInputId?: string} {
+  serializeState(): MetricsSerializedState {
     // Strip transient `expanded` from dimension configs before serializing.
     const dimensionConfigs: Record<string, DimensionConfig> = {};
     for (const [name, cfg] of Object.entries(this.state.dimensionConfigs)) {
@@ -946,7 +946,6 @@ export class MetricsNode implements QueryNode {
       }
     }
     return {
-      primaryInputId: this.primaryInput?.nodeId,
       metricIdPrefix: this.state.metricIdPrefix,
       valueColumns: this.state.valueColumns.map(({expanded: _, ...vc}) => vc),
       dimensionConfigs:

@@ -189,9 +189,8 @@ export class DashboardNode implements QueryNode {
     this.state.onchange?.();
   }
 
-  serializeState(): DashboardSerializedState & {primaryInputId?: string} {
+  serializeState(): DashboardSerializedState {
     return {
-      primaryInputId: this.primaryInput?.nodeId,
       exportName: this.state.exportName,
     };
   }

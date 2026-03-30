@@ -201,58 +201,15 @@ describe('TraceSummaryNode', () => {
   });
 
   describe('serialization', () => {
-    test('serializes secondary input node IDs', () => {
-      const {metrics: metrics1} = makeConnectedMetricsNode('m1');
-      const {metrics: metrics2} = makeConnectedMetricsNode('m2');
-      const node = new TraceSummaryNode({});
-      connectSecondary(metrics1, node, 0);
-      connectSecondary(metrics2, node, 1);
-
-      const serialized = node.serializeState();
-      expect(serialized.secondaryInputNodeIds).toEqual([
-        metrics1.nodeId,
-        metrics2.nodeId,
-      ]);
-    });
-
-    test('omits secondaryInputNodeIds when no inputs', () => {
+    test('serializeState returns empty object', () => {
       const node = new TraceSummaryNode({});
       const serialized = node.serializeState();
-      expect(serialized.secondaryInputNodeIds).toBeUndefined();
+      expect(serialized).toEqual({});
     });
 
     test('deserializeState returns empty state', () => {
       const state = TraceSummaryNode.deserializeState({});
       expect(state).toEqual({});
-    });
-
-    test('deserializeConnections restores secondary inputs', () => {
-      const metrics1 = makeMetricsNode({metricIdPrefix: 'm1'});
-      const metrics2 = makeMetricsNode({metricIdPrefix: 'm2'});
-      const allNodes = new Map<string, ReturnType<typeof createMockNode>>([
-        [metrics1.nodeId, metrics1],
-        [metrics2.nodeId, metrics2],
-      ]);
-
-      const result = TraceSummaryNode.deserializeConnections(allNodes, {
-        secondaryInputNodeIds: [metrics1.nodeId, metrics2.nodeId],
-      });
-
-      expect(result.secondaryInputNodes).toHaveLength(2);
-    });
-
-    test('deserializeConnections handles missing nodes', () => {
-      const allNodes = new Map();
-      const result = TraceSummaryNode.deserializeConnections(allNodes, {
-        secondaryInputNodeIds: ['nonexistent'],
-      });
-      expect(result.secondaryInputNodes).toHaveLength(0);
-    });
-
-    test('deserializeConnections handles undefined IDs', () => {
-      const allNodes = new Map();
-      const result = TraceSummaryNode.deserializeConnections(allNodes, {});
-      expect(result.secondaryInputNodes).toHaveLength(0);
     });
   });
 

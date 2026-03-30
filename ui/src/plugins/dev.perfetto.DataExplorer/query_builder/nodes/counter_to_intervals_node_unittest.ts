@@ -435,9 +435,7 @@ describe('CounterToIntervalsNode', () => {
 
       const serialized = node.serializeState();
 
-      expect(serialized).toEqual({
-        primaryInputId: inputNode.nodeId,
-      });
+      expect(serialized).toEqual({});
     });
 
     it('should handle missing input gracefully', () => {
@@ -445,9 +443,7 @@ describe('CounterToIntervalsNode', () => {
 
       const serialized = node.serializeState();
 
-      expect(serialized).toEqual({
-        primaryInputId: undefined,
-      });
+      expect(serialized).toEqual({});
     });
   });
 

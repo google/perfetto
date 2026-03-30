@@ -37,7 +37,6 @@ import {
 } from '../node_styling_widgets';
 
 export interface UnionSerializedState {
-  unionNodes: string[];
   selectedColumns: ColumnInfo[];
   comment?: string;
 }
@@ -307,8 +306,6 @@ export class UnionNode implements QueryNode {
 
   serializeState(): UnionSerializedState {
     return {
-      // Store ALL input node IDs for reliable deserialization
-      unionNodes: this.inputNodesList.map((n) => n.nodeId),
       selectedColumns: this.state.selectedColumns,
       comment: this.comment,
     };
@@ -318,19 +315,6 @@ export class UnionNode implements QueryNode {
     return {
       inputNodes: [],
       selectedColumns: state.selectedColumns,
-    };
-  }
-
-  static deserializeConnections(
-    nodes: Map<string, QueryNode>,
-    state: UnionSerializedState,
-  ): {inputNodes: QueryNode[]} {
-    // Resolve all input nodes from their IDs
-    const inputNodes = state.unionNodes
-      .map((id) => nodes.get(id))
-      .filter((node): node is QueryNode => node !== undefined);
-    return {
-      inputNodes,
     };
   }
 }

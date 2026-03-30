@@ -908,8 +908,6 @@ describe('JoinNode', () => {
 
       const serialized = joinNode.serializeState();
 
-      expect(serialized.leftNodeId).toBe('node1');
-      expect(serialized.rightNodeId).toBe('node2');
       expect(serialized.leftQueryAlias).toBe('left');
       expect(serialized.rightQueryAlias).toBe('right');
       expect(serialized.conditionType).toBe('equality');
@@ -921,8 +919,6 @@ describe('JoinNode', () => {
   describe('deserializeState', () => {
     it('should deserialize state correctly', () => {
       const serialized = {
-        leftNodeId: 'node1',
-        rightNodeId: 'node2',
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality' as const,
@@ -944,8 +940,6 @@ describe('JoinNode', () => {
 
     it('should deserialize legacy string types into PerfettoSqlType', () => {
       const legacySerialized = {
-        leftNodeId: 'node1',
-        rightNodeId: 'node2',
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality' as const,
@@ -973,8 +967,6 @@ describe('JoinNode', () => {
 
     it('should deserialize new PerfettoSqlType objects correctly', () => {
       const newSerialized: JoinSerializedState = {
-        leftNodeId: 'node1',
-        rightNodeId: 'node2',
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -1004,51 +996,6 @@ describe('JoinNode', () => {
       expect(state.rightColumns?.[0].column.type).toEqual(
         PerfettoSqlTypes.DURATION,
       );
-    });
-  });
-
-  describe('deserializeConnections', () => {
-    it('should deserialize connections correctly', () => {
-      const node1 = createMockPrevNode('node1', []);
-      const node2 = createMockPrevNode('node2', []);
-      const nodes = new Map([
-        ['node1', node1],
-        ['node2', node2],
-      ]);
-
-      const connections = JoinNode.deserializeConnections(nodes, {
-        leftNodeId: 'node1',
-        rightNodeId: 'node2',
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-      });
-
-      expect(connections.leftNode).toBe(node1);
-      expect(connections.rightNode).toBe(node2);
-    });
-
-    it('should handle missing nodes gracefully', () => {
-      const nodes = new Map<string, QueryNode>();
-
-      const connections = JoinNode.deserializeConnections(nodes, {
-        leftNodeId: 'missing1',
-        rightNodeId: 'missing2',
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-      });
-
-      expect(connections.leftNode).toBeUndefined();
-      expect(connections.rightNode).toBeUndefined();
     });
   });
 
@@ -1094,19 +1041,12 @@ describe('JoinNode', () => {
       // Deserialize the state
       const deserializedState = JoinNode.deserializeState(serialized);
 
-      // Create nodes map for connection deserialization
-      const nodes = new Map([
-        ['node1', node1],
-        ['node2', node2],
-      ]);
-      const connections = JoinNode.deserializeConnections(nodes, serialized);
-
       // Create a new join node from deserialized state
-      // This simulates what happens when loading from saved state
+      // Connections are now restored at the graph level by json_handler
       const restoredNode = new JoinNode({
         ...deserializedState,
-        leftNode: connections.leftNode,
-        rightNode: connections.rightNode,
+        leftNode: node1,
+        rightNode: node2,
       });
 
       // BUG: After deserialization and reconstruction, checked status is lost
@@ -1165,18 +1105,12 @@ describe('JoinNode', () => {
       // Deserialize the state
       const deserializedState = JoinNode.deserializeState(serialized);
 
-      // Create nodes map for connection deserialization
-      const nodes = new Map([
-        ['node1', node1],
-        ['node2', node2],
-      ]);
-      const connections = JoinNode.deserializeConnections(nodes, serialized);
-
       // Create a new join node from deserialized state
+      // Connections are now restored at the graph level by json_handler
       const restoredNode = new JoinNode({
         ...deserializedState,
-        leftNode: connections.leftNode,
-        rightNode: connections.rightNode,
+        leftNode: node1,
+        rightNode: node2,
       });
 
       // BUG: Aliases and checked status are both lost after deserialization
