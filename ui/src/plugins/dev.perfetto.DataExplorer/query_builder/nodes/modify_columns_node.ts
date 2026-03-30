@@ -415,7 +415,6 @@ export class ModifyColumnsNode implements QueryNode {
 
   serializeState(): ModifyColumnsSerializedState {
     return {
-      primaryInputId: this.primaryInput?.nodeId,
       selectedColumns: this.state.selectedColumns.map((c) => ({
         name: c.name,
         type: c.column.type,

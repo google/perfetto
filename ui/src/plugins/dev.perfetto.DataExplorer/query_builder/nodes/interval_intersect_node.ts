@@ -48,7 +48,6 @@ import {loadNodeDoc} from '../node_doc_loader';
 import {getCommonColumns} from '../utils';
 
 export interface IntervalIntersectSerializedState {
-  intervalNodes: string[];
   comment?: string;
   partitionColumns?: string[]; // Columns to partition by during interval intersection
   tsDurSource?: 'intersection' | number; // Source for ts/dur: 'intersection' or input index
@@ -749,10 +748,6 @@ export class IntervalIntersectNode implements QueryNode {
 
   serializeState(): IntervalIntersectSerializedState {
     return {
-      // Store ALL input node IDs (not just slice(1)) for reliable deserialization
-      intervalNodes: this.inputNodesList
-        .filter((n): n is QueryNode => n !== undefined)
-        .map((n) => n.nodeId),
       partitionColumns: this.state.partitionColumns,
       tsDurSource: this.state.tsDurSource,
     };
@@ -765,19 +760,6 @@ export class IntervalIntersectNode implements QueryNode {
       inputNodes: [],
       partitionColumns: state.partitionColumns,
       tsDurSource: state.tsDurSource,
-    };
-  }
-
-  static deserializeConnections(
-    nodes: Map<string, QueryNode>,
-    state: IntervalIntersectSerializedState,
-  ): {inputNodes: QueryNode[]} {
-    // Resolve all input nodes from their IDs
-    const inputNodes = state.intervalNodes
-      .map((id) => nodes.get(id))
-      .filter((node): node is QueryNode => node !== undefined);
-    return {
-      inputNodes,
     };
   }
 }
