@@ -71,6 +71,22 @@ class ArtMethodParser(TestSuite):
           800148789000,10759203000,"java.lang.Object.wait: ()V","ReferenceQueueDaemon","Object.java"
         '''))
 
+  def test_art_method_v2_smoke(self):
+    return DiffTestBlueprint(
+        trace=DataPath('art-method-v2.trace'),
+        query="""
+          INCLUDE PERFETTO MODULE slices.with_context;
+
+          SELECT ts, dur, name, thread_name, extract_arg(arg_set_id, 'pathname') AS pathname, extract_arg(arg_set_id, 'line_number') AS line_number
+          FROM thread_slice
+          ORDER BY ts ASC
+        """,
+        out=Csv('''
+          "ts","dur","name","thread_name","pathname","line_number"
+          1100000,400000,"com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run: ()V","main","RuntimeInit.java",548
+          1200000,100000,"java.lang.reflect.Method.invoke: (Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;","main","Method.java",598
+        '''))
+
   def test_art_method_track_type(self):
     return DiffTestBlueprint(
         trace=DataPath('art-method-tracing.trace'),
@@ -92,4 +108,21 @@ class ArtMethodParser(TestSuite):
           "art_method_tracing","[NULL]","FinalizerWatchdogDaemon"
           "art_method_tracing","[NULL]","Instr: androidx.test.runner.AndroidJUnitRunner"
           "art_method_tracing","[NULL]","InstrumentationConnectionThread"
+        '''))
+
+  def test_art_method_v2_track_type(self):
+    return DiffTestBlueprint(
+        trace=DataPath('art-method-v2.trace'),
+        query="""
+          SELECT DISTINCT t.type, t.name, thread.name as thread_name
+          FROM track t
+          JOIN slice s ON s.track_id = t.id
+          JOIN thread_track tt ON tt.id = t.id
+          JOIN thread USING (utid)
+          WHERE s.name LIKE '%.%: %'
+          ORDER BY t.type;
+        """,
+        out=Csv('''
+          "type","name","thread_name"
+          "art_method_tracing","[NULL]","main"
         '''))

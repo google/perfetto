@@ -55,6 +55,7 @@ bool RequiresZlibSupport(TraceType type) {
     case kAndroidDumpstateTraceType:
     case kGeckoTraceType:
     case kArtMethodTraceType:
+    case kArtMethodV2TraceType:
     case kArtHprofTraceType:
     case kPerfTextTraceType:
     case kSimpleperfProtoTraceType:
