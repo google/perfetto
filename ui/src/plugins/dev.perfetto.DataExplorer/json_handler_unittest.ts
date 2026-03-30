@@ -2804,4 +2804,144 @@ describe('JSON serialization/deserialization', () => {
       text: 'Test label',
     }); // (400-400, 250-250)
   });
+
+  // =========================================================================
+  // Tests for graph-level connection serialization
+  // Connections (primaryInputId, secondaryInputIds) should be stored at the
+  // SerializedNode level, NOT inside each node's serialized state.
+  // =========================================================================
+
+  test('serializes primaryInput at graph level, not in node state', () => {
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+    const filterNode = new FilterNode({
+      filters: [{column: 'name', op: '=', value: 'test'}],
+    });
+    addConnection(tableNode, filterNode);
+
+    const initialState: DataExplorerState = {
+      rootNodes: [tableNode],
+      selectedNodes: new Set(),
+      nodeLayouts: new Map(),
+      labels: [],
+    };
+
+    const json = serializeState(initialState);
+    const parsed = JSON.parse(json);
+
+    // Find the filter node in the serialized output
+    const serializedFilter = parsed.nodes.find(
+      (n: SerializedNode) => n.nodeId === filterNode.nodeId,
+    );
+
+    // Connection should be at the SerializedNode level
+    expect(serializedFilter.primaryInputId).toBe(tableNode.nodeId);
+
+    // Connection should NOT be inside node state
+    expect(serializedFilter.state.primaryInputId).toBeUndefined();
+  });
+
+  test('serializes secondaryInputs at graph level, not in node state', () => {
+    const tableNode1 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+    const intervalNode = new IntervalIntersectNode({
+      inputNodes: [tableNode1, tableNode2],
+    });
+    tableNode1.nextNodes.push(intervalNode);
+    tableNode2.nextNodes.push(intervalNode);
+
+    const initialState: DataExplorerState = {
+      rootNodes: [tableNode1, tableNode2],
+      selectedNodes: new Set(),
+      nodeLayouts: new Map(),
+      labels: [],
+    };
+
+    const json = serializeState(initialState);
+    const parsed = JSON.parse(json);
+
+    // Find the interval intersect node
+    const serializedInterval = parsed.nodes.find(
+      (n: SerializedNode) => n.nodeId === intervalNode.nodeId,
+    );
+
+    // Secondary inputs should be at the SerializedNode level
+    expect(serializedInterval.secondaryInputIds).toEqual({
+      '0': tableNode1.nodeId,
+      '1': tableNode2.nodeId,
+    });
+
+    // Connection IDs should NOT be inside node state
+    expect(serializedInterval.state.intervalNodes).toBeUndefined();
+  });
+
+  test('deserializes connections from graph-level fields', () => {
+    // Build a graph: table -> filter (primaryInput) and table1, table2 -> union (secondaryInputs)
+    const tableNode = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+    const filterNode = new FilterNode({
+      filters: [{column: 'name', op: '=', value: 'x'}],
+    });
+    addConnection(tableNode, filterNode);
+
+    const tableNode2 = new TableSourceNode({
+      sqlTable: sqlModules.getTable('slice'),
+      trace,
+      sqlModules,
+    });
+    const unionNode = new UnionNode({
+      inputNodes: [],
+      selectedColumns: [],
+    });
+    tableNode.nextNodes.push(unionNode);
+    tableNode2.nextNodes.push(unionNode);
+    unionNode.secondaryInputs.connections.set(0, tableNode);
+    unionNode.secondaryInputs.connections.set(1, tableNode2);
+
+    const initialState: DataExplorerState = {
+      rootNodes: [tableNode, tableNode2],
+      selectedNodes: new Set(),
+      nodeLayouts: new Map(),
+      labels: [],
+    };
+
+    const json = serializeState(initialState);
+    const deserialized = deserializeState(json, trace, sqlModules);
+
+    // Find the union node in deserialized graph
+    const allNodes = new Map<string, import('./query_node').QueryNode>();
+    const queue = [...deserialized.rootNodes];
+    while (queue.length > 0) {
+      const node = queue.shift()!;
+      if (allNodes.has(node.nodeId)) continue;
+      allNodes.set(node.nodeId, node);
+      queue.push(...node.nextNodes);
+    }
+
+    const deserializedUnion = [...allNodes.values()].find(
+      (n) => n.type === NodeType.kUnion,
+    ) as UnionNode;
+    expect(deserializedUnion).toBeDefined();
+    expect(deserializedUnion.secondaryInputs.connections.size).toBe(2);
+
+    const deserializedFilter = [...allNodes.values()].find(
+      (n) => n.type === NodeType.kFilter,
+    ) as FilterNode;
+    expect(deserializedFilter).toBeDefined();
+    expect(deserializedFilter.primaryInput).toBeDefined();
+  });
 });

@@ -18,6 +18,7 @@ import {getAllNodes as getAllNodesUtil} from './query_builder/graph_utils';
 import {Trace} from '../../public/trace';
 import {SqlModules} from '../../plugins/dev.perfetto.SqlModules/sql_modules';
 import {nodeRegistry} from './query_builder/node_registry';
+import {restoreLegacySecondaryInputs} from './query_builder/legacy_connections';
 
 // Interfaces for the serialized JSON structure
 export interface SerializedNode {
@@ -25,7 +26,14 @@ export interface SerializedNode {
   type: NodeType;
   state: object;
   nextNodes: string[];
-  // Input node IDs (for multi-source nodes like Union, Merge, IntervalIntersect)
+
+  // Graph-level connection fields (automatically captured during serialization).
+  // These replace per-node connection serialization (e.g. primaryInputId inside
+  // node state, or node-specific fields like leftNodeId, intervalNodes, etc.).
+  primaryInputId?: string;
+  secondaryInputIds?: {[port: string]: string};
+
+  // Deprecated: kept for backward compatibility with old saved graphs.
   inputNodeIds?: string[];
 }
 
@@ -50,12 +58,25 @@ function serializeNode(node: QueryNode): SerializedNode {
     throw new Error(`Node type ${node.type} is not serializable.`);
   }
 
-  return {
+  const serialized: SerializedNode = {
     nodeId: node.nodeId,
     type: node.type,
     state: node.serializeState(),
     nextNodes: node.nextNodes.map((n: QueryNode) => n.nodeId),
   };
+
+  // Automatically capture connections at the graph level.
+  if (node.primaryInput) {
+    serialized.primaryInputId = node.primaryInput.nodeId;
+  }
+  if (node.secondaryInputs && node.secondaryInputs.connections.size > 0) {
+    serialized.secondaryInputIds = {};
+    for (const [port, inputNode] of node.secondaryInputs.connections) {
+      serialized.secondaryInputIds[port.toString()] = inputNode.nodeId;
+    }
+  }
+
+  return serialized;
 }
 
 interface LabelData {
@@ -265,7 +286,8 @@ export function deserializeState(
     });
   }
 
-  // Third pass: set backward connections using the node registry
+  // Third pass: restore backward connections from graph-level fields.
+  // Falls back to per-node hooks for backward compatibility with old formats.
   for (const serializedNode of serializedGraph.nodes) {
     const node = nodes.get(serializedNode.nodeId);
     if (!node) {
@@ -273,28 +295,39 @@ export function deserializeState(
         `Graph is corrupted. Node "${serializedNode.nodeId}" not found.`,
       );
     }
-    const descriptor = nodeRegistry.getByNodeType(serializedNode.type);
-    if (!descriptor) {
-      throw new Error(`Unknown node type: ${serializedNode.type}`);
-    }
 
-    // Restore primary input for nodes that have one
-    const hasPrimary =
-      descriptor.hasPrimaryInput ?? descriptor.type === 'modification';
-    if (hasPrimary) {
-      const serializedState = serializedNode.state as {
-        primaryInputId?: string;
-      };
-      if (serializedState.primaryInputId) {
-        const inputNode = nodes.get(serializedState.primaryInputId);
-        if (inputNode) {
-          node.primaryInput = inputNode;
-        }
+    // Restore primary input from graph-level field, or from node state
+    // for backward compatibility with old saved graphs.
+    const primaryInputId =
+      serializedNode.primaryInputId ??
+      (serializedNode.state as {primaryInputId?: string}).primaryInputId;
+    if (primaryInputId) {
+      const inputNode = nodes.get(primaryInputId);
+      if (inputNode) {
+        node.primaryInput = inputNode;
       }
     }
 
-    // Node-specific connection deserialization
-    descriptor.deserializeConnections?.(node, serializedNode.state, nodes);
+    // Restore secondary inputs from graph-level field.
+    if (serializedNode.secondaryInputIds && node.secondaryInputs) {
+      node.secondaryInputs.connections.clear();
+      for (const [portStr, inputNodeId] of Object.entries(
+        serializedNode.secondaryInputIds,
+      )) {
+        const inputNode = nodes.get(inputNodeId);
+        if (inputNode) {
+          node.secondaryInputs.connections.set(
+            parseInt(portStr, 10),
+            inputNode,
+          );
+        }
+      }
+    } else if (node.secondaryInputs) {
+      // Backward compatibility: old saved graphs stored connection IDs
+      // inside node state. A single lookup table in legacy_connections.ts
+      // maps each node type to the old field name pattern.
+      restoreLegacySecondaryInputs(node, serializedNode.state, nodes);
+    }
   }
 
   // Fourth pass: post-deserialization (resolve internal references, then

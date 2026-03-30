@@ -521,7 +521,6 @@ export class FilterNode implements QueryNode {
 
   serializeState(): object {
     return {
-      primaryInputId: this.primaryInput?.nodeId,
       filters: this.state.filters?.map((f) => {
         if ('value' in f) {
           return {

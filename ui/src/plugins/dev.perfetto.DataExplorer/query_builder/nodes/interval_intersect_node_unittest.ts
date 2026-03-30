@@ -796,8 +796,6 @@ describe('IntervalIntersectNode', () => {
 
       const serialized = node.serializeState();
 
-      // All input node IDs are now serialized
-      expect(serialized.intervalNodes).toEqual(['node1', 'node2', 'node3']);
       expect(serialized.partitionColumns).toEqual(['utid']);
     });
 
@@ -819,80 +817,29 @@ describe('IntervalIntersectNode', () => {
 
       const serialized = node.serializeState();
 
-      // All input node IDs are now serialized
-      expect(serialized.intervalNodes).toEqual(['node1', 'node2']);
       expect(serialized.partitionColumns).toBeUndefined();
     });
   });
 
   describe('deserializeState', () => {
-    it('should deserialize state correctly', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node3 = createMockPrevNode('node3', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-
-      const nodes = new Map([
-        ['node1', node1],
-        ['node2', node2],
-        ['node3', node3],
-      ]);
-
+    it('should deserialize partition columns', () => {
       const serialized = {
-        // All input node IDs are stored
-        intervalNodes: ['node1', 'node2', 'node3'],
         partitionColumns: ['utid'],
       };
 
-      const deserialized = IntervalIntersectNode.deserializeConnections(
-        nodes,
-        serialized,
-      );
+      const deserialized = IntervalIntersectNode.deserializeState(serialized);
 
-      expect(deserialized.inputNodes).toEqual([node1, node2, node3]);
+      expect(deserialized.partitionColumns).toEqual(['utid']);
+      expect(deserialized.inputNodes).toEqual([]);
     });
 
-    it('should handle missing nodes gracefully', () => {
-      const node1 = createMockPrevNode('node1', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
-      const node2 = createMockPrevNode('node2', [
-        createColumnInfo('id', 'INT'),
-        createColumnInfo('ts', 'INT64'),
-        createColumnInfo('dur', 'INT64'),
-      ]);
+    it('should handle missing partition columns', () => {
+      const serialized = {};
 
-      const nodes = new Map([
-        ['node1', node1],
-        ['node2', node2],
-      ]);
+      const deserialized = IntervalIntersectNode.deserializeState(serialized);
 
-      const serialized = {
-        // Include a missing node ID to test graceful handling
-        intervalNodes: ['node1', 'node2', 'node_missing'],
-        partitionColumns: ['utid'],
-      };
-
-      const deserialized = IntervalIntersectNode.deserializeConnections(
-        nodes,
-        serialized,
-      );
-
-      // Should only include found nodes (node_missing is filtered out)
-      expect(deserialized.inputNodes).toEqual([node1, node2]);
+      expect(deserialized.partitionColumns).toBeUndefined();
+      expect(deserialized.inputNodes).toEqual([]);
     });
   });
 
