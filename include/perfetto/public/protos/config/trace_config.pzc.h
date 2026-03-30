@@ -640,6 +640,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BuiltinDataSource,
                   bool,
                   disable_chunk_usage_histograms,
                   8);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BuiltinDataSource,
+                  VARINT,
+                  bool,
+                  disable_extension_descriptors,
+                  9);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_DataSource);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_DataSource,
