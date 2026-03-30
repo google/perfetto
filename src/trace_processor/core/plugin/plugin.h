@@ -66,9 +66,8 @@ SqliteModuleRegistration MakeSqliteModule(std::string name,
   reg.name = std::move(name);
   reg.module = &Module::kModule;
   reg.context = ctx;
-  reg.is_state_manager =
-      std::is_base_of_v<sqlite::ModuleStateManagerBase,
-                         typename Module::Context>;
+  reg.is_state_manager = std::is_base_of_v<sqlite::ModuleStateManagerBase,
+                                           typename Module::Context>;
   return reg;
 }
 
@@ -84,9 +83,8 @@ SqliteModuleRegistration MakeSqliteModule(
   reg.destructor = [](void* p) {
     delete static_cast<typename Module::Context*>(p);
   };
-  reg.is_state_manager =
-      std::is_base_of_v<sqlite::ModuleStateManagerBase,
-                         typename Module::Context>;
+  reg.is_state_manager = std::is_base_of_v<sqlite::ModuleStateManagerBase,
+                                           typename Module::Context>;
   return reg;
 }
 
@@ -145,9 +143,7 @@ class PluginBase {
 // 1. Compile-time: forces #include of dep headers -> forces GN dep
 // 2. Link-time: if dep's .cc isn't compiled, GN dep missing -> build fails
 // 3. Runtime: topological sort verifies all deps are registered
-template <typename Self,
-          typename Storage = void,
-          typename... Deps>
+template <typename Self, typename Storage = void, typename... Deps>
 class Plugin : public PluginBase {
  public:
   static constexpr const void* kPluginId = PluginTag<Self>::Id();
@@ -155,8 +151,7 @@ class Plugin : public PluginBase {
       PluginTag<Deps>::Id()...};
 
   // Override these in the concrete plugin class.
-  virtual std::unique_ptr<Storage> CreatePluginStorage(
-      TraceProcessorContext*) {
+  virtual std::unique_ptr<Storage> CreatePluginStorage(TraceProcessorContext*) {
     return nullptr;
   }
   virtual void RegisterImporters(TraceProcessorContext*, Storage*) {}
@@ -167,26 +162,23 @@ class Plugin : public PluginBase {
       TraceProcessorContext*,
       Storage*,
       std::vector<std::unique_ptr<StaticTableFunction>>&) {}
-  virtual void RegisterSqliteModules(
-      TraceProcessorContext*,
-      Storage*,
-      std::vector<SqliteModuleRegistration>&) {}
+  virtual void RegisterSqliteModules(TraceProcessorContext*,
+                                     Storage*,
+                                     std::vector<SqliteModuleRegistration>&) {}
 
  private:
   std::unique_ptr<Destructible> CreateStorage(
       TraceProcessorContext* ctx) final {
     return static_cast<Self*>(this)->CreatePluginStorage(ctx);
   }
-  void RegisterImporters(TraceProcessorContext* ctx,
-                         Destructible* s) final {
-    static_cast<Self*>(this)->RegisterImporters(
-        ctx, static_cast<Storage*>(s));
+  void RegisterImporters(TraceProcessorContext* ctx, Destructible* s) final {
+    static_cast<Self*>(this)->RegisterImporters(ctx, static_cast<Storage*>(s));
   }
   void RegisterDataframes(TraceProcessorContext* ctx,
                           Destructible* s,
                           std::vector<PluginDataframe>& tables) final {
-    static_cast<Self*>(this)->RegisterDataframes(
-        ctx, static_cast<Storage*>(s), tables);
+    static_cast<Self*>(this)->RegisterDataframes(ctx, static_cast<Storage*>(s),
+                                                 tables);
   }
   void RegisterStaticTableFunctions(
       TraceProcessorContext* ctx,
@@ -218,9 +210,8 @@ class Plugin<Self, void, Deps...> : public PluginBase {
   virtual void RegisterStaticTableFunctions(
       TraceProcessorContext*,
       std::vector<std::unique_ptr<StaticTableFunction>>&) {}
-  virtual void RegisterSqliteModules(
-      TraceProcessorContext*,
-      std::vector<SqliteModuleRegistration>&) {}
+  virtual void RegisterSqliteModules(TraceProcessorContext*,
+                                     std::vector<SqliteModuleRegistration>&) {}
 
  private:
   void RegisterImporters(TraceProcessorContext* ctx, Destructible*) final {

@@ -54,16 +54,16 @@ std::unique_ptr<Destructible> PluginBase::CreateStorage(
 }
 void PluginBase::RegisterImporters(TraceProcessorContext*, Destructible*) {}
 void PluginBase::RegisterDataframes(TraceProcessorContext*,
-                                      Destructible*,
-                                      std::vector<PluginDataframe>&) {}
+                                    Destructible*,
+                                    std::vector<PluginDataframe>&) {}
 void PluginBase::RegisterStaticTableFunctions(
     TraceProcessorContext*,
     Destructible*,
     std::vector<std::unique_ptr<StaticTableFunction>>&) {}
-void PluginBase::RegisterSqliteModules(
-    TraceProcessorContext*,
-    Destructible*,
-    std::vector<SqliteModuleRegistration>&) {}
+void PluginBase::RegisterSqliteModules(TraceProcessorContext*,
+                                       Destructible*,
+                                       std::vector<SqliteModuleRegistration>&) {
+}
 std::string PluginBase::GetAfterEofSql() {
   return {};
 }

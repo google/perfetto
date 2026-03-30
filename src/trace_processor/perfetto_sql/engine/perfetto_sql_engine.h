@@ -145,12 +145,11 @@ class PerfettoSqlEngine {
   }
 
   // Registers a virtual table module from a plugin's SqliteModuleRegistration.
-  void RegisterSqliteModuleForPlugin(
-      const char* name,
-      const sqlite3_module* module,
-      void* ctx,
-      void (*destructor)(void*),
-      bool is_state_manager) {
+  void RegisterSqliteModuleForPlugin(const char* name,
+                                     const sqlite3_module* module,
+                                     void* ctx,
+                                     void (*destructor)(void*),
+                                     bool is_state_manager) {
     if (is_state_manager) {
       virtual_module_state_managers_.push_back(
           static_cast<sqlite::ModuleStateManagerBase*>(ctx));
