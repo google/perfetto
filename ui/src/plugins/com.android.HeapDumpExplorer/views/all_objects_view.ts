@@ -20,6 +20,7 @@ import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_sourc
 import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
 import {fmtHex} from '../format';
+import type {Filter} from '../../../components/widgets/datagrid/model';
 import {
   type NavFn,
   sizeRenderer,
@@ -28,10 +29,12 @@ import {
   SQL_PREAMBLE,
   RowCounter,
 } from '../components';
+import {clearNavParam} from '../nav_state';
 
 interface AllObjectsViewAttrs {
   readonly engine: Engine;
   readonly navigate: NavFn;
+  readonly initialClass?: string;
 }
 
 const QUERY = `
@@ -150,6 +153,14 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
 function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
   let dataSource: SQLDataSource | null = null;
   const counter = new RowCounter();
+  let filters: Filter[] = [];
+
+  function applyNavFilter(cls: string | undefined) {
+    if (!cls) return;
+    filters = [{field: 'cls', op: '=' as const, value: cls}];
+    counter.onFiltersChanged(filters);
+    clearNavParam('cls');
+  }
 
   return {
     oninit(vnode) {
@@ -161,6 +172,10 @@ function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
         preamble: SQL_PREAMBLE,
       });
       counter.init(engine, QUERY, SQL_PREAMBLE);
+      applyNavFilter(vnode.attrs.initialClass);
+    },
+    onupdate(vnode) {
+      applyNavFilter(vnode.attrs.initialClass);
     },
     view(vnode) {
       const {navigate} = vnode.attrs;
@@ -175,6 +190,8 @@ function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
           data: dataSource,
           fillHeight: true,
           initialColumns: [
+            {id: 'id', field: 'id'},
+            {id: 'cls', field: 'cls'},
             {id: 'retained', field: 'retained', sort: 'DESC' as const},
             {id: 'retained_native', field: 'retained_native'},
             {id: 'retained_count', field: 'retained_count'},
@@ -184,11 +201,13 @@ function AllObjectsView(): m.Component<AllObjectsViewAttrs> {
             {id: 'reachable_native', field: 'reachable_native'},
             {id: 'reachable_count', field: 'reachable_count'},
             {id: 'heap', field: 'heap'},
-            {id: 'cls', field: 'cls'},
-            {id: 'id', field: 'id'},
           ],
+          filters,
           showExportButton: true,
-          onFiltersChanged: counter.onFiltersChanged,
+          onFiltersChanged: (f) => {
+            filters = [...f];
+            counter.onFiltersChanged(f);
+          },
         }),
       ]);
     },
