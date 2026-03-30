@@ -36,6 +36,7 @@
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
 #include "src/trace_processor/importers/perf/auxtrace_info_record.h"
+#include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/spe_tokenizer.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/perf_tables_py.h"
