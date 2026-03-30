@@ -94,6 +94,8 @@ perfetto_component("base") {
 source_set("regex") {
   sources = [
     "regex/regex.cc",
+    "regex/regex_pcre2.h",
+    "regex/regex_re2.h",
     "regex/regex_std.h",
   ]
   deps = [ "../../gn:default_deps" ]
@@ -101,6 +103,12 @@ source_set("regex") {
     "../../include/perfetto/base",
     "../../include/perfetto/ext/base",
   ]
+  if (enable_perfetto_re2) {
+    public_deps += [ "../../gn:re2" ]
+  }
+  if (enable_perfetto_pcre2) {
+    public_deps += [ "../../gn:pcre2" ]
+  }
 }
 
 perfetto_component("clock_snapshots") {

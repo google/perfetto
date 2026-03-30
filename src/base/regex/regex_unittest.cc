@@ -21,6 +21,15 @@
 #include <vector>
 
 #include "src/base/regex/regex_std.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_RE2)
+#include "src/base/regex/regex_re2.h"
+#endif
+
+#if PERFETTO_BUILDFLAG(PERFETTO_PCRE2)
+#include "src/base/regex/regex_pcre2.h"
+#endif
+
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -35,6 +44,20 @@ struct BackendTraits<RegexStd> {
   static const char* name() { return "RegexStd"; }
 };
 
+#if PERFETTO_BUILDFLAG(PERFETTO_RE2)
+template <>
+struct BackendTraits<RegexRe2> {
+  static const char* name() { return "RegexRe2"; }
+};
+#endif
+
+#if PERFETTO_BUILDFLAG(PERFETTO_PCRE2)
+template <>
+struct BackendTraits<RegexPcre2> {
+  static const char* name() { return "RegexPcre2"; }
+};
+#endif
+
 template <typename Backend>
 class RegexBackendTest : public ::testing::Test {
  protected:
@@ -44,7 +67,16 @@ class RegexBackendTest : public ::testing::Test {
   }
 };
 
-using BackendTypes = ::testing::Types<RegexStd>;
+using BackendTypes = ::testing::Types<RegexStd
+#if PERFETTO_BUILDFLAG(PERFETTO_RE2)
+                                      ,
+                                      RegexRe2
+#endif
+#if PERFETTO_BUILDFLAG(PERFETTO_PCRE2)
+                                      ,
+                                      RegexPcre2
+#endif
+                                      >;
 TYPED_TEST_SUITE(RegexBackendTest, BackendTypes, /* trailing ',' for GCC*/);
 
 TYPED_TEST(RegexBackendTest, PartialMatch) {

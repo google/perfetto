@@ -1687,7 +1687,8 @@ perfetto_cc_library(
         "src/base/log_ring_buffer.h",
     ],
     deps = [
-    ] + PERFETTO_CONFIG.deps.base_platform,
+           ] + PERFETTO_CONFIG.deps.base_platform +
+           PERFETTO_CONFIG.deps.re2,
     linkstatic = True,
 )
 
@@ -1715,6 +1716,8 @@ perfetto_filegroup(
     name = "src_base_regex",
     srcs = [
         "src/base/regex/regex.cc",
+        "src/base/regex/regex_pcre2.h",
+        "src/base/regex/regex_re2.h",
         "src/base/regex/regex_std.h",
     ],
 )

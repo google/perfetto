@@ -126,6 +126,7 @@ cc_binary {
     shared_libs: [
         "libbase",
         "liblog",
+        "libpcre2",
         "libprocinfo",
         "libunwindstack",
     ],
@@ -246,6 +247,7 @@ cc_library_shared {
     ],
     shared_libs: [
         "heapprofd_client_api",
+        "libpcre2",
     ],
     static_libs: [
         "libasync_safe",
@@ -286,6 +288,7 @@ cc_library_shared {
     ],
     shared_libs: [
         "libbase",
+        "libpcre2",
         "libprocinfo",
         "libunwindstack",
     ],
@@ -428,6 +431,7 @@ cc_library_shared {
     ],
     shared_libs: [
         "liblog",
+        "libpcre2",
         "libz",
     ],
     static_libs: [
@@ -777,6 +781,7 @@ cc_library_shared {
         android: {
             shared_libs: [
                 "liblog",
+                "libpcre2",
                 "libz",
             ],
             static_libs: [
@@ -1038,6 +1043,7 @@ cc_library {
         android: {
             shared_libs: [
                 "liblog",
+                "libpcre2",
             ],
             static_libs: [
                 "perfetto_flags_c_lib",
@@ -1320,6 +1326,9 @@ cc_library_static {
     min_sdk_version: "30",
     target: {
         android: {
+            shared_libs: [
+                "libpcre2",
+            ],
             static_libs: [
                 "perfetto_flags_c_lib",
             ],
@@ -1516,6 +1525,7 @@ cc_binary {
     ],
     shared_libs: [
         "liblog",
+        "libpcre2",
     ],
     static_libs: [
         "perfetto_flags_c_lib",
@@ -1939,6 +1949,7 @@ cc_library_static {
     ],
     shared_libs: [
         "liblog",
+        "libpcre2",
     ],
     static_libs: [
         "libgmock",
@@ -2128,6 +2139,9 @@ cc_library_static {
     ],
     target: {
         android: {
+            shared_libs: [
+                "libpcre2",
+            ],
             static_libs: [
                 "perfetto_flags_c_lib",
             ],
@@ -2298,6 +2312,9 @@ cc_library_static {
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_service_service",
         ":perfetto_test_test_helper",
+    ],
+    shared_libs: [
+        "libpcre2",
     ],
     static_libs: [
         "libgmock",
@@ -3093,6 +3110,7 @@ cc_test {
         "libbase",
         "libicu",
         "liblog",
+        "libpcre2",
         "libprocinfo",
         "libprotobuf-cpp-lite",
         "libsqlite",
@@ -3280,6 +3298,9 @@ cc_test {
     test_config: "PerfettoIntegrationTests.xml",
     target: {
         android: {
+            shared_libs: [
+                "libpcre2",
+            ],
             static_libs: [
                 "perfetto_flags_c_lib",
             ],
@@ -17435,6 +17456,7 @@ cc_library_static {
             shared_libs: [
                 "libicu",
                 "liblog",
+                "libpcre2",
                 "libprotobuf-cpp-full",
                 "libsqlite",
                 "libutils",
@@ -19838,6 +19860,7 @@ cc_test {
         "libbase",
         "libicu",
         "liblog",
+        "libpcre2",
         "libprocinfo",
         "libprotobuf-cpp-full",
         "libprotobuf-cpp-lite",
@@ -20229,6 +20252,9 @@ cc_library_static {
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_service_service",
         ":perfetto_test_test_helper",
+    ],
+    shared_libs: [
+        "libpcre2",
     ],
     static_libs: [
         "libgmock",
@@ -20823,6 +20849,7 @@ cc_library_static {
             shared_libs: [
                 "libicu",
                 "liblog",
+                "libpcre2",
                 "libsqlite",
                 "libutils",
                 "libz",
@@ -20864,6 +20891,7 @@ cc_binary {
             shared_libs: [
                 "libicu",
                 "liblog",
+                "libpcre2",
                 "libprotobuf-cpp-full",
                 "libsqlite",
                 "libutils",
@@ -20954,6 +20982,7 @@ cc_binary {
     ],
     shared_libs: [
         "liblog",
+        "libpcre2",
     ],
     static_libs: [
         "perfetto_flags_c_lib",
@@ -21467,6 +21496,7 @@ cc_binary {
     shared_libs: [
         "libbase",
         "liblog",
+        "libpcre2",
         "libprocinfo",
         "libunwindstack",
     ],
@@ -21675,6 +21705,7 @@ cc_binary {
     ],
     shared_libs: [
         "liblog",
+        "libpcre2",
     ],
     static_libs: [
         "perfetto_flags_c_lib",
@@ -21898,6 +21929,7 @@ cc_binary {
     ],
     shared_libs: [
         "liblog",
+        "libpcre2",
     ],
     static_libs: [
         "perfetto_flags_c_lib",

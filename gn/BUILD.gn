@@ -76,6 +76,28 @@ action("gen_buildflags") {
   } else {
     perfetto_local_symbolizer = "0"
   }
+
+  # We can't just use is_android in perfetto.gni because we lose the GN
+  # notion of target OS once we run the tools/gen_xxx generators (same
+  # reason as PERFETTO_WATCHDOG above). The generated perfetto_build_flags.h
+  # is shared by host and device targets in Android tree builds.
+  #
+  # PCRE2 is device-only. Soong does not transitively propagate deps from
+  # cc_library static variants to external consumers (b/169779783).
+  # libandroid_runtime (frameworks/base) links libperfetto_c.a on host,
+  # but libpcre2 is not in the host link line, causing:
+  #   ld.lld: error: undefined symbol: pcre2_compile_8
+  #     >>> regex.o:(...) in archive .../libperfetto_c.a
+  # Using OS_ANDROID restricts PCRE2 to device only. Host falls back to
+  # std::regex.
+  # TODO(b/169779783): simplify to "$enable_perfetto_pcre2" when Soong
+  # fixes transitive dep propagation.
+  if (enable_perfetto_pcre2) {
+    perfetto_pcre2 = "PERFETTO_BUILDFLAG_DEFINE_PERFETTO_OS_ANDROID()"
+  } else {
+    perfetto_pcre2 = "0"
+  }
+
   response_file_contents = [
     "--flags",  # Keep this marker first.
     "PERFETTO_ANDROID_BUILD=$perfetto_build_with_android",
@@ -111,6 +133,8 @@ action("gen_buildflags") {
     "PERFETTO_ENABLE_RT_MUTEX=$enable_perfetto_rt_mutex",
     "PERFETTO_ENABLE_LOCKFREE_TASKRUNNER=$enable_perfetto_lockfree_taskrunner",
     "PERFETTO_ENABLE_SOCK_INOTIFY=$enable_perfetto_sock_inotify",
+    "PERFETTO_RE2=$enable_perfetto_re2",
+    "PERFETTO_PCRE2=$perfetto_pcre2",
   ]
 
   rel_out_path = rebase_path(gen_header_path, "$root_build_dir")
@@ -495,5 +519,27 @@ if (enable_perfetto_etm_importer) {
   group("open_csd") {
     visibility = [ "//src/trace_processor/importers/etm" ]
     public_deps = [ "//buildtools:open_csd" ]
+  }
+}
+
+if (enable_perfetto_pcre2) {
+  group("pcre2") {
+    if (perfetto_root_path == "//") {
+      public_deps = [ "//buildtools:pcre2" ]
+    } else {
+      assert(false, "PCRE2 is only supported in standalone builds")
+    }
+  }
+}
+
+if (enable_perfetto_re2) {
+  group("re2") {
+    if (perfetto_root_path == "//") {
+      public_deps = [ "//buildtools:re2" ]
+    } else {
+      # This part will be overridden by the various build generators (Android.bp,
+      # Bazel) to point to the right path.
+      public_deps = [ "//third_party/re2" ]
+    }
   }
 }

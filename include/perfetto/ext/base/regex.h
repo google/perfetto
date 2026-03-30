@@ -24,15 +24,27 @@
 #include <string_view>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/status_or.h"
 
 namespace perfetto {
 namespace base {
 
-// Forward declaration for the backend implementation (defined in
-// src/base/regex/). The active backend is selected at compile time.
+// Forward declarations for backend implementations (defined in
+// src/base/regex/).
+class RegexPcre2;
+class RegexRe2;
 class RegexStd;
+
+// Compile-time backend selection. Exactly one backend is used.
+#if PERFETTO_BUILDFLAG(PERFETTO_PCRE2) && PERFETTO_FLAGS_USE_PCRE2
+using RegexImpl = RegexPcre2;
+#elif PERFETTO_BUILDFLAG(PERFETTO_RE2)
+using RegexImpl = RegexRe2;
+#else
 using RegexImpl = RegexStd;
+#endif
 
 // A regular expression abstraction that hides the underlying engine.
 //
