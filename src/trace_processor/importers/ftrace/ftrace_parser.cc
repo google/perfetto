@@ -42,6 +42,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -1885,8 +1886,10 @@ void FtraceParser::ParseCpuFreqThrottle(int64_t timestamp, ConstBytes blob) {
 
 void FtraceParser::ParseGpuFreq(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::GpuFrequencyFtraceEvent::Decoder freq(blob);
+  auto ugpu = context_->gpu_tracker->GetOrCreateGpu(freq.gpu_id());
   TrackId track = context_->track_tracker->InternTrack(
-      tracks::kGpuFrequencyBlueprint, tracks::Dimensions(freq.gpu_id()));
+      tracks::kGpuFrequencyBlueprint,
+      tracks::Dimensions(ugpu.value, freq.gpu_id()));
   context_->event_tracker->PushCounter(timestamp, freq.state(), track);
 }
 
@@ -1894,8 +1897,10 @@ void FtraceParser::ParseKgslGpuFreq(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::KgslGpuFrequencyFtraceEvent::Decoder freq(blob);
   // Source data is frequency / 1000, so we correct that here:
   double new_freq = static_cast<double>(freq.gpu_freq()) * 1000.0;
+  auto ugpu = context_->gpu_tracker->GetOrCreateGpu(freq.gpu_id());
   TrackId track = context_->track_tracker->InternTrack(
-      tracks::kGpuFrequencyBlueprint, tracks::Dimensions(freq.gpu_id()));
+      tracks::kGpuFrequencyBlueprint,
+      tracks::Dimensions(ugpu.value, freq.gpu_id()));
   context_->event_tracker->PushCounter(timestamp, new_freq, track);
 }
 
@@ -3030,12 +3035,16 @@ void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
                                     protozero::ConstBytes data) {
   protos::pbzero::GpuMemTotalFtraceEvent::Decoder gpu_mem_total(data);
 
+  const uint32_t gpu_id = gpu_mem_total.gpu_id();
+  auto ugpu = context_->gpu_tracker->GetOrCreateGpu(gpu_id);
+
   TrackId track;
   const uint32_t pid = gpu_mem_total.pid();
   if (pid == 0) {
     // Pid 0 is used to indicate the global total
-    track =
-        context_->track_tracker->InternTrack(tracks::kGlobalGpuMemoryBlueprint);
+    track = context_->track_tracker->InternTrack(
+        tracks::kGlobalGpuMemoryBlueprint,
+        tracks::Dimensions(ugpu.value, gpu_id));
   } else {
     // It's possible for GpuMemTotal ftrace events to be emitted by kworker
     // threads *after* process death. In this case, we simply want to discard
@@ -3057,7 +3066,8 @@ void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
     UniquePid upid = *context_->storage->thread_table()[*opt_utid].upid();
     PERFETTO_DCHECK(context_->storage->process_table()[upid].pid() == pid);
     track = context_->track_tracker->InternTrack(
-        tracks::kProcessGpuMemoryBlueprint, tracks::Dimensions(upid));
+        tracks::kProcessGpuMemoryBlueprint,
+        tracks::Dimensions(ugpu.value, gpu_id, upid));
   }
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(gpu_mem_total.size()), track);
