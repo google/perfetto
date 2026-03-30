@@ -428,6 +428,12 @@ TABLE_IMPORTANCE = {
     'android_process_memory_intervals':
         'high',  # Per-process memory usage over time
 
+    # HIGH IMPORTANCE - Profiling and virtualization
+    'cpu_profile_stack_sample':
+        'high',  # CPU profiling stack samples for performance analysis
+    'pkvm_hypervisor_events':
+        'high',  # pKVM hypervisor events for virtualization analysis
+
     # MID IMPORTANCE - Android system monitoring and diagnostics
     'android_anrs': 'mid',  # Application Not Responding events and diagnostics
     'android_battery_charge': 'mid',  # Battery charge level tracking over time
