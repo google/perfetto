@@ -310,14 +310,14 @@ base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
     }
     ASSIGN_OR_RETURN(auto tree_cols, std::move(tree_builder).Build());
 
-    ASSIGN_OR_RETURN(auto data_cols,
-                     BuildDataColumns(
-                         cols_.names, cols_.columns, n, pool_,
-                         [&](uint32_t ci)
-                             -> std::pair<const uint8_t*, const BitVector&> {
-                           return {cols_.columns[ci].data.begin(),
-                                   cols_.columns[ci].null_bv};
-                         }));
+    ASSIGN_OR_RETURN(
+        auto data_cols,
+        BuildDataColumns(
+            cols_.names, cols_.columns, n, pool_,
+            [&](uint32_t ci) -> std::pair<const uint8_t*, const BitVector&> {
+              return {cols_.columns[ci].data.begin(),
+                      cols_.columns[ci].null_bv};
+            }));
     return dataframe::Dataframe::HorizontalConcat(std::move(tree_cols),
                                                   std::move(data_cols));
   }
@@ -398,14 +398,14 @@ base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
   }
   ASSIGN_OR_RETURN(auto tree_cols, std::move(tree_builder).Build());
 
-  ASSIGN_OR_RETURN(auto data_cols,
-                   BuildDataColumns(
-                       cols_.names, cols_.columns, final_count, pool_,
-                       [&](uint32_t ci)
-                           -> std::pair<const uint8_t*, const BitVector&> {
-                         return {final_ts.columns[ci].data.begin(),
-                                 final_ts.null_bitvectors[ci]};
-                       }));
+  ASSIGN_OR_RETURN(
+      auto data_cols,
+      BuildDataColumns(
+          cols_.names, cols_.columns, final_count, pool_,
+          [&](uint32_t ci) -> std::pair<const uint8_t*, const BitVector&> {
+            return {final_ts.columns[ci].data.begin(),
+                    final_ts.null_bitvectors[ci]};
+          }));
   return dataframe::Dataframe::HorizontalConcat(std::move(tree_cols),
                                                 std::move(data_cols));
 }
