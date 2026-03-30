@@ -26,9 +26,9 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
-#include "perfetto/ext/base/string_splitter.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/art_method/art_method_event.h"
 #include "src/trace_processor/importers/art_method/art_method_parser.h"
@@ -101,7 +101,8 @@ std::string ConstructPathname(base::StringView class_name,
                               base::StringView pathname) {
   size_t index = class_name.rfind('/');
   if (index != base::StringView::npos && pathname.EndsWith(".java")) {
-    return class_name.substr(0, index + 1).ToStdString() + pathname.ToStdString();
+    return class_name.substr(0, index + 1).ToStdString() +
+           pathname.ToStdString();
   }
   return pathname.ToStdString();
 }
@@ -140,9 +141,10 @@ base::Status ArtMethodV2Tokenizer::Parse(TraceBlobView blob) {
           std::string_view new_data(
               reinterpret_cast<const char*>(summary_opt->data()), avail);
 
-          // To optimize the search for "*end" across streaming chunks, we only 
-          // search the newly appended data. We back up by 3 characters into the 
-          // old data in case the "*end" string was split exactly across two chunks.
+          // To optimize the search for "*end" across streaming chunks, we only
+          // search the newly appended data. We back up by 3 characters into the
+          // old data in case the "*end" string was split exactly across two
+          // chunks.
           size_t search_start = summary_.size() >= 3 ? summary_.size() - 3 : 0;
           summary_.append(new_data);
 
@@ -293,10 +295,10 @@ void ArtMethodV2Tokenizer::ParseMethod(uint64_t id, const std::string& str) {
     }
   }
 
-  base::StackString<2048> slice_name("%.*s.%.*s: %.*s",
-                                     static_cast<int>(class_name.size()), class_name.data(),
-                                     static_cast<int>(method_name.size()), method_name.data(),
-                                     static_cast<int>(signature.size()), signature.data());
+  base::StackString<2048> slice_name(
+      "%.*s.%.*s: %.*s", static_cast<int>(class_name.size()), class_name.data(),
+      static_cast<int>(method_name.size()), method_name.data(),
+      static_cast<int>(signature.size()), signature.data());
   StringId str_id = context_->storage->InternString(slice_name.string_view());
 
   method_map_.Insert(id, {str_id, pathname, line_number});
@@ -362,7 +364,8 @@ base::StatusOr<bool> ArtMethodV2Tokenizer::ParseTraceEntries() {
       // In dual clock mode, the second timestamp is Thread CPU time.
       // We just skip over it.
       int64_t dummy = 0;
-      const uint8_t* next_ptr_dual = DecodeSignedLeb128(current_buffer_ptr, buffer_end, &dummy);
+      const uint8_t* next_ptr_dual =
+          DecodeSignedLeb128(current_buffer_ptr, buffer_end, &dummy);
       if (next_ptr_dual == current_buffer_ptr) {
         break;
       }
