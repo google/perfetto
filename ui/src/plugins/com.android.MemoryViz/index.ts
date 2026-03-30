@@ -16,7 +16,7 @@ import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
+import {CounterTrack} from '../../components/tracks/counter_track';
 import {uuidv4} from '../../base/uuid';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {TimeSpan} from '../../base/time';
@@ -184,17 +184,10 @@ export default class MemoryViz implements PerfettoPlugin {
     removable = true,
     sortOrder?: number,
   ): Promise<TrackNode> {
-    const track = await createQueryCounterTrack({
+    const track = CounterTrack.create({
       trace: ctx,
       uri,
-      materialize: false,
-      data: {
-        sqlSource,
-      },
-      columns: {
-        ts: 'ts',
-        value: 'value',
-      },
+      sqlSource,
     });
     ctx.tracks.registerTrack({
       uri,

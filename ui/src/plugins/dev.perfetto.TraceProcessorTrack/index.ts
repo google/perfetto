@@ -217,17 +217,15 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           utid: utid ?? undefined,
           ...(isKernelThread === 1 && {kernelThread: true}),
         },
-        renderer: new TraceProcessorCounterTrack(
-          ctx,
+        renderer: new TraceProcessorCounterTrack({
+          trace: ctx,
           uri,
-          {
-            yMode: schema.mode,
-            yRangeSharingKey: schema.shareYAxis ? it.type : undefined,
-            unit: unit ?? undefined,
-          },
+          yMode: schema.mode,
+          yRangeSharingKey: schema.shareYAxis ? it.type : undefined,
+          unit: schema.unit ?? unit ?? undefined,
           trackId,
           trackName,
-        ),
+        }),
       });
       this.addTrack(
         ctx,

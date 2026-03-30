@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
+import {CounterTrack} from '../../components/tracks/counter_track';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
@@ -68,10 +68,10 @@ export async function addWattsonThreadTrack(
     WHERE dur > 0
   `;
 
-  const renderer = await createQueryCounterTrack({
+  const renderer = await CounterTrack.createMaterialized({
     trace,
     uri,
-    data: {sqlSource},
+    sqlSource,
   });
 
   trace.tracks.registerTrack({
