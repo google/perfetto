@@ -374,7 +374,6 @@ function onCssLoaded(app: AppImpl) {
     defaultValue: 'light',
   } as const);
 
-
   // Add command to toggle the theme.
   app.commands.registerCommand({
     id: 'dev.perfetto.ToggleTheme',
