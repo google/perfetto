@@ -721,8 +721,8 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
     }
   }
 
-  // Stage 4: prepare the engine for queries.
-  IncludeAfterEofPrelude(engine_.get(), plugins_);
+  // Stage 4: register plugin SQL modules and prepare the engine for queries.
+  IncludeAfterEofPrelude(context(), engine_.get(), plugins_);
   sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
 
   return base::OkStatus();
@@ -1490,7 +1490,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   }
 
   if (notify_eof_called) {
-    IncludeAfterEofPrelude(engine.get(), plugins);
+    IncludeAfterEofPrelude(context, engine.get(), plugins);
   }
 
   for (const auto& metric : sql_metrics) {
@@ -1503,25 +1503,33 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
 }
 
 void TraceProcessorImpl::IncludeAfterEofPrelude(
+    TraceProcessorContext* context,
     PerfettoSqlEngine* engine,
     const std::vector<PluginEntry>& plugins) {
+  // Collect SQL modules from plugins and merge them into existing packages
+  // (or create new ones).
+  std::vector<std::pair<std::string, std::string>> plugin_modules;
+  for (const auto& e : plugins) {
+    e.plugin->RegisterSqlModules(context, e.storage.get(), plugin_modules);
+  }
+  for (auto& mod : plugin_modules) {
+    std::string pkg_name = sql_modules::GetPackageName(mod.first);
+    auto* existing = engine->FindPackage(pkg_name);
+    if (existing) {
+      existing->modules.Insert(mod.first,
+                               {std::move(mod.second), /*included=*/false});
+    } else {
+      sql_modules::RegisteredPackage new_pkg;
+      new_pkg.modules.Insert(mod.first,
+                             {std::move(mod.second), /*included=*/false});
+      engine->RegisterPackage(pkg_name, std::move(new_pkg));
+    }
+  }
+
   auto result = engine->Execute(SqlSource::FromTraceProcessorImplementation(
       "INCLUDE PERFETTO MODULE prelude.after_eof.*"));
   if (!result.status().ok()) {
     PERFETTO_FATAL("Failed to import prelude: %s", result.status().c_message());
-  }
-
-  // Let plugins execute their after-EOF SQL (views, etc).
-  for (const auto& e : plugins) {
-    std::string sql = e.plugin->GetAfterEofSql();
-    if (!sql.empty()) {
-      auto r =
-          engine->Execute(SqlSource::FromTraceProcessorImplementation(sql));
-      if (!r.status().ok()) {
-        PERFETTO_FATAL("Module after-EOF SQL failed: %s",
-                       r.status().c_message());
-      }
-    }
   }
 }
 

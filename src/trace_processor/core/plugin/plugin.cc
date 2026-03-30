@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -64,9 +65,10 @@ void PluginBase::RegisterSqliteModules(TraceProcessorContext*,
                                        Destructible*,
                                        std::vector<SqliteModuleRegistration>&) {
 }
-std::string PluginBase::GetAfterEofSql() {
-  return {};
-}
+void PluginBase::RegisterSqlModules(
+    TraceProcessorContext*,
+    Destructible*,
+    std::vector<std::pair<std::string, std::string>>&) {}
 
 namespace {
 

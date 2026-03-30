@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "src/trace_processor/types/destructible.h"
@@ -128,7 +129,13 @@ class PluginBase {
       TraceProcessorContext* context,
       Destructible* storage,
       std::vector<SqliteModuleRegistration>& modules);
-  virtual std::string GetAfterEofSql();
+  // Allows plugins to contribute SQL modules to the stdlib. Each entry is a
+  // pair of (module_key, sql_content) where module_key follows the stdlib
+  // naming convention (e.g., "etm.decode").
+  virtual void RegisterSqlModules(
+      TraceProcessorContext* context,
+      Destructible* storage,
+      std::vector<std::pair<std::string, std::string>>& modules);
 };
 
 // Templated subclass that provides identity, dependency tracking, and typed
@@ -165,6 +172,10 @@ class Plugin : public PluginBase {
   virtual void RegisterSqliteModules(TraceProcessorContext*,
                                      Storage*,
                                      std::vector<SqliteModuleRegistration>&) {}
+  virtual void RegisterSqlModules(
+      TraceProcessorContext*,
+      Storage*,
+      std::vector<std::pair<std::string, std::string>>&) {}
 
  private:
   std::unique_ptr<Destructible> CreateStorage(
@@ -194,6 +205,13 @@ class Plugin : public PluginBase {
     static_cast<Self*>(this)->RegisterSqliteModules(
         ctx, static_cast<Storage*>(s), modules);
   }
+  void RegisterSqlModules(
+      TraceProcessorContext* ctx,
+      Destructible* s,
+      std::vector<std::pair<std::string, std::string>>& modules) final {
+    static_cast<Self*>(this)->RegisterSqlModules(
+        ctx, static_cast<Storage*>(s), modules);
+  }
 };
 
 // Specialization for plugins with no storage.
@@ -212,6 +230,9 @@ class Plugin<Self, void, Deps...> : public PluginBase {
       std::vector<std::unique_ptr<StaticTableFunction>>&) {}
   virtual void RegisterSqliteModules(TraceProcessorContext*,
                                      std::vector<SqliteModuleRegistration>&) {}
+  virtual void RegisterSqlModules(
+      TraceProcessorContext*,
+      std::vector<std::pair<std::string, std::string>>&) {}
 
  private:
   void RegisterImporters(TraceProcessorContext* ctx, Destructible*) final {
@@ -233,6 +254,12 @@ class Plugin<Self, void, Deps...> : public PluginBase {
       Destructible*,
       std::vector<SqliteModuleRegistration>& modules) final {
     static_cast<Self*>(this)->RegisterSqliteModules(ctx, modules);
+  }
+  void RegisterSqlModules(
+      TraceProcessorContext* ctx,
+      Destructible*,
+      std::vector<std::pair<std::string, std::string>>& modules) final {
+    static_cast<Self*>(this)->RegisterSqlModules(ctx, modules);
   }
 };
 

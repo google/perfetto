@@ -173,8 +173,10 @@ class TraceProcessorImpl : public TraceProcessor,
                              const Config& config,
                              PerfettoSqlEngine* engine);
 
-  static void IncludeAfterEofPrelude(PerfettoSqlEngine*,
-                                     const std::vector<PluginEntry>& plugins);
+  static void IncludeAfterEofPrelude(
+      TraceProcessorContext*,
+      PerfettoSqlEngine*,
+      const std::vector<PluginEntry>& plugins);
 
   const Config config_;
 
