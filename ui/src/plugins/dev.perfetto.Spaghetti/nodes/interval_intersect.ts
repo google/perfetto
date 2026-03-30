@@ -269,7 +269,7 @@ export const manifest: NodeManifest<IntervalIntersectConfig> = {
     let sql: string;
     if (hasSourceCols) {
       sql =
-        `SELECT ${selectParts.join(', ')}` +
+        `SELECT\n${selectParts.map((s) => `  ${s}`).join(',\n')}` +
         `\nFROM _interval_intersect!(\n  (${leftArg},\n   ${rightArg}),\n  (${partitionClause})\n) ii` +
         `\nJOIN ${leftRef} t1 ON ii.id_0 = t1.id` +
         `\nJOIN ${rightRef} t2 ON ii.id_1 = t2.id`;

@@ -67,7 +67,7 @@ function AliasTag(): m.Component<{
         ]);
       }
       return m(Button, {
-        icon: 'label',
+        icon: 'shoppingmode',
         compact: true,
         className: 'pf-qb-alias-btn',
         title: 'Add alias',
@@ -263,7 +263,8 @@ function isValid(config: ExtractArgConfig): boolean {
 }
 
 function tryFold(stmt: SqlStatement, config: ExtractArgConfig): boolean {
-  if (stmt.columns !== '*') return false;
+  // Can't append columns to a grouped query.
+  if (stmt.groupBy) return false;
   const exprParts = config.extractions
     .filter((e) => e.column && e.argName)
     .map(
@@ -271,7 +272,7 @@ function tryFold(stmt: SqlStatement, config: ExtractArgConfig): boolean {
         `extract_arg(${e.column}, '${e.argName}') AS ${extractArgAlias(e)}`,
     );
   if (exprParts.length > 0) {
-    stmt.columns = ['*', ...exprParts].join(', ');
+    stmt.columns = [stmt.columns, ...exprParts].join(', ');
   }
   return true;
 }

@@ -63,7 +63,7 @@ function AliasTag(): m.Component<{
         ]);
       }
       return m(Button, {
-        icon: 'label',
+        icon: 'shoppingmode',
         compact: true,
         className: 'pf-qb-alias-btn',
         title: 'Add alias',

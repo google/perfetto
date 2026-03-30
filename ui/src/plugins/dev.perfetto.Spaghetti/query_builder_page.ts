@@ -28,8 +28,15 @@ import {SplitPanel} from '../../widgets/split_panel';
 import {Trace} from '../../public/trace';
 import {EmptyState} from '../../widgets/empty_state';
 import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
-import {DataGrid} from '../../components/widgets/datagrid/datagrid';
+import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
 import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
+import {isIdType} from '../../trace_processor/perfetto_sql_type';
+import {Anchor} from '../../widgets/anchor';
+import {Icons} from '../../base/semantic_icons';
+import {Row} from '../../trace_processor/query_result';
+import {Timestamp} from '../../components/widgets/timestamp';
+import {DurationWidget} from '../../components/widgets/duration';
+import {Time, Duration} from '../../base/time';
 import {Tabs} from '../../widgets/tabs';
 
 import {NodeData, NodeQueryBuilderStore, RenderContext} from './node_types';
@@ -1153,9 +1160,107 @@ export function QueryBuilderPage(
 
       const datagridSchema: SchemaRegistry = {
         query: Object.fromEntries(
-          (outputColumns ?? []).map((col) => [col.name, {}]),
+          (outputColumns ?? []).map((col) => {
+            if (col.type && isIdType(col.type)) {
+              const tableName = col.type.source.table;
+              return [
+                col.name,
+                {
+                  cellRenderer: (value: Row[string]) => {
+                    const cell = renderCell(value, col.name);
+                    if (
+                      typeof value !== 'bigint' &&
+                      typeof value !== 'number'
+                    ) {
+                      return cell;
+                    }
+                    const id =
+                      typeof value === 'bigint' ? Number(value) : value;
+                    return m(
+                      Anchor,
+                      {
+                        title: `Go to ${tableName} on the timeline`,
+                        icon: Icons.UpdateSelection,
+                        onclick: () => {
+                          trace.navigate('#!/viewer');
+                          trace.selection.selectSqlEvent(tableName, id, {
+                            switchToCurrentSelectionTab: false,
+                            scrollToSelection: true,
+                          });
+                        },
+                      },
+                      cell,
+                    );
+                  },
+                },
+              ];
+            }
+            if (col.type?.kind === 'timestamp') {
+              return [
+                col.name,
+                {
+                  cellRenderer: (value: Row[string]) => {
+                    if (typeof value === 'bigint') {
+                      return m(Timestamp, {trace, ts: Time.fromRaw(value)});
+                    }
+                    return renderCell(value, col.name);
+                  },
+                },
+              ];
+            }
+            if (col.type?.kind === 'duration') {
+              return [
+                col.name,
+                {
+                  cellRenderer: (value: Row[string]) => {
+                    if (typeof value === 'bigint') {
+                      return m(DurationWidget, {
+                        trace,
+                        dur: Duration.fromRaw(value),
+                      });
+                    }
+                    return renderCell(value, col.name);
+                  },
+                },
+              ];
+            }
+            return [col.name, {}];
+          }),
         ),
       };
+
+      function renderEmptyState(): m.Children {
+        if (matError) {
+          return m(
+            EmptyState,
+            {
+              icon: 'warning',
+              fillHeight: true,
+              title: 'Query error',
+            },
+            m('pre.pf-node-query-builder-page__error', matError),
+          );
+        } else if (activeNodeId) {
+          return m(
+            EmptyState,
+            {
+              icon: 'warning',
+              fillHeight: true,
+              title: 'Incomplete query',
+            },
+            'Fill in all required fields to see results.',
+          );
+        } else {
+          return m(
+            EmptyState,
+            {
+              fillHeight: true,
+              title: 'No node selected',
+            },
+            'Click on a node to see its query results.',
+          );
+        }
+      }
 
       const resultsPanel = dataSource
         ? m(DataGrid, {
@@ -1165,22 +1270,7 @@ export function QueryBuilderPage(
             rootSchema: 'query',
             fillHeight: true,
           })
-        : m(
-            EmptyState,
-            {
-              fillHeight: true,
-              title: matError
-                ? 'Query error'
-                : activeNodeId
-                  ? 'Incomplete query'
-                  : 'No node selected',
-            },
-            matError
-              ? m('pre.pf-node-query-builder-page__error', matError)
-              : activeNodeId
-                ? 'Fill in all required fields to see results.'
-                : 'Click on a node in the graph to see its query results.',
-          );
+        : renderEmptyState();
 
       const bottomPanel = m(SplitPanel, {
         direction: 'vertical',

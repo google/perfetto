@@ -2434,7 +2434,16 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
             }
           },
           style: {
-            backgroundSize: `${20 * canvasState.zoom}px ${20 * canvasState.zoom}px`,
+            backgroundSize: (() => {
+              // Increase grid spacing when zoomed out to reduce dot density
+              const minPixelSpacing = 10;
+              let gridSize = 20;
+              while (gridSize * canvasState.zoom < minPixelSpacing) {
+                gridSize *= 2;
+              }
+              const size = gridSize * canvasState.zoom;
+              return `${size}px ${size}px`;
+            })(),
             backgroundPosition: `${canvasState.panOffset.x}px ${canvasState.panOffset.y}px`,
             ...vnode.attrs.style,
           },

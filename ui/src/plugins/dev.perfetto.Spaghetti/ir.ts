@@ -52,9 +52,26 @@ function irHash(sql: string, depHashes: readonly string[]): string {
 
 // --- SQL Statement folding ---
 
+// Split column list on top-level commas only (not inside parentheses).
+function splitTopLevelCommas(s: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '(') depth++;
+    else if (s[i] === ')') depth--;
+    else if (s[i] === ',' && depth === 0) {
+      parts.push(s.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  parts.push(s.slice(start).trim());
+  return parts;
+}
+
 function formatColumns(columns: string): string {
   if (columns === '*') return columns;
-  const cols = columns.split(', ');
+  const cols = splitTopLevelCommas(columns);
   if (cols.length <= 1) return columns;
   return '\n  ' + cols.join(',\n  ');
 }
@@ -339,14 +356,28 @@ export function buildDisplaySql(
     parts.push(`INCLUDE PERFETTO MODULE ${inc};`);
   }
 
+  // Build a mapping from content-addressable hashes to readable names.
+  const nameMap = new Map<string, string>();
+  for (let i = 0; i < cteEntries.length; i++) {
+    nameMap.set(cteEntries[i].hash, `step_${i + 1}`);
+  }
+
+  function renameSql(sql: string): string {
+    let result = sql;
+    for (const [hash, name] of nameMap) {
+      result = result.replaceAll(hash, name);
+    }
+    return result;
+  }
+
   if (cteEntries.length === 0) {
     parts.push(lastEntry.sql);
   } else {
     const cteParts = cteEntries.map((e) => {
-      const indented = e.sql.split('\n').join('\n  ');
-      return `${e.hash} AS (\n  ${indented}\n)`;
+      const indented = renameSql(e.sql).split('\n').join('\n  ');
+      return `${nameMap.get(e.hash)} AS (\n  ${indented}\n)`;
     });
-    parts.push(`WITH\n${cteParts.join(',\n')}\n${lastEntry.sql}`);
+    parts.push(`WITH\n${cteParts.join(',\n')}\n${renameSql(lastEntry.sql)}`);
   }
 
   return parts.join('\n');

@@ -151,7 +151,7 @@
 .pf-node.pf-selected {
   outline: 4px solid
     color-mix(in srgb, var(--pf-color-primary) 50%, transparent);
-  // border-color: var(--pf-color-primary);
+  border-color: var(--pf-color-primary);
   z-index: 1; // Make sure outline appears above other nodes
 }
 
