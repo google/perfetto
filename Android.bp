@@ -15337,6 +15337,7 @@ filegroup {
     srcs: [
         "src/trace_processor/importers/art_method/art_method_parser.cc",
         "src/trace_processor/importers/art_method/art_method_tokenizer.cc",
+        "src/trace_processor/importers/art_method/art_method_v2_tokenizer.cc",
     ],
 }
 

@@ -2245,6 +2245,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/art_method/art_method_parser.h",
         "src/trace_processor/importers/art_method/art_method_tokenizer.cc",
         "src/trace_processor/importers/art_method/art_method_tokenizer.h",
+        "src/trace_processor/importers/art_method/art_method_v2_tokenizer.cc",
+        "src/trace_processor/importers/art_method/art_method_v2_tokenizer.h",
     ],
 )
 
