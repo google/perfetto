@@ -209,8 +209,8 @@ class Plugin : public PluginBase {
       TraceProcessorContext* ctx,
       Destructible* s,
       std::vector<std::pair<std::string, std::string>>& modules) final {
-    static_cast<Self*>(this)->RegisterSqlModules(
-        ctx, static_cast<Storage*>(s), modules);
+    static_cast<Self*>(this)->RegisterSqlModules(ctx, static_cast<Storage*>(s),
+                                                 modules);
   }
 };
 
