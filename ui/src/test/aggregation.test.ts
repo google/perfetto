@@ -84,7 +84,7 @@ test('gpu counter', async () => {
   const gpuFreqGroup = pth.locateTrack('GPU/GPU Frequency', gpuGroup);
   await pth.toggleTrackGroup(gpuFreqGroup);
   const gpuTrack = pth.locateTrack(
-    'GPU/GPU Frequency/Gpu 0 Frequency',
+    'GPU/GPU Frequency/GPU 0 Frequency',
     gpuFreqGroup,
   );
   const coords = assertExists(await gpuTrack.boundingBox());

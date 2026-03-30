@@ -481,6 +481,18 @@ GPU_TABLE = Table(
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C('machine_id', CppTableId(MACHINE_TABLE)),
+        C('name', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('vendor', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('model', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('architecture',
+          CppString(),
+          cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('uuid', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('pci_bdf', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('arg_set_id',
+          CppOptional(CppUint32()),
+          sql_access=SqlAccess.HIGH_PERF,
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
     ],
     wrapping_sql_view=WrappingSqlView('gpu'),
     tabledoc=TableDoc(
@@ -495,6 +507,20 @@ GPU_TABLE = Table(
                 '''
                   Machine identifier, non-null for GPUs on a remote machine.
                 ''',
+            'name':
+                '''GPU name (e.g., "NVIDIA A100", "Adreno 740")''',
+            'vendor':
+                '''GPU vendor string (e.g., "NVIDIA", "AMD", "Qualcomm")''',
+            'model':
+                '''GPU model/product identifier''',
+            'architecture':
+                '''GPU architecture (e.g., "Ampere", "RDNA 3")''',
+            'uuid':
+                '''UUID of the GPU (16-byte device UUID, hex-encoded)''',
+            'pci_bdf':
+                '''PCI bus location (domain:bus:device.function)''',
+            'arg_set_id':
+                '''Extra args associated with the GPU''',
         }))
 
 CHROME_RAW_TABLE = Table(
