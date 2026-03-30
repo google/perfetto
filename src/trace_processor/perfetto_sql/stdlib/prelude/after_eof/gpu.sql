@@ -25,14 +25,35 @@ CREATE PERFETTO VIEW gpu (
   ugpu ID,
   -- The 0-based GPU index.
   gpu LONG,
+  -- GPU name (e.g., "NVIDIA A100", "Adreno 740").
+  name STRING,
+  -- GPU vendor string (e.g., "NVIDIA", "AMD", "Qualcomm").
+  vendor STRING,
+  -- GPU model/product identifier.
+  model STRING,
+  -- GPU architecture (e.g., "Ampere", "RDNA 3").
+  architecture STRING,
+  -- UUID of the GPU (16-byte device UUID, hex-encoded).
+  uuid STRING,
+  -- PCI bus location (domain:bus:device.function, e.g., "0000:01:00.0").
+  pci_bdf STRING,
   -- Machine identifier
-  machine_id JOINID(machine.id)
+  machine_id JOINID(machine.id),
+  -- Extra key/value pairs associated with this GPU.
+  arg_set_id ARGSETID
 ) AS
 SELECT
   id,
   id AS ugpu,
   gpu,
-  machine_id
+  name,
+  vendor,
+  model,
+  architecture,
+  uuid,
+  pci_bdf,
+  machine_id,
+  arg_set_id
 FROM __intrinsic_gpu
 WHERE
   gpu IS NOT NULL;
