@@ -106,11 +106,7 @@ function makeDuplicateArraySchema(navigate: NavFn): SchemaRegistry {
             'button',
             {
               class: 'ah-link',
-              onclick: () =>
-                navigate('instances', {
-                  className: String(value ?? ''),
-                  heap: null,
-                }),
+              onclick: () => navigate('objects', {cls: String(value ?? '')}),
             },
             String(value ?? ''),
           ),
