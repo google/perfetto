@@ -159,6 +159,8 @@ function DominatorsView(): m.Component<DominatorsViewAttrs> {
           data: dataSource,
           fillHeight: true,
           initialColumns: [
+            {id: 'id', field: 'id'},
+            {id: 'cls', field: 'cls'},
             {id: 'retained', field: 'retained', sort: 'DESC' as const},
             {id: 'retained_native', field: 'retained_native'},
             {id: 'retained_count', field: 'retained_count'},
@@ -168,8 +170,6 @@ function DominatorsView(): m.Component<DominatorsViewAttrs> {
             {id: 'reachable_count', field: 'reachable_count'},
             {id: 'heap', field: 'heap'},
             {id: 'root_type', field: 'root_type'},
-            {id: 'cls', field: 'cls'},
-            {id: 'id', field: 'id'},
           ],
           showExportButton: true,
           onFiltersChanged: counter.onFiltersChanged,
