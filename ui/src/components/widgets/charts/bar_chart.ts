@@ -22,6 +22,7 @@ import {
 } from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
 import type {LegendPosition} from './common';
+import {maybeWrapWithTruncation} from './chart_truncation_warning';
 import {
   buildAxisOption,
   buildGridOption,
@@ -161,11 +162,27 @@ export interface BarChartAttrs {
    * Defaults to 'top'.
    */
   readonly legendPosition?: LegendPosition;
+  /** Total row count before LIMIT; when set and shown < total, an overlay warns the user. */
+  readonly totalCount?: number;
+  /** Number of items actually shown; should come from the loader result. */
+  readonly shownCount?: number;
+  /** Show the truncation warning overlay. Defaults to false. */
+  readonly showTruncationWarning?: boolean;
 }
 
 export class BarChart implements m.ClassComponent<BarChartAttrs> {
   view({attrs}: m.Vnode<BarChartAttrs>) {
-    const {data, height, fillParent, className, onBrush, orientation} = attrs;
+    const {
+      data,
+      height,
+      fillParent,
+      className,
+      onBrush,
+      orientation,
+      totalCount,
+      shownCount,
+      showTruncationWarning,
+    } = attrs;
     const horizontal = orientation === 'horizontal';
 
     const isStacked = data?.series !== undefined && data.series.length > 0;
@@ -173,7 +190,7 @@ export class BarChart implements m.ClassComponent<BarChartAttrs> {
     const option =
       data !== undefined && !isEmpty ? buildBarOption(attrs, data) : undefined;
 
-    return m(EChartView, {
+    const content = m(EChartView, {
       option,
       height,
       fillParent,
@@ -183,6 +200,12 @@ export class BarChart implements m.ClassComponent<BarChartAttrs> {
       activeBrushType:
         onBrush !== undefined ? (horizontal ? 'lineY' : 'lineX') : undefined,
     });
+    return maybeWrapWithTruncation(
+      content,
+      shownCount,
+      totalCount,
+      showTruncationWarning,
+    );
   }
 }
 

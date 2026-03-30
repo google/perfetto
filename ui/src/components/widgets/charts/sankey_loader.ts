@@ -145,4 +145,9 @@ export class SQLSankeyLoader extends SQLChartLoader<
     const nodes: SankeyNode[] = Array.from(nodeSet, (name) => ({name}));
     return {nodes, links};
   }
+
+  protected override countShown(_data: SankeyData): number {
+    // Sankey queries never apply a LIMIT, so this is never called.
+    return 0;
+  }
 }

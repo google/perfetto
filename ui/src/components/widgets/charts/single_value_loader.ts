@@ -76,4 +76,9 @@ export class SQLSingleValueLoader extends SQLChartLoader<
     }
     return {value: 0};
   }
+
+  protected override countShown(_data: SingleValueData): number {
+    // Scorecard queries never apply a LIMIT, so this is never called.
+    return 0;
+  }
 }

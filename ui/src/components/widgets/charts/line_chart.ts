@@ -17,6 +17,7 @@ import type {EChartsCoreOption} from 'echarts/core';
 import {extractBrushRange, formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
 import type {LegendPosition} from './common';
+import {maybeWrapWithTruncation} from './chart_truncation_warning';
 import {
   buildChartOption,
   buildLegendOption,
@@ -51,6 +52,10 @@ export interface LineChartSeries {
 export interface LineChartData {
   /** The series to display */
   readonly series: readonly LineChartSeries[];
+}
+
+export function countLineChartShown(data: LineChartData): number {
+  return data.series.reduce((sum, s) => sum + s.points.length, 0);
 }
 
 export interface LineChartAttrs {
@@ -172,11 +177,26 @@ export interface LineChartAttrs {
    * Note: When stacked, all series must be aligned to the same X values.
    */
   readonly stacked?: boolean;
+  /** Total row count before LIMIT; when set and shown < total, an overlay warns the user. */
+  readonly totalCount?: number;
+  /** Number of items actually shown; should come from the loader result. */
+  readonly shownCount?: number;
+  /** Show the truncation warning overlay. Defaults to false. */
+  readonly showTruncationWarning?: boolean;
 }
 
 export class LineChart implements m.ClassComponent<LineChartAttrs> {
   view({attrs}: m.Vnode<LineChartAttrs>) {
-    const {data, height, fillParent, className, onBrush} = attrs;
+    const {
+      data,
+      height,
+      fillParent,
+      className,
+      onBrush,
+      totalCount,
+      shownCount,
+      showTruncationWarning,
+    } = attrs;
 
     const isEmpty =
       data !== undefined &&
@@ -185,7 +205,7 @@ export class LineChart implements m.ClassComponent<LineChartAttrs> {
     const option =
       data !== undefined && !isEmpty ? buildLineOption(attrs, data) : undefined;
 
-    return m(EChartView, {
+    const content = m(EChartView, {
       option,
       height,
       fillParent,
@@ -194,6 +214,12 @@ export class LineChart implements m.ClassComponent<LineChartAttrs> {
       eventHandlers: buildLineEventHandlers(attrs, data),
       activeBrushType: onBrush !== undefined ? 'lineX' : undefined,
     });
+    return maybeWrapWithTruncation(
+      content,
+      shownCount,
+      totalCount,
+      showTruncationWarning,
+    );
   }
 }
 

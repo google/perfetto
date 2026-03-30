@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {assertUnreachable} from '../../../../base/assert';
 import {
   ChartConfig,
   ChartType,
@@ -249,47 +250,62 @@ export function createChartLoaders(
   }
 }
 
-/** Render the appropriate chart widget for a config + loader entry. */
+/**
+ * Render the appropriate chart widget for a config + loader entry.
+ *
+ * `globalShowTruncationWarning` is a dashboard-level override: when false it
+ * suppresses the warning for all charts regardless of their per-chart config.
+ */
 export function renderChartByType(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
+  globalShowTruncationWarning?: boolean,
 ): m.Child {
+  const showWarning =
+    (globalShowTruncationWarning ?? true) &&
+    config.showTruncationWarning !== false;
   switch (config.chartType) {
     case 'bar':
-      return renderBarChart(ctx, config, entry);
+      return renderBarChart(ctx, config, entry, showWarning);
     case 'histogram':
       return renderHistogram(ctx, config, entry);
     case 'line':
-      return renderLineChart(ctx, config, entry);
+      return renderLineChart(ctx, config, entry, showWarning);
     case 'scatter':
-      return renderScatterChart(ctx, config, entry);
+      return renderScatterChart(ctx, config, entry, showWarning);
     case 'pie':
-      return renderPieChart(ctx, config, entry);
+      return renderPieChart(ctx, config, entry, showWarning);
     case 'treemap':
-      return renderTreemap(ctx, config, entry);
+      return renderTreemap(ctx, config, entry, showWarning);
     case 'boxplot':
-      return renderBoxplot(ctx, config, entry);
+      return renderBoxplot(ctx, config, entry, showWarning);
     case 'heatmap':
       return renderHeatmap(ctx, config, entry);
     case 'cdf':
-      return renderCdf(ctx, config, entry);
+      return renderCdf(ctx, config, entry, showWarning);
     case 'scorecard':
       return renderScorecard(ctx, config, entry);
+    default:
+      assertUnreachable(config.chartType);
   }
 }
 
-export function renderBarChart(
+function renderBarChart(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
+  showTruncationWarning: boolean,
 ): m.Child {
   if (!entry.barLoader) {
     return m(EmptyState, {icon: 'bar_chart', title: 'No data to display'});
   }
 
   const agg = config.aggregation ?? 'COUNT';
-  const {data} = entry.barLoader.use({aggregation: agg, limit: 100});
+  const {data, totalCount, shownCount} = entry.barLoader.use({
+    aggregation: agg,
+    limit: 100,
+  });
 
   const measureLabel = formatMeasureLabel(agg, config);
 
@@ -315,10 +331,13 @@ export function renderBarChart(
     formatMeasure,
     gridLines: ctx.gridLines,
     onBrush: (labels) => handleBarBrush(ctx, config, labels),
+    totalCount,
+    shownCount,
+    showTruncationWarning,
   });
 }
 
-export function renderHistogram(
+function renderHistogram(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
@@ -347,16 +366,17 @@ export function renderHistogram(
   });
 }
 
-export function renderLineChart(
+function renderLineChart(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
+  showTruncationWarning: boolean,
 ): m.Child {
   if (!entry.lineLoader) {
     return m(EmptyState, {icon: 'show_chart', title: 'No data to display'});
   }
 
-  const {data} = entry.lineLoader.use({});
+  const {data, totalCount, shownCount} = entry.lineLoader.use({});
 
   const formatXValue = getNumericFormatter(ctx.node, config.column);
   const formatYValue = config.yColumn
@@ -375,19 +395,25 @@ export function renderLineChart(
     gridLines: ctx.gridLines,
     onBrush: (range) =>
       handleHistogramBrush(ctx, config, range.start, range.end),
+    totalCount,
+    shownCount,
+    showTruncationWarning,
   });
 }
 
-export function renderScatterChart(
+function renderScatterChart(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
+  showTruncationWarning: boolean,
 ): m.Child {
   if (!entry.scatterLoader) {
     return m(EmptyState, {icon: 'scatter_plot', title: 'No data to display'});
   }
 
-  const {data} = entry.scatterLoader.use({maxPoints: 2000});
+  const {data, totalCount, shownCount} = entry.scatterLoader.use({
+    maxPoints: 2000,
+  });
 
   const formatXValue = getNumericFormatter(ctx.node, config.column);
   const formatYValue = config.yColumn
@@ -404,20 +430,27 @@ export function renderScatterChart(
     formatXValue,
     formatYValue,
     gridLines: ctx.gridLines,
+    totalCount,
+    shownCount,
+    showTruncationWarning,
   });
 }
 
-export function renderPieChart(
+function renderPieChart(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
+  showTruncationWarning: boolean,
 ): m.Child {
   if (!entry.pieLoader) {
     return m(EmptyState, {icon: 'pie_chart', title: 'No data to display'});
   }
 
   const agg = config.aggregation ?? 'COUNT';
-  const {data} = entry.pieLoader.use({aggregation: agg, limit: 20});
+  const {data, totalCount, shownCount} = entry.pieLoader.use({
+    aggregation: agg,
+    limit: 20,
+  });
 
   const formatValue =
     agg !== 'COUNT' && agg !== 'COUNT_DISTINCT'
@@ -434,20 +467,27 @@ export function renderPieChart(
       ctx.node.setBrushSelection(config.column, [slice.label]);
       ctx.onFilterChange?.();
     },
+    totalCount,
+    shownCount,
+    showTruncationWarning,
   });
 }
 
-export function renderTreemap(
+function renderTreemap(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
+  showTruncationWarning: boolean,
 ): m.Child {
   if (!entry.treemapLoader) {
     return m(EmptyState, {icon: 'grid_view', title: 'No data to display'});
   }
 
   const agg = config.aggregation ?? 'SUM';
-  const {data} = entry.treemapLoader.use({aggregation: agg, limit: 50});
+  const {data, totalCount, shownCount} = entry.treemapLoader.use({
+    aggregation: agg,
+    limit: 50,
+  });
 
   const formatValue = getNumericFormatter(
     ctx.node,
@@ -464,13 +504,17 @@ export function renderTreemap(
       ctx.node.setBrushSelection(config.column, [node.name]);
       ctx.onFilterChange?.();
     },
+    totalCount,
+    shownCount,
+    showTruncationWarning,
   });
 }
 
-export function renderBoxplot(
+function renderBoxplot(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
+  showTruncationWarning: boolean,
 ): m.Child {
   if (!entry.boxplotLoader) {
     return m(EmptyState, {
@@ -479,7 +523,7 @@ export function renderBoxplot(
     });
   }
 
-  const {data} = entry.boxplotLoader.use({limit: 30});
+  const {data, totalCount, shownCount} = entry.boxplotLoader.use({limit: 30});
 
   const formatValue = config.yColumn
     ? getNumericFormatter(ctx.node, config.yColumn)
@@ -493,10 +537,13 @@ export function renderBoxplot(
     fillParent: true,
     formatValue,
     gridLines: ctx.gridLines,
+    totalCount,
+    shownCount,
+    showTruncationWarning,
   });
 }
 
-export function renderHeatmap(
+function renderHeatmap(
   _ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
@@ -523,16 +570,17 @@ export function renderHeatmap(
   });
 }
 
-export function renderCdf(
+function renderCdf(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
+  showTruncationWarning: boolean,
 ): m.Child {
   if (!entry.cdfLoader) {
     return m(EmptyState, {icon: 'trending_up', title: 'No data to display'});
   }
 
-  const {data} = entry.cdfLoader.use({maxPoints: 500});
+  const {data, totalCount, shownCount} = entry.cdfLoader.use({maxPoints: 500});
 
   const formatXValue = getNumericFormatter(ctx.node, config.column);
 
@@ -546,10 +594,13 @@ export function renderCdf(
     formatXValue,
     onBrush: (range) =>
       handleHistogramBrush(ctx, config, range.start, range.end),
+    totalCount,
+    shownCount,
+    showTruncationWarning,
   });
 }
 
-export function renderScorecard(
+function renderScorecard(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,

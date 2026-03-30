@@ -17,6 +17,7 @@ import type {EChartsCoreOption} from 'echarts/core';
 import {extractBrushRect, formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
 import type {LegendPosition} from './common';
+import {maybeWrapWithTruncation} from './chart_truncation_warning';
 import {
   buildChartOption,
   buildLegendOption,
@@ -168,11 +169,26 @@ export interface ScatterChartAttrs {
    * Defaults to no grid lines.
    */
   readonly gridLines?: 'horizontal' | 'vertical' | 'both';
+  /** Total row count before LIMIT; when set and shown < total, an overlay warns the user. */
+  readonly totalCount?: number;
+  /** Number of items actually shown; should come from the loader result. */
+  readonly shownCount?: number;
+  /** Show the truncation warning overlay. Defaults to false. */
+  readonly showTruncationWarning?: boolean;
 }
 
 export class Scatterplot implements m.ClassComponent<ScatterChartAttrs> {
   view({attrs}: m.Vnode<ScatterChartAttrs>) {
-    const {data, height, fillParent, className, onBrush} = attrs;
+    const {
+      data,
+      height,
+      fillParent,
+      className,
+      onBrush,
+      totalCount,
+      shownCount,
+      showTruncationWarning,
+    } = attrs;
 
     const isEmpty =
       data !== undefined &&
@@ -183,7 +199,7 @@ export class Scatterplot implements m.ClassComponent<ScatterChartAttrs> {
         ? buildScatterOption(attrs, data)
         : undefined;
 
-    return m(EChartView, {
+    const content = m(EChartView, {
       option,
       height,
       fillParent,
@@ -192,6 +208,12 @@ export class Scatterplot implements m.ClassComponent<ScatterChartAttrs> {
       eventHandlers: buildScatterEventHandlers(attrs),
       activeBrushType: onBrush !== undefined ? 'rect' : undefined,
     });
+    return maybeWrapWithTruncation(
+      content,
+      shownCount,
+      totalCount,
+      showTruncationWarning,
+    );
   }
 }
 

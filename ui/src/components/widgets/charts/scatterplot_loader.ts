@@ -187,4 +187,8 @@ export class SQLScatterChartLoader extends SQLChartLoader<
     }
     return {series};
   }
+
+  protected override countShown(data: ScatterChartData): number {
+    return data.series.reduce((sum, s) => sum + s.points.length, 0);
+  }
 }

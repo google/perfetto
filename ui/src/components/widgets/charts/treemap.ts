@@ -16,6 +16,7 @@ import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler, EChartClickParams} from './echart_view';
+import {maybeWrapWithTruncation} from './chart_truncation_warning';
 import {buildTooltipOption} from './chart_option_builder';
 
 /**
@@ -28,6 +29,21 @@ export interface TreemapNode {
   readonly value: number;
   /** Optional children for hierarchical treemaps */
   readonly children?: readonly TreemapNode[];
+}
+
+export function countTreemapLeaves(
+  nodes: readonly TreemapNode[] | undefined,
+): number {
+  if (nodes === undefined) return 0;
+  let count = 0;
+  for (const node of nodes) {
+    if (node.children !== undefined && node.children.length > 0) {
+      count += countTreemapLeaves(node.children);
+    } else {
+      count += 1;
+    }
+  }
+  return count;
 }
 
 /**
@@ -86,11 +102,25 @@ export interface TreemapChartAttrs {
    * When true, clicking a parent node zooms into it.
    */
   readonly enableDrillDown?: boolean;
+  /** Total row count before LIMIT; when set and shown < total, an overlay warns the user. */
+  readonly totalCount?: number;
+  /** Number of items actually shown; should come from the loader result. */
+  readonly shownCount?: number;
+  /** Show the truncation warning overlay. Defaults to false. */
+  readonly showTruncationWarning?: boolean;
 }
 
 export class Treemap implements m.ClassComponent<TreemapChartAttrs> {
   view({attrs}: m.Vnode<TreemapChartAttrs>) {
-    const {data, height, fillParent, className} = attrs;
+    const {
+      data,
+      height,
+      fillParent,
+      className,
+      totalCount,
+      shownCount,
+      showTruncationWarning,
+    } = attrs;
 
     const isEmpty = data !== undefined && data.nodes.length === 0;
     const option =
@@ -98,7 +128,7 @@ export class Treemap implements m.ClassComponent<TreemapChartAttrs> {
         ? buildTreemapOption(attrs, data)
         : undefined;
 
-    return m(EChartView, {
+    const content = m(EChartView, {
       option,
       height,
       fillParent,
@@ -106,6 +136,12 @@ export class Treemap implements m.ClassComponent<TreemapChartAttrs> {
       empty: isEmpty,
       eventHandlers: buildTreemapEventHandlers(attrs, data),
     });
+    return maybeWrapWithTruncation(
+      content,
+      shownCount,
+      totalCount,
+      showTruncationWarning,
+    );
   }
 }
 

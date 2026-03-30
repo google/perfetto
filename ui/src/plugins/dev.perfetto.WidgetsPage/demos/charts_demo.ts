@@ -97,6 +97,14 @@ import {App} from '../../../public/app';
 import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 import {Trace} from '../../../public/trace';
 
+function formatTruncationInfo(
+  shownCount: number | undefined,
+  totalCount: number | undefined,
+): string {
+  if (shownCount === undefined || totalCount === undefined) return '';
+  return `\nShowing ${shownCount} of ${totalCount} (${totalCount - shownCount} not shown)`;
+}
+
 // Generate sample data with normal distribution
 function generateNormalData(
   count: number,
@@ -460,6 +468,7 @@ function renderSQLDemos(app: App): m.Children[] {
           horizontal: opts.horizontal,
           aggregation: opts.aggregation,
           gridLines: opts.gridLines,
+          showTruncationWarning: opts.showTruncationWarning,
         });
       },
       initialOpts: {
@@ -484,6 +493,7 @@ function renderSQLDemos(app: App): m.Children[] {
           'vertical',
           'both',
         ] as const),
+        showTruncationWarning: true,
       },
     }),
     m('h3', {style: {marginTop: '32px'}}, 'SQLLineChartLoader'),
@@ -527,6 +537,7 @@ function renderSQLDemos(app: App): m.Children[] {
           donut: opts.donut,
           aggregation: opts.aggregation,
           limit: opts.limit,
+          showTruncationWarning: opts.showTruncationWarning,
         });
       },
       initialOpts: {
@@ -541,6 +552,7 @@ function renderSQLDemos(app: App): m.Children[] {
           'COUNT_DISTINCT',
         ] as const),
         limit: 8,
+        showTruncationWarning: true,
       },
     }),
     m('h3', {style: {marginTop: '32px'}}, 'SQLHistogramLoader'),
@@ -604,12 +616,14 @@ function renderSQLDemos(app: App): m.Children[] {
           height: opts.height,
           showLabels: opts.showLabels,
           limit: opts.limit,
+          showTruncationWarning: opts.showTruncationWarning,
         });
       },
       initialOpts: {
         height: 300,
         showLabels: true,
         limit: 10,
+        showTruncationWarning: true,
       },
     }),
     m('h3', {style: {marginTop: '32px'}}, 'SQLSankeyLoader'),
@@ -661,6 +675,7 @@ function renderSQLDemos(app: App): m.Children[] {
           height: opts.height,
           limit: opts.limit,
           gridLines: opts.gridLines,
+          showTruncationWarning: opts.showTruncationWarning,
         });
       },
       initialOpts: {
@@ -672,6 +687,7 @@ function renderSQLDemos(app: App): m.Children[] {
           'vertical',
           'both',
         ] as const),
+        showTruncationWarning: true,
       },
     }),
     m('h3', {style: {marginTop: '32px'}}, 'SQLHeatmapLoader'),
@@ -950,6 +966,7 @@ function SQLBarChartDemo(): m.Component<{
   horizontal: boolean;
   aggregation: ChartAggregation;
   gridLines: string;
+  showTruncationWarning: boolean;
 }> {
   let loader: SQLBarChartLoader | undefined;
   let brushedLabels: Array<string | number> | undefined;
@@ -972,7 +989,7 @@ function SQLBarChartDemo(): m.Component<{
         limit: 10,
         filter: isFilter ? brushedLabels : undefined,
       };
-      const {data, isPending} = loader.use(config);
+      const {data, isPending, totalCount, shownCount} = loader.use(config);
 
       const measureLabels: Record<ChartAggregation, string> = {
         ANY: 'Any Duration',
@@ -1007,6 +1024,9 @@ function SQLBarChartDemo(): m.Component<{
                 }
               : undefined,
           selection: attrs.brushMode === 'select' ? brushedLabels : undefined,
+          totalCount,
+          shownCount,
+          showTruncationWarning: attrs.showTruncationWarning,
         }),
         m(
           'pre',
@@ -1024,6 +1044,7 @@ function SQLBarChartDemo(): m.Component<{
             `dimensionColumn: 'name', measureColumn: 'dur'\n`,
             `loader.use(${JSON.stringify(config, null, 2)})`,
             isPending ? '\n(loading...)' : '',
+            formatTruncationInfo(shownCount, totalCount),
             brushedLabels ? `\nBrushed: [${brushedLabels.join(', ')}]` : '',
             !isFilter && brushedLabels
               ? '\n(select mode — data unchanged)'
@@ -1237,6 +1258,7 @@ function SQLPieChartDemo(): m.Component<{
   donut: boolean;
   aggregation: ChartAggregation;
   limit: number;
+  showTruncationWarning: boolean;
 }> {
   let loader: SQLPieChartLoader | undefined;
 
@@ -1255,7 +1277,7 @@ function SQLPieChartDemo(): m.Component<{
         aggregation: attrs.aggregation,
         limit: attrs.limit,
       };
-      const {data, isPending} = loader.use(config);
+      const {data, isPending, totalCount, shownCount} = loader.use(config);
 
       return m('div', [
         m(PieChart, {
@@ -1263,6 +1285,9 @@ function SQLPieChartDemo(): m.Component<{
           height: attrs.height,
           showLegend: attrs.showLegend,
           innerRadiusRatio: attrs.donut ? 0.5 : 0,
+          totalCount,
+          shownCount,
+          showTruncationWarning: attrs.showTruncationWarning,
         }),
         m(
           'pre',
@@ -1280,6 +1305,7 @@ function SQLPieChartDemo(): m.Component<{
             `dimensionColumn: 'name', measureColumn: 'dur'\n`,
             `loader.use(${JSON.stringify(config, null, 2)})`,
             isPending ? '\n(loading...)' : '',
+            formatTruncationInfo(shownCount, totalCount),
           ],
         ),
       ]);
@@ -2027,6 +2053,7 @@ function SQLTreemapDemo(): m.Component<{
   height: number;
   showLabels: boolean;
   limit: number;
+  showTruncationWarning: boolean;
 }> {
   let loader: SQLTreemapLoader | undefined;
   let clickedNode: string | undefined;
@@ -2047,7 +2074,7 @@ function SQLTreemapDemo(): m.Component<{
         aggregation: 'SUM',
         limit: attrs.limit,
       };
-      const {data, isPending} = loader.use(config);
+      const {data, isPending, totalCount, shownCount} = loader.use(config);
 
       return m('div', [
         m(Treemap, {
@@ -2057,6 +2084,9 @@ function SQLTreemapDemo(): m.Component<{
           onNodeClick: (node) => {
             clickedNode = node.name;
           },
+          totalCount,
+          shownCount,
+          showTruncationWarning: attrs.showTruncationWarning,
         }),
         m(
           'pre',
@@ -2074,6 +2104,7 @@ function SQLTreemapDemo(): m.Component<{
             `labelColumn: 'name', sizeColumn: 'dur', groupColumn: 'category'\n`,
             `loader.use(${JSON.stringify(config, null, 2)})`,
             isPending ? '\n(loading...)' : '',
+            formatTruncationInfo(shownCount, totalCount),
             clickedNode ? `\nClicked: ${clickedNode}` : '',
           ],
         ),
@@ -2382,6 +2413,7 @@ function SQLBoxplotDemo(): m.Component<{
   height: number;
   limit: number;
   gridLines: string;
+  showTruncationWarning: boolean;
 }> {
   let loader: SQLBoxplotLoader | undefined;
 
@@ -2399,7 +2431,7 @@ function SQLBoxplotDemo(): m.Component<{
       const config: BoxplotLoaderConfig = {
         limit: attrs.limit,
       };
-      const {data, isPending} = loader.use(config);
+      const {data, isPending, totalCount, shownCount} = loader.use(config);
 
       return m('div', [
         m(BoxplotChart, {
@@ -2408,6 +2440,9 @@ function SQLBoxplotDemo(): m.Component<{
           categoryLabel: 'Slice Name',
           valueLabel: 'Duration (ns)',
           gridLines: toGridLines(attrs.gridLines),
+          totalCount,
+          shownCount,
+          showTruncationWarning: attrs.showTruncationWarning,
         }),
         m(
           'pre',
@@ -2425,6 +2460,7 @@ function SQLBoxplotDemo(): m.Component<{
             `categoryColumn: 'name', valueColumn: 'dur'\n`,
             `loader.use(${JSON.stringify(config, null, 2)})`,
             isPending ? '\n(loading...)' : '',
+            formatTruncationInfo(shownCount, totalCount),
           ],
         ),
       ]);

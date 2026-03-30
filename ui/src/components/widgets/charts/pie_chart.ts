@@ -16,6 +16,7 @@ import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler, EChartClickParams} from './echart_view';
+import {maybeWrapWithTruncation} from './chart_truncation_warning';
 import {buildLegendOption, buildTooltipOption} from './chart_option_builder';
 import type {LegendPosition} from './common';
 
@@ -91,18 +92,32 @@ export interface PieChartAttrs {
    * Callback when a slice is clicked.
    */
   readonly onSliceClick?: (slice: PieChartSlice) => void;
+  /** Total row count before LIMIT; when set and shown < total, an overlay warns the user. */
+  readonly totalCount?: number;
+  /** Number of items actually shown; should come from the loader result. */
+  readonly shownCount?: number;
+  /** Show the truncation warning overlay. Defaults to false. */
+  readonly showTruncationWarning?: boolean;
 }
 
 export class PieChart implements m.ClassComponent<PieChartAttrs> {
   view({attrs}: m.Vnode<PieChartAttrs>) {
-    const {data, height, fillParent, className} = attrs;
+    const {
+      data,
+      height,
+      fillParent,
+      className,
+      totalCount,
+      shownCount,
+      showTruncationWarning,
+    } = attrs;
 
     const validSlices = data?.slices.filter((s) => s.value > 0) ?? [];
     const isEmpty = data !== undefined && validSlices.length === 0;
     const option =
       validSlices.length > 0 ? buildPieOption(attrs, validSlices) : undefined;
 
-    return m(EChartView, {
+    const content = m(EChartView, {
       option,
       height,
       fillParent,
@@ -110,6 +125,12 @@ export class PieChart implements m.ClassComponent<PieChartAttrs> {
       empty: isEmpty,
       eventHandlers: buildPieEventHandlers(attrs, validSlices),
     });
+    return maybeWrapWithTruncation(
+      content,
+      shownCount,
+      totalCount,
+      showTruncationWarning,
+    );
   }
 }
 

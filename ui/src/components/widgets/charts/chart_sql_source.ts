@@ -15,10 +15,17 @@
 import {assertUnreachable} from '../../../base/assert';
 import {QuerySlot} from '../../../base/query_slot';
 import type {Engine} from '../../../trace_processor/engine';
-import type {QueryResult as TPQueryResult} from '../../../trace_processor/query_result';
+import {
+  NUM,
+  type QueryResult as TPQueryResult,
+} from '../../../trace_processor/query_result';
 import {Filter} from '../datagrid/model';
 import {filterToSql, sqlAggregateExpr} from '../datagrid/sql_utils';
 import {ChartAggregation, validateColumnName} from './chart_utils';
+
+// Changing the value of this constant invalidates cached query keys; renaming
+// the TypeScript identifier is safe.
+export const OTHER_LABEL = '(Other)';
 
 /** Default column alias for the first measure in aggregated queries. */
 export const DEFAULT_MEASURE_ALIAS = '_value';
@@ -294,8 +301,29 @@ ${havingClause}`.trim();
     const groupByExprs = config.dimensions.map((d) => d.column);
     const direction = config.orderDirection ?? 'desc';
     const orderAlias = this.measureAlias(config.measures, 0);
-    const limitClause =
-      config.limit !== undefined ? `LIMIT ${config.limit}` : '';
+
+    // When a limit is set, wrap in a CTE so we can report the total number
+    // of groups via _total_count alongside the limited result set.
+    if (config.limit !== undefined) {
+      const dimAliases = config.dimensions.map((d, i) => this.dimAlias(d, i));
+      const measAliases = config.measures.map((_, i) =>
+        this.measureAlias(config.measures, i),
+      );
+      const aliasList = [...dimAliases, ...measAliases].join(', ');
+      return `
+WITH _agg AS (
+  SELECT
+    ${selectParts.join(',\n    ')}
+  FROM (${this.query})
+  ${whereClause}
+  GROUP BY ${groupByExprs.join(', ')}
+  ${havingClause}
+)
+SELECT ${aliasList}, (SELECT COUNT(*) FROM _agg) AS _total_count
+FROM _agg
+ORDER BY ${orderAlias} ${direction.toUpperCase()}
+LIMIT ${config.limit}`.trim();
+    }
 
     return `
 SELECT
@@ -304,8 +332,7 @@ FROM (${this.query})
 ${whereClause}
 GROUP BY ${groupByExprs.join(', ')}
 ${havingClause}
-ORDER BY ${orderAlias} ${direction.toUpperCase()}
-${limitClause}`.trim();
+ORDER BY ${orderAlias} ${direction.toUpperCase()}`.trim();
   }
 
   private buildTopNWithOther(config: AggregatedQueryConfig): string {
@@ -334,7 +361,7 @@ ${limitClause}`.trim();
     // Build "(Other)" select: first dim = '(Other)', rest of dims = NULL,
     // each measure = SUM(measure_alias)
     const otherDimExprs = dimAliases.map((alias, i) =>
-      i === 0 ? `'(Other)' AS ${alias}` : `NULL AS ${alias}`,
+      i === 0 ? `'${OTHER_LABEL}' AS ${alias}` : `NULL AS ${alias}`,
     );
     const otherMeasExprs = measAliases.map(
       (alias) => `SUM(${alias}) AS ${alias}`,
@@ -360,9 +387,11 @@ _other AS (
   FROM _agg
   WHERE ${firstDimAlias} NOT IN (SELECT ${firstDimAlias} FROM _top)
 )
-SELECT ${aliasList} FROM _top
-UNION ALL
-SELECT ${aliasList} FROM _other WHERE ${measAliases[0]} > 0`.trim();
+SELECT *, (SELECT COUNT(*) FROM _agg) AS _total_count FROM (
+  SELECT ${aliasList} FROM _top
+  UNION ALL
+  SELECT ${aliasList} FROM _other WHERE ${measAliases[0]} > 0
+)`.trim();
   }
 
   private buildHierarchical(config: AggregatedQueryConfig): string {
@@ -401,7 +430,7 @@ _ranked AS (
     ROW_NUMBER() OVER (PARTITION BY ${firstDimAlias} ORDER BY ${orderAlias} ${direction.toUpperCase()}) AS _rank
   FROM _agg
 )
-SELECT ${aliasList}
+SELECT ${aliasList}, (SELECT COUNT(*) FROM _agg) AS _total_count
 FROM _ranked
 WHERE _rank <= ${limitPerGroup}
 ORDER BY ${firstDimAlias}, ${orderAlias} ${direction.toUpperCase()}`.trim();
@@ -486,12 +515,13 @@ ${orderByClause}`.trim();
         : 'PARTITION BY 1';
 
     return `
-SELECT ${aliasList}
+SELECT ${aliasList}, _total_count
 FROM (
   SELECT
     ${selectParts.join(',\n    ')},
     ROW_NUMBER() OVER (${partitionExpr}) AS _rn,
-    COUNT(*) OVER (${partitionExpr}) AS _cnt
+    COUNT(*) OVER (${partitionExpr}) AS _cnt,
+    COUNT(*) OVER () AS _total_count
   FROM (${this.query})
   ${whereClause}
 )
@@ -680,6 +710,16 @@ function chartFilterToSql(filter: Filter): string {
 export interface ChartLoaderResult<TData> {
   readonly data: TData | undefined;
   readonly isPending: boolean;
+  /** Row count before LIMIT; only present when the query applied a limit. */
+  readonly totalCount?: number;
+  /** Number of items actually shown; only present when totalCount is set. */
+  readonly shownCount?: number;
+}
+
+/** Internal wrapper to carry totalCount alongside chart data. */
+interface ChartDataWithTotal<TData> {
+  readonly data: TData;
+  readonly totalCount?: number;
 }
 
 /**
@@ -693,7 +733,7 @@ export interface ChartLoaderResult<TData> {
 export abstract class SQLChartLoader<TConfig, TData> {
   private readonly engine: Engine;
   protected readonly source: ChartSource;
-  private readonly querySlot = new QuerySlot<TData>();
+  private readonly querySlot = new QuerySlot<ChartDataWithTotal<TData>>();
 
   constructor(engine: Engine, source: ChartSource) {
     this.engine = engine;
@@ -709,13 +749,24 @@ export abstract class SQLChartLoader<TConfig, TData> {
       key,
       queryFn: async () => {
         const queryResult = await this.engine.query(sql);
-        return this.parseResult(queryResult, config);
+        const data = this.parseResult(queryResult, config);
+        const totalCount = extractTotalCount(queryResult);
+        return {data, totalCount};
       },
       // Retain stale chart data while new queries are in flight (e.g., during
       // brush/filter changes) to avoid flashing a loading spinner.
       retainOn: Object.keys(key) as (keyof typeof key)[],
     });
-    return {data: result.data, isPending: result.isPending};
+    const cached = result.data;
+    return {
+      data: cached?.data,
+      isPending: result.isPending,
+      totalCount: cached?.totalCount,
+      shownCount:
+        cached?.totalCount !== undefined
+          ? this.countShown(cached.data)
+          : undefined,
+    };
   }
 
   dispose(): void {
@@ -731,6 +782,9 @@ export abstract class SQLChartLoader<TConfig, TData> {
     config: TConfig,
   ): TData;
 
+  /** Return the number of items actually shown in the chart from `data`. */
+  protected abstract countShown(data: TData): number;
+
   /**
    * Override to add extra fields to the cache key for post-processing
    * params that don't affect the SQL but do affect the output.
@@ -740,6 +794,22 @@ export abstract class SQLChartLoader<TConfig, TData> {
   ): Record<string, string | number | boolean | undefined> {
     return {};
   }
+}
+
+// Returns undefined (not an error) when _total_count is absent — that's the
+// normal path for unlimited queries (histogram, heatmap, etc.).
+// Called after parseResult() has already consumed the query result.
+// This is safe because QueryResult.iter() creates an independent cursor each
+// call — it does not share position with the iterator used by parseResult.
+function extractTotalCount(queryResult: TPQueryResult): number | undefined {
+  if (!queryResult.columns().includes('_total_count')) {
+    return undefined;
+  }
+  const iter = queryResult.iter({_total_count: NUM});
+  if (iter.valid()) {
+    return iter._total_count;
+  }
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------

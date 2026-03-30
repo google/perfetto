@@ -169,4 +169,11 @@ export class SQLBarChartLoader extends SQLChartLoader<
     }
     return {items: [], series};
   }
+
+  protected override countShown(data: BarChartData): number {
+    const series = data.series;
+    return series !== undefined && series.length > 0
+      ? series.reduce((sum, s) => sum + s.items.length, 0)
+      : data.items.length;
+  }
 }
