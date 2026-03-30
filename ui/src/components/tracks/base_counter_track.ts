@@ -865,6 +865,8 @@ export abstract class BaseCounterTrack implements TrackRenderer {
         start: bounds.start,
         end: bounds.end,
         resolution: bounds.resolution,
+        yMode: options.yMode,
+        yDisplay: options.yDisplay,
       },
       queryFn: async (signal) => {
         const result = await this.trace.taskTracker.track(

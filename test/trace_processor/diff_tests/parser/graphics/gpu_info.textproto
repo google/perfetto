@@ -1,0 +1,28 @@
+packet {
+  gpu_info {
+    gpus {
+      name: "NVIDIA A100-SXM4-80GB"
+      vendor: "NVIDIA"
+      model: "A100"
+      architecture: "Ampere"
+      uuid: "\x01\x23\x45\x67\x89\xab\xcd\xef\x01\x23\x45\x67\x89\xab\xcd\xef"
+      pci_bdf: "0000:01:00.0"
+      extra_info {
+        key: "driver_version"
+        value: "535.129.03"
+      }
+      extra_info {
+        key: "memory_total_mb"
+        value: "81920"
+      }
+    }
+    gpus {
+      name: "NVIDIA A100-SXM4-80GB"
+      vendor: "NVIDIA"
+      model: "A100"
+      architecture: "Ampere"
+      uuid: "\xab\xcd\xef\xab\xcd\xef\xab\xcd\xab\xcd\xef\xab\xcd\xef\xab\xcd"
+      pci_bdf: "0000:02:00.0"
+    }
+  }
+}
