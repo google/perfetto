@@ -613,18 +613,18 @@
 .pf-chart-type-picker {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  padding: 4px;
+  gap: 8px;
+  padding: 4px 8px;
 
   &__card {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
-    padding: 8px 6px;
-    border: 1px solid var(--pf-color-border);
-    border-radius: 6px;
-    background: var(--pf-color-surface);
+    gap: 6px;
+    padding: 12px 6px 8px;
+    border: 1px solid var(--pf-color-border-secondary);
+    border-radius: 8px;
+    background: var(--pf-color-background);
     cursor: pointer;
     transition:
       border-color 0.15s,
@@ -637,7 +637,7 @@
     &:hover {
       border-color: var(--pf-color-primary);
       background: var(--pf-color-surface-highlight);
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
 
     &:focus-visible {
@@ -651,9 +651,8 @@
   }
 
   &__preview {
-    width: 48px;
-    height: 36px;
-    color: var(--pf-color-primary);
+    width: 52px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
