@@ -873,8 +873,7 @@ def Main():
   parser.add_argument(
       '--public-pypi',
       action='store_true',
-      help='Force pip to use the public PyPI index (https://pypi.org/simple/) '
-      'instead of the default (useful to bypass go/corp-airlock)')
+      help='Force pip to use the public PyPI index (https://pypi.org/simple/)')
   parser.add_argument('--check-only')
   parser.add_argument('--filter', action='append')
   parser.add_argument('--verify', help='Check all URLs', action='store_true')
