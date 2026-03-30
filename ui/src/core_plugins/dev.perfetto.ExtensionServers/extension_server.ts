@@ -40,8 +40,7 @@ const FETCH_TIMEOUT_MS = 10000; // 10 seconds
 
 // Cache name used by the client-side extension cache. Responses are stored
 // here keyed by URL so that when the network is unreachable we can serve
-// the last-known-good data without involving the service worker or any
-// custom request headers.
+// the last-known-good data.
 const EXT_CACHE_NAME = 'extension-servers';
 
 interface FetchRequest {
