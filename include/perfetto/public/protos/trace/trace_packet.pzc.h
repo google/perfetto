@@ -56,6 +56,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_GenericKernelProcessTree);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GenericKernelTaskRenameEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GenericKernelTaskStateEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GpuCounterEvent);
+PERFETTO_PB_MSG_DECL(perfetto_protos_GpuInfo);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GpuLog);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GpuMemTotalEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GpuRenderStageEvent);
@@ -402,6 +403,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_AndroidAflags,
                   android_aflags,
                   127);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_GpuInfo,
+                  gpu_info,
+                  128);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_ModuleSymbols,
