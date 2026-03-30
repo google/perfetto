@@ -30,6 +30,21 @@ export interface TreemapNode {
   readonly children?: readonly TreemapNode[];
 }
 
+export function countTreemapLeaves(
+  nodes: readonly TreemapNode[] | undefined,
+): number {
+  if (nodes === undefined) return 0;
+  let count = 0;
+  for (const node of nodes) {
+    if (node.children !== undefined && node.children.length > 0) {
+      count += countTreemapLeaves(node.children);
+    } else {
+      count += 1;
+    }
+  }
+  return count;
+}
+
 /**
  * Data provided to a TreemapChart.
  */

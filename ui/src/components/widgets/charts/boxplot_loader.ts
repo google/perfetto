@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QuerySlot, type QueryResult} from '../../../base/query_slot';
+import {QuerySlot} from '../../../base/query_slot';
 import {Engine} from '../../../trace_processor/engine';
 import {NUM, STR} from '../../../trace_processor/query_result';
 import {BoxplotData} from './boxplot';
+import {type ChartLoaderResult} from './chart_sql_source';
 import {validateColumnName} from './chart_utils';
 
 /**
@@ -46,6 +47,12 @@ export interface SQLBoxplotLoaderOpts {
   readonly valueColumn: string;
 }
 
+/** Internal wrapper to carry totalCount alongside boxplot data. */
+interface BoxplotDataWithTotal {
+  readonly data: BoxplotData;
+  readonly totalCount?: number;
+}
+
 /**
  * SQL-based boxplot loader.
  *
@@ -58,7 +65,7 @@ export class SQLBoxplotLoader {
   private readonly query: string;
   private readonly categoryColumn: string;
   private readonly valueColumn: string;
-  private readonly querySlot = new QuerySlot<BoxplotData>();
+  private readonly querySlot = new QuerySlot<BoxplotDataWithTotal>();
 
   constructor(opts: SQLBoxplotLoaderOpts) {
     validateColumnName(opts.categoryColumn);
@@ -69,7 +76,7 @@ export class SQLBoxplotLoader {
     this.valueColumn = opts.valueColumn;
   }
 
-  use(config: BoxplotLoaderConfig): QueryResult<BoxplotData> {
+  use(config: BoxplotLoaderConfig): ChartLoaderResult<BoxplotData> {
     const limit = config.limit ?? 20;
     const cat = this.categoryColumn;
     const val = this.valueColumn;
@@ -115,18 +122,20 @@ SELECT
   q._q1,
   q._median,
   q._q3,
-  s._max
+  s._max,
+  (SELECT COUNT(*) FROM _stats) AS _total_count
 FROM _stats s
 JOIN _quartiles q ON s._cat = q._cat
 ORDER BY q._median DESC
 LIMIT ${limit}`.trim();
 
-    return this.querySlot.use({
+    const result = this.querySlot.use({
       key: {sql},
       retainOn: ['sql'],
       queryFn: async () => {
         const queryResult = await this.engine.query(sql);
         const items = [];
+        let totalCount: number | undefined;
 
         const iter = queryResult.iter({
           _cat: STR,
@@ -135,9 +144,14 @@ LIMIT ${limit}`.trim();
           _median: NUM,
           _q3: NUM,
           _max: NUM,
+          _total_count: NUM,
         });
 
         for (; iter.valid(); iter.next()) {
+          // _total_count is the same on every row — read it once from the first.
+          if (totalCount === undefined) {
+            totalCount = iter._total_count;
+          }
           items.push({
             label: iter._cat,
             min: iter._min,
@@ -148,9 +162,14 @@ LIMIT ${limit}`.trim();
           });
         }
 
-        return {items};
+        return {data: {items}, totalCount};
       },
     });
+    return {
+      data: result.data?.data,
+      isPending: result.isPending,
+      totalCount: result.data?.totalCount,
+    };
   }
 
   dispose(): void {

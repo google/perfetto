@@ -124,11 +124,13 @@ type SidePanelTab = 'add' | 'data' | 'linked' | 'edit' | 'settings';
 interface DashboardSettings {
   showGridDots: boolean;
   chartGridLines?: 'horizontal' | 'vertical' | 'both';
+  showTruncationWarnings: boolean;
 }
 
 const DEFAULT_SETTINGS: DashboardSettings = {
   showGridDots: true,
   chartGridLines: undefined,
+  showTruncationWarnings: true,
 };
 
 interface EditingChartContext {
@@ -476,6 +478,18 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           }),
         ),
         m('.pf-dashboard__panel-section-subtitle', 'Charts'),
+        m(
+          '.pf-dashboard__settings-row',
+          m(Switch, {
+            label: 'Show truncation warnings',
+            checked: this.settings.showTruncationWarnings,
+            onchange: (e: Event) => {
+              this.settings.showTruncationWarnings = (
+                e.target as HTMLInputElement
+              ).checked;
+            },
+          }),
+        ),
         m('.pf-dashboard__settings-row', [
           m('label.pf-dashboard__settings-label', 'Grid lines'),
           m(
@@ -681,6 +695,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           onBrushFiltersChange: attrs.onBrushFiltersChange,
           isDriverChart: chartIsDriver,
           gridLines: this.settings.chartGridLines,
+          showTruncationWarning: this.settings.showTruncationWarnings,
         }),
       ),
     ]);

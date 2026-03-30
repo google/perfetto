@@ -56,7 +56,11 @@ import {
   SQLScatterChartLoader,
   ScatterChartLoaderConfig,
 } from '../../../components/widgets/charts/scatterplot_loader';
-import {Treemap, TreemapData} from '../../../components/widgets/charts/treemap';
+import {
+  Treemap,
+  TreemapData,
+  countTreemapLeaves,
+} from '../../../components/widgets/charts/treemap';
 import {
   SQLTreemapLoader,
   TreemapLoaderConfig,
@@ -92,9 +96,19 @@ import {
   SQLSingleValueLoader,
   SingleValueLoaderConfig,
 } from '../../../components/widgets/charts/single_value_loader';
+import {countDistinctPieSlices} from '../../../components/widgets/charts/chart_sql_source';
 import {App} from '../../../public/app';
 import {EnumOption, renderWidgetShowcase} from '../widgets_page_utils';
 import {Trace} from '../../../public/trace';
+
+/** Format a truncation summary for demo `<pre>` blocks. */
+function formatTruncationInfo(
+  shownCount: number,
+  totalCount: number | undefined,
+): string {
+  if (totalCount === undefined) return '';
+  return `\nShowing ${shownCount} of ${totalCount} (${totalCount - shownCount} not shown)`;
+}
 
 // Generate sample data with normal distribution
 function generateNormalData(
@@ -953,7 +967,7 @@ function SQLBarChartDemo(): m.Component<{
         limit: 10,
         filter: isFilter ? brushedLabels : undefined,
       };
-      const {data, isPending} = loader.use(config);
+      const {data, isPending, totalCount} = loader.use(config);
 
       const measureLabels: Record<ChartAggregation, string> = {
         ANY: 'Any Duration',
@@ -1005,6 +1019,7 @@ function SQLBarChartDemo(): m.Component<{
             `dimensionColumn: 'name', measureColumn: 'dur'\n`,
             `loader.use(${JSON.stringify(config, null, 2)})`,
             isPending ? '\n(loading...)' : '',
+            formatTruncationInfo(data?.items.length ?? 0, totalCount),
             brushedLabels ? `\nBrushed: [${brushedLabels.join(', ')}]` : '',
             !isFilter && brushedLabels
               ? '\n(select mode — data unchanged)'
@@ -1236,7 +1251,9 @@ function SQLPieChartDemo(): m.Component<{
         aggregation: attrs.aggregation,
         limit: attrs.limit,
       };
-      const {data, isPending} = loader.use(config);
+      const {data, isPending, totalCount} = loader.use(config);
+
+      const shownCount = countDistinctPieSlices(data?.slices);
 
       return m('div', [
         m(PieChart, {
@@ -1261,6 +1278,7 @@ function SQLPieChartDemo(): m.Component<{
             `dimensionColumn: 'name', measureColumn: 'dur'\n`,
             `loader.use(${JSON.stringify(config, null, 2)})`,
             isPending ? '\n(loading...)' : '',
+            formatTruncationInfo(shownCount, totalCount),
           ],
         ),
       ]);
@@ -2022,7 +2040,7 @@ function SQLTreemapDemo(): m.Component<{
         aggregation: 'SUM',
         limit: attrs.limit,
       };
-      const {data, isPending} = loader.use(config);
+      const {data, isPending, totalCount} = loader.use(config);
 
       return m('div', [
         m(Treemap, {
@@ -2049,6 +2067,7 @@ function SQLTreemapDemo(): m.Component<{
             `labelColumn: 'name', sizeColumn: 'dur', groupColumn: 'category'\n`,
             `loader.use(${JSON.stringify(config, null, 2)})`,
             isPending ? '\n(loading...)' : '',
+            formatTruncationInfo(countTreemapLeaves(data?.nodes), totalCount),
             clickedNode ? `\nClicked: ${clickedNode}` : '',
           ],
         ),
@@ -2374,7 +2393,7 @@ function SQLBoxplotDemo(): m.Component<{
       const config: BoxplotLoaderConfig = {
         limit: attrs.limit,
       };
-      const {data, isPending} = loader.use(config);
+      const {data, isPending, totalCount} = loader.use(config);
 
       return m('div', [
         m(BoxplotChart, {
@@ -2400,6 +2419,7 @@ function SQLBoxplotDemo(): m.Component<{
             `categoryColumn: 'name', valueColumn: 'dur'\n`,
             `loader.use(${JSON.stringify(config, null, 2)})`,
             isPending ? '\n(loading...)' : '',
+            formatTruncationInfo(data?.items.length ?? 0, totalCount),
           ],
         ),
       ]);

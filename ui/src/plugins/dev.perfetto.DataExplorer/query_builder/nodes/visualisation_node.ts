@@ -137,6 +137,11 @@ export interface ChartConfig {
    * Optional bubble-size column for scatter charts (numeric).
    */
   sizeColumn?: string;
+  /**
+   * Whether to show a warning icon when the chart is displaying limited
+   * data (i.e. totalCount > shownCount). Defaults to true.
+   */
+  showTruncationWarning?: boolean;
 }
 
 /**
@@ -846,6 +851,7 @@ export class VisualisationNode implements QueryNode {
         yColumn: c.yColumn,
         groupColumn: c.groupColumn,
         sizeColumn: c.sizeColumn,
+        showTruncationWarning: c.showTruncationWarning,
       })),
       chartFilters: this.state.chartFilters?.map((f) => {
         if ('value' in f) {
