@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {classNames} from '../../../../base/classnames';
 import {ChartType} from '../nodes/visualisation_node';
 import {CHART_TYPES, ChartTypeDefinition} from '../nodes/chart_type_registry';
 
@@ -326,26 +327,31 @@ const CHART_PREVIEW_RENDERERS: Record<ChartType, () => m.Children> = {
 
 /**
  * Renders a grid of chart type cards. Each card fires `onSelect` when clicked.
+ * When `selectedType` is provided, the matching card is visually highlighted.
  */
 export function renderChartTypePickerGrid(
   onSelect: (type: ChartType) => void,
+  selectedType?: ChartType,
 ): m.Children {
   return m(
     '.pf-chart-type-picker',
-    CHART_TYPES.map((def) => renderChartTypeCard(def, onSelect)),
+    CHART_TYPES.map((def) => renderChartTypeCard(def, onSelect, selectedType)),
   );
 }
 
 function renderChartTypeCard(
   def: ChartTypeDefinition,
   onSelect: (type: ChartType) => void,
+  selectedType?: ChartType,
 ): m.Children {
   const description = def.description;
+  const isSelected = selectedType === def.type;
 
   return m(
     'button.pf-chart-type-picker__card',
     {
       key: def.type,
+      className: classNames(isSelected && 'pf-selected'),
       title: description,
       onclick: () => onSelect(def.type),
     },

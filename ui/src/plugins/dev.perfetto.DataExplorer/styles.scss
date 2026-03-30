@@ -648,6 +648,12 @@
     &:active {
       transform: scale(0.97);
     }
+
+    &.pf-selected {
+      border-color: var(--pf-color-primary);
+      background: var(--pf-color-surface-highlight);
+      box-shadow: 0 0 0 1px var(--pf-color-primary);
+    }
   }
 
   &__preview {
