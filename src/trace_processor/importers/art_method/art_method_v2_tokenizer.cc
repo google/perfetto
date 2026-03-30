@@ -54,6 +54,8 @@ constexpr uint8_t kTraceActionMask = 3;
 // Decodes a signed LEB128 integer from the byte stream.
 // Returns the advanced pointer, or the original `data` pointer if the
 // end of the buffer was reached or if the data is malformed.
+// Note: This looks similar to proto varint decoding but it's actually different
+// because of how it handles negative numbers and sign extension.
 const uint8_t* DecodeSignedLeb128(const uint8_t* data,
                                   const uint8_t* end,
                                   int64_t* value) {
@@ -84,25 +86,14 @@ const uint8_t* DecodeSignedLeb128(const uint8_t* data,
   return ptr;
 }
 
-// Skips over an unsigned LEB128 integer without extracting its value.
-const uint8_t* SkipUnsignedLeb128(const uint8_t* data, const uint8_t* end) {
-  const uint8_t* ptr = data;
-  while (ptr < end && (*ptr & 0x80)) {
-    ptr++;
-  }
-  if (ptr < end) {
-    ptr++;
-  }
-  return ptr;
-}
-
 // Reads a simple little-endian integer from the byte stream.
-uint64_t ReadNumber(const uint8_t* ptr, int num_bytes) {
+uint64_t ReadNumber(const uint8_t* ptr, size_t num_bytes) {
+  static_assert(PERFETTO_IS_LITTLE_ENDIAN(),
+                "ART Method traces are little-endian. Perfetto requires a "
+                "little-endian host to parse these effectively.");
+  PERFETTO_DCHECK(num_bytes <= sizeof(uint64_t));
   uint64_t number = 0;
-  for (int i = 0; i < num_bytes; i++) {
-    uint64_t c = ptr[i];
-    number += c << (i * 8);
-  }
+  memcpy(&number, ptr, num_bytes);
   return number;
 }
 
@@ -136,7 +127,7 @@ base::Status ArtMethodV2Tokenizer::Parse(TraceBlobView blob) {
   }
 
   if (trace_complete_) {
-    return base::OkStatus();
+    return base::ErrStatus("ART Method V2 trace: extra data after summary");
   }
 
   for (;;) {
@@ -226,7 +217,9 @@ base::StatusOr<bool> ArtMethodV2Tokenizer::ParseHeader() {
 
   is_dual_clock_ =
       (version == kVersionDualClock) || (version == kVersionDualClockStreaming);
-  ts_ = static_cast<int64_t>(ReadNumber(header + 8, 8));
+  ts_ = static_cast<int64_t>(ReadNumber(header + 6, 8));
+  start_tsc_ = ReadNumber(header + 14, 8);
+  tsc_frequency_ = ReadNumber(header + 22, 8);
 
   reader_.PopFrontUntil(it.file_offset());
   return true;
@@ -368,12 +361,20 @@ base::StatusOr<bool> ArtMethodV2Tokenizer::ParseTraceEntries() {
     if (is_dual_clock_) {
       // In dual clock mode, the second timestamp is Thread CPU time.
       // We just skip over it.
-      current_buffer_ptr = SkipUnsignedLeb128(current_buffer_ptr, buffer_end);
+      int64_t dummy = 0;
+      const uint8_t* next_ptr_dual = DecodeSignedLeb128(current_buffer_ptr, buffer_end, &dummy);
+      if (next_ptr_dual == current_buffer_ptr) {
+        break;
+      }
+      current_buffer_ptr = next_ptr_dual;
     }
 
     // The first timestamp is the Wall time.
     // Shift out action bits to get actual timestamp diff in nanoseconds.
     int64_t ts = static_cast<int64_t>(curr_timestamp_action_value >> 2);
+    if (tsc_frequency_ > 0) {
+      ts = ts * 1000000000LL / static_cast<int64_t>(tsc_frequency_);
+    }
 
     int64_t method_id;
     if (event_type == kMethodEntry) {

@@ -74,6 +74,8 @@ class ArtMethodV2Tokenizer : public ChunkedTraceReader {
   bool trace_complete_ = false;
   bool is_parsing_summary_ = false;
   int64_t ts_ = 0;
+  uint64_t start_tsc_ = 0;
+  uint64_t tsc_frequency_ = 0;
   std::string summary_;
 
   base::FlatHashMap<uint64_t, ThreadInfo> thread_map_;

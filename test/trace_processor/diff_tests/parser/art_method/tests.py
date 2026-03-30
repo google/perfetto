@@ -83,8 +83,8 @@ class ArtMethodParser(TestSuite):
         """,
         out=Csv('''
           "ts","dur","name","thread_name","pathname","line_number"
-          1001000,1000,"com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run: ()V","main","RuntimeInit.java",548
-          1001200,300,"java.lang.reflect.Method.invoke: (Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;","main","Method.java",598
+          1100000,400000,"com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run: ()V","main","RuntimeInit.java",548
+          1200000,100000,"java.lang.reflect.Method.invoke: (Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;","main","Method.java",598
         '''))
 
   def test_art_method_track_type(self):
