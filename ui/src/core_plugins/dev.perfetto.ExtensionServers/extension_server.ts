@@ -38,10 +38,10 @@ import {joinPath} from './url_utils';
 
 const FETCH_TIMEOUT_MS = 10000; // 10 seconds
 
-function extensionHeaders(): Record<string, string> {
-  // TODO(lalitm): readd caching once we've figured out a more correct solution.
-  return {};
-}
+// Cache name used by the client-side extension cache. Responses are stored
+// here keyed by URL so that when the network is unreachable we can serve
+// the last-known-good data.
+const EXT_CACHE_NAME = 'extension-servers';
 
 interface FetchRequest {
   url: string;
@@ -66,7 +66,6 @@ export function buildFetchRequest(
       const headers: Record<string, string> = {
         Accept: 'application/vnd.github.raw+json',
         Authorization: `token ${server.auth.pat}`,
-        ...extensionHeaders(),
       };
       return {url, init: {method: 'GET', headers}};
     }
@@ -76,10 +75,7 @@ export function buildFetchRequest(
     const url =
       `https://raw.githubusercontent.com/${server.repo}` +
       `/${encodeURIComponent(server.ref)}/${encodedPath}`;
-    const headers: Record<string, string> = {
-      ...extensionHeaders(),
-    };
-    return {url, init: {method: 'GET', headers}};
+    return {url, init: {method: 'GET'}};
   }
 
   // HTTPS servers — normalize URL in case https:// is missing.
@@ -88,9 +84,7 @@ export function buildFetchRequest(
     baseUrl = `https://${baseUrl}`;
   }
   const url = `${baseUrl.replace(/\/+$/, '')}/${path}`;
-  const headers: Record<string, string> = {
-    ...extensionHeaders(),
-  };
+  const headers: Record<string, string> = {};
   if (server.auth.type === 'https_basic') {
     const credentials = `${server.auth.username}:${server.auth.password}`;
     headers['Authorization'] = `Basic ${base64Encode(utf8Encode(credentials))}`;
@@ -137,6 +131,46 @@ function refreshSsoCookie(url: string): Promise<boolean> {
   });
 }
 
+// Network-first fetch with client-side Cache API fallback.
+// On success the response body is cached keyed by URL. On network failure
+// or timeout, the last-known-good cached response is returned instead.
+//
+// HTTP errors (e.g. 403, 404) are intentionally NOT served from cache:
+// they indicate a real server-side rejection and the caller needs to see
+// them (e.g. the SSO 403-retry logic in fetchJson).
+async function fetchWithCache(
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  // Open the cache once; if the Cache API is unavailable (e.g. in tests)
+  // we fall back to plain fetch with no caching.
+  let cache: Cache | undefined;
+  try {
+    cache = await caches.open(EXT_CACHE_NAME);
+  } catch {
+    // Cache API unavailable — proceed without caching.
+  }
+
+  try {
+    const response = await fetchWithTimeout(url, init, FETCH_TIMEOUT_MS);
+    if (response.ok) {
+      // Cache successful responses for offline use.
+      await cache?.put(url, response.clone());
+    } else {
+      // Invalidate on HTTP errors (e.g. 403 revoked access, 404 deleted
+      // resource). The caller still sees the error so it can react
+      // (e.g. SSO 403-retry in fetchJson).
+      await cache?.delete(url);
+    }
+    return response;
+  } catch (networkErr) {
+    // Network or timeout error — serve from cache if available.
+    const cached = await cache?.match(url);
+    if (cached) return cached;
+    throw networkErr;
+  }
+}
+
 async function fetchJson<T extends z.ZodTypeAny>(
   server: UserInput,
   path: string,
@@ -145,7 +179,7 @@ async function fetchJson<T extends z.ZodTypeAny>(
   const req = buildFetchRequest(server, path);
   let response: Response;
   try {
-    response = await fetchWithTimeout(req.url, req.init, FETCH_TIMEOUT_MS);
+    response = await fetchWithCache(req.url, req.init);
   } catch (e) {
     return errResult(`Failed to fetch ${req.url}: ${e}`);
   }
@@ -164,7 +198,7 @@ async function fetchJson<T extends z.ZodTypeAny>(
     const refreshed = await refreshSsoCookie(baseUrl.replace(/\/+$/, ''));
     if (refreshed) {
       try {
-        response = await fetchWithTimeout(req.url, req.init, FETCH_TIMEOUT_MS);
+        response = await fetchWithCache(req.url, req.init);
       } catch (e) {
         return errResult(`Failed to fetch ${req.url} after SSO refresh: ${e}`);
       }
