@@ -636,7 +636,7 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
 
   if (req) {
     if (use_shmem_emulation_) {
-      CommitDataWithSplitting(*req, std::move(callback));
+      CommitDataWithSplitting(std::move(req), std::move(callback));
     } else {
       producer_endpoint_->CommitData(*req, std::move(callback));
     }
@@ -650,13 +650,25 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
 }
 
 void SharedMemoryArbiterImpl::CommitDataWithSplitting(
-    CommitDataRequest req,
+    std::unique_ptr<CommitDataRequest> req,
     std::function<void()> callback) {
   PERFETTO_DCHECK(use_shmem_emulation_);
+
+  // If the request is small enough to be sent in a single IPC
+  // avoid the request splitting.
+  uint32_t total_bytes = 0;
+  for (const auto& ctm : req->chunks_to_move()) {
+    total_bytes += static_cast<uint32_t>(ctm.data().size());
+  }
+  if (total_bytes < kMaxCommitDataRequestChunkSize) {
+    producer_endpoint_->CommitData(*req, std::move(callback));
+    return;
+  }
+
   uint32_t current_req_bytes = 0;
   auto split_req = std::make_unique<CommitDataRequest>();
 
-  for (auto& ctm : *req.mutable_chunks_to_move()) {
+  for (auto& ctm : *req->mutable_chunks_to_move()) {
     // If the pending requests exceed the size of the IPC buffer, then
     // split them into multiple commits to avoid an |IPC Frame too large|
     // error on the receiving side. This is based on the fact that chunks
@@ -685,8 +697,8 @@ void SharedMemoryArbiterImpl::CommitDataWithSplitting(
   // |kIPCBufferSize| since, we aren't checking the size of the chunk
   // patches.
   *split_req->mutable_chunks_to_patch() =
-      std::move(*req.mutable_chunks_to_patch());
-  split_req->set_flush_request_id(req.flush_request_id());
+      std::move(*req->mutable_chunks_to_patch());
+  split_req->set_flush_request_id(req->flush_request_id());
 
   producer_endpoint_->CommitData(*split_req, std::move(callback));
 }
