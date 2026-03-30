@@ -2161,6 +2161,9 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_core_tree_tree",
     srcs = [
+        "src/trace_processor/core/tree/tree_columns.h",
+        "src/trace_processor/core/tree/tree_columns_builder.cc",
+        "src/trace_processor/core/tree/tree_columns_builder.h",
         "src/trace_processor/core/tree/tree_transformer.cc",
         "src/trace_processor/core/tree/tree_transformer.h",
     ],
