@@ -376,6 +376,8 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
 
       const bitmapSchema = makeBitmapListSchema(navigate);
       const bitmapColumns = [
+        {id: 'id', field: 'id'},
+        {id: 'cls', field: 'cls'},
         {id: 'dimensions', field: 'dimensions'},
         {id: 'self_size', field: 'self_size'},
         {id: 'native_size', field: 'native_size'},
@@ -385,8 +387,6 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
         {id: 'reachable_size', field: 'reachable_size'},
         {id: 'reachable_native', field: 'reachable_native'},
         {id: 'reachable_count', field: 'reachable_count'},
-        {id: 'id', field: 'id'},
-        {id: 'cls', field: 'cls'},
         {id: 'buffer_hash', field: 'buffer_hash'},
       ];
       const onFiltersChanged = (f: readonly Filter[]) => {
