@@ -361,10 +361,6 @@ function onCssLoaded(app: AppImpl) {
   // And replace it with the root <main> element which will be used by mithril.
   document.body.innerHTML = '';
 
-<<<<<<< HEAD
-  const app = AppImpl.instance;
-=======
->>>>>>> origin/main
   const pages = app.pages;
   pages.registerPage({route: '/', render: () => m(HomePage)});
   const router = new Router();
@@ -378,18 +374,7 @@ function onCssLoaded(app: AppImpl) {
     defaultValue: 'light',
   } as const);
 
-<<<<<<< HEAD
-  app.settings.register({
-    id: TRACK_MIN_HEIGHT_SETTING,
-    name: 'Track Height',
-    description:
-      'Minimum height of tracks in the trace viewer page, in pixels.',
-    schema: z.number().int().min(MINIMUM_TRACK_MIN_HEIGHT_PX),
-    defaultValue: DEFAULT_TRACK_MIN_HEIGHT_PX,
-  });
 
-=======
->>>>>>> origin/main
   // Add command to toggle the theme.
   app.commands.registerCommand({
     id: 'dev.perfetto.ToggleTheme',
@@ -496,13 +481,10 @@ function onCssLoaded(app: AppImpl) {
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
   pluginManager.activatePlugins(app, overrides);
-<<<<<<< HEAD
 
   // Initialize analytics after plugins have been activated, so that plugins
   // (e.g. ExtensionServers) can add dimensions before GA is configured.
   app.analytics.initialize();
-=======
->>>>>>> origin/main
 }
 
 // This function is called only later after all the sub-resources (fonts,
