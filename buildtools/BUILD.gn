@@ -1686,6 +1686,9 @@ config("sqlite_config") {
     # we specify this flag.
     cflags += [ "-Wno-language-extension-token" ]
   }
+  if (is_gcc) {
+    cflags += [ "-Wno-stringop-overread" ]
+  }
 }
 
 source_set("sqlite") {
