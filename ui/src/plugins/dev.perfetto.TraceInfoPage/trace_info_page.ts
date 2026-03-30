@@ -20,7 +20,12 @@ import type {TabKey} from './utils';
 import {isValidTabKey} from './utils';
 import {OverviewTab, OverviewData, loadOverviewData} from './tabs/overview';
 import {ConfigTab, ConfigData, loadConfigData} from './tabs/config';
-import {AndroidTab, AndroidData, loadAndroidData} from './tabs/android';
+import {
+  AndroidTab,
+  AndroidData,
+  loadAndroidData,
+  hasAndroidData,
+} from './tabs/android';
 import {MachinesTab, MachinesData, loadMachinesData} from './tabs/machines';
 import {TracesTab, TracesData, loadTracesData} from './tabs/traces';
 import {
@@ -190,10 +195,7 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
     if ((this.tabData?.overview?.uiLoadingErrorCount ?? 0) > 0) {
       tabs.push({key: 'ui_loading_errors', title: 'UI Loading Errors'});
     }
-    const hasAndroid =
-      (this.tabData?.android?.packageList?.length ?? 0) > 0 ||
-      (this.tabData?.android?.gameInterventions?.length ?? 0) > 0;
-    if (hasAndroid) {
+    if (hasAndroidData(this.tabData?.android)) {
       tabs.push({key: 'android', title: 'Android'});
     }
     if ((this.tabData?.overview?.traceCount ?? 0) > 1) {

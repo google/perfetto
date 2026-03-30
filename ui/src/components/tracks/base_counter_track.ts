@@ -47,6 +47,53 @@ import {createVirtualTable} from '../../trace_processor/sql_utils';
 
 const BUCKETS_PER_PIXEL = 2;
 
+// Returns a SQL expression that computes the display value from a table
+// with `ts` and `value` columns, given the counter mode.
+export function counterValueExpression(yMode: CounterOptions['yMode']): string {
+  switch (yMode) {
+    case 'value':
+      return 'value';
+    case 'delta':
+      return 'lead(value, 1, value) over (order by ts) - value';
+    case 'rate':
+      return '(lead(value, 1, value) over (order by ts) - value) / ((lead(ts, 1, 100) over (order by ts) - ts) / 1e9)';
+    default:
+      assertUnreachable(yMode);
+  }
+}
+
+// Returns the display label for a counter value given the mode.
+export function counterDisplayLabel(yMode: CounterOptions['yMode']): string {
+  switch (yMode) {
+    case 'value':
+      return 'Value';
+    case 'delta':
+      return 'Delta';
+    case 'rate':
+      return 'Rate';
+    default:
+      assertUnreachable(yMode);
+  }
+}
+
+// Returns the unit string for a counter value given the mode.
+export function counterDisplayUnit(
+  yMode: CounterOptions['yMode'],
+  unit: string,
+  rateUnit: string,
+): string {
+  switch (yMode) {
+    case 'value':
+      return unit;
+    case 'delta':
+      return `\u0394${unit}`;
+    case 'rate':
+      return rateUnit;
+    default:
+      assertUnreachable(yMode);
+  }
+}
+
 function roundAway(n: number): number {
   const exp = Math.ceil(Math.log10(Math.max(Math.abs(n), 1)));
   const pow10 = Math.pow(10, exp);
@@ -485,17 +532,8 @@ export abstract class BaseCounterTrack implements TrackRenderer {
 
   private formatValue(value: number) {
     const options = this.getCounterOptions();
-    const unit = this.unit;
-    switch (options.yMode) {
-      case 'value':
-        return `${value.toLocaleString()} ${unit}`;
-      case 'delta':
-        return `${value.toLocaleString()} \u0394${unit}`;
-      case 'rate':
-        return `${value.toLocaleString()} ${this.rateUnit}`;
-      default:
-        assertUnreachable(options.yMode);
-    }
+    const unit = counterDisplayUnit(options.yMode, this.unit, this.rateUnit);
+    return `${value.toLocaleString()} ${unit}`;
   }
 
   // Extension points.
@@ -827,6 +865,8 @@ export abstract class BaseCounterTrack implements TrackRenderer {
         start: bounds.start,
         end: bounds.end,
         resolution: bounds.resolution,
+        yMode: options.yMode,
+        yDisplay: options.yDisplay,
       },
       queryFn: async (signal) => {
         const result = await this.trace.taskTracker.track(
@@ -1148,22 +1188,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
   // The underlying table has `ts` and `value` columns.
   private getValueExpression(): string {
     const options = this.getCounterOptions();
-
-    let valueExpr;
-    switch (options.yMode) {
-      case 'value':
-        valueExpr = 'value';
-        break;
-      case 'delta':
-        valueExpr = 'lead(value, 1, value) over (order by ts) - value';
-        break;
-      case 'rate':
-        valueExpr =
-          '(lead(value, 1, value) over (order by ts) - value) / ((lead(ts, 1, 100) over (order by ts) - ts) / 1e9)';
-        break;
-      default:
-        assertUnreachable(options.yMode);
-    }
+    const valueExpr = counterValueExpression(options.yMode);
 
     if (options.yDisplay === 'log') {
       return `ifnull(ln(${valueExpr}), 0)`;

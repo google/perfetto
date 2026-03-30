@@ -1,0 +1,58 @@
+/*
+ * Copyright (C) 2024 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_GPU_TRACKER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_GPU_TRACKER_H_
+
+#include <cstdint>
+#include <string_view>
+
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/types/trace_processor_context.h"
+
+namespace perfetto::trace_processor {
+
+class TraceProcessorContext;
+
+class GpuTracker {
+ public:
+  explicit GpuTracker(TraceProcessorContext*);
+
+  // Ensures the given gpu number exists in the GPU table for this machine,
+  // creating a new row if this is the first time this gpu number has been seen.
+  tables::GpuTable::Id GetOrCreateGpu(uint32_t gpu);
+
+  // Sets or updates the metadata for the specified GPU in the GpuTable.
+  tables::GpuTable::Id SetGpuInfo(uint32_t gpu,
+                                  std::string_view name,
+                                  std::string_view vendor,
+                                  std::string_view model,
+                                  std::string_view architecture,
+                                  std::string_view uuid,
+                                  std::string_view pci_bdf);
+
+ private:
+  TraceProcessorContext* const context_;
+
+  // Maps gpu number to GpuTable::Id for the current machine.
+  base::FlatHashMap<uint32_t, tables::GpuTable::Id> gpu_ids_;
+};
+
+}  // namespace perfetto::trace_processor
+
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_GPU_TRACKER_H_

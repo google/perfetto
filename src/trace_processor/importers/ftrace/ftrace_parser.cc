@@ -42,6 +42,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -435,6 +436,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
       v4l2_tracker_(context),
       virtio_gpu_tracker_(context),
       virtio_video_tracker_(context),
+      pixel_display_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
@@ -526,10 +528,6 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
       block_io_arg_sector_id_(context->storage->InternString("sector")),
       cpuhp_action_cpu_id_(context->storage->InternString("action_cpu")),
       cpuhp_idx_id_(context->storage->InternString("cpuhp_idx")),
-      disp_vblank_irq_enable_id_(
-          context_->storage->InternString("disp_vblank_irq_enable")),
-      disp_vblank_irq_enable_output_id_arg_name_(
-          context_->storage->InternString("output_id")),
       hrtimer_id_(context_->storage->InternString("hrtimer")),
       local_timer_id_(context_->storage->InternString("IRQ (LocalTimer)")),
       f2fs_checkpoint_name_id_(
@@ -1152,12 +1150,20 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseDpuDispDpuUnderrun(ts, fld_bytes);
         break;
       }
+      case FtraceEvent::kDpuDispFrameStartTimeoutFieldNumber: {
+        pixel_display_tracker_.ParseDpuDispFrameStartTimeout(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kDpuDispFrameDoneTimeoutFieldNumber: {
+        pixel_display_tracker_.ParseDpuDispFrameDoneTimeout(ts, fld_bytes);
+        break;
+      }
       case FtraceEvent::kGramCollisionFieldNumber: {
         ParseGramCollision(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kDpuDispVblankIrqEnableFieldNumber: {
-        ParseDpuDispVblankIrqEnable(ts, fld_bytes);
+        pixel_display_tracker_.ParseDpuDispVblankIrqEnable(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kMaliTracingMarkWriteFieldNumber: {
@@ -1880,8 +1886,10 @@ void FtraceParser::ParseCpuFreqThrottle(int64_t timestamp, ConstBytes blob) {
 
 void FtraceParser::ParseGpuFreq(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::GpuFrequencyFtraceEvent::Decoder freq(blob);
+  auto ugpu = context_->gpu_tracker->GetOrCreateGpu(freq.gpu_id());
   TrackId track = context_->track_tracker->InternTrack(
-      tracks::kGpuFrequencyBlueprint, tracks::Dimensions(freq.gpu_id()));
+      tracks::kGpuFrequencyBlueprint,
+      tracks::Dimensions(ugpu.value, freq.gpu_id()));
   context_->event_tracker->PushCounter(timestamp, freq.state(), track);
 }
 
@@ -1889,8 +1897,10 @@ void FtraceParser::ParseKgslGpuFreq(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::KgslGpuFrequencyFtraceEvent::Decoder freq(blob);
   // Source data is frequency / 1000, so we correct that here:
   double new_freq = static_cast<double>(freq.gpu_freq()) * 1000.0;
+  auto ugpu = context_->gpu_tracker->GetOrCreateGpu(freq.gpu_id());
   TrackId track = context_->track_tracker->InternTrack(
-      tracks::kGpuFrequencyBlueprint, tracks::Dimensions(freq.gpu_id()));
+      tracks::kGpuFrequencyBlueprint,
+      tracks::Dimensions(ugpu.value, freq.gpu_id()));
   context_->event_tracker->PushCounter(timestamp, new_freq, track);
 }
 
@@ -2054,31 +2064,6 @@ void FtraceParser::ParseGramCollision(int64_t timestamp, ConstBytes blob) {
             context_->storage->InternString(base::StringView("collision_cnt")),
             Variadic::Integer(ex.collision_cnt()));
       });
-}
-
-void FtraceParser::ParseDpuDispVblankIrqEnable(int64_t timestamp,
-                                               ConstBytes blob) {
-  protos::pbzero::DpuDispVblankIrqEnableFtraceEvent::Decoder ex(blob);
-
-  static constexpr auto kBlueprint = tracks::SliceBlueprint(
-      "disp_vblank_irq_enable",
-      tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("display_id")),
-      tracks::FnNameBlueprint([](uint32_t display_id) {
-        return base::StackString<256>("vblank_irq_en[%u]", display_id);
-      }));
-
-  TrackId track_id = context_->track_tracker->InternTrack(
-      kBlueprint, tracks::Dimensions(ex.id()));
-  if (ex.enable()) {
-    context_->slice_tracker->Begin(
-        timestamp, track_id, kNullStringId, disp_vblank_irq_enable_id_,
-        [&](ArgsTracker::BoundInserter* inserter) {
-          inserter->AddArg(disp_vblank_irq_enable_output_id_arg_name_,
-                           Variadic::Integer(ex.output_id()));
-        });
-  } else {
-    context_->slice_tracker->End(timestamp, track_id);
-  }
 }
 
 void FtraceParser::ParseG2dTracingMarkWrite(int64_t timestamp,
@@ -3050,12 +3035,16 @@ void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
                                     protozero::ConstBytes data) {
   protos::pbzero::GpuMemTotalFtraceEvent::Decoder gpu_mem_total(data);
 
+  const uint32_t gpu_id = gpu_mem_total.gpu_id();
+  auto ugpu = context_->gpu_tracker->GetOrCreateGpu(gpu_id);
+
   TrackId track;
   const uint32_t pid = gpu_mem_total.pid();
   if (pid == 0) {
     // Pid 0 is used to indicate the global total
-    track =
-        context_->track_tracker->InternTrack(tracks::kGlobalGpuMemoryBlueprint);
+    track = context_->track_tracker->InternTrack(
+        tracks::kGlobalGpuMemoryBlueprint,
+        tracks::Dimensions(ugpu.value, gpu_id));
   } else {
     // It's possible for GpuMemTotal ftrace events to be emitted by kworker
     // threads *after* process death. In this case, we simply want to discard
@@ -3077,7 +3066,8 @@ void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
     UniquePid upid = *context_->storage->thread_table()[*opt_utid].upid();
     PERFETTO_DCHECK(context_->storage->process_table()[upid].pid() == pid);
     track = context_->track_tracker->InternTrack(
-        tracks::kProcessGpuMemoryBlueprint, tracks::Dimensions(upid));
+        tracks::kProcessGpuMemoryBlueprint,
+        tracks::Dimensions(ugpu.value, gpu_id, upid));
   }
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(gpu_mem_total.size()), track);

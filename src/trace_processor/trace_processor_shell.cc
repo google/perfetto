@@ -79,6 +79,7 @@
 #endif
 
 #if PERFETTO_HAS_SIGNAL_H()
+#include <signal.h>
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -869,15 +870,27 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
                protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
         return base::OkStatus();
       }
-      {
-        auto run_status = result.subcommand->Run(ctx);
-        if (!run_status.ok()) {
-          return base::ErrStatus("%s\n\n%s", run_status.c_message(),
-                                 usage.c_str());
-        }
-        return base::OkStatus();
-      }
+
+      // Parse metric extensions and populate their descriptor pool. The
+      // pool is always created (built-in metrics need it for output
+      // formatting); extensions just add to it.
+      RETURN_IF_ERROR(ParseMetricExtensionPaths(global.dev,
+                                                global.raw_metric_v1_extensions,
+                                                global.metric_extensions));
+      global.metric_descriptor_pool =
+          std::make_unique<google::protobuf::DescriptorPool>(
+              google::protobuf::DescriptorPool::generated_pool());
+      RETURN_IF_ERROR(PopulateDescriptorPool(*global.metric_descriptor_pool,
+                                             global.metric_extensions));
+
+      return result.subcommand->Run(ctx);
     }
+  }
+
+  // No arguments at all: show the subcommand-based help.
+  if (argc == 1) {
+    PrintSubcommandHelp(argv[0]);
+    return base::OkStatus();
   }
 
   // Classic flag path: translate classic flags into a subcommand invocation
@@ -921,6 +934,10 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     if (!options.register_files_dir.empty()) {
       args.emplace_back("--register-files-dir");
       args.emplace_back(options.register_files_dir);
+    }
+    for (const auto& e : options.raw_metric_v1_extensions) {
+      args.emplace_back("--metric-extension");
+      args.emplace_back(e);
     }
     if (!options.metatrace_path.empty()) {
       args.emplace_back("--metatrace");
@@ -997,10 +1014,6 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     if (!options.metric_v1_output.empty()) {
       args.emplace_back("--output");
       args.emplace_back(options.metric_v1_output);
-    }
-    for (const auto& e : options.raw_metric_v1_extensions) {
-      args.emplace_back("--extension");
-      args.emplace_back(e);
     }
     if (!options.query_file_path.empty()) {
       args.emplace_back("--post-query");

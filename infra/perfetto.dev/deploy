@@ -69,5 +69,5 @@ EOF
 # -r: recursive.
 # The trailing slash appended to $OUT_DIR is to prevent that gsutil creates a
 # nested sub-directory inside gs://perfetto.dev/.
-gcloud storage rsync --gzip-in-flight="html,js,css,svg" --delete-unmatched-destination-objects --checksums-only --recursive \
+gsutil -m rsync -j html,js,css,svg -d -c -r \
   "$OUT_DIR/" gs://perfetto.dev/

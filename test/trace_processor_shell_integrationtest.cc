@@ -624,6 +624,163 @@ TEST(TraceProcessorShellIntegrationTest, MetricsSubcommandNoRunFails) {
   EXPECT_NE(result.exit_code, 0);
 }
 
+TEST(TraceProcessorShellIntegrationTest, NoArgsShowsSubcommandHelp) {
+  // Running with no arguments should show the subcommand help (not classic).
+  auto result = RunShell({});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("Commands:"));
+  EXPECT_THAT(result.out, HasSubstr("query"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, BadTraceFileShowsOnlyError) {
+  // When a trace file doesn't exist, only the error should be shown,
+  // not the full usage text.
+  auto result = RunShell({"interactive", "/nonexistent_trace.pb"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, Not(HasSubstr("Usage:")));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicBadTraceFileShowsOnlyError) {
+  // Classic path: bare nonexistent file should show only an error, not usage.
+  auto result = RunShell({"/nonexistent_trace.pb"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, Not(HasSubstr("Usage:")));
+}
+
+// ---------------------------------------------------------------------------
+// Classic: --metric-extension with --stdiod
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, ClassicMetricExtensionWithStdiod) {
+  // Regression test: --metric-extension was silently dropped when combined
+  // with --stdiod (or --httpd) after the classic-to-subcommand migration.
+  // The extension SQL should be registered and queryable via RPC.
+
+  // Create a metric extension directory with sql/ and protos/ subdirs.
+  auto ext_dir = base::TempDir::Create();
+  std::string sql_dir = ext_dir.path() + "/sql/";
+  std::string protos_dir = ext_dir.path() + "/protos/";
+  ASSERT_TRUE(base::Mkdir(sql_dir));
+  ASSERT_TRUE(base::Mkdir(protos_dir));
+
+  // Write a metric SQL file that creates a perfetto table. We verify the
+  // extension loaded by querying that table via RPC.
+  std::string sql_path = sql_dir + "test_ext_metric.sql";
+  {
+    std::string sql_content =
+        "CREATE PERFETTO TABLE _test_ext_marker AS SELECT 42 AS val;";
+    auto fd = base::OpenFile(sql_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    ASSERT_TRUE(fd);
+    base::WriteAll(*fd, sql_content.data(), sql_content.size());
+  }
+
+  // Ensure cleanup of files/dirs so TempDir destructor succeeds.
+  auto cleanup = base::OnScopeExit([&] {
+    unlink(sql_path.c_str());
+    base::Rmdir(sql_dir);
+    base::Rmdir(protos_dir);
+  });
+
+  // Build RPC: first run the metric extension SQL, then query the table it
+  // creates.
+  TraceProcessorRpcStream req;
+  auto* rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_QUERY_STREAMING);
+  rpc->mutable_query_args()->set_sql_query(
+      "SELECT RUN_METRIC('test_ext/test_ext_metric.sql')");
+
+  rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_QUERY_STREAMING);
+  rpc->mutable_query_args()->set_sql_query("SELECT val FROM _test_ext_marker");
+
+  std::string ext_arg = ext_dir.path() + "@test_ext/";
+
+  base::Subprocess process(
+      {ShellPath(), "--stdiod", "--metric-extension", ext_arg});
+  process.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  process.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.input = req.SerializeAsString();
+  process.Start();
+  ASSERT_TRUE(process.Wait(kDefaultTestTimeoutMs));
+  EXPECT_EQ(process.returncode(), 0);
+
+  TraceProcessorRpcStream stream;
+  stream.ParseFromString(process.output());
+  ASSERT_THAT(stream.msg(), SizeIs(2));
+
+  // First response: RUN_METRIC should succeed.
+  ASSERT_EQ(stream.msg()[0].response(), TraceProcessorRpc::TPM_QUERY_STREAMING);
+
+  // Second response: the table created by the metric extension should exist
+  // and contain val=42.
+  ASSERT_EQ(stream.msg()[1].response(), TraceProcessorRpc::TPM_QUERY_STREAMING);
+  ASSERT_THAT(stream.msg()[1].query_result().batch(), SizeIs(1));
+  EXPECT_THAT(stream.msg()[1].query_result().batch()[0].varint_cells(),
+              ElementsAre(42));
+}
+
+// ---------------------------------------------------------------------------
+// Classic: --add-sql-package with --stdiod
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, ClassicAddSqlPackageWithStdiod) {
+  // Verify --add-sql-package works with --stdiod (server subcommand).
+  // The package SQL should be includable via INCLUDE PERFETTO MODULE.
+
+  // Create a package directory with a SQL file.
+  auto pkg_dir = base::TempDir::Create();
+  std::string sql_path = pkg_dir.path() + "/hello.sql";
+  {
+    std::string sql_content =
+        "CREATE PERFETTO TABLE _test_pkg_marker AS SELECT 99 AS val;";
+    auto fd = base::OpenFile(sql_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    ASSERT_TRUE(fd);
+    base::WriteAll(*fd, sql_content.data(), sql_content.size());
+  }
+
+  auto cleanup = base::OnScopeExit([&] { unlink(sql_path.c_str()); });
+
+  // Extract package name from dir basename. The dir path ends with a random
+  // name like /tmp/perfetto-XXXXXX, so the package name is that basename.
+  // Override with @testpkg for a stable name.
+  std::string pkg_arg = pkg_dir.path() + "@testpkg";
+
+  TraceProcessorRpcStream req;
+  // Include the module, then query the table it creates.
+  auto* rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_QUERY_STREAMING);
+  rpc->mutable_query_args()->set_sql_query(
+      "INCLUDE PERFETTO MODULE testpkg.hello");
+
+  rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_QUERY_STREAMING);
+  rpc->mutable_query_args()->set_sql_query("SELECT val FROM _test_pkg_marker");
+
+  base::Subprocess process(
+      {ShellPath(), "--stdiod", "--add-sql-package", pkg_arg});
+  process.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  process.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.input = req.SerializeAsString();
+  process.Start();
+  ASSERT_TRUE(process.Wait(kDefaultTestTimeoutMs));
+  EXPECT_EQ(process.returncode(), 0);
+
+  TraceProcessorRpcStream stream;
+  stream.ParseFromString(process.output());
+  ASSERT_THAT(stream.msg(), SizeIs(2));
+
+  // First response: INCLUDE should succeed.
+  ASSERT_EQ(stream.msg()[0].response(), TraceProcessorRpc::TPM_QUERY_STREAMING);
+
+  // Second response: the table should exist with val=99.
+  ASSERT_EQ(stream.msg()[1].response(), TraceProcessorRpc::TPM_QUERY_STREAMING);
+  ASSERT_THAT(stream.msg()[1].query_result().batch(), SizeIs(1));
+  EXPECT_THAT(stream.msg()[1].query_result().batch()[0].varint_cells(),
+              ElementsAre(99));
+}
+
 // ---------------------------------------------------------------------------
 // Existing RPC test
 // ---------------------------------------------------------------------------

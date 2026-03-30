@@ -35,6 +35,7 @@
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/forward_decls.h"
+#include "src/traced/probes/android_aflags/android_aflags_data_source.h"
 #include "src/traced/probes/android_cpu_per_uid/android_cpu_per_uid_data_source.h"
 #include "src/traced/probes/android_game_intervention_list/android_game_intervention_list_data_source.h"
 #include "src/traced/probes/android_kernel_wakelocks/android_kernel_wakelocks_data_source.h"
@@ -187,6 +188,17 @@ ProbesProducer::CreateDSInstance<StatsdBinderDataSource>(
       task_runner_, session_id,
       endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall),
       config);
+}
+
+template <>
+std::unique_ptr<ProbesDataSource>
+ProbesProducer::CreateDSInstance<AndroidAflagsDataSource>(
+    TracingSessionID session_id,
+    const DataSourceConfig& config) {
+  auto buffer_id = static_cast<BufferID>(config.target_buffer());
+  return std::make_unique<AndroidAflagsDataSource>(
+      config, task_runner_, session_id,
+      endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall));
 }
 
 template <>
@@ -365,6 +377,7 @@ constexpr DataSourceTraits Ds() {
 }
 
 constexpr const DataSourceTraits kAllDataSources[] = {
+    Ds<AndroidAflagsDataSource>(),
     Ds<AndroidGameInterventionListDataSource>(),
     Ds<AndroidCpuPerUidDataSource>(),
     Ds<AndroidKernelWakelocksDataSource>(),

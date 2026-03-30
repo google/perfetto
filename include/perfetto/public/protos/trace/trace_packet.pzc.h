@@ -25,6 +25,7 @@
 
 #include "perfetto/public/pb_macros.h"
 
+PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidAflags);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidCameraFrameEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidCameraSessionStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidEnergyEstimationBreakdown);
@@ -93,6 +94,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_SysStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SystemInfo);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TestEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ThreadDescriptor);
+PERFETTO_PB_MSG_DECL(perfetto_protos_TraceAttributes);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TracePacket);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TracePacket_ProtoVms);
@@ -390,6 +392,16 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_TracePacket_ProtoVms,
                   protovms,
                   125);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_TraceAttributes,
+                  trace_attributes,
+                  126);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_AndroidAflags,
+                  android_aflags,
+                  127);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_ModuleSymbols,
