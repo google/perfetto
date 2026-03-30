@@ -21,34 +21,34 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/importers/common/create_mapping_params.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
+#include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
 #include "src/trace_processor/importers/perf/auxtrace_info_record.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/third_party/simpleperf/record_file.pbzero.h"
 
-namespace perfetto::trace_processor::etm {
-class EtmTracker;
-}
-
 namespace perfetto::trace_processor::perf_importer {
-
-class AuxDataTokenizer;
 
 class PerfTracker {
  public:
-  explicit PerfTracker(TraceProcessorContext* context);
+  // Registry of callbacks invoked during PerfTracker construction.
+  // Each callback receives the PerfTracker and registers aux tokenizers.
+  using AuxTokenizerRegistration = std::function<void(PerfTracker*)>;
+
+  explicit PerfTracker(
+      TraceProcessorContext* context,
+      const std::vector<AuxTokenizerRegistration>& aux_registrations = {});
 
   using AuxDataTokenizerFactory =
       std::function<base::StatusOr<std::unique_ptr<AuxDataTokenizer>>(
           TraceProcessorContext*,
-          etm::EtmTracker*,
           AuxtraceInfoRecord)>;
   void RegisterAuxTokenizer(uint32_t type, AuxDataTokenizerFactory factory);
 
@@ -64,15 +64,12 @@ class PerfTracker {
                                UniquePid upid,
                                CreateMappingParams params);
 
-  void OnEventsFullyExtracted();
-
  private:
   void AddMapping(int64_t trace_ts,
                   std::optional<UniquePid> upid,
                   const VirtualMemoryMapping& mapping);
 
   TraceProcessorContext* const context_;
-  std::unique_ptr<Destructible> etm_tracker_;
 
   base::FlatHashMap<uint32_t, AuxDataTokenizerFactory> factories_;
 };
