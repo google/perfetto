@@ -8130,6 +8130,7 @@ perfetto_proto_library(
     name = "protos_perfetto_trace_system_info_protos",
     srcs = [
         "protos/perfetto/trace/system_info/cpu_info.proto",
+        "protos/perfetto/trace/system_info/gpu_info.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,

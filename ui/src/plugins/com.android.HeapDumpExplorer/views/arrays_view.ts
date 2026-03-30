@@ -29,6 +29,7 @@ import {
   shortClassName,
   RowCounter,
 } from '../components';
+import {clearNavParam} from '../nav_state';
 
 const QUERY = `
   SELECT
@@ -107,21 +108,28 @@ interface ArraysViewAttrs {
 function ArraysView(): m.Component<ArraysViewAttrs> {
   let dataSource: SQLDataSource | null = null;
   const counter = new RowCounter();
+  let filters: Filter[] = [];
+
+  function applyNavFilter(ah: string | undefined) {
+    if (!ah) return;
+    filters = [{field: 'array_hash', op: '=' as const, value: ah}];
+    counter.onFiltersChanged(filters);
+    clearNavParam('arrayHash');
+  }
 
   return {
     oninit(vnode) {
-      const {engine, initialArrayHash} = vnode.attrs;
+      const {engine} = vnode.attrs;
       dataSource = new SQLDataSource({
         engine,
         sqlSchema: createSimpleSchema(QUERY),
         rootSchemaName: 'query',
       });
       counter.init(engine, QUERY);
-      if (initialArrayHash) {
-        counter.onFiltersChanged([
-          {field: 'array_hash', op: '=' as const, value: initialArrayHash},
-        ]);
-      }
+      applyNavFilter(vnode.attrs.initialArrayHash);
+    },
+    onupdate(vnode) {
+      applyNavFilter(vnode.attrs.initialArrayHash);
     },
     view(vnode) {
       const {navigate} = vnode.attrs;
@@ -134,16 +142,6 @@ function ArraysView(): m.Component<ArraysViewAttrs> {
       }
 
       if (!dataSource) return null;
-
-      const hashFilter: Filter[] = vnode.attrs.initialArrayHash
-        ? [
-            {
-              field: 'array_hash',
-              op: '=' as const,
-              value: vnode.attrs.initialArrayHash,
-            },
-          ]
-        : [];
 
       return m('div', {class: 'ah-view-content'}, [
         m('h2', {class: 'ah-view-heading'}, counter.heading('Arrays')),
@@ -160,9 +158,12 @@ function ArraysView(): m.Component<ArraysViewAttrs> {
             {id: 'heap', field: 'heap'},
             {id: 'id', field: 'id'},
           ],
-          ...(hashFilter.length > 0 ? {initialFilters: hashFilter} : {}),
+          filters,
           showExportButton: true,
-          onFiltersChanged: counter.onFiltersChanged,
+          onFiltersChanged: (f) => {
+            filters = [...f];
+            counter.onFiltersChanged(f);
+          },
         }),
       ]);
     },

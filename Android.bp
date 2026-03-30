@@ -3574,6 +3574,7 @@ filegroup {
         "protos/perfetto/trace/statsd/statsd_atom.proto",
         "protos/perfetto/trace/sys_stats/sys_stats.proto",
         "protos/perfetto/trace/system_info/cpu_info.proto",
+        "protos/perfetto/trace/system_info/gpu_info.proto",
         "protos/perfetto/trace/test_event.proto",
         "protos/perfetto/trace/test_extensions.proto",
         "protos/perfetto/trace/trace.proto",
@@ -8843,6 +8844,7 @@ genrule {
         "protos/perfetto/trace/statsd/statsd_atom.proto",
         "protos/perfetto/trace/sys_stats/sys_stats.proto",
         "protos/perfetto/trace/system_info/cpu_info.proto",
+        "protos/perfetto/trace/system_info/gpu_info.proto",
         "protos/perfetto/trace/test_event.proto",
         "protos/perfetto/trace/test_extensions.proto",
         "protos/perfetto/trace/trace.proto",
@@ -12395,6 +12397,7 @@ filegroup {
     name: "perfetto_protos_perfetto_trace_system_info_cpp",
     srcs: [
         "protos/perfetto/trace/system_info/cpu_info.proto",
+        "protos/perfetto/trace/system_info/gpu_info.proto",
     ],
 }
 
@@ -12411,6 +12414,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_system_info_cpp)",
     out: [
         "external/perfetto/protos/perfetto/trace/system_info/cpu_info.gen.cc",
+        "external/perfetto/protos/perfetto/trace/system_info/gpu_info.gen.cc",
     ],
 }
 
@@ -12427,6 +12431,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_system_info_cpp)",
     out: [
         "external/perfetto/protos/perfetto/trace/system_info/cpu_info.gen.h",
+        "external/perfetto/protos/perfetto/trace/system_info/gpu_info.gen.h",
     ],
     export_include_dirs: [
         ".",
@@ -12439,6 +12444,7 @@ filegroup {
     name: "perfetto_protos_perfetto_trace_system_info_lite",
     srcs: [
         "protos/perfetto/trace/system_info/cpu_info.proto",
+        "protos/perfetto/trace/system_info/gpu_info.proto",
     ],
 }
 
@@ -12454,6 +12460,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_system_info_lite)",
     out: [
         "external/perfetto/protos/perfetto/trace/system_info/cpu_info.pb.cc",
+        "external/perfetto/protos/perfetto/trace/system_info/gpu_info.pb.cc",
     ],
 }
 
@@ -12469,6 +12476,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_system_info_lite)",
     out: [
         "external/perfetto/protos/perfetto/trace/system_info/cpu_info.pb.h",
+        "external/perfetto/protos/perfetto/trace/system_info/gpu_info.pb.h",
     ],
     export_include_dirs: [
         ".",
@@ -12481,6 +12489,7 @@ filegroup {
     name: "perfetto_protos_perfetto_trace_system_info_zero",
     srcs: [
         "protos/perfetto/trace/system_info/cpu_info.proto",
+        "protos/perfetto/trace/system_info/gpu_info.proto",
     ],
 }
 
@@ -12497,6 +12506,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_system_info_zero)",
     out: [
         "external/perfetto/protos/perfetto/trace/system_info/cpu_info.pbzero.cc",
+        "external/perfetto/protos/perfetto/trace/system_info/gpu_info.pbzero.cc",
     ],
 }
 
@@ -12513,6 +12523,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_system_info_zero)",
     out: [
         "external/perfetto/protos/perfetto/trace/system_info/cpu_info.pbzero.h",
+        "external/perfetto/protos/perfetto/trace/system_info/gpu_info.pbzero.h",
     ],
     export_include_dirs: [
         ".",
@@ -19036,6 +19047,7 @@ java_library {
         "protos/perfetto/trace/statsd/statsd_atom.proto",
         "protos/perfetto/trace/sys_stats/sys_stats.proto",
         "protos/perfetto/trace/system_info/cpu_info.proto",
+        "protos/perfetto/trace/system_info/gpu_info.proto",
         "protos/perfetto/trace/test_event.proto",
         "protos/perfetto/trace/test_extensions.proto",
         "protos/perfetto/trace/trace.proto",
