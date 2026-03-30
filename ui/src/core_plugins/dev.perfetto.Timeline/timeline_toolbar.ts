@@ -113,9 +113,10 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
           },
           `Changes apply to all selected tracks`,
         ),
-        m(MenuDivider, {label: 'Workspace'}),
+        m(MenuTitle, {label: 'Workspace'}),
         this.renderCopySelectedTracksToWorkspace(trace, selection),
-        m(MenuDivider, {label: 'Bulk track settings'}, settingsMenuItems),
+        m(MenuTitle, {label: 'Bulk track settings'}),
+        settingsMenuItems,
       ],
     );
   }
