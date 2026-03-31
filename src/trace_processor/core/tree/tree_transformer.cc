@@ -107,6 +107,36 @@ void PushColumnValue(dataframe::AdhocDataframeBuilder& builder,
   }
 }
 
+// Builds the data columns portion of the output dataframe.
+// |get_col_source| is called with column index and must return a pair of
+// (data pointer, null bitvector reference).
+template <typename F>
+base::StatusOr<dataframe::Dataframe> BuildDataColumns(
+    const std::vector<std::string>& names,
+    const std::vector<TreeColumns::Column>& col_defs,
+    uint32_t row_count,
+    StringPool* pool,
+    F get_col_source) {
+  auto builder = dataframe::AdhocDataframeBuilder(
+      names, pool,
+      dataframe::AdhocDataframeBuilder::Options{
+          {},
+          dataframe::NullabilityType::kDenseNull,
+      });
+  for (uint32_t ci = 0; ci < names.size(); ++ci) {
+    auto [data, null_bv] = get_col_source(ci);
+    bool has_null = null_bv.size() > 0;
+    for (uint32_t row = 0; row < row_count; ++row) {
+      if (has_null && !null_bv.is_set(row)) {
+        builder.PushNull(ci);
+      } else {
+        PushColumnValue(builder, ci, col_defs[ci].type, data, row);
+      }
+    }
+  }
+  return std::move(builder).Build();
+}
+
 }  // namespace
 
 TreeTransformer::TreeTransformer(TreeColumns cols, StringPool* pool)
@@ -353,24 +383,14 @@ base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
     }
     ASSIGN_OR_RETURN(auto tree_cols, std::move(tree_builder).Build());
 
-    auto data_builder = dataframe::AdhocDataframeBuilder(
-        cols_.names, pool_,
-        dataframe::AdhocDataframeBuilder::Options{
-            {},
-            dataframe::NullabilityType::kDenseNull,
-        });
-    for (uint32_t ci = 0; ci < cols_.columns.size(); ++ci) {
-      const auto& col = cols_.columns[ci];
-      bool has_null = col.null_bv.size() > 0;
-      for (uint32_t row = 0; row < n; ++row) {
-        if (has_null && !col.null_bv.is_set(row)) {
-          data_builder.PushNull(ci);
-        } else {
-          PushColumnValue(data_builder, ci, col.type, col.data.begin(), row);
-        }
-      }
-    }
-    ASSIGN_OR_RETURN(auto data_cols, std::move(data_builder).Build());
+    ASSIGN_OR_RETURN(
+        auto data_cols,
+        BuildDataColumns(
+            cols_.names, cols_.columns, n, pool_,
+            [&](uint32_t ci) -> std::pair<const uint8_t*, const BitVector&> {
+              return {cols_.columns[ci].data.begin(),
+                      cols_.columns[ci].null_bv};
+            }));
     return dataframe::Dataframe::HorizontalConcat(std::move(tree_cols),
                                                   std::move(data_cols));
   }
@@ -388,8 +408,6 @@ base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
     cs.data = std::move(col.data);
     cs.elem_size = col.elem_size;
     ts->columns.push_back(std::move(cs));
-  }
-  for (auto& col : cols_.columns) {
     ts->null_bitvectors.push_back(std::move(col.null_bv));
   }
 
@@ -479,26 +497,14 @@ base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
   }
   ASSIGN_OR_RETURN(auto tree_cols, std::move(tree_builder).Build());
 
-  auto data_builder = dataframe::AdhocDataframeBuilder(
-      cols_.names, pool_,
-      dataframe::AdhocDataframeBuilder::Options{
-          {},
-          dataframe::NullabilityType::kDenseNull,
-      });
-  for (uint32_t ci = 0; ci < cols_.names.size(); ++ci) {
-    const auto& ts_col = final_ts.columns[ci];
-    const auto& bv = final_ts.null_bitvectors[ci];
-    bool has_null = bv.size() > 0;
-    for (uint32_t row = 0; row < final_count; ++row) {
-      if (has_null && !bv.is_set(row)) {
-        data_builder.PushNull(ci);
-      } else {
-        PushColumnValue(data_builder, ci, cols_.columns[ci].type,
-                        ts_col.data.begin(), row);
-      }
-    }
-  }
-  ASSIGN_OR_RETURN(auto data_cols, std::move(data_builder).Build());
+  ASSIGN_OR_RETURN(
+      auto data_cols,
+      BuildDataColumns(
+          cols_.names, cols_.columns, final_count, pool_,
+          [&](uint32_t ci) -> std::pair<const uint8_t*, const BitVector&> {
+            return {final_ts.columns[ci].data.begin(),
+                    final_ts.null_bitvectors[ci]};
+          }));
   return dataframe::Dataframe::HorizontalConcat(std::move(tree_cols),
                                                 std::move(data_cols));
 }
