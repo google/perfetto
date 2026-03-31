@@ -177,6 +177,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../base:clock_snapshots",
       "../protozero",
       "core/dataframe",
+      "core/plugin",
       "importers/android_bugreport",
       "importers/archive",
       "importers/art_hprof",
