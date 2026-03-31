@@ -22,10 +22,7 @@
 #include <string_view>
 #include <vector>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/status_or.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_RE2)
 
 // Using quotes instead of angle brackets because Bazel passes external repo
 // paths via -iquote (not -isystem), which only covers quoted includes.
@@ -120,7 +117,5 @@ class RegexRe2 {
 
 }  // namespace base
 }  // namespace perfetto
-
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_RE2)
 
 #endif  // SRC_BASE_REGEX_REGEX_RE2_H_

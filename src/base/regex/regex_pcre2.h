@@ -23,10 +23,7 @@
 #include <string_view>
 #include <vector>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/status_or.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_PCRE2)
 
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
@@ -184,12 +181,16 @@ class RegexPcre2 {
   }
 
   ScopedPcre2Code code_;
+  // pcre2_match() requires a non-null match_data even when capture groups
+  // aren't needed (FullMatch, PartialMatch). A separate minimal match_data
+  // with ovecsize=1 could be used for those cases, but the savings are
+  // negligible: PCRE2's internal backtracking frame size depends on the
+  // pattern's capture groups regardless of ovector size. We reuse a single
+  // cached match_data created from the pattern to avoid per-call allocation.
   mutable ScopedPcre2MatchData match_data_;
 };
 
 }  // namespace base
 }  // namespace perfetto
-
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_PCRE2)
 
 #endif  // SRC_BASE_REGEX_REGEX_PCRE2_H_

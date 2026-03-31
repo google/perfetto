@@ -94,10 +94,14 @@ perfetto_component("base") {
 source_set("regex") {
   sources = [
     "regex/regex.cc",
-    "regex/regex_pcre2.h",
-    "regex/regex_re2.h",
     "regex/regex_std.h",
   ]
+  if (enable_perfetto_re2) {
+    sources += [ "regex/regex_re2.h" ]
+  }
+  if (enable_perfetto_pcre2) {
+    sources += [ "regex/regex_pcre2.h" ]
+  }
   deps = [ "../../gn:default_deps" ]
   public_deps = [
     "../../include/perfetto/base",

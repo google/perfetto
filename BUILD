@@ -1716,7 +1716,6 @@ perfetto_filegroup(
     name = "src_base_regex",
     srcs = [
         "src/base/regex/regex.cc",
-        "src/base/regex/regex_pcre2.h",
         "src/base/regex/regex_re2.h",
         "src/base/regex/regex_std.h",
     ],
