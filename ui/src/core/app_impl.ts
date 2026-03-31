@@ -75,7 +75,7 @@ export class AppImpl implements App {
   readonly commands = new CommandManagerImpl(this.omnibox);
   readonly pages: PageManagerImpl;
   readonly sidebar: SidebarManagerImpl;
-  readonly plugins = new PluginManagerImpl();
+  readonly plugins: PluginManagerImpl;
   readonly perfDebugging = new PerfManager();
   readonly analytics: AnalyticsInternal;
   readonly serviceWorkerController = new ServiceWorkerController();
@@ -153,6 +153,7 @@ export class AppImpl implements App {
       hidden: this.initialRouteArgs.hideSidebar,
     });
     this.embedder = createEmbedder();
+    this.plugins = new PluginManagerImpl(this.embedder.defaultPlugins);
     this.analytics = initAnalytics(
       this.testingMode,
       this.embeddedMode,
