@@ -13,6 +13,22 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {type SnapshotData} from './memento_session';
+
+/** Compute the earliest timestamp across all data. */
+export function computeT0(data: SnapshotData): number {
+  let minTs = Infinity;
+  for (const arr of data.systemCounters.values()) {
+    if (arr.length > 0 && arr[0].ts < minTs) minTs = arr[0].ts;
+  }
+  for (const counterMap of data.processCountersByName.values()) {
+    for (const byTs of counterMap.values()) {
+      const firstTs = byTs.keys().next().value;
+      if (firstTs !== undefined && firstTs < minTs) minTs = firstTs;
+    }
+  }
+  return minTs < Infinity ? minTs : 0;
+}
 
 export function panel(
   title: string,

@@ -53,7 +53,7 @@ export default class implements PerfettoPlugin {
 
         return m(ConnectionPage, {
           onConnected: (result) => {
-            session = new MementoSession(result);
+            session = new MementoSession(app, result);
             session.onSnapshot(() => m.redraw());
           },
         });

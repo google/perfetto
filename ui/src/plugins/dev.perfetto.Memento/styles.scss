@@ -21,10 +21,9 @@
 }
 
 .pf-memento-page {
-  max-width: 1500px;
   width: 100%;
   margin-inline: auto;
-  padding: 24px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -33,21 +32,39 @@
 // Page title bar.
 .pf-memento-title-bar {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 16px;
+
   h1 {
     margin: 0;
-    font-size: 22px;
+    font-size: 26px;
     font-weight: 600;
-    color: var(--pf-color-text);
+
+    // Fancy gradient background clipped to the text.
+    background: linear-gradient(
+      90deg,
+      var(--pf-color-primary),
+      var(--pf-color-accent)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 }
 
 .pf-memento-title-bar__left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+// Thin vertical rule that separates logical groups in the toolbar.
+.pf-memento-title-bar__sep {
+  width: 1px;
+  height: 18px;
+  background: var(--pf-color-border);
   flex-shrink: 0;
 }
 
@@ -55,6 +72,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  font-size: var(--pf-font-size-m);
+  font-weight: 500;
   color: var(--pf-color-text-muted);
 }
 
@@ -66,29 +85,68 @@
 
 // Snapshot info popup content.
 .pf-memento-snapshot-info {
-  padding: 8px 12px;
-  min-width: 180px;
+  padding: 4px 6px;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pf-memento-snapshot-info__heading {
+  font-size: var(--pf-font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--pf-color-text-muted);
+  margin-bottom: 4px;
 }
 
 .pf-memento-snapshot-info__row {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-  padding: 3px 0;
+  gap: 24px;
+  padding: 2px 0;
   font-size: var(--pf-font-size-s);
   color: var(--pf-color-text);
+
   span:first-child {
     color: var(--pf-color-text-muted);
   }
+
+  &.pf-memento-snapshot-info__sum {
+    margin-top: 6px;
+    padding-top: 8px;
+    border-top: 1px solid var(--pf-color-border);
+    font-weight: 600;
+    font-size: var(--pf-font-size-m);
+
+    span:first-child {
+      color: var(--pf-color-text);
+    }
+  }
 }
 
-.pf-memento-snapshot-info__warning {
-  margin-top: 6px;
-  padding: 4px 8px;
+.pf-memento-snapshot-info__overrun {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 5px 8px;
   border-radius: 4px;
   font-size: var(--pf-font-size-xs);
-  background: var(--pf-color-error-container);
-  color: var(--pf-color-error);
+  background: var(--pf-color-warning-container);
+  color: var(--pf-color-warning);
+
+  .material-icons {
+    font-size: 13px;
+  }
+}
+
+.pf-memento-snapshot-info__empty {
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-muted);
+  font-style: italic;
+  padding: 4px 0;
 }
 
 .pf-memento-status-bar__dot {
@@ -129,12 +187,6 @@
   font-size: var(--pf-font-size-s);
 }
 
-// Top-level tab bar.
-.pf-memento-tabs {
-  display: flex;
-  align-items: center;
-}
-
 // Billboard stat cards.
 .pf-memento-billboards {
   display: flex;
@@ -142,7 +194,6 @@
 }
 
 .pf-memento-billboard {
-  flex: 1;
   padding: 14px 16px;
   border-radius: 8px;
   border: 1px solid var(--pf-color-border-secondary);
@@ -196,8 +247,6 @@
   padding: 8px 14px;
   border-radius: 6px;
   background: var(--pf-color-background-secondary);
-  font-size: var(--pf-font-size-s);
-  color: var(--pf-color-text);
 }
 
 .pf-memento-profile-bar__left {
@@ -233,18 +282,24 @@
 .pf-memento-panel__title-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+
+  h2 {
+    flex: 1;
+  }
 }
 
 .pf-memento-panel__header {
   padding: 12px 16px;
   border-bottom: 1px solid var(--pf-color-border-secondary);
+
   h2 {
     margin: 0;
     font-size: 14px;
     font-weight: 600;
     color: var(--pf-color-text);
   }
+
   p {
     margin: 4px 0 0 0;
     font-size: var(--pf-font-size-s);
@@ -256,8 +311,8 @@
 .pf-memento-panel__controls {
   display: flex;
   gap: 8px;
-  margin-top: 8px;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .pf-memento-panel__body {
@@ -315,6 +370,8 @@
 .pf-memento-page {
   .pf-data-grid {
     height: 600px;
+    border-radius: 8px;
+    border: 1px solid var(--pf-color-border-secondary);
   }
 
   .pf-memento-profile-btn {
@@ -359,4 +416,14 @@
 .pf-memento-profiling-status__active {
   color: #4caf50;
   font-weight: 600;
+}
+
+.pf-memento-process-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+
+  .pf-button {
+    margin-top: -2px;
+  }
 }

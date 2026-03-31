@@ -24,8 +24,11 @@ import {
 } from '../dev.perfetto.RecordTraceV2/adb/adb_tracing_session';
 import {TracingSession} from '../dev.perfetto.RecordTraceV2/interfaces/tracing_session';
 import {TracedWebsocketTarget} from '../dev.perfetto.RecordTraceV2/traced_over_websocket/traced_websocket_target';
+import {App} from '../../public/app';
 import {ConnectionResult} from './connection_page';
-import {ProcessProfile} from './process_profile';
+import {ProcessProfile, type ProfileState} from './process_profile';
+
+export type {ProfileState};
 
 let engineCounter = 0;
 
@@ -78,6 +81,7 @@ export type OnSnapshotCallback = (data: SnapshotData) => void;
  * notifies registered callbacks.
  */
 export class MementoSession {
+  private readonly app: App;
   private session?: TracingSession;
   private engine?: WasmEngineProxy;
   private readonly sessionName: string;
@@ -105,7 +109,43 @@ export class MementoSession {
   // True when the last snapshot took longer than the configured interval.
   snapshotOverrun = false;
 
-  constructor(conn: ConnectionResult) {
+  // Active process profile (if any).
+  private activeProfile?: ProcessProfile;
+  private profileStartMs?: number;
+
+  /** The PID being profiled, or undefined if no profile is active. */
+  get profilePid(): number | undefined {
+    return this.activeProfile?.pid;
+  }
+
+  /** The process name being profiled. */
+  get profileProcessName(): string | undefined {
+    return this.activeProfile?.processName;
+  }
+
+  /** The state of the active profile. */
+  get profileState(): ProfileState | undefined {
+    return this.activeProfile?.state;
+  }
+
+  /** Whether a profile is currently active. */
+  get isProfiling(): boolean {
+    return this.activeProfile !== undefined;
+  }
+
+  /** Formatted duration of the active profile, e.g. "1m 22s". Empty when stopping. */
+  get profileDuration(): string {
+    if (this.profileStartMs === undefined) return '';
+    if (this.activeProfile?.state === 'stopping') return '';
+    const elapsed = Math.floor((Date.now() - this.profileStartMs) / 1000);
+    const mins = Math.floor(elapsed / 60);
+    const secs = elapsed % 60;
+    if (mins > 0) return `${mins}m ${secs}s`;
+    return `${secs}s`;
+  }
+
+  constructor(app: App, conn: ConnectionResult) {
+    this.app = app;
     this.device = conn.device;
     this.linuxTarget = conn.linuxTarget;
     this.deviceName = conn.deviceName;
@@ -138,10 +178,10 @@ export class MementoSession {
   }
 
   /** Starts a heap profiling session for a single process. */
-  async startProcessProfile(
-    pid: number,
-    processName: string,
-  ): Promise<ProcessProfile> {
+  async startProfile(pid: number, processName: string): Promise<void> {
+    if (this.activeProfile) {
+      await this.activeProfile.cancel();
+    }
     const config: protos.ITraceConfig = {
       buffers: [
         {
@@ -189,7 +229,36 @@ export class MementoSession {
     if (!result.ok) {
       throw new Error(`Failed to start profile: ${result.error}`);
     }
-    return new ProcessProfile(result.value, pid, processName);
+    this.activeProfile = new ProcessProfile(result.value, pid, processName);
+    this.profileStartMs = Date.now();
+  }
+
+  /** Stops the active profile and opens the trace in the main UI. */
+  async stopAndOpenProfile(): Promise<void> {
+    const profile = this.activeProfile;
+    if (!profile) return;
+    const processName = profile.processName;
+    const pid = profile.pid;
+    await profile.stop();
+    const traceData = profile.getTraceData();
+    this.clearProfile();
+    if (traceData) {
+      const fileName = `heap-${processName}-${pid}.perfetto-trace`;
+      const buffer = traceData.buffer as ArrayBuffer;
+      this.app.openTraceFromBuffer({buffer, title: fileName, fileName});
+    }
+  }
+
+  /** Cancels the active profile and discards data. */
+  async cancelProfile(): Promise<void> {
+    if (!this.activeProfile) return;
+    await this.activeProfile.cancel();
+    this.clearProfile();
+  }
+
+  private clearProfile(): void {
+    this.activeProfile = undefined;
+    this.profileStartMs = undefined;
   }
 
   /** Stops the tracing session, polling, and disposes of the engine. */
@@ -216,10 +285,14 @@ export class MementoSession {
     }
     this.session = result.value;
     this.status = 'Session started. Waiting for first snapshot...';
-    this.scheduleSnapshot();
+
+    // Schedule the first snapshot immediately to minimize time to first data.
+    // Subsequent snapshots will be scheduled at the end of the poll() method to
+    // ensure a consistent interval.
+    this.scheduleSnapshot(1000); // Initial delay
   }
 
-  private scheduleSnapshot(delayMs = this.snapshotIntervalMs) {
+  private scheduleSnapshot(delayMs = 0) {
     this.timer = setTimeout(() => this.poll(), Math.max(0, delayMs));
   }
 

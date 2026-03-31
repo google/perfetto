@@ -22,6 +22,7 @@ import {Chip} from '../../widgets/chip';
 import {Icon} from '../../widgets/icon';
 import {Intent} from '../../widgets/common';
 import {formatKb} from './utils';
+import {Icons} from '../../base/semantic_icons';
 
 export interface ProfilePageData {
   processName: string;
@@ -68,7 +69,7 @@ export function renderProcessProfilePage(
         !data.stopping &&
           m(Button, {
             label: 'Stop & Open Trace',
-            icon: 'stop',
+            icon: Icons.ExternalLink,
             variant: ButtonVariant.Filled,
             intent: Intent.Primary,
             onclick: () => callbacks.onStop(),
@@ -77,6 +78,7 @@ export function renderProcessProfilePage(
           m(Button, {
             label: 'Cancel',
             icon: 'close',
+            variant: ButtonVariant.Filled,
             onclick: () => callbacks.onCancel(),
           }),
       ),
