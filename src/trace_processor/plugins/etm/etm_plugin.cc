@@ -71,9 +71,8 @@ void EtmPlugin::RegisterImporters(TraceProcessorContext* context) {
       });
 }
 
-void EtmPlugin::RegisterDataframes(
-    TraceProcessorContext*,
-    std::vector<PluginDataframe>& tables) {
+void EtmPlugin::RegisterDataframes(TraceProcessorContext*,
+                                   std::vector<PluginDataframe>& tables) {
   tables.push_back({&configuration_table_->dataframe(),
                     tables::EtmV4ConfigurationTable::Name()});
   tables.push_back(
@@ -85,12 +84,10 @@ void EtmPlugin::RegisterDataframes(
 void EtmPlugin::RegisterSqliteModules(
     TraceProcessorContext*,
     std::vector<SqliteModuleRegistration>& modules) {
-  modules.push_back(
-      MakeSqliteModule<etm::EtmDecodeChunkVtable>(
-          "__intrinsic_etm_decode_chunk", this));
-  modules.push_back(
-      MakeSqliteModule<etm::EtmIterateRangeVtable>(
-          "__intrinsic_etm_iterate_instruction_range", this));
+  modules.push_back(MakeSqliteModule<etm::EtmDecodeChunkVtable>(
+      "__intrinsic_etm_decode_chunk", this));
+  modules.push_back(MakeSqliteModule<etm::EtmIterateRangeVtable>(
+      "__intrinsic_etm_iterate_instruction_range", this));
 }
 
 }  // namespace perfetto::trace_processor
