@@ -160,6 +160,7 @@ class StorageTablesPlugin : public Plugin<StorageTablesPlugin> {
     AddDataframe(out, s->mutable_android_key_events_table());
     AddDataframe(out, s->mutable_android_motion_events_table());
     AddDataframe(out, s->mutable_android_input_event_dispatch_table());
+    AddDataframe(out, s->mutable_android_job_scheduler_track_event_table());
     AddDataframe(out, s->mutable_inputmethod_clients_table());
     AddDataframe(out, s->mutable_inputmethod_manager_service_table());
     AddDataframe(out, s->mutable_inputmethod_service_table());
