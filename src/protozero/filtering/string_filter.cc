@@ -88,8 +88,8 @@ void RedactMatches(const std::vector<std::string_view>& matches) {
   // Go through every group in the matches.
   for (size_t i = 1; i < matches.size(); ++i) {
     const auto& match = matches[i];
-    // Skip unmatched optional groups (e.g., (a)? when 'a' is absent returns
-    // an empty string_view) — there is nothing to redact.
+    // Skip unmatched optional groups: empty string_view may have nullptr
+    // data(), and passing nullptr to memcpy/memset is UB even with size 0.
     if (match.empty())
       continue;
 
