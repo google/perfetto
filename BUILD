@@ -458,7 +458,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
-        ":src_trace_processor_util_regex",
         ":src_trace_processor_util_simple_json_parser",
         ":src_trace_processor_util_simple_json_serializer",
         ":src_trace_processor_util_sql_argument",
@@ -678,7 +677,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
-        ":src_trace_processor_util_regex",
         ":src_trace_processor_util_simple_json_parser",
         ":src_trace_processor_util_simple_json_serializer",
         ":src_trace_processor_util_sql_argument",
@@ -1687,7 +1685,8 @@ perfetto_cc_library(
         "src/base/log_ring_buffer.h",
     ],
     deps = [
-    ] + PERFETTO_CONFIG.deps.base_platform,
+           ] + PERFETTO_CONFIG.deps.base_platform +
+           PERFETTO_CONFIG.deps.re2,
     linkstatic = True,
 )
 
@@ -1715,6 +1714,7 @@ perfetto_filegroup(
     name = "src_base_regex",
     srcs = [
         "src/base/regex/regex.cc",
+        "src/base/regex/regex_re2.h",
         "src/base/regex/regex_std.h",
     ],
 )
@@ -4596,14 +4596,6 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/util/protozero_to_text.cc",
         "src/trace_processor/util/protozero_to_text.h",
-    ],
-)
-
-# GN target: //src/trace_processor/util:regex
-perfetto_filegroup(
-    name = "src_trace_processor_util_regex",
-    srcs = [
-        "src/trace_processor/util/regex.h",
     ],
 )
 
@@ -8755,7 +8747,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
-        ":src_trace_processor_util_regex",
         ":src_trace_processor_util_simple_json_parser",
         ":src_trace_processor_util_simple_json_serializer",
         ":src_trace_processor_util_sql_argument",
@@ -9001,7 +8992,6 @@ perfetto_cc_binary(
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
-        ":src_trace_processor_util_regex",
         ":src_trace_processor_util_simple_json_parser",
         ":src_trace_processor_util_simple_json_serializer",
         ":src_trace_processor_util_sql_argument",

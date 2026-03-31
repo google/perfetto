@@ -21,8 +21,18 @@
 #include <string_view>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flags.h"
+
+// Include the selected backend header.
+#if PERFETTO_BUILDFLAG(PERFETTO_PCRE2) && PERFETTO_FLAGS_USE_PCRE2
+#include "src/base/regex/regex_pcre2.h"
+#elif PERFETTO_BUILDFLAG(PERFETTO_RE2)
+#include "src/base/regex/regex_re2.h"
+#else
 #include "src/base/regex/regex_std.h"
+#endif
 
 namespace perfetto {
 namespace base {

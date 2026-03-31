@@ -97,7 +97,6 @@ source_set("functions") {
     "../../../util:glob",
     "../../../util:json_serializer",
     "../../../util:profile_builder",
-    "../../../util:regex",
     "../../../util:simple_json_serializer",
     "../../../util:sql_argument",
     "../../../util:stdlib",

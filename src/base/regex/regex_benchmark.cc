@@ -21,6 +21,14 @@
 #include "perfetto/ext/base/regex.h"
 #include "src/base/regex/regex_std.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_RE2)
+#include "src/base/regex/regex_re2.h"
+#endif
+
+#if PERFETTO_BUILDFLAG(PERFETTO_PCRE2)
+#include "src/base/regex/regex_pcre2.h"
+#endif
+
 namespace perfetto {
 namespace base {
 namespace {
@@ -98,8 +106,23 @@ BENCHMARK_TEMPLATE(BM_Regex_GlobalReplace, RegexStd);
 BENCHMARK_TEMPLATE(BM_Regex_PartialMatch_LongInput, RegexStd);
 BENCHMARK_TEMPLATE(BM_Regex_Compile, RegexStd);
 
-// When building with RE2 or PCRE2, register benchmarks for those backends too.
-// See src/base/regex/regex_re2.h and regex_pcre2.h.
+#if PERFETTO_BUILDFLAG(PERFETTO_RE2)
+BENCHMARK_TEMPLATE(BM_Regex_PartialMatch_Simple, RegexRe2);
+BENCHMARK_TEMPLATE(BM_Regex_FullMatch_Simple, RegexRe2);
+BENCHMARK_TEMPLATE(BM_Regex_PartialMatchWithGroups, RegexRe2);
+BENCHMARK_TEMPLATE(BM_Regex_GlobalReplace, RegexRe2);
+BENCHMARK_TEMPLATE(BM_Regex_PartialMatch_LongInput, RegexRe2);
+BENCHMARK_TEMPLATE(BM_Regex_Compile, RegexRe2);
+#endif
+
+#if PERFETTO_BUILDFLAG(PERFETTO_PCRE2)
+BENCHMARK_TEMPLATE(BM_Regex_PartialMatch_Simple, RegexPcre2);
+BENCHMARK_TEMPLATE(BM_Regex_FullMatch_Simple, RegexPcre2);
+BENCHMARK_TEMPLATE(BM_Regex_PartialMatchWithGroups, RegexPcre2);
+BENCHMARK_TEMPLATE(BM_Regex_GlobalReplace, RegexPcre2);
+BENCHMARK_TEMPLATE(BM_Regex_PartialMatch_LongInput, RegexPcre2);
+BENCHMARK_TEMPLATE(BM_Regex_Compile, RegexPcre2);
+#endif
 
 }  // namespace
 }  // namespace base
