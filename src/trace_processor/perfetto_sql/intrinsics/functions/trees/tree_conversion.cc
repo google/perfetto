@@ -28,8 +28,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/core/dataframe/runtime_dataframe_builder.h"
-#include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/core/tree/tree_columns_builder.h"
 #include "src/trace_processor/core/tree/tree_transformer.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
@@ -68,7 +67,7 @@ struct SqliteArgvFetcher : core::ValueFetcher {
 };
 
 struct AggCtx : sqlite::AggregateContext<AggCtx> {
-  std::optional<core::dataframe::RuntimeDataframeBuilder> builder;
+  std::optional<core::tree::TreeColumnsBuilder> builder;
 };
 
 }  // namespace
@@ -93,10 +92,9 @@ void TreeFromTable::Step(sqlite3_context* ctx,
                                          SqlValue::Type::kString));
       col_names.emplace_back(col_name.AsString());
     }
-    agg.builder = core::dataframe::RuntimeDataframeBuilder{
+    agg.builder = core::tree::TreeColumnsBuilder{
         std::move(col_names),
         GetUserData(ctx),
-        {{}, core::dataframe::NullabilityType::kDenseNull},
     };
   }
   SqliteArgvFetcher fetcher{{}, argv};
@@ -112,11 +110,11 @@ void TreeFromTable::Final(sqlite3_context* ctx) {
   }
   auto& agg = *raw_agg.get();
   PERFETTO_CHECK(agg.builder);
-  SQLITE_ASSIGN_OR_RETURN(ctx, auto df, std::move(*agg.builder).Build());
+  SQLITE_ASSIGN_OR_RETURN(ctx, auto cols, std::move(*agg.builder).Build());
   return sqlite::result::UniquePointer(
       ctx,
       std::make_unique<sqlite::utils::MovePointer<tree::TreeTransformer>>(
-          tree::TreeTransformer(std::move(df), GetUserData(ctx))),
+          tree::TreeTransformer(std::move(cols), GetUserData(ctx))),
       "TREE_TRANSFORMER");
 }
 

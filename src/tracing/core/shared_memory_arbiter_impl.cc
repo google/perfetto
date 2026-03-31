@@ -38,6 +38,10 @@ static_assert(sizeof(BufferID) == sizeof(uint16_t),
               "The MaybeUnboundBufferID logic requires BufferID not to grow "
               "above uint16_t.");
 
+constexpr size_t kMaxCommitDataRequestChunkSize =
+    128 * 1024 - 512;  // This is ipc::kIPCBufferSize - 512, see
+                       // |kMaxTracePacketSliceSize| in tracing_service_impl.h
+
 MaybeUnboundBufferID MakeTargetBufferIdForReservation(uint16_t reservation_id) {
   // Reservation IDs are stored in the upper bits.
   PERFETTO_CHECK(reservation_id > 0);
@@ -631,7 +635,11 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
   }  // scoped_lock
 
   if (req) {
-    producer_endpoint_->CommitData(*req, callback);
+    if (use_shmem_emulation_) {
+      CommitDataWithSplitting(std::move(req), std::move(callback));
+    } else {
+      producer_endpoint_->CommitData(*req, std::move(callback));
+    }
   } else if (callback) {
     // If |req| was nullptr, it means that an enqueued deferred commit was
     // executed just before this. At this point send an empty commit request
@@ -639,6 +647,60 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
     // caller that the data has been flushed into the service.
     producer_endpoint_->CommitData(CommitDataRequest(), std::move(callback));
   }
+}
+
+void SharedMemoryArbiterImpl::CommitDataWithSplitting(
+    std::unique_ptr<CommitDataRequest> req,
+    std::function<void()> callback) {
+  PERFETTO_DCHECK(use_shmem_emulation_);
+
+  // If the request is small enough to be sent in a single IPC
+  // avoid the request splitting.
+  uint32_t total_bytes = 0;
+  for (const auto& ctm : req->chunks_to_move()) {
+    total_bytes += static_cast<uint32_t>(ctm.data().size());
+  }
+  if (total_bytes < kMaxCommitDataRequestChunkSize) {
+    producer_endpoint_->CommitData(*req, std::move(callback));
+    return;
+  }
+
+  uint32_t current_req_bytes = 0;
+  auto split_req = std::make_unique<CommitDataRequest>();
+
+  for (auto& ctm : *req->mutable_chunks_to_move()) {
+    // If the pending requests exceed the size of the IPC buffer, then
+    // split them into multiple commits to avoid an |IPC Frame too large|
+    // error on the receiving side. This is based on the fact that chunks
+    // cannot be greater than |kMaxPageSize| in size, which is less than
+    // |kIPCBufferSize|. We provide 512-bytes of headroom for message
+    // overhead.
+    if (current_req_bytes + ctm.data().size() >=
+        kMaxCommitDataRequestChunkSize) {
+      producer_endpoint_->CommitData(*split_req);
+      split_req.reset(new CommitDataRequest());
+      current_req_bytes = 0;
+    }
+
+    current_req_bytes += ctm.data().size();
+    auto* new_ctm = split_req->add_chunks_to_move();
+    new_ctm->set_page(ctm.page());
+    new_ctm->set_chunk(ctm.chunk());
+    new_ctm->set_target_buffer(ctm.target_buffer());
+    new_ctm->set_chunk_incomplete(ctm.chunk_incomplete());
+    new_ctm->set_data(ctm.data());
+  }
+
+  // In shmem emulation mode, the pending commit data requests splitting
+  // is done on a best effort basis, meaning that although rare it is
+  // possible for the last commit data request to exceed the
+  // |kIPCBufferSize| since, we aren't checking the size of the chunk
+  // patches.
+  *split_req->mutable_chunks_to_patch() =
+      std::move(*req->mutable_chunks_to_patch());
+  split_req->set_flush_request_id(req->flush_request_id());
+
+  producer_endpoint_->CommitData(*split_req, std::move(callback));
 }
 
 bool SharedMemoryArbiterImpl::TryShutdown() {

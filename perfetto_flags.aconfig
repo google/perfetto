@@ -63,3 +63,10 @@ flag {
   bug: "496506220"
   is_fixed_read_only: true
 }
+flag {
+  name: "use_pcre2"
+  namespace: "perfetto"
+  description: "Controls whether to use PCRE2 as the regex engine on Android. If disabled, it falls back to std::regex."
+  bug: "494498282"
+  is_fixed_read_only: true
+}
