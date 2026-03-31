@@ -24,7 +24,7 @@ This file must be kept in sync with:
 - bazel/perfetto_deps.bzl (for bzlmod compatibility)
 """
 
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository", "new_git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 # To generate shallow_since fields for git repos, use:
@@ -35,6 +35,15 @@ def perfetto_deps():
 
     Call this function from your WORKSPACE file after loading this file.
     For bzlmod users, use the perfetto_deps module extension instead.
+
+    TODO: WORKSPACE-based embedder builds are currently broken because
+    bazel/rules.bzl unconditionally loads @rules_android (added in
+    b177135eeb, Feb 2025), which requires rules_android, rules_android_ndk,
+    and their transitive deps (rules_java, etc.) to be provided by the
+    embedder's WORKSPACE. Fixing this requires either:
+    (a) Adding rules_android + full transitive chain here, or
+    (b) Making the load in bazel/rules.bzl conditional.
+    Standalone builds use bzlmod (MODULE.bazel) and are not affected.
     """
     # For bzlmod users, protobuf is provided via MODULE.bazel.
     # For non-bzlmod users, this provides protobuf v31.1.
@@ -114,6 +123,22 @@ def perfetto_deps():
         remote = "https://android.googlesource.com/platform/external/OpenCSD.git",
         commit = "0ce01e934f95efb6a216a6efa35af1245151c779",
         build_file = "//bazel:open_csd.BUILD",
+    )
+
+    # RE2 regex library, used by perfetto's base::Regex backend.
+    _add_repo_if_not_existing(
+        git_repository,
+        name = "re2",
+        remote = "https://chromium.googlesource.com/external/github.com/google/re2.git",
+        commit = "927f5d53caf8111721e734cf24724686bb745f55",
+    )
+
+    # Abseil, required by RE2.
+    _add_repo_if_not_existing(
+        git_repository,
+        name = "com_google_absl",
+        remote = "https://chromium.googlesource.com/external/github.com/abseil/abseil-cpp.git",
+        commit = "76bb24329e8bf5f39704eb10d21b9a80befa7c81",
     )
 
 def _add_repo_if_not_existing(repo_rule, name, **kwargs):
