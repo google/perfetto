@@ -127,6 +127,8 @@ export function buildTooltipOption(
   extra?: Record<string, unknown>,
 ): Record<string, unknown> {
   return {
+    showDelay: 0,
+    transitionDuration: 0,
     ...extra,
   };
 }
@@ -155,7 +157,7 @@ export function buildBrushOption(config: BrushConfig): Record<string, unknown> {
  * Theme colors are applied by EChartView.
  */
 export function buildLegendOption(
-  position: 'top' | 'right' = 'top',
+  position: 'top' | 'right' | 'bottom' = 'top',
 ): Record<string, unknown> {
   if (position === 'right') {
     return {
@@ -173,6 +175,14 @@ export function buildLegendOption(
       },
       tooltip: {show: true},
       pageButtonPosition: 'end',
+    };
+  }
+  if (position === 'bottom') {
+    return {
+      show: true,
+      type: 'scroll',
+      bottom: 0,
+      textStyle: {fontSize: 10},
     };
   }
   return {

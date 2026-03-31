@@ -1,0 +1,428 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-memento-page__container {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  height: 100%;
+  background: var(--pf-color-background);
+}
+
+.pf-memento-page {
+  width: 100%;
+  margin-inline: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+// Page title bar.
+.pf-memento-title-bar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+
+  h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 600;
+
+    // Fancy gradient background clipped to the text.
+    background: linear-gradient(
+      90deg,
+      var(--pf-color-primary),
+      var(--pf-color-accent)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+.pf-memento-title-bar__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+// Thin vertical rule that separates logical groups in the toolbar.
+.pf-memento-title-bar__sep {
+  width: 1px;
+  height: 18px;
+  background: var(--pf-color-border);
+  flex-shrink: 0;
+}
+
+.pf-memento-title-bar__device {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--pf-font-size-m);
+  font-weight: 500;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-memento-title-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+// Snapshot info popup content.
+.pf-memento-snapshot-info {
+  padding: 4px 6px;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pf-memento-snapshot-info__heading {
+  font-size: var(--pf-font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--pf-color-text-muted);
+  margin-bottom: 4px;
+}
+
+.pf-memento-snapshot-info__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 2px 0;
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text);
+
+  span:first-child {
+    color: var(--pf-color-text-muted);
+  }
+
+  &.pf-memento-snapshot-info__sum {
+    margin-top: 6px;
+    padding-top: 8px;
+    border-top: 1px solid var(--pf-color-border);
+    font-weight: 600;
+    font-size: var(--pf-font-size-m);
+
+    span:first-child {
+      color: var(--pf-color-text);
+    }
+  }
+}
+
+.pf-memento-snapshot-info__overrun {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: var(--pf-font-size-xs);
+  background: var(--pf-color-warning-container);
+  color: var(--pf-color-warning);
+
+  .material-icons {
+    font-size: 13px;
+  }
+}
+
+.pf-memento-snapshot-info__empty {
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-muted);
+  font-style: italic;
+  padding: 4px 0;
+}
+
+.pf-memento-status-bar__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4caf50;
+  flex-shrink: 0;
+  animation: pf-memento-pulse 2s ease-in-out infinite;
+
+  &--paused {
+    background: var(--pf-color-warning);
+    animation: none;
+  }
+}
+
+.pf-memento-status-bar__badge {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: var(--pf-font-size-xs);
+  font-weight: 600;
+  background: var(--pf-color-primary);
+  color: var(--pf-color-on-primary);
+}
+
+@keyframes pf-memento-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.pf-memento-error {
+  color: var(--pf-color-error);
+  font-size: var(--pf-font-size-s);
+}
+
+// Billboard stat cards.
+.pf-memento-billboards {
+  display: flex;
+  gap: 12px;
+}
+
+.pf-memento-billboard {
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--pf-color-border-secondary);
+  background: var(--pf-color-background);
+}
+
+.pf-memento-billboard__value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--pf-color-text);
+  line-height: 1.2;
+}
+
+.pf-memento-billboard__label {
+  font-size: var(--pf-font-size-m);
+  font-weight: 600;
+  color: var(--pf-color-text);
+  margin-top: 2px;
+}
+
+.pf-memento-billboard__desc {
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-muted);
+  margin-top: 2px;
+}
+
+.pf-memento-billboard__delta {
+  font-size: var(--pf-font-size-s);
+  font-weight: 600;
+  margin-left: 6px;
+  color: var(--pf-color-text-muted);
+  &--up {
+    color: #e53935;
+  }
+  &--down {
+    color: #4caf50;
+  }
+}
+
+// Zero-padding for the profile button cell in the process table.
+.pf-grid-cell:has(.pf-memento-profile-btn) {
+  --pf-cell-padding-block: 0;
+  --pf-cell-padding-inline: 2px;
+}
+
+// Profile sub-header bar.
+.pf-memento-profile-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-radius: 6px;
+  background: var(--pf-color-background-secondary);
+}
+
+.pf-memento-profile-bar__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.pf-memento-profile-bar__datasources {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--pf-font-size-xs);
+  font-weight: 400;
+  color: var(--pf-color-text-muted);
+  margin-left: 4px;
+}
+
+.pf-memento-profile-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+// Chart panels.
+.pf-memento-panel {
+  border-radius: 8px;
+  background: var(--pf-color-background);
+  border: 1px solid var(--pf-color-border-secondary);
+}
+
+.pf-memento-panel__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  h2 {
+    flex: 1;
+  }
+}
+
+.pf-memento-panel__header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--pf-color-border-secondary);
+
+  h2 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--pf-color-text);
+  }
+
+  p {
+    margin: 4px 0 0 0;
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+    line-height: 1.4;
+  }
+}
+
+.pf-memento-panel__controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.pf-memento-panel__body {
+  padding: 12px;
+}
+
+.pf-memento-placeholder {
+  color: var(--pf-color-text-muted);
+  font-size: var(--pf-font-size-s);
+  font-style: italic;
+  padding: 32px 0;
+  text-align: center;
+}
+
+// Hero connect / idle state.
+.pf-memento-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 48px 24px;
+  border-radius: 8px;
+  border: 1px dashed var(--pf-color-border-secondary);
+  text-align: center;
+}
+
+.pf-memento-hero__icon {
+  font-size: 48px;
+  color: var(--pf-color-text-muted);
+  opacity: 0.5;
+}
+
+.pf-memento-hero__text {
+  font-size: var(--pf-font-size-m);
+  color: var(--pf-color-text-muted);
+  max-width: 420px;
+  line-height: 1.5;
+}
+
+.pf-memento-hero__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pf-memento-device-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.pf-memento-page {
+  .pf-data-grid {
+    border-radius: 8px;
+    border: 1px solid var(--pf-color-border-secondary);
+  }
+
+  .pf-memento-profile-btn {
+    visibility: hidden;
+  }
+
+  .pf-grid__row:hover .pf-memento-profile-btn {
+    visibility: visible;
+  }
+}
+
+// Duration badge in title bar.
+.pf-memento-title-bar__duration {
+  font-size: var(--pf-font-size-m);
+  font-weight: 600;
+  color: var(--pf-color-text-muted);
+  background: var(--pf-color-background-secondary);
+  padding: 4px 10px;
+  border-radius: 4px;
+  margin-left: 12px;
+}
+
+// Profiling data source status lines.
+.pf-memento-profiling-status {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--pf-color-border-secondary);
+  background: var(--pf-color-background);
+}
+
+.pf-memento-profiling-status__line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-muted);
+}
+
+.pf-memento-profiling-status__active {
+  color: #4caf50;
+  font-weight: 600;
+}
+
+.pf-memento-process-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+
+  .pf-button {
+    margin-top: -2px;
+  }
+}
