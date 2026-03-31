@@ -29,21 +29,24 @@ TrackEventExtensionParser::~TrackEventExtensionParser() = default;
 TrackEventExtensionParser::Result
 TrackEventExtensionParser::OnTrackEventCounterExtension(
     const TrackEventExtensionField&,
-    CounterId) {
+    CounterId,
+    PacketSequenceStateGeneration*) {
   return Result::kIgnored;
 }
 
 TrackEventExtensionParser::Result
 TrackEventExtensionParser::OnTrackEventSliceExtension(
     const TrackEventExtensionField&,
-    SliceId) {
+    SliceId,
+    PacketSequenceStateGeneration*) {
   return Result::kIgnored;
 }
 
 TrackEventExtensionParser::Result
 TrackEventExtensionParser::OnTrackEventStateExtension(
     const TrackEventExtensionField&,
-    StateId) {
+    StateId,
+    PacketSequenceStateGeneration*) {
   return Result::kIgnored;
 }
 

@@ -476,6 +476,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
         ":src_trace_processor_plugins_android_framework_track_event_tables",
+        ":src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":src_trace_processor_plugins_android_process_state_android_process_state",
         ":src_trace_processor_plugins_android_process_state_tables",
         ":src_trace_processor_plugins_args_args",
@@ -792,6 +793,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
         ":src_trace_processor_plugins_android_framework_track_event_tables",
+        ":src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":src_trace_processor_plugins_android_process_state_android_process_state",
         ":src_trace_processor_plugins_android_process_state_tables",
         ":src_trace_processor_plugins_args_args",
@@ -3987,6 +3989,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/io.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/job_scheduler.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/job_scheduler_states.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/job_scheduler_states_track_events.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/kernel_wakelocks.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/monitor_contention.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/network_packets.sql",
@@ -4471,6 +4474,17 @@ perfetto_cc_tp_tables(
         "src/trace_processor/plugins/android_framework_track_event/all_tables_fwd.h",
         "src/trace_processor/plugins/android_framework_track_event/tables_fwd.h",
         "src/trace_processor/plugins/android_framework_track_event/tables_py.h",
+    ],
+)
+
+# GN target: //src/trace_processor/plugins/android_job_scheduler:android_job_scheduler
+perfetto_filegroup(
+    name = "src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
+    srcs = [
+        "src/trace_processor/plugins/android_job_scheduler/android_job_scheduler.cc",
+        "src/trace_processor/plugins/android_job_scheduler/android_job_scheduler.h",
+        "src/trace_processor/plugins/android_job_scheduler/android_job_scheduler_tracker.cc",
+        "src/trace_processor/plugins/android_job_scheduler/android_job_scheduler_tracker.h",
     ],
 )
 
@@ -11691,6 +11705,7 @@ perfetto_cc_library(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
         ":src_trace_processor_plugins_android_framework_track_event_tables",
+        ":src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":src_trace_processor_plugins_android_process_state_android_process_state",
         ":src_trace_processor_plugins_android_process_state_tables",
         ":src_trace_processor_plugins_args_args",
@@ -12038,6 +12053,7 @@ perfetto_cc_binary(
         ":src_trace_processor_plugins_ancestor_tables",
         ":src_trace_processor_plugins_android_framework_track_event_android_framework_track_event",
         ":src_trace_processor_plugins_android_framework_track_event_tables",
+        ":src_trace_processor_plugins_android_job_scheduler_android_job_scheduler",
         ":src_trace_processor_plugins_android_process_state_android_process_state",
         ":src_trace_processor_plugins_android_process_state_tables",
         ":src_trace_processor_plugins_args_args",

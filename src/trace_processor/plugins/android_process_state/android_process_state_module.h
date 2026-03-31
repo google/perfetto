@@ -51,8 +51,10 @@ class AndroidProcessStateExtensionParser : public TrackEventExtensionParser {
                                      AndroidProcessStateTracker* tracker);
   ~AndroidProcessStateExtensionParser() override;
 
-  Result OnTrackEventSliceExtension(const TrackEventExtensionField& field,
-                                    SliceId id) override;
+  Result OnTrackEventSliceExtension(
+      const TrackEventExtensionField& field,
+      SliceId id,
+      PacketSequenceStateGeneration* sequence_state) override;
 
  private:
   TraceProcessorContext* const trace_context_;
