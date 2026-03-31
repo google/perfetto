@@ -46,11 +46,11 @@
 
   .pf-menu-title {
     font-family: var(--pf-font-compact);
-    font-weight: 800;
-    font-size: var(--pf-font-size-m);
+    font-weight: bolder;
+    font-size: var(--pf-font-size-xs);
     text-transform: uppercase;
-    // color: var(--pf-color-text-muted);
-    padding: 3px 8px 3px 8px;
+    color: var(--pf-color-text-muted);
+    padding: 6px 8px 3px 8px;
     user-select: none;
   }
 }

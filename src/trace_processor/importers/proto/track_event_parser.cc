@@ -115,6 +115,20 @@ std::optional<base::Status> MaybeParseSourceLocation(
   return base::OkStatus();
 }
 
+std::optional<base::Status> MaybeParseAndroidJobName(
+    const protozero::Field& field,
+    util::ProtoToArgsParser::Delegate& delegate) {
+  auto* decoder = delegate.GetInternedMessage(
+      protos::pbzero::InternedData::kAndroidJobName, field.as_uint64());
+  if (!decoder) {
+    return std::nullopt;
+  }
+
+  delegate.AddString(util::ProtoToArgsParser::Key("job_scheduler_job.job_name"),
+                     decoder->name());
+  return base::OkStatus();
+}
+
 }  // namespace
 
 TrackEventParser::TrackEventParser(TraceProcessorContext* context,
@@ -252,6 +266,12 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
          util::ProtoToArgsParser::Delegate& delegate) {
         return MaybeParseSourceLocation("chrome_memory_pressure_notification",
                                         field, delegate);
+      });
+  args_parser_.AddParsingOverrideForField(
+      "job_scheduler_job.job_name_iid",
+      [](const protozero::Field& field,
+         util::ProtoToArgsParser::Delegate& delegate) {
+        return MaybeParseAndroidJobName(field, delegate);
       });
 
   // Parse DebugAnnotations.

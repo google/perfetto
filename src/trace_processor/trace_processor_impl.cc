@@ -58,6 +58,7 @@
 #include "src/trace_processor/importers/archive/zip_trace_reader.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_parser.h"
 #include "src/trace_processor/importers/art_method/art_method_tokenizer.h"
+#include "src/trace_processor/importers/art_method/art_method_v2_tokenizer.h"
 #include "src/trace_processor/importers/collapsed_stack/collapsed_stack_trace_reader.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/registered_file_tracker.h"
@@ -171,6 +172,8 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
 #include "src/trace_processor/importers/common/registered_file_tracker.h"
 #include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
+#include "src/trace_processor/importers/perf/perf_event.h"
+#include "src/trace_processor/importers/perf/perf_tracker.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.h"
 #endif
@@ -509,6 +512,14 @@ std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     : TraceProcessorStorageImpl(cfg), config_(cfg) {
   context()->register_additional_proto_modules = &RegisterAdditionalModules;
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
+  context()->perf_aux_tokenizer_registrations.push_back(
+      [](perf_importer::PerfTracker* pt) {
+        pt->RegisterAuxTokenizer(PERF_AUXTRACE_CS_ETM,
+                                 etm::CreateEtmV4StreamDemultiplexer);
+      });
+#endif
   context()->reader_registry->RegisterTraceReader<AndroidDumpstateReader>(
       kAndroidDumpstateTraceType);
   context()->reader_registry->RegisterTraceReader<AndroidLogReader>(
@@ -548,6 +559,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   context()
       ->reader_registry->RegisterTraceReader<art_method::ArtMethodTokenizer>(
           kArtMethodTraceType);
+  context()
+      ->reader_registry->RegisterTraceReader<art_method::ArtMethodV2Tokenizer>(
+          kArtMethodV2TraceType);
   context()->reader_registry->RegisterTraceReader<art_hprof::ArtHprofParser>(
       kArtHprofTraceType);
   context()
@@ -1070,6 +1084,7 @@ std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
   AddStaticTable(tables, storage->mutable_file_table());
   AddStaticTable(tables, storage->mutable_filedescriptor_table());
   AddStaticTable(tables, storage->mutable_gpu_counter_group_table());
+  AddStaticTable(tables, storage->mutable_gpu_table());
   AddStaticTable(tables, storage->mutable_instruments_sample_table());
   AddStaticTable(tables, storage->mutable_machine_table());
   AddStaticTable(tables, storage->mutable_memory_snapshot_edge_table());

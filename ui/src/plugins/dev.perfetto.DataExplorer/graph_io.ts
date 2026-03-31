@@ -42,6 +42,7 @@ import {
   parseBrushFilters,
 } from './dashboard/dashboard_registry';
 import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
+import {isTableEffectivelyDisabled} from '../dev.perfetto.SqlModules/sql_modules';
 
 // Dependencies needed by graph I/O operations.
 export interface GraphIODeps {
@@ -189,8 +190,7 @@ export async function createDataExplorerGraph(
 
     for (const sqlTable of tables) {
       try {
-        const module = sqlModules.getModuleForTable(sqlTable.name);
-        if (module && sqlModules.isModuleDisabled(module.includeKey)) {
+        if (isTableEffectivelyDisabled(sqlModules, sqlTable.name)) {
           continue;
         }
 
@@ -211,9 +211,11 @@ export async function createDataExplorerGraph(
   // Create core table nodes (left column)
   createTableNodes('core', coreNodes);
 
-  // Create slices source node (right side)
-  const slicesNode = new SlicesSourceNode({sqlModules, trace});
-  rightNodes.push(slicesNode);
+  // Create slices source node (right side), only if slice data exists
+  if (!isTableEffectivelyDisabled(sqlModules, 'slice')) {
+    const slicesNode = new SlicesSourceNode({sqlModules, trace});
+    rightNodes.push(slicesNode);
+  }
 
   // Create high-importance table nodes (right side)
   createTableNodes('high', rightNodes);

@@ -115,6 +115,8 @@ message AndroidJobSchedulerJob {
   optional int32 public_stop_reason = 19;
   // Bitfield of boolean states of the job.
   optional int64 job_state_flags = 20;
+  // Interned Job name.
+  optional uint64 job_name_iid = 21;
 }
 
 // Information about an android.graphics.Bitmap.

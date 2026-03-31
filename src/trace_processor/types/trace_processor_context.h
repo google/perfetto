@@ -18,8 +18,10 @@
 #define SRC_TRACE_PROCESSOR_TYPES_TRACE_PROCESSOR_CONTEXT_H_
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/murmur_hash.h"
@@ -35,6 +37,7 @@ class ClockConverter;
 class ClockSynchronizer;
 class ClockTracker;
 class CpuTracker;
+class GpuTracker;
 class UserTracker;
 class DescriptorPool;
 class EventTracker;
@@ -65,6 +68,10 @@ class TrackTracker;
 struct ProtoImporterModuleContext;
 struct TraceTimeState;
 struct TrackCompressorGroupIdxState;
+
+namespace perf_importer {
+class PerfTracker;
+}  // namespace perf_importer
 
 using MachineId = tables::MachineTable::Id;
 using TraceId = tables::TraceFileTable::Id;
@@ -158,6 +165,12 @@ class TraceProcessorContext {
                                                 TraceProcessorContext*);
   RegisterAdditionalProtoModulesFn* register_additional_proto_modules = nullptr;
 
+  // Registry of callbacks invoked when PerfTracker is created, allowing
+  // external code (e.g. ETM) to register aux tokenizers.
+  using PerfAuxTokenizerRegistration =
+      std::function<void(perf_importer::PerfTracker*)>;
+  std::vector<PerfAuxTokenizerRegistration> perf_aux_tokenizer_registrations;
+
   // Per-Trace State (Miscategorized)
   // ==========================
   //
@@ -194,6 +207,7 @@ class TraceProcessorContext {
   PerMachinePtr<MappingTracker> mapping_tracker;
   PerMachinePtr<MachineTracker> machine_tracker;
   PerMachinePtr<CpuTracker> cpu_tracker;
+  PerMachinePtr<GpuTracker> gpu_tracker;
   PerMachinePtr<UserTracker> user_tracker;
 
   // Per-Machine, Per-Trace State

@@ -196,7 +196,7 @@ void TreeFilter::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   std::vector<SqlValue> values;
   uint32_t idx = 0;
   for (const auto& c : constraints_ptr->constraints) {
-    auto col = transformer.df().IndexOfColumnLegacy(c.column_name);
+    auto col = transformer.ResolveColumn(c.column_name);
     if (!col) {
       base::StackString<256> err("tree_filter: unknown column '%s'",
                                  c.column_name.c_str());

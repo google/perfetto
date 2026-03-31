@@ -1,4 +1,4 @@
-Flask[async]==2.2.5
+Flask[async]==3.1.3
 requests
 gunicorn
 google-auth
