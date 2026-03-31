@@ -33,6 +33,7 @@
 #include "src/trace_processor/tables/etm_tables_py.h"       // IWYU pragma: keep
 #include "src/trace_processor/tables/flow_tables_py.h"      // IWYU pragma: keep
 #include "src/trace_processor/tables/jit_tables_py.h"       // IWYU pragma: keep
+#include "src/trace_processor/tables/linux_tables_py.h"     // IWYU pragma: keep
 #include "src/trace_processor/tables/memory_tables_py.h"    // IWYU pragma: keep
 #include "src/trace_processor/tables/metadata_tables_py.h"  // IWYU pragma: keep
 #include "src/trace_processor/tables/perf_tables_py.h"      // IWYU pragma: keep

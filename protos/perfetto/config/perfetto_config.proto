@@ -1757,6 +1757,26 @@ message InterceptorConfig {
 
 // End of protos/perfetto/config/interceptor_config.proto
 
+// Begin of protos/perfetto/config/linux/journald_config.proto
+
+// Configuration for the "linux.journald" data source.
+// Next field id: 4
+message JournaldConfig {
+  // Minimum syslog priority level to capture (inclusive).
+  // 0=EMERG, 1=ALERT, 2=CRIT, 3=ERR, 4=WARNING, 5=NOTICE, 6=INFO, 7=DEBUG.
+  // Default (0 / unset): capture all priorities (equivalent to 7).
+  optional uint32 min_prio = 1;
+
+  // If non-empty, only capture journal entries whose SYSLOG_IDENTIFIER
+  // matches one of these strings.
+  repeated string filter_identifiers = 2;
+
+  // If non-empty, only capture journal entries from these systemd unit names.
+  repeated string filter_units = 3;
+}
+
+// End of protos/perfetto/config/linux/journald_config.proto
+
 // Begin of protos/perfetto/config/power/android_power_config.proto
 
 message AndroidPowerConfig {
@@ -4282,7 +4302,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 141
+// Next id: 142
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4522,6 +4542,9 @@ message DataSourceConfig {
 
   // Data source name: android.aflags
   optional AndroidAflagsConfig android_aflags_config = 140 [lazy = true];
+
+  // Data source name: linux.journald
+  optional JournaldConfig journald_config = 141 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];

@@ -89,6 +89,7 @@ from diff_tests.parser.graphics.tests_gpu_trace import GraphicsGpuTrace
 from diff_tests.parser.gzip.tests import Gzip
 from diff_tests.parser.instruments.tests import Instruments
 from diff_tests.parser.json.tests import JsonParser
+from diff_tests.parser.linux.tests import Linux
 from diff_tests.parser.memory.tests import MemoryParser
 from diff_tests.parser.network.tests import NetworkParser
 from diff_tests.parser.parsing.tests import Parsing
@@ -224,6 +225,7 @@ def fetch_all_diff_tests(
       GraphicsParser,
       JsonParser,
       KernelTrackevent,
+      Linux,
       MemoryParser,
       NetworkParser,
       BatteryStats,

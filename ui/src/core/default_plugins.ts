@@ -67,6 +67,7 @@ export const defaultPlugins = [
   'dev.perfetto.Gpu',
   'dev.perfetto.HeapProfile',
   'dev.perfetto.InstrumentsSamplesProfile',
+  'dev.perfetto.JournaldLog',
   'dev.perfetto.KernelTrackEvent',
   'dev.perfetto.LinuxPerf',
   'dev.perfetto.MetricsPage',

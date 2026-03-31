@@ -1757,6 +1757,26 @@ message InterceptorConfig {
 
 // End of protos/perfetto/config/interceptor_config.proto
 
+// Begin of protos/perfetto/config/linux/journald_config.proto
+
+// Configuration for the "linux.journald" data source.
+// Next field id: 4
+message JournaldConfig {
+  // Minimum syslog priority level to capture (inclusive).
+  // 0=EMERG, 1=ALERT, 2=CRIT, 3=ERR, 4=WARNING, 5=NOTICE, 6=INFO, 7=DEBUG.
+  // Default (0 / unset): capture all priorities (equivalent to 7).
+  optional uint32 min_prio = 1;
+
+  // If non-empty, only capture journal entries whose SYSLOG_IDENTIFIER
+  // matches one of these strings.
+  repeated string filter_identifiers = 2;
+
+  // If non-empty, only capture journal entries from these systemd unit names.
+  repeated string filter_units = 3;
+}
+
+// End of protos/perfetto/config/linux/journald_config.proto
+
 // Begin of protos/perfetto/config/power/android_power_config.proto
 
 message AndroidPowerConfig {
@@ -4282,7 +4302,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 141
+// Next id: 142
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4522,6 +4542,9 @@ message DataSourceConfig {
 
   // Data source name: android.aflags
   optional AndroidAflagsConfig android_aflags_config = 140 [lazy = true];
+
+  // Data source name: linux.journald
+  optional JournaldConfig journald_config = 141 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
@@ -16217,6 +16240,75 @@ message AndroidJobName {
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto
 
+// Begin of protos/perfetto/trace/linux/journald_event.proto
+
+// A batch of journald log events, collected from the Linux systemd journal.
+// Emitted by the "linux.journald" data source in traced_probes.
+// Next field id: 3
+message JournaldEventPacket {
+  // A single journald log entry.
+  // Next field id: 15
+  message JournaldEvent {
+    // __REALTIME_TIMESTAMP: wall-clock time in microseconds since epoch.
+    optional uint64 timestamp_us = 1;
+
+    // _PID: PID of the process that wrote the log entry (trusted).
+    optional uint32 pid = 2;
+
+    // _TID: thread ID of the logging thread (trusted, set by journald for
+    // native journal protocol entries). Absent for syslog, stdout-piped, and
+    // kernel entries.
+    optional uint32 tid = 3;
+
+    // _UID: user ID of the process (trusted).
+    optional uint32 uid = 4;
+
+    // _GID: group ID of the process (trusted).
+    optional uint32 gid = 5;
+
+    // PRIORITY: syslog priority level 0 (EMERG) .. 7 (DEBUG).
+    optional uint32 prio = 6;
+
+    // SYSLOG_IDENTIFIER: program name / tag, set by the logging application.
+    optional string tag = 7;
+
+    // MESSAGE: the human-readable log message text.
+    optional string message = 8;
+
+    // _COMM: short process name as known to the kernel (trusted).
+    optional string comm = 9;
+
+    // _EXE: full executable path (trusted).
+    optional string exe = 10;
+
+    // _SYSTEMD_UNIT: the systemd unit that owns this process (trusted).
+    optional string systemd_unit = 11;
+
+    // _HOSTNAME: hostname of the machine (trusted).
+    optional string hostname = 12;
+
+    // _TRANSPORT: how the entry was received by journald (trusted).
+    // Values: "audit", "driver", "syslog", "journal", "stdout", "kernel".
+    optional string transport = 13;
+
+    // __MONOTONIC_TIMESTAMP: monotonic time in microseconds since boot.
+    optional uint64 monotonic_ts_us = 14;
+  }
+
+  repeated JournaldEvent events = 1;
+
+  // Emitted once on Flush() to report collection statistics.
+  // Next field id: 4
+  message Stats {
+    optional uint64 num_total = 1;
+    optional uint64 num_failed = 2;
+    optional uint64 num_skipped = 3;
+  }
+  optional Stats stats = 2;
+}
+
+// End of protos/perfetto/trace/linux/journald_event.proto
+
 // Begin of protos/perfetto/trace/memory_graph.proto
 
 // Message definitions for app-reported memory breakdowns. At the moment, this
@@ -18533,7 +18625,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 128.
+// Next id: 129.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -18711,6 +18803,8 @@ message TracePacket {
     EvdevEvent evdev_event = 121;
 
     AndroidUserList user_list = 123;
+
+    JournaldEventPacket journald_event = 128;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

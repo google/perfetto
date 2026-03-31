@@ -56,6 +56,10 @@
 #include "src/traced/probes/system_info/system_info_data_source.h"
 #include "src/traced/probes/user_list/user_list_data_source.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_JOURNALD)
+#include "src/traced/probes/journald/journald_data_source.h"
+#endif
+
 namespace perfetto {
 namespace {
 
@@ -358,6 +362,19 @@ ProbesProducer::CreateDSInstance<FrozenFtraceDataSource>(
       endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall));
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_JOURNALD)
+template <>
+std::unique_ptr<ProbesDataSource>
+ProbesProducer::CreateDSInstance<JournaldDataSource>(
+    TracingSessionID session_id,
+    const DataSourceConfig& config) {
+  auto buffer_id = static_cast<BufferID>(config.target_buffer());
+  return std::make_unique<JournaldDataSource>(
+      config, task_runner_, session_id,
+      endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall));
+}
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ENABLE_JOURNALD)
+
 // Another anonymous namespace. This cannot be moved into the anonymous
 // namespace on top (it would fail to compile), because the CreateDSInstance
 // methods need to be fully declared before.
@@ -388,6 +405,9 @@ constexpr const DataSourceTraits kAllDataSources[] = {
     Ds<FtraceDataSource>(),
     Ds<InitialDisplayStateDataSource>(),
     Ds<InodeFileDataSource>(),
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_JOURNALD)
+    Ds<JournaldDataSource>(),
+#endif
     Ds<LinuxPowerSysfsDataSource>(),
     Ds<MetatraceDataSource>(),
     Ds<PackagesListDataSource>(),

@@ -413,6 +413,14 @@ declare_args() {
 }
 
 declare_args() {
+  # Enables the journald data source in traced_probes. This requires libsystemd
+  # to be installed on the build host (pkg-config: libsystemd).
+  enable_perfetto_journald =
+      is_linux && !is_android && enable_perfetto_traced_probes &&
+      perfetto_build_standalone && !is_perfetto_build_generator
+}
+
+declare_args() {
   # Enables the traceconv tool.
   enable_perfetto_traceconv =
       enable_perfetto_tools && enable_perfetto_trace_processor_sqlite

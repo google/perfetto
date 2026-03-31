@@ -61,10 +61,11 @@ import "protos/perfetto/config/test_config.proto";
 import "protos/perfetto/config/track_event/track_event_config.proto";
 import "protos/perfetto/config/system_info/system_info_config.proto";
 import "protos/perfetto/config/chrome/histogram_samples.proto";
+import "protos/perfetto/config/linux/journald_config.proto";
 import "protos/perfetto/config/qnx/qnx_config.proto";
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 141
+// Next id: 142
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -304,6 +305,9 @@ message DataSourceConfig {
 
   // Data source name: android.aflags
   optional AndroidAflagsConfig android_aflags_config = 140 [lazy = true];
+
+  // Data source name: linux.journald
+  optional JournaldConfig journald_config = 141 [lazy = true];
 
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
