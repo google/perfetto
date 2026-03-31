@@ -74,8 +74,7 @@ cuj_frame_timeline AS (
     MAX(a.ts + a.dur) AS ts_end_actual_max
   FROM android_jank_cuj_vsync_boundary vsync_boundary
   JOIN expected_timeline e
-    ON e.upid = vsync_boundary.upid
-      AND e.vsync >= vsync_min
+    ON e.vsync >= vsync_min
       AND e.vsync <= vsync_max
   JOIN actual_frame_timeline_slice a
     ON e.upid = a.upid
@@ -223,12 +222,11 @@ WITH boundary_base AS (
   JOIN android_jank_cuj cuj USING (cuj_id)
   JOIN android_jank_cuj_vsync_boundary USING (cuj_id)
   LEFT JOIN actual_frame_timeline_slice timeline_slice
-    ON cuj.upid = timeline_slice.upid
+    ON vsync_max = CAST(timeline_slice.name AS INTEGER)
       -- Timeline slices for this exact VSYNC might be missing (e.g. if the last
       -- doFrame did not actually produce anything to draw).
       -- In that case we compute the boundary based on the last doFrame and the
       -- CUJ markers.
-      AND vsync_max = CAST(timeline_slice.name AS INTEGER)
   GROUP BY cuj_id, cuj.upid, main_thread_boundary.ts
 )
 SELECT
