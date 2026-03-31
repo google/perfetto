@@ -417,7 +417,7 @@ void InstanceOp(internal::DataSourceType* ds,
               .value;
     } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_COUNTER_DOUBLE) {
       double_counter =
-          reinterpret_cast<const struct PerfettoTeHlExtraCounterInt64&>(extra)
+          reinterpret_cast<const struct PerfettoTeHlExtraCounterDouble&>(extra)
               .value;
     } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_NO_INTERN) {
       use_interning = false;
