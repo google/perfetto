@@ -15,16 +15,20 @@
 import m from 'mithril';
 import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
-import {LiveMemoryPage} from './live_memory_page';
 import RecordPageV2 from '../dev.perfetto.RecordTraceV2';
+import {ConnectionPage} from './connection_page';
+import {Dashboard} from './dashboard';
+import {MementoSession} from './memento_session';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Memento';
-
-  // The live memory page depends on record page imports only, not at runtime.
+  static readonly description =
+    'Live memory profiler for Android/Linux devices';
   static readonly dependencies = [RecordPageV2];
 
   static onActivate(app: App) {
+    let session: MementoSession | undefined;
+
     app.sidebar.addMenuItem({
       section: 'trace_files',
       text: 'Memento',
@@ -32,9 +36,28 @@ export default class implements PerfettoPlugin {
       icon: 'memory',
       sortOrder: 2.5,
     });
+
     app.pages.registerPage({
       route: '/memento',
-      render: () => m(LiveMemoryPage, {app}),
+      render: () => {
+        if (session) {
+          return m(Dashboard, {
+            app,
+            session,
+            onStopped: () => {
+              session?.dispose();
+              session = undefined;
+            },
+          });
+        }
+
+        return m(ConnectionPage, {
+          onConnected: (result) => {
+            session = new MementoSession(result);
+            session.onSnapshot(() => m.redraw());
+          },
+        });
+      },
     });
   }
 }

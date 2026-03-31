@@ -20,7 +20,7 @@ import {
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import type {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
 import type {Row} from '../../trace_processor/query_result';
-import {Button} from '../../widgets/button';
+import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {
@@ -129,7 +129,7 @@ export const PROCESS_TABLE_SCHEMA: SchemaRegistry = {
     debuggable: {
       title: 'Debuggable',
       columnType: 'text',
-      cellRenderer: (v) => ((v as boolean) ? 'Yes' : ''),
+      cellRenderer: (v) => (v as string) || '',
     },
     age: {
       title: 'Age',
@@ -178,6 +178,7 @@ export interface ProcessesTabData {
   heapProfilePid?: number;
   heapProfileProcessName?: string;
   heapProfileStopping: boolean;
+  isUserDebug: boolean;
 }
 
 export interface ProcessesTabCallbacks {
@@ -245,106 +246,118 @@ export function renderProcessesTab(
   const totalDmabufKb = allProcs.reduce((s, p) => s + p.dmabufKb, 0);
   const hasBillboards = allProcs.length > 0;
 
-  return m(
-    '.pf-live-memory-panel',
+  const bilboards =
     hasBillboards &&
+    m(
+      '.pf-memento-billboards',
       m(
-        '.pf-live-memory-billboards',
+        '.pf-memento-billboard',
+        m('.pf-memento-billboard__value', formatKb(totalAnonSwapKb)),
+        m('.pf-memento-billboard__label', 'Anon + Swap'),
         m(
-          '.pf-live-memory-billboard',
-          m('.pf-live-memory-billboard__value', formatKb(totalAnonSwapKb)),
-          m('.pf-live-memory-billboard__label', 'Anon + Swap'),
-          m(
-            '.pf-live-memory-billboard__desc',
-            'Sum of anonymous RSS + swap across all processes',
-          ),
-        ),
-        m(
-          '.pf-live-memory-billboard',
-          m('.pf-live-memory-billboard__value', formatKb(totalFileKb)),
-          m('.pf-live-memory-billboard__label', 'File'),
-          m(
-            '.pf-live-memory-billboard__desc',
-            'Sum of file-backed RSS across all processes',
-          ),
-        ),
-        m(
-          '.pf-live-memory-billboard',
-          m('.pf-live-memory-billboard__value', formatKb(totalDmabufKb)),
-          m('.pf-live-memory-billboard__label', 'DMA-BUF'),
-          m(
-            '.pf-live-memory-billboard__desc',
-            'Sum of DMA-BUF heap RSS across all processes',
-          ),
+          '.pf-memento-billboard__desc',
+          'Sum of anonymous RSS + swap across all processes',
         ),
       ),
-    m(
-      '.pf-live-memory-panel__header',
-      isDrilledDown &&
-        m(Button, {
-          icon: 'arrow_back',
-          label:
-            data.processGrouping === 'category'
-              ? 'All categories'
-              : 'All OOM buckets',
-          minimal: true,
-          onclick: () => callbacks.onClearDrilldown(),
-        }),
-      m('h2', title),
-      m('p', subtitle),
-      m(SegmentedButtons, {
-        options: [{label: 'By Category'}, {label: 'By OOM Score'}],
-        selectedOption: data.processGrouping === 'category' ? 0 : 1,
-        onOptionSelected: (i: number) => {
-          const newGrouping: ProcessGrouping =
-            i === 0 ? 'category' : 'oom_score';
-          if (newGrouping === data.processGrouping) return;
-          callbacks.onGroupingChange(newGrouping);
-        },
-      }),
-      m(SegmentedButtons, {
-        options: PROCESS_METRIC_OPTIONS.map((o) => ({label: o.label})),
-        selectedOption: PROCESS_METRIC_OPTIONS.findIndex(
-          (o) => o.key === data.processMetric,
+      m(
+        '.pf-memento-billboard',
+        m('.pf-memento-billboard__value', formatKb(totalFileKb)),
+        m('.pf-memento-billboard__label', 'File'),
+        m(
+          '.pf-memento-billboard__desc',
+          'Sum of file-backed RSS across all processes',
         ),
-        onOptionSelected: (i: number) => {
-          const newMetric = PROCESS_METRIC_OPTIONS[i].key;
-          if (newMetric === data.processMetric) return;
-          callbacks.onMetricChange(newMetric);
-        },
-      }),
-    ),
-    m(
-      '.pf-live-memory-panel__body',
-      chartData
-        ? m(LineChart, {
-            data: chartData,
-            height: 350,
-            xAxisLabel: 'Time (s)',
-            yAxisLabel: 'RSS',
-            showLegend: true,
-            showPoints: false,
-            stacked: true,
-            gridLines: 'horizontal',
-            formatXValue: (v: number) => `${v.toFixed(0)}s`,
-            formatYValue: (v: number) => formatKb(v),
-            xAxisMin: data.xAxisMin,
-            xAxisMax: data.xAxisMax,
-            onSeriesClick: isDrilledDown
-              ? undefined
-              : (seriesName: string) => callbacks.onSeriesClick(seriesName),
-          })
-        : m('.pf-live-memory-placeholder', 'Waiting for data\u2026'),
-      processes &&
-        renderProcessTable(
-          processes,
-          data.heapProfilePid,
-          data.heapProfileProcessName,
-          data.heapProfileStopping,
-          callbacks,
+      ),
+      m(
+        '.pf-memento-billboard',
+        m('.pf-memento-billboard__value', formatKb(totalDmabufKb)),
+        m('.pf-memento-billboard__label', 'DMA-BUF'),
+        m(
+          '.pf-memento-billboard__desc',
+          'Sum of DMA-BUF heap RSS across all processes',
         ),
+      ),
+    );
+
+  return [
+    bilboards,
+    m(
+      '.pf-memento-panel',
+      m(
+        '.pf-memento-panel__header',
+        m(
+          '.pf-memento-panel__title-row',
+          isDrilledDown &&
+            m(Button, {
+              icon: 'arrow_back',
+              label:
+                data.processGrouping === 'category'
+                  ? 'All categories'
+                  : 'All OOM buckets',
+              minimal: true,
+              onclick: () => callbacks.onClearDrilldown(),
+            }),
+          m('h2', title),
+        ),
+        m('p', subtitle),
+        m(
+          '.pf-memento-panel__controls',
+          m(SegmentedButtons, {
+            options: [{label: 'By Category'}, {label: 'By OOM Score'}],
+            selectedOption: data.processGrouping === 'category' ? 0 : 1,
+            onOptionSelected: (i: number) => {
+              const newGrouping: ProcessGrouping =
+                i === 0 ? 'category' : 'oom_score';
+              if (newGrouping === data.processGrouping) return;
+              callbacks.onGroupingChange(newGrouping);
+            },
+          }),
+          m(SegmentedButtons, {
+            options: PROCESS_METRIC_OPTIONS.map((o) => ({label: o.label})),
+            selectedOption: PROCESS_METRIC_OPTIONS.findIndex(
+              (o) => o.key === data.processMetric,
+            ),
+            onOptionSelected: (i: number) => {
+              const newMetric = PROCESS_METRIC_OPTIONS[i].key;
+              if (newMetric === data.processMetric) return;
+              callbacks.onMetricChange(newMetric);
+            },
+          }),
+        ),
+      ),
+      m(
+        '.pf-memento-panel__body',
+        chartData
+          ? m(LineChart, {
+              data: chartData,
+              height: 350,
+              xAxisLabel: 'Time (s)',
+              yAxisLabel: 'RSS',
+              showLegend: true,
+              showPoints: false,
+              stacked: true,
+              gridLines: 'horizontal',
+              formatXValue: (v: number) => `${v.toFixed(0)}s`,
+              formatYValue: (v: number) => formatKb(v),
+              xAxisMin: data.xAxisMin,
+              xAxisMax: data.xAxisMax,
+              onSeriesClick: isDrilledDown
+                ? undefined
+                : (seriesName: string) => callbacks.onSeriesClick(seriesName),
+            })
+          : m('.pf-memento-placeholder', 'Waiting for data\u2026'),
+        processes &&
+          renderProcessTable(
+            processes,
+            data.heapProfilePid,
+            data.heapProfileProcessName,
+            data.heapProfileStopping,
+            data.isUserDebug,
+            callbacks,
+          ),
+      ),
     ),
-  );
+  ];
 }
 
 function renderProcessTable(
@@ -352,16 +365,22 @@ function renderProcessTable(
   heapProfilePid: number | undefined,
   heapProfileProcessName: string | undefined,
   heapProfileStopping: boolean,
+  isUserDebug: boolean,
   callbacks: ProcessesTabCallbacks,
 ): m.Children {
   const rows: Row[] = processes.map((p) => {
     const cat = categorizeProcess(p.processName);
+    const debugLabel = p.debuggable
+      ? 'Yes'
+      : isUserDebug
+        ? 'Yes (userdebug)'
+        : '';
     return {
       process: p.processName,
       category: cat.name,
       pid: p.pid,
       oom_score: p.oomScore,
-      debuggable: p.debuggable,
+      debuggable: debugLabel,
       rss_kb: p.rssKb,
       anon_swap_kb: p.anonKb + p.swapKb,
       file_kb: p.fileKb,
@@ -376,22 +395,18 @@ function renderProcessTable(
       ...PROCESS_TABLE_SCHEMA.process,
       actions: {
         title: '',
-        columnType: 'text' as const,
+        columnType: 'text',
         cellRenderer: (_v, row) => {
           const pid = row.pid as number;
-          const isProfiling = heapProfilePid === pid;
           return m(Button, {
-            label: isProfiling ? 'Stop' : 'Profile',
-            icon: isProfiling ? 'stop' : 'science',
+            label: 'Profile',
+            icon: 'science',
             minimal: true,
-            className: isProfiling ? '' : 'pf-live-memory-profile-btn',
-            onclick: (e: Event) => {
-              e.stopPropagation();
-              if (isProfiling) {
-                callbacks.onStopProfile();
-              } else {
-                callbacks.onStartProfile(pid, row.process as string);
-              }
+            intent: Intent.Primary,
+            variant: ButtonVariant.Filled,
+            className: 'pf-memento-profile-btn',
+            onclick: () => {
+              callbacks.onStartProfile(pid, row.process as string);
             },
           });
         },
@@ -402,8 +417,8 @@ function renderProcessTable(
   return [
     heapProfilePid !== undefined &&
       m(
-        '.pf-live-memory-status-bar',
-        m('.pf-live-memory-status-bar__dot'),
+        '.pf-memento-status-bar',
+        m('.pf-memento-status-bar__dot'),
         heapProfileStopping
           ? `Stopping and reading trace for ${heapProfileProcessName}\u2026`
           : `Recording heap profile for ${heapProfileProcessName} (PID ${heapProfilePid})`,

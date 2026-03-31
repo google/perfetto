@@ -38,13 +38,12 @@ export interface PressureSwapTabData {
 }
 
 function renderLmkPanel(events: LmkEvent[], t0: number): m.Children {
-  if (events.length === 0) return null;
   return panel(
     `LMK Kills (${events.length})`,
     'Low Memory Killer events recorded during this session. ' +
       'Source: lmkd atrace / lowmemorykiller ftrace.',
     m(
-      'table.pf-live-memory-table',
+      'table.pf-memento-table',
       m(
         'tr',
         m('th', 'Time'),
@@ -88,7 +87,7 @@ export function renderPressureSwapTab(data: PressureSwapTabData): m.Children {
             xAxisMin: data.xAxisMin,
             xAxisMax: data.xAxisMax,
           })
-        : m('.pf-live-memory-placeholder', 'Waiting for data\u2026'),
+        : m('.pf-memento-placeholder', 'Waiting for data\u2026'),
     ),
 
     panel(
@@ -110,7 +109,7 @@ export function renderPressureSwapTab(data: PressureSwapTabData): m.Children {
             xAxisMin: data.xAxisMin,
             xAxisMax: data.xAxisMax,
           })
-        : m('.pf-live-memory-placeholder', 'Waiting for data\u2026'),
+        : m('.pf-memento-placeholder', 'Waiting for data\u2026'),
     ),
 
     data.swapChartData &&
