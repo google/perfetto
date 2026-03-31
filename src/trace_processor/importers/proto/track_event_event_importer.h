@@ -1303,6 +1303,30 @@ class TrackEventEventImporter {
                        Variadic::String(context_->storage->InternString(
                            id_str.string_view())));
     }
+
+    if (category_id_ == parser_->jobscheduler_category_id_) {
+      auto field = event_.FindField(
+          AndroidJobSchedulerTracker::kJobSchedulerJobExtensionFieldId);
+      if (field.valid()) {
+        protozero::ProtoDecoder job_decoder(field.as_bytes().data,
+                                            field.as_bytes().size);
+        StringId job_name_id = kNullStringId;
+        auto job_name_iid_field =
+            job_decoder.FindField(AndroidJobSchedulerTracker::kJobNameIid);
+        if (job_name_iid_field.valid()) {
+          auto* decoder = sequence_state_->LookupInternedMessage<
+              protos::pbzero::InternedData::kAndroidJobNameFieldNumber,
+              protos::pbzero::AndroidJobName>(job_name_iid_field.as_uint64());
+          if (decoder) {
+            job_name_id = context_->storage->InternString(base::StringView(
+                reinterpret_cast<const char*>(decoder->name().data),
+                decoder->name().size));
+          }
+        }
+        parser_->android_job_scheduler_tracker_.ParseAndroidJobSchedulerJob(
+            ts_, SliceId{inserter->row()}, job_name_id, field.as_bytes());
+      }
+    }
     if (event_.has_correlation_id_str()) {
       inserter->AddArg(parser_->correlation_id_key_id_,
                        Variadic::String(storage_->InternString(

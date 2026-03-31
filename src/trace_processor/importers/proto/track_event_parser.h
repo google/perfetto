@@ -24,6 +24,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/proto/active_chrome_processes_tracker.h"
+#include "src/trace_processor/importers/proto/android_job_scheduler_tracker.h"
 #include "src/trace_processor/importers/proto/chrome_string_lookup.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
@@ -64,6 +65,10 @@ class TrackEventParser {
                        uint32_t packet_sequence_id);
 
   void OnEventsFullyExtracted();
+
+  AndroidJobSchedulerTracker* android_job_scheduler_tracker() {
+    return &android_job_scheduler_tracker_;
+  }
 
  private:
   friend class TrackEventEventImporter;
@@ -127,8 +132,10 @@ class TrackEventParser {
   const StringId legacy_trace_source_id_key_id_;
   const StringId callsite_id_key_id_;
   const StringId end_callsite_id_key_id_;
+  const StringId jobscheduler_category_id_;
 
   ChromeStringLookup chrome_string_lookup_;
+  AndroidJobSchedulerTracker android_job_scheduler_tracker_;
   std::vector<uint32_t> reflect_fields_;
   ActiveChromeProcessesTracker active_chrome_processes_tracker_;
   DummyMemoryMapping* inline_callstack_dummy_mapping_ = nullptr;

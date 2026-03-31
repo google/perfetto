@@ -378,6 +378,14 @@ class TraceStorage {
     return mutable_table<tables::AndroidInputEventDispatchTable>();
   }
 
+  const tables::AndroidJobSchedulerTrackEventTable&
+  android_job_scheduler_track_event_table() const {
+    return table<tables::AndroidJobSchedulerTrackEventTable>();
+  }
+  tables::AndroidJobSchedulerTrackEventTable*
+  mutable_android_job_scheduler_track_event_table() {
+    return mutable_table<tables::AndroidJobSchedulerTrackEventTable>();
+  }
   const tables::MetadataTable& metadata_table() const {
     return table<tables::MetadataTable>();
   }

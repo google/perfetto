@@ -116,20 +116,6 @@ std::optional<base::Status> MaybeParseSourceLocation(
   return base::OkStatus();
 }
 
-std::optional<base::Status> MaybeParseAndroidJobName(
-    const protozero::Field& field,
-    util::ProtoToArgsParser::Delegate& delegate) {
-  auto* decoder = delegate.GetInternedMessage(
-      protos::pbzero::InternedData::kAndroidJobName, field.as_uint64());
-  if (!decoder) {
-    return std::nullopt;
-  }
-
-  delegate.AddString(util::ProtoToArgsParser::Key("job_scheduler_job.job_name"),
-                     decoder->name());
-  return base::OkStatus();
-}
-
 }  // namespace
 
 TrackEventParser::TrackEventParser(TraceProcessorContext* context,
@@ -228,7 +214,10 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
       callsite_id_key_id_(context_->storage->InternString("callsite_id")),
       end_callsite_id_key_id_(
           context_->storage->InternString("end_callsite_id")),
+      jobscheduler_category_id_(
+          context_->storage->InternString("jobscheduler")),
       chrome_string_lookup_(context->storage.get()),
+      android_job_scheduler_tracker_(context),
       active_chrome_processes_tracker_(context) {
   // Opt into DebugAnnotation handling: ParseMessage routes DebugAnnotation
   // sub-fields and direct DebugAnnotation parses through the iterative
@@ -279,7 +268,8 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
       "job_scheduler_job.job_name_iid",
       [](const protozero::Field& field,
          util::ProtoToArgsParser::Delegate& delegate) {
-        return MaybeParseAndroidJobName(field, delegate);
+        return AndroidJobSchedulerTracker::MaybeParseAndroidJobName(field,
+                                                                    delegate);
       });
 
   args_parser_.AddParsingOverrideForField(
