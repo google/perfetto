@@ -19,6 +19,7 @@
 
 #include "src/trace_processor/importers/proto/winscope/winscope_geometry.h"
 
+#include "protos/perfetto/trace/android/graphics/corner_radii.gen.h"
 #include "protos/perfetto/trace/android/graphics/rect.gen.h"
 #include "protos/perfetto/trace/android/surfaceflinger_common.gen.h"
 #include "protos/perfetto/trace/android/surfaceflinger_layers.gen.h"
