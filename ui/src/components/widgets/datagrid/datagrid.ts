@@ -1631,6 +1631,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
           return m(
             GridCell,
             {
+              actionButtons: colInfo?.actions?.(value, row),
               align: isRich ? rendered.align ?? 'left' : getAligment(value),
               nullish: isRich
                 ? rendered.nullish ?? value === null

@@ -64,6 +64,7 @@ export interface GridHeaderCellAttrs extends m.Attributes {
   readonly menuItems?: m.Children;
   readonly subContent?: m.Children;
   readonly hintSortDirection?: SortDirection;
+  readonly actionButtons?: m.Children;
 }
 
 export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
@@ -74,6 +75,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
       menuItems,
       subContent,
       hintSortDirection,
+      actionButtons,
       ...htmlAttrs
     } = attrs;
 
@@ -138,6 +140,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
             m('.pf-grid-header-cell__title-wrapper', children),
             renderSortButton(),
           ),
+          actionButtons,
           renderMenu(),
         ),
         subContent !== undefined &&
@@ -157,6 +160,7 @@ export interface GridCellAttrs extends HTMLAttrs {
   readonly indent?: number;
   readonly chevron?: 'expanded' | 'collapsed' | 'leaf';
   readonly onChevronClick?: () => void;
+  readonly actionButtons?: m.Children;
 }
 
 export class GridCell implements m.ClassComponent<GridCellAttrs> {
@@ -171,6 +175,7 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
       indent,
       chevron,
       onChevronClick,
+      actionButtons,
       ...htmlAttrs
     } = attrs;
 
@@ -223,20 +228,23 @@ export class GridCell implements m.ClassComponent<GridCellAttrs> {
       renderIndent(),
       renderChevron(),
       m('.pf-grid-cell__content', children),
-      !isEmptyVnodes(menuItems) &&
-        m(
-          PopupMenu,
-          {
-            trigger: m(Button, {
-              className: 'pf-visible-on-hover pf-grid-cell__menu-button',
-              icon: Icons.ContextMenuAlt,
-              rounded: true,
-              ariaLabel: 'Cell menu',
-            }),
-            position: PopupPosition.Bottom,
-          },
-          menuItems,
-        ),
+      m(
+        '.pf-visible-on-hover.pf-grid-cell__menu-button',
+        actionButtons,
+        !isEmptyVnodes(menuItems) &&
+          m(
+            PopupMenu,
+            {
+              trigger: m(Button, {
+                icon: Icons.ContextMenuAlt,
+                rounded: true,
+                ariaLabel: 'Cell menu',
+              }),
+              position: PopupPosition.Bottom,
+            },
+            menuItems,
+          ),
+      ),
     );
   }
 }

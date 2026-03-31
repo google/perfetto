@@ -91,6 +91,11 @@ $indent-guide-offset: 12px;
   &__menu-button {
     // Eliminate the extra space between the menu button and the cell content added by the content padding.
     margin-left: calc(-1 * var(--pf-cell-padding-inline));
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
   }
 
   &__indent {
