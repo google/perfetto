@@ -91,7 +91,7 @@ android_jank_cuj {
     }
     sf_frame {
       frame_number: 1
-      vsync: 110
+      vsync: 1010
       ts: 1000000000
       dur: 8000000
       sf_missed: false
@@ -100,7 +100,7 @@ android_jank_cuj {
     }
     sf_frame {
       frame_number: 2
-      vsync: 120
+      vsync: 1020
       ts: 1016000000
       dur: 9000000
       sf_missed: false
@@ -109,7 +109,7 @@ android_jank_cuj {
     }
     sf_frame {
       frame_number: 3
-      vsync: 130
+      vsync: 1030
       ts: 1032000000
       dur: 13000000
       sf_missed: false
@@ -118,7 +118,7 @@ android_jank_cuj {
     }
     sf_frame {
       frame_number: 4
-      vsync: 140
+      vsync: 1040
       ts: 1048000000
       dur: 12000000
       sf_missed: false
@@ -127,7 +127,7 @@ android_jank_cuj {
     }
     sf_frame {
       frame_number: 5
-      vsync: 160
+      vsync: 1060
       ts: 1070000000
       dur: 10000000
       sf_missed: false
@@ -136,7 +136,7 @@ android_jank_cuj {
     }
     sf_frame {
       frame_number: 6
-      vsync: 190
+      vsync: 1090
       ts: 1100000000
       dur: 10000000
       sf_missed: false
@@ -372,7 +372,7 @@ android_jank_cuj {
     }
     sf_frame {
       frame_number: 1
-      vsync: 110
+      vsync: 1010
       ts: 1000000000
       dur: 8000000
       sf_missed: false
@@ -381,7 +381,7 @@ android_jank_cuj {
     }
     sf_frame {
       frame_number: 2
-      vsync: 120
+      vsync: 1020
       ts: 1016000000
       dur: 9000000
       sf_missed: false
@@ -390,7 +390,7 @@ android_jank_cuj {
     }
     sf_frame {
       frame_number: 3
-      vsync: 130
+      vsync: 1030
       ts: 1032000000
       dur: 13000000
       sf_missed: false
@@ -399,7 +399,7 @@ android_jank_cuj {
     }
     sf_frame {
       frame_number: 4
-      vsync: 140
+      vsync: 1040
       ts: 1048000000
       dur: 12000000
       sf_missed: false
@@ -408,7 +408,7 @@ android_jank_cuj {
     }
     sf_frame {
       frame_number: 5
-      vsync: 160
+      vsync: 1060
       ts: 1070000000
       dur: 10000000
       sf_missed: false
@@ -417,7 +417,7 @@ android_jank_cuj {
     }
     sf_frame {
       frame_number: 6
-      vsync: 190
+      vsync: 1090
       ts: 1100000000
       dur: 10000000
       sf_missed: false
@@ -426,7 +426,7 @@ android_jank_cuj {
     }
     sf_frame {
       frame_number: 7
-      vsync: 200
+      vsync: 1100
       ts: 1200000000
       dur: 32000000
       sf_missed: true
