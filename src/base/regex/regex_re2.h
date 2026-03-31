@@ -110,9 +110,9 @@ class RegexRe2 {
  private:
   RegexRe2() = default;
   std::unique_ptr<re2::RE2> re_;
-  // Cached groups buffer. std::string_view is layout-compatible with
-  // re2::StringPiece (absl::string_view) in RE2_USE_ABSL builds.
-  mutable std::vector<std::string_view> groups_;
+  // Must be absl::string_view, not std::string_view, to match RE2::Match()
+  // signature. These can be distinct types in different builds.
+  mutable std::vector<absl::string_view> groups_;
 };
 
 }  // namespace base
