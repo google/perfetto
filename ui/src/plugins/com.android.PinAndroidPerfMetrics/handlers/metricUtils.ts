@@ -24,6 +24,9 @@ export interface FullTraceMetricData {
 
   /** Jank type (e.g., app or sf missed frame) */
   jankType: JankType;
+
+  /** Whether the metric is weighted */
+  isWeighted: boolean;
 }
 
 /**
@@ -39,6 +42,9 @@ export interface CujScopedMetricData {
 
   /** Jank type (e.g., app or sf missed frame) */
   jankType: JankType;
+
+  /** Whether the metric is weighted */
+  isWeighted: boolean;
 }
 
 /**
