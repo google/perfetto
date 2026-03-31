@@ -97,10 +97,10 @@ export class JoinSourceCard implements m.ClassComponent<JoinSourceCardAttrs> {
               m(
                 'option',
                 {
-                  value: col.column.name,
-                  selected: col.column.name === selectedColumn,
+                  value: col.name,
+                  selected: col.name === selectedColumn,
                 },
-                col.column.name,
+                col.name,
               ),
             ),
           ],
@@ -118,11 +118,11 @@ export class JoinSourceCard implements m.ClassComponent<JoinSourceCardAttrs> {
               columns.map((col, index) => {
                 // Check if this column's final name conflicts with the other side
                 // Use alias if available, otherwise use the column name
-                const finalName = col.alias ?? col.column.name;
+                const finalName = col.alias ?? col.name;
                 const isDuplicate = otherSideColumns.some(
                   (otherCol) =>
                     otherCol.checked &&
-                    (otherCol.alias ?? otherCol.column.name) === finalName,
+                    (otherCol.alias ?? otherCol.name) === finalName,
                 );
                 const isDisabled = isDuplicate && !col.checked;
 
@@ -134,7 +134,7 @@ export class JoinSourceCard implements m.ClassComponent<JoinSourceCardAttrs> {
                   m(Checkbox, {
                     checked: col.checked,
                     disabled: isDisabled,
-                    label: col.column.name,
+                    label: col.name,
                     onchange: (e) => {
                       onColumnToggle(
                         index,

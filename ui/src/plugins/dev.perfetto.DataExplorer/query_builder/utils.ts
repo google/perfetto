@@ -50,18 +50,19 @@ export function isStringType(type?: PerfettoSqlType): boolean {
 /**
  * Checks if a column is compatible with a specific aggregation operation.
  *
- * @param col The column to check
+ * @param col The column to check (must have an optional `type` field)
+ * @param col.type The SQL type of the column
  * @param op The aggregation operation (e.g., 'SUM', 'COUNT', 'MEAN', etc.)
  * @returns true if the column is compatible with the operation
  */
 export function isColumnValidForAggregation(
-  col: ColumnInfo,
+  col: {type?: PerfettoSqlType},
   op?: string,
 ): boolean {
   if (!op) return true;
 
-  const isNumeric = isNumericType(col.column.type);
-  const isString = isStringType(col.column.type);
+  const isNumeric = isNumericType(col.type);
+  const isString = isStringType(col.type);
 
   switch (op) {
     case 'MEAN':
@@ -146,17 +147,13 @@ export function getCommonColumns(
   const firstArray = columnArrays[0];
   const commonColumns = new Set(
     firstArray
-      .filter(
-        (c) => !excludedColumns.has(c.name) && !isTypeExcluded(c.column.type),
-      )
+      .filter((c) => !excludedColumns.has(c.name) && !isTypeExcluded(c.type))
       .map((c) => c.name),
   );
 
   // Intersect with columns from remaining arrays
   for (let i = 1; i < columnArrays.length; i++) {
-    const colsMap = new Map(
-      columnArrays[i].map((c) => [c.name, c.column.type]),
-    );
+    const colsMap = new Map(columnArrays[i].map((c) => [c.name, c.type]));
     for (const col of commonColumns) {
       const colType = colsMap.get(col);
       if (colType === undefined || isTypeExcluded(colType)) {

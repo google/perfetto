@@ -17,11 +17,11 @@ import {
   nextNodeId,
   NodeType,
   SecondaryInputSpec,
+  NodeContext,
 } from '../../query_node';
 import {getSecondaryInput} from '../graph_utils';
 import {
   ColumnInfo,
-  columnInfoFromName,
   columnInfoFromSqlColumn,
   legacyDeserializeType,
 } from '../column_info';
@@ -43,8 +43,6 @@ import {
 import {setValidationError} from '../node_issues';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {Callout} from '../../../../widgets/callout';
-import {SqlModules} from '../../../dev.perfetto.SqlModules/sql_modules';
-import {Trace} from '../../../../public/trace';
 import {Form, FormSection} from '../../../../widgets/form';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {NodeDetailsMessage, ColumnName} from '../node_styling_widgets';
@@ -52,7 +50,7 @@ import {Spinner} from '../../../../widgets/spinner';
 import {STR} from '../../../../trace_processor/query_result';
 import {sqliteString} from '../../../../base/string_utils';
 import {loadNodeDoc} from '../node_doc_loader';
-import {NewColumn, AddColumnsNodeState} from './add_columns_types';
+import {NewColumn, AddColumnsNodeAttrs} from './add_columns_types';
 import {SwitchComponent, IfComponent} from './computed_column_components';
 import {AddColumnsSuggestionModal} from './add_columns_suggestion_modal';
 import {AddColumnsConfigurationModal} from './add_columns_configuration_modal';
@@ -69,7 +67,7 @@ import {
 } from './add_columns_function_modal';
 
 // Re-export types for backwards compatibility
-export {NewColumn, AddColumnsNodeState} from './add_columns_types';
+export {NewColumn, AddColumnsNodeAttrs} from './add_columns_types';
 
 export class AddColumnsNode implements QueryNode {
   readonly nodeId: string;
@@ -77,11 +75,24 @@ export class AddColumnsNode implements QueryNode {
   primaryInput?: QueryNode;
   secondaryInputs: SecondaryInputSpec;
   nextNodes: QueryNode[];
-  readonly state: AddColumnsNodeState;
+  readonly attrs: AddColumnsNodeAttrs;
+  readonly context: NodeContext;
 
-  constructor(state: AddColumnsNodeState) {
+  constructor(attrs: AddColumnsNodeAttrs, context: NodeContext) {
     this.nodeId = nextNodeId();
-    this.state = state;
+    this.attrs = {
+      ...attrs,
+      selectedColumns: attrs.selectedColumns ?? [],
+      leftColumn: attrs.leftColumn ?? 'id',
+      rightColumn: attrs.rightColumn ?? 'id',
+      suggestionSelections: attrs.suggestionSelections ?? {},
+      expandedSuggestions: attrs.expandedSuggestions ?? [],
+      columnAliases: attrs.columnAliases ?? {},
+      suggestionAliases: attrs.suggestionAliases ?? {},
+      columnTypes: attrs.columnTypes ?? {},
+      computedColumns: attrs.computedColumns ?? [],
+    };
+    this.context = {...context, autoExecute: context.autoExecute ?? true};
     this.secondaryInputs = {
       connections: new Map(),
       min: 1,
@@ -89,43 +100,31 @@ export class AddColumnsNode implements QueryNode {
       portNames: ['Table'],
     };
     this.nextNodes = [];
-    this.state.selectedColumns = this.state.selectedColumns ?? [];
-    this.state.leftColumn = this.state.leftColumn ?? 'id';
-    this.state.rightColumn = this.state.rightColumn ?? 'id';
-    this.state.autoExecute = this.state.autoExecute ?? true;
-    this.state.suggestionSelections =
-      this.state.suggestionSelections ?? new Map();
-    this.state.expandedSuggestions =
-      this.state.expandedSuggestions ?? new Set();
-    this.state.columnAliases = this.state.columnAliases ?? new Map();
-    this.state.suggestionAliases = this.state.suggestionAliases ?? new Map();
-    this.state.columnTypes = this.state.columnTypes ?? new Map();
-    this.state.computedColumns = this.state.computedColumns ?? [];
   }
 
   // Called when a node is connected/disconnected to inputNodes
   onPrevNodesUpdated(): void {
     // If node is disconnected, reset everything
     if (!this.rightNode) {
-      this.state.selectedColumns = [];
-      this.state.isGuidedConnection = false;
-      this.state.onchange?.();
+      this.attrs.selectedColumns = [];
+      this.attrs.isGuidedConnection = false;
+      this.context.onchange?.();
       return;
     }
 
     // Check if the join column is still valid
-    if (this.state.rightColumn) {
+    if (this.attrs.rightColumn) {
       const rightColExists = this.rightCols.some(
-        (c) => c.column.name === this.state.rightColumn,
+        (c) => c.name === this.attrs.rightColumn,
       );
       if (!rightColExists) {
         // Join column no longer exists - reset selection
-        this.state.selectedColumns = [];
-        this.state.rightColumn = undefined;
+        this.attrs.selectedColumns = [];
+        this.attrs.rightColumn = undefined;
       }
     }
 
-    this.state.onchange?.();
+    this.context.onchange?.();
   }
 
   get sourceCols(): ColumnInfo[] {
@@ -148,15 +147,15 @@ export class AddColumnsNode implements QueryNode {
     if (this.rightNode) {
       // Add only selected columns (with aliases and types if provided)
       const newCols =
-        this.state.selectedColumns?.map((c) => {
-          const alias = this.state.columnAliases?.get(c);
-          const storedType = this.state.columnTypes?.get(c);
+        this.attrs.selectedColumns?.map((c) => {
+          const alias = this.attrs.columnAliases?.[c];
+          const storedType = this.attrs.columnTypes?.[c];
 
           // Find the column in rightCols to get type information
           const sourceCol = this.rightCols.find((col) => col.name === c);
           if (sourceCol) {
             // Use stored type if available, otherwise use source type
-            const finalType = storedType ?? sourceCol.column.type;
+            const finalType = storedType ?? sourceCol.type;
 
             return columnInfoFromSqlColumn({
               name: alias ?? c,
@@ -164,14 +163,14 @@ export class AddColumnsNode implements QueryNode {
             });
           }
           // Fallback if column not found (shouldn't happen in valid state)
-          return columnInfoFromName(alias ?? c);
+          return {name: alias ?? c, checked: false};
         }) ?? [];
       cols = [...cols, ...newCols];
     }
 
     // Add computed columns (expressions, SWITCH, IF)
     const computedCols =
-      this.state.computedColumns
+      this.attrs.computedColumns
         ?.filter((c) => this.isComputedColumnValid(c))
         .map((col) => {
           // Use stored sqlType if available (from deserialization or user change)
@@ -183,13 +182,13 @@ export class AddColumnsNode implements QueryNode {
           }
           // Try to preserve type information if the expression is a simple column reference
           const sourceCol = this.sourceCols.find(
-            (c) => c.column.name === col.expression,
+            (c) => c.name === col.expression,
           );
-          if (sourceCol?.column.type) {
-            col.sqlType = sourceCol.column.type;
+          if (sourceCol?.type) {
+            col.sqlType = sourceCol.type;
             return columnInfoFromSqlColumn({
               name: col.name,
-              type: sourceCol.column.type,
+              type: sourceCol.type,
             });
           }
           // For complex expressions, we can't infer the type, use INT as default
@@ -224,16 +223,16 @@ export class AddColumnsNode implements QueryNode {
 
     // Check against source columns (use alias if present, otherwise column name)
     for (const c of this.sourceCols) {
-      const effectiveName = c.alias ?? c.column.name;
+      const effectiveName = c.alias ?? c.name;
       if (effectiveName === trimmedName) {
         return `Column "${trimmedName}" already exists in the source data`;
       }
     }
 
     // Check against selected columns from joined source (with aliases)
-    if (this.state.selectedColumns) {
-      for (const colName of this.state.selectedColumns) {
-        const alias = this.state.columnAliases?.get(colName);
+    if (this.attrs.selectedColumns) {
+      for (const colName of this.attrs.selectedColumns) {
+        const alias = this.attrs.columnAliases?.[colName];
         const effectiveName = alias ?? colName;
         if (effectiveName === trimmedName) {
           return `Column "${trimmedName}" already exists in joined columns`;
@@ -242,9 +241,9 @@ export class AddColumnsNode implements QueryNode {
     }
 
     // Check against other computed columns
-    for (let i = 0; i < (this.state.computedColumns?.length ?? 0); i++) {
+    for (let i = 0; i < (this.attrs.computedColumns?.length ?? 0); i++) {
       if (i === excludeIndex) continue; // Skip the column being edited
-      const col = this.state.computedColumns![i];
+      const col = this.attrs.computedColumns![i];
       if (col.name.trim() === trimmedName) {
         return `Column "${trimmedName}" already exists in computed columns`;
       }
@@ -266,12 +265,12 @@ export class AddColumnsNode implements QueryNode {
     }> = [];
 
     for (const col of this.sourceCols) {
-      const colType = col.column.type;
+      const colType = col.type;
 
       // Check if this column has a JOINID type with explicit source information
       if (colType && colType.kind === 'joinid') {
         suggestions.push({
-          colName: col.column.name,
+          colName: col.name,
           suggestedTable: colType.source.table,
           targetColumn: colType.source.column,
         });
@@ -291,16 +290,16 @@ export class AddColumnsNode implements QueryNode {
 
   // Get full table info for a suggested table
   private getTable(tableName: string) {
-    if (!this.state.sqlModules) return undefined;
+    if (!this.context.sqlModules) return undefined;
 
-    return this.state.sqlModules.listTables().find((t) => t.name === tableName);
+    return this.context.sqlModules
+      .listTables()
+      .find((t) => t.name === tableName);
   }
 
   // Find all arg_set_id columns in source columns
   getArgSetIdColumns(): ColumnInfo[] {
-    return this.sourceCols.filter(
-      (col) => col.column.type?.kind === 'arg_set_id',
-    );
+    return this.sourceCols.filter((col) => col.type?.kind === 'arg_set_id');
   }
 
   // Fetch available arg keys for the given arg_set_id column.
@@ -308,19 +307,19 @@ export class AddColumnsNode implements QueryNode {
   // to avoid creating a competing summarizer (which would conflict with
   // the main QueryExecutionService's materialized tables).
   async fetchAvailableArgKeys(argSetIdCol: ColumnInfo): Promise<string[]> {
-    const trace = this.state.trace;
+    const trace = this.context.trace;
     if (!trace) return [];
 
     const primaryInput = this.primaryInput;
     if (!primaryInput) return [];
 
     // Get the materialized table name for the primary input node
-    const tableName = await this.state.getTableNameForNode?.(
+    const tableName = await this.context.getTableNameForNode?.(
       primaryInput.nodeId,
     );
     if (!tableName) return [];
 
-    const argColName = argSetIdCol.column.name;
+    const argColName = argSetIdCol.name;
     const sql = `
       SELECT DISTINCT args.flat_key as key
       FROM ${tableName} data
@@ -350,28 +349,28 @@ export class AddColumnsNode implements QueryNode {
   isApplyDisabled(): boolean {
     // When no rightNode exists, require table and columns selection
     if (!this.rightNode) {
-      const selectedTable = this.state.selectedSuggestionTable;
+      const selectedTable = this.attrs.selectedSuggestionTable;
       if (!selectedTable) return true;
       const selectedColumns =
-        this.state.suggestionSelections?.get(selectedTable) ?? [];
+        this.attrs.suggestionSelections?.[selectedTable] ?? [];
       if (selectedColumns.length === 0) return true;
       // Also disable if there are duplicate column name errors
       return this.getJoinColumnErrors(selectedColumns, true).length > 0;
     }
     // When rightNode exists, require both join columns to be specified
-    if (!this.state.leftColumn || !this.state.rightColumn) {
+    if (!this.attrs.leftColumn || !this.attrs.rightColumn) {
       return true;
     }
     // Require columns to be selected
     if (
-      !this.state.selectedColumns ||
-      this.state.selectedColumns.length === 0
+      !this.attrs.selectedColumns ||
+      this.attrs.selectedColumns.length === 0
     ) {
       return true;
     }
     // Also disable if there are duplicate column name errors
     return (
-      this.getJoinColumnErrors(this.state.selectedColumns, false).length > 0
+      this.getJoinColumnErrors(this.attrs.selectedColumns, false).length > 0
     );
   }
 
@@ -383,19 +382,19 @@ export class AddColumnsNode implements QueryNode {
   ): Array<{column: string; error: string}> {
     const errors: Array<{column: string; error: string}> = [];
     const aliasMap = useSuggestionAliases
-      ? this.state.suggestionAliases
-      : this.state.columnAliases;
+      ? this.attrs.suggestionAliases
+      : this.attrs.columnAliases;
 
     // Get effective names (alias or original name) for all selected columns
     const effectiveNames = new Map<string, string>();
     for (const col of selectedColumns) {
-      const alias = aliasMap?.get(col);
-      effectiveNames.set(col, alias || col);
+      const alias = aliasMap?.[col];
+      effectiveNames.set(col, alias !== undefined ? alias : col);
     }
 
     // Check each column against source columns
     const sourceColNames = new Set(
-      this.sourceCols.map((c) => c.alias ?? c.column.name),
+      this.sourceCols.map((c) => c.alias ?? c.name),
     );
     for (const col of selectedColumns) {
       const effectiveName = effectiveNames.get(col) ?? col;
@@ -427,9 +426,9 @@ export class AddColumnsNode implements QueryNode {
 
   nodeDetails(): NodeDetailsAttrs {
     const hasConnectedNode = this.rightNode !== undefined;
-    const hasComputedColumns = (this.state.computedColumns?.length ?? 0) > 0;
+    const hasComputedColumns = (this.attrs.computedColumns?.length ?? 0) > 0;
     const hasSelectedColumns =
-      this.state.selectedColumns && this.state.selectedColumns.length > 0;
+      this.attrs.selectedColumns && this.attrs.selectedColumns.length > 0;
 
     if (!hasSelectedColumns && !hasComputedColumns) {
       return {
@@ -443,8 +442,8 @@ export class AddColumnsNode implements QueryNode {
     if (hasConnectedNode && hasSelectedColumns) {
       items.push(m('div', 'Add columns from input node:'));
       const columns = [];
-      for (const col of this.state.selectedColumns ?? []) {
-        const alias = this.state.columnAliases?.get(col);
+      for (const col of this.attrs.selectedColumns ?? []) {
+        const alias = this.attrs.columnAliases?.[col];
         const displayName = alias || col;
         columns.push(displayName);
       }
@@ -463,7 +462,7 @@ export class AddColumnsNode implements QueryNode {
         items.push(m('.pf-section-spacer'));
       }
       items.push(m('div', 'Add computed columns:'));
-      for (const col of this.state.computedColumns ?? []) {
+      for (const col of this.attrs.computedColumns ?? []) {
         const name = col.name || '(unnamed)';
         let description = '';
 
@@ -577,42 +576,42 @@ export class AddColumnsNode implements QueryNode {
           disabled: () => this.isApplyDisabled(),
           action: () => {
             // If there's no rightNode, connect the selected suggestion table
-            if (!this.rightNode && this.state.selectedSuggestionTable) {
+            if (!this.rightNode && this.attrs.selectedSuggestionTable) {
               const suggestions = this.getJoinSuggestions();
               const selectedSuggestion = suggestions.find(
-                (s) => s.suggestedTable === this.state.selectedSuggestionTable,
+                (s) => s.suggestedTable === this.attrs.selectedSuggestionTable,
               );
               const selectedColumns =
-                this.state.suggestionSelections?.get(
-                  this.state.selectedSuggestionTable,
-                ) ?? [];
+                this.attrs.suggestionSelections?.[
+                  this.attrs.selectedSuggestionTable
+                ] ?? [];
 
               if (selectedSuggestion && selectedColumns.length > 0) {
-                if (this.state.actions?.onAddAndConnectTable) {
-                  this.state.isGuidedConnection = true;
-                  this.state.actions.onAddAndConnectTable(
+                if (this.context.actions?.onAddAndConnectTable) {
+                  this.attrs.isGuidedConnection = true;
+                  this.context.actions.onAddAndConnectTable(
                     selectedSuggestion.suggestedTable,
                     0,
                   );
-                  this.state.leftColumn = selectedSuggestion.colName;
-                  this.state.rightColumn = selectedSuggestion.targetColumn;
-                  this.state.selectedColumns = [...selectedColumns];
+                  this.attrs.leftColumn = selectedSuggestion.colName;
+                  this.attrs.rightColumn = selectedSuggestion.targetColumn;
+                  this.attrs.selectedColumns = [...selectedColumns];
                   // Copy suggestion aliases to column aliases
-                  if (this.state.suggestionAliases) {
-                    if (!this.state.columnAliases) {
-                      this.state.columnAliases = new Map();
+                  if (this.attrs.suggestionAliases) {
+                    if (!this.attrs.columnAliases) {
+                      this.attrs.columnAliases = {};
                     }
                     for (const col of selectedColumns) {
-                      const alias = this.state.suggestionAliases.get(col);
+                      const alias = this.attrs.suggestionAliases[col];
                       if (alias) {
-                        this.state.columnAliases.set(col, alias);
+                        this.attrs.columnAliases[col] = alias;
                       }
                     }
                   }
                 }
               }
             }
-            this.state.onchange?.();
+            this.context.onchange?.();
           },
         },
       ],
@@ -654,8 +653,8 @@ export class AddColumnsNode implements QueryNode {
 
     // Create a temporary copy to work with in the modal
     let tempColumn: NewColumn;
-    if (isEditing && this.state.computedColumns?.[columnIndex]) {
-      const source = this.state.computedColumns[columnIndex];
+    if (isEditing && this.attrs.computedColumns?.[columnIndex]) {
+      const source = this.attrs.computedColumns[columnIndex];
       tempColumn = {
         ...source,
         cases: source.cases?.map((c) => ({...c})),
@@ -691,17 +690,17 @@ export class AddColumnsNode implements QueryNode {
           action: () => {
             if (isEditing && columnIndex !== undefined) {
               const newComputedColumns = [
-                ...(this.state.computedColumns ?? []),
+                ...(this.attrs.computedColumns ?? []),
               ];
               newComputedColumns[columnIndex] = tempColumn;
-              this.state.computedColumns = newComputedColumns;
+              this.attrs.computedColumns = newComputedColumns;
             } else {
-              this.state.computedColumns = [
-                ...(this.state.computedColumns ?? []),
+              this.attrs.computedColumns = [
+                ...(this.attrs.computedColumns ?? []),
                 tempColumn,
               ];
             }
-            this.state.onchange?.();
+            this.context.onchange?.();
           },
         },
       ],
@@ -774,7 +773,7 @@ export class AddColumnsNode implements QueryNode {
     };
 
     const getArgSetIdColDisplayName = (col: ColumnInfo): string => {
-      return col.alias ?? col.column.name;
+      return col.alias ?? col.name;
     };
 
     showModal({
@@ -794,7 +793,7 @@ export class AddColumnsNode implements QueryNode {
                   onchange: (e: Event) => {
                     const value = (e.target as HTMLSelectElement).value;
                     selectedArgSetIdCol = argSetIdCols.find(
-                      (col) => col.column.name === value,
+                      (col) => col.name === value,
                     );
                     if (selectedArgSetIdCol) {
                       fetchKeysForColumn(selectedArgSetIdCol);
@@ -815,7 +814,7 @@ export class AddColumnsNode implements QueryNode {
                   m(
                     'option',
                     {
-                      value: col.column.name,
+                      value: col.name,
                       selected: col === selectedArgSetIdCol,
                     },
                     getArgSetIdColDisplayName(col),
@@ -940,7 +939,7 @@ export class AddColumnsNode implements QueryNode {
           action: () => {
             if (!isValid() || !selectedKey || !selectedArgSetIdCol) return;
 
-            const argSetIdColName = selectedArgSetIdCol.column.name;
+            const argSetIdColName = selectedArgSetIdCol.name;
             // Create expression using extract_arg
             const expression = `extract_arg(${argSetIdColName}, ${sqliteString(selectedKey)})`;
 
@@ -949,11 +948,11 @@ export class AddColumnsNode implements QueryNode {
               name: columnName.trim(),
             };
 
-            this.state.computedColumns = [
-              ...(this.state.computedColumns ?? []),
+            this.attrs.computedColumns = [
+              ...(this.attrs.computedColumns ?? []),
               newColumn,
             ];
-            this.state.onchange?.();
+            this.context.onchange?.();
             closeModal(modalKey);
           },
         },
@@ -965,14 +964,14 @@ export class AddColumnsNode implements QueryNode {
     const modalKey = 'add-function-modal';
     const isEditing = columnIndex !== undefined;
     const existingColumn = isEditing
-      ? this.state.computedColumns?.[columnIndex]
+      ? this.attrs.computedColumns?.[columnIndex]
       : undefined;
 
     // Create modal state using the helper
     const modalState: FunctionModalState = createFunctionModalState(
       isEditing,
       existingColumn,
-      this.state.sqlModules,
+      this.context.sqlModules,
     );
 
     // Generate a unique column name by appending a number suffix if needed
@@ -1022,7 +1021,7 @@ export class AddColumnsNode implements QueryNode {
         content: () => {
           if (modalState.step === 'select') {
             return m(FunctionSelectStep, {
-              sqlModules: this.state.sqlModules!,
+              sqlModules: this.context.sqlModules!,
               searchQuery: modalState.searchQuery,
               selectedFunction: modalState.selectedFunctionWithModule?.fn.name,
               onSearchQueryChange: (query) => {
@@ -1078,17 +1077,17 @@ export class AddColumnsNode implements QueryNode {
 
               if (isEditing && columnIndex !== undefined) {
                 const newComputedColumns = [
-                  ...(this.state.computedColumns ?? []),
+                  ...(this.attrs.computedColumns ?? []),
                 ];
                 newComputedColumns[columnIndex] = newColumn;
-                this.state.computedColumns = newComputedColumns;
+                this.attrs.computedColumns = newComputedColumns;
               } else {
-                this.state.computedColumns = [
-                  ...(this.state.computedColumns ?? []),
+                this.attrs.computedColumns = [
+                  ...(this.attrs.computedColumns ?? []),
                   newColumn,
                 ];
               }
-              this.state.onchange?.();
+              this.context.onchange?.();
               closeModal(modalKey);
             },
           },
@@ -1101,9 +1100,9 @@ export class AddColumnsNode implements QueryNode {
 
   private renderAddedColumnsList(): m.Child {
     const hasConnectedNode = this.rightNode !== undefined;
-    const hasComputedColumns = (this.state.computedColumns?.length ?? 0) > 0;
+    const hasComputedColumns = (this.attrs.computedColumns?.length ?? 0) > 0;
     const hasSelectedColumns =
-      this.state.selectedColumns && this.state.selectedColumns.length > 0;
+      this.attrs.selectedColumns && this.attrs.selectedColumns.length > 0;
 
     if (!hasSelectedColumns && !hasComputedColumns) {
       return m(EmptyState, {
@@ -1119,7 +1118,7 @@ export class AddColumnsNode implements QueryNode {
     }
 
     // Show computed columns
-    for (const [index, col] of (this.state.computedColumns ?? []).entries()) {
+    for (const [index, col] of (this.attrs.computedColumns ?? []).entries()) {
       const icon =
         col.type === 'switch'
           ? 'alt_route'
@@ -1156,10 +1155,10 @@ export class AddColumnsNode implements QueryNode {
   }
 
   private renderJoinedColumnsRow(): m.Child {
-    const count = this.state.selectedColumns?.length ?? 0;
-    const columnNames = (this.state.selectedColumns ?? [])
+    const count = this.attrs.selectedColumns?.length ?? 0;
+    const columnNames = (this.attrs.selectedColumns ?? [])
       .map((colName) => {
-        const alias = this.state.columnAliases?.get(colName);
+        const alias = this.attrs.columnAliases?.[colName];
         return alias || colName;
       })
       .join(', ');
@@ -1192,10 +1191,10 @@ export class AddColumnsNode implements QueryNode {
           icon: 'close',
           compact: true,
           onclick: () => {
-            this.state.selectedColumns = [];
-            this.state.columnAliases?.clear();
-            this.state.columnTypes?.clear();
-            this.state.onchange?.();
+            this.attrs.selectedColumns = [];
+            this.attrs.columnAliases = {};
+            this.attrs.columnTypes = {};
+            this.context.onchange?.();
           },
           title: 'Remove all joined columns',
         }),
@@ -1213,18 +1212,18 @@ export class AddColumnsNode implements QueryNode {
     const colInfo: ColumnInfo = {
       name: col.name || '(unnamed)',
       checked: true,
-      column: {name: col.name, type: col.sqlType},
+      type: col.sqlType,
     };
 
     const handleTypeChange = (_index: number, newType: PerfettoSqlType) => {
-      if (!this.state.computedColumns) return;
-      const newComputedColumns = [...this.state.computedColumns];
+      if (!this.attrs.computedColumns) return;
+      const newComputedColumns = [...this.attrs.computedColumns];
       newComputedColumns[index] = {
         ...newComputedColumns[index],
         sqlType: newType,
       };
-      this.state.computedColumns = newComputedColumns;
-      this.state.onchange?.();
+      this.attrs.computedColumns = newComputedColumns;
+      this.context.onchange?.();
     };
 
     return m(
@@ -1244,7 +1243,7 @@ export class AddColumnsNode implements QueryNode {
         renderTypeSelector(
           colInfo,
           index,
-          this.state.sqlModules,
+          this.context.sqlModules,
           handleTypeChange,
         ),
         m(Button, {
@@ -1268,8 +1267,8 @@ export class AddColumnsNode implements QueryNode {
           icon: 'close',
           compact: true,
           onclick: () => {
-            this.state.computedColumns?.splice(index, 1);
-            this.state.onchange?.();
+            this.attrs.computedColumns?.splice(index, 1);
+            this.context.onchange?.();
           },
           title: 'Remove item',
         }),
@@ -1285,9 +1284,9 @@ export class AddColumnsNode implements QueryNode {
 
   private renderSuggestionMode(): m.Child {
     const suggestions = this.getJoinSuggestions();
-    const selectedTable = this.state.selectedSuggestionTable;
+    const selectedTable = this.attrs.selectedSuggestionTable;
     const selectedColumns = selectedTable
-      ? this.state.suggestionSelections?.get(selectedTable) ?? []
+      ? this.attrs.suggestionSelections?.[selectedTable] ?? []
       : [];
 
     return m(AddColumnsSuggestionModal, {
@@ -1295,21 +1294,20 @@ export class AddColumnsNode implements QueryNode {
       sourceCols: this.sourceCols,
       selectedTable,
       selectedColumns,
-      suggestionAliases: this.state.suggestionAliases,
+      suggestionAliases: this.attrs.suggestionAliases,
       getTable: (tableName: string) => this.getTable(tableName),
       getJoinColumnErrors: (cols: string[]) =>
         this.getJoinColumnErrors(cols, true),
       onTableSelect: (tableName: string | undefined) => {
-        this.state.selectedSuggestionTable = tableName;
+        this.attrs.selectedSuggestionTable = tableName;
         m.redraw();
       },
       onColumnToggle: (colName: string, checked: boolean) => {
         if (!selectedTable) return;
-        if (!this.state.suggestionSelections) {
-          this.state.suggestionSelections = new Map();
+        if (!this.attrs.suggestionSelections) {
+          this.attrs.suggestionSelections = {};
         }
-        const current =
-          this.state.suggestionSelections.get(selectedTable) ?? [];
+        const current = this.attrs.suggestionSelections[selectedTable] ?? [];
         let updated = [...current];
         if (checked) {
           if (!updated.includes(colName)) {
@@ -1317,19 +1315,21 @@ export class AddColumnsNode implements QueryNode {
           }
         } else {
           updated = updated.filter((c) => c !== colName);
-          this.state.suggestionAliases?.delete(colName);
+          if (this.attrs.suggestionAliases) {
+            delete this.attrs.suggestionAliases[colName];
+          }
         }
-        this.state.suggestionSelections.set(selectedTable, updated);
+        this.attrs.suggestionSelections[selectedTable] = updated;
         redrawModal();
       },
       onColumnAlias: (colName: string, alias: string) => {
-        if (!this.state.suggestionAliases) {
-          this.state.suggestionAliases = new Map();
+        if (!this.attrs.suggestionAliases) {
+          this.attrs.suggestionAliases = {};
         }
         if (alias.trim() === '') {
-          this.state.suggestionAliases.delete(colName);
+          delete this.attrs.suggestionAliases[colName];
         } else {
-          this.state.suggestionAliases.set(colName, alias);
+          this.attrs.suggestionAliases[colName] = alias;
         }
         redrawModal();
       },
@@ -1337,50 +1337,52 @@ export class AddColumnsNode implements QueryNode {
   }
 
   private renderJoinConfiguration(): m.Child {
-    const selectedColumns = this.state.selectedColumns ?? [];
+    const selectedColumns = this.attrs.selectedColumns ?? [];
 
     return m(AddColumnsConfigurationModal, {
       sourceCols: this.sourceCols,
       rightCols: this.rightCols,
-      leftColumn: this.state.leftColumn,
-      rightColumn: this.state.rightColumn,
+      leftColumn: this.attrs.leftColumn,
+      rightColumn: this.attrs.rightColumn,
       selectedColumns,
-      columnAliases: this.state.columnAliases,
+      columnAliases: this.attrs.columnAliases,
       getJoinColumnErrors: (cols: string[]) =>
         this.getJoinColumnErrors(cols, false),
       onLeftColumnChange: (columnName: string) => {
-        this.state.leftColumn = columnName;
+        this.attrs.leftColumn = columnName;
         redrawModal();
       },
       onRightColumnChange: (columnName: string) => {
-        this.state.rightColumn = columnName;
+        this.attrs.rightColumn = columnName;
         redrawModal();
       },
       onColumnToggle: (colName: string, checked: boolean) => {
-        if (!this.state.selectedColumns) {
-          this.state.selectedColumns = [];
+        if (!this.attrs.selectedColumns) {
+          this.attrs.selectedColumns = [];
         }
         if (checked) {
-          if (!this.state.selectedColumns.includes(colName)) {
-            this.state.selectedColumns.push(colName);
+          if (!this.attrs.selectedColumns.includes(colName)) {
+            this.attrs.selectedColumns.push(colName);
           }
         } else {
-          this.state.selectedColumns = this.state.selectedColumns.filter(
+          this.attrs.selectedColumns = this.attrs.selectedColumns.filter(
             (c) => c !== colName,
           );
-          this.state.columnAliases?.delete(colName);
-          this.state.columnTypes?.delete(colName);
+          if (this.attrs.columnAliases) {
+            delete this.attrs.columnAliases[colName];
+          }
+          if (this.attrs.columnTypes) delete this.attrs.columnTypes[colName];
         }
         redrawModal();
       },
       onColumnAlias: (colName: string, alias: string) => {
-        if (!this.state.columnAliases) {
-          this.state.columnAliases = new Map();
+        if (!this.attrs.columnAliases) {
+          this.attrs.columnAliases = {};
         }
         if (alias.trim() === '') {
-          this.state.columnAliases.delete(colName);
+          delete this.attrs.columnAliases[colName];
         } else {
-          this.state.columnAliases.set(colName, alias);
+          this.attrs.columnAliases[colName] = alias;
         }
         redrawModal();
       },
@@ -1473,17 +1475,17 @@ export class AddColumnsNode implements QueryNode {
 
   validate(): boolean {
     // Clear any previous errors at the start of validation
-    if (this.state.issues) {
-      this.state.issues.clear();
+    if (this.context.issues) {
+      this.context.issues.clear();
     }
 
     if (this.primaryInput === undefined) {
-      setValidationError(this.state, 'No input node connected');
+      setValidationError(this.context, 'No input node connected');
       return false;
     }
 
     if (!this.primaryInput.validate()) {
-      setValidationError(this.state, 'Previous node is invalid');
+      setValidationError(this.context, 'Previous node is invalid');
       return false;
     }
 
@@ -1491,17 +1493,17 @@ export class AddColumnsNode implements QueryNode {
     if (this.rightNode) {
       if (!this.rightNode.validate()) {
         setValidationError(
-          this.state,
-          this.rightNode.state.issues?.queryError?.message ??
+          this.context,
+          this.rightNode.context.issues?.queryError?.message ??
             `Lookup table node '${this.rightNode.getTitle()}' is invalid`,
         );
         return false;
       }
 
       // We need valid join columns
-      if (!this.state.leftColumn || !this.state.rightColumn) {
+      if (!this.attrs.leftColumn || !this.attrs.rightColumn) {
         setValidationError(
-          this.state,
+          this.context,
           'Join requires both left and right join columns to be selected',
         );
         return false;
@@ -1514,40 +1516,39 @@ export class AddColumnsNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    const stateCopy: AddColumnsNodeState = {
-      selectedColumns: this.state.selectedColumns
-        ? [...this.state.selectedColumns]
+    const attrsCopy: AddColumnsNodeAttrs = {
+      selectedColumns: this.attrs.selectedColumns
+        ? [...this.attrs.selectedColumns]
         : undefined,
-      leftColumn: this.state.leftColumn,
-      rightColumn: this.state.rightColumn,
-      suggestionSelections: this.state.suggestionSelections
-        ? new Map(this.state.suggestionSelections)
+      leftColumn: this.attrs.leftColumn,
+      rightColumn: this.attrs.rightColumn,
+      suggestionSelections: this.attrs.suggestionSelections
+        ? {...this.attrs.suggestionSelections}
         : undefined,
-      expandedSuggestions: this.state.expandedSuggestions
-        ? new Set(this.state.expandedSuggestions)
+      expandedSuggestions: this.attrs.expandedSuggestions
+        ? [...this.attrs.expandedSuggestions]
         : undefined,
-      selectedSuggestionTable: this.state.selectedSuggestionTable,
-      columnAliases: this.state.columnAliases
-        ? new Map(this.state.columnAliases)
+      selectedSuggestionTable: this.attrs.selectedSuggestionTable,
+      columnAliases: this.attrs.columnAliases
+        ? {...this.attrs.columnAliases}
         : undefined,
-      suggestionAliases: this.state.suggestionAliases
-        ? new Map(this.state.suggestionAliases)
+      suggestionAliases: this.attrs.suggestionAliases
+        ? {...this.attrs.suggestionAliases}
         : undefined,
-      columnTypes: this.state.columnTypes
-        ? new Map(this.state.columnTypes)
+      columnTypes: this.attrs.columnTypes
+        ? {...this.attrs.columnTypes}
         : undefined,
-      isGuidedConnection: this.state.isGuidedConnection,
-      computedColumns: this.state.computedColumns?.map((col) => ({
+      isGuidedConnection: this.attrs.isGuidedConnection,
+      computedColumns: this.attrs.computedColumns?.map((col) => ({
         ...col,
         cases: col.cases?.map((c) => ({...c})),
         clauses: col.clauses?.map((c) => ({...c})),
       })),
-      filters: this.state.filters?.map((f) => ({...f})),
-      filterOperator: this.state.filterOperator,
-      onchange: this.state.onchange,
-      sqlModules: this.state.sqlModules,
     };
-    return new AddColumnsNode(stateCopy);
+    return new AddColumnsNode(attrsCopy, {
+      onchange: this.context.onchange,
+      sqlModules: this.context.sqlModules,
+    });
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -1557,7 +1558,7 @@ export class AddColumnsNode implements QueryNode {
     // If there's no rightNode, we only add computed columns (no JOIN)
     if (!this.rightNode) {
       const computedColumns: ColumnSpec[] = [];
-      for (const col of this.state.computedColumns ?? []) {
+      for (const col of this.attrs.computedColumns ?? []) {
         if (!this.isComputedColumnValid(col)) continue;
         computedColumns.push({
           columnNameOrExpression: col.expression,
@@ -1577,14 +1578,14 @@ export class AddColumnsNode implements QueryNode {
       // Build column specifications including existing columns and computed columns
       const allColumns: ColumnSpec[] = [
         ...this.sourceCols.map((col) => ({
-          columnNameOrExpression: col.column.name,
-          alias: col.column.name, // Explicitly set alias to avoid protobuf empty string default
+          columnNameOrExpression: col.name,
+          alias: col.name, // Explicitly set alias to avoid protobuf empty string default
         })),
         ...computedColumns,
       ];
 
       // Collect referenced modules
-      const referencedModules = this.state.computedColumns
+      const referencedModules = this.attrs.computedColumns
         ?.filter((col) => col.module)
         .map((col) => col.module!);
 
@@ -1600,9 +1601,9 @@ export class AddColumnsNode implements QueryNode {
     }
 
     // Prepare columns to add from the JOIN
-    const joinColumns: ColumnSpec[] = (this.state.selectedColumns ?? []).map(
+    const joinColumns: ColumnSpec[] = (this.attrs.selectedColumns ?? []).map(
       (colName) => {
-        const explicitAlias = this.state.columnAliases?.get(colName);
+        const explicitAlias = this.attrs.columnAliases?.[colName];
         // Use explicit alias if provided, otherwise default to the column name
         const alias =
           explicitAlias && explicitAlias.trim() !== ''
@@ -1617,7 +1618,7 @@ export class AddColumnsNode implements QueryNode {
 
     // Prepare computed columns (expressions)
     const computedColumns: ColumnSpec[] = [];
-    for (const col of this.state.computedColumns ?? []) {
+    for (const col of this.attrs.computedColumns ?? []) {
       if (!this.isComputedColumnValid(col)) continue;
       computedColumns.push({
         columnNameOrExpression: col.expression,
@@ -1630,13 +1631,13 @@ export class AddColumnsNode implements QueryNode {
     let condition: JoinCondition | undefined;
     if (
       joinColumns.length > 0 &&
-      this.state.leftColumn !== undefined &&
-      this.state.rightColumn !== undefined
+      this.attrs.leftColumn !== undefined &&
+      this.attrs.rightColumn !== undefined
     ) {
       condition = {
         type: 'equality',
-        leftColumn: this.state.leftColumn,
-        rightColumn: this.state.rightColumn,
+        leftColumn: this.attrs.leftColumn,
+        rightColumn: this.attrs.rightColumn,
       };
     } else if (joinColumns.length > 0) {
       // If we have JOIN columns but no condition, this is an invalid state
@@ -1645,7 +1646,7 @@ export class AddColumnsNode implements QueryNode {
     }
 
     // Collect referenced modules from computed columns
-    const referencedModules = this.state.computedColumns
+    const referencedModules = this.attrs.computedColumns
       ?.map((col) => col.module)
       .filter((mod): mod is string => mod !== undefined);
 
@@ -1656,8 +1657,8 @@ export class AddColumnsNode implements QueryNode {
 
     // Get all base columns from the source (needed when we have JOIN or computed columns)
     const allBaseColumns: ColumnSpec[] = this.sourceCols.map((col) => ({
-      columnNameOrExpression: col.column.name,
-      alias: col.column.name, // Explicitly set alias to avoid protobuf empty string default
+      columnNameOrExpression: col.name,
+      alias: col.name, // Explicitly set alias to avoid protobuf empty string default
     }));
 
     // Use the builder to handle the complexity of composing JOIN + computed columns
@@ -1675,130 +1676,17 @@ export class AddColumnsNode implements QueryNode {
     );
   }
 
-  serializeState(): object {
-    return {
-      selectedColumns: this.state.selectedColumns,
-      leftColumn: this.state.leftColumn,
-      rightColumn: this.state.rightColumn,
-      suggestionSelections: this.state.suggestionSelections
-        ? Object.fromEntries(this.state.suggestionSelections)
-        : undefined,
-      expandedSuggestions: this.state.expandedSuggestions
-        ? Array.from(this.state.expandedSuggestions)
-        : undefined,
-      selectedSuggestionTable: this.state.selectedSuggestionTable,
-      columnAliases: this.state.columnAliases
-        ? Object.fromEntries(this.state.columnAliases)
-        : undefined,
-      suggestionAliases: this.state.suggestionAliases
-        ? Object.fromEntries(this.state.suggestionAliases)
-        : undefined,
-      columnTypes: this.state.columnTypes
-        ? Object.fromEntries(this.state.columnTypes)
-        : undefined,
-      isGuidedConnection: this.state.isGuidedConnection,
-      autoExecute: this.state.autoExecute,
-      computedColumns: this.state.computedColumns?.map((c) => ({
-        expression: c.expression,
-        name: c.name,
-        module: c.module,
-        type: c.type,
-        switchOn: c.switchOn,
-        cases: c.cases
-          ? c.cases.map((cs) => ({when: cs.when, then: cs.then}))
-          : undefined,
-        defaultValue: c.defaultValue,
-        useGlob: c.useGlob,
-        clauses: c.clauses
-          ? c.clauses.map((cl) => ({if: cl.if, then: cl.then}))
-          : undefined,
-        elseValue: c.elseValue,
-        sqlType: c.sqlType,
-        functionName: c.functionName,
-        functionArgs: c.functionArgs,
-      })),
-    };
-  }
-
   static deserializeState(
-    trace: Trace,
-    sqlModules: SqlModules,
-    serializedState: AddColumnsNodeState,
-  ): AddColumnsNodeState {
-    return {
-      ...serializedState,
-      trace,
-      sqlModules,
-      suggestionSelections:
-        (serializedState.suggestionSelections as unknown as Record<
-          string,
-          string[]
-        >) !== undefined
-          ? new Map(
-              Object.entries(
-                serializedState.suggestionSelections as unknown as Record<
-                  string,
-                  string[]
-                >,
-              ),
-            )
-          : undefined,
-      expandedSuggestions:
-        (serializedState.expandedSuggestions as unknown as string[]) !==
-        undefined
-          ? new Set(serializedState.expandedSuggestions as unknown as string[])
-          : undefined,
-      columnAliases:
-        (serializedState.columnAliases as unknown as Record<string, string>) !==
-        undefined
-          ? new Map(
-              Object.entries(
-                serializedState.columnAliases as unknown as Record<
-                  string,
-                  string
-                >,
-              ),
-            )
-          : undefined,
-      suggestionAliases:
-        (serializedState.suggestionAliases as unknown as Record<
-          string,
-          string
-        >) !== undefined
-          ? new Map(
-              Object.entries(
-                serializedState.suggestionAliases as unknown as Record<
-                  string,
-                  string
-                >,
-              ),
-            )
-          : undefined,
-      columnTypes:
-        (serializedState.columnTypes as unknown as Record<
-          string,
-          PerfettoSqlType
-        >) !== undefined
-          ? new Map(
-              Object.entries(
-                serializedState.columnTypes as unknown as Record<
-                  string,
-                  PerfettoSqlType
-                >,
-              )
-                .map(
-                  ([k, v]) =>
-                    [k, legacyDeserializeType(v)] as [
-                      string,
-                      PerfettoSqlType | undefined,
-                    ],
-                )
-                .filter(
-                  (entry): entry is [string, PerfettoSqlType] =>
-                    entry[1] !== undefined,
-                ),
-            )
-          : undefined,
-    };
+    serializedState: AddColumnsNodeAttrs,
+  ): AddColumnsNodeAttrs {
+    // Migrate columnTypes: apply legacyDeserializeType to each value.
+    const columnTypes = serializedState.columnTypes
+      ? Object.fromEntries(
+          Object.entries(serializedState.columnTypes)
+            .map(([k, v]) => [k, legacyDeserializeType(v)] as const)
+            .filter((e): e is [string, PerfettoSqlType] => e[1] !== undefined),
+        )
+      : undefined;
+    return {...serializedState, columnTypes};
   }
 }

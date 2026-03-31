@@ -32,6 +32,7 @@ export interface SerializedNode {
   // node state, or node-specific fields like leftNodeId, intervalNodes, etc.).
   primaryInputId?: string;
   secondaryInputIds?: {[port: string]: string};
+  innerNodeIds?: string[];
 
   // Deprecated: kept for backward compatibility with old saved graphs.
   inputNodeIds?: string[];
@@ -54,14 +55,10 @@ export interface SerializedGraph {
 }
 
 function serializeNode(node: QueryNode): SerializedNode {
-  if (typeof node.serializeState !== 'function') {
-    throw new Error(`Node type ${node.type} is not serializable.`);
-  }
-
   const serialized: SerializedNode = {
     nodeId: node.nodeId,
     type: node.type,
-    state: node.serializeState(),
+    state: node.attrs,
     nextNodes: node.nextNodes.map((n: QueryNode) => n.nodeId),
   };
 
@@ -74,6 +71,9 @@ function serializeNode(node: QueryNode): SerializedNode {
     for (const [port, inputNode] of node.secondaryInputs.connections) {
       serialized.secondaryInputIds[port.toString()] = inputNode.nodeId;
     }
+  }
+  if (node.innerNodes !== undefined) {
+    serialized.innerNodeIds = node.innerNodes.map((n) => n.nodeId);
   }
 
   return serialized;
@@ -331,7 +331,12 @@ export function deserializeState(
 
     // Custom connection restoration (e.g. GroupNode rebuilding inner nodes).
     const descriptor = nodeRegistry.getByNodeType(serializedNode.type);
-    descriptor?.deserializeConnections?.(node, serializedNode.state, nodes);
+    descriptor?.deserializeConnections?.(
+      node,
+      serializedNode.state,
+      nodes,
+      serializedNode.innerNodeIds,
+    );
   }
 
   // Fourth pass: post-deserialization (resolve internal references, then

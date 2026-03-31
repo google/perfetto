@@ -99,7 +99,7 @@ export interface ChartColumnProvider {
   addRangeFilter(column: string, min: number, max: number): void;
   updateChart(chartId: string, updates: Partial<Omit<ChartConfig, 'id'>>): void;
   removeChart(chartId: string): void;
-  readonly state: {readonly chartConfigs: ReadonlyArray<ChartConfig>};
+  readonly attrs: {readonly chartConfigs: ReadonlyArray<ChartConfig>};
 }
 
 /**
