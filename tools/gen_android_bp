@@ -425,18 +425,15 @@ def enable_libunwind(module):
 
 
 def enable_pcre2(module):
-  # PCRE2 is device-only. On host, PERFETTO_FLAGS_USE_PCRE2 is false (see
-  # include/perfetto/ext/base/flags.h) so the PCRE2 backend is not compiled
-  # and regex falls back to std::regex. We skip linking libpcre2 on host
-  # because Soong does not transitively propagate deps from cc_library
-  # static variants to external consumers like libandroid_runtime
-  # (b/169779783). Without this, host builds fail with:
-  #   ld.lld: error: undefined symbol: pcre2_compile_8
-  #     in archive .../libperfetto_c/linux_glibc_x86_64_static/libperfetto_c.a
+  # On host: use whole_static_libs so pcre2 symbols are available to external
+  # consumers like libandroid_runtime that link perfetto statically.
+  # Soong does not transitively propagate deps from static archives
+  # (b/169779783), but whole_static_libs forces all symbols to be included.
   if module.type == 'cc_binary_host':
-    pass
+    module.whole_static_libs.add('libpcre2')
   elif module.host_supported:
     module.android.shared_libs.add('libpcre2')
+    module.host.whole_static_libs.add('libpcre2')
   else:
     module.shared_libs.add('libpcre2')
 
