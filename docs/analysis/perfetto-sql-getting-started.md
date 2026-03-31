@@ -174,6 +174,8 @@ memory leaks and understanding allocation patterns.
 
 The `heap_profile_allocation` table contains one row per allocation or free
 event. Key columns include `ts`, `upid`, `callsite_id`, `count`, and `size`.
+The `upid` column can be joined to the `process` table to get the full process
+command line (`cmdline`) and real pid.
 
 ```sql
 SELECT ts, upid, size, count
@@ -256,7 +258,15 @@ instead of the system identifiers.
 
 Now that you understand the core concepts, you can start writing queries.
 
-Perfetto provides an SQL free form multi line text input UI directly within the UI for executing free-form queries. To access it:
+Perfetto provides two ways to explore trace data directly in the UI:
+
+- The **Data Explorer** page lets you browse available tables interactively
+  without writing SQL. This is useful for discovering what data is in your trace
+  and understanding table schemas.
+- The **Query (SQL)** tab provides a free-form SQL editor for writing and
+  executing PerfettoSQL queries.
+
+To use the Query tab:
 
 1. Open a trace in the [Perfetto UI](https://ui.perfetto.dev/).
 
@@ -534,15 +544,15 @@ direct parents above it (i.e. all slices found by following the `parent_id`
 chain up to the root at depth 0).
 
 ```
-+-----------------------------+   depth 0  \
-| A (id=1)                    |             |
-| +-----------+ +--------+   |             |  ancestor_slice(4)
-| | B (id=2)  | | D      |   |   depth 1   > returns A, B
-| | +-------+ | |        |   |             |
-| | |C (id=4)| | |        |   |   depth 2  /
-| | +-------+ | |        |   |
-| +-----------+ +--------+   |
-+-----------------------------+
++----------------------------+  depth 0  \
+| A (id=1)                   |            |
+| +------------+ +--------+  |            | ancestor_slice(4)
+| | B (id=2)   | | D      |  |  depth 1   > returns A, B
+| | +--------+ | |        |  |            |
+| | |C (id=4)| | |        |  |  depth 2  /
+| | +--------+ | |        |  |
+| +------------+ +--------+  |
++----------------------------+
 ```
 
 The returned format is the same as the
@@ -572,15 +582,15 @@ Given a slice, `descendant_slice` returns all slices on the same track that are
 nested under it (i.e. all slices at a greater depth within the same time range).
 
 ```
-+-----------------------------+   depth 0
-| A (id=1)                    |
-| +-----------+ +--------+   |             \
-| | B (id=2)  | | D      |   |   depth 1    |
-| | +-------+ | | +----+ |   |              |  descendant_slice(1)
-| | |C (id=4)| | | E  | |   |   depth 2     > returns B, C, D, E
-| | +-------+ | | +----+ |   |              |
-| +-----------+ +--------+   |             /
-+-----------------------------+
++----------------------------+  depth 0
+| A (id=1)                   |
+| +------------+ +--------+  |           \
+| | B (id=2)   | | D      |  |  depth 1   |
+| | +--------+ | | +----+ |  |            | descendant_slice(1)
+| | |C (id=4)| | | | E  | |  |  depth 2   > returns B, C, D, E
+| | +--------+ | | +----+ |  |            |
+| +------------+ +--------+  |           /
++----------------------------+
 ```
 
 The returned format is the same as the
