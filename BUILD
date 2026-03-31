@@ -360,6 +360,7 @@ perfetto_cc_library(
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_interpreter_interpreter",
+        ":src_trace_processor_core_plugin_plugin",
         ":src_trace_processor_core_tree_tree",
         ":src_trace_processor_core_util_util",
         ":src_trace_processor_export_json",
@@ -574,6 +575,7 @@ perfetto_cc_library(
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_interpreter_interpreter",
+        ":src_trace_processor_core_plugin_plugin",
         ":src_trace_processor_core_tree_tree",
         ":src_trace_processor_core_util_util",
         ":src_trace_processor_export_json",
@@ -1163,6 +1165,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/periodic_task.h",
         "include/perfetto/ext/base/pipe.h",
         "include/perfetto/ext/base/platform.h",
+        "include/perfetto/ext/base/regex.h",
         "include/perfetto/ext/base/rt_mutex.h",
         "include/perfetto/ext/base/scoped_file.h",
         "include/perfetto/ext/base/scoped_mmap.h",
@@ -1635,6 +1638,7 @@ perfetto_cc_library(
 perfetto_cc_library(
     name = "src_base_base",
     srcs = [
+        ":src_base_regex",
         "src/base/android_utils.cc",
         "src/base/base64.cc",
         "src/base/crash_keys.cc",
@@ -1704,6 +1708,15 @@ perfetto_cc_library(
         ":protos_perfetto_protovm_zero",
     ],
     linkstatic = True,
+)
+
+# GN target: //src/base:regex
+perfetto_filegroup(
+    name = "src_base_regex",
+    srcs = [
+        "src/base/regex/regex.cc",
+        "src/base/regex/regex_std.h",
+    ],
 )
 
 # GN target: //src/base:unix_socket
@@ -2154,6 +2167,15 @@ perfetto_filegroup(
         "src/trace_processor/core/interpreter/bytecode_to_string.cc",
         "src/trace_processor/core/interpreter/bytecode_to_string.h",
         "src/trace_processor/core/interpreter/interpreter_types.h",
+    ],
+)
+
+# GN target: //src/trace_processor/core/plugin:plugin
+perfetto_filegroup(
+    name = "src_trace_processor_core_plugin_plugin",
+    srcs = [
+        "src/trace_processor/core/plugin/plugin.cc",
+        "src/trace_processor/core/plugin/plugin.h",
     ],
 )
 
@@ -8636,6 +8658,7 @@ perfetto_cc_library(
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_interpreter_interpreter",
+        ":src_trace_processor_core_plugin_plugin",
         ":src_trace_processor_core_tree_tree",
         ":src_trace_processor_core_util_util",
         ":src_trace_processor_export_json",
@@ -8880,6 +8903,7 @@ perfetto_cc_binary(
         ":src_trace_processor_core_common_common",
         ":src_trace_processor_core_dataframe_dataframe",
         ":src_trace_processor_core_interpreter_interpreter",
+        ":src_trace_processor_core_plugin_plugin",
         ":src_trace_processor_core_tree_tree",
         ":src_trace_processor_core_util_util",
         ":src_trace_processor_export_json",
