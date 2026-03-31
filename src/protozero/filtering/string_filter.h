@@ -20,12 +20,13 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <regex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/public/compiler.h"
 
 namespace protozero {
@@ -122,7 +123,7 @@ class StringFilter {
  private:
   struct Rule {
     Policy policy;
-    std::regex pattern;
+    std::optional<perfetto::base::CopyableRegex> pattern;
     std::string atrace_payload_starts_with;
     std::string name;
     SemanticTypeMask semantic_type_mask = SemanticTypeMask::Unspecified();
@@ -132,6 +133,10 @@ class StringFilter {
 
   // All rules, in the order they were added.
   std::vector<Rule> rules_;
+
+  // Reusable buffer for regex match groups, avoiding heap allocations on each
+  // filter call.
+  mutable std::vector<std::string_view> matches_;
 };
 
 }  // namespace protozero
