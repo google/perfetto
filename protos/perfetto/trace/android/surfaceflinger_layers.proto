@@ -20,6 +20,7 @@ package perfetto.protos;
 
 import "protos/perfetto/trace/android/surfaceflinger_common.proto";
 import "protos/perfetto/trace/android/graphics/rect.proto";
+import "protos/perfetto/trace/android/graphics/corner_radii.proto";
 
 // Message used by Winscope to process legacy trace files.
 // Represents a file full of surface flinger trace entries.
@@ -259,6 +260,12 @@ message LayerProto {
 
   // "True" corner radii of the layer computed by SurfaceFlinger.
   optional CornerRadiiProto effective_radii = 67;
+
+  // Reported corner radii of the layer.
+  optional CornerRadiiProto reported_radii = 68;
+
+  // Flag indicating if client-drawn radii are disabled.
+  optional bool disable_client_drawn_radii = 69;
 }
 
 message PositionProto {
@@ -271,13 +278,6 @@ message FloatRectProto {
   optional float top = 2;
   optional float right = 3;
   optional float bottom = 4;
-}
-
-message CornerRadiiProto {
-  optional float tl = 1;
-  optional float tr = 2;
-  optional float bl = 3;
-  optional float br = 4;
 }
 
 message ActiveBufferProto {

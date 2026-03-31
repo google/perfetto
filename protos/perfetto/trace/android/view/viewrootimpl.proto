@@ -17,6 +17,7 @@
 syntax = "proto2";
 
 import "protos/perfetto/trace/android/graphics/rect.proto";
+import "protos/perfetto/trace/android/graphics/corner_radii.proto";
 import "protos/perfetto/trace/android/view/displaycutout.proto";
 import "protos/perfetto/trace/android/view/windowlayoutparams.proto";
 
@@ -41,4 +42,6 @@ message ViewRootImplProto {
   optional int32 cur_scroll_y = 15;
   optional bool removed = 16;
   optional WindowLayoutParamsProto window_attributes = 17;
+  optional CornerRadiiProto corner_radii = 18;
+  optional RectProto last_set_client_drawn_radii_bounds = 19;
 }
