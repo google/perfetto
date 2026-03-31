@@ -62,6 +62,11 @@ export interface ChartConfigPopupContext {
   readonly onFilterChange?: () => void;
 }
 
+export interface ChartConfigPopupOptions {
+  /** When true, the chart type <select> row is omitted. */
+  readonly hideChartTypeSelector?: boolean;
+}
+
 /**
  * Render the settings popup for a single chart.
  *
@@ -74,6 +79,7 @@ export function renderChartConfigPopup(
   ctx: ChartConfigPopupContext,
   config: ChartConfig,
   onBinCountDebounce: () => void,
+  options?: ChartConfigPopupOptions,
 ): m.Child {
   const def = getChartTypeDefinition(config.chartType);
   const chartableColumns = ctx.node.getChartableColumns(config.chartType);
@@ -92,12 +98,13 @@ export function renderChartConfigPopup(
   // Orientation only applies to bar charts.
   const showOrientation = config.chartType === 'bar';
 
+  const showDelete = ctx.node.state.chartConfigs.length > 1;
+
   return m(
     Form,
     {
-      submitLabel:
-        ctx.node.state.chartConfigs.length > 1 ? 'Delete Chart' : undefined,
-      submitIcon: ctx.node.state.chartConfigs.length > 1 ? 'delete' : undefined,
+      submitLabel: showDelete ? 'Delete Chart' : undefined,
+      submitIcon: showDelete ? 'delete' : undefined,
       onSubmit: () => {
         ctx.node.removeChart(config.id);
         ctx.onFilterChange?.();
@@ -105,40 +112,43 @@ export function renderChartConfigPopup(
     },
     [
       // Chart type selector
-      m(FormLabel, [
-        m('span', 'Chart Type'),
-        m(
-          Select,
-          {
-            value: config.chartType,
-            onchange: (e: Event) => {
-              const target = e.target as HTMLSelectElement;
-              const newType = target.value;
-              if (!isValidChartType(newType)) return;
-              const newChartableColumns = ctx.node.getChartableColumns(newType);
-              const columnStillValid = newChartableColumns.some(
-                (c) => c.name === config.column,
-              );
-              ctx.node.updateChart(config.id, {
-                chartType: newType,
-                column: columnStillValid ? config.column : '',
-              });
-            },
-          },
-          CHART_TYPES.map((chartTypeDef) =>
-            m(
-              'option',
-              {
-                value: chartTypeDef.type,
-                disabled:
-                  chartTypeDef.requiresNumericDimension &&
-                  ctx.node.getChartableColumns(chartTypeDef.type).length === 0,
+      !options?.hideChartTypeSelector &&
+        m(FormLabel, [
+          m('span', 'Chart Type'),
+          m(
+            Select,
+            {
+              value: config.chartType,
+              onchange: (e: Event) => {
+                const target = e.target as HTMLSelectElement;
+                const newType = target.value;
+                if (!isValidChartType(newType)) return;
+                const newChartableColumns =
+                  ctx.node.getChartableColumns(newType);
+                const columnStillValid = newChartableColumns.some(
+                  (c) => c.name === config.column,
+                );
+                ctx.node.updateChart(config.id, {
+                  chartType: newType,
+                  column: columnStillValid ? config.column : '',
+                });
               },
-              chartTypeDef.label,
+            },
+            CHART_TYPES.map((chartTypeDef) =>
+              m(
+                'option',
+                {
+                  value: chartTypeDef.type,
+                  disabled:
+                    chartTypeDef.requiresNumericDimension &&
+                    ctx.node.getChartableColumns(chartTypeDef.type).length ===
+                      0,
+                },
+                chartTypeDef.label,
+              ),
             ),
           ),
-        ),
-      ]),
+        ]),
       // Primary column selector
       m(FormLabel, [
         m('span', def?.primaryColumnLabel ?? 'Column'),
