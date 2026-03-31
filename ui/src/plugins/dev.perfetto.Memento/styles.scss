@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-live-memory-page__container {
+.pf-memento-page__container {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -20,7 +20,7 @@
   background: var(--pf-color-background);
 }
 
-.pf-live-memory-page {
+.pf-memento-page {
   max-width: 1500px;
   width: 100%;
   margin-inline: auto;
@@ -31,42 +31,73 @@
 }
 
 // Page title bar.
-.pf-live-memory-title-bar {
+.pf-memento-title-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   h1 {
     margin: 0;
     font-size: 22px;
     font-weight: 600;
     color: var(--pf-color-text);
   }
-  .pf-live-memory-title-bar__actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
 }
 
-// Status pill shown while recording.
-.pf-live-memory-status-bar {
+.pf-memento-title-bar__left {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 14px;
-  border-radius: 6px;
-  background: var(--pf-color-background-secondary);
-  font-size: var(--pf-font-size-s);
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.pf-memento-title-bar__device {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: var(--pf-color-text-muted);
 }
 
-.pf-live-memory-status-bar__dot {
+.pf-memento-title-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+// Snapshot info popup content.
+.pf-memento-snapshot-info {
+  padding: 8px 12px;
+  min-width: 180px;
+}
+
+.pf-memento-snapshot-info__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 3px 0;
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text);
+  span:first-child {
+    color: var(--pf-color-text-muted);
+  }
+}
+
+.pf-memento-snapshot-info__warning {
+  margin-top: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: var(--pf-font-size-xs);
+  background: var(--pf-color-error-container);
+  color: var(--pf-color-error);
+}
+
+.pf-memento-status-bar__dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: #4caf50;
   flex-shrink: 0;
-  animation: pf-live-memory-pulse 2s ease-in-out infinite;
+  animation: pf-memento-pulse 2s ease-in-out infinite;
 
   &--paused {
     background: var(--pf-color-warning);
@@ -74,7 +105,16 @@
   }
 }
 
-@keyframes pf-live-memory-pulse {
+.pf-memento-status-bar__badge {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: var(--pf-font-size-xs);
+  font-weight: 600;
+  background: var(--pf-color-primary);
+  color: var(--pf-color-on-primary);
+}
+
+@keyframes pf-memento-pulse {
   0%,
   100% {
     opacity: 1;
@@ -84,24 +124,24 @@
   }
 }
 
-.pf-live-memory-error {
+.pf-memento-error {
   color: var(--pf-color-error);
   font-size: var(--pf-font-size-s);
 }
 
 // Top-level tab bar.
-.pf-live-memory-tabs {
+.pf-memento-tabs {
   display: flex;
   align-items: center;
 }
 
 // Billboard stat cards.
-.pf-live-memory-billboards {
+.pf-memento-billboards {
   display: flex;
   gap: 12px;
 }
 
-.pf-live-memory-billboard {
+.pf-memento-billboard {
   flex: 1;
   padding: 14px 16px;
   border-radius: 8px;
@@ -109,27 +149,27 @@
   background: var(--pf-color-background);
 }
 
-.pf-live-memory-billboard__value {
+.pf-memento-billboard__value {
   font-size: 24px;
   font-weight: 700;
   color: var(--pf-color-text);
   line-height: 1.2;
 }
 
-.pf-live-memory-billboard__label {
+.pf-memento-billboard__label {
   font-size: var(--pf-font-size-m);
   font-weight: 600;
   color: var(--pf-color-text);
   margin-top: 2px;
 }
 
-.pf-live-memory-billboard__desc {
+.pf-memento-billboard__desc {
   font-size: var(--pf-font-size-s);
   color: var(--pf-color-text-muted);
   margin-top: 2px;
 }
 
-.pf-live-memory-billboard__delta {
+.pf-memento-billboard__delta {
   font-size: var(--pf-font-size-s);
   font-weight: 600;
   margin-left: 6px;
@@ -142,14 +182,61 @@
   }
 }
 
+// Zero-padding for the profile button cell in the process table.
+.pf-grid-cell:has(.pf-memento-profile-btn) {
+  --pf-cell-padding-block: 0;
+  --pf-cell-padding-inline: 2px;
+}
+
+// Profile sub-header bar.
+.pf-memento-profile-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-radius: 6px;
+  background: var(--pf-color-background-secondary);
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text);
+}
+
+.pf-memento-profile-bar__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.pf-memento-profile-bar__datasources {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--pf-font-size-xs);
+  font-weight: 400;
+  color: var(--pf-color-text-muted);
+  margin-left: 4px;
+}
+
+.pf-memento-profile-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 // Chart panels.
-.pf-live-memory-panel {
+.pf-memento-panel {
   border-radius: 8px;
   background: var(--pf-color-background);
   border: 1px solid var(--pf-color-border-secondary);
 }
 
-.pf-live-memory-panel__header {
+.pf-memento-panel__title-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pf-memento-panel__header {
   padding: 12px 16px;
   border-bottom: 1px solid var(--pf-color-border-secondary);
   h2 {
@@ -164,17 +251,20 @@
     color: var(--pf-color-text-muted);
     line-height: 1.4;
   }
-  .pf-segmented-buttons {
-    display: block;
-    margin-top: 8px;
-  }
 }
 
-.pf-live-memory-panel__body {
+.pf-memento-panel__controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.pf-memento-panel__body {
   padding: 12px;
 }
 
-.pf-live-memory-placeholder {
+.pf-memento-placeholder {
   color: var(--pf-color-text-muted);
   font-size: var(--pf-font-size-s);
   font-style: italic;
@@ -183,7 +273,7 @@
 }
 
 // Hero connect / idle state.
-.pf-live-memory-hero {
+.pf-memento-hero {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -195,26 +285,26 @@
   text-align: center;
 }
 
-.pf-live-memory-hero__icon {
+.pf-memento-hero__icon {
   font-size: 48px;
   color: var(--pf-color-text-muted);
   opacity: 0.5;
 }
 
-.pf-live-memory-hero__text {
+.pf-memento-hero__text {
   font-size: var(--pf-font-size-m);
   color: var(--pf-color-text-muted);
   max-width: 420px;
   line-height: 1.5;
 }
 
-.pf-live-memory-hero__actions {
+.pf-memento-hero__actions {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.pf-live-memory-device-list {
+.pf-memento-device-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -222,22 +312,22 @@
   max-width: 400px;
 }
 
-.pf-live-memory-page {
+.pf-memento-page {
   .pf-data-grid {
     height: 600px;
   }
 
-  .pf-live-memory-profile-btn {
+  .pf-memento-profile-btn {
     visibility: hidden;
   }
 
-  .pf-grid__row:hover .pf-live-memory-profile-btn {
+  .pf-grid__row:hover .pf-memento-profile-btn {
     visibility: visible;
   }
 }
 
 // Duration badge in title bar.
-.pf-live-memory-title-bar__duration {
+.pf-memento-title-bar__duration {
   font-size: var(--pf-font-size-m);
   font-weight: 600;
   color: var(--pf-color-text-muted);
@@ -248,7 +338,7 @@
 }
 
 // Profiling data source status lines.
-.pf-live-memory-profiling-status {
+.pf-memento-profiling-status {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -258,7 +348,7 @@
   background: var(--pf-color-background);
 }
 
-.pf-live-memory-profiling-status__line {
+.pf-memento-profiling-status__line {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -266,7 +356,7 @@
   color: var(--pf-color-text-muted);
 }
 
-.pf-live-memory-profiling-status__active {
+.pf-memento-profiling-status__active {
   color: #4caf50;
   font-weight: 600;
 }

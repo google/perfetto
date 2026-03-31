@@ -54,33 +54,27 @@ export function renderPageCacheTab(data: PageCacheTabData): m.Children {
   return [
     billboards !== undefined &&
       m(
-        '.pf-live-memory-billboards',
+        '.pf-memento-billboards',
         m(
-          '.pf-live-memory-billboard',
-          m('.pf-live-memory-billboard__value', formatKb(billboards.total)),
-          m('.pf-live-memory-billboard__label', 'Total Page Cache'),
+          '.pf-memento-billboard',
+          m('.pf-memento-billboard__value', formatKb(billboards.total)),
+          m('.pf-memento-billboard__label', 'Total Page Cache'),
           m(
-            '.pf-live-memory-billboard__desc',
+            '.pf-memento-billboard__desc',
             'Derived: Active(file) + Inactive(file) from /proc/meminfo',
           ),
         ),
         m(
-          '.pf-live-memory-billboard',
-          m('.pf-live-memory-billboard__value', formatKb(billboards.dirty)),
-          m('.pf-live-memory-billboard__label', 'Dirty'),
-          m(
-            '.pf-live-memory-billboard__desc',
-            'Source: Dirty from /proc/meminfo',
-          ),
+          '.pf-memento-billboard',
+          m('.pf-memento-billboard__value', formatKb(billboards.dirty)),
+          m('.pf-memento-billboard__label', 'Dirty'),
+          m('.pf-memento-billboard__desc', 'Source: Dirty from /proc/meminfo'),
         ),
         m(
-          '.pf-live-memory-billboard',
-          m('.pf-live-memory-billboard__value', formatKb(billboards.mapped)),
-          m('.pf-live-memory-billboard__label', 'Mapped'),
-          m(
-            '.pf-live-memory-billboard__desc',
-            'Source: Mapped from /proc/meminfo',
-          ),
+          '.pf-memento-billboard',
+          m('.pf-memento-billboard__value', formatKb(billboards.mapped)),
+          m('.pf-memento-billboard__label', 'Mapped'),
+          m('.pf-memento-billboard__desc', 'Source: Mapped from /proc/meminfo'),
         ),
       ),
 
@@ -103,7 +97,7 @@ export function renderPageCacheTab(data: PageCacheTabData): m.Children {
             xAxisMin: data.xAxisMin,
             xAxisMax: data.xAxisMax,
           })
-        : m('.pf-live-memory-placeholder', 'Waiting for data\u2026'),
+        : m('.pf-memento-placeholder', 'Waiting for data\u2026'),
     ),
 
     panel(
@@ -126,7 +120,7 @@ export function renderPageCacheTab(data: PageCacheTabData): m.Children {
             xAxisMin: data.xAxisMin,
             xAxisMax: data.xAxisMax,
           })
-        : m('.pf-live-memory-placeholder', 'Waiting for data\u2026'),
+        : m('.pf-memento-placeholder', 'Waiting for data\u2026'),
     ),
   ];
 }

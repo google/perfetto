@@ -19,6 +19,7 @@ import {exists} from '../../base/utils';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 import {Icon} from '../../widgets/icon';
+import {TextInput} from '../../widgets/text_input';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {AdbDevice} from '../dev.perfetto.RecordTraceV2/adb/adb_device';
 import {
@@ -42,7 +43,7 @@ export interface ConnectionResult {
   linuxTarget?: TracedWebsocketTarget;
 }
 
-interface LandingPageAttrs {
+interface ConnectionPageAttrs {
   onConnected: (result: ConnectionResult) => void;
 }
 
@@ -53,38 +54,46 @@ interface WsDevice {
   model: string;
 }
 
-export class LandingPage implements m.ClassComponent<LandingPageAttrs> {
+export class ConnectionPage implements m.ClassComponent<ConnectionPageAttrs> {
   private adbKeyMgr = new AdbKeyManager();
-  private connecting = false;
   private error?: string;
   private connectionMethod: ConnectionMethod = 'usb';
+
+  // USB state.
+  private usbConnecting = false;
 
   // WebSocket bridge state.
   private wsDevices: WsDevice[] = [];
   private wsConnecting = false;
   private wsConnected = false;
+  private wsDeviceConnecting = false;
 
   // WDP (Web Device Proxy) state.
   private wdpDevices: WdpDevice[] = [];
   private wdpSocket?: WebSocket;
   private wdpConnecting = false;
   private wdpConnected = false;
+  private wdpDeviceConnecting = false;
+
+  // Linux state.
+  private linuxConnecting = false;
+  private linuxUrl = '127.0.0.1:8037';
 
   onremove() {
     this.disconnectWdp();
   }
 
-  view({attrs}: m.CVnode<LandingPageAttrs>) {
+  view({attrs}: m.CVnode<ConnectionPageAttrs>) {
     return m(
-      '.pf-live-memory-page__container',
+      '.pf-memento-page__container',
       m(
-        '.pf-live-memory-page',
-        m('.pf-live-memory-title-bar', m('h1', 'Memento')),
+        '.pf-memento-page',
+        m('.pf-memento-title-bar', m('h1', 'Memento')),
         m(
-          '.pf-live-memory-hero',
-          m(Icon, {icon: 'memory', className: 'pf-live-memory-hero__icon'}),
+          '.pf-memento-hero',
+          m(Icon, {icon: 'memory', className: 'pf-memento-hero__icon'}),
           m(
-            '.pf-live-memory-hero__text',
+            '.pf-memento-hero__text',
             'Connect to an Android device or Linux host to monitor ' +
               'per-process memory usage in real time via traced.',
           ),
@@ -110,13 +119,13 @@ export class LandingPage implements m.ClassComponent<LandingPageAttrs> {
             },
           }),
           this.renderConnectBox(attrs),
-          this.error && m('.pf-live-memory-error', this.error),
+          this.error && m('.pf-memento-error', this.error),
         ),
       ),
     );
   }
 
-  private renderConnectBox(attrs: LandingPageAttrs): m.Children {
+  private renderConnectBox(attrs: ConnectionPageAttrs): m.Children {
     switch (this.connectionMethod) {
       case 'usb':
         return this.renderUsbConnect(attrs);
@@ -131,22 +140,22 @@ export class LandingPage implements m.ClassComponent<LandingPageAttrs> {
     }
   }
 
-  private renderUsbConnect(attrs: LandingPageAttrs): m.Children {
+  private renderUsbConnect(attrs: ConnectionPageAttrs): m.Children {
     return [
       m(Button, {
-        label: this.connecting ? 'Connecting...' : 'Connect USB device',
+        label: this.usbConnecting ? 'Connecting...' : 'Connect USB device',
         icon: 'usb',
         variant: ButtonVariant.Filled,
         intent: Intent.Primary,
-        disabled: this.connecting || !exists(navigator.usb),
+        disabled: this.usbConnecting || !exists(navigator.usb),
         onclick: () => this.connectDevice(attrs),
       }),
       !exists(navigator.usb) &&
-        m('.pf-live-memory-error', 'WebUSB is not available in this browser.'),
+        m('.pf-memento-error', 'WebUSB is not available in this browser.'),
     ];
   }
 
-  private renderWsConnect(attrs: LandingPageAttrs): m.Children {
+  private renderWsConnect(attrs: ConnectionPageAttrs): m.Children {
     if (!this.wsConnected) {
       return m(Button, {
         label: this.wsConnecting
@@ -162,29 +171,29 @@ export class LandingPage implements m.ClassComponent<LandingPageAttrs> {
 
     if (this.wsDevices.length === 0) {
       return m(
-        '.pf-live-memory-hero__text',
+        '.pf-memento-hero__text',
         'No devices found. Connect an Android device via ADB.',
       );
     }
 
     return m(
-      '.pf-live-memory-device-list',
+      '.pf-memento-device-list',
       this.wsDevices.map((dev) =>
         m(Button, {
           key: dev.serial,
-          label: this.connecting
+          label: this.wsDeviceConnecting
             ? 'Connecting...'
             : `${dev.model} [${dev.serial}]`,
           icon: 'smartphone',
           variant: ButtonVariant.Outlined,
-          disabled: this.connecting,
+          disabled: this.wsDeviceConnecting,
           onclick: () => this.connectWsDevice(attrs, dev),
         }),
       ),
     );
   }
 
-  private renderWdpConnect(attrs: LandingPageAttrs): m.Children {
+  private renderWdpConnect(attrs: ConnectionPageAttrs): m.Children {
     if (!this.wdpConnected) {
       return m(Button, {
         label: this.wdpConnecting
@@ -200,13 +209,13 @@ export class LandingPage implements m.ClassComponent<LandingPageAttrs> {
 
     if (this.wdpDevices.length === 0) {
       return m(
-        '.pf-live-memory-hero__text',
+        '.pf-memento-hero__text',
         'No devices found. Connect an Android device and authorize it.',
       );
     }
 
     return m(
-      '.pf-live-memory-device-list',
+      '.pf-memento-device-list',
       this.wdpDevices.map((dev) => {
         const ready = dev.proxyStatus === 'ADB' && dev.adbStatus === 'DEVICE';
         const model =
@@ -216,33 +225,40 @@ export class LandingPage implements m.ClassComponent<LandingPageAttrs> {
           : `${dev.proxyStatus}/${dev.adbStatus} [${dev.serialNumber}]`;
         return m(Button, {
           key: dev.serialNumber,
-          label: this.connecting ? 'Connecting...' : label,
+          label: this.wdpDeviceConnecting ? 'Connecting...' : label,
           icon: ready ? 'smartphone' : 'lock',
           variant: ButtonVariant.Outlined,
-          disabled: this.connecting,
+          disabled: this.wdpDeviceConnecting,
           onclick: () => this.connectWdpDevice(attrs, dev),
         });
       }),
     );
   }
 
-  private renderLinuxConnect(attrs: LandingPageAttrs): m.Children {
-    return m(Button, {
-      label: this.connecting ? 'Connecting...' : 'Connect to local traced',
-      icon: 'computer',
-      variant: ButtonVariant.Filled,
-      intent: Intent.Primary,
-      disabled: this.connecting,
-      onclick: () => this.connectLinux(attrs),
-    });
+  private renderLinuxConnect(attrs: ConnectionPageAttrs): m.Children {
+    return [
+      m(TextInput, {
+        placeholder: 'hostname:8037',
+        value: this.linuxUrl,
+        leftIcon: 'computer',
+        onInput: (value: string) => {
+          this.linuxUrl = value;
+        },
+        disabled: this.linuxConnecting,
+      }),
+      m(Button, {
+        label: this.linuxConnecting ? 'Connecting...' : 'Connect to traced',
+        icon: 'computer',
+        variant: ButtonVariant.Filled,
+        intent: Intent.Primary,
+        disabled: this.linuxConnecting || this.linuxUrl.trim() === '',
+        onclick: () => this.connectLinux(attrs),
+      }),
+    ];
   }
 
-  // ---------------------------------------------------------------------------
-  // Connection methods
-  // ---------------------------------------------------------------------------
-
-  private async connectDevice(attrs: LandingPageAttrs) {
-    this.connecting = true;
+  private async connectDevice(attrs: ConnectionPageAttrs) {
+    this.usbConnecting = true;
     this.error = undefined;
     m.redraw();
 
@@ -254,7 +270,7 @@ export class LandingPage implements m.ClassComponent<LandingPageAttrs> {
       const usbiface = getAdbWebUsbInterface(usbdev);
       if (!usbiface) {
         this.error = 'Could not find ADB interface on selected device.';
-        this.connecting = false;
+        this.usbConnecting = false;
         m.redraw();
         return;
       }
@@ -262,12 +278,12 @@ export class LandingPage implements m.ClassComponent<LandingPageAttrs> {
       const result = await AdbWebusbDevice.connect(usbdev, this.adbKeyMgr);
       if (!result.ok) {
         this.error = result.error;
-        this.connecting = false;
+        this.usbConnecting = false;
         m.redraw();
         return;
       }
 
-      this.connecting = false;
+      this.usbConnecting = false;
       attrs.onConnected({
         device: result.value,
         deviceName: `${usbdev.productName} [${usbdev.serialNumber}]`,
@@ -275,44 +291,65 @@ export class LandingPage implements m.ClassComponent<LandingPageAttrs> {
       m.redraw();
     } catch (e) {
       if (`${(e as {name?: string}).name}` === 'NotFoundError') {
-        this.connecting = false;
+        this.usbConnecting = false;
         m.redraw();
         return;
       }
       this.error = `Connection failed: ${e}`;
-      this.connecting = false;
+      this.usbConnecting = false;
       m.redraw();
     }
   }
 
-  private async connectLinux(attrs: LandingPageAttrs) {
-    this.connecting = true;
+  private parseLinuxWsUrl(userInput: string): string | undefined {
+    const trimmed = userInput.trim();
+    if (trimmed.match(/^wss?:\/\//)) {
+      return trimmed;
+    } else if (trimmed.match(/^[^:/]+:\d+$/)) {
+      return `ws://${trimmed}/traced`;
+    } else if (trimmed.match(/^[^:/]+$/)) {
+      return `ws://${trimmed}:8037/traced`;
+    }
+    return undefined;
+  }
+
+  private async connectLinux(attrs: ConnectionPageAttrs) {
+    const wsUrl = this.parseLinuxWsUrl(this.linuxUrl);
+    if (wsUrl === undefined) {
+      this.error = 'Invalid URL. Use hostname:port or ws://hostname:port/path';
+      return;
+    }
+
+    this.linuxConnecting = true;
     this.error = undefined;
     m.redraw();
 
-    const wsUrl = 'ws://127.0.0.1:8037/traced';
     const target = new TracedWebsocketTarget(wsUrl);
 
     try {
       for await (const check of target.runPreflightChecks()) {
         if (!check.status.ok) {
           this.error = `${check.name}: ${check.status.error}`;
-          this.connecting = false;
+          this.linuxConnecting = false;
           m.redraw();
           return;
         }
       }
     } catch (e) {
       this.error = `Connection failed: ${e}`;
-      this.connecting = false;
+      this.linuxConnecting = false;
       m.redraw();
       return;
     }
 
-    this.connecting = false;
+    this.linuxConnecting = false;
+    const host = this.linuxUrl
+      .trim()
+      .replace(/^wss?:\/\//, '')
+      .split('/')[0];
     attrs.onConnected({
       linuxTarget: target,
-      deviceName: 'Linux (localhost)',
+      deviceName: `Linux (${host})`,
     });
     m.redraw();
   }
@@ -357,8 +394,8 @@ export class LandingPage implements m.ClassComponent<LandingPageAttrs> {
     m.redraw();
   }
 
-  private async connectWsDevice(attrs: LandingPageAttrs, dev: WsDevice) {
-    this.connecting = true;
+  private async connectWsDevice(attrs: ConnectionPageAttrs, dev: WsDevice) {
+    this.wsDeviceConnecting = true;
     this.error = undefined;
     m.redraw();
 
@@ -371,12 +408,12 @@ export class LandingPage implements m.ClassComponent<LandingPageAttrs> {
       );
       if (!result.ok) {
         this.error = result.error;
-        this.connecting = false;
+        this.wsDeviceConnecting = false;
         m.redraw();
         return;
       }
 
-      this.connecting = false;
+      this.wsDeviceConnecting = false;
       attrs.onConnected({
         device: result.value,
         deviceName: `${dev.model} [${dev.serial}]`,
@@ -384,7 +421,7 @@ export class LandingPage implements m.ClassComponent<LandingPageAttrs> {
       m.redraw();
     } catch (e) {
       this.error = `WebSocket connection failed: ${e}`;
-      this.connecting = false;
+      this.wsDeviceConnecting = false;
       m.redraw();
     }
   }
@@ -474,8 +511,8 @@ export class LandingPage implements m.ClassComponent<LandingPageAttrs> {
     m.redraw();
   }
 
-  private async connectWdpDevice(attrs: LandingPageAttrs, dev: WdpDevice) {
-    this.connecting = true;
+  private async connectWdpDevice(attrs: ConnectionPageAttrs, dev: WdpDevice) {
+    this.wdpDeviceConnecting = true;
     this.error = undefined;
     m.redraw();
 
@@ -484,7 +521,7 @@ export class LandingPage implements m.ClassComponent<LandingPageAttrs> {
         const res = await showPopupWindow({url: dev.approveUrl});
         if (!res) {
           this.error = 'Enable popups and try again.';
-          this.connecting = false;
+          this.wdpDeviceConnecting = false;
           m.redraw();
           return;
         }
@@ -494,7 +531,7 @@ export class LandingPage implements m.ClassComponent<LandingPageAttrs> {
         this.error =
           `Device not ready: proxyStatus=${dev.proxyStatus}` +
           ` adbStatus=${dev.adbStatus}`;
-        this.connecting = false;
+        this.wdpDeviceConnecting = false;
         m.redraw();
         return;
       }
@@ -507,14 +544,14 @@ export class LandingPage implements m.ClassComponent<LandingPageAttrs> {
       );
       if (!result.ok) {
         this.error = result.error;
-        this.connecting = false;
+        this.wdpDeviceConnecting = false;
         m.redraw();
         return;
       }
 
       const model =
         dev.proxyStatus === 'ADB' ? dev.adbProps?.model ?? '?' : '?';
-      this.connecting = false;
+      this.wdpDeviceConnecting = false;
       attrs.onConnected({
         device: result.value,
         deviceName: `${model} [${dev.serialNumber}]`,
@@ -522,7 +559,7 @@ export class LandingPage implements m.ClassComponent<LandingPageAttrs> {
       m.redraw();
     } catch (e) {
       this.error = `WDP connection failed: ${e}`;
-      this.connecting = false;
+      this.wdpDeviceConnecting = false;
       m.redraw();
     }
   }
