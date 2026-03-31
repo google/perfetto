@@ -431,9 +431,7 @@ def enable_pcre2(module):
   # whole_static_libs to embed pcre2 symbols directly in the archive.
   # For device-only shared libs/binaries, shared_libs suffices as the .so
   # resolves its own deps internally.
-  if module.type == 'cc_library_static':
-    module.whole_static_libs.add('libpcre2')
-  elif module.type == 'cc_binary_host':
+  if module.type in ('cc_library_static', 'cc_binary_host'):
     module.whole_static_libs.add('libpcre2')
   elif module.host_supported:
     module.android.shared_libs.add('libpcre2')
