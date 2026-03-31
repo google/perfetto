@@ -26,7 +26,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/no_destructor.h"
-#include "src/trace_processor/types/destructible.h"
 
 namespace perfetto::trace_processor {
 

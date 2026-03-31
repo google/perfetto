@@ -52,10 +52,8 @@ class TraceReaderRegistry {
   void RegisterPluginTraceReader(
       TraceType trace_type,
       std::function<std::unique_ptr<ChunkedTraceReader>()> factory) {
-    RegisterFactory(trace_type,
-                    [f = std::move(factory)](TraceProcessorContext*) {
-                      return f();
-                    });
+    RegisterFactory(trace_type, [f = std::move(factory)](
+                                    TraceProcessorContext*) { return f(); });
   }
 
   // Creates a new `ChunkedTraceReader` instance for the given `type`. Returns
