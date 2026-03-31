@@ -1551,6 +1551,13 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
                     (dep_gn_target.type, dep_module.name))
     elif dep_module.type == 'filegroup':
       module.srcs.add(':' + dep_module.name)
+      # Filegroup sources are flattened into the module, but the filegroup's
+      # own GN deps (e.g. //gn:pcre2 on the regex source_set) are not
+      # automatically walked. Recurse into them to pick up any builtin_deps.
+      for sub_dep in dep.deps:
+        sub_name = gn_utils.label_without_toolchain(sub_dep.name)
+        if sub_name in builtin_deps:
+          builtin_deps[sub_name](module)
     elif dep_module.type == 'genrule':
       module.generated_headers.update(dep_module.genrule_headers)
       module.srcs.update(dep_module.genrule_srcs)
