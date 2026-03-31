@@ -48,6 +48,13 @@ export function renderProcessProfilePage(
       '.pf-memento-profile-bar',
       m(
         '.pf-memento-profile-bar__left',
+        !data.stopping &&
+          m(Button, {
+            label: 'Cancel',
+            icon: 'arrow_back',
+            variant: ButtonVariant.Filled,
+            onclick: () => callbacks.onCancel(),
+          }),
         m(Icon, {icon: 'science'}),
         `Profiling: ${data.processName} (PID ${data.pid})`,
         data.duration && m(Chip, {label: data.duration}),
@@ -73,13 +80,6 @@ export function renderProcessProfilePage(
             variant: ButtonVariant.Filled,
             intent: Intent.Primary,
             onclick: () => callbacks.onStop(),
-          }),
-        !data.stopping &&
-          m(Button, {
-            label: 'Cancel',
-            icon: 'close',
-            variant: ButtonVariant.Filled,
-            onclick: () => callbacks.onCancel(),
           }),
       ),
     ),

@@ -61,8 +61,9 @@ function buildCategoryTimeSeries(
     for (const counterName of counters) {
       const byTs = counterMap.get(counterName);
       if (byTs === undefined) continue;
-      for (const [ts, value] of byTs)
+      for (const [ts, value] of byTs) {
         tsSums.set(ts, (tsSums.get(ts) ?? 0) + value);
+      }
     }
     for (const [ts, sumBytes] of tsSums) {
       tsSet.add(ts);
@@ -81,8 +82,9 @@ function buildCategoryTimeSeries(
   for (const ts of timestamps) {
     const x = (ts - t0) / 1e9;
     const catMap = byCatTs.get(ts)!;
-    for (const id of catIds)
+    for (const id of catIds) {
       pointsByCategory.get(id)!.push({x, y: catMap.get(id) ?? 0});
+    }
   }
   const series: LineChartSeries[] = [];
   for (const id of catIds) {
@@ -116,8 +118,9 @@ function buildOomScoreTimeSeries(
     for (const counterName of counters) {
       const byTs = counterMap.get(counterName);
       if (byTs === undefined) continue;
-      for (const [ts, value] of byTs)
+      for (const [ts, value] of byTs) {
         tsSums.set(ts, (tsSums.get(ts) ?? 0) + value);
+      }
     }
     const oomScore = oomByName.get(processName) ?? 0;
     const bucketIdx = OOM_SCORE_BUCKETS.findIndex(
@@ -174,8 +177,9 @@ function buildProcessDrilldown(
     for (const counterName of counters) {
       const byTs = counterMap.get(counterName);
       if (byTs === undefined) continue;
-      for (const [ts, value] of byTs)
+      for (const [ts, value] of byTs) {
         tsSums.set(ts, (tsSums.get(ts) ?? 0) + value);
+      }
     }
     for (const [ts, sumBytes] of tsSums) {
       tsSet.add(ts);
@@ -201,8 +205,9 @@ function buildProcessDrilldown(
   for (const ts of timestamps) {
     const x = (ts - t0) / 1e9;
     const procMap = byProcTs.get(ts)!;
-    for (const name of allNames)
+    for (const name of allNames) {
       pointsByProc.get(name)!.push({x, y: procMap.get(name) ?? 0});
+    }
   }
   const ranked = [...allNames]
     .map((name) => ({
@@ -533,8 +538,7 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
                 options: [{label: 'By Category'}, {label: 'By OOM Score'}],
                 selectedOption: this.grouping === 'category' ? 0 : 1,
                 onOptionSelected: (i: number) => {
-                  const g: ProcessGrouping =
-                    i === 0 ? 'category' : 'oom_score';
+                  const g: ProcessGrouping = i === 0 ? 'category' : 'oom_score';
                   if (g === this.grouping) return;
                   this.grouping = g;
                   this.selectedCategory = undefined;
@@ -579,8 +583,7 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
             : m('.pf-memento-placeholder', 'Waiting for data\u2026'),
         ),
       ),
-      processes &&
-        renderProcessTable(processes, data.isUserDebug, attrs.session),
+      renderProcessTable(processes, data.isUserDebug, attrs.session),
     ];
   }
 

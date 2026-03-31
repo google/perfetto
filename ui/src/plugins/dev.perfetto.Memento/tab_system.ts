@@ -27,9 +27,18 @@ function buildSystemTimeSeries(
   t0: number,
 ): LineChartData | undefined {
   const counterNames = [
-    'MemTotal', 'MemFree', 'Buffers', 'Shmem',
-    'Active(anon)', 'Inactive(anon)', 'Active(file)', 'Inactive(file)',
-    'Slab', 'KernelStack', 'PageTables', 'Zram',
+    'MemTotal',
+    'MemFree',
+    'Buffers',
+    'Shmem',
+    'Active(anon)',
+    'Inactive(anon)',
+    'Active(file)',
+    'Inactive(file)',
+    'Slab',
+    'KernelStack',
+    'PageTables',
+    'Zram',
   ];
   const byName = new Map<string, Map<number, number>>();
   for (const name of counterNames) {
@@ -97,8 +106,17 @@ function buildSystemTimeSeries(
     const kernelStack = get('KernelStack');
     const zram = get('Zram');
     const dmaHeap = hasDmaHeap ? lastDmaKb : 0;
-    const accounted = anon + fileCache + shmem + buffers + slab +
-      pageTables + kernelStack + zram + dmaHeap + free;
+    const accounted =
+      anon +
+      fileCache +
+      shmem +
+      buffers +
+      slab +
+      pageTables +
+      kernelStack +
+      zram +
+      dmaHeap +
+      free;
     const unaccounted = Math.max(0, total - accounted);
 
     anonPts.push({x, y: anon});
@@ -128,7 +146,9 @@ function buildSystemTimeSeries(
   ];
   if (hasDmaHeap) {
     series.splice(series.length - 2, 0, {
-      name: 'DMA-BUF', points: dmaHeapPts, color: '#00acc1',
+      name: 'DMA-BUF',
+      points: dmaHeapPts,
+      color: '#00acc1',
     });
   }
   return {series};

@@ -80,8 +80,9 @@ function buildProcessMemoryBreakdown(
       x: (ts - t0) / 1e9,
       y: bySeriesTs.get(ts)?.get(name) ?? 0,
     }));
-    if (points.some((p) => p.y > 0))
+    if (points.some((p) => p.y > 0)) {
       series.push({name, points, color: colors[name]});
+    }
   }
   if (series.length === 0) return undefined;
   return {series};
@@ -225,9 +226,9 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
         ),
         // Pause / Resume.
         m(Button, {
-          label: session.isPaused ? 'Paused' : 'Recording',
+          label: session.isPaused ? 'Paused' : 'Live',
           icon: session.isPaused ? 'pause' : 'fiber_manual_record',
-          intent: session.isPaused ? Intent.Warning : Intent.Danger,
+          intent: session.isPaused ? Intent.Warning : Intent.Success,
           variant: ButtonVariant.Filled,
           onclick: () => {
             session.togglePause();
