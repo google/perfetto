@@ -39,37 +39,121 @@ message AndroidMessageQueue {
 }
 
 message AndroidJobSchedulerJob {
+  enum JobState {
+    JOB_STATE_FINISHED = 0;
+    JOB_STATE_STARTED = 1;
+    JOB_STATE_SCHEDULED = 2;
+    JOB_STATE_CANCELLED = 3;
+    JOB_STATE_UNKNOWN = 4;
+  }
+
+  enum StandbyBucket {
+    STANDBY_BUCKET_UNKNOWN = -1;
+    STANDBY_BUCKET_ACTIVE = 0;
+    STANDBY_BUCKET_WORKING_SET = 1;
+    STANDBY_BUCKET_FREQUENT = 2;
+    STANDBY_BUCKET_RARE = 3;
+    STANDBY_BUCKET_NEVER = 4;
+    STANDBY_BUCKET_RESTRICTED = 5;
+    STANDBY_BUCKET_EXEMPTED = 6;
+  }
+
+  enum JobPriority {
+    JOB_PRIORITY_MIN = 100;
+    JOB_PRIORITY_LOW = 200;
+    JOB_PRIORITY_DEFAULT = 300;
+    JOB_PRIORITY_HIGH = 400;
+    JOB_PRIORITY_MAX = 500;
+    JOB_PRIORITY_UNKNOWN = 501;
+  }
+
+  enum InternalStopReason {
+    INTERNAL_STOP_REASON_UNKNOWN = -1;
+    INTERNAL_STOP_REASON_CANCELED = 0;
+    INTERNAL_STOP_REASON_CONSTRAINTS_NOT_SATISFIED = 1;
+    INTERNAL_STOP_REASON_PREEMPT = 2;
+    INTERNAL_STOP_REASON_TIMEOUT = 3;
+    INTERNAL_STOP_REASON_DEVICE_IDLE = 4;
+    INTERNAL_STOP_REASON_DEVICE_THERMAL = 5;
+    INTERNAL_STOP_REASON_RESTRICTED_BUCKET = 6;
+    INTERNAL_STOP_REASON_UNINSTALL = 7;
+    INTERNAL_STOP_REASON_DATA_CLEARED = 8;
+    INTERNAL_STOP_REASON_RTC_UPDATED = 9;
+    INTERNAL_STOP_REASON_SUCCESSFUL_FINISH = 10;
+    INTERNAL_STOP_REASON_USER_UI_STOP = 11;
+    INTERNAL_STOP_REASON_ANR = 12;
+    INTERNAL_STOP_REASON_TIMEOUT_ABANDONED = 13;
+    INTERNAL_STOP_REASON_DEVICE_STATE_BATTERY_SAVER = 14;
+  }
+
+  enum PublicStopReason {
+    STOP_REASON_UNDEFINED = 0;
+    STOP_REASON_CANCELLED_BY_APP = 1;
+    STOP_REASON_PREEMPT = 2;
+    STOP_REASON_TIMEOUT = 3;
+    STOP_REASON_DEVICE_STATE = 4;
+    STOP_REASON_CONSTRAINT_BATTERY_NOT_LOW = 5;
+    STOP_REASON_CONSTRAINT_CHARGING = 6;
+    STOP_REASON_CONSTRAINT_CONNECTIVITY = 7;
+    STOP_REASON_CONSTRAINT_DEVICE_IDLE = 8;
+    STOP_REASON_CONSTRAINT_STORAGE_NOT_LOW = 9;
+    STOP_REASON_QUOTA = 10;
+    STOP_REASON_BACKGROUND_RESTRICTION = 11;
+    STOP_REASON_APP_STANDBY = 12;
+    STOP_REASON_USER = 13;
+    STOP_REASON_SYSTEM_PROCESSING = 14;
+    STOP_REASON_ESTIMATED_APP_LAUNCH_TIME_CHANGED = 15;
+    STOP_REASON_TIMEOUT_ABANDONED = 16;
+    STOP_REASON_DEVICE_STATE_THERMAL = 17;
+    STOP_REASON_DEVICE_STATE_BATTERY_SAVER = 18;
+  }
+
+  enum BackoffPolicy {
+    BACKOFF_POLICY_UNKNOWN = 0;
+    BACKOFF_POLICY_LINEAR = 1;
+    BACKOFF_POLICY_EXPONENTIAL = 2;
+  }
+
+  enum JobStateFlags {
+    JOB_STATE_FLAG_NONE = 0;
+    JOB_STATE_FLAG_HAS_CHARGING_CONSTRAINT = 1;                 // 1 << 0
+    JOB_STATE_FLAG_HAS_BATTERY_NOT_LOW_CONSTRAINT = 2;          // 1 << 1
+    JOB_STATE_FLAG_HAS_STORAGE_NOT_LOW_CONSTRAINT = 4;          // 1 << 2
+    JOB_STATE_FLAG_HAS_TIMING_DELAY_CONSTRAINT = 8;             // 1 << 3
+    JOB_STATE_FLAG_HAS_DEADLINE_CONSTRAINT = 16;                // 1 << 4
+    JOB_STATE_FLAG_HAS_IDLE_CONSTRAINT = 32;                    // 1 << 5
+    JOB_STATE_FLAG_HAS_CONNECTIVITY_CONSTRAINT = 64;            // 1 << 6
+    JOB_STATE_FLAG_HAS_CONTENT_TRIGGER_CONSTRAINT = 128;        // 1 << 7
+    JOB_STATE_FLAG_IS_REQUESTED_EXPEDITED_JOB = 256;            // 1 << 8
+    JOB_STATE_FLAG_IS_RUNNING_AS_EXPEDITED_JOB = 512;           // 1 << 9
+    JOB_STATE_FLAG_IS_PREFETCH = 1024;                          // 1 << 10
+    JOB_STATE_FLAG_IS_REQUESTED_USER_INITIATED_JOB = 524288;    // 1 << 19
+    JOB_STATE_FLAG_IS_RUNNING_AS_USER_INITIATED_JOB = 1048576;  // 1 << 20
+    JOB_STATE_FLAG_IS_PERIODIC = 2097152;                       // 1 << 21
+    JOB_STATE_FLAG_HAS_FLEXIBILITY_CONSTRAINT = 4194304;        // 1 << 22
+    JOB_STATE_FLAG_CAN_APPLY_TRANSPORT_AFFINITIES = 16777216;   // 1 << 24
+  }
+
   // Job id.
   optional int32 job_id = 1;
   // Job user id.
   optional int32 source_uid = 2;
   // Job user id.
   optional int32 proxy_uid = 3;
-  // FINISHED = 0;
-  // STARTED = 1;
-  // SCHEDULED = 2;
-  // CANCELLED = 3;
-  optional int32 state = 4;
-  // The standby bucket of the app that scheduled the job. These match the
-  // framework constants defined in JobSchedulerService.java with the addition
-  // of UNKNOWN using -1, as ACTIVE is already assigned 0.
-  // UNKNOWN = -1;
-  // ACTIVE = 0;
-  // WORKING_SET = 1;
-  // FREQUENT = 2;
-  // RARE = 3;
-  // NEVER = 4;
-  // RESTRICTED = 5;
-  // EXEMPTED = 6;
-  optional int32 standby_bucket = 5;
+
+  optional JobState state = 4;
+
+  optional StandbyBucket standby_bucket = 5;
   // The priority set by the app (via JobInfo.Builder.setPriority()).
-  optional int32 requested_priority = 6;
+  optional JobPriority requested_priority = 6;
   // The priority JobScheduler ran the job at. Only valid for STARTED and
   // FINISHED states.
-  optional int32 effective_priority = 7;
+  optional JobPriority effective_priority = 7;
   // Number of times JobScheduler has tried to run this particular job. This
   // value is incremented when a job is stopped and rescheduled for various
   // reasons (lost network, constraints no longer satisfied, etc). For periodic
+  // jobs, this value is reset to 0 when the job finishes successfully.
+  // Otherwise, this value is incremented. Rescheduled jobs are considered to
   // be newly scheduled and therefore this value reflects the time since the
   // most recent (re)schedule. This is only valid for the STARTED and FINISHED
   // states.
@@ -93,33 +177,26 @@ message AndroidJobSchedulerJob {
   optional int32 num_uncompleted_work_items = 12;
   // Proc state of the UID of the logged event
   // See android.app.ProcessStateEnum
-  optional int32 proc_state = 13;
+  optional ProcessStateEnum proc_state = 13;
   // Interval for the job to recur when it is set as periodic.
   optional int64 periodic_job_interval_ms = 14;
   // Flex interval for the periodic job. This value is set via the second
   // parameter of JobInfo.Builder.setPeriodic(long, long). The job can
   // execute at any time in a window flex length at the end of the period.
-  // Trace tag set via JobInfo.Builder.setTraceTag(). Basic PII filtering has
-  // been applied,
-  // but further filtering should be done by clients.
   optional int64 periodic_job_flex_interval_ms = 15;
   // Number of reschedules due to job being abandoned.
   optional int32 num_reschedules_due_to_abandonment = 16;
   // Back off policy applied to the job that gets rescheduled.
+  optional BackoffPolicy back_off_policy_type = 17;
   // The internal reason a job has stopped.
-  // UNKNOWN_POLICY = 0;
-  // LINEAR = 1;
-  // EXPONENTIAL = 2;
-  optional int32 back_off_policy_type = 17;
-  // The publicly returned reason onStopJob() was called.
-  // This is only applicable when the state is FINISHED.
-  // The default value is INTERNAL_STOP_REASON_UNKNOWN.
-  optional int32 internal_stop_reason = 18;
+  optional InternalStopReason internal_stop_reason = 18;
   // This is only applicable when the state is FINISHED, but may be undefined if
   // JobService.onStopJob() was never called for the job.
-  optional int32 public_stop_reason = 19;
+  optional PublicStopReason public_stop_reason = 19;
   // Bitfield of boolean states of the job.
-  optional int64 job_state_flags = 20;
+  optional int64 job_state_flags = 20
+      [(perfetto.protos.flags_enum) =
+           ".com.android.internal.AndroidJobSchedulerJob.JobStateFlags"];
   // Interned Job name.
   optional uint64 job_name_iid = 21;
 }
