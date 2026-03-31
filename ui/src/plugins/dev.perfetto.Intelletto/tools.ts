@@ -21,6 +21,49 @@ import DataExplorerPlugin from '../dev.perfetto.DataExplorer';
 
 const MAX_QUERY_ROWS = 5000;
 
+// Minimal type for the Web MCP navigator.modelContext API.
+interface ModelContextToolRegistration {
+  unregister(): void;
+}
+
+interface ModelContext {
+  registerTool(tool: {
+    name: string;
+    description: string;
+    inputSchema: Record<string, unknown>;
+    execute(args: Record<string, unknown>): Promise<{
+      content: {type: string; text: string}[];
+    }>;
+  }): ModelContextToolRegistration;
+}
+
+declare global {
+  interface Navigator {
+    modelContext?: ModelContext;
+  }
+}
+
+/**
+ * Register tools with the Web MCP API (navigator.modelContext) if available.
+ * This allows external AI agents (e.g. Claude Code via a browser) to call
+ * these tools directly.
+ */
+export function registerWebMcpTools(tools: ToolImpl[]): void {
+  if (!navigator.modelContext) return;
+  const mc = navigator.modelContext;
+  for (const tool of tools) {
+    mc.registerTool({
+      name: tool.def.name,
+      description: tool.def.description,
+      inputSchema: tool.def.input_schema,
+      async execute(args) {
+        const result = await tool.handle(args);
+        return {content: [{type: 'text', text: result}]};
+      },
+    });
+  }
+}
+
 /**
  * Creates the set of tools available to the LLM for interacting with the
  * trace and the UI.

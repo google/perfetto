@@ -21,7 +21,7 @@ import {Setting} from '../../public/settings';
 import {LlmProvider} from './provider';
 import {AnthropicProvider, listAnthropicModels} from './anthropic';
 import {GeminiProvider, listGeminiModels} from './gemini';
-import {createTools} from './tools';
+import {createTools, registerWebMcpTools} from './tools';
 import {Selection} from '../../public/selection';
 import {Raf} from '../../public/raf';
 import {Button} from '../../widgets/button';
@@ -118,6 +118,7 @@ export default class AiAssistantPlugin implements PerfettoPlugin {
 
   async onTraceLoad(trace: Trace): Promise<void> {
     const tools = createTools(trace);
+    registerWebMcpTools(tools);
     let abortController: AbortController | undefined;
     let isRunning = false;
     let toolStatus = '';
