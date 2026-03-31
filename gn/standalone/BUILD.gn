@@ -340,18 +340,8 @@ config("default") {
   }
 
   if (is_wasm) {
-    # As of writing (2023-06-12) WASM 128bit SIMD is supported on
-    # stable Chrome, Safari, and Firefox. See:
-    # - https://webassembly.org/roadmap/
-    # - https://emscripten.org/docs/porting/simd.html
-    #
-    # We pass -mavx2 also to make x86_64 hand-rolled SIMD code work when
-    # using WASM: see
-    # https://emscripten.org/docs/porting/simd.html#compiling-simd-code-targeting-x86-sse-instruction-sets.
-    cflags += [
-      "-msimd128",
-      "-mavx2",
-    ]
+    # -msimd128 enables WASM SIMD128 and is safe for all WASM targets.
+    cflags += [ "-msimd128" ]
   }
 
   if (is_wasm_memory64) {
@@ -558,4 +548,16 @@ perfetto_check_build_deps("check_build_deps_android") {
     "--no-dev-tools",
     "--android",
   ]
+}
+
+# TODO: Remove this after updating emscripten.
+config("wasm_avx2") {
+  # Opt-in config for targets that use x86 AVX2 hand-rolled SIMD compiled for
+  # WASM. Apply explicitly via configs += ["//gn/standalone:wasm_avx2"]; do NOT
+  # add to default_configs — third-party code (e.g. Abseil CRC) uses AVX2
+  # intrinsics with types incompatible with Emscripten's strict AVX2 headers.
+  # See https://github.com/emscripten-core/emscripten/issues/24076.
+  if (is_wasm) {
+    cflags = [ "-mavx2" ]
+  }
 }

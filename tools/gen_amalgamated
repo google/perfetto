@@ -65,6 +65,10 @@ c_sdk_header_filter = r'^include/perfetto/public/'
 gn_args = ' '.join([
     'enable_perfetto_ipc=true',
     'enable_perfetto_zlib=false',
+    # The amalgamated SDK uses std::regex as the fallback. RE2 and PCRE2
+    # are disabled to avoid pulling in large third-party dependencies.
+    'enable_perfetto_re2=false',
+    'enable_perfetto_pcre2=false',
     'is_debug=false',
     'is_perfetto_build_generator=true',
     'is_perfetto_embedder=true',

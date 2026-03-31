@@ -424,6 +424,23 @@ def enable_libunwind(module):
   pass
 
 
+def enable_pcre2(module):
+  # PCRE2 is device-only. On host, PERFETTO_FLAGS_USE_PCRE2 is false (see
+  # include/perfetto/ext/base/flags.h) so the PCRE2 backend is not compiled
+  # and regex falls back to std::regex. We skip linking libpcre2 on host
+  # because Soong does not transitively propagate deps from cc_library
+  # static variants to external consumers like libandroid_runtime
+  # (b/169779783). Without this, host builds fail with:
+  #   ld.lld: error: undefined symbol: pcre2_compile_8
+  #     in archive .../libperfetto_c/linux_glibc_x86_64_static/libperfetto_c.a
+  if module.type == 'cc_binary_host':
+    pass
+  elif module.host_supported:
+    module.android.shared_libs.add('libpcre2')
+  else:
+    module.shared_libs.add('libpcre2')
+
+
 def enable_sqlite(module):
   if module.type == 'cc_binary_host':
     module.static_libs.add('libsqlite_static_noicu')
@@ -503,6 +520,8 @@ builtin_deps = {
         enable_protoc_lib,
     '//gn:libunwindstack':
         enable_libunwindstack,
+    '//gn:pcre2':
+        enable_pcre2,
     '//gn:sqlite':
         enable_sqlite,
     '//gn:zlib':
@@ -1561,8 +1580,10 @@ def create_blueprint_for_targets(gn: GnParser, targets: List[str]):
   # become relative to the Android.bp that *uses* cc_defaults (not the one
   # that defines it).s
   defaults.include_dirs = {
-      tree_path, tree_path + '/include', tree_path + '/' + buildflags_dir,
-      tree_path + '/src/profiling/memory/include'
+      tree_path,
+      tree_path + '/include',
+      tree_path + '/' + buildflags_dir,
+      tree_path + '/src/profiling/memory/include',
   }
   defaults.cflags.update([
       '-Wno-error=return-type',

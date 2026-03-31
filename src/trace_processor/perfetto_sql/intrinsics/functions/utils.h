@@ -36,6 +36,7 @@
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/fnv_hash.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
@@ -50,7 +51,6 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/glob.h"
-#include "src/trace_processor/util/regex.h"
 
 namespace perfetto::trace_processor {
 
@@ -312,29 +312,24 @@ struct Regexp : public sqlite::Function<Regexp> {
   static constexpr char kName[] = "regexp";
   static constexpr int kArgCount = 2;
 
-  using AuxData = regex::Regex;
+  using AuxData = base::Regex;
   static void Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
-    if constexpr (regex::IsRegexSupported()) {
-      const char* text =
-          reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
-      auto* aux = GetAuxData(ctx, 0);
-      if (PERFETTO_UNLIKELY(!aux || !text)) {
-        const char* pattern_str =
-            reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
-        if (!text || !pattern_str) {
-          return;
-        }
-        SQLITE_ASSIGN_OR_RETURN(ctx, auto regex,
-                                regex::Regex::Create(pattern_str));
-        auto ptr = std::make_unique<AuxData>(std::move(regex));
-        aux = ptr.get();
-        SetAuxData(ctx, 0, std::move(ptr));
+    const char* text =
+        reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
+    auto* aux = GetAuxData(ctx, 0);
+    if (PERFETTO_UNLIKELY(!aux || !text)) {
+      const char* pattern_str =
+          reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+      if (!text || !pattern_str) {
+        return;
       }
-      return sqlite::result::Long(ctx, aux->Search(text));
-    } else {
-      return sqlite::utils::SetError(
-          ctx, "regexp: regex is not supported on this platform");
+      SQLITE_ASSIGN_OR_RETURN(ctx, auto regex,
+                              base::Regex::Create(pattern_str));
+      auto ptr = std::make_unique<AuxData>(std::move(regex));
+      aux = ptr.get();
+      SetAuxData(ctx, 0, std::move(ptr));
     }
+    return sqlite::result::Long(ctx, aux->PartialMatch(text));
   }
 };
 
@@ -343,54 +338,49 @@ struct RegexpExtract : public sqlite::Function<RegexpExtract> {
   static constexpr int kArgCount = 2;
 
   struct AuxData {
-    regex::Regex regex;
+    base::Regex regex;
     std::vector<std::string_view> matches;
   };
 
   static void Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
-    if constexpr (regex::IsRegexSupported()) {
-      const char* text =
-          reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
-      auto* aux = GetAuxData(ctx, 1);
-      if (PERFETTO_UNLIKELY(!aux || !text)) {
-        const char* pattern_str =
-            reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
-        if (!text || !pattern_str) {
-          return;
-        }
-        SQLITE_ASSIGN_OR_RETURN(ctx, auto regex,
-                                regex::Regex::Create(pattern_str));
-        auto ptr = std::make_unique<AuxData>(AuxData{std::move(regex), {}});
-        aux = ptr.get();
-        SetAuxData(ctx, 1, std::move(ptr));
-      }
-
-      aux->regex.Submatch(text, aux->matches);
-      if (PERFETTO_UNLIKELY(aux->matches.empty())) {
+    const char* text =
+        reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+    auto* aux = GetAuxData(ctx, 1);
+    if (PERFETTO_UNLIKELY(!aux || !text)) {
+      const char* pattern_str =
+          reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
+      if (!text || !pattern_str) {
         return;
       }
-
-      // As per re_nsub, groups[0] is the full match. groups[1] is the first
-      // subexpression.
-      if (PERFETTO_UNLIKELY(aux->matches.size() > 2)) {
-        return sqlite::utils::SetError(
-            ctx, "REGEXP_EXTRACT: pattern has more than one group.");
-      }
-
-      std::string_view result_sv;
-      if (aux->matches.size() == 2 && !aux->matches[1].empty()) {
-        // One group, and it matched.
-        result_sv = aux->matches[1];
-      } else {
-        // No groups, or optional group did not match. Return full match.
-        result_sv = aux->matches[0];
-      }
-      return sqlite::result::TransientString(
-          ctx, result_sv.data(), static_cast<int>(result_sv.size()));
-    } else {
-      return sqlite::utils::SetError(
-          ctx, "regexp_extract: regex is not supported on this platform");
+      SQLITE_ASSIGN_OR_RETURN(ctx, auto regex,
+                              base::Regex::Create(pattern_str));
+      auto ptr = std::make_unique<AuxData>(AuxData{std::move(regex), {}});
+      aux = ptr.get();
+      SetAuxData(ctx, 1, std::move(ptr));
     }
+
+    aux->regex.PartialMatchWithGroups(text, aux->matches);
+    if (PERFETTO_UNLIKELY(aux->matches.empty())) {
+      return;
+    }
+
+    // As per re_nsub, groups[0] is the full match. groups[1] is the first
+    // subexpression.
+    if (PERFETTO_UNLIKELY(aux->matches.size() > 2)) {
+      return sqlite::utils::SetError(
+          ctx, "REGEXP_EXTRACT: pattern has more than one group.");
+    }
+
+    std::string_view result_sv;
+    if (aux->matches.size() == 2 && !aux->matches[1].empty()) {
+      // One group, and it matched.
+      result_sv = aux->matches[1];
+    } else {
+      // No groups, or optional group did not match. Return full match.
+      result_sv = aux->matches[0];
+    }
+    return sqlite::result::TransientString(ctx, result_sv.data(),
+                                           static_cast<int>(result_sv.size()));
   }
 };
 
@@ -398,36 +388,30 @@ struct RegexpReplaceSimple : public sqlite::Function<RegexpReplaceSimple> {
   static constexpr char kName[] = "__intrinsic_regexp_replace_simple";
   static constexpr int kArgCount = 3;
 
-  using AuxData = regex::Regex;
+  using AuxData = base::Regex;
   static void Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
-    if constexpr (regex::IsRegexSupported()) {
-      const char* text =
-          reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
-      const char* replacement =
-          reinterpret_cast<const char*>(sqlite3_value_text(argv[2]));
-      auto* aux = GetAuxData(ctx, 1);
-      if (PERFETTO_UNLIKELY(!aux || !text || !replacement)) {
-        const char* pattern_str =
-            reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
-        if (!text || !pattern_str || !replacement) {
-          return;
-        }
-        SQLITE_ASSIGN_OR_RETURN(ctx, auto regex,
-                                regex::Regex::Create(pattern_str));
-        auto ptr = std::make_unique<AuxData>(std::move(regex));
-        aux = ptr.get();
-        SetAuxData(ctx, 0, std::move(ptr));
+    const char* text =
+        reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+    const char* replacement =
+        reinterpret_cast<const char*>(sqlite3_value_text(argv[2]));
+    auto* aux = GetAuxData(ctx, 1);
+    if (PERFETTO_UNLIKELY(!aux || !text || !replacement)) {
+      const char* pattern_str =
+          reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
+      if (!text || !pattern_str || !replacement) {
+        return;
       }
-
-      const std::string result = aux->Replace(text, replacement);
-
-      return sqlite::result::TransientString(ctx, result.data(),
-                                             static_cast<int>(result.size()));
-    } else {
-      return sqlite::utils::SetError(
-          ctx,
-          "regexp_replace_simple: regex is not supported on this platform");
+      SQLITE_ASSIGN_OR_RETURN(ctx, auto regex,
+                              base::Regex::Create(pattern_str));
+      auto ptr = std::make_unique<AuxData>(std::move(regex));
+      aux = ptr.get();
+      SetAuxData(ctx, 0, std::move(ptr));
     }
+
+    const std::string result = aux->GlobalReplace(text, replacement);
+
+    return sqlite::result::TransientString(ctx, result.data(),
+                                           static_cast<int>(result.size()));
   }
 };
 

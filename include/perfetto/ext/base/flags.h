@@ -38,6 +38,26 @@
   PERFETTO_BUILDFLAG(PERFETTO_ENABLE_SOCK_INOTIFY)
 #define PERFETTO_FLAGS_TRACK_EVENT_INCREMENTAL_STATE_CLEAR_NOT_DESTROY true
 #define PERFETTO_FLAGS_TRIGGER_PERFETTO_ON_TRACED_PROBES_DISCONNECT false
+// PCRE2 is only used on Android device builds (controlled by aconfig).
+// On Android host, PCRE2 must be disabled because Soong does not
+// transitively propagate deps from static archive variants to external
+// consumers (b/169779783). libandroid_runtime (frameworks/base, see
+// https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/core/jni/Android.bp)
+// lists libperfetto_c in android.shared_libs, but Soong resolves it as
+// a static archive (.a) on host. libperfetto_c.a contains PCRE2 code,
+// but libpcre2 is not in the host link line, causing:
+//
+//   ld.lld: error: undefined symbol: pcre2_compile_8
+//     >>> regex.o:(...) in archive .../libperfetto_c.a
+//   ld.lld: error: undefined symbol: pcre2_match_8
+//     >>> regex.o:(...) in archive .../libperfetto_c.a
+//
+// Host tools fall back to std::regex instead.
+// TODO(b/169779783): re-enable PCRE2 on host when Soong propagates deps
+// transitively, by changing this to PERFETTO_BUILDFLAG(PERFETTO_PCRE2).
+#define PERFETTO_FLAGS_USE_PCRE2                  \
+  (!PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && \
+   PERFETTO_BUILDFLAG(PERFETTO_PCRE2))
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && ...
 
