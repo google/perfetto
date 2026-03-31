@@ -49,7 +49,13 @@ function buildPageCacheTimeSeries(
     const shmem = row.get('Shmem');
     const activeFile = row.get('Active(file)');
     const inactiveFile = row.get('Inactive(file)');
-    if (shmem === undefined || activeFile === undefined || inactiveFile === undefined) continue;
+    if (
+      shmem === undefined ||
+      activeFile === undefined ||
+      inactiveFile === undefined
+    ) {
+      continue;
+    }
     const x = (ts - t0) / 1e9;
     activeFilePoints.push({x, y: activeFile});
     inactiveFilePoints.push({x, y: inactiveFile});
@@ -95,7 +101,14 @@ function buildFileCacheBreakdownTimeSeries(
     const inactiveFile = row.get('Inactive(file)');
     const mapped = row.get('Mapped');
     const dirty = row.get('Dirty');
-    if (activeFile === undefined || inactiveFile === undefined || mapped === undefined || dirty === undefined) continue;
+    if (
+      activeFile === undefined ||
+      inactiveFile === undefined ||
+      mapped === undefined ||
+      dirty === undefined
+    ) {
+      continue;
+    }
     const fileCache = activeFile + inactiveFile;
     if (fileCache === 0) continue;
     const mappedDirty = (mapped * dirty) / fileCache;
@@ -103,7 +116,10 @@ function buildFileCacheBreakdownTimeSeries(
     mappedDirtyPts.push({x, y: Math.round(mappedDirty)});
     mappedCleanPts.push({x, y: Math.round(mapped - mappedDirty)});
     unmappedDirtyPts.push({x, y: Math.round(dirty - mappedDirty)});
-    unmappedCleanPts.push({x, y: Math.max(0, Math.round(fileCache - mapped - dirty + mappedDirty))});
+    unmappedCleanPts.push({
+      x,
+      y: Math.max(0, Math.round(fileCache - mapped - dirty + mappedDirty)),
+    });
   }
   if (mappedDirtyPts.length < 2) return undefined;
   return {
@@ -135,17 +151,31 @@ function buildFileCacheActivityTimeSeries(
   const series: LineChartSeries[] = [];
   const refaultRaw = data.systemCounters.get('workingset_refault_file');
   if (refaultRaw !== undefined && refaultRaw.length >= 2) {
-    series.push({name: 'Refaults (thrashing)', points: toRatePoints(refaultRaw), color: '#e74c3c'});
+    series.push({
+      name: 'Refaults (thrashing)',
+      points: toRatePoints(refaultRaw),
+      color: '#e74c3c',
+    });
   }
   const stealRaw = data.systemCounters.get('pgsteal_file');
   if (stealRaw !== undefined && stealRaw.length >= 2) {
-    series.push({name: 'Stolen (reclaimed)', points: toRatePoints(stealRaw), color: '#f39c12'});
+    series.push({
+      name: 'Stolen (reclaimed)',
+      points: toRatePoints(stealRaw),
+      color: '#f39c12',
+    });
   }
   const scanRaw = data.systemCounters.get('pgscan_file');
   if (scanRaw !== undefined && scanRaw.length >= 2) {
-    series.push({name: 'Scanned', points: toRatePoints(scanRaw), color: '#95a5a6'});
+    series.push({
+      name: 'Scanned',
+      points: toRatePoints(scanRaw),
+      color: '#95a5a6',
+    });
   }
-  if (series.length === 0 || series.every((s) => s.points.length === 0)) return undefined;
+  if (series.length === 0 || series.every((s) => s.points.length === 0)) {
+    return undefined;
+  }
   return {series};
 }
 

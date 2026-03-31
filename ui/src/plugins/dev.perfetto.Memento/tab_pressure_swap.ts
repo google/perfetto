@@ -21,57 +21,99 @@ import {
 import {MementoSession, type SnapshotData} from './memento_session';
 import {computeT0, formatKb, panel} from './utils';
 
-function buildPsiTimeSeries(data: SnapshotData, t0: number): LineChartData | undefined {
+function buildPsiTimeSeries(
+  data: SnapshotData,
+  t0: number,
+): LineChartData | undefined {
   const someRaw = data.systemCounters.get('psi.mem.some');
   if (someRaw === undefined || someRaw.length < 2) return undefined;
-  const toRatePoints = (samples: {ts: number; value: number}[]): {x: number; y: number}[] => {
+  const toRatePoints = (
+    samples: {ts: number; value: number}[],
+  ): {x: number; y: number}[] => {
     const points: {x: number; y: number}[] = [];
     for (let i = 1; i < samples.length; i++) {
       const dtS = (samples[i].ts - samples[i - 1].ts) / 1e9;
       if (dtS <= 0) continue;
       const deltaNs = samples[i].value - samples[i - 1].value;
-      points.push({x: (samples[i].ts - t0) / 1e9, y: Math.max(0, deltaNs / (dtS * 1e6))});
+      points.push({
+        x: (samples[i].ts - t0) / 1e9,
+        y: Math.max(0, deltaNs / (dtS * 1e6)),
+      });
     }
     return points;
   };
-  const series: LineChartSeries[] = [{name: 'some (any task stalled)', points: toRatePoints(someRaw), color: '#f39c12'}];
+  const series: LineChartSeries[] = [
+    {
+      name: 'some (any task stalled)',
+      points: toRatePoints(someRaw),
+      color: '#f39c12',
+    },
+  ];
   const fullRaw = data.systemCounters.get('psi.mem.full');
   if (fullRaw !== undefined && fullRaw.length >= 2) {
-    series.push({name: 'full (all tasks stalled)', points: toRatePoints(fullRaw), color: '#e74c3c'});
+    series.push({
+      name: 'full (all tasks stalled)',
+      points: toRatePoints(fullRaw),
+      color: '#e74c3c',
+    });
   }
   if (series.length === 0) return undefined;
   return {series};
 }
 
-function buildPageFaultTimeSeries(data: SnapshotData, t0: number): LineChartData | undefined {
+function buildPageFaultTimeSeries(
+  data: SnapshotData,
+  t0: number,
+): LineChartData | undefined {
   const pgfaultRaw = data.systemCounters.get('pgfault');
   if (pgfaultRaw === undefined || pgfaultRaw.length < 2) return undefined;
-  const toRatePoints = (samples: {ts: number; value: number}[]): {x: number; y: number}[] => {
+  const toRatePoints = (
+    samples: {ts: number; value: number}[],
+  ): {x: number; y: number}[] => {
     const points: {x: number; y: number}[] = [];
     for (let i = 1; i < samples.length; i++) {
       const dtS = (samples[i].ts - samples[i - 1].ts) / 1e9;
       if (dtS <= 0) continue;
-      points.push({x: (samples[i].ts - t0) / 1e9, y: Math.max(0, (samples[i].value - samples[i - 1].value) / dtS)});
+      points.push({
+        x: (samples[i].ts - t0) / 1e9,
+        y: Math.max(0, (samples[i].value - samples[i - 1].value) / dtS),
+      });
     }
     return points;
   };
-  const series: LineChartSeries[] = [{name: 'pgfault (minor)', points: toRatePoints(pgfaultRaw), color: '#3498db'}];
+  const series: LineChartSeries[] = [
+    {
+      name: 'pgfault (minor)',
+      points: toRatePoints(pgfaultRaw),
+      color: '#3498db',
+    },
+  ];
   const pgmajfaultRaw = data.systemCounters.get('pgmajfault');
   if (pgmajfaultRaw !== undefined && pgmajfaultRaw.length >= 2) {
-    series.push({name: 'pgmajfault (major)', points: toRatePoints(pgmajfaultRaw), color: '#e74c3c'});
+    series.push({
+      name: 'pgmajfault (major)',
+      points: toRatePoints(pgmajfaultRaw),
+      color: '#e74c3c',
+    });
   }
   if (series.every((s) => s.points.length === 0)) return undefined;
   return {series};
 }
 
-function buildSwapTimeSeries(data: SnapshotData, t0: number): LineChartData | undefined {
+function buildSwapTimeSeries(
+  data: SnapshotData,
+  t0: number,
+): LineChartData | undefined {
   const byTs = new Map<number, Map<string, number>>();
   for (const name of ['SwapTotal', 'SwapFree', 'SwapCached']) {
     const samples = data.systemCounters.get(name);
     if (samples === undefined) continue;
     for (const {ts, value} of samples) {
       let row = byTs.get(ts);
-      if (row === undefined) { row = new Map(); byTs.set(ts, row); }
+      if (row === undefined) {
+        row = new Map();
+        byTs.set(ts, row);
+      }
       row.set(name, Math.round(value / 1024));
     }
   }
@@ -93,29 +135,45 @@ function buildSwapTimeSeries(data: SnapshotData, t0: number): LineChartData | un
     freePts.push({x, y: free});
   }
   if (dirtyPts.length < 2) return undefined;
-  return {series: [
-    {name: 'Swap dirty', points: dirtyPts, color: '#e74c3c'},
-    {name: 'SwapCached', points: cachedPts, color: '#f39c12'},
-    {name: 'SwapFree', points: freePts, color: '#2ecc71'},
-  ]};
+  return {
+    series: [
+      {name: 'Swap dirty', points: dirtyPts, color: '#e74c3c'},
+      {name: 'SwapCached', points: cachedPts, color: '#f39c12'},
+      {name: 'SwapFree', points: freePts, color: '#2ecc71'},
+    ],
+  };
 }
 
-function buildVmstatTimeSeries(data: SnapshotData, t0: number): LineChartData | undefined {
+function buildVmstatTimeSeries(
+  data: SnapshotData,
+  t0: number,
+): LineChartData | undefined {
   const pswpinRaw = data.systemCounters.get('pswpin');
   if (pswpinRaw === undefined || pswpinRaw.length < 2) return undefined;
-  const toRatePoints = (samples: {ts: number; value: number}[]): {x: number; y: number}[] => {
+  const toRatePoints = (
+    samples: {ts: number; value: number}[],
+  ): {x: number; y: number}[] => {
     const points: {x: number; y: number}[] = [];
     for (let i = 1; i < samples.length; i++) {
       const dtS = (samples[i].ts - samples[i - 1].ts) / 1e9;
       if (dtS <= 0) continue;
-      points.push({x: (samples[i].ts - t0) / 1e9, y: Math.max(0, (samples[i].value - samples[i - 1].value) / dtS)});
+      points.push({
+        x: (samples[i].ts - t0) / 1e9,
+        y: Math.max(0, (samples[i].value - samples[i - 1].value) / dtS),
+      });
     }
     return points;
   };
-  const series: LineChartSeries[] = [{name: 'pswpin', points: toRatePoints(pswpinRaw), color: '#3498db'}];
+  const series: LineChartSeries[] = [
+    {name: 'pswpin', points: toRatePoints(pswpinRaw), color: '#3498db'},
+  ];
   const pswpoutRaw = data.systemCounters.get('pswpout');
   if (pswpoutRaw !== undefined && pswpoutRaw.length >= 2) {
-    series.push({name: 'pswpout', points: toRatePoints(pswpoutRaw), color: '#e74c3c'});
+    series.push({
+      name: 'pswpout',
+      points: toRatePoints(pswpoutRaw),
+      color: '#e74c3c',
+    });
   }
   if (series.every((s) => s.points.length === 0)) return undefined;
   return {series};
@@ -125,7 +183,6 @@ function renderLmkPanel(
   events: {ts: number; pid: number; processName: string; oomScoreAdj: number}[],
   t0: number,
 ): m.Children {
-  if (events.length === 0) return null;
   return panel(
     `LMK Kills (${events.length})`,
     'Low Memory Killer events recorded during this session. ' +
@@ -163,8 +220,6 @@ export function renderPressureSwapTab(session: MementoSession): m.Children {
   const vmstatChartData = buildVmstatTimeSeries(data, t0);
 
   return [
-    renderLmkPanel(data.lmkEvents, t0),
-
     panel(
       'Memory Pressure (PSI)',
       'Source: /proc/pressure/memory (psi.mem.some, psi.mem.full). ' +
@@ -241,5 +296,7 @@ export function renderPressureSwapTab(session: MementoSession): m.Children {
           formatYValue: (v: number) => `${v.toFixed(0)} pg/s`,
         }),
       ),
+
+    renderLmkPanel(data.lmkEvents, t0),
   ];
 }
