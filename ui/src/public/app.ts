@@ -16,6 +16,7 @@ import {RouteArgs} from './route_schema';
 import {CommandManager} from './command';
 import {OmniboxManager} from './omnibox';
 import {SidebarManager} from './sidebar';
+import {SidePanelManager} from './side_panel';
 import {Analytics} from './analytics';
 import {PluginManager} from './plugin';
 import {Trace} from './trace';
@@ -33,6 +34,7 @@ import {TaskTracker} from './task_tracker';
 export interface App {
   readonly commands: CommandManager;
   readonly sidebar: SidebarManager;
+  readonly sidePanel: SidePanelManager;
   readonly omnibox: OmniboxManager;
   readonly analytics: Analytics;
   readonly plugins: PluginManager;

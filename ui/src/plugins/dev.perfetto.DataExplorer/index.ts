@@ -75,9 +75,12 @@ function isValidPersistedState(
 
 // --- Plugin ---
 
-export default class implements PerfettoPlugin {
+export default class DataExplorerPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.DataExplorer';
   static readonly dependencies = [QueryPagePlugin, SqlModulesPlugin];
+
+  // Trace reference for public API methods
+  private trace?: Trace;
 
   // Multi-tab state
   private tabs: DataExplorerTab[] = [];
@@ -486,6 +489,8 @@ export default class implements PerfettoPlugin {
   // --- Plugin lifecycle ---
 
   async onTraceLoad(trace: Trace): Promise<void> {
+    this.trace = trace;
+
     // Flush pending localStorage saves on page unload
     window.addEventListener('beforeunload', this.onBeforeUnload);
     trace.trash.defer(() => {
@@ -589,5 +594,55 @@ export default class implements PerfettoPlugin {
         trace.navigate('#!/explore');
       },
     });
+  }
+
+  // --- Public API for other plugins ---
+
+  /**
+   * Returns the serialized JSON of the active tab's graph state,
+   * or undefined if no graph is loaded yet.
+   */
+  getActiveGraphJson(): string | undefined {
+    const tab = this.getActiveTab();
+    if (!tab || tab.state.rootNodes.length === 0) return undefined;
+    return serializeState(tab.state);
+  }
+
+  /**
+   * Replaces the active tab's graph state with the given serialized JSON.
+   * Throws if the JSON is invalid or SQL modules aren't loaded.
+   */
+  setActiveGraphJson(json: string): void {
+    if (!this.trace) throw new Error('No trace loaded');
+
+    const sqlModulesPlugin = this.trace.plugins.getPlugin(SqlModulesPlugin);
+    const sqlModules = sqlModulesPlugin.getSqlModules();
+    if (!sqlModules) throw new Error('SQL modules not loaded yet');
+
+    this.ensureAtLeastOneTab();
+
+    const newState = deserializeState(json, this.trace, sqlModules);
+    const onStateUpdate = this.makeOnStateUpdate(this.activeTabId);
+    onStateUpdate(newState);
+  }
+
+  /**
+   * Selects a node by ID in the active tab's graph.
+   * Returns true if the node was found and selected.
+   */
+  selectNode(nodeId: string): boolean {
+    const tab = this.getActiveTab();
+    if (!tab) return false;
+
+    const allNodes = getAllNodes(tab.state.rootNodes);
+    const found = allNodes.some((n) => n.nodeId === nodeId);
+    if (!found) return false;
+
+    const onStateUpdate = this.makeOnStateUpdate(this.activeTabId);
+    onStateUpdate((current) => ({
+      ...current,
+      selectedNodes: new Set([nodeId]),
+    }));
+    return true;
   }
 }

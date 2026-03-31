@@ -198,6 +198,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
       placeholder: desc.placeholder,
       inputRef: OMNIBOX_INPUT_REF,
       className: desc.className,
+      closeOnSubmit: desc.closeOnSubmit ?? false,
       onInput: (value) => {
         if (desc.onInput) {
           desc.onInput(value);

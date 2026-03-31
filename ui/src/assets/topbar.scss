@@ -32,12 +32,31 @@
     }
   }
 
-  &__error-box {
+  &__right {
     position: absolute;
     right: 10px;
     display: flex;
     align-items: center;
+    gap: 4px;
+  }
+
+  &__error-box {
+    display: flex;
+    align-items: center;
     font-size: var(--pf-font-size-xxl);
+  }
+
+  &__side-panel-btn {
+    opacity: 0.6;
+
+    &:hover {
+      opacity: 1;
+    }
+
+    &--active {
+      opacity: 1;
+      color: var(--pf-color-primary);
+    }
   }
 
   &__error-popup {
