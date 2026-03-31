@@ -217,7 +217,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "util:json_parser",
       "util:protozero_to_json",
       "util:protozero_to_text",
-      "util:regex",
       "util:simple_json_parser",
       "util:stdlib",
       "util:trace_type",

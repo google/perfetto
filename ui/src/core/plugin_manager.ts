@@ -16,7 +16,6 @@ import {assertExists} from '../base/assert';
 import {Registry} from '../base/registry';
 import {PerfettoPlugin, PerfettoPluginStatic} from '../public/plugin';
 import {Trace} from '../public/trace';
-import {defaultPlugins} from './default_plugins';
 import {featureFlags} from './feature_flags';
 import {Flag} from '../public/feature_flag';
 import {TraceImpl} from './trace_impl';
@@ -75,6 +74,7 @@ export interface PluginWrapper {
 export class PluginManagerImpl {
   private readonly registry = new Registry<PluginWrapper>((x) => x.desc.id);
   private orderedPlugins: Array<PluginWrapper> = [];
+  constructor(private readonly defaultPluginIds: ReadonlyArray<string>) {}
 
   registerPlugin(desc: PerfettoPluginStatic<PerfettoPlugin>, isCore = false) {
     const flagId = `plugin_${desc.id}`;
@@ -83,7 +83,7 @@ export class PluginManagerImpl {
       id: flagId,
       name,
       description: `Overrides '${desc.id}' plugin.`,
-      defaultValue: defaultPlugins.includes(desc.id),
+      defaultValue: this.defaultPluginIds.includes(desc.id),
     });
     this.registry.register({
       desc,

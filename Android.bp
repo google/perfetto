@@ -126,6 +126,7 @@ cc_binary {
     shared_libs: [
         "libbase",
         "liblog",
+        "libpcre2",
         "libprocinfo",
         "libunwindstack",
     ],
@@ -246,6 +247,7 @@ cc_library_shared {
     ],
     shared_libs: [
         "heapprofd_client_api",
+        "libpcre2",
     ],
     static_libs: [
         "libasync_safe",
@@ -286,6 +288,7 @@ cc_library_shared {
     ],
     shared_libs: [
         "libbase",
+        "libpcre2",
         "libprocinfo",
         "libunwindstack",
     ],
@@ -428,6 +431,7 @@ cc_library_shared {
     ],
     shared_libs: [
         "liblog",
+        "libpcre2",
         "libz",
     ],
     static_libs: [
@@ -539,6 +543,9 @@ cc_binary_host {
     ],
     static_libs: [
         "libprotoc",
+    ],
+    whole_static_libs: [
+        "libpcre2",
     ],
     defaults: [
         "perfetto_defaults",
@@ -777,6 +784,7 @@ cc_library_shared {
         android: {
             shared_libs: [
                 "liblog",
+                "libpcre2",
                 "libz",
             ],
             static_libs: [
@@ -786,6 +794,9 @@ cc_library_shared {
         host: {
             static_libs: [
                 "libz",
+            ],
+            whole_static_libs: [
+                "libpcre2",
             ],
         },
     },
@@ -1038,9 +1049,15 @@ cc_library {
         android: {
             shared_libs: [
                 "liblog",
+                "libpcre2",
             ],
             static_libs: [
                 "perfetto_flags_c_lib",
+            ],
+        },
+        host: {
+            whole_static_libs: [
+                "libpcre2",
             ],
         },
         windows: {
@@ -1320,8 +1337,16 @@ cc_library_static {
     min_sdk_version: "30",
     target: {
         android: {
+            shared_libs: [
+                "libpcre2",
+            ],
             static_libs: [
                 "perfetto_flags_c_lib",
+            ],
+        },
+        host: {
+            whole_static_libs: [
+                "libpcre2",
             ],
         },
     },
@@ -1516,6 +1541,7 @@ cc_binary {
     ],
     shared_libs: [
         "liblog",
+        "libpcre2",
     ],
     static_libs: [
         "perfetto_flags_c_lib",
@@ -1939,6 +1965,7 @@ cc_library_static {
     ],
     shared_libs: [
         "liblog",
+        "libpcre2",
     ],
     static_libs: [
         "libgmock",
@@ -2128,6 +2155,9 @@ cc_library_static {
     ],
     target: {
         android: {
+            shared_libs: [
+                "libpcre2",
+            ],
             static_libs: [
                 "perfetto_flags_c_lib",
             ],
@@ -2298,6 +2328,9 @@ cc_library_static {
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_service_service",
         ":perfetto_test_test_helper",
+    ],
+    shared_libs: [
+        "libpcre2",
     ],
     static_libs: [
         "libgmock",
@@ -3029,7 +3062,6 @@ cc_test {
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_json",
         ":perfetto_src_trace_processor_util_protozero_to_text",
-        ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_simple_json_parser",
         ":perfetto_src_trace_processor_util_simple_json_serializer",
         ":perfetto_src_trace_processor_util_sql_argument",
@@ -3093,6 +3125,7 @@ cc_test {
         "libbase",
         "libicu",
         "liblog",
+        "libpcre2",
         "libprocinfo",
         "libprotobuf-cpp-lite",
         "libsqlite",
@@ -3280,6 +3313,9 @@ cc_test {
     test_config: "PerfettoIntegrationTests.xml",
     target: {
         android: {
+            shared_libs: [
+                "libpcre2",
+            ],
             static_libs: [
                 "perfetto_flags_c_lib",
             ],
@@ -14412,6 +14448,9 @@ cc_binary_host {
         ":perfetto_src_protozero_protozero",
         "src/protozero/descriptor_diff/main.cc",
     ],
+    whole_static_libs: [
+        "libpcre2",
+    ],
     generated_headers: [
         "perfetto_protos_perfetto_common_zero_gen_headers",
         "perfetto_protos_perfetto_protovm_zero_gen_headers",
@@ -14560,6 +14599,9 @@ cc_binary_host {
     ],
     static_libs: [
         "libprotoc",
+    ],
+    whole_static_libs: [
+        "libpcre2",
     ],
     defaults: [
         "perfetto_defaults",
@@ -17255,7 +17297,6 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_json",
         ":perfetto_src_trace_processor_util_protozero_to_text",
-        ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_simple_json_parser",
         ":perfetto_src_trace_processor_util_simple_json_serializer",
         ":perfetto_src_trace_processor_util_sql_argument",
@@ -17435,6 +17476,7 @@ cc_library_static {
             shared_libs: [
                 "libicu",
                 "liblog",
+                "libpcre2",
                 "libprotobuf-cpp-full",
                 "libsqlite",
                 "libutils",
@@ -17451,6 +17493,9 @@ cc_library_static {
                 "libsqlite_static_noicu",
                 "libz",
                 "sqlite_ext_percentile",
+            ],
+            whole_static_libs: [
+                "libpcre2",
             ],
         },
         musl: {
@@ -17690,11 +17735,6 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor/util:regex
-filegroup {
-    name: "perfetto_src_trace_processor_util_regex",
-}
-
 // GN: //src/trace_processor/util:simple_json_parser
 filegroup {
     name: "perfetto_src_trace_processor_util_simple_json_parser",
@@ -17805,7 +17845,6 @@ filegroup {
         "src/trace_processor/util/proto_to_args_parser_unittest.cc",
         "src/trace_processor/util/protozero_to_json_unittests.cc",
         "src/trace_processor/util/protozero_to_text_unittests.cc",
-        "src/trace_processor/util/regex_unittest.cc",
         "src/trace_processor/util/simple_json_parser_unittest.cc",
         "src/trace_processor/util/simple_json_serializer_unittest.cc",
         "src/trace_processor/util/sql_argument_unittest.cc",
@@ -19748,7 +19787,6 @@ cc_test {
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_json",
         ":perfetto_src_trace_processor_util_protozero_to_text",
-        ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_simple_json_parser",
         ":perfetto_src_trace_processor_util_simple_json_serializer",
         ":perfetto_src_trace_processor_util_sql_argument",
@@ -19838,6 +19876,7 @@ cc_test {
         "libbase",
         "libicu",
         "liblog",
+        "libpcre2",
         "libprocinfo",
         "libprotobuf-cpp-full",
         "libprotobuf-cpp-lite",
@@ -20230,6 +20269,9 @@ cc_library_static {
         ":perfetto_src_tracing_service_service",
         ":perfetto_test_test_helper",
     ],
+    shared_libs: [
+        "libpcre2",
+    ],
     static_libs: [
         "libgmock",
         "libgtest",
@@ -20421,6 +20463,7 @@ cc_library_static {
 cc_library_static {
     name: "perfetto_winscope_extensions_zero",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_protozero_protozero",
@@ -20447,8 +20490,16 @@ cc_library_static {
     ],
     target: {
         android: {
+            shared_libs: [
+                "libpcre2",
+            ],
             static_libs: [
                 "perfetto_flags_c_lib",
+            ],
+        },
+        host: {
+            whole_static_libs: [
+                "libpcre2",
             ],
         },
     },
@@ -20469,6 +20520,9 @@ cc_binary_host {
     ],
     static_libs: [
         "libprotoc",
+    ],
+    whole_static_libs: [
+        "libpcre2",
     ],
     defaults: [
         "perfetto_defaults",
@@ -20656,7 +20710,6 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_json",
         ":perfetto_src_trace_processor_util_protozero_to_text",
-        ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_simple_json_parser",
         ":perfetto_src_trace_processor_util_simple_json_serializer",
         ":perfetto_src_trace_processor_util_sql_argument",
@@ -20823,6 +20876,7 @@ cc_library_static {
             shared_libs: [
                 "libicu",
                 "liblog",
+                "libpcre2",
                 "libsqlite",
                 "libutils",
                 "libz",
@@ -20837,6 +20891,9 @@ cc_library_static {
                 "libsqlite_static_noicu",
                 "libz",
                 "sqlite_ext_percentile",
+            ],
+            whole_static_libs: [
+                "libpcre2",
             ],
         },
     },
@@ -20864,6 +20921,7 @@ cc_binary {
             shared_libs: [
                 "libicu",
                 "liblog",
+                "libpcre2",
                 "libprotobuf-cpp-full",
                 "libsqlite",
                 "libutils",
@@ -20954,6 +21012,7 @@ cc_binary {
     ],
     shared_libs: [
         "liblog",
+        "libpcre2",
     ],
     static_libs: [
         "perfetto_flags_c_lib",
@@ -21194,7 +21253,6 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_json",
         ":perfetto_src_trace_processor_util_protozero_to_text",
-        ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_simple_json_parser",
         ":perfetto_src_trace_processor_util_simple_json_serializer",
         ":perfetto_src_trace_processor_util_sql_argument",
@@ -21218,6 +21276,9 @@ cc_binary_host {
         "libz",
         "perfetto_src_trace_processor_demangle",
         "sqlite_ext_percentile",
+    ],
+    whole_static_libs: [
+        "libpcre2",
     ],
     generated_headers: [
         "perfetto_protos_perfetto_common_cpp_gen_headers",
@@ -21467,6 +21528,7 @@ cc_binary {
     shared_libs: [
         "libbase",
         "liblog",
+        "libpcre2",
         "libprocinfo",
         "libunwindstack",
     ],
@@ -21675,6 +21737,7 @@ cc_binary {
     ],
     shared_libs: [
         "liblog",
+        "libpcre2",
     ],
     static_libs: [
         "perfetto_flags_c_lib",
@@ -21777,6 +21840,9 @@ cc_binary_host {
     static_libs: [
         "libprotobuf-cpp-full",
         "libz",
+    ],
+    whole_static_libs: [
+        "libpcre2",
     ],
     generated_headers: [
         "perfetto_protos_perfetto_common_zero_gen_headers",
@@ -21898,6 +21964,7 @@ cc_binary {
     ],
     shared_libs: [
         "liblog",
+        "libpcre2",
     ],
     static_libs: [
         "perfetto_flags_c_lib",

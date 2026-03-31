@@ -424,6 +424,20 @@ def enable_libunwind(module):
   pass
 
 
+def enable_pcre2(module):
+  # On host: use whole_static_libs so pcre2 symbols are available to external
+  # consumers like libandroid_runtime that link perfetto statically.
+  # Soong does not transitively propagate deps from static archives
+  # (b/169779783), but whole_static_libs forces all symbols to be included.
+  if module.type == 'cc_binary_host':
+    module.whole_static_libs.add('libpcre2')
+  elif module.host_supported:
+    module.android.shared_libs.add('libpcre2')
+    module.host.whole_static_libs.add('libpcre2')
+  else:
+    module.shared_libs.add('libpcre2')
+
+
 def enable_sqlite(module):
   if module.type == 'cc_binary_host':
     module.static_libs.add('libsqlite_static_noicu')
@@ -503,6 +517,8 @@ builtin_deps = {
         enable_protoc_lib,
     '//gn:libunwindstack':
         enable_libunwindstack,
+    '//gn:pcre2':
+        enable_pcre2,
     '//gn:sqlite':
         enable_sqlite,
     '//gn:zlib':
@@ -1535,6 +1551,13 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
                     (dep_gn_target.type, dep_module.name))
     elif dep_module.type == 'filegroup':
       module.srcs.add(':' + dep_module.name)
+      # Filegroup sources are flattened into the module, but the filegroup's
+      # own GN deps (e.g. //gn:pcre2 on the regex source_set) are not
+      # automatically walked. Recurse into them to pick up any builtin_deps.
+      for sub_dep in dep.deps:
+        sub_name = gn_utils.label_without_toolchain(sub_dep.name)
+        if sub_name in builtin_deps:
+          builtin_deps[sub_name](module)
     elif dep_module.type == 'genrule':
       module.generated_headers.update(dep_module.genrule_headers)
       module.srcs.update(dep_module.genrule_srcs)
@@ -1561,8 +1584,10 @@ def create_blueprint_for_targets(gn: GnParser, targets: List[str]):
   # become relative to the Android.bp that *uses* cc_defaults (not the one
   # that defines it).s
   defaults.include_dirs = {
-      tree_path, tree_path + '/include', tree_path + '/' + buildflags_dir,
-      tree_path + '/src/profiling/memory/include'
+      tree_path,
+      tree_path + '/include',
+      tree_path + '/' + buildflags_dir,
+      tree_path + '/src/profiling/memory/include',
   }
   defaults.cflags.update([
       '-Wno-error=return-type',
