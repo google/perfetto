@@ -12,9 +12,70 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import protos from '../../protos';
 import {TracingSession} from '../dev.perfetto.RecordTraceV2/interfaces/tracing_session';
 
 export type ProfileState = 'recording' | 'stopping' | 'finished' | 'error';
+
+const heapProfBufferSizeKb = 128 * 1024;
+
+/**
+ * Builds the TraceConfig for a single-process heap profiling session.
+ * Uses three buffers: heap profiling (0), Java HPROF (1), process stats (2).
+ */
+export function buildProcessProfileConfig(pid: number): protos.ITraceConfig {
+  return {
+    buffers: [
+      {
+        sizeKb: heapProfBufferSizeKb,
+        fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
+      },
+      {
+        sizeKb: heapProfBufferSizeKb,
+        fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
+      },
+      {
+        sizeKb: 4 * 1024,
+        fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
+      },
+    ],
+    dataSources: [
+      {
+        config: {
+          name: 'android.heapprofd',
+          targetBuffer: 0,
+          heapprofdConfig: {
+            pid: [pid],
+            samplingIntervalBytes: 4096,
+            allHeaps: true,
+            shmemSizeBytes: 8 * 1024 * 1024,
+          },
+        },
+      },
+      {
+        config: {
+          name: 'android.java_hprof',
+          targetBuffer: 1,
+          javaHprofConfig: {
+            pid: [pid],
+            continuousDumpConfig: {
+              dumpIntervalMs: 1000,
+            },
+          },
+        },
+      },
+      {
+        config: {
+          name: 'linux.process_stats',
+          targetBuffer: 2,
+          processStatsConfig: {
+            scanAllProcessesOnStart: true,
+          },
+        },
+      },
+    ],
+  };
+}
 
 /**
  * Handle to a single-process heap profiling session. Call stop() to end

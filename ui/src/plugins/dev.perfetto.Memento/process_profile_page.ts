@@ -21,7 +21,7 @@ import {Button, ButtonVariant} from '../../widgets/button';
 import {Chip} from '../../widgets/chip';
 import {Icon} from '../../widgets/icon';
 import {Intent} from '../../widgets/common';
-import {formatKb} from './utils';
+import {billboardKb, formatKb} from './utils';
 import {Icons} from '../../base/semantic_icons';
 
 export interface ProfilePageData {
@@ -31,6 +31,8 @@ export interface ProfilePageData {
   duration: string;
   chartData?: LineChartData;
   baseline?: {anonSwap: number; file: number; dmabuf: number};
+  xMin: number;
+  xMax: number;
 }
 
 export interface ProfilePageCallbacks {
@@ -56,20 +58,26 @@ export function renderProcessProfilePage(
             onclick: () => callbacks.onCancel(),
           }),
         m(Icon, {icon: 'science'}),
-        `Profiling: ${data.processName} (PID ${data.pid})`,
-        data.duration && m(Chip, {label: data.duration}),
-        data.stopping && m(Chip, {label: 'Stopping\u2026'}),
-        !data.stopping &&
+        m(
+          '.pf-memento-profile-bar__title',
           m(
-            '.pf-memento-profile-bar__datasources',
-            m(Icon, {icon: 'memory'}),
-            'heapprofd ',
-            m('span.pf-memento-profiling-status__active', 'recording'),
-            '\u00b7',
-            m(Icon, {icon: 'coffee'}),
-            'java_hprof ',
-            m('span.pf-memento-profiling-status__active', 'recording'),
+            '.pf-memento-profile-bar__name',
+            `Profiling: ${data.processName} (PID ${data.pid})`,
+            data.duration && m(Chip, {label: data.duration}),
+            data.stopping && m(Chip, {label: 'Stopping\u2026'}),
           ),
+          !data.stopping &&
+            m(
+              '.pf-memento-profile-bar__datasources',
+              m(Icon, {icon: 'memory'}),
+              'heapprofd ',
+              m('span.pf-memento-profiling-status__active', 'recording'),
+              '\u00b7',
+              m(Icon, {icon: 'coffee'}),
+              'java_hprof ',
+              m('span.pf-memento-profiling-status__active', 'recording'),
+            ),
+        ),
       ),
       m(
         '.pf-memento-profile-bar__actions',
@@ -117,7 +125,7 @@ function renderBillboards(
         : undefined;
     return m(
       '.pf-memento-billboard',
-      m('.pf-memento-billboard__value', formatKb(current)),
+      m('.pf-memento-billboard__value', billboardKb(current)),
       deltaStr !== undefined &&
         m(
           '.pf-memento-billboard__delta',
@@ -182,6 +190,8 @@ function renderBreakdownChart(data: ProfilePageData): m.Children {
           showPoints: false,
           stacked: true,
           gridLines: 'horizontal',
+          xAxisMin: data.xMin,
+          xAxisMax: data.xMax,
           formatXValue: (v: number) => `${v.toFixed(0)}s`,
           formatYValue: (v: number) => formatKb(v),
         })

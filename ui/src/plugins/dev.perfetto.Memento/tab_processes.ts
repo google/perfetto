@@ -30,7 +30,7 @@ import {
   CATEGORIES,
   type CategoryId,
 } from './process_categories';
-import {computeT0, formatKb} from './utils';
+import {billboardKb, formatKb} from './utils';
 import {
   type ProcessGrouping,
   type ProcessMetric,
@@ -408,7 +408,7 @@ export interface ProcessesTabAttrs {
 
 export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
   private grouping: ProcessGrouping = 'category';
-  private metric: ProcessMetric = 'rss';
+  private metric: ProcessMetric = 'anon_swap';
   private selectedCategory?: CategoryId;
   private selectedOomBucket?: number;
 
@@ -416,7 +416,7 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
     const data = attrs.session.data;
     if (!data) return null;
 
-    const t0 = computeT0(data);
+    const t0 = data.ts0;
     const counters = PROCESS_METRIC_OPTIONS.find(
       (o) => o.key === this.metric,
     )!.counters;
@@ -486,7 +486,7 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
           '.pf-memento-billboards',
           m(
             '.pf-memento-billboard',
-            m('.pf-memento-billboard__value', formatKb(totalAnonSwapKb)),
+            m('.pf-memento-billboard__value', billboardKb(totalAnonSwapKb)),
             m('.pf-memento-billboard__label', 'Anon + Swap'),
             m(
               '.pf-memento-billboard__desc',
@@ -495,7 +495,7 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
           ),
           m(
             '.pf-memento-billboard',
-            m('.pf-memento-billboard__value', formatKb(totalFileKb)),
+            m('.pf-memento-billboard__value', billboardKb(totalFileKb)),
             m('.pf-memento-billboard__label', 'File'),
             m(
               '.pf-memento-billboard__desc',
@@ -504,7 +504,7 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
           ),
           m(
             '.pf-memento-billboard',
-            m('.pf-memento-billboard__value', formatKb(totalDmabufKb)),
+            m('.pf-memento-billboard__value', billboardKb(totalDmabufKb)),
             m('.pf-memento-billboard__label', 'DMA-BUF'),
             m(
               '.pf-memento-billboard__desc',

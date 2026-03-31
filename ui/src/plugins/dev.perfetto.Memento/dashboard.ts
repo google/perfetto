@@ -23,7 +23,6 @@ import {
   type LineChartSeries,
 } from '../../components/widgets/charts/line_chart';
 import {MementoSession, type SnapshotData} from './memento_session';
-import {computeT0} from './utils';
 import {renderProcessProfilePage} from './process_profile_page';
 import {ProcessesTab} from './tab_processes';
 import {renderSystemTab} from './tab_system';
@@ -154,17 +153,41 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
         m(
           Tooltip,
           {
-            trigger: m(Chip, {
-              label: `Snapshot #${session.snapshotCount}`,
-              icon: session.snapshotOverrun ? 'warning' : 'info',
-              intent: session.snapshotOverrun ? Intent.Warning : undefined,
-            }),
+            trigger: m(
+              '.pf-memento--muted',
+              `Snapshot #${session.snapshotCount}`,
+            ),
             position: PopupPosition.Bottom,
           },
           m(
             '.pf-memento-snapshot-info',
             session.lastSnapshotMs > 0
               ? [
+                  m(
+                    '.pf-memento-snapshot-info__row',
+                    m('span', 'Size'),
+                    m('span', `${session.lastSnapshotSizeKb.toFixed(0)}kB`),
+                  ),
+                  session.lastBufferUsagePct !== undefined &&
+                    m(
+                      '.pf-memento-snapshot-info__row',
+                      m('span', 'Buffer usage'),
+                      m('span', `${session.lastBufferUsagePct.toFixed(1)}%`),
+                    ),
+                  session.data !== undefined &&
+                    m('.pf-memento-snapshot-info__heading', 'Counter range'),
+                  session.data !== undefined &&
+                    m(
+                      '.pf-memento-snapshot-info__row',
+                      m('span', 'First sample'),
+                      m('span', `${session.data.xMin.toFixed(1)}s`),
+                    ),
+                  session.data !== undefined &&
+                    m(
+                      '.pf-memento-snapshot-info__row',
+                      m('span', 'Last sample'),
+                      m('span', `${session.data.xMax.toFixed(1)}s`),
+                    ),
                   m('.pf-memento-snapshot-info__heading', 'Timings'),
                   m(
                     '.pf-memento-snapshot-info__row',
@@ -202,26 +225,6 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
                   '.pf-memento-snapshot-info__empty',
                   'Waiting for snapshot\u2026',
                 ),
-          ),
-        ),
-        // Interval selector — short label to save space.
-        m(
-          PopupMenu,
-          {
-            trigger: m(Button, {
-              label: `Interval ${session.snapshotIntervalMs / 1000}s`,
-              icon: 'schedule',
-              variant: ButtonVariant.Filled,
-            }),
-            matchWidth: true,
-          },
-          INTERVAL_OPTIONS.map((option) =>
-            m(MenuItem, {
-              label: option.label,
-              onclick: () => {
-                session.setSnapshotInterval(option.ms);
-              },
-            }),
           ),
         ),
         // Pause / Resume.
@@ -299,7 +302,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     const data = session.data;
     const pid = session.profilePid!;
     const processName = session.profileProcessName ?? 'unknown';
-    const t0 = data ? computeT0(data) : 0;
+    const t0 = data?.ts0 ?? 0;
     const chartData = data
       ? buildProcessMemoryBreakdown(data, pid, t0)
       : undefined;
@@ -327,6 +330,8 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
         duration: session.profileDuration,
         chartData,
         baseline: this.profileBaseline,
+        xMin: data?.xMin ?? 0,
+        xMax: data?.xMax ?? 0,
       },
       {
         onStop: () => {

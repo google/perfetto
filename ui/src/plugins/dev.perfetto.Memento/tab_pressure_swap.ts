@@ -19,7 +19,7 @@ import {
   type LineChartSeries,
 } from '../../components/widgets/charts/line_chart';
 import {MementoSession, type SnapshotData} from './memento_session';
-import {computeT0, formatKb, panel} from './utils';
+import {formatKb, panel} from './utils';
 
 function buildPsiTimeSeries(
   data: SnapshotData,
@@ -213,7 +213,7 @@ export function renderPressureSwapTab(session: MementoSession): m.Children {
   const data = session.data;
   if (!data) return null;
 
-  const t0 = computeT0(data);
+  const t0 = data.ts0;
   const psiChartData = buildPsiTimeSeries(data, t0);
   const pageFaultChartData = buildPageFaultTimeSeries(data, t0);
   const swapChartData = buildSwapTimeSeries(data, t0);
@@ -234,6 +234,8 @@ export function renderPressureSwapTab(session: MementoSession): m.Children {
             showLegend: true,
             showPoints: false,
             gridLines: 'horizontal',
+            xAxisMin: data.xMin,
+            xAxisMax: data.xMax,
             formatXValue: (v: number) => `${v.toFixed(0)}s`,
             formatYValue: (v: number) => `${v.toFixed(1)} ms/s`,
           })
@@ -254,6 +256,8 @@ export function renderPressureSwapTab(session: MementoSession): m.Children {
             showLegend: true,
             showPoints: false,
             gridLines: 'horizontal',
+            xAxisMin: data.xMin,
+            xAxisMax: data.xMax,
             formatXValue: (v: number) => `${v.toFixed(0)}s`,
             formatYValue: (v: number) => `${v.toFixed(0)} f/s`,
           })
@@ -268,6 +272,8 @@ export function renderPressureSwapTab(session: MementoSession): m.Children {
         m(LineChart, {
           data: swapChartData,
           height: 200,
+          xAxisMin: data.xMin,
+          xAxisMax: data.xMax,
           xAxisLabel: 'Time (s)',
           yAxisLabel: 'Swap',
           showLegend: true,
@@ -286,6 +292,8 @@ export function renderPressureSwapTab(session: MementoSession): m.Children {
           'Derived: cumulative page counts converted to pages/s rate.',
         m(LineChart, {
           data: vmstatChartData,
+          xAxisMin: data.xMin,
+          xAxisMax: data.xMax,
           height: 200,
           xAxisLabel: 'Time (s)',
           yAxisLabel: 'Pages/s',

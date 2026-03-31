@@ -19,7 +19,7 @@ import {
   type LineChartSeries,
 } from '../../components/widgets/charts/line_chart';
 import {MementoSession, SnapshotData} from './memento_session';
-import {computeT0, formatKb, panel} from './utils';
+import {billboardKb, formatKb, panel} from './utils';
 
 /** System memory breakdown from /proc/meminfo, partitioning MemTotal. */
 function buildSystemTimeSeries(
@@ -189,7 +189,7 @@ export function renderSystemTab(session: MementoSession): m.Children {
   const data = session.data;
   if (!data) return null;
 
-  const t0 = computeT0(data);
+  const t0 = data.ts0;
   const bb = buildSystemBillboards(data);
   const chartData = buildSystemTimeSeries(data, t0);
 
@@ -199,31 +199,31 @@ export function renderSystemTab(session: MementoSession): m.Children {
         '.pf-memento-billboards',
         m(
           '.pf-memento-billboard',
-          m('.pf-memento-billboard__value', formatKb(bb.totalKb)),
+          m('.pf-memento-billboard__value', billboardKb(bb.totalKb)),
           m('.pf-memento-billboard__label', 'MemTotal'),
           m('.pf-memento-billboard__desc', 'Total physical RAM'),
         ),
         m(
           '.pf-memento-billboard',
-          m('.pf-memento-billboard__value', formatKb(bb.availableKb)),
+          m('.pf-memento-billboard__value', billboardKb(bb.availableKb)),
           m('.pf-memento-billboard__label', 'MemAvailable'),
           m('.pf-memento-billboard__desc', 'Available without swapping'),
         ),
         m(
           '.pf-memento-billboard',
-          m('.pf-memento-billboard__value', formatKb(bb.anonKb)),
+          m('.pf-memento-billboard__value', billboardKb(bb.anonKb)),
           m('.pf-memento-billboard__label', 'Anon'),
           m('.pf-memento-billboard__desc', 'Active(anon) + Inactive(anon)'),
         ),
         m(
           '.pf-memento-billboard',
-          m('.pf-memento-billboard__value', formatKb(bb.fileCacheKb)),
+          m('.pf-memento-billboard__value', billboardKb(bb.fileCacheKb)),
           m('.pf-memento-billboard__label', 'Page Cache'),
           m('.pf-memento-billboard__desc', 'File LRU \u2212 Shmem'),
         ),
         m(
           '.pf-memento-billboard',
-          m('.pf-memento-billboard__value', formatKb(bb.freeKb)),
+          m('.pf-memento-billboard__value', billboardKb(bb.freeKb)),
           m('.pf-memento-billboard__label', 'MemFree'),
           m('.pf-memento-billboard__desc', 'Completely unused RAM'),
         ),
@@ -244,6 +244,8 @@ export function renderSystemTab(session: MementoSession): m.Children {
             showPoints: false,
             stacked: true,
             gridLines: 'horizontal',
+            xAxisMin: data.xMin,
+            xAxisMax: data.xMax,
             formatXValue: (v: number) => `${v.toFixed(0)}s`,
             formatYValue: (v: number) => formatKb(v),
           })

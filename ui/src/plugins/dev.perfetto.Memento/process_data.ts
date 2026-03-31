@@ -23,7 +23,6 @@ export const PROCESS_METRIC_OPTIONS: ReadonlyArray<{
   label: string;
   counters: readonly string[];
 }> = [
-  {key: 'rss', label: 'Total RSS', counters: ['mem.rss']},
   {
     key: 'anon_swap',
     label: 'Anon + Swap',
@@ -31,6 +30,7 @@ export const PROCESS_METRIC_OPTIONS: ReadonlyArray<{
   },
   {key: 'file', label: 'File', counters: ['mem.rss.file']},
   {key: 'dmabuf', label: 'DMA-BUF', counters: ['mem.dmabuf_rss']},
+  {key: 'rss', label: 'Total RSS', counters: ['mem.rss']},
 ];
 
 export interface OomScoreBucket {

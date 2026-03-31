@@ -19,7 +19,7 @@ import {
   type LineChartSeries,
 } from '../../components/widgets/charts/line_chart';
 import {MementoSession, type SnapshotData} from './memento_session';
-import {computeT0, formatKb, panel} from './utils';
+import {billboardKb, formatKb, panel} from './utils';
 
 function buildPageCacheTimeSeries(
   data: SnapshotData,
@@ -204,7 +204,7 @@ export function renderPageCacheTab(session: MementoSession): m.Children {
   const data = session.data;
   if (!data) return null;
 
-  const t0 = computeT0(data);
+  const t0 = data.ts0;
   const pageCacheChartData = buildPageCacheTimeSeries(data, t0);
   const fileCacheBreakdownData = buildFileCacheBreakdownTimeSeries(data, t0);
   const fileCacheActivityData = buildFileCacheActivityTimeSeries(data, t0);
@@ -216,7 +216,7 @@ export function renderPageCacheTab(session: MementoSession): m.Children {
         '.pf-memento-billboards',
         m(
           '.pf-memento-billboard',
-          m('.pf-memento-billboard__value', formatKb(billboards.total)),
+          m('.pf-memento-billboard__value', billboardKb(billboards.total)),
           m('.pf-memento-billboard__label', 'Total Page Cache'),
           m(
             '.pf-memento-billboard__desc',
@@ -225,13 +225,13 @@ export function renderPageCacheTab(session: MementoSession): m.Children {
         ),
         m(
           '.pf-memento-billboard',
-          m('.pf-memento-billboard__value', formatKb(billboards.dirty)),
+          m('.pf-memento-billboard__value', billboardKb(billboards.dirty)),
           m('.pf-memento-billboard__label', 'Dirty'),
           m('.pf-memento-billboard__desc', 'Source: Dirty from /proc/meminfo'),
         ),
         m(
           '.pf-memento-billboard',
-          m('.pf-memento-billboard__value', formatKb(billboards.mapped)),
+          m('.pf-memento-billboard__value', billboardKb(billboards.mapped)),
           m('.pf-memento-billboard__label', 'Mapped'),
           m('.pf-memento-billboard__desc', 'Source: Mapped from /proc/meminfo'),
         ),
@@ -251,6 +251,8 @@ export function renderPageCacheTab(session: MementoSession): m.Children {
             showPoints: false,
             stacked: true,
             gridLines: 'horizontal',
+            xAxisMin: data.xMin,
+            xAxisMax: data.xMax,
             formatXValue: (v: number) => `${v.toFixed(0)}s`,
             formatYValue: (v: number) => formatKb(v),
           })
@@ -272,6 +274,8 @@ export function renderPageCacheTab(session: MementoSession): m.Children {
             showLegend: true,
             showPoints: false,
             gridLines: 'horizontal',
+            xAxisMin: data.xMin,
+            xAxisMax: data.xMax,
             formatXValue: (v: number) => `${v.toFixed(0)}s`,
             formatYValue: (v: number) => v.toLocaleString(),
           })

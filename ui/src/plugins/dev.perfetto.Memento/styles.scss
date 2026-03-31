@@ -29,6 +29,10 @@
   gap: 20px;
 }
 
+.pf-memento--muted {
+  color: var(--pf-color-text-muted);
+}
+
 // Page title bar.
 .pf-memento-title-bar {
   display: flex;
@@ -43,9 +47,9 @@
 
     // Fancy gradient background clipped to the text.
     background: linear-gradient(
-      90deg,
-      var(--pf-color-primary),
-      var(--pf-color-accent)
+      45deg,
+      var(--pf-color-success),
+      var(--pf-color-primary)
     );
     -webkit-background-clip: text;
     background-clip: text;
@@ -205,6 +209,13 @@
   font-weight: 700;
   color: var(--pf-color-text);
   line-height: 1.2;
+
+  .pf-memento-billboard__unit {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--pf-color-text-muted);
+    margin-left: 2px;
+  }
 }
 
 .pf-memento-billboard__label {
@@ -244,26 +255,39 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 14px;
+  padding: 16px 20px;
   border-radius: 6px;
   background: var(--pf-color-background-secondary);
+  border-left: 4px solid var(--pf-color-primary);
 }
 
 .pf-memento-profile-bar__left {
   display: flex;
   align-items: center;
+  gap: 12px;
+}
+
+.pf-memento-profile-bar__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pf-memento-profile-bar__name {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  font-weight: 500;
+  font-size: var(--pf-font-size-l);
+  font-weight: 600;
 }
 
 .pf-memento-profile-bar__datasources {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: var(--pf-font-size-xs);
-  font-weight: 400;
-  color: var(--pf-color-text-muted);
-  margin-left: 4px;
+  gap: 6px;
+  font-size: var(--pf-font-size-s);
+  font-weight: 500;
+  color: var(--pf-color-text);
 }
 
 .pf-memento-profile-bar__actions {
@@ -413,8 +437,37 @@
 }
 
 .pf-memento-profiling-status__active {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(76, 175, 80, 0.15);
   color: #4caf50;
   font-weight: 600;
+  font-size: var(--pf-font-size-xs);
+  padding: 1px 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(76, 175, 80, 0.4);
+
+  // Animated dot before "recording"
+  &::before {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #4caf50;
+    animation: pf-memento-pulse 1.5s ease-in-out infinite;
+  }
+}
+
+@keyframes pf-memento-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
 .pf-memento-process-cell {

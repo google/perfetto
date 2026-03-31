@@ -26,9 +26,11 @@ import {TracingSession} from '../dev.perfetto.RecordTraceV2/interfaces/tracing_s
 import {TracedWebsocketTarget} from '../dev.perfetto.RecordTraceV2/traced_over_websocket/traced_websocket_target';
 import {App} from '../../public/app';
 import {ConnectionResult} from './connection_page';
-import {ProcessProfile, type ProfileState} from './process_profile';
-
-export type {ProfileState};
+import {
+  ProcessProfile,
+  buildProcessProfileConfig,
+  type ProfileState,
+} from './process_profile';
 
 let engineCounter = 0;
 
@@ -70,6 +72,14 @@ export interface SnapshotData {
 
   // Whether the device is a userdebug build.
   isUserDebug: boolean;
+
+  // Trace start timestamp from trace_bounds, used as the x=0 origin for all charts.
+  ts0: number;
+
+  // X-axis bounds in seconds relative to ts0, derived from the earliest/latest
+  // counter sample. Use these as xAxisMin/xAxisMax on all line charts.
+  xMin: number;
+  xMax: number;
 }
 
 export type OnSnapshotCallback = (data: SnapshotData) => void;
@@ -101,10 +111,13 @@ export class MementoSession {
 
   // Timing breakdown for the last snapshot (ms).
   lastSnapshotMs = 0;
+  lastSnapshotSizeKb = 0;
+  lastBufferUsagePct?: number;
   lastCloneMs = 0;
   lastParseMs = 0;
   lastQueryMs = 0;
   lastExtractMs = 0;
+  earliestEventTs = 0;
 
   // True when the last snapshot took longer than the configured interval.
   snapshotOverrun = false;
@@ -182,46 +195,7 @@ export class MementoSession {
     if (this.activeProfile) {
       await this.activeProfile.cancel();
     }
-    const config: protos.ITraceConfig = {
-      buffers: [
-        {
-          sizeKb: 64 * 1024,
-          fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
-        },
-      ],
-      dataSources: [
-        {
-          config: {
-            name: 'android.heapprofd',
-            heapprofdConfig: {
-              pid: [pid],
-              samplingIntervalBytes: 4096,
-              allHeaps: true,
-              shmemSizeBytes: 8 * 1024 * 1024,
-            },
-          },
-        },
-        {
-          config: {
-            name: 'android.java_hprof',
-            javaHprofConfig: {
-              pid: [pid],
-              continuousDumpConfig: {
-                dumpIntervalMs: 1000,
-              },
-            },
-          },
-        },
-        {
-          config: {
-            name: 'linux.process_stats',
-            processStatsConfig: {
-              scanAllProcessesOnStart: true,
-            },
-          },
-        },
-      ],
-    };
+    const config = buildProcessProfileConfig(pid);
 
     const result = this.linuxTarget
       ? await this.linuxTarget.startTracing(config)
@@ -303,9 +277,12 @@ export class MementoSession {
     try {
       const t0 = performance.now();
 
-      const cloneResult = this.linuxTarget
-        ? await this.linuxTarget.cloneSession(this.sessionName)
-        : await cloneAdbTracingSession(this.device!, this.sessionName);
+      const [cloneResult, bufferUsagePct] = await Promise.all([
+        this.linuxTarget
+          ? this.linuxTarget.cloneSession(this.sessionName)
+          : cloneAdbTracingSession(this.device!, this.sessionName),
+        this.session!.getBufferUsagePct(),
+      ]);
       if (!cloneResult.ok) {
         this.status = `Snapshot failed: ${cloneResult.error}`;
         return;
@@ -338,6 +315,8 @@ export class MementoSession {
       this.lastQueryMs = result.queryMs;
       this.lastExtractMs = result.extractMs;
       this.lastSnapshotMs = Math.round(performance.now() - t0);
+      this.lastSnapshotSizeKb = this.lastTraceBuffer.byteLength / 1024;
+      this.lastBufferUsagePct = bufferUsagePct;
       this.snapshotCount++;
       this.status = `Snapshot #${this.snapshotCount} OK (${this.lastSnapshotMs}ms)`;
     } catch (e) {
@@ -360,6 +339,8 @@ export class MementoSession {
   }
 }
 
+const POLLING_INTERVAL_MS = 1000;
+
 function createMonitoringConfig(
   uniqueSessionName: string,
 ): protos.ITraceConfig {
@@ -371,11 +352,15 @@ function createMonitoringConfig(
         fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.DISCARD,
       },
       {
-        sizeKb: 4 * 1024,
+        sizeKb: 2 * 1024,
         fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
       },
       {
         sizeKb: 4 * 1024,
+        fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
+      },
+      {
+        sizeKb: 256,
         fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
       },
     ],
@@ -392,11 +377,17 @@ function createMonitoringConfig(
       },
       {
         config: {
+          name: 'android.packages_list',
+          targetBuffer: 0,
+        },
+      },
+      {
+        config: {
           name: 'linux.process_stats',
           targetBuffer: 1,
           processStatsConfig: {
             scanAllProcessesOnStart: false,
-            procStatsPollMs: 250,
+            procStatsPollMs: POLLING_INTERVAL_MS,
             recordProcessDmabufRss: true,
           },
         },
@@ -406,9 +397,8 @@ function createMonitoringConfig(
           name: 'linux.sys_stats',
           targetBuffer: 1,
           sysStatsConfig: {
-            meminfoPeriodMs: 250,
-            psiPeriodMs: 250,
-            vmstatPeriodMs: 250,
+            meminfoPeriodMs: POLLING_INTERVAL_MS,
+            psiPeriodMs: POLLING_INTERVAL_MS,
             meminfoCounters: [
               protos.MeminfoCounters.MEMINFO_MEM_TOTAL,
               protos.MeminfoCounters.MEMINFO_MEM_FREE,
@@ -432,6 +422,15 @@ function createMonitoringConfig(
               protos.MeminfoCounters.MEMINFO_DIRTY,
               protos.MeminfoCounters.MEMINFO_WRITEBACK,
             ],
+          },
+        },
+      },
+      {
+        config: {
+          name: 'linux.sys_stats',
+          targetBuffer: 3,
+          sysStatsConfig: {
+            vmstatPeriodMs: POLLING_INTERVAL_MS,
             vmstatCounters: [
               protos.VmstatCounters.VMSTAT_PSWPIN,
               protos.VmstatCounters.VMSTAT_PSWPOUT,
@@ -442,12 +441,6 @@ function createMonitoringConfig(
               protos.VmstatCounters.VMSTAT_PGSCAN_FILE,
             ],
           },
-        },
-      },
-      {
-        config: {
-          name: 'android.packages_list',
-          targetBuffer: 0,
         },
       },
       {
@@ -465,7 +458,6 @@ function createMonitoringConfig(
               'oom/oom_score_adj_update',
             ],
             atraceApps: ['lmkd'],
-            symbolizeKsyms: true,
             disableGenericEvents: true,
           },
         },
@@ -484,22 +476,32 @@ async function extractSnapshotData(
   engine: WasmEngineProxy,
 ): Promise<ExtractResult> {
   const tQueryStart = performance.now();
-  const [sysResult, procResult, metaResult, lmkResult, buildResult] =
+  const [ts0Result, sysTrackResult, procTrackResult, samplesResult, metaResult, lmkResult, buildResult] =
     await Promise.all([
       engine.query(`
-        SELECT t.name AS counter_name, c.ts, c.value
+        SELECT
+          (SELECT start_ts FROM trace_bounds) as ts0,
+          MIN(c.ts) as min_ts,
+          MAX(c.ts) as max_ts
         FROM counter c
         JOIN counter_track t ON c.track_id = t.id
-        ORDER BY c.ts
+        WHERE t.name = 'MemTotal'
       `),
       engine.query(`
-        SELECT p.name AS process_name, p.pid, t.name AS counter_name,
-              c.ts, c.value
-        FROM counter c
-        JOIN process_counter_track t ON c.track_id = t.id
+        SELECT id, name
+        FROM counter_track
+        WHERE id NOT IN (SELECT id FROM process_counter_track)
+      `),
+      engine.query(`
+        SELECT t.id, p.name AS process_name, p.pid, t.name AS counter_name
+        FROM process_counter_track t
         JOIN process p ON t.upid = p.upid
         WHERE p.name IS NOT NULL
-        ORDER BY c.ts
+      `),
+      engine.query(`
+        SELECT track_id, ts, value
+        FROM counter
+        ORDER BY ts
       `),
       engine.query(`
         SELECT p.name, p.pid, p.start_ts,
@@ -543,68 +545,90 @@ async function extractSnapshotData(
   const task = await deferChunkedTask({priority: 'background'});
   const YIELD_CHECK_INTERVAL = 64; // Num loops before yield check
 
-  // Build system counters map.
-  const systemCounters = new Map<string, TsValue[]>();
-  const sysIter = sysResult.iter({
-    counter_name: STR,
-    ts: NUM,
-    value: NUM,
-  });
-  for (let i = 0; sysIter.valid(); sysIter.next(), ++i) {
-    if (i % YIELD_CHECK_INTERVAL === 0 && task.shouldYield()) {
-      await task.yield();
-    }
-    let arr = systemCounters.get(sysIter.counter_name);
-    if (arr === undefined) {
-      arr = [];
-      systemCounters.set(sysIter.counter_name, arr);
-    }
-    arr.push({ts: sysIter.ts, value: sysIter.value});
+  const boundsRow = ts0Result.firstRow({ts0: NUM, min_ts: NUM, max_ts: NUM});
+  const ts0 = boundsRow?.ts0 ?? 0;
+  const xMin = boundsRow !== undefined ? (boundsRow.min_ts - ts0) / 1e9 : 0;
+  const xMax = boundsRow !== undefined ? (boundsRow.max_ts - ts0) / 1e9 : 0;
+
+  // Build track id → counter name map for system counters.
+  const sysTrackMap = new Map<number, string>();
+  const sysTrackIter = sysTrackResult.iter({id: NUM, name: STR});
+  for (; sysTrackIter.valid(); sysTrackIter.next()) {
+    sysTrackMap.set(sysTrackIter.id, sysTrackIter.name);
   }
 
-  // Build process counters by name (summing across PIDs) and by PID.
+  // Build track id → {processName, pid, counterName} map for process counters.
+  const procTrackMap = new Map<
+    number,
+    {processName: string; pid: number; counterName: string}
+  >();
+  const procTrackIter = procTrackResult.iter({
+    id: NUM,
+    process_name: STR,
+    pid: NUM,
+    counter_name: STR,
+  });
+  for (; procTrackIter.valid(); procTrackIter.next()) {
+    procTrackMap.set(procTrackIter.id, {
+      processName: procTrackIter.process_name,
+      pid: procTrackIter.pid,
+      counterName: procTrackIter.counter_name,
+    });
+  }
+
+  // Single pass over all counter samples, dispatching by track type.
+  const systemCounters = new Map<string, TsValue[]>();
   const processCountersByName = new Map<
     string,
     Map<string, Map<number, number>>
   >();
   const processCountersByPid = new Map<number, Map<string, TsValue[]>>();
-  const procIter = procResult.iter({
-    process_name: STR,
-    pid: NUM,
-    counter_name: STR,
-    ts: NUM,
-    value: NUM,
-  });
-  for (let i = 0; procIter.valid(); procIter.next(), ++i) {
+  const samplesIter = samplesResult.iter({track_id: NUM, ts: NUM, value: NUM});
+  for (let i = 0; samplesIter.valid(); samplesIter.next(), ++i) {
     if (i % YIELD_CHECK_INTERVAL === 0 && task.shouldYield()) {
       await task.yield();
     }
+    const {track_id, ts, value} = samplesIter;
 
-    // By name (summing across PIDs at each ts).
-    let byCounter = processCountersByName.get(procIter.process_name);
-    if (byCounter === undefined) {
-      byCounter = new Map();
-      processCountersByName.set(procIter.process_name, byCounter);
+    const sysName = sysTrackMap.get(track_id);
+    if (sysName !== undefined) {
+      let arr = systemCounters.get(sysName);
+      if (arr === undefined) {
+        arr = [];
+        systemCounters.set(sysName, arr);
+      }
+      arr.push({ts, value});
+      continue;
     }
-    let byTs = byCounter.get(procIter.counter_name);
-    if (byTs === undefined) {
-      byTs = new Map();
-      byCounter.set(procIter.counter_name, byTs);
-    }
-    byTs.set(procIter.ts, (byTs.get(procIter.ts) ?? 0) + procIter.value);
 
-    // By PID.
-    let pidCounters = processCountersByPid.get(procIter.pid);
-    if (pidCounters === undefined) {
-      pidCounters = new Map();
-      processCountersByPid.set(procIter.pid, pidCounters);
+    const proc = procTrackMap.get(track_id);
+    if (proc !== undefined) {
+      // By name (summing across PIDs at each ts).
+      let byCounter = processCountersByName.get(proc.processName);
+      if (byCounter === undefined) {
+        byCounter = new Map();
+        processCountersByName.set(proc.processName, byCounter);
+      }
+      let byTs = byCounter.get(proc.counterName);
+      if (byTs === undefined) {
+        byTs = new Map();
+        byCounter.set(proc.counterName, byTs);
+      }
+      byTs.set(ts, (byTs.get(ts) ?? 0) + value);
+
+      // By PID.
+      let pidCounters = processCountersByPid.get(proc.pid);
+      if (pidCounters === undefined) {
+        pidCounters = new Map();
+        processCountersByPid.set(proc.pid, pidCounters);
+      }
+      let pidArr = pidCounters.get(proc.counterName);
+      if (pidArr === undefined) {
+        pidArr = [];
+        pidCounters.set(proc.counterName, pidArr);
+      }
+      pidArr.push({ts, value});
     }
-    let pidArr = pidCounters.get(procIter.counter_name);
-    if (pidArr === undefined) {
-      pidArr = [];
-      pidCounters.set(procIter.counter_name, pidArr);
-    }
-    pidArr.push({ts: procIter.ts, value: procIter.value});
   }
 
   // Build process metadata.
@@ -661,6 +685,9 @@ async function extractSnapshotData(
       processInfo,
       lmkEvents,
       isUserDebug,
+      ts0,
+      xMin,
+      xMax,
     },
     queryMs: Math.round(tExtractStart - tQueryStart),
     extractMs: Math.round(performance.now() - tExtractStart),

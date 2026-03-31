@@ -13,22 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {type SnapshotData} from './memento_session';
-
-/** Compute the earliest timestamp across all data. */
-export function computeT0(data: SnapshotData): number {
-  let minTs = Infinity;
-  for (const arr of data.systemCounters.values()) {
-    if (arr.length > 0 && arr[0].ts < minTs) minTs = arr[0].ts;
-  }
-  for (const counterMap of data.processCountersByName.values()) {
-    for (const byTs of counterMap.values()) {
-      const firstTs = byTs.keys().next().value;
-      if (firstTs !== undefined && firstTs < minTs) minTs = firstTs;
-    }
-  }
-  return minTs < Infinity ? minTs : 0;
-}
 
 export function panel(
   title: string,
@@ -50,4 +34,21 @@ export function formatKb(kb: number): string {
   if (kb < 1024) return `${kb.toLocaleString()} KB`;
   if (kb < 1024 * 1024) return `${(kb / 1024).toFixed(1)} MB`;
   return `${(kb / (1024 * 1024)).toFixed(1)} GB`;
+}
+
+/** Renders a KB value for a billboard with the unit in a smaller span. */
+export function billboardKb(kb: number): m.Children {
+  let value: string;
+  let unit: string;
+  if (kb < 1024) {
+    value = kb.toLocaleString();
+    unit = 'KB';
+  } else if (kb < 1024 * 1024) {
+    value = (kb / 1024).toFixed(1);
+    unit = 'MB';
+  } else {
+    value = (kb / (1024 * 1024)).toFixed(1);
+    unit = 'GB';
+  }
+  return [value, m('span.pf-memento-billboard__unit', unit)];
 }
