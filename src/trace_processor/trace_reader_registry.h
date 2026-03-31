@@ -19,6 +19,7 @@
 
 #include <functional>
 #include <memory>
+#include <utility>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
@@ -43,6 +44,18 @@ class TraceReaderRegistry {
     RegisterFactory(trace_type, [](TraceProcessorContext* ctxt) {
       return std::make_unique<Reader>(ctxt);
     });
+  }
+
+  // Registers a trace reader factory that captures its own state (e.g. a
+  // plugin's `this` pointer). The TraceProcessorContext* passed at creation
+  // time is ignored by the wrapper.
+  void RegisterPluginTraceReader(
+      TraceType trace_type,
+      std::function<std::unique_ptr<ChunkedTraceReader>()> factory) {
+    RegisterFactory(trace_type,
+                    [f = std::move(factory)](TraceProcessorContext*) {
+                      return f();
+                    });
   }
 
   // Creates a new `ChunkedTraceReader` instance for the given `type`. Returns

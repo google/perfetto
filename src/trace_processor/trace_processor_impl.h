@@ -43,7 +43,6 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
-#include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/descriptors.h"
 
@@ -143,11 +142,6 @@ class TraceProcessorImpl : public TraceProcessor,
   // Needed for iterators to be able to access the context.
   friend class IteratorImpl;
 
-  struct PluginEntry {
-    std::unique_ptr<PluginBase> plugin;
-    std::unique_ptr<Destructible> storage;
-  };
-
   bool IsRootMetricField(const std::string& metric_name);
 
   void CacheBoundsAndBuildTable();
@@ -163,7 +157,7 @@ class TraceProcessorImpl : public TraceProcessor,
     TraceProcessor* trace_processor;
     bool notify_eof_called;
     std::pair<int64_t, int64_t> cached_trace_bounds;
-    const std::vector<PluginEntry>& plugins;
+    std::vector<std::unique_ptr<PluginBase>>& plugins;
   };
 
   static std::unique_ptr<PerfettoSqlEngine> InitPerfettoSqlEngine(
@@ -178,14 +172,12 @@ class TraceProcessorImpl : public TraceProcessor,
                              const Config& config,
                              PerfettoSqlEngine* engine);
 
-  static void IncludeAfterEofPrelude(TraceProcessorContext*,
-                                     PerfettoSqlEngine*,
-                                     const std::vector<PluginEntry>& plugins);
+  static void IncludeAfterEofPrelude(PerfettoSqlEngine*);
 
   const Config config_;
 
   // Registered plugins, topologically sorted by dependency order.
-  std::vector<PluginEntry> plugins_;
+  std::vector<std::unique_ptr<PluginBase>> plugins_;
 
   std::unique_ptr<PerfettoSqlEngine> engine_;
 
