@@ -22,10 +22,10 @@
   user-select: none;
   margin: auto;
   justify-content: center;
-  color: var(--pf-color-text-muted);
+  color: var(--pf-color-text-hint);
 
   &__main-icon {
-    font-size: 5em; // Size of the icon is relative to the font size.
+    font-size: 3em; // Size of the icon is relative to the font size.
     margin-bottom: 12px;
   }
 

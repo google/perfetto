@@ -333,9 +333,7 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
                   spacing: 'small',
                   orientation: 'horizontal',
                 },
-                chips.map((chip) =>
-                  m(Chip, {label: chip, compact: true, rounded: true}),
-                ),
+                chips.map((chip) => m(Chip, {label: chip, compact: true})),
               ),
             m(
               ButtonBar,
