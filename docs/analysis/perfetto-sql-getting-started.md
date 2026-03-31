@@ -44,7 +44,6 @@ and counters.
 A slice refers to an interval of time with some data describing what was
 happening in that interval. Some example of slices include:
 
-- Scheduling slices for each CPU
 - Atrace slices on Android
 - Userspace slices from Chrome
 
@@ -63,18 +62,12 @@ counters include:
 ### Tracks
 
 A track is a named partition of events of the same type and the same associated
-context. For example:
+context. A track associates events with a particular context such as a thread
+(`utid`), process (`upid`), or CPU. For example:
 
-- Scheduling slices have one track for each CPU
-- Sync userspace slice have one track for each thread which emitted an event
-- Async userspace slices have one track for each “cookie” linking a set of async
+- Sync userspace slices have one track for each thread which emitted an event
+- Async userspace slices have one track for each "cookie" linking a set of async
   events
-
-The most intuitive way to think of a track is to imagine how they would be drawn
-in a UI; if all the events are in a single row, they belong to the same track.
-For example, all the scheduling events for CPU 5 are on the same track:
-
-![CPU slices track](/docs/images/cpu-slice-track.png)
 
 Tracks can be split into various types based on the type of event they contain
 and the context they are associated with. Examples include:
@@ -83,6 +76,170 @@ and the context they are associated with. Examples include:
 - Thread tracks are associated to a single thread and contain slices
 - Counter tracks are not associated to any context and contain counters
 - CPU counter tracks are associated to a single CPU and contain counters
+
+Note that the Perfetto UI also uses the term "tracks" to refer to the visual
+rows on the timeline. These are a UI-level concept for organizing the display
+and do not map 1:1 to trace processor tracks.
+
+### Scheduling
+
+CPU scheduling data has its own dedicated tables and is not accessed through
+tracks. The `sched` table contains one row for each time interval where a thread
+was running on a CPU. Key columns include `ts`, `dur`, `cpu`, `utid`,
+`end_state`, and `priority`.
+
+For example, to see which threads were running on CPU 0:
+
+```sql
+SELECT ts, dur, utid
+FROM sched
+WHERE cpu = 0
+LIMIT 10;
+```
+
+The complementary `thread_state` table shows what a thread was doing when it was
+_not_ running — whether it was sleeping, blocked in an uninterruptible sleep,
+runnable and waiting for a CPU, and so on.
+
+To query scheduling data with thread and process names, use the
+`sched.with_context` stdlib module which provides the `sched_with_thread_process`
+view:
+
+```sql
+INCLUDE PERFETTO MODULE sched.with_context;
+
+SELECT ts, dur, cpu, thread_name, process_name
+FROM sched_with_thread_process
+WHERE thread_name = 'RenderThread'
+LIMIT 10;
+```
+
+### Stack sampling (CPU profiling)
+
+Stack sampling periodically captures where code is executing, providing a
+statistical picture of CPU usage over time. Perfetto supports multiple data
+sources for this, including Linux perf, simpleperf, macOS Instruments, and
+Chrome CPU profiling.
+
+The raw data lives in source-specific tables (`perf_sample`,
+`cpu_profile_stack_sample`). Each sample has a `callsite_id` which points into
+the `stack_profile_callsite` table — a linked list of frames forming the
+callstack. Each callsite row has a `frame_id` pointing to `stack_profile_frame`
+(the function name and mapping/binary) and a `parent_id` pointing to the next
+frame up the stack.
+
+To resolve a sample to its leaf (most recent) frame, join through callsite to
+frame:
+
+```sql
+SELECT
+  s.ts,
+  s.utid,
+  f.name AS function_name,
+  m.name AS binary_name
+FROM perf_sample AS s
+JOIN stack_profile_callsite AS c ON s.callsite_id = c.id
+JOIN stack_profile_frame AS f ON c.frame_id = f.id
+JOIN stack_profile_mapping AS m ON f.mapping = m.id
+LIMIT 10;
+```
+
+For aggregation and summary across full callstacks, use the
+`stacks.cpu_profiling` stdlib module. It provides a unified
+`cpu_profiling_samples` table across all data sources and a
+`cpu_profiling_summary_tree` table that computes self counts (samples where the
+function was the leaf frame) and cumulative counts (samples where the function
+appeared anywhere in the callstack):
+
+```sql
+INCLUDE PERFETTO MODULE stacks.cpu_profiling;
+
+-- Unified samples across all CPU profiling data sources:
+SELECT ts, thread_name, callsite_id
+FROM cpu_profiling_samples
+LIMIT 10;
+
+-- Aggregated callstack tree with self and cumulative counts:
+SELECT name, mapping_name, self_count, cumulative_count
+FROM cpu_profiling_summary_tree
+ORDER BY cumulative_count DESC
+LIMIT 20;
+```
+
+### Heap profiling
+
+Heap profiling captures memory allocations along with their callstacks, showing
+where memory is being allocated (and freed) over time. This is useful for finding
+memory leaks and understanding allocation patterns.
+
+The `heap_profile_allocation` table contains one row per allocation or free
+event. Key columns include `ts`, `upid`, `callsite_id`, `count`, and `size`.
+The `upid` column can be joined to the `process` table to get the full process
+command line (`cmdline`) and real pid.
+
+```sql
+SELECT ts, upid, size, count
+FROM heap_profile_allocation
+WHERE size > 0
+ORDER BY size DESC
+LIMIT 10;
+```
+
+Like CPU profiling, each allocation has a `callsite_id` pointing into the
+callstack tables. To resolve an allocation to its leaf frame:
+
+```sql
+SELECT
+  a.ts,
+  a.size,
+  f.name AS function_name,
+  m.name AS binary_name
+FROM heap_profile_allocation AS a
+JOIN stack_profile_callsite AS c ON a.callsite_id = c.id
+JOIN stack_profile_frame AS f ON c.frame_id = f.id
+JOIN stack_profile_mapping AS m ON f.mapping = m.id
+WHERE a.size > 0
+LIMIT 10;
+```
+
+For full callstack aggregation with self and cumulative sizes, use the
+`android.memory.heap_profile.summary_tree` stdlib module:
+
+```sql
+INCLUDE PERFETTO MODULE android.memory.heap_profile.summary_tree;
+
+SELECT name, mapping_name, self_size, cumulative_size
+FROM android_heap_profile_summary_tree
+ORDER BY cumulative_size DESC
+LIMIT 20;
+```
+
+### Heap graph (heap dumps)
+
+Heap graph data captures a snapshot of the managed heap (e.g., Java/ART on
+Android), recording the full object reference graph at a point in time. This is
+useful for understanding memory retention and finding leaks in managed runtimes.
+
+Key tables include:
+
+- `heap_graph_object`: objects on the heap, with their type, size, and
+  reachability information.
+- `heap_graph_reference`: references between objects (which object points to
+  which).
+- `heap_graph_class`: class metadata (name, superclass, classloader).
+
+```sql
+SELECT
+  c.name AS class_name,
+  SUM(o.self_size) AS total_size,
+  COUNT() AS object_count
+FROM heap_graph_object AS o
+JOIN heap_graph_class AS c ON o.type_id = c.id
+WHERE o.reachable
+GROUP BY c.name
+ORDER BY total_size DESC
+LIMIT 10;
+```
 
 ### Thread and process identifiers
 
@@ -101,7 +258,15 @@ instead of the system identifiers.
 
 Now that you understand the core concepts, you can start writing queries.
 
-Perfetto provides an SQL free form multi line text input UI directly within the UI for executing free-form queries. To access it:
+Perfetto provides two ways to explore trace data directly in the UI:
+
+- The **Data Explorer** page lets you browse available tables interactively
+  without writing SQL. This is useful for discovering what data is in your trace
+  and understanding table schemas.
+- The **Query (SQL)** tab provides a free-form SQL editor for writing and
+  executing PerfettoSQL queries.
+
+To use the Query tab:
 
 1. Open a trace in the [Perfetto UI](https://ui.perfetto.dev/).
 
@@ -136,54 +301,76 @@ Which you can write and execute by clicking on **Run Query** within the Perfetto
 
 ![Basic Query](/docs/images/perfetto-sql-basic-query.png)
 
+### Adding Context to Slices
 
-### Getting More Context with JOINs
-
-A common question when querying tables in trace processor is: "how do I obtain
-the process or thread for a slice?". Phrased more generally, the question is
-"how do I get the context for an event?".
-
-In trace processor, any context associated with all events on a track is found
-on the associated `track` tables.
-
-For example, to obtain the `utid` of any thread which emitted a `measure` slice
+A common question when querying slices is: "how do I get the thread or process
+that emitted this slice?" The easiest way is to use the `slices.with_context`
+standard library module, which provides pre-joined views that include thread and
+process information directly.
 
 ```sql
-SELECT utid
-FROM slice
-JOIN thread_track ON thread_track.id = slice.track_id
-WHERE slice.name = 'measure'
+INCLUDE PERFETTO MODULE slices.with_context;
 ```
 
-Similarly, to obtain the `upid`s of any process which has a `mem.swap` counter
-greater than 1000
+Once imported, you have access to three views:
+
+**`thread_slice`** — slices from thread tracks, with thread and process context:
+
+```sql
+SELECT ts, dur, name, thread_name, process_name, tid, pid
+FROM thread_slice
+WHERE name = 'measure';
+```
+
+**`process_slice`** — slices from process tracks, with process context:
+
+```sql
+SELECT ts, dur, name, process_name, pid
+FROM process_slice
+WHERE name LIKE 'MyEvent%';
+```
+
+**`thread_or_process_slice`** — a combined view of both thread and process
+slices, useful when you want to search across all slices regardless of track
+type:
+
+```sql
+SELECT ts, dur, name, thread_name, process_name
+FROM thread_or_process_slice
+WHERE dur > 1000000;
+```
+
+These views are the recommended approach for most slice queries. They handle
+the joins for you and expose commonly needed columns like `thread_name`,
+`process_name`, `tid`, `pid`, `utid`, and `upid`.
+
+#### Manual JOINs for more control
+
+Under the hood, `thread_slice` joins `slice` with `thread_track`, `thread`, and
+`process`. If you need columns not exposed by the stdlib views, or if you're
+working with tables that don't have a stdlib convenience view (e.g., counter
+tracks), you can write the joins yourself.
+
+The `thread` and `process` tables map `utid`s and `upid`s to the system-level
+`tid`, `pid`, and names:
+
+```sql
+SELECT tid, name
+FROM thread
+WHERE utid = 10;
+```
+
+For example, to get `upid`s of processes with a `mem.swap` counter greater
+than 1000:
 
 ```sql
 SELECT upid
 FROM counter
 JOIN process_counter_track ON process_counter_track.id = counter.track_id
-WHERE process_counter_track.name = 'mem.swap' AND value > 1000
+WHERE process_counter_track.name = 'mem.swap' AND value > 1000;
 ```
 
-### Thread and process tables
-
-While obtaining `utid`s and `upid`s are a step in the right direction, generally
-users want the original `tid`, `pid`, and process/thread names.
-
-The `thread` and `process` tables map `utid`s and `upid`s to threads and
-processes respectively. For example, to lookup the thread with `utid` 10
-
-```sql
-SELECT tid, name
-FROM thread
-WHERE utid = 10
-```
-
-The `thread` and `process` tables can also be joined with the associated track
-tables directly to jump directly from the slice or counter to the information
-about processes and threads.
-
-For example, to get a list of all the threads which emitted a `measure` slice:
+Or to manually join slices with thread info:
 
 ```sql
 SELECT thread.name AS thread_name
@@ -191,32 +378,45 @@ FROM slice
 JOIN thread_track ON slice.track_id = thread_track.id
 JOIN thread USING(utid)
 WHERE slice.name = 'measure'
-GROUP BY thread_name
+GROUP BY thread_name;
 ```
 
-## Simplifying Queries with the Standard Library
+## Best Practices
 
-While it is always possible to write queries from scratch by joining the raw
-tables, PerfettoSQL provides a rich **[Standard Library](stdlib-docs.autogen)**
-of pre-built modules to simplify common analysis tasks.
+### Prefer stdlib views over manual JOINs
 
-To use a module from the standard library, you need to import it using the
-`INCLUDE PERFETTO MODULE` statement. For example, instead of doing direct
-joins with threads and processes, you can use the `slices.with_context` module:
+The standard library provides pre-joined views for the most common queries.
+Using `thread_slice`, `process_slice`, `thread_or_process_slice`, and
+`sched_with_thread_process` saves boilerplate and avoids mistakes in join
+conditions.
+
+### Filter early
+
+Always place `WHERE` clauses — especially filters on `name` — as early as
+possible. This lets trace processor skip scanning rows that won't contribute
+to the result.
+
+### Use LIMIT when exploring
+
+When you're unfamiliar with a table, start with a small query to understand its
+shape before writing anything complex:
 
 ```sql
-INCLUDE PERFETTO MODULE slices.with_context;
-
-SELECT thread_name, process_name, name, ts, dur
-FROM thread_or_process_slice;
+SELECT * FROM slice LIMIT 10;
 ```
 
-Once imported, you can use the tables and functions provided by the module in
-your queries. For more information on the available modules, see the
-[Standard Library documentation](stdlib-docs.autogen).
+### Timestamps are in nanoseconds
 
-For more details on the `INCLUDE PERFETTO MODULE` statement and other PerfettoSQL
-features, see the [PerfettoSQL Syntax](perfetto-sql-syntax.md) documentation.
+All `ts` and `dur` values are in nanoseconds. For human-readable output, use the
+`time.conversion` stdlib module:
+
+```sql
+INCLUDE PERFETTO MODULE time.conversion;
+
+SELECT name, time_to_ms(dur) AS dur_ms
+FROM slice
+WHERE dur > time_from_ms(10);
+```
 
 ## Advanced Querying
 
@@ -339,17 +539,26 @@ practice.
 
 #### Ancestor slice
 
-ancestor_slice is a custom operator table that takes a
-[slice table's id column](/docs/analysis/sql-tables.autogen#slice) and computes
-all slices on the same track that are direct parents above that id (i.e. given a
-slice id it will return as rows all slices that can be found by following the
-parent_id column to the top slice (depth = 0)).
+Given a slice, `ancestor_slice` returns all slices on the same track that are
+direct parents above it (i.e. all slices found by following the `parent_id`
+chain up to the root at depth 0).
+
+```
++----------------------------+  depth 0  \
+| A (id=1)                   |            |
+| +------------+ +--------+  |            | ancestor_slice(4)
+| | B (id=2)   | | D      |  |  depth 1   > returns A, B
+| | +--------+ | |        |  |            |
+| | |C (id=4)| | |        |  |  depth 2  /
+| | +--------+ | |        |  |
+| +------------+ +--------+  |
++----------------------------+
+```
 
 The returned format is the same as the
-[slice table](/docs/analysis/sql-tables.autogen#slice)
+[slice table](/docs/analysis/sql-tables.autogen#slice).
 
-For example, the following finds the top level slice given a bunch of slices of
-interest.
+For example, the following finds the top-level slice for each slice of interest:
 
 ```sql
 CREATE VIEW interesting_slices AS
@@ -363,19 +572,32 @@ FROM
   ancestor_slice(interesting_slices.id) AS ancestor ON ancestor.depth = 0
 ```
 
+TIP: To check if one slice is an ancestor of another without fetching all
+ancestors, use the `slice_is_ancestor(ancestor_id, descendant_id)` function
+which is available without any imports.
+
 #### Descendant slice
 
-descendant_slice is a custom operator table that takes a
-[slice table's id column](/docs/analysis/sql-tables.autogen#slice) and computes
-all slices on the same track that are nested under that id (i.e. all slices that
-are on the same track at the same time frame with a depth greater than the given
-slice's depth.
+Given a slice, `descendant_slice` returns all slices on the same track that are
+nested under it (i.e. all slices at a greater depth within the same time range).
+
+```
++----------------------------+  depth 0
+| A (id=1)                   |
+| +------------+ +--------+  |           \
+| | B (id=2)   | | D      |  |  depth 1   |
+| | +--------+ | | +----+ |  |            | descendant_slice(1)
+| | |C (id=4)| | | | E  | |  |  depth 2   > returns B, C, D, E
+| | +--------+ | | +----+ |  |            |
+| +------------+ +--------+  |           /
++----------------------------+
+```
 
 The returned format is the same as the
-[slice table](/docs/analysis/sql-tables.autogen#slice)
+[slice table](/docs/analysis/sql-tables.autogen#slice).
 
 For example, the following finds the number of slices under each slice of
-interest.
+interest:
 
 ```sql
 CREATE VIEW interesting_slices AS
@@ -383,12 +605,11 @@ SELECT id, ts, dur, track_id
 FROM slice WHERE name LIKE "%interesting slice name%";
 
 SELECT
-  *
+  interesting_slices.*,
   (
-    SELECT
-      COUNT(*) AS total_descendants
-    FROM descendant_slice(interesting_slice.id)
-  )
+    SELECT COUNT(*)
+    FROM descendant_slice(interesting_slices.id)
+  ) AS total_descendants
 FROM interesting_slices
 ```
 

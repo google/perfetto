@@ -117,12 +117,18 @@ export interface DashboardAttrs {
   onBrushFiltersChange: (filters: Map<string, DashboardBrushFilter[]>) => void;
 }
 
-type SidePanelTab = 'add' | 'data' | 'linked';
+type SidePanelTab = 'add' | 'data' | 'linked' | 'edit';
+
+interface EditingChartContext {
+  readonly itemId: string;
+  readonly source: DashboardDataSource;
+}
 
 export class Dashboard implements m.ClassComponent<DashboardAttrs> {
   private activePanel?: SidePanelTab;
   private expandedInput: string | undefined = undefined;
-  private editingChartId?: string;
+  private renamingChartId?: string;
+  private editingChart?: EditingChartContext;
   // Incremented when filters are removed from the filter bar, so that
   // chart brush overlays are cleared in sync.
   private brushClearGen = 0;
@@ -215,6 +221,9 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
         m('.pf-dashboard__content-panel', this.renderDataPanel(attrs)),
       this.activePanel === 'linked' &&
         m('.pf-dashboard__content-panel', this.renderLinkedColumnsPanel(attrs)),
+      this.activePanel === 'edit' &&
+        this.editingChart !== undefined &&
+        m('.pf-dashboard__content-panel', this.renderEditPanel(attrs)),
       m('.pf-dashboard__side-panel', [
         m(Button, {
           icon: 'add',
@@ -241,6 +250,16 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
               this.activePanel === 'linked' ? undefined : 'linked';
           },
         }),
+        this.activePanel === 'edit' &&
+          m(Button, {
+            icon: 'settings',
+            title: 'Edit chart',
+            className: classNames('pf-active'),
+            onclick: () => {
+              this.activePanel = undefined;
+              this.editingChart = undefined;
+            },
+          }),
       ]),
     ]);
   }
@@ -295,6 +314,75 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     ];
   }
 
+  // --- Edit chart side panel ---
+
+  private renderEditPanel(attrs: DashboardAttrs): m.Children {
+    const ctx = this.editingChart;
+    if (ctx === undefined) return null;
+
+    // Look up the current config from items (it may have been updated).
+    const chartItem = attrs.items.find(
+      (i) => i.kind === 'chart' && i.config.id === ctx.itemId,
+    );
+    if (chartItem === undefined || chartItem.kind !== 'chart') {
+      // Chart was deleted — close the panel.
+      this.activePanel = undefined;
+      this.editingChart = undefined;
+      return null;
+    }
+    const config = chartItem.config;
+    const source =
+      attrs.sources.find((s) => s.nodeId === chartItem.sourceNodeId) ??
+      ctx.source;
+
+    const adapter = new DashboardChartView.Adapter(
+      source,
+      {...attrs, allSources: attrs.sources},
+      config,
+    );
+
+    const headerLabel = config.name ?? getDefaultChartLabel(config);
+
+    const onChartRemoved = () => {
+      // Close panel if the chart was deleted via the form.
+      const stillExists = attrs.items.some(
+        (i) => i.kind === 'chart' && i.config.id === ctx.itemId,
+      );
+      if (!stillExists) {
+        this.activePanel = undefined;
+        this.editingChart = undefined;
+      }
+    };
+
+    return [
+      m('.pf-dashboard__panel-section', [
+        m('.pf-dashboard__panel-section-title', headerLabel),
+        m('.pf-dashboard__panel-section-subtitle', 'Chart Type'),
+        renderChartTypePickerGrid((newType) => {
+          if (newType === config.chartType) return;
+          const newChartableColumns = adapter.getChartableColumns(newType);
+          const columnStillValid = newChartableColumns.some(
+            (c) => c.name === config.column,
+          );
+          adapter.updateChart(config.id, {
+            chartType: newType,
+            column: columnStillValid ? config.column : '',
+          });
+        }, config.chartType),
+        m('.pf-dashboard__panel-section-subtitle', 'Settings'),
+        m(
+          '.pf-chart-config-popup',
+          renderChartConfigPopup(
+            {node: adapter, onFilterChange: onChartRemoved},
+            config,
+            () => m.redraw(),
+            {hideChartTypeSelector: true},
+          ),
+        ),
+      ]),
+    ];
+  }
+
   // --- Canvas items ---
 
   private renderItems(
@@ -326,29 +414,24 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     const headerLabel = config.name ?? getDefaultChartLabel(config);
     const chartIsDriver = isDriverChart(chart, attrs.items);
 
-    const editButton = m(
-      Popup,
-      {
-        trigger: m(Button, {
-          icon: 'settings',
-          title: 'Edit chart settings',
-          compact: true,
-        }),
-        position: PopupPosition.BottomEnd,
-        className: 'pf-chart-config-popup',
+    const isEditingThis =
+      this.activePanel === 'edit' && this.editingChart?.itemId === itemId;
+    const editButton = m(Button, {
+      icon: 'settings',
+      title: 'Edit chart settings',
+      compact: true,
+      className: classNames(isEditingThis && 'pf-active'),
+      onclick: (e: MouseEvent) => {
+        e.stopPropagation();
+        if (isEditingThis) {
+          this.activePanel = undefined;
+          this.editingChart = undefined;
+        } else {
+          this.editingChart = {itemId, source};
+          this.activePanel = 'edit';
+        }
       },
-      renderChartConfigPopup(
-        {
-          node: new DashboardChartView.Adapter(
-            source,
-            {...attrs, allSources: attrs.sources},
-            config,
-          ),
-        },
-        config,
-        () => m.redraw(),
-      ),
-    );
+    });
 
     const sourceChip = m(
       PopupMenu,
@@ -376,7 +459,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
 
     return this.renderItemCard(attrs, itemId, chart, [
       m('.pf-dashboard__chart-header', [
-        this.editingChartId === itemId
+        this.renamingChartId === itemId
           ? m('input.pf-dashboard__chart-title-input', {
               type: 'text',
               value: config.name ?? '',
@@ -394,11 +477,11 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
                 const target = e.target as HTMLInputElement;
                 const name = target.value.trim() || undefined;
                 this.updateChartName(attrs, itemId, name);
-                this.editingChartId = undefined;
+                this.renamingChartId = undefined;
               },
               onkeydown: (e: KeyboardEvent) => {
                 if (e.key === 'Enter' || e.key === 'Escape') {
-                  this.editingChartId = undefined;
+                  this.renamingChartId = undefined;
                   (e.target as HTMLInputElement).blur();
                 }
               },
@@ -422,7 +505,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
                   ) {
                     return;
                   }
-                  this.editingChartId = itemId;
+                  this.renamingChartId = itemId;
                 },
                 title: 'Click to rename',
               },
@@ -1306,5 +1389,9 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       row: pos.row,
     });
     attrs.onItemsChange(items);
+
+    // Automatically open the edit panel for the newly added chart.
+    this.editingChart = {itemId: newConfig.id, source};
+    this.activePanel = 'edit';
   }
 }
