@@ -17,6 +17,7 @@ import("perfetto.gni")
 perfetto_integrationtests_targets = [
   "src/tracing/test:client_api_integrationtests",
   "src/shared_lib/test:integrationtests",
+  "src/java_datasource:integrationtests",
 ]
 
 perfetto_integrationtests_data_targets = []

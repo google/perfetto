@@ -156,6 +156,8 @@ if (enable_perfetto_android_java_sdk) {
     "src/android_sdk/jni:libperfetto_framework_jni",
     "src/android_sdk/java/main:perfetto_trace_lib",
     "src/android_sdk/java/test:perfetto_trace_instrumentation_test",
+    "src/java_datasource/jni:libperfetto_datasource_jni",
+    "src/java_datasource/java/main:perfetto_datasource_lib",
   ]
 }
 
