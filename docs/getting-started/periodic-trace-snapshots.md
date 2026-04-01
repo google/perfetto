@@ -30,7 +30,7 @@ undisturbed.
 TAB: Android
 
 - An Android device running Android 14 (U) or later (the `--clone-by-name`
-  flag requires the Perfetto v38+ client and service).
+  flag requires the Perfetto v49+ client and service).
 - A host machine with `adb` on `PATH` and the device connected via USB.
 - `trace_processor_shell` on the host (for analysis). Download prebuilts with:
 
@@ -41,7 +41,7 @@ chmod +x ./trace_processor
 
 TAB: Linux
 
-- A Linux machine with Perfetto v38+ installed, or the `tracebox` binary
+- A Linux machine with Perfetto v49+ installed, or the `tracebox` binary
   downloaded. `tracebox` bundles `traced`, `traced_probes` and the `perfetto`
   client into a single statically linked executable:
 
@@ -126,8 +126,8 @@ data_sources {
 Push the config and start tracing:
 
 ```bash
-adb push snapshot_config.pbtxt /data/local/tmp/
-adb shell perfetto -c /data/local/tmp/snapshot_config.pbtxt --txt \
+adb push snapshot_config.pbtxt /data/misc/perfetto-configs/
+adb shell perfetto -c /data/misc/perfetto-configs/snapshot_config.pbtxt --txt \
   --background -o /data/misc/perfetto-traces/snapshot_bg
 ```
 
@@ -221,7 +221,7 @@ original tracing session continues to run. You can repeat this as many
 times as you like, giving each snapshot a different output file name:
 
 ```bash
-# After making a configuration change on the device...
+# After making a system/device parameter change...
 adb shell perfetto --clone-by-name my_snapshot \
   -o /data/misc/perfetto-traces/snapshot_2.pftrace
 ```
@@ -241,7 +241,7 @@ original tracing session continues to run. You can repeat this as many
 times as you like, giving each snapshot a different output file name:
 
 ```bash
-# After making a configuration change...
+# After making a system parameter change...
 perfetto --clone-by-name my_snapshot \
   -o /tmp/snapshot_2.pftrace
 ```
@@ -366,6 +366,10 @@ plt.show()
 See the [Trace Processor Python docs](/docs/analysis/trace-processor-python.md)
 for more details.
 
+If you want to analyze multiple snapshots together,
+[Batch Trace Processor](/docs/analysis/batch-trace-processor.md) lets you run a
+single query across a set of traces in one go.
+
 ## Automating snapshots
 
 A simple shell loop can take a snapshot every N seconds and run a query against
@@ -440,7 +444,7 @@ killall tracebox
 - **Ring buffer overwrites**: If the buffer is too small relative to the data
   rate, older data will be overwritten before you snapshot it. Increase
   `size_kb` if you find gaps.
-- **Clone availability**: The `--clone-by-name` flag requires Perfetto v38+.
+- **Clone availability**: The `--clone-by-name` flag requires Perfetto v49+.
   On Android this means Android 14 (U) or later. On Linux, ensure you are
   using a recent `tracebox` or Perfetto build.
 - **Not real-time streaming**: Each snapshot is a point-in-time copy of the
