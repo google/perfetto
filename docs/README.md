@@ -199,6 +199,7 @@ posts, articles and videos:
 For our source code and project home:
 [GitHub](https://github.com/google/perfetto)
 
+
 For Q/A:
 
 - [GitHub Discussions](https://github.com/google/perfetto/discussions/categories/q-a)
@@ -227,3 +228,8 @@ For chatting directly with the Perfetto team:
 
 Perfetto follows
 [Google's Open Source Community Guidelines](https://opensource.google/conduct/).
+
+Community projects:
+
+🇨🇳 A community-maintained Chinese translation of the Perfetto docs is available at
+[gugu-perf.github.io/perfetto-docs-zh-cn](https://gugu-perf.github.io/perfetto-docs-zh-cn).
