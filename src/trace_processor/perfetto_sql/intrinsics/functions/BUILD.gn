@@ -69,6 +69,8 @@ source_set("functions") {
     "type_builders.cc",
     "type_builders.h",
     "utils.h",
+    "video_frame_image.cc",
+    "video_frame_image.h",
     "window_functions.h",
   ]
   deps = [

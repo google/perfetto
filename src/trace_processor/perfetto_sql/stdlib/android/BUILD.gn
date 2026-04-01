@@ -66,6 +66,7 @@ perfetto_sql_source_set("android") {
     "thread.sql",
     "user_list.sql",
     "version.sql",
+    "video_frames.sql",
     "wakeups.sql",
   ]
 }
