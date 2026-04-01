@@ -25,6 +25,7 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -94,6 +95,16 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
                                      int64_t ts,
                                      protozero::ConstBytes blob) {
   auto* heap_graph_tracker = HeapGraphTracker::Get(context_);
+  // The tracker is global across all (machine, trace) contexts, so attribute
+  // any stats it emits for this sequence to our context.
+  std::optional<tables::MachineTable::Id> machine_id;
+  std::optional<tables::TraceFileTable::Id> trace_id;
+  if (context_->machine_tracker)
+    machine_id = context_->machine_id();
+  if (context_->trace_state)
+    trace_id = context_->trace_id();
+  heap_graph_tracker->SetSequenceContext(seq_id, machine_id, trace_id);
+
   protos::pbzero::HeapGraph::Decoder heap_graph(blob.data, blob.size);
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(heap_graph.pid()));
@@ -154,13 +165,13 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
     }
 
     if (parse_error) {
-      context_->storage->IncrementIndexedStats(
+      context_->stats_tracker->IncrementIndexedStats(
           stats::heap_graph_malformed_packet, static_cast<int>(upid));
       break;
     }
     if (!obj.field_name_ids.empty() &&
         (obj.field_name_ids.size() != obj.referred_objects.size())) {
-      context_->storage->IncrementIndexedStats(
+      context_->stats_tracker->IncrementIndexedStats(
           stats::heap_graph_malformed_packet, static_cast<int>(upid));
       continue;
     }
@@ -179,7 +190,7 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
         [&field_name_ids](uint64_t value) { field_name_ids.push_back(value); });
 
     if (parse_error) {
-      context_->storage->IncrementIndexedStats(
+      context_->stats_tracker->IncrementIndexedStats(
           stats::heap_graph_malformed_packet, static_cast<int>(upid));
       continue;
     }
@@ -238,7 +249,7 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
               src_root.object_ids.emplace_back(value);
             });
     if (parse_error) {
-      context_->storage->IncrementIndexedStats(
+      context_->stats_tracker->IncrementIndexedStats(
           stats::heap_graph_malformed_packet, static_cast<int>(upid));
       break;
     }

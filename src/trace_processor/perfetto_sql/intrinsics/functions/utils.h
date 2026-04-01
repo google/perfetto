@@ -43,6 +43,7 @@
 #include "perfetto/ext/trace_processor/demangle.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/export_json.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -58,14 +59,18 @@ struct ExportJson : public sqlite::Function<ExportJson> {
   static constexpr char kName[] = "export_json";
   static constexpr int kArgCount = 1;
 
-  using UserData = TraceStorage;
+  struct Context {
+    const TraceStorage* storage;
+    const GlobalStatsTracker* stats_tracker;
+  };
+  using UserData = Context;
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
 };
 
 void ExportJson::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   PERFETTO_DCHECK(argc == 1);
 
-  auto* storage = GetUserData(ctx);
+  auto* user_data = GetUserData(ctx);
   base::ScopedFstream output;
 
   switch (sqlite::value::Type(argv[0])) {
@@ -98,7 +103,8 @@ void ExportJson::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
           "EXPORT_JSON: argument must be filename string or file descriptor");
   }
 
-  auto status = json::ExportJson(storage, output.get());
+  auto status = json::ExportJson(user_data->storage, user_data->stats_tracker,
+                                 output.get());
   if (!status.ok()) {
     return sqlite::utils::SetError(ctx, status);
   }

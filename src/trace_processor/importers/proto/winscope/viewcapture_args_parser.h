@@ -23,7 +23,9 @@
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 
-namespace perfetto::trace_processor::winscope {
+namespace perfetto::trace_processor {
+class StatsTracker;
+namespace winscope {
 
 // Specialized args parser to de-intern ViewCapture strings
 class ViewCaptureArgsParser : public ArgsParser {
@@ -34,6 +36,7 @@ class ViewCaptureArgsParser : public ArgsParser {
   ViewCaptureArgsParser(int64_t packet_timestamp,
                         ArgsTracker::BoundInserter& inserter,
                         TraceStorage& storage,
+                        StatsTracker& stats_tracker,
                         PacketSequenceStateGeneration* sequence_state,
                         tables::ViewCaptureTable::RowReference* snapshot_row,
                         tables::ViewCaptureViewTable::RowReference* view_row);
@@ -55,10 +58,12 @@ class ViewCaptureArgsParser : public ArgsParser {
 
   const base::StringView ERROR_MSG{"STRING DE-INTERNING ERROR"};
   TraceStorage& storage_;
+  StatsTracker& stats_tracker_;
   tables::ViewCaptureTable::RowReference* snapshot_row_;
   tables::ViewCaptureViewTable::RowReference* view_row_;
 };
 
-}  // namespace perfetto::trace_processor::winscope
+}  // namespace winscope
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_VIEWCAPTURE_ARGS_PARSER_H_

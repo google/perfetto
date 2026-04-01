@@ -612,8 +612,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   //
   // TODO(lalitm): remove heap graph tracker from global context and get rid
   // of this.
-  context()->heap_graph_tracker =
-      std::make_unique<HeapGraphTracker>(context()->storage.get());
+  context()->heap_graph_tracker = std::make_unique<HeapGraphTracker>(
+      context()->storage.get(), context()->global_stats_tracker.get());
 
   // Initialize deobfuscation tracker.
   context()->deobfuscation_tracker =
@@ -1342,7 +1342,9 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   RegisterFunction<Base64Encode>(engine.get());
   RegisterFunction<Demangle>(engine.get());
   RegisterFunction<TablePtrBind>(engine.get());
-  RegisterFunction<ExportJson>(engine.get(), storage);
+  RegisterFunction<ExportJson>(
+      engine.get(), std::make_unique<ExportJson::Context>(ExportJson::Context{
+                        storage, context->global_stats_tracker.get()}));
   RegisterFunction<ExtractArgFunction>(
       engine.get(), std::make_unique<ExtractArgFunction::Context>(storage));
   RegisterFunction<ArgSetToJson>(
@@ -1514,7 +1516,8 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
 
   // Legacy tables.
   engine->RegisterVirtualTableModule<SqlStatsModule>("sqlstats", storage);
-  engine->RegisterVirtualTableModule<StatsModule>("stats", storage);
+  engine->RegisterVirtualTableModule<StatsModule>(
+      "stats", context->global_stats_tracker.get());
   engine->RegisterVirtualTableModule<TablePointerModule>(
       "__intrinsic_table_ptr", nullptr);
 

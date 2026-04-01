@@ -37,10 +37,12 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -87,8 +89,10 @@ class ExportJsonTest : public ::testing::Test {
  public:
   ExportJsonTest() {
     context_.storage.reset(new TraceStorage());
+    context_.global_stats_tracker = std::make_unique<GlobalStatsTracker>();
     context_.machine_tracker.reset(
         new MachineTracker(&context_, kDefaultMachineId));
+    context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.global_args_tracker.reset(
         new GlobalArgsTracker(context_.storage.get()));
     context_.event_tracker.reset(new EventTracker(&context_));
@@ -113,7 +117,8 @@ class ExportJsonTest : public ::testing::Test {
                      LabelFilterPredicate label_filter = nullptr) const {
     StringOutputWriter writer;
     base::Status status =
-        ExportJson(context_.storage.get(), &writer, std::move(argument_filter),
+        ExportJson(context_.storage.get(), context_.global_stats_tracker.get(),
+                   &writer, std::move(argument_filter),
                    std::move(metadata_filter), std::move(label_filter));
     EXPECT_TRUE(status.ok());
     return writer.TakeStr();
@@ -132,7 +137,8 @@ class ExportJsonTest : public ::testing::Test {
 TEST_F(ExportJsonTest, EmptyStorage) {
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -164,7 +170,8 @@ TEST_F(ExportJsonTest, StorageWithOneSlice) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -209,7 +216,8 @@ TEST_F(ExportJsonTest, StorageWithOneUnfinishedSlice) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -241,7 +249,8 @@ TEST_F(ExportJsonTest, StorageWithThreadName) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -270,7 +279,8 @@ TEST_F(ExportJsonTest, SystemEventsIgnored) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -345,7 +355,8 @@ TEST_F(ExportJsonTest, StorageWithMetadata) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -389,17 +400,23 @@ TEST_F(ExportJsonTest, StorageWithStats) {
   int64_t kBufferSize1 = 2000;
   int64_t kFtraceBegin = 3000;
 
-  context_.storage->SetStats(stats::traced_producers_connected, kProducers);
-  context_.storage->SetIndexedStats(stats::traced_buf_buffer_size, 0,
-                                    kBufferSize0);
-  context_.storage->SetIndexedStats(stats::traced_buf_buffer_size, 1,
-                                    kBufferSize1);
-  context_.storage->SetIndexedStats(stats::ftrace_cpu_bytes_begin, 0,
-                                    kFtraceBegin);
+  context_.global_stats_tracker->SetStats(std::nullopt, std::nullopt,
+                                          stats::traced_producers_connected,
+                                          kProducers);
+  context_.global_stats_tracker->SetIndexedStats(std::nullopt, std::nullopt,
+                                                 stats::traced_buf_buffer_size,
+                                                 0, kBufferSize0);
+  context_.global_stats_tracker->SetIndexedStats(std::nullopt, std::nullopt,
+                                                 stats::traced_buf_buffer_size,
+                                                 1, kBufferSize1);
+  context_.global_stats_tracker->SetIndexedStats(std::nullopt, std::nullopt,
+                                                 stats::ftrace_cpu_bytes_begin,
+                                                 0, kFtraceBegin);
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
   EXPECT_TRUE(status.ok());
 
   Dom result = ToJsonValue(ReadFile(output));
@@ -442,7 +459,8 @@ TEST_F(ExportJsonTest, StorageWithChromeMetadata) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(storage, output);
+  base::Status status =
+      ExportJson(storage, context_.global_stats_tracker.get(), output);
   EXPECT_TRUE(status.ok());
 
   Dom result = ToJsonValue(ReadFile(output));
@@ -481,7 +499,8 @@ TEST_F(ExportJsonTest, StorageWithArgs) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -516,7 +535,8 @@ TEST_F(ExportJsonTest, StorageWithSliceAndFlowEventArgs) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(storage, output);
+  base::Status status =
+      ExportJson(storage, context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -580,7 +600,8 @@ TEST_F(ExportJsonTest, StorageWithListArgs) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -627,7 +648,8 @@ TEST_F(ExportJsonTest, StorageWithMultiplePointerArgs) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -674,7 +696,8 @@ TEST_F(ExportJsonTest, StorageWithObjectListArgs) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -722,7 +745,8 @@ TEST_F(ExportJsonTest, StorageWithNestedListArgs) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -763,7 +787,8 @@ TEST_F(ExportJsonTest, StorageWithLegacyJsonArgs) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -815,7 +840,8 @@ TEST_F(ExportJsonTest, InstantEvent) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -860,7 +886,8 @@ TEST_F(ExportJsonTest, InstantEventOnThread) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -936,7 +963,8 @@ TEST_F(ExportJsonTest, DuplicatePidAndTid) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -1048,7 +1076,8 @@ TEST_F(ExportJsonTest, AsyncEvents) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -1211,7 +1240,8 @@ TEST_F(ExportJsonTest, LegacyAsyncEvents) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -1317,7 +1347,8 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -1380,7 +1411,8 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -1437,7 +1469,8 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -1522,7 +1555,8 @@ TEST_F(ExportJsonTest, RawEvent) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(storage, output);
+  base::Status status =
+      ExportJson(storage, context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -1579,7 +1613,8 @@ TEST_F(ExportJsonTest, LegacyRawEvents) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(storage, output);
+  base::Status status =
+      ExportJson(storage, context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -1804,7 +1839,8 @@ TEST_F(ExportJsonTest, MemorySnapshotOsDumpEvent) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 
@@ -1936,7 +1972,8 @@ TEST_F(ExportJsonTest, MemorySnapshotChromeDumpEvent) {
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
-  base::Status status = ExportJson(context_.storage.get(), output);
+  base::Status status = ExportJson(context_.storage.get(),
+                                   context_.global_stats_tracker.get(), output);
 
   EXPECT_TRUE(status.ok());
 

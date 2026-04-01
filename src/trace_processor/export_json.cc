@@ -40,6 +40,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/export_json.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
@@ -101,7 +102,7 @@ uint32_t LowerBoundIndex(uint32_t first,
   return first;
 }
 
-using IndexMap = perfetto::trace_processor::TraceStorage::Stats::IndexMap;
+using IndexMap = perfetto::trace_processor::GlobalStatsTracker::Stats::IndexMap;
 
 const char kLegacyEventArgsKey[] = "legacy_event";
 const char kLegacyEventPassthroughUtidKey[] = "passthrough_utid";
@@ -130,11 +131,13 @@ const char* GetNonNullString(const TraceStorage* storage,
 class JsonExporter {
  public:
   JsonExporter(const TraceStorage* storage,
+               const GlobalStatsTracker* stats_tracker,
                OutputWriter* output,
                ArgumentFilterPredicate argument_filter,
                MetadataFilterPredicate metadata_filter,
                LabelFilterPredicate label_filter)
       : storage_(storage),
+        global_stats_tracker_(stats_tracker),
         args_builder_(storage_),
         writer_(output,
                 std::move(argument_filter),
@@ -373,25 +376,47 @@ class JsonExporter {
       metadata_["telemetry"][key] = static_cast<double>(value) / 1000.0;
     }
 
-    void SetStats(const char* key, int64_t value) {
-      metadata_["trace_processor_stats"][key] = value;
+    // Returns the JSON object that stats for a given (machine_id, trace_id)
+    // context should be written into. If both ids are null (the common
+    // single-trace case) returns the legacy flat object so the JSON layout
+    // is unchanged. Otherwise nests under a sub-object keyed by
+    // "<machine_id>:<trace_id>" so multi-(machine, trace) sessions are
+    // distinguishable.
+    Dom& StatsContextRoot(const GlobalStatsTracker::ContextKey& ctx) {
+      Dom& root = metadata_["trace_processor_stats"];
+      if (!ctx.machine_id.has_value() && !ctx.trace_id.has_value())
+        return root;
+      std::string qualifier;
+      qualifier += ctx.machine_id ? std::to_string(ctx.machine_id->value) : "";
+      qualifier += ":";
+      qualifier += ctx.trace_id ? std::to_string(ctx.trace_id->value) : "";
+      return root["per_context"][qualifier];
     }
 
-    void SetStats(const char* key, const IndexMap& indexed_values) {
+    void SetStats(const GlobalStatsTracker::ContextKey& ctx,
+                  const char* key,
+                  int64_t value) {
+      StatsContextRoot(ctx)[key] = value;
+    }
+
+    void SetStats(const GlobalStatsTracker::ContextKey& ctx,
+                  const char* key,
+                  const IndexMap& indexed_values) {
       constexpr const char* kBufferStatsPrefix = "traced_buf_";
+      Dom& root = StatsContextRoot(ctx);
 
       // Stats for the same buffer should be grouped together in the JSON.
       if (strncmp(kBufferStatsPrefix, key, strlen(kBufferStatsPrefix)) == 0) {
         for (const auto& value : indexed_values) {
-          metadata_["trace_processor_stats"]["traced_buf"][value.first]
-                   [key + strlen(kBufferStatsPrefix)] = value.second;
+          root["traced_buf"][value.first][key + strlen(kBufferStatsPrefix)] =
+              value.second;
         }
         return;
       }
 
       // Other indexed value stats are exported as array under their key.
       for (const auto& value : indexed_values) {
-        metadata_["trace_processor_stats"][key][value.first] = value.second;
+        root[key][value.first] = value.second;
       }
     }
 
@@ -1326,14 +1351,22 @@ class JsonExporter {
   }
 
   base::Status ExportStats() {
-    const auto& stats = storage_->stats();
-
-    for (size_t idx = 0; idx < stats::kNumKeys; idx++) {
-      if (stats::kTypes[idx] == stats::kSingle) {
-        writer_.SetStats(stats::kNames[idx], stats[idx].value);
-      } else {
-        PERFETTO_DCHECK(stats::kTypes[idx] == stats::kIndexed);
-        writer_.SetStats(stats::kNames[idx], stats[idx].indexed_values);
+    // Emit stats for every (machine_id, trace_id) context that has data.
+    // For the common single-trace case there is just one context with both
+    // ids null, and the JSON layout is unchanged. Multi-(machine, trace)
+    // sessions are nested under a "per_context" sub-object keyed by
+    // "<machine_id>:<trace_id>".
+    for (const auto& ctx : global_stats_tracker_->context_keys()) {
+      const auto* map = global_stats_tracker_->FindStatsForContext(ctx);
+      if (!map)
+        continue;
+      for (size_t idx = 0; idx < stats::kNumKeys; idx++) {
+        if (stats::kTypes[idx] == stats::kSingle) {
+          writer_.SetStats(ctx, stats::kNames[idx], (*map)[idx].value);
+        } else {
+          PERFETTO_DCHECK(stats::kTypes[idx] == stats::kIndexed);
+          writer_.SetStats(ctx, stats::kNames[idx], (*map)[idx].indexed_values);
+        }
       }
     }
 
@@ -1623,6 +1656,7 @@ class JsonExporter {
   }
 
   const TraceStorage* storage_;
+  const GlobalStatsTracker* global_stats_tracker_;
   ArgsBuilder args_builder_;
   TraceFormatWriter writer_;
 
@@ -1647,12 +1681,14 @@ OutputWriter::OutputWriter() = default;
 OutputWriter::~OutputWriter() = default;
 
 base::Status ExportJson(const TraceStorage* storage,
+                        const GlobalStatsTracker* stats_tracker,
                         OutputWriter* output,
                         ArgumentFilterPredicate argument_filter,
                         MetadataFilterPredicate metadata_filter,
                         LabelFilterPredicate label_filter) {
-  JsonExporter exporter(storage, output, std::move(argument_filter),
-                        std::move(metadata_filter), std::move(label_filter));
+  JsonExporter exporter(storage, stats_tracker, output,
+                        std::move(argument_filter), std::move(metadata_filter),
+                        std::move(label_filter));
   return exporter.Export();
 }
 
@@ -1661,16 +1697,17 @@ base::Status ExportJson(TraceProcessorStorage* tp,
                         ArgumentFilterPredicate argument_filter,
                         MetadataFilterPredicate metadata_filter,
                         LabelFilterPredicate label_filter) {
-  const TraceStorage* storage = reinterpret_cast<TraceProcessorStorageImpl*>(tp)
-                                    ->context()
-                                    ->storage.get();
-  return ExportJson(storage, output, std::move(argument_filter),
+  auto* context = reinterpret_cast<TraceProcessorStorageImpl*>(tp)->context();
+  return ExportJson(context->storage.get(), context->global_stats_tracker.get(),
+                    output, std::move(argument_filter),
                     std::move(metadata_filter), std::move(label_filter));
 }
 
-base::Status ExportJson(const TraceStorage* storage, FILE* output) {
+base::Status ExportJson(const TraceStorage* storage,
+                        const GlobalStatsTracker* stats_tracker,
+                        FILE* output) {
   FileWriter writer(output);
-  return ExportJson(storage, &writer, nullptr, nullptr, nullptr);
+  return ExportJson(storage, stats_tracker, &writer, nullptr, nullptr, nullptr);
 }
 
 }  // namespace perfetto::trace_processor::json

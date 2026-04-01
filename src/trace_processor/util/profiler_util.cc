@@ -23,8 +23,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
-#include "src/trace_processor/storage/trace_storage.h"
 
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
 
@@ -60,7 +60,7 @@ std::optional<base::StringView> PackageFromApp(base::StringView location) {
 
 }  // namespace
 
-std::optional<std::string> PackageFromLocation(TraceStorage* storage,
+std::optional<std::string> PackageFromLocation(GlobalStatsTracker* tracker,
                                                base::StringView location) {
   // List of some hardcoded apps that do not follow the scheme used in
   // PackageFromApp. Ask for yours to be added.
@@ -153,11 +153,12 @@ std::optional<std::string> PackageFromLocation(TraceStorage* storage,
   // Deal with paths to /data/app/...
 
   auto extract_package =
-      [storage](base::StringView path) -> std::optional<std::string> {
+      [tracker](base::StringView path) -> std::optional<std::string> {
     auto package = PackageFromApp(path);
     if (!package) {
       PERFETTO_DLOG("Failed to parse %s", path.ToStdString().c_str());
-      storage->IncrementStats(stats::deobfuscate_location_parse_error);
+      tracker->IncrementStats(std::nullopt, std::nullopt,
+                              stats::deobfuscate_location_parse_error);
       return std::nullopt;
     }
     return package->ToStdString();

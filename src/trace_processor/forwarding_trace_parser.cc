@@ -27,6 +27,7 @@
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -105,8 +106,9 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   PERFETTO_CHECK(!reader_);
 
   {
-    auto scoped_trace = input_context_->storage->TraceExecutionTimeIntoStats(
-        stats::guess_trace_type_duration_ns);
+    auto scoped_trace =
+        input_context_->stats_tracker->TraceExecutionTimeIntoStats(
+            stats::guess_trace_type_duration_ns);
     trace_type_ = GuessTraceType(blob.data(), blob.size());
   }
   if (trace_type_ == kUnknownTraceType) {

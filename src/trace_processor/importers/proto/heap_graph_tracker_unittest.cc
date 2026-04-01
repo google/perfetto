@@ -26,8 +26,10 @@
 #include "perfetto/ext/base/string_view.h"
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/util/profiler_util.h"
@@ -39,31 +41,28 @@ namespace {
 using ::testing::UnorderedElementsAre;
 
 TEST(HeapGraphTrackerTest, PackageFromLocationApp) {
-  std::unique_ptr<TraceStorage> storage(new TraceStorage());
+  GlobalStatsTracker tracker;
 
   const char data_app_path[] =
       "/data/app/org.perfetto.test-6XfQhnaSkFwGK0sYL9is0G==/base.apk";
-  EXPECT_EQ(PackageFromLocation(storage.get(), data_app_path),
-            "org.perfetto.test");
+  EXPECT_EQ(PackageFromLocation(&tracker, data_app_path), "org.perfetto.test");
 
   const char with_extra_dir[] =
       "/data/app/~~ASDFGH1234QWerT==/"
       "com.perfetto.test-MNBVCX7890SDTst6==/test.apk";
-  EXPECT_EQ(PackageFromLocation(storage.get(), with_extra_dir),
-            "com.perfetto.test");
+  EXPECT_EQ(PackageFromLocation(&tracker, with_extra_dir), "com.perfetto.test");
 
   const char odex[] =
       "/data/app/com.google.android.apps.wellbeing-"
       "qfQCaB4uJ7P0OPpZQqOu0Q==/oat/arm64/base.odex";
-  EXPECT_EQ(PackageFromLocation(storage.get(), odex),
+  EXPECT_EQ(PackageFromLocation(&tracker, odex),
             "com.google.android.apps.wellbeing");
 
   const char inmem_dex[] =
       "[anon:dalvik-classes.dex extracted in memory from "
       "/data/app/~~uUgHYtbjPNr2VFa3byIF4Q==/"
       "com.perfetto.example-aC94wTfXRC60l2HJU5YvjQ==/base.apk]";
-  EXPECT_EQ(PackageFromLocation(storage.get(), inmem_dex),
-            "com.perfetto.example");
+  EXPECT_EQ(PackageFromLocation(&tracker, inmem_dex), "com.perfetto.example");
 }
 
 TEST(HeapGraphTrackerTest, PopulateNativeSize) {
@@ -78,7 +77,10 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
   context.process_tracker = std::make_unique<ProcessTracker>(&context);
   context.process_tracker->GetOrCreateProcess(kPid);
 
-  HeapGraphTracker tracker(context.storage.get());
+  context.global_stats_tracker = std::make_unique<GlobalStatsTracker>();
+  context.stats_tracker = std::make_unique<StatsTracker>(&context);
+  HeapGraphTracker tracker(context.storage.get(),
+                           context.global_stats_tracker.get());
 
   constexpr uint64_t kLocation = 0;
   tracker.AddInternedLocationName(kSeqId, kLocation,
@@ -218,7 +220,10 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   context.process_tracker.reset(new ProcessTracker(&context));
   context.process_tracker->GetOrCreateProcess(kPid);
 
-  HeapGraphTracker tracker(context.storage.get());
+  context.global_stats_tracker = std::make_unique<GlobalStatsTracker>();
+  context.stats_tracker = std::make_unique<StatsTracker>(&context);
+  HeapGraphTracker tracker(context.storage.get(),
+                           context.global_stats_tracker.get());
 
   constexpr uint64_t kField = 1;
   constexpr uint64_t kLocation = 0;
@@ -348,7 +353,10 @@ TEST(HeapGraphTrackerTest, BuildFlamegraphWeakReferences) {
   context.process_tracker.reset(new ProcessTracker(&context));
   context.process_tracker->GetOrCreateProcess(kPid);
 
-  HeapGraphTracker tracker(context.storage.get());
+  context.global_stats_tracker = std::make_unique<GlobalStatsTracker>();
+  context.stats_tracker = std::make_unique<StatsTracker>(&context);
+  HeapGraphTracker tracker(context.storage.get(),
+                           context.global_stats_tracker.get());
 
   constexpr uint64_t kLocation = 0;
 
@@ -458,7 +466,10 @@ class HeapGraphStabilityTest : public ::testing::Test {
           std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
       context_.process_tracker.reset(new ProcessTracker(&context_));
       context_.process_tracker->GetOrCreateProcess(kPid);
-      tracker_ = std::make_unique<HeapGraphTracker>(context_.storage.get());
+      context_.global_stats_tracker = std::make_unique<GlobalStatsTracker>();
+      context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
+      tracker_ = std::make_unique<HeapGraphTracker>(
+          context_.storage.get(), context_.global_stats_tracker.get());
 
       tracker_->AddInternedLocationName(
           kSeqId, kLocation, context_.storage->InternString("location"));

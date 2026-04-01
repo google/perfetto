@@ -31,9 +31,11 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
@@ -66,6 +68,9 @@ class ProtoTraceReaderTest : public ::testing::Test {
         std::make_unique<MachineTracker>(&host_context_, kDefaultMachineId);
     host_context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(host_context_.storage.get());
+    host_context_.global_stats_tracker = std::make_unique<GlobalStatsTracker>();
+    host_context_.stats_tracker =
+        std::make_unique<StatsTracker>(&host_context_);
     host_context_.import_logs_tracker =
         std::make_unique<ImportLogsTracker>(&host_context_, TraceId(1));
     host_context_.trace_time_state = std::make_unique<TraceTimeState>(
@@ -281,7 +286,8 @@ TEST_F(ProtoTraceReaderTest, DeferredClockSnapshotSequenceScopedClock) {
   ASSERT_TRUE(proto_trace_reader_->OnPushDataToSorter().ok());
 
   // The deferred packet should have resolved without recording an error.
-  EXPECT_EQ(0, host_context_.storage->GetStats(
+  EXPECT_EQ(0, host_context_.global_stats_tracker->GetStats(
+                   std::nullopt, std::nullopt,
                    stats::clock_sync_failure_unknown_source_clock));
 }
 

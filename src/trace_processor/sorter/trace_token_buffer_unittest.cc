@@ -22,8 +22,10 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -37,8 +39,10 @@ class TraceTokenBufferUnittest : public testing::Test {
  public:
   TraceTokenBufferUnittest() {
     context.storage.reset(new TraceStorage());
+    context.global_stats_tracker = std::make_unique<GlobalStatsTracker>();
     context.machine_tracker.reset(
         new MachineTracker(&context, kDefaultMachineId));
+    context.stats_tracker = std::make_unique<StatsTracker>(&context);
     state = PacketSequenceStateGeneration::CreateFirst(&context);
   }
 

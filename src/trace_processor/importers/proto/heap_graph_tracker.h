@@ -40,6 +40,7 @@
 
 namespace perfetto::trace_processor {
 
+class GlobalStatsTracker;
 class TraceProcessorContext;
 
 struct NormalizedType {
@@ -95,11 +96,19 @@ class HeapGraphTracker : public Destructible {
     std::vector<uint64_t> object_ids;
   };
 
-  explicit HeapGraphTracker(TraceStorage* storage);
+  HeapGraphTracker(TraceStorage* storage, GlobalStatsTracker* stats_tracker);
 
   static HeapGraphTracker* Get(TraceProcessorContext* context) {
     return static_cast<HeapGraphTracker*>(context->heap_graph_tracker.get());
   }
+
+  // Records the (machine_id, trace_id) context for a sequence so that stats
+  // emitted from within the tracker for this sequence can be attributed
+  // correctly. Should be called from the importer module before the first
+  // Add*/SetPacketIndex/FinalizeProfile call for this seq_id.
+  void SetSequenceContext(uint32_t seq_id,
+                          std::optional<tables::MachineTable::Id> machine_id,
+                          std::optional<tables::TraceFileTable::Id> trace_id);
 
   void AddRoot(uint32_t seq_id, UniquePid upid, int64_t ts, SourceRoot root);
   void AddObject(uint32_t seq_id, UniquePid upid, int64_t ts, SourceObject obj);
@@ -168,6 +177,12 @@ class HeapGraphTracker : public Destructible {
     protos::pbzero::HeapGraphType::Kind kind;
   };
   struct SequenceState {
+    // Context that this sequence belongs to. Set by SetSequenceContext from
+    // the importer module; used to attribute stats emitted while processing
+    // this sequence to the right (machine, trace).
+    std::optional<tables::MachineTable::Id> machine_id;
+    std::optional<tables::TraceFileTable::Id> trace_id;
+
     UniquePid current_upid = 0;
     int64_t current_ts = 0;
     uint64_t last_object_id = 0;
@@ -251,6 +266,7 @@ class HeapGraphTracker : public Destructible {
                         PathFromRoot* path);
 
   TraceStorage* const storage_;
+  GlobalStatsTracker* const global_stats_tracker_;
   std::map<uint32_t, SequenceState> sequence_state_;
 
   tables::HeapGraphClassTable::Cursor class_cursor_;

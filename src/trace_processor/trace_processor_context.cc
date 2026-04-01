@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
@@ -42,6 +43,7 @@
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/symbol_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
@@ -81,6 +83,7 @@ void InitPerTraceAndMachineState(TraceProcessorContext* context,
   context->args_translation_table =
       Ptr<ArgsTranslationTable>::MakeRoot(context->storage.get());
   context->metadata_tracker = Ptr<MetadataTracker>::MakeRoot(context);
+  context->stats_tracker = Ptr<StatsTracker>::MakeRoot(context);
 
   context->slice_tracker->SetOnSliceBeginCallback(
       [context](TrackId track_id, SliceId slice_id) {
@@ -156,6 +159,7 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
   // Global state.
   context->config = config;
   context->storage = Ptr<TraceStorage>::MakeRoot(config);
+  context->global_stats_tracker = Ptr<GlobalStatsTracker>::MakeRoot();
   context->sorter = CreateSorter(context, config);
   context->reader_registry = Ptr<TraceReaderRegistry>::MakeRoot();
   context->global_args_tracker =
@@ -192,6 +196,7 @@ void CopyGlobalState(const TraceProcessorContext* source,
   dest->reader_registry = source->reader_registry.Fork();
   dest->global_args_tracker = source->global_args_tracker.Fork();
   dest->global_metadata_tracker = source->global_metadata_tracker.Fork();
+  dest->global_stats_tracker = source->global_stats_tracker.Fork();
   dest->trace_file_tracker = source->trace_file_tracker.Fork();
   dest->descriptor_pool_ = source->descriptor_pool_.Fork();
   dest->forked_context_state = source->forked_context_state.Fork();
@@ -289,6 +294,12 @@ void TraceProcessorContext::DestroyParsingState() {
   // both require the descriptor pool to be alive.
   auto _descriptor_pool_ = std::move(descriptor_pool_);
 
+  // The "stats" SQL vtable reads directly from this tracker's in-memory
+  // hash map, so it must survive parsing teardown — queries like the
+  // after_eof prelude (and any user query against `stats`) run after this
+  // point.
+  auto _global_stats_tracker = std::move(global_stats_tracker);
+
   this->~TraceProcessorContext();
   new (this) TraceProcessorContext();
 
@@ -297,6 +308,7 @@ void TraceProcessorContext::DestroyParsingState() {
   clock_converter = std::move(_clock_converter);
   system_info_tracker = std::move(_system_info_tracker);
   descriptor_pool_ = std::move(_descriptor_pool_);
+  global_stats_tracker = std::move(_global_stats_tracker);
 }
 
 }  // namespace perfetto::trace_processor

@@ -18,9 +18,11 @@
 #define SRC_TRACE_PROCESSOR_SQLITE_STATS_TABLE_H_
 
 #include <cstddef>
+#include <map>
+#include <vector>
 
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
-#include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto::trace_processor {
 
@@ -28,14 +30,22 @@ namespace perfetto::trace_processor {
 // - Collected at trace time (e.g., ftrace buffer overruns).
 // - Generated at parsing time (e.g., clock events out-of-order).
 struct StatsModule : sqlite::Module<StatsModule> {
-  using Context = TraceStorage;
+  using Context = GlobalStatsTracker;
   struct Vtab : sqlite::Module<StatsModule>::Vtab {
-    TraceStorage* storage = nullptr;
+    GlobalStatsTracker* tracker = nullptr;
   };
   struct Cursor : sqlite::Module<StatsModule>::Cursor {
-    const TraceStorage* storage = nullptr;
+    GlobalStatsTracker* tracker = nullptr;
+
+    // All context keys, iterated in order.
+    std::vector<GlobalStatsTracker::ContextKey> contexts;
+    size_t context_idx = 0;
+
+    // Current stats map for the current context.
+    const GlobalStatsTracker::StatsMap* current_map = nullptr;
+
     size_t key = 0;
-    TraceStorage::Stats::IndexMap::const_iterator it{};
+    std::map<int, int64_t>::const_iterator it{};
   };
   enum Column {
     kName = 0,
@@ -44,6 +54,8 @@ struct StatsModule : sqlite::Module<StatsModule> {
     kSource,
     kValue,
     kDescription,
+    kMachineId,
+    kTraceId,
     kKey
   };
 

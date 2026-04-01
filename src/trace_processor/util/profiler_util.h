@@ -21,17 +21,18 @@
 #include <string>
 
 #include "perfetto/ext/base/string_view.h"
-#include "src/trace_processor/storage/trace_storage.h"
 
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
 
 namespace perfetto::trace_processor {
 
+class GlobalStatsTracker;
+
 std::string FullyQualifiedDeobfuscatedName(
     protos::pbzero::ObfuscatedClass::Decoder& cls,
     protos::pbzero::ObfuscatedMember::Decoder& member);
 
-std::optional<std::string> PackageFromLocation(TraceStorage* storage,
+std::optional<std::string> PackageFromLocation(GlobalStatsTracker* tracker,
                                                base::StringView location);
 
 }  // namespace perfetto::trace_processor

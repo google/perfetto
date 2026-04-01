@@ -36,6 +36,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
 #include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -242,8 +243,10 @@ std::string DenormalizeTypeName(NormalizedType normalized,
   return result;
 }
 
-HeapGraphTracker::HeapGraphTracker(TraceStorage* storage)
+HeapGraphTracker::HeapGraphTracker(TraceStorage* storage,
+                                   GlobalStatsTracker* stats_tracker)
     : storage_(storage),
+      global_stats_tracker_(stats_tracker),
       class_cursor_(storage->mutable_heap_graph_class_table()->CreateCursor({
           dataframe::FilterSpec{
               tables::HeapGraphClassTable::ColumnIndex::name,
@@ -341,16 +344,29 @@ HeapGraphTracker::SequenceState& HeapGraphTracker::GetOrCreateSequence(
   return sequence_state_[seq_id];
 }
 
+void HeapGraphTracker::SetSequenceContext(
+    uint32_t seq_id,
+    std::optional<tables::MachineTable::Id> machine_id,
+    std::optional<tables::TraceFileTable::Id> trace_id) {
+  auto& seq = GetOrCreateSequence(seq_id);
+  seq.machine_id = machine_id;
+  seq.trace_id = trace_id;
+}
+
 bool HeapGraphTracker::SetPidAndTimestamp(SequenceState* sequence_state,
                                           UniquePid upid,
                                           int64_t ts) {
   if (sequence_state->current_upid != 0 &&
       sequence_state->current_upid != upid) {
-    storage_->IncrementStats(stats::heap_graph_non_finalized_graph);
+    global_stats_tracker_->IncrementStats(
+        sequence_state->machine_id, sequence_state->trace_id,
+        stats::heap_graph_non_finalized_graph);
     return false;
   }
   if (sequence_state->current_ts != 0 && sequence_state->current_ts != ts) {
-    storage_->IncrementStats(stats::heap_graph_non_finalized_graph);
+    global_stats_tracker_->IncrementStats(
+        sequence_state->machine_id, sequence_state->trace_id,
+        stats::heap_graph_non_finalized_graph);
     return false;
   }
   sequence_state->current_upid = upid;
@@ -584,7 +600,8 @@ void HeapGraphTracker::SetPacketIndex(uint32_t seq_id, uint64_t index) {
       PERFETTO_ELOG("Invalid first packet index %" PRIu64 " (!= 0)", index);
     }
 
-    storage_->IncrementIndexedStats(
+    global_stats_tracker_->IncrementIndexedStats(
+        sequence_state.machine_id, sequence_state.trace_id,
         stats::heap_graph_missing_packet,
         static_cast<int>(sequence_state.current_upid));
   }
@@ -601,7 +618,8 @@ HeapGraphTracker::InternedType* HeapGraphTracker::GetSuperClass(
     if (it != sequence_state->interned_types.end())
       return &it->second;
   }
-  storage_->IncrementIndexedStats(
+  global_stats_tracker_->IncrementIndexedStats(
+      sequence_state->machine_id, sequence_state->trace_id,
       stats::heap_graph_malformed_packet,
       static_cast<int>(sequence_state->current_upid));
   return nullptr;
@@ -624,7 +642,8 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
       auto it = sequence_state.interned_location_names.find(
           *interned_type.location_id);
       if (it == sequence_state.interned_location_names.end()) {
-        storage_->IncrementIndexedStats(
+        global_stats_tracker_->IncrementIndexedStats(
+            sequence_state.machine_id, sequence_state.trace_id,
             stats::heap_graph_invalid_string_id,
             static_cast<int>(sequence_state.current_upid));
       } else {
@@ -679,7 +698,8 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
               auto* ptr = sequence_state.interned_fields.Find(field_id);
               if (!ptr) {
                 PERFETTO_DLOG("Invalid field id.");
-                storage_->IncrementIndexedStats(
+                global_stats_tracker_->IncrementIndexedStats(
+                    sequence_state.machine_id, sequence_state.trace_id,
                     stats::heap_graph_malformed_packet,
                     static_cast<int>(sequence_state.current_upid));
                 return true;
@@ -710,8 +730,8 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
 
     std::optional<StringId> class_package;
     if (location_name) {
-      std::optional<std::string> package_name =
-          PackageFromLocation(storage_, storage_->GetString(location_name));
+      std::optional<std::string> package_name = PackageFromLocation(
+          global_stats_tracker_, storage_->GetString(location_name));
       if (package_name) {
         class_package = storage_->InternString(base::StringView(*package_name));
       }
@@ -736,7 +756,8 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
 
   if (!sequence_state.deferred_size_objects_for_type_.empty() ||
       !sequence_state.deferred_reference_objects_for_type_.empty()) {
-    storage_->IncrementIndexedStats(
+    global_stats_tracker_->IncrementIndexedStats(
+        sequence_state.machine_id, sequence_state.trace_id,
         stats::heap_graph_malformed_packet,
         static_cast<int>(sequence_state.current_upid));
   }
@@ -1219,7 +1240,12 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
 
 void HeapGraphTracker::FinalizeAllProfiles() {
   if (!sequence_state_.empty()) {
-    storage_->IncrementStats(stats::heap_graph_non_finalized_graph);
+    // Emit one stat per non-finalized sequence so the count is attributed
+    // to the right (machine, trace).
+    for (const auto& [_, seq] : sequence_state_) {
+      global_stats_tracker_->IncrementStats(
+          seq.machine_id, seq.trace_id, stats::heap_graph_non_finalized_graph);
+    }
     // There might still be valuable data even though the trace is truncated.
     while (!sequence_state_.empty()) {
       FinalizeProfile(sequence_state_.begin()->first);

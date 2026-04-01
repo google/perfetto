@@ -19,6 +19,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 
 namespace perfetto::trace_processor::winscope {
@@ -34,11 +35,13 @@ ViewCaptureArgsParser::ViewCaptureArgsParser(
     int64_t packet_timestamp,
     ArgsTracker::BoundInserter& inserter,
     TraceStorage& storage,
+    StatsTracker& stats_tracker,
     PacketSequenceStateGeneration* sequence_state,
     ViewCaptureRow* snapshot_row,
     ViewRow* view_row)
     : ArgsParser(packet_timestamp, inserter, storage, sequence_state),
       storage_{storage},
+      stats_tracker_(stats_tracker),
       snapshot_row_(snapshot_row),
       view_row_(view_row) {}
 
@@ -72,7 +75,7 @@ bool ViewCaptureArgsParser::TryAddDeinternedString(const Key& key,
   if (!deintern_val) {
     ArgsParser::AddString(deintern_key_combined,
                           ConstChars{ERROR_MSG.data(), ERROR_MSG.size()});
-    storage_.IncrementStats(
+    stats_tracker_.IncrementStats(
         stats::winscope_viewcapture_missing_interned_string_parse_errors);
     return false;
   }

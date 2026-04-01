@@ -22,8 +22,10 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -40,8 +42,10 @@ class EventTrackerTest : public ::testing::Test {
  public:
   EventTrackerTest() {
     context.storage = std::make_unique<TraceStorage>();
+    context.global_stats_tracker = std::make_unique<GlobalStatsTracker>();
     context.machine_tracker =
         std::make_unique<MachineTracker>(&context, kDefaultMachineId);
+    context.stats_tracker = std::make_unique<StatsTracker>(&context);
     context.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context.storage.get());
     context.process_tracker = std::make_unique<ProcessTracker>(&context);
