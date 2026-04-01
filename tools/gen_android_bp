@@ -425,11 +425,13 @@ def enable_libunwind(module):
 
 
 def enable_pcre2(module):
-  # On host: use whole_static_libs so pcre2 symbols are available to external
-  # consumers like libandroid_runtime that link perfetto statically.
-  # Soong does not transitively propagate deps from static archives
-  # (b/169779783), but whole_static_libs forces all symbols to be included.
-  if module.type == 'cc_binary_host':
+  # Soong does not transitively propagate deps from static archives to their
+  # consumers (b/169779783). External modules like libandroid_runtime and
+  # libinputflinger link perfetto modules statically, so we use
+  # whole_static_libs to embed pcre2 symbols directly in the archive.
+  # For device-only shared libs/binaries, shared_libs suffices as the .so
+  # resolves its own deps internally.
+  if module.type in ('cc_library_static', 'cc_binary_host'):
     module.whole_static_libs.add('libpcre2')
   elif module.host_supported:
     module.android.shared_libs.add('libpcre2')

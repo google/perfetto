@@ -510,13 +510,26 @@ std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     : TraceProcessorStorageImpl(cfg), config_(cfg) {
-  // Initialize plugins: create instances, allocate storage, register importers.
-  for (auto& p : CreatePlugins()) {
-    PluginEntry entry;
-    entry.storage = p->CreateStorage(context());
-    entry.plugin = std::move(p);
-    entry.plugin->RegisterImporters(context(), entry.storage.get());
-    plugins_.push_back(std::move(entry));
+  // Initialize plugins using the statically pre-computed PluginSet.
+  // Dep indices are resolved once at static init time; here we just
+  // instantiate, resolve dep pointers, and register importers.
+  {
+    const PluginSet& pset = GetPluginSet();
+    plugins_.reserve(pset.entries.size());
+    for (const auto& pse : pset.entries) {
+      plugins_.push_back(pse.factory());
+    }
+    for (size_t i = 0; i < pset.entries.size(); ++i) {
+      auto& p = *plugins_[i];
+      p.trace_context_ = context();
+      for (size_t dep_idx : pset.entries[i].dep_indices) {
+        p.resolved_deps_.push_back(plugins_[dep_idx].get());
+      }
+    }
+    // Let plugins register trace readers and proto importer modules.
+    for (auto& p : plugins_) {
+      p->RegisterImporters(*context()->reader_registry);
+    }
   }
   context()->register_additional_proto_modules = &RegisterAdditionalModules;
 
@@ -722,16 +735,16 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   // Also finalize plugin-owned tables.
   {
     std::vector<PluginDataframe> plugin_tables;
-    for (const auto& e : plugins_) {
-      e.plugin->RegisterDataframes(context(), e.storage.get(), plugin_tables);
+    for (auto& p : plugins_) {
+      p->RegisterDataframes(plugin_tables);
     }
     for (const auto& table : plugin_tables) {
       table.dataframe->Finalize();
     }
   }
 
-  // Stage 4: register plugin SQL modules and prepare the engine for queries.
-  IncludeAfterEofPrelude(context(), engine_.get(), plugins_);
+  // Stage 4: prepare the engine for queries.
+  IncludeAfterEofPrelude(engine_.get());
   sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
 
   return base::OkStatus();
@@ -1277,10 +1290,10 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   std::vector<PerfettoSqlEngine::StaticTable> tables = GetStaticTables(storage);
   std::vector<PluginDataframe> plugin_dataframes;
   std::vector<SqliteModuleRegistration> sqlite_modules;
-  for (const auto& e : plugins) {
-    e.plugin->RegisterDataframes(context, e.storage.get(), plugin_dataframes);
-    e.plugin->RegisterStaticTableFunctions(context, e.storage.get(), functions);
-    e.plugin->RegisterSqliteModules(context, e.storage.get(), sqlite_modules);
+  for (auto& p : plugins) {
+    p->RegisterDataframes(plugin_dataframes);
+    p->RegisterStaticTableFunctions(functions);
+    p->RegisterSqliteModules(sqlite_modules);
   }
   for (auto& df : plugin_dataframes) {
     tables.push_back({df.dataframe, std::move(df.name)});
@@ -1510,7 +1523,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   }
 
   if (notify_eof_called) {
-    IncludeAfterEofPrelude(context, engine.get(), plugins);
+    IncludeAfterEofPrelude(engine.get());
   }
 
   for (const auto& metric : sql_metrics) {
@@ -1522,30 +1535,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   return engine;
 }
 
-void TraceProcessorImpl::IncludeAfterEofPrelude(
-    TraceProcessorContext* context,
-    PerfettoSqlEngine* engine,
-    const std::vector<PluginEntry>& plugins) {
-  // Collect SQL modules from plugins and merge them into existing packages
-  // (or create new ones).
-  std::vector<std::pair<std::string, std::string>> plugin_modules;
-  for (const auto& e : plugins) {
-    e.plugin->RegisterSqlModules(context, e.storage.get(), plugin_modules);
-  }
-  for (auto& mod : plugin_modules) {
-    std::string pkg_name = sql_modules::GetPackageName(mod.first);
-    auto* existing = engine->FindPackage(pkg_name);
-    if (existing) {
-      existing->modules.Insert(mod.first,
-                               {std::move(mod.second), /*included=*/false});
-    } else {
-      sql_modules::RegisteredPackage new_pkg;
-      new_pkg.modules.Insert(mod.first,
-                             {std::move(mod.second), /*included=*/false});
-      engine->RegisterPackage(pkg_name, std::move(new_pkg));
-    }
-  }
-
+void TraceProcessorImpl::IncludeAfterEofPrelude(PerfettoSqlEngine* engine) {
   auto result = engine->Execute(SqlSource::FromTraceProcessorImplementation(
       "INCLUDE PERFETTO MODULE prelude.after_eof.*"));
   if (!result.status().ok()) {
