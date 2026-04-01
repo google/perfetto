@@ -414,23 +414,8 @@ base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
   // Populate propagate_down_specs (column indices map 1:1).
   for (const auto& pi : propagate_specs_) {
     using PDS = interpreter::TreeState::PropagateDownSpec;
-    auto to_agg = [](PropagateAggOp op) -> PDS::AggOp {
-      switch (op) {
-        case PropagateAggOp::kSum:
-          return PDS::AggOp::kSum;
-        case PropagateAggOp::kMin:
-          return PDS::AggOp::kMin;
-        case PropagateAggOp::kMax:
-          return PDS::AggOp::kMax;
-        case PropagateAggOp::kFirst:
-          return PDS::AggOp::kFirst;
-        case PropagateAggOp::kLast:
-          return PDS::AggOp::kLast;
-      }
-      PERFETTO_FATAL("Invalid PropagateAggOp");
-    };
     ts->propagate_down_specs.push_back(PDS{
-        to_agg(pi.agg_op),
+        pi.agg_op,
         pi.source_col,
         pi.dest_col,
         cols_.columns[pi.dest_col].type,

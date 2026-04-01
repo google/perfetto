@@ -29,6 +29,7 @@
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/common/tree_types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/slab.h"
@@ -271,8 +272,7 @@ struct TreeState {
   // Propagation specs: set by TreeTransformer, consumed by PropagateTreeDown.
   // Each PropagateTreeDown bytecode processes a contiguous range of specs.
   struct PropagateDownSpec {
-    enum class AggOp : uint8_t { kSum, kMin, kMax, kFirst, kLast };
-    AggOp agg_op;
+    PropagateAggOp agg_op;
     uint32_t source_ts_col;  // index into |columns| to copy FROM
     uint32_t dest_ts_col;    // index into |columns| to propagate INTO
     StorageType storage_type;

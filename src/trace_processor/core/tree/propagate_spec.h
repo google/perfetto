@@ -17,20 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_CORE_TREE_PROPAGATE_SPEC_H_
 #define SRC_TRACE_PROCESSOR_CORE_TREE_PROPAGATE_SPEC_H_
 
-#include <cstdint>
 #include <string>
 
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/core/common/tree_types.h"
 
 namespace perfetto::trace_processor::core::tree {
-
-enum class PropagateAggOp : uint8_t {
-  kSum,
-  kMin,
-  kMax,
-  kFirst,
-  kLast,
-};
 
 struct PropagateSpec {
   PropagateAggOp agg_op;

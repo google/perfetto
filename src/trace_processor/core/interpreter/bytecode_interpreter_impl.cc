@@ -454,53 +454,71 @@ void BuildP2CFromTreeState(TreeState* ts) {
 }
 
 // Runs a single propagate-down pass over the BFS order for one column.
-// The type/op switch happens once here; the inner loop is tight.
-template <typename T>
+// |Combine| is a lambda (parent_val, child_val) -> new_child_val.
+template <typename T, typename Combine>
 void PropagateDownBfs(T* d,
-                      TreeState::PropagateDownSpec::AggOp agg_op,
+                      Combine combine,
                       const uint32_t* queue,
                       uint32_t queue_end,
                       const uint32_t* parent_arr) {
-  using AggOp = TreeState::PropagateDownSpec::AggOp;
+  for (uint32_t qi = 0; qi < queue_end; ++qi) {
+    uint32_t node = queue[qi];
+    uint32_t p = parent_arr[node];
+    if (p != kNullParent) {
+      d[node] = combine(d[p], d[node]);
+    }
+  }
+}
+
+// Dispatches on storage type then agg_op for a single propagate-down spec.
+template <typename T>
+void PropagateDownColumnTyped(T* d,
+                              PropagateAggOp agg_op,
+                              const uint32_t* queue,
+                              uint32_t queue_end,
+                              const uint32_t* parent_arr) {
   switch (agg_op) {
-    case AggOp::kSum:
-      for (uint32_t qi = 0; qi < queue_end; ++qi) {
-        uint32_t node = queue[qi];
-        uint32_t p = parent_arr[node];
-        if (p != kNullParent) {
-          d[node] += d[p];
-        }
-      }
+    case PropagateAggOp::kSum:
+      PropagateDownBfs(d, [](auto p, auto c) { return p + c; }, queue,
+                       queue_end, parent_arr);
       break;
-    case AggOp::kMin:
-      for (uint32_t qi = 0; qi < queue_end; ++qi) {
-        uint32_t node = queue[qi];
-        uint32_t p = parent_arr[node];
-        if (p != kNullParent) {
-          d[node] = std::min(d[p], d[node]);
-        }
-      }
+    case PropagateAggOp::kMin:
+      PropagateDownBfs(d, [](auto p, auto c) { return std::min(p, c); }, queue,
+                       queue_end, parent_arr);
       break;
-    case AggOp::kMax:
-      for (uint32_t qi = 0; qi < queue_end; ++qi) {
-        uint32_t node = queue[qi];
-        uint32_t p = parent_arr[node];
-        if (p != kNullParent) {
-          d[node] = std::max(d[p], d[node]);
-        }
-      }
+    case PropagateAggOp::kMax:
+      PropagateDownBfs(d, [](auto p, auto c) { return std::max(p, c); }, queue,
+                       queue_end, parent_arr);
       break;
-    case AggOp::kFirst:
-      for (uint32_t qi = 0; qi < queue_end; ++qi) {
-        uint32_t node = queue[qi];
-        uint32_t p = parent_arr[node];
-        if (p != kNullParent) {
-          d[node] = d[p];
-        }
-      }
+    case PropagateAggOp::kFirst:
+      PropagateDownBfs(d, [](auto p, auto) { return p; }, queue, queue_end,
+                       parent_arr);
       break;
-    case AggOp::kLast:
-      break;  // No-op: values unchanged.
+    case PropagateAggOp::kLast:
+      break;
+  }
+}
+
+void PropagateDownColumn(uint8_t* data,
+                         StorageType storage_type,
+                         PropagateAggOp agg_op,
+                         const uint32_t* queue,
+                         uint32_t queue_end,
+                         const uint32_t* parent_arr) {
+  if (storage_type.Is<Uint32>()) {
+    PropagateDownColumnTyped(reinterpret_cast<uint32_t*>(data), agg_op, queue,
+                             queue_end, parent_arr);
+  } else if (storage_type.Is<Int32>()) {
+    PropagateDownColumnTyped(reinterpret_cast<int32_t*>(data), agg_op, queue,
+                             queue_end, parent_arr);
+  } else if (storage_type.Is<Int64>()) {
+    PropagateDownColumnTyped(reinterpret_cast<int64_t*>(data), agg_op, queue,
+                             queue_end, parent_arr);
+  } else if (storage_type.Is<Double>()) {
+    PropagateDownColumnTyped(reinterpret_cast<double*>(data), agg_op, queue,
+                             queue_end, parent_arr);
+  } else {
+    PERFETTO_FATAL("Unsupported storage type for propagate down");
   }
 }
 
@@ -661,21 +679,8 @@ void PropagateTreeDown(InterpreterState& state,
     memcpy(dst_data, src_data, byte_count);
 
     // BFS propagation on dest data.
-    if (spec.storage_type.Is<Uint32>()) {
-      PropagateDownBfs(reinterpret_cast<uint32_t*>(dst_data), spec.agg_op,
-                       queue, queue_end, parent_arr);
-    } else if (spec.storage_type.Is<Int32>()) {
-      PropagateDownBfs(reinterpret_cast<int32_t*>(dst_data), spec.agg_op, queue,
-                       queue_end, parent_arr);
-    } else if (spec.storage_type.Is<Int64>()) {
-      PropagateDownBfs(reinterpret_cast<int64_t*>(dst_data), spec.agg_op, queue,
-                       queue_end, parent_arr);
-    } else if (spec.storage_type.Is<Double>()) {
-      PropagateDownBfs(reinterpret_cast<double*>(dst_data), spec.agg_op, queue,
-                       queue_end, parent_arr);
-    } else {
-      PERFETTO_FATAL("Unsupported storage type for propagate down");
-    }
+    PropagateDownColumn(dst_data, spec.storage_type, spec.agg_op, queue,
+                        queue_end, parent_arr);
   }
 }
 
