@@ -27,7 +27,7 @@ from typing import List, Tuple, Optional
 from python.generators.sql_processing.docs_parse import DocParseOptions, ParsedModule, parse_file
 from python.generators.sql_processing.utils import is_internal
 from python.generators.sql_processing.stdlib_tags import get_tags, get_table_importance
-from python.perfetto.trace_data_checks import check_to_query, MODULE_DATA_CHECK_SQL
+from python.perfetto.trace_data_checks import check_to_query, MODULE_DATA_CHECK_SQL, TABLE_DATA_CHECK_SQL
 
 ROOT_DIR = os.path.dirname(
     os.path.dirname(
@@ -271,6 +271,9 @@ def format_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
                 'private' if is_internal(table.name) else 'public',
             'importance':
                 get_table_importance(table.name),
+            'data_check_sql':
+                check_to_query(TABLE_DATA_CHECK_SQL[table.name])
+                if table.name in TABLE_DATA_CHECK_SQL else None,
             'cols': [
                 _create_field_dict(col_name, col)
                 for (col_name, col) in table.cols.items()

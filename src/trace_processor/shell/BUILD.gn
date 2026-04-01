@@ -18,6 +18,8 @@ source_set("shell") {
   sources = [
     "common_flags.cc",
     "common_flags.h",
+    "convert_subcommand.cc",
+    "convert_subcommand.h",
     "export_subcommand.cc",
     "export_subcommand.h",
     "interactive.cc",
@@ -40,22 +42,24 @@ source_set("shell") {
     "shell_utils.h",
     "sql_packages.cc",
     "sql_packages.h",
-    "subcommand.cc",
-    "subcommand.h",
     "summarize_subcommand.cc",
     "summarize_subcommand.h",
   ]
   deps = [
+    ":subcommands",
     "../../../gn:default_deps",
     "../../../gn:protobuf_full",
     "../../../include/perfetto/ext/trace_processor:trace_processor_shell",
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
     "../../base:version",
+    "../../protozero/text_to_proto:text_to_proto",
+    "../../traceconv:traceconv_lib",
     "../metrics",
     "../rpc",
     "../rpc:stdiod",
     "../trace_summary",
+    "../trace_summary:gen_cc_trace_summary_descriptor",
     "../util:stdlib",
     "../util/deobfuscation:deobfuscator",
     "../util/symbolizer",
@@ -70,11 +74,22 @@ source_set("shell") {
   public_deps = [ "../../../include/perfetto/trace_processor:trace_processor" ]
 }
 
+source_set("subcommands") {
+  sources = [
+    "subcommand.cc",
+    "subcommand.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+}
+
 source_set("unittests") {
   testonly = true
   sources = [ "find_subcommand_unittest.cc" ]
   deps = [
-    ":shell",
+    ":subcommands",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../base",

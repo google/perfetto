@@ -21,6 +21,8 @@ source_set("functions") {
   sources = [
     "args.cc",
     "args.h",
+    "art_heap_graph_functions.cc",
+    "art_heap_graph_functions.h",
     "base64.cc",
     "base64.h",
     "clock_functions.h",
@@ -95,7 +97,6 @@ source_set("functions") {
     "../../../util:glob",
     "../../../util:json_serializer",
     "../../../util:profile_builder",
-    "../../../util:regex",
     "../../../util:simple_json_serializer",
     "../../../util:sql_argument",
     "../../../util:stdlib",

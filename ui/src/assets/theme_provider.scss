@@ -25,6 +25,7 @@
   scrollbar-color: var(--pf-color-border) var(--pf-color-background); /* thumb color track color */
 
   &--light {
+    --pf-color-void: white;
     --pf-color-background: white;
     --pf-color-background-secondary: #edf0f1;
     --pf-color-background-tertiary: #e3e9eb;
@@ -75,15 +76,16 @@
   }
 
   &--dark {
-    --pf-color-background: #222226;
-    --pf-color-background-secondary: #343438;
-    --pf-color-background-tertiary: #4a4c52;
+    --pf-color-void: #181818;
+    --pf-color-background: #202020;
+    --pf-color-background-secondary: #343434;
+    --pf-color-background-tertiary: #4a4a4a;
     --pf-color-interactive-base: white;
     --pf-color-text: #dce0e2;
     --pf-color-text-muted: #a0a2a5;
     --pf-color-text-disabled: #8d8d8e;
-    --pf-color-border: #5b5e61;
-    --pf-color-border-secondary: #3b3b3d;
+    --pf-color-border: #484848;
+    --pf-color-border-secondary: #383838;
     --pf-color-text-hint: #9aa0a6;
     --pf-color-box-shadow: rgba(0, 0, 0, 0.4);
     --pf-color-neutral: gray;
@@ -91,7 +93,7 @@
     --pf-color-text-on-accent: white;
     --pf-color-highlight: #5f4d06;
 
-    --pf-color-primary: #7197e3;
+    --pf-color-primary: #598bed;
     --pf-color-text-on-primary: #333;
     --pf-color-danger: rgb(230, 90, 90);
     --pf-color-text-on-danger: #333;

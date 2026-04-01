@@ -21,6 +21,7 @@ perfetto_sql_source_set("after_eof") {
     "counters.sql",
     "cpu_scheduling.sql",
     "events.sql",
+    "gpu.sql",
     "indexes.sql",
     "memory.sql",
     "slices.sql",

@@ -381,6 +381,12 @@ declare_args() {
   enable_perfetto_zlib =
       enable_perfetto_trace_processor || enable_perfetto_platform_services
 
+  # Enables PCRE2 support for Android.
+  enable_perfetto_pcre2 = perfetto_build_with_android
+
+  # Enables RE2 support.
+  enable_perfetto_re2 = perfetto_build_standalone || build_with_chromium
+
   # Enables function name demangling using sources from llvm. Otherwise
   # trace_processor falls back onto using the c++ runtime demangler, which
   # typically handles only itanium mangling.

@@ -468,6 +468,61 @@ CPU_TABLE = Table(
                 '''Extra args associated with the CPU''',
         }))
 
+GPU_TABLE = Table(
+    python_module=__file__,
+    class_name='GpuTable',
+    sql_name='__intrinsic_gpu',
+    columns=[
+        C(
+            'gpu',
+            CppOptional(CppUint32()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C('machine_id', CppTableId(MACHINE_TABLE)),
+        C('name', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('vendor', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('model', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('architecture',
+          CppString(),
+          cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('uuid', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('pci_bdf', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('arg_set_id',
+          CppOptional(CppUint32()),
+          sql_access=SqlAccess.HIGH_PERF,
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+    ],
+    wrapping_sql_view=WrappingSqlView('gpu'),
+    tabledoc=TableDoc(
+        doc='''
+          Contains information of GPUs seen during the trace.
+        ''',
+        group='Misc',
+        columns={
+            'gpu':
+                '''the index (0-based) of the GPU on the device''',
+            'machine_id':
+                '''
+                  Machine identifier, non-null for GPUs on a remote machine.
+                ''',
+            'name':
+                '''GPU name (e.g., "NVIDIA A100", "Adreno 740")''',
+            'vendor':
+                '''GPU vendor string (e.g., "NVIDIA", "AMD", "Qualcomm")''',
+            'model':
+                '''GPU model/product identifier''',
+            'architecture':
+                '''GPU architecture (e.g., "Ampere", "RDNA 3")''',
+            'uuid':
+                '''UUID of the GPU (16-byte device UUID, hex-encoded)''',
+            'pci_bdf':
+                '''PCI bus location (domain:bus:device.function)''',
+            'arg_set_id':
+                '''Extra args associated with the GPU''',
+        }))
+
 CHROME_RAW_TABLE = Table(
     python_module=__file__,
     class_name='ChromeRawTable',
@@ -928,6 +983,7 @@ ALL_TABLES = [
     EXP_MISSING_CHROME_PROC_TABLE,
     FILEDESCRIPTOR_TABLE,
     FTRACE_EVENT_TABLE,
+    GPU_TABLE,
     TRACE_IMPORT_LOGS_TABLE,
     MACHINE_TABLE,
     METADATA_TABLE,

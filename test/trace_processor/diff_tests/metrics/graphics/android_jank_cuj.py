@@ -17,6 +17,16 @@ from os import sys
 
 import synth_common
 
+# NOTE ON CHOOSING VSYNCs.
+# On a real Android system, VSYNC IDs are unique across processes. In the past,
+# the metric would filter by process ID, which allowed this test to be a bit
+# lax about the VSYNC IDs. Now, as the process filter has been removed, the
+# VSYNC IDs must be unique across processes. To help with this, the test makes
+# the following assumptions:
+#  - Application VSYNCs are in the range [1, 1000)
+#  - SF VSYNCs are mapped to application VSYNCs by adding 1000.
+# When adding new frames, ensure the VSYNCs on the app side are below 1000.
+
 # com.android.systemui
 PID = 1000
 # RenderThread
@@ -135,7 +145,7 @@ def add_sf_frame(trace,
 
 def add_expected_display_frame_events(ts, dur, token):
   trace.add_expected_display_frame_start_event(
-      ts=ts, cookie=token, token=100 + token, pid=SF_PID)
+      ts=ts, cookie=token, token=1000 + token, pid=SF_PID)
   trace.add_frame_end_event(ts=ts + dur, cookie=token)
 
 
@@ -144,7 +154,7 @@ def add_expected_surface_frame_events(ts, dur, token):
       ts=ts,
       cookie=100000 + token,
       token=token,
-      display_frame_token=100 + token,
+      display_frame_token=1000 + token,
       pid=PID,
       layer_name='')
   trace.add_frame_end_event(ts=ts + dur, cookie=100000 + token)
@@ -157,7 +167,7 @@ def add_actual_display_frame_events(ts, dur, token, cookie=None, jank=None):
   trace.add_actual_display_frame_start_event(
       ts=ts,
       cookie=token + 1,
-      token=100 + token,
+      token=1000 + token,
       pid=SF_PID,
       present_type=present_type,
       on_time_finish=on_time_finish,
@@ -184,7 +194,7 @@ def add_actual_surface_frame_events(ts,
     on_time_finish = 1 if jank is None else 0
   else:
     on_time_finish = on_time_finish_override
-  display_frame_token = display_frame_token_override or (token + 100)
+  display_frame_token = display_frame_token_override or (token + 1000)
   trace.add_actual_surface_frame_start_event(
       ts=ts,
       cookie=100002 + cookie,
@@ -379,7 +389,7 @@ add_render_thread_atrace(
 
 add_sf_frame(
     trace,
-    vsync=110,
+    vsync=1010,
     ts_commit=1_006_000_500,
     ts_end_commit=1_006_500_000,
     ts_composite=1_007_000_000,
@@ -405,7 +415,7 @@ add_render_thread_atrace(
 
 add_sf_frame(
     trace,
-    vsync=120,
+    vsync=1020,
     ts_commit=1_016_000_000,
     ts_end_commit=1_018_000_000,
     ts_composite=1_020_500_000,
@@ -443,7 +453,7 @@ add_render_thread_atrace(
 
 add_sf_frame(
     trace,
-    vsync=130,
+    vsync=1030,
     ts_commit=1_032_000_000,
     ts_end_commit=1_033_000_000,
     ts_composite=1_034_000_000,
@@ -490,7 +500,7 @@ trace.add_sched(ts=59_000_000, prev_pid=RTID, next_pid=0, prev_state='R')
 
 add_sf_frame(
     trace,
-    vsync=140,
+    vsync=1040,
     ts_commit=1_048_000_000,
     ts_end_commit=1_049_000_000,
     ts_composite=1_055_000_000,
@@ -519,7 +529,7 @@ trace.add_sched(ts=88_500_000, prev_pid=RTID, next_pid=0, prev_state='R')
 
 add_sf_frame(
     trace,
-    vsync=160,
+    vsync=1060,
     ts_commit=1_070_000_000,
     ts_end_commit=1_071_000_000,
     ts_composite=1_072_000_000,
@@ -551,7 +561,7 @@ add_gpu_thread_atrace(
 
 add_sf_frame(
     trace,
-    vsync=190,
+    vsync=1090,
     ts_commit=1_100_000_000,
     ts_end_commit=1_101_000_000,
     ts_composite=1_102_000_000,
@@ -579,7 +589,7 @@ add_render_thread_atrace(
 
 add_sf_frame(
     trace,
-    vsync=200,
+    vsync=1100,
     ts_commit=1_200_000_000,
     ts_end_commit=1_202_000_000,
     ts_composite=1_203_000_000,
@@ -687,7 +697,7 @@ add_frame(
 # One more frame after the CUJ is finished
 add_frame(
     trace,
-    vsync=1000,
+    vsync=170,
     ts_do_frame=1_100_000_000,
     ts_end_do_frame=1_200_000_000,
     ts_draw_frame=1_150_000_000,
@@ -739,7 +749,7 @@ add_actual_surface_frame_events(
     jank=64,
     jank_score=5,
     # second layer produced frame later so was picked up by the next SF frame
-    display_frame_token_override=190)
+    display_frame_token_override=1090)
 
 add_expected_display_frame_events(ts=1_100_000_000, dur=16_000_000, token=90)
 add_actual_display_frame_events(ts=1_100_000_000, dur=16_000_000, token=90)
@@ -799,8 +809,8 @@ add_actual_surface_frame_events(ts=700_500_000, dur=14_500_000, token=150)
 # No matching actual timeline
 add_expected_surface_frame_events(ts=800_000_000, dur=20_000_000, token=160)
 
-add_expected_surface_frame_events(ts=1_100_000_000, dur=20_000_000, token=1000)
+add_expected_surface_frame_events(ts=1_100_000_000, dur=20_000_000, token=170)
 add_actual_surface_frame_events(
-    ts=1_100_000_000, dur=500_000_000, token=1000, jank=64, jank_score=13)
+    ts=1_100_000_000, dur=500_000_000, token=170, jank=64, jank_score=13)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())

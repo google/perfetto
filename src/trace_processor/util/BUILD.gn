@@ -216,14 +216,6 @@ source_set("glob") {
   ]
 }
 
-source_set("regex") {
-  sources = [ "regex.h" ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../base",
-  ]
-}
-
 source_set("sql_argument") {
   sources = [
     "sql_argument.cc",
@@ -445,10 +437,6 @@ source_set("unittests") {
     "zip_reader_unittest.cc",
   ]
 
-  if (!is_win) {
-    sources += [ "regex_unittest.cc" ]
-  }
-
   testonly = true
   deps = [
     ":bump_allocator",
@@ -463,7 +451,6 @@ source_set("unittests") {
     ":proto_to_args_parser",
     ":protozero_to_json",
     ":protozero_to_text",
-    ":regex",
     ":simple_json_parser",
     ":simple_json_serializer",
     ":sql_argument",

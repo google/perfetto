@@ -46,7 +46,29 @@
     color-mix(in srgb, var(--pf-color-border-secondary) 85%, black 15%) 1px,
     transparent 0px
   );
-  background-size: 20px 20px;
+  // --pf-grid-cell-size is set by the component based on canvas width / 25
+  // (24 columns + 2 × 0.5-cell margin).
+  background-size: var(--pf-grid-cell-size, 100px)
+    var(--pf-grid-cell-size, 100px);
+  // Offset dots to align with the grid margin.
+  background-position: var(--pf-grid-margin-px, 0) var(--pf-grid-margin-px, 0);
+
+  // Show grid lines while dragging or resizing items.
+  &.pf-dashboard__canvas--grid-visible {
+    background-image: repeating-linear-gradient(
+        to right,
+        color-mix(in srgb, var(--pf-color-border-secondary) 50%, transparent) 0
+          1px,
+        transparent 1px var(--pf-grid-cell-size)
+      ),
+      repeating-linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--pf-color-border-secondary) 50%, transparent) 0
+          1px,
+        transparent 1px var(--pf-grid-cell-size)
+      );
+    background-size: auto;
+  }
 }
 
 // Centered overlay for the empty state.
@@ -61,15 +83,38 @@
   padding: 24px;
 }
 
-// "+" add-item button in the top-left corner of the canvas.
-.pf-dashboard__add-button {
-  position: sticky;
-  top: 1rem;
-  left: 1rem;
-  z-index: 10;
-  width: 0;
-  height: 0;
-  overflow: visible;
+// Scrollable body of the add panel.
+.pf-dashboard__add-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+// Full-width item row used in the add panel (non-chart items).
+.pf-dashboard__add-panel-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 13px;
+
+  &:hover {
+    background: var(--pf-color-background-hover);
+  }
+
+  .pf-icon {
+    font-size: 22px;
+    color: var(--pf-color-text-muted);
+  }
+}
+
+// Empty-state message when no data source is available for charts.
+.pf-dashboard__add-panel-empty {
+  padding: 12px;
+  font-size: 12px;
+  color: var(--pf-color-text-muted);
 }
 
 // Horizontal filter bar below the tab strip.
@@ -112,36 +157,26 @@
   padding: 4px 0;
 }
 
-// Collapsed state: small circle in the top-right corner of the canvas.
-.pf-dashboard__filter-collapsed {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 10;
-}
-
 // Individual chart card on the dashboard canvas.
+// Width, height, left, and top are set inline from grid coordinates.
 .pf-dashboard__chart {
   position: absolute;
-  width: 400px;
-  height: 294px;
   background: var(--pf-color-background);
   display: flex;
   flex-direction: column;
   user-select: none;
-  // Smooth settling when snapped away from a divider.
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  // Smooth settling when snapped to grid.
   transition:
     left 0.1s ease-out,
-    top 0.1s ease-out;
-
-  // Custom width/height via CSS custom properties set inline.
-  &--custom-width {
-    width: var(--pf-db-chart-width);
-  }
-
-  &--custom-height {
-    height: var(--pf-db-chart-height);
-  }
+    top 0.1s ease-out,
+    width 0.1s ease-out,
+    height 0.1s ease-out;
 
   &--dragging {
     opacity: 0.6;
@@ -171,8 +206,8 @@
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  cursor: grab;
   flex-shrink: 0;
+  cursor: grab;
 
   &:active {
     cursor: grabbing;
@@ -186,7 +221,7 @@
 }
 
 .pf-dashboard__chart-header-text {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   font-size: 13px;
   font-weight: 600;
@@ -202,8 +237,10 @@
 }
 
 .pf-dashboard__chart-title-input {
-  flex: 1;
-  min-width: 0;
+  flex: 0 1 auto;
+  width: 0;
+  min-width: 40px;
+  max-width: 200px;
   font-size: 12px;
   font-weight: 500;
   border: none;
@@ -219,13 +256,19 @@
   display: flex;
   gap: 2px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .pf-dashboard__chart-content {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  padding-top: 4px;
+  // Padding around the chart creates grabbable margins for dragging.
+  padding: 4px 6px 10px;
+
+  canvas {
+    cursor: default;
+  }
 }
 
 // Label delete button — appears on hover in the top-right corner.
@@ -258,6 +301,8 @@
 
 // --- Segment divider ---
 // A full-width horizontal rule that separates driver and consumer charts.
+// Top is set inline from grid coordinates; the divider occupies zero grid rows
+// and sits exactly on a grid line.
 .pf-dashboard__divider {
   position: absolute;
   left: 0;
@@ -318,8 +363,8 @@
   transition: opacity 0.15s ease;
 }
 
-// Data panel — styled similarly to the query page's table list.
-.pf-dashboard__data-panel {
+// Content panel — slides in next to the side-panel for add / data / linked.
+.pf-dashboard__content-panel {
   width: 300px;
   min-width: 0;
   height: 100%;
@@ -340,6 +385,15 @@
   font-weight: 600;
   color: var(--pf-color-text-muted);
   text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 16px 12px 8px;
+}
+
+.pf-dashboard__panel-section-subtitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pf-color-text-muted);
+  letter-spacing: 0.3px;
   padding: 8px 12px 4px;
 }
 
@@ -526,5 +580,11 @@
     box-shadow: none;
     border: none;
     border-radius: 0;
+    border-bottom: 1px solid var(--pf-color-border);
+
+    &.pf-active {
+      background-color: var(--pf-color-primary);
+      color: var(--pf-color-text-on-primary);
+    }
   }
 }

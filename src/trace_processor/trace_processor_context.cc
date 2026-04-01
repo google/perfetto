@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
+#include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
@@ -96,6 +97,7 @@ void InitPerMachineState(TraceProcessorContext* context, uint32_t machine_id) {
       std::make_unique<ClockSynchronizerListenerImpl>(context));
   context->mapping_tracker = Ptr<MappingTracker>::MakeRoot(context);
   context->cpu_tracker = Ptr<CpuTracker>::MakeRoot(context);
+  context->gpu_tracker = Ptr<GpuTracker>::MakeRoot(context);
   context->user_tracker = Ptr<UserTracker>::MakeRoot(context);
 }
 
@@ -107,6 +109,7 @@ void CopyPerMachineState(const TraceProcessorContext* source,
   dest->primary_clock_sync = source->primary_clock_sync.Fork();
   dest->mapping_tracker = source->mapping_tracker.Fork();
   dest->cpu_tracker = source->cpu_tracker.Fork();
+  dest->gpu_tracker = source->gpu_tracker.Fork();
   dest->user_tracker = source->user_tracker.Fork();
 }
 
@@ -197,6 +200,8 @@ void CopyGlobalState(const TraceProcessorContext* source,
   dest->track_group_idx_state = source->track_group_idx_state.Fork();
   dest->register_additional_proto_modules =
       source->register_additional_proto_modules;
+  dest->perf_aux_tokenizer_registrations =
+      source->perf_aux_tokenizer_registrations;
 
   // Per-Trace State (Miscategorized).
   dest->registered_file_tracker = source->registered_file_tracker.Fork();

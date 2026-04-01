@@ -148,16 +148,9 @@ export interface Track {
   // string or a render function that returns Mithril vnodes.
   readonly description?: string | (() => m.Children);
 
-  // Optional: Human readable subtitle. Sometimes displayed if there is room.
-  readonly subtitle?: string;
-
   // Optional: A list of tags which provide additional metadata about the track.
   // Used mainly for legacy purposes that predate dataset.
   readonly tags?: TrackTags;
-
-  // Optional: A list of strings which are displayed as "chips" in the track
-  // shell.
-  readonly chips?: ReadonlyArray<string>;
 
   // Filled in by the core.
   readonly pluginId?: string;

@@ -186,20 +186,20 @@ TEST(TraceProcessorShellIntegrationTest, ClassicUnknownFlag) {
 }
 
 TEST(TraceProcessorShellIntegrationTest, ClassicQueryString) {
+  // Use computed value: 200 + 61 = 261, "261" not in input SQL.
   auto trace = WriteSimpleSystrace();
-  auto result = RunShell({"-Q", "SELECT 1 AS x", trace.path()});
+  auto result = RunShell({"-Q", "SELECT 200 + 61 AS test_col", trace.path()});
   EXPECT_EQ(result.exit_code, 0);
-  EXPECT_THAT(result.out, HasSubstr("x"));
-  EXPECT_THAT(result.out, HasSubstr("1"));
+  EXPECT_THAT(result.out, HasSubstr("261"));
 }
 
 TEST(TraceProcessorShellIntegrationTest, ClassicQueryFile) {
+  // Use computed value: 400 + 76 = 476, "476" not in input SQL.
   auto trace = WriteSimpleSystrace();
-  auto query = WriteTempFile("SELECT 42 AS val;");
+  auto query = WriteTempFile("SELECT 400 + 76 AS unique_val;");
   auto result = RunShell({"-q", query.path(), trace.path()});
   EXPECT_EQ(result.exit_code, 0);
-  EXPECT_THAT(result.out, HasSubstr("val"));
-  EXPECT_THAT(result.out, HasSubstr("42"));
+  EXPECT_THAT(result.out, HasSubstr("476"));
 }
 
 TEST(TraceProcessorShellIntegrationTest, ClassicQueryStringNoTrace) {
@@ -273,6 +273,150 @@ TEST(TraceProcessorShellIntegrationTest, ClassicSummaryAndMetricsConflict) {
 }
 
 // ---------------------------------------------------------------------------
+// Classic-to-subcommand translation tests
+// These verify that classic flags are correctly translated to subcommand
+// invocations by the translation layer.
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, ClassicBareTraceIsInteractive) {
+  // Bare trace file with no flags -> interactive. Prove it entered the shell
+  // by piping a computed query whose result (123) differs from the input SQL.
+  auto trace = WriteSimpleSystrace();
+  base::Subprocess p;
+  p.args.exec_cmd = {ShellPath(), trace.path()};
+  p.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  p.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  p.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  p.args.input = "SELECT 100 + 23 AS computed;\n";
+  p.Start();
+  ASSERT_TRUE(p.Wait(kDefaultTestTimeoutMs));
+  EXPECT_EQ(p.returncode(), 0);
+  // "123" only appears in the computed result, not in the input "100 + 23".
+  EXPECT_THAT(p.output(), HasSubstr("123"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicQueryFileInteractive) {
+  // -q file -i -> query -f file -i (interactive after query).
+  // The query creates a table; the interactive shell queries it with a computed
+  // expression whose result (579) differs from the input.
+  auto trace = WriteSimpleSystrace();
+  auto sql =
+      WriteTempFile("CREATE PERFETTO TABLE __test AS SELECT 500 AS val;");
+
+  base::Subprocess p;
+  p.args.exec_cmd = {ShellPath(), "-q", sql.path(), "-i", trace.path()};
+  p.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  p.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  p.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  p.args.input = "SELECT val + 79 AS result FROM __test;\n";
+  p.Start();
+  ASSERT_TRUE(p.Wait(kDefaultTestTimeoutMs));
+  EXPECT_EQ(p.returncode(), 0);
+  // "579" only appears in the computed result, not in the SQL or table data.
+  EXPECT_THAT(p.output(), HasSubstr("579"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicQueryStringWide) {
+  // -Q "SQL" -W -> query -W trace "SQL". Use a computed value (357) that
+  // doesn't appear in the input SQL (300 + 57).
+  auto trace = WriteSimpleSystrace();
+  auto result =
+      RunShell({"-W", "-Q", "SELECT 300 + 57 AS wide_col", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("357"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicStdiod) {
+  // --stdiod -> server stdio
+  TraceProcessorRpcStream req;
+  auto* rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_QUERY_STREAMING);
+  rpc->mutable_query_args()->set_sql_query("SELECT 1 AS x");
+
+  base::Subprocess process({ShellPath(), "--stdiod"});
+  process.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  process.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.input = req.SerializeAsString();
+  process.Start();
+  ASSERT_TRUE(process.Wait(kDefaultTestTimeoutMs));
+
+  TraceProcessorRpcStream stream;
+  stream.ParseFromString(process.output());
+  ASSERT_THAT(stream.msg(), SizeIs(1));
+  ASSERT_EQ(stream.msg()[0].response(), TraceProcessorRpc::TPM_QUERY_STREAMING);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicStdiodWithTrace) {
+  // --stdiod trace -> server stdio trace
+  // Verify the translation works: process starts and exits cleanly.
+  auto trace = WriteSimpleSystrace();
+  base::Subprocess process({ShellPath(), "--stdiod", trace.path()});
+  process.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  process.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.input = "";  // Empty stdin -> server exits.
+  process.Start();
+  ASSERT_TRUE(process.Wait(kDefaultTestTimeoutMs));
+  EXPECT_EQ(process.returncode(), 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicRunMetrics) {
+  // --run-metrics -> metrics --run. The metric output is a textproto
+  // containing the metric name as a field.
+  auto trace = WriteSimpleSystrace();
+  auto result = RunShell({"--run-metrics", "android_cpu", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  // The output is a textproto with "android_cpu {" as a top-level field.
+  EXPECT_THAT(result.out, HasSubstr("android_cpu {"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicExportQueryDisallowed) {
+  // -e + -q should be disallowed with a clear error message.
+  auto trace = WriteSimpleSystrace();
+  auto query = WriteTempFile("SELECT 1;");
+  auto out_db = base::TempFile::Create();
+  auto result =
+      RunShell({"-e", out_db.path(), "-q", query.path(), trace.path()});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("Cannot combine"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicPerfFile) {
+  // --perf-file FILE -Q "SQL" -> query --perf-file FILE trace "SQL"
+  auto trace = WriteSimpleSystrace();
+  auto perf = base::TempFile::Create();
+  auto result = RunShell(
+      {"--perf-file", perf.path(), "-Q", "SELECT 200 + 61", trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  // Verify perf file was written with timing data.
+  std::string perf_content;
+  ASSERT_TRUE(base::ReadFile(perf.path(), &perf_content));
+  EXPECT_THAT(perf_content, Not(IsEmpty()));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicSummaryWithQuery) {
+  // --summary -q file -> summarize --post-query file
+  // Use computed value: 700 + 31 = 731, "731" not in input SQL.
+  auto trace = WriteSimpleSystrace();
+  auto query = WriteTempFile("SELECT 700 + 31 AS post_query_col;");
+  auto result = RunShell({"--summary", "-q", query.path(), trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("731"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicMetricsWithQuery) {
+  // --run-metrics x -q file -> metrics --run x --post-query file
+  // Use computed value: 800 + 19 = 819, "819" not in input SQL.
+  auto trace = WriteSimpleSystrace();
+  auto query = WriteTempFile("SELECT 800 + 19 AS post_query_col;");
+  auto result = RunShell(
+      {"--run-metrics", "android_cpu", "-q", query.path(), trace.path()});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("819"));
+}
+
+// ---------------------------------------------------------------------------
 // Query subcommand tests
 // ---------------------------------------------------------------------------
 
@@ -341,6 +485,28 @@ TEST(TraceProcessorShellIntegrationTest, QueryNoTraceError) {
 TEST(TraceProcessorShellIntegrationTest, QueryBadTraceFile) {
   auto result = RunShell({"query", "/nonexistent_trace.pb", "SELECT 1"});
   EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, QuerySubcommandInteractive) {
+  // -i runs the query then drops into the interactive shell. We prove the
+  // shell actually started by having the query CREATE a table (via positional
+  // SQL so stdin is NOT consumed), then piping a SELECT on that table via
+  // stdin to the REPL.
+  auto trace = WriteSimpleSystrace();
+
+  base::Subprocess p;
+  p.args.exec_cmd = {ShellPath(), "query", "-i", trace.path(),
+                     "CREATE PERFETTO TABLE __test AS SELECT 500 AS val;"};
+  p.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  p.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  p.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  // Compute 500 + 179 = 679 in the interactive shell. "679" doesn't appear
+  // in any input text, proving the shell ran and computed the result.
+  p.args.input = "SELECT val + 179 AS result FROM __test;\n";
+  p.Start();
+  ASSERT_TRUE(p.Wait(kDefaultTestTimeoutMs));
+  EXPECT_EQ(p.returncode(), 0);
+  EXPECT_THAT(p.output(), HasSubstr("679"));
 }
 
 // ---------------------------------------------------------------------------
@@ -456,6 +622,163 @@ TEST(TraceProcessorShellIntegrationTest, MetricsSubcommandNoRunFails) {
   auto trace = WriteSimpleSystrace();
   auto result = RunShell({"metrics", trace.path()});
   EXPECT_NE(result.exit_code, 0);
+}
+
+TEST(TraceProcessorShellIntegrationTest, NoArgsShowsSubcommandHelp) {
+  // Running with no arguments should show the subcommand help (not classic).
+  auto result = RunShell({});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("Commands:"));
+  EXPECT_THAT(result.out, HasSubstr("query"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, BadTraceFileShowsOnlyError) {
+  // When a trace file doesn't exist, only the error should be shown,
+  // not the full usage text.
+  auto result = RunShell({"interactive", "/nonexistent_trace.pb"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, Not(HasSubstr("Usage:")));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ClassicBadTraceFileShowsOnlyError) {
+  // Classic path: bare nonexistent file should show only an error, not usage.
+  auto result = RunShell({"/nonexistent_trace.pb"});
+  EXPECT_NE(result.exit_code, 0);
+  EXPECT_THAT(result.out, Not(HasSubstr("Usage:")));
+}
+
+// ---------------------------------------------------------------------------
+// Classic: --metric-extension with --stdiod
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, ClassicMetricExtensionWithStdiod) {
+  // Regression test: --metric-extension was silently dropped when combined
+  // with --stdiod (or --httpd) after the classic-to-subcommand migration.
+  // The extension SQL should be registered and queryable via RPC.
+
+  // Create a metric extension directory with sql/ and protos/ subdirs.
+  auto ext_dir = base::TempDir::Create();
+  std::string sql_dir = ext_dir.path() + "/sql/";
+  std::string protos_dir = ext_dir.path() + "/protos/";
+  ASSERT_TRUE(base::Mkdir(sql_dir));
+  ASSERT_TRUE(base::Mkdir(protos_dir));
+
+  // Write a metric SQL file that creates a perfetto table. We verify the
+  // extension loaded by querying that table via RPC.
+  std::string sql_path = sql_dir + "test_ext_metric.sql";
+  {
+    std::string sql_content =
+        "CREATE PERFETTO TABLE _test_ext_marker AS SELECT 42 AS val;";
+    auto fd = base::OpenFile(sql_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    ASSERT_TRUE(fd);
+    base::WriteAll(*fd, sql_content.data(), sql_content.size());
+  }
+
+  // Ensure cleanup of files/dirs so TempDir destructor succeeds.
+  auto cleanup = base::OnScopeExit([&] {
+    unlink(sql_path.c_str());
+    base::Rmdir(sql_dir);
+    base::Rmdir(protos_dir);
+  });
+
+  // Build RPC: first run the metric extension SQL, then query the table it
+  // creates.
+  TraceProcessorRpcStream req;
+  auto* rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_QUERY_STREAMING);
+  rpc->mutable_query_args()->set_sql_query(
+      "SELECT RUN_METRIC('test_ext/test_ext_metric.sql')");
+
+  rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_QUERY_STREAMING);
+  rpc->mutable_query_args()->set_sql_query("SELECT val FROM _test_ext_marker");
+
+  std::string ext_arg = ext_dir.path() + "@test_ext/";
+
+  base::Subprocess process(
+      {ShellPath(), "--stdiod", "--metric-extension", ext_arg});
+  process.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  process.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.input = req.SerializeAsString();
+  process.Start();
+  ASSERT_TRUE(process.Wait(kDefaultTestTimeoutMs));
+  EXPECT_EQ(process.returncode(), 0);
+
+  TraceProcessorRpcStream stream;
+  stream.ParseFromString(process.output());
+  ASSERT_THAT(stream.msg(), SizeIs(2));
+
+  // First response: RUN_METRIC should succeed.
+  ASSERT_EQ(stream.msg()[0].response(), TraceProcessorRpc::TPM_QUERY_STREAMING);
+
+  // Second response: the table created by the metric extension should exist
+  // and contain val=42.
+  ASSERT_EQ(stream.msg()[1].response(), TraceProcessorRpc::TPM_QUERY_STREAMING);
+  ASSERT_THAT(stream.msg()[1].query_result().batch(), SizeIs(1));
+  EXPECT_THAT(stream.msg()[1].query_result().batch()[0].varint_cells(),
+              ElementsAre(42));
+}
+
+// ---------------------------------------------------------------------------
+// Classic: --add-sql-package with --stdiod
+// ---------------------------------------------------------------------------
+
+TEST(TraceProcessorShellIntegrationTest, ClassicAddSqlPackageWithStdiod) {
+  // Verify --add-sql-package works with --stdiod (server subcommand).
+  // The package SQL should be includable via INCLUDE PERFETTO MODULE.
+
+  // Create a package directory with a SQL file.
+  auto pkg_dir = base::TempDir::Create();
+  std::string sql_path = pkg_dir.path() + "/hello.sql";
+  {
+    std::string sql_content =
+        "CREATE PERFETTO TABLE _test_pkg_marker AS SELECT 99 AS val;";
+    auto fd = base::OpenFile(sql_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    ASSERT_TRUE(fd);
+    base::WriteAll(*fd, sql_content.data(), sql_content.size());
+  }
+
+  auto cleanup = base::OnScopeExit([&] { unlink(sql_path.c_str()); });
+
+  // Extract package name from dir basename. The dir path ends with a random
+  // name like /tmp/perfetto-XXXXXX, so the package name is that basename.
+  // Override with @testpkg for a stable name.
+  std::string pkg_arg = pkg_dir.path() + "@testpkg";
+
+  TraceProcessorRpcStream req;
+  // Include the module, then query the table it creates.
+  auto* rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_QUERY_STREAMING);
+  rpc->mutable_query_args()->set_sql_query(
+      "INCLUDE PERFETTO MODULE testpkg.hello");
+
+  rpc = req.add_msg();
+  rpc->set_request(TraceProcessorRpc::TPM_QUERY_STREAMING);
+  rpc->mutable_query_args()->set_sql_query("SELECT val FROM _test_pkg_marker");
+
+  base::Subprocess process(
+      {ShellPath(), "--stdiod", "--add-sql-package", pkg_arg});
+  process.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  process.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  process.args.input = req.SerializeAsString();
+  process.Start();
+  ASSERT_TRUE(process.Wait(kDefaultTestTimeoutMs));
+  EXPECT_EQ(process.returncode(), 0);
+
+  TraceProcessorRpcStream stream;
+  stream.ParseFromString(process.output());
+  ASSERT_THAT(stream.msg(), SizeIs(2));
+
+  // First response: INCLUDE should succeed.
+  ASSERT_EQ(stream.msg()[0].response(), TraceProcessorRpc::TPM_QUERY_STREAMING);
+
+  // Second response: the table should exist with val=99.
+  ASSERT_EQ(stream.msg()[1].response(), TraceProcessorRpc::TPM_QUERY_STREAMING);
+  ASSERT_THAT(stream.msg()[1].query_result().batch(), SizeIs(1));
+  EXPECT_THAT(stream.msg()[1].query_result().batch()[0].varint_cells(),
+              ElementsAre(99));
 }
 
 // ---------------------------------------------------------------------------

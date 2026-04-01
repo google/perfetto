@@ -88,7 +88,53 @@ import {
 } from './nodes/visualisation_node';
 import {DashboardNode, DashboardSerializedState} from './nodes/dashboard_node';
 import {Icons} from '../../../base/semantic_icons';
-import {NodeType} from '../query_node';
+import {NodeType, QueryNode} from '../query_node';
+import {GroupNode, GroupSerializedState} from './nodes/group_node';
+
+// After JoinNode.onPrevNodesUpdated() defaults all columns to unchecked on
+// first initialization, check the columns that the downstream ModifyColumns
+// node needs. For JSON import this is a no-op because columns are restored
+// from serialized state (already have checked values).
+function applyJoinColumnDefaults(joinNode: JoinNode): void {
+  const leftCols = joinNode.state.leftColumns ?? [];
+  const rightCols = joinNode.state.rightColumns ?? [];
+
+  // If any columns are already checked, the serialized state was restored
+  // correctly (JSON import path) — nothing to do.
+  if (leftCols.some((c) => c.checked) || rightCols.some((c) => c.checked)) {
+    return;
+  }
+
+  // No columns checked — first initialization (e.g. pbtxt import).
+  // Check only columns needed by the downstream ModifyColumns node.
+  const mc = joinNode.nextNodes.find((n) => n.type === NodeType.kModifyColumns);
+  if (mc !== undefined) {
+    const mcState = mc.state as {
+      selectedColumns?: Array<{name: string; checked: boolean}>;
+    };
+    const needed = new Set(
+      mcState.selectedColumns?.filter((c) => c.checked).map((c) => c.name) ??
+        [],
+    );
+    const checked = new Set<string>();
+    for (const col of leftCols) {
+      if (needed.has(col.name) && !checked.has(col.name)) {
+        col.checked = true;
+        checked.add(col.name);
+      }
+    }
+    for (const col of rightCols) {
+      if (needed.has(col.name) && !checked.has(col.name)) {
+        col.checked = true;
+        checked.add(col.name);
+      }
+    }
+  } else {
+    // No downstream ModifyColumns — check all columns.
+    for (const col of leftCols) col.checked = true;
+    for (const col of rightCols) col.checked = true;
+  }
+}
 
 export function registerCoreNodes() {
   nodeRegistry.register('slice', {
@@ -269,7 +315,7 @@ export function registerCoreNodes() {
           state as ModifyColumnsSerializedState,
         ),
       ),
-    postDeserialize: (node) => (node as ModifyColumnsNode).resolveColumns(),
+    postDeserializeLate: (node) => (node as ModifyColumnsNode).resolveColumns(),
   });
 
   nodeRegistry.register('aggregation', {
@@ -286,7 +332,7 @@ export function registerCoreNodes() {
         ),
         sqlModules,
       }),
-    postDeserialize: (node) => (node as AggregationNode).resolveColumns(),
+    postDeserializeLate: (node) => (node as AggregationNode).resolveColumns(),
   });
 
   nodeRegistry.register('filter_node', {
@@ -452,7 +498,13 @@ export function registerCoreNodes() {
         joinNode.secondaryInputs.connections.set(1, conns.rightNode);
       }
     },
-    postDeserializeLate: (node) => (node as JoinNode).onPrevNodesUpdated(),
+    postDeserializeLate: (node) => {
+      const joinNode = node as JoinNode;
+      joinNode.onPrevNodesUpdated();
+      // After updateColumnArrays defaults all to unchecked on first init,
+      // check the columns that the downstream ModifyColumns needs.
+      applyJoinColumnDefaults(joinNode);
+    },
   });
 
   nodeRegistry.register('create_slices', {
@@ -659,6 +711,97 @@ export function registerCoreNodes() {
     },
   });
 
+  // Groups use type 'source' because they are root-level nodes in the outer
+  // graph (not docked children). They don't appear on the landing page and
+  // are only created programmatically via the "Group" action.
+  nodeRegistry.register('group', {
+    name: 'Group',
+    description: 'A group of nodes collapsed into a single unit.',
+    icon: 'group_work',
+    type: 'source',
+    showOnLandingPage: false,
+    nodeType: NodeType.kGroup,
+    factory: () => new GroupNode([], undefined, []),
+    deserialize: (state) => {
+      const s = state as GroupSerializedState;
+      // Create a placeholder GroupNode; inner nodes are restored in
+      // deserializeConnections once all nodes are available.
+      return new GroupNode([], undefined, [], {}, s.name ?? 'Group');
+    },
+    deserializeConnections: (node, state, allNodes) => {
+      if (!(node instanceof GroupNode)) return;
+      const s = state as GroupSerializedState;
+
+      // Inner nodes are identified by the innerNodeIds list stored in the
+      // group's own serialized state.
+      const innerNodeIds = Array.isArray(s.innerNodeIds) ? s.innerNodeIds : [];
+      const innerNodes: QueryNode[] = [];
+      for (const id of innerNodeIds) {
+        const n = allNodes.get(id);
+        if (n !== undefined) {
+          innerNodes.push(n);
+        }
+      }
+      node.innerNodes = innerNodes;
+
+      // End node is the inner node with no successors inside the group.
+      const innerSet = new Set(innerNodes.map((n) => n.nodeId));
+      const endNode = innerNodes.find((n) =>
+        n.nextNodes.every((next) => !innerSet.has(next.nodeId)),
+      );
+      if (endNode !== undefined) {
+        node.endNode = endNode;
+      }
+
+      // External connections are restored in postDeserialize, after all
+      // inner nodes have had their primaryInput/secondaryInputs set.
+    },
+    postDeserialize: (node) => {
+      if (!(node instanceof GroupNode)) return;
+      const innerNodes = node.innerNodes;
+      const innerSet = new Set(innerNodes.map((n) => n.nodeId));
+
+      // Restore external connections and secondary inputs: external
+      // sources are nodes outside the group that feed into inner nodes.
+      node.secondaryInputs.connections.clear();
+      node.externalConnections = [];
+      let port = 0;
+      for (const inner of innerNodes) {
+        if (inner.primaryInput && !innerSet.has(inner.primaryInput.nodeId)) {
+          node.secondaryInputs.connections.set(port, inner.primaryInput);
+          node.externalConnections.push({
+            sourceNode: inner.primaryInput,
+            innerTargetNode: inner,
+            innerTargetPort: undefined,
+            groupPort: port,
+          });
+          port++;
+        }
+        if (inner.secondaryInputs) {
+          for (const [innerPort, src] of inner.secondaryInputs.connections) {
+            if (src !== undefined && !innerSet.has(src.nodeId)) {
+              node.secondaryInputs.connections.set(port, src);
+              node.externalConnections.push({
+                sourceNode: src,
+                innerTargetNode: inner,
+                innerTargetPort: innerPort,
+                groupPort: port,
+              });
+              port++;
+            }
+          }
+        }
+      }
+
+      // Rebuild secondaryInputs with the correct max so no extra empty
+      // ports are shown (group nodes don't accept new connections).
+      node.secondaryInputs = {
+        ...node.secondaryInputs,
+        max: port,
+      };
+    },
+  });
+
   // Set the default allowed children for all nodes.
   // This is the full set of modification + multisource nodes, matching the
   // current behavior. Individual node registrations can override this by
@@ -683,6 +826,7 @@ export function registerCoreNodes() {
     'create_slices',
     'union_node',
     'dashboard',
+    'group',
   ]);
 
   // Validate that all allowedChildren references point to registered nodes.

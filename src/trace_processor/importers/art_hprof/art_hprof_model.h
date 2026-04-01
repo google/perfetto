@@ -103,16 +103,10 @@ class Field {
         value_);
   }
 
-  void SetDecodedString(std::string str) { decoded_string_ = std::move(str); }
-  std::optional<std::string> GetDecodedString() const {
-    return decoded_string_;
-  }
-
  private:
   std::string name_;
   FieldType type_;
   ValueType value_ = std::monostate{};
-  std::optional<std::string> decoded_string_;
 };
 
 struct Reference {
@@ -205,6 +199,16 @@ class Object {
   void SetRawData(std::vector<uint8_t> data) { raw_data_ = std::move(data); }
 
   const std::vector<uint8_t>& GetRawData() const { return raw_data_; }
+  void ClearRawData() { raw_data_ = {}; }
+
+  void ClearParsedData() {
+    fields_ = {};
+    references_ = {};
+    pending_references_ = {};
+    array_elements_ = {};
+    array_data_ = std::monostate{};
+    decoded_string_.reset();
+  }
 
   void AddReference(std::string_view field_name,
                     std::optional<uint64_t> field_class_id,
@@ -254,6 +258,11 @@ class Object {
 
   void AddNativeSize(int64_t size) { native_size_ += size; }
 
+  void SetDecodedString(std::string str) { decoded_string_ = std::move(str); }
+  const std::optional<std::string>& GetDecodedString() const {
+    return decoded_string_;
+  }
+
   void SetSelfSizeOverride(size_t size) { self_size_override_ = size; }
   std::optional<size_t> GetSelfSizeOverride() const {
     return self_size_override_;
@@ -276,6 +285,8 @@ class Object {
     }
     return {};
   }
+
+  const ArrayData& GetArrayDataVariant() const { return array_data_; }
 
   size_t GetArrayElementCount() const {
     return std::visit(
@@ -308,6 +319,7 @@ class Object {
 
   int64_t native_size_ = 0;
   std::optional<size_t> self_size_override_;
+  std::optional<std::string> decoded_string_;
 
   // Field values
   std::vector<Field> fields_;

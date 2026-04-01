@@ -13,8 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Button} from '../../widgets/button';
+import {Icons} from '../../base/semantic_icons';
 import {ColorScheme} from '../../base/color_scheme';
-import {Point2D, Size2D, Transform2D, VerticalBounds} from '../../base/geom';
+import {Point2D, Size2D, Transform1D, VerticalBounds} from '../../base/geom';
 import {assertExists} from '../../base/assert';
 import {Monitor} from '../../base/monitor';
 import {
@@ -56,7 +58,12 @@ import {formatDuration} from '../time_utils';
 import {BufferedBounds} from './buffered_bounds';
 import {CHUNKED_TASK_BACKGROUND_PRIORITY} from './feature_flags';
 import {SliceTrackDetailsPanel} from './slice_track_details_panel';
-import {RECT_PATTERN_FADE_RIGHT} from '../../base/renderer';
+import {
+  RECT_PATTERN_FADE_RIGHT,
+  RowLayout,
+  rowHeightFromLayout,
+  rowTopFromLayout,
+} from '../../base/renderer';
 import {cropText} from '../../base/string_utils';
 
 const SLICE_MIN_WIDTH_FOR_TEXT_PX = 5;
@@ -81,7 +88,7 @@ interface Slice<T> {
 interface SliceBuffers<T> {
   readonly starts: Float32Array;
   readonly ends: Float32Array;
-  readonly ys: Float32Array;
+  readonly depths: Uint16Array;
   readonly patterns: Uint8Array;
   readonly slices: readonly Slice<T>[];
   readonly count: number;
@@ -98,7 +105,7 @@ interface Instant<T> {
 
 interface InstantBuffers<T> {
   readonly xs: Float32Array;
-  readonly ys: Float32Array;
+  readonly depths: Uint16Array;
   readonly instants: readonly Instant<T>[];
   readonly count: number;
 }
@@ -111,6 +118,9 @@ interface DataFrame<T> {
 }
 
 type SliceOrInstant<T> = Slice<T> | Instant<T>;
+
+// Height of collapsed (non-top) rows in pixels.
+const COLLAPSED_ROW_HEIGHT = 3;
 
 export interface SliceLayout {
   // Vertical spacing between slices and track.
@@ -127,6 +137,11 @@ export interface SliceLayout {
 
   // Subtitle font size.
   readonly subtitleSizePx: number;
+
+  // When true, depth 0 uses sliceHeight but all deeper rows use a compact
+  // height (COLLAPSED_ROW_HEIGHT), giving a summary view that still shows
+  // nesting activity.
+  readonly collapsed: boolean;
 }
 
 // Callback argument types - use SliceBase to support both complete and incomplete slices
@@ -302,7 +317,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   readonly rootTableName?: string;
   private readonly trace: Trace;
   private readonly uri: string;
-  private readonly sliceLayout: SliceLayout;
+  private sliceLayout: SliceLayout;
   private readonly attrs: SliceTrackAttrs<T>;
   private readonly instantWidthPx: number;
   private readonly queue = new SerialTaskQueue();
@@ -374,6 +389,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       sliceHeight: sliceLayout.sliceHeight ?? 18,
       titleSizePx: sliceLayout.titleSizePx ?? 12,
       subtitleSizePx: sliceLayout.subtitleSizePx ?? 10,
+      collapsed: sliceLayout.collapsed ?? false,
     };
   }
 
@@ -389,7 +405,6 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     // If we have no data, we can't render anything
     if (!dataFrame) return;
 
-    const sliceHeight = this.sliceLayout.sliceHeight;
     const pxEnd = size.width;
     const pxPerNs = timescale.durationToPx(1n);
     const baseOffsetPx = timescale.timeToPx(dataFrame.start);
@@ -400,18 +415,15 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         ? selection.eventId
         : undefined;
 
-    const dataTransform: Transform2D = {
-      scaleX: pxPerNs,
-      offsetX: baseOffsetPx,
-      scaleY: this.sliceLayout.sliceHeight + this.sliceLayout.rowGap,
-      offsetY: this.sliceLayout.padding,
+    const xTransform: Transform1D = {
+      scale: pxPerNs,
+      offset: baseOffsetPx,
     };
 
     this.renderSlices(
       trackCtx,
       dataFrame.slices,
-      dataTransform,
-      sliceHeight,
+      xTransform,
       pxEnd,
       pxPerNs,
       baseOffsetPx,
@@ -423,8 +435,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     this.renderInstants(
       trackCtx,
       dataFrame.instants,
-      dataTransform,
-      sliceHeight,
+      xTransform,
       pxPerNs,
       baseOffsetPx,
       selectedId,
@@ -446,8 +457,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   private renderSlices(
     trackCtx: TrackRenderContext,
     sliceBuffers: SliceBuffers<T>,
-    dataTransform: Transform2D,
-    sliceHeight: number,
+    xTransform: Transform1D,
     pxEnd: number,
     pxPerNs: number,
     baseOffsetPx: number,
@@ -455,7 +465,12 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     selectedId: number | undefined,
   ): void {
     const {ctx, renderer} = trackCtx;
-    const {starts, ends, ys, patterns, slices, count} = sliceBuffers;
+    const {starts, ends, depths, patterns, slices, count} = sliceBuffers;
+
+    const rowLayout = this.buildRowLayout();
+
+    // Helper: get Y position for a slice at index j
+    const sliceTop = (j: number) => rowTopFromLayout(rowLayout, depths[j]);
 
     // Collect text labels to render in a second pass
     const textLabels: Array<{
@@ -494,6 +509,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       const w = ends[j] - starts[j];
       const wPx = w * pxPerNs;
 
+      // Skip text on collapsed rows (too small to read)
+      if (this.sliceLayout.collapsed && depths[j] > 0) continue;
+
       // Skip slices that are too narrow to show text
       if (wPx < SLICE_MIN_WIDTH_FOR_TEXT_PX) continue;
 
@@ -504,7 +522,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       if (xPx + wPx <= 0 || xPx >= pxEnd) continue;
 
       // Collect text label if wide enough (using screen-space width)
-      const y = ys[j] * dataTransform.scaleY + dataTransform.offsetY;
+      const y = sliceTop(j);
       const title = slice.title;
       const subTitle = slice.subtitle;
       if (title || subTitle) {
@@ -520,7 +538,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         const clampedRight = Math.min(xPx + wPx, pxEnd);
         const clampedW = clampedRight - clampedLeft;
         const rectXCenter = clampedLeft + clampedW / 2;
-        const yCenter = sliceHeight / 2;
+        const yCenter = rowHeightFromLayout(rowLayout, depths[j]) / 2;
         const titleOffset = subTitle ? -4 : 1; // Move title up if there's a subtitle
         const titleY = Math.floor(y + yCenter) + titleOffset;
         const subTitleY = Math.floor(y + yCenter) + 6;
@@ -536,17 +554,17 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       }
     }
 
-    renderer.drawRects(
+    renderer.drawSlices(
       {
         starts,
         ends,
-        ys,
-        h: sliceHeight,
+        depths,
         colors,
         count,
         patterns,
       },
-      dataTransform,
+      rowLayout,
+      xTransform,
     );
 
     // Draw fill ratio light overlay on the unfilled portion of each slice
@@ -561,12 +579,12 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       const lightSectionDrawWidth = width * (1 - fillRatio);
       if (lightSectionDrawWidth < 1) continue;
       if (left + width <= 0 || left >= pxEnd) continue;
-      const y = ys[j] * dataTransform.scaleY + dataTransform.offsetY;
+      const y = sliceTop(j);
       ctx.fillRect(
         left + (width - lightSectionDrawWidth),
         y,
         lightSectionDrawWidth,
-        sliceHeight,
+        rowHeightFromLayout(rowLayout, depths[j]),
       );
     }
 
@@ -597,8 +615,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       const selRightRaw = ends[selectedIdx] * pxPerNs + baseOffsetPx;
       const selRight = Math.min(selRightRaw, pxEnd + SEL_OFFSCREEN_MAX_PX);
       const selW = selRight - selLeft;
-      const selY =
-        ys[selectedIdx] * dataTransform.scaleY + dataTransform.offsetY;
+      const selY = sliceTop(selectedIdx);
       const THICKNESS = 3;
       ctx.strokeStyle = trackCtx.colors.COLOR_TIMELINE_OVERLAY;
       ctx.lineWidth = THICKNESS;
@@ -606,7 +623,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         selLeft,
         selY - THICKNESS / 2,
         selW,
-        sliceHeight + THICKNESS,
+        rowHeightFromLayout(rowLayout, depths[selectedIdx]) + THICKNESS,
       );
     }
   }
@@ -614,14 +631,13 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   private renderInstants(
     trackCtx: TrackRenderContext,
     instantBuffers: InstantBuffers<T>,
-    dataTransform: Transform2D,
-    sliceHeight: number,
+    xTransform: Transform1D,
     pxPerNs: number,
     baseOffsetPx: number,
     selectedId: number | undefined,
   ): void {
     const {ctx, renderer} = trackCtx;
-    const {xs, ys, instants, count} = instantBuffers;
+    const {xs, depths: instantDepths, instants, count} = instantBuffers;
 
     // Recreate the colors array every time as this could have changed
     // TODO(stevegolton): Find a way to avoid having to do this every frame.
@@ -647,16 +663,18 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       }
     }
 
+    const rowLayout = this.buildRowLayout();
+
     renderer.drawMarkers(
       {
         xs,
-        ys,
-        w: this.instantWidthPx,
-        h: sliceHeight,
+        depths: instantDepths,
         colors,
         count,
       },
-      dataTransform,
+      rowLayout,
+      this.instantWidthPx,
+      xTransform,
       (ctx, x, y, _w, h) => this.drawChevron(ctx, x, y, h),
     );
 
@@ -664,8 +682,8 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     if (selectedIdx !== -1) {
       const selX =
         xs[selectedIdx] * pxPerNs + baseOffsetPx - this.instantWidthPx / 2;
-      const selY =
-        ys[selectedIdx] * dataTransform.scaleY + dataTransform.offsetY;
+      const selY = rowTopFromLayout(rowLayout, instantDepths[selectedIdx]);
+      const selH = rowHeightFromLayout(rowLayout, instantDepths[selectedIdx]);
       const THICKNESS = 3;
       ctx.strokeStyle = trackCtx.colors.COLOR_TIMELINE_OVERLAY;
       ctx.lineWidth = THICKNESS;
@@ -673,7 +691,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
         selX,
         selY - THICKNESS / 2,
         this.instantWidthPx,
-        sliceHeight + THICKNESS,
+        selH + THICKNESS,
       );
     }
   }
@@ -869,10 +887,10 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     if (signal.isCancelled) throw QUERY_CANCELLED;
     const task = await this.deferChunkedTask();
 
-    // Initialize buffersx
+    // Initialize buffers
     const count = queryResult.numRows();
     const xs = new Float32Array(count);
-    const ys = new Float32Array(count);
+    const depths = new Uint16Array(count);
     const instants = new Array<Instant<T>>(count);
 
     const it = queryResult.iter({
@@ -899,7 +917,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       const row = this.extractKeys(it, dataset.schema);
 
       xs[i] = ts;
-      ys[i] = depth;
+      depths[i] = depth;
       instants[i] = {
         id,
         title,
@@ -912,7 +930,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
     return {
       xs,
-      ys,
+      depths,
       instants,
       count,
     };
@@ -974,7 +992,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const count = sliceQueryRes.numRows();
     const starts = new Float32Array(count);
     const ends = new Float32Array(count);
-    const ys = new Float32Array(count);
+    const depths = new Uint16Array(count);
     const patterns = new Uint8Array(count);
     const slices = new Array<Slice<T>>(count);
 
@@ -1008,7 +1026,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       starts[i] = start;
       // Incomplete slices are assigned a +Infinity end
       ends[i] = end === null ? Number.POSITIVE_INFINITY : end;
-      ys[i] = depth;
+      depths[i] = depth;
       patterns[i] = isIncomplete
         ? RECT_PATTERN_FADE_RIGHT
         : this.attrs.slicePattern?.(it) ?? 0;
@@ -1026,7 +1044,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     return {
       starts,
       ends,
-      ys,
+      depths,
       patterns,
       slices,
       count,
@@ -1139,11 +1157,32 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     }
   }
 
+  // Build the row layout formula for the shader and CPU-side lookups.
+  // When collapsed, row 0 keeps full sliceHeight; deeper rows use
+  // COLLAPSED_ROW_HEIGHT. When expanded, all rows use sliceHeight.
+  private buildRowLayout(): RowLayout {
+    const {padding, rowGap, sliceHeight, collapsed} = this.sliceLayout;
+    const rowHeight = collapsed ? COLLAPSED_ROW_HEIGHT : sliceHeight;
+    return {
+      paddingTop: padding,
+      firstRowHeight: sliceHeight,
+      rowHeight,
+      rowGap,
+    };
+  }
+
   private updateSliceAndTrackHeight() {
-    // maxDataDepth is 0-indexed, so add 1 to get the number of rows
-    const {padding = 2, sliceHeight = 12, rowGap = 0} = this.sliceLayout;
-    this.computedTrackHeight =
-      2 * padding + this.rowCount * (sliceHeight + rowGap);
+    const layout = this.buildRowLayout();
+    const padding = layout.paddingTop ?? 0;
+    if (this.rowCount <= 0) {
+      this.computedTrackHeight = 2 * padding;
+      return;
+    }
+    // Row 0 height + remaining rows + gaps + padding on both sides
+    const lastRowBottom =
+      rowTopFromLayout(layout, this.rowCount - 1) +
+      rowHeightFromLayout(layout, this.rowCount - 1);
+    this.computedTrackHeight = lastRowBottom + padding;
   }
 
   getHeight(): number {
@@ -1152,14 +1191,10 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   }
 
   getSliceVerticalBounds(depth: number): VerticalBounds | undefined {
-    this.updateSliceAndTrackHeight();
-    const totalSliceHeight =
-      this.sliceLayout.rowGap + this.sliceLayout.sliceHeight;
-    const top = this.sliceLayout.padding + depth * totalSliceHeight;
-    return {
-      top,
-      bottom: top + this.sliceLayout.sliceHeight,
-    };
+    if (depth >= this.rowCount) return undefined;
+    const layout = this.buildRowLayout();
+    const top = rowTopFromLayout(layout, depth);
+    return {top, bottom: top + rowHeightFromLayout(layout, depth)};
   }
 
   private findSlice({
@@ -1170,23 +1205,32 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     if (!this.currentDataFrame) return undefined;
 
     const trackHeight = this.computedTrackHeight;
-    const sliceHeight = this.sliceLayout.sliceHeight;
-    const padding = this.sliceLayout.padding;
-    const rowGap = this.sliceLayout.rowGap;
 
-    if (sliceHeight === 0) {
-      return undefined;
+    // Find which depth row the Y coordinate falls into using the two-tier
+    // layout: row 0 has firstRowHeight, deeper rows have rowHeight/rowStride.
+    const layout = this.buildRowLayout();
+    let depth = -1;
+    for (let d = 0; d < this.rowCount; d++) {
+      const top = rowTopFromLayout(layout, d);
+      const h = rowHeightFromLayout(layout, d);
+      if (y >= top && y <= top + h) {
+        depth = d;
+        break;
+      }
     }
+    if (depth < 0) return undefined;
 
-    const depth = Math.floor((y - padding) / (sliceHeight + rowGap));
     const pxPerNs = timescale.durationToPx(1n);
     const baseOffsetPx = timescale.timeToPx(this.currentDataFrame.start);
 
-    if (y >= padding && y <= trackHeight - padding) {
+    if (
+      y >= this.sliceLayout.padding &&
+      y <= trackHeight - this.sliceLayout.padding
+    ) {
       // Check regular and incomplete slices
       const sliceBufs = this.currentDataFrame.slices;
       for (let i = 0; i < sliceBufs.count; i++) {
-        if (sliceBufs.ys[i] !== depth) continue;
+        if (sliceBufs.depths[i] !== depth) continue;
 
         const startPx = sliceBufs.starts[i] * pxPerNs + baseOffsetPx;
         const endPx = sliceBufs.ends[i] * pxPerNs + baseOffsetPx;
@@ -1199,7 +1243,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
       const instantBufs = this.currentDataFrame.instants;
       const halfWidth = this.instantWidthPx / 2;
       for (let i = 0; i < instantBufs.count; i++) {
-        if (instantBufs.ys[i] !== depth) continue;
+        if (instantBufs.depths[i] !== depth) continue;
 
         const instantX = instantBufs.xs[i] * pxPerNs + baseOffsetPx;
         if (x >= instantX - halfWidth && x <= instantX + halfWidth) {
@@ -1355,7 +1399,26 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   }
 
   getTrackShellButtons(): m.Children {
-    return this.attrs.shellButtons?.();
+    const collapseButton =
+      this.rowCount > 1
+        ? m(Button, {
+            className: 'pf-visible-on-hover',
+            onclick: () => {
+              this.sliceLayout = {
+                ...this.sliceLayout,
+                collapsed: !this.sliceLayout.collapsed,
+              };
+            },
+            icon: this.sliceLayout.collapsed
+              ? Icons.UnfoldMore
+              : Icons.UnfoldLess,
+            tooltip: this.sliceLayout.collapsed
+              ? 'Expand track'
+              : 'Collapse track',
+            compact: true,
+          })
+        : undefined;
+    return [collapseButton, this.attrs.shellButtons?.()];
   }
 }
 

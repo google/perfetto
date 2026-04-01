@@ -1686,6 +1686,9 @@ config("sqlite_config") {
     # we specify this flag.
     cflags += [ "-Wno-language-extension-token" ]
   }
+  if (is_gcc) {
+    cflags += [ "-Wno-stringop-overread" ]
+  }
 }
 
 source_set("sqlite") {
@@ -2151,11 +2154,6 @@ if (enable_perfetto_grpc) {
     ]
   }
 
-  config("grpc_re2_config") {
-    visibility = _buildtools_visibility
-    include_dirs = [ "grpc/src/third_party/re2" ]
-  }
-
   config("grpc_internal_config") {
     visibility = _buildtools_visibility
     include_dirs = [
@@ -2164,12 +2162,14 @@ if (enable_perfetto_grpc) {
       "grpc/src/src/core/ext/upb-gen",
       "grpc/src/src/core/ext/upbdefs-gen",
       "grpc/src/third_party/address_sorting/include",
-      "grpc/src/third_party/re2",
       "grpc/src/third_party/upb",
       "grpc/src/third_party/utf8_range",
       "grpc/src/third_party/xxhash",
     ]
-    cflags = [ "-DGRPC_ARES=0" ]
+    cflags = [
+      "-DGRPC_ARES=0",
+      "-DRE2_USE_ABSL",
+    ]
     if (is_gcc) {
       cflags += [
         "-Wno-attributes",
@@ -2187,7 +2187,7 @@ if (enable_perfetto_grpc) {
       perfetto_isystem_cflag,
       rebase_path("grpc/src/include", root_build_dir),
       perfetto_isystem_cflag,
-      rebase_path("grpc/src/third_party/abseil-cpp", root_build_dir),
+      rebase_path("abseil-cpp", root_build_dir),
     ]
 
     # This issues appear in .grpc.pb.h files so we unfortunately need to leak
@@ -2303,5 +2303,125 @@ if (enable_perfetto_etm_importer) {
     ]
     include_dirs = [ "open_csd/decoder/include" ]
     public_configs = [ ":open_csd_config" ]
+  }
+}
+
+if (enable_perfetto_re2) {
+  config("re2_config") {
+    visibility = _buildtools_visibility
+    include_dirs = [ "re2" ]
+    defines = [ "RE2_USE_ABSL" ]
+  }
+
+  static_library("re2") {
+    visibility = _buildtools_visibility
+    sources = [
+      "re2/re2/bitmap256.cc",
+      "re2/re2/bitmap256.h",
+      "re2/re2/bitstate.cc",
+      "re2/re2/compile.cc",
+      "re2/re2/dfa.cc",
+      "re2/re2/filtered_re2.cc",
+      "re2/re2/mimics_pcre.cc",
+      "re2/re2/nfa.cc",
+      "re2/re2/onepass.cc",
+      "re2/re2/parse.cc",
+      "re2/re2/perl_groups.cc",
+      "re2/re2/pod_array.h",
+      "re2/re2/prefilter.cc",
+      "re2/re2/prefilter.h",
+      "re2/re2/prefilter_tree.cc",
+      "re2/re2/prefilter_tree.h",
+      "re2/re2/prog.cc",
+      "re2/re2/prog.h",
+      "re2/re2/re2.cc",
+      "re2/re2/regexp.cc",
+      "re2/re2/regexp.h",
+      "re2/re2/set.cc",
+      "re2/re2/simplify.cc",
+      "re2/re2/sparse_array.h",
+      "re2/re2/sparse_set.h",
+      "re2/re2/tostring.cc",
+      "re2/re2/unicode_casefold.cc",
+      "re2/re2/unicode_casefold.h",
+      "re2/re2/unicode_groups.cc",
+      "re2/re2/unicode_groups.h",
+      "re2/re2/walker-inl.h",
+      "re2/util/rune.cc",
+      "re2/util/strutil.cc",
+      "re2/util/strutil.h",
+      "re2/util/utf.h",
+    ]
+    public_configs = [ ":re2_config" ]
+    public_deps = [ ":abseil_cpp" ]
+    configs -= [ "//gn/standalone:extra_warnings" ]
+  }
+}
+
+if (enable_perfetto_pcre2) {
+  # PCRE2 ships .generic/.dist templates instead of ready-to-use files
+  # (see github.com/PCRE2Project/pcre2/blob/master/NON-AUTOTOOLS-BUILD).
+  # Copy them to the expected names at build time.
+  copy("pcre2_generated") {
+    sources = [
+      "pcre2/src/config.h.generic",
+      "pcre2/src/pcre2.h.generic",
+      "pcre2/src/pcre2_chartables.c.dist",
+    ]
+    outputs = [ "$target_gen_dir/pcre2/{{source_name_part}}" ]
+  }
+
+  config("pcre2_config") {
+    visibility = _buildtools_visibility
+    include_dirs = [
+      "$target_gen_dir/pcre2",
+      "pcre2/src",
+    ]
+  }
+
+  static_library("pcre2") {
+    visibility = _buildtools_visibility
+    deps = [ ":pcre2_generated" ]
+    public_configs = [ ":pcre2_config" ]
+    configs -= [ "//gn/standalone:extra_warnings" ]
+    sources = [
+      "$target_gen_dir/pcre2/pcre2_chartables.c",
+      "pcre2/src/pcre2_auto_possess.c",
+      "pcre2/src/pcre2_chkdint.c",
+      "pcre2/src/pcre2_compile.c",
+      "pcre2/src/pcre2_config.c",
+      "pcre2/src/pcre2_context.c",
+      "pcre2/src/pcre2_convert.c",
+      "pcre2/src/pcre2_dfa_match.c",
+      "pcre2/src/pcre2_error.c",
+      "pcre2/src/pcre2_extuni.c",
+      "pcre2/src/pcre2_find_bracket.c",
+      "pcre2/src/pcre2_jit_compile.c",
+      "pcre2/src/pcre2_maketables.c",
+      "pcre2/src/pcre2_match.c",
+      "pcre2/src/pcre2_match_data.c",
+      "pcre2/src/pcre2_newline.c",
+      "pcre2/src/pcre2_ord2utf.c",
+      "pcre2/src/pcre2_pattern_info.c",
+      "pcre2/src/pcre2_script_run.c",
+      "pcre2/src/pcre2_serialize.c",
+      "pcre2/src/pcre2_string_utils.c",
+      "pcre2/src/pcre2_study.c",
+      "pcre2/src/pcre2_substitute.c",
+      "pcre2/src/pcre2_substring.c",
+      "pcre2/src/pcre2_tables.c",
+      "pcre2/src/pcre2_ucd.c",
+      "pcre2/src/pcre2_valid_utf.c",
+      "pcre2/src/pcre2_xclass.c",
+    ]
+    cflags = [
+      "-DHAVE_CONFIG_H",
+      "-DPCRE2_CODE_UNIT_WIDTH=8",
+      "-DSUPPORT_JIT",
+    ]
+    include_dirs = [
+      "$target_gen_dir/pcre2",
+      "pcre2/src",
+    ]
   }
 }

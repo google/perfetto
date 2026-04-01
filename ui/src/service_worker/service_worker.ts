@@ -105,6 +105,16 @@ function checkFirewall(req: Request): {allowed: boolean; reason?: string} {
     return {allowed: false, reason: `Method ${req.method} not allowed`};
   }
 
+  // Allow GitHub API content requests with only a ?ref= parameter.
+  // These are used by extension servers for authenticated (PAT) access
+  // to private repos.
+  if (url.hostname === 'api.github.com' &&
+      url.pathname.includes('/contents/') &&
+      url.searchParams.has('ref') &&
+      url.search.indexOf('&') === -1) {
+    return {allowed: true};
+  }
+
   if (url.search !== '') {
     return {allowed: false, reason: 'Query strings not allowed'};
   }
@@ -369,11 +379,23 @@ async function installAppVersionIntoCache(version: string) {
   }
 }
 
+class TimeoutError extends Error {
+  constructor(url: string) {
+    super(`Timed out while fetching ${url}`);
+  }
+}
+
+class NetworkError extends Error {
+  constructor(url: string, cause: unknown) {
+    super(`Network error while fetching ${url}: ${cause}`);
+  }
+}
+
 function fetchWithTimeout(req: Request|string, timeoutMs: number) {
   const url = (req as {url?: string}).url || `${req}`;
   return new Promise<Response>((resolve, reject) => {
     const timerId = setTimeout(() => {
-      reject(new Error(`Timed out while fetching ${url}`));
+      reject(new TimeoutError(url));
     }, timeoutMs);
     fetch(req).then((resp) => {
       clearTimeout(timerId);
@@ -383,6 +405,6 @@ function fetchWithTimeout(req: Request|string, timeoutMs: number) {
         reject(new Error(
             `Fetch failed for ${url}: ${resp.status} ${resp.statusText}`));
       }
-    }, reject);
+    }, (e) => { clearTimeout(timerId); reject(new NetworkError(url, e)); });
   });
 }

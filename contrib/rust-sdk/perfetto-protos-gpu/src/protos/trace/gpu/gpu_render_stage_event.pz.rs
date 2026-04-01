@@ -30,6 +30,8 @@ pb_enum!(InternedGraphicsContextApi {
     OPEN_GL: 1,
     VULKAN: 2,
     OPEN_CL: 3,
+    CUDA: 4,
+    HIP: 5,
 });
 
 pb_msg!(InternedGpuRenderStageSpecification {
@@ -59,6 +61,7 @@ pb_msg!(GpuRenderStageEvent {
     render_pass_instance_id: u64, primitive, 16,
     render_subpass_index_mask: u64, primitive, 15,
     command_buffer_handle: u64, primitive, 12,
+    name: String, primitive, 17,
     specifications: GpuRenderStageEventSpecifications, msg, 7,
     hw_queue_id: i32, primitive, 3,
     stage_id: i32, primitive, 4,

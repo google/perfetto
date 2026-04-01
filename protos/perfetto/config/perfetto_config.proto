@@ -527,6 +527,25 @@ enum SemanticType {
 
 // End of protos/perfetto/common/semantic_type.proto
 
+// Begin of protos/perfetto/config/android/android_aflags_config.proto
+
+// Options for the android.aflags data source.
+// This data source captures snapshots of Android aconfig flags.
+// See https://source.android.com/docs/setup/build/feature-flagging/declare-flag
+// for more information on aconfig flags.
+message AndroidAflagsConfig {
+  // Frequency of polling. If absent or 0, the state will be recorded once,
+  // at the start of the trace.
+  //
+  // It is recommended to either leave this absent or set it to a large
+  // value as each invocation of the `aflags` tool can be time consuming
+  // (approx. 350ms) and also triggers an expensive flush. This is required to
+  // be > 1000ms if set, to avoid excessive CPU usage.
+  optional uint32 poll_ms = 1;
+}
+
+// End of protos/perfetto/config/android/android_aflags_config.proto
+
 // Begin of protos/perfetto/config/android/android_game_intervention_list_config.proto
 
 // Data source that lists game modes and game interventions of games
@@ -915,13 +934,22 @@ message NetworkPacketTraceConfig {
 // Android device.
 message PackagesListConfig {
   // If not empty, emit info about only the following list of package names
-  // (exact match, no regex). Otherwise, emit info about all packages.
+  // (exact match, no regex). Can be combined with
+  // |package_name_regex_filter|: a package is included if it matches either
+  // filter. If both filters are empty, emit info about all packages.
   repeated string package_name_filter = 1;
+
+  // If not empty, emit info about only the packages whose names match any of
+  // the following regexes (full match, not partial). Can be combined with
+  // |package_name_filter|: a package is included if it matches either filter.
+  // If both filters are empty, emit info about all packages.
+  // This field was introduced in Android 26Q2 (Perfetto v55).
+  repeated string package_name_regex_filter = 3;
 
   // If present and non-zero, the data source will periodically poll for CPU
   // use by packages and only emit results for those that it sees. If absent,
   // the data source will emit results for all packages at startup. The package
-  // name filter applies either way.
+  // name filters apply either way.
   optional uint32 only_write_on_cpu_use_every_ms = 2;
 }
 
@@ -4254,7 +4282,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 140
+// Next id: 141
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4492,6 +4520,9 @@ message DataSourceConfig {
   // Data source name: android.inputmethod
   optional InputMethodConfig inputmethod_config = 139 [lazy = true];
 
+  // Data source name: android.aflags
+  optional AndroidAflagsConfig android_aflags_config = 140 [lazy = true];
+
   // Data source name: qnx.kernel
   optional QnxConfig qnx_config = 150 [lazy = true];
 
@@ -4664,6 +4695,9 @@ message TraceConfig {
 
     // Disables the reporting of per-trace-writer histograms in TraceStats.
     optional bool disable_chunk_usage_histograms = 8;
+
+    // Disable emitting extension descriptors into the trace.
+    optional bool disable_extension_descriptors = 9;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 
@@ -5208,7 +5242,8 @@ message TraceConfig {
     //  - any field in both the overlay and bytecode_v2 takes the value in the
     //    overlay, the bytecode_v2 value is ignored.
     //
-    // Introduced in: Perfetto v54.
+    // Note: despite the name, this was broken in v54 (the overlay was not
+    // passed through to the bytecode parser). Only works in v55+.
     optional bytes bytecode_overlay_v54 = 4;
 
     // String filter chain for Perfetto v54+. Rules in this chain either

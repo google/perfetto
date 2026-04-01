@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import protos from '../../../protos';
+// import {Tooltip} from '../../../widgets/tooltip';
 import {
   RecordSubpage,
   RecordProbe,
@@ -31,6 +32,7 @@ import {
 import {Result, unwrapResult} from '../../../base/result';
 import {Chip} from '../../../widgets/chip';
 import {Icon} from '../../../widgets/icon';
+import {Stack} from '../../../widgets/stack';
 import {PopupPosition} from '../../../widgets/popup';
 import {Icons} from '../../../base/semantic_icons';
 import {Intent} from '../../../widgets/common';
@@ -274,12 +276,36 @@ export class ChromeCategoriesWidget implements ProbeSetting {
     const currentOptionsMap = new Map<string, MultiSelectOption>();
     this.options.forEach((o) => currentOptionsMap.set(o.id, o));
     for (const cat of descriptor.availableCategories) {
-      const name = cat.name;
-      if (typeof name !== 'string' || !name) continue;
+      if (typeof cat.name !== 'string' || !cat.name) continue;
+
+      let name = cat.name.replace(DISABLED_PREFIX, '');
+      if (cat.name.startsWith(DISABLED_PREFIX)) {
+        name += ' (disabled-by-default)';
+      }
+
+      const label: m.Children = [name];
+      if (cat.description) {
+        label.push(m(Icon, {icon: 'Info'}));
+      }
+      if (cat.tags && cat.tags.length > 0) {
+        label.push(
+          m(
+            Stack,
+            {orientation: 'horizontal', inline: true},
+            cat.tags.map((cat) => {
+              return m(Chip, {
+                label: cat,
+              });
+            }),
+          ),
+        );
+      }
       const option: MultiSelectOption = {
-        id: name,
-        name: name.replace(DISABLED_PREFIX, ''),
-        checked: currentOptionsMap.get(name)?.checked ?? false,
+        id: cat.name,
+        name: name,
+        label,
+        checked: currentOptionsMap.get(cat.name)?.checked ?? false,
+        details: cat.description || undefined,
       };
       newOptions.push(option);
       for (const tag of new Set(cat.tags ?? [])) {
@@ -387,17 +413,10 @@ export class ChromeCategoriesWidget implements ProbeSetting {
       !this.hasActiveExtension && this.platformGetter() === 'CHROME';
 
     const categoriesOptions: MultiSelectOption[] = [];
-    const slowCategoriesOptions: MultiSelectOption[] = [];
     let includedCategoriesCount = 0;
-    let includedSlowCategoriesCount = 0;
     for (const option of this.options) {
-      if (option.id.startsWith(DISABLED_PREFIX)) {
-        slowCategoriesOptions.push(option);
-        if (option.checked) includedSlowCategoriesCount++;
-      } else {
-        categoriesOptions.push(option);
-        if (option.checked) includedCategoriesCount++;
-      }
+      categoriesOptions.push(option);
+      if (option.checked) includedCategoriesCount++;
     }
 
     const activeCategories = Array.from(this.getAllIncludedCategories()).sort();
@@ -480,26 +499,6 @@ export class ChromeCategoriesWidget implements ProbeSetting {
           },
           m(MultiSelect, {
             options: categoriesOptions,
-            repeatCheckedItemsAtTop: false,
-            fixedSize: false,
-            onChange: (diffs: MultiSelectDiff[]) => {
-              diffs.forEach(({id, checked}) =>
-                this.enableCategory(id, checked),
-              );
-            },
-          }),
-        ),
-        m(
-          Section,
-          {
-            title: m(
-              'h1',
-              m(Icon, {icon: 'stethoscope'}),
-              ` High Overhead Categories (${includedSlowCategoriesCount})`,
-            ),
-          },
-          m(MultiSelect, {
-            options: slowCategoriesOptions,
             repeatCheckedItemsAtTop: false,
             fixedSize: false,
             onChange: (diffs: MultiSelectDiff[]) => {

@@ -28,8 +28,11 @@ executable("traced_probes") {
   sources = [ "main.cc" ]
   assert_no_deps = [ "../../../gn:protobuf_lite" ]
 
-  # Abseil is only used in Perfetto via the gRPC/libprotobuf.
-  if (perfetto_build_standalone || is_perfetto_build_generator) {
+  # Abseil is only used in Perfetto via:
+  # - the gRPC/libprotobuf
+  # - re2
+  if (!enable_perfetto_re2 &&
+      (perfetto_build_standalone || is_perfetto_build_generator)) {
     assert_no_deps += [ "../../../buildtools:abseil_cpp" ]
   }
 }
@@ -64,6 +67,7 @@ source_set("probes_src") {
     "../../base",
     "../../tracing/core",
     "../../tracing/ipc/producer",
+    "android_aflags",
     "android_cpu_per_uid",
     "android_game_intervention_list",
     "android_kernel_wakelocks",
@@ -107,6 +111,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../tracing/test:test_support",
+    "android_aflags:unittests",
     "android_game_intervention_list:unittests",
     "android_log:unittests",
     "android_system_property:unittests",

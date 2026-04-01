@@ -47,6 +47,7 @@ jobs:
     outputs:
       TRIVIAL_CHANGE: ${{ steps.trivial.outputs.TRIVIAL_CHANGE }}
       UI_ONLY_CHANGE: ${{ steps.ui_only.outputs.UI_ONLY_CHANGE }}
+      BIGTRACE_CHANGE: ${{ steps.bigtrace.outputs.BIGTRACE_CHANGE }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -79,6 +80,17 @@ jobs:
           echo "UI_ONLY_CHANGE=0" | tee -a $GITHUB_OUTPUT
           else
           echo "UI_ONLY_CHANGE=1" | tee -a $GITHUB_OUTPUT
+          fi
+
+      - name: Check if bigtrace files changed
+        id: bigtrace
+        shell: bash
+        run: |
+          # In postsubmit (cron) github.base_ref is ""
+          if [ -n "${{ github.base_ref }}" ] && git diff --name-only origin/${{ github.base_ref }} HEAD | egrep -q '^ui/src/bigtrace/'; then
+          echo "BIGTRACE_CHANGE=1" | tee -a $GITHUB_OUTPUT
+          else
+          echo "BIGTRACE_CHANGE=0" | tee -a $GITHUB_OUTPUT
           fi
 
   linux:
@@ -114,6 +126,11 @@ jobs:
       needs.analyze.outputs.TRIVIAL_CHANGE == '0'
     uses: ./.github/workflows/fuzzer-tests.yml
 
+  bigtrace:
+    needs: analyze
+    if: needs.analyze.outputs.BIGTRACE_CHANGE == '1'
+    uses: ./.github/workflows/bigtrace-tests.yml
+
   repo-checks:
     needs: analyze
     uses: ./.github/workflows/repo-checks.yml
@@ -136,6 +153,7 @@ jobs:
       - ui
       - bazel
       - fuzzer
+      - bigtrace
       - repo-checks
       - rust-sdk
     if: always()
@@ -181,6 +199,7 @@ jobs:
           check bazel ${{ needs.bazel.result }}
           check fuzzer ${{ needs.fuzzer.result }}
           check repo-checks ${{ needs.repo-checks.result }}
+          warn bigtrace ${{ needs.bigtrace.result }}
           warn rust-sdk ${{ needs.rust-sdk.result }}
 
           if [ "$failed" -eq 1 ]; then

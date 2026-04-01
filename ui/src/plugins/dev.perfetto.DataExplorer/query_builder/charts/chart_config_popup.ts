@@ -24,9 +24,47 @@ import {Select} from '../../../../widgets/select';
 import {Form, FormLabel} from '../../../../widgets/form';
 import {ChartColumnProvider} from './chart_renderers';
 
+interface ColumnInfo {
+  readonly name: string;
+}
+
+/**
+ * Pick the right measure column when the aggregation type changes.
+ * Returns undefined when no change is needed, or the new column name
+ * (or undefined to clear it).
+ */
+function pickMeasureColumn(
+  agg: ChartAggregation,
+  currentCol: string | undefined,
+  numericColumns: readonly ColumnInfo[],
+  allColumns: readonly ColumnInfo[],
+): string | undefined {
+  if (agg === 'COUNT') {
+    // COUNT doesn't need a measure column.
+    return currentCol;
+  }
+  if (agg === 'COUNT_DISTINCT') {
+    // COUNT_DISTINCT works on any column; keep current or pick first.
+    return (
+      currentCol ?? (allColumns.length > 0 ? allColumns[0].name : undefined)
+    );
+  }
+  // Numeric aggregations: reset if current column isn't numeric.
+  const numericNames = new Set(numericColumns.map((c) => c.name));
+  if (currentCol && numericNames.has(currentCol)) {
+    return currentCol;
+  }
+  return numericColumns.length > 0 ? numericColumns[0].name : undefined;
+}
+
 export interface ChartConfigPopupContext {
   readonly node: ChartColumnProvider;
   readonly onFilterChange?: () => void;
+}
+
+export interface ChartConfigPopupOptions {
+  /** When true, the chart type <select> row is omitted. */
+  readonly hideChartTypeSelector?: boolean;
 }
 
 /**
@@ -41,6 +79,7 @@ export function renderChartConfigPopup(
   ctx: ChartConfigPopupContext,
   config: ChartConfig,
   onBinCountDebounce: () => void,
+  options?: ChartConfigPopupOptions,
 ): m.Child {
   const def = getChartTypeDefinition(config.chartType);
   const chartableColumns = ctx.node.getChartableColumns(config.chartType);
@@ -48,7 +87,7 @@ export function renderChartConfigPopup(
   const numericColumns = ctx.node.getChartableColumns('histogram');
   const hasNumericColumns = numericColumns.length > 0;
 
-  // Bar shows measure column when aggregation is not COUNT.
+  // Show measure column when aggregation requires a column (not COUNT).
   const showMeasureColumn =
     def?.supportsAggregation &&
     config.aggregation !== undefined &&
@@ -59,12 +98,13 @@ export function renderChartConfigPopup(
   // Orientation only applies to bar charts.
   const showOrientation = config.chartType === 'bar';
 
+  const showDelete = ctx.node.state.chartConfigs.length > 1;
+
   return m(
     Form,
     {
-      submitLabel:
-        ctx.node.state.chartConfigs.length > 1 ? 'Delete Chart' : undefined,
-      submitIcon: ctx.node.state.chartConfigs.length > 1 ? 'delete' : undefined,
+      submitLabel: showDelete ? 'Delete Chart' : undefined,
+      submitIcon: showDelete ? 'delete' : undefined,
       onSubmit: () => {
         ctx.node.removeChart(config.id);
         ctx.onFilterChange?.();
@@ -72,40 +112,43 @@ export function renderChartConfigPopup(
     },
     [
       // Chart type selector
-      m(FormLabel, [
-        m('span', 'Chart Type'),
-        m(
-          Select,
-          {
-            value: config.chartType,
-            onchange: (e: Event) => {
-              const target = e.target as HTMLSelectElement;
-              const newType = target.value;
-              if (!isValidChartType(newType)) return;
-              const newChartableColumns = ctx.node.getChartableColumns(newType);
-              const columnStillValid = newChartableColumns.some(
-                (c) => c.name === config.column,
-              );
-              ctx.node.updateChart(config.id, {
-                chartType: newType,
-                column: columnStillValid ? config.column : '',
-              });
-            },
-          },
-          CHART_TYPES.map((chartTypeDef) =>
-            m(
-              'option',
-              {
-                value: chartTypeDef.type,
-                disabled:
-                  chartTypeDef.requiresNumericDimension &&
-                  ctx.node.getChartableColumns(chartTypeDef.type).length === 0,
+      !options?.hideChartTypeSelector &&
+        m(FormLabel, [
+          m('span', 'Chart Type'),
+          m(
+            Select,
+            {
+              value: config.chartType,
+              onchange: (e: Event) => {
+                const target = e.target as HTMLSelectElement;
+                const newType = target.value;
+                if (!isValidChartType(newType)) return;
+                const newChartableColumns =
+                  ctx.node.getChartableColumns(newType);
+                const columnStillValid = newChartableColumns.some(
+                  (c) => c.name === config.column,
+                );
+                ctx.node.updateChart(config.id, {
+                  chartType: newType,
+                  column: columnStillValid ? config.column : '',
+                });
               },
-              chartTypeDef.label,
+            },
+            CHART_TYPES.map((chartTypeDef) =>
+              m(
+                'option',
+                {
+                  value: chartTypeDef.type,
+                  disabled:
+                    chartTypeDef.requiresNumericDimension &&
+                    ctx.node.getChartableColumns(chartTypeDef.type).length ===
+                      0,
+                },
+                chartTypeDef.label,
+              ),
             ),
           ),
-        ),
-      ]),
+        ]),
       // Primary column selector
       m(FormLabel, [
         m('span', def?.primaryColumnLabel ?? 'Column'),
@@ -159,24 +202,31 @@ export function renderChartConfigPopup(
                 const target = e.target as HTMLSelectElement;
                 const agg = target.value as ChartAggregation;
                 const updates: Partial<ChartConfig> = {aggregation: agg};
-                // Auto-select first numeric column when switching to a
-                // numeric aggregation and no measure column is set yet.
-                if (
-                  agg !== 'COUNT' &&
-                  !config.measureColumn &&
-                  numericColumns.length > 0
-                ) {
-                  updates.measureColumn = numericColumns[0].name;
+                const picked = pickMeasureColumn(
+                  agg,
+                  config.measureColumn,
+                  numericColumns,
+                  allColumns,
+                );
+                if (picked !== config.measureColumn) {
+                  updates.measureColumn = picked;
                 }
                 ctx.node.updateChart(config.id, updates);
               },
             },
             [
               m('option', {value: 'COUNT'}, 'Count'),
+              m('option', {value: 'COUNT_DISTINCT'}, 'Count Distinct'),
               m('option', {value: 'SUM', disabled: !hasNumericColumns}, 'Sum'),
               m('option', {value: 'AVG', disabled: !hasNumericColumns}, 'Avg'),
               m('option', {value: 'MIN', disabled: !hasNumericColumns}, 'Min'),
               m('option', {value: 'MAX', disabled: !hasNumericColumns}, 'Max'),
+              m('option', {value: 'P25', disabled: !hasNumericColumns}, 'P25'),
+              m('option', {value: 'P50', disabled: !hasNumericColumns}, 'P50'),
+              m('option', {value: 'P75', disabled: !hasNumericColumns}, 'P75'),
+              m('option', {value: 'P90', disabled: !hasNumericColumns}, 'P90'),
+              m('option', {value: 'P95', disabled: !hasNumericColumns}, 'P95'),
+              m('option', {value: 'P99', disabled: !hasNumericColumns}, 'P99'),
             ],
           ),
         ]),
@@ -201,9 +251,11 @@ export function renderChartConfigPopup(
                 {value: '', disabled: true},
                 `Select ${measureColumnLabel.toLowerCase()}...`,
               ),
-              ...numericColumns.map((col) =>
-                m('option', {value: col.name}, col.name),
-              ),
+              // COUNT_DISTINCT works on any column type; others need numeric.
+              ...(config.aggregation === 'COUNT_DISTINCT'
+                ? allColumns
+                : numericColumns
+              ).map((col) => m('option', {value: col.name}, col.name)),
             ],
           ),
         ]),

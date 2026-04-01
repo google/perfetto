@@ -13,9 +13,18 @@
 // limitations under the License.
 
 import {z} from 'zod';
-import {DataExplorerTab, DataExplorerState} from './data_explorer';
+import {shortUuid} from '../../base/uuid';
+import {
+  DataExplorerTab,
+  DashboardTabState,
+  DataExplorerState,
+} from './data_explorer';
 import {serializeState} from './json_handler';
-import {serializeDashboardItems} from './dashboard/dashboard_registry';
+import {
+  serializeDashboardItems,
+  parseBrushFilters,
+  validateDashboardItems,
+} from './dashboard/dashboard_registry';
 
 const DATA_EXPLORER_TABS_STORAGE_KEY = 'perfettoDataExplorerTabs';
 
@@ -29,7 +38,6 @@ const PERSISTED_DATA_EXPLORER_TAB_SCHEMA = z.object({
 // Dashboard schema — new, flat list with a reference to the parent graph tab.
 const PERSISTED_DASHBOARD_SCHEMA = z.object({
   id: z.string(),
-  title: z.string(),
   graphTabId: z.string(),
   items: z.array(z.unknown()).optional(),
   brushFilters: z.record(z.string(), z.array(z.unknown())).optional(),
@@ -125,7 +133,6 @@ export function createEmptyState(): DataExplorerState {
 /** Serialized dashboard without a graphTabId reference. */
 export interface SerializedDashboard {
   id: string;
-  title: string;
   items?: unknown[];
   brushFilters?: Record<string, unknown[]>;
 }
@@ -147,9 +154,40 @@ export function serializeDashboardsForTab(
         JSON.stringify(raw, (_k, v) => (typeof v === 'bigint' ? Number(v) : v)),
       );
     }
-    result.push({id: db.id, title: db.title, items, brushFilters});
+    result.push({
+      id: db.id,
+      items,
+      brushFilters,
+    });
   }
   return result.length > 0 ? result : undefined;
+}
+
+/** Reconstruct live DashboardTabState[] from persisted dashboard data. */
+export function deserializeDashboardsForTab(
+  tabId: string,
+  allDashboards?: ReadonlyArray<PersistedDashboardData>,
+): DashboardTabState[] {
+  if (allDashboards !== undefined) {
+    const matching = allDashboards.filter((db) => db.graphTabId === tabId);
+    if (matching.length > 0) {
+      return matching.map((db) => ({
+        id: db.id,
+        items: validateDashboardItems(db.items) ?? [],
+        brushFilters:
+          db.brushFilters !== undefined
+            ? parseBrushFilters(db.brushFilters)
+            : new Map(),
+      }));
+    }
+  }
+  return [
+    {
+      id: shortUuid(),
+      items: [],
+      brushFilters: new Map(),
+    },
+  ];
 }
 
 /** Flatten all dashboards across all tabs into a single serializable list. */
