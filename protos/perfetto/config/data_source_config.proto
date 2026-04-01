@@ -54,6 +54,7 @@ import "protos/perfetto/config/statsd/statsd_tracing_config.proto";
 import "protos/perfetto/config/priority_boost/priority_boost_config.proto";
 import "protos/perfetto/config/process_stats/process_stats_config.proto";
 import "protos/perfetto/config/profiling/heapprofd_config.proto";
+import "protos/perfetto/config/profiling/hprof_dump_config.proto";
 import "protos/perfetto/config/profiling/java_hprof_config.proto";
 import "protos/perfetto/config/profiling/perf_event_config.proto";
 import "protos/perfetto/config/sys_stats/sys_stats_config.proto";
@@ -64,7 +65,7 @@ import "protos/perfetto/config/chrome/histogram_samples.proto";
 import "protos/perfetto/config/qnx/qnx_config.proto";
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 141
+// Next id: 142
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -193,6 +194,8 @@ message DataSourceConfig {
   // Data source name: android.java_hprof
   // Introduced in Android 11.
   optional JavaHprofConfig java_hprof_config = 110 [lazy = true];
+  // Data source name: android.hprof_dump
+  optional HprofDumpConfig hprof_dump_config = 141 [lazy = true];
   // Data source name: android.power
   optional AndroidPowerConfig android_power_config = 106 [lazy = true];
   // Data source name: android.log

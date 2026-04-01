@@ -2910,6 +2910,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/chrome_system_probes_parser.h",
         "src/trace_processor/importers/proto/default_modules.cc",
         "src/trace_processor/importers/proto/default_modules.h",
+        "src/trace_processor/importers/proto/hprof_dump_module.cc",
+        "src/trace_processor/importers/proto/hprof_dump_module.h",
         "src/trace_processor/importers/proto/memory_tracker_snapshot_module.cc",
         "src/trace_processor/importers/proto/memory_tracker_snapshot_module.h",
         "src/trace_processor/importers/proto/memory_tracker_snapshot_parser.cc",
@@ -6570,6 +6572,7 @@ perfetto_proto_library(
     name = "protos_perfetto_config_profiling_protos",
     srcs = [
         "protos/perfetto/config/profiling/heapprofd_config.proto",
+        "protos/perfetto/config/profiling/hprof_dump_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
     ],
@@ -7973,6 +7976,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/trace/profiling/deobfuscation.proto",
         "protos/perfetto/trace/profiling/heap_graph.proto",
+        "protos/perfetto/trace/profiling/hprof_dump.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
         "protos/perfetto/trace/profiling/profile_packet.proto",
         "protos/perfetto/trace/profiling/smaps.proto",

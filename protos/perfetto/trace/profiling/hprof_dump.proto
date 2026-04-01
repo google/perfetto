@@ -1,0 +1,39 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// Raw Java heap dump (.hprof binary format) embedded in a trace packet.
+// Large dumps can be split across multiple packets keyed by pid.
+// The trace processor reassembles chunks per pid and parses each complete
+// dump using the same parser as standalone .hprof file loading
+// (ArtHprofParser).
+message HprofDump {
+  // Process ID of the dumped process. Used to group chunks belonging to
+  // the same dump.
+  optional int32 pid = 1;
+
+  // Chunk of raw .hprof binary data.
+  optional bytes hprof_data = 2;
+
+  // Zero-based index of this chunk within the dump for this pid.
+  optional uint32 chunk_index = 3;
+
+  // True if this is the last chunk for this pid's dump.
+  optional bool last_chunk = 4;
+}

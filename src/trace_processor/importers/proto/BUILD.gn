@@ -32,6 +32,8 @@ source_set("minimal") {
     "chrome_system_probes_parser.h",
     "default_modules.cc",
     "default_modules.h",
+    "hprof_dump_module.cc",
+    "hprof_dump_module.h",
     "memory_tracker_snapshot_module.cc",
     "memory_tracker_snapshot_module.h",
     "memory_tracker_snapshot_parser.cc",

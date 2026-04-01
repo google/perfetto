@@ -1688,6 +1688,7 @@ filegroup {
         "protos/perfetto/config/priority_boost/priority_boost_config.proto",
         "protos/perfetto/config/process_stats/process_stats_config.proto",
         "protos/perfetto/config/profiling/heapprofd_config.proto",
+        "protos/perfetto/config/profiling/hprof_dump_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
         "protos/perfetto/config/protovm/protovm_config.proto",
@@ -1766,6 +1767,7 @@ java_library {
         "protos/perfetto/config/priority_boost/priority_boost_config.proto",
         "protos/perfetto/config/process_stats/process_stats_config.proto",
         "protos/perfetto/config/profiling/heapprofd_config.proto",
+        "protos/perfetto/config/profiling/hprof_dump_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
         "protos/perfetto/config/protovm/protovm_config.proto",
@@ -3411,6 +3413,7 @@ filegroup {
         "protos/perfetto/config/priority_boost/priority_boost_config.proto",
         "protos/perfetto/config/process_stats/process_stats_config.proto",
         "protos/perfetto/config/profiling/heapprofd_config.proto",
+        "protos/perfetto/config/profiling/hprof_dump_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
         "protos/perfetto/config/protovm/protovm_config.proto",
@@ -3605,6 +3608,7 @@ filegroup {
         "protos/perfetto/trace/power/power_rails.proto",
         "protos/perfetto/trace/profiling/deobfuscation.proto",
         "protos/perfetto/trace/profiling/heap_graph.proto",
+        "protos/perfetto/trace/profiling/hprof_dump.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
         "protos/perfetto/trace/profiling/profile_packet.proto",
         "protos/perfetto/trace/profiling/smaps.proto",
@@ -4634,6 +4638,7 @@ genrule {
         "protos/perfetto/config/priority_boost/priority_boost_config.proto",
         "protos/perfetto/config/process_stats/process_stats_config.proto",
         "protos/perfetto/config/profiling/heapprofd_config.proto",
+        "protos/perfetto/config/profiling/hprof_dump_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
         "protos/perfetto/config/protovm/protovm_config.proto",
@@ -5719,6 +5724,7 @@ filegroup {
     name: "perfetto_protos_perfetto_config_profiling_cpp",
     srcs: [
         "protos/perfetto/config/profiling/heapprofd_config.proto",
+        "protos/perfetto/config/profiling/hprof_dump_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
     ],
@@ -5739,6 +5745,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_profiling_cpp)",
     out: [
         "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.gen.cc",
+        "external/perfetto/protos/perfetto/config/profiling/hprof_dump_config.gen.cc",
         "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.gen.cc",
         "external/perfetto/protos/perfetto/config/profiling/perf_event_config.gen.cc",
     ],
@@ -5759,6 +5766,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_profiling_cpp)",
     out: [
         "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.gen.h",
+        "external/perfetto/protos/perfetto/config/profiling/hprof_dump_config.gen.h",
         "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.gen.h",
         "external/perfetto/protos/perfetto/config/profiling/perf_event_config.gen.h",
     ],
@@ -5773,6 +5781,7 @@ filegroup {
     name: "perfetto_protos_perfetto_config_profiling_lite",
     srcs: [
         "protos/perfetto/config/profiling/heapprofd_config.proto",
+        "protos/perfetto/config/profiling/hprof_dump_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
     ],
@@ -5792,6 +5801,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_profiling_lite)",
     out: [
         "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pb.cc",
+        "external/perfetto/protos/perfetto/config/profiling/hprof_dump_config.pb.cc",
         "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pb.cc",
         "external/perfetto/protos/perfetto/config/profiling/perf_event_config.pb.cc",
     ],
@@ -5811,6 +5821,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_profiling_lite)",
     out: [
         "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pb.h",
+        "external/perfetto/protos/perfetto/config/profiling/hprof_dump_config.pb.h",
         "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pb.h",
         "external/perfetto/protos/perfetto/config/profiling/perf_event_config.pb.h",
     ],
@@ -5825,6 +5836,7 @@ filegroup {
     name: "perfetto_protos_perfetto_config_profiling_zero",
     srcs: [
         "protos/perfetto/config/profiling/heapprofd_config.proto",
+        "protos/perfetto/config/profiling/hprof_dump_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
     ],
@@ -5845,6 +5857,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_profiling_zero)",
     out: [
         "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pbzero.cc",
+        "external/perfetto/protos/perfetto/config/profiling/hprof_dump_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/profiling/perf_event_config.pbzero.cc",
     ],
@@ -5865,6 +5878,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_config_profiling_zero)",
     out: [
         "external/perfetto/protos/perfetto/config/profiling/heapprofd_config.pbzero.h",
+        "external/perfetto/protos/perfetto/config/profiling/hprof_dump_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/profiling/java_hprof_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/profiling/perf_event_config.pbzero.h",
     ],
@@ -8722,6 +8736,7 @@ genrule {
         "protos/perfetto/config/priority_boost/priority_boost_config.proto",
         "protos/perfetto/config/process_stats/process_stats_config.proto",
         "protos/perfetto/config/profiling/heapprofd_config.proto",
+        "protos/perfetto/config/profiling/hprof_dump_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
         "protos/perfetto/config/protovm/protovm_config.proto",
@@ -8875,6 +8890,7 @@ genrule {
         "protos/perfetto/trace/power/power_rails.proto",
         "protos/perfetto/trace/profiling/deobfuscation.proto",
         "protos/perfetto/trace/profiling/heap_graph.proto",
+        "protos/perfetto/trace/profiling/hprof_dump.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
         "protos/perfetto/trace/profiling/profile_packet.proto",
         "protos/perfetto/trace/profiling/smaps.proto",
@@ -11722,6 +11738,7 @@ filegroup {
     srcs: [
         "protos/perfetto/trace/profiling/deobfuscation.proto",
         "protos/perfetto/trace/profiling/heap_graph.proto",
+        "protos/perfetto/trace/profiling/hprof_dump.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
         "protos/perfetto/trace/profiling/profile_packet.proto",
         "protos/perfetto/trace/profiling/smaps.proto",
@@ -11744,6 +11761,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace/profiling/deobfuscation.gen.cc",
         "external/perfetto/protos/perfetto/trace/profiling/heap_graph.gen.cc",
+        "external/perfetto/protos/perfetto/trace/profiling/hprof_dump.gen.cc",
         "external/perfetto/protos/perfetto/trace/profiling/profile_common.gen.cc",
         "external/perfetto/protos/perfetto/trace/profiling/profile_packet.gen.cc",
         "external/perfetto/protos/perfetto/trace/profiling/smaps.gen.cc",
@@ -11766,6 +11784,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace/profiling/deobfuscation.gen.h",
         "external/perfetto/protos/perfetto/trace/profiling/heap_graph.gen.h",
+        "external/perfetto/protos/perfetto/trace/profiling/hprof_dump.gen.h",
         "external/perfetto/protos/perfetto/trace/profiling/profile_common.gen.h",
         "external/perfetto/protos/perfetto/trace/profiling/profile_packet.gen.h",
         "external/perfetto/protos/perfetto/trace/profiling/smaps.gen.h",
@@ -11782,6 +11801,7 @@ filegroup {
     srcs: [
         "protos/perfetto/trace/profiling/deobfuscation.proto",
         "protos/perfetto/trace/profiling/heap_graph.proto",
+        "protos/perfetto/trace/profiling/hprof_dump.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
         "protos/perfetto/trace/profiling/profile_packet.proto",
         "protos/perfetto/trace/profiling/smaps.proto",
@@ -11803,6 +11823,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace/profiling/deobfuscation.pb.cc",
         "external/perfetto/protos/perfetto/trace/profiling/heap_graph.pb.cc",
+        "external/perfetto/protos/perfetto/trace/profiling/hprof_dump.pb.cc",
         "external/perfetto/protos/perfetto/trace/profiling/profile_common.pb.cc",
         "external/perfetto/protos/perfetto/trace/profiling/profile_packet.pb.cc",
         "external/perfetto/protos/perfetto/trace/profiling/smaps.pb.cc",
@@ -11824,6 +11845,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace/profiling/deobfuscation.pb.h",
         "external/perfetto/protos/perfetto/trace/profiling/heap_graph.pb.h",
+        "external/perfetto/protos/perfetto/trace/profiling/hprof_dump.pb.h",
         "external/perfetto/protos/perfetto/trace/profiling/profile_common.pb.h",
         "external/perfetto/protos/perfetto/trace/profiling/profile_packet.pb.h",
         "external/perfetto/protos/perfetto/trace/profiling/smaps.pb.h",
@@ -11840,6 +11862,7 @@ filegroup {
     srcs: [
         "protos/perfetto/trace/profiling/deobfuscation.proto",
         "protos/perfetto/trace/profiling/heap_graph.proto",
+        "protos/perfetto/trace/profiling/hprof_dump.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
         "protos/perfetto/trace/profiling/profile_packet.proto",
         "protos/perfetto/trace/profiling/smaps.proto",
@@ -11862,6 +11885,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace/profiling/deobfuscation.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/profiling/heap_graph.pbzero.cc",
+        "external/perfetto/protos/perfetto/trace/profiling/hprof_dump.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/profiling/profile_common.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/profiling/profile_packet.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/profiling/smaps.pbzero.cc",
@@ -11884,6 +11908,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace/profiling/deobfuscation.pbzero.h",
         "external/perfetto/protos/perfetto/trace/profiling/heap_graph.pbzero.h",
+        "external/perfetto/protos/perfetto/trace/profiling/hprof_dump.pbzero.h",
         "external/perfetto/protos/perfetto/trace/profiling/profile_common.pbzero.h",
         "external/perfetto/protos/perfetto/trace/profiling/profile_packet.pbzero.h",
         "external/perfetto/protos/perfetto/trace/profiling/smaps.pbzero.h",
@@ -15883,6 +15908,7 @@ filegroup {
         "src/trace_processor/importers/proto/chrome_system_probes_module.cc",
         "src/trace_processor/importers/proto/chrome_system_probes_parser.cc",
         "src/trace_processor/importers/proto/default_modules.cc",
+        "src/trace_processor/importers/proto/hprof_dump_module.cc",
         "src/trace_processor/importers/proto/memory_tracker_snapshot_module.cc",
         "src/trace_processor/importers/proto/memory_tracker_snapshot_parser.cc",
         "src/trace_processor/importers/proto/metadata_minimal_module.cc",
@@ -18962,6 +18988,7 @@ java_library {
         "protos/perfetto/config/priority_boost/priority_boost_config.proto",
         "protos/perfetto/config/process_stats/process_stats_config.proto",
         "protos/perfetto/config/profiling/heapprofd_config.proto",
+        "protos/perfetto/config/profiling/hprof_dump_config.proto",
         "protos/perfetto/config/profiling/java_hprof_config.proto",
         "protos/perfetto/config/profiling/perf_event_config.proto",
         "protos/perfetto/config/protovm/protovm_config.proto",
@@ -19115,6 +19142,7 @@ java_library {
         "protos/perfetto/trace/power/power_rails.proto",
         "protos/perfetto/trace/profiling/deobfuscation.proto",
         "protos/perfetto/trace/profiling/heap_graph.proto",
+        "protos/perfetto/trace/profiling/hprof_dump.proto",
         "protos/perfetto/trace/profiling/profile_common.proto",
         "protos/perfetto/trace/profiling/profile_packet.proto",
         "protos/perfetto/trace/profiling/smaps.proto",

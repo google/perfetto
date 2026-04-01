@@ -1,0 +1,42 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// Configuration for the android.hprof_dump data source.
+// Triggers a heap dump on a target process and embeds the raw .hprof
+// binary in the trace. Optionally extracts bitmap images.
+message HprofDumpConfig {
+  // Target process PID. Takes precedence over process_cmdline.
+  optional uint64 pid = 1;
+
+  // Target process command line pattern. Matched against /proc/pid/cmdline.
+  optional string process_cmdline = 2;
+
+  // Run GC before dumping. Default true.
+  optional bool run_gc = 3;
+
+  // Extract bitmap images alongside the hprof dump.
+  // Calls Bitmap.dumpAll() in the target process.
+  // Equivalent to `am dumpheap -b <format>`.
+  optional bool dump_bitmaps = 4;
+
+  // Bitmap output format: "png" (default) or "webp".
+  // Only used when dump_bitmaps is true.
+  optional string bitmap_format = 5;
+}

@@ -19,6 +19,7 @@ perfetto_proto_library("@TYPE@") {
   sources = [
     "deobfuscation.proto",
     "heap_graph.proto",
+    "hprof_dump.proto",
     "profile_common.proto",
     "profile_packet.proto",
     "smaps.proto",

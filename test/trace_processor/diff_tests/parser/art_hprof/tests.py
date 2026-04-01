@@ -16,6 +16,7 @@
 from python.generators.diff_tests.testing import DataPath
 from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import Path
 from python.generators.diff_tests.testing import TestSuite
 
 
@@ -278,6 +279,86 @@ class ArtHprofParser(TestSuite):
         out=Csv('''
           "known_hash","has_duplicates"
           -3333146854241245275,1
+        '''))
+
+  # Single HprofDump packet (one pid, one chunk).
+  def test_art_hprof_dump_class_count(self):
+    return DiffTestBlueprint(
+        trace=Path('hprof_dump_trace.py'),
+        query="""
+          SELECT COUNT() FROM heap_graph_class
+        """,
+        out=Csv('''
+          "COUNT()"
+          2252
+        '''))
+
+  def test_art_hprof_dump_object_count(self):
+    return DiffTestBlueprint(
+        trace=Path('hprof_dump_trace.py'),
+        query="""
+          SELECT COUNT() FROM heap_graph_object
+        """,
+        out=Csv('''
+          "COUNT()"
+          25919
+        '''))
+
+  def test_art_hprof_dump_reference_count(self):
+    return DiffTestBlueprint(
+        trace=Path('hprof_dump_trace.py'),
+        query="""
+          SELECT COUNT() FROM heap_graph_reference
+        """,
+        out=Csv('''
+                "COUNT()"
+                53937
+        '''))
+
+  # Two HprofDump streams with different pids, interleaved chunks.
+  def test_art_hprof_dump_multi_pid_class_count(self):
+    return DiffTestBlueprint(
+        trace=Path('hprof_dump_multi_trace.py'),
+        query="""
+          SELECT COUNT() FROM heap_graph_class
+        """,
+        out=Csv('''
+          "COUNT()"
+          4504
+        '''))
+
+  def test_art_hprof_dump_multi_pid_object_count(self):
+    return DiffTestBlueprint(
+        trace=Path('hprof_dump_multi_trace.py'),
+        query="""
+          SELECT COUNT() FROM heap_graph_object
+        """,
+        out=Csv('''
+          "COUNT()"
+          51838
+        '''))
+
+  # Two sequential HprofDump streams with the same pid.
+  def test_art_hprof_dump_same_pid_class_count(self):
+    return DiffTestBlueprint(
+        trace=Path('hprof_dump_same_pid_trace.py'),
+        query="""
+          SELECT COUNT() FROM heap_graph_class
+        """,
+        out=Csv('''
+          "COUNT()"
+          4504
+        '''))
+
+  def test_art_hprof_dump_same_pid_object_count(self):
+    return DiffTestBlueprint(
+        trace=Path('hprof_dump_same_pid_trace.py'),
+        query="""
+          SELECT COUNT() FROM heap_graph_object
+        """,
+        out=Csv('''
+          "COUNT()"
+          51838
         '''))
 
   def test_art_hprof_intrinsics_edge_cases(self):
