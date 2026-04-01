@@ -479,20 +479,23 @@ void PropagateDownColumnTyped(T* d,
                               const uint32_t* parent_arr) {
   switch (agg_op) {
     case PropagateAggOp::kSum:
-      PropagateDownBfs(d, [](auto p, auto c) { return p + c; }, queue,
-                       queue_end, parent_arr);
+      PropagateDownBfs(
+          d, [](auto p, auto c) { return p + c; }, queue, queue_end,
+          parent_arr);
       break;
     case PropagateAggOp::kMin:
-      PropagateDownBfs(d, [](auto p, auto c) { return std::min(p, c); }, queue,
-                       queue_end, parent_arr);
+      PropagateDownBfs(
+          d, [](auto p, auto c) { return std::min(p, c); }, queue, queue_end,
+          parent_arr);
       break;
     case PropagateAggOp::kMax:
-      PropagateDownBfs(d, [](auto p, auto c) { return std::max(p, c); }, queue,
-                       queue_end, parent_arr);
+      PropagateDownBfs(
+          d, [](auto p, auto c) { return std::max(p, c); }, queue, queue_end,
+          parent_arr);
       break;
     case PropagateAggOp::kFirst:
-      PropagateDownBfs(d, [](auto p, auto) { return p; }, queue, queue_end,
-                       parent_arr);
+      PropagateDownBfs(
+          d, [](auto p, auto) { return p; }, queue, queue_end, parent_arr);
       break;
     case PropagateAggOp::kLast:
       break;
