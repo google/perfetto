@@ -320,6 +320,18 @@ BUILD_DEPS_HOST = [
         'https://storage.googleapis.com/perfetto/bloaty-1.1-b3b829de35babc2fe831b9488ad2e50bca939412-mac.zip',
         '2d301bd72a20e3f42888c9274ceb4dca76c103608053572322412c2c65ab8cb8',
         'darwin', 'all'),
+    # RE2 and PCRE2 for trace processor regex support.
+    # If updating the RE2 version, also update bazel/deps.bzl.
+    Dependency(
+        'buildtools/re2',
+        'https://chromium.googlesource.com/external/github.com/google/re2.git',
+        '927f5d53caf8111721e734cf24724686bb745f55', 'all', 'all'),
+    Dependency(
+        'buildtools/pcre2',
+        'https://github.com/PCRE2Project/pcre2.git',
+        '6ae58beca071f13ccfed31d03b3f479ab520639b',  # refs/tags/pcre2-10.44
+        'all',
+        'all'),
     Dependency(
         'buildtools/open_csd',
         'https://android.googlesource.com/platform/external/OpenCSD.git',

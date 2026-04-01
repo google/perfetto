@@ -21,7 +21,6 @@
 #include <cstdio>
 #include <functional>
 #include <memory>
-#include <regex>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -31,6 +30,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
@@ -66,10 +66,10 @@ bool ParsePackagesListStream(
     const std::set<std::string>& package_name_filter,
     const std::vector<std::string>& package_name_regex_filter) {
   // Pre-compile regex patterns.
-  std::vector<std::regex> compiled_regexes;
+  std::vector<base::Regex> compiled_regexes;
   compiled_regexes.reserve(package_name_regex_filter.size());
   for (const auto& pattern : package_name_regex_filter) {
-    compiled_regexes.emplace_back(pattern);
+    compiled_regexes.emplace_back(base::Regex::CreateOrCheck(pattern));
   }
 
   bool has_filter = !package_name_filter.empty() || !compiled_regexes.empty();
@@ -91,7 +91,7 @@ bool ParsePackagesListStream(
       continue;
     }
     for (const auto& re : compiled_regexes) {
-      if (std::regex_match(pkg_struct.name, re)) {
+      if (re.FullMatch(pkg_struct.name)) {
         packages.insert({pkg_struct.uid, pkg_struct});
         break;
       }
