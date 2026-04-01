@@ -62,86 +62,58 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
         const whereClause = `WHERE ${filters.join(' OR ')}`;
 
         await engine.query(`
-          INCLUDE PERFETTO MODULE wattson.tasks.attribution;
-          INCLUDE PERFETTO MODULE wattson.tasks.idle_transitions_attribution;
-          INCLUDE PERFETTO MODULE wattson.ui.continuous_estimates;
-
+          INCLUDE PERFETTO MODULE wattson.aggregation;
           CREATE OR REPLACE PERFETTO TABLE wattson_plugin_ui_selection_window AS
           SELECT
             ${area.start} as ts,
-            ${duration} as dur;
+            ${duration} as dur,
+            0 as period_id;
 
-          -- Processes filtered by CPU within the UI defined time window
-          DROP TABLE IF EXISTS wattson_plugin_windowed_summary;
-          CREATE VIRTUAL TABLE wattson_plugin_windowed_summary
-          USING SPAN_JOIN(
-            wattson_plugin_ui_selection_window,
-            _estimates_w_tasks_attribution
-          );
-
-          -- Only get idle attribution in user defined window and filter by selected
-          -- CPUs
-          CREATE OR REPLACE PERFETTO TABLE wattson_plugin_idle_attribution AS
-          SELECT
-            idle_cost_mws,
-            utid,
-            upid
-          FROM _filter_idle_attribution(${area.start}, ${duration})
+          -- Prefilter tasks table to be small
+          CREATE OR REPLACE PERFETTO VIEW _wattson_ui_selected_tasks AS
+          SELECT *
+          FROM _estimates_w_tasks_attribution
           ${whereClause};
 
-          -- Group idle attribution by thread
-          CREATE OR REPLACE PERFETTO TABLE wattson_plugin_per_thread_idle_cost AS
-          SELECT
-            SUM(idle_cost_mws) as idle_cost_mws,
-            utid
-          FROM wattson_plugin_idle_attribution
-          GROUP BY utid;
+          -- Use a dedicated CPUs table to avoid incorrectly filtering idle costs
+          CREATE OR REPLACE PERFETTO TABLE _wattson_ui_selected_cpus AS
+          SELECT cpu FROM _wattson_cpus
+          ${selectedCpus.length > 0 ? `WHERE cpu IN (${selectedCpus.join()})` : ''};
 
-          CREATE OR REPLACE PERFETTO TABLE wattson_plugin_unioned_per_cpu_total AS
-          SELECT
-            SUM(estimated_mw * dur) AS total_pws,
-            SUM(dur) AS dur,
-            tid,
-            pid,
-            uid,
-            utid,
-            upid,
-            thread_name,
-            process_name,
-            package_name
-          FROM wattson_plugin_windowed_summary
-          ${whereClause}
-          GROUP BY utid;
+          -- Use SPAN_JOIN to clip tasks to the window
+          DROP TABLE IF EXISTS _wattson_ui_windowed_tasks;
+          CREATE VIRTUAL TABLE _wattson_ui_windowed_tasks
+          USING SPAN_JOIN(
+            wattson_plugin_ui_selection_window,
+            _wattson_ui_selected_tasks
+          );
 
-          -- Grouped again by UTID, but this time to make it CPU agnostic
+          -- Materialize the thread-level summary once.
+          CREATE OR REPLACE PERFETTO TABLE wattson_plugin_thread_summary AS
+          SELECT *
+          FROM _wattson_threads_aggregation!(
+            _wattson_ui_windowed_tasks,
+            wattson_plugin_ui_selection_window,
+            _wattson_ui_selected_cpus
+          );
+
           CREATE PERFETTO VIEW ${this.id} AS
           WITH base AS (
             SELECT
-              ROUND(SUM(total_pws) / ${duration}, 3) as active_mw,
-              ROUND(SUM(total_pws) / 1000000000, 3) as active_mws,
-              ROUND(COALESCE(idle_cost_mws, 0), 3) as idle_cost_mws,
-              ROUND(
-                COALESCE(idle_cost_mws, 0) + SUM(total_pws) / 1000000000,
-                3
-              ) as total_mws,
+              ROUND(estimated_mw, 3) as active_mw,
+              ROUND(estimated_mws, 3) as active_mws,
+              ROUND(idle_transitions_mws, 3) as idle_cost_mws,
+              ROUND(total_mws, 3) as total_mws,
               thread_name,
               utid,
               tid,
               pid
-            FROM wattson_plugin_unioned_per_cpu_total
-            LEFT JOIN wattson_plugin_per_thread_idle_cost USING (utid)
-            GROUP BY utid
-          ),
-          secondary AS (
-            SELECT
-              utid,
-              total_mws / (SUM(total_mws) OVER()) AS percent_of_total_energy
-            FROM base
-            GROUP BY utid
+            FROM wattson_plugin_thread_summary
           )
-          select *
-            from base INNER JOIN secondary
-            USING (utid);
+          SELECT
+            *,
+            total_mws / (SUM(total_mws) OVER()) AS percent_of_total_energy
+          FROM base;
         `);
 
         return {
