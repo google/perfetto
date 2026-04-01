@@ -32,6 +32,7 @@ WITH
       ii.cpu,
       tasks.utid,
       tasks.upid,
+      tasks.uid,
       id_1 AS idle_group
     FROM _interval_intersect!(
     (
@@ -75,6 +76,7 @@ WITH
       idle_group,
       utid,
       upid,
+      uid,
       min(ts) AS min,
       min(ts) + dur AS next_ts
     FROM _ii_idle_tasks
@@ -115,7 +117,8 @@ SELECT
   swapper_info.dur,
   swapper_info.cpu,
   task_info.utid,
-  task_info.upid
+  task_info.upid,
+  task_info.uid
 FROM first_non_swapper_slice AS task_info
 JOIN first_swapper_slice AS swapper_info
   USING (idle_group)
@@ -130,7 +133,8 @@ SELECT
   swapper_info.dur,
   swapper_info.cpu,
   task_info.utid,
-  task_info.upid
+  task_info.upid,
+  task_info.uid
 FROM first_non_swapper_slice AS task_info
 JOIN last_swapper_slice AS swapper_info
   USING (idle_group)
@@ -146,6 +150,7 @@ SELECT
   tasks.cpu,
   tasks.utid,
   tasks.upid,
+  tasks.uid,
   CASE tasks.cpu
     WHEN 0
     THEN power.cpu0_mw
@@ -188,6 +193,7 @@ RETURNS TABLE (
   idle_cost_mws LONG,
   utid JOINID(task.id),
   upid JOINID(process.id),
+  uid LONG,
   cpu JOINID(cpu.id)
 ) AS
 -- Give the negative sum of idle costs to the swapper thread, which by
@@ -199,6 +205,7 @@ WITH
       cost.estimated_mw * cost.dur / 1e9 AS idle_cost_mws,
       cost.utid,
       cost.upid,
+      cost.uid,
       cost.cpu
     FROM _interval_intersect_single!(
     $ts, $dur, _ii_subquery!(_idle_transition_cost)
@@ -210,6 +217,7 @@ SELECT
   idle_cost_mws,
   utid,
   upid,
+  uid,
   cpu
 FROM base
 UNION ALL
@@ -217,6 +225,7 @@ SELECT
   -1 * sum(idle_cost_mws) AS idle_cost_mws,
   0 AS utid,
   0 AS upid,
+  0 AS uid,
   cpu
 FROM base
 GROUP BY
