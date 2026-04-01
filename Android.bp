@@ -15270,6 +15270,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_core_tree_tree",
     srcs: [
+        "src/trace_processor/core/tree/propagate_spec.cc",
         "src/trace_processor/core/tree/tree_columns_builder.cc",
         "src/trace_processor/core/tree/tree_transformer.cc",
     ],
@@ -16433,6 +16434,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_conversion.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_filter.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_functions.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_propagate.cc",
     ],
 }
 
@@ -16773,6 +16775,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/std/traceinfo/metadata_for_primary_scope.sql",
         "src/trace_processor/perfetto_sql/stdlib/std/traceinfo/trace.sql",
         "src/trace_processor/perfetto_sql/stdlib/std/trees/filter.sql",
+        "src/trace_processor/perfetto_sql/stdlib/std/trees/propagate.sql",
         "src/trace_processor/perfetto_sql/stdlib/std/trees/table_conversion.sql",
         "src/trace_processor/perfetto_sql/stdlib/time/conversion.sql",
         "src/trace_processor/perfetto_sql/stdlib/traced/stats.sql",

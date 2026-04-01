@@ -67,6 +67,14 @@ bool RequiresZlibSupport(TraceType type) {
 }
 }  // namespace
 
+void TraceReaderRegistry::RegisterPluginTraceReader(
+    TraceType trace_type,
+    std::function<std::unique_ptr<ChunkedTraceReader>()> factory) {
+  RegisterFactory(trace_type, [f = std::move(factory)](TraceProcessorContext*) {
+    return f();
+  });
+}
+
 void TraceReaderRegistry::RegisterFactory(TraceType trace_type,
                                           Factory factory) {
   PERFETTO_CHECK(factories_.Insert(trace_type, std::move(factory)).second);

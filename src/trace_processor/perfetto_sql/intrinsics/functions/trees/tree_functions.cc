@@ -22,6 +22,7 @@
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_conversion.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_filter.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_propagate.h"
 
 namespace perfetto::trace_processor {
 
@@ -32,6 +33,7 @@ base::Status RegisterTreeFunctions(PerfettoSqlEngine& engine,
   RETURN_IF_ERROR(engine.RegisterFunction<TreeConstraint>(nullptr));
   RETURN_IF_ERROR(engine.RegisterFunction<TreeWhereAnd>(nullptr));
   RETURN_IF_ERROR(engine.RegisterFunction<TreeFilter>(nullptr));
+  RETURN_IF_ERROR(engine.RegisterFunction<TreePropagateDown>(nullptr));
   return base::OkStatus();
 }
 
