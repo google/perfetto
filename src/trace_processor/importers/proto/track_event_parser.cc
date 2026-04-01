@@ -46,6 +46,7 @@
 #include "src/trace_processor/util/debug_annotation_parser.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
+#include "protos/perfetto/trace/android/video_frame.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
@@ -55,6 +56,8 @@
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 #include "protos/third_party/chromium/chrome_enums.pbzero.h"
+
+#include "src/trace_processor/tables/android_tables_py.h"
 
 namespace perfetto::trace_processor {
 
@@ -465,6 +468,18 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
   if (!status.ok()) {
     context_->storage->IncrementStats(stats::track_event_parser_errors);
     PERFETTO_DLOG("ParseTrackEvent error: %s", status.c_message());
+    return;
+  }
+
+  // Extract video frame data into dedicated blob storage (not args).
+  protos::pbzero::TrackEvent::Decoder event(blob.data, blob.size);
+  if (event.has_video_frame()) {
+    uint64_t track_uuid = event.has_track_uuid() ? event.track_uuid() : 0u;
+    auto opt_track_id = track_event_tracker_->InternDescriptorTrackInstant(
+        track_uuid, kNullStringId, packet_sequence_id);
+    if (opt_track_id) {
+      MaybeExtractVideoFrame(ts, event.video_frame(), *opt_track_id);
+    }
   }
 }
 
@@ -485,6 +500,38 @@ DummyMemoryMapping* TrackEventParser::GetOrCreateInlineCallstackDummyMapping() {
 
 void TrackEventParser::OnEventsFullyExtracted() {
   active_chrome_processes_tracker_.OnEventsFullyExtracted();
+}
+
+void TrackEventParser::MaybeExtractVideoFrame(int64_t ts,
+                                              protozero::ConstBytes blob,
+                                              TrackId track_id) {
+  protos::pbzero::VideoFrame::Decoder frame(blob);
+
+  tables::AndroidVideoFramesTable::Row row;
+  row.ts = ts;
+  row.frame_number =
+      frame.has_frame_number() ? static_cast<int64_t>(frame.frame_number()) : 0;
+  row.track_id = track_id;
+
+  auto* table = context_->storage->mutable_video_frames_table();
+  uint32_t row_idx = table->Insert(row).row;
+
+  // Store image data — prefer JPEG, fall back to WebP.
+  protozero::ConstBytes img = {};
+  if (frame.has_jpg_image()) {
+    img = frame.jpg_image();
+  } else if (frame.has_webp_image()) {
+    img = frame.webp_image();
+  }
+  if (img.size > 0) {
+    auto blob_alloc = TraceBlob::Allocate(img.size);
+    memcpy(blob_alloc.data(), img.data, img.size);
+    auto* blob_vec = context_->storage->mutable_video_frame_data();
+    if (blob_vec->size() <= row_idx) {
+      blob_vec->resize(row_idx + 1);
+    }
+    (*blob_vec)[row_idx] = TraceBlobView(std::move(blob_alloc), 0, img.size);
+  }
 }
 
 }  // namespace perfetto::trace_processor

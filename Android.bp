@@ -3467,6 +3467,7 @@ filegroup {
         "protos/perfetto/trace/android/surfaceflinger_transactions.proto",
         "protos/perfetto/trace/android/typedef.proto",
         "protos/perfetto/trace/android/user_list.proto",
+        "protos/perfetto/trace/android/video_frame.proto",
         "protos/perfetto/trace/android/view/display.proto",
         "protos/perfetto/trace/android/view/displaycutout.proto",
         "protos/perfetto/trace/android/view/displayinfo.proto",
@@ -7626,6 +7627,7 @@ filegroup {
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
         "protos/perfetto/trace/android/user_list.proto",
+        "protos/perfetto/trace/android/video_frame.proto",
     ],
 }
 
@@ -7662,6 +7664,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/android/packages_list.gen.cc",
         "external/perfetto/protos/perfetto/trace/android/pixel_modem_events.gen.cc",
         "external/perfetto/protos/perfetto/trace/android/user_list.gen.cc",
+        "external/perfetto/protos/perfetto/trace/android/video_frame.gen.cc",
     ],
 }
 
@@ -7698,6 +7701,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/android/packages_list.gen.h",
         "external/perfetto/protos/perfetto/trace/android/pixel_modem_events.gen.h",
         "external/perfetto/protos/perfetto/trace/android/user_list.gen.h",
+        "external/perfetto/protos/perfetto/trace/android/video_frame.gen.h",
     ],
     export_include_dirs: [
         ".",
@@ -7726,6 +7730,7 @@ filegroup {
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
         "protos/perfetto/trace/android/user_list.proto",
+        "protos/perfetto/trace/android/video_frame.proto",
     ],
 }
 
@@ -7761,6 +7766,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/android/packages_list.pb.cc",
         "external/perfetto/protos/perfetto/trace/android/pixel_modem_events.pb.cc",
         "external/perfetto/protos/perfetto/trace/android/user_list.pb.cc",
+        "external/perfetto/protos/perfetto/trace/android/video_frame.pb.cc",
     ],
 }
 
@@ -7796,6 +7802,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/android/packages_list.pb.h",
         "external/perfetto/protos/perfetto/trace/android/pixel_modem_events.pb.h",
         "external/perfetto/protos/perfetto/trace/android/user_list.pb.h",
+        "external/perfetto/protos/perfetto/trace/android/video_frame.pb.h",
     ],
     export_include_dirs: [
         ".",
@@ -8415,6 +8422,7 @@ filegroup {
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
         "protos/perfetto/trace/android/user_list.proto",
+        "protos/perfetto/trace/android/video_frame.proto",
     ],
 }
 
@@ -8451,6 +8459,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/android/packages_list.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/android/pixel_modem_events.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/android/user_list.pbzero.cc",
+        "external/perfetto/protos/perfetto/trace/android/video_frame.pbzero.cc",
     ],
 }
 
@@ -8487,6 +8496,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/android/packages_list.pbzero.h",
         "external/perfetto/protos/perfetto/trace/android/pixel_modem_events.pbzero.h",
         "external/perfetto/protos/perfetto/trace/android/user_list.pbzero.h",
+        "external/perfetto/protos/perfetto/trace/android/video_frame.pbzero.h",
     ],
     export_include_dirs: [
         ".",
@@ -8760,6 +8770,7 @@ genrule {
         "protos/perfetto/trace/android/surfaceflinger_layers.proto",
         "protos/perfetto/trace/android/surfaceflinger_transactions.proto",
         "protos/perfetto/trace/android/user_list.proto",
+        "protos/perfetto/trace/android/video_frame.proto",
         "protos/perfetto/trace/android/winscope_extensions.proto",
         "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto",
         "protos/perfetto/trace/chrome/chrome_metadata.proto",
@@ -16394,6 +16405,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/intrinsics/functions/structural_tree_partition.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/to_ftrace.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/type_builders.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/video_frame_image.cc",
     ],
 }
 
@@ -16689,6 +16701,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/android/thread.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/user_list.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/version.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/video_frames.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/wakeups.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/winscope/inputmethod.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/winscope/rect.sql",
@@ -19003,6 +19016,7 @@ java_library {
         "protos/perfetto/trace/android/surfaceflinger_layers.proto",
         "protos/perfetto/trace/android/surfaceflinger_transactions.proto",
         "protos/perfetto/trace/android/user_list.proto",
+        "protos/perfetto/trace/android/video_frame.proto",
         "protos/perfetto/trace/android/winscope_extensions.proto",
         "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto",
         "protos/perfetto/trace/chrome/chrome_metadata.proto",

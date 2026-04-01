@@ -290,3 +290,140 @@ class AndroidParser(TestSuite):
           "ScreenState",0,1000,2.000000
           "ScreenState",1,2000,1.000000
         """))
+
+  # Video frame tests use TrackEvent with a video_frame sub-message.
+  # Track identity and name come from TrackDescriptor, not VideoFrame.
+  def test_video_frame_basic(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          track_descriptor { uuid: 1  name: "Front Camera" }
+        }
+        packet {
+          timestamp: 1000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 1
+            video_frame { frame_number: 0 }
+          }
+        }
+        packet {
+          timestamp: 1033333333
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 1
+            video_frame { frame_number: 1 }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.video_frames;
+        SELECT ts, frame_number, track_name
+        FROM android_video_frames
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","frame_number","track_name"
+        1000000000,0,"Front Camera"
+        1033333333,1,"Front Camera"
+        """))
+
+  def test_video_frame_trace_bounds(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          track_descriptor { uuid: 1  name: "cam" }
+        }
+        packet {
+          timestamp: 1000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 1
+            video_frame { frame_number: 0 }
+          }
+        }
+        packet {
+          timestamp: 2000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 1
+            video_frame { frame_number: 1 }
+          }
+        }
+        """),
+        query="""
+        SELECT trace_start() AS s, trace_end() AS e, trace_dur() AS d;
+        """,
+        out=Csv("""
+        "s","e","d"
+        1000000000,2000000000,1000000000
+        """))
+
+  def test_video_frame_multi_stream(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          track_descriptor { uuid: 10  name: "Front Camera" }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          track_descriptor { uuid: 20  name: "Rear Camera" }
+        }
+        packet {
+          timestamp: 1000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            video_frame { frame_number: 0 }
+          }
+        }
+        packet {
+          timestamp: 1000000000
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 20
+            video_frame { frame_number: 0 }
+          }
+        }
+        packet {
+          timestamp: 1033333333
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 10
+            video_frame { frame_number: 1 }
+          }
+        }
+        packet {
+          timestamp: 1033333333
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            track_uuid: 20
+            video_frame { frame_number: 1 }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.video_frames;
+        SELECT
+          track_name AS tname,
+          COUNT(*) AS cnt
+        FROM android_video_frames
+        GROUP BY track_id
+        ORDER BY tname;
+        """,
+        out=Csv("""
+        "tname","cnt"
+        "Front Camera",2
+        "Rear Camera",2
+        """))
