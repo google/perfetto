@@ -2919,6 +2919,7 @@ cc_test {
         ":perfetto_src_ipc_common",
         ":perfetto_src_ipc_host",
         ":perfetto_src_ipc_perfetto_ipc",
+        ":perfetto_src_java_datasource_integrationtests",
         ":perfetto_src_kallsyms_kallsyms",
         ":perfetto_src_kernel_utils_kernel_wakelock_errors",
         ":perfetto_src_kernel_utils_syscall_table",
@@ -13868,6 +13869,14 @@ filegroup {
         "src/ipc/deferred_unittest.cc",
         "src/ipc/host_impl_unittest.cc",
         "src/ipc/test/ipc_integrationtest.cc",
+    ],
+}
+
+// GN: //src/java_datasource:integrationtests
+filegroup {
+    name: "perfetto_src_java_datasource_integrationtests",
+    srcs: [
+        "src/java_datasource/java_datasource_integrationtest.cc",
     ],
 }
 

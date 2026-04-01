@@ -1,0 +1,20 @@
+import("../../../../gn/perfetto.gni")
+import("../../../../gn/perfetto_android_sdk.gni")
+
+assert(enable_perfetto_android_java_sdk)
+
+perfetto_android_library("perfetto_datasource_test") {
+  testonly = true
+  sources = [
+    "dev/perfetto/sdk/InternPoolTest.java",
+    "dev/perfetto/sdk/PacketBuilderTest.java",
+    "dev/perfetto/sdk/ProtoWriterTest.java",
+    "dev/perfetto/sdk/TraceEncodingTest.java",
+  ]
+  deps = [ "../main:perfetto_datasource_lib" ]
+  manifest = "../main/AndroidManifest.xml"
+  android_bp_java_target_name_suffix = "_tests_java"
+  android_bp_copy_java_target_name_suffix = "_tests_framework_java"
+  android_bp_copy_java_target_jarjar =
+      "../main/perfetto-datasource-framework-jarjar-rules.txt"
+}

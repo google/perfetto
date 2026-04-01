@@ -17,6 +17,7 @@ import("perfetto.gni")
 perfetto_integrationtests_targets = [
   "src/tracing/test:client_api_integrationtests",
   "src/shared_lib/test:integrationtests",
+  "src/java_datasource:integrationtests",
 ]
 
 if (enable_perfetto_ipc && enable_perfetto_system_consumer) {

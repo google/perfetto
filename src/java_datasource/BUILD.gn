@@ -1,0 +1,19 @@
+import("../../gn/perfetto.gni")
+
+if (enable_perfetto_integration_tests) {
+  source_set("integrationtests") {
+    testonly = true
+    deps = [
+      "../../gn:default_deps",
+      "../../gn:gtest_and_gmock",
+      "../../include/perfetto/public",
+      "../base",
+      "../shared_lib:for_testing",
+      "../shared_lib:shared_lib",
+      "../shared_lib/test:utils",
+      "../shared_lib/test/protos",
+    ]
+    defines = [ "PERFETTO_SDK_DISABLE_SHLIB_EXPORT" ]
+    sources = [ "java_datasource_integrationtest.cc" ]
+  }
+}

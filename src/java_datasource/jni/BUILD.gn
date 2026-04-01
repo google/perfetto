@@ -1,0 +1,35 @@
+import("../../../gn/perfetto.gni")
+import("../../../gn/perfetto_android_sdk.gni")
+
+assert(enable_perfetto_android_java_sdk)
+
+SOURCE_SET_SOURCES = [
+  "perfetto_datasource_jni.cc",
+  "perfetto_datasource_jni.h",
+]
+
+SOURCE_SET_DEPS = [
+  "../../../gn:default_deps",
+  "../../android_sdk/nativehelper:nativehelper",
+]
+
+source_set("libperfetto_datasource_jni_src") {
+  sources = SOURCE_SET_SOURCES
+  deps = SOURCE_SET_DEPS
+}
+
+source_set("libperfetto_datasource_framework_jni_src") {
+  sources = SOURCE_SET_SOURCES
+  deps = SOURCE_SET_DEPS
+  cflags = [ "-DPERFETTO_JNI_JARJAR_PREFIX=com/android/internal/" ]
+}
+
+perfetto_android_jni_library("libperfetto_datasource_jni") {
+  deps = [
+    ":libperfetto_datasource_jni_src",
+    "../../../gn:default_deps",
+    "../../shared_lib:libperfetto_c",
+  ]
+  binary_name = "libperfetto_datasource_jni.so"
+  bazel_linkopts = "-llog"
+}

@@ -1,0 +1,20 @@
+import("../../../../gn/perfetto.gni")
+import("../../../../gn/perfetto_android_sdk.gni")
+
+assert(enable_perfetto_android_java_sdk)
+
+perfetto_android_library("perfetto_datasource_lib") {
+  sources = [
+    "dev/perfetto/sdk/InternPool.java",
+    "dev/perfetto/sdk/PacketBuilder.java",
+    "dev/perfetto/sdk/PerfettoDataSource.java",
+    "dev/perfetto/sdk/ProtoWriter.java",
+    "dev/perfetto/sdk/TraceContext.java",
+  ]
+  deps = [ "../../jni:libperfetto_datasource_jni" ]
+  manifest = "AndroidManifest.xml"
+  android_bp_java_target_name_suffix = "_java"
+  android_bp_copy_java_target_name_suffix = "_framework_java"
+  android_bp_copy_java_target_jarjar =
+      "perfetto-datasource-framework-jarjar-rules.txt"
+}
