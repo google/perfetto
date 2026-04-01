@@ -309,14 +309,9 @@ template("gcc_like_toolchain") {
       description = "assemble {{source}}"
     }
 
-    _use_libtool = is_mac && ar != "suppress_unused_ar_variable_warning"
-    if (defined(invoker.use_libtool)) {
-      _use_libtool = invoker.use_libtool
-    }
-
     tool("alink") {
       rspfile = "{{output}}.rsp"
-      if (_use_libtool) {
+      if (is_mac && ar != "suppress_unused_ar_variable_warning") {
         rspfile_content = "{{inputs_newline}}"
         command = "rm -f {{output}} && libtool -static {{arflags}} -o {{output}} -filelist $rspfile"
       } else {
@@ -453,10 +448,6 @@ template("wasm_toolchain") {
     cc = "$emsdk_dir/emscripten/emcc --em-config $em_config"
     cxx = "$emsdk_dir/emscripten/em++ --em-config $em_config"
     strip = ""
-
-    # Don't use macOS libtool for static libraries — it rejects emscripten
-    # .o files. Use emar (set above) instead.
-    use_libtool = false
   }
 }
 
