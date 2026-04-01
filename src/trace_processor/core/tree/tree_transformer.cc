@@ -44,6 +44,7 @@
 #include "src/trace_processor/core/interpreter/bytecode_interpreter_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
+#include "src/trace_processor/core/tree/propagate_spec.h"
 #include "src/trace_processor/core/tree/tree_columns.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/range.h"
@@ -289,6 +290,78 @@ base::Status TreeTransformer::FilterTree(
   return base::OkStatus();
 }
 
+// Returns the size in bytes of one element for the given storage type.
+static uint32_t ElementSize(StorageType type) {
+  switch (type.index()) {
+    case StorageType::GetTypeIndex<Uint32>():
+      return sizeof(uint32_t);
+    case StorageType::GetTypeIndex<Int32>():
+      return sizeof(int32_t);
+    case StorageType::GetTypeIndex<Int64>():
+      return sizeof(int64_t);
+    case StorageType::GetTypeIndex<Double>():
+      return sizeof(double);
+    case StorageType::GetTypeIndex<String>():
+      return sizeof(StringPool::Id);
+    default:
+      PERFETTO_FATAL("Unsupported storage type");
+  }
+}
+
+base::Status TreeTransformer::PropagateDown(std::vector<PropagateSpec> specs) {
+  if (cols_.row_count == 0 || specs.empty()) {
+    return base::OkStatus();
+  }
+
+  uint32_t spec_start = static_cast<uint32_t>(propagate_specs_.size());
+
+  for (auto& spec : specs) {
+    auto src = ResolveColumn(spec.source_col_name);
+    if (!src) {
+      return base::ErrStatus("propagate_down: source column '%s' not found",
+                             spec.source_col_name.c_str());
+    }
+    StorageType st = cols_.columns[*src].type;
+    if (st.Is<String>()) {
+      return base::ErrStatus(
+          "propagate_down: string columns are not supported (column '%s')",
+          spec.source_col_name.c_str());
+    }
+    if (st.Is<Id>()) {
+      return base::ErrStatus(
+          "propagate_down: Id columns are not supported (column '%s')",
+          spec.source_col_name.c_str());
+    }
+
+    // Add a new column.
+    uint32_t dest = static_cast<uint32_t>(cols_.names.size());
+    cols_.names.push_back(std::move(spec.output_col_name));
+
+    TreeColumns::Column oc;
+    oc.type = st;
+    oc.elem_size = ElementSize(st);
+    oc.data = Slab<uint8_t>::Alloc(static_cast<uint64_t>(cols_.row_count) *
+                                   oc.elem_size);
+    cols_.columns.push_back(std::move(oc));
+
+    propagate_specs_.push_back({*src, dest, spec.agg_op});
+  }
+
+  // Emit PropagateTreeDown bytecode with the spec range.
+  has_operations_ = true;
+  i::RwHandle<std::unique_ptr<i::TreeState>> ts_reg(tree_state_reg_index_);
+  {
+    using P = i::PropagateTreeDown;
+    auto& op = builder_->AddOpcode<P>(i::Index<P>());
+    op.arg<P::tree_state_register>() = ts_reg;
+    op.arg<P::spec_start>() = spec_start;
+    op.arg<P::spec_count>() =
+        static_cast<uint32_t>(propagate_specs_.size()) - spec_start;
+  }
+
+  return base::OkStatus();
+}
+
 base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
   uint32_t n = cols_.row_count;
 
@@ -336,6 +409,17 @@ base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
     cs.elem_size = col.elem_size;
     ts->columns.push_back(std::move(cs));
     ts->null_bitvectors.push_back(std::move(col.null_bv));
+  }
+
+  // Populate propagate_down_specs (column indices map 1:1).
+  for (const auto& pi : propagate_specs_) {
+    using PDS = interpreter::TreeState::PropagateDownSpec;
+    ts->propagate_down_specs.push_back(PDS{
+        pi.agg_op,
+        pi.source_col,
+        pi.dest_col,
+        cols_.columns[pi.dest_col].type,
+    });
   }
 
   ts->p2c_offsets = Slab<uint32_t>::Alloc(n + 1);
