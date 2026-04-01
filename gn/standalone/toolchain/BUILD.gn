@@ -311,7 +311,7 @@ template("gcc_like_toolchain") {
 
     tool("alink") {
       rspfile = "{{output}}.rsp"
-      if (is_mac && ar != "suppress_unused_ar_variable_warning") {
+      if (is_mac && ar == "ar") {
         rspfile_content = "{{inputs_newline}}"
         command = "rm -f {{output}} && libtool -static {{arflags}} -o {{output}} -filelist $rspfile"
       } else {
