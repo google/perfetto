@@ -660,7 +660,7 @@ message AndroidProcessStateChangedEvent {
   optional int32 implicit_cpu_time_reasons = 12;
 
   // Bitfield to represent boolean freeze policy states.
-  optional uint32 freeze_policy_flags = 13;
+  optional int32 freeze_policy_flags = 13;
 }
 
 message AndroidTrackEvent {
