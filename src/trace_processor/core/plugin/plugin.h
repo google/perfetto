@@ -19,13 +19,14 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
-#include "src/trace_processor/types/destructible.h"
+#include "src/trace_processor/core/util/type_set.h"
 
 struct sqlite3_module;
 
@@ -37,7 +38,9 @@ namespace perfetto::trace_processor {
 
 class StaticTableFunction;
 class TraceProcessorContext;
+class TraceReaderRegistry;
 class TraceStorage;
+struct ProtoImporterModuleContext;
 
 // Lightweight struct for plugin dataframe registration.
 struct PluginDataframe {
@@ -94,173 +97,73 @@ SqliteModuleRegistration MakeSqliteModule(
 // runtime ID via the address of a per-instantiation static member.
 template <typename T>
 struct PluginTag {
-  static inline constexpr char kTag = 0;
+  static constexpr char kTag = 0;
   static constexpr const void* Id() { return &kTag; }
 };
 
-// Non-templated base class for type-erased storage and virtual dispatch.
+// Non-templated base class for plugins.
 //
-// Plugins must NOT store mutable state on the plugin object itself. State
-// should either live in the Storage object (for data that persists beyond
-// parsing) or inside the parser/importer that the plugin creates.
+// The plugin IS the context: it carries its resolved dependency pointers and
+// a back-pointer to TraceProcessorContext. The framework sets these fields
+// after construction; lifecycle methods access them via `this`.
 //
-// TraceProcessorImpl calls these methods, passing both the context and the
-// type-erased storage pointer. Subclasses should not override these directly;
-// instead, override the typed methods on Plugin<>.
+// How the plugin organizes its internal state is an implementation detail.
+// Subclasses should not override the PluginBase virtuals directly; instead,
+// inherit from Plugin<> which provides identity and typed dep access.
 class PluginBase {
  public:
   virtual ~PluginBase();
 
-  // Creates the plugin's opaque storage. Called once by TraceProcessorImpl;
-  // the returned pointer is owned by TraceStorage and passed back into
-  // all subsequent lifecycle methods.
-  virtual std::unique_ptr<Destructible> CreateStorage(
-      TraceProcessorContext* context);
+  // Identity and dependency accessors for the framework.
+  virtual const void* GetPluginId() const = 0;
+  virtual const void* const* GetDepIds() const = 0;
+  virtual size_t GetDepCount() const = 0;
 
-  virtual void RegisterImporters(TraceProcessorContext* context,
-                                 Destructible* storage);
-  virtual void RegisterDataframes(TraceProcessorContext* context,
-                                  Destructible* storage,
-                                  std::vector<PluginDataframe>& tables);
+  virtual void RegisterImporters(TraceReaderRegistry& registry);
+  virtual void RegisterProtoImporterModules(
+      ProtoImporterModuleContext* module_context);
+  virtual void RegisterDataframes(std::vector<PluginDataframe>& tables);
   virtual void RegisterStaticTableFunctions(
-      TraceProcessorContext* context,
-      Destructible* storage,
       std::vector<std::unique_ptr<StaticTableFunction>>& fns);
   virtual void RegisterSqliteModules(
-      TraceProcessorContext* context,
-      Destructible* storage,
       std::vector<SqliteModuleRegistration>& modules);
-  // Allows plugins to contribute SQL modules to the stdlib. Each entry is a
-  // pair of (module_key, sql_content) where module_key follows the stdlib
-  // naming convention (e.g., "etm.decode").
-  virtual void RegisterSqlModules(
-      TraceProcessorContext* context,
-      Destructible* storage,
-      std::vector<std::pair<std::string, std::string>>& modules);
+
+  virtual uint64_t GetBoundsMutationCount();
+  virtual std::pair<int64_t, int64_t> GetTimestampBounds();
+
+  // --- Framework-managed fields. Set by TraceProcessorImpl after creation. ---
+  TraceProcessorContext* trace_context_ = nullptr;
+  std::vector<PluginBase*> resolved_deps_;
 };
 
-// Templated subclass that provides identity, dependency tracking, and typed
-// storage dispatch.
+// Templated subclass that provides identity, dependency tracking, typed
+// dependency access, and typed factory wrappers for lifecycle methods.
 //
 // Self: CRTP parameter (the concrete plugin class).
-// Storage: plugin-owned state type, must inherit from Destructible.
-//          Use void (or omit) if no storage is needed.
-// Deps: prerequisite plugin classes.
+// Deps: prerequisite plugin classes. Declares the dependency graph for
+//       topological sorting. Access deps at runtime via dependency<T>().
 //
 // The template parameters serve three purposes:
 // 1. Compile-time: forces #include of dep headers -> forces GN dep
 // 2. Link-time: if dep's .cc isn't compiled, GN dep missing -> build fails
 // 3. Runtime: topological sort verifies all deps are registered
-template <typename Self, typename Storage = void, typename... Deps>
+template <typename Self, typename... Deps>
 class Plugin : public PluginBase {
  public:
   static constexpr const void* kPluginId = PluginTag<Self>::Id();
   static constexpr std::array<const void*, sizeof...(Deps)> kDepIds = {
       PluginTag<Deps>::Id()...};
 
-  // Override these in the concrete plugin class.
-  virtual std::unique_ptr<Storage> CreatePluginStorage(TraceProcessorContext*) {
-    return nullptr;
-  }
-  virtual void RegisterImporters(TraceProcessorContext*, Storage*) {}
-  virtual void RegisterDataframes(TraceProcessorContext*,
-                                  Storage*,
-                                  std::vector<PluginDataframe>&) {}
-  virtual void RegisterStaticTableFunctions(
-      TraceProcessorContext*,
-      Storage*,
-      std::vector<std::unique_ptr<StaticTableFunction>>&) {}
-  virtual void RegisterSqliteModules(TraceProcessorContext*,
-                                     Storage*,
-                                     std::vector<SqliteModuleRegistration>&) {}
-  virtual void RegisterSqlModules(
-      TraceProcessorContext*,
-      Storage*,
-      std::vector<std::pair<std::string, std::string>>&) {}
+  const void* GetPluginId() const final { return kPluginId; }
+  const void* const* GetDepIds() const final { return kDepIds.data(); }
+  size_t GetDepCount() const final { return kDepIds.size(); }
 
- private:
-  std::unique_ptr<Destructible> CreateStorage(
-      TraceProcessorContext* ctx) final {
-    return static_cast<Self*>(this)->CreatePluginStorage(ctx);
-  }
-  void RegisterImporters(TraceProcessorContext* ctx, Destructible* s) final {
-    static_cast<Self*>(this)->RegisterImporters(ctx, static_cast<Storage*>(s));
-  }
-  void RegisterDataframes(TraceProcessorContext* ctx,
-                          Destructible* s,
-                          std::vector<PluginDataframe>& tables) final {
-    static_cast<Self*>(this)->RegisterDataframes(ctx, static_cast<Storage*>(s),
-                                                 tables);
-  }
-  void RegisterStaticTableFunctions(
-      TraceProcessorContext* ctx,
-      Destructible* s,
-      std::vector<std::unique_ptr<StaticTableFunction>>& fns) final {
-    static_cast<Self*>(this)->RegisterStaticTableFunctions(
-        ctx, static_cast<Storage*>(s), fns);
-  }
-  void RegisterSqliteModules(
-      TraceProcessorContext* ctx,
-      Destructible* s,
-      std::vector<SqliteModuleRegistration>& modules) final {
-    static_cast<Self*>(this)->RegisterSqliteModules(
-        ctx, static_cast<Storage*>(s), modules);
-  }
-  void RegisterSqlModules(
-      TraceProcessorContext* ctx,
-      Destructible* s,
-      std::vector<std::pair<std::string, std::string>>& modules) final {
-    static_cast<Self*>(this)->RegisterSqlModules(ctx, static_cast<Storage*>(s),
-                                                 modules);
-  }
-};
-
-// Specialization for plugins with no storage.
-template <typename Self, typename... Deps>
-class Plugin<Self, void, Deps...> : public PluginBase {
- public:
-  static constexpr const void* kPluginId = PluginTag<Self>::Id();
-  static constexpr std::array<const void*, sizeof...(Deps)> kDepIds = {
-      PluginTag<Deps>::Id()...};
-
-  virtual void RegisterImporters(TraceProcessorContext*) {}
-  virtual void RegisterDataframes(TraceProcessorContext*,
-                                  std::vector<PluginDataframe>&) {}
-  virtual void RegisterStaticTableFunctions(
-      TraceProcessorContext*,
-      std::vector<std::unique_ptr<StaticTableFunction>>&) {}
-  virtual void RegisterSqliteModules(TraceProcessorContext*,
-                                     std::vector<SqliteModuleRegistration>&) {}
-  virtual void RegisterSqlModules(
-      TraceProcessorContext*,
-      std::vector<std::pair<std::string, std::string>>&) {}
-
- private:
-  void RegisterImporters(TraceProcessorContext* ctx, Destructible*) final {
-    static_cast<Self*>(this)->RegisterImporters(ctx);
-  }
-  void RegisterDataframes(TraceProcessorContext* ctx,
-                          Destructible*,
-                          std::vector<PluginDataframe>& tables) final {
-    static_cast<Self*>(this)->RegisterDataframes(ctx, tables);
-  }
-  void RegisterStaticTableFunctions(
-      TraceProcessorContext* ctx,
-      Destructible*,
-      std::vector<std::unique_ptr<StaticTableFunction>>& fns) final {
-    static_cast<Self*>(this)->RegisterStaticTableFunctions(ctx, fns);
-  }
-  void RegisterSqliteModules(
-      TraceProcessorContext* ctx,
-      Destructible*,
-      std::vector<SqliteModuleRegistration>& modules) final {
-    static_cast<Self*>(this)->RegisterSqliteModules(ctx, modules);
-  }
-  void RegisterSqlModules(
-      TraceProcessorContext* ctx,
-      Destructible*,
-      std::vector<std::pair<std::string, std::string>>& modules) final {
-    static_cast<Self*>(this)->RegisterSqlModules(ctx, modules);
+  // Returns a dependency plugin by type. T must be one of the Deps.
+  // The index is resolved at compile time from the parameter pack position.
+  template <typename T>
+  T* dependency() {
+    return static_cast<T*>(
+        resolved_deps_[core::TypeSet<Deps...>::template GetTypeIndex<T>()]);
   }
 };
 
@@ -280,11 +183,21 @@ struct PluginRegistration {
                      size_t n_deps);
 };
 
-PluginRegistration* GetPluginRegistrations();
+// The result of topological sorting: plugin factories in dependency order
+// with pre-resolved dep indices. Computed once (statically) and shared by
+// all TraceProcessorImpl instances.
+struct PluginSet {
+  struct Entry {
+    PluginRegistration::Factory factory;
+    // Indices into the PluginSet::entries vector for this plugin's deps.
+    std::vector<size_t> dep_indices;
+  };
+  std::vector<Entry> entries;
+};
 
-// Collects all registered plugins, topologically sorts them by dependencies,
-// and instantiates them in order.
-std::vector<std::unique_ptr<PluginBase>> CreatePlugins();
+// Returns the singleton PluginSet. The topological sort and dep resolution
+// happen once on first call; subsequent calls return the cached result.
+const PluginSet& GetPluginSet();
 
 // Suppresses -Wglobal-constructors which is Clang-specific. GCC and MSVC
 // do not have this warning so the macros are no-ops on those compilers.

@@ -81,10 +81,10 @@ test('gpu counter', async () => {
   const gpuGroup = pth.locateTrack('GPU');
   await gpuGroup.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(gpuGroup);
-  const gpuFreqGroup = pth.locateTrack('GPU/GPU Frequency', gpuGroup);
+  const gpuFreqGroup = pth.locateTrack('GPU/Frequency', gpuGroup);
   await pth.toggleTrackGroup(gpuFreqGroup);
   const gpuTrack = pth.locateTrack(
-    'GPU/GPU Frequency/GPU 0 Frequency',
+    'GPU/Frequency/GPU 0 Frequency',
     gpuFreqGroup,
   );
   const coords = assertExists(await gpuTrack.boundingBox());
