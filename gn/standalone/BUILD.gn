@@ -478,7 +478,7 @@ config("release") {
       "/INCREMENTAL:NO",
       "/FIXED:NO",
     ]
-  } else if (is_mac) {
+  } else if (is_mac && !is_wasm) {
     ldflags = [ "-dead_strip" ]
   } else if (is_qnx) {
     # QNX doesn't support the --icf linker option

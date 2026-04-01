@@ -161,7 +161,9 @@ config("abseil_config") {
 # We separate this from the above because frameworks need to be forcefully
 # propogated to all dependents, unlike regular link flags.
 config("abseil_framework_config") {
-  if (is_mac) {
+  # CoreFoundation is needed by abseil on macOS native builds but must not
+  # be passed to emscripten when cross-compiling to WASM.
+  if (is_mac && !is_wasm) {
     ldflags = [
       "-framework",
       "CoreFoundation",
