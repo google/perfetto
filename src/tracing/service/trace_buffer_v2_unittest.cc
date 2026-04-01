@@ -2349,20 +2349,87 @@ TEST_F(TraceBufferV2Test, Overwrite_SizeDiffLessThanChunkHeader) {
 // Re-scrape after ring-buffer eviction tests
 // -------------------------------------------
 
-// V2 is immune to the rescrape-after-eviction bug because it tracks
-// last_chunk_id_consumed per writer and rejects chunks with IDs that have
-// already been consumed. These tests verify that invariant.
+// V2 tracks last_chunk_consumed metadata per writer sequence to handle
+// re-scraping after eviction. Complete chunks that have been consumed are
+// rejected on re-introduction. Incomplete (scraped) chunks that were evicted
+// can be re-admitted if the new commit carries strictly more payload, allowing
+// recovery of fragments dropped during scraping.
 
-// After a chunk is fully read and the buffer wraps, re-introducing the same
-// chunk (simulating SMB scraping) should not produce duplicate packets.
+// Scrape → read → evict → second scrape with more data. The new scrape has
+// strictly more payload and must be re-admitted, recovering the new fragments
+// without duplicating already-consumed data.
 TEST_F(TraceBufferV2Test, RescrapeAfterEviction_FullyRead) {
   ResetBuffer(4096);
+  SuppressClientDchecksForTesting();
 
+  // Scrape chunk 0 (incomplete): [Whole 'a'] [kFragBegin 'b'].
+  // Scraping drops 'b'. Only 'a' is visible.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(10, 'b', kContOnNextChunk)
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'a')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  // Fill to force wraparound.
+  for (ChunkID c = 1; c <= 4; c++) {
+    CreateChunk(ProducerID(2), WriterID(1), ChunkID(c))
+        .AddPacket(1024 - 16, static_cast<char>('x'))
+        .CopyIntoTraceBuffer();
+  }
+
+  // Second scrape: producer wrote more data. Now chunk 0 has [a, b, c].
+  // Scraping drops 'c', stores [a, b]. More payload than first scrape.
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(20, 'a')
       .AddPacket(30, 'b')
+      .AddPacket(10, 'c', kContOnNextChunk)
       .PadTo(512)
-      .CopyIntoTraceBuffer();
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+
+  // Drain and verify: 'b' recovered, 'a' not duplicated.
+  trace_buffer()->BeginRead();
+  std::vector<std::vector<FakePacketFragment>> packets;
+  for (;;) {
+    auto p = ReadPacket();
+    if (p.empty())
+      break;
+    packets.push_back(std::move(p));
+  }
+
+  bool found_a = false, found_b = false, found_c = false;
+  for (const auto& pkt : packets) {
+    if (pkt.size() == 1 && pkt[0] == FakePacketFragment(20, 'a'))
+      found_a = true;
+    if (pkt.size() == 1 && pkt[0] == FakePacketFragment(30, 'b'))
+      found_b = true;
+    if (pkt.size() == 1 && pkt[0] == FakePacketFragment(10, 'c'))
+      found_c = true;
+  }
+  EXPECT_TRUE(found_b) << "Packet 'b' not found after rescrape re-admission";
+  EXPECT_FALSE(found_a) << "Packet 'a' duplicated after rescrape re-admission";
+  EXPECT_FALSE(found_c)
+      << "Packet 'c' should still be dropped (chunk incomplete)";
+}
+
+// Scrape → read → evict → producer completes chunk. The complete commit has
+// strictly more payload and must be re-admitted, recovering the previously-
+// dropped fragment and allowing cross-chunk reassembly.
+TEST_F(TraceBufferV2Test, RescrapeAfterEviction_CompleteCommit) {
+  ResetBuffer(4096);
+  SuppressClientDchecksForTesting();
+
+  // Scrape chunk 0 (incomplete): [Whole 'a'] [Whole 'b'] [kFragBegin 'c'].
+  // Scraping drops 'c', clears kContOnNextChunk, sets kChunkIncomplete.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .AddPacket(10, 'c', kContOnNextChunk)
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
 
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'a')));
@@ -2376,21 +2443,46 @@ TEST_F(TraceBufferV2Test, RescrapeAfterEviction_FullyRead) {
         .CopyIntoTraceBuffer();
   }
 
-  // Re-introduce chunk {1,1,0} (simulates SMB scraping).
-  SuppressClientDchecksForTesting();
+  // Producer commits chunk 0 as complete with full payload [a, b, c].
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(20, 'a')
       .AddPacket(30, 'b')
+      .AddPacket(10, 'c', kContOnNextChunk)
       .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/true);
+
+  // Chunk 1: continuation of 'c' plus a whole packet 'e'.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(10, 'd', kContFromPrevChunk)
+      .AddPacket(20, 'e')
       .CopyIntoTraceBuffer();
 
-  // Drain everything.
+  // Drain and verify: [c,d] and 'e' recovered, 'a' and 'b' not duplicated.
   trace_buffer()->BeginRead();
-  while (!ReadPacket().empty()) {
+  std::vector<std::vector<FakePacketFragment>> packets;
+  for (;;) {
+    auto p = ReadPacket();
+    if (p.empty())
+      break;
+    packets.push_back(std::move(p));
   }
 
-  // 'a' and 'b' must not appear again.
-  ASSERT_THAT(ReadPacket(), IsEmpty());
+  bool found_cd = false, found_e = false, found_a = false, found_b = false;
+  for (const auto& pkt : packets) {
+    if (pkt.size() == 2 && pkt[0] == FakePacketFragment(10, 'c') &&
+        pkt[1] == FakePacketFragment(10, 'd'))
+      found_cd = true;
+    if (pkt.size() == 1 && pkt[0] == FakePacketFragment(20, 'e'))
+      found_e = true;
+    if (pkt.size() == 1 && pkt[0] == FakePacketFragment(20, 'a'))
+      found_a = true;
+    if (pkt.size() == 1 && pkt[0] == FakePacketFragment(30, 'b'))
+      found_b = true;
+  }
+  EXPECT_TRUE(found_cd) << "Reassembled packet [c,d] not found";
+  EXPECT_TRUE(found_e) << "Packet 'e' not found";
+  EXPECT_FALSE(found_a) << "Packet 'a' duplicated after complete re-admission";
+  EXPECT_FALSE(found_b) << "Packet 'b' duplicated after complete re-admission";
 }
 
 // After a chunk is partially read and the buffer wraps, re-introducing the

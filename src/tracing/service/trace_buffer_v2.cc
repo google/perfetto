@@ -209,13 +209,14 @@ TBChunk* ChunkSeqIterator::NextChunkInSequence() {
   //    we do this, each iteration erases the last chunk before moving onto the
   //    next one. We can't use the SequenceState.chunks because the upcoming
   //    chunk will always be the "first" in this case. However, we can look at
-  //    last_chunk_id_consumed.
+  //    last_chunk_consumed.
   // 2) We are iterating read-only as part of ReassembleFragmentedPacket(). In
   //    this case we are not consuming any chunk, and we can use the combination
   //    of SequenceState.chunks[SequenceState.next_seq_idx].
   std::optional<ChunkID> last_chunk_id;
   if (chunk_->is_padding()) {
-    last_chunk_id = seq_->last_chunk_id_consumed;  // Case 1.
+    if (seq_->last_chunk_consumed.has_value())
+      last_chunk_id = seq_->last_chunk_consumed->chunk_id;  // Case 1.
   } else {
     last_chunk_id = chunk_->chunk_id;  // Case 2
   }
@@ -236,7 +237,9 @@ void ChunkSeqIterator::EraseCurrentChunk() {
   TRACE_BUFFER_V2_DLOG("EraseChunk() id=%u off=%zu", chunk_->chunk_id,
                        chunk_off);
   const uint32_t chunk_size = chunk_->size;
-  seq_->last_chunk_id_consumed = chunk_->chunk_id;
+  const bool was_incomplete = chunk_->flags & kChunkIncomplete;
+  seq_->last_chunk_consumed = SequenceState::ConsumedChunkInfo{
+      chunk_->chunk_id, chunk_->payload_size, was_incomplete};
 
   auto& chunk_list = seq_->chunks;
 
@@ -281,11 +284,13 @@ ChunkSeqReader::ChunkSeqReader(TraceBufferV2* buf,
       frag_iter_(iter_) {
   PERFETTO_DCHECK(!iter_->is_padding());
   TRACE_BUFFER_V2_DLOG("ChunkSeqReader() last_id=%u iter_=%u end_=%u",
-                       seq_->last_chunk_id_consumed.value_or(0),
+                       seq_->last_chunk_consumed.has_value()
+                           ? seq_->last_chunk_consumed->chunk_id
+                           : 0,
                        iter_->chunk_id, end_->chunk_id);
 
-  if (seq_->last_chunk_id_consumed.has_value() &&
-      iter_->chunk_id != *seq_->last_chunk_id_consumed + 1) {
+  if (seq_->last_chunk_consumed.has_value() &&
+      iter_->chunk_id != seq_->last_chunk_consumed->chunk_id + 1) {
     seq_->data_loss = true;
   }
 }
@@ -746,13 +751,27 @@ void TraceBufferV2::CopyChunkUntrusted(
     seq.data_loss = true;
   }
 
-  // Don't allow re-commit of chunks that have been consumed already. It's too
-  // late and they will only mess up future chunks more.
-  if (seq.last_chunk_id_consumed.has_value() &&
-      ChunkIdCompare(chunk_id, *seq.last_chunk_id_consumed) <= 0) {
-    stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
-    PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
-    return;
+  // Don't allow re-commit of chunks that have been consumed already, unless
+  // the chunk was evicted while incomplete (scraped) and the new commit has
+  // strictly more payload. In that case we re-admit it so the previously-
+  // dropped fragments can be recovered.
+  //
+  // When re-admitting, |previously_consumed_payload| records how many payload
+  // bytes were already consumed before eviction, so we can skip them below.
+  uint16_t previously_consumed_payload = 0;
+  if (seq.last_chunk_consumed.has_value()) {
+    int cmp = ChunkIdCompare(chunk_id, seq.last_chunk_consumed->chunk_id);
+    if (cmp == 0 && seq.last_chunk_consumed->was_incomplete &&
+        seq.last_chunk_consumed->payload_size < all_frags_size) {
+      previously_consumed_payload = seq.last_chunk_consumed->payload_size;
+      TRACE_BUFFER_V2_DLOG("  Re-admitting chunk %u (prev_payload=%u)",
+                           chunk_id, previously_consumed_payload);
+    } else if (cmp <= 0) {
+      // Older or same chunk with no new data to recover.
+      stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
+      PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
+      return;
+    }
   }
 
   // If there isn't enough room from the given write position: write a padding
@@ -831,7 +850,8 @@ void TraceBufferV2::CopyChunkUntrusted(
 
   TBChunk* tbchunk = CreateTBChunk(wr_, tbchunk_size);
   tbchunk->payload_size = all_frags_size_u16;
-  tbchunk->payload_avail = all_frags_size_u16;
+  // For re-admitted chunks, skip already-consumed payload (0 otherwise).
+  tbchunk->payload_avail = all_frags_size_u16 - previously_consumed_payload;
   tbchunk->chunk_id = chunk_id;
   tbchunk->flags = chunk_flags;
   tbchunk->pri_wri_id = seq_key;
@@ -1052,7 +1072,7 @@ void TraceBufferV2::DiscardWrite() {
 }
 
 // When a sequence has 0 chunks we could delete it straight away. However doing
-// do would remove also the last_chunk_id_consumed used to detect data losses.
+// do would remove also the last_chunk_consumed used to detect data losses.
 // Here we have to balance the tradeoff between:
 // - Bounding memory usage: if we have a lot of writer threads, we can't just
 //   keeping growing the SequenceStates without bounds.
