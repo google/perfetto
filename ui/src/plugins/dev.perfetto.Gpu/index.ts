@@ -28,6 +28,9 @@ import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrac
 interface GpuCounterSchema {
   readonly type: string;
   readonly group: string | undefined;
+  // Sort order for the top-level group under GPU. Groups with undefined
+  // sortOrder default to 0 (top); summary-only groups use higher values.
+  readonly groupSortOrder: number | undefined;
   // When set, the track is named "${gpu.displayName} ${gpuTrackName}" instead
   // of using the DB track name. This avoids redundant prefixes like
   // "GPU 0 GPU Memory" by allowing explicit control (e.g., "GPU 0 Memory").
@@ -37,43 +40,94 @@ interface GpuCounterSchema {
 interface GpuSliceSchema {
   readonly type: string;
   readonly group: string | undefined;
+  readonly groupSortOrder: number | undefined;
 }
 
+// Sort order base for summary-only groups (Counters, Hardware Queues, etc.)
+// that should appear below leaf tracks (Frequency, Memory).
+const SUMMARY_GROUP_SORT_BASE = 1000;
+
 const GPU_COUNTER_SCHEMAS: ReadonlyArray<GpuCounterSchema> = [
-  {type: 'gpu_counter', group: 'Counters', gpuTrackName: undefined},
-  {type: 'gpu_memory', group: undefined, gpuTrackName: 'Memory'},
-  {type: 'virtgpu_latency', group: 'Virtgpu Latency', gpuTrackName: undefined},
+  {
+    type: 'gpu_counter',
+    group: 'Counters',
+    groupSortOrder: SUMMARY_GROUP_SORT_BASE,
+    gpuTrackName: undefined,
+  },
+  {
+    type: 'gpu_memory',
+    group: undefined,
+    groupSortOrder: undefined,
+    gpuTrackName: 'Memory',
+  },
+  {
+    type: 'virtgpu_latency',
+    group: 'Virtgpu Latency',
+    groupSortOrder: SUMMARY_GROUP_SORT_BASE,
+    gpuTrackName: undefined,
+  },
   {
     type: 'virtgpu_num_free',
     group: 'Virtgpu num_free',
+    groupSortOrder: SUMMARY_GROUP_SORT_BASE,
     gpuTrackName: undefined,
   },
   {
     type: 'vulkan_device_mem_allocation',
     group: 'Vulkan Allocations',
+    groupSortOrder: SUMMARY_GROUP_SORT_BASE,
     gpuTrackName: undefined,
   },
   {
     type: 'vulkan_device_mem_bind',
     group: 'Vulkan Binds',
+    groupSortOrder: SUMMARY_GROUP_SORT_BASE,
     gpuTrackName: undefined,
   },
   {
     type: 'vulkan_driver_mem',
     group: 'Vulkan Driver Memory',
+    groupSortOrder: SUMMARY_GROUP_SORT_BASE,
     gpuTrackName: undefined,
   },
 ];
 
 const GPU_SLICE_SCHEMAS: ReadonlyArray<GpuSliceSchema> = [
-  {type: 'mali_mcu_state', group: undefined},
-  {type: 'virtgpu_queue_event', group: 'Virtio GPU Events'},
-  {type: 'gpu_render_stage', group: 'Hardware Queues'},
-  {type: 'vulkan_events', group: undefined},
-  {type: 'gpu_log', group: undefined},
-  {type: 'graphics_frame_event', group: undefined},
+  {type: 'mali_mcu_state', group: undefined, groupSortOrder: undefined},
+  {
+    type: 'virtgpu_queue_event',
+    group: 'Virtio GPU Events',
+    groupSortOrder: SUMMARY_GROUP_SORT_BASE,
+  },
+  {
+    type: 'gpu_render_stage',
+    group: 'Hardware Queues',
+    groupSortOrder: SUMMARY_GROUP_SORT_BASE,
+  },
+  {type: 'vulkan_events', group: undefined, groupSortOrder: undefined},
+  {type: 'gpu_log', group: undefined, groupSortOrder: undefined},
+  {type: 'graphics_frame_event', group: undefined, groupSortOrder: undefined},
 ];
 
+// Track ordering
+// ---------------
+// GPU tracks are sorted using TrackNode.sortOrder combined with insertion
+// order (addChildInOrder inserts before the first child with a strictly
+// greater sortOrder; equal values preserve insertion order).
+//
+// 1. GPU identity: tracks for different GPUs are separated by
+//    Gpu.sortOrder (= machine * MAX_GPUS_PER_MACHINE + gpu), so GPU 0
+//    appears before GPU 1, and machines sort first.
+// 2. Leaf before summary: leaf tracks (Frequency, Memory) use low
+//    sortOrder values (>= 0). Summary-only groups (Counters, Hardware
+//    Queues, etc.) use SUMMARY_GROUP_SORT_BASE so they appear below
+//    leaf tracks.
+// 3. Alphabetical: SQL queries use ORDER BY lower(name) so leaf tracks
+//    are iterated — and thus inserted — in alphabetical order. Custom
+//    counter group nodes are assigned incrementing positive sortOrder
+//    values (starting above leaf tracks) based on alphabetical group
+//    name, ensuring they also appear in alphabetical order among
+//    themselves.
 export default class GpuPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Gpu';
   static readonly dependencies = [
@@ -185,13 +239,19 @@ export default class GpuPlugin implements PerfettoPlugin {
   private addToGpuGroup(
     ctx: Trace,
     group: string | undefined,
+    groupSortOrder: number | undefined,
     gpu: Gpu | null,
     track: TrackNode,
   ) {
     const gpuGroup = this.getGpuGroup(ctx);
 
     if (gpu !== null && group !== undefined && this.gpuCount > 1) {
-      const parentGroup = this.getGroupByName(gpuGroup, group, null);
+      const parentGroup = this.getGroupByName(
+        gpuGroup,
+        group,
+        null,
+        groupSortOrder,
+      );
       const gpuSubGroupName = `${gpu.displayName} ${group}${gpu.maybeMachineLabel()}`;
       const scopeId =
         gpu.machine > 0 ? `${gpu.gpu}_m${gpu.machine}` : `${gpu.gpu}`;
@@ -203,7 +263,12 @@ export default class GpuPlugin implements PerfettoPlugin {
       );
       gpuSubGroup.addChildInOrder(track);
     } else {
-      this.getGroupByName(gpuGroup, group, null).addChildInOrder(track);
+      this.getGroupByName(
+        gpuGroup,
+        group,
+        null,
+        groupSortOrder,
+      ).addChildInOrder(track);
     }
   }
 
@@ -216,7 +281,8 @@ export default class GpuPlugin implements PerfettoPlugin {
     if (group === undefined) {
       return node;
     }
-    const groupId = `gpu_group_${scopeId}_${group.toLowerCase().replace(' ', '_')}`;
+    const parentId = node.uri ?? 'root';
+    const groupId = `gpu_group_${scopeId}_${parentId}_${group.toLowerCase().replace(' ', '_')}`;
     const groupNode = this.groups.get(groupId);
     if (groupNode) {
       return groupNode;
@@ -266,6 +332,7 @@ export default class GpuPlugin implements PerfettoPlugin {
       trackName: string;
       baseName: string;
       uri: string;
+      trackId: number;
     }> = [];
     const it = result.iter({
       id: NUM,
@@ -330,15 +397,66 @@ export default class GpuPlugin implements PerfettoPlugin {
         trackName,
         baseName: getTrackName({name, kind: COUNTER_TRACK_KIND}),
         uri,
+        trackId,
       });
+    }
+
+    // Query custom counter groups.
+    const groupResult = await ctx.engine.query(`
+      select
+        group_id as groupId,
+        name as groupName,
+        track_id as trackId
+      from gpu_counter_group
+      where name is not null
+      order by lower(name), group_id
+    `);
+
+    // Map trackId -> {groupId, groupName} for custom group assignment.
+    // Also collect unique groups in alphabetical order for sort ordering.
+    const trackGroupMap = new Map<
+      number,
+      {groupId: number; groupName: string}
+    >();
+    const uniqueGroups = new Map<number, string>();
+    const groupIt = groupResult.iter({
+      groupId: NUM,
+      groupName: STR_NULL,
+      trackId: NUM,
+    });
+    for (; groupIt.valid(); groupIt.next()) {
+      if (groupIt.groupName !== null) {
+        // Use the first named group for each track.
+        if (!trackGroupMap.has(groupIt.trackId)) {
+          trackGroupMap.set(groupIt.trackId, {
+            groupId: groupIt.groupId,
+            groupName: groupIt.groupName,
+          });
+        }
+        if (!uniqueGroups.has(groupIt.groupId)) {
+          uniqueGroups.set(groupIt.groupId, groupIt.groupName);
+        }
+      }
+    }
+
+    // Assign sort orders to custom groups: alphabetical, all above leaf
+    // tracks so groups appear after ungrouped counter tracks.
+    const CUSTOM_GROUP_SORT_BASE = 10000;
+    const sortedGroupIds = [...uniqueGroups.entries()]
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([id]) => id);
+    const groupSortOrder = new Map<number, number>();
+    for (let i = 0; i < sortedGroupIds.length; i++) {
+      groupSortOrder.set(sortedGroupIds[i], CUSTOM_GROUP_SORT_BASE + i);
     }
 
     // Count ungrouped tracks per type to decide if a sub-group is needed,
     // matching the Frequency pattern: only create a sub-group when
     // there are multiple tracks of the same type.
     const ungroupedCounts = new Map<string, number>();
-    for (const {schema} of counterTracks) {
-      if (schema.group === undefined) {
+    for (const {schema, trackId} of counterTracks) {
+      const customGroup = trackGroupMap.get(trackId);
+      if (schema.group === undefined && customGroup === undefined) {
         ungroupedCounts.set(
           schema.type,
           (ungroupedCounts.get(schema.type) ?? 0) + 1,
@@ -346,7 +464,71 @@ export default class GpuPlugin implements PerfettoPlugin {
       }
     }
 
-    for (const {schema, gpu, trackName, baseName, uri} of counterTracks) {
+    for (const {
+      schema,
+      gpu,
+      trackName,
+      baseName,
+      uri,
+      trackId,
+    } of counterTracks) {
+      const trackNode = new TrackNode({
+        uri,
+        name: trackName,
+        sortOrder: gpu?.sortOrder ?? 0,
+      });
+
+      // Check if this track has a custom group assignment.
+      const customGroup = trackGroupMap.get(trackId);
+      if (customGroup !== undefined && schema.type === 'gpu_counter') {
+        const gpuGroup = this.getGpuGroup(ctx);
+        const countersGroup = this.getGroupByName(
+          gpuGroup,
+          schema.group,
+          null,
+          schema.groupSortOrder,
+        );
+
+        // Place track under its custom group within Counters.
+        let parent: TrackNode;
+        const scopeId =
+          gpu !== null
+            ? gpu.machine > 0
+              ? `${gpu.gpu}_m${gpu.machine}`
+              : `${gpu.gpu}`
+            : null;
+        if (gpu !== null && this.gpuCount > 1) {
+          const gpuSubGroupName = `${gpu.displayName} ${schema.group}${gpu.maybeMachineLabel()}`;
+          parent = this.getGroupByName(
+            countersGroup,
+            gpuSubGroupName,
+            scopeId,
+            gpu.sortOrder,
+          );
+        } else {
+          parent = countersGroup;
+        }
+
+        // Create custom group node using numeric ID as cache key.
+        const key = `gpu_custom_group_${scopeId}_${customGroup.groupId}`;
+        let groupNode = this.groups.get(key);
+        if (!groupNode) {
+          groupNode = new TrackNode({
+            uri: `/gpu_group_${customGroup.groupId}`,
+            isSummary: true,
+            name: customGroup.groupName,
+            collapsed: true,
+            sortOrder:
+              groupSortOrder.get(customGroup.groupId) ?? CUSTOM_GROUP_SORT_BASE,
+          });
+          parent.addChildInOrder(groupNode);
+          this.groups.set(key, groupNode);
+        }
+
+        groupNode.addChildInOrder(trackNode);
+        continue;
+      }
+
       let group = schema.group;
       let groupGpu = gpu;
       if (group === undefined && (ungroupedCounts.get(schema.type) ?? 0) > 1) {
@@ -359,12 +541,9 @@ export default class GpuPlugin implements PerfettoPlugin {
       this.addToGpuGroup(
         ctx,
         group,
+        schema.groupSortOrder,
         groupGpu,
-        new TrackNode({
-          uri,
-          name: trackName,
-          sortOrder: gpu?.sortOrder ?? 0,
-        }),
+        trackNode,
       );
     }
   }
@@ -458,6 +637,7 @@ export default class GpuPlugin implements PerfettoPlugin {
       this.addToGpuGroup(
         ctx,
         schema.group,
+        schema.groupSortOrder,
         gpu,
         new TrackNode({
           uri,

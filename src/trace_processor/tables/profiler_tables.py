@@ -1229,13 +1229,22 @@ GPU_COUNTER_GROUP_TABLE = Table(
     columns=[
         C('group_id', CppInt32()),
         C('track_id', CppTableId(TRACK_TABLE)),
+        C('name', CppOptional(CppString())),
+        C('description', CppOptional(CppString())),
     ],
     tabledoc=TableDoc(
-        doc='''''',
+        doc='''Maps GPU counter tracks to groups.''',
         group='Misc',
         columns={
-            'group_id': '''''',
-            'track_id': ''''''
+            'group_id':
+                '''Group identifier (enum value for legacy groups, custom
+                ID for producer-defined groups).''',
+            'track_id':
+                '''Track table reference for the counter.''',
+            'name':
+                '''Group name. NULL for legacy enum-based groups.''',
+            'description':
+                '''Group description. NULL for legacy enum-based groups.''',
         }))
 
 # TODO(lalitm): delete this once we have proper tree functions.
