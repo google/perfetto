@@ -147,7 +147,11 @@ const GPU_SLICE_SCHEMAS: ReadonlyArray<GpuSliceSchema> = [
 //    Queues, etc.) use SUMMARY_GROUP_SORT_BASE so they appear below
 //    leaf tracks.
 // 3. Alphabetical: SQL queries use ORDER BY lower(name) so leaf tracks
-//    are iterated — and thus inserted — in alphabetical order.
+//    are iterated — and thus inserted — in alphabetical order. Custom
+//    counter group nodes are assigned incrementing positive sortOrder
+//    values (starting above leaf tracks) based on alphabetical group
+//    name, ensuring they also appear in alphabetical order among
+//    themselves.
 export default class GpuPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Gpu';
   static readonly dependencies = [
@@ -342,6 +346,7 @@ export default class GpuPlugin implements PerfettoPlugin {
       trackName: string;
       baseName: string;
       uri: string;
+      trackId: number;
     }> = [];
     const it = result.iter({
       id: NUM,
@@ -406,15 +411,66 @@ export default class GpuPlugin implements PerfettoPlugin {
         trackName,
         baseName: getTrackName({name, kind: COUNTER_TRACK_KIND}),
         uri,
+        trackId,
       });
+    }
+
+    // Query custom counter groups.
+    const groupResult = await ctx.engine.query(`
+      select
+        group_id as groupId,
+        name as groupName,
+        track_id as trackId
+      from gpu_counter_group
+      where name is not null
+      order by lower(name), group_id
+    `);
+
+    // Map trackId -> {groupId, groupName} for custom group assignment.
+    // Also collect unique groups in alphabetical order for sort ordering.
+    const trackGroupMap = new Map<
+      number,
+      {groupId: number; groupName: string}
+    >();
+    const uniqueGroups = new Map<number, string>();
+    const groupIt = groupResult.iter({
+      groupId: NUM,
+      groupName: STR_NULL,
+      trackId: NUM,
+    });
+    for (; groupIt.valid(); groupIt.next()) {
+      if (groupIt.groupName !== null) {
+        // Use the first named group for each track.
+        if (!trackGroupMap.has(groupIt.trackId)) {
+          trackGroupMap.set(groupIt.trackId, {
+            groupId: groupIt.groupId,
+            groupName: groupIt.groupName,
+          });
+        }
+        if (!uniqueGroups.has(groupIt.groupId)) {
+          uniqueGroups.set(groupIt.groupId, groupIt.groupName);
+        }
+      }
+    }
+
+    // Assign sort orders to custom groups: alphabetical, all above leaf
+    // tracks so groups appear after ungrouped counter tracks.
+    const CUSTOM_GROUP_SORT_BASE = 10000;
+    const sortedGroupIds = [...uniqueGroups.entries()]
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([id]) => id);
+    const groupSortOrder = new Map<number, number>();
+    for (let i = 0; i < sortedGroupIds.length; i++) {
+      groupSortOrder.set(sortedGroupIds[i], CUSTOM_GROUP_SORT_BASE + i);
     }
 
     // Count ungrouped tracks per type to decide if a sub-group is needed,
     // matching the Frequency pattern: only create a sub-group when
     // there are multiple tracks of the same type.
     const ungroupedCounts = new Map<string, number>();
-    for (const {schema} of counterTracks) {
-      if (schema.group === undefined) {
+    for (const {schema, trackId} of counterTracks) {
+      const customGroup = trackGroupMap.get(trackId);
+      if (schema.group === undefined && customGroup === undefined) {
         ungroupedCounts.set(
           schema.type,
           (ungroupedCounts.get(schema.type) ?? 0) + 1,
@@ -422,7 +478,71 @@ export default class GpuPlugin implements PerfettoPlugin {
       }
     }
 
-    for (const {schema, gpu, trackName, baseName, uri} of counterTracks) {
+    for (const {
+      schema,
+      gpu,
+      trackName,
+      baseName,
+      uri,
+      trackId,
+    } of counterTracks) {
+      const trackNode = new TrackNode({
+        uri,
+        name: trackName,
+        sortOrder: gpu?.sortOrder ?? 0,
+      });
+
+      // Check if this track has a custom group assignment.
+      const customGroup = trackGroupMap.get(trackId);
+      if (customGroup !== undefined && schema.type === 'gpu_counter') {
+        const gpuGroup = this.getGpuGroup(ctx);
+        const countersGroup = this.getGroupByName(
+          gpuGroup,
+          schema.group,
+          null,
+          schema.groupSortOrder,
+        );
+
+        // Place track under its custom group within Counters.
+        let parent: TrackNode;
+        const scopeId =
+          gpu !== null
+            ? gpu.machine > 0
+              ? `${gpu.gpu}_m${gpu.machine}`
+              : `${gpu.gpu}`
+            : null;
+        if (gpu !== null && this.gpuCount > 1) {
+          const gpuSubGroupName = `${gpu.displayName} ${schema.group}${gpu.maybeMachineLabel()}`;
+          parent = this.getGroupByName(
+            countersGroup,
+            gpuSubGroupName,
+            scopeId,
+            gpu.sortOrder,
+          );
+        } else {
+          parent = countersGroup;
+        }
+
+        // Create custom group node using numeric ID as cache key.
+        const key = `gpu_custom_group_${scopeId}_${customGroup.groupId}`;
+        let groupNode = this.groups.get(key);
+        if (!groupNode) {
+          groupNode = new TrackNode({
+            uri: `/gpu_group_${customGroup.groupId}`,
+            isSummary: true,
+            name: customGroup.groupName,
+            collapsed: true,
+            sortOrder:
+              groupSortOrder.get(customGroup.groupId) ?? CUSTOM_GROUP_SORT_BASE,
+          });
+          parent.addChildInOrder(groupNode);
+          this.groups.set(key, groupNode);
+        }
+
+        groupNode.addChildInOrder(trackNode);
+        continue;
+      }
+
       let group = schema.group;
       let groupGpu = gpu;
       if (group === undefined && (ungroupedCounts.get(schema.type) ?? 0) > 1) {
@@ -437,11 +557,7 @@ export default class GpuPlugin implements PerfettoPlugin {
         group,
         schema.groupSortOrder,
         groupGpu,
-        new TrackNode({
-          uri,
-          name: trackName,
-          sortOrder: gpu?.sortOrder ?? 0,
-        }),
+        trackNode,
       );
     }
   }
