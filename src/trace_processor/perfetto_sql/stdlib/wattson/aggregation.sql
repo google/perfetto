@@ -114,11 +114,7 @@ RETURNS TableOrSubquery AS
     a.active_mws AS estimated_mws,
     -- Power = Energy / Window Duration
     (
-      a.total_mw_ns / (
-        SELECT
-          sum(dur)
-        FROM $window_table
-      )
+      a.total_mw_ns / w.dur
     ) AS estimated_mw,
     coalesce(i.idle_mws, 0) AS idle_transitions_mws,
     (
