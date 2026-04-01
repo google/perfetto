@@ -20,6 +20,7 @@
 #include "perfetto/ext/base/base64.h"
 #include "protos/perfetto/trace/android/viewcapture.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/winscope/viewcapture_rect_computation.h"
 #include "src/trace_processor/importers/proto/winscope/viewcapture_views_extractor.h"
 #include "src/trace_processor/importers/proto/winscope/viewcapture_visibility_computation.h"
@@ -61,7 +62,8 @@ void ViewCaptureParser::Parse(int64_t timestamp,
 
   AddDeinternedData(writer, row.base64_proto_id.value());
   if (!status.ok()) {
-    storage->IncrementStats(stats::winscope_viewcapture_parse_errors);
+    context_->trace_processor_context_->stats_tracker->IncrementStats(
+        stats::winscope_viewcapture_parse_errors);
   }
 
   auto views_top_to_bottom =
@@ -120,7 +122,8 @@ void ViewCaptureParser::ParseView(
 
   AddDeinternedData(writer, view.base64_proto_id.value());
   if (!status.ok()) {
-    storage->IncrementStats(stats::winscope_viewcapture_parse_errors);
+    context_->trace_processor_context_->stats_tracker->IncrementStats(
+        stats::winscope_viewcapture_parse_errors);
   }
 }
 

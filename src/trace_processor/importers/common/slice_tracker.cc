@@ -26,6 +26,7 @@
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
@@ -398,7 +399,7 @@ bool SliceTracker::MaybeCloseStack(int64_t new_ts,
           context_->storage->GetString(ref.name().value_or(kNullStringId))
               .c_str(),
           start_ts, end_ts, new_ts);
-      context_->storage->IncrementStats(stats::misplaced_end_event);
+      context_->stats_tracker->IncrementStats(stats::misplaced_end_event);
 
       // Every slice below this one should have a pending duration. Update
       // of them to have the end ts of the current slice and pop them
@@ -457,7 +458,7 @@ bool SliceTracker::MaybeCloseStack(int64_t new_ts,
     // This is invalid stacking by the producer and should be fixed. Duration
     // events should either be nested or disjoint, never partially intersecting.
     if (new_ts < end_ts && new_ts + new_dur > end_ts) {
-      context_->storage->IncrementStats(
+      context_->stats_tracker->IncrementStats(
           stats::slice_drop_overlapping_complete_event);
       return false;
     }

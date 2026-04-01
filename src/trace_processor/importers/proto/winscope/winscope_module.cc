@@ -29,6 +29,7 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -174,7 +175,7 @@ void WinscopeModule::ParseInputMethodClientsData(int64_t timestamp,
                                     tables::InputMethodClientsTable::Name()),
                                 nullptr /* parse all fields */, writer);
   if (!status.ok()) {
-    trace_processor_context->storage->IncrementStats(
+    trace_processor_context->stats_tracker->IncrementStats(
         stats::winscope_inputmethod_clients_parse_errors);
   }
 }
@@ -203,7 +204,7 @@ void WinscopeModule::ParseInputMethodManagerServiceData(
           tables::InputMethodManagerServiceTable::Name()),
       nullptr /* parse all fields */, writer);
   if (!status.ok()) {
-    trace_processor_context->storage->IncrementStats(
+    trace_processor_context->stats_tracker->IncrementStats(
         stats::winscope_inputmethod_manager_service_parse_errors);
   }
 }
@@ -231,7 +232,7 @@ void WinscopeModule::ParseInputMethodServiceData(int64_t timestamp,
                                     tables::InputMethodServiceTable::Name()),
                                 nullptr /* parse all fields */, writer);
   if (!status.ok()) {
-    trace_processor_context->storage->IncrementStats(
+    trace_processor_context->stats_tracker->IncrementStats(
         stats::winscope_inputmethod_service_parse_errors);
   }
 }

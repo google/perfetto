@@ -33,6 +33,7 @@
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
@@ -246,7 +247,7 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
 
   uint64_t header;
   if (!cursor.ReadUint64(&header)) {
-    context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+    context_->stats_tracker->IncrementStats(stats::fuchsia_record_read_error);
     return;
   }
   auto record_type = fuchsia_trace_utils::ReadField<uint32_t>(header, 0, 3);
@@ -262,13 +263,15 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
 
       int64_t ts;
       if (!cursor.ReadTimestamp(fr.get_ticks_per_second(), &ts)) {
-        context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+        context_->stats_tracker->IncrementStats(
+            stats::fuchsia_record_read_error);
         return;
       }
       FuchsiaThreadInfo tinfo;
       if (fuchsia_trace_utils::IsInlineThread(thread_ref)) {
         if (!cursor.ReadInlineThread(&tinfo)) {
-          context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+          context_->stats_tracker->IncrementStats(
+              stats::fuchsia_record_read_error);
           return;
         }
       } else {
@@ -278,7 +281,8 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
       if (fuchsia_trace_utils::IsInlineString(cat_ref)) {
         base::StringView cat_string_view;
         if (!cursor.ReadInlineString(cat_ref, &cat_string_view)) {
-          context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+          context_->stats_tracker->IncrementStats(
+              stats::fuchsia_record_read_error);
           return;
         }
         cat = context_->storage->InternString(cat_string_view);
@@ -289,7 +293,8 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
       if (fuchsia_trace_utils::IsInlineString(name_ref)) {
         base::StringView name_string_view;
         if (!cursor.ReadInlineString(name_ref, &name_string_view)) {
-          context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+          context_->stats_tracker->IncrementStats(
+              stats::fuchsia_record_read_error);
           return;
         }
         name = context_->storage->InternString(name_string_view);
@@ -300,7 +305,8 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
       auto maybe_args = FuchsiaTraceParser::ParseArgs(
           cursor, n_args, intern_string, get_string);
       if (!maybe_args.has_value()) {
-        context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+        context_->stats_tracker->IncrementStats(
+            stats::fuchsia_record_read_error);
         return;
       }
 
@@ -329,7 +335,8 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
               context_->storage->GetString(name).ToStdString();
           uint64_t counter_id;
           if (!cursor.ReadUint64(&counter_id)) {
-            context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+            context_->stats_tracker->IncrementStats(
+                stats::fuchsia_record_read_error);
             return;
           }
           // Note: In the Fuchsia trace format, counter values are stored
@@ -371,7 +378,7 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
               case fuchsia_trace_utils::ArgValue::kKoid:
               case fuchsia_trace_utils::ArgValue::kBool:
               case fuchsia_trace_utils::ArgValue::kUnknown:
-                context_->storage->IncrementStats(
+                context_->stats_tracker->IncrementStats(
                     stats::fuchsia_non_numeric_counters);
                 break;
             }
@@ -411,12 +418,13 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
         case kDurationComplete: {
           int64_t end_ts;
           if (!cursor.ReadTimestamp(fr.get_ticks_per_second(), &end_ts)) {
-            context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+            context_->stats_tracker->IncrementStats(
+                stats::fuchsia_record_read_error);
             return;
           }
           int64_t duration = end_ts - ts;
           if (duration < 0) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::fuchsia_timestamp_overflow);
             return;
           }
@@ -431,7 +439,8 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
         case kAsyncBegin: {
           int64_t correlation_id;
           if (!cursor.ReadInt64(&correlation_id)) {
-            context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+            context_->stats_tracker->IncrementStats(
+                stats::fuchsia_record_read_error);
             return;
           }
           UniquePid upid =
@@ -445,7 +454,8 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
         case kAsyncInstant: {
           int64_t correlation_id;
           if (!cursor.ReadInt64(&correlation_id)) {
-            context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+            context_->stats_tracker->IncrementStats(
+                stats::fuchsia_record_read_error);
             return;
           }
           UniquePid upid =
@@ -459,7 +469,8 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
         case kAsyncEnd: {
           int64_t correlation_id;
           if (!cursor.ReadInt64(&correlation_id)) {
-            context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+            context_->stats_tracker->IncrementStats(
+                stats::fuchsia_record_read_error);
             return;
           }
           UniquePid upid =
@@ -473,7 +484,8 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
         case kFlowBegin: {
           uint64_t correlation_id;
           if (!cursor.ReadUint64(&correlation_id)) {
-            context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+            context_->stats_tracker->IncrementStats(
+                stats::fuchsia_record_read_error);
             return;
           }
           UniqueTid utid =
@@ -486,7 +498,8 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
         case kFlowStep: {
           uint64_t correlation_id;
           if (!cursor.ReadUint64(&correlation_id)) {
-            context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+            context_->stats_tracker->IncrementStats(
+                stats::fuchsia_record_read_error);
             return;
           }
           UniqueTid utid =
@@ -499,7 +512,8 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
         case kFlowEnd: {
           uint64_t correlation_id;
           if (!cursor.ReadUint64(&correlation_id)) {
-            context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+            context_->stats_tracker->IncrementStats(
+                stats::fuchsia_record_read_error);
             return;
           }
           UniqueTid utid =
@@ -531,11 +545,12 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
 
           int64_t ts;
           if (!cursor.ReadTimestamp(fr.get_ticks_per_second(), &ts)) {
-            context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+            context_->stats_tracker->IncrementStats(
+                stats::fuchsia_record_read_error);
             return;
           }
           if (ts < 0) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::fuchsia_timestamp_overflow);
             return;
           }
@@ -543,7 +558,7 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
           FuchsiaThreadInfo outgoing_thread_info;
           if (fuchsia_trace_utils::IsInlineThread(outgoing_thread_ref)) {
             if (!cursor.ReadInlineThread(&outgoing_thread_info)) {
-              context_->storage->IncrementStats(
+              context_->stats_tracker->IncrementStats(
                   stats::fuchsia_record_read_error);
               return;
             }
@@ -555,7 +570,7 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
           FuchsiaThreadInfo incoming_thread_info;
           if (fuchsia_trace_utils::IsInlineThread(incoming_thread_ref)) {
             if (!cursor.ReadInlineThread(&incoming_thread_info)) {
-              context_->storage->IncrementStats(
+              context_->stats_tracker->IncrementStats(
                   stats::fuchsia_record_read_error);
               return;
             }
@@ -591,25 +606,28 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
 
           int64_t ts;
           if (!cursor.ReadTimestamp(fr.get_ticks_per_second(), &ts)) {
-            context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+            context_->stats_tracker->IncrementStats(
+                stats::fuchsia_record_read_error);
             return;
           }
           if (ts < 0) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::fuchsia_timestamp_overflow);
             return;
           }
 
           uint64_t outgoing_tid;
           if (!cursor.ReadUint64(&outgoing_tid)) {
-            context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+            context_->stats_tracker->IncrementStats(
+                stats::fuchsia_record_read_error);
             return;
           }
           Thread& outgoing_thread = GetThread(outgoing_tid);
 
           uint64_t incoming_tid;
           if (!cursor.ReadUint64(&incoming_tid)) {
-            context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+            context_->stats_tracker->IncrementStats(
+                stats::fuchsia_record_read_error);
             return;
           }
           Thread& incoming_thread = GetThread(incoming_tid);
@@ -617,7 +635,8 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
           auto maybe_args = FuchsiaTraceParser::ParseArgs(
               cursor, argument_count, intern_string, get_string);
           if (!maybe_args.has_value()) {
-            context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+            context_->stats_tracker->IncrementStats(
+                stats::fuchsia_record_read_error);
             return;
           }
 
@@ -628,7 +647,7 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
             if (arg.name == incoming_weight_id_) {
               if (arg.value.Type() !=
                   fuchsia_trace_utils::ArgValue::ArgType::kInt32) {
-                context_->storage->IncrementStats(
+                context_->stats_tracker->IncrementStats(
                     stats::fuchsia_invalid_event_arg_type);
                 return;
               }
@@ -636,7 +655,7 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
             } else if (arg.name == outgoing_weight_id_) {
               if (arg.value.Type() !=
                   fuchsia_trace_utils::ArgValue::ArgType::kInt32) {
-                context_->storage->IncrementStats(
+                context_->stats_tracker->IncrementStats(
                     stats::fuchsia_invalid_event_arg_type);
                 return;
               }
@@ -666,18 +685,20 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
 
           int64_t ts;
           if (!cursor.ReadTimestamp(fr.get_ticks_per_second(), &ts)) {
-            context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+            context_->stats_tracker->IncrementStats(
+                stats::fuchsia_record_read_error);
             return;
           }
           if (ts < 0) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::fuchsia_timestamp_overflow);
             return;
           }
 
           uint64_t waking_tid;
           if (!cursor.ReadUint64(&waking_tid)) {
-            context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+            context_->stats_tracker->IncrementStats(
+                stats::fuchsia_record_read_error);
             return;
           }
           Thread& waking_thread = GetThread(waking_tid);
@@ -685,7 +706,8 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
           auto maybe_args = FuchsiaTraceParser::ParseArgs(
               cursor, argument_count, intern_string, get_string);
           if (!maybe_args.has_value()) {
-            context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+            context_->stats_tracker->IncrementStats(
+                stats::fuchsia_record_read_error);
             return;
           }
 
@@ -696,7 +718,7 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
             if (arg.name == weight_id_) {
               if (arg.value.Type() !=
                   fuchsia_trace_utils::ArgValue::ArgType::kInt32) {
-                context_->storage->IncrementStats(
+                context_->stats_tracker->IncrementStats(
                     stats::fuchsia_invalid_event_arg_type);
                 return;
               }
@@ -704,7 +726,7 @@ void FuchsiaTraceParser::Parse(int64_t, FuchsiaRecord fr) {
             } else if (arg.name == waker_id_) {
               if (arg.value.Type() !=
                   fuchsia_trace_utils::ArgValue::ArgType::kKoid) {
-                context_->storage->IncrementStats(
+                context_->stats_tracker->IncrementStats(
                     stats::fuchsia_invalid_event_arg_type);
                 return;
               }

@@ -30,6 +30,7 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -115,7 +116,8 @@ void AndroidInputEventParser::ParseMotionEvent(
                                     tables::AndroidMotionEventsTable::Name()),
                                 nullptr /*parse all fields*/, writer);
   if (!status.ok()) {
-    context_.storage->IncrementStats(stats::android_input_event_parse_errors);
+    context_.stats_tracker->IncrementStats(
+        stats::android_input_event_parse_errors);
   }
 
   TryConvertMonotonicTimestampFields(event_proto.event_time_nanos(),
@@ -153,7 +155,8 @@ void AndroidInputEventParser::ParseKeyEvent(
                                     tables::AndroidKeyEventsTable::Name()),
                                 nullptr /*parse all fields*/, writer);
   if (!status.ok()) {
-    context_.storage->IncrementStats(stats::android_input_event_parse_errors);
+    context_.stats_tracker->IncrementStats(
+        stats::android_input_event_parse_errors);
   }
 
   TryConvertMonotonicTimestampFields(event_proto.event_time_nanos(),
@@ -189,7 +192,8 @@ void AndroidInputEventParser::ParseWindowDispatchEvent(
           tables::AndroidInputEventDispatchTable::Name()),
       nullptr /*parse all fields*/, writer);
   if (!status.ok())
-    context_.storage->IncrementStats(stats::android_input_event_parse_errors);
+    context_.stats_tracker->IncrementStats(
+        stats::android_input_event_parse_errors);
 }
 
 void AndroidInputEventParser::TryConvertMonotonicTimestampFields(

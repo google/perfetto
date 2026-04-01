@@ -30,6 +30,7 @@ source_set("sorter") {
     "../../../include/perfetto/trace_processor:storage",
     "../../base",
     "../importers/common:parser_types",
+    "../importers/common:stats_tracker",
     "../importers/proto:packet_sequence_state_generation_hdr",
     "../importers/systrace:systrace_line",
     "../storage",

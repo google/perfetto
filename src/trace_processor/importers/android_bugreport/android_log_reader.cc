@@ -37,6 +37,7 @@
 #include "src/trace_processor/importers/android_bugreport/android_log_event_parser.h"
 #include "src/trace_processor/importers/common/clock_converter.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -155,7 +156,8 @@ base::Status AndroidLogReader::ParseLine(base::StringView line) {
     if (!format_.has_value()) {
       PERFETTO_DLOG("Could not detect logcat format for: |%s|",
                     line.ToStdString().c_str());
-      context_->storage->IncrementStats(stats::android_log_format_invalid);
+      context_->stats_tracker->IncrementStats(
+          stats::android_log_format_invalid);
       return base::OkStatus();
     }
   }
@@ -196,12 +198,12 @@ base::Status AndroidLogReader::ParseLine(base::StringView line) {
   std::optional<int> tid = ReadNumAndAdvance(&it, ' ');
 
   if (!month || !day || !hour || !minute || !sec || !ns || !pid || !tid) {
-    context_->storage->IncrementStats(stats::android_log_num_failed);
+    context_->stats_tracker->IncrementStats(stats::android_log_num_failed);
     return base::OkStatus();
   }
 
   if (it.size() < 4 || it.at(1) != ' ') {
-    context_->storage->IncrementStats(stats::android_log_num_failed);
+    context_->stats_tracker->IncrementStats(stats::android_log_num_failed);
     return base::OkStatus();
   }
 

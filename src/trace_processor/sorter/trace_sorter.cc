@@ -37,6 +37,7 @@ TraceSorter::TraceSorter(TraceProcessorContext* context,
                          EventHandling event_handling)
     : sorting_mode_(sorting_mode),
       storage_(context->storage.get()),
+      global_stats_tracker_(context->global_stats_tracker.get()),
       event_handling_(event_handling) {}
 
 TraceSorter::~TraceSorter() {
@@ -189,7 +190,8 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
       ++num_extracted;
 
       if (event.ts < latest_pushed_event_ts_) {
-        storage_->IncrementStats(stats::sorter_push_event_out_of_order);
+        global_stats_tracker_->IncrementStats(
+            std::nullopt, std::nullopt, stats::sorter_push_event_out_of_order);
         queue.sink->OnDiscardedEvent(this, GetTokenBufferId(event));
         continue;
       }

@@ -20,6 +20,7 @@
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/android/windowmanager.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/winscope/windowmanager_hierarchy_walker.h"
 #include "src/trace_processor/importers/proto/winscope/windowmanager_proto_clone.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
@@ -41,7 +42,7 @@ void WindowManagerParser::Parse(int64_t timestamp, protozero::ConstBytes blob) {
 
   auto result = hierarchy_walker_.ExtractWindowContainers(entry_decoder);
   if (result.has_parse_error) {
-    context_->trace_processor_context_->storage->IncrementStats(
+    context_->trace_processor_context_->stats_tracker->IncrementStats(
         stats::winscope_windowmanager_parse_errors);
     return;
   }
@@ -83,7 +84,7 @@ tables::WindowManagerTable::Id WindowManagerParser::InsertSnapshotRow(
                                     tables::WindowManagerTable::Name()),
                                 nullptr /* parse all fields */, writer);
   if (!status.ok()) {
-    trace_processor_context->storage->IncrementStats(
+    trace_processor_context->stats_tracker->IncrementStats(
         stats::winscope_windowmanager_parse_errors);
   }
 
@@ -196,7 +197,7 @@ void WindowManagerParser::InsertWindowContainerArgs(
   base::Status status = args_parser_.ParseMessage(
       bytes, proto_name, nullptr /* parse all fields */, writer);
   if (!status.ok()) {
-    context_->trace_processor_context_->storage->IncrementStats(
+    context_->trace_processor_context_->stats_tracker->IncrementStats(
         stats::winscope_windowmanager_parse_errors);
   }
 }

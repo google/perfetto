@@ -23,6 +23,7 @@
 #include "src/kernel_utils/syscall_table.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/destructible.h"
@@ -107,7 +108,8 @@ class SyscallTracker : public Destructible {
     if (!in_sys_write_[utid])
       return;
     in_sys_write_[utid] = false;
-    context_->storage->IncrementStats(stats::truncated_sys_write_duration);
+    context_->stats_tracker->IncrementStats(
+        stats::truncated_sys_write_duration);
 
     TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
     context_->slice_tracker->End(ts, track_id, kNullStringId /* cat */,

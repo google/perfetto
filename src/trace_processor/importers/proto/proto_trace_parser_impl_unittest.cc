@@ -41,6 +41,7 @@
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
@@ -51,6 +52,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
@@ -261,6 +263,7 @@ class ProtoTraceParserTest : public ::testing::Test {
         std::make_unique<GlobalArgsTracker>(context_.storage.get());
     context_.global_metadata_tracker =
         std::make_unique<GlobalMetadataTracker>(context_.storage.get());
+    context_.global_stats_tracker = std::make_unique<GlobalStatsTracker>();
     context_.import_logs_tracker =
         std::make_unique<ImportLogsTracker>(&context_, TraceId(1));
     context_.mapping_tracker.reset(new MappingTracker(&context_));
@@ -292,12 +295,14 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.clock_tracker = std::make_unique<ClockTracker>(
         &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
         primary_sync_.get(), true);
+    context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
     context_.sorter = std::make_unique<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
     context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
     context_.uuid_state = std::make_unique<TraceProcessorContext::UuidState>();
-    context_.heap_graph_tracker = std::make_unique<HeapGraphTracker>(storage_);
+    context_.heap_graph_tracker = std::make_unique<HeapGraphTracker>(
+        storage_, context_.global_stats_tracker.get());
 
     context_.track_compressor.reset(new TrackCompressor(&context_));
     context_.track_group_idx_state =
@@ -2733,9 +2738,10 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   context_.sorter->ExtractEventsForced();
 
   // Packet-level errors reflected in stats storage.
-  const auto& stats = context_.storage->stats();
-  EXPECT_FALSE(stats[stats::packages_list_has_read_errors].value);
-  EXPECT_TRUE(stats[stats::packages_list_has_parse_errors].value);
+  EXPECT_FALSE(
+      context_.stats_tracker->GetStats(stats::packages_list_has_read_errors));
+  EXPECT_TRUE(
+      context_.stats_tracker->GetStats(stats::packages_list_has_parse_errors));
 
   // Expect two metadata rows, each with an int_value of a separate arg set id.
   // The relevant arg sets have the info about the packages. To simplify test
@@ -2786,9 +2792,10 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesListDuplicate) {
   context_.sorter->ExtractEventsForced();
 
   // Packet-level errors reflected in stats storage.
-  const auto& stats = context_.storage->stats();
-  EXPECT_FALSE(stats[stats::packages_list_has_read_errors].value);
-  EXPECT_TRUE(stats[stats::packages_list_has_parse_errors].value);
+  EXPECT_FALSE(
+      context_.stats_tracker->GetStats(stats::packages_list_has_read_errors));
+  EXPECT_TRUE(
+      context_.stats_tracker->GetStats(stats::packages_list_has_parse_errors));
 
   // Expect two metadata rows, each with an int_value of a separate arg set id.
   // The relevant arg sets have the info about the packages. To simplify test

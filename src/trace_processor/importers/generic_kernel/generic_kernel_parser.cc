@@ -18,6 +18,7 @@
 
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -142,7 +143,7 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
   switch (state) {
     case TaskStateEnum::TASK_STATE_CREATED: {
       if (context_->process_tracker->GetThreadOrNull(tid)) {
-        context_->storage->IncrementStats(
+        context_->stats_tracker->IncrementStats(
             stats::generic_task_state_invalid_order);
         return std::nullopt;
       }
@@ -179,7 +180,7 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
         is_invalid_order |= state == TaskStateEnum::TASK_STATE_RUNNING &&
                             prev_state_id == running_string_id_;
         if (is_invalid_order) {
-          context_->storage->IncrementStats(
+          context_->stats_tracker->IncrementStats(
               stats::generic_task_state_invalid_order);
           return std::nullopt;
         }
@@ -193,7 +194,7 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
     }
     case TaskStateEnum::TASK_STATE_UNKNOWN:
     default: {
-      context_->storage->IncrementStats(stats::task_state_invalid);
+      context_->stats_tracker->IncrementStats(stats::task_state_invalid);
       return std::nullopt;
     }
   }

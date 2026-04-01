@@ -19,6 +19,7 @@
 
 #include "protos/perfetto/trace/chrome/v8.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/string_encoding_utils.h"
 #include "src/trace_processor/importers/proto/v8_tracker.h"
@@ -53,7 +54,7 @@ std::optional<IsolateId> V8SequenceState::GetOrInsertIsolate(uint64_t iid) {
 
   auto* view = GetInternedMessageView(InternedData::kV8IsolateFieldNumber, iid);
   if (!view) {
-    context_->storage->IncrementStats(stats::v8_intern_errors);
+    context_->stats_tracker->IncrementStats(stats::v8_intern_errors);
     return std::nullopt;
   }
 
@@ -71,7 +72,7 @@ V8SequenceState::GetOrInsertJsFunction(uint64_t iid, IsolateId isolate_id) {
   auto* view =
       GetInternedMessageView(InternedData::kV8JsFunctionFieldNumber, iid);
   if (!view) {
-    context_->storage->IncrementStats(stats::v8_intern_errors);
+    context_->stats_tracker->IncrementStats(stats::v8_intern_errors);
     return std::nullopt;
   }
 
@@ -103,7 +104,7 @@ V8SequenceState::GetOrInsertWasmScript(uint64_t iid, IsolateId isolate_id) {
   auto* view =
       GetInternedMessageView(InternedData::kV8WasmScriptFieldNumber, iid);
   if (!view) {
-    context_->storage->IncrementStats(stats::v8_intern_errors);
+    context_->stats_tracker->IncrementStats(stats::v8_intern_errors);
     return std::nullopt;
   }
 
@@ -122,7 +123,7 @@ std::optional<tables::V8JsScriptTable::Id> V8SequenceState::GetOrInsertJsScript(
   auto* view =
       GetInternedMessageView(InternedData::kV8JsScriptFieldNumber, iid);
   if (!view) {
-    context_->storage->IncrementStats(stats::v8_intern_errors);
+    context_->stats_tracker->IncrementStats(stats::v8_intern_errors);
     return std::nullopt;
   }
 
@@ -142,7 +143,7 @@ std::optional<StringId> V8SequenceState::GetOrInsertJsFunctionName(
       GetInternedMessageView(InternedData::kV8JsFunctionNameFieldNumber, iid);
 
   if (!view) {
-    context_->storage->IncrementStats(stats::v8_intern_errors);
+    context_->stats_tracker->IncrementStats(stats::v8_intern_errors);
     return std::nullopt;
   }
 

@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.h"
 #include <cstdint>
 #include <optional>
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::winscope {
@@ -219,7 +220,7 @@ std::optional<tables::WindowManagerShellTransitionsTable::RowReference>
 ShellTransitionsTracker::GetRowReference(int32_t transition_id) {
   auto pos = transitions_infos_.find(transition_id);
   if (pos == transitions_infos_.end()) {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::winscope_shell_transitions_parse_errors);
     return std::nullopt;
   }

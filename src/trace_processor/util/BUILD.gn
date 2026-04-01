@@ -96,6 +96,7 @@ source_set("profiler_util") {
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base:base",
     "../../../protos/perfetto/trace/profiling:zero",
+    "../importers/common:stats_tracker",
     "../storage:storage",
   ]
 }

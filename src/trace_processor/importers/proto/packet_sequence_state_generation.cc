@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include <cstddef>
 
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/track_event_sequence_state.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -98,7 +99,8 @@ InternedMessageView* PacketSequenceStateGeneration::GetInternedMessageView(
     }
   }
 
-  context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+  context_->stats_tracker->IncrementStats(
+      stats::interned_data_tokenizer_errors);
   return nullptr;
 }
 
@@ -114,7 +116,8 @@ void PacketSequenceStateGeneration::InternMessage(uint32_t field_id,
   auto field = decoder.FindField(kIidFieldNumber);
   if (PERFETTO_UNLIKELY(!field)) {
     PERFETTO_DLOG("Interned message without interning_id");
-    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+    context_->stats_tracker->IncrementStats(
+        stats::interned_data_tokenizer_errors);
     return;
   }
   iid = field.as_uint64();

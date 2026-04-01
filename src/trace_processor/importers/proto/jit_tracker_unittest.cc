@@ -23,14 +23,17 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/jit_cache.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/jit_tables_py.h"
+#include "src/trace_processor/types/trace_processor_context_ptr.h"
 #include "src/trace_processor/util/build_id.h"
 #include "test/gtest_and_gmock.h"
 
@@ -53,6 +56,11 @@ class JitTrackerTest : public testing::Test {
     context_.storage.reset(new TraceStorage());
     context_.machine_tracker.reset(
         new MachineTracker(&context_, kDefaultMachineId));
+    context_.global_stats_tracker.reset(new GlobalStatsTracker());
+    context_.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId(0)});
+    context_.stats_tracker.reset(new StatsTracker(&context_));
     context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
     context_.mapping_tracker.reset(new MappingTracker(&context_));
     context_.process_tracker.reset(new ProcessTracker(&context_));
@@ -167,10 +175,10 @@ TEST_F(JitTrackerTest, FunctionOverlapUpdatesDeleteTs) {
 
   // Frames for the old code 1 must fail to resolve to a jitted function but
   // still generate a frame.
-  EXPECT_THAT(context_.storage->stats().at(stats::jit_unknown_frame).value,
+  EXPECT_THAT(context_.stats_tracker->GetStats(stats::jit_unknown_frame),
               Eq(0));
   frame_id = mapping.InternFrame(0, "custom");
-  EXPECT_THAT(context_.storage->stats().at(stats::jit_unknown_frame).value,
+  EXPECT_THAT(context_.stats_tracker->GetStats(stats::jit_unknown_frame),
               Eq(1));
   auto frame_b =
       *context_.storage->stack_profile_frame_table().FindById(frame_id);

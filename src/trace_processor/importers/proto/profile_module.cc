@@ -35,6 +35,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/profile_packet_sequence_state.h"
@@ -190,7 +191,7 @@ void ProfileModule::ParseStreamingProfilePacket(
   for (auto callstack_it = packet.callstack_iid(); callstack_it;
        ++callstack_it, ++timestamp_it) {
     if (!timestamp_it) {
-      context_->storage->IncrementStats(stats::stackprofile_parser_error);
+      context_->stats_tracker->IncrementStats(stats::stackprofile_parser_error);
       PERFETTO_ELOG(
           "StreamingProfilePacket has less callstack IDs than timestamps!");
       break;
@@ -199,7 +200,7 @@ void ProfileModule::ParseStreamingProfilePacket(
     auto opt_cs_id =
         stack_profile_sequence_state.FindOrInsertCallstack(upid, *callstack_it);
     if (!opt_cs_id) {
-      context_->storage->IncrementStats(stats::stackprofile_parser_error);
+      context_->stats_tracker->IncrementStats(stats::stackprofile_parser_error);
       continue;
     }
 
@@ -230,7 +231,7 @@ void ProfileModule::ParsePerfSample(
   if (sample.kernel_records_lost() > 0) {
     PERFETTO_DCHECK(sample.pid() == 0);
 
-    context_->storage->IncrementIndexedStats(
+    context_->stats_tracker->IncrementIndexedStats(
         stats::perf_cpu_lost_records, static_cast<int>(sample.cpu()),
         static_cast<int64_t>(sample.kernel_records_lost()));
     return;
@@ -245,7 +246,7 @@ void ProfileModule::ParsePerfSample(
     PerfSample::ProducerEvent::Decoder producer_event(sample.producer_event());
     if (producer_event.source_stop_reason() ==
         PerfSample::ProducerEvent::PROFILER_STOP_GUARDRAIL) {
-      context_->storage->SetIndexedStats(
+      context_->stats_tracker->SetIndexedStats(
           stats::perf_guardrail_stop_ts,
           static_cast<int>(sampling_stream.perf_session_id.value), ts);
     }
@@ -261,10 +262,11 @@ void ProfileModule::ParsePerfSample(
         break;
       case (PerfSample::PROFILER_SKIP_READ_STAGE):
       case (PerfSample::PROFILER_SKIP_UNWIND_STAGE):
-        context_->storage->IncrementStats(stats::perf_samples_skipped);
+        context_->stats_tracker->IncrementStats(stats::perf_samples_skipped);
         break;
       case (PerfSample::PROFILER_SKIP_UNWIND_ENQUEUE):
-        context_->storage->IncrementStats(stats::perf_samples_skipped_dataloss);
+        context_->stats_tracker->IncrementStats(
+            stats::perf_samples_skipped_dataloss);
         break;
       default:
         break;
@@ -383,47 +385,47 @@ void ProfileModule::ParseProfilePacket(
     int64_t timestamp = *maybe_timestamp;
 
     int pid = static_cast<int>(entry.pid());
-    context_->storage->SetIndexedStats(stats::heapprofd_last_profile_timestamp,
-                                       pid, ts);
+    context_->stats_tracker->SetIndexedStats(
+        stats::heapprofd_last_profile_timestamp, pid, ts);
 
     if (entry.disconnected())
-      context_->storage->IncrementIndexedStats(
+      context_->stats_tracker->IncrementIndexedStats(
           stats::heapprofd_client_disconnected, pid);
     if (entry.buffer_corrupted())
-      context_->storage->IncrementIndexedStats(
+      context_->stats_tracker->IncrementIndexedStats(
           stats::heapprofd_buffer_corrupted, pid);
     if (entry.buffer_overran() ||
         entry.client_error() ==
             protos::pbzero::ProfilePacket::ProcessHeapSamples::
                 CLIENT_ERROR_HIT_TIMEOUT) {
-      context_->storage->IncrementIndexedStats(stats::heapprofd_buffer_overran,
-                                               pid);
+      context_->stats_tracker->IncrementIndexedStats(
+          stats::heapprofd_buffer_overran, pid);
     }
     if (entry.client_error()) {
-      context_->storage->SetIndexedStats(stats::heapprofd_client_error, pid,
-                                         entry.client_error());
+      context_->stats_tracker->SetIndexedStats(stats::heapprofd_client_error,
+                                               pid, entry.client_error());
     }
     if (entry.rejected_concurrent())
-      context_->storage->IncrementIndexedStats(
+      context_->stats_tracker->IncrementIndexedStats(
           stats::heapprofd_rejected_concurrent, pid);
     if (entry.hit_guardrail())
-      context_->storage->IncrementIndexedStats(stats::heapprofd_hit_guardrail,
-                                               pid);
+      context_->stats_tracker->IncrementIndexedStats(
+          stats::heapprofd_hit_guardrail, pid);
     if (entry.orig_sampling_interval_bytes()) {
-      context_->storage->SetIndexedStats(
+      context_->stats_tracker->SetIndexedStats(
           stats::heapprofd_sampling_interval_adjusted, pid,
           static_cast<int64_t>(entry.sampling_interval_bytes()) -
               static_cast<int64_t>(entry.orig_sampling_interval_bytes()));
     }
 
     protos::pbzero::ProfilePacket::ProcessStats::Decoder stats(entry.stats());
-    context_->storage->IncrementIndexedStats(
+    context_->stats_tracker->IncrementIndexedStats(
         stats::heapprofd_unwind_time_us, static_cast<int>(entry.pid()),
         static_cast<int64_t>(stats.total_unwinding_time_us()));
-    context_->storage->IncrementIndexedStats(
+    context_->stats_tracker->IncrementIndexedStats(
         stats::heapprofd_unwind_samples, static_cast<int>(entry.pid()),
         static_cast<int64_t>(stats.heap_samples()));
-    context_->storage->IncrementIndexedStats(
+    context_->stats_tracker->IncrementIndexedStats(
         stats::heapprofd_client_spinlock_blocked, static_cast<int>(entry.pid()),
         static_cast<int64_t>(stats.client_spinlock_blocked_us()));
 
@@ -477,7 +479,8 @@ void ProfileModule::ParseModuleSymbols(ConstBytes blob) {
   auto mappings =
       context_->mapping_tracker->FindMappings(module_symbols.path(), build_id);
   if (mappings.empty()) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_mapping_id);
     return;
   }
   for (auto addr_it = module_symbols.address_symbols(); addr_it; ++addr_it) {
@@ -522,7 +525,8 @@ void ProfileModule::ParseModuleSymbols(ConstBytes blob) {
     }
 
     if (!frame_found) {
-      context_->storage->IncrementStats(stats::stackprofile_invalid_frame_id);
+      context_->stats_tracker->IncrementStats(
+          stats::stackprofile_invalid_frame_id);
       continue;
     }
   }
@@ -560,7 +564,7 @@ void ProfileModule::OnEventsFullyExtracted() {
     NullTermStringView build_id = context_->storage->GetString(it.build_id());
 
     if (path.StartsWith("/data/local/tmp/") && build_id.empty()) {
-      context_->storage->IncrementStats(
+      context_->stats_tracker->IncrementStats(
           stats::symbolization_tmp_build_id_not_found);
     }
   }
