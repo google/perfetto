@@ -12,29 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import protos from '../../protos';
-import {uuidv4} from '../../base/uuid';
-import {deferChunkedTask} from '../../base/chunked_task';
-import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
-import {WasmEngineProxy} from '../../trace_processor/wasm_engine_proxy';
-import {AdbDevice} from '../dev.perfetto.RecordTraceV2/adb/adb_device';
+import protos from '../../../protos';
+import {uuidv4} from '../../../base/uuid';
+import {deferChunkedTask} from '../../../base/chunked_task';
+import {NUM, NUM_NULL, STR} from '../../../trace_processor/query_result';
+import {WasmEngineProxy} from '../../../trace_processor/wasm_engine_proxy';
+import {AdbDevice} from '../../dev.perfetto.RecordTraceV2/adb/adb_device';
 import {
   createAdbTracingSession,
   cloneAdbTracingSession,
-} from '../dev.perfetto.RecordTraceV2/adb/adb_tracing_session';
-import {TracingSession} from '../dev.perfetto.RecordTraceV2/interfaces/tracing_session';
-import {TracedWebsocketTarget} from '../dev.perfetto.RecordTraceV2/traced_over_websocket/traced_websocket_target';
-import {App} from '../../public/app';
-import {ConnectionResult} from './connection_page';
+} from '../../dev.perfetto.RecordTraceV2/adb/adb_tracing_session';
+import {TracingSession} from '../../dev.perfetto.RecordTraceV2/interfaces/tracing_session';
+import {TracedWebsocketTarget} from '../../dev.perfetto.RecordTraceV2/traced_over_websocket/traced_websocket_target';
+import {App} from '../../../public/app';
+import {ConnectionResult} from '../views/connection';
 import {
-  ProcessProfile,
+  ProcessProfileSession,
   buildProcessProfileConfig,
   type ProfileState,
-} from './process_profile';
+} from './process_profile_session';
 
 let engineCounter = 0;
 
 const DEFAULT_SNAPSHOT_INTERVAL_MS = 3_000;
+const POLLING_INTERVAL_MS = 1000;
 
 export interface TsValue {
   ts: number;
@@ -90,7 +91,7 @@ export type OnSnapshotCallback = (data: SnapshotData) => void;
  * it into a reusable TraceProcessor engine, extracts structured data, and
  * notifies registered callbacks.
  */
-export class MementoSession {
+export class LiveSession {
   private readonly app: App;
   private session?: TracingSession;
   private engine?: WasmEngineProxy;
@@ -123,7 +124,7 @@ export class MementoSession {
   snapshotOverrun = false;
 
   // Active process profile (if any).
-  private activeProfile?: ProcessProfile;
+  private activeProfile?: ProcessProfileSession;
   private profileStartMs?: number;
 
   /** The PID being profiled, or undefined if no profile is active. */
@@ -134,6 +135,11 @@ export class MementoSession {
   /** The process name being profiled. */
   get profileProcessName(): string | undefined {
     return this.activeProfile?.processName;
+  }
+
+  /** The x-axis timestamp (s relative to ts0) at which profiling started. */
+  get profileStartX(): number | undefined {
+    return this.activeProfile?.startX;
   }
 
   /** The state of the active profile. */
@@ -203,7 +209,12 @@ export class MementoSession {
     if (!result.ok) {
       throw new Error(`Failed to start profile: ${result.error}`);
     }
-    this.activeProfile = new ProcessProfile(result.value, pid, processName);
+    this.activeProfile = new ProcessProfileSession(
+      result.value,
+      pid,
+      processName,
+      this.data?.xMax ?? 0,
+    );
     this.profileStartMs = Date.now();
   }
 
@@ -339,8 +350,6 @@ export class MementoSession {
   }
 }
 
-const POLLING_INTERVAL_MS = 1000;
-
 function createMonitoringConfig(
   uniqueSessionName: string,
 ): protos.ITraceConfig {
@@ -360,7 +369,7 @@ function createMonitoringConfig(
         fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
       },
       {
-        sizeKb: 256,
+        sizeKb: 1 * 1024,
         fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
       },
     ],
@@ -476,9 +485,16 @@ async function extractSnapshotData(
   engine: WasmEngineProxy,
 ): Promise<ExtractResult> {
   const tQueryStart = performance.now();
-  const [ts0Result, sysTrackResult, procTrackResult, samplesResult, metaResult, lmkResult, buildResult] =
-    await Promise.all([
-      engine.query(`
+  const [
+    ts0Result,
+    sysTrackResult,
+    procTrackResult,
+    samplesResult,
+    metaResult,
+    lmkResult,
+    buildResult,
+  ] = await Promise.all([
+    engine.query(`
         SELECT
           (SELECT start_ts FROM trace_bounds) as ts0,
           MIN(c.ts) as min_ts,
@@ -487,30 +503,30 @@ async function extractSnapshotData(
         JOIN counter_track t ON c.track_id = t.id
         WHERE t.name = 'MemTotal'
       `),
-      engine.query(`
+    engine.query(`
         SELECT id, name
         FROM counter_track
         WHERE id NOT IN (SELECT id FROM process_counter_track)
       `),
-      engine.query(`
+    engine.query(`
         SELECT t.id, p.name AS process_name, p.pid, t.name AS counter_name
         FROM process_counter_track t
         JOIN process p ON t.upid = p.upid
         WHERE p.name IS NOT NULL
       `),
-      engine.query(`
+    engine.query(`
         SELECT track_id, ts, value
         FROM counter
         ORDER BY ts
       `),
-      engine.query(`
+    engine.query(`
         SELECT p.name, p.pid, p.start_ts,
               COALESCE(pkg.profileable_from_shell, 0) AS debuggable
         FROM process p
         LEFT JOIN package_list pkg ON p.uid = pkg.uid
         WHERE p.name IS NOT NULL
       `),
-      engine.query(`
+    engine.query(`
         SELECT ts,
               CAST(str_split(s.name, ',', 1) AS INTEGER) AS pid,
               CAST(str_split(s.name, ',', 3) AS INTEGER) AS oom_score_adj,
@@ -534,13 +550,13 @@ async function extractSnapshotData(
         WHERE ct.name = 'kill_one_process' AND c.value > 0
         ORDER BY ts
       `),
-      engine.query(`
+    engine.query(`
         SELECT str_value AS fingerprint
         FROM metadata
         WHERE name = 'android_build_fingerprint'
         LIMIT 1
       `),
-    ]);
+  ]);
   const tExtractStart = performance.now();
   const task = await deferChunkedTask({priority: 'background'});
   const YIELD_CHECK_INTERVAL = 64; // Num loops before yield check

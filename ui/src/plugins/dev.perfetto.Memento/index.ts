@@ -16,9 +16,9 @@ import m from 'mithril';
 import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
 import RecordPageV2 from '../dev.perfetto.RecordTraceV2';
-import {ConnectionPage} from './connection_page';
-import {Dashboard} from './dashboard';
-import {MementoSession} from './memento_session';
+import {ConnectionPage} from './views/connection';
+import {Dashboard} from './views/dashboard';
+import {LiveSession} from './sessions/live_session';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Memento';
@@ -27,7 +27,7 @@ export default class implements PerfettoPlugin {
   static readonly dependencies = [RecordPageV2];
 
   static onActivate(app: App) {
-    let session: MementoSession | undefined;
+    let session: LiveSession | undefined;
 
     app.sidebar.addMenuItem({
       section: 'trace_files',
@@ -49,14 +49,14 @@ export default class implements PerfettoPlugin {
               session = undefined;
             },
           });
+        } else {
+          return m(ConnectionPage, {
+            onConnected: (result) => {
+              session = new LiveSession(app, result);
+              session.onSnapshot(() => m.redraw());
+            },
+          });
         }
-
-        return m(ConnectionPage, {
-          onConnected: (result) => {
-            session = new MementoSession(app, result);
-            session.onSnapshot(() => m.redraw());
-          },
-        });
       },
     });
   }

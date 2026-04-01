@@ -14,22 +14,6 @@
 
 import m from 'mithril';
 
-export function panel(
-  title: string,
-  subtitle: string | undefined,
-  body: m.Children,
-): m.Children {
-  return m(
-    '.pf-memento-panel',
-    m(
-      '.pf-memento-panel__header',
-      m('h2', title),
-      subtitle !== undefined && m('p', subtitle),
-    ),
-    m('.pf-memento-panel__body', body),
-  );
-}
-
 export function formatKb(kb: number): string {
   if (kb < 1024) return `${kb.toLocaleString()} KB`;
   if (kb < 1024 * 1024) return `${(kb / 1024).toFixed(1)} MB`;

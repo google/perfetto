@@ -17,9 +17,11 @@ import {
   LineChart,
   type LineChartData,
   type LineChartSeries,
-} from '../../components/widgets/charts/line_chart';
-import {MementoSession, type SnapshotData} from './memento_session';
-import {billboardKb, formatKb, panel} from './utils';
+} from '../../../../components/widgets/charts/line_chart';
+import {LiveSession, type SnapshotData} from '../../sessions/live_session';
+import {billboardKb, formatKb} from '../../utils';
+import {billboard, billboards} from '../../components/billboard';
+import {Panel} from '../../components/panel';
 
 function buildPageCacheTimeSeries(
   data: SnapshotData,
@@ -200,7 +202,7 @@ function getPageCacheBillboards(
   };
 }
 
-export function renderPageCacheTab(session: MementoSession): m.Children {
+export function renderPageCacheTab(session: LiveSession): m.Children {
   const data = session.data;
   if (!data) return null;
 
@@ -208,39 +210,24 @@ export function renderPageCacheTab(session: MementoSession): m.Children {
   const pageCacheChartData = buildPageCacheTimeSeries(data, t0);
   const fileCacheBreakdownData = buildFileCacheBreakdownTimeSeries(data, t0);
   const fileCacheActivityData = buildFileCacheActivityTimeSeries(data, t0);
-  const billboards = getPageCacheBillboards(fileCacheBreakdownData);
+  const bb = getPageCacheBillboards(fileCacheBreakdownData);
 
   return [
-    billboards !== undefined &&
-      m(
-        '.pf-memento-billboards',
-        m(
-          '.pf-memento-billboard',
-          m('.pf-memento-billboard__value', billboardKb(billboards.total)),
-          m('.pf-memento-billboard__label', 'Total Page Cache'),
-          m(
-            '.pf-memento-billboard__desc',
-            'Derived: Active(file) + Inactive(file) from /proc/meminfo',
-          ),
-        ),
-        m(
-          '.pf-memento-billboard',
-          m('.pf-memento-billboard__value', billboardKb(billboards.dirty)),
-          m('.pf-memento-billboard__label', 'Dirty'),
-          m('.pf-memento-billboard__desc', 'Source: Dirty from /proc/meminfo'),
-        ),
-        m(
-          '.pf-memento-billboard',
-          m('.pf-memento-billboard__value', billboardKb(billboards.mapped)),
-          m('.pf-memento-billboard__label', 'Mapped'),
-          m('.pf-memento-billboard__desc', 'Source: Mapped from /proc/meminfo'),
-        ),
+    bb !== undefined &&
+      billboards(
+        billboard({value: billboardKb(bb.total), label: 'Total Page Cache', desc: 'Derived: Active(file) + Inactive(file) from /proc/meminfo'}),
+        billboard({value: billboardKb(bb.dirty), label: 'Dirty', desc: 'Source: Dirty from /proc/meminfo'}),
+        billboard({value: billboardKb(bb.mapped), label: 'Mapped', desc: 'Source: Mapped from /proc/meminfo'}),
       ),
 
-    panel(
-      'Page Cache',
-      'Source: /proc/meminfo counters Active(file), Inactive(file), Shmem. ' +
-        'Stacked: Active(file) + Inactive(file) + Shmem \u2248 Cached.',
+    m(
+      Panel,
+      {
+        title: 'Page Cache',
+        subtitle:
+          'Source: /proc/meminfo counters Active(file), Inactive(file), Shmem. ' +
+          'Stacked: Active(file) + Inactive(file) + Shmem \u2248 Cached.',
+      },
       pageCacheChartData
         ? m(LineChart, {
             data: pageCacheChartData,
@@ -250,7 +237,7 @@ export function renderPageCacheTab(session: MementoSession): m.Children {
             showLegend: true,
             showPoints: false,
             stacked: true,
-            gridLines: 'horizontal',
+            gridLines: 'both',
             xAxisMin: data.xMin,
             xAxisMax: data.xMax,
             formatXValue: (v: number) => `${v.toFixed(0)}s`,
@@ -259,12 +246,16 @@ export function renderPageCacheTab(session: MementoSession): m.Children {
         : m('.pf-memento-placeholder', 'Waiting for data\u2026'),
     ),
 
-    panel(
-      'Page Cache Activity',
-      'Source: /proc/vmstat counters, shown as rates (delta/s). ' +
-        'Refaults = workingset_refault_file (evicted pages needed again). ' +
-        'Stolen = pgsteal_file (pages reclaimed). ' +
-        'Scanned = pgscan_file (pages considered for reclaim).',
+    m(
+      Panel,
+      {
+        title: 'Page Cache Activity',
+        subtitle:
+          'Source: /proc/vmstat counters, shown as rates (delta/s). ' +
+          'Refaults = workingset_refault_file (evicted pages needed again). ' +
+          'Stolen = pgsteal_file (pages reclaimed). ' +
+          'Scanned = pgscan_file (pages considered for reclaim).',
+      },
       fileCacheActivityData
         ? m(LineChart, {
             data: fileCacheActivityData,
@@ -273,7 +264,7 @@ export function renderPageCacheTab(session: MementoSession): m.Children {
             yAxisLabel: 'Pages/s',
             showLegend: true,
             showPoints: false,
-            gridLines: 'horizontal',
+            gridLines: 'both',
             xAxisMin: data.xMin,
             xAxisMax: data.xMax,
             formatXValue: (v: number) => `${v.toFixed(0)}s`,

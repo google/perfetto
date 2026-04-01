@@ -13,29 +13,29 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertUnreachable} from '../../base/assert';
-import {showPopupWindow} from '../../base/popup_window';
-import {exists} from '../../base/utils';
-import {Button, ButtonVariant} from '../../widgets/button';
-import {Intent} from '../../widgets/common';
-import {Icon} from '../../widgets/icon';
-import {TextInput} from '../../widgets/text_input';
-import {SegmentedButtons} from '../../widgets/segmented_buttons';
-import {AdbDevice} from '../dev.perfetto.RecordTraceV2/adb/adb_device';
+import {assertUnreachable} from '../../../base/assert';
+import {showPopupWindow} from '../../../base/popup_window';
+import {exists} from '../../../base/utils';
+import {Button, ButtonVariant} from '../../../widgets/button';
+import {Intent} from '../../../widgets/common';
+import {Icon} from '../../../widgets/icon';
+import {TextInput} from '../../../widgets/text_input';
+import {SegmentedButtons} from '../../../widgets/segmented_buttons';
+import {AdbDevice} from '../../dev.perfetto.RecordTraceV2/adb/adb_device';
 import {
   WDP_TRACK_DEVICES_SCHEMA,
   type WdpDevice,
-} from '../dev.perfetto.RecordTraceV2/adb/web_device_proxy/wdp_schema';
-import {AdbWebsocketDevice} from '../dev.perfetto.RecordTraceV2/adb/websocket/adb_websocket_device';
-import {adbCmdAndWait} from '../dev.perfetto.RecordTraceV2/adb/websocket/adb_websocket_utils';
-import {AdbKeyManager} from '../dev.perfetto.RecordTraceV2/adb/webusb/adb_key_manager';
-import {AdbWebusbDevice} from '../dev.perfetto.RecordTraceV2/adb/webusb/adb_webusb_device';
+} from '../../dev.perfetto.RecordTraceV2/adb/web_device_proxy/wdp_schema';
+import {AdbWebsocketDevice} from '../../dev.perfetto.RecordTraceV2/adb/websocket/adb_websocket_device';
+import {adbCmdAndWait} from '../../dev.perfetto.RecordTraceV2/adb/websocket/adb_websocket_utils';
+import {AdbKeyManager} from '../../dev.perfetto.RecordTraceV2/adb/webusb/adb_key_manager';
+import {AdbWebusbDevice} from '../../dev.perfetto.RecordTraceV2/adb/webusb/adb_webusb_device';
 import {
   ADB_DEVICE_FILTER,
   getAdbWebUsbInterface,
-} from '../dev.perfetto.RecordTraceV2/adb/webusb/adb_webusb_utils';
-import {TracedWebsocketTarget} from '../dev.perfetto.RecordTraceV2/traced_over_websocket/traced_websocket_target';
-import {AsyncWebsocket} from '../dev.perfetto.RecordTraceV2/websocket/async_websocket';
+} from '../../dev.perfetto.RecordTraceV2/adb/webusb/adb_webusb_utils';
+import {TracedWebsocketTarget} from '../../dev.perfetto.RecordTraceV2/traced_over_websocket/traced_websocket_target';
+import {AsyncWebsocket} from '../../dev.perfetto.RecordTraceV2/websocket/async_websocket';
 
 export interface ConnectionResult {
   device?: AdbDevice;

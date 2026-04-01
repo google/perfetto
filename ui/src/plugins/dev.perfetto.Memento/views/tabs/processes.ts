@@ -17,27 +17,29 @@ import {
   LineChart,
   type LineChartData,
   type LineChartSeries,
-} from '../../components/widgets/charts/line_chart';
-import {DataGrid} from '../../components/widgets/datagrid/datagrid';
-import type {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
-import type {Row} from '../../trace_processor/query_result';
-import {Button, ButtonVariant} from '../../widgets/button';
-import {Intent} from '../../widgets/common';
-import {SegmentedButtons} from '../../widgets/segmented_buttons';
-import {MementoSession, type SnapshotData} from './memento_session';
+} from '../../../../components/widgets/charts/line_chart';
+import {DataGrid} from '../../../../components/widgets/datagrid/datagrid';
+import type {SchemaRegistry} from '../../../../components/widgets/datagrid/datagrid_schema';
+import type {Row} from '../../../../trace_processor/query_result';
+import {Button, ButtonVariant} from '../../../../widgets/button';
+import {Intent} from '../../../../widgets/common';
+import {SegmentedButtons} from '../../../../widgets/segmented_buttons';
+import {LiveSession, type SnapshotData} from '../../sessions/live_session';
 import {
   categorizeProcess,
   CATEGORIES,
   type CategoryId,
-} from './process_categories';
-import {billboardKb, formatKb} from './utils';
+} from '../../process_categories';
+import {billboard, billboards} from '../../components/billboard';
+import {ColorChip} from '../../components/color_chip';
+import {billboardKb, formatKb} from '../../utils';
 import {
   type ProcessGrouping,
   type ProcessMetric,
   type ProcessMemoryRow,
   PROCESS_METRIC_OPTIONS,
   OOM_SCORE_BUCKETS,
-} from './process_data';
+} from '../../process_data';
 
 export type {ProcessGrouping, ProcessMetric, ProcessMemoryRow};
 export {PROCESS_METRIC_OPTIONS, OOM_SCORE_BUCKETS};
@@ -338,9 +340,7 @@ export const PROCESS_TABLE_SCHEMA: SchemaRegistry = {
       columnType: 'text',
       cellRenderer: (v) => {
         const color = CATEGORY_COLOR_MAP.get(v as string);
-        return color !== undefined
-          ? m('span', {style: {color}}, v as string)
-          : (v as string);
+        return m(ColorChip, {color}, v as string);
       },
     },
     pid: {title: 'PID', columnType: 'quantitative'},
@@ -353,9 +353,14 @@ export const PROCESS_TABLE_SCHEMA: SchemaRegistry = {
           (b) => score >= b.minScore && score <= b.maxScore,
         );
         if (bucket === undefined) return `${score}`;
-        // Extract just the category label (strip the range in parens).
         const label = bucket.name.replace(/ \(.*\)$/, '');
-        return m('span', {style: {color: bucket.color}}, `${score} (${label})`);
+        return m(
+          ColorChip,
+          {
+            color: bucket.color,
+          },
+          `${score} (${label})`,
+        );
       },
     },
     rss_kb: {
@@ -381,7 +386,11 @@ export const PROCESS_TABLE_SCHEMA: SchemaRegistry = {
     debuggable: {
       title: 'Debuggable',
       columnType: 'text',
-      cellRenderer: (v) => (v as string) || '',
+      cellRenderer: (v) => {
+        const label = v as string;
+        if (!label) return '';
+        return m(ColorChip, {color: '#43d300'}, label);
+      },
     },
     age: {
       title: 'Age',
@@ -403,7 +412,7 @@ export const PROCESS_TABLE_SCHEMA: SchemaRegistry = {
 };
 
 export interface ProcessesTabAttrs {
-  readonly session: MementoSession;
+  readonly session: LiveSession;
 }
 
 export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
@@ -482,35 +491,22 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
 
     return [
       latestProcesses.length > 0 &&
-        m(
-          '.pf-memento-billboards',
-          m(
-            '.pf-memento-billboard',
-            m('.pf-memento-billboard__value', billboardKb(totalAnonSwapKb)),
-            m('.pf-memento-billboard__label', 'Anon + Swap'),
-            m(
-              '.pf-memento-billboard__desc',
-              'Sum of anonymous RSS + swap across all processes',
-            ),
-          ),
-          m(
-            '.pf-memento-billboard',
-            m('.pf-memento-billboard__value', billboardKb(totalFileKb)),
-            m('.pf-memento-billboard__label', 'File'),
-            m(
-              '.pf-memento-billboard__desc',
-              'Sum of file-backed RSS across all processes',
-            ),
-          ),
-          m(
-            '.pf-memento-billboard',
-            m('.pf-memento-billboard__value', billboardKb(totalDmabufKb)),
-            m('.pf-memento-billboard__label', 'DMA-BUF'),
-            m(
-              '.pf-memento-billboard__desc',
-              'Sum of DMA-BUF heap RSS across all processes',
-            ),
-          ),
+        billboards(
+          billboard({
+            value: billboardKb(totalAnonSwapKb),
+            label: 'Anon + Swap',
+            desc: 'Sum of anonymous RSS + swap across all processes',
+          }),
+          billboard({
+            value: billboardKb(totalFileKb),
+            label: 'File',
+            desc: 'Sum of file-backed RSS across all processes',
+          }),
+          billboard({
+            value: billboardKb(totalDmabufKb),
+            label: 'DMA-BUF',
+            desc: 'Sum of DMA-BUF heap RSS across all processes',
+          }),
         ),
       m(
         '.pf-memento-panel',
@@ -573,7 +569,7 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
                 showLegend: true,
                 showPoints: false,
                 stacked: true,
-                gridLines: 'horizontal',
+                gridLines: 'both',
                 formatXValue: (v: number) => `${v.toFixed(0)}s`,
                 formatYValue: (v: number) => formatKb(v),
                 onSeriesClick: isDrilledDown
@@ -602,7 +598,7 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
 function renderProcessTable(
   processes: ProcessMemoryRow[],
   isUserDebug: boolean,
-  session: MementoSession,
+  session: LiveSession,
 ): m.Children {
   const rows: Row[] = processes.map((p) => {
     const cat = categorizeProcess(p.processName);
@@ -690,11 +686,11 @@ function renderProcessTable(
         {id: 'pid', field: 'pid', sort: undefined},
         {id: 'oom_score', field: 'oom_score', sort: undefined},
         {id: 'debuggable', field: 'debuggable', sort: undefined},
+        {id: 'age', field: 'age', sort: undefined},
         {id: 'rss_kb', field: 'rss_kb', sort: 'DESC'},
         {id: 'anon_swap_kb', field: 'anon_swap_kb', sort: undefined},
         {id: 'file_kb', field: 'file_kb', sort: undefined},
         {id: 'shmem_kb', field: 'shmem_kb', sort: undefined},
-        {id: 'age', field: 'age', sort: undefined},
       ],
       fillHeight: false,
     }),

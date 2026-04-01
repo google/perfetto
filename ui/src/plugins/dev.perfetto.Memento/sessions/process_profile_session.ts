@@ -12,12 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import protos from '../../protos';
-import {TracingSession} from '../dev.perfetto.RecordTraceV2/interfaces/tracing_session';
+import protos from '../../../protos';
+import {TracingSession} from '../../dev.perfetto.RecordTraceV2/interfaces/tracing_session';
 
 export type ProfileState = 'recording' | 'stopping' | 'finished' | 'error';
-
-const heapProfBufferSizeKb = 128 * 1024;
 
 /**
  * Builds the TraceConfig for a single-process heap profiling session.
@@ -27,49 +25,52 @@ export function buildProcessProfileConfig(pid: number): protos.ITraceConfig {
   return {
     buffers: [
       {
-        sizeKb: heapProfBufferSizeKb,
-        fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
-      },
-      {
-        sizeKb: heapProfBufferSizeKb,
-        fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
-      },
-      {
+        // Process stats buffer
         sizeKb: 4 * 1024,
+        fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.DISCARD,
+      },
+      {
+        // Heapprofd buffer
+        sizeKb: 128 * 1024,
+        fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
+      },
+      {
+        // Java HPROF buffer
+        sizeKb: 512 * 1024,
         fillPolicy: protos.TraceConfig.BufferConfig.FillPolicy.RING_BUFFER,
       },
     ],
     dataSources: [
       {
         config: {
-          name: 'android.heapprofd',
+          name: 'linux.process_stats',
           targetBuffer: 0,
+          processStatsConfig: {
+            scanAllProcessesOnStart: true,
+          },
+        },
+      },
+      {
+        config: {
+          name: 'android.heapprofd',
+          targetBuffer: 1,
           heapprofdConfig: {
             pid: [pid],
             samplingIntervalBytes: 4096,
             allHeaps: true,
-            shmemSizeBytes: 8 * 1024 * 1024,
+            shmemSizeBytes: 16 * 1024 * 1024,
           },
         },
       },
       {
         config: {
           name: 'android.java_hprof',
-          targetBuffer: 1,
+          targetBuffer: 2,
           javaHprofConfig: {
             pid: [pid],
             continuousDumpConfig: {
               dumpIntervalMs: 1000,
             },
-          },
-        },
-      },
-      {
-        config: {
-          name: 'linux.process_stats',
-          targetBuffer: 2,
-          processStatsConfig: {
-            scanAllProcessesOnStart: true,
           },
         },
       },
@@ -82,17 +83,25 @@ export function buildProcessProfileConfig(pid: number): protos.ITraceConfig {
  * recording and pull the trace buffer, then pass the result to
  * app.openTraceFromBuffer() to view in the main UI.
  */
-export class ProcessProfile {
+export class ProcessProfileSession {
   private readonly session: TracingSession;
   readonly pid: number;
   readonly processName: string;
+  /** Latest x-axis value (seconds relative to ts0) from the live session at the moment profiling started. */
+  readonly startX: number;
   state: ProfileState = 'recording';
   error?: string;
 
-  constructor(session: TracingSession, pid: number, processName: string) {
+  constructor(
+    session: TracingSession,
+    pid: number,
+    processName: string,
+    startX: number,
+  ) {
     this.session = session;
     this.pid = pid;
     this.processName = processName;
+    this.startX = startX;
     this.session.onSessionUpdate.addListener(() => {
       if (this.session.state === 'FINISHED') {
         this.state = 'finished';

@@ -16,13 +16,14 @@ import m from 'mithril';
 import {
   LineChart,
   LineChartData,
-} from '../../components/widgets/charts/line_chart';
-import {Button, ButtonVariant} from '../../widgets/button';
-import {Chip} from '../../widgets/chip';
-import {Icon} from '../../widgets/icon';
-import {Intent} from '../../widgets/common';
-import {billboardKb, formatKb} from './utils';
-import {Icons} from '../../base/semantic_icons';
+} from '../../../components/widgets/charts/line_chart';
+import {Button, ButtonVariant} from '../../../widgets/button';
+import {Chip} from '../../../widgets/chip';
+import {Icon} from '../../../widgets/icon';
+import {Intent} from '../../../widgets/common';
+import {billboard, billboards} from '../components/billboard';
+import {billboardKb, formatKb} from '../utils';
+import {Icons} from '../../../base/semantic_icons';
 
 export interface ProfilePageData {
   processName: string;
@@ -33,6 +34,8 @@ export interface ProfilePageData {
   baseline?: {anonSwap: number; file: number; dmabuf: number};
   xMin: number;
   xMax: number;
+  /** x-axis position (s relative to ts0) where profiling started. Used to draw a marker. */
+  startX?: number;
 }
 
 export interface ProfilePageCallbacks {
@@ -106,13 +109,16 @@ function renderBillboards(
 ): m.Children {
   if (chartData === undefined || chartData.series.length === 0) return null;
 
+  const seriesColor = (name: string): string | undefined =>
+    chartData.series.find((sr) => sr.name === name)?.color;
+
   const latest = (name: string): number => {
     const s = chartData.series.find((sr) => sr.name === name);
     if (s === undefined || s.points.length === 0) return 0;
     return s.points[s.points.length - 1].y;
   };
 
-  const billboard = (
+  const card = (
     current: number,
     baselineVal: number | undefined,
     label: string,
@@ -123,47 +129,13 @@ function renderBillboards(
       delta !== undefined
         ? `${delta >= 0 ? '+' : ''}${formatKb(delta)}`
         : undefined;
-    return m(
-      '.pf-memento-billboard',
-      m('.pf-memento-billboard__value', billboardKb(current)),
-      deltaStr !== undefined &&
-        m(
-          '.pf-memento-billboard__delta',
-          {
-            class:
-              delta! > 0
-                ? 'pf-memento-billboard__delta--up'
-                : delta! < 0
-                  ? 'pf-memento-billboard__delta--down'
-                  : '',
-          },
-          deltaStr,
-        ),
-      m('.pf-memento-billboard__label', label),
-      m('.pf-memento-billboard__desc', desc),
-    );
+    return billboard({value: billboardKb(current), label, desc, delta: deltaStr, color: seriesColor(label)});
   };
 
-  return m(
-    '.pf-memento-billboards',
-    billboard(
-      latest('Anon + Swap'),
-      baseline?.anonSwap,
-      'Anon + Swap',
-      'Anonymous resident + swapped pages',
-    ),
-    billboard(
-      latest('File'),
-      baseline?.file,
-      'File',
-      'File-backed resident pages',
-    ),
-    billboard(
-      latest('DMA-BUF'),
-      baseline?.dmabuf,
-      'DMA-BUF',
-      'GPU/DMA buffer RSS',
-    ),
+  return billboards(
+    card(latest('Anon + Swap'), baseline?.anonSwap, 'Anon + Swap', 'Anonymous resident + swapped pages'),
+    card(latest('File'), baseline?.file, 'File', 'File-backed resident pages'),
+    card(latest('DMA-BUF'), baseline?.dmabuf, 'DMA-BUF', 'GPU/DMA buffer RSS'),
   );
 }
 
@@ -182,14 +154,20 @@ function renderBreakdownChart(data: ProfilePageData): m.Children {
     ),
     data.chartData
       ? m(LineChart, {
-          data: data.chartData,
+          data: {
+            series: data.chartData.series,
+            markers:
+              data.startX !== undefined
+                ? [{x: data.startX, label: 'Profile start', color: '#2196f3'}]
+                : undefined,
+          },
           height: 350,
           xAxisLabel: 'Time (s)',
           yAxisLabel: 'Memory',
           showLegend: true,
           showPoints: false,
           stacked: true,
-          gridLines: 'horizontal',
+          gridLines: 'both',
           xAxisMin: data.xMin,
           xAxisMax: data.xMax,
           formatXValue: (v: number) => `${v.toFixed(0)}s`,

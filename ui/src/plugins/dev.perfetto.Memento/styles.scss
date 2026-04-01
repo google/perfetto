@@ -191,58 +191,8 @@
   font-size: var(--pf-font-size-s);
 }
 
-// Billboard stat cards.
-.pf-memento-billboards {
-  display: flex;
-  gap: 12px;
-}
-
-.pf-memento-billboard {
-  padding: 14px 16px;
-  border-radius: 8px;
-  border: 1px solid var(--pf-color-border-secondary);
-  background: var(--pf-color-background);
-}
-
-.pf-memento-billboard__value {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--pf-color-text);
-  line-height: 1.2;
-
-  .pf-memento-billboard__unit {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--pf-color-text-muted);
-    margin-left: 2px;
-  }
-}
-
-.pf-memento-billboard__label {
-  font-size: var(--pf-font-size-m);
-  font-weight: 600;
-  color: var(--pf-color-text);
-  margin-top: 2px;
-}
-
-.pf-memento-billboard__desc {
-  font-size: var(--pf-font-size-s);
-  color: var(--pf-color-text-muted);
-  margin-top: 2px;
-}
-
-.pf-memento-billboard__delta {
-  font-size: var(--pf-font-size-s);
-  font-weight: 600;
-  margin-left: 6px;
-  color: var(--pf-color-text-muted);
-  &--up {
-    color: #e53935;
-  }
-  &--down {
-    color: #4caf50;
-  }
-}
+@import "./components/color_chip.scss";
+@import "./components/billboard.scss";
 
 // Zero-padding for the profile button cell in the process table.
 .pf-grid-cell:has(.pf-memento-profile-btn) {
@@ -296,60 +246,7 @@
   gap: 6px;
 }
 
-// Chart panels.
-.pf-memento-panel {
-  border-radius: 8px;
-  background: var(--pf-color-background);
-  border: 1px solid var(--pf-color-border-secondary);
-}
-
-.pf-memento-panel__title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-
-  h2 {
-    flex: 1;
-  }
-}
-
-.pf-memento-panel__header {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--pf-color-border-secondary);
-
-  h2 {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--pf-color-text);
-  }
-
-  p {
-    margin: 4px 0 0 0;
-    font-size: var(--pf-font-size-s);
-    color: var(--pf-color-text-muted);
-    line-height: 1.4;
-  }
-}
-
-.pf-memento-panel__controls {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  flex-shrink: 0;
-}
-
-.pf-memento-panel__body {
-  padding: 12px;
-}
-
-.pf-memento-placeholder {
-  color: var(--pf-color-text-muted);
-  font-size: var(--pf-font-size-s);
-  font-style: italic;
-  padding: 32px 0;
-  text-align: center;
-}
+@import "./components/panel.scss";
 
 // Hero connect / idle state.
 .pf-memento-hero {
@@ -395,6 +292,7 @@
   .pf-data-grid {
     border-radius: 8px;
     border: 1px solid var(--pf-color-border-secondary);
+    background: var(--pf-color-background-secondary);
   }
 
   .pf-memento-profile-btn {

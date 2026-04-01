@@ -1,0 +1,66 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Billboard stat cards.
+.pf-memento-billboards {
+  display: flex;
+  gap: 12px;
+}
+
+.pf-memento-billboard {
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--pf-color-border-secondary);
+  background: var(--pf-color-background-secondary);
+}
+
+.pf-memento-billboard__value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--pf-color-text);
+  line-height: 1.2;
+
+  .pf-memento-billboard__unit {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--pf-color-text-muted);
+    margin-left: 2px;
+  }
+}
+
+.pf-memento-billboard__label {
+  font-size: var(--pf-font-size-m);
+  font-weight: 600;
+  color: var(--pf-color-text);
+  margin-top: 2px;
+}
+
+.pf-memento-billboard__desc {
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-muted);
+  margin-top: 2px;
+}
+
+.pf-memento-billboard__delta {
+  font-size: var(--pf-font-size-s);
+  font-weight: 600;
+  margin-left: 6px;
+  color: var(--pf-color-text-muted);
+  &--up {
+    color: #e53935;
+  }
+  &--down {
+    color: #4caf50;
+  }
+}

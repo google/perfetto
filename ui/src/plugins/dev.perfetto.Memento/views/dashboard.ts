@@ -13,24 +13,23 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {App} from '../../public/app';
-import {Button, ButtonVariant} from '../../widgets/button';
-import {Intent} from '../../widgets/common';
-import {MenuItem, PopupMenu} from '../../widgets/menu';
-import {SegmentedButtons} from '../../widgets/segmented_buttons';
+import {App} from '../../../public/app';
+import {Button, ButtonVariant} from '../../../widgets/button';
+import {Intent} from '../../../widgets/common';
+import {SegmentedButtons} from '../../../widgets/segmented_buttons';
 import {
   type LineChartData,
   type LineChartSeries,
-} from '../../components/widgets/charts/line_chart';
-import {MementoSession, type SnapshotData} from './memento_session';
-import {renderProcessProfilePage} from './process_profile_page';
-import {ProcessesTab} from './tab_processes';
-import {renderSystemTab} from './tab_system';
-import {renderPageCacheTab} from './tab_page_cache';
-import {renderPressureSwapTab} from './tab_pressure_swap';
-import {Chip} from '../../widgets/chip';
-import {Tooltip} from '../../widgets/tooltip';
-import {PopupPosition} from '../../widgets/popup';
+} from '../../../components/widgets/charts/line_chart';
+import {LiveSession, type SnapshotData} from '../sessions/live_session';
+import {renderProcessProfilePage} from './process_profile';
+import {ProcessesTab} from './tabs/processes';
+import {renderSystemTab} from './tabs/system';
+import {renderPageCacheTab} from './tabs/page_cache';
+import {renderPressureSwapTab} from './tabs/pressure_swap';
+import {Chip} from '../../../widgets/chip';
+import {Tooltip} from '../../../widgets/tooltip';
+import {PopupPosition} from '../../../widgets/popup';
 
 type Tab = 'processes' | 'system' | 'file_cache' | 'pressure_swap';
 
@@ -87,17 +86,9 @@ function buildProcessMemoryBreakdown(
   return {series};
 }
 
-const INTERVAL_OPTIONS = [
-  {label: '1s', ms: 1_000},
-  {label: '3s', ms: 3_000},
-  {label: '5s', ms: 5_000},
-  {label: '10s', ms: 10_000},
-  {label: '30s', ms: 30_000},
-];
-
 interface DashboardAttrs {
   readonly app: App;
-  readonly session: MementoSession;
+  readonly session: LiveSession;
   readonly onStopped: () => void;
 }
 
@@ -332,6 +323,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
         baseline: this.profileBaseline,
         xMin: data?.xMin ?? 0,
         xMax: data?.xMax ?? 0,
+        startX: session.profileStartX,
       },
       {
         onStop: () => {

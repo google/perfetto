@@ -257,9 +257,13 @@ function buildLineOption(
       showSymbol: showPoints,
       symbolSize: 6,
       triggerLineEvent: true,
+      legendHoverLink: false,
       emphasis: stacked
         ? {focus: 'series', blurScope: 'global' as const}
         : {focus: 'series', itemStyle: {borderWidth: 2}},
+      blur: stacked
+        ? {lineStyle: {opacity: 0.15}, areaStyle: {opacity: 0.05}}
+        : {lineStyle: {opacity: 0.15}},
       stack: stacked ? 'total' : undefined,
       areaStyle: stacked ? {opacity: 0.8} : undefined,
       // invisible wider hitbox

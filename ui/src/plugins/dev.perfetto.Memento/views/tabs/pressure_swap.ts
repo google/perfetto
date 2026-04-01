@@ -17,9 +17,10 @@ import {
   LineChart,
   type LineChartData,
   type LineChartSeries,
-} from '../../components/widgets/charts/line_chart';
-import {MementoSession, type SnapshotData} from './memento_session';
-import {formatKb, panel} from './utils';
+} from '../../../../components/widgets/charts/line_chart';
+import {LiveSession, type SnapshotData} from '../../sessions/live_session';
+import {formatKb} from '../../utils';
+import {Panel} from '../../components/panel';
 
 function buildPsiTimeSeries(
   data: SnapshotData,
@@ -183,10 +184,14 @@ function renderLmkPanel(
   events: {ts: number; pid: number; processName: string; oomScoreAdj: number}[],
   t0: number,
 ): m.Children {
-  return panel(
-    `LMK Kills (${events.length})`,
-    'Low Memory Killer events recorded during this session. ' +
-      'Source: lmkd atrace / lowmemorykiller ftrace.',
+  return m(
+    Panel,
+    {
+      title: `LMK Kills (${events.length})`,
+      subtitle:
+        'Low Memory Killer events recorded during this session. ' +
+        'Source: lmkd atrace / lowmemorykiller ftrace.',
+    },
     m(
       'table.pf-memento-table',
       m(
@@ -209,7 +214,7 @@ function renderLmkPanel(
   );
 }
 
-export function renderPressureSwapTab(session: MementoSession): m.Children {
+export function renderPressureSwapTab(session: LiveSession): m.Children {
   const data = session.data;
   if (!data) return null;
 
@@ -220,11 +225,15 @@ export function renderPressureSwapTab(session: MementoSession): m.Children {
   const vmstatChartData = buildVmstatTimeSeries(data, t0);
 
   return [
-    panel(
-      'Memory Pressure (PSI)',
-      'Source: /proc/pressure/memory (psi.mem.some, psi.mem.full). ' +
-        'Derived: cumulative \u00b5s converted to ms/s rate. ' +
-        '"some" = at least one task stalled, "full" = all tasks stalled.',
+    m(
+      Panel,
+      {
+        title: 'Memory Pressure (PSI)',
+        subtitle:
+          'Source: /proc/pressure/memory (psi.mem.some, psi.mem.full). ' +
+          'Derived: cumulative \u00b5s converted to ms/s rate. ' +
+          '"some" = at least one task stalled, "full" = all tasks stalled.',
+      },
       psiChartData
         ? m(LineChart, {
             data: psiChartData,
@@ -233,7 +242,7 @@ export function renderPressureSwapTab(session: MementoSession): m.Children {
             yAxisLabel: 'Stall (ms/s)',
             showLegend: true,
             showPoints: false,
-            gridLines: 'horizontal',
+            gridLines: 'both',
             xAxisMin: data.xMin,
             xAxisMax: data.xMax,
             formatXValue: (v: number) => `${v.toFixed(0)}s`,
@@ -242,11 +251,15 @@ export function renderPressureSwapTab(session: MementoSession): m.Children {
         : m('.pf-memento-placeholder', 'Waiting for data\u2026'),
     ),
 
-    panel(
-      'Page Faults',
-      'Source: /proc/vmstat counters pgfault, pgmajfault. ' +
-        'Derived: cumulative counts converted to faults/s rate. ' +
-        'Minor (pgfault) = page in RAM but not in TLB. Major (pgmajfault) = page must be read from disk.',
+    m(
+      Panel,
+      {
+        title: 'Page Faults',
+        subtitle:
+          'Source: /proc/vmstat counters pgfault, pgmajfault. ' +
+          'Derived: cumulative counts converted to faults/s rate. ' +
+          'Minor (pgfault) = page in RAM but not in TLB. Major (pgmajfault) = page must be read from disk.',
+      },
       pageFaultChartData
         ? m(LineChart, {
             data: pageFaultChartData,
@@ -255,7 +268,7 @@ export function renderPressureSwapTab(session: MementoSession): m.Children {
             yAxisLabel: 'Faults/s',
             showLegend: true,
             showPoints: false,
-            gridLines: 'horizontal',
+            gridLines: 'both',
             xAxisMin: data.xMin,
             xAxisMax: data.xMax,
             formatXValue: (v: number) => `${v.toFixed(0)}s`,
@@ -265,10 +278,14 @@ export function renderPressureSwapTab(session: MementoSession): m.Children {
     ),
 
     swapChartData &&
-      panel(
-        'Swap Usage',
-        'Source: /proc/meminfo counters SwapTotal, SwapFree, SwapCached. ' +
-          'Derived: Swap dirty = (SwapTotal \u2212 SwapFree) \u2212 SwapCached.',
+      m(
+        Panel,
+        {
+          title: 'Swap Usage',
+          subtitle:
+            'Source: /proc/meminfo counters SwapTotal, SwapFree, SwapCached. ' +
+            'Derived: Swap dirty = (SwapTotal \u2212 SwapFree) \u2212 SwapCached.',
+        },
         m(LineChart, {
           data: swapChartData,
           height: 200,
@@ -279,17 +296,21 @@ export function renderPressureSwapTab(session: MementoSession): m.Children {
           showLegend: true,
           showPoints: false,
           stacked: true,
-          gridLines: 'horizontal',
+          gridLines: 'both',
           formatXValue: (v: number) => `${v.toFixed(0)}s`,
           formatYValue: (v: number) => formatKb(v),
         }),
       ),
 
     vmstatChartData &&
-      panel(
-        'Swap I/O (pswpin / pswpout)',
-        'Source: /proc/vmstat counters pswpin, pswpout. ' +
-          'Derived: cumulative page counts converted to pages/s rate.',
+      m(
+        Panel,
+        {
+          title: 'Swap I/O (pswpin / pswpout)',
+          subtitle:
+            'Source: /proc/vmstat counters pswpin, pswpout. ' +
+            'Derived: cumulative page counts converted to pages/s rate.',
+        },
         m(LineChart, {
           data: vmstatChartData,
           xAxisMin: data.xMin,
@@ -299,7 +320,7 @@ export function renderPressureSwapTab(session: MementoSession): m.Children {
           yAxisLabel: 'Pages/s',
           showLegend: true,
           showPoints: false,
-          gridLines: 'horizontal',
+          gridLines: 'both',
           formatXValue: (v: number) => `${v.toFixed(0)}s`,
           formatYValue: (v: number) => `${v.toFixed(0)} pg/s`,
         }),
