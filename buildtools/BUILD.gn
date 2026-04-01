@@ -2315,7 +2315,16 @@ if (enable_perfetto_re2) {
     defines = [ "RE2_USE_ABSL" ]
   }
 
-  static_library("re2") {
+  # Use source_set for WASM to avoid the alink step — macOS libtool rejects
+  # emscripten .o files. For native builds, static_library is more efficient
+  # as it deduplicates objects when multiple targets depend on RE2.
+  if (is_wasm) {
+    _re2_target_type = "source_set"
+  } else {
+    _re2_target_type = "static_library"
+  }
+
+  target(_re2_target_type, "re2") {
     visibility = _buildtools_visibility
     sources = [
       "re2/re2/bitmap256.cc",
