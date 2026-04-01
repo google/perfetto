@@ -32,9 +32,9 @@ import dev.perfetto.sdk.ProtoWriter;
 import dev.perfetto.sdk.TraceContext;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
-import java.nio.file.Files;
 
 /**
  * Perfetto data source that triggers a Java heap dump on a target process
@@ -46,7 +46,11 @@ import java.nio.file.Files;
 public final class HprofDumpDataSource extends PerfettoDataSource {
     private static final String TAG = "HprofDumpDataSource";
     private static final String DUMP_DIR = "/data/local/tmp/perfetto_hprof";
-    private static final int CHUNK_SIZE = 4 * 1024 * 1024;
+    // Keep chunks well under the typical shmem page budget. 512KB is
+    // large enough to avoid excessive packet overhead but small enough
+    // that each TracePacket fits comfortably in the tracing service
+    // shared memory buffer.
+    private static final int CHUNK_SIZE = 512 * 1024;
 
     // TracePacket field numbers.
     private static final int TP_TIMESTAMP = 8;
@@ -169,8 +173,9 @@ public final class HprofDumpDataSource extends PerfettoDataSource {
                             | ParcelFileDescriptor.MODE_WRITE_ONLY
                             | ParcelFileDescriptor.MODE_TRUNCATE);
 
+            long targetPid = mConfigPid;
             RemoteCallback callback = new RemoteCallback(
-                    result -> onDumpComplete(dumpDir, hprofPath));
+                    result -> onDumpComplete(dumpDir, hprofPath, targetPid));
 
             ams.dumpHeap(process, UserHandle.USER_CURRENT,
                     true, false, runGc,
@@ -183,11 +188,11 @@ public final class HprofDumpDataSource extends PerfettoDataSource {
         }
     }
 
-    private void onDumpComplete(File dumpDir, String hprofPath) {
+    private void onDumpComplete(File dumpDir, String hprofPath, long pid) {
         try {
             File hprofFile = new File(hprofPath);
             if (hprofFile.exists() && hprofFile.length() > 0) {
-                writeHprofPackets(hprofFile);
+                writeHprofPackets(hprofFile, (int) pid);
             }
         } catch (Exception e) {
             Log.e(TAG, "Failed to write dump to trace", e);
@@ -196,34 +201,51 @@ public final class HprofDumpDataSource extends PerfettoDataSource {
         }
     }
 
-    private void writeHprofPackets(File file) throws IOException {
-        byte[] data = Files.readAllBytes(file.toPath());
-        int totalChunks = (data.length + CHUNK_SIZE - 1) / CHUNK_SIZE;
+    private void writeHprofPackets(File file, int targetPid) throws IOException {
+        byte[] buf = new byte[CHUNK_SIZE];
+        long totalBytes = 0;
+        int chunkIndex = 0;
 
-        for (int i = 0; i < totalChunks; i++) {
-            int offset = i * CHUNK_SIZE;
-            int len = Math.min(CHUNK_SIZE, data.length - offset);
+        try (FileInputStream fis = new FileInputStream(file)) {
+            int bytesRead;
+            while ((bytesRead = readFully(fis, buf)) > 0) {
+                totalBytes += bytesRead;
+                boolean isLast = (bytesRead < buf.length);
 
-            TraceContext ctx = trace();
-            if (ctx == null) return;
+                TraceContext ctx = trace();
+                if (ctx == null) return;
 
-            ProtoWriter w = ctx.getWriter();
-            w.writeVarInt(TP_TIMESTAMP, SystemClock.elapsedRealtimeNanos());
-            w.writeVarInt(TP_CLOCK_ID, 6);
-            w.writeVarInt(TP_SEQ_ID, 1);
-            int dump = w.beginNested(TP_HPROF_DUMP);
-            w.writeVarInt(HD_PID, android.os.Process.myPid());
-            w.writeBytes(HD_HPROF_DATA, data, offset, len);
-            w.writeVarInt(HD_CHUNK_INDEX, i);
-            if (i == totalChunks - 1) {
-                w.writeVarInt(HD_LAST_CHUNK, 1);
+                ProtoWriter w = ctx.getWriter();
+                w.writeVarInt(TP_TIMESTAMP, SystemClock.elapsedRealtimeNanos());
+                w.writeVarInt(TP_CLOCK_ID, 6);
+                w.writeVarInt(TP_SEQ_ID, 1);
+                int dump = w.beginNested(TP_HPROF_DUMP);
+                w.writeVarInt(HD_PID, targetPid);
+                w.writeBytes(HD_HPROF_DATA, buf, 0, bytesRead);
+                w.writeVarInt(HD_CHUNK_INDEX, chunkIndex);
+                if (isLast) {
+                    w.writeVarInt(HD_LAST_CHUNK, 1);
+                }
+                w.endNested(dump);
+                ctx.commitPacket();
+                chunkIndex++;
             }
-            w.endNested(dump);
-            ctx.commitPacket();
         }
 
-        Log.i(TAG, "Wrote " + data.length + " bytes hprof ("
-                + ((data.length + CHUNK_SIZE - 1) / CHUNK_SIZE) + " chunks)");
+        Log.i(TAG, "Wrote " + totalBytes + " bytes hprof ("
+                + chunkIndex + " chunks) for pid " + targetPid);
+    }
+
+    /** Reads up to buf.length bytes, looping to handle partial reads. */
+    private static int readFully(FileInputStream fis, byte[] buf)
+            throws IOException {
+        int total = 0;
+        while (total < buf.length) {
+            int n = fis.read(buf, total, buf.length - total);
+            if (n < 0) break;
+            total += n;
+        }
+        return total;
     }
 
     private static void deleteRecursive(File dir) {
