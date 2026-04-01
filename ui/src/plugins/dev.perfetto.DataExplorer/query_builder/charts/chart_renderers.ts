@@ -110,6 +110,8 @@ export interface ChartColumnProvider {
 export interface ChartRenderContext {
   readonly node: ChartColumnProvider;
   readonly onFilterChange?: () => void;
+  /** When set, charts that support grid lines will render them. */
+  readonly gridLines?: 'horizontal' | 'vertical' | 'both';
 }
 
 /** Dispose all loaders on a ChartLoaderEntry. */
@@ -158,6 +160,7 @@ export function createChartLoaders(
         query,
         dimensionColumn: config.column,
         measureColumn: config.measureColumn ?? config.column,
+        seriesColumn: config.groupColumn,
       });
       break;
     case 'histogram':
@@ -310,6 +313,7 @@ export function renderBarChart(
     fillParent: true,
     formatDimension,
     formatMeasure,
+    gridLines: ctx.gridLines,
     onBrush: (labels) => handleBarBrush(ctx, config, labels),
   });
 }
@@ -368,6 +372,7 @@ export function renderLineChart(
     scaleAxes: true,
     formatXValue,
     formatYValue,
+    gridLines: ctx.gridLines,
     onBrush: (range) =>
       handleHistogramBrush(ctx, config, range.start, range.end),
   });
@@ -398,6 +403,7 @@ export function renderScatterChart(
     scaleAxes: true,
     formatXValue,
     formatYValue,
+    gridLines: ctx.gridLines,
   });
 }
 
@@ -486,6 +492,7 @@ export function renderBoxplot(
     valueLabel: config.yColumn,
     fillParent: true,
     formatValue,
+    gridLines: ctx.gridLines,
   });
 }
 
