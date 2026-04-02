@@ -159,7 +159,7 @@ struct TBChunk {
 // Remember that this struct must be copyable for CloneReadOnly(). Don't hold
 // onto any pointers in here.
 // SequenceState(s) are not deleted aggressively to preserve the
-// last_chunk_id_consumed and detect data losses in long tracing mode. We allow
+// last_chunk_consumed and detect data losses in long tracing mode. We allow
 // the last kKeepLastEmptySeq to stay alive to balance data loss detection with
 // memory bloats.
 struct SequenceState {
@@ -181,7 +181,17 @@ struct SequenceState {
   // objects around.
   uint64_t age_for_gc = 0;
 
-  std::optional<ChunkID> last_chunk_id_consumed;
+  // Snapshot of the last chunk that was erased (consumed or evicted) in this
+  // sequence. Used to detect gaps between consecutive chunks and to decide
+  // whether a re-committed chunk should be accepted or discarded.
+  // |payload_size| and |was_incomplete| capture the chunk's state at the time
+  // of consumption; see CopyChunkUntrusted() for how they are used.
+  struct ConsumedChunkInfo {
+    ChunkID chunk_id = 0;
+    uint16_t payload_size = 0;
+    bool was_incomplete = false;
+  };
+  std::optional<ConsumedChunkInfo> last_chunk_consumed;
 
   // This is set whenever a data loss is detected and cleared when reading the
   // next packet for the sequence (which will report previous_packet_dropped).
