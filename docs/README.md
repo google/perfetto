@@ -199,7 +199,6 @@ posts, articles and videos:
 For our source code and project home:
 [GitHub](https://github.com/google/perfetto)
 
-
 For Q/A:
 
 - [GitHub Discussions](https://github.com/google/perfetto/discussions/categories/q-a)
