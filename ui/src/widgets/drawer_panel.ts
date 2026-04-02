@@ -107,6 +107,9 @@ export interface DrawerPanelAttrs {
   // What height should the drawer be initially?
   readonly startingHeight?: number;
 
+  // Whether the drawer height should not be fixed.
+  readonly notFixedHeight?: boolean;
+
   // Called when the drawer visibility is changed.
   onVisibilityChange?(visibility: DrawerPanelVisibility): void;
 }
@@ -143,13 +146,16 @@ export interface DrawerPanelAttrs {
 export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
   // The actual height of the vdom node. It matches resizableHeight if VISIBLE,
   // 0 if COLLAPSED, fullscreenHeight if FULLSCREEN.
-  private height = 0;
+  private height: number | undefined = 0;
 
   // The height when the panel is 'VISIBLE'.
   private resizableHeight: number;
 
   // The height when the panel is 'FULLSCREEN'.
   private fullscreenHeight = 0;
+
+  // Whether the drawer height should be fixed.
+  private fixedHeight: boolean;
 
   // Current visibility state (if not controlled).
   private visibility = DrawerPanelVisibility.VISIBLE;
@@ -165,6 +171,7 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
 
   constructor({attrs}: m.CVnode<DrawerPanelAttrs>) {
     this.resizableHeight = attrs.startingHeight ?? 100;
+    this.fixedHeight = !attrs.notFixedHeight;
   }
 
   view({attrs}: m.CVnode<DrawerPanelAttrs>) {
@@ -183,10 +190,14 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
 
     switch (visibility) {
       case DrawerPanelVisibility.VISIBLE:
-        this.height = Math.min(
-          Math.max(this.resizableHeight, 0),
-          this.fullscreenHeight,
-        );
+        if (this.fixedHeight) {
+          this.height = Math.min(
+            Math.max(this.resizableHeight, 0),
+            this.fullscreenHeight,
+          );
+        } else {
+          this.height = undefined;
+        }
         break;
       case DrawerPanelVisibility.FULLSCREEN:
         this.height = this.fullscreenHeight;
@@ -211,6 +222,8 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
     const drawer = isTabsMode
       ? this.renderTabContent(tabs, activeKey!)
       : drawerContent;
+    const drawerStyle =
+      this.height === undefined ? undefined : {height: `${this.height}px`};
 
     return m(
       '.pf-drawer-panel',
@@ -240,7 +253,7 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
       m(
         '.pf-drawer-panel__drawer',
         {
-          style: {height: `${this.height}px`},
+          style: drawerStyle,
         },
         drawer,
       ),
@@ -309,12 +322,14 @@ export class DrawerPanel implements m.ClassComponent<DrawerPanelAttrs> {
     if (!isHandle && !isSpacer) {
       return;
     }
-
+    if (this.fixedHeight) {
+      return;
+    }
     this.handleElement = e.currentTarget as HTMLElement;
     this.handleElement.setPointerCapture(e.pointerId);
     this.dragStartY = e.clientY;
-    this.resizableHeight = this.height;
-    this.heightWhenDragStarted = this.height;
+    this.resizableHeight = this.height!;
+    this.heightWhenDragStarted = this.height!;
     this.updatePanelVisibility(
       DrawerPanelVisibility.VISIBLE,
       attrs.onVisibilityChange,
