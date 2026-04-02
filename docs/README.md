@@ -225,5 +225,11 @@ For chatting directly with the Perfetto team:
   as possible. If your enquiry is truly urgent see
   [this page](http://go/perfetto-project).
 
+For community-maintained translations and localized community discussion:
+
+- **Chinese**:
+  [中文文档](https://gugu-perf.github.io/perfetto-docs-zh-cn/) |
+  [社区交流](https://github.com/GuGu-Perf/perfetto-docs-zh-cn/discussions)
+
 Perfetto follows
 [Google's Open Source Community Guidelines](https://opensource.google/conduct/).

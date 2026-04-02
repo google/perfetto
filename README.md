@@ -78,6 +78,8 @@ experienced developer.
 3.  **Want the full overview?** For a comprehensive look at what Perfetto is,
     why it's useful, and who uses it, see our main documentation page:
     - [**Perfetto Documentation Home**](https://perfetto.dev/docs/)
+    - **Prefer another language?** Community-maintained translations are available:
+      **Chinese**: [中文文档](https://gugu-perf.github.io/perfetto-docs-zh-cn/)
 
 ## Debian Distribution
 

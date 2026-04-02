@@ -41,3 +41,71 @@
   <a href="https://ui.perfetto.dev/">Trace Viewer</a>
   <a href="https://github.com/google/perfetto">GitHub</a>
 </header>
+
+<!-- Banner promoting community-maintained translations -->
+<div id="i18n-banner" style="display: none; background: #e8f0fe; border-left: 3px solid #1967d2; padding: 12px 20px; margin: 0; font-size: 14px; font-family: 'Source Sans Pro', sans-serif; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+  <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+    <div id="i18n-banner-content" style="display: flex; align-items: center; gap: 8px; flex: 1;"></div>
+    <button onclick="dismissI18nBanner()" style="background: none; border: none; cursor: pointer; font-size: 18px; color: #5f6368; line-height: 1; flex-shrink: 0;" aria-label="Dismiss">&times;</button>
+  </div>
+</div>
+
+<script>
+  // Community-maintained translations.
+  // To add a new language, append an entry to this array.
+  var I18N_TRANSLATIONS = [
+    {
+      // ISO 639-1 language code prefix (matched against navigator.language).
+      lang: 'zh',
+      label: 'Chinese documentation available:',
+      link: 'Perfetto Docs in Chinese',
+      url: 'https://gugu-perf.github.io/perfetto-docs-zh-cn/',
+    },
+    // Example entry for future translations:
+    // {
+    //   lang: 'ja',
+    //   label: 'Japanese documentation available:',
+    //   link: 'Perfetto Docs in Japanese',
+    //   url: 'https://example.github.io/perfetto-docs-ja/',
+    // },
+  ];
+
+  var I18N_TOOLTIP = 'Community-maintained translation, not supported by the Perfetto core team.';
+
+  // Show i18n banner for browsers with a matching language preference.
+  (function() {
+    if (localStorage.getItem('i18n-banner-dismissed')) return;
+
+    var lang = (navigator.language || navigator.userLanguage || '').toLowerCase();
+    var match = null;
+    for (var i = 0; i < I18N_TRANSLATIONS.length; i++) {
+      if (lang.indexOf(I18N_TRANSLATIONS[i].lang) === 0) {
+        match = I18N_TRANSLATIONS[i];
+        break;
+      }
+    }
+    if (!match) return;
+
+    var content = document.getElementById('i18n-banner-content');
+    if (!content) return;
+
+    content.innerHTML =
+      '<span style="font-family: \'Material Icons Round\'; font-size: 20px; color: #1967d2;">language</span>' +
+      '<span style="color: #202124;">' + match.label + '</span>' +
+      '<a href="' + match.url + '" target="_blank" rel="noopener" ' +
+        'style="color: #1967d2; font-weight: 600; text-decoration: underline;">' +
+        match.link + '</a>' +
+      '<span style="color: #5f6368; font-size: 12px; cursor: help;" ' +
+        'title="' + I18N_TOOLTIP + '">&#9432;</span>';
+
+    document.getElementById('i18n-banner').style.display = 'block';
+  })();
+
+  function dismissI18nBanner() {
+    var banner = document.getElementById('i18n-banner');
+    if (banner) {
+      banner.style.display = 'none';
+      localStorage.setItem('i18n-banner-dismissed', 'true');
+    }
+  }
+</script>
