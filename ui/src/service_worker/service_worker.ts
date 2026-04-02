@@ -59,12 +59,10 @@ const INSTALL_TIMEOUT_MS = 30000;
 let postedFiles = new Map<string, File>();
 
 // Allowlisted external domains that bypass firewall restrictions.
-// These match the domains previously allowed in CSP connect-src.
-// Note: script-src and img-src domains are NOT included here because
-// the service worker cannot intercept <script> or <img> loads.
 const ALLOWLISTED_DOMAINS = [
   /\.googleapis\.com$/, // For Google Cloud Storage fetches.
   /\.google-analytics\.com$/, // For analytics.
+  /\.googletagmanager\.com$/, // For analytics.
 ];
 
 function isAllowlistedDomain(hostname: string): boolean {
