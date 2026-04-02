@@ -301,6 +301,8 @@ export const manifest: NodeManifest<JoinConfig> = {
   emitIr(config: JoinConfig, ctx: IrContext) {
     const leftRef = ctx.getInputRef('left');
     const rightRef = ctx.getInputRef('right');
+    if (!leftRef) return undefined;
+    if (!rightRef) return {sql: `SELECT *\nFROM ${leftRef}`};
     const leftCols = ctx.getInputColumns('left');
 
     const selectCols: string[] = ['l.*'];

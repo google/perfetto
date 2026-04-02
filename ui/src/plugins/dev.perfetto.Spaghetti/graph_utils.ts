@@ -26,7 +26,12 @@ import {manifest as intervalIntersectNode} from './nodes/interval_intersect';
 import {manifest as limitNode} from './nodes/limit';
 import {manifest as sortNode} from './nodes/sort';
 import {manifest as unionNode} from './nodes/union';
-import {NodeData, NodeManifest, ColumnContext} from './node_types';
+import {
+  NodeData,
+  NodeManifest,
+  ManifestPort,
+  ColumnContext,
+} from './node_types';
 
 // Central registry mapping node type strings to their manifests.
 const NODE_REGISTRY: Record<string, NodeManifest> = {
@@ -45,6 +50,16 @@ const NODE_REGISTRY: Record<string, NodeManifest> = {
 
 export function getManifest(type: string): NodeManifest {
   return NODE_REGISTRY[type];
+}
+
+// Returns the effective input ports for a node instance.
+// Variable-input nodes store their ports in NodeData.inputs; static nodes use
+// the manifest's inputs array.
+export function getManifestInputs(
+  manifest: NodeManifest,
+  node: NodeData,
+): ReadonlyArray<ManifestPort> {
+  return node.inputs ?? manifest.inputs ?? [];
 }
 
 // A column definition with optional type information.
@@ -73,25 +88,8 @@ export function fnvHash(s: string): string {
 
 // Check if a single node's configuration is valid for SQL generation.
 // Validates both graph connectivity (all required ports satisfied) and config.
-export function isNodeValid(
-  node: NodeData,
-  nodes: Map<string, NodeData>,
-  connections: Connection[],
-): boolean {
+export function isNodeValid(node: NodeData): boolean {
   const manifest = NODE_REGISTRY[node.type];
-
-  // Generic port validation: every declared input must be satisfied.
-  const inputs = manifest.inputs ?? [];
-  if (inputs.length > 0) {
-    const connected = findConnectedInputs(nodes, connections, node.id);
-    const hasDocked = findDockedParent(nodes, node.id) !== undefined;
-    for (let i = 0; i < inputs.length; i++) {
-      const satisfied = connected.has(i) || (i === 0 && hasDocked);
-      if (!satisfied) return false;
-    }
-  }
-
-  // Config-level validation.
   return manifest.isValid(node.config);
 }
 
@@ -144,13 +142,14 @@ export function getOutputColumnsForNode(
   const portInputs = new Map<string, NodeData>();
   const dockedParent = findDockedParent(nodes, nodeId);
   const connected = findConnectedInputs(nodes, connections, nodeId);
-  const ports = manifest.inputs ?? [];
+  const ports = getManifestInputs(manifest, node);
   for (let i = 0; i < ports.length; i++) {
     const input = i === 0 && dockedParent ? dockedParent : connected.get(i);
     if (input) portInputs.set(ports[i].name, input);
   }
 
   const ctx: ColumnContext = {
+    inputPorts: ports,
     getInputColumns(portName: string) {
       const input = portInputs.get(portName);
       if (!input) return undefined;
@@ -205,7 +204,7 @@ export function collectUpstream(
   // Visit all inputs: port 0 can be satisfied by a docked parent,
   // remaining ports use connections.
   const manifest = NODE_REGISTRY[node.type];
-  const ports = manifest.inputs ?? [];
+  const ports = getManifestInputs(manifest, node);
   const connected = findConnectedInputs(nodes, connections, nodeId);
   const dockedParent = findDockedParent(nodes, nodeId);
   for (let i = 0; i < ports.length; i++) {

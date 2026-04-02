@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Checkbox} from '../../../widgets/checkbox';
-import {NodeManifest, RenderContext} from '../node_types';
+import {ManifestPort, NodeManifest, RenderContext} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Icon} from '../../../widgets/icon';
 import {TextInput} from '../../../widgets/text_input';
@@ -34,7 +34,9 @@ function IntervalIntersectContent(): m.Component<{
   let binHover = false;
 
   return {
-    view({attrs: {config, updateConfig}}) {
+    view({attrs: {config, updateConfig, ctx}}) {
+      const n = ctx.inputPorts.length;
+      const canRemove = ctx.removeLastInput !== undefined && n > 2;
       return m('.pf-qb-stack', [
         m(Checkbox, {
           label: 'Filter dur >= 0',
@@ -42,6 +44,27 @@ function IntervalIntersectContent(): m.Component<{
           onchange: () =>
             updateConfig({filterNegativeDur: !config.filterNegativeDur}),
         }),
+        m('div', {style: {display: 'flex', gap: '4px'}}, [
+          canRemove &&
+            m(Button, {
+              label: '− Input',
+              variant: ButtonVariant.Filled,
+              style: {flex: '1'},
+              onclick: ctx.removeLastInput,
+            }),
+          ctx.addInput &&
+            m(Button, {
+              label: '+ Input',
+              variant: ButtonVariant.Filled,
+              style: {flex: '1'},
+              onclick: () =>
+                ctx.addInput!({
+                  name: `input_${n + 1}`,
+                  content: `Input ${n + 1}`,
+                  direction: 'left' as const,
+                }),
+            }),
+        ]),
         m('.pf-qb-section-label', 'Partition by'),
         m('.pf-qb-filter-list', [
           ...config.partitionColumns.map((col, i) =>
@@ -171,110 +194,135 @@ const SKIP_COLS = new Set(['id', 'ts', 'dur']);
 
 interface SourceColumn {
   readonly name: string; // original column name in the source table
-  readonly alias: string; // output name (may have _1 suffix for collisions)
+  readonly alias: string; // output name (may have suffix for collisions)
   readonly type?: ColumnDef['type'];
 }
 
-// Compute the extra columns to pull from both inputs, with collision handling.
-// Input 1 columns keep their original names; input 2 columns get a _1 suffix
-// if they collide with any already-taken name.
-function getSourceColumns(
-  input1Cols: ColumnDef[] | undefined,
-  input2Cols: ColumnDef[] | undefined,
-): {left: SourceColumn[]; right: SourceColumn[]} {
+// Compute extra columns to pull from N inputs, with collision handling.
+// Earlier inputs keep original names; later inputs get a _{inputIdx} suffix
+// when a name collides with an already-taken name.
+function getSourceColumnsForInputs(
+  inputCols: (ColumnDef[] | undefined)[],
+  numInputs: number,
+): SourceColumn[][] {
   const taken = new Set(SKIP_COLS);
-  taken.add('id_0');
-  taken.add('id_1');
-
-  const left: SourceColumn[] = [];
-  for (const col of input1Cols ?? []) {
-    if (SKIP_COLS.has(col.name)) continue;
-    taken.add(col.name);
-    left.push({name: col.name, alias: col.name, type: col.type});
+  for (let i = 0; i < numInputs; i++) {
+    taken.add(`id_${i}`);
   }
 
-  const right: SourceColumn[] = [];
-  for (const col of input2Cols ?? []) {
-    if (SKIP_COLS.has(col.name)) continue;
-    const alias = taken.has(col.name) ? `${col.name}_1` : col.name;
-    taken.add(alias);
-    right.push({name: col.name, alias, type: col.type});
-  }
-
-  return {left, right};
+  return inputCols.map((cols, inputIdx) => {
+    const sourceCols: SourceColumn[] = [];
+    for (const col of cols ?? []) {
+      if (SKIP_COLS.has(col.name)) continue;
+      let alias = col.name;
+      if (taken.has(alias)) {
+        let suffix = inputIdx;
+        alias = `${col.name}_${suffix}`;
+        while (taken.has(alias)) {
+          suffix++;
+          alias = `${col.name}_${suffix}`;
+        }
+      }
+      taken.add(alias);
+      sourceCols.push({name: col.name, alias, type: col.type});
+    }
+    return sourceCols;
+  });
 }
 
 export const manifest: NodeManifest<IntervalIntersectConfig> = {
   title: 'Interval Intersect',
   icon: 'compare_arrows',
-  inputs: [
-    {name: 'input_1', content: 'Input 1', direction: 'left'},
-    {name: 'input_2', content: 'Input 2', direction: 'left'},
-  ],
   outputs: [{name: 'output', content: 'Output', direction: 'right'}],
   canDockTop: true,
   canDockBottom: true,
   hue: 340,
+  defaultInputs(): ManifestPort[] {
+    return [
+      {name: 'input_1', content: 'Input 1', direction: 'left'},
+      {name: 'input_2', content: 'Input 2', direction: 'left'},
+    ];
+  },
   defaultConfig: () => ({partitionColumns: [], filterNegativeDur: true}),
   isValid: () => true,
   getOutputColumns(_config, ctx) {
-    const input1Cols = ctx.getInputColumns('input_1');
-    const input2Cols = ctx.getInputColumns('input_2');
-    const {left, right} = getSourceColumns(input1Cols, input2Cols);
+    const connectedPorts = ctx.inputPorts.filter(
+      (p) => ctx.getInputColumns(p.name) !== undefined,
+    );
+    if (connectedPorts.length === 0) return undefined;
+    const inputCols = connectedPorts.map((p) => ctx.getInputColumns(p.name));
+    const sourceCols = getSourceColumnsForInputs(
+      inputCols,
+      connectedPorts.length,
+    );
 
     const result: ColumnDef[] = [
       {name: 'ts', type: {kind: 'timestamp' as const}},
       {name: 'dur', type: {kind: 'duration' as const}},
-      {name: 'id_0', type: {kind: 'int' as const}},
-      {name: 'id_1', type: {kind: 'int' as const}},
     ];
-    for (const col of left) {
-      result.push({name: col.alias, type: col.type});
+    for (let i = 0; i < connectedPorts.length; i++) {
+      const idType = inputCols[i]?.find((c) => c.name === 'id')?.type;
+      result.push({name: `id_${i}`, type: idType ?? {kind: 'int' as const}});
     }
-    for (const col of right) {
-      result.push({name: col.alias, type: col.type});
+    for (const cols of sourceCols) {
+      for (const col of cols) {
+        result.push({name: col.alias, type: col.type});
+      }
     }
     return result;
   },
   emitIr(config, ctx) {
-    const leftRef = ctx.getInputRef('input_1');
-    const rightRef = ctx.getInputRef('input_2');
-    const input1Cols = ctx.getInputColumns('input_1');
-    const input2Cols = ctx.getInputColumns('input_2');
-    const {left, right} = getSourceColumns(input1Cols, input2Cols);
+    const connectedPorts = ctx.inputPorts.filter(
+      (p) => ctx.getInputRef(p.name) !== '',
+    );
+    if (connectedPorts.length === 0) return undefined;
+    const refs = connectedPorts.map((p) => ctx.getInputRef(p.name));
+    const inputCols = connectedPorts.map((p) => ctx.getInputColumns(p.name));
+    const sourceCols = getSourceColumnsForInputs(
+      inputCols,
+      connectedPorts.length,
+    );
 
-    const leftArg = config.filterNegativeDur
-      ? `(SELECT * FROM ${leftRef} WHERE dur >= 0)`
-      : leftRef;
-    const rightArg = config.filterNegativeDur
-      ? `(SELECT * FROM ${rightRef} WHERE dur >= 0)`
-      : rightRef;
     const partitionCols = config.partitionColumns.filter((c) => c);
     const partitionClause =
       partitionCols.length > 0 ? partitionCols.join(', ') : '';
 
-    // Build SELECT clause: intersect columns + source columns from both inputs.
-    const selectParts = ['ii.ts', 'ii.dur', 'ii.id_0', 'ii.id_1'];
-    for (const col of left) {
-      selectParts.push(`t1.${col.name}`);
+    const args = refs.map((ref) =>
+      config.filterNegativeDur ? `(SELECT * FROM ${ref} WHERE dur >= 0)` : ref,
+    );
+
+    const n = connectedPorts.length;
+    const selectParts = ['ii.ts', 'ii.dur'];
+    for (let i = 0; i < n; i++) {
+      selectParts.push(`ii.id_${i}`);
     }
-    for (const col of right) {
-      const expr = `t2.${col.name}`;
-      selectParts.push(
-        col.alias !== col.name ? `${expr} AS ${col.alias}` : expr,
-      );
+    const tableAliases = refs.map((_, i) => `t${i + 1}`);
+    for (let i = 0; i < n; i++) {
+      for (const col of sourceCols[i]) {
+        const expr = `${tableAliases[i]}.${col.name}`;
+        selectParts.push(
+          col.alias !== col.name ? `${expr} AS ${col.alias}` : expr,
+        );
+      }
     }
 
-    const hasSourceCols = left.length > 0 || right.length > 0;
+    const hasSourceCols = sourceCols.some((cols) => cols.length > 0);
+    const argsStr = args.join(',\n   ');
+
     let sql: string;
     if (hasSourceCols) {
+      const joins = refs
+        .map(
+          (ref, i) =>
+            `JOIN ${ref} ${tableAliases[i]} ON ii.id_${i} = ${tableAliases[i]}.id`,
+        )
+        .join('\n');
       sql =
         `SELECT\n${selectParts.map((s) => `  ${s}`).join(',\n')}` +
-        `\nFROM _interval_intersect!(\n  (${leftArg},\n   ${rightArg}),\n  (${partitionClause})\n) ii` +
-        `\nJOIN ${leftRef} t1 ON ii.id_0 = t1.id` +
-        `\nJOIN ${rightRef} t2 ON ii.id_1 = t2.id`;
+        `\nFROM _interval_intersect!(\n  (${argsStr}),\n  (${partitionClause})\n) ii` +
+        `\n${joins}`;
     } else {
-      sql = `SELECT *\nFROM _interval_intersect!(\n  (${leftArg},\n   ${rightArg}),\n  (${partitionClause})\n)`;
+      sql = `SELECT *\nFROM _interval_intersect!(\n  (${argsStr}),\n  (${partitionClause})\n)`;
     }
     return {sql, includes: ['intervals.intersect']};
   },

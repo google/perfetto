@@ -30,6 +30,8 @@ export interface NodeData<C extends object = {}> {
   y: number;
   nextId?: string;
   collapsed?: boolean;
+  /** Stored input ports for variable-input nodes. Absent for static-input nodes. */
+  inputs?: ManifestPort[];
   config: C;
 }
 
@@ -48,6 +50,19 @@ export interface SqlStatement {
 }
 
 // ---------------------------------------------------------------------------
+// Manifest port: NodePort with a stable name for programmatic lookup.
+// ---------------------------------------------------------------------------
+
+export interface ManifestPort extends NodePort {
+  /** Stable identifier used by getInputColumns / getInputRef. */
+  readonly name: string;
+  /** Direction for connection compatibility and port placement. */
+  readonly direction: 'top' | 'left' | 'right' | 'bottom';
+  /** User-facing label shown on the port. Not used for programmatic lookup. */
+  readonly content: string;
+}
+
+// ---------------------------------------------------------------------------
 // Render context bag — each render function picks what it needs.
 // ---------------------------------------------------------------------------
 
@@ -60,8 +75,14 @@ export interface RenderContext {
   readonly trace: Trace;
   /** Whether this node is currently selected. */
   readonly isSelected: boolean;
+  /** Effective input ports for this node instance. */
+  readonly inputPorts: ReadonlyArray<ManifestPort>;
   /** Get the output columns of a specific input port by name. */
   getInputColumns(portName: string): ColumnDef[];
+  /** For variable-input nodes: add a new input port. */
+  readonly addInput?: (port: ManifestPort) => void;
+  /** For variable-input nodes: remove the last input port (and its connections). */
+  readonly removeLastInput?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -69,6 +90,8 @@ export interface RenderContext {
 // ---------------------------------------------------------------------------
 
 export interface IrContext {
+  /** Effective input ports for this node instance. */
+  readonly inputPorts: ReadonlyArray<ManifestPort>;
   /** Get the SQL reference (table name or CTE hash) for an input by port name. */
   getInputRef(portName: string): string;
   /** Get the output columns of an input by port name. */
@@ -76,19 +99,12 @@ export interface IrContext {
 }
 
 // ---------------------------------------------------------------------------
-// Manifest port: NodePort with a stable name for programmatic lookup.
-// ---------------------------------------------------------------------------
-
-export interface ManifestPort extends NodePort {
-  /** Stable identifier used by getInputColumns / getInputRef. */
-  readonly name: string;
-}
-
-// ---------------------------------------------------------------------------
 // Column context — passed to getOutputColumns.
 // ---------------------------------------------------------------------------
 
 export interface ColumnContext {
+  /** Effective input ports for this node instance. */
+  readonly inputPorts: ReadonlyArray<ManifestPort>;
   /** Get the output columns of a specific input port by name. */
   getInputColumns(portName: string): ColumnDef[] | undefined;
   /** SQL modules for schema resolution (e.g. FROM node table lookup). */
@@ -108,6 +124,14 @@ export interface NodeManifest<C extends object = {}> {
   readonly canDockTop?: boolean;
   readonly canDockBottom?: boolean;
   readonly hue: number;
+
+  /**
+   * Factory for the initial input port list. If present, the node supports
+   * variable inputs: the returned list is stored in NodeData.inputs on creation
+   * and mutated via RenderContext.addInput / removeLastInput.
+   * If absent, the static `inputs` array is the source of truth.
+   */
+  defaultInputs?(): ManifestPort[];
 
   /** Return the default config for a newly-created node. */
   defaultConfig(): C;
@@ -132,7 +156,10 @@ export interface NodeManifest<C extends object = {}> {
    * Emit standalone SQL for nodes that can't fold (e.g. from, join, union).
    * Returns {sql, includes} or undefined to fall back to generic fold logic.
    */
-  emitIr?(config: C, ctx: IrContext): {sql: string; includes?: string[]};
+  emitIr?(
+    config: C,
+    ctx: IrContext,
+  ): {sql: string; includes?: string[]} | undefined;
 }
 
 // ---------------------------------------------------------------------------

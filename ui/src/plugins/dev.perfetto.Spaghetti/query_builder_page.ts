@@ -39,13 +39,19 @@ import {DurationWidget} from '../../components/widgets/duration';
 import {Time, Duration} from '../../base/time';
 import {Tabs} from '../../widgets/tabs';
 
-import {NodeData, NodeQueryBuilderStore, RenderContext} from './node_types';
+import {
+  ManifestPort,
+  NodeData,
+  NodeQueryBuilderStore,
+  RenderContext,
+} from './node_types';
 import {buildIR} from './ir';
 import {
   findConnectedInputs,
   findDockedParent,
   getColumnsForNode,
   getManifest,
+  getManifestInputs,
   getOutputColumnsForNode,
   getRootNodeIds,
 } from './graph_utils';
@@ -414,7 +420,7 @@ export function QueryBuilderPage(
     if (graphApi && !toNodeId) {
       const placement = graphApi.findPlacementForNode({
         id,
-        inputs: manifest.inputs,
+        inputs: manifest.defaultInputs?.() ?? manifest.inputs,
         outputs: manifest.outputs,
         content: m('span', type),
         canDockBottom: manifest.canDockBottom,
@@ -434,6 +440,7 @@ export function QueryBuilderPage(
       id,
       x,
       y,
+      inputs: manifest.defaultInputs?.(),
       config: manifest.defaultConfig(),
     };
 
@@ -492,7 +499,7 @@ export function QueryBuilderPage(
       activeConns,
       nodeData.id,
     );
-    const ports = manifest.inputs ?? [];
+    const ports = getManifestInputs(manifest, nodeData);
     for (let i = 0; i < ports.length; i++) {
       const input = i === 0 && parent ? parent : connected.get(i);
       if (input) {
@@ -505,6 +512,7 @@ export function QueryBuilderPage(
       tableNames,
       trace,
       isSelected: selectedNodeIds.has(nodeData.id),
+      inputPorts: ports,
       getInputColumns(portLabel: string) {
         const input = portInputs.get(portLabel);
         if (!input) return [];
@@ -517,6 +525,32 @@ export function QueryBuilderPage(
           ) ?? []
         );
       },
+      addInput: manifest.defaultInputs
+        ? (port: ManifestPort) => {
+            updateStore((draft) => {
+              const node = draft.nodes.get(nodeData.id);
+              if (node) {
+                node.inputs = [...(node.inputs ?? []), port];
+              }
+            });
+          }
+        : undefined,
+      removeLastInput: manifest.defaultInputs
+        ? () => {
+            updateStore((draft) => {
+              const node = draft.nodes.get(nodeData.id);
+              if (!node?.inputs || node.inputs.length <= 1) return;
+              const portIdx = node.inputs.length - 1;
+              for (let i = draft.connections.length - 1; i >= 0; i--) {
+                const c = draft.connections[i];
+                if (c.toNode === nodeData.id && c.toPort === portIdx) {
+                  draft.connections.splice(i, 1);
+                }
+              }
+              node.inputs = node.inputs.slice(0, portIdx);
+            });
+          }
+        : undefined,
     };
 
     const updateConfig = (updates: {}) => {
@@ -546,7 +580,7 @@ export function QueryBuilderPage(
 
     return {
       id: nodeData.id,
-      inputs: manifest.inputs,
+      inputs: getManifestInputs(manifest, nodeData),
       outputs: manifest.outputs,
       content: renderNodeContentWithContext(
         nodeData,

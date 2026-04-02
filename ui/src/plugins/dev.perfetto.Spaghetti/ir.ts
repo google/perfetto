@@ -19,6 +19,7 @@ import {
   findConnectedInputs,
   fnvHash,
   getManifest,
+  getManifestInputs,
   getOutputColumnsForNode,
   getPrimaryInput,
   isNodeValid,
@@ -116,7 +117,7 @@ export function buildIR(
 
   // Validate all nodes.
   for (const n of order) {
-    if (!isNodeValid(n, nodes, connections)) return undefined;
+    if (!isNodeValid(n)) return undefined;
   }
 
   // Count references for fold safety.
@@ -126,13 +127,16 @@ export function buildIR(
     if (primary) {
       refCount.set(primary.id, (refCount.get(primary.id) ?? 0) + 1);
     }
-    // Multi-input nodes: count the right (port 1) input too.
+    // Multi-input nodes: count all non-primary (port >= 1) inputs.
     const manifest = getManifest(n.type);
-    if ((manifest.inputs?.length ?? 0) >= 2) {
+    const ports = getManifestInputs(manifest, n);
+    if (ports.length >= 2) {
       const ci = findConnectedInputs(nodes, connections, n.id);
-      const right = ci.get(1);
-      if (right) {
-        refCount.set(right.id, (refCount.get(right.id) ?? 0) + 1);
+      for (let i = 1; i < ports.length; i++) {
+        const extra = ci.get(i);
+        if (extra) {
+          refCount.set(extra.id, (refCount.get(extra.id) ?? 0) + 1);
+        }
       }
     }
   }
@@ -243,7 +247,7 @@ export function buildIR(
       // Build a map from port label → connected input node.
       const portInputs = new Map<string, NodeData>();
       const connected = findConnectedInputs(nodes, connections, n.id);
-      const ports = manifest.inputs ?? [];
+      const ports = getManifestInputs(manifest, n);
       for (let i = 0; i < ports.length; i++) {
         const input = i === 0 && primaryInput ? primaryInput : connected.get(i);
         if (input) {
@@ -252,6 +256,7 @@ export function buildIR(
       }
 
       const irCtx: IrContext = {
+        inputPorts: ports,
         getInputRef(portLabel: string): string {
           const input = portInputs.get(portLabel);
           return input ? resolveRef(input) : '';
@@ -268,6 +273,7 @@ export function buildIR(
         },
       };
       const result = manifest.emitIr(n.config, irCtx);
+      if (!result) continue;
 
       const deps: string[] = [];
       const allInputs = [...portInputs.values()];
@@ -320,10 +326,12 @@ export function buildIR(
   if (targetNode.type === 'from') {
     const manifest = getManifest('from');
     const irCtx: IrContext = {
+      inputPorts: [],
       getInputRef: () => '',
       getInputColumns: () => undefined,
     };
     const result = manifest.emitIr!(targetNode.config, irCtx);
+    if (!result) return entries;
     const includes = nodeIncludes.get(targetNode.id) ?? new Set();
     emitEntry(result.sql, [], includes, [targetNode.id]);
   }
