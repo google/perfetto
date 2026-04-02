@@ -199,11 +199,6 @@ FrameTimelineEventParser::FrameTimelineEventParser(
                                context->storage->InternString("None"),
                                context->storage->InternString("Partial"),
                                context->storage->InternString("Full")}},
-      latched_fence_state_ids_{
-          {context->storage->InternString("Unknown"),
-           context->storage->InternString("Latched Signaled"),
-           context->storage->InternString("Latched Unsignaled"),
-           context->storage->InternString("Delayed Latch Fence Unsignaled")}},
       surface_frame_token_id_(
           context->storage->InternString("Surface frame token")),
       display_frame_token_id_(
@@ -232,12 +227,6 @@ FrameTimelineEventParser::FrameTimelineEventParser(
       jank_tag_experimental_id_(
           context->storage->InternString("Jank tag (experimental)")),
       is_buffer_id_(context->storage->InternString("Is Buffer?")),
-      latched_unsignaled_count_id_(
-          context->storage->InternString("Latched unsignaled count")),
-      addressable_unsignaled_latch_count_id_(
-          context->storage->InternString("Addressable unsignaled latch count")),
-      latched_fence_state_id_(
-          context->storage->InternString("Latched fence state")),
       jank_tag_unspecified_id_(context->storage->InternString("Unspecified")),
       jank_tag_none_id_(context->storage->InternString("No Jank")),
       jank_tag_self_id_(context->storage->InternString("Self Jank")),
@@ -400,15 +389,6 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
                          Variadic::String(jank_tag_experimental));
         inserter->AddArg(jank_debug_metadata_id_,
                          Variadic::Real(jank_debug_metadata));
-        if (event.has_latched_unsignaled_count()) {
-          inserter->AddArg(latched_unsignaled_count_id_,
-                           Variadic::Integer(event.latched_unsignaled_count()));
-        }
-        if (event.has_addressable_unsignaled_latch_count()) {
-          inserter->AddArg(
-              addressable_unsignaled_latch_count_id_,
-              Variadic::Integer(event.addressable_unsignaled_latch_count()));
-        }
       });
 
   // SurfaceFrames will always be parsed before the matching DisplayFrame
@@ -641,12 +621,6 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
         inserter->AddArg(is_buffer_id_, Variadic::String(is_buffer));
         inserter->AddArg(jank_debug_metadata_id_,
                          Variadic::Real(jank_debug_metadata));
-        if (event.has_latched_fence_state()) {
-          inserter->AddArg(
-              latched_fence_state_id_,
-              Variadic::String(latched_fence_state_ids_[static_cast<size_t>(
-                  event.latched_fence_state())]));
-        }
       });
 
   if (opt_slice_id) {
