@@ -84,16 +84,145 @@ export class AndroidLockContentionEventSource {
 
   constructor(private readonly trace: Trace) {}
 
-  use(eventId: number): QueryResult<LockContentionDetails | null> {
+  use(
+    eventId: number,
+    trackUri: string,
+  ): QueryResult<LockContentionDetails | null> {
     return this.dataSlot.use({
-      key: eventId,
-      queryFn: async () => this.fetchDetails(eventId),
+      key: {eventId, trackUri},
+      queryFn: async () => this.fetchDetails(eventId, trackUri),
     });
   }
 
-  private async fetchDetails(
+  async fetchDetails(
     eventId: number,
+    trackUri: string,
   ): Promise<LockContentionDetails | null> {
+    let resolvedId = eventId;
+    const debugMatch = trackUri.match(/^debug\.track(\d+)(?:_\d+)?$/);
+
+    const ownerTrackPrefix = 'com.android.AndroidLockContention#OwnerEvents';
+    if (trackUri.startsWith(ownerTrackPrefix)) {
+      const query = await this.trace.engine.query(`
+        SELECT original_id FROM __android_lock_contention_owner_events WHERE id = ${eventId} LIMIT 1
+      `);
+      if (query.numRows() > 0) {
+        resolvedId = query.firstRow({original_id: NUM}).original_id;
+      }
+    } else if (debugMatch) {
+      const tableId = debugMatch[1];
+      const tableName = `__debug_track_${tableId}`;
+      const query = await this.trace.engine.query(`
+        SELECT raw_original_id FROM ${tableName} WHERE id = ${eventId} LIMIT 1
+      `);
+      if (query.numRows() > 0) {
+        resolvedId = query.firstRow({raw_original_id: NUM}).raw_original_id;
+      }
+    }
+
+    const typeQuery = await this.trace.engine.query(`
+      SELECT name, ts, dur FROM slice WHERE id = ${resolvedId} LIMIT 1
+    `);
+    if (typeQuery.numRows() === 0) return null;
+    const typeRow = typeQuery.firstRow({name: STR, ts: LONG, dur: LONG});
+
+    const monitorQuery = await this.trace.engine.query(`
+      SELECT 1 FROM android_monitor_contention_chain WHERE id = ${resolvedId} LIMIT 1
+    `);
+    const isMonitor = monitorQuery.numRows() > 0;
+
+    if (!isMonitor) {
+      const tidMatch = typeRow.name.match(/\(owner tid: (\d+)\)/);
+      const ownerTid = tidMatch ? parseInt(tidMatch[1], 10) : undefined;
+
+      const blockedQuery = await this.trace.engine.query(`
+        SELECT 
+          t.tid as blocked_tid,
+          t.name as blocked_name,
+          t.is_main_thread,
+          p.upid
+        FROM slice s
+        JOIN thread_track tt ON s.track_id = tt.id
+        JOIN thread t USING (utid)
+        LEFT JOIN process p USING (upid)
+        WHERE s.id = ${resolvedId}
+        LIMIT 1
+      `);
+
+      let blockedThreadName = 'Unknown Thread';
+      let blockedThreadTid: number | null = null;
+      let isBlockedThreadMain = false;
+      let upid: number | null = null;
+      if (blockedQuery.numRows() > 0) {
+        const r = blockedQuery.firstRow({
+          blocked_tid: NUM,
+          blocked_name: STR_NULL,
+          is_main_thread: NUM_NULL,
+          upid: NUM_NULL,
+        });
+        blockedThreadTid = r.blocked_tid;
+        blockedThreadName = r.blocked_name || 'Unknown Thread';
+        isBlockedThreadMain = r.is_main_thread === 1;
+        upid = r.upid;
+      }
+
+      let blockingThreadName = 'Unknown Thread';
+      if (ownerTid !== undefined) {
+        // First try same process
+        if (upid !== null) {
+          const blockingQuery = await this.trace.engine.query(`
+            SELECT name FROM thread WHERE tid = ${ownerTid} AND upid = ${upid} LIMIT 1
+          `);
+          if (blockingQuery.numRows() > 0) {
+            blockingThreadName =
+              blockingQuery.firstRow({name: STR_NULL}).name || 'Unknown Thread';
+          }
+        }
+
+        // Fallback to any process if still unknown
+        if (blockingThreadName === 'Unknown Thread') {
+          const fallbackQuery = await this.trace.engine.query(`
+            SELECT name FROM thread WHERE tid = ${ownerTid} LIMIT 1
+          `);
+          if (fallbackQuery.numRows() > 0) {
+            blockingThreadName =
+              fallbackQuery.firstRow({name: STR_NULL}).name || 'Unknown Thread';
+          }
+        }
+      }
+
+      let blockingTrackUri: string | undefined = undefined;
+      if (ownerTid !== undefined) {
+        blockingTrackUri = 'com.android.AndroidLockContention#OwnerEvents';
+      }
+
+      return {
+        id: resolvedId,
+        ts: Time.fromRaw(typeRow.ts),
+        dur: typeRow.dur !== null ? Duration.fromRaw(typeRow.dur) : null,
+        monotonicDur: null,
+        waiterCount: 0,
+        lockName: typeRow.name,
+        blockedThreadName,
+        blockedThreadTid,
+        isBlockedThreadMain,
+        blockedMethod: '',
+        blockedSrc: '',
+        blockingThreadName,
+        blockingThreadTid: ownerTid ?? null,
+        isBlockingThreadMain: false, // We don't easily know if owner is main thread without another query or join, but it's fine for now.
+        blockingMethod: '',
+        blockingSrc: '',
+        parentId: null,
+        blockingTrackUri,
+        binderReplyId: null,
+        blockingBinderTxnId: null,
+        waiters: [],
+        threadStates: [],
+        blockedFunctions: [],
+      };
+    }
+
     const mainQuery = await this.trace.engine.query(`
       SELECT 
         id, 
@@ -120,7 +249,7 @@ export class AndroidLockContentionEventSource {
         (SELECT id FROM thread_track WHERE utid = blocking_utid) as blocking_track_id,
         binder_reply_id
       FROM android_monitor_contention_chain
-      WHERE id = ${eventId}
+      WHERE id = ${resolvedId}
     `);
 
     if (mainQuery.numRows() === 0) return null;

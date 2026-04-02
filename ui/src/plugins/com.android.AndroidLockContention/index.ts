@@ -12,30 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-
-import {QueryResult} from '../../base/query_slot';
+import {QuerySlot, SerialTaskQueue} from '../../base/query_slot';
+import {LockOwnerDetailsPanel} from './lock_owner_details_panel';
+import {TrackNode} from '../../public/workspace';
+import {Selection} from '../../public/selection';
+import {Time} from '../../base/time';
+import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import {HSLColor} from '../../base/color';
+import {ArrowConnection} from '../../components/related_events/arrow_visualiser';
+import {
+  getTrackUriForTrackId,
+  enrichDepths,
+} from '../../components/related_events/utils';
+import {SliceTrack} from '../../components/tracks/slice_track';
+import {SourceDataset} from '../../trace_processor/dataset';
 import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
 import {PerfettoPlugin} from '../../public/plugin';
-import {Selection} from '../../public/selection';
 import {Trace} from '../../public/trace';
-import {NUM_NULL} from '../../trace_processor/query_result';
-
-import {
-  AndroidLockContentionEventSource,
-  LockContentionDetails,
-} from './android_lock_contention_event_source';
-import {AndroidLockContentionTab} from './tab';
+import {RelatedEventsOverlay} from '../../components/related_events/related_events_overlay';
 
 export default class AndroidLockContentionPlugin implements PerfettoPlugin {
   static readonly id = 'com.android.AndroidLockContention';
   static readonly description =
     'Visualise lock contention events in the trace. Activate by running the command ' +
-    "'Android Lock Contention: Go Forward' or using Ctrl+]. You can then navigate " +
+    "'Android Lock Contention: Toggle View' or using Ctrl+]. You can then navigate " +
     'between contention events using Ctrl+] and Ctrl+[';
 
-  private nav = new LockContentionNavigation();
-  private activeContentionId?: number;
+  private readonly connectionsTaskQueue = new SerialTaskQueue();
+  private readonly connectionsSlot = new QuerySlot<ArrowConnection[]>(
+    this.connectionsTaskQueue,
+  );
 
   /**
    * Navigates to the source of a monitor contention.
@@ -46,59 +52,40 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
     const selection = trace.selection.selection;
     if (selection.kind !== 'track_event') return;
 
-    const queryRes = await trace.engine.query(`
-      SELECT 
-        parent_id,
-        (SELECT id FROM thread_track WHERE utid = blocking_utid) as track_id
-      FROM android_monitor_contention_chain
-      WHERE id = ${selection.eventId}
+    const tableName = '__android_lock_contention_owner_events';
+
+    // Case 1: On a debug track -> Jump to original
+    if (
+      selection.trackUri.startsWith(
+        'com.android.AndroidLockContention#OwnerEvents',
+      )
+    ) {
+      const query = await trace.engine.query(`
+        SELECT original_id FROM ${tableName} WHERE id = ${selection.eventId} LIMIT 1
+      `);
+      if (query.numRows() > 0) {
+        const originalId = query.firstRow({original_id: NUM}).original_id;
+        trace.selection.selectSqlEvent('slice', originalId, {
+          scrollToSelection: true,
+          switchToCurrentSelectionTab: false,
+        });
+        return;
+      }
+    }
+
+    // Case 2: On the original track -> Jump to debug
+    const query = await trace.engine.query(`
+      SELECT owner_tid, id FROM ${tableName} WHERE original_id = ${selection.eventId} LIMIT 1
     `);
-
-    if (queryRes.numRows() === 0) return;
-
-    const row = queryRes.firstRow({parent_id: NUM_NULL, track_id: NUM_NULL});
-
-    if (row.parent_id !== null) {
-      this.nav.push(selection);
-      trace.selection.selectSqlEvent('slice', row.parent_id, {
+    if (query.numRows() > 0) {
+      const row = query.firstRow({owner_tid: NUM, id: NUM});
+      const targetUri = `com.android.AndroidLockContention#OwnerEvents_${row.owner_tid}`;
+      trace.selection.selectTrackEvent(targetUri, row.id, {
         scrollToSelection: true,
         switchToCurrentSelectionTab: false,
       });
-      this.nav.push({
-        kind: 'track_event',
-        trackUri: 'unknown',
-        eventId: row.parent_id,
-      } as Selection);
-    } else if (row.track_id !== null) {
-      const track = trace.tracks.findTrack((t) =>
-        t.tags?.trackIds?.includes(row.track_id as number),
-      );
-      const trackUri = track?.uri || '/slice_' + row.track_id;
-      this.nav.push(selection);
-      trace.selection.selectTrack(trackUri, {
-        scrollToSelection: true,
-        switchToCurrentSelectionTab: false,
-      });
-      this.nav.push({kind: 'track', trackUri} as Selection);
+      return;
     }
-  }
-
-  private useDetailsState(
-    trace: Trace,
-    source: AndroidLockContentionEventSource,
-  ): QueryResult<LockContentionDetails | null> {
-    const selection = trace.selection.selection;
-
-    if (this.nav.has(selection) && this.activeContentionId !== undefined) {
-      return source.use(this.activeContentionId);
-    }
-
-    if (selection.kind !== 'track_event') {
-      return {data: null, isPending: false, isFresh: true};
-    }
-
-    this.activeContentionId = selection.eventId;
-    return source.use(selection.eventId);
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
@@ -106,71 +93,19 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
       'INCLUDE PERFETTO MODULE android.monitor_contention;',
     );
 
-    const source = new AndroidLockContentionEventSource(trace);
-
-    trace.tabs.registerTab({
-      uri: 'com.android.AndroidLockContentionTab',
-      isEphemeral: false,
-      content: {
-        getTitle: () => 'Lock Contention Analysis',
-        render: () => {
-          const {data: row, isPending} = this.useDetailsState(trace, source);
-          const goToSlice = (id: number) => {
-            this.nav.push(trace.selection.selection);
-            trace.selection.selectSqlEvent('slice', id, {
-              scrollToSelection: true,
-              switchToCurrentSelectionTab: false,
-            });
-            this.nav.push({
-              kind: 'track_event',
-              trackUri: 'unknown',
-              eventId: id,
-            } as Selection);
-          };
-          const goToTrack = (uri: string) => {
-            this.nav.push(trace.selection.selection);
-            trace.selection.selectTrack(uri, {
-              scrollToSelection: true,
-              switchToCurrentSelectionTab: false,
-            });
-            this.nav.push({kind: 'track', trackUri: uri} as Selection);
-          };
-          return m(AndroidLockContentionTab, {
-            trace,
-            row: row ?? null,
-            isPending,
-            goToSlice,
-            goToTrack,
-          });
-        },
-      },
-    });
+    trace.tracks.registerOverlay(
+      new RelatedEventsOverlay(trace, () => this.getConnections(trace)),
+    );
 
     trace.commands.registerCommand({
-      id: 'com.android.AndroidLockContention:GoBack',
-      name: 'Android Lock Contention: Go Back',
-      defaultHotkey: 'Ctrl+[',
-      callback: () => {
-        trace.tabs.showTab('com.android.AndroidLockContentionTab');
-        this.nav.goBack(trace);
-      },
-    });
-
-    trace.commands.registerCommand({
-      id: 'com.android.AndroidLockContention:GoForward',
-      name: 'Android Lock Contention: Go Forward',
+      id: 'com.android.AndroidLockContention:ToggleView',
+      name: 'Android Lock Contention: Toggle View',
       defaultHotkey: 'Ctrl+]',
-      callback: async () => {
-        trace.tabs.showTab('com.android.AndroidLockContentionTab');
-        if (this.nav.canGoForward()) {
-          this.nav.goForward(trace);
-        } else {
-          await this.contextualJump(trace);
-        }
+      callback: () => {
+        this.contextualJump(trace);
       },
     });
 
-    // Visualise "big" locks on a debug track
     trace.commands.registerCommand({
       id: 'com.android.visualiseHeldLocks',
       name: 'Lock Contention: Visualise held locks',
@@ -206,77 +141,249 @@ export default class AndroidLockContentionPlugin implements PerfettoPlugin {
         });
       },
     });
-  }
-}
 
-class LockContentionNavigation {
-  private stack: Selection[] = [];
-  private index = -1;
+    const tableName = '__android_lock_contention_owner_events';
+    await trace.engine.query(`
+      CREATE PERFETTO TABLE ${tableName} AS
+      WITH lock_events AS (
+        SELECT 
+          s.id AS original_id,
+          s.ts, 
+          s.dur, 
+          '[Lock Owner] Blocking: ' || s.name AS name,
+          CAST(SUBSTR(
+            s.name, 
+            INSTR(s.name, '(owner tid: ') + 12, 
+            INSTR(s.name, ')') - (INSTR(s.name, '(owner tid: ') + 12)
+          ) AS INTEGER) AS owner_tid,
+          bt.name AS blocked_thread_name,
+          obt.name AS blocking_thread_name
+        FROM slice s
+        JOIN thread_track tt ON s.track_id = tt.id
+        JOIN thread bt USING (utid)
+        LEFT JOIN thread obt ON obt.tid = (
+          CAST(SUBSTR(
+            s.name, 
+            INSTR(s.name, '(owner tid: ') + 12, 
+            INSTR(s.name, ')') - (INSTR(s.name, '(owner tid: ') + 12)
+          ) AS INTEGER)
+        ) AND obt.upid = bt.upid
+        WHERE s.name GLOB 'Lock contention*' AND s.name GLOB '*(owner tid: *)*'
+      ),
+      monitor_events AS (
+        SELECT 
+          id AS original_id,
+          ts,
+          COALESCE(dur, -1) AS dur,
+          '[Lock Owner] Blocking: Lock contention on a monitor lock (owner tid: ' || COALESCE(blocking_tid, '-') || ')' AS name,
+          blocking_tid AS owner_tid,
+          blocked_thread_name,
+          blocking_thread_name
+        FROM android_monitor_contention_chain
+      ),
+      all_events AS (
+        SELECT * FROM lock_events
+        UNION ALL
+        SELECT * FROM monitor_events
+      ),
+      events_with_depth AS (
+        SELECT *,
+          internal_layout(ts, dur) OVER (PARTITION BY owner_tid ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS depth
+        FROM all_events e
+      )
+      SELECT 
+        row_number() OVER () AS id,
+        * 
+      FROM events_with_depth
+      -- Filter out null TIDs.
+      WHERE owner_tid IS NOT NULL
+    `);
 
-  push(selection: Selection) {
-    if (this.index >= 0 && selectionsEqual(this.stack[this.index], selection)) {
-      return;
-    }
-    this.stack.splice(this.index + 1);
-    this.stack.push(selection);
-    this.index++;
-  }
+    const tidsQuery = await trace.engine.query(`
+      SELECT DISTINCT owner_tid FROM __android_lock_contention_owner_events
+    `);
+    const tidsIt = tidsQuery.iter({owner_tid: NUM});
 
-  goBack(trace: Trace) {
-    if (this.index > 0) {
-      this.index--;
-      this.restore(trace, this.stack[this.index]);
-    }
-  }
+    for (; tidsIt.valid(); tidsIt.next()) {
+      const tid = tidsIt.owner_tid;
+      if (tid === null) continue; // Skip invalid TIDs
 
-  goForward(trace: Trace) {
-    if (this.index < this.stack.length - 1) {
-      this.index++;
-      this.restore(trace, this.stack[this.index]);
-    }
-  }
+      const ownerTrackUri = `com.android.AndroidLockContention#OwnerEvents_${tid}`;
 
-  canGoForward(): boolean {
-    return this.index < this.stack.length - 1;
-  }
-
-  private restore(trace: Trace, selection: Selection) {
-    if (selection.kind === 'track_event') {
-      if (selection.trackUri === 'unknown' || selection.trackUri === '') {
-        trace.selection.selectSqlEvent('slice', selection.eventId, {
-          scrollToSelection: true,
-          switchToCurrentSelectionTab: false,
-        });
-      } else {
-        trace.selection.selectTrackEvent(
-          selection.trackUri,
-          selection.eventId,
-          {
-            scrollToSelection: true,
-            switchToCurrentSelectionTab: false,
-          },
-        );
+      const threadNameQuery = await trace.engine.query(`
+        SELECT name FROM thread WHERE tid = ${tid} LIMIT 1
+      `);
+      let threadName = 'Unknown';
+      if (threadNameQuery.numRows() > 0) {
+        threadName =
+          threadNameQuery.firstRow({name: STR_NULL}).name || 'Unknown';
       }
-    } else if (selection.kind === 'track') {
-      trace.selection.selectTrack(selection.trackUri, {
-        scrollToSelection: true,
-        switchToCurrentSelectionTab: false,
+      const trackName = `${threadName} [${tid}] Lock Owners`;
+
+      trace.tracks.registerTrack({
+        uri: ownerTrackUri,
+        renderer: SliceTrack.create({
+          trace,
+          uri: ownerTrackUri,
+          dataset: new SourceDataset({
+            schema: {
+              id: NUM,
+              ts: LONG,
+              dur: LONG,
+              name: STR,
+              depth: NUM,
+            },
+            src: '__android_lock_contention_owner_events',
+            filter: {
+              col: 'owner_tid',
+              eq: tid,
+            },
+          }),
+
+          sliceName: (row) => row.name,
+          colorizer: (_) => {
+            // Default to a visible blue-ish color
+            return {
+              base: new HSLColor([210, 80, 50]),
+              variant: new HSLColor([210, 80, 60]),
+              disabled: new HSLColor([210, 80, 50], 0.5),
+              textBase: new HSLColor([0, 0, 100]),
+              textVariant: new HSLColor([0, 0, 100]),
+              textDisabled: new HSLColor([0, 0, 100], 0.5),
+            };
+          },
+          sliceLayout: {
+            sliceHeight: 18,
+            titleSizePx: 12,
+          },
+          detailsPanel: (row) => new LockOwnerDetailsPanel(trace, row.id),
+        }),
       });
+
+      const ownerTrackNode = new TrackNode({
+        uri: ownerTrackUri,
+        name: trackName,
+        removable: true,
+      });
+      trace.currentWorkspace.pinnedTracksNode.addChildLast(ownerTrackNode);
+      await moveTrackToThread(trace, ownerTrackNode, tid);
     }
   }
+  private getConnections(trace: Trace): ArrowConnection[] {
+    const selection = trace.selection.selection;
+    if (selection.kind !== 'track_event') {
+      return [];
+    }
 
-  has(selection: Selection) {
-    return this.stack.some((s) => selectionsEqual(s, selection));
+    const result = this.connectionsSlot.use({
+      key: {eventId: selection.eventId},
+      queryFn: () => this.fetchConnections(trace, selection),
+    });
+
+    return result.data ?? [];
+  }
+
+  private async fetchConnections(
+    trace: Trace,
+    selection: Selection & {kind: 'track_event'},
+  ): Promise<ArrowConnection[]> {
+    const trackUri = selection.trackUri;
+    const eventId = selection.eventId;
+
+    // Case 1: Custom Owner track selected (New -> Old)
+    if (trackUri.startsWith('com.android.AndroidLockContention#OwnerEvents')) {
+      const tableName = '__android_lock_contention_owner_events';
+      const query = await trace.engine.query(`
+        SELECT original_id, ts, depth FROM ${tableName} WHERE id = ${eventId} LIMIT 1
+      `);
+      if (query.numRows() === 0) return [];
+      const row = query.firstRow({original_id: NUM, ts: LONG, depth: NUM});
+
+      // Manual lookup of track URI since enrichDepths requires real trackUri to find depth.
+      const sliceQuery = await trace.engine.query(`
+        SELECT track_id FROM slice WHERE id = ${row.original_id} LIMIT 1
+      `);
+      if (sliceQuery.numRows() === 0) return [];
+      const trackId = sliceQuery.firstRow({track_id: NUM}).track_id;
+
+      const origTrackUri = getTrackUriForTrackId(trace, trackId);
+      if (!origTrackUri) return [];
+
+      const targets = [{id: row.original_id, trackUri: origTrackUri, depth: 0}];
+      await enrichDepths(trace, targets);
+
+      return [
+        {
+          start: {
+            trackUri: trackUri,
+            ts: Time.fromRaw(row.ts),
+            depth: row.depth,
+          },
+          end: {
+            trackUri: origTrackUri,
+            ts: Time.fromRaw(row.ts),
+            depth: targets[0].depth,
+          },
+        },
+      ];
+    }
+
+    // Case 2: Original track selected (Old -> New)
+    const tableName = '__android_lock_contention_owner_events';
+    const query = await trace.engine.query(`
+      SELECT owner_tid, id, ts, depth FROM ${tableName} WHERE original_id = ${eventId} LIMIT 1
+    `);
+    if (query.numRows() > 0) {
+      const row = query.firstRow({
+        owner_tid: NUM,
+        id: NUM,
+        ts: LONG,
+        depth: NUM,
+      });
+      const ownerTrackUri = `com.android.AndroidLockContention#OwnerEvents_${row.owner_tid}`;
+
+      const targets = [{id: eventId, trackUri: trackUri, depth: 0}];
+      await enrichDepths(trace, targets);
+
+      return [
+        {
+          start: {
+            trackUri: trackUri,
+            ts: Time.fromRaw(row.ts),
+            depth: targets[0].depth,
+          },
+          end: {
+            trackUri: ownerTrackUri,
+            ts: Time.fromRaw(row.ts),
+            depth: row.depth,
+          },
+        },
+      ];
+    }
+
+    return [];
   }
 }
 
-function selectionsEqual(a: Selection, b: Selection): boolean {
-  if (a.kind !== b.kind) return false;
-  if (a.kind === 'track_event' && b.kind === 'track_event') {
-    return a.eventId === b.eventId;
-  }
-  if (a.kind === 'track' && b.kind === 'track') {
-    return a.trackUri === b.trackUri;
-  }
-  return false;
+async function moveTrackToThread(
+  trace: Trace,
+  nodeToMove: TrackNode,
+  tid: number,
+) {
+  const query = await trace.engine.query(`
+    SELECT t.id FROM thread_track t JOIN thread USING (utid) WHERE tid = ${tid} LIMIT 1
+  `);
+  if (query.numRows() === 0) return;
+  const trackId = query.firstRow({id: NUM}).id;
+
+  const track = trace.tracks.findTrack((t) =>
+    t.tags?.trackIds?.includes(trackId),
+  );
+  if (!track) return;
+
+  const threadNode = trace.currentWorkspace.getTrackByUri(track.uri);
+  if (!threadNode || !threadNode.parent) return;
+
+  nodeToMove.remove();
+  threadNode.parent.addChildBefore(nodeToMove, threadNode);
 }
