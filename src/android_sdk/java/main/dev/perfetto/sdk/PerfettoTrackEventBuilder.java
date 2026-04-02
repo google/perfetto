@@ -16,6 +16,11 @@
 
 package dev.perfetto.sdk;
 
+import com.google.errorprone.annotations.CompileTimeConstant;
+
+import java.util.ArrayList;
+import java.util.function.Supplier;
+
 import dev.perfetto.sdk.PerfettoNativeMemoryCleaner.AllocationStats;
 import dev.perfetto.sdk.PerfettoTrace.Category;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.Arg;
@@ -28,8 +33,6 @@ import dev.perfetto.sdk.PerfettoTrackEventExtra.Flow;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.NamedTrack;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.PerfettoPointer;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.Proto;
-import java.util.ArrayList;
-import java.util.function.Supplier;
 
 /** Builder for Perfetto track event extras. */
 public final class PerfettoTrackEventBuilder {
@@ -356,8 +359,9 @@ public final class PerfettoTrackEventBuilder {
   }
 
   /** Adds the events to a named track instead of the thread track where the event occurred. */
-  public PerfettoTrackEventBuilder usingNamedTrack(long id, String name, long parentUuid) {
-    return usingNamedTrack(id, name, parentUuid, /* isNameStatic = */ true);
+  public PerfettoTrackEventBuilder usingNamedTrack(
+          long id, @CompileTimeConstant String name, long parentUuid) {
+      return usingNamedTrack(id, name, parentUuid, /* isNameStatic = */ true);
   }
 
   /**
@@ -374,7 +378,7 @@ public final class PerfettoTrackEventBuilder {
    * TrackDescriptor).
    */
   private PerfettoTrackEventBuilder usingNamedTrack(
-      long id, String name, long parentUuid, boolean isNameStatic) {
+          long id, String name, long parentUuid, boolean isNameStatic) {
     if (!mIsCategoryEnabled) {
       return this;
     }
@@ -395,11 +399,12 @@ public final class PerfettoTrackEventBuilder {
    * Adds the events to a process scoped named track instead of the thread track where the event
    * occurred.
    */
-  public PerfettoTrackEventBuilder usingProcessNamedTrack(long id, String name) {
-    if (!mIsCategoryEnabled) {
-      return this;
-    }
-    return usingNamedTrack(id, name, PerfettoTrace.getProcessTrackUuid());
+  public PerfettoTrackEventBuilder usingProcessNamedTrack(
+          long id, @CompileTimeConstant String name) {
+      if (!mIsCategoryEnabled) {
+          return this;
+      }
+      return usingNamedTrack(id, name, PerfettoTrace.getProcessTrackUuid());
   }
 
   /**
@@ -418,11 +423,12 @@ public final class PerfettoTrackEventBuilder {
    * Adds the events to a thread scoped named track instead of the thread track where the event
    * occurred.
    */
-  public PerfettoTrackEventBuilder usingThreadNamedTrack(long id, String name, long tid) {
-    if (!mIsCategoryEnabled) {
-      return this;
-    }
-    return usingNamedTrack(id, name, PerfettoTrace.getThreadTrackUuid(tid));
+  public PerfettoTrackEventBuilder usingThreadNamedTrack(
+          long id, @CompileTimeConstant String name, long tid) {
+      if (!mIsCategoryEnabled) {
+          return this;
+      }
+      return usingNamedTrack(id, name, PerfettoTrace.getThreadTrackUuid(tid));
   }
 
   /**
@@ -438,8 +444,9 @@ public final class PerfettoTrackEventBuilder {
   }
 
   /** Adds the events to a counter track instead. This is required for setting counter values. */
-  public PerfettoTrackEventBuilder usingCounterTrack(long parentUuid, String name) {
-    return usingCounterTrack(parentUuid, name, /* isNameStatic = */ true);
+  public PerfettoTrackEventBuilder usingCounterTrack(
+          long parentUuid, @CompileTimeConstant String name) {
+      return usingCounterTrack(parentUuid, name, /* isNameStatic = */ true);
   }
 
   /**
@@ -473,11 +480,11 @@ public final class PerfettoTrackEventBuilder {
    * Adds the events to a process scoped counter track instead. This is required for setting counter
    * values.
    */
-  public PerfettoTrackEventBuilder usingProcessCounterTrack(String name) {
-    if (!mIsCategoryEnabled) {
-      return this;
-    }
-    return usingCounterTrack(PerfettoTrace.getProcessTrackUuid(), name);
+  public PerfettoTrackEventBuilder usingProcessCounterTrack(@CompileTimeConstant String name) {
+      if (!mIsCategoryEnabled) {
+          return this;
+      }
+      return usingCounterTrack(PerfettoTrace.getProcessTrackUuid(), name);
   }
 
   /**
@@ -496,11 +503,12 @@ public final class PerfettoTrackEventBuilder {
    * Adds the events to a thread scoped counter track instead. This is required for setting counter
    * values.
    */
-  public PerfettoTrackEventBuilder usingThreadCounterTrack(long tid, String name) {
-    if (!mIsCategoryEnabled) {
-      return this;
-    }
-    return usingCounterTrack(PerfettoTrace.getThreadTrackUuid(tid), name);
+  public PerfettoTrackEventBuilder usingThreadCounterTrack(
+          long tid, @CompileTimeConstant String name) {
+      if (!mIsCategoryEnabled) {
+          return this;
+      }
+      return usingCounterTrack(PerfettoTrace.getThreadTrackUuid(tid), name);
   }
 
   /**
