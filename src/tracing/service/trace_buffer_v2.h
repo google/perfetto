@@ -187,9 +187,9 @@ struct SequenceState {
   // |payload_size| and |was_incomplete| capture the chunk's state at the time
   // of consumption; see CopyChunkUntrusted() for how they are used.
   struct ConsumedChunkInfo {
-    ChunkID chunk_id;
-    uint16_t payload_size;
-    bool was_incomplete;
+    ChunkID chunk_id = 0;
+    uint16_t payload_size = 0;
+    bool was_incomplete = false;
   };
   std::optional<ConsumedChunkInfo> last_chunk_consumed;
 
