@@ -144,12 +144,14 @@ void Flow::delete_flow(Flow* ptr) {
 
 NamedTrack::NamedTrack(uint64_t id,
                        uint64_t parent_uuid,
-                       const std::string& name)
+                       const std::string& name,
+                       bool is_name_static)
     : name_(name),
       track_{{PERFETTO_TE_HL_EXTRA_TYPE_NAMED_TRACK},
              name_.data(),
              id,
-             parent_uuid} {}
+             parent_uuid,
+             is_name_static} {}
 
 void NamedTrack::delete_track(NamedTrack* ptr) {
   delete ptr;
@@ -158,10 +160,11 @@ void NamedTrack::delete_track(NamedTrack* ptr) {
 RegisteredTrack::RegisteredTrack(uint64_t id,
                                  uint64_t parent_uuid,
                                  const std::string& name,
-                                 bool is_counter)
-    : registered_track_{},
+                                 bool is_counter,
+                                 bool is_name_static)
+    : registered_track_{{nullptr, 0, 0, is_name_static}},
       track_{{PERFETTO_TE_HL_EXTRA_TYPE_REGISTERED_TRACK},
-             &(registered_track_.impl)},
+             &registered_track_.impl},
       name_(name),
       id_(id),
       parent_uuid_(parent_uuid),
