@@ -16,6 +16,7 @@
 
 #include "src/profiling/perf/event_config.h"
 
+#include <dirent.h>
 #include <linux/perf_event.h>
 #include <time.h>
 
@@ -26,6 +27,8 @@
 #include <unwindstack/Regs.h>
 
 #include "perfetto/base/flat_set.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "protos/perfetto/common/perf_events.gen.h"
 #include "protos/perfetto/config/profiling/perf_event_config.gen.h"
@@ -115,6 +118,8 @@ TargetFilter ParseTargetFilter(
 constexpr bool IsPowerOfTwo(size_t v) {
   return (v != 0 && ((v & (v - 1)) == 0));
 }
+
+std::optional<uint32_t> LookupPerfDeviceType(const std::string& perf_device);
 
 // returns |std::nullopt| if the input is invalid.
 std::optional<uint32_t> ChooseActualRingBufferPages(uint32_t config_value) {
@@ -301,8 +306,19 @@ std::optional<PerfCounter> MakePerfCounter(
                                      tracepoint_pb.filter(), *maybe_id);
     } else if (event_desc.has_raw_event()) {
       const auto& raw = event_desc.raw_event();
-      return PerfCounter::RawEvent(name, raw.type(), raw.config(),
-                                   raw.config1(), raw.config2());
+      if (raw.has_pmu_name() && !raw.pmu_name().empty() && raw.has_type()) {
+        PERFETTO_ELOG("raw_event cannot specify both type and pmu_name.");
+        return std::nullopt;
+      }
+      std::optional<uint32_t> raw_type =
+          raw.has_type() ? std::make_optional(raw.type())
+                         : LookupPerfDeviceType(raw.pmu_name());
+      if (!raw_type) {
+        PERFETTO_ELOG("Failed to resolve raw_event type.");
+        return std::nullopt;
+      }
+      return PerfCounter::RawEvent(name, *raw_type, raw.config(), raw.config1(),
+                                   raw.config2());
     } else {
       return PerfCounter::BuiltinCounter(
           name, protos::gen::PerfEvents::PerfEvents::SW_CPU_CLOCK,
@@ -329,6 +345,21 @@ bool IsSupportedUnwindMode(
     default:
       return false;
   }
+}
+
+std::optional<uint32_t> LookupPerfDeviceType(const std::string& perf_device) {
+  if (perf_device.empty())
+    return std::nullopt;
+  if (base::Contains(perf_device, '/') || base::StartsWith(perf_device, ".."))
+    return std::nullopt;
+
+  const std::string type_path =
+      "/sys/bus/event_source/devices/" + perf_device + "/type";
+  std::string buf;
+  if (!base::ReadFile(type_path, &buf))
+    return std::nullopt;
+
+  return base::StringToUInt32(base::TrimWhitespace(buf));
 }
 
 }  // namespace
