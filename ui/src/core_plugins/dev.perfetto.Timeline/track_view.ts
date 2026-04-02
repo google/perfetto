@@ -37,7 +37,8 @@ import {TrackWrapper} from '../../core/track_manager';
 import {TrackRenderer, Track} from '../../public/track';
 import {TrackNode, Workspace} from '../../public/workspace';
 import {Button} from '../../widgets/button';
-import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
+import {MenuDivider, MenuItem, MenuTitle, PopupMenu} from '../../widgets/menu';
+import {renderTrackSettingMenu} from '../../components/track_settings_renderer';
 import {TrackShell} from '../../widgets/track_shell';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {COLOR_ACCENT} from '../../frontend/css_constants';
@@ -679,9 +680,24 @@ const TrackPopupMenu = {
           attrs.node.remove();
         },
       }),
+      ...renderTrackSettings(attrs.descriptor),
     ];
   },
 };
+
+function renderTrackSettings(descriptor?: Track): m.Children[] {
+  const settings = descriptor?.renderer.settings;
+  if (!settings || settings.length === 0) return [];
+  return [
+    m(MenuDivider),
+    m(MenuTitle, {label: 'Settings'}),
+    ...settings.map((setting) =>
+      renderTrackSettingMenu(setting.descriptor, (v) => setting.setValue(v), [
+        setting.getValue(),
+      ]),
+    ),
+  ];
+}
 
 function copyToWorkspace(trace: Trace, node: TrackNode, ws?: Workspace) {
   // If no workspace provided, create a new one.
