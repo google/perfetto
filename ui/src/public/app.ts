@@ -22,6 +22,7 @@ import {Trace} from './trace';
 import {PageManager} from './page';
 import {FeatureFlagManager} from './feature_flag';
 import {Raf} from './raf';
+import {MementoManager} from './memento';
 import {SettingsManager} from './settings';
 import {TraceStream} from './stream';
 import {TaskTracker} from './task_tracker';
@@ -39,6 +40,7 @@ export interface App {
   readonly pages: PageManager;
   readonly featureFlags: FeatureFlagManager;
   readonly settings: SettingsManager;
+  readonly memento: MementoManager;
 
   /**
    * The parsed querystring passed when starting the app, before any navigation

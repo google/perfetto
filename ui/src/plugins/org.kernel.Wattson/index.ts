@@ -14,7 +14,10 @@
 
 import {addWattsonThreadTrack} from './wattson_thread_utils';
 import {App} from '../../public/app';
-import {createAggregationTab} from '../../components/aggregation_adapter';
+import {
+  createAggregationTab,
+  dataGridModelSchema,
+} from '../../components/aggregation_adapter';
 import {
   BaseCounterTrack,
   CounterOptions,
@@ -339,18 +342,50 @@ async function addWattsonCpuElements(
   // NOTE: the registration order matters because the laste two aggregators
   // depend on views created by the first two.
   ctx.selection.registerAreaSelectionTab(
-    createAggregationTab(ctx, new WattsonEstimateSelectionAggregator()),
+    createAggregationTab({
+      trace: ctx,
+      aggregator: new WattsonEstimateSelectionAggregator(),
+      gridModelMemento: ctx.memento.register({
+        id: 'org.kernel.Wattson.EstimateAggregationGridModel',
+        schema: dataGridModelSchema,
+        defaultValue: {filters: []},
+      }),
+    }),
   );
   ctx.selection.registerAreaSelectionTab(
-    createAggregationTab(ctx, new WattsonThreadSelectionAggregator(ctx)),
+    createAggregationTab({
+      trace: ctx,
+      aggregator: new WattsonThreadSelectionAggregator(ctx),
+      gridModelMemento: ctx.memento.register({
+        id: 'org.kernel.Wattson.ThreadAggregationGridModel',
+        schema: dataGridModelSchema,
+        defaultValue: {filters: []},
+      }),
+    }),
   );
   ctx.selection.registerAreaSelectionTab(
-    createAggregationTab(ctx, new WattsonProcessSelectionAggregator()),
+    createAggregationTab({
+      trace: ctx,
+      aggregator: new WattsonProcessSelectionAggregator(),
+      gridModelMemento: ctx.memento.register({
+        id: 'org.kernel.Wattson.ProcessAggregationGridModel',
+        schema: dataGridModelSchema,
+        defaultValue: {filters: []},
+      }),
+    }),
   );
 
   if (await isProcessMetadataPresent(ctx.engine)) {
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new WattsonPackageSelectionAggregator()),
+      createAggregationTab({
+        trace: ctx,
+        aggregator: new WattsonPackageSelectionAggregator(),
+        gridModelMemento: ctx.memento.register({
+          id: 'org.kernel.Wattson.PackageAggregationGridModel',
+          schema: dataGridModelSchema,
+          defaultValue: {filters: []},
+        }),
+      }),
     );
   }
 }

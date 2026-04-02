@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createAggregationTab} from '../../components/aggregation_adapter';
+import {
+  createAggregationTab,
+  dataGridModelSchema,
+} from '../../components/aggregation_adapter';
 import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
@@ -31,11 +34,16 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(
-        ctx,
-        new EntityStateResidencySelectionAggregator(),
-        200,
-      ),
+      createAggregationTab({
+        trace: ctx,
+        aggregator: new EntityStateResidencySelectionAggregator(),
+        priority: 200,
+        gridModelMemento: ctx.memento.register({
+          id: 'dev.perfetto.EntityStateResidencyAggregationGridModel',
+          schema: dataGridModelSchema,
+          defaultValue: {filters: []},
+        }),
+      }),
     );
 
     const result = await ctx.engine.query(`

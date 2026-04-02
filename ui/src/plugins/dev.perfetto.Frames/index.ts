@@ -13,7 +13,10 @@
 // limitations under the License.
 
 import {App} from '../../public/app';
-import {createAggregationTab} from '../../components/aggregation_adapter';
+import {
+  createAggregationTab,
+  dataGridModelSchema,
+} from '../../components/aggregation_adapter';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
@@ -54,7 +57,16 @@ export default class FramesPlugin implements PerfettoPlugin {
     this.addExpectedFrames(ctx);
     this.addActualFrames(ctx);
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new FrameSelectionAggregator(), 10),
+      createAggregationTab({
+        trace: ctx,
+        aggregator: new FrameSelectionAggregator(),
+        priority: 10,
+        gridModelMemento: ctx.memento.register({
+          id: 'dev.perfetto.FrameAggregationGridModel',
+          schema: dataGridModelSchema,
+          defaultValue: {filters: []},
+        }),
+      }),
     );
   }
 
