@@ -850,7 +850,9 @@ void TraceBufferV2::CopyChunkUntrusted(
 
   TBChunk* tbchunk = CreateTBChunk(wr_, tbchunk_size);
   tbchunk->payload_size = all_frags_size_u16;
-  PERFETTO_DCHECK(previously_consumed_payload < all_frags_size_u16);
+  // Either 0 (normal write) or strictly less (re-admission).
+  PERFETTO_DCHECK(previously_consumed_payload == 0 ||
+                  previously_consumed_payload < all_frags_size_u16);
   // For re-admitted chunks, skip already-consumed payload (0 otherwise).
   tbchunk->payload_avail = all_frags_size_u16 - previously_consumed_payload;
   tbchunk->chunk_id = chunk_id;
