@@ -99,6 +99,24 @@ export interface IrContext {
 }
 
 // ---------------------------------------------------------------------------
+// Details context — passed to renderDetails for custom details panel content.
+// ---------------------------------------------------------------------------
+
+export interface DetailsContext {
+  /** Column definitions for this node's output. */
+  readonly outputColumns: ColumnDef[] | undefined;
+  /** Error from the last materialization, if any. */
+  readonly error: string | undefined;
+  /** The trace object (includes engine for running queries). */
+  readonly trace: Trace;
+  /**
+   * The materialized output table name (e.g. '_qb_abcd1234'), queryable
+   * directly via trace.engine. Undefined if not yet materialized.
+   */
+  readonly materializedTable: string | undefined;
+}
+
+// ---------------------------------------------------------------------------
 // Column context — passed to getOutputColumns.
 // ---------------------------------------------------------------------------
 
@@ -160,6 +178,12 @@ export interface NodeManifest<C extends object = {}> {
     config: C,
     ctx: IrContext,
   ): {sql: string; includes?: string[]} | undefined;
+
+  /**
+   * Optional: render custom content in the details panel instead of the
+   * default DataGrid. Return undefined (or omit) to use the default DataGrid.
+   */
+  renderDetails?(config: C, ctx: DetailsContext): m.Children;
 }
 
 // ---------------------------------------------------------------------------

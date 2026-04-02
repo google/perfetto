@@ -408,3 +408,47 @@
   flex: 0 0 auto;
   opacity: 0.5;
 }
+
+// Chart dashboard — fills the details panel.
+.pf-qb-chart-dashboard {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px;
+  overflow: auto;
+  height: 100%;
+  box-sizing: border-box;
+  align-content: flex-start;
+}
+
+// Individual chart panel card.
+.pf-qb-chart-panel {
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  min-width: 280px;
+  flex: 1 1 280px;
+  max-width: 480px;
+  box-sizing: border-box;
+}
+
+.pf-qb-chart-title {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  opacity: 0.85;
+}
+
+.pf-qb-chart-loading,
+.pf-qb-chart-empty,
+.pf-qb-chart-error {
+  font-size: 12px;
+  opacity: 0.5;
+  padding: 4px 0;
+}
+
+.pf-qb-chart-error {
+  color: var(--pf-error, #c00);
+  opacity: 1;
+}

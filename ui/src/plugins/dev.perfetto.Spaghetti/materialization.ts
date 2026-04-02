@@ -72,6 +72,9 @@ export class MaterializationService {
   // The SQLDataSource for the DataGrid.
   private _dataSource: SQLDataSource | undefined;
 
+  // The table name of the final materialized IR entry ('_qb_<hash>').
+  private _materializedTable: string | undefined;
+
   // Report from the most recent materialization cycle.
   private _queryReport: QueryReport | undefined;
 
@@ -89,6 +92,10 @@ export class MaterializationService {
 
   get dataSource(): SQLDataSource | undefined {
     return this._dataSource;
+  }
+
+  get materializedTable(): string | undefined {
+    return this._materializedTable;
   }
 
   get displaySql(): string | undefined {
@@ -137,6 +144,7 @@ export class MaterializationService {
     if (!activeNodeId) {
       this._dataSource?.dispose();
       this._dataSource = undefined;
+      this._materializedTable = undefined;
       this._displaySql = undefined;
       this._error = undefined;
       return;
@@ -151,6 +159,7 @@ export class MaterializationService {
     if (!entries || entries.length === 0) {
       this._dataSource?.dispose();
       this._dataSource = undefined;
+      this._materializedTable = undefined;
       this._displaySql = undefined;
       this._error = undefined;
       return;
@@ -160,6 +169,7 @@ export class MaterializationService {
     if (!displaySql) {
       this._dataSource?.dispose();
       this._dataSource = undefined;
+      this._materializedTable = undefined;
       this._displaySql = undefined;
       this._error = undefined;
       return;
@@ -181,6 +191,7 @@ export class MaterializationService {
       this._error = msg;
       this._dataSource?.dispose();
       this._dataSource = undefined;
+      this._materializedTable = undefined;
       // On error, clear all indicators immediately.
       this._materializingNodeIds.clear();
       this._fadingOutNodeIds.clear();
@@ -277,6 +288,7 @@ export class MaterializationService {
     const lastEntry = entries[entries.length - 1];
     const finalSql = `SELECT * FROM ${lastEntry.hash}`;
 
+    this._materializedTable = lastEntry.hash;
     this._dataSource?.dispose();
     this._dataSource = new SQLDataSource({
       engine: this.engine,
@@ -300,6 +312,7 @@ export class MaterializationService {
       await this.dropAll();
       this._dataSource?.dispose();
       this._dataSource = undefined;
+      this._materializedTable = undefined;
       this._displaySql = undefined;
       this._queryReport = undefined;
     });

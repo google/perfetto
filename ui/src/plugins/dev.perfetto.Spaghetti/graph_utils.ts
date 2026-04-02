@@ -26,6 +26,7 @@ import {manifest as intervalIntersectNode} from './nodes/interval_intersect';
 import {manifest as limitNode} from './nodes/limit';
 import {manifest as sortNode} from './nodes/sort';
 import {manifest as unionNode} from './nodes/union';
+import {manifest as chartNode} from './nodes/chart';
 import {
   NodeData,
   NodeManifest,
@@ -46,6 +47,7 @@ const NODE_REGISTRY: Record<string, NodeManifest> = {
   extract_arg: extractArgNode,
   interval_intersect: intervalIntersectNode,
   union: unionNode,
+  chart: chartNode,
 };
 
 export function getManifest(type: string): NodeManifest {

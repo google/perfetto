@@ -40,6 +40,7 @@ import {Time, Duration} from '../../base/time';
 import {Tabs} from '../../widgets/tabs';
 
 import {
+  DetailsContext,
   ManifestPort,
   NodeData,
   NodeQueryBuilderStore,
@@ -734,6 +735,7 @@ export function QueryBuilderPage(
         'join',
         'union',
         'interval_intersect',
+        'chart',
       ];
       const addNodeMenuItems = nodeTypes.map(nodeMenuItem);
 
@@ -1296,15 +1298,28 @@ export function QueryBuilderPage(
         }
       }
 
-      const resultsPanel = dataSource
-        ? m(DataGrid, {
-            key: displaySql,
-            data: dataSource,
-            schema: datagridSchema,
-            rootSchema: 'query',
-            fillHeight: true,
-          })
-        : renderEmptyState();
+      const activeNode = activeNodeId ? activeNodes.get(activeNodeId) : undefined;
+      const activeManifest = activeNode ? getManifest(activeNode.type) : undefined;
+
+      const detailsCtx: DetailsContext = {
+        outputColumns,
+        error: matError,
+        trace,
+        materializedTable: matService?.materializedTable,
+      };
+
+      const resultsPanel =
+        activeManifest?.renderDetails
+          ? activeManifest.renderDetails(activeNode!.config, detailsCtx)
+          : dataSource
+            ? m(DataGrid, {
+                key: displaySql,
+                data: dataSource,
+                schema: datagridSchema,
+                rootSchema: 'query',
+                fillHeight: true,
+              })
+            : renderEmptyState();
 
       const bottomPanel = m(SplitPanel, {
         direction: 'vertical',
