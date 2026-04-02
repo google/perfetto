@@ -34,6 +34,7 @@ import {targetSelectionPage} from './pages/target_selection_page';
 import {RecordingManager} from './recording_manager';
 import {TracedWebsocketTargetProvider} from './traced_over_websocket/traced_websocket_provider';
 import {WebDeviceProxyTargetProvider} from './adb/web_device_proxy/wdp_target_provider';
+import {pmuRecordSection} from './pages/pmu';
 import m from 'mithril';
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.RecordTraceV2';
@@ -100,6 +101,7 @@ export default class implements PerfettoPlugin {
         perfettoSDKRecordSection(),
         stackSamplingRecordSection(),
         networkRecordSection(),
+        pmuRecordSection(recMgr, app),
         advancedRecordSection(),
       );
       recMgr.restorePluginStateFromLocalstorage();
