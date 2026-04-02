@@ -227,3 +227,8 @@ For chatting directly with the Perfetto team:
 
 Perfetto follows
 [Google's Open Source Community Guidelines](https://opensource.google/conduct/).
+
+Community projects:
+
+🇨🇳 A community-maintained Chinese translation of the Perfetto docs is available at
+[gugu-perf.github.io/perfetto-docs-zh-cn](https://gugu-perf.github.io/perfetto-docs-zh-cn).
