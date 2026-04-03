@@ -16,9 +16,10 @@ import m from 'mithril';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {TextInput} from '../../../widgets/text_input';
 import {Select} from '../../../widgets/select';
-import {ManifestPort, NodeManifest, RenderContext} from '../node_types';
+import {NodeManifest, RenderContext} from '../node_types';
 import {ColumnDef} from '../graph_utils';
 import {SimpleTypeKind} from '../../../trace_processor/perfetto_sql_type';
+import {ManifestPort} from '../graph_model';
 
 export interface SqlOutputColumn {
   readonly name: string;
@@ -113,7 +114,11 @@ export const manifest: NodeManifest<SqlConfig> = {
             {style: {display: 'flex', flexDirection: 'column', gap: '2px'}},
             inputPorts.map((port, i) =>
               m('.pf-qb-sql-col-row', {key: port.name}, [
-                m('span.pf-qb-hint', {style: {gridColumn: 'span 1'}}, `#${i + 1}`),
+                m(
+                  'span.pf-qb-hint',
+                  {style: {gridColumn: 'span 1'}},
+                  `#${i + 1}`,
+                ),
                 m(TextInput, {
                   placeholder: `alias (e.g. events)`,
                   value: inputNames[i] ?? '',

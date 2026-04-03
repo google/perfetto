@@ -15,7 +15,8 @@
 import m from 'mithril';
 import {Checkbox} from '../../../widgets/checkbox';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {ManifestPort, NodeManifest} from '../node_types';
+import {NodeManifest} from '../node_types';
+import {ManifestPort} from '../graph_model';
 
 export interface UnionConfig {
   readonly distinct: boolean;

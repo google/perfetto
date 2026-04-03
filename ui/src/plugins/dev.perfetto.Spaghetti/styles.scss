@@ -409,6 +409,32 @@
   opacity: 0.5;
 }
 
+// Columns tab: one row per output column.
+.pf-qb-col-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+
+  &:nth-child(odd) {
+    background: color-mix(in srgb, var(--pf-color-border) 20%, transparent);
+  }
+}
+
+.pf-qb-col-name {
+  font-family: var(--pf-font-monospace);
+  font-weight: 600;
+  flex: 1;
+}
+
+.pf-qb-col-type {
+  font-family: var(--pf-font-monospace);
+  font-size: 11px;
+  opacity: 0.6;
+}
+
 // IR tab: one card per IrEntry.
 .pf-qb-ir-block {
   background: var(--pf-color-background-secondary);

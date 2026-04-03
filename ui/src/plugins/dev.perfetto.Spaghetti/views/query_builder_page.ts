@@ -12,41 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
 import {produce} from 'immer';
-import {perfettoSqlTypeToString} from '../../trace_processor/perfetto_sql_type';
-import {shortUuid} from '../../base/uuid';
-import {Button, ButtonGroup, ButtonVariant} from '../../widgets/button';
-import {MenuItem, PopupMenu} from '../../widgets/menu';
+import m from 'mithril';
+import {Icons} from '../../../base/semantic_icons';
+import {Duration, Time} from '../../../base/time';
+import {shortUuid} from '../../../base/uuid';
+import {
+  DataGrid,
+  renderCell,
+} from '../../../components/widgets/datagrid/datagrid';
+import {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
+import {DurationWidget} from '../../../components/widgets/duration';
+import {Timestamp} from '../../../components/widgets/timestamp';
+import {Trace} from '../../../public/trace';
+import {isIdType} from '../../../trace_processor/perfetto_sql_type';
+import {Row} from '../../../trace_processor/query_result';
+import {Anchor} from '../../../widgets/anchor';
+import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
+import {Intent} from '../../../widgets/common';
+import {EmptyState} from '../../../widgets/empty_state';
+import {HotkeyContext} from '../../../widgets/hotkey_context';
+import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {
   Connection,
   Node,
   NodeGraph,
   NodeGraphApi,
-} from '../../widgets/nodegraph';
-import {SplitPanel} from '../../widgets/split_panel';
-import {Trace} from '../../public/trace';
-import {EmptyState} from '../../widgets/empty_state';
-import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
-import {DataGrid, renderCell} from '../../components/widgets/datagrid/datagrid';
-import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
-import {isIdType} from '../../trace_processor/perfetto_sql_type';
-import {Anchor} from '../../widgets/anchor';
-import {Icons} from '../../base/semantic_icons';
-import {Row} from '../../trace_processor/query_result';
-import {Timestamp} from '../../components/widgets/timestamp';
-import {DurationWidget} from '../../components/widgets/duration';
-import {Time, Duration} from '../../base/time';
-import {Tabs} from '../../widgets/tabs';
-
-import {
-  DetailsContext,
-  ManifestPort,
-  NodeData,
-  NodeQueryBuilderStore,
-  RenderContext,
-} from './node_types';
-import {buildIR} from './ir';
+} from '../../../widgets/nodegraph';
+import {Popup} from '../../../widgets/popup';
+import {SplitPanel} from '../../../widgets/split_panel';
+import {Tabs} from '../../../widgets/tabs';
+import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
+import {ManifestPort, NodeData, NodeQueryBuilderStore} from '../graph_model';
 import {
   findConnectedInputs,
   findDockedParent,
@@ -55,21 +52,17 @@ import {
   getManifestInputs,
   getOutputColumnsForNode,
   getRootNodeIds,
-} from './graph_utils';
-import {MaterializationService} from './materialization';
-import {Intent} from '../../widgets/common';
-import {Popup} from '../../widgets/popup';
-
-function formatTimestamp(perfNow: number): string {
-  // Convert performance.now() to a wall-clock Date.
-  const wallMs = Date.now() - (performance.now() - perfNow);
-  const d = new Date(wallMs);
-  return d.toLocaleTimeString();
-}
-
-import type NodeQueryBuilderPlugin from './index';
-import type {QueryBuilderDelegate} from './index';
-import {HotkeyContext} from '../../widgets/hotkey_context';
+} from '../graph_utils';
+import type NodeQueryBuilderPlugin from '../index';
+import type {QueryBuilderDelegate} from '../index';
+import {buildIR} from '../ir';
+import {MaterializationService} from '../materialization';
+import {DetailsContext, RenderContext} from '../node_types';
+import {renderCacheTab} from './cache_tab';
+import {renderColumnsTab} from './columns_tab';
+import {GraphTab} from './graph_tab';
+import {renderIrTab} from './ir_tab';
+import {renderSqlTab} from './sql_tab';
 
 export interface QueryBuilderPageAttrs {
   readonly trace: Trace;
@@ -84,7 +77,7 @@ export function QueryBuilderPage(
 
   // Initialize store
   let store: NodeQueryBuilderStore = {
-    nodes: new Map(),
+    nodes: {},
     connections: [],
     labels: [],
   };
@@ -99,12 +92,8 @@ export function QueryBuilderPage(
   // Pinned node: when set, results panel always shows this node's query
   let pinnedNodeId: string | undefined;
 
-  // Graph tab edit state
-  let graphTabEditing = false;
-  let graphTabEditValue = '';
-
   // Helpers to get the nodes/connections for the currently active view.
-  function getActiveNodes(): Map<string, NodeData> {
+  function getActiveNodes(): Record<string, NodeData> {
     return store.nodes;
   }
 
@@ -118,7 +107,7 @@ export function QueryBuilderPage(
 
   function serializeStore(s: NodeQueryBuilderStore): string {
     return JSON.stringify({
-      nodes: Array.from(s.nodes.entries()),
+      nodes: s.nodes,
       connections: s.connections,
       labels: s.labels,
     });
@@ -127,7 +116,7 @@ export function QueryBuilderPage(
   function deserializeStore(json: string): NodeQueryBuilderStore {
     const obj = JSON.parse(json);
     return {
-      nodes: new Map(obj.nodes),
+      nodes: obj.nodes ?? {},
       connections: obj.connections ?? [],
       labels: obj.labels ?? [],
     };
@@ -204,7 +193,7 @@ export function QueryBuilderPage(
     updates: Partial<Omit<NodeData, 'id'>>,
   ) => {
     updateStore((draft) => {
-      const node = draft.nodes.get(nodeId);
+      const node = draft.nodes[nodeId];
       if (node) {
         Object.assign(node, updates);
       }
@@ -213,10 +202,10 @@ export function QueryBuilderPage(
 
   const removeNode = (nodeId: string) => {
     updateStore((draft) => {
-      const nodeToDelete = draft.nodes.get(nodeId);
+      const nodeToDelete = draft.nodes[nodeId];
       if (!nodeToDelete) return;
 
-      for (const parent of draft.nodes.values()) {
+      for (const parent of Object.values(draft.nodes)) {
         if (parent.nextId === nodeId) {
           parent.nextId = nodeToDelete.nextId;
         }
@@ -229,7 +218,7 @@ export function QueryBuilderPage(
         }
       }
 
-      draft.nodes.delete(nodeId);
+      delete draft.nodes[nodeId];
     });
 
     selectedNodeIds.delete(nodeId);
@@ -276,7 +265,7 @@ export function QueryBuilderPage(
     const selected: NodeData[] = [];
     const idToIndex = new Map<string, number>();
     for (const id of selectedNodeIds) {
-      const node = activeNodes.get(id);
+      const node = activeNodes[id];
       if (node) {
         idToIndex.set(id, selected.length);
         selected.push(node);
@@ -341,7 +330,7 @@ export function QueryBuilderPage(
 
     updateStore((draft) => {
       for (const node of newNodes) {
-        draft.nodes.set(node.id, node);
+        draft.nodes[node.id] = node;
       }
       for (const conn of clipboard!.connections) {
         draft.connections.push({
@@ -401,10 +390,10 @@ export function QueryBuilderPage(
     };
 
     updateStore((draft) => {
-      draft.nodes.set(newNode.id, newNode);
+      draft.nodes[newNode.id] = newNode;
 
       if (toNodeId) {
-        const parentNode = draft.nodes.get(toNodeId);
+        const parentNode = draft.nodes[toNodeId];
         if (parentNode) {
           newNode.nextId = parentNode.nextId;
           parentNode.nextId = id;
@@ -484,7 +473,7 @@ export function QueryBuilderPage(
       addInput: manifest.defaultInputs
         ? (port: ManifestPort) => {
             updateStore((draft) => {
-              const node = draft.nodes.get(nodeData.id);
+              const node = draft.nodes[nodeData.id];
               if (node) {
                 node.inputs = [...(node.inputs ?? []), port];
               }
@@ -494,7 +483,7 @@ export function QueryBuilderPage(
       removeLastInput: manifest.defaultInputs
         ? () => {
             updateStore((draft) => {
-              const node = draft.nodes.get(nodeData.id);
+              const node = draft.nodes[nodeData.id];
               if (!node?.inputs || node.inputs.length <= 1) return;
               const portIdx = node.inputs.length - 1;
               for (let i = draft.connections.length - 1; i >= 0; i--) {
@@ -511,7 +500,7 @@ export function QueryBuilderPage(
 
     const updateConfig = (updates: {}) => {
       updateStore((draft) => {
-        const node = draft.nodes.get(nodeData.id);
+        const node = draft.nodes[nodeData.id];
         if (node) {
           node.config = {...node.config, ...updates};
         }
@@ -529,7 +518,7 @@ export function QueryBuilderPage(
   ): Omit<Node, 'x' | 'y'> {
     const activeNodes = getActiveNodes();
     const nextModel = nodeData.nextId
-      ? activeNodes.get(nodeData.nextId)
+      ? activeNodes[nodeData.nextId]
       : undefined;
 
     const manifest = getManifest(nodeData.type);
@@ -572,13 +561,13 @@ export function QueryBuilderPage(
           onclick: () => {
             const newId = shortUuid();
             updateStore((draft) => {
-              draft.nodes.set(newId, {
+              draft.nodes[newId] = {
                 ...structuredClone(nodeData),
                 id: newId,
                 x: nodeData.x + 50,
                 y: nodeData.y + 50,
                 nextId: undefined,
-              });
+              };
             });
           },
         }),
@@ -671,7 +660,7 @@ export function QueryBuilderPage(
 
       const rootIds = getRootNodeIds(activeNodes);
       const renderedNodes: Node[] = rootIds
-        .map((id) => activeNodes.get(id))
+        .map((id) => activeNodes[id])
         .filter((n): n is NodeData => n !== undefined)
         .map((n) => renderNodeChain(n, tableNames, trace, sqlModules));
 
@@ -720,7 +709,7 @@ export function QueryBuilderPage(
       );
 
       if (pinnedNodeId !== undefined) {
-        const pinnedNode = activeNodes.get(pinnedNodeId);
+        const pinnedNode = activeNodes[pinnedNodeId];
         const pinnedLabel = pinnedNode
           ? getManifest(pinnedNode.type)?.title ?? pinnedNode.type
           : pinnedNodeId;
@@ -771,7 +760,7 @@ export function QueryBuilderPage(
                   className: Popup.DISMISS_POPUP_GROUP_CLASS,
                   onclick: () => {
                     store = {
-                      nodes: new Map(),
+                      nodes: {},
                       connections: [],
                       labels: [],
                     };
@@ -860,8 +849,8 @@ export function QueryBuilderPage(
         },
         onDock: (targetId: string, childNode: Omit<Node, 'x' | 'y'>) => {
           updateStore((draft) => {
-            const target = draft.nodes.get(targetId);
-            const child = draft.nodes.get(childNode.id);
+            const target = draft.nodes[targetId];
+            const child = draft.nodes[childNode.id];
             if (target && child) {
               target.nextId = child.id;
             }
@@ -878,8 +867,8 @@ export function QueryBuilderPage(
         },
         onUndock: (parentId: string, nodeId: string, x: number, y: number) => {
           updateStore((draft) => {
-            const parent = draft.nodes.get(parentId);
-            const child = draft.nodes.get(nodeId);
+            const parent = draft.nodes[parentId];
+            const child = draft.nodes[nodeId];
             if (parent && child) {
               child.x = x;
               child.y = y;
@@ -964,53 +953,11 @@ export function QueryBuilderPage(
         (queryReport?.entries ?? []).map((e) => [e.hash, e]),
       );
 
-      function renderIrBlock(entry: (typeof irEntries)[number]): m.Children {
-        const meta: string[] = [];
-        if (entry.nodeIds.length > 0)
-          meta.push(`nodes: ${entry.nodeIds.join(', ')}`);
-        if (entry.deps.length > 0) meta.push(`deps: ${entry.deps.join(', ')}`);
-        if (entry.includes.length > 0)
-          meta.push(`includes: ${entry.includes.join(', ')}`);
-        const report = reportByHash.get(entry.hash);
-        return m('.pf-qb-ir-block', [
-          m('.pf-qb-ir-block-header', [
-            m('span.pf-qb-ir-hash', entry.hash),
-            meta.length > 0 && m('span.pf-qb-ir-meta', meta.join(' · ')),
-            report &&
-              m('.pf-qb-ir-badges', [
-                report.cacheHit &&
-                  m(
-                    'span.pf-qb-ir-badge',
-                    {className: 'pf-qb-ir-badge--hit'},
-                    'CACHED',
-                  ),
-                !report.cacheHit &&
-                  m('span.pf-qb-ir-time', `${report.timeMs.toFixed(1)}ms`),
-              ]),
-          ]),
-          m('pre.pf-qb-ir-sql', entry.sql),
-        ]);
-      }
-
-      function renderPreBlock(text: string, hasContent: boolean): m.Children {
-        return m(
-          'pre',
-          {
-            style: {
-              margin: '0',
-              padding: '8px',
-              overflow: 'auto',
-              flex: '1',
-              fontFamily: 'monospace',
-              fontSize: '12px',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              opacity: hasContent ? '1' : '0.5',
-            },
-          },
-          text,
-        );
-      }
+      const liveJson = JSON.stringify(
+        JSON.parse(serializeStore(store)),
+        null,
+        2,
+      );
 
       const sqlPanel = m(
         '',
@@ -1027,262 +974,40 @@ export function QueryBuilderPage(
             {
               key: 'sql',
               title: 'SQL',
-              content: m(
-                '',
-                {
-                  style: {
-                    display: 'flex',
-                    flexDirection: 'column',
-                    flex: '1',
-                    overflow: 'hidden',
-                  },
-                },
-                [
-                  displaySql
-                    ? m(
-                        '',
-                        {
-                          style: {
-                            display: 'flex',
-                            justifyContent: 'flex-end',
-                            padding: '4px 8px 0',
-                            gap: '4px',
-                          },
-                        },
-                        m(Button, {
-                          variant: ButtonVariant.Filled,
-                          icon: 'content_copy',
-                          label: 'Copy',
-                          onclick: () => {
-                            navigator.clipboard.writeText(displaySql);
-                          },
-                        }),
-                      )
-                    : null,
-                  renderPreBlock(sqlText, !!displaySql),
-                ],
-              ),
+              content: renderSqlTab({displaySql, sqlText}),
             },
             {
               key: 'columns',
               title: 'Columns',
-              content: m(
-                '',
-                {
-                  style: {
-                    display: 'flex',
-                    flexDirection: 'column',
-                    flex: '1',
-                    overflow: 'hidden',
-                  },
-                },
-                renderPreBlock(
-                  outputColumns && outputColumns.length > 0
-                    ? outputColumns
-                        .map(
-                          (c) =>
-                            `${c.name}: ${perfettoSqlTypeToString(c.type)}`,
-                        )
-                        .join('\n')
-                    : activeNodeId
-                      ? 'No columns available'
-                      : 'Select a node',
-                  !!(outputColumns && outputColumns.length > 0),
-                ),
-              ),
+              content: renderColumnsTab({outputColumns, activeNodeId}),
             },
             {
               key: 'ir',
               title: 'IR',
-              content: m(
-                '',
-                {
-                  style: {
-                    display: 'flex',
-                    flexDirection: 'column',
-                    flex: '1',
-                    overflow: 'auto',
-                    padding: '8px',
-                    gap: '8px',
-                  },
-                },
-                irEntries.length > 0
-                  ? irEntries.map(renderIrBlock)
-                  : m(
-                      'span',
-                      {style: {opacity: '0.5', fontSize: '12px'}},
-                      activeNodeId ? 'No IR available' : 'Select a node',
-                    ),
-              ),
+              content: renderIrTab({irEntries, reportByHash, activeNodeId}),
             },
             {
               key: 'cache',
               title: `Cache (${cacheEntries.length})`,
-              content: m(
-                '',
-                {
-                  style: {
-                    display: 'flex',
-                    flexDirection: 'column',
-                    flex: '1',
-                    overflow: 'auto',
-                    padding: '8px',
-                    gap: '8px',
-                  },
-                },
-                cacheEntries.length > 0
-                  ? [
-                      m(
-                        '',
-                        {style: {display: 'flex', justifyContent: 'flex-end'}},
-                        m(Button, {
-                          variant: ButtonVariant.Filled,
-                          icon: 'delete_sweep',
-                          label: 'Clear cache',
-                          onclick: () => matService?.clearCache(),
-                        }),
-                      ),
-                      ...[...cacheEntries]
-                        .sort((a, b) => b.lastHitAt - a.lastHitAt)
-                        .map((entry) =>
-                          m('.pf-qb-ir-block', [
-                            m('.pf-qb-ir-block-header', [
-                              m('span.pf-qb-ir-hash', entry.hash),
-                              m(
-                                'span.pf-qb-ir-meta',
-                                `created ${formatTimestamp(entry.createdAt)} · last hit ${formatTimestamp(entry.lastHitAt)}`,
-                              ),
-                              m('.pf-qb-ir-badges', [
-                                m(
-                                  'span.pf-qb-ir-badge.pf-qb-ir-badge--hits',
-                                  `${entry.hitCount} ${entry.hitCount === 1 ? 'hit' : 'hits'}`,
-                                ),
-                                m(
-                                  'span.pf-qb-ir-time',
-                                  `${entry.materializeTimeMs.toFixed(1)}ms`,
-                                ),
-                              ]),
-                            ]),
-                            m('pre.pf-qb-ir-sql', entry.sql),
-                          ]),
-                        ),
-                    ]
-                  : m(
-                      'span',
-                      {style: {opacity: '0.5', fontSize: '12px'}},
-                      'Cache is empty',
-                    ),
-              ),
+              content: renderCacheTab({
+                cacheEntries,
+                onClearCache: () => matService?.clearCache(),
+              }),
             },
             {
               key: 'graph',
               title: 'Graph',
-              content: (() => {
-                const liveJson = JSON.stringify(
-                  JSON.parse(serializeStore(store)),
-                  null,
-                  2,
-                );
-                const displayJson = graphTabEditing
-                  ? graphTabEditValue
-                  : liveJson;
-                let applyError: string | undefined;
-                return m(
-                  '',
-                  {
-                    style: {
-                      display: 'flex',
-                      flexDirection: 'column',
-                      flex: '1',
-                      overflow: 'hidden',
-                      height: '100%',
-                    },
-                  },
-                  [
-                    m(
-                      '',
-                      {
-                        style: {
-                          display: 'flex',
-                          gap: '4px',
-                          justifyContent: 'flex-end',
-                          padding: '4px 8px 0',
-                          flexShrink: '0',
-                        },
-                      },
-                      graphTabEditing
-                        ? [
-                            m(Button, {
-                              variant: ButtonVariant.Filled,
-                              label: 'Cancel',
-                              onclick: () => {
-                                graphTabEditing = false;
-                              },
-                            }),
-                            m(Button, {
-                              variant: ButtonVariant.Filled,
-                              intent: Intent.Primary,
-                              label: 'Apply',
-                              onclick: () => {
-                                try {
-                                  store = deserializeStore(graphTabEditValue);
-                                  history.splice(0, history.length, store);
-                                  historyIndex = 0;
-                                  selectedNodeIds.clear();
-                                  pinnedNodeId = undefined;
-                                  saveGraph();
-                                  graphTabEditing = false;
-                                } catch (e) {
-                                  applyError = String(e);
-                                }
-                              },
-                            }),
-                          ]
-                        : [
-                            m(Button, {
-                              variant: ButtonVariant.Filled,
-                              icon: 'content_copy',
-                              label: 'Copy',
-                              onclick: () =>
-                                navigator.clipboard.writeText(liveJson),
-                            }),
-                            m(Button, {
-                              variant: ButtonVariant.Filled,
-                              icon: 'edit',
-                              label: 'Edit',
-                              onclick: () => {
-                                graphTabEditValue = liveJson;
-                                graphTabEditing = true;
-                              },
-                            }),
-                          ],
-                    ),
-                    applyError &&
-                      m(
-                        'div',
-                        {
-                          style: {
-                            padding: '4px 8px',
-                            color: 'var(--pf-color-error, #c00)',
-                            fontSize: '12px',
-                            flexShrink: '0',
-                          },
-                        },
-                        applyError,
-                      ),
-                    m('textarea.pf-qb-graph-textarea', {
-                      value: displayJson,
-                      readonly: !graphTabEditing,
-                      spellcheck: false,
-                      style: {flex: '1', minHeight: '0'},
-                      oninput: (e: InputEvent) => {
-                        graphTabEditValue = (e.target as HTMLTextAreaElement)
-                          .value;
-                      },
-                    }),
-                  ],
-                );
-              })(),
+              content: m(GraphTab, {
+                liveJson,
+                onApply: (json: string) => {
+                  store = deserializeStore(json);
+                  history.splice(0, history.length, store);
+                  historyIndex = 0;
+                  selectedNodeIds.clear();
+                  pinnedNodeId = undefined;
+                  saveGraph();
+                },
+              }),
             },
           ],
         }),
@@ -1392,9 +1117,7 @@ export function QueryBuilderPage(
         }
       }
 
-      const activeNode = activeNodeId
-        ? activeNodes.get(activeNodeId)
-        : undefined;
+      const activeNode = activeNodeId ? activeNodes[activeNodeId] : undefined;
       const activeManifest = activeNode
         ? getManifest(activeNode.type)
         : undefined;

@@ -199,7 +199,11 @@ $indent-guide-offset: 12px;
     position: sticky;
     top: 0;
     z-index: 1; // Ensure header is above body rows when scrolling.
-    background: var(--pf-color-background);
+    background-color: color-mix(
+      in srgb,
+      var(--pf-color-background-secondary) 50%,
+      var(--pf-color-background)
+    );
     font-weight: 500;
   }
 
@@ -216,7 +220,13 @@ $indent-guide-offset: 12px;
       &:hover {
         background-color: color_hover(transparent);
       }
-      border-bottom: $border-2;
+      &:nth-child(even) {
+        background-color: color-mix(
+          in srgb,
+          var(--pf-color-background-secondary) 50%,
+          var(--pf-color-background)
+        );
+      }
     }
   }
 

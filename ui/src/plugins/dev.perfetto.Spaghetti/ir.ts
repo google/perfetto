@@ -14,6 +14,7 @@
 
 import {Connection} from '../../widgets/nodegraph';
 import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
+import {NodeData} from './graph_model';
 import {
   collectUpstream,
   findConnectedInputs,
@@ -24,7 +25,7 @@ import {
   getPrimaryInput,
   isNodeValid,
 } from './graph_utils';
-import {NodeData, IrContext, SqlStatement} from './node_types';
+import {IrContext, SqlStatement} from './node_types';
 import {FromConfig} from './nodes/from';
 
 // --- IR (Intermediate Representation) ---
@@ -100,12 +101,12 @@ function tryFold(stmt: SqlStatement, node: NodeData): boolean {
 // Returns entries in topological order, or undefined if invalid.
 // FROM nodes produce no entries — their real table names appear in SQL directly.
 export function buildIR(
-  nodes: Map<string, NodeData>,
+  nodes: Record<string, NodeData>,
   connections: Connection[],
   nodeId: string,
   sqlModules: SqlModules | undefined,
 ): IrEntry[] | undefined {
-  const targetNode = nodes.get(nodeId);
+  const targetNode = nodes[nodeId];
   if (!targetNode) return undefined;
 
   // Collect upstream nodes in topological order.

@@ -28,12 +28,8 @@ import {manifest as sortNode} from './nodes/sort';
 import {manifest as unionNode} from './nodes/union';
 import {manifest as chartNode} from './nodes/chart';
 import {manifest as sqlNode} from './nodes/sql';
-import {
-  NodeData,
-  NodeManifest,
-  ManifestPort,
-  ColumnContext,
-} from './node_types';
+import {NodeManifest, ColumnContext} from './node_types';
+import {NodeData, ManifestPort} from './graph_model';
 
 // Central registry mapping node type strings to their manifests.
 const NODE_REGISTRY: Record<string, NodeManifest> = {
@@ -99,10 +95,10 @@ export function isNodeValid(node: NodeData): boolean {
 
 // Helper to find the parent node (node that has this node as nextId)
 export function findDockedParent(
-  nodes: Map<string, NodeData>,
+  nodes: Record<string, NodeData>,
   nodeId: string,
 ): NodeData | undefined {
-  for (const node of nodes.values()) {
+  for (const node of Object.values(nodes)) {
     if (node.nextId === nodeId) {
       return node;
     }
@@ -112,14 +108,14 @@ export function findDockedParent(
 
 // Helper to find input nodes via connections
 export function findConnectedInputs(
-  nodes: Map<string, NodeData>,
+  nodes: Record<string, NodeData>,
   connections: Connection[],
   nodeId: string,
 ): Map<number, NodeData> {
   const inputs = new Map<number, NodeData>();
   for (const conn of connections) {
     if (conn.toNode === nodeId) {
-      const inputNode = nodes.get(conn.fromNode);
+      const inputNode = nodes[conn.fromNode];
       if (inputNode) {
         inputs.set(conn.toPort, inputNode);
       }
@@ -131,12 +127,12 @@ export function findConnectedInputs(
 // Compute the output columns produced by a node, flowing through the chain.
 // Returns undefined if columns can't be determined.
 export function getOutputColumnsForNode(
-  nodes: Map<string, NodeData>,
+  nodes: Record<string, NodeData>,
   connections: Connection[],
   nodeId: string,
   sqlModules: SqlModules | undefined,
 ): ColumnDef[] | undefined {
-  const node = nodes.get(nodeId);
+  const node = nodes[nodeId];
   if (!node) return undefined;
 
   const manifest = NODE_REGISTRY[node.type];
@@ -167,7 +163,7 @@ export function getOutputColumnsForNode(
 
 // Get the input columns available to a node (i.e. its upstream parent's output).
 export function getColumnsForNode(
-  nodes: Map<string, NodeData>,
+  nodes: Record<string, NodeData>,
   connections: Connection[],
   nodeId: string,
   sqlModules: SqlModules | undefined,
@@ -181,7 +177,7 @@ export function getColumnsForNode(
 
 // Get the primary input node for a given node (docked parent or port 0 connection)
 export function getPrimaryInput(
-  nodes: Map<string, NodeData>,
+  nodes: Record<string, NodeData>,
   connections: Connection[],
   nodeId: string,
 ): NodeData | undefined {
@@ -193,7 +189,7 @@ export function getPrimaryInput(
 
 // Collect all upstream nodes in topological order (dependencies first).
 export function collectUpstream(
-  nodes: Map<string, NodeData>,
+  nodes: Record<string, NodeData>,
   connections: Connection[],
   nodeId: string,
   visited: Set<string>,
@@ -202,7 +198,7 @@ export function collectUpstream(
   if (visited.has(nodeId)) return;
   visited.add(nodeId);
 
-  const node = nodes.get(nodeId);
+  const node = nodes[nodeId];
   if (!node) return;
 
   // Visit all inputs: port 0 can be satisfied by a docked parent,
@@ -222,10 +218,10 @@ export function collectUpstream(
 }
 
 // Find root nodes (not referenced by any other node's nextId)
-export function getRootNodeIds(nodes: Map<string, NodeData>): string[] {
+export function getRootNodeIds(nodes: Record<string, NodeData>): string[] {
   const referenced = new Set<string>();
-  for (const node of nodes.values()) {
+  for (const node of Object.values(nodes)) {
     if (node.nextId) referenced.add(node.nextId);
   }
-  return Array.from(nodes.keys()).filter((id) => !referenced.has(id));
+  return Object.keys(nodes).filter((id) => !referenced.has(id));
 }

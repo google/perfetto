@@ -14,11 +14,12 @@
 
 import m from 'mithril';
 import {Checkbox} from '../../../widgets/checkbox';
-import {ManifestPort, NodeManifest, RenderContext} from '../node_types';
+import {NodeManifest, RenderContext} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {Icon} from '../../../widgets/icon';
 import {TextInput} from '../../../widgets/text_input';
 import {ColumnDef} from '../graph_utils';
+import {ManifestPort} from '../graph_model';
 
 export interface IntervalIntersectConfig {
   readonly partitionColumns: string[];

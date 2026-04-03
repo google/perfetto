@@ -16,8 +16,7 @@ import m from 'mithril';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
-import {QueryBuilderPage} from './query_builder_page';
-import {NodeData, NodeQueryBuilderStore} from './node_types';
+import {QueryBuilderPage} from './views/query_builder_page';
 import {
   ColumnDef,
   getManifest,
@@ -25,6 +24,7 @@ import {
   isNodeValid,
   getOutputColumnsForNode,
 } from './graph_utils';
+import {NodeData, NodeQueryBuilderStore} from './graph_model';
 
 /*
 Note: This is an experiment representing some ideas for how a query builder
@@ -119,45 +119,49 @@ export default class implements PerfettoPlugin {
       return [`Invalid JSON: ${e}`];
     }
 
-    if (!Array.isArray(obj.nodes)) {
-      return ['nodes must be an array of [id, NodeData] pairs'];
+    if (
+      !obj.nodes ||
+      typeof obj.nodes !== 'object' ||
+      Array.isArray(obj.nodes)
+    ) {
+      return ['nodes must be an object mapping id → NodeData'];
     }
 
-    // Reconstruct the node map and validate each node.
-    const nodes = new Map<string, NodeData>();
-    for (const entry of obj.nodes) {
-      if (!Array.isArray(entry) || entry.length < 2) {
-        errors.push(`Invalid node entry (expected [id, NodeData]): ${JSON.stringify(entry)}`);
-        continue;
-      }
-      const [id, node] = entry as [string, NodeData];
+    // Validate each node.
+    const nodes: Record<string, NodeData> = {};
+    for (const [id, node] of Object.entries(obj.nodes)) {
       if (typeof id !== 'string' || !id) {
-        errors.push(`Node ID must be a non-empty string, got: ${JSON.stringify(id)}`);
+        errors.push(
+          `Node ID must be a non-empty string, got: ${JSON.stringify(id)}`,
+        );
         continue;
       }
       if (!node || typeof node !== 'object') {
         errors.push(`Node "${id}" data must be an object`);
         continue;
       }
-      if (!node.type || typeof node.type !== 'string') {
+      const n = node as NodeData;
+      if (!n.type || typeof n.type !== 'string') {
         errors.push(`Node "${id}" is missing a type string`);
         continue;
       }
-      const manifest = getManifest(node.type);
+      const manifest = getManifest(n.type);
       if (!manifest) {
-        errors.push(`Node "${id}": unknown type "${node.type}"`);
+        errors.push(`Node "${id}": unknown type "${n.type}"`);
         continue;
       }
-      if (!isNodeValid(node)) {
-        errors.push(`Node "${id}" (${node.type}): config is invalid`);
+      if (!isNodeValid(n)) {
+        errors.push(`Node "${id}" (${n.type}): config is invalid`);
       }
-      nodes.set(id, node);
+      nodes[id] = n;
     }
 
     // Check nextId references.
-    for (const [id, node] of nodes) {
-      if (node.nextId !== undefined && !nodes.has(node.nextId)) {
-        errors.push(`Node "${id}": nextId "${node.nextId}" does not reference a known node`);
+    for (const [id, node] of Object.entries(nodes)) {
+      if (node.nextId !== undefined && !(node.nextId in nodes)) {
+        errors.push(
+          `Node "${id}": nextId "${node.nextId}" does not reference a known node`,
+        );
       }
     }
 
@@ -172,11 +176,11 @@ export default class implements PerfettoPlugin {
         toPort?: unknown;
       };
       const label = `Connection[${i}]`;
-      if (typeof c.fromNode !== 'string' || !nodes.has(c.fromNode)) {
+      if (typeof c.fromNode !== 'string' || !(c.fromNode in nodes)) {
         errors.push(`${label}: fromNode "${c.fromNode}" is not a known node`);
         continue;
       }
-      if (typeof c.toNode !== 'string' || !nodes.has(c.toNode)) {
+      if (typeof c.toNode !== 'string' || !(c.toNode in nodes)) {
         errors.push(`${label}: toNode "${c.toNode}" is not a known node`);
         continue;
       }
@@ -190,15 +194,15 @@ export default class implements PerfettoPlugin {
 
       // nextId + connection conflict: if fromNode already docks into toNode
       // via nextId, a connection between them is redundant and harmful.
-      const fromNode = nodes.get(c.fromNode)!;
+      const fromNode = nodes[c.fromNode];
       if (fromNode.nextId === c.toNode) {
         errors.push(
           `${label}: node "${c.fromNode}" already docks into "${c.toNode}" ` +
-          `via nextId — remove this connection or remove the nextId`,
+            `via nextId — remove this connection or remove the nextId`,
         );
       }
 
-      const toNode = nodes.get(c.toNode)!;
+      const toNode = nodes[c.toNode];
       const toManifest = getManifest(toNode.type);
       if (toManifest) {
         const ports = getManifestInputs(toManifest, toNode);
@@ -206,7 +210,7 @@ export default class implements PerfettoPlugin {
         if (toPort < 0 || toPort >= ports.length) {
           errors.push(
             `${label}: toPort ${c.toPort} is out of range for node "${c.toNode}" ` +
-            `(type "${toNode.type}" has ${ports.length} input port(s))`,
+              `(type "${toNode.type}" has ${ports.length} input port(s))`,
           );
         }
       }

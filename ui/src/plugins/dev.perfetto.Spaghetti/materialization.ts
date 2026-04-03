@@ -20,7 +20,7 @@ import {createSimpleSchema} from '../../components/widgets/datagrid/sql_schema';
 import {Engine} from '../../trace_processor/engine';
 import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import {buildDisplaySql, buildIR, IrEntry} from './ir';
-import {NodeQueryBuilderStore} from './node_types';
+import {NodeQueryBuilderStore} from './graph_model';
 
 // Per-entry report from the most recent materialization cycle.
 export interface EntryReport {

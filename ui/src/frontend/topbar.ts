@@ -80,8 +80,9 @@ function renderSidePanelToggle(mgr: SidePanelManagerImpl): m.Children {
   if (!hasTabs) return undefined;
   return m(Button, {
     icon: 'dock_to_left',
-    title: 'Toggle AI sidebar',
+    title: 'Toggle sidebar',
     active: mgr.visible,
+    iconFilled: mgr.visible,
     className: classNames('pf-topbar__side-panel-btn'),
     onclick: () => {
       if (mgr.visible) {

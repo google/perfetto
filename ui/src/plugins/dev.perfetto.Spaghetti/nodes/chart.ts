@@ -13,10 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ManifestPort, NodeManifest, DetailsContext} from '../node_types';
+import {NodeManifest, DetailsContext} from '../node_types';
 import {Button, ButtonVariant} from '../../../widgets/button';
 import {NUM_NULL, STR_NULL} from '../../../trace_processor/query_result';
 import {ColumnPicker} from '../widgets/column_picker';
+import {ManifestPort} from '../graph_model';
 
 export interface ChartSpec {
   readonly xCol: string;

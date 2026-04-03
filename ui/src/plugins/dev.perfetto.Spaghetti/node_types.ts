@@ -13,27 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Connection, Label, NodePort} from '../../widgets/nodegraph';
 import {Trace} from '../../public/trace';
 import {ColumnDef} from './graph_utils';
 import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
-
-// ---------------------------------------------------------------------------
-// Node data: separates graph topology from node-specific config.
-// ---------------------------------------------------------------------------
-
-/** Graph-level data shared by every node. */
-export interface NodeData<C extends object = {}> {
-  readonly type: string;
-  readonly id: string;
-  x: number;
-  y: number;
-  nextId?: string;
-  collapsed?: boolean;
-  /** Stored input ports for variable-input nodes. Absent for static-input nodes. */
-  inputs?: ManifestPort[];
-  config: C;
-}
+import {ManifestPort, NodeData} from './graph_model';
 
 // ---------------------------------------------------------------------------
 // SQL statement (used by tryFold in node manifests).
@@ -47,19 +30,6 @@ export interface SqlStatement {
   groupBy?: string;
   orderBy?: string;
   limit?: number;
-}
-
-// ---------------------------------------------------------------------------
-// Manifest port: NodePort with a stable name for programmatic lookup.
-// ---------------------------------------------------------------------------
-
-export interface ManifestPort extends NodePort {
-  /** Stable identifier used by getInputColumns / getInputRef. */
-  readonly name: string;
-  /** Direction for connection compatibility and port placement. */
-  readonly direction: 'top' | 'left' | 'right' | 'bottom';
-  /** User-facing label shown on the port. Not used for programmatic lookup. */
-  readonly content: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -191,14 +161,4 @@ export interface NodeManifest<C extends object = {}> {
    * default DataGrid. Return undefined (or omit) to use the default DataGrid.
    */
   renderDetails?(config: C, ctx: DetailsContext): m.Children;
-}
-
-// ---------------------------------------------------------------------------
-// Store
-// ---------------------------------------------------------------------------
-
-export interface NodeQueryBuilderStore {
-  readonly nodes: Map<string, NodeData>;
-  readonly connections: Connection[];
-  readonly labels: Label[];
 }

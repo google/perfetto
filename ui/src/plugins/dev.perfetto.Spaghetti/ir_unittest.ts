@@ -13,17 +13,17 @@
 // limitations under the License.
 
 import {Connection} from '../../widgets/nodegraph';
+import {NodeData} from './graph_model';
 import {buildIR, buildDisplaySql, IrEntry} from './ir';
-import {NodeData} from './node_types';
 
 // Helper to build a store from node arrays and connections.
 function makeStore(
   nodeList: NodeData[],
   connections: Connection[] = [],
-): {nodes: Map<string, NodeData>; connections: Connection[]} {
-  const nodes = new Map<string, NodeData>();
+): {nodes: Record<string, NodeData>; connections: Connection[]} {
+  const nodes: Record<string, NodeData> = {};
   for (const n of nodeList) {
-    nodes.set(n.id, n);
+    nodes[n.id] = n;
   }
   return {nodes, connections};
 }

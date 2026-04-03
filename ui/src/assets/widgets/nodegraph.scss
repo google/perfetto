@@ -584,35 +584,31 @@
   }
 }
 
-// Pulsing border glow for nodes that are currently materializing.
-@keyframes pf-node-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 4px 1px hsla(var(--pf-node-hue, 210), 70%, 55%, 0.3);
-    border-color: hsla(var(--pf-node-hue, 210), 70%, 55%, 0.5);
-  }
-  50% {
-    box-shadow: 0 0 12px 3px hsla(var(--pf-node-hue, 210), 70%, 55%, 0.6);
-    border-color: hsla(var(--pf-node-hue, 210), 70%, 55%, 0.9);
-  }
+.pf-node.pf-materializing:not(.pf-selected) {
+  transition:
+    box-shadow 0.5s ease-out,
+    border-color 0.5s ease-out;
+  box-shadow: 0 0 12px 3px hsla(var(--pf-node-hue, 210), 70%, 55%, 1);
+  border-color: hsla(var(--pf-node-hue, 210), 70%, 55%, 1);
 }
 
-// Fade-out animation when materialization completes.
-@keyframes pf-node-pulse-fade {
-  0% {
-    box-shadow: 0 0 4px 1px hsla(var(--pf-node-hue, 210), 70%, 55%, 0.3);
-    border-color: hsla(var(--pf-node-hue, 210), 70%, 55%, 0.5);
-  }
-  100% {
-    box-shadow: none;
-    border-color: var(--pf-color-border);
-  }
+.pf-node.pf-materializing.pf-selected {
+  transition: box-shadow 0.5s ease-out;
+  box-shadow: 0 0 12px 3px hsla(var(--pf-node-hue, 210), 70%, 55%, 1);
 }
 
-.pf-node.pf-materializing {
-  animation: pf-node-pulse 1.2s ease-in-out infinite;
+// Fade-out: no keyframe animation. Instead, declare the target values and let
+// a CSS transition carry them from wherever the pulse animation was at the
+// moment the class switched — giving a seamless, discontinuity-free fade.
+.pf-node.pf-materializing-fade-out:not(.pf-selected) {
+  transition:
+    box-shadow 1s ease-out,
+    border-color 1s ease-out;
+  box-shadow: none;
+  border-color: var(--pf-color-border);
 }
 
-.pf-node.pf-materializing-fade-out {
-  animation: pf-node-pulse-fade 0.5s ease-out forwards;
+.pf-node.pf-materializing-fade-out.pf-selected {
+  transition: box-shadow 1s ease-out;
+  box-shadow: none;
 }
