@@ -541,6 +541,36 @@ h3 {
 }
 
 // -----------------------------------------------------------------------------
+// Chinese docs banner
+// -----------------------------------------------------------------------------
+.cn-docs-banner {
+  background-color: #e8f0fe;
+  border-bottom: 1px solid #a8c7fa;
+  color: #1a3966;
+  font-family: "Source Sans Pro", sans-serif;
+  padding: 8px 16px;
+  text-align: center;
+  a {
+    color: #1967d2;
+    text-decoration: underline;
+    font-weight: 500;
+  }
+  button {
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    cursor: pointer;
+    color: #1a3966;
+    padding: 0 4px;
+    line-height: 1;
+    flex-shrink: 0;
+    &:hover {
+      color: #000;
+    }
+  }
+}
+
+// -----------------------------------------------------------------------------
 // Docs
 // -----------------------------------------------------------------------------
 .docs {

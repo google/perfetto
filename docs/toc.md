@@ -26,6 +26,7 @@
   - [Cookbooks](#)
 
     - [Analysing Android Traces](getting-started/android-trace-analysis.md)
+    - [Periodic Trace Snapshots](getting-started/periodic-trace-snapshots.md)
 
   - [Case Studies](#)
 

@@ -51,10 +51,7 @@ class TraceReaderRegistry {
   // time is ignored by the wrapper.
   void RegisterPluginTraceReader(
       TraceType trace_type,
-      std::function<std::unique_ptr<ChunkedTraceReader>()> factory) {
-    RegisterFactory(trace_type, [f = std::move(factory)](
-                                    TraceProcessorContext*) { return f(); });
-  }
+      std::function<std::unique_ptr<ChunkedTraceReader>()> factory);
 
   // Creates a new `ChunkedTraceReader` instance for the given `type`. Returns
   // an error if no mapping has been previously registered.

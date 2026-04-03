@@ -108,10 +108,4 @@ export function tryLoadIsInternalUserScript(app: AppImpl): void {
       );
     }),
   );
-  app.addProtoDescriptors(
-    scriptLoaded.then(({extraParsingDescriptors}) => extraParsingDescriptors),
-  );
-  app.addSqlPackages(
-    scriptLoaded.then(({extraSqlPackages}) => extraSqlPackages),
-  );
 }

@@ -344,9 +344,44 @@ function setupTabs() {
   }
 }
 
+function setupChineseDocsBanner() {
+  if (!location.pathname.startsWith('/docs/')) return;
+  const langs = navigator.languages || [navigator.language || ''];
+  if (!langs.some(l => l.startsWith('zh'))) return;
+  const dismissedAt = localStorage.getItem('cn-docs-banner-dismissed');
+  // Dismiss for 30 days when clicking on the X.
+  if (dismissedAt) {
+    const elapsed = Date.now() - parseInt(dismissedAt, 10);
+    if (elapsed < 30 * 24 * 60 * 60 * 1000) return;
+  }
+  const banner = document.createElement('div');
+  banner.className = 'cn-docs-banner';
+  const span = document.createElement('span');
+  const link = document.createElement('a');
+  link.href = 'https://gugu-perf.github.io/perfetto-docs-zh-cn/';
+  link.target = '_blank';
+  link.rel = 'noopener';
+  link.textContent = 'gugu-perf.github.io/perfetto-docs-zh-cn';
+  span.append(
+    '\u{1F1E8}\u{1F1F3} A community-maintained Chinese translation of ' +
+    'the Perfetto docs is available at ', link,
+    '. This is a community project and is not affiliated with Google.');
+  const btn = document.createElement('button');
+  btn.title = 'Dismiss';
+  btn.textContent = '\u00d7';
+  btn.addEventListener('click', () => {
+    banner.remove();
+    localStorage.setItem('cn-docs-banner-dismissed', String(Date.now()));
+  });
+  banner.append(span, btn);
+  const header = document.querySelector('body > header');
+  header.insertAdjacentElement('afterend', banner);
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   updateNav();
   updateTOC();
+  setupChineseDocsBanner();
 });
 
 window.addEventListener("load", () => {
