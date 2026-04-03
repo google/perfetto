@@ -2435,7 +2435,6 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
           },
           style: {
             backgroundSize: (() => {
-              // Increase grid spacing when zoomed out to reduce dot density
               const minPixelSpacing = 10;
               let gridSize = 20;
               while (gridSize * canvasState.zoom < minPixelSpacing) {
@@ -2444,7 +2443,19 @@ export function NodeGraph(): m.Component<NodeGraphAttrs> {
               const size = gridSize * canvasState.zoom;
               return `${size}px ${size}px`;
             })(),
-            backgroundPosition: `${canvasState.panOffset.x}px ${canvasState.panOffset.y}px`,
+            backgroundPosition: (() => {
+              const minPixelSpacing = 10;
+              let gridSize = 20;
+              while (gridSize * canvasState.zoom < minPixelSpacing) {
+                gridSize *= 2;
+              }
+              const size = gridSize * canvasState.zoom;
+              // Subtract size/2 so the dot (centered in its tile) lands exactly
+              // on the world origin — stays fixed when gridSize doubles.
+              const x = canvasState.panOffset.x - size / 2;
+              const y = canvasState.panOffset.y - size / 2;
+              return `${x}px ${y}px`;
+            })(),
             ...vnode.attrs.style,
           },
         },
