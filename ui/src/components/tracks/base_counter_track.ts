@@ -29,8 +29,7 @@ import {
   TrackSettingDescriptor,
 } from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
-import {Button} from '../../widgets/button';
-import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
+import {MenuItem} from '../../widgets/menu';
 import {TextInput} from '../../widgets/text_input';
 import {checkerboardExcept} from '../checkerboard';
 import {valueIfAllEqual} from '../../base/array_utils';
@@ -101,14 +100,9 @@ function roundAway(n: number): number {
   return Math.sign(n) * (Math.ceil(Math.abs(n) / (pow10 / 20)) * (pow10 / 20));
 }
 
-// Known SI base units. When the counter's unit is one of these, the SI prefix
-// from value scaling is attached to the unit (e.g. "2 GHz") rather than the
-// number (e.g. "2G Hz").
-const SI_BASE_UNITS = new Set(['Hz', 'B', 'b', 'W', 'V', 'A', 'J', 's']);
-
-function toLabelAndPrefix(n: number): {label: string; prefix: string} {
+function toLabel(n: number, exact = false): string {
   if (n === 0) {
-    return {label: '0', prefix: ''};
+    return '0';
   }
   const units: [number, string][] = [
     [0.000000001, 'n'],
@@ -120,20 +114,26 @@ function toLabelAndPrefix(n: number): {label: string; prefix: string} {
     [1000 * 1000 * 1000, 'G'],
     [1000 * 1000 * 1000 * 1000, 'T'],
   ];
-  let largestMultiplier;
-  let largestUnit;
-  [largestMultiplier, largestUnit] = units[0];
+  let largestMultiplier = units[0][0];
+  let largestUnit = units[0][1];
   const absN = Math.abs(n);
   for (const [multiplier, unit] of units) {
     if (multiplier > absN) {
       break;
     }
-    [largestMultiplier, largestUnit] = [multiplier, unit];
+    largestMultiplier = multiplier;
+    largestUnit = unit;
   }
-  return {
-    label: `${Math.round(n / largestMultiplier)}`,
-    prefix: largestUnit,
-  };
+  const value = n / largestMultiplier;
+
+  if (!exact) {
+    return `${Math.round(value)}${largestUnit}`;
+  }
+
+  if (Math.abs(value - Math.round(value)) < 1e-9) {
+    return `${Math.round(value)}${largestUnit}`;
+  }
+  return `${Number(value.toFixed(1))}${largestUnit}`;
 }
 
 class RangeSharer {
@@ -434,13 +434,13 @@ const yDisplaySettingDescriptor = (
           m('span.pf-counter-track__custom-range-label', 'Min'),
           m(TextInput, {
             type: 'text',
-            placeholder: 'auto (e.g. 1.2e-3)',
+            placeholder: 'auto',
             value:
               track.yCustomMinText !== ''
                 ? track.yCustomMinText
                 : options.yCustomMin !== undefined
-                ? String(options.yCustomMin)
-                : '',
+                  ? String(options.yCustomMin)
+                  : '',
             onChange: (v) => {
               track.yCustomMinText = v;
               const trimmed = v.trim();
@@ -458,13 +458,13 @@ const yDisplaySettingDescriptor = (
           m('span.pf-counter-track__custom-range-label', 'Max'),
           m(TextInput, {
             type: 'text',
-            placeholder: 'auto (e.g. 1e6)',
+            placeholder: 'auto',
             value:
               track.yCustomMaxText !== ''
                 ? track.yCustomMaxText
                 : options.yCustomMax !== undefined
-                ? String(options.yCustomMax)
-                : '',
+                  ? String(options.yCustomMax)
+                  : '',
             onChange: (v) => {
               track.yCustomMaxText = v;
               const trimmed = v.trim();
@@ -586,8 +586,8 @@ export abstract class BaseCounterTrack implements TrackRenderer {
   private options?: CounterOptions;
 
   // Local custom-range input text state to preserve partial typing (e.g. "0.", "1e-").
-  private yCustomMinText = '';
-  private yCustomMaxText = '';
+  yCustomMinText = '';
+  yCustomMaxText = '';
 
   private readonly rangeSharer: RangeSharer;
 
@@ -597,7 +597,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     () => this.hover?.lastDisplayValue,
   ]);
 
-  private getCounterOptions(): CounterOptions {
+  getCounterOptions(): CounterOptions {
     if (this.options === undefined) {
       const options = this.getDefaultCounterOptions();
       for (const [key, value] of Object.entries(this.defaultOptions)) {
@@ -730,7 +730,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     ];
   }
 
-  protected invalidate() {
+  invalidate() {
     this.limits = undefined;
     this.counters = undefined;
     this.bufferedBounds.reset();
@@ -1143,7 +1143,9 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     }
 
     // Ensure yMax > yMin to prevent division by zero in the renderer.
-    if (yMax <= yMin) {
+    // For non-custom modes we want strict behavior from data-driven bounds,
+    // while custom range should be clamped to avoid invalid zero-size ranges.
+    if (options.yDisplay === 'custom' && yMax <= yMin) {
       yMax = yMin + 1;
     }
 
@@ -1153,35 +1155,23 @@ export abstract class BaseCounterTrack implements TrackRenderer {
 
     if (options.yDisplay === 'minmax') {
       yLabel = 'min - max';
-    } else if (options.yDisplay === 'custom') {
-      yLabel = `${toLabel(yMin)} – ${toLabel(yMax)}`;
     } else {
+      // For all dynamic modes, show difference. Prefer an exact label for
+      // custom mode so 1,500 becomes 1.5K instead of rounding to 2K.
       let max = yMax;
       let min = yMin;
       if (options.yDisplay === 'log') {
         max = Math.exp(max);
         min = Math.exp(min);
       }
-      const range = max < 0 ? min - max : max - min;
-      const {label, prefix} = toLabelAndPrefix(range);
-      const unit = this.unit;
-      // When the unit is a known SI base unit, attach the prefix to the unit
-      // (e.g. "2 GHz"). Otherwise keep prefix on the number (e.g. "2M kHz").
-      const formattedLabel = SI_BASE_UNITS.has(unit)
-        ? `${label} ${prefix}${unit}`
-        : `${label}${prefix} ${unit}`;
-      switch (options.yMode) {
-        case 'value':
-          yLabel = formattedLabel;
-          break;
-        case 'delta':
-          yLabel = `\u0394${formattedLabel}`;
-          break;
-        case 'rate':
-          yLabel = `${label}${prefix} ${this.rateUnit}`;
-          break;
-        default:
-          assertUnreachable(options.yMode);
+      if (options.yDisplay === 'custom') {
+        const delta = max - min;
+        yLabel = toLabel(delta, true);
+      } else {
+        const delta = max < 0 ? min - max : max - min;
+        yLabel = toLabel(delta);
+      }
+
       }
     }
 
