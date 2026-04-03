@@ -425,19 +425,13 @@ def enable_libunwind(module):
 
 
 def enable_pcre2(module):
-  # Soong does not transitively propagate deps from static archives to their
-  # consumers (b/169779783). External modules like libandroid_runtime and
-  # libinputflinger link perfetto modules statically, so we use
-  # whole_static_libs to embed pcre2 symbols directly in the archive.
-  # For device-only shared libs/binaries, shared_libs suffices as the .so
-  # resolves its own deps internally.
-  if module.type in ('cc_library_static', 'cc_binary_host'):
-    module.whole_static_libs.add('libpcre2')
-  elif module.host_supported:
-    module.android.shared_libs.add('libpcre2')
-    module.host.whole_static_libs.add('libpcre2')
-  else:
-    module.shared_libs.add('libpcre2')
+  # TODO(b/494498282): Re-enable once all clients of
+  # libperfetto_client_experimental are updated to include libpcre2 in their
+  # deps. A cc_defaults (libperfetto_client_experimental_defaults) should be
+  # created to make this easier for consumers. Until then, base::Regex falls
+  # back to std::regex on Android (enable_perfetto_pcre2 = false in
+  # perfetto.gni).
+  pass
 
 
 def enable_sqlite(module):
