@@ -25,19 +25,19 @@ class CreateIntervals(TestSuite):
         trace=TextProto(""),
         query="""
         INCLUDE PERFETTO MODULE intervals.create_intervals;
-        WITH starts(ts) AS (
-          VALUES (100), (200), (300)
+        WITH starts(id, ts) AS (
+          VALUES (10, 100), (11, 200), (12, 300)
         ),
-        ends(ts) AS (
-          VALUES (150), (250), (350)
+        ends(id, ts) AS (
+          VALUES (20, 150), (21, 250), (22, 350)
         )
         SELECT * FROM _interval_create!(starts, ends)
         """,
         out=Csv("""
-        "ts","dur"
-        100,50
-        200,50
-        300,50
+        "ts","dur","start_id","end_id"
+        100,50,10,20
+        200,50,11,21
+        300,50,12,22
         """))
 
   def test_create_intervals_multiple_starts_same_end(self):
@@ -45,19 +45,19 @@ class CreateIntervals(TestSuite):
         trace=TextProto(""),
         query="""
         INCLUDE PERFETTO MODULE intervals.create_intervals;
-        WITH starts(ts) AS (
-          VALUES (100), (200), (300)
+        WITH starts(id, ts) AS (
+          VALUES (10, 100), (11, 200), (12, 300)
         ),
-        ends(ts) AS (
-          VALUES (500)
+        ends(id, ts) AS (
+          VALUES (20, 500)
         )
         SELECT * FROM _interval_create!(starts, ends)
         """,
         out=Csv("""
-        "ts","dur"
-        100,400
-        200,300
-        300,200
+        "ts","dur","start_id","end_id"
+        100,400,10,20
+        200,300,11,20
+        300,200,12,20
         """))
 
   def test_create_intervals_no_matching_ends(self):
@@ -65,16 +65,16 @@ class CreateIntervals(TestSuite):
         trace=TextProto(""),
         query="""
         INCLUDE PERFETTO MODULE intervals.create_intervals;
-        WITH starts(ts) AS (
-          VALUES (500), (600)
+        WITH starts(id, ts) AS (
+          VALUES (10, 500), (11, 600)
         ),
-        ends(ts) AS (
-          VALUES (100), (200)
+        ends(id, ts) AS (
+          VALUES (20, 100), (21, 200)
         )
         SELECT * FROM _interval_create!(starts, ends)
         """,
         out=Csv("""
-        "ts","dur"
+        "ts","dur","start_id","end_id"
         """))
 
   def test_create_intervals_interleaved(self):
@@ -82,19 +82,19 @@ class CreateIntervals(TestSuite):
         trace=TextProto(""),
         query="""
         INCLUDE PERFETTO MODULE intervals.create_intervals;
-        WITH starts(ts) AS (
-          VALUES (10), (30), (50)
+        WITH starts(id, ts) AS (
+          VALUES (1, 10), (2, 30), (3, 50)
         ),
-        ends(ts) AS (
-          VALUES (20), (40), (60)
+        ends(id, ts) AS (
+          VALUES (4, 20), (5, 40), (6, 60)
         )
         SELECT * FROM _interval_create!(starts, ends)
         """,
         out=Csv("""
-        "ts","dur"
-        10,10
-        30,10
-        50,10
+        "ts","dur","start_id","end_id"
+        10,10,1,4
+        30,10,2,5
+        50,10,3,6
         """))
 
   def test_create_intervals_partial_match(self):
@@ -102,19 +102,19 @@ class CreateIntervals(TestSuite):
         trace=TextProto(""),
         query="""
         INCLUDE PERFETTO MODULE intervals.create_intervals;
-        WITH starts(ts) AS (
-          VALUES (10), (30), (50), (70)
+        WITH starts(id, ts) AS (
+          VALUES (1, 10), (2, 30), (3, 50), (4, 70)
         ),
-        ends(ts) AS (
-          VALUES (25), (55)
+        ends(id, ts) AS (
+          VALUES (5, 25), (6, 55)
         )
         SELECT * FROM _interval_create!(starts, ends)
         """,
         out=Csv("""
-        "ts","dur"
-        10,15
-        30,25
-        50,5
+        "ts","dur","start_id","end_id"
+        10,15,1,5
+        30,25,2,6
+        50,5,3,6
         """))
 
   def test_create_intervals_empty_starts(self):
@@ -122,16 +122,16 @@ class CreateIntervals(TestSuite):
         trace=TextProto(""),
         query="""
         INCLUDE PERFETTO MODULE intervals.create_intervals;
-        WITH starts(ts) AS (
-          SELECT 0 WHERE 0
+        WITH starts(id, ts) AS (
+          SELECT 0, 0 WHERE 0
         ),
-        ends(ts) AS (
-          VALUES (100), (200)
+        ends(id, ts) AS (
+          VALUES (1, 100), (2, 200)
         )
         SELECT * FROM _interval_create!(starts, ends)
         """,
         out=Csv("""
-        "ts","dur"
+        "ts","dur","start_id","end_id"
         """))
 
   def test_create_intervals_equal_start_and_end(self):
@@ -139,18 +139,18 @@ class CreateIntervals(TestSuite):
         trace=TextProto(""),
         query="""
         INCLUDE PERFETTO MODULE intervals.create_intervals;
-        WITH starts(ts) AS (
-          VALUES (100), (200)
+        WITH starts(id, ts) AS (
+          VALUES (1, 100), (2, 200)
         ),
-        ends(ts) AS (
-          VALUES (100), (200), (300)
+        ends(id, ts) AS (
+          VALUES (3, 100), (4, 200), (5, 300)
         )
         SELECT * FROM _interval_create!(starts, ends)
         """,
         out=Csv("""
-        "ts","dur"
-        100,100
-        200,100
+        "ts","dur","start_id","end_id"
+        100,100,1,4
+        200,100,2,5
         """))
 
   def test_create_intervals_unsorted_input(self):
@@ -158,17 +158,17 @@ class CreateIntervals(TestSuite):
         trace=TextProto(""),
         query="""
         INCLUDE PERFETTO MODULE intervals.create_intervals;
-        WITH starts(ts) AS (
-          VALUES (300), (100), (200)
+        WITH starts(id, ts) AS (
+          VALUES (1, 300), (2, 100), (3, 200)
         ),
-        ends(ts) AS (
-          VALUES (350), (150), (250)
+        ends(id, ts) AS (
+          VALUES (4, 350), (5, 150), (6, 250)
         )
         SELECT * FROM _interval_create!(starts, ends)
         """,
         out=Csv("""
-        "ts","dur"
-        100,50
-        200,50
-        300,50
+        "ts","dur","start_id","end_id"
+        100,50,2,5
+        200,50,3,6
+        300,50,1,4
         """))
