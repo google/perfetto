@@ -60,6 +60,15 @@ java_library_host {
     java_version: "11",
 }
 
+// Modules that depend on perfetto libraries as static_libs should include
+// these defaults to pick up the required shared library deps.
+cc_defaults {
+    name: "perfetto_defaults_static_deps",
+    shared_libs: [
+        "libpcre2",
+    ],
+}
+
 // This sample target shows how to use the perfetto client API from within the
 // Android tree.
 cc_binary {
