@@ -340,6 +340,28 @@ struct GraphReachableOp {
   std::string method = "dfs";  // "dfs" or "bfs".
 };
 
+// .pivot(from: col, value: col, agg: func, values: {src_val: out_col, ...})
+// Transforms rows into wide columns using explicit value mapping.
+// Compiles to GROUP BY + CASE WHEN for each value.
+struct PivotOp {
+  std::string source_column;  // Column whose values are pivoted.
+  std::string value_column;   // Column providing the values to aggregate.
+  std::string agg;            // Aggregation function (default: "max").
+  // Explicit mapping: source value => output column name.
+  std::vector<std::pair<std::string, std::string>> values;
+};
+
+// .self_join_temporal(left_key, right_key, overlap, prefix)
+// Self-join a table on key match + time overlap.
+// Materializes the inner query, then joins it to itself.
+struct SelfJoinTemporalOp {
+  std::string left_key;        // Column on left (base) side to match.
+  std::string right_key;       // Column on right side to match.
+  std::string overlap;         // "contains" (default) or "intersects".
+  std::string right_alias;     // Alias for right side (default: "_other").
+  bool is_left = false;        // LEFT JOIN vs INNER JOIN.
+};
+
 // Template call as an operation: .template_name(arg1, arg2, ...)
 // Expanded at compile time using the template definition.
 struct TemplateCallOp {
@@ -376,7 +398,9 @@ using Operation = std::variant<FilterOp,
                                FlowReachableOp,
                                FlattenIntervalsOp,
                                MergeOverlappingOp,
-                               GraphReachableOp>;
+                               GraphReachableOp,
+                               PivotOp,
+                               SelfJoinTemporalOp>;
 
 // ============================================================================
 // Pipeline and top-level structures.

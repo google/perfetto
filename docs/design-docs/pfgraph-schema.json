@@ -1,0 +1,410 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://perfetto.dev/pfgraph-schema.json",
+  "title": "PerfettoGraph Module",
+  "description": "Schema for PerfettoGraph (.pfgraph.yaml) dataflow query modules",
+  "type": "object",
+  "properties": {
+    "module": {
+      "type": "string",
+      "description": "Module name (dotted path, e.g., 'android.anrs')"
+    },
+    "imports": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of module dependencies to import"
+    }
+  },
+  "additionalProperties": {
+    "oneOf": [
+      { "$ref": "#/$defs/pipeline" },
+      { "$ref": "#/$defs/function" }
+    ]
+  },
+  "$defs": {
+    "pipeline": {
+      "type": "object",
+      "description": "A named dataflow pipeline",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["table", "view"],
+          "description": "Output type. Omit for intermediate pipelines."
+        },
+        "index": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Columns to create an index on (only for type: table)"
+        },
+        "ops": {
+          "type": "array",
+          "description": "List of operations. First must be a source (from:), rest are transforms.",
+          "items": { "$ref": "#/$defs/operation" },
+          "minItems": 1
+        }
+      },
+      "required": ["ops"]
+    },
+    "function": {
+      "type": "object",
+      "description": "A scalar or table-returning function",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "function"
+        },
+        "args": {
+          "type": "object",
+          "description": "Parameter name → type mapping",
+          "additionalProperties": { "type": "string" }
+        },
+        "returns": {
+          "type": "string",
+          "description": "Return type (e.g., 'STRING', 'INT', 'TABLE(col INT, ...)')"
+        },
+        "body": {
+          "type": "string",
+          "description": "SQL body expression"
+        }
+      },
+      "required": ["type", "args", "returns", "body"]
+    },
+    "operation": {
+      "type": "object",
+      "description": "A single pipeline operation",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "properties": {
+        "table": {
+          "description": "Source: table/view name, pipeline reference, or sql expression",
+          "oneOf": [
+            { "type": "string" },
+            { "$ref": "#/$defs/sql_source" },
+            { "$ref": "#/$defs/slices_source" },
+            { "$ref": "#/$defs/interval_intersect_source" },
+            { "$ref": "#/$defs/union_source" }
+          ]
+        },
+        "filter": {
+          "type": "string",
+          "description": "SQL WHERE expression"
+        },
+        "select": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Column projection (replaces column list)"
+        },
+        "computed": {
+          "type": "object",
+          "description": "Add derived columns: name → SQL expression",
+          "additionalProperties": { "type": "string" }
+        },
+        "group_by": {
+          "$ref": "#/$defs/group_by_op"
+        },
+        "window": {
+          "type": "object",
+          "description": "Add window function columns: name → window spec",
+          "additionalProperties": { "$ref": "#/$defs/window_spec" }
+        },
+        "sort": {
+          "description": "ORDER BY: column name or list of column names with optional DESC",
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        },
+        "limit": { "type": "integer" },
+        "offset": { "type": "integer" },
+        "distinct": {
+          "type": "boolean",
+          "const": true
+        },
+        "add_columns": { "$ref": "#/$defs/add_columns_op" },
+        "join": { "$ref": "#/$defs/join_op" },
+        "cross_join": {
+          "type": "string",
+          "description": "Cross join with another table/pipeline"
+        },
+        "span_join": { "$ref": "#/$defs/span_join_op" },
+        "filter_during": { "$ref": "#/$defs/filter_during_op" },
+        "filter_in": { "$ref": "#/$defs/filter_in_op" },
+        "except": {
+          "type": "string",
+          "description": "EXCEPT set difference with another pipeline"
+        },
+        "counter_to_intervals": {
+          "type": "boolean",
+          "const": true
+        },
+        "classify": { "$ref": "#/$defs/classify_op" },
+        "extract_args": {
+          "type": "object",
+          "description": "Bulk arg extraction: name → arg path",
+          "additionalProperties": { "type": "string" }
+        },
+        "find_ancestor": { "$ref": "#/$defs/find_ancestor_op" },
+        "find_descendant": { "$ref": "#/$defs/find_ancestor_op" },
+        "flow_reachable": { "$ref": "#/$defs/flow_reachable_op" },
+        "flatten_intervals": { "type": "boolean", "const": true },
+        "merge_overlapping": { "$ref": "#/$defs/merge_overlapping_op" },
+        "graph_reachable": { "$ref": "#/$defs/graph_reachable_op" },
+        "parse_name": {
+          "type": "string",
+          "description": "Extract fields from name column using {field} placeholders. E.g. 'owner {thread} ({tid}) at {method}'"
+        },
+        "unpivot": { "$ref": "#/$defs/unpivot_op" },
+        "pivot": { "$ref": "#/$defs/pivot_op" },
+        "self_join_temporal": { "$ref": "#/$defs/self_join_temporal_op" },
+        "index": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Create index on these columns"
+        }
+      }
+    },
+    "sql_source": {
+      "type": "object",
+      "properties": {
+        "sql": { "type": "string", "description": "Raw SQL expression" }
+      },
+      "required": ["sql"]
+    },
+    "slices_source": {
+      "type": "object",
+      "properties": {
+        "slices": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "thread": { "type": "string" },
+            "process": { "type": "string" },
+            "track": { "type": "string" }
+          }
+        }
+      },
+      "required": ["slices"]
+    },
+    "interval_intersect_source": {
+      "type": "object",
+      "properties": {
+        "interval_intersect": {
+          "type": "object",
+          "properties": {
+            "inputs": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 2
+            },
+            "partition": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "required": ["inputs"]
+        }
+      }
+    },
+    "union_source": {
+      "type": "object",
+      "properties": {
+        "union": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 2,
+          "description": "Pipeline names to UNION ALL"
+        }
+      }
+    },
+    "group_by_op": {
+      "type": "object",
+      "properties": {
+        "columns": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "agg": {
+          "type": "object",
+          "description": "Aggregation: name → SQL expression (e.g., 'sum(dur)')",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "required": ["columns", "agg"]
+    },
+    "window_spec": {
+      "type": "object",
+      "properties": {
+        "expr": { "type": "string", "description": "Window function expression (e.g., 'lead(ts)')" },
+        "partition": { "type": "array", "items": { "type": "string" } },
+        "order": { "type": "string" },
+        "frame": { "type": "string" }
+      },
+      "required": ["expr"]
+    },
+    "add_columns_op": {
+      "type": "object",
+      "properties": {
+        "from": { "type": "string" },
+        "on": { "type": "string" },
+        "cols": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["from", "on", "cols"]
+    },
+    "join_op": {
+      "type": "object",
+      "properties": {
+        "right": { "type": "string" },
+        "on": { "type": "string" },
+        "type": { "type": "string", "enum": ["INNER", "LEFT"], "default": "INNER" }
+      },
+      "required": ["right", "on"]
+    },
+    "span_join_op": {
+      "type": "object",
+      "properties": {
+        "right": { "type": "string" },
+        "partition": { "type": "array", "items": { "type": "string" } },
+        "type": { "type": "string", "enum": ["INNER", "LEFT"], "default": "INNER" }
+      },
+      "required": ["right"]
+    },
+    "filter_during_op": {
+      "type": "object",
+      "properties": {
+        "intervals": { "type": "string" },
+        "partition": { "type": "array", "items": { "type": "string" } },
+        "clip": { "type": "boolean", "default": true }
+      },
+      "required": ["intervals"]
+    },
+    "filter_in_op": {
+      "type": "object",
+      "properties": {
+        "match": { "type": "string" },
+        "base_col": { "type": "string" },
+        "match_col": { "type": "string" }
+      },
+      "required": ["match", "base_col", "match_col"]
+    },
+    "classify_op": {
+      "type": "object",
+      "properties": {
+        "column": { "type": "string", "description": "Result column name" },
+        "from": { "type": "string", "description": "Source column" },
+        "rules": {
+          "type": "object",
+          "description": "Pattern → value mapping. Use '_' key for default.",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "required": ["column", "from", "rules"]
+    },
+    "find_ancestor_op": {
+      "type": "object",
+      "properties": {
+        "where": { "type": "string" },
+        "cols": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["where", "cols"]
+    },
+    "flow_reachable_op": {
+      "type": "object",
+      "properties": {
+        "direction": { "type": "string", "enum": ["out", "in"], "default": "out" }
+      }
+    },
+    "merge_overlapping_op": {
+      "type": "object",
+      "properties": {
+        "epsilon": { "type": "integer", "default": 0 },
+        "partition": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "graph_reachable_op": {
+      "type": "object",
+      "properties": {
+        "edges": { "type": "string" },
+        "method": { "type": "string", "enum": ["dfs", "bfs"], "default": "dfs" }
+      },
+      "required": ["edges"]
+    },
+    "unpivot_op": {
+      "type": "object",
+      "description": "Transform wide columns into rows (UNION ALL). Each source column becomes a row.",
+      "properties": {
+        "columns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Column names to unpivot"
+        },
+        "name_col": {
+          "type": "string",
+          "description": "Output column for original column name (default: 'key')",
+          "default": "key"
+        },
+        "value_col": {
+          "type": "string",
+          "description": "Output column for the value (default: 'value')",
+          "default": "value"
+        }
+      },
+      "required": ["columns"]
+    },
+    "pivot_op": {
+      "type": "object",
+      "description": "Transform rows into wide columns using explicit value mapping.",
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "Source column whose values are pivoted"
+        },
+        "value": {
+          "type": "string",
+          "description": "Column providing the values to aggregate"
+        },
+        "agg": {
+          "type": "string",
+          "description": "Aggregation function (max, sum, min, etc.)",
+          "default": "max"
+        },
+        "values": {
+          "type": "object",
+          "description": "Mapping of source value → output column name",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "required": ["from", "value", "values"]
+    },
+    "self_join_temporal_op": {
+      "type": "object",
+      "description": "Self-join a table on key match + time overlap (ts/dur columns).",
+      "properties": {
+        "left_key": {
+          "type": "string",
+          "description": "Column on the left (base) side to match"
+        },
+        "right_key": {
+          "type": "string",
+          "description": "Column on the right side to match"
+        },
+        "overlap": {
+          "type": "string",
+          "enum": ["contains", "intersects"],
+          "default": "contains",
+          "description": "Time overlap mode: 'contains' = right.ts BETWEEN left.ts AND left.ts+left.dur"
+        },
+        "alias": {
+          "type": "string",
+          "description": "Alias for the right-side table (default: '_other')",
+          "default": "_other"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["INNER", "LEFT"],
+          "default": "INNER"
+        }
+      },
+      "required": ["left_key", "right_key"]
+    }
+  }
+}

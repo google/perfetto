@@ -1117,31 +1117,24 @@ base::Status PerfettoSqlEngine::IncludeModuleImpl(
     return base::OkStatus();
   }
 
-  // If the module content is PerfettoGraph (.pfgraph), compile it to SQL first.
-  // Detected by the content starting with "module " or a comment line (#, --)
-  // followed by "module ".
+  // Detect QueryGraph format by the #!querygraph shebang on the first line.
+  // This is invalid SQL (# is never valid), so it fails loudly if fed to SQLite.
   std::string_view content(file.sql);
-  // Skip leading whitespace and comments.
+  // Skip leading whitespace.
   size_t pos = 0;
-  while (pos < content.size()) {
-    if (content[pos] == ' ' || content[pos] == '\n' || content[pos] == '\r' ||
-        content[pos] == '\t') {
-      ++pos;
-    } else if (content[pos] == '#') {
-      while (pos < content.size() && content[pos] != '\n') ++pos;
-    } else if (content[pos] == '-' && pos + 1 < content.size() &&
-               content[pos + 1] == '-') {
-      while (pos < content.size() && content[pos] != '\n') ++pos;
-    } else {
-      break;
-    }
+  while (pos < content.size() &&
+         (content[pos] == ' ' || content[pos] == '\n' || content[pos] == '\r' ||
+          content[pos] == '\t')) {
+    ++pos;
   }
-  bool is_pfgraph = content.substr(pos).substr(0, 7) == "module " ||
-                    content.substr(pos).substr(0, 1) == "@";
-  if (is_pfgraph) {
-    auto compiled = pfgraph::CompilePfGraph(file.sql);
+  bool is_querygraph =
+      content.substr(pos).substr(0, 13) == "#!querygraph\n" ||
+      content.substr(pos).substr(0, 13) == "#!querygraph\r" ||
+      content.substr(pos).substr(0, 12) == "#!querygraph";
+  if (is_querygraph) {
+    auto compiled = pfgraph::CompilePfGraphYaml(file.sql);
     if (!compiled.ok()) {
-      return base::ErrStatus("pfgraph compilation of module '%s': %s",
+      return base::ErrStatus("querygraph compilation of module '%s': %s",
                              key.c_str(), compiled.status().message().c_str());
     }
     file.sql = *compiled;

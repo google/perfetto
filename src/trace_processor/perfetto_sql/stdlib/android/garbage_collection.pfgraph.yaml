@@ -1,0 +1,261 @@
+#!querygraph
+module: android.garbage_collection
+imports: [android.startup.startups, intervals.intersect, slices.with_context]
+
+# GC slices: depth-0 thread slices with lead() lookahead for CompactionPhase.
+_gc_slice:
+  type: view
+  ops:
+    - table: thread_slice
+    - filter: "depth = 0"
+    - window:
+        compact_name:
+          expr: "lead(name)"
+          partition: [track_id]
+          order: ts
+        compact_dur:
+          expr: "lead(dur)"
+          partition: [track_id]
+          order: ts
+    - computed:
+        gc_id: id
+        gc_name: name
+        gc_dur: "iif(dur = -1, trace_end() - ts, dur)"
+    - computed:
+        adj_gc_dur: "gc_dur + iif(compact_name = 'CompactionPhase' OR compact_name = 'Background concurrent copying GC', compact_dur, 0)"
+    - select: [gc_id, gc_name, "ts AS gc_ts", ts, "adj_gc_dur AS gc_dur", "adj_gc_dur AS dur", utid, tid, upid, pid, thread_name, process_name]
+    - filter: "gc_name GLOB '*concurrent*GC'"
+
+# Heap counter as intervals.
+_gc_heap_counter:
+  type: view
+  ops:
+    - table:
+        sql: |
+          SELECT c.ts,
+            coalesce(lead(c.ts) OVER (PARTITION BY track_id ORDER BY c.ts), trace_end()) - ts AS dur,
+            process.upid, cast_int!(c.value) AS value
+            FROM counter AS c JOIN process_counter_track AS t ON c.track_id = t.id
+            INNER JOIN process USING (upid) WHERE t.name = 'Heap size (KB)'
+
+# Merge GC end timestamps with heap counters to find post-GC heap value.
+# UNION ALL + lead() + LEFT JOIN back - irreducible to DSL.
+_gc_slice_with_final_heap:
+  type: view
+  ops:
+    - table:
+        sql: |
+          WITH slice_and_heap AS (
+            SELECT upid, gc_id, gc_ts + gc_dur AS ts, NULL AS value FROM _gc_slice
+            UNION ALL
+            SELECT upid, NULL AS gc_id, ts, value FROM _gc_heap_counter),
+          next_heap AS (
+            SELECT *, lead(value) OVER (PARTITION BY upid ORDER BY ts) AS last_value
+            FROM slice_and_heap),
+          slice_with_last_heap AS (SELECT * FROM next_heap WHERE gc_id IS NOT NULL)
+          SELECT _gc_slice.*, last_value FROM _gc_slice LEFT JOIN slice_with_last_heap USING (gc_id)
+
+# SPAN_JOIN GC slices with heap counters for min/max during GC.
+_gc_slice_heap_sp:
+  ops:
+    - table: _gc_slice_with_final_heap
+    - span_join:
+        right: _gc_heap_counter
+        partition: [upid]
+
+# Classify GC type and aggregate heap stats per GC event.
+# The nested max(max(...)) aggregate needs sql().
+_gc_slice_heap:
+  type: table
+  ops:
+    - table:
+        sql: |
+          SELECT gc_ts AS ts, gc_dur AS dur, upid, gc_id, gc_name, gc_ts, gc_dur, utid, tid, pid,
+            thread_name, process_name, last_value, value,
+            CASE WHEN gc_name GLOB '*NativeAlloc*' THEN 'native_alloc'
+              WHEN gc_name GLOB '*Alloc*' THEN 'alloc'
+              WHEN gc_name GLOB '*young*' THEN 'young'
+              WHEN gc_name GLOB '*CollectorTransition*' THEN 'collector_transition'
+              WHEN gc_name GLOB '*Explicit*' THEN 'explicit'
+              ELSE 'full' END AS gc_type,
+            iif(gc_name GLOB '*mark compact*', 1, 0) AS is_mark_compact,
+            max(max(value, last_value)) / 1e3 AS max_heap_mb,
+            min(min(value, last_value)) / 1e3 AS min_heap_mb
+          FROM _gc_slice_heap_sp GROUP BY gc_id
+
+# SPAN_LEFT_JOIN GC events with thread_state for time breakdown.
+_gc_slice_heap_thread_state_sp:
+  ops:
+    - table: _gc_slice_heap
+    - span_join:
+        right: thread_state
+        partition: [utid]
+        type: LEFT
+
+# Aggregate thread states per GC event into pivoted columns.
+android_garbage_collection_events:
+  type: table
+  ops:
+    - table:
+        sql: |
+          SELECT gc_id, state, io_wait,
+            tid, pid, utid, upid,
+            thread_name, process_name,
+            gc_type, is_mark_compact,
+            gc_ts, gc_dur,
+            max_heap_mb, min_heap_mb,
+            max_heap_mb - min_heap_mb AS reclaimed_mb,
+            sum(dur) AS dur, state, io_wait
+          FROM _gc_slice_heap_thread_state_sp
+          GROUP BY gc_id, state, io_wait
+    - group_by:
+        columns: [gc_id]
+        agg:
+          tid: tid
+          pid: pid
+          utid: utid
+          upid: upid
+          thread_name: thread_name
+          process_name: process_name
+          gc_type: gc_type
+          is_mark_compact: is_mark_compact
+          reclaimed_mb: reclaimed_mb
+          min_heap_mb: min_heap_mb
+          max_heap_mb: max_heap_mb
+          gc_ts: gc_ts
+          gc_dur: gc_dur
+          gc_running_dur: "sum(iif(state = 'Running', dur, 0))"
+          gc_runnable_dur: "sum(iif(state = 'R' OR state = 'R+', dur, 0))"
+          gc_unint_io_dur: "sum(iif(state = 'D' AND io_wait = 1, dur, 0))"
+          gc_unint_non_io_dur: "sum(iif(state = 'D' AND io_wait != 1, dur, 0))"
+          gc_int_dur: "sum(iif(state = 'S', dur, 0))"
+
+# Stats window: range of Heap size counters.
+_gc_stats_window:
+  type: table
+  ops:
+    - table:
+        sql: |
+          SELECT min(ts) AS gc_stats_window_start, max(ts) AS gc_stats_window_end,
+            max(ts) - min(ts) AS gc_stats_window_dur
+            FROM counter AS c LEFT JOIN process_counter_track AS t ON c.track_id = t.id
+            WHERE t.name = 'Heap size (KB)'
+
+# Heap allocations: positive deltas in heap counter.
+_gc_heap_allocated:
+  type: table
+  ops:
+    - table:
+        sql: |
+          SELECT upid, ts,
+            ts - lag(ts) OVER (PARTITION BY upid ORDER BY ts) AS dur, value,
+            CASE WHEN lag(c.value) OVER (PARTITION BY upid ORDER BY ts) < c.value
+              THEN c.value - lag(c.value) OVER (PARTITION BY upid ORDER BY ts) ELSE 0 END AS allocated
+            FROM counter AS c LEFT JOIN process_counter_track AS t ON c.track_id = t.id
+            WHERE t.name = 'Heap size (KB)'
+
+# GC during app startup: interval intersection.
+_startups_for_intersect:
+  ops:
+    - table: android_startups
+    - filter: "dur > 0"
+    - select: ["startup_id AS id", ts, dur]
+
+_gcs_for_intersect:
+  ops:
+    - table: android_garbage_collection_events
+    - select: ["gc_id AS id", "gc_ts AS ts", "gc_dur AS dur"]
+
+_gc_during_android_startup:
+  type: table
+  ops:
+    - table:
+        interval_intersect:
+          inputs: [_startups_for_intersect, _gcs_for_intersect]
+    - select: [ts, dur, "id_0 AS startup_id", "id_1 AS gc_id"]
+
+# Heap utilization: complex CTEs with UNION, cross join, lag().
+_gc_heap_utilization:
+  type: table
+  ops:
+    - table:
+        sql: |
+          WITH
+            before_first_gcs AS (
+              SELECT upid,
+                CASE WHEN start_ts IS NULL THEN gc_stats_window_start
+                ELSE max(start_ts, gc_stats_window_start) END AS gc_ts,
+                0 AS gc_dur, 0 AS min_heap_mb, 0 AS max_heap_mb
+              FROM process, _gc_stats_window),
+            combined_gcs AS (
+              SELECT upid, gc_ts, gc_dur, min_heap_mb, max_heap_mb
+              FROM android_garbage_collection_events
+              UNION SELECT * FROM before_first_gcs),
+            gc_periods AS (
+              SELECT upid,
+                gc_ts + gc_dur - lag(gc_ts + gc_dur) OVER (PARTITION BY upid ORDER BY gc_ts) AS gc_period,
+                min_heap_mb, max_heap_mb FROM combined_gcs)
+          SELECT upid, sum(gc_period * min_heap_mb) / 1e9 AS heap_live_mbs,
+            sum(gc_period * max_heap_mb) / 1e9 AS heap_total_mbs
+          FROM gc_periods WHERE min_heap_mb IS NOT NULL GROUP BY upid
+
+# Per-process GC stats: complex multi-CTE with cross joins.
+_android_garbage_collection_process_stats:
+  type: table
+  ops:
+    - table:
+        sql: |
+          WITH
+            gc_running_stats AS (
+              SELECT upid, sum(gc_running_dur) AS gc_running_dur
+              FROM android_garbage_collection_events GROUP BY upid),
+            heap_size_stats AS (
+              SELECT upid, sum(allocated) / 1e3 AS heap_allocated_mb,
+                sum(value * dur) / (1e3 * 1e9) AS heap_size_mbs
+              FROM _gc_heap_allocated GROUP BY upid),
+            gc_startup_stats AS (
+              SELECT upid, sum(dur) AS gc_during_android_startup_dur
+              FROM _gc_during_android_startup LEFT JOIN android_garbage_collection_events USING (gc_id)
+              GROUP BY upid),
+            startup_stats AS (SELECT sum(dur) AS total_android_startup_dur FROM android_startups),
+            pre_normalized_stats AS (
+              SELECT * FROM heap_size_stats
+              LEFT JOIN gc_running_stats USING (upid)
+              LEFT JOIN gc_startup_stats USING (upid)
+              LEFT JOIN _gc_heap_utilization USING (upid), _gc_stats_window, startup_stats),
+            normalized_stats AS (
+              SELECT upid,
+                gc_running_dur * 1.0 / gc_stats_window_dur AS gc_running_rate,
+                gc_during_android_startup_dur * 1.0 / total_android_startup_dur AS gc_during_android_startup_rate,
+                heap_allocated_mb * 1e9 / gc_stats_window_dur AS heap_allocation_rate,
+                heap_size_mbs * 1e9 / gc_stats_window_dur AS heap_size_mb,
+                heap_live_mbs / heap_total_mbs AS heap_utilization
+              FROM pre_normalized_stats)
+          SELECT upid, gc_stats_window_start AS ts, gc_stats_window_dur AS dur,
+            heap_size_mbs, heap_size_mb, heap_allocated_mb, heap_allocation_rate,
+            heap_live_mbs, heap_total_mbs, heap_utilization, gc_running_dur, gc_running_rate,
+            heap_allocation_rate * heap_utilization / (gc_running_rate * (1 - heap_utilization)) AS gc_running_efficiency,
+            gc_during_android_startup_dur, total_android_startup_dur, gc_during_android_startup_rate,
+            heap_allocation_rate * heap_utilization / (gc_during_android_startup_rate * (1 - heap_utilization)) AS gc_during_android_startup_efficiency
+          FROM pre_normalized_stats JOIN normalized_stats USING (upid)
+
+# Device-wide GC stats: aggregate across processes.
+_android_garbage_collection_stats:
+  type: table
+  ops:
+    - table:
+        sql: |
+          WITH base_stats AS (
+            SELECT ts, dur,
+              sum(heap_size_mbs) AS heap_size_mbs, sum(heap_size_mb) AS heap_size_mb,
+              sum(heap_allocated_mb) AS heap_allocated_mb, sum(heap_allocation_rate) AS heap_allocation_rate,
+              sum(heap_live_mbs) AS heap_live_mbs, sum(heap_total_mbs) AS heap_total_mbs,
+              sum(heap_live_mbs) / sum(heap_total_mbs) AS heap_utilization,
+              sum(gc_running_dur) AS gc_running_dur, sum(gc_running_rate) AS gc_running_rate,
+              sum(gc_during_android_startup_dur) AS gc_during_android_startup_dur,
+              total_android_startup_dur, sum(gc_during_android_startup_rate) AS gc_during_android_startup_rate
+            FROM _android_garbage_collection_process_stats)
+          SELECT *,
+            heap_allocation_rate * heap_utilization / (gc_running_rate * (1 - heap_utilization)) AS gc_running_efficiency,
+            heap_allocation_rate * heap_utilization / (gc_during_android_startup_rate * (1 - heap_utilization)) AS gc_during_android_startup_efficiency
+          FROM base_stats

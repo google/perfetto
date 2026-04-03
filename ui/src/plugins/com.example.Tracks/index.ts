@@ -21,6 +21,13 @@ import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {getColorForSlice, makeColorScheme} from '../../components/colorizer';
 import {HSLColor} from '../../base/color';
+import {
+  table,
+  slices,
+  sql,
+  intervalIntersect,
+  pipelineRef,
+} from '../../trace_processor/pfgraph_query_builder';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.example.Tracks';
@@ -361,6 +368,92 @@ function addGroupWithHelpText(trace: Trace) {
   trace.defaultWorkspace.addChildInOrder(groupNode);
   return groupNode;
 }
+
+// ============================================================================
+// Example: PfgraphPipeline query builder usage
+// ============================================================================
+// These examples show how to build pfgraph pipelines programmatically in
+// TypeScript. The query builder is auto-generated from pfgraph-schema.json
+// (via tools/gen_pfgraph_query_builder) so it stays in sync with the schema.
+
+// Simple: filter slices and pick columns.
+const _exampleFilteredSlices = table('slice')
+  .filter("dur > 1000 AND name GLOB 'binder*'")
+  .select('id', 'ts', 'dur', 'name');
+// Renders to:
+//   table('slice')
+//   .filter(dur > 1000 AND name GLOB 'binder*')
+//   .select(id, ts, dur, name)
+
+// Domain-aware source: slices with context matching.
+const _exampleSlicesSource = slices({name: 'binder*', process: 'com.android.*'})
+  .addColumns({from: 'thread', on: 'utid = utid', cols: ['name AS thread_name']})
+  .filter('thread_name IS NOT NULL');
+// Renders to:
+//   slices(name: 'binder*', process: 'com.android.*')
+//   .add_columns(from: table('thread'), on: utid = utid, cols: [name AS thread_name])
+//   .filter(thread_name IS NOT NULL)
+
+// Aggregation: group by process, compute metrics.
+const _exampleAggregation = table('thread_state')
+  .filter("state = 'Running'")
+  .groupBy('utid').agg({
+    total_dur: 'sum(dur)',
+    count: 'count()',
+    avg_dur: 'avg(dur)',
+  });
+// Renders to:
+//   table('thread_state')
+//   .filter(state = 'Running')
+//   .group_by(utid)
+//   .agg(total_dur: sum(dur), count: count(), avg_dur: avg(dur))
+
+// Trace-specific: interval intersect + span join.
+const _exampleIntervalIntersect = intervalIntersect({
+  inputs: ['_app_slices', '_startup_intervals'],
+  partition: ['upid'],
+}).select('id', 'ts', 'dur', 'name');
+
+// Raw SQL escape hatch for irreducible patterns.
+const _exampleSql = sql(`SELECT s.id, s.ts, s.dur, s.name
+FROM slice s
+JOIN ancestor_slice(s.id) AS anc ON anc.name = 'Choreographer#doFrame'`);
+
+// Window functions: add lead/lag columns.
+const _exampleWindow = table('thread_state')
+  .window({
+    next_ts: {expr: 'lead(ts, 1, trace_end())', partition: ['utid'], order: 'ts'},
+    prev_state: {expr: 'lag(state)', partition: ['utid'], order: 'ts'},
+  })
+  .computed({gap: 'next_ts - ts - dur'});
+
+// Rendering: call .render() to get the pfgraph text, or .renderAs() for
+// a named pipeline declaration.
+void _exampleFilteredSlices;  // Suppress unused warnings.
+void _exampleSlicesSource;
+void _exampleAggregation;
+void _exampleIntervalIntersect;
+void _exampleSql;
+void _exampleWindow;
+
+// .render() returns the pipeline body:
+//   table('slice')
+//   .filter(dur > 1000 AND name GLOB 'binder*')
+//   .select(id, ts, dur, name)
+console.log(_exampleFilteredSlices.render());
+
+// .renderAs() wraps it with a pipeline declaration:
+// @view android_binder_metrics:
+//   table('slice')
+//   ...
+console.log(_exampleFilteredSlices.renderAs('android_binder_metrics', {type: 'view'}));
+
+// Pipeline references: chain from an intermediate pipeline.
+const _exampleChained = pipelineRef('_exampleFilteredSlices')
+  .groupBy('name').agg({count: 'count()'})
+  .sort('count DESC')
+  .limit(10);
+void _exampleChained;
 
 // Example 8: A track with incomplete slices (dur = -1) at various depth levels.
 async function addIncompleteSlicesTrack(trace: Trace): Promise<void> {

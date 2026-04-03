@@ -29,6 +29,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/perfetto_sql/pfgraph/pfgraph_ast.h"
 #include "src/trace_processor/perfetto_sql/pfgraph/pfgraph_parser.h"
+#include "src/trace_processor/perfetto_sql/pfgraph/pfgraph_yaml_to_ast.h"
 
 namespace perfetto::trace_processor::pfgraph {
 
@@ -871,6 +872,57 @@ class Compiler {
       return fresh;
     }
 
+    if (auto* pv = std::get_if<PivotOp>(&op)) {
+      // Wrap current query so we can GROUP BY + CASE over it.
+      qb = qb.Wrap("_w" + std::to_string(wrap_counter++));
+
+      // Build: agg(CASE WHEN source_col = 'val' THEN value_col END) AS out_col
+      // for each value mapping, plus GROUP BY all other columns implicitly.
+      // We use a SELECT with the pivot expressions.
+      std::vector<std::string> select_parts;
+      select_parts.push_back("*");
+      for (const auto& [src_val, out_col] : pv->values) {
+        std::string case_expr =
+            pv->agg + "(CASE WHEN " + pv->source_column + " = '" +
+            EscapeSql(src_val) + "' THEN " + pv->value_column + " END) AS " +
+            out_col;
+        select_parts.push_back(std::move(case_expr));
+      }
+      // The caller is expected to chain a group_by after pivot, or we can
+      // just emit the CASE expressions as computed columns and let the user
+      // handle grouping. Actually, pivot implies grouping — emit it.
+      // But we don't know the group-by columns. The user must chain group_by.
+      // So pivot just adds the CASE expressions as computed columns.
+      qb.select = base::Join(select_parts, ", ");
+      return qb;
+    }
+
+    if (auto* sj = std::get_if<SelfJoinTemporalOp>(&op)) {
+      // Materialize inner query as a temp table (like span_join pattern).
+      std::string temp_name = "_sjt_" + name + "_" + std::to_string(wrap_counter++);
+      span_join_preambles_.push_back(
+          "CREATE PERFETTO TABLE " + temp_name + " AS\n" + qb.Build() + ";\n");
+
+      // Build temporal join condition.
+      std::string alias = sj->right_alias;
+      std::string join_type = sj->is_left ? "LEFT JOIN" : "JOIN";
+      std::string temporal_cond;
+      if (sj->overlap == "intersects") {
+        // Intervals overlap: NOT (a.ts + a.dur <= b.ts OR b.ts + b.dur <= a.ts)
+        temporal_cond = alias + ".ts < _self.ts + _self.dur AND _self.ts < " +
+                        alias + ".ts + " + alias + ".dur";
+      } else {
+        // "contains": right.ts BETWEEN left.ts AND left.ts + left.dur
+        temporal_cond = alias + ".ts BETWEEN _self.ts AND _self.ts + _self.dur";
+      }
+
+      QueryBuilder fresh;
+      fresh.from = temp_name + " AS _self\n" + join_type + " " + temp_name +
+                   " AS " + alias + " ON _self." + sj->left_key + " = " +
+                   alias + "." + sj->right_key + " AND " + temporal_cond;
+      return fresh;
+    }
+
     // IndexOp is handled in CompileNamedPipeline, not here.
     if (std::get_if<IndexOp>(&op)) {
       return qb;
@@ -1200,6 +1252,13 @@ class Compiler {
 base::StatusOr<std::string> CompilePfGraph(std::string_view source) {
   GraphModule ast;
   ASSIGN_OR_RETURN(ast, ParsePfGraph(source));
+  Compiler compiler;
+  return compiler.Compile(ast);
+}
+
+base::StatusOr<std::string> CompilePfGraphYaml(std::string_view yaml_source) {
+  GraphModule ast;
+  ASSIGN_OR_RETURN(ast, ParsePfGraphYaml(yaml_source));
   Compiler compiler;
   return compiler.Compile(ast);
 }

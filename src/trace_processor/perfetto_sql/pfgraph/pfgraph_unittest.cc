@@ -622,5 +622,156 @@ TEST(PfGraphCompilerTest, SourceTemplate) {
   EXPECT_THAT(sql, HasSubstr("value > 0"));
 }
 
+// ============================================================================
+// YAML format tests
+// ============================================================================
+
+TEST(PfGraphYamlTest, SimpleYamlPipeline) {
+  auto result = CompilePfGraphYaml(R"yaml(
+#!querygraph
+module: test
+
+result:
+  type: table
+  ops:
+    - table: slice
+    - filter: "dur > 0"
+    - select: [id, ts, dur, name]
+    - sort: dur DESC
+    - limit: 10
+)yaml");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  auto& sql = *result;
+  EXPECT_THAT(sql, HasSubstr("CREATE PERFETTO TABLE result"));
+  EXPECT_THAT(sql, HasSubstr("FROM slice"));
+  EXPECT_THAT(sql, HasSubstr("WHERE dur > 0"));
+  EXPECT_THAT(sql, HasSubstr("ORDER BY dur DESC"));
+  EXPECT_THAT(sql, HasSubstr("LIMIT 10"));
+}
+
+TEST(PfGraphYamlTest, YamlWithImports) {
+  auto result = CompilePfGraphYaml(R"yaml(
+#!querygraph
+module: android.test
+imports: [android.process_metadata, slices.with_context]
+
+foo:
+  type: table
+  ops:
+    - table: slice
+)yaml");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  auto& sql = *result;
+  EXPECT_THAT(sql, HasSubstr("INCLUDE PERFETTO MODULE android.process_metadata"));
+  EXPECT_THAT(sql, HasSubstr("INCLUDE PERFETTO MODULE slices.with_context"));
+}
+
+TEST(PfGraphYamlTest, YamlFunction) {
+  auto result = CompilePfGraphYaml(R"yaml(
+#!querygraph
+module: test
+
+_my_func:
+  type: function
+  args: {x: INT}
+  returns: INT
+  body: "SELECT $x * 2"
+
+result:
+  type: table
+  ops:
+    - table: slice
+    - limit: 1
+)yaml");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  auto& sql = *result;
+  EXPECT_THAT(sql, HasSubstr("CREATE PERFETTO FUNCTION _my_func"));
+  EXPECT_THAT(sql, HasSubstr("x INT"));
+}
+
+TEST(PfGraphYamlTest, YamlComputedAndWindow) {
+  auto result = CompilePfGraphYaml(R"yaml(
+#!querygraph
+module: test
+
+result:
+  type: table
+  ops:
+    - table: thread_state
+    - computed:
+        end_ts: "ts + dur"
+    - window:
+        prev_state:
+          expr: "lag(state)"
+          partition: [utid]
+          order: ts
+)yaml");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  auto& sql = *result;
+  EXPECT_THAT(sql, HasSubstr("ts + dur AS end_ts"));
+  EXPECT_THAT(sql, HasSubstr("OVER (PARTITION BY utid ORDER BY ts) AS prev_state"));
+}
+
+TEST(PfGraphYamlTest, YamlGroupByAgg) {
+  auto result = CompilePfGraphYaml(R"yaml(
+#!querygraph
+module: test
+
+result:
+  ops:
+    - table: slice
+    - group_by:
+        columns: [name]
+        agg:
+          total_dur: "sum(dur)"
+          cnt: "count()"
+)yaml");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  auto& sql = *result;
+  EXPECT_THAT(sql, HasSubstr("GROUP BY name"));
+  EXPECT_THAT(sql, HasSubstr("sum(dur) AS total_dur"));
+  EXPECT_THAT(sql, HasSubstr("count() AS cnt"));
+}
+
+TEST(PfGraphYamlTest, YamlSqlSource) {
+  auto result = CompilePfGraphYaml(R"yaml(
+#!querygraph
+module: test
+
+result:
+  type: table
+  ops:
+    - table:
+        sql: "SELECT 1 AS id, 100 AS ts, 50 AS dur"
+    - filter: "dur > 0"
+)yaml");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  auto& sql = *result;
+  EXPECT_THAT(sql, HasSubstr("SELECT 1 AS id"));
+  EXPECT_THAT(sql, HasSubstr("WHERE dur > 0"));
+}
+
+TEST(PfGraphYamlTest, YamlPipelineReference) {
+  auto result = CompilePfGraphYaml(R"yaml(
+#!querygraph
+module: test
+
+_base:
+  ops:
+    - table: slice
+    - filter: "dur > 100"
+
+result:
+  type: table
+  ops:
+    - table: _base
+    - select: [id, ts]
+)yaml");
+  ASSERT_TRUE(result.ok()) << result.status().message();
+  auto& sql = *result;
+  EXPECT_THAT(sql, HasSubstr("CREATE PERFETTO TABLE _base"));
+  EXPECT_THAT(sql, HasSubstr("CREATE PERFETTO TABLE result"));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::pfgraph

@@ -23,6 +23,10 @@ source_set("pfgraph") {
     "pfgraph_parser.h",
     "pfgraph_tokenizer.cc",
     "pfgraph_tokenizer.h",
+    "pfgraph_yaml_to_ast.cc",
+    "pfgraph_yaml_to_ast.h",
+    "yaml_parser.cc",
+    "yaml_parser.h",
   ]
   deps = [
     "../../../../gn:default_deps",

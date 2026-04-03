@@ -14,22 +14,21 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PFGRAPH_PFGRAPH_COMPILER_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PFGRAPH_PFGRAPH_COMPILER_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PFGRAPH_PFGRAPH_YAML_TO_AST_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PFGRAPH_PFGRAPH_YAML_TO_AST_H_
 
-#include <string>
 #include <string_view>
 
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/perfetto_sql/pfgraph/pfgraph_ast.h"
 
 namespace perfetto::trace_processor::pfgraph {
 
-// Compiles a .pfgraph source text (custom DSL) into PerfettoSQL statements.
-base::StatusOr<std::string> CompilePfGraph(std::string_view source);
-
-// Compiles a .pfgraph.yaml source (YAML format) into PerfettoSQL statements.
-base::StatusOr<std::string> CompilePfGraphYaml(std::string_view yaml_source);
+// Parses a YAML string into a PfGraph AST (GraphModule).
+// This is the YAML equivalent of ParsePfGraph() — same AST output,
+// different input format.
+base::StatusOr<GraphModule> ParsePfGraphYaml(std::string_view yaml_input);
 
 }  // namespace perfetto::trace_processor::pfgraph
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_PFGRAPH_PFGRAPH_COMPILER_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_PFGRAPH_PFGRAPH_YAML_TO_AST_H_

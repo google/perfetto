@@ -1,10 +1,11 @@
+#!querygraph
 module: android.input
 imports: [android.frames.timeline, intervals.intersect, slices.with_context]
 
 # Input messages sent (sendMessage slices with thread/process context).
 _input_message_sent:
   ops:
-    - from:
+    - table:
         sql: |
           SELECT
             str_split(str_split(slice.name, '=', 3), ')', 0) AS event_type,
@@ -23,7 +24,7 @@ _input_message_sent:
 # Input messages received (receiveMessage slices with thread/process context).
 _input_message_received:
   ops:
-    - from:
+    - table:
         sql: |
           SELECT
             str_split(str_split(slice.name, '=', 3), ')', 0) AS event_type,
@@ -42,7 +43,7 @@ _input_message_received:
 # Input read time from UnwantedInteractionBlocker slices.
 _input_read_time:
   ops:
-    - from:
+    - table:
         sql: |
           WITH _extracted_input_read_args AS (
             SELECT name,
@@ -58,7 +59,7 @@ _input_read_time:
 # Map event_seq to input_event_id via sendMessage parent chain.
 _event_seq_to_input_event_id:
   ops:
-    - from:
+    - table:
         sql: |
           WITH _send_message_events AS (
             SELECT send_message_slice.name,
@@ -84,7 +85,7 @@ _event_seq_to_input_event_id:
 # Clean android frames with do_frame slice info.
 _clean_android_frames:
   ops:
-    - from:
+    - table:
         sql: |
           SELECT f.ts, f.dur,
             do_frame_slice.id AS do_frame_id,
@@ -97,7 +98,7 @@ _clean_android_frames:
 # Clean deliver events with extracted input event id and action.
 _clean_deliver_events:
   ops:
-    - from:
+    - table:
         sql: |
           SELECT s.id, s.ts, s.dur,
             cast_int!(t.utid) AS utid, t.process_name,
@@ -113,7 +114,7 @@ _clean_deliver_events:
 # Exact match: find Choreographer#doFrame that intersects with deliver event.
 _input_event_frame_intersections:
   ops:
-    - from:
+    - table:
         sql: |
           SELECT
             ii.id_0 AS do_frame_id_key,
@@ -133,7 +134,7 @@ _input_event_frame_intersections:
 # Events that did not match a frame via interval intersection.
 _input_events_pending_frame_match:
   ops:
-    - from:
+    - table:
         sql: |
           SELECT * FROM _clean_deliver_events
           WHERE NOT id IN (SELECT event_id_key FROM _input_event_frame_intersections)
@@ -141,7 +142,7 @@ _input_events_pending_frame_match:
 # Speculative match: find the immediate next frame for non-vsync-aligned events.
 _input_event_frame_speculative_matches:
   ops:
-    - from:
+    - table:
         sql: |
           WITH _ordered_future_frames AS (
             SELECT e.id AS event_id_key, f.do_frame_id AS do_frame_id_key,
@@ -155,7 +156,7 @@ _input_event_frame_speculative_matches:
 # Union of exact and speculative frame associations.
 _input_event_frame_association:
   ops:
-    - from:
+    - table:
         sql: |
           SELECT * FROM _input_event_frame_intersections
           UNION ALL
@@ -164,7 +165,7 @@ _input_event_frame_association:
 # Map input_event_id to android frame via association + deliver events.
 _input_event_id_to_android_frame:
   ops:
-    - from:
+    - table:
         sql: |
           SELECT
             dev.extracted_input_event_id AS input_event_id,
@@ -182,7 +183,7 @@ _input_event_id_to_android_frame:
 # Map app frames to surface flinger frames.
 _app_frame_to_surface_flinger_frame:
   ops:
-    - from:
+    - table:
         sql: |
           SELECT
             app.surface_frame_token AS app_surface_frame_token,
@@ -199,7 +200,7 @@ _app_frame_to_surface_flinger_frame:
 # First non-dropped frame after input event.
 _first_non_dropped_frame_after_input:
   ops:
-    - from:
+    - table:
         sql: |
           SELECT
             _input_read_time.input_event_id,
@@ -247,7 +248,7 @@ _normalize_event_channel:
 android_input_events:
   type: table
   ops:
-    - from:
+    - table:
         sql: |
           WITH
             dispatch AS (
@@ -316,7 +317,7 @@ android_input_events:
 android_key_events:
   type: view
   ops:
-    - from:
+    - table:
         sql: |
           SELECT id, event_id, ts, arg_set_id, source, action, device_id, display_id, key_code
           FROM __intrinsic_android_key_events
@@ -325,7 +326,7 @@ android_key_events:
 android_motion_events:
   type: view
   ops:
-    - from:
+    - table:
         sql: |
           SELECT id, event_id, ts, arg_set_id, source, action, device_id, display_id
           FROM __intrinsic_android_motion_events
@@ -334,7 +335,7 @@ android_motion_events:
 android_input_event_dispatch:
   type: view
   ops:
-    - from:
+    - table:
         sql: |
           SELECT id, event_id, arg_set_id, vsync_id, window_id
           FROM __intrinsic_android_input_event_dispatch
@@ -343,7 +344,7 @@ android_input_event_dispatch:
 _input_consumers_lookup:
   type: table
   ops:
-    - from:
+    - table:
         sql: |
           SELECT id, track_id, ts, dur,
             printf('0x%x', extract_arg(arg_set_id, 'cookie')) AS cookie
@@ -354,7 +355,7 @@ _input_consumers_lookup:
 _frame_choreographer_lookup:
   type: table
   ops:
-    - from:
+    - table:
         sql: |
           SELECT id, track_id, ts, dur,
             cast_int!(str_split(name, ' ', 1)) AS frame_id
