@@ -381,8 +381,12 @@ declare_args() {
   enable_perfetto_zlib =
       enable_perfetto_trace_processor || enable_perfetto_platform_services
 
-  # Enables PCRE2 support for Android.
-  enable_perfetto_pcre2 = perfetto_build_with_android
+  # TODO(b/494498282): Re-enable once all clients of
+  # libperfetto_client_experimental are updated to include libpcre2 in their
+  # deps. A cc_defaults (libperfetto_client_experimental_defaults) should be
+  # created to make this easier for consumers. Until then, base::Regex falls
+  # back to std::regex on Android.
+  enable_perfetto_pcre2 = false
 
   # Enables RE2 support.
   enable_perfetto_re2 = perfetto_build_standalone || build_with_chromium
