@@ -953,6 +953,10 @@ class Task {
     const ret = this.func.name.startsWith('exec') ? [] : [this.func.name];
     const flattenedArgs = [].concat(...this.args);
     for (const arg of flattenedArgs) {
+      if (typeof arg === 'object' && arg !== null) {
+        ret.push(JSON.stringify(arg));
+        continue;
+      }
       const argStr = `${arg}`;
       if (argStr.startsWith('/')) {
         ret.push(path.relative(cfg.outDir, arg));
