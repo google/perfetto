@@ -166,7 +166,13 @@ export default class GpuPlugin implements PerfettoPlugin {
           name,
         ),
       });
-      parent.addChildInOrder(new TrackNode({uri, name, sortOrder: -20}));
+      parent.addChildInOrder(
+        new TrackNode({
+          uri,
+          name,
+          sortOrder: gpu.sortOrder,
+        }),
+      );
     }
   }
 
@@ -193,6 +199,7 @@ export default class GpuPlugin implements PerfettoPlugin {
         parentGroup,
         gpuSubGroupName,
         scopeId,
+        gpu.sortOrder,
       );
       gpuSubGroup.addChildInOrder(track);
     } else {
@@ -204,6 +211,7 @@ export default class GpuPlugin implements PerfettoPlugin {
     node: TrackNode,
     group: string | undefined,
     scopeId: string | null,
+    sortOrder?: number,
   ): TrackNode {
     if (group === undefined) {
       return node;
@@ -218,6 +226,7 @@ export default class GpuPlugin implements PerfettoPlugin {
       isSummary: true,
       name: group,
       collapsed: true,
+      sortOrder,
     });
     node.addChildInOrder(newGroup);
     this.groups.set(groupId, newGroup);
@@ -351,7 +360,11 @@ export default class GpuPlugin implements PerfettoPlugin {
         ctx,
         group,
         groupGpu,
-        new TrackNode({uri, name: trackName, sortOrder: 0}),
+        new TrackNode({
+          uri,
+          name: trackName,
+          sortOrder: gpu?.sortOrder ?? 0,
+        }),
       );
     }
   }
@@ -446,7 +459,11 @@ export default class GpuPlugin implements PerfettoPlugin {
         ctx,
         schema.group,
         gpu,
-        new TrackNode({uri, name: trackName, sortOrder: 0}),
+        new TrackNode({
+          uri,
+          name: trackName,
+          sortOrder: gpu?.sortOrder ?? 0,
+        }),
       );
     }
   }
