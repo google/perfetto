@@ -141,6 +141,13 @@ export interface NodeManifest<C extends object = {}> {
   readonly outputs?: ReadonlyArray<ManifestPort>;
   readonly canDockTop?: boolean;
   readonly canDockBottom?: boolean;
+
+  /**
+   * If provided, overrides the static canDockTop based on the live node
+   * instance (e.g. variable-input nodes that are only dockable when they
+   * have exactly one input wired).
+   */
+  canDockTopDynamic?(node: NodeData): boolean;
   readonly hue: number;
 
   /**

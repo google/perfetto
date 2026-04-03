@@ -409,6 +409,119 @@
   opacity: 0.5;
 }
 
+// IR tab: one card per IrEntry.
+.pf-qb-ir-block {
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.pf-qb-ir-block-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--pf-color-border);
+  background: color-mix(in srgb, var(--pf-color-border) 30%, transparent);
+}
+
+.pf-qb-ir-hash {
+  font-family: var(--pf-font-monospace);
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.pf-qb-ir-meta {
+  font-size: 11px;
+  opacity: 0.55;
+  flex: 1;
+}
+
+.pf-qb-ir-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.pf-qb-ir-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+
+  &--hit {
+    background: color-mix(in srgb, var(--pf-color-success, #4a8) 20%, transparent);
+    color: var(--pf-color-success, #4a8);
+  }
+
+  &--miss {
+    background: color-mix(in srgb, var(--pf-color-warning, #c90) 20%, transparent);
+    color: var(--pf-color-warning, #c90);
+  }
+}
+
+.pf-qb-ir-time {
+  font-size: 11px;
+  font-family: var(--pf-font-monospace);
+  opacity: 0.7;
+}
+
+.pf-qb-ir-sql {
+  margin: 0;
+  padding: 8px 10px;
+  font-family: var(--pf-font-monospace);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+// SQL node textarea.
+.pf-qb-sql-textarea {
+  width: 100%;
+  min-height: 100px;
+  resize: both;
+  font-family: var(--pf-font-monospace);
+  font-size: 12px;
+  background: var(--pf-color-void);
+  color: var(--pf-color-text);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  box-sizing: border-box;
+  outline: none;
+
+  &:focus {
+    border-color: var(--pf-color-primary);
+  }
+}
+
+// SQL node column rows (input alias: index + name; output column: type + name + delete).
+.pf-qb-sql-col-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 2px;
+  align-items: center;
+
+  .pf-text-input {
+    min-width: 0;
+  }
+
+  .pf-select {
+    field-sizing: content;
+    width: auto;
+  }
+
+  .pf-button {
+    margin-right: -6px;
+  }
+}
+
 // Chart dashboard — fills the details panel.
 .pf-qb-chart-dashboard {
   display: flex;

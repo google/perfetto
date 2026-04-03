@@ -800,6 +800,31 @@ A "from thread" node feeding a join's right side should use a connection.
   Joins args on column=arg_set_id, extracts display_value as alias.
   isValid: always true.
 
+### "sql" — raw SQL escape hatch
+  config: {
+    "sql": "SELECT e.ts, e.dur, e.name, t.name AS thread\nFROM events e\nJOIN threads t USING (utid)",
+    "inputNames": ["events", "threads"],  // alias for each wired input (parallel to inputs array)
+    "columns": [                          // manually declare output column types (optional)
+      { "name": "ts",     "type": "timestamp" },
+      { "name": "dur",    "type": "duration" },
+      { "name": "name",   "type": "string" },
+      { "name": "thread", "type": "string" }
+    ]
+  }
+  Variable inputs (same pattern as union — set inputs array and wire connections).
+  Each wired input is injected as a named CTE before the SQL body:
+    WITH events AS (SELECT * FROM <ref>), threads AS (SELECT * FROM <ref>)
+    <sql>
+  The alias used in the WITH clause comes from inputNames[i] (falls back to
+  "input_i" if blank). Reference that alias by name inside the sql field.
+  Use this when no combination of other nodes can express the query.
+  The sql field must be a complete SELECT statement. It becomes a CTE whose
+  output can be wired to downstream nodes via connections or nextId.
+  columns is optional — leave it as [] if you don't need type-aware column
+  picking downstream. Valid type values: "int" | "double" | "string" |
+  "boolean" | "timestamp" | "duration" | "bytes" | "" (unknown).
+  isValid: sql must be non-empty.
+
 ### "chart" — bar chart dashboard (variable inputs)
   config: {
     "charts": [

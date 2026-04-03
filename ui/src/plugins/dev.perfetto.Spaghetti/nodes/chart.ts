@@ -358,7 +358,6 @@ export const manifest: NodeManifest<ChartConfig> = {
             }),
             m(Button, {
               icon: 'close',
-              compact: true,
               title: 'Remove chart',
               onclick: () =>
                 updateConfig({charts: config.charts.filter((_, j) => j !== i)}),

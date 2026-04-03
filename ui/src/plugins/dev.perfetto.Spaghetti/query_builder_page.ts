@@ -56,58 +56,10 @@ import {
   getOutputColumnsForNode,
   getRootNodeIds,
 } from './graph_utils';
-import {
-  CacheEntry,
-  MaterializationService,
-  QueryReport,
-} from './materialization';
+import {MaterializationService} from './materialization';
 import {Intent} from '../../widgets/common';
 import {Popup} from '../../widgets/popup';
 
-function formatQueryReport(report: QueryReport): string {
-  const lines: string[] = [];
-  const hits = report.entries.filter((e) => e.cacheHit).length;
-  const misses = report.entries.length - hits;
-  lines.push(
-    `${report.entries.length} entries | ${hits} cache hits | ${misses} misses | ${report.totalTimeMs.toFixed(1)}ms total`,
-  );
-  lines.push('');
-  for (const entry of report.entries) {
-    const status = entry.cacheHit ? 'HIT ' : 'MISS';
-    const time = entry.cacheHit
-      ? '     '
-      : `${entry.timeMs.toFixed(1).padStart(5)}ms`;
-    lines.push(`${status}  ${time}  ${entry.hash}`);
-    const sqlOneLine = entry.sql.replace(/\n/g, ' ').replace(/\s+/g, ' ');
-    const truncated =
-      sqlOneLine.length > 80 ? sqlOneLine.slice(0, 77) + '...' : sqlOneLine;
-    lines.push(`                ${truncated}`);
-  }
-  return lines.join('\n');
-}
-
-function formatCacheInfo(entries: readonly CacheEntry[]): string {
-  if (entries.length === 0) return 'Cache is empty';
-  const lines: string[] = [];
-  lines.push(`${entries.length} tables cached`);
-  lines.push('');
-  // Sort by most recently hit first.
-  const sorted = [...entries].sort((a, b) => b.lastHitAt - a.lastHitAt);
-  for (const entry of sorted) {
-    const hits = entry.hitCount === 1 ? '1 hit' : `${entry.hitCount} hits`;
-    lines.push(
-      `${entry.hash}  ${hits}  ${entry.materializeTimeMs.toFixed(1)}ms`,
-    );
-    lines.push(
-      `  created ${formatTimestamp(entry.createdAt)} | last hit ${formatTimestamp(entry.lastHitAt)}`,
-    );
-    const sqlOneLine = entry.sql.replace(/\n/g, ' ').replace(/\s+/g, ' ');
-    const truncated =
-      sqlOneLine.length > 72 ? sqlOneLine.slice(0, 69) + '...' : sqlOneLine;
-    lines.push(`  ${truncated}`);
-  }
-  return lines.join('\n');
-}
 
 function formatTimestamp(perfNow: number): string {
   // Convert performance.now() to a wall-clock Date.
@@ -159,7 +111,7 @@ export function QueryBuilderPage(
 
   let matService: MaterializationService | undefined;
 
-  const STORAGE_KEY = 'perfetto.nodeQueryBuilder.savedGraph';
+  const STORAGE_KEY = 'perfettoSpaghetti';
 
   function serializeStore(s: NodeQueryBuilderStore): string {
     return JSON.stringify({
@@ -590,7 +542,9 @@ export function QueryBuilderPage(
         trace,
       ),
       canDockBottom: manifest.canDockBottom,
-      canDockTop: manifest.canDockTop,
+      canDockTop: manifest.canDockTopDynamic
+        ? manifest.canDockTopDynamic(nodeData)
+        : manifest.canDockTop,
       next: nextModel
         ? buildNodeModel(nextModel, tableNames, trace, sqlModules)
         : undefined,
@@ -743,6 +697,7 @@ export function QueryBuilderPage(
         'union',
         'interval_intersect',
         'chart',
+        'sql',
       ];
       const addNodeMenuItems = nodeTypes.map(nodeMenuItem);
 
@@ -996,18 +951,42 @@ export function QueryBuilderPage(
         ? displaySql ?? 'Incomplete query — fill in all required fields'
         : 'Select a node to preview its SQL';
 
-      // Build IR JSON for the IR tab.
-      let irJson: string | undefined;
-      if (activeNodeId) {
-        const entries = buildIR(
-          activeNodes,
-          activeConns,
-          activeNodeId,
-          sqlModules,
-        );
-        if (entries && entries.length > 0) {
-          irJson = JSON.stringify(entries, null, 2);
-        }
+      // Build IR entries for the IR tab (pure function of graph, always fresh).
+      const irEntries = activeNodeId
+        ? buildIR(activeNodes, activeConns, activeNodeId, sqlModules) ?? []
+        : [];
+
+      // Index report entries by hash for O(1) lookup per IR block.
+      const reportByHash = new Map(
+        (queryReport?.entries ?? []).map((e) => [e.hash, e]),
+      );
+
+      function renderIrBlock(entry: (typeof irEntries)[number]): m.Children {
+        const meta: string[] = [];
+        if (entry.nodeIds.length > 0)
+          meta.push(`nodes: ${entry.nodeIds.join(', ')}`);
+        if (entry.deps.length > 0) meta.push(`deps: ${entry.deps.join(', ')}`);
+        if (entry.includes.length > 0)
+          meta.push(`includes: ${entry.includes.join(', ')}`);
+        const report = reportByHash.get(entry.hash);
+        return m('.pf-qb-ir-block', [
+          m('.pf-qb-ir-block-header', [
+            m('span.pf-qb-ir-hash', entry.hash),
+            meta.length > 0 && m('span.pf-qb-ir-meta', meta.join(' · ')),
+            report &&
+              m('.pf-qb-ir-badges', [
+                report.cacheHit &&
+                  m(
+                    'span.pf-qb-ir-badge',
+                    {className: 'pf-qb-ir-badge--hit'},
+                    'CACHED',
+                  ),
+                !report.cacheHit &&
+                  m('span.pf-qb-ir-time', `${report.timeMs.toFixed(1)}ms`),
+              ]),
+          ]),
+          m('pre.pf-qb-ir-sql', entry.sql),
+        ]);
       }
 
       function renderPreBlock(text: string, hasContent: boolean): m.Children {
@@ -1071,7 +1050,6 @@ export function QueryBuilderPage(
                           variant: ButtonVariant.Filled,
                           icon: 'content_copy',
                           label: 'Copy',
-                          compact: true,
                           onclick: () => {
                             navigator.clipboard.writeText(displaySql);
                           },
@@ -1120,58 +1098,17 @@ export function QueryBuilderPage(
                     display: 'flex',
                     flexDirection: 'column',
                     flex: '1',
-                    overflow: 'hidden',
+                    overflow: 'auto',
+                    padding: '8px',
+                    gap: '8px',
                   },
                 },
-                [
-                  irJson
-                    ? m(
-                        '',
-                        {
-                          style: {
-                            display: 'flex',
-                            justifyContent: 'flex-end',
-                            padding: '4px 8px 0',
-                            gap: '4px',
-                          },
-                        },
-                        m(Button, {
-                          variant: ButtonVariant.Filled,
-                          icon: 'content_copy',
-                          label: 'Copy',
-                          compact: true,
-                          onclick: () => {
-                            navigator.clipboard.writeText(irJson!);
-                          },
-                        }),
-                      )
-                    : null,
-                  renderPreBlock(
-                    irJson ??
-                      (activeNodeId ? 'No IR available' : 'Select a node'),
-                    !!irJson,
-                  ),
-                ],
-              ),
-            },
-            {
-              key: 'report',
-              title: 'Report',
-              content: m(
-                '',
-                {
-                  style: {
-                    display: 'flex',
-                    flexDirection: 'column',
-                    flex: '1',
-                    overflow: 'hidden',
-                  },
-                },
-                queryReport
-                  ? renderPreBlock(formatQueryReport(queryReport), true)
-                  : renderPreBlock(
-                      activeNodeId ? 'No report yet' : 'Select a node',
-                      false,
+                irEntries.length > 0
+                  ? irEntries.map(renderIrBlock)
+                  : m(
+                      'span',
+                      {style: {opacity: '0.5', fontSize: '12px'}},
+                      activeNodeId ? 'No IR available' : 'Select a node',
                     ),
               ),
             },
@@ -1185,11 +1122,75 @@ export function QueryBuilderPage(
                     display: 'flex',
                     flexDirection: 'column',
                     flex: '1',
-                    overflow: 'hidden',
+                    overflow: 'auto',
+                    padding: '8px',
+                    gap: '8px',
                   },
                 },
-                [
-                  cacheEntries.length > 0 &&
+                cacheEntries.length > 0
+                  ? [
+                      m(
+                        '',
+                        {style: {display: 'flex', justifyContent: 'flex-end'}},
+                        m(Button, {
+                          variant: ButtonVariant.Filled,
+                          icon: 'delete_sweep',
+                          label: 'Clear cache',
+                          onclick: () => matService?.clearCache(),
+                        }),
+                      ),
+                      ...[...cacheEntries]
+                        .sort((a, b) => b.lastHitAt - a.lastHitAt)
+                        .map((entry) =>
+                          m('.pf-qb-ir-block', [
+                            m('.pf-qb-ir-block-header', [
+                              m('span.pf-qb-ir-hash', entry.hash),
+                              m(
+                                'span.pf-qb-ir-meta',
+                                `created ${formatTimestamp(entry.createdAt)} · last hit ${formatTimestamp(entry.lastHitAt)}`,
+                              ),
+                              m('.pf-qb-ir-badges', [
+                                m(
+                                  'span.pf-qb-ir-badge.pf-qb-ir-badge--hits',
+                                  `${entry.hitCount} ${entry.hitCount === 1 ? 'hit' : 'hits'}`,
+                                ),
+                                m(
+                                  'span.pf-qb-ir-time',
+                                  `${entry.materializeTimeMs.toFixed(1)}ms`,
+                                ),
+                              ]),
+                            ]),
+                            m('pre.pf-qb-ir-sql', entry.sql),
+                          ]),
+                        ),
+                    ]
+                  : m(
+                      'span',
+                      {style: {opacity: '0.5', fontSize: '12px'}},
+                      'Cache is empty',
+                    ),
+              ),
+            },
+            {
+              key: 'graph',
+              title: 'Graph',
+              content: (() => {
+                const graphJson = JSON.stringify(
+                  JSON.parse(serializeStore(store)),
+                  null,
+                  2,
+                );
+                return m(
+                  '',
+                  {
+                    style: {
+                      display: 'flex',
+                      flexDirection: 'column',
+                      flex: '1',
+                      overflow: 'hidden',
+                    },
+                  },
+                  [
                     m(
                       '',
                       {
@@ -1197,23 +1198,20 @@ export function QueryBuilderPage(
                           display: 'flex',
                           justifyContent: 'flex-end',
                           padding: '4px 8px 0',
-                          gap: '4px',
                         },
                       },
                       m(Button, {
                         variant: ButtonVariant.Filled,
-                        icon: 'delete_sweep',
-                        label: 'Clear cache',
+                        icon: 'content_copy',
+                        label: 'Copy',
                         compact: true,
-                        onclick: () => matService?.clearCache(),
+                        onclick: () => navigator.clipboard.writeText(graphJson),
                       }),
                     ),
-                  renderPreBlock(
-                    formatCacheInfo(cacheEntries),
-                    cacheEntries.length > 0,
-                  ),
-                ],
-              ),
+                    renderPreBlock(graphJson, true),
+                  ],
+                );
+              })(),
             },
           ],
         }),
@@ -1323,8 +1321,12 @@ export function QueryBuilderPage(
         }
       }
 
-      const activeNode = activeNodeId ? activeNodes.get(activeNodeId) : undefined;
-      const activeManifest = activeNode ? getManifest(activeNode.type) : undefined;
+      const activeNode = activeNodeId
+        ? activeNodes.get(activeNodeId)
+        : undefined;
+      const activeManifest = activeNode
+        ? getManifest(activeNode.type)
+        : undefined;
 
       const detailsCtx: DetailsContext = {
         outputColumns,
@@ -1333,18 +1335,17 @@ export function QueryBuilderPage(
         materializedTable: matService?.materializedTable,
       };
 
-      const resultsPanel =
-        activeManifest?.renderDetails
-          ? activeManifest.renderDetails(activeNode!.config, detailsCtx)
-          : dataSource
-            ? m(DataGrid, {
-                key: displaySql,
-                data: dataSource,
-                schema: datagridSchema,
-                rootSchema: 'query',
-                fillHeight: true,
-              })
-            : renderEmptyState();
+      const resultsPanel = activeManifest?.renderDetails
+        ? activeManifest.renderDetails(activeNode!.config, detailsCtx)
+        : dataSource
+          ? m(DataGrid, {
+              key: displaySql,
+              data: dataSource,
+              schema: datagridSchema,
+              rootSchema: 'query',
+              fillHeight: true,
+            })
+          : renderEmptyState();
 
       const bottomPanel = m(SplitPanel, {
         direction: 'vertical',
