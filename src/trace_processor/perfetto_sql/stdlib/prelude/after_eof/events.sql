@@ -183,7 +183,9 @@ CREATE PERFETTO VIEW gpu_slice (
   -- The id of the process.
   upid JOINID(process.id),
   -- Render subpasses.
-  render_subpasses STRING
+  render_subpasses STRING,
+  -- Render stage category (0=OTHER, 1=GRAPHICS, 2=COMPUTE).
+  render_stage_category LONG
 ) AS
 SELECT
   s.id,
@@ -206,7 +208,8 @@ SELECT
   extract_arg(s.arg_set_id, 'submission_id') AS submission_id,
   extract_arg(s.arg_set_id, 'hw_queue_id') AS hw_queue_id,
   extract_arg(s.arg_set_id, 'upid') AS upid,
-  extract_arg(s.arg_set_id, 'render_subpasses') AS render_subpasses
+  extract_arg(s.arg_set_id, 'render_subpasses') AS render_subpasses,
+  extract_arg(s.arg_set_id, 'render_stage_category') AS render_stage_category
 FROM slice AS s
 JOIN track AS t
   ON s.track_id = t.id

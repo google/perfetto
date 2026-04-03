@@ -167,6 +167,7 @@ class GraphicsGpuTrace(TestSuite):
               'submission_id',
               'hw_queue_id',
               'render_subpasses',
+              'render_stage_category',
               'upid'
             )
           ) args USING (arg_set_id)
@@ -236,6 +237,7 @@ class GraphicsGpuTrace(TestSuite):
               'submission_id',
               'hw_queue_id',
               'render_subpasses',
+              'render_stage_category',
               'upid'
             )
           ) args USING (arg_set_id)

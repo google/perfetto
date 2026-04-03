@@ -148,6 +148,7 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
       upid_id_(context->storage->InternString("upid")),
       pid_id_(context_->storage->InternString("pid")),
       tid_id_(context_->storage->InternString("tid")),
+      category_id_(context->storage->InternString("render_stage_category")),
       description_id_(context->storage->InternString("description")),
       correlation_id_(context->storage->InternString("correlation_id")),
       counter_id_key_id_(context->storage->InternString("counter_id")),
@@ -707,7 +708,9 @@ void GpuEventParser::ParseGpuRenderStageEvent(
                 protos::pbzero::InternedData::kGpuSpecificationsFieldNumber,
                 protos::pbzero::InternedGpuRenderStageSpecification>(stage_iid);
             if (decoder) {
-              // TODO: Add RenderStageCategory to gpu_slice table.
+              inserter->AddArg(
+                  category_id_,
+                  Variadic::Integer(static_cast<int64_t>(decoder->category())));
               inserter->AddArg(description_id_,
                                Variadic::String(context_->storage->InternString(
                                    decoder->description())));
