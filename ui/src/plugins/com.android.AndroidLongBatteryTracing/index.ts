@@ -25,35 +25,6 @@ import {
 import {SourceDataset} from '../../trace_processor/dataset';
 import SupportPlugin from '../com.android.AndroidLongBatterySupport';
 
-const PACKAGE_LOOKUP = `
-  create or replace perfetto table package_name_lookup as
-  with installed as (
-    select uid, string_agg(package_name, ',') as name
-    from package_list
-    where uid >= 10000
-    group by 1
-  ),
-  system(uid, name) as (
-    values
-      (0, 'AID_ROOT'),
-      (1000, 'AID_SYSTEM_USER'),
-      (1001, 'AID_RADIO'),
-      (1082, 'AID_ARTD')
-  )
-  select uid, name from installed
-  union all
-  select uid, name from system
-  order by uid;
-
-  -- Adds a "package_name" column by joining on "uid" from the source table.
-  create or replace perfetto macro add_package_name(src TableOrSubquery) returns TableOrSubquery as (
-    select A.*, ifnull(B.name, "uid=" || A.uid) as package_name
-    from $src as A
-    left join package_name_lookup as B
-    on (B.uid = (A.uid % 100000))
-  );
-`;
-
 const DEFAULT_NETWORK_DATASET = new SourceDataset({
   src: `
     with base as (
@@ -350,10 +321,10 @@ const HIGH_CPU = `
   with_ratio as (
     select
       ts,
+      package_lookup(uid) AS pkg,
       iif(dur is null, 0, max(0, 100.0 * cpu_dur / dur)) as value,
-      case cluster when 0 then 'little' when 1 then 'mid' when 2 then 'big' else 'cl-' || cluster end as cluster,
-      package_name as pkg
-    from add_package_name!(with_windows)
+      case cluster when 0 then 'little' when 1 then 'mid' when 2 then 'big' else 'cl-' || cluster end as cluster
+    from with_windows
   )
   select ts, sum(value) as value, cluster, pkg
   from with_ratio
@@ -560,14 +531,9 @@ export default class implements PerfettoPlugin {
             -- end time minus the clamped start time.
             (ts + safe_dur) - MAX(0, ts - 60000000000) AS dur,
             str_value AS name,
-            package_name AS package
-          FROM add_package_name!((
-            SELECT
-              *,
-              int_value AS uid
-            FROM android_battery_stats_event_slices
-            WHERE track_name = "battery_stats.longwake"
-          ))
+            package_lookup(int_value) AS package
+          FROM android_battery_stats_event_slices
+          WHERE track_name = "battery_stats.longwake"
         `,
         schema: {
           ts: LONG,
@@ -1106,7 +1072,6 @@ export default class implements PerfettoPlugin {
     const support = this.support(ctx);
     const features = await support.features(ctx.engine);
 
-    await ctx.engine.query(PACKAGE_LOOKUP);
     await this.addNetworkSummary(ctx, support, features);
     await this.addKernelWakelocks(ctx, support);
     await this.addKernelWakelocksStatsd(ctx, support, features);
