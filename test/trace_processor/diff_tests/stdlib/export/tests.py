@@ -281,7 +281,7 @@ a:hover { text-decoration: none !important; }
 "com.example:2000000:warm","{"name":"slice2","cat":"slice","ph":"X","ts":2000,"dur":100,"pid":1,"tid":2,"args":{"depth":1}}"
 "com.example:1000000:running","{"name":"Running","cat":"thread_state","ph":"T","ts":1000,"dur":500,"pid":1,"tid":2,"args":{"blocked_function":"func1","cpu":0,"io_wait":0}}"
 "com.example:1500000:sleeping","{"name":"Sleeping","cat":"thread_state","ph":"T","ts":1500,"dur":100,"pid":1,"tid":2,"args":{}}"
-"com.example:1000000:counter","{"name":"counter1","ph":"C","ts":1000,"pid":1,"args":{"value":100.0}}"
+"com.example:1000000:counter","{"name":"counter1","ph":"C","ts":1000,"pid":1,"args":{"counter1":100.0}}"
 """))
 
   def test_chrome_json_empty_tables(self):

@@ -76,7 +76,7 @@ RETURNS TableOrSubquery AS
       'ph', 'C',
       'ts', ts / 1000,
       'pid', upid,
-      'args', json_object('value', cast_double!(value))
+      'args', json_object(name, cast_double!(value))
     ) AS event_json
   FROM $counter_table
 );
