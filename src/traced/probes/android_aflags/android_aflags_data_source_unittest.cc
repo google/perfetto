@@ -16,6 +16,7 @@
 
 #include "src/traced/probes/android_aflags/android_aflags_data_source.h"
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/tracing/core/data_source_config.h"
@@ -26,6 +27,10 @@
 #include "protos/perfetto/trace/android/android_aflags.gen.h"
 #include "protos/perfetto/trace/android/android_aflags.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
+
+// Disable tests on non-Android platforms as the aflags data source is
+// Android-only.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
 namespace perfetto {
 namespace {
@@ -189,3 +194,5 @@ TEST_F(AndroidAflagsDataSourceTest, InvalidBase64EmitsErrorPacket) {
 
 }  // namespace
 }  // namespace perfetto
+
+#endif  // PERFETTO_OS_ANDROID
