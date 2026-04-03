@@ -222,6 +222,8 @@ JOIN main_thread_slice
 
 -- Workloads that are submitted to SurfaceFlinger to do compositing work
 CREATE PERFETTO TABLE android_surfaceflinger_workloads (
+  -- Identifier for the workload, for joining with other tables
+  workload_id LONG,
   -- Timestamp of the workload
   ts TIMESTAMP,
   -- Source of the workload
@@ -256,6 +258,7 @@ CREATE PERFETTO TABLE android_surfaceflinger_workloads (
   dpu_composited_layers LONG
 ) AS
 SELECT
+  extract_arg(arg_set_id, 'surfaceflinger_workload.workload_id') AS workload_id,
   ts,
   extract_arg(arg_set_id, 'surfaceflinger_workload.source') AS source,
   extract_arg(arg_set_id, 'surfaceflinger_workload.output_name') AS output_name,
@@ -278,3 +281,36 @@ SELECT
 FROM slice
 WHERE
   category = 'rendering' AND name = 'WorkloadSummary';
+
+-- Skia pipelines used in SurfaceFlinger workloads.
+-- As there can be many skia pipelines used in a workload, this table is flattened.
+CREATE PERFETTO TABLE android_surfaceflinger_workload_pipelines (
+  -- Identifier for the workload, matches android_surfaceflinger_workloads.workload_id
+  workload_id JOINID(android_surfaceflinger_workloads.workload_id),
+  -- Key that identifies the shader
+  shader_key STRING,
+  -- Operation that the caching pipeline used
+  caching_op STRING
+) AS
+SELECT
+  extract_arg(s.arg_set_id, 'surfaceflinger_workload.workload_id') AS workload_id,
+  extract_arg(
+    s.arg_set_id,
+    'surfaceflinger_workload.summary.stats.skia_pipelines[' || i.value || '].shader_key'
+  ) AS shader_key,
+  extract_arg(
+    s.arg_set_id,
+    'surfaceflinger_workload.summary.stats.skia_pipelines[' || i.value || '].caching_op'
+  ) AS caching_op
+FROM slice AS s
+JOIN (
+  SELECT
+    arg_set_id,
+    cast_int!(str_split(str_split(key, '[', 1), ']', 0)) AS value
+  FROM args
+  WHERE
+    key GLOB 'surfaceflinger_workload.summary.stats.skia_pipelines[[]*[]].shader_key'
+) AS i
+  ON s.arg_set_id = i.arg_set_id
+WHERE
+  s.category = 'rendering' AND s.name = 'WorkloadSummary';
