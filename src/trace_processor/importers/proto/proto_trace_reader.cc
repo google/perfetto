@@ -338,17 +338,22 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   }
 
   auto* state = GetIncrementalStateForPacketSequence(seq_id);
-  if (decoder.sequence_flags() &
-      protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE) {
+  bool needs_incremental_state =
+      sequence_flags & protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE;
+  bool needs_stable_incremental_state =
+      sequence_flags &
+      protos::pbzero::TracePacket::SEQ_NEEDS_STABLE_INCREMENTAL_STATE;
+  if (needs_incremental_state || needs_stable_incremental_state) {
     if (!seq_id) {
       return base::ErrStatus(
-          "TracePacket specified SEQ_NEEDS_INCREMENTAL_STATE but the "
+          "TracePacket specified SEQ_NEEDS_INCREMENTAL_STATE or "
+          "SEQ_NEEDS_STABLE_INCREMENTAL_STATE but the "
           "TraceWriter's sequence_id is zero (the service is "
           "probably too old)");
     }
     scoped_state->needs_incremental_state_total++;
 
-    if (!state->IsIncrementalStateValid()) {
+    if (!state->IsIncrementalStateValid() && !needs_stable_incremental_state) {
       if (context_->content_analyzer) {
         // Account for the skipped packet for trace proto content analysis,
         // with a special annotation.
