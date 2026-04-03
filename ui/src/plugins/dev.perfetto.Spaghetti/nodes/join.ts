@@ -18,6 +18,7 @@ import {Button, ButtonVariant} from '../../../widgets/button';
 import {Icon} from '../../../widgets/icon';
 import {TextInput} from '../../../widgets/text_input';
 import {ColumnPicker} from '../widgets/column_picker';
+import {SegmentedButtons} from '../../../widgets/segmented_buttons';
 
 export interface JoinColumn {
   readonly column: string;
@@ -66,6 +67,7 @@ export interface JoinConfig {
   readonly leftColumn: string;
   readonly rightColumn: string;
   readonly columns: JoinColumn[];
+  readonly joinType?: 'LEFT' | 'INNER';
 }
 
 // Compute the resolved aliases for all extend columns.
@@ -94,7 +96,15 @@ function JoinNodeContent(): m.Component<{
       const rightColumns = ctx.getInputColumns('right');
       const leftSet = new Set(leftColumns.map((c) => c.name));
 
+      const joinType = config.joinType ?? 'LEFT';
       return m('.pf-qb-stack', {style: {minWidth: '200px'}}, [
+        m(SegmentedButtons, {
+          fillWidth: true,
+          options: [{label: 'Left'}, {label: 'Inner'}],
+          selectedOption: joinType === 'LEFT' ? 0 : 1,
+          onOptionSelected: (i) =>
+            updateConfig({joinType: i === 0 ? 'LEFT' : 'INNER'}),
+        }),
         m('.pf-qb-section-label', 'Join on'),
         m('.pf-qb-group-grid', [
           m(ColumnPicker, {
@@ -320,8 +330,9 @@ export const manifest: NodeManifest<JoinConfig> = {
     } else {
       selectClause = selectCols[0];
     }
+    const joinKw = (config.joinType ?? 'LEFT') === 'INNER' ? 'JOIN' : 'LEFT JOIN';
     const condition = `ON l.${config.leftColumn} = r.${config.rightColumn}`;
-    const sql = `SELECT ${selectClause}\nFROM ${leftRef} AS l\nLEFT JOIN ${rightRef} AS r ${condition}`;
+    const sql = `SELECT ${selectClause}\nFROM ${leftRef} AS l\n${joinKw} ${rightRef} AS r ${condition}`;
     return {sql};
   },
 };

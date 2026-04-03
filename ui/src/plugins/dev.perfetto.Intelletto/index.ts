@@ -27,8 +27,8 @@ import {Raf} from '../../public/raf';
 import {Button} from '../../widgets/button';
 import {EmptyState} from '../../widgets/empty_state';
 import {Icon} from '../../widgets/icon';
-import DataExplorerPlugin from '../dev.perfetto.DataExplorer';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
+import SpaghettiPlugin from '../dev.perfetto.Spaghetti';
 import {maybeUndefined} from '../../base/utils';
 
 type ProviderType = 'anthropic' | 'gemini';
@@ -46,22 +46,31 @@ When answering questions:
 - Format key findings as short bullet points
 - Include specific numbers (timestamps, durations, counts) when relevant
 
-The trace processor uses SQLite with perfetto extensions. Key tables:
-- slice: function calls/events (ts, dur, name, track_id, category, depth)
-- thread/process: thread and process metadata
-- sched_slice: CPU scheduling events
-- counter: counter track values
-- android_logs: logcat messages (ts, prio, tag, msg)
+IMPORTANT — always use tools, never training knowledge, for Perfetto internals:
+- Use list_sql_tables to discover available tables and views — do NOT assume
+  table names, column names, or module paths from your training data
+- Use get_table_schema before querying any table you haven't already looked up
+  in this session
+- Use 'INCLUDE PERFETTO MODULE <name>' (in a separate prior query) to load
+  stdlib modules — get the correct include key from get_table_schema, not from
+  memory
+- Perfetto's stdlib evolves; your training data may be stale or wrong
 
-Use 'INCLUDE PERFETTO MODULE <name>' (in a separate query) to load stdlib modules.
+You can interact with two visual query builders:
 
-You can also interact with the Node Query Builder (Data Explorer), a visual
-query builder:
-- Use get_query_builder_graph to see the user's current analysis pipeline
-- Use set_query_builder_graph to create or modify analysis pipelines
-  (the tool description contains the full graph JSON format reference)
-- Use select_query_builder_node to select a node and show its results
-- The Data Explorer page must be open (#!/explore) for graph tools to work
+**Spaghetti** (preferred for new analysis pipelines):
+- Use get_spaghetti_graph to see the user's current graph
+- Use validate_spaghetti_graph to check a graph before applying it
+- Use set_spaghetti_graph to create or modify analysis pipelines
+  (the tool description contains the full graph JSON format reference and
+  validates automatically before applying — errors are returned without
+  changing anything)
+- Use select_spaghetti_node to select a node and show its results
+- Navigate to #!/spaghetti first; the page must be open for graph tools to work
+- Supports: from, time_range, select, filter, sort, limit, groupby, join,
+  union, interval_intersect, extract_arg, chart nodes
+- The "chart" node type shows bar charts in the details panel instead of a table
+
 `;
 
 const SIDE_PANEL_ID = 'dev.perfetto.IntellettoChat';
@@ -81,7 +90,7 @@ interface ConversationTurn {
 
 export default class AiAssistantPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Intelletto';
-  static readonly dependencies = [DataExplorerPlugin, SqlModulesPlugin];
+  static readonly dependencies = [SqlModulesPlugin, SpaghettiPlugin];
   static readonly description =
     'AI assistant that can query traces and interact with the UI via the omnibox.';
 

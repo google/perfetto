@@ -64,6 +64,23 @@ export interface FilterConfig {
   readonly conjunction?: FilterConjunction;
 }
 
+// Returns true if the value should be emitted as-is (numeric literal, SQL
+// NULL keyword, or already quoted/parenthesised by the user).
+function isRawValue(value: string): boolean {
+  if (value === '') return true;
+  if (/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(value)) return true; // number
+  if (/^null$/i.test(value)) return true;                          // NULL
+  if (value.startsWith("'") || value.startsWith('"')) return true; // already quoted
+  if (value.startsWith('(')) return true;                          // e.g. (1,2,3)
+  return false;
+}
+
+function quoteValue(value: string): string {
+  if (isRawValue(value)) return value;
+  // Escape any single quotes inside the value then wrap in single quotes.
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
 export function conditionsToSql(
   conditions: FilterCondition[],
   conjunction: FilterConjunction = 'AND',
@@ -74,7 +91,7 @@ export function conditionsToSql(
       if (UNARY_OPS.has(c.op)) {
         return `${c.column} ${c.op}`;
       }
-      return `${c.column} ${c.op} ${c.value}`;
+      return `${c.column} ${c.op} ${quoteValue(c.value)}`;
     });
   return parts.join(` ${conjunction} `);
 }

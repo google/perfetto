@@ -162,7 +162,7 @@ export class GeminiProvider implements LlmProvider {
       const candidate = maybeUndefined(response.candidates[0]);
       if (!candidate) break;
 
-      const modelParts = candidate.content.parts;
+      const modelParts = candidate.content?.parts ?? [];
       this.history.push({role: 'model', parts: modelParts});
 
       // Extract text

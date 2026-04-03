@@ -17,8 +17,14 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 import {QueryBuilderPage} from './query_builder_page';
-import {NodeQueryBuilderStore} from './node_types';
-import {ColumnDef, getOutputColumnsForNode} from './graph_utils';
+import {NodeData, NodeQueryBuilderStore} from './node_types';
+import {
+  ColumnDef,
+  getManifest,
+  getManifestInputs,
+  isNodeValid,
+  getOutputColumnsForNode,
+} from './graph_utils';
 
 /*
 Note: This is an experiment representing some ideas for how a query builder
@@ -65,6 +71,7 @@ export interface QueryBuilderDelegate {
   serializeStore(): string;
   deserializeAndSetStore(json: string): void;
   selectNode(nodeId: string): void;
+  pinNode(nodeId: string | undefined): void;
 }
 
 export default class implements PerfettoPlugin {
@@ -99,6 +106,116 @@ export default class implements PerfettoPlugin {
   }
 
   /**
+   * Validate a serialized graph JSON string without applying it.
+   * Returns an array of error strings; empty means valid.
+   */
+  validateGraphJson(json: string): string[] {
+    const errors: string[] = [];
+
+    let obj: {nodes?: unknown; connections?: unknown};
+    try {
+      obj = JSON.parse(json);
+    } catch (e) {
+      return [`Invalid JSON: ${e}`];
+    }
+
+    if (!Array.isArray(obj.nodes)) {
+      return ['nodes must be an array of [id, NodeData] pairs'];
+    }
+
+    // Reconstruct the node map and validate each node.
+    const nodes = new Map<string, NodeData>();
+    for (const entry of obj.nodes) {
+      if (!Array.isArray(entry) || entry.length < 2) {
+        errors.push(`Invalid node entry (expected [id, NodeData]): ${JSON.stringify(entry)}`);
+        continue;
+      }
+      const [id, node] = entry as [string, NodeData];
+      if (typeof id !== 'string' || !id) {
+        errors.push(`Node ID must be a non-empty string, got: ${JSON.stringify(id)}`);
+        continue;
+      }
+      if (!node || typeof node !== 'object') {
+        errors.push(`Node "${id}" data must be an object`);
+        continue;
+      }
+      if (!node.type || typeof node.type !== 'string') {
+        errors.push(`Node "${id}" is missing a type string`);
+        continue;
+      }
+      const manifest = getManifest(node.type);
+      if (!manifest) {
+        errors.push(`Node "${id}": unknown type "${node.type}"`);
+        continue;
+      }
+      if (!isNodeValid(node)) {
+        errors.push(`Node "${id}" (${node.type}): config is invalid`);
+      }
+      nodes.set(id, node);
+    }
+
+    // Check nextId references.
+    for (const [id, node] of nodes) {
+      if (node.nextId !== undefined && !nodes.has(node.nextId)) {
+        errors.push(`Node "${id}": nextId "${node.nextId}" does not reference a known node`);
+      }
+    }
+
+    // Check connections.
+    const connections = Array.isArray(obj.connections) ? obj.connections : [];
+    const connKeys = new Set<string>();
+    for (let i = 0; i < connections.length; i++) {
+      const c = connections[i] as {
+        fromNode?: unknown;
+        fromPort?: unknown;
+        toNode?: unknown;
+        toPort?: unknown;
+      };
+      const label = `Connection[${i}]`;
+      if (typeof c.fromNode !== 'string' || !nodes.has(c.fromNode)) {
+        errors.push(`${label}: fromNode "${c.fromNode}" is not a known node`);
+        continue;
+      }
+      if (typeof c.toNode !== 'string' || !nodes.has(c.toNode)) {
+        errors.push(`${label}: toNode "${c.toNode}" is not a known node`);
+        continue;
+      }
+
+      // Duplicate connection check.
+      const connKey = `${c.fromNode}:${c.fromPort}->${c.toNode}:${c.toPort}`;
+      if (connKeys.has(connKey)) {
+        errors.push(`${label}: duplicate connection ${connKey}`);
+      }
+      connKeys.add(connKey);
+
+      // nextId + connection conflict: if fromNode already docks into toNode
+      // via nextId, a connection between them is redundant and harmful.
+      const fromNode = nodes.get(c.fromNode)!;
+      if (fromNode.nextId === c.toNode) {
+        errors.push(
+          `${label}: node "${c.fromNode}" already docks into "${c.toNode}" ` +
+          `via nextId — remove this connection or remove the nextId`,
+        );
+      }
+
+      const toNode = nodes.get(c.toNode)!;
+      const toManifest = getManifest(toNode.type);
+      if (toManifest) {
+        const ports = getManifestInputs(toManifest, toNode);
+        const toPort = typeof c.toPort === 'number' ? c.toPort : -1;
+        if (toPort < 0 || toPort >= ports.length) {
+          errors.push(
+            `${label}: toPort ${c.toPort} is out of range for node "${c.toNode}" ` +
+            `(type "${toNode.type}" has ${ports.length} input port(s))`,
+          );
+        }
+      }
+    }
+
+    return errors;
+  }
+
+  /**
    * Replace the current graph from a JSON string.
    * Throws if the query builder page is not mounted.
    */
@@ -116,6 +233,13 @@ export default class implements PerfettoPlugin {
    */
   selectNode(nodeId: string): void {
     this.delegate?.selectNode(nodeId);
+  }
+
+  /**
+   * Pin a node by ID (or pass undefined to unpin).
+   */
+  pinNode(nodeId: string | undefined): void {
+    this.delegate?.pinNode(nodeId);
   }
 
   /**

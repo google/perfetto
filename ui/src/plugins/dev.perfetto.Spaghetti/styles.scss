@@ -423,14 +423,15 @@
 
 // Individual chart panel card.
 .pf-qb-chart-panel {
-  background: var(--pf-surface);
-  border: 1px solid var(--pf-border);
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
   border-radius: 6px;
   padding: 10px 12px;
   min-width: 280px;
   flex: 1 1 280px;
   max-width: 480px;
   box-sizing: border-box;
+  color: var(--pf-color-text);
 }
 
 .pf-qb-chart-title {

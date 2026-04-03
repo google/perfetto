@@ -17,7 +17,7 @@ import {Time} from '../../base/time';
 import {SqlValue} from '../../trace_processor/query_result';
 import {ToolImpl} from './provider';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
-import DataExplorerPlugin from '../dev.perfetto.DataExplorer';
+import SpaghettiPlugin from '../dev.perfetto.Spaghetti';
 
 const MAX_QUERY_ROWS = 5000;
 
@@ -78,9 +78,11 @@ export function createTools(trace: Trace): ToolImpl[] {
     createGetTableSchemaTool(trace),
     createListTracksTool(trace),
     createSelectTrackTool(trace),
-    createGetQueryBuilderGraphTool(trace),
-    createSetQueryBuilderGraphTool(trace),
-    createSelectQueryBuilderNodeTool(trace),
+    createGetSpaghettiGraphTool(trace),
+    createValidateSpaghettiGraphTool(trace),
+    createSetSpaghettiGraphTool(trace),
+    createSelectSpaghettiNodeTool(trace),
+    createPinSpaghettiNodeTool(trace),
   ];
 }
 
@@ -517,16 +519,63 @@ You can find track URIs using the list_tracks tool or by querying:
   };
 }
 
-function createGetQueryBuilderGraphTool(trace: Trace): ToolImpl {
+// ---------------------------------------------------------------------------
+// Spaghetti query builder tools
+// ---------------------------------------------------------------------------
+
+function createValidateSpaghettiGraphTool(trace: Trace): ToolImpl {
   return {
     def: {
-      name: 'get_query_builder_graph',
-      description: `Get the current graph state from the Data Explorer's query builder.
+      name: 'validate_spaghetti_graph',
+      description: `Validate a Spaghetti query builder graph JSON without applying it.
 
-Returns the serialized JSON of the active tab's graph, including all nodes,
-connections, and layout information. Returns null if no graph is loaded.
+Returns a list of validation errors. An empty errors array means the graph
+is structurally valid. Use this before set_spaghetti_graph to check your
+work, especially when building complex graphs.
 
-Use this to understand the user's current analysis pipeline before modifying it.`,
+Checks performed:
+- All node types are known
+- Each node's config passes isValid()
+- nextId references point to existing nodes
+- Connection fromNode/toNode exist
+- Connection toPort is within the target node's input port count`,
+      input_schema: {
+        type: 'object',
+        properties: {
+          graph: {
+            type: 'object',
+            description: 'The graph JSON to validate',
+          },
+        },
+        required: ['graph'],
+      },
+    },
+    async handle(input) {
+      try {
+        const plugin = trace.plugins.getPlugin(SpaghettiPlugin);
+        const errors = plugin.validateGraphJson(JSON.stringify(input.graph));
+        return JSON.stringify({
+          valid: errors.length === 0,
+          errors,
+        });
+      } catch (e) {
+        return JSON.stringify({status: 'error', message: String(e)});
+      }
+    },
+  };
+}
+
+function createGetSpaghettiGraphTool(trace: Trace): ToolImpl {
+  return {
+    def: {
+      name: 'get_spaghetti_graph',
+      description: `Get the current graph state from the Spaghetti query builder.
+
+Returns the serialized JSON of the graph, including all nodes, connections,
+and labels. Returns null if the Spaghetti page is not open.
+
+Use this to understand the user's current analysis pipeline before modifying it.
+Navigate to #!/spaghetti first if the page is not open.`,
       input_schema: {
         type: 'object',
         properties: {},
@@ -534,10 +583,15 @@ Use this to understand the user's current analysis pipeline before modifying it.
     },
     async handle() {
       try {
-        const plugin = trace.plugins.getPlugin(DataExplorerPlugin);
-        const json = plugin.getActiveGraphJson();
+        const plugin = trace.plugins.getPlugin(SpaghettiPlugin);
+        const json = plugin.getGraphJson();
         if (json === undefined) {
-          return JSON.stringify({status: 'empty', graph: null});
+          return JSON.stringify({
+            status: 'empty',
+            message:
+              'Spaghetti page is not open. Navigate to #!/spaghetti first.',
+            graph: null,
+          });
         }
         return JSON.stringify({status: 'ok', graph: JSON.parse(json)});
       } catch (e) {
@@ -547,175 +601,276 @@ Use this to understand the user's current analysis pipeline before modifying it.
   };
 }
 
-function createSetQueryBuilderGraphTool(trace: Trace): ToolImpl {
+function createSetSpaghettiGraphTool(trace: Trace): ToolImpl {
   return {
     def: {
-      name: 'set_query_builder_graph',
-      description: `Set or replace the Data Explorer's query builder graph.
+      name: 'set_spaghetti_graph',
+      description: `Set or replace the Spaghetti query builder graph.
 
-This replaces the entire active tab's graph. Use get_query_builder_graph first
-if you want to modify rather than replace.
+This replaces the entire graph and validates the input first — if validation
+fails, the graph is NOT applied and errors are returned instead.
 
-## Graph JSON Structure
+Use get_spaghetti_graph first to modify rather than replace.
+The Spaghetti page must be open (#!/spaghetti).
+
+## Store format
 
 {
-  "nodes": [...],           // Array of serialized nodes
-  "rootNodeIds": ["n1"],    // IDs of top-level (root) nodes
-  "nodeLayouts": {"n1": {"x": 100, "y": 100}, ...},  // Canvas positions
-  "labels": []              // Text labels on canvas (usually empty)
+  "nodes": [["<id>", <NodeData>], ...],  // Array of [id, NodeData] pairs
+  "connections": [...],                  // Connection objects
+  "labels": []                           // Usually empty
 }
 
-## Node Structure
+## NodeData
 
-Each node in the "nodes" array:
 {
-  "nodeId": "n1",           // Unique string ID
-  "type": "table",          // NodeType (see below)
-  "state": {...},           // Type-specific state (see below)
-  "nextNodes": ["n2"]       // IDs of docked child nodes (linear chains)
+  "type": "<type>",        // node type string (see below)
+  "id": "<id>",            // must match the key in the nodes array
+  "x": 150, "y": 100,      // canvas position
+  "config": {...},         // type-specific config (see each node below)
+  "inputs": [...],         // ONLY for variable-input nodes (union, interval_intersect, chart)
+  "nextId": "<id>"         // OPTIONAL: docks a child node as primary input
 }
 
-## Connecting Nodes
+## Connections
 
-**Docking (nextNodes):** For linear chains (source -> filter -> sort -> limit),
-set the parent's nextNodes to [childId]. The child must have primaryInputId
-set to the parent's ID. Docked nodes still need nodeLayouts entries.
+{
+  "fromNode": "<id>",  "fromPort": 0,   // source node, port index
+  "toNode": "<id>",    "toPort": 0      // target node, input port index
+}
 
-**Multi-source connections:** For join, union, interval_intersect, etc., use
-the node-specific state fields (leftNodeId/rightNodeId, unionNodes, etc.).
-These nodes are separate root nodes with their own positions.
+Connections wire output→input. For docked linear chains use nextId instead —
+no connection needed. Connections are needed for join's right input (toPort=1)
+and for wiring multi-input nodes (union, interval_intersect, chart).
 
-## Node Types and State Fields
+IMPORTANT — nextId vs connections are mutually exclusive for the same edge:
+- If node A has nextId="B", that already establishes A as B's primary input.
+  Do NOT also add a connection from A to B. Using both double-wires the input
+  and produces broken output. Pick one: use nextId for simple linear chains,
+  or use a connection — never both for the same pair.
+- When node A has nextId="B", A's first output (fromPort=0) and B's first input
+  (toPort=0) are both fully occupied by the dock relationship. You cannot add
+  any connection that targets B's toPort=0, nor any connection from A's
+  fromPort=0 to B. If you need to fan out from A, do so from a different node
+  upstream, or restructure so A is not docked.
 
-### Source Nodes (no primaryInputId)
+## Docking as a grouping convention
 
-**"table"** - Query data from any table.
-  state: { sqlTable: "slice" }
+Use nextId (docking) not just as a wiring mechanism but as a *semantic signal*:
+docked nodes are visually stacked and signal that they form a single logical
+unit — e.g. "load slices, keep only long ones, sort by duration" is one block.
 
-**"simple_slices"** - Pre-configured slice explorer.
-  state: { }
+PREFER docking (nextId) when:
+- The edge is a simple linear chain — one output feeds one input, nothing else
+  branches off or fans in.
+- The nodes are semantically part of the same pipeline stage (e.g. a from +
+  a chain of filters/sorts/limits all operating on the same dataset).
 
-**"sql_source"** - Custom SQL query as source.
-  state: { sql: "SELECT * FROM slice WHERE dur > 1000" }
+USE connections when:
+- The data fans out (one node feeds multiple consumers).
+- The target has multiple inputs (join left/right, union, interval_intersect).
+- The edge crosses pipeline stages — e.g. a subquery result feeding a join as
+  the right-hand side is conceptually separate and should use a connection.
 
-### Modification Nodes (require primaryInputId)
+Example — "from slice → filter → sort" is one logical unit: fully dock it.
+A "from thread" node feeding a join's right side should use a connection.
 
-**"filter"** - Filter rows by conditions.
-  state: {
-    primaryInputId: "n1",
-    filters: [{ column: "dur", op: "greater_than", value: 1000000 }],
-    filterOperator: "AND",
-    filterMode: "structured"
+## Node reference
+
+### "from" — read a table or view
+  config: { "table": "slice" }
+  No inputs. isValid: table must be non-empty.
+
+### "time_range" — emit one row: (id=0, ts, dur)
+  config: { "ts": "123456789", "dur": "5000000" }  // strings
+  No inputs. isValid: ts != "0" or dur != "0".
+  Useful as an input to interval_intersect.
+
+### "filter" — WHERE clause
+  config: {
+    "filterExpression": "",          // raw SQL expression (alternative to conditions)
+    "conditions": [                  // structured conditions — add as many as needed
+      { "column": "dur", "op": ">", "value": "1000000" },
+      { "column": "name", "op": "LIKE", "value": "foo%" }
+    ],
+    "conjunction": "AND"             // "AND" | "OR" — applies between ALL conditions
   }
-  Filter ops: "equals", "not_equals", "greater_than", "greater_than_or_equals",
-    "less_than", "less_than_or_equals", "like", "not_like", "glob",
-    "is_null", "is_not_null".
+  Ops: "=" | "!=" | ">" | ">=" | "<" | "<=" | "LIKE" | "NOT LIKE" | "GLOB"
+       | "IS NULL" | "IS NOT NULL"
+  Multiple conditions are combined with the conjunction: all joined by AND, or
+  all joined by OR. Use a single filter node with multiple conditions rather
+  than chaining multiple filter nodes when the conditions share the same logic.
+  Use filterExpression for a freeform SQL WHERE clause instead of conditions.
 
-**"sort"** - Sort rows by columns.
-  state: {
-    primaryInputId: "n1",
-    sortCriteria: [{ colName: "dur", direction: "DESC" }]
-  }
-
-**"modify_columns"** - Select, rename, reorder columns.
-  state: {
-    primaryInputId: "n1",
-    selectedColumns: [
-      { name: "ts", checked: true },
-      { name: "dur", checked: true, alias: "duration" },
-      { name: "track_id", checked: false }
+### "select" — project/rename/add computed columns
+  config: {
+    "entries": [                            // column references with optional alias
+      { "column": "ts", "alias": "" },
+      { "column": "dur", "alias": "duration" }
+    ],
+    "expressions": [                        // computed expressions with alias
+      { "expression": "dur / 1e6", "alias": "dur_ms" }
     ]
   }
+  Output columns = entries (using alias if set) + expressions.
 
-**"aggregation"** - GROUP BY with aggregate functions.
-  state: {
-    primaryInputId: "n1",
-    groupByColumns: [{ name: "name", checked: true }],
-    aggregations: [
-      { column: { name: "dur" }, aggregationOp: "SUM", newColumnName: "total_dur" },
-      { column: { name: "dur" }, aggregationOp: "COUNT", newColumnName: "count" }
+  IMPORTANT — to add computed columns while keeping ALL upstream columns,
+  leave entries as [] and put only your expressions in the expressions array.
+  The node then generates: SELECT *, expr1 AS alias1, ... FROM upstream.
+  Do NOT put {"column":"*","alias":""} in entries — while that technically
+  produces the same SQL, it bypasses the intended code path and is fragile.
+  The correct pattern for "keep everything, add a column" is entries:[], expressions:[...].
+
+### "sort" — ORDER BY
+  config: {
+    "sortColumn": "",                // legacy single column (leave empty)
+    "sortOrder": "ASC",              // legacy (leave "ASC")
+    "conditions": [                  // use this array instead
+      { "column": "dur", "order": "DESC" },
+      { "column": "ts",  "order": "ASC"  }
     ]
   }
-  Aggregation ops: "SUM", "COUNT", "AVG", "MIN", "MAX", "PERCENTILE".
+  isValid: always true.
 
-**"limit_and_offset"** - Limit row count.
-  state: { primaryInputId: "n1", limit: 100, offset: 0 }
+### "limit" — LIMIT N
+  config: { "limitCount": "100" }   // string digits
+  isValid: limitCount is non-empty digits.
 
-**"add_columns"** - Add columns from another node via LEFT JOIN.
-  state: {
-    primaryInputId: "n1",
-    secondaryInputNodeId: "n2",
-    selectedColumns: ["name"],
-    leftColumn: "utid",
-    rightColumn: "utid"
+### "groupby" — GROUP BY + aggregations
+  config: {
+    "groupColumns": ["name", "upid"],
+    "aggregations": [
+      { "func": "SUM",   "column": "dur",   "alias": "total_dur" },
+      { "func": "COUNT", "column": "dur",   "alias": "cnt" },
+      { "func": "AVG",   "column": "dur",   "alias": "avg_dur" },
+      { "func": "MIN",   "column": "dur",   "alias": "min_dur" },
+      { "func": "MAX",   "column": "dur",   "alias": "max_dur" }
+    ]
   }
+  isValid: always true.
 
-**"counter_to_intervals"** - Convert counter data to intervals (adds dur).
-  state: { primaryInputId: "n1" }
-
-**"visualisation"** - Visualize data with charts.
-  state: { primaryInputId: "n1" }
-
-### Multi-Source Nodes (no primaryInputId, own connection fields)
-
-**"join"** - Join two inputs.
-  state: {
-    leftNodeId: "n1",
-    rightNodeId: "n2",
-    leftQueryAlias: "left",
-    rightQueryAlias: "right",
-    conditionType: "equality",
-    joinType: "INNER",
-    leftColumn: "utid",
-    rightColumn: "utid"
+### "join" — LEFT JOIN two inputs
+  config: {
+    "leftColumn": "utid",            // join key from the left input
+    "rightColumn": "utid",           // join key from the right input
+    "columns": [                     // columns to ADD from the right input only
+      { "column": "name", "alias": "" },   // alias="" auto-generates "right_name" if collision
+      { "column": "pid",  "alias": "proc_pid" }
+    ]
   }
-  joinType: "INNER" | "LEFT". conditionType: "equality" | "freeform".
-  For freeform: use sqlExpression instead of leftColumn/rightColumn.
+  Output = ALL columns from left (SELECT l.*) + the listed columns from right.
+  Do NOT list left-input columns in "columns" — they are always included
+  automatically. Only list the extra columns you want pulled in from the right.
+  Static inputs: port 0 = "left", port 1 = "right".
+  Wire via connections: left→toPort=0, right→toPort=1.
+  isValid: leftColumn and rightColumn must be non-empty.
+  If right is disconnected, emits passthrough SELECT * FROM left.
 
-**"union"** - Combine rows from multiple sources.
-  state: { unionNodes: ["n1", "n2"], selectedColumns: [] }
+  IMPORTANT — join has STATIC ports named "left" and "right". Never set an
+  "inputs" array on a join node. The inputs array is only for variable-input
+  nodes (union, interval_intersect, chart). Setting inputs on join overrides
+  the manifest port names, breaking getInputRef('left') / getInputRef('right')
+  so the node emits nothing.
 
-**"interval_intersect"** - Intersect time intervals from multiple sources.
-  state: { intervalNodes: ["n1", "n2"] }
+### "union" — UNION / UNION ALL of N inputs
+  config: { "distinct": false }      // true = UNION, false = UNION ALL
+  Variable inputs — set inputs array:
+    "inputs": [
+      {"name":"input_1","content":"Input 1","direction":"left"},
+      {"name":"input_2","content":"Input 2","direction":"left"}
+    ]
+  Wire each source via connections with toPort matching the port index.
 
-**"create_slices"** - Create slices from start/end timestamp sources.
-  state: { startsNodeId: "n1", endsNodeId: "n2", startsTsColumn: "ts", endsTsColumn: "ts" }
+### "interval_intersect" — intersect time intervals (_interval_intersect!())
+  config: {
+    "partitionColumns": ["upid"],    // columns to partition by (can be [])
+    "filterNegativeDur": true
+  }
+  Variable inputs — set inputs array (same pattern as union).
+  IMPORTANT: every input MUST have columns named EXACTLY "id", "ts", and "dur"
+  (case-sensitive). If an upstream table uses different names, add a select node
+  before the interval_intersect to rename the columns to id/ts/dur.
 
-## Example: Table with filter and sort (docked chain)
+### "extract_arg" — extract values from the args table
+  config: {
+    "extractions": [
+      { "column": "arg_set_id", "argName": "my.key", "alias": "my_key" }
+    ]
+  }
+  Joins args on column=arg_set_id, extracts display_value as alias.
+  isValid: always true.
 
+### "chart" — bar chart dashboard (variable inputs)
+  config: {
+    "charts": [
+      { "xCol": "name", "yCol": "" },    // yCol="" → COUNT(*)
+      { "xCol": "name", "yCol": "dur" }  // yCol set → SUM(yCol)
+    ]
+  }
+  Variable inputs (same pattern as union). Shows charts in details panel.
+
+## Fan-out: one node as input to multiple consumers
+
+A single node can feed multiple downstream nodes simultaneously. Use
+connections to wire it to each consumer. Do NOT create duplicate "from"
+nodes for the same table just because you need the data in two places.
+
+Example — slice feeds both a groupby (for aggregation) and a join (as left):
+  n1 (from slice) → connection → n3 join left (toPort=0)
+  n1 (from slice) → connection → n2 groupby (toPort=0)
+  n2 groupby      → connection → n3 join right (toPort=1)
+
+n1 has two outgoing connections — that is fine. No nextId needed here since
+n1 docks to neither; both relationships are expressed as connections.
+
+## Layout conventions
+
+Ports and flow direction:
+- All node outputs are on the RIGHT side (fromPort).
+- All node inputs are on the LEFT side (toPort).
+- Connections therefore always flow LEFT → RIGHT across the canvas.
+- Docked nodes (nextId) stack TOP → BOTTOM at the same x position; visually
+  they form a vertical tower, but data still enters from the left and exits
+  to the right of the whole tower.
+
+Implication for positioning:
+- Pipeline stages that are connected via connections should be at increasing
+  x values (left-to-right progression).
+- Nodes within the same docked chain share the same x; only y increases.
+
+## Positioning guidelines
+- Source nodes (from, time_range): x=150, stagger y by 180
+- Linear chain (docked via nextId): same x as parent, y += ~180 per node
+- Multi-input collector (join, union, ii): x=480, y centered between inputs
+- Further downstream stages: x=800, x=1100, etc.
+
+## Examples
+
+### Slice pipeline: from → filter → sort (docked chain)
 {
   "nodes": [
-    { "nodeId": "n1", "type": "table", "state": { "sqlTable": "slice" }, "nextNodes": ["n2"] },
-    { "nodeId": "n2", "type": "filter", "state": {
-        "primaryInputId": "n1",
-        "filters": [{ "column": "dur", "op": "greater_than", "value": 1000000 }],
-        "filterOperator": "AND", "filterMode": "structured"
-      }, "nextNodes": ["n3"] },
-    { "nodeId": "n3", "type": "sort", "state": {
-        "primaryInputId": "n2",
-        "sortCriteria": [{ "colName": "dur", "direction": "DESC" }]
-      }, "nextNodes": [] }
+    ["n1", {"type":"from","id":"n1","x":150,"y":100,"config":{"table":"slice"},"nextId":"n2"}],
+    ["n2", {"type":"filter","id":"n2","x":150,"y":280,"config":{"filterExpression":"","conditions":[{"column":"dur","op":">","value":"1000000"}],"conjunction":"AND"},"nextId":"n3"}],
+    ["n3", {"type":"sort","id":"n3","x":150,"y":460,"config":{"sortColumn":"","sortOrder":"ASC","conditions":[{"column":"dur","order":"DESC"}]}}]
   ],
-  "rootNodeIds": ["n1"],
-  "nodeLayouts": { "n1": { "x": 150, "y": 100 }, "n2": { "x": 150, "y": 200 }, "n3": { "x": 150, "y": 300 } },
+  "connections": [],
   "labels": []
 }
 
-## Example: Join slice with thread
-
+### Interval intersect: sched_slice ∩ slice partitioned by utid
 {
   "nodes": [
-    { "nodeId": "n1", "type": "table", "state": { "sqlTable": "slice" }, "nextNodes": [] },
-    { "nodeId": "n2", "type": "table", "state": { "sqlTable": "thread" }, "nextNodes": [] },
-    { "nodeId": "n3", "type": "join", "state": {
-        "leftNodeId": "n1", "rightNodeId": "n2",
-        "leftQueryAlias": "left", "rightQueryAlias": "right",
-        "conditionType": "equality", "joinType": "INNER",
-        "leftColumn": "utid", "rightColumn": "utid", "sqlExpression": ""
-      }, "nextNodes": [] }
+    ["n1", {"type":"from","id":"n1","x":150,"y":100,"config":{"table":"sched_slice"}}],
+    ["n2", {"type":"from","id":"n2","x":150,"y":280,"config":{"table":"slice"}}],
+    ["n3", {"type":"interval_intersect","id":"n3","x":480,"y":190,
+            "config":{"partitionColumns":["utid"],"filterNegativeDur":true},
+            "inputs":[{"name":"input_1","content":"Input 1","direction":"left"},
+                      {"name":"input_2","content":"Input 2","direction":"left"}]}]
   ],
-  "rootNodeIds": ["n1", "n2", "n3"],
-  "nodeLayouts": { "n1": { "x": 100, "y": 100 }, "n2": { "x": 100, "y": 250 }, "n3": { "x": 400, "y": 150 } },
+  "connections": [
+    {"fromNode":"n1","fromPort":0,"toNode":"n3","toPort":0},
+    {"fromNode":"n2","fromPort":0,"toNode":"n3","toPort":1}
+  ],
   "labels": []
 }`,
       input_schema: {
@@ -724,7 +879,7 @@ These nodes are separate root nodes with their own positions.
           graph: {
             type: 'object',
             description:
-              'The graph JSON object with nodes, rootNodeIds, nodeLayouts, and labels',
+              'The graph JSON object with nodes ([id, NodeData][] pairs), connections, and labels',
           },
         },
         required: ['graph'],
@@ -732,9 +887,13 @@ These nodes are separate root nodes with their own positions.
     },
     async handle(input) {
       try {
-        const plugin = trace.plugins.getPlugin(DataExplorerPlugin);
+        const plugin = trace.plugins.getPlugin(SpaghettiPlugin);
         const json = JSON.stringify(input.graph);
-        plugin.setActiveGraphJson(json);
+        const errors = plugin.validateGraphJson(json);
+        if (errors.length > 0) {
+          return JSON.stringify({status: 'validation_error', errors});
+        }
+        plugin.loadGraphJson(json);
         return JSON.stringify({status: 'ok'});
       } catch (e) {
         return JSON.stringify({status: 'error', message: String(e)});
@@ -743,16 +902,52 @@ These nodes are separate root nodes with their own positions.
   };
 }
 
-function createSelectQueryBuilderNodeTool(trace: Trace): ToolImpl {
+function createPinSpaghettiNodeTool(trace: Trace): ToolImpl {
   return {
     def: {
-      name: 'select_query_builder_node',
-      description: `Select a node in the Data Explorer's query builder graph.
+      name: 'pin_spaghetti_node',
+      description: `Pin a node in the Spaghetti query builder so the details panel always shows its results.
 
-Given a node ID, selects that node in the active tab's graph, which shows
-its results in the details panel.
+When a node is pinned, the details panel is locked to that node regardless
+of what the user clicks. A pin icon appears in the toolbar; the user can
+click it to unpin. Use this after set_spaghetti_graph to point the user at
+the most relevant output node.
 
-Use get_query_builder_graph first to discover available node IDs.`,
+Pass node_id as an empty string to unpin without selecting a new node.`,
+      input_schema: {
+        type: 'object',
+        properties: {
+          node_id: {
+            type: 'string',
+            description: 'The ID of the node to pin, or empty string to unpin',
+          },
+        },
+        required: ['node_id'],
+      },
+    },
+    async handle(input) {
+      try {
+        const plugin = trace.plugins.getPlugin(SpaghettiPlugin);
+        const nodeId = input.node_id as string;
+        plugin.pinNode(nodeId || undefined);
+        return JSON.stringify({status: 'ok', node_id: nodeId || null});
+      } catch (e) {
+        return JSON.stringify({status: 'error', message: String(e)});
+      }
+    },
+  };
+}
+
+function createSelectSpaghettiNodeTool(trace: Trace): ToolImpl {
+  return {
+    def: {
+      name: 'select_spaghetti_node',
+      description: `Select a node in the Spaghetti query builder by ID.
+
+Selects the node on the canvas so it is highlighted. To lock the details
+panel to always show that node's results, use pin_spaghetti_node instead.
+
+Use get_spaghetti_graph first to discover available node IDs.`,
       input_schema: {
         type: 'object',
         properties: {
@@ -766,15 +961,9 @@ Use get_query_builder_graph first to discover available node IDs.`,
     },
     async handle(input) {
       try {
-        const plugin = trace.plugins.getPlugin(DataExplorerPlugin);
+        const plugin = trace.plugins.getPlugin(SpaghettiPlugin);
         const nodeId = input.node_id as string;
-        const found = plugin.selectNode(nodeId);
-        if (!found) {
-          return JSON.stringify({
-            status: 'not_found',
-            message: `Node "${nodeId}" not found in the active graph`,
-          });
-        }
+        plugin.selectNode(nodeId);
         return JSON.stringify({status: 'ok', node_id: nodeId});
       } catch (e) {
         return JSON.stringify({status: 'error', message: String(e)});

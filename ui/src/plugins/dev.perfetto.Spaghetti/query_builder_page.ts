@@ -682,7 +682,14 @@ export function QueryBuilderPage(
           selectNode: (nodeId: string) => {
             selectedNodeIds.clear();
             selectedNodeIds.add(nodeId);
+            m.redraw();
+          },
+          pinNode: (nodeId: string | undefined) => {
             pinnedNodeId = nodeId;
+            if (nodeId) {
+              selectedNodeIds.clear();
+              selectedNodeIds.add(nodeId);
+            }
             m.redraw();
           },
         };
@@ -753,6 +760,24 @@ export function QueryBuilderPage(
           addNodeMenuItems,
         ),
       );
+
+      if (pinnedNodeId !== undefined) {
+        const pinnedNode = activeNodes.get(pinnedNodeId);
+        const pinnedLabel = pinnedNode
+          ? getManifest(pinnedNode.type)?.title ?? pinnedNode.type
+          : pinnedNodeId;
+        toolbarItems.push(
+          m(Button, {
+            variant: ButtonVariant.Filled,
+            icon: 'push_pin',
+            label: pinnedLabel,
+            title: 'Unpin node',
+            onclick: () => {
+              pinnedNodeId = undefined;
+            },
+          }),
+        );
+      }
 
       toolbarItems.push(
         m('div', {style: {flex: '1'}}),
