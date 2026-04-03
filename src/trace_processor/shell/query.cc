@@ -33,6 +33,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/perfetto_sql/pfgraph/pfgraph_compiler.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
@@ -182,10 +183,19 @@ base::Status PrintPerfFile(const std::string& perf_file_path,
 base::Status RunQueries(TraceProcessor* trace_processor,
                         const std::string& queries,
                         bool expect_output) {
-  if (expect_output) {
-    return RunQueriesAndPrintResult(trace_processor, queries, stdout);
+  // Detect QueryGraph YAML format and compile to SQL.
+  std::string effective_queries = queries;
+  if (queries.find("#!perfetto_querygraph_yaml") != std::string::npos) {
+    auto compiled = pfgraph::CompilePfGraphYaml(queries);
+    if (!compiled.ok()) {
+      return compiled.status();
+    }
+    effective_queries = *compiled;
   }
-  return RunQueriesWithoutOutput(trace_processor, queries);
+  if (expect_output) {
+    return RunQueriesAndPrintResult(trace_processor, effective_queries, stdout);
+  }
+  return RunQueriesWithoutOutput(trace_processor, effective_queries);
 }
 
 base::Status RunQueriesFromFile(TraceProcessor* trace_processor,

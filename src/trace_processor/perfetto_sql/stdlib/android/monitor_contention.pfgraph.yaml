@@ -1,4 +1,4 @@
-#!querygraph
+#!perfetto_querygraph_yaml
 module: android.monitor_contention
 imports: [android.suspend]
 

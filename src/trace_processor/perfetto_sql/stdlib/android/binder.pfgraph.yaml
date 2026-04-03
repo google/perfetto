@@ -1,4 +1,4 @@
-#!querygraph
+#!perfetto_querygraph_yaml
 module: android.binder
 imports: [android.process_metadata, android.suspend, slices.flow, slices.with_context]
 

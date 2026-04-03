@@ -270,8 +270,27 @@ base::StatusOr<sql_modules::RegisteredPackage> ToRegisteredPackage(
           "Module name '%s' must start with package name '%s.' as prefix.",
           module_name.c_str(), name.c_str());
     }
-    new_package.modules.Insert(module_name,
-                               {module_name_and_sql.second, false});
+    const std::string& content = module_name_and_sql.second;
+    bool is_yaml = content.find("#!perfetto_querygraph_yaml") != std::string::npos;
+
+    // Check if this module already exists (dual format: both .sql and .yaml).
+    auto* existing = new_package.modules.Find(module_name);
+    if (existing) {
+      if (is_yaml) {
+        existing->yaml = content;
+      } else {
+        existing->sql = content;
+      }
+    } else {
+      sql_modules::RegisteredPackage::ModuleFile mf;
+      if (is_yaml) {
+        mf.yaml = content;
+      } else {
+        mf.sql = content;
+      }
+      mf.included = false;
+      new_package.modules.Insert(module_name, std::move(mf));
+    }
   }
   return base::StatusOr<sql_modules::RegisteredPackage>(std::move(new_package));
 }

@@ -36,7 +36,8 @@ using NameToPackage =
 // function.
 struct RegisteredPackage {
   struct ModuleFile {
-    std::string sql;
+    std::string sql;   // SQL content (may be empty if only YAML exists).
+    std::string yaml;  // YAML content (may be empty if only SQL exists).
     bool included;
   };
   base::FlatHashMap<std::string, ModuleFile> modules;
@@ -51,8 +52,20 @@ inline std::string ReplaceSlashWithDot(std::string str) {
   return str;
 }
 
+// Checks if a path is a QueryGraph YAML file (.pfgraph.yaml extension).
+inline bool IsQueryGraphYaml(const std::string& path) {
+  static const char kSuffix[] = ".pfgraph.yaml";
+  return path.size() > strlen(kSuffix) &&
+         path.substr(path.size() - strlen(kSuffix)) == kSuffix;
+}
+
 inline std::string GetIncludeKey(const std::string& path) {
   base::StringView path_view(path);
+  // Handle .pfgraph.yaml compound extension.
+  if (IsQueryGraphYaml(path)) {
+    auto stripped = path.substr(0, path.size() - strlen(".pfgraph.yaml"));
+    return ReplaceSlashWithDot(stripped);
+  }
   auto path_no_extension = path_view.substr(0, path_view.rfind('.'));
   return ReplaceSlashWithDot(path_no_extension.ToStdString());
 }

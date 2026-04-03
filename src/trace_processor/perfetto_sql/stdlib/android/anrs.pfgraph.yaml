@@ -1,4 +1,4 @@
-#!querygraph
+#!perfetto_querygraph_yaml
 module: android.anrs
 imports: [android.process_metadata]
 

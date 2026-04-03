@@ -1117,38 +1117,49 @@ base::Status PerfettoSqlEngine::IncludeModuleImpl(
     return base::OkStatus();
   }
 
-  // Detect QueryGraph format by the #!querygraph shebang on the first line.
-  // This is invalid SQL (# is never valid), so it fails loudly if fed to SQLite.
-  std::string_view content(file.sql);
-  // Skip leading whitespace.
-  size_t pos = 0;
-  while (pos < content.size() &&
-         (content[pos] == ' ' || content[pos] == '\n' || content[pos] == '\r' ||
-          content[pos] == '\t')) {
-    ++pos;
+  // Determine caller format from execution stack.
+  bool caller_is_yaml = !execution_stack_.empty() &&
+                        execution_stack_.back().is_yaml;
+
+  // Pick content based on caller format preference.
+  // YAML callers prefer YAML, SQL callers prefer SQL, with fallback.
+  std::string content;
+  bool is_yaml = false;
+  if (caller_is_yaml && !file.yaml.empty()) {
+    content = file.yaml;
+    is_yaml = true;
+  } else if (!caller_is_yaml && !file.sql.empty()) {
+    content = file.sql;
+  } else if (!file.yaml.empty()) {
+    content = file.yaml;
+    is_yaml = true;
+  } else {
+    content = file.sql;
   }
-  bool is_querygraph =
-      content.substr(pos).substr(0, 13) == "#!querygraph\n" ||
-      content.substr(pos).substr(0, 13) == "#!querygraph\r" ||
-      content.substr(pos).substr(0, 12) == "#!querygraph";
-  if (is_querygraph) {
-    auto compiled = pfgraph::CompilePfGraphYaml(file.sql);
+
+  // If content is YAML, compile to SQL.
+  if (is_yaml) {
+    auto compiled = pfgraph::CompilePfGraphYaml(content);
     if (!compiled.ok()) {
       return base::ErrStatus("querygraph compilation of module '%s': %s",
                              key.c_str(), compiled.status().message().c_str());
     }
-    file.sql = *compiled;
+    content = *compiled;
   }
 
-  // Push include frame onto execution stack. The main loop will process it.
+  // Store compiled content back for re-use (avoid double compilation).
+  file.sql = content;
+
+  // Push include frame onto execution stack with format tracking.
   execution_stack_.push_back({FrameType::kInclude,
-                              SqlSource::FromModuleInclude(file.sql, key),
+                              SqlSource::FromModuleInclude(content, key),
                               /*parser=*/nullptr, /*accumulated_stats=*/{},
                               /*current_stmt=*/std::nullopt, key, &file,
                               /*traceback_sql=*/parser.statement_sql(),
                               /*wildcard_modules=*/{}, /*wildcard_index=*/0,
                               /*wildcard_traceback_sql=*/
-                              SqlSource::FromTraceProcessorImplementation("")});
+                              SqlSource::FromTraceProcessorImplementation(""),
+                              /*is_yaml=*/is_yaml});
 
   return base::OkStatus();
 }

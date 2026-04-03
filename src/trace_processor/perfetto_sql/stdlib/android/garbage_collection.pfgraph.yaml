@@ -1,4 +1,4 @@
-#!querygraph
+#!perfetto_querygraph_yaml
 module: android.garbage_collection
 imports: [android.startup.startups, intervals.intersect, slices.with_context]
 

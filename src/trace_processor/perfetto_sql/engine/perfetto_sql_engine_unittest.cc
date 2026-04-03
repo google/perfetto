@@ -40,7 +40,7 @@ sql_modules::RegisteredPackage CreateTestPackage(
   sql_modules::RegisteredPackage result;
   for (const auto& file : files) {
     result.modules[file.first] =
-        sql_modules::RegisteredPackage::ModuleFile{file.second, false};
+        sql_modules::RegisteredPackage::ModuleFile{/*sql=*/file.second, /*yaml=*/"", /*included=*/false};
   }
   return result;
 }

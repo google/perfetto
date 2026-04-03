@@ -1,4 +1,4 @@
-#!querygraph
+#!perfetto_querygraph_yaml
 module: chrome.scroll_jank.scroll_jank_v3
 imports: [chrome.metadata, chrome.scroll_jank.scroll_jank_v3_cause, chrome.event_latency]
 

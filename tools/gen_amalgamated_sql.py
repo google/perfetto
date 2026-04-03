@@ -65,6 +65,13 @@ struct FileToSql {
 '''
 
 
+def strip_extension(filename: str):
+  """Strip file extension, handling compound extensions like .pfgraph.yaml."""
+  if filename.endswith('.pfgraph.yaml'):
+    return filename[:-len('.pfgraph.yaml')] + '_pfgraph'
+  return os.path.splitext(filename)[0]
+
+
 def filename_to_variable(filename: str):
   return "k" + "".join([
       x.capitalize()
@@ -117,7 +124,7 @@ def main():
 
     # Create the C++ variable for each SQL file.
     for path, sql in sql_outputs.items():
-      variable = filename_to_variable(os.path.splitext(path)[0])
+      variable = filename_to_variable(strip_extension(path))
       output.write('\nconst char {}[] = '.format(variable))
       # MSVC doesn't like string literals that are individually longer than 16k.
       # However it's still fine "if" "we" "concatenate" "many" "of" "them".
@@ -137,7 +144,7 @@ def main():
     # Create mapping of filename to variable name for each variable.
     output.write("\nconst FileToSql kFileToSql[] = {")
     for path in sql_outputs.keys():
-      variable = filename_to_variable(os.path.splitext(path)[0])
+      variable = filename_to_variable(strip_extension(path))
 
       # This is for Windows which has \ as a path separator.
       path = path.replace("\\", "/")

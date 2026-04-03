@@ -305,6 +305,9 @@ class PerfettoSqlEngine {
         wildcard_modules;
     size_t wildcard_index = 0;
     SqlSource wildcard_traceback_sql;
+
+    // Whether the current file is QueryGraph YAML format.
+    bool is_yaml = false;
   };
 
   void RegisterStaticTable(dataframe::Dataframe*, const std::string&);

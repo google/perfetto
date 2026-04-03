@@ -1,4 +1,4 @@
-#!querygraph
+#!perfetto_querygraph_yaml
 module: android.input
 imports: [android.frames.timeline, intervals.intersect, slices.with_context]
 

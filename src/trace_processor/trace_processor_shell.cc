@@ -1087,8 +1087,8 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
       return base::ErrStatus("Unable to read query graph file %s",
                              options.query_graph_path.c_str());
     }
-    // Detect format by #!querygraph shebang.
-    bool is_querygraph = pfgraph_source.find("#!querygraph") != std::string::npos;
+    // Detect format by #!perfetto_querygraph_yaml shebang.
+    bool is_querygraph = pfgraph_source.find("#!perfetto_querygraph_yaml") != std::string::npos;
     auto compiled = is_querygraph
                         ? pfgraph::CompilePfGraphYaml(pfgraph_source)
                         : pfgraph::CompilePfGraph(pfgraph_source);

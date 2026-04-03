@@ -101,6 +101,7 @@ source_set("query") {
   deps = [
     "../../../gn:default_deps",
     "../../base",
+    "../perfetto_sql/pfgraph",
   ]
   public_deps = [ "../../../include/perfetto/trace_processor:trace_processor" ]
 }

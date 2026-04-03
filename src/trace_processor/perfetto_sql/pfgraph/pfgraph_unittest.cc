@@ -628,7 +628,7 @@ TEST(PfGraphCompilerTest, SourceTemplate) {
 
 TEST(PfGraphYamlTest, SimpleYamlPipeline) {
   auto result = CompilePfGraphYaml(R"yaml(
-#!querygraph
+#!perfetto_querygraph_yaml
 module: test
 
 result:
@@ -651,7 +651,7 @@ result:
 
 TEST(PfGraphYamlTest, YamlWithImports) {
   auto result = CompilePfGraphYaml(R"yaml(
-#!querygraph
+#!perfetto_querygraph_yaml
 module: android.test
 imports: [android.process_metadata, slices.with_context]
 
@@ -668,7 +668,7 @@ foo:
 
 TEST(PfGraphYamlTest, YamlFunction) {
   auto result = CompilePfGraphYaml(R"yaml(
-#!querygraph
+#!perfetto_querygraph_yaml
 module: test
 
 _my_func:
@@ -691,7 +691,7 @@ result:
 
 TEST(PfGraphYamlTest, YamlComputedAndWindow) {
   auto result = CompilePfGraphYaml(R"yaml(
-#!querygraph
+#!perfetto_querygraph_yaml
 module: test
 
 result:
@@ -714,7 +714,7 @@ result:
 
 TEST(PfGraphYamlTest, YamlGroupByAgg) {
   auto result = CompilePfGraphYaml(R"yaml(
-#!querygraph
+#!perfetto_querygraph_yaml
 module: test
 
 result:
@@ -735,7 +735,7 @@ result:
 
 TEST(PfGraphYamlTest, YamlSqlSource) {
   auto result = CompilePfGraphYaml(R"yaml(
-#!querygraph
+#!perfetto_querygraph_yaml
 module: test
 
 result:
@@ -753,7 +753,7 @@ result:
 
 TEST(PfGraphYamlTest, YamlPipelineReference) {
   auto result = CompilePfGraphYaml(R"yaml(
-#!querygraph
+#!perfetto_querygraph_yaml
 module: test
 
 _base:
