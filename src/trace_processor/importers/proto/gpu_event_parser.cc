@@ -32,6 +32,7 @@
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -697,7 +698,7 @@ void GpuEventParser::ParseGpuRenderStageEvent(
     } else {
       name_id = GetFullStageName(sequence_state, event);
     }
-    context_->slice_tracker->Scoped(
+    auto opt_slice_id = context_->slice_tracker->Scoped(
         ts, track_id, kNullStringId, name_id,
         static_cast<int64_t>(event.duration()),
         [&](ArgsTracker::BoundInserter* inserter) {
@@ -768,6 +769,29 @@ void GpuEventParser::ParseGpuRenderStageEvent(
               Variadic::Integer(context_->process_tracker->GetOrCreateProcess(
                   static_cast<uint32_t>(pid))));
         });
+
+    if (opt_slice_id) {
+      SliceId slice_id = *opt_slice_id;
+
+      // Handle explicit flow_ids.
+      for (auto it = event.flow_ids(); it; ++it) {
+        FlowId flow_id = *it;
+        if (!context_->flow_tracker->IsActive(flow_id)) {
+          context_->flow_tracker->Begin(slice_id, flow_id);
+        } else {
+          context_->flow_tracker->Step(slice_id, flow_id);
+        }
+      }
+
+      // Handle explicit terminating_flow_ids.
+      for (auto it = event.terminating_flow_ids(); it; ++it) {
+        FlowId flow_id = *it;
+        if (context_->flow_tracker->IsActive(flow_id)) {
+          context_->flow_tracker->End(slice_id, flow_id,
+                                      /* close_flow = */ true);
+        }
+      }
+    }
   }
 }
 

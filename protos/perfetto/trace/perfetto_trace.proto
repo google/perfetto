@@ -14278,7 +14278,7 @@ message GpuLog {
 
 // Begin of protos/perfetto/trace/gpu/gpu_render_stage_event.proto
 
-// next id: 18
+// next id: 20
 message GpuRenderStageEvent {
   // required. Unique ID for the event.
   optional uint64 event_id = 1;
@@ -14346,6 +14346,14 @@ message GpuRenderStageEvent {
   // provides a name for the stage instead of using the name from the stage
   // specification.
   optional string name = 17;
+
+  // optional. IDs used to create flow events between slices.
+  // Matches the semantics of TrackEvent's flow_ids / terminating_flow_ids.
+  // - flow_ids: begins a new flow if the ID is not active, otherwise steps
+  //   the existing flow through this slice.
+  // - terminating_flow_ids: ends an active flow at this slice.
+  repeated fixed64 flow_ids = 18;
+  repeated fixed64 terminating_flow_ids = 19;
 
   // DEPRECATED
 
