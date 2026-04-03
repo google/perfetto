@@ -1,0 +1,23 @@
+{
+  "extends": "./ui/tsconfig.base.json",
+  "include": ["ui/src/**/*"],
+  "exclude": [
+    "./ui/node_modules/",
+    "./ui/src/test/diff_viewer/",
+    "./ui/src/service_worker/",
+    "./ui/src/bigtrace/",
+    "./ui/src/gen/",
+    "./ui/out"
+  ],
+  "compilerOptions": {
+    "baseUrl": ".",
+    "outDir": "/tmp/tsc_esm_out",
+    "module": "es2022",
+    "lib": ["dom", "es2022"],
+    "paths": {
+      "*": ["*", "./ui/node_modules/@tsundoku/micromodal_types/*"]
+    },
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true
+  }
+}

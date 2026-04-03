@@ -1,0 +1,145 @@
+-- Copyright 2023 The Chromium Authors
+-- Use of this source code is governed by a BSD-style license that can be
+-- found in the LICENSE file.
+
+module chrome.scroll_jank.scroll_jank_v3
+
+import chrome.metadata
+import chrome.scroll_jank.scroll_jank_v3_cause
+import chrome.event_latency
+
+# Lookup slice name by id.
+@function _slice_name_from_id(id: LONG) -> STRING:
+  sql('SELECT name FROM slice WHERE $id = id')
+
+# Presented gesture scrolls, ordered by timestamp.
+@table _presented_gesture_scrolls:
+  table('chrome_gesture_scroll_updates')
+  .filter(is_presented = TRUE)
+  .select(id, ts, dur, scroll_update_id, scroll_id, presentation_timestamp, event_type)
+  .sort(ts)
+
+# Scroll updates matched to presentation frames.
+@table chrome_presented_gesture_scrolls: sql('''
+  WITH scroll_updates_with_presentation_info AS MATERIALIZED (
+    SELECT id, ts,
+      (SELECT id FROM _presented_gesture_scrolls AS _presented
+       WHERE _presented.ts <= scroll_update.ts ORDER BY ts DESC LIMIT 1
+      ) AS presented_to_scroll_update_slice_id
+    FROM chrome_gesture_scroll_updates AS scroll_update
+    ORDER BY presented_to_scroll_update_slice_id, ts)
+  SELECT id, ts, dur,
+    (SELECT presentation_info.ts
+     FROM scroll_updates_with_presentation_info AS presentation_info
+     WHERE presentation_info.presented_to_scroll_update_slice_id = _presented_gesture_scrolls.id
+     ORDER BY ts DESC LIMIT 1
+    ) AS last_presented_input_ts,
+    scroll_update_id, scroll_id, presentation_timestamp, event_type
+  FROM _presented_gesture_scrolls
+''')
+
+# Scroll deltas from InputHandler slices.
+@table chrome_scroll_updates_with_deltas:
+  table('slice')
+  .filter(name = 'InputHandlerProxy::HandleGestureScrollUpdate_Result')
+  .extract_args(
+    scroll_update_id: 'scroll_deltas.trace_id',
+    delta_y: 'scroll_deltas.provided_to_compositor_delta_y'
+  )
+  .select(scroll_update_id, delta_y)
+
+# Subset of fully presented input events.
+@table chrome_full_frame_view:
+  table('chrome_presented_gesture_scrolls')
+  .filter(event_type IN ('GESTURE_SCROLL_UPDATE', 'FIRST_GESTURE_SCROLL_UPDATE', 'INERTIAL_GESTURE_SCROLL_UPDATE', 'GESTURE_PINCH_UPDATE') AND presentation_timestamp IS NOT NULL)
+  .select(id, ts, last_presented_input_ts, scroll_id, scroll_update_id, id AS event_latency_id, dur, presentation_timestamp)
+
+# Join deltas with frame data.
+@table chrome_full_frame_delta_view:
+  table('chrome_full_frame_view')
+  .add_columns(from: chrome_scroll_updates_with_deltas, on: scroll_update_id = scroll_update_id, cols: [delta_y])
+  .select(id, ts, scroll_id, scroll_update_id, last_presented_input_ts, delta_y, event_latency_id, dur, presentation_timestamp)
+
+# Merge multiple gestures at same presentation timestamp.
+@table chrome_merged_frame_view: sql('''
+  SELECT id,
+    max(last_presented_input_ts) AS max_start_ts, min(ts) AS min_start_ts,
+    scroll_id, scroll_update_id,
+    GROUP_CONCAT(scroll_update_id, ',') AS encapsulated_scroll_ids,
+    sum(delta_y) AS total_delta, GROUP_CONCAT(delta_y, ',') AS segregated_delta_y,
+    event_latency_id, max(dur) AS dur, presentation_timestamp
+  FROM chrome_full_frame_delta_view GROUP BY presentation_timestamp
+  ORDER BY presentation_timestamp
+''')
+
+# Frame delays via lag() window functions.
+@table chrome_frame_info_with_delay: sql('''
+  SELECT *,
+    (presentation_timestamp - lag(presentation_timestamp, 1, presentation_timestamp)
+      OVER (PARTITION BY scroll_id ORDER BY presentation_timestamp)) / 1e6 AS delay_since_last_frame,
+    (min_start_ts - lag(max_start_ts, 1, min_start_ts)
+      OVER (PARTITION BY scroll_id ORDER BY min_start_ts)) / 1e6 AS delay_since_last_input,
+    lag(event_latency_id, 1, -1)
+      OVER (PARTITION BY scroll_id ORDER BY min_start_ts) AS prev_event_latency_id
+  FROM chrome_merged_frame_view
+''')
+
+# Vsync interval calculation.
+@table chrome_vsyncs: sql('''
+  WITH trace_vsyncs AS (
+    SELECT extract_arg(slice.arg_set_id, 'event_latency.vsync_interval_ms') AS vsync_interval_ms
+    FROM slice JOIN chrome_frame_info_with_delay
+    ON chrome_frame_info_with_delay.event_latency_id = slice.id
+    WHERE extract_arg(slice.arg_set_id, 'event_latency.vsync_interval_ms') > 0)
+  SELECT coalesce(
+    (SELECT min(vsync_interval_ms) FROM trace_vsyncs),
+    min(delay_since_last_frame)
+  ) AS vsync_interval
+  FROM chrome_frame_info_with_delay WHERE delay_since_last_frame > 0
+''')
+
+# Janky frames: frames where delay exceeds 1.5x vsync.
+@table chrome_janky_frames_no_cause: sql('''
+  SELECT delay_since_last_frame, event_latency_id,
+    (SELECT vsync_interval FROM chrome_vsyncs) AS vsync_interval,
+    chrome_hardware_class() AS hardware_class, scroll_id, prev_event_latency_id
+  FROM chrome_frame_info_with_delay
+  WHERE delay_since_last_frame > (SELECT vsync_interval + vsync_interval / 2 FROM chrome_vsyncs)
+    AND delay_since_last_input < (SELECT vsync_interval + vsync_interval / 2 FROM chrome_vsyncs)
+''')
+
+# Add jank cause ID.
+@table chrome_janky_frames_no_subcause:
+  table('chrome_janky_frames_no_cause')
+  .computed(cause_id: chrome_get_v3_jank_cause_id(event_latency_id, prev_event_latency_id))
+
+# Jank cause + sub-cause names.
+@table chrome_janky_frames: sql('''
+  SELECT _slice_name_from_id(cause_id) AS cause_of_jank,
+    _slice_name_from_id(chrome_get_v3_jank_cause_id(cause_id,
+      (SELECT id FROM slice WHERE name = _slice_name_from_id(cause_id) AND parent_id = prev_event_latency_id)
+    )) AS sub_cause_of_jank,
+    delay_since_last_frame, event_latency_id, vsync_interval, hardware_class, scroll_id
+  FROM chrome_janky_frames_no_subcause
+''')
+
+# Unique frame presentation timestamps.
+@table chrome_unique_frame_presentation_ts:
+  table('chrome_presented_gesture_scrolls')
+  .select(presentation_timestamp)
+  .distinct()
+
+# Janky frames percentage.
+@table chrome_janky_frames_percentage: sql('''
+  SELECT (SELECT count() FROM chrome_janky_frames) * 1.0
+    / (SELECT count() FROM chrome_unique_frame_presentation_ts) * 100 AS delayed_frame_percentage
+''')
+
+# Frames and janky frames per scroll.
+@table chrome_frames_per_scroll: sql('''
+  WITH frames AS (SELECT scroll_id, count(*) AS num_frames FROM chrome_frame_info_with_delay GROUP BY scroll_id),
+    janky_frames AS (SELECT scroll_id, count(*) AS num_janky_frames FROM chrome_janky_frames GROUP BY scroll_id)
+  SELECT frames.scroll_id, frames.num_frames, janky_frames.num_janky_frames,
+    100.0 * janky_frames.num_janky_frames / frames.num_frames AS scroll_jank_percentage
+  FROM frames LEFT JOIN janky_frames ON frames.scroll_id = janky_frames.scroll_id
+''')

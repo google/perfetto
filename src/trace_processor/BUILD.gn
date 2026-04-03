@@ -252,6 +252,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../base:version",
       "metrics",
       "perfetto_sql/generator",
+      "perfetto_sql/pfgraph",
       "rpc",
       "rpc:stdiod",
       "shell:interactive",
@@ -387,6 +388,7 @@ perfetto_unittest_source_set("unittests") {
       "perfetto_sql/parser:unittests",
       "perfetto_sql/preprocessor:unittests",
       "perfetto_sql/tokenizer:unittests",
+      "perfetto_sql/pfgraph:unittests",
       "sqlite:unittests",
     ]
   }

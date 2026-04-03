@@ -46,6 +46,7 @@ source_set("engine") {
     "../../util:sql_argument",
     "../../util:stdlib",
     "../parser",
+    "../pfgraph",
     "../preprocessor",
     "../tokenizer",
   ]

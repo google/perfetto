@@ -38,6 +38,7 @@
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/perfetto_sql/pfgraph/pfgraph_compiler.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
@@ -1114,6 +1115,36 @@ base::Status PerfettoSqlEngine::IncludeModuleImpl(
   // INCLUDE is noop for already included files.
   if (file.included) {
     return base::OkStatus();
+  }
+
+  // If the module content is PerfettoGraph (.pfgraph), compile it to SQL first.
+  // Detected by the content starting with "module " or a comment line (#, --)
+  // followed by "module ".
+  std::string_view content(file.sql);
+  // Skip leading whitespace and comments.
+  size_t pos = 0;
+  while (pos < content.size()) {
+    if (content[pos] == ' ' || content[pos] == '\n' || content[pos] == '\r' ||
+        content[pos] == '\t') {
+      ++pos;
+    } else if (content[pos] == '#') {
+      while (pos < content.size() && content[pos] != '\n') ++pos;
+    } else if (content[pos] == '-' && pos + 1 < content.size() &&
+               content[pos + 1] == '-') {
+      while (pos < content.size() && content[pos] != '\n') ++pos;
+    } else {
+      break;
+    }
+  }
+  bool is_pfgraph = content.substr(pos).substr(0, 7) == "module " ||
+                    content.substr(pos).substr(0, 1) == "@";
+  if (is_pfgraph) {
+    auto compiled = pfgraph::CompilePfGraph(file.sql);
+    if (!compiled.ok()) {
+      return base::ErrStatus("pfgraph compilation of module '%s': %s",
+                             key.c_str(), compiled.status().message().c_str());
+    }
+    file.sql = *compiled;
   }
 
   // Push include frame onto execution stack. The main loop will process it.

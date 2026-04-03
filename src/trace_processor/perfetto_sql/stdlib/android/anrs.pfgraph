@@ -1,0 +1,188 @@
+module android.anrs
+
+# --- Helper functions (scalar, CASE-based classification) ---
+
+@function _extract_anr_type(subject: STRING, process_name: STRING) -> STRING:
+  sql('''SELECT CASE
+    WHEN $subject IS NULL THEN NULL
+    WHEN $subject GLOB 'Broadcast of*' THEN 'BROADCAST_OF_INTENT'
+    WHEN $subject GLOB 'Input dispatching timed out*does not have a focused window*'
+      THEN 'INPUT_DISPATCHING_TIMEOUT_NO_FOCUSED_WINDOW'
+    WHEN $subject GLOB 'Input dispatching timed out*Waiting because no window has focus*'
+      THEN 'INPUT_DISPATCHING_TIMEOUT_NO_FOCUSED_WINDOW'
+    WHEN $subject GLOB 'Input dispatching timed out*' THEN 'INPUT_DISPATCHING_TIMEOUT'
+    WHEN $subject GLOB 'Context.startForegroundService()*' THEN 'START_FOREGROUND_SERVICE'
+    WHEN $subject GLOB 'executing service*' THEN 'EXECUTING_SERVICE'
+    WHEN $subject GLOB 'ContentProvider not responding*' THEN 'CONTENT_PROVIDER_NOT_RESPONDING'
+    WHEN $subject GLOB 'App requested: Buffer processing*' THEN 'GPU_HANG'
+    WHEN $subject GLOB 'No response to onStartJob*' THEN 'JOB_SERVICE_START'
+    WHEN $subject GLOB 'No response to onStopJob*' THEN 'JOB_SERVICE_STOP'
+    WHEN $subject GLOB 'Timed out while trying to bind*' THEN 'JOB_SERVICE_BIND'
+    WHEN $subject GLOB 'Process ProcessRecord{*} failed to complete startup' THEN 'BIND_APPLICATION'
+    WHEN $subject GLOB 'A foreground service of FOREGROUND_SERVICE_TYPE_SHORT_SERVICE*'
+      THEN 'FOREGROUND_SHORT_SERVICE_TIMEOUT'
+    WHEN $subject GLOB 'A foreground service of type*' THEN 'FOREGROUND_SERVICE_TIMEOUT'
+    WHEN $subject GLOB 'App requested: *' THEN 'APP_TRIGGERED'
+    WHEN $subject GLOB 'required notification not provided*' THEN 'JOB_SERVICE_NOTIFICATION_NOT_PROVIDED'
+    WHEN $process_name = 'system_server' THEN 'SYSTEM_SERVER_WATCHDOG_TIMEOUT'
+    ELSE 'UNKNOWN_ANR_TYPE'
+  END''')
+
+@function _get_broadcast_flag(subject: STRING) -> LONG:
+  sql('''SELECT CASE
+    WHEN $subject IS NULL OR NOT $subject GLOB 'Broadcast of Intent *flg=*' THEN NULL
+    ELSE unhex(str_split(substr($subject, instr($subject, ' flg=') + 5), ' ', 0))
+  END''')
+
+@function _default_anr_dur(anr_type: STRING, subject: STRING) -> LONG:
+  sql('''SELECT CASE
+    WHEN $anr_type IS NULL THEN NULL
+    WHEN $anr_type = 'BROADCAST_OF_INTENT'
+      AND (_get_broadcast_flag($subject) & unhex('0x10000000')) = 0 THEN 60000
+    WHEN $anr_type = 'BROADCAST_OF_INTENT'
+      AND (_get_broadcast_flag($subject) IS NULL
+        OR (_get_broadcast_flag($subject) & unhex('0x10000000')) != 0) THEN 10000
+    WHEN $anr_type = 'INPUT_DISPATCHING_TIMEOUT' THEN 5000
+    WHEN $anr_type = 'INPUT_DISPATCHING_TIMEOUT_NO_FOCUSED_WINDOW' THEN 5000
+    WHEN $anr_type = 'START_FOREGROUND_SERVICE' THEN 30000
+    WHEN $anr_type = 'EXECUTING_SERVICE' THEN 20000
+    WHEN $anr_type = 'JOB_SERVICE_START' THEN 8000
+    WHEN $anr_type = 'JOB_SERVICE_STOP' THEN 8000
+    WHEN $anr_type = 'JOB_SERVICE_BIND' THEN 8000
+    WHEN $anr_type = 'JOB_SERVICE_NOTIFICATION_NOT_PROVIDED' THEN 8000
+    WHEN $anr_type = 'BIND_APPLICATION' THEN 15000
+    WHEN $anr_type = 'CONTENT_PROVIDER_NOT_RESPONDING' THEN NULL
+    WHEN $anr_type = 'GPU_HANG' THEN NULL
+    WHEN $anr_type = 'APP_TRIGGERED' THEN NULL
+    WHEN $anr_type = 'FOREGROUND_SHORT_SERVICE_TIMEOUT' THEN 180000
+    WHEN $anr_type = 'FOREGROUND_SERVICE_TIMEOUT' THEN 30000
+    ELSE NULL
+  END''')
+
+@function _extract_anr_duration_from_subject(subject: STRING) -> LONG:
+  sql('''SELECT CASE
+    WHEN $subject GLOB '*Blocked in* for *s*'
+    THEN CAST(regexp_extract($subject, ' for ([0-9]+)s') * 1000 AS LONG)
+    ELSE NULL
+  END''')
+
+@function _platform_to_standard_anr_type(platform: STRING) -> STRING:
+  sql('''SELECT CASE
+    WHEN $platform GLOB 'BROADCAST_TIMEOUT' THEN 'BROADCAST_OF_INTENT'
+    WHEN $platform GLOB 'SERVICE_TIMEOUT' THEN 'EXECUTING_SERVICE'
+    WHEN $platform GLOB 'SHORT_FGS_TIMEOUT' THEN 'FOREGROUND_SHORT_SERVICE_TIMEOUT'
+    WHEN $platform GLOB 'SERVICE_FOREGROUND_TIMEOUT' THEN 'FOREGROUND_SERVICE_TIMEOUT'
+    WHEN $platform GLOB 'JobScheduler' THEN NULL
+    ELSE $platform
+  END''')
+
+@function _get_intent(anr_type: STRING, subject: STRING) -> STRING:
+  sql('''SELECT CASE
+    WHEN $anr_type = 'BROADCAST_OF_INTENT' AND $subject GLOB 'Broadcast of Intent *act=*'
+    THEN str_split(substr($subject, instr($subject, 'act=') + 4), ' ', 0)
+    WHEN $anr_type = 'BROADCAST_OF_INTENT' AND $subject GLOB 'Broadcast of */u*'
+    THEN str_split(substr($subject, instr($subject, 'Broadcast of ') + 13), '/u', 0)
+    ELSE NULL
+  END''')
+
+@function _get_component(anr_type: STRING, subject: STRING) -> STRING:
+  sql('''SELECT CASE
+    WHEN $anr_type = 'BROADCAST_OF_INTENT'
+    THEN str_split(substr($subject, instr($subject, ' cmp=') + 5), ' ', 0)
+    WHEN $anr_type = 'INPUT_DISPATCHING_TIMEOUT_NO_FOCUSED_WINDOW' THEN NULL
+    WHEN $anr_type = 'INPUT_DISPATCHING_TIMEOUT'
+    THEN str_split(substr($subject, instr($subject, '(') + 1), ' ', 1)
+    WHEN $anr_type = 'START_FOREGROUND_SERVICE'
+    THEN str_split(substr($subject, instr($subject, ' u') + 1
+      + instr(substr($subject, instr($subject, ' u') + 1), ' ')), ' ', 0)
+    WHEN $anr_type = 'EXECUTING_SERVICE'
+    THEN str_split(substr($subject, instr($subject, 'executing service ') + 18), ',', 0)
+    WHEN $anr_type IN ('FOREGROUND_SHORT_SERVICE_TIMEOUT', 'FOREGROUND_SERVICE_TIMEOUT')
+    THEN str_split(substr($subject, instr($subject, 'ComponentInfo{') + 14), '}', 0)
+    WHEN $anr_type = 'APP_TRIGGERED'
+    THEN substr($subject, instr($subject, 'App requested: ') + 15)
+    ELSE NULL
+  END''')
+
+# ============================================================================
+# The actual ANR dataflow — each step is a named pipeline.
+# ============================================================================
+
+# Step 1: Extract ANR error IDs from "ErrorId:*" counter tracks in system_server.
+# Counter format: "ErrorId:<process_name> <pid>#<UUID>"
+_anr_error_tracks:
+  table('process_counter_track')
+  .filter(name GLOB 'ErrorId:*')
+  .add_columns(from: table('process'), on: upid = upid, cols: [name AS proc_name])
+  .filter(proc_name = 'system_server')
+
+_anr_errors:
+  _anr_error_tracks
+  .add_columns(from: table('counter'), on: id = track_id, cols: [ts])
+  .computed(
+    process_name: str_split(substr(str_split(name, '#', 0), 9), ' ', 0),
+    pid: cast_int!(str_split(substr(str_split(name, '#', 0), 9), ' ', 1)),
+    error_id: str_split(name, '#', 1)
+  )
+  .select(process_name, pid, error_id, ts)
+
+# Step 2: Extract ANR subject lines from "Subject(for ErrorId *)" tracks.
+# Counter format: "Subject(for ErrorId <UUID>):<subject>"
+_anr_subjects:
+  table('process_counter_track')
+  .filter(name GLOB 'Subject(for ErrorId *')
+  .add_columns(from: table('process'), on: upid = upid, cols: [name AS proc_name])
+  .filter(proc_name = 'system_server')
+  .computed(
+    error_id: substr(str_split(name, ')', 0), 21),
+    subject: substr(name, length(str_split(name, ')', 0)) + 3)
+  )
+  .select(error_id, subject)
+
+# Step 3: Parse ANR timer expiration events from slices.
+# Slice name format: "expired(<timer_id>,<pid>,<uid>,<anr_type>,<dur_ms>)"
+_anr_timers:
+  table('slices')
+  .filter(name GLOB 'expired(*,*,*,*,*)')
+  .computed(params: trim(substr(name, length('expired(') + 1), ')'))
+  .computed(
+    timer_ts: ts,
+    pid: cast_int!(str_split(params, ',', 1)),
+    anr_type: str_split(params, ',', 3),
+    anr_dur_ms: cast_int!(str_split(params, ',', 4))
+  )
+  .select(timer_ts, pid, anr_type, anr_dur_ms)
+
+# Step 4: Match each ANR to potential timers (same pid, timer before ANR).
+_anr_potential_timers:
+  _anr_errors
+  .add_columns(from: _anr_timers, on: pid = pid, cols: [timer_ts, anr_type AS timer_anr_type, anr_dur_ms AS timer_dur_ms])
+  .filter(timer_ts IS NULL OR ts >= timer_ts)
+  .computed(time_diff: ts - timer_ts)
+
+# Step 5: Pick the best (closest) timer per error_id.
+_anr_best_timer:
+  _anr_potential_timers
+  .window(
+    rn: row_number() over (partition: [error_id], order: CASE WHEN timer_ts IS NULL THEN 1 ELSE 0 END ASC, time_diff ASC)
+  )
+  .filter(rn = 1)
+
+# Step 6: Assemble the final ANR table.
+@table
+android_anrs:
+  _anr_best_timer
+  .add_columns(from: _anr_subjects, on: error_id = error_id, cols: [subject])
+  .add_columns(from: table('process'), on: pid = pid, cols: [upid])
+  .computed(
+    timer_delay: ts - timer_ts,
+    anr_type: coalesce(_platform_to_standard_anr_type(timer_anr_type), _extract_anr_type(subject, process_name)),
+    anr_dur_ms: coalesce(timer_dur_ms, _extract_anr_duration_from_subject(subject))
+  )
+  .computed(
+    intent: _get_intent(anr_type, subject),
+    component: _get_component(anr_type, subject),
+    default_anr_dur_ms: _default_anr_dur(anr_type, subject)
+  )
+  .select(process_name, pid, upid, error_id, ts, anr_type, subject, intent, component, timer_delay, anr_dur_ms, default_anr_dur_ms)
+  .sort(ts)

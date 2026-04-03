@@ -75,6 +75,7 @@
 #include "src/trace_processor/shell/sql_packages.h"
 #include "src/trace_processor/trace_summary/summary.h"
 #include "src/trace_processor/util/deobfuscation/deobfuscator.h"
+#include "src/trace_processor/perfetto_sql/pfgraph/pfgraph_compiler.h"
 #include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
 
@@ -129,6 +130,7 @@ struct CommandLineOptions {
 
   std::string query_file_path;
   std::string query_string;
+  std::string query_graph_path;
   std::vector<std::string> structured_query_specs;
   std::string structured_query_id;
   std::vector<std::string> sql_package_paths;
@@ -386,6 +388,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_OVERRIDE_SQL_PACKAGE,
     OPT_STRUCTURED_QUERY_SPEC,
     OPT_STRUCTURED_QUERY_ID,
+    OPT_QUERY_GRAPH,
 
     OPT_SUMMARY,
     OPT_SUMMARY_METRICS_V2,
@@ -431,6 +434,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
        OPT_STRUCTURED_QUERY_SPEC},
       {"structured-query-id", required_argument, nullptr,
        OPT_STRUCTURED_QUERY_ID},
+      {"query-graph", required_argument, nullptr, OPT_QUERY_GRAPH},
       {"add-sql-package", required_argument, nullptr, OPT_ADD_SQL_PACKAGE},
       {"override-sql-package", required_argument, nullptr,
        OPT_OVERRIDE_SQL_PACKAGE},
@@ -601,6 +605,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       continue;
     }
 
+    if (option == OPT_QUERY_GRAPH) {
+      command_line_options.query_graph_path = optarg;
+      continue;
+    }
+
     if (option == OPT_STRUCTURED_QUERY_SPEC) {
       command_line_options.structured_query_specs.emplace_back(optarg);
       continue;
@@ -680,6 +689,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       (command_line_options.metric_v1_names.empty() &&
        command_line_options.query_file_path.empty() &&
        command_line_options.query_string.empty() &&
+       command_line_options.query_graph_path.empty() &&
        command_line_options.structured_query_id.empty() &&
        command_line_options.export_file_path.empty() &&
        !command_line_options.summary);
@@ -1069,6 +1079,23 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
   MetricV1OutputFormat metric_format = ParseMetricV1OutputFormat(options);
   if (!metrics.empty()) {
     RETURN_IF_ERROR(RunMetrics(tp.get(), metrics, metric_format));
+  }
+
+  if (!options.query_graph_path.empty()) {
+    std::string pfgraph_source;
+    if (!base::ReadFile(options.query_graph_path, &pfgraph_source)) {
+      return base::ErrStatus("Unable to read query graph file %s",
+                             options.query_graph_path.c_str());
+    }
+    auto compiled = pfgraph::CompilePfGraph(pfgraph_source);
+    if (!compiled.ok()) {
+      return compiled.status();
+    }
+    base::Status status = RunQueries(tp.get(), *compiled, true);
+    if (!status.ok()) {
+      RETURN_IF_ERROR(MaybeWriteMetatrace(tp.get(), options.metatrace_path));
+      return status;
+    }
   }
 
   if (!options.query_file_path.empty()) {

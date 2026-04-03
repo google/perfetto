@@ -1,0 +1,248 @@
+-- Copyright 2022 The Android Open Source Project
+-- Licensed under the Apache License, Version 2.0
+
+module android.binder
+
+import android.process_metadata
+import android.suspend
+import slices.flow
+import slices.with_context
+
+# Count binder transactions per process.
+@view android_binder_metrics_by_process:
+  slices(name: 'binder*')
+  .group_by(process_name, name)
+  .agg(pid: pid, slice_name: name, event_count: count())
+
+# Merged sync binder txns: uses _slice_following_flow! macro + MATERIALIZED +
+# 6-way flow join. These constructs require the _slice_following_flow! macro
+# which can only be called from SQL.
+@table _binder_txn_merged:
+  sql('''WITH
+    maybe_broken_binder_txn AS (
+      SELECT ancestor.id FROM slice JOIN slice AS ancestor ON ancestor.id = slice.parent_id
+      WHERE ancestor.name = 'binder transaction' GROUP BY ancestor.id),
+    nested_binder_txn AS (
+      SELECT DISTINCT root_node_id AS id FROM _slice_following_flow!(maybe_broken_binder_txn)),
+    broken_binder_txn AS (
+      SELECT * FROM maybe_broken_binder_txn EXCEPT SELECT * FROM nested_binder_txn),
+    binder_txn AS MATERIALIZED (
+      SELECT slice.id AS binder_txn_id, process.name AS process_name, thread.name AS thread_name,
+        thread.utid, thread.tid, process.pid, process.upid, slice.ts, slice.dur, thread.is_main_thread
+      FROM slice JOIN thread_track ON slice.track_id = thread_track.id
+      JOIN thread USING (utid) JOIN process USING (upid)
+      LEFT JOIN broken_binder_txn ON broken_binder_txn.id = slice.id
+      WHERE slice.name = 'binder transaction' AND broken_binder_txn.id IS NULL),
+    binder_reply AS (
+      SELECT binder_txn.*, binder_reply.ts AS server_ts, binder_reply.dur AS server_dur,
+        binder_reply.id AS binder_reply_id, reply_thread.name AS server_thread,
+        reply_process.name AS server_process, reply_thread.utid AS server_utid,
+        reply_thread.tid AS server_tid, reply_process.pid AS server_pid,
+        reply_process.upid AS server_upid, aidl.name AS aidl_name,
+        aidl.ts AS aidl_ts, aidl.dur AS aidl_dur
+      FROM binder_txn
+      JOIN flow AS binder_flow ON binder_txn.binder_txn_id = binder_flow.slice_out
+      JOIN slice AS binder_reply ON binder_flow.slice_in = binder_reply.id
+      JOIN thread_track AS rtt ON binder_reply.track_id = rtt.id
+      JOIN thread AS reply_thread ON reply_thread.utid = rtt.utid
+      JOIN process AS reply_process ON reply_process.upid = reply_thread.upid
+      LEFT JOIN slice AS aidl ON aidl.parent_id = binder_reply.id
+        AND (aidl.name GLOB 'AIDL::*Server' OR aidl.name GLOB 'AIDL::*server'
+             OR aidl.name GLOB 'HIDL::*server'))
+  SELECT min(aidl_name) AS aidl_name, aidl_ts, aidl_dur, binder_txn_id,
+    process_name AS client_process, thread_name AS client_thread,
+    upid AS client_upid, utid AS client_utid, tid AS client_tid, pid AS client_pid,
+    is_main_thread, ts AS client_ts, dur AS client_dur, binder_reply_id,
+    server_process, server_thread, server_upid, server_utid, server_tid, server_pid,
+    server_ts, server_dur
+  FROM binder_reply WHERE client_dur != -1 AND server_dur != -1 AND client_dur >= server_dur
+  GROUP BY process_name, thread_name, binder_txn_id, binder_reply_id''')
+
+# OOM score intervals: counter to intervals via lead() window.
+@table _oom_score:
+  sql('''SELECT process.upid, cast_int!(c.value) AS value, c.ts,
+    coalesce(lead(ts) OVER (PARTITION BY upid ORDER BY ts), trace_end()) AS end_ts
+    FROM counter AS c JOIN process_counter_track AS t ON c.track_id = t.id
+    JOIN process USING (upid) WHERE t.name = 'oom_score_adj' ''')
+  .index(upid, ts)
+
+# Sync binder metrics with OOM scores (BETWEEN range join).
+@view _sync_binder_metrics_by_txn:
+  sql('''SELECT binder.*, client_oom.value AS client_oom_score, server_oom.value AS server_oom_score
+    FROM _binder_txn_merged AS binder
+    LEFT JOIN _oom_score AS client_oom
+      ON binder.client_upid = client_oom.upid AND binder.client_ts BETWEEN client_oom.ts AND client_oom.end_ts
+    LEFT JOIN _oom_score AS server_oom
+      ON binder.server_upid = server_oom.upid AND binder.server_ts BETWEEN server_oom.ts AND server_oom.end_ts''')
+
+# Client/server interval projections for span_join with thread_state.
+@view _binder_txn:
+  table('_sync_binder_metrics_by_txn')
+  .select(client_ts AS ts, client_dur AS dur, client_utid AS utid, *)
+
+@view _binder_reply:
+  table('_sync_binder_metrics_by_txn')
+  .select(server_ts AS ts, server_dur AS dur, server_utid AS utid, *)
+
+# SPAN_JOIN with thread_state.
+_sp_binder_txn_thread_state:
+  table('_binder_txn')
+  .span_join(table('thread_state'), partition: [utid])
+
+_sp_binder_reply_thread_state:
+  table('_binder_reply')
+  .span_join(table('thread_state'), partition: [utid])
+
+# Aggregated thread_states per binder txn (client + server).
+_txn_ts_agg:
+  table('_sp_binder_txn_thread_state')
+  .computed(thread_state_type: 'binder_txn')
+  .group_by(binder_txn_id, binder_reply_id, thread_state_type, state)
+  .agg(client_ts: client_ts, client_tid: client_tid,
+       server_ts: server_ts, server_tid: server_tid,
+       thread_state: state, thread_state_dur: sum(dur), thread_state_count: count(dur))
+
+_reply_ts_agg:
+  table('_sp_binder_reply_thread_state')
+  .computed(thread_state_type: 'binder_reply')
+  .group_by(binder_txn_id, binder_reply_id, thread_state_type, state)
+  .agg(client_ts: client_ts, client_tid: client_tid,
+       server_ts: server_ts, server_tid: server_tid,
+       thread_state: state, thread_state_dur: sum(dur), thread_state_count: count(dur))
+
+@view android_sync_binder_thread_state_by_txn:
+  union(_txn_ts_agg, _reply_ts_agg)
+
+# Aggregated blocked_functions per binder txn (client + server).
+_txn_bf_agg:
+  table('_sp_binder_txn_thread_state')
+  .filter(blocked_function IS NOT NULL)
+  .computed(thread_state_type: 'binder_txn')
+  .group_by(binder_txn_id, binder_reply_id, thread_state_type, blocked_function)
+  .agg(client_ts: client_ts, client_tid: client_tid,
+       server_ts: server_ts, server_tid: server_tid,
+       blocked_function_dur: sum(dur), blocked_function_count: count(dur))
+
+_reply_bf_agg:
+  table('_sp_binder_reply_thread_state')
+  .filter(blocked_function IS NOT NULL)
+  .computed(thread_state_type: 'binder_reply')
+  .group_by(binder_txn_id, binder_reply_id, thread_state_type, blocked_function)
+  .agg(client_ts: client_ts, client_tid: client_tid,
+       server_ts: server_ts, server_tid: server_tid,
+       blocked_function_dur: sum(dur), blocked_function_count: count(dur))
+
+@view android_sync_binder_blocked_functions_by_txn:
+  union(_txn_bf_agg, _reply_bf_agg)
+
+# Async binder reply candidates with lead() to peek at next AIDL name.
+@table _async_binder_reply:
+  table('slice')
+  .filter(name GLOB 'AIDL::*Server' OR name GLOB 'AIDL::*server' OR name GLOB 'HIDL::*server' OR name = 'binder async rcv')
+  .select(id, ts, dur, track_id, name)
+  .window(
+    next_name: lead(name) over (partition: [track_id], order: ts),
+    next_ts: lead(ts) over (partition: [track_id], order: ts),
+    next_dur: lead(dur) over (partition: [track_id], order: ts)
+  )
+  .sort(id)
+
+# Async binder txns (client side) with thread/process context.
+@table _binder_async_txn_raw:
+  sql('''SELECT slice.id AS binder_txn_id, process.name AS client_process,
+    thread.name AS client_thread, process.upid AS client_upid,
+    thread.utid AS client_utid, thread.tid AS client_tid,
+    process.pid AS client_pid, thread.is_main_thread,
+    slice.ts AS client_ts, slice.dur AS client_dur
+  FROM slice JOIN thread_track ON slice.track_id = thread_track.id
+  JOIN thread USING (utid) JOIN process USING (upid)
+  WHERE slice.name = 'binder transaction async' ORDER BY slice.id''')
+
+# Async txns joined to replies via flow.
+@table _binder_async_txn:
+  sql('''SELECT
+    iif(binder_reply.next_name = 'binder async rcv', NULL, binder_reply.next_name) AS aidl_name,
+    iif(binder_reply.next_name = 'binder async rcv', NULL, binder_reply.next_ts) AS aidl_ts,
+    iif(binder_reply.next_name = 'binder async rcv', NULL, binder_reply.next_dur) AS aidl_dur,
+    binder_txn.*, binder_reply.id AS binder_reply_id,
+    reply_process.name AS server_process, reply_thread.name AS server_thread,
+    reply_process.upid AS server_upid, reply_thread.utid AS server_utid,
+    reply_thread.tid AS server_tid, reply_process.pid AS server_pid,
+    binder_reply.ts AS server_ts, binder_reply.dur AS server_dur
+  FROM _binder_async_txn_raw AS binder_txn
+  JOIN flow AS binder_flow ON binder_txn.binder_txn_id = binder_flow.slice_out
+  JOIN _async_binder_reply AS binder_reply ON binder_flow.slice_in = binder_reply.id
+  JOIN thread_track AS rtt ON binder_reply.track_id = rtt.id
+  JOIN thread AS reply_thread ON reply_thread.utid = rtt.utid
+  JOIN process AS reply_process ON reply_process.upid = reply_thread.upid
+  WHERE binder_reply.name = 'binder async rcv' ORDER BY binder_txn_id''')
+
+# Async binder metrics with OOM scores.
+@view _async_binder_metrics_by_txn:
+  sql('''SELECT binder.*, client_oom.value AS client_oom_score, server_oom.value AS server_oom_score
+    FROM _binder_async_txn AS binder
+    LEFT JOIN _oom_score AS client_oom
+      ON binder.client_upid = client_oom.upid AND binder.client_ts BETWEEN client_oom.ts AND client_oom.end_ts
+    LEFT JOIN _oom_score AS server_oom
+      ON binder.server_upid = server_oom.upid AND binder.server_ts BETWEEN server_oom.ts AND server_oom.end_ts''')
+
+# Final unified binder table: sync + async.
+_sync_with_flag:
+  table('_sync_binder_metrics_by_txn')
+  .computed(is_sync: 1)
+
+_async_with_flag:
+  table('_async_binder_metrics_by_txn')
+  .computed(is_sync: 0)
+
+@table android_binder_txns:
+  union(_sync_with_flag, _async_with_flag)
+  .computed(
+    interface: str_split(aidl_name, '::', 2),
+    method_name: str_split(aidl_name, '::', 3),
+    client_monotonic_dur: _extract_duration_without_suspend(client_ts, client_dur),
+    server_monotonic_dur: _extract_duration_without_suspend(server_ts, server_dur)
+  )
+  .add_columns(from: table('android_process_metadata'), on: client_upid = upid,
+    cols: [version_code AS client_package_version_code, debuggable AS is_client_package_debuggable])
+  .add_columns(from: table('android_process_metadata'), on: server_upid = upid,
+    cols: [version_code AS server_package_version_code, debuggable AS is_server_package_debuggable])
+  .sort(binder_txn_id)
+
+# Pprof graph functions — cat_stacks/experimental_profile are irreducible.
+# These use accumulative stack building across CTEs which has no DSL equivalent.
+@function android_binder_outgoing_graph(upid: LONG) -> TABLE(pprof: BYTES):
+  sql('''WITH
+    threads AS (SELECT binder_txn_id, cat_stacks(client_thread) AS stack
+      FROM android_binder_txns WHERE ($upid IS NULL) OR (client_upid = $upid)),
+    server_process AS (SELECT binder_txn_id, cat_stacks(stack, server_process) AS stack
+      FROM android_binder_txns JOIN threads USING (binder_txn_id)),
+    end_points AS (SELECT binder_txn_id,
+      cat_stacks(stack, str_split(aidl_name, '::', iif(aidl_name GLOB 'AIDL*', 2, 1))) AS stack
+      FROM android_binder_txns JOIN server_process USING (binder_txn_id)),
+    aidl_names AS (SELECT server_dur,
+      cat_stacks(stack, str_split(aidl_name, '::', iif(aidl_name GLOB 'AIDL*', 3, 2))) AS stack
+      FROM android_binder_txns JOIN end_points USING (binder_txn_id))
+  SELECT experimental_profile(stack, 'duration', 'ns', server_dur) AS pprof FROM aidl_names''')
+
+@function android_binder_incoming_graph(upid: LONG) -> TABLE(pprof: BYTES):
+  sql('''WITH
+    client_process AS (SELECT binder_txn_id, cat_stacks(client_process) AS stack
+      FROM android_binder_txns WHERE ($upid IS NULL) OR (server_upid = $upid)),
+    end_points AS (SELECT binder_txn_id,
+      cat_stacks(stack, str_split(aidl_name, '::', iif(aidl_name GLOB 'AIDL*', 2, 1))) AS stack
+      FROM android_binder_txns JOIN client_process USING (binder_txn_id)),
+    aidl_names AS (SELECT server_dur,
+      cat_stacks(stack, str_split(aidl_name, '::', iif(aidl_name GLOB 'AIDL*', 3, 2))) AS stack
+      FROM android_binder_txns JOIN end_points USING (binder_txn_id))
+  SELECT experimental_profile(stack, 'duration', 'ns', server_dur) AS pprof FROM aidl_names''')
+
+@function android_binder_graph(min_client_oom_score: LONG, max_client_oom_score: LONG, min_server_oom_score: LONG, max_server_oom_score: LONG) -> TABLE(pprof: BYTES):
+  sql('''WITH
+    clients AS (SELECT binder_txn_id, cat_stacks(client_process) AS stack
+      FROM android_binder_txns
+      WHERE client_oom_score BETWEEN $min_client_oom_score AND $max_client_oom_score),
+    servers AS (SELECT server_dur, cat_stacks(stack, server_process) AS stack
+      FROM android_binder_txns JOIN clients USING (binder_txn_id)
+      WHERE server_oom_score BETWEEN $min_server_oom_score AND $max_server_oom_score)
+  SELECT experimental_profile(stack, 'duration', 'ns', server_dur) AS pprof FROM servers''')

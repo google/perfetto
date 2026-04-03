@@ -1,0 +1,1207 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "src/trace_processor/perfetto_sql/pfgraph/pfgraph_compiler.h"
+
+#include <algorithm>
+#include <string>
+#include <variant>
+#include <vector>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/perfetto_sql/pfgraph/pfgraph_ast.h"
+#include "src/trace_processor/perfetto_sql/pfgraph/pfgraph_parser.h"
+
+namespace perfetto::trace_processor::pfgraph {
+
+namespace {
+
+// Tracks the state of a SQL query being built.
+struct QueryBuilder {
+  std::string from;
+  std::string where;
+  std::string select;  // Empty means SELECT *.
+  std::string group_by;
+  std::string order_by;
+  std::string limit;
+  std::string offset;
+
+  std::string Build() const {
+    std::string sql = "SELECT ";
+    sql += select.empty() ? "*" : select;
+    sql += "\nFROM " + from;
+    if (!where.empty())
+      sql += "\nWHERE " + where;
+    if (!group_by.empty())
+      sql += "\nGROUP BY " + group_by;
+    if (!order_by.empty())
+      sql += "\nORDER BY " + order_by;
+    if (!limit.empty())
+      sql += "\nLIMIT " + limit;
+    if (!offset.empty())
+      sql += "\nOFFSET " + offset;
+    return sql;
+  }
+
+  // Wrap the current query into a subquery and return a fresh builder.
+  QueryBuilder Wrap(const std::string& alias) const {
+    QueryBuilder fresh;
+    fresh.from = "(\n" + Build() + "\n) AS " + alias;
+    return fresh;
+  }
+
+  bool NeedsWrapForFilter() const {
+    return !group_by.empty() || !order_by.empty() || !limit.empty() ||
+           !select.empty();
+  }
+
+  bool NeedsWrapForGroupBy() const {
+    return !group_by.empty() || !order_by.empty() || !limit.empty() ||
+           !select.empty();
+  }
+
+  bool NeedsWrapForSelect() const {
+    return !order_by.empty() || !limit.empty();
+  }
+};
+
+class Compiler {
+ public:
+  base::StatusOr<std::string> Compile(const GraphModule& mod) {
+    std::string output;
+
+    // Emit module imports.
+    for (const auto& imp : mod.imports) {
+      output += "INCLUDE PERFETTO MODULE " + imp + ";\n";
+    }
+    if (!mod.imports.empty()) {
+      output += "\n";
+    }
+
+    // Index all named pipelines and templates for reference resolution.
+    for (const auto& decl : mod.declarations) {
+      if (auto* np = std::get_if<NamedPipeline>(&decl)) {
+        pipeline_index_.Insert(np->name, np);
+      } else if (auto* td = std::get_if<TemplateDecl>(&decl)) {
+        template_index_.Insert(td->name, td);
+      }
+    }
+
+    // Find the last named pipeline to decide if it should be a raw SELECT.
+    const NamedPipeline* last_pipeline = nullptr;
+    for (auto it = mod.declarations.rbegin(); it != mod.declarations.rend();
+         ++it) {
+      if (auto* np = std::get_if<NamedPipeline>(&*it)) {
+        last_pipeline = np;
+        break;
+      }
+    }
+
+    // Process declarations in order.
+    for (const auto& decl : mod.declarations) {
+      if (auto* np = std::get_if<NamedPipeline>(&decl)) {
+        bool is_last = (np == last_pipeline);
+        std::string sql;
+        ASSIGN_OR_RETURN(sql, CompileNamedPipeline(*np, is_last));
+        output += sql;
+        output += "\n";
+      } else if (auto* sb = std::get_if<SqlBlock>(&decl)) {
+        output += sb->sql;
+        if (!output.empty() && output.back() != ';' && output.back() != '\n') {
+          output += ";";
+        }
+        output += "\n\n";
+      } else if (auto* fd = std::get_if<FunctionDecl>(&decl)) {
+        std::string func_sql;
+        ASSIGN_OR_RETURN(func_sql, CompileFunctionDecl(*fd));
+        output += func_sql;
+        output += "\n";
+      } else if (std::get_if<TemplateDecl>(&decl)) {
+        // Template declarations are indexed above and expanded at call sites.
+        // No SQL is emitted for the declaration itself.
+      }
+    }
+
+    return output;
+  }
+
+ private:
+  base::StatusOr<std::string> CompileNamedPipeline(const NamedPipeline& np,
+                                                    bool is_last) {
+    // Clear preambles from any previous pipeline.
+    span_join_preambles_.clear();
+
+    std::string query;
+    ASSIGN_OR_RETURN(query, CompilePipeline(np.pipeline, np.name));
+
+    // Emit any preambles generated by SpanJoinOp.
+    std::string sql;
+    for (const auto& preamble : span_join_preambles_) {
+      sql += preamble;
+    }
+
+    switch (np.annotation) {
+      case PipelineAnnotation::kTable:
+        sql += "CREATE PERFETTO TABLE " + np.name + " AS\n";
+        break;
+      case PipelineAnnotation::kView:
+        sql += "CREATE PERFETTO VIEW " + np.name + " AS\n";
+        break;
+      case PipelineAnnotation::kNone:
+        if (is_last) {
+          // Last non-annotated pipeline: emit as raw SELECT for output.
+        } else if (!np.name.empty() && np.name[0] == '_') {
+          sql += "CREATE PERFETTO TABLE " + np.name + " AS\n";
+        } else {
+          sql += "CREATE PERFETTO VIEW " + np.name + " AS\n";
+        }
+        break;
+    }
+    sql += query + ";\n";
+
+    // Emit CREATE PERFETTO INDEX for any IndexOp in the pipeline.
+    for (const auto& op : np.pipeline.operations) {
+      if (auto* idx = std::get_if<IndexOp>(&op)) {
+        sql += "CREATE PERFETTO INDEX idx_" + np.name + " ON " + np.name +
+               "(" + base::Join(idx->columns, ", ") + ");\n";
+      }
+    }
+
+    return sql;
+  }
+
+  base::StatusOr<std::string> CompilePipeline(const Pipeline& pipe,
+                                               const std::string& name) {
+    // Compile the source into an initial QueryBuilder.
+    QueryBuilder qb;
+    ASSIGN_OR_RETURN(qb, CompileSource(pipe.source, name));
+
+    // Apply operations in sequence.
+    uint32_t wrap_counter = 0;
+    for (const auto& op : pipe.operations) {
+      ASSIGN_OR_RETURN(qb, ApplyOperation(qb, op, name, wrap_counter));
+    }
+
+    return qb.Build();
+  }
+
+  base::StatusOr<QueryBuilder> CompileSource(const Source& source,
+                                             const std::string& ctx) {
+    QueryBuilder qb;
+
+    if (auto* ts = std::get_if<TableSource>(&source)) {
+      qb.from = ts->table_name;
+      return qb;
+    }
+
+    if (auto* ss = std::get_if<SlicesSource>(&source)) {
+      return CompileSlicesSource(*ss);
+    }
+
+    if (auto* sql = std::get_if<SqlSource>(&source)) {
+      qb.from = "(\n" + sql->sql + "\n)";
+      return qb;
+    }
+
+    if (auto* tr = std::get_if<TimeRangeSource>(&source)) {
+      return CompileTimeRangeSource(*tr);
+    }
+
+    if (auto* ii = std::get_if<IntervalIntersectSource>(&source)) {
+      return CompileIntervalIntersectSource(*ii, ctx);
+    }
+
+    if (auto* j = std::get_if<JoinSource>(&source)) {
+      return CompileJoinSource(*j);
+    }
+
+    if (auto* u = std::get_if<UnionSource>(&source)) {
+      return CompileUnionSource(*u, ctx);
+    }
+
+    if (auto* cs = std::get_if<CreateSlicesSource>(&source)) {
+      return CompileCreateSlicesSource(*cs, ctx);
+    }
+
+    if (auto* lt = std::get_if<LookupTableSource>(&source)) {
+      return CompileLookupTableSource(*lt);
+    }
+
+    if (auto* tc = std::get_if<TemplateCallSource>(&source)) {
+      return CompileTemplateCallSource(*tc, ctx);
+    }
+
+    if (auto* ref = std::get_if<PipelineRef>(&source)) {
+      qb.from = ref->name;
+      return qb;
+    }
+
+    return base::ErrStatus("pfgraph: unknown source type in '%s'", ctx.c_str());
+  }
+
+  base::StatusOr<QueryBuilder> CompileSlicesSource(const SlicesSource& ss) {
+    QueryBuilder qb;
+    qb.from = "thread_or_process_slice";
+    std::vector<std::string> filters;
+    if (!ss.name_glob.empty()) {
+      filters.push_back("name GLOB '" + EscapeSql(ss.name_glob) + "'");
+    }
+    if (!ss.thread_glob.empty()) {
+      filters.push_back("thread_name GLOB '" + EscapeSql(ss.thread_glob) +
+                         "'");
+    }
+    if (!ss.process_glob.empty()) {
+      filters.push_back("process_name GLOB '" + EscapeSql(ss.process_glob) +
+                         "'");
+    }
+    if (!ss.track_glob.empty()) {
+      filters.push_back("track_name GLOB '" + EscapeSql(ss.track_glob) + "'");
+    }
+    if (!filters.empty()) {
+      qb.where = base::Join(filters, " AND ");
+    }
+    return qb;
+  }
+
+  base::StatusOr<QueryBuilder> CompileTimeRangeSource(
+      const TimeRangeSource& tr) {
+    QueryBuilder qb;
+    if (tr.dynamic) {
+      qb.from = "(SELECT 0 AS id, trace_start() AS ts, trace_dur() AS dur)";
+    } else {
+      qb.from = "(SELECT 0 AS id, " + std::to_string(tr.ts.value_or(0)) +
+                " AS ts, " + std::to_string(tr.dur.value_or(0)) + " AS dur)";
+    }
+    return qb;
+  }
+
+  base::StatusOr<QueryBuilder> CompileIntervalIntersectSource(
+      const IntervalIntersectSource& ii,
+      const std::string& /*ctx*/) {
+    // Build the _interval_intersect! macro call.
+    std::string tables = "(";
+    for (size_t i = 0; i < ii.inputs.size(); ++i) {
+      if (i > 0)
+        tables += ", ";
+      tables += ii.inputs[i].name;
+    }
+    tables += ")";
+
+    std::string partitions;
+    if (!ii.partition_columns.empty()) {
+      partitions = "(";
+      for (size_t i = 0; i < ii.partition_columns.size(); ++i) {
+        if (i > 0)
+          partitions += ", ";
+        partitions += ii.partition_columns[i];
+      }
+      partitions += ")";
+    }
+
+    QueryBuilder qb;
+    std::string macro_call = "_interval_intersect!(" + tables + ", ";
+    if (!partitions.empty()) {
+      macro_call += partitions;
+    } else {
+      macro_call += "()";
+    }
+    macro_call += ")";
+    qb.from = macro_call;
+
+    // The macro output has: ts, dur, id_0, id_1, ..., plus partition columns.
+    // Users can JOIN back to original tables manually if needed.
+    return qb;
+  }
+
+  base::StatusOr<QueryBuilder> CompileJoinSource(const JoinSource& j) {
+    QueryBuilder qb;
+    std::string join_type = j.is_left_join ? "LEFT JOIN" : "JOIN";
+
+    std::string left_alias =
+        j.left.alias.empty() ? j.left.name : j.left.alias;
+    std::string right_alias =
+        j.right.alias.empty() ? j.right.name : j.right.alias;
+
+    qb.from = j.left.name;
+    if (!j.left.alias.empty()) {
+      qb.from += " AS " + j.left.alias;
+    }
+    qb.from += "\n" + join_type + " " + j.right.name;
+    if (!j.right.alias.empty()) {
+      qb.from += " AS " + j.right.alias;
+    }
+
+    if (!j.on_expr.empty()) {
+      qb.from += " ON " + j.on_expr;
+    } else if (!j.on_left_col.empty() && !j.on_right_col.empty()) {
+      qb.from += " ON " + left_alias + "." + j.on_left_col + " = " +
+                 right_alias + "." + j.on_right_col;
+    }
+
+    return qb;
+  }
+
+  base::StatusOr<QueryBuilder> CompileUnionSource(const UnionSource& u,
+                                                   const std::string& /*ctx*/) {
+    std::string union_kw = u.union_all ? "UNION ALL" : "UNION";
+    std::string combined;
+    for (size_t i = 0; i < u.inputs.size(); ++i) {
+      if (i > 0) {
+        combined += "\n" + union_kw + "\n";
+      }
+      combined += "SELECT * FROM " + u.inputs[i].name;
+    }
+    QueryBuilder qb;
+    qb.from = "(\n" + combined + "\n)";
+    return qb;
+  }
+
+  base::StatusOr<QueryBuilder> CompileCreateSlicesSource(
+      const CreateSlicesSource& cs,
+      const std::string& /*ctx*/) {
+    // Use a CTE-based approach to match starts with ends.
+    std::string sql =
+        "(SELECT s." + cs.starts_ts_col + " AS ts, "
+        "MIN(e." + cs.ends_ts_col + ") - s." + cs.starts_ts_col + " AS dur "
+        "FROM " + cs.starts.name + " AS s "
+        "JOIN " + cs.ends.name + " AS e "
+        "ON e." + cs.ends_ts_col + " > s." + cs.starts_ts_col + " "
+        "GROUP BY s." + cs.starts_ts_col + ", s.rowid)";
+    QueryBuilder qb;
+    qb.from = sql;
+    return qb;
+  }
+
+  base::StatusOr<QueryBuilder> CompileLookupTableSource(
+      const LookupTableSource& lt) {
+    if (lt.entries.empty()) {
+      return base::ErrStatus("pfgraph: lookup_table has no entries");
+    }
+    std::string sql;
+    for (size_t i = 0; i < lt.entries.size(); ++i) {
+      if (i > 0)
+        sql += " UNION ALL ";
+      const auto& entry = lt.entries[i];
+      sql += "SELECT '" + EscapeSql(entry.first) + "' AS key, ";
+      // If value looks numeric, use as-is; otherwise wrap in quotes.
+      bool is_numeric = !entry.second.empty();
+      for (char c : entry.second) {
+        if (!std::isdigit(c) && c != '.' && c != '-' && c != '+') {
+          is_numeric = false;
+          break;
+        }
+      }
+      if (is_numeric) {
+        sql += entry.second;
+      } else {
+        sql += "'" + EscapeSql(entry.second) + "'";
+      }
+      sql += " AS value";
+    }
+    QueryBuilder qb;
+    qb.from = "(\n" + sql + "\n)";
+    return qb;
+  }
+
+  base::StatusOr<QueryBuilder> CompileTemplateCallSource(
+      const TemplateCallSource& tc,
+      const std::string& ctx) {
+    const TemplateDecl** tmpl = template_index_.Find(tc.template_name);
+    if (!tmpl) {
+      return base::ErrStatus(
+          "pfgraph: unknown template '%s' in source of '%s'",
+          tc.template_name.c_str(), ctx.c_str());
+    }
+    const TemplateDecl* decl = *tmpl;
+    // Compile the template body to SQL, then substitute $param_name.
+    std::string body_sql;
+    ASSIGN_OR_RETURN(body_sql,
+                     CompilePipeline(decl->body, ctx + ":" + tc.template_name));
+    // Build a resolved arg map: map positional args to param names by index,
+    // and keep named args as-is.
+    std::vector<std::pair<std::string, std::string>> resolved_args;
+    size_t pos_idx = 0;
+    for (const auto& arg : tc.args) {
+      if (arg.first.empty()) {
+        // Positional arg — map to parameter name by position.
+        if (pos_idx < decl->params.size()) {
+          resolved_args.emplace_back(decl->params[pos_idx].name, arg.second);
+        }
+        ++pos_idx;
+      } else {
+        resolved_args.push_back(arg);
+      }
+    }
+    // Substitute. Replace both "$name" and "$ name" because the tokenizer
+    // may insert a space between $ and the identifier.
+    for (const auto& arg : resolved_args) {
+      body_sql = ReplaceAll(body_sql, "$ " + arg.first, arg.second);
+      body_sql = ReplaceAll(body_sql, "$" + arg.first, arg.second);
+    }
+    QueryBuilder qb;
+    qb.from = "(\n" + body_sql + "\n)";
+    return qb;
+  }
+
+  base::StatusOr<QueryBuilder> ApplyOperation(QueryBuilder qb,
+                                               const Operation& op,
+                                               const std::string& name,
+                                               uint32_t& wrap_counter) {
+    if (auto* f = std::get_if<FilterOp>(&op)) {
+      if (qb.NeedsWrapForFilter()) {
+        qb = qb.Wrap("_w" + std::to_string(wrap_counter++));
+      }
+      if (qb.where.empty()) {
+        qb.where = f->expr;
+      } else {
+        qb.where += " AND " + f->expr;
+      }
+      return qb;
+    }
+
+    if (auto* s = std::get_if<SelectOp>(&op)) {
+      // Wrap if current state has computed columns, group_by, or ordering
+      // that would be lost by replacing the SELECT.
+      if (qb.NeedsWrapForSelect() || !qb.select.empty()) {
+        qb = qb.Wrap("_w" + std::to_string(wrap_counter++));
+      }
+      std::vector<std::string> cols;
+      for (const auto& col : s->columns) {
+        std::string c = col.expr;
+        if (!col.alias.empty()) {
+          c += " AS " + col.alias;
+        }
+        cols.push_back(std::move(c));
+      }
+      qb.select = base::Join(cols, ", ");
+      return qb;
+    }
+
+    if (auto* ac = std::get_if<AddColumnsOp>(&op)) {
+      // Wrap current query, then LEFT JOIN the source.
+      std::string base_alias = "_base" + std::to_string(wrap_counter);
+      std::string add_alias = "_add" + std::to_string(wrap_counter);
+      ++wrap_counter;
+      qb = qb.Wrap(base_alias);
+
+      // Build the select: all from base + specified from add.
+      std::string sel = base_alias + ".*";
+      for (const auto& col : ac->columns) {
+        sel += ", " + add_alias + "." + col.expr;
+        if (!col.alias.empty()) {
+          sel += " AS " + col.alias;
+        }
+      }
+
+      // Build the join.
+      std::string join_cond;
+      if (!ac->on_expr.empty()) {
+        join_cond = ac->on_expr;
+      } else {
+        join_cond = base_alias + "." + ac->on_left_col + " = " + add_alias +
+                    "." + ac->on_right_col;
+      }
+
+      qb.from += "\nLEFT JOIN " + ac->from_ref.name + " AS " + add_alias;
+      qb.from += " ON " + join_cond;
+      qb.select = sel;
+      return qb;
+    }
+
+    if (auto* gb = std::get_if<GroupByOp>(&op)) {
+      if (qb.NeedsWrapForGroupBy()) {
+        qb = qb.Wrap("_w" + std::to_string(wrap_counter++));
+      }
+      qb.group_by = base::Join(gb->columns, ", ");
+
+      // Build SELECT with group columns + aggregations.
+      std::vector<std::string> select_parts;
+      for (const auto& col : gb->columns) {
+        select_parts.push_back(col);
+      }
+      for (const auto& agg : gb->aggregations) {
+        std::string expr = CompileAggFunc(agg);
+        if (!agg.result_name.empty()) {
+          expr += " AS " + agg.result_name;
+        }
+        select_parts.push_back(std::move(expr));
+      }
+      qb.select = base::Join(select_parts, ", ");
+      return qb;
+    }
+
+    if (auto* so = std::get_if<SortOp>(&op)) {
+      if (!qb.order_by.empty()) {
+        qb = qb.Wrap("_w" + std::to_string(wrap_counter++));
+      }
+      std::vector<std::string> parts;
+      for (const auto& spec : so->specs) {
+        std::string s = spec.column;
+        if (spec.desc)
+          s += " DESC";
+        parts.push_back(std::move(s));
+      }
+      qb.order_by = base::Join(parts, ", ");
+      return qb;
+    }
+
+    if (auto* lim = std::get_if<LimitOp>(&op)) {
+      qb.limit = std::to_string(lim->limit);
+      return qb;
+    }
+
+    if (auto* off = std::get_if<OffsetOp>(&op)) {
+      qb.offset = std::to_string(off->offset);
+      return qb;
+    }
+
+    if (std::get_if<CounterToIntervalsOp>(&op)) {
+      // Wrap current query and apply counter_leading_intervals! macro.
+      std::string inner = qb.Build();
+      QueryBuilder fresh;
+      fresh.from = "counter_leading_intervals!((\n" + inner + "\n))";
+      return fresh;
+    }
+
+    if (auto* fd = std::get_if<FilterDuringOp>(&op)) {
+      // Use _interval_intersect! to filter during intervals.
+      std::string inner_name = "_fd_base" + std::to_string(wrap_counter++);
+      // We need the current query as a named source. This is tricky in pure
+      // SQL. We'll wrap the current query as a subquery within the intersect.
+      std::string base_sql = qb.Build();
+      QueryBuilder fresh;
+
+      std::string tables = "((" + base_sql + "), " + fd->intervals.name + ")";
+      std::string partitions;
+      if (!fd->partition_columns.empty()) {
+        partitions =
+            ", (" + base::Join(fd->partition_columns, ", ") + ")";
+      }
+
+      fresh.from = "_interval_intersect!(" + tables + partitions + ") AS _ii"
+                   "\nJOIN (" + base_sql + ") AS _fd_base ON _fd_base.id = _ii.id_0";
+      if (fd->clip) {
+        fresh.select = "_ii.ts, _ii.dur, _fd_base.*";
+      }
+      return fresh;
+    }
+
+    if (auto* fi = std::get_if<FilterInOp>(&op)) {
+      if (qb.NeedsWrapForFilter()) {
+        qb = qb.Wrap("_w" + std::to_string(wrap_counter++));
+      }
+      std::string in_clause =
+          fi->base_column + " IN (SELECT " + fi->match_column + " FROM " +
+          fi->match_ref.name + ")";
+      if (qb.where.empty()) {
+        qb.where = in_clause;
+      } else {
+        qb.where += " AND " + in_clause;
+      }
+      return qb;
+    }
+
+    if (auto* w = std::get_if<WindowOp>(&op)) {
+      std::string alias = "_w" + std::to_string(wrap_counter++);
+      qb = qb.Wrap(alias);
+      std::vector<std::string> cols;
+      cols.push_back(alias + ".*");
+      for (const auto& spec : w->specs) {
+        std::string col = spec.func_expr + " OVER (";
+        if (!spec.partition.empty()) {
+          col += "PARTITION BY " + base::Join(spec.partition, ", ");
+        }
+        if (!spec.order_expr.empty()) {
+          if (!spec.partition.empty())
+            col += " ";
+          col += "ORDER BY " + spec.order_expr;
+        }
+        if (!spec.frame.empty()) {
+          col += " " + spec.frame;
+        }
+        col += ") AS " + spec.result_name;
+        cols.push_back(std::move(col));
+      }
+      qb.select = base::Join(cols, ", ");
+      return qb;
+    }
+
+    if (auto* co = std::get_if<ComputedOp>(&op)) {
+      // Only wrap if current query has a non-trivial SELECT that would be lost.
+      // Don't wrap after plain joins/filters — this preserves table aliases.
+      if (!qb.select.empty() || !qb.group_by.empty() || !qb.order_by.empty()) {
+        qb = qb.Wrap("_w" + std::to_string(wrap_counter++));
+      }
+      std::vector<std::string> cols;
+      cols.push_back("*");
+      for (const auto& col : co->columns) {
+        std::string c = col.expr;
+        if (!col.alias.empty()) {
+          c += " AS " + col.alias;
+        }
+        cols.push_back(std::move(c));
+      }
+      qb.select = base::Join(cols, ", ");
+      return qb;
+    }
+
+    if (auto* cl = std::get_if<ClassifyOp>(&op)) {
+      qb = qb.Wrap("_w" + std::to_string(wrap_counter++));
+      std::string case_expr = "CASE";
+      std::string else_expr;
+      for (const auto& m : cl->mappings) {
+        if (m.is_default) {
+          else_expr = " ELSE '" + EscapeSql(m.value) + "'";
+          continue;
+        }
+        // Use GLOB for patterns containing * or ?, otherwise use =.
+        bool is_glob = m.pattern.find('*') != std::string::npos ||
+                       m.pattern.find('?') != std::string::npos;
+        if (is_glob) {
+          case_expr += " WHEN " + cl->source_column + " GLOB '" +
+                       EscapeSql(m.pattern) + "' THEN '" +
+                       EscapeSql(m.value) + "'";
+        } else {
+          case_expr += " WHEN " + cl->source_column + " = '" +
+                       EscapeSql(m.pattern) + "' THEN '" +
+                       EscapeSql(m.value) + "'";
+        }
+      }
+      case_expr += else_expr + " END";
+      qb.select = "*, " + case_expr + " AS " + cl->result_column;
+      return qb;
+    }
+
+    if (auto* ea = std::get_if<ExtractArgsOp>(&op)) {
+      qb = qb.Wrap("_w" + std::to_string(wrap_counter++));
+      std::vector<std::string> cols;
+      cols.push_back("*");
+      for (const auto& extraction : ea->extractions) {
+        std::string col = "extract_arg(arg_set_id, '" +
+                          EscapeSql(extraction.second) + "') AS " +
+                          extraction.first;
+        cols.push_back(std::move(col));
+      }
+      qb.select = base::Join(cols, ", ");
+      return qb;
+    }
+
+    if (std::get_if<DistinctOp>(&op)) {
+      if (qb.select.empty()) {
+        qb = qb.Wrap("_w" + std::to_string(wrap_counter++));
+        qb.select = "DISTINCT *";
+      } else {
+        // Prefix existing select with DISTINCT.
+        qb.select = "DISTINCT " + qb.select;
+      }
+      return qb;
+    }
+
+    if (auto* ex = std::get_if<ExceptOp>(&op)) {
+      // Build the EXCEPT as a new subquery source.
+      std::string left_sql = qb.Build();
+      QueryBuilder fresh;
+      fresh.from = "(\n" + left_sql + "\nEXCEPT\nSELECT * FROM " +
+                   ex->other.name + "\n)";
+      return fresh;
+    }
+
+    if (auto* sj = std::get_if<SpanJoinOp>(&op)) {
+      // SPAN_JOIN requires creating a virtual table. Store it as a prefixed
+      // statement. We wrap the current query into a temp table name convention
+      // and emit the span join.
+      std::string left_name = "_sj_" + name + "_left_" + std::to_string(wrap_counter++);
+      std::string vt_name = "_span_" + name;
+      std::string join_type = sj->is_left ? "SPAN_LEFT_JOIN" : "SPAN_JOIN";
+
+      // The left side needs to be a named table. We store the SQL for later.
+      span_join_preambles_.push_back(
+          "CREATE PERFETTO TABLE " + left_name + " AS\n" + qb.Build() + ";\n");
+      std::string left_spec = left_name;
+      std::string right_spec = sj->right.name;
+      if (!sj->partition_columns.empty()) {
+        std::string part_list = base::Join(sj->partition_columns, ", ");
+        left_spec += " PARTITIONED " + part_list;
+        right_spec += " PARTITIONED " + part_list;
+      }
+      span_join_preambles_.push_back(
+          "CREATE VIRTUAL TABLE " + vt_name + " USING " + join_type + "(" +
+          left_spec + ", " + right_spec + ");\n");
+
+      QueryBuilder fresh;
+      fresh.from = vt_name;
+      return fresh;
+    }
+
+    if (auto* up = std::get_if<UnpivotOp>(&op)) {
+      std::string inner = qb.Build();
+      std::string union_sql;
+      for (size_t i = 0; i < up->source_columns.size(); ++i) {
+        if (i > 0)
+          union_sql += "\nUNION ALL\n";
+        union_sql += "SELECT *, " + up->source_columns[i] + " AS " +
+                     up->value_column + ", '" +
+                     EscapeSql(up->source_columns[i]) + "' AS " +
+                     up->name_column + " FROM (\n" + inner + "\n)";
+      }
+      QueryBuilder fresh;
+      fresh.from = "(\n" + union_sql + "\n)";
+      return fresh;
+    }
+
+    if (auto* pn = std::get_if<ParseNameOp>(&op)) {
+      return ApplyParseNameOp(qb, *pn, wrap_counter);
+    }
+
+    if (auto* cp = std::get_if<ClosestPrecedingOp>(&op)) {
+      return ApplyClosestPrecedingOp(qb, *cp, wrap_counter);
+    }
+
+    if (auto* fa = std::get_if<FindAncestorOp>(&op)) {
+      return ApplyFindAncestorDescendantOp(qb, fa->where_expr, fa->columns,
+                                           "ancestor_slice", wrap_counter);
+    }
+
+    if (auto* fd = std::get_if<FindDescendantOp>(&op)) {
+      return ApplyFindAncestorDescendantOp(qb, fd->where_expr, fd->columns,
+                                           "descendant_slice", wrap_counter);
+    }
+
+    if (auto* jo = std::get_if<JoinOp>(&op)) {
+      // Determine the base table name for self-join detection.
+      std::string base_from = qb.from;
+      bool is_simple_table =
+          base_from.find(' ') == std::string::npos &&
+          base_from.find('(') == std::string::npos &&
+          base_from.find('\n') == std::string::npos;
+      std::string right_name = jo->right.name;
+      // Always alias a simple base table as _self so that join chains
+      // can reference base columns unambiguously with _self.column.
+      if (is_simple_table && base_from.find("AS") == std::string::npos) {
+        qb.from = base_from + " AS _self";
+      }
+      std::string join_type = jo->is_left ? "LEFT JOIN" : "JOIN";
+      qb.from += "\n" + join_type + " " + right_name;
+      if (!jo->right.alias.empty()) {
+        qb.from += " AS " + jo->right.alias;
+      }
+      qb.from += " ON " + jo->on_expr;
+      return qb;
+    }
+
+    if (auto* cj = std::get_if<CrossJoinOp>(&op)) {
+      qb.from += ", " + cj->right.name;
+      if (!cj->right.alias.empty()) {
+        qb.from += " AS " + cj->right.alias;
+      }
+      return qb;
+    }
+
+    if (auto* tc = std::get_if<TemplateCallOp>(&op)) {
+      return ApplyTemplateCallOp(qb, *tc, name, wrap_counter);
+    }
+
+    if (auto* fr = std::get_if<FlowReachableOp>(&op)) {
+      std::string temp_name = "_fr_src_" + std::to_string(wrap_counter++);
+      span_join_preambles_.push_back(
+          "CREATE PERFETTO TABLE " + temp_name + " AS\n" + qb.Build() + ";\n");
+      QueryBuilder fresh;
+      if (fr->direction == "in") {
+        fresh.from = "_slice_following_flow!(" + temp_name + ")";
+      } else {
+        fresh.from = "_slice_following_flow!(" + temp_name + ")";
+      }
+      return fresh;
+    }
+
+    if (std::get_if<FlattenIntervalsOp>(&op)) {
+      std::string temp_name = "_fi_src_" + std::to_string(wrap_counter++);
+      span_join_preambles_.push_back(
+          "CREATE PERFETTO TABLE " + temp_name + " AS\n" + qb.Build() + ";\n");
+      QueryBuilder fresh;
+      fresh.from = "_intervals_flatten!(" + temp_name + ")";
+      return fresh;
+    }
+
+    if (auto* mo = std::get_if<MergeOverlappingOp>(&op)) {
+      std::string temp_name = "_mo_src_" + std::to_string(wrap_counter++);
+      span_join_preambles_.push_back(
+          "CREATE PERFETTO TABLE " + temp_name + " AS\n" + qb.Build() + ";\n");
+      QueryBuilder fresh;
+      if (!mo->partition_columns.empty()) {
+        fresh.from = "interval_merge_overlapping_partitioned!(" + temp_name +
+                     ", (" + base::Join(mo->partition_columns, ", ") + "))";
+      } else {
+        fresh.from = "interval_merge_overlapping!(" + temp_name + ", " +
+                     std::to_string(mo->epsilon) + ")";
+      }
+      return fresh;
+    }
+
+    if (auto* gr = std::get_if<GraphReachableOp>(&op)) {
+      std::string temp_name = "_gr_src_" + std::to_string(wrap_counter++);
+      span_join_preambles_.push_back(
+          "CREATE PERFETTO TABLE " + temp_name + " AS\n" + qb.Build() + ";\n");
+      QueryBuilder fresh;
+      if (gr->method == "bfs") {
+        fresh.from =
+            "graph_reachable_bfs!(" + gr->edges.name + ", " + temp_name + ")";
+      } else {
+        fresh.from =
+            "graph_reachable_dfs!(" + gr->edges.name + ", " + temp_name + ")";
+      }
+      return fresh;
+    }
+
+    // IndexOp is handled in CompileNamedPipeline, not here.
+    if (std::get_if<IndexOp>(&op)) {
+      return qb;
+    }
+
+    return base::ErrStatus("pfgraph: unknown operation in '%s'", name.c_str());
+  }
+
+  base::StatusOr<QueryBuilder> ApplyParseNameOp(QueryBuilder qb,
+                                                  const ParseNameOp& pn,
+                                                  uint32_t& wrap_counter) {
+    // Parse the template string into (literal, field_name) segments.
+    // E.g., "ErrorId:{process_name} {pid}#{error_id}" =>
+    //   literal="ErrorId:", field="process_name"
+    //   literal=" ", field="pid"
+    //   literal="#", field="error_id"
+    struct Segment {
+      std::string literal;  // Text before the field.
+      std::string field;    // Field name (inside {}).
+    };
+    std::vector<Segment> segments;
+    const std::string& tmpl = pn.template_str;
+    size_t pos = 0;
+    while (pos < tmpl.size()) {
+      size_t open = tmpl.find('{', pos);
+      if (open == std::string::npos)
+        break;
+      size_t close = tmpl.find('}', open);
+      if (close == std::string::npos)
+        break;
+      Segment seg;
+      seg.literal = tmpl.substr(pos, open - pos);
+      seg.field = tmpl.substr(open + 1, close - open - 1);
+      segments.push_back(std::move(seg));
+      pos = close + 1;
+    }
+    // Trailing literal after the last field (not used as a field).
+    std::string trailing = tmpl.substr(pos);
+
+    if (segments.empty()) {
+      return qb;  // No fields to extract.
+    }
+
+    qb = qb.Wrap("_w" + std::to_string(wrap_counter++));
+
+    // Build str_split chain expressions for each field.
+    // Strategy: collect all separators (literals between fields, plus trailing).
+    // Work right-to-left using the separators.
+    //
+    // For "A{f1}B{f2}C{f3}D":
+    //   separators between fields: B, C; trailing: D; prefix: A
+    //   - Strip prefix A: substr(name, len(A)+1) => _stripped
+    //   - f3: str_split(_stripped, 'D', 0) then further split...
+    //
+    // Simpler approach: use the separators to split progressively.
+    // For each field, compute an expression that extracts it from `name`.
+
+    std::vector<std::string> cols;
+    cols.push_back("*");
+
+    // Collect separators: the literal of segment[0] is the prefix,
+    // and literals of segment[1..N] are the separators between fields.
+    // Plus the trailing literal after the last field.
+    std::string prefix = segments[0].literal;
+
+    // Build a list of all separators (between fields and trailing).
+    std::vector<std::string> separators;
+    for (size_t i = 1; i < segments.size(); ++i) {
+      separators.push_back(segments[i].literal);
+    }
+    if (!trailing.empty()) {
+      separators.push_back(trailing);
+    }
+
+    // For each field, generate an extraction expression.
+    // The approach: start from `name`, strip prefix, then use str_split
+    // to peel off fields using the separators left to right.
+    //
+    // For field i, the value is:
+    //   str_split(remainder_i, separator_i, 0)
+    // And remainder for the next field is:
+    //   str_split(remainder_i, separator_i, 1)
+    //
+    // Where remainder_0 = substr(name, prefix_len + 1) if prefix exists,
+    //                    = name if no prefix.
+
+    std::string remainder;
+    if (!prefix.empty()) {
+      remainder =
+          "substr(name, " + std::to_string(prefix.size() + 1) + ")";
+    } else {
+      remainder = "name";
+    }
+
+    for (size_t i = 0; i < segments.size(); ++i) {
+      const std::string& field = segments[i].field;
+      if (i < separators.size()) {
+        // This field is followed by a separator.
+        std::string expr = "str_split(" + remainder + ", '" +
+                           EscapeSql(separators[i]) + "', 0) AS " + field;
+        cols.push_back(std::move(expr));
+        // Update remainder to what's after this separator.
+        remainder = "str_split(" + remainder + ", '" +
+                    EscapeSql(separators[i]) + "', 1)";
+      } else {
+        // Last field with no trailing separator: take the whole remainder.
+        cols.push_back(remainder + " AS " + field);
+      }
+    }
+
+    qb.select = base::Join(cols, ", ");
+    return qb;
+  }
+
+  base::StatusOr<QueryBuilder> ApplyClosestPrecedingOp(
+      QueryBuilder qb,
+      const ClosestPrecedingOp& cp,
+      uint32_t& /*wrap_counter*/) {
+    std::string inner = qb.Build();
+    std::string base_alias = "_cp_base";
+    std::string other_alias = "_cp_other";
+    std::string rn_alias = "_cp_rn";
+
+    // Build the ranked join query.
+    std::string ranked_sql =
+        "SELECT " + base_alias + ".*, " + other_alias + ".*,\n"
+        "  row_number() OVER (\n"
+        "    PARTITION BY " + base_alias + ".rowid\n"
+        "    ORDER BY CASE WHEN " + other_alias + "." + cp.order_expr +
+        " IS NULL THEN 1 ELSE 0 END, " +
+        base_alias + "." + cp.order_expr + " - " +
+        other_alias + "." + cp.order_expr + "\n"
+        "  ) AS " + rn_alias + "\n"
+        "FROM (\n" + inner + "\n) AS " + base_alias + "\n"
+        "LEFT JOIN " + cp.other.name + " AS " + other_alias + "\n"
+        "  ON " + base_alias + "." + cp.match_left_col + " = " +
+        other_alias + "." + cp.match_right_col + "\n"
+        "  AND " + other_alias + "." + cp.order_expr + " <= " +
+        base_alias + "." + cp.order_expr;
+
+    QueryBuilder fresh;
+    fresh.from = "(\n" + ranked_sql + "\n)";
+    fresh.where = rn_alias + " = 1";
+    return fresh;
+  }
+
+  base::StatusOr<QueryBuilder> ApplyFindAncestorDescendantOp(
+      QueryBuilder qb,
+      const std::string& where_expr,
+      const std::vector<ColumnSpec>& columns,
+      const char* func_name,
+      uint32_t& wrap_counter) {
+    // Determine the base table reference for the id column.
+    // If qb.from is a simple table name, use "table.id".
+    // If it's a subquery or has joins, wrap first and use "_base.id".
+    std::string base_ref;
+    bool is_simple =
+        qb.from.find(' ') == std::string::npos &&
+        qb.from.find('(') == std::string::npos &&
+        qb.from.find('\n') == std::string::npos;
+    if (is_simple) {
+      base_ref = qb.from;
+    } else {
+      std::string alias = "_base" + std::to_string(wrap_counter++);
+      qb = qb.Wrap(alias);
+      base_ref = alias;
+    }
+
+    std::string join_alias = std::string("_") + func_name[0] + "nc";
+
+    // Build select: base.*, plus requested columns from the joined table.
+    std::string sel = base_ref + ".*";
+    for (const auto& col : columns) {
+      sel += ", " + join_alias + "." + col.expr;
+      if (!col.alias.empty()) {
+        sel += " AS " + col.alias;
+      }
+    }
+
+    // Append LEFT JOIN ancestor_slice/descendant_slice(base.id) AS alias
+    // ON where_expr.
+    qb.from += "\nLEFT JOIN " + std::string(func_name) + "(" + base_ref +
+               ".id) AS " + join_alias;
+    if (!where_expr.empty()) {
+      qb.from += " ON " + where_expr;
+    }
+    qb.select = sel;
+    return qb;
+  }
+
+  base::StatusOr<QueryBuilder> ApplyTemplateCallOp(
+      QueryBuilder qb,
+      const TemplateCallOp& tc,
+      const std::string& name,
+      uint32_t& wrap_counter) {
+    const TemplateDecl** tmpl = template_index_.Find(tc.template_name);
+    if (!tmpl) {
+      return base::ErrStatus(
+          "pfgraph: unknown template '%s' in operation of '%s'",
+          tc.template_name.c_str(), name.c_str());
+    }
+    const TemplateDecl* decl = *tmpl;
+    // For operation templates, apply the template body's operations to the
+    // current query builder, substituting $param references.
+    for (const auto& tmpl_op : decl->body.operations) {
+      // Compile each operation against the current qb.
+      ASSIGN_OR_RETURN(qb, ApplyOperation(qb, tmpl_op, name, wrap_counter));
+    }
+    // Now do parameter substitution in the built SQL by rebuilding.
+    // This is a workaround: we build, substitute, then wrap back.
+    // We replace both "$name" and "$ name" because the tokenizer may
+    // insert a space between $ and the identifier.
+    std::string sql = qb.Build();
+    for (const auto& arg : tc.args) {
+      sql = ReplaceAll(sql, "$" + arg.first, arg.second);
+      sql = ReplaceAll(sql, "$ " + arg.first, arg.second);
+    }
+    QueryBuilder fresh;
+    fresh.from = "(\n" + sql + "\n)";
+    return fresh;
+  }
+
+  base::StatusOr<std::string> CompileFunctionDecl(const FunctionDecl& fd) {
+    std::string sql = "CREATE PERFETTO FUNCTION " + fd.name + "(";
+    std::vector<std::string> params;
+    for (const auto& p : fd.params) {
+      params.push_back(p.name + " " + p.type);
+    }
+    sql += base::Join(params, ", ") + ")\n";
+
+    if (!fd.return_cols.empty()) {
+      // Table-returning function.
+      std::vector<std::string> ret_cols;
+      for (const auto& rc : fd.return_cols) {
+        ret_cols.push_back(rc.name + " " + rc.type);
+      }
+      sql += "RETURNS TABLE(" + base::Join(ret_cols, ", ") + ")\n";
+    } else if (!fd.return_type.empty()) {
+      // Scalar function.
+      sql += "RETURNS " + fd.return_type + "\n";
+    }
+
+    sql += "AS\n";
+    if (fd.pipeline_body.has_value()) {
+      std::string body;
+      ASSIGN_OR_RETURN(body, CompilePipeline(*fd.pipeline_body, fd.name));
+      sql += body + ";\n";
+    } else {
+      sql += fd.sql_body + ";\n";
+    }
+
+    return sql;
+  }
+
+  std::string CompileAggFunc(const AggSpec& agg) {
+    std::string func_upper = base::ToUpper(agg.func);
+
+    if (func_upper == "COUNT" && agg.column.empty()) {
+      return "count()";
+    }
+    if (func_upper == "COUNT") {
+      return "count(" + agg.column + ")";
+    }
+    if (func_upper == "COUNT_DISTINCT") {
+      return "count(DISTINCT " + agg.column + ")";
+    }
+    if (func_upper == "SUM") {
+      return "sum(" + agg.column + ")";
+    }
+    if (func_upper == "MIN") {
+      return "min(" + agg.column + ")";
+    }
+    if (func_upper == "MAX") {
+      return "max(" + agg.column + ")";
+    }
+    if (func_upper == "MEAN" || func_upper == "AVG") {
+      return "avg(" + agg.column + ")";
+    }
+    if (func_upper == "MEDIAN") {
+      return "percentile(" + agg.column + ", 50)";
+    }
+    if (func_upper == "PERCENTILE") {
+      return "percentile(" + agg.column + ", " +
+             std::to_string(static_cast<int>(agg.percentile)) + ")";
+    }
+    if (func_upper == "DURATION_WEIGHTED_MEAN") {
+      return "sum(" + agg.column + " * dur) / sum(dur)";
+    }
+    // Custom or unknown - pass through.
+    if (!agg.custom_expr.empty()) {
+      return agg.custom_expr;
+    }
+    return agg.func + "(" + agg.column + ")";
+  }
+
+  static std::string EscapeSql(const std::string& s) {
+    std::string result;
+    for (char c : s) {
+      if (c == '\'') {
+        result += "''";
+      } else {
+        result += c;
+      }
+    }
+    return result;
+  }
+
+  static std::string ReplaceAll(const std::string& str,
+                                const std::string& from,
+                                const std::string& to) {
+    std::string result = str;
+    size_t pos = 0;
+    while ((pos = result.find(from, pos)) != std::string::npos) {
+      result.replace(pos, from.size(), to);
+      pos += to.size();
+    }
+    return result;
+  }
+
+  base::FlatHashMap<std::string, const NamedPipeline*> pipeline_index_;
+  base::FlatHashMap<std::string, const TemplateDecl*> template_index_;
+  std::vector<std::string> span_join_preambles_;
+};
+
+}  // namespace
+
+base::StatusOr<std::string> CompilePfGraph(std::string_view source) {
+  GraphModule ast;
+  ASSIGN_OR_RETURN(ast, ParsePfGraph(source));
+  Compiler compiler;
+  return compiler.Compile(ast);
+}
+
+}  // namespace perfetto::trace_processor::pfgraph
