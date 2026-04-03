@@ -427,8 +427,13 @@ if (enable_perfetto_trace_processor_linenoise) {
 # Only used by src/profiling in standalone and android builds.
 if (enable_perfetto_heapprofd || enable_perfetto_traced_perf) {
   group("libunwindstack") {
-    public_configs = [ "//buildtools:libunwindstack_config" ]
-    public_deps = [ "//buildtools:libunwindstack" ]
+    if (build_with_chromium && is_android) {
+      public_configs = [ "//third_party/libunwindstack:libunwindstack_config" ]
+      public_deps = [ "//third_party/libunwindstack" ]
+    } else {
+      public_configs = [ "//buildtools:libunwindstack_config" ]
+      public_deps = [ "//buildtools:libunwindstack" ]
+    }
   }
 }
 
