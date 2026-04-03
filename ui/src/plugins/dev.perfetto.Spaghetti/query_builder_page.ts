@@ -60,7 +60,6 @@ import {MaterializationService} from './materialization';
 import {Intent} from '../../widgets/common';
 import {Popup} from '../../widgets/popup';
 
-
 function formatTimestamp(perfNow: number): string {
   // Convert performance.now() to a wall-clock Date.
   const wallMs = Date.now() - (performance.now() - perfNow);
@@ -99,6 +98,10 @@ export function QueryBuilderPage(
 
   // Pinned node: when set, results panel always shows this node's query
   let pinnedNodeId: string | undefined;
+
+  // Graph tab edit state
+  let graphTabEditing = false;
+  let graphTabEditValue = '';
 
   // Helpers to get the nodes/connections for the currently active view.
   function getActiveNodes(): Map<string, NodeData> {
@@ -1175,11 +1178,15 @@ export function QueryBuilderPage(
               key: 'graph',
               title: 'Graph',
               content: (() => {
-                const graphJson = JSON.stringify(
+                const liveJson = JSON.stringify(
                   JSON.parse(serializeStore(store)),
                   null,
                   2,
                 );
+                const displayJson = graphTabEditing
+                  ? graphTabEditValue
+                  : liveJson;
+                let applyError: string | undefined;
                 return m(
                   '',
                   {
@@ -1188,6 +1195,7 @@ export function QueryBuilderPage(
                       flexDirection: 'column',
                       flex: '1',
                       overflow: 'hidden',
+                      height: '100%',
                     },
                   },
                   [
@@ -1196,19 +1204,82 @@ export function QueryBuilderPage(
                       {
                         style: {
                           display: 'flex',
+                          gap: '4px',
                           justifyContent: 'flex-end',
                           padding: '4px 8px 0',
+                          flexShrink: '0',
                         },
                       },
-                      m(Button, {
-                        variant: ButtonVariant.Filled,
-                        icon: 'content_copy',
-                        label: 'Copy',
-                        compact: true,
-                        onclick: () => navigator.clipboard.writeText(graphJson),
-                      }),
+                      graphTabEditing
+                        ? [
+                            m(Button, {
+                              variant: ButtonVariant.Filled,
+                              label: 'Cancel',
+                              onclick: () => {
+                                graphTabEditing = false;
+                              },
+                            }),
+                            m(Button, {
+                              variant: ButtonVariant.Filled,
+                              intent: Intent.Primary,
+                              label: 'Apply',
+                              onclick: () => {
+                                try {
+                                  store = deserializeStore(graphTabEditValue);
+                                  history.splice(0, history.length, store);
+                                  historyIndex = 0;
+                                  selectedNodeIds.clear();
+                                  pinnedNodeId = undefined;
+                                  saveGraph();
+                                  graphTabEditing = false;
+                                } catch (e) {
+                                  applyError = String(e);
+                                }
+                              },
+                            }),
+                          ]
+                        : [
+                            m(Button, {
+                              variant: ButtonVariant.Filled,
+                              icon: 'content_copy',
+                              label: 'Copy',
+                              onclick: () =>
+                                navigator.clipboard.writeText(liveJson),
+                            }),
+                            m(Button, {
+                              variant: ButtonVariant.Filled,
+                              icon: 'edit',
+                              label: 'Edit',
+                              onclick: () => {
+                                graphTabEditValue = liveJson;
+                                graphTabEditing = true;
+                              },
+                            }),
+                          ],
                     ),
-                    renderPreBlock(graphJson, true),
+                    applyError &&
+                      m(
+                        'div',
+                        {
+                          style: {
+                            padding: '4px 8px',
+                            color: 'var(--pf-color-error, #c00)',
+                            fontSize: '12px',
+                            flexShrink: '0',
+                          },
+                        },
+                        applyError,
+                      ),
+                    m('textarea.pf-qb-graph-textarea', {
+                      value: displayJson,
+                      readonly: !graphTabEditing,
+                      spellcheck: false,
+                      style: {flex: '1', minHeight: '0'},
+                      oninput: (e: InputEvent) => {
+                        graphTabEditValue = (e.target as HTMLTextAreaElement)
+                          .value;
+                      },
+                    }),
                   ],
                 );
               })(),

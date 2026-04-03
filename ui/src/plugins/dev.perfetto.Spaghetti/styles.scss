@@ -481,6 +481,26 @@
   line-height: 1.5;
 }
 
+// Graph tab JSON textarea — fills available space, read-only by default.
+.pf-qb-graph-textarea {
+  width: 100%;
+  resize: none;
+  font-family: var(--pf-font-monospace);
+  font-size: 12px;
+  background: var(--pf-color-background-secondary);
+  color: var(--pf-color-text);
+  border: none;
+  border-top: 1px solid var(--pf-color-border);
+  padding: 8px;
+  box-sizing: border-box;
+  outline: none;
+  line-height: 1.5;
+
+  &:not([readonly]) {
+    background: var(--pf-color-background);
+  }
+}
+
 // SQL node textarea.
 .pf-qb-sql-textarea {
   width: 100%;
