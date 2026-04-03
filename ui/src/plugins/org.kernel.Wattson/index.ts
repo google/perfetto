@@ -29,7 +29,10 @@ import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {RouteArgs} from '../../public/route_schema';
 import {WattsonEstimateSelectionAggregator} from './estimate_aggregator';
-import {WattsonPackageSelectionAggregator} from './package_aggregator';
+import {
+  WattsonCpuPackageSelectionAggregator,
+  WattsonGpuPackageSelectionAggregator,
+} from './package_aggregator';
 import {WattsonProcessSelectionAggregator} from './process_aggregator';
 import {WattsonThreadSelectionAggregator} from './thread_aggregator';
 import {
@@ -350,7 +353,7 @@ async function addWattsonCpuElements(
 
   if (await isProcessMetadataPresent(ctx.engine)) {
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new WattsonPackageSelectionAggregator()),
+      createAggregationTab(ctx, new WattsonCpuPackageSelectionAggregator()),
     );
   }
 }
@@ -380,6 +383,10 @@ async function addWattsonGpuElements(ctx: Trace, group: TrackNode) {
     },
   });
   group.addChildInOrder(new TrackNode({uri: id, name: `GPU Estimate`}));
+
+  ctx.selection.registerAreaSelectionTab(
+    createAggregationTab(ctx, new WattsonGpuPackageSelectionAggregator()),
+  );
 }
 
 async function addWattsonTpuElements(ctx: Trace, group: TrackNode) {
