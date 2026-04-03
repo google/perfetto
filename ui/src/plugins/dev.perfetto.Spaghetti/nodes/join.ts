@@ -329,7 +329,8 @@ export const manifest: NodeManifest<JoinConfig> = {
     } else {
       selectClause = selectCols[0];
     }
-    const joinKw = (config.joinType ?? 'LEFT') === 'INNER' ? 'JOIN' : 'LEFT JOIN';
+    const joinKw =
+      (config.joinType ?? 'LEFT') === 'INNER' ? 'JOIN' : 'LEFT JOIN';
     const condition = `ON l.${config.leftColumn} = r.${config.rightColumn}`;
     const sql = `SELECT ${selectClause}\nFROM ${leftRef} AS l\n${joinKw} ${rightRef} AS r ${condition}`;
     return {sql};

@@ -30,7 +30,7 @@ function renderIrBlock(
   if (entry.nodeIds.length > 0) meta.push(`nodes: ${entry.nodeIds.join(', ')}`);
   if (entry.deps.length > 0) meta.push(`deps: ${entry.deps.join(', ')}`);
   if (entry.includes.length > 0)
-    meta.push(`includes: ${entry.includes.join(', ')}`);
+    {meta.push(`includes: ${entry.includes.join(', ')}`);}
   const report = reportByHash.get(entry.hash);
   return m('.pf-qb-ir-block', [
     m('.pf-qb-ir-block-header', [

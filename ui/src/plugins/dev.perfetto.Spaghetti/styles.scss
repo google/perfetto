@@ -481,12 +481,20 @@
   letter-spacing: 0.04em;
 
   &--hit {
-    background: color-mix(in srgb, var(--pf-color-success, #4a8) 20%, transparent);
+    background: color-mix(
+      in srgb,
+      var(--pf-color-success, #4a8) 20%,
+      transparent
+    );
     color: var(--pf-color-success, #4a8);
   }
 
   &--miss {
-    background: color-mix(in srgb, var(--pf-color-warning, #c90) 20%, transparent);
+    background: color-mix(
+      in srgb,
+      var(--pf-color-warning, #c90) 20%,
+      transparent
+    );
     color: var(--pf-color-warning, #c90);
   }
 }

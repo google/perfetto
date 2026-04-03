@@ -54,14 +54,10 @@ export function renderColumnsTab(attrs: ColumnsTabAttrs): m.Children {
       },
     },
     outputColumns.map((col, i) =>
-      m(
-        '.pf-qb-col-row',
-        {key: i},
-        [
-          m('span.pf-qb-col-name', col.name),
-          m('span.pf-qb-col-type', perfettoSqlTypeToString(col.type)),
-        ],
-      ),
+      m('.pf-qb-col-row', {key: i}, [
+        m('span.pf-qb-col-name', col.name),
+        m('span.pf-qb-col-type', perfettoSqlTypeToString(col.type)),
+      ]),
     ),
   );
 }

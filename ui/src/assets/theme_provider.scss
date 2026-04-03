@@ -38,12 +38,12 @@
     --pf-color-text-hint: #808080;
     --pf-color-box-shadow: rgba(0, 0, 0, 0.2);
     --pf-color-neutral: gray;
-    --pf-color-accent: #2667e7;
+    --pf-color-accent: #1e50b5;
     --pf-color-text-on-accent: white;
     --pf-color-highlight: #ffe263;
 
-    --pf-color-primary: #3d5688;
-    --pf-color-text-on-primary: white;
+    --pf-color-primary: var(--pf-color-accent);
+    --pf-color-text-on-primary: var(--pf-color-text-on-accent);
     --pf-color-danger: rgb(202, 38, 38);
     --pf-color-text-on-danger: white;
     --pf-color-success: rgb(0, 128, 0);

@@ -69,9 +69,9 @@ export interface FilterConfig {
 function isRawValue(value: string): boolean {
   if (value === '') return true;
   if (/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(value)) return true; // number
-  if (/^null$/i.test(value)) return true;                          // NULL
+  if (/^null$/i.test(value)) return true; // NULL
   if (value.startsWith("'") || value.startsWith('"')) return true; // already quoted
-  if (value.startsWith('(')) return true;                          // e.g. (1,2,3)
+  if (value.startsWith('(')) return true; // e.g. (1,2,3)
   return false;
 }
 
