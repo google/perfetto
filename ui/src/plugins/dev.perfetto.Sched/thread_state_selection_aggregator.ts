@@ -17,9 +17,9 @@ import {Icons} from '../../base/semantic_icons';
 import {Duration} from '../../base/time';
 import {BarChartData} from '../../components/aggregation';
 import {
-  AggregatePivotModel,
   Aggregation,
   Aggregator,
+  AggregatorGridConfig,
   createIITable,
 } from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
@@ -43,6 +43,10 @@ import {
 } from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 import {colorForThreadState} from './common';
+import {
+  formatDurationValue,
+  formatPercentValue,
+} from '../../components/aggregation_panel';
 
 const THREAD_STATE_SPEC = {
   id: NUM,
@@ -165,31 +169,12 @@ export class ThreadStateSelectionAggregator implements Aggregator {
     };
   }
 
-  getColumnDefinitions(): AggregatePivotModel {
+  getGridConfig(): AggregatorGridConfig {
     return {
-      groupBy: [
-        {id: 'thread_name', field: 'thread_name'},
-        {id: 'state', field: 'state'},
-      ],
-      aggregates: [
-        {id: 'count', function: 'COUNT'},
-        {id: 'process_name', field: 'process_name', function: 'ANY'},
-        {id: 'pid', field: 'pid', function: 'ANY'},
-        {id: 'thread_name', field: 'thread_name', function: 'ANY'},
-        {id: 'tid', field: 'tid', function: 'ANY'},
-        {id: 'dur_sum', field: 'dur', function: 'SUM', sort: 'DESC'},
-        {
-          id: 'fraction_of_total_sum',
-          field: 'fraction_of_total',
-          function: 'SUM',
-        },
-        {id: 'dur_avg', field: 'dur', function: 'AVG'},
-      ],
-      columns: [
-        {
+      schema: {
+        id_with_lineage: {
           title: 'ID',
-          columnId: 'id_with_lineage',
-          formatHint: 'ID',
+          columnType: 'identifier',
           cellRenderer: (value: unknown) => {
             // Value is a JSON object {id, groupid, partition}
             if (typeof value !== 'string') {
@@ -224,52 +209,45 @@ export class ThreadStateSelectionAggregator implements Aggregator {
             );
           },
         },
-        {title: 'Cluster Type', columnId: 'cluster_type', formatHint: 'STRING'},
-        {
-          title: 'Process',
-          columnId: 'process_name',
-          formatHint: 'STRING',
-        },
-        {
-          title: 'PID',
-          columnId: 'pid',
-          formatHint: 'NUMERIC',
-        },
-        {
-          title: 'Thread',
-          columnId: 'thread_name',
-          formatHint: 'STRING',
-        },
-        {
-          title: 'TID',
-          columnId: 'tid',
-          formatHint: 'NUMERIC',
-        },
-        {
-          title: 'CPU',
-          columnId: 'ucpu',
-          formatHint: 'NUMERIC',
-        },
-        {
-          title: 'UTID',
-          columnId: 'utid',
-          formatHint: 'NUMERIC',
-        },
-        {
-          title: 'State',
-          columnId: 'state',
-        },
-        {
+        cluster_type: {title: 'Cluster Type', columnType: 'text'},
+        process_name: {title: 'Process', columnType: 'text'},
+        pid: {title: 'PID', columnType: 'identifier'},
+        thread_name: {title: 'Thread', columnType: 'text'},
+        tid: {title: 'TID', columnType: 'identifier'},
+        ucpu: {title: 'CPU', columnType: 'quantitative'},
+        utid: {title: 'UTID', columnType: 'identifier'},
+        state: {title: 'State', columnType: 'text'},
+        dur: {
           title: 'Wall duration',
-          formatHint: 'DURATION_NS',
-          columnId: 'dur',
+          columnType: 'quantitative',
+          cellRenderer: formatDurationValue,
         },
-        {
+        fraction_of_total: {
           title: 'Wall duration %',
-          formatHint: 'PERCENT',
-          columnId: 'fraction_of_total',
+          columnType: 'quantitative',
+          cellRenderer: formatPercentValue,
         },
-      ],
+      },
+      initialPivot: {
+        groupBy: [
+          {id: 'thread_name', field: 'thread_name'},
+          {id: 'state', field: 'state'},
+        ],
+        aggregates: [
+          {id: 'count', function: 'COUNT'},
+          {id: 'process_name_any', field: 'process_name', function: 'ANY'},
+          {id: 'pid_any', field: 'pid', function: 'ANY'},
+          {id: 'thread_name_any', field: 'thread_name', function: 'ANY'},
+          {id: 'tid_any', field: 'tid', function: 'ANY'},
+          {id: 'dur_sum', field: 'dur', function: 'SUM', sort: 'DESC'},
+          {
+            id: 'fraction_of_total_sum',
+            field: 'fraction_of_total',
+            function: 'SUM',
+          },
+          {id: 'dur_avg', field: 'dur', function: 'AVG'},
+        ],
+      },
     };
   }
 

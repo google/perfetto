@@ -13,15 +13,16 @@
 // limitations under the License.
 
 import {
-  AggregatePivotModel,
   Aggregation,
   Aggregator,
+  AggregatorGridConfig,
   createIITable,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {formatDurationValue} from '../../components/aggregation_panel';
 
 export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
 
@@ -69,42 +70,25 @@ export class FrameSelectionAggregator implements Aggregator {
     return 'Frames';
   }
 
-  getColumnDefinitions(): AggregatePivotModel {
+  getGridConfig(): AggregatorGridConfig {
     return {
-      groupBy: [{id: 'jank_type', field: 'jank_type'}],
-      aggregates: [
-        {
-          id: 'count',
-          function: 'COUNT',
-          sort: 'DESC',
-        },
-        {
-          id: 'dur_min',
-          field: 'dur',
-          function: 'MIN',
-        },
-        {
-          id: 'dur_max',
-          field: 'dur',
-          function: 'MAX',
-        },
-        {
-          id: 'dur_avg',
-          field: 'dur',
-          function: 'AVG',
-        },
-      ],
-      columns: [
-        {
-          title: 'Jank Type',
-          columnId: 'jank_type',
-        },
-        {
+      schema: {
+        jank_type: {title: 'Jank Type', columnType: 'text'},
+        dur: {
           title: 'Duration',
-          formatHint: 'DURATION_NS',
-          columnId: 'dur',
+          columnType: 'quantitative',
+          cellRenderer: formatDurationValue,
         },
-      ],
+      },
+      initialPivot: {
+        groupBy: [{id: 'jank_type', field: 'jank_type'}],
+        aggregates: [
+          {id: 'count', function: 'COUNT', sort: 'DESC'},
+          {id: 'dur_min', field: 'dur', function: 'MIN'},
+          {id: 'dur_max', field: 'dur', function: 'MAX'},
+          {id: 'dur_avg', field: 'dur', function: 'AVG'},
+        ],
+      },
     };
   }
 }

@@ -13,11 +13,14 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import {ColumnDef} from '../../components/aggregation';
-import {Aggregator} from '../../components/aggregation_adapter';
+import {
+  Aggregator,
+  AggregatorGridConfig,
+} from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
+import {formatPercentValue} from '../../components/aggregation_panel';
 
 export class EntityStateResidencySelectionAggregator implements Aggregator {
   readonly id = 'entity_state_residency_aggregation';
@@ -76,35 +79,27 @@ export class EntityStateResidencySelectionAggregator implements Aggregator {
     };
   }
 
-  getColumnDefinitions(): ColumnDef[] {
-    return [
-      {
-        title: 'Entity',
-        columnId: 'entity_name',
-        sort: 'DESC',
+  getGridConfig(): AggregatorGridConfig {
+    return {
+      schema: {
+        entity_name: {title: 'Entity', columnType: 'text'},
+        state_name: {title: 'State', columnType: 'text'},
+        delta_value: {title: 'Time in state (ms)', columnType: 'quantitative'},
+        rate_percent: {
+          title: 'Time in state',
+          columnType: 'quantitative',
+          cellRenderer: formatPercentValue,
+        },
+        count: {title: 'Sample Count', columnType: 'quantitative'},
       },
-      {
-        title: 'State',
-        columnId: 'state_name',
-      },
-      {
-        title: 'Time in state (ms)',
-        columnId: 'delta_value',
-        sum: true,
-        formatHint: 'NUMERIC',
-      },
-      {
-        title: 'Time in state',
-        formatHint: 'PERCENT',
-        columnId: 'rate_percent',
-        sum: true,
-      },
-      {
-        title: 'Sample Count',
-        columnId: 'count',
-        formatHint: 'NUMERIC',
-      },
-    ];
+      initialColumns: [
+        {id: 'entity_name', field: 'entity_name', sort: 'DESC'},
+        {id: 'state_name', field: 'state_name'},
+        {id: 'delta_value', field: 'delta_value', aggregate: 'SUM'},
+        {id: 'rate_percent', field: 'rate_percent', aggregate: 'SUM'},
+        {id: 'count', field: 'count'},
+      ],
+    };
   }
 
   getTabName() {
