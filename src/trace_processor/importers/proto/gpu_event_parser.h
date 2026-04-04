@@ -103,10 +103,20 @@ class GpuEventParser {
       int32_t gpu_id,
       const protos::pbzero::GpuCounterDescriptor::GpuCounterSpec::Decoder&
           spec);
+  struct GroupMetadata {
+    StringId name;
+    StringId description;
+  };
+  using GroupMetadataMap = base::FlatHashMap<int32_t, GroupMetadata>;
+  GroupMetadataMap BuildGroupMetadata(
+      const protos::pbzero::GpuCounterDescriptor::Decoder& desc);
   void InsertCounterGroups(
       TrackId track_id,
-      const protos::pbzero::GpuCounterDescriptor::GpuCounterSpec::Decoder&
-          spec);
+      const protos::pbzero::GpuCounterDescriptor::GpuCounterSpec::Decoder& spec,
+      const GroupMetadataMap& group_metadata);
+  void InsertCustomCounterGroups(
+      const protos::pbzero::GpuCounterDescriptor::Decoder& desc,
+      const base::FlatHashMap<uint32_t, TrackId>& counter_id_to_track);
   void PushGpuCounterValue(int64_t ts,
                            double value,
                            TrackId track_id,
@@ -143,6 +153,10 @@ class GpuEventParser {
   // Key: TrackId.
   base::FlatHashMap<TrackId, std::optional<tables::CounterTable::Id>>
       gpu_counter_last_id_;
+
+  // Tracks which interned counter descriptors have had their custom groups
+  // inserted, to avoid duplicates. Key: counter_descriptor_iid.
+  base::FlatHashMap<uint64_t, bool> gpu_custom_groups_inserted_;
 
   // For GpuRenderStageEvent
   struct HwQueueInfo {

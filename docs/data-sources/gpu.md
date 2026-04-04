@@ -176,9 +176,41 @@ naturally. See
 for details on both modes.
 
 Counter names and IDs are advertised by the GPU producer via `GpuCounterSpec` in
-the data source descriptor. Counters are organized into groups (SYSTEM,
-VERTICES, FRAGMENTS, PRIMITIVES, MEMORY, COMPUTE, RAY_TRACING) and include
-measurement units and descriptions.
+the data source descriptor, which includes measurement units and descriptions.
+
+### Counter groups
+
+Counter groups are used by the Perfetto UI to organize counter tracks into
+groups. Counters can be assigned to built-in groups (SYSTEM, VERTICES,
+FRAGMENTS, PRIMITIVES, MEMORY, COMPUTE, RAY_TRACING) via
+`GpuCounterSpec.groups`. Producers can also define custom counter groups
+using the `GpuCounterGroupSpec` message in `GpuCounterDescriptor`:
+
+```proto
+message GpuCounterGroupSpec {
+    optional uint32 group_id = 1;
+    optional string name = 2;
+    optional string description = 3;
+    repeated uint32 counter_ids = 4;
+}
+```
+
+Custom groups can also be used to provide display names and descriptions for
+the fixed `GpuCounterGroup` enum values (SYSTEM, VERTICES, etc.). To do this,
+set `group_id` to the enum value and provide a `name` and/or `description`.
+
+A counter's group membership is the union of groups assigned via
+`GpuCounterSpec.groups` (the fixed enum) and `GpuCounterGroupSpec.counter_ids`
+(custom groups).
+
+For example, with custom groups "Compute Core" and "L2 Cache":
+
+```
+GPU > Counters > Compute Core > Counter A
+GPU > Counters > Compute Core > Counter B
+GPU > Counters > L2 Cache > Counter C
+```
+
 
 ### Multi-GPU
 
