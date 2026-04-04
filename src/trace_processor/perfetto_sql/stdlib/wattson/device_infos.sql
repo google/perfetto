@@ -15,6 +15,8 @@
 
 INCLUDE PERFETTO MODULE android.device;
 
+INCLUDE PERFETTO MODULE wattson.utils;
+
 -- Device specific info for deep idle time offsets
 CREATE PERFETTO TABLE _device_cpu_deep_idle_offsets AS
 WITH
@@ -204,6 +206,34 @@ CREATE PERFETTO TABLE _device_policies AS
 SELECT DISTINCT
   policy
 FROM _dev_cpu_policy_map;
+
+-- Defines bitmasks for each CPU where bits are set for all cores sharing the same
+-- cpufreq policy. This is used to determine if a cluster is active (any core on)
+-- to correctly attribute shared static power.
+CREATE PERFETTO TABLE _policy_masks AS
+WITH
+  _dev_policies AS (
+    SELECT
+      max(iif(cpu = 0, policy, -1)) AS p0,
+      max(iif(cpu = 1, policy, -1)) AS p1,
+      max(iif(cpu = 2, policy, -1)) AS p2,
+      max(iif(cpu = 3, policy, -1)) AS p3,
+      max(iif(cpu = 4, policy, -1)) AS p4,
+      max(iif(cpu = 5, policy, -1)) AS p5,
+      max(iif(cpu = 6, policy, -1)) AS p6,
+      max(iif(cpu = 7, policy, -1)) AS p7
+    FROM _dev_cpu_policy_map
+  )
+SELECT
+  _policy_mask!(p0, p0, p1, p2, p3, p4, p5, p6, p7) AS m0,
+  _policy_mask!(p1, p0, p1, p2, p3, p4, p5, p6, p7) AS m1,
+  _policy_mask!(p2, p0, p1, p2, p3, p4, p5, p6, p7) AS m2,
+  _policy_mask!(p3, p0, p1, p2, p3, p4, p5, p6, p7) AS m3,
+  _policy_mask!(p4, p0, p1, p2, p3, p4, p5, p6, p7) AS m4,
+  _policy_mask!(p5, p0, p1, p2, p3, p4, p5, p6, p7) AS m5,
+  _policy_mask!(p6, p0, p1, p2, p3, p4, p5, p6, p7) AS m6,
+  _policy_mask!(p7, p0, p1, p2, p3, p4, p5, p6, p7) AS m7
+FROM _dev_policies;
 
 -- Devices that require using devfreq
 CREATE PERFETTO TABLE _use_devfreq AS
