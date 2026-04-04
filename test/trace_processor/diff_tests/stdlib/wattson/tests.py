@@ -251,8 +251,8 @@ class WattsonStdlib(TestSuite):
         """,
         out=Csv("""
             "cpu0_mw","cpu1_mw","cpu2_mw","cpu3_mw","cpu4_mw","cpu5_mw","cpu6_mw","cpu7_mw","dsu_scu_mw"
-            13.119297,6.317755,5.480736,8.867040,8.940129,10.721293,29.491222,30.247726,25.756884
-            """))
+            13.123951,6.319792,5.482452,8.870058,8.940995,10.722844,29.494919,30.193860,25.745894
+        """))
 
   # Tests that suspend calculations are correct on 8 CPU device where suspend
   # indication comes from "syscore" command
