@@ -95,6 +95,11 @@ message GpuCounterDescriptor {
   // command buffer.
   optional bool supports_instrumented_sampling = 5;
 
+  // optional.  The producer supports selecting counters by name via
+  // GpuCounterConfig.counter_names. Not all producers support this; Android
+  // GPU producers typically do not.
+  optional bool supports_counter_names = 6;
+
   // next id: 41
   enum MeasureUnit {
     NONE = 0;
@@ -1651,12 +1656,94 @@ message GpuCounterConfig {
   // Desired sampling interval for counters.
   optional uint64 counter_period_ns = 1;
 
-  // List of counters to be sampled. Counter IDs correspond to the ones
-  // described in GpuCounterSpec in the data source descriptor.
+  // Selects which counters to sample. Use either counter_ids or counter_names,
+  // not both. Counter IDs and names correspond to the ones described in
+  // GpuCounterSpec in the data source descriptor.
+
+  // List of counter IDs to be sampled.
   repeated uint32 counter_ids = 2;
 
+  // List of counter names to be sampled. Requires producer support; check
+  // GpuCounterDescriptor.supports_counter_names in the data source descriptor.
+  // Some producers may also support glob patterns for matching multiple
+  // counters by name but this is not guaranteed.
+  repeated string counter_names = 6;
+
+  // Configuration for sampling counters by instrumenting command buffers.
+  //
+  // When instrumented_sampling_config is used (instead of the
+  // instrumented_sampling bool), the following steps determine whether
+  // instrumented counters are enabled for a given GPU activity:
+  //
+  // 1. Activity name filtering: If activity_name_filters is non-empty, the
+  //    activity must match at least one filter. If empty, all activities
+  //    pass this step.
+  // 2. TX range filtering: If activity_tx_include_globs is non-empty, the
+  //    activity must fall within a matching TX range. Activities in TX
+  //    ranges matching activity_tx_exclude_globs are excluded (excludes
+  //    take precedence over includes). If both are empty, all activities
+  //    pass this step.
+  // 3. Range-based sampling: If activity_ranges is non-empty, only
+  //    activities within the specified skip/count ranges are instrumented.
+  //    If empty, all activities that passed the previous steps are
+  //    instrumented.
+  message InstrumentedSamplingConfig {
+    // Filters GPU activities by name. Each filter specifies a glob pattern
+    // and the basis for matching (mangled or demangled kernel name).
+    message ActivityNameFilter {
+      enum NameBase {
+        MANGLED_KERNEL_NAME = 0;
+        DEMANGLED_KERNEL_NAME = 1;
+      }
+
+      // required. Glob pattern to use for GPU activity name filtering.
+      optional string name_glob = 1;
+
+      // Basis for name filtering. Defaults to MANGLED_KERNEL_NAME if not
+      // specified.
+      optional NameBase name_base = 2;
+    }
+
+    // GPU activity name filters. An activity matches if it matches any filter.
+    repeated ActivityNameFilter activity_name_filters = 3;
+
+    // Glob patterns to use for including GPU activities in TX ranges. TX
+    // ranges are in-process annotations that mark different sections of GPU
+    // work (e.g. NVTX ranges for CUDA). TX ranges can be nested, and an
+    // activity is included if any range in its nesting hierarchy matches.
+    // Only activities that fall within a matching TX range will be
+    // instrumented.
+    repeated string activity_tx_include_globs = 6;
+
+    // Glob patterns to use for excluding GPU activities from TX ranges.
+    // TX ranges can be nested, and an activity is excluded if any range
+    // in its nesting hierarchy matches. Excludes take precedence over
+    // includes.
+    repeated string activity_tx_exclude_globs = 7;
+
+    // Defines a range of GPU activities to instrument.
+    message ActivityRange {
+      // Number of GPU activities to skip before starting to instrument
+      // command buffers. Defaults to 0 if not specified.
+      optional uint32 skip = 1;
+
+      // Limit for the number of GPU activities to sample counters for by
+      // instrumenting command buffers. Defaults to UINT32_MAX (all
+      // remaining activities) if not specified.
+      optional uint32 count = 2;
+    }
+
+    // Ranges of GPU activities to instrument. Applied after activity name
+    // and TX range filters. If empty, all activities that passed the
+    // previous filters are instrumented.
+    repeated ActivityRange activity_ranges = 5;
+  }
+
   // Sample counters by instrumenting command buffers.
-  optional bool instrumented_sampling = 3;
+  oneof instrumented_sampling_mode {
+    bool instrumented_sampling = 3;
+    InstrumentedSamplingConfig instrumented_sampling_config = 5;
+  }
 
   // Fix gpu clock rate during trace session.
   optional bool fix_gpu_clock = 4;
