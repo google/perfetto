@@ -30,6 +30,7 @@ import {
 } from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {MenuItem} from '../../widgets/menu';
+import {TextInput} from '../../widgets/text_input';
 import {checkerboardExcept} from '../checkerboard';
 import {valueIfAllEqual} from '../../base/array_utils';
 import {deferChunkedTask} from '../../base/chunked_task';
@@ -99,7 +100,7 @@ function roundAway(n: number): number {
   return Math.sign(n) * (Math.ceil(Math.abs(n) / (pow10 / 20)) * (pow10 / 20));
 }
 
-function toLabel(n: number): string {
+function toLabel(n: number, exact = false): string {
   if (n === 0) {
     return '0';
   }
@@ -113,17 +114,26 @@ function toLabel(n: number): string {
     [1000 * 1000 * 1000, 'G'],
     [1000 * 1000 * 1000 * 1000, 'T'],
   ];
-  let largestMultiplier;
-  let largestUnit;
-  [largestMultiplier, largestUnit] = units[0];
+  let largestMultiplier = units[0][0];
+  let largestUnit = units[0][1];
   const absN = Math.abs(n);
   for (const [multiplier, unit] of units) {
     if (multiplier > absN) {
       break;
     }
-    [largestMultiplier, largestUnit] = [multiplier, unit];
+    largestMultiplier = multiplier;
+    largestUnit = unit;
   }
-  return `${Math.round(n / largestMultiplier)}${largestUnit}`;
+  const value = n / largestMultiplier;
+
+  if (!exact) {
+    return `${Math.round(value)}${largestUnit}`;
+  }
+
+  if (Math.abs(value - Math.round(value)) < 1e-9) {
+    return `${Math.round(value)}${largestUnit}`;
+  }
+  return `${Number(value.toFixed(1))}${largestUnit}`;
 }
 
 class RangeSharer {
@@ -254,12 +264,19 @@ export interface CounterOptions {
   // zero = y-axis scale should cover the origin (zero)
   // minmax = y-axis scale should cover just the range of yRange
   // log = as minmax but also use a log scale
-  yDisplay: 'zero' | 'minmax' | 'log';
+  // custom = use yCustomMin/yCustomMax as the explicit bounds
+  yDisplay: 'zero' | 'minmax' | 'log' | 'custom';
 
   // Whether the range boundaries should be strict and use the precise min/max
   // values or whether they should be rounded down/up to the nearest human
   // readable value.
   yRangeRounding: 'strict' | 'human_readable';
+
+  // When yDisplay is 'custom', use these exact values as the y-axis min/max
+  // instead of deriving them from the data. Either can be undefined to fall
+  // back to the data-derived bound.
+  yCustomMin?: number;
+  yCustomMax?: number;
 
   // Scales the height of the chart.
   chartHeightSize: ChartHeightSize;
@@ -294,7 +311,7 @@ type yMode = z.infer<typeof ymodeSchema>;
 const yRangeSchema = z.union([z.literal('all'), z.literal('viewport')]);
 type YRange = z.infer<typeof yRangeSchema>;
 
-const yDisplaySchema = z.enum(['zero', 'minmax', 'log']);
+const yDisplaySchema = z.enum(['zero', 'minmax', 'log', 'custom']);
 type YDisplay = z.infer<typeof yDisplaySchema>;
 
 const yRangeRoundingSchema = z.union([
@@ -378,14 +395,18 @@ const yRangeSettingDescriptor: TrackSettingDescriptor<YRange> = {
   },
 };
 
-const yDisplaySettingDescriptor: TrackSettingDescriptor<YDisplay> = {
+const yDisplaySettingDescriptor = (
+  track: BaseCounterTrack,
+): TrackSettingDescriptor<YDisplay> => ({
   id: 'yDisplay',
   name: 'Y-axis display',
-  description: 'zero, minmax, log',
+  description: 'zero, minmax, log, custom',
   schema: yDisplaySchema,
   defaultValue: 'zero',
   render(setter, values) {
     const value = valueIfAllEqual(values);
+    const options = track.getCounterOptions();
+
     return m(MenuItem, {label: `Display (currently: ${value ?? 'mixed'})`}, [
       m(MenuItem, {
         label: 'Zero-based',
@@ -402,9 +423,66 @@ const yDisplaySettingDescriptor: TrackSettingDescriptor<YDisplay> = {
         onclick: () => setter('log'),
         icon: value === 'log' ? radioIconChecked : radioIconUnchecked,
       }),
+      m(MenuItem, {
+        label: 'Custom Range',
+        onclick: () => setter('custom'),
+        icon: value === 'custom' ? radioIconChecked : radioIconUnchecked,
+        closePopupOnClick: false,
+      }),
+      value === 'custom' &&
+        m('.pf-counter-track__custom-range', [
+          m('span.pf-counter-track__custom-range-label', 'Min'),
+          m(TextInput, {
+            type: 'text',
+            placeholder: 'auto',
+            value:
+              track.yCustomMinText !== ''
+                ? track.yCustomMinText
+                : options.yCustomMin !== undefined
+                  ? String(options.yCustomMin)
+                  : '',
+            onChange: (v) => {
+              track.yCustomMinText = v;
+              const trimmed = v.trim();
+              if (trimmed === '') {
+                options.yCustomMin = undefined;
+              } else {
+                const parsed = Number(trimmed);
+                options.yCustomMin = Number.isFinite(parsed)
+                  ? parsed
+                  : undefined;
+              }
+              track.invalidate();
+            },
+          }),
+          m('span.pf-counter-track__custom-range-label', 'Max'),
+          m(TextInput, {
+            type: 'text',
+            placeholder: 'auto',
+            value:
+              track.yCustomMaxText !== ''
+                ? track.yCustomMaxText
+                : options.yCustomMax !== undefined
+                  ? String(options.yCustomMax)
+                  : '',
+            onChange: (v) => {
+              track.yCustomMaxText = v;
+              const trimmed = v.trim();
+              if (trimmed === '') {
+                options.yCustomMax = undefined;
+              } else {
+                const parsed = Number(trimmed);
+                options.yCustomMax = Number.isFinite(parsed)
+                  ? parsed
+                  : undefined;
+              }
+              track.invalidate();
+            },
+          }),
+        ]),
     ]);
   },
-};
+});
 
 const yRangeRoundingSettingDescriptor: TrackSettingDescriptor<YRangeRounding> =
   {
@@ -506,6 +584,11 @@ export abstract class BaseCounterTrack implements TrackRenderer {
 
   private hover?: CounterTooltipState;
   private options?: CounterOptions;
+
+  // Local custom-range input text state to preserve partial typing (e.g. "0.", "1e-").
+  yCustomMinText = '';
+  yCustomMaxText = '';
+
   private readonly rangeSharer: RangeSharer;
 
   // Monitor for local hover state (triggers DOM redraw for tooltip).
@@ -514,7 +597,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     () => this.hover?.lastDisplayValue,
   ]);
 
-  private getCounterOptions(): CounterOptions {
+  getCounterOptions(): CounterOptions {
     if (this.options === undefined) {
       const options = this.getDefaultCounterOptions();
       for (const [key, value] of Object.entries(this.defaultOptions)) {
@@ -582,7 +665,72 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     return height * this.getCounterOptions().chartHeightSize;
   }
 
-  protected invalidate() {
+  // A method to render menu items for switching the default
+  // rendering options. Useful if a subclass wants to incorporate it
+  // as a submenu.
+  protected getCounterContextMenuItems(): m.Children {
+    const options = this.getCounterOptions();
+
+    return [
+      m(
+        MenuItem,
+        {
+          label: `Display (currently: ${options.yDisplay})`,
+        },
+
+        m(MenuItem, {
+          label: 'Zero-based',
+          icon:
+            options.yDisplay === 'zero'
+              ? 'radio_button_checked'
+              : 'radio_button_unchecked',
+          onclick: () => {
+            options.yDisplay = 'zero';
+            this.invalidate();
+          },
+        }),
+
+        m(MenuItem, {
+          label: 'Min/Max',
+          icon:
+            options.yDisplay === 'minmax'
+              ? 'radio_button_checked'
+              : 'radio_button_unchecked',
+          onclick: () => {
+            options.yDisplay = 'minmax';
+            this.invalidate();
+          },
+        }),
+
+        m(MenuItem, {
+          label: 'Log',
+          icon:
+            options.yDisplay === 'log'
+              ? 'radio_button_checked'
+              : 'radio_button_unchecked',
+          onclick: () => {
+            options.yDisplay = 'log';
+            this.invalidate();
+          },
+        }),
+
+        m(MenuItem, {
+          label: 'Custom Range',
+          icon:
+            options.yDisplay === 'custom'
+              ? 'radio_button_checked'
+              : 'radio_button_unchecked',
+          closePopupOnClick: false,
+          onclick: () => {
+            options.yDisplay = 'custom';
+            this.invalidate();
+          },
+        }),
+      ),
+    ];
+  }
+
+  invalidate() {
     this.limits = undefined;
     this.counters = undefined;
     this.bufferedBounds.reset();
@@ -610,7 +758,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
   };
 
   readonly yDisplaySetting: TrackSetting<YDisplay> = {
-    descriptor: yDisplaySettingDescriptor,
+    descriptor: yDisplaySettingDescriptor(this),
     getValue: () => this.getCounterOptions().yDisplay,
     setValue: (yDisplay) => {
       this.options = {...this.getCounterOptions(), yDisplay};
@@ -967,6 +1115,11 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       yMax = Math.max(0, yMax);
     }
 
+    if (options.yDisplay === 'custom') {
+      if (options.yCustomMin !== undefined) yMin = options.yCustomMin;
+      if (options.yCustomMax !== undefined) yMax = options.yCustomMax;
+    }
+
     if (options.yOverrideMaximum !== undefined) {
       yMax = Math.max(options.yOverrideMaximum, yMax);
     }
@@ -975,7 +1128,11 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       yMin = Math.min(options.yOverrideMinimum, yMin);
     }
 
-    if (options.yRangeRounding === 'human_readable') {
+    // Skip rounding when the user has specified an exact custom range.
+    if (
+      options.yRangeRounding === 'human_readable' &&
+      options.yDisplay !== 'custom'
+    ) {
       if (options.yDisplay === 'log') {
         yMax = Math.log(roundAway(Math.exp(yMax)));
         yMin = Math.log(roundAway(Math.exp(yMin)));
@@ -985,6 +1142,13 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       }
     }
 
+    // Ensure yMax > yMin to prevent division by zero in the renderer.
+    // For non-custom modes we want strict behavior from data-driven bounds,
+    // while custom range should be clamped to avoid invalid zero-size ranges.
+    if (options.yDisplay === 'custom' && yMax <= yMin) {
+      yMax = yMin + 1;
+    }
+
     [yMin, yMax] = this.rangeSharer.share(options, [yMin, yMax]);
 
     let yLabel: string;
@@ -992,16 +1156,21 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     if (options.yDisplay === 'minmax') {
       yLabel = 'min - max';
     } else {
+      // For all dynamic modes, show difference. Prefer an exact label for
+      // custom mode so 1,500 becomes 1.5K instead of rounding to 2K.
       let max = yMax;
       let min = yMin;
       if (options.yDisplay === 'log') {
         max = Math.exp(max);
         min = Math.exp(min);
       }
-      if (max < 0) {
-        yLabel = toLabel(min - max);
+
+      if (options.yDisplay === 'custom') {
+        const delta = max - min;
+        yLabel = toLabel(delta, true);
       } else {
-        yLabel = toLabel(max - min);
+        const delta = max < 0 ? min - max : max - min;
+        yLabel = toLabel(delta);
       }
     }
 
