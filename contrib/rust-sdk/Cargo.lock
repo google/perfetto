@@ -363,6 +363,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "perfetto-sdk-protos-ftrace"
+version = "0.3.3"
+dependencies = [
+ "paste",
+ "perfetto-sdk",
+]
+
+[[package]]
 name = "perfetto-sdk-protos-gpu"
 version = "0.3.3"
 dependencies = [
