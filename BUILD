@@ -1639,6 +1639,7 @@ perfetto_cc_library(
         ":src_base_regex",
         "src/base/android_utils.cc",
         "src/base/base64.cc",
+        "src/base/cpu_info.cc",
         "src/base/crash_keys.cc",
         "src/base/ctrl_c_handler.cc",
         "src/base/event_fd.cc",
@@ -1682,6 +1683,7 @@ perfetto_cc_library(
         ":include_perfetto_ext_base_base",
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_base",
+        "src/base/cpu_info.h",
         "src/base/log_ring_buffer.h",
     ],
     deps = [

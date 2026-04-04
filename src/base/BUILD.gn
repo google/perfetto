@@ -36,6 +36,8 @@ perfetto_component("base") {
   sources = [
     "android_utils.cc",
     "base64.cc",
+    "cpu_info.cc",
+    "cpu_info.h",
     "crash_keys.cc",
     "ctrl_c_handler.cc",
     "event_fd.cc",

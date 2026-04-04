@@ -121,6 +121,7 @@ class TestSystemInfoDataSource : public SystemInfoDataSource {
             std::move(writer),
             std::move(cpu_freq_info)) {}
 
+  MOCK_METHOD(std::vector<base::CpuInfo>, ReadCpuInfo, (), (override));
   MOCK_METHOD(std::string, ReadFile, (std::string), (override));
 };
 
@@ -142,8 +143,8 @@ class SystemInfoDataSourceTest : public ::testing::Test {
 
 TEST_F(SystemInfoDataSourceTest, CpuInfoAndroid) {
   auto data_source = GetSystemInfoDataSource();
-  EXPECT_CALL(*data_source, ReadFile("/proc/cpuinfo"))
-      .WillOnce(Return(kMockCpuInfoAndroid));
+  EXPECT_CALL(*data_source, ReadCpuInfo())
+      .WillOnce(Return(base::ParseCpuInfo(kMockCpuInfoAndroid)));
 
   for (uint32_t cpu_index = 0; cpu_index < CPU_COUNT; cpu_index++) {
     EXPECT_CALL(*data_source,
