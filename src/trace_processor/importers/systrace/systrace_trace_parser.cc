@@ -37,6 +37,7 @@
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/importers/systrace/systrace_line_parser.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -193,7 +194,7 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
             stream_->Push(*trace_ts, std::move(line));
           }
         } else {
-          ctx_->storage->IncrementStats(stats::systrace_parse_failure);
+          ctx_->stats_tracker->IncrementStats(stats::systrace_parse_failure);
         }
       }
     } else if (state_ == ParseState::kProcessDumpLong ||

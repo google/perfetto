@@ -24,6 +24,7 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/blob_packet_writer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/pixel_modem_parser.h"
@@ -87,7 +88,8 @@ ModuleResult PixelModemModule::TokenizePacket(
     protozero::ConstBytes event_bytes = *it;
     ts += *ts_it;
     if (ts < 0) {
-      context_->storage->IncrementStats(stats::pixel_modem_negative_timestamp);
+      context_->stats_tracker->IncrementStats(
+          stats::pixel_modem_negative_timestamp);
       continue;
     }
 

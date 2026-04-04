@@ -30,6 +30,7 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/blob_packet_writer.h"
@@ -74,7 +75,7 @@ ModuleResult AppWakelockModule::TokenizePacket(
   auto iid_iter = evt.intern_id(&parse_error);
   auto timestamp_iter = evt.encoded_ts(&parse_error);
   if (parse_error) {
-    context_->storage->IncrementStats(stats::app_wakelock_parse_error);
+    context_->stats_tracker->IncrementStats(stats::app_wakelock_parse_error);
     return ModuleResult::Handled();
   }
 
@@ -89,7 +90,7 @@ ModuleResult AppWakelockModule::TokenizePacket(
         protos::pbzero::InternedData::kAppWakelockInfoFieldNumber,
         protos::pbzero::AppWakelockInfo>(intern_id);
     if (interned == nullptr) {
-      context_->storage->IncrementStats(stats::app_wakelock_unknown_id);
+      context_->stats_tracker->IncrementStats(stats::app_wakelock_unknown_id);
       continue;
     }
 

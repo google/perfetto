@@ -1325,6 +1325,20 @@ class JsonExporter {
     return base::OkStatus();
   }
 
+  // TODO(sashwinbalaji): Migrate to read from GlobalStatsTracker instead of
+  // TraceStorage::stats(). This is the last remaining reader of the legacy
+  // stats_ array. The migration requires:
+  // 1. Adding a GlobalStatsTracker* parameter to JsonExporter and the public
+  //    ExportJson() API (export_json.h).
+  // 2. Updating the EXPORT_JSON SQL function (utils.h) which currently only
+  //    has TraceStorage* as user data — needs a struct or context object that
+  //    bundles both TraceStorage* and GlobalStatsTracker*.
+  // 3. Updating all callers: export_json_unittest.cc (~25 call sites),
+  //    storage_minimal_smoke_test.cc (2 call sites), and the SQL function.
+  // 4. Iterating over GlobalStatsTracker::context_keys() to emit stats from
+  //    all (machine_id, trace_id) contexts, including machine_id/trace_id
+  //    in the JSON output.
+  // Once done, TraceStorage::stats_ and its accessor methods can be removed.
   base::Status ExportStats() {
     const auto& stats = storage_->stats();
 

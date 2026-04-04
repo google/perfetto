@@ -35,6 +35,7 @@
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/perf/itrace_start_record.h"
 #include "src/trace_processor/importers/perf/mmap_record.h"
@@ -102,7 +103,7 @@ RecordParser::~RecordParser() = default;
 
 void RecordParser::Parse(int64_t ts, Record record) {
   if (base::Status status = ParseRecord(ts, std::move(record)); !status.ok()) {
-    context_->storage->IncrementIndexedStats(
+    context_->stats_tracker->IncrementIndexedStats(
         stats::perf_record_skipped, static_cast<int>(record.header.type));
   }
 }
@@ -132,7 +133,7 @@ base::Status RecordParser::ParseRecord(int64_t ts, Record record) {
                      record.header.type);
 
     default:
-      context_->storage->IncrementIndexedStats(
+      context_->stats_tracker->IncrementIndexedStats(
           stats::perf_unknown_record_type,
           static_cast<int>(record.header.type));
       return base::ErrStatus("Unknown PERF_RECORD with type %" PRIu32,
@@ -169,7 +170,8 @@ base::Status RecordParser::InternSample(Sample sample) {
 
   if (sample.cpu_mode ==
       protos::pbzero::perfetto_pbzero_enum_Profiling::MODE_UNKNOWN) {
-    context_->storage->IncrementStats(stats::perf_samples_cpu_mode_unknown);
+    context_->stats_tracker->IncrementStats(
+        stats::perf_samples_cpu_mode_unknown);
   }
 
   UniqueTid utid = context_->process_tracker->UpdateThread(sample.pid_tid->tid,
@@ -245,7 +247,7 @@ std::optional<CallsiteId> RecordParser::InternCallchain(
     }
 
     if (!mapping) {
-      context_->storage->IncrementStats(stats::perf_dummy_mapping_used);
+      context_->stats_tracker->IncrementStats(stats::perf_dummy_mapping_used);
       // Simpleperf will not create mappings for anonymous executable mappings
       // which are used by JITted code (e.g. V8 JavaScript).
       mapping = GetDummyMapping(upid);

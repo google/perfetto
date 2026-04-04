@@ -45,6 +45,7 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -505,13 +506,14 @@ void ProtoTraceReader::ParseTraceConfig(protozero::ConstBytes blob) {
   Config::Decoder trace_config(blob);
   if (trace_config.write_into_file()) {
     if (!trace_config.flush_period_ms()) {
-      context_->storage->IncrementStats(stats::config_write_into_file_no_flush);
+      context_->stats_tracker->IncrementStats(
+          stats::config_write_into_file_no_flush);
     }
     int i = 0;
     for (auto it = trace_config.buffers(); it; ++it, ++i) {
       Config::BufferConfig::Decoder buf(*it);
       if (buf.fill_policy() == Config::BufferConfig::FillPolicy::DISCARD) {
-        context_->storage->IncrementIndexedStats(
+        context_->stats_tracker->IncrementIndexedStats(
             stats::config_write_into_file_discard, i);
       }
     }
@@ -911,10 +913,11 @@ base::Status ProtoTraceReader::ParseServiceEvent(int64_t ts, ConstBytes blob) {
     }
   }
   if (tse.has_clone_started()) {
-    context_->storage->SetStats(stats::traced_clone_started_timestamp_ns, ts);
+    context_->stats_tracker->SetStats(stats::traced_clone_started_timestamp_ns,
+                                      ts);
   }
   if (tse.has_buffer_cloned()) {
-    context_->storage->SetIndexedStats(
+    context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_clone_done_timestamp_ns,
         static_cast<int>(tse.buffer_cloned()), ts);
   }
@@ -923,55 +926,66 @@ base::Status ProtoTraceReader::ParseServiceEvent(int64_t ts, ConstBytes blob) {
 
 void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
   protos::pbzero::TraceStats::Decoder evt(blob.data, blob.size);
-  auto* storage = context_->storage.get();
-  storage->SetStats(stats::traced_producers_connected,
-                    static_cast<int64_t>(evt.producers_connected()));
-  storage->SetStats(stats::traced_producers_seen,
-                    static_cast<int64_t>(evt.producers_seen()));
-  storage->SetStats(stats::traced_data_sources_registered,
-                    static_cast<int64_t>(evt.data_sources_registered()));
-  storage->SetStats(stats::traced_data_sources_seen,
-                    static_cast<int64_t>(evt.data_sources_seen()));
-  storage->SetStats(stats::traced_tracing_sessions,
-                    static_cast<int64_t>(evt.tracing_sessions()));
-  storage->SetStats(stats::traced_total_buffers,
-                    static_cast<int64_t>(evt.total_buffers()));
-  storage->SetStats(stats::traced_chunks_discarded,
-                    static_cast<int64_t>(evt.chunks_discarded()));
-  storage->SetStats(stats::traced_patches_discarded,
-                    static_cast<int64_t>(evt.patches_discarded()));
-  storage->SetStats(stats::traced_flushes_requested,
-                    static_cast<int64_t>(evt.flushes_requested()));
-  storage->SetStats(stats::traced_flushes_succeeded,
-                    static_cast<int64_t>(evt.flushes_succeeded()));
-  storage->SetStats(stats::traced_flushes_failed,
-                    static_cast<int64_t>(evt.flushes_failed()));
+  context_->stats_tracker->SetStats(
+      stats::traced_producers_connected,
+      static_cast<int64_t>(evt.producers_connected()));
+  context_->stats_tracker->SetStats(stats::traced_producers_seen,
+                                    static_cast<int64_t>(evt.producers_seen()));
+  context_->stats_tracker->SetStats(
+      stats::traced_data_sources_registered,
+      static_cast<int64_t>(evt.data_sources_registered()));
+  context_->stats_tracker->SetStats(
+      stats::traced_data_sources_seen,
+      static_cast<int64_t>(evt.data_sources_seen()));
+  context_->stats_tracker->SetStats(
+      stats::traced_tracing_sessions,
+      static_cast<int64_t>(evt.tracing_sessions()));
+  context_->stats_tracker->SetStats(stats::traced_total_buffers,
+                                    static_cast<int64_t>(evt.total_buffers()));
+  context_->stats_tracker->SetStats(
+      stats::traced_chunks_discarded,
+      static_cast<int64_t>(evt.chunks_discarded()));
+  context_->stats_tracker->SetStats(
+      stats::traced_patches_discarded,
+      static_cast<int64_t>(evt.patches_discarded()));
+  context_->stats_tracker->SetStats(
+      stats::traced_flushes_requested,
+      static_cast<int64_t>(evt.flushes_requested()));
+  context_->stats_tracker->SetStats(
+      stats::traced_flushes_succeeded,
+      static_cast<int64_t>(evt.flushes_succeeded()));
+  context_->stats_tracker->SetStats(stats::traced_flushes_failed,
+                                    static_cast<int64_t>(evt.flushes_failed()));
 
   if (evt.has_filter_stats()) {
     protos::pbzero::TraceStats::FilterStats::Decoder fstat(evt.filter_stats());
-    storage->SetStats(stats::filter_errors,
-                      static_cast<int64_t>(fstat.errors()));
-    storage->SetStats(stats::filter_input_bytes,
-                      static_cast<int64_t>(fstat.input_bytes()));
-    storage->SetStats(stats::filter_input_packets,
-                      static_cast<int64_t>(fstat.input_packets()));
-    storage->SetStats(stats::filter_output_bytes,
-                      static_cast<int64_t>(fstat.output_bytes()));
-    storage->SetStats(stats::filter_time_taken_ns,
-                      static_cast<int64_t>(fstat.time_taken_ns()));
+    context_->stats_tracker->SetStats(stats::filter_errors,
+                                      static_cast<int64_t>(fstat.errors()));
+    context_->stats_tracker->SetStats(
+        stats::filter_input_bytes, static_cast<int64_t>(fstat.input_bytes()));
+    context_->stats_tracker->SetStats(
+        stats::filter_input_packets,
+        static_cast<int64_t>(fstat.input_packets()));
+    context_->stats_tracker->SetStats(
+        stats::filter_output_bytes, static_cast<int64_t>(fstat.output_bytes()));
+    context_->stats_tracker->SetStats(
+        stats::filter_time_taken_ns,
+        static_cast<int64_t>(fstat.time_taken_ns()));
     for (auto [i, it] = std::tuple{0, fstat.bytes_discarded_per_buffer()}; it;
          ++it, ++i) {
-      storage->SetIndexedStats(stats::traced_buf_bytes_filtered_out, i,
-                               static_cast<int64_t>(*it));
+      context_->stats_tracker->SetIndexedStats(
+          stats::traced_buf_bytes_filtered_out, i, static_cast<int64_t>(*it));
     }
   }
 
   switch (evt.final_flush_outcome()) {
     case protos::pbzero::TraceStats::FINAL_FLUSH_SUCCEEDED:
-      storage->IncrementStats(stats::traced_final_flush_succeeded, 1);
+      context_->stats_tracker->IncrementStats(
+          stats::traced_final_flush_succeeded, 1);
       break;
     case protos::pbzero::TraceStats::FINAL_FLUSH_FAILED:
-      storage->IncrementStats(stats::traced_final_flush_failed, 1);
+      context_->stats_tracker->IncrementStats(stats::traced_final_flush_failed,
+                                              1);
       break;
     case protos::pbzero::TraceStats::FINAL_FLUSH_UNSPECIFIED:
       break;
@@ -980,67 +994,90 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
   int buf_num = 0;
   for (auto it = evt.buffer_stats(); it; ++it, ++buf_num) {
     protos::pbzero::TraceStats::BufferStats::Decoder buf(*it);
-    storage->SetIndexedStats(stats::traced_buf_buffer_size, buf_num,
-                             static_cast<int64_t>(buf.buffer_size()));
-    storage->SetIndexedStats(stats::traced_buf_bytes_written, buf_num,
-                             static_cast<int64_t>(buf.bytes_written()));
-    storage->SetIndexedStats(stats::traced_buf_bytes_overwritten, buf_num,
-                             static_cast<int64_t>(buf.bytes_overwritten()));
-    storage->SetIndexedStats(stats::traced_buf_bytes_read, buf_num,
-                             static_cast<int64_t>(buf.bytes_read()));
-    storage->SetIndexedStats(stats::traced_buf_padding_bytes_written, buf_num,
-                             static_cast<int64_t>(buf.padding_bytes_written()));
-    storage->SetIndexedStats(stats::traced_buf_padding_bytes_cleared, buf_num,
-                             static_cast<int64_t>(buf.padding_bytes_cleared()));
-    storage->SetIndexedStats(stats::traced_buf_chunks_written, buf_num,
-                             static_cast<int64_t>(buf.chunks_written()));
-    storage->SetIndexedStats(stats::traced_buf_chunks_rewritten, buf_num,
-                             static_cast<int64_t>(buf.chunks_rewritten()));
-    storage->SetIndexedStats(stats::traced_buf_chunks_overwritten, buf_num,
-                             static_cast<int64_t>(buf.chunks_overwritten()));
-    storage->SetIndexedStats(stats::traced_buf_chunks_discarded, buf_num,
-                             static_cast<int64_t>(buf.chunks_discarded()));
-    storage->SetIndexedStats(stats::traced_buf_chunks_read, buf_num,
-                             static_cast<int64_t>(buf.chunks_read()));
-    storage->SetIndexedStats(
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_buffer_size, buf_num,
+        static_cast<int64_t>(buf.buffer_size()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bytes_written, buf_num,
+        static_cast<int64_t>(buf.bytes_written()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bytes_overwritten, buf_num,
+        static_cast<int64_t>(buf.bytes_overwritten()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_bytes_read, buf_num,
+        static_cast<int64_t>(buf.bytes_read()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_padding_bytes_written, buf_num,
+        static_cast<int64_t>(buf.padding_bytes_written()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_padding_bytes_cleared, buf_num,
+        static_cast<int64_t>(buf.padding_bytes_cleared()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_chunks_written, buf_num,
+        static_cast<int64_t>(buf.chunks_written()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_chunks_rewritten, buf_num,
+        static_cast<int64_t>(buf.chunks_rewritten()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_chunks_overwritten, buf_num,
+        static_cast<int64_t>(buf.chunks_overwritten()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_chunks_discarded, buf_num,
+        static_cast<int64_t>(buf.chunks_discarded()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_chunks_read, buf_num,
+        static_cast<int64_t>(buf.chunks_read()));
+    context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_chunks_committed_out_of_order, buf_num,
         static_cast<int64_t>(buf.chunks_committed_out_of_order()));
-    storage->SetIndexedStats(stats::traced_buf_write_wrap_count, buf_num,
-                             static_cast<int64_t>(buf.write_wrap_count()));
-    storage->SetIndexedStats(stats::traced_buf_patches_succeeded, buf_num,
-                             static_cast<int64_t>(buf.patches_succeeded()));
-    storage->SetIndexedStats(stats::traced_buf_patches_failed, buf_num,
-                             static_cast<int64_t>(buf.patches_failed()));
-    storage->SetIndexedStats(stats::traced_buf_readaheads_succeeded, buf_num,
-                             static_cast<int64_t>(buf.readaheads_succeeded()));
-    storage->SetIndexedStats(stats::traced_buf_readaheads_failed, buf_num,
-                             static_cast<int64_t>(buf.readaheads_failed()));
-    storage->SetIndexedStats(stats::traced_buf_abi_violations, buf_num,
-                             static_cast<int64_t>(buf.abi_violations()));
-    storage->SetIndexedStats(
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_write_wrap_count, buf_num,
+        static_cast<int64_t>(buf.write_wrap_count()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_patches_succeeded, buf_num,
+        static_cast<int64_t>(buf.patches_succeeded()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_patches_failed, buf_num,
+        static_cast<int64_t>(buf.patches_failed()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_readaheads_succeeded, buf_num,
+        static_cast<int64_t>(buf.readaheads_succeeded()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_readaheads_failed, buf_num,
+        static_cast<int64_t>(buf.readaheads_failed()));
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_abi_violations, buf_num,
+        static_cast<int64_t>(buf.abi_violations()));
+    context_->stats_tracker->SetIndexedStats(
         stats::traced_buf_trace_writer_packet_loss, buf_num,
         static_cast<int64_t>(buf.trace_writer_packet_loss()));
     if (buf.has_shadow_buffer_stats()) {
       protos::pbzero::TraceStats::BufferStats::ShadowBufferStats::Decoder sbs(
           buf.shadow_buffer_stats());
-      storage->SetIndexedStats(stats::traced_buf_v2s_packets_seen, buf_num,
-                               static_cast<int64_t>(sbs.packets_seen()));
-      storage->SetIndexedStats(stats::traced_buf_v2s_packets_in_both, buf_num,
-                               static_cast<int64_t>(sbs.packets_in_both()));
-      storage->SetIndexedStats(stats::traced_buf_v2s_packets_only_v1, buf_num,
-                               static_cast<int64_t>(sbs.packets_only_v1()));
-      storage->SetIndexedStats(stats::traced_buf_v2s_packets_only_v2, buf_num,
-                               static_cast<int64_t>(sbs.packets_only_v2()));
-      storage->SetIndexedStats(stats::traced_buf_v2s_patches_attempted, buf_num,
-                               static_cast<int64_t>(sbs.patches_attempted()));
-      storage->SetIndexedStats(
+      context_->stats_tracker->SetIndexedStats(
+          stats::traced_buf_v2s_packets_seen, buf_num,
+          static_cast<int64_t>(sbs.packets_seen()));
+      context_->stats_tracker->SetIndexedStats(
+          stats::traced_buf_v2s_packets_in_both, buf_num,
+          static_cast<int64_t>(sbs.packets_in_both()));
+      context_->stats_tracker->SetIndexedStats(
+          stats::traced_buf_v2s_packets_only_v1, buf_num,
+          static_cast<int64_t>(sbs.packets_only_v1()));
+      context_->stats_tracker->SetIndexedStats(
+          stats::traced_buf_v2s_packets_only_v2, buf_num,
+          static_cast<int64_t>(sbs.packets_only_v2()));
+      context_->stats_tracker->SetIndexedStats(
+          stats::traced_buf_v2s_patches_attempted, buf_num,
+          static_cast<int64_t>(sbs.patches_attempted()));
+      context_->stats_tracker->SetIndexedStats(
           stats::traced_buf_v2s_v1_patches_succeeded, buf_num,
           static_cast<int64_t>(sbs.v1_patches_succeeded()));
-      storage->SetIndexedStats(
+      context_->stats_tracker->SetIndexedStats(
           stats::traced_buf_v2s_v2_patches_succeeded, buf_num,
           static_cast<int64_t>(sbs.v2_patches_succeeded()));
-      storage->SetIndexedStats(stats::traced_buf_v2s_stats_version, buf_num,
-                               static_cast<uint32_t>(sbs.stats_version()));
+      context_->stats_tracker->SetIndexedStats(
+          stats::traced_buf_v2s_stats_version, buf_num,
+          static_cast<uint32_t>(sbs.stats_version()));
     }
   }
 
@@ -1064,10 +1101,11 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
 
   for (auto it = stats_per_buffer.GetIterator(); it; ++it) {
     auto& v = it.value();
-    storage->SetIndexedStats(stats::traced_buf_sequence_packet_loss, it.key(),
-                             v.packet_loss);
-    storage->SetIndexedStats(stats::traced_buf_incremental_sequences_dropped,
-                             it.key(), v.incremental_sequences_dropped);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_sequence_packet_loss, it.key(), v.packet_loss);
+    context_->stats_tracker->SetIndexedStats(
+        stats::traced_buf_incremental_sequences_dropped, it.key(),
+        v.incremental_sequences_dropped);
   }
 }
 

@@ -24,6 +24,7 @@
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/android/shell_transition.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.h"
 #include "src/trace_processor/importers/proto/winscope/winscope_context.h"
@@ -71,7 +72,8 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
       nullptr /* parse all fields */, writer);
 
   if (!status.ok()) {
-    storage->IncrementStats(stats::winscope_shell_transitions_parse_errors);
+    context_->trace_processor_context_->stats_tracker->IncrementStats(
+        stats::winscope_shell_transitions_parse_errors);
   }
 
   if (transition.has_type()) {

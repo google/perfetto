@@ -36,6 +36,7 @@
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
@@ -353,7 +354,7 @@ void GpuEventParser::ParseGpuCounterEvent(
         protos::pbzero::InternedData::kGpuCounterDescriptorsFieldNumber,
         InternedGpuCounterDescriptor>(event.counter_descriptor_iid());
     if (!interned || !interned->has_counter_descriptor()) {
-      context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
+      context_->stats_tracker->IncrementStats(stats::gpu_counters_invalid_spec);
       return;
     }
 
@@ -376,7 +377,8 @@ void GpuEventParser::ParseGpuCounterEvent(
           continue;
         }
         if (!spec.has_name()) {
-          context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
+          context_->stats_tracker->IncrementStats(
+              stats::gpu_counters_invalid_spec);
           break;
         }
         found = true;
@@ -396,7 +398,8 @@ void GpuEventParser::ParseGpuCounterEvent(
       }
 
       if (!found) {
-        context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
+        context_->stats_tracker->IncrementStats(
+            stats::gpu_counters_invalid_spec);
       }
     }
     return;

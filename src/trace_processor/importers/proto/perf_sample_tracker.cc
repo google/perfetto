@@ -24,6 +24,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -220,10 +221,10 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
   // entry per data source (i.e. |perf_session_id|, not to be confused with the
   // tracing session).
   if (perf_defaults.has_value() && perf_defaults->process_shard_count() > 0) {
-    context_->storage->SetIndexedStats(
+    context_->stats_tracker->SetIndexedStats(
         stats::perf_process_shard_count, static_cast<int>(session_id.value),
         static_cast<int64_t>(perf_defaults->process_shard_count()));
-    context_->storage->SetIndexedStats(
+    context_->stats_tracker->SetIndexedStats(
         stats::perf_chosen_process_shard, static_cast<int>(session_id.value),
         static_cast<int64_t>(perf_defaults->chosen_process_shard()));
   }

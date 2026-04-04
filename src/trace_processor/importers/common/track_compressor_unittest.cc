@@ -19,8 +19,10 @@
 #include <memory>
 
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -45,6 +47,8 @@ class TrackCompressorUnittest : public testing::Test {
  public:
   TrackCompressorUnittest() {
     context_.storage = std::make_unique<TraceStorage>();
+    context_.global_stats_tracker = std::make_unique<GlobalStatsTracker>();
+    context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
     context_.global_args_tracker =

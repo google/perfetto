@@ -47,6 +47,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
@@ -797,7 +798,8 @@ class TrackEventEventImporter {
       // This means that the end event did not match a corresponding track event
       // begin packet so we likely closed the wrong slice. There's not much we
       // can do about this beyond flag it as a stat.
-      context_->storage->IncrementStats(stats::track_event_thread_invalid_end);
+      context_->stats_tracker->IncrementStats(
+          stats::track_event_thread_invalid_end);
       return base::OkStatus();
     }
 
@@ -1296,8 +1298,8 @@ class TrackEventEventImporter {
         blob_, ".perfetto.protos.TrackEvent", &parser_->reflect_fields_,
         args_writer, &unknown_extensions));
     if (unknown_extensions > 0) {
-      context_->storage->IncrementStats(stats::unknown_extension_fields,
-                                        unknown_extensions);
+      context_->stats_tracker->IncrementStats(stats::unknown_extension_fields,
+                                              unknown_extensions);
     }
 
     {

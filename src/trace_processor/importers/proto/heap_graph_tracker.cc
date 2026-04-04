@@ -242,8 +242,10 @@ std::string DenormalizeTypeName(NormalizedType normalized,
   return result;
 }
 
-HeapGraphTracker::HeapGraphTracker(TraceStorage* storage)
+HeapGraphTracker::HeapGraphTracker(TraceStorage* storage,
+                                   GlobalStatsTracker* stats_tracker)
     : storage_(storage),
+      global_stats_tracker_(stats_tracker),
       class_cursor_(storage->mutable_heap_graph_class_table()->CreateCursor({
           dataframe::FilterSpec{
               tables::HeapGraphClassTable::ColumnIndex::name,
@@ -710,8 +712,8 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
 
     std::optional<StringId> class_package;
     if (location_name) {
-      std::optional<std::string> package_name =
-          PackageFromLocation(storage_, storage_->GetString(location_name));
+      std::optional<std::string> package_name = PackageFromLocation(
+          global_stats_tracker_, storage_->GetString(location_name));
       if (package_name) {
         class_package = storage_->InternString(base::StringView(*package_name));
       }

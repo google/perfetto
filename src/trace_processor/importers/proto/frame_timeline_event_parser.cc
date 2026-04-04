@@ -32,6 +32,7 @@
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -135,7 +136,8 @@ bool ValidatePredictionType(TraceProcessorContext* context,
   if (prediction_type >= FrameTimelineEvent::PREDICTION_VALID /*1*/ &&
       prediction_type <= FrameTimelineEvent::PREDICTION_UNKNOWN /*3*/)
     return true;
-  context->storage->IncrementStats(stats::frame_timeline_event_parser_errors);
+  context->stats_tracker->IncrementStats(
+      stats::frame_timeline_event_parser_errors);
   return false;
 }
 
@@ -143,7 +145,8 @@ bool ValidatePresentType(TraceProcessorContext* context, int32_t present_type) {
   if (present_type >= FrameTimelineEvent::PRESENT_ON_TIME /*1*/ &&
       present_type <= FrameTimelineEvent::PRESENT_UNKNOWN /*5*/)
     return true;
-  context->storage->IncrementStats(stats::frame_timeline_event_parser_errors);
+  context->stats_tracker->IncrementStats(
+      stats::frame_timeline_event_parser_errors);
   return false;
 }
 
@@ -255,7 +258,7 @@ void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(int64_t timestamp,
   ExpectedDisplayFrameStartDecoder event(blob);
 
   if (!event.has_cookie() || !event.has_token() || !event.has_pid()) {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::frame_timeline_event_parser_errors);
     return;
   }
@@ -305,7 +308,7 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
   ActualDisplayFrameStartDecoder event(blob);
 
   if (!event.has_cookie() || !event.has_token() || !event.has_pid()) {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::frame_timeline_event_parser_errors);
     return;
   }
@@ -433,7 +436,7 @@ void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(int64_t timestamp,
 
   if (!event.has_cookie() || !event.has_token() ||
       !event.has_display_frame_token() || !event.has_pid()) {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::frame_timeline_event_parser_errors);
     return;
   }
@@ -513,7 +516,7 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
 
   if (!event.has_cookie() || !event.has_token() ||
       !event.has_display_frame_token() || !event.has_pid()) {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::frame_timeline_event_parser_errors);
     return;
   }
@@ -658,7 +661,7 @@ void FrameTimelineEventParser::ParseFrameEnd(int64_t timestamp,
                                              ConstBytes blob) {
   FrameEndDecoder event(blob);
   if (!event.has_cookie()) {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::frame_timeline_event_parser_errors);
     return;
   }
@@ -666,7 +669,8 @@ void FrameTimelineEventParser::ParseFrameEnd(int64_t timestamp,
   int64_t cookie = event.cookie();
   auto* it = cookie_map_.Find(cookie);
   if (!it) {
-    context_->storage->IncrementStats(stats::frame_timeline_unpaired_end_event);
+    context_->stats_tracker->IncrementStats(
+        stats::frame_timeline_unpaired_end_event);
     return;
   }
   TrackId track_id;
@@ -693,7 +697,7 @@ void FrameTimelineEventParser::ParseFrameTimelineEvent(int64_t timestamp,
   // TODO(mayzner): remove the negative check once we have some logic handling
   // this at the sorter level.
   if (timestamp < 0 || IsBadTimestamp(timestamp)) {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::frame_timeline_event_parser_errors);
     return;
   }
@@ -713,7 +717,7 @@ void FrameTimelineEventParser::ParseFrameTimelineEvent(int64_t timestamp,
   } else if (frame_event.has_frame_end()) {
     ParseFrameEnd(timestamp, frame_event.frame_end());
   } else {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::frame_timeline_event_parser_errors);
   }
 }

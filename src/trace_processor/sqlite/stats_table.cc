@@ -17,14 +17,58 @@
 #include "src/trace_processor/sqlite/stats_table.h"
 
 #include <sqlite3.h>
+#include <cstddef>
 #include <memory>
 
 #include "perfetto/base/logging.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/storage/stats.h"
-#include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto::trace_processor {
+
+namespace {
+
+// Advances the cursor to the next valid row within the current context.
+// Returns true if a valid row was found, false if the context is exhausted.
+bool AdvanceKeyInContext(StatsModule::Cursor* c) {
+  if (!c->current_map)
+    return false;
+
+  const auto* cur_entry = &(*c->current_map)[c->key];
+  if (stats::kTypes[c->key] == stats::kIndexed) {
+    if (++c->it != cur_entry->indexed_values.end()) {
+      return true;
+    }
+  }
+  while (++c->key < stats::kNumKeys) {
+    cur_entry = &(*c->current_map)[c->key];
+    c->it = cur_entry->indexed_values.begin();
+    if (stats::kTypes[c->key] == stats::kSingle ||
+        !cur_entry->indexed_values.empty()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Positions the cursor at the first valid row within the current context,
+// starting from key 0. Returns true if a valid row was found.
+bool InitContextCursor(StatsModule::Cursor* c) {
+  if (c->context_idx >= c->contexts.size())
+    return false;
+
+  c->current_map = c->tracker->FindStatsForContext(c->contexts[c->context_idx]);
+  if (!c->current_map)
+    return false;
+
+  static_assert(stats::kTypes[0] == stats::kSingle,
+                "the first stats entry cannot be indexed");
+  c->key = 0;
+  return true;
+}
+
+}  // namespace
 
 int StatsModule::Connect(sqlite3* db,
                          void* aux,
@@ -40,6 +84,8 @@ int StatsModule::Connect(sqlite3* db,
       source TEXT,
       value BIGINT,
       description TEXT,
+      machine_id BIGINT,
+      trace_id BIGINT,
       key BIGINT HIDDEN,
       PRIMARY KEY(name, idx)
     ) WITHOUT ROWID
@@ -48,7 +94,7 @@ int StatsModule::Connect(sqlite3* db,
     return ret;
   }
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->storage = GetContext(aux);
+  res->tracker = GetContext(aux);
   *vtab = res.release();
   return SQLITE_OK;
 }
@@ -64,7 +110,7 @@ int StatsModule::BestIndex(sqlite3_vtab*, sqlite3_index_info*) {
 
 int StatsModule::Open(sqlite3_vtab* raw_vtab, sqlite3_vtab_cursor** cursor) {
   std::unique_ptr<Cursor> c = std::make_unique<Cursor>();
-  c->storage = GetVtab(raw_vtab)->storage;
+  c->tracker = GetVtab(raw_vtab)->tracker;
   *cursor = c.release();
   return SQLITE_OK;
 }
@@ -79,36 +125,45 @@ int StatsModule::Filter(sqlite3_vtab_cursor* cursor,
                         const char*,
                         int,
                         sqlite3_value**) {
-  auto* c = GetCursor(cursor);
-  c->key = {};
-  c->it = {};
-  return SQLITE_OK;
-}
-
-int StatsModule::Next(sqlite3_vtab_cursor* cursor) {
   static_assert(stats::kTypes[0] == stats::kSingle,
                 "the first stats entry cannot be indexed");
 
   auto* c = GetCursor(cursor);
-  const auto* cur_entry = &c->storage->stats()[c->key];
-  if (stats::kTypes[c->key] == stats::kIndexed) {
-    if (++c->it != cur_entry->indexed_values.end()) {
-      return SQLITE_OK;
-    }
-  }
-  while (++c->key < stats::kNumKeys) {
-    cur_entry = &c->storage->stats()[c->key];
-    c->it = cur_entry->indexed_values.begin();
-    if (stats::kTypes[c->key] == stats::kSingle ||
-        !cur_entry->indexed_values.empty()) {
-      break;
-    }
+  c->contexts = c->tracker->context_keys();
+  c->context_idx = 0;
+  c->key = 0;
+  c->current_map = nullptr;
+
+  // Position at first valid row.
+  if (!InitContextCursor(c)) {
+    // No contexts with data - mark as EOF.
+    c->context_idx = c->contexts.size();
   }
   return SQLITE_OK;
 }
 
+int StatsModule::Next(sqlite3_vtab_cursor* cursor) {
+  auto* c = GetCursor(cursor);
+
+  // Try to advance within the current context.
+  if (AdvanceKeyInContext(c)) {
+    return SQLITE_OK;
+  }
+
+  // Current context exhausted, move to next context.
+  while (++c->context_idx < c->contexts.size()) {
+    if (InitContextCursor(c)) {
+      return SQLITE_OK;
+    }
+  }
+
+  // All contexts exhausted.
+  return SQLITE_OK;
+}
+
 int StatsModule::Eof(sqlite3_vtab_cursor* cursor) {
-  return GetCursor(cursor)->key >= stats::kNumKeys;
+  auto* c = GetCursor(cursor);
+  return c->context_idx >= c->contexts.size();
 }
 
 int StatsModule::Column(sqlite3_vtab_cursor* cursor,
@@ -153,12 +208,30 @@ int StatsModule::Column(sqlite3_vtab_cursor* cursor,
       if (stats::kTypes[c->key] == stats::kIndexed) {
         sqlite::result::Long(ctx, c->it->second);
       } else {
-        sqlite::result::Long(ctx, c->storage->stats()[c->key].value);
+        sqlite::result::Long(ctx, (*c->current_map)[c->key].value);
       }
       break;
     case Column::kDescription:
       sqlite::result::StaticString(ctx, stats::kDescriptions[c->key]);
       break;
+    case Column::kMachineId: {
+      const auto& ctx_key = c->contexts[c->context_idx];
+      if (ctx_key.machine_id.has_value()) {
+        sqlite::result::Long(ctx, ctx_key.machine_id->value);
+      } else {
+        sqlite::result::Null(ctx);
+      }
+      break;
+    }
+    case Column::kTraceId: {
+      const auto& ctx_key = c->contexts[c->context_idx];
+      if (ctx_key.trace_id.has_value()) {
+        sqlite::result::Long(ctx, ctx_key.trace_id->value);
+      } else {
+        sqlite::result::Null(ctx);
+      }
+      break;
+    }
     case Column::kKey:
       sqlite::result::Long(ctx, static_cast<int64_t>(c->key));
       break;

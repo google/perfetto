@@ -23,6 +23,7 @@
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
@@ -57,7 +58,7 @@ void ProfilePacketSequenceState::SetProfilePacketIndex(uint64_t index) {
   }
 
   if (dropped_packet) {
-    context_->storage->IncrementStats(stats::heapprofd_missing_packet);
+    context_->stats_tracker->IncrementStats(stats::heapprofd_missing_packet);
   }
   prev_index = index;
 }
@@ -74,7 +75,8 @@ void ProfilePacketSequenceState::AddMapping(SourceMappingId id,
   if (std::string* str = strings_.Find(mapping.build_id); str) {
     params.build_id = BuildId::FromRaw(*str);
   } else {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_string_id);
     return;
   }
   params.exact_offset = mapping.exact_offset;
@@ -88,7 +90,8 @@ void ProfilePacketSequenceState::AddMapping(SourceMappingId id,
     if (std::string* str = strings_.Find(string_id); str) {
       path_components.push_back(base::StringView(*str));
     } else {
-      context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
+      context_->stats_tracker->IncrementStats(
+          stats::stackprofile_invalid_string_id);
       // For backward compatibility reasons we do not return an error but
       // instead stop adding path components.
       break;
@@ -106,13 +109,15 @@ void ProfilePacketSequenceState::AddFrame(SourceFrameId id,
   if (auto* ptr = mappings_.Find(frame.mapping_id); ptr) {
     mapping = *ptr;
   } else {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_mapping_id);
     return;
   }
 
   std::string* function_name = strings_.Find(frame.name_id);
   if (!function_name) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_invalid_string_id);
     return;
   }
 
@@ -130,7 +135,8 @@ void ProfilePacketSequenceState::AddCallstack(
   for (SourceFrameId source_frame_id : callstack) {
     FrameId* frame_id = frames_.Find(source_frame_id);
     if (!frame_id) {
-      context_->storage->IncrementStats(stats::stackprofile_invalid_frame_id);
+      context_->stats_tracker->IncrementStats(
+          stats::stackprofile_invalid_frame_id);
       return;
     }
     parent_callsite_id = context_->stack_profile_tracker->InternCallsite(
@@ -139,7 +145,8 @@ void ProfilePacketSequenceState::AddCallstack(
   }
 
   if (!parent_callsite_id) {
-    context_->storage->IncrementStats(stats::stackprofile_empty_callstack);
+    context_->stats_tracker->IncrementStats(
+        stats::stackprofile_empty_callstack);
     return;
   }
 
@@ -252,8 +259,8 @@ void ProfilePacketSequenceState::AddAllocation(const SourceAllocation& alloc) {
   if (alloc_delta.count < 0 || alloc_delta.size < 0 || free_delta.count > 0 ||
       free_delta.size > 0) {
     PERFETTO_DLOG("Non-monotonous allocation.");
-    context_->storage->IncrementIndexedStats(stats::heapprofd_malformed_packet,
-                                             static_cast<int>(upid));
+    context_->stats_tracker->IncrementIndexedStats(
+        stats::heapprofd_malformed_packet, static_cast<int>(upid));
     return;
   }
 

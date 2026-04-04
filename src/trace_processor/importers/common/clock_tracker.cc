@@ -32,6 +32,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -171,12 +172,12 @@ ClockSynchronizerListenerImpl::ClockSynchronizerListenerImpl(
           context->storage->InternString("target_sequence_id")) {}
 
 base::Status ClockSynchronizerListenerImpl::OnClockSyncCacheMiss() {
-  context_->storage->IncrementStats(stats::clock_sync_cache_miss);
+  context_->stats_tracker->IncrementStats(stats::clock_sync_cache_miss);
   return base::OkStatus();
 }
 
 base::Status ClockSynchronizerListenerImpl::OnInvalidClockSnapshot() {
-  context_->storage->IncrementStats(stats::invalid_clock_snapshots);
+  context_->stats_tracker->IncrementStats(stats::invalid_clock_snapshots);
   return base::OkStatus();
 }
 
