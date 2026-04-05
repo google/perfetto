@@ -218,6 +218,13 @@ class PERFETTO_EXPORT_COMPONENT DataSourceType {
     return tls_inst->incremental_state.get();
   }
 
+  void set_buffer_exhausted_policy_configurable(bool v) {
+    buffer_exhausted_policy_configurable_ = v;
+  }
+  bool buffer_exhausted_policy_configurable() const {
+    return buffer_exhausted_policy_configurable_;
+  }
+
   std::atomic<uint32_t>* valid_instances() { return &state_.valid_instances; }
 
   DataSourceStaticState* static_state() { return &state_; }
@@ -318,6 +325,7 @@ class PERFETTO_EXPORT_COMPONENT DataSourceType {
   }
 
   DataSourceStaticState state_;
+  bool buffer_exhausted_policy_configurable_ = false;
   CreateCustomTlsFn create_custom_tls_fn_ = nullptr;
   CreateIncrementalStateFn create_incremental_state_fn_ = nullptr;
   ClearIncrementalStateFn clear_incremental_state_fn_ = nullptr;
