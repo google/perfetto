@@ -197,3 +197,37 @@ includes:
 When tracing across multiple machines, each GPU trace event also carries a
 `machine_id` to distinguish which machine the GPU belongs to. The Perfetto UI
 displays machine labels alongside GPU tracks.
+
+### Render stage event correlation
+
+GPU render stage events can declare dependencies on other render stage events
+using the `event_wait_ids` field on `GpuRenderStageEvent`. Each entry is the
+`event_id` of another render stage event that this event had to wait on before
+it could run. The trace processor uses these to create flow arrows between
+the correlated GPU slices.
+
+Example: a matmul kernel that depends on a previous asynchronous memcpy:
+
+```
+gpu_render_stage_event {
+    event_id: 1
+    duration: 50000
+    hw_queue_iid: 1
+    stage_iid: 2
+    context: 0
+    name: "Memcpy HtoD"
+}
+
+gpu_render_stage_event {
+    event_id: 2
+    duration: 40000
+    hw_queue_iid: 3
+    stage_iid: 4
+    context: 0
+    name: "matmul_kernel"
+    event_wait_ids: 1
+}
+```
+
+This creates a flow from the memcpy event (event\_id 1) to the matmul kernel
+(event\_id 2), visualizing the dependency in the Perfetto UI.

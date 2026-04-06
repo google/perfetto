@@ -14335,7 +14335,7 @@ message GpuLog {
 
 // Begin of protos/perfetto/trace/gpu/gpu_render_stage_event.proto
 
-// next id: 18
+// next id: 19
 message GpuRenderStageEvent {
   // required. Unique ID for the event.
   optional uint64 event_id = 1;
@@ -14403,6 +14403,10 @@ message GpuRenderStageEvent {
   // provides a name for the stage instead of using the name from the stage
   // specification.
   optional string name = 17;
+
+  // Event IDs of other GpuRenderStageEvents that this event
+  // had to wait on before it could run.
+  repeated uint64 event_wait_ids = 18;
 
   // DEPRECATED
 
