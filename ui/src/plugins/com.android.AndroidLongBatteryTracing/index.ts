@@ -787,7 +787,7 @@ export default class implements PerfettoPlugin {
         'Wifi total bytes',
         `select ts, sum(value) as value from network_summary where dev_type = 'wifi' group by 1`,
         groupName,
-        {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
+        {yDisplay: {kind: 'log'}, yRangeSharingKey: 'net_bytes', unit: 'byte'},
       );
       const result = await e.query(
         `select pkg, sum(value) from network_summary where dev_type='wifi' group by 1 order by 2 desc limit 10`,
@@ -799,7 +799,11 @@ export default class implements PerfettoPlugin {
           `Top wifi: ${it.pkg}`,
           `select ts, value from network_summary where dev_type = 'wifi' and pkg = '${it.pkg}'`,
           groupName,
-          {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
+          {
+            yDisplay: {kind: 'log'},
+            yRangeSharingKey: 'net_bytes',
+            unit: 'byte',
+          },
         );
       }
     }
@@ -833,7 +837,7 @@ export default class implements PerfettoPlugin {
         'Modem total bytes',
         `select ts, sum(value) as value from network_summary where dev_type = 'modem' group by 1`,
         groupName,
-        {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
+        {yDisplay: {kind: 'log'}, yRangeSharingKey: 'net_bytes', unit: 'byte'},
       );
       const result = await e.query(
         `select pkg, sum(value) from network_summary where dev_type='modem' group by 1 order by 2 desc limit 10`,
@@ -845,7 +849,11 @@ export default class implements PerfettoPlugin {
           `Top modem: ${it.pkg}`,
           `select ts, value from network_summary where dev_type = 'modem' and pkg = '${it.pkg}'`,
           groupName,
-          {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
+          {
+            yDisplay: {kind: 'log'},
+            yRangeSharingKey: 'net_bytes',
+            unit: 'byte',
+          },
         );
       }
     }
