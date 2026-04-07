@@ -99,9 +99,14 @@ function roundAway(n: number): number {
   return Math.sign(n) * (Math.ceil(Math.abs(n) / (pow10 / 20)) * (pow10 / 20));
 }
 
-function toLabel(n: number): string {
+// Known SI base units. When the counter's unit is one of these, the SI prefix
+// from value scaling is attached to the unit (e.g. "2 GHz") rather than the
+// number (e.g. "2G Hz").
+const SI_BASE_UNITS = new Set(['Hz', 'B', 'b', 'W', 'V', 'A', 'J', 's']);
+
+function toLabelAndPrefix(n: number): {label: string; prefix: string} {
   if (n === 0) {
-    return '0';
+    return {label: '0', prefix: ''};
   }
   const units: [number, string][] = [
     [0.000000001, 'n'],
@@ -123,7 +128,10 @@ function toLabel(n: number): string {
     }
     [largestMultiplier, largestUnit] = [multiplier, unit];
   }
-  return `${Math.round(n / largestMultiplier)}${largestUnit}`;
+  return {
+    label: `${Math.round(n / largestMultiplier)}`,
+    prefix: largestUnit,
+  };
 }
 
 class RangeSharer {
@@ -998,26 +1006,27 @@ export abstract class BaseCounterTrack implements TrackRenderer {
         max = Math.exp(max);
         min = Math.exp(min);
       }
-      if (max < 0) {
-        yLabel = toLabel(min - max);
-      } else {
-        yLabel = toLabel(max - min);
+      const range = max < 0 ? min - max : max - min;
+      const {label, prefix} = toLabelAndPrefix(range);
+      const unit = this.unit;
+      // When the unit is a known SI base unit, attach the prefix to the unit
+      // (e.g. "2 GHz"). Otherwise keep prefix on the number (e.g. "2M kHz").
+      const formattedLabel = SI_BASE_UNITS.has(unit)
+        ? `${label} ${prefix}${unit}`
+        : `${label}${prefix} ${unit}`;
+      switch (options.yMode) {
+        case 'value':
+          yLabel = formattedLabel;
+          break;
+        case 'delta':
+          yLabel = `\u0394${formattedLabel}`;
+          break;
+        case 'rate':
+          yLabel = `${label}${prefix} ${this.rateUnit}`;
+          break;
+        default:
+          assertUnreachable(options.yMode);
       }
-    }
-
-    const unit = this.unit;
-    switch (options.yMode) {
-      case 'value':
-        yLabel += ` ${unit}`;
-        break;
-      case 'delta':
-        yLabel += `\u0394${unit}`;
-        break;
-      case 'rate':
-        yLabel += ` ${this.rateUnit}`;
-        break;
-      default:
-        assertUnreachable(options.yMode);
     }
 
     if (options.yDisplay === 'log') {

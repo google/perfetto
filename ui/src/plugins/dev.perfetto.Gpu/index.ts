@@ -25,6 +25,30 @@ import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
 
+// GPU frequency track that converts kHz values to Hz so that the generic
+// counter renderer produces correct SI-prefixed labels (e.g. "2 GHz").
+class GpuFreqTrack extends TraceProcessorCounterTrack {
+  private readonly freqTrackId: number;
+
+  constructor(
+    trace: Trace,
+    uri: string,
+    freqTrackId: number,
+    trackName: string,
+  ) {
+    super(trace, uri, {unit: 'Hz'}, freqTrackId, trackName);
+    this.freqTrackId = freqTrackId;
+  }
+
+  override getSqlSource() {
+    return `
+      select id, ts, value * 1000 as value, arg_set_id
+      from counter
+      where track_id = ${this.freqTrackId}
+    `;
+  }
+}
+
 interface GpuCounterSchema {
   readonly type: string;
   readonly group: string | undefined;
@@ -100,7 +124,6 @@ export default class GpuPlugin implements PerfettoPlugin {
       select
         gct.id,
         gct.gpu_id as gpuId,
-        gct.unit,
         gct.machine_id as machineId,
         gct.ugpu,
         g.name as gpuName
@@ -113,13 +136,11 @@ export default class GpuPlugin implements PerfettoPlugin {
 
     const tracks: Array<{
       id: number;
-      unit: string | null;
       gpu: Gpu;
     }> = [];
     const it = result.iter({
       id: NUM,
       gpuId: NUM,
-      unit: STR_NULL,
       machineId: NUM,
       ugpu: NUM_NULL,
       gpuName: STR_NULL,
@@ -127,7 +148,6 @@ export default class GpuPlugin implements PerfettoPlugin {
     for (; it.valid(); it.next()) {
       tracks.push({
         id: it.id,
-        unit: it.unit,
         gpu: new Gpu(
           it.ugpu ?? it.gpuId,
           it.gpuId,
@@ -149,7 +169,7 @@ export default class GpuPlugin implements PerfettoPlugin {
       parent = gpuGroup;
     }
 
-    for (const {id, unit, gpu} of tracks) {
+    for (const {id, gpu} of tracks) {
       const uri = `/gpu_frequency_${gpu.ugpu}`;
       const name = `${gpu.displayName} Frequency${gpu.maybeMachineLabel()}`;
       ctx.tracks.registerTrack({
@@ -158,13 +178,7 @@ export default class GpuPlugin implements PerfettoPlugin {
           kinds: [COUNTER_TRACK_KIND],
           trackIds: [id],
         },
-        renderer: new TraceProcessorCounterTrack(
-          ctx,
-          uri,
-          {unit: unit ?? undefined},
-          id,
-          name,
-        ),
+        renderer: new GpuFreqTrack(ctx, uri, id, name),
       });
       parent.addChildInOrder(
         new TrackNode({
