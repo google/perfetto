@@ -28,9 +28,12 @@
 #include "protos/perfetto/trace/android/android_aflags.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 
-// Disable tests on non-Android platforms as the aflags data source is
-// Android-only.
+// Aflags data source is Android-only.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#define ANDROID_ONLY_TEST(x) x
+#else
+#define ANDROID_ONLY_TEST(x) DISABLED_##x
+#endif
 
 namespace perfetto {
 namespace {
@@ -117,7 +120,7 @@ class AndroidAflagsDataSourceTest : public ::testing::Test {
   TraceWriterForTesting* writer_raw_ = nullptr;
 };
 
-TEST_F(AndroidAflagsDataSourceTest, EmitAflags) {
+TEST_F(AndroidAflagsDataSourceTest, ANDROID_ONLY_TEST(EmitAflags)) {
   DataSourceConfig ds_config;
   ds_config.set_name("android.aflags");
 
@@ -160,7 +163,8 @@ TEST_F(AndroidAflagsDataSourceTest, EmitAflags) {
             protos::gen::AndroidAflags::FLAG_STORAGE_BACKEND_ACONFIGD);
 }
 
-TEST_F(AndroidAflagsDataSourceTest, SubprocessErrorEmitsErrorPacket) {
+TEST_F(AndroidAflagsDataSourceTest,
+       ANDROID_ONLY_TEST(SubprocessErrorEmitsErrorPacket)) {
   DataSourceConfig ds_config;
   ds_config.set_name("android.aflags");
 
@@ -177,7 +181,8 @@ TEST_F(AndroidAflagsDataSourceTest, SubprocessErrorEmitsErrorPacket) {
                              HasSubstr("aflags error message")));
 }
 
-TEST_F(AndroidAflagsDataSourceTest, InvalidBase64EmitsErrorPacket) {
+TEST_F(AndroidAflagsDataSourceTest,
+       ANDROID_ONLY_TEST(InvalidBase64EmitsErrorPacket)) {
   DataSourceConfig ds_config;
   ds_config.set_name("android.aflags");
 
@@ -194,5 +199,3 @@ TEST_F(AndroidAflagsDataSourceTest, InvalidBase64EmitsErrorPacket) {
 
 }  // namespace
 }  // namespace perfetto
-
-#endif  // PERFETTO_OS_ANDROID
