@@ -176,6 +176,10 @@ export class Time {
     return Time.fromRaw(BigintMath.quant(a, b));
   }
 
+  static clamp(t: time, min: time, max: time): time {
+    return Time.fromRaw(BigintMath.clamp(t, min, max));
+  }
+
   static formatSeconds(time: time): string {
     return Time.toSeconds(time).toString() + ' s';
   }
@@ -438,6 +442,13 @@ export class TimeSpan {
     return new TimeSpan(
       Time.sub(this.start, padding),
       Time.add(this.end, padding),
+    );
+  }
+
+  clamp(min: time, max: time): TimeSpan {
+    return new TimeSpan(
+      Time.clamp(this.start, min, max),
+      Time.clamp(this.end, min, max),
     );
   }
 }
