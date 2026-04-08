@@ -212,10 +212,29 @@ message AndroidSurfaceFlingerWorkload {
       optional int32 gpu_composited_layers = 1;
       // Number of layers that needed to be composited via the DPU.
       optional int32 dpu_composited_layers = 2;
+      // List of skia pipelines that were used in this workload.
+      message Pipeline {
+        // Key that identifies the shader
+        optional string shader_key = 1;
+        // Operation that the caching pipeline used
+        enum CachingOp {
+          // Unknown operation
+          UNKNOWN = 0;
+          // Cache miss
+          ADDED = 1;
+          // Cache hit
+          FOUND = 2;
+        }
+        optional CachingOp caching_op = 2;
+      }
+      repeated Pipeline skia_pipelines = 3;
     }
     optional Stats stats = 2;
   }
   optional Summary summary = 4;
+
+  // Unique identifier for the workload, for joining with other events.
+  optional int64 workload_id = 5;
 }
 
 enum ReceiverType {
