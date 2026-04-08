@@ -114,7 +114,7 @@ export function buildReadOnlyNodeConfig(
         connectedInputs.has(portKey(qnode.nodeId, portIdx))
       ) {
         inputs.push({
-          content: getPortName(portNames, secIdx),
+          label: getPortName(portNames, secIdx),
           direction: 'left',
         });
       }

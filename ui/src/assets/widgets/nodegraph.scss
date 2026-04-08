@@ -14,88 +14,108 @@
 
 @import "../theme";
 
-.pf-canvas {
-  isolation: isolate; // Don't allow z-index to escape container.
-  overflow: hidden; // Clip overflowing content.
-  position: relative; // Place absolute children relative to this container.
-  height: 450px; // Give the canvas some intrinsic height by default.
+.pf-ng {
+  --bg-size: 12px;
+  --bg-pos-x: 0px;
+  --bg-pos-y: 0px;
 
-  touch-action: none; // Disable default touch actions for panning.
-  user-select: none; // Disable text selection during dragging.
-
-  font-family: var(--pf-font-compact); // Consistent font.
-  cursor: grab; // Indicate panning by default.
-
-  // Dot pattern background.
-  background-color: color-mix(
-    in srgb,
-    var(--pf-color-background) 90%,
-    var(--pf-color-border-secondary) 10%
-  );
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
   background-image: radial-gradient(
     circle,
     color-mix(in srgb, var(--pf-color-border-secondary) 85%, black 15%) 1px,
-    transparent 0px
+    transparent 0
   );
-  background-size: 20px 20px;
+  background-size: var(--bg-size) var(--bg-size);
+  background-position: var(--bg-pos-x) var(--bg-pos-y);
 
-  &--fill-height {
-    height: 100%; // Fill parent height when modifier class applied.
+  &:active {
+    cursor: grabbing;
   }
 }
 
-.pf-canvas-content {
+.pf-ng__workspace {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  overflow: visible;
-
-  svg {
-    isolation: isolate;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    overflow: visible;
-  }
+  transform-origin: 0 0;
+  z-index: 1;
 }
 
-.pf-nodegraph-controls {
+.pf-ng__toolbar {
   position: absolute;
-  top: 16px;
-  right: 16px;
-  z-index: 3;
-  pointer-events: auto;
+  top: 6px;
+  right: 6px;
   display: flex;
-  gap: 8px;
+  gap: 4px;
+  pointer-events: auto;
+  z-index: 2;
 }
 
-.pf-node {
+.pf-ng__node {
+  display: flex;
+  flex-direction: column;
+  cursor: move; // The whole node and all children are draggable
+}
+
+.pf-ng__card {
   position: relative;
   background: var(--pf-color-background-secondary);
   border: 2px solid var(--pf-color-border);
-  border-radius: 8px;
-  min-width: 180px;
-  cursor: move;
-  pointer-events: auto;
-  width: 100%;
+  min-width: 140px;
+  background: var(--pf-color-background-secondary);
+  border-radius: 6px;
 
-  // Hide elements with this class, show on node hover
-  .pf-show-on-hover {
-    visibility: hidden;
+  &:not(:only-child) {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
   }
 
-  &:hover .pf-show-on-hover {
-    visibility: visible;
+  &--selected {
+    border-color: var(--pf-color-accent);
+  }
+
+  .pf-ng__card-header {
+    border-radius: 4px 4px 0 0;
+    background: color-mix(
+      in srgb,
+      hsl(var(--pf-ng-hue), 60%, 50%) 50%,
+      var(--pf-color-background)
+    );
+    padding: 6px 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .pf-ng__card-body {
+    padding: 8px;
+    min-width: max-content;
   }
 }
 
-.pf-node--has-accent-bar::before {
+.pf-ng__node {
+  .pf-ng__node {
+    .pf-ng__card {
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
+      border-top-width: 0;
+
+      .pf-ng__card-header {
+        border-radius: 0;
+      }
+    }
+  }
+}
+
+// Accent bar (left-side color strip)
+.pf-ng__card--accent::before {
   content: "";
   position: absolute;
   top: 0;
@@ -105,127 +125,26 @@
   background-color: var(
     --pf-color-border
   ); /* Fallback color when hue not set */
-  border-top-left-radius: 6px;
-  border-bottom-left-radius: 6px;
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
 }
 
-/* Override with hue-based color when --pf-node-hue is set via inline styles */
-.pf-node[style*="--pf-node-hue"].pf-node--has-accent-bar::before {
+.pf-ng__card[style*="--pf-ng-hue"].pf-ng__card--accent::before {
   background: color-mix(
     in srgb,
-    hsl(var(--pf-node-hue), 60%, 50%) 50%,
+    hsl(var(--pf-ng-hue), 60%, 50%) 50%,
     var(--pf-color-background)
   );
 }
 
-.pf-node-body {
-  padding-block: 12px;
-}
-
-// Wrapper for dock chains - uses flexbox to make children same width
-.pf-node-wrapper {
-  isolation: isolate; // Don't allow z-index to escape container.
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  pointer-events: auto;
-  box-shadow: 0 4px 12px var(--pf-color-box-shadow);
-  border-radius: 8px;
-  width: max-content;
-  transition:
-    left 0.1s ease-out,
-    top 0.1s ease-out;
-
-  &--dragging {
-    z-index: 1; // Ensure dragging entire chain appears above other nodes.
-
-    // Don't animate transitions while dragging to avoid laggy movement
-    transition: none;
-
-    // TODO Might want to add some visual indication of dragging entire chain
-    // using box shadow, and maybe make slightly transparent.
-    // opacity: 0.8;
-    // box-shadow: 6px 6px 24px var(--pf-color-box-shadow);
-  }
-}
-
-.pf-node.pf-selected {
-  border-color: var(--pf-color-accent);
-  box-shadow: 0 0 0 3px
-    color-mix(in srgb, var(--pf-color-accent) 50%, transparent);
-  z-index: 1; // Make sure box shadow appears above other nodes
-}
-
-// Docked child: flush top edge with no rounded corners or border
-.pf-node.pf-docked-child {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-  margin-top: -2px; // Overlap border with parent
-}
-
-// Parent with docked child: flush bottom edge with no rounded corners
-.pf-node.pf-has-docked-child {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-// Dock target highlight with pulsing animation
-.pf-node.pf-dock-target {
-  box-shadow: 0 4px 0 3px var(--pf-color-accent);
-  animation: pulse-dock 0.6s ease-in-out infinite;
-}
-
-@keyframes pulse-dock {
-  0%,
-  100% {
-    box-shadow: 0 4px 0 3px var(--pf-color-accent);
-  }
-  50% {
-    box-shadow: 0 6px 0 5px var(--pf-color-accent);
-    opacity: 0.95;
-  }
-}
-
-.pf-node-header {
-  /* Default background when hue is not set */
-  background: var(--pf-color-background);
-  padding: 6px 6px;
-  border-radius: 6px 6px 0 0;
-  display: flex;
-  border-bottom: 1px solid var(--pf-color-border);
-  justify-content: space-between;
-  align-items: center;
-  gap: 6px;
-}
-
-/* Override with hue-based color when --pf-node-hue is set via inline styles */
-.pf-node[style*="--pf-node-hue"] .pf-node-header {
-  background: color-mix(
-    in srgb,
-    hsl(var(--pf-node-hue), 60%, 50%) 50%,
-    var(--pf-color-background)
-  );
-}
-
-.pf-node--has-accent-bar .pf-node-header {
-  padding-left: 22px;
-}
-
-.pf-docked-child .pf-node-header {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-}
-
-.pf-has-docked-child .pf-node-header {
+// When the card has a docked node below it, flatten the accent bar's bottom-left corner.
+.pf-ng__card--accent:not(:only-child)::before {
   border-bottom-left-radius: 0;
 }
 
-.pf-docked-child::before {
+// When the card is itself docked (nested node), flatten the accent bar's top-left corner.
+.pf-ng__node .pf-ng__node .pf-ng__card--accent::before {
   border-top-left-radius: 0;
-}
-
-.pf-has-docked-child::before {
-  border-bottom-left-radius: 0;
 }
 
 .pf-node-title {
@@ -236,45 +155,32 @@
   align-self: center;
 }
 
-.pf-node-context-menu {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-}
-
-.pf-node-content {
-  padding-inline: 12px;
-}
-
-.pf-node--has-accent-bar .pf-node-content {
+.pf-ng__card--accent .pf-ng__port,
+.pf-ng__card--accent .pf-ng__card-body {
   padding-left: 22px;
 }
 
-.pf-port-row {
+.pf-ng__port {
   position: relative;
   margin: 8px 0;
   color: var(--pf-color-text-muted);
   font-size: 13px;
   padding: 4px 16px;
 
-  .pf-port {
+  .pf-ng__port-dot {
     transform: translateY(-50%);
   }
 }
 
-.pf-node--has-accent-bar .pf-port-row {
-  padding-left: 22px;
-}
-
-.pf-port-input {
+.pf-ng__port--west {
   text-align: left;
 }
 
-.pf-port-output {
+.pf-ng__port--east {
   text-align: right;
 }
 
-.pf-port {
+.pf-ng__port-dot {
   width: 16px;
   height: 16px;
   border-radius: 50%;
@@ -283,254 +189,71 @@
   cursor: crosshair;
   position: absolute;
   top: 50%;
-
-  &--with-context-menu {
-    cursor: pointer;
-    &::after {
-      // Render a little plus button to indicate context menu availability
-      @include material-icon("add");
-      position: absolute;
-      font-size: 15px;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-    }
-  }
-
-  &.pf-connected {
-    background: var(--pf-color-accent);
-    border-color: var(--pf-color-accent);
-    color: var(--pf-color-text-on-accent);
-  }
 }
 
 .pf-output {
   background: var(--pf-color-border);
-  z-index: 2; // Make outputs appear above inputs when docked.
 }
 
 .pf-output:hover {
-  background: var(--pf-color-accent);
-  border-color: var(--pf-color-accent);
-  color: var(--pf-color-text-on-accent);
+  background: var(--pf-color-primary);
+  border-color: var(--pf-color-primary);
+  color: var(--pf-color-text-on-primary);
 }
 
-.pf-port.pf-input {
-  left: -9px;
+.pf-ng__port-dot.pf-input {
+  left: -8px;
 }
 
-.pf-port.pf-port-top {
+.pf-ng__port-dot.pf-port-north {
   top: -1px;
   left: 50%;
   transform: translate(-50%, -50%);
 }
 
-.pf-port.pf-port-bottom {
+.pf-ng__port-dot.pf-port-south {
   top: unset;
   bottom: -1px;
   left: 50%;
   transform: translate(-50%, 50%);
 }
 
-.pf-port.pf-output {
-  right: -9px;
+.pf-ng__port-dot.pf-output {
+  right: -8px;
 }
 
-.pf-connection {
-  stroke: var(--pf-color-accent);
-  color: var(--pf-color-accent);
-  stroke-width: 2;
-  fill: none;
-  transition:
-    stroke-width 0.2s,
-    stroke 0.2s;
-  pointer-events: auto;
-  cursor: pointer;
-}
+// Connected input ports show a delete cursor on hover.
+.pf-ng__port-dot.pf-input.pf-port--connected {
+  cursor: not-allowed;
+  border-color: var(--pf-color-primary);
+  background: var(--pf-color-primary);
 
-.pf-connection-group:hover .pf-connection {
-  stroke: var(--pf-color-danger);
-  filter: drop-shadow(
-    0 0 6px color-mix(in srgb, var(--pf-color-danger) 80%, transparent)
-  );
-}
-
-.pf-temp-connection {
-  stroke: var(--pf-color-text-muted);
-  stroke-width: 2;
-  fill: none;
-  stroke-dasharray: 5, 5;
-}
-
-.pf-connecting {
-  cursor: crosshair;
-
-  .pf-input:hover {
-    background: var(--pf-color-accent);
-    border-color: var(--pf-color-accent);
-    cursor: copy;
-  }
-  .pf-output:hover {
-    background: var(--pf-color-border);
-    border-color: var(--pf-color-border-secondary);
-    cursor: not-allowed;
+  &:hover {
+    border-color: var(--pf-color-danger);
+    background: var(--pf-color-danger);
   }
 }
 
-.pf-output.pf-active,
-.pf-output.pf-active:hover {
-  background: var(--pf-color-accent);
-  border-color: var(--pf-color-accent);
-  color: var(--pf-color-text-on-accent);
-  cursor: crosshair;
+// Connected output ports are colored in primary blue.
+.pf-ng__port-dot.pf-output.pf-port--connected {
+  border-color: var(--pf-color-primary);
+  background: var(--pf-color-primary);
 }
 
-.pf-panning {
-  cursor: grabbing;
+// Snap target highlight when a wire drag is close enough to connect.
+.pf-ng__port-dot.pf-input.pf-wire-snap {
+  border-color: var(--pf-color-primary);
+  background: var(--pf-color-primary);
+  transform: translateY(-50%) scale(1.4);
 }
 
-.pf-selection-rect {
-  position: absolute;
-  border: 2px solid var(--pf-color-accent);
-  background: color-mix(in srgb, var(--pf-color-accent) 15%, transparent);
-  pointer-events: none;
-  z-index: 2; // Render selection rectangle above nodes.
-}
-
-.pf-node.pf-invalid {
-  border-color: var(--pf-color-danger);
+// Highlight input ports while the user is dragging a wire from an output port.
+.pf-ng--wire-dragging .pf-ng__port-dot.pf-input {
+  border-color: var(--pf-color-primary);
   background: color-mix(
     in srgb,
-    var(--pf-color-danger) 8%,
+    var(--pf-color-primary) 20%,
     var(--pf-color-background-secondary)
   );
-
-  .pf-node-header {
-    background: color-mix(
-      in srgb,
-      var(--pf-color-danger) 15%,
-      var(--pf-color-background)
-    );
-    border-bottom-color: var(--pf-color-danger);
-  }
-}
-
-// Invalid nodes override hue-based styling
-.pf-node.pf-invalid[style*="--pf-node-hue"] .pf-node-header {
-  background: color-mix(
-    in srgb,
-    var(--pf-color-danger) 15%,
-    var(--pf-color-background)
-  );
-}
-
-.pf-node.pf-invalid.pf-node--has-accent-bar::before {
-  background-color: var(--pf-color-danger);
-}
-
-// Label styles
-.pf-label {
-  position: absolute;
-  background: color-mix(
-    in srgb,
-    var(--pf-color-background-secondary) 85%,
-    var(--pf-color-accent) 15%
-  );
-  border: 2px solid var(--pf-color-border);
-  cursor: move;
-  pointer-events: auto;
-  box-sizing: border-box;
-
-  &.pf-dragging {
-    opacity: 0.7;
-    cursor: grabbing;
-  }
-
-  &.pf-selected {
-    border-color: var(--pf-color-accent);
-    box-shadow: 0 0 0 3px
-      color-mix(in srgb, var(--pf-color-accent) 50%, transparent);
-  }
-
-  .pf-label-resize-handle {
-    position: absolute;
-    right: -5px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 10px;
-    height: 20px;
-    background: var(--pf-color-accent);
-    border-radius: 3px;
-    cursor: ew-resize;
-    opacity: 0;
-    transition: opacity 0.2s;
-
-    &:hover {
-      opacity: 1;
-    }
-  }
-
-  &:hover .pf-label-resize-handle {
-    opacity: 0.6;
-  }
-
-  &.pf-selected .pf-label-resize-handle {
-    opacity: 1;
-  }
-
-  .pf-label-delete-button {
-    position: absolute;
-    top: -10px;
-    right: -10px;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--pf-color-danger);
-    color: white;
-    border-radius: 3px;
-    cursor: pointer;
-    opacity: 0;
-    transition: opacity 0.2s;
-
-    &:hover {
-      opacity: 1;
-      background: color-mix(in srgb, var(--pf-color-danger) 85%, black 15%);
-    }
-
-    .pf-icon {
-      font-size: var(--pf-font-size-s);
-    }
-  }
-
-  &:hover .pf-label-delete-button,
-  &.pf-selected .pf-label-delete-button {
-    opacity: 1;
-  }
-}
-
-.pf-label-content {
-  width: 100%;
-  max-height: 400px;
-  overflow-y: auto;
-  box-sizing: border-box;
-
-  > .pf-simple-label-text {
-    padding: 12px;
-    font-family: var(--pf-font-compact);
-    font-size: var(--pf-font-size-m);
-    line-height: 1.4;
-    color: var(--pf-color-text);
-  }
-
-  > .pf-simple-label-button {
-    padding: 8px;
-  }
-
-  > .pf-label-placeholder {
-    padding: 8px;
-    color: var(--pf-color-text-secondary);
-    font-style: italic;
-  }
+  cursor: crosshair;
 }

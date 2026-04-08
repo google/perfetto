@@ -18,7 +18,7 @@ import {
   NodeGraph,
   Node as GraphNode,
   Connection,
-  NodeGraphApi,
+  NodeGraphAPI,
 } from '../../../../../widgets/nodegraph';
 import {buildReadOnlyNodeConfig} from '../../graph/node_config';
 import type {GroupNode} from '.';
@@ -182,7 +182,7 @@ export class InnerGraphPreview
           connections,
           hideControls: true,
           fillHeight: true,
-          onReady: (api: NodeGraphApi) => {
+          onReady: (api: NodeGraphAPI) => {
             if (!this.recentered) {
               this.recentered = true;
               requestAnimationFrame(() => api.recenter());

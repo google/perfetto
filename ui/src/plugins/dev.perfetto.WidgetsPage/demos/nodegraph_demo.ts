@@ -12,24 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
 import {produce} from 'immer';
-import {uuidv4} from '../../../base/uuid';
+import m from 'mithril';
+import {shortUuid} from '../../../base/uuid';
 import {Button, ButtonGroup, ButtonVariant} from '../../../widgets/button';
 import {Checkbox} from '../../../widgets/checkbox';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {
   Connection,
-  Label,
   Node,
   NodeGraph,
-  NodeGraphApi,
+  NodeGraphAPI,
   NodeGraphAttrs,
   NodePort,
 } from '../../../widgets/nodegraph';
 import {Select} from '../../../widgets/select';
 import {TextInput} from '../../../widgets/text_input';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
+import {maybeUndefined} from '../../../base/utils';
 
 const MAX_HISTORY_DEPTH = 500;
 
@@ -38,7 +38,10 @@ interface BaseNodeData {
   readonly id: string;
   x: number;
   y: number;
-  nextId?: string;
+  next?: NodeData;
+  // Ordered list of source node IDs feeding into each manifest input slot.
+  // undefined means the slot is unconnected.
+  inputNodeIds?: (string | undefined)[];
 }
 
 // Individual node type interfaces
@@ -74,390 +77,393 @@ interface UnionNodeData extends BaseNodeData {
   readonly unionType: 'UNION' | 'UNION ALL';
 }
 
-interface ResultNodeData extends BaseNodeData {
-  readonly type: 'result';
-}
-
-// Discriminated union of all node types
+// Discriminated union of all pipeline node types
 type NodeData =
   | TableNodeData
   | SelectNodeData
   | FilterNodeData
   | SortNodeData
   | JoinNodeData
-  | UnionNodeData
-  | ResultNodeData;
+  | UnionNodeData;
+
+// Labels are a separate entity: free-floating annotations, no ports, no docking
+interface LabelData {
+  readonly id: string;
+  x: number;
+  y: number;
+  text: string;
+}
 
 // Store interface (only data that should be in undo/redo history)
 interface NodeGraphStore {
-  readonly nodes: Map<string, NodeData>;
-  readonly connections: Connection[];
-  readonly labels: Label[];
-  readonly invalidNodes: Set<string>; // Track which nodes are marked as invalid
+  readonly nodes: NodeData[]; // only root nodes; docked nodes are nested via .next
+  readonly labels: LabelData[];
 }
 
-// Node metadata configuration
-interface NodeConfig {
-  readonly inputs?: ReadonlyArray<NodePort>;
-  readonly outputs?: ReadonlyArray<NodePort>;
-  readonly canDockTop?: boolean;
-  readonly canDockBottom?: boolean;
-  readonly hue: number;
+// Single source of truth per node type: metadata, factory, and renderer.
+// C is the specific NodeData subtype (e.g. TableNodeData).
+interface NodeTypeManifest<C extends NodeData> {
+  readonly title: string;
   readonly icon: string;
+  readonly hue: number;
+  readonly inputs?: ReadonlyArray<{
+    readonly id: string;
+    readonly label: string;
+  }>;
+  create(id: string, x: number, y: number): C;
+  render(node: C, update: (updates: Partial<C>) => void): m.Children;
 }
 
-const NODE_CONFIGS: Record<NodeData['type'], NodeConfig> = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const NODE_CONFIGS: {[K in NodeData['type']]: NodeTypeManifest<any>} = {
   table: {
-    canDockBottom: true,
-    hue: 200,
+    title: 'Table',
     icon: 'table_chart',
+    hue: 200,
+    create: (id, x, y): TableNodeData => ({
+      type: 'table',
+      id,
+      x,
+      y,
+      table: 'slice',
+    }),
+    render: (node: TableNodeData, update) =>
+      m(
+        Select,
+        {
+          value: node.table,
+          onchange: (e: Event) =>
+            update({table: (e.target as HTMLSelectElement).value}),
+        },
+        [
+          m('option', {value: 'slice'}, 'slice'),
+          m('option', {value: 'sched'}, 'sched'),
+          m('option', {value: 'thread'}, 'thread'),
+          m('option', {value: 'process'}, 'process'),
+        ],
+      ),
   },
+
   select: {
-    outputs: [{content: 'Output', direction: 'right'}],
-    canDockTop: true,
-    hue: 100,
+    title: 'Select',
     icon: 'checklist',
+    hue: 100,
+    inputs: [{label: 'Input', id: 'input'}],
+    create: (id, x, y): SelectNodeData => ({
+      type: 'select',
+      id,
+      x,
+      y,
+      columns: {
+        id: true,
+        name: true,
+        cpu: false,
+        duration: false,
+        timestamp: false,
+      },
+    }),
+    render: (node: SelectNodeData, update) =>
+      m(
+        '',
+        {style: {display: 'flex', flexDirection: 'column', gap: '4px'}},
+        Object.entries(node.columns).map(([col, checked]) =>
+          m(Checkbox, {
+            label: col,
+            checked,
+            onchange: () =>
+              update({columns: {...node.columns, [col]: !checked}}),
+          }),
+        ),
+      ),
   },
+
   filter: {
-    canDockTop: true,
-    canDockBottom: true,
-    hue: 50,
+    title: 'Filter',
     icon: 'filter_alt',
+    hue: 50,
+    inputs: [{label: 'Input', id: 'input'}],
+    create: (id, x, y): FilterNodeData => ({
+      type: 'filter',
+      id,
+      x,
+      y,
+      filterExpression: '',
+    }),
+    render: (node: FilterNodeData, update) =>
+      m(TextInput, {
+        placeholder: 'Filter expression...',
+        value: node.filterExpression,
+        oninput: (e: InputEvent) =>
+          update({filterExpression: (e.target as HTMLInputElement).value}),
+      }),
   },
+
   sort: {
-    canDockTop: true,
-    canDockBottom: true,
-    hue: 150,
+    title: 'Sort',
     icon: 'sort',
+    hue: 150,
+    inputs: [{label: 'Input', id: 'input'}],
+    create: (id, x, y): SortNodeData => ({
+      type: 'sort',
+      id,
+      x,
+      y,
+      sortColumn: '',
+      sortOrder: 'ASC',
+    }),
+    render: (node: SortNodeData, update) =>
+      m('', {style: {display: 'flex', flexDirection: 'column', gap: '4px'}}, [
+        m(TextInput, {
+          placeholder: 'Sort column...',
+          value: node.sortColumn,
+          oninput: (e: InputEvent) =>
+            update({sortColumn: (e.target as HTMLInputElement).value}),
+        }),
+        m(
+          Select,
+          {
+            value: node.sortOrder,
+            onchange: (e: Event) =>
+              update({
+                sortOrder: (e.target as HTMLSelectElement).value as
+                  | 'ASC'
+                  | 'DESC',
+              }),
+          },
+          [
+            m('option', {value: 'ASC'}, 'ASC'),
+            m('option', {value: 'DESC'}, 'DESC'),
+          ],
+        ),
+      ]),
   },
+
   join: {
-    inputs: [{content: 'Right', direction: 'left'}],
-    canDockTop: true,
-    canDockBottom: true,
-    hue: 300,
+    title: 'Join',
     icon: 'join',
-  },
-  union: {
+    hue: 300,
     inputs: [
-      {content: 'Input 1', direction: 'left'},
-      {content: 'Input 2', direction: 'left'},
+      {label: 'Left', id: 'left'},
+      {label: 'Right', id: 'right'},
     ],
-    canDockBottom: true,
-    hue: 240,
-    icon: 'merge',
+    create: (id, x, y): JoinNodeData => ({
+      type: 'join',
+      id,
+      x,
+      y,
+      joinType: 'INNER',
+      joinOn: '',
+    }),
+    render: (node: JoinNodeData, update) =>
+      m('', {style: {display: 'flex', flexDirection: 'column', gap: '4px'}}, [
+        m(
+          Select,
+          {
+            value: node.joinType,
+            onchange: (e: Event) =>
+              update({
+                joinType: (e.target as HTMLSelectElement)
+                  .value as JoinNodeData['joinType'],
+              }),
+          },
+          [
+            m('option', {value: 'INNER'}, 'INNER'),
+            m('option', {value: 'LEFT'}, 'LEFT'),
+            m('option', {value: 'RIGHT'}, 'RIGHT'),
+            m('option', {value: 'FULL'}, 'FULL'),
+          ],
+        ),
+        m(TextInput, {
+          placeholder: 'ON condition...',
+          value: node.joinOn,
+          oninput: (e: InputEvent) =>
+            update({joinOn: (e.target as HTMLInputElement).value}),
+        }),
+      ]),
   },
-  result: {
-    canDockTop: true,
-    hue: 0,
-    icon: 'output',
+
+  union: {
+    title: 'Union',
+    icon: 'merge',
+    hue: 240,
+    inputs: [
+      {label: 'Input 1', id: 'input-1'},
+      {label: 'Input 2', id: 'input-2'},
+    ],
+    create: (id, x, y): UnionNodeData => ({
+      type: 'union',
+      id,
+      x,
+      y,
+      unionType: 'UNION ALL',
+    }),
+    render: (node: UnionNodeData, update) =>
+      m(
+        Select,
+        {
+          value: node.unionType,
+          onchange: (e: Event) =>
+            update({
+              unionType: (e.target as HTMLSelectElement)
+                .value as UnionNodeData['unionType'],
+            }),
+        },
+        [
+          m('option', {value: 'UNION'}, 'UNION'),
+          m('option', {value: 'UNION ALL'}, 'UNION ALL'),
+        ],
+      ),
   },
 };
 
-// Factory functions for creating node data
-function createTableNode(id: string, x: number, y: number): TableNodeData {
-  return {
-    type: 'table',
-    id,
-    x,
-    y,
-    table: 'slice',
-  };
+// Assign stable per-node port IDs to a list of port templates.
+// Input port i on node `nodeId` gets id `${nodeId}-in-${i}`.
+function makeInputPorts(
+  nodeId: string,
+  templates: ReadonlyArray<{id: string; label: string}> | undefined,
+): NodePort[] | undefined {
+  if (!templates) return undefined;
+  return templates.map((t) => ({
+    direction: 'west' as const,
+    id: `${nodeId}-in-${t.id}`,
+    label: t.label,
+  }));
 }
 
-function createSelectNode(id: string, x: number, y: number): SelectNodeData {
-  return {
-    type: 'select',
-    id,
-    x,
-    y,
-    columns: {
-      id: true,
-      name: true,
-      cpu: false,
-      duration: false,
-      timestamp: false,
-    },
-  };
+function createLabel(id: string, x: number, y: number): LabelData {
+  return {id, x, y, text: 'Label'};
 }
 
-function createFilterNode(id: string, x: number, y: number): FilterNodeData {
-  return {
-    type: 'filter',
-    id,
-    x,
-    y,
-    filterExpression: '',
-  };
-}
-
-function createSortNode(id: string, x: number, y: number): SortNodeData {
-  return {
-    type: 'sort',
-    id,
-    x,
-    y,
-    sortColumn: '',
-    sortOrder: 'ASC',
-  };
-}
-
-function createJoinNode(id: string, x: number, y: number): JoinNodeData {
-  return {
-    type: 'join',
-    id,
-    x,
-    y,
-    joinType: 'INNER',
-    joinOn: '',
-  };
-}
-
-function createUnionNode(id: string, x: number, y: number): UnionNodeData {
-  return {
-    type: 'union',
-    id,
-    x,
-    y,
-    unionType: 'UNION ALL',
-  };
-}
-
-function createResultNode(id: string, x: number, y: number): ResultNodeData {
-  return {
-    type: 'result',
-    id,
-    x,
-    y,
-  };
-}
-
-// Pure render functions for each node type
-function renderTableNode(
-  node: TableNodeData,
-  updateNode: (updates: Partial<Omit<TableNodeData, 'type' | 'id'>>) => void,
+function renderLabelContent(
+  label: LabelData,
+  editing: boolean,
+  onStartEdit: () => void,
+  onStopEdit: () => void,
+  update: (updates: Partial<Omit<LabelData, 'id'>>) => void,
 ): m.Children {
-  return m(
-    Select,
-    {
-      value: node.table,
-      onchange: (e: Event) => {
-        updateNode({table: (e.target as HTMLSelectElement).value});
-      },
+  return m('textarea', {
+    readonly: !editing,
+    style: {
+      resize: 'both',
+      width: '160px',
+      height: '60px',
+      border: 'none',
+      background: 'transparent',
+      font: 'inherit',
+      pointerEvents: editing ? 'auto' : 'none',
+      cursor: editing ? 'text' : 'inherit',
     },
-    [
-      m('option', {value: 'slice'}, 'slice'),
-      m('option', {value: 'sched'}, 'sched'),
-      m('option', {value: 'thread'}, 'thread'),
-      m('option', {value: 'process'}, 'process'),
-    ],
-  );
-}
-
-function renderSelectNode(
-  node: SelectNodeData,
-  updateNode: (updates: Partial<Omit<SelectNodeData, 'type' | 'id'>>) => void,
-): m.Children {
-  return m(
-    '',
-    {style: {display: 'flex', flexDirection: 'column', gap: '4px'}},
-    Object.entries(node.columns).map(([col, checked]) =>
-      m(Checkbox, {
-        label: col,
-        checked,
-        onchange: () => {
-          updateNode({
-            columns: {
-              ...node.columns,
-              [col]: !checked,
-            },
-          });
-        },
-      }),
-    ),
-  );
-}
-
-function renderFilterNode(
-  node: FilterNodeData,
-  updateNode: (updates: Partial<Omit<FilterNodeData, 'type' | 'id'>>) => void,
-): m.Children {
-  return m(TextInput, {
-    placeholder: 'Filter expression...',
-    value: node.filterExpression,
-    oninput: (e: InputEvent) => {
-      const target = e.target as HTMLInputElement;
-      updateNode({filterExpression: target.value});
+    value: label.text,
+    onchange: (e: Event) =>
+      update({text: (e.target as HTMLTextAreaElement).value}),
+    onkeydown: (e: KeyboardEvent) => {
+      if (editing) {
+        e.stopPropagation();
+        if (e.key === 'Escape') onStopEdit();
+      }
     },
+    onpointerdown: (e: PointerEvent) => {
+      if (editing) e.stopPropagation();
+    },
+    ondblclick: (e: MouseEvent) => {
+      e.stopPropagation();
+      onStartEdit();
+    },
+    onblur: () => onStopEdit(),
   });
 }
 
-function renderSortNode(
-  node: SortNodeData,
-  updateNode: (updates: Partial<Omit<SortNodeData, 'type' | 'id'>>) => void,
-): m.Children {
-  return m(
-    '',
-    {style: {display: 'flex', flexDirection: 'column', gap: '4px'}},
-    [
-      m(TextInput, {
-        placeholder: 'Sort column...',
-        value: node.sortColumn,
-        oninput: (e: InputEvent) => {
-          const target = e.target as HTMLInputElement;
-          updateNode({sortColumn: target.value});
-        },
-      }),
-      m(
-        Select,
-        {
-          value: node.sortOrder,
-          onchange: (e: Event) => {
-            updateNode({
-              sortOrder: (e.target as HTMLSelectElement).value as
-                | 'ASC'
-                | 'DESC',
-            });
-          },
-        },
-        [
-          m('option', {value: 'ASC'}, 'ASC'),
-          m('option', {value: 'DESC'}, 'DESC'),
-        ],
-      ),
-    ],
-  );
-}
-
-function renderJoinNode(
-  node: JoinNodeData,
-  updateNode: (updates: Partial<Omit<JoinNodeData, 'type' | 'id'>>) => void,
-): m.Children {
-  return m(
-    '',
-    {style: {display: 'flex', flexDirection: 'column', gap: '4px'}},
-    [
-      m(
-        Select,
-        {
-          value: node.joinType,
-          onchange: (e: Event) => {
-            updateNode({
-              joinType: (e.target as HTMLSelectElement)
-                .value as JoinNodeData['joinType'],
-            });
-          },
-        },
-        [
-          m('option', {value: 'INNER'}, 'INNER'),
-          m('option', {value: 'LEFT'}, 'LEFT'),
-          m('option', {value: 'RIGHT'}, 'RIGHT'),
-          m('option', {value: 'FULL'}, 'FULL'),
-        ],
-      ),
-      m(TextInput, {
-        placeholder: 'ON condition...',
-        value: node.joinOn,
-        oninput: (e: InputEvent) => {
-          const target = e.target as HTMLInputElement;
-          updateNode({joinOn: target.value});
-        },
-      }),
-    ],
-  );
-}
-
-function renderUnionNode(
-  node: UnionNodeData,
-  updateNode: (updates: Partial<Omit<UnionNodeData, 'type' | 'id'>>) => void,
-): m.Children {
-  return m(
-    Select,
-    {
-      value: node.unionType,
-      onchange: (e: Event) => {
-        updateNode({
-          unionType: (e.target as HTMLSelectElement)
-            .value as UnionNodeData['unionType'],
-        });
-      },
-    },
-    [
-      m('option', {value: 'UNION'}, 'UNION'),
-      m('option', {value: 'UNION ALL'}, 'UNION ALL'),
-    ],
-  );
-}
-
-function renderResultNode(): m.Children {
-  return 'Result';
-}
-
-// Master renderer with type narrowing
-function renderNodeContent(
-  node: NodeData,
-  updateNode: (updates: Partial<Omit<NodeData, 'id'>>) => void,
-): m.Children {
-  switch (node.type) {
-    case 'table':
-      return renderTableNode(node, updateNode);
-    case 'select':
-      return renderSelectNode(node, updateNode);
-    case 'filter':
-      return renderFilterNode(node, updateNode);
-    case 'sort':
-      return renderSortNode(node, updateNode);
-    case 'join':
-      return renderJoinNode(node, updateNode);
-    case 'union':
-      return renderUnionNode(node, updateNode);
-    case 'result':
-      return renderResultNode();
-  }
-}
-
 interface NodeGraphDemoAttrs {
-  readonly multiselect?: boolean;
   readonly titleBars?: boolean;
   readonly headerIcons?: boolean;
   readonly accentBars?: boolean;
-  readonly colors?: boolean;
   readonly contextMenus?: boolean;
-  readonly contextMenuOnHover?: boolean;
 }
 
 export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
-  let graphApi: NodeGraphApi | undefined;
+  let graphApi: NodeGraphAPI | undefined;
+  let editingLabelId: string | undefined;
 
-  // Initialize store with a single table node
-  const initialId = uuidv4();
+  // Pipeline 1:  slice ──► filter ──┐
+  //                                   ├──► join ──► sort ──► select
+  //              sched ──────────────┘
+  const sliceId = shortUuid();
+  const schedId = shortUuid();
+  const filterId = shortUuid();
+  const joinId = shortUuid();
+  const sortId = shortUuid();
+  const selectId = shortUuid();
+  const label1Id = shortUuid();
+
+  // Pipeline 2:  thread  ──┐
+  //                         ├──► union ──► sort2
+  //              process ──┘
+  const threadId = shortUuid();
+  const processId = shortUuid();
+  const unionId = shortUuid();
+  const sort2Id = shortUuid();
+  const label2Id = shortUuid();
+
   let store: NodeGraphStore = {
-    nodes: new Map([[initialId, createTableNode(initialId, 150, 100)]]),
-    connections: [],
-    labels: [
+    nodes: [
+      // Pipeline 1 — slice+filter are stacked (docked)
       {
-        id: uuidv4(),
-        x: 400,
-        y: 100,
-        width: 180,
-        content: m('.pf-simple-label-text', 'Simple text label'),
+        ...NODE_CONFIGS.table.create(sliceId, 50, 80),
+        next: {
+          ...NODE_CONFIGS.filter.create(filterId, 0, 0),
+          filterExpression: 'dur > 1000',
+        },
+      },
+      {...NODE_CONFIGS.table.create(schedId, 50, 300), table: 'sched'},
+      {
+        ...NODE_CONFIGS.join.create(joinId, 570, 180),
+        joinType: 'INNER',
+        joinOn: 'utid',
+        inputNodeIds: [filterId, schedId], // left=filter, right=sched
       },
       {
-        id: uuidv4(),
-        x: 400,
-        y: 200,
-        width: 180,
-        content: m(
-          '.pf-simple-label-button',
-          m(Button, {
-            label: 'Click me!',
-            onclick: () => {
-              console.log('Label button clicked!');
-            },
-          }),
-        ),
+        ...NODE_CONFIGS.sort.create(sortId, 830, 180),
+        sortColumn: 'dur',
+        sortOrder: 'DESC',
+        inputNodeIds: [joinId],
+      },
+      {
+        ...NODE_CONFIGS.select.create(selectId, 1090, 180),
+        columns: {
+          id: true,
+          name: true,
+          dur: true,
+          cpu: false,
+          timestamp: false,
+        },
+        inputNodeIds: [sortId],
+      },
+
+      // Pipeline 2
+      {...NODE_CONFIGS.table.create(threadId, 50, 700), table: 'thread'},
+      {...NODE_CONFIGS.table.create(processId, 50, 900), table: 'process'},
+      {
+        ...NODE_CONFIGS.union.create(unionId, 310, 790),
+        unionType: 'UNION ALL',
+        inputNodeIds: [threadId, processId],
+      },
+      {
+        ...NODE_CONFIGS.sort.create(sort2Id, 570, 790),
+        sortColumn: 'name',
+        sortOrder: 'ASC',
+        inputNodeIds: [unionId],
       },
     ],
-    invalidNodes: new Set<string>(),
+    labels: [
+      {
+        ...createLabel(label1Id, 50, 490),
+        text: 'Slice ⨝ Sched pipeline\nFilters short slices,\njoins on thread, sorts by duration.',
+      },
+      {
+        ...createLabel(label2Id, 50, 1010),
+        text: 'Thread ∪ Process\nAll named entities,\nsorted alphabetically.',
+      },
+    ],
   };
 
   // History management
@@ -467,35 +473,79 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
   // Selection state (separate from undo/redo history)
   const selectedNodeIds = new Set<string>();
 
-  // Helper to find the parent node (node that has this node as nextId)
-  function findDockedParent(
-    nodes: Map<string, NodeData>,
-    nodeId: string,
-  ): NodeData | undefined {
-    for (const node of nodes.values()) {
-      if (node.nextId === nodeId) {
-        return node;
+  // Helper to find a node by id, searching recursively through linked chains
+  function findNodeById(nodes: NodeData[], id: string): NodeData | undefined {
+    for (const root of nodes) {
+      let cur: NodeData | undefined = root;
+      while (cur) {
+        if (cur.id === id) return cur;
+        cur = cur.next;
       }
     }
     return undefined;
   }
 
-  // Helper to find input nodes via connections
-  function findConnectedInputs(
-    nodes: Map<string, NodeData>,
-    connections: Connection[],
-    nodeId: string,
-  ): Map<number, NodeData> {
-    const inputs = new Map<number, NodeData>();
-    for (const conn of connections) {
-      if (conn.toNode === nodeId) {
-        const inputNode = nodes.get(conn.fromNode);
-        if (inputNode) {
-          inputs.set(conn.toPort, inputNode);
-        }
+  // Helper to find the parent node (node that has this node as .next)
+  function findParent(
+    nodes: NodeData[],
+    targetId: string,
+  ): NodeData | undefined {
+    for (const root of nodes) {
+      let cur: NodeData | undefined = root;
+      while (cur) {
+        if (cur.next?.id === targetId) return cur;
+        cur = cur.next;
       }
     }
-    return inputs;
+    return undefined;
+  }
+
+  // Flatten all nodes (root + docked chains) into a single array.
+  function flattenNodes(nodes: NodeData[]): NodeData[] {
+    const result: NodeData[] = [];
+    for (const root of nodes) {
+      let cur: NodeData | undefined = root;
+      while (cur) {
+        result.push(cur);
+        cur = cur.next;
+      }
+    }
+    return result;
+  }
+
+  // Derive Connection objects from nodes' inputNodeIds.
+  function deriveConnections(nodes: NodeData[]): Connection[] {
+    const connections: Connection[] = [];
+    for (const node of flattenNodes(nodes)) {
+      if (!node.inputNodeIds) continue;
+      const manifest = NODE_CONFIGS[node.type];
+      node.inputNodeIds.forEach((sourceId, slotIndex) => {
+        if (!sourceId) return;
+        const inputDef = manifest.inputs?.[slotIndex];
+        if (!inputDef) return;
+        connections.push({
+          fromPort: `${sourceId}-out`,
+          toPort: `${node.id}-in-${inputDef.id}`,
+        });
+      });
+    }
+    return connections;
+  }
+
+  // Find which node and input slot a toPort string refers to.
+  function findPortSlot(
+    nodes: NodeData[],
+    toPort: string,
+  ): {node: NodeData; slotIndex: number} | undefined {
+    for (const node of flattenNodes(nodes)) {
+      const manifest = NODE_CONFIGS[node.type];
+      const slotIndex =
+        manifest.inputs?.findIndex(
+          (input) => `${node.id}-in-${input.id}` === toPort,
+        ) ?? -1;
+      if (slotIndex !== -1) return {node, slotIndex};
+    }
+    return undefined;
   }
 
   // Update store with history
@@ -549,35 +599,59 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
     updates: Partial<Omit<NodeData, 'id'>>,
   ) => {
     updateStore((draft) => {
-      const node = draft.nodes.get(nodeId);
+      const node = findNodeById(draft.nodes, nodeId);
       if (node) {
         Object.assign(node, updates);
       }
     });
   };
 
+  const updateLabel = (
+    labelId: string,
+    updates: Partial<Omit<LabelData, 'id'>>,
+  ) => {
+    updateStore((draft) => {
+      const label = draft.labels.find((l) => l.id === labelId);
+      if (label) Object.assign(label, updates);
+    });
+  };
+
   const removeNode = (nodeId: string) => {
     updateStore((draft) => {
-      const nodeToDelete = draft.nodes.get(nodeId);
+      // Check if it's a label first
+      const labelIdx = draft.labels.findIndex((l) => l.id === nodeId);
+      if (labelIdx !== -1) {
+        draft.labels.splice(labelIdx, 1);
+        selectedNodeIds.delete(nodeId);
+        return;
+      }
+
+      const nodeToDelete = findNodeById(draft.nodes, nodeId);
       if (!nodeToDelete) return;
 
-      // Dock any child node to its parent
-      for (const parent of draft.nodes.values()) {
-        if (parent.nextId === nodeId) {
-          parent.nextId = nodeToDelete.nextId;
+      // Clear any inputNodeIds referencing this node from other nodes.
+      for (const n of flattenNodes(draft.nodes)) {
+        if (!n.inputNodeIds) continue;
+        for (let i = 0; i < n.inputNodeIds.length; i++) {
+          if (n.inputNodeIds[i] === nodeId) n.inputNodeIds[i] = undefined;
         }
       }
 
-      // Remove any connections to/from this node
-      for (let i = draft.connections.length - 1; i >= 0; i--) {
-        const c = draft.connections[i];
-        if (c.fromNode === nodeId || c.toNode === nodeId) {
-          draft.connections.splice(i, 1);
+      const parent = findParent(draft.nodes, nodeId);
+      if (parent) {
+        // Splice out from chain, promoting its child
+        parent.next = nodeToDelete.next;
+      } else {
+        // Root node: remove from array, optionally promoting child to root
+        const idx = draft.nodes.findIndex((n) => n.id === nodeId);
+        if (idx !== -1) {
+          if (nodeToDelete.next) {
+            draft.nodes.splice(idx, 1, nodeToDelete.next as NodeData);
+          } else {
+            draft.nodes.splice(idx, 1);
+          }
         }
       }
-
-      // Finally remove the node
-      draft.nodes.delete(nodeId);
     });
 
     // Clear from selection (outside of store update)
@@ -586,431 +660,121 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
     console.log(`removeNode: ${nodeId}`);
   };
 
-  const removeLabel = (labelId: string) => {
-    updateStore((draft) => {
-      const labelIndex = draft.labels.findIndex((l) => l.id === labelId);
-      if (labelIndex !== -1) {
-        draft.labels.splice(labelIndex, 1);
-      }
-    });
-
-    // Clear from selection (outside of store update)
-    selectedNodeIds.delete(labelId);
-
-    console.log(`removeLabel: ${labelId}`);
-  };
-
   // Stress test function
   const runStressTest = () => {
     updateStore((draft) => {
       // Clear existing state
-      draft.nodes.clear();
-      draft.connections.length = 0;
-      draft.invalidNodes.clear();
-
-      // Node factory options
-      const nodeFactories = [
-        createTableNode,
-        createSelectNode,
-        createFilterNode,
-        createSortNode,
-        createJoinNode,
-        createUnionNode,
-        createResultNode,
-      ];
+      draft.nodes.length = 0;
+      draft.labels.length = 0;
 
       // Create 100 random nodes
+      const nodeTypes = Object.keys(NODE_CONFIGS) as NodeData['type'][];
       const nodeIds: string[] = [];
       for (let i = 0; i < 100; i++) {
-        const id = uuidv4();
-        const factory =
-          nodeFactories[Math.floor(Math.random() * nodeFactories.length)];
+        const id = shortUuid();
+        const type = nodeTypes[Math.floor(Math.random() * nodeTypes.length)];
         const x = Math.random() * 2000;
         const y = Math.random() * 2000;
-        const newNode = factory(id, x, y);
-
-        draft.nodes.set(id, newNode);
+        draft.nodes.push(NODE_CONFIGS[type].create(id, x, y));
         nodeIds.push(id);
       }
 
-      // Create some stacked (docked) nodes
-      // Aim for ~20 stacks (20% of nodes)
-      const usedInStacks = new Set<string>();
-      let stacksCreated = 0;
-      for (let i = 0; i < 20; i++) {
-        // Find a parent node that can dock (has canDockBottom)
-        const availableParents = nodeIds.filter((id) => {
-          const node = draft.nodes.get(id)!;
-          const config = NODE_CONFIGS[node.type];
-          return config.canDockBottom && !node.nextId && !usedInStacks.has(id);
-        });
+      // Wire ~150 random connections via inputNodeIds.
+      for (let i = 0; i < 150; i++) {
+        const fromId = nodeIds[Math.floor(Math.random() * nodeIds.length)];
+        const toId = nodeIds[Math.floor(Math.random() * nodeIds.length)];
+        if (fromId === toId) continue;
 
-        if (availableParents.length === 0) break;
+        const toNode = findNodeById(draft.nodes, toId);
+        if (!toNode) continue;
 
-        const parentId =
-          availableParents[Math.floor(Math.random() * availableParents.length)];
-        const parent = draft.nodes.get(parentId)!;
+        const numInputs = NODE_CONFIGS[toNode.type].inputs?.length ?? 0;
+        if (numInputs === 0) continue;
 
-        // Find a child node that can dock (has canDockTop)
-        const availableChildren = nodeIds.filter((id) => {
-          const node = draft.nodes.get(id)!;
-          const config = NODE_CONFIGS[node.type];
-          return config.canDockTop && id !== parentId && !usedInStacks.has(id);
-        });
-
-        if (availableChildren.length === 0) continue;
-
-        const childId =
-          availableChildren[
-            Math.floor(Math.random() * availableChildren.length)
-          ];
-
-        // Stack the child under the parent
-        parent.nextId = childId;
-        usedInStacks.add(parentId);
-        usedInStacks.add(childId);
-        stacksCreated++;
+        const slotIndex = Math.floor(Math.random() * numInputs);
+        if (!toNode.inputNodeIds) toNode.inputNodeIds = [];
+        toNode.inputNodeIds[slotIndex] = fromId;
       }
 
-      // Create random connections between nodes
-      // Aim for ~150 connections (1.5 per node on average)
-      const numConnections = 150;
-      for (let i = 0; i < numConnections; i++) {
-        // Pick random nodes
-        const fromNodeId = nodeIds[Math.floor(Math.random() * nodeIds.length)];
-        const toNodeId = nodeIds[Math.floor(Math.random() * nodeIds.length)];
-
-        if (fromNodeId === toNodeId) continue;
-
-        const fromNode = draft.nodes.get(fromNodeId)!;
-        const toNode = draft.nodes.get(toNodeId)!;
-
-        // Check if nodes have compatible ports
-        const fromConfig = NODE_CONFIGS[fromNode.type];
-        const toConfig = NODE_CONFIGS[toNode.type];
-        const numOutputs = fromConfig.outputs?.length ?? 0;
-        const numInputs = toConfig.inputs?.length ?? 0;
-
-        if (numOutputs === 0 || numInputs === 0) continue;
-
-        // Random output and input ports
-        const fromPort = Math.floor(Math.random() * numOutputs);
-        const toPort = Math.floor(Math.random() * numInputs);
-
-        // Check if this connection already exists
-        const exists = draft.connections.some(
-          (c) =>
-            c.fromNode === fromNodeId &&
-            c.toNode === toNodeId &&
-            c.fromPort === fromPort &&
-            c.toPort === toPort,
-        );
-
-        if (!exists) {
-          draft.connections.push({
-            fromNode: fromNodeId,
-            fromPort,
-            toNode: toNodeId,
-            toPort,
-          });
-        }
-      }
-
-      console.log(
-        `Stress test: Created ${draft.nodes.size} nodes, ${draft.connections.length} connections, and ${stacksCreated} stacks`,
-      );
+      console.log(`Stress test: Created ${draft.nodes.length} nodes`);
     });
 
     // Clear selection after stress test
     selectedNodeIds.clear();
   };
 
-  // Build SQL query from a node by traversing upwards
-  function buildSqlFromNode(
-    nodes: Map<string, NodeData>,
-    connections: Connection[],
-    nodeId: string,
-    visited: Set<string> = new Set(),
-  ): string {
-    // Cycle detection: if we've already visited this node in the current path, return empty
-    if (visited.has(nodeId)) {
-      console.warn(`Cycle detected at node ${nodeId}`);
-      return '';
-    }
-
-    const node = nodes.get(nodeId);
-    if (!node) return '';
-
-    // Add current node to visited set for this traversal path
-    const newVisited = new Set(visited);
-    newVisited.add(nodeId);
-
-    // First check for docked parent
-    const dockedParent = findDockedParent(nodes, nodeId);
-    const connectedInputs = findConnectedInputs(nodes, connections, nodeId);
-
-    switch (node.type) {
-      case 'table': {
-        return node.table || 'unknown_table';
-      }
-
-      case 'select': {
-        const selectedCols = Object.entries(node.columns)
-          .filter(([_, checked]) => checked)
-          .map(([col]) => col);
-        const colList = selectedCols.length > 0 ? selectedCols.join(', ') : '*';
-
-        const inputSql = dockedParent
-          ? buildSqlFromNode(nodes, connections, dockedParent.id, newVisited)
-          : connectedInputs.get(0)
-            ? buildSqlFromNode(
-                nodes,
-                connections,
-                connectedInputs.get(0)!.id,
-                newVisited,
-              )
-            : '';
-
-        if (!inputSql) return `SELECT ${colList}`;
-        return `SELECT ${colList} FROM (${inputSql})`;
-      }
-
-      case 'filter': {
-        const filterExpr = node.filterExpression || '';
-
-        const inputSql = dockedParent
-          ? buildSqlFromNode(nodes, connections, dockedParent.id, newVisited)
-          : connectedInputs.get(0)
-            ? buildSqlFromNode(
-                nodes,
-                connections,
-                connectedInputs.get(0)!.id,
-                newVisited,
-              )
-            : '';
-
-        if (!inputSql) return '';
-        if (!filterExpr) return inputSql;
-        return `SELECT * FROM (${inputSql}) WHERE ${filterExpr}`;
-      }
-
-      case 'sort': {
-        const sortColumn = node.sortColumn || '';
-        const sortOrder = node.sortOrder || 'ASC';
-
-        const inputSql = dockedParent
-          ? buildSqlFromNode(nodes, connections, dockedParent.id, newVisited)
-          : connectedInputs.get(0)
-            ? buildSqlFromNode(
-                nodes,
-                connections,
-                connectedInputs.get(0)!.id,
-                newVisited,
-              )
-            : '';
-
-        if (!inputSql) return '';
-        if (!sortColumn) return inputSql;
-        return `SELECT * FROM (${inputSql}) ORDER BY ${sortColumn} ${sortOrder}`;
-      }
-
-      case 'join': {
-        const joinType = node.joinType || 'INNER';
-        const joinOn = node.joinOn || 'true';
-
-        // Join needs two inputs: one docked and one from left connection
-        const leftInput = dockedParent
-          ? buildSqlFromNode(nodes, connections, dockedParent.id, newVisited)
-          : '';
-
-        const rightInput = connectedInputs.get(0)
-          ? buildSqlFromNode(
-              nodes,
-              connections,
-              connectedInputs.get(0)!.id,
-              newVisited,
-            )
-          : '';
-
-        if (!leftInput || !rightInput) return leftInput || rightInput || '';
-        return `SELECT * FROM (${leftInput}) ${joinType} JOIN (${rightInput}) ON ${joinOn}`;
-      }
-
-      case 'union': {
-        const unionType = node.unionType || '';
-
-        const inputs: string[] = [];
-
-        // Collect all inputs from left connections (no docked parent for union)
-        if (dockedParent) {
-          inputs.push(
-            buildSqlFromNode(nodes, connections, dockedParent.id, newVisited),
-          );
-        }
-        for (const [_, inputNode] of connectedInputs) {
-          inputs.push(
-            buildSqlFromNode(nodes, connections, inputNode.id, newVisited),
-          );
-        }
-
-        const validInputs = inputs.filter((sql) => sql);
-        if (validInputs.length === 0) return '';
-        if (validInputs.length === 1) return validInputs[0];
-        return validInputs.map((sql) => `(${sql})`).join(` ${unionType} `);
-      }
-
-      case 'result': {
-        const inputSql = dockedParent
-          ? buildSqlFromNode(nodes, connections, dockedParent.id, newVisited)
-          : connectedInputs.get(0)
-            ? buildSqlFromNode(
-                nodes,
-                connections,
-                connectedInputs.get(0)!.id,
-                newVisited,
-              )
-            : '';
-        return inputSql;
-      }
-    }
-  }
-
   function renderNodeContextMenu(node: NodeData) {
-    const isInvalid = store.invalidNodes.has(node.id);
     return [
-      m(MenuItem, {
-        label: isInvalid ? 'Mark as Valid' : 'Mark as Invalid',
-        icon: isInvalid ? 'check_circle' : 'error',
-        onclick: () => {
-          updateStore((draft) => {
-            if (draft.invalidNodes.has(node.id)) {
-              draft.invalidNodes.delete(node.id);
-            } else {
-              draft.invalidNodes.add(node.id);
-            }
-          });
-          console.log(
-            `Context Menu: Toggle invalid state for ${node.id}: ${!isInvalid}`,
-          );
-        },
-      }),
       m(MenuItem, {
         label: 'Delete',
         icon: 'delete',
         onclick: () => {
           removeNode(node.id);
-          console.log(`Context Menu: onNodeRemove: ${node.id}`);
         },
       }),
     ];
   }
 
-  // Find root nodes (not referenced by any other node's nextId)
-  function getRootNodeIds(nodes: Map<string, NodeData>): string[] {
-    const referenced = new Set<string>();
-    for (const node of nodes.values()) {
-      if (node.nextId) referenced.add(node.nextId);
-    }
-    return Array.from(nodes.keys()).filter((id) => !referenced.has(id));
-  }
-
   return {
     view: ({attrs}: m.Vnode<NodeGraphDemoAttrs>) => {
-      // Log the SQL queries for all result nodes
-      const queries = [];
-      for (const node of store.nodes.values()) {
-        if (node.type === 'result') {
-          const sql = buildSqlFromNode(store.nodes, store.connections, node.id);
-          queries.push(sql);
-        }
-      }
-      if (queries.length > 0) {
-        console.log('Generated SQL queries for result nodes:', queries);
-      }
-
+      // Produces the "add downstream node" context menu for output ports.
+      // Only pipeline nodes (not table) can be appended downstream.
       function renderAddNodeMenu(toNode: string) {
+        const appendableTypes: NodeData['type'][] = [
+          'select',
+          'filter',
+          'sort',
+          'join',
+          'union',
+        ];
         return [
-          m(MenuItem, {
-            label: 'Select',
-            icon: 'checklist',
-            onclick: () => addNode(createSelectNode, toNode),
-            style: {
-              borderLeft: `4px solid hsl(${NODE_CONFIGS.select.hue}, 60%, 50%)`,
-            },
+          ...appendableTypes.map((type) => {
+            const manifest = NODE_CONFIGS[type];
+            return m(MenuItem, {
+              label: manifest.title,
+              icon: manifest.icon,
+              onclick: () => addNode(type, toNode),
+              style: {borderLeft: `4px solid hsl(${manifest.hue}, 60%, 50%)`},
+            });
           }),
           m(MenuItem, {
-            label: 'Filter',
-            icon: 'filter_alt',
-            onclick: () => addNode(createFilterNode, toNode),
-            style: {
-              borderLeft: `4px solid hsl(${NODE_CONFIGS.filter.hue}, 60%, 50%)`,
-            },
-          }),
-          m(MenuItem, {
-            label: 'Sort',
-            icon: 'sort',
-            onclick: () => addNode(createSortNode, toNode),
-            style: {
-              borderLeft: `4px solid hsl(${NODE_CONFIGS.sort.hue}, 60%, 50%)`,
-            },
-          }),
-          m(MenuItem, {
-            label: 'Join',
-            icon: 'join',
-            onclick: () => addNode(createJoinNode, toNode),
-            style: {
-              borderLeft: `4px solid hsl(${NODE_CONFIGS.join.hue}, 60%, 50%)`,
-            },
-          }),
-          m(MenuItem, {
-            label: 'Union',
-            icon: 'merge',
-            onclick: () => addNode(createUnionNode, toNode),
-            style: {
-              borderLeft: `4px solid hsl(${NODE_CONFIGS.union.hue}, 60%, 50%)`,
-            },
-          }),
-          m(MenuItem, {
-            label: 'Result',
-            icon: 'output',
-            onclick: () => addNode(createResultNode, toNode),
-            style: {
-              borderLeft: `4px solid hsl(${NODE_CONFIGS.result.hue}, 60%, 50%)`,
-            },
+            label: 'Label',
+            icon: 'label',
+            onclick: () => addLabel(),
           }),
         ];
       }
 
-      const addNode = (
-        factory: (id: string, x: number, y: number) => NodeData,
-        toNodeId?: string,
-      ) => {
-        const id = uuidv4();
+      const addNode = (type: NodeData['type'], toNodeId?: string) => {
+        const manifest = NODE_CONFIGS[type];
+        const id = shortUuid();
 
         let x: number;
         let y: number;
 
         // Use API to find optimal placement if available
         if (graphApi && !toNodeId) {
-          const tempNode = factory(id, 0, 0);
-          const config = NODE_CONFIGS[tempNode.type];
+          const tempNode = manifest.create(id, 0, 0);
           const placement = graphApi.findPlacementForNode({
             id,
-            inputs: config.inputs,
-            outputs: config.outputs?.map((out) => {
-              return {...out, contextMenuItems: renderAddNodeMenu(tempNode.id)};
-            }),
-            content: renderNodeContent(tempNode, () => {}),
-            canDockBottom: config.canDockBottom,
-            canDockTop: config.canDockTop,
+            inputs: makeInputPorts(id, manifest.inputs),
+            outputs: [
+              {
+                id: `${id}-out`,
+                label: 'Output',
+                direction: 'east',
+                contextMenuItems: renderAddNodeMenu(id),
+              },
+            ],
+            content: manifest.render(tempNode, () => {}),
             accentBar: attrs.accentBars,
             titleBar: attrs.titleBars
               ? {
-                  title: tempNode.type.toUpperCase(),
-                  icon: attrs.headerIcons ? config.icon : undefined,
+                  title: manifest.title,
+                  icon: attrs.headerIcons ? manifest.icon : undefined,
                 }
               : undefined,
-            hue: attrs.colors ? config.hue : undefined,
+            hue: manifest.hue,
             contextMenuItems: attrs.contextMenus
               ? renderNodeContextMenu(tempNode)
               : undefined,
@@ -1023,117 +787,141 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
           y = 50 + Math.random() * 200;
         }
 
-        const newNode = factory(id, x, y);
-
+        const newNode = manifest.create(id, x, y);
         updateStore((draft) => {
-          draft.nodes.set(newNode.id, newNode);
-
           if (toNodeId) {
-            const parentNode = draft.nodes.get(toNodeId);
+            const parentNode = findNodeById(draft.nodes, toNodeId);
             if (parentNode) {
-              newNode.nextId = parentNode.nextId;
-              parentNode.nextId = id;
+              // Insert newNode between parent and its current next
+              const existingNext = parentNode.next;
+              parentNode.next = newNode;
+              newNode.next = existingNext;
+            } else {
+              draft.nodes.push(newNode);
             }
 
-            // Find any connection connected to the bottom port of this node
-            const bottomConnectionIdx = draft.connections.findIndex(
-              (c) => c.fromNode === toNodeId && c.fromPort === 0,
-            );
-            if (bottomConnectionIdx > -1) {
-              draft.connections[bottomConnectionIdx] = {
-                ...draft.connections[bottomConnectionIdx],
-                fromNode: id,
-                fromPort: 0,
-              };
+            // Re-route any node whose first input was toNodeId so it now
+            // comes from the new node's output.
+            for (const n of flattenNodes(draft.nodes)) {
+              if (!n.inputNodeIds) continue;
+              for (let i = 0; i < n.inputNodeIds.length; i++) {
+                if (n.inputNodeIds[i] === toNodeId) {
+                  n.inputNodeIds[i] = id;
+                }
+              }
             }
+          } else {
+            draft.nodes.push(newNode);
           }
         });
       };
 
+      const addLabel = () => {
+        const id = shortUuid();
+        const x = 100 + Math.random() * 200;
+        const y = 50 + Math.random() * 200;
+        updateStore((draft) => {
+          draft.labels.push(createLabel(id, x, y));
+        });
+      };
+
+      // Shared helper: builds the common Node fields from a NodeData + manifest.
+      // originalManifest is the unsliced manifest used for canDockTop; it
+      // defaults to manifest when not supplied (i.e. for root nodes).
+      function buildNodeFields(
+        nodeData: NodeData,
+        manifest: NodeTypeManifest<NodeData>,
+        originalManifest?: NodeTypeManifest<NodeData>,
+      ) {
+        const orig = originalManifest ?? manifest;
+        return {
+          inputs: makeInputPorts(nodeData.id, manifest.inputs),
+          outputs: nodeData.next
+            ? []
+            : [
+                {
+                  id: `${nodeData.id}-out`,
+                  label: 'Output',
+                  direction: 'east' as const,
+                  contextMenuItems: renderAddNodeMenu(nodeData.id),
+                },
+              ],
+          content: manifest.render(nodeData, (updates) =>
+            updateNode(nodeData.id, updates),
+          ),
+          accentBar: attrs.accentBars,
+          titleBar: attrs.titleBars
+            ? {
+                title: manifest.title,
+                icon: attrs.headerIcons ? manifest.icon : undefined,
+              }
+            : undefined,
+          hue: manifest.hue,
+          contextMenuItems: attrs.contextMenus
+            ? renderNodeContextMenu(nodeData)
+            : undefined,
+          canDockTop: (orig.inputs?.length ?? 0) > 0,
+          canDockBottom: true,
+        };
+      }
+
       // Render a model node and its chain
       function renderNodeChain(nodeData: NodeData): Node {
-        const hasNext = nodeData.nextId !== undefined;
-        const nextModel = hasNext
-          ? store.nodes.get(nodeData.nextId!)
-          : undefined;
-
-        const config = NODE_CONFIGS[nodeData.type];
-
+        const manifest = NODE_CONFIGS[nodeData.type];
         return {
           id: nodeData.id,
           x: nodeData.x,
           y: nodeData.y,
-          inputs: config.inputs,
-          outputs: config.outputs?.map((out) => {
-            return {...out, contextMenuItems: renderAddNodeMenu(nodeData.id)};
-          }),
-          content: renderNodeContent(nodeData, (updates) =>
-            updateNode(nodeData.id, updates),
-          ),
-          canDockBottom: config.canDockBottom,
-          canDockTop: config.canDockTop,
-          next: nextModel ? renderChildNode(nextModel) : undefined,
-          accentBar: attrs.accentBars,
-          titleBar: attrs.titleBars
-            ? {
-                title: nodeData.type.toUpperCase(),
-                icon: attrs.headerIcons ? config.icon : undefined,
-              }
-            : undefined,
-          hue: attrs.colors ? config.hue : undefined,
-          contextMenuItems: attrs.contextMenus
-            ? renderNodeContextMenu(nodeData)
-            : undefined,
-          invalid: store.invalidNodes.has(nodeData.id),
+          ...buildNodeFields(nodeData, manifest),
+          next: nodeData.next ? renderChildNode(nodeData.next) : undefined,
         };
       }
 
-      // Render child node (keep all ports visible)
+      // Render child node: hide input[0] (implicitly fed by the parent above).
       function renderChildNode(nodeData: NodeData): Omit<Node, 'x' | 'y'> {
-        const hasNext = nodeData.nextId !== undefined;
-        const nextModel = hasNext
-          ? store.nodes.get(nodeData.nextId!)
-          : undefined;
-
-        const config = NODE_CONFIGS[nodeData.type];
-
+        const manifest = NODE_CONFIGS[nodeData.type];
+        const manifestWithoutFirstInput = {
+          ...manifest,
+          inputs: manifest.inputs?.slice(1),
+        };
         return {
           id: nodeData.id,
-          inputs: config.inputs,
-          outputs: config.outputs?.map((out) => {
-            return {...out, contextMenuItems: renderAddNodeMenu(nodeData.id)};
-          }),
-          content: renderNodeContent(nodeData, (updates) =>
-            updateNode(nodeData.id, updates),
+          ...buildNodeFields(nodeData, manifestWithoutFirstInput, manifest),
+          next: nodeData.next ? renderChildNode(nodeData.next) : undefined,
+        };
+      }
+
+      function renderLabelNode(label: LabelData): Node {
+        return {
+          id: label.id,
+          x: label.x,
+          y: label.y,
+          hue: 0,
+          content: renderLabelContent(
+            label,
+            editingLabelId === label.id,
+            () => {
+              editingLabelId = label.id;
+              m.redraw();
+            },
+            () => {
+              editingLabelId = undefined;
+              m.redraw();
+            },
+            (updates) => updateLabel(label.id, updates),
           ),
-          canDockBottom: config.canDockBottom,
-          canDockTop: config.canDockTop,
-          next: nextModel ? renderChildNode(nextModel) : undefined,
-          accentBar: attrs.accentBars,
-          titleBar: attrs.titleBars
-            ? {
-                title: nodeData.type.toUpperCase(),
-                icon: attrs.headerIcons ? config.icon : undefined,
-              }
-            : undefined,
-          hue: attrs.colors ? config.hue : undefined,
-          contextMenuItems: attrs.contextMenus
-            ? renderNodeContextMenu(nodeData)
-            : undefined,
-          invalid: store.invalidNodes.has(nodeData.id),
+          canDockTop: false,
+          canDockBottom: false,
+          className: 'pf-ngd__label',
         };
       }
 
       // Render model state into NodeGraph nodes
       function renderNodes(): Node[] {
-        const rootIds = getRootNodeIds(store.nodes);
-        return rootIds
-          .map((id) => {
-            const model = store.nodes.get(id);
-            if (!model) return null;
-            return renderNodeChain(model);
-          })
-          .filter((n): n is Node => n !== null);
+        return [
+          ...store.nodes.map(renderNodeChain),
+          ...store.labels.map(renderLabelNode),
+        ];
       }
 
       const nodeGraphAttrs: NodeGraphAttrs = {
@@ -1149,61 +937,23 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
               }),
             },
             [
-              m(MenuItem, {
-                label: 'Table',
-                icon: 'table_chart',
-                onclick: () => addNode(createTableNode),
-                style: {
-                  borderLeft: `4px solid hsl(${NODE_CONFIGS.table.hue}, 60%, 50%)`,
+              ...(Object.keys(NODE_CONFIGS) as NodeData['type'][]).map(
+                (type) => {
+                  const manifest = NODE_CONFIGS[type];
+                  return m(MenuItem, {
+                    label: manifest.title,
+                    icon: manifest.icon,
+                    onclick: () => addNode(type),
+                    style: {
+                      borderLeft: `4px solid hsl(${manifest.hue}, 60%, 50%)`,
+                    },
+                  });
                 },
-              }),
+              ),
               m(MenuItem, {
-                label: 'Select',
-                icon: 'checklist',
-                onclick: () => addNode(createSelectNode),
-                style: {
-                  borderLeft: `4px solid hsl(${NODE_CONFIGS.select.hue}, 60%, 50%)`,
-                },
-              }),
-              m(MenuItem, {
-                label: 'Filter',
-                icon: 'filter_alt',
-                onclick: () => addNode(createFilterNode),
-                style: {
-                  borderLeft: `4px solid hsl(${NODE_CONFIGS.filter.hue}, 60%, 50%)`,
-                },
-              }),
-              m(MenuItem, {
-                label: 'Sort',
-                icon: 'sort',
-                onclick: () => addNode(createSortNode),
-                style: {
-                  borderLeft: `4px solid hsl(${NODE_CONFIGS.sort.hue}, 60%, 50%)`,
-                },
-              }),
-              m(MenuItem, {
-                label: 'Join',
-                icon: 'join',
-                onclick: () => addNode(createJoinNode),
-                style: {
-                  borderLeft: `4px solid hsl(${NODE_CONFIGS.join.hue}, 60%, 50%)`,
-                },
-              }),
-              m(MenuItem, {
-                label: 'Union',
-                icon: 'merge',
-                onclick: () => addNode(createUnionNode),
-                style: {
-                  borderLeft: `4px solid hsl(${NODE_CONFIGS.union.hue}, 60%, 50%)`,
-                },
-              }),
-              m(MenuItem, {
-                label: 'Result',
-                icon: 'output',
-                onclick: () => addNode(createResultNode),
-                style: {
-                  borderLeft: `4px solid hsl(${NODE_CONFIGS.result.hue}, 60%, 50%)`,
-                },
+                label: 'Label',
+                icon: 'label',
+                onclick: () => addLabel(),
               }),
             ],
           ),
@@ -1239,129 +989,145 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
               variant: ButtonVariant.Filled,
               onclick: () => {
                 updateStore((draft) => {
-                  draft.nodes.clear();
-                  draft.connections.length = 0;
+                  draft.nodes.length = 0;
+                  draft.labels.length = 0;
                 });
                 selectedNodeIds.clear();
               },
             }),
           ),
         ],
+        style: {height: '500px'},
         nodes: renderNodes(),
-        connections: store.connections,
+        connections: deriveConnections(store.nodes),
         selectedNodeIds: selectedNodeIds,
-        multiselect: attrs.multiselect,
-        contextMenuOnHover: attrs.contextMenuOnHover,
-        onReady: (api: NodeGraphApi) => {
+        onReady: (api: NodeGraphAPI) => {
+          console.log('onReady');
           graphApi = api;
         },
         onNodeMove: (nodeId: string, x: number, y: number) => {
-          // Update position in store with history entry when node is dropped
-          updateNode(nodeId, {x, y});
-          console.log(`onNodeMove: ${nodeId} to (${x}, ${y})`);
-        },
-        onConnect: (conn: Connection) => {
-          console.log('onConnect:', conn);
-          updateStore((draft) => {
-            draft.connections.push(conn);
-          });
-        },
-        onConnectionRemove: (index: number) => {
-          console.log('onConnectionRemove:', index);
-          updateStore((draft) => {
-            draft.connections.splice(index, 1);
-          });
-        },
-        onNodeRemove: (nodeId: string) => {
-          removeNode(nodeId);
-          console.log(`onNodeRemove: ${nodeId}`);
-        },
-        onNodeSelect: (nodeId: string) => {
-          selectedNodeIds.clear();
-          selectedNodeIds.add(nodeId);
-          m.redraw();
-          console.log(`onNodeSelect: ${nodeId}`);
-        },
-        onNodeAddToSelection: (nodeId: string) => {
-          selectedNodeIds.add(nodeId);
-          m.redraw();
           console.log(
-            `onNodeAddToSelection: ${nodeId} (total: ${selectedNodeIds.size})`,
+            `onNodeMove: ${nodeId} to (${x.toFixed(1)}, ${y.toFixed(1)})`,
           );
-        },
-        onNodeRemoveFromSelection: (nodeId: string) => {
-          selectedNodeIds.delete(nodeId);
-          m.redraw();
-          console.log(
-            `onNodeRemoveFromSelection: ${nodeId} (total: ${selectedNodeIds.size})`,
-          );
-        },
-        onSelectionClear: () => {
-          selectedNodeIds.clear();
-          m.redraw();
-          console.log(`onSelectionClear`);
-        },
-        onDock: (targetId: string, childNode: Omit<Node, 'x' | 'y'>) => {
           updateStore((draft) => {
-            const target = draft.nodes.get(targetId);
-            const child = draft.nodes.get(childNode.id);
-
-            if (target && child) {
-              target.nextId = child.id;
-              console.log(`onDock: ${child.id} to ${targetId}`);
+            const label = draft.labels.find((l) => l.id === nodeId);
+            if (label) {
+              label.x = x;
+              label.y = y;
+              return;
             }
-
-            // If a connection already exists between these nodes, remove it
-            for (let i = draft.connections.length - 1; i >= 0; i--) {
-              const conn = draft.connections[i];
-              if (
-                (conn.fromNode === targetId && conn.fromPort === 0) ||
-                (conn.toNode === child?.id && conn.toPort === 0)
-              ) {
-                draft.connections.splice(i, 1);
+            const parent = findParent(draft.nodes, nodeId);
+            if (parent) {
+              // Undock: detach from parent chain, add as new root
+              const child = parent.next!;
+              parent.next = undefined;
+              child.x = x;
+              child.y = y;
+              draft.nodes.push(child as NodeData);
+            } else {
+              const node = findNodeById(draft.nodes, nodeId);
+              if (node) {
+                node.x = x;
+                node.y = y;
               }
             }
           });
         },
-        onUndock: (parentId: string, nodeId: string, x: number, y: number) => {
+        onConnect: (conn: Connection) => {
+          console.log(`onConnect: ${conn.fromPort} -> ${conn.toPort}`);
           updateStore((draft) => {
-            const parent = draft.nodes.get(parentId);
-            const child = draft.nodes.get(nodeId);
-
-            if (parent && child) {
-              child.x = x;
-              child.y = y;
-              parent.nextId = undefined;
-
-              console.log(
-                `onUndock: ${nodeId} from ${parentId} at (${x}, ${y})`,
+            const slot = findPortSlot(draft.nodes, conn.toPort);
+            if (!slot) return;
+            const sourceId = conn.fromPort.replace(/-out$/, '');
+            if (!slot.node.inputNodeIds) slot.node.inputNodeIds = [];
+            slot.node.inputNodeIds[slot.slotIndex] = sourceId;
+          });
+        },
+        onDisconnect: (index: number) => {
+          console.log(`onDisconnect: index ${index}`);
+          updateStore((draft) => {
+            const conn = maybeUndefined(deriveConnections(draft.nodes)[index]);
+            if (conn === undefined) return;
+            const slot = findPortSlot(draft.nodes, conn.toPort);
+            if (!slot?.node.inputNodeIds) return;
+            slot.node.inputNodeIds[slot.slotIndex] = undefined;
+          });
+        },
+        onSelect: (nodeIds: string[]) => {
+          console.log(`onSelect: [${nodeIds.join(', ')}]`);
+          selectedNodeIds.clear();
+          nodeIds.forEach((nodeId) => selectedNodeIds.add(nodeId));
+          m.redraw();
+        },
+        onSelectionAdd: (nodeId: string) => {
+          console.log(`onSelectionAdd: ${nodeId}`);
+          selectedNodeIds.add(nodeId);
+          m.redraw();
+        },
+        onSelectionRemove: (nodeId: string) => {
+          console.log(`onSelectionRemove: ${nodeId}`);
+          selectedNodeIds.delete(nodeId);
+          m.redraw();
+        },
+        onSelectionClear: () => {
+          console.log('onSelectionClear');
+          selectedNodeIds.clear();
+          m.redraw();
+        },
+        onNodeDock: (nodeId, targetId) => {
+          console.log(`onDock: ${nodeId} -> ${targetId}`);
+          updateStore((draft) => {
+            const target = findNodeById(draft.nodes, targetId);
+            const child = findNodeById(draft.nodes, nodeId);
+            if (target && child) {
+              // Remove child from root array if it's there
+              const childRootIdx = draft.nodes.findIndex(
+                (n) => n.id === child.id,
               );
+              if (childRootIdx !== -1) {
+                draft.nodes.splice(childRootIdx, 1);
+              }
+
+              // If the child already exists somewhere else in the graph, remove it
+              const parent = findParent(draft.nodes, child.id);
+              if (parent) {
+                // Undock: detach from parent chain
+                parent.next = undefined;
+              }
+
+              // If the target node already has children, insert the new child
+              // in between the target and its existing children
+              if (target.next) {
+                // Find the end of the chain of child nodes - this is where
+                // we'll attach the target's existing children
+                let nextChild = child;
+                while (nextChild.next) {
+                  nextChild = nextChild.next;
+                }
+                nextChild.next = target.next;
+              }
+              target.next = child;
+            }
+            // Clear inputNodeIds that are no longer valid after docking:
+            // - child's slot 0 (implicitly fed by the docked parent)
+            // - any node whose input was targetId (target's output is now hidden)
+            if (child) {
+              if (child.inputNodeIds) child.inputNodeIds[0] = undefined;
+              for (const n of flattenNodes(draft.nodes)) {
+                if (!n.inputNodeIds) continue;
+                for (let i = 0; i < n.inputNodeIds.length; i++) {
+                  if (n.inputNodeIds[i] === targetId) {
+                    n.inputNodeIds[i] = undefined;
+                  }
+                }
+              }
             }
           });
         },
-        labels: store.labels,
-        onLabelMove: (labelId: string, x: number, y: number) => {
-          updateStore((draft) => {
-            const label = draft.labels.find((l) => l.id === labelId);
-            if (label) {
-              label.x = x;
-              label.y = y;
-              console.log(`onLabelMove: ${labelId} to (${x}, ${y})`);
-            }
-          });
-        },
-        onLabelResize: (labelId: string, width: number) => {
-          updateStore((draft) => {
-            const label = draft.labels.find((l) => l.id === labelId);
-            if (label) {
-              label.width = width;
-              console.log(`onLabelResize: ${labelId} to width ${width}`);
-            }
-          });
-        },
-        onLabelRemove: (labelId: string) => {
-          removeLabel(labelId);
-          console.log(`onLabelRemove: ${labelId}`);
+        onViewportMove: ({offset, zoom}) => {
+          console.log(
+            `onViewportMove: (${offset.x.toFixed(1)}, ${offset.y.toFixed(1)}) zoom=${zoom.toFixed(2)}`,
+          );
         },
       };
 
@@ -1384,13 +1150,10 @@ export function renderNodeGraph() {
       noPadding: true,
       renderWidget: (opts) => m(NodeGraphDemo, opts),
       initialOpts: {
-        multiselect: true,
         accentBars: false,
         titleBars: true,
         headerIcons: true,
-        colors: true,
         contextMenus: true,
-        contextMenuOnHover: false,
       },
     }),
 
