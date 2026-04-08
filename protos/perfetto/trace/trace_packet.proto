@@ -43,6 +43,7 @@ import "protos/perfetto/trace/android/shell_transition.proto";
 import "protos/perfetto/trace/android/surfaceflinger_layers.proto";
 import "protos/perfetto/trace/android/surfaceflinger_transactions.proto";
 import "protos/perfetto/trace/android/user_list.proto";
+import "protos/perfetto/trace/android/video_frame.proto";
 import "protos/perfetto/trace/android/winscope_extensions.proto";
 import "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto";
 import "protos/perfetto/trace/chrome/chrome_metadata.proto";
@@ -295,6 +296,8 @@ message TracePacket {
     EvdevEvent evdev_event = 121;
 
     AndroidUserList user_list = 123;
+
+    VideoFrame video_frame = 129;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
