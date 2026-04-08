@@ -22,13 +22,16 @@
 
 namespace perfetto::trace_processor::perfetto_sql {
 
-// A sorted collection of timestamps used as an intermediate type for the
-// interval_create intrinsic function. Timestamps are collected via an
-// aggregate function and must be passed in ascending order (via ORDER BY)
-// to the scalar function.
+// A sorted collection of timestamps (with associated IDs) used as an
+// intermediate type for the interval_create intrinsic function. Timestamps
+// are collected via an aggregate function and must be passed in ascending
+// order (via ORDER BY) to the scalar function.
 struct SortedTimestamps {
   static constexpr char kName[] = "SORTED_TIMESTAMPS";
   std::vector<int64_t> timestamps;
+  // Row IDs corresponding 1:1 with timestamps. These are the original row
+  // IDs from the input table, used to produce start_id/end_id in output.
+  std::vector<int64_t> ids;
 };
 
 }  // namespace perfetto::trace_processor::perfetto_sql
