@@ -47,6 +47,8 @@ import {createVirtualTable} from '../../trace_processor/sql_utils';
 
 const BUCKETS_PER_PIXEL = 2;
 
+const SI_BASE_UNITS = new Set(['Hz', 'B', 'b', 'W', 'V', 'A', 'J', 's']);
+
 // Returns a SQL expression that computes the display value from a table
 // with `ts` and `value` columns, given the counter mode.
 export function counterValueExpression(yMode: CounterOptions['yMode']): string {
@@ -100,10 +102,14 @@ function roundAway(n: number): number {
   return Math.sign(n) * (Math.ceil(Math.abs(n) / (pow10 / 20)) * (pow10 / 20));
 }
 
-function toLabel(n: number, exact = false): string {
+function toLabelAndPrefix(
+  n: number,
+  exact = false,
+): {label: string; prefix: string} {
   if (n === 0) {
-    return '0';
+    return {label: '0', prefix: ''};
   }
+
   const units: [number, string][] = [
     [0.000000001, 'n'],
     [0.000001, 'u'],
@@ -126,14 +132,13 @@ function toLabel(n: number, exact = false): string {
   }
   const value = n / largestMultiplier;
 
-  if (!exact) {
-    return `${Math.round(value)}${largestUnit}`;
-  }
+  const label = exact
+    ? Math.abs(value - Math.round(value)) < 1e-9
+      ? `${Math.round(value)}`
+      : `${Number(value.toFixed(1))}`
+    : `${Math.round(value)}`;
 
-  if (Math.abs(value - Math.round(value)) < 1e-9) {
-    return `${Math.round(value)}${largestUnit}`;
-  }
-  return `${Number(value.toFixed(1))}${largestUnit}`;
+  return {label, prefix: largestUnit};
 }
 
 class RangeSharer {
@@ -434,6 +439,15 @@ const yDisplaySettingDescriptor: TrackSettingDescriptor<YDisplay> = {
       ? value
       : {kind: 'custom'};
 
+    const parseCustomValue = (v: string): number | undefined => {
+      const trimmed = v.trim();
+      if (trimmed === '') {
+        return undefined;
+      }
+      const parsed = Number(trimmed);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    };
+
     return m(
       MenuItem,
       {label: `Display (currently: ${yDisplayKindLabel(value)})`},
@@ -469,16 +483,9 @@ const yDisplaySettingDescriptor: TrackSettingDescriptor<YDisplay> = {
               value:
                 customValue.min !== undefined ? String(customValue.min) : '',
               onChange: (v) => {
-                const trimmed = v.trim();
-                const parsed = Number(trimmed);
                 setter({
                   ...customValue,
-                  min:
-                    trimmed === ''
-                      ? undefined
-                      : Number.isFinite(parsed)
-                        ? parsed
-                        : undefined,
+                  min: parseCustomValue(v),
                 });
               },
             }),
@@ -489,16 +496,9 @@ const yDisplaySettingDescriptor: TrackSettingDescriptor<YDisplay> = {
               value:
                 customValue.max !== undefined ? String(customValue.max) : '',
               onChange: (v) => {
-                const trimmed = v.trim();
-                const parsed = Number(trimmed);
                 setter({
                   ...customValue,
-                  max:
-                    trimmed === ''
-                      ? undefined
-                      : Number.isFinite(parsed)
-                        ? parsed
-                        : undefined,
+                  max: parseCustomValue(v),
                 });
               },
             }),
@@ -617,7 +617,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     () => this.hover?.lastDisplayValue,
   ]);
 
-  getCounterOptions(): CounterOptions {
+  private getCounterOptions(): CounterOptions {
     if (this.options === undefined) {
       const options = this.getDefaultCounterOptions();
       for (const [key, value] of Object.entries(this.defaultOptions)) {
@@ -1122,25 +1122,32 @@ export abstract class BaseCounterTrack implements TrackRenderer {
         min = Math.exp(min);
       }
 
+      const unit = this.unit;
+      const isSiBaseUnit = SI_BASE_UNITS.has(unit);
+
       if (yDisplay.kind === 'custom') {
         const delta = max - min;
-        yLabel = toLabel(delta, true);
+        const {label, prefix} = toLabelAndPrefix(delta, true);
+        yLabel = isSiBaseUnit
+          ? `${label} ${prefix}${unit}`
+          : `${label}${prefix} ${unit}`;
       } else {
         const delta = max < 0 ? min - max : max - min;
-        yLabel = toLabel(delta);
+        const {label, prefix} = toLabelAndPrefix(delta);
+        yLabel = isSiBaseUnit
+          ? `${label} ${prefix}${unit}`
+          : `${label}${prefix} ${unit}`;
       }
     }
 
-    const unit = this.unit;
     switch (options.yMode) {
       case 'value':
-        yLabel += ` ${unit}`;
         break;
       case 'delta':
-        yLabel += `\u0394${unit}`;
+        yLabel = `\u0394${yLabel}`;
         break;
       case 'rate':
-        yLabel += ` ${this.rateUnit}`;
+        yLabel = `${yLabel} ${this.rateUnit}`;
         break;
       default:
         assertUnreachable(options.yMode);
