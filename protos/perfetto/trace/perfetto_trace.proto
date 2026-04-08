@@ -13102,6 +13102,14 @@ message MmShrinkSlabEndFtraceEvent {
   optional int64 unused_scan = 6;
   optional int32 nid = 7;
 }
+message MmVmscanMemcgReclaimBeginFtraceEvent {
+  optional int32 order = 1;
+  optional int32 may_writepage = 2;
+  optional uint64 gfp_flags = 3;
+}
+message MmVmscanMemcgReclaimEndFtraceEvent {
+  optional uint64 nr_reclaimed = 1;
+}
 
 // End of protos/perfetto/trace/ftrace/vmscan.proto
 
@@ -13786,6 +13794,8 @@ message FtraceEvent {
     SchedGroupTrackerFtraceEvent sched_group_tracker = 604;
     DpuDispFrameDoneTimeoutFtraceEvent dpu_disp_frame_done_timeout = 605;
     DpuDispFrameStartTimeoutFtraceEvent dpu_disp_frame_start_timeout = 606;
+    MmVmscanMemcgReclaimBeginFtraceEvent mm_vmscan_memcg_reclaim_begin = 607;
+    MmVmscanMemcgReclaimEndFtraceEvent mm_vmscan_memcg_reclaim_end = 608;
   }
 }
 
