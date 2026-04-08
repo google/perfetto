@@ -25,6 +25,7 @@ _subprocess_supported =
 
 perfetto_component("base") {
   deps = [
+    ":regex",
     "../../gn:base_platform",
     "../../gn:default_deps",
   ]
@@ -87,6 +88,30 @@ perfetto_component("base") {
 
   if (enable_perfetto_stderr_crash_dump) {
     deps += [ ":debug_crash_stack_trace" ]
+  }
+}
+
+source_set("regex") {
+  sources = [
+    "regex/regex.cc",
+    "regex/regex_std.h",
+  ]
+  if (enable_perfetto_re2) {
+    sources += [ "regex/regex_re2.h" ]
+  }
+  if (enable_perfetto_pcre2) {
+    sources += [ "regex/regex_pcre2.h" ]
+  }
+  deps = [ "../../gn:default_deps" ]
+  public_deps = [
+    "../../include/perfetto/base",
+    "../../include/perfetto/ext/base",
+  ]
+  if (enable_perfetto_re2) {
+    public_deps += [ "../../gn:re2" ]
+  }
+  if (enable_perfetto_pcre2) {
+    public_deps += [ "../../gn:pcre2" ]
   }
 }
 
@@ -198,6 +223,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":base",
+    ":regex",
     ":test_support",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
@@ -226,6 +252,7 @@ perfetto_unittest_source_set("unittests") {
     "no_destructor_unittest.cc",
     "paged_memory_unittest.cc",
     "periodic_task_unittest.cc",
+    "regex/regex_unittest.cc",
     "rt_mutex_unittest.cc",
     "scoped_file_unittest.cc",
     "scoped_mmap_unittest.cc",
@@ -307,11 +334,13 @@ if (enable_perfetto_benchmarks) {
     deps = [
       ":base",
       ":flat_hash_map_benchmark",
+      ":regex",
       "../../gn:benchmark",
       "../../gn:default_deps",
     ]
     sources = [
       "flat_set_benchmark.cc",
+      "regex/regex_benchmark.cc",
       "rt_mutex_benchmark.cc",
       "task_runner_benchmark.cc",
     ]

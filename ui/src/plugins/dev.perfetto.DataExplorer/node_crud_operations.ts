@@ -17,7 +17,12 @@ import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import type {CleanupManager} from './query_builder/cleanup_manager';
 import type {NodeActionHandlers} from './node_actions';
 import {createDeferredNodeActions} from './node_actions';
-import {QueryNode, QueryNodeState, singleNodeOperation} from './query_node';
+import {
+  QueryNode,
+  QueryNodeState,
+  NodeType,
+  singleNodeOperation,
+} from './query_node';
 import {nodeRegistry, type PreCreateState} from './query_builder/node_registry';
 import {
   getAllNodes,
@@ -134,12 +139,17 @@ export async function addOperationNode(
     deps.initializedNodes.add(newNode.nodeId);
 
     if (singleNodeOperation(newNode.type)) {
+      // Group nodes never dock children because their inner subgraph is
+      // hidden; docking would visually merge a child into the group box.
+      const parentIsGroup = parentNode.type === NodeType.kGroup;
       // Check if parent has any undocked (detached) children.
       // If so, the new node should also be undocked rather than inserted
       // between the parent and its children.
-      const hasUndockedChildren = parentNode.nextNodes.some((child) =>
-        isNodeUndocked(child, state.nodeLayouts),
-      );
+      const hasUndockedChildren =
+        parentIsGroup ||
+        parentNode.nextNodes.some((child) =>
+          isNodeUndocked(child, state.nodeLayouts),
+        );
 
       if (hasUndockedChildren) {
         // Capture docked children before modifying connections — they need

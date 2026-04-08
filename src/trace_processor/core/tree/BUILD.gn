@@ -16,6 +16,11 @@ import("../../../../gn/test.gni")
 
 source_set("tree") {
   sources = [
+    "propagate_spec.cc",
+    "propagate_spec.h",
+    "tree_columns.h",
+    "tree_columns_builder.cc",
+    "tree_columns_builder.h",
     "tree_transformer.cc",
     "tree_transformer.h",
   ]

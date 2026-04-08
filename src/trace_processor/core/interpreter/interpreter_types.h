@@ -29,6 +29,7 @@
 #include "src/trace_processor/core/common/null_types.h"
 #include "src/trace_processor/core/common/op_types.h"
 #include "src/trace_processor/core/common/storage_types.h"
+#include "src/trace_processor/core/common/tree_types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
 #include "src/trace_processor/core/util/slab.h"
@@ -267,6 +268,16 @@ struct TreeState {
   // Scratch buffers (allocated once at max size, reused).
   Slab<uint32_t> scratch1;  // initial_row_count * 2
   Slab<uint32_t> scratch2;  // initial_row_count
+
+  // Propagation specs: set by TreeTransformer, consumed by PropagateTreeDown.
+  // Each PropagateTreeDown bytecode processes a contiguous range of specs.
+  struct PropagateDownSpec {
+    PropagateAggOp agg_op;
+    uint32_t source_ts_col;  // index into |columns| to copy FROM
+    uint32_t dest_ts_col;    // index into |columns| to propagate INTO
+    StorageType storage_type;
+  };
+  std::vector<PropagateDownSpec> propagate_down_specs;
 };
 
 }  // namespace perfetto::trace_processor::core::interpreter

@@ -18,6 +18,8 @@ source_set("shell") {
   sources = [
     "common_flags.cc",
     "common_flags.h",
+    "convert_subcommand.cc",
+    "convert_subcommand.h",
     "export_subcommand.cc",
     "export_subcommand.h",
     "interactive.cc",
@@ -52,6 +54,7 @@ source_set("shell") {
     "../../base",
     "../../base:version",
     "../../protozero/text_to_proto:text_to_proto",
+    "../../traceconv:traceconv_lib",
     "../metrics",
     "../rpc",
     "../rpc:stdiod",

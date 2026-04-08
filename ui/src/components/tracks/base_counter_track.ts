@@ -29,8 +29,7 @@ import {
   TrackSettingDescriptor,
 } from '../../public/track';
 import {LONG, NUM} from '../../trace_processor/query_result';
-import {Button} from '../../widgets/button';
-import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
+import {MenuItem} from '../../widgets/menu';
 import {checkerboardExcept} from '../checkerboard';
 import {valueIfAllEqual} from '../../base/array_utils';
 import {deferChunkedTask} from '../../base/chunked_task';
@@ -100,9 +99,14 @@ function roundAway(n: number): number {
   return Math.sign(n) * (Math.ceil(Math.abs(n) / (pow10 / 20)) * (pow10 / 20));
 }
 
-function toLabel(n: number): string {
+// Known SI base units. When the counter's unit is one of these, the SI prefix
+// from value scaling is attached to the unit (e.g. "2 GHz") rather than the
+// number (e.g. "2G Hz").
+const SI_BASE_UNITS = new Set(['Hz', 'B', 'b', 'W', 'V', 'A', 'J', 's']);
+
+function toLabelAndPrefix(n: number): {label: string; prefix: string} {
   if (n === 0) {
-    return '0';
+    return {label: '0', prefix: ''};
   }
   const units: [number, string][] = [
     [0.000000001, 'n'],
@@ -124,7 +128,10 @@ function toLabel(n: number): string {
     }
     [largestMultiplier, largestUnit] = [multiplier, unit];
   }
-  return `${Math.round(n / largestMultiplier)}${largestUnit}`;
+  return {
+    label: `${Math.round(n / largestMultiplier)}`,
+    prefix: largestUnit,
+  };
 }
 
 class RangeSharer {
@@ -455,7 +462,7 @@ const chartHeightSizeSettingDescriptor: TrackSettingDescriptor<ChartHeightSize> 
     defaultValue: 1,
     render(setter, values) {
       const value = valueIfAllEqual(values);
-      return m(MenuItem, {label: `Enlarge (currently: ${value ?? 'mixed'})`}, [
+      return m(MenuItem, {label: `Size (currently: ${value ?? 'mixed'})`}, [
         CHART_HEIGHT_LABELS.map(([label, size]) =>
           m(MenuItem, {
             label,
@@ -466,6 +473,18 @@ const chartHeightSizeSettingDescriptor: TrackSettingDescriptor<ChartHeightSize> 
       ]);
     },
   };
+
+function makeYRangeSharingDescriptor(
+  key: string,
+): TrackSettingDescriptor<boolean> {
+  return {
+    id: 'yRangeSharing',
+    name: `Share y-axis scale (group: ${key})`,
+    description: 'Share y-axis range with other tracks in the same group',
+    schema: z.boolean(),
+    defaultValue: false,
+  };
+}
 
 // Result from mipmap table creation
 interface MipmapTableResult extends AsyncDisposable {
@@ -571,164 +590,6 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     return height * this.getCounterOptions().chartHeightSize;
   }
 
-  // A method to render menu items for switching the defualt
-  // rendering options.  Useful if a subclass wants to incorporate it
-  // as a submenu.
-  protected getCounterContextMenuItems(): m.Children {
-    const options = this.getCounterOptions();
-
-    return [
-      m(
-        MenuItem,
-        {
-          label: `Display (currently: ${options.yDisplay})`,
-        },
-
-        m(MenuItem, {
-          label: 'Zero-based',
-          icon:
-            options.yDisplay === 'zero'
-              ? 'radio_button_checked'
-              : 'radio_button_unchecked',
-          onclick: () => {
-            options.yDisplay = 'zero';
-            this.invalidate();
-          },
-        }),
-
-        m(MenuItem, {
-          label: 'Min/Max',
-          icon:
-            options.yDisplay === 'minmax'
-              ? 'radio_button_checked'
-              : 'radio_button_unchecked',
-          onclick: () => {
-            options.yDisplay = 'minmax';
-            this.invalidate();
-          },
-        }),
-
-        m(MenuItem, {
-          label: 'Log',
-          icon:
-            options.yDisplay === 'log'
-              ? 'radio_button_checked'
-              : 'radio_button_unchecked',
-          onclick: () => {
-            options.yDisplay = 'log';
-            this.invalidate();
-          },
-        }),
-      ),
-
-      m(
-        MenuItem,
-        {
-          label: `Enlarge (currently: ${options.chartHeightSize}x)`,
-        },
-        CHART_HEIGHT_LABELS.map(([label, size]) =>
-          m(MenuItem, {
-            label,
-            icon:
-              options.chartHeightSize === size
-                ? 'radio_button_checked'
-                : 'radio_button_unchecked',
-            onclick: () => {
-              options.chartHeightSize = size;
-              this.invalidate();
-            },
-          }),
-        ),
-      ),
-
-      m(MenuItem, {
-        label: 'Zoom on scroll',
-        icon:
-          options.yRange === 'viewport'
-            ? 'check_box'
-            : 'check_box_outline_blank',
-        onclick: () => {
-          options.yRange = options.yRange === 'viewport' ? 'all' : 'viewport';
-          this.invalidate();
-        },
-      }),
-
-      options.yRangeSharingKey &&
-        m(MenuItem, {
-          label: `Share y-axis scale (group: ${options.yRangeSharingKey})`,
-          icon: this.rangeSharer.isEnabled(options.yRangeSharingKey)
-            ? 'check_box'
-            : 'check_box_outline_blank',
-          onclick: () => {
-            const key = options.yRangeSharingKey;
-            if (key === undefined) {
-              return;
-            }
-            this.rangeSharer.setEnabled(key, !this.rangeSharer.isEnabled(key));
-            this.invalidate();
-          },
-        }),
-
-      m(MenuDivider),
-      m(
-        MenuItem,
-        {
-          label: `Mode (currently: ${options.yMode})`,
-        },
-
-        m(MenuItem, {
-          label: 'Value',
-          icon:
-            options.yMode === 'value'
-              ? 'radio_button_checked'
-              : 'radio_button_unchecked',
-          onclick: () => {
-            options.yMode = 'value';
-            this.invalidate();
-          },
-        }),
-
-        m(MenuItem, {
-          label: 'Delta',
-          icon:
-            options.yMode === 'delta'
-              ? 'radio_button_checked'
-              : 'radio_button_unchecked',
-          onclick: () => {
-            options.yMode = 'delta';
-            this.invalidate();
-          },
-        }),
-
-        m(MenuItem, {
-          label: 'Rate',
-          icon:
-            options.yMode === 'rate'
-              ? 'radio_button_checked'
-              : 'radio_button_unchecked',
-          onclick: () => {
-            options.yMode = 'rate';
-            this.invalidate();
-          },
-        }),
-      ),
-      m(MenuItem, {
-        label: 'Round y-axis scale',
-        icon:
-          options.yRangeRounding === 'human_readable'
-            ? 'check_box'
-            : 'check_box_outline_blank',
-        onclick: () => {
-          options.yRangeRounding =
-            options.yRangeRounding === 'human_readable'
-              ? 'strict'
-              : 'human_readable';
-          this.invalidate();
-        },
-      }),
-    ];
-  }
-
   protected invalidate() {
     this.limits = undefined;
     this.counters = undefined;
@@ -736,27 +597,6 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     this.hover = undefined;
 
     this.trace.raf.scheduleFullRedraw();
-  }
-
-  // A method to render a context menu corresponding to switching the rendering
-  // modes. By default, getTrackShellButtons renders it, but a subclass can call
-  // it manually, if they want to customise rendering track buttons.
-  protected getCounterContextMenu(): m.Child {
-    return m(
-      PopupMenu,
-      {
-        trigger: m(Button, {
-          className: 'pf-visible-on-hover',
-          icon: 'show_chart',
-          compact: true,
-        }),
-      },
-      this.getCounterContextMenuItems(),
-    );
-  }
-
-  getTrackShellButtons(): m.Children {
-    return this.getCounterContextMenu();
   }
 
   readonly yModeSetting: TrackSetting<yMode> = {
@@ -804,13 +644,28 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     },
   };
 
-  readonly settings: ReadonlyArray<TrackSetting<unknown>> = [
-    this.yModeSetting,
-    this.yRangeSetting,
-    this.yDisplaySetting,
-    this.yRangeRoundingSetting,
-    this.chartHeightSizeSetting,
-  ];
+  get settings(): ReadonlyArray<TrackSetting<unknown>> {
+    const key = this.getCounterOptions().yRangeSharingKey;
+    return [
+      this.yDisplaySetting,
+      this.chartHeightSizeSetting,
+      this.yRangeSetting,
+      ...(key !== undefined
+        ? [
+            {
+              descriptor: makeYRangeSharingDescriptor(key),
+              getValue: () => this.rangeSharer.isEnabled(key),
+              setValue: (v: boolean) => {
+                this.rangeSharer.setEnabled(key, v);
+                this.invalidate();
+              },
+            },
+          ]
+        : []),
+      this.yModeSetting,
+      this.yRangeRoundingSetting,
+    ];
+  }
 
   /**
    * Declaratively fetches data for the track. Updates internal state
@@ -1151,26 +1006,27 @@ export abstract class BaseCounterTrack implements TrackRenderer {
         max = Math.exp(max);
         min = Math.exp(min);
       }
-      if (max < 0) {
-        yLabel = toLabel(min - max);
-      } else {
-        yLabel = toLabel(max - min);
+      const range = max < 0 ? min - max : max - min;
+      const {label, prefix} = toLabelAndPrefix(range);
+      const unit = this.unit;
+      // When the unit is a known SI base unit, attach the prefix to the unit
+      // (e.g. "2 GHz"). Otherwise keep prefix on the number (e.g. "2M kHz").
+      const formattedLabel = SI_BASE_UNITS.has(unit)
+        ? `${label} ${prefix}${unit}`
+        : `${label}${prefix} ${unit}`;
+      switch (options.yMode) {
+        case 'value':
+          yLabel = formattedLabel;
+          break;
+        case 'delta':
+          yLabel = `\u0394${formattedLabel}`;
+          break;
+        case 'rate':
+          yLabel = `${label}${prefix} ${this.rateUnit}`;
+          break;
+        default:
+          assertUnreachable(options.yMode);
       }
-    }
-
-    const unit = this.unit;
-    switch (options.yMode) {
-      case 'value':
-        yLabel += ` ${unit}`;
-        break;
-      case 'delta':
-        yLabel += `\u0394${unit}`;
-        break;
-      case 'rate':
-        yLabel += ` ${this.rateUnit}`;
-        break;
-      default:
-        assertUnreachable(options.yMode);
     }
 
     if (options.yDisplay === 'log') {

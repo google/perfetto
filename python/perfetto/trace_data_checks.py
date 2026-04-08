@@ -40,6 +40,8 @@ MODULE_DATA_CHECK_SQL = {
         'SELECT 1 FROM slice WHERE name IN (\'bindApplication\', \'activityStart\', \'activityResume\')',
 
     # MID IMPORTANCE TABLES
+    'android.freezer':
+        'SELECT 1 FROM slice WHERE name GLOB \'Freeze *\'',
     'android.anrs':
         'SELECT 1 FROM slice WHERE name GLOB \'*ApplicationNotResponding*\'',
     'android.battery':
@@ -77,10 +79,16 @@ MODULE_DATA_CHECK_SQL = {
     'chrome.startups':
         'SELECT 1 FROM thread_slice WHERE name = \'Startup.ActivityStart\'',
 
+    # PKVM TABLES
+    'pkvm.hypervisor':
+        'SELECT 1 FROM slice WHERE category = \'pkvm_hyp\'',
+
     # PIXEL TABLES
     'pixel.camera':
         'SELECT 1 FROM slice WHERE name GLOB \'cam*_*:* (frame *)\'',
     # INTRINSIC-BASED TABLES - Android
+    'android.memory.memory_breakdown':
+        'SELECT 1 FROM process_counter_track WHERE name IN (\'mem.rss.anon\', \'mem.swap\', \'mem.rss.file\', \'mem.rss.shmem\', \'Heap size (KB)\')',
     'android.cpu.cpu_per_uid':
         'SELECT 1 FROM __intrinsic_android_cpu_per_uid_track',
     'android.kernel_wakelocks':
@@ -122,4 +130,34 @@ MODULE_DATA_CHECK_SQL = {
         'SELECT 1 FROM __intrinsic_ftrace_event',
     'prelude.after_eof.tracks':
         'SELECT 1 FROM __intrinsic_track',
+}
+
+# Table name -> SQL query that checks if data exists for a specific table.
+# Used for tables in modules where a single module-level check is too coarse
+# (e.g. prelude.after_eof.views defines many unrelated views).
+# Query returns 1 if data present, 0 if not.
+TABLE_DATA_CHECK_SQL = {
+    # From prelude.after_eof.views
+    'slice':
+        'SELECT 1 FROM __intrinsic_slice',
+    'counter':
+        'SELECT 1 FROM __intrinsic_counter',
+    'thread':
+        'SELECT 1 FROM __intrinsic_thread',
+    'process':
+        'SELECT 1 FROM __intrinsic_process',
+    'thread_or_process_slice':
+        'SELECT 1 FROM __intrinsic_slice',
+
+    # From prelude.after_eof.views (profiling / virtualization)
+    'cpu_profile_stack_sample':
+        'SELECT 1 FROM __intrinsic_cpu_profile_stack_sample',
+    'pkvm_hypervisor_events':
+        'SELECT 1 FROM slice WHERE category = \'pkvm_hyp\'',
+
+    # From prelude.after_eof.cpu_scheduling
+    'sched':
+        'SELECT 1 FROM __intrinsic_sched_slice',
+    'thread_state':
+        'SELECT 1 FROM __intrinsic_thread_state',
 }

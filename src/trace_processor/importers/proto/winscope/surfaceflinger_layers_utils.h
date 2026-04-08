@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_SURFACEFLINGER_LAYERS_UTILS_H_
 
 #include <optional>
+#include "protos/perfetto/trace/android/graphics/corner_radii.pbzero.h"
 #include "protos/perfetto/trace/android/graphics/rect.pbzero.h"
 #include "protos/perfetto/trace/android/surfaceflinger_common.pbzero.h"
 #include "protos/perfetto/trace/android/surfaceflinger_layers.pbzero.h"

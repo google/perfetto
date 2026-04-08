@@ -33,3 +33,20 @@ test('displayName with empty string name uses empty string', () => {
   const gpu = new Gpu(1, 0, 0, '');
   expect(gpu.displayName).toBe('GPU 0');
 });
+
+test('sortOrder orders by machine then gpu', () => {
+  const gpu0m0 = new Gpu(1, 0, 0);
+  const gpu1m0 = new Gpu(2, 1, 0);
+  const gpu0m1 = new Gpu(3, 0, 1);
+  const gpu1m1 = new Gpu(4, 1, 1);
+
+  expect(gpu0m0.sortOrder).toBeLessThan(gpu1m0.sortOrder);
+  expect(gpu1m0.sortOrder).toBeLessThan(gpu0m1.sortOrder);
+  expect(gpu0m1.sortOrder).toBeLessThan(gpu1m1.sortOrder);
+});
+
+test('sortOrder same gpu and machine are equal', () => {
+  const a = new Gpu(1, 2, 3);
+  const b = new Gpu(5, 2, 3);
+  expect(a.sortOrder).toBe(b.sortOrder);
+});

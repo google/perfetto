@@ -45,7 +45,13 @@ import {QueryExecutionService} from './query_builder/query_execution_service';
 import {CleanupManager} from './query_builder/cleanup_manager';
 import {HistoryManager} from './history_manager';
 import {getPrimarySelectedNode} from './selection_utils';
-import {getAllNodes} from './query_builder/graph_utils';
+import {
+  getAllNodes,
+  createGroupFromSelection,
+  applyGroupRewiring,
+  ungroupNode,
+} from './query_builder/graph_utils';
+import {GroupNode} from './query_builder/nodes/group_node';
 import {
   cleanupExistingNodes,
   addOperationNode,
@@ -537,6 +543,26 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
       this.activeGraphIODeps = graphIODeps;
     }
 
+    const doUngroup = (groupNode: GroupNode) => {
+      wrappedOnStateUpdate((currentState) => {
+        // ungroupNode performs in-place graph mutations (rewiring
+        // nextNodes/primaryInput) matching the applyGroupRewiring pattern.
+        ungroupNode(groupNode);
+        const newRootNodes = currentState.rootNodes
+          .filter((n) => n.nodeId !== groupNode.nodeId)
+          .concat(groupNode.innerNodes);
+        const newNodeLayouts = new Map(currentState.nodeLayouts);
+        newNodeLayouts.delete(groupNode.nodeId);
+        const innerIds = new Set(groupNode.innerNodes.map((n) => n.nodeId));
+        return {
+          ...currentState,
+          rootNodes: newRootNodes,
+          nodeLayouts: newNodeLayouts,
+          selectedNodes: innerIds,
+        };
+      });
+    };
+
     // Sized wrapper so DrawerPanel can read a non-zero clientHeight;
     // Gate (display:contents) elements have clientHeight === 0.
     return m(
@@ -629,6 +655,67 @@ export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
               attrs.onTabAddWithState(title, newState, tab.id),
             ),
           onExport: () => exportGraph(state, trace),
+          onCreateGroup: (selectedNodeIds) => {
+            wrappedOnStateUpdate((currentState) => {
+              // Validate against currentState so we never act on a stale
+              // snapshot.
+              const allNodes = getAllNodes(currentState.rootNodes);
+              const result = createGroupFromSelection(
+                selectedNodeIds,
+                allNodes,
+              );
+
+              if (!result.ok) {
+                showModal({
+                  title: 'Cannot create group',
+                  content: () => m('p', result.error),
+                  buttons: [{text: 'OK', action: () => {}}],
+                });
+                return currentState;
+              }
+
+              const groupNode = result.value;
+              applyGroupRewiring(groupNode);
+
+              // Remove inner nodes from rootNodes and add the group instead.
+              // Inner nodes are now reachable via GroupNode.innerNodes
+              // (getAllNodes traverses into groups automatically).
+              const newRootNodes = currentState.rootNodes
+                .filter((n) => !selectedNodeIds.has(n.nodeId))
+                .concat(groupNode);
+
+              // Place the group at the centroid of the inner nodes' layouts.
+              const newNodeLayouts = new Map(currentState.nodeLayouts);
+              let sumX = 0;
+              let sumY = 0;
+              let count = 0;
+              for (const id of selectedNodeIds) {
+                const layout = newNodeLayouts.get(id);
+                if (layout !== undefined) {
+                  sumX += layout.x;
+                  sumY += layout.y;
+                  count++;
+                }
+                newNodeLayouts.delete(id);
+              }
+              if (count > 0) {
+                newNodeLayouts.set(groupNode.nodeId, {
+                  x: sumX / count,
+                  y: sumY / count,
+                });
+              }
+
+              return {
+                ...currentState,
+                rootNodes: newRootNodes,
+                nodeLayouts: newNodeLayouts,
+                selectedNodes: new Set([groupNode.nodeId]),
+              };
+            });
+          },
+          onUngroupNode: (node) => {
+            if (node instanceof GroupNode) doUngroup(node);
+          },
         },
         onLoadEmptyTemplate: async () => {
           if (!(await confirmAndFinalizeCurrentGraph(state))) return;

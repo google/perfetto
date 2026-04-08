@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -40,7 +41,6 @@
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/interpreter/bytecode_to_string.h"
 #include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/util/regex.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::dataframe {
@@ -358,9 +358,6 @@ TEST_F(DataframeBytecodeTest, SortingOfFilters) {
 }
 
 TEST_F(DataframeBytecodeTest, StringFilter) {
-  if constexpr (!regex::IsRegexSupported()) {
-    GTEST_SKIP() << "Regex is not supported";
-  }
   std::vector<Column> cols = MakeColumnVector(Column{
       Storage::String{}, NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
   std::vector<FilterSpec> filters = {

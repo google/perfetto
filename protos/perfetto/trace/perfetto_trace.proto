@@ -6392,6 +6392,14 @@ message FrameTimelineEvent {
 
     // jank metadata information (for debug).
     optional float jank_debug_metadata = 18;
+
+    enum LatchedFenceState {
+      LATCHED_UNKNOWN = 0;
+      LATCHED_SIGNALED = 1;
+      LATCHED_UNSIGNALED = 2;
+      LATCHED_DELAYED_LATCH_UNSIGNALED = 3;
+    }
+    optional LatchedFenceState latched_fence_state = 19;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.
@@ -6450,6 +6458,9 @@ message FrameTimelineEvent {
 
     // jank metadata information (for debug).
     optional float jank_debug_metadata = 14;
+
+    optional int64 latched_unsignaled_count = 15;
+    optional int64 addressable_unsignaled_latch_count = 16;
   };
 
   // FrameEnd just sends the cookie to indicate that the corresponding
@@ -6861,6 +6872,17 @@ message ShellHandlerMapping {
 
 // End of protos/perfetto/trace/android/shell_transition.proto
 
+// Begin of protos/perfetto/trace/android/graphics/corner_radii.proto
+
+message CornerRadiiProto {
+  optional float tl = 1;
+  optional float tr = 2;
+  optional float bl = 3;
+  optional float br = 4;
+}
+
+// End of protos/perfetto/trace/android/graphics/corner_radii.proto
+
 // Begin of protos/perfetto/trace/android/surfaceflinger_common.proto
 
 message RegionProto {
@@ -7200,6 +7222,12 @@ message LayerProto {
 
   // "True" corner radii of the layer computed by SurfaceFlinger.
   optional CornerRadiiProto effective_radii = 67;
+
+  // Reported corner radii of the layer.
+  optional CornerRadiiProto reported_radii = 68;
+
+  // Flag indicating if client-drawn radii are disabled.
+  optional bool disable_client_drawn_radii = 69;
 }
 
 message PositionProto {
@@ -7212,13 +7240,6 @@ message FloatRectProto {
   optional float top = 2;
   optional float right = 3;
   optional float bottom = 4;
-}
-
-message CornerRadiiProto {
-  optional float tl = 1;
-  optional float tr = 2;
-  optional float bl = 3;
-  optional float br = 4;
 }
 
 message ActiveBufferProto {

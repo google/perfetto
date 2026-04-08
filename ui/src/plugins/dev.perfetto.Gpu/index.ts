@@ -25,9 +25,36 @@ import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_slice_track';
 
+// GPU frequency track that converts kHz values to Hz so that the generic
+// counter renderer produces correct SI-prefixed labels (e.g. "2 GHz").
+class GpuFreqTrack extends TraceProcessorCounterTrack {
+  private readonly freqTrackId: number;
+
+  constructor(
+    trace: Trace,
+    uri: string,
+    freqTrackId: number,
+    trackName: string,
+  ) {
+    super(trace, uri, {unit: 'Hz'}, freqTrackId, trackName);
+    this.freqTrackId = freqTrackId;
+  }
+
+  override getSqlSource() {
+    return `
+      select id, ts, value * 1000 as value, arg_set_id
+      from counter
+      where track_id = ${this.freqTrackId}
+    `;
+  }
+}
+
 interface GpuCounterSchema {
   readonly type: string;
   readonly group: string | undefined;
+  // Sort order for the top-level group under GPU. Groups with undefined
+  // sortOrder default to 0 (top); summary-only groups use higher values.
+  readonly groupSortOrder: number | undefined;
   // When set, the track is named "${gpu.displayName} ${gpuTrackName}" instead
   // of using the DB track name. This avoids redundant prefixes like
   // "GPU 0 GPU Memory" by allowing explicit control (e.g., "GPU 0 Memory").
@@ -37,43 +64,90 @@ interface GpuCounterSchema {
 interface GpuSliceSchema {
   readonly type: string;
   readonly group: string | undefined;
+  readonly groupSortOrder: number | undefined;
 }
 
+// Sort order base for summary-only groups (Counters, Hardware Queues, etc.)
+// that should appear below leaf tracks (Frequency, Memory).
+const SUMMARY_GROUP_SORT_BASE = 1000000;
+
 const GPU_COUNTER_SCHEMAS: ReadonlyArray<GpuCounterSchema> = [
-  {type: 'gpu_counter', group: 'Counters', gpuTrackName: undefined},
-  {type: 'gpu_memory', group: undefined, gpuTrackName: 'Memory'},
-  {type: 'virtgpu_latency', group: 'Virtgpu Latency', gpuTrackName: undefined},
+  {
+    type: 'gpu_counter',
+    group: 'Counters',
+    groupSortOrder: SUMMARY_GROUP_SORT_BASE,
+    gpuTrackName: undefined,
+  },
+  {
+    type: 'gpu_memory',
+    group: undefined,
+    groupSortOrder: undefined,
+    gpuTrackName: 'Memory',
+  },
+  {
+    type: 'virtgpu_latency',
+    group: 'Virtgpu Latency',
+    groupSortOrder: SUMMARY_GROUP_SORT_BASE,
+    gpuTrackName: undefined,
+  },
   {
     type: 'virtgpu_num_free',
     group: 'Virtgpu num_free',
+    groupSortOrder: SUMMARY_GROUP_SORT_BASE,
     gpuTrackName: undefined,
   },
   {
     type: 'vulkan_device_mem_allocation',
     group: 'Vulkan Allocations',
+    groupSortOrder: SUMMARY_GROUP_SORT_BASE,
     gpuTrackName: undefined,
   },
   {
     type: 'vulkan_device_mem_bind',
     group: 'Vulkan Binds',
+    groupSortOrder: SUMMARY_GROUP_SORT_BASE,
     gpuTrackName: undefined,
   },
   {
     type: 'vulkan_driver_mem',
     group: 'Vulkan Driver Memory',
+    groupSortOrder: SUMMARY_GROUP_SORT_BASE,
     gpuTrackName: undefined,
   },
 ];
 
 const GPU_SLICE_SCHEMAS: ReadonlyArray<GpuSliceSchema> = [
-  {type: 'mali_mcu_state', group: undefined},
-  {type: 'virtgpu_queue_event', group: 'Virtio GPU Events'},
-  {type: 'gpu_render_stage', group: 'Hardware Queues'},
-  {type: 'vulkan_events', group: undefined},
-  {type: 'gpu_log', group: undefined},
-  {type: 'graphics_frame_event', group: undefined},
+  {type: 'mali_mcu_state', group: undefined, groupSortOrder: undefined},
+  {
+    type: 'virtgpu_queue_event',
+    group: 'Virtio GPU Events',
+    groupSortOrder: SUMMARY_GROUP_SORT_BASE,
+  },
+  {
+    type: 'gpu_render_stage',
+    group: 'Hardware Queues',
+    groupSortOrder: SUMMARY_GROUP_SORT_BASE,
+  },
+  {type: 'vulkan_events', group: undefined, groupSortOrder: undefined},
+  {type: 'gpu_log', group: undefined, groupSortOrder: undefined},
+  {type: 'graphics_frame_event', group: undefined, groupSortOrder: undefined},
 ];
 
+// Track ordering
+// ---------------
+// GPU tracks are sorted using TrackNode.sortOrder combined with insertion
+// order (addChildInOrder inserts before the first child with a strictly
+// greater sortOrder; equal values preserve insertion order).
+//
+// 1. GPU identity: tracks for different GPUs are separated by
+//    Gpu.sortOrder (= machine * MAX_GPUS_PER_MACHINE + gpu), so GPU 0
+//    appears before GPU 1, and machines sort first.
+// 2. Leaf before summary: leaf tracks (Frequency, Memory) use low
+//    sortOrder values (>= 0). Summary-only groups (Counters, Hardware
+//    Queues, etc.) use SUMMARY_GROUP_SORT_BASE so they appear below
+//    leaf tracks.
+// 3. Alphabetical: SQL queries use ORDER BY lower(name) so leaf tracks
+//    are iterated — and thus inserted — in alphabetical order.
 export default class GpuPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.Gpu';
   static readonly dependencies = [
@@ -100,7 +174,6 @@ export default class GpuPlugin implements PerfettoPlugin {
       select
         gct.id,
         gct.gpu_id as gpuId,
-        gct.unit,
         gct.machine_id as machineId,
         gct.ugpu,
         g.name as gpuName
@@ -113,13 +186,11 @@ export default class GpuPlugin implements PerfettoPlugin {
 
     const tracks: Array<{
       id: number;
-      unit: string | null;
       gpu: Gpu;
     }> = [];
     const it = result.iter({
       id: NUM,
       gpuId: NUM,
-      unit: STR_NULL,
       machineId: NUM,
       ugpu: NUM_NULL,
       gpuName: STR_NULL,
@@ -127,7 +198,6 @@ export default class GpuPlugin implements PerfettoPlugin {
     for (; it.valid(); it.next()) {
       tracks.push({
         id: it.id,
-        unit: it.unit,
         gpu: new Gpu(
           it.ugpu ?? it.gpuId,
           it.gpuId,
@@ -144,12 +214,12 @@ export default class GpuPlugin implements PerfettoPlugin {
     // Only create a sub-group if there's more than one track.
     let parent: TrackNode;
     if (tracks.length > 1) {
-      parent = this.getGroupByName(gpuGroup, 'GPU Frequency', null);
+      parent = this.getGroupByName(gpuGroup, 'Frequency', null);
     } else {
       parent = gpuGroup;
     }
 
-    for (const {id, unit, gpu} of tracks) {
+    for (const {id, gpu} of tracks) {
       const uri = `/gpu_frequency_${gpu.ugpu}`;
       const name = `${gpu.displayName} Frequency${gpu.maybeMachineLabel()}`;
       ctx.tracks.registerTrack({
@@ -158,15 +228,15 @@ export default class GpuPlugin implements PerfettoPlugin {
           kinds: [COUNTER_TRACK_KIND],
           trackIds: [id],
         },
-        renderer: new TraceProcessorCounterTrack(
-          ctx,
-          uri,
-          {unit: unit ?? undefined},
-          id,
-          name,
-        ),
+        renderer: new GpuFreqTrack(ctx, uri, id, name),
       });
-      parent.addChildInOrder(new TrackNode({uri, name, sortOrder: -20}));
+      parent.addChildInOrder(
+        new TrackNode({
+          uri,
+          name,
+          sortOrder: gpu.sortOrder,
+        }),
+      );
     }
   }
 
@@ -179,13 +249,19 @@ export default class GpuPlugin implements PerfettoPlugin {
   private addToGpuGroup(
     ctx: Trace,
     group: string | undefined,
+    groupSortOrder: number | undefined,
     gpu: Gpu | null,
     track: TrackNode,
   ) {
     const gpuGroup = this.getGpuGroup(ctx);
 
     if (gpu !== null && group !== undefined && this.gpuCount > 1) {
-      const parentGroup = this.getGroupByName(gpuGroup, group, null);
+      const parentGroup = this.getGroupByName(
+        gpuGroup,
+        group,
+        null,
+        groupSortOrder,
+      );
       const gpuSubGroupName = `${gpu.displayName} ${group}${gpu.maybeMachineLabel()}`;
       const scopeId =
         gpu.machine > 0 ? `${gpu.gpu}_m${gpu.machine}` : `${gpu.gpu}`;
@@ -193,10 +269,16 @@ export default class GpuPlugin implements PerfettoPlugin {
         parentGroup,
         gpuSubGroupName,
         scopeId,
+        gpu.sortOrder,
       );
       gpuSubGroup.addChildInOrder(track);
     } else {
-      this.getGroupByName(gpuGroup, group, null).addChildInOrder(track);
+      this.getGroupByName(
+        gpuGroup,
+        group,
+        null,
+        groupSortOrder,
+      ).addChildInOrder(track);
     }
   }
 
@@ -204,11 +286,13 @@ export default class GpuPlugin implements PerfettoPlugin {
     node: TrackNode,
     group: string | undefined,
     scopeId: string | null,
+    sortOrder?: number,
   ): TrackNode {
     if (group === undefined) {
       return node;
     }
-    const groupId = `gpu_group_${scopeId}_${group.toLowerCase().replace(' ', '_')}`;
+    const parentId = node.uri ?? 'root';
+    const groupId = `gpu_group_${scopeId}_${parentId}_${group.toLowerCase().replace(' ', '_')}`;
     const groupNode = this.groups.get(groupId);
     if (groupNode) {
       return groupNode;
@@ -218,6 +302,7 @@ export default class GpuPlugin implements PerfettoPlugin {
       isSummary: true,
       name: group,
       collapsed: true,
+      sortOrder,
     });
     node.addChildInOrder(newGroup);
     this.groups.set(groupId, newGroup);
@@ -325,7 +410,7 @@ export default class GpuPlugin implements PerfettoPlugin {
     }
 
     // Count ungrouped tracks per type to decide if a sub-group is needed,
-    // matching the GPU Frequency pattern: only create a sub-group when
+    // matching the Frequency pattern: only create a sub-group when
     // there are multiple tracks of the same type.
     const ungroupedCounts = new Map<string, number>();
     for (const {schema} of counterTracks) {
@@ -342,17 +427,21 @@ export default class GpuPlugin implements PerfettoPlugin {
       let groupGpu = gpu;
       if (group === undefined && (ungroupedCounts.get(schema.type) ?? 0) > 1) {
         // Multiple tracks of the same ungrouped type: create a sub-group
-        // using the base track name (e.g., "GPU Memory") and add tracks
-        // directly under it without per-GPU sub-groups, matching how
-        // addGpuFreq handles GPU Frequency tracks.
-        group = baseName;
+        // and add tracks directly under it without per-GPU sub-groups,
+        // matching how addGpuFreq handles Frequency tracks.
+        group = schema.gpuTrackName ?? baseName;
         groupGpu = null;
       }
       this.addToGpuGroup(
         ctx,
         group,
+        schema.groupSortOrder,
         groupGpu,
-        new TrackNode({uri, name: trackName, sortOrder: 0}),
+        new TrackNode({
+          uri,
+          name: trackName,
+          sortOrder: gpu?.sortOrder ?? 0,
+        }),
       );
     }
   }
@@ -446,8 +535,13 @@ export default class GpuPlugin implements PerfettoPlugin {
       this.addToGpuGroup(
         ctx,
         schema.group,
+        schema.groupSortOrder,
         gpu,
-        new TrackNode({uri, name: trackName, sortOrder: 0}),
+        new TrackNode({
+          uri,
+          name: trackName,
+          sortOrder: gpu?.sortOrder ?? 0,
+        }),
       );
     }
   }

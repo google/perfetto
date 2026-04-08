@@ -320,6 +320,18 @@ BUILD_DEPS_HOST = [
         'https://storage.googleapis.com/perfetto/bloaty-1.1-b3b829de35babc2fe831b9488ad2e50bca939412-mac.zip',
         '2d301bd72a20e3f42888c9274ceb4dca76c103608053572322412c2c65ab8cb8',
         'darwin', 'all'),
+    # RE2 and PCRE2 for trace processor regex support.
+    # If updating the RE2 version, also update bazel/deps.bzl.
+    Dependency(
+        'buildtools/re2',
+        'https://chromium.googlesource.com/external/github.com/google/re2.git',
+        '927f5d53caf8111721e734cf24724686bb745f55', 'all', 'all'),
+    Dependency(
+        'buildtools/pcre2',
+        'https://github.com/PCRE2Project/pcre2.git',
+        '6ae58beca071f13ccfed31d03b3f479ab520639b',  # refs/tags/pcre2-10.44
+        'all',
+        'all'),
     Dependency(
         'buildtools/open_csd',
         'https://android.googlesource.com/platform/external/OpenCSD.git',
@@ -420,7 +432,7 @@ EMULATOR_DEPS_ANDROID = [
 # This variable is updated by tools/roll-catapult-trace-viewer.
 CATAPULT_SHA256 = 'b30108e05268ce6c65bb4126b65f6bfac165d17f5c1fd285046e7e6fd76c209f'
 
-TYPEFACES_SHA256 = 'd8e62cb0df55043cd3bccb20fb65008a2f4a98f3ba7d8f2f5b81e5eb46c011da'
+TYPEFACES_SHA256 = '8edaf662e24a910b232c9fc2f1a2a8aeea5bd32e74d0748c54a68f4b81717680'
 
 UI_DEPS = [
     Dependency(
@@ -787,7 +799,7 @@ def CheckPythonVenv():
   return True
 
 
-def InstallPythonVenv():
+def InstallPythonVenv(public_pypi=False):
   venv_pip = os.path.join(PYTHON_VENV_BIN_DIR, 'pip3')
   # Do not use sys.executable since that binary might live in the venv dir
   # we're about to remove right below.
@@ -797,7 +809,10 @@ def InstallPythonVenv():
   cmd = [python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
   logging.info(f'Installing python venv {" ".join(cmd)}')
   subprocess.check_call(cmd)
-  cmd = [venv_pip, 'install', '-r', PYTHON_REQUIREMENTS]
+  cmd = [venv_pip, 'install']
+  if public_pypi:
+    cmd += ['--index-url', 'https://pypi.org/simple/']
+  cmd += ['-r', PYTHON_REQUIREMENTS]
   logging.info(f'Updating python packages {" ".join(cmd)}')
   if subprocess.call(cmd) != 0:
     if shutil.which("gpkg"):
@@ -867,6 +882,10 @@ def Main():
       help='Node and NPM packages to Build the Web-based UI via ./ui/build')
   parser.add_argument(
       '--grpc', action='store_true', help='Packages to build gRPC')
+  parser.add_argument(
+      '--public-pypi',
+      action='store_true',
+      help='Force pip to use the public PyPI index (https://pypi.org/simple/)')
   parser.add_argument('--check-only')
   parser.add_argument('--filter', action='append')
   parser.add_argument('--verify', help='Check all URLs', action='store_true')
@@ -1027,7 +1046,7 @@ def Main():
     if args.check_only:
       deps_updated |= venv_needs_update
     elif venv_needs_update:
-      InstallPythonVenv()
+      InstallPythonVenv(public_pypi=args.public_pypi)
 
   if args.rust:
     if args.check_only:
