@@ -19,6 +19,7 @@ import {Time} from '../../base/time';
 import {
   createAggregationTab,
   createIITable,
+  dataGridModelSchema,
 } from '../../components/aggregation_adapter';
 import {
   metricsFromTableOrSubquery,
@@ -517,10 +518,26 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
 
   private addAggregations(ctx: Trace) {
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new CounterSelectionAggregator()),
+      createAggregationTab({
+        trace: ctx,
+        aggregator: new CounterSelectionAggregator(),
+        gridModelMemento: ctx.memento.register({
+          id: 'dev.perfetto.CounterAggregationGridModel',
+          schema: dataGridModelSchema,
+          defaultValue: {filters: []},
+        }),
+      }),
     );
     ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new SliceSelectionAggregator(ctx)),
+      createAggregationTab({
+        trace: ctx,
+        aggregator: new SliceSelectionAggregator(ctx),
+        gridModelMemento: ctx.memento.register({
+          id: 'dev.perfetto.SliceAggregationGridModel',
+          schema: dataGridModelSchema,
+          defaultValue: {filters: []},
+        }),
+      }),
     );
     ctx.selection.registerAreaSelectionTab(new PivotTableTab(ctx));
     ctx.selection.registerAreaSelectionTab(

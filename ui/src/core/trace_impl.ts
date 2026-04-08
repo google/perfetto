@@ -49,6 +49,8 @@ import {EvtSource} from '../base/events';
 import {Raf} from '../public/raf';
 import {StatusbarManagerImpl} from './statusbar_manager';
 import {SettingDescriptor} from '../public/settings';
+import {MementoManagerImpl} from './memento_manager';
+import {MementoDescriptor} from '../public/memento';
 import {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
 import {TraceStream} from '../public/stream';
@@ -176,6 +178,14 @@ export class TraceImpl implements Trace, Disposable {
       },
     });
 
+    this.mementoProxy = createProxy(app.memento, {
+      register: <T>(memento: MementoDescriptor<T>) => {
+        const disposable = app.memento.register(memento);
+        this.trash.use(disposable);
+        return disposable;
+      },
+    });
+
     this.omniboxProxy = createProxy(app.omnibox, {
       registerMode: (descriptor: OmniboxModeDescriptor) => {
         const disposable = app.omnibox.registerMode(descriptor);
@@ -211,6 +221,7 @@ export class TraceImpl implements Trace, Disposable {
   private readonly sidebarProxy: SidebarManagerImpl;
   private readonly pageMgrProxy: PageManagerImpl;
   private readonly settingsProxy: SettingsManagerImpl;
+  private readonly mementoProxy: MementoManagerImpl;
   private readonly omniboxProxy: OmniboxManagerImpl;
 
   scrollTo(where: ScrollToArgs): void {
@@ -325,6 +336,10 @@ export class TraceImpl implements Trace, Disposable {
 
   get settings(): SettingsManagerImpl {
     return this.settingsProxy;
+  }
+
+  get memento(): MementoManagerImpl {
+    return this.mementoProxy;
   }
 
   get isInternalUser(): boolean {

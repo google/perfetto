@@ -17,6 +17,7 @@ import {Time} from '../base/time';
 import {EngineBase} from '../trace_processor/engine';
 import {AppImpl} from './app_impl';
 import {InMemoryStorage} from './in_memory_storage';
+import {MementoManagerImpl} from './memento_manager';
 import {SettingsManagerImpl} from './settings_manager';
 import {TraceImpl} from './trace_impl';
 import {TraceInfoImpl} from './trace_info_impl';
@@ -37,9 +38,11 @@ export function initializeAppImplForTesting(): AppImpl {
     appImplInitialized = true;
 
     const settingsManager = new SettingsManagerImpl(new InMemoryStorage());
+    const mementoManager = new MementoManagerImpl(new InMemoryStorage());
     AppImpl.initialize({
       initialRouteArgs: {},
       settingsManager,
+      mementoManager,
       timestampFormatSetting: settingsManager.register({
         id: 'timestampFormat',
         name: 'Timestamp Format',
