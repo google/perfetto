@@ -52,6 +52,10 @@ config("extra_warnings") {
         "-Wno-unused-macros",
         "-Wno-old-style-cast",
         "-Wno-nonportable-system-include-path",
+
+        # On Windows, NULL expands to 0 (not nullptr), which triggers this
+        # warning in third-party headers like re2 included from our code.
+        "-Wno-zero-as-null-pointer-constant",
       ]
     }
   } else {
