@@ -92,7 +92,7 @@ def perfetto_deps():
     _add_repo_if_not_existing(
         new_git_repository,
         name = "perfetto_dep_zlib",
-        remote = "https://chromium.googlesource.com/chromium/src/third_party/zlib.git",
+        remote = "https://chromium.googlesource.com/a/chromium/src/third_party/zlib.git",
         commit = "6f9b4e61924021237d474569027cfb8ac7933ee6",
         build_file = "//bazel:zlib.BUILD",
     )
@@ -120,7 +120,7 @@ def perfetto_deps():
     _add_repo_if_not_existing(
         new_git_repository,
         name = "perfetto_dep_open_csd",
-        remote = "https://android.googlesource.com/platform/external/OpenCSD.git",
+        remote = "https://android.googlesource.com/a/platform/external/OpenCSD.git",
         commit = "0ce01e934f95efb6a216a6efa35af1245151c779",
         build_file = "//bazel:open_csd.BUILD",
     )
@@ -129,7 +129,7 @@ def perfetto_deps():
     _add_repo_if_not_existing(
         git_repository,
         name = "re2",
-        remote = "https://chromium.googlesource.com/external/github.com/google/re2.git",
+        remote = "https://chromium.googlesource.com/a/external/github.com/google/re2.git",
         commit = "927f5d53caf8111721e734cf24724686bb745f55",
     )
 
@@ -137,7 +137,7 @@ def perfetto_deps():
     _add_repo_if_not_existing(
         git_repository,
         name = "com_google_absl",
-        remote = "https://chromium.googlesource.com/external/github.com/abseil/abseil-cpp.git",
+        remote = "https://chromium.googlesource.com/a/external/github.com/abseil/abseil-cpp.git",
         commit = "76bb24329e8bf5f39704eb10d21b9a80befa7c81",
     )
 
