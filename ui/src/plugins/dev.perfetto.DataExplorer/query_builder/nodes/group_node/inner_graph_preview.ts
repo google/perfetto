@@ -16,11 +16,16 @@ import m from 'mithril';
 import {singleNodeOperation} from '../../../query_node';
 import {
   NodeGraph,
-  Node as GraphNode,
-  Connection,
-  NodeGraphApi,
+  NodeGraphNode as GraphNode,
+  NodeGraphConnection,
+  NodeGraphAPI,
 } from '../../../../../widgets/nodegraph';
-import {buildReadOnlyNodeConfig} from '../../graph/node_config';
+import {
+  buildReadOnlyNodeConfig,
+  getReadOnlyOutputPortId,
+  getReadOnlyTopPortId,
+  getReadOnlyLeftPortId,
+} from '../../graph/node_config';
 import type {GroupNode} from '.';
 
 interface InnerGraphPreviewAttrs {
@@ -50,7 +55,7 @@ export class InnerGraphPreview
     }
 
     const innerSet = new Set(groupNode.innerNodes.map((n) => n.nodeId));
-    const connections: Connection[] = [];
+    const connections: NodeGraphConnection[] = [];
 
     // Collect docked node IDs (rendered via `next`, not as top-level).
     const dockedIds = new Set<string>();
@@ -75,13 +80,18 @@ export class InnerGraphPreview
       inputNodeIds.set(conn.groupPort, inputId);
 
       const offset = singleNodeOperation(conn.innerTargetNode.type) ? 1 : 0;
-      const toPort =
+      const toPortIndex =
         conn.innerTargetPort !== undefined ? conn.innerTargetPort + offset : 0;
+      const toPortId =
+        toPortIndex === 0
+          ? getReadOnlyTopPortId(conn.innerTargetNode.nodeId)
+          : getReadOnlyLeftPortId(
+              conn.innerTargetNode.nodeId,
+              toPortIndex - offset,
+            );
       connections.push({
-        fromNode: inputId,
-        fromPort: 0,
-        toNode: conn.innerTargetNode.nodeId,
-        toPort,
+        fromPort: getReadOnlyOutputPortId(inputId),
+        toPort: toPortId,
       });
     }
 
@@ -94,22 +104,17 @@ export class InnerGraphPreview
         !dockedIds.has(n.nodeId)
       ) {
         connections.push({
-          fromNode: n.primaryInput.nodeId,
-          fromPort: 0,
-          toNode: n.nodeId,
-          toPort: 0,
+          fromPort: getReadOnlyOutputPortId(n.primaryInput.nodeId),
+          toPort: getReadOnlyTopPortId(n.nodeId),
         });
       }
 
       if (n.secondaryInputs) {
-        const offset = singleNodeOperation(n.type) ? 1 : 0;
         for (const [port, src] of n.secondaryInputs.connections) {
           if (src !== undefined && innerSet.has(src.nodeId)) {
             connections.push({
-              fromNode: src.nodeId,
-              fromPort: 0,
-              toNode: n.nodeId,
-              toPort: port + offset,
+              fromPort: getReadOnlyOutputPortId(src.nodeId),
+              toPort: getReadOnlyLeftPortId(n.nodeId, port),
             });
           }
         }
@@ -120,8 +125,8 @@ export class InnerGraphPreview
     const connectedInputs = new Set<string>();
     const connectedOutputs = new Set<string>();
     for (const c of connections) {
-      connectedInputs.add(`${c.toNode}:${c.toPort}`);
-      connectedOutputs.add(`${c.fromNode}:${c.fromPort}`);
+      connectedInputs.add(c.toPort);
+      connectedOutputs.add(c.fromPort);
     }
 
     // Docked nodes' primary input (port 0) is rendered via `next`, not as
@@ -129,7 +134,7 @@ export class InnerGraphPreview
     // filtered out — otherwise secondary input port indices shift and
     // connections target the wrong port.
     for (const dockedId of dockedIds) {
-      connectedInputs.add(`${dockedId}:0`);
+      connectedInputs.add(getReadOnlyTopPortId(dockedId));
     }
 
     // Build nodes with only connected ports.
@@ -145,8 +150,7 @@ export class InnerGraphPreview
           connectedInputs,
           connectedOutputs,
         ),
-        x: i * nodeSpacingX,
-        y: 0,
+        pos: {x: i * nodeSpacingX, y: 0},
       });
     }
 
@@ -161,10 +165,10 @@ export class InnerGraphPreview
       if (inputId === undefined) continue;
       nodes.push({
         id: inputId,
-        x: i * nodeSpacingX,
-        y: -80,
-        titleBar: {title: `Input ${conn.groupPort + 1}`},
-        outputs: [{direction: 'bottom'}],
+        pos: {x: i * nodeSpacingX, y: -80},
+        hue: 0,
+        headerBar: {title: `Input ${conn.groupPort + 1}`},
+        outputs: [{id: getReadOnlyOutputPortId(inputId), direction: 'south'}],
         className: isConnected ? undefined : 'pf-node--disconnected',
       });
     }
@@ -182,10 +186,10 @@ export class InnerGraphPreview
           connections,
           hideControls: true,
           fillHeight: true,
-          onReady: (api: NodeGraphApi) => {
+          onReady: (api: NodeGraphAPI) => {
             if (!this.recentered) {
               this.recentered = true;
-              requestAnimationFrame(() => api.recenter());
+              requestAnimationFrame(() => api.autofit());
             }
           },
         }),

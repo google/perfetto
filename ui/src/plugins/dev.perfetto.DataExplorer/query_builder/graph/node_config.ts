@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Node, NodePort} from '../../../../widgets/nodegraph';
+import {
+  NodeGraphDockedNode,
+  NodeGraphPort,
+} from '../../../../widgets/nodegraph';
 import {QueryNode, NodeType, singleNodeOperation} from '../../query_node';
 
 function getPortName(
@@ -70,15 +73,18 @@ export function getNodeHue(node: QueryNode): number {
   }
 }
 
+// Port ID helpers for read-only preview nodes.
+// The '|' separator is safe since node IDs are UUIDs (hex and '-' only).
+export const getReadOnlyOutputPortId = (nodeId: string) => `${nodeId}|out`;
+export const getReadOnlyTopPortId = (nodeId: string) => `${nodeId}|in-top`;
+export const getReadOnlyLeftPortId = (nodeId: string, i: number) =>
+  `${nodeId}|in-left-${i}`;
+
 /**
- * Set of "nodeId:portIndex" strings identifying ports that have connections.
+ * Set of port ID strings identifying ports that have connections.
  * Used to hide unused ports in read-only previews.
  */
 export type ConnectedPorts = ReadonlySet<string>;
-
-function portKey(nodeId: string, portIndex: number): string {
-  return `${nodeId}:${portIndex}`;
-}
 
 /**
  * Builds a read-only Node config for preview purposes (e.g. group node
@@ -90,45 +96,37 @@ export function buildReadOnlyNodeConfig(
   innerSet: ReadonlySet<string>,
   connectedInputs?: ConnectedPorts,
   connectedOutputs?: ConnectedPorts,
-): Omit<Node, 'x' | 'y'> {
+): NodeGraphDockedNode {
   const isSingle = singleNodeOperation(qnode.type);
-  const inputs: NodePort[] = [];
-  let portIdx = 0;
+  const inputs: NodeGraphPort[] = [];
 
   if (isSingle) {
-    // Top port (primary input) — only show if connected or no filter provided.
-    if (
-      connectedInputs === undefined ||
-      connectedInputs.has(portKey(qnode.nodeId, portIdx))
-    ) {
-      inputs.push({direction: 'top'});
+    // North port (primary input) — only show if connected or no filter provided.
+    const portId = getReadOnlyTopPortId(qnode.nodeId);
+    if (connectedInputs === undefined || connectedInputs.has(portId)) {
+      inputs.push({id: portId, direction: 'north'});
     }
-    portIdx++;
   }
   if (qnode.secondaryInputs) {
     const portNames = qnode.secondaryInputs.portNames;
     let secIdx = 0;
     for (const [,] of qnode.secondaryInputs.connections) {
-      if (
-        connectedInputs === undefined ||
-        connectedInputs.has(portKey(qnode.nodeId, portIdx))
-      ) {
+      const portId = getReadOnlyLeftPortId(qnode.nodeId, secIdx);
+      if (connectedInputs === undefined || connectedInputs.has(portId)) {
         inputs.push({
-          content: getPortName(portNames, secIdx),
-          direction: 'left',
+          id: portId,
+          label: getPortName(portNames, secIdx),
+          direction: 'west',
         });
       }
-      portIdx++;
       secIdx++;
     }
   }
 
-  const outputs: NodePort[] = [];
-  if (
-    connectedOutputs === undefined ||
-    connectedOutputs.has(portKey(qnode.nodeId, 0))
-  ) {
-    outputs.push({direction: 'bottom'});
+  const outputs: NodeGraphPort[] = [];
+  const outPortId = getReadOnlyOutputPortId(qnode.nodeId);
+  if (connectedOutputs === undefined || connectedOutputs.has(outPortId)) {
+    outputs.push({id: outPortId, direction: 'south'});
   }
 
   // Find docked child — the nodegraph widget can route connection lines
@@ -137,7 +135,7 @@ export function buildReadOnlyNodeConfig(
   // multiple children (even if only one is in innerSet), we skip docking to
   // avoid ambiguity — the outer graph's docking logic handles multi-child
   // cases differently via layout positions.
-  let next: Omit<Node, 'x' | 'y'> | undefined;
+  let next: NodeGraphDockedNode | undefined;
   if (
     qnode.nextNodes.length === 1 &&
     singleNodeOperation(qnode.nextNodes[0].type) &&
@@ -154,7 +152,7 @@ export function buildReadOnlyNodeConfig(
 
   return {
     id: qnode.nodeId,
-    titleBar: undefined,
+    headerBar: undefined,
     inputs,
     outputs,
     canDockTop: isSingle,

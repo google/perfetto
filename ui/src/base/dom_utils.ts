@@ -137,3 +137,99 @@ export function bindEventListener<K extends keyof HTMLElementEventMap>(
     },
   };
 }
+
+export interface DragEvent {
+  // Movement delta since the previous event.
+  delta: {readonly x: number; readonly y: number};
+  // Absolute pointer position in client coordinates.
+  client: {readonly x: number; readonly y: number};
+  // Pointer position at the very start of the drag in client coordinates.
+  startClient: {readonly x: number; readonly y: number};
+}
+
+// Waits for a drag gesture to begin (pointer moved beyond `deadzone` px).
+// Returns an async iterable of DragEvents, or undefined if the pointer was
+// released before the deadzone was crossed (i.e. it was a click). The first yielded
+// event includes accumulated movement from the deadzone phase so callers never
+// lose movement that occurred before the drag was confirmed.
+export async function captureDrag(attrs: {
+  el: HTMLElement;
+  e: PointerEvent;
+  deadzone?: number;
+}): Promise<AsyncIterable<DragEvent> | undefined> {
+  const {el, e, deadzone = 0} = attrs;
+  const pointerId = e.pointerId;
+
+  el.setPointerCapture(pointerId);
+
+  let resolveNext: ((e: PointerEvent | undefined) => void) | undefined;
+
+  const onMove = (e: PointerEvent) => {
+    if (e.pointerId !== pointerId) return;
+    resolveNext?.(e);
+    resolveNext = undefined;
+  };
+  const onDone = (e: PointerEvent) => {
+    if (e.pointerId !== pointerId) return;
+    resolveNext?.(undefined);
+    resolveNext = undefined;
+  };
+
+  el.addEventListener('pointermove', onMove);
+  el.addEventListener('pointerup', onDone);
+  el.addEventListener('pointercancel', onDone);
+
+  const cleanup = () => {
+    el.removeEventListener('pointermove', onMove);
+    el.removeEventListener('pointerup', onDone);
+    el.removeEventListener('pointercancel', onDone);
+  };
+
+  const next = () =>
+    new Promise<PointerEvent | undefined>((r) => {
+      resolveNext = r;
+    });
+
+  // Phase 1: wait for deadzone to be crossed, or pointerup (→ click).
+  // Accumulate movement so the first yield includes the full delta.
+  let accum = new Vector2D({x: 0, y: 0});
+  const start = new Vector2D({x: e.clientX, y: e.clientY});
+  let firstEvent: PointerEvent = e;
+  while (deadzone > 0) {
+    const ev = await next();
+    if (ev === undefined) {
+      cleanup();
+      return undefined;
+    }
+    firstEvent = ev;
+    accum = accum.add({x: ev.movementX, y: ev.movementY});
+    if (start.sub({x: ev.clientX, y: ev.clientY}).magnitude >= deadzone) break;
+  }
+
+  const startClient = {x: e.clientX, y: e.clientY};
+
+  // Phase 2: drag confirmed — stream events to the caller, leading with the
+  // accumulated deadzone movement as the first yield.
+  return (async function* () {
+    try {
+      if (deadzone > 0) {
+        yield {
+          delta: accum,
+          client: {x: firstEvent.clientX, y: firstEvent.clientY},
+          startClient,
+        };
+      }
+      while (true) {
+        const ev = await next();
+        if (ev === undefined) return;
+        yield {
+          delta: {x: ev.movementX, y: ev.movementY},
+          client: {x: ev.clientX, y: ev.clientY},
+          startClient,
+        };
+      }
+    } finally {
+      cleanup();
+    }
+  })();
+}

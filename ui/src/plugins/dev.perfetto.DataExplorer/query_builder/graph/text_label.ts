@@ -13,7 +13,15 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Label} from '../../../../widgets/nodegraph';
+
+// Local label type matching the Label interface used in graph.ts.
+interface Label {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  content?: m.Children;
+}
 
 // Helper function to auto-resize textarea to fit content
 function autoResizeTextarea(textarea: HTMLTextAreaElement) {

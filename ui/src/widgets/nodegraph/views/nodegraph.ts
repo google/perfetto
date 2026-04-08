@@ -1,0 +1,1238 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import m from 'mithril';
+import {assertIsInstance} from '../../../base/assert';
+import {captureDrag} from '../../../base/dom_utils';
+import {Point2D, Vector2D} from '../../../base/geom';
+import {MithrilEvent} from '../../../base/mithril_utils';
+import {shortUuid} from '../../../base/uuid';
+import {PopupMenu} from '../../../widgets/menu';
+import {PopupPosition} from '../../../widgets/popup';
+import {
+  NodeGraphAPI,
+  NodeGraphDockedNode,
+  NodeGraphNode,
+  NodeGraphAttrs,
+  NodeGraphPort,
+} from '../model';
+import type {PortDirection} from '../svg';
+import {arrowheadMarker, connectionPath} from '../svg';
+import {NGCard, NGCardBody, NGCardHeader, NGNode, NGPort} from './node';
+import {NGToolbar} from './toolbar';
+
+const WHEEL_ZOOM_SCALING_FACTOR = 0.006;
+const MIN_ZOOM = 0.01;
+const MAX_ZOOM = 3.0;
+const GRID_SIZE = 24;
+const EDGE_DRAG_THRESHOLD = 40; // viewport px from edge where panning begins
+const EDGE_DRAG_SPEED = 5; // viewport px per frame at the very edge
+
+function snapToGrid(p: Point2D): Vector2D {
+  return new Vector2D({
+    x: Math.round(p.x / GRID_SIZE) * GRID_SIZE,
+    y: Math.round(p.y / GRID_SIZE) * GRID_SIZE,
+  });
+}
+
+function portDirFromEl(el: Element): PortDirection {
+  if (el.classList.contains('pf-port-north')) return 'top';
+  if (el.classList.contains('pf-port-south')) return 'bottom';
+  if (el.classList.contains('pf-port-east')) return 'right';
+  if (el.classList.contains('pf-input')) return 'left';
+  return 'right';
+}
+
+function oppositeDir(dir: PortDirection): PortDirection {
+  switch (dir) {
+    case 'top':
+      return 'bottom';
+    case 'bottom':
+      return 'top';
+    case 'left':
+      return 'right';
+    case 'right':
+      return 'left';
+  }
+}
+
+function dotBackground(zoom: number, offset: {x: number; y: number}) {
+  let gridSize = GRID_SIZE;
+  while (gridSize * zoom < 10) gridSize *= 2;
+  const size = gridSize * zoom;
+  return {
+    size,
+    posX: offset.x * zoom - size / 2,
+    posY: offset.y * zoom - size / 2,
+  };
+}
+
+export interface NodeGraphViewport {
+  readonly offset: Point2D;
+  readonly zoom: number;
+}
+
+export class NodeGraph implements m.Component<NodeGraphAttrs> {
+  // Unique ID for this instance's SVG marker, to avoid conflicts when multiple
+  // NodeGraph instances exist in the document (e.g. different tabs).
+  private readonly markerId = `pf-ng-arrow-${shortUuid()}`;
+
+  // The current viewport transform. Updated during zoom and pan operations, and
+  // applied to the canvas via CSS transform.
+  private viewport: NodeGraphViewport = {offset: {x: 0, y: 0}, zoom: 1.0};
+
+  // Cached references to important immutable DOM elements. Set in oncreate,
+  // used in event handlers.
+  private rootEl!: HTMLElement;
+  private workspaceEl!: HTMLElement;
+  private svgEl!: SVGSVGElement;
+
+  // Non-null while the user is dragging a wire from an output port.
+  private wireDrag?: {
+    fromPortId: string;
+    toPoint: Point2D;
+    toDir: PortDirection;
+  };
+
+  // Port ID of the output port whose context menu is currently open.
+  private openPortMenuId?: string;
+
+  // Index into attrs.connections of a connection that has been "picked up" by
+  // dragging from its input port. Hidden during drag; disconnected on drop to
+  // a new input or to empty space, and restored if the drag is cancelled.
+  private pickedUpConnIdx?: number;
+
+  // Latest attrs, kept in sync so the API closures can read onViewportMove etc.
+  private latestAttrs!: NodeGraphAttrs;
+
+  private getNodePosition(nodeEl: HTMLElement) {
+    const rect = nodeEl.getBoundingClientRect();
+    const canvasRect = this.rootEl.getBoundingClientRect();
+    return this.getWorkspacePosition({
+      x: rect.left - canvasRect.left,
+      y: rect.top - canvasRect.top,
+    });
+  }
+
+  private getWorkspacePosition(pos: Point2D) {
+    const {offset, zoom} = this.viewport;
+    return new Vector2D({
+      x: pos.x / zoom + offset.x,
+      y: pos.y / zoom + offset.y,
+    });
+  }
+
+  private client2Workspace(client: Point2D) {
+    const canvasRect = this.rootEl.getBoundingClientRect();
+    return this.getWorkspacePosition({
+      x: client.x - canvasRect.left,
+      y: client.y - canvasRect.top,
+    });
+  }
+
+  private createGhostNode(nodeEl: HTMLElement) {
+    const ghost = nodeEl.cloneNode(true) as HTMLElement;
+    ghost.removeAttribute('data-node-id'); // avoid confusion with the real node
+    ghost.style.position = 'absolute';
+    ghost.style.zIndex = '-1'; // behind the node, but above the connections
+    ghost.style.pointerEvents = 'none';
+    ghost.style.filter = 'brightness(0) opacity(0.5)';
+    this.workspaceEl.appendChild(ghost);
+
+    const workspaceEl = this.workspaceEl; // capture for closure
+
+    return {
+      element: ghost,
+      moveTo(p: Point2D) {
+        ghost.style.left = `${p.x}px`;
+        ghost.style.top = `${p.y}px`;
+      },
+      dockToNode(nodeEl: HTMLElement) {
+        const card = assertIsInstance(
+          nodeEl.querySelector('.pf-ng__card'),
+          HTMLElement,
+        );
+        card.after(ghost);
+        ghost.style.removeProperty('left');
+        ghost.style.removeProperty('top');
+        ghost.style.removeProperty('position');
+      },
+      undock() {
+        ghost.style.position = 'absolute';
+        workspaceEl.appendChild(ghost);
+      },
+      [Symbol.dispose]() {
+        ghost.remove();
+      },
+    };
+  }
+
+  private moveNodeToWorkspace(nodeEl: HTMLElement) {
+    const previousStyle = nodeEl.getAttribute('style') ?? '';
+    const previousParent = nodeEl.parentElement;
+
+    this.workspaceEl.appendChild(nodeEl);
+    nodeEl.style.position = 'absolute';
+
+    return {
+      moveTo(p: Point2D) {
+        nodeEl.style.left = `${p.x}px`;
+        nodeEl.style.top = `${p.y}px`;
+      },
+      [Symbol.dispose]: () => {
+        // Move the element back to its original parent and reset styles
+        previousParent?.appendChild(nodeEl);
+        nodeEl.setAttribute('style', previousStyle);
+      },
+    };
+  }
+
+  view({attrs}: m.Vnode<NodeGraphAttrs>) {
+    const {
+      onViewportMove,
+      onNodeMove,
+      onNodeDock,
+      onSelect,
+      onSelectionAdd,
+      onSelectionRemove,
+      onSelectionClear,
+      onNodeRemove: onRemove,
+      onConnect,
+      nodes = [],
+      selectedNodeIds,
+      toolbarItems,
+      style,
+      className,
+    } = attrs;
+
+    const createNodeDragHandler = (
+      node: NodeGraphDockedNode,
+      parentId: string | undefined,
+    ) => {
+      return async (e: MithrilEvent<PointerEvent>) => {
+        if (e.button !== 0) return; // only left-click drags
+
+        // Let interactive elements (inputs, buttons, selects, etc.) handle
+        // their own events without triggering a node drag.
+        const target = e.target as HTMLElement;
+        if (target.closest('input, button, select, textarea, a')) return;
+
+        // Stop this pointer event from hitting the canvas
+        e.stopPropagation();
+
+        // Don't redraw just yet...
+        e.redraw = false;
+
+        // Secure the node element
+        const nodeEl = assertIsInstance(e.currentTarget, HTMLElement);
+
+        // Find the initial offset within the node in canvas space
+        const pMouse = {x: e.clientX, y: e.clientY};
+        const pMouseWs = this.client2Workspace(pMouse);
+
+        const nodeRect = nodeEl.getBoundingClientRect();
+        const pNode = {x: nodeRect.left, y: nodeRect.top};
+        const pNodeWs = this.client2Workspace(pNode);
+
+        const grabPoint = pMouseWs.sub(pNodeWs);
+
+        // Wait for this to turn into a proper drag
+        const drag = await captureDrag({el: this.rootEl, e, deadzone: 5});
+
+        if (drag) {
+          // Work out where in the workspace the node is right now
+          const startPosition = this.getNodePosition(nodeEl);
+
+          using tempNode = this.moveNodeToWorkspace(nodeEl);
+          tempNode.moveTo(startPosition);
+
+          using ghost = this.createGhostNode(nodeEl);
+          ghost.moveTo(startPosition);
+
+          let pNode = startPosition;
+          let dockTarget: string | undefined = undefined;
+
+          using edgePan = this.startEdgePanning((dx, dy) => {
+            pNode = pNode.add({x: dx, y: dy});
+            tempNode.moveTo(pNode);
+            this.updateConnections(attrs);
+          });
+
+          for await (const mv of drag) {
+            // Find the initial offset within the node in canvas space
+            const pMouseWs = this.client2Workspace(mv.client);
+            pNode = pMouseWs.sub(grabPoint);
+
+            edgePan.updatePointer(mv.client);
+            tempNode.moveTo(pNode);
+
+            dockTarget = node.canDockTop
+              ? this.findDockTarget(nodeEl)
+              : undefined;
+
+            if (dockTarget) {
+              const targetEl = this.getNodeElement(dockTarget);
+              ghost.dockToNode(targetEl);
+            } else {
+              ghost.undock();
+              const snapped = snapToGrid(pNode);
+              ghost.moveTo(
+                this.findNonCollidingPosition(nodeEl, snapped, node.id),
+              );
+            }
+            this.updateConnections(attrs);
+          }
+
+          if (dockTarget) {
+            if (dockTarget !== parentId) {
+              onNodeDock?.(node.id, dockTarget);
+            }
+          } else {
+            const snapped = snapToGrid(pNode);
+            const placed = this.findNonCollidingPosition(
+              nodeEl,
+              snapped,
+              node.id,
+            );
+            onNodeMove?.(node.id, placed);
+          }
+
+          m.redraw();
+        } else {
+          // Failed drag - treat as a click and select the node
+          if (e.ctrlKey || e.metaKey) {
+            if (selectedNodeIds?.has(node.id)) {
+              onSelectionRemove?.(node.id);
+            } else {
+              onSelectionAdd?.(node.id);
+            }
+          } else {
+            // No key held - just select this node and deselect everything else
+            onSelect?.([node.id]);
+          }
+          m.redraw();
+        }
+      };
+    };
+
+    const createOutputPortDragHandler = (
+      node: NodeGraphDockedNode,
+      output: NodeGraphPort,
+    ) => {
+      return async (e: PointerEvent) => {
+        if (e.button !== 0) return; // only left-click drags
+
+        e.stopPropagation();
+        const drag = await captureDrag({
+          el: e.currentTarget as HTMLElement,
+          e,
+          deadzone: 5,
+        });
+
+        if (!drag) {
+          // Click (no drag): open context menu if available
+          if (output.contextMenuItems != null) {
+            this.openPortMenuId = output.id;
+            m.redraw();
+          }
+          return;
+        }
+
+        let clientX = e.clientX;
+        let clientY = e.clientY;
+
+        const toCanvasPoint = (): Point2D => {
+          const {zoom, offset} = this.viewport;
+          const rect = this.rootEl.getBoundingClientRect();
+          return {
+            x: (clientX - rect.left) / zoom + offset.x,
+            y: (clientY - rect.top) / zoom + offset.y,
+          };
+        };
+
+        const nodeDirToPortDir: Record<string, PortDirection> = {
+          north: 'top',
+          south: 'bottom',
+          east: 'right',
+          west: 'left',
+        };
+        const freeToDir = oppositeDir(
+          nodeDirToPortDir[output.direction] ?? 'right',
+        );
+        const makeWireDrag = (snap: typeof snapTarget) => ({
+          fromPortId: output.id,
+          toPoint: snap ? this.portCenterToCanvas(snap.el) : toCanvasPoint(),
+          toDir: snap ? portDirFromEl(snap.el) : freeToDir,
+        });
+
+        this.wireDrag = makeWireDrag(undefined);
+        this.rootEl.classList.add('pf-ng--wire-dragging');
+        this.updateConnections(attrs);
+
+        let snapTarget: {el: HTMLElement; portId: string} | undefined;
+
+        using edgePan = this.startEdgePanning(() => {
+          this.wireDrag = makeWireDrag(snapTarget);
+          this.updateConnections(attrs);
+        });
+
+        const processMove = (client: {x: number; y: number}) => {
+          clientX = client.x;
+          clientY = client.y;
+          edgePan.updatePointer(client);
+          const prevSnap = snapTarget;
+          snapTarget = this.findWireSnapTarget(node.id, clientX, clientY);
+          if (prevSnap?.el !== snapTarget?.el) {
+            prevSnap?.el.classList.remove('pf-wire-snap');
+            snapTarget?.el.classList.add('pf-wire-snap');
+          }
+          this.wireDrag = makeWireDrag(snapTarget);
+          this.updateConnections(attrs);
+        };
+
+        for await (const mv of drag) {
+          processMove(mv.client);
+        }
+        snapTarget?.el.classList.remove('pf-wire-snap');
+        this.rootEl.classList.remove('pf-ng--wire-dragging');
+
+        const connectTo = (toPort: string) => {
+          onConnect?.({fromPort: output.id, toPort});
+        };
+
+        if (snapTarget !== undefined) {
+          connectTo(snapTarget.portId);
+        } else {
+          // Fallback: check if the pointer is directly over an input port.
+          const target = document.elementFromPoint(clientX, clientY);
+          const inputPortEl =
+            target?.closest('.pf-ng__port-dot.pf-input') ?? null;
+          if (inputPortEl) {
+            const nodeEl = inputPortEl.closest(
+              '[data-node-id]',
+            ) as HTMLElement | null;
+            const toNodeId = nodeEl?.getAttribute('data-node-id');
+            const portId = inputPortEl.getAttribute('data-port-id');
+            if (portId && toNodeId && toNodeId !== node.id) {
+              connectTo(portId);
+            }
+          }
+        }
+
+        this.wireDrag = undefined;
+        this.updateConnections(attrs);
+        m.redraw();
+      };
+    };
+
+    const createInputPortDragHandler = (
+      node: NodeGraphDockedNode,
+      input: NodeGraphPort,
+    ) => {
+      return async (e: PointerEvent) => {
+        if (e.button !== 0) return; // only left-click drags
+        e.stopPropagation();
+
+        const connIdx =
+          attrs.connections?.findIndex((c) => c.toPort === input.id) ?? -1;
+
+        const drag = await captureDrag({
+          el: e.currentTarget as HTMLElement,
+          e,
+          deadzone: 5,
+        });
+
+        if (!drag) {
+          // Click: open context menu if available.
+          if (input.contextMenuItems != null) {
+            this.openPortMenuId = input.id;
+            m.redraw();
+          }
+          return;
+        }
+
+        // Only connected input ports can be picked up as a wire.
+        if (connIdx < 0) return;
+
+        const existingConn = attrs.connections![connIdx];
+        const fromNodeId =
+          this.findNodeIdForPort(existingConn.fromPort) ?? node.id;
+
+        // Find the from-port element to determine its direction for the curve.
+        const fromPortEl = this.rootEl.querySelector(
+          `.pf-ng__port-dot[data-port-id="${existingConn.fromPort}"]`,
+        ) as HTMLElement | undefined;
+        const fromDir: PortDirection = fromPortEl
+          ? portDirFromEl(fromPortEl)
+          : 'right';
+        const freeToDir = oppositeDir(fromDir);
+
+        let clientX = e.clientX;
+        let clientY = e.clientY;
+
+        const toCanvasPoint = (): Point2D => {
+          const {zoom, offset} = this.viewport;
+          const rect = this.rootEl.getBoundingClientRect();
+          return {
+            x: (clientX - rect.left) / zoom + offset.x,
+            y: (clientY - rect.top) / zoom + offset.y,
+          };
+        };
+
+        const makeWireDrag = (snap: typeof snapTarget) => ({
+          fromPortId: existingConn.fromPort,
+          toPoint: snap ? this.portCenterToCanvas(snap.el) : toCanvasPoint(),
+          toDir: snap ? portDirFromEl(snap.el) : freeToDir,
+        });
+
+        this.pickedUpConnIdx = connIdx;
+        this.wireDrag = makeWireDrag(undefined);
+        this.rootEl.classList.add('pf-ng--wire-dragging');
+        this.updateConnections(attrs);
+
+        let snapTarget: {el: HTMLElement; portId: string} | undefined;
+
+        using edgePan = this.startEdgePanning(() => {
+          this.wireDrag = makeWireDrag(snapTarget);
+          this.updateConnections(attrs);
+        });
+
+        const processMove = (client: {x: number; y: number}) => {
+          clientX = client.x;
+          clientY = client.y;
+          edgePan.updatePointer(client);
+          const prevSnap = snapTarget;
+          snapTarget = this.findWireSnapTarget(fromNodeId, clientX, clientY);
+          if (prevSnap?.el !== snapTarget?.el) {
+            prevSnap?.el.classList.remove('pf-wire-snap');
+            snapTarget?.el.classList.add('pf-wire-snap');
+          }
+          this.wireDrag = makeWireDrag(snapTarget);
+          this.updateConnections(attrs);
+        };
+
+        for await (const mv of drag) {
+          processMove(mv.client);
+        }
+        snapTarget?.el.classList.remove('pf-wire-snap');
+        this.rootEl.classList.remove('pf-ng--wire-dragging');
+
+        const reconnect = (toPort: string) => {
+          attrs.onDisconnect?.(connIdx);
+          onConnect?.({fromPort: existingConn.fromPort, toPort});
+        };
+
+        if (snapTarget !== undefined) {
+          reconnect(snapTarget.portId);
+        } else {
+          // Fallback: check if pointer is directly over an input port.
+          const target = document.elementFromPoint(clientX, clientY);
+          const inputPortEl =
+            target?.closest('.pf-ng__port-dot.pf-input') ?? null;
+          if (inputPortEl) {
+            const nodeEl = inputPortEl.closest(
+              '[data-node-id]',
+            ) as HTMLElement | null;
+            const toNodeId = nodeEl?.getAttribute('data-node-id');
+            const portId = inputPortEl.getAttribute('data-port-id');
+            if (portId && toNodeId && toNodeId !== fromNodeId) {
+              reconnect(portId);
+            } else {
+              // Dropped on invalid target — disconnect.
+              attrs.onDisconnect?.(connIdx);
+            }
+          } else {
+            // Dropped on empty canvas — disconnect.
+            attrs.onDisconnect?.(connIdx);
+          }
+        }
+
+        this.pickedUpConnIdx = undefined;
+        this.wireDrag = undefined;
+        this.updateConnections(attrs);
+        m.redraw();
+      };
+    };
+
+    // parentId is set for docked nodes; absent for root nodes.
+    const renderNode = (
+      node: NodeGraphDockedNode,
+      parentId?: string,
+    ): m.Children => {
+      const isDocked = parentId !== undefined;
+      const rootNode = !isDocked ? (node as NodeGraphNode) : undefined;
+
+      return m(
+        NGNode,
+        {
+          key: rootNode ? node.id : undefined,
+          id: node.id,
+          position: rootNode?.pos,
+          // Recursively render the whole tree
+          nextNode: node.next && renderNode(node.next, node.id),
+          onpointerdown: createNodeDragHandler(node, parentId),
+        },
+        m(
+          NGCard,
+          {
+            hue: node.hue,
+            accent: node.accentBar,
+            selected: selectedNodeIds?.has(node.id),
+            className: node.className,
+          },
+          [
+            node.headerBar &&
+              m(NGCardHeader, {
+                title: node.headerBar.title,
+                icon: node.headerBar.icon,
+              }),
+            node.inputs?.map((input) =>
+              m(NGPort, {
+                id: input.id,
+                direction: input.direction,
+                portType: 'input',
+                label: input.label,
+                connected:
+                  attrs.connections?.some((c) => c.toPort === input.id) ??
+                  false,
+                onpointerdown: createInputPortDragHandler(node, input),
+              }),
+            ),
+            m(NGCardBody, node.content),
+            node.outputs?.map((output) => {
+              const portEl = m(NGPort, {
+                id: output.id,
+                direction: output.direction,
+                portType: 'output',
+                label: output.label,
+                connected:
+                  attrs.connections?.some((c) => c.fromPort === output.id) ??
+                  false,
+                onpointerdown: createOutputPortDragHandler(node, output),
+              });
+              if (output.contextMenuItems == null) return portEl;
+              return m(
+                PopupMenu,
+                {
+                  trigger: portEl,
+                  position: PopupPosition.Bottom,
+                  isOpen: this.openPortMenuId === output.id,
+                  onChange: (open) => {
+                    if (!open) {
+                      this.openPortMenuId = undefined;
+                    }
+                  },
+                },
+                output.contextMenuItems,
+              );
+            }),
+          ],
+        ),
+      );
+    };
+
+    return m(
+      '.pf-ng',
+      {
+        style,
+        className,
+        onwheel: (e: MithrilEvent<WheelEvent>) => {
+          e.preventDefault();
+          if (e.ctrlKey || e.metaKey) {
+            const newZoom =
+              this.viewport.zoom *
+              Math.exp(-e.deltaY * WHEEL_ZOOM_SCALING_FACTOR);
+            this.zoomViewport(newZoom, {x: e.clientX, y: e.clientY});
+          } else {
+            this.panViewport(e.deltaX, e.deltaY);
+          }
+          onViewportMove?.(this.viewport);
+        },
+        oncontextmenu: (e: MouseEvent) => {
+          e.preventDefault();
+        },
+        onpointerdown: async (e: MithrilEvent<PointerEvent>) => {
+          e.redraw = false;
+          const nodegraph = this.rootEl;
+          const isBoxSelect = e.shiftKey;
+          const drag = await captureDrag({
+            el: nodegraph,
+            e,
+            deadzone: 2,
+          });
+          if (drag) {
+            if (isBoxSelect) {
+              const boxEl = document.createElement('div');
+              boxEl.style.cssText =
+                'position:absolute;pointer-events:none;' +
+                'border:1px dashed var(--pf-color-primary);' +
+                'background:color-mix(in srgb,var(--pf-color-primary) 10%,transparent);' +
+                'z-index:10;';
+              this.rootEl.appendChild(boxEl);
+
+              const updateBox = (currentClient: {x: number; y: number}) => {
+                const ngRect = this.rootEl.getBoundingClientRect();
+                const x1 = Math.min(e.clientX, currentClient.x) - ngRect.left;
+                const y1 = Math.min(e.clientY, currentClient.y) - ngRect.top;
+                const x2 = Math.max(e.clientX, currentClient.x) - ngRect.left;
+                const y2 = Math.max(e.clientY, currentClient.y) - ngRect.top;
+                Object.assign(boxEl.style, {
+                  left: `${x1}px`,
+                  top: `${y1}px`,
+                  width: `${x2 - x1}px`,
+                  height: `${y2 - y1}px`,
+                });
+              };
+
+              let currentClient = {x: e.clientX, y: e.clientY};
+              for await (const mv of drag) {
+                currentClient = {x: mv.client.x, y: mv.client.y};
+                updateBox(currentClient);
+              }
+
+              boxEl.remove();
+
+              const boxLeft = Math.min(e.clientX, currentClient.x);
+              const boxTop = Math.min(e.clientY, currentClient.y);
+              const boxRight = Math.max(e.clientX, currentClient.x);
+              const boxBottom = Math.max(e.clientY, currentClient.y);
+              const ids: string[] = [];
+              for (const nodeEl of this.rootEl.querySelectorAll(
+                '[data-node-id]',
+              )) {
+                const r = nodeEl.getBoundingClientRect();
+                if (
+                  r.left < boxRight &&
+                  r.right > boxLeft &&
+                  r.top < boxBottom &&
+                  r.bottom > boxTop
+                ) {
+                  ids.push(nodeEl.getAttribute('data-node-id')!);
+                }
+              }
+              if (ids.length > 0) {
+                onSelect?.(ids);
+              }
+            } else {
+              for await (const mv of drag) {
+                this.panViewport(-mv.delta.x, -mv.delta.y);
+              }
+              onViewportMove?.(this.viewport);
+            }
+          } else {
+            onSelectionClear?.();
+          }
+          m.redraw();
+        },
+      },
+      m(
+        '.pf-ng__workspace',
+        nodes.map((n) => renderNode(n)),
+        m('svg.pf-ng__connections', {
+          style: {
+            position: 'absolute',
+            left: '0',
+            top: '0',
+            overflow: 'visible',
+            pointerEvents: 'none',
+          },
+        }),
+      ),
+      m(NGToolbar, {
+        zoom: this.viewport.zoom,
+        onZoom: (level) => {
+          this.zoomViewport(level);
+          onViewportMove?.(this.viewport);
+        },
+        onFit: () => {
+          this.autofit();
+          onViewportMove?.(this.viewport);
+        },
+        hasSelection: (selectedNodeIds?.size ?? 0) > 0,
+        onDeleteSelected: () =>
+          onRemove?.(selectedNodeIds ? [...selectedNodeIds] : []),
+        extraItems: toolbarItems,
+      }),
+      m('.pf-ng__trashcan'),
+    );
+  }
+
+  oncreate({dom, attrs}: m.VnodeDOM<NodeGraphAttrs>) {
+    this.rootEl = assertIsInstance(dom, HTMLElement);
+    this.workspaceEl = assertIsInstance(
+      dom.querySelector('.pf-ng__workspace'),
+      HTMLElement,
+    );
+    this.svgEl = assertIsInstance(
+      dom.querySelector('.pf-ng__connections'),
+      SVGSVGElement,
+    );
+    const {initialViewport = {offset: {x: 0, y: 0}, zoom: 1.0}} = attrs;
+    this.viewport = {
+      zoom: initialViewport.zoom,
+      offset: {...initialViewport.offset},
+    };
+    this.latestAttrs = attrs;
+    this.updateViewport();
+    this.updateConnections(attrs);
+    attrs.onReady?.(this.buildAPI());
+  }
+
+  onupdate({attrs}: m.VnodeDOM<NodeGraphAttrs>) {
+    this.latestAttrs = attrs;
+    this.updateConnections(attrs);
+  }
+
+  private getNodeElement(nodeId: string) {
+    return assertIsInstance(
+      this.rootEl.querySelector(`[data-node-id="${nodeId}"]`),
+      HTMLElement,
+    );
+  }
+
+  // Returns the ID of the root node whose chain bottom is close enough to
+  // snap-dock the dropped node onto. The dragged node must have canDockTop and
+  // the candidate must have canDockBottom. Position comparison is done in
+  // viewport space using the rendered wrapper's bounding rect.
+  // Returns the ID of a node whose bottom edge is close to the top of the
+  // dragged node element, with horizontally aligned centers.
+  private findDockTarget(draggedNodeEl: HTMLElement): string | undefined {
+    // Build the set of node IDs that allow docking below them.
+    const dockableIds = new Set<string>();
+    const collect = (node: NodeGraphDockedNode) => {
+      if (node.canDockBottom) dockableIds.add(node.id);
+      if (node.next) collect(node.next);
+    };
+    for (const node of this.latestAttrs.nodes ?? []) collect(node);
+
+    const THRESHOLD = 30; // viewport px
+    const draggedRect = draggedNodeEl.getBoundingClientRect();
+    const draggedCenterX = (draggedRect.left + draggedRect.right) / 2;
+    for (const el of this.rootEl.querySelectorAll('[data-node-id]')) {
+      const id = el.getAttribute('data-node-id')!;
+      if (!dockableIds.has(id)) continue;
+      // Use the node-content bottom so nested docked children don't inflate the rect.
+      const body = el.querySelector(
+        ':scope > .pf-ng__card',
+      ) as HTMLElement | null;
+      const rect = (body ?? (el as HTMLElement)).getBoundingClientRect();
+      const candidateCenterX = (rect.left + rect.right) / 2;
+      if (
+        Math.abs(draggedRect.top - rect.bottom) < THRESHOLD &&
+        Math.abs(draggedCenterX - candidateCenterX) < THRESHOLD
+      ) {
+        return id;
+      }
+    }
+    return undefined;
+  }
+
+  // Returns the input port element + connection target closest to (clientX,
+  // clientY), or undefined if nothing is within the snap threshold.
+  private findWireSnapTarget(
+    fromNodeId: string,
+    clientX: number,
+    clientY: number,
+  ): {el: HTMLElement; portId: string} | undefined {
+    const THRESHOLD = 40; // viewport px
+    let best: {el: HTMLElement; portId: string; dist: number} | undefined;
+
+    for (const el of this.rootEl.querySelectorAll(
+      '.pf-ng__port-dot.pf-input',
+    )) {
+      if (el.closest('.pf-hidden')) continue;
+      const nodeEl = el.closest('[data-node-id]') as HTMLElement | null;
+      const toNodeId = nodeEl?.getAttribute('data-node-id');
+      if (!toNodeId || toNodeId === fromNodeId) continue;
+      const portId = el.getAttribute('data-port-id');
+      if (!portId) continue;
+      const rect = el.getBoundingClientRect();
+      const dist = Math.hypot(
+        clientX - (rect.left + rect.width / 2),
+        clientY - (rect.top + rect.height / 2),
+      );
+      if (dist < THRESHOLD && (!best || dist < best.dist)) {
+        best = {el: el as HTMLElement, portId, dist};
+      }
+    }
+
+    return best ? {el: best.el, portId: best.portId} : undefined;
+  }
+
+  // Searches the full node tree (including docked children) to find which node
+  // owns the given port, returning that node's ID.
+  private findNodeIdForPort(portId: string): string | undefined {
+    const search = (node: NodeGraphDockedNode): string | undefined => {
+      if (node.outputs?.some((p) => p.id === portId)) return node.id;
+      if (node.inputs?.some((p) => p.id === portId)) return node.id;
+      if (node.next) return search(node.next);
+      return undefined;
+    };
+    for (const n of this.latestAttrs.nodes ?? []) {
+      const found = search(n);
+      if (found) return found;
+    }
+    return undefined;
+  }
+
+  // Converts an input port element's center to canvas coordinates.
+  private portCenterToCanvas(portEl: HTMLElement): Point2D {
+    const rect = portEl.getBoundingClientRect();
+    const ngRect = this.rootEl.getBoundingClientRect();
+    const {zoom, offset} = this.viewport;
+    return {
+      x: (rect.left + rect.width / 2 - ngRect.left) / zoom + offset.x,
+      y: (rect.top + rect.height / 2 - ngRect.top) / zoom + offset.y,
+    };
+  }
+
+  private updateViewport() {
+    const {offset, zoom} = this.viewport;
+    const canvas = this.rootEl;
+    this.workspaceEl.style.transform = `scale(${zoom}) translate(${-offset.x}px, ${-offset.y}px)`;
+    const {size, posX, posY} = dotBackground(zoom, offset);
+    canvas.style.setProperty('--bg-size', `${size}px`);
+    canvas.style.setProperty('--bg-pos-x', `${-posX}px`);
+    canvas.style.setProperty('--bg-pos-y', `${-posY}px`);
+  }
+
+  private zoomViewport(zoom: number, center?: Point2D) {
+    const canvas = this.rootEl;
+    const rect = canvas.getBoundingClientRect();
+    if (!center) {
+      center = {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2};
+    }
+    const {offset, zoom: currentZoom} = this.viewport;
+    const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
+    const mouseX = center.x - rect.left;
+    const mouseY = center.y - rect.top;
+    const canvasX = mouseX / currentZoom + offset.x;
+    const canvasY = mouseY / currentZoom + offset.y;
+    this.viewport = {
+      zoom: newZoom,
+      offset: {
+        x: canvasX - mouseX / newZoom,
+        y: canvasY - mouseY / newZoom,
+      },
+    };
+    this.updateViewport();
+  }
+
+  private panViewport(dx: number, dy: number) {
+    const {offset, zoom} = this.viewport;
+    this.viewport = {
+      ...this.viewport,
+      offset: {x: offset.x + dx / zoom, y: offset.y + dy / zoom},
+    };
+    this.updateViewport();
+  }
+
+  // Starts a RAF loop that pans the viewport when the pointer is near an edge.
+  // `getClientPos` returns the current pointer position in client coordinates.
+  // `onPan` (optional) is called with canvas-space deltas so the caller can
+  // update any accumulated canvas-space state (e.g. node position).
+  // Returns a stop function; call it when the drag ends.
+  private startEdgePanning(
+    onPan?: (canvasDx: number, canvasDy: number) => void,
+  ) {
+    const edgeForce = (v: number, lo: number, hi: number): number => {
+      if (v < lo + EDGE_DRAG_THRESHOLD)
+        return (
+          (-(lo + EDGE_DRAG_THRESHOLD - v) / EDGE_DRAG_THRESHOLD) *
+          EDGE_DRAG_SPEED
+        );
+      if (v > hi - EDGE_DRAG_THRESHOLD)
+        return (
+          ((v - (hi - EDGE_DRAG_THRESHOLD)) / EDGE_DRAG_THRESHOLD) *
+          EDGE_DRAG_SPEED
+        );
+      return 0;
+    };
+
+    let rafId: number | undefined;
+    let latestPointerPos: Point2D | undefined;
+
+    const frame = () => {
+      const {x: cx, y: cy} = latestPointerPos!;
+      const rect = this.rootEl.getBoundingClientRect();
+      const vpDx = edgeForce(cx, rect.left, rect.right);
+      const vpDy = edgeForce(cy, rect.top, rect.bottom);
+      if (vpDx !== 0 || vpDy !== 0) {
+        const {zoom} = this.viewport;
+        this.panViewport(vpDx, vpDy);
+        onPan?.(vpDx / zoom, vpDy / zoom);
+      }
+      rafId = requestAnimationFrame(frame);
+    };
+
+    return {
+      updatePointer: (pos: Point2D) => {
+        latestPointerPos = pos;
+        if (rafId === undefined) rafId = requestAnimationFrame(frame);
+      },
+      [Symbol.dispose]: () => {
+        if (rafId !== undefined) cancelAnimationFrame(rafId);
+      },
+    };
+  }
+
+  private updateConnections(attrs: NodeGraphAttrs) {
+    const {connections = []} = attrs;
+    const ngRect = this.rootEl.getBoundingClientRect();
+    const {zoom, offset} = this.viewport;
+
+    const getPortInfo = (portId: string) => {
+      const candidates = this.rootEl.querySelectorAll(
+        `.pf-ng__port-dot[data-port-id="${portId}"]`,
+      );
+      const el = Array.from(candidates).find(
+        (e) => e.closest('.pf-hidden') === null,
+      ) as HTMLElement | undefined;
+      if (!el) return undefined;
+      const rect = el.getBoundingClientRect();
+
+      const dir = portDirFromEl(el);
+      const cx = (rect.left + rect.width / 2 - ngRect.left) / zoom + offset.x;
+      const cy = (rect.top + rect.height / 2 - ngRect.top) / zoom + offset.y;
+      return {x: cx, y: cy, dir};
+    };
+
+    const paths = connections.flatMap((conn, i) => {
+      // Hide a connection that's been picked up by the active wire drag.
+      if (i === this.pickedUpConnIdx) return [];
+      const fromCenter = getPortInfo(conn.fromPort);
+      const to = getPortInfo(conn.toPort);
+      if (!fromCenter || !to) return [];
+      // Offset the start point to the outer edge of the output port dot.
+      const portRadius = 8 / zoom;
+      const from = {
+        x:
+          fromCenter.dir === 'right'
+            ? fromCenter.x + portRadius
+            : fromCenter.dir === 'left'
+              ? fromCenter.x - portRadius
+              : fromCenter.x,
+        y:
+          fromCenter.dir === 'bottom'
+            ? fromCenter.y + portRadius
+            : fromCenter.dir === 'top'
+              ? fromCenter.y - portRadius
+              : fromCenter.y,
+        dir: fromCenter.dir,
+      };
+      const onRemove = () => this.latestAttrs.onDisconnect?.(i);
+      return [
+        connectionPath(
+          from,
+          to,
+          this.markerId,
+          from.dir,
+          to.dir,
+          undefined,
+          onRemove,
+        ),
+      ];
+    });
+
+    if (this.wireDrag) {
+      const {fromPortId, toPoint, toDir} = this.wireDrag;
+      const from = getPortInfo(fromPortId);
+      if (from) {
+        paths.push(
+          connectionPath(from, toPoint, this.markerId, from.dir, toDir, {
+            'stroke-dasharray': '6 3',
+          }),
+        );
+      }
+    }
+
+    m.render(this.svgEl, [m('defs', arrowheadMarker(this.markerId)), ...paths]);
+  }
+
+  private buildAPI(): NodeGraphAPI {
+    return {
+      autofit: () => {
+        this.autofit();
+        m.redraw();
+      },
+      pan: (dx, dy) => {
+        this.panViewport(dx, dy);
+        this.latestAttrs.onViewportMove?.(this.viewport);
+      },
+      zoom: (deltaZoom, centerX, centerY) => {
+        const center =
+          centerX !== undefined && centerY !== undefined
+            ? {x: centerX, y: centerY}
+            : undefined;
+        this.zoomViewport(this.viewport.zoom + deltaZoom, center);
+        this.latestAttrs.onViewportMove?.(this.viewport);
+      },
+      resetZoom: () => {
+        this.zoomViewport(1.0);
+        this.latestAttrs.onViewportMove?.(this.viewport);
+      },
+      findPlacementForNode: (node) => {
+        return this.findPlacementPosition(node);
+      },
+    };
+  }
+
+  // Spiral search: starting from `origin` (already snapped to grid), walks
+  // outward ring by ring and returns the first position where a box of size
+  // (nodeW × nodeH) doesn't overlap any obstacle. Falls back to origin.
+  private spiralSearch(
+    nodeW: number,
+    nodeH: number,
+    origin: Point2D,
+    obstacles: ReadonlyArray<{x: number; y: number; w: number; h: number}>,
+  ): Point2D {
+    const collides = (x: number, y: number): boolean =>
+      obstacles.some(
+        (o) =>
+          x < o.x + o.w && x + nodeW > o.x && y < o.y + o.h && y + nodeH > o.y,
+      );
+
+    const {x: ox, y: oy} = origin;
+    if (!collides(ox, oy)) return origin;
+
+    for (let r = 1; r <= 50; r++) {
+      const d = r * GRID_SIZE;
+      for (let i = -r; i <= r; i++) {
+        const dx = i * GRID_SIZE;
+        if (!collides(ox + dx, oy - d)) return {x: ox + dx, y: oy - d};
+        if (!collides(ox + dx, oy + d)) return {x: ox + dx, y: oy + d};
+      }
+      for (let j = -r + 1; j <= r - 1; j++) {
+        const dy = j * GRID_SIZE;
+        if (!collides(ox - d, oy + dy)) return {x: ox - d, y: oy + dy};
+        if (!collides(ox + d, oy + dy)) return {x: ox + d, y: oy + dy};
+      }
+    }
+
+    return origin; // fallback
+  }
+
+  // Finds a placement position for a newly added node. Starts from the
+  // viewport center and spirals outward until a non-colliding spot is found.
+  // Uses an estimated node size since the node hasn't been rendered yet.
+  private findPlacementPosition(_node: Omit<NodeGraphNode, 'pos'>): Point2D {
+    const ESTIMATED_W = 200;
+    const ESTIMATED_H = 150;
+
+    const obstacles: Array<{x: number; y: number; w: number; h: number}> = [];
+    for (const el of this.workspaceEl.querySelectorAll(
+      ':scope > [data-node-id]',
+    )) {
+      const nodeEl = el as HTMLElement;
+      obstacles.push({
+        x: parseFloat(nodeEl.style.left) || 0,
+        y: parseFloat(nodeEl.style.top) || 0,
+        w: nodeEl.offsetWidth,
+        h: nodeEl.offsetHeight,
+      });
+    }
+
+    const {offset, zoom} = this.viewport;
+    const rect = this.rootEl.getBoundingClientRect();
+    const origin = snapToGrid({
+      x: offset.x + rect.width / (2 * zoom) - ESTIMATED_W / 2,
+      y: offset.y + rect.height / (2 * zoom) - ESTIMATED_H / 2,
+    });
+
+    return this.spiralSearch(ESTIMATED_W, ESTIMATED_H, origin, obstacles);
+  }
+
+  // Finds a non-colliding canvas position for a dropped node using a spiral
+  // search outward from the desired drop position. Returns the first grid-
+  // aligned position that doesn't overlap any other root node.
+  private findNonCollidingPosition(
+    draggedNodeEl: HTMLElement,
+    desiredPos: Vector2D,
+    draggedNodeId: string,
+  ): Vector2D {
+    const nodeW = draggedNodeEl.offsetWidth;
+    const nodeH = draggedNodeEl.offsetHeight;
+
+    const obstacles: Array<{x: number; y: number; w: number; h: number}> = [];
+    for (const el of this.workspaceEl.querySelectorAll(
+      ':scope > [data-node-id]',
+    )) {
+      if (el.getAttribute('data-node-id') === draggedNodeId) continue;
+      const nodeEl = el as HTMLElement;
+      obstacles.push({
+        x: parseFloat(nodeEl.style.left) || 0,
+        y: parseFloat(nodeEl.style.top) || 0,
+        w: nodeEl.offsetWidth,
+        h: nodeEl.offsetHeight,
+      });
+    }
+
+    return new Vector2D(this.spiralSearch(nodeW, nodeH, desiredPos, obstacles));
+  }
+
+  private autofit() {
+    const PADDING = 40; // screen px of breathing room on each side
+    const nodeEls = Array.from(
+      this.workspaceEl.querySelectorAll(':scope > [data-node-id]'),
+    ) as HTMLElement[];
+
+    // If there are no nodes, do nothing.
+    if (nodeEls.length === 0) {
+      return;
+    }
+
+    // Node left/top style is in canvas px; offsetWidth/Height are layout px
+    // (unaffected by the workspace CSS transform), so also canvas px.
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    for (const el of nodeEls) {
+      const x = parseFloat(el.style.left) || 0;
+      const y = parseFloat(el.style.top) || 0;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + el.offsetWidth);
+      maxY = Math.max(maxY, y + el.offsetHeight);
+    }
+
+    const containerW = this.rootEl.offsetWidth;
+    const containerH = this.rootEl.offsetHeight;
+    const bbW = maxX - minX;
+    const bbH = maxY - minY;
+
+    const zoom = Math.max(
+      MIN_ZOOM,
+      Math.min(
+        1.0,
+        Math.min(
+          (containerW - 2 * PADDING) / bbW,
+          (containerH - 2 * PADDING) / bbH,
+        ),
+      ),
+    );
+
+    // Center: canvas midpoint should map to screen midpoint.
+    // screen = (canvas - offset) * zoom  →  offset = canvas - screen / zoom
+    this.viewport = {
+      zoom,
+      offset: {
+        x: (minX + maxX) / 2 - containerW / (2 * zoom),
+        y: (minY + maxY) / 2 - containerH / (2 * zoom),
+      },
+    };
+    this.updateViewport();
+  }
+}
