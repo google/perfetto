@@ -28,8 +28,10 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/storage/stats.h"
@@ -69,6 +71,8 @@ class TraceSorterTest : public ::testing::Test {
   TraceSorterTest() : test_buffer_(TraceBlob::Allocate(8)) {
     storage_ = new NiceMock<MockTraceStorage>();
     context_.storage.reset(storage_);
+    context_.global_stats_tracker = std::make_unique<GlobalStatsTracker>();
+    context_.stats_tracker = std::make_unique<StatsTracker>(&context_);
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
     CreateSorter();
@@ -247,8 +251,10 @@ TEST_F(TraceSorterTest, OutOfOrder) {
   context_.sorter->NotifyReadBufferEvent();
 
   // We should also increment the stat that this was out of order.
-  const auto& stats = context_.storage->stats();
-  ASSERT_EQ(stats[stats::sorter_push_event_out_of_order].value, 1);
+  ASSERT_EQ(
+      context_.global_stats_tracker->GetStats(
+          std::nullopt, std::nullopt, stats::sorter_push_event_out_of_order),
+      1);
 
   // Third packet should not be pushed through.
   context_.sorter->NotifyFlushEvent();
@@ -258,7 +264,10 @@ TEST_F(TraceSorterTest, OutOfOrder) {
   context_.sorter->ExtractEventsForced();
 
   // We should also increment the stat that this was out of order.
-  ASSERT_EQ(stats[stats::sorter_push_event_out_of_order].value, 2);
+  ASSERT_EQ(
+      context_.global_stats_tracker->GetStats(
+          std::nullopt, std::nullopt, stats::sorter_push_event_out_of_order),
+      2);
 }
 
 // Simulates a random stream of ftrace events happening on random CPUs.

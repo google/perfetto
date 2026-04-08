@@ -32,6 +32,7 @@
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/jit_tables_py.h"
@@ -145,7 +146,7 @@ std::pair<FrameId, bool> JitCache::InternFrame(VirtualMemoryMapping* mapping,
     return {*id, false};
   }
 
-  context_->storage->IncrementStats(stats::jit_unknown_frame);
+  context_->stats_tracker->IncrementStats(stats::jit_unknown_frame);
 
   FrameId id =
       context_->storage->mutable_stack_profile_frame_table()

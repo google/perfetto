@@ -41,6 +41,7 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/v8_profile_parser.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -463,7 +464,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
       base::Status status = TokenizeLegacySampleEvent(
           event, leg, *data.trace_packet_data.sequence_state);
       if (!status.ok()) {
-        context_->storage->IncrementStats(
+        context_->stats_tracker->IncrementStats(
             stats::legacy_v8_cpu_profile_invalid_sample);
       }
     }
@@ -659,7 +660,7 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
           legacy.unscoped_id(), static_cast<uint32_t>(state.pid()), node.id,
           node.parent, url, function_name, node.children);
       if (!status.ok()) {
-        context_->storage->IncrementStats(
+        context_->stats_tracker->IncrementStats(
             stats::legacy_v8_cpu_profile_invalid_callsite);
         continue;
       }

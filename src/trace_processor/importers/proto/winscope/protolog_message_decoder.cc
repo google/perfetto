@@ -23,6 +23,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 
 namespace perfetto::trace_processor::winscope {
 
@@ -62,7 +63,7 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
           break;
         case 'd': {
           if (sint64_params_itr == sint64_params.end()) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::winscope_protolog_param_mismatch);
             formatted_message.append("[MISSING_PARAM]");
             break;
@@ -74,7 +75,7 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
         }
         case 'o': {
           if (sint64_params_itr == sint64_params.end()) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::winscope_protolog_param_mismatch);
             formatted_message.append("[MISSING_PARAM]");
             break;
@@ -87,7 +88,7 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
         }
         case 'x': {
           if (sint64_params_itr == sint64_params.end()) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::winscope_protolog_param_mismatch);
             formatted_message.append("[MISSING_PARAM]");
             break;
@@ -100,7 +101,7 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
         }
         case 'f': {
           if (double_params_itr == double_params.end()) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::winscope_protolog_param_mismatch);
             formatted_message.append("[MISSING_PARAM]");
             break;
@@ -112,7 +113,7 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
         }
         case 'e': {
           if (double_params_itr == double_params.end()) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::winscope_protolog_param_mismatch);
             formatted_message.append("[MISSING_PARAM]");
             break;
@@ -124,7 +125,7 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
         }
         case 'g': {
           if (double_params_itr == double_params.end()) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::winscope_protolog_param_mismatch);
             formatted_message.append("[MISSING_PARAM]");
             break;
@@ -136,7 +137,7 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
         }
         case 's': {
           if (str_params_itr == string_params.end()) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::winscope_protolog_param_mismatch);
             formatted_message.append("[MISSING_PARAM]");
             break;
@@ -147,7 +148,7 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
         }
         case 'b': {
           if (boolean_params_itr == boolean_params.end()) {
-            context_->storage->IncrementStats(
+            context_->stats_tracker->IncrementStats(
                 stats::winscope_protolog_param_mismatch);
             formatted_message.append("[MISSING_PARAM]");
             break;
@@ -172,7 +173,8 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
       double_params_itr != double_params.end() ||
       boolean_params_itr != boolean_params.end() ||
       str_params_itr != string_params.end()) {
-    context_->storage->IncrementStats(stats::winscope_protolog_param_mismatch);
+    context_->stats_tracker->IncrementStats(
+        stats::winscope_protolog_param_mismatch);
   }
 
   return DecodedMessage{tracked_message->level, group->tag, formatted_message,
@@ -182,7 +184,7 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
 void ProtoLogMessageDecoder::TrackGroup(uint32_t id, const std::string& tag) {
   auto tracked_group = tracked_groups_.Find(id);
   if (tracked_group != nullptr && tracked_group->tag != tag) {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::winscope_protolog_view_config_collision);
   }
   tracked_groups_.Insert(id, TrackedGroup{tag});
@@ -196,7 +198,7 @@ void ProtoLogMessageDecoder::TrackMessage(
     const std::optional<std::string>& location) {
   auto tracked_message = tracked_messages_.Find(message_id);
   if (tracked_message != nullptr && tracked_message->message != message) {
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::winscope_protolog_view_config_collision);
   }
   tracked_messages_.Insert(message_id,

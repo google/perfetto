@@ -27,6 +27,7 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
@@ -159,7 +160,8 @@ void MetadataModule::ParseTrigger(int64_t ts,
     trace_trigger_packet_type_ = TraceTriggerPacketType::kCloneSnapshot;
     context_->metadata_tracker->SetMetadata(metadata::trace_trigger,
                                             Variadic::String(name_id));
-    context_->storage->SetStats(stats::traced_clone_trigger_timestamp_ns, ts);
+    context_->stats_tracker->SetStats(stats::traced_clone_trigger_timestamp_ns,
+                                      ts);
   } else if (packetType == TraceTriggerPacketType::kTraceTrigger &&
              trace_trigger_packet_type_ == TraceTriggerPacketType::kNone) {
     trace_trigger_packet_type_ = TraceTriggerPacketType::kTraceTrigger;

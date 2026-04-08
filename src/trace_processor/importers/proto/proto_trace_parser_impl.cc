@@ -37,6 +37,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -168,7 +169,7 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
       } else if (metadata.has_json_value()) {
         value = Variadic::Json(storage->InternString(metadata.json_value()));
       } else {
-        context_->storage->IncrementStats(stats::empty_chrome_metadata);
+        context_->stats_tracker->IncrementStats(stats::empty_chrome_metadata);
         continue;
       }
 
@@ -357,7 +358,7 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
   }
 
   if (event.has_overruns())
-    context_->storage->IncrementStats(stats::metatrace_overruns);
+    context_->stats_tracker->IncrementStats(stats::metatrace_overruns);
 }
 
 StringId ProtoTraceParserImpl::GetMetatraceInternedString(uint64_t iid) {

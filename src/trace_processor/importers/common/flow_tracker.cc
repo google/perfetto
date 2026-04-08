@@ -21,6 +21,7 @@
 
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
@@ -47,7 +48,7 @@ void FlowTracker::Begin(TrackId track_id, FlowId flow_id) {
   std::optional<SliceId> open_slice_id =
       context_->slice_tracker->GetTopmostSliceOnTrack(track_id);
   if (!open_slice_id) {
-    context_->storage->IncrementStats(stats::flow_no_enclosing_slice);
+    context_->stats_tracker->IncrementStats(stats::flow_no_enclosing_slice);
     return;
   }
   Begin(open_slice_id.value(), flow_id);
@@ -56,7 +57,7 @@ void FlowTracker::Begin(TrackId track_id, FlowId flow_id) {
 void FlowTracker::Begin(SliceId slice_id, FlowId flow_id) {
   auto it_and_ins = flow_to_slice_map_.Insert(flow_id, slice_id);
   if (!it_and_ins.second) {
-    context_->storage->IncrementStats(stats::flow_duplicate_id);
+    context_->stats_tracker->IncrementStats(stats::flow_duplicate_id);
     return;
   }
 }
@@ -65,7 +66,7 @@ void FlowTracker::Step(TrackId track_id, FlowId flow_id) {
   std::optional<SliceId> open_slice_id =
       context_->slice_tracker->GetTopmostSliceOnTrack(track_id);
   if (!open_slice_id) {
-    context_->storage->IncrementStats(stats::flow_no_enclosing_slice);
+    context_->stats_tracker->IncrementStats(stats::flow_no_enclosing_slice);
     return;
   }
   Step(open_slice_id.value(), flow_id);
@@ -74,7 +75,7 @@ void FlowTracker::Step(TrackId track_id, FlowId flow_id) {
 void FlowTracker::Step(SliceId new_id, FlowId flow_id) {
   auto* it = flow_to_slice_map_.Find(flow_id);
   if (!it) {
-    context_->storage->IncrementStats(stats::flow_step_without_start);
+    context_->stats_tracker->IncrementStats(stats::flow_step_without_start);
     return;
   }
   SliceId existing_id = *it;
@@ -98,7 +99,7 @@ void FlowTracker::End(TrackId track_id,
   std::optional<SliceId> open_slice_id =
       context_->slice_tracker->GetTopmostSliceOnTrack(track_id);
   if (!open_slice_id) {
-    context_->storage->IncrementStats(stats::flow_no_enclosing_slice);
+    context_->stats_tracker->IncrementStats(stats::flow_no_enclosing_slice);
     return;
   }
   End(open_slice_id.value(), flow_id, close_flow);
@@ -107,7 +108,7 @@ void FlowTracker::End(TrackId track_id,
 void FlowTracker::End(SliceId new_id, FlowId flow_id, bool close_flow) {
   auto* it = flow_to_slice_map_.Find(flow_id);
   if (!it) {
-    context_->storage->IncrementStats(stats::flow_end_without_start);
+    context_->stats_tracker->IncrementStats(stats::flow_end_without_start);
     return;
   }
   SliceId existing_id = *it;

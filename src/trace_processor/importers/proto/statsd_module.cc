@@ -36,6 +36,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
@@ -142,7 +143,7 @@ ModuleResult StatsdModule::TokenizePacket(
     if (it_timestamps) {
       atom_timestamp = *it_timestamps++;
     } else {
-      context_->storage->IncrementStats(stats::atom_timestamp_missing);
+      context_->stats_tracker->IncrementStats(stats::atom_timestamp_missing);
       atom_timestamp = packet_timestamp;
     }
 
@@ -207,7 +208,7 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
           // descriptor for them so don't report errors. See:
           // https://cs.android.com/android/platform/superproject/main/+/main:frameworks/proto_logging/stats/atoms.proto;l=1290;drc=a34b11bfebe897259a0340a59f1793ae2dffd762
           if (nested_field_id < 100000) {
-            context_->storage->IncrementStats(stats::atom_unknown);
+            context_->stats_tracker->IncrementStats(stats::atom_unknown);
           }
 
           status = ParseGenericEvent(field.as_bytes(), delegate);
@@ -218,7 +219,7 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
         }
 
         if (!status.ok()) {
-          context_->storage->IncrementStats(stats::atom_unknown);
+          context_->stats_tracker->IncrementStats(stats::atom_unknown);
         }
       });
 }
@@ -227,7 +228,7 @@ StringId StatsdModule::GetAtomName(uint32_t atom_field_id) {
   StringId* cached_name = atom_names_.Find(atom_field_id);
   if (cached_name == nullptr) {
     if (!descriptor_idx_) {
-      context_->storage->IncrementStats(stats::atom_unknown);
+      context_->stats_tracker->IncrementStats(stats::atom_unknown);
       return context_->storage->InternString("Could not load atom descriptor");
     }
 

@@ -35,6 +35,7 @@
 #include "src/trace_processor/importers/common/jit_cache.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/proto/jit_tracker.h"
 #include "src/trace_processor/importers/proto/string_encoding_utils.h"
 #include "src/trace_processor/storage/stats.h"
@@ -160,7 +161,8 @@ std::optional<IsolateId> V8Tracker::InternIsolate(protozero::ConstBytes bytes) {
 
   // TODO(b/347250452): Implement support for no code range
   if (!isolate.has_code_range()) {
-    context_->storage->IncrementStats(stats::v8_isolate_has_no_code_range);
+    context_->stats_tracker->IncrementStats(
+        stats::v8_isolate_has_no_code_range);
     isolate_index_.Insert(isolate_key, std::nullopt);
     return std::nullopt;
   }
@@ -368,7 +370,8 @@ tables::V8JsFunctionTable::Id V8Tracker::InternJsFunction(
 JitCache* V8Tracker::MaybeFindJitCache(IsolateId isolate_id,
                                        AddressRange code_range) const {
   if (code_range.empty()) {
-    context_->storage->IncrementStats(stats::v8_code_load_missing_code_range);
+    context_->stats_tracker->IncrementStats(
+        stats::v8_code_load_missing_code_range);
     return nullptr;
   }
   auto* isolate = isolates_.Find(isolate_id);
@@ -384,12 +387,13 @@ JitCache* V8Tracker::MaybeFindJitCache(IsolateId isolate_id,
 JitCache* V8Tracker::FindJitCache(IsolateId isolate_id,
                                   AddressRange code_range) const {
   if (code_range.empty()) {
-    context_->storage->IncrementStats(stats::v8_code_load_missing_code_range);
+    context_->stats_tracker->IncrementStats(
+        stats::v8_code_load_missing_code_range);
     return nullptr;
   }
   JitCache* cache = MaybeFindJitCache(isolate_id, code_range);
   if (!cache) {
-    context_->storage->IncrementStats(stats::v8_no_code_range);
+    context_->stats_tracker->IncrementStats(stats::v8_no_code_range);
   }
   return cache;
 }
@@ -425,7 +429,7 @@ void V8Tracker::AddJsCode(int64_t timestamp,
   } else if (IsNativeCode(code)) {
     jit_cache = FindJitCache(isolate_id, code_range);
   } else {
-    context_->storage->IncrementStats(stats::v8_unknown_code_type);
+    context_->stats_tracker->IncrementStats(stats::v8_unknown_code_type);
     return;
   }
 

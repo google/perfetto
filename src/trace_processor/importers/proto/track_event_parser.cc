@@ -35,6 +35,7 @@
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
@@ -309,7 +310,7 @@ void TrackEventParser::ParseTrackDescriptor(
   // process and/or thread (i.e. new upid/utid).
   auto track = track_event_tracker_->ResolveDescriptorTrack(decoder.uuid());
   if (!track) {
-    context_->storage->IncrementStats(stats::track_event_parser_errors);
+    context_->stats_tracker->IncrementStats(stats::track_event_parser_errors);
     return;
   }
 
@@ -455,7 +456,7 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
       range_of_interest_start_us && ts < *range_of_interest_start_us * 1000) {
     // The event is outside of the range of interest, and dropping is enabled.
     // So we drop the event.
-    context_->storage->IncrementStats(
+    context_->stats_tracker->IncrementStats(
         stats::track_event_dropped_packets_outside_of_range_of_interest);
     return;
   }
@@ -463,7 +464,7 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
       TrackEventEventImporter(this, ts, event_data, blob, packet_sequence_id)
           .Import();
   if (!status.ok()) {
-    context_->storage->IncrementStats(stats::track_event_parser_errors);
+    context_->stats_tracker->IncrementStats(stats::track_event_parser_errors);
     PERFETTO_DLOG("ParseTrackEvent error: %s", status.c_message());
   }
 }

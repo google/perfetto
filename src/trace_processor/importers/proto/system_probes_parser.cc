@@ -43,6 +43,7 @@
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/system_info_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
@@ -362,7 +363,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     auto key = static_cast<size_t>(mi.key());
     if (PERFETTO_UNLIKELY(key >= meminfo_strs_.size())) {
       PERFETTO_ELOG("MemInfo key %zu is not recognized.", key);
-      context_->storage->IncrementStats(stats::meminfo_unknown_keys);
+      context_->stats_tracker->IncrementStats(stats::meminfo_unknown_keys);
       continue;
     }
     // /proc/meminfo counters are in kB, convert to bytes
@@ -400,7 +401,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     auto key = static_cast<size_t>(vm.key());
     if (PERFETTO_UNLIKELY(key >= vmstat_strs_.size())) {
       PERFETTO_ELOG("VmStat key %zu is not recognized.", key);
-      context_->storage->IncrementStats(stats::vmstat_unknown_keys);
+      context_->stats_tracker->IncrementStats(stats::vmstat_unknown_keys);
       continue;
     }
     TrackId track = context_->track_tracker->InternTrack(
@@ -413,7 +414,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     protos::pbzero::SysStats::CpuTimes::Decoder ct(*it);
     if (PERFETTO_UNLIKELY(!ct.has_cpu_id())) {
       PERFETTO_ELOG("CPU field not found in CpuTimes");
-      context_->storage->IncrementStats(stats::invalid_cpu_times);
+      context_->stats_tracker->IncrementStats(stats::invalid_cpu_times);
       continue;
     }
 
@@ -548,7 +549,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     auto resource = static_cast<size_t>(psi.resource());
     const char* resource_key = GetPsiResourceKey(resource);
     if (!resource_key) {
-      context_->storage->IncrementStats(stats::psi_unknown_resource);
+      context_->stats_tracker->IncrementStats(stats::psi_unknown_resource);
       return;
     }
     static constexpr auto kBlueprint = tracks::CounterBlueprint(
@@ -853,7 +854,8 @@ void SystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
       }
 
       // No handling for this field, so increment the error counter.
-      context_->storage->IncrementStats(stats::proc_stat_unknown_counters);
+      context_->stats_tracker->IncrementStats(
+          stats::proc_stat_unknown_counters);
     }
   }
 }

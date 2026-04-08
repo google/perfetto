@@ -36,6 +36,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -306,7 +307,7 @@ void AndroidProbesParser::ParsePowerRails(int64_t ts,
       power_rails_args_tracker_->Flush();
     }
   } else {
-    context_->storage->IncrementStats(stats::power_rail_unknown_index);
+    context_->stats_tracker->IncrementStats(stats::power_rail_unknown_index);
   }
 
   // DCHECK that we only got one message.
@@ -316,14 +317,16 @@ void AndroidProbesParser::ParsePowerRails(int64_t ts,
 void AndroidProbesParser::ParseEnergyBreakdown(int64_t ts, ConstBytes blob) {
   protos::pbzero::AndroidEnergyEstimationBreakdown::Decoder event(blob);
   if (!event.has_energy_consumer_id() || !event.has_energy_uws()) {
-    context_->storage->IncrementStats(stats::energy_breakdown_missing_values);
+    context_->stats_tracker->IncrementStats(
+        stats::energy_breakdown_missing_values);
     return;
   }
 
   auto consumer_id = event.energy_consumer_id();
   auto descriptor = tracker_->GetEnergyBreakdownDescriptor(consumer_id);
   if (!descriptor) {
-    context_->storage->IncrementStats(stats::energy_breakdown_missing_values);
+    context_->stats_tracker->IncrementStats(
+        stats::energy_breakdown_missing_values);
     return;
   }
 
@@ -349,7 +352,7 @@ void AndroidProbesParser::ParseEnergyBreakdown(int64_t ts, ConstBytes blob) {
         breakdown(*it);
 
     if (!breakdown.has_uid() || !breakdown.has_energy_uws()) {
-      context_->storage->IncrementStats(
+      context_->stats_tracker->IncrementStats(
           stats::energy_uid_breakdown_missing_values);
       continue;
     }
@@ -373,7 +376,8 @@ void AndroidProbesParser::ParseEntityStateResidency(int64_t ts,
                                                     ConstBytes blob) {
   protos::pbzero::EntityStateResidency::Decoder event(blob);
   if (!event.has_residency()) {
-    context_->storage->IncrementStats(stats::entity_state_residency_invalid);
+    context_->stats_tracker->IncrementStats(
+        stats::entity_state_residency_invalid);
     return;
   }
   static constexpr auto kBlueprint = tracks::CounterBlueprint(
@@ -388,7 +392,7 @@ void AndroidProbesParser::ParseEntityStateResidency(int64_t ts,
     auto entity_state = tracker_->GetEntityStateDescriptor(
         residency.entity_index(), residency.state_index());
     if (!entity_state) {
-      context_->storage->IncrementStats(
+      context_->stats_tracker->IncrementStats(
           stats::entity_state_residency_lookup_failed);
       return;
     }
@@ -478,18 +482,18 @@ void AndroidProbesParser::ParseAndroidLogEvent(int64_t ts,
 void AndroidProbesParser::ParseAndroidLogStats(protozero::ConstBytes blob) {
   protos::pbzero::AndroidLogPacket::Stats::Decoder evt(blob);
   if (evt.has_num_failed()) {
-    context_->storage->SetStats(stats::android_log_num_failed,
-                                static_cast<int64_t>(evt.num_failed()));
+    context_->stats_tracker->SetStats(stats::android_log_num_failed,
+                                      static_cast<int64_t>(evt.num_failed()));
   }
 
   if (evt.has_num_skipped()) {
-    context_->storage->SetStats(stats::android_log_num_skipped,
-                                static_cast<int64_t>(evt.num_skipped()));
+    context_->stats_tracker->SetStats(stats::android_log_num_skipped,
+                                      static_cast<int64_t>(evt.num_skipped()));
   }
 
   if (evt.has_num_total()) {
-    context_->storage->SetStats(stats::android_log_num_total,
-                                static_cast<int64_t>(evt.num_total()));
+    context_->stats_tracker->SetStats(stats::android_log_num_total,
+                                      static_cast<int64_t>(evt.num_total()));
   }
 }
 
@@ -509,10 +513,10 @@ void AndroidProbesParser::ParseAndroidGameIntervention(
   constexpr static int kGameModePerformance = 2;
   constexpr static int kGameModeBattery = 3;
 
-  context_->storage->SetStats(stats::game_intervention_has_read_errors,
-                              intervention_list.read_error());
-  context_->storage->SetStats(stats::game_intervention_has_parse_errors,
-                              intervention_list.parse_error());
+  context_->stats_tracker->SetStats(stats::game_intervention_has_read_errors,
+                                    intervention_list.read_error());
+  context_->stats_tracker->SetStats(stats::game_intervention_has_parse_errors,
+                                    intervention_list.parse_error());
 
   for (auto pkg_it = intervention_list.game_packages(); pkg_it; ++pkg_it) {
     protos::pbzero::AndroidGameInterventionList_GamePackageInfo::Decoder

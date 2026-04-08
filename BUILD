@@ -374,6 +374,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
+        ":src_trace_processor_importers_common_stats_tracker",
         ":src_trace_processor_importers_common_synthetic_tid_hdr",
         ":src_trace_processor_importers_common_v8_profile_parser",
         ":src_trace_processor_importers_etw_full",
@@ -588,6 +589,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
+        ":src_trace_processor_importers_common_stats_tracker",
         ":src_trace_processor_importers_common_synthetic_tid_hdr",
         ":src_trace_processor_importers_common_v8_profile_parser",
         ":src_trace_processor_importers_etw_full",
@@ -2388,6 +2390,17 @@ perfetto_filegroup(
     name = "src_trace_processor_importers_common_parser_types",
     srcs = [
         "src/trace_processor/importers/common/parser_types.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/common:stats_tracker
+perfetto_filegroup(
+    name = "src_trace_processor_importers_common_stats_tracker",
+    srcs = [
+        "src/trace_processor/importers/common/global_stats_tracker.cc",
+        "src/trace_processor/importers/common/global_stats_tracker.h",
+        "src/trace_processor/importers/common/stats_tracker.cc",
+        "src/trace_processor/importers/common/stats_tracker.h",
     ],
 )
 
@@ -8665,6 +8678,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
+        ":src_trace_processor_importers_common_stats_tracker",
         ":src_trace_processor_importers_common_synthetic_tid_hdr",
         ":src_trace_processor_importers_common_v8_profile_parser",
         ":src_trace_processor_importers_etw_full",
@@ -8909,6 +8923,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_collapsed_stack_collapsed_stack",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
+        ":src_trace_processor_importers_common_stats_tracker",
         ":src_trace_processor_importers_common_synthetic_tid_hdr",
         ":src_trace_processor_importers_common_v8_profile_parser",
         ":src_trace_processor_importers_etw_full",

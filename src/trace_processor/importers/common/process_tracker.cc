@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
@@ -547,7 +548,7 @@ void ProcessTracker::AssociateThreads(UniqueTid utid1,
     // Cannot associate two threads that belong to two different processes.
     PERFETTO_ELOG("Process tracker failure. Cannot associate threads %ld, %ld",
                   static_cast<long>(rr1.tid()), static_cast<long>(rr2.tid()));
-    context_->storage->IncrementStats(stats::process_tracker_errors);
+    context_->stats_tracker->IncrementStats(stats::process_tracker_errors);
     return;
   }
 

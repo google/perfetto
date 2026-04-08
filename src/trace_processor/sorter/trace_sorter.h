@@ -31,6 +31,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/importers/common/global_stats_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/sorter/trace_token_buffer.h"
 #include "src/trace_processor/storage/stats.h"
@@ -290,6 +291,7 @@ class TraceSorter {
   SortingMode sorting_mode_ = SortingMode::kDefault;
 
   TraceStorage* storage_;
+  GlobalStatsTracker* global_stats_tracker_;
 
   // Buffer for storing tokenized objects while the corresponding events are
   // being sorted.
@@ -366,7 +368,8 @@ class TraceSorter::Stream {
       return;
     }
     if (PERFETTO_UNLIKELY(ts < 0)) {
-      sorter_->storage_->IncrementStats(
+      sorter_->global_stats_tracker_->IncrementStats(
+          std::nullopt, std::nullopt,
           stats::trace_sorter_negative_timestamp_dropped);
       return;
     }

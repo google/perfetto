@@ -1165,7 +1165,9 @@ class TraceStorage {
   // One entry for each unique string in the trace.
   StringPool string_pool_;
 
-  // Stats about parsing the trace.
+  // TODO(sashwinbalaji): Remove once export_json.cc is migrated to read from
+  // GlobalStatsTracker. This is the only remaining reader of stats_.
+  // See TODO in export_json.cc ExportStats() for details.
   StatsMap stats_{};
   VirtualTrackSlices virtual_track_slices_;
   SqlStats sql_stats_;

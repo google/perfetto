@@ -30,6 +30,7 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/proto/blob_packet_writer.h"
@@ -112,7 +113,8 @@ ModuleResult NetworkTraceModule::TokenizePacket(
         protos::pbzero::InternedData::kPacketContextFieldNumber,
         protos::pbzero::NetworkPacketContext>(evt.iid());
     if (!interned) {
-      context_->storage->IncrementStats(stats::network_trace_intern_errors);
+      context_->stats_tracker->IncrementStats(
+          stats::network_trace_intern_errors);
     } else {
       context = interned->ctx();
     }
@@ -136,7 +138,8 @@ ModuleResult NetworkTraceModule::TokenizePacket(
     auto length_iter = evt.packet_lengths(&parse_error);
     auto timestamp_iter = evt.packet_timestamps(&parse_error);
     if (parse_error) {
-      context_->storage->IncrementStats(stats::network_trace_parse_errors);
+      context_->stats_tracker->IncrementStats(
+          stats::network_trace_parse_errors);
       return ModuleResult::Handled();
     }
 

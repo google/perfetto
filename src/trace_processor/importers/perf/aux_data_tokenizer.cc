@@ -21,6 +21,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/stats_tracker.h"
 #include "src/trace_processor/importers/perf/aux_record.h"
 #include "src/trace_processor/importers/perf/itrace_start_record.h"
 #include "src/trace_processor/storage/stats.h"
@@ -47,12 +48,12 @@ void DummyAuxDataTokenizer::OnEventsFullyExtracted() {}
 DummyAuxDataStream::DummyAuxDataStream(TraceProcessorContext* context)
     : context_(context) {}
 void DummyAuxDataStream::OnDataLoss(uint64_t size) {
-  context_->storage->IncrementStats(stats::perf_aux_lost,
-                                    static_cast<int>(size));
+  context_->stats_tracker->IncrementStats(stats::perf_aux_lost,
+                                          static_cast<int>(size));
 }
 base::Status DummyAuxDataStream::Parse(AuxRecord, TraceBlobView data) {
-  context_->storage->IncrementStats(stats::perf_aux_ignored,
-                                    static_cast<int>(data.size()));
+  context_->stats_tracker->IncrementStats(stats::perf_aux_ignored,
+                                          static_cast<int>(data.size()));
   return base::OkStatus();
 }
 base::Status DummyAuxDataStream::NotifyEndOfStream() {
