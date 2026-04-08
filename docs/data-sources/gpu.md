@@ -231,3 +231,38 @@ gpu_render_stage_event {
 
 This creates a flow from the memcpy event (event\_id 1) to the matmul kernel
 (event\_id 2), visualizing the dependency in the Perfetto UI.
+
+### Host-to-GPU correlation
+
+Host-side track events can be correlated with GPU render stage events using
+the `GpuCorrelation` TrackEvent extension. This is useful for connecting
+host API calls (e.g. `cudaLaunchKernel`, `cudaMemcpyAsync`) with the
+corresponding GPU work.
+
+The extension provides two fields:
+
+- `render_stage_submission_event_ids`: event IDs of GPU render stage events
+  that this host event submitted.
+- `render_stage_wait_event_ids`: event IDs of GPU render stage events that
+  this host event waited on to complete.
+
+Example: a host kernel launch correlated with a GPU compute kernel:
+
+```
+track_event {
+    type: TYPE_SLICE_BEGIN
+    name: "cudaLaunchKernel"
+    [perfetto.protos.GpuTrackEvent.gpu_correlation] {
+        render_stage_submission_event_ids: 1
+    }
+}
+
+gpu_render_stage_event {
+    event_id: 1
+    duration: 50000
+    hw_queue_iid: 1
+    stage_iid: 2
+    context: 0
+    name: "matmul_kernel"
+}
+```
