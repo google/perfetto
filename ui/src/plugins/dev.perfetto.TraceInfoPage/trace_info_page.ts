@@ -149,6 +149,7 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
       case 'data_losses':
         return m(DataLossesTab, {
           data: this.tabData.dataLosses,
+          engine: trace.engine,
         });
       case 'ui_loading_errors':
         return m(UiLoadingErrorsTab, {
@@ -189,7 +190,10 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
     if ((this.tabData?.traceErrors?.errors?.length ?? 0) > 0) {
       tabs.push({key: 'trace_errors', title: 'Trace Errors'});
     }
-    if ((this.tabData?.overview?.dataLosses ?? 0) > 0) {
+    if (
+      (this.tabData?.overview?.dataLosses ?? 0) > 0 ||
+      (this.tabData?.dataLosses?.importLogStatNames?.length ?? 0) > 0
+    ) {
       tabs.push({key: 'data_losses', title: 'Data Losses'});
     }
     if ((this.tabData?.overview?.uiLoadingErrorCount ?? 0) > 0) {
