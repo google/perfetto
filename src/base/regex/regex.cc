@@ -25,17 +25,41 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flags.h"
 
-// Include the selected backend header.
-#if PERFETTO_BUILDFLAG(PERFETTO_PCRE2) && PERFETTO_FLAGS_USE_PCRE2
+// Picks the regex backend and exposes it as PERFETTO_REGEX_BACKEND.
+// Preference order:
+//   1. PERFETTO_REGEX_FORCE_STD -> std::regex
+//   2. PCRE2 (when enabled and the runtime flag is on)
+//   3. RE2   (when enabled)
+//   4. std::regex (fallback)
+#if defined(PERFETTO_REGEX_FORCE_STD)
+#include "src/base/regex/regex_std.h"
+#define PERFETTO_REGEX_BACKEND ::perfetto::base::RegexStd
+#elif PERFETTO_BUILDFLAG(PERFETTO_PCRE2) && PERFETTO_FLAGS_USE_PCRE2
 #include "src/base/regex/regex_pcre2.h"
+#define PERFETTO_REGEX_BACKEND ::perfetto::base::RegexPcre2
 #elif PERFETTO_BUILDFLAG(PERFETTO_RE2)
 #include "src/base/regex/regex_re2.h"
+#define PERFETTO_REGEX_BACKEND ::perfetto::base::RegexRe2
 #else
 #include "src/base/regex/regex_std.h"
+#define PERFETTO_REGEX_BACKEND ::perfetto::base::RegexStd
 #endif
 
 namespace perfetto {
 namespace base {
+
+// Pimpl for Regex. Holds the selected backend; Regex reaches into `backend`
+// directly (Regex is a friend below).
+class RegexImpl {
+ public:
+  using Backend = PERFETTO_REGEX_BACKEND;
+  explicit RegexImpl(Backend b) : backend(std::move(b)) {}
+
+ private:
+  friend class Regex;
+  Backend backend;
+};
+#undef PERFETTO_REGEX_BACKEND
 
 Regex::Regex(Regex&&) noexcept = default;
 Regex& Regex::operator=(Regex&&) noexcept = default;
@@ -44,14 +68,13 @@ Regex::~Regex() = default;
 StatusOr<Regex> Regex::Create(std::string_view pattern,
                               Regex::CaseSensitivity cs) {
   bool insensitive = (cs == CaseSensitivity::kInsensitive);
-  auto impl_or = RegexImpl::Create(pattern, insensitive);
-  if (!impl_or.ok()) {
-    return base::ErrStatus("%s", impl_or.status().message().c_str());
-  }
+  auto backend_or = RegexImpl::Backend::Create(pattern, insensitive);
+  if (!backend_or.ok())
+    return backend_or.status();
   Regex regex;
   regex.pattern_ = std::string(pattern);
   regex.cs_ = cs;
-  regex.impl_ = std::make_unique<RegexImpl>(std::move(*impl_or));
+  regex.impl_ = std::make_unique<RegexImpl>(std::move(*backend_or));
   return std::move(regex);
 }
 
@@ -65,29 +88,29 @@ Regex Regex::CreateOrCheck(std::string_view pattern,
 std::string Regex::GlobalReplace(std::string_view s,
                                  std::string_view replacement) const {
   PERFETTO_DCHECK(impl_);
-  return impl_->GlobalReplace(s, replacement);
+  return impl_->backend.GlobalReplace(s, replacement);
 }
 
 bool Regex::FullMatch(std::string_view s) const {
   PERFETTO_DCHECK(impl_);
-  return impl_->FullMatch(s);
+  return impl_->backend.FullMatch(s);
 }
 
 bool Regex::FullMatchWithGroups(std::string_view s,
                                 std::vector<std::string_view>& out) const {
   PERFETTO_DCHECK(impl_);
-  return impl_->FullMatchWithGroups(s, out);
+  return impl_->backend.FullMatchWithGroups(s, out);
 }
 
 bool Regex::PartialMatch(std::string_view s) const {
   PERFETTO_DCHECK(impl_);
-  return impl_->PartialMatch(s);
+  return impl_->backend.PartialMatch(s);
 }
 
 bool Regex::PartialMatchWithGroups(std::string_view s,
                                    std::vector<std::string_view>& out) const {
   PERFETTO_DCHECK(impl_);
-  return impl_->PartialMatchWithGroups(s, out);
+  return impl_->backend.PartialMatchWithGroups(s, out);
 }
 
 // --- PartialMatchIterator ---
@@ -105,7 +128,7 @@ std::optional<std::string_view> Regex::PartialMatchIterator::NextWithGroups(
   if (offset_ > input_.size())
     return std::nullopt;
   PERFETTO_DCHECK(re_->impl_);
-  if (!re_->impl_->SearchWithOffset(input_, offset_, groups))
+  if (!re_->impl_->backend.SearchWithOffset(input_, offset_, groups))
     return std::nullopt;
   if (groups.empty())
     return std::nullopt;

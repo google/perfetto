@@ -329,6 +329,13 @@ additional_args = {
         ('min_sdk_version', '30'),
         ('shared_libs', {'liblog'}),
         ('export_include_dirs', {'include', buildflags_dir}),
+        # Compiles base::Regex against the std::regex backend. Static libs
+        # don't propagate their deps to consumers on Soong (b/169779783), so
+        # linking libpcre2 here would force every consumer of this static
+        # lib to pay the libpcre2 code-size cost. Regex usage in the client
+        # SDK is minimal, so std::regex is an acceptable tradeoff.
+        # See b/498785154 for the binary-size regression that motivated this.
+        ('cflags', {'-DPERFETTO_REGEX_FORCE_STD'}),
     ],
     'libperfetto_c': [
         ('min_sdk_version', '30'),
@@ -425,13 +432,23 @@ def enable_libunwind(module):
 
 
 def enable_pcre2(module):
-  # TODO(b/494498282): Re-enable once all clients of
-  # libperfetto_client_experimental are updated to include libpcre2 in their
-  # deps. A cc_defaults (libperfetto_client_experimental_defaults) should be
-  # created to make this easier for consumers. Until then, base::Regex falls
-  # back to std::regex on Android (enable_perfetto_pcre2 = false in
-  # perfetto.gni).
-  pass
+  # Invoked by the dep walker for every module that transitively depends on
+  # //buildtools:pcre2 in GN. Modules that opt out via PERFETTO_REGEX_FORCE_STD
+  # compile base::Regex against std::regex, so they don't reference any pcre2
+  # symbols and the libpcre2 dep is suppressed for them.
+  if '-DPERFETTO_REGEX_FORCE_STD' in module.cflags:
+    return
+  if module.type == 'cc_binary_host':
+    module.static_libs.add('libpcre2')
+  elif module.host_supported:
+    module.android.shared_libs.add('libpcre2')
+    # Use whole_static_libs on host so that pcre2 symbols are embedded in
+    # host static archives (.a). Without this, host consumers of a static
+    # lib (e.g. libandroid_runtime linking libperfetto_c.a) would hit
+    # undefined pcre2 symbols because static_libs don't propagate.
+    module.host.whole_static_libs.add('libpcre2')
+  else:
+    module.shared_libs.add('libpcre2')
 
 
 def enable_sqlite(module):
