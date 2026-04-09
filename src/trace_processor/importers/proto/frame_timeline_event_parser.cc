@@ -209,9 +209,9 @@ FrameTimelineEventParser::FrameTimelineEventParser(
       display_frame_token_id_(
           context->storage->InternString("Display frame token")),
       present_delay_millis_id_(
-          context->storage->InternString("Present Delay (ms) (experimental)")),
+          context->storage->InternString("Present Delay (ms)")),
       vsync_resynced_jitter_millis_id_(context->storage->InternString(
-          "Vsync Resynced Jitter (ms) (experimental)")),
+          "Vsync Resynced Jitter (ms)")),
       present_type_id_(context->storage->InternString("Present type")),
       present_type_experimental_id_(
           context->storage->InternString("Present type (experimental)")),
@@ -223,7 +223,7 @@ FrameTimelineEventParser::FrameTimelineEventParser(
       jank_severity_type_id_(
           context->storage->InternString("Jank severity type")),
       jank_severity_score_id_(
-          context->storage->InternString("Jank Severity Score (experimental)")),
+          context->storage->InternString("Jank Severity Score")),
       jank_debug_metadata_id_(
           context->storage->InternString("Jank Metadata (debugging only)")),
       layer_name_id_(context->storage->InternString("Layer name")),
