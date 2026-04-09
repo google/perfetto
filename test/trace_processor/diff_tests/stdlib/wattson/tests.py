@@ -510,3 +510,40 @@ class WattsonStdlib(TestSuite):
             "avg_tpu_mw","total_tpu_mws"
             52.389828,592.702934
             """))
+
+  # Verify intermediate GPU active region extraction
+  def test_wattson_gpu_active_regions(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_gpu_attribution.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.tasks.gpu_active_regions;
+            SELECT ts, dur FROM _gpu_active_regions ORDER BY ts ASC LIMIT 5;
+            """),
+        out=Csv("""
+            "ts","dur"
+            13399714638761,10769428
+            13399727319204,5759219
+            13399741522303,7668750
+            13399760952069,6746745
+            13399768883996,4985000
+            """))
+
+  # Verify final standalone GPU attribution output
+  def test_wattson_gpu_attribution(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_gpu_attribution.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.tasks.attribution;
+            SELECT ts, dur, package_name, estimated_mw, idle_mw
+            FROM _gpu_estimates_w_tasks_attribution
+            WHERE estimated_mw > 0 OR idle_mw > 0
+            ORDER BY ts ASC LIMIT 5;
+            """),
+        out=Csv("""
+            "ts","dur","package_name","estimated_mw","idle_mw"
+            13399714825233,44479,"android",750.380000,0.000000
+            13399714869712,28333,"GPU Idle",0.000000,750.380000
+            13399714898045,48464,"android",750.380000,0.000000
+            13399714946509,263607,"GPU Idle",0.000000,750.380000
+            13399715210116,1828255,"GPU Idle",0.000000,750.380000
+            """))
