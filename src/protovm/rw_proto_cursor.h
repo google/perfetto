@@ -89,8 +89,9 @@ class RwProtoCursor {
   // message. Merge fields from the 'data' message into the message pointed by
   // cursor. Existing fields in the cursor's message are overwritten by fields
   // from 'data'. Fields present in 'data' but not in the cursor's message are
-  // be added/created.
-  StatusOr<void> Merge(protozero::ConstBytes data);
+  // added/created. If skip_submessages is set to true, any message node already
+  // resolved in the dst are skipped, thus not overwritten by the parent merge.
+  StatusOr<void> Merge(protozero::ConstBytes data, bool skip_submessages);
 
   StatusOr<void> Delete();
 

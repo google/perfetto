@@ -27,6 +27,8 @@ message Element {
 
 message TraceEntry {
   repeated Element elements = 1;
+  optional Element single_element = 2;
+  optional int32 id = 3;
 }
 
 message Patch {
