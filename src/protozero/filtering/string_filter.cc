@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/public/compiler.h"
 
 namespace protozero {
