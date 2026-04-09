@@ -5697,6 +5697,61 @@ perfetto_dart_proto_library(
     ],
 )
 
+# GN target: [//protos/perfetto/trace/android:winscope_extensions_source_set]
+perfetto_proto_library(
+    name = "winscope_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":protos_perfetto_trace_android_winscope_common_protos",
+        ":protos_perfetto_trace_android_winscope_extensions_protos",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace/android:winscope_extensions_source_set]
+perfetto_cc_proto_library(
+    name = "winscope_cc_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":winscope_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace/android:winscope_extensions_source_set]
+perfetto_java_proto_library(
+    name = "winscope_java_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":winscope_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace/android:winscope_extensions_source_set]
+perfetto_java_lite_proto_library(
+    name = "winscope_java_proto_lite",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":winscope_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace/android:winscope_extensions_source_set]
+perfetto_py_proto_library(
+    name = "winscope_py_pb2",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":winscope_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace/android:winscope_extensions_source_set]
+perfetto_dart_proto_library(
+    name = "winscope_dart_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":winscope_proto",
+    ],
+)
+
 # GN target: [//protos/perfetto/metrics:source_set]
 perfetto_proto_library(
     name = "metrics_proto",
@@ -5881,6 +5936,7 @@ perfetto_dart_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_proto_library(
     name = "trace_processor_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
         ":protos_perfetto_common_protos",
         ":protos_perfetto_perfetto_sql_protos",
@@ -5893,6 +5949,7 @@ perfetto_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_cc_proto_library(
     name = "trace_processor_cc_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
         ":trace_processor_proto",
     ],
@@ -5901,6 +5958,7 @@ perfetto_cc_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_java_proto_library(
     name = "trace_processor_java_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
         ":trace_processor_proto",
     ],
@@ -5909,6 +5967,7 @@ perfetto_java_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_java_lite_proto_library(
     name = "trace_processor_java_proto_lite",
+    visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
         ":trace_processor_proto",
     ],
@@ -5917,6 +5976,7 @@ perfetto_java_lite_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_py_proto_library(
     name = "trace_processor_py_pb2",
+    visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
         ":trace_processor_proto",
     ],
@@ -5925,6 +5985,7 @@ perfetto_py_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_dart_proto_library(
     name = "trace_processor_dart_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
         ":trace_processor_proto",
     ],
