@@ -13,8 +13,9 @@
 # limitations under the License.
 
 import("../../../gn/perfetto.gni")
+import("../../../gn/perfetto_component.gni")
 
-source_set("regex") {
+perfetto_component("regex") {
   sources = [
     "regex.cc",
     "regex_std.h",
