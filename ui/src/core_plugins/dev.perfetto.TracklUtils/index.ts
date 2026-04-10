@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import z from 'zod';
-import {OmniboxMode} from '../../core/omnibox_manager';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {AppImpl} from '../../core/app_impl';
@@ -91,7 +90,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
       callback: async () => {
         const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
         const omnibox = AppImpl.instance.omnibox;
-        omnibox.setMode(OmniboxMode.Query);
+        omnibox.activateRegisteredMode(':');
         omnibox.setText(
           `select  where ts >= ${window.start} and ts < ${window.end}`,
         );
@@ -403,6 +402,36 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
 
         // Convert UTC Date to trace time using the trace's unix offset
         const traceTime = Time.fromDate(utcDate, ctx.traceInfo.unixOffset);
+
+        ctx.notes.addNote({
+          timestamp: traceTime,
+          text: noteText,
+        });
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.AddNoteAtTimestamp',
+      name: 'Add note at nanosecond timestamp',
+      callback: async (timestampArg: unknown, noteTextArg: unknown) => {
+        const timestampStr =
+          typeof timestampArg === 'string'
+            ? timestampArg
+            : await ctx.omnibox.prompt('Enter timestamp...');
+        if (!timestampStr) return;
+
+        const noteText =
+          typeof noteTextArg === 'string'
+            ? noteTextArg
+            : await ctx.omnibox.prompt('Enter note text...');
+        if (noteText === undefined) return;
+
+        const timestamp = parseInt(timestampStr, 10);
+        if (isNaN(timestamp)) {
+          console.error(`invalid timestamp: ${timestampStr}`);
+          return;
+        }
+        const traceTime = Time.fromRaw(BigInt(timestamp));
 
         ctx.notes.addNote({
           timestamp: traceTime,

@@ -18,158 +18,116 @@
 #define SRC_TRACE_PROCESSOR_CORE_TREE_TREE_TRANSFORMER_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
+#include <string_view>
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
-#include "src/trace_processor/core/dataframe/query_plan.h"
 #include "src/trace_processor/core/dataframe/specs.h"
-#include "src/trace_processor/core/interpreter/bytecode_builder.h"
-#include "src/trace_processor/core/interpreter/bytecode_registers.h"
-#include "src/trace_processor/core/util/bit_vector.h"
-#include "src/trace_processor/core/util/span.h"
+#include "src/trace_processor/core/tree/propagate_spec.h"
+#include "src/trace_processor/core/tree/tree_columns.h"
+
+namespace perfetto::trace_processor::core::interpreter {
+class BytecodeBuilder;
+}  // namespace perfetto::trace_processor::core::interpreter
 
 namespace perfetto::trace_processor::core::tree {
 
-// Transforms a tree-structured dataframe via a bunch of operations producing
-// another dataframe.
+// Transforms a tree-structured dataset via composable operations (filtering,
+// propagation) producing a dataframe.
 //
-// The tree structure is represented by the first two columns of the dataframe:
-// - Column 0: node ID (the original ID, or _tree_id if already transformed)
-// - Column 1: parent ID (parent node ID, or _tree_parent_id)
+// Takes ownership of TreeColumns in the constructor. Bytecodes are emitted
+// incrementally as methods are called. ToDataframe() finalizes the bytecode,
+// executes it, and builds the output.
 //
-// Operations can be chained:
-//   auto status = TreeTransformer(df, pool)
-//       .FilterTree(filter_specs);  // Emits bytecode immediately
-//   RETURN_IF_ERROR(status);
-//   auto result = std::move(transformer).ToDataframe();
-//
-// All operations emit bytecode immediately. ToDataframe() executes the
-// accumulated bytecode and uses SelectRows to create the final dataframe.
-//
-// Architecture follows QueryPlanBuilder patterns:
-// - Uses builder_.GetOrCreateScratchRegisters() for scratch management
-// - Uses scope-based register caching via builder_.CreateCacheScope()
-// - Single unified code path (no lazy initialization)
+// Usage:
+//   TreeTransformer t(std::move(cols), pool);
+//   RETURN_IF_ERROR(t.FilterTree(specs, values));
+//   RETURN_IF_ERROR(t.PropagateDown(propagate_specs));
+//   RETURN_IF_ERROR(t.FilterTree(specs2, values2));  // can filter on
+//   propagated ASSIGN_OR_RETURN(auto result, std::move(t).ToDataframe());
 class TreeTransformer {
  public:
-  explicit TreeTransformer(dataframe::Dataframe df, StringPool* pool);
+  TreeTransformer(TreeColumns cols, StringPool* pool);
+  ~TreeTransformer();
 
-  // Applies a filter to the tree, keeping only nodes matching the filter
-  // and reparenting surviving children to their closest surviving ancestor.
-  //
-  // The filter specs are evaluated against the dataframe columns. Nodes
-  // that pass the filter are kept; nodes that are filtered out have their
-  // children reparented to the closest surviving ancestor.
-  //
-  // Multiple FilterTree calls can be chained; they are applied in order.
-  // Bytecode is emitted immediately for each call.
-  //
-  // Returns Status (can fail if filter specs reference invalid columns).
+  TreeTransformer(TreeTransformer&&) noexcept;
+  TreeTransformer& operator=(TreeTransformer&&) noexcept;
+
+  // Resolves a column name to its index in the owned column storage.
+  std::optional<uint32_t> ResolveColumn(std::string_view name) const;
+
+  // Returns the storage type for a column at the given index.
+  StorageType column_type(uint32_t col) const {
+    return cols_.columns[col].type;
+  }
+
+  // Applies a filter to the tree. Nodes matching the filter are kept;
+  // filtered-out nodes have their children reparented to the closest
+  // surviving ancestor. Can be called multiple times; bytecodes are
+  // emitted immediately.
   base::Status FilterTree(std::vector<dataframe::FilterSpec> specs,
                           std::vector<SqlValue> values);
 
-  // Returns the underlying dataframe (for accessing column metadata).
-  const dataframe::Dataframe& df() const { return df_; }
-
-  // Transforms the tree and returns the resulting dataframe.
+  // Propagates column values from root toward leaves. For each spec, a new
+  // output column is created and filled by copying the source column and
+  // then applying the aggregate operation downward through the tree via BFS.
   //
-  // This always executes via a unified path:
-  // - If no FilterTree calls: just builds tree structure columns
-  // - If FilterTree was called: executes bytecode and filters rows
+  // After this call, the new columns can be referenced by name in subsequent
+  // FilterTree() calls.
+  base::Status PropagateDown(std::vector<PropagateSpec> specs);
+
+  // Finalizes bytecode, executes it, and returns the resulting dataframe.
   base::StatusOr<dataframe::Dataframe> ToDataframe() &&;
 
  private:
-  // Scratch slot IDs for tree operations (following QueryPlanBuilder pattern).
-  enum ScratchSlot : uint32_t {
-    kParentSlot = 0,
-    kOriginalRowsSlot = 1,
-    kFilterScratch1Slot = 2,
-    kFilterScratch2Slot = 3,
-    kP2COffsetsSlot = 4,
-    kP2CChildrenSlot = 5,
-    kP2CRootsSlot = 6,
-    kP2CScratchSlot = 7,
-    kFilterBytecodeSlot = 8,
+  struct RegInit {
+    enum Kind : uint8_t { kStorage, kNullBv };
+    Kind kind;
+    uint32_t reg;
+    uint32_t col;  // index into cols_.columns
   };
 
-  // Initializes tree structure on first FilterTree call.
-  // Allocates persistent parent/original_rows spans, all scratch buffers,
-  // and emits MakeChildToParentTreeStructure bytecode.
-  void InitializeTreeStructure(uint32_t row_count);
+  struct PropagateInfo {
+    uint32_t source_col;  // cols_.columns index
+    uint32_t dest_col;    // cols_.columns index
+    PropagateAggOp agg_op;
+  };
 
-  // Emits MakeParentToChildTreeStructure bytecode if P2C is stale.
-  // Uses pre-allocated scratch buffers stored as member variables.
-  // Sets p2c_stale_ to false after emitting.
-  void EnsureParentToChildStructure();
-
-  // Generates filter bytecode and converts result to a bitvector.
-  base::StatusOr<interpreter::RwHandle<BitVector>> BuildFilterBitvector(
-      uint32_t row_count,
-      std::vector<dataframe::FilterSpec>& specs);
-
-  // Emits FilterTree bytecode with all required registers.
-  // Uses pre-allocated scratch buffers stored as member variables.
-  void EmitFilterTreeBytecode(interpreter::RwHandle<BitVector> keep_bv);
-
-  dataframe::Dataframe df_;
+  TreeColumns cols_;
   StringPool* pool_;
 
-  // Bytecode builder for accumulating tree operations.
-  interpreter::BytecodeBuilder builder_;
+  // Bytecode builder — accumulates bytecodes as methods are called.
+  std::unique_ptr<interpreter::BytecodeBuilder> builder_;
 
-  // Scope ID for register caching (follows QueryPlanBuilder pattern).
-  uint32_t scope_id_;
+  // Register indices (allocated in constructor, shared across calls).
+  uint32_t span_reg_index_ = 0;
+  uint32_t tree_state_reg_index_ = 0;
 
-  // Parent and original_rows span registers (set on first FilterTree call).
-  interpreter::RwHandle<Span<uint32_t>> parent_span_;
-  interpreter::RwHandle<Span<uint32_t>> original_rows_span_;
+  // Register initialization info collected during FilterTree calls.
+  std::vector<RegInit> reg_inits_;
 
-  // Register holding the normalized parent_id storage (set at execution time).
-  interpreter::ReadHandle<interpreter::StoragePtr> parent_storage_reg_;
-
-  // Filter values for bytecode execution.
+  // Filter values accumulated across FilterTree calls.
   std::vector<SqlValue> filter_values_;
+  uint32_t filter_value_count_ = 0;
 
-  // Register initialization specs collected from Filter() calls.
-  // Needed to initialize storage registers before bytecode execution.
-  base::SmallVector<dataframe::RegisterInit, 16> register_inits_;
+  // Propagation specs accumulated across PropagateDown calls.
+  std::vector<PropagateInfo> propagate_specs_;
 
-  // Alias for scratch register type.
-  using Scratch = interpreter::BytecodeBuilder::ScratchRegisters;
-
-  // Scratch buffers allocated once in InitializeTreeStructure() and reused
-  // across all FilterTree() calls. This avoids emitting AllocateIndices
-  // bytecode for each filter operation. Wrapped in optional to track
-  // initialization state.
-  struct FilterScratch {
-    Scratch scratch1;
-    Scratch scratch2;
-    Scratch p2c_scratch;
-    Scratch p2c_offsets;
-    Scratch p2c_children;
-    Scratch p2c_roots;
-  };
-  std::optional<FilterScratch> filter_scratch_;
-
-  // Tracks whether the P2C (parent-to-child) structure is stale and needs
-  // rebuilding. Operations that modify C2P (like FilterTree) set this to true.
-  // EnsureParentToChildStructure() checks this and rebuilds P2C if needed.
-  bool p2c_stale_ = true;
+  // Whether any bytecodes have been emitted.
+  bool has_operations_ = false;
 };
 
 }  // namespace perfetto::trace_processor::core::tree
 
 namespace perfetto::trace_processor {
-
-// Namespace alias for ergonomics.
 namespace tree = core::tree;
-
 }  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_TREE_TREE_TRANSFORMER_H_

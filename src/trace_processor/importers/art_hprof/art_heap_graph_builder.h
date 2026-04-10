@@ -41,6 +41,10 @@ constexpr size_t kHprofHeaderLength = 20;           // Header size in bytes
 
 constexpr const char* kJavaLangString = "java.lang.String";
 constexpr const char* kSunMiscCleaner = "sun.misc.Cleaner";
+constexpr const char* kNativeAllocationRegistryCleanerThunk =
+    "libcore.util.NativeAllocationRegistry$CleanerThunk";
+constexpr const char* kNativeAllocationRegistry =
+    "libcore.util.NativeAllocationRegistry";
 
 class ByteIterator {
  public:
@@ -103,31 +107,22 @@ class HeapGraphResolver {
                     base::FlatHashMap<uint64_t, Object>& objects,
                     base::FlatHashMap<uint64_t, ClassDefinition>& classes,
                     base::FlatHashMap<uint64_t, HprofHeapRootTag>& roots,
+                    uint64_t string_class_id,
                     DebugStats& stats);
 
-  // Build the complete object graph with references and field values
   void ResolveGraph();
 
  private:
-  // Extract data for all objects
   void ExtractAllObjectData();
-
-  // Mark objects reachable from roots
   void MarkReachableObjects();
-
-  // Extract references from array elements
   void ExtractArrayElementReferences(Object& obj);
-
-  // Helper methods for data extraction
   bool ExtractObjectReferences(Object& obj, const ClassDefinition& cls);
   void ExtractFieldValues(Object& obj, const ClassDefinition& cls);
   void ExtractPrimitiveArrayValues(Object& obj);
   std::optional<std::string> DecodeJavaString(const Object& string_obj) const;
-
-  // Utility methods
-  std::vector<Field> GetClassHierarchyFields(uint64_t class_id) const;
-
-  // Calculate native memory sizes for objects
+  void DecodeJavaStrings();
+  const std::vector<Field>& GetClassHierarchyFields(uint64_t class_id);
+  void ComputeSelfSizes();
   void CalculateNativeSizes();
 
   // Data references (not owned)
@@ -137,6 +132,14 @@ class HeapGraphResolver {
   base::FlatHashMap<uint64_t, HprofHeapRootTag>& roots_;
   base::FlatHashMap<uint64_t, ClassDefinition>& classes_;
   DebugStats& stats_;
+
+  // Cache for class hierarchy fields (avoids repeated hierarchy walks)
+  base::FlatHashMap<uint64_t, std::vector<Field>> field_cache_;
+
+  // Set during construction, used by DecodeJavaStrings().
+  uint64_t string_class_id_;
+  // Collected during ExtractAllObjectData() for efficient DecodeJavaStrings().
+  std::vector<uint64_t> string_object_ids_;
 };
 
 // Main parser class that builds a heap graph from HPROF data
@@ -234,6 +237,7 @@ class HeapGraphBuilder {
 
   // Type mapping and root tracking
   std::array<uint64_t, 12> prim_array_class_ids_ = {};
+  uint64_t string_class_id_ = 0;
   base::FlatHashMap<uint64_t, HprofHeapRootTag> roots_;
 
   // Debug statistics
@@ -244,7 +248,6 @@ class HeapGraphBuilder {
   TraceProcessorContext* context_;
 };
 
-// Helper method
 inline size_t GetFieldTypeSize(FieldType type, size_t id_size) {
   switch (type) {
     case FieldType::kObject:

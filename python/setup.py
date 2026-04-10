@@ -29,6 +29,7 @@ setup(
     extras_require={
         'numpy': ['numpy'],
         'pandas': ['pandas'],
+        'polars': ['polars'],
     },
     classifiers=[
         'Development Status :: 3 - Alpha',

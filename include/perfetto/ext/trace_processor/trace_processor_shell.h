@@ -89,6 +89,8 @@ class TraceProcessorShell_PlatformInterface {
       std::function<void(size_t)> progress_callback) = 0;
 };
 
+int PERFETTO_EXPORT_COMPONENT TraceProcessorShellMain(int argc, char** argv);
+
 }  // namespace perfetto::trace_processor
 
 #endif  // INCLUDE_PERFETTO_EXT_TRACE_PROCESSOR_TRACE_PROCESSOR_SHELL_H_

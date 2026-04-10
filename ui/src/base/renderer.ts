@@ -13,32 +13,72 @@
 // limitations under the License.
 
 import {Color} from './color';
-import {Transform2D} from './geom';
+import {Transform1D, Transform2D} from './geom';
 
 // Flag bits for drawRect options
 export const RECT_PATTERN_HATCHED = 1; // Draw diagonal crosshatch pattern
 export const RECT_PATTERN_FADE_RIGHT = 2; // Fade alpha from full left to 0 right across width
 
-// Buffers for batch rectangle rendering.
-// All arrays must have the same length (count).
-// Colors are packed as 0xRRGGBBAA (big-endian RGBA).
-// X coordinates and widths are in data space (e.g., nanoseconds) and transformed
-// by the dataTransform passed to drawRects. Y coordinates are in screen pixels.
-export interface RectBuffers {
-  // Left edge X coordinates (data space, transformed by dataTransform.scaleX/offsetX)
-  readonly xs: Float32Array;
-  // Top edge Y coordinates (screen pixels)
-  readonly ys: Float32Array;
-  // Widths (data space, transformed by dataTransform.scaleX)
-  // Use -1 for incomplete rects that extend to screenEnd
-  readonly ws: Float32Array;
-  // Height in screen pixels (uniform for all rects)
-  readonly h: number;
+// Describes the vertical layout of rows in a slice track using a two-tier
+// formula. Row 0 can have a different height from the rest (e.g. for collapsed
+// mode where row 0 stays full-size).
+//
+// depth == 0: top = paddingTop, height = firstRowHeight
+// depth > 0:  top = paddingTop + firstRowHeight + rowGap
+//                  + (depth - 1) * (rowHeight + rowGap)
+//             height = rowHeight
+export interface RowLayout {
+  // Height of rows in CSS pixels.
+  readonly rowHeight: number;
+  // Offset from the top of the track to the first row, in CSS pixels. Defaults
+  // to 0.
+  readonly paddingTop?: number;
+  // Height of the first row (row 0) in CSS pixels. Defaults to rowHeight.
+  readonly firstRowHeight?: number;
+  // Vertical gap between rows, in CSS pixels. Defaults to 0.
+  readonly rowGap?: number;
+}
+
+// Compute the top Y position for a row at the given depth.
+export function rowTopFromLayout(
+  {
+    paddingTop = 0,
+    rowHeight,
+    rowGap = 0,
+    firstRowHeight = rowHeight,
+  }: RowLayout,
+  depth: number,
+): number {
+  if (depth === 0) return paddingTop;
+  const stride = rowHeight + rowGap;
+  return paddingTop + firstRowHeight + rowGap + (depth - 1) * stride;
+}
+
+// Compute the height for a row at the given depth.
+export function rowHeightFromLayout(
+  {rowHeight, firstRowHeight = rowHeight}: RowLayout,
+  depth: number,
+): number {
+  return depth === 0 ? firstRowHeight : rowHeight;
+}
+
+// Buffers for batch slice rendering.
+// Per-slice data: left, right, depth, color, pattern.
+// Row layout defines how depth maps to vertical position via a formula.
+// Start/end coordinates are in data space (e.g., nanoseconds) and transformed
+// by the dataTransform passed to drawSlices.
+export interface SliceBuffers {
+  // Start (left edge) positions in data space (transformed by dataTransform)
+  readonly starts: Float32Array;
+  // End (right edge) positions in data space (transformed by dataTransform)
+  readonly ends: Float32Array;
+  // Depth (row index) per slice
+  readonly depths: Uint16Array;
   // Packed RGBA colors (0xRRGGBBAA)
   readonly colors: Uint32Array;
-  // Pattern flags per rect (0 = none, RECT_PATTERN_HATCHED, etc.)
+  // Pattern flags per slice (0 = none, RECT_PATTERN_HATCHED, etc.)
   readonly patterns: Uint8Array;
-  // Number of valid rects
+  // Number of valid slices
   readonly count: number;
 }
 
@@ -69,12 +109,8 @@ export interface StepAreaBuffers {
 export interface MarkerBuffers {
   // Center X coordinates (data space, transformed by dataTransform.scaleX/offsetX)
   readonly xs: Float32Array;
-  // Top edge Y coordinates (screen pixels)
-  readonly ys: Float32Array;
-  // Width in screen pixels (uniform for all markers)
-  readonly w: number;
-  // Height in screen pixels (uniform for all markers)
-  readonly h: number;
+  // Depth (row index) per marker
+  readonly depths: Uint16Array;
   // Packed RGBA colors (0xRRGGBBAA)
   readonly colors: Uint32Array;
   // Number of valid markers
@@ -113,19 +149,25 @@ export interface Renderer {
 
   // Draw multiple markers from columnar buffers.
   // Markers are sprites/glyphs with fixed size in pixels (e.g., chevrons).
-  // X coordinates are centered and in data space, transformed by dataTransform.
+  // X coordinates are centered and in data space, transformed by xTransform.
   // render is a Canvas2D fallback function for when WebGL is unavailable.
   drawMarkers(
     buffers: MarkerBuffers,
-    dataTransform: Transform2D,
+    rowLayout: RowLayout,
+    markerWidth: number,
+    xTransform: Transform1D,
     render: MarkerRenderFunc,
   ): void;
 
-  // Draw multiple rectangles from columnar buffers.
-  // This is more efficient than calling drawRect() in a loop.
-  // Colors are packed as 0xRRGGBBAA (big-endian RGBA).
-  // dataTransform converts buffer coordinates to screen coordinates.
-  drawRects(buffers: RectBuffers, dataTransform: Transform2D): void;
+  // Draw multiple slices from columnar buffers.
+  // Each slice has a left, right, depth, color, and pattern.
+  // The row layout maps depth to vertical position (top/bottom in CSS pixels).
+  // xTransform converts X coordinates from data space to screen space.
+  drawSlices(
+    buffers: SliceBuffers,
+    rowLayout: RowLayout,
+    xTransform: Transform1D,
+  ): void;
 
   // Draw a step-area chart (filled area under a step function).
   //

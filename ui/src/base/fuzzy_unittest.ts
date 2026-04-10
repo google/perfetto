@@ -73,24 +73,6 @@ describe('FuzzyFinder', () => {
     );
   });
 
-  it('finds non-consecutive matches', () => {
-    const result = finder.find('cde');
-    expect(result).toEqual(
-      expect.arrayContaining([
-        {
-          item: 'c z d z e',
-          segments: [
-            {matching: true, value: 'c'},
-            {matching: false, value: ' z '},
-            {matching: true, value: 'd'},
-            {matching: false, value: ' z '},
-            {matching: true, value: 'e'},
-          ],
-        },
-      ]),
-    );
-  });
-
   it('finds caps match when search term is in lower case', () => {
     const result = finder.find('caps');
     expect(result).toEqual(
@@ -99,19 +81,35 @@ describe('FuzzyFinder', () => {
       ]),
     );
   });
+});
 
-  it('finds match with false start', () => {
-    const result = finder.find('abc');
+describe('FuzzyFinder camelCase tokenization', () => {
+  const items = [
+    'dev.perfetto.LiveMemory',
+    'dev.perfetto.RecordTraceV2',
+    'com.android.XMLParser',
+  ];
+  const finder = new FuzzyFinder(items, (x) => x);
+
+  it('finds camelCase sub-word', () => {
+    const result = finder.find('memory');
     expect(result).toEqual(
       expect.arrayContaining([
-        {
-          item: 'ababc',
-          segments: [
-            {matching: true, value: 'ab'},
-            {matching: false, value: 'ab'},
-            {matching: true, value: 'c'},
-          ],
-        },
+        expect.objectContaining({item: 'dev.perfetto.LiveMemory'}),
+      ]),
+    );
+  });
+
+  it('finds dotted segment', () => {
+    const result = finder.find('perfetto');
+    expect(result.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('finds uppercase acronym split', () => {
+    const result = finder.find('parser');
+    expect(result).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({item: 'com.android.XMLParser'}),
       ]),
     );
   });

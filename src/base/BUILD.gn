@@ -201,6 +201,7 @@ perfetto_unittest_source_set("unittests") {
     ":test_support",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
+    "regex",
   ]
 
   if (enable_perfetto_ipc) {
@@ -226,6 +227,7 @@ perfetto_unittest_source_set("unittests") {
     "no_destructor_unittest.cc",
     "paged_memory_unittest.cc",
     "periodic_task_unittest.cc",
+    "regex/regex_unittest.cc",
     "rt_mutex_unittest.cc",
     "scoped_file_unittest.cc",
     "scoped_mmap_unittest.cc",
@@ -309,9 +311,11 @@ if (enable_perfetto_benchmarks) {
       ":flat_hash_map_benchmark",
       "../../gn:benchmark",
       "../../gn:default_deps",
+      "regex",
     ]
     sources = [
       "flat_set_benchmark.cc",
+      "regex/regex_benchmark.cc",
       "rt_mutex_benchmark.cc",
       "task_runner_benchmark.cc",
     ]

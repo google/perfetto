@@ -21,6 +21,8 @@ source_set("functions") {
   sources = [
     "args.cc",
     "args.h",
+    "art_heap_graph_functions.cc",
+    "art_heap_graph_functions.h",
     "base64.cc",
     "base64.h",
     "clock_functions.h",
@@ -28,6 +30,8 @@ source_set("functions") {
     "counter_intervals.h",
     "create_function.cc",
     "create_function.h",
+    "create_intervals.cc",
+    "create_intervals.h",
     "create_view_function.cc",
     "create_view_function.h",
     "dominator_tree.cc",

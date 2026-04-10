@@ -191,6 +191,10 @@ class RuntimeDataframeBuilder {
   // - Construct and return the final `Dataframe` instance.
   base::StatusOr<Dataframe> Build() && { return std::move(builder_).Build(); }
 
+  // Returns raw column data without Dataframe optimization.
+  // See AdhocDataframeBuilder::BuildRaw() for details.
+  auto BuildRaw() && { return std::move(builder_).BuildRaw(); }
+
   // Returns the current status of the builder.
   //
   // If `AddRow` returned `false`, this method can be used to retrieve the

@@ -33,6 +33,20 @@ source_set("message_filter") {
   ]
 }
 
+source_set("message_filter_config") {
+  sources = [
+    "message_filter_config.cc",
+    "message_filter_config.h",
+  ]
+  deps = [
+    ":message_filter",
+    ":string_filter",
+    "../../../gn:default_deps",
+    "../../../protos/perfetto/config:cpp",
+    "../../base",
+  ]
+}
+
 source_set("bytecode_common") {
   sources = [ "filter_bytecode_common.h" ]
   deps = [ "../../../gn:default_deps" ]
@@ -69,6 +83,7 @@ source_set("string_filter") {
     "string_filter.cc",
     "string_filter.h",
   ]
+  public_deps = [ "../../base/regex" ]
   deps = [
     "..:protozero",
     "../../../gn:default_deps",
@@ -125,6 +140,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../protos/perfetto/trace:lite",
     "../../base",
     "../../base:test_support",
+    "../../base/regex",
   ]
   sources = [
     "filter_bytecode_generator_unittest.cc",

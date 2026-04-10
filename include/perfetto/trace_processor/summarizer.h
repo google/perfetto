@@ -47,6 +47,7 @@ struct PERFETTO_EXPORT_COMPONENT SummarizerUpdateSpecResult {
 struct PERFETTO_EXPORT_COMPONENT SummarizerQueryResult {
   bool exists = false;
   std::string table_name;
+  bool is_view = false;  // Whether created as VIEW (not TABLE).
   int64_t row_count = 0;
   std::vector<std::string> columns;
   double duration_ms = 0.0;
@@ -62,7 +63,7 @@ struct PERFETTO_EXPORT_COMPONENT SummarizerQueryResult {
 // - Change detection: Uses proto hash to detect changes.
 // - Dependency propagation: If A changes, dependents B->C->D re-materialize.
 // - Table substitution: Unchanged queries reference their materialized tables.
-// - Cleanup: All materialized tables are dropped when the Summarizer is
+// - Cleanup: All materialized tables/views are dropped when the Summarizer is
 //   destroyed.
 //
 // Obtain an instance via TraceProcessor::CreateSummarizer().

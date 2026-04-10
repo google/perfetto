@@ -47,6 +47,7 @@ message WindowLayoutParamsProto {
   optional float button_brightness = 14;
 
   enum RotationAnimation {
+    ROTATION_ANIMATION_NONE = 0;
     ROTATION_ANIMATION_UNSPECIFIED = -1;
     ROTATION_ANIMATION_CROSSFADE = 1;
     ROTATION_ANIMATION_JUMPCUT = 2;
@@ -60,7 +61,7 @@ message WindowLayoutParamsProto {
   optional uint32 input_feature_flags = 19
       [(.perfetto.protos.typedef) =
            "android.view.WindowManager.LayoutParams.InputFeatureFlags"];
-  optional int64 user_activity_timeout = 20;
+  optional int64 user_activity_timeout = 20 [jstype = JS_STRING];
 
   optional ViewDisplayProto.ColorMode color_mode = 23;
   optional uint32 flags = 24
@@ -93,6 +94,9 @@ message WindowLayoutParamsProto {
            "android.view.WindowInsets.Type.InsetsType"];
   repeated InsetsFrameProviderProto provided_insets = 35;
   repeated WindowLayoutParamsProto params_for_rotation = 36;
+  optional uint32 rendering_hints = 37
+      [(.perfetto.protos.typedef) =
+           "android.view.WindowManager.LayoutParams.RenderingHints"];
 }
 
 /* represents InsetsFrameProvider */

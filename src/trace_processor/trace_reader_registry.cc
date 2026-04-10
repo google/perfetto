@@ -55,6 +55,7 @@ bool RequiresZlibSupport(TraceType type) {
     case kAndroidDumpstateTraceType:
     case kGeckoTraceType:
     case kArtMethodTraceType:
+    case kArtMethodV2TraceType:
     case kArtHprofTraceType:
     case kPerfTextTraceType:
     case kSimpleperfProtoTraceType:
@@ -65,6 +66,14 @@ bool RequiresZlibSupport(TraceType type) {
   PERFETTO_FATAL("For GCC");
 }
 }  // namespace
+
+void TraceReaderRegistry::RegisterPluginTraceReader(
+    TraceType trace_type,
+    std::function<std::unique_ptr<ChunkedTraceReader>()> factory) {
+  RegisterFactory(trace_type, [f = std::move(factory)](TraceProcessorContext*) {
+    return f();
+  });
+}
 
 void TraceReaderRegistry::RegisterFactory(TraceType trace_type,
                                           Factory factory) {

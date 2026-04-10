@@ -17,6 +17,7 @@ import {HTMLFocusableAttrs, Intent} from './common';
 import {findRef} from '../base/dom_utils';
 import {Chip} from './chip';
 import {Stack} from './stack';
+import {Icon} from './icon';
 
 export interface TagInputAttrs extends HTMLFocusableAttrs {
   value?: string;
@@ -25,6 +26,8 @@ export interface TagInputAttrs extends HTMLFocusableAttrs {
   onTagAdd: (text: string) => void;
   onTagRemove: (index: number) => void;
   placeholder?: string;
+  // Optional icon to display on the left of the text field.
+  leftIcon?: string;
   // Optional custom tag renderer (e.g., to use MiddleEllipsis for label)
   renderTag?: (text: string, onRemove: () => void) => m.Children;
 }
@@ -92,6 +95,7 @@ export class TagInput implements m.ClassComponent<TagInputAttrs> {
       onfocus,
       onblur,
       placeholder,
+      leftIcon,
       renderTag: customRenderTag,
       ...htmlAttrs
     } = attrs;
@@ -115,11 +119,14 @@ export class TagInput implements m.ClassComponent<TagInputAttrs> {
         },
         ...htmlAttrs,
       },
-      m(
-        Stack,
-        {orientation: 'horizontal', spacing: 'small'},
-        tags.map((tag, index) => tagRenderer(tag, () => onTagRemove(index))),
-      ),
+      leftIcon &&
+        m(Icon, {icon: leftIcon, className: 'pf-tag-input__left-icon'}),
+      tags.length > 0 &&
+        m(
+          Stack,
+          {orientation: 'horizontal', spacing: 'small'},
+          tags.map((tag, index) => tagRenderer(tag, () => onTagRemove(index))),
+        ),
       m('input', {
         ref: INPUT_REF,
         value,

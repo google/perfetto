@@ -28,6 +28,7 @@ import {
   QuerySlot,
   SerialTaskQueue,
 } from '../../base/query_slot';
+import {RowLayout} from '../../base/renderer';
 import {duration, time, Time} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {checkerboardExcept} from '../../components/checkerboard';
@@ -72,9 +73,9 @@ interface Data {
   colorSchemes: ColorScheme[];
   // Relative timestamps for fast rendering (relative to data.start)
   startRelNs: Float32Array;
-  durRelNs: Float32Array;
-  // Pre-computed Y positions in screen pixels
-  ys: Float32Array;
+  endRelNs: Float32Array;
+  // Lane index (depth) per slice
+  depths: Uint16Array;
   // Working buffer for per-frame color computation (reused each frame)
   renderColors: Uint32Array;
   // Reusable patterns buffer (all zeros - no patterns)
@@ -366,7 +367,6 @@ export class GroupSummaryTrack implements TrackRenderer {
     const task = await deferChunkedTask({priority});
 
     const numRows = queryRes.numRows();
-    const laneHeight = Math.floor(RECT_HEIGHT / maxLanes);
     const slices: Data = {
       start,
       end,
@@ -381,9 +381,8 @@ export class GroupSummaryTrack implements TrackRenderer {
       colorSchemes: new Array(numRows),
       // Relative timestamps for fast rendering
       startRelNs: new Float32Array(numRows),
-      durRelNs: new Float32Array(numRows),
-      // Pre-computed Y positions in screen pixels
-      ys: new Float32Array(numRows),
+      endRelNs: new Float32Array(numRows),
+      depths: new Uint16Array(numRows),
       // Working buffer for per-frame color computation
       renderColors: new Uint32Array(numRows),
       // Reusable patterns buffer (all zeros - no patterns)
@@ -423,11 +422,9 @@ export class GroupSummaryTrack implements TrackRenderer {
 
       // Store relative timestamps as floats for fast rendering
       slices.startRelNs[row] = Number(ts - start);
-      slices.durRelNs[row] = Number(dur);
+      slices.endRelNs[row] = Number(endTs - start);
 
-      // Pre-compute Y position in screen pixels
-      const lane = it.lane;
-      slices.ys[row] = MARGIN_TOP + laneHeight * lane + lane;
+      slices.depths[row] = it.lane;
 
       // Cache color scheme for 'sched' mode (depends on utid).
       if (this.mode === 'sched') {
@@ -623,23 +620,29 @@ export class GroupSummaryTrack implements TrackRenderer {
       renderColors.fill(baseRgba);
     }
 
-    // Draw all rects in one batch call
-    // xs and ws are in data space (nanoseconds relative to data.start)
-    // dataTransform converts: screenX = xs * scaleX + offsetX
+    // Row layout: each lane gets laneHeight with a 1px gap
+    const rowLayout: RowLayout = {
+      paddingTop: MARGIN_TOP,
+      firstRowHeight: laneHeight,
+      rowHeight: laneHeight,
+      rowGap: 1,
+    };
+
+    // Draw all slices in one batch call
     const pxPerNs = timescale.durationToPx(1n);
     const baseOffsetPx = timescale.timeToPx(data.start);
 
-    renderer.drawRects(
+    renderer.drawSlices(
       {
-        xs: data.startRelNs,
-        ys: data.ys,
-        ws: data.durRelNs,
-        h: laneHeight,
+        starts: data.startRelNs,
+        ends: data.endRelNs,
+        depths: data.depths,
         colors: renderColors,
         patterns: data.patterns,
         count,
       },
-      {offsetX: baseOffsetPx, offsetY: 0, scaleX: pxPerNs, scaleY: 1},
+      rowLayout,
+      {offset: baseOffsetPx, scale: pxPerNs},
     );
   }
 

@@ -14,7 +14,6 @@
 
 @import "typefaces";
 @import "common";
-@import "timeline_page";
 @import "home_page";
 @import "sidebar";
 @import "topbar";
@@ -24,7 +23,6 @@
 @import "perf_monitor";
 @import "help_modal";
 @import "theme_provider";
-@import "timeline_toolbar";
 
 // Widgets/components - keep these sorted alphabetically
 @import "components/aggregation_adapter";
@@ -65,6 +63,7 @@
 @import "widgets/overlay_container";
 @import "widgets/popup";
 @import "widgets/resize_handle";
+@import "widgets/scorecard";
 @import "widgets/section";
 @import "widgets/segmented_buttons";
 @import "widgets/select";
@@ -85,7 +84,6 @@
 @import "widgets/tree";
 @import "widgets/treetable";
 @import "widgets/ui_main";
-@import "widgets/vega_view";
 @import "widgets/virtual_overlay_canvas";
 
 // Auto generated imports

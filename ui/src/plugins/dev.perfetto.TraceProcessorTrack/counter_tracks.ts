@@ -201,16 +201,6 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     group: undefined,
   },
   {
-    type: 'gpu_counter',
-    topLevelGroup: 'GPU',
-    group: 'GPU Counters',
-  },
-  {
-    type: 'gpu_memory',
-    topLevelGroup: 'GPU',
-    group: undefined,
-  },
-  {
     type: 'ion_change',
     topLevelGroup: 'THREAD',
     group: undefined,
@@ -382,34 +372,9 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     group: undefined,
   },
   {
-    type: 'virtgpu_latency',
-    topLevelGroup: 'GPU',
-    group: 'Virtgpu Latency',
-  },
-  {
-    type: 'virtgpu_num_free',
-    topLevelGroup: 'GPU',
-    group: 'Virtgpu num_free',
-  },
-  {
     type: 'vmstat',
     topLevelGroup: 'MEMORY',
     group: 'vmstat',
-  },
-  {
-    type: 'vulkan_device_mem_allocation',
-    topLevelGroup: 'GPU',
-    group: 'Vulkan Allocations',
-  },
-  {
-    type: 'vulkan_device_mem_bind',
-    topLevelGroup: 'GPU',
-    group: 'Vulkan Binds',
-  },
-  {
-    type: 'vulkan_driver_mem',
-    topLevelGroup: 'GPU',
-    group: 'Vulkan Driver Memory',
   },
   {
     type: 'battery_status',

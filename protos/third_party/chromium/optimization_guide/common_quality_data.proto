@@ -196,7 +196,7 @@ message PageContext {
 
 // The page content represented as a tree of semantic chunks and (in the
 // future) annotated with additional information about the page.
-// Next ID: 10
+// Next ID: 11
 message AnnotatedPageContent {
   // The version of the proto. Each time a backwards incompatible change is made
   // to the proto, the version should be incremented.
@@ -230,15 +230,24 @@ message AnnotatedPageContent {
   // be unique within the browsing session.
   int32 tab_id = 7 [features = { field_presence: EXPLICIT }];
 
-  // A page can only have one popup window open at a time. If one is open, its
-  // details are populated here. The popup window draws on top of the tab and as
-  // such has a higher z order than the main frame's Document.
+  // Provides APC for internal popup widgets created by elements like <select>
+  // and <input type="color"> . Does not provide APC for separate windows opened
+  // via window.open() or similar. A page can only have one popup window open at
+  // a time. If one is open, its details are populated here. The popup window
+  // draws on top of the tab and as such has a higher z order than the main
+  // frame's Document.
   PopupWindow popup_window = 8 [features = { field_presence: EXPLICIT }];
 
   // Information that pertains to the user's profile, not the page.
   // TODO(crbug.com/454610456): This should be moved out of AnnotatedPageContent because
   // it does not semantically belong here.
   ProfileInformation profile_information = 9 [features = { field_presence: EXPLICIT }];
+
+  // Metadata about the page when Gemini in Chrome captures Annotated Page
+  // Content.
+  // TODO(crbug.com/484011242): This should be moved out of AnnotatedPageContent because
+  // it does not semantically belong here.
+  GeminiInChromePageMetadata gemini_in_chrome_page_metadata = 10 [features = { field_presence: EXPLICIT }];
 }
 
 // The ContentNode tree is a sparse representation of the DOM tree for a web
@@ -267,7 +276,7 @@ message ContentNode {
   ContentAttributes content_attributes = 2 [features = { field_presence: EXPLICIT }];
 }
 
-// Next ID: 29
+// Next ID: 30
 message ContentAttributes {
   oneof content_data {
     // Only set if attribute_type is CONTENT_ATTRIBUTE_TEXT.
@@ -360,6 +369,9 @@ message ContentAttributes {
   // Whether the content node is from an ad.
   bool is_ad_related = 28 [features = { field_presence: EXPLICIT }];
 
+  // Redaction decision for the node.
+  RedactionDecision redaction_decision = 29 [features = { field_presence: EXPLICIT }];
+
   reserved 5, 6, 7, 17, 18, 1, 22;
 }
 
@@ -399,6 +411,7 @@ message Geometry {
 
   // Whether the content node is fixed or sticky position. This may suggest
   // that the node is a header, footer, or sidebar.
+  // TODO(crbug.com/490195093): Remove this field.
   bool is_fixed_or_sticky_position = 3 [
     deprecated = true,
     features = { field_presence: EXPLICIT }
@@ -423,12 +436,13 @@ message BoundingRect {
 // Note: ScrollerInfo is populated for ANNOTATED_PAGE_CONTENT_MODE_DEFAULT. The
 // rest of the fields are only populated for
 // ANNOTATED_PAGE_CONTENT_MODE_ACTIONABLE_ELEMENTS.
-// Next ID: 18
+// Next ID: 21
 message InteractionInfo {
   // Set if the content node is scrollable.
   ScrollerInfo scroller_info = 12 [features = { field_presence: EXPLICIT }];
 
   // Whether the content node is selectable.
+  // TODO(crbug.com/490195093): Remove this field.
   bool is_selectable = 3 [
     deprecated = true,
     features = { field_presence: EXPLICIT }
@@ -437,6 +451,7 @@ message InteractionInfo {
   // Whether the content node is editable; i.e. whether the user can type into
   // it. This refers to the text actually being editable, not whether the
   // content node is a text field.
+  // TODO(crbug.com/490195093): Remove this field.
   bool is_editable = 4 [
     deprecated = true,
     features = { field_presence: EXPLICIT }
@@ -444,6 +459,7 @@ message InteractionInfo {
 
   // Whether the content node can be resized. This is relevant for scroll
   // containers and iframes which have the CSS resize behavior.
+  // TODO(crbug.com/490195093): Remove these fields.
   bool can_resize_horizontal = 5 [
     deprecated = true,
     features = { field_presence: EXPLICIT }
@@ -454,10 +470,14 @@ message InteractionInfo {
     features = { field_presence: EXPLICIT }
   ];
 
-  // Whether the content node is focusable.
+  // Whether the content node is focusable. See also `is_tabbable`.
+  // A node can be focusable even if it is not tabbable. For
+  // example, every option in a long listbox might be focusable, but
+  // only reachable using the arrow keys.
   bool is_focusable = 7 [features = { field_presence: EXPLICIT }];
 
   // Whether the content node is draggable.
+  // TODO(crbug.com/490195093): Remove this field.
   bool is_draggable = 9 [
     deprecated = true,
     features = { field_presence: EXPLICIT }
@@ -466,6 +486,7 @@ message InteractionInfo {
   // Whether the content node is clickable. This checks for whether the node is
   // a clickable control (e.g. form control elements) or has activation
   // behavior. It also checks for whether the node has a click handler.
+  // TODO(crbug.com/490195093): Remove this field.
   bool is_clickable = 10 [
     deprecated = true,
     features = { field_presence: EXPLICIT }
@@ -486,6 +507,7 @@ message InteractionInfo {
   // caused that.
   // Note: This may not capture all the reasons.
   // Deprecated: Use clickability_reasons instead.
+  // TODO(crbug.com/490195093): Remove this field.
   repeated ClickabilityReason debug_clickability_reasons = 14 [deprecated = true];
 
   // Provides signals which indicate whether the node is actionable. The action
@@ -503,6 +525,21 @@ message InteractionInfo {
   //
   // TODO(linnan): Deprecate is_disabled in favour of the list of reasons.
   repeated InteractionDisabledReason interaction_disabled_reasons = 17;
+
+  // Whether the content node is tabbable. This is determined by whether the
+  // node is focusable and has a non-negative computed tab index (usually 0,
+  // which indicates it fits into the tab cycle in its natural order).
+  bool is_tabbable = 18 [features = { field_presence: EXPLICIT }];
+
+  // Whether the content node has the aria-activedescendant attribute set. This
+  // attribute is used to indicate which element in a set of child elements is
+  // currently active.
+  bool has_aria_activedescendant = 19 [features = { field_presence: EXPLICIT }];
+
+  // Secondary-action targets for a container widget. This lets APC represent
+  // cases like split buttons or tabs with close buttons where both the
+  // container and the secondary action element are actionable.
+  repeated int32 aria_action_target_node_ids = 20;
 
   reserved 8, 1, 2, 11;
 }
@@ -626,7 +663,7 @@ message FormInfo {
   string action_url = 2 [features = { field_presence: EXPLICIT }];
 }
 
-// Next ID: 11
+// Next ID: 12
 message FormControlData {
   // The name for the field.
   string field_name = 1 [features = { field_presence: EXPLICIT }];
@@ -651,7 +688,11 @@ message FormControlData {
   bool is_required = 7 [features = { field_presence: EXPLICIT }];
 
   // Redaction decision for form fields.
-  RedactionDecision redaction_decision = 8 [features = { field_presence: EXPLICIT }];
+  // Deprecated in favor of redaction_decision on ContentAttributes.
+  RedactionDecision redaction_decision = 8 [
+    deprecated = true,
+    features = { field_presence: EXPLICIT }
+  ];
 
   // The types of data that can be autofilled this field. This does not imply
   // that the user has data to fill of this type on file.
@@ -664,6 +705,9 @@ message FormControlData {
   // in AnnotatedPageContent traversal order according to Autofill's
   // understanding of forms).
   uint32 autofill_section_id = 10 [features = { field_presence: EXPLICIT }];
+
+  // Whether the field is readonly.
+  bool is_readonly = 11 [features = { field_presence: EXPLICIT }];
 }
 
 // Represents an option in a select field. See below for example.
@@ -692,6 +736,11 @@ message SelectOption {
 
 message TableData {
   // The name of the table, coming from the caption.
+  // Note: this field has some quirks for backwards-compatibility reasons:
+  // 1. It is only populated if the table name is an immediate child of the
+  //    table element. Table names further down in the tree are skipped, leaving
+  //    this field empty.
+  // 2. The table name also will appear in a separate child text node.
   string table_name = 1 [features = { field_presence: EXPLICIT }];
 
   reserved 2, 3, 4;
@@ -756,7 +805,7 @@ message FrameData {
   repeated ScriptTool script_tools = 9;
 
   // The results of executing script tools.
-  // TODO(khushalsagar): Remove this field once all consumers move to using
+  // TODO: crbug.com/489841640 - Remove this field once all consumers move to using
   // the field in ActionsResult.
   repeated ScriptToolResult script_tool_results = 11;
 
@@ -765,10 +814,17 @@ message FrameData {
 
 // The interaction information for the frame. This is for interactions that
 // are specific to the frame, such as the current selection.
-// Next ID: 2
+// Next ID: 4
 message FrameInteractionInfo {
   // The current selection.
   Selection selection = 1 [features = { field_presence: EXPLICIT }];
+
+  // The content node ID of the content node that is currently focused.
+  int32 focused_node_id = 2 [features = { field_presence: EXPLICIT }];
+
+  // The content node ID of the content node that is currently focused by a
+  // screen reader. If this is set, it means that a screen reader is being used.
+  int32 accessibility_focused_node_id = 3 [features = { field_presence: EXPLICIT }];
 }
 
 // Represents a selection in the page. This is a frame-level concept.
@@ -878,7 +934,7 @@ message ScriptToolAnnotations {
 
 // Result of executing a script tool.
 // Next ID: 6
-// TODO(khushalsagar): Move this to actions_data.proto.
+// TODO: crbug.com/489841640 - Move this to actions_data.proto.
 message ScriptToolResult {
   // The index of the ScriptToolAction in the Actions proto. This is used to
   // match the result to the corresponding action.
@@ -906,17 +962,24 @@ message TableRowData {
 // there can only be one unique value.
 // Currently this is only tracked for the main frame. The IDs correspond to the
 // DOM node IDs of the content nodes in the main frame.
-// Next ID: 4
+// Next ID: 5
 message PageInteractionInfo {
   // The content node ID of the content node that is currently focused.
+  // TODO(linnan): Deprecate this field in favor of
+  // FrameInteractionInfo.focused_node_id.
   int32 focused_node_id = 1 [features = { field_presence: EXPLICIT }];
 
   // The content node ID of the content node that is currently focused by a
   // screen reader. If this is set, it means that a screen reader is being used.
+  // TODO(linnan): Deprecate this field in favor of
+  // FrameInteractionInfo.accessibility_focused_node_id.
   int32 accessibility_focused_node_id = 2 [features = { field_presence: EXPLICIT }];
 
   // The last known mouse position, in the page coordinate system.
   Point mouse_position = 3 [features = { field_presence: EXPLICIT }];
+
+  // The identifier of the frame that currently has focus.
+  DocumentIdentifier focused_frame = 4 [features = { field_presence: EXPLICIT }];
 }
 
 message Point {
@@ -973,6 +1036,22 @@ message AutofillInformation {
     // If reported, the user has at least one credit card on file.
     CREDIT_CARD = 6;
   }
+}
+
+// Metadata about the page from Gemini in Chrome.
+// Next ID: 2
+message GeminiInChromePageMetadata {
+  // Information about the associated screenshot.
+  ScreenshotInfo screenshot_info = 1 [features = { field_presence: EXPLICIT }];
+}
+
+// The screenshot information for the page. While the screenshot is not
+// conveyed in the parent message, this metadata should be used to inform the
+// model about the screenshot.
+// Next ID: 2
+message ScreenshotInfo {
+  // Whether the screenshot contains a selection region.
+  bool has_selection_region_in_screenshot = 1 [features = { field_presence: EXPLICIT }];
 }
 
 // Uniquely identifies a DOM elements across all frames.
@@ -1161,12 +1240,14 @@ message MetaTag {
 }
 
 // Metadata about a frame.
-// Next ID: 3
+// Next ID: 4
 message FrameMetadata {
   // The URL of the frame.
   string url = 1 [features = { field_presence: EXPLICIT }];
 
   repeated MetaTag meta_tags = 2;
+
+  bool has_media_transcripts = 3 [features = { field_presence: EXPLICIT }];
 }
 
 // Metadata (URL and meta tags) from page content. Includes data from meta tags
@@ -1175,6 +1256,14 @@ message FrameMetadata {
 message PageMetadata {
   // The main frame is the first entry in the array.
   repeated FrameMetadata frame_metadata = 1;
+}
+
+message DocumentSelection {
+  // The document identifier of the document/frame that this selection is from.
+  DocumentIdentifier document_identifier = 1 [features = { field_presence: EXPLICIT }];
+
+  // The selection in the document.
+  Selection selection = 2 [features = { field_presence: EXPLICIT }];
 }
 
 // Selection text affinity, part of the a11y snapshot.
@@ -2015,7 +2104,7 @@ enum AnnotatedPageContentVersion {
   ANNOTATED_PAGE_CONTENT_VERSION_1_0 = 1;
 
   // DEPRECATED: Use AnnotatedPageContentMode mode instead.
-  // TODO(khushalsagar): Maintain both on the client until all users have been
+  // TODO(crbug.com/490195093): Maintain both on the client until all users have been
   // switched over.
   ANNOTATED_PAGE_CONTENT_VERSION_ONLY_ACTIONABLE_ELEMENTS_1_0 = 2 [deprecated = true];
 }
@@ -2091,7 +2180,7 @@ enum ContentAttributeType {
 }
 
 // The reason why a node is clickable.
-// Next ID: 15
+// Next ID: 17
 enum ClickabilityReason {
   // The node is a native form control.
   CLICKABILITY_REASON_CLICKABLE_CONTROL = 0;
@@ -2102,6 +2191,7 @@ enum ClickabilityReason {
   // The node has mouse event handlers like mouseup, mousedown, mouseover and
   // mouseenter. Deprecated in favor of
   // CLICKABILITY_REASON_MOUSE_CLICK and CLICKABILITY_REASON_MOUSE_HOVER.
+  // TODO(crbug.com/490195093): Remove this value.
   CLICKABILITY_REASON_MOUSE_EVENTS = 2 [deprecated = true];
 
   // The node has keyboard event handlers like keydown, keypress, keyup.
@@ -2149,10 +2239,18 @@ enum ClickabilityReason {
   // in Chrome to know what properties the rule might effect, so this reason
   // just indicates that a :hover rule is defined.
   CLICKABILITY_REASON_HOVER_PSEUDO_CLASS = 14;
+
+  // The node has the aria-checked or aria-pressed attribute indicating it can
+  // be toggled.
+  CLICKABILITY_REASON_ARIA_TOGGLE = 15;
+
+  // The node has the aria-selected attribute indicating it can be selected or
+  // unselected.
+  CLICKABILITY_REASON_ARIA_SELECTABLE = 16;
 }
 
 // Provides hints that indicate that interaction with this node is disabled.
-// Next ID: 4
+// Next ID: 6
 enum InteractionDisabledReason {
   INTERACTION_DISABLED_REASON_UNSPECIFIED = 0;
 
@@ -2164,6 +2262,13 @@ enum InteractionDisabledReason {
 
   // The node has the style `cursor: not-allowed`.
   INTERACTION_DISABLED_REASON_CURSOR_NOT_ALLOWED = 3;
+
+  // The node is hidden from the accessibility tree via `aria-hidden="true"`
+  // on an ancestor node or itself.
+  INTERACTION_DISABLED_REASON_ARIA_HIDDEN = 4;
+
+  // The node has an ARIA Role of `presentation` or `none`.
+  INTERACTION_DISABLED_REASON_ARIA_ROLE_PRESENTATIONAL = 5;
 }
 
 // Next ID: 5
@@ -2283,6 +2388,23 @@ enum RedactionDecision {
   // Is a non-empty field that autofill recognized as a sensitive payment field
   // type and so must be redacted.
   REDACTION_DECISION_REDACTED_IS_SENSITIVE_PAYMENT_FIELD = 4;
+
+  // Empty inputs which have been classified as password-like by heuristic
+  // redaction (e.g. `-webkit-text-security`). These are not redacted since they
+  // contain no sensitive content, but the classification is preserved.
+  REDACTION_DECISION_UNREDACTED_EMPTY_CUSTOM_PASSWORD = 5;
+
+  // Is a password-like input detected by heuristic redaction based on CSS
+  // masking (e.g. `-webkit-text-security` set to a masking value, not `none`).
+  REDACTION_DECISION_REDACTED_CUSTOM_PASSWORD_CSS = 6;
+
+  // Is a password-like input detected by heuristic redaction based on a
+  // JavaScript-masked value (e.g. mostly bullet-like masking characters).
+  REDACTION_DECISION_REDACTED_CUSTOM_PASSWORD_JS = 7;
+
+  // Is a non-empty field that autofill recognized as an OTP field and so must
+  // be redacted.
+  REDACTION_DECISION_REDACTED_IS_OTP = 8;
 }
 
 // The type of data that can be autofilled into a form.
@@ -2377,4 +2499,29 @@ enum UserFeedback {
   USER_FEEDBACK_THUMBS_DOWN = 1;
 
   USER_FEEDBACK_THUMBS_UP = 2;
+}
+
+// The platform for the user's Chrome on which the request was made. Roughly
+// matches the same platforms that are available via UMA.
+enum ChromePlatform {
+  // Unknown is used when the user's platform cannot be resolved.
+  CHROME_PLATFORM_UNKNOWN = 0;
+
+  // Android based platforms.
+  CHROME_PLATFORM_ANDROID = 1;
+
+  // ChromeOS platforms including all architectures.
+  CHROME_PLATFORM_CHROMEOS = 2;
+
+  // IOS based platforms.
+  CHROME_PLATFORM_IOS = 3;
+
+  // Linux platforms including all architectures.
+  CHROME_PLATFORM_LINUX = 4;
+
+  // Mac based platforms.
+  CHROME_PLATFORM_MAC = 5;
+
+  // Windows based platforms.
+  CHROME_PLATFORM_WINDOWS = 6;
 }

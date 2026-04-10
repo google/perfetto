@@ -24,6 +24,7 @@ import {
 } from './extension_server';
 import {
   ExtensionServer,
+  Manifest,
   UserInput,
   extensionServerSchema,
   extensionServersSchema,
@@ -61,12 +62,38 @@ export default class ExtensionServersPlugin implements PerfettoPlugin {
       schema: extensionServersSchema,
       render: renderExtensionServersSettings,
     });
+
+    // Kick off embedder extension server manifest fetch eagerly.
+    const embedder = loadEmbedderExtServer(ctx);
+
+    // These must run synchronously during onActivate (before
+    // analytics.initialize()) so the dimensions are registered in time.
+    if (embedder) {
+      const isInternal = embedder.manifest.then((r) => r.ok);
+
+      // TODO(lalitm): break up isInternalUser into a bunch of smaller things
+      // based on where this is used.
+      ctx.setIsInternalUser(isInternal);
+
+      // TODO(lalitm): ideally this dimension *comes* from the extension server
+      // or embedder code rather than being baked in here.
+      ctx.analytics.addDimension(
+        isInternal.then((v) => ({
+          key: 'perfetto_is_internal_user',
+          value: v ? '1' : '0',
+        })),
+      );
+    }
+
     maybeAddExtServerFromUrl(setting, args).then(async () => {
-      const results = await Promise.all([
-        initializeServers(ctx, setting.get()),
-        maybeAddEmbedderExtServer(ctx, setting),
+      const nonEmbedderServers = setting
+        .get()
+        .filter((s) => !embedder || !sameServerLocation(s, embedder.location));
+      const [embedderResults, serverResults] = await Promise.all([
+        maybeAddEmbedderExtServer(ctx, setting, embedder),
+        initializeServers(ctx, nonEmbedderServers),
       ]);
-      showErrorsOnCompletion(results.flat());
+      showErrorsOnCompletion([...embedderResults, ...serverResults]);
     });
   }
 }
@@ -171,12 +198,14 @@ export function renderExtensionServersSettings(
           ),
           m(
             '.pf-extension-servers-settings__list',
-            // Sort locked servers to the top, preserving relative order.
+            // Sort embedder-managed servers to the top, preserving relative order.
             [...servers.keys()]
               .sort((a, b) => {
-                const aLocked = servers[a].locked ? 0 : 1;
-                const bLocked = servers[b].locked ? 0 : 1;
-                return aLocked - bLocked || a - b;
+                const aManaged =
+                  servers[a].origin === 'embedder_managed' ? 0 : 1;
+                const bManaged =
+                  servers[b].origin === 'embedder_managed' ? 0 : 1;
+                return aManaged - bManaged || a - b;
               })
               .map((idx) => {
                 const server = servers[idx];
@@ -212,7 +241,7 @@ export function renderExtensionServersSettings(
                       compact: true,
                       onclick: () => editServer(setting, idx),
                     }),
-                    !server.locked &&
+                    server.origin !== 'embedder_managed' &&
                       m(Button, {
                         icon: 'share',
                         title: 'Share',
@@ -220,7 +249,7 @@ export function renderExtensionServersSettings(
                         compact: true,
                         onclick: () => shareServer(idx),
                       }),
-                    !server.locked &&
+                    server.origin !== 'embedder_managed' &&
                       m(Button, {
                         icon: 'delete',
                         title: 'Delete',
@@ -236,35 +265,51 @@ export function renderExtensionServersSettings(
   );
 }
 
-// If the embedder specifies a default extension server URL and it isn't
-// already in the user's saved settings, fetch its manifest. If reachable,
-// persist the server to settings and initialize it. The 'default' module is
-// enabled only if the manifest advertises it. Returns result promises for
-// consolidated error reporting by the caller.
+// Builds the UserInput location and kicks off the manifest fetch for the
+// embedder extension server. Returns undefined if no embedder server is
+// configured.
+function loadEmbedderExtServer(ctx: AppImpl) {
+  const extServer = ctx.embedder.extensionServer;
+  if (extServer === undefined) return undefined;
+  const location: UserInput = {
+    type: 'https',
+    url: normalizeHttpsUrl(extServer.url),
+    auth:
+      extServer.authType === 'https_sso' ? {type: 'https_sso'} : {type: 'none'},
+  };
+  return {location, manifest: loadManifest(location)};
+}
+
+// If the embedder extension server isn't already in the user's saved settings,
+// persist it and initialize it. If it is already there, just initialize it.
+// The manifest is pre-loaded so the fetch is shared with internal user detection.
 async function maybeAddEmbedderExtServer(
   ctx: AppImpl,
   setting: Setting<ExtensionServer[]>,
+  embedder?: {location: UserInput; manifest: Promise<Result<Manifest>>},
 ): Promise<Result<unknown>[]> {
-  const extServer = ctx.embedder.extensionServer;
-  if (extServer === undefined) return [];
-
-  const url = normalizeHttpsUrl(extServer.url);
-  const auth: UserInput['auth'] =
-    extServer.authType === 'https_sso' ? {type: 'https_sso'} : {type: 'none'};
-  const location: UserInput = {type: 'https', url, auth};
-
-  // Already configured by the user — it was initialized above.
-  if (setting.get().some((s) => sameServerLocation(s, location))) return [];
-
-  const manifest = await loadManifest(location);
+  if (!embedder) return [];
+  const {location} = embedder;
+  const manifest = await embedder.manifest;
   if (!manifest.ok) return [];
 
+  // If already configured by the user, initialize the existing entry.
+  const existing = setting.get().find((s) => sameServerLocation(s, location));
+  if (existing) {
+    return initializeServerFromManifest(
+      ctx,
+      existing,
+      Promise.resolve(manifest),
+    );
+  }
+
+  // Otherwise, persist a new server entry and initialize it.
   const hasDefault = manifest.value.modules.some((m) => m.id === 'default');
   const server: ExtensionServer = {
     ...location,
     enabledModules: hasDefault ? ['default'] : [],
     enabled: true,
-    locked: true,
+    origin: 'embedder_managed',
   };
   setting.set([...setting.get(), server]);
   return initializeServerFromManifest(ctx, server, Promise.resolve(manifest));

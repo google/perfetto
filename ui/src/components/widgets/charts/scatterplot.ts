@@ -14,10 +14,13 @@
 
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
-import {extractBrushRange, formatNumber} from './chart_utils';
+import {extractBrushRect, formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
-import {buildChartOption, buildLegendOption} from './chart_option_builder';
-import {getChartThemeColors} from './chart_theme';
+import {
+  buildChartOption,
+  buildLegendOption,
+  buildSelectionMarkArea,
+} from './chart_option_builder';
 
 /**
  * A single data point in a scatter chart.
@@ -79,9 +82,26 @@ export interface ScatterChartAttrs {
 
   /**
    * Callback when brush selection completes (on mouseup).
-   * Called with the selected X range.
+   * Called with the selected X/Y rectangle.
    */
-  readonly onBrush?: (range: {start: number; end: number}) => void;
+  readonly onBrush?: (range: {
+    xMin: number;
+    xMax: number;
+    yMin: number;
+    yMax: number;
+  }) => void;
+
+  /**
+   * Selection rectangle to highlight on the chart. When provided, a shaded
+   * region is drawn. The consumer controls this state — typically by feeding
+   * the `onBrush` output back in.
+   */
+  readonly selection?: {
+    readonly xMin: number;
+    readonly xMax: number;
+    readonly yMin: number;
+    readonly yMax: number;
+  };
 
   /**
    * Fill parent container. Defaults to false.
@@ -135,6 +155,13 @@ export interface ScatterChartAttrs {
    * always including zero. Defaults to false.
    */
   readonly scaleAxes?: boolean;
+
+  /**
+   * Show grid lines. 'horizontal' draws lines parallel to the X axis,
+   * 'vertical' draws lines parallel to the Y axis, 'both' shows both.
+   * Defaults to no grid lines.
+   */
+  readonly gridLines?: 'horizontal' | 'vertical' | 'both';
 }
 
 export class Scatterplot implements m.ClassComponent<ScatterChartAttrs> {
@@ -157,7 +184,7 @@ export class Scatterplot implements m.ClassComponent<ScatterChartAttrs> {
       className,
       empty: isEmpty,
       eventHandlers: buildScatterEventHandlers(attrs),
-      activeBrushType: onBrush !== undefined ? 'lineX' : undefined,
+      activeBrushType: onBrush !== undefined ? 'rect' : undefined,
     });
   }
 }
@@ -179,8 +206,6 @@ function buildScatterOption(
   } = attrs;
   const fmtX = formatXValue ?? formatNumber;
   const fmtY = formatYValue ?? formatNumber;
-
-  const theme = getChartThemeColors();
   const displayLegend = showLegend ?? data.series.length > 1;
 
   // Compute size range for normalization if any points have sizes
@@ -197,8 +222,8 @@ function buildScatterOption(
   const hasSizes = minSize !== Infinity;
   const sizeRange = maxSize - minSize || 1;
 
-  const series = data.series.map((s) => {
-    return {
+  const series = data.series.map((s, i) => {
+    const base: Record<string, unknown> = {
       type: 'scatter' as const,
       name: s.name,
       // ECharts scatter series requires data as arrays with positional indices:
@@ -234,9 +259,21 @@ function buildScatterOption(
         : symbolSize,
       itemStyle: s.color !== undefined ? {color: s.color} : undefined,
       emphasis: {
-        itemStyle: {borderWidth: 2, borderColor: theme.backgroundColor},
+        itemStyle: {borderWidth: 2},
       },
     };
+
+    // Render selection highlight on the first series only.
+    if (i === 0 && attrs.selection !== undefined) {
+      const sel = attrs.selection;
+      base.markArea = buildSelectionMarkArea([
+        [
+          {xAxis: sel.xMin, yAxis: sel.yMin},
+          {xAxis: sel.xMax, yAxis: sel.yMax},
+        ],
+      ]);
+    }
+    return base;
   });
 
   const option = buildChartOption({
@@ -251,7 +288,11 @@ function buildScatterOption(
         formatXValue !== undefined
           ? (v) => formatXValue(v as number)
           : undefined,
-      scale: attrs.scaleAxes,
+      // When brush is enabled, always scale axes to data range so that after
+      // filtering the axes fit the selected region rather than anchoring at 0.
+      scale: attrs.onBrush !== undefined || attrs.scaleAxes,
+      showSplitLine:
+        attrs.gridLines === 'vertical' || attrs.gridLines === 'both',
     },
     yAxis: {
       type: logScaleY ? 'log' : 'value',
@@ -260,7 +301,9 @@ function buildScatterOption(
         formatYValue !== undefined
           ? (v) => formatYValue(v as number)
           : undefined,
-      scale: attrs.scaleAxes,
+      scale: attrs.onBrush !== undefined || attrs.scaleAxes,
+      showSplitLine:
+        attrs.gridLines === 'horizontal' || attrs.gridLines === 'both',
     },
     tooltip: {
       trigger: 'item' as const,
@@ -286,7 +329,7 @@ function buildScatterOption(
       },
     },
     brush: attrs.onBrush
-      ? {xAxisIndex: 0, brushType: 'lineX' as const}
+      ? {xAxisIndex: 0, yAxisIndex: 0, brushType: 'rect' as const}
       : undefined,
     legend: displayLegend ? buildLegendOption() : {show: false},
   });
@@ -305,10 +348,9 @@ function buildScatterEventHandlers(
     {
       eventName: 'brushEnd',
       handler: (params) => {
-        const range = extractBrushRange(params);
+        const range = extractBrushRect(params);
         if (range !== undefined) {
-          const [start, end] = range;
-          onBrush({start, end});
+          onBrush(range);
         }
       },
     },

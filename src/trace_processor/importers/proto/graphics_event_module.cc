@@ -18,13 +18,10 @@
 
 #include <cstdint>
 
-#include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
-#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-#include "protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_processor {
@@ -50,29 +47,6 @@ GraphicsEventModule::GraphicsEventModule(
 
 GraphicsEventModule::~GraphicsEventModule() = default;
 
-ModuleResult GraphicsEventModule::TokenizePacket(
-    const protos::pbzero::TracePacket::Decoder& decoder,
-    TraceBlobView*,
-    int64_t,
-    RefPtr<PacketSequenceStateGeneration>,
-    uint32_t field_id) {
-  switch (field_id) {
-    case TracePacket::kGpuCounterEventFieldNumber:
-      parser_.TokenizeGpuCounterEvent(decoder.gpu_counter_event());
-      break;
-    case TracePacket::kFrameTimelineEventFieldNumber:
-    case TracePacket::kGpuRenderStageEventFieldNumber:
-    case TracePacket::kGpuLogFieldNumber:
-    case TracePacket::kGraphicsFrameEventFieldNumber:
-    case TracePacket::kVulkanMemoryEventFieldNumber:
-    case TracePacket::kVulkanApiEventFieldNumber:
-    case TracePacket::kGpuMemTotalEventFieldNumber:
-    default:
-      break;
-  }
-  return ModuleResult::Ignored();
-}
-
 void GraphicsEventModule::ParseTracePacketData(
     const TracePacket::Decoder& decoder,
     int64_t ts,
@@ -84,7 +58,8 @@ void GraphicsEventModule::ParseTracePacketData(
           ts, decoder.frame_timeline_event());
       return;
     case TracePacket::kGpuCounterEventFieldNumber:
-      parser_.ParseGpuCounterEvent(ts, decoder.gpu_counter_event());
+      parser_.ParseGpuCounterEvent(ts, data.sequence_state.get(),
+                                   decoder.gpu_counter_event());
       return;
     case TracePacket::kGpuRenderStageEventFieldNumber:
       parser_.ParseGpuRenderStageEvent(ts, data.sequence_state.get(),

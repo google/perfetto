@@ -14,16 +14,20 @@
 
 import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
-import {AggregateFunction} from '../datagrid/model';
-import {extractBrushRange, formatNumber} from './chart_utils';
+import {
+  ChartAggregation,
+  extractBrushRange,
+  formatNumber,
+  percentile,
+} from './chart_utils';
 import {EChartView, EChartEventHandler} from './echart_view';
 import {
   buildAxisOption,
   buildGridOption,
   buildBrushOption,
   buildTooltipOption,
+  SELECTION_COLOR,
 } from './chart_option_builder';
-import {getChartThemeColors} from './chart_theme';
 
 /**
  * A single bar in the bar chart.
@@ -78,6 +82,12 @@ export interface BarChartAttrs {
   readonly className?: string;
 
   /**
+   * Format function for dimension axis tick values (bar labels).
+   * When provided, this function is used to format the label of each bar.
+   */
+  readonly formatDimension?: (value: string | number) => string;
+
+  /**
    * Format function for measure axis tick values.
    */
   readonly formatMeasure?: (value: number) => string;
@@ -110,10 +120,24 @@ export interface BarChartAttrs {
   readonly orientation?: 'vertical' | 'horizontal';
 
   /**
+   * Show grid lines. 'horizontal' draws lines parallel to the X axis,
+   * 'vertical' draws lines parallel to the Y axis, 'both' shows both.
+   * Defaults to no grid lines.
+   */
+  readonly gridLines?: 'horizontal' | 'vertical' | 'both';
+
+  /**
    * Callback when brush selection completes (on mouseup).
    * Called with the labels of all bars in the brushed range.
    */
   readonly onBrush?: (labels: Array<string | number>) => void;
+
+  /**
+   * Selection labels to highlight on the chart. Bars whose labels are in
+   * this array are drawn with a highlight color. The consumer controls
+   * this state — typically by feeding the `onBrush` output back in.
+   */
+  readonly selection?: ReadonlyArray<string | number>;
 }
 
 export class BarChart implements m.ClassComponent<BarChartAttrs> {
@@ -145,18 +169,25 @@ function buildBarOption(
   const {
     dimensionLabel,
     measureLabel = 'Value',
+    formatDimension,
     formatMeasure,
     barColor,
     barHoverColor,
     logScale = false,
     integerMeasure = false,
     orientation = 'vertical',
+    gridLines,
   } = attrs;
+  const fmtDimension = formatDimension ?? String;
   const fmtMeasure = formatMeasure ?? formatNumber;
-
-  const theme = getChartThemeColors();
   const horizontal = orientation === 'horizontal';
-  const labels = data.items.map((item) => String(item.label));
+  const labels = data.items.map((item) => fmtDimension(item.label));
+
+  // Map visual grid line direction to axis splitLine settings.
+  // Horizontal visual lines come from the Y axis; vertical from the X axis.
+  // In horizontal bar orientation the axes are swapped, so the mapping flips.
+  const showXAxisGrid = gridLines === 'vertical' || gridLines === 'both';
+  const showYAxisGrid = gridLines === 'horizontal' || gridLines === 'both';
 
   const categoryAxis = buildAxisOption(
     {
@@ -166,6 +197,7 @@ function buildBarOption(
       nameGap: horizontal ? 55 : 35,
       labelOverflow: 'truncate',
       labelWidth: horizontal ? 65 : undefined,
+      showSplitLine: horizontal ? showYAxisGrid : showXAxisGrid,
     },
     !horizontal,
   );
@@ -180,13 +212,13 @@ function buildBarOption(
           ? (v) => formatMeasure(v as number)
           : undefined,
       minInterval: integerMeasure ? 1 : undefined,
+      showSplitLine: horizontal ? showXAxisGrid : showYAxisGrid,
     },
     horizontal,
   );
 
   const option: Record<string, unknown> = {
     animation: false,
-    color: [...theme.chartColors],
     grid: buildGridOption({
       bottom: dimensionLabel && !horizontal ? 45 : 25,
     }),
@@ -203,13 +235,20 @@ function buildBarOption(
     series: [
       {
         type: 'bar',
-        data: data.items.map((item) => item.value),
+        data: data.items.map((item) => {
+          const selected =
+            attrs.selection !== undefined &&
+            attrs.selection.includes(item.label);
+          return {
+            value: item.value,
+            ...(selected ? {itemStyle: {color: SELECTION_COLOR}} : {}),
+          };
+        }),
         itemStyle: barColor !== undefined ? {color: barColor} : undefined,
-        emphasis: {
-          itemStyle: {
-            color: barHoverColor ?? theme.accentColor,
-          },
-        },
+        emphasis:
+          barHoverColor !== undefined
+            ? {itemStyle: {color: barHoverColor}}
+            : undefined,
       },
     ],
   };
@@ -224,7 +263,7 @@ function buildBarOption(
     option.toolbox = {show: false};
   }
 
-  return option as EChartsCoreOption;
+  return option;
 }
 
 function buildBarEventHandlers(
@@ -277,7 +316,7 @@ export function aggregateBarChartData<T>(
   items: readonly T[],
   dimension: (item: T) => string | number,
   measure: (item: T) => number,
-  aggregation: AggregateFunction,
+  aggregation: ChartAggregation,
 ): BarChartData {
   const groups = new Map<string | number, number[]>();
   for (const item of items) {
@@ -299,11 +338,13 @@ export function aggregateBarChartData<T>(
   return {items: result};
 }
 
-function aggregate(values: number[], agg: AggregateFunction): number {
+function aggregate(values: number[], agg: ChartAggregation): number {
   switch (agg) {
     case 'ANY':
     case 'MIN':
       return values.reduce((a, b) => Math.min(a, b), Infinity);
+    case 'COUNT':
+      return values.length;
     case 'SUM':
       return values.reduce((a, b) => a + b, 0);
     case 'AVG':
@@ -312,5 +353,12 @@ function aggregate(values: number[], agg: AggregateFunction): number {
       return values.reduce((a, b) => Math.max(a, b), -Infinity);
     case 'COUNT_DISTINCT':
       return new Set(values).size;
+    case 'P25':
+    case 'P50':
+    case 'P75':
+    case 'P90':
+    case 'P95':
+    case 'P99':
+      return percentile(values, Number(agg.slice(1)));
   }
 }

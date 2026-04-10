@@ -506,6 +506,8 @@ message AndroidFrameTimelineMetric {
     optional int64 missed_frames = 5;
     optional int64 missed_app_frames = 6;
     optional int64 missed_sf_frames = 7;
+    optional double weighted_missed_app_frames = 20;
+    optional double weighted_missed_sf_frames = 21;
 
     optional int64 frame_dur_max = 8;
     optional int64 frame_dur_avg = 9;
@@ -3163,6 +3165,7 @@ message AndroidWattsonEstimateInfo {
   optional int64 period_dur = 3;
   optional AndroidWattsonCpuSubsystemEstimate cpu_subsystem = 4;
   optional AndroidWattsonGpuSubsystemEstimate gpu_subsystem = 5;
+  optional AndroidWattsonTpuSubsystemEstimate tpu_subsystem = 6;
 }
 
 message AndroidWattsonCpuSubsystemEstimate {
@@ -3204,6 +3207,11 @@ message AndroidWattsonDsuScuEstimate {
 }
 
 message AndroidWattsonGpuSubsystemEstimate {
+  optional float estimated_mw = 1;
+  optional float estimated_mws = 2;
+}
+
+message AndroidWattsonTpuSubsystemEstimate {
   optional float estimated_mw = 1;
   optional float estimated_mws = 2;
 }

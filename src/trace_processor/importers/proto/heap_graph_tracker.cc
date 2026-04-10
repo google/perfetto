@@ -46,6 +46,7 @@ namespace perfetto::trace_processor {
 namespace {
 
 using ClassTable = tables::HeapGraphClassTable;
+using FlamegraphId = tables::ExperimentalFlamegraphTable_Id;
 using ObjectTable = tables::HeapGraphObjectTable;
 using ReferenceTable = tables::HeapGraphReferenceTable;
 

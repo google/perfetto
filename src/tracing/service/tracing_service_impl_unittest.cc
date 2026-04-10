@@ -72,6 +72,7 @@
 
 #include "protos/perfetto/common/semantic_type.gen.h"
 #include "protos/perfetto/common/track_event_descriptor.gen.h"
+#include "protos/perfetto/trace/extension_descriptor.gen.h"
 #include "protos/perfetto/trace/perfetto/trace_provenance.gen.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
@@ -6867,6 +6868,169 @@ TEST_F(TracingServiceImplTest, StringFilteringSemanticTypeUnspecified) {
   }
 }
 
+// Regression test: the service was ignoring the bytecode_overlay_v54 field
+// from the trace config, so semantic types carried in the overlay were lost.
+//
+// Setup: generate v2 bytecode with an ATRACE semantic type on the str field.
+// Because the target is v2, the semantic type goes into the v54 overlay
+// (v2 bytecode only gets a plain FilterString for that field). A string
+// filter rule scoped to SEMANTIC_TYPE_ATRACE is added.
+//
+// If the overlay is loaded correctly, the str field carries the ATRACE
+// semantic type, the rule matches, and the string is redacted.
+// If the overlay is NOT loaded, the field has no semantic type, the
+// ATRACE rule is skipped, and the string passes through unchanged.
+TEST_F(TracingServiceImplTest, StringFilteringWithV54Overlay) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(32);
+  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds_1");
+  ds_cfg->set_target_buffer(0);
+
+  protozero::FilterBytecodeGenerator filt(
+      protozero::FilterBytecodeGenerator::BytecodeVersion::kV2);
+  filt.AddNestedField(1 /* root trace.packet*/, 1);
+  filt.EndMessage();
+  filt.AddNestedField(protos::pbzero::TracePacket::kForTestingFieldNumber, 2);
+  filt.EndMessage();
+  filt.AddFilterStringField(protos::pbzero::TestEvent::kStrFieldNumber,
+                            /*semantic_type=*/1, /*allow_in_v1=*/false,
+                            /*allow_in_v2=*/true);
+  filt.EndMessage();
+  auto serialized = filt.Serialize();
+  ASSERT_FALSE(serialized.bytecode.empty());
+  ASSERT_FALSE(serialized.v54_overlay.empty());
+
+  trace_config.mutable_trace_filter()->set_bytecode_v2(serialized.bytecode);
+  trace_config.mutable_trace_filter()->set_bytecode_overlay_v54(
+      serialized.v54_overlay);
+
+  auto* chain =
+      trace_config.mutable_trace_filter()->mutable_string_filter_chain();
+  auto* rule = chain->add_rules();
+  rule->set_policy(
+      protos::gen::TraceConfig::TraceFilter::SFP_ATRACE_MATCH_REDACT_GROUPS);
+  rule->set_atrace_payload_starts_with("payload");
+  rule->set_regex_pattern(R"(B\|\d+\|pay(lo)ad(\d*))");
+  rule->add_semantic_type(protos::gen::SEMANTIC_TYPE_ATRACE);
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  std::unique_ptr<TraceWriter> writer = producer->CreateTraceWriter("ds_1");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("B|1023|payload1");
+  }
+
+  auto flush_request = consumer->Flush();
+  producer->ExpectFlush(writer.get());
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  const DataSourceInstanceID id1 = producer->GetDataSourceInstanceId("ds_1");
+  EXPECT_CALL(*producer, StopDataSource(id1));
+
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+
+  auto packets = consumer->ReadBuffers();
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("B|1023|payP6adP")))));
+}
+
+// Test: with v2 bytecode and no v54 overlay, a field with no explicit
+// semantic type (plain FilterString opcode) is still redacted by rules
+// targeting SEMANTIC_TYPE_UNSPECIFIED. Also verifies that a rule scoped
+// to ATRACE does NOT match such a field.
+TEST_F(TracingServiceImplTest, StringFilteringV2BytecodeUnspecifiedRedaction) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(32);
+  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds_1");
+  ds_cfg->set_target_buffer(0);
+
+  protozero::FilterBytecodeGenerator filt;
+  filt.AddNestedField(1, 1);
+  filt.EndMessage();
+  filt.AddNestedField(protos::pbzero::TracePacket::kForTestingFieldNumber, 2);
+  filt.EndMessage();
+  filt.AddFilterStringField(protos::pbzero::TestEvent::kStrFieldNumber,
+                            /*semantic_type=*/0, /*allow_in_v1=*/false,
+                            /*allow_in_v2=*/false);
+  filt.EndMessage();
+  trace_config.mutable_trace_filter()->set_bytecode_v2(
+      filt.Serialize().bytecode);
+
+  auto* chain =
+      trace_config.mutable_trace_filter()->mutable_string_filter_chain();
+
+  // Rule 1: targets UNSPECIFIED — should match and redact.
+  auto* rule1 = chain->add_rules();
+  rule1->set_policy(
+      protos::gen::TraceConfig::TraceFilter::SFP_MATCH_REDACT_GROUPS);
+  rule1->set_regex_pattern(R"(unspec:(.*))");
+  rule1->add_semantic_type(protos::gen::SEMANTIC_TYPE_UNSPECIFIED);
+
+  // Rule 2: targets ATRACE — should NOT match an UNSPECIFIED field.
+  auto* rule2 = chain->add_rules();
+  rule2->set_policy(
+      protos::gen::TraceConfig::TraceFilter::SFP_MATCH_REDACT_GROUPS);
+  rule2->set_regex_pattern(R"(atrace:(.*))");
+  rule2->add_semantic_type(protos::gen::SEMANTIC_TYPE_ATRACE);
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  std::unique_ptr<TraceWriter> writer = producer->CreateTraceWriter("ds_1");
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("unspec:secret");
+  }
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("atrace:secret");
+  }
+
+  auto flush_request = consumer->Flush();
+  producer->ExpectFlush(writer.get());
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  const DataSourceInstanceID id1 = producer->GetDataSourceInstanceId("ds_1");
+  EXPECT_CALL(*producer, StopDataSource(id1));
+
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+
+  auto packets = consumer->ReadBuffers();
+  // UNSPECIFIED rule redacts the "unspec:" packet.
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("unspec:P60RED")))));
+  // ATRACE rule does NOT match — field is UNSPECIFIED, not ATRACE.
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("atrace:secret")))));
+}
+
 TEST_F(TracingServiceImplTest, StringFilteringAndCloneSession) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
@@ -8373,6 +8537,66 @@ TEST_F(TracingServiceImplTest, MultiProtoVmRouting) {
   producer_multi_vm_1->WaitForDataSourceStop("ds_with_multi_vm");
   producer_multi_vm_2->WaitForDataSourceStop("ds_with_multi_vm");
   producer_no_vm->WaitForDataSourceStop("ds_no_vm");
+  consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, ExtensionDescriptors) {
+  // Arbitrary blobs. The service just passes them through, no need for real
+  // FileDescriptorSet or gzip data.
+  const uint8_t kRawBlob[] = {0x0a, 0x04, 't', 'e', 's', 't'};
+  const uint8_t kGzBlob[] = {0x1f, 0x8b, 0x08, 0x00, 0xde, 0xad};
+
+  TracingService::InitOpts init_opts;
+  init_opts.extension_descriptors.push_back(
+      {"raw.descriptor", kRawBlob, sizeof(kRawBlob), /*gzipped=*/false});
+  init_opts.extension_descriptors.push_back(
+      {"gzipped.descriptor.gz", kGzBlob, sizeof(kGzBlob), /*gzipped=*/true});
+  InitializeSvcWithOpts(init_opts);
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(4);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+  ds_config->set_target_buffer(0);
+  consumer->EnableTracing(trace_config);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("data_source");
+  producer->WaitForDataSourceStart("data_source");
+
+  auto packets = consumer->ReadBuffers();
+
+  bool found_raw = false;
+  bool found_gz = false;
+  for (const auto& packet : packets) {
+    if (!packet.has_extension_descriptor())
+      continue;
+    const auto& ext = packet.extension_descriptor();
+    if (ext.file_name() == "raw.descriptor") {
+      found_raw = true;
+      EXPECT_TRUE(ext.has_extension_set());
+      EXPECT_FALSE(ext.has_extension_set_gzip());
+    } else if (ext.file_name() == "gzipped.descriptor.gz") {
+      found_gz = true;
+      EXPECT_FALSE(ext.has_extension_set());
+      EXPECT_TRUE(ext.has_extension_set_gzip());
+      EXPECT_EQ(
+          ext.extension_set_gzip(),
+          std::string(reinterpret_cast<const char*>(kGzBlob), sizeof(kGzBlob)));
+    }
+  }
+  EXPECT_TRUE(found_raw);
+  EXPECT_TRUE(found_gz);
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("data_source");
   consumer->WaitForTracingDisabled();
 }
 

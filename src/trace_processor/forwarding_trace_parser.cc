@@ -63,6 +63,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
     case kAndroidLogcatTraceType:
     case kArtHprofTraceType:
     case kArtMethodTraceType:
+    case kArtMethodV2TraceType:
     case kCollapsedStackTraceType:
     case kCtraceTraceType:
     case kFuchsiaTraceType:
@@ -157,7 +158,8 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
              trace_type_ == kSimpleperfProtoTraceType ||
              trace_type_ == kPerfTextTraceType ||
              trace_type_ == kPerfDataTraceType ||
-             trace_type_ == kArtMethodTraceType) {
+             trace_type_ == kArtMethodTraceType ||
+             trace_type_ == kArtMethodV2TraceType) {
     trace_context_->clock_tracker->SetGlobalClock(
         ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC));
   } else if (trace_type_ == kFuchsiaTraceType) {
@@ -167,7 +169,8 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
              trace_type_ == kInstrumentsXmlTraceType) {
     trace_context_->clock_tracker->SetGlobalClock(
         ClockId::TraceFile(trace_context_->trace_id().value));
-  } else if (trace_type_ == kAndroidDumpstateTraceType) {
+  } else if (trace_type_ == kAndroidDumpstateTraceType ||
+             trace_type_ == kAndroidLogcatTraceType) {
     trace_context_->clock_tracker->SetGlobalClock(
         ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_REALTIME));
   }

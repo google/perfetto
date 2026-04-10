@@ -140,7 +140,7 @@ void Hash::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 }
 
 struct Reverse : public sqlite::Function<Reverse> {
-  static constexpr char kName[] = "reverse";
+  static constexpr char kName[] = "__intrinsic_reverse";
   static constexpr int kArgCount = 1;
 
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
@@ -168,7 +168,7 @@ void Reverse::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 }
 
 struct Base64Encode : public sqlite::Function<Base64Encode> {
-  static constexpr char kName[] = "base64_encode";
+  static constexpr char kName[] = "__intrinsic_base64_encode";
   static constexpr int kArgCount = 1;
 
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
@@ -197,7 +197,7 @@ void Base64Encode::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 }
 
 struct Demangle : public sqlite::Function<Demangle> {
-  static constexpr char kName[] = "demangle";
+  static constexpr char kName[] = "__intrinsic_demangle";
   static constexpr int kArgCount = 1;
 
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
@@ -339,7 +339,7 @@ struct Regexp : public sqlite::Function<Regexp> {
 };
 
 struct RegexpExtract : public sqlite::Function<RegexpExtract> {
-  static constexpr char kName[] = "regexp_extract";
+  static constexpr char kName[] = "__intrinsic_regexp_extract";
   static constexpr int kArgCount = 2;
 
   struct AuxData {
@@ -432,7 +432,7 @@ struct RegexpReplaceSimple : public sqlite::Function<RegexpReplaceSimple> {
 };
 
 struct UnHex : public sqlite::Function<UnHex> {
-  static constexpr char kName[] = "UNHEX";
+  static constexpr char kName[] = "__intrinsic_unhex";
   static constexpr int kArgCount = 1;
 
   static void Step(sqlite3_context* ctx, int, sqlite3_value** argv) {

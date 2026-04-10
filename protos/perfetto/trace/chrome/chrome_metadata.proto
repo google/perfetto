@@ -44,7 +44,8 @@ message ChromeMetadataPacket {
   // on Android.
   optional string app_package_name = 5;
 
-  // A version number string for Chrome. This matches SystemProfileProto::app_version.
+  // A version number string for Chrome. This matches
+  // SystemProfileProto::app_version.
   optional string app_version = 6;
 
   // This matches SystemProfileProto::channel.

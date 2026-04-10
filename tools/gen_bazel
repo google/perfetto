@@ -56,6 +56,7 @@ gn_args_base = {
     'enable_perfetto_traced_perf': 'false',
     'perfetto_force_dcheck': '"off"',
     'enable_perfetto_llvm_demangle': 'true',
+    'enable_perfetto_re2': 'true',
 }
 gn_args = ' '.join((map(lambda x: '='.join(x), gn_args_base.items())))
 
@@ -187,6 +188,7 @@ external_deps = {
     '//gn:protobuf_lite': ['PERFETTO_CONFIG.deps.protobuf_lite'],
     '//gn:protoc_lib': ['PERFETTO_CONFIG.deps.protoc_lib'],
     '//gn:protoc': ['PERFETTO_CONFIG.deps.protoc'],
+    '//gn:re2': ['PERFETTO_CONFIG.deps.re2'],
     '//gn:sqlite': [
         'PERFETTO_CONFIG.deps.sqlite',
         'PERFETTO_CONFIG.deps.sqlite_ext_percentile'
@@ -849,18 +851,6 @@ def gen_target_helper(gn_target: GnParser.Target,
       raise Error('%s: \'public\' currently supported only for cc_library' %
                   gn_target.name)
 
-  raw_srcs = [x[2:] for x in gn_target.sources]
-  raw_srcs += [x[2:] for x in gn_target.inputs]
-  if bazel_type == 'perfetto_cc_library':
-    label.srcs += [x for x in raw_srcs if not x.startswith('include')]
-    label.hdrs += [x for x in raw_srcs if x.startswith('include')]
-
-    # Most Perfetto libraries cannot be dynamically linked as they would
-    # cause ODR violations.
-    label.__dict__['linkstatic'] = True
-  else:
-    label.srcs = raw_srcs
-
   is_public = gn_target.name in public_targets
   is_public_for_allowlist = gn_target.name in allowlist_public_targets
   if is_public and is_public_for_allowlist:
@@ -870,6 +860,22 @@ def gen_target_helper(gn_target: GnParser.Target,
     label.visibility = ['//visibility:public']
   elif is_public_for_allowlist:
     label.visibility = ALLOWLIST_PUBLIC_VISIBILITY
+
+  raw_srcs = [x[2:] for x in gn_target.sources]
+  raw_srcs += [x[2:] for x in gn_target.inputs]
+  if bazel_type == 'perfetto_cc_library':
+    if is_public or is_public_for_allowlist:
+      label.srcs += [x for x in raw_srcs if not x.startswith('include')]
+      label.hdrs += [x for x in raw_srcs if x.startswith('include')]
+    else:
+      label.srcs += [x for x in raw_srcs if not x.endswith('.h')]
+      label.hdrs += [x for x in raw_srcs if x.endswith('.h')]
+
+    # Most Perfetto libraries cannot be dynamically linked as they would
+    # cause ODR violations.
+    label.__dict__['linkstatic'] = True
+  else:
+    label.srcs = raw_srcs
 
   if win_target:
     label.win_srcs = list(
@@ -1177,37 +1183,46 @@ def main():
   if args.desc:
     with open(args.desc) as f:
       desc = json.load(f)
+    descs = gn_utils.create_build_descriptions([gn_args_win, gn_args_android],
+                                               args.repo_root)
+    bd_main = None
+    desc_win, desc_android = descs[0].desc, descs[1].desc
   else:
-    desc = gn_utils.create_build_description(gn_args, args.repo_root)
+    descs = gn_utils.create_build_descriptions(
+        [gn_args, gn_args_win, gn_args_android], args.repo_root)
+    bd_main = descs[0]
+    desc, desc_win, desc_android = (descs[0].desc, descs[1].desc, descs[2].desc)
 
-  desc_win = gn_utils.create_build_description(gn_args_win, args.repo_root)
+  try:
+    out_files = []
 
-  desc_android = gn_utils.create_build_description(gn_args_android,
-                                                   args.repo_root)
-  out_files = []
+    # Generate the main BUILD file.
+    with open(args.extras, 'r') as extra_f:
+      extras = extra_f.read()
 
-  # Generate the main BUILD file.
-  with open(args.extras, 'r') as extra_f:
-    extras = extra_f.read()
+    contents = generate_build(desc, desc_win, desc_android, args.targets or
+                              default_targets, extras)
+    out_files.append(args.output + '.swp')
+    with open(out_files[-1], 'w', newline='\n') as out_f:
+      out_f.write(contents)
 
-  contents = generate_build(desc, desc_win, desc_android, args.targets or
-                            default_targets, extras)
-  out_files.append(args.output + '.swp')
-  with open(out_files[-1], 'w', newline='\n') as out_f:
-    out_f.write(contents)
+    # Generate the python BUILD file.
+    python_gen = PythonBuildGenerator()
+    python_contents = python_gen.generate(desc)
+    out_files.append(args.output_python + '.swp')
+    with open(out_files[-1], 'w', newline='\n') as out_f:
+      out_f.write(python_contents)
 
-  # Generate the python BUILD file.
-  python_gen = PythonBuildGenerator()
-  python_contents = python_gen.generate(desc)
-  out_files.append(args.output_python + '.swp')
-  with open(out_files[-1], 'w', newline='\n') as out_f:
-    out_f.write(python_contents)
+    # Generate the build flags file, reusing the GN output directory.
+    out_files.append(os.path.join(buildflags_dir, 'perfetto_build_flags.h.swp'))
+    if bd_main:
+      bd_main.build_buildflags(out_files[-1])
+    else:
+      gn_utils.gen_buildflags(gn_args, out_files[-1])
 
-  # Generate the build flags file.
-  out_files.append(os.path.join(buildflags_dir, 'perfetto_build_flags.h.swp'))
-  gn_utils.gen_buildflags(gn_args, out_files[-1])
-
-  return gn_utils.check_or_commit_generated_files(out_files, args.check_only)
+    return gn_utils.check_or_commit_generated_files(out_files, args.check_only)
+  finally:
+    gn_utils.cleanup_build_descriptions(descs)
 
 
 if __name__ == '__main__':

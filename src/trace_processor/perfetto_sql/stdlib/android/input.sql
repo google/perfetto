@@ -70,13 +70,23 @@ ORDER BY
   event_seq;
 
 CREATE PERFETTO TABLE _input_read_time AS
+WITH
+  _extracted_input_read_args AS (
+    SELECT
+      name,
+      str_split(str_split(str_split(name, 'id=', 1), ',', 0), ')', 0) AS input_event_id,
+      str_split(str_split(name, 'eventTime=', 1), ')', 0) AS event_time_str,
+      ts AS read_time
+    FROM slice
+    WHERE
+      name GLOB 'UnwantedInteractionBlocker::notifyMotion*'
+  )
 SELECT
   name,
-  str_split(str_split(name, '=', 1), ')', 0) AS input_event_id,
-  ts AS read_time
-FROM slice
-WHERE
-  name GLOB 'UnwantedInteractionBlocker::notifyMotion*';
+  input_event_id,
+  cast_int!(event_time_str) AS event_time,
+  read_time
+FROM _extracted_input_read_args;
 
 CREATE PERFETTO TABLE _event_seq_to_input_event_id AS
 WITH
@@ -111,14 +121,16 @@ FROM _send_message_events;
 
 CREATE PERFETTO TABLE _clean_android_frames AS
 SELECT
-  do_frame_id AS id,
-  ts,
-  dur,
+  f.ts,
+  f.dur,
+  do_frame_slice.id AS do_frame_id,
+  do_frame_slice.ts AS do_frame_ts,
+  do_frame_slice.dur AS do_frame_dur,
   cast_int!(ui_thread_utid) AS utid,
   frame_id
-FROM android_frames
-WHERE
-  dur > 0;
+FROM android_frames AS f
+JOIN slice AS do_frame_slice
+  ON f.do_frame_id = do_frame_slice.id;
 
 CREATE PERFETTO TABLE _clean_deliver_events AS
 SELECT
@@ -137,15 +149,32 @@ JOIN thread_slice AS t
 JOIN slice AS parent
   ON s.parent_id = parent.id
 WHERE
-  s.name GLOB 'deliverInputEvent src=*' AND s.dur > 0;
+  s.name GLOB 'deliverInputEvent src=*';
 
+-- Exact Match: Find the Choreographer#doFrame that directly interval intersects
+-- with the deliver event if it exists.
 CREATE PERFETTO TABLE _input_event_frame_intersections AS
 SELECT
-  ii.id_0 AS frame_id_key,
+  ii.id_0 AS do_frame_id_key,
   ii.id_1 AS event_id_key,
   0 AS is_speculative_match
 FROM _interval_intersect!(
-  (_clean_android_frames, _clean_deliver_events),
+  (
+    (
+      SELECT 
+        do_frame_id AS id, 
+        do_frame_ts AS ts, 
+        do_frame_dur AS dur,
+        *
+      FROM _clean_android_frames 
+      WHERE do_frame_dur > 0
+    ), 
+    (SELECT 
+      * 
+      FROM _clean_deliver_events 
+      WHERE dur > 0
+    )
+  ),
   (utid)
 ) AS ii;
 
@@ -161,19 +190,20 @@ WHERE
   );
 
 -- Speculative Match: Find the immediate next frame for non-vsync-aligned events
+-- (e.g. unbatched events)
 CREATE PERFETTO TABLE _input_event_frame_speculative_matches AS
 WITH
   _ordered_future_frames AS (
     SELECT
       e.id AS event_id_key,
-      f.id AS frame_id_key,
-      row_number() OVER (PARTITION BY e.id ORDER BY f.ts ASC) AS rn
+      f.do_frame_id AS do_frame_id_key,
+      row_number() OVER (PARTITION BY e.id ORDER BY f.do_frame_ts ASC) AS rn
     FROM _input_events_pending_frame_match AS e
     JOIN _clean_android_frames AS f
-      ON e.utid = f.utid AND f.ts >= e.ts
+      ON e.utid = f.utid AND f.do_frame_ts >= e.ts
   )
 SELECT
-  frame_id_key,
+  do_frame_id_key,
   event_id_key,
   1 AS is_speculative_match
 FROM _ordered_future_frames
@@ -203,7 +233,7 @@ SELECT
   CAST(assoc.is_speculative_match AS BOOL) AS is_speculative_match
 FROM _input_event_frame_association AS assoc
 JOIN _clean_android_frames AS af
-  ON assoc.frame_id_key = af.id
+  ON assoc.do_frame_id_key = af.do_frame_id
 JOIN _clean_deliver_events AS dev
   ON assoc.event_id_key = dev.id
 JOIN _event_seq_to_input_event_id AS map
@@ -229,6 +259,7 @@ CREATE PERFETTO TABLE _first_non_dropped_frame_after_input AS
 SELECT
   _input_read_time.input_event_id,
   _input_read_time.read_time,
+  _input_read_time.event_time,
   (
     SELECT
       surface_flinger_ts + surface_flinger_dur
@@ -254,6 +285,28 @@ RIGHT JOIN _event_seq_to_input_event_id
   AND _input_event_id_to_android_frame.event_channel = _event_seq_to_input_event_id.event_channel
 JOIN _input_read_time
   ON _input_read_time.input_event_id = _event_seq_to_input_event_id.input_event_id;
+
+-- TODO: consider all cases
+CREATE PERFETTO FUNCTION _normalize_event_channel(
+    event_channel STRING
+)
+RETURNS STRING AS
+SELECT
+  CASE
+    -- '[Gesture Monitor] swipe-up' -> '[Gesture Monitor] swipe-up'
+    WHEN $event_channel GLOB '[[]*] *'
+    THEN $event_channel
+    -- 'ccf6448 PopupWindow:b20fb4d' -> 'PopupWindow'
+    WHEN $event_channel GLOB '* *:*'
+    THEN trim(substr(str_split($event_channel, ':', 0), instr($event_channel, ' ') + 1))
+    -- 'b3407d8 com.android.settings/com.android.settings.Settings$UserAspectRatioAppActivity' -> 'com.android.settings/com.android.settings.Settings$UserAspectRatioAppActivity'
+    WHEN $event_channel GLOB '* *'
+    THEN trim(substr($event_channel, instr($event_channel, ' ') + 1))
+    -- 'PointerEventDispatcher23' -> 'PointerEventDispatcher'
+    WHEN $event_channel GLOB '*[0-9]'
+    THEN regexp_extract($event_channel, '^(.*[a-zA-Z])')
+    ELSE $event_channel
+  END;
 
 -- All input events with round trip latency breakdown. Input delivery is socket based and every
 -- input event sent from the OS needs to be ACK'ed by the app. This gives us 4 subevents to measure
@@ -291,10 +344,12 @@ CREATE PERFETTO TABLE android_input_events (
   event_seq STRING,
   -- Input event channel name.
   event_channel STRING,
+  -- Normalized input event channel name.
+  normalized_event_channel STRING,
   -- Unique identifier for the input event.
   input_event_id STRING,
   -- Timestamp input event was read by InputReader.
-  read_time LONG,
+  read_time TIMESTAMP,
   -- Thread track id of input event dispatching thread.
   dispatch_track_id JOINID(track.id),
   -- Timestamp input event was dispatched.
@@ -310,7 +365,9 @@ CREATE PERFETTO TABLE android_input_events (
   -- Vsync Id associated with the input. Null if an input event has no associated frame event.
   frame_id LONG,
   -- Indicates if the frame association was speculative rather than exact based on id match.
-  is_speculative_frame BOOL
+  is_speculative_frame BOOL,
+  -- Timestamp when the input event actually occurred.
+  event_time TIMESTAMP
 ) AS
 WITH
   dispatch AS (
@@ -370,6 +427,7 @@ SELECT
   frame.event_action,
   dispatch.event_seq,
   dispatch.event_channel,
+  _normalize_event_channel(dispatch.event_channel) AS normalized_event_channel,
   frame.input_event_id,
   frame.read_time,
   dispatch.track_id AS dispatch_track_id,
@@ -379,7 +437,8 @@ SELECT
   receive.dur AS receive_dur,
   receive.track_id AS receive_track_id,
   frame.frame_id,
-  frame.is_speculative_match AS is_speculative_frame
+  frame.is_speculative_match AS is_speculative_frame,
+  frame.event_time
 FROM dispatch
 JOIN receive
   ON receive.dispatch_event_channel = dispatch.event_channel

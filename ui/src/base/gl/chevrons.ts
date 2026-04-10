@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {createSDFTexture, generatePolygonSDF} from './sdf';
-import {Point2D, Transform2D} from '../geom';
-import {MarkerBuffers} from '../renderer';
+import {Point2D, Transform1D, Transform2D} from '../geom';
+import {MarkerBuffers, RowLayout} from '../renderer';
 import {
   createBuffer,
   createProgram,
@@ -28,9 +28,13 @@ const QUAD_INDICES = new Uint16Array([0, 1, 2, 3]);
 
 // SDF texture parameters
 const SDF_TEX_SIZE = 64;
-const SDF_SPREAD = 0.1;
+const SDF_SPREAD = 0.2;
+// Padding around the shape in the SDF texture (in normalized 0-1 coords).
+// This insets the shape so texture edges have real SDF data for the linear
+// filter to interpolate, avoiding CLAMP_TO_EDGE artifacts at corners.
+const SDF_PADDING = 0.1;
 
-// Chevron shape vertices in normalized 0-1 coordinates:
+// Chevron shape vertices in normalized 0-1 coordinates, inset by SDF_PADDING:
 //        A (0.5, 0) - top center
 //       / \
 //      /   \
@@ -43,24 +47,27 @@ const CHEVRON_VERTICES: readonly Point2D[] = [
   {x: 1, y: 1}, // B - bottom right
   {x: 0.5, y: 0.7}, // C - inner notch
   {x: 0, y: 1}, // D - bottom left
-];
+].map(({x, y}) => ({
+  x: x * (1 - 2 * SDF_PADDING) + SDF_PADDING,
+  y: y * (1 - 2 * SDF_PADDING) + SDF_PADDING,
+}));
 
-// Program for batch rendering with data-space X coordinates
 interface ChevronBatchProgram {
   readonly program: WebGLProgram;
   readonly quadCornerLoc: number;
   readonly xLoc: number;
-  readonly yLoc: number;
+  readonly depthLoc: number;
   readonly colorLoc: number;
   readonly resolutionLoc: WebGLUniformLocation;
   readonly viewOffsetLoc: WebGLUniformLocation;
   readonly viewScaleLoc: WebGLUniformLocation;
   readonly dataScaleXLoc: WebGLUniformLocation;
   readonly dataOffsetXLoc: WebGLUniformLocation;
-  readonly dataScaleYLoc: WebGLUniformLocation;
-  readonly dataOffsetYLoc: WebGLUniformLocation;
   readonly widthLoc: WebGLUniformLocation;
-  readonly heightLoc: WebGLUniformLocation;
+  readonly firstRowHeightLoc: WebGLUniformLocation;
+  readonly rowHeightLoc: WebGLUniformLocation;
+  readonly rowGapLoc: WebGLUniformLocation;
+  readonly paddingTopLoc: WebGLUniformLocation;
   readonly sdfTexLoc: WebGLUniformLocation;
 }
 
@@ -74,12 +81,10 @@ function createChevronTexture(gl: WebGL2RenderingContext): WebGLTexture {
 }
 
 function createBatchProgram(gl: WebGL2RenderingContext): ChevronBatchProgram {
-  // Shader that handles data-space X coordinates
-  // X is marker center in data space, transformed to screen then offset by -w/2
   const vsSource = `#version 300 es
     in vec2 a_quadCorner;
-    in float a_x;      // Center X position in data space
-    in float a_y;      // Top Y position in screen pixels
+    in float a_x;        // Center X position in data space
+    in uint a_depth;     // Row index (per instance)
     in uint a_color;
 
     out vec4 v_color;
@@ -90,22 +95,32 @@ function createBatchProgram(gl: WebGL2RenderingContext): ChevronBatchProgram {
     uniform vec2 u_viewScale;
     uniform float u_dataScaleX;   // px per data unit (X)
     uniform float u_dataOffsetX;  // screen X offset
-    uniform float u_dataScaleY;   // scale for Y data
-    uniform float u_dataOffsetY;  // Y offset
-    uniform float u_width;        // marker width in screen pixels
-    uniform float u_height;       // marker height in screen pixels
+    uniform float u_width;          // marker width in screen pixels
+    uniform float u_firstRowHeight; // height of row 0 in CSS pixels
+    uniform float u_rowHeight;      // height of rows at depth > 0 in CSS pixels
+    uniform float u_rowGap;         // vertical gap between rows in CSS pixels
+    uniform float u_paddingTop;     // top padding in CSS pixels
 
     void main() {
       // Transform X from data space to screen space, then offset to left edge
       float screenX = a_x * u_dataScaleX + u_dataOffsetX - u_width * 0.5;
-      // Transform Y from data space to screen space
-      float screenY = a_y * u_dataScaleY + u_dataOffsetY;
+      // Compute Y and height from depth using a two-tier formula
+      float stride = u_rowHeight + u_rowGap;
+      float screenY;
+      float markerHeight;
+      if (a_depth == 0u) {
+        screenY = u_paddingTop;
+        markerHeight = u_firstRowHeight;
+      } else {
+        screenY = u_paddingTop + u_firstRowHeight + u_rowGap + float(a_depth - 1u) * stride;
+        markerHeight = u_rowHeight;
+      }
 
       // Apply view transform
       float pixelX = u_viewOffset.x + screenX * u_viewScale.x;
       float pixelY = u_viewOffset.y + screenY * u_viewScale.y;
       float pixelW = u_width * u_viewScale.x;
-      float pixelH = u_height * u_viewScale.y;
+      float pixelH = markerHeight * u_viewScale.y;
 
       vec2 localPos = a_quadCorner * vec2(pixelW, pixelH);
       vec2 pixelPos = vec2(pixelX, pixelY) + localPos;
@@ -118,29 +133,33 @@ function createBatchProgram(gl: WebGL2RenderingContext): ChevronBatchProgram {
         float((a_color >> 8) & 0xffu) / 255.0,
         float(a_color & 0xffu) / 255.0
       );
-      v_uv = a_quadCorner;
+      // Remap quad UVs [0,1] to the padded region of the SDF texture.
+      const float padding = ${SDF_PADDING.toFixed(4)};
+      v_uv = a_quadCorner * (1.0 - 2.0 * padding) + padding;
     }
   `;
 
   const fsSource = `#version 300 es
-    precision mediump float;
+    precision highp float;
     in vec4 v_color;
     in vec2 v_uv;
     out vec4 fragColor;
 
     uniform sampler2D u_sdfTex;
+    uniform float u_width;
+    uniform vec2 u_viewScale;
 
-    const float SDF_SPREAD = 0.1;
+    // Adjust for sharper or softer edges - larger = softer, smaller = sharper
+    const float aaFactor = 2.0;
 
     void main() {
       float sdfValue = texture(u_sdfTex, v_uv).a;
-      float dist = (sdfValue - 0.5) * SDF_SPREAD;
-      float aa = fwidth(dist) * 0.75;
+      float dist = (sdfValue - 0.5) * ${SDF_SPREAD};
+      // Use the bounding box width to compute an anti-aliasing factor that keeps edges smooth at all sizes.
+      // Width is more important than height for AA since chevrons have more obvious vertical edges.
+      float aa = aaFactor * ${SDF_SPREAD} / (u_width * u_viewScale.y);
       float alpha = 1.0 - smoothstep(-aa, aa, dist);
 
-      if (alpha < 0.01) {
-        discard;
-      }
       // Premultiply alpha for correct compositing over page background
       float finalAlpha = v_color.a * alpha;
       fragColor = vec4(v_color.rgb * finalAlpha, finalAlpha);
@@ -153,17 +172,18 @@ function createBatchProgram(gl: WebGL2RenderingContext): ChevronBatchProgram {
     program,
     quadCornerLoc: getAttribLocation(gl, program, 'a_quadCorner'),
     xLoc: getAttribLocation(gl, program, 'a_x'),
-    yLoc: getAttribLocation(gl, program, 'a_y'),
+    depthLoc: getAttribLocation(gl, program, 'a_depth'),
     colorLoc: getAttribLocation(gl, program, 'a_color'),
     resolutionLoc: getUniformLocation(gl, program, 'u_resolution'),
     viewOffsetLoc: getUniformLocation(gl, program, 'u_viewOffset'),
     viewScaleLoc: getUniformLocation(gl, program, 'u_viewScale'),
     dataScaleXLoc: getUniformLocation(gl, program, 'u_dataScaleX'),
     dataOffsetXLoc: getUniformLocation(gl, program, 'u_dataOffsetX'),
-    dataScaleYLoc: getUniformLocation(gl, program, 'u_dataScaleY'),
-    dataOffsetYLoc: getUniformLocation(gl, program, 'u_dataOffsetY'),
     widthLoc: getUniformLocation(gl, program, 'u_width'),
-    heightLoc: getUniformLocation(gl, program, 'u_height'),
+    firstRowHeightLoc: getUniformLocation(gl, program, 'u_firstRowHeight'),
+    rowHeightLoc: getUniformLocation(gl, program, 'u_rowHeight'),
+    rowGapLoc: getUniformLocation(gl, program, 'u_rowGap'),
+    paddingTopLoc: getUniformLocation(gl, program, 'u_paddingTop'),
     sdfTexLoc: getUniformLocation(gl, program, 'u_sdfTex'),
   };
 }
@@ -182,7 +202,7 @@ export class ChevronBatch {
   private readonly quadCornerBuffer: WebGLBuffer;
   private readonly quadIndexBuffer: WebGLBuffer;
   private readonly xBuffer: WebGLBuffer;
-  private readonly yBuffer: WebGLBuffer;
+  private readonly depthBuffer: WebGLBuffer;
   private readonly colorBuffer: WebGLBuffer;
 
   private readonly program: ChevronBatchProgram;
@@ -205,20 +225,61 @@ export class ChevronBatch {
 
     // Create dynamic instance buffers
     this.xBuffer = createBuffer(gl);
-    this.yBuffer = createBuffer(gl);
+    this.depthBuffer = createBuffer(gl);
     this.colorBuffer = createBuffer(gl);
   }
 
   /**
-   * Draw markers directly from columnar buffers.
-   * Zero per-marker CPU work - shader handles all transformation.
+   * Draw chevron markers using instanced WebGL rendering with SDF textures.
+   *
+   * Each marker is positioned horizontally by its X coordinate (in data space,
+   * centered) and vertically by its depth (row index). The vertical position
+   * and height are computed in the shader from the row layout formula:
+   *
+   * ```
+   * depth == 0:
+   *   top = paddingTop
+   *   height = firstRowHeight
+   * depth > 0:
+   *   stride = rowHeight + rowGap
+   *   top = paddingTop + firstRowHeight + rowGap + (depth - 1) * stride
+   *   height = rowHeight
+   * ```
+   *
+   * The coordinate pipeline is:
+   *   1. X: data space → CSS pixels (via xTransform), then centered by
+   *      subtracting markerWidth/2
+   *   2. Y + size: CSS pixels → device pixels (via viewTransform)
+   *   3. Convert to NDC for rasterization
+   *   4. Fragment shader samples SDF texture for anti-aliased chevron shape
+   *
+   * @param buffers Columnar marker data:
+   *   - `xs`: center X positions in data space. Transformed to CSS pixels
+   *      by xTransform, then offset left by markerWidth/2.
+   *   - `depths`: row index per marker (uint16). Used to look up vertical
+   *      position and height from the row layout.
+   *   - `colors`: packed RGBA per marker (0xRRGGBBAA).
+   *   - `count`: number of valid markers in the arrays.
+   * @param rowLayout Defines the vertical geometry of rows:
+   *   - `rowHeight`: height of rows in CSS pixels (required).
+   *   - `paddingTop`: offset from the top of the track to row 0 (default 0).
+   *   - `firstRowHeight`: height of row 0, can differ from other rows
+   *      (default: rowHeight).
+   *   - `rowGap`: vertical gap between rows in CSS pixels (default 0).
+   * @param markerWidth Width of each marker in CSS pixels.
+   * @param xTransform Scale+translate to convert data-space X coordinates to
+   *   CSS pixels: `cssPx = value * scale + offset`.
+   * @param viewTransform Scale+translate to convert CSS pixels to device
+   *   pixels (accounts for DPR and any scroll/pan offset).
    */
   draw(
     buffers: MarkerBuffers,
-    dataTransform: Transform2D,
+    rowLayout: RowLayout,
+    markerWidth: number,
+    xTransform: Transform1D,
     viewTransform: Transform2D,
   ): void {
-    const {xs, ys, w, h, colors, count} = buffers;
+    const {xs, depths, colors, count} = buffers;
     if (count === 0) return;
 
     const gl = this.gl;
@@ -236,12 +297,16 @@ export class ChevronBatch {
       viewTransform.offsetY,
     );
     gl.uniform2f(prog.viewScaleLoc, viewTransform.scaleX, viewTransform.scaleY);
-    gl.uniform1f(prog.dataScaleXLoc, dataTransform.scaleX);
-    gl.uniform1f(prog.dataOffsetXLoc, dataTransform.offsetX);
-    gl.uniform1f(prog.dataScaleYLoc, dataTransform.scaleY);
-    gl.uniform1f(prog.dataOffsetYLoc, dataTransform.offsetY);
-    gl.uniform1f(prog.widthLoc, w);
-    gl.uniform1f(prog.heightLoc, h);
+    gl.uniform1f(prog.dataScaleXLoc, xTransform.scale);
+    gl.uniform1f(prog.dataOffsetXLoc, xTransform.offset);
+    gl.uniform1f(prog.widthLoc, markerWidth);
+    gl.uniform1f(
+      prog.firstRowHeightLoc,
+      rowLayout.firstRowHeight ?? rowLayout.rowHeight,
+    );
+    gl.uniform1f(prog.rowHeightLoc, rowLayout.rowHeight);
+    gl.uniform1f(prog.rowGapLoc, rowLayout.rowGap ?? 0);
+    gl.uniform1f(prog.paddingTopLoc, rowLayout.paddingTop ?? 0);
 
     // Bind SDF texture
     gl.activeTexture(gl.TEXTURE0);
@@ -254,9 +319,15 @@ export class ChevronBatch {
     gl.vertexAttribPointer(prog.quadCornerLoc, 2, gl.FLOAT, false, 0, 0);
     gl.vertexAttribDivisor(prog.quadCornerLoc, 0);
 
-    // Upload buffers directly - no CPU transformation!
+    // Upload per-instance buffers
     this.bindFloatBuffer(prog.xLoc, this.xBuffer, xs, count);
-    this.bindFloatBuffer(prog.yLoc, this.yBuffer, ys, count);
+
+    // Depth (uint16)
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.depthBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, depths.subarray(0, count), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(prog.depthLoc);
+    gl.vertexAttribIPointer(prog.depthLoc, 1, gl.UNSIGNED_SHORT, 0, 0);
+    gl.vertexAttribDivisor(prog.depthLoc, 1);
 
     // Colors
     gl.bindBuffer(gl.ARRAY_BUFFER, this.colorBuffer);
@@ -271,7 +342,7 @@ export class ChevronBatch {
 
     // Reset divisors
     gl.vertexAttribDivisor(prog.xLoc, 0);
-    gl.vertexAttribDivisor(prog.yLoc, 0);
+    gl.vertexAttribDivisor(prog.depthLoc, 0);
     gl.vertexAttribDivisor(prog.colorLoc, 0);
   }
 

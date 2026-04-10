@@ -17,7 +17,7 @@
 // (translate/scale), so draw methods use coordinates directly.
 
 import {Color} from './color';
-import {Transform2D} from './geom';
+import {Transform1D, Transform2D} from './geom';
 import {
   Renderer,
   RECT_PATTERN_HATCHED,
@@ -25,7 +25,10 @@ import {
   MarkerRenderFunc,
   MarkerBuffers,
   StepAreaBuffers,
-  RectBuffers,
+  SliceBuffers,
+  rowTopFromLayout,
+  rowHeightFromLayout,
+  RowLayout,
 } from './renderer';
 
 // Clip bounds stored in physical screen coordinates (post-transform).
@@ -68,25 +71,28 @@ export class Canvas2DRenderer implements Renderer {
 
   drawMarkers(
     buffers: MarkerBuffers,
-    dataTransform: Transform2D,
+    rowLayout: RowLayout,
+    markerWidth: number,
+    xTransform: Transform1D,
     render: MarkerRenderFunc,
   ): void {
-    const {xs, ys, w, h, colors, count} = buffers;
+    const {xs, depths, colors, count} = buffers;
     const ctx = this.ctx;
     const clip = this.physicalClipBounds;
     const t = this.transform;
-    const {offsetX, scaleX, offsetY, scaleY} = dataTransform;
+    const {offset, scale} = xTransform;
     let previousColor: number | undefined = undefined;
 
     for (let i = 0; i < count; i++) {
       // Transform X from data space to screen space (centered)
-      const screenX = xs[i] * scaleX + offsetX;
-      const y = ys[i] * scaleY + offsetY;
+      const screenX = xs[i] * scale + offset;
+      const y = rowTopFromLayout(rowLayout, depths[i]);
+      const h = rowHeightFromLayout(rowLayout, depths[i]);
 
       // CPU-side culling
       if (clip !== undefined) {
-        const physLeft = t.offsetX + (screenX - w / 2) * t.scaleX;
-        const physRight = t.offsetX + (screenX + w / 2) * t.scaleX;
+        const physLeft = t.offsetX + (screenX - markerWidth / 2) * t.scaleX;
+        const physRight = t.offsetX + (screenX + markerWidth / 2) * t.scaleX;
         const physTop = t.offsetY + y * t.scaleY;
         const physBottom = t.offsetY + (y + h) * t.scaleY;
         if (
@@ -111,33 +117,43 @@ export class Canvas2DRenderer implements Renderer {
         previousColor = rgba;
       }
 
-      render(ctx, screenX - w / 2, y, w, h);
+      render(ctx, screenX - markerWidth / 2, y, markerWidth, h);
     }
   }
 
-  drawRects(buffers: RectBuffers, dataTransform: Transform2D): void {
-    const {xs, ys, ws, h, colors, patterns, count} = buffers;
+  drawSlices(
+    buffers: SliceBuffers,
+    rowLayout: RowLayout,
+    xTransform: Transform1D,
+  ): void {
+    const {starts, ends, depths, colors, patterns, count} = buffers;
     const ctx = this.ctx;
     const clip = this.physicalClipBounds;
     const t = this.transform;
-    const {offsetX, scaleX, offsetY, scaleY} = dataTransform;
+    const {offset, scale} = xTransform;
     let previousColor: number | undefined = undefined;
 
     for (let i = 0; i < count; i++) {
-      // Transform X and Y from data coordinates to screen coordinates
-      const x = xs[i] * scaleX + offsetX;
-      const y = ys[i] * scaleY + offsetY;
-      const w = Math.max(ws[i] * scaleX, 1);
+      const depth = depths[i];
+
+      // Compute row position from two-tier formula
+      const y = rowTopFromLayout(rowLayout, depth);
+      const h = rowHeightFromLayout(rowLayout, depth);
+
+      // Transform X from data coordinates to screen coordinates
+      const startPx = starts[i] * scale + offset;
+      const endPx = ends[i] * scale + offset;
+      const w = Math.max(endPx - startPx, 1);
 
       // CPU-side culling and clamping to clip bounds
-      let drawX = x;
+      let drawX = startPx;
       let drawY = y;
       let drawW = w;
       let drawH = h;
 
       if (clip !== undefined) {
-        const physLeft = t.offsetX + x * t.scaleX;
-        const physRight = t.offsetX + (x + w) * t.scaleX;
+        const physLeft = t.offsetX + startPx * t.scaleX;
+        const physRight = t.offsetX + endPx * t.scaleX;
         const physTop = t.offsetY + y * t.scaleY;
         const physBottom = t.offsetY + (y + h) * t.scaleY;
 

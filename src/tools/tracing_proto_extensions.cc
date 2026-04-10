@@ -43,11 +43,12 @@
 
 namespace perfetto {
 namespace gen_proto_extensions {
-namespace {
 
 namespace pbzero = protos::pbzero;
 using trace_processor::json::FieldResult;
 using trace_processor::json::SimpleJsonParser;
+
+namespace {
 
 // Sorts ranges by start and checks for validity (start <= end, no internal
 // overlaps).
@@ -259,52 +260,13 @@ base::Status ValidateFieldNumbers(
   return base::OkStatus();
 }
 
-// Recursively collects all proto files from the registry tree.
-struct ProtoEntry {
-  std::string proto_path;
-  std::string scope;
-  std::vector<Range> ranges;
-};
-
-base::Status CollectProtos(const std::string& json_path,
-                           const std::string& root_dir,
-                           std::vector<ProtoEntry>* out) {
-  std::string contents;
-  if (!base::ReadFile(json_path, &contents)) {
-    return base::ErrStatus("Failed to read '%s'", json_path.c_str());
-  }
-
-  ASSIGN_OR_RETURN(auto reg, ParseRegistry(contents, json_path));
-  RETURN_IF_ERROR(ValidateRegistry(reg));
-
-  for (const auto& alloc : reg.allocations) {
-    if (!alloc.proto.empty() && alloc.repo.empty()) {
-      // Local proto leaf.
-      out->push_back({root_dir + "/" + alloc.proto, reg.scope, alloc.ranges});
-    } else if (!alloc.registry.empty() && alloc.repo.empty()) {
-      // Local sub-registry.
-      std::string sub_path = root_dir + "/" + alloc.registry;
-      RETURN_IF_ERROR(CollectProtos(sub_path, root_dir, out));
-    }
-    // Remote entries (repo is set) are skipped.
-  }
-  return base::OkStatus();
-}
-
-}  // namespace
-
-base::StatusOr<Registry> ParseRegistry(const std::string& json_contents,
-                                       const std::string& source_path) {
+// Parses a single registry object from the current parser position.
+// The parser should be positioned at a JSON object with
+// scope/range/allocations.
+base::StatusOr<Registry> ParseRegistryObject(SimpleJsonParser& parser,
+                                             const std::string& source_path) {
   Registry reg;
   reg.source_path = source_path;
-
-  SimpleJsonParser parser(json_contents);
-  {
-    auto status = parser.Parse();
-    if (!status.ok())
-      return base::ErrStatus("Failed to parse JSON in '%s': %s",
-                             source_path.c_str(), status.message().c_str());
-  }
 
   bool has_range = false;
   bool has_ranges = false;
@@ -462,6 +424,46 @@ base::StatusOr<Registry> ParseRegistry(const std::string& json_contents,
   return std::move(reg);
 }
 
+}  // namespace
+
+base::StatusOr<std::vector<Registry>> ParseRegistryFile(
+    const std::string& json_contents,
+    const std::string& source_path) {
+  SimpleJsonParser parser(json_contents);
+  {
+    auto status = parser.Parse();
+    if (!status.ok())
+      return base::ErrStatus("Failed to parse JSON in '%s': %s",
+                             source_path.c_str(), status.message().c_str());
+  }
+
+  std::vector<Registry> extensions;
+  RETURN_IF_ERROR(parser.ForEachField([&](std::string_view key) -> FieldResult {
+    if (key == "extensions") {
+      if (!parser.IsArray())
+        return base::ErrStatus("'extensions' must be an array in '%s'",
+                               source_path.c_str());
+      RETURN_IF_ERROR(parser.ForEachArrayElement([&]() -> base::Status {
+        if (!parser.IsObject())
+          return base::ErrStatus(
+              "Each entry in 'extensions' must be an object in '%s'",
+              source_path.c_str());
+        ASSIGN_OR_RETURN(auto reg, ParseRegistryObject(parser, source_path));
+        extensions.push_back(std::move(reg));
+        return base::OkStatus();
+      }));
+      return FieldResult::Handled{};
+    }
+    if (key == "comment")
+      return FieldResult::Skip{};
+    return base::ErrStatus("Unknown field '%.*s' in '%s'",
+                           static_cast<int>(key.size()), key.data(),
+                           source_path.c_str());
+  }));
+
+  return extensions;
+}
+
 base::Status ValidateRegistry(const Registry& reg) {
   // Currently only TrackEvent extensions are supported. In the future, this
   // field could be used to disambiguate TracePacket extensions.
@@ -554,13 +556,62 @@ base::Status ValidateRegistry(const Registry& reg) {
   return base::OkStatus();
 }
 
+namespace {
+
+// Recursively collects all proto files from the registry tree.
+struct ProtoEntry {
+  std::string proto_path;
+  std::string scope;
+  std::vector<Range> ranges;
+};
+
+// Walks allocations from an already-parsed registry. For sub-registries,
+// reads and parses them using the flat (non-wrapped) format.
+base::Status CollectProtosFromRegistry(const Registry& reg,
+                                       const std::string& root_dir,
+                                       std::vector<ProtoEntry>* out) {
+  for (const auto& alloc : reg.allocations) {
+    if (!alloc.proto.empty() && alloc.repo.empty()) {
+      // Local proto leaf.
+      out->push_back({root_dir + "/" + alloc.proto, reg.scope, alloc.ranges});
+    } else if (!alloc.registry.empty() && alloc.repo.empty()) {
+      // Local sub-registry (same {"extensions": [...]} format).
+      std::string sub_path = root_dir + "/" + alloc.registry;
+      std::string contents;
+      if (!base::ReadFile(sub_path, &contents)) {
+        return base::ErrStatus("Failed to read '%s'", sub_path.c_str());
+      }
+      ASSIGN_OR_RETURN(auto sub_regs, ParseRegistryFile(contents, sub_path));
+      for (const auto& sub_reg : sub_regs) {
+        RETURN_IF_ERROR(ValidateRegistry(sub_reg));
+        RETURN_IF_ERROR(CollectProtosFromRegistry(sub_reg, root_dir, out));
+      }
+    }
+    // Remote entries (repo is set) are skipped.
+  }
+  return base::OkStatus();
+}
+
+}  // namespace
+
 base::StatusOr<std::vector<uint8_t>> GenerateExtensionDescriptors(
     const std::string& root_json_path,
     const std::vector<std::string>& proto_paths,
     const std::string& root_dir) {
-  // 1. Recursively collect all local proto entries from the JSON hierarchy.
+  // 1. Read and parse the root registry file (uses the "extensions" wrapper).
+  std::string root_contents;
+  if (!base::ReadFile(root_json_path, &root_contents)) {
+    return base::ErrStatus("Failed to read '%s'", root_json_path.c_str());
+  }
+  ASSIGN_OR_RETURN(auto extensions,
+                   ParseRegistryFile(root_contents, root_json_path));
+
+  // 2. Recursively collect all local proto entries from each registry.
   std::vector<ProtoEntry> entries;
-  RETURN_IF_ERROR(CollectProtos(root_json_path, root_dir, &entries));
+  for (const auto& reg : extensions) {
+    RETURN_IF_ERROR(ValidateRegistry(reg));
+    RETURN_IF_ERROR(CollectProtosFromRegistry(reg, root_dir, &entries));
+  }
 
   if (entries.empty()) {
     PERFETTO_ILOG("No local proto files found in registry.");

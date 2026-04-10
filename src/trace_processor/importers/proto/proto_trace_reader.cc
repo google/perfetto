@@ -57,8 +57,10 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
+#include "src/trace_processor/util/gzip_utils.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "protos/perfetto/common/trace_attributes.pbzero.h"
 #include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -196,9 +198,29 @@ base::Status ProtoTraceReader::ParseExtensionDescriptor(ConstBytes descriptor) {
   protos::pbzero::ExtensionDescriptor::Decoder decoder(descriptor.data,
                                                        descriptor.size);
 
-  auto extension = decoder.extension_set();
+  const uint8_t* data = nullptr;
+  size_t size = 0;
+  std::vector<uint8_t> decompressed;
+  if (decoder.has_extension_set()) {
+    auto extension = decoder.extension_set();
+    data = extension.data;
+    size = extension.size;
+  } else if (decoder.has_extension_set_gzip()) {
+    auto gzipped = decoder.extension_set_gzip();
+    decompressed =
+        util::GzipDecompressor::DecompressFully(gzipped.data, gzipped.size);
+    if (decompressed.empty()) {
+      return base::ErrStatus(
+          "Failed to decompress gzipped extension descriptor");
+    }
+    data = decompressed.data();
+    size = decompressed.size();
+  } else {
+    return base::OkStatus();
+  }
+
   return context_->descriptor_pool_->AddFromFileDescriptorSet(
-      extension.data, extension.size,
+      data, size,
       /*skip_prefixes*/ {},
       /*merge_existing_messages=*/true);
 }
@@ -261,6 +283,10 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     if (!inserted && decoder.previous_packet_dropped()) {
       ++scoped_state->previous_packet_dropped_count;
     }
+  }
+
+  if (decoder.has_trace_attributes()) {
+    HandleTraceAttributes(decoder.trace_attributes());
   }
 
   if (decoder.first_packet_on_sequence()) {
@@ -354,6 +380,34 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   return TimestampTokenizeAndPushToSorter(std::move(packet));
 }
 
+ProtoTraceReader::ClockResolution ProtoTraceReader::ResolveTimestampToTraceTime(
+    ClockTracker::ClockId clock_id,
+    int64_t* timestamp,
+    TraceBlobView* packet) {
+  // Before EOF, suppress errors: the clock snapshot may arrive later and
+  // the packet will be retried at EOF. At EOF, allow errors so genuinely
+  // broken clocks are reported.
+  bool suppress_errors = !received_eof_;
+  auto trace_ts = context_->clock_tracker->ToTraceTime(
+      clock_id, *timestamp, packet->offset(), suppress_errors);
+  if (PERFETTO_LIKELY(trace_ts.has_value())) {
+    *timestamp = *trace_ts;
+    return ClockResolution::kResolved;
+  }
+
+  // Conversion failed. Before EOF, try to defer for later resolution.
+  if (!received_eof_ &&
+      context_->sorter->SetSortingMode(TraceSorter::SortingMode::kFullSort)) {
+    eof_deferred_packets_.push_back(std::move(*packet));
+    return ClockResolution::kDeferred;
+  }
+
+  // Cannot defer: record the error and drop the packet.
+  context_->import_logs_tracker->RecordTokenizationError(
+      stats::clock_sync_failure_undeferrable_packet_loss, packet->offset());
+  return ClockResolution::kDropped;
+}
+
 base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
     TraceBlobView packet) {
   protos::pbzero::TracePacket::Decoder decoder(packet.data(), packet.length());
@@ -413,23 +467,12 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
       } else {
         converted_clock_id = ClockId::Machine(timestamp_clock_id);
       }
-      auto trace_ts = context_->clock_tracker->ToTraceTime(
-          converted_clock_id, timestamp, packet.offset());
-      if (!trace_ts) {
-        // We need to switch to full sorting mode to ensure that packets with
-        // missing timestamp are handled correctly. Don't save the packet unless
-        // switching to full sorting mode succeeded.
-        if (!received_eof_ && context_->sorter->SetSortingMode(
-                                  TraceSorter::SortingMode::kFullSort)) {
-          eof_deferred_packets_.push_back(std::move(packet));
-          return base::OkStatus();
-        }
-        // We don't return an error here as it will cause the trace to stop
-        // parsing. Instead, we rely on the stat increment (which happened
-        // automatically in ToTraceTime) to inform the user about the error.
+      auto resolution =
+          ResolveTimestampToTraceTime(converted_clock_id, &timestamp, &packet);
+      if (resolution == ClockResolution::kDeferred ||
+          resolution == ClockResolution::kDropped) {
         return base::OkStatus();
       }
-      timestamp = *trace_ts;
     }
   } else {
     timestamp = std::max(latest_timestamp_, context_->sorter->max_timestamp());
@@ -496,6 +539,26 @@ void ProtoTraceReader::HandleFirstPacketOnSequence(
     uint32_t packet_sequence_id) {
   for (auto& module : module_context_.modules) {
     module->OnFirstPacketOnSequence(packet_sequence_id);
+  }
+}
+
+void ProtoTraceReader::HandleTraceAttributes(protozero::ConstBytes blob) {
+  protos::pbzero::TraceAttributes::Decoder decoder(blob);
+  for (auto it_buf = decoder.attribute(); it_buf; ++it_buf) {
+    protos::pbzero::TraceAttributes_Attribute::Decoder decoded_attribute(
+        *it_buf);
+    auto key = decoded_attribute.key();
+    // Prefix all custom attribute keys with `trace_attribute.`
+    auto prefixed_key = "trace_attribute." + key.ToStdString();
+    auto key_id = context_->storage->InternString(prefixed_key);
+    if (decoded_attribute.has_long_value()) {
+      auto value = Variadic::Integer(decoded_attribute.long_value());
+      context_->metadata_tracker->SetDynamicMetadata(key_id, value);
+    } else if (decoded_attribute.has_string_value()) {
+      auto value = Variadic::String(
+          context_->storage->InternString(decoded_attribute.string_value()));
+      context_->metadata_tracker->SetDynamicMetadata(key_id, value);
+    }
   }
 }
 
@@ -976,6 +1039,8 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
       storage->SetIndexedStats(
           stats::traced_buf_v2s_v2_patches_succeeded, buf_num,
           static_cast<int64_t>(sbs.v2_patches_succeeded()));
+      storage->SetIndexedStats(stats::traced_buf_v2s_stats_version, buf_num,
+                               static_cast<uint32_t>(sbs.stats_version()));
     }
   }
 

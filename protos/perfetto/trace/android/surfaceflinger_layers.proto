@@ -20,6 +20,7 @@ package perfetto.protos;
 
 import "protos/perfetto/trace/android/surfaceflinger_common.proto";
 import "protos/perfetto/trace/android/graphics/rect.proto";
+import "protos/perfetto/trace/android/graphics/corner_radii.proto";
 
 // Message used by Winscope to process legacy trace files.
 // Represents a file full of surface flinger trace entries.
@@ -38,19 +39,19 @@ message LayersTraceFileProto {
   }
 
   // Must be the first field, set to value in MagicNumber
-  optional fixed64 magic_number = 1;
+  optional fixed64 magic_number = 1 [jstype = JS_STRING];
 
   repeated LayersSnapshotProto entry = 2;
 
   // Offset between real-time clock and elapsed time clock in nanoseconds.
   // Calculated as: systemTime(SYSTEM_TIME_REALTIME) -
   // systemTime(SYSTEM_TIME_MONOTONIC)
-  optional fixed64 real_to_elapsed_time_offset_nanos = 3;
+  optional fixed64 real_to_elapsed_time_offset_nanos = 3 [jstype = JS_STRING];
 }
 
 message LayersSnapshotProto {
   // elapsed realtime in nanos since boot of when this entry was logged
-  optional sfixed64 elapsed_realtime_nanos = 1;
+  optional sfixed64 elapsed_realtime_nanos = 1 [jstype = JS_STRING];
 
   // SurfaceFlinger's stage where the snapshot was triggered.
   // Currently either "visibleRegionsDirty" or "bufferLatched".
@@ -72,7 +73,41 @@ message LayersSnapshotProto {
 
   repeated DisplayProto displays = 7;
 
-  optional int64 vsync_id = 8;
+  optional int64 vsync_id = 8 [jstype = JS_STRING];
+}
+
+// ProtoVM Patch Proto
+// Merged by ProtoVM into LayersSnapshotProto
+message LayersPatchProto {
+  // Layers that have been modified or added in this patch.
+  repeated LayerProto layers = 1;
+  // Displays that have been modified or added in this patch.
+  repeated DisplayProto displays = 2;
+
+  // IDs of layers that have been deleted.
+  repeated int32 deleted_layer_ids = 3;
+  // IDs of displays that have been deleted.
+  repeated uint64 deleted_display_ids = 4;
+
+  // elapsed realtime in nanos since boot of when this entry was logged
+  optional sfixed64 elapsed_realtime_nanos = 5;
+
+  // SurfaceFlinger's stage where the snapshot was triggered.
+  // Currently either "visibleRegionsDirty" or "bufferLatched".
+  optional string where = 6;
+
+  // Blob for the current HWC information for all layers, reported by dumpsys.
+  optional string hwc_blob = 7;
+
+  // Excludes state sent during composition like visible region and composition
+  // type.
+  optional bool excludes_composition_state = 8;
+
+  // Number of missed entries since the last entry was recorded.
+  optional uint32 missed_entries = 9;
+
+  // VSync ID associated with this patch.
+  optional int64 vsync_id = 10;
 }
 
 // Contains a list of all layers.
@@ -81,7 +116,7 @@ message LayersProto {
 }
 
 message DisplayProto {
-  optional uint64 id = 1;
+  optional uint64 id = 1 [jstype = JS_STRING];
   // Display descriptor, e.g. "Built-In Screen"
   optional string name = 2;
   optional uint32 layer_stack = 3;
@@ -190,7 +225,7 @@ message LayerProto {
   // If it's a buffer layer, indicate if the content is protected
   optional bool is_protected = 36;
   // Current frame number being rendered.
-  optional uint64 curr_frame = 37;
+  optional uint64 curr_frame = 37 [jstype = JS_STRING];
   // A list of barriers that the layer is waiting to update state.
   repeated BarrierLayerProto barrier_layer = 38;
   // If active_buffer is not null, record its transform.
@@ -259,6 +294,12 @@ message LayerProto {
 
   // "True" corner radii of the layer computed by SurfaceFlinger.
   optional CornerRadiiProto effective_radii = 67;
+
+  // Reported corner radii of the layer.
+  optional CornerRadiiProto reported_radii = 68;
+
+  // Flag indicating if client-drawn radii are disabled.
+  optional bool disable_client_drawn_radii = 69;
 }
 
 message PositionProto {
@@ -273,24 +314,17 @@ message FloatRectProto {
   optional float bottom = 4;
 }
 
-message CornerRadiiProto {
-  optional float tl = 1;
-  optional float tr = 2;
-  optional float bl = 3;
-  optional float br = 4;
-}
-
 message ActiveBufferProto {
   optional uint32 width = 1;
   optional uint32 height = 2;
   optional uint32 stride = 3;
   optional int32 format = 4;
-  optional uint64 usage = 5;
+  optional uint64 usage = 5 [jstype = JS_STRING];
 }
 
 message BarrierLayerProto {
   // layer id the barrier is waiting on.
   optional int32 id = 1;
   // frame number the barrier is waiting on.
-  optional uint64 frame_number = 2;
+  optional uint64 frame_number = 2 [jstype = JS_STRING];
 }
