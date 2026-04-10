@@ -349,6 +349,13 @@ additional_args = {
             ],
             'host_ldlibs': ['-lws2_32'],
         }),
+        # Compiles base::Regex against the std::regex backend. Static libs
+        # don't propagate their deps to consumers on Soong (b/169779783), so
+        # linking libpcre2 here would force every consumer of this static
+        # lib to pay the libpcre2 code-size cost. Regex usage in the client
+        # SDK is minimal, so std::regex is an acceptable tradeoff.
+        # See b/498785154 for the binary-size regression that motivated this.
+        ('cflags', {'-DPERFETTO_REGEX_FORCE_STD'}),
     ],
     'perfetto_trace_protos': [
         ('apex_available', {

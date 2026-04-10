@@ -1032,6 +1032,7 @@ cc_library {
         "perfetto_defaults",
     ],
     cflags: [
+        "-DPERFETTO_REGEX_FORCE_STD",
         "-DPERFETTO_SHLIB_SDK_IMPLEMENTATION",
     ],
     min_sdk_version: "30",
@@ -1039,15 +1040,9 @@ cc_library {
         android: {
             shared_libs: [
                 "liblog",
-                "libpcre2",
             ],
             static_libs: [
                 "perfetto_flags_c_lib",
-            ],
-        },
-        host: {
-            whole_static_libs: [
-                "libpcre2",
             ],
         },
         windows: {
