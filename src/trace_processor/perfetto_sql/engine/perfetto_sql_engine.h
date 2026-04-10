@@ -31,7 +31,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/engine/static_table_function_module.h"
@@ -142,6 +142,19 @@ class PerfettoSqlEngine {
     engine_->RegisterVirtualTableModule(
         name, &Module::kModule, ctx.release(),
         [](void* ptr) { delete static_cast<typename Module::Context*>(ptr); });
+  }
+
+  // Registers a virtual table module from a plugin's SqliteModuleRegistration.
+  void RegisterSqliteModuleForPlugin(const char* name,
+                                     const sqlite3_module* module,
+                                     void* ctx,
+                                     void (*destructor)(void*),
+                                     bool is_state_manager) {
+    if (is_state_manager) {
+      virtual_module_state_managers_.push_back(
+          static_cast<sqlite::ModuleStateManagerBase*>(ctx));
+    }
+    engine_->RegisterVirtualTableModule(name, module, ctx, destructor);
   }
 
   // Registers a trace processor C++ function to be runnable from SQL.
@@ -440,8 +453,8 @@ base::Status PerfettoSqlEngine::RegisterFunction(
   function_count_++;
   const char* name = args.name ? args.name : Function::kName;
   int argc = args.argc.has_value() ? args.argc.value() : Function::kArgCount;
-  return engine_->RegisterFunction(name, argc, Function::Step, ctx, nullptr,
-                                   args.deterministic);
+  return RegisterFunctionAndAddToRegistry(name, argc, Function::Step, ctx,
+                                          nullptr, args.deterministic);
 }
 
 template <typename Function>
@@ -451,7 +464,7 @@ base::Status PerfettoSqlEngine::RegisterFunction(
   function_count_++;
   const char* name = args.name ? args.name : Function::kName;
   int argc = args.argc.has_value() ? args.argc.value() : Function::kArgCount;
-  return engine_->RegisterFunction(
+  return RegisterFunctionAndAddToRegistry(
       name, argc, Function::Step, ctx.release(),
       [](void* ptr) {
         std::unique_ptr<typename Function::UserData>(

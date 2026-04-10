@@ -78,6 +78,11 @@ export function maybeShowErrorDialog(err: ErrorDetails) {
     return;
   }
 
+  if (err.message.includes('(ERR:tp-parse)')) {
+    showTraceParseError(err.message);
+    return;
+  }
+
   if (err.message.includes('(ERR:rpc_seq)')) {
     showRpcSequencingError();
     return;
@@ -341,6 +346,29 @@ function showUnknownFileError() {
         m('li', 'Fuchsia trace'),
         m('li', 'Ninja build log'),
         m('li', 'pprof'),
+      ),
+    ),
+  });
+}
+
+function showTraceParseError(msg: string) {
+  showModal({
+    title: 'Trace file corrupt',
+    content: m(
+      'div',
+      m('p', msg),
+      m(
+        'p',
+        'If you think this is a genuine Perfetto bug please file a bug ',
+        'attaching the trace on ',
+        m(
+          Anchor,
+          {href: 'https://github.com/google/perfetto/issues'},
+          'GitHub',
+        ),
+        ' (Googlers: use ',
+        m(Anchor, {href: 'http://go/perfetto-bug'}, 'go/perfetto-bug'),
+        ')',
       ),
     ),
   });

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import protos from '../../../protos';
 import {EvtSource} from '../../../base/events';
 import {Result} from '../../../base/result';
 import {PreflightCheck} from '../interfaces/connection_check';
@@ -38,7 +39,7 @@ export class ChromeExtensionTargetProvider implements RecordingTargetProvider {
     return [this.target];
   }
 
-  getChromeCategories(): Promise<Result<string[]>> {
-    return this.target.getChromeCategories();
+  getTrackEventDescriptor(): Promise<Result<protos.TrackEventDescriptor>> {
+    return this.target.getTrackEventDescriptor();
   }
 }

@@ -21,7 +21,7 @@ package perfetto.protos;
 // Records an event in the evdev protocol, as used by Linux and some other *nix
 // kernels to report events from human interface devices.
 //
-// Next ID: 3
+// Next ID: 5
 message EvdevEvent {
   // The device's unique ID number. This need not be the number of its
   // /dev/input/event node.
@@ -29,6 +29,8 @@ message EvdevEvent {
 
   oneof event {
     InputEvent input_event = 2;
+    DeviceAddition add_event = 3;
+    DeviceRemoval remove_event = 4;
   }
 
   // Proto version of Linux's struct input_event. The meaning of types and codes
@@ -51,4 +53,115 @@ message EvdevEvent {
     // The new value of the axis described by type and code.
     optional sint32 value = 4;
   }
+
+  // Describes an evdev device being added to the system.
+  //
+  // Next ID: 2
+  message DeviceAddition {
+    optional EvdevDevice device = 1;
+  }
+
+  // Describes an evdev device being removed from the system.
+  //
+  // Next ID: 1
+  message DeviceRemoval {
+    // Empty — we don't need to record any data other than the device ID for
+    // this event type.
+  }
+}
+
+// The properties of an input device that don't change during the time that it's
+// connected, as well as the current values for all of its axes.
+//
+// Next ID: 13
+message EvdevDevice {
+  // The device's unique ID number. This need not be the number of its
+  // /dev/input/event node.
+  optional uint32 device_id = 1;
+  // The number of the evdev device (i.e. from its /dev/input/eventX node path).
+  optional uint32 device_num = 2;
+
+  // The device's name.
+  optional string name = 3;
+  // The physical path to the device in the system hierarchy.
+  optional string phys = 4;
+  // The unique identification code for the device (if it has one).
+  optional string uniq = 5;
+
+  // Proto version of Linux's struct input_id. Although uint32s are used for the
+  // fields, the kernel uses 16-bit ints so values will be less than 2^16.
+  //
+  // Next ID: 5
+  message Identifier {
+    // The bus that the device is connected to. Values will be one of Linux's
+    // BUS_* constants.
+    optional uint32 bustype = 1;
+    // A number identifying the vendor of the device. Often a USB or Bluetooth
+    // vendor ID, but not always.
+    optional uint32 vendor = 2;
+    optional uint32 product = 3;
+    optional uint32 version = 4;
+  }
+  // The device's ID numbers.
+  optional Identifier id = 6;
+
+  // Proto version of Linux's struct input_absinfo, excluding the value field
+  // (which is tracked elsewhere).
+  //
+  // Next ID: 6
+  message AbsInfo {
+    optional sint32 minimum = 1;
+    optional sint32 maximum = 2;
+    optional int32 fuzz = 3;
+    optional int32 flat = 4;
+    optional int32 resolution = 5;
+  }
+  // A map of information for each of the device's absolute axes. Keys are the
+  // Linux ABS_* constants.
+  map<uint32, AbsInfo> absolute_axis_infos = 7;
+
+  // Bitmask specifying which types of events the device declares.
+  optional bytes ev_bitmask = 8;
+  // A map of bitmasks specifying which axes of each type the device declares.
+  // Keys are the Linux EV_* constants.
+  map<uint32, bytes> event_type_bitmasks = 9;
+  // Bitmask of properties declared by the device.
+  optional bytes prop_bitmask = 10;
+
+  // Contains the current values of all axes of a particular type (e.g. EV_ABS,
+  // EV_KEY, etc.).
+  //
+  // Next ID: 2
+  message AxisMap {
+    // Current values of all axes, other than ABS_MT_* axes (which have multiple
+    // slots), which are kept in abs_mt_states instead.
+    //
+    // The keys are the Linux axis codes, e.g. ABS_* for absolute axes. If there
+    // is no entry for a particular axis, assume that its value is 0.
+    map<uint32, sint32> axis_states = 1;
+  }
+
+  // Current states of device axes.
+  //
+  // The keys are the Linux event type constants (e.g. EV_KEY, EV_ABS, etc.). We
+  // don't need to keep track of states for all axis types, only KEY, SW, LED,
+  // and ABS, so only those will have entries in this map. States for ABS_MT_*
+  // axes (which have multiple slots) will be kept in abs_mt_states instead.
+  map<uint32, AxisMap> axis_states = 11;
+
+  // Contains the current values of a single ABS_MT_* axis across all of its
+  // slots.
+  //
+  // Next ID: 2
+  message SlotValuesMap {
+    // Current values for all slots.
+    //
+    // The keys are the slot numbers. If there is no entry for a particular
+    // slot, assume that its value is 0.
+    map<uint32, sint32> slot_values = 1;
+  }
+
+  // Current states of ABS_MT_* axes other than ABS_MT_SLOT. The keys are the
+  // ABS axis codes.
+  map<uint32, SlotValuesMap> abs_mt_states = 12;
 }

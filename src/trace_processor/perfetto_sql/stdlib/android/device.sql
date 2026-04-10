@@ -17,8 +17,8 @@
 CREATE PERFETTO TABLE android_device_name (
   -- Device name.
   name STRING,
-  -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG
+  -- Machine identifier
+  machine_id JOINID(machine.id)
 ) AS
 WITH
   -- Example str_value:
@@ -48,5 +48,5 @@ WITH
   )
 SELECT
   str AS name,
-  CASE WHEN machine_id = 0 THEN NULL ELSE machine_id END AS machine_id
+  machine_id
 FROM before_colon;

@@ -27,7 +27,9 @@ test.beforeAll(async ({browser}, _testInfo) => {
 });
 
 test('load trace', async () => {
-  await pth.waitForIdleAndScreenshot('loaded.png');
+  await pth.waitForIdleAndScreenshot('loaded.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 });
 
 test('chronological order', async () => {
@@ -35,7 +37,9 @@ test('chronological order', async () => {
   await chronologicalGrp.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(chronologicalGrp);
 
-  await pth.waitForIdleAndScreenshot('chronological.png');
+  await pth.waitForIdleAndScreenshot('chronological.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 });
 
 test('explicit order', async () => {
@@ -43,7 +47,9 @@ test('explicit order', async () => {
   await explicitGrp.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(explicitGrp);
 
-  await pth.waitForIdleAndScreenshot('explicit.png');
+  await pth.waitForIdleAndScreenshot('explicit.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 });
 
 test('lexicographic tracks', async () => {
@@ -51,5 +57,7 @@ test('lexicographic tracks', async () => {
   await lexicographicGrp.scrollIntoViewIfNeeded();
   await pth.toggleTrackGroup(lexicographicGrp);
 
-  await pth.waitForIdleAndScreenshot('lexicographic.png');
+  await pth.waitForIdleAndScreenshot('lexicographic.png', {
+    locator: page.locator('.pf-timeline-page__timeline'),
+  });
 });

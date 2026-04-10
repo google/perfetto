@@ -2345,4 +2345,274 @@ TEST_F(TraceBufferV2Test, Overwrite_SizeDiffLessThanChunkHeader) {
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32 - 16, 'c')));
 }
 
+// -------------------------------------------
+// Re-scrape after ring-buffer eviction tests
+// -------------------------------------------
+
+// V2 tracks last_chunk_consumed metadata per writer sequence to handle
+// re-scraping after eviction. Complete chunks that have been consumed are
+// rejected on re-introduction. Incomplete (scraped) chunks that were evicted
+// can be re-admitted if the new commit carries strictly more payload, allowing
+// recovery of fragments dropped during scraping.
+
+// Scrape → read → evict → second scrape with more data. The new scrape has
+// strictly more payload and must be re-admitted, recovering the new fragments
+// without duplicating already-consumed data.
+TEST_F(TraceBufferV2Test, RescrapeAfterEviction_FullyRead) {
+  ResetBuffer(4096);
+  SuppressClientDchecksForTesting();
+
+  // Scrape chunk 0 (incomplete): [Whole 'a'] [kFragBegin 'b'].
+  // Scraping drops 'b'. Only 'a' is visible.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(10, 'b', kContOnNextChunk)
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'a')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  // Fill to force wraparound.
+  for (ChunkID c = 1; c <= 4; c++) {
+    CreateChunk(ProducerID(2), WriterID(1), ChunkID(c))
+        .AddPacket(1024 - 16, static_cast<char>('x'))
+        .CopyIntoTraceBuffer();
+  }
+
+  // Second scrape: producer wrote more data. Now chunk 0 has [a, b, c].
+  // Scraping drops 'c', stores [a, b]. More payload than first scrape.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .AddPacket(10, 'c', kContOnNextChunk)
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+
+  // Drain and verify: 'b' recovered, 'a' not duplicated.
+  trace_buffer()->BeginRead();
+  std::vector<std::vector<FakePacketFragment>> packets;
+  for (;;) {
+    auto p = ReadPacket();
+    if (p.empty())
+      break;
+    packets.push_back(std::move(p));
+  }
+
+  bool found_a = false, found_b = false, found_c = false;
+  for (const auto& pkt : packets) {
+    if (pkt.size() == 1 && pkt[0] == FakePacketFragment(20, 'a'))
+      found_a = true;
+    if (pkt.size() == 1 && pkt[0] == FakePacketFragment(30, 'b'))
+      found_b = true;
+    if (pkt.size() == 1 && pkt[0] == FakePacketFragment(10, 'c'))
+      found_c = true;
+  }
+  EXPECT_TRUE(found_b) << "Packet 'b' not found after rescrape re-admission";
+  EXPECT_FALSE(found_a) << "Packet 'a' duplicated after rescrape re-admission";
+  EXPECT_FALSE(found_c)
+      << "Packet 'c' should still be dropped (chunk incomplete)";
+}
+
+// Scrape → read → evict → producer completes chunk. The complete commit has
+// strictly more payload and must be re-admitted, recovering the previously-
+// dropped fragment and allowing cross-chunk reassembly.
+TEST_F(TraceBufferV2Test, RescrapeAfterEviction_CompleteCommit) {
+  ResetBuffer(4096);
+  SuppressClientDchecksForTesting();
+
+  // Scrape chunk 0 (incomplete): [Whole 'a'] [Whole 'b'] [kFragBegin 'c'].
+  // Scraping drops 'c', clears kContOnNextChunk, sets kChunkIncomplete.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .AddPacket(10, 'c', kContOnNextChunk)
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'a')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'b')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  // Fill to force wraparound.
+  for (ChunkID c = 1; c <= 4; c++) {
+    CreateChunk(ProducerID(2), WriterID(1), ChunkID(c))
+        .AddPacket(1024 - 16, static_cast<char>('x'))
+        .CopyIntoTraceBuffer();
+  }
+
+  // Producer commits chunk 0 as complete with full payload [a, b, c].
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .AddPacket(10, 'c', kContOnNextChunk)
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/true);
+
+  // Chunk 1: continuation of 'c' plus a whole packet 'e'.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(10, 'd', kContFromPrevChunk)
+      .AddPacket(20, 'e')
+      .CopyIntoTraceBuffer();
+
+  // Drain and verify: [c,d] and 'e' recovered, 'a' and 'b' not duplicated.
+  trace_buffer()->BeginRead();
+  std::vector<std::vector<FakePacketFragment>> packets;
+  for (;;) {
+    auto p = ReadPacket();
+    if (p.empty())
+      break;
+    packets.push_back(std::move(p));
+  }
+
+  bool found_cd = false, found_e = false, found_a = false, found_b = false;
+  for (const auto& pkt : packets) {
+    if (pkt.size() == 2 && pkt[0] == FakePacketFragment(10, 'c') &&
+        pkt[1] == FakePacketFragment(10, 'd'))
+      found_cd = true;
+    if (pkt.size() == 1 && pkt[0] == FakePacketFragment(20, 'e'))
+      found_e = true;
+    if (pkt.size() == 1 && pkt[0] == FakePacketFragment(20, 'a'))
+      found_a = true;
+    if (pkt.size() == 1 && pkt[0] == FakePacketFragment(30, 'b'))
+      found_b = true;
+  }
+  EXPECT_TRUE(found_cd) << "Reassembled packet [c,d] not found";
+  EXPECT_TRUE(found_e) << "Packet 'e' not found";
+  EXPECT_FALSE(found_a) << "Packet 'a' duplicated after complete re-admission";
+  EXPECT_FALSE(found_b) << "Packet 'b' duplicated after complete re-admission";
+}
+
+// After a chunk is partially read and the buffer wraps, re-introducing the
+// same chunk should not produce duplicate packets for already-read fragments.
+TEST_F(TraceBufferV2Test, RescrapeAfterEviction_PartiallyRead) {
+  ResetBuffer(4096);
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .AddPacket(40, 'c')
+      .PadTo(512)
+      .CopyIntoTraceBuffer();
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'a')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'b')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(40, 'c')));
+
+  // Force wraparound.
+  for (ChunkID c = 1; c <= 4; c++) {
+    CreateChunk(ProducerID(2), WriterID(1), ChunkID(c))
+        .AddPacket(1024 - 16, static_cast<char>('x'))
+        .CopyIntoTraceBuffer();
+  }
+
+  // Re-introduce chunk {1,1,0} with extra data.
+  SuppressClientDchecksForTesting();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .AddPacket(40, 'c')
+      .AddPacket(50, 'd')
+      .PadTo(512)
+      .CopyIntoTraceBuffer();
+
+  // Drain and collect.
+  trace_buffer()->BeginRead();
+  std::vector<std::vector<FakePacketFragment>> packets;
+  for (;;) {
+    auto p = ReadPacket();
+    if (p.empty())
+      break;
+    packets.push_back(std::move(p));
+  }
+
+  // 'a' must not be re-read. V2 rejects the entire chunk since its ID has
+  // already been consumed.
+  bool found_a = false;
+  for (const auto& pkt : packets) {
+    if (pkt.size() == 1 && pkt[0] == FakePacketFragment(20, 'a'))
+      found_a = true;
+  }
+  EXPECT_FALSE(found_a) << "Packet 'a' was re-read after eviction+rescrape";
+}
+
+// Regression test for the scrape-recommit-read interaction. When a chunk is
+// scraped (chunk_complete=false), it gets kChunkIncomplete. If the same chunk
+// is scraped again with the same payload, the recommit path must NOT clear
+// kChunkIncomplete. Otherwise the reader would consume it prematurely, and when
+// the real IPC commit arrives it's discarded as "late", orphaning the kFragEnd
+// in the next chunk.
+TEST_F(TraceBufferV2Test, ScrapeRecommitPreservesIncomplete) {
+  ResetBuffer(4096);
+  SuppressClientDchecksForTesting();
+
+  // Scrape chunk 0: [Whole 'a'] [Whole 'b'] [kFragBegin 'c' kContOnNextChunk].
+  // Scraping drops the last fragment ('c'), clears kContOnNextChunk, sets
+  // kChunkIncomplete. Only fragments 'a' and 'b' are visible.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .AddPacket(10, 'c', kContOnNextChunk)
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+
+  // Read cycle 1: gets 'a' and 'b'. The chunk's payload is fully consumed but
+  // it is NOT erased because kChunkIncomplete prevents it.
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'a')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'b')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  // Second scrape of the same chunk (same payload). This triggers the recommit
+  // path. The fix ensures kChunkIncomplete is NOT cleared here.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .AddPacket(10, 'c', kContOnNextChunk)
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+
+  // Read cycle 2: chunk still has kChunkIncomplete, so nothing new to read.
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  // The chunk must NOT have been consumed (no chunks_discarded bump yet).
+  EXPECT_EQ(0u, trace_buffer()->stats().chunks_discarded());
+
+  // IPC recommit: producer finished writing, commits as complete. This clears
+  // kChunkIncomplete and restores the full payload including the previously
+  // dropped fragment 'c'.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .AddPacket(10, 'c', kContOnNextChunk)
+      .PadTo(512)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/true);
+
+  // Chunk 1: continuation of 'c' plus a whole packet 'e'.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(10, 'd', kContFromPrevChunk)
+      .AddPacket(20, 'e')
+      .CopyIntoTraceBuffer();
+
+  // Read cycle 3: 'a' and 'b' were already consumed. We should get the
+  // reassembled fragmented packet ['c','d'] and then 'e'. No data loss.
+  trace_buffer()->BeginRead();
+  bool previous_packet_dropped = false;
+
+  ASSERT_THAT(
+      ReadPacket(nullptr, &previous_packet_dropped),
+      ElementsAre(FakePacketFragment(10, 'c'), FakePacketFragment(10, 'd')));
+  EXPECT_FALSE(previous_packet_dropped);
+
+  ASSERT_THAT(ReadPacket(nullptr, &previous_packet_dropped),
+              ElementsAre(FakePacketFragment(20, 'e')));
+  EXPECT_FALSE(previous_packet_dropped);
+
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
 }  // namespace perfetto

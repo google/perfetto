@@ -19,6 +19,7 @@ syntax = "proto2";
 package perfetto.protos;
 
 import "protos/perfetto/common/builtin_clock.proto";
+import "protos/perfetto/common/semantic_type.proto";
 import "protos/perfetto/config/data_source_config.proto";
 import "protos/perfetto/config/priority_boost/priority_boost_config.proto";
 
@@ -27,7 +28,7 @@ import "protos/perfetto/config/priority_boost/priority_boost_config.proto";
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 46.
+// Next id: 47.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -171,6 +172,9 @@ message TraceConfig {
 
     // Disables the reporting of per-trace-writer histograms in TraceStats.
     optional bool disable_chunk_usage_histograms = 8;
+
+    // Disable emitting extension descriptors into the trace.
+    optional bool disable_extension_descriptors = 9;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 
@@ -644,17 +648,6 @@ message TraceConfig {
       SFP_ATRACE_REPEATED_SEARCH_REDACT_GROUPS = 5;
     }
 
-    // Semantic types for string fields. This tells the filter what kind of
-    // data the field contains, so it can apply the right filtering rules.
-    // See /rfcs/0011-subset-string-filter-rules.md for design details.
-    // Introduced in: Perfetto v54.
-    enum SemanticType {
-      SEMANTIC_TYPE_UNSPECIFIED = 0;
-      SEMANTIC_TYPE_ATRACE = 1;
-      SEMANTIC_TYPE_JOB = 2;
-      SEMANTIC_TYPE_WAKELOCK = 3;
-    }
-
     // A rule specifies how strings should be filtered.
     message StringFilterRule {
       // The policy (i.e. algorithm) dictating how strings matching this rule
@@ -676,9 +669,19 @@ message TraceConfig {
       // Introduced in: Perfetto v54.
       optional string name = 4;
 
-      // The semantic types this rule applies to. If empty, the rule applies
-      // to all string fields regardless of their semantic type. If non-empty,
-      // the rule only applies to fields whose semantic type is in this list.
+      // The semantic types this rule applies to.
+      //
+      // SEMANTIC_TYPE_UNSPECIFIED (0) is treated as its own distinct category:
+      // - If empty, the rule applies only to fields with UNSPECIFIED type.
+      // - If non-empty, the rule applies only to fields whose semantic type
+      //   is explicitly listed. To match UNSPECIFIED fields, you must include
+      //   SEMANTIC_TYPE_UNSPECIFIED in the list.
+      //
+      // Examples:
+      //   semantic_type: []           -> matches only UNSPECIFIED fields
+      //   semantic_type: [ATRACE]     -> matches only ATRACE fields
+      //   semantic_type: [UNSPECIFIED, ATRACE] -> matches both
+      //
       // See /rfcs/0011-subset-string-filter-rules.md for design details.
       // Introduced in: Perfetto v54.
       repeated SemanticType semantic_type = 5;
@@ -716,7 +719,8 @@ message TraceConfig {
     //  - any field in both the overlay and bytecode_v2 takes the value in the
     //    overlay, the bytecode_v2 value is ignored.
     //
-    // Introduced in: Perfetto v54.
+    // Note: despite the name, this was broken in v54 (the overlay was not
+    // passed through to the bytecode parser). Only works in v55+.
     optional bytes bytecode_overlay_v54 = 4;
 
     // String filter chain for Perfetto v54+. Rules in this chain either
@@ -903,6 +907,29 @@ message TraceConfig {
   // Supported on: Android 26Q1+.
   optional WriteFlushMode write_flush_mode = 44;
 
+  enum FFlushMode {
+    // Default: same as FFLUSH_DISABLED.
+    FFLUSH_UNSPECIFIED = 0;
+
+    // Do not explicitly sync the file to storage after each write pass.
+    FFLUSH_DISABLED = 1;
+
+    // Explicitly sync the file to storage (via fdatasync) after each periodic
+    // write pass. Increases data durability at the cost of higher disk I/O
+    // overhead.
+    FFLUSH_ENABLED = 2;
+  }
+
+  // Whether to sync the output file to storage after each periodic write pass.
+  // Only applicable when |write_into_file| is true.
+  //
+  // By default, no fflush is invoked. FFLUSH_ENABLED must be set to explicitly
+  // sync to storage on every write.
+  //
+  // Introduced in: perfetto v54.
+  // Supported on: Android 26Q1+.
+  optional FFlushMode fflush_post_write = 45;
+
   // When true, data sources in remote producers (machines connected via
   // traced_relay) will be matched by default. When false (the default), data
   // sources only match the host machine. In either case, an explicit
@@ -916,6 +943,15 @@ message TraceConfig {
   // Introduced in: perfetto v54.
   optional bool trace_all_machines = 43;
 
+  // Allow key, value pairs to save arbitrary data about trace.
+  message Note {
+    // Required.
+    optional string key = 1;
+    // Required.
+    optional string value = 2;
+  }
+  repeated Note notes = 46;
+
   // Android-only. Not for general use. If set, the trace is saved into a
   // /data/misc/perfetto-traces/persistent directory, to be uploaded by Android
   // after a system reboot. This field is read by perfetto_cmd
@@ -928,5 +964,5 @@ message TraceConfig {
   // |unique_session_name| must be set (used to generate the output file name)
   //
   // TODO(ktimofeev): Add "introduced in"
-  optional bool persist_trace_after_reboot = 45;
+  optional bool persist_trace_after_reboot = 47;
 }

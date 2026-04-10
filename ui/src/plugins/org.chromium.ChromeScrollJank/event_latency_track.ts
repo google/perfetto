@@ -19,17 +19,14 @@ import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {getColorForSlice} from '../../components/colorizer';
+import {EVENT_LATENCY_TRACK} from './tracks';
+import {JANKY_LATENCY_NAME} from './event_latency_model';
 
-export const JANKY_LATENCY_NAME = 'Janky EventLatency';
-
-export function createEventLatencyTrack(
-  trace: Trace,
-  uri: string,
-  baseTable: string,
-) {
+export function createEventLatencyTrack(trace: Trace) {
   return SliceTrack.create({
     trace,
-    uri,
+    uri: EVENT_LATENCY_TRACK.uri,
+    rootTableName: EVENT_LATENCY_TRACK.tableName,
     dataset: new SourceDataset({
       schema: {
         id: NUM,
@@ -38,7 +35,7 @@ export function createEventLatencyTrack(
         name: STR,
         depth: NUM,
       },
-      src: baseTable,
+      src: EVENT_LATENCY_TRACK.tableName,
     }),
     colorizer: (row) => {
       return row.name === JANKY_LATENCY_NAME

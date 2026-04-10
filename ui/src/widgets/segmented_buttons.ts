@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button} from './button';
+import {Button, ButtonAttrs} from './button';
 import {HTMLAttrs} from './common';
 
 interface IconOption {
@@ -23,7 +23,7 @@ interface IconOption {
 
 interface LabelOption {
   // Label buttons require a label.
-  readonly label: string;
+  readonly label?: string;
   // Label buttons can have an optional icon.
   readonly icon?: string;
 }
@@ -43,20 +43,33 @@ export interface SegmentedButtonsAttrs extends HTMLAttrs {
   // Whether the segmented buttons is disabled.
   // false by default.
   readonly disabled?: boolean;
+
+  // Whether the buttons should stretch to fill the container width.
+  // false by default.
+  readonly fillWidth?: boolean;
 }
 
 export class SegmentedButtons
   implements m.ClassComponent<SegmentedButtonsAttrs>
 {
   view({attrs}: m.CVnode<SegmentedButtonsAttrs>) {
-    const {options, selectedOption, disabled, onOptionSelected, ...htmlAttrs} =
-      attrs;
+    const {
+      options,
+      selectedOption,
+      disabled,
+      onOptionSelected,
+      fillWidth,
+      ...htmlAttrs
+    } = attrs;
     return m(
       '.pf-segmented-buttons',
-      htmlAttrs,
-      options.map((o, i) =>
+      {
+        ...htmlAttrs,
+        className: fillWidth ? 'pf-segmented-buttons--fill-width' : undefined,
+      },
+      options.map((option, i) =>
         m(Button, {
-          ...o,
+          ...(option as ButtonAttrs),
           disabled: disabled,
           active: i === selectedOption,
           onclick: () => onOptionSelected(i),

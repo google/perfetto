@@ -53,6 +53,11 @@ void Assert(bool condition) {
     abort();
 }
 
+// Maximum line length for single-line pb_enum! macro invocations.
+// Enums that would produce output longer than this threshold will be
+// formatted across multiple lines for readability.
+constexpr size_t kMaxSingleLinePbEnumLength = 60;
+
 struct FileDescriptorComp {
   bool operator()(const FileDescriptor* lhs, const FileDescriptor* rhs) const {
     int comp = lhs->name().compare(rhs->name());
@@ -130,10 +135,20 @@ class GeneratorJob {
       error_ = reason;
   }
 
-  // Get Rust struct name corresponding to proto descriptor.
+  // Get Rust struct name corresponding to proto descriptor (simple name only).
   template <class T>
   inline std::string GetRustStructName(const T* descriptor) {
     return StripChars(std::string(descriptor->name()), ".", '_');
+  }
+
+  // Get full Rust struct name including parent type names for nested messages.
+  std::string GetFullRustMessageName(const Descriptor* descriptor) {
+    std::string name;
+    if (descriptor->containing_type()) {
+      name.append(GetFullRustMessageName(descriptor->containing_type()));
+    }
+    name.append(GetRustStructName(descriptor));
+    return name;
   }
 
   std::string FieldToRustTypeName(const FieldDescriptor* field) {
@@ -177,7 +192,7 @@ class GeneratorJob {
       case FieldDescriptor::TYPE_BYTES:
         return "String";
       case FieldDescriptor::TYPE_MESSAGE:
-        return GetRustStructName(field->message_type());
+        return GetFullRustMessageName(field->message_type());
       case FieldDescriptor::TYPE_GROUP:
         Abort("Groups not supported.");
         return "";
@@ -374,83 +389,87 @@ class GeneratorJob {
       name.append(GetRustStructName(enumeration->containing_type()));
     }
     name.append(GetRustStructName(enumeration));
-    stub_rs_->Print("\n");
-    stub_rs_->Print("pb_enum!($name$ {\n", "name", name);
+
+    // Build enum values content and calculate single-line length
+    std::string values_content;
     for (int i = 0; i < enumeration->value_count(); ++i) {
       const EnumValueDescriptor* value = enumeration->value(i);
-      const std::string value_name = std::string(value->name());
-      stub_rs_->Print("    ");
-      stub_rs_->Print("$val$: $number$,\n", "val", value_name, "number",
-                      IntLiteralString(value->number()));
+      if (i > 0) {
+        values_content += ", ";
+      }
+      values_content += value->name();
+      values_content += ": ";
+      values_content += IntLiteralString(value->number());
     }
-    stub_rs_->Print("});\n");
+
+    // Single-line format: "pb_enum!(" + name + " { " + values + " });"
+    // For empty: "pb_enum!(" + name + " {});" = 14 + name.length()
+    // For non-empty: "pb_enum!(" + name + " { " + values + " });" = 16 +
+    // name.length() + values.length()
+    size_t single_line_length =
+        enumeration->value_count() == 0
+            ? 14 + name.length()
+            : 16 + name.length() + values_content.length();
+
+    if (single_line_length <= kMaxSingleLinePbEnumLength) {
+      if (enumeration->value_count() == 0) {
+        stub_rs_->Print("\npb_enum!($name$ {});\n", "name", name);
+      } else {
+        stub_rs_->Print("\npb_enum!($name$ { $values$ });\n", "name", name,
+                        "values", values_content);
+      }
+    } else {
+      stub_rs_->Print("\npb_enum!($name$ {\n", "name", name);
+      for (int i = 0; i < enumeration->value_count(); ++i) {
+        const EnumValueDescriptor* value = enumeration->value(i);
+        const std::string value_name = std::string(value->name());
+        stub_rs_->Print("    ");
+        stub_rs_->Print("$val$: $number$,\n", "val", value_name, "number",
+                        IntLiteralString(value->number()));
+      }
+      stub_rs_->Print("});\n");
+    }
   }
 
-  void GenerateSimpleFieldDescriptorArgs(const FieldDescriptor* field) {
-    std::map<std::string, std::string> setter;
-    setter["id"] = std::to_string(field->number());
-    setter["name"] = field->lowercase_name();
-    setter["type"] = FieldToRustTypeName(field);
+  // Generate field descriptor content as a string (without
+  // indentation/newline).
+  std::string GetFieldDescriptorContent(const FieldDescriptor* field) {
+    std::string name = std::string(field->lowercase_name());
+    std::string id = std::to_string(field->number());
 
+    if (field->type() == FieldDescriptor::TYPE_MESSAGE) {
+      std::string inner_struct = GetFullRustMessageName(field->message_type());
+      return name + ": " + inner_struct + ", msg, " + id + ",";
+    }
+
+    std::string type = FieldToRustTypeName(field);
+    std::string kind;
     switch (field->type()) {
-      case FieldDescriptor::TYPE_BYTES:
-      case FieldDescriptor::TYPE_STRING:
-      case FieldDescriptor::TYPE_UINT64:
-      case FieldDescriptor::TYPE_UINT32:
-      case FieldDescriptor::TYPE_INT64:
-      case FieldDescriptor::TYPE_INT32:
-      case FieldDescriptor::TYPE_BOOL:
-      case FieldDescriptor::TYPE_SINT64:
-      case FieldDescriptor::TYPE_SINT32:
-      case FieldDescriptor::TYPE_SFIXED32:
-      case FieldDescriptor::TYPE_FIXED32:
-      case FieldDescriptor::TYPE_FLOAT:
-      case FieldDescriptor::TYPE_SFIXED64:
-      case FieldDescriptor::TYPE_FIXED64:
-      case FieldDescriptor::TYPE_DOUBLE:
-        stub_rs_->Print(setter, "$name$: $type$, primitive, $id$,");
-        break;
       case FieldDescriptor::TYPE_ENUM:
-        stub_rs_->Print(setter, "$name$: $type$, enum, $id$,");
+        kind = "enum";
         break;
-      case FieldDescriptor::TYPE_MESSAGE:
       case FieldDescriptor::TYPE_GROUP:
         Abort("Groups not supported.");
+        return "";
+      default:
+        kind = "primitive";
         break;
     }
-  }
-
-  void GenerateSimpleFieldDescriptor(const FieldDescriptor* field) {
-    stub_rs_->Print("    ");
-    GenerateSimpleFieldDescriptorArgs(field);
-    stub_rs_->Print("\n");
-  }
-
-  void GenerateNestedMessageFieldDescriptor(const FieldDescriptor* field) {
-    std::string inner_struct = GetRustStructName(field->message_type());
-    stub_rs_->Print("    ");
-    stub_rs_->Print("$name$: $inner_struct$, msg, $id$,", "name",
-                    field->lowercase_name(), "inner_struct", inner_struct, "id",
-                    std::to_string(field->number()));
-    stub_rs_->Print("\n");
+    return name + ": " + type + ", " + kind + ", " + id + ",";
   }
 
   void GenerateMessageDescriptor(const Descriptor* message) {
-    stub_rs_->Print("\npb_msg!($name$ {\n", "name", GetRustStructName(message));
+    std::string name = GetFullRustMessageName(message);
 
-    // Field descriptors.
-    for (int i = 0; i < message->field_count(); ++i) {
-      GenerateFieldDescriptor(message->field(i));
-    }
-    stub_rs_->Print("});\n");
-  }
-
-  void GenerateFieldDescriptor(const FieldDescriptor* field) {
-    assert(!field->is_packed());
-    if (field->type() != FieldDescriptor::TYPE_MESSAGE) {
-      GenerateSimpleFieldDescriptor(field);
+    if (message->field_count() == 0) {
+      stub_rs_->Print("\npb_msg!($name$ {});\n", "name", name);
     } else {
-      GenerateNestedMessageFieldDescriptor(field);
+      stub_rs_->Print("\npb_msg!($name$ {\n", "name", name);
+      for (int i = 0; i < message->field_count(); ++i) {
+        stub_rs_->Print("    $field$\n", "field",
+                        GetFieldDescriptorContent(message->field(i)));
+      }
+      stub_rs_->Print("});\n");
     }
   }
 

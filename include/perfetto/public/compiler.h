@@ -61,4 +61,10 @@
 #define PERFETTO_NO_INLINE
 #endif
 
+#if defined(__has_builtin)
+#define PERFETTO_HAS_BUILTIN(x) __has_builtin(x)
+#else
+#define PERFETTO_HAS_BUILTIN(x) 0
+#endif
+
 #endif  // INCLUDE_PERFETTO_PUBLIC_COMPILER_H_

@@ -42,6 +42,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -435,6 +436,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
       v4l2_tracker_(context),
       virtio_gpu_tracker_(context),
       virtio_video_tracker_(context),
+      pixel_display_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
@@ -526,10 +528,6 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
       block_io_arg_sector_id_(context->storage->InternString("sector")),
       cpuhp_action_cpu_id_(context->storage->InternString("action_cpu")),
       cpuhp_idx_id_(context->storage->InternString("cpuhp_idx")),
-      disp_vblank_irq_enable_id_(
-          context_->storage->InternString("disp_vblank_irq_enable")),
-      disp_vblank_irq_enable_output_id_arg_name_(
-          context_->storage->InternString("output_id")),
       hrtimer_id_(context_->storage->InternString("hrtimer")),
       local_timer_id_(context_->storage->InternString("IRQ (LocalTimer)")),
       f2fs_checkpoint_name_id_(
@@ -542,7 +540,16 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
       gpu_power_state_unknown_id_(context->storage->InternString("Unknown")),
       gpu_power_state_off_id_(context->storage->InternString("OFF")),
       gpu_power_state_pg_id_(context->storage->InternString("PG")),
-      gpu_power_state_on_id_(context->storage->InternString("ON")) {
+      gpu_power_state_on_id_(context->storage->InternString("ON")),
+      ddic_underrun_id_(context_->storage->InternString("ddic_underrun")),
+      memcg_reclaim_order_id_(
+          context->storage->InternString("memcg_reclaim_order")),
+      memcg_reclaim_may_writepage_id_(
+          context->storage->InternString("memcg_reclaim_may_writepage")),
+      memcg_reclaim_gfp_flags_id_(
+          context->storage->InternString("memcg_reclaim_gfp_flags")),
+      memcg_reclaim_nr_reclaimed_id_(
+          context->storage->InternString("memcg_reclaim_nr_reclaimed")) {
   static const char* kReasonStrings[] = {
       "Umount",  "Fastboot", "Sync",  "Recovery",
       "Discard", "Trimmed",  "Pause", "Resize",
@@ -1151,8 +1158,20 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseDpuDispDpuUnderrun(ts, fld_bytes);
         break;
       }
+      case FtraceEvent::kDpuDispFrameStartTimeoutFieldNumber: {
+        pixel_display_tracker_.ParseDpuDispFrameStartTimeout(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kDpuDispFrameDoneTimeoutFieldNumber: {
+        pixel_display_tracker_.ParseDpuDispFrameDoneTimeout(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kGramCollisionFieldNumber: {
+        ParseGramCollision(ts, fld_bytes);
+        break;
+      }
       case FtraceEvent::kDpuDispVblankIrqEnableFieldNumber: {
-        ParseDpuDispVblankIrqEnable(ts, fld_bytes);
+        pixel_display_tracker_.ParseDpuDispVblankIrqEnable(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kMaliTracingMarkWriteFieldNumber: {
@@ -1504,12 +1523,24 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseFwtpPerfettoCounter(fld_bytes);
         break;
       }
+      case FtraceEvent::kFwtpPerfettoSliceFieldNumber: {
+        ParseFwtpPerfettoSlice(ts, fld_bytes);
+        break;
+      }
       case FtraceEvent::kF2fsWriteCheckpointFieldNumber: {
         ParseF2fsWriteCheckpoint(ts, pid, fld_bytes);
         break;
       }
       case FtraceEvent::kGpuPowerStateFieldNumber: {
         ParseGpuPowerState(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kMmVmscanMemcgReclaimBeginFieldNumber: {
+        ParseMemcgReclaimBegin(ts, pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kMmVmscanMemcgReclaimEndFieldNumber: {
+        ParseMemcgReclaimEnd(ts, pid, fld_bytes);
         break;
       }
       default:
@@ -1871,8 +1902,10 @@ void FtraceParser::ParseCpuFreqThrottle(int64_t timestamp, ConstBytes blob) {
 
 void FtraceParser::ParseGpuFreq(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::GpuFrequencyFtraceEvent::Decoder freq(blob);
+  auto ugpu = context_->gpu_tracker->GetOrCreateGpu(freq.gpu_id());
   TrackId track = context_->track_tracker->InternTrack(
-      tracks::kGpuFrequencyBlueprint, tracks::Dimensions(freq.gpu_id()));
+      tracks::kGpuFrequencyBlueprint,
+      tracks::Dimensions(ugpu.value, freq.gpu_id()));
   context_->event_tracker->PushCounter(timestamp, freq.state(), track);
 }
 
@@ -1880,8 +1913,10 @@ void FtraceParser::ParseKgslGpuFreq(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::KgslGpuFrequencyFtraceEvent::Decoder freq(blob);
   // Source data is frequency / 1000, so we correct that here:
   double new_freq = static_cast<double>(freq.gpu_freq()) * 1000.0;
+  auto ugpu = context_->gpu_tracker->GetOrCreateGpu(freq.gpu_id());
   TrackId track = context_->track_tracker->InternTrack(
-      tracks::kGpuFrequencyBlueprint, tracks::Dimensions(freq.gpu_id()));
+      tracks::kGpuFrequencyBlueprint,
+      tracks::Dimensions(ugpu.value, freq.gpu_id()));
   context_->event_tracker->PushCounter(timestamp, new_freq, track);
 }
 
@@ -2024,29 +2059,27 @@ void FtraceParser::ParseDpuDispDpuUnderrun(int64_t timestamp, ConstBytes blob) {
       });
 }
 
-void FtraceParser::ParseDpuDispVblankIrqEnable(int64_t timestamp,
-                                               ConstBytes blob) {
-  protos::pbzero::DpuDispVblankIrqEnableFtraceEvent::Decoder ex(blob);
-
-  static constexpr auto kBlueprint = tracks::SliceBlueprint(
-      "disp_vblank_irq_enable",
-      tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("display_id")),
-      tracks::FnNameBlueprint([](uint32_t display_id) {
-        return base::StackString<256>("vblank_irq_en[%u]", display_id);
+void FtraceParser::ParseGramCollision(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::GramCollisionFtraceEvent::Decoder ex(blob);
+  static constexpr auto kBluePrint = tracks::SliceBlueprint(
+      "ddic_underrun",
+      tracks::DimensionBlueprints(
+          tracks::UintDimensionBlueprint("panel_index")),
+      tracks::FnNameBlueprint([](uint32_t panel_index) {
+        return base::StackString<256>("ddic_underrun[%u]", panel_index);
       }));
 
   TrackId track_id = context_->track_tracker->InternTrack(
-      kBlueprint, tracks::Dimensions(ex.id()));
-  if (ex.enable()) {
-    context_->slice_tracker->Begin(
-        timestamp, track_id, kNullStringId, disp_vblank_irq_enable_id_,
-        [&](ArgsTracker::BoundInserter* inserter) {
-          inserter->AddArg(disp_vblank_irq_enable_output_id_arg_name_,
-                           Variadic::Integer(ex.output_id()));
-        });
-  } else {
-    context_->slice_tracker->End(timestamp, track_id);
-  }
+      kBluePrint, tracks::Dimensions(ex.panel_index()));
+  StringId slice_name_id = ddic_underrun_id_;
+
+  context_->slice_tracker->Scoped(
+      timestamp, track_id, kNullStringId, slice_name_id, 0,
+      [&](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(
+            context_->storage->InternString(base::StringView("collision_cnt")),
+            Variadic::Integer(ex.collision_cnt()));
+      });
 }
 
 void FtraceParser::ParseG2dTracingMarkWrite(int64_t timestamp,
@@ -3018,12 +3051,16 @@ void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
                                     protozero::ConstBytes data) {
   protos::pbzero::GpuMemTotalFtraceEvent::Decoder gpu_mem_total(data);
 
+  const uint32_t gpu_id = gpu_mem_total.gpu_id();
+  auto ugpu = context_->gpu_tracker->GetOrCreateGpu(gpu_id);
+
   TrackId track;
   const uint32_t pid = gpu_mem_total.pid();
   if (pid == 0) {
     // Pid 0 is used to indicate the global total
-    track =
-        context_->track_tracker->InternTrack(tracks::kGlobalGpuMemoryBlueprint);
+    track = context_->track_tracker->InternTrack(
+        tracks::kGlobalGpuMemoryBlueprint,
+        tracks::Dimensions(ugpu.value, gpu_id));
   } else {
     // It's possible for GpuMemTotal ftrace events to be emitted by kworker
     // threads *after* process death. In this case, we simply want to discard
@@ -3045,7 +3082,8 @@ void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
     UniquePid upid = *context_->storage->thread_table()[*opt_utid].upid();
     PERFETTO_DCHECK(context_->storage->process_table()[upid].pid() == pid);
     track = context_->track_tracker->InternTrack(
-        tracks::kProcessGpuMemoryBlueprint, tracks::Dimensions(upid));
+        tracks::kProcessGpuMemoryBlueprint,
+        tracks::Dimensions(ugpu.value, gpu_id, upid));
   }
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(gpu_mem_total.size()), track);
@@ -4404,6 +4442,31 @@ void FtraceParser::ParseFwtpPerfettoCounter(protozero::ConstBytes blob) {
                                        event.value(), track_id);
 }
 
+void FtraceParser::ParseFwtpPerfettoSlice(int64_t ts,
+                                          protozero::ConstBytes blob) {
+  constexpr auto kSliceBlueprint =
+      tracks::SliceBlueprint("pixel_fwtp_slices", tracks::DimensionBlueprints(),
+                             tracks::DynamicNameBlueprint());
+
+  // Get the trace info.
+  protos::pbzero::FwtpPerfettoSliceFtraceEvent::Decoder event(blob);
+  StringId track_name_id = context_->storage->InternString(event.name());
+  StringId track_category_id =
+      context_->storage->InternString(event.category());
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kSliceBlueprint, tracks::Dimensions(), track_name_id);
+
+  // Add a slice begin or end event. Before beginning a slice, end the slice
+  // first to prevent any open slice existing.
+  if (event.begin()) {
+    context_->slice_tracker->End(ts, track_id);
+    context_->slice_tracker->Begin(ts, track_id, track_category_id,
+                                   track_name_id);
+  } else {
+    context_->slice_tracker->End(ts, track_id);
+  }
+}
+
 void FtraceParser::ParseF2fsWriteCheckpoint(int64_t ts,
                                             uint32_t pid,
                                             ConstBytes blob) {
@@ -4492,6 +4555,49 @@ void FtraceParser::ParseGpuPowerState(int64_t ts, protozero::ConstBytes blob) {
       break;
   }
   context_->slice_tracker->Begin(ts, track_id, kNullStringId, slice_name_id);
+}
+
+void FtraceParser::ParseMemcgReclaimBegin(int64_t timestamp,
+                                          uint32_t pid,
+                                          ConstBytes blob) {
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  protos::pbzero::MmVmscanMemcgReclaimBeginFtraceEvent::Decoder
+      memcg_reclaim_begin(blob);
+
+  StringId name_id = context_->storage->InternString("mm_vmscan_memcg_reclaim");
+
+  auto args_inserter = [this, &memcg_reclaim_begin](
+                           ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(memcg_reclaim_order_id_,
+                     Variadic::Integer(memcg_reclaim_begin.order()));
+    inserter->AddArg(memcg_reclaim_may_writepage_id_,
+                     Variadic::Integer(memcg_reclaim_begin.may_writepage()));
+    inserter->AddArg(
+        memcg_reclaim_gfp_flags_id_,
+        Variadic::UnsignedInteger(memcg_reclaim_begin.gfp_flags()));
+  };
+  context_->slice_tracker->Begin(timestamp, track_id, kNullStringId, name_id,
+                                 args_inserter);
+}
+
+void FtraceParser::ParseMemcgReclaimEnd(int64_t timestamp,
+                                        uint32_t pid,
+                                        ConstBytes blob) {
+  protos::pbzero::ScmCallEndFtraceEvent::Decoder evt(blob);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  protos::pbzero::MmVmscanMemcgReclaimEndFtraceEvent::Decoder memcg_reclaim_end(
+      blob);
+
+  auto args_inserter =
+      [this, &memcg_reclaim_end](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(
+            memcg_reclaim_nr_reclaimed_id_,
+            Variadic::UnsignedInteger(memcg_reclaim_end.nr_reclaimed()));
+      };
+  context_->slice_tracker->End(timestamp, track_id, kNullStringId,
+                               kNullStringId, args_inserter);
 }
 
 }  // namespace perfetto::trace_processor

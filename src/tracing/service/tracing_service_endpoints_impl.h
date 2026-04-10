@@ -51,6 +51,7 @@ namespace tracing_service {
 
 class TracingServiceImpl;
 struct DataSourceInstance;
+struct TracingSession;
 struct TriggerInfo;
 
 // The implementation behind the service endpoint exposed to each producer.

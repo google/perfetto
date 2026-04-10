@@ -25,8 +25,9 @@
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 
 namespace perfetto::trace_processor {

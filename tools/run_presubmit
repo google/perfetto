@@ -15,6 +15,7 @@
 
 from __future__ import print_function
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import fnmatch
 import os
 import re
@@ -347,8 +348,11 @@ def CheckIncludeViolations(changed_files: List[str]) -> List[str]:
     run_command([sys.executable, tool], cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
-  except subprocess.CalledProcessError:
-    return [f'{tool} failed.']
+  except subprocess.CalledProcessError as e:
+    return [
+        f'{tool} failed:\n{e.stdout}'
+        f'\nPlease run python {tool} and fix violations manually.'
+    ]
   return []
 
 
@@ -397,7 +401,8 @@ def CheckIncludePaths(changed_files: List[str]) -> List[str]:
               f'(src/...) ')
 
   return [] if not error_lines else [
-      'Invalid #include paths detected:\n' + '\n'.join(error_lines)
+      'Invalid #include paths detected (fix manually):\n' +
+      '\n'.join(error_lines)
   ]
 
 
@@ -422,8 +427,11 @@ def CheckProtoComments(changed_files: List[str]) -> List[str]:
     run_command([sys.executable, tool], cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
-  except subprocess.CalledProcessError:
-    return [f'{tool} failed']
+  except subprocess.CalledProcessError as e:
+    return [
+        f'{tool} failed:\n{e.stdout}'
+        f'\nPlease run python {tool} and fix violations manually.'
+    ]
   return []
 
 
@@ -664,7 +672,8 @@ def CheckBannedCpp(changed_files: List[str]) -> List[str]:
         for regex_str, message in bad_cpp:
           # Use re.search for checking content
           if re.search(regex_str, line):
-            errors.append(f'Banned pattern:\n  {f_path}:{i+1}: {message}')
+            errors.append(f'Banned pattern (fix manually):\n'
+                          f'  {f_path}:{i+1}: {message}')
   return errors
 
 
@@ -694,8 +703,11 @@ def CheckSqlModules(changed_files: List[str]) -> List[str]:
         cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
-  except subprocess.CalledProcessError:
-    return [f'{tool} failed']
+  except subprocess.CalledProcessError as e:
+    return [
+        f'{tool} failed:\n{e.stdout}'
+        f'\nPlease run python {tool_rel_path} and fix violations manually.'
+    ]
   return []
 
 
@@ -721,8 +733,11 @@ def CheckSqlMetrics(changed_files: List[str]) -> List[str]:
     run_command([sys.executable, tool], cwd=REPO_ROOT)
   except FileNotFoundError:
     return [f"Tool not found: {tool}"]
-  except subprocess.CalledProcessError:
-    return [f'{tool} failed']
+  except subprocess.CalledProcessError as e:
+    return [
+        f'{tool} failed:\n{e.stdout}'
+        f'\nPlease run python {tool_rel_path} and fix violations manually.'
+    ]
   return []
 
 
@@ -860,8 +875,62 @@ def CheckAbsolutePathsInGn(changed_files: List[str]) -> List[str]:
   if not error_lines:
     return []
   return [
-      'Use relative paths in GN rather than absolute ("//..."): Check these '
-      'lines:\n' + '\n'.join(error_lines)
+      'Use relative paths in GN rather than absolute ("//...") (fix manually).'
+      ' Check these lines:\n' + '\n'.join(error_lines)
+  ]
+
+
+def CheckShellIncludeViolations(changed_files: List[str]) -> List[str]:
+  """Checks that trace_processor/shell/ only includes via the public API.
+
+  Shell code must not reach into trace_processor internals directly.
+  Allowed internal includes are:
+    - src/trace_processor/shell/  (self)
+    - src/trace_processor/util/   (shared utilities)
+    - src/trace_processor/rpc/    (RPC layer)
+    - *.descriptor.h              (generated descriptors)
+  Everything else under src/trace_processor/ is a violation unless annotated
+  with '// no-include-violation-check'.
+  """
+  shell_dir = os.path.join('src', 'trace_processor', 'shell')
+  files_to_check_list = filter_files(
+      changed_files,
+      files_to_check=[
+          os.path.join(shell_dir, '*.cc'),
+          os.path.join(shell_dir, '*.h'),
+      ])
+  if not files_to_check_list:
+    return []
+
+  tp_internal_pattern = re.compile(r'^#include "src/trace_processor/(.+\.h)"')
+  allowed_prefixes = ('shell/', 'util/', 'rpc/')
+  error_lines = []
+
+  for f_path in files_to_check_list:
+    content = read_file_content(f_path)
+    if not content:
+      continue
+    for i, line in enumerate(content):
+      if '// no-include-violation-check' in line:
+        continue
+      match = tp_internal_pattern.search(line)
+      if not match:
+        continue
+      rel_include = match.group(1)
+      if rel_include.endswith('.descriptor.h'):
+        continue
+      if any(rel_include.startswith(p) for p in allowed_prefixes):
+        continue
+      error_lines.append(f'  {f_path}:{i+1}: '
+                         f'#include "src/trace_processor/{rel_include}"')
+
+  if not error_lines:
+    return []
+  return [
+      'trace_processor/shell/ must not include internal trace_processor '
+      'headers.\nAllowed: shell/, util/, rpc/, *.descriptor.h, and anything '
+      'under include/perfetto/.\nAdd \'// no-include-violation-check\' to '
+      'suppress false positives.\nViolations:\n' + '\n'.join(error_lines)
   ]
 
 
@@ -876,7 +945,10 @@ def CheckUiImports(changed_files: List[str]) -> List[str]:
   try:
     run_command([sys.executable, tool], cwd=REPO_ROOT, stderr=subprocess.STDOUT)
   except subprocess.CalledProcessError:
-    return [f'Import violations detected in ui/ sources. See {tool_rel_path}']
+    return [
+        f'Import violations detected in ui/ sources.'
+        f' Please run python {tool_rel_path} and fix violations manually.'
+    ]
   return []
 
 
@@ -891,7 +963,10 @@ def CheckUiRatchet(changed_files: List[str]) -> List[str]:
   try:
     run_command([sys.executable, tool], cwd=REPO_ROOT, stderr=subprocess.STDOUT)
   except subprocess.CalledProcessError:
-    return [f'Bad patterns detected in ui/ sources. See {tool_rel_path}']
+    return [
+        f'Bad patterns detected in ui/ sources.'
+        f' Please run python {tool_rel_path} and fix violations manually.'
+    ]
   return []
 
 
@@ -908,11 +983,31 @@ def main():
   # 1. Determine files to check.
   merge_base = args.merge_base
   if merge_base is None:
-    remote = 'origin'
+    # Build a list of candidate refs to find the merge-base.
+    candidates = []
     if not sys.stdin.isatty() and len(positional_args) > 1:
-      remote = positional_args[0]  # Get the remote fromt the git hook cmdline.
-    merge_base = subprocess.check_output(
-        ['git', 'merge-base', 'HEAD', remote + '/main'], text=True).strip()
+      hook_remote = positional_args[0]
+      # Only add the hook remote if it doesn't look like a URL.
+      if '://' not in hook_remote:
+        candidates.append(f'{hook_remote}/main')
+
+    for fallback in ['origin/main', 'goog/main']:
+      if fallback not in candidates:
+        candidates.append(fallback)
+
+    for ref in candidates:
+      res = subprocess.run(['git', 'merge-base', 'HEAD', ref],
+                           capture_output=True,
+                           text=True)
+      if res.returncode == 0:
+        merge_base = res.stdout.strip()
+        break
+
+  if merge_base is None:
+    print(
+        "Error: Could not determine merge-base. Please use --merge-base.",
+        file=sys.stderr)
+    sys.exit(1)
 
   changed_files = get_changed_files(merge_base)
 
@@ -946,13 +1041,19 @@ def main():
                       ]),  # Doesn't need specific files list but pass anyway
       (CheckAmalgamatedPythonTools, [changed_files]),
       (CheckChromeStdlib, [changed_files]),  # Checks commit msg
+      (CheckShellIncludeViolations, [changed_files]),
       (CheckAbsolutePathsInGn, [changed_files]),
       (CheckUiImports, [changed_files]),
       (CheckUiRatchet, [changed_files]),
   ]
 
-  for func, args in checks_to_run:
-    all_results.extend(RunAndReportIfLong(func, *args))
+  with ThreadPoolExecutor() as executor:
+    futures = [
+        executor.submit(RunAndReportIfLong, func, *check_args)
+        for func, check_args in checks_to_run
+    ]
+    for future in futures:
+      all_results.extend(future.result())
 
   # 4. Report results
   if all_results:

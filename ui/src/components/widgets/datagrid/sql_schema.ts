@@ -256,8 +256,16 @@ export class SQLSchemaResolver {
   ) {
     this.registry = registry;
     this.rootSchemaName = rootSchemaName;
-    this.baseAlias =
-      baseAlias ?? `${registry[rootSchemaName]?.table ?? 'base'}_0`;
+
+    if (baseAlias) {
+      this.baseAlias = baseAlias;
+    } else {
+      const table = registry[rootSchemaName]?.table ?? 'base';
+      // If the table is a subquery (starts with '('), use a generic alias
+      // to avoid creating invalid SQL like "(SELECT ...)_0"
+      const aliasBase = table.startsWith('(') ? 'subquery' : table;
+      this.baseAlias = `${aliasBase}_0`;
+    }
   }
 
   /**

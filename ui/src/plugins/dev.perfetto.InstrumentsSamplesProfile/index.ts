@@ -21,7 +21,7 @@ import {
   NUM_NULL,
   STR_NULL,
 } from '../../trace_processor/query_result';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
 import {getThreadUriPrefix} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
@@ -223,8 +223,8 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
     if (utids.length === 0 && upids.length === 0) {
       return undefined;
     }
-    const metrics = metricsFromTableOrSubquery(
-      `
+    const metrics = metricsFromTableOrSubquery({
+      tableOrSubquery: `
       (
         select id, parent_id as parentId, name, self_count
         from _callstacks_for_callsites!((
@@ -240,15 +240,16 @@ export default class InstrumentsSamplesProfilePlugin implements PerfettoPlugin {
         ))
       )
     `,
-      [
+      tableMetrics: [
         {
           name: 'Instruments Samples',
           unit: '',
           columnName: 'self_count',
         },
       ],
-      'include perfetto module appleos.instruments.samples',
-    );
+      dependencySql: 'include perfetto module appleos.instruments.samples',
+      nameColumnLabel: 'Symbol',
+    });
     const store = assertExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(

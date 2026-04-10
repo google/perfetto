@@ -17,53 +17,15 @@ import {Engine} from '../../trace_processor/engine';
 import {escapeQuery} from '../../trace_processor/query_utils';
 import {generateSqlWithInternalLayout} from '../../components/sql_utils/layout';
 import {rows} from './utils';
-
-/** A model of the scroll timeline. */
-export interface ScrollTimelineModel {
-  /**
-   * The name of the SQL table which contains information about the slices in
-   * {@link scroll_timeline_track#ScrollTimelineTrack}.
-   *
-   * The table has the following columns:
-   *
-   *   id (LONG): Unique ID of the slice (monotonically increasing). Note that
-   *     it cannot joined with any tables in Chrome's tracing stdlib.
-   *   ts (TIMESTAMP): Start timestamp of the slice.
-   *   dur (DURATION): Duration of the slice.
-   *   depth (LONG): Depth of the slice on the track.
-   *   name (STRING): Title of the slice.
-   *   classification (LONG): Classification of a scroll update for the purposes
-   *     of trace visualization. Guaranteed to be one of the values in
-   *     {@link ScrollUpdateClassification}.
-   *   scroll_update_id (LONG): ID of the `chrome_scroll_update_info` row that
-   *     this slice corresponds to. Can be joined with
-   *     `chrome_scroll_update_info.id`. In general, multiple rows in `tableName`
-   *     correspond to a single row in `chrome_scroll_update_info`.
-   *
-   * Note: The table contains both:
-   *
-   *   1. Parent slices for the entire scroll updates (e.g. 'Janky Scroll
-   *      Update') and
-   *   2. Child slices for the individual stages of the scroll update (e.g.
-   *     'GenerationToBrowserMain').
-   */
-  readonly tableName: string;
-
-  /**
-   * A unique identifier of the associated
-   * {@link scroll_timeline_track#ScrollTimelineTrack}.
-   */
-  readonly trackUri: string;
-
-  /** Definitions of the stages of a scroll. */
-  readonly stepTemplates: readonly StepTemplate[];
-}
+import {SCROLL_TIMELINE_TRACK} from './tracks';
+import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
+import {PerfettoSqlTypes} from '../../trace_processor/perfetto_sql_type';
 
 /**
  * Definition of a stage of a scroll retrieved from the
  * `chrome_scroll_update_info_step_templates` table.
  */
-export interface StepTemplate {
+interface StepTemplate {
   // The name of a stage of a scroll.
   // WARNING: This could be an arbitrary string so it MUST BE ESCAPED before
   // using in an SQL query.
@@ -112,14 +74,93 @@ export enum ScrollUpdateClassification {
   STEP = -1,
 }
 
-export async function createScrollTimelineModel(
-  engine: Engine,
-  tableName: string,
-  trackUri: string,
-): Promise<ScrollTimelineModel> {
+/**
+ * Definition of the Perfetto table created by
+ * {@link createScrollTimelineModel}, which underpins
+ * {@link tracks#SCROLL_TIMELINE_TRACK}.
+ *
+ * Note: The table contains both:
+ *
+ *   1. parent slices for entire scroll updates (e.g. 'Janky Scroll Update') and
+ *   2. child slices for the individual stages of a scroll update (e.g.
+ *      'GenerationToBrowserMain'). Stages currently CANNOT be nested (i.e. the
+ *      parent of each stage is a scroll update).
+ */
+export const SCROLL_TIMELINE_TABLE_DEFINITION: SqlTableDefinition = {
+  name: SCROLL_TIMELINE_TRACK.tableName,
+  columns: [
+    /**
+     * Unique ID of the slice (monotonically increasing). Note that it cannot
+     * joined with any tables in Chrome's tracing stdlib.
+     */
+    {
+      column: 'id',
+      type: {
+        kind: 'id',
+        source: {table: SCROLL_TIMELINE_TRACK.tableName, column: 'id'},
+      },
+    },
+
+    /** Start timestamp of the slice. */
+    {column: 'ts', type: PerfettoSqlTypes.TIMESTAMP},
+
+    /** Duration of the slice. */
+    {column: 'dur', type: PerfettoSqlTypes.DURATION},
+
+    /** Depth of the slice on the track. */
+    {column: 'depth', type: PerfettoSqlTypes.INT},
+
+    /** Title of the slice. */
+    {column: 'name', type: PerfettoSqlTypes.STRING},
+
+    /**
+     * Classification of a scroll update for the purposes of trace
+     * visualization. Guaranteed to be one of the values in
+     * {@link ScrollUpdateClassification}.
+     *
+     * For stages of a scroll update, this column is equal to
+     * {@link ScrollUpdateClassification#STEP}.
+     */
+    {column: 'classification', type: PerfettoSqlTypes.INT},
+
+    /**
+     * ID of the `chrome_scroll_update_info` row that this slice corresponds to.
+     * Can be joined with `chrome_scroll_update_info.id`.
+     *
+     * In general, multiple rows in this table correspond to a single row in
+     * `chrome_scroll_update_info`. One for the scroll update (parent) slice and
+     * zero or more for the stage (child) slices.
+     */
+    {
+      column: 'scroll_update_id',
+      type: {
+        kind: 'joinid',
+        source: {table: 'chrome_scroll_update_info', column: 'id'},
+      },
+    },
+
+    /**
+     * ID of the parent scroll update slice if the row corresponds to a stage of
+     * a scroll update. NULL if the row corresponds to a scroll update.
+     */
+    {
+      column: 'parent_id',
+      type: {
+        kind: 'joinid',
+        source: {table: SCROLL_TIMELINE_TRACK.tableName, column: 'id'},
+      },
+    },
+  ],
+};
+
+/**
+ * Creates a Perfetto table named {@link SCROLL_TIMELINE_TRACK.tableName}
+ * representing the slices of a the track created by
+ * {@link scroll_timeline_track#createScrollTimelineTrack} for a given trace.
+ */
+export async function createScrollTimelineModel(engine: Engine): Promise<void> {
   const stepTemplates = Object.freeze(await queryStepTemplates(engine));
-  createTable(engine, tableName, stepTemplates);
-  return {tableName, trackUri, stepTemplates};
+  await createTable(engine, stepTemplates);
 }
 
 /**
@@ -128,7 +169,6 @@ export async function createScrollTimelineModel(
  */
 async function createTable(
   engine: Engine,
-  tableName: string,
   stepTemplates: readonly StepTemplate[],
 ): Promise<void> {
   // TODO: b/383549233 - Set ts+dur of each scroll update directly based on
@@ -136,7 +176,7 @@ async function createTable(
   // scroll_steps).
   await engine.query(
     `INCLUDE PERFETTO MODULE chrome.chrome_scrolls;
-      CREATE PERFETTO TABLE ${tableName} AS
+      CREATE PERFETTO TABLE ${SCROLL_TIMELINE_TRACK.tableName} AS
       WITH
         -- Unpivot all ts+dur columns into rows. Each row corresponds to a step
         -- of a particular scroll update. Some of the rows might have null
@@ -223,7 +263,8 @@ async function createTable(
                 THEN ${ScrollUpdateClassification.INERTIAL}
               ELSE ${ScrollUpdateClassification.DEFAULT}
             END AS classification,
-            scroll_update_layouts.scroll_update_id
+            scroll_update_layouts.scroll_update_id,
+            FALSE as is_stage
           FROM scroll_update_layouts
           JOIN chrome_scroll_update_info
           ON scroll_update_layouts.scroll_update_id
@@ -235,20 +276,45 @@ async function createTable(
             2 * scroll_update_layouts.depth + 1 AS depth,
             scroll_steps.name,
             ${ScrollUpdateClassification.STEP} AS classification,
-            scroll_update_layouts.scroll_update_id
+            scroll_update_layouts.scroll_update_id,
+            TRUE as is_stage
           FROM scroll_steps
           JOIN scroll_update_layouts USING(scroll_update_id)
           WHERE scroll_steps.ts IS NOT NULL AND scroll_steps.dur IS NOT NULL
+        ),
+        -- We sort all slices chronologically and assign them monotonically
+        -- increasing IDs. Note that we cannot reuse chrome_scroll_update_info.id
+        -- (not even for the top-level scroll update slices) because Perfetto
+        -- slice IDs must be 32-bit unsigned integers.
+        ordered_slices AS (
+          SELECT
+            ROW_NUMBER() OVER (ORDER BY ts ASC) AS id,
+            ts,
+            dur,
+            depth,
+            name,
+            classification,
+            scroll_update_id,
+            is_stage
+          FROM unordered_slices 
         )
-      -- Finally, we sort all slices chronologically and assign them
-      -- monotonically increasing IDs. Note that we cannot reuse
-      -- chrome_scroll_update_info.id (not even for the top-level scroll update
-      -- slices) because Perfetto slice IDs must be 32-bit unsigned integers.
-      SELECT
-        ROW_NUMBER() OVER (ORDER BY ts ASC) AS id,
-        *
-      FROM unordered_slices
-      ORDER BY ts ASC`,
+        -- Finally, find the parent of each stage slice.
+        SELECT
+          scroll_update_or_stage.id,
+          scroll_update_or_stage.ts,
+          scroll_update_or_stage.dur,
+          scroll_update_or_stage.depth,
+          scroll_update_or_stage.name,
+          scroll_update_or_stage.classification,
+          scroll_update_or_stage.scroll_update_id,
+          parent_scroll_update.id AS parent_id
+        FROM ordered_slices AS scroll_update_or_stage
+        LEFT JOIN ordered_slices AS parent_scroll_update
+          ON scroll_update_or_stage.scroll_update_id
+              = parent_scroll_update.scroll_update_id
+          AND scroll_update_or_stage.is_stage
+          AND NOT parent_scroll_update.is_stage
+        ORDER BY scroll_update_or_stage.ts ASC`,
   );
 }
 

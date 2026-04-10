@@ -23,11 +23,8 @@
 #include <string>
 #include <utility>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -46,11 +43,6 @@
 #include "src/trace_processor/tables/profiler_tables_py.h"
 
 #include "protos/third_party/simpleperf/record_file.pbzero.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-#include "src/trace_processor/importers/etm/etm_tracker.h"
-#include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
-#endif
 
 namespace perfetto::trace_processor::perf_importer {
 namespace {
@@ -78,13 +70,14 @@ bool IsBpfMapping(const CreateMappingParams& params) {
 
 }  // namespace
 
-PerfTracker::PerfTracker(TraceProcessorContext* context) : context_(context) {
+PerfTracker::PerfTracker(
+    TraceProcessorContext* context,
+    const std::vector<AuxTokenizerRegistration>& aux_registrations)
+    : context_(context) {
   RegisterAuxTokenizer(PERF_AUXTRACE_ARM_SPE, &SpeTokenizer::Create);
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-  etm_tracker_ = std::make_unique<etm::EtmTracker>(context);
-  RegisterAuxTokenizer(PERF_AUXTRACE_CS_ETM,
-                       etm::CreateEtmV4StreamDemultiplexer);
-#endif
+  for (auto& reg : aux_registrations) {
+    reg(this);
+  }
 }
 
 base::StatusOr<std::unique_ptr<AuxDataTokenizer>>
@@ -94,11 +87,7 @@ PerfTracker::CreateAuxDataTokenizer(AuxtraceInfoRecord info) {
     return std::unique_ptr<AuxDataTokenizer>(
         new DummyAuxDataTokenizer(context_));
   }
-  etm::EtmTracker* etm_tracker = nullptr;
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-  etm_tracker = static_cast<etm::EtmTracker*>(etm_tracker_.get());
-#endif
-  return (*it)(context_, etm_tracker, std::move(info));
+  return (*it)(context_, std::move(info));
 }
 
 void PerfTracker::AddSimpleperfFile2(const FileFeature::Decoder& file) {
@@ -186,14 +175,6 @@ void PerfTracker::AddMapping(int64_t trace_ts,
     }
   }
   context_->storage->mutable_mmap_record_table()->Insert(row);
-}
-
-base::Status PerfTracker::NotifyEndOfFile() {
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-  RETURN_IF_ERROR(
-      static_cast<etm::EtmTracker*>(etm_tracker_.get())->Finalize());
-#endif
-  return base::OkStatus();
 }
 
 void PerfTracker::RegisterAuxTokenizer(uint32_t type,

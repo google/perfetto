@@ -16,12 +16,18 @@
 
 #include "src/tracing/service/trace_buffer_v2.h"
 
+#include <algorithm>
+#include <memory>
+
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/murmur_hash.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
-#include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "src/protovm/vm.h"
 
 // Set manually when debugging test failures.
 // TRACE_BUFFER_V2_DLOG is too verbose, even for debug builds.
@@ -203,13 +209,14 @@ TBChunk* ChunkSeqIterator::NextChunkInSequence() {
   //    we do this, each iteration erases the last chunk before moving onto the
   //    next one. We can't use the SequenceState.chunks because the upcoming
   //    chunk will always be the "first" in this case. However, we can look at
-  //    last_chunk_id_consumed.
+  //    last_chunk_consumed.
   // 2) We are iterating read-only as part of ReassembleFragmentedPacket(). In
   //    this case we are not consuming any chunk, and we can use the combination
   //    of SequenceState.chunks[SequenceState.next_seq_idx].
   std::optional<ChunkID> last_chunk_id;
   if (chunk_->is_padding()) {
-    last_chunk_id = seq_->last_chunk_id_consumed;  // Case 1.
+    if (seq_->last_chunk_consumed.has_value())
+      last_chunk_id = seq_->last_chunk_consumed->chunk_id;  // Case 1.
   } else {
     last_chunk_id = chunk_->chunk_id;  // Case 2
   }
@@ -230,7 +237,9 @@ void ChunkSeqIterator::EraseCurrentChunk() {
   TRACE_BUFFER_V2_DLOG("EraseChunk() id=%u off=%zu", chunk_->chunk_id,
                        chunk_off);
   const uint32_t chunk_size = chunk_->size;
-  seq_->last_chunk_id_consumed = chunk_->chunk_id;
+  const bool was_incomplete = chunk_->flags & kChunkIncomplete;
+  seq_->last_chunk_consumed = SequenceState::ConsumedChunkInfo{
+      chunk_->chunk_id, chunk_->payload_size, was_incomplete};
 
   auto& chunk_list = seq_->chunks;
 
@@ -275,11 +284,13 @@ ChunkSeqReader::ChunkSeqReader(TraceBufferV2* buf,
       frag_iter_(iter_) {
   PERFETTO_DCHECK(!iter_->is_padding());
   TRACE_BUFFER_V2_DLOG("ChunkSeqReader() last_id=%u iter_=%u end_=%u",
-                       seq_->last_chunk_id_consumed.value_or(0),
+                       seq_->last_chunk_consumed.has_value()
+                           ? seq_->last_chunk_consumed->chunk_id
+                           : 0,
                        iter_->chunk_id, end_->chunk_id);
 
-  if (seq_->last_chunk_id_consumed.has_value() &&
-      iter_->chunk_id != *seq_->last_chunk_id_consumed + 1) {
+  if (seq_->last_chunk_consumed.has_value() &&
+      iter_->chunk_id != seq_->last_chunk_consumed->chunk_id + 1) {
     seq_->data_loss = true;
   }
 }
@@ -330,6 +341,7 @@ bool ChunkSeqReader::ReadNextPacketInSeqOrder(TracePacket* out_packet) {
       frag_iter_ = FragIterator(next_chunk);
       continue;
     }
+
     Frag& frag = *maybe_frag;
     switch (frag.type) {
       case Frag::kFragWholePacket:
@@ -739,13 +751,27 @@ void TraceBufferV2::CopyChunkUntrusted(
     seq.data_loss = true;
   }
 
-  // Don't allow re-commit of chunks that have been consumed already. It's too
-  // late and they will only mess up future chunks more.
-  if (seq.last_chunk_id_consumed.has_value() &&
-      ChunkIdCompare(chunk_id, *seq.last_chunk_id_consumed) <= 0) {
-    stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
-    PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
-    return;
+  // Don't allow re-commit of chunks that have been consumed already, unless
+  // the chunk was evicted while incomplete (scraped) and the new commit has
+  // strictly more payload. In that case we re-admit it so the previously-
+  // dropped fragments can be recovered.
+  //
+  // When re-admitting, |previously_consumed_payload| records how many payload
+  // bytes were already consumed before eviction, so we can skip them below.
+  uint16_t previously_consumed_payload = 0;
+  if (seq.last_chunk_consumed.has_value()) {
+    int cmp = ChunkIdCompare(chunk_id, seq.last_chunk_consumed->chunk_id);
+    if (cmp == 0 && seq.last_chunk_consumed->was_incomplete &&
+        seq.last_chunk_consumed->payload_size < all_frags_size) {
+      previously_consumed_payload = seq.last_chunk_consumed->payload_size;
+      TRACE_BUFFER_V2_DLOG("  Re-admitting chunk %u (prev_payload=%u)",
+                           chunk_id, previously_consumed_payload);
+    } else if (cmp <= 0) {
+      // Older or same chunk with no new data to recover.
+      stats_.set_chunks_discarded(stats_.chunks_discarded() + 1);
+      PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
+      return;
+    }
   }
 
   // If there isn't enough room from the given write position: write a padding
@@ -803,7 +829,11 @@ void TraceBufferV2::CopyChunkUntrusted(
       PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
       return;
     }
-    recommit_chunk->flags &= ~kChunkIncomplete;
+    // Only clear kChunkIncomplete on real IPC recommits (chunk_complete=true).
+    // During scraping the producer may still be writing, so the chunk should
+    // remain incomplete until the producer explicitly commits it.
+    if (chunk_complete)
+      recommit_chunk->flags &= ~kChunkIncomplete;
     if (all_frags_size == recommit_chunk->payload_size) {
       TRACE_BUFFER_V2_DLOG("  skipping recommit of identical chunk");
       return;
@@ -820,7 +850,11 @@ void TraceBufferV2::CopyChunkUntrusted(
 
   TBChunk* tbchunk = CreateTBChunk(wr_, tbchunk_size);
   tbchunk->payload_size = all_frags_size_u16;
-  tbchunk->payload_avail = all_frags_size_u16;
+  // Either 0 (normal write) or strictly less (re-admission).
+  PERFETTO_DCHECK(previously_consumed_payload == 0 ||
+                  previously_consumed_payload < all_frags_size_u16);
+  // For re-admitted chunks, skip already-consumed payload (0 otherwise).
+  tbchunk->payload_avail = all_frags_size_u16 - previously_consumed_payload;
   tbchunk->chunk_id = chunk_id;
   tbchunk->flags = chunk_flags;
   tbchunk->pri_wri_id = seq_key;
@@ -916,14 +950,22 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
     ChunkSeqReader csr(this, chunk, ChunkSeqReader::kEraseMode);
     bool has_cleared_unconsumed_fragments = false;
     for (;;) {
-      // TODO(keanmariotti): if we have a ProtoVM here we should pass a non-null
-      // TracePacket. But if we don't we should pass nullptr, as AddSlice() on
-      // TracePacket has significant overhead (due to hitting the allocator)
-      TracePacket* trace_packet = nullptr;
-      if (!csr.ReadNextPacketInSeqOrder(trace_packet))
+      // If we have ProtoVMs, we need to readout each packet and pass to
+      // protovm. If not, we still need to do reads, but without having to
+      // accumulated data in a packet.
+      TracePacket* maybe_packet = nullptr;
+      if (!protovms_.empty()) {
+        overwritten_packet_.Clear();
+        maybe_packet = &overwritten_packet_;
+      }
+      if (!csr.ReadNextPacketInSeqOrder(maybe_packet)) {
         break;
+      }
+      if (maybe_packet) {
+        MaybeProcessOverwrittenPacketWithProtoVm(*maybe_packet,
+                                                 csr.seq()->producer_id);
+      }
       has_cleared_unconsumed_fragments = true;
-      // TODO(keanmariotti): pass `trace_packet` to ProtoVM.
     }
 
     // In future this branch should become "&& !protovm_has_consumed_packet"
@@ -1033,7 +1075,7 @@ void TraceBufferV2::DiscardWrite() {
 }
 
 // When a sequence has 0 chunks we could delete it straight away. However doing
-// do would remove also the last_chunk_id_consumed used to detect data losses.
+// do would remove also the last_chunk_consumed used to detect data losses.
 // Here we have to balance the tradeoff between:
 // - Bounding memory usage: if we have a lot of writer threads, we can't just
 //   keeping growing the SequenceStates without bounds.
@@ -1084,6 +1126,14 @@ std::unique_ptr<TraceBuffer> TraceBufferV2::CloneReadOnly() const {
   return buf;
 }
 
+size_t TraceBufferV2::GetMemoryUsageBytes() const {
+  size_t total_bytes = size();
+  for (const Vm& vm : protovms_) {
+    total_bytes += vm.instance->GetMemoryUsageBytes();
+  }
+  return total_bytes;
+}
+
 TraceBufferV2::TraceBufferV2(CloneCtor, const TraceBufferV2& src)
     : overwrite_policy_(src.overwrite_policy_),
       read_generation_(src.read_generation_),
@@ -1107,6 +1157,26 @@ TraceBufferV2::TraceBufferV2(CloneCtor, const TraceBufferV2& src)
 
   // Finally copy over the SequenceState map.
   sequences_ = src.sequences_;
+
+  for (const auto& vm : src.protovms_) {
+    auto vm_cloned = vm.CloneReadOnly();
+    if (!vm_cloned.instance) {
+      PERFETTO_ELOG("Failed to clone ProtoVMs");
+      protovms_.clear();
+      break;
+    }
+    protovms_.push_back(std::move(vm_cloned));
+  }
+}
+
+TraceBufferV2::Vm TraceBufferV2::Vm::CloneReadOnly() const {
+  Vm cloned_vm;
+  cloned_vm.data_source_name = data_source_name;
+  cloned_vm.program_hash = program_hash;
+  cloned_vm.memory_limit_kb = memory_limit_kb;
+  cloned_vm.producers = producers;
+  cloned_vm.instance = instance->CloneReadOnly();
+  return cloned_vm;
 }
 
 void TraceBufferV2::DumpForTesting() {
@@ -1139,6 +1209,79 @@ void TraceBufferV2::DumpForTesting() {
     break;
   }
   PERFETTO_DLOG("------------------------------------------------------------");
+}
+
+TraceBufferV2::Vm::Vm() = default;
+TraceBufferV2::Vm::~Vm() = default;
+TraceBufferV2::Vm::Vm(Vm&&) noexcept = default;
+
+void TraceBufferV2::MaybeSetUpProtoVm(const std::string& data_source_name,
+                                      const std::string& program_bytes,
+                                      uint32_t memory_limit_kb,
+                                      ProducerID producer_id) {
+  Vm* vm = nullptr;
+  // Re-use existing ProtoVM instance, if any.
+  uint64_t program_hash = base::MurmurHashValue(program_bytes);
+  auto vm_it =
+      std::find_if(protovms_.begin(), protovms_.end(), [&](const Vm& vm) {
+        return vm.data_source_name == data_source_name &&
+               vm.program_hash == program_hash;
+      });
+  if (vm_it != protovms_.end()) {
+    vm = &(*vm_it);
+  } else {
+    // Otherwise instantiate new ProtoVM
+    Vm new_vm;
+    new_vm.data_source_name = data_source_name;
+    new_vm.program_hash = program_hash;
+    new_vm.memory_limit_kb = memory_limit_kb;
+
+    protozero::ConstBytes program_bytes_view{
+        reinterpret_cast<const uint8_t*>(program_bytes.data()),
+        program_bytes.size()};
+
+    new_vm.instance = std::make_unique<protovm::Vm>(
+        program_bytes_view, new_vm.memory_limit_kb * 1024);
+    if (!new_vm.instance) {
+      PERFETTO_ELOG("Failed to allocate ProtoVM");
+      return;
+    }
+
+    protovms_.push_back(std::move(new_vm));
+    vm = &protovms_.back();
+  }
+  // Update ProtoVM's producer IDs
+  vm->producers.insert(producer_id);
+}
+
+void TraceBufferV2::MaybeProcessOverwrittenPacketWithProtoVm(
+    const TracePacket& packet,
+    ProducerID producer) {
+  protovm_patch_.clear();
+
+  for (auto& vm : protovms_) {
+    if (vm.producers.find(producer) == vm.producers.end()) {
+      continue;
+    }
+    // TODO(keanmariotti): add an optimized path for the case
+    // "packet.slices().size() == 1" (zero copy)
+    if (protovm_patch_.empty()) {
+      packet.GetRawBytes(&protovm_patch_);
+    }
+    protozero::ConstBytes bytes{
+        reinterpret_cast<const uint8_t*>(protovm_patch_.data()),
+        protovm_patch_.size()};
+    auto status = vm.instance->ApplyPatch(bytes);
+    if (status.IsOk()) {
+      break;
+    }
+    if (status.IsAbort()) {
+      // TODO(keanmariotti): consider doing something more here. Ideally
+      // triggering a field upload containing the stacktrace.
+      PERFETTO_ELOG("ProtoVM abort while applying patch. Stacktrace:\n%s",
+                    base::Join(status.stacktrace(), "\n").c_str());
+    }
+  }
 }
 
 }  // namespace perfetto

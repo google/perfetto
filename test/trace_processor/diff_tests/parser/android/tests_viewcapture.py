@@ -87,17 +87,19 @@ class ViewCapture(TestSuite):
           android_viewcapture_view AS vc JOIN args ON vc.arg_set_id = args.arg_set_id
           WHERE vc.snapshot_id = 1
         ORDER BY args.arg_set_id, args.key
-        LIMIT 10;
+        LIMIT 12;
         """,
         out=Csv("""
         "key","display_value"
         "alpha","1.0"
         "class_name","com.android.internal.policy.PhoneWindow@6cec234"
+        "content_description","Content Description 1"
         "hashcode","182652084"
         "height","2400"
         "parent_id","-1"
         "scale_x","1.0"
         "scale_y","1.0"
+        "text","Text 1"
         "view_id","NO_ID"
         "width","1080"
         "will_not_draw","true"

@@ -17,13 +17,16 @@ import {HTMLAttrs} from './common';
 import {MithrilEvent} from '../base/mithril_utils';
 
 export interface ResizeHandleAttrs extends HTMLAttrs {
-  onResize(deltaPx: number): void;
+  // Called with delta (relative change)
+  onResize?(deltaPx: number): void;
+  // Called with absolute position relative to offsetParent
+  onResizeAbsolute?(positionPx: number): void;
   onResizeStart?(): void;
   onResizeEnd?(): void;
   // Direction of the resize handle:
   // - 'vertical' (default): horizontal bar that can be dragged up/down
   // - 'horizontal': vertical bar that can be dragged left/right
-  direction?: 'vertical' | 'horizontal';
+  readonly direction?: 'vertical' | 'horizontal';
 }
 
 export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
@@ -47,6 +50,7 @@ export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
   view({attrs}: m.CVnode<ResizeHandleAttrs>): m.Children {
     const {
       onResize: _onResize,
+      onResizeAbsolute: _onResizeAbsolute,
       onResizeStart: _onResizeStart,
       onResizeEnd: _onResizeEnd,
       direction = 'vertical',
@@ -56,7 +60,9 @@ export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
     const isHorizontal = direction === 'horizontal';
 
     return m('.pf-resize-handle', {
-      class: isHorizontal ? 'pf-resize-handle--horizontal' : '',
+      class: isHorizontal
+        ? 'pf-resize-handle--horizontal'
+        : 'pf-resize-handle--vertical',
       oncontextmenu: (e: Event) => {
         e.preventDefault();
       },
@@ -75,6 +81,8 @@ export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
 
         this.handleElement!.setPointerCapture(e.pointerId);
         attrs.onResizeStart?.();
+
+        e.stopPropagation();
       },
       onpointermove: (e: MithrilEvent<PointerEvent>) => {
         const offsetParent = this.handleElement?.offsetParent as HTMLElement;
@@ -92,7 +100,8 @@ export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
           const mouseOffsetX = e.clientX - offsetLeft;
 
           if (this.previousX !== undefined) {
-            attrs.onResize(mouseOffsetX - this.previousX);
+            attrs.onResize?.(mouseOffsetX - this.previousX);
+            attrs.onResizeAbsolute?.(mouseOffsetX);
             this.previousX = mouseOffsetX;
           }
         } else {
@@ -100,7 +109,8 @@ export class ResizeHandle implements m.ClassComponent<ResizeHandleAttrs> {
           const mouseOffsetY = e.clientY - offsetTop;
 
           if (this.previousY !== undefined) {
-            attrs.onResize(mouseOffsetY - this.previousY);
+            attrs.onResize?.(mouseOffsetY - this.previousY);
+            attrs.onResizeAbsolute?.(mouseOffsetY);
             this.previousY = mouseOffsetY;
           }
         }

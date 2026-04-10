@@ -506,6 +506,8 @@ message AndroidFrameTimelineMetric {
     optional int64 missed_frames = 5;
     optional int64 missed_app_frames = 6;
     optional int64 missed_sf_frames = 7;
+    optional double weighted_missed_app_frames = 20;
+    optional double weighted_missed_sf_frames = 21;
 
     optional int64 frame_dur_max = 8;
     optional int64 frame_dur_avg = 9;
@@ -1177,6 +1179,23 @@ message AndroidDisplayMetrics {
   }
 
   optional DpuState dpu_state = 7;
+
+  message DdicUnderrunDetail {
+    // panel index
+    optional string name = 1;
+
+    // The number of dpu underrun occurs.
+    optional uint32 ddic_underrun_count = 2;
+  }
+
+  message PanelState {
+    // Stat that reports the number of dpu underrrun occurs count.
+    optional uint32 total_ddic_underrun_count = 1;
+
+    repeated DdicUnderrunDetail ddic_underrun_detail = 2;
+  }
+
+  optional PanelState panel_state = 8;
 }
 
 // End of protos/perfetto/metrics/android/display_metrics.proto
@@ -1726,7 +1745,7 @@ message AndroidJankCujMetric {
     optional string layer_name = 11;
   }
 
-  // Next id: 10
+  // Next id: 11
   message Frame {
     // Index of the frame within the single user journey.
     optional int64 frame_number = 1;
@@ -1744,6 +1763,9 @@ message AndroidJankCujMetric {
 
     // Whether SF missed the frame deadline.
     optional bool sf_missed = 6;
+
+    // Jank severity weight score for janky frames.
+    optional double jank_score = 10;
 
     // Whether the SF callback missed before emitting jank metrics.
     // SF callback is used to get the jank classification.
@@ -3134,7 +3156,7 @@ message AndroidWattsonTimePeriodMetric {
   // enough information to make an educated extrapolation of a HW state. The
   // only example right now is for cpu_idle, of which the cpu_idle state can be
   // extrapolated from the swapper thread (aka idle thread).
-  optional bool is_crude_estimate = 4;
+  optional int32 is_crude_estimate = 4;
 }
 
 message AndroidWattsonEstimateInfo {
@@ -3143,6 +3165,7 @@ message AndroidWattsonEstimateInfo {
   optional int64 period_dur = 3;
   optional AndroidWattsonCpuSubsystemEstimate cpu_subsystem = 4;
   optional AndroidWattsonGpuSubsystemEstimate gpu_subsystem = 5;
+  optional AndroidWattsonTpuSubsystemEstimate tpu_subsystem = 6;
 }
 
 message AndroidWattsonCpuSubsystemEstimate {
@@ -3188,6 +3211,11 @@ message AndroidWattsonGpuSubsystemEstimate {
   optional float estimated_mws = 2;
 }
 
+message AndroidWattsonTpuSubsystemEstimate {
+  optional float estimated_mw = 1;
+  optional float estimated_mws = 2;
+}
+
 // End of protos/perfetto/metrics/android/wattson_in_time_period.proto
 
 // Begin of protos/perfetto/metrics/android/wattson_tasks_attribution.proto
@@ -3205,7 +3233,7 @@ message AndroidWattsonTasksAttributionMetric {
   // enough information to make an educated extrapolation of a HW state. The
   // only example right now is for cpu_idle, of which the cpu_idle state can be
   // extrapolated from the swapper thread (aka idle thread).
-  optional bool is_crude_estimate = 4;
+  optional int32 is_crude_estimate = 4;
 }
 
 // Groups of power per task for each period
@@ -3250,12 +3278,13 @@ message CloneDuration {
 // Begin of protos/perfetto/metrics/metrics.proto
 
 // Trace processor metadata
-// Next id: 20
+// Next id: 21
 message TraceMetadata {
   reserved 1;
   optional int64 trace_duration_ns = 2;
   optional string trace_uuid = 3;
   optional string android_build_fingerprint = 4;
+  optional string android_incremental_build = 20;
   optional string android_device_manufacturer = 16;
   optional int64 android_profile_boot_classpath = 18;
   optional int64 android_profile_system_server = 19;

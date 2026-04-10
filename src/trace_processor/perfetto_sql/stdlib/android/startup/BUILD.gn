@@ -18,6 +18,7 @@ perfetto_sql_source_set("startup") {
   sources = [
     "startup_breakdowns.sql",
     "startup_events.sql",
+    "startup_mipmap.sql",
     "startups.sql",
     "startups_maxsdk28.sql",
     "startups_minsdk29.sql",

@@ -29,8 +29,8 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/interned_message_view.h"
+#include "src/trace_processor/util/json_args.h"
 #include "src/trace_processor/util/json_parser.h"
-#include "src/trace_processor/util/json_utils.h"
 
 namespace perfetto::trace_processor {
 

@@ -34,6 +34,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_EventCategory);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EventName);
 PERFETTO_PB_MSG_DECL(perfetto_protos_Frame);
 PERFETTO_PB_MSG_DECL(perfetto_protos_HistogramName);
+PERFETTO_PB_MSG_DECL(perfetto_protos_InternedGpuCounterDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InternedGpuRenderStageSpecification);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InternedGraphicsContext);
 PERFETTO_PB_MSG_DECL(perfetto_protos_InternedString);
@@ -215,6 +216,16 @@ PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   41);
 PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   MSG,
+                  perfetto_protos_InternedString,
+                  viewcapture_content_description,
+                  45);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
+                  perfetto_protos_InternedString,
+                  viewcapture_text,
+                  46);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
                   perfetto_protos_AppWakelockInfo,
                   app_wakelock_info,
                   42);
@@ -228,5 +239,10 @@ PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   perfetto_protos_AndroidJobName,
                   android_job_name,
                   44);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
+                  perfetto_protos_InternedGpuCounterDescriptor,
+                  gpu_counter_descriptors,
+                  47);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_INTERNED_DATA_INTERNED_DATA_PZC_H_

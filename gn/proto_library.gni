@@ -300,6 +300,8 @@ template("perfetto_proto_library") {
   }
 
   group(source_set_target_name) {
+    forward_variables_from(invoker, [ "testonly" ])
+
     # To propagate indirect inputs dependencies to descendant tareget, we use
     # public_deps and public_configs in this target.
     public_deps = []
@@ -338,6 +340,7 @@ template("perfetto_proto_library") {
   # This group is necessary for Chrome proto_library build rule to work
   # correctly.
   group("${source_set_target_name}_input_group") {
+    forward_variables_from(invoker, [ "testonly" ])
     public_deps = [ ":${source_set_target_name}" ]
   }
 

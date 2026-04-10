@@ -17,7 +17,7 @@ import sys
 import signal
 import dataclasses as dc
 from urllib.parse import urlparse
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from perfetto.common.exceptions import PerfettoException
 from perfetto.common.query_result_iterator import QueryResultIterator
@@ -40,6 +40,19 @@ TraceReference = registry.TraceReference
 # Custom exception raised if any trace_processor functions return a
 # response with an error defined
 TraceProcessorException = PerfettoException
+
+
+@dc.dataclass
+class SqlPackage:
+  """Represents an SQL package to be loaded.
+
+  Attributes:
+    path: Path to the directory containing SQL files.
+    package: Optional package name override. If not specified, the directory
+      name will be used as the package name.
+  """
+  path: str
+  package: Optional[str] = None
 
 
 @dc.dataclass
@@ -76,11 +89,12 @@ class TraceProcessorConfig:
   # Warning: this is a low-level option and should be used with caution.
   extra_flags: Optional[List[str]] = None
 
-  # Optional list of paths to additional PerfettoSQL package to load.
+  # Optional list of PerfettoSQL packages to load. Each element can be:
+  # - A string path: The directory name becomes the package name.
+  # - A SqlPackage object: Allows specifying a custom package name.
   # All SQL modules inside these packages will be available to include using
-  # `INCLUDE PERFETTO MODULE` PerfettoSQL statements with the root package
-  # name being the dirname of the path.
-  add_sql_packages: Optional[List[str]] = None
+  # `INCLUDE PERFETTO MODULE` PerfettoSQL statements.
+  add_sql_packages: Optional[List[Union[str, SqlPackage]]] = None
 
   def __init__(
       self,
@@ -92,7 +106,7 @@ class TraceProcessorConfig:
       resolver_registry: Optional[ResolverRegistry] = None,
       load_timeout: int = 2,
       extra_flags: Optional[List[str]] = None,
-      add_sql_packages: Optional[List[str]] = None,
+      add_sql_packages: Optional[List[Union[str, SqlPackage]]] = None,
   ):
     self.bin_path = bin_path
     self.unique_port = unique_port
@@ -176,7 +190,8 @@ class TraceProcessor:
     Returns:
       A class which can iterate through each row of the results table. This
       can also be converted to a pandas dataframe by calling the
-      as_pandas_dataframe() function after calling query.
+      as_pandas_dataframe() function, or a polars dataframe by calling
+      as_polars_dataframe(), after calling query.
     """
     response = self.http.execute_query(sql)
     if response.error:
@@ -277,7 +292,7 @@ class TraceProcessor:
       parsed = p.netloc if p.netloc else p.path
       return TraceProcessorHttp(parsed, protos=self.protos)
 
-    url, self.subprocess = load_shell(
+    url, self.subprocess, self._tp_stdout, self._tp_stderr = load_shell(
         self.config.bin_path,
         self.config.unique_port,
         self.config.verbose,
@@ -331,6 +346,12 @@ class TraceProcessor:
       self.subprocess.wait()
       # Set to None so __del__ doesn't call this again.
       self.subprocess = None
+      if hasattr(self, '_tp_stdout') and self._tp_stdout:
+        self._tp_stdout.close()
+        self._tp_stdout = None
+      if hasattr(self, '_tp_stderr') and self._tp_stderr:
+        self._tp_stderr.close()
+        self._tp_stderr = None
 
     if hasattr(self, 'http'):
       self.http.conn.close()

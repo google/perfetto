@@ -20,18 +20,21 @@
 CREATE PERFETTO TABLE android_gpu_work_period_track (
   -- Unique identifier for this track. Joinable with track.id.
   id LONG,
-  -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG,
+  -- Machine identifier
+  machine_id JOINID(machine.id),
   -- The UID of the package for which the GPU work period events were emitted.
   uid LONG,
-  -- The GPU identifier for which the GPU work period events were emitted.
+  -- The unique GPU identifier (ugpu) from the gpu table.
+  ugpu LONG,
+  -- The raw GPU number.
   gpu_id LONG
 ) AS
 SELECT
-  id,
-  machine_id,
-  extract_arg(dimension_arg_set_id, 'uid') AS uid,
-  extract_arg(dimension_arg_set_id, 'gpu') AS gpu_id
-FROM track
+  t.id,
+  t.machine_id,
+  extract_arg(t.dimension_arg_set_id, 'uid') AS uid,
+  extract_arg(t.dimension_arg_set_id, 'ugpu') AS ugpu,
+  extract_arg(t.dimension_arg_set_id, 'gpu') AS gpu_id
+FROM track AS t
 WHERE
-  type = 'android_gpu_work_period';
+  t.type = 'android_gpu_work_period';

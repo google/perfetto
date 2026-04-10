@@ -68,9 +68,17 @@
     }
   }
 
+  &__shell--lite {
+    // Just hide the title entirely when in lite mode. This title is never meant
+    // to be seen - it needs to exist in the DOM for native browser searching to
+    // work. However it can be momentarily visible when scrolling quickly or
+    // when DOM updates are slow, which can be jarring.
+    color: transparent;
+  }
+
   &__shell {
     grid-area: shell;
-    border-width: 0 1px 1px 0; // Borders on bottom and right
+    border-width: 0 0 1px 0; // Borders on bottom and right
     border-style: solid;
     border-color: var(--pf-color-border-secondary);
 
@@ -96,16 +104,17 @@
     }
 
     .pf-visible-on-hover {
-      visibility: hidden;
+      display: none;
 
       &.pf-active {
-        visibility: unset;
+        display: unset;
       }
     }
 
-    &:hover {
+    &:hover,
+    &:has(.pf-active) {
       .pf-visible-on-hover {
-        visibility: unset;
+        display: unset;
       }
     }
   }
@@ -161,6 +170,9 @@
 
   &__title {
     grid-area: title;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 
     &-popup {
       position: absolute;
@@ -190,6 +202,9 @@
   &__subtitle {
     grid-area: subtitle;
     font-size: 11px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   &__buttons {

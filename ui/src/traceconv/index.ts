@@ -13,12 +13,8 @@
 // limitations under the License.
 
 import {defer} from '../base/deferred';
-import {
-  addErrorHandler,
-  assertExists,
-  ErrorDetails,
-  reportError,
-} from '../base/logging';
+import {addErrorHandler, ErrorDetails, reportError} from '../base/logging';
+import {assertExists} from '../base/assert';
 import {time} from '../base/time';
 import traceconv from '../gen/traceconv';
 

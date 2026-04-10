@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import z from 'zod';
-import {OmniboxMode} from '../../core/omnibox_manager';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {AppImpl} from '../../core/app_impl';
+import {TraceImpl} from '../../core/trace_impl';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {exists, RequiredField} from '../../base/utils';
 import {LONG, NUM, NUM_NULL} from '../../trace_processor/query_result';
@@ -28,6 +28,7 @@ import {Time} from '../../base/time';
 export default class TrackUtilsPlugin implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TrackUtils';
   static dvorakSetting: Setting<boolean>;
+  static azertySetting: Setting<boolean>;
 
   static onActivate(app: App): void {
     TrackUtilsPlugin.dvorakSetting = app.settings.register({
@@ -40,9 +41,27 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
       schema: z.boolean(),
       requiresReload: true, // Hotkeys are registered on trace load.
     });
+
+    TrackUtilsPlugin.azertySetting = app.settings.register({
+      id: 'azertyMode',
+      defaultValue: false,
+      name: 'AZERTY layout',
+      description: 'Adjusts shortcuts for AZERTY keyboards (ZQSD navigation).',
+      schema: z.boolean(),
+      requiresReload: true,
+    });
   }
 
-  async onTraceLoad(ctx: Trace): Promise<void> {
+  async onTraceLoad(ctx: TraceImpl): Promise<void> {
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.ToggleDrawer',
+      name: 'Toggle drawer',
+      defaultHotkey: TrackUtilsPlugin.azertySetting.get() ? 'A' : 'Q',
+      callback: () => {
+        ctx.tabs.toggleTabPanelVisibility();
+      },
+    });
+
     // Register this command up front to block the print dialog from appearing
     // when pressing the hotkey before the trace is loaded.
     ctx.commands.registerCommand({
@@ -71,7 +90,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
       callback: async () => {
         const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
         const omnibox = AppImpl.instance.omnibox;
-        omnibox.setMode(OmniboxMode.Query);
+        omnibox.activateRegisteredMode(':');
         omnibox.setText(
           `select  where ts >= ${window.start} and ts < ${window.end}`,
         );
@@ -383,6 +402,36 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
 
         // Convert UTC Date to trace time using the trace's unix offset
         const traceTime = Time.fromDate(utcDate, ctx.traceInfo.unixOffset);
+
+        ctx.notes.addNote({
+          timestamp: traceTime,
+          text: noteText,
+        });
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.AddNoteAtTimestamp',
+      name: 'Add note at nanosecond timestamp',
+      callback: async (timestampArg: unknown, noteTextArg: unknown) => {
+        const timestampStr =
+          typeof timestampArg === 'string'
+            ? timestampArg
+            : await ctx.omnibox.prompt('Enter timestamp...');
+        if (!timestampStr) return;
+
+        const noteText =
+          typeof noteTextArg === 'string'
+            ? noteTextArg
+            : await ctx.omnibox.prompt('Enter note text...');
+        if (noteText === undefined) return;
+
+        const timestamp = parseInt(timestampStr, 10);
+        if (isNaN(timestamp)) {
+          console.error(`invalid timestamp: ${timestampStr}`);
+          return;
+        }
+        const traceTime = Time.fromRaw(BigInt(timestamp));
 
         ctx.notes.addNote({
           timestamp: traceTime,

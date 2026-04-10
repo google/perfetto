@@ -19,7 +19,7 @@ import {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {getTrackName} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
-import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
+import {NUM, STR_NULL} from '../../trace_processor/query_result';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {PowerCounterSelectionAggregator} from './power_counter_selection_aggregator';
 
@@ -45,9 +45,10 @@ export default class implements PerfettoPlugin {
       SELECT
         track_id as trackId,
         COALESCE(friendly_name, raw_power_rail_name) as name,
+        subsystem_name as subsystem,
         machine_id as machine
       FROM android_power_rails_metadata
-      ORDER BY machine_id, name
+      ORDER BY machine_id, subsystem_name, name
     `);
 
     if (result.numRows() === 0) {
@@ -57,7 +58,8 @@ export default class implements PerfettoPlugin {
     const it = result.iter({
       trackId: NUM,
       name: STR_NULL,
-      machine: NUM_NULL,
+      subsystem: STR_NULL,
+      machine: NUM,
     });
 
     const powerRailsGroup = new TrackNode({
@@ -69,8 +71,10 @@ export default class implements PerfettoPlugin {
       .getOrCreateStandardGroup(ctx.defaultWorkspace, 'POWER')
       .addChildInOrder(powerRailsGroup);
 
+    const subsystemGroups = new Map<string, TrackNode>();
+
     for (; it.valid(); it.next()) {
-      const {trackId, name, machine} = it;
+      const {trackId, name, subsystem, machine} = it;
       const trackName = getTrackName({
         name,
         kind: COUNTER_TRACK_KIND,
@@ -107,12 +111,28 @@ export default class implements PerfettoPlugin {
         renderer: track,
       });
 
-      powerRailsGroup.addChildInOrder(
-        new TrackNode({
-          uri,
-          name: trackName,
-        }),
-      );
+      const trackNode = new TrackNode({
+        uri,
+        name: trackName,
+      });
+
+      if (subsystem !== null && subsystem !== '') {
+        // Get or create subsystem group
+        let subsystemGroup = subsystemGroups.get(subsystem);
+        if (subsystemGroup === undefined) {
+          subsystemGroup = new TrackNode({
+            name: subsystem,
+            isSummary: true,
+            collapsed: false,
+          });
+          subsystemGroups.set(subsystem, subsystemGroup);
+          powerRailsGroup.addChildInOrder(subsystemGroup);
+        }
+        subsystemGroup.addChildInOrder(trackNode);
+      } else {
+        // No subsystem - add directly to power rails group
+        powerRailsGroup.addChildInOrder(trackNode);
+      }
     }
   }
 }

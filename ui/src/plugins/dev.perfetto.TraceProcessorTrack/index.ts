@@ -14,7 +14,7 @@
 
 import {removeFalsyValues} from '../../base/array_utils';
 import {AsyncLimiter} from '../../base/async_limiter';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
 import {Time} from '../../base/time';
 import {
   createAggregationTab,
@@ -104,6 +104,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
     this.store = ctx.mountStore(TraceProcessorTrackPlugin.id, (init) =>
       this.migrateTraceProcessorTrackPluginState(init),
     );
+
     await this.addCounters(ctx);
     await this.addSlices(ctx);
     this.addAggregations(ctx);
@@ -124,6 +125,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           ct.machine_id as machine,
           extract_arg(ct.dimension_arg_set_id, 'utid') as utid,
           extract_arg(ct.dimension_arg_set_id, 'upid') as upid,
+          extract_arg(ct.dimension_arg_set_id, 'gpu') as gpu_id,
           extract_arg(ct.source_arg_set_id, 'description') as description
         from counter_track ct
         join _counter_track_summary using (id)
@@ -153,13 +155,14 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       unit: STR_NULL,
       utid: NUM_NULL,
       upid: NUM_NULL,
+      gpu_id: NUM_NULL,
       threadName: STR_NULL,
       processName: STR_NULL,
       tid: LONG_NULL,
       pid: LONG_NULL,
       isMainThread: NUM,
       isKernelThread: NUM,
-      machine: NUM_NULL,
+      machine: NUM,
       description: STR_NULL,
     });
     for (; it.valid(); it.next()) {
@@ -214,9 +217,6 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           utid: utid ?? undefined,
           ...(isKernelThread === 1 && {kernelThread: true}),
         },
-        chips: removeFalsyValues([
-          isKernelThread === 0 && isMainThread === 1 && 'main thread',
-        ]),
         renderer: new TraceProcessorCounterTrack(
           ctx,
           uri,
@@ -239,6 +239,9 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           uri,
           name: trackName,
           sortOrder: utid !== undefined || upid !== undefined ? 30 : 0,
+          chips: removeFalsyValues([
+            isKernelThread === 0 && isMainThread === 1 && 'main thread',
+          ]),
         }),
       );
     }
@@ -264,6 +267,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
             lower(min(t.name)) as lower_name,
             extract_arg(t.dimension_arg_set_id, 'utid') as utid,
             extract_arg(t.dimension_arg_set_id, 'upid') as upid,
+            extract_arg(t.dimension_arg_set_id, 'gpu') as gpu_id,
             extract_arg(t.source_arg_set_id, 'description') as description,
             min(t.id) minTrackId,
             group_concat(t.id) as trackIds,
@@ -277,13 +281,14 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           from _slice_track_summary s
           join track t using (id)
           left join _track_event_tracks_with_callstacks cs on cs.track_id = t.id
-          group by type, upid, utid, t.track_group_id, ifnull(t.track_group_id, t.id)
+          group by type, upid, utid, gpu_id, t.track_group_id, ifnull(t.track_group_id, t.id)
         )
         select
           s.type,
           s.name,
           s.utid,
           ifnull(s.upid, tp.upid) as upid,
+          s.gpu_id,
           s.minTrackId as minTrackId,
           s.trackIds as trackIds,
           s.trackCount,
@@ -330,6 +335,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       name: STR_NULL,
       utid: NUM_NULL,
       upid: NUM_NULL,
+      gpu_id: NUM_NULL,
       trackIds: STR,
       maxDepth: NUM,
       tid: LONG_NULL,
@@ -401,9 +407,6 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           ...(isKernelThread === 1 && {kernelThread: true}),
           hasCallstacks: hasCallstacks === 1,
         },
-        chips: removeFalsyValues([
-          isKernelThread === 0 && isMainThread === 1 && 'main thread',
-        ]),
         renderer: await createTraceProcessorSliceTrack({
           trace: ctx,
           uri,
@@ -420,10 +423,14 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         group,
         upid,
         utid,
+
         new TrackNode({
           uri,
           name: displayName,
           sortOrder: utid !== undefined || upid !== undefined ? 20 : 0,
+          chips: removeFalsyValues([
+            isKernelThread === 0 && isMainThread === 1 && 'main thread',
+          ]),
         }),
       );
     }
@@ -465,9 +472,13 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
         break;
       }
       default: {
-        const standardGroup = ctx.plugins
-          .getPlugin(StandardGroupsPlugin)
-          .getOrCreateStandardGroup(ctx.defaultWorkspace, topLevelGroup);
+        const standardGroupsPlugin =
+          ctx.plugins.getPlugin(StandardGroupsPlugin);
+        const standardGroup = standardGroupsPlugin.getOrCreateStandardGroup(
+          ctx.defaultWorkspace,
+          topLevelGroup,
+        );
+
         this.getGroupByName(standardGroup, group, null).addChildInOrder(track);
         break;
       }
@@ -622,8 +633,8 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
       on: `${iiTable.name}(parent_id)`,
     });
 
-    const metrics = metricsFromTableOrSubquery(
-      `(
+    const metrics = metricsFromTableOrSubquery({
+      tableOrSubquery: `(
         select *
         from _viz_slice_ancestor_agg!(
           (
@@ -635,7 +646,7 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           ${iiTable.name}
         )
       )`,
-      [
+      tableMetrics: [
         {
           name: 'Duration',
           unit: 'ns',
@@ -647,9 +658,8 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           columnName: 'self_count',
         },
       ],
-      'include perfetto module viz.slices;',
-      undefined,
-      [
+      dependencySql: 'include perfetto module viz.slices;',
+      aggregatableProperties: [
         {
           name: 'simple_count',
           displayName: 'Slice Count',
@@ -657,7 +667,8 @@ export default class TraceProcessorTrackPlugin implements PerfettoPlugin {
           isVisible: (_) => true,
         },
       ],
-    );
+      nameColumnLabel: 'Slice Name',
+    });
     const store = assertExists(this.store);
     store.edit((draft) => {
       draft.areaSelectionFlamegraphState = Flamegraph.updateState(

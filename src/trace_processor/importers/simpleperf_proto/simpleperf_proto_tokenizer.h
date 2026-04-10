@@ -21,6 +21,7 @@
 #include <memory>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/simpleperf_proto/simpleperf_proto_parser.h"
@@ -38,7 +39,8 @@ class SimpleperfProtoTokenizer : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation.
   base::Status Parse(TraceBlobView) override;
-  base::Status NotifyEndOfFile() override;
+  base::Status OnPushDataToSorter() override;
+  void OnEventsFullyExtracted() override {}
 
  private:
   enum class State : uint8_t {
@@ -49,10 +51,12 @@ class SimpleperfProtoTokenizer : public ChunkedTraceReader {
     kFinished
   };
 
-  base::Status ParseMagic();
-  base::Status ParseVersion();
-  base::Status ParseRecordSize();
-  base::Status ParseRecord();
+  enum class ParseResult { kOk, kNeedsMoreData };
+
+  base::StatusOr<ParseResult> ParseMagic();
+  base::StatusOr<ParseResult> ParseVersion();
+  base::StatusOr<ParseResult> ParseRecordSize();
+  base::StatusOr<ParseResult> ParseRecord();
 
   TraceProcessorContext* const context_;
   util::TraceBlobViewReader reader_;

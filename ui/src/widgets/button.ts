@@ -17,7 +17,7 @@ import {classNames} from '../base/classnames';
 import {HTMLAttrs, HTMLButtonAttrs, Intent, classForIntent} from './common';
 import {Icon} from './icon';
 import {Popup, PopupPosition} from './popup';
-import {assertUnreachable} from '../base/logging';
+import {assertUnreachable} from '../base/assert';
 import {isEmptyVnodes} from '../base/mithril_utils';
 import {Tooltip} from './tooltip';
 
@@ -105,6 +105,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       shrink,
       loading,
       tooltip,
+      type = 'button', // Default to 'buton' to avoid submitting forms unintentionally.
       ...htmlAttrs
     } = attrs;
 
@@ -129,6 +130,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       {
         ...htmlAttrs,
         className: classes,
+        type,
       },
       this.renderIcon(attrs),
       m('span', {className: 'pf-button__label'}, label),

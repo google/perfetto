@@ -61,7 +61,6 @@ export function createFtraceTrack(
       width: FTRACE_INSTANT_WIDTH_PX,
       render: (ctx, r) => ctx.fillRect(r.x, r.y, r.width, r.height),
     },
-    forceTsRenderOrder: true,
     tooltip: (row) => row.row.name,
     detailsPanel: (row) => {
       return new FtraceEventDetailsPanel(trace, row);

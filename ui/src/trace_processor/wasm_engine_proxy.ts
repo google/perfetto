@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assetSrc} from '../base/assets';
-import {assertTrue} from '../base/logging';
+import {assertTrue} from '../base/assert';
 import {EngineBase} from '../trace_processor/engine';
 
 let idleWasmWorker: Worker | undefined = undefined;

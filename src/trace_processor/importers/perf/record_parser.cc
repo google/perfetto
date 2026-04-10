@@ -26,6 +26,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
@@ -183,14 +184,29 @@ base::Status RecordParser::InternSample(Sample sample) {
   std::optional<CallsiteId> callsite_id = InternCallchain(
       upid, sample.callchain, sample.perf_invocation->needs_pc_adjustment());
 
+  // Update counters and create counter set.
+  ASSIGN_OR_RETURN(std::vector<CounterId> counter_ids, UpdateCounters(sample));
+
+  std::optional<uint32_t> counter_set_id;
+  if (!counter_ids.empty()) {
+    auto* table = context_->storage->mutable_perf_counter_set_table();
+    counter_set_id = static_cast<uint32_t>(table->row_count());
+    for (CounterId counter_id : counter_ids) {
+      tables::PerfCounterSetTable::Row row;
+      row.perf_counter_set_id = *counter_set_id;
+      row.counter_id = counter_id;
+      table->Insert(row);
+    }
+  }
+
   auto session_id = sample.attr->perf_session_id();
   context_->storage->mutable_perf_sample_table()->Insert(
       {sample.trace_ts, utid, sample.cpu,
        context_->storage->InternString(
            ProfilePacketUtils::StringifyCpuMode(sample.cpu_mode)),
-       callsite_id, std::nullopt, session_id});
+       callsite_id, std::nullopt, session_id, counter_set_id});
 
-  return UpdateCounters(sample);
+  return base::OkStatus();
 }
 
 std::optional<CallsiteId> RecordParser::InternCallchain(
@@ -257,7 +273,7 @@ base::Status RecordParser::ParseComm(Record record) {
   auto utid = context_->process_tracker->GetOrCreateThread(tid);
   context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
       utid, context_->storage->InternString(base::StringView(comm)),
-      ThreadNamePriority::kFtrace);
+      ThreadNamePriority::kPerfComm);
 
   return base::OkStatus();
 }
@@ -318,7 +334,8 @@ UniquePid RecordParser::GetUpid(const CommonMmapRecordFields& fields) const {
   return *upid;
 }
 
-base::Status RecordParser::UpdateCounters(const Sample& sample) {
+base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCounters(
+    const Sample& sample) {
   if (!sample.read_groups.empty()) {
     return UpdateCountersInReadGroups(sample);
   }
@@ -329,12 +346,15 @@ base::Status RecordParser::UpdateCounters(const Sample& sample) {
 
   uint64_t period = sample.period.has_value() ? *sample.period
                                               : *sample.attr->sample_period();
-  sample.attr->GetOrCreateCounter(sample.cpu)
-      .AddDelta(sample.trace_ts, static_cast<double>(period));
-  return base::OkStatus();
+  CounterId counter_id =
+      sample.attr->GetOrCreateCounter(sample.cpu)
+          .AddDelta(sample.trace_ts, static_cast<double>(period));
+  return std::vector<CounterId>{counter_id};
 }
 
-base::Status RecordParser::UpdateCountersInReadGroups(const Sample& sample) {
+base::StatusOr<std::vector<CounterId>> RecordParser::UpdateCountersInReadGroups(
+    const Sample& sample) {
+  std::vector<CounterId> counter_ids;
   for (const auto& entry : sample.read_groups) {
     RefPtr<PerfEventAttr> attr =
         sample.perf_invocation->FindAttrForEventId(*entry.event_id);
@@ -342,10 +362,12 @@ base::Status RecordParser::UpdateCountersInReadGroups(const Sample& sample) {
       return base::ErrStatus("No perf_event_attr for id %" PRIu64,
                              *entry.event_id);
     }
-    attr->GetOrCreateCounter(sample.cpu)
-        .AddCount(sample.trace_ts, static_cast<double>(entry.value));
+    CounterId counter_id =
+        attr->GetOrCreateCounter(sample.cpu)
+            .AddCount(sample.trace_ts, static_cast<double>(entry.value));
+    counter_ids.push_back(counter_id);
   }
-  return base::OkStatus();
+  return counter_ids;
 }
 
 DummyMemoryMapping* RecordParser::GetDummyMapping(UniquePid upid) {

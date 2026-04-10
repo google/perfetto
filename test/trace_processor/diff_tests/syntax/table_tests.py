@@ -622,10 +622,11 @@ class PerfettoTable(TestSuite):
         query="""
           SELECT key, int_value, real_value FROM __intrinsic_winscope_proto_to_args_with_defaults('__intrinsic_window_manager_shell_transition_protos') as tbl
           ORDER BY tbl.base64_proto_id, key
-          LIMIT 56
+          LIMIT 58
           """,
         out=Csv("""
           "key","int_value","real_value"
+          "changes","[NULL]","[NULL]"
           "create_time_ns",76799049027,"[NULL]"
           "finish_time_ns",0,"[NULL]"
           "finish_transaction_id",5604932321954,"[NULL]"
@@ -636,9 +637,9 @@ class PerfettoTable(TestSuite):
           "send_time_ns",76875395422,"[NULL]"
           "shell_abort_time_ns",0,"[NULL]"
           "start_transaction_id",5604932321952,"[NULL]"
-          "targets","[NULL]","[NULL]"
           "type",0,"[NULL]"
           "wm_abort_time_ns",0,"[NULL]"
+          "changes","[NULL]","[NULL]"
           "create_time_ns",77854865352,"[NULL]"
           "dispatch_time_ns",77899001013,"[NULL]"
           "finish_time_ns",78621610429,"[NULL]"
@@ -650,10 +651,19 @@ class PerfettoTable(TestSuite):
           "shell_abort_time_ns",0,"[NULL]"
           "start_transaction_id",5604932322158,"[NULL]"
           "starting_window_remove_time_ns",0,"[NULL]"
-          "targets","[NULL]","[NULL]"
           "type",0,"[NULL]"
           "wm_abort_time_ns",0,"[NULL]"
+          "changes[0].end_absolute_bounds","[NULL]","[NULL]"
+          "changes[0].end_display_id",0,"[NULL]"
+          "changes[0].end_rotation",0,"[NULL]"
+          "changes[0].flags",0,"[NULL]"
+          "changes[0].mode",0,"[NULL]"
+          "changes[0].start_absolute_bounds","[NULL]","[NULL]"
+          "changes[0].start_display_id",0,"[NULL]"
+          "changes[0].start_rotation",0,"[NULL]"
+          "changes[0].window_id",11,"[NULL]"
           "create_time_ns",82498121051,"[NULL]"
+          "dispatch_time_ns",0,"[NULL]"
           "finish_time_ns",0,"[NULL]"
           "finish_transaction_id",5604932322347,"[NULL]"
           "flags",0,"[NULL]"
@@ -664,24 +674,16 @@ class PerfettoTable(TestSuite):
           "shell_abort_time_ns",82536817537,"[NULL]"
           "start_transaction_id",5604932322346,"[NULL]"
           "starting_window_remove_time_ns",0,"[NULL]"
-          "targets[0].flags",0,"[NULL]"
-          "targets[0].mode",0,"[NULL]"
-          "targets[0].window_id",11,"[NULL]"
           "type",0,"[NULL]"
           "wm_abort_time_ns",0,"[NULL]"
+          "changes","[NULL]","[NULL]"
           "create_time_ns",76955664017,"[NULL]"
+          "dispatch_time_ns",0,"[NULL]"
           "finish_time_ns",0,"[NULL]"
           "finish_transaction_id",5604932322029,"[NULL]"
           "flags",0,"[NULL]"
           "merge_request_time_ns",0,"[NULL]"
           "send_time_ns",77277756832,"[NULL]"
-          "shell_abort_time_ns",0,"[NULL]"
-          "start_transaction_id",5604932322028,"[NULL]"
-          "starting_window_remove_time_ns",0,"[NULL]"
-          "targets","[NULL]","[NULL]"
-          "type",0,"[NULL]"
-          "wm_abort_time_ns",0,"[NULL]"
-          "starting_window_remove_time_ns",77706603918,"[NULL]"
           """))
 
   def test_winscope_proto_to_args_with_defaults_with_interned_strings(self):
@@ -693,19 +695,30 @@ class PerfettoTable(TestSuite):
           flat_key GLOB '*_iid'
           OR flat_key GLOB '*_name'
           OR flat_key GLOB '*view_id'
+          OR flat_key GLOB '*content_description'
+          OR flat_key GLOB '*text'
         ORDER BY base64_proto_id, key
-        LIMIT 8
+        LIMIT 17
         """,
         out=Csv("""
         "flat_key","key","int_value","string_value"
         "class_name","class_name","[NULL]","com.android.internal.policy.PhoneWindow@6cec234"
+        "content_description","content_description","[NULL]","STRING DE-INTERNING ERROR"
+        "content_description_iid","content_description_iid",0,"[NULL]"
+        "text","text","[NULL]","STRING DE-INTERNING ERROR"
+        "text_iid","text_iid",0,"[NULL]"
         "view_id","view_id","[NULL]","NO_ID"
         "class_name","class_name","[NULL]","com.android.internal.policy.DecorView"
+        "content_description","content_description","[NULL]","STRING DE-INTERNING ERROR"
+        "content_description_iid","content_description_iid",0,"[NULL]"
+        "text","text","[NULL]","STRING DE-INTERNING ERROR"
+        "text_iid","text_iid",0,"[NULL]"
         "view_id","view_id","[NULL]","STRING DE-INTERNING ERROR"
         "view_id_iid","view_id_iid",3,"[NULL]"
-        "class_name","class_name","[NULL]","STRING DE-INTERNING ERROR"
-        "class_name_iid","class_name_iid",3,"[NULL]"
-        "view_id","view_id","[NULL]","TEST_VIEW_ID"
+        "class_name","class_name","[NULL]","com.android.internal.policy.PhoneWindow@6cec234"
+        "content_description","content_description","[NULL]","Content Description 1"
+        "text","text","[NULL]","Text 1"
+        "view_id","view_id","[NULL]","NO_ID"
         """))
 
   def test_winscope_surfaceflinger_hierarchy_paths(self):

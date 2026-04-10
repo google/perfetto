@@ -59,7 +59,7 @@ if (enable_perfetto_trace_processor) {
 if (enable_perfetto_traceconv) {
   all_targets += [
     "src/traceconv",
-    "src/trace_config_utils",
+    "src/proto_utils",
   ]
   if (is_cross_compiling) {
     # In many cross-compilation scenarios (typically Android) developers expect
@@ -71,7 +71,7 @@ if (enable_perfetto_traceconv) {
     # out/xxx/gcc_like_host/traceconv NOT just out/xxx/traceconv.
     all_targets += [
       "src/traceconv($host_toolchain)",
-      "src/trace_config_utils($host_toolchain)",
+      "src/proto_utils($host_toolchain)",
     ]
   }
 }
@@ -264,8 +264,10 @@ if (!build_with_chromium) {
     sources = [ "include/perfetto/tracing.h" ]
     assert_no_deps = [ "gn:protobuf_lite" ]
 
-    # Abseil is only used in Perfetto via the gRPC/libprotobuf.
-    if (perfetto_build_standalone || is_perfetto_build_generator) {
+    # Abseil is used in Perfetto via gRPC/libprotobuf and RE2.  When RE2 is
+    # not enabled, abseil should not be pulled in transitively.
+    if (!enable_perfetto_re2 &&
+        (perfetto_build_standalone || is_perfetto_build_generator)) {
       assert_no_deps += [ "buildtools:abseil_cpp" ]
     }
   }

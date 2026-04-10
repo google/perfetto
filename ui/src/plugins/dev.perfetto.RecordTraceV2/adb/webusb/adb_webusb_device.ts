@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {defer, Deferred} from '../../../../base/deferred';
-import {assertFalse, assertTrue} from '../../../../base/logging';
+import {assertFalse, assertTrue} from '../../../../base/assert';
 import {isString} from '../../../../base/object_utils';
 import {hexEncode, utf8Decode, utf8Encode} from '../../../../base/string_utils';
 import {exists} from '../../../../base/utils';

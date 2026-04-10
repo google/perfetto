@@ -326,7 +326,7 @@ base::Status WriteDimension(
             dimension_value.type);
       }
       const char* dimension_str = dimension_value.string_value;
-      hasher->Combine(dimension_str);
+      hasher->Combine(base::StringView(dimension_str));
       dimension->set_string_value(dimension_str);
       break;
     }
@@ -387,7 +387,7 @@ base::Status WriteDimension(
         dimension->set_double_value(dim_value);
       } else if (dimension_value.type == SqlValue::kString) {
         const char* dimension_str = dimension_value.string_value;
-        hasher->Combine(dimension_str);
+        hasher->Combine(base::StringView(dimension_str));
         dimension->set_string_value(dimension_str);
       } else if (dimension_value.type == SqlValue::kBytes) {
         return base::ErrStatus(
@@ -922,7 +922,7 @@ base::Status Summarize(TraceProcessor* processor,
   perfetto_sql::generator::StructuredQueryGenerator generator;
   for (const auto& spec : spec_decoders) {
     for (auto it = spec.query(); it; ++it) {
-      RETURN_IF_ERROR(generator.AddQuery(it->data(), it->size()));
+      ASSIGN_OR_RETURN(std::ignore, generator.AddQuery(it->data(), it->size()));
     }
   }
 

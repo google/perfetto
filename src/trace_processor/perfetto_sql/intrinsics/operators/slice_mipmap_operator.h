@@ -17,7 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_OPERATORS_SLICE_MIPMAP_OPERATOR_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_OPERATORS_SLICE_MIPMAP_OPERATOR_H_
 
-#include <sqlite3.h>
 #include <cstdint>
 #include <vector>
 
@@ -77,17 +76,31 @@ struct SliceMipmapOperator : sqlite::Module<SliceMipmapOperator> {
   struct Vtab : sqlite::Module<SliceMipmapOperator>::Vtab {
     sqlite::ModuleStateManager<SliceMipmapOperator>::PerVtabState* state;
   };
+  struct Result {
+    int64_t timestamp;
+    int64_t dur;
+    uint32_t count;
+    uint32_t id;
+    uint32_t depth;
+  };
   struct Cursor : sqlite::Module<SliceMipmapOperator>::Cursor {
-    struct Result {
-      int64_t timestamp;
-      int64_t dur;
-      uint32_t count;
-      uint32_t id;
-      uint32_t depth;
-    };
     std::vector<Result> results;
+    std::vector<int64_t> queries;
+    std::vector<uint32_t> positions;
     uint32_t index = 0;
   };
+
+  // Core filter implementation extracted for benchmarking.
+  // Takes the state, window parameters, and output vectors.
+  // Note: State is non-const because ImplicitSegmentForest::operator[] and
+  // Query() are not const (they may update internal caches).
+  static void FilterImpl(State& state,
+                         int64_t window_start,
+                         int64_t window_end,
+                         int64_t window_step,
+                         std::vector<int64_t>& queries,
+                         std::vector<uint32_t>& positions,
+                         std::vector<Result>& results);
 
   static constexpr auto kType = kCreateOnly;
   static constexpr bool kSupportsWrites = false;

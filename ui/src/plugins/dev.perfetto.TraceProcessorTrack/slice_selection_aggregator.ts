@@ -130,7 +130,7 @@ export class SliceSelectionAggregator implements Aggregator {
         await engine.query(`
           CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
           SELECT
-            json_object('id', id, 'groupid', __groupid, 'partition', __partition) as id,
+            json_object('id', id, 'groupid', __groupid, 'partition', __partition) as id_with_lineage,
             name,
             dur,
             self_dur
@@ -289,7 +289,7 @@ export class SliceSelectionAggregator implements Aggregator {
       columns: [
         {
           title: 'ID',
-          columnId: 'id',
+          columnId: 'id_with_lineage',
           formatHint: 'ID',
           cellRenderer: (value: unknown) => {
             // Value is a JSON object {id, groupid, partition}

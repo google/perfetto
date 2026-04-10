@@ -34,9 +34,30 @@ import {
 import {unwrapResult} from '../../base/result';
 import {createTableColumn} from '../../components/widgets/sql/table/columns';
 
+// Runs a data availability check query (wrapped by check_to_query in Python).
+// The query is `SELECT EXISTS(...) AS has_data` which always returns one row.
+// Returns true if data is present, false if not or if the query fails.
+async function runDataCheck(trace: Trace, sql: string): Promise<boolean> {
+  try {
+    const result = await trace.engine.query(sql);
+    // Use iter() to avoid type checking issues with VARINT
+    const iter = result.iter({});
+    iter.next();
+    const hasDataValue = iter.get('has_data');
+    return typeof hasDataValue === 'bigint'
+      ? hasDataValue !== 0n
+      : Number(hasDataValue) !== 0;
+  } catch (_e) {
+    // If query fails, assume no data
+    return false;
+  }
+}
+
 export class SqlModulesImpl implements SqlModules {
   readonly packages: SqlPackage[];
   private disabledModules: Set<string> = new Set();
+  private disabledTables: Set<string> = new Set();
+  private tablesWithChecks: Set<string> = new Set();
   private initPromise: Promise<void> | undefined;
   private readonly startInit: () => Promise<void>;
 
@@ -88,30 +109,41 @@ export class SqlModulesImpl implements SqlModules {
 
     // Check data availability for modules with checks
     const missingDataModules = new Set<string>();
+    // Track modules whose trace checks explicitly passed (have data)
+    const hasDataModules = new Set<string>();
     for (const [moduleName, checkSql] of modulesWithChecks) {
-      try {
-        const result = await trace.engine.query(checkSql);
-        // EXISTS returns 0 or 1
-        if (result.numRows() > 0) {
-          // Use iter() to avoid type checking issues with VARINT
-          const iter = result.iter({});
-          iter.next();
-          const hasDataValue = iter.get('has_data');
-          const hasData =
-            typeof hasDataValue === 'bigint'
-              ? hasDataValue !== 0n
-              : Number(hasDataValue) !== 0;
-          if (!hasData) {
-            missingDataModules.add(moduleName);
-          }
-        }
-      } catch (e) {
-        // If query fails, assume no data
+      const hasData = await runDataCheck(trace, checkSql);
+      if (hasData) {
+        hasDataModules.add(moduleName);
+      } else {
         missingDataModules.add(moduleName);
       }
     }
 
+    // Compute "protected" modules: modules with passing checks AND all modules
+    // that depend on them (transitively). These should not be disabled by
+    // dependency propagation since they have access to data through at least
+    // one dependency with a passing trace check.
+    const protectedModules = new Set(hasDataModules);
+    const protectedQueue = Array.from(hasDataModules);
+
+    while (protectedQueue.length > 0) {
+      const current = protectedQueue.shift()!;
+      const deps = dependents.get(current);
+
+      if (deps) {
+        for (const dependent of deps) {
+          if (!protectedModules.has(dependent)) {
+            protectedModules.add(dependent);
+            protectedQueue.push(dependent);
+          }
+        }
+      }
+    }
+
     // BFS to find all transitive dependents of modules with missing data
+    // Skip disabling protected modules (those with passing checks or that
+    // depend on modules with passing checks)
     const queue = Array.from(missingDataModules);
     const disabled = new Set(missingDataModules);
 
@@ -121,7 +153,7 @@ export class SqlModulesImpl implements SqlModules {
 
       if (deps) {
         for (const dependent of deps) {
-          if (!disabled.has(dependent)) {
+          if (!disabled.has(dependent) && !protectedModules.has(dependent)) {
             disabled.add(dependent);
             queue.push(dependent);
           }
@@ -130,10 +162,38 @@ export class SqlModulesImpl implements SqlModules {
     }
 
     this.disabledModules = disabled;
+
+    // Run per-table data checks for tables that have their own check SQL.
+    // This provides finer granularity than module-level checks.
+    const tableChecks: Array<{name: string; sql: string}> = [];
+    for (const pkg of this.packages) {
+      for (const mod of pkg.modules) {
+        for (const table of mod.tables) {
+          if (table.dataCheckSql) {
+            this.tablesWithChecks.add(table.name);
+            tableChecks.push({name: table.name, sql: table.dataCheckSql});
+          }
+        }
+      }
+    }
+
+    for (const {name, sql} of tableChecks) {
+      const hasData = await runDataCheck(trace, sql);
+      if (!hasData) {
+        this.disabledTables.add(name);
+      }
+    }
   }
 
   isModuleDisabled(moduleName: string): boolean {
     return this.disabledModules.has(moduleName);
+  }
+
+  tablePassedDataCheck(tableName: string): boolean | undefined {
+    if (!this.tablesWithChecks.has(tableName)) {
+      return undefined;
+    }
+    return !this.disabledTables.has(tableName);
   }
 
   getDisabledModules(): ReadonlySet<string> {
@@ -340,7 +400,8 @@ class SqlTableImpl implements SqlTable {
   includeKey?: string;
   description: string;
   type: string;
-  importance?: 'high' | 'mid' | 'low';
+  importance?: 'core' | 'high' | 'mid' | 'low';
+  dataCheckSql?: string;
   columns: SqlColumn[];
   idColumn: SqlColumn | undefined;
 
@@ -354,6 +415,7 @@ class SqlTableImpl implements SqlTable {
     this.description = docs.desc;
     this.type = docs.type;
     this.importance = docs.importance ?? undefined;
+    this.dataCheckSql = docs.data_check_sql ?? undefined;
     this.columns = docs.cols.map(
       (json) => new StdlibColumnImpl(json, this.name),
     );
@@ -414,7 +476,8 @@ const DATA_OBJECT_SCHEMA = z.object({
   desc: z.string(),
   summary_desc: z.string(),
   type: z.string(),
-  importance: z.enum(['high', 'mid', 'low']).nullish(),
+  importance: z.enum(['core', 'high', 'mid', 'low']).nullish(),
+  data_check_sql: z.string().nullish(),
   cols: z.array(ARG_OR_COL_SCHEMA),
 });
 type DocsDataObjectSchemaType = z.infer<typeof DATA_OBJECT_SCHEMA>;

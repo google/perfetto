@@ -14,7 +14,7 @@
 
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {HighPrecisionTime} from '../base/high_precision_time';
-import {assertUnreachable} from '../base/logging';
+import {assertUnreachable} from '../base/assert';
 import {Time, time, timezoneOffsetMap} from '../base/time';
 import {Setting} from '../public/settings';
 import {
@@ -64,6 +64,7 @@ export class TimelineImpl implements Timeline {
   }
 
   set highlightedSliceId(x) {
+    if (this._highlightedSliceId === x) return;
     this._highlightedSliceId = x;
     raf.scheduleCanvasRedraw();
   }
@@ -73,6 +74,7 @@ export class TimelineImpl implements Timeline {
   }
 
   set hoveredNoteTimestamp(x) {
+    if (this._hoveredNoteTimestamp === x) return;
     this._hoveredNoteTimestamp = x;
     raf.scheduleCanvasRedraw();
   }
@@ -82,6 +84,7 @@ export class TimelineImpl implements Timeline {
   }
 
   set hoveredUtid(x) {
+    if (this._hoveredUtid === x) return;
     this._hoveredUtid = x;
     raf.scheduleCanvasRedraw();
   }
@@ -91,6 +94,7 @@ export class TimelineImpl implements Timeline {
   }
 
   set hoveredPid(x) {
+    if (this._hoveredPid === x) return;
     this._hoveredPid = x;
     raf.scheduleCanvasRedraw();
   }
@@ -300,20 +304,18 @@ export class TimelineImpl implements Timeline {
     }
   }
 
-  moveStart(delta: number) {
-    this._visibleWindow = new HighPrecisionTimeSpan(
-      this._visibleWindow.start.addNumber(delta),
-      this._visibleWindow.duration - delta,
-    );
+  moveStart(start: HighPrecisionTime) {
+    const endTime = this._visibleWindow.end;
+    const newDur = endTime.sub(start).toNumber();
+    this._visibleWindow = new HighPrecisionTimeSpan(start, newDur);
 
     raf.scheduleCanvasRedraw();
   }
 
-  moveEnd(delta: number) {
-    this._visibleWindow = new HighPrecisionTimeSpan(
-      this._visibleWindow.start,
-      this._visibleWindow.duration + delta,
-    );
+  moveEnd(end: HighPrecisionTime) {
+    const startTime = this._visibleWindow.start;
+    const newDuration = end.sub(startTime).toNumber();
+    this._visibleWindow = new HighPrecisionTimeSpan(startTime, newDuration);
 
     raf.scheduleCanvasRedraw();
   }

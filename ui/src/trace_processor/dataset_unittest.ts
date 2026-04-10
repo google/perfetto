@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {UnionDataset, SourceDataset} from './dataset';
+import {UnionDataset, SourceDataset, UnionDatasetWithLineage} from './dataset';
 import {
   BLOB,
   BLOB_NULL,
@@ -621,4 +621,108 @@ test('union type widening', () => {
     bar: STR_NULL,
     baz: UNKNOWN,
   });
+});
+
+test('union dataset keeps datasets with different joins separate', () => {
+  const datasetA = new SourceDataset({
+    src: 'slice',
+    schema: {id: NUM},
+    joins: {
+      thread: {from: 'thread USING (utid)'},
+    },
+  });
+
+  const datasetB = new SourceDataset({
+    src: 'slice',
+    schema: {id: NUM},
+    // No joins
+  });
+
+  const union = UnionDataset.create([datasetA, datasetB]);
+  const sql = union.query();
+
+  // Should contain UNION ALL because they cannot be merged
+  expect(sql).toContain('UNION ALL');
+
+  // One part should have the join
+  expect(sql).toContain('JOIN thread');
+});
+
+test('union dataset merges datasets with same joins', () => {
+  const datasetA = new SourceDataset({
+    src: 'slice',
+    schema: {id: NUM},
+    joins: {
+      thread: {from: 'thread USING (utid)'},
+    },
+    filter: {col: 'id', eq: 1},
+  });
+
+  const datasetB = new SourceDataset({
+    src: 'slice',
+    schema: {id: NUM},
+    joins: {
+      thread: {from: 'thread USING (utid)'},
+    },
+    filter: {col: 'id', eq: 2},
+  });
+
+  const union = UnionDataset.create([datasetA, datasetB]);
+  const sql = union.query();
+
+  // Should NOT contain UNION ALL, they should merge
+  expect(sql).not.toContain('UNION ALL');
+  expect(sql).toContain('WHERE id IN (1, 2)');
+});
+
+test('union dataset with lineage keeps datasets with different joins separate', () => {
+  const datasetA = new SourceDataset({
+    src: 'slice',
+    schema: {id: NUM},
+    joins: {
+      thread: {from: 'thread USING (utid)'},
+    },
+  });
+
+  const datasetB = new SourceDataset({
+    src: 'slice',
+    schema: {id: NUM},
+    // No joins
+  });
+
+  const union = UnionDatasetWithLineage.create([datasetA, datasetB]);
+  const sql = union.query();
+
+  // Should contain UNION ALL because they cannot be merged
+  expect(sql).toContain('UNION ALL');
+
+  // One part should have the join
+  expect(sql).toContain('JOIN thread');
+});
+
+test('union dataset with lineage merges datasets with same joins', () => {
+  const datasetA = new SourceDataset({
+    src: 'slice',
+    schema: {id: NUM},
+    joins: {
+      thread: {from: 'thread USING (utid)'},
+    },
+    filter: {col: 'id', eq: 1},
+  });
+
+  const datasetB = new SourceDataset({
+    src: 'slice',
+    schema: {id: NUM},
+    joins: {
+      thread: {from: 'thread USING (utid)'},
+    },
+    filter: {col: 'id', eq: 2},
+  });
+
+  const union = UnionDatasetWithLineage.create([datasetA, datasetB]);
+  const sql = union.query();
+
+  // Should NOT contain UNION ALL, they should merge
+  expect(sql).not.toContain('UNION ALL');
+  expect(sql).toContain('WHERE id IN (1, 2)');
 });

@@ -17,6 +17,7 @@ source_set("trace_processor") {
     "iterator.h",
     "metatrace_config.h",
     "read_trace.h",
+    "summarizer.h",
     "trace_processor.h",
   ]
   public_deps = [

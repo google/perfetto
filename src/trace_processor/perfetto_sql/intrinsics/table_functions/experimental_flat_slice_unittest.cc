@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "test/gtest_and_gmock.h"

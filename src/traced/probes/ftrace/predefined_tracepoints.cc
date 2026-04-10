@@ -83,6 +83,8 @@ base::FlatSet<GroupAndName> GenerateGfxTracePoints(
   AddEventGroup(table, "dpu", &events);
   InsertEvent("dpu", "tracing_mark_write", &events);
   InsertEvent("dpu", "disp_dpu_underrun", &events);
+  InsertEvent("dpu", "disp_frame_start_timeout", &events);
+  InsertEvent("dpu", "disp_frame_done_timeout", &events);
 
   AddEventGroup(table, "g2d", &events);
   InsertEvent("g2d", "tracing_mark_write", &events);
@@ -92,6 +94,7 @@ base::FlatSet<GroupAndName> GenerateGfxTracePoints(
 
   AddEventGroup(table, "panel", &events);
   InsertEvent("panel", "panel_write_generic", &events);
+  InsertEvent("panel", "gram_collision", &events);
   return events;
 }
 
@@ -298,6 +301,8 @@ base::FlatSet<GroupAndName> GenerateMemreclaimTracePoints(
   base::FlatSet<GroupAndName> events;
   InsertEvent("vmscan", "mm_vmscan_direct_reclaim_begin", &events);
   InsertEvent("vmscan", "mm_vmscan_direct_reclaim_end", &events);
+  InsertEvent("vmscan", "mm_vmscan_memcg_reclaim_begin", &events);
+  InsertEvent("vmscan", "mm_vmscan_memcg_reclaim_end", &events);
   InsertEvent("vmscan", "mm_vmscan_kswapd_wake", &events);
   InsertEvent("vmscan", "mm_vmscan_kswapd_sleep", &events);
   AddEventGroup(table, "lowmemorykiller", &events);

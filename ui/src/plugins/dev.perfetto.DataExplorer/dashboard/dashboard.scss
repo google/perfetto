@@ -1,0 +1,590 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "../../../assets/theme";
+
+.pf-dashboard {
+  height: 100%;
+  display: flex;
+  overflow: hidden;
+}
+
+// Column wrapper for the filter bar + canvas (sits inside the row layout).
+.pf-dashboard__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pf-dashboard__canvas {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  position: relative;
+
+  // Reuse the same dot pattern as the node graph canvas.
+  background-color: color-mix(
+    in srgb,
+    var(--pf-color-background) 90%,
+    var(--pf-color-border-secondary) 10%
+  );
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--pf-color-border-secondary) 85%, black 15%) 1px,
+    transparent 0px
+  );
+  // --pf-grid-cell-size is set by the component based on canvas width / 25
+  // (24 columns + 2 × 0.5-cell margin).
+  background-size: var(--pf-grid-cell-size, 100px)
+    var(--pf-grid-cell-size, 100px);
+  // Offset dots to align with the grid margin.
+  background-position: var(--pf-grid-margin-px, 0) var(--pf-grid-margin-px, 0);
+
+  // Show grid lines while dragging or resizing items.
+  &.pf-dashboard__canvas--grid-visible {
+    background-image: repeating-linear-gradient(
+        to right,
+        color-mix(in srgb, var(--pf-color-border-secondary) 50%, transparent) 0
+          1px,
+        transparent 1px var(--pf-grid-cell-size)
+      ),
+      repeating-linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--pf-color-border-secondary) 50%, transparent) 0
+          1px,
+        transparent 1px var(--pf-grid-cell-size)
+      );
+    background-size: auto;
+  }
+}
+
+// Centered overlay for the empty state.
+.pf-dashboard__empty-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  text-align: center;
+  padding: 24px;
+}
+
+// Scrollable body of the add panel.
+.pf-dashboard__add-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+// Full-width item row used in the add panel (non-chart items).
+.pf-dashboard__add-panel-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 13px;
+
+  &:hover {
+    background: var(--pf-color-background-hover);
+  }
+
+  .pf-icon {
+    font-size: 22px;
+    color: var(--pf-color-text-muted);
+  }
+}
+
+// Empty-state message when no data source is available for charts.
+.pf-dashboard__add-panel-empty {
+  padding: 12px;
+  font-size: 12px;
+  color: var(--pf-color-text-muted);
+}
+
+// Horizontal filter bar below the tab strip.
+.pf-dashboard__filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--pf-color-border);
+  background: var(--pf-color-background);
+}
+
+// Per-source group of chips inside the filter bar.
+.pf-dashboard__filter-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border-secondary);
+  border-radius: 6px;
+}
+
+// Actions (clear all + collapse) pushed to the right.
+.pf-dashboard__filter-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+// Popup showing individual filter values for a column.
+.pf-dashboard__filter-popup {
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+// Individual chart card on the dashboard canvas.
+// Width, height, left, and top are set inline from grid coordinates.
+.pf-dashboard__chart {
+  position: absolute;
+  background: var(--pf-color-background);
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  // Smooth settling when snapped to grid.
+  transition:
+    left 0.1s ease-out,
+    top 0.1s ease-out,
+    width 0.1s ease-out,
+    height 0.1s ease-out;
+
+  &--dragging {
+    opacity: 0.6;
+    z-index: 100;
+    cursor: grabbing;
+    transition: none;
+  }
+
+  // Position resize handles at the edges of the card.
+  > .pf-resize-handle--horizontal {
+    position: absolute;
+    right: -1px;
+    top: 0;
+    bottom: 0;
+  }
+
+  > .pf-resize-handle--vertical {
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+  }
+}
+
+.pf-dashboard__chart-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  flex-shrink: 0;
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+.pf-dashboard__source-chip {
+  flex-shrink: 0;
+  font-size: 11px;
+  max-width: 120px;
+}
+
+.pf-dashboard__chart-header-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+    text-decoration-style: dotted;
+  }
+}
+
+.pf-dashboard__chart-title-input {
+  flex: 0 1 auto;
+  width: 0;
+  min-width: 40px;
+  max-width: 200px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  border-bottom: 1px solid var(--pf-color-accent);
+}
+
+.pf-dashboard__chart-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.pf-dashboard__chart-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  // Padding around the chart creates grabbable margins for dragging.
+  padding: 4px 6px 10px;
+
+  canvas {
+    cursor: default;
+  }
+}
+
+// Label delete button — appears on hover in the top-right corner.
+.pf-dashboard__label-delete {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 1;
+
+  .pf-dashboard__chart:hover & {
+    opacity: 1;
+  }
+}
+
+// Label textarea inside a label card.
+.pf-dashboard__label-textarea {
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 12px;
+  font: inherit;
+  font-size: var(--pf-font-size-s);
+  background: transparent;
+  color: inherit;
+}
+
+// --- Segment divider ---
+// A full-width horizontal rule that separates driver and consumer charts.
+// Top is set inline from grid coordinates; the divider occupies zero grid rows
+// and sits exactly on a grid line.
+.pf-dashboard__divider {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  cursor: grab;
+  z-index: 5;
+  user-select: none;
+  transition: top 0.1s ease-out;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  &--dragging {
+    opacity: 0.6;
+    z-index: 100;
+    transition: none;
+  }
+
+  &:hover {
+    .pf-dashboard__divider-actions {
+      opacity: 1;
+    }
+  }
+}
+
+.pf-dashboard__divider-line {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  top: 50%;
+  height: 0;
+  border-top: 2px dashed var(--pf-color-border);
+  opacity: 0.5;
+}
+
+.pf-dashboard__divider-label {
+  position: relative;
+  margin-left: 40px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pf-color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--pf-color-background);
+  border: 1px solid var(--pf-color-border-secondary);
+  border-radius: 10px;
+}
+
+.pf-dashboard__divider-actions {
+  position: relative;
+  margin-left: 8px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+// Content panel — slides in next to the side-panel for add / data / linked.
+.pf-dashboard__content-panel {
+  width: 300px;
+  min-width: 0;
+  height: 100%;
+  border-left: 1px solid var(--pf-color-border);
+  background: var(--pf-color-background);
+  display: flex;
+  flex-direction: column;
+}
+
+.pf-dashboard__input-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.pf-dashboard__panel-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pf-color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 16px 12px 8px;
+}
+
+.pf-dashboard__panel-section-subtitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--pf-color-text-muted);
+  letter-spacing: 0.3px;
+  padding: 8px 12px 4px;
+}
+
+.pf-dashboard__input-name {
+  font-family: var(--pf-font-monospace);
+  font-size: 12px;
+}
+
+.pf-dashboard__source-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+// Detail rows (input name, column count).
+.pf-dashboard__detail-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pf-dashboard__detail-label {
+  font-size: 11px;
+  color: var(--pf-color-text-muted);
+  text-transform: uppercase;
+  min-width: 50px;
+}
+
+.pf-dashboard__detail-value {
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Column list — matching query page's column list style.
+.pf-dashboard__columns {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pf-dashboard__column-list {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+  border: 1px solid var(--pf-color-border-secondary);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.pf-dashboard__column {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--pf-color-border-secondary);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background: var(--pf-color-background-hover);
+  }
+}
+
+.pf-dashboard__column-icon {
+  font-size: 14px;
+  color: var(--pf-color-text-muted);
+  width: 16px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.pf-dashboard__column-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pf-dashboard__column-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pf-dashboard__column-name {
+  font-size: 12px;
+}
+
+.pf-dashboard__column-type {
+  font-size: 11px;
+  color: var(--pf-color-text-muted);
+  margin-left: auto;
+}
+
+// "Add Chart" button inside the data panel source accordion.
+.pf-dashboard__add-chart-btn {
+  width: 100%;
+  margin-top: 8px;
+  justify-content: center;
+  border: 1px dashed var(--pf-color-border);
+  border-radius: 4px;
+  color: var(--pf-color-text-muted);
+  font-size: 12px;
+
+  &:hover {
+    border-color: var(--pf-color-accent);
+    color: var(--pf-color-accent);
+    background: color-mix(in srgb, var(--pf-color-accent) 5%, transparent);
+  }
+}
+
+// Linked columns panel entries.
+.pf-dashboard__linked-column {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--pf-color-border-secondary);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.pf-dashboard__linked-column-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+
+  .pf-icon {
+    font-size: 14px;
+    color: var(--pf-color-text-muted);
+  }
+
+  code {
+    font-family: var(--pf-font-monospace);
+  }
+}
+
+.pf-dashboard__linked-column-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 20px;
+}
+
+.pf-dashboard__linked-column-source {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-dashboard__linked-source-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Side panel matching the builder's .pf-qb-side-panel style.
+.pf-dashboard__side-panel {
+  width: 60px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  border-left: 1px solid var(--pf-color-border);
+  align-items: stretch;
+
+  .pf-button {
+    width: 100%;
+    height: 60px;
+    font-size: var(--pf-font-size-xxl);
+    box-shadow: none;
+    border: none;
+    border-radius: 0;
+    border-bottom: 1px solid var(--pf-color-border);
+
+    &.pf-active {
+      background-color: var(--pf-color-primary);
+      color: var(--pf-color-text-on-primary);
+    }
+  }
+}

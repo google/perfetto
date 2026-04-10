@@ -75,7 +75,8 @@ class ProtoTraceTokenizer {
       if (PERFETTO_UNLIKELY(tag_end == tag_start)) {
         return header->size() < kMaxHeaderBytes
                    ? base::OkStatus()
-                   : base::ErrStatus("Failed to parse tag");
+                   : base::ErrStatus("Failed to parse tag @ 0x%zx",
+                                     start_offset);
       }
 
       if (PERFETTO_UNLIKELY(tag != kTracePacketTag)) {
@@ -91,7 +92,8 @@ class ProtoTraceTokenizer {
             if (PERFETTO_UNLIKELY(varint_end == varint_start)) {
               return header->size() < kMaxHeaderBytes
                          ? base::OkStatus()
-                         : base::ErrStatus("Failed to skip varint");
+                         : base::ErrStatus("Failed to skip varint @ 0x%zx",
+                                           start_offset);
             }
             PERFETTO_CHECK(reader_.PopFrontBytes(
                 static_cast<size_t>(varint_end - tag_start)));
@@ -106,7 +108,8 @@ class ProtoTraceTokenizer {
             if (PERFETTO_UNLIKELY(varint_end == varint_start)) {
               return header->size() < kMaxHeaderBytes
                          ? base::OkStatus()
-                         : base::ErrStatus("Failed to skip delimited");
+                         : base::ErrStatus("Failed to skip delimited @ 0x%zx",
+                                           start_offset);
             }
 
             size_t size_incl_header =
@@ -138,7 +141,7 @@ class ProtoTraceTokenizer {
             continue;
           }
           default:
-            return base::ErrStatus("Unknown field type");
+            return base::ErrStatus("Unknown field type @ 0x%zx", start_offset);
         }
       }
 

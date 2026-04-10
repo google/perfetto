@@ -66,10 +66,13 @@ class TestLoader:
       expected_str = self._get_expected_str(name, blueprint, expected_path)
       register_files_dir = self._get_register_files_dir(name, blueprint)
       test_type = self._get_test_type(blueprint)
+      spec_file_path = self._get_spec_file_path(name, blueprint)
+      spec_textproto = self._get_spec_textproto(blueprint)
 
       runnable.append(
           TestCase(name, blueprint, query_path, trace_path, expected_path,
-                   expected_str, register_files_dir, test_type))
+                   expected_str, register_files_dir, test_type, spec_file_path,
+                   spec_textproto))
     return DiscoveredTests(runnable, skipped_name_filter,
                            skipped_module_missing)
 
@@ -88,6 +91,8 @@ class TestLoader:
       return TestType.METRIC
     elif blueprint.is_metric_v2():
       return TestType.METRIC_V2
+    elif blueprint.is_structured_query():
+      return TestType.STRUCTURED_QUERY
     else:
       return TestType.QUERY
 
@@ -125,6 +130,24 @@ class TestLoader:
     assert isinstance(blueprint.out, (Path, DataPath))
     return self._get_path(name, blueprint.out, blueprint.index_dir,
                           blueprint.test_data_dir)
+
+  def _get_spec_file_path(self, name: str,
+                          blueprint: DiffTestBlueprint) -> Optional[str]:
+    if not blueprint.is_structured_query():
+      return None
+    from python.generators.diff_tests.testing import StructuredQuery
+    assert isinstance(blueprint.query, StructuredQuery)
+    if blueprint.query.spec_file is None:
+      return None
+    return self._get_path(name, blueprint.query.spec_file, blueprint.index_dir,
+                          blueprint.test_data_dir)
+
+  def _get_spec_textproto(self, blueprint: DiffTestBlueprint) -> Optional[str]:
+    if not blueprint.is_structured_query():
+      return None
+    from python.generators.diff_tests.testing import StructuredQuery
+    assert isinstance(blueprint.query, StructuredQuery)
+    return blueprint.query.spec_textproto
 
   def _get_register_files_dir(self, name: str,
                               blueprint: DiffTestBlueprint) -> Optional[str]:

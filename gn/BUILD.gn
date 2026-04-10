@@ -76,6 +76,7 @@ action("gen_buildflags") {
   } else {
     perfetto_local_symbolizer = "0"
   }
+
   response_file_contents = [
     "--flags",  # Keep this marker first.
     "PERFETTO_ANDROID_BUILD=$perfetto_build_with_android",
@@ -91,12 +92,12 @@ action("gen_buildflags") {
     "PERFETTO_FORCE_DLOG_OFF=$perfetto_force_dlog_off",
     "PERFETTO_FORCE_DCHECK_ON=$perfetto_force_dcheck_on",
     "PERFETTO_FORCE_DCHECK_OFF=$perfetto_force_dcheck_off",
+    "PERFETTO_HTTP_ADDITIONAL_CORS_ORIGINS=\"$perfetto_http_additional_cors_origins\"",
     "PERFETTO_VERBOSE_LOGS=$perfetto_verbose_logs_enabled",
     "PERFETTO_VERSION_GEN=$enable_perfetto_version_gen",
     "PERFETTO_TP_PERCENTILE=$enable_perfetto_trace_processor_percentile",
     "PERFETTO_TP_LINENOISE=$enable_perfetto_trace_processor_linenoise",
     "PERFETTO_TP_HTTPD=$enable_perfetto_trace_processor_httpd",
-    "PERFETTO_TP_JSON=$enable_perfetto_trace_processor_json",
     "PERFETTO_TP_INSTRUMENTS=$enable_perfetto_trace_processor_mac_instruments",
     "PERFETTO_LOCAL_SYMBOLIZER=$perfetto_local_symbolizer",
     "PERFETTO_ZLIB=$enable_perfetto_zlib",
@@ -111,6 +112,8 @@ action("gen_buildflags") {
     "PERFETTO_ENABLE_RT_MUTEX=$enable_perfetto_rt_mutex",
     "PERFETTO_ENABLE_LOCKFREE_TASKRUNNER=$enable_perfetto_lockfree_taskrunner",
     "PERFETTO_ENABLE_SOCK_INOTIFY=$enable_perfetto_sock_inotify",
+    "PERFETTO_RE2=$enable_perfetto_re2",
+    "PERFETTO_PCRE2=$enable_perfetto_pcre2",
   ]
 
   rel_out_path = rebase_path(gen_header_path, "$root_build_dir")
@@ -229,10 +232,12 @@ group("gtest_main") {
 protobuf_full_deps_allowlist = [
   "../buildtools/grpc:*",
   "../src/ipc/protoc_plugin:*",
+  "../src/tools:tracing_proto_extensions_lib",
   "../src/protozero/protoc_plugin:*",
+  "../src/protozero:multifile_error_collector",
   "../src/protozero/filtering:filter_util",
   "../src/trace_processor:trace_processor_shell_lib",
-  "../src/protozero/filtering:filter_util",
+  "../src/trace_processor/shell:*",
   "../tools/*",
   "../src/tools/*",
   "../contrib/rust-sdk/tools/*",
@@ -400,17 +405,6 @@ if (enable_perfetto_trace_processor_mac_instruments) {
   }
 }
 
-if (enable_perfetto_trace_processor_json) {
-  group("jsoncpp") {
-    if (perfetto_root_path == "//") {
-      public_configs = [ "//buildtools:jsoncpp_config" ]
-      public_deps = [ "//buildtools:jsoncpp" ]
-    } else {
-      public_deps = [ "//third_party/jsoncpp:jsoncpp" ]
-    }
-  }
-}
-
 if (enable_perfetto_grpc) {
   group("grpc") {
     public_configs = [ "//buildtools:grpc_public_config" ]
@@ -504,5 +498,27 @@ if (enable_perfetto_etm_importer) {
   group("open_csd") {
     visibility = [ "//src/trace_processor/importers/etm" ]
     public_deps = [ "//buildtools:open_csd" ]
+  }
+}
+
+if (enable_perfetto_pcre2) {
+  group("pcre2") {
+    if (perfetto_root_path == "//") {
+      public_deps = [ "//buildtools:pcre2" ]
+    } else {
+      assert(false, "PCRE2 is only supported in standalone builds")
+    }
+  }
+}
+
+if (enable_perfetto_re2) {
+  group("re2") {
+    if (perfetto_root_path == "//") {
+      public_deps = [ "//buildtools:re2" ]
+    } else {
+      # This part will be overridden by the various build generators (Android.bp,
+      # Bazel) to point to the right path.
+      public_deps = [ "//third_party/re2" ]
+    }
   }
 }

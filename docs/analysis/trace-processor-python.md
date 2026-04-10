@@ -109,12 +109,15 @@ tp = TraceProcessor(trace='trace.perfetto-trace', addr='localhost:9001')
 The `TraceProcessor` can be customized using the `TraceProcessorConfig` class.
 
 ```python
-from perfetto.trace_processor import TraceProcessor, TraceProcessorConfig
+from perfetto.trace_processor import TraceProcessor, TraceProcessorConfig, SqlPackage
 
 config = TraceProcessorConfig(
     bin_path='/path/to/trace_processor', # Path to custom binary
     verbose=True,
-    add_sql_packages=['/path/to/my/sql/modules']
+    add_sql_packages=[
+        '/path/to/my/sql/modules',  # Uses directory name as package name
+        SqlPackage('/path/to/other', package='custom.pkg')  # Custom package name
+    ]
 )
 tp = TraceProcessor(trace='trace.perfetto-trace', config=config)
 ```
@@ -122,9 +125,11 @@ tp = TraceProcessor(trace='trace.perfetto-trace', config=config)
 `TraceProcessorConfig` has many options for customizing the `trace_processor`
 instance. The most important are:
 
-- `add_sql_packages`: A list of paths to additional PerfettoSQL packages to
-  load. All SQL modules inside these packages will be available to include using
-  `INCLUDE PERFETTO MODULE` PerfettoSQL statements.
+- `add_sql_packages`: A list of PerfettoSQL packages to load. Each element can
+  be a string path (directory name becomes the package name) or a `SqlPackage`
+  object (allows specifying a custom package name). All SQL modules inside these
+  packages will be available to include using `INCLUDE PERFETTO MODULE`
+  PerfettoSQL statements.
 - `verbose`: If `True`, `trace_processor` will print verbose output to stdout.
   This is useful for debugging and seeing more detailed error messages.
 - `bin_path`: Path to the `trace_processor` binary. If not given, the latest
@@ -186,6 +191,35 @@ ts                   dur                  name
      261187021345235                  642 bufferLoad
      261187121345235                  153 query
      ...
+```
+
+Alternatively, results can be converted to a [Polars](https://pola.rs/) DataFrame
+using `as_polars_dataframe()`. Polars is an optional dependency.
+
+```python
+# Requires polars
+# pip install perfetto[polars]
+qr_it = tp.query('SELECT ts, dur, name FROM slice')
+qr_df = qr_it.as_polars_dataframe()
+print(qr_df)
+```
+
+**Output**
+
+```
+shape: (5, 3)
+┌─────────────────────┬────────┬─────────────────────────────┐
+│ ts                  ┆ dur    ┆ name                        │
+│ ---                 ┆ ---    ┆ ---                         │
+│ i64                 ┆ i64    ┆ str                         │
+╞═════════════════════╪════════╪═════════════════════════════╡
+│ 261187017446933     ┆ 358594 ┆ eglSwapBuffersWithDamageKHR │
+│ 261187017518340     ┆    357 ┆ onMessageReceived           │
+│ 261187020825163     ┆   9948 ┆ queueBuffer                 │
+│ 261187021345235     ┆    642 ┆ bufferLoad                  │
+│ 261187121345235     ┆    153 ┆ query                       │
+│ …                   ┆ …      ┆ …                           │
+└─────────────────────┴────────┴─────────────────────────────┘
 ```
 
 You can use Pandas DataFrames to easily create visualizations from trace data.

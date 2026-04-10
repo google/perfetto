@@ -71,7 +71,7 @@ ActiveChromeProcessesTracker::GetProcessesWithDataLoss() const {
   return processes_with_data_loss;
 }
 
-void ActiveChromeProcessesTracker::NotifyEndOfFile() {
+void ActiveChromeProcessesTracker::OnEventsFullyExtracted() {
   const auto processes = GetProcessesWithDataLoss();
   for (const auto& p : processes) {
     tables::ExpMissingChromeProcTable::Row row;
