@@ -24,6 +24,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flags.h"
+#include "perfetto/ext/base/status_macros.h"
 
 // Picks the regex backend and exposes it as PERFETTO_REGEX_BACKEND.
 // Preference order:
@@ -68,13 +69,12 @@ Regex::~Regex() = default;
 StatusOr<Regex> Regex::Create(std::string_view pattern,
                               Regex::CaseSensitivity cs) {
   bool insensitive = (cs == CaseSensitivity::kInsensitive);
-  auto backend_or = RegexImpl::Backend::Create(pattern, insensitive);
-  if (!backend_or.ok())
-    return backend_or.status();
+  ASSIGN_OR_RETURN(auto backend,
+                   RegexImpl::Backend::Create(pattern, insensitive));
   Regex regex;
   regex.pattern_ = std::string(pattern);
   regex.cs_ = cs;
-  regex.impl_ = std::make_unique<RegexImpl>(std::move(*backend_or));
+  regex.impl_ = std::make_unique<RegexImpl>(std::move(backend));
   return std::move(regex);
 }
 
