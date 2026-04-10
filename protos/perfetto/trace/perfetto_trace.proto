@@ -7731,6 +7731,16 @@ message ChromeMetadataPacket {
   // The package name of the app which is being traced. This field is only set
   // on Android.
   optional string app_package_name = 5;
+
+  // A version number string for Chrome. This matches
+  // SystemProfileProto::app_version.
+  optional string app_version = 6;
+
+  // This matches SystemProfileProto::channel.
+  optional uint32 channel = 7;
+
+  // The user's operating system. This matches SystemProfileProto::OS::name.
+  optional string os_name = 8;
 }
 
 // Metadata related to background tracing scenarios, states and triggers.
