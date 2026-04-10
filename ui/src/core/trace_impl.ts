@@ -53,6 +53,7 @@ import {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
 import {TraceStream} from '../public/stream';
 import {OmniboxModeDescriptor} from '../public/omnibox';
+import {CpuInfoManagerImpl} from './cpu_info_manager';
 
 /**
  * This implementation provides the plugin access to trace related resources,
@@ -276,6 +277,10 @@ export class TraceImpl implements Trace, Disposable {
 
   get plugins(): PluginManagerImpl {
     return this.app.plugins;
+  }
+
+  get cpuInfos(): CpuInfoManagerImpl {
+    return this.app.cpuInfos;
   }
 
   get analytics(): Analytics {
