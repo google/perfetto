@@ -50,6 +50,7 @@ namespace profiling {
 namespace {
 
 base::UnixSocketRaw* g_client_sock;
+bool g_blocking_exit = false;
 
 bool MonitorFdOnce() {
   char buf[1];
@@ -62,7 +63,11 @@ bool MonitorFdOnce() {
     PERFETTO_PLOG("Receive failed.");
     return true;
   }
-  AHeapProfile_initSession(malloc, free);
+  if (g_blocking_exit) {
+    AHeapProfile_initSessionWithBlockingExit(malloc, free);
+  } else {
+    AHeapProfile_initSession(malloc, free);
+  }
   return true;
 }
 
@@ -109,6 +114,9 @@ void StartHeapprofdIfStatic() {
       PERFETTO_PLOG("waitpid");
 
     *g_client_sock = std::move(cli_sock);
+
+    const char* e = getenv("PERFETTO_HEAPPROFD_BLOCKING_EXIT");
+    g_blocking_exit = e && e[0] == '1';
 
     const char* w = getenv("PERFETTO_HEAPPROFD_BLOCKING_INIT");
     if (w && w[0] == '1') {
