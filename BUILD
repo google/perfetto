@@ -5936,7 +5936,7 @@ perfetto_dart_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_proto_library(
     name = "trace_processor_proto",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = PERFETTO_CONFIG.trace_processor_proto_library_visibility,
     deps = [
         ":protos_perfetto_common_protos",
         ":protos_perfetto_perfetto_sql_protos",
@@ -5949,7 +5949,7 @@ perfetto_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_cc_proto_library(
     name = "trace_processor_cc_proto",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = PERFETTO_CONFIG.trace_processor_proto_library_visibility,
     deps = [
         ":trace_processor_proto",
     ],
@@ -5958,7 +5958,7 @@ perfetto_cc_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_java_proto_library(
     name = "trace_processor_java_proto",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = PERFETTO_CONFIG.trace_processor_proto_library_visibility,
     deps = [
         ":trace_processor_proto",
     ],
@@ -5967,7 +5967,7 @@ perfetto_java_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_java_lite_proto_library(
     name = "trace_processor_java_proto_lite",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = PERFETTO_CONFIG.trace_processor_proto_library_visibility,
     deps = [
         ":trace_processor_proto",
     ],
@@ -5976,7 +5976,7 @@ perfetto_java_lite_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_py_proto_library(
     name = "trace_processor_py_pb2",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = PERFETTO_CONFIG.trace_processor_proto_library_visibility,
     deps = [
         ":trace_processor_proto",
     ],
@@ -5985,7 +5985,7 @@ perfetto_py_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_dart_proto_library(
     name = "trace_processor_dart_proto",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = PERFETTO_CONFIG.trace_processor_proto_library_visibility,
     deps = [
         ":trace_processor_proto",
     ],
