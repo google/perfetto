@@ -349,7 +349,7 @@ SELECT
   extract_arg(s.arg_set_id, 'Prediction type') AS prediction_type,
   extract_arg(s.arg_set_id, 'Jank tag') AS jank_tag,
   extract_arg(s.arg_set_id, 'Jank tag (experimental)') AS jank_tag_experimental,
-  extract_arg(s.arg_set_id, 'Jank Severity Score (experimental)') AS jank_score,
+  extract_arg(s.arg_set_id, 'Jank Severity Score') AS jank_score,
   extract_arg(s.arg_set_id, 'Latched unsignaled count') AS latched_unsignaled_count,
   extract_arg(s.arg_set_id, 'Addressable unsignaled latch count') AS addressable_unsignaled_latch_count,
   extract_arg(s.arg_set_id, 'Latched fence state') AS latched_fence_state
