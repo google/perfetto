@@ -63,6 +63,7 @@ def main():
   parser.add_argument('--chrome-track-event-descriptor', type=str, default=None)
   parser.add_argument('--test-extensions', type=str, default=None)
   parser.add_argument('--winscope-extensions', type=str, default=None)
+  parser.add_argument('--gpu-extensions', type=str, default=None)
   parser.add_argument('--simpleperf-descriptor', type=str, default=None)
   parser.add_argument('--perf-file', type=str)
   parser.add_argument(
@@ -106,6 +107,9 @@ def main():
   if args.winscope_extensions is None:
     args.winscope_extensions = os.path.join(protos_path, 'perfetto', 'trace',
                                             'android', 'winscope.descriptor')
+  if args.gpu_extensions is None:
+    args.gpu_extensions = os.path.join(protos_path, 'perfetto', 'trace', 'gpu',
+                                       'gpu_track_event.descriptor')
   if args.simpleperf_descriptor is None:
     args.simpleperf_descriptor = os.path.join(protos_path, 'third_party',
                                               'simpleperf',
@@ -128,6 +132,7 @@ def main():
       chrome_extensions=args.chrome_track_event_descriptor,
       test_extensions=args.test_extensions,
       winscope_extensions=args.winscope_extensions,
+      gpu_extensions=args.gpu_extensions,
       simpleperf_descriptor=args.simpleperf_descriptor,
       keep_input=args.keep_input,
       print_slowest_tests=args.print_slowest_tests,

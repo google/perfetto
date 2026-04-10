@@ -51,6 +51,16 @@ class GpuTracker {
   // event_wait_ids that reference this event_id.
   void AddGpuRenderStageSlice(uint64_t event_id, SliceId slice_id);
 
+  // Registers a track event slice as a submission point. Correlates it with
+  // all GPU render stage slices (past and future) that share the same
+  // event_id.
+  void AddRenderStageSubmission(uint64_t event_id, SliceId slice_id);
+
+  // Registers a track event slice as waiting on a GPU render stage event
+  // to complete. Correlates all GPU render stage slices (past and future)
+  // that share the same event_id with this slice.
+  void AddRenderStageWait(uint64_t event_id, SliceId slice_id);
+
   // Registers that a GPU render stage slice waited on another event.
   // Correlates the referenced event_id with this slice.
   void AddEventWait(uint64_t waited_event_id, SliceId slice_id);
@@ -63,6 +73,12 @@ class GpuTracker {
 
   // Maps event_id to GPU render stage slice IDs.
   base::FlatHashMap<uint64_t, std::vector<SliceId>> event_id_to_gpu_slices_;
+
+  // Maps event_id to the track event slice ID.
+  base::FlatHashMap<uint64_t, SliceId> event_id_to_track_event_slice_;
+
+  // Maps event_id to the terminating track event slice ID.
+  base::FlatHashMap<uint64_t, SliceId> event_id_to_terminating_slice_;
 
   // Maps event_id to slice IDs that are waiting on it (via event_wait_ids).
   base::FlatHashMap<uint64_t, std::vector<SliceId>> event_id_to_waiting_slices_;

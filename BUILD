@@ -520,6 +520,7 @@ perfetto_cc_library(
                ":protos_perfetto_trace_filesystem_zero",
                ":protos_perfetto_trace_ftrace_zero",
                ":protos_perfetto_trace_generic_kernel_zero",
+               ":protos_perfetto_trace_gpu_gpu_track_event_zero",
                ":protos_perfetto_trace_gpu_zero",
                ":protos_perfetto_trace_interned_data_zero",
                ":protos_perfetto_trace_minimal_zero",
@@ -550,6 +551,7 @@ perfetto_cc_library(
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+               ":src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
@@ -753,6 +755,7 @@ perfetto_cc_library(
                ":protos_perfetto_trace_filesystem_zero",
                ":protos_perfetto_trace_ftrace_zero",
                ":protos_perfetto_trace_generic_kernel_zero",
+               ":protos_perfetto_trace_gpu_gpu_track_event_zero",
                ":protos_perfetto_trace_gpu_zero",
                ":protos_perfetto_trace_interned_data_zero",
                ":protos_perfetto_trace_minimal_zero",
@@ -784,6 +787,7 @@ perfetto_cc_library(
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+               ":src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
@@ -2878,6 +2882,17 @@ perfetto_cc_proto_descriptor(
     ],
     outs = [
         "src/trace_processor/importers/proto/chrome_track_event_extension.descriptor.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/proto:gen_cc_gpu_track_event_descriptor
+perfetto_cc_proto_descriptor(
+    name = "src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
+    deps = [
+        ":protos_perfetto_trace_gpu_gpu_track_event_descriptor",
+    ],
+    outs = [
+        "src/trace_processor/importers/proto/gpu_track_event.descriptor.h",
     ],
 )
 
@@ -7724,6 +7739,43 @@ perfetto_cc_protozero_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace/gpu:gpu_track_event_descriptor
+perfetto_proto_descriptor(
+    name = "protos_perfetto_trace_gpu_gpu_track_event_descriptor",
+    deps = [
+        ":protos_perfetto_trace_gpu_gpu_track_event_protos",
+    ],
+    outs = [
+        "protos_perfetto_trace_gpu_gpu_track_event_descriptor.bin",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/gpu:gpu_track_event_source_set
+perfetto_proto_library(
+    name = "protos_perfetto_trace_gpu_gpu_track_event_protos",
+    srcs = [
+        "protos/perfetto/trace/gpu/gpu_track_event.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+        ":protos_perfetto_trace_track_event_protos",
+    ],
+    exports = [
+        ":protos_perfetto_trace_track_event_protos",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/gpu:gpu_track_event_zero
+perfetto_cc_protozero_library(
+    name = "protos_perfetto_trace_gpu_gpu_track_event_zero",
+    deps = [
+        ":protos_perfetto_trace_gpu_gpu_track_event_protos",
+        ":protos_perfetto_trace_track_event_zero",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/gpu:source_set
 perfetto_proto_library(
     name = "protos_perfetto_trace_gpu_protos",
@@ -8901,6 +8953,7 @@ perfetto_cc_library(
                ":protos_perfetto_trace_filesystem_zero",
                ":protos_perfetto_trace_ftrace_zero",
                ":protos_perfetto_trace_generic_kernel_zero",
+               ":protos_perfetto_trace_gpu_gpu_track_event_zero",
                ":protos_perfetto_trace_gpu_zero",
                ":protos_perfetto_trace_interned_data_zero",
                ":protos_perfetto_trace_minimal_zero",
@@ -8930,6 +8983,7 @@ perfetto_cc_library(
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+               ":src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
@@ -9141,6 +9195,7 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_filesystem_zero",
                ":protos_perfetto_trace_ftrace_zero",
                ":protos_perfetto_trace_generic_kernel_zero",
+               ":protos_perfetto_trace_gpu_gpu_track_event_zero",
                ":protos_perfetto_trace_gpu_zero",
                ":protos_perfetto_trace_interned_data_zero",
                ":protos_perfetto_trace_minimal_zero",
@@ -9171,6 +9226,7 @@ perfetto_cc_binary(
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+               ":src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",

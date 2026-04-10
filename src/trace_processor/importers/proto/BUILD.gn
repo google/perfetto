@@ -77,6 +77,7 @@ source_set("minimal") {
   deps = [
     ":gen_cc_android_track_event_descriptor",
     ":gen_cc_chrome_track_event_descriptor",
+    ":gen_cc_gpu_track_event_descriptor",
     ":gen_cc_track_event_descriptor",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor:trace_processor",
@@ -87,6 +88,7 @@ source_set("minimal") {
     "../../../../protos/perfetto/trace/chrome:zero",
     "../../../../protos/perfetto/trace/etw:zero",
     "../../../../protos/perfetto/trace/ftrace:zero",
+    "../../../../protos/perfetto/trace/gpu:gpu_track_event_zero",
     "../../../../protos/perfetto/trace/interned_data:zero",
     "../../../../protos/perfetto/trace/perfetto:zero",
     "../../../../protos/perfetto/trace/power:zero",
@@ -299,6 +301,12 @@ perfetto_cc_proto_descriptor("gen_cc_android_track_event_descriptor") {
   descriptor_name = "android_track_event.descriptor"
   descriptor_target =
       "../../../../protos/perfetto/trace/android:android_track_event_descriptor"
+}
+
+perfetto_cc_proto_descriptor("gen_cc_gpu_track_event_descriptor") {
+  descriptor_name = "gpu_track_event.descriptor"
+  descriptor_target =
+      "../../../../protos/perfetto/trace/gpu:gpu_track_event_descriptor"
 }
 
 source_set("unittests") {
