@@ -44,6 +44,11 @@ from compat import itervalues, iteritems, basestring
 # which can depend on it.
 ALLOWLIST_PUBLIC_VISIBILITY = 'PERFETTO_CONFIG.public_visibility'
 
+# Visibility option for trace processor proto targets which we want an
+# allowlist of public targets which can depend on it, but should not be
+# visible to all targets that have public_visibility access.
+ALLOWLIST_TRACE_PROCESSOR_VISIBILITY = 'PERFETTO_CONFIG.trace_processor_proto_library_visibility'
+
 # Arguments for the GN output directory.
 # host_os="linux" is to generate the right build files from Mac OS.
 gn_args_base = {
@@ -138,6 +143,12 @@ proto_groups = {
         ],
         'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
     },
+    'winscope': {
+        'sources': [
+            '//protos/perfetto/trace/android:winscope_extensions_source_set',
+        ],
+        'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
+    },
     'metrics': {
         'sources': ['//protos/perfetto/metrics:source_set',],
         'visibility': ['//visibility:public'],
@@ -152,7 +163,7 @@ proto_groups = {
     },
     'trace_processor': {
         'sources': ['//protos/perfetto/trace_processor:source_set',],
-        'visibility': [],
+        'visibility': ALLOWLIST_TRACE_PROCESSOR_VISIBILITY,
     },
     'trace_summary': {
         'sources': ['//protos/perfetto/trace_summary:source_set',],

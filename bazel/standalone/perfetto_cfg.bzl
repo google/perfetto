@@ -112,6 +112,13 @@ PERFETTO_CONFIG = struct(
     # making the targets public in the google internal tree.
     proto_library_visibility = "//visibility:private",
 
+    # Allow Bazel embedders to change the visibility of the trace processor protos.
+    # Trace processor protos may be used outside of perfetto library, but should
+    # not be visible to all targets that have public_visibility access.
+    trace_processor_proto_library_visibility = [
+        "//visibility:private",
+    ],
+
     # Allow Bazel embedders to change the visibility of the Go protos.
     # Go protos have all sorts of strange behaviour in Google3 so need special
     # handling as the rules for other languages do not work for Go.
