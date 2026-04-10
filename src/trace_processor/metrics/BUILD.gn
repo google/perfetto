@@ -47,6 +47,7 @@ source_set("metrics") {
     "../../../protos/perfetto/trace_processor:metrics_impl_zero",
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
+    "../../base/regex",
     "../../protozero:protozero",
     "../perfetto_sql/engine",
     "../perfetto_sql/intrinsics/functions",

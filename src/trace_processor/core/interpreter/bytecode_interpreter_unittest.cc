@@ -32,7 +32,6 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
@@ -53,6 +52,7 @@
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/span.h"
+#include "src/trace_processor/util/regex.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::interpreter {
@@ -912,8 +912,10 @@ TEST_F(BytecodeInterpreterTest, StringFilter) {
   RunStringFilterSubTest("Eq apple", "Eq", "apple", {1, 4});
   RunStringFilterSubTest("Ne apple", "Ne", "apple", {0, 2, 3, 5, 6});
   RunStringFilterSubTest("Glob a*e", "Glob", "a*e", {1, 4});  // Matches apple
-  RunStringFilterSubTest("Regex ^d", "Regex", "^d",
-                         {5, 6});  // Matches date, durian
+  if constexpr (regex::IsRegexSupported()) {
+    RunStringFilterSubTest("Regex ^d", "Regex", "^d",
+                           {5, 6});  // Matches date, durian
+  }
   RunStringFilterSubTest("Lt banana", "Lt", "banana",
                          {1, 2, 4});  // Matches apple, ""
   RunStringFilterSubTest("Ge cherry", "Ge", "cherry",

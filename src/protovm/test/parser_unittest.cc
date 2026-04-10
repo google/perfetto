@@ -75,7 +75,7 @@ TEST_F(ParserTest, Del) {
 }
 
 TEST_F(ParserTest, Merge) {
-  EXPECT_CALL(executor_, Merge(testing::_))
+  EXPECT_CALL(executor_, Merge(testing::_, testing::_))
       .WillOnce(testing::Return(testing::ByMove(StatusOr<void>::Ok())));
 
   auto program = SamplePrograms::Merge().SerializeAsString();
