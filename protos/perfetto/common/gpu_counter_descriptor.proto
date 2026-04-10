@@ -82,6 +82,11 @@ message GpuCounterDescriptor {
   // command buffer.
   optional bool supports_instrumented_sampling = 5;
 
+  // optional.  The producer supports selecting counters by name via
+  // GpuCounterConfig.counter_names. Not all producers support this; Android
+  // GPU producers typically do not.
+  optional bool supports_counter_names = 6;
+
   // next id: 41
   enum MeasureUnit {
     NONE = 0;
