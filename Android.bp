@@ -773,6 +773,7 @@ cc_library_shared {
         android: {
             shared_libs: [
                 "liblog",
+                "libpcre2",
                 "libz",
             ],
             static_libs: [
@@ -782,6 +783,9 @@ cc_library_shared {
         host: {
             static_libs: [
                 "libz",
+            ],
+            whole_static_libs: [
+                "libpcre2",
             ],
         },
     },
@@ -1028,6 +1032,7 @@ cc_library {
         "perfetto_defaults",
     ],
     cflags: [
+        "-DPERFETTO_REGEX_FORCE_STD",
         "-DPERFETTO_SHLIB_SDK_IMPLEMENTATION",
     ],
     min_sdk_version: "30",
@@ -1310,6 +1315,9 @@ cc_library_static {
     ],
     defaults: [
         "perfetto_defaults",
+    ],
+    cflags: [
+        "-DPERFETTO_REGEX_FORCE_STD",
     ],
     apex_available: [
         "//apex_available:anyapex",
@@ -1937,6 +1945,7 @@ cc_library_static {
     ],
     shared_libs: [
         "liblog",
+        "libpcre2",
     ],
     static_libs: [
         "libgmock",
@@ -2297,6 +2306,9 @@ cc_library_static {
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_service_service",
         ":perfetto_test_test_helper",
+    ],
+    shared_libs: [
+        "libpcre2",
     ],
     static_libs: [
         "libgmock",
@@ -3098,6 +3110,7 @@ cc_test {
         "libbase",
         "libicu",
         "liblog",
+        "libpcre2",
         "libprocinfo",
         "libprotobuf-cpp-lite",
         "libsqlite",
@@ -17454,6 +17467,7 @@ cc_library_static {
             shared_libs: [
                 "libicu",
                 "liblog",
+                "libpcre2",
                 "libprotobuf-cpp-full",
                 "libsqlite",
                 "libutils",
@@ -17470,6 +17484,9 @@ cc_library_static {
                 "libsqlite_static_noicu",
                 "libz",
                 "sqlite_ext_percentile",
+            ],
+            whole_static_libs: [
+                "libpcre2",
             ],
         },
         musl: {
@@ -19859,6 +19876,7 @@ cc_test {
         "libbase",
         "libicu",
         "liblog",
+        "libpcre2",
         "libprocinfo",
         "libprotobuf-cpp-full",
         "libprotobuf-cpp-lite",
@@ -20251,6 +20269,9 @@ cc_library_static {
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_service_service",
         ":perfetto_test_test_helper",
+    ],
+    shared_libs: [
+        "libpcre2",
     ],
     static_libs: [
         "libgmock",
@@ -20845,6 +20866,7 @@ cc_library_static {
             shared_libs: [
                 "libicu",
                 "liblog",
+                "libpcre2",
                 "libsqlite",
                 "libutils",
                 "libz",
@@ -20859,6 +20881,9 @@ cc_library_static {
                 "libsqlite_static_noicu",
                 "libz",
                 "sqlite_ext_percentile",
+            ],
+            whole_static_libs: [
+                "libpcre2",
             ],
         },
     },
@@ -20886,6 +20911,7 @@ cc_binary {
             shared_libs: [
                 "libicu",
                 "liblog",
+                "libpcre2",
                 "libprotobuf-cpp-full",
                 "libsqlite",
                 "libutils",
@@ -21236,6 +21262,7 @@ cc_binary_host {
         ":perfetto_src_traceconv_utils",
     ],
     static_libs: [
+        "libpcre2",
         "libsqlite_static_noicu",
         "libz",
         "perfetto_src_trace_processor_demangle",
@@ -21490,6 +21517,7 @@ cc_binary {
     shared_libs: [
         "libbase",
         "liblog",
+        "libpcre2",
         "libprocinfo",
         "libunwindstack",
     ],
