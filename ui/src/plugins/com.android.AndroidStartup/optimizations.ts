@@ -84,7 +84,7 @@ export async function optimizationsTrack(
       AS
       SELECT
         MAX(slice_ts) AS compile_ts,
-        regexp_extract(slice_name, 'filter=([^\\s]+)') as filter
+        regexp_extract(slice_name, 'filter=([^ ]+)') as filter
       FROM android_thread_slices_for_all_startups
       WHERE slice_name GLOB 'location=* status=* filter=* reason=*'
         AND startup_id = $startup_id;
