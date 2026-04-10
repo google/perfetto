@@ -210,8 +210,8 @@ FrameTimelineEventParser::FrameTimelineEventParser(
           context->storage->InternString("Display frame token")),
       present_delay_millis_id_(
           context->storage->InternString("Present Delay (ms)")),
-      vsync_resynced_jitter_millis_id_(context->storage->InternString(
-          "Vsync Resynced Jitter (ms)")),
+      vsync_resynced_jitter_millis_id_(
+          context->storage->InternString("Vsync Resynced Jitter (ms)")),
       present_type_id_(context->storage->InternString("Present type")),
       present_type_experimental_id_(
           context->storage->InternString("Present type (experimental)")),
