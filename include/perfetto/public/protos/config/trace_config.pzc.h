@@ -344,6 +344,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   perfetto_protos_TraceConfig_Note,
                   notes,
                   46);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
+                  VARINT,
+                  bool,
+                  persist_trace_after_reboot,
+                  47);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_Note);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_Note,
