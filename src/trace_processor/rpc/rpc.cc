@@ -39,9 +39,11 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/sound_synth/synth_engine.h"
 #include "src/trace_processor/tp_metatrace.h"
 
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
+#include "protos/perfetto/trace_processor/synth.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
 namespace perfetto::trace_processor {
@@ -476,6 +478,18 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       resp.Send(rpc_response_fn_);
       break;
     }
+    case RpcProto::TPM_SYNTHESIZE_AUDIO: {
+      Response resp(tx_seq_id_++, req_type);
+      auto* result = resp->set_synthesize_audio_result();
+      if (!req.has_synthesize_audio_args()) {
+        result->set_error(kErrFieldNotSet);
+      } else {
+        protozero::ConstBytes args = req.synthesize_audio_args();
+        SynthesizeAudioInternal(args.data, args.size, result);
+      }
+      resp.Send(rpc_response_fn_);
+      break;
+    }
     default: {
       // This can legitimately happen if the client is newer. We reply with a
       // generic "unknown request" response, so the client can do feature
@@ -829,6 +843,30 @@ std::vector<uint8_t> Rpc::GetStatus() {
   }
   status->set_api_version(protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
   return status.SerializeAsArray();
+}
+
+void Rpc::SynthesizeAudioInternal(
+    const uint8_t* data,
+    size_t size,
+    protos::pbzero::SynthesizeAudioResult* result) {
+  protos::pbzero::SynthesizeAudioArgs::Decoder args(data, size);
+  int64_t start_ts = args.has_start_ts() ? args.start_ts() : 0;
+  int64_t end_ts = args.has_end_ts() ? args.end_ts() : 0;
+
+  if (!args.has_patch()) {
+    result->set_error("Missing patch config");
+    return;
+  }
+  protozero::ConstBytes patch = args.patch();
+
+  sound_synth::SynthEngine engine(trace_processor_.get());
+  auto wav_or = engine.Render(patch.data, patch.size, start_ts, end_ts);
+  if (!wav_or.ok()) {
+    result->set_error(wav_or.status().message());
+    return;
+  }
+  const auto& wav = *wav_or;
+  result->set_wav_data(wav.data(), wav.size());
 }
 
 }  // namespace perfetto::trace_processor

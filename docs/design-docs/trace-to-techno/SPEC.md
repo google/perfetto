@@ -9,10 +9,13 @@ The reason why we want to do this is to later use the generate wav to apply the 
 The intuition is that, in a way, a trace is like a techno sound track: An Android trace often consists in hundreds of threads that are working together to put pixels on screen with a semi-regular cadence of 60/100/120 FPS (Frames per second), fps is very device-dependent.
 A techno track has  a cadence of 120-150 BPM. so with some time dilation they should mapw ell into each other
 
-## Background
+## Design docs
 
-See [Background on Modular Synths](background-on-synths.md) for an overview of
-how modular synthesizers work and how the concepts map to this project.
+- [Background on Modular Synths](background-on-synths.md) -- how modular
+  synthesizers work and how the concepts map to this project.
+- [TraceProcessor Implementation](trace-processor-design.md) -- current
+  architecture of the synth engine in TP: code layout, RPC interface, module
+  system, render pipeline, and CLI usage.
 
 ## Overall architecture
 

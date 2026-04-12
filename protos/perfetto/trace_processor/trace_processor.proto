@@ -20,6 +20,7 @@ package perfetto.protos;
 
 import "protos/perfetto/common/descriptor.proto";
 import "protos/perfetto/trace_processor/metatrace_categories.proto";
+import "protos/perfetto/trace_processor/synth.proto";
 import "protos/perfetto/trace_summary/file.proto";
 
 // This file defines the schema for {,un}marshalling arguments and return values
@@ -114,6 +115,7 @@ message TraceProcessorRpc {
     TPM_UPDATE_SUMMARIZER_SPEC = 17;
     TPM_QUERY_SUMMARIZER = 18;
     TPM_DESTROY_SUMMARIZER = 19;
+    TPM_SYNTHESIZE_AUDIO = 20;
   }
 
   oneof type {
@@ -157,6 +159,8 @@ message TraceProcessorRpc {
     QuerySummarizerArgs query_summarizer_args = 113;
     // For TPM_DESTROY_SUMMARIZER.
     DestroySummarizerArgs destroy_summarizer_args = 114;
+    // For TPM_SYNTHESIZE_AUDIO.
+    SynthesizeAudioArgs synthesize_audio_args = 115;
 
     // TraceProcessorMethod response args.
     // For TPM_APPEND_TRACE_DATA.
@@ -185,6 +189,8 @@ message TraceProcessorRpc {
     QuerySummarizerResult query_summarizer_result = 217;
     // For TPM_DESTROY_SUMMARIZER.
     DestroySummarizerResult destroy_summarizer_result = 218;
+    // For TPM_SYNTHESIZE_AUDIO.
+    SynthesizeAudioResult synthesize_audio_result = 219;
   }
 
   // Previously: RawQueryArgs for TPM_QUERY_RAW_DEPRECATED

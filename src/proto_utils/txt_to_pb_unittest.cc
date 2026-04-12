@@ -606,5 +606,54 @@ TEST(TxtToPbTest, TraceSummarySpecUnknownField) {
               HasSubstr("No field named \"not_a_field\""));
 }
 
+TEST(TxtToPbTest, SynthesizeAudioArgsRoundTrip) {
+  auto output = SynthesizeAudioArgsTxtToPb(R"(
+patch {
+  modules {
+    id: "src"
+    trace_slice_source {
+      track_name_glob: "RenderThread*"
+      signal_type: GATE
+    }
+  }
+  modules {
+    id: "osc"
+    vco {
+      waveform: SINE
+      base_freq_hz: 110
+    }
+  }
+  wires {
+    from_module: "src"
+    to_module: "osc"
+    to_port: "freq_mod"
+    scale: 100
+  }
+}
+start_ts: 1000000
+end_ts: 2000000
+  )");
+  ASSERT_TRUE(output.ok()) << output.status().message();
+  ASSERT_FALSE(output->empty());
+
+  // Verify round-trip by converting back to text.
+  std::string txt =
+      SynthesizeAudioArgsPbToTxt(output->data(), output->size());
+  EXPECT_THAT(txt, HasSubstr("track_name_glob: \"RenderThread*\""));
+  EXPECT_THAT(txt, HasSubstr("signal_type: GATE"));
+  EXPECT_THAT(txt, HasSubstr("base_freq_hz: 110"));
+  EXPECT_THAT(txt, HasSubstr("from_module: \"src\""));
+  EXPECT_THAT(txt, HasSubstr("start_ts: 1000000"));
+}
+
+TEST(TxtToPbTest, SynthesizeAudioArgsUnknownField) {
+  auto res = SynthesizeAudioArgsTxtToPb(R"(
+    not_a_field: 123
+  )");
+  EXPECT_FALSE(res.ok());
+  EXPECT_THAT(res.status().message(),
+              HasSubstr("No field named \"not_a_field\""));
+}
+
 }  // namespace
 }  // namespace perfetto

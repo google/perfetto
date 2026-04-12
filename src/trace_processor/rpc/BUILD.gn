@@ -36,6 +36,7 @@ source_set("rpc") {
     "../../../include/perfetto/trace_processor",
     "../../../protos/perfetto/trace_processor:zero",
     "../../../protos/perfetto/trace_summary:zero",
+    "../sound_synth",
     "../../base",
     "../../base:version",
     "../../protozero",

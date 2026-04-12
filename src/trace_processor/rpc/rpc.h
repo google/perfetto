@@ -152,6 +152,9 @@ class Rpc {
                                    protos::pbzero::TraceSummaryResult*);
   void DisableAndReadMetatraceInternal(
       protos::pbzero::DisableAndReadMetatraceResult*);
+  void SynthesizeAudioInternal(const uint8_t*,
+                               size_t,
+                               protos::pbzero::SynthesizeAudioResult*);
 
   Config default_config_;
   std::function<void(TraceProcessor*)> on_trace_processor_created_;

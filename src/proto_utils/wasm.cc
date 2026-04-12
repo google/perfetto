@@ -95,6 +95,16 @@ uint32_t trace_summary_spec_txt_to_pb(uint32_t size) {
   return txt_to_pb(perfetto::TraceSummarySpecTxtToPb, size);
 }
 
+uint32_t EMSCRIPTEN_KEEPALIVE synth_args_pb_to_txt(uint32_t size);
+uint32_t synth_args_pb_to_txt(uint32_t size) {
+  return pb_to_txt(perfetto::SynthesizeAudioArgsPbToTxt, size);
+}
+
+uint32_t EMSCRIPTEN_KEEPALIVE synth_args_txt_to_pb(uint32_t size);
+uint32_t synth_args_txt_to_pb(uint32_t size) {
+  return txt_to_pb(perfetto::SynthesizeAudioArgsTxtToPb, size);
+}
+
 }  // extern "C"
 
 // This is unused but is needed to keep emscripten happy.

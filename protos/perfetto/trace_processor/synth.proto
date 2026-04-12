@@ -1,0 +1,129 @@
+/*
+ * Copyright (C) 2026 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// Request args for TPM_SYNTHESIZE_AUDIO.
+message SynthesizeAudioArgs {
+  optional SynthPatch patch = 1;
+  // Trace timestamps (nanoseconds). If omitted, uses full trace range.
+  optional int64 start_ts = 2;
+  optional int64 end_ts = 3;
+  // Opaque JSON blob for UI-only state (ignored by TP).
+  optional string ui_state_json = 100;
+}
+
+// Response for TPM_SYNTHESIZE_AUDIO.
+message SynthesizeAudioResult {
+  // Complete WAV file (PCM 48kHz 32-bit float mono).
+  optional bytes wav_data = 1;
+  optional string error = 2;
+}
+
+// Defines the synth patch: modules and their wiring.
+message SynthPatch {
+  repeated SynthModule modules = 1;
+  repeated SynthWire wires = 2;
+  // Opaque JSON blob for UI-only state (ignored by TP).
+  optional string ui_state_json = 100;
+}
+
+message SynthModule {
+  // Unique ID for this module, used in wires to reference it.
+  optional string id = 1;
+
+  oneof module {
+    TraceSliceSourceConfig trace_slice_source = 10;
+    TraceCounterSourceConfig trace_counter_source = 11;
+    VcoConfig vco = 20;
+    VcaConfig vca = 21;
+    EnvelopeConfig envelope = 22;
+    MixerConfig mixer = 23;
+  }
+  // Opaque JSON blob for UI-only state (ignored by TP).
+  optional string ui_state_json = 100;
+}
+
+// Connects an output port of one module to an input port of another.
+message SynthWire {
+  optional string from_module = 1;
+  optional string from_port = 2;  // default: "out"
+  optional string to_module = 3;
+  optional string to_port = 4;
+  // Linear transform applied to the signal: out = in * scale + offset.
+  optional double scale = 5;
+  optional double offset = 6;
+}
+
+// Reads slices from matching tracks and produces a signal.
+message TraceSliceSourceConfig {
+  optional string track_name_glob = 1;
+  enum SignalType {
+    // 1.0 while any slice is active, 0.0 otherwise.
+    GATE = 0;
+    // Short impulse at each slice start.
+    TRIGGER = 1;
+    // Number of concurrent slices (normalized 0..1).
+    DENSITY = 2;
+  }
+  optional SignalType signal_type = 2;
+  // If set, only consider slices with names matching this glob.
+  optional string slice_name_glob = 3;
+  // If set, only consider slices up to this depth.
+  optional uint32 max_depth = 4;
+}
+
+// Reads counter values from matching tracks and produces a CV signal.
+message TraceCounterSourceConfig {
+  optional string track_name_glob = 1;
+  // Input range. If omitted, auto-detected from data.
+  optional double input_min = 2;
+  optional double input_max = 3;
+  // Output range (default 0..1).
+  optional double output_min = 4;
+  optional double output_max = 5;
+}
+
+// Voltage Controlled Oscillator.
+message VcoConfig {
+  enum Waveform {
+    SINE = 0;
+    SAW = 1;
+    SQUARE = 2;
+  }
+  optional Waveform waveform = 1;
+  // Base frequency in Hz (before modulation).
+  optional double base_freq_hz = 2;
+}
+
+// Voltage Controlled Amplifier (multiplies input by gain signal).
+message VcaConfig {
+  // Initial gain when no CV is connected (default 1.0).
+  optional double initial_gain = 1;
+}
+
+// Attack-Decay envelope generator. Triggered by gate/trigger input.
+message EnvelopeConfig {
+  optional double attack_ms = 1;   // default 5
+  optional double decay_ms = 2;    // default 200
+  // Peak level (default 1.0).
+  optional double peak = 3;
+}
+
+// Sums all inputs.
+message MixerConfig {}

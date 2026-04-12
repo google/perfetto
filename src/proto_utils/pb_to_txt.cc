@@ -18,6 +18,7 @@
 #include <string>
 
 #include "src/proto_utils/config.descriptor.h"
+#include "src/proto_utils/synth.descriptor.h"
 #include "src/proto_utils/trace_summary.descriptor.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/protozero_to_text.h"
@@ -48,6 +49,11 @@ std::string TraceConfigPbToTxt(const void* data, size_t size) {
 std::string TraceSummarySpecPbToTxt(const void* data, size_t size) {
   return PbToTxt(kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size(),
                  ".perfetto.protos.TraceSummarySpec", data, size);
+}
+
+std::string SynthesizeAudioArgsPbToTxt(const void* data, size_t size) {
+  return PbToTxt(kSynthDescriptor.data(), kSynthDescriptor.size(),
+                 ".perfetto.protos.SynthesizeAudioArgs", data, size);
 }
 
 }  // namespace perfetto

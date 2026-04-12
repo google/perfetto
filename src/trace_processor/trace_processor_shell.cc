@@ -62,6 +62,7 @@
 #include "src/trace_processor/shell/server_subcommand.h"
 #include "src/trace_processor/shell/subcommand.h"
 #include "src/trace_processor/shell/summarize_subcommand.h"
+#include "src/trace_processor/shell/techno_subcommand.h"
 #include "src/trace_processor/util/symbolizer/symbolize_database.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
@@ -776,10 +777,11 @@ base::Status TraceProcessorShell::Run(int argc, char** argv) {
     shell::ExportSubcommand export_subcommand;
     shell::MetricsSubcommand metrics_subcommand;
     shell::ConvertSubcommand convert_subcommand;
+    shell::TechnoSubcommand techno_subcommand;
     std::vector<shell::Subcommand*> subcommands = {
         &query_subcommand,     &interactive_subcommand, &server_subcommand,
         &summarize_subcommand, &export_subcommand,      &metrics_subcommand,
-        &convert_subcommand,
+        &convert_subcommand,   &techno_subcommand,
     };
 
     // Handle "help" pseudo-subcommand: `tp help <command>` or bare `tp help`.

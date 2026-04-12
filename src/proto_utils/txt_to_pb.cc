@@ -22,6 +22,7 @@
 
 #include "perfetto/ext/base/status_or.h"
 #include "src/proto_utils/config.descriptor.h"
+#include "src/proto_utils/synth.descriptor.h"
 #include "src/proto_utils/trace_summary.descriptor.h"
 #include "src/protozero/text_to_proto/text_to_proto.h"
 
@@ -30,6 +31,8 @@ namespace {
 constexpr char kConfigProtoName[] = ".perfetto.protos.TraceConfig";
 constexpr char kTraceSummarySpecProtoName[] =
     ".perfetto.protos.TraceSummarySpec";
+constexpr char kSynthesizeAudioArgsProtoName[] =
+    ".perfetto.protos.SynthesizeAudioArgs";
 
 }  // namespace
 
@@ -47,6 +50,15 @@ base::StatusOr<std::vector<uint8_t>> TraceSummarySpecTxtToPb(
   return protozero::TextToProto(kTraceSummaryDescriptor.data(),
                                 kTraceSummaryDescriptor.size(),
                                 kTraceSummarySpecProtoName, file_name, input);
+}
+
+base::StatusOr<std::vector<uint8_t>> SynthesizeAudioArgsTxtToPb(
+    const std::string& input,
+    const std::string& file_name) {
+  return protozero::TextToProto(kSynthDescriptor.data(),
+                                kSynthDescriptor.size(),
+                                kSynthesizeAudioArgsProtoName, file_name,
+                                input);
 }
 
 }  // namespace perfetto

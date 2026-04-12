@@ -41,6 +41,16 @@ perfetto_proto_library("stack_@TYPE@") {
   descriptor_root_source = "stack.proto"
 }
 
+perfetto_proto_library("synth_@TYPE@") {
+  proto_generators = []
+  sources = [ "synth.proto" ]
+  generate_descriptor = "synth.descriptor"
+  generator_visibility = [
+    "../../../src/proto_utils:gen_cc_synth_descriptor",
+  ]
+  descriptor_root_source = "synth.proto"
+}
+
 perfetto_proto_library("metrics_impl_@TYPE@") {
   proto_generators = [ "zero" ]
   sources = [ "metrics_impl.proto" ]

@@ -44,6 +44,8 @@ source_set("shell") {
     "sql_packages.h",
     "summarize_subcommand.cc",
     "summarize_subcommand.h",
+    "techno_subcommand.cc",
+    "techno_subcommand.h",
   ]
   deps = [
     ":subcommands",
@@ -58,6 +60,7 @@ source_set("shell") {
     "../metrics",
     "../rpc",
     "../rpc:stdiod",
+    "../sound_synth",
     "../trace_summary",
     "../trace_summary:gen_cc_trace_summary_descriptor",
     "../util:stdlib",
