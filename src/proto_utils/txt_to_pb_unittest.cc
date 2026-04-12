@@ -637,8 +637,7 @@ end_ts: 2000000
   ASSERT_FALSE(output->empty());
 
   // Verify round-trip by converting back to text.
-  std::string txt =
-      SynthesizeAudioArgsPbToTxt(output->data(), output->size());
+  std::string txt = SynthesizeAudioArgsPbToTxt(output->data(), output->size());
   EXPECT_THAT(txt, HasSubstr("track_name_glob: \"RenderThread*\""));
   EXPECT_THAT(txt, HasSubstr("signal_type: GATE"));
   EXPECT_THAT(txt, HasSubstr("base_freq_hz: 110"));

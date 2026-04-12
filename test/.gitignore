@@ -34,3 +34,5 @@
 !/data/zip
 /data/zip/*
 !/data/zip/*.sha256
+
+!/data/music_synth_presets.json

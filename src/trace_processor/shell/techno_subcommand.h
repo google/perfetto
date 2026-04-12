@@ -36,6 +36,8 @@ class TechnoSubcommand : public Subcommand {
 
  private:
   std::string output_path_;
+  std::string patch_path_;
+  std::string duration_secs_str_;
   bool pcm24_ = false;
 };
 

@@ -852,6 +852,8 @@ void Rpc::SynthesizeAudioInternal(
   protos::pbzero::SynthesizeAudioArgs::Decoder args(data, size);
   int64_t start_ts = args.has_start_ts() ? args.start_ts() : 0;
   int64_t end_ts = args.has_end_ts() ? args.end_ts() : 0;
+  double duration_seconds =
+      args.has_duration_seconds() ? args.duration_seconds() : 0.0;
 
   if (!args.has_patch()) {
     result->set_error("Missing patch config");
@@ -860,7 +862,8 @@ void Rpc::SynthesizeAudioInternal(
   protozero::ConstBytes patch = args.patch();
 
   sound_synth::SynthEngine engine(trace_processor_.get());
-  auto wav_or = engine.Render(patch.data, patch.size, start_ts, end_ts);
+  auto wav_or =
+      engine.Render(patch.data, patch.size, start_ts, end_ts, duration_seconds);
   if (!wav_or.ok()) {
     result->set_error(wav_or.status().message());
     return;

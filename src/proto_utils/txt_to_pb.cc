@@ -55,10 +55,9 @@ base::StatusOr<std::vector<uint8_t>> TraceSummarySpecTxtToPb(
 base::StatusOr<std::vector<uint8_t>> SynthesizeAudioArgsTxtToPb(
     const std::string& input,
     const std::string& file_name) {
-  return protozero::TextToProto(kSynthDescriptor.data(),
-                                kSynthDescriptor.size(),
-                                kSynthesizeAudioArgsProtoName, file_name,
-                                input);
+  return protozero::TextToProto(
+      kSynthDescriptor.data(), kSynthDescriptor.size(),
+      kSynthesizeAudioArgsProtoName, file_name, input);
 }
 
 }  // namespace perfetto

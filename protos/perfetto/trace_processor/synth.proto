@@ -24,6 +24,11 @@ message SynthesizeAudioArgs {
   // Trace timestamps (nanoseconds). If omitted, uses full trace range.
   optional int64 start_ts = 2;
   optional int64 end_ts = 3;
+  // Explicit render duration in seconds. When set (> 0), the engine skips
+  // the trace-range query and renders exactly this many seconds. This
+  // enables preset/instrument preview without needing any trace data.
+  // If both duration_seconds and (start_ts/end_ts) are set, this one wins.
+  optional double duration_seconds = 4;
   // Opaque JSON blob for UI-only state (ignored by TP).
   optional string ui_state_json = 100;
 }
@@ -50,10 +55,31 @@ message SynthModule {
   oneof module {
     TraceSliceSourceConfig trace_slice_source = 10;
     TraceCounterSourceConfig trace_counter_source = 11;
+    TestPatternSourceConfig test_pattern_source = 12;
     VcoConfig vco = 20;
     VcaConfig vca = 21;
     EnvelopeConfig envelope = 22;
     MixerConfig mixer = 23;
+
+    // New generation of blocks (tasks #2-#15).
+    AdsrConfig adsr = 30;
+    ClassicOscConfig classic_osc = 31;
+    NoiseOscConfig noise_osc = 32;
+    LfoConfig lfo = 33;
+    WaveshaperConfig waveshaper = 34;
+    MoogLadderConfig moog_ladder = 35;
+    SvfConfig svf = 36;
+    DelayConfig delay = 37;
+    WavetableOscConfig wavetable_osc = 38;
+    FmOscConfig fm_osc = 39;
+    PhaseDistortionOscConfig phase_distortion_osc = 40;
+    FoldOscConfig fold_osc = 41;
+    SyncOscConfig sync_osc = 42;
+    SuperOscConfig super_osc = 43;
+
+    // Batch 2: strings / substance / organs support.
+    ChorusConfig chorus = 44;
+    DrawbarOrganConfig drawbar_organ = 45;
   }
   // Opaque JSON blob for UI-only state (ignored by TP).
   optional string ui_state_json = 100;
@@ -88,6 +114,27 @@ message TraceSliceSourceConfig {
   optional uint32 max_depth = 4;
 }
 
+// Generates a test pattern for previewing an instrument without trace data.
+// Default mode is ARPEGGIO (8-bar Am-G-F-E in A harmonic minor at 128 BPM).
+// IMPULSES mode is kept for backward compatibility with the legacy
+// num_hits-based test pattern.
+//
+// Outputs:
+//   "out":  gate signal (ARPEGGIO) or impulses (IMPULSES).
+//   "freq": current note frequency in Hz (ARPEGGIO only; zeros in IMPULSES).
+message TestPatternSourceConfig {
+  enum Mode {
+    ARPEGGIO = 0;  // 8-bar Am-G-F-E progression at 128 BPM (default)
+    IMPULSES = 1;  // Legacy: num_hits evenly-spaced impulses
+  }
+  optional Mode mode = 2;
+  // IMPULSES mode: number of trigger impulses.
+  optional uint32 num_hits = 1;  // default 16
+  // ARPEGGIO mode: tempo (default 128) and length in bars (default 8).
+  optional double bpm = 3;
+  optional uint32 bars = 4;
+}
+
 // Reads counter values from matching tracks and produces a CV signal.
 message TraceCounterSourceConfig {
   optional string track_name_glob = 1;
@@ -119,11 +166,197 @@ message VcaConfig {
 
 // Attack-Decay envelope generator. Triggered by gate/trigger input.
 message EnvelopeConfig {
-  optional double attack_ms = 1;   // default 5
-  optional double decay_ms = 2;    // default 200
+  optional double attack_ms = 1;  // default 5
+  optional double decay_ms = 2;   // default 200
   // Peak level (default 1.0).
   optional double peak = 3;
 }
 
 // Sums all inputs.
 message MixerConfig {}
+
+// ---------------------------------------------------------------------------
+// New generation of blocks (tasks #2-#15).
+// ---------------------------------------------------------------------------
+
+// 4-stage exponential envelope (Attack / Decay / Sustain / Release).
+// Triggered by a gate input. Rising edge → attack. Falling edge → release.
+message AdsrConfig {
+  optional double attack_ms = 1;   // default 5
+  optional double decay_ms = 2;    // default 100
+  optional double sustain = 3;     // default 0.7 (level, not time)
+  optional double release_ms = 4;  // default 200
+}
+
+// Bandlimited classic virtual-analog oscillator (polyBLEP saw/square/tri/sine
+// with PWM and phase reset). See oscillators.h for details.
+message ClassicOscConfig {
+  enum Waveform {
+    SAW = 0;
+    SQUARE = 1;
+    TRIANGLE = 2;
+    SINE = 3;
+  }
+  optional Waveform waveform = 1;
+  // Base frequency in Hz (used when the "freq" input port is not connected).
+  optional double base_freq_hz = 2;
+  // Pulse width for SQUARE waveform in [0.05, 0.95]. Default 0.5.
+  optional double pulse_width = 3;
+}
+
+// 2-operator phase-modulation FM oscillator (Chowning).
+message FmOscConfig {
+  optional double base_freq_hz = 1;  // default 220
+  optional double mod_ratio = 2;     // 0..16, default 1
+  optional double mod_index = 3;     // 0..32, default 1
+  optional double feedback = 4;      // 0..1, default 0
+}
+
+// Casio CZ-style phase distortion oscillator.
+message PhaseDistortionOscConfig {
+  enum Mode {
+    SAW_WARP = 0;
+    PULSE_WARP = 1;
+  }
+  optional Mode mode = 1;
+  optional double base_freq_hz = 2;  // default 220
+  optional double amount = 3;        // 0..1, default 0.5
+}
+
+// Wavefolder oscillator (smooth sin(drive*sin) form).
+message FoldOscConfig {
+  optional double base_freq_hz = 1;  // default 220
+  optional double drive = 2;         // 1..20, default 3
+  optional double bias = 3;          // -1..1, default 0
+}
+
+// Hardsync oscillator.
+message SyncOscConfig {
+  optional double base_freq_hz = 1;  // master freq, default 110
+  optional double sync_ratio = 2;    // 1..16, default 2
+}
+
+// JP-8000 supersaw (7 detuned sawtooths).
+message SuperOscConfig {
+  optional double base_freq_hz = 1;  // default 220
+  optional double detune = 2;        // 0..1, default 0.3
+  optional double mix = 3;           // 0..1, default 0.5
+}
+
+// Multi-voice modulated-delay chorus. Lushness for strings, rotary-
+// speaker feel for organs.
+message ChorusConfig {
+  optional double rate_hz = 1;       // 0.01..10, default 0.5
+  optional double depth_ms = 2;      // 0..40, default 4
+  optional double mid_delay_ms = 3;  // 1..30, default 15
+  optional double mix = 4;           // 0..1, default 0.5
+  optional uint32 voices = 5;        // 1..8, default 3
+}
+
+// Hammond B3-style drawbar organ. Additive synthesis of 9 sines at the
+// classic drawbar ratios. Each drawbar has an amplitude [0, 1] — a drawbar
+// setting of `888000000` means the first 3 drawbars are max and the rest
+// are silent.
+//
+// Drawbar ratios to the played fundamental:
+//   db16       : 0.5  (sub-octave)
+//   db5_1_3    : 1.5  (5⅓', perfect 5th above)
+//   db8        : 1.0  (8', the fundamental)
+//   db4        : 2.0  (4', one octave up)
+//   db2_2_3    : 3.0  (2⅔', 12th up)
+//   db2        : 4.0  (2', two octaves up)
+//   db1_3_5    : 5.0  (1⅗', 17th up)
+//   db1_1_3    : 6.0  (1⅓', 19th up)
+//   db1        : 8.0  (1', three octaves up)
+message DrawbarOrganConfig {
+  optional double base_freq_hz = 1;
+  optional double db16 = 2;     // sub, 0.5x
+  optional double db5_1_3 = 3;  // 5⅓', 1.5x
+  optional double db8 = 4;      // 8' fundamental, 1.0x
+  optional double db4 = 5;      // 4', 2.0x
+  optional double db2_2_3 = 6;  // 2⅔', 3.0x
+  optional double db2 = 7;      // 2', 4.0x
+  optional double db1_3_5 = 8;  // 1⅗', 5.0x
+  optional double db1_1_3 = 9;  // 1⅓', 6.0x
+  optional double db1 = 10;     // 1', 8.0x
+}
+
+// Procedural wavetable oscillator (32 frames × 1024 samples).
+message WavetableOscConfig {
+  enum TableType {
+    SINE_TO_SAW = 0;
+    PULSE_SWEEP = 1;
+    BELL = 2;
+    VOCAL = 3;
+  }
+  optional TableType table_type = 1;
+  optional double base_freq_hz = 2;   // default 220
+  optional double base_position = 3;  // 0..1, default 0
+}
+
+// Colored noise with continuous tilt (white → pink → brown).
+message NoiseOscConfig {
+  // 0 = white, 0.5 = pink, 1.0 = brown. Default 0.
+  optional double tilt = 1;
+  // PRNG seed (xorshift32). 0 maps to a default constant for reproducibility.
+  optional uint32 seed = 2;
+}
+
+// Low-frequency oscillator (control-rate modulation source).
+message LfoConfig {
+  enum Waveform {
+    SINE = 0;
+    TRIANGLE = 1;
+    SQUARE = 2;
+    SAW_UP = 3;
+    SAW_DOWN = 4;
+    SAMPLE_AND_HOLD = 5;
+  }
+  optional Waveform waveform = 1;
+  optional double rate_hz = 2;  // default 1.0
+  optional double depth = 3;    // default 1.0
+  optional bool bipolar = 4;    // default true
+  optional uint32 seed = 5;     // for S&H reproducibility
+}
+
+// Memoryless nonlinear distortion / waveshaper.
+message WaveshaperConfig {
+  enum Mode {
+    SOFT_TANH = 0;   // warm, odd harmonics
+    HARD_CLIP = 1;   // aggressive, many harmonics
+    FOLD = 2;        // reflective wavefolder
+    ASYMMETRIC = 3;  // DC-biased tanh (even + odd)
+  }
+  optional Mode mode = 1;
+  optional double drive = 2;  // default 2.0, min 1.0
+  optional double mix = 3;    // default 1.0 (fully wet)
+}
+
+// Huovilainen Moog-ladder lowpass (24 dB/oct, tanh-saturated, with bass
+// compensation).
+message MoogLadderConfig {
+  optional double base_cutoff_hz = 1;  // 20..12000, default 1000
+  optional double base_resonance = 2;  // 0..1, self-oscillation near 1
+  optional double drive = 3;           // input gain, default 1.0
+}
+
+// Chamberlin state-variable filter. 12 dB/oct, linear, LP/HP/BP/Notch.
+message SvfConfig {
+  enum Mode {
+    LOWPASS = 0;
+    HIGHPASS = 1;
+    BANDPASS = 2;
+    NOTCH = 3;
+  }
+  optional Mode mode = 1;
+  optional double base_cutoff_hz = 2;  // 20..8000, default 1000
+  optional double base_q = 3;          // 0.5..50, default 1.0
+}
+
+// Feedback delay with a lowpass in the feedback path (dub-style damping).
+message DelayConfig {
+  optional double time_ms = 1;   // 1..2000, default 250
+  optional double feedback = 2;  // 0..0.95, default 0.4
+  optional double damping = 3;   // 0..0.99, default 0.3
+  optional double mix = 4;       // 0..1, default 0.4
+}

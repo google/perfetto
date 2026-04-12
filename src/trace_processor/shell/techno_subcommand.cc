@@ -45,24 +45,44 @@ const char* TechnoSubcommand::description() const {
 }
 
 const char* TechnoSubcommand::usage_args() const {
-  return "-o FILE <trace_file>";
+  return "-o FILE [--patch-file FILE | <trace_file>]";
 }
 
 const char* TechnoSubcommand::detailed_help() const {
-  return R"(Load a trace and synthesize a techno WAV file from it.
+  return R"(Synthesize a WAV file from a synth patch.
 
-Uses a built-in synth patch that maps trace slices to a simple bass synth.
-The default output is a 48kHz 32-bit float mono WAV file.
-Use --pcm24 to convert to 24-bit integer PCM (more compatible with players).
+Two rendering modes:
 
-Example:
-  trace_processor_shell techno -o out.wav trace.perfetto-trace
-  trace_processor_shell techno -o out.wav --pcm24 trace.perfetto-trace)";
+ 1. Trace-driven (default): load a trace file and run the built-in demo
+    patch (trace slices -> envelope -> sine bass).
+
+      trace_processor_shell techno -o out.wav trace.perfetto-trace
+
+ 2. Patch-driven: load a binary SynthPatch proto file and render it for a
+    fixed duration without needing a trace. Used by the preset rendering
+    pipeline (tools/trace_to_techno/render_all_presets.py).
+
+      trace_processor_shell techno -o out.wav --patch-file preset.pb \
+          --duration-secs 16
+
+Flags:
+  -o FILE             Output WAV file path (required).
+  --patch-file FILE   Binary SynthPatch proto (disables trace loading).
+  --duration-secs N   Render duration in seconds (patch-file mode).
+  --pcm24             Output 24-bit PCM instead of 32-bit float.
+
+The default output is a 48 kHz 32-bit float mono WAV.)";
 }
 
 std::vector<FlagSpec> TechnoSubcommand::GetFlags() {
   return {
       StringFlag("output", 'o', "FILE", "Output WAV file path.", &output_path_),
+      StringFlag("patch-file", '\0', "FILE",
+                 "Binary SynthPatch proto (skips trace loading).",
+                 &patch_path_),
+      StringFlag("duration-secs", '\0', "N",
+                 "Render duration in seconds (patch-file mode).",
+                 &duration_secs_str_),
       BoolFlag("pcm24", '\0', "Output 24-bit PCM instead of 32-bit float.",
                &pcm24_),
   };
@@ -80,8 +100,7 @@ std::vector<uint8_t> BuildDefaultPatch() {
     m->set_id("src");
     auto* ts = m->set_trace_slice_source();
     ts->set_track_name_glob("*");
-    ts->set_signal_type(
-        protos::pbzero::TraceSliceSourceConfig::GATE);
+    ts->set_signal_type(protos::pbzero::TraceSliceSourceConfig::GATE);
   }
   // Envelope.
   {
@@ -184,8 +203,8 @@ std::vector<uint8_t> ConvertToPcm24(const std::vector<uint8_t>& float_wav) {
     memcpy(&s, src + i * 4, sizeof(float));
     s = std::max(-1.0f, std::min(1.0f, s));
     // Scale to 24-bit range: [-8388608, 8388607].
-    auto val = static_cast<int32_t>(
-        std::round(static_cast<double>(s) * 8388607.0));
+    auto val =
+        static_cast<int32_t>(std::round(static_cast<double>(s) * 8388607.0));
     // Write 3 bytes little-endian.
     p[0] = static_cast<uint8_t>(val & 0xFF);
     p[1] = static_cast<uint8_t>((val >> 8) & 0xFF);
@@ -202,22 +221,65 @@ base::Status TechnoSubcommand::Run(const SubcommandContext& ctx) {
   if (output_path_.empty()) {
     return base::ErrStatus("techno: -o FILE is required");
   }
-  if (ctx.positional_args.empty()) {
-    return base::ErrStatus("techno: trace file is required");
+
+  // Load either a user-supplied patch file or fall back to the built-in demo.
+  std::vector<uint8_t> patch_data;
+  if (!patch_path_.empty()) {
+    std::ifstream f(patch_path_, std::ios::binary | std::ios::ate);
+    if (!f.is_open()) {
+      return base::ErrStatus("techno: cannot open patch file '%s'",
+                             patch_path_.c_str());
+    }
+    auto size = f.tellg();
+    if (size < 0) {
+      return base::ErrStatus("techno: cannot read patch file '%s'",
+                             patch_path_.c_str());
+    }
+    patch_data.resize(static_cast<size_t>(size));
+    f.seekg(0);
+    f.read(reinterpret_cast<char*>(patch_data.data()),
+           static_cast<std::streamsize>(size));
+    if (!f) {
+      return base::ErrStatus("techno: short read on patch file '%s'",
+                             patch_path_.c_str());
+    }
+  } else {
+    patch_data = BuildDefaultPatch();
   }
 
-  std::string trace_file = ctx.positional_args[0];
+  // Parse --duration-secs if given.
+  double duration_secs = 0.0;
+  if (!duration_secs_str_.empty()) {
+    char* end = nullptr;
+    duration_secs = std::strtod(duration_secs_str_.c_str(), &end);
+    if (end == duration_secs_str_.c_str() || duration_secs <= 0.0) {
+      return base::ErrStatus("techno: invalid --duration-secs '%s'",
+                             duration_secs_str_.c_str());
+    }
+  }
 
+  // Decide whether to load a trace. If --duration-secs is given we can
+  // render a patch without a trace. Otherwise a trace is required to
+  // drive any TraceSliceSource modules.
   auto config = BuildConfig(*ctx.global, ctx.platform);
   ASSIGN_OR_RETURN(auto tp,
                    SetupTraceProcessor(*ctx.global, config, ctx.platform));
-  RETURN_IF_ERROR(LoadTraceFile(tp.get(), ctx.platform, trace_file).status());
 
-  auto patch_data = BuildDefaultPatch();
+  bool have_trace = false;
+  if (!ctx.positional_args.empty()) {
+    const std::string& trace_file = ctx.positional_args[0];
+    RETURN_IF_ERROR(LoadTraceFile(tp.get(), ctx.platform, trace_file).status());
+    have_trace = true;
+  } else if (duration_secs <= 0.0) {
+    return base::ErrStatus(
+        "techno: either a <trace_file> positional or --duration-secs N is "
+        "required");
+  }
+  (void)have_trace;
 
   sound_synth::SynthEngine engine(tp.get());
-  ASSIGN_OR_RETURN(auto wav,
-                   engine.Render(patch_data.data(), patch_data.size(), 0, 0));
+  ASSIGN_OR_RETURN(auto wav, engine.Render(patch_data.data(), patch_data.size(),
+                                           0, 0, duration_secs));
 
   const std::vector<uint8_t>* output = &wav;
   std::vector<uint8_t> pcm_wav;
@@ -235,8 +297,8 @@ base::Status TechnoSubcommand::Run(const SubcommandContext& ctx) {
             static_cast<std::streamsize>(output->size()));
 
   uint32_t bytes_per_sample = pcm24_ ? 3 : 4;
-  fprintf(stderr, "Wrote %zu bytes to %s (%.2f seconds, %s)\n",
-          output->size(), output_path_.c_str(),
+  fprintf(stderr, "Wrote %zu bytes to %s (%.2f seconds, %s)\n", output->size(),
+          output_path_.c_str(),
           static_cast<double>(output->size() - 44) /
               (48000.0 * static_cast<double>(bytes_per_sample)),
           pcm24_ ? "48kHz 24-bit PCM mono" : "48kHz 32-bit float mono");

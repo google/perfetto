@@ -38,13 +38,20 @@ class SynthEngine {
   ~SynthEngine();
 
   // Renders audio from the synth patch config (serialized SynthPatch proto).
-  // |start_ts| and |end_ts| are trace timestamps in nanoseconds.
-  // If both are 0, uses the full trace range.
+  //
+  // Resolution of render duration (first match wins):
+  //  1. |duration_seconds| > 0  → render exactly that many seconds. The
+  //     trace is not queried for a time range (handy for preset preview
+  //     without loading a trace).
+  //  2. |start_ts| and/or |end_ts| > 0  → render the given trace window.
+  //  3. Otherwise → query the slice table for its full range.
+  //
   // Returns the WAV file as bytes.
   base::StatusOr<std::vector<uint8_t>> Render(const uint8_t* patch_data,
                                               size_t patch_size,
                                               int64_t start_ts,
-                                              int64_t end_ts);
+                                              int64_t end_ts,
+                                              double duration_seconds = 0.0);
 
  private:
   struct Wire {
@@ -56,12 +63,26 @@ class SynthEngine {
     double offset = 0.0;
   };
 
+  // A deferred wire transform (`out = in * scale + offset`). We allocate the
+  // transformed buffer up front so the destination module can point at it,
+  // but we only *fill* it after the source module has produced its output.
+  struct TransformOp {
+    SynthModule* source = nullptr;
+    const SignalBuffer* src_buf = nullptr;
+    SignalBuffer* dst_buf = nullptr;
+    double scale = 1.0;
+    double offset = 0.0;
+  };
+
   base::Status BuildModules(const uint8_t* data, size_t size);
   base::Status PopulateTraceSources(int64_t start_ts,
                                     int64_t end_ts,
                                     uint32_t num_samples);
   base::Status ConnectWires(uint32_t num_samples);
   void TopoSort();
+  // Runs after a module has produced its outputs: populates any deferred
+  // transform buffers that read from |mod|'s outputs.
+  void ApplyPostProcessTransforms(SynthModule* mod, uint32_t num_samples);
   std::vector<uint8_t> EncodeWav(const float* samples, uint32_t num_samples);
 
   SynthModule* FindModule(const std::string& id);
@@ -73,6 +94,8 @@ class SynthEngine {
   std::vector<SynthModule*> processing_order_;
   // Intermediate buffers for wires with scale/offset transforms.
   std::vector<std::unique_ptr<SignalBuffer>> transform_buffers_;
+  // Deferred transform operations, keyed by source module.
+  std::vector<TransformOp> transform_ops_;
 };
 
 }  // namespace perfetto::trace_processor::sound_synth

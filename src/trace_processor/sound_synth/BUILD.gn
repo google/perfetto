@@ -20,12 +20,22 @@ assert(enable_perfetto_trace_processor_sqlite)
 
 source_set("sound_synth") {
   sources = [
-    "modules.cc",
-    "modules.h",
+    "effects.cc",
+    "effects.h",
+    "filters.cc",
+    "filters.h",
+    "modulators.cc",
+    "modulators.h",
+    "oscillators.cc",
+    "oscillators.h",
+    "sources.cc",
+    "sources.h",
     "synth_engine.cc",
     "synth_engine.h",
     "synth_module.cc",
     "synth_module.h",
+    "utility.cc",
+    "utility.h",
   ]
   deps = [
     "../../../gn:default_deps",

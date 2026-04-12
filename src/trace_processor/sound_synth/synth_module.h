@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_SOUND_SYNTH_SYNTH_MODULE_H_
 
 #include <cstdint>
+#include <deque>
 #include <string>
 #include <vector>
 
@@ -44,10 +45,29 @@ class SynthModule {
   enum class Type {
     kTraceSliceSource,
     kTraceCounterSource,
+    kTestPatternSource,
     kVco,
     kVca,
     kEnvelope,
     kMixer,
+    // New generation of blocks (tasks #2-#15). New types land here.
+    kAdsr,
+    kClassicOsc,
+    kNoiseOsc,
+    kLfo,
+    kWaveshaper,
+    kMoogLadder,
+    kSvf,
+    kDelay,
+    kWavetableOsc,
+    kFmOsc,
+    kPhaseDistortionOsc,
+    kFoldOsc,
+    kSyncOsc,
+    kSuperOsc,
+    // Batch 2: analog-strings / substance / organ support.
+    kChorus,
+    kDrawbarOrgan,
   };
 
   virtual ~SynthModule();
@@ -92,7 +112,9 @@ class SynthModule {
     std::string name;
     SignalBuffer buf;
   };
-  std::vector<OutputPort> outputs_;
+  // std::deque rather than vector so that the pointers returned by
+  // AddOutput() remain valid when subclasses register multiple ports.
+  std::deque<OutputPort> outputs_;
 };
 
 }  // namespace perfetto::trace_processor::sound_synth
