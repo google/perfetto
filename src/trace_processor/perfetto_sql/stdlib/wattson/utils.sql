@@ -52,3 +52,93 @@ RETURNS TableOrSubquery AS
 CREATE PERFETTO MACRO _dsu_dep()
 RETURNS Expr AS
 255;
+
+-- Constructs an 8-bit mask from 8 boolean expressions
+CREATE PERFETTO MACRO _bitmask8(
+    b0 Expr,
+    b1 Expr,
+    b2 Expr,
+    b3 Expr,
+    b4 Expr,
+    b5 Expr,
+    b6 Expr,
+    b7 Expr
+)
+RETURNS Expr AS
+(
+  (
+    (
+      $b0 != 0
+    ) | (
+      (
+        $b1 != 0
+      ) << 1
+    ) | (
+      (
+        $b2 != 0
+      ) << 2
+    ) | (
+      (
+        $b3 != 0
+      ) << 3
+    ) | (
+      (
+        $b4 != 0
+      ) << 4
+    ) | (
+      (
+        $b5 != 0
+      ) << 5
+    ) | (
+      (
+        $b6 != 0
+      ) << 6
+    ) | (
+      (
+        $b7 != 0
+      ) << 7
+    )
+  )
+);
+
+-- Extracts the bit at 'bit' index from 'mask'
+CREATE PERFETTO MACRO _extract_bit(
+    mask Expr,
+    bit Expr
+)
+RETURNS Expr AS
+(
+  (
+    (
+      $mask
+    ) >> (
+      $bit
+    )
+  ) & 1
+);
+
+-- Constructs an 8-bit mask based on policy matches
+CREATE PERFETTO MACRO _policy_mask(
+    target Expr,
+    p0 Expr,
+    p1 Expr,
+    p2 Expr,
+    p3 Expr,
+    p4 Expr,
+    p5 Expr,
+    p6 Expr,
+    p7 Expr
+)
+RETURNS Expr AS
+(
+  _bitmask8!(
+    $p0 != -1 AND $p0 = $target,
+    $p1 != -1 AND $p1 = $target,
+    $p2 != -1 AND $p2 = $target,
+    $p3 != -1 AND $p3 = $target,
+    $p4 != -1 AND $p4 = $target,
+    $p5 != -1 AND $p5 = $target,
+    $p6 != -1 AND $p6 = $target,
+    $p7 != -1 AND $p7 = $target
+  )
+);
