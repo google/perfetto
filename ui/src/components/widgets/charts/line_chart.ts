@@ -223,6 +223,36 @@ export class LineChart implements m.ClassComponent<LineChartAttrs> {
   }
 }
 
+// Returns an ECharts areaStyle that fades from ~25% opacity at the top down to
+// fully transparent at the bottom. Falls back to a flat opacity when the series
+// colour is not a parseable hex string.
+function areaGradient(color: string | undefined): unknown {
+  if (color !== undefined) {
+    const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(color);
+    if (m !== null) {
+      const [r, g, b] = [
+        parseInt(m[1], 16),
+        parseInt(m[2], 16),
+        parseInt(m[3], 16),
+      ];
+      return {
+        color: {
+          type: 'linear',
+          x: 0,
+          y: 0,
+          x2: 0,
+          y2: 1,
+          colorStops: [
+            {offset: 0, color: `rgba(${r},${g},${b},0.25)`},
+            {offset: 1, color: `rgba(${r},${g},${b},0)`},
+          ],
+        },
+      };
+    }
+  }
+  return {opacity: 0.2};
+}
+
 function buildLineOption(
   attrs: LineChartAttrs,
   data: LineChartData,
@@ -273,7 +303,7 @@ function buildLineOption(
         ? {lineStyle: {opacity: 0.15}, areaStyle: {opacity: 0.05}}
         : {lineStyle: {opacity: 0.15}},
       stack: stacked ? 'total' : undefined,
-      areaStyle: stacked ? {opacity: 0.8} : undefined,
+      areaStyle: stacked ? areaGradient(s.color) : undefined,
       // invisible wider hitbox
       silent: false,
     };

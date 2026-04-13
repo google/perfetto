@@ -18,7 +18,6 @@ import {
   LineChartData,
 } from '../../../components/widgets/charts/line_chart';
 import {Button, ButtonVariant} from '../../../widgets/button';
-import {Chip} from '../../../widgets/chip';
 import {Icon} from '../../../widgets/icon';
 import {Intent} from '../../../widgets/common';
 import {Billboard} from '../components/billboard';
@@ -52,56 +51,55 @@ export class ProfilePage
       // Profile header bar with status indicators.
       m(
         '.pf-memento-profile-bar',
-        // Left: cancel button + process identity.
+
+        // Zone 1 — "We are recording right now".
         m(
-          '.pf-memento-profile-bar__left',
+          '.pf-memento-profile-bar__status',
+          attrs.stopping
+            ? m('.pf-memento-profile-bar__stopping', 'Stopping\u2026')
+            : m('.pf-memento-profile-bar__rec-badge', 'Recording'),
           !attrs.stopping &&
+            m(
+              '.pf-memento-profile-bar__sources',
+              m(Icon, {icon: 'memory'}),
+              m('span', 'heapprofd'),
+              m('span.pf-memento-profile-bar__source-sep', '\u00b7'),
+              m(Icon, {icon: 'coffee'}),
+              m('span', 'java_hprof'),
+            ),
+        ),
+
+        // Zone 2 — Stats: what process, how long, buffer fill.
+        m(
+          '.pf-memento-profile-bar__subject',
+          m('.pf-memento-profile-bar__process', attrs.processName),
+          m(
+            '.pf-memento-profile-bar__meta',
+            m(Icon, {icon: 'tag'}),
+            `PID\u00a0${attrs.pid}`,
+            attrs.duration && [
+              m('span.pf-memento-profile-bar__meta-sep', '\u00b7'),
+              m(Icon, {icon: 'schedule'}),
+              attrs.duration,
+            ],
+            !attrs.stopping &&
+              session.bufferUsagePct !== undefined && [
+                m('span.pf-memento-profile-bar__meta-sep', '\u00b7'),
+                m(Icon, {icon: 'storage'}),
+                `Buffer\u00a0${session.bufferUsagePct.toFixed(1)}%`,
+              ],
+          ),
+        ),
+
+        // Zone 3 — Actions: cancel or stop.
+        !attrs.stopping &&
+          m(
+            '.pf-memento-profile-bar__actions',
             m(Button, {
               label: 'Cancel',
               icon: 'arrow_back',
-              variant: ButtonVariant.Filled,
               onclick: () => attrs.onCancel(),
             }),
-          m(Icon, {icon: 'science'}),
-          m(
-            '.pf-memento-profile-bar__name',
-            `Profiling: ${attrs.processName} (PID ${attrs.pid})`,
-            attrs.stopping && m(Chip, {label: 'Stopping\u2026'}),
-          ),
-        ),
-        // Center: what is being recorded (big).
-        !attrs.stopping &&
-          m(
-            '.pf-memento-profile-bar__recording',
-            m(
-              '.pf-memento-profile-bar__datasource',
-              m(Icon, {icon: 'memory'}),
-              m('span', 'heapprofd'),
-              m('span.pf-memento-profiling-status__active', 'recording'),
-            ),
-            m(
-              '.pf-memento-profile-bar__datasource',
-              m(Icon, {icon: 'coffee'}),
-              m('span', 'java_hprof'),
-              m('span.pf-memento-profiling-status__active', 'recording'),
-            ),
-          ),
-        // Stats: elapsed time + buffer usage.
-        m(
-          '.pf-memento-profile-bar__stats',
-          attrs.duration && m(Chip, {label: attrs.duration}),
-          !attrs.stopping &&
-            session.bufferUsagePct !== undefined &&
-            m(
-              '.pf-memento-profile-bar__buffer-stat',
-              m(Icon, {icon: 'storage'}),
-              `Buffer ${session.bufferUsagePct.toFixed(1)}%`,
-            ),
-        ),
-        // Right: stop action.
-        m(
-          '.pf-memento-profile-bar__actions',
-          !attrs.stopping &&
             m(Button, {
               label: 'Stop & Open Trace',
               icon: Icons.ExternalLink,
@@ -109,7 +107,7 @@ export class ProfilePage
               intent: Intent.Primary,
               onclick: () => attrs.onStop(),
             }),
-        ),
+          ),
       ),
 
       // Billboards.
