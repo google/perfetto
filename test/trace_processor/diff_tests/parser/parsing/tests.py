@@ -814,6 +814,10 @@ class Parsing(TestSuite):
               name: 789
               group: 120
             }
+            app_package_name: "com.android.chrome"
+            app_version: "123.0.0.0"
+            channel: 3
+            os_name: "Android"
           }
         }
         """),
@@ -824,8 +828,12 @@ class Parsing(TestSuite):
         """,
         out=Csv('''
           "name","key_type","int_value","str_value"
+          "cr-a-package-name","single","[NULL]","com.android.chrome"
+          "cr-a-product-version","single","[NULL]","123.0.0.0"
+          "cr-a-channel","single",3,"[NULL]"
           "cr-a-enabled_categories","single","[NULL]","cat1,cat2,cat3"
           "cr-a-field_trial_hashes","single","[NULL]","{ name: 123, group: 456 } { name: 789, group: 120 } "
+          "cr-a-os-name","single","[NULL]","Android"
           "cr-a-playstore_version_code","single",101,"[NULL]"
           "cr-background_tracing_metadata","single","[NULL]","CgUlDsAbXx2RziSz"
           "cr-scenario_name_hash","single",3005533841,"[NULL]"
