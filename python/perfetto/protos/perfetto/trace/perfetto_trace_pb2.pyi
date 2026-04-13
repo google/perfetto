@@ -18405,10 +18405,14 @@ class ChromeWindowHandleEventInfo(_message.Message):
     def __init__(self, dpi: _Optional[int] = ..., message_id: _Optional[int] = ..., hwnd_ptr: _Optional[int] = ...) -> None: ...
 
 class Screenshot(_message.Message):
-    __slots__ = ("jpg_image",)
+    __slots__ = ("jpg_image", "pam_image", "ppm_image")
     JPG_IMAGE_FIELD_NUMBER: _ClassVar[int]
+    PAM_IMAGE_FIELD_NUMBER: _ClassVar[int]
+    PPM_IMAGE_FIELD_NUMBER: _ClassVar[int]
     jpg_image: bytes
-    def __init__(self, jpg_image: _Optional[bytes] = ...) -> None: ...
+    pam_image: bytes
+    ppm_image: bytes
+    def __init__(self, jpg_image: _Optional[bytes] = ..., pam_image: _Optional[bytes] = ..., ppm_image: _Optional[bytes] = ...) -> None: ...
 
 class TaskExecution(_message.Message):
     __slots__ = ("posted_from_iid",)
