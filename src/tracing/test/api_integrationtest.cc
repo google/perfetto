@@ -331,6 +331,7 @@ class MockTracingMuxer : public perfetto::internal::TracingMuxer {
   struct DataSource {
     perfetto::DataSourceDescriptor dsd;
     perfetto::internal::DataSourceStaticState* static_state;
+    perfetto::internal::DataSourceParams params;
   };
 
   MockTracingMuxer() : TracingMuxer(nullptr), prev_instance_(instance_) {
@@ -341,10 +342,10 @@ class MockTracingMuxer : public perfetto::internal::TracingMuxer {
   bool RegisterDataSource(
       const perfetto::DataSourceDescriptor& dsd,
       DataSourceFactory,
-      perfetto::internal::DataSourceParams,
+      perfetto::internal::DataSourceParams params,
       bool,
       perfetto::internal::DataSourceStaticState* static_state) override {
-    data_sources.emplace_back(DataSource{dsd, static_state});
+    data_sources.emplace_back(DataSource{dsd, static_state, params});
     return true;
   }
 
@@ -1943,6 +1944,26 @@ TEST_P(PerfettoApiTest, TrackEventDescriptor) {
   EXPECT_EQ("slow_category", desc.available_categories()[7].name());
   EXPECT_EQ("slow", desc.available_categories()[7].tags()[0]);
   EXPECT_EQ("disabled-by-default-cat", desc.available_categories()[8].name());
+}
+
+TEST_P(PerfettoApiTest, TrackEventBufferExhaustedPolicyConfigurable) {
+  perfetto::internal::TrackEventDataSource::ResetForTesting();
+  MockTracingMuxer muxer;
+
+  // By default, buffer exhausted policy should not be configurable.
+  perfetto::TrackEvent::Register();
+  ASSERT_EQ(1u, muxer.data_sources.size());
+  EXPECT_FALSE(
+      muxer.data_sources[0].params.buffer_exhausted_policy_configurable);
+
+  // After opting in, the policy should be configurable.
+  muxer.data_sources.clear();
+  perfetto::internal::TrackEventDataSource::ResetForTesting();
+  perfetto::TrackEvent::SetBufferExhaustedPolicyConfigurable(true);
+  perfetto::TrackEvent::Register();
+  ASSERT_EQ(1u, muxer.data_sources.size());
+  EXPECT_TRUE(
+      muxer.data_sources[0].params.buffer_exhausted_policy_configurable);
 }
 
 TEST_P(PerfettoApiTest, TrackEventSharedIncrementalState) {
