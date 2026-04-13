@@ -1,0 +1,55 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// BigTrace-specific styles. Classes use the .pf-bt- prefix to avoid
+// collisions with existing Perfetto UI classes.
+
+// ---------- Settings page ----------
+
+.pf-bt-settings-card-wrapper--disabled {
+  opacity: 0.6;
+}
+
+.pf-bt-settings-controls--disabled {
+  pointer-events: none;
+}
+
+.pf-bt-settings-category-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pf-bt-textarea {
+  width: 100%;
+  min-height: 60px;
+  max-height: 200px;
+  resize: vertical;
+  font-family: var(--pf-font-monospace);
+  font-size: var(--pf-font-size-s);
+  padding: 6px 8px;
+  border: solid 1px var(--pf-color-border-secondary);
+  border-radius: 4px;
+  background: var(--pf-color-void);
+  color: inherit;
+
+  &:hover {
+    border-color: var(--pf-color-border);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--pf-color-primary);
+  }
+}
