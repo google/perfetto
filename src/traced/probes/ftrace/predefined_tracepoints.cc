@@ -301,6 +301,8 @@ base::FlatSet<GroupAndName> GenerateMemreclaimTracePoints(
   base::FlatSet<GroupAndName> events;
   InsertEvent("vmscan", "mm_vmscan_direct_reclaim_begin", &events);
   InsertEvent("vmscan", "mm_vmscan_direct_reclaim_end", &events);
+  InsertEvent("vmscan", "mm_vmscan_memcg_reclaim_begin", &events);
+  InsertEvent("vmscan", "mm_vmscan_memcg_reclaim_end", &events);
   InsertEvent("vmscan", "mm_vmscan_kswapd_wake", &events);
   InsertEvent("vmscan", "mm_vmscan_kswapd_sleep", &events);
   AddEventGroup(table, "lowmemorykiller", &events);

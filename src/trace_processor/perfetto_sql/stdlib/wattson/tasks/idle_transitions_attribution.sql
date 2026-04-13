@@ -185,7 +185,7 @@ CREATE PERFETTO FUNCTION _filter_idle_attribution(
     dur LONG
 )
 RETURNS TABLE (
-  idle_cost_mws LONG,
+  idle_cost_mws DOUBLE,
   utid JOINID(task.id),
   upid JOINID(process.id),
   cpu JOINID(cpu.id)
@@ -196,7 +196,7 @@ RETURNS TABLE (
 WITH
   base AS (
     SELECT
-      cost.estimated_mw * cost.dur / 1e9 AS idle_cost_mws,
+      cost.estimated_mw * ii.dur / 1e9 AS idle_cost_mws,
       cost.utid,
       cost.upid,
       cost.cpu

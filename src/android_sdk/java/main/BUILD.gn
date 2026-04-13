@@ -10,7 +10,10 @@ perfetto_android_library("perfetto_trace_lib") {
     "dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
     "dev/perfetto/sdk/PerfettoTrackEventExtra.java",
   ]
-  deps = [ "../../jni:libperfetto_jni" ]
+  deps = [
+    "../../../../gn:error_prone_annotations",
+    "../../jni:libperfetto_jni",
+  ]
   manifest = "AndroidManifest.xml"
   android_bp_java_target_name_suffix = "_java"
   android_bp_copy_java_target_name_suffix = "_framework_java"
