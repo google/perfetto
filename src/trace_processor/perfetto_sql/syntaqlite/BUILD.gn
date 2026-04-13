@@ -18,8 +18,6 @@ assert(enable_perfetto_trace_processor_sqlite)
 
 # Amalgamated C tokenizer + parser generated from `perfetto.y` (grammar)
 # and `perfetto.synq` (AST node definitions) by `tools/gen_syntaqlite_parser`.
-# Regenerate after editing either source; `syntaqlite_perfetto.{c,h}` are
-# machine output and should not be edited by hand.
 source_set("syntaqlite") {
   sources = [
     "syntaqlite_perfetto.c",
@@ -37,5 +35,20 @@ source_set("syntaqlite") {
     "-Wno-type-limits",
     "-Wno-old-style-declaration",
     "-Wno-implicit-fallthrough",
+    "-Wno-switch-enum",
+    "-Wno-declaration-after-statement",
+    "-Wno-sign-conversion",
+    "-Wno-extra-semi-stmt",
+    "-Wno-cast-qual",
+    "-Wno-old-style-cast",
+    "-Wno-unused-macros",
+    "-Wno-format-nonliteral",
+    "-Wno-cast-align",
+    "-Wno-switch-enum",
+    "-Wno-missing-variable-declarations",
+    "-Wno-implicit-int-conversion",
+    "-Wno-missing-prototypes",
+    "-Wno-unreachable-code",
+    "-Wno-unused-function",
   ]
 }

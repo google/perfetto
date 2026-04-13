@@ -33,6 +33,10 @@ source_set("parser") {
     "../preprocessor",
     "../syntaqlite",
   ]
+  cflags = [
+    "-Wno-old-style-cast",
+    "-Wno-switch-enum",
+  ]
 }
 
 perfetto_unittest_source_set("unittests") {

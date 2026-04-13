@@ -17,7 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_PARSER_PERFETTO_SQL_PARSER_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_PARSER_PERFETTO_SQL_PARSER_H_
 
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>

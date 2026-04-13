@@ -31,17 +31,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
-// syntaqlite_perfetto.h is a generated C amalgamation. Suppress C++-pedantic
-// warnings that fire when a C header is compiled as C++.
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wold-style-cast"
-#pragma clang diagnostic ignored "-Wswitch-enum"
-#endif
 #include "src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/sql_argument.h"
 
@@ -56,7 +46,7 @@ std::string SpanText(SyntaqliteParser* p, SyntaqliteTextSpan span) {
   uint32_t len;
   const char* text = syntaqlite_parser_span_expanded_text(p, &span, &len);
   PERFETTO_CHECK(text != nullptr);
-  return std::string(text, len);
+  return {text, len};
 }
 
 // Slices |stmt| using a source-layer span whose offset/length are direct byte
