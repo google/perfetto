@@ -28,7 +28,7 @@ import {App} from '../../../public/app';
 import {ConnectionResult} from '../views/connection';
 import {
   ProcessProfileSession,
-  buildProcessProfileConfig,
+  createProcessProfileSession,
   type ProfileState,
 } from './process_profile_session';
 
@@ -124,7 +124,7 @@ export class LiveSession {
   snapshotOverrun = false;
 
   // Active process profile (if any).
-  private activeProfile?: ProcessProfileSession;
+  activeProfile?: ProcessProfileSession;
   private profileStartMs?: number;
 
   /** The PID being profiled, or undefined if no profile is active. */
@@ -201,16 +201,8 @@ export class LiveSession {
     if (this.activeProfile) {
       await this.activeProfile.cancel();
     }
-    const config = buildProcessProfileConfig(pid);
-
-    const result = this.linuxTarget
-      ? await this.linuxTarget.startTracing(config)
-      : await createAdbTracingSession(this.device!, config);
-    if (!result.ok) {
-      throw new Error(`Failed to start profile: ${result.error}`);
-    }
-    this.activeProfile = new ProcessProfileSession(
-      result.value,
+    this.activeProfile = await createProcessProfileSession(
+      this.linuxTarget ?? this.device!,
       pid,
       processName,
       this.data?.xMax ?? 0,

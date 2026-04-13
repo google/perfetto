@@ -19,7 +19,7 @@ import {
   type LineChartSeries,
 } from '../../../../components/widgets/charts/line_chart';
 import {LiveSession, type SnapshotData} from '../../sessions/live_session';
-import {formatKb} from '../../utils';
+import {formatKb, maxSeriesKb, niceKbInterval} from '../../utils';
 import {Panel} from '../../components/panel';
 
 function buildPsiTimeSeries(
@@ -299,6 +299,7 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
           gridLines: 'both',
           formatXValue: (v: number) => `${v.toFixed(0)}s`,
           formatYValue: (v: number) => formatKb(v),
+          yAxisMinInterval: niceKbInterval(maxSeriesKb(swapChartData?.series ?? [])),
         }),
       ),
 

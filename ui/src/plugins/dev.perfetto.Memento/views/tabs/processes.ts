@@ -30,9 +30,9 @@ import {
   CATEGORIES,
   type CategoryId,
 } from '../../process_categories';
-import {billboard, billboards} from '../../components/billboard';
+import {Billboard} from '../../components/billboard';
 import {ColorChip} from '../../components/color_chip';
-import {billboardKb, formatKb} from '../../utils';
+import {billboardKb, formatKb, maxSeriesKb, niceKbInterval} from '../../utils';
 import {
   type ProcessGrouping,
   type ProcessMetric,
@@ -40,6 +40,7 @@ import {
   PROCESS_METRIC_OPTIONS,
   OOM_SCORE_BUCKETS,
 } from '../../process_data';
+import {BillboardRow} from '../../components/billboard_row';
 
 export type {ProcessGrouping, ProcessMetric, ProcessMemoryRow};
 export {PROCESS_METRIC_OPTIONS, OOM_SCORE_BUCKETS};
@@ -491,19 +492,20 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
 
     return [
       latestProcesses.length > 0 &&
-        billboards(
-          billboard({
-            value: billboardKb(totalAnonSwapKb),
+        m(
+          BillboardRow,
+          m(Billboard, {
+            ...billboardKb(totalAnonSwapKb),
             label: 'Anon + Swap',
             desc: 'Sum of anonymous RSS + swap across all processes',
           }),
-          billboard({
-            value: billboardKb(totalFileKb),
+          m(Billboard, {
+            ...billboardKb(totalFileKb),
             label: 'File',
             desc: 'Sum of file-backed RSS across all processes',
           }),
-          billboard({
-            value: billboardKb(totalDmabufKb),
+          m(Billboard, {
+            ...billboardKb(totalDmabufKb),
             label: 'DMA-BUF',
             desc: 'Sum of DMA-BUF heap RSS across all processes',
           }),
@@ -572,6 +574,7 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
                 gridLines: 'both',
                 formatXValue: (v: number) => `${v.toFixed(0)}s`,
                 formatYValue: (v: number) => formatKb(v),
+                yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),
                 onSeriesClick: isDrilledDown
                   ? undefined
                   : (seriesName: string) => this.onSeriesClick(seriesName),

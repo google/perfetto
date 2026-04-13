@@ -13,7 +13,9 @@
 // limitations under the License.
 
 import protos from '../../../protos';
-import {TracingSession} from '../../dev.perfetto.RecordTraceV2/interfaces/tracing_session';
+import {AdbDevice} from '../../dev.perfetto.RecordTraceV2/adb/adb_device';
+import {createAdbTracingSession} from '../../dev.perfetto.RecordTraceV2/adb/adb_tracing_session';
+import {TracedWebsocketTarget} from '../../dev.perfetto.RecordTraceV2/traced_over_websocket/traced_websocket_target';
 
 export type ProfileState = 'recording' | 'stopping' | 'finished' | 'error';
 
@@ -21,7 +23,7 @@ export type ProfileState = 'recording' | 'stopping' | 'finished' | 'error';
  * Builds the TraceConfig for a single-process heap profiling session.
  * Uses three buffers: heap profiling (0), Java HPROF (1), process stats (2).
  */
-export function buildProcessProfileConfig(pid: number): protos.ITraceConfig {
+function buildProcessProfileConfig(pid: number): protos.ITraceConfig {
   return {
     buffers: [
       {
@@ -69,7 +71,7 @@ export function buildProcessProfileConfig(pid: number): protos.ITraceConfig {
           javaHprofConfig: {
             pid: [pid],
             continuousDumpConfig: {
-              dumpIntervalMs: 1000,
+              dumpIntervalMs: 10 * 1000,
             },
           },
         },
@@ -78,72 +80,105 @@ export function buildProcessProfileConfig(pid: number): protos.ITraceConfig {
   };
 }
 
-/**
- * Handle to a single-process heap profiling session. Call stop() to end
- * recording and pull the trace buffer, then pass the result to
- * app.openTraceFromBuffer() to view in the main UI.
- */
-export class ProcessProfileSession {
-  private readonly session: TracingSession;
+const STATS_POLL_INTERVAL_MS = 3000;
+
+export interface ProcessProfileSession {
   readonly pid: number;
   readonly processName: string;
-  /** Latest x-axis value (seconds relative to ts0) from the live session at the moment profiling started. */
   readonly startX: number;
-  state: ProfileState = 'recording';
-  error?: string;
-
-  constructor(
-    session: TracingSession,
-    pid: number,
-    processName: string,
-    startX: number,
-  ) {
-    this.session = session;
-    this.pid = pid;
-    this.processName = processName;
-    this.startX = startX;
-    this.session.onSessionUpdate.addListener(() => {
-      if (this.session.state === 'FINISHED') {
-        this.state = 'finished';
-      } else if (this.session.state === 'ERRORED') {
-        this.state = 'error';
-        this.error = this.session.logs
-          .filter((l) => l.isError)
-          .map((l) => l.message)
-          .join('; ');
-      }
-    });
-  }
-
+  readonly state: ProfileState;
+  readonly error?: string;
+  readonly bufferUsagePct?: number;
   /** Stops recording and waits for the trace data to be ready. */
-  async stop(): Promise<void> {
-    this.state = 'stopping';
-    await this.session.stop();
-    // Wait for the session to reach FINISHED if it hasn't already.
-    if (this.session.state !== 'FINISHED') {
-      await new Promise<void>((resolve) => {
-        const sub = this.session.onSessionUpdate.addListener(() => {
-          if (
-            this.session.state === 'FINISHED' ||
-            this.session.state === 'ERRORED'
-          ) {
-            sub[Symbol.dispose]();
-            resolve();
-          }
-        });
-      });
-    }
-    this.state = this.session.state === 'FINISHED' ? 'finished' : 'error';
-  }
-
+  stop(): Promise<void>;
   /** Cancels recording and discards trace data. */
-  async cancel(): Promise<void> {
-    await this.session.cancel();
-    this.state = 'error';
+  cancel(): Promise<void>;
+  /** Returns the trace buffer once state is 'finished'. */
+  getTraceData(): Uint8Array | undefined;
+}
+
+export async function createProcessProfileSession(
+  targetOrDevice: TracedWebsocketTarget | AdbDevice,
+  pid: number,
+  processName: string,
+  startX: number,
+): Promise<ProcessProfileSession> {
+  const config = buildProcessProfileConfig(pid);
+  const result =
+    targetOrDevice instanceof TracedWebsocketTarget
+      ? await targetOrDevice.startTracing(config)
+      : await createAdbTracingSession(targetOrDevice, config);
+  if (!result.ok) {
+    // TODO: Put this in the error state of the returned object
+    return {
+      state: 'error' as ProfileState,
+      error: `Failed to start profile: ${result.error}`,
+      startX,
+      pid,
+      processName,
+      async stop() {},
+      async cancel() {},
+      getTraceData() {
+        return undefined;
+      },
+    };
   }
 
-  /** Returns the trace buffer once state is 'finished'. */
-  getTraceData(): Uint8Array | undefined {
-    return this.session.getTraceData();
-  }
+  let bufferUsagePct: number | undefined;
+  const session = result.value;
+  let state: ProfileState = 'recording';
+  let error: string | undefined = undefined;
+
+  const intervalHandle = setInterval(async () => {
+    bufferUsagePct = await session.getBufferUsagePct();
+  }, STATS_POLL_INTERVAL_MS);
+
+  session.onSessionUpdate.addListener(() => {
+    if (session.state === 'FINISHED') {
+      state = 'finished';
+    } else if (session.state === 'ERRORED') {
+      state = 'error';
+      error = session.logs
+        .filter((l) => l.isError)
+        .map((l) => l.message)
+        .join('; ');
+    }
+  });
+
+  return {
+    pid,
+    processName,
+    startX,
+    state,
+    get bufferUsagePct() {
+      return bufferUsagePct;
+    },
+    /** Stops recording and waits for the trace data to be ready. */
+    async stop() {
+      clearInterval(intervalHandle);
+      state = 'stopping';
+      await session.stop();
+      // Wait for the session to reach FINISHED if it hasn't already.
+      if (session.state !== 'FINISHED') {
+        await new Promise<void>((resolve) => {
+          const sub = session.onSessionUpdate.addListener(() => {
+            if (session.state === 'FINISHED' || session.state === 'ERRORED') {
+              sub[Symbol.dispose]();
+              resolve();
+            }
+          });
+        });
+      }
+      state = session.state === 'FINISHED' ? 'finished' : 'error';
+    },
+    async cancel(): Promise<void> {
+      await session.cancel();
+      state = 'error';
+      clearInterval(intervalHandle);
+    },
+    /** Returns the trace buffer once state is 'finished'. */
+    getTraceData(): Uint8Array | undefined {
+      return session.getTraceData();
+    },
+  };
 }

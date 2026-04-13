@@ -12,7 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
+/**
+ * Returns a Y-axis tick interval (in KB) that produces clean KB/MB/GB labels.
+ * Targets ~5 ticks by picking the smallest interval from the sequence
+ * 1, 2, 5, 10, 20, 50, 100, 200, 500 × {KB, MB, GB} that keeps tick count ≤ 6.
+ */
+export function niceKbInterval(maxKb: number): number {
+  if (maxKb <= 0) return 1;
+  const rawInterval = maxKb / 5;
+  const steps = [1, 2, 5, 10, 20, 50, 100, 200, 500];
+  for (const unit of [1, 1024, 1024 * 1024]) {
+    for (const step of steps) {
+      const candidate = unit * step;
+      if (candidate >= rawInterval) return candidate;
+    }
+  }
+  return 1024 * 1024 * 512; // fallback: 512 GB
+}
+
+/** Returns the maximum y value across all series in a chart dataset. */
+export function maxSeriesKb(
+  series: ReadonlyArray<{readonly points: ReadonlyArray<{readonly y: number}>}>,
+): number {
+  let max = 0;
+  for (const s of series) {
+    for (const p of s.points) {
+      if (p.y > max) max = p.y;
+    }
+  }
+  return max;
+}
 
 export function formatKb(kb: number): string {
   if (kb < 1024) return `${kb.toLocaleString()} KB`;
@@ -21,7 +50,7 @@ export function formatKb(kb: number): string {
 }
 
 /** Renders a KB value for a billboard with the unit in a smaller span. */
-export function billboardKb(kb: number): m.Children {
+export function billboardKb(kb: number) {
   let value: string;
   let unit: string;
   if (kb < 1024) {
@@ -34,5 +63,5 @@ export function billboardKb(kb: number): m.Children {
     value = (kb / (1024 * 1024)).toFixed(1);
     unit = 'GB';
   }
-  return [value, m('span.pf-memento-billboard__unit', unit)];
+  return {value, unit};
 }

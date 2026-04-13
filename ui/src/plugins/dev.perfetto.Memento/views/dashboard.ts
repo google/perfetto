@@ -22,7 +22,7 @@ import {
   type LineChartSeries,
 } from '../../../components/widgets/charts/line_chart';
 import {LiveSession, type SnapshotData} from '../sessions/live_session';
-import {renderProcessProfilePage} from './process_profile';
+import {ProfilePage} from './profile_page';
 import {ProcessesTab} from './tabs/processes';
 import {renderSystemTab} from './tabs/system';
 import {renderPageCacheTab} from './tabs/page_cache';
@@ -297,6 +297,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     const chartData = data
       ? buildProcessMemoryBreakdown(data, pid, t0)
       : undefined;
+    const activeProfileSession = session.activeProfile;
 
     // Capture baseline from first chart data.
     if (this.profileBaseline === undefined && chartData !== undefined) {
@@ -313,33 +314,30 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       };
     }
 
-    return renderProcessProfilePage(
-      {
-        processName,
-        pid,
-        stopping: session.profileState === 'stopping',
-        duration: session.profileDuration,
-        chartData,
-        baseline: this.profileBaseline,
-        xMin: data?.xMin ?? 0,
-        xMax: data?.xMax ?? 0,
-        startX: session.profileStartX,
+    return m(ProfilePage, {
+      session: activeProfileSession!,
+      processName,
+      pid,
+      stopping: session.profileState === 'stopping',
+      duration: session.profileDuration,
+      chartData,
+      baseline: this.profileBaseline,
+      xMin: data?.xMin ?? 0,
+      xMax: data?.xMax ?? 0,
+      startX: session.profileStartX,
+      onStop: () => {
+        session.stopAndOpenProfile().then(() => {
+          this.profileBaseline = undefined;
+          m.redraw();
+        });
       },
-      {
-        onStop: () => {
-          session.stopAndOpenProfile().then(() => {
-            this.profileBaseline = undefined;
-            m.redraw();
-          });
-        },
-        onCancel: () => {
-          session.cancelProfile().then(() => {
-            this.profileBaseline = undefined;
-            m.redraw();
-          });
-        },
+      onCancel: () => {
+        session.cancelProfile().then(() => {
+          this.profileBaseline = undefined;
+          m.redraw();
+        });
       },
-    );
+    });
   }
 
   private async stopAndOpenTrace(attrs: DashboardAttrs) {

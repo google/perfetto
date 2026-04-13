@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Billboard stat cards.
-.pf-memento-billboards {
-  display: flex;
-  gap: 12px;
-}
-
 .pf-memento-billboard {
   padding: 14px 16px;
   border-radius: 8px;
-  border: 1px solid var(--pf-color-border-secondary);
+  // border: 1px solid var(--pf-color-border-secondary);
   background: var(--pf-color-background-secondary);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 2px 4px rgba(0, 0, 0, 0.18);
 }
 
 .pf-memento-billboard__value {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
   font-size: 24px;
   font-weight: 700;
   color: var(--pf-color-text);
@@ -35,7 +35,6 @@
     font-size: 13px;
     font-weight: 500;
     color: var(--pf-color-text-muted);
-    margin-left: 2px;
   }
 }
 

@@ -12,6 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@import "./components/billboard_row.scss";
+@import "./components/billboard.scss";
+@import "./components/color_chip.scss";
+@import "./components/panel.scss";
+@import "./views/dashboard.scss";
+@import "./views/profile_page.scss";
+
 .pf-memento-page__container {
   display: flex;
   flex-direction: column;
@@ -27,10 +34,6 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
-}
-
-.pf-memento--muted {
-  color: var(--pf-color-text-muted);
 }
 
 // Page title bar.
@@ -57,102 +60,6 @@
   }
 }
 
-.pf-memento-title-bar__left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
-}
-
-// Thin vertical rule that separates logical groups in the toolbar.
-.pf-memento-title-bar__sep {
-  width: 1px;
-  height: 18px;
-  background: var(--pf-color-border);
-  flex-shrink: 0;
-}
-
-.pf-memento-title-bar__device {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--pf-font-size-m);
-  font-weight: 500;
-  color: var(--pf-color-text-muted);
-}
-
-.pf-memento-title-bar__actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-// Snapshot info popup content.
-.pf-memento-snapshot-info {
-  padding: 4px 6px;
-  min-width: 200px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.pf-memento-snapshot-info__heading {
-  font-size: var(--pf-font-size-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--pf-color-text-muted);
-  margin-bottom: 4px;
-}
-
-.pf-memento-snapshot-info__row {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 2px 0;
-  font-size: var(--pf-font-size-s);
-  color: var(--pf-color-text);
-
-  span:first-child {
-    color: var(--pf-color-text-muted);
-  }
-
-  &.pf-memento-snapshot-info__sum {
-    margin-top: 6px;
-    padding-top: 8px;
-    border-top: 1px solid var(--pf-color-border);
-    font-weight: 600;
-    font-size: var(--pf-font-size-m);
-
-    span:first-child {
-      color: var(--pf-color-text);
-    }
-  }
-}
-
-.pf-memento-snapshot-info__overrun {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 8px;
-  padding: 5px 8px;
-  border-radius: 4px;
-  font-size: var(--pf-font-size-xs);
-  background: var(--pf-color-warning-container);
-  color: var(--pf-color-warning);
-
-  .material-icons {
-    font-size: 13px;
-  }
-}
-
-.pf-memento-snapshot-info__empty {
-  font-size: var(--pf-font-size-s);
-  color: var(--pf-color-text-muted);
-  font-style: italic;
-  padding: 4px 0;
-}
-
 .pf-memento-status-bar__dot {
   width: 8px;
   height: 8px;
@@ -165,15 +72,6 @@
     background: var(--pf-color-warning);
     animation: none;
   }
-}
-
-.pf-memento-status-bar__badge {
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: var(--pf-font-size-xs);
-  font-weight: 600;
-  background: var(--pf-color-primary);
-  color: var(--pf-color-on-primary);
 }
 
 @keyframes pf-memento-pulse {
@@ -191,62 +89,11 @@
   font-size: var(--pf-font-size-s);
 }
 
-@import "./components/color_chip.scss";
-@import "./components/billboard.scss";
-
 // Zero-padding for the profile button cell in the process table.
 .pf-grid-cell:has(.pf-memento-profile-btn) {
   --pf-cell-padding-block: 0;
   --pf-cell-padding-inline: 2px;
 }
-
-// Profile sub-header bar.
-.pf-memento-profile-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-radius: 6px;
-  background: var(--pf-color-background-secondary);
-  border-left: 4px solid var(--pf-color-primary);
-}
-
-.pf-memento-profile-bar__left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.pf-memento-profile-bar__title {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.pf-memento-profile-bar__name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--pf-font-size-l);
-  font-weight: 600;
-}
-
-.pf-memento-profile-bar__datasources {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--pf-font-size-s);
-  font-weight: 500;
-  color: var(--pf-color-text);
-}
-
-.pf-memento-profile-bar__actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-@import "./components/panel.scss";
 
 // Hero connect / idle state.
 .pf-memento-hero {
@@ -301,79 +148,5 @@
 
   .pf-grid__row:hover .pf-memento-profile-btn {
     visibility: visible;
-  }
-}
-
-// Duration badge in title bar.
-.pf-memento-title-bar__duration {
-  font-size: var(--pf-font-size-m);
-  font-weight: 600;
-  color: var(--pf-color-text-muted);
-  background: var(--pf-color-background-secondary);
-  padding: 4px 10px;
-  border-radius: 4px;
-  margin-left: 12px;
-}
-
-// Profiling data source status lines.
-.pf-memento-profiling-status {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px 16px;
-  border-radius: 8px;
-  border: 1px solid var(--pf-color-border-secondary);
-  background: var(--pf-color-background);
-}
-
-.pf-memento-profiling-status__line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--pf-font-size-s);
-  color: var(--pf-color-text-muted);
-}
-
-.pf-memento-profiling-status__active {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: rgba(76, 175, 80, 0.15);
-  color: #4caf50;
-  font-weight: 600;
-  font-size: var(--pf-font-size-xs);
-  padding: 1px 6px;
-  border-radius: 10px;
-  border: 1px solid rgba(76, 175, 80, 0.4);
-
-  // Animated dot before "recording"
-  &::before {
-    content: "";
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #4caf50;
-    animation: pf-memento-pulse 1.5s ease-in-out infinite;
-  }
-}
-
-@keyframes pf-memento-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.3;
-  }
-}
-
-.pf-memento-process-cell {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-
-  .pf-button {
-    margin-top: -2px;
   }
 }

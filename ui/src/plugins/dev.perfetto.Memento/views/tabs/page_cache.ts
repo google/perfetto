@@ -19,9 +19,10 @@ import {
   type LineChartSeries,
 } from '../../../../components/widgets/charts/line_chart';
 import {LiveSession, type SnapshotData} from '../../sessions/live_session';
-import {billboardKb, formatKb} from '../../utils';
-import {billboard, billboards} from '../../components/billboard';
+import {billboardKb, formatKb, maxSeriesKb, niceKbInterval} from '../../utils';
+import {Billboard} from '../../components/billboard';
 import {Panel} from '../../components/panel';
+import {BillboardRow} from '../../components/billboard_row';
 
 function buildPageCacheTimeSeries(
   data: SnapshotData,
@@ -214,10 +215,23 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
 
   return [
     bb !== undefined &&
-      billboards(
-        billboard({value: billboardKb(bb.total), label: 'Total Page Cache', desc: 'Derived: Active(file) + Inactive(file) from /proc/meminfo'}),
-        billboard({value: billboardKb(bb.dirty), label: 'Dirty', desc: 'Source: Dirty from /proc/meminfo'}),
-        billboard({value: billboardKb(bb.mapped), label: 'Mapped', desc: 'Source: Mapped from /proc/meminfo'}),
+      m(
+        BillboardRow,
+        m(Billboard, {
+          ...billboardKb(bb.total),
+          label: 'Total Page Cache',
+          desc: 'Derived: Active(file) + Inactive(file) from /proc/meminfo',
+        }),
+        m(Billboard, {
+          ...billboardKb(bb.dirty),
+          label: 'Dirty',
+          desc: 'Source: Dirty from /proc/meminfo',
+        }),
+        m(Billboard, {
+          ...billboardKb(bb.mapped),
+          label: 'Mapped',
+          desc: 'Source: Mapped from /proc/meminfo',
+        }),
       ),
 
     m(
@@ -242,6 +256,7 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
             xAxisMax: data.xMax,
             formatXValue: (v: number) => `${v.toFixed(0)}s`,
             formatYValue: (v: number) => formatKb(v),
+            yAxisMinInterval: niceKbInterval(maxSeriesKb(pageCacheChartData.series)),
           })
         : m('.pf-memento-placeholder', 'Waiting for data\u2026'),
     ),

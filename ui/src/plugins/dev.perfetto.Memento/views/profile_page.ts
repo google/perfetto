@@ -21,11 +21,14 @@ import {Button, ButtonVariant} from '../../../widgets/button';
 import {Chip} from '../../../widgets/chip';
 import {Icon} from '../../../widgets/icon';
 import {Intent} from '../../../widgets/common';
-import {billboard, billboards} from '../components/billboard';
-import {billboardKb, formatKb} from '../utils';
+import {Billboard} from '../components/billboard';
+import {billboardKb, formatKb, maxSeriesKb, niceKbInterval} from '../utils';
 import {Icons} from '../../../base/semantic_icons';
+import {BillboardRow} from '../components/billboard_row';
+import {ProcessProfileSession} from '../sessions/process_profile_session';
 
-export interface ProfilePageData {
+export interface ProfilePageAttrs {
+  readonly session: ProcessProfileSession;
   processName: string;
   pid: number;
   stopping: boolean;
@@ -34,73 +37,88 @@ export interface ProfilePageData {
   baseline?: {anonSwap: number; file: number; dmabuf: number};
   xMin: number;
   xMax: number;
-  /** x-axis position (s relative to ts0) where profiling started. Used to draw a marker. */
+  /** x-axis position (s relative to ts0) where profiling started. */
   startX?: number;
-}
-
-export interface ProfilePageCallbacks {
   onStop: () => void;
   onCancel: () => void;
 }
 
-export function renderProcessProfilePage(
-  data: ProfilePageData,
-  callbacks: ProfilePageCallbacks,
-): m.Children {
-  return [
-    // Profile header bar with status indicators.
-    m(
-      '.pf-memento-profile-bar',
+export class ProfilePage
+  implements m.ClassComponent<ProfilePageAttrs>
+{
+  view({attrs}: m.Vnode<ProfilePageAttrs>): m.Children {
+    const {session} = attrs;
+    return [
+      // Profile header bar with status indicators.
       m(
-        '.pf-memento-profile-bar__left',
-        !data.stopping &&
-          m(Button, {
-            label: 'Cancel',
-            icon: 'arrow_back',
-            variant: ButtonVariant.Filled,
-            onclick: () => callbacks.onCancel(),
-          }),
-        m(Icon, {icon: 'science'}),
+        '.pf-memento-profile-bar',
+        // Left: cancel button + process identity.
         m(
-          '.pf-memento-profile-bar__title',
+          '.pf-memento-profile-bar__left',
+          !attrs.stopping &&
+            m(Button, {
+              label: 'Cancel',
+              icon: 'arrow_back',
+              variant: ButtonVariant.Filled,
+              onclick: () => attrs.onCancel(),
+            }),
+          m(Icon, {icon: 'science'}),
           m(
             '.pf-memento-profile-bar__name',
-            `Profiling: ${data.processName} (PID ${data.pid})`,
-            data.duration && m(Chip, {label: data.duration}),
-            data.stopping && m(Chip, {label: 'Stopping\u2026'}),
+            `Profiling: ${attrs.processName} (PID ${attrs.pid})`,
+            attrs.stopping && m(Chip, {label: 'Stopping\u2026'}),
           ),
-          !data.stopping &&
+        ),
+        // Center: what is being recorded (big).
+        !attrs.stopping &&
+          m(
+            '.pf-memento-profile-bar__recording',
             m(
-              '.pf-memento-profile-bar__datasources',
+              '.pf-memento-profile-bar__datasource',
               m(Icon, {icon: 'memory'}),
-              'heapprofd ',
-              m('span.pf-memento-profiling-status__active', 'recording'),
-              '\u00b7',
-              m(Icon, {icon: 'coffee'}),
-              'java_hprof ',
+              m('span', 'heapprofd'),
               m('span.pf-memento-profiling-status__active', 'recording'),
             ),
+            m(
+              '.pf-memento-profile-bar__datasource',
+              m(Icon, {icon: 'coffee'}),
+              m('span', 'java_hprof'),
+              m('span.pf-memento-profiling-status__active', 'recording'),
+            ),
+          ),
+        // Stats: elapsed time + buffer usage.
+        m(
+          '.pf-memento-profile-bar__stats',
+          attrs.duration && m(Chip, {label: attrs.duration}),
+          !attrs.stopping &&
+            session.bufferUsagePct !== undefined &&
+            m(
+              '.pf-memento-profile-bar__buffer-stat',
+              m(Icon, {icon: 'storage'}),
+              `Buffer ${session.bufferUsagePct.toFixed(1)}%`,
+            ),
+        ),
+        // Right: stop action.
+        m(
+          '.pf-memento-profile-bar__actions',
+          !attrs.stopping &&
+            m(Button, {
+              label: 'Stop & Open Trace',
+              icon: Icons.ExternalLink,
+              variant: ButtonVariant.Filled,
+              intent: Intent.Primary,
+              onclick: () => attrs.onStop(),
+            }),
         ),
       ),
-      m(
-        '.pf-memento-profile-bar__actions',
-        !data.stopping &&
-          m(Button, {
-            label: 'Stop & Open Trace',
-            icon: Icons.ExternalLink,
-            variant: ButtonVariant.Filled,
-            intent: Intent.Primary,
-            onclick: () => callbacks.onStop(),
-          }),
-      ),
-    ),
 
-    // Billboards.
-    renderBillboards(data.chartData, data.baseline),
+      // Billboards.
+      renderBillboards(attrs.chartData, attrs.baseline),
 
-    // Process memory breakdown chart.
-    renderBreakdownChart(data),
-  ];
+      // Process memory breakdown chart.
+      renderBreakdownChart(attrs),
+    ];
+  }
 }
 
 function renderBillboards(
@@ -129,17 +147,28 @@ function renderBillboards(
       delta !== undefined
         ? `${delta >= 0 ? '+' : ''}${formatKb(delta)}`
         : undefined;
-    return billboard({value: billboardKb(current), label, desc, delta: deltaStr, color: seriesColor(label)});
+    return m(Billboard, {
+      ...billboardKb(current),
+      label,
+      desc,
+      delta: deltaStr,
+      color: seriesColor(label),
+    });
   };
 
-  return billboards(
-    card(latest('Anon + Swap'), baseline?.anonSwap, 'Anon + Swap', 'Anonymous resident + swapped pages'),
+  return m(BillboardRow, [
+    card(
+      latest('Anon + Swap'),
+      baseline?.anonSwap,
+      'Anon + Swap',
+      'Anonymous resident + swapped pages',
+    ),
     card(latest('File'), baseline?.file, 'File', 'File-backed resident pages'),
     card(latest('DMA-BUF'), baseline?.dmabuf, 'DMA-BUF', 'GPU/DMA buffer RSS'),
-  );
+  ]);
 }
 
-function renderBreakdownChart(data: ProfilePageData): m.Children {
+function renderBreakdownChart(attrs: ProfilePageAttrs): m.Children {
   return m(
     '.pf-memento-panel',
     m(
@@ -147,18 +176,18 @@ function renderBreakdownChart(data: ProfilePageData): m.Children {
       m('h2', 'Process Memory Breakdown'),
       m(
         'p',
-        `Stacked area chart of memory usage for ${data.processName}. ` +
+        `Stacked area chart of memory usage for ${attrs.processName}. ` +
           'Anon + Swap = anonymous resident + swapped pages. ' +
           'File = file-backed resident pages. DMA-BUF = GPU/DMA buffer RSS.',
       ),
     ),
-    data.chartData
+    attrs.chartData
       ? m(LineChart, {
           data: {
-            series: data.chartData.series,
+            series: attrs.chartData.series,
             markers:
-              data.startX !== undefined
-                ? [{x: data.startX, label: 'Profile start', color: '#2196f3'}]
+              attrs.startX !== undefined
+                ? [{x: attrs.startX, label: 'Profile start', color: '#2196f3'}]
                 : undefined,
           },
           height: 350,
@@ -168,10 +197,11 @@ function renderBreakdownChart(data: ProfilePageData): m.Children {
           showPoints: false,
           stacked: true,
           gridLines: 'both',
-          xAxisMin: data.xMin,
-          xAxisMax: data.xMax,
+          xAxisMin: attrs.xMin,
+          xAxisMax: attrs.xMax,
           formatXValue: (v: number) => `${v.toFixed(0)}s`,
           formatYValue: (v: number) => formatKb(v),
+          yAxisMinInterval: niceKbInterval(maxSeriesKb(attrs.chartData.series)),
         })
       : m('.pf-memento-placeholder', 'Waiting for data\u2026'),
   );

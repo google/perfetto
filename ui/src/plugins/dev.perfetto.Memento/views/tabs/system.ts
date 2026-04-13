@@ -19,9 +19,10 @@ import {
   type LineChartSeries,
 } from '../../../../components/widgets/charts/line_chart';
 import {LiveSession, SnapshotData} from '../../sessions/live_session';
-import {billboardKb, formatKb} from '../../utils';
-import {billboard, billboards} from '../../components/billboard';
+import {billboardKb, formatKb, maxSeriesKb, niceKbInterval} from '../../utils';
+import {Billboard} from '../../components/billboard';
 import {Panel} from '../../components/panel';
+import {BillboardRow} from '../../components/billboard_row';
 
 /** System memory breakdown from /proc/meminfo, partitioning MemTotal. */
 function buildSystemTimeSeries(
@@ -197,13 +198,33 @@ export function renderSystemTab(session: LiveSession): m.Children {
 
   return [
     bb !== undefined &&
-      billboards(
-        billboard({value: billboardKb(bb.totalKb), label: 'MemTotal', desc: 'Total physical RAM'}),
-        billboard({value: billboardKb(bb.availableKb), label: 'MemAvailable', desc: 'Available without swapping'}),
-        billboard({value: billboardKb(bb.anonKb), label: 'Anon', desc: 'Active(anon) + Inactive(anon)'}),
-        billboard({value: billboardKb(bb.fileCacheKb), label: 'Page Cache', desc: 'File LRU \u2212 Shmem'}),
-        billboard({value: billboardKb(bb.freeKb), label: 'MemFree', desc: 'Completely unused RAM'}),
-      ),
+      m(BillboardRow, [
+        m(Billboard, {
+          ...billboardKb(bb.totalKb),
+          label: 'MemTotal',
+          desc: 'Total physical RAM',
+        }),
+        m(Billboard, {
+          ...billboardKb(bb.availableKb),
+          label: 'MemAvailable',
+          desc: 'Available without swapping',
+        }),
+        m(Billboard, {
+          ...billboardKb(bb.anonKb),
+          label: 'Anon',
+          desc: 'Active(anon) + Inactive(anon)',
+        }),
+        m(Billboard, {
+          ...billboardKb(bb.fileCacheKb),
+          label: 'Page Cache',
+          desc: 'File LRU \u2212 Shmem',
+        }),
+        m(Billboard, {
+          ...billboardKb(bb.freeKb),
+          label: 'MemFree',
+          desc: 'Completely unused RAM',
+        }),
+      ]),
 
     m(
       Panel,
@@ -228,6 +249,7 @@ export function renderSystemTab(session: LiveSession): m.Children {
             xAxisMax: data.xMax,
             formatXValue: (v: number) => `${v.toFixed(0)}s`,
             formatYValue: (v: number) => formatKb(v),
+            yAxisMinInterval: niceKbInterval(maxSeriesKb(chartData.series)),
           })
         : m('.pf-memento-placeholder', 'Waiting for data\u2026'),
     ),

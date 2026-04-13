@@ -137,6 +137,13 @@ export interface LineChartAttrs {
   readonly integerY?: boolean;
 
   /**
+   * Minimum interval between Y axis ticks. Use this to align ticks with a
+   * display unit — e.g. pass 1024 so ticks land on whole MB boundaries when
+   * data is in KB.
+   */
+  readonly yAxisMinInterval?: number;
+
+  /**
    * Show legend. Defaults to true when multiple series.
    */
   readonly showLegend?: boolean;
@@ -228,6 +235,7 @@ function buildLineOption(
     logScale = false,
     integerX = false,
     integerY = false,
+    yAxisMinInterval,
     showLegend,
     showPoints = true,
     lineWidth = 2,
@@ -337,7 +345,7 @@ function buildLineOption(
         formatYValue !== undefined
           ? (v) => formatYValue(v as number)
           : undefined,
-      minInterval: integerY ? 1 : undefined,
+      minInterval: yAxisMinInterval ?? (integerY ? 1 : undefined),
       scale: attrs.scaleAxes,
       showSplitLine: gridLines === 'horizontal' || gridLines === 'both',
     },
