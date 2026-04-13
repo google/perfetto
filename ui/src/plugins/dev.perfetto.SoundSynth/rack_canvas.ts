@@ -27,6 +27,7 @@ import {
   NodeGraph,
   NodePort,
 } from '../../widgets/nodegraph';
+import {MenuItem} from '../../widgets/menu';
 import {
   PatchView,
   TraceSourceEntity,
@@ -56,32 +57,69 @@ export interface RackCanvasAttrs {
   patch: protos.ISynthPatch;
   view: PatchView;
   selectedInstrumentId: string | null;
+  selectedTraceSourceId: string | null;
   /** Called when user clicks "Edit" on an instrument. */
   onEditInstrument: (instrumentId: string) => void;
   /** Called when user clicks "Test" on an instrument. */
   onTestInstrument: (instrumentId: string) => void;
+  /** Called when a trace source node is selected (null = deselected). */
+  onSelectTraceSource: (traceSourceId: string | null) => void;
   /** Called after any mutation to trigger a redraw. */
   onChange: () => void;
 }
 
 export class RackCanvas implements m.ClassComponent<RackCanvasAttrs> {
+  // Tracks the currently-selected canvas node id. Used to let the user
+  // press Delete/Backspace to remove any selectable node (trace source,
+  // instrument). This is purely UI state, not persisted.
+  private selectedNodeId: string | null = null;
+
   view(vnode: m.Vnode<RackCanvasAttrs>) {
     const {
-      patch, view, selectedInstrumentId,
-      onEditInstrument, onTestInstrument, onChange,
+      patch, view, selectedInstrumentId, selectedTraceSourceId,
+      onEditInstrument, onTestInstrument, onSelectTraceSource, onChange,
     } = vnode.attrs;
 
     // --- Build nodes ---
     const nodes: Node[] = [];
 
     for (const src of view.traceSources) {
-      nodes.push(this.buildTraceSourceNode(src, onChange));
+      const node = this.buildTraceSourceNode(src, onChange);
+      const srcId = src.module.id ?? '';
+      // Add a Delete context menu item.
+      const mutableNode = node as {contextMenuItems?: m.Children};
+      mutableNode.contextMenuItems = m(MenuItem, {
+        label: 'Delete trace source',
+        icon: 'delete',
+        onclick: () => {
+          removeModule(patch, srcId);
+          if (this.selectedNodeId === `src:${srcId}`) {
+            this.selectedNodeId = null;
+          }
+          onChange();
+        },
+      });
+      nodes.push(node);
     }
     for (const inst of view.instruments) {
-      nodes.push(this.buildInstrumentNode(
+      const node = this.buildInstrumentNode(
         inst, patch, selectedInstrumentId,
         onEditInstrument, onTestInstrument, onChange,
-      ));
+      );
+      const instId = inst.instrumentId;
+      const mutableNode = node as {contextMenuItems?: m.Children};
+      mutableNode.contextMenuItems = m(MenuItem, {
+        label: 'Delete instrument',
+        icon: 'delete',
+        onclick: () => {
+          removeInstrument(patch, instId);
+          if (this.selectedNodeId === `inst:${instId}`) {
+            this.selectedNodeId = null;
+          }
+          onChange();
+        },
+      });
+      nodes.push(node);
     }
     if (view.master) {
       nodes.push(this.buildMasterNode(view.master));
@@ -144,12 +182,18 @@ export class RackCanvas implements m.ClassComponent<RackCanvasAttrs> {
       }
     }
 
+    // Selection set used by the NodeGraph for Delete key + visual
+    // highlight. Only contains what the user explicitly clicked — we
+    // do NOT auto-select the currently-edited instrument (its "editing"
+    // state is shown differently, via the instrument node's own visual
+    // treatment), so pressing Delete won't accidentally kill it.
+    const selectedIds = new Set<string>();
+    if (this.selectedNodeId) selectedIds.add(this.selectedNodeId);
+
     return m(NodeGraph, {
       nodes,
       connections,
-      selectedNodeIds: selectedInstrumentId
-        ? new Set<string>([`inst:${selectedInstrumentId}`])
-        : new Set<string>(),
+      selectedNodeIds: selectedIds,
       fillHeight: true,
       hideControls: true,
       onNodeMove: (nodeId, x, y) => {
@@ -160,9 +204,13 @@ export class RackCanvas implements m.ClassComponent<RackCanvasAttrs> {
         }
       },
       onNodeSelect: (nodeId) => {
+        this.selectedNodeId = nodeId;
         if (nodeId.startsWith('inst:')) {
           onEditInstrument(nodeId.substring(5));
         }
+      },
+      onSelectionClear: () => {
+        this.selectedNodeId = null;
       },
       onConnect: (conn) => {
         this.handleConnect(conn, patch, view, onChange);
@@ -175,9 +223,11 @@ export class RackCanvas implements m.ClassComponent<RackCanvasAttrs> {
       onNodeRemove: (nodeId) => {
         if (nodeId.startsWith('src:')) {
           removeModule(patch, nodeId.substring(4));
+          if (this.selectedNodeId === nodeId) this.selectedNodeId = null;
           onChange();
         } else if (nodeId.startsWith('inst:')) {
           removeInstrument(patch, nodeId.substring(5));
+          if (this.selectedNodeId === nodeId) this.selectedNodeId = null;
           onChange();
         }
       },

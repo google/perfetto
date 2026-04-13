@@ -28,7 +28,7 @@ export default class implements PerfettoPlugin {
 
     trace.sidebar.addMenuItem({
       section: 'current_trace',
-      text: 'Sound Synth',
+      text: 'Trace To Techno',
       href: '#!/sound_synth',
       icon: 'music_note',
       sortOrder: 100,

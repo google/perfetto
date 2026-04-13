@@ -150,8 +150,10 @@ export class SoundSynthPage implements m.ClassComponent<SoundSynthPageAttrs> {
         },
           // Rack toolbar.
           this.renderRackToolbar(patch, view),
-          // Rack canvas (top). Uses position: relative so the inner
-          // NodeGraph canvas can fill it via absolute positioning.
+          // Rack canvas (top). Uses position: relative + absolute child
+          // so the NodeGraph canvas fills the wrapper regardless of the
+          // flex height resolution. The inner is `display: block` (not
+          // flex) so block children (like .pf-canvas) get full width.
           m('.rack-canvas-wrapper', {
             style: {
               flex: editingInst ? '1 1 0' : '1.5 1 0',
@@ -165,7 +167,6 @@ export class SoundSynthPage implements m.ClassComponent<SoundSynthPageAttrs> {
               style: {
                 position: 'absolute',
                 top: '0', left: '0', right: '0', bottom: '0',
-                display: 'flex',
               },
             },
               m(RackCanvas, {
@@ -195,8 +196,6 @@ export class SoundSynthPage implements m.ClassComponent<SoundSynthPageAttrs> {
               style: {
                 position: 'absolute',
                 top: '0', left: '0', right: '0', bottom: '0',
-                display: 'flex',
-                flexDirection: 'column',
               },
             },
               editingInst
@@ -297,7 +296,7 @@ export class SoundSynthPage implements m.ClassComponent<SoundSynthPageAttrs> {
         onclick: () => {
           this.presetPickerTarget = {kind: 'new_instrument'};
         },
-      }, '+ Preset'),
+      }, '+ Instrument'),
       m('button', {
         style: {
           padding: '4px 10px',
@@ -371,14 +370,9 @@ export class SoundSynthPage implements m.ClassComponent<SoundSynthPageAttrs> {
   }
 
   private onPresetPicked(entry: PresetEntry) {
-    console.log('[SoundSynth] onPresetPicked:', entry.name,
-      'target:', this.presetPickerTarget);
     const target = this.presetPickerTarget;
     if (!target) return;
     const patch = this.state.patch!;
-    console.log('[SoundSynth] BEFORE import: modules=',
-      patch.modules?.length,
-      'wires=', patch.wires?.length);
 
     if (target.kind === 'new_instrument') {
       const x = 380 + Math.random() * 80;
@@ -387,16 +381,11 @@ export class SoundSynthPage implements m.ClassComponent<SoundSynthPageAttrs> {
         patch, entry, entry.name, x, y);
       this.selectedInstrumentId = instId;
       writePatchUiState(patch, {editingInstrumentId: instId});
-      console.log('[SoundSynth] AFTER import: modules=',
-        patch.modules?.length,
-        'wires=', patch.wires?.length,
-        'selectedInstrumentId=', instId);
     }
     // TODO (Milestone 2): replace_instrument — deletes the current
     // instrument and imports fresh.
 
     this.presetPickerTarget = null;
-    m.redraw();
   }
 
   private async loadTrackMetadata() {

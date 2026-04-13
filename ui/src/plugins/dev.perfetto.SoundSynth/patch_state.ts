@@ -55,10 +55,18 @@ const NodeKindSchema = z.enum([
 export const ModuleUiStateSchema = z.object({
   nodeKind: NodeKindSchema.default('unknown'),
   displayName: z.string().default(''),
-  // Canvas position. Only meaningful for rack-level nodes or for
-  // instrument_internal nodes within their own instrument's canvas.
+  // Canvas position. For trace sources and the instrument root module,
+  // this is the node's position on the rack canvas (top). For
+  // instrument_internal modules, it's the position inside the
+  // instrument editor canvas (bottom).
   x: z.number().default(0),
   y: z.number().default(0),
+  // The instrument root's OUTPUT node position in the instrument editor
+  // (bottom canvas). Stored separately from x/y because the same module
+  // is rendered in both canvases (as an Instrument on the rack and as
+  // the OUTPUT inside the instrument editor).
+  outX: z.number().nullable().default(null),
+  outY: z.number().nullable().default(null),
   // Instrument-root specific fields:
   presetId: z.string().default(''),
   muted: z.boolean().default(false),
@@ -602,16 +610,11 @@ export function importPresetAsInstrument(
   const instrumentId = freshInstrumentId();
   const prefix = `${instrumentId}__`;
 
-  console.log('[SoundSynth] importPreset:', preset.name,
-    'modules:', preset.patch.modules?.length ?? 0,
-    'wires:', preset.patch.wires?.length ?? 0);
-
   // 1. Identify test pattern source ids to strip.
   const stripIds = new Set<string>();
   for (const m of preset.patch.modules ?? []) {
     if (m.testPatternSource) stripIds.add(m.id ?? '');
   }
-  console.log('[SoundSynth] strip ids:', [...stripIds]);
 
   // 2. Build a map from old ID → new (prefixed) ID for the survivors.
   const idMap = new Map<string, string>();
@@ -620,7 +623,6 @@ export function importPresetAsInstrument(
     if (stripIds.has(oldId)) continue;
     idMap.set(oldId, `${prefix}${oldId}`);
   }
-  console.log('[SoundSynth] id map:', [...idMap.entries()]);
 
   // 3. Clone and rewrite modules. We deep-clone via toObject/fromObject
   // to get a completely independent tree (protos.SynthModule.create does
@@ -649,7 +651,6 @@ export function importPresetAsInstrument(
       });
       cloned.uiStateJson = JSON.stringify(ui);
       rootFound = true;
-      console.log('[SoundSynth] marked instrument root:', cloned.id);
     } else {
       const ui = ModuleUiStateSchema.parse({
         nodeKind: 'instrument_internal',
@@ -715,12 +716,140 @@ export function importPresetAsInstrument(
     toPort: 'in',
   });
 
-  console.log('[SoundSynth] import complete. instrumentId:', instrumentId,
-    'total modules in patch:', target.modules.length,
-    'total wires:', target.wires.length,
-    'rootFound:', rootFound);
+  // 7. Auto-layout the instrument's internal modules. Compute a
+  // topological depth from the instrument's virtual INPUT (gate/freq
+  // sources) towards the instrument root, then assign x/y based on
+  // depth and order within depth. Modules unreachable from the input
+  // (e.g. disconnected envelope-only chains) fall back to depth 0.
+  layoutInstrumentModules(target, instrumentId);
 
   return instrumentId;
+}
+
+/**
+ * Assign (x, y) positions to all modules belonging to an instrument.
+ * The layout is a simple column-based topological layout: nodes are
+ * placed in columns by their BFS depth from the virtual INPUT. Within
+ * a column, nodes are stacked vertically.
+ *
+ * Column 0 is the INPUT (virtual, not laid out here). Columns 1..N-1
+ * are internal modules. Column N is the instrument root (OUTPUT).
+ */
+function layoutInstrumentModules(
+  patch: protos.ISynthPatch,
+  instrumentId: string,
+): void {
+  const prefix = `${instrumentId}__`;
+  const rootId = `${prefix}master`;
+  const modules = patch.modules ?? [];
+  const wires = patch.wires ?? [];
+
+  // Collect this instrument's internal module IDs.
+  const internalIds = new Set<string>();
+  for (const m of modules) {
+    const id = m.id ?? '';
+    if (id.startsWith(prefix)) internalIds.add(id);
+  }
+
+  // Build adjacency: for each module, the set of predecessor module IDs.
+  // Virtual INPUT wires are treated as depth 0 and contribute no real
+  // predecessor for the layout.
+  const preds = new Map<string, Set<string>>();
+  for (const id of internalIds) preds.set(id, new Set());
+  for (const w of wires) {
+    const from = w.fromModule ?? '';
+    const to = w.toModule ?? '';
+    if (!internalIds.has(to)) continue;
+    if (isVirtualInputId(from)) continue;
+    if (internalIds.has(from)) preds.get(to)!.add(from);
+  }
+
+  // BFS depth from nodes with no predecessors (which are either
+  // connected only to the virtual input, or truly disconnected).
+  const depth = new Map<string, number>();
+  const queue: string[] = [];
+  for (const id of internalIds) {
+    if (preds.get(id)!.size === 0) {
+      depth.set(id, 0);
+      queue.push(id);
+    }
+  }
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    const curDepth = depth.get(cur) ?? 0;
+    // For every wire from cur to another internal node, bump its depth.
+    for (const w of wires) {
+      if (w.fromModule !== cur) continue;
+      const to = w.toModule ?? '';
+      if (!internalIds.has(to)) continue;
+      const existing = depth.get(to);
+      const newDepth = curDepth + 1;
+      if (existing === undefined || newDepth > existing) {
+        depth.set(to, newDepth);
+        queue.push(to);
+      }
+    }
+  }
+
+  // Any still-unknown nodes (cycles or disconnected) → depth 0.
+  for (const id of internalIds) {
+    if (!depth.has(id)) depth.set(id, 0);
+  }
+
+  // Force the instrument root to be in the rightmost column (max depth
+  // + 1) so it always appears at the end of the chain.
+  let maxDepth = 0;
+  for (const d of depth.values()) {
+    if (d > maxDepth) maxDepth = d;
+  }
+  if (internalIds.has(rootId)) {
+    depth.set(rootId, maxDepth + 1);
+  }
+  maxDepth = Math.max(maxDepth + 1, 1);
+
+  // Group modules by depth.
+  const byDepth = new Map<number, string[]>();
+  for (const id of internalIds) {
+    const d = depth.get(id) ?? 0;
+    const list = byDepth.get(d) ?? [];
+    list.push(id);
+    byDepth.set(d, list);
+  }
+
+  // Layout constants.
+  const COL_SPACING = 220;
+  const ROW_SPACING = 140;
+  const X_OFFSET = 200;  // leave room for the virtual INPUT node at x=30
+  const Y_OFFSET = 60;
+
+  // Assign positions. For the instrument root (OUTPUT), we write to
+  // outX/outY so we don't clobber its rack position (x/y). For
+  // everything else, x/y are the instrument-editor-canvas positions
+  // (those modules are never shown on the rack).
+  const idToModule = new Map<string, protos.ISynthModule>();
+  for (const m of modules) idToModule.set(m.id ?? '', m);
+
+  for (const [d, ids] of byDepth.entries()) {
+    // Sort for deterministic ordering within a column.
+    ids.sort();
+    for (let i = 0; i < ids.length; i++) {
+      const mod = idToModule.get(ids[i]);
+      if (!mod) continue;
+      const ui = parseModuleUiState(mod.uiStateJson);
+      const posX = X_OFFSET + d * COL_SPACING;
+      const posY = Y_OFFSET + i * ROW_SPACING;
+      if (ids[i] === rootId) {
+        // Instrument root: persist the OUTPUT position separately from
+        // its rack position.
+        ui.outX = posX;
+        ui.outY = posY;
+      } else {
+        ui.x = posX;
+        ui.y = posY;
+      }
+      mod.uiStateJson = JSON.stringify(ui);
+    }
+  }
 }
 
 // --- Instrument editor mutations ---
