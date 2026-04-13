@@ -157,7 +157,7 @@ class InlineSchedWakingSink
 std::optional<uint32_t> ParseTracingServiceMajorVersion(
     std::string_view version) {
   constexpr std::string_view kPrefix = "Perfetto v";
-  if (version.rfind(kPrefix, 0) != 0) {
+  if (version.find(kPrefix, 0) != 0) {
     return std::nullopt;
   }
   std::string_view major_str = version.substr(kPrefix.size());
