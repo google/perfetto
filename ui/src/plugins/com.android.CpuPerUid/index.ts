@@ -43,8 +43,7 @@ export default class implements PerfettoPlugin {
       columns: {ts: 'ts', value: 'value'},
       options: {
         unit: 'ms',
-        yOverrideMaximum: 100,
-        yOverrideMinimum: 0,
+        yDisplay: {kind: 'custom', min: 0, max: 100},
         yRangeSharingKey: sharing,
         yMode: 'rate',
       },

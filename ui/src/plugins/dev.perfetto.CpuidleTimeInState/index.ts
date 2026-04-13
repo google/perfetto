@@ -66,7 +66,7 @@ export default class implements PerfettoPlugin {
         where state = '${state}'
       `,
       group,
-      {unit: 'percent', yOverrideMaximum: 100, yOverrideMinimum: 0},
+      {unit: 'percent', yDisplay: {kind: 'custom', min: 0, max: 100}},
     );
   }
 
@@ -87,7 +87,7 @@ export default class implements PerfettoPlugin {
         where state = '${state}' AND cpu = ${cpu}
       `,
       group,
-      {unit: 'percent', yOverrideMaximum: 100, yOverrideMinimum: 0},
+      {unit: 'percent', yDisplay: {kind: 'custom', min: 0, max: 100}},
     );
   }
 

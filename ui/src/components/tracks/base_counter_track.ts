@@ -47,8 +47,6 @@ import {createVirtualTable} from '../../trace_processor/sql_utils';
 
 const BUCKETS_PER_PIXEL = 2;
 
-const SI_BASE_UNITS = new Set(['Hz', 'B', 'b', 'W', 'V', 'A', 'J', 's']);
-
 // Returns a SQL expression that computes the display value from a table
 // with `ts` and `value` columns, given the counter mode.
 export function counterValueExpression(yMode: CounterOptions['yMode']): string {
@@ -59,20 +57,6 @@ export function counterValueExpression(yMode: CounterOptions['yMode']): string {
       return 'lead(value, 1, value) over (order by ts) - value';
     case 'rate':
       return '(lead(value, 1, value) over (order by ts) - value) / ((lead(ts, 1, 100) over (order by ts) - ts) / 1e9)';
-    default:
-      assertUnreachable(yMode);
-  }
-}
-
-// Returns the display label for a counter value given the mode.
-export function counterDisplayLabel(yMode: CounterOptions['yMode']): string {
-  switch (yMode) {
-    case 'value':
-      return 'Value';
-    case 'delta':
-      return 'Delta';
-    case 'rate':
-      return 'Rate';
     default:
       assertUnreachable(yMode);
   }
@@ -102,14 +86,10 @@ function roundAway(n: number): number {
   return Math.sign(n) * (Math.ceil(Math.abs(n) / (pow10 / 20)) * (pow10 / 20));
 }
 
-function toLabelAndPrefix(
-  n: number,
-  exact = false,
-): {label: string; prefix: string} {
+function toLabel(n: number): string {
   if (n === 0) {
-    return {label: '0', prefix: ''};
+    return '0';
   }
-
   const units: [number, string][] = [
     [0.000000001, 'n'],
     [0.000001, 'u'],
@@ -120,25 +100,17 @@ function toLabelAndPrefix(
     [1000 * 1000 * 1000, 'G'],
     [1000 * 1000 * 1000 * 1000, 'T'],
   ];
-  let largestMultiplier = units[0][0];
-  let largestUnit = units[0][1];
+  let largestMultiplier;
+  let largestUnit;
+  [largestMultiplier, largestUnit] = units[0];
   const absN = Math.abs(n);
   for (const [multiplier, unit] of units) {
     if (multiplier > absN) {
       break;
     }
-    largestMultiplier = multiplier;
-    largestUnit = unit;
+    [largestMultiplier, largestUnit] = [multiplier, unit];
   }
-  const value = n / largestMultiplier;
-
-  const label = exact
-    ? Math.abs(value - Math.round(value)) < 1e-9
-      ? `${Math.round(value)}`
-      : `${Number(value.toFixed(1))}`
-    : `${Math.round(value)}`;
-
-  return {label, prefix: largestUnit};
+  return `${Math.round(n / largestMultiplier)}${largestUnit}`;
 }
 
 class RangeSharer {
@@ -182,9 +154,7 @@ class RangeSharer {
       return [min, max];
     }
 
-    const tag = `${options.yRangeSharingKey}-${options.yMode}-${
-      options.yDisplay
-    }-${options.chartHeightSize}`;
+    const tag = `${options.yRangeSharingKey}-${options.yMode}-${options.yDisplay.kind}-${options.chartHeightSize}`;
     const cachedRange = this.tagToRange.get(tag);
     if (cachedRange === undefined) {
       this.tagToRange.set(tag, [min, max]);
@@ -279,14 +249,6 @@ export interface CounterOptions {
 
   // Scales the height of the chart.
   chartHeightSize: ChartHeightSize;
-
-  // Allows *extending* the range of the y-axis counter increasing
-  // the maximum (via yOverrideMaximum) or decreasing the minimum
-  // (via yOverrideMinimum). This is useful for percentage counters
-  // where the range (0-100) is known statically upfront and even if
-  // the trace only includes smaller values.
-  yOverrideMaximum?: number;
-  yOverrideMinimum?: number;
 
   // If set all counters with the same key share a range.
   yRangeSharingKey?: string;
@@ -605,7 +567,6 @@ export abstract class BaseCounterTrack implements TrackRenderer {
   // Cached data for rendering
   private counters?: CounterData;
   private limits?: CounterLimits;
-
   private hover?: CounterTooltipState;
   private options?: CounterOptions;
 
@@ -1077,14 +1038,6 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       if (yDisplay.max !== undefined) yMax = yDisplay.max;
     }
 
-    if (options.yOverrideMaximum !== undefined) {
-      yMax = Math.max(options.yOverrideMaximum, yMax);
-    }
-
-    if (options.yOverrideMinimum !== undefined) {
-      yMin = Math.min(options.yOverrideMinimum, yMin);
-    }
-
     // Skip rounding when the user has specified an exact custom range.
     if (
       options.yRangeRounding === 'human_readable' &&
@@ -1113,41 +1066,29 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     if (yDisplay.kind === 'minmax') {
       yLabel = 'min - max';
     } else {
-      // For all dynamic modes, show difference. Prefer an exact label for
-      // custom mode so 1,500 becomes 1.5K instead of rounding to 2K.
       let max = yMax;
       let min = yMin;
       if (yDisplay.kind === 'log') {
         max = Math.exp(max);
         min = Math.exp(min);
       }
-
-      const unit = this.unit;
-      const isSiBaseUnit = SI_BASE_UNITS.has(unit);
-
-      if (yDisplay.kind === 'custom') {
-        const delta = max - min;
-        const {label, prefix} = toLabelAndPrefix(delta, true);
-        yLabel = isSiBaseUnit
-          ? `${label} ${prefix}${unit}`
-          : `${label}${prefix} ${unit}`;
+      if (max < 0) {
+        yLabel = toLabel(min - max);
       } else {
-        const delta = max < 0 ? min - max : max - min;
-        const {label, prefix} = toLabelAndPrefix(delta);
-        yLabel = isSiBaseUnit
-          ? `${label} ${prefix}${unit}`
-          : `${label}${prefix} ${unit}`;
+        yLabel = toLabel(max - min);
       }
     }
 
+    const unit = this.unit;
     switch (options.yMode) {
       case 'value':
+        yLabel += ` ${unit}`;
         break;
       case 'delta':
-        yLabel = `\u0394${yLabel}`;
+        yLabel += `\u0394${unit}`;
         break;
       case 'rate':
-        yLabel = `${yLabel} ${this.rateUnit}`;
+        yLabel += ` ${this.rateUnit}`;
         break;
       default:
         assertUnreachable(options.yMode);

@@ -645,7 +645,7 @@ export default class implements PerfettoPlugin {
       const unit = countersIt.ui_unit;
       const opts =
         unit === '%'
-          ? {yOverrideMaximum: 100, unit: '%'}
+          ? {yDisplay: {kind: 'custom' as const, max: 100}, unit: '%'}
           : unit !== undefined
             ? {unit}
             : undefined;
@@ -1105,7 +1105,7 @@ export default class implements PerfettoPlugin {
         `${it.pkg} (${it.cluster})`,
         `select ts, value from high_cpu where pkg = "${it.pkg}" and cluster="${it.cluster}"`,
         groupName,
-        {yOverrideMaximum: 100, unit: '%'},
+        {yDisplay: {kind: 'custom', max: 100}, unit: '%'},
       );
     }
   }
