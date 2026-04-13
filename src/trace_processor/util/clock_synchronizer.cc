@@ -202,7 +202,8 @@ std::optional<int64_t> ClockSynchronizer::ConvertSlowpath(
     int64_t src_timestamp,
     std::optional<int64_t> src_ts_ns,
     ClockId target_clock_id,
-    std::optional<size_t> byte_offset) {
+    std::optional<size_t> byte_offset,
+    bool suppress_errors) {
   PERFETTO_DCHECK(!src_clock_id.IsSequenceClock() || src_clock_id.seq_id != 0);
   PERFETTO_DCHECK(!target_clock_id.IsSequenceClock() ||
                   target_clock_id.seq_id != 0);
@@ -210,17 +211,19 @@ std::optional<int64_t> ClockSynchronizer::ConvertSlowpath(
 
   ClockPath path = FindPath(src_clock_id, target_clock_id);
   if (!path.valid()) {
-    // Determine which clock(s) are unknown and record error
-    ClockSyncErrorType error;
-    if (clocks_.find(src_clock_id) == clocks_.end()) {
-      error = ClockSyncErrorType::kUnknownSourceClock;
-    } else if (clocks_.find(target_clock_id) == clocks_.end()) {
-      error = ClockSyncErrorType::kUnknownTargetClock;
-    } else {
-      error = ClockSyncErrorType::kNoPath;
+    if (!suppress_errors) {
+      // Determine which clock(s) are unknown and record error
+      ClockSyncErrorType error;
+      if (clocks_.find(src_clock_id) == clocks_.end()) {
+        error = ClockSyncErrorType::kUnknownSourceClock;
+      } else if (clocks_.find(target_clock_id) == clocks_.end()) {
+        error = ClockSyncErrorType::kUnknownTargetClock;
+      } else {
+        error = ClockSyncErrorType::kNoPath;
+      }
+      clock_event_listener_->RecordConversionError(
+          error, src_clock_id, target_clock_id, src_timestamp, byte_offset);
     }
-    clock_event_listener_->RecordConversionError(
-        error, src_clock_id, target_clock_id, src_timestamp, byte_offset);
     return std::nullopt;
   }
 

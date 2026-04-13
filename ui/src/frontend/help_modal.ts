@@ -23,11 +23,11 @@ import {
   nativeKeyboardLayoutMap,
   NotSupportedError,
 } from '../base/keyboard_layout_map';
-import {KeyMapping} from './timeline_page/wasd_navigation_handler';
+import {KeyMapping} from '../base/wasd_key_mapping';
 
-export function toggleHelp() {
+export function toggleHelp(): void {
   AppImpl.instance.analytics.logEvent('User Actions', 'Show help');
-  return showModal({
+  showModal({
     title: 'Perfetto Help',
     content: () => m(KeyMappingsHelp),
   });

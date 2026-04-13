@@ -17,6 +17,7 @@ from recipe_engine.recipe_api import Property
 
 DEPS = [
     'depot_tools/gsutil',
+    'recipe_engine/archive',
     'recipe_engine/buildbucket',
     'recipe_engine/cipd',
     'recipe_engine/context',
@@ -59,6 +60,13 @@ ARTIFACTS = [
         'name': 'traced_probes',
         'exclude_platforms': ['windows-amd64']
     },
+    {
+        # GN shared_library target name; the output file is
+        # libheapprofd_glibc_preload.so (GN adds lib prefix + .so suffix).
+        'name': 'heapprofd_glibc_preload',
+        'file': 'libheapprofd_glibc_preload.so',
+        'include_platforms': ['linux-amd64', 'linux-arm', 'linux-arm64'],
+    },
 ]
 
 
@@ -82,18 +90,30 @@ def GnArgs(platform):
   return base_args + ' target_os="{}" target_cpu="{}"'.format(os, cpu)
 
 
+def should_build_artifact(artifact, platform):
+  if platform in artifact.get('exclude_platforms', []):
+    return False
+  include_platforms = artifact.get('include_platforms', None)
+  if include_platforms is not None and platform not in include_platforms:
+    return False
+  return True
+
+
 def UploadArtifact(api, ctx, platform, out_dir, artifact):
-  exclude_platforms = artifact.get('exclude_platforms', [])
-  if platform in exclude_platforms:
+  if not should_build_artifact(artifact, platform):
     return
 
   # We want to use the stripped binaries except on Windows where we don't generate
   # them.
   exe_dir = out_dir if api.platform.is_win else out_dir.join('stripped')
 
-  # Compute the exact artifact path
+  # Compute the exact artifact path. Use 'file' override when present (e.g.
+  # for shared libraries whose output name differs from the GN target name).
   gcs_upload_dir = ctx.maybe_git_tag if ctx.maybe_git_tag else ctx.git_revision
-  artifact_ext = artifact['name'] + ('.exe' if api.platform.is_win else '')
+  if 'file' in artifact:
+    artifact_ext = artifact['file']
+  else:
+    artifact_ext = artifact['name'] + ('.exe' if api.platform.is_win else '')
   source_path = exe_dir.join(artifact_ext)
 
   # Upload to GCS bucket - build all target paths first
@@ -146,6 +166,47 @@ def UploadArtifact(api, ctx, platform, out_dir, artifact):
   )
 
 
+def UploadSDK(api, ctx):
+  sdk_staging = api.path['cleanup'].join('sdk')
+  api.file.ensure_directory('ensure sdk staging', sdk_staging)
+
+  # We use --sdk all to generate both C and C++ SDKs.
+  # It will create perfetto.h, perfetto.cc, perfetto_c.h, perfetto_c.cc
+  # in the output directory.
+  api.step('generate sdk', [
+      'python3',
+      ctx.src_dir.join('tools', 'gen_amalgamated'), '--sdk', 'all', '--output',
+      sdk_staging.join('perfetto')
+  ])
+
+  gcs_upload_dir = ctx.maybe_git_tag if ctx.maybe_git_tag else ctx.git_revision
+  gcs_base_path = '{}/sdk'.format(gcs_upload_dir)
+
+  def zip_and_upload(name, files, gcs_name):
+    zip_path = api.path['cleanup'].join(gcs_name)
+    pkg = api.archive.package(sdk_staging)
+    for f in files:
+      pkg = pkg.with_file(sdk_staging.join(f))
+    pkg.archive('zip ' + name, zip_path)
+
+    # Upload to revision dir
+    api.gsutil.upload(zip_path, 'perfetto-luci-artifacts',
+                      '{}/{}'.format(gcs_base_path, gcs_name))
+
+    # Upload to latest
+    api.gsutil.upload(zip_path, 'perfetto-luci-artifacts',
+                      'latest/sdk/{}'.format(gcs_name))
+
+    if ctx.maybe_git_tag:
+      api.gsutil.upload(zip_path, 'perfetto-luci-artifacts',
+                        'latest-tagged/sdk/{}'.format(gcs_name))
+
+  zip_and_upload('cpp sdk', ['perfetto.h', 'perfetto.cc'],
+                 'perfetto-cpp-sdk-src.zip')
+  zip_and_upload('c sdk', ['perfetto_c.h', 'perfetto_c.cc'],
+                 'perfetto-c-sdk-src.zip')
+
+
 def BuildForPlatform(api, ctx, platform):
   out_dir = ctx.src_dir.join('out', platform)
 
@@ -154,9 +215,7 @@ def BuildForPlatform(api, ctx, platform):
 
   with api.context(cwd=ctx.src_dir), api.macos_sdk(), api.windows_sdk():
     targets = [
-        x['name']
-        for x in ARTIFACTS
-        if platform not in x.get('exclude_platforms', [])
+        x['name'] for x in ARTIFACTS if should_build_artifact(x, platform)
     ]
     args = GnArgs(platform)
     api.step('gn gen',
@@ -235,6 +294,10 @@ def RunSteps(api, repository):
       BuildForPlatform(api, ctx, 'linux-arm')
     with api.step.nest('linux-arm64'):
       BuildForPlatform(api, ctx, 'linux-arm64')
+
+    if 'official' in api.buildbucket.builder_name:
+      with api.step.nest('SDK upload'):
+        UploadSDK(api, ctx)
 
 
 def GenTests(api):

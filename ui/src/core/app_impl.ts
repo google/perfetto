@@ -75,7 +75,7 @@ export class AppImpl implements App {
   readonly commands = new CommandManagerImpl(this.omnibox);
   readonly pages: PageManagerImpl;
   readonly sidebar: SidebarManagerImpl;
-  readonly plugins = new PluginManagerImpl();
+  readonly plugins: PluginManagerImpl;
   readonly perfDebugging = new PerfManager();
   readonly analytics: AnalyticsInternal;
   readonly serviceWorkerController = new ServiceWorkerController();
@@ -153,6 +153,7 @@ export class AppImpl implements App {
       hidden: this.initialRouteArgs.hideSidebar,
     });
     this.embedder = createEmbedder();
+    this.plugins = new PluginManagerImpl(this.embedder.defaultPlugins);
     this.analytics = initAnalytics(
       this.testingMode,
       this.embeddedMode,
@@ -185,10 +186,12 @@ export class AppImpl implements App {
     return this._isInternalUser;
   }
 
-  set isInternalUser(value: boolean) {
-    localStorage.setItem('isInternalUser', value ? '1' : '0');
-    this._isInternalUser = value;
-    raf.scheduleFullRedraw();
+  setIsInternalUser(promise: Promise<boolean>) {
+    promise.then((value) => {
+      this._isInternalUser = value;
+      localStorage.setItem('isInternalUser', value ? '1' : '0');
+      raf.scheduleFullRedraw();
+    });
   }
 
   get trace(): TraceImpl | undefined {

@@ -22,7 +22,7 @@ It consists of:
   interconnected data on a timeline. Our UI works in all major browsers, doesn't
   require any installation, works offline, and can open traces recorded by other
   (non-Perfetto) tracing tools.
-- **Powerful, SQL-based analysis library** for programatically analyzing large
+- **Powerful, SQL-based analysis library** for programmatically analyzing large
   amounts of complex, interconnected data on a timeline, even if it was not
   collected with Perfetto recording tooling.
 
@@ -51,7 +51,7 @@ supported for collecting, analysing and visualizing:
 Beyond these "official" usecases, Perfetto consists a highly flexible set of
 tools. This makes it capable of being used as a general purpose tracing system,
 a performance data analyzer or a timeline visualizer. The Perfetto team
-dedicates a porition of their time to supporting these cases, albeit at a
+dedicates a portion of their time to supporting these cases, albeit at a
 reduced level of support.
 
 Other usecases Perfetto is commonly used for include:
@@ -62,7 +62,7 @@ Other usecases Perfetto is commonly used for include:
 - **Collecting, analysing and visualizing heap profiles on Linux** to debug high
   memory usage of C/C++/Rust apps and libraries.
 - **Analysing and visualizing CPU profiles (Linux perf profiles) on Linux** to
-  optmize CPU usage in C/C++/Rust apps and libraries.
+  optimize CPU usage in C/C++/Rust apps and libraries.
 - **Analyze and visualize a wide range of profiling and tracing formats.**
   Perfetto can open traces and profiles from various other tools, allowing you
   to use the Perfetto UI and its SQL-based query engine on many data sources,
@@ -81,7 +81,7 @@ Other usecases Perfetto is commonly used for include:
 ## Why would you **not** use Perfetto?
 
 There are several types of problems Perfetto is either not designed for or is
-explicltly unsupported.
+explicitly unsupported.
 
 - **Recording traces for distributed / server systems**
 
@@ -90,7 +90,7 @@ explicltly unsupported.
     client side traces, especially at the system level. Our team believes that
     the space of distributed/server tracing is well covered by the
     aforementioned projects, unlike client side systems like Android and
-    Linux/embeded systems.
+    Linux/embedded systems.
   - However, the Perfetto UI **can** be used to visualize distributed traces if
     traces are converted to a format that Perfetto supports. In fact, this is
     commonly done inside Google.
@@ -145,7 +145,7 @@ explicltly unsupported.
 
 ## How do I get started using Perfetto?
 
-We appreicate that Perfetto has a lot of parts to it so it can be confusing to
+We appreciate that Perfetto has a lot of parts to it so it can be confusing to
 someone new to the project to know what is relevant to them. For this reason, we
 have a whole page dedicated to this:
 [How do I start using Perfetto?](/docs/getting-started/start-using-perfetto.md)
@@ -197,11 +197,11 @@ posts, articles and videos:
 ## Where do I find more information and get help with Perfetto?
 
 For our source code and project home:
-[Github](https://github.com/google/perfetto)
+[GitHub](https://github.com/google/perfetto)
 
 For Q/A:
 
-- [Github Discussions](https://github.com/google/perfetto/discussions/categories/q-a)
+- [GitHub Discussions](https://github.com/google/perfetto/discussions/categories/q-a)
   or our
   [public mailing list](https://groups.google.com/forum/#!forum/perfetto-dev).
 - **Googlers**: use [YAQS](https://go/perfetto-yaqs) or our
@@ -227,3 +227,8 @@ For chatting directly with the Perfetto team:
 
 Perfetto follows
 [Google's Open Source Community Guidelines](https://opensource.google/conduct/).
+
+Community projects:
+
+🇨🇳 A community-maintained Chinese translation of the Perfetto docs is available at
+[gugu-perf.github.io/perfetto-docs-zh-cn](https://gugu-perf.github.io/perfetto-docs-zh-cn).

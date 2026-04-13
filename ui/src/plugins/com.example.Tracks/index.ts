@@ -17,6 +17,7 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
 import {SliceTrack} from '../../components/tracks/slice_track';
+import {SqlTableCounterTrack} from '../../components/tracks/query_counter_track';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {getColorForSlice, makeColorScheme} from '../../components/colorizer';
@@ -38,6 +39,7 @@ export default class implements PerfettoPlugin {
     await addNestedTrackGroup(trace);
     addTracksWithHelpText(trace);
     await addIncompleteSlicesTrack(trace);
+    await addCounterTracks(trace);
   }
 }
 
@@ -416,4 +418,102 @@ async function addIncompleteSlicesTrack(trace: Trace): Promise<void> {
 
   // Add to workspace
   trace.defaultWorkspace.addChildInOrder(new TrackNode({uri, name}));
+}
+
+// Example 9: Counter tracks demonstrating different counter options.
+async function addCounterTracks(trace: Trace): Promise<void> {
+  const traceStartTime = trace.traceInfo.start;
+  const traceDur = trace.traceInfo.end - trace.traceInfo.start;
+  const tableName = 'example_counter';
+
+  // Create a counter table with a sine wave pattern
+  await trace.engine.tryQuery(`drop table if exists ${tableName}`);
+  await trace.engine.query(`
+    create table ${tableName} (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts INTEGER,
+      value REAL
+    );
+  `);
+
+  // Insert ~200 data points forming a sine wave
+  const numPoints = 200;
+  const values: string[] = [];
+  for (let i = 0; i < numPoints; i++) {
+    const ts = traceStartTime + (traceDur * BigInt(i)) / BigInt(numPoints);
+    const value = 37.2 + 45.3 * Math.sin((10 * Math.PI * i) / numPoints);
+    values.push(`(${ts}, ${value.toFixed(2)})`);
+  }
+  await trace.engine.query(`
+    insert into ${tableName} (ts, value) values ${values.join(',')};
+  `);
+
+  // Basic counter track
+  const uri1 = 'com.example.Tracks#CounterTrack';
+  trace.tracks.registerTrack({
+    uri: uri1,
+    renderer: new SqlTableCounterTrack(
+      trace,
+      uri1,
+      `select ts, value from ${tableName}`,
+    ),
+  });
+
+  // Counter track with range sharing key
+  const uri2 = 'com.example.Tracks#CounterTrackShared1';
+  trace.tracks.registerTrack({
+    uri: uri2,
+    renderer: new SqlTableCounterTrack(
+      trace,
+      uri2,
+      `select ts, value from ${tableName}`,
+      {yRangeSharingKey: 'example_shared'},
+    ),
+  });
+
+  const uri3 = 'com.example.Tracks#CounterTrackShared2';
+  trace.tracks.registerTrack({
+    uri: uri3,
+    renderer: new SqlTableCounterTrack(
+      trace,
+      uri3,
+      `select ts, value * 0.5 + 20 as value from ${tableName}`,
+      {yRangeSharingKey: 'example_shared'},
+    ),
+  });
+
+  // Counter track with negative values
+  const uri4 = 'com.example.Tracks#CounterTrackNegative';
+  trace.tracks.registerTrack({
+    uri: uri4,
+    renderer: new SqlTableCounterTrack(
+      trace,
+      uri4,
+      `select ts, value - 40 as value from ${tableName}`,
+    ),
+  });
+
+  // Counter track with only negative values (shifted below zero)
+  const uri5 = 'com.example.Tracks#CounterTrackNegativeOnly';
+  trace.tracks.registerTrack({
+    uri: uri5,
+    renderer: new SqlTableCounterTrack(
+      trace,
+      uri5,
+      `select ts, value - 80 as value from ${tableName}`,
+    ),
+  });
+
+  const ws = trace.defaultWorkspace;
+  ws.addChildInOrder(new TrackNode({uri: uri1, name: 'Sine Wave Counter'}));
+  ws.addChildInOrder(
+    new TrackNode({uri: uri2, name: 'Shared Range Counter 1'}),
+  );
+  ws.addChildInOrder(
+    new TrackNode({uri: uri3, name: 'Shared Range Counter 2'}),
+  );
+  ws.addChildInOrder(
+    new TrackNode({uri: uri4, name: 'Negative Values Counter'}),
+  );
+  ws.addChildInOrder(new TrackNode({uri: uri5, name: 'Negative Only Counter'}));
 }

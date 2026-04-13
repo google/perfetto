@@ -28,11 +28,15 @@ test.beforeAll(async ({browser}, _testInfo) => {
 
 test('sched_tracks', async () => {
   // Tests CPU number and machine labels of sched tracks.
-  await pth.waitForIdleAndScreenshot('sched_tracks.png');
+  await pth.waitForIdleAndScreenshot('sched_tracks.png', {
+    locator: page.locator('.pf-timeline-page'),
+  });
 });
 
 test('ftrace_events', async () => {
   // Tests CPU number and machine labels of ftrace tracks.
   await page.locator('.pf-track__title').getByText('Ftrace Events').click();
-  await pth.waitForIdleAndScreenshot('ftrace_events.png');
+  await pth.waitForIdleAndScreenshot('ftrace_events.png', {
+    locator: page.locator('.pf-timeline-page'),
+  });
 });

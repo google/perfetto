@@ -89,6 +89,20 @@ class ProtoTraceReader : public ChunkedTraceReader {
     uint32_t needs_incremental_state_skipped = 0;
   };
 
+  // Result of attempting to resolve a packet's timestamp to trace time.
+  enum class ClockResolution {
+    kResolved,  // Timestamp was successfully converted.
+    kDeferred,  // Packet deferred for resolution at EOF.
+    kDropped,   // Conversion failed and packet cannot be deferred.
+  };
+
+  // Hot-path: converts |timestamp| from |clock_id| to trace time. If the
+  // clock is not yet known, defers the packet for resolution at EOF.
+  PERFETTO_ALWAYS_INLINE ClockResolution
+  ResolveTimestampToTraceTime(ClockTracker::ClockId clock_id,
+                              int64_t* timestamp,
+                              TraceBlobView* packet);
+
   using ConstBytes = protozero::ConstBytes;
   base::Status ParsePacket(TraceBlobView);
   base::Status TimestampTokenizeAndPushToSorter(TraceBlobView);
@@ -100,6 +114,7 @@ class ProtoTraceReader : public ChunkedTraceReader {
   void HandleFirstPacketOnSequence(uint32_t packet_sequence_id);
   void HandlePreviousPacketDropped(const protos::pbzero::TracePacket_Decoder&,
                                    const TraceBlobView& packet);
+  void HandleTraceAttributes(ConstBytes);
   void ParseTracePacketDefaults(const protos::pbzero::TracePacket_Decoder&,
                                 TraceBlobView trace_packet_defaults);
   void ParseInternedData(const protos::pbzero::TracePacket_Decoder&,

@@ -35,8 +35,10 @@ source_set("service") {
     "../../base",
     "../../base:clock_snapshots",
     "../../base:version",
+    "../../base/regex",
     "../../protovm:protovm",
     "../../protozero/filtering:message_filter",
+    "../../protozero/filtering:message_filter_config",
     "../../protozero/filtering:string_filter",
     "../core",
   ]

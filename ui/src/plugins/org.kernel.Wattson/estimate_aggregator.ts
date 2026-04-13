@@ -23,6 +23,7 @@ import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {
   CPUSS_ESTIMATE_TRACK_KIND,
   GPUSS_ESTIMATE_TRACK_KIND,
+  TPUSS_ESTIMATE_TRACK_KIND,
 } from './track_kinds';
 
 export class WattsonEstimateSelectionAggregator implements Aggregator {
@@ -34,7 +35,8 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
     for (const trackInfo of area.tracks) {
       if (
         (trackInfo?.tags?.kinds?.includes(CPUSS_ESTIMATE_TRACK_KIND) ||
-          trackInfo?.tags?.kinds?.includes(GPUSS_ESTIMATE_TRACK_KIND)) &&
+          trackInfo?.tags?.kinds?.includes(GPUSS_ESTIMATE_TRACK_KIND) ||
+          trackInfo?.tags?.kinds?.includes(TPUSS_ESTIMATE_TRACK_KIND)) &&
         exists(trackInfo.tags?.wattson)
       ) {
         estimateTracks.push(`${trackInfo.tags.wattson}`);

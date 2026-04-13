@@ -17,14 +17,13 @@
  *
  * THEME HANDLING:
  *
- * All theme-sensitive values (axis colors, series colors, tooltip colors) are
- * embedded directly in the ECharts option object by reading CSS variables at
- * option-build time (see chart_option_builder.ts and chart_theme.ts).
+ * Theme colors are read from CSS variables and used to build an ECharts theme
+ * object at chart initialization time. When the user switches themes, the
+ * component detects the color change and reinitializes the chart with the
+ * new theme.
  *
- * When the user switches themes, Mithril redraws the parent component, which
- * rebuilds the option with the latest CSS variable values. EChartView detects
- * the option change and calls setOption() to update the chart — no dispose or
- * re-initialization needed.
+ * This approach keeps chart options pure (no embedded theme colors) and
+ * leverages ECharts' native theme system.
  */
 
 import m from 'mithril';
@@ -37,6 +36,8 @@ import {
   PieChart as EPieChart,
   ScatterChart as EScatterChart,
   TreemapChart as ETreemapChart,
+  SankeyChart as ESankeyChart,
+  GaugeChart as EGaugeChart,
 } from 'echarts/charts';
 import {
   GridComponent,
@@ -50,14 +51,13 @@ import {
 } from 'echarts/components';
 import {CanvasRenderer} from 'echarts/renderers';
 import type {EChartsType} from 'echarts/core';
-import {assertExists} from '../../../base/assert';
+import {assertExists, assertIsInstance} from '../../../base/assert';
 import {classNames} from '../../../base/classnames';
 import {SimpleResizeObserver} from '../../../base/resize_observer';
 import {Spinner} from '../../../widgets/spinner';
 import {type ChartThemeColors, getChartThemeColors} from './chart_theme';
 
 // Re-export for backward compatibility
-export {getChartThemeColors as getPerfettoThemeColors};
 export type {ChartThemeColors as ThemeColors};
 
 let echartsInitialized = false;
@@ -73,6 +73,8 @@ function ensureEChartsSetup(): void {
     EPieChart,
     EScatterChart,
     ETreemapChart,
+    ESankeyChart,
+    EGaugeChart,
     GridComponent,
     TooltipComponent,
     LegendComponent,
@@ -83,6 +85,65 @@ function ensureEChartsSetup(): void {
     MarkAreaComponent,
     CanvasRenderer,
   ]);
+}
+
+/**
+ * Build an ECharts theme object from Perfetto theme colors.
+ */
+function buildEChartsTheme(colors: ChartThemeColors): Record<string, unknown> {
+  return {
+    color: [...colors.chartColors],
+    backgroundColor: 'transparent',
+    textStyle: {
+      color: colors.textColor,
+    },
+    title: {
+      textStyle: {color: colors.textColor},
+      subtextStyle: {color: colors.textColor},
+    },
+    legend: {
+      textStyle: {color: colors.textColor},
+    },
+    tooltip: {
+      backgroundColor: colors.backgroundColor,
+      borderColor: colors.borderColor,
+      textStyle: {color: colors.textColor},
+    },
+    categoryAxis: {
+      axisLine: {lineStyle: {color: colors.borderColor}},
+      axisTick: {lineStyle: {color: colors.borderColor}},
+      axisLabel: {color: colors.textColor},
+      splitLine: {lineStyle: {color: colors.borderColor}},
+      nameTextStyle: {color: colors.textColor},
+    },
+    valueAxis: {
+      axisLine: {lineStyle: {color: colors.borderColor}},
+      axisTick: {lineStyle: {color: colors.borderColor}},
+      axisLabel: {color: colors.textColor},
+      splitLine: {lineStyle: {color: colors.borderColor}},
+      nameTextStyle: {color: colors.textColor},
+    },
+    logAxis: {
+      axisLine: {lineStyle: {color: colors.borderColor}},
+      axisTick: {lineStyle: {color: colors.borderColor}},
+      axisLabel: {color: colors.textColor},
+      splitLine: {lineStyle: {color: colors.borderColor}},
+      nameTextStyle: {color: colors.textColor},
+    },
+    visualMap: {
+      textStyle: {color: colors.textColor},
+      inRange: {
+        color: [colors.chartColors[0] + '22', colors.chartColors[0]],
+      },
+    },
+  };
+}
+
+/**
+ * Compute a simple hash of theme colors to detect changes.
+ */
+function themeHash(colors: ChartThemeColors): string {
+  return `${colors.textColor}|${colors.borderColor}|${colors.backgroundColor}|${colors.chartColors.join(',')}`;
 }
 
 /**
@@ -131,6 +192,18 @@ export interface EChartViewAttrs {
   readonly option: echarts.EChartsCoreOption | undefined;
 
   /**
+   * Optional callback to transform the option with theme colors.
+   * Called after theme colors are read from the DOM, before the option
+   * is applied to the ECharts instance. Useful for series-level color
+   * overrides (e.g. gauge axis tracks) that the ECharts theme system
+   * does not cover.
+   */
+  readonly resolveOption?: (
+    option: echarts.EChartsCoreOption,
+    colors: ChartThemeColors,
+  ) => echarts.EChartsCoreOption;
+
+  /**
    * Height of the chart in pixels. Defaults to 200.
    */
   readonly height?: number;
@@ -164,24 +237,23 @@ export interface EChartViewAttrs {
 
 const DEFAULT_HEIGHT = 200;
 
+// Shared theme name for all EChartView instances
+const THEME_NAME = 'perfetto';
+
 export class EChartView implements m.ClassComponent<EChartViewAttrs> {
   private chart?: EChartsType;
-  private container?: HTMLElement;
   private resizeObs?: Disposable;
   private prevHandlers: ReadonlyArray<EChartEventHandler> = [];
   private prevOptionJson?: string;
+  private prevThemeHash?: string;
 
   oncreate({dom, attrs}: m.CVnodeDOM<EChartViewAttrs>) {
     ensureEChartsSetup();
 
-    this.container = assertExists(
-      dom.querySelector('.pf-echart-view__canvas') as HTMLElement | null,
-    );
-
     // Only init ECharts when we have an option to render (the canvas
     // is display:none during loading, so init would get 0×0 dimensions).
     if (attrs.option !== undefined) {
-      this.initChart(attrs);
+      this.initChart(attrs, dom);
     }
 
     // Defer resize to the next frame so that a layout change caused by
@@ -191,19 +263,32 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
     });
   }
 
-  onupdate({attrs}: m.CVnodeDOM<EChartViewAttrs>) {
+  onupdate({dom, attrs}: m.CVnodeDOM<EChartViewAttrs>) {
     if (attrs.option === undefined) return;
 
     // Lazy init: first option arrived after a loading state.
     if (this.chart === undefined) {
-      this.initChart(attrs);
+      this.initChart(attrs, dom);
       return;
     }
 
-    const optionJson = JSON.stringify(attrs.option);
+    // Check if theme changed - if so, reinitialize the chart
+    const colors = getChartThemeColors(dom);
+    const currentThemeHash = themeHash(colors);
+
+    if (currentThemeHash !== this.prevThemeHash) {
+      // Theme changed - dispose and reinit with new theme
+      this.disposeChart();
+      this.initChart(attrs, dom);
+      return;
+    }
+
+    // Check if option changed
+    const resolvedOption = this.applyResolveOption(attrs.option, attrs, colors);
+    const optionJson = JSON.stringify(resolvedOption);
     if (optionJson !== this.prevOptionJson) {
       this.prevOptionJson = optionJson;
-      this.chart.setOption(attrs.option, {notMerge: true});
+      this.chart.setOption(resolvedOption, {notMerge: true});
       // The canvas may have been display:none (loading state) since the
       // last option, so ECharts' cached dimensions could be stale.
       this.chart.resize();
@@ -212,13 +297,45 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
     this.syncHandlers(attrs.eventHandlers ?? []);
   }
 
-  private initChart(attrs: EChartViewAttrs): void {
-    if (this.container === undefined || attrs.option === undefined) return;
-    this.chart = echarts.init(this.container);
-    this.chart.setOption(attrs.option);
-    this.prevOptionJson = JSON.stringify(attrs.option);
+  private initChart(attrs: EChartViewAttrs, dom: Element): void {
+    if (attrs.option === undefined) return;
+
+    const container = assertIsInstance(
+      assertExists(dom.querySelector('.pf-echart-view__canvas')),
+      HTMLElement,
+    );
+
+    // Read theme colors and register/update the ECharts theme
+    const colors = getChartThemeColors(container);
+    const theme = buildEChartsTheme(colors);
+    echarts.registerTheme(THEME_NAME, theme);
+
+    const resolvedOption = this.applyResolveOption(attrs.option, attrs, colors);
+
+    // Initialize chart with the theme
+    this.chart = echarts.init(container, THEME_NAME);
+    this.chart.setOption(resolvedOption);
+
+    this.prevOptionJson = JSON.stringify(resolvedOption);
+    this.prevThemeHash = themeHash(colors);
     this.syncHandlers(attrs.eventHandlers ?? []);
     this.activateBrush(attrs.activeBrushType);
+  }
+
+  private applyResolveOption(
+    option: echarts.EChartsCoreOption,
+    attrs: EChartViewAttrs,
+    colors: ChartThemeColors,
+  ): echarts.EChartsCoreOption {
+    return attrs.resolveOption ? attrs.resolveOption(option, colors) : option;
+  }
+
+  private disposeChart(): void {
+    this.detachAllHandlers();
+    if (this.chart) {
+      this.chart.dispose();
+      this.chart = undefined;
+    }
   }
 
   private activateBrush(brushType: string | undefined): void {
@@ -238,11 +355,7 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
       this.resizeObs[Symbol.dispose]();
       this.resizeObs = undefined;
     }
-    this.detachAllHandlers();
-    if (this.chart !== undefined) {
-      this.chart.dispose();
-      this.chart = undefined;
-    }
+    this.disposeChart();
   }
 
   view({attrs}: m.Vnode<EChartViewAttrs>) {

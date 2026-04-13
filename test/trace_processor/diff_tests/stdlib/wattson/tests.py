@@ -251,8 +251,8 @@ class WattsonStdlib(TestSuite):
         """,
         out=Csv("""
             "cpu0_mw","cpu1_mw","cpu2_mw","cpu3_mw","cpu4_mw","cpu5_mw","cpu6_mw","cpu7_mw","dsu_scu_mw"
-            13.119297,6.317755,5.480736,8.867040,8.940129,10.721293,29.491222,30.247726,25.756884
-            """))
+            13.123951,6.319792,5.482452,8.870058,8.940995,10.722844,29.494919,30.193860,25.745894
+        """))
 
   # Tests that suspend calculations are correct on 8 CPU device where suspend
   # indication comes from "syscore" command
@@ -494,3 +494,19 @@ class WattsonStdlib(TestSuite):
           11209755651363,50651,139.420000,139.420000,30.950000,30.950000,30.950000,100.980000,100.980000,1959.070000,156.229919
           11209755702014,8177,139.420000,139.420000,30.950000,3.360000,30.950000,100.980000,100.980000,1959.070000,156.204294
           """))
+
+  def test_wattson_tpu_estimate(self):
+    return DiffTestBlueprint(
+        trace=DataPath('tpu_jumpnet.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.estimates;
+            SELECT
+              SUM(tpu_mw * dur) / SUM(dur) as avg_tpu_mw,
+              SUM(tpu_mw * dur) / 1e9 as total_tpu_mws
+            FROM _system_state_mw
+            WHERE tpu_mw IS NOT NULL
+            """),
+        out=Csv("""
+            "avg_tpu_mw","total_tpu_mws"
+            52.389828,592.702934
+            """))

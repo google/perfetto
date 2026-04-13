@@ -26,6 +26,15 @@ namespace perfetto::trace_processor::core {
 // Root nodes have this value as their parent.
 inline constexpr uint32_t kNullParent = std::numeric_limits<uint32_t>::max();
 
+// Aggregation operation for tree propagation (propagate-down).
+enum class PropagateAggOp : uint8_t {
+  kSum,
+  kMin,
+  kMax,
+  kFirst,
+  kLast,
+};
+
 }  // namespace perfetto::trace_processor::core
 
 #endif  // SRC_TRACE_PROCESSOR_CORE_COMMON_TREE_TYPES_H_

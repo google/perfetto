@@ -17,7 +17,6 @@ import type {EChartsCoreOption} from 'echarts/core';
 import {formatNumber} from './chart_utils';
 import {EChartView, EChartEventHandler, EChartClickParams} from './echart_view';
 import {buildTooltipOption} from './chart_option_builder';
-import {getChartThemeColors} from './chart_theme';
 
 /**
  * A node in the treemap hierarchy.
@@ -27,8 +26,6 @@ export interface TreemapNode {
   readonly name: string;
   /** Size value (determines rectangle area) */
   readonly value: number;
-  /** Optional category for coloring (uses theme chart color palette) */
-  readonly category?: string;
   /** Optional children for hierarchical treemaps */
   readonly children?: readonly TreemapNode[];
 }
@@ -123,12 +120,6 @@ function buildTreemapOption(
     enableDrillDown = false,
   } = attrs;
 
-  const theme = getChartThemeColors();
-
-  // Build category-to-color mapping
-  const categoryColors = new Map<string, string>();
-  assignColors(data.nodes, categoryColors, theme.chartColors);
-
   const total = data.nodes.reduce((sum, n) => sum + computeTotal(n), 0);
 
   return {
@@ -145,7 +136,7 @@ function buildTreemapOption(
     series: [
       {
         type: 'treemap',
-        data: convertNodes(data.nodes, categoryColors),
+        data: convertNodes(data.nodes),
         roam: enableDrillDown ? 'move' : false,
         nodeClick: enableDrillDown ? 'zoomToNode' : false,
         visibleMin,
@@ -153,33 +144,26 @@ function buildTreemapOption(
           show: showLabels,
           formatter: '{b}',
           fontSize: 11,
-          color: theme.textColor,
         },
         itemStyle: {
-          borderColor: theme.backgroundColor,
           borderWidth: 2,
           gapWidth: 2,
         },
         breadcrumb: enableDrillDown
           ? {
               show: true,
-              itemStyle: {
-                textStyle: {color: theme.textColor},
-              },
             }
           : {show: false},
         levels: [
           {
             // Level 0: parent groups
             itemStyle: {
-              borderColor: theme.borderColor,
               borderWidth: 3,
               gapWidth: 3,
             },
             upperLabel: {
               show: true,
               height: 20,
-              color: theme.textColor,
               fontSize: 12,
               fontWeight: 'bold' as const,
             },
@@ -188,7 +172,6 @@ function buildTreemapOption(
             // Level 1: children
             colorSaturation: [0.35, 0.65],
             itemStyle: {
-              borderColor: theme.backgroundColor,
               borderWidth: 1,
               gapWidth: 1,
             },
@@ -197,7 +180,6 @@ function buildTreemapOption(
             // Level 2+: deeper children (if any)
             colorSaturation: [0.25, 0.55],
             itemStyle: {
-              borderColor: theme.backgroundColor,
               borderWidth: 1,
               gapWidth: 1,
             },
@@ -209,37 +191,12 @@ function buildTreemapOption(
 }
 
 /**
- * Recursively assign colors to categories found in nodes.
- */
-function assignColors(
-  nodes: readonly TreemapNode[],
-  categoryColors: Map<string, string>,
-  chartColors: readonly string[],
-): void {
-  for (const node of nodes) {
-    const category = node.category ?? node.name;
-    if (!categoryColors.has(category)) {
-      categoryColors.set(
-        category,
-        chartColors[categoryColors.size % chartColors.length],
-      );
-    }
-    if (node.children !== undefined) {
-      assignColors(node.children, categoryColors, chartColors);
-    }
-  }
-}
-
-/**
  * Convert TreemapNode tree to ECharts data format.
  */
 function convertNodes(
   nodes: readonly TreemapNode[],
-  categoryColors: Map<string, string>,
 ): Array<Record<string, unknown>> {
   return nodes.map((node) => {
-    const category = node.category ?? node.name;
-    const color = categoryColors.get(category);
     const children = node.children;
     const hasChildren = children !== undefined && children.length > 0;
     // For nodes with children, use computed value from children if value is 0
@@ -248,10 +205,9 @@ function convertNodes(
     const result: Record<string, unknown> = {
       name: node.name,
       value,
-      itemStyle: {color},
     };
     if (hasChildren) {
-      result.children = convertNodes(children, categoryColors);
+      result.children = convertNodes(children);
     }
     return result;
   });

@@ -392,19 +392,23 @@ _validate_tags()
 # Table importance levels for documentation.
 # Importance levels help users discover the most relevant tables for their use case.
 # Levels:
+#   'core': Core tables - Fundamental built-in tables present in every trace
 #   'high': Very frequent - Most commonly used, fundamental tables for trace analysis
 #   'mid': Frequent - Important for specific use cases, moderately common
 #   'low': Specialized or advanced tables, less frequently needed
 #   None/absent: Normal importance (default)
 TABLE_IMPORTANCE = {
-    # HIGH IMPORTANCE - Core tables, fundamental for most analyses
+    # CORE - Fundamental built-in tables present in every trace
+    'slice': 'core',  # All slices (spans of time with a name)
+    'counter': 'core',  # Time-series metrics: memory, battery, custom counters
+    'thread': 'core',  # Thread metadata and information
+    'process': 'core',  # Process metadata and information
+    'track': 'core',  # Tracks for organizing slices and counters
+    'sched': 'core',  # Kernel scheduling events table
     'thread_state':
-        'high',  # CPU scheduling: what threads ran when and for how long
-    'sched': 'high',  # Kernel scheduling events table
-    'thread': 'high',  # Thread metadata and information
-    'process': 'high',  # Process metadata and information
-    'counter': 'high',  # Time-series metrics: memory, battery, custom counters
-    'track': 'high',  # Tracks for organizing slices and counters
+        'core',  # CPU scheduling: what threads ran when and for how long
+
+    # HIGH IMPORTANCE - Commonly used derived tables
     'thread_or_process_slice':
         'high',  # Unified slice table for thread and process slices
 
@@ -418,6 +422,17 @@ TABLE_IMPORTANCE = {
 
     # HIGH IMPORTANCE - Android inter-process communication
     'android_binder_txns': 'high',  # Binder transactions for IPC analysis
+
+    # HIGH IMPORTANCE - Android input and memory
+    'android_input_events': 'high',  # Input event tracking and analysis
+    'android_process_memory_intervals':
+        'high',  # Per-process memory usage over time
+
+    # HIGH IMPORTANCE - Profiling and virtualization
+    'cpu_profile_stack_sample':
+        'high',  # CPU profiling stack samples for performance analysis
+    'pkvm_hypervisor_events':
+        'high',  # pKVM hypervisor events for virtualization analysis
 
     # MID IMPORTANCE - Android system monitoring and diagnostics
     'android_anrs': 'mid',  # Application Not Responding events and diagnostics
@@ -453,6 +468,6 @@ def get_table_importance(table_name: str) -> Optional[str]:
     table_name: Name of the table/view
 
   Returns:
-    The importance level ('high', 'mid', 'low') or None for normal importance
+    The importance level ('core', 'high', 'mid', 'low') or None for normal importance
   """
   return TABLE_IMPORTANCE.get(table_name)

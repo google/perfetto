@@ -164,6 +164,203 @@ class DynamicTables(TestSuite):
         "A1"
         """))
 
+  # Regression test: an instant child slice at the exact boundary between its
+  # parent and a subsequent sibling ("uncle") should not appear as a descendant
+  # of the uncle. The instant is emitted while the parent is still open, so its
+  # parent_id correctly points to the parent, not the uncle.
+  def test_descendant_slice_boundary_instant(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            parent_uuid: 10
+            thread {
+              pid: 5
+              tid: 1
+              thread_name: "t1"
+            }
+          }
+          trace_packet_defaults {
+            track_event_defaults {
+              track_uuid: 1
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 10
+            process {
+              pid: 5
+              process_name: "p1"
+            }
+          }
+        }
+        # Parent slice [1000, 3000)
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_event {
+            categories: "cat"
+            name: "parent"
+            type: 1
+          }
+        }
+        # Child instant at ts=3000, emitted while parent is still open
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          track_event {
+            categories: "cat"
+            name: "child_instant"
+            type: 3
+          }
+        }
+        # Parent ends at 3000
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          track_event {
+            categories: "cat"
+            name: "parent"
+            type: 2
+          }
+        }
+        # Uncle slice [3000, 5000) adjacent to parent
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          track_event {
+            categories: "cat"
+            name: "uncle"
+            type: 1
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 5000
+          track_event {
+            categories: "cat"
+            name: "uncle"
+            type: 2
+          }
+        }
+        """),
+        query="""
+        SELECT d.name AS descendant_name
+        FROM slice AS s
+        JOIN descendant_slice(s.id) AS d
+        WHERE s.name = 'uncle'
+        ORDER BY d.ts, d.name;
+        """,
+        out=Csv("""
+        "descendant_name"
+        """))
+
+  # Regression test: descendant_slice should include an instant child at the
+  # exact end boundary of its parent when the parent_id chain confirms it.
+  # This mirrors the real-world sequence: Begin(parent) -> Scoped(instant at
+  # parent_end) -> End(parent) -> Begin(uncle).
+  def test_descendant_slice_boundary_instant_parent(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            parent_uuid: 10
+            thread {
+              pid: 5
+              tid: 1
+              thread_name: "t1"
+            }
+          }
+          trace_packet_defaults {
+            track_event_defaults {
+              track_uuid: 1
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 10
+            process {
+              pid: 5
+              process_name: "p1"
+            }
+          }
+        }
+        # Parent slice [1000, 3000)
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_event {
+            categories: "cat"
+            name: "parent"
+            type: 1
+          }
+        }
+        # Child instant at ts=3000, emitted while parent is still open
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          track_event {
+            categories: "cat"
+            name: "child_instant"
+            type: 3
+          }
+        }
+        # Parent ends at 3000
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          track_event {
+            categories: "cat"
+            name: "parent"
+            type: 2
+          }
+        }
+        # Uncle slice [3000, 5000) adjacent to parent
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          track_event {
+            categories: "cat"
+            name: "uncle"
+            type: 1
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 5000
+          track_event {
+            categories: "cat"
+            name: "uncle"
+            type: 2
+          }
+        }
+        """),
+        query="""
+        SELECT d.name AS descendant_name
+        FROM slice AS s
+        JOIN descendant_slice(s.id) AS d
+        WHERE s.name = 'parent'
+        ORDER BY d.ts, d.name;
+        """,
+        out=Csv("""
+        "descendant_name"
+        "child_instant"
+        """))
+
   # Ancestor slice by stack table.
   def testancestor_slice_by_stack(self):
     return DiffTestBlueprint(

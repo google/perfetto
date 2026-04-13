@@ -48,6 +48,7 @@ from diff_tests.metrics.startup.tests_metrics import StartupMetrics
 from diff_tests.metrics.webview.tests import WebView
 from diff_tests.parser.android_fs.tests import AndroidFs
 from diff_tests.parser.android.tests import AndroidParser
+from diff_tests.parser.android.tests_aflags import AndroidAflags
 from diff_tests.parser.android.tests_android_input_event import AndroidInputEvent
 from diff_tests.parser.android.tests_bugreport import AndroidBugreport
 from diff_tests.parser.android.tests_cpu_per_uid import AndroidCpuPerUid
@@ -176,6 +177,7 @@ from diff_tests.stdlib.timestamps.tests import Timestamps
 from diff_tests.stdlib.traced.stats import TracedStats
 from diff_tests.stdlib.trees.table_conversion_tests import TreeRoundtrip
 from diff_tests.stdlib.trees.tree_filter_tests import TreeFilter
+from diff_tests.stdlib.trees.tree_propagate_tests import TreePropagate
 from diff_tests.stdlib.viz.tests import Viz
 from diff_tests.stdlib.wattson.tests import WattsonStdlib
 from diff_tests.syntax.filtering_tests import PerfettoFiltering
@@ -197,6 +199,7 @@ sys.path.pop()
 def fetch_all_diff_tests(
     index_path: str) -> List[Tuple[str, 'testing.DiffTestBlueprint']]:
   parser_tests = [
+      AndroidAflags,
       AndroidBugreport,
       AndroidCpuPerUid,
       AndroidDumpstate,
@@ -319,6 +322,7 @@ def fetch_all_diff_tests(
       GraphScanTests,
       TreeRoundtrip,
       TreeFilter,
+      TreePropagate,
       ExportTests,
       Frames,
       GraphSearchTests,

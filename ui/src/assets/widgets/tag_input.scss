@@ -18,46 +18,45 @@
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
+  font-family: var(--pf-font-compact);
   font-size: inherit;
   outline: none; // Disable the default outline
-  border: none; // Disable the default border
-  border-bottom: solid 1px var(--pf-color-border); // Thin underline
-  background: none;
+  border: solid 1px var(--pf-color-border-secondary);
+  border-radius: $border-radius;
+  padding: 2px 4px;
+  background: var(--pf-color-void);
   transition:
     border $anim-timing,
     box-shadow $anim-timing,
     background $anim-timing;
+  gap: 4px;
 
-  // Round only the top corners to avoid rounding the edges of the underline
-  border-radius: $border-radius $border-radius 0 0;
+  &__left-icon {
+    align-self: center;
+    line-height: inherit;
+    color: var(--pf-color-text-muted);
+  }
 
   input {
+    appearance: none;
     outline: none;
     border: none;
     background: none;
     font-family: inherit;
     font-size: inherit;
+    line-height: inherit;
     color: inherit;
     flex-grow: 1;
-  }
-
-  i {
-    cursor: pointer;
-    margin-left: 2px;
+    padding: 0;
+    margin: 0;
   }
 
   // The gentle hover effect indicates this component is interactive
   &:hover {
-    background: color_hover(transparent);
+    border: solid 1px var(--pf-color-border);
   }
 
   &:focus-within {
-    background: color_hover(transparent);
-    border-bottom: solid 1px var(--pf-color-primary);
-
-    // The box-shadow thickens the bottom border, without adding to the height.
-    // This is the same technique used by materializecss:
-    // See https://materializecss.com/text-inputs.html
-    box-shadow: 0 1px 0 var(--pf-color-primary);
+    border: solid 1px var(--pf-color-primary);
   }
 }

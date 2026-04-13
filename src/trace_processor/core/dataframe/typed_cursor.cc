@@ -31,7 +31,7 @@ void TypedCursor::ExecuteUnchecked() {
   if (PERFETTO_UNLIKELY(last_execution_mutation_count_ != GetMutations())) {
     PrepareCursorInternal();
   }
-  Fetcher fetcher{{}, filter_values_.data()};
+  Fetcher fetcher{{}, filter_values_.data(), filter_value_list_states_.data()};
   cursor_.Execute(fetcher);
 }
 
@@ -45,6 +45,8 @@ void TypedCursor::PrepareCursorInternal() {
         spec.value_index.value_or(std::numeric_limits<uint32_t>::max());
   }
   std::fill(filter_values_.begin(), filter_values_.end(), nullptr);
+  std::fill(filter_value_list_states_.begin(), filter_value_list_states_.end(),
+            FilterValueListState{});
 }
 
 }  // namespace perfetto::trace_processor::core::dataframe

@@ -684,6 +684,7 @@
 
       .pf-multiselect-panel {
         max-height: 500px;
+        width: 100%;
       }
     }
   }
@@ -907,20 +908,37 @@
       padding-top: 20px;
     }
   }
-  .platform-selector button {
-    min-height: 60px;
-    box-shadow: 2px 2px 4px var(--pf-color-box-shadow);
-    border: 1px solid var(--pf-color-border-secondary);
-    font-size: var(--pf-font-size-l);
-    margin: 0 5px;
 
-    &:hover {
-      background-color: color_hover(transparent);
-    }
-    &.pf-active {
-      background-color: var(--pf-color-primary);
-      color: var(--pf-color-text-on-primary);
-      border-color: var(--pf-color-primary);
+  .record-platform-buttons {
+    display: inline-flex;
+    flex-direction: row;
+
+    gap: 4px;
+
+    button {
+      font-family: var(--pf-font-compact);
+      font-size: var(--pf-font-size-m);
+      line-height: 1;
+      user-select: none;
+      padding: 8px 12px;
+      white-space: nowrap;
+      border: 1px solid var(--pf-color-border);
+      background: var(--pf-color-background);
+      color: var(--pf-color-text);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      border-radius: $border-radius;
+
+      &:hover:not(.selected) {
+        background: color_hover(transparent);
+      }
+      &.selected {
+        background: var(--pf-color-primary);
+        color: var(--pf-color-text-on-primary);
+        border-color: var(--pf-color-primary);
+      }
     }
   }
 

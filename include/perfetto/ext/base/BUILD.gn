@@ -87,6 +87,10 @@ source_set("base") {
   public_deps = [ "../../base" ]
 }
 
+source_set("regex") {
+  sources = [ "regex.h" ]
+}
+
 source_set("version") {
   sources = [ "version.h" ]
 }

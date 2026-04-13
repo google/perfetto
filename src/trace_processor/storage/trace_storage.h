@@ -413,6 +413,13 @@ class TraceStorage {
   const SqlStats& sql_stats() const { return sql_stats_; }
   SqlStats* mutable_sql_stats() { return &sql_stats_; }
 
+  const tables::AndroidAflagsTable& android_aflags_table() const {
+    return table<tables::AndroidAflagsTable>();
+  }
+  tables::AndroidAflagsTable* mutable_android_aflags_table() {
+    return mutable_table<tables::AndroidAflagsTable>();
+  }
+
   const tables::AndroidCpuPerUidTrackTable& android_cpu_per_uid_track_table()
       const {
     return table<tables::AndroidCpuPerUidTrackTable>();
@@ -533,6 +540,13 @@ class TraceStorage {
   }
   tables::CpuTable* mutable_cpu_table() {
     return mutable_table<tables::CpuTable>();
+  }
+
+  const tables::GpuTable& gpu_table() const {
+    return table<tables::GpuTable>();
+  }
+  tables::GpuTable* mutable_gpu_table() {
+    return mutable_table<tables::GpuTable>();
   }
 
   const tables::CpuFreqTable& cpu_freq_table() const {
@@ -674,6 +688,22 @@ class TraceStorage {
 
   tables::HeapGraphReferenceTable* mutable_heap_graph_reference_table() {
     return mutable_table<tables::HeapGraphReferenceTable>();
+  }
+
+  const tables::HeapGraphPrimitiveTable& heap_graph_primitive_table() const {
+    return table<tables::HeapGraphPrimitiveTable>();
+  }
+
+  tables::HeapGraphPrimitiveTable* mutable_heap_graph_primitive_table() {
+    return mutable_table<tables::HeapGraphPrimitiveTable>();
+  }
+
+  const tables::HeapGraphObjectDataTable& heap_graph_object_data_table() const {
+    return table<tables::HeapGraphObjectDataTable>();
+  }
+
+  tables::HeapGraphObjectDataTable* mutable_heap_graph_object_data_table() {
+    return mutable_table<tables::HeapGraphObjectDataTable>();
   }
 
   const tables::AggregateProfileTable& aggregate_profile_table() const {
@@ -819,6 +849,18 @@ class TraceStorage {
   }
   std::vector<TraceBlobView>* mutable_etm_v4_chunk_data() {
     return &etm_v4_chunk_data_;
+  }
+  struct HprofArrayBlob {
+    TraceBlobView data;
+    uint8_t element_type;  // art_hprof::FieldType as uint8_t
+    uint32_t element_count;
+  };
+  // Indexed by heap_graph_object_data.array_data_id
+  const std::vector<HprofArrayBlob>& hprof_array_blobs() const {
+    return hprof_array_blobs_;
+  }
+  std::vector<HprofArrayBlob>* mutable_hprof_array_blobs() {
+    return &hprof_array_blobs_;
   }
   const tables::FileTable& file_table() const {
     return table<tables::FileTable>();
@@ -1134,6 +1176,10 @@ class TraceStorage {
   // Indexed by tables::EtmV4TraceTable::Id
   std::vector<TraceBlobView> etm_v4_chunk_data_;
   std::unique_ptr<Destructible> etm_target_memory_;
+
+  // HPROF primitive array blobs.
+  // Indexed by heap_graph_object_data.array_data_id
+  std::vector<HprofArrayBlob> hprof_array_blobs_;
 
   // Aligned storage for all table dataframes.
   alignas(

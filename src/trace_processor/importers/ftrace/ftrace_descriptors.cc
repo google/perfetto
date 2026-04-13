@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 604> descriptors{{
+std::array<FtraceMessageDescriptor, 609> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -6728,6 +6728,58 @@ std::array<FtraceMessageDescriptor, 604> descriptors{{
             {"runnable_time", ProtoSchemaType::kUint64},
             {"io_sleep_time", ProtoSchemaType::kUint64},
             {"other_time", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "sched_group_tracker",
+        4,
+        {
+            {},
+            {"comm", ProtoSchemaType::kString},
+            {"pid", ProtoSchemaType::kInt32},
+            {"group", ProtoSchemaType::kString},
+            {"group_num", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "dpu_disp_frame_done_timeout",
+        5,
+        {
+            {},
+            {"display_id", ProtoSchemaType::kInt32},
+            {"output_id", ProtoSchemaType::kUint32},
+            {"frames_pending", ProtoSchemaType::kInt32},
+            {"te_count", ProtoSchemaType::kInt32},
+            {"during_disable", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "dpu_disp_frame_start_timeout",
+        4,
+        {
+            {},
+            {"display_id", ProtoSchemaType::kInt32},
+            {"output_id", ProtoSchemaType::kUint32},
+            {"frames_pending", ProtoSchemaType::kInt32},
+            {"te_count", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "mm_vmscan_memcg_reclaim_begin",
+        3,
+        {
+            {},
+            {"order", ProtoSchemaType::kInt32},
+            {"may_writepage", ProtoSchemaType::kInt32},
+            {"gfp_flags", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mm_vmscan_memcg_reclaim_end",
+        1,
+        {
+            {},
+            {"nr_reclaimed", ProtoSchemaType::kUint64},
         },
     },
 }};

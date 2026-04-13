@@ -1,6 +1,6 @@
 # ProtoZero design document
 
-ProtoZero is a zero-copy zero-alloc zero-syscall protobuf serialization libary
+ProtoZero is a zero-copy zero-alloc zero-syscall protobuf serialization library
 purposefully built for Perfetto's tracing use cases.
 
 ## Motivations

@@ -76,6 +76,7 @@ const pjoin = path.join;
 const ROOT_DIR = path.dirname(__dirname);  // The repo root.
 const VERSION_SCRIPT = pjoin(ROOT_DIR, 'tools/write_version_header.py');
 const GEN_IMPORTS_SCRIPT = pjoin(ROOT_DIR, 'tools/gen_ui_imports');
+const DEFAULT_PORT = 10000;
 
 const cfg = {
   minifyJs: '',
@@ -85,7 +86,7 @@ const cfg = {
   bigtrace: false,
   startHttpServer: false,
   httpServerListenHost: '127.0.0.1',
-  httpServerListenPort: 10000,
+  httpServerListenPort: undefined,
   onlyWasmMemory64: false,
   wasmModules: [],
   crossOriginIsolation: false,
@@ -120,9 +121,9 @@ const RULES = [
   {r: /ui\/src\/assets\/bigtrace.html/, f: copyBigtraceHtml},
   {r: /ui\/src\/open_perfetto_trace\/index.html/, f: copyOpenPerfettoTraceHtml},
   {r: /ui\/src\/assets\/((.*)[.]png)/, f: copyAssets},
-  {r: /ui\/src\/assets\/(explore_page\/base-page\.json)/, f: copyAssets},
-  {r: /ui\/src\/assets\/(explore_page\/examples\/(.*)[.]json)/, f: copyAssets},
-  {r: /ui\/src\/assets\/(explore_page\/node_info\/(.*)[.]md)/, f: copyAssets},
+  {r: /ui\/src\/assets\/(data_explorer\/base-page\.json)/, f: copyAssets},
+  {r: /ui\/src\/assets\/(data_explorer\/examples\/(.*)[.]json)/, f: copyAssets},
+  {r: /ui\/src\/assets\/(data_explorer\/node_info\/(.*)[.]md)/, f: copyAssets},
   {r: /buildtools\/typefaces\/(.+[.]woff2)/, f: copyAssets},
   {r: /buildtools\/catapult_trace_viewer\/(.+(js|html))/, f: copyAssets},
   {r: /ui\/src\/assets\/.+[.]scss|ui\/src\/(?:plugins|core_plugins)\/.+[.]scss/, f: compileScss},
@@ -169,6 +170,13 @@ async function main() {
     help: 'filter Jest tests by regex, e.g. \'chrome_render\'',
   });
   parser.add_argument('--no-override-gn-args', {action: 'store_true'});
+  parser.add_argument('--typecheck', {
+    action: 'store_true',
+    help: 'Only type-check (tsc --noEmit), skip bundling',
+  });
+  parser.add_argument('--title', {
+    help: 'Override the page title (useful for distinguishing multiple instances)',
+  });
 
   const args = parser.parse_args();
   const clean = !args.no_build;
@@ -224,21 +232,37 @@ async function main() {
   if (args.cross_origin_isolation) {
     cfg.crossOriginIsolation = true;
   }
+  cfg.check = !!args.typecheck;
   cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
+  cfg.titleOverride = args.title || '';
   cfg.wasmModules = ['traceconv', 'proto_utils', 'trace_processor_memory64'];
   if (!cfg.onlyWasmMemory64) {
     cfg.wasmModules.push('trace_processor');
   }
 
-  process.on('SIGINT', () => {
-    console.log('\nSIGINT received. Killing all child processes and exiting');
+  function terminateChildProcesses() {
     for (const proc of subprocesses) {
-      if (proc) proc.kill('SIGKILL');
+      console.log(`Terminating child process with PID ${proc.pid}`);
+      proc.kill(); // SIGTERM is the default
     }
-    releaseBuildLock();
-    process.kill(0, 'SIGKILL');  // Kill the whole process group.
-    process.exit(130);  // 130 -> Same behavior of bash when killed by SIGINT.
+  }
+
+  // Called whenever the process exits due to:
+  // 1. The JS loop running out of work - (normal exit or uncaught exception).
+  // 2. Manually calling process.exit().
+  process.on('exit', () => {
+    terminateChildProcesses();
   });
+
+  // Register signal handlers for the usual termination signals. Only handle
+  // once per signal so we can then call process.kill(sig) in order for the
+  // process to exit with the correct exit code.
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+    process.once(sig, () => {
+      terminateChildProcesses();
+      process.kill(process.pid, sig);
+    });
+  }
 
   if (!args.no_depscheck) {
     // Check that deps are current before starting.
@@ -270,7 +294,15 @@ async function main() {
   // least one task for that.
   addTask(() => {});
 
-  if (!args.no_build) {
+  if (args.no_build && cfg.check) {
+    // --no-build --typecheck: just run tsc --noEmit assuming out dir exists.
+    const tsProjects = ['ui', 'ui/src/service_worker'];
+    if (cfg.bigtrace) tsProjects.push('ui/src/bigtrace');
+    if (cfg.openPerfettoTrace) tsProjects.push('ui/src/open_perfetto_trace');
+    for (const prj of tsProjects) {
+      transpileTsProject(prj, {noEmit: true});
+    }
+  } else if (!args.no_build) {
     updateSymlinks();  // Links //ui/out -> //out/xxx/ui/
 
     buildWasm(args.no_wasm);
@@ -296,24 +328,35 @@ async function main() {
       tsProjects.push('ui/src/open_perfetto_trace');
     }
 
-
-    for (const prj of tsProjects) {
-      transpileTsProject(prj);
-    }
-
-    if (cfg.watch) {
+    if (cfg.check) {
       for (const prj of tsProjects) {
-        transpileTsProject(prj, {watch: cfg.watch});
+        transpileTsProject(prj, {noEmit: true});
       }
+    } else {
+      for (const prj of tsProjects) {
+        // When in watch mode, don't error out if we get typescript errors in the
+        // initial build. Typescript errors on subsequent incremental builds don't
+        // error out so the initial build should behave in the same way.
+        //
+        // Note: In non-watch mode, we do still break on typescript errors,
+        // there's no change here.
+        transpileTsProject(prj, {noErrCheck: cfg.watch});
+      }
+
+      if (cfg.watch) {
+        for (const prj of tsProjects) {
+          transpileTsProject(prj, {watch: cfg.watch});
+        }
+      }
+
+      bundleJs('rollup.config.js');
+      genServiceWorkerManifestJson();
+
+      // Watches the /dist. When changed:
+      // - Notifies the HTTP live reload clients.
+      // - Regenerates the ServiceWorker file map.
+      scanDir(cfg.outDistRootDir);
     }
-
-    bundleJs('rollup.config.js');
-    genServiceWorkerManifestJson();
-
-    // Watches the /dist. When changed:
-    // - Notifies the HTTP live reload clients.
-    // - Regenerates the ServiceWorker file map.
-    scanDir(cfg.outDistRootDir);
   }
 
   // We should enter the loop only in watch mode, where tsc and rollup are
@@ -322,7 +365,7 @@ async function main() {
     console.log('No build was requested, but artifacts are not available.');
     console.log('In case of execution error, re-run without --no-build.');
   }
-  if (!args.no_build) {
+  if (!args.no_build && !cfg.check) {
     const tStart = performance.now();
     while (!isDistComplete()) {
       const secs = Math.ceil((performance.now() - tStart) / 1000);
@@ -380,6 +423,15 @@ function cpHtml(src, filename) {
   const versionMap = JSON.stringify({'stable': cfg.version});
   const bodyRegex = /data-perfetto_version='[^']*'/;
   html = html.replace(bodyRegex, `data-perfetto_version='${versionMap}'`);
+
+  // If --title was provided, patch the page title. Useful when running
+  // multiple dev server instances to distinguish browser tabs.
+  if (cfg.titleOverride) {
+    html = html.replace(
+        /<title>[^<]*<\/title>/,
+        `<title>${cfg.titleOverride}</title>`);
+  }
+
   fs.writeFileSync(pjoin(cfg.outDistRootDir, filename), html);
 }
 
@@ -563,11 +615,17 @@ function buildWasm(skipWasmBuild) {
 function transpileTsProject(project, options) {
   const args = ['--project', pjoin(ROOT_DIR, project)];
 
-  if (options !== undefined && options.watch) {
-    args.push('--watch', '--preserveWatchOutput');
-    addTask(execModule, ['tsc', args, {async: true}]);
-  } else {
+  if (options !== undefined && options.noEmit) {
+    args.push('--noEmit');
     addTask(execModule, ['tsc', args]);
+  } else if (options !== undefined && options.watch) {
+    args.push('--watch', '--preserveWatchOutput');
+    addTask(execModule, ['tsc', args, {
+      async: true,
+      noErrCheck: options.noErrCheck,
+    }]);
+  } else {
+    addTask(execModule, ['tsc', args, {noErrCheck: options.noErrCheck}]);
   }
 }
 
@@ -618,11 +676,7 @@ function genServiceWorkerManifestJson() {
 }
 
 function startServer() {
-  const host = cfg.httpServerListenHost == '127.0.0.1' ? 'localhost' : cfg.httpServerListenHost;
-  console.log(
-      'Starting HTTP server on',
-      `http://${host}:${cfg.httpServerListenPort}`);
-  http.createServer(function(req, res) {
+  const server = http.createServer(function(req, res) {
         console.debug(req.method, req.url);
         let uri = req.url.split('?', 1)[0];
         if (uri.endsWith('/')) {
@@ -690,8 +744,42 @@ function startServer() {
           res.write(data);
           res.end();
         });
-      })
-      .listen(cfg.httpServerListenPort, cfg.httpServerListenHost);
+      });
+
+  let port = cfg.httpServerListenPort ?? DEFAULT_PORT;
+  let retryCount = 0;
+  
+  // Pick the next free port starting at 10000
+  server.on('error', (e) => {
+    if (e.code === 'EADDRINUSE') {
+      if (cfg.httpServerListenPort === undefined) {
+        if (retryCount <= 10) {
+          // Try the next port.
+          console.log(`Port ${port} is in use, trying ${port + 1}...`);
+          ++port;
+          ++retryCount;
+          server.listen(port, cfg.httpServerListenHost);
+        } else {
+          console.error(`ERROR: Port ${port} is in use, and no free port found after 10 tries. Exiting.`);
+          process.exit(1);
+        }
+      } else {
+        console.error(`ERROR: Port ${port} is in use, and --serve-port was explicitly set. Exiting.`);
+        process.exit(1);
+      }
+    } else {
+      console.error('HTTP SERVER ERROR:', e);
+      process.exit(1);
+    }
+  });
+
+  server.listen(port, cfg.httpServerListenHost);
+
+  server.on('listening', () => {
+    const {address, port} = server.address();
+    const host = address == '127.0.0.1' ? 'localhost' : address;
+    console.log(`HTTP server is listening on http://${host}:${port}`);
+  });
 }
 
 function isDistComplete() {
@@ -865,6 +953,10 @@ class Task {
     const ret = this.func.name.startsWith('exec') ? [] : [this.func.name];
     const flattenedArgs = [].concat(...this.args);
     for (const arg of flattenedArgs) {
+      if (typeof arg === 'object' && arg !== null) {
+        ret.push(JSON.stringify(arg));
+        continue;
+      }
       const argStr = `${arg}`;
       if (argStr.startsWith('/')) {
         ret.push(path.relative(cfg.outDir, arg));
@@ -945,6 +1037,7 @@ function prepareBuildLock() {
     }
     if (running) {
       console.error(`Error: a build.js instance is already running (${cfg.lockFile} PID=${oldPid}).`);
+      console.error('Hint: use --no-build (-n) to skip the build and avoid the lock.');
       process.exit(1);
     } else {
       console.log(`Removing stale lock file for PID ${oldPid}`);

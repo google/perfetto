@@ -115,6 +115,8 @@ message AndroidJobSchedulerJob {
   optional int32 public_stop_reason = 19;
   // Bitfield of boolean states of the job.
   optional int64 job_state_flags = 20;
+  // Interned Job name.
+  optional uint64 job_name_iid = 21;
 }
 
 // Information about an android.graphics.Bitmap.
@@ -656,6 +658,9 @@ message AndroidProcessStateChangedEvent {
 
   // Bitmask of reasons for granting PROCESS_CAPABILITY_IMPLICIT_CPU_TIME.
   optional int32 implicit_cpu_time_reasons = 12;
+
+  // Bitfield to represent boolean freeze policy states.
+  optional int32 freeze_policy_flags = 13;
 }
 
 message AndroidTrackEvent {

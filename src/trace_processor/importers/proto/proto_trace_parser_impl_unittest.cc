@@ -41,6 +41,7 @@
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/global_metadata_tracker.h"
+#include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
@@ -75,6 +76,7 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/perf_events.pbzero.h"
 #include "protos/perfetto/common/sys_stats_counters.pbzero.h"
+#include "protos/perfetto/common/trace_attributes.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
@@ -270,6 +272,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
     context_.metadata_tracker.reset(new MetadataTracker(&context_));
     context_.cpu_tracker.reset(new CpuTracker(&context_));
+    context_.gpu_tracker.reset(new GpuTracker(&context_));
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
     sched_ = new MockSchedEventTracker(&context_);
@@ -3097,6 +3100,25 @@ TEST_F(ProtoTraceParserTest, PerfEventWithMultipleCounter) {
   EXPECT_EQ(cpu.int_value, 0u);
   get_cpu(2);
   EXPECT_EQ(cpu.int_value, 0u);
+}
+
+TEST_F(ProtoTraceParserTest, TraceAttributes) {
+  auto container = trace_->add_packet()->set_trace_attributes();
+  auto* attribute = container->add_attribute();
+  attribute->set_key("string_key");
+  attribute->set_string_value("string_value");
+  attribute = container->add_attribute();
+  attribute->set_key("int_key");
+  attribute->set_long_value(42);
+  attribute = container->add_attribute();
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+  const auto& metadata_table = context_.storage->metadata_table();
+  EXPECT_EQ(metadata_table.row_count(), 2u);
+  EXPECT_STREQ(context_.storage->GetString(metadata_table[0].name()).c_str(),
+               "trace_attribute.string_key");
+  EXPECT_STREQ(context_.storage->GetString(metadata_table[1].name()).c_str(),
+               "trace_attribute.int_key");
 }
 
 }  // namespace

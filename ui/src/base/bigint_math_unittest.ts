@@ -255,4 +255,32 @@ describe('BigIntMath', () => {
       expect(result).toEqual(0n);
     });
   });
+
+  describe('clamp', () => {
+    it('returns value when within range', () => {
+      expect(BIM.clamp(5n, 0n, 10n)).toEqual(5n);
+    });
+
+    it('returns min when value is below range', () => {
+      expect(BIM.clamp(-5n, 0n, 10n)).toEqual(0n);
+    });
+
+    it('returns max when value is above range', () => {
+      expect(BIM.clamp(15n, 0n, 10n)).toEqual(10n);
+    });
+
+    it('returns value when equal to min', () => {
+      expect(BIM.clamp(0n, 0n, 10n)).toEqual(0n);
+    });
+
+    it('returns value when equal to max', () => {
+      expect(BIM.clamp(10n, 0n, 10n)).toEqual(10n);
+    });
+
+    it('works with negative ranges', () => {
+      expect(BIM.clamp(-15n, -10n, -5n)).toEqual(-10n);
+      expect(BIM.clamp(-7n, -10n, -5n)).toEqual(-7n);
+      expect(BIM.clamp(0n, -10n, -5n)).toEqual(-5n);
+    });
+  });
 });

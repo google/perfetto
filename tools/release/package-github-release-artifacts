@@ -85,41 +85,17 @@ def verify_git_state(expected_version):
   return True
 
 
-def generate_sdk_sources(tmpdir):
-  """Generates SDK source zips using gen_amalgamated."""
-  repo_root = get_repo_root()
-  gen_amalgamated = os.path.join(repo_root, 'tools', 'gen_amalgamated')
+def download_sdk_sources(tmpdir, version):
+  """Downloads SDK source zips from GCS."""
+  sdk_zips = [
+      'perfetto-cpp-sdk-src.zip',
+      'perfetto-c-sdk-src.zip',
+  ]
 
-  sdk_zips = []
-
-  # Generate C++ SDK (default targets)
-  print('\n--- Generating C++ SDK amalgamated sources ---')
-  cpp_sdk_staging = tempfile.mkdtemp(prefix='perfetto-cpp-sdk-')
-  try:
-    exec('python3', gen_amalgamated, '--output',
-         os.path.join(cpp_sdk_staging, 'perfetto'))
-    os.chdir(tmpdir)
-    exec('zip', '-9rj', 'perfetto-cpp-sdk-src.zip', cpp_sdk_staging)
-    sdk_zips.append('perfetto-cpp-sdk-src.zip')
-    print('C++ SDK source zip created: perfetto-cpp-sdk-src.zip')
-  finally:
-    shutil.rmtree(cpp_sdk_staging, ignore_errors=True)
-
-  # Generate C SDK
-  # TODO(lalitm): determine the correct target for C SDK
-  print('\n--- Generating C SDK amalgamated sources ---')
-  c_sdk_staging = tempfile.mkdtemp(prefix='perfetto-c-sdk-')
-  try:
-    # For now, use the same targets as C++ SDK
-    # This should be updated with the correct C SDK target
-    exec('python3', gen_amalgamated, '--output',
-         os.path.join(c_sdk_staging, 'perfetto'))
-    os.chdir(tmpdir)
-    exec('zip', '-9rj', 'perfetto-c-sdk-src.zip', c_sdk_staging)
-    sdk_zips.append('perfetto-c-sdk-src.zip')
-    print('C SDK source zip created: perfetto-c-sdk-src.zip')
-  finally:
-    shutil.rmtree(c_sdk_staging, ignore_errors=True)
+  print('\n--- Downloading SDK amalgamated sources from GCS ---')
+  for zip_name in sdk_zips:
+    url = f'gs://perfetto-luci-artifacts/{version}/sdk/{zip_name}'
+    exec('gsutil', 'cp', url, os.path.join(tmpdir, zip_name))
 
   return sdk_zips
 
@@ -146,13 +122,13 @@ def main():
 
   zips = []
   for arch in os.listdir(tmpdir):
-    if not os.path.isdir(arch):
+    if arch == 'sdk' or not os.path.isdir(os.path.join(tmpdir, arch)):
       continue
     exec('zip', '-9r', '%s.zip' % arch, arch)
     zips.append(arch + '.zip')
 
-  # Generate SDK source zips
-  sdk_zips = generate_sdk_sources(tmpdir)
+  # Download SDK source zips
+  sdk_zips = download_sdk_sources(tmpdir, args.version)
   zips.extend(sdk_zips)
 
   print('')

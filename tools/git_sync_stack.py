@@ -157,9 +157,11 @@ def main():
         print(f"Found existing PR #{pr_number} base '{current_base}'.")
         if current_base != desired_base:
           print(f"Updating PR base to '{desired_base}'...")
-          run_command(
-              ['gh', 'pr', 'edit',
-               str(pr_number), '--base', desired_base])
+          run_command([
+              'gh', 'api', '-X', 'PATCH',
+              f'repos/{{owner}}/{{repo}}/pulls/{pr_number}', '-f',
+              f'base={desired_base}'
+          ])
       else:
         print(f"Creating PR with base '{desired_base}'...")
         create_command = [
