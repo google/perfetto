@@ -15,11 +15,8 @@
 .pf-memento-billboard {
   padding: 14px 16px;
   border-radius: 8px;
-  // border: 1px solid var(--pf-color-border-secondary);
+  border: 1px solid var(--pf-color-border-secondary);
   background: var(--pf-color-background-secondary);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 2px 4px rgba(0, 0, 0, 0.18);
 }
 
 .pf-memento-billboard__value {

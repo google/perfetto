@@ -244,7 +244,7 @@ function areaGradient(color: string | undefined): unknown {
           y2: 1,
           colorStops: [
             {offset: 0, color: `rgba(${r},${g},${b},0.25)`},
-            {offset: 1, color: `rgba(${r},${g},${b},0)`},
+            {offset: 1, color: `rgba(${r},${g},${b},0.1)`},
           ],
         },
       };

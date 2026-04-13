@@ -51,8 +51,8 @@
     // Fancy gradient background clipped to the text.
     background: linear-gradient(
       45deg,
-      var(--pf-color-success),
-      var(--pf-color-primary)
+      var(--pf-color-primary),
+      var(--pf-color-success)
     );
     -webkit-background-clip: text;
     background-clip: text;
