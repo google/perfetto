@@ -41,7 +41,7 @@ TEST(DynamicStringWriterTest, BasicCases) {
   {
     base::DynamicStringWriter writer;
     writer.AppendDouble(123.25);
-    ASSERT_EQ(writer.GetStringView().ToStdString(), "123.250000");
+    ASSERT_EQ(writer.GetStringView().ToStdString(), "123.25");
   }
   {
     base::DynamicStringWriter writer;
@@ -106,7 +106,7 @@ TEST(DynamicStringWriterTest, WriteAllTypes) {
   writer.AppendString(kTestStr);
 
   ASSERT_EQ(writer.GetStringView().ToStdString(),
-            "0132545523123.250000truetesttesttest");
+            "0132545523123.25truetesttesttest");
 }
 
 }  // namespace
