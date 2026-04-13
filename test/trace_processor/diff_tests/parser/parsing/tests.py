@@ -814,6 +814,10 @@ class Parsing(TestSuite):
               name: 789
               group: 120
             }
+            app_package_name: "com.android.chrome"
+            app_version: "123.0.0.0"
+            channel: 3
+            os_name: "Android"
           }
         }
         """),
@@ -824,16 +828,20 @@ class Parsing(TestSuite):
         """,
         out=Csv('''
           "name","key_type","int_value","str_value"
+          "cr-a-channel","single",3,"[NULL]"
           "cr-a-enabled_categories","single","[NULL]","cat1,cat2,cat3"
           "cr-a-field_trial_hashes","single","[NULL]","{ name: 123, group: 456 } { name: 789, group: 120 } "
+          "cr-a-os-name","single","[NULL]","Android"
+          "cr-a-package-name","single","[NULL]","com.android.chrome"
           "cr-a-playstore_version_code","single",101,"[NULL]"
+          "cr-a-product-version","single","[NULL]","123.0.0.0"
           "cr-background_tracing_metadata","single","[NULL]","CgUlDsAbXx2RziSz"
           "cr-scenario_name_hash","single",3005533841,"[NULL]"
           "cr-triggered_rule_name_hash","single",1595654158,"[NULL]"
-          "trace_size_bytes","single",95,"[NULL]"
+          "trace_size_bytes","single",137,"[NULL]"
           "trace_time_clock_id","single",6,"[NULL]"
           "trace_type","single","[NULL]","proto"
-          "trace_uuid","single","[NULL]","00000000-0000-0000-7f42-b235fa358661"
+          "trace_uuid","single","[NULL]","00000000-0000-0000-400c-84601ce2950f"
         '''))
 
   def test_chrome_metadata_multiple(self):

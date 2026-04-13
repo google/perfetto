@@ -33,7 +33,7 @@ WITH
   _frames_with_next AS (
     SELECT
       *,
-      lead(frame_ts) OVER (PARTITION BY cuj_id, layer_id ORDER BY frame_id) AS next_frame_start
+      lead(frame_ts) OVER (PARTITION BY cuj_id ORDER BY frame_id) AS next_frame_start
     FROM _android_distinct_frames_in_cuj
   ),
   _frames_with_extension_options AS (
