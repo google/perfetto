@@ -25,6 +25,7 @@
 #include <numeric>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -34,10 +35,11 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/public/compiler.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
@@ -148,6 +150,23 @@ class InlineSchedWakingSink
   ProtoTraceParserImpl* impl_;
   uint32_t cpu_;
 };
+
+// Parses the major version number from a Perfetto tracing service version
+// string of the form "Perfetto vNN.M-..." or "Perfetto vNN.M (...)".
+// Returns nullopt if the string is absent or cannot be parsed.
+std::optional<uint32_t> ParseTracingServiceMajorVersion(
+    std::string_view version) {
+  constexpr std::string_view kPrefix = "Perfetto v";
+  if (version.rfind(kPrefix, 0) != 0) {
+    return std::nullopt;
+  }
+  std::string_view major_str = version.substr(kPrefix.size());
+  auto end = major_str.find_first_of(".-");
+  if (end == std::string_view::npos) {
+    return std::nullopt;
+  }
+  return base::StringToUInt32(std::string(major_str.substr(0, end)));
+}
 
 }  // namespace
 
@@ -501,12 +520,11 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
 }
 
 void ProtoTraceReader::ParseTraceConfig(protozero::ConstBytes blob) {
+  trace_config_raw_.assign(blob.data, blob.data + blob.size);
+
   using Config = protos::pbzero::TraceConfig;
   Config::Decoder trace_config(blob);
   if (trace_config.write_into_file()) {
-    if (!trace_config.flush_period_ms()) {
-      context_->storage->IncrementStats(stats::config_write_into_file_no_flush);
-    }
     int i = 0;
     for (auto it = trace_config.buffers(); it; ++it, ++i) {
       Config::BufferConfig::Decoder buf(*it);
@@ -1082,6 +1100,31 @@ base::Status ProtoTraceReader::OnPushDataToSorter() {
 void ProtoTraceReader::OnEventsFullyExtracted() {
   for (auto& module : module_context_.modules) {
     module->OnEventsFullyExtracted();
+  }
+
+  if (trace_config_raw_.empty()) {
+    return;
+  }
+
+  using Config = protos::pbzero::TraceConfig;
+  Config::Decoder trace_config(trace_config_raw_.data(),
+                               trace_config_raw_.size());
+  if (!trace_config.write_into_file() || trace_config.flush_period_ms()) {
+    return;
+  }
+
+  // Since v54, automatic flushes happen on every write_into_file, making
+  // an explicit flush_period_ms unnecessary. Only emit the stat for older
+  // service versions, or if the version is unknown (traces predating the
+  // tracing_service_version field).
+  auto version_val = context_->metadata_tracker->GetMetadata(
+      metadata::tracing_service_version);
+  std::optional<uint32_t> major;
+  if (version_val.has_value() && version_val->type == SqlValue::kString) {
+    major = ParseTracingServiceMajorVersion(version_val->string_value);
+  }
+  if (!major.has_value() || *major < 54) {
+    context_->storage->IncrementStats(stats::config_write_into_file_no_flush);
   }
 }
 
