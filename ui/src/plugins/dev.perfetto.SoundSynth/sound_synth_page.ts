@@ -40,6 +40,7 @@ import {
   PresetLibrary, PresetEntry, loadPresetLibrary,
 } from './preset_library';
 import {PresetPicker} from './preset_picker';
+import {TraceSourcePreview} from './trace_source_preview';
 
 interface SoundSynthPageAttrs {
   trace: Trace;
@@ -60,6 +61,10 @@ export class SoundSynthPage implements m.ClassComponent<SoundSynthPageAttrs> {
   private presetLibrary: PresetLibrary | null = null;
   private presetPickerTarget: PresetPickerTarget | null = null;
   private selectedInstrumentId: string | null = null;
+  // The currently-selected rack trace source. When set, the bottom
+  // panel shows a signal preview for it instead of the instrument
+  // editor. Selecting an instrument clears this (and vice versa).
+  private selectedTraceSourceId: string | null = null;
 
   async oncreate(vnode: m.VnodeDOM<SoundSynthPageAttrs>) {
     this.trace = vnode.attrs.trace;
@@ -173,23 +178,31 @@ export class SoundSynthPage implements m.ClassComponent<SoundSynthPageAttrs> {
                 patch,
                 view,
                 selectedInstrumentId: editingId,
+                selectedTraceSourceId: this.selectedTraceSourceId,
                 onEditInstrument: (id) => {
                   this.selectedInstrumentId = id;
+                  this.selectedTraceSourceId = null;
                   writePatchUiState(patch, {editingInstrumentId: id});
                 },
                 onTestInstrument: (id) => this.onTestInstrument(id, view),
+                onSelectTraceSource: (id) => {
+                  this.selectedTraceSourceId = id;
+                },
                 onChange: () => { /* mithril auto-redraws */ },
               }),
             ),
           ),
-          // Instrument editor (bottom).
+          // Bottom panel — content depends on selection:
+          //   - instrument selected → instrument editor canvas
+          //   - trace source selected → trace source signal preview
+          //   - nothing selected → hint empty state
           m('.instrument-canvas-wrapper', {
             style: {
               flex: '1 1 0',
               minHeight: '260px',
               position: 'relative',
               overflow: 'hidden',
-              background: editingInst ? 'white' : '#f5f5f5',
+              background: editingInst ? 'white' : '#fbfbfc',
             },
           },
             m('.instrument-canvas-inner', {
@@ -210,7 +223,7 @@ export class SoundSynthPage implements m.ClassComponent<SoundSynthPageAttrs> {
                     },
                     onChange: () => { /* mithril auto-redraws */ },
                   })
-                : this.renderInstrumentEmptyState(),
+                : this.renderTraceSourceOrEmpty(patch),
             ),
           ),
         ),
@@ -337,7 +350,30 @@ export class SoundSynthPage implements m.ClassComponent<SoundSynthPageAttrs> {
       m('div', {style: {fontSize: '24px'}}, '\u266B'),
       m('div', 'Select an instrument on the rack above'),
       m('div', 'and click Edit to view its internal patch'),
+      m('div', {style: {fontSize: '11px', color: '#aaa', marginTop: '6px'}},
+        'Or select a trace source to preview its output signal'),
     );
+  }
+
+  /**
+   * When no instrument is being edited, the bottom panel either shows
+   * the trace source signal preview (if a trace source is selected) or
+   * an empty-state hint.
+   */
+  private renderTraceSourceOrEmpty(patch: protos.ISynthPatch): m.Child {
+    if (!this.selectedTraceSourceId || !this.trace) {
+      return this.renderInstrumentEmptyState();
+    }
+    const mod = patch.modules?.find(
+      (m) => m.id === this.selectedTraceSourceId);
+    if (!mod || !mod.traceSliceSource) {
+      // Selection stale — the module may have been deleted.
+      return this.renderInstrumentEmptyState();
+    }
+    return m(TraceSourcePreview, {
+      trace: this.trace,
+      module: mod,
+    });
   }
 
   private computeBindingCounts(view: PatchView): Map<string, number> {

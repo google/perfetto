@@ -55,7 +55,7 @@ export default defineConfig({
   },
 
   use: {
-    baseURL: 'http://127.0.0.1:10000',
+    baseURL: process.env.PERFETTO_BASE_URL ?? 'http://127.0.0.1:10000',
     trace: 'off',
   },
 
@@ -94,7 +94,7 @@ export default defineConfig({
     command:
       './run-dev-server --no-build --no-depscheck ' +
       (process.env.DEV_SERVER_ARGS ?? ''),
-    url: 'http://127.0.0.1:10000',
+    url: process.env.PERFETTO_BASE_URL ?? 'http://127.0.0.1:10000',
     reuseExistingServer: true,
     timeout: 5 * 60 * 1000,
     stdout: 'pipe',

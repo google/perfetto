@@ -41,7 +41,7 @@ import {
   addWire,
   removeWireAt,
 } from './patch_state';
-import {getDescriptorForModule} from './block_registry';
+import {getDescriptorForModule, portContent} from './block_registry';
 
 const CATEGORY_HUES: Record<string, number> = {
   drum: 0,
@@ -189,6 +189,12 @@ export class RackCanvas implements m.ClassComponent<RackCanvasAttrs> {
     // treatment), so pressing Delete won't accidentally kill it.
     const selectedIds = new Set<string>();
     if (this.selectedNodeId) selectedIds.add(this.selectedNodeId);
+    // Keep the parent's notion of the selected trace source in sync
+    // with our internal state: if a trace source is shown in the
+    // bottom panel preview, mark it visually selected in the rack too.
+    if (selectedTraceSourceId) {
+      selectedIds.add(`src:${selectedTraceSourceId}`);
+    }
 
     return m(NodeGraph, {
       nodes,
@@ -207,10 +213,16 @@ export class RackCanvas implements m.ClassComponent<RackCanvasAttrs> {
         this.selectedNodeId = nodeId;
         if (nodeId.startsWith('inst:')) {
           onEditInstrument(nodeId.substring(5));
+          onSelectTraceSource(null);
+        } else if (nodeId.startsWith('src:')) {
+          onSelectTraceSource(nodeId.substring(4));
+        } else {
+          onSelectTraceSource(null);
         }
       },
       onSelectionClear: () => {
         this.selectedNodeId = null;
+        onSelectTraceSource(null);
       },
       onConnect: (conn) => {
         this.handleConnect(conn, patch, view, onChange);
@@ -344,7 +356,10 @@ export class RackCanvas implements m.ClassComponent<RackCanvasAttrs> {
         title: ui.displayName || 'Trace Source',
         icon: 'track_changes',
       },
-      outputs: [{direction: 'right' as const, content: 'out'}],
+      outputs: [{
+        direction: 'right' as const,
+        content: portContent('out', 'gate'),
+      }],
       content: m('div', {
         style: {padding: '6px 8px', fontSize: '11px', minWidth: '190px'},
       },
@@ -402,11 +417,11 @@ export class RackCanvas implements m.ClassComponent<RackCanvasAttrs> {
     const isSelected = selectedInstrumentId === instId;
 
     const inputs: NodePort[] = [
-      {direction: 'left' as const, content: 'gate'},
-      {direction: 'left' as const, content: 'freq'},
+      {direction: 'left' as const, content: portContent('gate', 'gate')},
+      {direction: 'left' as const, content: portContent('freq', 'freq')},
     ];
     const outputs: NodePort[] = [
-      {direction: 'right' as const, content: 'out'},
+      {direction: 'right' as const, content: portContent('out', 'audio')},
     ];
 
     const chainPreview = this.computeChainPreview(inst, patch);
@@ -537,7 +552,10 @@ export class RackCanvas implements m.ClassComponent<RackCanvasAttrs> {
       y: ui.y,
       hue: 200,
       titleBar: {title: 'Master Out', icon: 'volume_up'},
-      inputs: [{direction: 'left' as const, content: 'in'}],
+      inputs: [{
+        direction: 'left' as const,
+        content: portContent('in', 'audio'),
+      }],
       content: m('div', {
         style: {
           padding: '12px 20px', fontSize: '11px',

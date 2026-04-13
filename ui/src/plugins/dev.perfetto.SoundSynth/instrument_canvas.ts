@@ -22,7 +22,6 @@ import {
   Node,
   Connection,
   NodeGraph,
-  NodeGraphApi,
 } from '../../widgets/nodegraph';
 import {MenuItem} from '../../widgets/menu';
 import {
@@ -43,6 +42,7 @@ import {
   getAllDescriptors,
   descriptorsByCategory,
   BlockCategory,
+  portContent,
 } from './block_registry';
 
 // Reserved canvas node IDs (not stored in proto).
@@ -60,9 +60,6 @@ export interface InstrumentCanvasAttrs {
 export class InstrumentCanvas
 implements m.ClassComponent<InstrumentCanvasAttrs> {
   private showBlockPalette = false;
-  // The NodeGraph API handle (autoLayout, recenter, etc.), available
-  // once the NodeGraph has mounted.
-  private nodeGraphApi: NodeGraphApi | null = null;
   // Track which instrument we've already auto-laid-out so we only do
   // it once per instrument (after the DOM is mounted and we have real
   // node dimensions).
@@ -259,7 +256,6 @@ implements m.ClassComponent<InstrumentCanvasAttrs> {
             this.selectedNodeId = null;
           },
           onReady: (api) => {
-            this.nodeGraphApi = api;
             // If we've just switched to a new instrument, trigger an
             // auto-layout pass on the next frame. The NodeGraph's
             // autoLayout uses real measured DOM sizes so it avoids the
@@ -587,8 +583,8 @@ implements m.ClassComponent<InstrumentCanvasAttrs> {
       hue: 160,
       titleBar: {title: 'INPUT', icon: 'input'},
       outputs: [
-        {direction: 'right' as const, content: 'gate'},
-        {direction: 'right' as const, content: 'freq'},
+        {direction: 'right' as const, content: portContent('gate', 'gate')},
+        {direction: 'right' as const, content: portContent('freq', 'freq')},
       ],
       content: m('div', {
         style: {
@@ -613,7 +609,10 @@ implements m.ClassComponent<InstrumentCanvasAttrs> {
       y: ui.outY ?? 280,
       hue: 200,
       titleBar: {title: 'OUTPUT', icon: 'output'},
-      inputs: [{direction: 'left' as const, content: 'in'}],
+      inputs: [{
+        direction: 'left' as const,
+        content: portContent('in', 'audio'),
+      }],
       content: m('div', {
         style: {
           padding: '8px 12px', fontSize: '10px',
@@ -636,10 +635,16 @@ implements m.ClassComponent<InstrumentCanvasAttrs> {
     const hue = desc?.hue ?? 150;
 
     const inputs = (desc?.inputs ?? []).map(
-      (p) => ({direction: 'left' as const, content: p.name}),
+      (p) => ({
+        direction: 'left' as const,
+        content: portContent(p.name, p.kind),
+      }),
     );
     const outputs = (desc?.outputs ?? []).map(
-      (p) => ({direction: 'right' as const, content: p.name}),
+      (p) => ({
+        direction: 'right' as const,
+        content: portContent(p.name, p.kind),
+      }),
     );
 
     // Use ?? instead of || so that x=0 is treated as a valid position.
