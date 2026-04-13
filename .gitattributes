@@ -1,3 +1,5 @@
 src/perfetto_cmd/perfetto_config.descriptor.h binary
 python/perfetto/protos/perfetto/trace/perfetto_trace_pb2.pyi binary
 python/perfetto/protos/perfetto/trace/perfetto_trace_pb2.py binary
+src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.c linguist-generated
+src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h linguist-generated

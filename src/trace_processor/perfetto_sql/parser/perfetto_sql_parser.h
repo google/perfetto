@@ -26,8 +26,8 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar_interface.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -166,7 +166,8 @@ class PerfettoSqlParser {
   const base::Status& status() const;
 
  private:
-  std::unique_ptr<PerfettoSqlParserState> parser_state_;
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
   std::optional<SqlSource> statement_sql_;
 };
 

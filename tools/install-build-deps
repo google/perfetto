@@ -252,6 +252,17 @@ BUILD_DEPS_HOST = [
         'all',
         'all'),
 
+    # Syntaqlite source — used by tools/gen_syntaqlite_parser to regenerate
+    # src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.{c,h}
+    # from the canonical perfetto.y + perfetto.synq grammar files. Only
+    # needed by contributors editing the grammar; normal builds consume
+    # the committed generated output.
+    # After fetching, run `tools/gen_syntaqlite_parser` which will invoke
+    # `cargo build` to compile the CLI on first use.
+    Dependency('buildtools/syntaqlite',
+               'https://github.com/LalitMaganti/syntaqlite.git',
+               'efd357d9c87491a931412ebdc2c03f26f488d089', 'all', 'all'),
+
     # Libexpat for Instruments XML import.
     # If updating the version, also update bazel/deps.bzl.
     Dependency(
