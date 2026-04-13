@@ -134,6 +134,12 @@ export interface Engine {
     summarizerId: string,
   ): Promise<protos.DestroySummarizerResult>;
 
+  synthesizeAudio(
+    patch: protos.ISynthPatch,
+    startTs?: number,
+    endTs?: number,
+  ): Promise<protos.SynthesizeAudioResult>;
+
   getProxy(tag: string): EngineProxy;
   readonly numRequestsPending: number;
   readonly failed: string | undefined;
@@ -169,6 +175,7 @@ export abstract class EngineBase implements Engine, Disposable {
   private pendingUpdateSummarizerSpec?: Deferred<protos.UpdateSummarizerSpecResult>;
   private pendingQuerySummarizer?: Deferred<protos.QuerySummarizerResult>;
   private pendingDestroySummarizer?: Deferred<protos.DestroySummarizerResult>;
+  private pendingSynthesizeAudio?: Deferred<protos.SynthesizeAudioResult>;
   private _numRequestsPending = 0;
   private _failed: string | undefined = undefined;
   private _queryLog: Array<QueryLog> = [];
@@ -368,6 +375,13 @@ export abstract class EngineBase implements Engine, Disposable {
           destroySummarizerRes,
         );
         this.pendingDestroySummarizer = undefined;
+        break;
+      case TPM.TPM_SYNTHESIZE_AUDIO:
+        const synthRes = assertExists(
+          rpc.synthesizeAudioResult,
+        ) as protos.SynthesizeAudioResult;
+        assertExists(this.pendingSynthesizeAudio).resolve(synthRes);
+        this.pendingSynthesizeAudio = undefined;
         break;
       case TPM.TPM_ENABLE_METATRACE:
         // We don't have any pending promises for this request so just
@@ -741,6 +755,26 @@ export abstract class EngineBase implements Engine, Disposable {
     return result;
   }
 
+  synthesizeAudio(
+    patch: protos.ISynthPatch,
+    startTs?: number,
+    endTs?: number,
+  ): Promise<protos.SynthesizeAudioResult> {
+    if (this.pendingSynthesizeAudio) {
+      return Promise.reject(new Error('Already synthesizing audio'));
+    }
+    const result = defer<protos.SynthesizeAudioResult>();
+    const rpc = protos.TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_SYNTHESIZE_AUDIO;
+    const args = (rpc.synthesizeAudioArgs = new protos.SynthesizeAudioArgs());
+    args.patch = protos.SynthPatch.create(patch);
+    if (startTs !== undefined) args.startTs = startTs;
+    if (endTs !== undefined) args.endTs = endTs;
+    this.pendingSynthesizeAudio = result;
+    this.rpcSendRequest(rpc);
+    return result;
+  }
+
   // Marshals the TraceProcessorRpc request arguments and sends the request
   // to the concrete Engine (Wasm or HTTP).
   private rpcSendRequest(rpc: protos.TraceProcessorRpc) {
@@ -866,6 +900,14 @@ export class EngineProxy implements Engine, Disposable {
     summarizerId: string,
   ): Promise<protos.DestroySummarizerResult> {
     return this.engine.destroySummarizer(summarizerId);
+  }
+
+  synthesizeAudio(
+    patch: protos.ISynthPatch,
+    startTs?: number,
+    endTs?: number,
+  ): Promise<protos.SynthesizeAudioResult> {
+    return this.engine.synthesizeAudio(patch, startTs, endTs);
   }
 
   get engineId(): string {

@@ -31,9 +31,18 @@ import os
 import sys
 from pathlib import Path
 
-# Where to write the output JSON.
+# Where to write the output JSON. We write the same file in two places:
+#   - test/data/...          -> canonical location, used by C++ tests and
+#                                the preset render script
+#   - ui/src/assets/sound_synth/... -> served by the UI dev server.
+# Keeping them in sync avoids brittle symlinks (the UI build's file walker
+# skips symbolic links).
 REPO_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_FILE = REPO_ROOT / "test" / "data" / "music_synth_presets.json"
+UI_COPY = (
+    REPO_ROOT / "ui" / "src" / "assets" / "sound_synth" /
+    "music_synth_presets.json"
+)
 
 # ---------------------------------------------------------------------------
 # Helpers for building modules and wires.
@@ -1724,6 +1733,13 @@ def main() -> int:
     json.dump(doc, f, indent=2, sort_keys=False)
     f.write("\n")
   print(f"Wrote {len(presets)} presets to {OUTPUT_FILE}")
+
+  # Also write to the UI assets directory so the UI dev server serves it.
+  UI_COPY.parent.mkdir(parents=True, exist_ok=True)
+  with UI_COPY.open("w") as f:
+    json.dump(doc, f, indent=2, sort_keys=False)
+    f.write("\n")
+  print(f"Wrote {len(presets)} presets to {UI_COPY}")
   return 0
 
 
