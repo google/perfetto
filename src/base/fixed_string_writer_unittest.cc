@@ -76,6 +76,11 @@ TEST(FixedStringWriterTest, BasicCases) {
   }
   {
     base::FixedStringWriter writer(buffer, sizeof(buffer));
+    writer.AppendDouble(1e100);
+    ASSERT_EQ(writer.GetStringView().ToStdString(), "1e+100");
+  }
+  {
+    base::FixedStringWriter writer(buffer, sizeof(buffer));
     writer.AppendInt(std::numeric_limits<int64_t>::min());
     ASSERT_EQ(writer.GetStringView().ToStdString(), "-9223372036854775808");
   }
