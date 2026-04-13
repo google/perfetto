@@ -273,6 +273,7 @@ perfetto_cc_library(
         ":protozero",
         ":src_base_base",
         ":src_base_clock_snapshots",
+        ":src_base_regex_regex",
         ":src_base_version",
         ":src_protovm_protovm",
     ],
@@ -322,6 +323,7 @@ perfetto_cc_binary(
         ":protos_perfetto_protovm_cpp",
         ":protozero",
         ":src_base_base",
+        ":src_base_regex_regex",
         ":src_base_version",
         ":src_proto_utils_gen_cc_config_descriptor",
         ":src_proto_utils_gen_cc_trace_summary_descriptor",
@@ -458,6 +460,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
+        ":src_trace_processor_util_regex",
         ":src_trace_processor_util_simple_json_parser",
         ":src_trace_processor_util_simple_json_serializer",
         ":src_trace_processor_util_sql_argument",
@@ -541,6 +544,7 @@ perfetto_cc_library(
                ":protozero",
                ":src_base_base",
                ":src_base_clock_snapshots",
+               ":src_base_regex_regex",
                ":src_base_version",
                ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",
@@ -677,6 +681,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
+        ":src_trace_processor_util_regex",
         ":src_trace_processor_util_simple_json_parser",
         ":src_trace_processor_util_simple_json_serializer",
         ":src_trace_processor_util_sql_argument",
@@ -773,6 +778,7 @@ perfetto_cc_library(
                ":src_base_base",
                ":src_base_clock_snapshots",
                ":src_base_http_http",
+               ":src_base_regex_regex",
                ":src_base_version",
                ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",
@@ -1093,6 +1099,7 @@ perfetto_cc_library(
         ":protozero",
         ":src_base_base",
         ":src_base_clock_snapshots",
+        ":src_base_regex_regex",
         ":src_base_version",
         ":src_protovm_protovm",
     ] + PERFETTO_CONFIG.deps.zlib,
@@ -1163,7 +1170,6 @@ perfetto_filegroup(
         "include/perfetto/ext/base/periodic_task.h",
         "include/perfetto/ext/base/pipe.h",
         "include/perfetto/ext/base/platform.h",
-        "include/perfetto/ext/base/regex.h",
         "include/perfetto/ext/base/rt_mutex.h",
         "include/perfetto/ext/base/scoped_file.h",
         "include/perfetto/ext/base/scoped_mmap.h",
@@ -1194,6 +1200,14 @@ perfetto_filegroup(
         "include/perfetto/ext/base/watchdog_posix.h",
         "include/perfetto/ext/base/weak_ptr.h",
         "include/perfetto/ext/base/weak_runner.h",
+    ],
+)
+
+# GN target: //include/perfetto/ext/base:regex
+perfetto_filegroup(
+    name = "include_perfetto_ext_base_regex",
+    srcs = [
+        "include/perfetto/ext/base/regex.h",
     ],
 )
 
@@ -1632,11 +1646,30 @@ perfetto_cc_library(
     linkstatic = True,
 )
 
+# GN target: //src/base/regex:regex
+perfetto_cc_library(
+    name = "src_base_regex_regex",
+    srcs = [
+        "src/base/regex/regex.cc",
+    ],
+    hdrs = [
+        ":include_perfetto_base_base",
+        ":include_perfetto_ext_base_base",
+        ":include_perfetto_ext_base_regex",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
+        "src/base/regex/regex_re2.h",
+        "src/base/regex/regex_std.h",
+    ],
+    deps = [
+    ] + PERFETTO_CONFIG.deps.re2,
+    linkstatic = True,
+)
+
 # GN target: //src/base:base
 perfetto_cc_library(
     name = "src_base_base",
     srcs = [
-        ":src_base_regex",
         "src/base/android_utils.cc",
         "src/base/base64.cc",
         "src/base/crash_keys.cc",
@@ -1685,8 +1718,7 @@ perfetto_cc_library(
         "src/base/log_ring_buffer.h",
     ],
     deps = [
-           ] + PERFETTO_CONFIG.deps.base_platform +
-           PERFETTO_CONFIG.deps.re2,
+    ] + PERFETTO_CONFIG.deps.base_platform,
     linkstatic = True,
 )
 
@@ -1707,16 +1739,6 @@ perfetto_cc_library(
         ":protos_perfetto_protovm_zero",
     ],
     linkstatic = True,
-)
-
-# GN target: //src/base:regex
-perfetto_filegroup(
-    name = "src_base_regex",
-    srcs = [
-        "src/base/regex/regex.cc",
-        "src/base/regex/regex_re2.h",
-        "src/base/regex/regex_std.h",
-    ],
 )
 
 # GN target: //src/base:unix_socket
@@ -4599,6 +4621,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util:regex
+perfetto_filegroup(
+    name = "src_trace_processor_util_regex",
+    srcs = [
+        "src/trace_processor/util/regex.h",
+    ],
+)
+
 # GN target: //src/trace_processor/util:simple_json_parser
 perfetto_filegroup(
     name = "src_trace_processor_util_simple_json_parser",
@@ -5316,7 +5346,7 @@ perfetto_android_library(
     manifest = "src/android_sdk/java/main/AndroidManifest.xml",
     deps = [
         ":src_android_sdk_jni_libperfetto_jni",
-    ],
+    ] + PERFETTO_CONFIG.deps.error_prone_annotations,
     tags = [
         "notap",
     ],
@@ -5697,6 +5727,61 @@ perfetto_dart_proto_library(
     ],
 )
 
+# GN target: [//protos/perfetto/trace/android:winscope_extensions_source_set]
+perfetto_proto_library(
+    name = "winscope_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":protos_perfetto_trace_android_winscope_common_protos",
+        ":protos_perfetto_trace_android_winscope_extensions_protos",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace/android:winscope_extensions_source_set]
+perfetto_cc_proto_library(
+    name = "winscope_cc_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":winscope_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace/android:winscope_extensions_source_set]
+perfetto_java_proto_library(
+    name = "winscope_java_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":winscope_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace/android:winscope_extensions_source_set]
+perfetto_java_lite_proto_library(
+    name = "winscope_java_proto_lite",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":winscope_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace/android:winscope_extensions_source_set]
+perfetto_py_proto_library(
+    name = "winscope_py_pb2",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":winscope_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/trace/android:winscope_extensions_source_set]
+perfetto_dart_proto_library(
+    name = "winscope_dart_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":winscope_proto",
+    ],
+)
+
 # GN target: [//protos/perfetto/metrics:source_set]
 perfetto_proto_library(
     name = "metrics_proto",
@@ -5881,6 +5966,7 @@ perfetto_dart_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_proto_library(
     name = "trace_processor_proto",
+    visibility = PERFETTO_CONFIG.trace_processor_proto_library_visibility,
     deps = [
         ":protos_perfetto_common_protos",
         ":protos_perfetto_perfetto_sql_protos",
@@ -5893,6 +5979,7 @@ perfetto_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_cc_proto_library(
     name = "trace_processor_cc_proto",
+    visibility = PERFETTO_CONFIG.trace_processor_proto_library_visibility,
     deps = [
         ":trace_processor_proto",
     ],
@@ -5901,6 +5988,7 @@ perfetto_cc_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_java_proto_library(
     name = "trace_processor_java_proto",
+    visibility = PERFETTO_CONFIG.trace_processor_proto_library_visibility,
     deps = [
         ":trace_processor_proto",
     ],
@@ -5909,6 +5997,7 @@ perfetto_java_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_java_lite_proto_library(
     name = "trace_processor_java_proto_lite",
+    visibility = PERFETTO_CONFIG.trace_processor_proto_library_visibility,
     deps = [
         ":trace_processor_proto",
     ],
@@ -5917,6 +6006,7 @@ perfetto_java_lite_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_py_proto_library(
     name = "trace_processor_py_pb2",
+    visibility = PERFETTO_CONFIG.trace_processor_proto_library_visibility,
     deps = [
         ":trace_processor_proto",
     ],
@@ -5925,6 +6015,7 @@ perfetto_py_proto_library(
 # GN target: [//protos/perfetto/trace_processor:source_set]
 perfetto_dart_proto_library(
     name = "trace_processor_dart_proto",
+    visibility = PERFETTO_CONFIG.trace_processor_proto_library_visibility,
     deps = [
         ":trace_processor_proto",
     ],
@@ -7281,6 +7372,7 @@ perfetto_proto_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_android_winscope_common_protos",
     srcs = [
+        "protos/perfetto/trace/android/graphics/corner_radii.proto",
         "protos/perfetto/trace/android/graphics/insets.proto",
         "protos/perfetto/trace/android/graphics/point.proto",
         "protos/perfetto/trace/android/graphics/rect.proto",
@@ -8526,6 +8618,7 @@ perfetto_cc_library(
         ":protozero",
         ":src_base_base",
         ":src_base_clock_snapshots",
+        ":src_base_regex_regex",
         ":src_base_version",
         ":src_protovm_protovm",
     ],
@@ -8747,6 +8840,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
+        ":src_trace_processor_util_regex",
         ":src_trace_processor_util_simple_json_parser",
         ":src_trace_processor_util_simple_json_serializer",
         ":src_trace_processor_util_sql_argument",
@@ -8831,6 +8925,7 @@ perfetto_cc_library(
                ":protozero",
                ":src_base_base",
                ":src_base_clock_snapshots",
+               ":src_base_regex_regex",
                ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
@@ -8992,6 +9087,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
+        ":src_trace_processor_util_regex",
         ":src_trace_processor_util_simple_json_parser",
         ":src_trace_processor_util_simple_json_serializer",
         ":src_trace_processor_util_sql_argument",
@@ -9069,6 +9165,7 @@ perfetto_cc_binary(
                ":protozero",
                ":src_base_base",
                ":src_base_clock_snapshots",
+               ":src_base_regex_regex",
                ":src_base_version",
                ":src_protovm_protovm",
                ":src_trace_processor_containers_containers",

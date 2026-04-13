@@ -29,7 +29,6 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
@@ -50,6 +49,7 @@
 #include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/span.h"
 #include "src/trace_processor/core/util/type_set.h"
+#include "src/trace_processor/util/regex.h"
 
 namespace perfetto::trace_processor::core::dataframe {
 
@@ -783,6 +783,12 @@ base::Status QueryPlanBuilder::StringConstraint(
       col.null_storage.nullability().Is<NonNull>()) {
     AddLinearFilterEqBytecode(c, result, i::NonIdStorageType{String{}});
     return base::OkStatus();
+  }
+  if constexpr (!regex::IsRegexSupported()) {
+    if (op.Is<Regex>()) {
+      return base::ErrStatus(
+          "Regex is not supported on non-Unix platforms (e.g. Windows).");
+    }
   }
   auto update = EnsureIndicesAreInSlab();
   PruneNullIndices(c.col, update);

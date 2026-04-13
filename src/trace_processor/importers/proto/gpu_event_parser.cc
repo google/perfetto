@@ -698,7 +698,7 @@ void GpuEventParser::ParseGpuRenderStageEvent(
     } else {
       name_id = GetFullStageName(sequence_state, event);
     }
-    context_->slice_tracker->Scoped(
+    auto opt_slice_id = context_->slice_tracker->Scoped(
         ts, track_id, kNullStringId, name_id,
         static_cast<int64_t>(event.duration()),
         [&](ArgsTracker::BoundInserter* inserter) {
@@ -771,6 +771,19 @@ void GpuEventParser::ParseGpuRenderStageEvent(
               Variadic::Integer(context_->process_tracker->GetOrCreateProcess(
                   static_cast<uint32_t>(pid))));
         });
+
+    if (opt_slice_id) {
+      SliceId slice_id = *opt_slice_id;
+
+      if (event.has_event_id()) {
+        context_->gpu_tracker->AddGpuRenderStageSlice(event.event_id(),
+                                                      slice_id);
+      }
+
+      for (auto it = event.event_wait_ids(); it; ++it) {
+        context_->gpu_tracker->AddEventWait(*it, slice_id);
+      }
+    }
   }
 }
 

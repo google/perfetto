@@ -47,7 +47,6 @@ source_set("base") {
     "periodic_task.h",
     "pipe.h",
     "platform.h",
-    "regex.h",
     "rt_mutex.h",
     "scoped_file.h",
     "scoped_mmap.h",
@@ -86,6 +85,10 @@ source_set("base") {
   }
   public_configs = [ "../../../../gn:asan_instrumentation" ]
   public_deps = [ "../../base" ]
+}
+
+source_set("regex") {
+  sources = [ "regex.h" ]
 }
 
 source_set("version") {
