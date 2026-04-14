@@ -261,7 +261,7 @@ BUILD_DEPS_HOST = [
     # `cargo build` to compile the CLI on first use.
     Dependency('buildtools/syntaqlite',
                'https://github.com/LalitMaganti/syntaqlite.git',
-               'efd357d9c87491a931412ebdc2c03f26f488d089', 'all', 'all'),
+               'a251ce9f9fa953d3646140b44a0b6f388bee832e', 'all', 'all'),
 
     # Libexpat for Instruments XML import.
     # If updating the version, also update bazel/deps.bzl.

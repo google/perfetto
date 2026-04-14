@@ -28,26 +28,4 @@ source_set("syntaqlite") {
     "../parser",
     "../tokenizer",
   ]
-  cflags_c = [
-    "-Wno-unused-parameter",
-    "-Wno-unused-variable",
-    "-Wno-missing-field-initializers",
-    "-Wno-type-limits",
-    "-Wno-old-style-declaration",
-    "-Wno-implicit-fallthrough",
-    "-Wno-switch-enum",
-    "-Wno-declaration-after-statement",
-    "-Wno-sign-conversion",
-    "-Wno-extra-semi-stmt",
-    "-Wno-cast-qual",
-    "-Wno-unused-macros",
-    "-Wno-format-nonliteral",
-    "-Wno-cast-align",
-    "-Wno-switch-enum",
-    "-Wno-missing-variable-declarations",
-    "-Wno-implicit-int-conversion",
-    "-Wno-missing-prototypes",
-    "-Wno-unreachable-code",
-    "-Wno-unused-function",
-  ]
 }

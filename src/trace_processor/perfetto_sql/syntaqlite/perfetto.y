@@ -84,8 +84,7 @@ perfetto_arg_def_list_ne(A) ::= perfetto_arg_def_list_ne(L) COMMA ID(N) perfetto
 perfetto_table_schema(A) ::= . { A = SYNTAQLITE_NULL_NODE; }
 perfetto_table_schema(A) ::= LP perfetto_arg_def_list_ne(L) RP. { A = L; }
 
-// Table implementation: optional `USING <ident>` clause. Perfetto-specific
-// extension carried for back-compat; wraps a single identifier as a node.
+// Table implementation: optional `USING <ident>` clause.
 %type perfetto_table_impl {uint32_t}
 perfetto_table_impl(A) ::= . { A = SYNTAQLITE_NULL_NODE; }
 perfetto_table_impl(A) ::= USING ID(N). {
@@ -140,8 +139,8 @@ perfetto_macro_arg_list_ne(A) ::= perfetto_macro_arg_list_ne(L) COMMA ID(N) ID(T
 
 // Module name: dotted path like foo.bar.baz
 %type perfetto_module_name {SynqParseToken}
-perfetto_module_name(A) ::= ID|STAR|INTERSECT|FILTER(B). { A = B; }
-perfetto_module_name(A) ::= perfetto_module_name(B) DOT ID|STAR|INTERSECT|FILTER(C). {
+perfetto_module_name(A) ::= ID|STAR|INTERSECT(B). { A = B; }
+perfetto_module_name(A) ::= perfetto_module_name(B) DOT ID|STAR|INTERSECT(C). {
     A = (SynqParseToken){
         .z = B.z,
         .n = (uint32_t)(C.z + C.n - B.z),
@@ -170,10 +169,8 @@ cmd(A) ::= CREATE perfetto_or_replace(R) PERFETTO TABLE nm(N)
            perfetto_table_impl(I) perfetto_table_schema(S)
            AS select_body_start(BS) select(E) select_body_end(BE). {
     SyntaqliteTextSpan select_span = {
-        BS,
-        (uint16_t)(BE - BS),
-        0,
-        /*layer_id=*/0,
+        .offset = BS,
+        .length = BE - BS,
     };
     A = synq_parse_create_perfetto_table_stmt(pCtx,
         synq_span(pCtx, N),
@@ -186,10 +183,8 @@ cmd(A) ::= CREATE perfetto_or_replace(R) PERFETTO TABLE nm(N)
 cmd(A) ::= CREATE perfetto_or_replace(R) PERFETTO VIEW nm(N)
            perfetto_table_schema(S) AS select_body_start(BS) select(E) select_body_end(BE). {
     SyntaqliteTextSpan select_span = {
-        BS,
-        (uint16_t)(BE - BS),
-        0,
-        /*layer_id=*/0,
+        .offset = BS,
+        .length = BE - BS,
     };
     A = synq_parse_create_perfetto_view_stmt(pCtx,
         synq_span(pCtx, N),
@@ -203,10 +198,8 @@ cmd(A) ::= CREATE perfetto_or_replace(R) PERFETTO FUNCTION nm(N) LP
            perfetto_arg_def_list(ARGS) RP RETURNS perfetto_return_type(RT)
            AS select_body_start(BS) select(E) select_body_end(BE). {
     SyntaqliteTextSpan select_span = {
-        BS,
-        (uint16_t)(BE - BS),
-        0,
-        /*layer_id=*/0,
+        .offset = BS,
+        .length = BE - BS,
     };
     A = synq_parse_create_perfetto_function_stmt(pCtx,
         synq_span(pCtx, N),

@@ -22,18 +22,8 @@
 #include <utility>
 
 #include "perfetto/base/logging.h"
-#include "src/trace_processor/sqlite/sql_source.h"
-// syntaqlite_perfetto.h is a generated C amalgamation. Suppress C++-pedantic
-// warnings that fire when a C header is compiled as C++.
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wold-style-cast"
-#pragma clang diagnostic ignored "-Wswitch-enum"
-#endif
 #include "src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
+#include "src/trace_processor/sqlite/sql_source.h"
 
 namespace perfetto::trace_processor {
 

@@ -41,7 +41,6 @@ namespace {
 
 using Statement = PerfettoSqlParser::Statement;
 
-// Returns the expanded text of a span as a std::string.
 std::string SpanText(SyntaqliteParser* p, SyntaqliteTextSpan span) {
   uint32_t len;
   const char* text = syntaqlite_parser_span_expanded_text(p, &span, &len);
@@ -183,7 +182,6 @@ bool PerfettoSqlParser::Next() {
       const auto& n = node->create_perfetto_table_stmt;
       std::string name = SpanText(impl_->synq, n.table_name);
 
-      // Validate USING clause (back-compat: only "dataframe" is accepted).
       if (syntaqlite_node_is_present(n.table_impl)) {
         const auto* impl_node = static_cast<const SyntaqlitePerfettoTableImpl*>(
             syntaqlite_parser_node(impl_->synq, n.table_impl));
@@ -220,9 +218,6 @@ bool PerfettoSqlParser::Next() {
       }
       SqlSource select_sql = SpanSource(stmt, n.select_span);
 
-      // Build the CREATE VIEW SQL preserving source lineage so that error
-      // tracebacks point back to the user's original source, not "Trace
-      // Processor Internal".
       SqlSource header = SqlSource::FromTraceProcessorImplementation(
           "CREATE VIEW " + name + " AS ");
       SqlSource::Rewriter rewriter(stmt);
