@@ -45,22 +45,10 @@ export async function addWattsonThreadTrack(
   `);
 
   const sqlSource = `
-    WITH _filtered_thread AS (
-      SELECT ts, dur, cpu, _auto_id
-      FROM _all_tasks_flattened_slices
+    WITH _per_thread_estimate AS (
+      SELECT ts, dur, estimated_mw
+      FROM _estimates_w_tasks_attribution
       WHERE utid = ${utid}
-    ),
-    _per_thread_estimate AS (
-      SELECT ii.ts, ii.dur, uw.estimated_mw
-      FROM _interval_intersect!(
-        (
-          _ii_subquery!(_unioned_wattson_estimates_mw),
-          _ii_subquery!(_filtered_thread)
-        ),
-        (cpu)
-      ) AS ii
-      JOIN _unioned_wattson_estimates_mw AS uw ON uw._auto_id = id_0
-      JOIN _filtered_thread AS s ON s._auto_id = id_1
     ),
     -- Need to fill in gaps where thread isn't running with 0mW entry
     gapless AS (
