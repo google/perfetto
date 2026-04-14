@@ -267,8 +267,8 @@ SELECT
 FROM _combined AS g
 LEFT JOIN _unique_packages AS pkg
   ON g.uid = pkg.uid;
--- List of all physical CPUs that have Wattson estimates
 
+-- List of all physical CPUs that have Wattson estimates
 CREATE PERFETTO TABLE _wattson_cpus AS
 SELECT DISTINCT
   cpu
