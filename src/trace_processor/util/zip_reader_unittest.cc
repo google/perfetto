@@ -165,12 +165,12 @@ TEST(ZipReaderTest, Zip64Support) {
       0xff, 0xff, 0xff, 0xff,  // Uncompressed Size (Zip64)
       0x04, 0x00,              // Fname Len
       0x14, 0x00,              // Extra Len (20 bytes)
-      't', 'e', 's', 't',      // Filename
+      't',  'e',  's',  't',   // Filename
       0x01, 0x00,              // Extra Field ID (Zip64)
       0x10, 0x00,              // Extra Field Size (16 bytes)
       0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // Uncompressed Size (4)
       0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // Compressed Size (4)
-      0xaa, 0xbb, 0xcc, 0xdd   // Payload (4 bytes)
+      0xaa, 0xbb, 0xcc, 0xdd                           // Payload (4 bytes)
   };
 
   ASSERT_OK(zr.Parse(

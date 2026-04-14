@@ -249,7 +249,8 @@ base::Status ZipReader::ParseExtraFields(const uint8_t* data, size_t size) {
     if (id == 0x0001) {  // Zip64 extended information
       const uint8_t* field_it = it;
       const uint8_t* field_end = it + sz;
-      if (cur_.hdr.uncompressed_size == 0xFFFFFFFF && field_it + 8 <= field_end) {
+      if (cur_.hdr.uncompressed_size == 0xFFFFFFFF &&
+          field_it + 8 <= field_end) {
         cur_.hdr.uncompressed_size = ReadAndAdvance<uint64_t>(&field_it);
       }
       if (cur_.hdr.compressed_size == 0xFFFFFFFF && field_it + 8 <= field_end) {
@@ -405,10 +406,11 @@ base::Status ZipFile::Decompress(std::vector<uint8_t>* out_data) const {
   out_data->resize(hdr_.uncompressed_size);
   auto dec_res = dec.ExtractOutput(out_data->data(), out_data->size());
   if (dec_res.ret != GzipDecompressor::ResultCode::kEof) {
-    return base::ErrStatus("Zip decompression error (%d) on %s (c=%llu, u=%llu)",
-                           static_cast<int>(dec_res.ret), hdr_.fname.c_str(),
-                           static_cast<unsigned long long>(hdr_.compressed_size),
-                           static_cast<unsigned long long>(hdr_.uncompressed_size));
+    return base::ErrStatus(
+        "Zip decompression error (%d) on %s (c=%llu, u=%llu)",
+        static_cast<int>(dec_res.ret), hdr_.fname.c_str(),
+        static_cast<unsigned long long>(hdr_.compressed_size),
+        static_cast<unsigned long long>(hdr_.uncompressed_size));
   }
   out_data->resize(dec_res.bytes_written);
 
