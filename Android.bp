@@ -773,6 +773,7 @@ cc_library_shared {
         android: {
             shared_libs: [
                 "liblog",
+                "libpcre2",
                 "libz",
             ],
             static_libs: [
@@ -782,6 +783,9 @@ cc_library_shared {
         host: {
             static_libs: [
                 "libz",
+            ],
+            whole_static_libs: [
+                "libpcre2",
             ],
         },
     },
@@ -1028,6 +1032,7 @@ cc_library {
         "perfetto_defaults",
     ],
     cflags: [
+        "-DPERFETTO_REGEX_FORCE_STD",
         "-DPERFETTO_SHLIB_SDK_IMPLEMENTATION",
     ],
     min_sdk_version: "30",
@@ -1310,6 +1315,9 @@ cc_library_static {
     ],
     defaults: [
         "perfetto_defaults",
+    ],
+    cflags: [
+        "-DPERFETTO_REGEX_FORCE_STD",
     ],
     apex_available: [
         "//apex_available:anyapex",
@@ -1937,6 +1945,7 @@ cc_library_static {
     ],
     shared_libs: [
         "liblog",
+        "libpcre2",
     ],
     static_libs: [
         "libgmock",
@@ -2297,6 +2306,9 @@ cc_library_static {
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_service_service",
         ":perfetto_test_test_helper",
+    ],
+    shared_libs: [
+        "libpcre2",
     ],
     static_libs: [
         "libgmock",
@@ -2840,6 +2852,7 @@ cc_test {
         ":perfetto_protos_perfetto_trace_generic_kernel_lite_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_cpp_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_lite_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
         ":perfetto_protos_perfetto_trace_interned_data_cpp_gen",
@@ -3034,7 +3047,6 @@ cc_test {
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_json",
         ":perfetto_src_trace_processor_util_protozero_to_text",
-        ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_simple_json_parser",
         ":perfetto_src_trace_processor_util_simple_json_serializer",
         ":perfetto_src_trace_processor_util_sql_argument",
@@ -3098,6 +3110,7 @@ cc_test {
         "libbase",
         "libicu",
         "liblog",
+        "libpcre2",
         "libprocinfo",
         "libprotobuf-cpp-lite",
         "libsqlite",
@@ -3204,6 +3217,7 @@ cc_test {
         "perfetto_protos_perfetto_trace_generic_kernel_lite_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_lite_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_cpp_gen_headers",
@@ -3254,6 +3268,7 @@ cc_test {
         "perfetto_src_base_version_gen_h",
         "perfetto_src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
@@ -10279,6 +10294,94 @@ genrule {
     ],
 }
 
+// GN: //protos/perfetto/trace/gpu:gpu_track_event_descriptor
+genrule {
+    name: "perfetto_protos_perfetto_trace_gpu_gpu_track_event_descriptor",
+    srcs: [
+        "protos/perfetto/trace/gpu/gpu_track_event.proto",
+        "protos/perfetto/trace/track_event/chrome_active_processes.proto",
+        "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
+        "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
+        "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
+        "protos/perfetto/trace/track_event/chrome_frame_reporter.proto",
+        "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
+        "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
+        "protos/perfetto/trace/track_event/chrome_latency_info.proto",
+        "protos/perfetto/trace/track_event/chrome_legacy_ipc.proto",
+        "protos/perfetto/trace/track_event/chrome_message_pump.proto",
+        "protos/perfetto/trace/track_event/chrome_mojo_event_info.proto",
+        "protos/perfetto/trace/track_event/chrome_process_descriptor.proto",
+        "protos/perfetto/trace/track_event/chrome_renderer_scheduler_state.proto",
+        "protos/perfetto/trace/track_event/chrome_thread_descriptor.proto",
+        "protos/perfetto/trace/track_event/chrome_user_event.proto",
+        "protos/perfetto/trace/track_event/chrome_window_handle_event_info.proto",
+        "protos/perfetto/trace/track_event/counter_descriptor.proto",
+        "protos/perfetto/trace/track_event/debug_annotation.proto",
+        "protos/perfetto/trace/track_event/log_message.proto",
+        "protos/perfetto/trace/track_event/process_descriptor.proto",
+        "protos/perfetto/trace/track_event/range_of_interest.proto",
+        "protos/perfetto/trace/track_event/screenshot.proto",
+        "protos/perfetto/trace/track_event/source_location.proto",
+        "protos/perfetto/trace/track_event/task_execution.proto",
+        "protos/perfetto/trace/track_event/thread_descriptor.proto",
+        "protos/perfetto/trace/track_event/track_descriptor.proto",
+        "protos/perfetto/trace/track_event/track_event.proto",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --descriptor_set_out=$(out) $(in)",
+    out: [
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_descriptor.bin",
+    ],
+}
+
+// GN: //protos/perfetto/trace/gpu:gpu_track_event_zero
+filegroup {
+    name: "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero",
+    srcs: [
+        "protos/perfetto/trace/gpu/gpu_track_event.proto",
+    ],
+}
+
+// GN: //protos/perfetto/trace/gpu:gpu_track_event_zero
+genrule {
+    name: "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
+    srcs: [
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero",
+        ":perfetto_protos_perfetto_trace_track_event_zero",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/gpu/gpu_track_event.pbzero.cc",
+    ],
+}
+
+// GN: //protos/perfetto/trace/gpu:gpu_track_event_zero
+genrule {
+    name: "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
+    srcs: [
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero",
+        ":perfetto_protos_perfetto_trace_track_event_zero",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/gpu/gpu_track_event.pbzero.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
 // GN: //protos/perfetto/trace/gpu:lite
 filegroup {
     name: "perfetto_protos_perfetto_trace_gpu_lite",
@@ -15813,6 +15916,21 @@ genrule {
     ],
 }
 
+// GN: //src/trace_processor/importers/proto:gen_cc_gpu_track_event_descriptor
+genrule {
+    name: "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
+    srcs: [
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_descriptor",
+    ],
+    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    out: [
+        "src/trace_processor/importers/proto/gpu_track_event.descriptor.h",
+    ],
+    tool_files: [
+        "tools/gen_cc_proto_descriptor.py",
+    ],
+}
+
 // GN: //src/trace_processor/importers/proto:gen_cc_statsd_atoms_descriptor
 genrule {
     name: "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
@@ -17139,6 +17257,7 @@ cc_library_static {
         ":perfetto_protos_perfetto_trace_filesystem_zero_gen",
         ":perfetto_protos_perfetto_trace_ftrace_zero_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
         ":perfetto_protos_perfetto_trace_interned_data_zero_gen",
         ":perfetto_protos_perfetto_trace_minimal_zero_gen",
@@ -17276,7 +17395,6 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_json",
         ":perfetto_src_trace_processor_util_protozero_to_text",
-        ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_simple_json_parser",
         ":perfetto_src_trace_processor_util_simple_json_serializer",
         ":perfetto_src_trace_processor_util_sql_argument",
@@ -17331,6 +17449,7 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_filesystem_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ftrace_zero_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
         "perfetto_protos_perfetto_trace_minimal_zero_gen_headers",
@@ -17355,6 +17474,7 @@ cc_library_static {
         "perfetto_src_base_version_gen_h",
         "perfetto_src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
@@ -17403,6 +17523,7 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_filesystem_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ftrace_zero_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
         "perfetto_protos_perfetto_trace_minimal_zero_gen_headers",
@@ -17427,6 +17548,7 @@ cc_library_static {
         "perfetto_src_base_version_gen_h",
         "perfetto_src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
@@ -17456,6 +17578,7 @@ cc_library_static {
             shared_libs: [
                 "libicu",
                 "liblog",
+                "libpcre2",
                 "libprotobuf-cpp-full",
                 "libsqlite",
                 "libutils",
@@ -17472,6 +17595,9 @@ cc_library_static {
                 "libsqlite_static_noicu",
                 "libz",
                 "sqlite_ext_percentile",
+            ],
+            whole_static_libs: [
+                "libpcre2",
             ],
         },
         musl: {
@@ -17711,11 +17837,6 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor/util:regex
-filegroup {
-    name: "perfetto_src_trace_processor_util_regex",
-}
-
 // GN: //src/trace_processor/util:simple_json_parser
 filegroup {
     name: "perfetto_src_trace_processor_util_simple_json_parser",
@@ -17826,7 +17947,6 @@ filegroup {
         "src/trace_processor/util/proto_to_args_parser_unittest.cc",
         "src/trace_processor/util/protozero_to_json_unittests.cc",
         "src/trace_processor/util/protozero_to_text_unittests.cc",
-        "src/trace_processor/util/regex_unittest.cc",
         "src/trace_processor/util/simple_json_parser_unittest.cc",
         "src/trace_processor/util/simple_json_serializer_unittest.cc",
         "src/trace_processor/util/sql_argument_unittest.cc",
@@ -19205,6 +19325,9 @@ java_defaults {
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventBuilder.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrackEventExtra.java",
     ],
+    libs: [
+        "error_prone_annotations",
+    ],
     sdk_version: "module_current",
 }
 
@@ -19492,6 +19615,7 @@ cc_test {
         ":perfetto_protos_perfetto_trace_generic_kernel_lite_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_cpp_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_lite_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
         ":perfetto_protos_perfetto_trace_interned_data_cpp_gen",
@@ -19771,7 +19895,6 @@ cc_test {
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_json",
         ":perfetto_src_trace_processor_util_protozero_to_text",
-        ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_simple_json_parser",
         ":perfetto_src_trace_processor_util_simple_json_serializer",
         ":perfetto_src_trace_processor_util_sql_argument",
@@ -19861,6 +19984,7 @@ cc_test {
         "libbase",
         "libicu",
         "liblog",
+        "libpcre2",
         "libprocinfo",
         "libprotobuf-cpp-full",
         "libprotobuf-cpp-lite",
@@ -19969,6 +20093,7 @@ cc_test {
         "perfetto_protos_perfetto_trace_generic_kernel_lite_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_lite_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_cpp_gen_headers",
@@ -20037,6 +20162,7 @@ cc_test {
         "perfetto_src_trace_processor_gen_cc_test_messages_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
@@ -20253,6 +20379,9 @@ cc_library_static {
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_service_service",
         ":perfetto_test_test_helper",
+    ],
+    shared_libs: [
+        "libpcre2",
     ],
     static_libs: [
         "libgmock",
@@ -20553,6 +20682,7 @@ cc_library_static {
         ":perfetto_protos_perfetto_trace_filesystem_zero_gen",
         ":perfetto_protos_perfetto_trace_ftrace_zero_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
         ":perfetto_protos_perfetto_trace_interned_data_zero_gen",
         ":perfetto_protos_perfetto_trace_minimal_zero_gen",
@@ -20680,7 +20810,6 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_json",
         ":perfetto_src_trace_processor_util_protozero_to_text",
-        ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_simple_json_parser",
         ":perfetto_src_trace_processor_util_simple_json_serializer",
         ":perfetto_src_trace_processor_util_sql_argument",
@@ -20730,6 +20859,7 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_filesystem_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ftrace_zero_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
         "perfetto_protos_perfetto_trace_minimal_zero_gen_headers",
@@ -20753,6 +20883,7 @@ cc_library_static {
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
         "perfetto_src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
@@ -20799,6 +20930,7 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_filesystem_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ftrace_zero_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
         "perfetto_protos_perfetto_trace_minimal_zero_gen_headers",
@@ -20822,6 +20954,7 @@ cc_library_static {
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
         "perfetto_src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
@@ -20847,6 +20980,7 @@ cc_library_static {
             shared_libs: [
                 "libicu",
                 "liblog",
+                "libpcre2",
                 "libsqlite",
                 "libutils",
                 "libz",
@@ -20861,6 +20995,9 @@ cc_library_static {
                 "libsqlite_static_noicu",
                 "libz",
                 "sqlite_ext_percentile",
+            ],
+            whole_static_libs: [
+                "libpcre2",
             ],
         },
     },
@@ -20888,6 +21025,7 @@ cc_binary {
             shared_libs: [
                 "libicu",
                 "liblog",
+                "libpcre2",
                 "libprotobuf-cpp-full",
                 "libsqlite",
                 "libutils",
@@ -21088,6 +21226,7 @@ cc_binary_host {
         ":perfetto_protos_perfetto_trace_filesystem_zero_gen",
         ":perfetto_protos_perfetto_trace_ftrace_zero_gen",
         ":perfetto_protos_perfetto_trace_generic_kernel_zero_gen",
+        ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen",
         ":perfetto_protos_perfetto_trace_gpu_zero_gen",
         ":perfetto_protos_perfetto_trace_interned_data_zero_gen",
         ":perfetto_protos_perfetto_trace_minimal_zero_gen",
@@ -21218,7 +21357,6 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_json",
         ":perfetto_src_trace_processor_util_protozero_to_text",
-        ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_simple_json_parser",
         ":perfetto_src_trace_processor_util_simple_json_serializer",
         ":perfetto_src_trace_processor_util_sql_argument",
@@ -21238,6 +21376,7 @@ cc_binary_host {
         ":perfetto_src_traceconv_utils",
     ],
     static_libs: [
+        "libpcre2",
         "libsqlite_static_noicu",
         "libz",
         "perfetto_src_trace_processor_demangle",
@@ -21275,6 +21414,7 @@ cc_binary_host {
         "perfetto_protos_perfetto_trace_filesystem_zero_gen_headers",
         "perfetto_protos_perfetto_trace_ftrace_zero_gen_headers",
         "perfetto_protos_perfetto_trace_generic_kernel_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_gpu_gpu_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_trace_gpu_zero_gen_headers",
         "perfetto_protos_perfetto_trace_interned_data_zero_gen_headers",
         "perfetto_protos_perfetto_trace_minimal_zero_gen_headers",
@@ -21299,6 +21439,7 @@ cc_binary_host {
         "perfetto_src_base_version_gen_h",
         "perfetto_src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
@@ -21492,6 +21633,7 @@ cc_binary {
     shared_libs: [
         "libbase",
         "liblog",
+        "libpcre2",
         "libprocinfo",
         "libunwindstack",
     ],

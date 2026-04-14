@@ -176,9 +176,41 @@ naturally. See
 for details on both modes.
 
 Counter names and IDs are advertised by the GPU producer via `GpuCounterSpec` in
-the data source descriptor. Counters are organized into groups (SYSTEM,
-VERTICES, FRAGMENTS, PRIMITIVES, MEMORY, COMPUTE, RAY_TRACING) and include
-measurement units and descriptions.
+the data source descriptor, which includes measurement units and descriptions.
+
+### Counter groups
+
+Counter groups are used by the Perfetto UI to organize counter tracks into
+groups. Counters can be assigned to built-in groups (SYSTEM, VERTICES,
+FRAGMENTS, PRIMITIVES, MEMORY, COMPUTE, RAY_TRACING) via
+`GpuCounterSpec.groups`. Producers can also define custom counter groups
+using the `GpuCounterGroupSpec` message in `GpuCounterDescriptor`:
+
+```
+message GpuCounterGroupSpec {
+    optional uint32 group_id = 1;
+    optional string name = 2;
+    optional string description = 3;
+    repeated uint32 counter_ids = 4;
+}
+```
+
+Custom groups can also be used to provide display names and descriptions for
+the fixed `GpuCounterGroup` enum values (SYSTEM, VERTICES, etc.). To do this,
+set `group_id` to the enum value and provide a `name` and/or `description`.
+
+A counter's group membership is the union of groups assigned via
+`GpuCounterSpec.groups` (the fixed enum) and `GpuCounterGroupSpec.counter_ids`
+(custom groups).
+
+For example, with custom groups "Compute Core" and "L2 Cache":
+
+```
+GPU > Counters > Compute Core > Counter A
+GPU > Counters > Compute Core > Counter B
+GPU > Counters > L2 Cache > Counter C
+```
+
 
 ### Multi-GPU
 
@@ -231,3 +263,38 @@ gpu_render_stage_event {
 
 This creates a flow from the memcpy event (event\_id 1) to the matmul kernel
 (event\_id 2), visualizing the dependency in the Perfetto UI.
+
+### Host-to-GPU correlation
+
+Host-side track events can be correlated with GPU render stage events using
+the `GpuCorrelation` TrackEvent extension. This is useful for connecting
+host API calls (e.g. `cudaLaunchKernel`, `cudaMemcpyAsync`) with the
+corresponding GPU work.
+
+The extension provides two fields:
+
+- `render_stage_submission_event_ids`: event IDs of GPU render stage events
+  that this host event submitted.
+- `render_stage_wait_event_ids`: event IDs of GPU render stage events that
+  this host event waited on to complete.
+
+Example: a host kernel launch correlated with a GPU compute kernel:
+
+```
+track_event {
+    type: TYPE_SLICE_BEGIN
+    name: "cudaLaunchKernel"
+    [perfetto.protos.GpuTrackEvent.gpu_correlation] {
+        render_stage_submission_event_ids: 1
+    }
+}
+
+gpu_render_stage_event {
+    event_id: 1
+    duration: 50000
+    hw_queue_iid: 1
+    stage_iid: 2
+    context: 0
+    name: "matmul_kernel"
+}
+```

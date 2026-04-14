@@ -1,0 +1,106 @@
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Promotes canary to stable and tags the release.
+#
+# Creates a merge commit on `stable` whose tree equals the current tip of
+# `canary` (same tree-replacing merge pattern as cut-canary.yml), reads
+# the target version from the top of CHANGELOG (which must already have
+# been updated from 'Unreleased:' to 'vX.Y - YYYY-MM-DD:' before running),
+# then creates and pushes the vX.Y git tag at the new stable HEAD.
+#
+# The tag push is the single event that fans out to LUCI, Cloud Build,
+# and draft-release.yml. See RFC-0022.
+
+name: Promote canary to stable
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write  # Required to push stable and the tag
+
+jobs:
+  promote-stable:
+    runs-on: ubuntu-latest
+    environment: stable
+    steps:
+      - name: Checkout stable
+        uses: actions/checkout@v4
+        with:
+          ref: stable
+          fetch-depth: 0
+
+      - name: Fetch canary
+        run: git fetch origin canary
+
+      - name: Short-circuit if stable already matches canary
+        run: |
+          if [[ "$(git rev-parse HEAD^{tree})" == \
+                "$(git rev-parse origin/canary^{tree})" ]]; then
+            echo "::error::stable tree already matches canary; nothing to \
+promote. Cut canary first."
+            exit 1
+          fi
+
+      - name: Extract version from CHANGELOG
+        id: version
+        run: |
+          # First non-whitespace line must be a released version header.
+          # Anything else (e.g. still 'Unreleased:') means the release
+          # hasn't been marked ready. Update CHANGELOG on main, re-cut
+          # canary, and retry.
+          FIRST=$(git show "origin/canary:CHANGELOG" \
+                  | grep -m1 -E '^[^[:space:]]' || true)
+          if ! [[ "$FIRST" =~ ^(v[0-9]+\.[0-9]+)[[:space:]]+-[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}: ]]; then
+            echo "::error::CHANGELOG top entry is not a released version \
+header (got: '$FIRST'). Update CHANGELOG to 'vX.Y - YYYY-MM-DD:' on main, \
+re-cut canary, and retry."
+            exit 1
+          fi
+          VERSION="${BASH_REMATCH[1]}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "::notice::Promoting as $VERSION"
+
+      - name: Verify tag does not already exist
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if git rev-parse "refs/tags/$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag $VERSION already exists. Bump CHANGELOG to \
+the next version on main and re-cut canary."
+            exit 1
+          fi
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge canary into stable (replace tree with canary)
+        run: |
+          git merge -s ours origin/canary --no-commit
+          git read-tree -m -u origin/canary
+          git commit -m "Promote canary to stable (${{ steps.version.outputs.version }}, automated)"
+
+      - name: Push stable
+        run: |
+          git push origin HEAD:stable
+
+      - name: Create and push tag
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git tag -a "$VERSION" HEAD -m "Perfetto $VERSION"
+          git push origin "refs/tags/$VERSION"
+          echo "::notice::Tagged $VERSION at $(git rev-parse HEAD). \
+LUCI, Cloud Build, and draft-release.yml have been triggered."

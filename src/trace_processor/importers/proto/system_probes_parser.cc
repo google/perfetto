@@ -977,6 +977,13 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
     machine_tracker->SetAndroidSdkVersion(*opt_sdk_version);
   }
 
+  if (packet.has_tracing_service_version()) {
+    auto version_id =
+        context_->storage->InternString(packet.tracing_service_version());
+    context_->metadata_tracker->SetMetadata(metadata::tracing_service_version,
+                                            Variadic::String(version_id));
+  }
+
   if (packet.has_android_soc_model()) {
     context_->metadata_tracker->SetMetadata(
         metadata::android_soc_model,

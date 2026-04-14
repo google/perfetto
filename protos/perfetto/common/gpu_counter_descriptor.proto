@@ -70,6 +70,24 @@ message GpuCounterDescriptor {
   }
   repeated GpuCounterBlock blocks = 2;
 
+  // Allow producer to define custom counter groups. Unlike the fixed
+  // GpuCounterGroup enum (which provides broad categories), these groups
+  // let the producer define hardware-specific groupings that the UI uses
+  // to organize counter tracks. Can also be used to provide display names
+  // and descriptions for the fixed GpuCounterGroup enum values by setting
+  // group_id to the enum value.
+  message GpuCounterGroupSpec {
+    // required. Unique ID for this group within the descriptor.
+    optional uint32 group_id = 1;
+    // optional. Display name for the group.
+    optional string name = 2;
+    // optional. Description of the group.
+    optional string description = 3;
+    // Counters that belong directly to this group (by counter_id).
+    repeated uint32 counter_ids = 4;
+  }
+  repeated GpuCounterGroupSpec counter_groups = 6;
+
   // optional.  Minimum sampling period supported by the producer in
   // nanoseconds.
   optional uint64 min_sampling_period_ns = 3;

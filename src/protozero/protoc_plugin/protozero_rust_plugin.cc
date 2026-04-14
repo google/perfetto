@@ -107,6 +107,8 @@ class GeneratorJob {
       GenerateEnumDescriptor(enumeration);
     for (const Descriptor* message : messages_)
       GenerateMessageDescriptor(message);
+    for (const auto& key_value : extensions_)
+      GenerateExtensionDescriptor(key_value.first, key_value.second);
     return error_.empty();
   }
 
@@ -119,6 +121,12 @@ class GeneratorJob {
       path_add_prefix_ = value;
     } else if (name == "invoker") {
       invoker_ = value;
+    } else if (name == "external_crate") {
+      external_crate_ = value;
+    } else if (name == "local_files") {
+      for (const auto& f : SplitString(value, "|")) {
+        local_files_.insert(std::string(f));
+      }
     } else {
       Abort(std::string() + "Unknown plugin option '" + name + "'.");
     }
@@ -299,6 +307,27 @@ class GeneratorJob {
         }
       }
     }
+
+    // Collect dependencies for extension fields (base message and field types).
+    for (const auto& key_value : extensions_) {
+      for (const FieldDescriptor* field : key_value.second) {
+        // The extended message type (e.g. TrackEvent).
+        const Descriptor* extendee = field->containing_type();
+        if (public_imports_.count(extendee->file()) == 0) {
+          referenced_messages_.insert(extendee);
+        }
+        // Message/enum types used in extension fields.
+        if (field->type() == FieldDescriptor::TYPE_MESSAGE) {
+          if (public_imports_.count(field->message_type()->file()) == 0) {
+            referenced_messages_.insert(field->message_type());
+          }
+        } else if (field->type() == FieldDescriptor::TYPE_ENUM) {
+          if (public_imports_.count(field->enum_type()->file()) == 0) {
+            referenced_enums_.insert(field->enum_type());
+          }
+        }
+      }
+    }
   }
 
   void Preprocess() {
@@ -350,6 +379,9 @@ class GeneratorJob {
     if (!messages_.empty()) {
       stub_rs_->Print("use crate::pb_msg;\n");
     }
+    if (!extensions_.empty()) {
+      stub_rs_->Print("use crate::pb_msg_ext;\n");
+    }
 
     // Print use statements for public imports, enums and messages.
     std::vector<std::string> imports;
@@ -378,8 +410,13 @@ class GeneratorJob {
       if (!path_strip_prefix_.empty()) {
         mod_path = StripPrefix(imp, path_strip_prefix_);
       }
-      stub_rs_->Print("use crate::protos$mod$::*;\n", "mod",
-                      ReplaceAll(mod_path, "/", "::"));
+      // When external_crate is set and this import is not a local file,
+      // use the external crate path instead of crate::.
+      bool is_external =
+          !external_crate_.empty() && local_files_.count(imp + ".proto") == 0;
+      std::string crate_prefix = is_external ? external_crate_ : "crate";
+      stub_rs_->Print("use $crate$::protos$mod$::*;\n", "crate", crate_prefix,
+                      "mod", ReplaceAll(mod_path, "/", "::"));
     }
   }
 
@@ -473,6 +510,21 @@ class GeneratorJob {
     }
   }
 
+  void GenerateExtensionDescriptor(
+      const std::string& /*extension_name*/,
+      const std::vector<const FieldDescriptor*>& fields) {
+    // The extended message name (e.g. "TrackEvent").
+    std::string base_name =
+        GetFullRustMessageName(fields[0]->containing_type());
+
+    stub_rs_->Print("\npb_msg_ext!($base$ {\n", "base", base_name);
+    for (const FieldDescriptor* field : fields) {
+      stub_rs_->Print("    $field$\n", "field",
+                      GetFieldDescriptorContent(field));
+    }
+    stub_rs_->Print("});\n");
+  }
+
   const FileDescriptor* const source_;
   Printer* const stub_rs_;
   std::string error_;
@@ -481,6 +533,8 @@ class GeneratorJob {
   std::string wrapper_namespace_;
   std::string path_strip_prefix_;
   std::string path_add_prefix_;
+  std::string external_crate_;
+  std::set<std::string> local_files_;
   std::string invoker_;
   std::vector<std::string> namespaces_;
   std::string full_namespace_prefix_;

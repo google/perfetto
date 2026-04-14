@@ -71,7 +71,7 @@ def get_github_installation_token():
   payload = {
       'iat': now,
       'exp': now + (10 * 60),  # JWT valid for 10 minutes
-      'iss': GITHUB_APP_ID
+      'iss': str(GITHUB_APP_ID)
   }
   jwt_token = jwt.encode(payload, gh_private_key, algorithm='RS256')
   url = f'{GITHUB_API_URL}/app/installations/{GITHUB_APP_INSTALLATION_ID}/access_tokens'

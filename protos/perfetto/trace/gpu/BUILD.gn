@@ -24,3 +24,16 @@ perfetto_proto_library("@TYPE@") {
     "vulkan_memory_event.proto",
   ]
 }
+
+# GPU track_event extensions
+perfetto_proto_library("gpu_track_event_@TYPE@") {
+  sources = [ "gpu_track_event.proto" ]
+  public_deps = [ "../track_event:@TYPE@" ]
+  generator_visibility = [ "../../../../src/trace_processor/importers/proto:gen_cc_gpu_track_event_descriptor" ]
+  generate_descriptor = "gpu_track_event.descriptor"
+  descriptor_root_source = "gpu_track_event.proto"
+
+  # This is the descriptor for an extension. It shouldn't include the descriptor
+  # for the base message as well.
+  exclude_imports = true
+}

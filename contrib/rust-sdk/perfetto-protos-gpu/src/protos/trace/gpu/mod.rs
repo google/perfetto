@@ -27,6 +27,10 @@ pub mod gpu_log;
 #[path = "gpu_render_stage_event.pz.rs"]
 pub mod gpu_render_stage_event;
 
+/// `gpu_track_event` protos.
+#[path = "gpu_track_event.pz.rs"]
+pub mod gpu_track_event;
+
 /// `vulkan_api_event` protos.
 #[path = "vulkan_api_event.pz.rs"]
 pub mod vulkan_api_event;
