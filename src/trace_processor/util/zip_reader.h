@@ -98,8 +98,8 @@ class ZipFile {
   // Returns the modified time in the format %Y-%m-%d %H:%M:%S.
   std::string GetDatetimeStr() const;
 
-  size_t uncompressed_size() const { return hdr_.uncompressed_size; }
-  size_t compressed_size() const { return hdr_.compressed_size; }
+  uint64_t uncompressed_size() const { return hdr_.uncompressed_size; }
+  uint64_t compressed_size() const { return hdr_.compressed_size; }
 
  private:
   friend class ZipReader;
@@ -119,8 +119,8 @@ class ZipFile {
     uint32_t checksum = 0;
     uint16_t mtime = 0;
     uint16_t mdate = 0;
-    uint32_t compressed_size = 0;
-    uint32_t uncompressed_size = 0;
+    uint64_t compressed_size = 0;
+    uint64_t uncompressed_size = 0;
     uint16_t fname_len = 0;
     uint16_t extra_field_len = 0;
     std::string fname;
@@ -168,6 +168,7 @@ class ZipReader {
     enum {
       kHeader,
       kFilename,
+      kExtraFields,
       kSkipBytes,
       kCompressedData,
     } parse_state = kHeader;
@@ -182,8 +183,10 @@ class ZipReader {
 
   base::Status TryParseHeader();
   base::Status TryParseFilename();
+  base::Status TryParseExtraFields();
   base::Status TrySkipBytes();
   base::Status TryParseCompressedData();
+  base::Status ParseExtraFields(const uint8_t* data, size_t size);
   base::StatusOr<std::optional<TraceBlobView>> TryParseUnsizedCompressedData();
 
   FileParseState cur_;

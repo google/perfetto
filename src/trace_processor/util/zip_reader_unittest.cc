@@ -151,6 +151,41 @@ TEST(ZipReaderTest, TruncatedZip) {
   ASSERT_EQ(zr.files().size(), 0u);
 }
 
+TEST(ZipReaderTest, Zip64Support) {
+  ZipReader zr;
+  std::vector<uint8_t> buffer = {
+      0x50, 0x4b, 0x03, 0x04,  // Signature
+      0x2d, 0x00,              // Version 4.5
+      0x00, 0x00,              // Flags
+      0x00, 0x00,              // Compression (Stored)
+      0x00, 0x00,              // Mtime
+      0x00, 0x00,              // Mdate
+      0x00, 0x00, 0x00, 0x00,  // CRC
+      0xff, 0xff, 0xff, 0xff,  // Compressed Size (Zip64)
+      0xff, 0xff, 0xff, 0xff,  // Uncompressed Size (Zip64)
+      0x04, 0x00,              // Fname Len
+      0x14, 0x00,              // Extra Len (20 bytes)
+      't', 'e', 's', 't',      // Filename
+      0x01, 0x00,              // Extra Field ID (Zip64)
+      0x10, 0x00,              // Extra Field Size (16 bytes)
+      0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // Uncompressed Size (4)
+      0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // Compressed Size (4)
+      0xaa, 0xbb, 0xcc, 0xdd   // Payload (4 bytes)
+  };
+
+  ASSERT_OK(zr.Parse(
+      TraceBlobView(TraceBlob::CopyFrom(buffer.data(), buffer.size()))));
+  ASSERT_EQ(zr.files().size(), 1u);
+  ASSERT_EQ(zr.files()[0].name(), "test");
+  ASSERT_EQ(zr.files()[0].uncompressed_size(), 4u);
+  ASSERT_EQ(zr.files()[0].compressed_size(), 4u);
+
+  std::vector<uint8_t> dec;
+  ASSERT_OK(zr.files()[0].Decompress(&dec));
+  ASSERT_EQ(dec.size(), 4u);
+  ASSERT_EQ(dec[0], 0xaa);
+}
+
 TEST(ZipReaderTest, Find) {
   ZipReader zr;
   ASSERT_OK(

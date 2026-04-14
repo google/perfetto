@@ -109,6 +109,9 @@ base::Status ZipReader::Parse(TraceBlobView tbv) {
       case FileParseState::kFilename:
         RETURN_IF_ERROR(TryParseFilename());
         break;
+      case FileParseState::kExtraFields:
+        RETURN_IF_ERROR(TryParseExtraFields());
+        break;
       case FileParseState::kSkipBytes:
         RETURN_IF_ERROR(TrySkipBytes());
         break;
@@ -168,11 +171,10 @@ base::Status ZipReader::TryParseHeader() {
   cur_.hdr.extra_field_len = ReadAndAdvance<uint16_t>(&hdr_it);
   PERFETTO_DCHECK(static_cast<size_t>(hdr_it - hdr->data()) == kZipFileHdrSize);
 
-  // We support only up to version 2.0 (20). Higher versions define
-  // more advanced features that we don't support (zip64 extensions,
-  // encryption).
+  // We support only up to version 4.5 (45). Higher versions define
+  // more advanced features that we don't support (encryption).
   // Disallow encryption or any flags we don't know how to handle.
-  if ((cur_.hdr.version > 20) || (cur_.hdr.flags & kEncrypted) ||
+  if ((cur_.hdr.version > 45) || (cur_.hdr.flags & kEncrypted) ||
       (cur_.hdr.flags & kUnknown)) {
     return base::ErrStatus(
         "Unsupported zip features at offset 0x%zx. version=%x, flags=%x",
@@ -198,7 +200,7 @@ base::Status ZipReader::TryParseHeader() {
 
 base::Status ZipReader::TryParseFilename() {
   if (cur_.hdr.fname_len == 0) {
-    cur_.parse_state = FileParseState::kSkipBytes;
+    cur_.parse_state = FileParseState::kExtraFields;
     return base::OkStatus();
   }
   PERFETTO_CHECK(cur_.hdr.fname.empty());
@@ -211,7 +213,51 @@ base::Status ZipReader::TryParseFilename() {
   PERFETTO_CHECK(reader_.PopFrontBytes(cur_.hdr.fname_len));
   cur_.hdr.fname = std::string(reinterpret_cast<const char*>(fname_tbv->data()),
                                cur_.hdr.fname_len);
-  cur_.parse_state = FileParseState::kSkipBytes;
+  cur_.parse_state = FileParseState::kExtraFields;
+  return base::OkStatus();
+}
+
+base::Status ZipReader::TryParseExtraFields() {
+  if (cur_.hdr.extra_field_len == 0) {
+    cur_.parse_state = FileParseState::kCompressedData;
+    return base::OkStatus();
+  }
+
+  std::optional<TraceBlobView> extra_tbv =
+      reader_.SliceOff(reader_.start_offset(), cur_.hdr.extra_field_len);
+  if (!extra_tbv) {
+    return base::OkStatus();
+  }
+  PERFETTO_CHECK(reader_.PopFrontBytes(cur_.hdr.extra_field_len));
+  cur_.ignore_bytes_after_fname = 0;
+
+  RETURN_IF_ERROR(ParseExtraFields(extra_tbv->data(), extra_tbv->size()));
+
+  cur_.parse_state = FileParseState::kCompressedData;
+  return base::OkStatus();
+}
+
+base::Status ZipReader::ParseExtraFields(const uint8_t* data, size_t size) {
+  const uint8_t* it = data;
+  const uint8_t* end = data + size;
+  while (it + 4 <= end) {
+    uint16_t id = ReadAndAdvance<uint16_t>(&it);
+    uint16_t sz = ReadAndAdvance<uint16_t>(&it);
+    if (it + sz > end) {
+      return base::ErrStatus("Invalid extra field size");
+    }
+    if (id == 0x0001) {  // Zip64 extended information
+      const uint8_t* field_it = it;
+      const uint8_t* field_end = it + sz;
+      if (cur_.hdr.uncompressed_size == 0xFFFFFFFF && field_it + 8 <= field_end) {
+        cur_.hdr.uncompressed_size = ReadAndAdvance<uint64_t>(&field_it);
+      }
+      if (cur_.hdr.compressed_size == 0xFFFFFFFF && field_it + 8 <= field_end) {
+        cur_.hdr.compressed_size = ReadAndAdvance<uint64_t>(&field_it);
+      }
+    }
+    it += sz;
+  }
   return base::OkStatus();
 }
 
@@ -359,9 +405,10 @@ base::Status ZipFile::Decompress(std::vector<uint8_t>* out_data) const {
   out_data->resize(hdr_.uncompressed_size);
   auto dec_res = dec.ExtractOutput(out_data->data(), out_data->size());
   if (dec_res.ret != GzipDecompressor::ResultCode::kEof) {
-    return base::ErrStatus("Zip decompression error (%d) on %s (c=%u, u=%u)",
+    return base::ErrStatus("Zip decompression error (%d) on %s (c=%llu, u=%llu)",
                            static_cast<int>(dec_res.ret), hdr_.fname.c_str(),
-                           hdr_.compressed_size, hdr_.uncompressed_size);
+                           static_cast<unsigned long long>(hdr_.compressed_size),
+                           static_cast<unsigned long long>(hdr_.uncompressed_size));
   }
   out_data->resize(dec_res.bytes_written);
 
