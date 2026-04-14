@@ -388,7 +388,7 @@ public class PerfettoTraceTest {
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
 
     PerfettoTrace.counter(FOO_CATEGORY, 42)
-        .usingProcessCounterTrack("dynamic_counter")
+        .usingProcessCounterTrackWithDynamicName("dynamic_counter")
         .emit();
 
     Trace trace = Trace.parseFrom(session.close());
@@ -944,6 +944,11 @@ public class PerfettoTraceTest {
       return;
     }
     TrackDescriptor desc = packet.getTrackDescriptor();
-    mTrackNames.add(desc.getName());
+    if (desc.hasName()) {
+      mTrackNames.add(desc.getName());
+    }
+    if (desc.hasStaticName()) {
+      mTrackNames.add(desc.getStaticName());
+    }
   }
 }
