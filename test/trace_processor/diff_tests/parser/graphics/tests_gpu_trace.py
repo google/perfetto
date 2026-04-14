@@ -560,5 +560,7 @@ class GraphicsGpuTrace(TestSuite):
         ''',
         out=Csv('''
           "source_slice","dest_slice"
+          "HostSubmit","softmax"
+          "softmax","cudaEventWait"
           "softmax","matmul"
         '''))
