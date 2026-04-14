@@ -19,11 +19,6 @@
 // These rules extend syntaqlite's base SQLite grammar with PerfettoSQL
 // syntax. Regenerate `syntaqlite_perfetto.{c,h}` via
 // `tools/gen_syntaqlite_parser` after editing this file.
-//
-// Forked from syntaqlite HEAD dialects/perfetto/actions/perfetto.y.
-// Local delta: the `perfetto_table_impl` nonterminal and its use in the
-// `CREATE PERFETTO TABLE` rule is a Perfetto addition carried for 1:1
-// backward compatibility with the pre-syntaqlite PerfettoSQL grammar.
 
 // Allow extension keywords to be used as regular identifiers.
 %fallback ID PERFETTO FUNCTION MODULE RETURNS MACRO DELEGATES INCLUDE.

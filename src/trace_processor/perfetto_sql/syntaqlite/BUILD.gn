@@ -40,7 +40,6 @@ source_set("syntaqlite") {
     "-Wno-sign-conversion",
     "-Wno-extra-semi-stmt",
     "-Wno-cast-qual",
-    "-Wno-old-style-cast",
     "-Wno-unused-macros",
     "-Wno-format-nonliteral",
     "-Wno-cast-align",
