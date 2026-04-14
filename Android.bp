@@ -8105,8 +8105,11 @@ genrule {
     name: "perfetto_protos_perfetto_trace_android_winscope_extensions_zero_gen",
     srcs: [
         ":libprotobuf-internal-descriptor-proto",
+        ":perfetto_protos_perfetto_common_zero",
+        ":perfetto_protos_perfetto_protovm_zero",
         ":perfetto_protos_perfetto_trace_android_winscope_common_zero",
         ":perfetto_protos_perfetto_trace_android_winscope_extensions_zero",
+        ":perfetto_protos_perfetto_trace_android_winscope_regular_zero",
     ],
     tools: [
         "aprotoc",
@@ -8162,8 +8165,11 @@ genrule {
     name: "perfetto_protos_perfetto_trace_android_winscope_extensions_zero_gen_headers",
     srcs: [
         ":libprotobuf-internal-descriptor-proto",
+        ":perfetto_protos_perfetto_common_zero",
+        ":perfetto_protos_perfetto_protovm_zero",
         ":perfetto_protos_perfetto_trace_android_winscope_common_zero",
         ":perfetto_protos_perfetto_trace_android_winscope_extensions_zero",
+        ":perfetto_protos_perfetto_trace_android_winscope_regular_zero",
     ],
     tools: [
         "aprotoc",
@@ -20579,19 +20585,28 @@ cc_library_static {
         ":perfetto_include_perfetto_public_abi_base",
         ":perfetto_include_perfetto_public_base",
         ":perfetto_include_perfetto_public_protozero",
+        ":perfetto_protos_perfetto_common_zero_gen",
+        ":perfetto_protos_perfetto_protovm_zero_gen",
         ":perfetto_protos_perfetto_trace_android_winscope_common_zero_gen",
         ":perfetto_protos_perfetto_trace_android_winscope_extensions_zero_gen",
+        ":perfetto_protos_perfetto_trace_android_winscope_regular_zero_gen",
         ":perfetto_src_base_base",
         ":perfetto_src_protozero_protozero",
     ],
     host_supported: true,
     generated_headers: [
+        "perfetto_protos_perfetto_common_zero_gen_headers",
+        "perfetto_protos_perfetto_protovm_zero_gen_headers",
         "perfetto_protos_perfetto_trace_android_winscope_common_zero_gen_headers",
         "perfetto_protos_perfetto_trace_android_winscope_extensions_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_android_winscope_regular_zero_gen_headers",
     ],
     export_generated_headers: [
+        "perfetto_protos_perfetto_common_zero_gen_headers",
+        "perfetto_protos_perfetto_protovm_zero_gen_headers",
         "perfetto_protos_perfetto_trace_android_winscope_common_zero_gen_headers",
         "perfetto_protos_perfetto_trace_android_winscope_extensions_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_android_winscope_regular_zero_gen_headers",
     ],
     defaults: [
         "perfetto_defaults",
