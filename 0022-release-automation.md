@@ -168,7 +168,7 @@ pure fast-forward.
 
 The `vX.Y` tag push is the single event that fans out. Four independent
 producers each converge on the same GitHub release using the
-"create-if-missing, upload-on-exists" pattern from syntaqlite:
+"create-if-missing, upload-on-exists" pattern:
 
 ```bash
 if gh release view "$TAG" > /dev/null 2>&1; then
@@ -198,8 +198,21 @@ Producers:
    native binaries in v1.
 
 4. **GitHub Release draft** (`draft-release.yml`). Triggered by tag push.
-   Creates the draft release with auto-generated notes. The draft exists from
-   the moment the tag is pushed; LUCI artifacts are attached asynchronously.
+   Creates the draft release; the body is pre-populated with the
+   corresponding `vX.Y` section of the `CHANGELOG` verbatim, so even if no
+   human touches it the release still has useful content. The draft exists
+   from the moment the tag is pushed; LUCI artifacts are attached
+   asynchronously.
+
+   Release notes themselves are human-authored, not automated. Before
+   clicking `finalize-release` a maintainer is expected to edit the draft's
+   body in the GitHub UI to replace the raw CHANGELOG with prose release
+   notes — thematic grouping, highlights, links to docs, etc. The existing
+   `tools/release/gen_release_notes.py` script (an AI-prompt generator for
+   exactly this authoring step) is retained for this workflow. It is
+   deliberately not invoked from CI: the release notes are a curated
+   artifact, and the cost of a bad auto-generated announcement is higher
+   than the cost of one manual editing step per release.
 
 ### LUCI → GitHub bridge
 
@@ -213,9 +226,6 @@ green. It reads from the existing `gs://perfetto-luci-artifacts/` paths
 the draft release. This keeps the secret surface minimal — GH Actions already
 has `GITHUB_TOKEN`, and no GCS credential is needed since the bucket is
 public — at the cost of one extra click per release.
-
-A webhook (LUCI → Cloud Function → `repo_dispatch`) is a natural follow-up
-once the basic flow is working. Listed as an open question.
 
 ### UI: `channels.json` removal
 
