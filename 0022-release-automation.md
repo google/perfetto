@@ -146,17 +146,25 @@ fast-forward. The person cutting canary is responsible for confirming that
 
 All four are `workflow_dispatch` workflows under `.github/workflows/`.
 
-**Button 1: `cut-canary.yml`**. Fast-forwards `canary` to the current tip of
-`main`. Fails if `canary` is not an ancestor of `main` (i.e. there are commits
-on `canary` not in `main` — this means someone has cherry-picked and forgotten
-to also merge it into `main`, which is a human-resolvable mistake). Opens no
-PR; the FF itself is the event. Pushes to `canary` trigger Cloud Build to
-redeploy the canary UI.
+**Button 1: `cut-canary.yml`**. Creates a merge commit on `canary` whose
+tree equals the current tip of `main`, using the `git merge -s ours` + `git
+read-tree -m -u` pattern (same approach as the existing
+`merge-main-to-canary.yml`). This always moves forward (no force-push
+needed) and handles the normal case where cherry-picks on `canary` have
+different SHAs than their `main` counterparts, so a true "fast-forward"
+would never succeed after one release cycle.
 
-**Button 2: `promote-stable.yml`**. Fast-forwards `stable` to the current tip
-of `canary`, then creates and pushes the `vX.Y` tag (version read from
-`CHANGELOG`) pointing at the same SHA. This single action is what triggers
-every downstream build.
+Convention: every fix lands on `main` first and is then cherry-picked to
+`canary`. Anything that exists only on `canary` will be silently dropped at
+the next cut, because we're replacing `canary`'s tree with `main`'s. The
+dropped commit is still in canary's git history and can be re-cherry-picked
+if needed. Opens no PR; the push itself is the event. Pushes to `canary`
+trigger Cloud Build to redeploy the canary UI.
+
+**Button 2: `promote-stable.yml`**. Applies the same tree-replacing merge
+pattern to push `canary`'s tree onto `stable`, then creates and pushes the
+`vX.Y` tag (version read from `CHANGELOG`) pointing at the resulting
+`stable` HEAD. This single action is what triggers every downstream build.
 
 **Button 3: `finalize-release.yml`**. Takes a version input (e.g. `v54.0`).
 Downloads the LUCI artifacts from GCS, verifies they match the expected
