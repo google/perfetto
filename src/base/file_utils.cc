@@ -409,6 +409,9 @@ base::Status ListFilesRecursive(const std::string& dir_path,
       struct stat dirstat;
       std::string full_path = cur_dir + dirent->d_name;
       PERFETTO_CHECK(stat(full_path.c_str(), &dirstat) == 0);
+      // MSan's stat() interceptor on glibc 2.35+ does not mark the output
+      // buffer as initialized (the syscall goes through statx).
+      PERFETTO_MSAN_UNPOISON(&dirstat, sizeof(dirstat));
       if (S_ISDIR(dirstat.st_mode)) {
         dir_queue.push_back(full_path + '/');
       } else if (S_ISREG(dirstat.st_mode)) {
