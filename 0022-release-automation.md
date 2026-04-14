@@ -100,8 +100,11 @@ every artifact:
 
 - Native binaries: `vX.Y` (C++ header generated at build time).
 - UI: `vX.Y-<9-char-SHA>` (as today).
-- Python package: `X.Y.0` (auto-derived from `CHANGELOG` at wheel-build time;
-  the hardcoded string in `python/setup.py` is removed).
+- Python package: `0.X.Y` (auto-derived from `CHANGELOG` at wheel-build time;
+  the hardcoded string in `python/setup.py` is removed). The `0.` prefix
+  keeps the package in the pre-1.0 series while encoding the Perfetto
+  release in the minor/patch components, giving a monotonic jump from the
+  current `0.16.0`.
 
 The CHANGELOG is bumped in a normal PR to `main` before the `main` → `canary`
 fast-forward. The person cutting canary is responsible for confirming that
@@ -338,7 +341,7 @@ Con:
 * Python's `X.Y.Z` semantics don't quite map (we never ship `.Z` patch
   versions).
 
-Keep the existing `vX.Y` for SDK/UI; map it to `X.Y.0` for Python.
+Keep the existing `vX.Y` for SDK/UI; map it to `0.X.Y` for Python.
 
 ## Open questions
 
