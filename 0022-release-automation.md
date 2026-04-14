@@ -134,7 +134,12 @@ fast-forward. The person cutting canary is responsible for confirming that
                   │
                   │  (5) click "Finalize release" once LUCI is done
                   ▼
-            artifacts attached, release published
+            artifacts attached to draft
+                  │
+                  │  (6) human reviews notes and clicks "Publish" in the
+                  │      GitHub UI
+                  ▼
+                 released
 ```
 
 ### The four buttons
@@ -154,9 +159,10 @@ of `canary`, then creates and pushes the `vX.Y` tag (version read from
 every downstream build.
 
 **Button 3: `finalize-release.yml`**. Takes a version input (e.g. `v54.0`).
-Queries LUCI for the status of all four official builders for that tag;
-downloads the artifacts from GCS; uploads them to the GitHub release; flips
-the release from draft to published. Idempotent — safe to re-run.
+Downloads the LUCI artifacts from GCS, verifies they match the expected
+manifest, and attaches them to the draft GitHub release. Leaves the
+release as a draft — a maintainer reviews the release notes and clicks
+"Publish" manually from the GitHub UI. Idempotent — safe to re-run.
 
 Cherry-picks are opened as regular PRs targeting `canary`. There is no
 "hotfix directly to stable" path: even emergency fixes go `main` → `canary`
