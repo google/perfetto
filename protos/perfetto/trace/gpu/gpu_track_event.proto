@@ -16,7 +16,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-import "protos/perfetto/trace/track_event/track_event.proto";
+import public "protos/perfetto/trace/track_event/track_event.proto";
 
 // Correlates a track event with GPU render stage events.
 message GpuCorrelation {
