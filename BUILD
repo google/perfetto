@@ -5737,8 +5737,11 @@ perfetto_proto_library(
     name = "winscope_proto",
     visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
+        ":protos_perfetto_common_protos",
+        ":protos_perfetto_protovm_protos",
         ":protos_perfetto_trace_android_winscope_common_protos",
         ":protos_perfetto_trace_android_winscope_extensions_protos",
+        ":protos_perfetto_trace_android_winscope_regular_protos",
     ],
 )
 
@@ -7456,10 +7459,14 @@ perfetto_proto_library(
         PERFETTO_CONFIG.proto_library_visibility,
     ],
     deps = [
+        ":protos_perfetto_common_protos",
+        ":protos_perfetto_protovm_protos",
         ":protos_perfetto_trace_android_winscope_common_protos",
+        ":protos_perfetto_trace_android_winscope_regular_protos",
     ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
     exports = [
         ":protos_perfetto_trace_android_winscope_common_protos",
+        ":protos_perfetto_trace_android_winscope_regular_protos",
     ],
 )
 
@@ -7467,8 +7474,11 @@ perfetto_proto_library(
 perfetto_cc_protozero_library(
     name = "protos_perfetto_trace_android_winscope_extensions_zero",
     deps = [
+        ":protos_perfetto_common_zero",
+        ":protos_perfetto_protovm_zero",
         ":protos_perfetto_trace_android_winscope_common_zero",
         ":protos_perfetto_trace_android_winscope_extensions_protos",
+        ":protos_perfetto_trace_android_winscope_regular_zero",
     ],
 )
 
