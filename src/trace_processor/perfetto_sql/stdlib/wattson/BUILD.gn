@@ -41,6 +41,8 @@ perfetto_sql_source_set("wattson") {
     "gpu/estimates.sql",
     "gpu/freq_idle.sql",
     "tasks/attribution.sql",
+    "tasks/gpu_active_regions.sql",
+    "tasks/gpu_tasks.sql",
     "tasks/idle_transitions_attribution.sql",
     "tasks/task_slices.sql",
     "tpu/estimates.sql",
