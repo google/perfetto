@@ -124,7 +124,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       // Left: title + device identity.
       m(
         '.pf-memento-title-bar__left',
-        m('h1', 'Memento'),
+        m('h1', 'Memscope'),
         m('.pf-memento-title-bar__sep'),
         m(
           '.pf-memento-title-bar__device',

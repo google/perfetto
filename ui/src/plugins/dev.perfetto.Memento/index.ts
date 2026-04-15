@@ -31,7 +31,7 @@ export default class implements PerfettoPlugin {
 
     app.sidebar.addMenuItem({
       section: 'trace_files',
-      text: 'Memento',
+      text: 'Memscope',
       href: '#!/memento',
       icon: 'memory',
       sortOrder: 2.5,
