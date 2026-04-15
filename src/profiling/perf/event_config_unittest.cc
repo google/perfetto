@@ -501,7 +501,7 @@ TEST(EventConfigTest, RawEventRejectsTypeAndPmu) {
   auto* raw_event = follower->mutable_raw_event();
   raw_event->set_type(8);
   raw_event->set_config(8);
-  raw_event->set_perf_device("armv8_pmuv3");
+  raw_event->set_pmu_name("armv8_pmuv3");
 
   std::optional<EventConfig> event_config = CreateEventConfig(cfg);
   EXPECT_FALSE(event_config.has_value());
