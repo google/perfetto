@@ -71,6 +71,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
+const zlib = require('zlib');
 const pjoin = path.join;
 
 const ROOT_DIR = path.dirname(__dirname);  // The repo root.
@@ -715,6 +716,29 @@ function startServer() {
           return;
         }
 
+        let stat;
+        try {
+          stat = fs.statSync(absPath);
+        } catch (statErr) {
+          res.writeHead(404);
+          res.end(JSON.stringify(statErr));
+          return;
+        }
+
+        // Truncate to second precision: HTTP dates have 1s resolution, so the
+        // sub-millisecond part of mtime would cause a permanent mismatch.
+        const mtimeSec = Math.floor(stat.mtime.getTime() / 1000) * 1000;
+        const mtimeStr = new Date(mtimeSec).toUTCString();
+
+        // Return 304 if the browser's cached copy is still fresh.
+        const ifModifiedSince = req.headers['if-modified-since'];
+        if (ifModifiedSince !== undefined &&
+            new Date(ifModifiedSince).getTime() >= mtimeSec) {
+          res.writeHead(304);
+          res.end();
+          return;
+        }
+
         fs.readFile(absPath, function(err, data) {
           if (err) {
             res.writeHead(404);
@@ -730,25 +754,37 @@ function startServer() {
           };
           const ext = uri.split('.').pop();
           const cType = mimeMap[ext] || 'octect/stream';
-          const head = {
-            'Content-Type': cType,
-            'Content-Length': data.length,
-            'Last-Modified': fs.statSync(absPath).mtime.toUTCString(),
-            'Cache-Control': 'no-cache',
+          const acceptsGzip =
+              (req.headers['accept-encoding'] || '').includes('gzip');
+          const finalize = (body) => {
+            const head = {
+              'Content-Type': cType,
+              'Content-Length': body.length,
+              'Last-Modified': mtimeStr,
+              'Cache-Control': 'no-cache',
+            };
+            if (acceptsGzip) head['Content-Encoding'] = 'gzip';
+            if (cfg.crossOriginIsolation) {
+              head['Cross-Origin-Opener-Policy'] = 'same-origin';
+              head['Cross-Origin-Embedder-Policy'] = 'require-corp';
+            }
+            res.writeHead(200, head);
+            res.write(body);
+            res.end();
           };
-          if (cfg.crossOriginIsolation) {
-            head['Cross-Origin-Opener-Policy'] = 'same-origin';
-            head['Cross-Origin-Embedder-Policy'] = 'require-corp';
+          if (acceptsGzip) {
+            zlib.gzip(data, (gzErr, compressed) => {
+              finalize(gzErr ? data : compressed);
+            });
+          } else {
+            finalize(data);
           }
-          res.writeHead(200, head);
-          res.write(data);
-          res.end();
         });
       });
 
   let port = cfg.httpServerListenPort ?? DEFAULT_PORT;
   let retryCount = 0;
-  
+
   // Pick the next free port starting at 10000
   server.on('error', (e) => {
     if (e.code === 'EADDRINUSE') {
