@@ -50,8 +50,6 @@ export const Billboard: m.Component<BillboardAttrs> = {
     const style =
       color !== undefined
         ? {
-            borderLeftColor: color,
-            borderLeftWidth: '3px',
             background: `color-mix(in srgb, ${color} 10%, var(--pf-color-background-secondary))`,
           }
         : undefined;

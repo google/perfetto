@@ -153,6 +153,9 @@ export async function createProcessProfileSession(
     get bufferUsagePct() {
       return bufferUsagePct;
     },
+    get error() {
+      return error;
+    },
     /** Stops recording and waits for the trace data to be ready. */
     async stop() {
       clearInterval(intervalHandle);

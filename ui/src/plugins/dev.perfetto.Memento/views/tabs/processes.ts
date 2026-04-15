@@ -18,11 +18,19 @@ import {
   type LineChartData,
   type LineChartSeries,
 } from '../../../../components/widgets/charts/line_chart';
-import {DataGrid} from '../../../../components/widgets/datagrid/datagrid';
-import type {SchemaRegistry} from '../../../../components/widgets/datagrid/datagrid_schema';
-import type {Row} from '../../../../trace_processor/query_result';
 import {Button, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
+import {MenuDivider, MenuItem, PopupMenu} from '../../../../widgets/menu';
+import {PopupPosition} from '../../../../widgets/popup';
+import {
+  Grid,
+  GridCell,
+  type GridColumn,
+  GridHeaderCell,
+  renderSortMenuItems,
+  type SortDirection,
+} from '../../../../widgets/grid';
+import {TextInput} from '../../../../widgets/text_input';
 import {SegmentedButtons} from '../../../../widgets/segmented_buttons';
 import {LiveSession, type SnapshotData} from '../../sessions/live_session';
 import {
@@ -334,84 +342,6 @@ const CATEGORY_COLOR_MAP = new Map<string, string>(
   ),
 );
 
-export const PROCESS_TABLE_SCHEMA: SchemaRegistry = {
-  process: {
-    category: {
-      title: 'Category',
-      columnType: 'text',
-      cellRenderer: (v) => {
-        const color = CATEGORY_COLOR_MAP.get(v as string);
-        return m(ColorChip, {color}, v as string);
-      },
-    },
-    pid: {title: 'PID', columnType: 'quantitative'},
-    oom_score: {
-      title: 'OOM Adj',
-      columnType: 'quantitative',
-      cellRenderer: (v) => {
-        const score = v as number;
-        const bucket = OOM_SCORE_BUCKETS.find(
-          (b) => score >= b.minScore && score <= b.maxScore,
-        );
-        if (bucket === undefined) return `${score}`;
-        const label = bucket.name.replace(/ \(.*\)$/, '');
-        return m(
-          ColorChip,
-          {
-            color: bucket.color,
-          },
-          `${score} (${label})`,
-        );
-      },
-    },
-    rss_kb: {
-      title: 'RSS',
-      columnType: 'quantitative',
-      cellRenderer: (v) => formatKb(v as number),
-    },
-    anon_swap_kb: {
-      title: 'Anon + Swap',
-      columnType: 'quantitative',
-      cellRenderer: (v) => ((v as number) > 0 ? formatKb(v as number) : '-'),
-    },
-    file_kb: {
-      title: 'File',
-      columnType: 'quantitative',
-      cellRenderer: (v) => ((v as number) > 0 ? formatKb(v as number) : '-'),
-    },
-    shmem_kb: {
-      title: 'Shmem',
-      columnType: 'quantitative',
-      cellRenderer: (v) => ((v as number) > 0 ? formatKb(v as number) : '-'),
-    },
-    debuggable: {
-      title: 'Debuggable',
-      columnType: 'text',
-      cellRenderer: (v) => {
-        const label = v as string;
-        if (!label) return '';
-        return m(ColorChip, {color: '#43d300'}, label);
-      },
-    },
-    age: {
-      title: 'Age',
-      columnType: 'quantitative',
-      cellRenderer: (v) => {
-        const secs = v as number | null;
-        if (secs === null || secs < 0) return '-';
-        const d = Math.floor(secs / 86400);
-        const h = Math.floor((secs % 86400) / 3600);
-        const m = Math.floor((secs % 3600) / 60);
-        const s = Math.floor(secs % 60);
-        if (d > 0) return `${d}d ${h}h`;
-        if (h > 0) return `${h}h ${m}m`;
-        if (m > 0) return `${m}m ${s}s`;
-        return `${s}s`;
-      },
-    },
-  },
-};
-
 export interface ProcessesTabAttrs {
   readonly session: LiveSession;
 }
@@ -421,6 +351,7 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
   private metric: ProcessMetric = 'anon_swap';
   private selectedCategory?: CategoryId;
   private selectedOomBucket?: number;
+  private processSearch: string = '';
 
   view({attrs}: m.CVnode<ProcessesTabAttrs>): m.Children {
     const data = attrs.session.data;
@@ -469,6 +400,15 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
                 p.oomScore <= oomBucket.maxScore,
             )
           : latestProcesses;
+
+    const filteredProcesses =
+      this.processSearch.trim() === ''
+        ? processes
+        : processes.filter((p) =>
+            p.processName
+              .toLowerCase()
+              .includes(this.processSearch.toLowerCase()),
+          );
 
     const metricInfo = PROCESS_METRIC_OPTIONS.find(
       (o) => o.key === this.metric,
@@ -582,7 +522,15 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
             : m('.pf-memento-placeholder', 'Waiting for data\u2026'),
         ),
       ),
-      renderProcessTable(processes, data.isUserDebug, attrs.session),
+      m(ProcessTable, {
+        processes: filteredProcesses,
+        isUserDebug: data.isUserDebug,
+        session: attrs.session,
+        searchQuery: this.processSearch,
+        onSearchChange: (q) => {
+          this.processSearch = q;
+        },
+      }),
     ];
   }
 
@@ -598,104 +546,317 @@ export class ProcessesTab implements m.ClassComponent<ProcessesTabAttrs> {
   }
 }
 
-function renderProcessTable(
-  processes: ProcessMemoryRow[],
-  isUserDebug: boolean,
-  session: LiveSession,
-): m.Children {
-  const rows: Row[] = processes.map((p) => {
-    const cat = categorizeProcess(p.processName);
-    const debugLabel = p.debuggable
-      ? 'Yes'
-      : isUserDebug
-        ? 'Yes (userdebug)'
-        : '';
-    return {
-      process: p.processName,
-      category: cat.name,
-      pid: p.pid,
-      oom_score: p.oomScore,
-      debuggable: debugLabel,
-      rss_kb: p.rssKb,
-      anon_swap_kb: p.anonKb + p.swapKb,
-      file_kb: p.fileKb,
-      shmem_kb: p.shmemKb,
-      age: p.ageSeconds,
-      actions: '',
+interface ProcessTableAttrs {
+  readonly processes: ProcessMemoryRow[];
+  readonly isUserDebug: boolean;
+  readonly session: LiveSession;
+  readonly searchQuery: string;
+  readonly onSearchChange: (q: string) => void;
+}
+
+class ProcessTable implements m.ClassComponent<ProcessTableAttrs> {
+  private sortKey: string = 'rss_kb';
+  private sortDir: SortDirection = 'DESC';
+  private showDebuggableOnly: boolean = false;
+  private oomBucketFilter: Set<number> = new Set();
+  private categoryFilter: Set<CategoryId> = new Set();
+
+  private headerCell(
+    key: string,
+    label: string,
+    hint: SortDirection = 'DESC',
+  ): m.Children {
+    const current = this.sortKey === key ? this.sortDir : undefined;
+    const onSort = (dir: SortDirection | undefined) => {
+      this.sortKey = dir !== undefined ? key : 'rss_kb';
+      this.sortDir = dir ?? 'DESC';
     };
-  });
-
-  const schema: SchemaRegistry = {
-    process: {
-      ...PROCESS_TABLE_SCHEMA.process,
-      process: {
-        title: 'Process',
-        columnType: 'text',
-        actions: (value, row) => {
-          return m(Button, {
-            label: 'Profile',
-            rightIcon: 'arrow_forward',
-            rounded: true,
-            variant: ButtonVariant.Filled,
-            intent: Intent.Primary,
-            onclick: () => {
-              const pid = row.pid as number;
-              const processName = value as string;
-              session.startProfile(pid, processName).then(() => m.redraw());
-            },
-          });
-        },
+    return m(
+      GridHeaderCell,
+      {
+        sort: current,
+        onSort,
+        hintSortDirection: hint,
+        menuItems: renderSortMenuItems(current, onSort),
       },
-    },
-  };
+      label,
+    );
+  }
 
-  const isStopping = session.profileState === 'stopping';
+  view({attrs}: m.CVnode<ProcessTableAttrs>): m.Children {
+    const {processes, isUserDebug, session, searchQuery, onSearchChange} =
+      attrs;
 
-  return [
-    session.isProfiling &&
+    const visible = processes.filter((p) => {
+      if (this.showDebuggableOnly && !p.debuggable && !isUserDebug) {
+        return false;
+      }
+      if (this.oomBucketFilter.size > 0) {
+        const idx = OOM_SCORE_BUCKETS.findIndex(
+          (b) => p.oomScore >= b.minScore && p.oomScore <= b.maxScore,
+        );
+        if (!this.oomBucketFilter.has(idx)) return false;
+      }
+      if (this.categoryFilter.size > 0) {
+        const catIds = Object.keys(CATEGORIES) as CategoryId[];
+        const id = catIds.find(
+          (k) => CATEGORIES[k].name === categorizeProcess(p.processName).name,
+        );
+        if (id === undefined || !this.categoryFilter.has(id)) return false;
+      }
+      return true;
+    });
+
+    const mul = this.sortDir === 'ASC' ? 1 : -1;
+    const sorted = [...visible].sort((a, b) => {
+      switch (this.sortKey) {
+        case 'rss_kb':
+          return mul * (a.rssKb - b.rssKb);
+        case 'anon_swap_kb':
+          return mul * (a.anonKb + a.swapKb - b.anonKb - b.swapKb);
+        case 'file_kb':
+          return mul * (a.fileKb - b.fileKb);
+        case 'shmem_kb':
+          return mul * (a.shmemKb - b.shmemKb);
+        case 'pid':
+          return mul * (a.pid - b.pid);
+        case 'oom_score':
+          return mul * (a.oomScore - b.oomScore);
+        case 'age':
+          return mul * ((a.ageSeconds ?? -1) - (b.ageSeconds ?? -1));
+        case 'process':
+          return mul * a.processName.localeCompare(b.processName);
+        case 'category':
+          return (
+            mul *
+            categorizeProcess(a.processName).name.localeCompare(
+              categorizeProcess(b.processName).name,
+            )
+          );
+        case 'debuggable': {
+          const toNum = (p: ProcessMemoryRow) =>
+            p.debuggable ? 2 : isUserDebug ? 1 : 0;
+          return mul * (toNum(a) - toNum(b));
+        }
+        default:
+          return 0;
+      }
+    });
+
+    const columns: GridColumn[] = [
+      {
+        key: 'process',
+        header: this.headerCell('process', 'Process', 'ASC'),
+        maxInitialWidthPx: 400,
+      },
+      {key: 'category', header: this.headerCell('category', 'Category', 'ASC')},
+      {key: 'pid', header: this.headerCell('pid', 'PID')},
+      {key: 'oom_score', header: this.headerCell('oom_score', 'OOM Adj')},
+      {key: 'age', header: this.headerCell('age', 'Age')},
+      {key: 'rss_kb', header: this.headerCell('rss_kb', 'RSS')},
+      {
+        key: 'anon_swap_kb',
+        header: this.headerCell('anon_swap_kb', 'Anon + Swap'),
+      },
+      {key: 'file_kb', header: this.headerCell('file_kb', 'File')},
+      {key: 'shmem_kb', header: this.headerCell('shmem_kb', 'Shmem')},
+    ];
+
+    const rowData = sorted.map((p) => {
+      const cat = categorizeProcess(p.processName);
+      const color = CATEGORY_COLOR_MAP.get(cat.name);
+      const oomBucket = OOM_SCORE_BUCKETS.find(
+        (b) => p.oomScore >= b.minScore && p.oomScore <= b.maxScore,
+      );
+      const oomLabel = oomBucket
+        ? `${p.oomScore} (${oomBucket.name.replace(/ \(.*\)$/, '')})`
+        : `${p.oomScore}`;
+      const secs = p.ageSeconds;
+      const ageStr = (() => {
+        if (secs === null || secs < 0) return '-';
+        const d = Math.floor(secs / 86400);
+        const h = Math.floor((secs % 86400) / 3600);
+        const mn = Math.floor((secs % 3600) / 60);
+        const s = Math.floor(secs % 60);
+        if (d > 0) return `${d}d ${h}h`;
+        if (h > 0) return `${h}h ${mn}m`;
+        if (mn > 0) return `${mn}m ${s}s`;
+        return `${s}s`;
+      })();
+      const canProfile = p.debuggable || isUserDebug;
+      const profileButton = m(Button, {
+        label: 'Profile',
+        rightIcon: 'arrow_forward',
+        rounded: true,
+        variant: ButtonVariant.Filled,
+        intent: Intent.Primary,
+        disabled: !canProfile,
+        tooltip: canProfile
+          ? undefined
+          : 'Process is not debuggable. A userdebug or eng build is required to heap profile.',
+        onclick: () =>
+          session.startProfile(p.pid, p.processName).then(() => m.redraw()),
+      });
+      return [
+        m(
+          GridCell,
+          {
+            actionButtons: profileButton,
+            style: canProfile
+              ? undefined
+              : {color: 'var(--pf-color-text-muted)'},
+          },
+          p.processName,
+        ),
+        m(GridCell, m(ColorChip, {color}, cat.name)),
+        m(GridCell, {align: 'right'}, `${p.pid}`),
+        m(
+          GridCell,
+          {align: 'right'},
+          oomBucket
+            ? m(ColorChip, {color: oomBucket.color}, oomLabel)
+            : oomLabel,
+        ),
+        m(GridCell, {align: 'right'}, ageStr),
+        m(GridCell, {align: 'right'}, formatKb(p.rssKb)),
+        m(
+          GridCell,
+          {align: 'right'},
+          p.anonKb + p.swapKb > 0 ? formatKb(p.anonKb + p.swapKb) : '-',
+        ),
+        m(GridCell, {align: 'right'}, p.fileKb > 0 ? formatKb(p.fileKb) : '-'),
+        m(
+          GridCell,
+          {align: 'right'},
+          p.shmemKb > 0 ? formatKb(p.shmemKb) : '-',
+        ),
+      ];
+    });
+
+    const isStopping = session.profileState === 'stopping';
+
+    return m('.pf-memento-process-table', [
+      session.isProfiling &&
+        m(
+          '.pf-memento-status-bar',
+          m('.pf-memento-status-bar__dot'),
+          isStopping
+            ? `Stopping and reading trace for ${session.profileProcessName}\u2026`
+            : `Recording heap profile for ${session.profileProcessName} (PID ${session.profilePid})`,
+          !isStopping && [
+            m(Button, {
+              label: 'Stop & Open',
+              icon: 'stop',
+              minimal: true,
+              intent: Intent.Danger,
+              onclick: () =>
+                session.stopAndOpenProfile().then(() => m.redraw()),
+            }),
+            m(Button, {
+              label: 'Cancel',
+              icon: 'close',
+              minimal: true,
+              onclick: () => session.cancelProfile().then(() => m.redraw()),
+            }),
+          ],
+        ),
       m(
-        '.pf-memento-status-bar',
-        m('.pf-memento-status-bar__dot'),
-        isStopping
-          ? `Stopping and reading trace for ${session.profileProcessName}\u2026`
-          : `Recording heap profile for ${session.profileProcessName} (PID ${session.profilePid})`,
-        !isStopping && [
-          m(Button, {
-            label: 'Stop & Open',
-            icon: 'stop',
-            minimal: true,
-            intent: Intent.Danger,
-            onclick: () => {
-              session.stopAndOpenProfile().then(() => m.redraw());
-            },
-          }),
-          m(Button, {
-            label: 'Cancel',
+        '.pf-memento-search-row',
+        m(TextInput, {
+          leftIcon: 'search',
+          placeholder: 'Filter processes\u2026',
+          value: searchQuery,
+          onInput: (v) => {
+            onSearchChange(v);
+            m.redraw();
+          },
+        }),
+        m(Button, {
+          label: 'Debuggable only',
+          icon: 'bug_report',
+          variant: ButtonVariant.Filled,
+          intent: this.showDebuggableOnly ? Intent.Primary : Intent.None,
+          onclick: () => {
+            this.showDebuggableOnly = !this.showDebuggableOnly;
+          },
+        }),
+        m(
+          PopupMenu,
+          {
+            position: PopupPosition.Bottom,
+            trigger: m(Button, {
+              label: 'OOM Score',
+              icon: 'filter_list',
+              variant: ButtonVariant.Filled,
+              intent:
+                this.oomBucketFilter.size > 0 ? Intent.Primary : Intent.None,
+            }),
+          },
+          m(MenuItem, {
+            label: 'Clear all',
             icon: 'close',
-            minimal: true,
-            onclick: () => {
-              session.cancelProfile().then(() => m.redraw());
-            },
+            disabled: this.oomBucketFilter.size === 0,
+            onclick: () => this.oomBucketFilter.clear(),
           }),
-        ],
+          m(MenuDivider),
+          OOM_SCORE_BUCKETS.map((bucket, idx) =>
+            m(MenuItem, {
+              label: m('span.pf-memento-oom-item', [
+                m(ColorChip, {color: bucket.color}),
+                bucket.name,
+              ]),
+              active: this.oomBucketFilter.has(idx),
+              closePopupOnClick: false,
+              onclick: () => {
+                if (this.oomBucketFilter.has(idx)) {
+                  this.oomBucketFilter.delete(idx);
+                } else {
+                  this.oomBucketFilter.add(idx);
+                }
+              },
+            }),
+          ),
+        ),
+        m(
+          PopupMenu,
+          {
+            position: PopupPosition.Bottom,
+            trigger: m(Button, {
+              label: 'Category',
+              icon: 'filter_list',
+              variant: ButtonVariant.Filled,
+              intent:
+                this.categoryFilter.size > 0 ? Intent.Primary : Intent.None,
+            }),
+          },
+          m(MenuItem, {
+            label: 'Clear all',
+            icon: 'close',
+            disabled: this.categoryFilter.size === 0,
+            onclick: () => this.categoryFilter.clear(),
+          }),
+          m(MenuDivider),
+          (Object.keys(CATEGORIES) as CategoryId[]).map((id) => {
+            const cat = CATEGORIES[id];
+            return m(MenuItem, {
+              label: m('span.pf-memento-oom-item', [
+                m(ColorChip, {color: cat.color}),
+                cat.name,
+              ]),
+              active: this.categoryFilter.has(id),
+              closePopupOnClick: false,
+              onclick: () => {
+                if (this.categoryFilter.has(id)) {
+                  this.categoryFilter.delete(id);
+                } else {
+                  this.categoryFilter.add(id);
+                }
+              },
+            });
+          }),
+        ),
       ),
-    m(DataGrid, {
-      schema,
-      rootSchema: 'process',
-      data: rows,
-      initialColumns: [
-        {id: 'process', field: 'process', sort: undefined},
-        {id: 'category', field: 'category', sort: undefined},
-        {id: 'pid', field: 'pid', sort: undefined},
-        {id: 'oom_score', field: 'oom_score', sort: undefined},
-        {id: 'debuggable', field: 'debuggable', sort: undefined},
-        {id: 'age', field: 'age', sort: undefined},
-        {id: 'rss_kb', field: 'rss_kb', sort: 'DESC'},
-        {id: 'anon_swap_kb', field: 'anon_swap_kb', sort: undefined},
-        {id: 'file_kb', field: 'file_kb', sort: undefined},
-        {id: 'shmem_kb', field: 'shmem_kb', sort: undefined},
-      ],
-      fillHeight: false,
-    }),
-  ];
+      m(Grid, {columns, rowData, fillHeight: false}),
+    ]);
+  }
 }

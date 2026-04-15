@@ -42,9 +42,7 @@ export interface ProfilePageAttrs {
   onCancel: () => void;
 }
 
-export class ProfilePage
-  implements m.ClassComponent<ProfilePageAttrs>
-{
+export class ProfilePage implements m.ClassComponent<ProfilePageAttrs> {
   view({attrs}: m.Vnode<ProfilePageAttrs>): m.Children {
     const {session} = attrs;
     return [

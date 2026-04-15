@@ -256,7 +256,9 @@ export function renderPageCacheTab(session: LiveSession): m.Children {
             xAxisMax: data.xMax,
             formatXValue: (v: number) => `${v.toFixed(0)}s`,
             formatYValue: (v: number) => formatKb(v),
-            yAxisMinInterval: niceKbInterval(maxSeriesKb(pageCacheChartData.series)),
+            yAxisMinInterval: niceKbInterval(
+              maxSeriesKb(pageCacheChartData.series),
+            ),
           })
         : m('.pf-memento-placeholder', 'Waiting for data\u2026'),
     ),

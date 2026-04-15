@@ -507,7 +507,7 @@ async function extractSnapshotData(
         WHERE p.name IS NOT NULL
       `),
     engine.query(`
-        SELECT track_id, ts, value
+        SELECT track_id as trackId, ts, value
         FROM counter
         ORDER BY ts
       `),
@@ -591,14 +591,14 @@ async function extractSnapshotData(
     Map<string, Map<number, number>>
   >();
   const processCountersByPid = new Map<number, Map<string, TsValue[]>>();
-  const samplesIter = samplesResult.iter({track_id: NUM, ts: NUM, value: NUM});
+  const samplesIter = samplesResult.iter({trackId: NUM, ts: NUM, value: NUM});
   for (let i = 0; samplesIter.valid(); samplesIter.next(), ++i) {
     if (i % YIELD_CHECK_INTERVAL === 0 && task.shouldYield()) {
       await task.yield();
     }
-    const {track_id, ts, value} = samplesIter;
+    const {trackId, ts, value} = samplesIter;
 
-    const sysName = sysTrackMap.get(track_id);
+    const sysName = sysTrackMap.get(trackId);
     if (sysName !== undefined) {
       let arr = systemCounters.get(sysName);
       if (arr === undefined) {
@@ -609,7 +609,7 @@ async function extractSnapshotData(
       continue;
     }
 
-    const proc = procTrackMap.get(track_id);
+    const proc = procTrackMap.get(trackId);
     if (proc !== undefined) {
       // By name (summing across PIDs at each ts).
       let byCounter = processCountersByName.get(proc.processName);

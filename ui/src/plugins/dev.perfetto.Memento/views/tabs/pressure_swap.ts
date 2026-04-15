@@ -299,7 +299,9 @@ export function renderPressureSwapTab(session: LiveSession): m.Children {
           gridLines: 'both',
           formatXValue: (v: number) => `${v.toFixed(0)}s`,
           formatYValue: (v: number) => formatKb(v),
-          yAxisMinInterval: niceKbInterval(maxSeriesKb(swapChartData?.series ?? [])),
+          yAxisMinInterval: niceKbInterval(
+            maxSeriesKb(swapChartData?.series ?? []),
+          ),
         }),
       ),
 

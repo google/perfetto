@@ -89,6 +89,23 @@
   font-size: var(--pf-font-size-s);
 }
 
+.pf-memento-oom-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pf-memento-search-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 8px;
+}
+
+.pf-memento-process-table .pf-grid__header {
+  background: var(--pf-color-background-secondary);
+}
+
 // Zero-padding for the profile button cell in the process table.
 .pf-grid-cell:has(.pf-memento-profile-btn) {
   --pf-cell-padding-block: 0;
