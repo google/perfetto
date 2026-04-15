@@ -87,6 +87,12 @@ data_sources: {
 
 `counter_period_ns` sets the desired sampling interval.
 
+Alternatively, counters can be selected by name using `counter_names`. Use one
+or the other, not both. Not all producers support this — check
+`supports_counter_names` in the `GpuCounterDescriptor` data source descriptor.
+Glob patterns may be used in `counter_names` to match multiple counters by
+name; check `supports_counter_name_globs` in the descriptor for support.
+
 ### GPU memory
 
 Total GPU memory usage per process is collected via ftrace:
@@ -162,6 +168,56 @@ data_sources: {
             counter_ids: 1
             counter_ids: 2
             instrumented_sampling: true
+        }
+    }
+}
+```
+
+For more control over which GPU activities are instrumented, use
+`instrumented_sampling_config` instead of the `instrumented_sampling` bool.
+This enables a pipeline of filters applied in the following order:
+
+1. **Activity name filtering**: If `activity_name_filters` is non-empty, the
+   activity must match at least one filter. Each filter requires a `name_glob`
+   pattern and an optional `name_base` (defaults to `MANGLED_KERNEL_NAME` if
+   not specified). If empty, all activities pass this step.
+
+2. **TX range filtering**: If `activity_tx_include_globs` is non-empty, the
+   activity must fall within a TX range (e.g. NVTX range for CUDA) matching
+   one of the include globs. Activities in TX ranges matching
+   `activity_tx_exclude_globs` are excluded (excludes take precedence over
+   includes). TX ranges can be nested, and an activity matches if any range
+   in its nesting hierarchy matches. If both are empty, all activities pass
+   this step.
+
+3. **Range-based sampling**: If `activity_ranges` is non-empty, only
+   activities within the specified skip/count ranges are instrumented.
+   `skip` defaults to 0 and `count` defaults to UINT32\_MAX (all remaining
+   activities) when not specified. If empty, all activities that passed the
+   previous steps are instrumented.
+
+Example configuration that instruments only activities with demangled kernel
+names matching `"myKernel*"` within TX ranges matching `"training*"`,
+skipping the first 10 matching activities and then instrumenting 5:
+
+```
+data_sources: {
+    config {
+        name: "gpu.counters"
+        gpu_counter_config {
+          counter_names: "sm__cycles_elapsed.avg"
+          counter_names: "sm__cycles_active.avg"
+          instrumented_sampling_config {
+            activity_name_filters {
+              name_glob: "myKernel*"
+              name_base: DEMANGLED_KERNEL_NAME
+            }
+            activity_tx_include_globs: "training*"
+            activity_ranges {
+              skip: 10
+              count: 5
+            }
+          }
         }
     }
 }
