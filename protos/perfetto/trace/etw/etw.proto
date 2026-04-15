@@ -270,3 +270,11 @@ message FileIoOpEndEtwEvent {
   optional uint64 extra_info = 2;
   optional uint32 nt_status = 3;
 }
+
+// Proto definition based on the `StackWalk_Event` class definition. See
+// `Callstack` in `perfetto/protos/perfetto/trace/track_event/track_event.proto`
+// for context on what is contained in it.
+message StackWalkEtwEvent {
+  optional string trigger = 1;
+  optional uint64 callstack_iid = 2;
+}
