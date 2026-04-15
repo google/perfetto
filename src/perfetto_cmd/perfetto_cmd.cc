@@ -196,8 +196,9 @@ Statsd-specific and other Android-only flags:
   --config-uid          : UID of app which registered the config.
   --subscription-id     : ID of the subscription that triggered this trace.
   --upload              : Upload trace.
-  --upload-after-reboot : Used by Android to upload the traces saved to a 
-                          special directory after the system reboot.
+  --upload-after-reboot : Reports to Android framework all the traces marked
+                          as `persist_trace_after_reboot=true` which haven't
+                          been cleanly terminated.
   --dropbox        TAG  : DEPRECATED: Use --upload instead
                           TAG should always be set to 'perfetto'.
   --save-for-bugreport  : If a trace with bugreport_score > 0 is running, it
