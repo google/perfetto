@@ -48,7 +48,6 @@ source_set("sqlite") {
     "../storage",
     "../types",
     "../util:profile_builder",
-    "../util:regex",
   ]
   public_deps = [ "bindings" ]
 }

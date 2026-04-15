@@ -62,6 +62,7 @@ pb_msg!(GpuRenderStageEvent {
     render_subpass_index_mask: u64, primitive, 15,
     command_buffer_handle: u64, primitive, 12,
     name: String, primitive, 17,
+    event_wait_ids: u64, primitive, 18,
     specifications: GpuRenderStageEventSpecifications, msg, 7,
     hw_queue_id: i32, primitive, 3,
     stage_id: i32, primitive, 4,

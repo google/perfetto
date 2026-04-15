@@ -52,6 +52,7 @@ source_set("lib") {
     "../../../gn:default_deps",
     "../../../gn:protobuf_full",
     "../../base",
+    "../../base/regex",
     "../../traced/probes/ftrace/format_parser",
   ]
 }

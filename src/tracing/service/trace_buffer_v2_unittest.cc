@@ -213,8 +213,8 @@ TEST_F(TraceBufferV2Test, ReadWrite_FillTillEnd) {
                          .AddPacket(2048 - 16, 'd')
                          .CopyIntoTraceBuffer());
 
-    // At this point the write pointer should have been reset at the beginning.
-    ASSERT_EQ(4096u, size_to_end());
+    // The write pointer lands exactly at the end of the buffer.
+    ASSERT_EQ(0u, size_to_end());
 
     trace_buffer()->BeginRead();
     ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(512 - 16, 'a')));
@@ -301,7 +301,7 @@ TEST_F(TraceBufferV2Test, ReadWrite_MinimalPadding) {
   ASSERT_EQ(16u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(3))
                      .CopyIntoTraceBuffer());
 
-  ASSERT_EQ(4096u, size_to_end());
+  ASSERT_EQ(0u, size_to_end());
 
   ASSERT_EQ(2032u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(4))
                        .AddPacket(2032 - 16, 'd')
@@ -315,7 +315,7 @@ TEST_F(TraceBufferV2Test, ReadWrite_MinimalPadding) {
                        .AddPacket(1008 - 16, 'f')
                        .CopyIntoTraceBuffer());
 
-  ASSERT_EQ(4096u, size_to_end());
+  ASSERT_EQ(0u, size_to_end());
 
   // The expected read sequence now is: c3, c4, c5.
   trace_buffer()->BeginRead();
@@ -2092,6 +2092,57 @@ TEST_F(TraceBufferV2Test, Alignment_ExactBufferBoundaryFragmentation) {
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
+// In discard mode, once the buffer fills exactly (chunks land at the end),
+// subsequent writes must be dropped rather than overwriting earlier data.
+TEST_F(TraceBufferV2Test, DiscardPolicy_FillsExactlyThenDiscards) {
+  ResetBuffer(4096, TraceBufferV2::kDiscard);
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(2030, 'a')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(2030, 'b')
+      .CopyIntoTraceBuffer();
+
+  // Buffer is now full. This write must be discarded.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(2030, 'c')
+      .CopyIntoTraceBuffer();
+
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(2030, 'a')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(2030, 'b')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
+// Verify write_wrap_count increments every time a write needs to wrap, and
+// that filling the buffer exactly defers the increment until the next write.
+TEST_F(TraceBufferV2Test, WriteWrapCount) {
+  ResetBuffer(4096);
+  EXPECT_EQ(0u, trace_buffer()->stats().write_wrap_count());
+
+  // Fill the buffer exactly. Wrap is not processed yet.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(2030, 'a')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(2030, 'b')
+      .CopyIntoTraceBuffer();
+  EXPECT_EQ(0u, trace_buffer()->stats().write_wrap_count());
+
+  // Next write: buffer has no tail space, wrap is processed.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(3054, 'c')
+      .CopyIntoTraceBuffer();
+  EXPECT_EQ(1u, trace_buffer()->stats().write_wrap_count());
+
+  // Next write: tail space insufficient for the chunk, wrap again.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(3))
+      .AddPacket(2030, 'd')
+      .CopyIntoTraceBuffer();
+  EXPECT_EQ(2u, trace_buffer()->stats().write_wrap_count());
+}
+
 // Test out-of-order patch application with fragmentation
 TEST_F(TraceBufferV2Test, Patching_OutOfOrderPatchesWithFragmentation) {
   ResetBuffer(4096);
@@ -2335,7 +2386,7 @@ TEST_F(TraceBufferV2Test, Overwrite_SizeDiffLessThanChunkHeader) {
   ASSERT_EQ(pad_size, CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
                           .AddPacket(pad_size - 16, 'b')
                           .CopyIntoTraceBuffer());
-  ASSERT_EQ(4096u, size_to_end());
+  ASSERT_EQ(0u, size_to_end());
 
   ASSERT_EQ(32u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
                      .AddPacket(32 - 16, 'c')

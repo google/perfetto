@@ -629,7 +629,11 @@ CREATE PERFETTO VIEW gpu_counter_group (
   -- Group id.
   group_id LONG,
   -- Track id.
-  track_id JOINID(track.id)
+  track_id JOINID(track.id),
+  -- Group name. NULL for legacy enum-based groups.
+  name STRING,
+  -- Group description. NULL for legacy enum-based groups.
+  description STRING
 ) AS
 SELECT
   *

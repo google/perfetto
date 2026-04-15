@@ -27,11 +27,13 @@ import {
   RAW_PREFIX,
   DebugSliceTrackDetailsPanel,
 } from './debug_slice_track_details_panel';
-import {
-  CounterColumnMapping,
-  SqlTableCounterTrack,
-} from './query_counter_track';
 import {getColorForSlice} from '../colorizer';
+import {CounterTrack} from './counter_track';
+
+export interface CounterColumnMapping {
+  readonly ts: string;
+  readonly value: string;
+}
 
 export interface SqlDataSource {
   // SQL source selecting the necessary data.
@@ -407,15 +409,15 @@ async function addPivotedCounterTracks(
 
     trace.tracks.registerTrack({
       uri,
-      renderer: new SqlTableCounterTrack(
+      renderer: CounterTrack.create({
         trace,
         uri,
-        `
+        sqlSource: `
           SELECT *
           FROM ${tableName}
           WHERE pivot = ${sqlValueToSqliteString(pivotValue)}
         `,
-      ),
+      }),
     });
 
     const trackNode = new TrackNode({uri, name, removable: true});
@@ -431,7 +433,11 @@ function addSingleCounterTrack(
 ) {
   trace.tracks.registerTrack({
     uri,
-    renderer: new SqlTableCounterTrack(trace, uri, tableName),
+    renderer: CounterTrack.create({
+      trace,
+      uri,
+      sqlSource: `SELECT * FROM ${tableName}`,
+    }),
   });
 
   const trackNode = new TrackNode({uri, name, removable: true});
