@@ -12,49 +12,37 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  BaseCounterTrack,
-  CounterOptions,
-} from '../../components/tracks/base_counter_track';
+import {CounterTrack} from '../../components/tracks/counter_track';
 import {Trace} from '../../public/trace';
 
-abstract class ThreadCountTrack extends BaseCounterTrack {
+async function threadLevelParallelismInit(trace: Trace): Promise<void> {
+  await trace.engine.query(
+    `INCLUDE PERFETTO MODULE sched.thread_level_parallelism`,
+  );
+}
+
+export class RunnableThreadCountTrack extends CounterTrack {
   constructor(trace: Trace, uri: string) {
-    super(trace, uri);
-  }
-
-  protected getDefaultCounterOptions(): CounterOptions {
-    const options = super.getDefaultCounterOptions();
-    options.yRangeRounding = 'strict';
-    options.yRange = 'viewport';
-    return options;
-  }
-
-  async onInit() {
-    await this.engine.query(
-      `INCLUDE PERFETTO MODULE sched.thread_level_parallelism`,
-    );
+    super({
+      trace,
+      uri,
+      sqlSource: `select ts, runnable_thread_count as value from sched_runnable_thread_count`,
+      yRangeRounding: 'strict',
+      yRange: 'viewport',
+      onInit: () => threadLevelParallelismInit(trace),
+    });
   }
 }
 
-export class RunnableThreadCountTrack extends ThreadCountTrack {
-  getSqlSource() {
-    return `
-      select
-        ts,
-        runnable_thread_count as value
-      from sched_runnable_thread_count
-    `;
-  }
-}
-
-export class UninterruptibleSleepThreadCountTrack extends ThreadCountTrack {
-  getSqlSource() {
-    return `
-      select
-        ts,
-        uninterruptible_sleep_thread_count as value
-      from sched_uninterruptible_sleep_thread_count
-    `;
+export class UninterruptibleSleepThreadCountTrack extends CounterTrack {
+  constructor(trace: Trace, uri: string) {
+    super({
+      trace,
+      uri,
+      sqlSource: `select ts, uninterruptible_sleep_thread_count as value from sched_uninterruptible_sleep_thread_count`,
+      yRangeRounding: 'strict',
+      yRange: 'viewport',
+      onInit: () => threadLevelParallelismInit(trace),
+    });
   }
 }

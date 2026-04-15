@@ -15,7 +15,7 @@
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
+import {CounterTrack} from '../../components/tracks/counter_track';
 import {TrackNode} from '../../public/workspace';
 
 export default class ChromiumEtmPlugin implements PerfettoPlugin {
@@ -29,12 +29,10 @@ export default class ChromiumEtmPlugin implements PerfettoPlugin {
       'counter_track on counter_track.id = counter.track_id ' +
       'where name = "ETMSession"';
 
-    const renderer = await createQueryCounterTrack({
+    const renderer = await CounterTrack.createMaterialized({
       trace,
       uri,
-      data: {
-        sqlSource: query,
-      },
+      sqlSource: query,
     });
 
     trace.tracks.registerTrack({

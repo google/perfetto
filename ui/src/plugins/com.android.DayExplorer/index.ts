@@ -16,7 +16,7 @@ import {uuidv4} from '../../base/uuid';
 import {Trace} from '../../public/trace';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {PerfettoPlugin} from '../../public/plugin';
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
+import {CounterTrack} from '../../components/tracks/counter_track';
 import {TrackNode} from '../../public/workspace';
 import {STR, LONG, LONG_NULL} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
@@ -117,19 +117,11 @@ export default class DayExplorerPlugin implements PerfettoPlugin {
     query: string,
   ): Promise<TrackNode> {
     const uri = `/day_explorer_${uuidv4()}`;
-    const renderer = await createQueryCounterTrack({
+    const renderer = await CounterTrack.createMaterialized({
       trace: ctx,
       uri,
-      data: {
-        sqlSource: query,
-      },
-      columns: {
-        ts: 'ts',
-        value: 'value',
-      },
-      options: {
-        yRangeSharingKey: groupKey,
-      },
+      sqlSource: query,
+      yRangeSharingKey: groupKey,
     });
 
     ctx.tracks.registerTrack({
