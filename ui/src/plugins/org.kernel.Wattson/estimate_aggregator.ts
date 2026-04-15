@@ -14,8 +14,10 @@
 
 import m from 'mithril';
 import {exists} from '../../base/utils';
-import {ColumnDef} from '../../components/aggregation';
-import {Aggregator} from '../../components/aggregation_adapter';
+import {
+  Aggregator,
+  AggregatorGridConfig,
+} from '../../components/aggregation_adapter';
 import {Area, AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
 import {SqlValue} from '../../trace_processor/query_result';
@@ -101,10 +103,6 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
     });
   }
 
-  private powerUnits(): string {
-    return this.scaleNumericData ? 'µW' : 'mW';
-  }
-
   private renderMilliwatts(value: SqlValue): m.Children {
     if (this.scaleNumericData && typeof value === 'number') {
       return value * 1000;
@@ -112,26 +110,30 @@ export class WattsonEstimateSelectionAggregator implements Aggregator {
     return String(value);
   }
 
-  getColumnDefinitions(): ColumnDef[] {
-    return [
-      {
-        title: 'Name',
-        columnId: 'name',
-        sort: 'ASC',
+  getGridConfig(): AggregatorGridConfig {
+    const powerUnits = this.scaleNumericData ? 'µW' : 'mW';
+    const energyUnits = this.scaleNumericData ? 'µWs' : 'mWs';
+
+    return {
+      schema: {
+        name: {title: 'Name', columnType: 'text'},
+        power_mw: {
+          title: `Power (estimated ${powerUnits})`,
+          columnType: 'quantitative',
+          cellRenderer: (v) => this.renderMilliwatts(v),
+        },
+        energy_mws: {
+          title: `Energy (estimated ${energyUnits})`,
+          columnType: 'quantitative',
+          cellRenderer: (v) => this.renderMilliwatts(v),
+        },
       },
-      {
-        title: `Power (estimated ${this.powerUnits()})`,
-        columnId: 'power_mw',
-        sum: true,
-        cellRenderer: this.renderMilliwatts.bind(this),
-      },
-      {
-        title: `Energy (estimated ${this.powerUnits()}s)`,
-        columnId: 'energy_mws',
-        sum: true,
-        cellRenderer: this.renderMilliwatts.bind(this),
-      },
-    ];
+      initialColumns: [
+        {id: 'name', field: 'name', sort: 'ASC'},
+        {id: 'power_mw', field: 'power_mw', aggregate: 'SUM'},
+        {id: 'energy_mws', field: 'energy_mws', aggregate: 'SUM'},
+      ],
+    };
   }
 
   getTabName() {
