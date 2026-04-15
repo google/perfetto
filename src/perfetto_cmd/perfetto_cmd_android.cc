@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "perfetto/ext/base/android_utils.h"
 #include "src/perfetto_cmd/perfetto_cmd.h"
 
 #include <sys/sendfile.h>
@@ -24,6 +23,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -245,35 +245,34 @@ base::ScopedFile PerfettoCmd::CreateUnlinkedTmpFile() {
 // static
 std::vector<base::ScopedFile>
 PerfettoCmd::UnlinkAndReturnPersistentTracesToUpload() {
-  base::ScopedDir dir = base::ScopedDir(opendir(kAndroidPersistentStateDir));
-  if (!dir) {
-    PERFETTO_PLOG("Failed to open a persistent traces directory '%s'",
-                  kAndroidPersistentStateDir);
+  base::ScopedDir trace_dir =
+      base::ScopedDir(opendir(kAndroidPersistentStateDir));
+  if (!trace_dir) {
+    PERFETTO_PLOG("Failed to open directory %s", kAndroidPersistentStateDir);
     return {};
   }
 
   std::vector<std::string> trace_paths;
   struct dirent* entry;
-  while ((entry = readdir(*dir)) != nullptr) {
+  while ((entry = readdir(*trace_dir)) != nullptr) {
     if (entry->d_type != DT_REG)
       continue;
 
     std::string path =
         std::string(kAndroidPersistentStateDir) + "/" + entry->d_name;
-    trace_paths.push_back(path);
+    trace_paths.emplace_back(std::move(path));
   }
 
   std::vector<base::ScopedFile> trace_fds;
   for (std::string& path : trace_paths) {
     base::ScopedFile fd = base::OpenFile(path, O_RDONLY);
     if (!fd) {
-      PERFETTO_PLOG("Failed to open a persistent trace file %s", path.c_str());
+      PERFETTO_PLOG("Failed to open %s", path.c_str());
       continue;
     }
     trace_fds.emplace_back(std::move(fd));
     if (unlink(path.c_str()) != 0) {
-      PERFETTO_PLOG("Failed to unlink a persistent trace file %s",
-                    path.c_str());
+      PERFETTO_PLOG("Failed to unlink %s", path.c_str());
     }
   }
 
@@ -297,6 +296,10 @@ bool PerfettoCmd::ReportAllPersistentTracesToAndroidFramework() {
     PERFETTO_FATAL("Failed to set property 'perfetto.on_reboot.uploader'");
   }
 
+  // Fast return if there is nothing to report.
+  if (fds.empty())
+    return true;
+
   // Now we wait until boot completes to make sure Android reporter service is
   // available.
   // '__system_property_wait' is only available since API level 26, so we have a
@@ -317,14 +320,15 @@ bool PerfettoCmd::ReportAllPersistentTracesToAndroidFramework() {
     return false;
   }
 
-  bool all_reports_succeed = true;
+  size_t reports_succeed_count = 0;
   for (base::ScopedFile& fd : fds) {
     std::optional<uint64_t> maybe_file_size = base::GetFileSize(*fd);
     if (!maybe_file_size.has_value()) {
+      PERFETTO_PLOG("Failed to stat persistent trace file");
       continue;
     }
     uint64_t file_size = maybe_file_size.value();
-    if (maybe_file_size == 0) {
+    if (file_size == 0) {
       continue;
     }
 
@@ -338,12 +342,14 @@ bool PerfettoCmd::ReportAllPersistentTracesToAndroidFramework() {
       base::ScopedMmap mmaped_file =
           base::ScopedMmap::FromHandle(std::move(mmap_fd), file_size);
       if (!mmaped_file.IsValid()) {
+        PERFETTO_PLOG("Failed to mmap");
         continue;
       }
       trace_config = ParseTraceConfigFromMmapedTrace(std::move(mmaped_file));
     }
 
     if (!trace_config.has_value()) {
+      PERFETTO_ELOG("Failed to parse trace config from persistent trace file");
       continue;
     }
 
@@ -356,17 +362,18 @@ bool PerfettoCmd::ReportAllPersistentTracesToAndroidFramework() {
     // Respect the wishes of the config with respect to statsd logging, enable
     // if unspecified.
     bool statsd_logging =
-        ShouldLogStatsdEvents(*trace_config, /*unspecified_filed_value=*/true);
+        ShouldLogStatsdEvents(*trace_config, /*upload_flag=*/true);
     base::Status status = ReportTraceToAndroidFramework(
         *fd, file_size, uuid, trace_config->unique_session_name(),
         trace_config->android_report_config(), statsd_logging);
-    if (!status.ok()) {
+    if (status.ok()) {
+      reports_succeed_count++;
+    } else {
       PERFETTO_ELOG("ReportTraceToAndroidFramework failed: %s",
                     status.c_message());
-      all_reports_succeed = false;
     }
   }
-  return all_reports_succeed;
+  return reports_succeed_count == fds.size();
 }
 
 // static

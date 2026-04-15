@@ -175,8 +175,7 @@ class PerfettoCmd : public Consumer {
   static std::optional<TraceConfig> ParseTraceConfigFromMmapedTrace(
       base::ScopedMmap mmapped_trace);
 #endif
-  static bool ShouldLogStatsdEvents(const TraceConfig& cfg,
-                                    bool unspecified_filed_value);
+  static bool ShouldLogStatsdEvents(const TraceConfig& cfg, bool upload_flag);
   void LogUploadEvent(PerfettoStatsdAtom atom);
   void LogUploadEvent(PerfettoStatsdAtom atom, const std::string& trigger_name);
 
