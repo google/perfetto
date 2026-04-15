@@ -40,5 +40,26 @@ class ProtoLog(TestSuite):
         out=Csv("""
         "id","ts","level","tag","message","location","stacktrace"
         0,857384130,"DEBUG","MyFirstGroup","Test message with two strings: MyTestString and MyTestString","com/test/TestClass.java:123","[NULL]"
-        1,857384130,"DEBUG","MyFirstGroup","Test message with two strings: MyNextTestString and MyNextTestString","com/test/TestClass.java:123","[NULL]"
+        1,857384130,"DEBUG","MyFirstGroup","Test message with two strings: MyTestString and MyOtherTestString","com/test/TestClass.java:123","[NULL]"
+        2,857384130,"DEBUG","MyFirstGroup","Test message with two strings: [LOST_STRING] and [LOST_STRING]","com/test/TestClass.java:123","[NULL]"
+        3,857384130,"DEBUG","MyFirstGroup","Test message with two strings: MyNextTestString and MyNextTestString","com/test/TestClass.java:123","[NULL]"
+        """))
+
+  def test_missing_config(self):
+    return DiffTestBlueprint(
+        trace=Path('protolog_missing_config.textproto'),
+        query="SELECT id, ts, level, tag, message, stacktrace, location FROM protolog;",
+        out=Csv("""
+        "id","ts","level","tag","message","stacktrace","location"
+        0,857384130,"UNKNOWN","UNKNOWN","[MISSING_VIEWER_CONFIG] (ID: 6924537961316301726)","[NULL]","[NULL]"
+        """))
+
+  def test_multisequence_loss(self):
+    return DiffTestBlueprint(
+        trace=Path('protolog_multisequence_loss.textproto'),
+        query="SELECT id, ts, level, tag, message, stacktrace, location FROM protolog;",
+        out=Csv("""
+        "id","ts","level","tag","message","stacktrace","location"
+        0,857384130,"DEBUG","MyFirstGroup","Test message with two strings: Seq1String and Seq1String","[NULL]","com/test/TestClass.java:123"
+        1,857384131,"DEBUG","MyFirstGroup","Test message with two strings: [LOST_STRING] and [LOST_STRING]","[NULL]","com/test/TestClass.java:123"
         """))

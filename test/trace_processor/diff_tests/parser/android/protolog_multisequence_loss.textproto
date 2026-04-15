@@ -1,0 +1,68 @@
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 1
+  sequence_flags: 1
+  first_packet_on_sequence: true
+  trusted_pid: 1716
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 1
+  interned_data {
+    protolog_string_args {
+      iid: 1
+      str: "Seq1String"
+    }
+  }
+  trusted_pid: 1716
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 1
+  sequence_flags: 2
+  trusted_pid: 1716
+  timestamp: 857384130
+  protolog_message {
+    message_id: 6924537961316301726
+    str_param_iids: 1
+    str_param_iids: 1
+  }
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  sequence_flags: 1
+  previous_packet_dropped: true
+  trusted_pid: 1716
+  first_packet_on_sequence: true
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  sequence_flags: 2
+  trusted_pid: 1716
+  timestamp: 857384131
+  protolog_message {
+    message_id: 6924537961316301726
+    str_param_iids: 1
+    str_param_iids: 1
+  }
+}
+packet {
+  trusted_uid: 10224
+  trusted_packet_sequence_id: 10
+  protolog_viewer_config {
+    messages {
+      message_id: 6924537961316301726
+      message: "Test message with two strings: %s and %s"
+      level: PROTOLOG_LEVEL_DEBUG
+      location: "com/test/TestClass.java:123"
+      group_id: 1
+    }
+    groups {
+      id: 1
+      name: "MY_FIRST_GROUP"
+      tag: "MyFirstGroup"
+    }
+  }
+}

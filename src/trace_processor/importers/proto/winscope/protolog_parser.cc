@@ -92,9 +92,8 @@ void ProtoLogParser::ParseProtoLogMessage(
           protos::pbzero::InternedData::kProtologStringArgsFieldNumber,
           protos::pbzero::InternedString>(it.field().as_uint32());
       if (!decoder) {
-        // This shouldn't happen since we already checked the incremental
-        // state is valid.
-        string_params.emplace_back("<ERROR>");
+        // This can happen if incremental state was lost due to packet drop.
+        string_params.emplace_back("[LOST_STRING]");
         storage->IncrementStats(
             stats::winscope_protolog_missing_interned_arg_parse_errors);
         continue;
@@ -138,10 +137,14 @@ void ProtoLogParser::ParseProtoLogMessage(
         decoded_message.message, stacktrace, location);
   } else {
     // Failed to fully decode the message.
-    // This shouldn't happen since we should have processed all viewer config
-    // messages in the tokenization state, and process the protolog messages
-    // only in the parsing state.
     storage->IncrementStats(stats::winscope_protolog_message_decoding_failed);
+    std::string dummy_tag = "UNKNOWN";
+    std::string error_msg = "[MISSING_VIEWER_CONFIG] (ID: " +
+                            std::to_string(protolog_message.message_id()) + ")";
+    std::optional<std::string> no_location = std::nullopt;
+    PopulateReservedRowWithMessage(row_id, static_cast<ProtoLogLevel>(0),
+                                   dummy_tag, error_msg, stacktrace,
+                                   no_location);
   }
 }
 

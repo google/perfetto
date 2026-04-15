@@ -61,8 +61,8 @@ packet {
   timestamp: 857384130
   protolog_message {
     message_id: 6924537961316301726
-    str_param_iids: 2
-    str_param_iids: 2
+    str_param_iids: 3
+    str_param_iids: 3
   }
 }
 packet {

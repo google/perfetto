@@ -1,0 +1,31 @@
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  sequence_flags: 1
+  previous_packet_dropped: true
+  trusted_pid: 1716
+  first_packet_on_sequence: true
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  interned_data {
+    protolog_string_args {
+      iid: 1
+      str: "MyTestString"
+    }
+  }
+  trusted_pid: 1716
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  sequence_flags: 2
+  trusted_pid: 1716
+  timestamp: 857384130
+  protolog_message {
+    message_id: 6924537961316301726
+    str_param_iids: 1
+    str_param_iids: 1
+  }
+}

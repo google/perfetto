@@ -367,7 +367,12 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     }
     scoped_state->needs_incremental_state_total++;
 
-    if (!state->IsIncrementalStateValid()) {
+    protos::pbzero::TracePacket::Decoder local_decoder(packet.data(),
+                                                       packet.length());
+    if (!state->IsIncrementalStateValid() &&
+        !local_decoder
+             .Get(protos::pbzero::TracePacket::kProtologMessageFieldNumber)
+             .valid()) {
       if (context_->content_analyzer) {
         // Account for the skipped packet for trace proto content analysis,
         // with a special annotation.
