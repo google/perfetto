@@ -50,7 +50,11 @@ constexpr std::pair<EventType, const char*> kEventTypeNames[] = {
     {EventType::kQueryFileInformation, "QueryFileInformation"},
     {EventType::kFilesystemControlEvent, "FilesystemControlEvent"},
     {EventType::kEndOperation, "EndOperation"},
-    {EventType::kDirectoryNotification, "DirectoryNotification"}};
+    {EventType::kDirectoryNotification, "DirectoryNotification"},
+    {EventType::kFltRead, "FltRead"},
+    {EventType::kFltWrite, " FltWrite"},
+    {EventType::kFltSetInfo, "FltSetInfo"},
+    {EventType::kFltQueryInfo, "FltQueryInfo"}};
 
 constexpr std::pair<FileInfoClass, const char*> kFileInfoClassNames[] = {
     {FileInfoClass::kFileDirectoryInformation, "FileDirectoryInformation"},
