@@ -127,16 +127,23 @@ std::vector<std::string> SplitString(const std::string& text,
   return output;
 }
 
+std::string_view TrimWhitespace(std::string_view str) {
+  static constexpr char kWhitespaces[] = "\t\n ";
+  size_t front_idx = str.find_first_not_of(kWhitespaces);
+  if (front_idx == std::string_view::npos)
+    return {};
+  std::string_view front_trimmed = str.substr(front_idx);
+  size_t end_idx = front_trimmed.find_last_not_of(kWhitespaces);
+  return end_idx == std::string_view::npos ? std::string_view()
+                                           : front_trimmed.substr(0, end_idx + 1);
+}
+
 std::string TrimWhitespace(const std::string& str) {
-  std::string whitespaces = "\t\n ";
+  return std::string(TrimWhitespace(std::string_view(str)));
+}
 
-  size_t front_idx = str.find_first_not_of(whitespaces);
-  std::string front_trimmed =
-      front_idx == std::string::npos ? "" : str.substr(front_idx);
-
-  size_t end_idx = front_trimmed.find_last_not_of(whitespaces);
-  return end_idx == std::string::npos ? ""
-                                      : front_trimmed.substr(0, end_idx + 1);
+std::string_view TrimWhitespace(const char* str) {
+  return TrimWhitespace(std::string_view(str));
 }
 
 std::string StripPrefix(const std::string& str, const std::string& prefix) {
