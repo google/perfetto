@@ -436,13 +436,13 @@ struct IntervalTreeIntervalsAgg
   }
 };
 
-// An SQL aggregate function which collects timestamps into a vector.
+// An SQL aggregate function which collects (id, ts) pairs into vectors.
 // Used as input to __intrinsic_interval_create. The caller is responsible
-// for ensuring timestamps are passed in sorted order (e.g. via ORDER BY).
+// for ensuring rows are passed in sorted order by ts (e.g. via ORDER BY).
 struct TimestampSetAgg
     : public sqlite::AggregateFunction<perfetto_sql::SortedTimestamps> {
   static constexpr char kName[] = "__intrinsic_timestamp_set_agg";
-  static constexpr int kArgCount = 1;
+  static constexpr int kArgCount = 2;
   struct AggCtx : sqlite::AggregateContext<AggCtx> {
     perfetto_sql::SortedTimestamps data;
   };
@@ -450,7 +450,8 @@ struct TimestampSetAgg
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     PERFETTO_DCHECK(argc == kArgCount);
     auto& data = AggCtx::GetOrCreateContextForStep(ctx).data;
-    data.timestamps.push_back(sqlite::value::Int64(argv[0]));
+    data.ids.push_back(sqlite::value::Int64(argv[0]));
+    data.timestamps.push_back(sqlite::value::Int64(argv[1]));
   }
 
   static void Final(sqlite3_context* ctx) {
