@@ -4515,7 +4515,7 @@ static const SyntaqliteDialectTemplate PERFETTO_DIALECT = {
     // Token metadata
     .token_categories = token_categories,
     .token_type_count = TOKEN_TYPE_COUNT,
-    .macro_style = SYNQ_MACRO_STYLE_NONE,
+    .macro_style = SYNQ_MACRO_STYLE_RUST,
 
     .fmt_str_data = perfetto_fmt_string_data,
     .fmt_str_offsets = perfetto_fmt_string_offsets,
