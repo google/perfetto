@@ -72,6 +72,8 @@ source_set("minimal") {
     "track_event_tracker.h",
     "user_tracker.cc",
     "user_tracker.h",
+    "video_frame_module.cc",
+    "video_frame_module.h",
   ]
   public_deps = [ ":proto_importer_module" ]
   deps = [

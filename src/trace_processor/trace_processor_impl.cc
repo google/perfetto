@@ -114,6 +114,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/trees/tree_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/type_builders.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/utils.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/video_frame_image.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/window_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/counter_mipmap_operator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/slice_mipmap_operator.h"
@@ -442,7 +443,8 @@ uint64_t GetBoundsMutationCount(const TraceStorage& storage) {
          storage.heap_graph_object_table().mutations() +
          storage.perf_sample_table().mutations() +
          storage.instruments_sample_table().mutations() +
-         storage.cpu_profile_stack_sample_table().mutations();
+         storage.cpu_profile_stack_sample_table().mutations() +
+         storage.video_frames_table().mutations();
 }
 
 // IMPORTANT: GetBoundsMutationCount and GetTraceTimestampBoundsNs must be kept
@@ -485,6 +487,10 @@ std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
     end_ns = std::max(it.graph_sample_ts(), end_ns);
   }
   for (auto it = storage.perf_sample_table().IterateRows(); it; ++it) {
+    start_ns = std::min(it.ts(), start_ns);
+    end_ns = std::max(it.ts(), end_ns);
+  }
+  for (auto it = storage.video_frames_table().IterateRows(); it; ++it) {
     start_ns = std::min(it.ts(), start_ns);
     end_ns = std::max(it.ts(), end_ns);
   }
@@ -1118,6 +1124,7 @@ std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
   AddStaticTable(tables,
                  storage->mutable_android_game_intervenion_list_table());
   AddStaticTable(tables, storage->mutable_android_log_table());
+  AddStaticTable(tables, storage->mutable_video_frames_table());
   AddStaticTable(tables, storage->mutable_build_flags_table());
   AddStaticTable(tables, storage->mutable_modules_table());
   AddStaticTable(tables, storage->mutable_clock_snapshot_table());
@@ -1323,6 +1330,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   RegisterFunction<ExportJson>(engine.get(), storage);
   RegisterFunction<ExtractArgFunction>(
       engine.get(), std::make_unique<ExtractArgFunction::Context>(storage));
+  RegisterFunction<VideoFrameImageFunction>(engine.get(), storage);
   RegisterFunction<ArgSetToJson>(
       engine.get(), std::make_unique<ArgSetToJson::Context>(storage));
   RegisterFunction<AbsTimeStr>(engine.get(), context->clock_converter.get());
