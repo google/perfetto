@@ -154,7 +154,7 @@ export function buildReadOnlyNodeConfig(
 
   return {
     id: qnode.nodeId,
-    titleBar: undefined,
+    headerBar: undefined,
     inputs,
     outputs,
     canDockTop: isSingle,

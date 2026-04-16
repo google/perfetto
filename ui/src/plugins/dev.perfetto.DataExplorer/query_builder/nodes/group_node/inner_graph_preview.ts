@@ -163,7 +163,7 @@ export class InnerGraphPreview
         id: inputId,
         x: i * nodeSpacingX,
         y: -80,
-        titleBar: {title: `Input ${conn.groupPort + 1}`},
+        headerBar: {title: `Input ${conn.groupPort + 1}`},
         outputs: [{direction: 'bottom'}],
         className: isConnected ? undefined : 'pf-node--disconnected',
       });

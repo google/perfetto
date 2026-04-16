@@ -20,7 +20,7 @@ export interface Connection {
   readonly toPort: string; // port id
 }
 
-export interface NodeTitleBar {
+export interface NodeHeaderBar {
   readonly title: m.Children;
   readonly icon?: string;
 }
@@ -40,7 +40,7 @@ export interface Node {
   readonly y: number;
   readonly hue: number; // Color of the title / accent bar (0-360)
   readonly accentBar?: boolean; // Optional strip of accent color on the left side (doesn't work well with titleBar)
-  readonly titleBar?: NodeTitleBar; // Optional title bar (doesn't work well with accentBar or docking)
+  readonly headerBar?: NodeHeaderBar; // Optional title bar (doesn't work well with accentBar or docking)
   readonly inputs?: ReadonlyArray<NodePort>;
   readonly outputs?: ReadonlyArray<NodePort>;
   readonly content?: m.Children; // Optional custom content to render in node body

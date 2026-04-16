@@ -14,27 +14,28 @@
 
 import m from 'mithril';
 import {assertIsInstance} from '../../../base/assert';
-import {Point2D} from '../../../base/geom';
-import {MithrilEvent} from '../../../base/mithril_utils';
-import {DockedNode, Node, NodeGraphAttrs} from '../model';
-import {NGCardHeader, NGNode, NGPort, NGCard, NGCardBody} from './node';
-import {NGToolbar} from './toolbar';
 import {captureDrag} from '../../../base/dom_utils';
-import {DisposableStack} from '../../../base/disposable_stack';
+import {Point2D, Vector2D} from '../../../base/geom';
+import {MithrilEvent} from '../../../base/mithril_utils';
 import {shortUuid} from '../../../base/uuid';
-import {arrowheadMarker, connectionPath} from '../svg';
-import type {PortDirection} from '../svg';
 import {PopupMenu} from '../../../widgets/menu';
 import {PopupPosition} from '../../../widgets/popup';
-import {start} from 'repl';
+import {DockedNode, Node, NodeGraphAttrs, NodePort} from '../model';
+import type {PortDirection} from '../svg';
+import {arrowheadMarker, connectionPath} from '../svg';
+import {NGCard, NGCardBody, NGCardHeader, NGNode, NGPort} from './node';
+import {NGToolbar} from './toolbar';
 
 const WHEEL_ZOOM_SCALING_FACTOR = 0.006;
 const MIN_ZOOM = 0.01;
 const MAX_ZOOM = 3.0;
 const GRID_SIZE = 24;
 
-function snapToGrid(v: number): number {
-  return Math.round(v / GRID_SIZE) * GRID_SIZE;
+function snapToGrid(p: Point2D): Vector2D {
+  return new Vector2D({
+    x: Math.round(p.x / GRID_SIZE) * GRID_SIZE,
+    y: Math.round(p.y / GRID_SIZE) * GRID_SIZE,
+  });
 }
 
 function portDirFromEl(el: Element): PortDirection {
@@ -99,7 +100,7 @@ export class NodeGraph implements m.Component<NodeGraphAttrs> {
   // Port ID of the output port whose context menu is currently open.
   private openPortMenuId?: string;
 
-  private getNodePosition(nodeEl: HTMLElement): Point2D {
+  private getNodePosition(nodeEl: HTMLElement) {
     const rect = nodeEl.getBoundingClientRect();
     const canvasRect = this.rootEl.getBoundingClientRect();
     return this.getWorkspacePosition({
@@ -108,12 +109,20 @@ export class NodeGraph implements m.Component<NodeGraphAttrs> {
     });
   }
 
-  private getWorkspacePosition(pos: Point2D): Point2D {
+  private getWorkspacePosition(pos: Point2D) {
     const {offset, zoom} = this.viewport;
-    return {
+    return new Vector2D({
       x: pos.x / zoom + offset.x,
       y: pos.y / zoom + offset.y,
-    };
+    });
+  }
+
+  private client2Workspace(client: Point2D) {
+    const canvasRect = this.rootEl.getBoundingClientRect();
+    return this.getWorkspacePosition({
+      x: client.x - canvasRect.left,
+      y: client.y - canvasRect.top,
+    });
   }
 
   private createGhostNode(nodeEl: HTMLElement) {
@@ -190,6 +199,212 @@ export class NodeGraph implements m.Component<NodeGraphAttrs> {
       className,
     } = attrs;
 
+    const createNodeDragHandler = (
+      node: DockedNode,
+      parentId: string | undefined,
+    ) => {
+      return async (e: MithrilEvent<PointerEvent>) => {
+        // Let interactive elements (inputs, buttons, selects, etc.) handle
+        // their own events without triggering a node drag.
+        const target = e.target as HTMLElement;
+        if (target.closest('input, button, select, textarea, a')) return;
+
+        // Stop this pointer event from hitting the canvas
+        e.stopPropagation();
+
+        // Don't redraw just yet...
+        e.redraw = false;
+
+        // Secure the node element
+        const nodeEl = assertIsInstance(e.currentTarget, HTMLElement);
+
+        // Find the initial offset within the node in canvas space
+        const pMouse = {x: e.clientX, y: e.clientY};
+        const pMouseWs = this.client2Workspace(pMouse);
+
+        const nodeRect = nodeEl.getBoundingClientRect();
+        const pNode = {x: nodeRect.left, y: nodeRect.top};
+        const pNodeWs = this.client2Workspace(pNode);
+
+        const grabPoint = pMouseWs.sub(pNodeWs);
+
+        // Wait for this to turn into a proper drag
+        const drag = await captureDrag({el: this.rootEl, e, deadzone: 5});
+
+        if (drag) {
+          // Work out where in the workspace the node is right now
+          const startPosition = this.getNodePosition(nodeEl);
+
+          using tempNode = this.moveNodeToWorkspace(nodeEl);
+          tempNode.moveTo(startPosition);
+
+          using ghost = this.createGhostNode(nodeEl);
+          ghost.moveTo(startPosition);
+
+          let pNode = startPosition;
+          let dockTarget: string | undefined = undefined;
+
+          using edgePan = this.startEdgePanning((dx, dy) => {
+            pNode = pNode.add({x: dx, y: dy});
+            tempNode.moveTo(pNode);
+            this.updateConnections(attrs);
+          });
+
+          for await (const mv of drag) {
+            // Find the initial offset within the node in canvas space
+            const pMouseWs = this.client2Workspace(mv.client);
+            pNode = pMouseWs.sub(grabPoint);
+
+            edgePan.updatePointer(mv.client);
+            tempNode.moveTo(pNode);
+
+            dockTarget = node.canDockTop
+              ? this.findDockTarget(nodeEl)
+              : undefined;
+
+            if (dockTarget) {
+              const targetEl = this.getNodeElement(dockTarget);
+              ghost.dockToNode(targetEl);
+            } else {
+              ghost.undock();
+              ghost.moveTo(snapToGrid(pNode));
+            }
+            this.updateConnections(attrs);
+          }
+
+          if (dockTarget) {
+            if (dockTarget !== parentId) {
+              onNodeDock?.(node.id, dockTarget);
+            }
+          } else {
+            const snapped = snapToGrid(pNode);
+            onNodeMove?.(node.id, snapped.x, snapped.y);
+          }
+
+          m.redraw();
+        } else {
+          // Failed drag - treat as a click and select the node
+          if (e.ctrlKey || e.metaKey) {
+            if (selectedNodeIds?.has(node.id)) {
+              onSelectionRemove?.(node.id);
+            } else {
+              onSelectionAdd?.(node.id);
+            }
+          } else {
+            // No key held - just select this node and deselect everything else
+            onSelect?.([node.id]);
+          }
+          m.redraw();
+        }
+      };
+    };
+
+    const createPortDragHandler = (node: DockedNode, output: NodePort) => {
+      return async (e: PointerEvent) => {
+        e.stopPropagation();
+        const drag = await captureDrag({
+          el: e.currentTarget as HTMLElement,
+          e,
+        });
+
+        if (!drag) {
+          // Click (no drag): open context menu if available
+          if (output.contextMenuItems != null) {
+            this.openPortMenuId = output.id;
+            m.redraw();
+          }
+          return;
+        }
+
+        let clientX = e.clientX;
+        let clientY = e.clientY;
+
+        const toCanvasPoint = (): Point2D => {
+          const {zoom, offset} = this.viewport;
+          const rect = this.rootEl.getBoundingClientRect();
+          return {
+            x: (clientX - rect.left) / zoom + offset.x,
+            y: (clientY - rect.top) / zoom + offset.y,
+          };
+        };
+
+        const nodeDirToPortDir: Record<string, PortDirection> = {
+          north: 'top',
+          south: 'bottom',
+          east: 'right',
+          west: 'left',
+        };
+        const freeToDir = oppositeDir(
+          nodeDirToPortDir[output.direction] ?? 'right',
+        );
+        const makeWireDrag = (snap: typeof snapTarget) => ({
+          fromPortId: output.id,
+          toPoint: snap ? this.portCenterToCanvas(snap.el) : toCanvasPoint(),
+          toDir: snap ? portDirFromEl(snap.el) : freeToDir,
+        });
+
+        this.wireDrag = makeWireDrag(undefined);
+        this.rootEl.classList.add('pf-ng--wire-dragging');
+        this.updateConnections(attrs);
+
+        let snapTarget: {el: HTMLElement; portId: string} | undefined;
+
+        using edgePan = this.startEdgePanning(() => {
+          this.wireDrag = makeWireDrag(snapTarget);
+          this.updateConnections(attrs);
+        });
+
+        const processMove = (client: {x: number; y: number}) => {
+          clientX = client.x;
+          clientY = client.y;
+          edgePan.updatePointer(client);
+          const prevSnap = snapTarget;
+          snapTarget = this.findWireSnapTarget(node.id, clientX, clientY);
+          if (prevSnap?.el !== snapTarget?.el) {
+            prevSnap?.el.classList.remove('pf-wire-snap');
+            snapTarget?.el.classList.add('pf-wire-snap');
+          }
+          this.wireDrag = makeWireDrag(snapTarget);
+          this.updateConnections(attrs);
+        };
+
+        for await (const mv of drag) {
+          processMove(mv.client);
+        }
+        snapTarget?.el.classList.remove('pf-wire-snap');
+        this.rootEl.classList.remove('pf-ng--wire-dragging');
+
+        if (snapTarget !== undefined) {
+          onConnect?.({
+            fromPort: output.id,
+            toPort: snapTarget.portId,
+          });
+        } else {
+          // Fallback: check if the pointer is directly over an input port.
+          const target = document.elementFromPoint(clientX, clientY);
+          const inputPortEl =
+            target?.closest('.pf-ng__port-dot.pf-input') ?? null;
+          if (inputPortEl) {
+            const nodeEl = inputPortEl.closest(
+              '[data-node-id]',
+            ) as HTMLElement | null;
+            const toNodeId = nodeEl?.getAttribute('data-node-id');
+            const portId = inputPortEl.getAttribute('data-port-id');
+            if (portId && toNodeId && toNodeId !== node.id) {
+              onConnect?.({
+                fromPort: output.id,
+                toPort: portId,
+              });
+            }
+          }
+        }
+
+        this.wireDrag = undefined;
+        this.updateConnections(attrs);
+        m.redraw();
+      };
+    };
+
     // parentId is set for docked nodes; absent for root nodes.
     const renderNode = (node: DockedNode, parentId?: string): m.Children => {
       const isDocked = parentId !== undefined;
@@ -203,103 +418,7 @@ export class NodeGraph implements m.Component<NodeGraphAttrs> {
           position: rootNode ? {x: rootNode.x, y: rootNode.y} : undefined,
           // Recursively render the whole tree
           nextNode: node.next && renderNode(node.next, node.id),
-          onpointerdown: async (e: MithrilEvent<PointerEvent>) => {
-            // Let interactive elements (inputs, buttons, selects, etc.) handle
-            // their own events without triggering a node drag.
-            const target = e.target as HTMLElement;
-            if (target.closest('input, button, select, textarea, a')) return;
-
-            // Stop this pointer event from hitting the canvas
-            e.stopPropagation();
-
-            // Don't redraw just yet...
-            e.redraw = false;
-
-            // Secure the node element
-            const nodeEl = assertIsInstance(e.currentTarget, HTMLElement);
-
-            // Wait for this to turn into a proper drag
-            const drag = await captureDrag({el: this.rootEl, e, deadzone: 5});
-
-            if (drag) {
-              // Work out where in the workspace the node is right now
-              const startPosition = this.getNodePosition(nodeEl);
-
-              using tempNode = this.moveNodeToWorkspace(nodeEl);
-              tempNode.moveTo(startPosition);
-
-              using ghost = this.createGhostNode(nodeEl);
-              ghost.moveTo(startPosition);
-
-              let currentNodePos = startPosition;
-              let dockTargetId: string | undefined = undefined;
-
-              using edgePan = this.startEdgePanning((dx, dy) => {
-                currentNodePos = {
-                  x: currentNodePos.x + dx,
-                  y: currentNodePos.y + dy,
-                };
-                tempNode.moveTo(currentNodePos);
-                this.updateConnections(attrs);
-              });
-
-              for await (const mv of drag) {
-                const {zoom} = this.viewport;
-                edgePan.updatePointer(mv.client);
-                currentNodePos = {
-                  x: currentNodePos.x + mv.delta.x / zoom,
-                  y: currentNodePos.y + mv.delta.y / zoom,
-                };
-
-                tempNode.moveTo(currentNodePos);
-
-                dockTargetId = node.canDockTop
-                  ? this.findDockTarget(nodeEl)
-                  : undefined;
-
-                console.log('Dock target:', dockTargetId);
-
-                if (dockTargetId) {
-                  const targetEl = this.getNodeElement(dockTargetId);
-                  ghost.dockToNode(targetEl);
-                } else {
-                  ghost.undock();
-                  ghost.moveTo({
-                    x: snapToGrid(currentNodePos.x),
-                    y: snapToGrid(currentNodePos.y),
-                  });
-                }
-                this.updateConnections(attrs);
-              }
-
-              if (dockTargetId) {
-                if (dockTargetId !== parentId) {
-                  onNodeDock?.(node.id, dockTargetId);
-                }
-              } else {
-                onNodeMove?.(
-                  node.id,
-                  snapToGrid(currentNodePos.x),
-                  snapToGrid(currentNodePos.y),
-                );
-              }
-
-              m.redraw();
-            } else {
-              // Failed drag - treat as a click and select the node
-              if (e.ctrlKey || e.metaKey) {
-                if (selectedNodeIds?.has(node.id)) {
-                  onSelectionRemove?.(node.id);
-                } else {
-                  onSelectionAdd?.(node.id);
-                }
-              } else {
-                // No key held - just select this node and deselect everything else
-                onSelect?.([node.id]);
-              }
-              m.redraw();
-            }
-          },
+          onpointerdown: createNodeDragHandler(node, parentId),
         },
         m(
           NGCard,
@@ -310,10 +429,10 @@ export class NodeGraph implements m.Component<NodeGraphAttrs> {
             className: node.className,
           },
           [
-            node.titleBar &&
+            node.headerBar &&
               m(NGCardHeader, {
-                title: node.titleBar.title,
-                icon: node.titleBar.icon,
+                title: node.headerBar.title,
+                icon: node.headerBar.icon,
               }),
             node.inputs?.map((input) =>
               m(NGPort, {
@@ -349,115 +468,7 @@ export class NodeGraph implements m.Component<NodeGraphAttrs> {
                 connected:
                   attrs.connections?.some((c) => c.fromPort === output.id) ??
                   false,
-                onpointerdown: async (e: PointerEvent) => {
-                  e.stopPropagation();
-                  const drag = await captureDrag({
-                    el: e.currentTarget as HTMLElement,
-                    e,
-                  });
-
-                  if (!drag) {
-                    // Click (no drag): open context menu if available
-                    if (output.contextMenuItems != null) {
-                      this.openPortMenuId = output.id;
-                      m.redraw();
-                    }
-                    return;
-                  }
-
-                  let clientX = e.clientX;
-                  let clientY = e.clientY;
-
-                  const toCanvasPoint = (): Point2D => {
-                    const {zoom, offset} = this.viewport;
-                    const rect = this.rootEl.getBoundingClientRect();
-                    return {
-                      x: (clientX - rect.left) / zoom + offset.x,
-                      y: (clientY - rect.top) / zoom + offset.y,
-                    };
-                  };
-
-                  const nodeDirToPortDir: Record<string, PortDirection> = {
-                    north: 'top',
-                    south: 'bottom',
-                    east: 'right',
-                    west: 'left',
-                  };
-                  const freeToDir = oppositeDir(
-                    nodeDirToPortDir[output.direction] ?? 'right',
-                  );
-                  const makeWireDrag = (snap: typeof snapTarget) => ({
-                    fromPortId: output.id,
-                    toPoint: snap
-                      ? this.portCenterToCanvas(snap.el)
-                      : toCanvasPoint(),
-                    toDir: snap ? portDirFromEl(snap.el) : freeToDir,
-                  });
-
-                  this.wireDrag = makeWireDrag(undefined);
-                  this.rootEl.classList.add('pf-ng--wire-dragging');
-                  this.updateConnections(attrs);
-
-                  let snapTarget: {el: HTMLElement; portId: string} | undefined;
-
-                  using edgePan = this.startEdgePanning(() => {
-                    this.wireDrag = makeWireDrag(snapTarget);
-                    this.updateConnections(attrs);
-                  });
-
-                  const processMove = (client: {x: number; y: number}) => {
-                    clientX = client.x;
-                    clientY = client.y;
-                    edgePan.updatePointer(client);
-                    const prevSnap = snapTarget;
-                    snapTarget = this.findWireSnapTarget(
-                      node.id,
-                      clientX,
-                      clientY,
-                    );
-                    if (prevSnap?.el !== snapTarget?.el) {
-                      prevSnap?.el.classList.remove('pf-wire-snap');
-                      snapTarget?.el.classList.add('pf-wire-snap');
-                    }
-                    this.wireDrag = makeWireDrag(snapTarget);
-                    this.updateConnections(attrs);
-                  };
-
-                  for await (const mv of drag) {
-                    processMove(mv.client);
-                  }
-                  snapTarget?.el.classList.remove('pf-wire-snap');
-                  this.rootEl.classList.remove('pf-ng--wire-dragging');
-
-                  if (snapTarget !== undefined) {
-                    onConnect?.({
-                      fromPort: output.id,
-                      toPort: snapTarget.portId,
-                    });
-                  } else {
-                    // Fallback: check if the pointer is directly over an input port.
-                    const target = document.elementFromPoint(clientX, clientY);
-                    const inputPortEl =
-                      target?.closest('.pf-ng__port-dot.pf-input') ?? null;
-                    if (inputPortEl) {
-                      const nodeEl = inputPortEl.closest(
-                        '[data-node-id]',
-                      ) as HTMLElement | null;
-                      const toNodeId = nodeEl?.getAttribute('data-node-id');
-                      const portId = inputPortEl.getAttribute('data-port-id');
-                      if (portId && toNodeId && toNodeId !== node.id) {
-                        onConnect?.({
-                          fromPort: output.id,
-                          toPort: portId,
-                        });
-                      }
-                    }
-                  }
-
-                  this.wireDrag = undefined;
-                  this.updateConnections(attrs);
-                  m.redraw();
-                },
+                onpointerdown: createPortDragHandler(node, output),
               });
               if (output.contextMenuItems == null) return portEl;
               return m(
@@ -465,7 +476,6 @@ export class NodeGraph implements m.Component<NodeGraphAttrs> {
                 {
                   trigger: portEl,
                   position: PopupPosition.Bottom,
-                  isOpen: this.openPortMenuId === output.id,
                   onChange: (open) => {
                     this.openPortMenuId = open ? output.id : undefined;
                     m.redraw();

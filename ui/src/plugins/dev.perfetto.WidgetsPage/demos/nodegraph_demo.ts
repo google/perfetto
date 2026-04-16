@@ -768,7 +768,7 @@ export function NodeGraphDemo(): m.Component<NodeGraphDemoAttrs> {
             ],
             content: manifest.render(tempNode, () => {}),
             accentBar: attrs.accentBars,
-            titleBar: attrs.titleBars
+            headerBar: attrs.titleBars
               ? {
                   title: manifest.title,
                   icon: attrs.headerIcons ? manifest.icon : undefined,
