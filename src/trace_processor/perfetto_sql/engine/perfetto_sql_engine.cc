@@ -51,7 +51,6 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
-#include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_column.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
@@ -68,11 +67,7 @@
 // ----------------------
 //
 // The execution of PerfettoSQL statements is the joint responsibility of
-// several classes which all are linked together in the following way:
-//
-//  PerfettoSqlEngine -> PerfettoSqlParser -> PerfettoSqlPreprocessor
-//
-// The responsibility of each of these classes is as follows:
+// the PerfettoSqlEngine and PerfettoSqlParser classes:
 //
 // * PerfettoSqlEngine: this class is responsible for the end-to-end processing
 //   of statements. It calls into PerfettoSqlParser to incrementally receive
@@ -81,14 +76,9 @@
 //   Otherwise, if the statement is a valid SQLite statement, SQLite is called
 //   into to perform the execution.
 // * PerfettoSqlParser: this class is responsible for taking a chunk of SQL and
-//   incrementally converting them into parsed SQL statement. The parser calls
-//   into the PerfettoSqlPreprocessor to split the SQL chunk into a statement
-//   and perform any macro expansion. It then tries to parse any
-//   PerfettoSQL-only statements into their component parts and leaves SQLite
-//   statements as-is for execution by SQLite.
-// * PerfettoSqlPreprocessor: this class is responsible for taking a chunk of
-//   SQL and breaking them into statements, while also expanding any macros
-//   which might be present inside.
+//   incrementally converting them into parsed SQL statements. The underlying
+//   tokenization, statement splitting and macro expansion are performed by
+//   the vendored syntaqlite parser.
 namespace perfetto::trace_processor {
 namespace {
 
@@ -1370,7 +1360,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateMacro(
   for (const auto& arg : create_macro.args) {
     args.push_back(arg.first.sql());
   }
-  PerfettoSqlPreprocessor::Macro macro{
+  PerfettoSqlParser::Macro macro{
       create_macro.replace,
       create_macro.name.sql(),
       std::move(args),
