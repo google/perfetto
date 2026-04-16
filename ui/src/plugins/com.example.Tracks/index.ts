@@ -17,11 +17,11 @@ import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {TrackNode} from '../../public/workspace';
 import {SliceTrack} from '../../components/tracks/slice_track';
-import {SqlTableCounterTrack} from '../../components/tracks/query_counter_track';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {getColorForSlice, makeColorScheme} from '../../components/colorizer';
 import {HSLColor} from '../../base/color';
+import {CounterTrack} from '../../components/tracks/counter_track';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.example.Tracks';
@@ -436,12 +436,11 @@ async function addCounterTracks(trace: Trace): Promise<void> {
     );
   `);
 
-  // Insert ~200 data points forming a sine wave
-  const numPoints = 200;
+  const numPoints = 2000;
   const values: string[] = [];
   for (let i = 0; i < numPoints; i++) {
     const ts = traceStartTime + (traceDur * BigInt(i)) / BigInt(numPoints);
-    const value = 37.2 + 45.3 * Math.sin((10 * Math.PI * i) / numPoints);
+    const value = 50 * Math.sin((10 * Math.PI * i) / numPoints);
     values.push(`(${ts}, ${value.toFixed(2)})`);
   }
   await trace.engine.query(`
@@ -452,56 +451,138 @@ async function addCounterTracks(trace: Trace): Promise<void> {
   const uri1 = 'com.example.Tracks#CounterTrack';
   trace.tracks.registerTrack({
     uri: uri1,
-    renderer: new SqlTableCounterTrack(
+    renderer: CounterTrack.create({
       trace,
-      uri1,
-      `select ts, value from ${tableName}`,
-    ),
+      uri: uri1,
+      sqlSource: `select ts, value from ${tableName}`,
+    }),
   });
 
   // Counter track with range sharing key
   const uri2 = 'com.example.Tracks#CounterTrackShared1';
   trace.tracks.registerTrack({
     uri: uri2,
-    renderer: new SqlTableCounterTrack(
+    renderer: CounterTrack.create({
       trace,
-      uri2,
-      `select ts, value from ${tableName}`,
-      {yRangeSharingKey: 'example_shared'},
-    ),
+      uri: uri2,
+      sqlSource: `select ts, value from ${tableName}`,
+      yRangeSharingKey: 'example_shared',
+    }),
   });
 
   const uri3 = 'com.example.Tracks#CounterTrackShared2';
   trace.tracks.registerTrack({
     uri: uri3,
-    renderer: new SqlTableCounterTrack(
+    renderer: CounterTrack.create({
       trace,
-      uri3,
-      `select ts, value * 0.5 + 20 as value from ${tableName}`,
-      {yRangeSharingKey: 'example_shared'},
-    ),
+      uri: uri3,
+      sqlSource: `select ts, value * 0.5 + 20 as value from ${tableName}`,
+      yRangeSharingKey: 'example_shared',
+    }),
   });
 
   // Counter track with negative values
   const uri4 = 'com.example.Tracks#CounterTrackNegative';
   trace.tracks.registerTrack({
     uri: uri4,
-    renderer: new SqlTableCounterTrack(
+    renderer: CounterTrack.create({
       trace,
-      uri4,
-      `select ts, value - 40 as value from ${tableName}`,
-    ),
+      uri: uri4,
+      sqlSource: `select ts, value - 40 as value from ${tableName}`,
+    }),
   });
 
   // Counter track with only negative values (shifted below zero)
   const uri5 = 'com.example.Tracks#CounterTrackNegativeOnly';
   trace.tracks.registerTrack({
     uri: uri5,
-    renderer: new SqlTableCounterTrack(
+    renderer: CounterTrack.create({
       trace,
-      uri5,
-      `select ts, value - 80 as value from ${tableName}`,
-    ),
+      uri: uri5,
+      sqlSource: `select ts, value - 100 as value from ${tableName}`,
+    }),
+  });
+
+  // Counter track with very large values (gigabytes scale)
+  const uri6 = 'com.example.Tracks#CounterTrackLarge';
+  trace.tracks.registerTrack({
+    uri: uri6,
+    renderer: CounterTrack.create({
+      trace,
+      uri: uri6,
+      sqlSource: `select ts, (value + 50) * 20000000 as value from ${tableName}`,
+    }),
+  });
+
+  // Counter track with very small values (nanoseconds scale)
+  const uri7 = 'com.example.Tracks#CounterTrackSmall';
+  trace.tracks.registerTrack({
+    uri: uri7,
+    renderer: CounterTrack.create({
+      trace,
+      uri: uri7,
+      sqlSource: `select ts, (value + 50) * 0.000001 as value from ${tableName}`,
+    }),
+  });
+
+  // Frequency counter (Hz) - values in MHz range
+  const uri8 = 'com.example.Tracks#CounterTrackHz';
+  trace.tracks.registerTrack({
+    uri: uri8,
+    renderer: CounterTrack.create({
+      trace,
+      uri: uri8,
+      sqlSource: `select ts, (value + 50) * 30000000 as value from ${tableName}`,
+      unit: 'Hz',
+    }),
+  });
+
+  // Power counter (W) - values in milliwatt range
+  const uri9 = 'com.example.Tracks#CounterTrackWatts';
+  trace.tracks.registerTrack({
+    uri: uri9,
+    renderer: CounterTrack.create({
+      trace,
+      uri: uri9,
+      sqlSource: `select ts, (value + 50) * 0.001 as value from ${tableName}`,
+      unit: 'W',
+    }),
+  });
+
+  // Memory counter (bytes) - values in megabyte range
+  const uri10 = 'com.example.Tracks#CounterTrackBytes';
+  trace.tracks.registerTrack({
+    uri: uri10,
+    renderer: CounterTrack.create({
+      trace,
+      uri: uri10,
+      sqlSource: `select ts, (value + 50) * 1000000 as value from ${tableName}`,
+      unit: 'B',
+    }),
+  });
+
+  // Duration counter (seconds) - values in millisecond range
+  const uri11 = 'com.example.Tracks#CounterTrackSeconds';
+  trace.tracks.registerTrack({
+    uri: uri11,
+    renderer: CounterTrack.create({
+      trace,
+      uri: uri11,
+      sqlSource: `select ts, (value + 50) * 0.0001 as value from ${tableName}`,
+      unit: 's',
+    }),
+  });
+
+  // Unknown unit counter - prefix attaches to number
+  const uri12 = 'com.example.Tracks#CounterTrackFPS';
+  trace.tracks.registerTrack({
+    uri: uri12,
+    renderer: CounterTrack.create({
+      trace,
+      uri: uri12,
+      sqlSource: `select ts, (value + 50) * 200000 as value from ${tableName}`,
+      unit: 'fps',
+    }),
   });
 
   const ws = trace.defaultWorkspace;
@@ -516,4 +597,19 @@ async function addCounterTracks(trace: Trace): Promise<void> {
     new TrackNode({uri: uri4, name: 'Negative Values Counter'}),
   );
   ws.addChildInOrder(new TrackNode({uri: uri5, name: 'Negative Only Counter'}));
+  ws.addChildInOrder(
+    new TrackNode({uri: uri6, name: 'Large Values Counter (~GBs)'}),
+  );
+  ws.addChildInOrder(
+    new TrackNode({uri: uri7, name: 'Small Values Counter (~µs)'}),
+  );
+  ws.addChildInOrder(
+    new TrackNode({uri: uri8, name: 'Frequency Counter (Hz)'}),
+  );
+  ws.addChildInOrder(new TrackNode({uri: uri9, name: 'Power Counter (W)'}));
+  ws.addChildInOrder(new TrackNode({uri: uri10, name: 'Memory Counter (B)'}));
+  ws.addChildInOrder(new TrackNode({uri: uri11, name: 'Duration Counter (s)'}));
+  ws.addChildInOrder(
+    new TrackNode({uri: uri12, name: 'Frame Rate Counter (fps)'}),
+  );
 }

@@ -28,24 +28,25 @@ import {createTraceProcessorSliceTrack} from '../dev.perfetto.TraceProcessorTrac
 // GPU frequency track that converts kHz values to Hz so that the generic
 // counter renderer produces correct SI-prefixed labels (e.g. "2 GHz").
 class GpuFreqTrack extends TraceProcessorCounterTrack {
-  private readonly freqTrackId: number;
-
   constructor(
     trace: Trace,
     uri: string,
     freqTrackId: number,
     trackName: string,
   ) {
-    super(trace, uri, {unit: 'Hz'}, freqTrackId, trackName);
-    this.freqTrackId = freqTrackId;
-  }
-
-  override getSqlSource() {
-    return `
+    super({
+      trace,
+      uri,
+      unit: 'Hz',
+      trackId: freqTrackId,
+      trackName,
+      rootTable: 'counter',
+      sqlSource: `
       select id, ts, value * 1000 as value, arg_set_id
       from counter
-      where track_id = ${this.freqTrackId}
-    `;
+      where track_id = ${freqTrackId}
+    `,
+    });
   }
 }
 
@@ -396,13 +397,13 @@ export default class GpuPlugin implements PerfettoPlugin {
           unit: unit ?? undefined,
           description: description ?? undefined,
         },
-        renderer: new TraceProcessorCounterTrack(
-          ctx,
+        renderer: new TraceProcessorCounterTrack({
+          trace: ctx,
           uri,
-          {unit: unit ?? undefined},
+          unit: unit ?? undefined,
           trackId,
           trackName,
-        ),
+        }),
       });
 
       counterTracks.push({

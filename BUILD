@@ -1009,7 +1009,6 @@ perfetto_cc_library(
             ":src_traced_probes_ps_ps",
             ":src_traced_probes_statsd_client_statsd_client",
             ":src_traced_probes_sys_stats_sys_stats",
-            ":src_traced_probes_system_info_cpu_info_features_allowlist",
             ":src_traced_probes_system_info_system_info",
             ":src_traced_probes_user_list_user_list",
             ":src_tracing_ipc_producer_producer",
@@ -1147,6 +1146,8 @@ perfetto_filegroup(
         "include/perfetto/ext/base/circular_queue.h",
         "include/perfetto/ext/base/clock_snapshots.h",
         "include/perfetto/ext/base/container_annotations.h",
+        "include/perfetto/ext/base/cpu_info.h",
+        "include/perfetto/ext/base/cpu_info_features_allowlist.h",
         "include/perfetto/ext/base/crash_keys.h",
         "include/perfetto/ext/base/ctrl_c_handler.h",
         "include/perfetto/ext/base/dynamic_string_writer.h",
@@ -1674,6 +1675,7 @@ perfetto_cc_library(
     srcs = [
         "src/base/android_utils.cc",
         "src/base/base64.cc",
+        "src/base/cpu_info.cc",
         "src/base/crash_keys.cc",
         "src/base/ctrl_c_handler.cc",
         "src/base/event_fd.cc",
@@ -4077,6 +4079,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/wattson/gpu/estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/gpu/freq_idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/attribution.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/gpu_active_regions.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/gpu_tasks.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/idle_transitions_attribution.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/task_slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/tpu/estimates.sql",
@@ -5086,14 +5090,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/traced/probes/system_info:cpu_info_features_allowlist
-perfetto_filegroup(
-    name = "src_traced_probes_system_info_cpu_info_features_allowlist",
-    srcs = [
-        "src/traced/probes/system_info/cpu_info_features_allowlist.h",
-    ],
-)
-
 # GN target: //src/traced/probes/system_info:system_info
 perfetto_filegroup(
     name = "src_traced_probes_system_info_system_info",
@@ -5737,8 +5733,11 @@ perfetto_proto_library(
     name = "winscope_proto",
     visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
+        ":protos_perfetto_common_protos",
+        ":protos_perfetto_protovm_protos",
         ":protos_perfetto_trace_android_winscope_common_protos",
         ":protos_perfetto_trace_android_winscope_extensions_protos",
+        ":protos_perfetto_trace_android_winscope_regular_protos",
     ],
 )
 
@@ -7456,10 +7455,14 @@ perfetto_proto_library(
         PERFETTO_CONFIG.proto_library_visibility,
     ],
     deps = [
+        ":protos_perfetto_common_protos",
+        ":protos_perfetto_protovm_protos",
         ":protos_perfetto_trace_android_winscope_common_protos",
+        ":protos_perfetto_trace_android_winscope_regular_protos",
     ] + PERFETTO_CONFIG.deps.protobuf_descriptor_proto,
     exports = [
         ":protos_perfetto_trace_android_winscope_common_protos",
+        ":protos_perfetto_trace_android_winscope_regular_protos",
     ],
 )
 
@@ -7467,8 +7470,11 @@ perfetto_proto_library(
 perfetto_cc_protozero_library(
     name = "protos_perfetto_trace_android_winscope_extensions_zero",
     deps = [
+        ":protos_perfetto_common_zero",
+        ":protos_perfetto_protovm_zero",
         ":protos_perfetto_trace_android_winscope_common_zero",
         ":protos_perfetto_trace_android_winscope_extensions_protos",
+        ":protos_perfetto_trace_android_winscope_regular_zero",
     ],
 )
 

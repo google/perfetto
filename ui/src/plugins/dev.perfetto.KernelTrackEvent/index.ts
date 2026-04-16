@@ -129,13 +129,12 @@ export default class implements PerfettoPlugin {
             cpu: cpu ?? undefined,
             trackScope: scope ?? undefined,
           },
-          renderer: new TraceProcessorCounterTrack(
-            ctx,
+          renderer: new TraceProcessorCounterTrack({
+            trace: ctx,
             uri,
-            {},
             trackId,
-            displayTrackName,
-          ),
+            trackName: displayTrackName,
+          }),
         });
       } else {
         // slice track

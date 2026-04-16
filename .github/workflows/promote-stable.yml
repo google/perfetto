@@ -49,8 +49,7 @@ jobs:
         run: |
           if [[ "$(git rev-parse HEAD^{tree})" == \
                 "$(git rev-parse origin/canary^{tree})" ]]; then
-            echo "::error::stable tree already matches canary; nothing to \
-promote. Cut canary first."
+            echo "::error::stable tree already matches canary; nothing to promote. Cut canary first."
             exit 1
           fi
 
@@ -64,9 +63,7 @@ promote. Cut canary first."
           FIRST=$(git show "origin/canary:CHANGELOG" \
                   | grep -m1 -E '^[^[:space:]]' || true)
           if ! [[ "$FIRST" =~ ^(v[0-9]+\.[0-9]+)[[:space:]]+-[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}: ]]; then
-            echo "::error::CHANGELOG top entry is not a released version \
-header (got: '$FIRST'). Update CHANGELOG to 'vX.Y - YYYY-MM-DD:' on main, \
-re-cut canary, and retry."
+            echo "::error::CHANGELOG top entry is not a released version header (got: '$FIRST'). Update CHANGELOG to 'vX.Y - YYYY-MM-DD:' on main, re-cut canary, and retry."
             exit 1
           fi
           VERSION="${BASH_REMATCH[1]}"
@@ -77,8 +74,7 @@ re-cut canary, and retry."
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           if git rev-parse "refs/tags/$VERSION" >/dev/null 2>&1; then
-            echo "::error::Tag $VERSION already exists. Bump CHANGELOG to \
-the next version on main and re-cut canary."
+            echo "::error::Tag $VERSION already exists. Bump CHANGELOG to the next version on main and re-cut canary."
             exit 1
           fi
 
@@ -102,5 +98,4 @@ the next version on main and re-cut canary."
           VERSION="${{ steps.version.outputs.version }}"
           git tag -a "$VERSION" HEAD -m "Perfetto $VERSION"
           git push origin "refs/tags/$VERSION"
-          echo "::notice::Tagged $VERSION at $(git rev-parse HEAD). \
-LUCI, Cloud Build, and draft-release.yml have been triggered."
+          echo "::notice::Tagged $VERSION at $(git rev-parse HEAD). LUCI, Cloud Build, and draft-release.yml have been triggered."
