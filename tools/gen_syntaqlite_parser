@@ -19,10 +19,9 @@ Reads the canonical grammar (`perfetto.y`) and AST node definitions
 writes the amalgamated `syntaqlite_perfetto.{c,h}` pair back into the same
 directory.
 
-The syntaqlite source tree is expected at `buildtools/syntaqlite/`, populated
-by `tools/install-build-deps`. Run that first if the directory is missing.
-The CLI binary is built from source with `cargo build --release` on first use
-and cached at `buildtools/syntaqlite/target/release/syntaqlite[.exe]`.
+The syntaqlite CLI is a prebuilt binary expected at
+`buildtools/syntaqlite/syntaqlite[.exe]`. Run
+`tools/install-build-deps --syntaqlite` to fetch it.
 """
 
 import os
@@ -33,30 +32,19 @@ import sys
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SYNTAQLITE_DIR = os.path.join(ROOT_DIR, 'src', 'trace_processor',
                               'perfetto_sql', 'syntaqlite')
-SYNTAQLITE_SRC_DIR = os.path.join(ROOT_DIR, 'buildtools', 'syntaqlite')
+SYNTAQLITE_BIN_DIR = os.path.join(ROOT_DIR, 'buildtools', 'syntaqlite')
 
 
 def syntaqlite_binary_path():
   suffix = '.exe' if platform.system() == 'Windows' else ''
-  return os.path.join(SYNTAQLITE_SRC_DIR, 'target', 'release',
-                      f'syntaqlite{suffix}')
-
-
-def build_syntaqlite():
-  if not os.path.isdir(SYNTAQLITE_SRC_DIR):
-    sys.exit(f'syntaqlite source not found at {SYNTAQLITE_SRC_DIR}\n'
-             f'Run `tools/install-build-deps` to fetch it.')
-  print('Building syntaqlite CLI from source (this may take a minute)...')
-  subprocess.check_call(['cargo', 'build', '--release', '-p', 'syntaqlite-cli'],
-                        cwd=SYNTAQLITE_SRC_DIR)
+  return os.path.join(SYNTAQLITE_BIN_DIR, f'syntaqlite{suffix}')
 
 
 def main():
   binary = syntaqlite_binary_path()
   if not os.path.isfile(binary):
-    build_syntaqlite()
-  if not os.path.isfile(binary):
-    sys.exit(f'syntaqlite binary not found at {binary} after build.')
+    sys.exit(f'syntaqlite binary not found at {binary}\n'
+             f'Run `tools/install-build-deps --syntaqlite` to fetch it.')
 
   cmd = [
       binary,

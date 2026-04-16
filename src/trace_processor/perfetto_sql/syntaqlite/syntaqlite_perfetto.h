@@ -12,25 +12,27 @@
 #pragma GCC diagnostic ignored "-Wtype-limits"
 #pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
 #pragma GCC diagnostic ignored "-Wswitch-enum"
-#pragma GCC diagnostic ignored "-Wdeclaration-after-statement"
 #pragma GCC diagnostic ignored "-Wsign-conversion"
 #pragma GCC diagnostic ignored "-Wcast-qual"
 #pragma GCC diagnostic ignored "-Wunused-macros"
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #pragma GCC diagnostic ignored "-Wformat"
 #pragma GCC diagnostic ignored "-Wcast-align"
-#pragma GCC diagnostic ignored "-Wmissing-prototypes"
 #pragma GCC diagnostic ignored "-Wunreachable-code"
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wswitch-default"
 #pragma GCC diagnostic ignored "-Wpadded"
+#ifndef __cplusplus
+#pragma GCC diagnostic ignored "-Wdeclaration-after-statement"
+#pragma GCC diagnostic ignored "-Wmissing-prototypes"
+#endif
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wextra-semi-stmt"
 #pragma clang diagnostic ignored "-Wold-style-cast"
 #pragma clang diagnostic ignored "-Wmissing-variable-declarations"
 #pragma clang diagnostic ignored "-Wimplicit-int-conversion"
 #pragma clang diagnostic ignored "-Wshorten-64-to-32"
-#elif defined(__GNUC__)
+#elif defined(__GNUC__) && !defined(__cplusplus)
 #pragma GCC diagnostic ignored "-Wold-style-declaration"
 #endif
 #endif
@@ -377,8 +379,7 @@ typedef struct SynqParseToken {
                        // shift time so reductions don't depend on
                        // ctx->source which may have been swapped back
                        // after a macro expansion
-  uint8_t layer_id;    // 0 = original source, 1+ = expansion layer index
-  uint8_t _pad[3];
+  uint32_t layer_id;   // 0 = original source, 1+ = expansion layer index
 } SynqParseToken;
 
 typedef struct SyntaqliteFieldRangeMeta SyntaqliteFieldRangeMeta;
@@ -563,8 +564,8 @@ SYNTAQLITE_API void syntaqlite_loaded_dialect_destroy(
 // done:
 //   syntaqlite_parser_destroy(p);
 //
-// Read accumulated macro regions via syntaqlite_result_macro_count() /
-// syntaqlite_result_macro_at() after parsing.
+// Read accumulated macro rewrites via syntaqlite_result_macro_count() /
+// syntaqlite_result_macro_rewrite_at() after parsing.
 
 
 /* ======== begin: syntaqlite/parser.h ======== */
@@ -662,9 +663,8 @@ typedef uint32_t SyntaqliteCompletionContext;
 typedef struct SyntaqliteTextSpan {
   uint32_t offset;
   uint32_t length;
-  uint8_t flags;
-  uint8_t _layer_id;  // Internal: 0 = source, >0 = macro expansion layer.
-  uint8_t _pad[2];
+  uint32_t flags;
+  uint32_t _layer_id;  // Internal: 0 = source, >0 = macro expansion layer.
 } SyntaqliteTextSpan;
 
 // ── Span flags ───────────────────────────────────────────────────────────────
@@ -672,7 +672,7 @@ typedef struct SyntaqliteTextSpan {
 // Identifier was quoted in source (`"..."`, `` `...` ``, or `[...]`).
 // The span points to the dequoted inner text; the formatter re-wraps in
 // `"..."`.
-#define SYNTAQLITE_SPAN_FLAG_QUOTED ((uint8_t)1u)
+#define SYNTAQLITE_SPAN_FLAG_QUOTED ((uint32_t)1u)
 
 static inline int synq_span_is_quoted(SyntaqliteTextSpan sp) {
   return (sp.flags & SYNTAQLITE_SPAN_FLAG_QUOTED) != 0;
@@ -717,6 +717,18 @@ typedef struct SyntaqliteParser SyntaqliteParser;
 #define SYNTAQLITE_PARSE_OK 1
 #define SYNTAQLITE_PARSE_ERROR (-1)
 
+// Generic success/error codes for setters and other small APIs that
+// return 0/-1 status.  Stable ABI.
+//
+//   OK               = operation succeeded
+//   ERR_ALREADY_USED = configuration call made after the parser was sealed
+//                      (i.e. after the first reset()/next()/feed_token())
+//   ERR_OMITTED      = feature compiled out of this build (e.g. macros
+//                      disabled via SYNTAQLITE_OMIT_MACROS)
+#define SYNTAQLITE_OK 0
+#define SYNTAQLITE_ERR_ALREADY_USED (-1)
+#define SYNTAQLITE_ERR_OMITTED (-1)
+
 // ---------------------------------------------------------------------------
 // Core API — create, reset, parse, destroy
 // ---------------------------------------------------------------------------
@@ -753,28 +765,33 @@ SYNTAQLITE_API void syntaqlite_parser_destroy(SyntaqliteParser* p);
 
 // Enable token/comment collection for result_tokens/result_comments.
 // Default: off (0), in which case those arrays are empty.
-// Returns 0 on success, -1 if the parser has already been used.
+// Returns SYNTAQLITE_OK on success, SYNTAQLITE_ERR_ALREADY_USED if the
+// parser has already been used.
 SYNTAQLITE_API int32_t syntaqlite_parser_set_collect_tokens(SyntaqliteParser* p,
                                                             uint32_t enable);
 
 // Enable parser trace output (debug builds only). Default: off (0).
-// Returns 0 on success, -1 if the parser has already been used.
+// Returns SYNTAQLITE_OK on success, SYNTAQLITE_ERR_ALREADY_USED if the
+// parser has already been used.
 SYNTAQLITE_API int32_t syntaqlite_parser_set_trace(SyntaqliteParser* p,
                                                    uint32_t enable);
 
 // Enable macro fallback: when the dialect uses SYNQ_MACRO_STYLE_RUST and a
 // name!(args) call is encountered but the name is NOT in the macro registry,
 // consume the entire name!(args) as a single TK_ID token instead of raising
-// a parse error. A MacroRegion is recorded so the formatter can emit the
+// a parse error. A MacroRewrite is recorded so the formatter can emit the
 // call verbatim. Default: off (0).
-// Returns 0 on success, -1 if the parser has already been used.
+// Returns SYNTAQLITE_OK on success, SYNTAQLITE_ERR_ALREADY_USED if the
+// parser has already been used, SYNTAQLITE_ERR_OMITTED if macros are
+// compiled out (SYNTAQLITE_OMIT_MACROS).
 SYNTAQLITE_API int32_t syntaqlite_parser_set_macro_fallback(SyntaqliteParser* p,
                                                             uint32_t enable);
 
 // Enable per-node extent tracking.  When enabled, the parser records
 // the source byte range of every AST node it commits to the arena,
 // accessible via `syntaqlite_parser_node_text`.  Default: off (0).
-// Returns 0 on success, -1 if the parser has already been used.
+// Returns SYNTAQLITE_OK on success, SYNTAQLITE_ERR_ALREADY_USED if the
+// parser has already been used.
 SYNTAQLITE_API int32_t
 syntaqlite_parser_set_collect_node_extents(SyntaqliteParser* p,
                                            uint32_t enable);
@@ -832,8 +849,7 @@ typedef struct SyntaqliteParserToken {
   uint32_t length;  // Byte length.
   uint32_t type;    // Original token type from tokenizer (pre-fallback).
   SyntaqliteParserTokenFlags flags;  // Bitmask of SYNQ_TOKEN_FLAG_* values.
-  uint8_t _layer_id;  // Internal: 0 = original source, >0 = expansion layer.
-  uint8_t _pad[3];
+  uint32_t _layer_id;  // Internal: 0 = original source, >0 = expansion layer.
 } SyntaqliteParserToken;
 
 // Per-statement token/comment arrays.
@@ -846,20 +862,117 @@ SYNTAQLITE_API const SyntaqliteParserToken* syntaqlite_result_tokens(
     SyntaqliteParser* p,
     uint32_t* count);
 
-// A recorded macro invocation region.
-// For the input-side begin/end API see incremental.h.
-typedef struct SyntaqliteMacroRegion {
-  uint32_t call_offset;  // Byte offset of macro call in original source.
-  uint32_t call_length;  // Byte length of entire macro call.
-} SyntaqliteMacroRegion;
+// Sentinel value for `SyntaqliteMacroRewrite::parent_idx` meaning "this
+// rewrite applies directly to the authored source" (i.e. the rewrite is
+// not nested inside another macro's expansion).
+#define SYNTAQLITE_MACRO_PARENT_SOURCE UINT32_MAX
 
-// Macro-invocation call sites recorded during parsing.  Accessed via count
-// + indexed getter rather than an array pointer to avoid materializing a
-// separate view — the internal representation carries more data per entry
-// than `SyntaqliteMacroRegion` exposes.
+// Sentinel value for `SyntaqliteMacroRewrite::body_call_offset` and
+// `body_call_length` meaning "this call was tokenized from a $param
+// substitution — it has no position in the parent's authored body;
+// consumers should descend through the matching arg segment instead."
+#define SYNTAQLITE_MACRO_BODY_CALL_ARG_INTERNAL UINT32_MAX
+
+// A recorded macro invocation — enough information to reconstruct a
+// source-to-expanded rewrite tree (e.g. to drive Perfetto's
+// SqlSource::Rewriter or an equivalent).
+//
+// Entries are reported in insertion order: outer macros appear before the
+// nested macros they contain, and macros at the same nesting level appear
+// in source order.
+//
+// `parent_idx` is either SYNTAQLITE_MACRO_PARENT_SOURCE (the rewrite
+// replaces a range in the authored source) or the index of another entry
+// in this same flat list (the rewrite replaces a range in that entry's
+// `expansion` buffer).
+//
+// `call_offset` / `call_length` describe the byte range of the macro call
+// inside the parent's text (authored source if `parent_idx` is the
+// sentinel, otherwise the parent entry's `expansion` buffer).
+//
+// `expansion` is the replacement text for that range.  It is NOT
+// NUL-terminated; use `expansion_len`.  Nested macro calls appearing
+// inside `expansion` are reported as separate entries that reference this
+// entry via their `parent_idx`.
+//
+// `name` is the macro name as it appears at the call site (NOT
+// NUL-terminated; use `name_len`).
+//
+// `def_line` / `def_col` record the 1-based line/column of the macro
+// definition (0 if unknown), for traceback purposes.
+//
+// Pointers (`expansion`, `name`) are owned by the parser and remain valid
+// until the next `syntaqlite_parser_next`, `syntaqlite_parser_reset`, or
+// `syntaqlite_parser_destroy` call.
+typedef struct SyntaqliteMacroRewrite {
+  uint32_t parent_idx;
+  uint32_t call_offset;
+  uint32_t call_length;
+  const char* expansion;
+  uint32_t expansion_len;
+  const char* name;
+  uint32_t name_len;
+  uint32_t def_line;
+  uint32_t def_col;
+  // Position of this call in the *parent's authored body*, computed by
+  // inverting the length shifts the parent's $param substitutions
+  // introduced.  body_call_length == 0 means the call was tokenized
+  // from a substituted arg's text (no meaningful body position) and
+  // consumers should descend through the matching arg segment instead.
+  //
+  // For top-level rewrites (parent_idx == SYNTAQLITE_MACRO_PARENT_SOURCE)
+  // the parent is the authored source, so these equal call_offset /
+  // call_length.
+  uint32_t body_call_offset;
+  uint32_t body_call_length;
+} SyntaqliteMacroRewrite;
+
+// Number of macro rewrites recorded for the current statement.
 SYNTAQLITE_API uint32_t syntaqlite_result_macro_count(SyntaqliteParser* p);
-SYNTAQLITE_API SyntaqliteMacroRegion
-syntaqlite_result_macro_at(SyntaqliteParser* p, uint32_t idx);
+
+// Returns the rewrite at `idx` (0-based).  Returns a zero-initialized
+// struct if `idx >= syntaqlite_result_macro_count(p)`.
+SYNTAQLITE_API SyntaqliteMacroRewrite
+syntaqlite_result_macro_rewrite_at(SyntaqliteParser* p, uint32_t idx);
+
+// One $param substitution within a macro expansion.
+//
+// `body_offset` / `body_length` locate the `$param` token in the macro's
+// authored body.  Populated by the template-expansion path; zero for
+// macros registered via the raw set_result_with_arg_map API.
+//
+// `expansion_offset` / `expansion_length` locate the substituted arg
+// text in the rewrite's `expansion` buffer.
+//
+// `origin_parent_idx` + `origin_offset` + `origin_length` locate the
+// arg text where it was authored — either in the original source
+// (`origin_parent_idx == SYNTAQLITE_MACRO_PARENT_SOURCE`) or in another
+// rewrite's `expansion` buffer (rewrite index).  Consumers walk the
+// chain of $param substitutions by recursing into the origin rewrite's
+// arg segments.
+typedef struct SyntaqliteMacroArgSegment {
+  uint32_t body_offset;
+  uint32_t body_length;
+  uint32_t expansion_offset;
+  uint32_t expansion_length;
+  uint32_t origin_parent_idx;
+  uint32_t origin_offset;
+  uint32_t origin_length;
+} SyntaqliteMacroArgSegment;
+
+// Number of arg segments recorded on the rewrite at `rewrite_idx`.
+// Returns 0 if `rewrite_idx` is out of range.
+SYNTAQLITE_API uint32_t
+syntaqlite_macro_rewrite_arg_segment_count(SyntaqliteParser* p,
+                                           uint32_t rewrite_idx);
+
+// Returns the arg segment at `segment_idx` on the rewrite at
+// `rewrite_idx`.  Returns a zero-initialized struct if either index is
+// out of range.
+SYNTAQLITE_API SyntaqliteMacroArgSegment
+syntaqlite_macro_rewrite_arg_segment_at(SyntaqliteParser* p,
+                                        uint32_t rewrite_idx,
+                                        uint32_t segment_idx);
 
 // ---------------------------------------------------------------------------
 // Arena accessors
@@ -1018,6 +1131,26 @@ SYNTAQLITE_API const char* syntaqlite_parser_node_expanded_text(
     uint32_t* out_len);
 
 // ---------------------------------------------------------------------------
+// Macro-expansion queries
+// ---------------------------------------------------------------------------
+
+// Returns 1 if `span` was tokenized from the original source (layer 0),
+// 0 if it was produced by a macro expansion.  Returns 0 for empty spans.
+static inline int syntaqlite_span_is_macro_free(
+    const SyntaqliteTextSpan* span) {
+  return span->length > 0 && span->_layer_id == 0;
+}
+
+// Returns 1 if all tokens of AST node `node_id` live in layer 0 (original
+// source), 0 otherwise.  Returns 0 when extent tracking is disabled, the
+// node id is unknown, or no extent was recorded.
+//
+// Requires `syntaqlite_parser_set_collect_node_extents(p, 1)` before the
+// first `reset()`.
+SYNTAQLITE_API int syntaqlite_node_is_macro_free(SyntaqliteParser* p,
+                                                 uint32_t node_id);
+
+// ---------------------------------------------------------------------------
 // Node and list helpers
 // ---------------------------------------------------------------------------
 
@@ -1107,85 +1240,6 @@ SYNTAQLITE_API SyntaqliteDialect syntaqlite_sqlite_dialect(void);
 
 #endif  /* SYNTAQLITE_PARSER_H */
 /* ======== end: syntaqlite/parser.h ======== */
-
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-// ---------------------------------------------------------------------------
-// Token feeding
-// ---------------------------------------------------------------------------
-
-// Feed a single token. TK_SPACE is silently skipped. TK_COMMENT is recorded
-// as a comment only when collect_tokens is enabled, and is not fed to parser.
-//
-// Returns a SYNTAQLITE_PARSE_* code:
-//   DONE      = keep going (statement not yet complete)
-//   OK        = statement completed cleanly
-//   ERROR     = statement has parse/runtime error (may still have recovery
-//   root)
-SYNTAQLITE_API int32_t syntaqlite_parser_feed_token(SyntaqliteParser* p,
-                                                    uint32_t token_type,
-                                                    const char* text,
-                                                    uint32_t len);
-
-// Signal end-of-input. Synthesizes a SEMI if needed and sends EOF to the
-// parser. Returns a SYNTAQLITE_PARSE_* code.
-SYNTAQLITE_API int32_t syntaqlite_parser_finish(SyntaqliteParser* p);
-
-// ---------------------------------------------------------------------------
-// Completion / lookahead
-// ---------------------------------------------------------------------------
-
-// Enumerate terminal tokens that are valid next lookaheads at the parser's
-// current state. Returns the total number of expected tokens.
-// If out_tokens is non-NULL, up to out_cap token IDs are written.
-SYNTAQLITE_API uint32_t syntaqlite_parser_expected_tokens(SyntaqliteParser* p,
-                                                          uint32_t* out_tokens,
-                                                          uint32_t out_cap);
-
-// Return the semantic completion context at the parser's current state.
-// One of SYNTAQLITE_COMPLETION_CONTEXT_*.
-SYNTAQLITE_API SyntaqliteCompletionContext
-syntaqlite_parser_completion_context(SyntaqliteParser* p);
-
-// ---------------------------------------------------------------------------
-// Macro registration
-// ---------------------------------------------------------------------------
-
-// Register a template macro.  Copies all strings.
-// The macro body uses $param placeholders (e.g. "$x + 1").
-//
-// `def_line` / `def_col` are the 1-based line/column of the defining
-// statement (e.g. `CREATE PERFETTO MACRO foo`).  They are stored on the
-// registry entry and surfaced by expansion tracebacks so error frames for
-// macro bodies can reference the authoring position.  Pass 0/0 if unknown.
-//
-// Returns 0 on success.
-SYNTAQLITE_API int syntaqlite_parser_register_macro(
-    SyntaqliteParser* p,
-    const char* name,
-    uint32_t name_len,
-    const char* const* param_names,
-    uint32_t param_count,
-    const char* body,
-    uint32_t body_len,
-    uint32_t def_line,
-    uint32_t def_col);
-
-// Deregister a macro by name.  Returns 0 on success, -1 if not found.
-SYNTAQLITE_API int syntaqlite_parser_deregister_macro(SyntaqliteParser* p,
-                                                      const char* name,
-                                                      uint32_t name_len);
-
-#ifdef __cplusplus
-}
-#endif
-
-
-#endif  /* SYNTAQLITE_INCREMENTAL_PARSER_H */
-/* ======== end: syntaqlite/incremental.h ======== */
 
 /* ======== begin: syntaqlite/tokenizer.h ======== */
 #ifndef SYNTAQLITE_TOKENIZER_H
@@ -1284,6 +1338,140 @@ SYNTAQLITE_API SyntaqliteDialect syntaqlite_sqlite_dialect(void);
 
 #endif  /* SYNTAQLITE_TOKENIZER_H */
 /* ======== end: syntaqlite/tokenizer.h ======== */
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// ---------------------------------------------------------------------------
+// Token feeding
+// ---------------------------------------------------------------------------
+
+// Feed a single token. TK_SPACE is silently skipped. TK_COMMENT is recorded
+// as a comment only when collect_tokens is enabled, and is not fed to parser.
+//
+// Returns a SYNTAQLITE_PARSE_* code:
+//   DONE      = keep going (statement not yet complete)
+//   OK        = statement completed cleanly
+//   ERROR     = statement has parse/runtime error (may still have recovery
+//   root)
+SYNTAQLITE_API int32_t syntaqlite_parser_feed_token(SyntaqliteParser* p,
+                                                    uint32_t token_type,
+                                                    const char* text,
+                                                    uint32_t len);
+
+// Signal end-of-input. Synthesizes a SEMI if needed and sends EOF to the
+// parser. Returns a SYNTAQLITE_PARSE_* code.
+SYNTAQLITE_API int32_t syntaqlite_parser_finish(SyntaqliteParser* p);
+
+// ---------------------------------------------------------------------------
+// Completion / lookahead
+// ---------------------------------------------------------------------------
+
+// Enumerate terminal tokens that are valid next lookaheads at the parser's
+// current state. Returns the total number of expected tokens.
+// If out_tokens is non-NULL, up to out_cap token IDs are written.
+SYNTAQLITE_API uint32_t syntaqlite_parser_expected_tokens(SyntaqliteParser* p,
+                                                          uint32_t* out_tokens,
+                                                          uint32_t out_cap);
+
+// Return the semantic completion context at the parser's current state.
+// One of SYNTAQLITE_COMPLETION_CONTEXT_*.
+SYNTAQLITE_API SyntaqliteCompletionContext
+syntaqlite_parser_completion_context(SyntaqliteParser* p);
+
+// ---------------------------------------------------------------------------
+// Macro lookup callback
+// ---------------------------------------------------------------------------
+
+// Return codes for SyntaqliteMacroLookupFn callbacks. Stable ABI.
+//   OK        = macro found and expansion set via set_result*
+//   NOT_FOUND = no macro with that name is registered
+//   ERROR     = macro was found but expansion failed
+#define SYNTAQLITE_MACRO_LOOKUP_OK 0
+#define SYNTAQLITE_MACRO_LOOKUP_NOT_FOUND (-1)
+#define SYNTAQLITE_MACRO_LOOKUP_ERROR (-2)
+
+// Returns SYNTAQLITE_MACRO_LOOKUP_OK on success (the callback must call
+// set_result first), SYNTAQLITE_MACRO_LOOKUP_NOT_FOUND if the macro does
+// not exist, SYNTAQLITE_MACRO_LOOKUP_ERROR on expansion error.
+typedef int (*SyntaqliteMacroLookupFn)(void* user_data,
+                                       SyntaqliteParser* parser,
+                                       const char* name,
+                                       uint32_t name_len,
+                                       const SyntaqliteToken* args,
+                                       uint32_t arg_count);
+
+// Returns SYNTAQLITE_OK on success, SYNTAQLITE_ERR_OMITTED if macros are
+// compiled out (SYNTAQLITE_OMIT_MACROS).
+SYNTAQLITE_API int32_t
+syntaqlite_parser_set_macro_lookup(SyntaqliteParser* p,
+                                   SyntaqliteMacroLookupFn fn,
+                                   void* user_data);
+
+// ---------------------------------------------------------------------------
+// Macro expansion result (called from inside the lookup callback)
+// ---------------------------------------------------------------------------
+
+// Set the expanded body for the current macro invocation.
+// `def_line` / `def_col` are 1-based definition position for tracebacks
+// (pass 0/0 if unknown).
+SYNTAQLITE_API void syntaqlite_macro_expansion_set_result(SyntaqliteParser* p,
+                                                          const char* body,
+                                                          uint32_t body_len,
+                                                          uint32_t def_line,
+                                                          uint32_t def_col);
+
+// Describes where one macro argument was pasted into the expansion body.
+// Used by set_result_with_arg_map to enable span drilling through
+// $param substitutions.
+typedef struct SyntaqliteArgMapping {
+  uint32_t body_offset;  // Byte offset in `body` where arg text starts.
+  uint32_t arg_index;    // Index into the args array passed to the callback.
+} SyntaqliteArgMapping;
+
+// Like set_result, but with arg-mapping metadata for span drilling.
+// Each mapping says "at body_offset, I pasted arg[arg_index]".
+// Enables span_text to drill through substitutions to the caller's
+// authored arg text instead of collapsing to the whole call site.
+SYNTAQLITE_API void syntaqlite_macro_expansion_set_result_with_arg_map(
+    SyntaqliteParser* p,
+    const char* body,
+    uint32_t body_len,
+    uint32_t def_line,
+    uint32_t def_col,
+    const SyntaqliteArgMapping* mappings,
+    uint32_t mapping_count);
+
+// Template expansion helper: substitute `$param` placeholders with the
+// current invocation's args and call set_result.  Arg segments are built
+// automatically.  Returns SYNTAQLITE_OK on success.
+//
+// `flags` is a bitwise OR of SYNTAQLITE_EXPAND_* constants (0 for defaults).
+//
+// By default, encountering a `$param` that does not match any entry in
+// `param_names` is an error (returns -1).  Pass
+// SYNTAQLITE_EXPAND_PASSTHROUGH_UNKNOWN to copy unknown `$param` tokens
+// verbatim into the expansion buffer instead.
+#define SYNTAQLITE_EXPAND_PASSTHROUGH_UNKNOWN 0x1u
+
+SYNTAQLITE_API int syntaqlite_macro_expansion_expand_and_set_result(
+    SyntaqliteParser* p,
+    const char* body,
+    uint32_t body_len,
+    const char* const* param_names,
+    const uint32_t* param_name_lens,
+    uint32_t param_count,
+    uint32_t flags);
+
+#ifdef __cplusplus
+}
+#endif
+
+
+#endif  /* SYNTAQLITE_INCREMENTAL_PARSER_H */
+/* ======== end: syntaqlite/incremental.h ======== */
 
 /* ======== begin: syntaqlite_perfetto/perfetto.h ======== */
 #ifndef SYNTAQLITE_PERFETTO_GRAMMAR_H
