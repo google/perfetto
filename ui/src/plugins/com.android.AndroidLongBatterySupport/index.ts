@@ -17,8 +17,10 @@ import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
 import {SliceTrack, RowSchema} from '../../components/tracks/slice_track';
-import {CounterOptions} from '../../components/tracks/base_counter_track';
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
+import {
+  CounterTrack,
+  CounterTrackAttrs,
+} from '../../components/tracks/counter_track';
 import {TrackNode} from '../../public/workspace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {STR} from '../../trace_processor/query_result';
@@ -89,18 +91,15 @@ export default class implements PerfettoPlugin {
     name: string,
     query: string,
     groupName: string,
-    options?: Partial<CounterOptions>,
+    config?: Omit<CounterTrackAttrs, 'trace' | 'uri' | 'sqlSource'>,
     groupCollapsed = true,
   ) {
     const uri = `/long_battery_tracing_${name}`;
-    const track = await createQueryCounterTrack({
+    const track = await CounterTrack.createMaterialized({
       trace: ctx,
       uri,
-      data: {
-        sqlSource: query,
-        columns: ['ts', 'value'],
-      },
-      options,
+      sqlSource: query,
+      ...config,
     });
     ctx.tracks.registerTrack({
       uri,

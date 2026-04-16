@@ -17,10 +17,7 @@
 // rendering logic.
 
 import m from 'mithril';
-import {valueIfAllEqual} from '../base/array_utils';
-import {getZodSchemaInfo} from '../base/zod_utils';
 import {TrackSettingDescriptor} from '../public/track';
-import {MenuItem} from '../widgets/menu';
 
 /**
  * Infers the type of the setting from its descriptor and renders a suitable
@@ -37,65 +34,5 @@ export function renderTrackSettingMenu<T>(
   setter: (v: T) => void,
   values: ReadonlyArray<T>,
 ): m.Children {
-  // If a renderer is provided, use it!
-  if (descriptor.render) {
-    return descriptor.render(setter, values);
-  }
-
-  const schemaInfo = getZodSchemaInfo(descriptor.schema);
-
-  switch (schemaInfo.kind) {
-    case 'boolean': {
-      const value = valueIfAllEqual(values);
-      const icon = (function () {
-        switch (value) {
-          case true:
-            return 'check_box';
-          case false:
-            return 'check_box_outline_blank';
-          default:
-            return 'indeterminate_check_box'; // Mixed values
-        }
-      })();
-      return m(MenuItem, {
-        icon,
-        label: descriptor.name,
-        onclick: () => {
-          switch (value) {
-            case true:
-              setter(false as T);
-              break;
-            case false:
-            default:
-              setter(true as T);
-              break;
-          }
-        },
-      });
-    }
-
-    case 'enum': {
-      const value = valueIfAllEqual(values);
-      return m(
-        MenuItem,
-        {
-          label: `${descriptor.name} (currently: ${String(value)})`,
-        },
-        schemaInfo.options.map((option) => {
-          return m(MenuItem, {
-            label: option,
-            active: value === option,
-            onclick: () => setter(option as T),
-          });
-        }),
-      );
-    }
-
-    case 'unknown':
-    default:
-      return m(MenuItem, {
-        icon: 'error_outline',
-        label: descriptor.name + ' - Cannot edit this setting directly',
-      });
-  }
+  return descriptor.render(setter, values);
 }

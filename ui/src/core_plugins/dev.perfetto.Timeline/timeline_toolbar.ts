@@ -431,12 +431,12 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
         renderTrackSettingMenu(
           descriptor,
           (value) => {
-            // Set all the settings to the same thing!
+            // Set all the settings to the same value
             for (const setting of settings) {
-              setting.setValue(value);
+              setting.update(value);
             }
           },
-          settings.map((s) => s.getValue()),
+          settings.map((s) => s.value),
         ),
       );
     }
