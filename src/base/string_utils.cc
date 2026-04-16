@@ -134,8 +134,9 @@ std::string_view TrimWhitespace(std::string_view str) {
     return {};
   std::string_view front_trimmed = str.substr(front_idx);
   size_t end_idx = front_trimmed.find_last_not_of(kWhitespaces);
-  return end_idx == std::string_view::npos ? std::string_view()
-                                           : front_trimmed.substr(0, end_idx + 1);
+  return end_idx == std::string_view::npos
+             ? std::string_view()
+             : front_trimmed.substr(0, end_idx + 1);
 }
 
 std::string TrimWhitespace(const std::string& str) {
