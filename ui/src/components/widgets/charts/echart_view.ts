@@ -130,6 +130,13 @@ function buildEChartsTheme(colors: ChartThemeColors): Record<string, unknown> {
       splitLine: {lineStyle: {color: colors.borderColor}},
       nameTextStyle: {color: colors.textColor},
     },
+    timeAxis: {
+      axisLine: {lineStyle: {color: colors.borderColor}},
+      axisTick: {lineStyle: {color: colors.borderColor}},
+      axisLabel: {color: colors.textColor},
+      splitLine: {lineStyle: {color: colors.borderColor}},
+      nameTextStyle: {color: colors.textColor},
+    },
     visualMap: {
       textStyle: {color: colors.textColor},
       inRange: {
@@ -246,6 +253,8 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
   private prevHandlers: ReadonlyArray<EChartEventHandler> = [];
   private prevOptionJson?: string;
   private prevThemeHash?: string;
+  private legendHighlightHandler?: (params: unknown) => void;
+  private legendDownplayHandler?: () => void;
 
   oncreate({dom, attrs}: m.CVnodeDOM<EChartViewAttrs>) {
     ensureEChartsSetup();
@@ -320,6 +329,7 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
     this.prevThemeHash = themeHash(colors);
     this.syncHandlers(attrs.eventHandlers ?? []);
     this.activateBrush(attrs.activeBrushType);
+    this.setupLegendHoverEmphasis();
   }
 
   private applyResolveOption(
@@ -332,9 +342,56 @@ export class EChartView implements m.ClassComponent<EChartViewAttrs> {
 
   private disposeChart(): void {
     this.detachAllHandlers();
+    this.teardownLegendHoverEmphasis();
     if (this.chart) {
       this.chart.dispose();
       this.chart = undefined;
+    }
+  }
+
+  // Handles legendhighlight/legenddownplay events by dispatching highlight/
+  // downplay actions by seriesIndex. Unlike legendHoverLink (which dispatches
+  // by name), index-based dispatch triggers ECharts 5's focus/blur mechanism,
+  // causing the hovered series to be emphasised and others to be blurred.
+  private setupLegendHoverEmphasis(): void {
+    if (!this.chart) return;
+    const chart = this.chart;
+
+    this.legendHighlightHandler = (params: unknown) => {
+      const p = params as {name?: string};
+      if (!p.name) return;
+      const opt = chart.getOption() as {series?: Array<{name?: string}>};
+      const series = Array.isArray(opt.series) ? opt.series : [];
+      series.forEach((s, i) => {
+        if (s.name === p.name) {
+          chart.dispatchAction({type: 'highlight', seriesIndex: i});
+        } else {
+          chart.dispatchAction({type: 'downplay', seriesIndex: i});
+        }
+      });
+    };
+
+    this.legendDownplayHandler = () => {
+      const opt = chart.getOption() as {series?: Array<{name?: string}>};
+      const series = Array.isArray(opt.series) ? opt.series : [];
+      series.forEach((_, i) => {
+        chart.dispatchAction({type: 'downplay', seriesIndex: i});
+      });
+    };
+
+    chart.on('legendhighlight', this.legendHighlightHandler);
+    chart.on('legenddownplay', this.legendDownplayHandler);
+  }
+
+  private teardownLegendHoverEmphasis(): void {
+    if (!this.chart) return;
+    if (this.legendHighlightHandler) {
+      this.chart.off('legendhighlight', this.legendHighlightHandler);
+      this.legendHighlightHandler = undefined;
+    }
+    if (this.legendDownplayHandler) {
+      this.chart.off('legenddownplay', this.legendDownplayHandler);
+      this.legendDownplayHandler = undefined;
     }
   }
 

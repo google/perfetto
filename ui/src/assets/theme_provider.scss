@@ -26,8 +26,8 @@
 
   &--light {
     --pf-color-void: white;
-    --pf-color-background: white;
-    --pf-color-background-secondary: #edf0f1;
+    --pf-color-background: #f4f4f4;
+    --pf-color-background-secondary: #e4e4e4;
     --pf-color-background-tertiary: #e3e9eb;
     --pf-color-interactive-base: rgb(4, 33, 56);
     --pf-color-text: #333;
@@ -76,16 +76,16 @@
   }
 
   &--dark {
-    --pf-color-void: #181818;
-    --pf-color-background: #202020;
-    --pf-color-background-secondary: #343434;
-    --pf-color-background-tertiary: #4a4a4a;
+    --pf-color-void: #121212;
+    --pf-color-background: #1a1a1a;
+    --pf-color-background-secondary: #2a2a2a;
+    --pf-color-background-tertiary: #323232;
     --pf-color-interactive-base: white;
-    --pf-color-text: #dce0e2;
-    --pf-color-text-muted: #a0a2a5;
-    --pf-color-text-disabled: #8d8d8e;
-    --pf-color-border: #484848;
-    --pf-color-border-secondary: #383838;
+    --pf-color-text: #e0e0e0;
+    --pf-color-text-muted: #999999;
+    --pf-color-text-disabled: #7a7a7a;
+    --pf-color-border: #333333;
+    --pf-color-border-secondary: #333333;
     --pf-color-text-hint: #9aa0a6;
     --pf-color-box-shadow: rgba(0, 0, 0, 0.4);
     --pf-color-neutral: gray;
@@ -93,24 +93,24 @@
     --pf-color-text-on-accent: white;
     --pf-color-highlight: #5f4d06;
 
-    --pf-color-primary: #598bed;
-    --pf-color-text-on-primary: #333;
-    --pf-color-danger: rgb(230, 90, 90);
+    --pf-color-primary: #0069b9;
+    --pf-color-text-on-primary: #ffffff;
+    --pf-color-danger: #b60006;
     --pf-color-text-on-danger: #333;
-    --pf-color-success: rgb(99, 192, 99);
+    --pf-color-success: #3daf00;
     --pf-color-text-on-success: #333;
-    --pf-color-warning: rgb(244, 188, 67);
+    --pf-color-warning: #d4a200;
     --pf-color-text-on-warning: #333;
 
     // Chart color palette for data visualization (brighter for dark mode)
-    --pf-chart-color-1: #5e97f6; // Lighter Blue
-    --pf-chart-color-2: #f28b82; // Lighter Red
-    --pf-chart-color-3: #fdd663; // Lighter Yellow
-    --pf-chart-color-4: #81c995; // Lighter Green
-    --pf-chart-color-5: #ff8866; // Lighter Orange
-    --pf-chart-color-6: #78d9e4; // Lighter Cyan
-    --pf-chart-color-7: #c58af9; // Lighter Purple
-    --pf-chart-color-8: #669df6; // Lighter Dark Blue
+    --pf-chart-color-1: #4285f4; // Google Blue
+    --pf-chart-color-2: #ea4335; // Google Red
+    --pf-chart-color-3: #fbbc04; // Google Yellow
+    --pf-chart-color-4: #34a853; // Google Green
+    --pf-chart-color-5: #ff6d01; // Orange
+    --pf-chart-color-6: #46bdc6; // Cyan
+    --pf-chart-color-7: #9334e6; // Purple
+    --pf-chart-color-8: #185abc; // Dark Blue
 
     --pf-color-track-summary-collapsed: #2f3437;
     --pf-color-track-summary-expanded: #454d55;

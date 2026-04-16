@@ -1,0 +1,122 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Profile header bar — three zones: status | subject+stats | actions.
+.pf-memento-profile-bar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  border-radius: 8px;
+  background: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border-secondary);
+  overflow: hidden;
+}
+
+// Zone 1 — recording status (left).
+.pf-memento-profile-bar__status {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding: 12px 20px;
+  border-right: 1px solid var(--pf-color-border-secondary);
+}
+
+// "● RECORDING" badge.
+.pf-memento-profile-bar__rec-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--pf-font-size-s);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #4caf50;
+
+  &::before {
+    content: "";
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #4caf50;
+    animation: pf-memento-pulse 1.5s ease-in-out infinite;
+  }
+}
+
+// "Stopping…" text shown while trace is being finalised.
+.pf-memento-profile-bar__stopping {
+  font-size: var(--pf-font-size-s);
+  font-weight: 600;
+  color: var(--pf-color-text-muted);
+  font-style: italic;
+}
+
+// Data-source row: "⬤ heapprofd · ☕ java_hprof".
+.pf-memento-profile-bar__sources {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-muted);
+}
+
+.pf-memento-profile-bar__source-sep {
+  color: var(--pf-color-border-secondary);
+  margin: 0 2px;
+}
+
+// Zone 2 — process name + stats (center, flex-grows).
+.pf-memento-profile-bar__subject {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 20px;
+  min-width: 0; // allow truncation
+}
+
+.pf-memento-profile-bar__process {
+  font-size: var(--pf-font-size-m);
+  font-weight: 600;
+  color: var(--pf-color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// Secondary row: PID · duration · buffer.
+.pf-memento-profile-bar__meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--pf-font-size-s);
+  color: var(--pf-color-text-muted);
+}
+
+.pf-memento-profile-bar__meta-sep {
+  margin: 0 3px;
+  color: var(--pf-color-border-secondary);
+}
+
+// Zone 3 — actions (right).
+.pf-memento-profile-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-left: 1px solid var(--pf-color-border-secondary);
+}

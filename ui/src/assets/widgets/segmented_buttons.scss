@@ -21,11 +21,7 @@
   gap: 2px;
   padding: 2px;
   border-radius: $border-radius-large;
-  background: color-mix(
-    in srgb,
-    transparent,
-    var(--pf-color-interactive-base) 10%
-  );
+  background: var(--pf-color-void);
 
   &--fill-width {
     display: flex;
@@ -49,8 +45,8 @@
     }
 
     &.pf-active {
-      background: var(--pf-color-background);
-      color: var(--pf-color-text);
+      background: var(--pf-color-primary);
+      color: var(--pf-color-text-on-primary);
     }
   }
 }
