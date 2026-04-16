@@ -24,6 +24,7 @@ const {SourceMapConsumer, SourceMapGenerator} = require('source-map');
 const ROOT_DIR = path.dirname(path.dirname(__dirname)); // The repo root.
 const OUT_SYMLINK = path.join(ROOT_DIR, 'ui/out');
 const NO_SOURCE_MAPS = process.env['NO_SOURCE_MAPS'] === 'true';
+const NO_TREESHAKE = process.env['NO_TREESHAKE'] === 'true';
 
 // Plugin to embed minimal source maps directly into bundles
 function embedMinimalSourceMap() {
@@ -44,7 +45,7 @@ function embedMinimalSourceMap() {
 
           // Track which lines we've seen to only add one mapping per line
           const seenLines = new Set();
-          
+
           // Clean source paths
           const cleanSourcePath = (source) => {
             let cleaned = source.replace('../../../out/ui/', '');
@@ -54,14 +55,14 @@ function embedMinimalSourceMap() {
 
           consumer.eachMapping((mapping) => {
             if (!mapping.source) return;
-            
+
             // Only add first mapping per generated line
             const lineKey = mapping.generatedLine;
             if (seenLines.has(lineKey)) return;
             seenLines.add(lineKey);
 
             const cleanSource = cleanSourcePath(mapping.source);
-            
+
             generator.addMapping({
               generated: {
                 line: mapping.generatedLine,
@@ -79,7 +80,7 @@ function embedMinimalSourceMap() {
           consumer.destroy();
 
           const minimalMap = JSON.parse(generator.toString());
-          
+
           // Remove sourcesContent to reduce size
           delete minimalMap.sourcesContent;
           // Remove names array (should be empty anyway since we didn't add names)
@@ -112,6 +113,7 @@ function defBundle(tsRoot, bundle, distDir) {
       file: `${OUT_SYMLINK}/${distDir}/${bundle}_bundle.js`,
       sourcemap: !NO_SOURCE_MAPS,
     },
+    treeshake: NO_TREESHAKE ? false : undefined,
     watch: {
       exclude: ['out/**'],
       buildDelay: 250,
