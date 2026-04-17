@@ -613,10 +613,19 @@ export class CounterTrack implements TrackRenderer {
 
   renderTooltip(): m.Children {
     if (!this.hover) return undefined;
-    return m(
-      '.pf-track__tooltip',
-      this.formatYValue(this.hover.lastDisplayValue),
-    );
+    const raw = this.hover.lastDisplayValue;
+    const v = this.yDisplay === 'log' ? Math.exp(raw) : raw;
+    const n = v.toLocaleString();
+    switch (this.yMode) {
+      case 'value':
+        return m('.pf-track__tooltip', `${n}${this.unit}`);
+      case 'delta':
+        return m('.pf-track__tooltip', `\u0394${n}${this.unit}`);
+      case 'rate':
+        return m('.pf-track__tooltip', `${n}${this.rateUnit}`);
+      default:
+        assertUnreachable(this.yMode);
+    }
   }
 
   // -- Private methods --
