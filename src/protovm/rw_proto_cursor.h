@@ -91,11 +91,11 @@ class RwProtoCursor {
   // from 'data'. Fields present in 'data' but not in the cursor's message are
   // added/created. If skip_submessages is set to true, any message node already
   // resolved in the dst are skipped, thus not overwritten by the parent merge.
-  StatusOr<void> Merge(protozero::ConstBytes data, bool skip_submessages);
+  StatusOr<void> Merge(protozero::ConstBytes data,
+                       bool skip_submessages,
+                       bool del_if_src_empty);
 
   StatusOr<void> Delete();
-
-  bool IsRepeated() const;
 
  private:
   struct ParentLink {

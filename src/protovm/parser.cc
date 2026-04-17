@@ -93,7 +93,8 @@ StatusOr<void> Parser::ParseInstruction(
 StatusOr<void> Parser::ParseMerge(
     const protos::pbzero::VmInstruction::Decoder& instruction) {
   protos::pbzero::VmOpMerge::Decoder merge(instruction.merge());
-  auto status = executor_->Merge(&cursors_, merge.skip_submessages());
+  auto status = executor_->Merge(&cursors_, merge.skip_submessages(),
+                                 merge.del_if_src_empty());
   PROTOVM_RETURN_IF_NOT_OK(status);
   return status;
 }
