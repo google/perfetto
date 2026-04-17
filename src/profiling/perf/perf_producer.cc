@@ -16,6 +16,7 @@
 
 #include "src/profiling/perf/perf_producer.h"
 
+#include <map>
 #include <optional>
 #include <random>
 #include <utility>
@@ -28,6 +29,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/cpu_info.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -479,13 +481,43 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
   }
 
   std::vector<EventReader> per_cpu_readers;
+  const auto& config_ids = event_config_pb.cpuid();
+  std::vector<base::CpuInfo> cpu_infos = base::ReadCpuInfo();
+
   for (uint32_t cpu : target_cpus) {
+    // Filter using the CPUID
+    if (!config_ids.empty()) {
+      auto cpu_info_it = std::find_if(cpu_infos.begin(), cpu_infos.end(),
+                                      [cpu](const base::CpuInfo& cpu_info) {
+                                        return cpu_info.cpu_index == cpu;
+                                      });
+      if (cpu_info_it == cpu_infos.end()) {
+        continue;
+      }
+      const char* cpuid = (*cpu_info_it).arm_cpuid;
+      if (cpuid[0] == '\0') {
+        continue;
+      }
+      bool allowed = std::find_if(config_ids.begin(), config_ids.end(),
+                                  [&](const auto& config_id) {
+                                    return base::StartsWith(cpuid, config_id);
+                                  }) != config_ids.end();
+      if (!allowed) {
+        continue;
+      }
+    }
+
     std::optional<EventReader> event_reader =
         EventReader::ConfigureEvents(cpu, event_config.value());
     if (!event_reader.has_value()) {
       PERFETTO_ELOG("Failed to set up perf events for cpu%" PRIu32
                     ", discarding data source.",
                     cpu);
+      if (event_config_pb.has_ignore_open_failure() &&
+          event_config_pb.ignore_open_failure()) {
+        continue;
+      }
+
       return;
     }
     per_cpu_readers.emplace_back(std::move(event_reader.value()));

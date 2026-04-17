@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {CounterOptions} from '../../components/tracks/base_counter_track';
+import {YMode} from '../../components/tracks/counter_track';
 import {TopLevelTrackGroup, TrackGroupSchema} from './types';
 
-type CounterMode = CounterOptions['yMode'];
+type CounterMode = YMode;
 
 type DescriptionRenderer = () => m.Children;
 
@@ -26,6 +26,7 @@ interface CounterTrackTypeSchema {
   readonly group: string | TrackGroupSchema | undefined;
   readonly shareYAxis?: true;
   readonly mode?: CounterMode;
+  readonly unit?: string;
 
   /**
    * Optional function to provide a rich description renderer for the track.
@@ -329,6 +330,7 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     type: 'process_memory',
     topLevelGroup: 'PROCESS',
     group: undefined,
+    unit: 'B',
   },
   {
     type: 'psi',

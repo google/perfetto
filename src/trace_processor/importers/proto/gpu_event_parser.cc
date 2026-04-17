@@ -305,14 +305,40 @@ TrackId GpuEventParser::InternGpuCounterTrack(
       tracks::DynamicUnit(unit_id));
 }
 
+GpuEventParser::GroupMetadataMap GpuEventParser::BuildGroupMetadata(
+    const GpuCounterDescriptor::Decoder& desc) {
+  GroupMetadataMap metadata;
+  for (auto group_it = desc.counter_groups(); group_it; ++group_it) {
+    GpuCounterDescriptor::GpuCounterGroupSpec::Decoder group(*group_it);
+    if (!group.has_group_id()) {
+      continue;
+    }
+    auto group_id = static_cast<int32_t>(group.group_id());
+    auto name_id = group.has_name()
+                       ? context_->storage->InternString(group.name())
+                       : kNullStringId;
+    auto desc_id = group.has_description()
+                       ? context_->storage->InternString(group.description())
+                       : kNullStringId;
+    metadata.Insert(group_id, GroupMetadata{name_id, desc_id});
+  }
+  return metadata;
+}
+
 void GpuEventParser::InsertCounterGroups(
     TrackId track_id,
-    const GpuCounterDescriptor::GpuCounterSpec::Decoder& spec) {
+    const GpuCounterDescriptor::GpuCounterSpec::Decoder& spec,
+    const GroupMetadataMap& group_metadata) {
   if (spec.has_groups()) {
     for (auto group = spec.groups(); group; ++group) {
       tables::GpuCounterGroupTable::Row row;
       row.group_id = *group;
       row.track_id = track_id;
+      auto* meta = group_metadata.Find(*group);
+      if (meta) {
+        row.name = meta->name;
+        row.description = meta->description;
+      }
       context_->storage->mutable_gpu_counter_group_table()->Insert(row);
     }
   } else {
@@ -320,6 +346,38 @@ void GpuEventParser::InsertCounterGroups(
     row.group_id = protos::pbzero::GpuCounterDescriptor::UNCLASSIFIED;
     row.track_id = track_id;
     context_->storage->mutable_gpu_counter_group_table()->Insert(row);
+  }
+}
+
+void GpuEventParser::InsertCustomCounterGroups(
+    const GpuCounterDescriptor::Decoder& desc,
+    const base::FlatHashMap<uint32_t, TrackId>& counter_id_to_track) {
+  for (auto group_it = desc.counter_groups(); group_it; ++group_it) {
+    GpuCounterDescriptor::GpuCounterGroupSpec::Decoder group(*group_it);
+    if (!group.has_group_id()) {
+      continue;
+    }
+    auto group_id = static_cast<int32_t>(group.group_id());
+    auto name_id = group.has_name()
+                       ? context_->storage->InternString(group.name())
+                       : kNullStringId;
+    auto desc_id = group.has_description()
+                       ? context_->storage->InternString(group.description())
+                       : kNullStringId;
+
+    for (auto cid_it = group.counter_ids(); cid_it; ++cid_it) {
+      uint32_t counter_id = *cid_it;
+      auto* track_id_ptr = counter_id_to_track.Find(counter_id);
+      if (!track_id_ptr) {
+        continue;
+      }
+      tables::GpuCounterGroupTable::Row row;
+      row.group_id = group_id;
+      row.track_id = *track_id_ptr;
+      row.name = name_id;
+      row.description = desc_id;
+      context_->storage->mutable_gpu_counter_group_table()->Insert(row);
+    }
   }
 }
 
@@ -359,6 +417,7 @@ void GpuEventParser::ParseGpuCounterEvent(
 
     GpuCounterDescriptor::Decoder desc(interned->counter_descriptor());
     auto gpu_id = interned->gpu_id();
+    auto group_metadata = BuildGroupMetadata(desc);
 
     for (auto it = event.counters(); it; ++it) {
       GpuCounterEvent::GpuCounter::Decoder counter(*it);
@@ -385,7 +444,7 @@ void GpuEventParser::ParseGpuCounterEvent(
         auto [last_it, inserted] =
             gpu_counter_last_id_.Insert(track_id, std::nullopt);
         if (inserted) {
-          InsertCounterGroups(track_id, spec);
+          InsertCounterGroups(track_id, spec, group_metadata);
         }
 
         double counter_val = counter.has_int_value()
@@ -399,12 +458,30 @@ void GpuEventParser::ParseGpuCounterEvent(
         context_->storage->IncrementStats(stats::gpu_counters_invalid_spec);
       }
     }
+
+    // Insert custom counter groups once per interned descriptor.
+    auto iid = event.counter_descriptor_iid();
+    if (!gpu_custom_groups_inserted_.Find(iid)) {
+      gpu_custom_groups_inserted_.Insert(iid, true);
+      base::FlatHashMap<uint32_t, TrackId> counter_id_to_track;
+      for (auto spec_it = desc.specs(); spec_it; ++spec_it) {
+        GpuCounterDescriptor::GpuCounterSpec::Decoder spec(*spec_it);
+        if (!spec.has_counter_id() || !spec.has_name()) {
+          continue;
+        }
+        auto track_id = InternGpuCounterTrack(gpu_id, spec);
+        counter_id_to_track.Insert(spec.counter_id(), track_id);
+      }
+      InsertCustomCounterGroups(desc, counter_id_to_track);
+    }
     return;
   }
 
   // Legacy inline counter_descriptor path.
   if (event.has_counter_descriptor()) {
     GpuCounterDescriptor::Decoder descriptor(event.counter_descriptor());
+    auto group_metadata = BuildGroupMetadata(descriptor);
+    base::FlatHashMap<uint32_t, TrackId> counter_id_to_track;
     for (auto it = descriptor.specs(); it; ++it) {
       GpuCounterDescriptor::GpuCounterSpec::Decoder spec(*it);
       if (!spec.has_counter_id()) {
@@ -434,9 +511,11 @@ void GpuEventParser::ParseGpuCounterEvent(
 
       auto gpu_id = event.gpu_id();
       auto track_id = InternGpuCounterTrack(gpu_id, spec);
-      InsertCounterGroups(track_id, spec);
+      InsertCounterGroups(track_id, spec, group_metadata);
       gpu_counter_state_.Insert(counter_id, GpuCounterState{track_id, {}});
+      counter_id_to_track.Insert(counter_id, track_id);
     }
+    InsertCustomCounterGroups(descriptor, counter_id_to_track);
   }
 
   for (auto it = event.counters(); it; ++it) {

@@ -12,17 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const {uglify} = require('rollup-plugin-uglify');
+const terser = require('@rollup/plugin-terser');
 const commonjs = require('@rollup/plugin-commonjs');
 const nodeResolve = require('@rollup/plugin-node-resolve');
 const path = require('path');
 const replace = require('rollup-plugin-re');
-const sourcemaps = require('rollup-plugin-sourcemaps');
+const sourcemaps = require('rollup-plugin-sourcemaps2');
 const json = require('@rollup/plugin-json');
 const {SourceMapConsumer, SourceMapGenerator} = require('source-map');
 
 const ROOT_DIR = path.dirname(path.dirname(__dirname)); // The repo root.
 const OUT_SYMLINK = path.join(ROOT_DIR, 'ui/out');
+const NO_SOURCE_MAPS = process.env['NO_SOURCE_MAPS'] === 'true';
+const NO_TREESHAKE = process.env['NO_TREESHAKE'] === 'true';
 
 // Plugin to embed minimal source maps directly into bundles
 function embedMinimalSourceMap() {
@@ -43,7 +45,7 @@ function embedMinimalSourceMap() {
 
           // Track which lines we've seen to only add one mapping per line
           const seenLines = new Set();
-          
+
           // Clean source paths
           const cleanSourcePath = (source) => {
             let cleaned = source.replace('../../../out/ui/', '');
@@ -53,14 +55,14 @@ function embedMinimalSourceMap() {
 
           consumer.eachMapping((mapping) => {
             if (!mapping.source) return;
-            
+
             // Only add first mapping per generated line
             const lineKey = mapping.generatedLine;
             if (seenLines.has(lineKey)) return;
             seenLines.add(lineKey);
 
             const cleanSource = cleanSourcePath(mapping.source);
-            
+
             generator.addMapping({
               generated: {
                 line: mapping.generatedLine,
@@ -78,7 +80,7 @@ function embedMinimalSourceMap() {
           consumer.destroy();
 
           const minimalMap = JSON.parse(generator.toString());
-          
+
           // Remove sourcesContent to reduce size
           delete minimalMap.sourcesContent;
           // Remove names array (should be empty anyway since we didn't add names)
@@ -109,8 +111,9 @@ function defBundle(tsRoot, bundle, distDir) {
       format: 'iife',
       esModule: false,
       file: `${OUT_SYMLINK}/${distDir}/${bundle}_bundle.js`,
-      sourcemap: true,
+      sourcemap: !NO_SOURCE_MAPS,
     },
+    treeshake: NO_TREESHAKE ? false : undefined,
     watch: {
       exclude: ['out/**'],
       buildDelay: 250,
@@ -154,11 +157,10 @@ function defBundle(tsRoot, bundle, distDir) {
         ],
       }),
 
-      // Translate source maps to point back to the .ts sources.
-      sourcemaps(),
-      
-      // Embed minimal source map for error reporting
-      embedMinimalSourceMap(),
+      // Translate source maps to point back to the .ts sources, and embed
+      // a minimal source map for error reporting. Skip both when source
+      // maps are disabled.
+      ...(NO_SOURCE_MAPS ? [] : [sourcemaps(), embedMinimalSourceMap()]),
     ].concat(maybeUglify()),
     onwarn: function (warning, warn) {
       if (warning.code === 'CIRCULAR_DEPENDENCY') {
@@ -187,7 +189,7 @@ function defServiceWorkerBundle() {
       format: 'iife',
       esModule: false,
       file: `${OUT_SYMLINK}/dist/service_worker.js`,
-      sourcemap: true,
+      sourcemap: !NO_SOURCE_MAPS,
     },
     plugins: [
       nodeResolve({
@@ -196,7 +198,7 @@ function defServiceWorkerBundle() {
         preferBuiltins: false,
       }),
       commonjs(),
-      sourcemaps(),
+      ...(NO_SOURCE_MAPS ? [] : [sourcemaps()]),
     ],
   };
 }
@@ -205,8 +207,8 @@ function maybeUglify() {
   const minifyEnv = process.env['MINIFY_JS'];
   if (!minifyEnv) return [];
   const opts =
-    minifyEnv === 'preserve_comments' ? {output: {comments: 'all'}} : undefined;
-  return [uglify(opts)];
+    minifyEnv === 'preserve_comments' ? {format: {comments: 'all'}} : undefined;
+  return [terser(opts)];
 }
 
 const maybeBigtrace = process.env['ENABLE_BIGTRACE']

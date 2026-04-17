@@ -87,6 +87,12 @@ data_sources: {
 
 `counter_period_ns` sets the desired sampling interval.
 
+Alternatively, counters can be selected by name using `counter_names`. Use one
+or the other, not both. Not all producers support this — check
+`supports_counter_names` in the `GpuCounterDescriptor` data source descriptor.
+Glob patterns may be used in `counter_names` to match multiple counters by
+name; check `supports_counter_name_globs` in the descriptor for support.
+
 ### GPU memory
 
 Total GPU memory usage per process is collected via ftrace:
@@ -167,6 +173,56 @@ data_sources: {
 }
 ```
 
+For more control over which GPU activities are instrumented, use
+`instrumented_sampling_config` instead of the `instrumented_sampling` bool.
+This enables a pipeline of filters applied in the following order:
+
+1. **Activity name filtering**: If `activity_name_filters` is non-empty, the
+   activity must match at least one filter. Each filter requires a `name_glob`
+   pattern and an optional `name_base` (defaults to `MANGLED_KERNEL_NAME` if
+   not specified). If empty, all activities pass this step.
+
+2. **TX range filtering**: If `activity_tx_include_globs` is non-empty, the
+   activity must fall within a TX range (e.g. NVTX range for CUDA) matching
+   one of the include globs. Activities in TX ranges matching
+   `activity_tx_exclude_globs` are excluded (excludes take precedence over
+   includes). TX ranges can be nested, and an activity matches if any range
+   in its nesting hierarchy matches. If both are empty, all activities pass
+   this step.
+
+3. **Range-based sampling**: If `activity_ranges` is non-empty, only
+   activities within the specified skip/count ranges are instrumented.
+   `skip` defaults to 0 and `count` defaults to UINT32\_MAX (all remaining
+   activities) when not specified. If empty, all activities that passed the
+   previous steps are instrumented.
+
+Example configuration that instruments only activities with demangled kernel
+names matching `"myKernel*"` within TX ranges matching `"training*"`,
+skipping the first 10 matching activities and then instrumenting 5:
+
+```
+data_sources: {
+    config {
+        name: "gpu.counters"
+        gpu_counter_config {
+          counter_names: "sm__cycles_elapsed.avg"
+          counter_names: "sm__cycles_active.avg"
+          instrumented_sampling_config {
+            activity_name_filters {
+              name_glob: "myKernel*"
+              name_base: DEMANGLED_KERNEL_NAME
+            }
+            activity_tx_include_globs: "training*"
+            activity_ranges {
+              skip: 10
+              count: 5
+            }
+          }
+        }
+    }
+}
+```
+
 Counter descriptor mode 2 is recommended for GPGPU use-cases: the producer
 emits an `InternedGpuCounterDescriptor` referenced by IID, giving each
 trusted sequence its own scoped counter IDs. This avoids the global
@@ -176,9 +232,41 @@ naturally. See
 for details on both modes.
 
 Counter names and IDs are advertised by the GPU producer via `GpuCounterSpec` in
-the data source descriptor. Counters are organized into groups (SYSTEM,
-VERTICES, FRAGMENTS, PRIMITIVES, MEMORY, COMPUTE, RAY_TRACING) and include
-measurement units and descriptions.
+the data source descriptor, which includes measurement units and descriptions.
+
+### Counter groups
+
+Counter groups are used by the Perfetto UI to organize counter tracks into
+groups. Counters can be assigned to built-in groups (SYSTEM, VERTICES,
+FRAGMENTS, PRIMITIVES, MEMORY, COMPUTE, RAY_TRACING) via
+`GpuCounterSpec.groups`. Producers can also define custom counter groups
+using the `GpuCounterGroupSpec` message in `GpuCounterDescriptor`:
+
+```
+message GpuCounterGroupSpec {
+    optional uint32 group_id = 1;
+    optional string name = 2;
+    optional string description = 3;
+    repeated uint32 counter_ids = 4;
+}
+```
+
+Custom groups can also be used to provide display names and descriptions for
+the fixed `GpuCounterGroup` enum values (SYSTEM, VERTICES, etc.). To do this,
+set `group_id` to the enum value and provide a `name` and/or `description`.
+
+A counter's group membership is the union of groups assigned via
+`GpuCounterSpec.groups` (the fixed enum) and `GpuCounterGroupSpec.counter_ids`
+(custom groups).
+
+For example, with custom groups "Compute Core" and "L2 Cache":
+
+```
+GPU > Counters > Compute Core > Counter A
+GPU > Counters > Compute Core > Counter B
+GPU > Counters > L2 Cache > Counter C
+```
+
 
 ### Multi-GPU
 
@@ -231,3 +319,38 @@ gpu_render_stage_event {
 
 This creates a flow from the memcpy event (event\_id 1) to the matmul kernel
 (event\_id 2), visualizing the dependency in the Perfetto UI.
+
+### Host-to-GPU correlation
+
+Host-side track events can be correlated with GPU render stage events using
+the `GpuCorrelation` TrackEvent extension. This is useful for connecting
+host API calls (e.g. `cudaLaunchKernel`, `cudaMemcpyAsync`) with the
+corresponding GPU work.
+
+The extension provides two fields:
+
+- `render_stage_submission_event_ids`: event IDs of GPU render stage events
+  that this host event submitted.
+- `render_stage_wait_event_ids`: event IDs of GPU render stage events that
+  this host event waited on to complete.
+
+Example: a host kernel launch correlated with a GPU compute kernel:
+
+```
+track_event {
+    type: TYPE_SLICE_BEGIN
+    name: "cudaLaunchKernel"
+    [perfetto.protos.GpuTrackEvent.gpu_correlation] {
+        render_stage_submission_event_ids: 1
+    }
+}
+
+gpu_render_stage_event {
+    event_id: 1
+    duration: 50000
+    hw_queue_iid: 1
+    stage_iid: 2
+    context: 0
+    name: "matmul_kernel"
+}
+```

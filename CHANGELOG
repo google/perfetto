@@ -5,7 +5,8 @@ Unreleased:
   Trace Processor:
    *
   UI:
-   *
+   * Dev server: support overriding CLI flags via PERFETTO_UI_<FLAG> env or
+     ~/.config/perfetto/ui-dev-server.env.
 
 
 v54.0 - 2026-02-27:

@@ -43,11 +43,20 @@ copy("ignorelist_copy") {
 config("sanitizers_cflags") {
   if (using_sanitizer) {
     ignorelist_path_ = rebase_path("ignorelist.txt", root_build_dir)
+
+    # -fsanitize-ignorelist only exposes the *path* on the command line, so
+    # ccache (which hashes arguments and source files but not files referenced
+    # by arguments) happily serves stale objects when the ignorelist contents
+    # change. Fold a content hash of the ignorelist into a -D define so any
+    # edit to it alters the compile command and invalidates the cache.
+    ignorelist_hash_ = exec_script("//gn/standalone/hash_file.py",
+                                   [ rebase_path("ignorelist.txt") ],
+                                   "trim string")
     cflags = [
       "-fno-omit-frame-pointer",
       "-fsanitize-ignorelist=$ignorelist_path_",
     ]
-    defines = []
+    defines = [ "PERFETTO_SANITIZERS_IGNORELIST_HASH=\"$ignorelist_hash_\"" ]
 
     if (is_asan) {
       cflags += [ "-fsanitize=address" ]

@@ -61,6 +61,7 @@ class TestAndroidAflagsDataSource : public AndroidAflagsDataSource {
     uint32_t permission;
     uint32_t value_picked_from;
     uint32_t storage_backend;
+    uint32_t type;
   };
 
   // Helper to simulate subprocess completion with given flags.
@@ -78,6 +79,7 @@ class TestAndroidAflagsDataSource : public AndroidAflagsDataSource {
       flag_proto->AppendVarInt(7, f.permission);
       flag_proto->AppendVarInt(8, f.value_picked_from);
       flag_proto->AppendVarInt(9, f.storage_backend);
+      flag_proto->AppendVarInt(10, f.type);
     }
     std::vector<uint8_t> bytes = msg.SerializeAsArray();
     aflags_output_ = base::Base64Encode(bytes.data(), bytes.size());
@@ -140,6 +142,7 @@ TEST_F(AndroidAflagsDataSourceTest, ANDROID_ONLY_TEST(EmitAflags)) {
           protos::pbzero::AndroidAflags::VALUE_PICKED_FROM_LOCAL),
       static_cast<uint32_t>(
           protos::pbzero::AndroidAflags::FLAG_STORAGE_BACKEND_ACONFIGD),
+      static_cast<uint32_t>(protos::pbzero::AndroidAflags::FLAG_TYPE_BOOLEAN),
   });
 
   ds->FakeSubprocessCompletion(flags);
@@ -161,6 +164,8 @@ TEST_F(AndroidAflagsDataSourceTest, ANDROID_ONLY_TEST(EmitAflags)) {
             protos::gen::AndroidAflags::VALUE_PICKED_FROM_LOCAL);
   EXPECT_EQ(aflags.flags()[0].storage_backend(),
             protos::gen::AndroidAflags::FLAG_STORAGE_BACKEND_ACONFIGD);
+  EXPECT_EQ(aflags.flags()[0].type(),
+            protos::gen::AndroidAflags::FLAG_TYPE_BOOLEAN);
 }
 
 TEST_F(AndroidAflagsDataSourceTest,

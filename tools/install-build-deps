@@ -809,7 +809,7 @@ def InstallPythonVenv(public_pypi=False):
   cmd = [python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
   logging.info(f'Installing python venv {" ".join(cmd)}')
   subprocess.check_call(cmd)
-  cmd = [venv_pip, 'install']
+  cmd = [venv_pip, 'install', '--only-binary=:all:']
   if public_pypi:
     cmd += ['--index-url', 'https://pypi.org/simple/']
   cmd += ['-r', PYTHON_REQUIREMENTS]

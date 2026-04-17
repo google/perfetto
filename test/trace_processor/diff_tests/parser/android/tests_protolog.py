@@ -23,7 +23,7 @@ class ProtoLog(TestSuite):
 
   def test_has_expected_protolog_rows(self):
     return DiffTestBlueprint(
-        trace=Path('protolog.textproto'),
+        trace=Path("protolog.textproto"),
         query="SELECT id, ts, level, tag, message, location, stacktrace FROM protolog;",
         out=Csv("""
         "id","ts","level","tag","message","location","stacktrace"
@@ -31,14 +31,17 @@ class ProtoLog(TestSuite):
         1,857384110,"WARN","MySecondGroup","Test message with different int formats: 888, 0o1570, 0x378, 888.000000, 8.880000e+02.","com/test/TestClass.java:567","[NULL]"
         2,857384130,"ERROR","MyThirdGroup","Message re-using interned string 'MyOtherTestString' == 'MyOtherTestString', but 'SomeOtherTestString' != 'MyOtherTestString'","com/test/TestClass.java:527","[NULL]"
         3,857384140,"VERBOSE","MyNonProcessedGroup","My non-processed proto message with a string (MyTestString), an int (888), a double 8.88, and a boolean true.","[NULL]","[NULL]"
-        """))
+        4,857384150,"DEBUG","MyFirstGroup","Test message with percent sign: % and a string MyTestString","com/test/TestClass.java:888","[NULL]"
+        """),
+    )
 
   def test_handles_packet_loss(self):
     return DiffTestBlueprint(
-        trace=Path('protolog_packet_loss.textproto'),
+        trace=Path("protolog_packet_loss.textproto"),
         query="SELECT id, ts, level, tag, message, location, stacktrace FROM protolog;",
         out=Csv("""
         "id","ts","level","tag","message","location","stacktrace"
         0,857384130,"DEBUG","MyFirstGroup","Test message with two strings: MyTestString and MyTestString","com/test/TestClass.java:123","[NULL]"
         1,857384130,"DEBUG","MyFirstGroup","Test message with two strings: MyNextTestString and MyNextTestString","com/test/TestClass.java:123","[NULL]"
-        """))
+        """),
+    )

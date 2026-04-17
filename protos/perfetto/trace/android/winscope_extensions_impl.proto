@@ -23,6 +23,7 @@ import "protos/perfetto/trace/android/android_input_event.proto";
 import "protos/perfetto/trace/android/inputmethodeditor.proto";
 import "protos/perfetto/trace/android/viewcapture.proto";
 import "protos/perfetto/trace/android/windowmanager.proto";
+import "protos/perfetto/trace/android/surfaceflinger_layers.proto";
 
 message WinscopeExtensionsImpl {
   extend WinscopeExtensions {
@@ -33,5 +34,6 @@ message WinscopeExtensionsImpl {
     optional ViewCapture viewcapture = 4;
     optional AndroidInputEvent android_input_event = 5;
     optional WindowManagerTraceEntry windowmanager = 6;
+    optional LayersPatchProto surfaceflinger_layers_patch = 7;
   }
 }

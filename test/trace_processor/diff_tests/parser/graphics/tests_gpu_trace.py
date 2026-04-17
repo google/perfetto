@@ -128,6 +128,27 @@ class GraphicsGpuTrace(TestSuite):
         4,"Triangle Acceleration","Number of triangles per ms-ms","Triangle/ms:ms"
         """))
 
+  def test_gpu_counter_groups_custom(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_counter_groups_custom.textproto'),
+        query="""
+        SELECT g.group_id, g.name, g.description,
+               t.name as track_name
+        FROM gpu_counter_group AS g
+        JOIN gpu_counter_track AS t
+          ON g.track_id = t.id
+        ORDER BY g.group_id, g.name, t.name;
+        """,
+        out=Csv("""
+        "group_id","name","description","track_name"
+        0,"[NULL]","[NULL]","Counter D"
+        5,"Memory","Memory counters","Counter C"
+        5,"Memory","Memory counters","Counter D"
+        6,"Compute Core","Compute core counters","Counter A"
+        6,"Compute Core","Compute core counters","Counter B"
+        100,"L2 Cache","L2 cache counters","Counter C"
+        """))
+
   def test_gpu_render_stages(self):
     return DiffTestBlueprint(
         trace=Path('gpu_render_stages.py'),
@@ -539,5 +560,7 @@ class GraphicsGpuTrace(TestSuite):
         ''',
         out=Csv('''
           "source_slice","dest_slice"
+          "HostSubmit","softmax"
+          "softmax","cudaEventWait"
           "softmax","matmul"
         '''))
