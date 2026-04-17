@@ -159,6 +159,11 @@ message TrackEvent {
     // that most other TrackEvent fields (e.g. categories, name, ..) are not
     // supported for TYPE_COUNTER events. See also CounterDescriptor.
     TYPE_COUNTER = 4;
+
+    // A step event is used to indicate a new step in a multi-step slice, or an
+    // update to an active slice. It adds arguments to the existing slice if
+    // found on the stack, or starts a new slice if not.
+    TYPE_SLICE_STEP = 5;
   }
   optional Type type = 9;
 

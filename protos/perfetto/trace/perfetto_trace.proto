@@ -2435,10 +2435,17 @@ message PerfEvents {
   // struct. Primarily for local use-cases, since the event availability and
   // encoding is hardware-specific.
   message RawEvent {
+    // Either |type| or |pmu_name| can be set.
     optional uint32 type = 1;
     optional uint64 config = 2;
     optional uint64 config1 = 3;
     optional uint64 config2 = 4;
+    // The name of a dynamic PMU under /sys/bus/event_source/devices
+    // (e.g. "armv8_pmuv3").
+    // If set, leave |type| unset.
+    // Android: the relevant sysfs paths are not allowlisted by default, so
+    // this option will require a rooted device with selinux disabled.
+    optional string pmu_name = 5;
   }
 
   // Subset of clocks that is supported by perf timestamping.
@@ -6001,6 +6008,15 @@ message AndroidAflags {
     FLAG_STORAGE_BACKEND_DEVICE_CONFIG = 3;
   }
 
+  // The value type of the flag.
+  enum FlagType {
+    // Flag type unspecified. This flag type means the flag is an old version
+    // boolean flag or unknown newer type.
+    FLAG_TYPE_UNSPECIFIED = 0;
+    FLAG_TYPE_BOOLEAN = 1;
+    FLAG_TYPE_INTEGER = 2;
+  }
+
   // Representation of an aconfig flag and its metadata.
   message Flag {
     optional string flag_namespace = 1;
@@ -6019,6 +6035,7 @@ message AndroidAflags {
     optional FlagPermission permission = 7;
     optional ValuePickedFrom value_picked_from = 8;
     optional FlagStorageBackend storage_backend = 9;
+    optional FlagType type = 10;
   }
 
   // A collection of flags.
@@ -15937,6 +15954,11 @@ message TrackEvent {
     // that most other TrackEvent fields (e.g. categories, name, ..) are not
     // supported for TYPE_COUNTER events. See also CounterDescriptor.
     TYPE_COUNTER = 4;
+
+    // A step event is used to indicate a new step in a multi-step slice, or an
+    // update to an active slice. It adds arguments to the existing slice if
+    // found on the stack, or starts a new slice if not.
+    TYPE_SLICE_STEP = 5;
   }
   optional Type type = 9;
 

@@ -374,6 +374,17 @@ constexpr bool IsDynamicCategory(const ::perfetto::DynamicCategory&) {
       TraceForCategory, category, name,        \
       ::perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_BEGIN, ##__VA_ARGS__)
 
+// Update an existing slice or start a new one if not found. Both strings must
+// be static constants.
+//
+// This is used to update an active slice with new arguments or flows, or to
+// ensure a slice is started if the original BEGIN event was missed (e.g., when
+// tracing started after the operation began).
+#define TRACE_EVENT_STEP(category, name, ...) \
+  PERFETTO_INTERNAL_TRACK_EVENT_WITH_METHOD(  \
+      TraceForCategory, category, name,       \
+      ::perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_STEP, ##__VA_ARGS__)
+
 // End a slice under |category|.
 #define TRACE_EVENT_END(category, ...)              \
   PERFETTO_INTERNAL_TRACK_EVENT_WITH_METHOD(        \

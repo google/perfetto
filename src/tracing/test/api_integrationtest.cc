@@ -619,6 +619,9 @@ std::vector<std::string> ReadSlicesFromTrace(
       case perfetto::protos::gen::TrackEvent::TYPE_INSTANT:
         slice += "I";
         break;
+      case perfetto::protos::gen::TrackEvent::TYPE_SLICE_STEP:
+        slice += "U";
+        break;
       case perfetto::protos::gen::TrackEvent::TYPE_UNSPECIFIED: {
         EXPECT_TRUE(track_event.has_legacy_event());
         EXPECT_FALSE(track_event.type());
@@ -1513,6 +1516,21 @@ TEST_P(PerfettoApiTest, TrackEvent) {
   // Dummy instantiation of test templates.
   TestTrackEventInsideTemplate(true);
   TestCategoryAsTemplateParameter<kTestCategory>();
+}
+
+TEST_P(PerfettoApiTest, TrackEventStep) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  // Emit one complete track event with a step.
+  TRACE_EVENT_BEGIN("test", "TestEvent");
+  TRACE_EVENT_STEP("test", "TestStep");
+  TRACE_EVENT_END("test");
+
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
+
+  EXPECT_THAT(slices, ElementsAre("B:test.TestEvent", "U:test.TestStep", "E"));
 }
 
 TEST_P(PerfettoApiTest, TrackEventWithIncrementalTimestamp) {
@@ -2826,6 +2844,7 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrackAndTimestamp) {
       case perfetto::protos::gen::TrackEvent::TYPE_INSTANT:
         EXPECT_EQ(packet.timestamp(), kInstantEventTime);
         break;
+      case perfetto::protos::gen::TrackEvent::TYPE_SLICE_STEP:
       case perfetto::protos::gen::TrackEvent::TYPE_COUNTER:
       case perfetto::protos::gen::TrackEvent::TYPE_UNSPECIFIED:
         ADD_FAILURE();
@@ -2860,6 +2879,7 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrackAndTimestampNoLambda) {
       case perfetto::protos::gen::TrackEvent::TYPE_SLICE_END:
         EXPECT_EQ(packet.timestamp(), kEndEventTime);
         break;
+      case perfetto::protos::gen::TrackEvent::TYPE_SLICE_STEP:
       case perfetto::protos::gen::TrackEvent::TYPE_INSTANT:
       case perfetto::protos::gen::TrackEvent::TYPE_COUNTER:
       case perfetto::protos::gen::TrackEvent::TYPE_UNSPECIFIED:

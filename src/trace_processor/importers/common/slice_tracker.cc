@@ -109,6 +109,24 @@ std::optional<SliceId> SliceTracker::Scoped(int64_t timestamp,
       });
 }
 
+std::optional<SliceId> SliceTracker::Update(int64_t timestamp,
+                                            TrackId track_id,
+                                            StringId category,
+                                            StringId raw_name,
+                                            SetArgsCallback args_callback) {
+  const StringId name =
+      context_->slice_translation_table->TranslateName(raw_name);
+  auto finder = [this, category, name](const SlicesStack& stack) {
+    return MatchingIncompleteSliceIndex(stack, name, category);
+  };
+  tables::SliceTable::Row row(timestamp, kPendingDuration, track_id, category,
+                              name);
+  return UpdateSlice(
+      timestamp, track_id, args_callback, finder, [this, &row]() {
+        return context_->storage->mutable_slice_table()->Insert(row).id;
+      });
+}
+
 std::optional<SliceId> SliceTracker::End(int64_t timestamp,
                                          TrackId track_id,
                                          StringId category,
@@ -211,6 +229,71 @@ std::optional<SliceId> SliceTracker::StartSlice(
     args_callback(&bound_inserter);
   }
   return id;
+}
+
+std::optional<SliceId> SliceTracker::UpdateSlice(
+    int64_t timestamp,
+    TrackId track_id,
+    SetArgsCallback args_callback,
+    std::function<std::optional<uint32_t>(const SlicesStack&)> finder,
+    std::function<SliceId()> inserter) {
+  auto* it = stacks_.Find(track_id);
+  if (!it)
+    return std::nullopt;
+
+  TrackInfo& track_info = *it;
+  SlicesStack& stack = track_info.slice_stack;
+  if (!MaybeCloseStack(timestamp, kPendingDuration, stack, track_id)) {
+    return std::nullopt;
+  }
+
+  if (stack.empty()) {
+    return StartSlice(timestamp, kPendingDuration, track_id, args_callback,
+                      std::move(inserter));
+  }
+
+  auto* slices = context_->storage->mutable_slice_table();
+
+  std::optional<uint32_t> top_incomplete_idx;
+  for (int i = static_cast<int>(stack.size()) - 1; i >= 0; i--) {
+    auto ref = stack[static_cast<size_t>(i)].row.ToRowReference(slices);
+    if (ref.dur() == kPendingDuration) {
+      top_incomplete_idx = static_cast<uint32_t>(i);
+      break;
+    }
+  }
+
+  if (top_incomplete_idx) {
+    const auto& slice_info = stack[*top_incomplete_idx];
+    auto ref = slice_info.row.ToRowReference(slices);
+
+    std::optional<uint32_t> matching_idx = finder(stack);
+
+    if (matching_idx && *matching_idx == *top_incomplete_idx) {
+      // It matches and it is the top-most incomplete slice. Update it.
+      ArgsTracker& tracker = stack[*top_incomplete_idx].args_tracker;
+      if (args_callback) {
+        auto bound_inserter = tracker.AddArgsTo(ref.id());
+        args_callback(&bound_inserter);
+      }
+      return ref.id();
+    } else {
+      // It does not match the top-most incomplete slice.
+      // End the top-most incomplete slice.
+      ref.set_dur(timestamp - ref.ts());
+
+      if (*top_incomplete_idx == stack.size() - 1) {
+        StackPop(track_id);
+      }
+
+      return StartSlice(timestamp, kPendingDuration, track_id, args_callback,
+                        std::move(inserter));
+    }
+  } else {
+    // No incomplete slice on stack.
+    return StartSlice(timestamp, kPendingDuration, track_id, args_callback,
+                      std::move(inserter));
+  }
 }
 
 std::optional<SliceId> SliceTracker::CompleteSlice(
