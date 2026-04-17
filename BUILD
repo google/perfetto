@@ -415,7 +415,6 @@ perfetto_cc_library(
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
         ":src_trace_processor_perfetto_sql_generator_generator",
-        ":src_trace_processor_perfetto_sql_grammar_grammar",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_functions",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_tables",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_trees_trees",
@@ -427,7 +426,7 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_parser_parser",
         ":src_trace_processor_perfetto_sql_preprocessor_grammar",
         ":src_trace_processor_perfetto_sql_preprocessor_preprocessor",
-        ":src_trace_processor_perfetto_sql_tokenizer_tokenize_internal",
+        ":src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_sorter_sorter",
@@ -632,7 +631,6 @@ perfetto_cc_library(
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
         ":src_trace_processor_perfetto_sql_generator_generator",
-        ":src_trace_processor_perfetto_sql_grammar_grammar",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_functions",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_tables",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_trees_trees",
@@ -644,7 +642,7 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_parser_parser",
         ":src_trace_processor_perfetto_sql_preprocessor_grammar",
         ":src_trace_processor_perfetto_sql_preprocessor_preprocessor",
-        ":src_trace_processor_perfetto_sql_tokenizer_tokenize_internal",
+        ":src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_rpc_httpd",
         ":src_trace_processor_rpc_rpc",
@@ -3348,18 +3346,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/perfetto_sql/grammar:grammar
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_grammar_grammar",
-    srcs = [
-        "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar.c",
-        "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar.h",
-        "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar_interface.h",
-        "src/trace_processor/perfetto_sql/grammar/perfettosql_keywordhash.h",
-        "src/trace_processor/perfetto_sql/grammar/perfettosql_keywordhash_helper.h",
-    ],
-)
-
 # GN target: //src/trace_processor/perfetto_sql/intrinsics/functions/trees:trees
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_intrinsics_functions_trees_trees",
@@ -4147,12 +4133,12 @@ perfetto_cc_amalgamated_sql(
     namespace = "stdlib",
 )
 
-# GN target: //src/trace_processor/perfetto_sql/tokenizer:tokenize_internal
+# GN target: //src/trace_processor/perfetto_sql/syntaqlite:syntaqlite
 perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_tokenizer_tokenize_internal",
+    name = "src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
     srcs = [
-        "src/trace_processor/perfetto_sql/tokenizer/tokenize_internal.c",
-        "src/trace_processor/perfetto_sql/tokenizer/tokenize_internal_helper.h",
+        "src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.c",
+        "src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h",
     ],
 )
 
@@ -8844,7 +8830,6 @@ perfetto_cc_library(
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
         ":src_trace_processor_perfetto_sql_generator_generator",
-        ":src_trace_processor_perfetto_sql_grammar_grammar",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_functions",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_tables",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_trees_trees",
@@ -8856,7 +8841,7 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_parser_parser",
         ":src_trace_processor_perfetto_sql_preprocessor_grammar",
         ":src_trace_processor_perfetto_sql_preprocessor_preprocessor",
-        ":src_trace_processor_perfetto_sql_tokenizer_tokenize_internal",
+        ":src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",
@@ -9091,7 +9076,6 @@ perfetto_cc_binary(
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_perfetto_sql_engine_engine",
         ":src_trace_processor_perfetto_sql_generator_generator",
-        ":src_trace_processor_perfetto_sql_grammar_grammar",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_functions",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_tables",
         ":src_trace_processor_perfetto_sql_intrinsics_functions_trees_trees",
@@ -9103,7 +9087,7 @@ perfetto_cc_binary(
         ":src_trace_processor_perfetto_sql_parser_parser",
         ":src_trace_processor_perfetto_sql_preprocessor_grammar",
         ":src_trace_processor_perfetto_sql_preprocessor_preprocessor",
-        ":src_trace_processor_perfetto_sql_tokenizer_tokenize_internal",
+        ":src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
         ":src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",

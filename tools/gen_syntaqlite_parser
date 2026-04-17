@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Regenerate the amalgamated PerfettoSQL parser using the syntaqlite CLI.
+
+Reads the canonical grammar (`perfetto.y`) and AST node definitions
+(`perfetto.synq`) from `src/trace_processor/perfetto_sql/syntaqlite/` and
+writes the amalgamated `syntaqlite_perfetto.{c,h}` pair back into the same
+directory.
+
+The syntaqlite CLI is a prebuilt binary expected at
+`buildtools/syntaqlite/syntaqlite[.exe]`. Run
+`tools/install-build-deps --syntaqlite` to fetch it.
+"""
+
+import os
+import platform
+import subprocess
+import sys
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SYNTAQLITE_DIR = os.path.join(ROOT_DIR, 'src', 'trace_processor',
+                              'perfetto_sql', 'syntaqlite')
+SYNTAQLITE_BIN_DIR = os.path.join(ROOT_DIR, 'buildtools', 'syntaqlite')
+
+
+def syntaqlite_binary_path():
+  suffix = '.exe' if platform.system() == 'Windows' else ''
+  return os.path.join(SYNTAQLITE_BIN_DIR, f'syntaqlite{suffix}')
+
+
+def main():
+  binary = syntaqlite_binary_path()
+  if not os.path.isfile(binary):
+    sys.exit(f'syntaqlite binary not found at {binary}\n'
+             f'Run `tools/install-build-deps --syntaqlite` to fetch it.')
+
+  cmd = [
+      binary,
+      'dialect',
+      '--name',
+      'perfetto',
+      '--actions-dir',
+      SYNTAQLITE_DIR,
+      '--nodes-dir',
+      SYNTAQLITE_DIR,
+      '--output-type',
+      'full',
+      '--output-dir',
+      SYNTAQLITE_DIR,
+  ]
+  print('Running:', ' '.join(cmd))
+  subprocess.check_call(cmd)
+  print(f'Wrote {SYNTAQLITE_DIR}/syntaqlite_perfetto.{{c,h}}')
+
+
+if __name__ == '__main__':
+  main()
