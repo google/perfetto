@@ -374,6 +374,7 @@ ANDROID_AFLAGS_TABLE = Table(
         C('permission', CppString()),
         C('value_picked_from', CppString()),
         C('storage_backend', CppString()),
+        C('type', CppString()),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -392,6 +393,7 @@ ANDROID_AFLAGS_TABLE = Table(
             'permission': 'Permission of the flag (read-only or read-write).',
             'value_picked_from': 'Source of the current flag value.',
             'storage_backend': 'The storage backend that owns this flag.',
+            'type': 'Value type of the flag (boolean or integer).',
         },
     ),
 )

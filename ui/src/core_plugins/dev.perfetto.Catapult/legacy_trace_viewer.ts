@@ -14,14 +14,14 @@
 
 import m from 'mithril';
 import {inflate} from 'pako';
-import {assertTrue} from '../base/assert';
-import {isString} from '../base/object_utils';
-import {showModal} from '../widgets/modal';
-import {utf8Decode} from '../base/string_utils';
-import {convertToJson} from './trace_converter';
-import {assetSrc} from '../base/assets';
-import {Anchor} from '../widgets/anchor';
-import {Icons} from '../base/semantic_icons';
+import {assertTrue} from '../../base/assert';
+import {isString} from '../../base/object_utils';
+import {showModal} from '../../widgets/modal';
+import {utf8Decode} from '../../base/string_utils';
+import {convertToJson} from '../../frontend/trace_converter';
+import {assetSrc} from '../../base/assets';
+import {Anchor} from '../../widgets/anchor';
+import {Icons} from '../../base/semantic_icons';
 
 const CTRACE_HEADER = 'TRACE:\n';
 
