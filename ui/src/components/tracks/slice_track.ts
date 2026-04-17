@@ -1102,18 +1102,14 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   ): ColorVariant[] {
     const hoveredSliceName = this.trace.timeline.highlightedSliceName;
     const hoveredSliceId = this.hoveredSlice?.id;
-    const n = slices.length;
-    const variants = new Array<ColorVariant>(n);
-    for (let i = 0; i < n; i++) {
-      const sliceId = slices[i].id;
-      const sliceTitle = slices[i].title;
-      if (sliceId === hoveredSliceId || sliceTitle === hoveredSliceName) {
-        variants[i] = ColorVariant.VARIANT;
-      } else {
-        variants[i] = ColorVariant.BASE;
-      }
+    if (hoveredSliceId === undefined && hoveredSliceName === undefined) {
+      return new Array<ColorVariant>(slices.length).fill(ColorVariant.BASE);
     }
-    return variants;
+    return slices.map(({id, title}) =>
+      id === hoveredSliceId || title === hoveredSliceName
+        ? ColorVariant.VARIANT
+        : ColorVariant.BASE,
+    );
   }
 
   renderTooltip(): m.Children {
@@ -1275,6 +1271,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     this.hoveredSlice = undefined;
     if (this.hoverMonitor.ifStateChanged()) {
       this.trace.timeline.highlightedSliceName = undefined;
+      this.trace.timeline.highlightedSliceId = undefined;
       if (this.attrs.onSliceOut && prevHoveredSlice) {
         this.attrs.onSliceOut({slice: prevHoveredSlice});
       }
