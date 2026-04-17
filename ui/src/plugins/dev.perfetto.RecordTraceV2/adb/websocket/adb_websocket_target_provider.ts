@@ -21,6 +21,7 @@ import {AdbWebsocketTarget} from './adb_websocket_target';
 import {adbCmdAndWait} from './adb_websocket_utils';
 import {EvtSource} from '../../../../base/events';
 import {websocketInstructions} from '../../websocket/websocket_utils';
+import {RecordTraceV2Settings} from '../../settings';
 
 export class AdbWebsocketTargetProvider implements RecordingTargetProvider {
   readonly id = 'adb_websocket';
@@ -33,6 +34,8 @@ export class AdbWebsocketTargetProvider implements RecordingTargetProvider {
   private readonly wsHost = '127.0.0.1:8037';
   readonly onTargetsChanged = new EvtSource<void>();
   private targets = new Map<string, AdbWebsocketTarget>();
+
+  constructor(private readonly settings: RecordTraceV2Settings) {}
 
   async *runPreflightChecks(): AsyncGenerator<PreflightCheck> {
     yield {
@@ -66,7 +69,12 @@ export class AdbWebsocketTargetProvider implements RecordingTargetProvider {
     // Find new devices.
     for (const [serial, model] of adbDevices.entries()) {
       if (this.targets.has(serial)) continue; // We already have a target.
-      const newTarget = new AdbWebsocketTarget(this.wsUrl, serial, model);
+      const newTarget = new AdbWebsocketTarget(
+        this.wsUrl,
+        serial,
+        model,
+        this.settings,
+      );
       this.targets.set(serial, newTarget);
     }
   }

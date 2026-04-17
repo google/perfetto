@@ -648,6 +648,14 @@ Here are the key differences:
   reliable, long-term tools for analysis, visualization, and regression
   tracking.
 
+## Extending
+
+The message `ValueColumnSpec` permits vendor extensions, such as to support 
+configuring how to aggregate across traces in a dashboard.
+
+We recommend this is only used for levels "above" Perfetto, i.e. not to 
+configure how metrics are produced from a single trace.
+
 ## Reference
 
 ### Running Summaries
@@ -759,7 +767,9 @@ output.
 - **`value_columns` (repeated string)**: A list of columns from the query. Each
   column will generate a unique metric with the ID `<id_prefix>_<value_column>`.
 - **`value_column_specs` (repeated `ValueColumnSpec`)**: A list of value column
-  specifications, allowing each to have a unique `unit` and `polarity`.
+  specifications, allowing each to have a unique `unit` and `polarity`, as well
+  as any necessary vendor extensions configuring how to manage aggregation
+  across traces.
 - **`query`
   ([`PerfettoSqlStructuredQuery`](/protos/perfetto/perfetto_sql/structured_query.proto))**:
   The shared query that computes the data for all metrics.

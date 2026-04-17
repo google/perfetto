@@ -132,6 +132,12 @@ class AuxStreamManager {
 
   base::Status FinalizeStreams();
 
+  void OnEventsFullyExtracted() {
+    if (tokenizer_) {
+      tokenizer_->OnEventsFullyExtracted();
+    }
+  }
+
   TraceProcessorContext* context() const { return context_; }
 
   std::optional<uint64_t> ConvertTscToPerfTime(uint64_t cycles) {

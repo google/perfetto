@@ -329,6 +329,13 @@ additional_args = {
         ('min_sdk_version', '30'),
         ('shared_libs', {'liblog'}),
         ('export_include_dirs', {'include', buildflags_dir}),
+        # Compiles base::Regex against the std::regex backend. Static libs
+        # don't propagate their deps to consumers on Soong (b/169779783), so
+        # linking libpcre2 here would force every consumer of this static
+        # lib to pay the libpcre2 code-size cost. Regex usage in the client
+        # SDK is minimal, so std::regex is an acceptable tradeoff.
+        # See b/498785154 for the binary-size regression that motivated this.
+        ('cflags', {'-DPERFETTO_REGEX_FORCE_STD'}),
     ],
     'libperfetto_c': [
         ('min_sdk_version', '30'),
@@ -342,6 +349,13 @@ additional_args = {
             ],
             'host_ldlibs': ['-lws2_32'],
         }),
+        # Compiles base::Regex against the std::regex backend. Static libs
+        # don't propagate their deps to consumers on Soong (b/169779783), so
+        # linking libpcre2 here would force every consumer of this static
+        # lib to pay the libpcre2 code-size cost. Regex usage in the client
+        # SDK is minimal, so std::regex is an acceptable tradeoff.
+        # See b/498785154 for the binary-size regression that motivated this.
+        ('cflags', {'-DPERFETTO_REGEX_FORCE_STD'}),
     ],
     'perfetto_trace_protos': [
         ('apex_available', {
@@ -424,6 +438,26 @@ def enable_libunwind(module):
   pass
 
 
+def enable_pcre2(module):
+  # Invoked by the dep walker for every module that transitively depends on
+  # //buildtools:pcre2 in GN. Modules that opt out via PERFETTO_REGEX_FORCE_STD
+  # compile base::Regex against std::regex, so they don't reference any pcre2
+  # symbols and the libpcre2 dep is suppressed for them.
+  if '-DPERFETTO_REGEX_FORCE_STD' in module.cflags:
+    return
+  if module.type == 'cc_binary_host':
+    module.static_libs.add('libpcre2')
+  elif module.host_supported:
+    module.android.shared_libs.add('libpcre2')
+    # Use whole_static_libs on host so that pcre2 symbols are embedded in
+    # host static archives (.a). Without this, host consumers of a static
+    # lib (e.g. libandroid_runtime linking libperfetto_c.a) would hit
+    # undefined pcre2 symbols because static_libs don't propagate.
+    module.host.whole_static_libs.add('libpcre2')
+  else:
+    module.shared_libs.add('libpcre2')
+
+
 def enable_sqlite(module):
   if module.type == 'cc_binary_host':
     module.static_libs.add('libsqlite_static_noicu')
@@ -480,6 +514,10 @@ def enable_android_test_common(module):
   module.static_libs.add('androidx.test.ext.junit')
 
 
+def enable_error_prone_annotations(module):
+  module.libs.add('error_prone_annotations')
+
+
 # Android equivalents for third-party libraries that the upstream project
 # depends on.
 builtin_deps = {
@@ -503,6 +541,8 @@ builtin_deps = {
         enable_protoc_lib,
     '//gn:libunwindstack':
         enable_libunwindstack,
+    '//gn:pcre2':
+        enable_pcre2,
     '//gn:sqlite':
         enable_sqlite,
     '//gn:zlib':
@@ -515,6 +555,8 @@ builtin_deps = {
         enable_bionic_libc_platform_headers_on_android,
     '//gn:android_test_common':
         enable_android_test_common,
+    '//gn:error_prone_annotations':
+        enable_error_prone_annotations,
 }
 
 # ----------------------------------------------------------------------------
@@ -666,6 +708,7 @@ class Module(object):
     self.stubs = {}
     self.manifest: Optional[str] = None
     self.resource_dirs: Optional[List[str]] = None
+    self.libs = set()
     self.jni_libs: Optional[List[str]] = None
     self.jni_uses_platform_apis: Optional[bool] = None
     self.jarjar_rules: Optional[str] = None
@@ -679,6 +722,7 @@ class Module(object):
     self._output_field(output, 'srcs')
     self._output_field(output, 'resource_dirs')
     self._output_field(output, 'manifest')
+    self._output_field(output, 'libs')
     self._output_field(output, 'shared_libs')
     self._output_field(output, 'static_libs')
     self._output_field(output, 'whole_static_libs')
@@ -1223,6 +1267,10 @@ class AndroidJavaSDKModulesGenerator:
 
       _add_additional_args(java_module)
 
+      # All JNI libs will be added to the 'jni_libs' argument of the 'android_app'
+      # or 'android_test' rule that depends on this 'android_library' rule.
+      self._generate_deps_modules_and_add_non_jni_lib_deps(java_module, target)
+
       self.blueprint.add_module(java_module)
 
       if target.android_bp_copy_java_target_name_suffix:
@@ -1237,11 +1285,13 @@ class AndroidJavaSDKModulesGenerator:
 
       module.static_libs.add(java_library_module_name)
     else:
+      java_module = None
       module.srcs = [gn_utils.label_to_path(src) for src in target.sources]
 
-    # All JNI libs will be added to the 'jni_libs' argument of the 'android_app'
-    # or 'android_test' rule that depends on this 'android_library' rule.
-    self._generate_deps_modules_and_add_non_jni_lib_deps(module, target)
+    if not java_module:
+      # All JNI libs will be added to the 'jni_libs' argument of the 'android_app'
+      # or 'android_test' rule that depends on this 'android_library' rule.
+      self._generate_deps_modules_and_add_non_jni_lib_deps(module, target)
 
     module.manifest = gn_utils.label_to_path(target.manifest)
 
@@ -1535,6 +1585,13 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
                     (dep_gn_target.type, dep_module.name))
     elif dep_module.type == 'filegroup':
       module.srcs.add(':' + dep_module.name)
+      # Filegroup sources are flattened into the module, but the filegroup's
+      # own GN deps (e.g. //gn:pcre2 on the regex source_set) are not
+      # automatically walked. Recurse into them to pick up any builtin_deps.
+      for sub_dep in dep.deps:
+        sub_name = gn_utils.label_without_toolchain(sub_dep.name)
+        if sub_name in builtin_deps:
+          builtin_deps[sub_name](module)
     elif dep_module.type == 'genrule':
       module.generated_headers.update(dep_module.genrule_headers)
       module.srcs.update(dep_module.genrule_srcs)
@@ -1561,8 +1618,10 @@ def create_blueprint_for_targets(gn: GnParser, targets: List[str]):
   # become relative to the Android.bp that *uses* cc_defaults (not the one
   # that defines it).s
   defaults.include_dirs = {
-      tree_path, tree_path + '/include', tree_path + '/' + buildflags_dir,
-      tree_path + '/src/profiling/memory/include'
+      tree_path,
+      tree_path + '/include',
+      tree_path + '/' + buildflags_dir,
+      tree_path + '/src/profiling/memory/include',
   }
   defaults.cflags.update([
       '-Wno-error=return-type',

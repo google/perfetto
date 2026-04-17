@@ -44,6 +44,11 @@ from compat import itervalues, iteritems, basestring
 # which can depend on it.
 ALLOWLIST_PUBLIC_VISIBILITY = 'PERFETTO_CONFIG.public_visibility'
 
+# Visibility option for trace processor proto targets which we want an
+# allowlist of public targets which can depend on it, but should not be
+# visible to all targets that have public_visibility access.
+ALLOWLIST_TRACE_PROCESSOR_VISIBILITY = 'PERFETTO_CONFIG.trace_processor_proto_library_visibility'
+
 # Arguments for the GN output directory.
 # host_os="linux" is to generate the right build files from Mac OS.
 gn_args_base = {
@@ -56,6 +61,7 @@ gn_args_base = {
     'enable_perfetto_traced_perf': 'false',
     'perfetto_force_dcheck': '"off"',
     'enable_perfetto_llvm_demangle': 'true',
+    'enable_perfetto_re2': 'true',
 }
 gn_args = ' '.join((map(lambda x: '='.join(x), gn_args_base.items())))
 
@@ -137,6 +143,12 @@ proto_groups = {
         ],
         'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
     },
+    'winscope': {
+        'sources': [
+            '//protos/perfetto/trace/android:winscope_extensions_source_set',
+        ],
+        'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
+    },
     'metrics': {
         'sources': ['//protos/perfetto/metrics:source_set',],
         'visibility': ['//visibility:public'],
@@ -151,7 +163,7 @@ proto_groups = {
     },
     'trace_processor': {
         'sources': ['//protos/perfetto/trace_processor:source_set',],
-        'visibility': [],
+        'visibility': ALLOWLIST_TRACE_PROCESSOR_VISIBILITY,
     },
     'trace_summary': {
         'sources': ['//protos/perfetto/trace_summary:source_set',],
@@ -187,6 +199,7 @@ external_deps = {
     '//gn:protobuf_lite': ['PERFETTO_CONFIG.deps.protobuf_lite'],
     '//gn:protoc_lib': ['PERFETTO_CONFIG.deps.protoc_lib'],
     '//gn:protoc': ['PERFETTO_CONFIG.deps.protoc'],
+    '//gn:re2': ['PERFETTO_CONFIG.deps.re2'],
     '//gn:sqlite': [
         'PERFETTO_CONFIG.deps.sqlite',
         'PERFETTO_CONFIG.deps.sqlite_ext_percentile'
@@ -223,6 +236,9 @@ external_python_deps: Dict[str, List[str]] = {
 
 external_java_android_sdk_deps: Dict[str, List[str]] = {
     '//gn:android_test_common': ['PERFETTO_CONFIG.deps.android_test_common'],
+    '//gn:error_prone_annotations': [
+        'PERFETTO_CONFIG.deps.error_prone_annotations'
+    ],
 }
 
 # Map from GN targets to the list of Bazel deps labels

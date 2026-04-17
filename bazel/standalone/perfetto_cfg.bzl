@@ -45,6 +45,7 @@ PERFETTO_CONFIG = struct(
         base_platform = ["//:perfetto_base_default_platform"],
 
         zlib = ["@perfetto_dep_zlib//:zlib"],
+        re2 = ["@re2//:re2"],
         expat = ["@perfetto_dep_expat//:expat"],
         linenoise = ["@perfetto_dep_linenoise//:linenoise"],
         sqlite = ["@perfetto_dep_sqlite//:sqlite"],
@@ -62,6 +63,10 @@ PERFETTO_CONFIG = struct(
             "@perfetto_maven//:junit_junit",
             "@perfetto_maven//:com_google_truth_truth",
             "@perfetto_maven//:androidx_test_ext_junit",
+        ],
+
+        error_prone_annotations = [
+            "@perfetto_maven//:com_google_errorprone_error_prone_annotations",
         ],
 
         # The Python targets are empty on the standalone build because we assume
@@ -110,6 +115,13 @@ PERFETTO_CONFIG = struct(
     # This variable has been introduced to limit the change to Bazel and avoid
     # making the targets public in the google internal tree.
     proto_library_visibility = "//visibility:private",
+
+    # Allow Bazel embedders to change the visibility of the trace processor protos.
+    # Trace processor protos may be used outside of perfetto library, but should
+    # not be visible to all targets that have public_visibility access.
+    trace_processor_proto_library_visibility = [
+        "//visibility:private",
+    ],
 
     # Allow Bazel embedders to change the visibility of the Go protos.
     # Go protos have all sorts of strange behaviour in Google3 so need special

@@ -55,17 +55,17 @@ RETURNS TABLE (
   tpu_mw DOUBLE
 ) AS
 SELECT
-  sum(ss.cpu0_mw * ss.dur) / sum(ss.dur) AS cpu0_mw,
-  sum(ss.cpu1_mw * ss.dur) / sum(ss.dur) AS cpu1_mw,
-  sum(ss.cpu2_mw * ss.dur) / sum(ss.dur) AS cpu2_mw,
-  sum(ss.cpu3_mw * ss.dur) / sum(ss.dur) AS cpu3_mw,
-  sum(ss.cpu4_mw * ss.dur) / sum(ss.dur) AS cpu4_mw,
-  sum(ss.cpu5_mw * ss.dur) / sum(ss.dur) AS cpu5_mw,
-  sum(ss.cpu6_mw * ss.dur) / sum(ss.dur) AS cpu6_mw,
-  sum(ss.cpu7_mw * ss.dur) / sum(ss.dur) AS cpu7_mw,
-  sum(ss.dsu_scu_mw * ss.dur) / sum(ss.dur) AS dsu_scu_mw,
-  sum(ss.gpu_mw * ss.dur) / sum(ss.dur) AS gpu_mw,
-  sum(ss.tpu_mw * ss.dur) / sum(ss.dur) AS tpu_mw
+  sum(ss.cpu0_mw * ii.dur) / sum(ii.dur) AS cpu0_mw,
+  sum(ss.cpu1_mw * ii.dur) / sum(ii.dur) AS cpu1_mw,
+  sum(ss.cpu2_mw * ii.dur) / sum(ii.dur) AS cpu2_mw,
+  sum(ss.cpu3_mw * ii.dur) / sum(ii.dur) AS cpu3_mw,
+  sum(ss.cpu4_mw * ii.dur) / sum(ii.dur) AS cpu4_mw,
+  sum(ss.cpu5_mw * ii.dur) / sum(ii.dur) AS cpu5_mw,
+  sum(ss.cpu6_mw * ii.dur) / sum(ii.dur) AS cpu6_mw,
+  sum(ss.cpu7_mw * ii.dur) / sum(ii.dur) AS cpu7_mw,
+  sum(ss.dsu_scu_mw * ii.dur) / sum(ii.dur) AS dsu_scu_mw,
+  sum(ss.gpu_mw * ii.dur) / sum(ii.dur) AS gpu_mw,
+  sum(ss.tpu_mw * ii.dur) / sum(ii.dur) AS tpu_mw
 FROM _interval_intersect_single!($ts, $dur, _ii_subquery!(_system_state_mw)) AS ii
 JOIN _system_state_mw AS ss
   ON ss._auto_id = id;

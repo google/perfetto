@@ -613,18 +613,18 @@
 .pf-chart-type-picker {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-  padding: 4px;
+  gap: 8px;
+  padding: 4px 8px;
 
   &__card {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
-    padding: 8px 6px;
-    border: 1px solid var(--pf-color-border);
-    border-radius: 6px;
-    background: var(--pf-color-surface);
+    gap: 6px;
+    padding: 12px 6px 8px;
+    border: 1px solid var(--pf-color-border-secondary);
+    border-radius: 8px;
+    background: var(--pf-color-background);
     cursor: pointer;
     transition:
       border-color 0.15s,
@@ -637,7 +637,7 @@
     &:hover {
       border-color: var(--pf-color-primary);
       background: var(--pf-color-surface-highlight);
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
 
     &:focus-visible {
@@ -648,12 +648,17 @@
     &:active {
       transform: scale(0.97);
     }
+
+    &.pf-selected {
+      border-color: var(--pf-color-primary);
+      background: var(--pf-color-surface-highlight);
+      box-shadow: 0 0 0 1px var(--pf-color-primary);
+    }
   }
 
   &__preview {
-    width: 48px;
-    height: 36px;
-    color: var(--pf-color-primary);
+    width: 52px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -677,5 +682,59 @@
     font-size: 12px;
     color: var(--pf-color-text-muted);
     text-align: center;
+  }
+}
+
+// Group node — sharp rectangle with strong border
+.pf-node.pf-node--group {
+  background: var(--pf-color-background);
+  border-radius: 0;
+  border: 2px solid var(--pf-color-text);
+
+  .pf-node-header {
+    border-radius: 0;
+  }
+
+  &.pf-invalid {
+    border-color: var(--pf-color-danger);
+    background: color-mix(
+      in srgb,
+      var(--pf-color-danger) 8%,
+      var(--pf-color-background)
+    );
+  }
+}
+
+.pf-node-wrapper:has(.pf-node--group) {
+  border-radius: 0;
+}
+
+// Disconnected input node in inner graph preview
+.pf-node--disconnected {
+  opacity: 0.4;
+}
+
+// Embedded read-only graph preview for group node side panel
+.pf-group-inner-graph {
+  position: relative;
+  height: 300px;
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  overflow: hidden;
+
+  .pf-group-inner-graph__controls {
+    position: absolute;
+    bottom: 4px;
+    right: 4px;
+    z-index: 1;
+  }
+}
+
+// Read-only column items in group node — reuse draggable-item look without drag
+.pf-group-column-readonly {
+  cursor: default;
+
+  .pf-column-type {
+    cursor: default;
   }
 }

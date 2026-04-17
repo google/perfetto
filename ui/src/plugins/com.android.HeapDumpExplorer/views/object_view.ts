@@ -46,7 +46,6 @@ interface ObjectViewAttrs {
   readonly heaps: ReadonlyArray<HeapInfo>;
   readonly navigate: NavFn;
   readonly params: ObjectParams;
-  readonly onViewInTimeline?: (objectId: number) => void;
 }
 
 const JAVA_PRIM_SIZE: Record<string, number> = {
@@ -540,7 +539,7 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
       alive = false;
     },
     view(vnode) {
-      const {navigate, params, onViewInTimeline} = vnode.attrs;
+      const {navigate, params} = vnode.attrs;
 
       if (detail === 'loading') {
         return m('div', {class: 'ah-loading'}, m(Spinner, {easing: true}));
@@ -564,16 +563,6 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
           ),
           m('div', {class: 'ah-action-row'}, [
             m(InstanceLink, {row, navigate}),
-            onViewInTimeline
-              ? m(
-                  'button',
-                  {
-                    class: 'ah-download-link',
-                    onclick: () => onViewInTimeline(row.id),
-                  },
-                  'View in Timeline',
-                )
-              : null,
           ]),
         ]),
 
@@ -620,15 +609,15 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
             ])
           : null,
 
-        detail.pathFromRoot
-          ? m(
-              Section,
-              {
-                title: detail.isUnreachablePath
-                  ? 'Sample Path'
-                  : 'Sample Path from GC Root',
-              },
-              m(
+        m(
+          Section,
+          {
+            title: detail.isUnreachablePath
+              ? 'Sample Path'
+              : 'Sample Path from GC Root',
+          },
+          detail.pathFromRoot
+            ? m(
                 'div',
                 {class: 'ah-view-stack--tight'},
                 detail.pathFromRoot.map((pe, i) =>
@@ -652,9 +641,9 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
                     ],
                   ),
                 ),
-              ),
-            )
-          : null,
+              )
+            : m('p', {class: 'ah-muted'}, 'No path to GC root.'),
+        ),
 
         m(Section, {title: 'Object Info'}, [
           m('div', {class: 'ah-info-grid'}, [
@@ -753,11 +742,13 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
             )
           : null,
 
-        detail.isClassInstance && detail.instanceFields.length > 0
+        detail.isClassInstance
           ? m(
               Section,
               {title: 'Fields'},
-              renderFieldsGrid(detail.instanceFields, navigate),
+              detail.instanceFields.length > 0
+                ? renderFieldsGrid(detail.instanceFields, navigate)
+                : m('p', {class: 'ah-muted'}, 'No instance fields.'),
             )
           : null,
 
@@ -788,18 +779,25 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
             )
           : null,
 
-        detail.reverseRefs.length > 0
-          ? m(
-              Section,
-              {
-                title: `Objects with References to this Object (${detail.reverseRefs.length})`,
-                defaultOpen: detail.reverseRefs.length < 50,
-              },
-              m(DataGrid, {
+        m(
+          Section,
+          {
+            title:
+              detail.reverseRefs.length > 0
+                ? `Objects with References to this Object (${detail.reverseRefs.length})`
+                : 'Objects with References to this Object',
+            defaultOpen:
+              detail.reverseRefs.length > 0 && detail.reverseRefs.length < 50,
+          },
+          detail.reverseRefs.length > 0
+            ? m(DataGrid, {
                 schema: makeInstanceSchema(navigate),
                 rootSchema: 'query',
                 data: detail.reverseRefs.map(instanceRowToRow),
                 initialColumns: [
+                  {id: 'id', field: 'id'},
+                  {id: 'cls', field: 'cls'},
+                  {id: 'str', field: 'str'},
                   {id: 'self_size', field: 'self_size'},
                   {id: 'native_size', field: 'native_size'},
                   {id: 'retained', field: 'retained'},
@@ -808,27 +806,31 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
                   {id: 'reachable_size', field: 'reachable_size'},
                   {id: 'reachable_native', field: 'reachable_native'},
                   {id: 'reachable_count', field: 'reachable_count'},
-                  {id: 'cls', field: 'cls'},
-                  {id: 'id', field: 'id'},
-                  {id: 'str', field: 'str'},
                 ],
                 showExportButton: true,
-              }),
-            )
-          : null,
+              })
+            : m('p', {class: 'ah-muted'}, 'No references to this object.'),
+        ),
 
-        detail.dominated.length > 0
-          ? m(
-              Section,
-              {
-                title: `Immediately Dominated Objects (${detail.dominated.length})`,
-                defaultOpen: detail.dominated.length < 50,
-              },
-              m(DataGrid, {
+        m(
+          Section,
+          {
+            title:
+              detail.dominated.length > 0
+                ? `Immediately Dominated Objects (${detail.dominated.length})`
+                : 'Immediately Dominated Objects',
+            defaultOpen:
+              detail.dominated.length > 0 && detail.dominated.length < 50,
+          },
+          detail.dominated.length > 0
+            ? m(DataGrid, {
                 schema: makeInstanceSchema(navigate),
                 rootSchema: 'query',
                 data: detail.dominated.map(instanceRowToRow),
                 initialColumns: [
+                  {id: 'id', field: 'id'},
+                  {id: 'cls', field: 'cls'},
+                  {id: 'str', field: 'str'},
                   {id: 'self_size', field: 'self_size'},
                   {id: 'native_size', field: 'native_size'},
                   {id: 'retained', field: 'retained'},
@@ -838,14 +840,11 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
                   {id: 'reachable_native', field: 'reachable_native'},
                   {id: 'reachable_count', field: 'reachable_count'},
                   {id: 'heap', field: 'heap'},
-                  {id: 'cls', field: 'cls'},
-                  {id: 'id', field: 'id'},
-                  {id: 'str', field: 'str'},
                 ],
                 showExportButton: true,
-              }),
-            )
-          : null,
+              })
+            : m('p', {class: 'ah-muted'}, 'No immediately dominated objects.'),
+        ),
       ]);
     },
   };

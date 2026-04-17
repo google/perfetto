@@ -90,7 +90,7 @@ class TrackEventSequenceState {
     // packet. Used as default values for TrackEvents that don't specify a
     // pid/tid override. Only valid after |pid_and_tid_valid_| is set to true.
     int32_t pid = 0;
-    int32_t tid = 0;
+    int64_t tid = 0;
 
     bool use_synthetic_tid = false;
   };

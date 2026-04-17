@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {AsyncLimiter} from '../../../base/async_limiter';
-import {Query, QueryNode} from '../query_node';
+import {Query, QueryNode, NodeType} from '../query_node';
 import {isAQuery} from './query_builder_utils';
 import {Trace} from '../../../public/trace';
 import {SqlSourceNode} from './nodes/sources/sql_source';
@@ -49,6 +49,7 @@ export interface NodePanelAttrs {
   /** Called when execution fails */
   readonly onExecutionError?: (error: unknown) => void;
   readonly onchange?: () => void;
+  readonly onUngroupNode?: (node: QueryNode) => void;
   readonly resolveNode: (nodeId: string) => QueryNode | undefined;
   readonly isCollapsed?: boolean;
   readonly selectedView?: number;
@@ -251,12 +252,33 @@ export class NodePanel implements m.ClassComponent<NodePanelAttrs> {
     );
   }
 
-  private renderModifyView(node: QueryNode): m.Child {
+  private renderModifyView(
+    node: QueryNode,
+    panelAttrs: NodePanelAttrs,
+  ): m.Child {
     const modifyResult = node.nodeSpecificModify();
 
     // Check if node returned attrs (new pattern) or m.Child (old pattern)
     if (this.isNodeModifyAttrs(modifyResult)) {
-      const attrs = modifyResult as NodeModifyAttrs;
+      let attrs = modifyResult as NodeModifyAttrs;
+
+      // Inject the Ungroup button for group nodes — this keeps the
+      // ungroup action in the view layer rather than on the data model.
+      if (
+        node.type === NodeType.kGroup &&
+        panelAttrs.onUngroupNode !== undefined
+      ) {
+        const ungroupBtn = {
+          label: 'Ungroup',
+          icon: 'unfold_more',
+          onclick: () => panelAttrs.onUngroupNode?.(node),
+        };
+        attrs = {
+          ...attrs,
+          bottomRightButtons: [...(attrs.bottomRightButtons ?? []), ungroupBtn],
+        };
+      }
+
       return m('.pf-exp-node-panel__modify', [
         m(InfoBox, attrs.info),
         this.renderTopButtons(attrs),
@@ -298,7 +320,8 @@ export class NodePanel implements m.ClassComponent<NodePanelAttrs> {
     return m(
       'article',
       selectedView === SelectedView.kInfo && node.nodeInfo(),
-      selectedView === SelectedView.kModify && this.renderModifyView(node),
+      selectedView === SelectedView.kModify &&
+        this.renderModifyView(node, attrs),
       selectedView === SelectedView.kResult &&
         m('.', [
           m(TabStrip, {

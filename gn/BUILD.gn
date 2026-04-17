@@ -76,6 +76,7 @@ action("gen_buildflags") {
   } else {
     perfetto_local_symbolizer = "0"
   }
+
   response_file_contents = [
     "--flags",  # Keep this marker first.
     "PERFETTO_ANDROID_BUILD=$perfetto_build_with_android",
@@ -111,6 +112,8 @@ action("gen_buildflags") {
     "PERFETTO_ENABLE_RT_MUTEX=$enable_perfetto_rt_mutex",
     "PERFETTO_ENABLE_LOCKFREE_TASKRUNNER=$enable_perfetto_lockfree_taskrunner",
     "PERFETTO_ENABLE_SOCK_INOTIFY=$enable_perfetto_sock_inotify",
+    "PERFETTO_RE2=$enable_perfetto_re2",
+    "PERFETTO_PCRE2=$enable_perfetto_pcre2",
   ]
 
   rel_out_path = rebase_path(gen_header_path, "$root_build_dir")
@@ -491,9 +494,34 @@ perfetto_py_library("protobuf_py") {
 perfetto_android_library("android_test_common") {
 }
 
+perfetto_android_library("error_prone_annotations") {
+}
+
 if (enable_perfetto_etm_importer) {
   group("open_csd") {
     visibility = [ "//src/trace_processor/importers/etm" ]
     public_deps = [ "//buildtools:open_csd" ]
+  }
+}
+
+if (enable_perfetto_pcre2) {
+  group("pcre2") {
+    if (perfetto_root_path == "//") {
+      public_deps = [ "//buildtools:pcre2" ]
+    } else {
+      assert(false, "PCRE2 is only supported in standalone builds")
+    }
+  }
+}
+
+if (enable_perfetto_re2) {
+  group("re2") {
+    if (perfetto_root_path == "//") {
+      public_deps = [ "//buildtools:re2" ]
+    } else {
+      # This part will be overridden by the various build generators (Android.bp,
+      # Bazel) to point to the right path.
+      public_deps = [ "//third_party/re2" ]
+    }
   }
 }

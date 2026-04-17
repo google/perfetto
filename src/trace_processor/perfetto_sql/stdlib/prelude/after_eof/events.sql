@@ -183,7 +183,9 @@ CREATE PERFETTO VIEW gpu_slice (
   -- The id of the process.
   upid JOINID(process.id),
   -- Render subpasses.
-  render_subpasses STRING
+  render_subpasses STRING,
+  -- Render stage category (0=OTHER, 1=GRAPHICS, 2=COMPUTE).
+  render_stage_category LONG
 ) AS
 SELECT
   s.id,
@@ -206,7 +208,8 @@ SELECT
   extract_arg(s.arg_set_id, 'submission_id') AS submission_id,
   extract_arg(s.arg_set_id, 'hw_queue_id') AS hw_queue_id,
   extract_arg(s.arg_set_id, 'upid') AS upid,
-  extract_arg(s.arg_set_id, 'render_subpasses') AS render_subpasses
+  extract_arg(s.arg_set_id, 'render_subpasses') AS render_subpasses,
+  extract_arg(s.arg_set_id, 'render_stage_category') AS render_stage_category
 FROM slice AS s
 JOIN track AS t
   ON s.track_id = t.id
@@ -313,7 +316,16 @@ CREATE PERFETTO TABLE actual_frame_timeline_slice (
   -- Jank tag (experimental) based on jank type, used for slice visualization.
   jank_tag_experimental STRING,
   -- Jank severity score.
-  jank_score DOUBLE
+  jank_score DOUBLE,
+  -- The number of surfaceframes that were latched unsignaled and displayed
+  -- without jank.
+  latched_unsignaled_count LONG,
+  -- The number of surfaceframes that their fence was unsignaled at the time of
+  -- latch, but signaled on time for vsync.
+  addressable_unsignaled_latch_count LONG,
+  -- State of the fence when a SF tried to latch the buffer in the first
+  -- attempt.
+  latched_fence_state STRING
 ) AS
 SELECT
   s.id,
@@ -337,7 +349,10 @@ SELECT
   extract_arg(s.arg_set_id, 'Prediction type') AS prediction_type,
   extract_arg(s.arg_set_id, 'Jank tag') AS jank_tag,
   extract_arg(s.arg_set_id, 'Jank tag (experimental)') AS jank_tag_experimental,
-  extract_arg(s.arg_set_id, 'Jank Severity Score (experimental)') AS jank_score
+  extract_arg(s.arg_set_id, 'Jank Severity Score') AS jank_score,
+  extract_arg(s.arg_set_id, 'Latched unsignaled count') AS latched_unsignaled_count,
+  extract_arg(s.arg_set_id, 'Addressable unsignaled latch count') AS addressable_unsignaled_latch_count,
+  extract_arg(s.arg_set_id, 'Latched fence state') AS latched_fence_state
 FROM slice AS s
 JOIN process_track AS t
   ON s.track_id = t.id

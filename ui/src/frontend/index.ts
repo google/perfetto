@@ -35,12 +35,6 @@ import {postMessageHandler} from './post_message_handler';
 import {Route, Router} from '../core/router';
 import {checkHttpRpcConnection} from './rpc_http_dialog';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
-import {
-  DEFAULT_TRACK_MIN_HEIGHT_PX,
-  MINIMUM_TRACK_MIN_HEIGHT_PX,
-  TRACK_MIN_HEIGHT_SETTING,
-} from './timeline_page/track_view';
-import {renderTimelinePage} from './timeline_page/timeline_page';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
 import {IdleDetector} from './idle_detector';
@@ -323,16 +317,14 @@ function main() {
     document.body.classList.remove('pf-fonts-loading');
   });
 
-  // Load the script to detect if this is a Googler (see comments on globals.ts)
-  // and initialize GA after that (or after a timeout if something goes wrong).
+  // Load the script to detect if this is a Googler (see comments on globals.ts).
+  // This registers macros, SQL packages, and proto descriptors.
   const app = AppImpl.instance;
-  tryLoadIsInternalUserScript(app).then(() => {
-    app.analytics.initialize(app.isInternalUser);
-  });
+  tryLoadIsInternalUserScript(app);
 
   // Route errors to both the UI bugreport dialog and Analytics (if enabled).
   addErrorHandler(maybeShowErrorDialog);
-  addErrorHandler((e) => AppImpl.instance.analytics.logError(e));
+  addErrorHandler((e) => app.analytics.logError(e));
 
   // Add Error handlers for JS error and for uncaught exceptions in promises.
   window.addEventListener('error', (e) => reportError(e));
@@ -350,7 +342,7 @@ function main() {
     {passive: false},
   );
 
-  cssLoadPromise.then(() => onCssLoaded());
+  cssLoadPromise.then(() => onCssLoaded(app));
 
   (window as {} as IdleDetectorWindow).waitForPerfettoIdle = (ms?: number) => {
     return new IdleDetector().waitForPerfettoIdle(ms);
@@ -364,18 +356,17 @@ function main() {
   }
 }
 
-function onCssLoaded() {
+function onCssLoaded(app: AppImpl) {
   // Clear all the contents of the initial page (e.g. the <pre> error message)
   // And replace it with the root <main> element which will be used by mithril.
   document.body.innerHTML = '';
 
-  const pages = AppImpl.instance.pages;
+  const pages = app.pages;
   pages.registerPage({route: '/', render: () => m(HomePage)});
-  pages.registerPage({route: '/viewer', render: () => renderTimelinePage()});
   const router = new Router();
   router.onRouteChanged = routeChange;
 
-  const themeSetting = AppImpl.instance.settings.register({
+  const themeSetting = app.settings.register({
     id: 'theme',
     name: 'UI Theme',
     description: 'Changes the color palette used throughout the UI.',
@@ -383,17 +374,8 @@ function onCssLoaded() {
     defaultValue: 'light',
   } as const);
 
-  AppImpl.instance.settings.register({
-    id: TRACK_MIN_HEIGHT_SETTING,
-    name: 'Track Height',
-    description:
-      'Minimum height of tracks in the trace viewer page, in pixels.',
-    schema: z.number().int().min(MINIMUM_TRACK_MIN_HEIGHT_PX),
-    defaultValue: DEFAULT_TRACK_MIN_HEIGHT_PX,
-  });
-
   // Add command to toggle the theme.
-  AppImpl.instance.commands.registerCommand({
+  app.commands.registerCommand({
     id: 'dev.perfetto.ToggleTheme',
     name: 'Toggle UI Theme (Dark/Light)',
     callback: () => {
@@ -405,7 +387,6 @@ function onCssLoaded() {
   // Mount the main mithril component. This also forces a sync render pass.
   raf.mount(document.body, {
     view: () => {
-      const app = AppImpl.instance;
       const commands = app.commands;
       const hotkeys: HotkeyConfig[] = [];
       for (const {id, defaultHotkey} of commands.commands) {
@@ -458,8 +439,8 @@ function onCssLoaded() {
   if (
     (location.origin.startsWith('http://localhost:') ||
       location.origin.startsWith('http://127.0.0.1:')) &&
-    !AppImpl.instance.embeddedMode &&
-    !AppImpl.instance.testingMode
+    !app.embeddedMode &&
+    !app.testingMode
   ) {
     initLiveReload();
   }
@@ -473,13 +454,13 @@ function onCssLoaded() {
   maybeChangeRpcPortFromFragment();
   checkHttpRpcConnection().then(() => {
     const route = Router.parseUrl(window.location.href);
-    if (!AppImpl.instance.embeddedMode) {
+    if (!app.embeddedMode) {
       installFileDropHandler();
     }
 
     // Don't allow postMessage or opening trace from route when the user says
     // that they want to reuse the already loaded trace in trace processor.
-    const traceSource = AppImpl.instance.trace?.traceInfo.source;
+    const traceSource = app.trace?.traceInfo.source;
     if (traceSource && traceSource.type === 'HTTP_RPC') {
       return;
     }
@@ -493,12 +474,16 @@ function onCssLoaded() {
   });
 
   // Initialize plugins, now that we are ready to go.
-  const pluginManager = AppImpl.instance.plugins;
+  const pluginManager = app.plugins;
   CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, true));
   NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p, false));
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
-  pluginManager.activatePlugins(AppImpl.instance, overrides);
+  pluginManager.activatePlugins(app, overrides);
+
+  // Initialize analytics after plugins have been activated, so that plugins
+  // (e.g. ExtensionServers) can add dimensions before GA is configured.
+  app.analytics.initialize();
 }
 
 // This function is called only later after all the sub-resources (fonts,

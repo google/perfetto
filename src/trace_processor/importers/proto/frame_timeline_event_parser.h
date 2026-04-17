@@ -78,6 +78,7 @@ class FrameTimelineEventParser {
   std::array<StringId, 6> present_type_experimental_ids_;
   std::array<StringId, 4> prediction_type_ids_;
   std::array<StringId, 4> jank_severity_type_ids_;
+  std::array<StringId, 4> latched_fence_state_ids_;
 
   const StringId surface_frame_token_id_;
   const StringId display_frame_token_id_;
@@ -97,6 +98,9 @@ class FrameTimelineEventParser {
   const StringId jank_tag_id_;
   const StringId jank_tag_experimental_id_;
   const StringId is_buffer_id_;
+  const StringId latched_unsignaled_count_id_;
+  const StringId addressable_unsignaled_latch_count_id_;
+  const StringId latched_fence_state_id_;
 
   const StringId jank_tag_unspecified_id_;
   const StringId jank_tag_none_id_;

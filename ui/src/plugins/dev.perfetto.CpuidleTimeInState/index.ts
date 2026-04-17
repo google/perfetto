@@ -14,9 +14,11 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {CounterOptions} from '../../components/tracks/base_counter_track';
+import {
+  CounterTrack,
+  CounterTrackAttrs,
+} from '../../components/tracks/counter_track';
 import {TrackNode} from '../../public/workspace';
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {NUM, STR} from '../../trace_processor/query_result';
 
@@ -27,20 +29,14 @@ export default class implements PerfettoPlugin {
   private async addCounterTrack(
     ctx: Trace,
     name: string,
-    query: string,
     group: TrackNode,
-    options?: Partial<CounterOptions>,
+    config: Omit<CounterTrackAttrs, 'trace' | 'uri'>,
   ) {
     const uri = `/cpuidle_time_in_state_${name}`;
-    const track = await createQueryCounterTrack({
+    const track = await CounterTrack.createMaterialized({
       trace: ctx,
       uri,
-      data: {
-        sqlSource: query,
-        columns: ['ts', 'value'],
-      },
-      columns: {ts: 'ts', value: 'value'},
-      options,
+      ...config,
     });
     ctx.tracks.registerTrack({
       uri,
@@ -55,19 +51,18 @@ export default class implements PerfettoPlugin {
     state: string,
     group: TrackNode,
   ): Promise<void> {
-    await this.addCounterTrack(
-      ctx,
-      `cpuidle.${state}`,
-      `
+    await this.addCounterTrack(ctx, `cpuidle.${state}`, group, {
+      unit: 'percent',
+      yOverrideMaximum: 100,
+      yOverrideMinimum: 0,
+      sqlSource: `
         select
           ts,
           idle_percentage as value
         from linux_cpu_idle_time_in_state_counters
         where state = '${state}'
       `,
-      group,
-      {unit: 'percent', yOverrideMaximum: 100, yOverrideMinimum: 0},
-    );
+    });
   }
 
   async addPerCpuIdleStateTrack(
@@ -79,15 +74,19 @@ export default class implements PerfettoPlugin {
     await this.addCounterTrack(
       ctx,
       `cpuidle.cpu${cpu}.${state} Residency`,
-      `
+      group,
+      {
+        unit: 'percent',
+        yOverrideMaximum: 100,
+        yOverrideMinimum: 0,
+        sqlSource: `
         select
           ts,
           idle_percentage as value
         from linux_per_cpu_idle_time_in_state_counters
         where state = '${state}' AND cpu = ${cpu}
       `,
-      group,
-      {unit: 'percent', yOverrideMaximum: 100, yOverrideMinimum: 0},
+      },
     );
   }
 

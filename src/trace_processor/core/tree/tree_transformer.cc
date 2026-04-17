@@ -21,18 +21,18 @@
 #include <memory>
 #include <numeric>
 #include <optional>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/core/common/op_types.h"
+#include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/common/tree_types.h"
 #include "src/trace_processor/core/common/value_fetcher.h"
 #include "src/trace_processor/core/dataframe/adhoc_dataframe_builder.h"
@@ -44,99 +44,17 @@
 #include "src/trace_processor/core/interpreter/bytecode_interpreter_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
+#include "src/trace_processor/core/tree/propagate_spec.h"
+#include "src/trace_processor/core/tree/tree_columns.h"
+#include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
+#include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::tree {
 namespace {
 
 namespace i = interpreter;
-
-struct IdCallback : core::dataframe::CellCallback {
-  void OnCell(int64_t id) {
-    id_value = id;
-    type_ok = true;
-  }
-  void OnCell(double) { type_ok = false; }
-  void OnCell(NullTermStringView) { type_ok = false; }
-  void OnCell(std::nullptr_t) {
-    id_value = std::nullopt;
-    type_ok = true;
-  }
-  void OnCell(uint32_t id) {
-    id_value = id;
-    type_ok = true;
-  }
-  void OnCell(int32_t id) {
-    id_value = id;
-    type_ok = true;
-  }
-  std::optional<int64_t> id_value;
-  bool type_ok = false;
-};
-
-base::StatusOr<base::FlatHashMap<int64_t, uint32_t>> BuildIdToRowMap(
-    const dataframe::Dataframe& df) {
-  base::FlatHashMap<int64_t, uint32_t> id_to_row;
-  IdCallback id_cb;
-  for (uint32_t row = 0; row < df.row_count(); ++row) {
-    df.GetCell(row, 0, id_cb);
-    if (PERFETTO_UNLIKELY(!id_cb.type_ok)) {
-      return base::ErrStatus("ID column has non-integer values");
-    }
-    if (PERFETTO_UNLIKELY(!id_cb.id_value.has_value())) {
-      return base::ErrStatus("ID column has null values");
-    }
-    id_to_row[*id_cb.id_value] = row;
-  }
-  return std::move(id_to_row);
-}
-
-base::StatusOr<Slab<uint32_t>> BuildNormalizedParentStorage(
-    const dataframe::Dataframe& df,
-    const base::FlatHashMap<int64_t, uint32_t>& id_to_row) {
-  uint32_t row_count = df.row_count();
-  auto normalized_parent = Slab<uint32_t>::Alloc(row_count);
-  IdCallback id_cb;
-  for (uint32_t row = 0; row < row_count; ++row) {
-    df.GetCell(row, 1, id_cb);
-    if (PERFETTO_UNLIKELY(!id_cb.type_ok)) {
-      return base::ErrStatus("Parent ID column has non-integer values");
-    }
-    if (id_cb.id_value.has_value()) {
-      auto* parent_row = id_to_row.Find(*id_cb.id_value);
-      if (!parent_row) {
-        return base::ErrStatus("Parent ID not found in ID column");
-      }
-      normalized_parent[row] = *parent_row;
-    } else {
-      normalized_parent[row] = kNullParent;
-    }
-  }
-  return std::move(normalized_parent);
-}
-
-dataframe::AdhocDataframeBuilder MakeTreeColumnBuilder(StringPool* pool) {
-  return dataframe::AdhocDataframeBuilder(
-      {"_tree_id", "_tree_parent_id"}, pool,
-      dataframe::AdhocDataframeBuilder::Options{
-          {}, dataframe::NullabilityType::kDenseNull});
-}
-
-base::StatusOr<dataframe::Dataframe> BuildTreeColumns(
-    const uint32_t* parent_data,
-    uint32_t count,
-    StringPool* pool) {
-  auto builder = MakeTreeColumnBuilder(pool);
-  for (uint32_t i = 0; i < count; ++i) {
-    builder.PushNonNull(0, i);
-    if (parent_data[i] == kNullParent) {
-      builder.PushNull(1);
-    } else {
-      builder.PushNonNull(1, parent_data[i]);
-    }
-  }
-  return std::move(builder).Build();
-}
 
 struct TreeValueFetcher : core::ValueFetcher {
   static const Type kInt64 = static_cast<Type>(SqlValue::Type::kLong);
@@ -158,112 +76,78 @@ struct TreeValueFetcher : core::ValueFetcher {
   const SqlValue* values = nullptr;
 };
 
-std::unique_ptr<i::TreeState> CreateTreeState(const uint32_t* parent_data,
-                                              uint32_t row_count) {
-  auto ts = std::make_unique<i::TreeState>();
-  ts->row_count = row_count;
-
-  ts->parent = Slab<uint32_t>::Alloc(row_count);
-  memcpy(ts->parent.begin(), parent_data, row_count * sizeof(uint32_t));
-
-  ts->original_rows = Slab<uint32_t>::Alloc(row_count);
-  std::iota(ts->original_rows.begin(), ts->original_rows.begin() + row_count,
-            0u);
-
-  ts->p2c_offsets = Slab<uint32_t>::Alloc(row_count + 1);
-  ts->p2c_children = Slab<uint32_t>::Alloc(row_count);
-  ts->p2c_roots = Slab<uint32_t>::Alloc(row_count);
-  ts->p2c_valid = false;
-
-  ts->scratch1 = Slab<uint32_t>::Alloc(static_cast<uint64_t>(row_count) * 2);
-  ts->scratch2 = Slab<uint32_t>::Alloc(row_count);
-
-  ts->keep_bv = BitVector::CreateWithSize(row_count, false);
-
-  return ts;
-}
-
-// Returns true if the column has sparse null storage (requires densification
-// before the filter bytecodes can access storage with table indices).
-bool IsSparseNull(const dataframe::Column& col) {
-  return !col.null_storage.nullability().Is<NonNull>() &&
-         !col.null_storage.nullability().Is<DenseNull>();
-}
-
-// Returns the size in bytes of one element for the given storage type.
-uint32_t ElementSize(StorageType type) {
+// Pushes one value from raw column data to the builder.
+void PushColumnValue(dataframe::AdhocDataframeBuilder& builder,
+                     uint32_t col_idx,
+                     StorageType type,
+                     const uint8_t* data,
+                     uint32_t row) {
   switch (type.index()) {
     case StorageType::GetTypeIndex<Uint32>():
-      return sizeof(uint32_t);
+      builder.PushNonNull(col_idx,
+                          reinterpret_cast<const uint32_t*>(data)[row]);
+      break;
     case StorageType::GetTypeIndex<Int32>():
-      return sizeof(int32_t);
+      builder.PushNonNull(
+          col_idx,
+          static_cast<int64_t>(reinterpret_cast<const int32_t*>(data)[row]));
+      break;
     case StorageType::GetTypeIndex<Int64>():
-      return sizeof(int64_t);
+      builder.PushNonNull(col_idx, reinterpret_cast<const int64_t*>(data)[row]);
+      break;
     case StorageType::GetTypeIndex<Double>():
-      return sizeof(double);
+      builder.PushNonNull(col_idx, reinterpret_cast<const double*>(data)[row]);
+      break;
     case StorageType::GetTypeIndex<String>():
-      return sizeof(StringPool::Id);
+      builder.PushNonNull(col_idx,
+                          reinterpret_cast<const StringPool::Id*>(data)[row]);
+      break;
     default:
-      PERFETTO_FATAL("Unsupported storage type for densification");
+      PERFETTO_FATAL("Unsupported storage type");
   }
 }
 
-// Scatters sparse data into a dense buffer using the null bitvector.
-// Templated to avoid per-row memcpy overhead for common element sizes.
-template <typename T>
-void ScatterSparse(const void* sparse_ptr,
-                   const BitVector& bv,
-                   uint8_t* dst,
-                   uint32_t row_count) {
-  const auto* src = static_cast<const T*>(sparse_ptr);
-  auto* out = reinterpret_cast<T*>(dst);
-  uint32_t sparse_idx = 0;
-  for (uint32_t row = 0; row < row_count; ++row) {
-    if (bv.is_set(row)) {
-      out[row] = src[sparse_idx++];
+// Builds the data columns portion of the output dataframe.
+// |get_col_source| is called with column index and must return a pair of
+// (data pointer, null bitvector reference).
+template <typename F>
+base::StatusOr<dataframe::Dataframe> BuildDataColumns(
+    const std::vector<std::string>& names,
+    const std::vector<TreeColumns::Column>& col_defs,
+    uint32_t row_count,
+    StringPool* pool,
+    F get_col_source) {
+  auto builder = dataframe::AdhocDataframeBuilder(
+      names, pool,
+      dataframe::AdhocDataframeBuilder::Options{
+          {},
+          dataframe::NullabilityType::kDenseNull,
+      });
+  for (uint32_t ci = 0; ci < names.size(); ++ci) {
+    auto [data, null_bv] = get_col_source(ci);
+    bool has_null = null_bv.size() > 0;
+    for (uint32_t row = 0; row < row_count; ++row) {
+      if (has_null && !null_bv.is_set(row)) {
+        builder.PushNull(ci);
+      } else {
+        PushColumnValue(builder, ci, col_defs[ci].type, data, row);
+      }
     }
   }
-}
-
-// Converts a sparse null column's storage to dense format.
-Slab<uint8_t> DensifySparseColumn(const dataframe::Column& col,
-                                  uint32_t row_count) {
-  uint32_t elem_size = ElementSize(col.storage.type());
-  auto byte_count = static_cast<uint64_t>(row_count) * elem_size;
-  auto dense = Slab<uint8_t>::Alloc(byte_count);
-  memset(dense.begin(), 0, byte_count);
-
-  const auto& bv = col.null_storage.GetNullBitVector();
-  const void* sparse_ptr = nullptr;
-  std::visit([&sparse_ptr](
-                 const auto* p) { sparse_ptr = static_cast<const void*>(p); },
-             col.storage.data());
-
-  switch (elem_size) {
-    case 4:
-      ScatterSparse<uint32_t>(sparse_ptr, bv, dense.begin(), row_count);
-      break;
-    case 8:
-      ScatterSparse<uint64_t>(sparse_ptr, bv, dense.begin(), row_count);
-      break;
-    default:
-      PERFETTO_FATAL("Unexpected element size %u", elem_size);
-  }
-  return dense;
+  return std::move(builder).Build();
 }
 
 }  // namespace
 
-TreeTransformer::TreeTransformer(dataframe::Dataframe df, StringPool* pool)
-    : df_(std::move(df)),
+TreeTransformer::TreeTransformer(TreeColumns cols, StringPool* pool)
+    : cols_(std::move(cols)),
       pool_(pool),
       builder_(std::make_unique<i::BytecodeBuilder>()) {
-  uint32_t n = df_.row_count();
+  uint32_t n = cols_.row_count;
   if (n == 0) {
     return;
   }
 
-  // Allocate registers used across all calls.
   auto range_reg = builder_->AllocateRegister<Range>();
   {
     using B = i::InitRange;
@@ -288,7 +172,6 @@ TreeTransformer::TreeTransformer(dataframe::Dataframe df, StringPool* pool)
     op.arg<B::update_register>() = span_reg;
   }
 
-  // TreeState register — shared across all FilterTree calls.
   auto ts_reg = builder_->AllocateRegister<std::unique_ptr<i::TreeState>>();
   tree_state_reg_index_ = ts_reg.index;
 }
@@ -298,22 +181,31 @@ TreeTransformer::TreeTransformer(TreeTransformer&&) noexcept = default;
 TreeTransformer& TreeTransformer::operator=(TreeTransformer&&) noexcept =
     default;
 
+std::optional<uint32_t> TreeTransformer::ResolveColumn(
+    std::string_view name) const {
+  for (uint32_t i = 0; i < cols_.names.size(); ++i) {
+    if (cols_.names[i] == name) {
+      return i;
+    }
+  }
+  return std::nullopt;
+}
+
 base::Status TreeTransformer::FilterTree(
     std::vector<dataframe::FilterSpec> specs,
     std::vector<SqlValue> values) {
-  uint32_t n = df_.row_count();
-  if (n == 0 || specs.empty()) {
+  if (cols_.row_count == 0 || specs.empty()) {
     return base::OkStatus();
   }
 
-  has_filters_ = true;
+  has_operations_ = true;
   i::RwHandle<Span<uint32_t>> span_reg(span_reg_index_);
 
   for (size_t si = 0; si < specs.size(); ++si) {
     auto& spec = specs[si];
-    const auto& col = *df_.columns_[spec.col];
-    StorageType ct = col.storage.type();
-    const BitVector* null_bv = col.null_storage.MaybeGetNullBitVector();
+    const auto& col = cols_.columns[spec.col];
+    StorageType ct = col.type;
+    const BitVector* null_bv = col.null_bv.size() > 0 ? &col.null_bv : nullptr;
 
     // Handle null ops (IsNull/IsNotNull).
     if (auto null_op = spec.op.TryDowncast<i::NullOp>()) {
@@ -386,8 +278,7 @@ base::Status TreeTransformer::FilterTree(
     }
   }
 
-  // Emit FilterTreeState: reparents, compacts tree + column data,
-  // and resets the span to [0..new_row_count-1].
+  // Emit FilterTreeState.
   i::RwHandle<std::unique_ptr<i::TreeState>> ts_reg(tree_state_reg_index_);
   {
     using F = i::FilterTreeState;
@@ -399,111 +290,208 @@ base::Status TreeTransformer::FilterTree(
   return base::OkStatus();
 }
 
-base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
-  using TreeState = i::TreeState;
+// Returns the size in bytes of one element for the given storage type.
+static uint32_t ElementSize(StorageType type) {
+  switch (type.index()) {
+    case StorageType::GetTypeIndex<Uint32>():
+      return sizeof(uint32_t);
+    case StorageType::GetTypeIndex<Int32>():
+      return sizeof(int32_t);
+    case StorageType::GetTypeIndex<Int64>():
+      return sizeof(int64_t);
+    case StorageType::GetTypeIndex<Double>():
+      return sizeof(double);
+    case StorageType::GetTypeIndex<String>():
+      return sizeof(StringPool::Id);
+    default:
+      PERFETTO_FATAL("Unsupported storage type");
+  }
+}
 
-  ASSIGN_OR_RETURN(auto id_to_row, BuildIdToRowMap(df_));
-  ASSIGN_OR_RETURN(auto normalized_parent,
-                   BuildNormalizedParentStorage(df_, id_to_row));
-
-  uint32_t n = df_.row_count();
-  if (n == 0 || !has_filters_) {
-    ASSIGN_OR_RETURN(auto tree_cols,
-                     BuildTreeColumns(normalized_parent.begin(), n, pool_));
-    return dataframe::Dataframe::HorizontalConcat(std::move(tree_cols),
-                                                  std::move(df_));
+base::Status TreeTransformer::PropagateDown(std::vector<PropagateSpec> specs) {
+  if (cols_.row_count == 0 || specs.empty()) {
+    return base::OkStatus();
   }
 
-  // Create TreeState and copy column data into it.
-  auto ts = CreateTreeState(normalized_parent.begin(), n);
+  uint32_t spec_start = static_cast<uint32_t>(propagate_specs_.size());
 
-  // Deduplicate columns: map col_index → TreeState index.
-  base::FlatHashMap<uint32_t, uint32_t> col_to_storage;
-  base::FlatHashMap<uint32_t, uint32_t> col_to_null_bv;
+  for (auto& spec : specs) {
+    auto src = ResolveColumn(spec.source_col_name);
+    if (!src) {
+      return base::ErrStatus("propagate_down: source column '%s' not found",
+                             spec.source_col_name.c_str());
+    }
+    StorageType st = cols_.columns[*src].type;
+    if (st.Is<String>()) {
+      return base::ErrStatus(
+          "propagate_down: string columns are not supported (column '%s')",
+          spec.source_col_name.c_str());
+    }
+    if (st.Is<Id>()) {
+      return base::ErrStatus(
+          "propagate_down: Id columns are not supported (column '%s')",
+          spec.source_col_name.c_str());
+    }
 
-  for (const auto& ri : reg_inits_) {
-    const auto& col = *df_.columns_[ri.col];
-    switch (ri.kind) {
-      case RegInit::kStorage: {
-        auto* existing = col_to_storage.Find(ri.col);
-        if (!existing) {
-          uint32_t idx = static_cast<uint32_t>(ts->columns.size());
-          uint32_t elem_size = ElementSize(col.storage.type());
-          TreeState::ColumnStorage cs;
-          cs.elem_size = elem_size;
-          if (IsSparseNull(col)) {
-            cs.data = DensifySparseColumn(col, n);
-          } else {
-            auto byte_count = static_cast<uint64_t>(n) * elem_size;
-            cs.data = Slab<uint8_t>::Alloc(byte_count);
-            const void* src = nullptr;
-            std::visit(
-                [&src](const auto* p) { src = static_cast<const void*>(p); },
-                col.storage.data());
-            memcpy(cs.data.begin(), src, byte_count);
-          }
-          ts->columns.push_back(std::move(cs));
-          col_to_storage[ri.col] = idx;
-        }
-        break;
-      }
-      case RegInit::kNullBv: {
-        if (!col_to_null_bv.Find(ri.col)) {
-          uint32_t idx = static_cast<uint32_t>(ts->null_bitvectors.size());
-          const BitVector* bv = col.null_storage.MaybeGetNullBitVector();
-          ts->null_bitvectors.push_back(bv ? bv->Clone() : BitVector());
-          col_to_null_bv[ri.col] = idx;
-        }
-        break;
+    // Add a new column.
+    uint32_t dest = static_cast<uint32_t>(cols_.names.size());
+    cols_.names.push_back(std::move(spec.output_col_name));
+
+    TreeColumns::Column oc;
+    oc.type = st;
+    oc.elem_size = ElementSize(st);
+    oc.data = Slab<uint8_t>::Alloc(static_cast<uint64_t>(cols_.row_count) *
+                                   oc.elem_size);
+    cols_.columns.push_back(std::move(oc));
+
+    propagate_specs_.push_back({*src, dest, spec.agg_op});
+  }
+
+  // Emit PropagateTreeDown bytecode with the spec range.
+  has_operations_ = true;
+  i::RwHandle<std::unique_ptr<i::TreeState>> ts_reg(tree_state_reg_index_);
+  {
+    using P = i::PropagateTreeDown;
+    auto& op = builder_->AddOpcode<P>(i::Index<P>());
+    op.arg<P::tree_state_register>() = ts_reg;
+    op.arg<P::spec_start>() = spec_start;
+    op.arg<P::spec_count>() =
+        static_cast<uint32_t>(propagate_specs_.size()) - spec_start;
+  }
+
+  return base::OkStatus();
+}
+
+base::StatusOr<dataframe::Dataframe> TreeTransformer::ToDataframe() && {
+  uint32_t n = cols_.row_count;
+
+  // No-op case: build output directly from owned data.
+  if (n == 0 || !has_operations_) {
+    auto tree_builder = dataframe::AdhocDataframeBuilder(
+        {"_tree_id", "_tree_parent_id"}, pool_,
+        dataframe::AdhocDataframeBuilder::Options{
+            {},
+            dataframe::NullabilityType::kDenseNull,
+        });
+    for (uint32_t i = 0; i < n; ++i) {
+      tree_builder.PushNonNull(0, i);
+      if (cols_.parent[i] == kNullParent) {
+        tree_builder.PushNull(1);
+      } else {
+        tree_builder.PushNonNull(1, cols_.parent[i]);
       }
     }
+    ASSIGN_OR_RETURN(auto tree_cols, std::move(tree_builder).Build());
+
+    ASSIGN_OR_RETURN(
+        auto data_cols,
+        BuildDataColumns(
+            cols_.names, cols_.columns, n, pool_,
+            [&](uint32_t ci) -> std::pair<const uint8_t*, const BitVector&> {
+              return {cols_.columns[ci].data.begin(),
+                      cols_.columns[ci].null_bv};
+            }));
+    return dataframe::Dataframe::HorizontalConcat(std::move(tree_cols),
+                                                  std::move(data_cols));
   }
 
-  // Initialize interpreter and set TreeState register.
+  // Build TreeState by moving owned data into it.
+  auto ts = std::make_unique<i::TreeState>();
+  ts->row_count = n;
+  ts->parent = std::move(cols_.parent);
+
+  ts->original_rows = Slab<uint32_t>::Alloc(n);
+  std::iota(ts->original_rows.begin(), ts->original_rows.begin() + n, 0u);
+
+  for (auto& col : cols_.columns) {
+    i::TreeState::ColumnStorage cs;
+    cs.data = std::move(col.data);
+    cs.elem_size = col.elem_size;
+    ts->columns.push_back(std::move(cs));
+    ts->null_bitvectors.push_back(std::move(col.null_bv));
+  }
+
+  // Populate propagate_down_specs (column indices map 1:1).
+  for (const auto& pi : propagate_specs_) {
+    using PDS = interpreter::TreeState::PropagateDownSpec;
+    ts->propagate_down_specs.push_back(PDS{
+        pi.agg_op,
+        pi.source_col,
+        pi.dest_col,
+        cols_.columns[pi.dest_col].type,
+    });
+  }
+
+  ts->p2c_offsets = Slab<uint32_t>::Alloc(n + 1);
+  ts->p2c_children = Slab<uint32_t>::Alloc(n);
+  ts->p2c_roots = Slab<uint32_t>::Alloc(n);
+  ts->p2c_valid = false;
+  ts->scratch1 = Slab<uint32_t>::Alloc(static_cast<uint64_t>(n) * 2);
+  ts->scratch2 = Slab<uint32_t>::Alloc(n);
+  ts->keep_bv = BitVector::CreateWithSize(n, false);
+
+  // Initialize interpreter.
   i::Interpreter<TreeValueFetcher> interp;
   interp.Initialize(builder_->bytecode(), builder_->register_count(), pool_);
   interp.SetRegisterValue(
-      i::WriteHandle<std::unique_ptr<TreeState>>(tree_state_reg_index_),
+      i::WriteHandle<std::unique_ptr<i::TreeState>>(tree_state_reg_index_),
       std::move(ts));
 
-  // Set StoragePtr and null bitvector registers, pointing into TreeState.
   const auto* ts_ptr = interp.GetRegisterValue(
-      i::ReadHandle<std::unique_ptr<TreeState>>(tree_state_reg_index_));
+      i::ReadHandle<std::unique_ptr<i::TreeState>>(tree_state_reg_index_));
   PERFETTO_CHECK(ts_ptr && *ts_ptr);
   const auto& ts_ref = **ts_ptr;
 
   for (const auto& ri : reg_inits_) {
-    const auto& col = *df_.columns_[ri.col];
     switch (ri.kind) {
-      case RegInit::kStorage: {
-        uint32_t idx = *col_to_storage.Find(ri.col);
+      case RegInit::kStorage:
         interp.SetRegisterValue(i::WriteHandle<i::StoragePtr>(ri.reg),
-                                i::StoragePtr{ts_ref.columns[idx].data.begin(),
-                                              col.storage.type()});
+                                i::StoragePtr{
+                                    ts_ref.columns[ri.col].data.begin(),
+                                    cols_.columns[ri.col].type,
+                                });
         break;
-      }
-      case RegInit::kNullBv: {
-        uint32_t idx = *col_to_null_bv.Find(ri.col);
-        i::NullBitvector nbv;
-        nbv.bv = &ts_ref.null_bitvectors[idx];
-        interp.SetRegisterValue(i::WriteHandle<i::NullBitvector>(ri.reg),
-                                std::move(nbv));
+      case RegInit::kNullBv:
+        interp.SetRegisterValue(
+            i::WriteHandle<i::NullBitvector>(ri.reg),
+            i::NullBitvector{&ts_ref.null_bitvectors[ri.col], {}});
         break;
-      }
     }
   }
 
   TreeValueFetcher fetcher(filter_values_.data());
   interp.Execute(fetcher);
 
+  // Build output from final TreeState.
   const auto& final_ts = **ts_ptr;
-
   uint32_t final_count = final_ts.row_count;
-  ASSIGN_OR_RETURN(auto tree_cols, BuildTreeColumns(final_ts.parent.begin(),
-                                                    final_count, pool_));
-  return dataframe::Dataframe::HorizontalConcat(
-      std::move(tree_cols),
-      std::move(df_).SelectRows(final_ts.original_rows.begin(), final_count));
+
+  auto tree_builder = dataframe::AdhocDataframeBuilder(
+      {"_tree_id", "_tree_parent_id"}, pool_,
+      dataframe::AdhocDataframeBuilder::Options{
+          {},
+          dataframe::NullabilityType::kDenseNull,
+      });
+  for (uint32_t i = 0; i < final_count; ++i) {
+    tree_builder.PushNonNull(0, i);
+    if (final_ts.parent[i] == kNullParent) {
+      tree_builder.PushNull(1);
+    } else {
+      tree_builder.PushNonNull(1, final_ts.parent[i]);
+    }
+  }
+  ASSIGN_OR_RETURN(auto tree_cols, std::move(tree_builder).Build());
+
+  ASSIGN_OR_RETURN(
+      auto data_cols,
+      BuildDataColumns(
+          cols_.names, cols_.columns, final_count, pool_,
+          [&](uint32_t ci) -> std::pair<const uint8_t*, const BitVector&> {
+            return {final_ts.columns[ci].data.begin(),
+                    final_ts.null_bitvectors[ci]};
+          }));
+  return dataframe::Dataframe::HorizontalConcat(std::move(tree_cols),
+                                                std::move(data_cols));
 }
 
 }  // namespace perfetto::trace_processor::core::tree

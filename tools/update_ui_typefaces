@@ -55,15 +55,8 @@ FONTS = {
         'output': 'Roboto.woff2',
         'family': 'Roboto Flex',
         'axes': {
-            'wght': '100..900'
-        },
-        'unicodes': LATIN_UNICODES,
-    },
-    'RobotoCondensed': {
-        'output': 'RobotoCondensed.woff2',
-        'family': 'Roboto Condensed',
-        'axes': {
-            'wght': '100..900'
+            'wght': '100..900',
+            'wdth': '50..100',
         },
         'unicodes': LATIN_UNICODES,
     },

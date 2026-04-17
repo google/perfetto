@@ -71,6 +71,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
+const zlib = require('zlib');
 const pjoin = path.join;
 
 const ROOT_DIR = path.dirname(__dirname);  // The repo root.
@@ -143,8 +144,51 @@ let liveServerDebounceTimerId = 0;
 const notifyLiveServerPendingFiles = new Set();
 
 
+// Loads ~/.config/perfetto/ui-dev-server.env and injects any KEY=VALUE pairs
+// into process.env, without overriding variables already set in the environment.
+function loadDevServerEnvFile() {
+  const home = process.env.HOME || process.env.USERPROFILE || '';
+  const envFile =
+      path.join(home, '.config', 'perfetto', 'ui-dev-server.env');
+  let content;
+  try {
+    content = fs.readFileSync(envFile, 'utf8');
+  } catch (e) {
+    return;  // File absent or unreadable — not an error.
+  }
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx < 0) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    const value = trimmed.slice(eqIdx + 1).trim();
+    if (!(key in process.env)) process.env[key] = value;
+  }
+}
+
 async function main() {
-  const parser = new argparse.ArgumentParser();
+  const parser = new argparse.ArgumentParser({
+    formatter_class: argparse.RawDescriptionHelpFormatter,
+    epilog: `
+Env-var overrides:
+  Any flag can be set via a PERFETTO_UI_<FLAG> environment variable,
+  where <FLAG> is the flag name uppercased with hyphens replaced by
+  underscores. Boolean flags are activated by "1" or "true". CLI flags
+  always take precedence over environment variables.
+
+  Examples:
+    PERFETTO_UI_SERVE_HOST=0.0.0.0
+    PERFETTO_UI_SERVE_PORT=10000
+    PERFETTO_UI_NO_BUILD=1
+    PERFETTO_UI_TITLE=my-instance
+
+  Defaults can also be persisted in:
+    ~/.config/perfetto/ui-dev-server.env
+  (one KEY=VALUE per line, # comments supported). Shell env vars take
+  precedence over the file.
+`,
+  });
   parser.add_argument('--out', {help: 'Output directory'});
   parser.add_argument('--minify-js', {
     help: 'Minify js files',
@@ -170,11 +214,33 @@ async function main() {
     help: 'filter Jest tests by regex, e.g. \'chrome_render\'',
   });
   parser.add_argument('--no-override-gn-args', {action: 'store_true'});
+  parser.add_argument('--typecheck', {
+    action: 'store_true',
+    help: 'Only type-check (tsc --noEmit), skip bundling',
+  });
   parser.add_argument('--title', {
     help: 'Override the page title (useful for distinguishing multiple instances)',
   });
 
-  const args = parser.parse_args();
+  // Load ~/.config/perfetto/ui-dev-server.env defaults, then map any
+  // PERFETTO_UI_* env vars to synthetic argv entries prepended before the
+  // real argv so that explicit CLI flags always take precedence.
+  loadDevServerEnvFile();
+  const envPrefix = 'PERFETTO_UI_';
+  const syntheticArgv = [];
+  for (const [key, val] of Object.entries(process.env)) {
+    if (!key.startsWith(envPrefix)) continue;
+    const flag = '--' + key.slice(envPrefix.length).toLowerCase().replace(/_/g, '-');
+    const action = parser._actions.find(a => (a.option_strings || []).includes(flag));
+    if (!action) continue;
+    const isBoolFlag = action.nargs === 0;
+    if (isBoolFlag) {
+      if (val === '1' || val.toLowerCase() === 'true') syntheticArgv.push(flag);
+    } else {
+      syntheticArgv.push(`${flag}=${val}`);
+    }
+  }
+  const args = parser.parse_args([...syntheticArgv, ...process.argv.slice(2)]);
   const clean = !args.no_build;
   cfg.outDir = path.resolve(ensureDir(args.out || cfg.outDir));
   cfg.lockFile = pjoin(cfg.outDir, "watch.lock");
@@ -228,6 +294,7 @@ async function main() {
   if (args.cross_origin_isolation) {
     cfg.crossOriginIsolation = true;
   }
+  cfg.check = !!args.typecheck;
   cfg.onlyWasmMemory64 = !!args.only_wasm_memory64;
   cfg.titleOverride = args.title || '';
   cfg.wasmModules = ['traceconv', 'proto_utils', 'trace_processor_memory64'];
@@ -289,7 +356,15 @@ async function main() {
   // least one task for that.
   addTask(() => {});
 
-  if (!args.no_build) {
+  if (args.no_build && cfg.check) {
+    // --no-build --typecheck: just run tsc --noEmit assuming out dir exists.
+    const tsProjects = ['ui', 'ui/src/service_worker'];
+    if (cfg.bigtrace) tsProjects.push('ui/src/bigtrace');
+    if (cfg.openPerfettoTrace) tsProjects.push('ui/src/open_perfetto_trace');
+    for (const prj of tsProjects) {
+      transpileTsProject(prj, {noEmit: true});
+    }
+  } else if (!args.no_build) {
     updateSymlinks();  // Links //ui/out -> //out/xxx/ui/
 
     buildWasm(args.no_wasm);
@@ -315,29 +390,35 @@ async function main() {
       tsProjects.push('ui/src/open_perfetto_trace');
     }
 
-    for (const prj of tsProjects) {
-      // When in watch mode, don't error out if we get typescript errors in the 
-      // initial build. Typescript errors on subsequent incremental builds don't
-      // error out so the initial build should behave in the same way. 
-      //
-      // Note: In non-watch mode, we do still break on typescript errors,
-      // there's no change here.
-      transpileTsProject(prj, {noErrCheck: cfg.watch});
-    }
-
-    if (cfg.watch) {
+    if (cfg.check) {
       for (const prj of tsProjects) {
-        transpileTsProject(prj, {watch: cfg.watch});
+        transpileTsProject(prj, {noEmit: true});
       }
+    } else {
+      for (const prj of tsProjects) {
+        // When in watch mode, don't error out if we get typescript errors in the
+        // initial build. Typescript errors on subsequent incremental builds don't
+        // error out so the initial build should behave in the same way.
+        //
+        // Note: In non-watch mode, we do still break on typescript errors,
+        // there's no change here.
+        transpileTsProject(prj, {noErrCheck: cfg.watch});
+      }
+
+      if (cfg.watch) {
+        for (const prj of tsProjects) {
+          transpileTsProject(prj, {watch: cfg.watch});
+        }
+      }
+
+      bundleJs('rollup.config.js');
+      genServiceWorkerManifestJson();
+
+      // Watches the /dist. When changed:
+      // - Notifies the HTTP live reload clients.
+      // - Regenerates the ServiceWorker file map.
+      scanDir(cfg.outDistRootDir);
     }
-
-    bundleJs('rollup.config.js');
-    genServiceWorkerManifestJson();
-
-    // Watches the /dist. When changed:
-    // - Notifies the HTTP live reload clients.
-    // - Regenerates the ServiceWorker file map.
-    scanDir(cfg.outDistRootDir);
   }
 
   // We should enter the loop only in watch mode, where tsc and rollup are
@@ -346,7 +427,7 @@ async function main() {
     console.log('No build was requested, but artifacts are not available.');
     console.log('In case of execution error, re-run without --no-build.');
   }
-  if (!args.no_build) {
+  if (!args.no_build && !cfg.check) {
     const tStart = performance.now();
     while (!isDistComplete()) {
       const secs = Math.ceil((performance.now() - tStart) / 1000);
@@ -596,7 +677,10 @@ function buildWasm(skipWasmBuild) {
 function transpileTsProject(project, options) {
   const args = ['--project', pjoin(ROOT_DIR, project)];
 
-  if (options !== undefined && options.watch) {
+  if (options !== undefined && options.noEmit) {
+    args.push('--noEmit');
+    addTask(execModule, ['tsc', args]);
+  } else if (options !== undefined && options.watch) {
     args.push('--watch', '--preserveWatchOutput');
     addTask(execModule, ['tsc', args, {
       async: true,
@@ -693,6 +777,29 @@ function startServer() {
           return;
         }
 
+        let stat;
+        try {
+          stat = fs.statSync(absPath);
+        } catch (statErr) {
+          res.writeHead(404);
+          res.end(JSON.stringify(statErr));
+          return;
+        }
+
+        // Truncate to second precision: HTTP dates have 1s resolution, so the
+        // sub-millisecond part of mtime would cause a permanent mismatch.
+        const mtimeSec = Math.floor(stat.mtime.getTime() / 1000) * 1000;
+        const mtimeStr = new Date(mtimeSec).toUTCString();
+
+        // Return 304 if the browser's cached copy is still fresh.
+        const ifModifiedSince = req.headers['if-modified-since'];
+        if (ifModifiedSince !== undefined &&
+            new Date(ifModifiedSince).getTime() >= mtimeSec) {
+          res.writeHead(304);
+          res.end();
+          return;
+        }
+
         fs.readFile(absPath, function(err, data) {
           if (err) {
             res.writeHead(404);
@@ -708,25 +815,37 @@ function startServer() {
           };
           const ext = uri.split('.').pop();
           const cType = mimeMap[ext] || 'octect/stream';
-          const head = {
-            'Content-Type': cType,
-            'Content-Length': data.length,
-            'Last-Modified': fs.statSync(absPath).mtime.toUTCString(),
-            'Cache-Control': 'no-cache',
+          const acceptsGzip =
+              (req.headers['accept-encoding'] || '').includes('gzip');
+          const finalize = (body) => {
+            const head = {
+              'Content-Type': cType,
+              'Content-Length': body.length,
+              'Last-Modified': mtimeStr,
+              'Cache-Control': 'no-cache',
+            };
+            if (acceptsGzip) head['Content-Encoding'] = 'gzip';
+            if (cfg.crossOriginIsolation) {
+              head['Cross-Origin-Opener-Policy'] = 'same-origin';
+              head['Cross-Origin-Embedder-Policy'] = 'require-corp';
+            }
+            res.writeHead(200, head);
+            res.write(body);
+            res.end();
           };
-          if (cfg.crossOriginIsolation) {
-            head['Cross-Origin-Opener-Policy'] = 'same-origin';
-            head['Cross-Origin-Embedder-Policy'] = 'require-corp';
+          if (acceptsGzip) {
+            zlib.gzip(data, (gzErr, compressed) => {
+              finalize(gzErr ? data : compressed);
+            });
+          } else {
+            finalize(data);
           }
-          res.writeHead(200, head);
-          res.write(data);
-          res.end();
         });
       });
 
   let port = cfg.httpServerListenPort ?? DEFAULT_PORT;
   let retryCount = 0;
-  
+
   // Pick the next free port starting at 10000
   server.on('error', (e) => {
     if (e.code === 'EADDRINUSE') {
@@ -931,6 +1050,10 @@ class Task {
     const ret = this.func.name.startsWith('exec') ? [] : [this.func.name];
     const flattenedArgs = [].concat(...this.args);
     for (const arg of flattenedArgs) {
+      if (typeof arg === 'object' && arg !== null) {
+        ret.push(JSON.stringify(arg));
+        continue;
+      }
       const argStr = `${arg}`;
       if (argStr.startsWith('/')) {
         ret.push(path.relative(cfg.outDir, arg));
@@ -1011,6 +1134,7 @@ function prepareBuildLock() {
     }
     if (running) {
       console.error(`Error: a build.js instance is already running (${cfg.lockFile} PID=${oldPid}).`);
+      console.error('Hint: use --no-build (-n) to skip the build and avoid the lock.');
       process.exit(1);
     } else {
       console.log(`Removing stale lock file for PID ${oldPid}`);

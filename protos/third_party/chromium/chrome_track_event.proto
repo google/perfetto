@@ -43,6 +43,7 @@ message BlinkTaskScope {
     TASK_SCOPE_MISC_EVENT = 10;
     TASK_SCOPE_MICROTASK = 11;
     TASK_SCOPE_RESOURCE_TIMING = 12;
+    TASK_SCOPE_SCRIPT_TOOL_EXECUTION = 13;
   }
   optional TaskScopeType type = 1;
   optional int64 scope_task_id = 2;
@@ -1030,6 +1031,10 @@ message EventLatency {
         // Trace IDs of the first synthetic scroll update included in this
         // frame. Can be joined with EventLatency.event_latency_id.
         optional int64 first_event_latency_id = 1;
+
+        // True if the synthetic scroll update was generated from an inertial
+        // input (e.g. a fling).
+        optional bool has_inertial_input = 2;
       }
       optional Synthetic synthetic = 2;
 
@@ -2273,6 +2278,7 @@ message WebViewStartup {
     STATIC_GET_RENDERER_LIBRARY_PREFETCH_MODE = 106;
     GET_DEFAULT_COOKIE_MANAGER = 107;
     GET_PROFILE_STORE = 108;
+    WEBVIEW_INSTANCE_GET_SETTINGS = 109;
     // Remember to update WebViewStartupCallSite in enums.xml when adding new
     // values here.
   }
@@ -2620,7 +2626,7 @@ message EventTiming {
 // Frame information provided by Android's Choreographer.
 // See
 // https://developer.android.com/ndk/reference/group/choreographer#achoreographerframecallbackdata.
-// Next ID: 4
+// Next ID: 5
 message AndroidChoreographerFrameCallbackData {
   // The time in microseconds at which the frame started being rendered.
   // See
@@ -2658,6 +2664,9 @@ message AndroidChoreographerFrameCallbackData {
   // See
   // https://developer.android.com/ndk/reference/group/choreographer#achoreographerframecallbackdata_getpreferredframetimelineindex.
   optional int64 preferred_frame_timeline_index = 3;
+
+  // The chrome-preferred frame timeline.
+  optional FrameTimeline chrome_preferred_frame_timeline = 4;
 }
 
 message ChromeFrameReporter2 {
@@ -2855,11 +2864,72 @@ message MemoryDumpProvider {
   optional string name = 1;
 };
 
+// Information about `viz::FrameIntervalDecider`.
+message FrameIntervalDecider {
+  // LINT.IfChange(FrameIntervalClass)
+  enum FrameIntervalClass {
+    FRAME_INTERVAL_CLASS_UNSPECIFIED = 0;
+    FRAME_INTERVAL_CLASS_BOOST = 1;
+    FRAME_INTERVAL_CLASS_DEFAULT = 2;
+  }
+  // LINT.ThenChange(//components/viz/service/display/frame_interval_matchers.h:FrameIntervalClass)
+
+  // LINT.IfChange(ResultIntervalType)
+  enum ResultIntervalType {
+    RESULT_INTERVAL_TYPE_UNSPECIFIED = 0;
+    RESULT_INTERVAL_TYPE_EXACT = 1;
+    RESULT_INTERVAL_TYPE_AT_LEAST = 2;
+  }
+  // LINT.ThenChange(//components/viz/service/display/frame_interval_matchers.h:ResultIntervalType)
+
+  message ResultInterval {
+    // The frame interval duration in microseconds.
+    optional int64 interval_us = 1;
+    optional ResultIntervalType type = 2;
+  }
+
+  // The ideal frame interval the display should use, as decided by the decider.
+  message Result {
+    oneof result {
+      FrameIntervalClass frame_interval_class = 1;
+      ResultInterval result_interval = 2;
+    }
+  }
+
+  optional Result result = 1;
+
+  // LINT.IfChange(FrameIntervalMatcherType)
+  enum FrameIntervalMatcherType {
+    MATCHER_TYPE_UNSPECIFIED = 0;
+    MATCHER_TYPE_NONE = 1;
+    MATCHER_TYPE_INPUT_BOOST = 2;
+    MATCHER_TYPE_ONLY_VIDEO = 3;
+    MATCHER_TYPE_VIDEO_CONFERENCE = 4;
+    MATCHER_TYPE_ONLY_ANIMATING_IMAGE = 5;
+    MATCHER_TYPE_ONLY_SCROLL_BAR_FADE_OUT = 6;
+    MATCHER_TYPE_USER_INPUT_BOOST = 7;
+    MATCHER_TYPE_SLOW_SCROLL_THROTTLE = 8;
+  }
+  // LINT.ThenChange(//components/viz/service/display/frame_interval_matchers.h:FrameIntervalMatcherType)
+
+  // The type of the `viz::FrameIntervalMatcher` on which the decider based
+  // its decision.
+  optional FrameIntervalMatcherType matcher_type = 2;
+}
+
+message ChromeAccessibilityWinNotifyWinEvent {
+  // The DWORD `event` parameter to ::NotifyWinEvent(). See
+  // https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-notifywinevent
+  // One of the following constants:
+  // https://learn.microsoft.com/en-us/windows/win32/winauto/event-constants
+  optional uint32 native_event = 1;
+}
+
 message ChromeTrackEvent {
   reserved 1045;
 
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1080
+  // Next ID: 1083
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -3030,5 +3100,12 @@ message ChromeTrackEvent {
     // Identifies the MemoryDumpProvider object that runs in the scope of a
     // trace event, to identify which objects cause delays in a trace.
     optional MemoryDumpProvider memory_dump_provider = 1079;
+
+    optional ChromeAccessibilityWinNotifyWinEvent
+        chrome_accessibility_win_notify_win_event = 1080;
+
+    optional FrameIntervalDecider frame_interval_decider = 1081;
+
+    optional BeginFrameArgsV2 begin_frame_args = 1082;
   }
 }

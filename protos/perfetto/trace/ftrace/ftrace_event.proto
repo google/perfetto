@@ -758,5 +758,7 @@ message FtraceEvent {
     SchedGroupTrackerFtraceEvent sched_group_tracker = 604;
     DpuDispFrameDoneTimeoutFtraceEvent dpu_disp_frame_done_timeout = 605;
     DpuDispFrameStartTimeoutFtraceEvent dpu_disp_frame_start_timeout = 606;
+    MmVmscanMemcgReclaimBeginFtraceEvent mm_vmscan_memcg_reclaim_begin = 607;
+    MmVmscanMemcgReclaimEndFtraceEvent mm_vmscan_memcg_reclaim_end = 608;
   }
 }

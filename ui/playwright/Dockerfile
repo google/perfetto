@@ -15,7 +15,7 @@
 # Playwright container with Mesa GL support for headless rendering.
 # Build with: docker build --build-arg PLAYWRIGHT_VERSION=$(pnpm exec playwright --version) -t perfetto-playwright .
 # Use the same base as infra/ci/sandbox/Dockerfile to make it as identical to the CI as possible
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 

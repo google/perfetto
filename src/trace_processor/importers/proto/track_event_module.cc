@@ -24,6 +24,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/android_track_event.descriptor.h"
 #include "src/trace_processor/importers/proto/chrome_track_event_extension.descriptor.h"
+#include "src/trace_processor/importers/proto/gpu_track_event.descriptor.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/track_event.descriptor.h"
@@ -55,6 +56,8 @@ TrackEventModule::TrackEventModule(ProtoImporterModuleContext* module_context,
       kChromeTrackEventExtensionDescriptor.size());
   context->descriptor_pool_->AddFromFileDescriptorSet(
       kAndroidTrackEventDescriptor.data(), kAndroidTrackEventDescriptor.size());
+  context->descriptor_pool_->AddFromFileDescriptorSet(
+      kGpuTrackEventDescriptor.data(), kGpuTrackEventDescriptor.size());
 }
 
 TrackEventModule::~TrackEventModule() = default;

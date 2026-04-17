@@ -190,7 +190,8 @@ class TraceProcessor:
     Returns:
       A class which can iterate through each row of the results table. This
       can also be converted to a pandas dataframe by calling the
-      as_pandas_dataframe() function after calling query.
+      as_pandas_dataframe() function, or a polars dataframe by calling
+      as_polars_dataframe(), after calling query.
     """
     response = self.http.execute_query(sql)
     if response.error:

@@ -637,6 +637,22 @@ struct FilterTreeState : Bytecode {
                                      indices_register);
 };
 
+// Propagates values from root toward leaves using BFS. For each spec in the
+// range [spec_start, spec_start + spec_count), copies source column data to
+// the dest column, then applies the aggregate operation downward via BFS.
+//
+// Requires the P2C CSR cache to be rebuilt if stale.
+struct PropagateTreeDown : Bytecode {
+  static constexpr Cost kCost = LinearPerRowCost{20};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(RwHandle<std::unique_ptr<TreeState>>,
+                                     tree_state_register,
+                                     uint32_t,
+                                     spec_start,
+                                     uint32_t,
+                                     spec_count);
+};
+
 // Bytecode ops that require FilterValueFetcher access.
 #define PERFETTO_DATAFRAME_BYTECODE_FVF_LIST(X) \
   X(CastFilterValue<Id>)                        \
@@ -799,7 +815,8 @@ struct FilterTreeState : Bytecode {
   X(FinalizeRanksInMap)                                \
   X(SortRowLayout)                                     \
   X(Reverse)                                           \
-  X(FilterTreeState)
+  X(FilterTreeState)                                   \
+  X(PropagateTreeDown)
 
 // Combined list of all bytecode instruction types.
 #define PERFETTO_DATAFRAME_BYTECODE_LIST(X) \

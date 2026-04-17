@@ -77,7 +77,7 @@ class DynamicStringWriter {
   // Appends a double to the buffer.
   void AppendDouble(double value) {
     constexpr size_t STACK_BUFFER_SIZE = 32;
-    StackString<STACK_BUFFER_SIZE> buf("%lf", value);
+    StackString<STACK_BUFFER_SIZE> buf("%.16g", value);
     AppendString(buf.string_view());
   }
 

@@ -69,6 +69,9 @@ export enum NodeType {
   // Dashboard
   kDashboard = 'dashboard',
 
+  // Group (encapsulates a subgraph as a single node)
+  kGroup = 'group',
+
   // Deprecated (kept for backward compatibility)
   kMerge = kJoin,
   kMetrics = 'metrics',

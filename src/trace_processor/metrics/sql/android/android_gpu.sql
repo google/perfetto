@@ -14,9 +14,15 @@
 -- limitations under the License.
 --
 
-SELECT RUN_METRIC('android/global_counter_span_view.sql',
-  'table_name', 'global_gpu_memory',
-  'counter_name', 'GPU Memory');
+DROP VIEW IF EXISTS global_gpu_memory_span;
+CREATE PERFETTO VIEW global_gpu_memory_span AS
+SELECT
+  ts,
+  LEAD(ts, 1, trace_end()) OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur,
+  value AS global_gpu_memory_val
+FROM counter c JOIN gpu_counter_track t
+  ON t.id = c.track_id
+WHERE t.name = 'GPU Memory' AND t.type = 'gpu_memory';
 
 SELECT RUN_METRIC('android/process_counter_span_view.sql',
   'table_name', 'proc_gpu_memory',

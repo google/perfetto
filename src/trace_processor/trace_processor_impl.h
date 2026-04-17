@@ -29,11 +29,12 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/summarizer.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
@@ -145,17 +146,22 @@ class TraceProcessorImpl : public TraceProcessor,
 
   void CacheBoundsAndBuildTable();
 
+  struct InitPerfettoSqlEngineArgs {
+    TraceProcessorContext* context;
+    TraceStorage* storage;
+    const Config& config;
+    const std::vector<SqlPackage>& packages;
+    std::vector<metrics::SqlMetricFile>& sql_metrics;
+    const DescriptorPool* metrics_descriptor_pool;
+    std::unordered_map<std::string, std::string>* proto_fn_name_to_path;
+    TraceProcessor* trace_processor;
+    bool notify_eof_called;
+    std::pair<int64_t, int64_t> cached_trace_bounds;
+    std::vector<std::unique_ptr<PluginBase>>& plugins;
+  };
+
   static std::unique_ptr<PerfettoSqlEngine> InitPerfettoSqlEngine(
-      TraceProcessorContext* context,
-      TraceStorage* storage,
-      const Config& config,
-      const std::vector<SqlPackage>&,
-      std::vector<metrics::SqlMetricFile>& sql_metrics,
-      const DescriptorPool* metrics_descriptor_pool,
-      std::unordered_map<std::string, std::string>* proto_fn_name_to_path,
-      TraceProcessor*,
-      bool notify_eof_called,
-      std::pair<int64_t, int64_t> cached_trace_bounds);
+      const InitPerfettoSqlEngineArgs& args);
 
   static std::vector<PerfettoSqlEngine::StaticTable> GetStaticTables(
       TraceStorage* storage);
@@ -169,6 +175,9 @@ class TraceProcessorImpl : public TraceProcessor,
   static void IncludeAfterEofPrelude(PerfettoSqlEngine*);
 
   const Config config_;
+
+  // Registered plugins, topologically sorted by dependency order.
+  std::vector<std::unique_ptr<PluginBase>> plugins_;
 
   std::unique_ptr<PerfettoSqlEngine> engine_;
 

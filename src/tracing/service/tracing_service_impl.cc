@@ -30,7 +30,6 @@
 #include <map>
 #include <memory>
 #include <optional>
-#include <regex>
 #include <set>
 #include <string>
 #include <tuple>
@@ -73,6 +72,7 @@
 #include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/periodic_task.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/scoped_sched_boost.h"
 #include "perfetto/ext/base/string_utils.h"  // IWYU pragma: keep
@@ -264,15 +264,15 @@ std::tuple<size_t /*shm_size*/, size_t /*page_size*/> EnsureValidShmSizes(
 bool NameMatchesFilter(const std::string& name,
                        const std::vector<std::string>& name_filter,
                        const std::vector<std::string>& name_regex_filter) {
-  bool filter_matches = std::find(name_filter.begin(), name_filter.end(),
-                                  name) != name_filter.end();
-  bool filter_regex_matches =
-      std::find_if(name_regex_filter.begin(), name_regex_filter.end(),
-                   [&](const std::string& regex) {
-                     return std::regex_match(
-                         name, std::regex(regex, std::regex::extended));
-                   }) != name_regex_filter.end();
-  return filter_matches || filter_regex_matches;
+  if (std::find(name_filter.begin(), name_filter.end(), name) !=
+      name_filter.end()) {
+    return true;
+  }
+  return std::any_of(
+      name_regex_filter.begin(), name_regex_filter.end(),
+      [&](const std::string& pattern) {
+        return base::Regex::CreateOrCheck(pattern).FullMatch(name);
+      });
 }
 
 // Used when TraceConfig.write_into_file == true and output_path is not empty.
@@ -455,10 +455,21 @@ void TracingServiceImpl::DisconnectProducer(ProducerID id) {
   PERFETTO_DLOG("Producer %" PRIu16 " disconnected", id);
   PERFETTO_DCHECK(producers_.count(id));
 
-  // Scrape remaining chunks for this producer to ensure we don't lose data.
   if (auto* producer = GetProducer(id)) {
-    for (auto& session_id_and_session : tracing_sessions_)
+    // Scrape remaining chunks for this producer to ensure we don't lose data.
+    for (auto& session_id_and_session : tracing_sessions_) {
       ScrapeSharedMemoryBuffers(&session_id_and_session.second, producer);
+    }
+
+    // Fire a disconnect trigger so pre-configured sessions can capture
+    // diagnostics when traced_probes crashes.
+    if constexpr (PERFETTO_FLAGS(
+                      TRIGGER_PERFETTO_ON_TRACED_PROBES_DISCONNECT)) {
+      if (producer->name_ == "perfetto.traced_probes") {
+        PERFETTO_ELOG("traced_probes disconnected, firing disconnect trigger");
+        ActivateTriggers(id, {"perfetto.traced_probes.disconnect"});
+      }
+    }
   }
 
   for (auto it = data_sources_.begin(); it != data_sources_.end();) {
@@ -1884,11 +1895,11 @@ void TracingServiceImpl::ActivateTriggers(
       // If this trigger requires a certain producer to have sent it
       // (non-empty producer_name()) ensure the producer who sent this trigger
       // matches.
-      if (!iter->producer_name_regex().empty() &&
-          !std::regex_match(
-              producer->name_,
-              std::regex(iter->producer_name_regex(), std::regex::extended))) {
-        continue;
+      if (!iter->producer_name_regex().empty()) {
+        auto re = base::Regex::CreateOrCheck(iter->producer_name_regex());
+        if (!re.FullMatch(producer->name_)) {
+          continue;
+        }
       }
 
       // Use a random number between 0 and 1 to check if we should allow this
@@ -2665,7 +2676,10 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   }
   if (!tracing_session->did_emit_initial_packets) {
     EmitUuid(tracing_session, &packets);
-    EmitExtensionDescriptors(tracing_session, &packets);
+    if (!tracing_session->config.builtin_data_sources()
+             .disable_extension_descriptors()) {
+      EmitExtensionDescriptors(tracing_session, &packets);
+    }
     EmitTraceProvenance(tracing_session, &packets);
     if (!tracing_session->config.builtin_data_sources().disable_system_info()) {
       EmitSystemInfo(&packets);

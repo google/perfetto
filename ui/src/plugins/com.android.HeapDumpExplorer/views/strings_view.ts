@@ -31,6 +31,7 @@ import {
   SQL_PREAMBLE,
   RowCounter,
 } from '../components';
+import {clearNavParam} from '../nav_state';
 import * as queries from '../queries';
 
 const QUERY = `
@@ -158,6 +159,14 @@ function StringsView(): m.Component<StringsViewAttrs> {
   let alive = true;
   let dataSource: SQLDataSource | null = null;
   const counter = new RowCounter();
+  let filters: Filter[] = [];
+
+  function applyNavFilter(q: string | undefined) {
+    if (!q) return;
+    filters = [{field: 'value', op: '=' as const, value: q}];
+    counter.onFiltersChanged(filters);
+    clearNavParam('q');
+  }
 
   return {
     oninit(vnode) {
@@ -169,6 +178,7 @@ function StringsView(): m.Component<StringsViewAttrs> {
         preamble: SQL_PREAMBLE,
       });
       counter.init(engine, QUERY, SQL_PREAMBLE);
+      applyNavFilter(vnode.attrs.initialQuery);
       queries
         .getStringList(vnode.attrs.engine)
         .then((r) => {
@@ -177,6 +187,9 @@ function StringsView(): m.Component<StringsViewAttrs> {
           m.redraw();
         })
         .catch(console.error);
+    },
+    onupdate(vnode) {
+      applyNavFilter(vnode.attrs.initialQuery);
     },
     onremove() {
       alive = false;
@@ -206,11 +219,6 @@ function StringsView(): m.Component<StringsViewAttrs> {
         return seen.size;
       })();
 
-      const initialQuery = vnode.attrs.initialQuery;
-      const valueFilter: Filter[] = initialQuery
-        ? [{field: 'value', op: '=' as const, value: initialQuery}]
-        : [];
-
       const summaryRows: Row[] = [
         {property: 'Total strings', value: allRows.length.toLocaleString()},
         {property: 'Unique values', value: uniqueCount.toLocaleString()},
@@ -239,18 +247,21 @@ function StringsView(): m.Component<StringsViewAttrs> {
               data: dataSource,
               fillHeight: true,
               initialColumns: [
+                {id: 'id', field: 'id'},
+                {id: 'value', field: 'value'},
                 {id: 'retained', field: 'retained'},
                 {id: 'reachable_size', field: 'reachable_size'},
                 {id: 'reachable_native', field: 'reachable_native'},
                 {id: 'reachable_count', field: 'reachable_count'},
                 {id: 'len', field: 'len'},
-                {id: 'value', field: 'value'},
                 {id: 'heap', field: 'heap'},
-                {id: 'id', field: 'id'},
               ],
-              ...(valueFilter.length > 0 ? {initialFilters: valueFilter} : {}),
+              filters,
               showExportButton: true,
-              onFiltersChanged: counter.onFiltersChanged,
+              onFiltersChanged: (f) => {
+                filters = [...f];
+                counter.onFiltersChanged(f);
+              },
             })
           : null,
       ]);

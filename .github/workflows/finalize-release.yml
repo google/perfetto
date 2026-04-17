@@ -1,0 +1,83 @@
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Attaches LUCI-built binaries and SDK source zips to the matching draft
+# GitHub release. Leaves the release as a draft — a human publishes it
+# manually from the GitHub UI after reviewing the release notes.
+#
+# Manual trigger after LUCI completes. Idempotent — safe to re-run if a
+# previous invocation failed partway. See RFC-0022 "LUCI -> GitHub bridge".
+
+name: Attach release artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version to finalize (e.g. v54.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write  # Required to upload assets and publish the release
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate input
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version must match vX.Y (got: $VERSION)"
+            exit 1
+          fi
+
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Verify draft release exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! gh release view "$VERSION" --repo "${{ github.repository }}" \
+               > /dev/null 2>&1; then
+            echo "::error::No release found for tag $VERSION. Push the tag first (via promote-stable.yml) to create the draft."
+            exit 1
+          fi
+
+      - name: Install gcloud / gsutil
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Download, verify, and package LUCI artifacts
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          tools/release/package-github-release-artifacts --yes "$VERSION"
+
+      - name: Upload assets to draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          STAGING="/tmp/perfetto-${VERSION}-github-release"
+          gh release upload "$VERSION" "$STAGING"/*.zip \
+            --repo "${{ github.repository }}" --clobber
+          echo "::notice::Artifacts attached. Review the draft release at https://github.com/${{ github.repository }}/releases and publish it manually when ready."

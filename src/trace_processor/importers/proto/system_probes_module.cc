@@ -40,6 +40,7 @@ SystemProbesModule::SystemProbesModule(
   RegisterForField(TracePacket::kSysStatsFieldNumber);
   RegisterForField(TracePacket::kSystemInfoFieldNumber);
   RegisterForField(TracePacket::kCpuInfoFieldNumber);
+  RegisterForField(TracePacket::kGpuInfoFieldNumber);
 }
 
 ModuleResult SystemProbesModule::TokenizePacket(
@@ -54,6 +55,9 @@ ModuleResult SystemProbesModule::TokenizePacket(
       return ModuleResult::Handled();
     case TracePacket::kCpuInfoFieldNumber:
       parser_.ParseCpuInfo(decoder.cpu_info());
+      return ModuleResult::Handled();
+    case TracePacket::kGpuInfoFieldNumber:
+      parser_.ParseGpuInfo(decoder.gpu_info());
       return ModuleResult::Handled();
   }
   return ModuleResult::Ignored();

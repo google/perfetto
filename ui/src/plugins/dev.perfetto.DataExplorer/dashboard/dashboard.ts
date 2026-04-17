@@ -57,7 +57,6 @@ import {
 } from '../query_builder/nodes/visualisation_node';
 import {Popup, PopupPosition} from '../../../widgets/popup';
 import {renderChartConfigPopup} from '../query_builder/charts/chart_config_popup';
-import {RoundActionButton} from '../query_builder/widgets';
 import {renderChartTypePickerGrid} from '../query_builder/charts/chart_type_picker';
 
 const DEFAULT_DIVIDER_LABEL = 'Filter boundary';
@@ -118,13 +117,18 @@ export interface DashboardAttrs {
   onBrushFiltersChange: (filters: Map<string, DashboardBrushFilter[]>) => void;
 }
 
-type SidePanelTab = 'data' | 'linked';
+type SidePanelTab = 'add' | 'data' | 'linked' | 'edit';
+
+interface EditingChartContext {
+  readonly itemId: string;
+  readonly source: DashboardDataSource;
+}
 
 export class Dashboard implements m.ClassComponent<DashboardAttrs> {
   private activePanel?: SidePanelTab;
-  private filtersExpanded = true;
   private expandedInput: string | undefined = undefined;
-  private editingChartId?: string;
+  private renamingChartId?: string;
+  private editingChart?: EditingChartContext;
   // Incremented when filters are removed from the filter bar, so that
   // chart brush overlays are cleared in sync.
   private brushClearGen = 0;
@@ -192,8 +196,6 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
             onpointercancel: () => this.endDrag(),
           },
           [
-            this.renderAddButton(attrs),
-            this.renderCollapsedFilterButton(attrs),
             items.length > 0
               ? this.renderItems(attrs, items)
               : m(
@@ -202,7 +204,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
                     ? m(
                         ResultsPanelEmptyState,
                         {icon: 'bar_chart', title: 'No items yet'},
-                        'Use the + button to add charts or labels.',
+                        'Use the + button in the sidebar to add charts or labels.',
                       )
                     : m(
                         ResultsPanelEmptyState,
@@ -213,11 +215,24 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           ],
         ),
       ]),
+      this.activePanel === 'add' &&
+        m('.pf-dashboard__content-panel', this.renderAddPanel(attrs)),
       this.activePanel === 'data' &&
-        m('.pf-dashboard__data-panel', this.renderDataPanel(attrs)),
+        m('.pf-dashboard__content-panel', this.renderDataPanel(attrs)),
       this.activePanel === 'linked' &&
-        m('.pf-dashboard__data-panel', this.renderLinkedColumnsPanel(attrs)),
+        m('.pf-dashboard__content-panel', this.renderLinkedColumnsPanel(attrs)),
+      this.activePanel === 'edit' &&
+        this.editingChart !== undefined &&
+        m('.pf-dashboard__content-panel', this.renderEditPanel(attrs)),
       m('.pf-dashboard__side-panel', [
+        m(Button, {
+          icon: 'add',
+          title: 'Add item',
+          className: classNames(this.activePanel === 'add' && 'pf-active'),
+          onclick: () => {
+            this.activePanel = this.activePanel === 'add' ? undefined : 'add';
+          },
+        }),
         m(Button, {
           icon: 'dataset',
           title: 'Data',
@@ -235,13 +250,23 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
               this.activePanel === 'linked' ? undefined : 'linked';
           },
         }),
+        this.activePanel === 'edit' &&
+          m(Button, {
+            icon: 'settings',
+            title: 'Edit chart',
+            className: classNames('pf-active'),
+            onclick: () => {
+              this.activePanel = undefined;
+              this.editingChart = undefined;
+            },
+          }),
       ]),
     ]);
   }
 
-  // --- "+" button ---
+  // --- Add-item side panel ---
 
-  private renderAddButton(attrs: DashboardAttrs): m.Child {
+  private renderAddPanel(attrs: DashboardAttrs): m.Children {
     const {sources, items} = attrs;
     // Default to the source of the most recently added chart, or the first
     // available source if there are no charts yet.
@@ -251,43 +276,111 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
         ? sources.find((s) => s.nodeId === lastChartItem.sourceNodeId)
         : undefined) ?? (sources.length > 0 ? sources[0] : undefined);
 
-    return m(
-      '.pf-dashboard__add-button',
-      m(
-        Popup,
-        {
-          trigger: RoundActionButton({
-            icon: 'add',
-            title: 'Add item',
-          }),
-          fitContent: true,
-        },
-        lastSource !== undefined
-          ? renderChartTypePickerGrid((chartType: ChartType) => {
-              this.addChartForSource(attrs, lastSource, chartType);
-            })
-          : m(
-              '.pf-chart-type-picker__empty',
-              'Add a data source first to create charts',
-            ),
-        m(MenuItem, {
-          label: 'Label',
-          icon: 'text_fields',
-          className: 'pf-dismiss-popup-group',
-          onclick: () => {
-            this.addLabel(attrs);
-          },
-        }),
-        m(MenuItem, {
-          label: 'Segment Divider',
-          icon: 'horizontal_rule',
-          className: 'pf-dismiss-popup-group',
-          onclick: () => {
-            this.addDivider(attrs);
-          },
-        }),
-      ),
+    return [
+      m('.pf-dashboard__add-panel-body', [
+        m('.pf-dashboard__panel-section', [
+          m('.pf-dashboard__panel-section-title', 'Charts'),
+          lastSource !== undefined
+            ? renderChartTypePickerGrid((chartType: ChartType) => {
+                this.addChartForSource(attrs, lastSource, chartType);
+              })
+            : m(
+                '.pf-dashboard__add-panel-empty',
+                'Add a data source first to create charts.',
+              ),
+        ]),
+        m('.pf-dashboard__panel-section', [
+          m('.pf-dashboard__panel-section-title', 'Other'),
+          m(
+            '.pf-dashboard__add-panel-item',
+            {
+              onclick: () => {
+                this.addLabel(attrs);
+              },
+            },
+            [m(Icon, {icon: 'text_fields'}), 'Label'],
+          ),
+          m(
+            '.pf-dashboard__add-panel-item',
+            {
+              onclick: () => {
+                this.addDivider(attrs);
+              },
+            },
+            [m(Icon, {icon: 'horizontal_rule'}), 'Segment Divider'],
+          ),
+        ]),
+      ]),
+    ];
+  }
+
+  // --- Edit chart side panel ---
+
+  private renderEditPanel(attrs: DashboardAttrs): m.Children {
+    const ctx = this.editingChart;
+    if (ctx === undefined) return null;
+
+    // Look up the current config from items (it may have been updated).
+    const chartItem = attrs.items.find(
+      (i) => i.kind === 'chart' && i.config.id === ctx.itemId,
     );
+    if (chartItem === undefined || chartItem.kind !== 'chart') {
+      // Chart was deleted — close the panel.
+      this.activePanel = undefined;
+      this.editingChart = undefined;
+      return null;
+    }
+    const config = chartItem.config;
+    const source =
+      attrs.sources.find((s) => s.nodeId === chartItem.sourceNodeId) ??
+      ctx.source;
+
+    const adapter = new DashboardChartView.Adapter(
+      source,
+      {...attrs, allSources: attrs.sources},
+      config,
+    );
+
+    const headerLabel = config.name ?? getDefaultChartLabel(config);
+
+    const onChartRemoved = () => {
+      // Close panel if the chart was deleted via the form.
+      const stillExists = attrs.items.some(
+        (i) => i.kind === 'chart' && i.config.id === ctx.itemId,
+      );
+      if (!stillExists) {
+        this.activePanel = undefined;
+        this.editingChart = undefined;
+      }
+    };
+
+    return [
+      m('.pf-dashboard__panel-section', [
+        m('.pf-dashboard__panel-section-title', headerLabel),
+        m('.pf-dashboard__panel-section-subtitle', 'Chart Type'),
+        renderChartTypePickerGrid((newType) => {
+          if (newType === config.chartType) return;
+          const newChartableColumns = adapter.getChartableColumns(newType);
+          const columnStillValid = newChartableColumns.some(
+            (c) => c.name === config.column,
+          );
+          adapter.updateChart(config.id, {
+            chartType: newType,
+            column: columnStillValid ? config.column : '',
+          });
+        }, config.chartType),
+        m('.pf-dashboard__panel-section-subtitle', 'Settings'),
+        m(
+          '.pf-chart-config-popup',
+          renderChartConfigPopup(
+            {node: adapter, onFilterChange: onChartRemoved},
+            config,
+            () => m.redraw(),
+            {hideChartTypeSelector: true},
+          ),
+        ),
+      ]),
+    ];
   }
 
   // --- Canvas items ---
@@ -321,29 +414,24 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     const headerLabel = config.name ?? getDefaultChartLabel(config);
     const chartIsDriver = isDriverChart(chart, attrs.items);
 
-    const editButton = m(
-      Popup,
-      {
-        trigger: m(Button, {
-          icon: 'settings',
-          title: 'Edit chart settings',
-          compact: true,
-        }),
-        position: PopupPosition.BottomEnd,
-        className: 'pf-chart-config-popup',
+    const isEditingThis =
+      this.activePanel === 'edit' && this.editingChart?.itemId === itemId;
+    const editButton = m(Button, {
+      icon: 'settings',
+      title: 'Edit chart settings',
+      compact: true,
+      className: classNames(isEditingThis && 'pf-active'),
+      onclick: (e: MouseEvent) => {
+        e.stopPropagation();
+        if (isEditingThis) {
+          this.activePanel = undefined;
+          this.editingChart = undefined;
+        } else {
+          this.editingChart = {itemId, source};
+          this.activePanel = 'edit';
+        }
       },
-      renderChartConfigPopup(
-        {
-          node: new DashboardChartView.Adapter(
-            source,
-            {...attrs, allSources: attrs.sources},
-            config,
-          ),
-        },
-        config,
-        () => m.redraw(),
-      ),
-    );
+    });
 
     const sourceChip = m(
       PopupMenu,
@@ -371,7 +459,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
 
     return this.renderItemCard(attrs, itemId, chart, [
       m('.pf-dashboard__chart-header', [
-        this.editingChartId === itemId
+        this.renamingChartId === itemId
           ? m('input.pf-dashboard__chart-title-input', {
               type: 'text',
               value: config.name ?? '',
@@ -389,11 +477,11 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
                 const target = e.target as HTMLInputElement;
                 const name = target.value.trim() || undefined;
                 this.updateChartName(attrs, itemId, name);
-                this.editingChartId = undefined;
+                this.renamingChartId = undefined;
               },
               onkeydown: (e: KeyboardEvent) => {
                 if (e.key === 'Enter' || e.key === 'Escape') {
-                  this.editingChartId = undefined;
+                  this.renamingChartId = undefined;
                   (e.target as HTMLInputElement).blur();
                 }
               },
@@ -417,7 +505,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
                   ) {
                     return;
                   }
-                  this.editingChartId = itemId;
+                  this.renamingChartId = itemId;
                 },
                 title: 'Click to rename',
               },
@@ -936,25 +1024,6 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     attrs.onBrushFiltersChange(newFilters);
   }
 
-  // Collapsed filter icon — shown on the canvas when the bar is hidden.
-  private renderCollapsedFilterButton(attrs: DashboardAttrs): m.Child {
-    if (this.filtersExpanded) return null;
-    let count = 0;
-    for (const filters of attrs.brushFilters.values()) {
-      count += filters.length;
-    }
-    if (count === 0) return null;
-    return m('.pf-dashboard__filter-collapsed', [
-      m(Button, {
-        icon: 'filter_alt',
-        title: `Filters (${count})`,
-        onclick: () => {
-          this.filtersExpanded = true;
-        },
-      }),
-    ]);
-  }
-
   // --- Filter bar (horizontal strip below tabs) ---
 
   private renderFilterBar(attrs: DashboardAttrs): m.Child {
@@ -968,7 +1037,6 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       }
     }
     if (activeColumns.size === 0) return null;
-    if (!this.filtersExpanded) return null;
 
     // For each active column, compute the sorted set of source nodeIds that
     // share it. The stringified set is the grouping key.
@@ -1007,7 +1075,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       // Pick any sourceNodeId in the group for clear/remove operations —
       // those functions already propagate across linked sources.
       const representativeSourceId = sourceIds[0];
-      const chips = columns.sort().map((col) => {
+      const chips = columns.sort().flatMap((col) => {
         // Gather filters for this column from all sources in the group.
         const colFilters: DashboardBrushFilter[] = [];
         for (const id of sourceIds) {
@@ -1023,56 +1091,64 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           seen.add(k);
           return true;
         });
-        return m(
-          Popup,
-          {
-            trigger: m(Chip, {
-              label: `${col}: ${summarizeBrushFilters(uniqueFilters)}`,
-              icon: 'filter_alt',
-              compact: true,
-              rounded: true,
-              removable: true,
-              onRemove: () => {
-                this.clearBrushFiltersForColumn(
-                  attrs,
-                  representativeSourceId,
-                  col,
-                );
-              },
-            }),
-            position: PopupPosition.Bottom,
-          },
+        // Skip columns with no actual filter values.
+        if (uniqueFilters.length === 0) return [];
+        return [
           m(
-            '.pf-dashboard__filter-popup',
-            uniqueFilters.map((f) =>
-              m(MenuItem, {
-                label: formatBrushFilterValue(f),
-                icon: Icons.Checkbox,
-                onclick: () => {
-                  this.removeSingleBrushFilter(
+            Popup,
+            {
+              trigger: m(Chip, {
+                label: `${col}: ${summarizeBrushFilters(uniqueFilters)}`,
+                icon: 'filter_alt',
+                compact: true,
+                rounded: true,
+                removable: true,
+                onRemove: () => {
+                  this.clearBrushFiltersForColumn(
                     attrs,
                     representativeSourceId,
-                    f,
+                    col,
                   );
                 },
               }),
+              position: PopupPosition.Bottom,
+            },
+            m(
+              '.pf-dashboard__filter-popup',
+              uniqueFilters.map((f) =>
+                m(MenuItem, {
+                  label: formatBrushFilterValue(f),
+                  icon: Icons.Checkbox,
+                  onclick: () => {
+                    this.removeSingleBrushFilter(
+                      attrs,
+                      representativeSourceId,
+                      f,
+                    );
+                  },
+                }),
+              ),
             ),
           ),
-        );
+        ];
       });
 
-      groups.push(
-        m('.pf-dashboard__filter-group', [
-          m(Chip, {
-            label,
-            icon: 'database',
-            compact: true,
-            className: 'pf-dashboard__source-chip',
-          }),
-          ...chips,
-        ]),
-      );
+      if (chips.length > 0) {
+        groups.push(
+          m('.pf-dashboard__filter-group', [
+            m(Chip, {
+              label,
+              icon: 'database',
+              compact: true,
+              className: 'pf-dashboard__source-chip',
+            }),
+            ...chips,
+          ]),
+        );
+      }
     }
+
+    if (groups.length === 0) return null;
 
     return m('.pf-dashboard__filter-bar', [
       ...groups,
@@ -1083,14 +1159,6 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           onclick: () => {
             this.brushClearGen++;
             attrs.onBrushFiltersChange(new Map());
-          },
-        }),
-        m(Button, {
-          icon: 'unfold_less',
-          compact: true,
-          title: 'Collapse filters',
-          onclick: () => {
-            this.filtersExpanded = false;
           },
         }),
       ]),
@@ -1321,5 +1389,9 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       row: pos.row,
     });
     attrs.onItemsChange(items);
+
+    // Automatically open the edit panel for the newly added chart.
+    this.editingChart = {itemId: newConfig.id, source};
+    this.activePanel = 'edit';
   }
 }

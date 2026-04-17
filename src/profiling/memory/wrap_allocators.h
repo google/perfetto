@@ -39,6 +39,15 @@ int wrap_posix_memalign(uint32_t heap_id,
                         size_t alignment,
                         size_t size);
 void wrap_free(uint32_t heap_id, void (*fn)(void*), void* pointer);
+void wrap_free_sized(uint32_t heap_id,
+                     void (*fn)(void*, size_t),
+                     void* pointer,
+                     size_t size);
+void wrap_free_aligned_sized(uint32_t heap_id,
+                             void (*fn)(void*, size_t, size_t),
+                             void* pointer,
+                             size_t alignment,
+                             size_t size);
 void* wrap_realloc(uint32_t heap_id,
                    void* (*fn)(void*, size_t),
                    void* pointer,

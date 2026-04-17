@@ -15,7 +15,7 @@
 
 from python.generators.diff_tests.testing import Path, DataPath, Metric
 from python.generators.diff_tests.testing import Csv, Json, TextProto
-from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import DiffTestBlueprint, TraceInjector
 from python.generators.diff_tests.testing import TestSuite
 
 
@@ -33,15 +33,81 @@ class GraphicsGpuTrace(TestSuite):
         """,
         out=Csv("""
         "ts","value","name","gpu_id","description","unit"
-        11,10.000000,"Vertex / Second",0,"Number of vertices per second","25/22"
-        12,14.000000,"Fragment / Second",0,"Number of fragments per second","26/22"
-        14,9.000000,"Triangle Acceleration",1,"Number of triangles per ms-ms","27/21:21"
-        21,15.500000,"Vertex / Second",0,"Number of vertices per second","25/22"
-        22,21.000000,"Fragment / Second",0,"Number of fragments per second","26/22"
-        24,7.000000,"Triangle Acceleration",1,"Number of triangles per ms-ms","27/21:21"
-        31,0.000000,"Vertex / Second",0,"Number of vertices per second","25/22"
-        32,0.000000,"Fragment / Second",0,"Number of fragments per second","26/22"
-        34,0.000000,"Triangle Acceleration",1,"Number of triangles per ms-ms","27/21:21"
+        11,10.000000,"Vertex / Second",0,"Number of vertices per second","Vertex/s"
+        12,14.000000,"Fragment / Second",0,"Number of fragments per second","Pixel/s"
+        14,9.000000,"Triangle Acceleration",1,"Number of triangles per ms-ms","Triangle/ms:ms"
+        15,0.000000,"Bytes Only",0,"Counter with NONE denominator","B"
+        16,0.000000,"Frequency",0,"Counter with numerator only","Hz"
+        21,15.500000,"Vertex / Second",0,"Number of vertices per second","Vertex/s"
+        22,21.000000,"Fragment / Second",0,"Number of fragments per second","Pixel/s"
+        24,7.000000,"Triangle Acceleration",1,"Number of triangles per ms-ms","Triangle/ms:ms"
+        25,0.000000,"Bytes Only",0,"Counter with NONE denominator","B"
+        26,0.000000,"Frequency",0,"Counter with numerator only","Hz"
+        31,0.000000,"Vertex / Second",0,"Number of vertices per second","Vertex/s"
+        32,0.000000,"Fragment / Second",0,"Number of fragments per second","Pixel/s"
+        34,0.000000,"Triangle Acceleration",1,"Number of triangles per ms-ms","Triangle/ms:ms"
+        """))
+
+  def test_gpu_table(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_counters.py'),
+        query="""
+        SELECT gpu, name, vendor, model, architecture, uuid, machine_id
+        FROM gpu
+        ORDER BY gpu;
+        """,
+        out=Csv("""
+        "gpu","name","vendor","model","architecture","uuid","machine_id"
+        0,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",0
+        1,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",0
+        """))
+
+  def test_gpu_info(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_info.textproto'),
+        query="""
+        SELECT gpu, name, vendor, model, architecture, uuid, pci_bdf
+        FROM gpu
+        ORDER BY gpu;
+        """,
+        out=Csv("""
+        "gpu","name","vendor","model","architecture","uuid","pci_bdf"
+        0,"NVIDIA A100-SXM4-80GB","NVIDIA","A100","Ampere","0123456789abcdef0123456789abcdef","0000:01:00.0"
+        1,"NVIDIA A100-SXM4-80GB","NVIDIA","A100","Ampere","abcdefabcdefabcdabcdefabcdefabcd","0000:02:00.0"
+        """))
+
+  def test_gpu_info_extra_args(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_info.textproto'),
+        query="""
+        SELECT
+          g.gpu,
+          args.key,
+          args.string_value
+        FROM gpu g
+        JOIN args USING (arg_set_id)
+        ORDER BY g.gpu, args.key;
+        """,
+        out=Csv("""
+        "gpu","key","string_value"
+        0,"driver_version","535.129.03"
+        0,"memory_total_mb","81920"
+        """))
+
+  def test_gpu_table_machine_id(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_counters.py'),
+        trace_modifier=TraceInjector(['gpu_counter_event'],
+                                     {'machine_id': 1001}),
+        query="""
+        SELECT gpu, machine_id
+        FROM gpu
+        ORDER BY gpu;
+        """,
+        out=Csv("""
+        "gpu","machine_id"
+        0,1
+        1,1
         """))
 
   def test_gpu_counter_specs(self):
@@ -55,11 +121,32 @@ class GraphicsGpuTrace(TestSuite):
         """,
         out=Csv("""
         "group_id","name","description","unit"
-        0,"GPU Frequency","clock speed","/22"
-        3,"Fragments / vertex","Number of fragments per vertex","39/25"
-        2,"Fragments / vertex","Number of fragments per vertex","39/25"
-        3,"Fragment / Second","Number of fragments per second","26/22"
-        4,"Triangle Acceleration","Number of triangles per ms-ms","27/21:21"
+        0,"GPU Frequency","clock speed","/s"
+        3,"Fragments / vertex","Number of fragments per vertex","Fragment/Vertex"
+        2,"Fragments / vertex","Number of fragments per vertex","Fragment/Vertex"
+        3,"Fragment / Second","Number of fragments per second","Pixel/s"
+        4,"Triangle Acceleration","Number of triangles per ms-ms","Triangle/ms:ms"
+        """))
+
+  def test_gpu_counter_groups_custom(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_counter_groups_custom.textproto'),
+        query="""
+        SELECT g.group_id, g.name, g.description,
+               t.name as track_name
+        FROM gpu_counter_group AS g
+        JOIN gpu_counter_track AS t
+          ON g.track_id = t.id
+        ORDER BY g.group_id, g.name, t.name;
+        """,
+        out=Csv("""
+        "group_id","name","description","track_name"
+        0,"[NULL]","[NULL]","Counter D"
+        5,"Memory","Memory counters","Counter C"
+        5,"Memory","Memory counters","Counter D"
+        6,"Compute Core","Compute core counters","Counter A"
+        6,"Compute Core","Compute core counters","Counter B"
+        100,"L2 Cache","L2 cache counters","Counter C"
         """))
 
   def test_gpu_render_stages(self):
@@ -101,6 +188,7 @@ class GraphicsGpuTrace(TestSuite):
               'submission_id',
               'hw_queue_id',
               'render_subpasses',
+              'render_stage_category',
               'upid'
             )
           ) args USING (arg_set_id)
@@ -170,6 +258,7 @@ class GraphicsGpuTrace(TestSuite):
               'submission_id',
               'hw_queue_id',
               'render_subpasses',
+              'render_stage_category',
               'upid'
             )
           ) args USING (arg_set_id)
@@ -456,3 +545,22 @@ class GraphicsGpuTrace(TestSuite):
           10,250.000000,"CounterB",1
           20,0.000000,"CounterB",1
         """))
+
+  def test_gpu_render_stages_flow(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_render_stages_flow.textproto'),
+        query='''
+          SELECT
+            slice_out.name AS source_slice,
+            slice_in.name AS dest_slice
+          FROM flow
+          JOIN slice AS slice_out ON flow.slice_out = slice_out.id
+          JOIN slice AS slice_in ON flow.slice_in = slice_in.id
+          ORDER BY slice_out.ts, slice_in.ts;
+        ''',
+        out=Csv('''
+          "source_slice","dest_slice"
+          "HostSubmit","softmax"
+          "softmax","cudaEventWait"
+          "softmax","matmul"
+        '''))

@@ -56,6 +56,18 @@
   }
 }
 
+.ah-heading-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+
+  // Remove the heading's own bottom margin when inside a heading row.
+  .ah-view-heading {
+    margin-bottom: 0;
+  }
+}
+
 // Flex-growing wrapper for view content with a DataGrid that fills height.
 .ah-view-content {
   flex: 1;
@@ -154,6 +166,12 @@
 .ah-bitmap-card__secondary {
   margin-left: 0.75rem;
   color: var(--pf-color-text-hint);
+}
+
+.ah-bitmap-card__path {
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--pf-color-border-secondary);
+  font-size: 0.8125rem;
 }
 
 .ah-info-grid {
@@ -320,6 +338,10 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
+}
+
+.ah-dup-grid-container {
+  height: 400px;
 }
 
 .ah-desc {

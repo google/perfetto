@@ -95,6 +95,56 @@ function makeDuplicateBitmapSchema(navigate: NavFn): SchemaRegistry {
   };
 }
 
+function makeDuplicateArraySchema(navigate: NavFn): SchemaRegistry {
+  return {
+    query: {
+      className: {
+        title: 'Array Type',
+        columnType: 'text',
+        cellRenderer: (value: SqlValue) =>
+          m(
+            'button',
+            {
+              class: 'ah-link',
+              onclick: () => navigate('objects', {cls: String(value ?? '')}),
+            },
+            String(value ?? ''),
+          ),
+      },
+      arrayHash: {
+        title: 'Hash',
+        columnType: 'text',
+      },
+      copies: {
+        title: 'Copies',
+        columnType: 'quantitative',
+        cellRenderer: (value: SqlValue, row) =>
+          m(
+            'button',
+            {
+              class: 'ah-link',
+              onclick: () =>
+                navigate('arrays', {
+                  arrayHash: String(row.arrayHash ?? ''),
+                }),
+            },
+            String(value),
+          ),
+      },
+      total_bytes: {
+        title: 'Total',
+        columnType: 'quantitative',
+        cellRenderer: sizeRenderer,
+      },
+      wasted_bytes: {
+        title: 'Wasted',
+        columnType: 'quantitative',
+        cellRenderer: sizeRenderer,
+      },
+    },
+  };
+}
+
 function makeDuplicateStringSchema(navigate: NavFn): SchemaRegistry {
   return {
     query: {
@@ -174,12 +224,15 @@ function renderDuplicateSection(
         linkLabel,
       ),
     ]),
-    m(DataGrid, {
-      schema,
-      rootSchema: 'query',
-      data,
-      initialColumns: columns,
-    }),
+    m('div', {class: 'ah-dup-grid-container'}, [
+      m(DataGrid, {
+        schema,
+        rootSchema: 'query',
+        data,
+        initialColumns: columns,
+        fillHeight: true,
+      }),
+    ]),
   ]);
 }
 
@@ -314,6 +367,31 @@ function OverviewView(): m.Component<OverviewViewAttrs> {
                 m('p', {class: 'ah-muted'}, 'No duplicate strings found.'),
               )
             : null,
+        overview.duplicateArrays && overview.duplicateArrays.length > 0
+          ? renderDuplicateSection(
+              'Duplicate Primitive Arrays',
+              overview.duplicateArrays.length,
+              overview.duplicateArrays.reduce((a, g) => a + g.wastedBytes, 0),
+              'arrays',
+              'View Arrays',
+              navigate,
+              makeDuplicateArraySchema(navigate),
+              overview.duplicateArrays.map((g) => ({
+                className: g.className,
+                arrayHash: g.arrayHash,
+                copies: g.count,
+                total_bytes: g.totalBytes,
+                wasted_bytes: g.wastedBytes,
+              })),
+              [
+                {id: 'className', field: 'className'},
+                {id: 'arrayHash', field: 'arrayHash'},
+                {id: 'copies', field: 'copies'},
+                {id: 'total_bytes', field: 'total_bytes'},
+                {id: 'wasted_bytes', field: 'wasted_bytes'},
+              ],
+            )
+          : null,
       ]);
     },
   };

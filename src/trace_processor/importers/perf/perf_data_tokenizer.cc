@@ -122,7 +122,7 @@ bool ReadTime(const Record& record, std::optional<uint64_t>& time) {
 
 PerfDataTokenizer::PerfDataTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
-      perf_tracker_(ctx),
+      perf_tracker_(ctx, ctx->perf_aux_tokenizer_registrations),
       stream_(ctx->sorter->CreateStream(
           std::make_unique<RecordParser>(context_, &perf_tracker_))),
       aux_manager_(ctx, &perf_tracker_) {}
@@ -597,8 +597,7 @@ base::Status PerfDataTokenizer::OnPushDataToSorter() {
 }
 
 void PerfDataTokenizer::OnEventsFullyExtracted() {
-  // Phase 3: Finalize tracker
-  perf_tracker_.OnEventsFullyExtracted();
+  aux_manager_.OnEventsFullyExtracted();
 }
 
 }  // namespace perfetto::trace_processor::perf_importer

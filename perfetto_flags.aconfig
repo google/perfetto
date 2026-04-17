@@ -15,24 +15,10 @@ flag {
   is_fixed_read_only: true
 }
 flag {
-  name: "use_rt_mutex"
-  namespace: "perfetto"
-  description: "Controls whether base::MaybeRtMutex will use base::RtMutex or a standard std::mutex, for reducing priority-inversion in annotated classes"
-  bug: "439758665"
-  is_fixed_read_only: true
-}
-flag {
   name: "use_lockfree_taskrunner"
   namespace: "perfetto"
   description: "Controls whether base::MaybeLockFreeTaskRunner will use the battle-tested base::UnixTaskRunner or the new base::UnixTaskRunner"
   bug: "441118768"
-  is_fixed_read_only: true
-}
-flag {
-  name: "use_rt_futex"
-  namespace: "perfetto"
-  description: "Controls whether base::MaybeRtMutex will use base::RtFutex or resolved type of base::MaybeRtMutex for android."
-  bug: "443948543"
   is_fixed_read_only: true
 }
 flag {
@@ -54,5 +40,19 @@ flag {
   namespace: "perfetto"
   description: "Instead of creating/destroying intern maps for TrackEvent's ClearIncrementalState callback, instead just clear the maps, preventing unnecessary memory allocs/frees."
   bug: "473625429"
+  is_fixed_read_only: true
+}
+flag {
+  name: "trigger_perfetto_on_traced_probes_disconnect"
+  namespace: "perfetto"
+  description: "When enabled, traced fires a trigger when traced_probes disconnects, allowing pre-configured trace sessions to capture crash diagnostics."
+  bug: "496506220"
+  is_fixed_read_only: true
+}
+flag {
+  name: "use_pcre2"
+  namespace: "perfetto"
+  description: "Controls whether to use PCRE2 as the regex engine on Android. If disabled, it falls back to std::regex."
+  bug: "494498282"
   is_fixed_read_only: true
 }

@@ -59,6 +59,7 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
     if (message.at(i) == '%' && i + 1 < message.length()) {
       switch (message.at(i + 1)) {
         case '%':
+          formatted_message.push_back('%');
           break;
         case 'd': {
           if (sint64_params_itr == sint64_params.end()) {

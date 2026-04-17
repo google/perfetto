@@ -45,16 +45,11 @@ export {};
 
 const LOG_TAG = `ServiceWorker: `;
 const CACHE_NAME = 'ui-perfetto-dev';
-const EXT_CACHE_NAME = 'extension-servers';
-const EXTENSION_HEADER = 'X-Perfetto-Extension';
 const OPEN_TRACE_PREFIX = '/_open_trace'
 
 // If the fetch() for the / doesn't respond within 3s, return a cached version.
 // This is to avoid that a user waits too much if on a flaky network.
 const INDEX_TIMEOUT_MS = 3000;
-
-// Timeout for extension server fetches.
-const EXT_FETCH_TIMEOUT_MS = 10000;
 
 // Use more relaxed timeouts when caching the subresources for the new version
 // in the background.
@@ -64,12 +59,10 @@ const INSTALL_TIMEOUT_MS = 30000;
 let postedFiles = new Map<string, File>();
 
 // Allowlisted external domains that bypass firewall restrictions.
-// These match the domains previously allowed in CSP connect-src.
-// Note: script-src and img-src domains are NOT included here because
-// the service worker cannot intercept <script> or <img> loads.
 const ALLOWLISTED_DOMAINS = [
   /\.googleapis\.com$/, // For Google Cloud Storage fetches.
   /\.google-analytics\.com$/, // For analytics.
+  /\.googletagmanager\.com$/, // For analytics.
 ];
 
 function isAllowlistedDomain(hostname: string): boolean {
@@ -216,12 +209,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Extension server requests: bypass normal handling, cache responses.
-  if (event.request.headers.get(EXTENSION_HEADER)) {
-    event.respondWith(handleExtensionRequest(event.request));
-    return;
-  }
-
   // The early return here will cause the browser to fall back on standard
   // network-based fetch.
   if (!shouldHandleHttpRequest(event.request)) {
@@ -246,53 +233,6 @@ function shouldHandleHttpRequest(req: Request): boolean {
   if (url.pathname.startsWith(OPEN_TRACE_PREFIX)) return true;
 
   return req.method === 'GET' && url.origin === self.location.origin;
-}
-
-// Handles extension server requests marked with X-Perfetto-Extension.
-// Strips the marker header, fetches with network-first strategy, and caches
-// successful responses. On network failure, serves from cache.
-async function handleExtensionRequest(req: Request): Promise<Response> {
-  // Strip marker header before forwarding to the network.
-  const headers = new Headers(req.headers);
-  headers.delete(EXTENSION_HEADER);
-  const cleanReq = new Request(req.url, {
-    method: req.method,
-    headers,
-    mode: req.mode,
-    credentials: req.credentials,
-  });
-
-  try {
-    const response = await fetchWithTimeout(cleanReq, EXT_FETCH_TIMEOUT_MS);
-    // fetchWithTimeout only resolves for ok responses — cache it.
-    try {
-      const cache = await caches.open(EXT_CACHE_NAME);
-      await cache.put(req.url, response.clone());
-    } catch {
-      // Cache write failure is non-fatal.
-    }
-    return response;
-  } catch (e) {
-    // NetworkError or TimeoutError — serve from cache.
-    // HTTP errors (403, 404) are plain Error — return directly.
-    if (!(e instanceof NetworkError) && !(e instanceof TimeoutError)) {
-      return new Response(String(e), {status: 502, statusText: 'Bad Gateway'});
-    }
-    try {
-      const cache = await caches.open(EXT_CACHE_NAME);
-      const cached = await cache.match(req.url);
-      if (cached) {
-        console.info(LOG_TAG + `serving ${req.url} from extension cache`);
-        return cached;
-      }
-    } catch {
-      // Cache read failure.
-    }
-    return new Response('Extension server unreachable and no cached data', {
-      status: 503,
-      statusText: 'Service Unavailable',
-    });
-  }
 }
 
 async function handleHttpRequest(req: Request): Promise<Response> {

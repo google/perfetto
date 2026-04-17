@@ -109,7 +109,6 @@ class FtraceParser {
                                 protozero::ConstBytes);
   void ParseDpuDispDpuUnderrun(int64_t timestamp, protozero::ConstBytes);
   void ParseGramCollision(int64_t timestamp, protozero::ConstBytes);
-  void ParseDpuDispVblankIrqEnable(int64_t timestamp, protozero::ConstBytes);
   void ParseG2dTracingMarkWrite(int64_t timestamp,
                                 uint32_t pid,
                                 protozero::ConstBytes);
@@ -354,6 +353,12 @@ class FtraceParser {
                                 uint32_t pid,
                                 protozero::ConstBytes blob);
   void ParseGpuPowerState(int64_t ts, protozero::ConstBytes blob);
+  void ParseMemcgReclaimBegin(int64_t timestamp,
+                              uint32_t pid,
+                              protozero::ConstBytes);
+  void ParseMemcgReclaimEnd(int64_t timestamp,
+                            uint32_t pid,
+                            protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   GenericFtraceTracker* generic_tracker_;
@@ -447,8 +452,6 @@ class FtraceParser {
   const StringId block_io_arg_sector_id_;
   const StringId cpuhp_action_cpu_id_;
   const StringId cpuhp_idx_id_;
-  const StringId disp_vblank_irq_enable_id_;
-  const StringId disp_vblank_irq_enable_output_id_arg_name_;
   const StringId hrtimer_id_;
   const StringId local_timer_id_;
   const StringId f2fs_checkpoint_name_id_;
@@ -464,6 +467,10 @@ class FtraceParser {
   std::array<StringId, 8> f2fs_checkpoint_reason_ids_;
 
   std::vector<StringId> syscall_arg_name_ids_;
+  const StringId memcg_reclaim_order_id_;
+  const StringId memcg_reclaim_may_writepage_id_;
+  const StringId memcg_reclaim_gfp_flags_id_;
+  const StringId memcg_reclaim_nr_reclaimed_id_;
 
   struct FtraceMessageStrings {
     // The string id of name of the event field (e.g. sched_switch's id).

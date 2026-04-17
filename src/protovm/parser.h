@@ -38,6 +38,8 @@ class Parser {
       protozero::RepeatedFieldIterator<protozero::ConstBytes> it_instruction);
   StatusOr<void> ParseInstruction(
       const protos::pbzero::VmInstruction::Decoder& instruction);
+  StatusOr<void> ParseMerge(
+      const protos::pbzero::VmInstruction::Decoder& instruction);
   StatusOr<void> ParseRegLoad(
       const protos::pbzero::VmInstruction::Decoder& instruction);
   StatusOr<void> ParseSelect(

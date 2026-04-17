@@ -53,3 +53,19 @@ class SystemUICujs(TestSuite):
         1,1,"com.android.systemui","L<IGNORED_CUJ_1>","IGNORED_CUJ_1",53,150000000,155000000,5000000,"completed"
         2,1,"com.android.systemui","L<IGNORED_CUJ_2>","IGNORED_CUJ_2",58,156000000,160000000,4000000,"completed"
         """))
+
+  def test_android_sysui_latency_cujs_state(self):
+    return DiffTestBlueprint(
+        trace=Path('latency_cujs_state_trace.py'),
+        query="""
+        INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
+        SELECT cuj_name, state
+        FROM android_sysui_latency_cujs
+        ORDER BY cuj_name;
+        """,
+        out=Csv("""
+        "cuj_name","state"
+        "CUJ_CANCELED","canceled"
+        "CUJ_COMPLETED","completed"
+        "CUJ_TIMEOUT","timeout"
+        """))
