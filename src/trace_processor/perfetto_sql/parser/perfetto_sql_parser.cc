@@ -200,10 +200,10 @@ class MacroRewriteBuilder {
 
   // A user-defined macro has an authored body (macro->sql) with `$param`
   // placeholders. Two kinds of rewrites apply, both in body coordinates:
-  //   1. Nested calls that appear *literally* in the body (with
-  //      body_call_length > 0). Children with body_call_length == 0 came
-  //      from a substituted arg and will be handled by BuildForArg
-  //      when its segment is processed.
+  //   1. Nested calls that appear *literally* in the body. Children whose
+  //      body_call_length is SYNTAQLITE_MACRO_BODY_CALL_ARG_INTERNAL came
+  //      from a substituted arg and will be handled by BuildForArg when
+  //      its segment is processed.
   //   2. `$param` substitution segments. A segment whose body range is
   //      contained by a literal nested call is dropped: that call's
   //      expansion already pulled the arg text through, and emitting an
@@ -212,7 +212,7 @@ class MacroRewriteBuilder {
     std::vector<RewriteItem> items;
     for (uint32_t cidx : children_[idx]) {
       auto c = syntaqlite_result_macro_rewrite_at(p_, cidx);
-      if (c.body_call_length == 0)
+      if (c.body_call_length == SYNTAQLITE_MACRO_BODY_CALL_ARG_INTERNAL)
         continue;
       items.push_back({c.body_call_offset,
                        c.body_call_offset + c.body_call_length,
