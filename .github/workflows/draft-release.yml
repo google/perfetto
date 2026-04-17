@@ -22,7 +22,7 @@
 # one does not exist; it never clobbers a release that has already been
 # published or edited.
 
-name: Draft release
+name: Draft release (on vX.Y tag push)
 
 on:
   push:

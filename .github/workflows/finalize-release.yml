@@ -19,7 +19,7 @@
 # Manual trigger after LUCI completes. Idempotent — safe to re-run if a
 # previous invocation failed partway. See RFC-0022 "LUCI -> GitHub bridge".
 
-name: Attach release artifacts
+name: Finalize release (attach LUCI artifacts to draft)
 
 on:
   workflow_dispatch:

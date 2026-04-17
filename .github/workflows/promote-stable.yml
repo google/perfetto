@@ -23,7 +23,7 @@
 # The tag push is the single event that fans out to LUCI, Cloud Build,
 # and draft-release.yml. See RFC-0022.
 
-name: Promote canary to stable
+name: Promote to stable (merge canary → stable, tag release)
 
 on:
   workflow_dispatch:
