@@ -12,39 +12,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Cuts canary by creating a merge commit on `canary` whose tree equals
-# the current tip of `main`. Manual trigger via the GitHub Actions UI.
+# Opens a PR that merges `main` into `canary` with `canary`'s history
+# preserved and `main`'s tree as the result. Manual trigger via the
+# GitHub Actions UI; a maintainer reviews and merges the PR to update
+# canary.
 #
-# Uses the same tree-replacing merge pattern as merge-main-to-canary.yml
-# (git merge -s ours + git read-tree) so it always moves forward (no
-# force-push), preserves history on both sides, and handles the case of
-# cherry-picks on canary that have different SHAs than their
-# counterparts on main. Convention: every fix goes to main first and is
-# then cherry-picked to canary; anything canary-only would otherwise be
-# silently dropped by this operation.
+# Uses the tree-replacing merge pattern (git merge -s ours + git
+# read-tree) so canary always moves forward, preserves history on
+# both sides, and handles cherry-picks on canary that have different
+# SHAs than their counterparts on main. Convention: every fix goes
+# to main first and is then cherry-picked to canary; anything
+# canary-only is silently dropped by this operation.
 #
-# Pushes to canary subsequently trigger UI Cloud Build to redeploy the
-# canary channel. See RFC-0022.
+# Authenticates with the default GITHUB_TOKEN. The repo must have
+# "Allow GitHub Actions to create and approve pull requests" enabled
+# in Settings → Actions → General for `gh pr create` to succeed.
+#
+# Merging the PR pushes to canary, which triggers UI Cloud Build to
+# redeploy the canary channel. See RFC-0022.
 
-name: Cut canary (merge main → canary)
+name: Cut canary (open PR merging main → canary)
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: write  # Required to push canary
+  contents: write        # Push the PR branch
+  pull-requests: write   # Open the PR
 
 jobs:
   cut-canary:
     runs-on: ubuntu-latest
-    environment: push-to-stable-canary
     steps:
       - name: Checkout canary
         uses: actions/checkout@v4
         with:
           ref: canary
           fetch-depth: 0
-          ssh-key: ${{ secrets.ACTIONS_WRITE_DEPLOY_KEY_DANGEROUS }}
 
       - name: Fetch main
         run: git fetch origin main
@@ -70,8 +74,29 @@ jobs:
           git read-tree -m -u origin/main
           git commit -m "Cut canary from main (automated)"
 
-      - name: Push canary
+      - name: Push branch and open PR
         if: env.SKIP != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git push origin HEAD:canary
-          echo "::notice::canary updated to tree of $(git rev-parse origin/main)."
+          BRANCH="dev/github-bot/cut-canary-$(date -u +%Y%m%d-%H%M%S)"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          MAIN_SHA=$(git rev-parse --short origin/main)
+          gh pr create \
+            --base canary \
+            --head "$BRANCH" \
+            --title "Cut canary from main ($MAIN_SHA)" \
+            --body "$(cat <<EOF
+          Automated canary cut. Merges the current tip of \`main\`
+          (\`$MAIN_SHA\`) into \`canary\` using the tree-replacing merge
+          pattern — \`canary\`'s history is preserved, \`main\`'s tree
+          becomes the new \`canary\` tree.
+
+          Merging this PR pushes to \`canary\` and triggers UI Cloud
+          Build to redeploy the canary channel. See RFC-0022.
+
+          **Merge strategy:** use "Create a merge commit" (not squash /
+          rebase) so the two-parent merge commit survives.
+          EOF
+          )"
+          echo "::notice::Opened PR from $BRANCH → canary."
