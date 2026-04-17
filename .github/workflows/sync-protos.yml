@@ -40,15 +40,19 @@ jobs:
       - name: Install GitHub CLI
         run: |
           if ! command -v gh >/dev/null 2>&1; then
-            (type -p wget >/dev/null || sudo apt-get install -y wget)
-            sudo mkdir -p -m 755 /etc/apt/keyrings
-            wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-              | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
-            sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-              | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-            sudo apt-get update
-            sudo apt-get install -y gh
+            # When bumping, re-verify GH_SHA256 against the upstream checksums:
+            # https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_checksums.txt
+            GH_VERSION=2.90.0
+            GH_SHA256=b2aef7b23ec6899bf27f37a32c57a7935d0a178568ac33dc9bb03842f724195a
+            GH_TARBALL="gh_${GH_VERSION}_linux_amd64.tar.gz"
+            mkdir -p "$HOME/.local/bin"
+            curl -fsSLO "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${GH_TARBALL}"
+            echo "${GH_SHA256}  ${GH_TARBALL}" | sha256sum --check --status
+            tar -xzf "${GH_TARBALL}" --strip-components=2 -C "$HOME/.local/bin" \
+              "gh_${GH_VERSION}_linux_amd64/bin/gh"
+            rm "${GH_TARBALL}"
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.local/bin:$PATH"
           fi
           gh --version
 
