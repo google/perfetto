@@ -13,15 +13,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import glob
 import os
+import shutil
 import subprocess
 import sys
 
 
+def candidate_clangs():
+  # Try the unversioned binary first, then any versioned clang-N found on PATH.
+  # (Ubuntu's apt clang package installs only clang-NN, without the unversioned
+  # symlink, so we need to discover whatever version is actually present.)
+  seen = set()
+  ordered = ['clang']
+  for path_dir in os.environ.get('PATH', '').split(os.pathsep):
+    if not path_dir:
+      continue
+    for match in sorted(glob.glob(os.path.join(path_dir, 'clang-*'))):
+      name = os.path.basename(match)
+      # Skip things like clang-cpp, clang-format, clang-tidy: the suffix must
+      # be a version number.
+      suffix = name[len('clang-'):]
+      if not suffix.replace('.', '').isdigit():
+        continue
+      if name not in seen:
+        seen.add(name)
+        ordered.append(name)
+  return ordered
+
+
 def main():
-  devnull = open(os.devnull, 'w')
-  for clang in ('clang', 'clang-3.8', 'clang-3.5', 'clang-8'):
-    if subprocess.call(['which', clang], stdout=devnull, stderr=devnull) != 0:
+  for clang in candidate_clangs():
+    if shutil.which(clang) is None:
       continue
     res = subprocess.check_output([clang, '-print-search-dirs']).decode("utf-8")
     for line in res.splitlines():

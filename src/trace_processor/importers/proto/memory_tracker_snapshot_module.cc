@@ -48,8 +48,8 @@ void MemoryTrackerSnapshotModule::ParseTracePacketData(
   }
 }
 
-void MemoryTrackerSnapshotModule::NotifyEndOfFile() {
-  parser_.NotifyEndOfFile();
+void MemoryTrackerSnapshotModule::OnEventsFullyExtracted() {
+  parser_.OnEventsFullyExtracted();
 }
 
 }  // namespace perfetto::trace_processor

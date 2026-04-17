@@ -29,7 +29,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
-#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/importers/common/system_info_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
@@ -43,6 +43,7 @@
 #include "src/trace_processor/types/task_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/args_utils.h"
 
 #include "protos/perfetto/trace/ftrace/binder.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cgroup.pbzero.h"
@@ -52,6 +53,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/g2d.pbzero.h"
+#include "protos/perfetto/trace/ftrace/i2c.pbzero.h"
 #include "protos/perfetto/trace/ftrace/irq.pbzero.h"
 #include "protos/perfetto/trace/ftrace/mdss.pbzero.h"
 #include "protos/perfetto/trace/ftrace/panel.pbzero.h"
@@ -89,6 +91,16 @@ class ArgsSerializer {
   using ValueWriter = std::function<void(const Variadic&)>;
   using SerializerValueWriter = void (ArgsSerializer::*)(const Variadic&);
 
+  struct I2cFieldInfo {
+    uint32_t adapter_nr_field;
+    uint32_t msg_nr_field;
+    uint32_t addr_field;
+    uint32_t flags_field;
+    uint32_t len_field;
+  };
+
+  void SerializeI2cEvent(const I2cFieldInfo&);
+
   // Arg writing functions.
   void WriteArgForField(uint32_t field_id, const ValueWriter& writer) {
     std::optional<uint32_t> row = FieldIdToRow(field_id);
@@ -102,12 +114,12 @@ class ArgsSerializer {
     std::optional<uint32_t> row = FieldIdToRow(field_id);
     if (!row)
       return;
-    WriteArg(key, storage_->GetArgValue(*row), writer);
+    WriteArg(key, GetArgValue(*storage_, *row), writer);
   }
   void WriteArgAtRow(uint32_t arg_row, const ValueWriter& writer) {
     const auto& args = storage_->arg_table();
     const auto& key = storage_->GetString(args[arg_row].key());
-    WriteArg(key, storage_->GetArgValue(arg_row), writer);
+    WriteArg(key, GetArgValue(*storage_, arg_row), writer);
   }
   void WriteArg(base::StringView key,
                 Variadic value,
@@ -118,7 +130,7 @@ class ArgsSerializer {
     std::optional<uint32_t> row = FieldIdToRow(field_id);
     if (!row)
       return;
-    writer(storage_->GetArgValue(*row));
+    writer(GetArgValue(*storage_, *row));
   }
   void WriteKernelFnValue(const Variadic& value) {
     if (value.type == Variadic::Type::kUint) {
@@ -130,6 +142,16 @@ class ArgsSerializer {
     }
   }
   void WriteValue(const Variadic&);
+
+  void WriteI2cBufField(uint32_t field_number) {
+    WriteValueForField(field_number, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kString);
+      const auto& buf = storage_->GetString(value.string_value);
+      writer_->AppendString(" [");
+      writer_->AppendHexString(buf, '-');
+      writer_->AppendString("]");
+    });
+  }
 
   // The default value writer which uses the |WriteValue| function.
   ValueWriter DVW() { return Wrap(&ArgsSerializer::WriteValue); }
@@ -205,7 +227,11 @@ ArgsSerializer::ArgsSerializer(
   for (uint32_t r = 0; !cursor_->Eof(); cursor_->Next(), ++r) {
     for (uint32_t i = 1; i <= max; ++i) {
       base::StringView key = context->storage->GetString(cursor_->key());
-      if (key == descriptor->fields[i].name) {
+      // Check that name is not nullptr before comparison, as some field ids
+      // (e.g., i2c_write, i2c_reply) may not have a name set for backwards
+      // compatibility.
+      if (descriptor->fields[i].name != nullptr &&
+          key == descriptor->fields[i].name) {
         (*field_id_to_arg_index)[i] = r;
         break;
       }
@@ -539,6 +565,36 @@ void ArgsSerializer::SerializeArgs() {
     WriteArgForField(HEE::kFunctionFieldNumber,
                      Wrap(&ArgsSerializer::WriteKernelFnValue));
     return;
+  } else if (event_name_ == "i2c_write") {
+    using I2C = protos::pbzero::I2cWriteFtraceEvent;
+    struct I2cFieldInfo field_info{
+        I2C::kAdapterNrFieldNumber, I2C::kMsgNrFieldNumber,
+        I2C::kAddrFieldNumber, I2C::kFlagsFieldNumber, I2C::kLenFieldNumber};
+    SerializeI2cEvent(field_info);
+    WriteI2cBufField(I2C::kBufFieldNumber);
+    return;
+  } else if (event_name_ == "i2c_read") {
+    using I2C = protos::pbzero::I2cReadFtraceEvent;
+    struct I2cFieldInfo field_info{
+        I2C::kAdapterNrFieldNumber, I2C::kMsgNrFieldNumber,
+        I2C::kAddrFieldNumber, I2C::kFlagsFieldNumber, I2C::kLenFieldNumber};
+    SerializeI2cEvent(field_info);
+    return;
+  } else if (event_name_ == "i2c_reply") {
+    using I2C = protos::pbzero::I2cReplyFtraceEvent;
+    struct I2cFieldInfo field_info{
+        I2C::kAdapterNrFieldNumber, I2C::kMsgNrFieldNumber,
+        I2C::kAddrFieldNumber, I2C::kFlagsFieldNumber, I2C::kLenFieldNumber};
+    SerializeI2cEvent(field_info);
+    WriteI2cBufField(I2C::kBufFieldNumber);
+    return;
+  } else if (event_name_ == "i2c_result") {
+    using I2C = protos::pbzero::I2cResultFtraceEvent;
+    writer_->AppendString(" i2c-");
+    WriteValueForField(I2C::kAdapterNrFieldNumber, DVW());
+    WriteArgForField(I2C::kNrMsgsFieldNumber, "n", DVW());
+    WriteArgForField(I2C::kRetFieldNumber, "ret", DVW());
+    return;
   }
   for (; !cursor_->Eof(); cursor_->Next()) {
     WriteArgAtRow(cursor_->ToRowNumber().row_number(), DVW());
@@ -592,6 +648,25 @@ void ArgsSerializer::WriteValue(const Variadic& value) {
       writer_->AppendLiteral("[NULL]");
       break;
   }
+}
+
+void ArgsSerializer::SerializeI2cEvent(const I2cFieldInfo& field_info) {
+  constexpr uint64_t kI2cAddrPadding = 3;   // I2C address is 7-bit or 10-bit
+  constexpr uint64_t kI2cFlagsPadding = 4;  // I2C flags is 16-bit
+
+  writer_->AppendString(" i2c-");
+  WriteValueForField(field_info.adapter_nr_field, DVW());
+  writer_->AppendString(" #");
+  WriteValueForField(field_info.msg_nr_field, DVW());
+  WriteArgForField(field_info.addr_field, "a", [this](const Variadic& value) {
+    PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+    writer_->AppendPaddedHexInt(value.uint_value, '0', kI2cAddrPadding);
+  });
+  WriteArgForField(field_info.flags_field, "f", [this](const Variadic& value) {
+    PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+    writer_->AppendPaddedHexInt(value.uint_value, '0', kI2cFlagsPadding);
+  });
+  WriteArgForField(field_info.len_field, "l", DVW());
 }
 
 }  // namespace

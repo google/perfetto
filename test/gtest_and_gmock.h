@@ -55,8 +55,10 @@
 #include "gmock/gmock.h"                      // IWYU pragma: export
 #include "gtest/gtest-matchers.h"             // IWYU pragma: export
 #include "gtest/gtest-param-test.h"           // IWYU pragma: export
+#include "gtest/gtest-typed-test.h"           // IWYU pragma: export
 #include "gtest/gtest.h"                      // IWYU pragma: export
 #include "gtest/internal/gtest-param-util.h"  // IWYU pragma: export
+#include "gtest/internal/gtest-type-util.h"   // IWYU pragma: export
 
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop

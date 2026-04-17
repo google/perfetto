@@ -50,7 +50,7 @@ You can see the version of the UI you are currently using in the bottom left han
 
 ![perfetto-ui-version.png](/docs/images/perfetto-ui-version.png)
 
-Clicking on the version number takes you to Github where you can see which commits are part of this version. The version number format is `v<maj>.<min>.<Commit SHA1 prefix>` where `<maj>.<min>` are extracted from the top entry in the
+Clicking on the version number takes you to GitHub where you can see which commits are part of this version. The version number format is `v<maj>.<min>.<Commit SHA1 prefix>` where `<maj>.<min>` are extracted from the top entry in the
 [CHANGELOG](/CHANGELOG).
 
 ## Cherry-picking a change

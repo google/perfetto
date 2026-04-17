@@ -42,6 +42,7 @@
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
@@ -106,8 +107,6 @@ base::Status ArtMethodTokenizer::Parse(TraceBlobView blob) {
     uint32_t magic = ToInt(*smagic);
     sub_parser_ = magic == kTraceMagic ? SubParser{Streaming{this}}
                                        : SubParser{NonStreaming{this}};
-    context_->clock_tracker->SetTraceTimeClock(
-        protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
   }
   if (sub_parser_.index() == base::variant_index<SubParser, Streaming>()) {
     return std::get<Streaming>(sub_parser_).Parse();
@@ -216,7 +215,8 @@ base::Status ArtMethodTokenizer::ParseRecord(uint32_t tid,
       break;
   }
   std::optional<int64_t> ts = context_->clock_tracker->ToTraceTime(
-      protos::pbzero::BUILTIN_CLOCK_MONOTONIC, (ts_ + ts_delta) * 1000);
+      ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC),
+      (ts_ + ts_delta) * 1000);
   if (ts) {
     stream_->Push(*ts, evt);
   }
@@ -382,7 +382,7 @@ base::Status ArtMethodTokenizer::Streaming::ParseSummary(
   }
 }
 
-base::Status ArtMethodTokenizer::Streaming::NotifyEndOfFile() const {
+base::Status ArtMethodTokenizer::Streaming::OnPushDataToSorter() const {
   if (mode_ != kDone) {
     return base::ErrStatus("ART Method trace: trace is incomplete");
   }
@@ -469,7 +469,7 @@ base::Status ArtMethodTokenizer::NonStreaming::Parse() {
   return base::OkStatus();
 }
 
-base::Status ArtMethodTokenizer::NonStreaming::NotifyEndOfFile() const {
+base::Status ArtMethodTokenizer::NonStreaming::OnPushDataToSorter() const {
   if (mode_ == NonStreaming::kData && tokenizer_->reader_.empty()) {
     return base::OkStatus();
   }
@@ -613,14 +613,14 @@ base::Status ArtMethodTokenizer::NonStreaming::ParseHeaderSectionLine(
       std::string(line).c_str());
 }
 
-base::Status ArtMethodTokenizer::NotifyEndOfFile() {
+base::Status ArtMethodTokenizer::OnPushDataToSorter() {
   switch (sub_parser_.index()) {
     case base::variant_index<SubParser, Detect>():
       return base::ErrStatus("ART Method trace: trace is incomplete");
     case base::variant_index<SubParser, Streaming>():
-      return std::get<Streaming>(sub_parser_).NotifyEndOfFile();
+      return std::get<Streaming>(sub_parser_).OnPushDataToSorter();
     case base::variant_index<SubParser, NonStreaming>():
-      return std::get<NonStreaming>(sub_parser_).NotifyEndOfFile();
+      return std::get<NonStreaming>(sub_parser_).OnPushDataToSorter();
   }
   PERFETTO_FATAL("For GCC");
 }

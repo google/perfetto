@@ -252,16 +252,6 @@ BUILD_DEPS_HOST = [
         'all',
         'all'),
 
-    # JsonCpp for legacy json import. Used only by the trace processor in
-    # standalone builds.
-    # If updating the version, also update bazel/deps.bzl.
-    Dependency(
-        'buildtools/jsoncpp',
-        'https://chromium.googlesource.com/external/github.com/open-source-parsers/jsoncpp.git',
-        '6aba23f4a8628d599a9ef7fa4811c4ff6e4070e2',  # refs/tags/1.9.3.
-        'all',
-        'all'),
-
     # Libexpat for Instruments XML import.
     # If updating the version, also update bazel/deps.bzl.
     Dependency(
@@ -330,6 +320,18 @@ BUILD_DEPS_HOST = [
         'https://storage.googleapis.com/perfetto/bloaty-1.1-b3b829de35babc2fe831b9488ad2e50bca939412-mac.zip',
         '2d301bd72a20e3f42888c9274ceb4dca76c103608053572322412c2c65ab8cb8',
         'darwin', 'all'),
+    # RE2 and PCRE2 for trace processor regex support.
+    # If updating the RE2 version, also update bazel/deps.bzl.
+    Dependency(
+        'buildtools/re2',
+        'https://chromium.googlesource.com/external/github.com/google/re2.git',
+        '927f5d53caf8111721e734cf24724686bb745f55', 'all', 'all'),
+    Dependency(
+        'buildtools/pcre2',
+        'https://github.com/PCRE2Project/pcre2.git',
+        '6ae58beca071f13ccfed31d03b3f479ab520639b',  # refs/tags/pcre2-10.44
+        'all',
+        'all'),
     Dependency(
         'buildtools/open_csd',
         'https://android.googlesource.com/platform/external/OpenCSD.git',
@@ -430,7 +432,7 @@ EMULATOR_DEPS_ANDROID = [
 # This variable is updated by tools/roll-catapult-trace-viewer.
 CATAPULT_SHA256 = 'b30108e05268ce6c65bb4126b65f6bfac165d17f5c1fd285046e7e6fd76c209f'
 
-TYPEFACES_SHA256 = 'a26274ca7c3d97a37c29de0ffa5c41a8d6431fc8e07ecdd5856dde143999dcd3'
+TYPEFACES_SHA256 = '8edaf662e24a910b232c9fc2f1a2a8aeea5bd32e74d0748c54a68f4b81717680'
 
 UI_DEPS = [
     Dependency(
@@ -509,7 +511,7 @@ BIGTRACE_DEPS = [
 BUILD_DEPS_RUST = [
     Dependency(
         'buildtools/rustup/rustup-init.sh', 'https://sh.rustup.rs',
-        '17247e4bcacf6027ec2e11c79a72c494c9af69ac8d1abcc1b271fa4375a106c2',
+        '6c30b75a75b28a96fd913a037c8581b580080b6ee9b8169a3c0feb1af7fe8caf',
         'all', 'all'),
 ]
 
@@ -619,7 +621,18 @@ def ExtractZipfilePreservePermissions(zf, info, path):
 
 
 def IsGitRepoCheckoutOutAtRevision(path, revision):
-  return ReadFile(os.path.join(path, '.git', 'HEAD')) == revision
+  # Use git rev-parse instead of reading .git/HEAD directly.
+  # Newer git versions (2.45+) use the reftable backend where HEAD doesn't
+  # contain the raw SHA in detached HEAD state.
+  if not os.path.isdir(os.path.join(path, '.git')):
+    return False
+  try:
+    actual = subprocess.check_output(
+        ['git', 'rev-parse', 'HEAD'], cwd=path,
+        stderr=subprocess.DEVNULL).decode().strip()
+    return actual == revision
+  except subprocess.CalledProcessError:
+    return False
 
 
 def RmtreeIfExists(path):
@@ -786,18 +799,34 @@ def CheckPythonVenv():
   return True
 
 
-def InstallPythonVenv():
+def InstallPythonVenv(public_pypi=False):
   venv_pip = os.path.join(PYTHON_VENV_BIN_DIR, 'pip3')
-  cur_python_interpreter = sys.executable
+  # Do not use sys.executable since that binary might live in the venv dir
+  # we're about to remove right below.
+  python_interpreter = 'python3' if sys.platform != 'win32' else 'python3.exe'
 
   shutil.rmtree(PYTHON_VENV_DIR, ignore_errors=True)
-  cmd = [cur_python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
+  cmd = [python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
   logging.info(f'Installing python venv {" ".join(cmd)}')
   subprocess.check_call(cmd)
-
-  cmd = [venv_pip, 'install', '-r', PYTHON_REQUIREMENTS]
+  cmd = [venv_pip, 'install', '--only-binary=:all:']
+  if public_pypi:
+    cmd += ['--index-url', 'https://pypi.org/simple/']
+  cmd += ['-r', PYTHON_REQUIREMENTS]
   logging.info(f'Updating python packages {" ".join(cmd)}')
-  subprocess.check_call(cmd)
+  if subprocess.call(cmd) != 0:
+    if shutil.which("gpkg"):
+      # Give actionable instructions to Googlers on how to go/corp-airlock.
+      print(
+          '''\033[33m
++---------------------------------------------------------+
+| venv installation failed, likely due to go/corp-airlock |
+| Run `gcert && gpkg setup` and try again                 |
++---------------------------------------------------------+
+\033[0m''',
+          file=sys.stderr)
+    sys.exit(1)
+
   with open(PYTHON_STATUS_FILE, 'w') as f:
     f.write(HashLocalFile(PYTHON_REQUIREMENTS))
 
@@ -853,6 +882,10 @@ def Main():
       help='Node and NPM packages to Build the Web-based UI via ./ui/build')
   parser.add_argument(
       '--grpc', action='store_true', help='Packages to build gRPC')
+  parser.add_argument(
+      '--public-pypi',
+      action='store_true',
+      help='Force pip to use the public PyPI index (https://pypi.org/simple/)')
   parser.add_argument('--check-only')
   parser.add_argument('--filter', action='append')
   parser.add_argument('--verify', help='Check all URLs', action='store_true')
@@ -1013,7 +1046,7 @@ def Main():
     if args.check_only:
       deps_updated |= venv_needs_update
     elif venv_needs_update:
-      InstallPythonVenv()
+      InstallPythonVenv(public_pypi=args.public_pypi)
 
   if args.rust:
     if args.check_only:

@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {z} from 'zod';
 import {copyToClipboard} from '../../base/clipboard';
 import {formatTimezone, Time, time, timezoneOffsetMap} from '../../base/time';
 import {exists} from '../../base/utils';
 import {JsonSettingsEditor} from '../../components/json_settings_editor';
-import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
+import QueryPagePlugin from '../../plugins/dev.perfetto.QueryPage';
 import {AppImpl} from '../../core/app_impl';
-import {commandInvocationSchema} from '../../core/command_manager';
+import {commandInvocationSchema, macroSchema} from '../../core/command_manager';
 import {featureFlags} from '../../core/feature_flags';
 import {OmniboxMode} from '../../core/omnibox_manager';
 import {
@@ -31,18 +32,13 @@ import {
 } from '../../core/state_serialization';
 import {TraceImpl} from '../../core/trace_impl';
 import {trackMatchesFilter} from '../../core/track_manager';
-import {
-  isLegacyTrace,
-  openFileWithLegacyTraceViewer,
-  openInOldUIWithSizeCheck,
-} from '../../frontend/legacy_trace_viewer';
 import {shareTrace} from '../../frontend/trace_share_utils';
 import {PerfettoPlugin} from '../../public/plugin';
 import {DurationPrecision, TimestampFormat} from '../../public/timeline';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {Workspace} from '../../public/workspace';
 import {showModal} from '../../widgets/modal';
-import {assertExists} from '../../base/logging';
+import {assertExists} from '../../base/assert';
 import {Setting} from '../../public/settings';
 import {toggleHelp} from '../../frontend/help_modal';
 
@@ -114,13 +110,6 @@ group by
 order by total_self_size desc
 limit 100;`;
 
-const SHOW_OPEN_WITH_LEGACY_UI_BUTTON = featureFlags.register({
-  id: 'showOpenWithLegacyUiButton',
-  name: 'Show "Open with legacy UI" button',
-  description: 'Show "Open with legacy UI" button in the sidebar',
-  defaultValue: false,
-});
-
 function getOrPromptForTimestamp(tsRaw: unknown): time | undefined {
   if (exists(tsRaw)) {
     if (typeof tsRaw !== 'bigint') {
@@ -132,13 +121,24 @@ function getOrPromptForTimestamp(tsRaw: unknown): time | undefined {
   return promptForTimestamp('Enter a timestamp');
 }
 
-const macroSchema = z.record(z.array(commandInvocationSchema));
-type MacroConfig = z.infer<typeof macroSchema>;
+// Type alias for macro array (inferred from the shared schema)
+const macrosConfigSchema = z.array(macroSchema);
+type MacrosConfig = z.infer<typeof macrosConfigSchema>;
+
+// Legacy macro schema (dictionary format) - deprecated, kept for migration
+export const legacyMacrosConfigSchema = z.record(
+  z.string(), // key: macro name
+  z.array(commandInvocationSchema).readonly(),
+);
+type LegacyMacrosConfig = z.infer<typeof legacyMacrosConfigSchema>;
 
 export default class CoreCommands implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CoreCommands';
+  static readonly dependencies = [QueryPagePlugin];
 
-  static macrosSetting: Setting<MacroConfig> | undefined = undefined;
+  static macrosSetting: Setting<MacrosConfig> | undefined = undefined;
+  static legacyMacrosSetting: Setting<LegacyMacrosConfig> | undefined =
+    undefined;
 
   static onActivate(ctx: AppImpl) {
     // Register global commands (commands that are required even without a trace
@@ -168,19 +168,59 @@ export default class CoreCommands implements PerfettoPlugin {
       });
     }
 
-    const macroSettingsEditor = new JsonSettingsEditor<MacroConfig>({
-      schema: macroSchema,
+    // Register the new macros setting (array format)
+    const macroSettingsEditor = new JsonSettingsEditor<MacrosConfig>({
+      schema: macrosConfigSchema,
     });
     CoreCommands.macrosSetting = ctx.settings.register({
-      id: 'perfetto.CoreCommands#UserDefinedMacros',
+      id: 'perfetto.CoreCommands#Macros',
       name: 'Macros',
       description:
         'Custom command macros that execute multiple commands in sequence',
-      schema: macroSchema,
-      defaultValue: {},
+      schema: macrosConfigSchema,
+      defaultValue: [],
       requiresReload: true,
       render: (setting) => macroSettingsEditor.render(setting),
     });
+
+    // Register the legacy macros setting (dictionary format) - deprecated
+    CoreCommands.legacyMacrosSetting = ctx.settings.register({
+      id: 'perfetto.CoreCommands#UserDefinedMacros',
+      name: 'Macros (Legacy)',
+      description:
+        'Deprecated: This setting uses the old dictionary format. ' +
+        'Your macros have been automatically migrated to the new format above.',
+      schema: legacyMacrosConfigSchema,
+      defaultValue: {},
+      requiresReload: false,
+      render: () =>
+        m(
+          '.pf-legacy-macros-notice',
+          m(
+            'p',
+            'This setting is deprecated. Your macros have been automatically ' +
+              'migrated to the new "Macros" setting above.',
+          ),
+          m(
+            'p',
+            'Please use the new "Macros" setting to view and edit your macros.',
+          ),
+        ),
+    });
+
+    // Migration: if new setting is empty but legacy has data, migrate
+    const newMacros = CoreCommands.macrosSetting.get();
+    const legacyMacros = CoreCommands.legacyMacrosSetting.get();
+    if (newMacros.length === 0 && Object.keys(legacyMacros).length > 0) {
+      const migratedMacros: MacrosConfig = Object.entries(legacyMacros).map(
+        ([name, run]) => ({
+          id: `dev.perfetto.UserMacro.${name}`,
+          name,
+          run,
+        }),
+      );
+      CoreCommands.macrosSetting.set(migratedMacros);
+    }
 
     const input = document.createElement('input');
     input.classList.add('trace_file');
@@ -194,7 +234,6 @@ export default class CoreCommands implements PerfettoPlugin {
       id: OPEN_TRACE_COMMAND_ID,
       name: 'Open trace file',
       callback: () => {
-        delete input.dataset['useCatapultLegacyUi'];
         input.click();
       },
       defaultHotkey: '!Mod+O',
@@ -205,23 +244,6 @@ export default class CoreCommands implements PerfettoPlugin {
       icon: 'folder_open',
       sortOrder: 1,
     });
-
-    const OPEN_LEGACY_COMMAND_ID = 'dev.perfetto.OpenTraceInLegacyUi';
-    ctx.commands.registerCommand({
-      id: OPEN_LEGACY_COMMAND_ID,
-      name: 'Open with legacy UI',
-      callback: () => {
-        input.dataset['useCatapultLegacyUi'] = '1';
-        input.click();
-      },
-    });
-    if (SHOW_OPEN_WITH_LEGACY_UI_BUTTON.get()) {
-      ctx.sidebar.addMenuItem({
-        commandId: OPEN_LEGACY_COMMAND_ID,
-        section: 'trace_files',
-        icon: 'filter_none',
-      });
-    }
 
     ctx.commands.registerCommand({
       id: 'dev.perfetto.CloseTrace',
@@ -236,25 +258,29 @@ export default class CoreCommands implements PerfettoPlugin {
     const app = AppImpl.instance;
 
     // Rgister macros from settings first.
-    registerMacros(ctx, assertExists(CoreCommands.macrosSetting).get());
+    const settingMacros = assertExists(CoreCommands.macrosSetting).get();
+    for (const macro of settingMacros) {
+      ctx.commands.registerMacro(macro);
+    }
 
     // Register the macros from extras at onTraceReady (the latest time
     // possible).
     ctx.onTraceReady.addListener(async (_) => {
-      // Await the promise: we've tried to be async as long as possible but
+      // Await the promises: we've tried to be async as long as possible but
       // now we need the extras to be loaded.
-      await app.extraLoadingPromise;
-      registerMacros(
-        ctx,
-        app.extraMacros.reduce((acc, macro) => ({...acc, ...macro}), {}),
-      );
+      const macros = await app.macros();
+      for (const macro of macros) {
+        ctx.commands.registerMacro(macro, macro.source);
+      }
     });
+
+    const queryPlugin = ctx.plugins.getPlugin(QueryPagePlugin);
 
     ctx.commands.registerCommand({
       id: 'dev.perfetto.RunQueryAllProcesses',
       name: 'Run query: All processes',
       callback: () => {
-        addQueryResultsTab(ctx, {
+        queryPlugin.addQueryResultsTab({
           query: ALL_PROCESSES_QUERY,
           title: 'All Processes',
         });
@@ -265,7 +291,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.RunQueryCpuTimeByProcess',
       name: 'Run query: CPU time by process',
       callback: () => {
-        addQueryResultsTab(ctx, {
+        queryPlugin.addQueryResultsTab({
           query: CPU_TIME_FOR_PROCESSES,
           title: 'CPU time by process',
         });
@@ -276,7 +302,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.RunQueryCyclesByStateByCpu',
       name: 'Run query: cycles by p-state by CPU',
       callback: () => {
-        addQueryResultsTab(ctx, {
+        queryPlugin.addQueryResultsTab({
           query: CYCLES_PER_P_STATE_PER_CPU,
           title: 'Cycles by p-state by CPU',
         });
@@ -287,7 +313,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.RunQueryCyclesByCpuByProcess',
       name: 'Run query: CPU Time by CPU by process',
       callback: () => {
-        addQueryResultsTab(ctx, {
+        queryPlugin.addQueryResultsTab({
           query: CPU_TIME_BY_CPU_BY_PROCESS,
           title: 'CPU time by CPU by process',
         });
@@ -298,7 +324,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.RunQueryHeapGraphBytesPerType',
       name: 'Run query: heap graph bytes per type',
       callback: () => {
-        addQueryResultsTab(ctx, {
+        queryPlugin.addQueryResultsTab({
           query: HEAP_GRAPH_BYTES_PER_TYPE,
           title: 'Heap graph bytes per type',
         });
@@ -309,7 +335,7 @@ export default class CoreCommands implements PerfettoPlugin {
       id: 'dev.perfetto.DebugSqlPerformance',
       name: 'Debug SQL performance',
       callback: () => {
-        addQueryResultsTab(ctx, {
+        queryPlugin.addQueryResultsTab({
           query: SQL_STATS,
           title: 'Recent SQL queries',
         });
@@ -510,14 +536,8 @@ export default class CoreCommands implements PerfettoPlugin {
     });
 
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.SwitchToQueryMode',
-      name: 'Switch to query mode',
-      callback: () => ctx.omnibox.setMode(OmniboxMode.Query),
-    });
-
-    ctx.commands.registerCommand({
       id: 'dev.perfetto.RunQuery',
-      name: 'Runs an SQL query',
+      name: 'Runs a SQL query',
       callback: async (rawSql: unknown) => {
         const query =
           typeof rawSql === 'string'
@@ -533,17 +553,20 @@ export default class CoreCommands implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'dev.perfetto.RunQueryAndShowTab',
       name: 'Runs an SQL query and opens results in a tab',
-      callback: async (rawSql: unknown) => {
+      callback: async (queryArg: unknown, titleArg?: unknown) => {
         const query =
-          typeof rawSql === 'string'
-            ? rawSql
+          typeof queryArg === 'string'
+            ? queryArg
             : await ctx.omnibox.prompt('Enter SQL...');
         if (!query) {
           return;
         }
-        addQueryResultsTab(ctx, {
+
+        const title = typeof titleArg === 'string' ? titleArg : 'Command Query';
+
+        ctx.plugins.getPlugin(QueryPagePlugin).addQueryResultsTab({
           query,
-          title: 'Command Query',
+          title,
         });
       },
     });
@@ -691,13 +714,6 @@ export default class CoreCommands implements PerfettoPlugin {
         }
       },
       defaultHotkey: 'R',
-    });
-
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.ToggleDrawer',
-      name: 'Toggle drawer',
-      defaultHotkey: 'Q',
-      callback: () => ctx.tabs.toggleTabPanelVisibility(),
     });
 
     ctx.commands.registerCommand({
@@ -858,41 +874,6 @@ function onInputElementFileSelectionChanged(e: Event) {
   // Reset the value so onchange will be fired with the same file.
   e.target.value = '';
 
-  if (e.target.dataset['useCatapultLegacyUi'] === '1') {
-    openWithLegacyUi(file);
-    return;
-  }
-
   AppImpl.instance.analytics.logEvent('Trace Actions', 'Open trace from file');
   AppImpl.instance.openTraceFromFile(file);
-}
-
-async function openWithLegacyUi(file: File) {
-  // Switch back to the old catapult UI.
-  AppImpl.instance.analytics.logEvent(
-    'Trace Actions',
-    'Open trace in Legacy UI',
-  );
-  if (await isLegacyTrace(file)) {
-    return await openFileWithLegacyTraceViewer(file);
-  }
-  return await openInOldUIWithSizeCheck(file);
-}
-
-function registerMacros(trace: TraceImpl, config: MacroConfig) {
-  for (const [macroName, commands] of Object.entries(config)) {
-    trace.commands.registerCommand({
-      id: `dev.perfetto.UserMacro.${macroName}`,
-      name: macroName,
-      callback: async () => {
-        // Macros could run multiple commands, some of which might prompt the
-        // user in an optional way. But macros should be self-contained
-        // so we disable prompts during their execution.
-        using _ = trace.omnibox.disablePrompts();
-        for (const command of commands) {
-          await trace.commands.runCommand(command.id, ...command.args);
-        }
-      },
-    });
-  }
 }

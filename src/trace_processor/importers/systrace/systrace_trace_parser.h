@@ -23,6 +23,7 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/importers/systrace/systrace_line_parser.h"
 #include "src/trace_processor/importers/systrace/systrace_line_tokenizer.h"
@@ -38,7 +39,8 @@ class SystraceTraceParser : public ChunkedTraceReader {
 
   // ChunkedTraceReader implementation.
   base::Status Parse(TraceBlobView) override;
-  base::Status NotifyEndOfFile() override;
+  base::Status OnPushDataToSorter() override { return base::OkStatus(); }
+  void OnEventsFullyExtracted() override {}
 
  private:
   enum ParseState {

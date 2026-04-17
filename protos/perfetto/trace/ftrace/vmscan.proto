@@ -43,3 +43,11 @@ message MmShrinkSlabEndFtraceEvent {
   optional int64 unused_scan = 6;
   optional int32 nid = 7;
 }
+message MmVmscanMemcgReclaimBeginFtraceEvent {
+  optional int32 order = 1;
+  optional int32 may_writepage = 2;
+  optional uint64 gfp_flags = 3;
+}
+message MmVmscanMemcgReclaimEndFtraceEvent {
+  optional uint64 nr_reclaimed = 1;
+}

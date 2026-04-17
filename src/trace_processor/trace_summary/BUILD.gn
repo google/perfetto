@@ -19,6 +19,8 @@ assert(enable_perfetto_trace_processor_sqlite)
 
 source_set("trace_summary") {
   sources = [
+    "summarizer.cc",
+    "summarizer.h",
     "summary.cc",
     "summary.h",
   ]
@@ -27,6 +29,7 @@ source_set("trace_summary") {
     "../../../gn:default_deps",
     "../../../include/perfetto/trace_processor",
     "../../../include/perfetto/trace_processor:basic_types",
+    "../../../protos/perfetto/perfetto_sql:zero",
     "../../../protos/perfetto/trace_summary:zero",
     "../../base",
     "../../protozero",
@@ -45,6 +48,22 @@ source_set("trace_summary") {
 perfetto_cc_proto_descriptor("gen_cc_trace_summary_descriptor") {
   descriptor_name = "trace_summary.descriptor"
   descriptor_target = "../../../protos/perfetto/trace_summary:descriptor"
+}
+
+source_set("unittests") {
+  testonly = true
+  sources = [ "summarizer_unittest.cc" ]
+  deps = [
+    ":trace_summary",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_and_gmock",
+    "../../../include/perfetto/trace_processor",
+    "../../../protos/perfetto/perfetto_sql:zero",
+    "../../../protos/perfetto/trace_summary:zero",
+    "../../base",
+    "../../base:test_support",
+    "../../protozero",
+  ]
 }
 
 source_set("integrationtests") {

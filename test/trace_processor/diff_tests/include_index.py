@@ -26,6 +26,7 @@ TRACE_PROCESSOR_TEST_DIR = os.path.dirname(
 sys.path.append(TRACE_PROCESSOR_TEST_DIR)
 
 from diff_tests.metrics.android.tests import AndroidMetrics
+from diff_tests.parser.primes.tests import PrimesTraceParser
 from diff_tests.metrics.camera.tests import Camera
 from diff_tests.metrics.chrome.tests import ChromeMetrics
 from diff_tests.metrics.chrome.tests_args import ChromeArgs
@@ -47,6 +48,7 @@ from diff_tests.metrics.startup.tests_metrics import StartupMetrics
 from diff_tests.metrics.webview.tests import WebView
 from diff_tests.parser.android_fs.tests import AndroidFs
 from diff_tests.parser.android.tests import AndroidParser
+from diff_tests.parser.android.tests_aflags import AndroidAflags
 from diff_tests.parser.android.tests_android_input_event import AndroidInputEvent
 from diff_tests.parser.android.tests_bugreport import AndroidBugreport
 from diff_tests.parser.android.tests_cpu_per_uid import AndroidCpuPerUid
@@ -56,6 +58,7 @@ from diff_tests.parser.android.tests_inputmethod_clients import InputMethodClien
 from diff_tests.parser.android.tests_inputmethod_manager_service import InputMethodManagerService
 from diff_tests.parser.android.tests_inputmethod_service import InputMethodService
 from diff_tests.parser.android.tests_protolog import ProtoLog
+from diff_tests.parser.android.tests_protovm_incremental_tracing import ProtoVmIncrementalTracing
 from diff_tests.parser.android.tests_shell_transitions import ShellTransitions
 from diff_tests.parser.android.tests_surfaceflinger_layers import SurfaceFlingerLayers
 from diff_tests.parser.android.tests_surfaceflinger_transactions import SurfaceFlingerTransactions
@@ -96,6 +99,7 @@ from diff_tests.parser.parsing.tests_sys_stats import ParsingSysStats
 from diff_tests.parser.parsing.tests_traced_stats import ParsingTracedStats
 from diff_tests.parser.perf_text.tests import PerfTextParser
 from diff_tests.parser.pprof.tests_pprof import PprofParser
+from diff_tests.parser.collapsed_stack.tests_collapsed_stack import CollapsedStackParser
 from diff_tests.parser.power.tests_battery_stats import BatteryStats
 from diff_tests.parser.power.tests_energy_breakdown import PowerEnergyBreakdown
 from diff_tests.parser.power.tests_entity_state_residency import EntityStateResidency
@@ -104,6 +108,7 @@ from diff_tests.parser.power.tests_power_rails import PowerPowerRails
 from diff_tests.parser.power.tests_voltage_and_scaling import PowerVoltageAndScaling
 from diff_tests.parser.process_tracking.tests import ProcessTracking
 from diff_tests.parser.profiling.deobfuscation_tests import Deobfuscation
+from diff_tests.parser.profiling.r8_retrace_compat.tests import R8RetraceCompat
 from diff_tests.parser.profiling.tests import Profiling
 from diff_tests.parser.profiling.tests_heap_graph import ProfilingHeapGraph
 from diff_tests.parser.profiling.tests_heap_profiling import ProfilingHeapProfiling
@@ -142,6 +147,7 @@ from diff_tests.stdlib.graphs.dominator_tree_tests import DominatorTree
 from diff_tests.stdlib.graphs.partition_tests import GraphPartitionTests
 from diff_tests.stdlib.graphs.scan_tests import GraphScanTests
 from diff_tests.stdlib.graphs.search_tests import GraphSearchTests
+from diff_tests.stdlib.intervals.create_intervals_tests import CreateIntervals
 from diff_tests.stdlib.intervals.intersect_tests import IntervalsIntersect
 from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.linux.cpu import LinuxCpu
@@ -154,6 +160,7 @@ from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
 from diff_tests.stdlib.prelude.package_lookup_tests import PackageLookup
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
 from diff_tests.stdlib.prelude.regexp_extract import RegexpExtract
+from diff_tests.stdlib.prelude.regexp_replace_simple import RegexpReplaceSimple
 from diff_tests.stdlib.prelude.slices_tests import PreludeSlices
 from diff_tests.stdlib.prelude.window_functions_tests import PreludeWindowFunctions
 from diff_tests.stdlib.sched.tests import StdlibSched
@@ -168,12 +175,16 @@ from diff_tests.stdlib.symbolize.tests import Symbolize
 from diff_tests.stdlib.tests import StdlibSmoke
 from diff_tests.stdlib.timestamps.tests import Timestamps
 from diff_tests.stdlib.traced.stats import TracedStats
+from diff_tests.stdlib.trees.table_conversion_tests import TreeRoundtrip
+from diff_tests.stdlib.trees.tree_filter_tests import TreeFilter
+from diff_tests.stdlib.trees.tree_propagate_tests import TreePropagate
 from diff_tests.stdlib.viz.tests import Viz
 from diff_tests.stdlib.wattson.tests import WattsonStdlib
 from diff_tests.syntax.filtering_tests import PerfettoFiltering
 from diff_tests.syntax.function_tests import PerfettoFunction
 from diff_tests.syntax.include_tests import PerfettoInclude
 from diff_tests.syntax.macro_tests import PerfettoMacro
+from diff_tests.syntax.structured_query_tests import StructuredQueryTests
 from diff_tests.syntax.table_function_tests import PerfettoTableFunction
 from diff_tests.syntax.table_tests import PerfettoTable
 from diff_tests.syntax.view_tests import PerfettoView
@@ -188,6 +199,7 @@ sys.path.pop()
 def fetch_all_diff_tests(
     index_path: str) -> List[Tuple[str, 'testing.DiffTestBlueprint']]:
   parser_tests = [
+      AndroidAflags,
       AndroidBugreport,
       AndroidCpuPerUid,
       AndroidDumpstate,
@@ -201,6 +213,7 @@ def fetch_all_diff_tests(
       ChromeV8Parser,
       Cros,
       Deobfuscation,
+      R8RetraceCompat,
       Etm,
       Etw,
       Fs,
@@ -241,6 +254,7 @@ def fetch_all_diff_tests(
       SurfaceFlingerTransactions,
       ShellTransitions,
       ProtoLog,
+      ProtoVmIncrementalTracing,
       ViewCapture,
       WindowManager,
       TrackEvent,
@@ -264,6 +278,8 @@ def fetch_all_diff_tests(
       ArtMethodParser,
       PerfTextParser,
       PprofParser,
+      CollapsedStackParser,
+      PrimesTraceParser,
   ]
 
   metrics_tests = [
@@ -304,6 +320,9 @@ def fetch_all_diff_tests(
       DominatorTree,
       CriticalPathTests,
       GraphScanTests,
+      TreeRoundtrip,
+      TreeFilter,
+      TreePropagate,
       ExportTests,
       Frames,
       GraphSearchTests,
@@ -318,6 +337,7 @@ def fetch_all_diff_tests(
       PreludePprofFunctions,
       PreludeWindowFunctions,
       RegexpExtract,
+      RegexpReplaceSimple,
       Pkvm,
       PreludeSlices,
       StdlibSmoke,
@@ -328,6 +348,7 @@ def fetch_all_diff_tests(
       SpanJoinRegression,
       SpanJoinSmoke,
       Stacks,
+      CreateIntervals,
       StdlibIntervals,
       SystemUICujs,
       IntervalsIntersect,
@@ -348,6 +369,7 @@ def fetch_all_diff_tests(
       PerfettoTable,
       PerfettoTableFunction,
       PerfettoView,
+      StructuredQueryTests,
   ]
 
   tables_tests = [

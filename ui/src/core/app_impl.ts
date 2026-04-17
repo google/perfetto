@@ -14,7 +14,7 @@
 
 import {AsyncLimiter} from '../base/async_limiter';
 import {defer} from '../base/deferred';
-import {assertExists, assertTrue} from '../base/logging';
+import {assertExists, assertTrue} from '../base/assert';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
 import {App} from '../public/app';
 import {SqlPackage} from '../public/extra_sql_packages';
@@ -26,7 +26,7 @@ import {TraceStream} from '../public/stream';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {NewEngineMode} from '../trace_processor/engine';
 import {AnalyticsInternal, initAnalytics} from './analytics_impl';
-import {CommandInvocation, CommandManagerImpl} from './command_manager';
+import {CommandInvocation, CommandManagerImpl, Macro} from './command_manager';
 import {featureFlags} from './feature_flags';
 import {loadTrace} from './load_trace';
 import {OmniboxManagerImpl} from './omnibox_manager';
@@ -40,6 +40,9 @@ import {SidebarManagerImpl} from './sidebar_manager';
 import {SerializedAppState} from './state_serialization_schema';
 import {TraceImpl} from './trace_impl';
 import {TraceArrayBufferSource, TraceSource} from './trace_source';
+import {TaskTrackerImpl} from '../frontend/task_tracker/task_tracker';
+import {Embedder} from './embedder/embedder';
+import {createEmbedder} from './embedder/create_embedder';
 
 export type OpenTraceArrayBufArgs = Omit<
   Omit<TraceArrayBufferSource, 'type'>,
@@ -68,14 +71,15 @@ export interface AppInitArgs {
  * and should use AppImpl instead.
  */
 export class AppImpl implements App {
-  readonly commands = new CommandManagerImpl();
   readonly omnibox = new OmniboxManagerImpl();
-  readonly pages = new PageManagerImpl();
+  readonly commands = new CommandManagerImpl(this.omnibox);
+  readonly pages: PageManagerImpl;
   readonly sidebar: SidebarManagerImpl;
-  readonly plugins = new PluginManagerImpl();
+  readonly plugins: PluginManagerImpl;
   readonly perfDebugging = new PerfManager();
   readonly analytics: AnalyticsInternal;
   readonly serviceWorkerController = new ServiceWorkerController();
+  readonly taskTracker = new TaskTrackerImpl();
   httpRpc = {
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE' as NewEngineMode,
     httpRpcAvailable: false,
@@ -87,24 +91,25 @@ export class AppImpl implements App {
   readonly testingMode: boolean;
   readonly openTraceAsyncLimiter = new AsyncLimiter();
   readonly settings: SettingsManagerImpl;
+  readonly embedder: Embedder;
 
   // The current active trace (if any).
   private _activeTrace: TraceImpl | undefined;
 
-  // This is normally empty and is injected with extra google-internal packages
-  // via is_internal_user.js
-  extraSqlPackages: SqlPackage[] = [];
+  // Extra SQL packages injected from extensions.
+  private _sqlPackagesPromises = new Array<
+    Promise<ReadonlyArray<SqlPackage>>
+  >();
 
-  // This is normally empty and is injected with Base64-encoded protobuf
-  // descriptor sets via is_internal_user.js.
-  extraParsingDescriptors: string[] = [];
+  // Protobuf descriptor sets as Base64-encoded strings injected from extensions.
+  private _protoDescriptorsPromises = new Array<
+    Promise<ReadonlyArray<string>>
+  >();
 
-  // This is normally empty and is injected with extra google-internal macros
-  // via is_internal_user.js
-  extraMacros: Record<string, CommandInvocation[]>[] = [];
-
-  // Promise which is resolved when extra loading is completed.
-  extrasLoadingDeferred = defer<undefined>();
+  // Command macros. Injected from extensions.
+  private _macrosPromises = new Array<
+    Promise<ReadonlyArray<Macro & {source?: string}>>
+  >();
 
   // Initializes the singleton instance - must be called only once and before
   // AppImpl.instance is used.
@@ -147,11 +152,15 @@ export class AppImpl implements App {
       disabled: this.embeddedMode,
       hidden: this.initialRouteArgs.hideSidebar,
     });
+    this.embedder = createEmbedder();
+    this.plugins = new PluginManagerImpl(this.embedder.defaultPlugins);
     this.analytics = initAnalytics(
       this.testingMode,
       this.embeddedMode,
       initArgs.analyticsSetting.get(),
+      this.embedder.analyticsId,
     );
+    this.pages = new PageManagerImpl(this.analytics);
   }
 
   setActiveTrace(trace: TraceImpl) {
@@ -177,10 +186,12 @@ export class AppImpl implements App {
     return this._isInternalUser;
   }
 
-  set isInternalUser(value: boolean) {
-    localStorage.setItem('isInternalUser', value ? '1' : '0');
-    this._isInternalUser = value;
-    raf.scheduleFullRedraw();
+  setIsInternalUser(promise: Promise<boolean>) {
+    promise.then((value) => {
+      this._isInternalUser = value;
+      localStorage.setItem('isInternalUser', value ? '1' : '0');
+      raf.scheduleFullRedraw();
+    });
   }
 
   get trace(): TraceImpl | undefined {
@@ -255,7 +266,6 @@ export class AppImpl implements App {
       // Wait for extras parsing descriptors to be loaded
       // via is_internal_user.js. This prevents a race condition where
       // trace loading would otherwise begin before this data is available.
-      await this.extraLoadingPromise;
       this.closeCurrentTrace();
       this.isLoadingTrace = true;
       try {
@@ -273,7 +283,6 @@ export class AppImpl implements App {
         // loadTrace to be finished before setting it because some internal
         // implementation details of loadTrace() rely on that trace to be current
         // to work properly (mainly the router hash uuid).
-
         result.resolve(trace);
       } catch (error) {
         result.reject(error);
@@ -282,7 +291,6 @@ export class AppImpl implements App {
         raf.scheduleFullRedraw();
       }
     });
-
     return result;
   }
 
@@ -290,11 +298,40 @@ export class AppImpl implements App {
     Router.navigate(newHash);
   }
 
-  notifyOnExtrasLoadingCompleted() {
-    this.extrasLoadingDeferred.resolve();
+  addSqlPackages(
+    args: ReadonlyArray<SqlPackage> | Promise<ReadonlyArray<SqlPackage>>,
+  ) {
+    this._sqlPackagesPromises.push(Promise.resolve(args));
   }
 
-  get extraLoadingPromise(): Promise<undefined> {
-    return this.extrasLoadingDeferred;
+  async sqlPackages(): Promise<ReadonlyArray<SqlPackage>> {
+    return Promise.all(this._sqlPackagesPromises).then((pkgs) =>
+      pkgs.flatMap((p) => p),
+    );
+  }
+
+  addProtoDescriptors(
+    args: ReadonlyArray<string> | Promise<ReadonlyArray<string>>,
+  ) {
+    this._protoDescriptorsPromises.push(Promise.resolve(args));
+  }
+
+  async protoDescriptors(): Promise<ReadonlyArray<string>> {
+    return Promise.all(this._protoDescriptorsPromises).then((desc) =>
+      desc.flatMap((d) => d),
+    );
+  }
+
+  addMacros(
+    args:
+      | ReadonlyArray<Macro & {source?: string}>
+      | Promise<ReadonlyArray<Macro & {source?: string}>>,
+  ) {
+    this._macrosPromises.push(Promise.resolve(args));
+  }
+
+  async macros(): Promise<ReadonlyArray<Macro & {source?: string}>> {
+    const macrosArray = await Promise.all(this._macrosPromises);
+    return macrosArray.flat();
   }
 }

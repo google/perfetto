@@ -98,7 +98,11 @@ export class SearchResultsTab implements m.ClassComponent<TabAttrs> {
       m(DataGrid, {
         schema,
         rootSchema: 'data',
-        initialColumns: [{field: 'id'}, {field: 'ts'}, {field: 'trackUri'}],
+        initialColumns: [
+          {id: 'id', field: 'id'},
+          {id: 'ts', field: 'ts'},
+          {id: 'trackUri', field: 'trackUri'},
+        ],
         data: rowData,
         fillHeight: true,
       }),

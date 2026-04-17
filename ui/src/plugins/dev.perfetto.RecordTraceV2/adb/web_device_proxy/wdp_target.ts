@@ -27,6 +27,7 @@ import {AsyncLazy} from '../../../../base/async_lazy';
 import {WdpDevice} from './wdp_schema';
 import {showPopupWindow} from '../../../../base/popup_window';
 import {defer} from '../../../../base/deferred';
+import {RecordTraceV2Settings} from '../../settings';
 
 export class WebDeviceProxyTarget implements RecordingTarget {
   readonly kind = 'LIVE_RECORDING';
@@ -38,6 +39,7 @@ export class WebDeviceProxyTarget implements RecordingTarget {
   constructor(
     private wsUrl: string,
     private devJson: WdpDevice,
+    private readonly settings: RecordTraceV2Settings,
   ) {
     this.id = this.devJson.serialNumber;
     this.updateWdpState(devJson);
@@ -91,7 +93,7 @@ export class WebDeviceProxyTarget implements RecordingTarget {
       status: this.deviceReady(),
     };
     if (this.adbDevice.value === undefined) return;
-    yield* checkAndroidTarget(this.adbDevice.value);
+    yield* checkAndroidTarget(this.adbDevice.value, this.settings);
   }
 
   private async connectIfNeeded(): Promise<Result<AdbWebsocketDevice>> {
@@ -141,7 +143,7 @@ export class WebDeviceProxyTarget implements RecordingTarget {
     if (this.adbDevice.value === undefined) {
       return errResult('WebSocket transport disconnected');
     }
-    return getAdbTracingServiceState(this.adbDevice.value);
+    return getAdbTracingServiceState(this.adbDevice.value, this.settings);
   }
 
   async startTracing(
@@ -149,6 +151,10 @@ export class WebDeviceProxyTarget implements RecordingTarget {
   ): Promise<Result<ConsumerIpcTracingSession>> {
     const adbDeviceStatus = await this.connectIfNeeded();
     if (!adbDeviceStatus.ok) return adbDeviceStatus;
-    return await createAdbTracingSession(adbDeviceStatus.value, traceConfig);
+    return await createAdbTracingSession(
+      adbDeviceStatus.value,
+      traceConfig,
+      this.settings,
+    );
   }
 }

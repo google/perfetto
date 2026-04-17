@@ -12,15 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists} from '../base/logging';
+import {assertExists} from '../base/assert';
 import {Registry} from '../base/registry';
-import {
-  MetricVisualisation,
-  PerfettoPlugin,
-  PerfettoPluginStatic,
-} from '../public/plugin';
+import {PerfettoPlugin, PerfettoPluginStatic} from '../public/plugin';
 import {Trace} from '../public/trace';
-import {defaultPlugins} from './default_plugins';
 import {featureFlags} from './feature_flags';
 import {Flag} from '../public/feature_flag';
 import {TraceImpl} from './trace_impl';
@@ -79,6 +74,7 @@ export interface PluginWrapper {
 export class PluginManagerImpl {
   private readonly registry = new Registry<PluginWrapper>((x) => x.desc.id);
   private orderedPlugins: Array<PluginWrapper> = [];
+  constructor(private readonly defaultPluginIds: ReadonlyArray<string>) {}
 
   registerPlugin(desc: PerfettoPluginStatic<PerfettoPlugin>, isCore = false) {
     const flagId = `plugin_${desc.id}`;
@@ -87,7 +83,7 @@ export class PluginManagerImpl {
       id: flagId,
       name,
       description: `Overrides '${desc.id}' plugin.`,
-      defaultValue: defaultPlugins.includes(desc.id),
+      defaultValue: this.defaultPluginIds.includes(desc.id),
     });
     this.registry.register({
       desc,
@@ -147,13 +143,6 @@ export class PluginManagerImpl {
         });
       }
     }
-  }
-
-  metricVisualisations(): MetricVisualisation[] {
-    return this.registry.valuesAsArray().flatMap((plugin) => {
-      if (!plugin.active) return [];
-      return plugin.desc.metricVisualisations?.() ?? [];
-    });
   }
 
   getAllPlugins() {

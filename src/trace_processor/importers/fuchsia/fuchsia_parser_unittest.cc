@@ -34,6 +34,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -58,6 +59,7 @@
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
@@ -117,8 +119,10 @@ class MockProcessTracker : public ProcessTracker {
 
   MOCK_METHOD(UniquePid, GetOrCreateProcess, (int64_t pid), (override));
   MOCK_METHOD(void,
-              SetProcessNameIfUnset,
-              (UniquePid upid, StringId process_name_id),
+              UpdateProcessName,
+              (UniquePid upid,
+               StringId process_name_id,
+               ProcessNamePriority priority),
               (override));
 };
 class MockBoundInserter : public ArgsTracker::BoundInserter {
@@ -170,16 +174,21 @@ class FuchsiaTraceParserTest : public ::testing::Test {
   FuchsiaTraceParserTest() {
     context_.storage = std::make_unique<TraceStorage>();
     storage_ = context_.storage.get();
+    context_.machine_tracker =
+        std::make_unique<MachineTracker>(&context_, kDefaultMachineId);
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context_.storage.get());
+    context_.global_metadata_tracker =
+        std::make_unique<GlobalMetadataTracker>(context_.storage.get());
+    context_.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId(0)});
     context_.import_logs_tracker =
-        std::make_unique<ImportLogsTracker>(&context_, 1);
+        std::make_unique<ImportLogsTracker>(&context_, TraceId(1));
     context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
-    context_.metadata_tracker =
-        std::make_unique<MetadataTracker>(context_.storage.get());
-    context_.machine_tracker = std::make_unique<MachineTracker>(&context_, 0);
+    context_.metadata_tracker = std::make_unique<MetadataTracker>(&context_);
     context_.cpu_tracker = std::make_unique<CpuTracker>(&context_);
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
@@ -192,8 +201,14 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
     context_.slice_translation_table =
         std::make_unique<SliceTranslationTable>(storage_);
-    context_.clock_tracker = std::make_unique<ClockTracker>(
+    context_.trace_time_state = std::make_unique<TraceTimeState>(
+        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
+    primary_sync_ = std::make_unique<ClockSynchronizer>(
+        context_.trace_time_state.get(),
         std::make_unique<ClockSynchronizerListenerImpl>(&context_));
+    context_.clock_tracker = std::make_unique<ClockTracker>(
+        &context_, std::make_unique<ClockSynchronizerListenerImpl>(&context_),
+        primary_sync_.get(), true);
     clock_ = context_.clock_tracker.get();
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
     context_.sorter = std::make_unique<TraceSorter>(
@@ -229,6 +244,7 @@ class FuchsiaTraceParserTest : public ::testing::Test {
   std::vector<uint64_t> trace_bytes_;
 
   TraceProcessorContext context_;
+  std::unique_ptr<ClockSynchronizer> primary_sync_;
   MockEventTracker* event_;
   MockSchedEventTracker* sched_;
   MockProcessTracker* process_;
@@ -523,6 +539,75 @@ TEST_F(FuchsiaTraceParserTest, SchedulerEvents) {
             0);
 
   context_.sorter->ExtractEventsForced();
+}
+
+TEST_F(FuchsiaTraceParserTest, SchedulerEventsWithWaker) {
+  uint64_t thread1_tid = 0x1AAA'AAAA'AAAA'AAAA;
+  uint64_t thread2_tid = 0x2CCC'CCCC'CCCC'CCCC;
+
+  uint64_t wakeup_record_type = uint64_t{2} << 60;
+  uint64_t cpu = 1 << 20;
+  uint64_t record_type = 8;
+  uint64_t argument_count = uint64_t{1} << 16;
+  uint64_t wakeup_size = uint64_t{6} << 4;
+
+  uint64_t wakeup_header =
+      wakeup_record_type | cpu | argument_count | record_type | wakeup_size;
+  push_word(wakeup_header);
+  // Timestamp
+  push_word(0x1);
+  // wakeup tid
+  push_word(thread1_tid);
+
+  // Waker argument
+  uint64_t arg_type = uint64_t{8};  // kKoid
+  uint64_t arg_size_words = uint64_t{3} << 4;
+  uint64_t inline_string = uint64_t{1} << 15;
+  uint64_t string_len = uint64_t{5};
+  uint64_t arg_name_ref = (inline_string | string_len) << 16;
+  uint64_t arg_header = arg_type | arg_size_words | arg_name_ref;
+  push_word(arg_header);
+  // string "waker\0\0\0"
+  push_word(0x00000072656b6177);
+  // koid value
+  push_word(thread2_tid);
+
+  EXPECT_CALL(*process_, UpdateThread(static_cast<uint32_t>(thread1_tid), _))
+      .WillRepeatedly(testing::Return(0));
+
+  EXPECT_TRUE(Tokenize().ok());
+
+  EXPECT_EQ(
+      context_.storage->stats()[stats::fuchsia_non_numeric_counters].value, 0);
+  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_timestamp_overflow].value,
+            0);
+  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_record_read_error].value,
+            0);
+  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_invalid_event].value, 0);
+  EXPECT_EQ(
+      context_.storage->stats()[stats::fuchsia_invalid_event_arg_type].value,
+      0);
+  EXPECT_EQ(
+      context_.storage->stats()[stats::fuchsia_invalid_event_arg_name].value,
+      0);
+  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_invalid_string_ref].value,
+            0);
+
+  context_.sorter->ExtractEventsForced();
+
+  // Verify waker_utid is recorded properly
+  const auto& table = storage_->thread_state_table();
+  bool found_waker = false;
+  auto expected_waker_utid = context_.process_tracker->GetOrCreateThread(
+      static_cast<uint32_t>(thread2_tid));
+
+  for (auto it = table.IterateRows(); it; ++it) {
+    if (it.waker_utid().has_value() &&
+        it.waker_utid().value() == expected_waker_utid) {
+      found_waker = true;
+    }
+  }
+  EXPECT_TRUE(found_waker);
 }
 
 TEST_F(FuchsiaTraceParserTest, LegacySchedulerEvents) {

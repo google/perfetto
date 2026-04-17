@@ -61,6 +61,8 @@ class PERFETTO_EXPORT_COMPONENT TracePacket {
   // will be valid only as long as the original buffer is valid.
   void AddSlice(const void* start, size_t size);
 
+  void Clear();
+
   // Total size of all slices.
   size_t size() const { return size_; }
 
@@ -71,8 +73,12 @@ class PERFETTO_EXPORT_COMPONENT TracePacket {
   std::tuple<char*, size_t> GetProtoPreamble();
 
   // Returns the raw protobuf bytes of the slices, all stitched together into
+  // the specified buffer.
+  void GetRawBytes(std::string*) const;
+
+  // Returns the raw protobuf bytes of the slices, all stitched together into
   // a string. Only for testing.
-  std::string GetRawBytesForTesting();
+  std::string GetRawBytesForTesting() const;
 
   // Remembers the buffer index where this packet was taken from. This is
   // usually populated for packets from a TraceBuffer, not synthetic ones.

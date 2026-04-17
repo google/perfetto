@@ -27,7 +27,7 @@ from typing import List, Tuple, Optional
 from python.generators.sql_processing.docs_parse import DocParseOptions, ParsedModule, parse_file
 from python.generators.sql_processing.utils import is_internal
 from python.generators.sql_processing.stdlib_tags import get_tags, get_table_importance
-from python.perfetto.trace_data_checks import MODULE_DATA_CHECK_SQL
+from python.perfetto.trace_data_checks import check_to_query, MODULE_DATA_CHECK_SQL, TABLE_DATA_CHECK_SQL
 
 ROOT_DIR = os.path.dirname(
     os.path.dirname(
@@ -249,12 +249,14 @@ def format_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
     package_name = module_name.split(".")[0]
 
     module_dict = {
-        'module_name': module_name,
+        'module_name':
+            module_name,
         'module_doc': {
             'name': parsed.module_doc.name,
             'desc': parsed.module_doc.desc,
         } if parsed.module_doc else None,
-        'tags': get_tags(module_name),
+        'tags':
+            get_tags(module_name),
         'includes': [inc.module for inc in parsed.includes],
         'data_objects': [{
             'name':
@@ -269,6 +271,9 @@ def format_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
                 'private' if is_internal(table.name) else 'public',
             'importance':
                 get_table_importance(table.name),
+            'data_check_sql':
+                check_to_query(TABLE_DATA_CHECK_SQL[table.name])
+                if table.name in TABLE_DATA_CHECK_SQL else None,
             'cols': [
                 _create_field_dict(col_name, col)
                 for (col_name, col) in table.cols.items()
@@ -326,7 +331,9 @@ def format_docs(modules: List[Tuple[str, str, str, ParsedModule]]) -> list:
             ],
         }
                    for macro in parsed.macros],
-        'data_check_sql': data_check_sql_map.get(module_name),
+        'data_check_sql':
+            check_to_query(data_check_sql_map.get(module_name))
+            if module_name in data_check_sql_map else None,
     }
     packages[package_name].append(module_dict)
 

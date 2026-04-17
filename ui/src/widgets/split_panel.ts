@@ -13,269 +13,219 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {DisposableStack} from '../base/disposable_stack';
-import {toHTMLElement} from '../base/dom_utils';
-import {DragGestureHandler} from '../base/drag_gesture_handler';
-import {assertExists, assertUnreachable} from '../base/logging';
-import {Button, ButtonBar} from './button';
 import {classNames} from '../base/classnames';
-import {HTMLAttrs} from './common';
-import {Icons} from '../base/semantic_icons';
+import {ResizeHandle} from './resize_handle';
 
-export interface TabAttrs extends HTMLAttrs {
-  // Is this tab currently active?
-  readonly active?: boolean;
-  // Whether to show a close button on the tab.
-  readonly hasCloseButton?: boolean;
-  // What happens when the close button is clicked.
-  readonly onClose?: () => void;
-}
+type SplitSizePixels = {
+  readonly pixels: number;
+};
 
-export class Tab implements m.ClassComponent<TabAttrs> {
-  view({attrs, children}: m.CVnode<TabAttrs>): m.Children {
-    const {active, hasCloseButton, ...rest} = attrs;
-    return m(
-      '.pf-split-panel__tab',
-      {
-        ...rest,
-        className: classNames(active && 'pf-split-panel__tab--active'),
-        onauxclick: () => {
-          attrs.onClose?.();
-        },
-      },
-      m('.pf-split-panel__tab-title', children),
-      hasCloseButton &&
-        m(Button, {
-          compact: true,
-          icon: Icons.Close,
-          onclick: (e) => {
-            e.stopPropagation();
-            attrs.onClose?.();
-          },
-        }),
-    );
-  }
-}
+type SplitSizePercent = {
+  readonly percent: number;
+};
 
-export enum SplitPanelDrawerVisibility {
-  VISIBLE,
-  FULLSCREEN,
-  COLLAPSED,
-}
+// Split configuration - either percentage or fixed size in pixels.
+type SplitSize = SplitSizePixels | SplitSizePercent;
 
-export interface TabbedSplitPanelAttrs {
-  // Content to put to the left of the tabs on the split handle.
-  readonly leftHandleContent?: m.Children;
+export interface SplitPanelAttrs {
+  // Layout direction. Default is 'horizontal'.
+  readonly direction?: 'horizontal' | 'vertical';
 
-  // Tabs to display on the split handle.
-  readonly tabs?: m.Children;
+  // Controls which panel has the controlled size. Default is 'first'.
+  readonly controlledPanel?: 'first' | 'second';
 
-  // Content to display inside the drawer.
-  readonly drawerContent?: m.Children;
+  // Initial split configuration for uncontrolled mode. Only read once in
+  // oninit. Ignored if `split` is provided.
+  readonly initialSplit?: SplitSize;
 
-  // Whether the drawer is currently visible or not (when in controlled mode).
-  readonly visibility?: SplitPanelDrawerVisibility;
+  // Controlled split configuration. When provided, the component will use this
+  // value directly and the parent must update it via onResize to see changes.
+  readonly split?: SplitSize;
 
-  // Extra classes applied to the root element.
+  // Minimum size in pixels for each panel
+  readonly minSize?: number;
+
+  // Additional CSS class for the root element.
   readonly className?: string;
 
-  // What height should the drawer be initially?
-  readonly startingHeight?: number;
+  // Content for the first panel
+  readonly firstPanel: m.Children;
 
-  // Called when the active tab is changed.
-  onTabChange?(key: string): void;
+  // Content for the second panel
+  readonly secondPanel: m.Children;
 
-  // Called when the drawer visibility is changed.
-  onVisibilityChange?(visibility: SplitPanelDrawerVisibility): void;
+  // Callback invoked when the user resizes a panel in both controlled and
+  // uncontrolled modes.
+  readonly onResize?: (size: number) => void;
 }
 
-/**
- * A container that fills its parent container, splitting into two adjustable
- * horizontal sections. The upper half is reserved for the main content and any
- * children are placed here, and the lower half should be considered a drawer,
- * the `drawerContent` attribute can be used to define what goes here.
- *
- * The drawer features a handle that can be dragged to adjust the height of the
- * drawer, and also features buttons to maximize and minimise the drawer.
- *
- * Content can also optionally be displayed on the handle itself to the left of
- * the buttons.
- *
- * The layout looks like this:
- *
- * ┌──────────────────────────────────────────────────────────────────┐
- * │pf-split-panel                                                    │
- * │┌────────────────────────────────────────────────────────────────┐|
- * ││pf-split-panel__main                                            ││
- * |└────────────────────────────────────────────────────────────────┘|
- * │┌────────────────────────────────────────────────────────────────┐|
- * ││pf-split-panel__handle                                          ││
- * │|┌─────────────────┐┌─────────────────────┐┌────────────────────┐||
- * |||leftHandleContent||.pf-split-panel__tabs||.pf-button-bar      |||
- * ||└─────────────────┘└─────────────────────┘└────────────────────┘||
- * |└────────────────────────────────────────────────────────────────┘|
- * │┌────────────────────────────────────────────────────────────────┐|
- * ││pf-split-panel__drawer                                          ││
- * |└────────────────────────────────────────────────────────────────┘|
- * └──────────────────────────────────────────────────────────────────┘
- */
-export class SplitPanel implements m.ClassComponent<TabbedSplitPanelAttrs> {
-  private readonly trash = new DisposableStack();
+// Factory function to create SplitPanel instances with their own state
+export function SplitPanel(
+  vnode: m.Vnode<SplitPanelAttrs>,
+): m.Component<SplitPanelAttrs> {
+  // Internal state for uncontrolled mode
+  let internalPercent = 50;
+  let internalFixedPx = 150;
+  let containerElement: HTMLElement | undefined;
 
-  // The actual height of the vdom node. It matches resizableHeight if VISIBLE,
-  // 0 if COLLAPSED, fullscreenHeight if FULLSCREEN.
-  private height = 0;
-
-  // The height when the panel is 'VISIBLE'.
-  private resizableHeight: number;
-
-  // The height when the panel is 'FULLSCREEN'.
-  private fullscreenHeight = 0;
-
-  // Current visibility state (if not controlled).
-  private visibility = SplitPanelDrawerVisibility.VISIBLE;
-
-  constructor({attrs}: m.CVnode<TabbedSplitPanelAttrs>) {
-    this.resizableHeight = attrs.startingHeight ?? 100;
+  const initial = vnode.attrs.initialSplit ?? {percent: 50};
+  if ('pixels' in initial) {
+    internalFixedPx = initial.pixels;
+  } else if ('percent' in initial) {
+    internalPercent = initial.percent;
   }
 
-  view({attrs, children}: m.CVnode<TabbedSplitPanelAttrs>) {
-    const {
-      leftHandleContent,
-      drawerContent,
-      visibility = this.visibility,
-      className,
-      onVisibilityChange,
-      tabs,
-    } = attrs;
+  return {
+    view(vnode) {
+      const {
+        direction = 'horizontal',
+        minSize = 50,
+        split,
+        initialSplit,
+        firstPanel,
+        secondPanel,
+        controlledPanel: panel,
+      } = vnode.attrs;
 
-    switch (visibility) {
-      case SplitPanelDrawerVisibility.VISIBLE:
-        this.height = Math.min(
-          Math.max(this.resizableHeight, 0),
-          this.fullscreenHeight,
-        );
-        break;
-      case SplitPanelDrawerVisibility.FULLSCREEN:
-        this.height = this.fullscreenHeight;
-        break;
-      case SplitPanelDrawerVisibility.COLLAPSED:
-        this.height = 0;
-        break;
-    }
+      // Determine if we're in controlled or uncontrolled mode
+      const isControlled = split !== undefined;
+      const effectiveSplit = split ?? initialSplit ?? {percent: 50};
+      const isPixelMode = 'pixels' in effectiveSplit;
+      const controlledPanel = panel ?? 'first';
 
-    return m(
-      '.pf-split-panel',
-      {
-        className,
-      },
-      m('.pf-split-panel__main', children),
-      m('.pf-split-panel__handle', [
-        leftHandleContent,
-        m('.pf-split-panel__tabs', tabs),
-        this.renderTabResizeButtons(visibility, onVisibilityChange),
-      ]),
-      m(
-        '.pf-split-panel__drawer',
+      const containerClasses = classNames(
+        'pf-split-panel',
+        `pf-split-${direction}`,
+        vnode.attrs.className,
+      );
+
+      // Get current size - from controlled prop or internal state
+      let currentPercent: number;
+      let currentPixels: number;
+      if (isControlled && isPixelMode) {
+        currentPixels = effectiveSplit.pixels;
+        currentPercent = 50; // unused in pixel mode
+      } else if (isControlled && 'percent' in effectiveSplit) {
+        currentPercent = effectiveSplit.percent;
+        currentPixels = 150; // unused in percent mode
+      } else {
+        currentPercent = internalPercent;
+        currentPixels = internalFixedPx;
+      }
+
+      let firstStyle: Record<string, string>;
+      let secondStyle: Record<string, string>;
+
+      // Use CSS min/max width/height to enforce size constraints
+      const minProp = direction === 'horizontal' ? 'minWidth' : 'minHeight';
+      const maxProp = direction === 'horizontal' ? 'maxWidth' : 'maxHeight';
+      const maxSize = `calc(100% - ${minSize}px)`;
+
+      if (isPixelMode) {
+        // Pixel mode - one panel fixed, one flexible
+        if (controlledPanel === 'first') {
+          firstStyle = {
+            flex: `0 0 ${currentPixels}px`,
+            [minProp]: `${minSize}px`,
+            [maxProp]: maxSize,
+          };
+          secondStyle = {flex: '1 1 0', [minProp]: `${minSize}px`};
+        } else {
+          firstStyle = {flex: '1 1 0', [minProp]: `${minSize}px`};
+          secondStyle = {
+            flex: `0 0 ${currentPixels}px`,
+            [minProp]: `${minSize}px`,
+            [maxProp]: maxSize,
+          };
+        }
+      } else {
+        // Percentage mode
+        const firstPercent =
+          controlledPanel === 'first' ? currentPercent : 100 - currentPercent;
+        firstStyle = {
+          flex: `0 0 ${firstPercent}%`,
+          [minProp]: `${minSize}px`,
+          [maxProp]: maxSize,
+        };
+        secondStyle = {
+          flex: `0 0 ${100 - firstPercent}%`,
+          [minProp]: `${minSize}px`,
+          [maxProp]: maxSize,
+        };
+      }
+
+      const onResizeAbsolute = (pos: number) => {
+        if (!containerElement) return;
+        m.redraw();
+
+        const rect = containerElement.getBoundingClientRect();
+        const containerSize =
+          direction === 'horizontal' ? rect.width : rect.height;
+
+        if (isPixelMode) {
+          // Pixel mode
+          let newSize: number;
+          if (controlledPanel === 'first') {
+            newSize = pos;
+          } else {
+            newSize = containerSize - pos;
+          }
+
+          // Clamp to min/max
+          newSize = Math.max(
+            minSize,
+            Math.min(containerSize - minSize, newSize),
+          );
+
+          // Update internal state only in uncontrolled mode
+          if (!isControlled) {
+            internalFixedPx = newSize;
+          }
+
+          if (vnode.attrs.onResize) {
+            vnode.attrs.onResize(newSize);
+          }
+        } else {
+          // Percentage mode
+          let newPercent = (pos / containerSize) * 100;
+
+          // If controlling second panel, invert the percentage
+          if (controlledPanel === 'second') {
+            newPercent = 100 - newPercent;
+          }
+
+          const minPercent = (minSize / containerSize) * 100;
+          const maxPercent = 100 - minPercent;
+          newPercent = Math.max(minPercent, Math.min(maxPercent, newPercent));
+
+          // Update internal state only in uncontrolled mode
+          if (!isControlled) {
+            internalPercent = newPercent;
+          }
+
+          if (vnode.attrs.onResize) {
+            vnode.attrs.onResize(newPercent);
+          }
+        }
+      };
+
+      return m(
+        'div',
         {
-          style: {height: `${this.height}px`},
+          class: containerClasses,
+          oncreate: (v: m.VnodeDOM) => {
+            containerElement = v.dom as HTMLElement;
+          },
         },
-        drawerContent,
-      ),
-    );
-  }
-
-  oncreate(vnode: m.VnodeDOM<TabbedSplitPanelAttrs, this>) {
-    let dragStartY = 0;
-    let heightWhenDragStarted = 0;
-
-    const handle = toHTMLElement(
-      assertExists(vnode.dom.querySelector('.pf-split-panel__handle')),
-    );
-
-    this.trash.use(
-      new DragGestureHandler(
-        handle,
-        /* onDrag */ (_x, y) => {
-          const deltaYSinceDragStart = dragStartY - y;
-          this.resizableHeight = heightWhenDragStarted + deltaYSinceDragStart;
-          m.redraw();
-        },
-        /* onDragStarted */ (_x, y) => {
-          this.resizableHeight = this.height;
-          heightWhenDragStarted = this.height;
-          dragStartY = y;
-          this.updatePanelVisibility(
-            SplitPanelDrawerVisibility.VISIBLE,
-            vnode.attrs.onVisibilityChange,
-          );
-        },
-        /* onDragFinished */ () => {},
-      ),
-    );
-
-    const parent = assertExists(vnode.dom.parentElement);
-    this.fullscreenHeight = parent.clientHeight;
-    const resizeObs = new ResizeObserver(() => {
-      this.fullscreenHeight = parent.clientHeight;
-      m.redraw();
-    });
-    resizeObs.observe(parent);
-    this.trash.defer(() => resizeObs.disconnect());
-  }
-
-  onremove() {
-    this.trash.dispose();
-  }
-
-  private renderTabResizeButtons(
-    visibility: SplitPanelDrawerVisibility,
-    setVisibility?: (visibility: SplitPanelDrawerVisibility) => void,
-  ): m.Child {
-    const isClosed = visibility === SplitPanelDrawerVisibility.COLLAPSED;
-    return m(
-      ButtonBar,
-      m(Button, {
-        title: 'Open fullscreen',
-        disabled: visibility === SplitPanelDrawerVisibility.FULLSCREEN,
-        icon: 'vertical_align_top',
-        onclick: () => {
-          this.updatePanelVisibility(
-            SplitPanelDrawerVisibility.FULLSCREEN,
-            setVisibility,
-          );
-        },
-      }),
-      m(Button, {
-        onclick: () => {
-          this.updatePanelVisibility(
-            toggleVisibility(visibility),
-            setVisibility,
-          );
-        },
-        title: isClosed ? 'Show panel' : 'Hide panel',
-        icon: isClosed ? 'keyboard_arrow_up' : 'keyboard_arrow_down',
-      }),
-    );
-  }
-
-  private updatePanelVisibility(
-    visibility: SplitPanelDrawerVisibility,
-    setVisibility?: (visibility: SplitPanelDrawerVisibility) => void,
-  ) {
-    this.visibility = visibility;
-    setVisibility?.(visibility);
-  }
-}
-
-export function toggleVisibility(visibility: SplitPanelDrawerVisibility) {
-  switch (visibility) {
-    case SplitPanelDrawerVisibility.COLLAPSED:
-    case SplitPanelDrawerVisibility.FULLSCREEN:
-      return SplitPanelDrawerVisibility.VISIBLE;
-    case SplitPanelDrawerVisibility.VISIBLE:
-      return SplitPanelDrawerVisibility.COLLAPSED;
-    default:
-      assertUnreachable(visibility);
-  }
+        [
+          m('.pf-split-panel__first', {style: firstStyle}, firstPanel),
+          m(ResizeHandle, {
+            direction: direction === 'horizontal' ? 'horizontal' : 'vertical',
+            onResizeAbsolute,
+          }),
+          m('.pf-split-panel__second', {style: secondStyle}, secondPanel),
+        ],
+      );
+    },
+  };
 }

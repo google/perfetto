@@ -47,6 +47,22 @@ class MetricV2SpecTextproto:
 
 
 @dataclass
+class StructuredQuery:
+  """Represents a structured query reference by spec file or textproto and ID.
+
+  Either spec_file or spec_textproto must be provided (but not both).
+  - spec_file: Path to a TraceSummarySpec proto file (textproto or binary)
+  - spec_textproto: Direct textproto content as a string
+
+  The spec should contain one or more PerfettoSqlStructuredQuery messages.
+  The query_id specifies which query to execute from the spec.
+  """
+  query_id: str
+  spec_file: Optional[Union[Path, DataPath]] = None
+  spec_textproto: Optional[str] = None
+
+
+@dataclass
 class Json:
   """Represents a JSON string."""
   contents: str
@@ -147,7 +163,8 @@ class DiffTestBlueprint:
   """
 
   trace: Union[Path, DataPath, Json, Systrace, TextProto, RawText]
-  query: Union[str, Path, DataPath, Metric, MetricV2SpecTextproto]
+  query: Union[str, Path, DataPath, Metric, MetricV2SpecTextproto,
+               StructuredQuery]
   out: Union[Path, DataPath, Json, Csv, TextProto, BinaryProto]
   trace_modifier: Union[TraceInjector, None] = None
   register_files_dir: Optional[DataPath] = None
@@ -182,6 +199,9 @@ class DiffTestBlueprint:
 
   def is_metric_v2(self):
     return isinstance(self.query, MetricV2SpecTextproto)
+
+  def is_structured_query(self):
+    return isinstance(self.query, StructuredQuery)
 
   def is_out_file(self):
     return isinstance(self.out, Path)

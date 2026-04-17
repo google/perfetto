@@ -30,12 +30,11 @@ namespace {
 
 using protozero::ConstBytes;
 
-// Display file I/O events in a single row titled "ETW File I/O" under the "IO"
-// headeer (per the schema for type "etw_fileio" in `slice_tracks.ts`).
+// Display file I/O events in per-thread rows under the "IO > ETW File I/O"
+// headers (per the schema for type "etw_fileio" in `slice_tracks.ts`).
 const auto kBlueprint = TrackCompressor::SliceBlueprint(
     "etw_fileio",
-    tracks::DimensionBlueprints(),
-    tracks::StaticNameBlueprint("ETW File I/O"));
+    tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint));
 
 constexpr std::pair<EventType, const char*> kEventTypeNames[] = {
     {EventType::kCreateFile, "CreateFile"},
@@ -51,7 +50,11 @@ constexpr std::pair<EventType, const char*> kEventTypeNames[] = {
     {EventType::kQueryFileInformation, "QueryFileInformation"},
     {EventType::kFilesystemControlEvent, "FilesystemControlEvent"},
     {EventType::kEndOperation, "EndOperation"},
-    {EventType::kDirectoryNotification, "DirectoryNotification"}};
+    {EventType::kDirectoryNotification, "DirectoryNotification"},
+    {EventType::kFltRead, "FltRead"},
+    {EventType::kFltWrite, " FltWrite"},
+    {EventType::kFltSetInfo, "FltSetInfo"},
+    {EventType::kFltQueryInfo, "FltQueryInfo"}};
 
 constexpr std::pair<FileInfoClass, const char*> kFileInfoClassNames[] = {
     {FileInfoClass::kFileDirectoryInformation, "FileDirectoryInformation"},
@@ -216,7 +219,9 @@ FileIoTracker::FileIoTracker(TraceProcessorContext* context)
   }
 }
 
-void FileIoTracker::ParseFileIoCreate(int64_t timestamp, ConstBytes blob) {
+void FileIoTracker::ParseFileIoCreate(int64_t timestamp,
+                                      UniqueTid utid,
+                                      ConstBytes blob) {
   protos::pbzero::FileIoCreateEtwEvent::Decoder decoder(blob);
   SliceTracker::SetArgsCallback args =
       [this, &decoder](ArgsTracker::BoundInserter* inserter) {
@@ -252,10 +257,12 @@ void FileIoTracker::ParseFileIoCreate(int64_t timestamp, ConstBytes blob) {
   StartEvent(
       decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
       event_types_.at(GetEventTypeIndex(EventType::kCreateFile)), timestamp,
-      std::move(args));
+      utid, std::move(args));
 }
 
-void FileIoTracker::ParseFileIoDirEnum(int64_t timestamp, ConstBytes blob) {
+void FileIoTracker::ParseFileIoDirEnum(int64_t timestamp,
+                                       UniqueTid utid,
+                                       ConstBytes blob) {
   protos::pbzero::FileIoDirEnumEtwEvent::Decoder decoder(blob);
   SliceTracker::SetArgsCallback args =
       [this, &decoder](ArgsTracker::BoundInserter* inserter) {
@@ -296,10 +303,12 @@ void FileIoTracker::ParseFileIoDirEnum(int64_t timestamp, ConstBytes blob) {
           : dir_enum_event_;
   StartEvent(
       decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
-      name, timestamp, std::move(args));
+      name, timestamp, utid, std::move(args));
 }
 
-void FileIoTracker::ParseFileIoInfo(int64_t timestamp, ConstBytes blob) {
+void FileIoTracker::ParseFileIoInfo(int64_t timestamp,
+                                    UniqueTid utid,
+                                    ConstBytes blob) {
   protos::pbzero::FileIoInfoEtwEvent::Decoder decoder(blob);
   SliceTracker::SetArgsCallback args =
       [this, &decoder](ArgsTracker::BoundInserter* inserter) {
@@ -350,10 +359,12 @@ void FileIoTracker::ParseFileIoInfo(int64_t timestamp, ConstBytes blob) {
           : info_event_;
   StartEvent(
       decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
-      name, timestamp, std::move(args));
+      name, timestamp, utid, std::move(args));
 }
 
-void FileIoTracker::ParseFileIoReadWrite(int64_t timestamp, ConstBytes blob) {
+void FileIoTracker::ParseFileIoReadWrite(int64_t timestamp,
+                                         UniqueTid utid,
+                                         ConstBytes blob) {
   protos::pbzero::FileIoReadWriteEtwEvent::Decoder decoder(blob);
   SliceTracker::SetArgsCallback args =
       [this, &decoder](ArgsTracker::BoundInserter* inserter) {
@@ -392,10 +403,12 @@ void FileIoTracker::ParseFileIoReadWrite(int64_t timestamp, ConstBytes blob) {
           : read_write_event_;
   StartEvent(
       decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
-      name, timestamp, std::move(args));
+      name, timestamp, utid, std::move(args));
 }
 
-void FileIoTracker::ParseFileIoSimpleOp(int64_t timestamp, ConstBytes blob) {
+void FileIoTracker::ParseFileIoSimpleOp(int64_t timestamp,
+                                        UniqueTid utid,
+                                        ConstBytes blob) {
   protos::pbzero::FileIoSimpleOpEtwEvent::Decoder decoder(blob);
   SliceTracker::SetArgsCallback args =
       [this, &decoder](ArgsTracker::BoundInserter* inserter) {
@@ -422,10 +435,12 @@ void FileIoTracker::ParseFileIoSimpleOp(int64_t timestamp, ConstBytes blob) {
           : simple_op_event_;
   StartEvent(
       decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
-      name, timestamp, std::move(args));
+      name, timestamp, utid, std::move(args));
 }
 
-void FileIoTracker::ParseFileIoOpEnd(int64_t timestamp, ConstBytes blob) {
+void FileIoTracker::ParseFileIoOpEnd(int64_t timestamp,
+                                     UniqueTid utid,
+                                     ConstBytes blob) {
   protos::pbzero::FileIoOpEndEtwEvent::Decoder decoder(blob);
   SliceTracker::SetArgsCallback args =
       [this, &decoder](ArgsTracker::BoundInserter* inserter) {
@@ -440,25 +455,25 @@ void FileIoTracker::ParseFileIoOpEnd(int64_t timestamp, ConstBytes blob) {
       };
   EndEvent(
       decoder.has_irp_ptr() ? std::optional(decoder.irp_ptr()) : std::nullopt,
-      timestamp, std::move(args));
+      timestamp, utid, std::move(args));
 }
 
-void FileIoTracker::NotifyEndOfFile() {
-  // Record each unmatched event one at a time.
+void FileIoTracker::OnEventsFullyExtracted() {
   while (!started_events_.empty()) {
     // `EndUnmatchedStart()` removes the recorded event, so retrieve the first
     // event each loop.
     const auto& [irp, started_event] = *started_events_.begin();
-    EndUnmatchedStart(irp, started_event.timestamp);
+    EndUnmatchedStart(irp, started_event.timestamp, started_event.utid);
   }
 }
 
 void FileIoTracker::StartEvent(std::optional<Irp> irp,
                                StringId name,
                                int64_t timestamp,
+                               UniqueTid utid,
                                SliceTracker::SetArgsCallback args) {
   if (!irp.has_value()) {
-    RecordEventWithoutIrp(name, timestamp, std::move(args));
+    RecordEventWithoutIrp(name, timestamp, utid, std::move(args));
     return;
   }
 
@@ -466,29 +481,31 @@ void FileIoTracker::StartEvent(std::optional<Irp> irp,
   if (previous_event_same_irp != started_events_.end()) {
     // The last event using this IRP never ended. Since the IRP is being reused,
     // the previous event must be done and its end event must have been dropped.
-    EndUnmatchedStart(*irp, previous_event_same_irp->second.timestamp);
+    EndUnmatchedStart(*irp, previous_event_same_irp->second.timestamp,
+                      previous_event_same_irp->second.utid);
   }
 
   // `track_id` controls the row the events appear in. This must be created via
   // `TrackCompressor` because slices may be partially overlapping, which is not
   // supported by the Perfetto data model as-is.
   const auto track_id = context_->track_compressor->InternBegin(
-      kBlueprint, tracks::Dimensions(),
+      kBlueprint, tracks::Dimensions(utid),
       /*cookie=*/static_cast<int64_t>(*irp));
 
   // Begin a slice for the event.
   context_->slice_tracker->Begin(timestamp, track_id, kNullStringId, name,
                                  std::move(args));
-  started_events_[*irp] = {name, timestamp};
+  started_events_[*irp] = {name, timestamp, utid};
 }
 
 void FileIoTracker::EndEvent(std::optional<Irp> irp,
                              int64_t timestamp,
+                             UniqueTid utid,
                              SliceTracker::SetArgsCallback args) {
   if (!irp.has_value()) {
     RecordEventWithoutIrp(
         event_types_.at(GetEventTypeIndex(EventType::kEndOperation)), timestamp,
-        std::move(args));
+        utid, std::move(args));
     return;
   }
 
@@ -496,33 +513,36 @@ void FileIoTracker::EndEvent(std::optional<Irp> irp,
   const auto started_event = started_events_.find(*irp);
   if (started_event == started_events_.end()) {
     // This end event has no corresponding start.
-    RecordUnmatchedEnd(timestamp, std::move(args));
+    RecordUnmatchedEnd(timestamp, utid, std::move(args));
     return;
   }
   const auto name = started_event->second.name;
 
   // End the slice for this event.
   const auto track_id = context_->track_compressor->InternEnd(
-      kBlueprint, tracks::Dimensions(),
+      kBlueprint, tracks::Dimensions(utid),
       /*cookie=*/static_cast<int64_t>(*irp));
   context_->slice_tracker->End(timestamp, track_id, kNullStringId, name,
                                std::move(args));
   started_events_.erase(started_event);
 }
 
-void FileIoTracker::EndUnmatchedStart(Irp irp, int64_t timestamp) {
+void FileIoTracker::EndUnmatchedStart(Irp irp,
+                                      int64_t timestamp,
+                                      UniqueTid utid) {
   // End the given event with a duration of zero.
-  EndEvent(irp, timestamp, [this](ArgsTracker::BoundInserter* inserter) {
+  EndEvent(irp, timestamp, utid, [this](ArgsTracker::BoundInserter* inserter) {
     inserter->AddArg(missing_event_arg_, Variadic::String(missing_end_event_));
   });
 }
 
 void FileIoTracker::RecordUnmatchedEnd(int64_t timestamp,
+                                       UniqueTid utid,
                                        SliceTracker::SetArgsCallback args) {
   // Add a single "EndOperation" event with a duration of zero.
   const int64_t duration = 0;
   const auto track_id = context_->track_compressor->InternScoped(
-      kBlueprint, tracks::Dimensions(), timestamp, duration);
+      kBlueprint, tracks::Dimensions(utid), timestamp, duration);
   context_->slice_tracker->Scoped(
       timestamp, track_id, kNullStringId,
       event_types_.at(GetEventTypeIndex(EventType::kEndOperation)), duration,
@@ -537,10 +557,11 @@ void FileIoTracker::RecordUnmatchedEnd(int64_t timestamp,
 
 void FileIoTracker::RecordEventWithoutIrp(StringId name,
                                           int64_t timestamp,
+                                          UniqueTid utid,
                                           SliceTracker::SetArgsCallback args) {
   const int64_t duration = 0;
   const auto track_id = context_->track_compressor->InternScoped(
-      kBlueprint, tracks::Dimensions(), timestamp, duration);
+      kBlueprint, tracks::Dimensions(utid), timestamp, duration);
   context_->slice_tracker->Scoped(timestamp, track_id, kNullStringId, name,
                                   duration, std::move(args));
 }

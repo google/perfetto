@@ -65,6 +65,10 @@ c_sdk_header_filter = r'^include/perfetto/public/'
 gn_args = ' '.join([
     'enable_perfetto_ipc=true',
     'enable_perfetto_zlib=false',
+    # The amalgamated SDK uses std::regex as the fallback. RE2 and PCRE2
+    # are disabled to avoid pulling in large third-party dependencies.
+    'enable_perfetto_re2=false',
+    'enable_perfetto_pcre2=false',
     'is_debug=false',
     'is_perfetto_build_generator=true',
     'is_perfetto_embedder=true',
@@ -598,9 +602,8 @@ Example build command:
     library = self._get_nice_path(output_prefix, 'lib%s.so')
 
     if sys.platform.startswith('linux') and not system_buildtools:
-      llvm_script = os.path.join(gn_utils.repo_root(), 'gn', 'standalone',
-                                 'toolchain', 'linux_find_llvm.py')
-      cxx = subprocess.check_output([llvm_script]).splitlines()[2].decode()
+      cxx = os.path.join(gn_utils.repo_root(),
+                         'buildtools/linux64/clang/bin/clang++')
     else:
       cxx = 'clang++'
 

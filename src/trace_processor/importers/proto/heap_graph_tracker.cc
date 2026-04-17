@@ -35,7 +35,7 @@
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/string_view.h"
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
-#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -46,6 +46,7 @@ namespace perfetto::trace_processor {
 namespace {
 
 using ClassTable = tables::HeapGraphClassTable;
+using FlamegraphId = tables::ExperimentalFlamegraphTable_Id;
 using ObjectTable = tables::HeapGraphObjectTable;
 using ReferenceTable = tables::HeapGraphReferenceTable;
 

@@ -34,7 +34,8 @@ from python.generators.trace_processor_table.public import WrappingSqlView
 MACHINE_TABLE = Table(
     python_module=__file__,
     class_name='MachineTable',
-    sql_name='machine',
+    sql_name='__intrinsic_machine',
+    wrapping_sql_view=WrappingSqlView('machine'),
     columns=[
         C('raw_id', CppUint32()),
         C(
@@ -74,6 +75,16 @@ MACHINE_TABLE = Table(
         ),
         C(
             'android_sdk_version',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'system_ram_bytes',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'system_ram_gb',
             CppOptional(CppInt64()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
@@ -121,6 +132,15 @@ MACHINE_TABLE = Table(
             'android_sdk_version':
                 '''
                   The Android SDK version used in the machine.
+                ''',
+            'system_ram_bytes':
+                '''
+                  Total system RAM in bytes available to the machine.
+                ''',
+            'system_ram_gb':
+                '''
+                  Total system RAM in gigabytes (rounded) available to the
+                  machine.
                 ''',
         }))
 
@@ -191,7 +211,7 @@ PROCESS_TABLE = Table(
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
-        C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
+        C('machine_id', CppTableId(MACHINE_TABLE)),
     ],
     wrapping_sql_view=WrappingSqlView(view_name='process',),
     tabledoc=TableDoc(
@@ -304,10 +324,14 @@ THREAD_TABLE = Table(
             sql_access=SqlAccess.HIGH_PERF,
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
         ),
-        C('is_idle', CppUint32()),
+        C(
+            'is_idle',
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
         C(
             'machine_id',
-            CppOptional(CppTableId(MACHINE_TABLE)),
+            CppTableId(MACHINE_TABLE),
             cpp_access=CppAccess.READ,
         ),
         C(
@@ -402,7 +426,7 @@ CPU_TABLE = Table(
             CppString(),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
-        C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
+        C('machine_id', CppTableId(MACHINE_TABLE)),
         C(
             'capacity',
             CppOptional(CppUint32()),
@@ -442,6 +466,61 @@ CPU_TABLE = Table(
                 ''',
             'arg_set_id':
                 '''Extra args associated with the CPU''',
+        }))
+
+GPU_TABLE = Table(
+    python_module=__file__,
+    class_name='GpuTable',
+    sql_name='__intrinsic_gpu',
+    columns=[
+        C(
+            'gpu',
+            CppOptional(CppUint32()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C('machine_id', CppTableId(MACHINE_TABLE)),
+        C('name', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('vendor', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('model', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('architecture',
+          CppString(),
+          cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('uuid', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('pci_bdf', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C('arg_set_id',
+          CppOptional(CppUint32()),
+          sql_access=SqlAccess.HIGH_PERF,
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+    ],
+    wrapping_sql_view=WrappingSqlView('gpu'),
+    tabledoc=TableDoc(
+        doc='''
+          Contains information of GPUs seen during the trace.
+        ''',
+        group='Misc',
+        columns={
+            'gpu':
+                '''the index (0-based) of the GPU on the device''',
+            'machine_id':
+                '''
+                  Machine identifier, non-null for GPUs on a remote machine.
+                ''',
+            'name':
+                '''GPU name (e.g., "NVIDIA A100", "Adreno 740")''',
+            'vendor':
+                '''GPU vendor string (e.g., "NVIDIA", "AMD", "Qualcomm")''',
+            'model':
+                '''GPU model/product identifier''',
+            'architecture':
+                '''GPU architecture (e.g., "Ampere", "RDNA 3")''',
+            'uuid':
+                '''UUID of the GPU (16-byte device UUID, hex-encoded)''',
+            'pci_bdf':
+                '''PCI bus location (domain:bus:device.function)''',
+            'arg_set_id':
+                '''Extra args associated with the GPU''',
         }))
 
 CHROME_RAW_TABLE = Table(
@@ -607,10 +686,69 @@ ARG_TABLE = Table(
             'value_type': ''''''
         }))
 
+TRACE_FILE_TABLE = Table(
+    python_module=__file__,
+    class_name='TraceFileTable',
+    sql_name='__intrinsic_trace_file',
+    columns=[
+        C(
+            'parent_id',
+            CppOptional(CppSelfTableId()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'name',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C('size', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C(
+            'trace_type',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'processing_order',
+            CppOptional(CppInt64()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
+        C(
+            'is_container',
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+    ],
+    wrapping_sql_view=WrappingSqlView('trace_file'),
+    tabledoc=TableDoc(
+        doc='''
+            Metadata related to the trace file parsed. Note the order in which
+            the files appear in this table corresponds to the order in which
+            they are read and sent to the tokenization stage.
+        ''',
+        group='Misc',
+        columns={
+            'parent_id':
+                '''
+                  Parent file. E.g. files contained in a zip file will point to
+                  the zip file.
+                ''',
+            'name':
+                '''File name, if known, NULL otherwise''',
+            'size':
+                '''Size in bytes''',
+            'trace_type':
+                '''Trace type''',
+            'processing_order':
+                '''In which order where the files were processed.''',
+            'is_container':
+                '''Whether the file is a container (e.g. zip, gzip)''',
+        }))
+
 METADATA_TABLE = Table(
     python_module=__file__,
     class_name='MetadataTable',
-    sql_name='metadata',
+    sql_name='__intrinsic_metadata',
     columns=[
         C(
             'name',
@@ -633,6 +771,16 @@ METADATA_TABLE = Table(
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C(
+            'machine_id',
+            CppOptional(CppTableId(MACHINE_TABLE)),
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
+        C(
+            'trace_id',
+            CppOptional(CppTableId(TRACE_FILE_TABLE)),
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''''',
@@ -641,13 +789,16 @@ METADATA_TABLE = Table(
             'name': '''''',
             'key_type': '''''',
             'int_value': '''''',
-            'str_value': ''''''
+            'str_value': '''''',
+            'machine_id': '''''',
+            'trace_id': '''''',
         }))
 
 FILEDESCRIPTOR_TABLE = Table(
     python_module=__file__,
     class_name='FiledescriptorTable',
-    sql_name='filedescriptor',
+    sql_name='__intrinsic_filedescriptor',
+    wrapping_sql_view=WrappingSqlView('filedescriptor'),
     columns=[
         C('ufd', CppInt64()),
         C('fd', CppInt64()),
@@ -684,7 +835,8 @@ number.'''
 EXP_MISSING_CHROME_PROC_TABLE = Table(
     python_module=__file__,
     class_name='ExpMissingChromeProcTable',
-    sql_name='experimental_missing_chrome_processes',
+    sql_name='__intrinsic_experimental_missing_chrome_processes',
+    wrapping_sql_view=WrappingSqlView('experimental_missing_chrome_processes'),
     columns=[
         C('upid', CppUint32()),
         C('reliable_from', CppOptional(CppInt64())),
@@ -717,7 +869,8 @@ CPU_FREQ_TABLE = Table(
 CLOCK_SNAPSHOT_TABLE = Table(
     python_module=__file__,
     class_name='ClockSnapshotTable',
-    sql_name='clock_snapshot',
+    sql_name='__intrinsic_clock_snapshot',
+    wrapping_sql_view=WrappingSqlView('clock_snapshot'),
     columns=[
         C(
             'ts',
@@ -737,7 +890,7 @@ CLOCK_SNAPSHOT_TABLE = Table(
           cpp_access=CppAccess.READ,
           cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
         C('snapshot_id', CppUint32()),
-        C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
+        C('machine_id', CppTableId(MACHINE_TABLE)),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -764,50 +917,6 @@ otherwise.''',
                   Machine identifier, non-null for clock snapshots on a remote
                   machine.
                 ''',
-        }))
-
-TRACE_FILE_TABLE = Table(
-    python_module=__file__,
-    class_name='TraceFileTable',
-    sql_name='__intrinsic_trace_file',
-    columns=[
-        C('parent_id', CppOptional(CppSelfTableId())),
-        C('name', CppOptional(CppString())),
-        C('size', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
-        C(
-            'trace_type',
-            CppString(),
-            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
-        ),
-        C(
-            'processing_order',
-            CppOptional(CppInt64()),
-            sql_access=SqlAccess.HIGH_PERF,
-            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
-        ),
-    ],
-    wrapping_sql_view=WrappingSqlView('trace_file'),
-    tabledoc=TableDoc(
-        doc='''
-            Metadata related to the trace file parsed. Note the order in which
-            the files appear in this table corresponds to the order in which
-            they are read and sent to the tokenization stage.
-        ''',
-        group='Misc',
-        columns={
-            'parent_id':
-                '''
-                  Parent file. E.g. files contained in a zip file will point to
-                  the zip file.
-                ''',
-            'name':
-                '''File name, if known, NULL otherwise''',
-            'size':
-                '''Size in bytes''',
-            'trace_type':
-                '''Trace type''',
-            'processing_order':
-                '''In which order where the files were processed.''',
         }))
 
 BUILD_FLAGS_TABLE = Table(
@@ -851,7 +960,7 @@ TRACE_IMPORT_LOGS_TABLE = Table(
     class_name='TraceImportLogsTable',
     sql_name='__intrinsic_trace_import_logs',
     columns=[
-        C('trace_id', CppUint32()),
+        C('trace_id', CppTableId(TRACE_FILE_TABLE)),
         C('ts', CppOptional(CppInt64())),
         C('byte_offset', CppOptional(CppInt64())),
         C('stat_key', CppInt64()),
@@ -874,6 +983,7 @@ ALL_TABLES = [
     EXP_MISSING_CHROME_PROC_TABLE,
     FILEDESCRIPTOR_TABLE,
     FTRACE_EVENT_TABLE,
+    GPU_TABLE,
     TRACE_IMPORT_LOGS_TABLE,
     MACHINE_TABLE,
     METADATA_TABLE,

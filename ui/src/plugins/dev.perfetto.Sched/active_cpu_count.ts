@@ -13,11 +13,7 @@
 // limitations under the License.
 
 import {sqliteString} from '../../base/string_utils';
-import {
-  BaseCounterTrack,
-  CounterOptions,
-} from '../../components/tracks/base_counter_track';
-import {TrackContext} from '../../public/track';
+import {CounterTrack} from '../../components/tracks/counter_track';
 import {Trace} from '../../public/trace';
 
 export enum CPUType {
@@ -26,38 +22,24 @@ export enum CPUType {
   Little = 'little',
 }
 
-export class ActiveCPUCountTrack extends BaseCounterTrack {
-  private readonly cpuType?: CPUType;
-
-  constructor(ctx: TrackContext, trace: Trace, cpuType?: CPUType) {
-    super(trace, ctx.trackUri);
-    this.cpuType = cpuType;
-  }
-
-  protected getDefaultCounterOptions(): CounterOptions {
-    const options = super.getDefaultCounterOptions();
-    options.yRangeRounding = 'strict';
-    options.yRange = 'viewport';
-    return options;
-  }
-
-  async onInit() {
-    await this.engine.query(`
-      INCLUDE PERFETTO MODULE sched.thread_level_parallelism;
-      INCLUDE PERFETTO MODULE android.cpu.cluster_type;
-    `);
-  }
-
-  getSqlSource() {
+export class ActiveCPUCountTrack extends CounterTrack {
+  constructor(trackUri: string, trace: Trace, cpuType?: CPUType) {
     const sourceTable =
-      this.cpuType === undefined
+      cpuType === undefined
         ? 'sched_active_cpu_count'
-        : `_active_cpu_count_for_cluster_type(${sqliteString(this.cpuType)})`;
-    return `
-      select
-        ts,
-        active_cpu_count as value
-      from ${sourceTable}
-    `;
+        : `_active_cpu_count_for_cluster_type(${sqliteString(cpuType)})`;
+    super({
+      trace,
+      uri: trackUri,
+      sqlSource: `select ts, active_cpu_count as value from ${sourceTable}`,
+      yRangeRounding: 'strict',
+      yRange: 'viewport',
+      onInit: async () => {
+        await trace.engine.query(`
+          INCLUDE PERFETTO MODULE sched.thread_level_parallelism;
+          INCLUDE PERFETTO MODULE android.cpu.cluster_type;
+        `);
+      },
+    });
   }
 }

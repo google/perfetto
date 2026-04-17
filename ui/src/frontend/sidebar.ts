@@ -13,43 +13,37 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {getCurrentChannel} from '../core/channels';
-import {
-  disableMetatracingAndGetTrace,
-  enableMetatracing,
-  getEnabledMetatracingCategories,
-  isMetatracingEnabled,
-} from '../core/metatracing';
-import {Engine, EngineMode} from '../trace_processor/engine';
-import {featureFlags} from '../core/feature_flags';
-import {raf} from '../core/raf_scheduler';
-import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
-import {showModal} from '../widgets/modal';
-import {Animation} from './animation';
-import {download, downloadUrl} from '../base/download_utils';
-import {toggleHelp} from './help_modal';
-import {shareTrace} from './trace_share_utils';
-import {
-  convertTraceToJsonAndDownload,
-  convertTraceToSystraceAndDownload,
-} from './trace_converter';
-import {openInOldUIWithSizeCheck} from './legacy_trace_viewer';
-import {SIDEBAR_SECTIONS, SidebarSections} from '../public/sidebar';
-import {AppImpl} from '../core/app_impl';
-import {Trace} from '../public/trace';
-import {OptionalTraceImplAttrs, TraceImpl} from '../core/trace_impl';
-import {Command} from '../public/command';
-import {SidebarMenuItemInternal} from '../core/sidebar_manager';
-import {exists, getOrCreate} from '../base/utils';
+import {assetSrc} from '../base/assets';
 import {classNames} from '../base/classnames';
 import {formatHotkey} from '../base/hotkeys';
-import {assetSrc} from '../base/assets';
-import {assertExists} from '../base/logging';
+import {exists, getOrCreate} from '../base/utils';
+import {AppImpl} from '../core/app_impl';
+import {getCurrentChannel} from '../core/channels';
+import {featureFlags} from '../core/feature_flags';
+import {isMetatracingEnabled} from '../core/metatracing';
+import {raf} from '../core/raf_scheduler';
+import {Router} from '../core/router';
+import {SidebarMenuItemInternal} from '../core/sidebar_manager';
+import {OptionalTraceImplAttrs, TraceImpl} from '../core/trace_impl';
+import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
+import {Command} from '../public/command';
+import {SIDEBAR_SECTIONS, SidebarSections} from '../public/sidebar';
+import {EngineMode} from '../trace_processor/engine';
 import {Icon} from '../widgets/icon';
-import {Button} from '../widgets/button';
+import {Icons} from '../base/semantic_icons';
+import {showModal} from '../widgets/modal';
+import {Spinner} from '../widgets/spinner';
+import {Animation} from './animation';
+import {toggleHelp} from './help_modal';
+import {
+  convertTraceToJson,
+  convertTraceToSystrace,
+  downloadTrace,
+  toggleMetatrace,
+} from './trace_actions';
+import {shareTrace} from './trace_share_utils';
 
 const GITILES_URL = 'https://github.com/google/perfetto';
-const TRACE_SUFFIX = '.perfetto-trace';
 
 function getBugReportUrl(): string {
   if (AppImpl.instance.isInternalUser) {
@@ -68,126 +62,6 @@ const HIRING_BANNER_FLAG = featureFlags.register({
 
 function shouldShowHiringBanner(): boolean {
   return AppImpl.instance.isInternalUser && HIRING_BANNER_FLAG.get();
-}
-
-async function openCurrentTraceWithOldUI(trace: Trace): Promise<void> {
-  AppImpl.instance.analytics.logEvent(
-    'Trace Actions',
-    'Open current trace in legacy UI',
-  );
-  const file = await trace.getTraceFile();
-  await openInOldUIWithSizeCheck(file);
-}
-
-async function convertTraceToSystrace(trace: Trace): Promise<void> {
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Convert to .systrace');
-  const file = await trace.getTraceFile();
-  await convertTraceToSystraceAndDownload(file);
-}
-
-async function convertTraceToJson(trace: Trace): Promise<void> {
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Convert to .json');
-  const file = await trace.getTraceFile();
-  await convertTraceToJsonAndDownload(file);
-}
-
-function downloadTrace(trace: TraceImpl) {
-  if (!trace.traceInfo.downloadable) return;
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Download trace');
-
-  const src = trace.traceInfo.source;
-  const filePickerAcceptTypes = [
-    {
-      description: 'Perfetto trace',
-      accept: {'*/*': ['.pftrace']},
-    },
-  ];
-  if (src.type === 'URL') {
-    const fileName = src.url.split('/').slice(-1)[0];
-    downloadUrl({url: src.url, fileName});
-  } else if (src.type === 'ARRAY_BUFFER') {
-    const blob = new Blob([src.buffer], {type: 'application/octet-stream'});
-    const fileName = src.fileName ?? `trace${TRACE_SUFFIX}`;
-    download({
-      content: blob,
-      fileName,
-      filePicker: {
-        types: filePickerAcceptTypes,
-      },
-    });
-  } else if (src.type === 'FILE') {
-    download({
-      content: src.file,
-      fileName: src.file.name,
-      filePicker: {
-        types: filePickerAcceptTypes,
-      },
-    });
-  } else {
-    throw new Error(`Download from ${JSON.stringify(src)} is not supported`);
-  }
-}
-
-function recordMetatrace(engine: Engine) {
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Record metatrace');
-
-  const highPrecisionTimersAvailable =
-    window.crossOriginIsolated || engine.mode === 'HTTP_RPC';
-  if (!highPrecisionTimersAvailable) {
-    const PROMPT = `High-precision timers are not available to WASM trace processor yet.
-
-Modern browsers restrict high-precision timers to cross-origin-isolated pages.
-As Perfetto UI needs to open traces via postMessage, it can't be cross-origin
-isolated until browsers ship support for
-'Cross-origin-opener-policy: restrict-properties'.
-
-Do you still want to record a metatrace?
-Note that events under timer precision (1ms) will dropped.
-Alternatively, connect to a trace_processor_shell --httpd instance.
-`;
-    showModal({
-      title: `Trace processor doesn't have high-precision timers`,
-      content: m('.pf-modal-pre', PROMPT),
-      buttons: [
-        {
-          text: 'YES, record metatrace',
-          primary: true,
-          action: () => {
-            enableMetatracing();
-            engine.enableMetatrace(
-              assertExists(getEnabledMetatracingCategories()),
-            );
-          },
-        },
-        {
-          text: 'NO, cancel',
-        },
-      ],
-    });
-  } else {
-    enableMetatracing();
-    engine.enableMetatrace(assertExists(getEnabledMetatracingCategories()));
-  }
-}
-
-async function toggleMetatrace(e: Engine) {
-  return isMetatracingEnabled() ? finaliseMetatrace(e) : recordMetatrace(e);
-}
-
-async function finaliseMetatrace(engine: Engine) {
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Finalise metatrace');
-
-  const jsEvents = disableMetatracingAndGetTrace();
-
-  const result = await engine.stopAndGetMetatrace();
-  if (result.error.length !== 0) {
-    throw new Error(`Failed to read metatrace: ${result.error}`);
-  }
-
-  download({
-    fileName: 'metatrace',
-    content: new Blob([result.metatrace, jsEvents]),
-  });
 }
 
 class EngineRPCWidget implements m.ClassComponent<OptionalTraceImplAttrs> {
@@ -326,7 +200,7 @@ class SidebarFooter implements m.ClassComponent<OptionalTraceImplAttrs> {
       m(EngineRPCWidget, attrs),
       m(ServiceWorkerWidget),
       m(
-        '.pf-sidebar__version',
+        '.pf-sidebar__version.pf-test-volatile',
         m(
           'a',
           {
@@ -382,25 +256,52 @@ export class Sidebar implements m.ClassComponent {
           this._redrawWhileAnimating.stop();
         },
       },
-      shouldShowHiringBanner() ? m(HiringBanner) : null,
-      m(
-        `header.pf-sidebar__channel--${getCurrentChannel()}`,
-        m(`img[src=${assetSrc('assets/brand.png')}].pf-sidebar__brand`),
-        m(Button, {
-          icon: 'menu',
-          className: 'pf-sidebar-button',
-          onclick: () => sidebar.toggleVisibility(),
-        }),
-      ),
-      m(
-        '.pf-sidebar__scroll',
+      shouldShowHiringBanner() && m(HiringBanner),
+      this.renderSidebarHeader(app),
+      this.renderSidebarContent(trace),
+      m(SidebarFooter, attrs),
+    );
+  }
+
+  private renderSidebarHeader(app: AppImpl) {
+    const sidebar = app.sidebar;
+    return m(
+      `header.pf-sidebar__header`,
+      {
+        className: `pf-sidebar__header--${getCurrentChannel()}`,
+      },
+      m(`img[src=${assetSrc('assets/brand.png')}].pf-sidebar__brand`),
+      app.embedder.brandingBadge &&
         m(
-          '.pf-sidebar__scroll-container',
-          (Object.keys(SIDEBAR_SECTIONS) as SidebarSections[]).map((s) =>
-            this.renderSection(s, trace),
-          ),
-          m(SidebarFooter, attrs),
+          'span.pf-sidebar__branding-badge',
+          {style: {color: app.embedder.brandingBadge.color}},
+          app.embedder.brandingBadge.image
+            ? m('img.pf-sidebar__branding-badge-img', {
+                src: app.embedder.brandingBadge.image,
+              })
+            : app.embedder.brandingBadge.icon &&
+                m(Icon, {
+                  icon: app.embedder.brandingBadge.icon,
+                  className: 'pf-sidebar__branding-badge-icon',
+                }),
+          app.embedder.brandingBadge.text,
         ),
+      m(
+        'button.pf-sidebar-button',
+        {
+          onclick: () => sidebar.toggleVisibility(),
+          title: sidebar.visible ? 'Hide sidebar' : 'Show sidebar',
+        },
+        m(Icon, {icon: 'menu'}),
+      ),
+    );
+  }
+
+  private renderSidebarContent(trace: TraceImpl | undefined) {
+    return m(
+      '.pf-sidebar__content',
+      (Object.keys(SIDEBAR_SECTIONS) as SidebarSections[]).map((sectionId) =>
+        this.renderSection(sectionId, trace),
       ),
     );
   }
@@ -454,7 +355,10 @@ export class Sidebar implements m.ClassComponent {
       () => !defaultCollapsed,
     );
     return m(
-      `section${expanded ? '.pf-sidebar__section--expanded' : ''}`,
+      `section.pf-sidebar__section`,
+      {
+        className: classNames(expanded && 'pf-sidebar__section--expanded'),
+      },
       m(
         '.pf-sidebar__section-header',
         {
@@ -465,7 +369,13 @@ export class Sidebar implements m.ClassComponent {
         m('h1', {title: section.title}, section.title),
         m('h2', section.summary),
       ),
-      m('.pf-sidebar__section-content', m('ul', menuItems)),
+      m(
+        '.pf-sidebar__section-content',
+        sectionId === 'current_trace' &&
+          trace?.traceInfo.traceTitle &&
+          m('span.pf-sidebar__trace-file-name', trace.traceInfo.traceTitle),
+        m('ul', menuItems),
+      ),
     );
   }
 
@@ -473,6 +383,7 @@ export class Sidebar implements m.ClassComponent {
     let href = '#';
     let disabled = false;
     let target = null;
+    let isActive = false;
     let command: Command | undefined = undefined;
     let tooltip = valueOrCallback(item.tooltip);
     let onclick: (() => unknown | Promise<unknown>) | undefined = undefined;
@@ -506,37 +417,62 @@ export class Sidebar implements m.ClassComponent {
       }
     }
 
-    // This is not an else if because in some rare cases the user might want
-    // to have both an href and onclick, with different behaviors. The only case
-    // today is the trace name / URL, where we want the URL in the href to
-    // support right-click -> copy URL, but the onclick does copyToClipboard().
     if ('href' in item && item.href !== undefined) {
       href = item.href;
       target = href.startsWith('#') ? null : '_blank';
+      isActive = pageMatchesHref(href);
     }
+
+    const isLink = href !== '#';
+    const iconEl =
+      exists(item.icon) &&
+      m(Icon, {
+        className: 'pf-sidebar__button-icon',
+        icon: valueOrCallback(item.icon),
+      });
+    const spinnerEl =
+      this._asyncJobPending.has(item.id) &&
+      m(Spinner, {className: 'pf-sidebar__spinner'});
+    const cssClass = valueOrCallback(item.cssClass);
+
     return m(
-      'li',
-      {key: item.id}, // This is to work around a mithril bug (b/449784590).
-      m(
-        'a',
-        {
-          className: classNames(
-            valueOrCallback(item.cssClass),
-            this._asyncJobPending.has(item.id) && 'pending',
+      'li.pf-sidebar__item',
+      {
+        key: item.id, // This is to work around a mithril bug (b/449784590).
+        className: classNames(isActive && 'pf-active'),
+      },
+      isLink
+        ? m(
+            'a',
+            {
+              className: cssClass,
+              onclick: onclick && this.wrapClickHandler(item.id, onclick),
+              href,
+              target,
+              disabled,
+              title: tooltip,
+            },
+            iconEl,
+            text,
+            target === '_blank' &&
+              m(Icon, {
+                className: 'pf-sidebar__external-link-icon',
+                icon: Icons.ExternalLink,
+              }),
+            spinnerEl,
+          )
+        : m(
+            'button',
+            {
+              className: cssClass,
+              onclick: onclick && this.wrapClickHandler(item.id, onclick),
+              disabled,
+              title: tooltip,
+            },
+            iconEl,
+            text,
+            spinnerEl,
           ),
-          onclick: onclick && this.wrapClickHandler(item.id, onclick),
-          href,
-          target,
-          disabled,
-          title: tooltip,
-        },
-        exists(item.icon) &&
-          m(Icon, {
-            className: 'pf-sidebar__button-icon',
-            icon: valueOrCallback(item.icon),
-          }),
-        text,
-      ),
     );
   }
 
@@ -564,6 +500,15 @@ export class Sidebar implements m.ClassComponent {
   }
 }
 
+export function pageMatchesHref(href: string): boolean {
+  if (!href.startsWith('#!')) return false;
+  const currentHash = window.location.hash;
+  if (currentHash.length > 0 && !currentHash.startsWith('#!')) return false;
+  const currentPage = Router.getCurrentRoute().page;
+  const hrefPage = Router.parseFragment(href).page;
+  return hrefPage === currentPage;
+}
+
 // TODO(primiano): The items below should be moved to dedicated
 // plugins (most of this really belongs to core_plugins/commands/index.ts).
 // For now keeping everything here as splitting these require moving some
@@ -575,20 +520,6 @@ function getCurrentTraceItems(trace: TraceImpl): SidebarMenuItemInternal[] {
   const downloadDisabled = trace.traceInfo.downloadable
     ? false
     : 'Cannot download external trace';
-
-  const traceTitle = trace.traceInfo.traceTitle;
-  if (traceTitle) {
-    items.push({
-      id: 'perfetto.TraceTitle',
-      section: 'current_trace',
-      sortOrder: 1,
-      text: traceTitle,
-      action: () => {
-        // Do nothing (we need to supply an action to override the href).
-      },
-      cssClass: 'pf-sidebar__trace-file-name',
-    });
-  }
 
   items.push({
     id: 'perfetto.Timeline',
@@ -629,15 +560,6 @@ function getConvertTraceItems(trace: TraceImpl): SidebarMenuItemInternal[] {
   const downloadDisabled = trace.traceInfo.downloadable
     ? false
     : 'Cannot download external trace';
-
-  items.push({
-    id: 'perfetto.LegacyUI',
-    section: 'convert_trace',
-    text: 'Switch to legacy UI',
-    action: async () => await openCurrentTraceWithOldUI(trace),
-    icon: 'filter_none',
-    disabled: downloadDisabled,
-  });
 
   items.push({
     id: 'perfetto.ConvertToJson',

@@ -27,7 +27,6 @@
 #include <string>
 #include <tuple>
 #include <unordered_map>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -38,7 +37,8 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/typed_cursor.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -78,11 +78,12 @@ bool ExperimentalSliceLayout::Cursor::Run(
   }
 
   const char* filter_string = arguments[0].string_value;
-  std::unordered_set<TrackId> selected_tracks;
+  using FilterValue = dataframe::TypedCursor::FilterValue;
+  std::vector<FilterValue> selected_track_ids;
   for (base::StringSplitter sp(filter_string, ','); sp.Next();) {
     std::optional<uint32_t> maybe = base::CStringToUInt32(sp.cur_token());
     if (maybe) {
-      selected_tracks.insert(TrackId{maybe.value()});
+      selected_track_ids.emplace_back(static_cast<int64_t>(maybe.value()));
     }
   }
 
@@ -96,13 +97,18 @@ bool ExperimentalSliceLayout::Cursor::Run(
     return OnSuccess(&table_.dataframe());
   }
 
-  // Find all the slices for the tracks we want to filter and create a vector of
-  // row numbers out of them.
+  // Find all the slices for the tracks we want to filter using an In filter
+  // on track_id to avoid a full table scan.
+  auto track_cursor = slice_table_->CreateCursor(
+      {dataframe::FilterSpec{tables::SliceTable::ColumnIndex::track_id, 0,
+                             dataframe::In{}, std::nullopt}});
+  track_cursor.SetFilterValueListUnchecked(
+      0, selected_track_ids.data(),
+      static_cast<uint32_t>(selected_track_ids.size()));
+
   std::vector<tables::SliceTable::RowNumber> rows;
-  for (auto it = slice_table_->IterateRows(); it; ++it) {
-    if (selected_tracks.count(it.track_id())) {
-      rows.emplace_back(it.row_number());
-    }
+  for (track_cursor.Execute(); !track_cursor.Eof(); track_cursor.Next()) {
+    rows.emplace_back(track_cursor.ToRowNumber());
   }
 
   // Compute the table and add it to the cache for future use.

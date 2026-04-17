@@ -15,7 +15,7 @@
 import {TrackNode} from '../../public/workspace';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
+import {CounterTrack} from '../../components/tracks/counter_track';
 import {Engine} from '../../trace_processor/engine';
 import {NUM} from '../../trace_processor/query_result';
 
@@ -32,16 +32,14 @@ export default class implements PerfettoPlugin {
     for (const device of devices) {
       const uri = `/queued_io_request_count/device_${device['id']}`;
       const name = `dev major:${device['major']} minor:${device['minor']}`;
-      const track = await createQueryCounterTrack({
+      const track = await CounterTrack.createMaterialized({
         trace: ctx,
         uri,
-        data: {
-          sqlSource: `
-            SELECT ts, ops_in_queue_or_device as value
-            FROM linux_active_block_io_operations_by_device
-            WHERE dev = ${String(device['id'])}
-          `,
-        },
+        sqlSource: `
+          SELECT ts, ops_in_queue_or_device as value
+          FROM linux_active_block_io_operations_by_device
+          WHERE dev = ${String(device['id'])}
+        `,
       });
       ctx.tracks.registerTrack({
         uri,

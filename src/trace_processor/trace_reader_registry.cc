@@ -40,6 +40,7 @@ bool RequiresZlibSupport(TraceType type) {
     case kZipFile:
       return true;
 
+    case kCollapsedStackTraceType:
     case kNinjaLogTraceType:
     case kSystraceTraceType:
     case kPerfDataTraceType:
@@ -54,15 +55,25 @@ bool RequiresZlibSupport(TraceType type) {
     case kAndroidDumpstateTraceType:
     case kGeckoTraceType:
     case kArtMethodTraceType:
+    case kArtMethodV2TraceType:
     case kArtHprofTraceType:
     case kPerfTextTraceType:
     case kSimpleperfProtoTraceType:
     case kTarTraceType:
+    case kPrimesTraceType:
       return false;
   }
   PERFETTO_FATAL("For GCC");
 }
 }  // namespace
+
+void TraceReaderRegistry::RegisterPluginTraceReader(
+    TraceType trace_type,
+    std::function<std::unique_ptr<ChunkedTraceReader>()> factory) {
+  RegisterFactory(trace_type, [f = std::move(factory)](TraceProcessorContext*) {
+    return f();
+  });
+}
 
 void TraceReaderRegistry::RegisterFactory(TraceType trace_type,
                                           Factory factory) {

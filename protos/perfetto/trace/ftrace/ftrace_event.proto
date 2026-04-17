@@ -751,5 +751,14 @@ message FtraceEvent {
     ScsiDispatchCmdErrorFtraceEvent scsi_dispatch_cmd_error = 597;
     ScsiDispatchCmdTimeoutFtraceEvent scsi_dispatch_cmd_timeout = 598;
     ScsiEhWakeupFtraceEvent scsi_eh_wakeup = 599;
+    FwtpPerfettoSliceFtraceEvent fwtp_perfetto_slice = 600;
+    GpuPowerStateFtraceEvent gpu_power_state = 601;
+    GramCollisionFtraceEvent gram_collision = 602;
+    F2fsLockElapsedTimeFtraceEvent f2fs_lock_elapsed_time = 603;
+    SchedGroupTrackerFtraceEvent sched_group_tracker = 604;
+    DpuDispFrameDoneTimeoutFtraceEvent dpu_disp_frame_done_timeout = 605;
+    DpuDispFrameStartTimeoutFtraceEvent dpu_disp_frame_start_timeout = 606;
+    MmVmscanMemcgReclaimBeginFtraceEvent mm_vmscan_memcg_reclaim_begin = 607;
+    MmVmscanMemcgReclaimEndFtraceEvent mm_vmscan_memcg_reclaim_end = 608;
   }
 }

@@ -28,6 +28,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/metatrace_config.h"
+#include "perfetto/trace_processor/summarizer.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor_storage.h"
 
@@ -184,11 +185,6 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // NOTE: No Iterators can active when called.
   virtual size_t RestoreInitialTables() = 0;
 
-  // Deprecated. Use |RegisterSqlPackage()| instead, which is identical in
-  // functionality to |RegisterSqlModule()| and the only difference is in
-  // the argument, which is directly translatable to |SqlPackage|.
-  virtual base::Status RegisterSqlModule(SqlModule) = 0;
-
   // =================================================================
   // |  Trace-based metrics (v1) related functionality starts here   |
   // =================================================================
@@ -244,12 +240,16 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   virtual std::vector<uint8_t> GetMetricDescriptors() = 0;
 
   // =================================================================
-  // |                        Experimental                           |
+  // |  EXPERIMENTAL: Summarizer related functionality starts here   |
   // =================================================================
+  //
+  // WARNING: This API is under active development and may change without
+  // notice. Do not depend on this interface in production code.
 
-  virtual base::Status AnalyzeStructuredQueries(
-      const std::vector<StructuredQueryBytes>& queries,
-      std::vector<AnalyzedStructuredQuery>* output) = 0;
+  // EXPERIMENTAL: Creates a new Summarizer instance for managing lazy
+  // materialization of structured queries. On success, |out| is populated with
+  // the new instance and ownership is transferred to the caller.
+  virtual base::Status CreateSummarizer(std::unique_ptr<Summarizer>* out) = 0;
 };
 
 }  // namespace perfetto::trace_processor

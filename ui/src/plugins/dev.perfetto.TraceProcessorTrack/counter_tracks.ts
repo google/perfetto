@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {CounterOptions} from '../../components/tracks/base_counter_track';
+import {YMode} from '../../components/tracks/counter_track';
 import {TopLevelTrackGroup, TrackGroupSchema} from './types';
 
-type CounterMode = CounterOptions['yMode'];
+type CounterMode = YMode;
 
 type DescriptionRenderer = () => m.Children;
 
@@ -26,6 +26,7 @@ interface CounterTrackTypeSchema {
   readonly group: string | TrackGroupSchema | undefined;
   readonly shareYAxis?: true;
   readonly mode?: CounterMode;
+  readonly unit?: string;
 
   /**
    * Optional function to provide a rich description renderer for the track.
@@ -201,16 +202,6 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     group: undefined,
   },
   {
-    type: 'gpu_counter',
-    topLevelGroup: 'GPU',
-    group: 'GPU Counters',
-  },
-  {
-    type: 'gpu_memory',
-    topLevelGroup: 'GPU',
-    group: undefined,
-  },
-  {
     type: 'ion_change',
     topLevelGroup: 'THREAD',
     group: undefined,
@@ -321,6 +312,9 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     type: 'proc_stat_runtime',
     topLevelGroup: 'PROCESS',
     group: undefined,
+    // These are better visualized as deltas because they represent cumulative
+    // runtime.
+    mode: 'delta',
   },
   {
     type: 'process_gpu_memory',
@@ -336,6 +330,7 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     type: 'process_memory',
     topLevelGroup: 'PROCESS',
     group: undefined,
+    unit: 'B',
   },
   {
     type: 'psi',
@@ -379,34 +374,9 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     group: undefined,
   },
   {
-    type: 'virtgpu_latency',
-    topLevelGroup: 'GPU',
-    group: 'Virtgpu Latency',
-  },
-  {
-    type: 'virtgpu_num_free',
-    topLevelGroup: 'GPU',
-    group: 'Virtgpu num_free',
-  },
-  {
     type: 'vmstat',
     topLevelGroup: 'MEMORY',
     group: 'vmstat',
-  },
-  {
-    type: 'vulkan_device_mem_allocation',
-    topLevelGroup: 'GPU',
-    group: 'Vulkan Allocations',
-  },
-  {
-    type: 'vulkan_device_mem_bind',
-    topLevelGroup: 'GPU',
-    group: 'Vulkan Binds',
-  },
-  {
-    type: 'vulkan_driver_mem',
-    topLevelGroup: 'GPU',
-    group: 'Vulkan Driver Memory',
   },
   {
     type: 'battery_status',

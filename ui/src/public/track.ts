@@ -17,13 +17,12 @@ import {duration, time} from '../base/time';
 import {Size2D, VerticalBounds} from '../base/geom';
 import {TimeScale} from '../base/time_scale';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
-import {ColorScheme} from '../base/color_scheme';
 import {TrackEventDetailsPanel} from './details_panel';
 import {TrackEventDetails, TrackEventSelection} from './selection';
 import {SourceDataset} from '../trace_processor/dataset';
 import {TrackNode} from './workspace';
 import {CanvasColors} from './canvas_colors';
-import {z} from 'zod';
+import {Renderer} from '../base/renderer';
 
 /**
  * Represents a snap point for the snap-to-boundaries feature.
@@ -82,6 +81,10 @@ export interface TrackManager {
 export interface TrackContext {
   // This track's URI, used for making selections et al.
   readonly trackUri: string;
+
+  // The TrackNode associated with this track, providing access to the track
+  // hierarchy and children.
+  readonly trackNode: TrackNode;
 }
 
 /**
@@ -124,6 +127,12 @@ export interface TrackRenderContext extends TrackContext {
    * Semantic colors which can vary depending on the current theme.
    */
   readonly colors: CanvasColors;
+
+  /**
+   * A high-performance renderer for drawing rectangles and billboards.
+   * Uses WebGL when available, with Canvas 2D fallback.
+   */
+  readonly renderer: Renderer;
 }
 
 // A definition of a track, including a renderer implementation and metadata.
@@ -138,16 +147,9 @@ export interface Track {
   // string or a render function that returns Mithril vnodes.
   readonly description?: string | (() => m.Children);
 
-  // Optional: Human readable subtitle. Sometimes displayed if there is room.
-  readonly subtitle?: string;
-
   // Optional: A list of tags which provide additional metadata about the track.
   // Used mainly for legacy purposes that predate dataset.
   readonly tags?: TrackTags;
-
-  // Optional: A list of strings which are displayed as "chips" in the track
-  // shell.
-  readonly chips?: ReadonlyArray<string>;
 
   // Filled in by the core.
   readonly pluginId?: string;
@@ -183,11 +185,7 @@ export interface TrackMouseEvent {
  * A lot of the fields in this interface are currently unused, but they will be
  * used in the future when track serialization is implemented.
  */
-export interface TrackSettingDescriptor<T> {
-  // A unique identifier for this setting. Will be used to store the serialized
-  // value for this setting. Currently unused.
-  readonly id: string;
-
+export interface TrackSettingDescriptor<T = unknown> {
   // A human readable name for this setting. This is displayed in the settings
   // menu unless overridden.
   readonly name: string;
@@ -197,21 +195,11 @@ export interface TrackSettingDescriptor<T> {
   // used for.
   readonly description: string;
 
-  // A Zod schema describing the setting's value type which is used to infer the
-  // automatic settings menu type and options, and will be used for
-  // serialization and deserialization.
-  readonly schema: z.ZodType<T>;
-
-  // The default value for this setting. This will be used to render a 'reset'
-  // button in the render menu, and possibly as a fallback if parsing fails when
-  // we add serialization. Currently unused.
-  readonly defaultValue: T;
-
   // An optional function used to render a control for this setting. This
   // describes what the control looks like in the settings menu on the track and
   // also the bulk settings menu when multiple tracks are selected. If omitted,
   // a control will be automatically generated based on the schema and name.
-  render?(setter: (value: T) => void, values: ReadonlyArray<T>): m.Children;
+  render(setter: (value: T) => void, values: ReadonlyArray<T>): m.Children;
 }
 
 /**
@@ -219,10 +207,10 @@ export interface TrackSettingDescriptor<T> {
  * rendered or behaves. References a TrackSettingDescriptor which describes the
  * setting's metadata and how to render a control for it.
  */
-export interface TrackSetting<T> {
+export interface TrackSetting<T = unknown> {
   readonly descriptor: TrackSettingDescriptor<T>;
-  getValue: () => T;
-  setValue(newValue: T): void;
+  readonly value: T;
+  update(value: T): void;
 }
 
 export interface TrackRenderer {
@@ -248,43 +236,15 @@ export interface TrackRenderer {
   readonly settings?: ReadonlyArray<TrackSetting<unknown>>;
 
   /**
-   * Optional lifecycle hook called on the first render cycle. Should be used to
-   * create any required resources.
-   *
-   * These lifecycle hooks are asynchronous, but they are run synchronously,
-   * meaning that perfetto will wait for each one to complete before calling the
-   * next one, so the user doesn't have to serialize these calls manually.
-   *
-   * Exactly when this hook is called is left purposely undefined. The only
-   * guarantee is that it will be called exactly once before the first call to
-   * onUpdate().
-   *
-   * Note: On the first render cycle, both onCreate and onUpdate are called one
-   * after another.
-   */
-  onCreate?(ctx: TrackContext): Promise<void>;
-
-  /**
-   * Optional lifecycle hook called on every render cycle.
-   *
-   * The track should inspect things like the visible window, track size, and
-   * resolution to work out whether any data needs to be reloaded based on these
-   * properties and perform a reload.
-   */
-  onUpdate?(ctx: TrackRenderContext): Promise<void>;
-
-  /**
-   * Optional lifecycle hook called when the track is no longer visible. Should
-   * be used to clear up any resources.
-   */
-  onDestroy?(): Promise<void>;
-
-  /**
    * Required method used to render the track's content to the canvas, called
    * synchronously on every render cycle.
+   *
+   * Tracks can use ctx (Canvas 2D) for text and shapes, and canvasRenderer
+   * (WebGL) for high-performance rectangle rendering. Both are available
+   * in the same render call, and the WebGL content will appear behind
+   * Canvas 2D content.
    */
   render(ctx: TrackRenderContext): void;
-  onFullRedraw?(): void;
 
   /**
    * Return the vertical bounds (top & bottom) of a slice were it to be rendered
@@ -377,38 +337,6 @@ interface WellKnownTrackTags {
 
   // Track type, used for filtering
   type: string;
-}
-
-export interface Slice {
-  // These properties are updated only once per query result when the Slice
-  // object is created and don't change afterwards.
-  readonly id: number;
-  readonly startNs: time;
-  readonly endNs: time;
-  readonly durNs: duration;
-  readonly ts: time;
-  readonly count: number;
-  readonly dur: duration;
-  readonly depth: number;
-  readonly flags: number;
-
-  // Each slice can represent some extra numerical information by rendering a
-  // portion of the slice with a lighter tint.
-  // |fillRatio\ describes the ratio of the normal area to the tinted area
-  // width of the slice, normalized between 0.0 -> 1.0.
-  // 0.0 means the whole slice is tinted.
-  // 1.0 means none of the slice is tinted.
-  // E.g. If |fillRatio| = 0.65 the slice will be rendered like this:
-  // [############|*******]
-  // ^------------^-------^
-  //     Normal     Light
-  readonly fillRatio: number;
-
-  // These can be changed by the Impl.
-  title?: string;
-  subTitle: string;
-  colorScheme: ColorScheme;
-  isHighlighted: boolean;
 }
 
 /**

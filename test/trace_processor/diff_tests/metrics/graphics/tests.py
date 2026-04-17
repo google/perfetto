@@ -172,6 +172,9 @@ class GraphicsMetrics(TestSuite):
           dpu_state {
             total_dpu_underrun_count: 0
           }
+          panel_state {
+            total_ddic_underrun_count: 0
+          }
           refresh_rate_switches: 5
           refresh_rate_stats {
             refresh_rate_fps: 60
@@ -214,6 +217,41 @@ class GraphicsMetrics(TestSuite):
             dpu_underrun_detail {
               name: "underrun[1]"
               dpu_underrun_count: 169
+            }
+          }
+          panel_state {
+            total_ddic_underrun_count: 0
+          }
+          refresh_rate_switches: 0
+          update_power_state {
+          }
+        }
+        """))
+
+  def test_panel_state(self):
+    return DiffTestBlueprint(
+        trace=DataPath('panel_state.textproto'),
+        query=Metric("display_metrics"),
+        out=TextProto(r"""
+        display_metrics {
+          total_duplicate_frames: 0
+          duplicate_frames_logged: 0
+          dpu_state {
+            total_dpu_underrun_count:8
+            dpu_underrun_detail {
+              name: "underrun[0]"
+              dpu_underrun_count: 8
+            }
+          }
+          panel_state {
+            total_ddic_underrun_count: 5
+            ddic_underrun_detail {
+              name: "ddic_underrun[0]"
+              ddic_underrun_count: 4
+            }
+            ddic_underrun_detail {
+              name: "ddic_underrun[1]"
+              ddic_underrun_count: 1
             }
           }
           refresh_rate_switches: 0

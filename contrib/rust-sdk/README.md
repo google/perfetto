@@ -67,6 +67,17 @@ cargo test --no-default-features --manifest-path contrib/rust-sdk/Cargo.toml
 
 ## Developer Notes
 
+Regenerating low-level FFI bindings for Perfetto.
+
+To update the checked-in `contrib/rust-sdk/perfetto-sys/src/bindings.rs`
+file, build the `perfetto-sdk-sys` crate with the `bindgen` feature and
+copy the generated file from the build output:
+
+```bash
+cargo build --manifest-path contrib/rust-sdk/Cargo.toml -p perfetto-sdk-sys --features bindgen
+cp contrib/rust-sdk/target/debug/build/perfetto-sdk-sys-*/out/bindings.rs contrib/rust-sdk/perfetto-sys/src/bindings.rs
+```
+
 Regenerating Proto Bindings
 
 The Rust SDK uses a protoc plugin to generate Rust protozero code:

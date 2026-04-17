@@ -35,11 +35,16 @@ import {RecordingManager} from './recording_manager';
 import {TracedWebsocketTargetProvider} from './traced_over_websocket/traced_websocket_provider';
 import {WebDeviceProxyTargetProvider} from './adb/web_device_proxy/wdp_target_provider';
 import m from 'mithril';
+import {RecordTraceV2Settings} from './settings';
+
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.RecordTraceV2';
   private static recordingMgr?: RecordingManager;
 
   static onActivate(app: App) {
+    const settings = new RecordTraceV2Settings();
+    settings.registerSettings(app.settings);
+
     app.sidebar.addMenuItem({
       section: 'trace_files',
       text: 'Record new trace',
@@ -53,7 +58,7 @@ export default class implements PerfettoPlugin {
         return m(RecordPageV2, {
           subpage,
           app,
-          getRecordingManager: () => this.getRecordingManager(app),
+          getRecordingManager: () => this.getRecordingManager(app, settings),
         });
       },
     });
@@ -61,7 +66,7 @@ export default class implements PerfettoPlugin {
       id: 'dev.perfetto.RecordTraceV2.disconnectTarget',
       name: 'Disconnect the current device',
       callback: () => {
-        const recMgr = this.getRecordingManager(app);
+        const recMgr = this.getRecordingManager(app, settings);
         if (recMgr.currentTarget) {
           recMgr.currentTarget.disconnect();
         }
@@ -72,13 +77,18 @@ export default class implements PerfettoPlugin {
   // Lazily initialize the RecordingManager at first call. This is to prevent
   // providers to connect to sockets / devtools (which in turn can trigger
   // security UX in the browser) before the user has even done anything.
-  private static getRecordingManager(app: App): RecordingManager {
+  private static getRecordingManager(
+    app: App,
+    settings: RecordTraceV2Settings,
+  ): RecordingManager {
     if (this.recordingMgr === undefined) {
-      const recMgr = new RecordingManager(app);
+      const recMgr = new RecordingManager(app, settings);
       this.recordingMgr = recMgr;
-      recMgr.registerProvider(new AdbWebusbTargetProvider());
-      recMgr.registerProvider(new AdbWebsocketTargetProvider());
-      recMgr.registerProvider(new WebDeviceProxyTargetProvider());
+      recMgr.registerProvider(new AdbWebusbTargetProvider(recMgr.settings));
+      recMgr.registerProvider(new AdbWebsocketTargetProvider(recMgr.settings));
+      recMgr.registerProvider(
+        new WebDeviceProxyTargetProvider(recMgr.settings),
+      );
 
       const chromeProvider = new ChromeExtensionTargetProvider();
       recMgr.registerProvider(chromeProvider);
@@ -88,7 +98,10 @@ export default class implements PerfettoPlugin {
         bufferConfigPage(recMgr),
         instructionsPage(recMgr),
 
-        chromeRecordSection(() => chromeProvider.getChromeCategories()),
+        chromeRecordSection(
+          () => chromeProvider.getTrackEventDescriptor(),
+          () => recMgr.currentPlatform,
+        ),
         cpuRecordSection(),
         gpuRecordSection(),
         powerRecordSection(),

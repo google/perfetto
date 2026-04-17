@@ -25,8 +25,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/small_vector.h"
-#include "src/trace_processor/dataframe/dataframe.h"
-#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"

@@ -50,12 +50,26 @@ export class Checkbox implements m.ClassComponent<CheckboxAttrs> {
       },
       labelLeft !== undefined && m('span.pf-checkbox__label-left', labelLeft),
       m('input[type=checkbox]', {disabled, checked}),
-      m('span.pf-checkbox__box', {
-        className:
-          variant === 'switch'
-            ? 'pf-checkbox__box--switch'
-            : 'pf-checkbox__box--check',
-      }),
+      variant === 'switch'
+        ? m('span.pf-checkbox__box.pf-checkbox__box--switch')
+        : m(
+            'span.pf-checkbox__box.pf-checkbox__box--check',
+            m(
+              'svg.pf-checkbox__tick',
+              {
+                viewBox: '0 0 12 12',
+                fill: 'none',
+                xmlns: 'http://www.w3.org/2000/svg',
+              },
+              m('path', {
+                'd': 'M2.5 6.5L5 9L9.5 3.5',
+                'stroke': 'currentColor',
+                'stroke-width': '2',
+                'stroke-linecap': 'round',
+                'stroke-linejoin': 'round',
+              }),
+            ),
+          ),
       label !== undefined && m('span.pf-checkbox__label', label),
     );
   }

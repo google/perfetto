@@ -301,10 +301,5 @@ export async function createVirtualTable(args: {
 }): Promise<DisposableSqlEntity> {
   const {engine, using, name = makeTempName()} = args;
   await engine.query(`CREATE VIRTUAL TABLE ${name} USING ${using}`);
-  return {
-    name,
-    [Symbol.asyncDispose]: async () => {
-      await engine.tryQuery(`DROP TABLE IF EXISTS ${name}`);
-    },
-  };
+  return createDisposableSqlEntity(engine, name, 'TABLE');
 }

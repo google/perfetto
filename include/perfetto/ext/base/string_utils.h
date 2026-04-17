@@ -25,6 +25,7 @@
 #include <cinttypes>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <vector>
 
@@ -39,6 +40,15 @@ inline char Lowercase(char c) {
 
 inline char Uppercase(char c) {
   return ('a' <= c && c <= 'z') ? static_cast<char>(c + ('A' - 'a')) : c;
+}
+
+// Returns true if the character is an ASCII whitespace character.
+// This is a locale-independent version that only considers ASCII whitespace:
+// space (0x20), tab (0x09), newline (0x0A), vertical tab (0x0B),
+// form feed (0x0C), and carriage return (0x0D).
+inline bool IsSpace(char c) {
+  return c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f' ||
+         c == '\r';
 }
 
 inline std::optional<uint32_t> CStringToUInt32(const char* s, int base = 10) {
@@ -179,7 +189,9 @@ std::vector<std::string> SplitString(const std::string& text,
                                      const std::string& delimiter);
 std::string StripPrefix(const std::string& str, const std::string& prefix);
 std::string StripSuffix(const std::string& str, const std::string& suffix);
+std::string_view TrimWhitespace(std::string_view str);
 std::string TrimWhitespace(const std::string& str);
+std::string_view TrimWhitespace(const char* str);
 std::string ToLower(const std::string& str);
 std::string ToUpper(const std::string& str);
 std::string StripChars(const std::string& str,

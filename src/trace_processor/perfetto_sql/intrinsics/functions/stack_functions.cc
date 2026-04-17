@@ -34,13 +34,13 @@
 #include "perfetto/trace_processor/status.h"
 #include "protos/perfetto/trace_processor/stack.pbzero.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {

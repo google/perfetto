@@ -142,6 +142,34 @@ GROUP BY
 ORDER BY
   ts ASC;
 
+-- Track IDs for all tracks named after Latency CUJs.
+CREATE PERFETTO TABLE _latency_cuj_tracks AS
+SELECT
+  id,
+  name
+FROM track
+WHERE
+  name GLOB 'L<*>';
+
+-- Markers (cancel, timeout) related to Latency CUJ slices.
+CREATE PERFETTO TABLE _latency_cuj_markers AS
+SELECT
+  cuj_slice.id AS cuj_slice_id,
+  CASE WHEN s.name = 'cancel' THEN 'cancel' ELSE 'timeout' END AS marker_type
+FROM slice AS cuj_slice
+JOIN _latency_cuj_tracks AS t
+  ON t.name = cuj_slice.name
+JOIN slice AS s
+  ON s.track_id = t.id
+WHERE
+  s.dur = 0
+  AND s.ts >= cuj_slice.ts
+  AND s.ts <= cuj_slice.ts + cuj_slice.dur
+  AND cuj_slice.name GLOB 'L<*>'
+  AND (
+    s.name = 'cancel' OR s.name = 'timeout'
+  );
+
 -- Table tracking all latency CUJs information.
 CREATE PERFETTO TABLE android_sysui_latency_cujs (
   -- Unique incremental ID for each CUJ.
@@ -179,16 +207,32 @@ SELECT
   ts,
   ts + dur AS ts_end,
   dur,
-  'completed' AS state
+  CASE
+    WHEN EXISTS(
+      SELECT
+        1
+      FROM _latency_cuj_markers AS m
+      WHERE
+        m.cuj_slice_id = slice.id AND m.marker_type = 'cancel'
+    )
+    THEN 'canceled'
+    WHEN EXISTS(
+      SELECT
+        1
+      FROM _latency_cuj_markers AS m
+      WHERE
+        m.cuj_slice_id = slice.id AND m.marker_type = 'timeout'
+    )
+    THEN 'timeout'
+    ELSE 'completed'
+  END AS state
 FROM slice
 JOIN process_track
   ON slice.track_id = process_track.id
 JOIN process
   USING (upid)
 WHERE
-  -- TODO(b/447577048): Add filtering support for completed/canceled latency CUJs.
-  slice.name GLOB 'L<*>'
-  AND dur > 0;
+  slice.name GLOB 'L<*>' AND dur > 0;
 
 -- Table tracking all jank/latency CUJs information.
 CREATE PERFETTO TABLE android_jank_latency_cujs (
@@ -232,19 +276,40 @@ CREATE PERFETTO TABLE android_jank_latency_cujs (
   -- Type of CUJ, i.e. jank or latency.
   cuj_type STRING
 ) AS
+WITH
+  combined_cujs AS (
+    SELECT
+      *,
+      "jank" AS cuj_type,
+      cuj_id AS original_cuj_id
+    FROM android_sysui_jank_cujs
+    UNION ALL
+    SELECT
+      *,
+      -- upid is used as the ui_thread as it's the tid of the main thread.
+      upid AS ui_thread,
+      NULL AS layer_id,
+      NULL AS begin_vsync,
+      NULL AS end_vsync,
+      "latency" AS cuj_type,
+      cuj_id AS original_cuj_id
+    FROM android_sysui_latency_cujs
+  )
 SELECT
-  *,
-  "jank" AS cuj_type,
-  cuj_id AS id
-FROM android_sysui_jank_cujs
-UNION ALL
-SELECT
-  *,
-  -- upid is used as the ui_thread as it's the tid of the main thread.
-  upid AS ui_thread,
-  NULL AS layer_id,
-  NULL AS begin_vsync,
-  NULL AS end_vsync,
-  "latency" AS cuj_type,
-  cuj_id AS id
-FROM android_sysui_latency_cujs;
+  row_number() OVER (ORDER BY cuj_type, original_cuj_id) AS cuj_id,
+  row_number() OVER (ORDER BY cuj_type, original_cuj_id) AS id,
+  upid,
+  process_name,
+  cuj_slice_name,
+  cuj_name,
+  slice_id,
+  ts,
+  ts_end,
+  dur,
+  state,
+  ui_thread,
+  layer_id,
+  begin_vsync,
+  end_vsync,
+  cuj_type
+FROM combined_cujs;

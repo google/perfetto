@@ -27,8 +27,9 @@ import {UnionDataset, Dataset, DatasetSchema} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
+import {shortUuid} from '../base/uuid';
 import {AggregationPanel} from './aggregation_panel';
-import {Pivot} from './widgets/datagrid/model';
+import {Column, Filter, Pivot} from './widgets/datagrid/model';
 import {SQLDataSource} from './widgets/datagrid/sql_data_source';
 import {createSimpleSchema} from './widgets/datagrid/sql_schema';
 import {BarChartData, ColumnDef} from './aggregation';
@@ -38,7 +39,7 @@ import {
 } from '../trace_processor/sql_utils';
 import {DataGridApi} from './widgets/datagrid/datagrid';
 import {DataGridExportButton} from './widgets/datagrid/export_button';
-import {DataSource} from './widgets/datagrid/data_source';
+import {SerialTaskQueue} from '../base/query_slot';
 
 export interface AggregationData {
   readonly tableName: string;
@@ -57,56 +58,50 @@ export interface Aggregation {
   prepareData(engine: Engine): Promise<AggregationData>;
 }
 
-export interface AggregatePivotModel extends Pivot {
+export type AggregatePivotModel = Pivot & {
   readonly columns: ReadonlyArray<ColumnDef>;
+};
+
+/**
+ * State that can be controlled externally for a DataGrid.
+ * All properties are optional - only those provided will be used in controlled
+ * mode, others will use uncontrolled (internal) state.
+ */
+export interface DataGridState {
+  readonly columns?: readonly Column[];
+  readonly filters?: readonly Filter[];
+  readonly pivot?: Pivot;
+  readonly onColumnsChanged?: (columns: readonly Column[]) => void;
+  readonly onFiltersChanged?: (filters: readonly Filter[]) => void;
+  readonly onPivotChanged?: (pivot: Pivot | undefined) => void;
 }
 
 export interface Aggregator {
   readonly id: string;
 
-  /**
-   * If set, this component will be used instead of the default AggregationPanel
-   * for displaying the aggregation. Use this to customize the look and feel of
-   * the rendered table.
-   */
-  readonly Panel?: PanelComponent;
-
-  /**
-   * This function is called every time the area selection changes. The purpose
-   * of this function is to test whether this aggregator applies to the given
-   * area selection. If it does, it returns an aggregation object which gives
-   * further instructions on how to prepare the aggregation data.
-   *
-   * Aggregators are arranged this way because often the computation required to
-   * work out whether this aggregation applies is the same as the computation
-   * required to actually do the aggregation, so doing it like this means the
-   * prepareData() function returned can capture intermediate state avoiding
-   * having to do it again or awkwardly cache it somewhere in the aggregators
-   * local state.
-   */
+  // This function is called every time the area selection changes. The purpose
+  // of this function is to test whether this aggregator applies to the given
+  // area selection. If it does, it returns an aggregation object which gives
+  // further instructions on how to prepare the aggregation data.
+  //
+  // Aggregators are arranged this way because often the computation required to
+  // work out whether this aggregation applies is the same as the computation
+  // required to actually do the aggregation, so doing it like this means the
+  // prepareData() function returned can capture intermediate state avoiding
+  // having to do it again or awkwardly cache it somewhere in the aggregators
+  // local state.
   probe(area: AreaSelection): Aggregation | undefined;
+
+  // Returns the name of this aggregation tag. Called every render cycle.
   getTabName(): string;
+
+  // Return the column definitions for this aggregation panel. Called every
+  // render cycle.
   getColumnDefinitions(): ColumnDef[] | AggregatePivotModel;
 
-  /**
-   * Optionally override which component is used to render the data in the
-   * details panel. This can be used to define customize how the data is
-   * rendered.
-   */
-  readonly PanelComponent?: PanelComponent;
+  // Optional controls to render in the top bar of the aggregation panel.
+  renderTopbarControls?(): m.Children;
 }
-
-export interface AggregationPanelAttrs {
-  readonly dataSource: DataSource;
-  readonly columns: ReadonlyArray<ColumnDef> | AggregatePivotModel;
-  readonly barChartData?: ReadonlyArray<BarChartData>;
-  readonly onReady?: (api: DataGridApi) => void;
-}
-
-// Define a type for the expected props of the panel components so that a
-// generic AggregationPanel can be specificed as an argument to
-// createBaseAggregationToTabAdaptor()
-export type PanelComponent = m.ComponentTypes<AggregationPanelAttrs>;
 
 export function selectTracksAndGetDataset<T extends DatasetSchema>(
   tracks: ReadonlyArray<Track>,
@@ -198,6 +193,12 @@ export async function createIITable<
   });
 }
 
+interface DataGridModel {
+  readonly columns?: readonly Column[];
+  readonly pivot?: Pivot;
+  readonly filters: readonly Filter[];
+}
+
 /**
  * Creates an adapter that adapts an old style aggregation to a new area
  * selection sub-tab.
@@ -208,11 +209,41 @@ export function createAggregationTab(
   priority: number = 0,
 ): AreaSelectionTab {
   const limiter = new AsyncLimiter();
+  const queue = new SerialTaskQueue();
   let currentSelection: AreaSelection | undefined;
   let aggregation: Aggregation | undefined;
   let data: AggregationData | undefined;
   let dataSource: SQLDataSource | undefined;
   let dataGridApi: DataGridApi | undefined;
+
+  function createInitialState(): DataGridModel {
+    const initialModel = aggregator.getColumnDefinitions();
+    if ('groupBy' in initialModel) {
+      return {
+        pivot: {
+          groupBy: initialModel.groupBy,
+          aggregates: initialModel.aggregates,
+        },
+        filters: [],
+      };
+    } else {
+      // Generate initial columns for flat mode
+      const columns: readonly Column[] = initialModel.map((c) => ({
+        id: shortUuid(),
+        field: c.columnId,
+        aggregate: c.sum ? 'SUM' : undefined,
+        sort: c.sort,
+      }));
+      return {
+        columns,
+        filters: [],
+      };
+    }
+  }
+
+  // DataGrid state managed by the adapter
+  const initialDataModel: DataGridModel = createInitialState();
+  let dataModel: DataGridModel = initialDataModel;
 
   return {
     id: aggregator.id,
@@ -232,11 +263,13 @@ export function createAggregationTab(
         limiter.schedule(async () => {
           // Clear previous data to prevent queries against a stale or partially
           // updated table/view while `prepareData` is running.
+          dataSource?.dispose();
           dataSource = undefined;
           data = undefined;
           if (aggregation) {
             data = await aggregation?.prepareData(trace.engine);
             dataSource = new SQLDataSource({
+              queue,
               engine: trace.engine,
               sqlSchema: createSimpleSchema(data.tableName),
               rootSchemaName: 'query',
@@ -265,17 +298,36 @@ export function createAggregationTab(
         };
       }
 
-      const PanelComponent = aggregator.Panel ?? AggregationPanel;
+      const dataGridState: DataGridState = {
+        columns: dataModel.columns,
+        pivot: dataModel.pivot,
+        filters: dataModel.filters,
+        onColumnsChanged: (c) => {
+          dataModel = {...dataModel, columns: c};
+        },
+        onPivotChanged: (p) => {
+          dataModel = {...dataModel, pivot: p};
+        },
+        onFiltersChanged: (f) => {
+          dataModel = {...dataModel, filters: f};
+        },
+      };
 
       return {
         isLoading: false,
-        content: m(PanelComponent, {
+        content: m(AggregationPanel, {
+          controls: aggregator.renderTopbarControls?.(),
           key: aggregator.id,
           dataSource,
           columns: aggregator.getColumnDefinitions(),
           barChartData: data?.barChartData,
           onReady: (api: DataGridApi) => {
             dataGridApi = api;
+          },
+          dataGridState,
+          onClearGridState: () => {
+            // Just wipe out the local data model to reset to initial state
+            dataModel = initialDataModel;
           },
         }),
         buttons:

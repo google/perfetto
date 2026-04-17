@@ -21,5 +21,5 @@ export interface SqlModule {
 
 export interface SqlPackage {
   readonly name: string;
-  readonly modules: SqlModule[];
+  readonly modules: ReadonlyArray<SqlModule>;
 }

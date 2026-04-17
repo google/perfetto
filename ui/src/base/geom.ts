@@ -308,3 +308,62 @@ export class Rect2D implements Bounds2D, Size2D, Point2D {
     );
   }
 }
+
+// 2D transformation (offset + scale).
+// - Offsets add: newOffset = currentOffset + transform.offset
+// - Scales multiply: newScale = currentScale * transform.scale
+// For time-to-pixel conversion, use scaleX as pixels-per-time-unit.
+// A 1D scale+translate transform: value' = value * scale + offset
+export interface Transform1D {
+  readonly scale: number;
+  readonly offset: number;
+}
+
+export namespace Transform1D {
+  export const Identity: Transform1D = {
+    scale: 1,
+    offset: 0,
+  };
+}
+
+export interface Transform2D {
+  readonly offsetX: number; // Pixel offset in X
+  readonly offsetY: number; // Pixel offset in Y
+  readonly scaleX: number; // Scale factor for X (use as pxPerTime for time conversion)
+  readonly scaleY: number; // Scale factor for Y
+}
+
+export namespace Transform2D {
+  export const Identity: Transform2D = {
+    offsetX: 0,
+    offsetY: 0,
+    scaleX: 1,
+    scaleY: 1,
+  };
+
+  export function compose(
+    a: Transform2D,
+    b: Partial<Transform2D>,
+  ): Transform2D {
+    const {offsetX = 0, offsetY = 0, scaleX = 1, scaleY = 1} = b;
+    return {
+      offsetX: a.offsetX + offsetX * a.scaleX,
+      offsetY: a.offsetY + offsetY * a.scaleY,
+      scaleX: a.scaleX * scaleX,
+      scaleY: a.scaleY * scaleY,
+    };
+  }
+
+  // Column-major mat3 for use with WebGL uniformMatrix3fv.
+  // | scaleX  0       0 |
+  // | 0       scaleY  0 |
+  // | offsetX offsetY 1 |
+  export function toMat3(t: Transform2D): Float32Array {
+    // prettier-ignore
+    return new Float32Array([
+      t.scaleX, 0, 0,
+      0, t.scaleY, 0,
+      t.offsetX, t.offsetY, 1,
+    ]);
+  }
+}

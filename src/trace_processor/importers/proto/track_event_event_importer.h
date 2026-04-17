@@ -43,6 +43,9 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
+#include "src/trace_processor/importers/common/gpu_tracker.h"
+
+#include "protos/perfetto/trace/gpu/gpu_track_event.pbzero.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -919,6 +922,19 @@ class TrackEventEventImporter {
                                     /* close_flow = */ true);
       }
     }
+    constexpr uint32_t kGpuCorrelationFieldId =
+        protos::pbzero::GpuTrackEvent::kGpuCorrelationFieldNumber;
+    protozero::ProtoDecoder event_decoder(blob_);
+    auto gpu_field = event_decoder.FindField(kGpuCorrelationFieldId);
+    if (gpu_field.valid()) {
+      protos::pbzero::GpuCorrelation::Decoder gpu(gpu_field.as_bytes());
+      for (auto it = gpu.render_stage_submission_event_ids(); it; ++it) {
+        context_->gpu_tracker->AddRenderStageSubmission(*it, slice_id);
+      }
+      for (auto it = gpu.render_stage_wait_event_ids(); it; ++it) {
+        context_->gpu_tracker->AddRenderStageWait(*it, slice_id);
+      }
+    }
   }
 
   void MaybeParseFlowEventV2(SliceId slice_id) {
@@ -1160,7 +1176,8 @@ class TrackEventEventImporter {
       auto process_name_id =
           storage_->InternString(base::StringView(process_name));
       // Don't override system-provided names.
-      procs->SetProcessNameIfUnset(*upid_, process_name_id);
+      procs->UpdateProcessName(*upid_, process_name_id,
+                               ProcessNamePriority::kTrackDescriptor);
       return base::OkStatus();
     }
     // Other metadata events are proxied via the raw table for JSON export.

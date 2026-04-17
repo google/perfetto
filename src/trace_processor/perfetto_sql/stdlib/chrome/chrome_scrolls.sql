@@ -2,6 +2,8 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+INCLUDE PERFETTO MODULE chrome.android_input;
+
 INCLUDE PERFETTO MODULE chrome.event_latency;
 
 INCLUDE PERFETTO MODULE chrome.graphics_pipeline;
@@ -9,8 +11,6 @@ INCLUDE PERFETTO MODULE chrome.graphics_pipeline;
 INCLUDE PERFETTO MODULE chrome.input;
 
 INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets;
-INCLUDE PERFETTO MODULE chrome.android_input;
-
 
 -- Ties together input (`LatencyInfo.Flow`) and frame (`Graphics.Pipeline`)
 -- trace events. Only covers input events of the `GESTURE_SCROLL_UPDATE_EVENT`
@@ -56,7 +56,6 @@ SELECT
   chrome_event_latency.scroll_id,
   chrome_event_latency.is_presented,
   chrome_event_latency.is_janky,
-  chrome_event_latency.is_janky_v3,
   chrome_event_latency.event_type = 'INERTIAL_GESTURE_SCROLL_UPDATE' AS is_inertial,
   chrome_event_latency.event_type = 'FIRST_GESTURE_SCROLL_UPDATE' AS is_first_scroll_update_in_scroll,
   chrome_event_latency.ts AS generation_ts,
@@ -134,10 +133,6 @@ CREATE PERFETTO TABLE chrome_scroll_update_input_pipeline (
   -- Event.ScrollJank.DelayedFramesPercentage.FixedWindow metric. This comes
   -- directly from `perfetto.protos.EventLatency.is_janky_scrolled_frame`.
   is_janky BOOL,
-  -- Whether the corresponding frame is janky based on the
-  -- Event.ScrollJank.DelayedFramesPercentage.FixedWindow3 metric. This comes
-  -- directly from `perfetto.protos.EventLatency.is_janky_scrolled_frame_v3`.
-  is_janky_v3 BOOL,
   -- Whether the corresponding scroll is inertial (fling).
   -- If this is `true`, "generation" and "touch_move" related timestamps and
   -- durations will be null.
@@ -206,7 +201,6 @@ WITH
       presented_in_frame_id,
       is_presented,
       is_janky,
-      is_janky_v3,
       is_inertial,
       is_first_scroll_update_in_scroll,
       row_number() OVER (PARTITION BY presented_in_frame_id ORDER BY generation_ts ASC) = 1 AS is_first_scroll_update_in_frame,
@@ -256,7 +250,6 @@ SELECT
   presented_in_frame_id,
   is_presented,
   is_janky,
-  is_janky_v3,
   is_inertial,
   is_first_scroll_update_in_scroll,
   is_first_scroll_update_in_frame,
@@ -467,8 +460,15 @@ CREATE PERFETTO TABLE chrome_scroll_update_frame_pipeline (
   viz_swap_buffers_dur DURATION,
   -- End timestamp for the `STEP_BUFFER_SWAP_POST_SUBMIT` slice.
   viz_swap_buffers_end_ts TIMESTAMP,
-  -- Duration of `EventLatency`'s `BufferReadyToLatch` step.
+  -- Duration from the end of the `STEP_BUFFER_SWAP_POST_SUBMIT` slice to
+  -- `EventLatency`'s `LatchToSwapEnd` step.
   viz_swap_buffers_to_latch_dur DURATION,
+  -- Timestamp for `EventLatency`'s `BufferAvailableToBufferReady` step.
+  buffer_available_timestamp TIMESTAMP,
+  -- Duration of `EventLatency`'s `BufferAvailableToBufferReady` step.
+  buffer_available_to_ready_dur DURATION,
+  -- Timestamp for `EventLatency`'s `BufferAvailableToBufferReady` step.
+  buffer_ready_timestamp TIMESTAMP,
   -- Timestamp for `EventLatency`'s `LatchToSwapEnd` step.
   latch_timestamp TIMESTAMP,
   -- Duration of either `EventLatency`'s `LatchToSwapEnd` +
@@ -534,6 +534,8 @@ WITH
       viz_swap_buffers_end_ts,
       -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
       -- Timestamps
+      buffer_available_timestamp,
+      buffer_ready_timestamp,
       latch_timestamp,
       presentation_timestamp
     FROM _scroll_update_frame_timestamps_and_metadata
@@ -596,6 +598,9 @@ SELECT
   viz_swap_buffers_end_ts,
   latch_timestamp - viz_swap_buffers_end_ts AS viz_swap_buffers_to_latch_dur,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+  buffer_available_timestamp,
+  buffer_ready_timestamp - buffer_available_timestamp AS buffer_available_to_ready_dur,
+  buffer_ready_timestamp,
   latch_timestamp,
   presentation_timestamp - latch_timestamp AS viz_latch_to_presentation_dur,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -683,10 +688,6 @@ CREATE PERFETTO TABLE chrome_scroll_update_info (
   -- Event.ScrollJank.DelayedFramesPercentage.FixedWindow metric. This comes
   -- directly from `perfetto.protos.EventLatency.is_janky_scrolled_frame`.
   is_janky BOOL,
-  -- Whether the corresponding frame is janky based on the
-  -- Event.ScrollJank.DelayedFramesPercentage.FixedWindow3 metric. This comes
-  -- directly from `perfetto.protos.EventLatency.is_janky_scrolled_frame_v3`.
-  is_janky_v3 BOOL,
   -- Whether the corresponding scroll is inertial (fling).
   -- If this is `true`, "generation" and "touch_move" related timestamps and
   -- durations will be null.
@@ -809,8 +810,15 @@ CREATE PERFETTO TABLE chrome_scroll_update_info (
   viz_swap_buffers_dur DURATION,
   -- End timestamp for the `STEP_BUFFER_SWAP_POST_SUBMIT` slice.
   viz_swap_buffers_end_ts TIMESTAMP,
-  -- Duration of `EventLatency`'s `BufferReadyToLatch` step.
+  -- Duration from the end of the `STEP_BUFFER_SWAP_POST_SUBMIT` slice to
+  -- `EventLatency`'s `LatchToSwapEnd` step.
   viz_swap_buffers_to_latch_dur DURATION,
+  -- Timestamp of `EventLatency`'s `BufferAvailableToBufferReady` step.
+  buffer_available_timestamp TIMESTAMP,
+  -- Duration of `EventLatency`'s `BufferAvailableToBufferReady` step.
+  buffer_available_to_ready_dur DURATION,
+  -- Timestamp for `EventLatency`'s `BufferReadyToLatch` step.
+  buffer_ready_timestamp TIMESTAMP,
   -- Timestamp for `EventLatency`'s `LatchToSwapEnd` step.
   latch_timestamp TIMESTAMP,
   -- Duration of either `EventLatency`'s `LatchToSwapEnd` +
@@ -829,7 +837,6 @@ SELECT
   frame.vsync_interval_ms,
   input.is_presented,
   input.is_janky,
-  input.is_janky_v3,
   input.is_inertial,
   input.is_first_scroll_update_in_scroll,
   input.is_first_scroll_update_in_frame,
@@ -929,6 +936,10 @@ SELECT
   frame.viz_swap_buffers_end_ts,
   frame.viz_swap_buffers_to_latch_dur,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+  frame.buffer_available_timestamp,
+  frame.buffer_available_to_ready_dur,
+  frame.buffer_ready_timestamp,
+  -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
   frame.latch_timestamp,
   frame.viz_latch_to_presentation_dur,
   -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
@@ -971,10 +982,6 @@ CREATE PERFETTO TABLE chrome_scroll_frame_info (
   -- Event.ScrollJank.DelayedFramesPercentage.FixedWindow metric. This comes
   -- directly from `perfetto.protos.EventLatency.is_janky_scrolled_frame`.
   is_janky BOOL,
-  -- Whether the corresponding frame is janky based on the
-  -- Event.ScrollJank.DelayedFramesPercentage.FixedWindow3 metric. This comes
-  -- directly from `perfetto.protos.EventLatency.is_janky_scrolled_frame_v3`.
-  is_janky_v3 BOOL,
   -- Whether the corresponding scroll is inertial (fling).
   is_inertial BOOL,
   -- Sum of all input deltas for all scroll updates in this frame.
@@ -1091,6 +1098,11 @@ CREATE PERFETTO TABLE chrome_scroll_frame_info (
   -- Difference between `viz_swap_buffers_to_latch_dur` for this frame and the
   -- previous frame in the same scroll.
   viz_swap_buffers_to_latch_delta_dur DURATION,
+  -- Duration of `EventLatency`'s `BufferAvailableToBufferReady` step.
+  buffer_available_to_ready_dur DURATION,
+  -- Difference between `buffer_available_to_ready_dur` for this frame and the
+  -- previous frame in the same scroll.
+  buffer_available_to_ready_delta_dur DURATION,
   -- Duration between Choreographer's latch and presentation.
   viz_latch_to_presentation_dur DURATION,
   -- Difference between `viz_latch_to_presentation_dur` for this frame and the
@@ -1104,7 +1116,6 @@ SELECT
   vsync_interval_ms,
   cast_int!(vsync_interval_ms * 1e6) AS vsync_interval_dur,
   is_janky,
-  is_janky_v3,
   is_inertial,
   (
     SELECT
@@ -1158,6 +1169,8 @@ SELECT
   _chrome_scroll_frame_stage_delta!(viz_swap_buffers_dur) AS viz_swap_buffers_delta_dur,
   info.viz_swap_buffers_to_latch_dur,
   _chrome_scroll_frame_stage_delta!(viz_swap_buffers_to_latch_dur) AS viz_swap_buffers_to_latch_delta_dur,
+  info.buffer_available_to_ready_dur,
+  _chrome_scroll_frame_stage_delta!(buffer_available_to_ready_dur) AS buffer_available_to_ready_delta_dur,
   info.viz_latch_to_presentation_dur,
   _chrome_scroll_frame_stage_delta!(viz_latch_to_presentation_dur) AS viz_latch_to_presentation_delta_dur
 FROM chrome_scroll_update_info AS info

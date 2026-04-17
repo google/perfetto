@@ -92,7 +92,7 @@ message WindowOrientationListenerProto {
 message KeyguardServiceDelegateProto {
   optional bool showing = 1;
   optional bool occluded = 2;
-  optional bool secure = 3;
+  optional bool secure = 3 [deprecated = true];
   enum ScreenState {
     SCREEN_STATE_OFF = 0;
     SCREEN_STATE_TURNING_ON = 1;
@@ -107,6 +107,8 @@ message KeyguardServiceDelegateProto {
     INTERACTIVE_STATE_GOING_TO_SLEEP = 3;
   }
   optional InteractiveState interactive_state = 5;
+  optional bool sim_secure = 6;
+  optional bool trusted = 7;
 }
 
 message KeyguardControllerProto {
@@ -477,7 +479,8 @@ message ActivityRecordProto {
   optional bool should_override_force_resize_app = 44;
   optional bool should_enable_user_aspect_ratio_settings = 45;
   optional bool is_user_fullscreen_override_enabled = 46;
-  optional int64 request_open_in_browser_education_timestamp = 47;
+  optional int64 request_open_in_browser_education_timestamp = 47
+      [jstype = JS_STRING];
   optional bool should_allow_simulate_requested_orientation_for_camera_compat =
       48;
   optional RectProto safe_region_bounds = 49;
@@ -680,7 +683,7 @@ message InsetsSourceProviderProto {
   optional bool client_visible = 11;
   optional bool server_visible = 12;
   optional bool seamless_rotating = 13;
-  optional int64 finish_seamless_rotate_frame_number = 14;
+  optional int64 finish_seamless_rotate_frame_number = 14 [jstype = JS_STRING];
   optional bool controllable = 15;
   optional WindowStateProto source_window_state = 16 [deprecated = true];
 

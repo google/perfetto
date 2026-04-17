@@ -19,6 +19,7 @@
 
 #include "src/trace_processor/importers/proto/winscope/winscope_geometry.h"
 
+#include "protos/perfetto/trace/android/graphics/corner_radii.gen.h"
 #include "protos/perfetto/trace/android/graphics/rect.gen.h"
 #include "protos/perfetto/trace/android/surfaceflinger_common.gen.h"
 #include "protos/perfetto/trace/android/surfaceflinger_layers.gen.h"
@@ -42,6 +43,20 @@ inline void UpdateRect(protos::gen::RectProto* rect_proto,
   rect_proto->set_top(static_cast<int32_t>(rect.y));
   rect_proto->set_right(static_cast<int32_t>(rect.x + rect.w));
   rect_proto->set_bottom(static_cast<int32_t>(rect.y + rect.h));
+}
+
+inline void UpdateCornerRadii(protos::gen::CornerRadiiProto* corner_radii_proto,
+                              geometry::CornerRadii corner_radii) {
+  corner_radii_proto->set_bl(static_cast<float>(corner_radii.bl));
+  corner_radii_proto->set_br(static_cast<float>(corner_radii.br));
+  corner_radii_proto->set_tl(static_cast<float>(corner_radii.tl));
+  corner_radii_proto->set_tr(static_cast<float>(corner_radii.tr));
+}
+
+inline bool IsCornerRadiiEqual(geometry::CornerRadii value,
+                               geometry::CornerRadii other) {
+  return IsEqual(value.bl, other.bl) && IsEqual(value.br, other.br) &&
+         IsEqual(value.tl, other.tl) && IsEqual(value.tr, other.tr);
 }
 }  // namespace perfetto::trace_processor::winscope::geometry::test
 

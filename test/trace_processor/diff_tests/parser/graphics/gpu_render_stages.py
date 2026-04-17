@@ -166,7 +166,8 @@ trace.add_gpu_render_stages(
     context=42,
     render_target_handle=0x10,
     render_pass_handle=0x10,
-    command_buffer_handle=0x10)
+    command_buffer_handle=0x10,
+    render_pass_instance_id=42)
 
 # setting the name again replace the name
 trace.add_vk_debug_marker(

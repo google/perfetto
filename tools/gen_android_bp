@@ -99,6 +99,7 @@ protozero_descriptor_diff_target = '//src/protozero/descriptor_diff:protozero_de
 
 default_targets += [
     '//src/traceconv:traceconv(%s)' % gn_utils.HOST_TOOLCHAIN,
+    '//src/tools:tracing_proto_extensions(%s)' % gn_utils.HOST_TOOLCHAIN,
     protozero_plugin,
     ipc_plugin,
 ]
@@ -157,6 +158,7 @@ proto_groups = {
         'targets': [
             '//protos/perfetto/trace:non_minimal_source_set',
             '//protos/perfetto/trace/android:winscope_extensions_source_set',
+            '//protos/perfetto/trace/android:android_track_event_source_set',
         ]
     },
     'config': {
@@ -327,11 +329,33 @@ additional_args = {
         ('min_sdk_version', '30'),
         ('shared_libs', {'liblog'}),
         ('export_include_dirs', {'include', buildflags_dir}),
+        # Compiles base::Regex against the std::regex backend. Static libs
+        # don't propagate their deps to consumers on Soong (b/169779783), so
+        # linking libpcre2 here would force every consumer of this static
+        # lib to pay the libpcre2 code-size cost. Regex usage in the client
+        # SDK is minimal, so std::regex is an acceptable tradeoff.
+        # See b/498785154 for the binary-size regression that motivated this.
+        ('cflags', {'-DPERFETTO_REGEX_FORCE_STD'}),
     ],
     'libperfetto_c': [
         ('min_sdk_version', '30'),
         ('export_include_dirs', {'include'}),
         ('cflags', {'-DPERFETTO_SHLIB_SDK_IMPLEMENTATION'}),
+        ('windows', {
+            'enabled': True,
+            'cflags': [
+                '-Wno-shift-count-overflow',
+                '-Wno-unknown-pragmas',
+            ],
+            'host_ldlibs': ['-lws2_32'],
+        }),
+        # Compiles base::Regex against the std::regex backend. Static libs
+        # don't propagate their deps to consumers on Soong (b/169779783), so
+        # linking libpcre2 here would force every consumer of this static
+        # lib to pay the libpcre2 code-size cost. Regex usage in the client
+        # SDK is minimal, so std::regex is an acceptable tradeoff.
+        # See b/498785154 for the binary-size regression that motivated this.
+        ('cflags', {'-DPERFETTO_REGEX_FORCE_STD'}),
     ],
     'perfetto_trace_protos': [
         ('apex_available', {
@@ -347,6 +371,7 @@ additional_args = {
         ('apex_available',
          {'//apex_available:platform', 'com.android.profiling'}),
     ],
+    'traced': [('required', {'etc_system_tracing_proto_descriptors'})],
     # TODO(ktimofeev): rename android.bp target
     'perfetto_src_android_sdk_java_test_perfetto_trace_test_lib': [
         ('static_libs', {'perfetto_trace_java_protos'})
@@ -413,6 +438,26 @@ def enable_libunwind(module):
   pass
 
 
+def enable_pcre2(module):
+  # Invoked by the dep walker for every module that transitively depends on
+  # //buildtools:pcre2 in GN. Modules that opt out via PERFETTO_REGEX_FORCE_STD
+  # compile base::Regex against std::regex, so they don't reference any pcre2
+  # symbols and the libpcre2 dep is suppressed for them.
+  if '-DPERFETTO_REGEX_FORCE_STD' in module.cflags:
+    return
+  if module.type == 'cc_binary_host':
+    module.static_libs.add('libpcre2')
+  elif module.host_supported:
+    module.android.shared_libs.add('libpcre2')
+    # Use whole_static_libs on host so that pcre2 symbols are embedded in
+    # host static archives (.a). Without this, host consumers of a static
+    # lib (e.g. libandroid_runtime linking libperfetto_c.a) would hit
+    # undefined pcre2 symbols because static_libs don't propagate.
+    module.host.whole_static_libs.add('libpcre2')
+  else:
+    module.shared_libs.add('libpcre2')
+
+
 def enable_sqlite(module):
   if module.type == 'cc_binary_host':
     module.static_libs.add('libsqlite_static_noicu')
@@ -469,6 +514,10 @@ def enable_android_test_common(module):
   module.static_libs.add('androidx.test.ext.junit')
 
 
+def enable_error_prone_annotations(module):
+  module.libs.add('error_prone_annotations')
+
+
 # Android equivalents for third-party libraries that the upstream project
 # depends on.
 builtin_deps = {
@@ -492,6 +541,8 @@ builtin_deps = {
         enable_protoc_lib,
     '//gn:libunwindstack':
         enable_libunwindstack,
+    '//gn:pcre2':
+        enable_pcre2,
     '//gn:sqlite':
         enable_sqlite,
     '//gn:zlib':
@@ -504,6 +555,8 @@ builtin_deps = {
         enable_bionic_libc_platform_headers_on_android,
     '//gn:android_test_common':
         enable_android_test_common,
+    '//gn:error_prone_annotations':
+        enable_error_prone_annotations,
 }
 
 # ----------------------------------------------------------------------------
@@ -569,16 +622,20 @@ class Target(object):
     self.static_libs = set()
     self.whole_static_libs = set()
     self.cflags = set()
+    self.host_ldlibs = set()
+    self.enabled = None
     self.dist = dict()
     self.strip = dict()
     self.stl = None
 
   def to_string(self, output):
     nested_out = []
+    self._output_field(nested_out, 'enabled')
     self._output_field(nested_out, 'shared_libs')
     self._output_field(nested_out, 'static_libs')
     self._output_field(nested_out, 'whole_static_libs')
     self._output_field(nested_out, 'cflags')
+    self._output_field(nested_out, 'host_ldlibs')
     self._output_field(nested_out, 'stl')
     self._output_field(nested_out, 'dist')
     self._output_field(nested_out, 'strip')
@@ -628,6 +685,7 @@ class Module(object):
     self.tool_files: Optional[List[str]] = None
     self.android = Target('android')
     self.host = Target('host')
+    self.windows = Target('windows')
     self.musl = Target('musl')
     self.lto: Optional[bool] = None
     self.stl = None
@@ -650,6 +708,7 @@ class Module(object):
     self.stubs = {}
     self.manifest: Optional[str] = None
     self.resource_dirs: Optional[List[str]] = None
+    self.libs = set()
     self.jni_libs: Optional[List[str]] = None
     self.jni_uses_platform_apis: Optional[bool] = None
     self.jarjar_rules: Optional[str] = None
@@ -663,6 +722,7 @@ class Module(object):
     self._output_field(output, 'srcs')
     self._output_field(output, 'resource_dirs')
     self._output_field(output, 'manifest')
+    self._output_field(output, 'libs')
     self._output_field(output, 'shared_libs')
     self._output_field(output, 'static_libs')
     self._output_field(output, 'whole_static_libs')
@@ -708,6 +768,7 @@ class Module(object):
     target_out = []
     self._output_field(target_out, 'android')
     self._output_field(target_out, 'host')
+    self._output_field(target_out, 'windows')
     self._output_field(target_out, 'musl')
     if target_out:
       output.append('    target: {')
@@ -1206,6 +1267,10 @@ class AndroidJavaSDKModulesGenerator:
 
       _add_additional_args(java_module)
 
+      # All JNI libs will be added to the 'jni_libs' argument of the 'android_app'
+      # or 'android_test' rule that depends on this 'android_library' rule.
+      self._generate_deps_modules_and_add_non_jni_lib_deps(java_module, target)
+
       self.blueprint.add_module(java_module)
 
       if target.android_bp_copy_java_target_name_suffix:
@@ -1220,11 +1285,13 @@ class AndroidJavaSDKModulesGenerator:
 
       module.static_libs.add(java_library_module_name)
     else:
+      java_module = None
       module.srcs = [gn_utils.label_to_path(src) for src in target.sources]
 
-    # All JNI libs will be added to the 'jni_libs' argument of the 'android_app'
-    # or 'android_test' rule that depends on this 'android_library' rule.
-    self._generate_deps_modules_and_add_non_jni_lib_deps(module, target)
+    if not java_module:
+      # All JNI libs will be added to the 'jni_libs' argument of the 'android_app'
+      # or 'android_test' rule that depends on this 'android_library' rule.
+      self._generate_deps_modules_and_add_non_jni_lib_deps(module, target)
 
     module.manifest = gn_utils.label_to_path(target.manifest)
 
@@ -1518,6 +1585,13 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
                     (dep_gn_target.type, dep_module.name))
     elif dep_module.type == 'filegroup':
       module.srcs.add(':' + dep_module.name)
+      # Filegroup sources are flattened into the module, but the filegroup's
+      # own GN deps (e.g. //gn:pcre2 on the regex source_set) are not
+      # automatically walked. Recurse into them to pick up any builtin_deps.
+      for sub_dep in dep.deps:
+        sub_name = gn_utils.label_without_toolchain(sub_dep.name)
+        if sub_name in builtin_deps:
+          builtin_deps[sub_name](module)
     elif dep_module.type == 'genrule':
       module.generated_headers.update(dep_module.genrule_headers)
       module.srcs.update(dep_module.genrule_srcs)
@@ -1544,8 +1618,10 @@ def create_blueprint_for_targets(gn: GnParser, targets: List[str]):
   # become relative to the Android.bp that *uses* cc_defaults (not the one
   # that defines it).s
   defaults.include_dirs = {
-      tree_path, tree_path + '/include', tree_path + '/' + buildflags_dir,
-      tree_path + '/src/profiling/memory/include'
+      tree_path,
+      tree_path + '/include',
+      tree_path + '/' + buildflags_dir,
+      tree_path + '/src/profiling/memory/include',
   }
   defaults.cflags.update([
       '-Wno-error=return-type',
@@ -1594,26 +1670,31 @@ def main():
   if args.desc:
     with open(args.desc) as f:
       desc = json.load(f)
+    bd = None
   else:
-    desc = gn_utils.create_build_description(gn_args)
+    bd = gn_utils.BuildDescription(gn_args)
+    bd.__enter__()
+    desc = bd.desc
 
-  gn = gn_utils.GnParser(desc)
-  blueprint = create_blueprint_for_targets(gn, args.targets or default_targets)
-  project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-  tool_name = os.path.relpath(os.path.abspath(__file__), project_root)
+  try:
+    gn = gn_utils.GnParser(desc)
+    blueprint = create_blueprint_for_targets(gn, args.targets or
+                                             default_targets)
+    project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+    tool_name = os.path.relpath(os.path.abspath(__file__), project_root)
 
-  # TODO(primiano): enable this on Android after the TODO in
-  # perfetto_component.gni is fixed.
-  # Check for ODR violations
-  # for target_name in default_targets:
-  # checker = gn_utils.ODRChecker(gn, target_name)
+    # TODO(primiano): enable this on Android after the TODO in
+    # perfetto_component.gni is fixed.
+    # Check for ODR violations
+    # for target_name in default_targets:
+    # checker = gn_utils.ODRChecker(gn, target_name)
 
-  # Add any proto groups to the blueprint.
-  for name, group in proto_groups.items():
-    create_proto_group_modules(blueprint, gn, name, group)
+    # Add any proto groups to the blueprint.
+    for name, group in proto_groups.items():
+      create_proto_group_modules(blueprint, gn, name, group)
 
-  output = [
-      """// Copyright (C) 2017 The Android Open Source Project
+    output = [
+        """// Copyright (C) 2017 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -1629,27 +1710,34 @@ def main():
 //
 // This file is automatically generated by %s. Do not edit.
 """ % (tool_name)
-  ]
-  blueprint.to_string(output)
-  with open(args.extras, 'r') as r:
-    for line in r:
-      output.append(line.rstrip("\n\r"))
+    ]
+    blueprint.to_string(output)
+    with open(args.extras, 'r') as r:
+      for line in r:
+        output.append(line.rstrip("\n\r"))
 
-  out_files = []
+    out_files = []
 
-  # Generate the Android.bp file.
-  out_files.append(args.output + '.swp')
-  with open(out_files[-1], 'w') as f:
-    f.write('\n'.join(output))
-    # Text files should have a trailing EOL.
-    f.write('\n')
+    # Generate the Android.bp file.
+    out_files.append(args.output + '.swp')
+    with open(out_files[-1], 'w') as f:
+      f.write('\n'.join(output))
+      # Text files should have a trailing EOL.
+      f.write('\n')
 
-  # Generate the perfetto_build_flags.h file.
-  out_files.append(os.path.join(buildflags_dir, 'perfetto_build_flags.h.swp'))
-  gn_utils.gen_buildflags(gn_args, out_files[-1])
+    # Generate the perfetto_build_flags.h file, reusing the GN output
+    # directory.
+    out_files.append(os.path.join(buildflags_dir, 'perfetto_build_flags.h.swp'))
+    if bd:
+      bd.build_buildflags(out_files[-1])
+    else:
+      gn_utils.gen_buildflags(gn_args, out_files[-1])
 
-  # Either check the contents or move the files to their final destination.
-  return gn_utils.check_or_commit_generated_files(out_files, args.check_only)
+    # Either check the contents or move the files to their final destination.
+    return gn_utils.check_or_commit_generated_files(out_files, args.check_only)
+  finally:
+    if bd:
+      bd.__exit__(None, None, None)
 
 
 if __name__ == '__main__':

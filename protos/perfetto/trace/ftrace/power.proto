@@ -69,3 +69,7 @@ message DevicePmCallbackEndFtraceEvent {
   optional string driver = 2;
   optional int32 error = 3;
 }
+message GpuPowerStateFtraceEvent {
+  optional int32 old_state = 1;
+  optional int32 new_state = 2;
+}

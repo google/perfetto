@@ -232,7 +232,7 @@ message TraceMetricV2Spec {
   // interpreting and displaying metric values across different tools and
   // surfaces.
   enum MetricUnit {
-    // Next value: 31
+    // Next value: 33
     METRIC_UNIT_UNSPECIFIED = 0;
     // A unitless count of items or events.
     COUNT = 1;
@@ -294,6 +294,10 @@ message TraceMetricV2Spec {
     MICRO_AMP_HOURS = 29;
     // Time measured in minutes.
     TIME_MINS = 30;
+    // Signal strength measured in dBm (decibels relative to a milliwatt).
+    DECIBEL_MILLIWATTS = 31;
+    // A rate measured in kilobytes per second.
+    KILOBYTES_PER_SECOND = 32;
   }
   oneof unit_oneof {
     // A standard, predefined unit for the metric's value.
@@ -483,6 +487,11 @@ message TraceMetricV2TemplateSpec {
     // A URL linking to more detailed documentation about this value column.
     // Optional.
     optional string doc_link = 7;
+
+    // Vendor extensions. These might be used for system-specific
+    // configuration on how to manage aggregation across traces.
+    // See https://perfetto.dev/docs/analysis/trace-summary#extending
+    extensions 500 to 1000;
   }
   repeated ValueColumnSpec value_column_specs = 8;
 

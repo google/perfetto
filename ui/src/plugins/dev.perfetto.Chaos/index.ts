@@ -65,5 +65,13 @@ export default class implements PerfettoPlugin {
         });
       },
     });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.StartIndefiniteTask',
+      name: 'Chaos: Start a task that never finishes',
+      callback: () => {
+        ctx.taskTracker.track(new Promise(() => {}), 'Indefinite task');
+      },
+    });
   }
 }

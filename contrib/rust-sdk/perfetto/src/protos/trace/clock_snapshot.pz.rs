@@ -32,11 +32,11 @@ pb_enum!(ClockBuiltinClocks {
 });
 
 pb_msg!(ClockSnapshot {
-    clocks: Clock, msg, 1,
+    clocks: ClockSnapshotClock, msg, 1,
     primary_trace_clock: BuiltinClock, enum, 2,
 });
 
-pb_msg!(Clock {
+pb_msg!(ClockSnapshotClock {
     clock_id: u32, primitive, 1,
     timestamp: u64, primitive, 2,
     is_incremental: bool, primitive, 3,

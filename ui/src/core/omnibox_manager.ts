@@ -13,14 +13,18 @@
 // limitations under the License.
 
 import {DisposableStack} from '../base/disposable_stack';
-import {OmniboxManager, PromptChoices} from '../public/omnibox';
+import {
+  OmniboxManager,
+  OmniboxModeDescriptor,
+  PromptChoices,
+} from '../public/omnibox';
 import {raf} from './raf_scheduler';
 
 export enum OmniboxMode {
   Search,
-  Query,
   Command,
   Prompt,
+  RegisteredMode,
 }
 
 interface Prompt {
@@ -41,6 +45,8 @@ export class OmniboxManagerImpl implements OmniboxManager {
   private _text = '';
   private _statusMessageContainer: {msg?: string} = {};
   private _promptsDisabled = false;
+  private _registeredModes = new Map<string, OmniboxModeDescriptor>();
+  private _activeRegisteredMode?: OmniboxModeDescriptor;
 
   get mode(): OmniboxMode {
     return this._mode;
@@ -90,6 +96,7 @@ export class OmniboxManagerImpl implements OmniboxManager {
 
   setMode(mode: OmniboxMode, focus = true): void {
     this._mode = mode;
+    this._activeRegisteredMode = undefined;
     this._focusOmniboxNextRender = focus;
     this._omniboxSelectionIndex = 0;
     this._text = '';
@@ -218,6 +225,49 @@ export class OmniboxManagerImpl implements OmniboxManager {
     this._promptsDisabled = true;
     this.rejectPendingPrompt();
     return trash;
+  }
+
+  get activeRegisteredMode(): OmniboxModeDescriptor | undefined {
+    return this._activeRegisteredMode;
+  }
+
+  get registeredModes(): ReadonlyMap<string, OmniboxModeDescriptor> {
+    return this._registeredModes;
+  }
+
+  registerMode(desc: OmniboxModeDescriptor): Disposable {
+    if (desc.trigger.length !== 1) {
+      throw new Error(
+        `Omnibox mode trigger must be a single character, got '${desc.trigger}'`,
+      );
+    }
+    if (this._registeredModes.has(desc.trigger)) {
+      throw new Error(
+        `Omnibox mode with trigger '${desc.trigger}' is already registered`,
+      );
+    }
+    this._registeredModes.set(desc.trigger, desc);
+    const trash = new DisposableStack();
+    trash.defer(() => {
+      this._registeredModes.delete(desc.trigger);
+      if (this._activeRegisteredMode === desc) {
+        this.reset();
+      }
+    });
+    return trash;
+  }
+
+  activateRegisteredMode(trigger: string, focus = true): void {
+    const desc = this._registeredModes.get(trigger);
+    if (desc === undefined) {
+      throw new Error(`No omnibox mode registered for trigger '${trigger}'`);
+    }
+    this._activeRegisteredMode = desc;
+    this._mode = OmniboxMode.RegisteredMode;
+    this._focusOmniboxNextRender = focus;
+    this._omniboxSelectionIndex = 0;
+    this._text = '';
+    this.rejectPendingPrompt();
   }
 
   private rejectPendingPrompt() {

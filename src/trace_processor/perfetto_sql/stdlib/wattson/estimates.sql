@@ -21,16 +21,20 @@ INCLUDE PERFETTO MODULE wattson.cpu.estimates;
 
 INCLUDE PERFETTO MODULE wattson.gpu.estimates;
 
+INCLUDE PERFETTO MODULE wattson.tpu.estimates;
+
 -- Need to use SPAN_OUTER_JOIN because depending on the trace points enabled,
 -- it's possible one of the tables is empty
-CREATE VIRTUAL TABLE _virtual_system_state_mw USING SPAN_OUTER_JOIN (_cpu_estimates_mw, _gpu_estimates_mw);
+CREATE VIRTUAL TABLE _cpu_gpu_system_state_mw USING SPAN_OUTER_JOIN (_cpu_estimates_mw, _gpu_estimates_mw);
+
+CREATE VIRTUAL TABLE _cpu_gpu_tpu_system_state_mw USING SPAN_OUTER_JOIN (_cpu_gpu_system_state_mw, _tpu_estimates_mw);
 
 -- The most basic components of Wattson, all normalized to be in mW on a per
 -- system state basis
 CREATE PERFETTO TABLE _system_state_mw AS
 SELECT
   *
-FROM _virtual_system_state_mw;
+FROM _cpu_gpu_tpu_system_state_mw;
 
 -- API to get power from each system state in an arbitrary time window
 CREATE PERFETTO FUNCTION _windowed_system_state_mw(
@@ -47,19 +51,21 @@ RETURNS TABLE (
   cpu6_mw DOUBLE,
   cpu7_mw DOUBLE,
   dsu_scu_mw DOUBLE,
-  gpu_mw DOUBLE
+  gpu_mw DOUBLE,
+  tpu_mw DOUBLE
 ) AS
 SELECT
-  sum(ss.cpu0_mw * ss.dur) / sum(ss.dur) AS cpu0_mw,
-  sum(ss.cpu1_mw * ss.dur) / sum(ss.dur) AS cpu1_mw,
-  sum(ss.cpu2_mw * ss.dur) / sum(ss.dur) AS cpu2_mw,
-  sum(ss.cpu3_mw * ss.dur) / sum(ss.dur) AS cpu3_mw,
-  sum(ss.cpu4_mw * ss.dur) / sum(ss.dur) AS cpu4_mw,
-  sum(ss.cpu5_mw * ss.dur) / sum(ss.dur) AS cpu5_mw,
-  sum(ss.cpu6_mw * ss.dur) / sum(ss.dur) AS cpu6_mw,
-  sum(ss.cpu7_mw * ss.dur) / sum(ss.dur) AS cpu7_mw,
-  sum(ss.dsu_scu_mw * ss.dur) / sum(ss.dur) AS dsu_scu_mw,
-  sum(ss.gpu_mw * ss.dur) / sum(ss.dur) AS gpu_mw
+  sum(ss.cpu0_mw * ii.dur) / sum(ii.dur) AS cpu0_mw,
+  sum(ss.cpu1_mw * ii.dur) / sum(ii.dur) AS cpu1_mw,
+  sum(ss.cpu2_mw * ii.dur) / sum(ii.dur) AS cpu2_mw,
+  sum(ss.cpu3_mw * ii.dur) / sum(ii.dur) AS cpu3_mw,
+  sum(ss.cpu4_mw * ii.dur) / sum(ii.dur) AS cpu4_mw,
+  sum(ss.cpu5_mw * ii.dur) / sum(ii.dur) AS cpu5_mw,
+  sum(ss.cpu6_mw * ii.dur) / sum(ii.dur) AS cpu6_mw,
+  sum(ss.cpu7_mw * ii.dur) / sum(ii.dur) AS cpu7_mw,
+  sum(ss.dsu_scu_mw * ii.dur) / sum(ii.dur) AS dsu_scu_mw,
+  sum(ss.gpu_mw * ii.dur) / sum(ii.dur) AS gpu_mw,
+  sum(ss.tpu_mw * ii.dur) / sum(ii.dur) AS tpu_mw
 FROM _interval_intersect_single!($ts, $dur, _ii_subquery!(_system_state_mw)) AS ii
 JOIN _system_state_mw AS ss
   ON ss._auto_id = id;

@@ -20,19 +20,41 @@ from __future__ import print_function
 import argparse
 import json
 import os
-import signal
 import sys
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
-from python.generators.diff_tests.utils import ctrl_c_handler
+# Check that the python venv is active by trying to import protobuf.
+try:
+  import google.protobuf  # noqa: F401
+except ImportError:
+  sys.stderr.write('''
+Error: google.protobuf module not found.
+
+The Perfetto python virtual environment is not active. To set it up, run:
+
+  tools/install-build-deps
+
+Then activate it with:
+
+  source .venv/bin/activate  (Linux/macOS)
+  .venv\\Scripts\\activate   (Windows)
+
+Alternatively, run this script using the venv python directly:
+
+  .venv/bin/python3 tools/diff_test_trace_processor.py ...
+
+''')
+  sys.exit(1)
+
+from python.generators.diff_tests.utils import setup_ctrl_c_handler
 from python.generators.diff_tests.runner import DiffTestsRunner
 from python.generators.diff_tests.models import Config
 
 
 def main():
-  signal.signal(signal.SIGINT, ctrl_c_handler)
+  setup_ctrl_c_handler()
   parser = argparse.ArgumentParser()
   parser.add_argument('--test-type', type=str, default='all')
   parser.add_argument('--trace-descriptor', type=str)
@@ -41,6 +63,7 @@ def main():
   parser.add_argument('--chrome-track-event-descriptor', type=str, default=None)
   parser.add_argument('--test-extensions', type=str, default=None)
   parser.add_argument('--winscope-extensions', type=str, default=None)
+  parser.add_argument('--gpu-extensions', type=str, default=None)
   parser.add_argument('--simpleperf-descriptor', type=str, default=None)
   parser.add_argument('--perf-file', type=str)
   parser.add_argument(
@@ -64,6 +87,12 @@ def main():
       action='store_true',
       help='Print the slowest tests')
   parser.add_argument(
+      '-j',
+      '--jobs',
+      type=int,
+      default=0,
+      help='Number of parallel jobs (default: 0 = use all CPUs)')
+  parser.add_argument(
       'trace_processor', type=str, help='location of trace processor binary')
   args = parser.parse_args()
 
@@ -78,6 +107,9 @@ def main():
   if args.winscope_extensions is None:
     args.winscope_extensions = os.path.join(protos_path, 'perfetto', 'trace',
                                             'android', 'winscope.descriptor')
+  if args.gpu_extensions is None:
+    args.gpu_extensions = os.path.join(protos_path, 'perfetto', 'trace', 'gpu',
+                                       'gpu_track_event.descriptor')
   if args.simpleperf_descriptor is None:
     args.simpleperf_descriptor = os.path.join(protos_path, 'third_party',
                                               'simpleperf',
@@ -100,9 +132,11 @@ def main():
       chrome_extensions=args.chrome_track_event_descriptor,
       test_extensions=args.test_extensions,
       winscope_extensions=args.winscope_extensions,
+      gpu_extensions=args.gpu_extensions,
       simpleperf_descriptor=args.simpleperf_descriptor,
       keep_input=args.keep_input,
-      print_slowest_tests=args.print_slowest_tests)
+      print_slowest_tests=args.print_slowest_tests,
+      jobs=args.jobs)
   test_runner = DiffTestsRunner(config)
   results = test_runner.run()
   sys.stderr.write(results.str(args.no_colors))

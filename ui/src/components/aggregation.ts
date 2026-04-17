@@ -23,10 +23,6 @@ export interface ColumnDef {
   readonly formatHint?: string;
   readonly sum?: boolean;
   readonly sort?: 'ASC' | 'DESC';
-  // Additional fields this column depends on for rendering.
-  // These fields will be included in queries and made available in the row
-  // parameter passed to cellRenderer, even if they're not visible columns.
-  readonly dependsOn?: readonly string[];
   // Custom renderer for this column's cells. If provided, this takes precedence
   // over the formatHint-based renderer.
   readonly cellRenderer?: (

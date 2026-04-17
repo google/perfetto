@@ -171,6 +171,165 @@ TEST_F(TraceSummaryTest, SingleTemplateSpec) {
   EXPECT_THAT(*status_or_output, HasSubstr("id: \"my_metric_value\""));
 }
 
+TEST_F(TraceSummaryTest, TemplateSpecWithInnerQueryId) {
+  base::StatusOr<std::string> status_or_output = RunSummarize(R"(
+    metric_template_spec {
+      id_prefix: "my_metric"
+      value_columns: "value"
+      query {
+        inner_query_id: "shared_query"
+      }
+    }
+    query {
+      id: "shared_query"
+      sql {
+        sql: "SELECT 1.0 as value"
+        column_names: "value"
+      }
+    }
+  )");
+  ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
+  EXPECT_THAT(*status_or_output, HasSubstr("id: \"my_metric_value\""));
+}
+
+TEST_F(TraceSummaryTest, TemplateSpecWithInnerQueryIdAndGroupBy) {
+  base::StatusOr<std::string> status_or_output = RunSummarize(R"(
+    metric_template_spec {
+      id_prefix: "my_metric"
+      dimensions_specs { name: "category" type: STRING }
+      value_columns: "total_value"
+      query {
+        inner_query_id: "shared_query"
+      }
+    }
+    query {
+      id: "shared_query"
+      sql {
+        sql: "SELECT 'cat1' as category, 1.0 as value UNION ALL SELECT 'cat1' as category, 2.0 as value UNION ALL SELECT 'cat2' as category, 3.0 as value"
+        column_names: "category"
+        column_names: "value"
+      }
+      group_by {
+        column_names: "category"
+        aggregates {
+          column_name: "value"
+          op: SUM
+          result_column_name: "total_value"
+        }
+      }
+    }
+  )");
+  ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
+  EXPECT_THAT(*status_or_output, HasSubstr("id: \"my_metric_total_value\""));
+}
+
+TEST_F(TraceSummaryTest, TemplateSpecWithInnerQueryIdTableSource) {
+  // This test uses a table source in the shared query (like the slice table)
+  base::StatusOr<std::string> status_or_output = RunSummarize(R"(
+    metric_template_spec {
+      id_prefix: "my_metric"
+      dimensions_specs { name: "name" type: STRING }
+      value_columns: "count"
+      query {
+        inner_query_id: "shared_query"
+      }
+    }
+    query {
+      id: "shared_query"
+      table {
+        table_name: "slice"
+      }
+      group_by {
+        column_names: "name"
+        aggregates {
+          column_name: "id"
+          op: COUNT
+          result_column_name: "count"
+        }
+      }
+    }
+  )");
+  ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
+  EXPECT_THAT(*status_or_output, HasSubstr("id: \"my_metric_count\""));
+}
+
+// Test complex template spec with multiple inner_query_id references including
+// one in interned_dimension_specs. This mimics real-world heap graph metrics.
+TEST_F(TraceSummaryTest, TemplateSpecWithInternedDimensionsAndInnerQueryId) {
+  base::StatusOr<std::string> status_or_output = RunSummarize(R"(
+    metric_template_spec {
+      id_prefix: "test_aggregation"
+      dimensions_specs {
+        name: "track_id"
+        type: INT64
+      }
+      dimensions_specs {
+        name: "name"
+        type: STRING
+      }
+      value_columns: "total_dur"
+      value_columns: "slice_count"
+      interned_dimension_specs {
+        key_column_spec {
+          name: "track_id"
+          type: INT64
+        }
+        data_column_specs {
+          name: "track_name"
+          type: STRING
+        }
+        query {
+          inner_query_id: "track_metadata_query"
+        }
+      }
+      query {
+        inner_query_id: "slice_aggregation_query"
+      }
+    }
+    query {
+      id: "slice_aggregation_query"
+      table {
+        table_name: "slice"
+      }
+      group_by {
+        column_names: "track_id"
+        column_names: "name"
+        aggregates {
+          column_name: "dur"
+          op: SUM
+          result_column_name: "total_dur"
+        }
+        aggregates {
+          column_name: "id"
+          op: COUNT
+          result_column_name: "slice_count"
+        }
+      }
+    }
+    query {
+      id: "track_metadata_query"
+      table {
+        table_name: "track"
+        column_names: "id"
+        column_names: "name"
+      }
+      select_columns {
+        column_name_or_expression: "id"
+        alias: "track_id"
+      }
+      select_columns {
+        column_name_or_expression: "name"
+        alias: "track_name"
+      }
+    }
+  )");
+  ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
+  EXPECT_THAT(*status_or_output,
+              HasSubstr("id: \"test_aggregation_total_dur\""));
+  EXPECT_THAT(*status_or_output,
+              HasSubstr("id: \"test_aggregation_slice_count\""));
+}
+
 TEST_F(TraceSummaryTest, MultiValueColumnTemplateSpec) {
   base::StatusOr<std::string> status_or_output = RunSummarize(R"(
     metric_template_spec {
@@ -1428,6 +1587,143 @@ TEST_F(TraceSummaryTest, SqlColumnNamesWithFiltersOnly) {
   EXPECT_THAT(*status_or_output, HasSubstr("string_value: \"c\""));
   EXPECT_THAT(*status_or_output, HasSubstr("double_value: 20.000000"));
   EXPECT_THAT(*status_or_output, HasSubstr("double_value: 30.000000"));
+}
+
+// Test the exact heap_graph_class_aggregation spec with inner_query_id
+// references in both the main query and interned_dimension_specs.
+TEST_F(TraceSummaryTest, HeapGraphClassAggregationSpec) {
+  base::StatusOr<std::string> status_or_output = RunSummarize(R"(
+    metric_template_spec {
+      id_prefix: "heap_graph_class_aggregation"
+      dimensions_specs {
+        name: "upid"
+        type: INT64
+      }
+      dimensions_specs {
+        name: "type_name"
+        type: STRING
+      }
+      dimensions_specs {
+        name: "is_libcore_or_array"
+        type: BOOLEAN
+      }
+      value_columns: "total_size_bytes"
+      value_columns: "total_native_size_bytes"
+      value_columns: "total_dominated_obj_count"
+      value_columns: "total_dominated_size_bytes"
+      value_columns: "total_reachable_obj_count"
+      interned_dimension_specs {
+        key_column_spec {
+          name: "upid"
+          type: INT64
+        }
+        data_column_specs {
+          name: "pid"
+          type: INT64
+        }
+        data_column_specs {
+          name: "process_name"
+          type: STRING
+        }
+        data_column_specs {
+          name: "uid"
+          type: INT64
+        }
+        data_column_specs {
+          name: "user_id"
+          type: INT64
+        }
+        data_column_specs {
+          name: "package_name"
+          type: STRING
+        }
+        data_column_specs {
+          name: "version_code"
+          type: INT64
+        }
+        data_column_specs {
+          name: "debuggable"
+          type: BOOLEAN
+        }
+        data_column_specs {
+          name: "is_kernel_task"
+          type: BOOLEAN
+        }
+        query {
+          inner_query_id: "process_metadata_query"
+        }
+      }
+      query {
+        inner_query_id: "heap_graph_class_aggregation_outer_query"
+      }
+    }
+    query {
+      id: "heap_graph_class_aggregation_outer_query"
+      table {
+        table_name: "android_heap_graph_class_aggregation"
+      }
+      referenced_modules: "android.memory.heap_graph.heap_graph_class_aggregation"
+      group_by {
+        column_names: "upid"
+        column_names: "type_name"
+        column_names: "is_libcore_or_array"
+        aggregates {
+          column_name: "size_bytes"
+          op: SUM
+          result_column_name: "total_size_bytes"
+        }
+        aggregates {
+          column_name: "native_size_bytes"
+          op: SUM
+          result_column_name: "total_native_size_bytes"
+        }
+        aggregates {
+          column_name: "dominated_obj_count"
+          op: SUM
+          result_column_name: "total_dominated_obj_count"
+        }
+        aggregates {
+          column_name: "dominated_size_bytes"
+          op: SUM
+          result_column_name: "total_dominated_size_bytes"
+        }
+        aggregates {
+          column_name: "reachable_obj_count"
+          op: SUM
+          result_column_name: "total_reachable_obj_count"
+        }
+      }
+    }
+    query {
+      id: "process_metadata_query"
+      referenced_modules: "android.process_metadata"
+      table {
+        table_name: "android_process_metadata"
+      }
+    }
+  )");
+  ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
+
+  // Verify all the expected metric IDs are generated
+  EXPECT_THAT(
+      *status_or_output,
+      HasSubstr("id: \"heap_graph_class_aggregation_total_size_bytes\""));
+  EXPECT_THAT(
+      *status_or_output,
+      HasSubstr(
+          "id: \"heap_graph_class_aggregation_total_native_size_bytes\""));
+  EXPECT_THAT(
+      *status_or_output,
+      HasSubstr(
+          "id: \"heap_graph_class_aggregation_total_dominated_obj_count\""));
+  EXPECT_THAT(
+      *status_or_output,
+      HasSubstr(
+          "id: \"heap_graph_class_aggregation_total_dominated_size_bytes\""));
+  EXPECT_THAT(
+      *status_or_output,
+      HasSubstr(
+          "id: \"heap_graph_class_aggregation_total_reachable_obj_count\""));
 }
 
 }  // namespace

@@ -17,10 +17,10 @@
 #include "src/tools/ftrace_proto_gen/proto_gen_utils.h"
 
 #include <algorithm>
-#include <regex>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/regex.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/subprocess.h"
 
@@ -128,6 +128,8 @@ std::string ProtoType::ToString() const {
       s += std::to_string(size);
       return s;
     }
+    case BYTES:
+      return "bytes";
   }
   PERFETTO_CHECK(false);  // for GCC.
 }
@@ -146,6 +148,11 @@ ProtoType ProtoType::Invalid() {
 ProtoType ProtoType::Numeric(uint16_t size, bool is_signed, bool is_repeated) {
   PERFETTO_CHECK(size == 32 || size == 64);
   return {NUMERIC, size, is_signed, is_repeated};
+}
+
+// static
+ProtoType ProtoType::Bytes(bool is_repeated) {
+  return {BYTES, 0, false, is_repeated};
 }
 
 // static
@@ -170,6 +177,9 @@ ProtoType ProtoType::FromDescriptor(
   if (type == google::protobuf::FieldDescriptor::Type::TYPE_ENUM)
     return Numeric(32, true, is_repeated);
 
+  if (type == google::protobuf::FieldDescriptor::Type::TYPE_BYTES)
+    return Bytes(is_repeated);
+
   return Invalid();
 }
 
@@ -178,6 +188,9 @@ ProtoType GetCommon(ProtoType one, ProtoType other) {
   // in the proto.
   if (one.type == ProtoType::STRING)
     return ProtoType::String(one.is_repeated);
+
+  if (one.type == ProtoType::BYTES)
+    return ProtoType::Bytes(one.is_repeated);
 
   if (one.is_signed || other.is_signed) {
     one = one.GetSigned();
@@ -190,18 +203,23 @@ ProtoType GetCommon(ProtoType one, ProtoType other) {
 
 ProtoType InferProtoType(const FtraceEvent::Field& field) {
   // Fixed length strings: "char foo[16]"
-  if (std::regex_match(field.type_and_name, std::regex(R"(char \w+\[\d+\])")))
+  auto char_array_re = base::Regex::CreateOrCheck(R"(char \w+\[\d+\])");
+  if (char_array_re.FullMatch(field.type_and_name))
     return ProtoType::String();
 
   // String pointers: "__data_loc char[] foo" (as in
   // 'cpufreq_interactive_boost').
-  if (Contains(field.type_and_name, "char[] "))
-    return ProtoType::String();
-  if (Contains(field.type_and_name, "char * "))
+  if (StartsWith(field.type_and_name, "__data_loc char[] "))
     return ProtoType::String();
 
-  // Variable length strings: "char* foo"
-  if (StartsWith(field.type_and_name, "char *"))
+  // Bytes pointer: "__data_loc u8[] foo"
+  if (StartsWith(field.type_and_name, "__data_loc u8[] ") ||
+      StartsWith(field.type_and_name, "__data_loc __u8[] ") ||
+      StartsWith(field.type_and_name, "__data_loc unsigned char[] "))
+    return ProtoType::Bytes();
+
+  // Variable length strings: "char * foo"
+  if (Contains(field.type_and_name, "char *"))
     return ProtoType::String();
 
   // Variable length strings: "char foo" + size: 0 (as in 'print').

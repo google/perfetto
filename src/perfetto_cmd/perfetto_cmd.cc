@@ -78,7 +78,7 @@
 #include "src/perfetto_cmd/config.h"
 #include "src/perfetto_cmd/packet_writer.h"
 #include "src/perfetto_cmd/trigger_producer.h"
-#include "src/trace_config_utils/txt_to_pb.h"
+#include "src/proto_utils/txt_to_pb.h"
 
 #include "protos/perfetto/common/ftrace_descriptor.gen.h"
 #include "protos/perfetto/common/tracing_service_state.gen.h"
@@ -166,6 +166,7 @@ Usage: %s
                              If using CLONE_SNAPSHOT triggers, each snapshot
                              will be saved in a new file with a counter suffix
                              (e.g., file.0, file.1, file.2).
+  --no-clobber             : Do not overwrite an existing output file.
   --txt                    : Parse config as pbtxt. Not for production use.
                              Not a stable API.
   --query [--long]         : Queries the service state and prints it as
@@ -173,6 +174,8 @@ Usage: %s
                              extend past 80 chars.
   --query-raw              : Like --query, but prints raw proto-encoded bytes
                              of tracing_service_state.proto.
+  --add-note key[=value]   : Add user notes to trace. If "=value" is omitted,
+                             the value is the empty string.
   --help           -h
 
 Light configuration flags: (only when NOT using -c/--config)
@@ -238,6 +241,8 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     OPT_QUERY_RAW,
     OPT_VERSION,
     OPT_NOTIFY_FD,
+    OPT_NO_CLOBBER,
+    OPT_NOTE,
   };
   static const option long_options[] = {
       {"help", no_argument, nullptr, 'h'},
@@ -268,19 +273,24 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"query", no_argument, nullptr, OPT_QUERY},
       {"long", no_argument, nullptr, OPT_LONG},
       {"query-raw", no_argument, nullptr, OPT_QUERY_RAW},
+      {"add-note", required_argument, nullptr, OPT_NOTE},
       {"version", no_argument, nullptr, OPT_VERSION},
       {"save-for-bugreport", no_argument, nullptr, OPT_BUGREPORT},
       {"save-all-for-bugreport", no_argument, nullptr, OPT_BUGREPORT_ALL},
       {"notify-fd", required_argument, nullptr, OPT_NOTIFY_FD},
+      {"no-clobber", no_argument, nullptr, OPT_NO_CLOBBER},
       {nullptr, 0, nullptr, 0}};
 
   std::string config_file_name;
   std::string trace_config_raw;
   bool parse_as_pbtxt = false;
+  bool no_clobber = false;
   TraceConfig::StatsdMetadata statsd_metadata;
 
   ConfigOptions config_options;
   bool has_config_options = false;
+
+  std::vector<std::pair<std::string, std::string>> notes;
 
   if (argc <= 1) {
     PrintUsage(argv[0]);
@@ -313,6 +323,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
         TraceConfig test_config;
         ConfigOptions opts;
         opts.time = "2s";
+        opts.categories.reserve(4);
         opts.categories.emplace_back("sched/sched_switch");
         opts.categories.emplace_back("power/cpu_idle");
         opts.categories.emplace_back("power/cpu_frequency");
@@ -497,6 +508,29 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       continue;
     }
 
+    if (option == OPT_NOTE) {
+      std::string arg(optarg ? optarg : "");
+      if (arg.empty()) {
+        PERFETTO_ELOG("add-note: key must be non-empty");
+        return 1;
+      }
+
+      const size_t eq = arg.find('=');
+      if (eq == std::string::npos) {
+        notes.emplace_back(std::move(arg), std::string());
+        continue;
+      }
+
+      if (eq == 0) {
+        PERFETTO_ELOG("add-note: key must be non-empty");
+        return 1;
+      }
+
+      // Split on the first '=' so values can contain '=' (e.g. 'k=a=b=c').
+      notes.emplace_back(arg.substr(0, eq), arg.substr(eq + 1));
+      continue;
+    }
+
     if (option == OPT_VERSION) {
       printf("%s\n", base::GetVersionString());
       return 0;
@@ -520,6 +554,11 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       PERFETTO_ELOG("--notify-fd is not supported on Windows");
       return 1;
 #endif
+    }
+
+    if (option == OPT_NO_CLOBBER) {
+      no_clobber = true;
+      continue;
     }
 
     PrintUsage(argv[0]);
@@ -744,6 +783,12 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
                                         ? TraceConfig::STATSD_LOGGING_ENABLED
                                         : TraceConfig::STATSD_LOGGING_DISABLED);
 
+  for (const auto& note : notes) {
+    auto n = trace_config_->add_notes();
+    n->set_key(note.first);
+    n->set_value(note.second);
+  }
+
   // Set up the output file. Either --out or --upload are expected, with the
   // only exception of --attach. In this case the output file is passed when
   // detaching.
@@ -814,7 +859,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     return 1;
   }
   if (open_out_file) {
-    if (!OpenOutputFile())
+    if (!OpenOutputFile(no_clobber))
       return 1;
     if (!trace_config_->write_into_file())
       packet_writer_.emplace(trace_out_stream_.get());
@@ -1253,7 +1298,7 @@ void PerfettoCmd::FinalizeTraceAndExit() {
   task_runner_.Quit();
 }
 
-bool PerfettoCmd::OpenOutputFile() {
+bool PerfettoCmd::OpenOutputFile(bool no_clobber) {
   base::ScopedFile fd;
   if (trace_out_path_.empty()) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -1262,7 +1307,17 @@ bool PerfettoCmd::OpenOutputFile() {
   } else if (trace_out_path_ == "-") {
     fd.reset(dup(fileno(stdout)));
   } else {
-    fd = base::OpenFile(trace_out_path_, O_RDWR | O_CREAT | O_TRUNC, 0600);
+    // O_CREAT | O_EXCL will fail if the file exists already.
+    const int flags = O_RDWR | O_CREAT | (no_clobber ? O_EXCL : O_TRUNC);
+    fd = base::OpenFile(trace_out_path_, flags, 0600);
+    // Show a specific error message for the EEXIST errno
+    if (!fd && errno == EEXIST) {
+      PERFETTO_ELOG(
+          "Error: Output file '%s' already exists, refusing to overwrite due "
+          "to '--no-clobber'.",
+          trace_out_path_.c_str());
+      return false;
+    }
   }
   if (!fd) {
     PERFETTO_PLOG(
@@ -1746,14 +1801,6 @@ void PerfettoCmd::LogUploadEvent(PerfettoStatsdAtom atom,
   base::Uuid uuid(uuid_);
   android_stats::MaybeLogUploadEvent(atom, uuid.lsb(), uuid.msb(),
                                      trigger_name);
-}
-
-void PerfettoCmd::LogTriggerEvents(
-    PerfettoTriggerAtom atom,
-    const std::vector<std::string>& trigger_names) {
-  if (!statsd_logging_)
-    return;
-  android_stats::MaybeLogTriggerEvents(atom, trigger_names);
 }
 
 int PERFETTO_EXPORT_ENTRYPOINT PerfettoCmdMain(int argc, char** argv) {

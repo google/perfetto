@@ -36,6 +36,7 @@ export function renderButtonDemo(): m.Children {
         rightIcon,
         showAsGrid,
         showInlineWithText,
+        tooltip,
         ...rest
       }) =>
         showAsGrid
@@ -58,21 +59,24 @@ export function renderButtonDemo(): m.Children {
                     label: variant,
                     variant,
                     intent,
+                    tooltip: tooltip ? 'Tooltip text' : undefined,
                   });
                 });
               }),
             )
-          : m('', [
-              showInlineWithText && 'Inline ',
-              m(Button, {
+          : (() => {
+              const button = m(Button, {
                 icon: icon ? 'send' : undefined,
                 rightIcon: rightIcon ? 'arrow_forward' : undefined,
                 label: (label ? 'Button' : undefined) as string,
                 onclick: () => console.log('button pressed'),
+                tooltip: tooltip ? 'Tooltip text' : undefined,
                 ...rest,
-              }),
-              showInlineWithText && ' text',
-            ]),
+              });
+              return showInlineWithText
+                ? m('span', 'Inline ', button, ' text')
+                : button;
+            })(),
       initialOpts: {
         label: true,
         icon: true,
@@ -89,6 +93,7 @@ export function renderButtonDemo(): m.Children {
         showAsGrid: false,
         showInlineWithText: false,
         rounded: false,
+        tooltip: false,
       },
     }),
 

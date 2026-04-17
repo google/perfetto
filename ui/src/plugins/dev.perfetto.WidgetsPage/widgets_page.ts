@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {classNames} from '../../base/classnames';
 import {App} from '../../public/app';
+import {renderAccordion} from './demos/accordion_demo';
 import {anchor} from './demos/anchor_demo';
 import {renderButtonDemo} from './demos/button_demo';
 import {renderButtonGroupDemo} from './demos/button_group_demo';
@@ -27,10 +28,12 @@ import {renderCodeSnippet} from './demos/code_snippet_demo';
 import {renderCopyableLink} from './demos/copyable_link_demo';
 import {cursorTooltip} from './demos/cursor_tooltip_demo';
 import {renderDataGrid} from './demos/datagrid_demo';
+import {renderDrawerPanel} from './demos/drawer_panel_demo';
 import {renderEditor} from './demos/editor_demo';
 import {renderEmptyState} from './demos/empty_state_demo';
 import {renderForm} from './demos/form_demo';
 import {renderGrid} from './demos/grid_demo';
+import {renderCharts} from './demos/charts_demo';
 import {renderHotkey} from './demos/hotkey_demo';
 import {renderIcon} from './demos/icon_demo';
 import {renderMenu} from './demos/menu_demo';
@@ -47,6 +50,7 @@ import {renderSelect} from './demos/select_demo';
 import {renderSpinner} from './demos/spinner_demo';
 import {renderSplitPanel} from './demos/split_panel_demo';
 import {renderSwitch} from './demos/switch_demo';
+import {renderTabs} from './demos/tabs_demo';
 import {renderTabStrip} from './demos/tabstrip_demo';
 import {renderTagInput} from './demos/tag_input_demo';
 import {renderTextInput} from './demos/text_input_demo';
@@ -55,7 +59,6 @@ import {renderTooltip} from './demos/tooltip_demo';
 import {renderTrackShell} from './demos/track_shell_demo';
 import {renderTree} from './demos/tree_demo';
 import {renderTreeTable} from './demos/treetable_demo';
-import {renderVegaView} from './demos/vega_view_demo';
 import {renderVirtualCanvas} from './demos/virtual_canvas_demo';
 
 interface WidgetSection {
@@ -65,18 +68,21 @@ interface WidgetSection {
 }
 
 const WIDGET_SECTIONS: WidgetSection[] = [
+  {id: 'accordion', label: 'Accordion', view: renderAccordion},
   {id: 'anchor', label: 'Anchor', view: anchor},
   {id: 'button', label: 'Button', view: renderButtonDemo},
   {id: 'button-group', label: 'ButtonGroup', view: renderButtonGroupDemo},
   {id: 'callout', label: 'Callout', view: renderCallout},
   {id: 'card-stack', label: 'CardStack', view: cardStack},
   {id: 'card', label: 'Card', view: renderCard},
+  {id: 'charts', label: 'Charts', view: renderCharts},
   {id: 'checkbox', label: 'Checkbox', view: renderCheckbox},
   {id: 'chip', label: 'Chip', view: renderChip},
   {id: 'codesnippet', label: 'CodeSnippet', view: renderCodeSnippet},
   {id: 'copyablelink', label: 'CopyableLink', view: renderCopyableLink},
   {id: 'cursor-tooltip', label: 'CursorTooltip', view: cursorTooltip},
   {id: 'datagrid', label: 'DataGrid', view: renderDataGrid},
+  {id: 'drawer-panel', label: 'DrawerPanel', view: renderDrawerPanel},
   {id: 'editor', label: 'Editor', view: renderEditor},
   {id: 'emptystate', label: 'EmptyState', view: renderEmptyState},
   {id: 'form', label: 'Form', view: renderForm},
@@ -95,8 +101,9 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'segmented-buttons', label: 'SegmentedButtons', view: segmentedButtons},
   {id: 'select', label: 'Select', view: renderSelect},
   {id: 'spinner', label: 'Spinner', view: renderSpinner},
-  {id: 'split-panel', label: 'Split Panel', view: renderSplitPanel},
+  {id: 'split-panel', label: 'SplitPanel', view: renderSplitPanel},
   {id: 'switch', label: 'Switch', view: renderSwitch},
+  {id: 'tabs', label: 'Tabs', view: renderTabs},
   {id: 'tabstrip', label: 'TabStrip', view: renderTabStrip},
   {id: 'taginput', label: 'TagInput', view: renderTagInput},
   {id: 'textinput', label: 'TextInput', view: renderTextInput},
@@ -105,7 +112,6 @@ const WIDGET_SECTIONS: WidgetSection[] = [
   {id: 'trackshell', label: 'TrackShell', view: renderTrackShell},
   {id: 'tree', label: 'Tree', view: renderTree},
   {id: 'treetable', label: 'TreeTable', view: renderTreeTable},
-  {id: 'vegaview', label: 'VegaView', view: renderVegaView},
   {id: 'virtualcanvas', label: 'VirtualCanvas', view: renderVirtualCanvas},
 ];
 

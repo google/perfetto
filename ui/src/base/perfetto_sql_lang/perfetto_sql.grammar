@@ -30,27 +30,39 @@ Keyword {
     "ALL" | "all" |
     "AND" | "and" |
     "AS" | "as" |
+    "ASC" | "asc" |
     "BETWEEN" | "between" |
     "BY" | "by" |
     "CASE" | "case" |
+    "CAST" | "cast" |
     "CREATE" | "create" |
     "CROSS" | "cross" |
+    "DELETE" | "delete" |
+    "DESC" | "desc" |
+    "DISTINCT" | "distinct" |
+    "DROP" | "drop" |
     "ELSE" | "else" |
     "END" | "end" |
+    "EXCEPT" | "except" |
     "FROM" | "from" |
     "FUNCTION" | "function" |
     "GLOB" | "glob" |
     "GROUP" | "group" |
     "HAVING" | "having" |
+    "IN" | "in" |
     "INCLUDE" | "include" |
     "INNER" | "inner" |
+    "INSERT" | "insert" |
+    "INTERSECT" | "intersect" |
     "IS" | "is" |
     "JOIN" | "join" |
     "LEFT" | "left" |
+    "LIKE" | "like" |
     "LIMIT" | "limit" |
     "MACRO" | "macro" |
     "MODULE" | "module" |
     "NOT" | "not" |
+    "OFFSET" | "offset" |
     "ON" | "on" |
     "OR" | "or" |
     "ORDER" | "order" |
@@ -59,12 +71,14 @@ Keyword {
     "PARTITION" | "partition" |
     "PERFETTO" | "perfetto" |
     "REPLACE" | "replace" |
+    "RETURN" | "return" |
     "RETURNS" | "returns" |
     "RIGHT" | "right" |
     "SELECT" | "select" |
     "TABLE" | "table" |
     "THEN" | "then" |
     "UNION" | "union" |
+    "UPDATE" | "update" |
     "USING" | "using" |
     "VALUES" | "values" |
     "VIEW" | "view" |

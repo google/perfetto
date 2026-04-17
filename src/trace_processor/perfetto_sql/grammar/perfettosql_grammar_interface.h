@@ -118,7 +118,8 @@ struct PerfettoSqlArgumentList* OnPerfettoSqlCreateOrAppendArgument(
     struct PerfettoSqlParserState* state,
     struct PerfettoSqlArgumentList* list,
     struct PerfettoSqlToken* name,
-    struct PerfettoSqlToken* type);
+    struct PerfettoSqlToken* type,
+    int is_variadic);
 void OnPerfettoSqlFreeArgumentList(struct PerfettoSqlParserState*,
                                    struct PerfettoSqlArgumentList*);
 

@@ -34,7 +34,8 @@ class TraceProcessorContext;
 // queryable logs with context).
 class ImportLogsTracker {
  public:
-  explicit ImportLogsTracker(TraceProcessorContext*, uint32_t trace_id);
+  explicit ImportLogsTracker(TraceProcessorContext*,
+                             tables::TraceFileTable::Id trace_id);
 
   // For "tokenization" errors (pre-parsing, only have byte offset)
   // Use when reading raw bytes and encountering malformed data.
@@ -59,6 +60,13 @@ class ImportLogsTracker {
       int64_t timestamp,
       std::function<void(ArgsTracker::BoundInserter&)> args_callback = {});
 
+  // For "collection" errors (errors occurring during trace recording on device)
+  // Use when the trace contains explicit error information from the producer.
+  void RecordCollectionError(
+      size_t stat_key,
+      int64_t timestamp,
+      std::function<void(ArgsTracker::BoundInserter&)> args_callback = {});
+
   // For "analysis" errors (validation/resolution phase, no specific event)
   // Use ONLY when the error occurs during analysis/validation, not tied to a
   // specific packet or event (e.g., track hierarchy validation).
@@ -79,7 +87,7 @@ class ImportLogsTracker {
       std::function<void(ArgsTracker::BoundInserter&)> args_callback);
 
   TraceProcessorContext* context_;
-  uint32_t trace_id_;
+  tables::TraceFileTable::Id trace_id_;
 };
 
 }  // namespace perfetto::trace_processor

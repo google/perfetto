@@ -1,0 +1,89 @@
+# Test data for HorizontalClassMergingStackSampleRetraceTest
+# R8 mapping: Class B merged into A
+#   a.c -> A.foo()
+#   a.b -> B.bar() (method from merged class B)
+#   a.a -> {A.baz(), B.baz()} (ambiguous - both classes had baz())
+#
+# R8 expected map format:
+#   1:1:void ...B.baz():51:51 -> a
+#   2:2:void baz():51:51 -> a
+# Without line context, both A.baz() and B.baz() are valid - ambiguous.
+
+packet {
+  clock_snapshot {
+    clocks: { clock_id: 6 timestamp: 0 }
+    clocks: { clock_id: 4 timestamp: 10 }
+  }
+}
+packet {
+  process_tree {
+    processes { pid: 1 ppid: 0 cmdline: "init" uid: 0 }
+    processes { pid: 100 ppid: 1 cmdline: "com.example.app" uid: 10001 }
+  }
+}
+packet {
+  packages_list {
+    packages { name: "com.example.app" uid: 10001 }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  previous_packet_dropped: true
+  incremental_state_cleared: true
+  timestamp: 100
+  profile_packet {
+    strings { iid: 1 str: "a.c" }
+    strings { iid: 2 str: "a.b" }
+    strings { iid: 3 str: "a.a" }
+    strings { iid: 4 str: "data/app/com.example.app/base.apk" }
+    strings { iid: 5 str: "" }
+    frames { iid: 1 function_name_id: 1 mapping_id: 1 rel_pc: 0x1000 }
+    frames { iid: 2 function_name_id: 2 mapping_id: 1 rel_pc: 0x2000 }
+    frames { iid: 3 function_name_id: 3 mapping_id: 1 rel_pc: 0x3000 }
+    callstacks { iid: 1 frame_ids: 1 }
+    callstacks { iid: 2 frame_ids: 2 }
+    callstacks { iid: 3 frame_ids: 3 }
+    mappings { iid: 1 path_string_ids: 4 build_id: 5 }
+    process_dumps {
+      pid: 100
+      samples { callstack_id: 1 self_allocated: 1000 alloc_count: 1 }
+      samples { callstack_id: 2 self_allocated: 1000 alloc_count: 1 }
+      samples { callstack_id: 3 self_allocated: 1000 alloc_count: 1 }
+    }
+  }
+}
+packet {
+  deobfuscation_mapping {
+    package_name: "com.example.app"
+    version_code: 1
+    obfuscated_classes {
+      obfuscated_name: "a"
+      deobfuscated_name: "com.example.A"
+      obfuscated_methods {
+        obfuscated_name: "c"
+        deobfuscated_name: "foo"
+      }
+      obfuscated_methods {
+        # Method from merged class B - use fully qualified name
+        obfuscated_name: "b"
+        deobfuscated_name: "com.example.B.bar"
+      }
+      # R8 mapping: 1:1:void B.baz():51:51 -> a
+      obfuscated_methods {
+        obfuscated_name: "a"
+        deobfuscated_name: "com.example.B.baz"
+        obfuscated_line_start: 1
+        obfuscated_line_end: 1
+        source_line_start: 51
+      }
+      # R8 mapping: 2:2:void baz():51:51 -> a (A.baz)
+      obfuscated_methods {
+        obfuscated_name: "a"
+        deobfuscated_name: "baz"
+        obfuscated_line_start: 2
+        obfuscated_line_end: 2
+        source_line_start: 51
+      }
+    }
+  }
+}

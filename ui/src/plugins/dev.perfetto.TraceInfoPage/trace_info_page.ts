@@ -14,14 +14,20 @@
 
 import m from 'mithril';
 import {Trace} from '../../public/trace';
-import {TabStrip, TabOption} from '../../widgets/tabs';
+import {TabStrip, TabOption} from '../../widgets/tab_strip';
 import {EmptyState} from '../../widgets/empty_state';
 import type {TabKey} from './utils';
 import {isValidTabKey} from './utils';
 import {OverviewTab, OverviewData, loadOverviewData} from './tabs/overview';
 import {ConfigTab, ConfigData, loadConfigData} from './tabs/config';
-import {AndroidTab, AndroidData, loadAndroidData} from './tabs/android';
+import {
+  AndroidTab,
+  AndroidData,
+  loadAndroidData,
+  hasAndroidData,
+} from './tabs/android';
 import {MachinesTab, MachinesData, loadMachinesData} from './tabs/machines';
+import {TracesTab, TracesData, loadTracesData} from './tabs/traces';
 import {
   ImportErrorsTab,
   ImportErrorsData,
@@ -53,6 +59,7 @@ interface AllTabData {
   config: ConfigData;
   android: AndroidData;
   machines: MachinesData;
+  traces: TracesData;
   importErrors: ImportErrorsData;
   traceErrors: TraceErrorsData;
   dataLosses: DataLossesData;
@@ -123,6 +130,10 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
         return m(AndroidTab, {
           data: this.tabData.android,
         });
+      case 'traces':
+        return m(TracesTab, {
+          data: this.tabData.traces,
+        });
       case 'machines':
         return m(MachinesTab, {
           data: this.tabData.machines,
@@ -157,6 +168,7 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
       config: await loadConfigData(engine),
       android: await loadAndroidData(engine),
       machines: await loadMachinesData(engine),
+      traces: await loadTracesData(engine),
       importErrors: await loadImportErrorsData(engine),
       traceErrors: await loadTraceErrorsData(engine),
       dataLosses: await loadDataLossesData(engine),
@@ -168,7 +180,7 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
 
   private getTabs(): TabOption[] {
     const tabs: TabOption[] = [{key: 'overview', title: 'Overview'}];
-    if (this.tabData?.config?.configText) {
+    if ((this.tabData?.config?.configs?.length ?? 0) > 0) {
       tabs.push({key: 'config', title: 'Trace Config'});
     }
     if ((this.tabData?.overview?.importErrors ?? 0) > 0) {
@@ -183,11 +195,11 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
     if ((this.tabData?.overview?.uiLoadingErrorCount ?? 0) > 0) {
       tabs.push({key: 'ui_loading_errors', title: 'UI Loading Errors'});
     }
-    const hasAndroid =
-      (this.tabData?.android?.packageList?.length ?? 0) > 0 ||
-      (this.tabData?.android?.gameInterventions?.length ?? 0) > 0;
-    if (hasAndroid) {
+    if (hasAndroidData(this.tabData?.android)) {
       tabs.push({key: 'android', title: 'Android'});
+    }
+    if ((this.tabData?.overview?.traceCount ?? 0) > 1) {
+      tabs.push({key: 'traces', title: 'Traces'});
     }
     if ((this.tabData?.machines?.machineCount ?? 0) > 1) {
       tabs.push({key: 'machines', title: 'Machines'});

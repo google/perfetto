@@ -21,6 +21,7 @@ import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {getColorForSlice, makeColorScheme} from '../../components/colorizer';
 import {HSLColor} from '../../base/color';
+import {CounterTrack} from '../../components/tracks/counter_track';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.example.Tracks';
@@ -37,6 +38,8 @@ export default class implements PerfettoPlugin {
     await addFixedColorSliceTrack(trace);
     await addNestedTrackGroup(trace);
     addTracksWithHelpText(trace);
+    await addIncompleteSlicesTrack(trace);
+    await addCounterTracks(trace);
   }
 }
 
@@ -359,4 +362,254 @@ function addGroupWithHelpText(trace: Trace) {
   const groupNode = new TrackNode({uri, name: 'Group with Help Text'});
   trace.defaultWorkspace.addChildInOrder(groupNode);
   return groupNode;
+}
+
+// Example 8: A track with incomplete slices (dur = -1) at various depth levels.
+async function addIncompleteSlicesTrack(trace: Trace): Promise<void> {
+  const traceStartTime = trace.traceInfo.start;
+  const traceDur = trace.traceInfo.end - trace.traceInfo.start;
+  const tableName = 'incomplete_events';
+
+  // Create a table with incomplete slices at different depths
+  await trace.engine.tryQuery(`drop table if exists ${tableName}`);
+  await trace.engine.query(`
+    create table ${tableName} (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      ts INTEGER,
+      dur INTEGER,
+      depth INTEGER
+    );
+
+    insert into ${tableName} (name, ts, dur, depth)
+    values
+      -- Complete slices for context
+      ('Complete 0', ${traceStartTime}, ${traceDur / 4n}, 0),
+      ('Complete 1', ${traceStartTime + traceDur / 3n}, ${traceDur / 4n}, 1),
+      ('Complete 2', ${traceStartTime + traceDur / 2n}, ${traceDur / 4n}, 2),
+      -- Incomplete slices (dur = -1) at various depths
+      ('Incomplete at depth 0', ${traceStartTime + traceDur / 8n}, -1, 0),
+      ('Incomplete at depth 1', ${traceStartTime + traceDur / 6n}, -1, 1),
+      ('Incomplete at depth 2', ${traceStartTime + traceDur / 5n}, -1, 2),
+      ('Incomplete at depth 3', ${traceStartTime + traceDur / 4n}, -1, 3)
+    ;
+  `);
+
+  const name = 'Incomplete Slices (Various Depths)';
+  const uri = `com.example.Tracks#IncompleteSlicesTrack`;
+
+  trace.tracks.registerTrack({
+    uri,
+    renderer: SliceTrack.create({
+      trace: trace,
+      uri,
+      dataset: new SourceDataset({
+        src: tableName,
+        schema: {
+          id: NUM,
+          ts: LONG,
+          dur: LONG,
+          name: STR,
+          depth: NUM,
+        },
+      }),
+    }),
+  });
+
+  // Add to workspace
+  trace.defaultWorkspace.addChildInOrder(new TrackNode({uri, name}));
+}
+
+// Example 9: Counter tracks demonstrating different counter options.
+async function addCounterTracks(trace: Trace): Promise<void> {
+  const traceStartTime = trace.traceInfo.start;
+  const traceDur = trace.traceInfo.end - trace.traceInfo.start;
+  const tableName = 'example_counter';
+
+  // Create a counter table with a sine wave pattern
+  await trace.engine.tryQuery(`drop table if exists ${tableName}`);
+  await trace.engine.query(`
+    create table ${tableName} (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts INTEGER,
+      value REAL
+    );
+  `);
+
+  const numPoints = 2000;
+  const values: string[] = [];
+  for (let i = 0; i < numPoints; i++) {
+    const ts = traceStartTime + (traceDur * BigInt(i)) / BigInt(numPoints);
+    const value = 50 * Math.sin((10 * Math.PI * i) / numPoints);
+    values.push(`(${ts}, ${value.toFixed(2)})`);
+  }
+  await trace.engine.query(`
+    insert into ${tableName} (ts, value) values ${values.join(',')};
+  `);
+
+  // Basic counter track
+  const uri1 = 'com.example.Tracks#CounterTrack';
+  trace.tracks.registerTrack({
+    uri: uri1,
+    renderer: CounterTrack.create({
+      trace,
+      uri: uri1,
+      sqlSource: `select ts, value from ${tableName}`,
+    }),
+  });
+
+  // Counter track with range sharing key
+  const uri2 = 'com.example.Tracks#CounterTrackShared1';
+  trace.tracks.registerTrack({
+    uri: uri2,
+    renderer: CounterTrack.create({
+      trace,
+      uri: uri2,
+      sqlSource: `select ts, value from ${tableName}`,
+      yRangeSharingKey: 'example_shared',
+    }),
+  });
+
+  const uri3 = 'com.example.Tracks#CounterTrackShared2';
+  trace.tracks.registerTrack({
+    uri: uri3,
+    renderer: CounterTrack.create({
+      trace,
+      uri: uri3,
+      sqlSource: `select ts, value * 0.5 + 20 as value from ${tableName}`,
+      yRangeSharingKey: 'example_shared',
+    }),
+  });
+
+  // Counter track with negative values
+  const uri4 = 'com.example.Tracks#CounterTrackNegative';
+  trace.tracks.registerTrack({
+    uri: uri4,
+    renderer: CounterTrack.create({
+      trace,
+      uri: uri4,
+      sqlSource: `select ts, value - 40 as value from ${tableName}`,
+    }),
+  });
+
+  // Counter track with only negative values (shifted below zero)
+  const uri5 = 'com.example.Tracks#CounterTrackNegativeOnly';
+  trace.tracks.registerTrack({
+    uri: uri5,
+    renderer: CounterTrack.create({
+      trace,
+      uri: uri5,
+      sqlSource: `select ts, value - 100 as value from ${tableName}`,
+    }),
+  });
+
+  // Counter track with very large values (gigabytes scale)
+  const uri6 = 'com.example.Tracks#CounterTrackLarge';
+  trace.tracks.registerTrack({
+    uri: uri6,
+    renderer: CounterTrack.create({
+      trace,
+      uri: uri6,
+      sqlSource: `select ts, (value + 50) * 20000000 as value from ${tableName}`,
+    }),
+  });
+
+  // Counter track with very small values (nanoseconds scale)
+  const uri7 = 'com.example.Tracks#CounterTrackSmall';
+  trace.tracks.registerTrack({
+    uri: uri7,
+    renderer: CounterTrack.create({
+      trace,
+      uri: uri7,
+      sqlSource: `select ts, (value + 50) * 0.000001 as value from ${tableName}`,
+    }),
+  });
+
+  // Frequency counter (Hz) - values in MHz range
+  const uri8 = 'com.example.Tracks#CounterTrackHz';
+  trace.tracks.registerTrack({
+    uri: uri8,
+    renderer: CounterTrack.create({
+      trace,
+      uri: uri8,
+      sqlSource: `select ts, (value + 50) * 30000000 as value from ${tableName}`,
+      unit: 'Hz',
+    }),
+  });
+
+  // Power counter (W) - values in milliwatt range
+  const uri9 = 'com.example.Tracks#CounterTrackWatts';
+  trace.tracks.registerTrack({
+    uri: uri9,
+    renderer: CounterTrack.create({
+      trace,
+      uri: uri9,
+      sqlSource: `select ts, (value + 50) * 0.001 as value from ${tableName}`,
+      unit: 'W',
+    }),
+  });
+
+  // Memory counter (bytes) - values in megabyte range
+  const uri10 = 'com.example.Tracks#CounterTrackBytes';
+  trace.tracks.registerTrack({
+    uri: uri10,
+    renderer: CounterTrack.create({
+      trace,
+      uri: uri10,
+      sqlSource: `select ts, (value + 50) * 1000000 as value from ${tableName}`,
+      unit: 'B',
+    }),
+  });
+
+  // Duration counter (seconds) - values in millisecond range
+  const uri11 = 'com.example.Tracks#CounterTrackSeconds';
+  trace.tracks.registerTrack({
+    uri: uri11,
+    renderer: CounterTrack.create({
+      trace,
+      uri: uri11,
+      sqlSource: `select ts, (value + 50) * 0.0001 as value from ${tableName}`,
+      unit: 's',
+    }),
+  });
+
+  // Unknown unit counter - prefix attaches to number
+  const uri12 = 'com.example.Tracks#CounterTrackFPS';
+  trace.tracks.registerTrack({
+    uri: uri12,
+    renderer: CounterTrack.create({
+      trace,
+      uri: uri12,
+      sqlSource: `select ts, (value + 50) * 200000 as value from ${tableName}`,
+      unit: 'fps',
+    }),
+  });
+
+  const ws = trace.defaultWorkspace;
+  ws.addChildInOrder(new TrackNode({uri: uri1, name: 'Sine Wave Counter'}));
+  ws.addChildInOrder(
+    new TrackNode({uri: uri2, name: 'Shared Range Counter 1'}),
+  );
+  ws.addChildInOrder(
+    new TrackNode({uri: uri3, name: 'Shared Range Counter 2'}),
+  );
+  ws.addChildInOrder(
+    new TrackNode({uri: uri4, name: 'Negative Values Counter'}),
+  );
+  ws.addChildInOrder(new TrackNode({uri: uri5, name: 'Negative Only Counter'}));
+  ws.addChildInOrder(
+    new TrackNode({uri: uri6, name: 'Large Values Counter (~GBs)'}),
+  );
+  ws.addChildInOrder(
+    new TrackNode({uri: uri7, name: 'Small Values Counter (~µs)'}),
+  );
+  ws.addChildInOrder(
+    new TrackNode({uri: uri8, name: 'Frequency Counter (Hz)'}),
+  );
+  ws.addChildInOrder(new TrackNode({uri: uri9, name: 'Power Counter (W)'}));
+  ws.addChildInOrder(new TrackNode({uri: uri10, name: 'Memory Counter (B)'}));
+  ws.addChildInOrder(new TrackNode({uri: uri11, name: 'Duration Counter (s)'}));
+  ws.addChildInOrder(
+    new TrackNode({uri: uri12, name: 'Frame Rate Counter (fps)'}),
+  );
 }

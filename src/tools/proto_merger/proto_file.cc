@@ -151,7 +151,7 @@ std::vector<ProtoFile::Option> OptionsFromMessage(
     for (int j = 0; j < count; j++) {
       std::string name;
       if (fields[i]->is_extension()) {
-        name = "(" + std::string(fields[i]->full_name()) + ")";
+        name = "(." + std::string(fields[i]->full_name()) + ")";
       } else {
         name = fields[i]->name();
       }

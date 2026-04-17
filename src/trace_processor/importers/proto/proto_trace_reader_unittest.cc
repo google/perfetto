@@ -30,12 +30,17 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/global_metadata_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/trace_processor_context_ptr.h"
+#include "src/trace_processor/util/clock_synchronizer.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
@@ -51,20 +56,37 @@ constexpr auto BOOTTIME = protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
 class ProtoTraceReaderTest : public ::testing::Test {
  public:
   ProtoTraceReaderTest() {
-    context_.storage = std::make_unique<TraceStorage>();
-    context_.machine_tracker =
-        std::make_unique<MachineTracker>(&context_, 0x1001);
-    context_.global_args_tracker =
-        std::make_unique<GlobalArgsTracker>(context_.storage.get());
-    context_.import_logs_tracker =
-        std::make_unique<ImportLogsTracker>(&context_, 1);
-    context_.clock_tracker = std::make_unique<ClockTracker>(
-        std::make_unique<ClockSynchronizerListenerImpl>(&context_));
-    context_.sorter = std::make_unique<TraceSorter>(
-        &context_, TraceSorter::SortingMode::kDefault);
-    context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
-    context_.register_additional_proto_modules = &RegisterAdditionalModules;
-    proto_trace_reader_ = std::make_unique<ProtoTraceReader>(&context_);
+    host_context_.storage = std::make_unique<TraceStorage>();
+    host_context_.trace_state =
+        TraceProcessorContextPtr<TraceProcessorContext::TraceState>::MakeRoot(
+            TraceProcessorContext::TraceState{TraceId{1}});
+    host_context_.forked_context_state = TraceProcessorContextPtr<
+        TraceProcessorContext::ForkedContextState>::MakeRoot();
+    host_context_.machine_tracker =
+        std::make_unique<MachineTracker>(&host_context_, kDefaultMachineId);
+    host_context_.global_args_tracker =
+        std::make_unique<GlobalArgsTracker>(host_context_.storage.get());
+    host_context_.import_logs_tracker =
+        std::make_unique<ImportLogsTracker>(&host_context_, TraceId(1));
+    host_context_.trace_time_state = std::make_unique<TraceTimeState>(
+        ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_BOOTTIME));
+    primary_sync_ = std::make_unique<ClockSynchronizer>(
+        host_context_.trace_time_state.get(),
+        std::make_unique<ClockSynchronizerListenerImpl>(&host_context_));
+    host_context_.clock_tracker = std::make_unique<ClockTracker>(
+        &host_context_,
+        std::make_unique<ClockSynchronizerListenerImpl>(&host_context_),
+        primary_sync_.get(), true);
+    host_context_.global_metadata_tracker =
+        std::make_unique<GlobalMetadataTracker>(host_context_.storage.get());
+    host_context_.metadata_tracker =
+        std::make_unique<MetadataTracker>(&host_context_);
+    host_context_.sorter = std::make_unique<TraceSorter>(
+        &host_context_, TraceSorter::SortingMode::kDefault);
+    host_context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
+    host_context_.register_additional_proto_modules =
+        &RegisterAdditionalModules;
+    proto_trace_reader_ = std::make_unique<ProtoTraceReader>(&host_context_);
   }
 
   base::Status Tokenize() {
@@ -81,13 +103,14 @@ class ProtoTraceReaderTest : public ::testing::Test {
 
  protected:
   protozero::HeapBuffered<protos::pbzero::Trace> trace_;
-  TraceProcessorContext context_;
+  TraceProcessorContext host_context_;
+  std::unique_ptr<ClockSynchronizer> primary_sync_;
   std::unique_ptr<ProtoTraceReader> proto_trace_reader_;
 };
 
 TEST_F(ProtoTraceReaderTest, RemoteClockSync_Valid) {
-  context_.machine_tracker =
-      std::make_unique<MachineTracker>(&context_, 0x1001);
+  auto* machine_context =
+      host_context_.ForkContextForMachineInCurrentTrace(0x1001);
 
   auto* packet = trace_->add_packet();
   packet->set_machine_id(0x1001);
@@ -120,12 +143,13 @@ TEST_F(ProtoTraceReaderTest, RemoteClockSync_Valid) {
 
   ASSERT_TRUE(Tokenize().ok());
   ASSERT_EQ(1u,
-            context_.clock_tracker->remote_clock_offsets_for_testing().size());
+            machine_context->clock_tracker->remote_clock_offsets_for_testing()
+                .size());
 }
 
 TEST_F(ProtoTraceReaderTest, RemoteClockSync_Incomplete) {
-  context_.machine_tracker =
-      std::make_unique<MachineTracker>(&context_, 0x1001);
+  auto* machine_context =
+      host_context_.ForkContextForMachineInCurrentTrace(0x1001);
 
   auto* packet = trace_->add_packet();
   packet->set_machine_id(0x1001);
@@ -157,7 +181,8 @@ TEST_F(ProtoTraceReaderTest, RemoteClockSync_Incomplete) {
   ASSERT_TRUE(Tokenize().ok());
   // No valid clock offset.
   ASSERT_EQ(0u,
-            context_.clock_tracker->remote_clock_offsets_for_testing().size());
+            machine_context->clock_tracker->remote_clock_offsets_for_testing()
+                .size());
 }
 
 TEST_F(ProtoTraceReaderTest, CalculateClockOffset) {
@@ -179,13 +204,13 @@ TEST_F(ProtoTraceReaderTest, CalculateClockOffset) {
   // Estimated offsets: (10000 + 20000)/2 - 120000 = -105000,
   //                    20000 - (120000 + 140000) / 2 = -110000.
   // Average = -107500.
-  ASSERT_EQ(-107500, clock_offsets[BOOTTIME]);
+  ASSERT_EQ(-107500, clock_offsets[ClockId::Machine(BOOTTIME)]);
   // Client 25000      35000
   // Host     135000     150000
   // Estimated offsets: (25000 + 35000)/2 - 135000 = -105000,
   //                    35000 - (135000 + 150000) / 2 = -107500.
   // Average = -106250.
-  ASSERT_EQ(-106250, clock_offsets[REALTIME]);
+  ASSERT_EQ(-106250, clock_offsets[ClockId::Machine(REALTIME)]);
 }
 
 TEST_F(ProtoTraceReaderTest, CalculateClockOffset_AboveThreshold) {
@@ -230,7 +255,34 @@ TEST_F(ProtoTraceReaderTest, CalculateClockOffset_MultiRounds) {
       CalculateClockOffsetsForTesting(sync_clock_snapshots);
   ASSERT_EQ(1u, clock_offsets.size());
   // Average(-105000, -110000, -122500, -120000) = -114375.
-  ASSERT_EQ(-114375, clock_offsets[BOOTTIME]);
+  ASSERT_EQ(-114375, clock_offsets[ClockId::Machine(BOOTTIME)]);
+}
+
+TEST_F(ProtoTraceReaderTest, DeferredClockSnapshotSequenceScopedClock) {
+  // Packet 1: has a sequence-scoped clock (64) but no clock snapshot yet.
+  // This will fail ToTraceTime and be deferred for later processing.
+  auto* packet1 = trace_->add_packet();
+  packet1->set_trusted_packet_sequence_id(1);
+  packet1->set_timestamp(1000);
+  packet1->set_timestamp_clock_id(64);
+
+  // Packet 2: clock snapshot on the same sequence mapping clock 64 -> BOOTTIME.
+  auto* packet2 = trace_->add_packet();
+  packet2->set_trusted_packet_sequence_id(1);
+  auto* snap = packet2->set_clock_snapshot();
+  auto* clk1 = snap->add_clocks();
+  clk1->set_clock_id(64);
+  clk1->set_timestamp(10);
+  auto* clk2 = snap->add_clocks();
+  clk2->set_clock_id(BOOTTIME);
+  clk2->set_timestamp(10000);
+
+  ASSERT_TRUE(Tokenize().ok());
+  ASSERT_TRUE(proto_trace_reader_->OnPushDataToSorter().ok());
+
+  // The deferred packet should have resolved without recording an error.
+  EXPECT_EQ(0, host_context_.storage->GetStats(
+                   stats::clock_sync_failure_unknown_source_clock));
 }
 
 }  // namespace

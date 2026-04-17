@@ -61,7 +61,7 @@ schemas, function arguments and return types:
 
 | Type | Description |
 |------|-------------|
-| `INT` | 64-bit signed integer |
+| `LONG` | 64-bit signed integer |
 | `DOUBLE` | Double precision floating-point number |
 | `BOOLEAN` | Boolean value (true/false) |
 | `STRING` | Text string |
@@ -87,10 +87,10 @@ The syntax is similar to the syntax in PostgreSQL or GoogleSQL:
 Examples:
 ```sql
 -- Create a scalar function with no arguments.
-CREATE PERFETTO FUNCTION constant_fn() RETURNS INT AS SELECT 1;
+CREATE PERFETTO FUNCTION constant_fn() RETURNS LONG AS SELECT 1;
 
 -- Create a scalar function taking two arguments.
-CREATE PERFETTO FUNCTION add(x INT, y INT) RETURNS INT AS SELECT $x + $y;
+CREATE PERFETTO FUNCTION add(x LONG, y LONG) RETURNS LONG AS SELECT $x + $y;
 
 -- Create a table function with no arguments
 CREATE PERFETTO FUNCTION constant_tab_fn()
@@ -103,8 +103,8 @@ FROM (
 );
 
 -- Create a table function with one argument
-CREATE PERFETTO FUNCTION sched_by_utid(utid INT)
-RETURNS TABLE(ts LONG, dur LONG, utid INT) AS
+CREATE PERFETTO FUNCTION sched_by_utid(utid LONG)
+RETURNS TABLE(ts LONG, dur LONG, utid LONG) AS
 SELECT ts, dur, utid
 FROM sched
 WHERE utid = $utid;
@@ -147,7 +147,7 @@ i.e. a comma-separated list of (column name, column type) pairs in parenthesis
 after table or view name.
 
 ```sql
-CREATE PERFETTO TABLE foo(x INT, y STRING) AS
+CREATE PERFETTO TABLE foo(x LONG, y STRING) AS
 SELECT 1 as x, 'test' as y
 ```
 
@@ -215,7 +215,7 @@ NOTE: the use of `CREATE PERFETTO VIEW` instead of `CREATE VIEW` is required in
 the standard library where each column must be documented.
 
 ```sql
-CREATE PERFETTO VIEW foo(x INT, y STRING) AS
+CREATE PERFETTO VIEW foo(x LONG, y STRING) AS
 SELECT 1 as x, 'test' as y
 ```
 

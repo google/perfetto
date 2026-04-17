@@ -55,10 +55,16 @@ class ScopedReentrancyPreventer {
 
 extern "C" {
 
+// Prototypes for new C23 functions that might not be present yet.
+void free_sized(void*, size_t);
+void free_aligned_sized(void*, size_t, size_t);
+
 // These are exported by GLibc to be used by functions overwriting malloc
 // to call back to the real implementation.
 extern void* __libc_malloc(size_t);
 extern void __libc_free(void*);
+extern void __libc_free_sized(void*, size_t);
+extern void __libc_free_aligned_sized(void*, size_t, size_t);
 extern void* __libc_calloc(size_t, size_t);
 extern void* __libc_realloc(void*, size_t);
 extern void* __libc_memalign(size_t, size_t);
@@ -84,6 +90,26 @@ void free(void* ptr) {
   ScopedReentrancyPreventer p;
 
   return perfetto::profiling::wrap_free(g_heap_id, __libc_free, ptr);
+}
+
+void free_sized(void* ptr, size_t size) {
+  if (PERFETTO_UNLIKELY(ScopedReentrancyPreventer::is_inside())) {
+    return __libc_free_sized(ptr, size);
+  }
+  ScopedReentrancyPreventer p;
+
+  return perfetto::profiling::wrap_free_sized(g_heap_id, __libc_free_sized, ptr,
+                                              size);
+}
+
+void free_aligned_sized(void* ptr, size_t alignment, size_t size) {
+  if (PERFETTO_UNLIKELY(ScopedReentrancyPreventer::is_inside())) {
+    return __libc_free_aligned_sized(ptr, alignment, size);
+  }
+  ScopedReentrancyPreventer p;
+
+  return perfetto::profiling::wrap_free_aligned_sized(
+      g_heap_id, __libc_free_aligned_sized, ptr, alignment, size);
 }
 
 void* calloc(size_t nmemb, size_t size) {

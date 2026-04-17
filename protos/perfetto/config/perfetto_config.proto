@@ -83,6 +83,24 @@ message GpuCounterDescriptor {
   }
   repeated GpuCounterBlock blocks = 2;
 
+  // Allow producer to define custom counter groups. Unlike the fixed
+  // GpuCounterGroup enum (which provides broad categories), these groups
+  // let the producer define hardware-specific groupings that the UI uses
+  // to organize counter tracks. Can also be used to provide display names
+  // and descriptions for the fixed GpuCounterGroup enum values by setting
+  // group_id to the enum value.
+  message GpuCounterGroupSpec {
+    // required. Unique ID for this group within the descriptor.
+    optional uint32 group_id = 1;
+    // optional. Display name for the group.
+    optional string name = 2;
+    // optional. Description of the group.
+    optional string description = 3;
+    // Counters that belong directly to this group (by counter_id).
+    repeated uint32 counter_ids = 4;
+  }
+  repeated GpuCounterGroupSpec counter_groups = 6;
+
   // optional.  Minimum sampling period supported by the producer in
   // nanoseconds.
   optional uint64 min_sampling_period_ns = 3;
@@ -94,6 +112,15 @@ message GpuCounterDescriptor {
   // optional.  The producer supports counter sampling by instrumenting the
   // command buffer.
   optional bool supports_instrumented_sampling = 5;
+
+  // optional.  The producer supports selecting counters by name via
+  // GpuCounterConfig.counter_names. Not all producers support this; Android
+  // GPU producers typically do not.
+  optional bool supports_counter_names = 7;
+
+  // optional.  The producer supports glob patterns in
+  // GpuCounterConfig.counter_names for matching multiple counters by name.
+  optional bool supports_counter_name_globs = 8;
 
   // next id: 41
   enum MeasureUnit {
@@ -168,6 +195,133 @@ message TrackEventDescriptor {
 
 // End of protos/perfetto/common/track_event_descriptor.proto
 
+// Begin of protos/perfetto/protovm/vm_program.proto
+
+message VmProgram {
+  optional uint32 version = 1;
+  repeated VmInstruction instructions = 2;
+}
+
+message VmInstruction {
+  oneof operation {
+    VmOpSelect select = 1;
+    VmOpRegLoad reg_load = 2;
+    VmOpMerge merge = 3;
+    VmOpSet set = 4;
+    VmOpDel del = 5;
+  }
+
+  enum AbortLevel {
+    // Skip current instruction but execute following ones
+    SKIP_CURRENT_INSTRUCTION = 1;
+    // Skip current instruction as well as following ones (default)
+    SKIP_CURRENT_INSTRUCTION_AND_BREAK_OUTER = 2;
+    // Abort whole program
+    ABORT = 3;
+  };
+  optional AbortLevel abort_level = 6;
+
+  // Sub-instructions executed if the current instruction succeeds
+  repeated VmInstruction nested_instructions = 7;
+}
+
+message VmOpSelect {
+  // Enum SRC|DST|BOTH. Default=SRC.
+  optional VmCursorEnum cursor = 1;
+  repeated PathComponent relative_path = 2;
+
+  // Creates the submessage if doesn't exist in the DST cursor
+  // (think of mkdir -p). Only valid when cursor=DST|BOTH.
+  optional bool create_if_not_exist = 3;
+
+  // A path component is either: (1) a field id to descend into (common case);
+  // (2) an array index (for repeated fields); (3) a map lookup operation (for
+  // repeated fields, where we snoop a sub-field as a map key)
+  message PathComponent {
+    oneof field {
+      uint32 field_id = 1;
+      uint32 array_index = 2;
+
+      // The ID of the field in the repeated submessage that we
+      // use as a key (e.g. LayerState.layer_id). When setting this
+      // register_to_match must also be set, to tell what's the
+      // expected value of the key we are looking up.
+      uint32 map_key_field_id = 3;
+    }
+
+    // When we are selecting a leaf field, tell what's the field type
+    // to disambiguate integer types. Using uint64 by default will likely
+    // do the right thing in 99% cases (so probably we don't need to impl
+    // this until much later if somebody does a map with a fixed64 key)
+    // enum ProtoFieldType field_type = 4;  // bool | int32 | fixed32 | ...
+
+    // Only valid when using field_id. This makes select have foreach
+    // semantics. This means that the body of nested_instructions is
+    // executed several times, once per each repeated submessage.
+    optional bool is_repeated = 5;
+
+    // Only valid when using map_key_field_id. This defines which
+    // register (R1..R32) should be used to match the key of the dict
+    // in a map lookup operation.
+    // In other words:
+    // foreach msg in repeated message {
+    //   if msg[map_key_field_id] == R[register_to_match] {
+    //      break;  // Lookup succeeded, PathComponent resolves here.
+    //   }
+    // }
+    optional uint32 register_to_match = 6;
+
+    // Only valid when using field_id and is_repeated=true. When iterating
+    // over repeated fields, stores the current iteration index into the
+    // the register R1..R32 defined below. This can be used to do complex
+    // operations like "find the entry in the array that has width==100,
+    // remember its offset in the SRC array and overwrite the matching
+    // i-th element in the DST array. We will probably never implement
+    // this but it's here for completeness.
+    optional uint32 store_foreach_index_into_register = 7;
+  }
+}
+
+message VmOpRegLoad {
+  // SRC(default) | DST.
+  optional VmCursorEnum cursor = 1;
+  // 1=R1, 2=R2... 32=R32
+  optional uint32 dst_register = 2;
+}
+
+// Merges SRC into DST. Both need to point to a message (not a field).
+message VmOpMerge {
+  // When true, the merge operation will skip any field that is already
+  // resolved as a message node in the destination tree.
+  //
+  // This is used to support merging of nested messages. Because ProtoVM
+  // does not know the schema, a standard MERGE cannot distinguish
+  // between a string and a message on the wire and it would overwrite
+  // the entire blob, destroying granular updates.
+  //
+  // By setting this to true, a program can be implemented to do a
+  // bottom-up, multi-step merge by traversing into and merging
+  // the deepest submessages first, then moving up to the parent
+  // message and merging it with skip_submessages = true.
+  optional bool skip_submessages = 1;
+}
+
+// Copies SRC into DST. If a message, replaces the DST node, discarding any
+// pre-existing field.
+message VmOpSet {}
+
+// Delete the field or message pointed by DST.
+message VmOpDel {}
+
+enum VmCursorEnum {
+  VM_CURSOR_UNSPECIFIED = 0;
+  VM_CURSOR_SRC = 1;
+  VM_CURSOR_DST = 2;
+  VM_CURSOR_BOTH = 3;
+}
+
+// End of protos/perfetto/protovm/vm_program.proto
+
 // Begin of protos/perfetto/common/data_source_descriptor.proto
 
 // This message is sent from Producer(s) to the tracing Service when registering
@@ -207,6 +361,13 @@ message DataSourceDescriptor {
   // scraping.
   // Introduced in v39 / Android V.
   optional bool no_flush = 9;
+
+  // If present, the tracing service executes this program within a ProtoVM to
+  // process overwritten packets (patches). The service computes a hash of the
+  // program to detect and disambiguate between different versions; if multiple
+  // versions (from different producers) are specified for the same data source,
+  // the service instantiates a dedicated ProtoVM for each.
+  optional VmProgram protovm_program = 10;
 
   // Optional specification about available GPU counters.
   optional GpuCounterDescriptor gpu_counter_descriptor = 5 [lazy = true];
@@ -336,22 +497,95 @@ message TracingServiceState {
 
 // Begin of protos/perfetto/common/builtin_clock.proto
 
+// Builtin clock domains used in Perfetto traces.
+//
+// The default trace time clock is BUILTIN_CLOCK_TRACE_FILE: a synthetic clock
+// representing the trace file's own timeline. Each trace file gets its own
+// instance (scoped by trace file index).
+//
+// For backwards compatibility, Perfetto proto traces register BOOTTIME as a
+// fallback: if the first timestamp conversion uses a clock other than the
+// trace file clock and no explicit clock snapshot data exists, the trace time
+// is switched to BOOTTIME. This fallback does not fire for modern traces that
+// include ClockSnapshots or that only use the trace file clock directly.
+//
+// The `primary_trace_clock` field in ClockSnapshot can definitively override
+// the trace time clock regardless of the above.
 enum BuiltinClock {
   BUILTIN_CLOCK_UNKNOWN = 0;
+
+  // Corresponds to CLOCK_REALTIME. See clock_gettime(2).
   BUILTIN_CLOCK_REALTIME = 1;
+
+  // Corresponds to CLOCK_REALTIME_COARSE. See clock_gettime(2).
   BUILTIN_CLOCK_REALTIME_COARSE = 2;
+
+  // Corresponds to CLOCK_MONOTONIC. See clock_gettime(2).
   BUILTIN_CLOCK_MONOTONIC = 3;
+
+  // Corresponds to CLOCK_MONOTONIC_COARSE. See clock_gettime(2).
   BUILTIN_CLOCK_MONOTONIC_COARSE = 4;
+
+  // Corresponds to CLOCK_MONOTONIC_RAW. See clock_gettime(2).
   BUILTIN_CLOCK_MONOTONIC_RAW = 5;
+
+  // Corresponds to CLOCK_BOOTTIME. See clock_gettime(2).
+  // For proto traces, this is used as a backwards-compatible fallback trace
+  // time clock when no explicit clock snapshots are present.
   BUILTIN_CLOCK_BOOTTIME = 6;
+
+  // TSC (Time Stamp Counter). Architecture-specific high-resolution counter.
   BUILTIN_CLOCK_TSC = 9;
+
+  // Corresponds to the perf event clock (PERF_CLOCK).
   BUILTIN_CLOCK_PERF = 10;
+
+  // A synthetic clock representing the trace file's own timeline. Each trace
+  // file gets its own instance (scoped by trace file index). This is the
+  // default trace time clock before any clock snapshot or format-specific
+  // override takes effect.
+  BUILTIN_CLOCK_TRACE_FILE = 11;
+
   BUILTIN_CLOCK_MAX_ID = 63;
 
   reserved 7, 8;
 }
 
 // End of protos/perfetto/common/builtin_clock.proto
+
+// Begin of protos/perfetto/common/semantic_type.proto
+
+// Semantic types for string fields. This tells the filter what kind of
+// data the field contains, so it can apply the right filtering rules.
+// See /rfcs/0011-subset-string-filter-rules.md for design details.
+// Introduced in: Perfetto v54.
+enum SemanticType {
+  SEMANTIC_TYPE_UNSPECIFIED = 0;
+  SEMANTIC_TYPE_ATRACE = 1;
+  SEMANTIC_TYPE_JOB = 2;
+  SEMANTIC_TYPE_WAKELOCK = 3;
+}
+
+// End of protos/perfetto/common/semantic_type.proto
+
+// Begin of protos/perfetto/config/android/android_aflags_config.proto
+
+// Options for the android.aflags data source.
+// This data source captures snapshots of Android aconfig flags.
+// See https://source.android.com/docs/setup/build/feature-flagging/declare-flag
+// for more information on aconfig flags.
+message AndroidAflagsConfig {
+  // Frequency of polling. If absent or 0, the state will be recorded once,
+  // at the start of the trace.
+  //
+  // It is recommended to either leave this absent or set it to a large
+  // value as each invocation of the `aflags` tool can be time consuming
+  // (approx. 350ms) and also triggers an expensive flush. This is required to
+  // be > 1000ms if set, to avoid excessive CPU usage.
+  optional uint32 poll_ms = 1;
+}
+
+// End of protos/perfetto/config/android/android_aflags_config.proto
 
 // Begin of protos/perfetto/config/android/android_game_intervention_list_config.proto
 
@@ -530,6 +764,13 @@ message AndroidLogConfig {
   // If non-empty ignores all log messages whose tag doesn't match one of the
   // specified values.
   repeated string filter_tags = 4;
+
+  // If true, includes the contents of the logcat buffers that were already
+  // present before the data source started. By default (false), only new
+  // log entries produced after the data source starts are recorded.
+  // Can be useful for boot traces or situations where logs from before
+  // traced started are important.
+  optional bool preserve_log_buffer = 5;
 }
 
 // End of protos/perfetto/config/android/android_log_config.proto
@@ -663,6 +904,22 @@ message CpuPerUidConfig {
 
 // End of protos/perfetto/config/android/cpu_per_uid_config.proto
 
+// Begin of protos/perfetto/config/android/inputmethod_config.proto
+
+// Custom configuration for the "android.inputmethod" data source.
+message InputMethodConfig {
+  // If true, enables tracing in the clients.
+  optional bool client = 1;
+
+  // If true, enables tracing in InputMethodService.
+  optional bool service = 2;
+
+  // If true, enables tracing in InputMethodManagerService.
+  optional bool manager_service = 3;
+}
+
+// End of protos/perfetto/config/android/inputmethod_config.proto
+
 // Begin of protos/perfetto/config/android/kernel_wakelocks_config.proto
 
 // Data source that records kernel (and native) wakelock data.
@@ -718,13 +975,22 @@ message NetworkPacketTraceConfig {
 // Android device.
 message PackagesListConfig {
   // If not empty, emit info about only the following list of package names
-  // (exact match, no regex). Otherwise, emit info about all packages.
+  // (exact match, no regex). Can be combined with
+  // |package_name_regex_filter|: a package is included if it matches either
+  // filter. If both filters are empty, emit info about all packages.
   repeated string package_name_filter = 1;
+
+  // If not empty, emit info about only the packages whose names match any of
+  // the following regexes (full match, not partial). Can be combined with
+  // |package_name_filter|: a package is included if it matches either filter.
+  // If both filters are empty, emit info about all packages.
+  // This field was introduced in Android 26Q2 (Perfetto v55).
+  repeated string package_name_regex_filter = 3;
 
   // If present and non-zero, the data source will periodically poll for CPU
   // use by packages and only emit results for those that it sees. If absent,
   // the data source will emit results for all packages at startup. The package
-  // name filter applies either way.
+  // name filters apply either way.
   optional uint32 only_write_on_cpu_use_every_ms = 2;
 }
 
@@ -831,6 +1097,9 @@ message SurfaceFlingerLayersConfig {
     // Same as MODE_GENERATED, but triggers the layers snapshots generation only
     // when a bugreport is taken.
     MODE_GENERATED_BUGREPORT_ONLY = 4;
+
+    // Layer snapshots are generated by ProtoVM from layer patches
+    MODE_PROTOVM = 5;
   }
   optional Mode mode = 1;
 
@@ -1058,6 +1327,8 @@ message EtwConfig {
   repeated string memory_provider_events = 3;
   // Provides events relating to file I/O.
   repeated string file_provider_events = 4;
+  // Events for which stacks should be collected.
+  repeated string stack_sampling_events = 5;
 }
 
 // End of protos/perfetto/config/etw/etw_config.proto
@@ -1426,12 +1697,94 @@ message GpuCounterConfig {
   // Desired sampling interval for counters.
   optional uint64 counter_period_ns = 1;
 
-  // List of counters to be sampled. Counter IDs correspond to the ones
-  // described in GpuCounterSpec in the data source descriptor.
+  // Selects which counters to sample. Use either counter_ids or counter_names,
+  // not both. Counter IDs and names correspond to the ones described in
+  // GpuCounterSpec in the data source descriptor.
+
+  // List of counter IDs to be sampled.
   repeated uint32 counter_ids = 2;
 
+  // List of counter names to be sampled. Requires producer support; check
+  // GpuCounterDescriptor.supports_counter_names in the data source descriptor.
+  // Glob patterns may be used to match multiple counters by name; check
+  // GpuCounterDescriptor.supports_counter_name_globs for support.
+  repeated string counter_names = 6;
+
+  // Configuration for sampling counters by instrumenting command buffers.
+  //
+  // When instrumented_sampling_config is used (instead of the
+  // instrumented_sampling bool), the following steps determine whether
+  // instrumented counters are enabled for a given GPU activity:
+  //
+  // 1. Activity name filtering: If activity_name_filters is non-empty, the
+  //    activity must match at least one filter. If empty, all activities
+  //    pass this step.
+  // 2. TX range filtering: If activity_tx_include_globs is non-empty, the
+  //    activity must fall within a matching TX range. Activities in TX
+  //    ranges matching activity_tx_exclude_globs are excluded (excludes
+  //    take precedence over includes). If both are empty, all activities
+  //    pass this step.
+  // 3. Range-based sampling: If activity_ranges is non-empty, only
+  //    activities within the specified skip/count ranges are instrumented.
+  //    If empty, all activities that passed the previous steps are
+  //    instrumented.
+  message InstrumentedSamplingConfig {
+    // Filters GPU activities by name. Each filter specifies a glob pattern
+    // and the basis for matching (mangled or demangled kernel name).
+    message ActivityNameFilter {
+      enum NameBase {
+        MANGLED_KERNEL_NAME = 0;
+        DEMANGLED_KERNEL_NAME = 1;
+      }
+
+      // required. Glob pattern to use for GPU activity name filtering.
+      optional string name_glob = 1;
+
+      // Basis for name filtering. Defaults to MANGLED_KERNEL_NAME if not
+      // specified.
+      optional NameBase name_base = 2;
+    }
+
+    // GPU activity name filters. An activity matches if it matches any filter.
+    repeated ActivityNameFilter activity_name_filters = 3;
+
+    // Glob patterns to use for including GPU activities in TX ranges. TX
+    // ranges are in-process annotations that mark different sections of GPU
+    // work (e.g. NVTX ranges for CUDA). TX ranges can be nested, and an
+    // activity is included if any range in its nesting hierarchy matches.
+    // Only activities that fall within a matching TX range will be
+    // instrumented.
+    repeated string activity_tx_include_globs = 6;
+
+    // Glob patterns to use for excluding GPU activities from TX ranges.
+    // TX ranges can be nested, and an activity is excluded if any range
+    // in its nesting hierarchy matches. Excludes take precedence over
+    // includes.
+    repeated string activity_tx_exclude_globs = 7;
+
+    // Defines a range of GPU activities to instrument.
+    message ActivityRange {
+      // Number of GPU activities to skip before starting to instrument
+      // command buffers. Defaults to 0 if not specified.
+      optional uint32 skip = 1;
+
+      // Limit for the number of GPU activities to sample counters for by
+      // instrumenting command buffers. Defaults to UINT32_MAX (all
+      // remaining activities) if not specified.
+      optional uint32 count = 2;
+    }
+
+    // Ranges of GPU activities to instrument. Applied after activity name
+    // and TX range filters. If empty, all activities that passed the
+    // previous filters are instrumented.
+    repeated ActivityRange activity_ranges = 5;
+  }
+
   // Sample counters by instrumenting command buffers.
-  optional bool instrumented_sampling = 3;
+  oneof instrumented_sampling_mode {
+    bool instrumented_sampling = 3;
+    InstrumentedSamplingConfig instrumented_sampling_config = 5;
+  }
 
   // Fix gpu clock rate during trace session.
   optional bool fix_gpu_clock = 4;
@@ -2146,7 +2499,7 @@ message FollowerEvent {
 //     }
 //   }
 //
-// Next id: 21
+// Next id: 23
 message PerfEventConfig {
   // What event to sample on, and how often.
   // Defined in common/perf_events.proto.
@@ -2168,6 +2521,12 @@ message PerfEventConfig {
   //
   // Available since: perfetto v50.
   repeated uint32 target_cpu = 20;
+
+  // Allow failure of perf_event_open
+  optional bool ignore_open_failure = 21;
+
+  // If not empty, consider only CPUs whose CPUID matches one of these values.
+  repeated string cpuid = 22;
 
   //
   // Kernel <-> userspace ring buffer options:
@@ -2349,6 +2708,48 @@ message PerfEventConfig {
 }
 
 // End of protos/perfetto/config/profiling/perf_event_config.proto
+
+// Begin of protos/perfetto/config/protovm/protovm_config.proto
+
+message ProtoVmConfig {
+  optional uint32 memory_limit_kb = 1;
+}
+
+// End of protos/perfetto/config/protovm/protovm_config.proto
+
+// Begin of protos/perfetto/config/qnx/qnx_config.proto
+
+// QnxConfig is used with trace_qnx_probes build from
+// https://github.com/qnx-ports/perfetto
+message QnxConfig {
+  // The number of buffers that tracelog will init for the QNX trace.
+  optional uint32 qnx_kernel_buffers = 1;
+
+  // The number of kernel buffers that tracelog will init for the QNX trace.
+  optional uint32 qnx_kernel_kbuffers = 2;
+
+  // Flag indicating whether the QNX kernel tracing should produce wide
+  // events which contain additional data or fast events which are most
+  // concise. In fast mode we lose the priority information
+  optional bool qnx_kernel_wide_events = 3;
+
+  // The number of pages initialized by default the parser's page cache.
+  optional uint32 qnx_cache_pages = 4;
+
+  // The max pages the page cache should allocate (must be at least as big)
+  // as the qnx_cache_pages value. Using -1 will allow the cache to grow
+  // unbounded. The cache will prefer to re-use existing pages so growth will
+  // only happen when needed (when parser is not keeping up).
+  optional int32 qnx_cache_max_pages = 5;
+
+  // The initial size of the the buffer used to hold the trace header values
+  // this dynamic buffer will grow as needed but reallocs can be avoided by
+  // selecting an initial size large enough to hold all the initial header
+  // data.
+  optional uint32 qnx_trace_buffer_init_bytes = 6;
+}
+
+// End of protos/perfetto/config/qnx/qnx_config.proto
 
 // Begin of protos/perfetto/config/statsd/atom_ids.proto
 
@@ -4015,7 +4416,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 139
+// Next id: 141
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -4107,6 +4508,20 @@ message DataSourceConfig {
   optional BufferExhaustedPolicy buffer_exhausted_policy = 9;
 
   optional PriorityBoostConfig priority_boost = 10;
+
+  // If specified, the data source requires the tracing service to process
+  // overwritten packets (patches) using a ProtoVM instance with this config.
+  // The ProtoVM program is specified at data source registration time through
+  // the descriptor.
+
+  // TODO(primiano): today when we enable a protovm_config, we actually accept
+  // that if N producers advertise M different versions of the same program we
+  // will create M instances of that program.
+  // To overcome this, we could move the program to the TraceConfig. But doing
+  // so would bloat the trace config size too big and create problems to statsd.
+  // Once the config store (b/482305876) exists we should move protovm programs
+  // onto that.
+  optional ProtoVmConfig protovm_config = 12;
 
   // Keep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.
@@ -4236,6 +4651,15 @@ message DataSourceConfig {
   // Data source name: android.user_list
   optional AndroidUserListConfig user_list_config = 138 [lazy = true];
 
+  // Data source name: android.inputmethod
+  optional InputMethodConfig inputmethod_config = 139 [lazy = true];
+
+  // Data source name: android.aflags
+  optional AndroidAflagsConfig android_aflags_config = 140 [lazy = true];
+
+  // Data source name: qnx.kernel
+  optional QnxConfig qnx_config = 150 [lazy = true];
+
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
   // is part of the platform (i.e. traced service) is supposed to *not* truncate
@@ -4261,7 +4685,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 44.
+// Next id: 47.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -4319,6 +4743,11 @@ message TraceConfig {
 
       // Use TraceBufferV2.
       TRACE_BUFFER_V2 = 1;
+
+      // Use both V1 and V2 in shadow mode. Data is written to both buffers,
+      // but only V1 data is returned. Comparison stats are reported to
+      // validate V2 returns equivalent data.
+      TRACE_BUFFER_V2_SHADOW_MODE = 2;
     }
     optional ExperimentalMode experimental_mode = 8;
   }
@@ -4400,6 +4829,9 @@ message TraceConfig {
 
     // Disables the reporting of per-trace-writer histograms in TraceStats.
     optional bool disable_chunk_usage_histograms = 8;
+
+    // Disable emitting extension descriptors into the trace.
+    optional bool disable_extension_descriptors = 9;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 
@@ -4520,6 +4952,10 @@ message TraceConfig {
   // to commit their data into the tracing service. This can be used for
   // quasi-real-time streaming mode and to guarantee some partial ordering of
   // events in the trace in windows of X ms.
+  //
+  // Warning: Perfetto automatically handles periodic flushing so in most
+  // scenarios setting this field is not needed. High frequency flushing can
+  // significantly impact performance.
   optional uint32 flush_period_ms = 13;
 
   // Wait for this long for producers to acknowledge flush requests.
@@ -4881,6 +5317,31 @@ message TraceConfig {
       // The string which should appear after the tgid in atrace tracepoint
       // strings.
       optional string atrace_payload_starts_with = 3;
+
+      // Optional name for the rule. When merging chains (e.g. via
+      // string_filter_chain_v54), rules with matching names in the newer chain
+      // will overwrite rules in the base chain. Rules without a name (empty or
+      // unset) are always treated as distinct and will be appended.
+      // See /rfcs/0011-subset-string-filter-rules.md for design details.
+      // Introduced in: Perfetto v54.
+      optional string name = 4;
+
+      // The semantic types this rule applies to.
+      //
+      // SEMANTIC_TYPE_UNSPECIFIED (0) is treated as its own distinct category:
+      // - If empty, the rule applies only to fields with UNSPECIFIED type.
+      // - If non-empty, the rule applies only to fields whose semantic type
+      //   is explicitly listed. To match UNSPECIFIED fields, you must include
+      //   SEMANTIC_TYPE_UNSPECIFIED in the list.
+      //
+      // Examples:
+      //   semantic_type: []           -> matches only UNSPECIFIED fields
+      //   semantic_type: [ATRACE]     -> matches only ATRACE fields
+      //   semantic_type: [UNSPECIFIED, ATRACE] -> matches both
+      //
+      // See /rfcs/0011-subset-string-filter-rules.md for design details.
+      // Introduced in: Perfetto v54.
+      repeated SemanticType semantic_type = 5;
     }
 
     // A chain is a list of rules which string will be sequentially checked
@@ -4915,8 +5376,18 @@ message TraceConfig {
     //  - any field in both the overlay and bytecode_v2 takes the value in the
     //    overlay, the bytecode_v2 value is ignored.
     //
-    // Introduced in: Perfetto v54.
+    // Note: despite the name, this was broken in v54 (the overlay was not
+    // passed through to the bytecode parser). Only works in v55+.
     optional bytes bytecode_overlay_v54 = 4;
+
+    // String filter chain for Perfetto v54+. Rules in this chain either
+    // overwrite rules in string_filter_chain (if the name matches) or are
+    // appended (if the name doesn't match). This allows modifying existing
+    // rules (e.g., changing policy) without duplicating the entire chain.
+    // Rules without a name are always appended.
+    // See /rfcs/0011-subset-string-filter-rules.md for design details.
+    // Introduced in: Perfetto v54.
+    optional StringFilterChain string_filter_chain_v54 = 5;
   }
   // old field number for trace_filter
   reserved 32;
@@ -5045,21 +5516,76 @@ message TraceConfig {
   // Supported on: Android 25Q3+.
   optional uint32 exclusive_prio = 41;
 
-  // If true && |write_into_file|, do NOT flush buffers when periodically write
-  // them into file.
+  // Previously 'no_flush_before_write_into_file'. Now replaced by
+  // 'write_flush_mode' to provide more granular control over flushing behavior
+  // when streaming traces into a file. The original boolean was not enough to
+  // represent the desired default behavior (flushing periodically but not
+  // necessarily on every write).
+  reserved 42;
+
+  enum WriteFlushMode {
+    // Same as WRITE_FLUSH_AUTO.
+    WRITE_FLUSH_UNSPECIFIED = 0;
+
+    // Default mode. The service automatically determines the flush frequency
+    // to balance performance and data freshness:
+    // 1) If file_write_period_ms <= 5s (kDefaultWriteIntoFilePeriodMs):
+    //    Flushes are NOT issued on every write. Instead, a periodic flush is
+    //    issued every 5s.
+    // 2) If file_write_period_ms > 5s:
+    //    A flush is issued before every periodic write into the file.
+    WRITE_FLUSH_AUTO = 1;
+
+    // The following modes are intended for advanced usage and not recommended
+    // for general use.
+
+    // Do not flush buffers before periodic writes into the file.
+    // Use this mode if you want to minimize the performance impact of flushes
+    // and can tolerate potentially missing the most recent data in the trace
+    // file until the end of the session or an explicit flush.
+    // When this mode is selected, |flush_period_ms| is respected.
+    WRITE_FLUSH_DISABLED = 2;
+
+    // Issue a flush before every periodic write into the file.
+    // This ensures that each write into the file contains the most up-to-date
+    // data from all data sources, but may have a higher performance overhead.
+    WRITE_FLUSH_ENABLED = 3;
+  }
+
+  // Configures how the service should handle flushing data from producers
+  // before periodically writing the trace into the output file.
+  // Only applicable when |write_into_file| is true.
   //
-  // By default, if |write_into_file| is set, each time we periodically write
-  // buffers into file, we first issue a Flush() to all data source, forcing
-  // them to commit their data into the tracing service. This helps us to always
-  // write latest data to the file.
+  // By default, if |write_into_file| is set, the service periodically issues
+  // a Flush() to all data sources before writing buffers into the file.
+  // This ensures the file always contains the latest available data.
   //
-  // Before this flag was introduced, the default behavior was NOT to flush
-  // buffers when periodically write them into file. If true this flag
-  // returns the old default behavior.
+  // Introduced in: perfetto v54.
+  // Supported on: Android 26Q1+.
+  optional WriteFlushMode write_flush_mode = 44;
+
+  enum FFlushMode {
+    // Default: same as FFLUSH_DISABLED.
+    FFLUSH_UNSPECIFIED = 0;
+
+    // Do not explicitly sync the file to storage after each write pass.
+    FFLUSH_DISABLED = 1;
+
+    // Explicitly sync the file to storage (via fdatasync) after each periodic
+    // write pass. Increases data durability at the cost of higher disk I/O
+    // overhead.
+    FFLUSH_ENABLED = 2;
+  }
+
+  // Whether to sync the output file to storage after each periodic write pass.
+  // Only applicable when |write_into_file| is true.
   //
-  // Introduced in: perfetto v53.
-  // Supported on: Android 25Q4+.
-  optional bool no_flush_before_write_into_file = 42;
+  // By default, no fflush is invoked. FFLUSH_ENABLED must be set to explicitly
+  // sync to storage on every write.
+  //
+  // Introduced in: perfetto v54.
+  // Supported on: Android 26Q1+.
+  optional FFlushMode fflush_post_write = 45;
 
   // When true, data sources in remote producers (machines connected via
   // traced_relay) will be matched by default. When false (the default), data
@@ -5073,6 +5599,15 @@ message TraceConfig {
   //
   // Introduced in: perfetto v54.
   optional bool trace_all_machines = 43;
+
+  // Allow key, value pairs to save arbitrary data about trace.
+  message Note {
+    // Required.
+    optional string key = 1;
+    // Required.
+    optional string value = 2;
+  }
+  repeated Note notes = 46;
 }
 
 // End of protos/perfetto/config/trace_config.proto

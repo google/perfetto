@@ -20,14 +20,13 @@ import {
   TrackFilterCriteria,
   Overlay,
 } from '../public/track';
-import {AsyncLimiter} from '../base/async_limiter';
 import {TrackRenderContext} from '../public/track';
 import {TrackNode} from '../public/workspace';
 import {TraceImpl} from './trace_impl';
 
-export interface TrackWithFSM {
+export interface TrackWrapper {
   readonly track: TrackRenderer;
-  desc: Track;
+  readonly desc: Track;
   render(ctx: TrackRenderContext): void;
   getError(): Error | undefined;
 }
@@ -49,30 +48,12 @@ export class TrackFilterState {
 }
 
 /**
- * TrackManager is responsible for managing the registry of tracks and their
- * lifecycle of tracks over render cycles.
- *
- * Example usage:
- * function render() {
- *   const trackCache = new TrackCache();
- *   const foo = trackCache.getTrackFSM('foo', 'exampleURI', {});
- *   const bar = trackCache.getTrackFSM('bar', 'exampleURI', {});
- *   trackCache.flushOldTracks(); // <-- Destroys any unused cached tracks
- * }
- *
- * Example of how flushing works:
- * First cycle
- *   getTrackFSM('foo', ...) <-- new track 'foo' created
- *   getTrackFSM('bar', ...) <-- new track 'bar' created
- *   flushTracks()
- * Second cycle
- *   getTrackFSM('foo', ...) <-- returns cached 'foo' track
- *   flushTracks() <-- 'bar' is destroyed, as it was not resolved this cycle
- * Third cycle
- *   flushTracks() <-- 'foo' is destroyed.
+ * TrackManager is responsible for managing the registry of tracks.
+ * Tracks are registered via registerTrack() and looked up via getWrappedTrack().
+ * Each track is wrapped in a TrackWrapperImpl which handles error containment.
  */
 export class TrackManagerImpl implements TrackManager {
-  private readonly tracks = new Registry<TrackFSMImpl>((x) => x.desc.uri);
+  private readonly tracks = new Registry<TrackWrapperImpl>((x) => x.desc.uri);
   private readonly _overlays: Overlay[] = [];
 
   // This property is written by scroll_helper.ts and read&cleared by the
@@ -92,7 +73,7 @@ export class TrackManagerImpl implements TrackManager {
   readonly filters = new TrackFilterState();
 
   registerTrack(trackDesc: Track): Disposable {
-    return this.tracks.register(new TrackFSMImpl(trackDesc));
+    return this.tracks.register(new TrackWrapperImpl(trackDesc));
   }
 
   registerOverlay(overlay: Overlay): Disposable {
@@ -126,19 +107,9 @@ export class TrackManagerImpl implements TrackManager {
     return this.tracks.tryGet(uri)?.desc;
   }
 
-  // This is only called by the timeline_page.ts.
-  getTrackFSM(uri: string): TrackWithFSM | undefined {
-    // Search for a cached version of this track,
-    const trackFsm = this.tracks.tryGet(uri);
-    trackFsm?.markUsed();
-    return trackFsm;
-  }
-
-  // Destroys all tracks that didn't recently get a getTrackRenderer() call.
-  flushOldTracks() {
-    for (const trackFsm of this.tracks.values()) {
-      trackFsm.tick();
-    }
+  // Returns a wrapped track that provides error containment for rendering.
+  getWrappedTrack(uri: string): TrackWrapper | undefined {
+    return this.tracks.tryGet(uri);
   }
 
   registerTrackFilterCriteria(filter: TrackFilterCriteria): void {
@@ -154,81 +125,30 @@ export class TrackManagerImpl implements TrackManager {
   }
 }
 
-const DESTROY_IF_NOT_SEEN_FOR_TICK_COUNT = 1;
-
 /**
- * Owns all runtime information about a track and manages its lifecycle,
- * ensuring lifecycle hooks are called synchronously and in the correct order.
- *
- * There are quite some subtle properties that this class guarantees:
- * - It make sure that lifecycle methods don't overlap with each other.
- * - It prevents a chain of onCreate > onDestroy > onCreate if the first
- *   onCreate() is still oustanding. This is by virtue of using AsyncLimiter
- *   which under the hoods holds only the most recent task and skips the
- *   intermediate ones.
- * - Ensures that a track never sees two consecutive onCreate, or onDestroy or
- *   an onDestroy without an onCreate.
- * - Ensures that onUpdate never overlaps or follows with onDestroy. This is
- *   particularly important because tracks often drop tables/views onDestroy
- *   and they shouldn't try to fetch more data onUpdate past that point.
+ * Wraps a track and provides error containment. If render() throws, the error
+ * is captured and subsequent render() calls become no-ops. This prevents a
+ * crashing track from breaking the entire UI.
  */
-class TrackFSMImpl implements TrackWithFSM {
+class TrackWrapperImpl implements TrackWrapper {
   public readonly desc: Track;
-
-  private readonly limiter = new AsyncLimiter();
   private error?: Error;
-  private tickSinceLastUsed = 0;
-  private created = false;
 
   constructor(desc: Track) {
     this.desc = desc;
   }
 
-  markUsed(): void {
-    this.tickSinceLastUsed = 0;
-  }
-
-  // Increment the lastUsed counter, and maybe call onDestroy().
-  tick(): void {
-    if (this.tickSinceLastUsed++ === DESTROY_IF_NOT_SEEN_FOR_TICK_COUNT) {
-      // Schedule an onDestroy
-      this.limiter.schedule(async () => {
-        // Don't enter the track again once an error is has occurred
-        if (this.error !== undefined) {
-          return;
-        }
-
-        try {
-          if (this.created) {
-            await Promise.resolve(this.track.onDestroy?.());
-            this.created = false;
-          }
-        } catch (e) {
-          this.error = e;
-        }
-      });
-    }
-  }
-
   render(ctx: TrackRenderContext): void {
-    this.limiter.schedule(async () => {
-      // Don't enter the track again once an error has occurred
-      if (this.error !== undefined) {
-        return;
-      }
+    // Don't enter the track again once an error is has occurred
+    if (this.error) {
+      return;
+    }
 
-      try {
-        // Call onCreate() if this is our first call
-        if (!this.created) {
-          await this.track.onCreate?.(ctx);
-          this.created = true;
-        }
-        await Promise.resolve(this.track.onUpdate?.(ctx));
-      } catch (e) {
-        this.error = e;
-      }
-    });
-    this.track.render(ctx);
+    try {
+      this.track.render(ctx);
+    } catch (e) {
+      this.error = e;
+    }
   }
 
   getError(): Error | undefined {

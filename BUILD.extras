@@ -67,6 +67,14 @@ perfetto_go_proto_library(
 )
 
 perfetto_go_proto_library(
+    name = "protos_perfetto_trace_interned_data_protos_go_proto",
+    visibility = PERFETTO_CONFIG.go_proto_library_visibility,
+    deps = [
+        ":protos_perfetto_trace_interned_data_protos",
+    ],
+)
+
+perfetto_go_proto_library(
     name = "protos_perfetto_metrics_android_protos_go_proto",
     visibility = PERFETTO_CONFIG.go_proto_library_visibility,
     deps = [

@@ -13,11 +13,14 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Returns 1 if trace is linux trace and 0 otherwise.
-CREATE PERFETTO FUNCTION _is_linux_trace()
+-- Returns whether a machine is running a Linux kernel.
+CREATE PERFETTO FUNCTION _is_linux_machine(
+    -- Machine id.
+    machine_id JOINID(machine.id)
+)
 RETURNS LONG AS
 SELECT
   count() = 1
 FROM metadata
 WHERE
-  name = 'system_name' AND str_value = 'Linux';
+  name = 'system_name' AND str_value = 'Linux' AND machine_id = $machine_id;

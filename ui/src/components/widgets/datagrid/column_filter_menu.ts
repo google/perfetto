@@ -22,6 +22,7 @@ import {Form} from '../../../widgets/form';
 import {Icon} from '../../../widgets/icon';
 import {MenuDivider, MenuItem} from '../../../widgets/menu';
 import {TextInput} from '../../../widgets/text_input';
+import {DataSource} from './data_source';
 import {ColumnType} from './datagrid_schema';
 import {FilterOpAndValue} from './model';
 
@@ -45,7 +46,9 @@ export function toCaseInsensitiveGlob(text: string): string {
 
 // Helper component to manage distinct values selection
 interface DistinctValuesSubmenuAttrs {
-  readonly distinctValues: readonly SqlValue[] | undefined;
+  readonly datasource: DataSource;
+  readonly field: string;
+  readonly excludeNull?: boolean;
   readonly valueFormatter: (value: SqlValue) => string;
   readonly onApply: (selectedValues: Set<SqlValue>) => void;
 }
@@ -58,13 +61,19 @@ export class DistinctValuesSubmenu
   private static readonly MAX_VISIBLE_ITEMS = 100;
 
   view({attrs}: m.Vnode<DistinctValuesSubmenuAttrs>) {
-    const {distinctValues, valueFormatter, onApply} = attrs;
+    const {datasource, field, excludeNull, valueFormatter, onApply} = attrs;
 
-    if (distinctValues === undefined) {
+    // Fetch distinct values - only called when submenu is visible
+    const {data, isPending} = datasource.useDistinctValues(field);
+
+    if (isPending || data === undefined) {
       return m('.pf-distinct-values-menu', [
         m(MenuItem, {label: 'Loading...', disabled: true}),
       ]);
     }
+
+    // Filter out null if requested (use "is null" filter instead)
+    const distinctValues = excludeNull ? data.filter((v) => v !== null) : data;
 
     // Use fuzzy search to filter and get highlighted segments
     const fuzzyResults = (() => {
@@ -245,13 +254,12 @@ export class TextFilterSubmenu
 }
 
 export interface FilterMenuAttrs {
-  readonly distinctValues: readonly SqlValue[] | undefined;
+  readonly datasource: DataSource;
+  readonly field: string;
   readonly columnType: ColumnType | undefined;
   readonly structuredQueryCompatMode: boolean;
   readonly valueFormatter: (value: SqlValue) => string;
   readonly onFilterAdd: (filter: FilterOpAndValue) => void;
-  readonly onRequestDistinctValues: () => void;
-  readonly onDismissDistinctValues: () => void;
 }
 
 /**
@@ -391,9 +399,9 @@ function renderGlobFilterMenuItems(
 }
 
 /**
- * Renders free text equals filter menu items (Equals, Not equals) for quantitative columns.
+ * Renders numeric equals filter menu items (Equals, Not equals) for quantitative columns.
  */
-function renderFreeTextEqualsFilterMenuItems(
+function renderNumericEqualsFilterMenuItems(
   onFilterAdd: (filter: FilterOpAndValue) => void,
 ): m.ChildArray {
   return [
@@ -401,7 +409,7 @@ function renderFreeTextEqualsFilterMenuItems(
       MenuItem,
       {label: 'Equals'},
       m(TextFilterSubmenu, {
-        placeholder: 'Enter number to match...',
+        placeholder: 'Enter value...',
         inputType: 'number',
         onApply: (value) => onFilterAdd({op: '=', value}),
       }),
@@ -410,7 +418,7 @@ function renderFreeTextEqualsFilterMenuItems(
       MenuItem,
       {label: 'Not equals'},
       m(TextFilterSubmenu, {
-        placeholder: 'Enter number to exclude...',
+        placeholder: 'Enter value...',
         inputType: 'number',
         onApply: (value) => onFilterAdd({op: '!=', value}),
       }),
@@ -443,37 +451,20 @@ function renderNullFilterMenuItems(
 /**
  * Renders distinct value picker menu items (Equals, Not equals).
  */
-function renderDistinctValueFilterMenuItems(config: {
-  readonly distinctValues: readonly SqlValue[] | undefined;
-  readonly valueFormatter: (value: SqlValue) => string;
-  readonly onFilterAdd: (filter: FilterOpAndValue) => void;
-  readonly onRequestDistinctValues: () => void;
-  readonly onDismissDistinctValues: () => void;
-}): m.ChildArray {
-  const {
-    distinctValues,
-    valueFormatter,
-    onFilterAdd,
-    onRequestDistinctValues,
-    onDismissDistinctValues,
-  } = config;
+function renderDistinctValueFilterMenuItems(
+  config: FilterMenuAttrs,
+): m.ChildArray {
+  const {datasource, field, valueFormatter, onFilterAdd} = config;
 
   return [
     m(
       MenuItem,
-      {
-        label: 'Equals',
-        onChange: (isOpen) => {
-          if (isOpen === true) {
-            onRequestDistinctValues();
-          } else {
-            onDismissDistinctValues();
-          }
-        },
-      },
+      {label: 'Equals'},
       m(DistinctValuesSubmenu, {
+        datasource,
+        field,
         // Filter out null - use "is null" filter instead (SQL IN doesn't match NULL)
-        distinctValues: distinctValues?.filter((v: SqlValue) => v !== null),
+        excludeNull: true,
         valueFormatter,
         onApply: (selectedValues) => {
           onFilterAdd({
@@ -485,19 +476,12 @@ function renderDistinctValueFilterMenuItems(config: {
     ),
     m(
       MenuItem,
-      {
-        label: 'Not equals',
-        onChange: (isOpen) => {
-          if (isOpen === true) {
-            onRequestDistinctValues();
-          } else {
-            onDismissDistinctValues();
-          }
-        },
-      },
+      {label: 'Not equals'},
       m(DistinctValuesSubmenu, {
+        datasource,
+        field,
         // Filter out null - use "is not null" filter instead (SQL NOT IN doesn't exclude NULL)
-        distinctValues: distinctValues?.filter((v: SqlValue) => v !== null),
+        excludeNull: true,
         valueFormatter,
         onApply: (selectedValues) => {
           onFilterAdd({
@@ -515,23 +499,10 @@ function renderDistinctValueFilterMenuItems(config: {
  * Includes: distinct value picker (equals/not equals), contains, glob, null filters.
  */
 function renderTextFilterMenuItems(config: FilterMenuAttrs): m.ChildArray {
-  const {
-    structuredQueryCompatMode,
-    distinctValues,
-    valueFormatter,
-    onFilterAdd,
-    onRequestDistinctValues,
-    onDismissDistinctValues,
-  } = config;
+  const {structuredQueryCompatMode, onFilterAdd} = config;
 
   return [
-    renderDistinctValueFilterMenuItems({
-      distinctValues,
-      valueFormatter,
-      onFilterAdd,
-      onRequestDistinctValues,
-      onDismissDistinctValues,
-    }),
+    renderDistinctValueFilterMenuItems(config),
     m(MenuDivider),
     renderContainsFilterMenuItems(onFilterAdd, !structuredQueryCompatMode),
     renderGlobFilterMenuItems(onFilterAdd, !structuredQueryCompatMode),
@@ -542,13 +513,13 @@ function renderTextFilterMenuItems(config: FilterMenuAttrs): m.ChildArray {
 
 /**
  * Renders filter menu items for quantitative columns.
- * Includes: free text equals/not equals, numeric comparisons, null filters.
+ * Includes: numeric equals/not equals, numeric comparisons, null filters.
  */
 function renderQuantitativeFilterMenuItems(
   onFilterAdd: (filter: FilterOpAndValue) => void,
 ): m.ChildArray {
   return [
-    renderFreeTextEqualsFilterMenuItems(onFilterAdd),
+    renderNumericEqualsFilterMenuItems(onFilterAdd),
     renderNumericComparisonMenuItems(onFilterAdd),
     m(MenuDivider),
     renderNullFilterMenuItems(onFilterAdd),
@@ -562,22 +533,10 @@ function renderQuantitativeFilterMenuItems(
 function renderIdentifierFilterMenuItems(
   config: FilterMenuAttrs,
 ): m.ChildArray {
-  const {
-    distinctValues,
-    valueFormatter,
-    onFilterAdd,
-    onRequestDistinctValues,
-    onDismissDistinctValues,
-  } = config;
+  const {onFilterAdd} = config;
 
   return [
-    renderDistinctValueFilterMenuItems({
-      distinctValues,
-      valueFormatter,
-      onFilterAdd,
-      onRequestDistinctValues,
-      onDismissDistinctValues,
-    }),
+    renderDistinctValueFilterMenuItems(config),
     renderNumericComparisonMenuItems(onFilterAdd),
     m(MenuDivider),
     renderNullFilterMenuItems(onFilterAdd),
@@ -586,7 +545,8 @@ function renderIdentifierFilterMenuItems(
 
 /**
  * Renders filter menu items when columnType is undefined.
- * Shows all filter options except distinct value picker.
+ * Shows all filter options (distinct value picker, text-based equals, numeric comparisons,
+ * contains, glob, null).
  */
 function renderUnknownTypeFilterMenuItems(
   config: FilterMenuAttrs,
@@ -594,7 +554,7 @@ function renderUnknownTypeFilterMenuItems(
   const {structuredQueryCompatMode, onFilterAdd} = config;
 
   return [
-    renderFreeTextEqualsFilterMenuItems(onFilterAdd),
+    renderDistinctValueFilterMenuItems(config),
     renderNumericComparisonMenuItems(onFilterAdd),
     m(MenuDivider),
     renderContainsFilterMenuItems(onFilterAdd, !structuredQueryCompatMode),
@@ -617,7 +577,7 @@ function renderFilterMenuItems(config: FilterMenuAttrs): m.ChildArray {
     case 'identifier':
       return renderIdentifierFilterMenuItems(config);
     default:
-      // When columnType is undefined, show all filters except distinct values
+      // When columnType is undefined, show all filters
       return renderUnknownTypeFilterMenuItems(config);
   }
 }

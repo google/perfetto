@@ -24,6 +24,7 @@
 #include <optional>
 #include <unordered_map>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -34,6 +35,7 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/slice.h"
+#include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/trace_stats.h"
 #include "src/tracing/service/histogram.h"
 #include "src/tracing/service/trace_buffer.h"
@@ -42,6 +44,10 @@ namespace perfetto {
 
 class TracePacket;
 class TraceBufferV2;
+
+namespace protovm {
+class Vm;
+}
 
 namespace internal {
 
@@ -101,7 +107,7 @@ struct TBChunk {
   // The number of payload bytes unconsumed. This starts at payload_size and
   // shrinks until it reaches 0 as we consume fragments.
   // It is always <= size and <= payload_size.
-  // Effectively (payload_size - payload-avail) is the offset of the the next
+  // Effectively (payload_size - payload-avail) is the offset of the next
   // unconsumed fragment header (the varint with the size).
   uint16_t payload_avail = 0;
 
@@ -153,7 +159,7 @@ struct TBChunk {
 // Remember that this struct must be copyable for CloneReadOnly(). Don't hold
 // onto any pointers in here.
 // SequenceState(s) are not deleted aggressively to preserve the
-// last_chunk_id_consumed and detect data losses in long tracing mode. We allow
+// last_chunk_consumed and detect data losses in long tracing mode. We allow
 // the last kKeepLastEmptySeq to stay alive to balance data loss detection with
 // memory bloats.
 struct SequenceState {
@@ -175,7 +181,17 @@ struct SequenceState {
   // objects around.
   uint64_t age_for_gc = 0;
 
-  std::optional<ChunkID> last_chunk_id_consumed;
+  // Snapshot of the last chunk that was erased (consumed or evicted) in this
+  // sequence. Used to detect gaps between consecutive chunks and to decide
+  // whether a re-committed chunk should be accepted or discarded.
+  // |payload_size| and |was_incomplete| capture the chunk's state at the time
+  // of consumption; see CopyChunkUntrusted() for how they are used.
+  struct ConsumedChunkInfo {
+    ChunkID chunk_id = 0;
+    uint16_t payload_size = 0;
+    bool was_incomplete = false;
+  };
+  std::optional<ConsumedChunkInfo> last_chunk_consumed;
 
   // This is set whenever a data loss is detected and cleared when reading the
   // next packet for the sequence (which will report previous_packet_dropped).
@@ -373,6 +389,20 @@ class TraceBufferV2 : public TraceBuffer {
   using Patch = TraceBuffer::Patch;
   using PacketSequenceProperties = TraceBuffer::PacketSequenceProperties;
 
+  // Represents a ProtoVM instance and some metadata
+  struct Vm {
+    Vm();
+    ~Vm();
+    Vm(Vm&&) noexcept;
+    Vm CloneReadOnly() const;
+
+    std::unique_ptr<protovm::Vm> instance;
+    std::string data_source_name;
+    uint64_t program_hash = 0;
+    uint32_t memory_limit_kb = 0;
+    base::FlatSet<ProducerID> producers;
+  };
+
   // Can return nullptr if the memory allocation fails.
   static std::unique_ptr<TraceBufferV2> Create(size_t size_in_bytes,
                                                OverwritePolicy = kOverwrite);
@@ -428,6 +458,13 @@ class TraceBufferV2 : public TraceBuffer {
                              size_t patches_size,
                              bool other_patches_pending) override;
 
+  void MaybeSetUpProtoVm(const std::string& data_source_name,
+                         const std::string& program_bytes,
+                         uint32_t memory_limit_kb,
+                         ProducerID producer_id);
+
+  const std::vector<Vm>& GetProtoVmInstances() const { return protovms_; }
+
   // To read the contents of the buffer the caller needs to:
   //   BeginRead()
   //   while (ReadNextTracePacket(packet_fragments)) { ... }
@@ -475,6 +512,7 @@ class TraceBufferV2 : public TraceBuffer {
 
   size_t size() const override { return size_; }
   size_t used_size() const override { return used_size_; }
+  size_t GetMemoryUsageBytes() const override;
   OverwritePolicy overwrite_policy() const override {
     return overwrite_policy_;
   }
@@ -482,7 +520,7 @@ class TraceBufferV2 : public TraceBuffer {
   const WriterStats& writer_stats() const override { return writer_stats_; }
   bool has_data() const override { return used_size_ > 0; }
   void set_read_only() override { read_only_ = true; }
-  bool is_trace_buffer_v2() const override { return true; }
+  BufType buf_type() const override { return kV2; }
 
   void DumpForTesting();
 
@@ -544,6 +582,7 @@ class TraceBufferV2 : public TraceBuffer {
 
   void DiscardWrite();
   void DeleteStaleEmptySequences();
+  void MaybeProcessOverwrittenPacketWithProtoVm(const TracePacket&, ProducerID);
 
   uint8_t* begin() const { return reinterpret_cast<uint8_t*>(data_.Get()); }
   uint8_t* end() const { return begin() + size_; }
@@ -596,6 +635,23 @@ class TraceBufferV2 : public TraceBuffer {
   // bugs in the producers. This is for tests that feed malicious inputs and
   // hence mimic a buggy producer.
   bool suppress_client_dchecks_for_testing_ = false;
+
+  // ProtoVMs used to process overwritten packets (go/perfetto-proto-vm)
+  std::vector<Vm> protovms_;
+
+  // Used to collect slices of the overwritten packet. Note that this is a
+  // member variable (instead of local) so that the memory (internal
+  // std::vector<Slice>) is re-used across overwritten packets, thus involving
+  // allocations only when the vector needs to be expanded (in practice only a
+  // few times during the initial iterations).
+  TracePacket overwritten_packet_;
+
+  // Storage used to re-write overwritten packets (from TBv2) into contiguous
+  // memory to be used as ProtoVM patches (must be continguous to be decoded
+  // with protozero). Note that this is a member variable (instead of local) so
+  // that the memory is re-used across overwritten packets, thus involving
+  // allocations only when the storage needs to be expanded.
+  std::string protovm_patch_;
 };
 
 }  // namespace perfetto

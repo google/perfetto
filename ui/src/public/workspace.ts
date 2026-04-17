@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue} from '../base/logging';
+import {assertTrue} from '../base/assert';
 import {errResult, okResult, Result} from '../base/result';
 
 export interface WorkspaceManager {
@@ -71,6 +71,9 @@ export interface TrackNodeArgs {
   collapsed: boolean;
   isSummary: boolean;
   removable: boolean;
+  subtitle: string;
+  chips: ReadonlyArray<string>;
+  onExpand?: () => void;
 }
 
 /**
@@ -83,9 +86,7 @@ export class TrackNode {
   // track. If this means nothing to you, don't bother using it.
   public readonly id: string;
 
-  // A human readable string for this track - displayed in the track shell.
-  // TODO(stevegolton): Make this optional, so that if we implement a string for
-  // this track then we can implement it here as well.
+  // A human readable name for this track - displayed in the track shell.
   public name: string;
 
   // The URI of the track content to display here.
@@ -113,11 +114,18 @@ export class TrackNode {
   // track from the workspace.
   public removable: boolean;
 
+  // Optional subtitle displayed underneath the track name in the track shell.
+  public subtitle?: string;
+
+  // Optional: A list of strings displayed as "chips" in the track shell.
+  public chips?: ReadonlyArray<string>;
+
   protected _collapsed = true;
   protected _children: Array<TrackNode> = [];
   protected readonly tracksById = new Map<string, TrackNode>();
   protected readonly tracksByUri = new Map<string, TrackNode>();
   private _parent?: TrackNode;
+  private _onExpand?: () => void;
   public _workspace?: Workspace;
 
   get parent(): TrackNode | undefined {
@@ -133,6 +141,9 @@ export class TrackNode {
       collapsed = true,
       isSummary = false,
       removable = false,
+      subtitle,
+      chips,
+      onExpand,
     } = args ?? {};
 
     this.id = createSessionUniqueId();
@@ -143,6 +154,9 @@ export class TrackNode {
     this.isSummary = isSummary;
     this._collapsed = collapsed;
     this.removable = removable;
+    this.subtitle = subtitle;
+    this.chips = chips;
+    this._onExpand = onExpand;
   }
 
   /**
@@ -252,7 +266,10 @@ export class TrackNode {
    * Mark this node as un-collapsed, indicating its children should be rendered.
    */
   expand(): void {
-    this._collapsed = false;
+    if (this._collapsed) {
+      this._collapsed = false;
+      this._onExpand?.();
+    }
   }
 
   /**
@@ -267,7 +284,11 @@ export class TrackNode {
    * Toggle the collapsed state.
    */
   toggleCollapsed(): void {
+    const wasCollapsed = this._collapsed;
     this._collapsed = !this._collapsed;
+    if (wasCollapsed && !this._collapsed) {
+      this._onExpand?.();
+    }
   }
 
   /**
@@ -590,7 +611,9 @@ export class Workspace {
     const cloned = new TrackNode({
       uri: track.uri,
       name: track.name,
+      subtitle: track.subtitle,
       removable: track.removable,
+      chips: track.chips,
     });
     this.pinnedTracksNode.addChildLast(cloned);
   }

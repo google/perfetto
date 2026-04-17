@@ -42,6 +42,9 @@ export interface ExportOptions {
 /**
  * Format data as TSV (tab-separated values).
  * Replaces tabs and newlines in cell values with spaces to maintain format integrity.
+ * @param columns The list of column IDs to export.
+ * @param columnNames Mapping from column IDs to display names.
+ * @param rows The row data to format.
  */
 export function formatAsTSV(
   columns: ReadonlyArray<string>,
@@ -72,14 +75,32 @@ export function formatAsTSV(
 
 /**
  * Format data as JSON
+ * @param columns The list of column IDs to export.
+ * @param columnNames Mapping from column IDs to display names.
+ * @param rows The row data to format.
  */
-export function formatAsJSON(rows: Array<Record<string, string>>): string {
-  return JSON.stringify(rows, null, 2);
+export function formatAsJSON(
+  columns: ReadonlyArray<string>,
+  columnNames: Record<string, string>,
+  rows: Array<Record<string, string>>,
+): string {
+  const namedRows = rows.map((row) => {
+    const namedRow: Record<string, string> = {};
+    for (const col of columns) {
+      const name = columnNames[col] ?? col;
+      namedRow[name] = row[col] ?? '';
+    }
+    return namedRow;
+  });
+  return JSON.stringify(namedRows, null, 2);
 }
 
 /**
  * Format data as Markdown table.
  * Escapes special characters to prevent breaking the table format.
+ * @param columns The list of column IDs to export.
+ * @param columnNames Mapping from column IDs to display names.
+ * @param rows The row data to format.
  */
 export function formatAsMarkdown(
   columns: ReadonlyArray<string>,
@@ -126,23 +147,32 @@ export function formatAsMarkdown(
 
 /**
  * Apply cell formatters to all rows, converting SqlValues to strings.
+ * @param rows The input rows to format.
+ * @param schema Optional schema registry for looking up column info.
+ * @param rootSchema Optional name of the root schema for lookup.
+ * @param columns The list of column aliases to include in the output.
+ * @param aliasToField Optional mapping from column aliases to field paths,
+ *   used when column IDs differ from field paths for schema lookup.
  */
 export function formatRows(
   rows: readonly Row[],
   schema: SchemaRegistry | undefined,
   rootSchema: string | undefined,
   columns: ReadonlyArray<string>,
+  aliasToField?: Record<string, string>,
 ): Array<Record<string, string>> {
   return rows.map((row) => {
     const formattedRow: Record<string, string> = {};
-    for (const colPath of columns) {
-      const value = row[colPath];
+    for (const colAlias of columns) {
+      const value = row[colAlias];
+      // Use field path for schema lookup if provided, otherwise use alias
+      const fieldPath = aliasToField?.[colAlias] ?? colAlias;
       const formatter =
         schema && rootSchema
-          ? getColumnInfo(schema, rootSchema, colPath)?.cellFormatter ??
+          ? getColumnInfo(schema, rootSchema, fieldPath)?.cellFormatter ??
             defaultValueFormatter
           : defaultValueFormatter;
-      formattedRow[colPath] = formatter(value, row);
+      formattedRow[colAlias] = formatter(value, row);
     }
     return formattedRow;
   });
@@ -150,6 +180,9 @@ export function formatRows(
 
 /**
  * Build a mapping of column paths to display names.
+ * @param schema Optional schema registry for looking up column info.
+ * @param rootSchema Optional name of the root schema for lookup.
+ * @param columns The list of column paths to get names for.
  */
 export function buildColumnNames(
   schema: SchemaRegistry | undefined,

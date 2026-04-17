@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/base/intrusive_list.h"
+#include "perfetto/ext/base/intrusive_list.h"
 
 #include "perfetto/base/logging.h"
 

@@ -16,6 +16,11 @@
 
 package dev.perfetto.sdk;
 
+import com.google.errorprone.annotations.CompileTimeConstant;
+
+import java.util.ArrayList;
+import java.util.function.Supplier;
+
 import dev.perfetto.sdk.PerfettoNativeMemoryCleaner.AllocationStats;
 import dev.perfetto.sdk.PerfettoTrace.Category;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.Arg;
@@ -28,8 +33,6 @@ import dev.perfetto.sdk.PerfettoTrackEventExtra.Flow;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.NamedTrack;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.PerfettoPointer;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.Proto;
-import java.util.ArrayList;
-import java.util.function.Supplier;
 
 /** Builder for Perfetto track event extras. */
 public final class PerfettoTrackEventBuilder {
@@ -356,7 +359,26 @@ public final class PerfettoTrackEventBuilder {
   }
 
   /** Adds the events to a named track instead of the thread track where the event occurred. */
-  public PerfettoTrackEventBuilder usingNamedTrack(long id, String name, long parentUuid) {
+  public PerfettoTrackEventBuilder usingNamedTrack(
+          long id, @CompileTimeConstant String name, long parentUuid) {
+      return usingNamedTrack(id, name, parentUuid, /* isNameStatic = */ true);
+  }
+
+  /**
+   * Adds the events to a named track with a dynamic name (populated in field 10 of
+   * TrackDescriptor).
+   */
+  public PerfettoTrackEventBuilder usingNamedTrackWithDynamicName(
+      long id, String name, long parentUuid) {
+    return usingNamedTrack(id, name, parentUuid, /* isNameStatic = */ false);
+  }
+
+  /**
+   * Adds the events to a named track with a static name (populated in field 10 of
+   * TrackDescriptor).
+   */
+  private PerfettoTrackEventBuilder usingNamedTrack(
+          long id, String name, long parentUuid, boolean isNameStatic) {
     if (!mIsCategoryEnabled) {
       return this;
     }
@@ -365,8 +387,8 @@ public final class PerfettoTrackEventBuilder {
     }
 
     NamedTrack track = mObjectsCache.mNamedTrackCache.get(name.hashCode());
-    if (track == null || !track.getName().equals(name)) {
-      track = new NamedTrack(id, name, parentUuid, mNativeMemoryCleaner);
+    if (track == null || !track.getName().equals(name) || track.isNameStatic() != isNameStatic) {
+      track = new NamedTrack(id, name, parentUuid, isNameStatic, mNativeMemoryCleaner);
       mObjectsCache.mNamedTrackCache.put(name.hashCode(), track);
     }
     addPerfettoPointerToExtra(track);
@@ -377,26 +399,67 @@ public final class PerfettoTrackEventBuilder {
    * Adds the events to a process scoped named track instead of the thread track where the event
    * occurred.
    */
-  public PerfettoTrackEventBuilder usingProcessNamedTrack(long id, String name) {
+  public PerfettoTrackEventBuilder usingProcessNamedTrack(
+          long id, @CompileTimeConstant String name) {
+      if (!mIsCategoryEnabled) {
+          return this;
+      }
+      return usingNamedTrack(id, name, PerfettoTrace.getProcessTrackUuid());
+  }
+
+  /**
+   * Adds the events to a process scoped named track with a dynamic name instead of the thread track
+   * where the event occurred.
+   */
+  public PerfettoTrackEventBuilder usingProcessNamedTrackWithDynamicName(
+      long id,  String name) {
     if (!mIsCategoryEnabled) {
       return this;
     }
-    return usingNamedTrack(id, name, PerfettoTrace.getProcessTrackUuid());
+    return usingNamedTrackWithDynamicName(id, name, PerfettoTrace.getProcessTrackUuid());
   }
 
   /**
    * Adds the events to a thread scoped named track instead of the thread track where the event
    * occurred.
    */
-  public PerfettoTrackEventBuilder usingThreadNamedTrack(long id, String name, long tid) {
+  public PerfettoTrackEventBuilder usingThreadNamedTrack(
+          long id, @CompileTimeConstant String name, long tid) {
+      if (!mIsCategoryEnabled) {
+          return this;
+      }
+      return usingNamedTrack(id, name, PerfettoTrace.getThreadTrackUuid(tid));
+  }
+
+  /**
+   * Adds the events to a thread scoped named track with a dynamic name instead of the thread track
+   * where the event occurred.
+   */
+  public PerfettoTrackEventBuilder usingThreadNamedTrackWithDynamicName(
+      long id, String name, long tid) {
     if (!mIsCategoryEnabled) {
       return this;
     }
-    return usingNamedTrack(id, name, PerfettoTrace.getThreadTrackUuid(tid));
+    return usingNamedTrackWithDynamicName(id, name, PerfettoTrace.getThreadTrackUuid(tid));
   }
 
   /** Adds the events to a counter track instead. This is required for setting counter values. */
-  public PerfettoTrackEventBuilder usingCounterTrack(long parentUuid, String name) {
+  public PerfettoTrackEventBuilder usingCounterTrack(
+          long parentUuid, @CompileTimeConstant String name) {
+      return usingCounterTrack(parentUuid, name, /* isNameStatic = */ true);
+  }
+
+  /**
+   * Adds the events to a counter track with a static name instead. This is required for setting
+   * counter values.
+   */
+  public PerfettoTrackEventBuilder usingCounterTrackWithDynamicName(
+      long parentUuid,  String name) {
+    return usingCounterTrack(parentUuid, name, /* isNameStatic = */ false);
+  }
+
+  private PerfettoTrackEventBuilder usingCounterTrack(
+      long parentUuid, String name, boolean isNameStatic) {
     if (!mIsCategoryEnabled) {
       return this;
     }
@@ -405,8 +468,8 @@ public final class PerfettoTrackEventBuilder {
     }
 
     CounterTrack track = mObjectsCache.mCounterTrackCache.get(name.hashCode());
-    if (track == null || !track.getName().equals(name)) {
-      track = new CounterTrack(name, parentUuid, mNativeMemoryCleaner);
+    if (track == null || !track.getName().equals(name) || track.isNameStatic() != isNameStatic) {
+      track = new CounterTrack(name, parentUuid, isNameStatic, mNativeMemoryCleaner);
       mObjectsCache.mCounterTrackCache.put(name.hashCode(), track);
     }
     addPerfettoPointerToExtra(track);
@@ -417,22 +480,47 @@ public final class PerfettoTrackEventBuilder {
    * Adds the events to a process scoped counter track instead. This is required for setting counter
    * values.
    */
-  public PerfettoTrackEventBuilder usingProcessCounterTrack(String name) {
+  public PerfettoTrackEventBuilder usingProcessCounterTrack(@CompileTimeConstant String name) {
+      if (!mIsCategoryEnabled) {
+          return this;
+      }
+      return usingCounterTrack(PerfettoTrace.getProcessTrackUuid(), name);
+  }
+
+  /**
+   * Adds the events to a process scoped counter track with a static name instead. This is required
+   * for setting counter values.
+   */
+  public PerfettoTrackEventBuilder usingProcessCounterTrackWithDynamicName(
+       String name) {
     if (!mIsCategoryEnabled) {
       return this;
     }
-    return usingCounterTrack(PerfettoTrace.getProcessTrackUuid(), name);
+    return usingCounterTrackWithDynamicName(PerfettoTrace.getProcessTrackUuid(), name);
   }
 
   /**
    * Adds the events to a thread scoped counter track instead. This is required for setting counter
    * values.
    */
-  public PerfettoTrackEventBuilder usingThreadCounterTrack(long tid, String name) {
+  public PerfettoTrackEventBuilder usingThreadCounterTrack(
+          long tid, @CompileTimeConstant String name) {
+      if (!mIsCategoryEnabled) {
+          return this;
+      }
+      return usingCounterTrack(PerfettoTrace.getThreadTrackUuid(tid), name);
+  }
+
+  /**
+   * Adds the events to a thread scoped counter track with a static name instead. This is required for
+   * setting counter values.
+   */
+  public PerfettoTrackEventBuilder usingThreadCounterTrackWithDynamicName(
+      long tid,  String name) {
     if (!mIsCategoryEnabled) {
       return this;
     }
-    return usingCounterTrack(PerfettoTrace.getThreadTrackUuid(tid), name);
+    return usingCounterTrackWithDynamicName(PerfettoTrace.getThreadTrackUuid(tid), name);
   }
 
   /** Sets a long counter value on the event. */
@@ -666,10 +754,13 @@ public final class PerfettoTrackEventBuilder {
   }
 
   private void checkState() {
-    if (mIsBuilt) {
-      throw new IllegalStateException(
-          "This builder has already been used. Create a new builder for another event.");
-    }
+    if (mIsBuilt) throwStateError();
+  }
+
+  /** Outlined to keep the caller method small and more likely to be inlined. */
+  private static void throwStateError() {
+    throw new IllegalStateException(
+        "This builder has already been used. Create a new builder for another event.");
   }
 
   private boolean isBuildingTopLevelExtra() {
@@ -691,29 +782,41 @@ public final class PerfettoTrackEventBuilder {
 
   private void checkNotBuildingProto() {
     checkState();
-    if (isBuildingProtoOrNestedProto()) {
-      throw new IllegalStateException("Operation not supported for proto.");
-    }
+    if (isBuildingProtoOrNestedProto()) throwNotBuildingProtoError();
+  }
+
+  /** Outlined to keep the caller method small and more likely to be inlined. */
+  private static void throwNotBuildingProtoError() {
+    throw new IllegalStateException("Operation not supported for proto.");
   }
 
   private void checkBuildingProto() {
     checkState();
-    if (isBuildingTopLevelExtra()) {
-      throw new IllegalStateException("Field operations must be within beginProto/endProto block.");
-    }
+    if (isBuildingTopLevelExtra()) throwBuildingProtoError();
+  }
+
+  /** Outlined to keep the caller method small and more likely to be inlined. */
+  private static void throwBuildingProtoError() {
+    throw new IllegalStateException("Field operations must be within beginProto/endProto block.");
   }
 
   private void checkMatchingBeginNested() {
     checkState();
-    if (!isBuildingNestedProto()) {
-      throw new IllegalStateException("No matching beginNested call.");
-    }
+    if (!isBuildingNestedProto()) throwMatchingBeginNestedError();
+  }
+
+  /** Outlined to keep the caller method small and more likely to be inlined. */
+  private static void throwMatchingBeginNestedError() {
+    throw new IllegalStateException("No matching beginNested call.");
   }
 
   private void checkMatchingBeginProto() {
     checkState();
-    if (!isBuildingProto()) {
-      throw new IllegalStateException("No matching beginProto call.");
-    }
+    if (!isBuildingProto()) throwMatchingBeginProtoError();
+  }
+
+  /** Outlined to keep the caller method small and more likely to be inlined. */
+  private static void throwMatchingBeginProtoError() {
+    throw new IllegalStateException("No matching beginProto call.");
   }
 }

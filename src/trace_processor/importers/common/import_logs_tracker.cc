@@ -21,7 +21,6 @@
 #include <optional>
 #include <utility>
 
-#include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
@@ -30,7 +29,7 @@
 namespace perfetto::trace_processor {
 
 ImportLogsTracker::ImportLogsTracker(TraceProcessorContext* context,
-                                     uint32_t trace_id)
+                                     tables::TraceFileTable::Id trace_id)
     : context_(context), trace_id_(trace_id) {}
 
 void ImportLogsTracker::RecordImportLog(
@@ -66,6 +65,14 @@ void ImportLogsTracker::RecordTokenizationError(
 }
 
 void ImportLogsTracker::RecordParserError(
+    size_t stat_key,
+    int64_t timestamp,
+    std::function<void(ArgsTracker::BoundInserter&)> args_callback) {
+  RecordImportLog(stat_key, timestamp,
+                  /*byte_offset=*/std::nullopt, std::move(args_callback));
+}
+
+void ImportLogsTracker::RecordCollectionError(
     size_t stat_key,
     int64_t timestamp,
     std::function<void(ArgsTracker::BoundInserter&)> args_callback) {

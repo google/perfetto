@@ -26,6 +26,7 @@
   - [Cookbooks](#)
 
     - [Analysing Android Traces](getting-started/android-trace-analysis.md)
+    - [Periodic Trace Snapshots](getting-started/periodic-trace-snapshots.md)
 
   - [Case Studies](#)
 
@@ -73,7 +74,12 @@
     - [Opening large traces](visualization/large-traces.md)
     - [Deep linking](visualization/deep-linking-to-perfetto-ui.md)
     - [Debug tracks](analysis/debug-tracks.md)
-    - [UI Automation](visualization/ui-automation.md)
+
+    - [Extending the UI](#)
+
+      - [Overview](visualization/extending-the-ui.md)
+      - [Commands and Macros](visualization/ui-automation.md)
+      - [Extension Servers](visualization/extension-servers.md)
 
   - [Contributing](#)
 
@@ -105,10 +111,11 @@
 
     - [Android Data Sources](#)
 
+      - [Android Aflags](data-sources/android-aflags.md)
       - [Atrace](data-sources/atrace.md)
-      - [Logcat](data-sources/android-log.md)
-      - [Frame Timeline](data-sources/frametimeline.md)
       - [Battery counters and rails](data-sources/battery-counters.md)
+      - [Frame Timeline](data-sources/frametimeline.md)
+      - [Logcat](data-sources/android-log.md)
       - [Other data sources](data-sources/android-game-intervention-list.md)
 
   - [Trace Format Reference](#)
@@ -166,6 +173,7 @@
   - [Advanced Trace Visualization](#)
 
     - [Commands Automation Reference](visualization/commands-automation-reference.md)
+    - [Extension Server Protocol](visualization/extension-server-protocol.md)
 
   - [Contributor Reference](#)
 

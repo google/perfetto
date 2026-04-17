@@ -25,15 +25,10 @@ import ThreadPlugin from '../dev.perfetto.Thread';
 import {createPerfettoIndex} from '../../trace_processor/sql_utils';
 import {uuidv4Sql} from '../../base/uuid';
 import {
-  Config as ProcessSchedulingTrackConfig,
-  PROCESS_SCHEDULING_TRACK_KIND,
-  ProcessSchedulingTrack,
-} from './process_scheduling_track';
-import {
-  Config as ProcessSummaryTrackConfig,
-  PROCESS_SUMMARY_TRACK_KIND,
-  ProcessSummaryTrack,
-} from './process_summary_track';
+  Config,
+  SLICE_TRACK_SUMMARY_KIND,
+  GroupSummaryTrack,
+} from './group_summary_track';
 
 // This plugin is responsible for adding summary tracks for process and thread
 // groups.
@@ -46,7 +41,8 @@ export default class implements PerfettoPlugin {
   }
 
   private async addProcessTrackGroups(ctx: Trace): Promise<void> {
-    // Makes the queries in `ProcessSchedulingTrack` significantly faster.
+    // Makes the queries in `SliceTrackSummary` significantly faster when using
+    // scheduling data.
     // TODO(lalitm): figure out a better way to do this without hardcoding this
     // here.
     await createPerfettoIndex({
@@ -54,12 +50,13 @@ export default class implements PerfettoPlugin {
       name: `__process_scheduling_${uuidv4Sql()}`,
       on: `__intrinsic_sched_slice(utid)`,
     });
-    // Makes the queries in `ProcessSummaryTrack` significantly faster.
+    // Makes the queries in `SliceTrackSummary` significantly faster when using
+    // slice data.
     // TODO(lalitm): figure out a better way to do this without hardcoding this
     // here.
     await createPerfettoIndex({
       engine: ctx.engine,
-      name: `__process_summary_${uuidv4Sql()}`,
+      name: `__slice_track_summary_${uuidv4Sql()}`,
       on: `__intrinsic_slice(track_id)`,
     });
 
@@ -69,12 +66,11 @@ export default class implements PerfettoPlugin {
 
       WITH machine_cpu_counts AS (
         SELECT
-          IFNULL(machine_id, 0) AS machine,
+          machine_id AS machine,
           COUNT(*) AS cpu_count
         FROM cpu
         GROUP BY machine
       )
-
       select *
       from (
         select
@@ -88,9 +84,9 @@ export default class implements PerfettoPlugin {
           android_process_metadata.debuggable as isDebuggable,
           case
             when process.name = 'system_server' then
-              ifnull((select int_value from metadata where name = 'android_profile_system_server'), 0)
+              ifnull(extract_metadata_for_machine(machine_id, 'android_profile_system_server'), 0)
             when process.name GLOB 'zygote*' then
-              ifnull((select int_value from metadata where name = 'android_profile_boot_classpath'), 0)
+              ifnull(extract_metadata_for_machine(machine_id, 'android_profile_boot_classpath'), 0)
             else 0
           end as isBootImageProfiling,
           ifnull((
@@ -101,13 +97,13 @@ export default class implements PerfettoPlugin {
               arg_set_id = process.arg_set_id and
               flat_key = 'chrome.process_label'
           ), '') as chromeProcessLabels,
-          ifnull(machine_id, 0) as machine,
+          machine_id as machine,
           IFNULL(machine_cpu_counts.cpu_count, 0) AS cpuCount
         from _process_available_info_summary
         join process using(upid)
         left join android_process_metadata using(upid)
         LEFT JOIN machine_cpu_counts
-          ON machine_cpu_counts.machine = IFNULL(machine_id, 0)
+          ON machine_cpu_counts.machine = machine_id
       )
       union all
       select *
@@ -123,12 +119,12 @@ export default class implements PerfettoPlugin {
           0 as isDebuggable,
           0 as isBootImageProfiling,
           '' as chromeProcessLabels,
-          ifnull(machine_id, 0) as machine,
+          machine_id as machine,
           IFNULL(machine_cpu_counts.cpu_count, 0) AS cpuCount
         from _thread_available_info_summary
         join thread using (utid)
         LEFT JOIN machine_cpu_counts
-          ON machine_cpu_counts.machine = IFNULL(machine_id, 0)
+          ON machine_cpu_counts.machine = machine_id
         where upid is null
       )
     `);
@@ -170,38 +166,32 @@ export default class implements PerfettoPlugin {
       // for additional details.
       isBootImageProfiling && chips.push('boot image profiling');
 
-      if (hasSched) {
-        const config: ProcessSchedulingTrackConfig = {
-          pidForColor,
-          upid,
-          utid,
-        };
+      const config: Config = {
+        pidForColor,
+        upid,
+        utid,
+      };
+      const track = new GroupSummaryTrack(
+        ctx,
+        config,
+        cpuCount,
+        threads,
+        hasSched,
+      );
+      ctx.tracks.registerTrack({
+        uri,
+        tags: {
+          kinds: [SLICE_TRACK_SUMMARY_KIND],
+        },
+        renderer: track,
+      });
 
-        ctx.tracks.registerTrack({
-          uri,
-          tags: {
-            kinds: [PROCESS_SCHEDULING_TRACK_KIND],
-          },
-          chips,
-          renderer: new ProcessSchedulingTrack(ctx, config, cpuCount, threads),
-          subtitle,
-        });
-      } else {
-        const config: ProcessSummaryTrackConfig = {
-          pidForColor,
-          upid,
-          utid,
-        };
-
-        ctx.tracks.registerTrack({
-          uri,
-          tags: {
-            kinds: [PROCESS_SUMMARY_TRACK_KIND],
-          },
-          chips,
-          renderer: new ProcessSummaryTrack(ctx.engine, config),
-          subtitle,
-        });
+      // TODO(stevegolton): Probably add these when we create the process group
+      // node to begin with.
+      const trackNode = ctx.defaultWorkspace.getTrackByUri(uri);
+      if (trackNode) {
+        trackNode.subtitle = subtitle;
+        trackNode.chips = chips;
       }
     }
   }

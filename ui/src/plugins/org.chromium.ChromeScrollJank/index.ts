@@ -12,14 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {uuidv4Sql} from '../../base/uuid';
-import {generateSqlWithInternalLayout} from '../../components/sql_utils/layout';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {
-  createEventLatencyTrack,
-  JANKY_LATENCY_NAME,
-} from './event_latency_track';
+import {createEventLatencyTrack} from './event_latency_track';
 import {createScrollJankV3Track} from './scroll_jank_v3_track';
 import {ScrollJankCauseMap} from './scroll_jank_cause_map';
 import {TrackNode} from '../../public/workspace';
@@ -33,6 +28,14 @@ import {SourceDataset} from '../../trace_processor/dataset';
 import {SliceTrack} from '../../components/tracks/slice_track';
 import {escapeQuery} from '../../trace_processor/query_utils';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
+import {createScrollTimelineV4Track} from './scroll_timeline_v4_track';
+import {createScrollTimelineV4Model} from './scroll_timeline_v4_model';
+import {
+  EVENT_LATENCY_TRACK,
+  SCROLL_TIMELINE_TRACK,
+  SCROLL_TIMELINE_V4_TRACK,
+} from './tracks';
+import {createEventLatencyModel} from './event_latency_model';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'org.chromium.ChromeScrollJank';
@@ -49,6 +52,7 @@ export default class implements PerfettoPlugin {
     await this.addScrollJankV3ScrollTrack(ctx, group);
     await ScrollJankCauseMap.initialize(ctx.engine);
     await this.addScrollTimelineTrack(ctx, group);
+    await this.addScrollTimelineV4Track(ctx, group);
     await this.addVsyncTracks(ctx, group);
     ctx.defaultWorkspace.addChildInOrder(group);
     group.expand();
@@ -80,107 +84,17 @@ export default class implements PerfettoPlugin {
     ctx: Trace,
     group: TrackNode,
   ): Promise<void> {
-    const subTableSql = generateSqlWithInternalLayout({
-      columns: ['id', 'ts', 'dur', 'track_id', 'name'],
-      source: 'chrome_event_latencies',
-      ts: 'ts',
-      dur: 'dur',
-      whereClause: `
-        event_type IN (
-          'FIRST_GESTURE_SCROLL_UPDATE',
-          'GESTURE_SCROLL_UPDATE',
-          'INERTIAL_GESTURE_SCROLL_UPDATE')
-        AND is_presented`,
-    });
-
-    // Table name must be unique - it cannot include '-' characters or begin
-    // with a numeric value.
-    const baseTable = `table_${uuidv4Sql()}_janky_event_latencies_v3`;
-    const tableDefSql = `CREATE TABLE ${baseTable} AS
-        WITH
-        event_latencies AS MATERIALIZED (
-          ${subTableSql}
-        ),
-        latency_stages AS (
-          SELECT
-            stage.id,
-            stage.ts,
-            stage.dur,
-            stage.track_id,
-            stage.name,
-            stage.depth,
-            event.id as event_latency_id,
-            event.depth as event_latency_depth
-          FROM event_latencies event
-          JOIN descendant_slice(event.id) stage
-          UNION ALL
-          SELECT
-            event.id,
-            event.ts,
-            event.dur,
-            event.track_id,
-            IIF(
-              id IN (SELECT id FROM chrome_janky_event_latencies_v3),
-              '${JANKY_LATENCY_NAME}',
-              name
-            ) as name,
-            0 as depth,
-            event.id as event_latency_id,
-            event.depth as event_latency_depth
-          FROM event_latencies event
-        ),
-        -- Event latencies have already had layout computed, but the width of event latency can vary (3 or 4),
-        -- so we have to compute the max stage depth for each event latency depth to compute offset for each
-        -- event latency row.
-        event_latency_height_per_row AS (
-          SELECT
-            event_latency_depth,
-            MAX(depth) AS max_depth
-          FROM latency_stages
-          GROUP BY event_latency_depth
-        ),
-        -- Compute the offset for each event latency depth using max depth info for each depth.
-        event_latency_layout_offset AS (
-          SELECT
-            event_latency_depth,
-            -- As the sum is exclusive, it will return NULL for the first row — we need to set it to 0 explicitly.
-            IFNULL(
-              SUM(max_depth + 1) OVER (
-                ORDER BY event_latency_depth
-                ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-              ),
-            0) as offset
-          FROM event_latency_height_per_row
-        )
-      SELECT
-        stage.id,
-        stage.ts,
-        stage.dur,
-        stage.name,
-        stage.depth + (
-          (
-            SELECT offset.offset
-            FROM event_latencies event
-            JOIN event_latency_layout_offset offset ON event.depth = offset.event_latency_depth
-            WHERE id = stage.event_latency_id
-          )
-        ) AS depth
-      FROM latency_stages stage;`;
-
-    await ctx.engine.query(
-      `INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_intervals`,
-    );
-    await ctx.engine.query(tableDefSql);
-
-    const uri = 'org.chromium.ChromeScrollJank#eventLatency';
-    const title = 'Chrome Scroll Input Latencies';
+    await createEventLatencyModel(ctx.engine);
 
     ctx.tracks.registerTrack({
-      uri,
-      renderer: createEventLatencyTrack(ctx, uri, baseTable),
+      uri: EVENT_LATENCY_TRACK.uri,
+      renderer: createEventLatencyTrack(ctx),
     });
 
-    const track = new TrackNode({uri, name: title});
+    const track = new TrackNode({
+      uri: EVENT_LATENCY_TRACK.uri,
+      name: EVENT_LATENCY_TRACK.name,
+    });
     group.addChildInOrder(track);
   }
 
@@ -208,19 +122,35 @@ export default class implements PerfettoPlugin {
     ctx: Trace,
     group: TrackNode,
   ): Promise<void> {
-    const uri = 'org.chromium.ChromeScrollJank#scrollTimeline';
-    const title = 'Chrome Scroll Timeline';
-
-    const tableName =
-      'scrolltimelinetrack_org_chromium_ChromeScrollJank_scrollTimeline';
-    const model = await createScrollTimelineModel(ctx.engine, tableName, uri);
+    await createScrollTimelineModel(ctx.engine);
 
     ctx.tracks.registerTrack({
-      uri,
-      renderer: createScrollTimelineTrack(ctx, model),
+      uri: SCROLL_TIMELINE_TRACK.uri,
+      renderer: createScrollTimelineTrack(ctx),
     });
 
-    const track = new TrackNode({uri, name: title});
+    const track = new TrackNode({
+      uri: SCROLL_TIMELINE_TRACK.uri,
+      name: SCROLL_TIMELINE_TRACK.name,
+    });
+    group.addChildInOrder(track);
+  }
+
+  private async addScrollTimelineV4Track(
+    ctx: Trace,
+    group: TrackNode,
+  ): Promise<void> {
+    await createScrollTimelineV4Model(ctx.engine);
+
+    ctx.tracks.registerTrack({
+      uri: SCROLL_TIMELINE_V4_TRACK.uri,
+      renderer: createScrollTimelineV4Track(ctx),
+    });
+
+    const track = new TrackNode({
+      uri: SCROLL_TIMELINE_V4_TRACK.uri,
+      name: SCROLL_TIMELINE_V4_TRACK.name,
+    });
     group.addChildInOrder(track);
   }
 

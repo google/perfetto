@@ -12,58 +12,114 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@import "../theme";
+
 .pf-tabs {
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
+  height: 100%;
 
   &__tabs {
     display: flex;
-    overflow: hidden;
-    flex: 1;
+    background-color: var(--pf-color-background-secondary);
+    border-bottom: 1px solid var(--pf-color-border);
+    padding-inline: 3px;
+    align-items: baseline;
   }
 
   &__tab {
-    color: var(--pf-color-text-muted);
-    padding: 4px;
-    margin-top: 3px;
-    align-items: center;
-    cursor: pointer;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
     display: flex;
     align-items: baseline;
     gap: 2px;
+    font-family: var(--pf-font-compact);
+    padding: 5px 7px;
+    margin-top: 2px;
+    margin-bottom: -1px; // Overlap the border
+    cursor: pointer;
+
+    border-radius: 3px 3px 0 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    border-style: solid;
+    border-color: transparent;
+    border-width: 1px 1px 0 1px;
+    color: var(--pf-color-text-muted);
 
     &:hover {
-      background-color: color_hover(transparent);
+      background: color_hover(transparent);
+      color: var(--pf-color-text);
     }
 
-    &[active] {
-      color: var(--pf-color-primary);
-      border-bottom: solid 2px var(--pf-color-primary);
+    &-icon {
+      align-self: center;
+    }
+
+    &--active {
       cursor: default;
-    }
+      background-color: var(--pf-color-background);
+      border-color: var(--pf-color-border);
+      color: var(--pf-color-text);
+      z-index: 1;
 
-    &:nth-child(1) {
-      margin-left: 3px;
+      // Don't change background on hover for active tab
+      &:hover {
+        background-color: var(--pf-color-background);
+      }
     }
+  }
+
+  &__tab-menu-btn {
+    visibility: hidden;
+
+    &.pf-active {
+      visibility: visible;
+    }
+  }
+
+  &__tab:hover &__tab-menu-btn {
+    visibility: visible;
   }
 
   &__tab-title {
     margin: 0px 4px;
     overflow: hidden;
+    user-select: none;
   }
 
-  &__tab-icon {
-    &--left {
-      margin-right: 4px;
-      align-self: center;
+  &__tab-rename-input {
+    border: none;
+    outline: none;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+    padding: 0;
+    margin: 0 4px;
+    width: 100%;
+  }
+
+  &__tab-wrapper {
+    display: contents;
+
+    &--dragging > .pf-tabs__tab {
+      opacity: 0.5;
     }
 
-    &--right {
-      margin-left: 4px;
-      align-self: center;
+    &--drop-before > .pf-tabs__tab {
+      box-shadow: -2px 0 0 0 var(--pf-color-primary);
     }
+
+    &--drop-after > .pf-tabs__tab {
+      box-shadow: 2px 0 0 0 var(--pf-color-primary);
+    }
+  }
+
+  &__new-tab-btn {
+    margin-left: 2px;
+  }
+
+  &__content {
+    flex: 1;
+    overflow: auto;
   }
 }

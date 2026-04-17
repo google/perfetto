@@ -15,11 +15,25 @@
 .pf-query-panel {
   display: contents;
 
+  &__id-table-select {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    margin-left: 4px;
+  }
+
+  &__id-table-label {
+    font-size: var(--pf-font-size-s);
+    color: var(--pf-color-text-muted);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
   &__query-error {
     padding: 20px 10px;
     color: var(--pf-color-danger);
     font-family: var(--pf-font-monospace);
-    font-size: 12px;
+    font-size: var(--pf-font-size-s);
     font-weight: 300;
     white-space: pre;
   }

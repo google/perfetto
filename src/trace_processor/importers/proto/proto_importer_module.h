@@ -150,7 +150,12 @@ class ProtoImporterModule {
   // stage, on all existing modules.
   virtual void ParseTraceConfig(const protos::pbzero::TraceConfig_Decoder&);
 
-  virtual void NotifyEndOfFile() {}
+  // Phase 3 - called after sorter extraction for cleanup.
+  // Modules do post-extraction processing here (e.g., finalizing heap profiles,
+  // flushing shell transitions).
+  virtual void OnEventsFullyExtracted() {
+    // Default: no-op
+  }
 
  protected:
   void RegisterForField(uint32_t field_id);

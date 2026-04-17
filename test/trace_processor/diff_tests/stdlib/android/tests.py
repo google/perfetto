@@ -117,29 +117,30 @@ class AndroidStdlib(TestSuite):
         trace=Path('../../metrics/android/android_anr_metric.py'),
         query="""
         INCLUDE PERFETTO MODULE android.anrs;
-        SELECT process_name, pid, upid, error_id, ts, subject, anr_type, intent, component, default_anr_dur_ms
+        SELECT process_name, pid, upid, error_id, ts, subject, anr_type, intent, component, anr_dur_ms, default_anr_dur_ms
         FROM android_anrs;
       """,
         out=Csv("""
-        "process_name","pid","upid","error_id","ts","subject","anr_type","intent","component","default_anr_dur_ms"
-        "com.google.android.app1",11167,"[NULL]","da24554c-452a-4ae1-b74a-fb898f6e0982",1000,"Test ANR subject 1","UNKNOWN_ANR_TYPE","[NULL]","[NULL]","[NULL]"
-        "com.google.android.app2","[NULL]","[NULL]","8612fece-c2f1-4aeb-9d45-8e6d9d0201cf",2000,"Test ANR subject 2","UNKNOWN_ANR_TYPE","[NULL]","[NULL]","[NULL]"
-        "com.google.android.app3","[NULL]","[NULL]","c25916a0-a8f0-41f3-87df-319e06471a0f",3000,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]"
-        "com.disney.disneyplus",23215,"[NULL]","1eb3813d-45d3-4a9a-ab80-0ebeb88ea25a",4000,"Broadcast of Intent { act=android.os.action.DEVICE_IDLE_MODE_CHANGED flg=0x50000010 cmp=com.disney.disneyplus/Di.a }","BROADCAST_OF_INTENT","android.os.action.DEVICE_IDLE_MODE_CHANGED","com.disney.disneyplus/Di.a",10000
-        "com.disney.disneyplus",27195,"[NULL]","50756b89-eadc-40c9-aef2-8886adb7d936",5000,"Broadcast of Intent { act=android.intent.action.DATE_CHANGED flg=0x20200010 cmp=com.disney.disneyplus/Di.a }","BROADCAST_OF_INTENT","android.intent.action.DATE_CHANGED","com.disney.disneyplus/Di.a",60000
-        "com.android.chrome",17874,"[NULL]","60b9d4b6-6487-4800-bd12-3f9d547482e3",6000,"Input dispatching timed out (88f6a9 com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabActivity is not responding. Waited 5000ms for FocusEvent(hasFocus=false)).","INPUT_DISPATCHING_TIMEOUT","[NULL]","com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabActivity",5000
-        "com.microsoft.teams",10645,"[NULL]","2d1dff06-54a3-450b-8123-0d21e67715c4",7000,"Input dispatching timed out (Application does not have a focused window).","INPUT_DISPATCHING_TIMEOUT_NO_FOCUSED_WINDOW","[NULL]","[NULL]",5000
-        "com.google.android.apps.internal.betterbug",26587,"[NULL]","1c733cef-dee3-42a1-bff5-6ac2bb3167ae",8000,"Context.startForegroundService() did not then call Service.startForeground(): ServiceRecord{76a32df u10 com.google.android.apps.internal.betterbug/.ramdumpuploader.RamdumpUploadService c:com.google.android.apps.internal.betterbug}","START_FOREGROUND_SERVICE","[NULL]","com.google.android.apps.internal.betterbug/.ramdumpuploader.RamdumpUploadService",30000
-        "com.android.systemui",2342,"[NULL]","f2eb9ced-2327-402c-bf7c-dc498fafa5cd",9000,"executing service com.android.systemui/.doze.DozeService, waited 156441ms","EXECUTING_SERVICE","[NULL]","com.android.systemui/.doze.DozeService",20000
-        "com.android.settings",15028,"[NULL]","9361cad8-c888-4f03-bff9-9ed8c69d583b",11000,"ContentProvider not responding","CONTENT_PROVIDER_NOT_RESPONDING","[NULL]","[NULL]","[NULL]"
-        "com.google.android.youtube.tv",16563,"[NULL]","600c4866-02c0-4d46-a69c-21d9ac377ad0",12000,"App requested: Buffer processing hung up due to stuck fence. Indicates GPU hang","GPU_HANG","[NULL]","[NULL]","[NULL]"
-        "com.android.chrome",18090,"[NULL]","fd96eb0a-ccba-474b-8044-b7cd27e812c2",13000,"No response to onStartJob","JOB_SERVICE_START","[NULL]","[NULL]",8000
-        "com.android.chrome",13534,"[NULL]","4e1f9f12-d9bf-4d6b-9e2b-1dfeaf774859",14000,"No response to onStopJob","JOB_SERVICE_STOP","[NULL]","[NULL]",8000
-        "com.android.vending",18264,"[NULL]","8a83c04e-fd35-4945-9fcc-7736f4242cae",15000,"Timed out while trying to bind","JOB_SERVICE_BIND","[NULL]","[NULL]",8000
-        "com.android.phone",3538,"[NULL]","df199866-4a6a-4388-b79f-2c76b6d5bb00",16000,"Process ProcessRecord{1a270e8 3538:com.android.phone/1001} failed to complete startup","BIND_APPLICATION","[NULL]","[NULL]",15000
-        "com.google.netops.pager",28509,"[NULL]","62abad99-bd09-44ef-bbbb-40db5c4d5539",17000,"A foreground service of FOREGROUND_SERVICE_TYPE_SHORT_SERVICE did not stop within a timeout: ComponentInfo{com.google.netops.pager/com.google.netops.pager.NotifierService}","FOREGROUND_SHORT_SERVICE_TIMEOUT","[NULL]","com.google.netops.pager/com.google.netops.pager.NotifierService",180000
-        "com.whatsapp",11456,"[NULL]","975b36a1-8b4a-4d69-875e-2c33e140bd1c",18000,"A foreground service of type dataSync did not stop within a timeout: ComponentInfo{com.whatsapp/com.whatsapp.service.GcmFGService}","FOREGROUND_SERVICE_TIMEOUT","[NULL]","com.whatsapp/com.whatsapp.service.GcmFGService",30000
-        "com.android.chrome",22768,"[NULL]","05122f25-2f5b-4650-aeeb-cf59a9d6295a",19000,"required notification not provided","JOB_SERVICE_NOTIFICATION_NOT_PROVIDED","[NULL]","[NULL]",8000
+        "process_name","pid","upid","error_id","ts","subject","anr_type","intent","component","anr_dur_ms","default_anr_dur_ms"
+        "com.google.android.app1",11167,"[NULL]","da24554c-452a-4ae1-b74a-fb898f6e0982",1000,"Test ANR subject 1","UNKNOWN_ANR_TYPE","[NULL]","[NULL]","[NULL]","[NULL]"
+        "com.google.android.app2","[NULL]","[NULL]","8612fece-c2f1-4aeb-9d45-8e6d9d0201cf",2000,"Test ANR subject 2","UNKNOWN_ANR_TYPE","[NULL]","[NULL]","[NULL]","[NULL]"
+        "com.google.android.app3","[NULL]","[NULL]","c25916a0-a8f0-41f3-87df-319e06471a0f",3000,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]"
+        "com.disney.disneyplus",23215,"[NULL]","1eb3813d-45d3-4a9a-ab80-0ebeb88ea25a",4000,"Broadcast of Intent { act=android.os.action.DEVICE_IDLE_MODE_CHANGED flg=0x50000010 cmp=com.disney.disneyplus/Di.a }","BROADCAST_OF_INTENT","android.os.action.DEVICE_IDLE_MODE_CHANGED","com.disney.disneyplus/Di.a","[NULL]",10000
+        "com.disney.disneyplus",27195,"[NULL]","50756b89-eadc-40c9-aef2-8886adb7d936",5000,"Broadcast of Intent { act=android.intent.action.DATE_CHANGED flg=0x20200010 cmp=com.disney.disneyplus/Di.a }","BROADCAST_OF_INTENT","android.intent.action.DATE_CHANGED","com.disney.disneyplus/Di.a","[NULL]",60000
+        "com.android.chrome",17874,"[NULL]","60b9d4b6-6487-4800-bd12-3f9d547482e3",6000,"Input dispatching timed out (88f6a9 com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabActivity is not responding. Waited 5000ms for FocusEvent(hasFocus=false)).","INPUT_DISPATCHING_TIMEOUT","[NULL]","com.android.chrome/org.chromium.chrome.browser.customtabs.CustomTabActivity","[NULL]",5000
+        "com.microsoft.teams",10645,"[NULL]","2d1dff06-54a3-450b-8123-0d21e67715c4",7000,"Input dispatching timed out (Application does not have a focused window).","INPUT_DISPATCHING_TIMEOUT_NO_FOCUSED_WINDOW","[NULL]","[NULL]","[NULL]",5000
+        "com.google.android.apps.internal.betterbug",26587,"[NULL]","1c733cef-dee3-42a1-bff5-6ac2bb3167ae",8000,"Context.startForegroundService() did not then call Service.startForeground(): ServiceRecord{76a32df u10 com.google.android.apps.internal.betterbug/.ramdumpuploader.RamdumpUploadService c:com.google.android.apps.internal.betterbug}","START_FOREGROUND_SERVICE","[NULL]","com.google.android.apps.internal.betterbug/.ramdumpuploader.RamdumpUploadService","[NULL]",30000
+        "com.android.systemui",2342,"[NULL]","f2eb9ced-2327-402c-bf7c-dc498fafa5cd",9000,"executing service com.android.systemui/.doze.DozeService, waited 156441ms","EXECUTING_SERVICE","[NULL]","com.android.systemui/.doze.DozeService","[NULL]",20000
+        "com.android.settings",15028,"[NULL]","9361cad8-c888-4f03-bff9-9ed8c69d583b",11000,"ContentProvider not responding","CONTENT_PROVIDER_NOT_RESPONDING","[NULL]","[NULL]","[NULL]","[NULL]"
+        "com.google.android.youtube.tv",16563,"[NULL]","600c4866-02c0-4d46-a69c-21d9ac377ad0",12000,"App requested: Buffer processing hung up due to stuck fence. Indicates GPU hang","GPU_HANG","[NULL]","[NULL]","[NULL]","[NULL]"
+        "com.android.chrome",18090,"[NULL]","fd96eb0a-ccba-474b-8044-b7cd27e812c2",13000,"No response to onStartJob","JOB_SERVICE_START","[NULL]","[NULL]","[NULL]",8000
+        "com.android.chrome",13534,"[NULL]","4e1f9f12-d9bf-4d6b-9e2b-1dfeaf774859",14000,"No response to onStopJob","JOB_SERVICE_STOP","[NULL]","[NULL]","[NULL]",8000
+        "com.android.vending",18264,"[NULL]","8a83c04e-fd35-4945-9fcc-7736f4242cae",15000,"Timed out while trying to bind","JOB_SERVICE_BIND","[NULL]","[NULL]","[NULL]",8000
+        "com.android.phone",3538,"[NULL]","df199866-4a6a-4388-b79f-2c76b6d5bb00",16000,"Process ProcessRecord{1a270e8 3538:com.android.phone/1001} failed to complete startup","BIND_APPLICATION","[NULL]","[NULL]","[NULL]",15000
+        "com.google.netops.pager",28509,"[NULL]","62abad99-bd09-44ef-bbbb-40db5c4d5539",17000,"A foreground service of FOREGROUND_SERVICE_TYPE_SHORT_SERVICE did not stop within a timeout: ComponentInfo{com.google.netops.pager/com.google.netops.pager.NotifierService}","FOREGROUND_SHORT_SERVICE_TIMEOUT","[NULL]","com.google.netops.pager/com.google.netops.pager.NotifierService","[NULL]",180000
+        "com.whatsapp",11456,"[NULL]","975b36a1-8b4a-4d69-875e-2c33e140bd1c",18000,"A foreground service of type dataSync did not stop within a timeout: ComponentInfo{com.whatsapp/com.whatsapp.service.GcmFGService}","FOREGROUND_SERVICE_TIMEOUT","[NULL]","com.whatsapp/com.whatsapp.service.GcmFGService","[NULL]",30000
+        "com.android.chrome",22768,"[NULL]","05122f25-2f5b-4650-aeeb-cf59a9d6295a",19000,"required notification not provided","JOB_SERVICE_NOTIFICATION_NOT_PROVIDED","[NULL]","[NULL]","[NULL]",8000
+        "system_server",1234,2,"e701066e-985b-476b-8467-21a2548f134b",20000,"Blocked in handler on foreground thread (android.fg) for 2s","SYSTEM_SERVER_WATCHDOG_TIMEOUT","[NULL]","[NULL]",2000,"[NULL]"
       """))
 
   def test_anr_with_timer(self):
@@ -1308,6 +1309,7 @@ class AndroidStdlib(TestSuite):
         dispatch_latency_dur,
         tid,
         thread_name,
+        upid,
         pid,
         process_name,
         event_type,
@@ -1322,17 +1324,17 @@ class AndroidStdlib(TestSuite):
         LIMIT 10
       """,
         out=Csv("""
-        "total_latency_dur","handling_latency_dur","dispatch_latency_dur","tid","thread_name","pid","process_name","event_type","event_seq","event_channel","dispatch_ts","dispatch_dur","receive_ts","receive_dur"
-        377149054,77503,377032734,7493,"ndroid.systemui",7493,"com.android.systemui","0x3","0x1","4325794 NotificationShade (server)",578307771330,1292,578684804064,1412
-        1684318,772908,48433,7493,"ndroid.systemui",7493,"com.android.systemui","0x1","0x2","a0526ca NavigationBar0 (server)",581956322279,1299,581956370712,1806
-        22069988,12614508,804831,7493,"ndroid.systemui",7493,"com.android.systemui","0x1","0x3","4325794 NotificationShade (server)",581956391308,1212,581957196139,1362
-        1603522,645723,75328,7964,"droid.launcher3",7964,"com.android.launcher3","0x1","0x4","[Gesture Monitor] swipe-up (server)",581956445376,1232,581956520704,1708
-        1583707,644313,208973,7310,"android.ui",7288,"system_server","0x1","0x5","PointerEventDispatcher0 (server)",581956495788,1208,581956704761,1281
-        22622740,22582066,25729,7493,"ndroid.systemui",7493,"com.android.systemui","0x1","0x6","4325794 NotificationShade (server)",582019627670,1230,582019653399,1607
-        20228399,20116160,95263,7964,"droid.launcher3",7964,"com.android.launcher3","0x1","0x7","[Gesture Monitor] swipe-up (server)",582019685639,1309,582019780902,1942
-        459763,287436,27342,7310,"android.ui",7288,"system_server","0x1","0x8","PointerEventDispatcher0 (server)",582019737156,1192,582019764498,1664
-        9848456,9806401,22714,7493,"ndroid.systemui",7493,"com.android.systemui","0x1","0x9","4325794 NotificationShade (server)",582051061377,1227,582051084091,1596
-        5533919,5487703,25013,7964,"droid.launcher3",7964,"com.android.launcher3","0x1","0xa","[Gesture Monitor] swipe-up (server)",582051112236,1258,582051137249,1771
+        "total_latency_dur","handling_latency_dur","dispatch_latency_dur","tid","thread_name","upid","pid","process_name","event_type","event_seq","event_channel","dispatch_ts","dispatch_dur","receive_ts","receive_dur"
+        377149054,77503,377032734,7493,"ndroid.systemui",399,7493,"com.android.systemui","0x3","0x1","4325794 NotificationShade (server)",578307771330,1292,578684804064,1412
+        1684318,772908,48433,7493,"ndroid.systemui",399,7493,"com.android.systemui","0x1","0x2","a0526ca NavigationBar0 (server)",581956322279,1299,581956370712,1806
+        22069988,12614508,804831,7493,"ndroid.systemui",399,7493,"com.android.systemui","0x1","0x3","4325794 NotificationShade (server)",581956391308,1212,581957196139,1362
+        1603522,645723,75328,7964,"droid.launcher3",418,7964,"com.android.launcher3","0x1","0x4","[Gesture Monitor] swipe-up (server)",581956445376,1232,581956520704,1708
+        1583707,644313,208973,7310,"android.ui",395,7288,"system_server","0x1","0x5","PointerEventDispatcher0 (server)",581956495788,1208,581956704761,1281
+        22622740,22582066,25729,7493,"ndroid.systemui",399,7493,"com.android.systemui","0x1","0x6","4325794 NotificationShade (server)",582019627670,1230,582019653399,1607
+        20228399,20116160,95263,7964,"droid.launcher3",418,7964,"com.android.launcher3","0x1","0x7","[Gesture Monitor] swipe-up (server)",582019685639,1309,582019780902,1942
+        459763,287436,27342,7310,"android.ui",395,7288,"system_server","0x1","0x8","PointerEventDispatcher0 (server)",582019737156,1192,582019764498,1664
+        9848456,9806401,22714,7493,"ndroid.systemui",399,7493,"com.android.systemui","0x1","0x9","4325794 NotificationShade (server)",582051061377,1227,582051084091,1596
+        5533919,5487703,25013,7964,"droid.launcher3",418,7964,"com.android.launcher3","0x1","0xa","[Gesture Monitor] swipe-up (server)",582051112236,1258,582051137249,1771
       """))
 
   def test_input_events_end_to_end_latency(self):
@@ -1347,6 +1349,7 @@ class AndroidStdlib(TestSuite):
         end_to_end_latency_dur,
         tid,
         thread_name,
+        upid,
         pid,
         process_name,
         event_type
@@ -1355,9 +1358,9 @@ class AndroidStdlib(TestSuite):
         ORDER BY dispatch_ts
       """,
         out=Csv("""
-        "total_latency_dur","handling_latency_dur","dispatch_latency_dur","end_to_end_latency_dur","tid","thread_name","pid","process_name","event_type"
-        3422992,2937418,363000,51007097,4816,"ndroid.settings",4816,"com.android.settings","MOTION"
-        2139405,1956366,81387,50642855,4816,"ndroid.settings",4816,"com.android.settings","MOTION"
+        "total_latency_dur","handling_latency_dur","dispatch_latency_dur","end_to_end_latency_dur","tid","thread_name","upid","pid","process_name","event_type"
+        3422992,2937418,363000,51007097,4816,"ndroid.settings",344,4816,"com.android.settings","MOTION"
+        2139405,1956366,81387,50642855,4816,"ndroid.settings",344,4816,"com.android.settings","MOTION"
       """))
 
   def test_job_scheduler_events(self):
@@ -1728,6 +1731,190 @@ class AndroidStdlib(TestSuite):
         """,
         out=Csv("""
         "name","machine_id"
-        "oriole","[NULL]"
+        "oriole",0
         "raven",1
         """))
+
+  def test_android_suspend_state_multi_machine(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 100000000000
+              pid: 1
+              suspend_resume_minimal {
+                start: 1
+              }
+            }
+            event {
+              timestamp: 103000000000
+              pid: 1
+              suspend_resume_minimal {
+                start: 0
+              }
+            }
+          }
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 106000000000
+              pid: 1
+              suspend_resume_minimal {
+                start: 1
+              }
+            }
+            event {
+              timestamp: 109000000000
+              pid: 1
+              suspend_resume_minimal {
+                start: 0
+              }
+            }
+          }
+          machine_id: 1001
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 2
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.suspend;
+        SELECT ts, dur, power_state, machine_id FROM android_suspend_state ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","power_state","machine_id"
+          100000000000,0,"awake",0
+          100000000000,6000000000,"awake",1
+          100000000000,3000000000,"suspended",0
+          103000000000,6000000000,"awake",0
+          106000000000,3000000000,"suspended",1
+          109000000000,0,"awake",1
+          """))
+
+  def test_android_suspend_state_one_machine_no_events(self):
+    # Machine 0 has suspend events, machine 1 does not
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 100000000000
+              pid: 1
+              suspend_resume_minimal {
+                start: 1
+              }
+            }
+            event {
+              timestamp: 103000000000
+              pid: 1
+              suspend_resume_minimal {
+                start: 0
+              }
+            }
+          }
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          system_info {
+            utsname {
+              sysname: "Linux"
+              release: "5.10.0-android12"
+              version: "#1 SMP PREEMPT"
+              machine: "aarch64"
+            }
+            android_build_fingerprint: "google/raven/raven:14/AP1A.240405.002/11487190:user/release-keys"
+            num_cpus: 8
+          }
+          machine_id: 1001
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 2
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.suspend;
+        SELECT ts, dur, power_state, machine_id FROM android_suspend_state ORDER BY machine_id, ts;
+        """,
+        out=Csv("""
+        "ts","dur","power_state","machine_id"
+        100000000000,0,"awake",0
+        100000000000,3000000000,"suspended",0
+        103000000000,0,"awake",0
+        """))
+
+  def test_android_suspend_state_no_events(self):
+    # Both machines have no suspend events, but have other trace events
+    # to establish a timeline
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 100000000000
+              pid: 1
+              print {
+                buf: "some other event\n"
+              }
+            }
+            event {
+              timestamp: 105000000000
+              pid: 1
+              print {
+                buf: "another event\n"
+              }
+            }
+          }
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 102000000000
+              pid: 1
+              print {
+                buf: "event on machine 2\n"
+              }
+            }
+            event {
+              timestamp: 108000000000
+              pid: 1
+              print {
+                buf: "another event on machine 2\n"
+              }
+            }
+          }
+          machine_id: 1001
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 2
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.suspend;
+        SELECT ts, dur, power_state, machine_id FROM android_suspend_state ORDER BY machine_id, ts;
+        """,
+        out=Csv("""
+        "ts","dur","power_state","machine_id"
+        100000000000,8000000000,"awake",0
+        """))
+
+  def test_android_redacted_startup_has_cold_startup_data(self):
+    return DiffTestBlueprint(
+        trace=DataPath('redacted-startup.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE android.profiling_manager.startup;
+        SELECT * FROM android_profiling_manager_cold_startup;
+      """,
+        out=Csv("""
+        "ts","name","dur","startup_checkpoint"
+        1883713423201,"app_startup_ttff",57720540,"TTFF"
+        1883713423201,"app_startup_tti",39962036,"TTI"
+      """))

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertExists} from '../base/logging';
+import {assertExists} from '../base/assert';
 import {AppImpl} from '../core/app_impl';
 import {HotkeyGlyphs, Keycap} from '../widgets/hotkey_glyphs';
 import {showModal} from '../widgets/modal';
@@ -23,12 +23,11 @@ import {
   nativeKeyboardLayoutMap,
   NotSupportedError,
 } from '../base/keyboard_layout_map';
-import {KeyMapping} from './timeline_page/wasd_navigation_handler';
-import {raf} from '../core/raf_scheduler';
+import {KeyMapping} from '../base/wasd_key_mapping';
 
-export function toggleHelp() {
+export function toggleHelp(): void {
   AppImpl.instance.analytics.logEvent('User Actions', 'Show help');
-  return showModal({
+  showModal({
     title: 'Perfetto Help',
     content: () => m(KeyMappingsHelp),
   });
@@ -54,7 +53,7 @@ class KeyMappingsHelp implements m.ClassComponent {
     nativeKeyboardLayoutMap()
       .then((keyMap: KeyboardLayoutMap) => {
         this.keyMap = keyMap;
-        raf.scheduleFullRedraw();
+        m.redraw();
       })
       .catch((e) => {
         if (
@@ -69,7 +68,7 @@ class KeyMappingsHelp implements m.ClassComponent {
           // The alternative would be to show key mappings for all keyboard
           // layouts which is not feasible.
           this.keyMap = new EnglishQwertyKeyboardLayoutMap();
-          raf.scheduleFullRedraw();
+          m.redraw();
         } else {
           // Something unexpected happened. Either the browser doesn't conform
           // to the keyboard API spec, or the keyboard API spec has changed!

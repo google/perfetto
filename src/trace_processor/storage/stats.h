@@ -24,6 +24,10 @@ namespace perfetto::trace_processor::stats {
 // Compile time list of parsing and processing stats.
 // clang-format off
 #define PERFETTO_TP_STATS(F)                                                   \
+  F(android_aflags_errors,               kSingle,  kError,    kTrace,          \
+       "Errors occurred during the collection of Android aconfig flags by the "\
+       "android.aflags data source. This typically happens if the aflags tool "\
+       "fails or its output is malformed."),                                   \
   F(android_br_parse_errors,              kSingle,  kError,    kTrace,    ""), \
   F(android_log_num_failed,               kSingle,  kError,    kTrace,    ""), \
   F(android_log_format_invalid,           kSingle,  kError,    kTrace,    ""), \
@@ -136,6 +140,7 @@ namespace perfetto::trace_processor::stats {
   F(mismatched_sched_switch_tids,         kSingle,  kError,    kAnalysis, ""), \
   F(mm_unknown_type,                      kSingle,  kError,    kAnalysis, ""), \
   F(parse_trace_duration_ns,              kSingle,  kInfo,     kAnalysis, ""), \
+  F(power_rail_empty_packet,              kSingle,  kError,    kAnalysis, ""), \
   F(power_rail_unknown_index,             kSingle,  kError,    kTrace,    ""), \
   F(proc_stat_unknown_counters,           kSingle,  kError,    kAnalysis, ""), \
   F(rss_stat_unknown_keys,                kSingle,  kError,    kAnalysis, ""), \
@@ -219,6 +224,22 @@ namespace perfetto::trace_processor::stats {
       "https://perfetto.dev/docs/concepts/buffers"                             \
       "#incremental-state-in-trace-packets"),                                  \
   F(traced_buf_write_wrap_count,          kIndexed, kInfo,     kTrace,    ""), \
+  F(traced_buf_v2s_packets_seen,          kIndexed, kInfo,     kTrace,         \
+       "Shadow mode: total packets read."),                                    \
+  F(traced_buf_v2s_packets_in_both,       kIndexed, kInfo,     kTrace,         \
+       "Shadow mode: packets found in both V1 and V2 buffers."),               \
+  F(traced_buf_v2s_packets_only_v1,       kIndexed, kInfo,     kTrace,         \
+       "Shadow mode: packets found only in V1 buffer."),                       \
+  F(traced_buf_v2s_packets_only_v2,       kIndexed, kInfo,     kTrace,         \
+       "Shadow mode: packets found only in V2 buffer."),                       \
+  F(traced_buf_v2s_patches_attempted,     kIndexed, kInfo,     kTrace,         \
+       "Shadow mode: patch operations attempted."),                            \
+  F(traced_buf_v2s_v1_patches_succeeded,  kIndexed, kInfo,     kTrace,         \
+       "Shadow mode: patches that succeeded on V1 buffer."),                   \
+  F(traced_buf_v2s_v2_patches_succeeded,  kIndexed, kInfo,     kTrace,         \
+       "Shadow mode: patches that succeeded on V2 buffer."),                   \
+  F(traced_buf_v2s_stats_version,         kIndexed, kInfo,     kTrace,         \
+       "Shadow mode: version of the comparison stats."),                       \
   F(traced_clone_started_timestamp_ns,    kSingle,  kInfo,     kTrace,         \
     "The timestamp when the clone snapshot operation for this trace started"), \
   F(traced_clone_trigger_timestamp_ns,    kSingle,  kInfo,     kTrace,         \
@@ -282,6 +303,20 @@ namespace perfetto::trace_processor::stats {
       "time clock. Both clocks exist in snapshots, but never together or "     \
       "via a common intermediate clock. Ensure ClockSnapshots link all used "  \
       "clocks to the trace time clock."),                                      \
+  F(clock_sync_mixed_clock_sources,         kSingle,  kError,    kAnalysis,      \
+      "A non-primary trace file used both the primary trace's clock "          \
+      "snapshots and its own for timestamp conversion. Timestamps "            \
+      "converted before the first own clock snapshot used the primary "        \
+      "trace's clocks which may differ."),                                     \
+  F(clock_sync_failure_undeferrable_packet_loss, kSingle, kDataLoss,          \
+      kAnalysis,                                                               \
+      "A packet had a timestamp with a clock ID that could not be resolved "   \
+      "to trace time and the packet could not be deferred for later "          \
+      "resolution (the trace sorter was unable to switch to full-sort mode). " \
+      "The packet was dropped and its data will be missing from query "        \
+      "results. This can happen when a sequence-scoped clock (64-127) is "    \
+      "used before the ClockSnapshot defining it arrives, and the sorter "     \
+      "has already started flushing."),                                        \
   F(clock_sync_cache_miss,                kSingle,  kInfo,     kAnalysis, ""), \
   F(process_tracker_errors,               kSingle,  kError,    kAnalysis, ""), \
   F(namespaced_thread_missing_process,    kSingle,  kError,    kAnalysis,      \
@@ -564,7 +599,7 @@ namespace perfetto::trace_processor::stats {
       "Number of class parsing errors encountered. This indicates a "          \
       "malformed hprof file. Check if the hprof opens correctly in a tool "    \
       "like AHAT. Missing classes could cause missing references, thus "       \
-      "affecting the overall size of the the heap graph."),                    \
+      "affecting the overall size of the heap graph."),                    \
   F(hprof_header_errors,                   kSingle,  kError,   kAnalysis,      \
       "Number of header parsing errors. This indicates a malformed hprof "     \
       "file with invalid or missing header information. The file may be "      \
@@ -798,7 +833,28 @@ namespace perfetto::trace_processor::stats {
       "incomplete. Some objects and references may be missing from the heap "  \
       "graph. This typically occurs when the profiled process crashes or is "  \
       "killed before completing the profile. To get complete profiles, ensure "\
-      "the process finishes cleanly or increase the profiling timeout.")
+      "the process finishes cleanly or increase the profiling timeout."),      \
+  F(primes_unknown_edge_type, kSingle, kDataLoss, kAnalysis,                   \
+    "A Primes TraceEdge was received which did not contain a known slice type "\
+    "(Begin, End, Mark)."),                                                    \
+  F(primes_executor_not_found, kSingle, kDataLoss, kAnalysis,                  \
+    "A valid executor_id was not found for the given edge's parent_id, so the "\
+    "slice was dropped."),                                                     \
+  F(primes_end_without_matching_begin, kSingle, kInfo, kAnalysis,              \
+    "A SliceEnd event was seen without its corresponding SliceBegin."),        \
+  F(primes_missing_entity_details, kSingle, kInfo, kAnalysis,                  \
+    "The entity_details field was missing from an edge that requires it."),    \
+  F(primes_missing_parent_id, kSingle, kInfo, kAnalysis,                       \
+    "The parent_id field was missing from an edge that requires it."),         \
+  F(primes_malformed_timestamp, kSingle, kDataLoss, kAnalysis,                 \
+    "The timestamp for an edge or trace was not able to be parsed"),           \
+  F(protovm_abort, kSingle,  kError, kAnalysis,                                \
+      "A ProtoVM instance aborted the execution while applying the patch. "    \
+      "This might be due to inconsistencies between VM program logic and "     \
+      "actual patch format."),                                                 \
+  F(protovm_registration_error, kSingle,  kError, kAnalysis,                   \
+    "Failed to find the sequence IDs corresponding to a ProtoVM's producer "   \
+    "ID. Such mapping should be provided by the TraceProvenance packet.")
 // clang-format on
 
 enum Type {

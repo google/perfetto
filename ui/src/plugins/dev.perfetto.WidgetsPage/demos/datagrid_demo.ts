@@ -192,12 +192,9 @@ export function renderDataGrid(app: App): m.Children {
         });
       },
       initialOpts: {
-        enableSortControls: true,
-        enableFilterControls: true,
-        enablePivotControls: true,
-        showRowCount: true,
         showExportButton: false,
         structuredQueryCompatMode: false,
+        enablePivotControls: true,
       },
       noPadding: true,
     }),
@@ -249,10 +246,10 @@ export function renderDataGrid(app: App): m.Children {
                 rootSchema: 'slice',
                 data: cachedSliceDataSource!,
                 initialColumns: [
-                  {field: 'id'},
-                  {field: 'ts'},
-                  {field: 'dur'},
-                  {field: 'track.name'},
+                  {id: 'id', field: 'id'},
+                  {id: 'ts', field: 'ts'},
+                  {id: 'dur', field: 'dur'},
+                  {id: 'track_name', field: 'track.name'},
                 ],
               });
             },

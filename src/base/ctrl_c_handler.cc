@@ -34,21 +34,24 @@ namespace base {
 
 namespace {
 CtrlCHandlerFunction g_handler = nullptr;
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+BOOL WINAPI Trampoline(DWORD type) {
+  if (type == CTRL_C_EVENT) {
+    g_handler();
+    return TRUE;
+  }
+  return FALSE;
 }
+#endif
+}  // namespace
 
 void InstallCtrlCHandler(CtrlCHandlerFunction handler) {
   PERFETTO_CHECK(g_handler == nullptr);
   g_handler = handler;
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  auto trampoline = [](DWORD type) -> int {
-    if (type == CTRL_C_EVENT) {
-      g_handler();
-      return true;
-    }
-    return false;
-  };
-  ::SetConsoleCtrlHandler(trampoline, true);
+  ::SetConsoleCtrlHandler(Trampoline, true);
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)

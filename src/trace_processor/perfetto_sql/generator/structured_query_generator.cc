@@ -189,7 +189,8 @@ class GeneratorImpl {
         referenced_modules_(modules),
         preambles_(preambles) {}
 
-  base::StatusOr<std::string> Generate(protozero::ConstBytes);
+  base::StatusOr<std::string> Generate(protozero::ConstBytes,
+                                       bool inline_shared_queries);
 
  private:
   using RepeatedString =
@@ -214,6 +215,9 @@ class GeneratorImpl {
   base::StatusOr<std::string> IntervalIntersect(
       const StructuredQuery::IntervalIntersect::Decoder&);
 
+  base::StatusOr<std::string> FilterToIntervals(
+      const StructuredQuery::ExperimentalFilterToIntervals::Decoder&);
+
   base::StatusOr<std::string> Join(
       const StructuredQuery::ExperimentalJoin::Decoder&);
 
@@ -225,6 +229,12 @@ class GeneratorImpl {
 
   base::StatusOr<std::string> CreateSlices(
       const StructuredQuery::ExperimentalCreateSlices::Decoder&);
+
+  base::StatusOr<std::string> CounterIntervals(
+      const StructuredQuery::ExperimentalCounterIntervals::Decoder&);
+
+  base::StatusOr<std::string> FilterIn(
+      const StructuredQuery::ExperimentalFilterIn::Decoder&);
 
   // Filtering.
   static base::StatusOr<std::string> Filters(RepeatedProto filters);
@@ -263,7 +273,8 @@ class GeneratorImpl {
 };
 
 base::StatusOr<std::string> GeneratorImpl::Generate(
-    protozero::ConstBytes bytes) {
+    protozero::ConstBytes bytes,
+    bool inline_shared_queries) {
   state_.emplace_back(QueryType::kRoot, bytes, state_.size(), std::nullopt,
                       used_table_names_);
   for (; state_index_ < state_.size(); ++state_index_) {
@@ -285,20 +296,30 @@ base::StatusOr<std::string> GeneratorImpl::Generate(
       root_query.has_inner_query() && !root_query.has_table() &&
       !root_query.has_experimental_time_range() &&
       !root_query.has_simple_slices() && !root_query.has_interval_intersect() &&
+      !root_query.has_experimental_filter_to_intervals() &&
       !root_query.has_experimental_join() &&
       !root_query.has_experimental_union() && !root_query.has_sql() &&
       !root_query.has_inner_query_id() && !root_query.filters() &&
       !root_query.has_experimental_filter_group() &&
-      !root_query.has_group_by() && !root_query.select_columns();
+      !root_query.has_group_by() && !root_query.select_columns() &&
+      !root_query.has_experimental_add_columns() &&
+      !root_query.has_experimental_create_slices() &&
+      !root_query.has_experimental_counter_intervals() &&
+      !root_query.has_experimental_filter_in();
 
   std::string sql = "WITH ";
   size_t cte_count = 0;
   for (size_t i = 0; i < state_.size(); ++i) {
     QueryState& state = state_[state_.size() - i - 1];
     if (state.type == QueryType::kShared) {
-      queries_.emplace_back(
-          Query{state.id_from_proto.value(), state.table_name, state.sql});
-      continue;
+      // When not inlining shared queries, add them to referenced_queries
+      // so callers can create tables for them separately.
+      if (!inline_shared_queries) {
+        queries_.emplace_back(
+            Query{state.id_from_proto.value(), state.table_name, state.sql});
+        continue;
+      }
+      // When inlining, fall through to add as CTE below.
     }
     // Skip the root query if it's just a wrapper for inner_query + operations
     if (&state == &state_[0] && root_only_has_inner_query_and_operations) {
@@ -346,6 +367,10 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
     } else if (q.has_interval_intersect()) {
       StructuredQuery::IntervalIntersect::Decoder ii(q.interval_intersect());
       ASSIGN_OR_RETURN(source, IntervalIntersect(ii));
+    } else if (q.has_experimental_filter_to_intervals()) {
+      StructuredQuery::ExperimentalFilterToIntervals::Decoder fti(
+          q.experimental_filter_to_intervals());
+      ASSIGN_OR_RETURN(source, FilterToIntervals(fti));
     } else if (q.has_experimental_join()) {
       StructuredQuery::ExperimentalJoin::Decoder join(q.experimental_join());
       ASSIGN_OR_RETURN(source, Join(join));
@@ -362,6 +387,14 @@ base::StatusOr<std::string> GeneratorImpl::GenerateImpl() {
       StructuredQuery::ExperimentalCreateSlices::Decoder create_slices_decoder(
           q.experimental_create_slices());
       ASSIGN_OR_RETURN(source, CreateSlices(create_slices_decoder));
+    } else if (q.has_experimental_counter_intervals()) {
+      StructuredQuery::ExperimentalCounterIntervals::Decoder
+          counter_intervals_decoder(q.experimental_counter_intervals());
+      ASSIGN_OR_RETURN(source, CounterIntervals(counter_intervals_decoder));
+    } else if (q.has_experimental_filter_in()) {
+      StructuredQuery::ExperimentalFilterIn::Decoder filter_in_decoder(
+          q.experimental_filter_in());
+      ASSIGN_OR_RETURN(source, FilterIn(filter_in_decoder));
     } else if (q.has_sql()) {
       StructuredQuery::Sql::Decoder sql_source(q.sql());
       ASSIGN_OR_RETURN(source, SqlSource(sql_source));
@@ -607,12 +640,15 @@ base::StatusOr<std::string> GeneratorImpl::IntervalIntersect(
           col.c_str());
     }
 
-    // Check for duplicates
-    if (seen_cols.count(col) > 0) {
+    // Check for duplicates (case-insensitive)
+    std::string col_lower = col;
+    std::transform(col_lower.begin(), col_lower.end(), col_lower.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+    if (seen_cols.count(col_lower) > 0) {
       return base::ErrStatus("Partition column '%s' is duplicated",
                              col.c_str());
     }
-    seen_cols.insert(col);
+    seen_cols.insert(col_lower);
     partition_cols.push_back(col);
   }
 
@@ -675,6 +711,168 @@ base::StatusOr<std::string> GeneratorImpl::IntervalIntersect(
            " = source_" + std::to_string(suffix) + ".id";
   }
   sql += ")";
+
+  return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::FilterToIntervals(
+    const StructuredQuery::ExperimentalFilterToIntervals::Decoder& filter) {
+  if (filter.base().size == 0) {
+    return base::ErrStatus("FilterToIntervals must specify a base query");
+  }
+  if (filter.intervals().size == 0) {
+    return base::ErrStatus("FilterToIntervals must specify an intervals query");
+  }
+  referenced_modules_.Insert("intervals.intersect", nullptr);
+  referenced_modules_.Insert("intervals.overlap", nullptr);
+
+  // Validate and collect partition columns
+  std::vector<std::string> partition_cols;
+  std::set<std::string> seen_cols;
+  for (auto it = filter.partition_columns(); it; ++it) {
+    std::string col = it->as_std_string();
+
+    // Validate that partition columns are not empty
+    if (col.empty()) {
+      return base::ErrStatus("Partition column cannot be empty");
+    }
+
+    // Validate that partition columns are not id, ts, or dur (case-insensitive)
+    if (base::CaseInsensitiveEqual(col, "id") ||
+        base::CaseInsensitiveEqual(col, "ts") ||
+        base::CaseInsensitiveEqual(col, "dur")) {
+      return base::ErrStatus(
+          "Partition column '%s' is reserved and cannot be used for "
+          "partitioning",
+          col.c_str());
+    }
+
+    // Check for duplicates (case-insensitive)
+    std::string col_lower = col;
+    std::transform(col_lower.begin(), col_lower.end(), col_lower.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+    if (seen_cols.count(col_lower) > 0) {
+      return base::ErrStatus("Partition column '%s' is duplicated",
+                             col.c_str());
+    }
+    seen_cols.insert(col_lower);
+    partition_cols.push_back(col);
+  }
+
+  // Determine if we clip to intervals (default true)
+  bool clip_to_intervals =
+      filter.has_clip_to_intervals() ? filter.clip_to_intervals() : true;
+
+  // Collect select columns if specified
+  std::vector<std::string> select_cols;
+  for (auto it = filter.select_columns(); it; ++it) {
+    select_cols.push_back(it->as_std_string());
+  }
+
+  // Generate the SQL query
+  // We first merge overlapping intervals in the filter set, then use
+  // _interval_intersect! internally to compute overlaps, and finally
+  // reshape the output to match the base schema.
+  std::string base_source = NestedSource(filter.base());
+  std::string intervals_source = NestedSource(filter.intervals());
+
+  std::string sql = "(WITH fti_base AS (SELECT * FROM " + base_source + ")";
+  sql += ",\nfti_intervals_raw AS (SELECT * FROM " + intervals_source + ")";
+
+  // Merge overlapping intervals to avoid duplicate output rows when a base
+  // interval overlaps with multiple overlapping filter intervals.
+  // Use partitioned merge if we have partition columns, otherwise use
+  // non-partitioned merge.
+  if (partition_cols.empty()) {
+    // Non-partitioned: use interval_merge_overlapping and add a dummy id
+    sql +=
+        ",\nfti_intervals AS (\n"
+        "  SELECT\n"
+        "    ROW_NUMBER() OVER (ORDER BY ts) AS id,\n"
+        "    ts,\n"
+        "    dur\n"
+        "  FROM interval_merge_overlapping!(fti_intervals_raw, 0)\n"
+        ")";
+  } else {
+    // Partitioned: use interval_merge_overlapping_partitioned for each
+    // partition column and add a dummy id. We only support a single partition
+    // column for the merge operation, but multiple for the intersection.
+    // For simplicity, we merge on the first partition column.
+    sql +=
+        ",\nfti_intervals AS (\n"
+        "  SELECT\n"
+        "    ROW_NUMBER() OVER (ORDER BY ts) AS id,\n"
+        "    ts,\n"
+        "    dur";
+    for (const auto& col : partition_cols) {
+      sql += ",\n    " + col;
+    }
+    sql +=
+        "\n  FROM "
+        "interval_merge_overlapping_partitioned!(fti_intervals_raw, (" +
+        partition_cols[0] + "))\n)";
+  }
+
+  // Use _interval_intersect! macro to compute overlaps
+  sql += "\nSELECT ";
+
+  // Build the column list based on clip_to_intervals and select_columns
+  if (select_cols.empty()) {
+    // No explicit column selection: use base_0.*
+    if (clip_to_intervals) {
+      // When clipping, select intersected ts/dur, then all base columns
+      // This produces duplicate ts/dur columns, but SQL will use the first
+      // occurrence
+      sql += "ii.ts, ii.dur, base_0.*";
+    } else {
+      // When not clipping, just select all base columns as-is (no duplicates)
+      sql += "base_0.*";
+    }
+  } else {
+    // Explicit column selection
+    bool first = true;
+
+    if (clip_to_intervals) {
+      // When clipping: ii.ts, ii.dur first, then other columns, then
+      // original_ts/dur at end
+      sql += "ii.ts, ii.dur";
+      first = false;
+
+      // Add non-ts/dur columns
+      for (const auto& col : select_cols) {
+        if (!base::CaseInsensitiveEqual(col, "ts") &&
+            !base::CaseInsensitiveEqual(col, "dur")) {
+          sql += ", base_0." + col;
+        }
+      }
+
+      // Add original_ts and original_dur at the end if they were requested
+      for (const auto& col : select_cols) {
+        if (base::CaseInsensitiveEqual(col, "ts")) {
+          sql += ", base_0.ts AS original_ts";
+        } else if (base::CaseInsensitiveEqual(col, "dur")) {
+          sql += ", base_0.dur AS original_dur";
+        }
+      }
+    } else {
+      // When not clipping: preserve exact order from select_cols
+      for (const auto& col : select_cols) {
+        if (!first)
+          sql += ", ";
+        sql += "base_0." + col;
+        first = false;
+      }
+    }
+  }
+
+  sql += "\nFROM _interval_intersect!((fti_base, fti_intervals), (";
+  for (size_t i = 0; i < partition_cols.size(); ++i) {
+    if (i > 0) {
+      sql += ", ";
+    }
+    sql += partition_cols[i];
+  }
+  sql += ")) ii\nJOIN fti_base AS base_0 ON ii.id_0 = base_0.id)";
 
   return sql;
 }
@@ -998,27 +1196,75 @@ base::StatusOr<std::string> GeneratorImpl::CreateSlices(
   std::string starts_table = NestedSource(create_slices.starts_query());
   std::string ends_table = NestedSource(create_slices.ends_query());
 
-  // Build the SQL to create slices
-  // For each start, find the first end that comes after it
+  // Reference the intervals.create_intervals module which contains
+  // _interval_create
+  referenced_modules_.Insert("intervals.create_intervals", nullptr);
+
+  // Use _interval_create! macro which delegates to
+  // __intrinsic_interval_create, an O(n+m) two-pointer C++ implementation.
+  // The macro expects inputs with a `ts` column, so we rename if needed.
   return base::StackString<1024>(
-             R"(
-(WITH starts AS (SELECT * FROM %s),
-     ends AS (SELECT * FROM %s),
-     matched AS (
-       SELECT
-         starts.%s AS start_ts,
-         (SELECT MIN(ends.%s) FROM ends WHERE ends.%s > starts.%s) AS end_ts
-       FROM starts
-     )
-SELECT
-  start_ts AS ts,
-  end_ts - start_ts AS dur
-FROM matched
-WHERE end_ts IS NOT NULL)
-)",
-             starts_table.c_str(), ends_table.c_str(), starts_ts_col.c_str(),
-             ends_ts_col.c_str(), ends_ts_col.c_str(), starts_ts_col.c_str())
+             "(SELECT * FROM _interval_create!("
+             "(SELECT %s AS ts FROM %s), "
+             "(SELECT %s AS ts FROM %s)))",
+             starts_ts_col.c_str(), starts_table.c_str(), ends_ts_col.c_str(),
+             ends_table.c_str())
       .ToStdString();
+}
+
+base::StatusOr<std::string> GeneratorImpl::CounterIntervals(
+    const StructuredQuery::ExperimentalCounterIntervals::Decoder&
+        counter_intervals) {
+  // Validate required fields
+  if (!counter_intervals.has_input_query()) {
+    return base::ErrStatus("CounterIntervals must specify an input_query");
+  }
+
+  // Reference the counters.intervals module which contains
+  // counter_leading_intervals
+  referenced_modules_.Insert("counters.intervals", nullptr);
+
+  // Generate nested source
+  std::string input_table = NestedSource(counter_intervals.input_query());
+
+  // Use counter_leading_intervals! macro to convert counter data to intervals
+  // The macro expects a table with (id, ts, track_id, value) columns
+  // and returns (id, ts, dur, track_id, value, next_value, delta_value)
+  std::string sql =
+      "(SELECT * FROM counter_leading_intervals!(" + input_table + "))";
+
+  return sql;
+}
+
+base::StatusOr<std::string> GeneratorImpl::FilterIn(
+    const StructuredQuery::ExperimentalFilterIn::Decoder& filter_in) {
+  // Validate required fields
+  if (filter_in.base().size == 0) {
+    return base::ErrStatus("FilterIn must specify a base query");
+  }
+  if (filter_in.match_values().size == 0) {
+    return base::ErrStatus("FilterIn must specify a match_values query");
+  }
+  if (filter_in.base_column().size == 0) {
+    return base::ErrStatus("FilterIn must specify a base_column");
+  }
+  if (filter_in.match_column().size == 0) {
+    return base::ErrStatus("FilterIn must specify a match_column");
+  }
+
+  std::string base_col = filter_in.base_column().ToStdString();
+  std::string match_col = filter_in.match_column().ToStdString();
+
+  // Generate nested sources
+  std::string base_source = NestedSource(filter_in.base());
+  std::string match_source = NestedSource(filter_in.match_values());
+
+  // Build the SQL for the filter-in operation (semi-join)
+  std::string sql = "(SELECT base.* FROM " + base_source + " AS base WHERE " +
+                    "base." + base_col + " IN (SELECT " + match_col + " FROM " +
+                    match_source + "))";
+
+  return sql;
 }
 
 base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
@@ -1039,10 +1285,20 @@ base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
   if (!it) {
     return base::ErrStatus("Shared query with id '%s' not found", id.c_str());
   }
+  // Check if this query is already in queries_ (non-inlined case).
   auto sq = std::find_if(queries_.begin(), queries_.end(),
                          [&](const Query& sq) { return id == sq.id; });
   if (sq != queries_.end()) {
     return sq->table_name;
+  }
+  // Check if we've already created a state entry for this ID (inlined case).
+  // This prevents creating duplicate CTEs with collision suffixes when the
+  // same shared query is referenced multiple times.
+  for (const auto& s : state_) {
+    if (s.type == QueryType::kShared && s.id_from_proto &&
+        *s.id_from_proto == id) {
+      return s.table_name;
+    }
   }
   state_.emplace_back(QueryType::kShared,
                       protozero::ConstBytes{it->data.get(), it->size},
@@ -1405,34 +1661,50 @@ base::StatusOr<std::string> GeneratorImpl::AggregateToString(
 
 base::StatusOr<std::string> StructuredQueryGenerator::Generate(
     const uint8_t* data,
-    size_t size) {
+    size_t size,
+    bool inline_shared_queries) {
   GeneratorImpl impl(query_protos_, referenced_queries_, referenced_modules_,
                      preambles_);
-  ASSIGN_OR_RETURN(std::string sql,
-                   impl.Generate(protozero::ConstBytes{data, size}));
+  ASSIGN_OR_RETURN(
+      std::string sql,
+      impl.Generate(protozero::ConstBytes{data, size}, inline_shared_queries));
   return sql;
 }
 
 base::StatusOr<std::string> StructuredQueryGenerator::GenerateById(
-    const std::string& id) {
+    const std::string& id,
+    bool inline_shared_queries) {
   auto* ptr = query_protos_.Find(id);
   if (!ptr) {
     return base::ErrStatus("Query with id %s not found", id.c_str());
   }
-  return Generate(ptr->data.get(), ptr->size);
+  return Generate(ptr->data.get(), ptr->size, inline_shared_queries);
 }
 
-base::Status StructuredQueryGenerator::AddQuery(const uint8_t* data,
-                                                size_t size) {
-  protozero::ProtoDecoder decoder(data, size);
-  auto field = decoder.FindField(
-      protos::pbzero::PerfettoSqlStructuredQuery::kIdFieldNumber);
-  if (!field) {
+base::StatusOr<std::string> StructuredQueryGenerator::AddQuery(
+    const uint8_t* data,
+    size_t size) {
+  StructuredQuery::Decoder decoder(data, size);
+  if (!decoder.has_id()) {
     return base::ErrStatus(
         "Unable to find id for shared query: all shared queries must have an "
         "id specified");
   }
-  std::string id = field.as_std_string();
+  std::string id = decoder.id().ToStdString();
+
+  // Extract module references so ComputeReferencedModules() returns them
+  // before Generate() is called. This ensures PrepareGenerator can include
+  // modules before materialization.
+  for (auto it = decoder.referenced_modules(); it; ++it) {
+    referenced_modules_.Insert(it->as_std_string(), nullptr);
+  }
+  if (decoder.has_table()) {
+    StructuredQuery::Table::Decoder table(decoder.table());
+    if (table.module_name().size > 0) {
+      referenced_modules_.Insert(table.module_name().ToStdString(), nullptr);
+    }
+  }
+
   auto ptr = std::make_unique<uint8_t[]>(size);
   memcpy(ptr.get(), data, size);
   auto [it, inserted] =
@@ -1441,7 +1713,7 @@ base::Status StructuredQueryGenerator::AddQuery(const uint8_t* data,
     return base::ErrStatus("Multiple shared queries specified with the ids %s",
                            id.c_str());
   }
-  return base::OkStatus();
+  return id;
 }
 
 std::vector<std::string> StructuredQueryGenerator::ComputeReferencedModules()

@@ -21,6 +21,7 @@ perfetto_proto_library("@TYPE@") {
   ]
 
   sources = [
+    "android_aflags.proto",
     "android_game_intervention_list.proto",
     "android_log.proto",
     "android_system_property.proto",
@@ -42,6 +43,7 @@ perfetto_proto_library("@TYPE@") {
 
 perfetto_proto_library("winscope_common_@TYPE@") {
   sources = [
+    "graphics/corner_radii.proto",
     "graphics/insets.proto",
     "graphics/point.proto",
     "graphics/rect.proto",
@@ -67,7 +69,10 @@ perfetto_proto_library("winscope_regular_@TYPE@") {
 # Winscope messages added to TracePacket as extensions
 perfetto_proto_library("winscope_extensions_@TYPE@") {
   proto_generators = [ "zero" ]
-  public_deps = [ ":winscope_common_@TYPE@" ]
+  public_deps = [
+    ":winscope_common_@TYPE@",
+    ":winscope_regular_@TYPE@",
+  ]
   sources = [
     "android_input_event.proto",
     "app/statusbarmanager.proto",

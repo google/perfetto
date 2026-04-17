@@ -84,7 +84,7 @@ class PerfettoCmd : public Consumer {
 
   enum CloneThreadMode { kSingleExtraThread, kNewThreadPerRequest };
 
-  bool OpenOutputFile();
+  bool OpenOutputFile(bool no_clobber);
   uint64_t GetBytesWritten();
   void SetupCtrlCSignalHandler();
   void FinalizeTraceAndExit();
@@ -168,8 +168,6 @@ class PerfettoCmd : public Consumer {
 #endif
   void LogUploadEvent(PerfettoStatsdAtom atom);
   void LogUploadEvent(PerfettoStatsdAtom atom, const std::string& trigger_name);
-  void LogTriggerEvents(PerfettoTriggerAtom atom,
-                        const std::vector<std::string>& trigger_names);
 
   base::MaybeLockFreeTaskRunner task_runner_;
 

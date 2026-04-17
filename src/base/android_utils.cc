@@ -36,6 +36,11 @@
 #include <unistd.h>
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <sys/sysinfo.h>
+#endif
+
 namespace perfetto {
 namespace base {
 
@@ -93,9 +98,27 @@ SystemInfo GetSystemInfo() {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) &&  \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
+
   info.utsname_info = GetUtsname();
   info.page_size = static_cast<uint32_t>(sysconf(_SC_PAGESIZE));
   info.num_cpus = static_cast<uint32_t>(sysconf(_SC_NPROCESSORS_CONF));
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // Use the Linux-specific sysinfo() system call on Linux and Android.
+  // https://man7.org/linux/man-pages/man2/sysinfo.2.html
+  struct sysinfo sys_info;
+  if (sysinfo(&sys_info) == 0) {
+    info.system_ram_bytes =
+        static_cast<uint64_t>(sys_info.totalram) * sys_info.mem_unit;
+  }
+#else
+  // POSIX Fallback (macOS, BSD, etc.): Use sysconf() to get physical pages.
+  long pages = sysconf(_SC_PHYS_PAGES);
+  if (pages > 0 && info.page_size.has_value()) {
+    info.system_ram_bytes = static_cast<uint64_t>(pages) * (*info.page_size);
+  }
+#endif
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   info.android_build_fingerprint = GetAndroidProp("ro.build.fingerprint");

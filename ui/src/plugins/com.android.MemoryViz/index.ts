@@ -1,0 +1,406 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
+import {PerfettoPlugin} from '../../public/plugin';
+import {Trace} from '../../public/trace';
+import {TrackNode} from '../../public/workspace';
+import {CounterTrack} from '../../components/tracks/counter_track';
+import {uuidv4} from '../../base/uuid';
+import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
+import {TimeSpan} from '../../base/time';
+
+export default class MemoryViz implements PerfettoPlugin {
+  static readonly id = 'com.android.MemoryViz';
+
+  async onTraceLoad(ctx: Trace): Promise<void> {
+    ctx.commands.registerCommand({
+      id: 'com.android.visualizeMemoryReclaim',
+      name: 'Memory: reclaim events',
+      callback: async () => {
+        await ctx.engine.query(`
+          INCLUDE PERFETTO MODULE intervals.overlap;
+          INCLUDE PERFETTO MODULE intervals.intersect;
+          INCLUDE PERFETTO MODULE slices.with_context;
+        `);
+        await addDebugSliceTrack({
+          trace: ctx,
+          data: {
+            sqlSource: `
+              -- 1. Get and merge Direct Reclaim slices globally.
+              WITH direct_reclaim_merged AS (
+                SELECT
+                  m.ts,
+                  m.dur
+                FROM interval_merge_overlapping!(
+                  (
+                    SELECT ts, dur
+                    FROM thread_slice
+                    WHERE name LIKE 'mm_vmscan_direct_reclaim'
+                  ),
+                  0
+                ) m
+                WHERE m.dur > 0
+              ),
+              -- 2. Get and merge kswapd0 thread slices.
+              kswapd_slices AS (
+                SELECT
+                  ts,
+                  dur
+                FROM sched
+                JOIN thread
+                  USING (utid)
+                WHERE
+                  thread.name = 'kswapd0' AND
+                  dur > 0
+              ),
+              -- 3. Combine both sources with priorities and unique IDs for intersection.
+              all_intervals AS (
+                SELECT
+                  *, row_number() OVER () AS id
+                FROM (
+                  SELECT
+                    *, 1 AS priority
+                  FROM direct_reclaim_merged
+                  UNION ALL
+                  SELECT
+                    *, 0 AS priority
+                  FROM kswapd_slices
+                )
+              ),
+              -- 4. Calculate sub-intervals where the source intervals overlap.
+              intersected AS (
+                SELECT
+                  ii.ts,
+                  ii.dur,
+                  ii.group_id,
+                  ii.id
+                FROM interval_self_intersect!(all_intervals) ii
+                WHERE ii.interval_ends_at_ts = FALSE
+              ),
+              -- 5. For each piece of time (group_id), pick the source with the highest priority.
+              final AS (
+                SELECT
+                  ii.ts,
+                  ii.dur,
+                  CASE WHEN MAX(ai.priority) = 1 THEN 'direct reclaim' ELSE 'kswapd0' END AS name
+                FROM intersected ii
+                JOIN all_intervals ai ON ii.id = ai.id
+                GROUP BY ii.group_id
+              )
+              -- 6. Re-merge same-type intervals fragmented by the self-intersect.
+              SELECT ts, dur, name FROM interval_merge_overlapping_partitioned!(
+                final,
+                (name)
+              )
+            `,
+          },
+          title: 'Kswapd0 / Direct Reclaim',
+        });
+
+        await ctx.engine.query(`
+          INCLUDE PERFETTO MODULE android.memory.lmk;
+        `);
+        await addDebugSliceTrack({
+          trace: ctx,
+          data: {
+            sqlSource: `
+              SELECT
+                ts,
+                0 as dur,
+                upid,
+                pid,
+                process_name,
+                oom_score_adj,
+                android_oom_adj_score_to_bucket_name(oom_score_adj) AS oom_bucket,
+                kill_reason
+              FROM android_lmk_events
+            `,
+          },
+          title: 'LMK',
+          columns: {
+            name: 'process_name',
+          },
+          pivotOn: 'oom_bucket',
+        });
+      },
+    });
+
+    ctx.commands.registerCommand({
+      id: `com.android.visualizeMemory`,
+      name: 'Memory: Visualize (over selection)',
+      callback: async () => {
+        await ctx.engine.query(`
+          INCLUDE PERFETTO MODULE intervals.intersect;
+          INCLUDE PERFETTO MODULE android.memory.memory_breakdown;
+        `);
+        const window = await getTimeSpanOfSelectionOrVisibleWindow(ctx);
+
+        const tracks = [
+          ['mem.rss.file', 'RSS File'],
+          ['mem.rss.shmem', 'RSS Shmem'],
+          ['mem.dmabuf_rss', 'DMA buffer RSS'],
+          ['mem.heap', 'Heap Size'],
+          ['mem.locked', 'Locked Memory'],
+          ['GPU Memory', 'GPU Memory'],
+        ];
+
+        const trackPromises: Promise<TrackNode | undefined>[] = [
+          this.createRssAnonSwapTrack(ctx, window),
+        ];
+        trackPromises.push(
+          ...tracks.map(([trackName, displayName]) =>
+            this.createBreakdownTrack(ctx, window, trackName, displayName),
+          ),
+        );
+        const createdTracks = await Promise.all(trackPromises);
+
+        for (const track of createdTracks) {
+          if (track) {
+            ctx.defaultWorkspace.pinnedTracksNode.addChildLast(track);
+          }
+        }
+      },
+    });
+  }
+
+  private async createTrack(
+    ctx: Trace,
+    uri: string,
+    sqlSource: string,
+    name: string,
+    description: string,
+    removable = true,
+    sortOrder?: number,
+  ): Promise<TrackNode> {
+    const track = CounterTrack.create({
+      trace: ctx,
+      uri,
+      sqlSource,
+    });
+    ctx.tracks.registerTrack({
+      uri,
+      renderer: track,
+      description,
+    });
+
+    return new TrackNode({
+      uri,
+      name,
+      removable,
+      sortOrder,
+    });
+  }
+
+  private async createRssAnonSwapTrack(
+    ctx: Trace,
+    window: TimeSpan,
+  ): Promise<TrackNode | undefined> {
+    const uri = `${MemoryViz.id}.rss_anon_swap.${uuidv4()}`;
+    const sqlSource = this.getSqlSource(window, [
+      `memory_track_name IN ('mem.rss.anon', 'mem.swap')`,
+    ]);
+    const rootNode = await this.createTrack(
+      ctx,
+      uri,
+      sqlSource,
+      'RSS Anon + Swap',
+      'Sum of mem.rss.anon and mem.swap memory across all processes.',
+      true,
+    );
+
+    const rssAnonNode = await this.createBreakdownTrack(
+      ctx,
+      window,
+      'mem.rss.anon',
+      'RSS Anon',
+    );
+    const swapNode = await this.createBreakdownTrack(
+      ctx,
+      window,
+      'mem.swap',
+      'Swap',
+    );
+
+    if (rssAnonNode) {
+      rootNode.addChildLast(rssAnonNode);
+    }
+    if (swapNode) {
+      rootNode.addChildLast(swapNode);
+    }
+
+    return rootNode;
+  }
+
+  private async createBreakdownTrack(
+    ctx: Trace,
+    window: TimeSpan,
+    trackName: string,
+    name: string,
+  ): Promise<TrackNode | undefined> {
+    const uri = `${MemoryViz.id}.${trackName}.${uuidv4()}`;
+    const sqlSource = this.getSqlSource(window, [
+      `memory_track_name = '${trackName}'`,
+    ]);
+    const breakdownNode = await this.createTrack(
+      ctx,
+      uri,
+      sqlSource,
+      name,
+      `Sum of ${trackName} memory across all processes.`,
+      true,
+    );
+
+    const buckets = await ctx.engine.query(`
+      SELECT DISTINCT bucket
+      FROM android_process_memory_intervals_by_oom_bucket
+      WHERE memory_track_name = '${trackName}'
+      ORDER BY bucket ASC
+    `);
+
+    for (const iter = buckets.iter({}); iter.valid(); iter.next()) {
+      const bucket = iter.get('bucket') as string;
+      const bucketNode = await this.createOomBucketTrack(
+        ctx,
+        window,
+        trackName,
+        bucket,
+      );
+      if (bucketNode) {
+        breakdownNode.addChildInOrder(bucketNode);
+      }
+    }
+
+    return breakdownNode;
+  }
+
+  private async createOomBucketTrack(
+    ctx: Trace,
+    window: TimeSpan,
+    trackName: string,
+    bucket: string,
+  ): Promise<TrackNode | undefined> {
+    const processes = await ctx.engine.query(`
+      SELECT
+        upid,
+        pid,
+        process_name,
+        MAX(zygote_adjusted_value) AS max_value
+      FROM android_process_memory_intervals_by_oom_bucket
+      WHERE
+        bucket = '${bucket}' AND
+        memory_track_name = '${trackName}' AND
+        ts < ${window.end} AND
+        ts + dur > ${window.start}
+      GROUP BY upid, pid, process_name
+      HAVING max_value > 0
+      ORDER BY max_value DESC
+    `);
+
+    const numProcesses = processes.numRows();
+    if (numProcesses === 0) {
+      return undefined;
+    }
+
+    const plural = numProcesses === 1 ? '' : 'es';
+    const name = `${bucket} (${numProcesses} process${plural})`;
+
+    const uri = `${MemoryViz.id}.${trackName}.${bucket}.${uuidv4()}`;
+    const sqlSource = this.getSqlSource(window, [
+      `bucket = '${bucket}'`,
+      `memory_track_name = '${trackName}'`,
+    ]);
+    const peak = await ctx.engine.query(
+      `SELECT MAX(value) AS peak FROM (${sqlSource})`,
+    );
+    const peakValue = peak.iter({}).get('peak') as number;
+
+    const bucketNode = await this.createTrack(
+      ctx,
+      uri,
+      sqlSource,
+      name,
+      `Sum of ${trackName} memory across all processes while in the '${
+        bucket
+      }' OOM bucket (0 otherwise).`,
+      true,
+      -peakValue, // Sort buckets in descending order of peak memory usage
+    );
+
+    for (
+      const procIter = processes.iter({});
+      procIter.valid();
+      procIter.next()
+    ) {
+      const upid = procIter.get('upid') as number;
+      const pid = procIter.get('pid') as number;
+      const processName = procIter.get('process_name') as string;
+      const processNode = await this.createSingleProcessTrack(
+        ctx,
+        window,
+        upid,
+        pid,
+        processName,
+        trackName,
+        bucket,
+      );
+      bucketNode.addChildLast(processNode);
+    }
+    return bucketNode;
+  }
+
+  private async createSingleProcessTrack(
+    ctx: Trace,
+    window: TimeSpan,
+    upid: number,
+    pid: number,
+    processName: string,
+    trackName: string,
+    bucket: string,
+  ): Promise<TrackNode> {
+    const name = `${processName} ${pid}`;
+    const uri = `${MemoryViz.id}.process.${upid}.${trackName}.${uuidv4()}`;
+    const sqlSource = this.getSqlSource(window, [
+      `bucket = '${bucket}'`,
+      `memory_track_name = '${trackName}'`,
+      `upid = ${upid}`,
+    ]);
+    return this.createTrack(
+      ctx,
+      uri,
+      sqlSource,
+      name,
+      `Process ${processName} (${pid}) ${trackName} memory while in the '${
+        bucket
+      }' OOM bucket (0 otherwise).`,
+      true,
+    );
+  }
+
+  private getSqlSource(window: TimeSpan, whereClauses: string[] = []): string {
+    const whereClause =
+      whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+    return `
+      SELECT iss.ts, SUM(IIF(iss.interval_ends_at_ts = FALSE, m.zygote_adjusted_value, 0)) as value FROM interval_self_intersect!((
+        SELECT
+          id,
+          MAX(ts, ${window.start}) as ts,
+          MIN(ts + dur, ${window.end}) - MAX(ts, ${window.start}) as dur
+        FROM android_process_memory_intervals_by_oom_bucket
+        ${whereClause} AND ts < ${window.end} and ts + dur > ${window.start}
+      )) iss JOIN android_process_memory_intervals_by_oom_bucket m USING(id)
+      GROUP BY group_id
+    `;
+  }
+}

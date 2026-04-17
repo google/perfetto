@@ -193,7 +193,7 @@ The env variable BIGTRACE_ORCHESTRATOR_ADDRESS must also be changed to the addre
           value: # Address of Orchestrator service
 ```
 
-If you want to verify whether the deployments were succesful you can run:
+If you want to verify whether the deployments were successful you can run:
 ```
 kubectl get deployments
 ```

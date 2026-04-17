@@ -30,13 +30,13 @@
     border-bottom: 1px solid var(--pf-color-border);
 
     .pf-header-title {
-      font-size: 18px;
+      font-size: var(--pf-font-size-xl);
       min-width: min-content;
       white-space: nowrap;
     }
 
     .pf-header-description {
-      font-size: 14px;
+      font-size: var(--pf-font-size-m);
       flex-grow: 1;
       flex-shrink: 1;
       white-space: nowrap;
@@ -45,6 +45,7 @@
     }
 
     .pf-header-buttons {
+      font-size: var(--pf-font-size-m);
       white-space: nowrap;
       display: flex;
       min-width: min-content;

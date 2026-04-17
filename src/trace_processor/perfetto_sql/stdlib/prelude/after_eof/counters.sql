@@ -20,6 +20,10 @@
 -- performance metrics collected across CPUs, processes, threads, GPUs,
 -- and other contexts.
 
+INCLUDE PERFETTO MODULE prelude.after_eof.indexes;
+
+INCLUDE PERFETTO MODULE prelude.after_eof.views;
+
 -- Tracks containing counter-like events.
 CREATE PERFETTO VIEW counter_track (
   -- Unique identifier for this cpu counter track.
@@ -43,8 +47,8 @@ CREATE PERFETTO VIEW counter_track (
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
-  -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG,
+  -- Machine identifier
+  machine_id JOINID(machine.id),
   -- The units of the counter. This column is rarely filled.
   unit STRING,
   -- The description for this track. For debugging purposes only.
@@ -84,8 +88,8 @@ CREATE PERFETTO TABLE cpu_counter_track (
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
-  -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG,
+  -- Machine identifier
+  machine_id JOINID(machine.id),
   -- The units of the counter. This column is rarely filled.
   unit STRING,
   -- The description for this track. For debugging purposes only.
@@ -129,13 +133,15 @@ CREATE PERFETTO TABLE gpu_counter_track (
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
-  -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG,
+  -- Machine identifier
+  machine_id JOINID(machine.id),
   -- The units of the counter. This column is rarely filled.
   unit STRING,
   -- The description for this track. For debugging purposes only.
   description STRING,
-  -- The GPU that the track is associated with.
+  -- The unique GPU identifier (ugpu) from the gpu table.
+  ugpu LONG,
+  -- The raw GPU number.
   gpu_id LONG
 ) AS
 SELECT
@@ -147,12 +153,13 @@ SELECT
   ct.machine_id,
   ct.unit,
   ct.description,
-  args.int_value AS gpu_id
+  extract_arg(ct.dimension_arg_set_id, 'ugpu') AS ugpu,
+  extract_arg(ct.dimension_arg_set_id, 'gpu') AS gpu_id
 FROM counter_track AS ct
 JOIN args
   ON ct.dimension_arg_set_id = args.arg_set_id
 WHERE
-  args.key = 'gpu';
+  args.key = 'ugpu';
 
 -- Tracks containing counter-like events associated to a process.
 CREATE PERFETTO TABLE process_counter_track (
@@ -174,8 +181,8 @@ CREATE PERFETTO TABLE process_counter_track (
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
-  -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG,
+  -- Machine identifier
+  machine_id JOINID(machine.id),
   -- The units of the counter. This column is rarely filled.
   unit STRING,
   -- The description for this track. For debugging purposes only.
@@ -219,8 +226,8 @@ CREATE PERFETTO TABLE thread_counter_track (
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
   source_arg_set_id JOINID(track.id),
-  -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG,
+  -- Machine identifier
+  machine_id JOINID(machine.id),
   -- The units of the counter. This column is rarely filled.
   unit STRING,
   -- The description for this track. For debugging purposes only.
@@ -264,8 +271,8 @@ CREATE PERFETTO TABLE perf_counter_track (
   -- the trace. For example: whether this track orginated from atrace, Chrome
   -- tracepoints etc.
   source_arg_set_id ARGSETID,
-  -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG,
+  -- Machine identifier
+  machine_id JOINID(machine.id),
   -- The units of the counter. This column is rarely filled.
   unit STRING,
   -- The description for this track. For debugging purposes only.

@@ -19,6 +19,10 @@
 -- This module provides tables and views for analyzing CPU scheduling behavior,
 -- including scheduling slices, thread states, and CPU information.
 
+INCLUDE PERFETTO MODULE prelude.after_eof.indexes;
+
+INCLUDE PERFETTO MODULE prelude.after_eof.views;
+
 -- Contains information about the CPUs on the device this trace was taken on.
 CREATE PERFETTO VIEW cpu (
   -- Unique identifier for this CPU. Identical to |ucpu|, prefer using |ucpu|
@@ -33,8 +37,8 @@ CREATE PERFETTO VIEW cpu (
   cluster_id LONG,
   -- A string describing this core.
   processor STRING,
-  -- Machine identifier, non-null for CPUs on a remote machine.
-  machine_id LONG,
+  -- Machine identifier
+  machine_id JOINID(machine.id),
   -- Capacity of a CPU of a device, a metric which indicates the
   -- relative performance of a CPU on a device
   -- For details see:
@@ -188,7 +192,7 @@ CREATE PERFETTO VIEW thread_state (
   -- Whether the wakeup was from interrupt context or process context.
   irq_context LONG,
   -- The unique CPU identifier that the thread executed on.
-  ucpu LONG
+  ucpu JOINID(cpu.id)
 ) AS
 SELECT
   id,

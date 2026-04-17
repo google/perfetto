@@ -73,11 +73,99 @@ const ATRACE_THERMAL = [
   'workq',
 ];
 
+const ATRACE_GRAPHICS = [
+  'aidl',
+  'am',
+  'binder_driver',
+  'gfx',
+  'hal',
+  'idle',
+  'input',
+  'memory',
+  'power',
+  'sched',
+  'thermal',
+  'view',
+  'webview',
+  'wm',
+  'workq',
+];
+
+const FTRACE_GRAPHICS = ['power'];
+
 const LOGCAT_DEFAULT = [
   protos.AndroidLogId.LID_DEFAULT,
   protos.AndroidLogId.LID_SYSTEM,
   protos.AndroidLogId.LID_CRASH,
   protos.AndroidLogId.LID_EVENTS,
+];
+
+// Chrome-specific presets
+const CHROME_DEFAULT_PRESET: Preset = {
+  id: 'default',
+  title: 'Default',
+  subtitle: 'Common Chrome trace events',
+  icon: 'public',
+  session: {
+    kind: 'probes',
+    mode: 'STOP_WHEN_FULL',
+    bufSizeKb: 256 * 1024,
+    durationMs: 30_000,
+    maxFileSizeMb: 500,
+    fileWritePeriodMs: 2500,
+    compression: false,
+    probes: {
+      chrome_tracing: {
+        settings: {
+          'Task Scheduling': true,
+          'Javascript execution': true,
+          'Web content rendering, layout and compositing': true,
+          'UI rendering and surface compositing': true,
+          'Input events': true,
+          'Navigation and loading': true,
+        },
+      },
+    },
+  },
+};
+const CHROME_V8_PRESET: Preset = {
+  id: 'v8',
+  title: 'V8',
+  subtitle: 'JavaScript, wasm & GC',
+  icon: 'mode_fan',
+  session: {
+    kind: 'probes',
+    mode: 'STOP_WHEN_FULL',
+    bufSizeKb: 256 * 1024,
+    durationMs: 30_000,
+    maxFileSizeMb: 500,
+    fileWritePeriodMs: 2500,
+    compression: false,
+    probes: {
+      chrome_tracing: {
+        settings: {
+          'Task Scheduling': true,
+          'Javascript execution': true,
+          'Navigation and loading': true,
+          'categories': [
+            'v8',
+            'v8.execute',
+            'v8.wasm',
+            'v8.memory',
+            'blink.user_timing',
+            'disabled-by-default-v8.gc',
+            'disabled-by-default-v8.compile',
+            'disabled-by-default-v8.cpu_profiler',
+          ],
+        },
+      },
+    },
+  },
+};
+
+export const CHROME_PRESETS: Preset[] = [
+  CHROME_DEFAULT_PRESET,
+  CHROME_V8_PRESET,
 ];
 
 // Android-specific presets
@@ -88,9 +176,10 @@ export const ANDROID_PRESETS: Preset[] = [
     subtitle: 'The default config for general purpose tracing',
     icon: 'auto_awesome',
     session: {
+      kind: 'probes',
       mode: 'STOP_WHEN_FULL',
       bufSizeKb: 64 * 1024,
-      durationMs: 10000,
+      durationMs: 10_000,
       maxFileSizeMb: 500,
       fileWritePeriodMs: 2500,
       compression: false,
@@ -102,7 +191,7 @@ export const ANDROID_PRESETS: Preset[] = [
           settings: {
             categories: ATRACE_DEFAULT,
             apps: '',
-            allApps: false,
+            allApps: true,
           },
         },
         logcat: {
@@ -120,9 +209,10 @@ export const ANDROID_PRESETS: Preset[] = [
     subtitle: 'Battery usage and power consumption',
     icon: 'battery_profile',
     session: {
+      kind: 'probes',
       mode: 'STOP_WHEN_FULL',
       bufSizeKb: 64 * 1024,
-      durationMs: 30000,
+      durationMs: 30_000,
       maxFileSizeMb: 500,
       fileWritePeriodMs: 2500,
       compression: false,
@@ -131,7 +221,7 @@ export const ANDROID_PRESETS: Preset[] = [
           settings: {
             categories: ATRACE_BATTERY,
             apps: '',
-            allApps: false,
+            allApps: true,
           },
         },
         power_rails: {settings: {pollMs: 1000}},
@@ -145,9 +235,10 @@ export const ANDROID_PRESETS: Preset[] = [
     subtitle: 'Thermal throttling and mitigation',
     icon: 'thermostat',
     session: {
+      kind: 'probes',
       mode: 'STOP_WHEN_FULL',
       bufSizeKb: 64 * 1024,
-      durationMs: 30000,
+      durationMs: 30_000,
       maxFileSizeMb: 500,
       fileWritePeriodMs: 2500,
       compression: false,
@@ -157,7 +248,7 @@ export const ANDROID_PRESETS: Preset[] = [
           settings: {
             categories: ATRACE_THERMAL,
             apps: '',
-            allApps: false,
+            allApps: true,
           },
         },
         power_rails: {settings: {pollMs: 1000}},
@@ -167,6 +258,41 @@ export const ANDROID_PRESETS: Preset[] = [
       },
     },
   },
+  {
+    id: 'graphics',
+    title: 'Graphics',
+    subtitle: 'Graphics pipeline and system compositor',
+    icon: 'layers',
+    session: {
+      kind: 'probes',
+      mode: 'STOP_WHEN_FULL',
+      bufSizeKb: 64 * 1024,
+      durationMs: 30000,
+      maxFileSizeMb: 500,
+      fileWritePeriodMs: 2500,
+      compression: false,
+      probes: {
+        cpu_usage: {settings: {pollMs: 1000}},
+        cpu_sched: {settings: {}},
+        cpu_freq: {settings: {pollMs: 1000}},
+        gpu_frequency: {settings: {}},
+        gpu_memory: {settings: {}},
+        gpu_work_period: {settings: {}},
+        mem_proc_stat: {settings: {pollMs: 1000}},
+        android_frame_timeline: {settings: {}},
+        atrace: {
+          settings: {
+            categories: ATRACE_GRAPHICS,
+            apps: '',
+            allApps: true,
+          },
+        },
+        advanced_ftrace: {settings: {groups: FTRACE_GRAPHICS}},
+      },
+    },
+  },
+  {...CHROME_DEFAULT_PRESET, id: 'chrome', title: 'Chrome'},
+  CHROME_V8_PRESET,
 ];
 
 // Linux-specific presets
@@ -177,9 +303,10 @@ export const LINUX_PRESETS: Preset[] = [
     subtitle: 'General purpose CPU and system tracing',
     icon: 'auto_awesome',
     session: {
+      kind: 'probes',
       mode: 'STOP_WHEN_FULL',
       bufSizeKb: 64 * 1024,
-      durationMs: 10000,
+      durationMs: 10_000,
       maxFileSizeMb: 500,
       fileWritePeriodMs: 2500,
       compression: false,
@@ -198,9 +325,10 @@ export const LINUX_PRESETS: Preset[] = [
     subtitle: 'CPU scheduling and process activity',
     icon: 'schedule',
     session: {
+      kind: 'probes',
       mode: 'STOP_WHEN_FULL',
       bufSizeKb: 64 * 1024,
-      durationMs: 10000,
+      durationMs: 10_000,
       maxFileSizeMb: 500,
       fileWritePeriodMs: 2500,
       compression: false,
@@ -224,7 +352,7 @@ export function getPresetsForPlatform(platform: string): Preset[] {
       return LINUX_PRESETS;
     case 'CHROME':
     case 'CHROME_OS':
-      return [];
+      return CHROME_PRESETS;
     default:
       return [];
   }

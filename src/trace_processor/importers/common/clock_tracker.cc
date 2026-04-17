@@ -16,12 +16,19 @@
 
 #include "src/trace_processor/importers/common/clock_tracker.h"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
-#include <ctime>
+#include <memory>
 #include <optional>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -33,6 +40,124 @@
 #include "src/trace_processor/util/clock_synchronizer.h"
 
 namespace perfetto::trace_processor {
+
+// --- ClockTracker: public slow-path methods ---
+
+ClockTracker::ClockTracker(
+    TraceProcessorContext* context,
+    std::unique_ptr<ClockSynchronizerListenerImpl> listener,
+    ClockSynchronizer* primary_sync,
+    bool is_primary)
+    : context_(context),
+      sync_(context->trace_time_state.get(), std::move(listener)),
+      active_sync_(primary_sync),
+      is_primary_(is_primary) {
+  PERFETTO_CHECK(primary_sync);
+}
+
+base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
+    const std::vector<ClockTimestamp>& clock_timestamps) {
+  if (PERFETTO_UNLIKELY(!is_primary_)) {
+    // Non-primary trace: if we were using the primary's pool and already
+    // converted timestamps, those conversions may have used different clock
+    // data than our own.
+    if (PERFETTO_UNLIKELY(active_sync_ != &sync_ && num_conversions_ > 0)) {
+      context_->import_logs_tracker->RecordAnalysisError(
+          stats::clock_sync_mixed_clock_sources,
+          [&](ArgsTracker::BoundInserter& inserter) {
+            StringId key = context_->storage->InternString(
+                "num_conversions_using_primary");
+            inserter.AddArg(key, Variadic::UnsignedInteger(num_conversions_));
+          });
+    }
+    // Switch to our own sync and add the snapshot there.
+    active_sync_ = &sync_;
+  }
+  return active_sync_->AddSnapshot(clock_timestamps);
+}
+
+base::Status ClockTracker::SetGlobalClock(ClockId clock_id) {
+  PERFETTO_DCHECK(!clock_id.IsSequenceClock());
+  if (num_conversions_ > 0) {
+    auto* state = context_->trace_time_state.get();
+    return base::ErrStatus(
+        "Not updating trace time clock from %s to %s"
+        " because the old clock was already used for timestamp "
+        "conversion - ClockSnapshot too late in trace?",
+        state->clock_id.ToString().c_str(), clock_id.ToString().c_str());
+  }
+  auto* state = context_->trace_time_state.get();
+  uint32_t my_trace_id = context_->trace_id().value;
+  // Another trace file owns the clock. Don't override.
+  if (state->trace_time_clock_owner &&
+      *state->trace_time_clock_owner != my_trace_id) {
+    return base::OkStatus();
+  }
+  state->trace_time_clock_owner = my_trace_id;
+  state->clock_id = clock_id;
+  context_->metadata_tracker->SetMetadata(metadata::trace_time_clock_id,
+                                          Variadic::Integer(clock_id.clock_id));
+  return base::OkStatus();
+}
+
+void ClockTracker::SetTraceDefaultClock(ClockId clock_id) {
+  trace_default_clock_ = clock_id;
+}
+
+void ClockTracker::AddDeferredIdentitySync(ClockId clock_id) {
+  deferred_identity_clock_ = clock_id;
+}
+
+void ClockTracker::FlushDeferredIdentitySync() {
+  ClockId clock_id = *deferred_identity_clock_;
+  deferred_identity_clock_.reset();
+  auto* state = context_->trace_time_state.get();
+  if (clock_id != state->clock_id && !active_sync_->HasClock(clock_id)) {
+    active_sync_->AddSnapshot({{clock_id, 0}, {state->clock_id, 0}});
+  }
+}
+
+std::optional<int64_t> ClockTracker::ToTraceTimeFromSnapshot(
+    const std::vector<ClockTimestamp>& snapshot) {
+  auto* state = context_->trace_time_state.get();
+  auto it = std::find_if(snapshot.begin(), snapshot.end(),
+                         [state](const ClockTimestamp& clock_timestamp) {
+                           return clock_timestamp.clock.id == state->clock_id;
+                         });
+  if (it == snapshot.end()) {
+    return std::nullopt;
+  }
+  return it->timestamp;
+}
+
+void ClockTracker::SetRemoteClockOffset(ClockId clock_id, int64_t offset) {
+  context_->trace_time_state->remote_clock_offsets[clock_id] = offset;
+}
+
+std::optional<int64_t> ClockTracker::timezone_offset() const {
+  return context_->trace_time_state->timezone_offset;
+}
+
+void ClockTracker::set_timezone_offset(int64_t offset) {
+  context_->trace_time_state->timezone_offset = offset;
+}
+
+// --- ClockTracker: testing ---
+
+void ClockTracker::set_cache_lookups_disabled_for_testing(bool v) {
+  active_sync_->set_cache_lookups_disabled_for_testing(v);
+}
+
+const base::FlatHashMap<ClockId, int64_t>&
+ClockTracker::remote_clock_offsets_for_testing() {
+  return context_->trace_time_state->remote_clock_offsets;
+}
+
+uint32_t ClockTracker::cache_hits_for_testing() const {
+  return active_sync_->cache_hits_for_testing();
+}
+
+// --- ClockSynchronizerListenerImpl ---
 
 ClockSynchronizerListenerImpl::ClockSynchronizerListenerImpl(
     TraceProcessorContext* context)
@@ -55,60 +180,46 @@ base::Status ClockSynchronizerListenerImpl::OnInvalidClockSnapshot() {
   return base::OkStatus();
 }
 
-base::Status ClockSynchronizerListenerImpl::OnTraceTimeClockIdChanged(
-    ClockSynchronizerBase::ClockId clock_id) {
-  context_->metadata_tracker->SetMetadata(metadata::trace_time_clock_id,
-                                          Variadic::Integer(clock_id));
-  return base::OkStatus();
-}
-
-base::Status ClockSynchronizerListenerImpl::OnSetTraceTimeClock(
-    ClockSynchronizerBase::ClockId clock_id) {
-  context_->metadata_tracker->SetMetadata(metadata::trace_time_clock_id,
-                                          Variadic::Integer(clock_id));
-  return base::OkStatus();
-}
-
 void ClockSynchronizerListenerImpl::RecordConversionError(
-    ClockSynchronizerBase::ErrorType error_type,
-    ClockSynchronizerBase::ClockId source_clock_id,
-    ClockSynchronizerBase::ClockId target_clock_id,
+    ClockSyncErrorType error_type,
+    ClockId source_clock_id,
+    ClockId target_clock_id,
     int64_t source_timestamp,
     std::optional<size_t> byte_offset) {
   size_t stat_key;
   switch (error_type) {
-    case ClockSynchronizerBase::ErrorType::kUnknownSourceClock:
+    case ClockSyncErrorType::kUnknownSourceClock:
       stat_key = stats::clock_sync_failure_unknown_source_clock;
       break;
-    case ClockSynchronizerBase::ErrorType::kUnknownTargetClock:
+    case ClockSyncErrorType::kUnknownTargetClock:
       stat_key = stats::clock_sync_failure_unknown_target_clock;
       break;
-    case ClockSynchronizerBase::ErrorType::kNoPath:
+    case ClockSyncErrorType::kNoPath:
       stat_key = stats::clock_sync_failure_no_path;
       break;
-    case ClockSynchronizerBase::ErrorType::kOk:
+    case ClockSyncErrorType::kOk:
       PERFETTO_FATAL("RecordConversionError called with kOk");
       return;
   }
   auto args = [&](ArgsTracker::BoundInserter& inserter) {
-    if (ClockTracker::IsSequenceClock(static_cast<uint32_t>(source_clock_id))) {
-      auto [seq_id, seq_clock_id] =
-          ClockTracker::ExtractSequenceClockId(source_clock_id);
+    if (source_clock_id.seq_id != 0) {
       inserter.AddArg(source_sequence_id_key_,
-                      Variadic::UnsignedInteger(seq_id));
-      inserter.AddArg(source_clock_id_key_, Variadic::Integer(seq_clock_id));
+                      Variadic::UnsignedInteger(source_clock_id.seq_id));
+      inserter.AddArg(source_clock_id_key_,
+                      Variadic::Integer(source_clock_id.clock_id));
     } else {
-      inserter.AddArg(source_clock_id_key_, Variadic::Integer(source_clock_id));
+      inserter.AddArg(source_clock_id_key_,
+                      Variadic::Integer(source_clock_id.clock_id));
     }
     inserter.AddArg(source_timestamp_key_, Variadic::Integer(source_timestamp));
-    if (ClockTracker::IsSequenceClock(static_cast<uint32_t>(target_clock_id))) {
-      auto [seq_id, seq_clock_id] =
-          ClockTracker::ExtractSequenceClockId(target_clock_id);
+    if (target_clock_id.seq_id != 0) {
       inserter.AddArg(target_sequence_id_key_,
-                      Variadic::UnsignedInteger(seq_id));
-      inserter.AddArg(target_clock_id_key_, Variadic::Integer(seq_clock_id));
+                      Variadic::UnsignedInteger(target_clock_id.seq_id));
+      inserter.AddArg(target_clock_id_key_,
+                      Variadic::Integer(target_clock_id.clock_id));
     } else {
-      inserter.AddArg(target_clock_id_key_, Variadic::Integer(target_clock_id));
+      inserter.AddArg(target_clock_id_key_,
+                      Variadic::Integer(target_clock_id.clock_id));
     }
   };
   if (byte_offset) {
@@ -117,11 +228,6 @@ void ClockSynchronizerListenerImpl::RecordConversionError(
   } else {
     context_->import_logs_tracker->RecordAnalysisError(stat_key, args);
   }
-}
-
-// Returns true if this is a local host, false otherwise.
-bool ClockSynchronizerListenerImpl::IsLocalHost() {
-  return !context_->machine_id();
 }
 
 }  // namespace perfetto::trace_processor

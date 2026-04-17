@@ -33,20 +33,46 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
 from python.generators.sql_processing.stdlib_parser import parse_all_modules, format_entities
-from python.generators.sql_processing.utils import check_banned_create_table_as
-from python.generators.sql_processing.utils import check_banned_create_view_as
-from python.generators.sql_processing.utils import check_banned_words
-from python.generators.sql_processing.utils import check_banned_drop
-from python.generators.sql_processing.utils import check_banned_include_all
+from python.generators.sql_processing.utils import check_banned_patterns
 from python.generators.sql_processing.utils import is_internal
 from python.generators.sql_processing.stdlib_tags import MODULE_TAGS, VALID_TAGS
 
 # Package name constants
-PKG_COMMON = "common"
-PKG_VIZ = "viz"
-PKG_CHROME = "chrome"
-PKG_ANDROID = "android"
 PKG_PRELUDE = "prelude"
+
+# Frozen set of allowed top-level public packages.
+#
+# This list is intentionally frozen to avoid namespace clashes with server
+# extensions which will increasingly add their own top-level packages.
+#
+# Historically, core trace processor functionality (e.g. intervals, graphs,
+# counters, slices) should have been placed under a 'std' top-level package,
+# but migration would be too disruptive. Instead, we freeze the current set
+# and require future core packages to be placed under 'std'.
+#
+# Platform-specific packages (e.g. 'android') may still be added as exceptions
+# since they are "closer to the platform" than core to Perfetto. Contact
+# lalitm@ for such exceptions.
+ALLOWED_TOPLEVEL_PUBLIC_PACKAGES = frozenset({
+    "android",
+    "appleos",
+    "chrome",
+    "counters",
+    "export",
+    "graphs",
+    "intervals",
+    "linux",
+    "pixel",
+    "pkvm",
+    "prelude",
+    "sched",
+    "slices",
+    "stacks",
+    "time",
+    "traced",
+    "v8",
+    "wattson",
+})
 
 
 @dataclass
@@ -585,6 +611,52 @@ def check_nested_tag_parents(quiet: bool = False) -> int:
   return len(missing_parent_tags_by_module)
 
 
+def check_new_packages(modules: List[Tuple], quiet: bool = False) -> int:
+  """Check that no new top-level public packages have been added.
+
+  This check ensures that all top-level packages with public artifacts are
+  in the allowed list. New packages should be placed under the 'std' folder.
+
+  Args:
+    modules: List of tuples (abs_path, rel_path, module_name, parsed_module)
+    quiet: If True, suppress detailed output
+
+  Returns:
+    Number of disallowed new packages found.
+  """
+  # Find all packages with public artifacts
+  packages_with_public = set()
+
+  for _, _, module_name, parsed in modules:
+    if has_public_artifacts(parsed):
+      # Extract top-level package name
+      package = module_name.split('.')[0]
+      packages_with_public.add(package)
+
+  # Find packages not in the allowed list
+  disallowed_packages = packages_with_public - ALLOWED_TOPLEVEL_PUBLIC_PACKAGES
+
+  if not quiet:
+    if disallowed_packages:
+      print(f"\nFound {len(disallowed_packages)} disallowed new top-level "
+            f"public package(s):\n")
+      for pkg in sorted(disallowed_packages):
+        print(f"  - {pkg}")
+      print(
+          f"\nTop-level public packages are frozen to avoid namespace clashes "
+          f"with server extensions.")
+      print(
+          f"\nCore trace processor packages (like intervals, graphs, counters) "
+          f"should be placed under 'std' (e.g. std.{list(disallowed_packages)[0]})."
+      )
+      print(f"\nPlatform-specific packages (like 'android') may be excepted. "
+            f"Contact lalitm@ for exceptions.")
+    else:
+      print(f"\nNo disallowed new top-level public packages found!")
+
+  return len(disallowed_packages)
+
+
 def main() -> int:
   parser = argparse.ArgumentParser(
       description="Check stdlib modules for banned patterns and documentation")
@@ -618,6 +690,11 @@ def main() -> int:
       action='store_true',
       default=False,
       help='Check that all tags in MODULE_TAGS correspond to actual modules')
+  parser.add_argument(
+      '--check-new-packages',
+      action='store_true',
+      default=False,
+      help='Check that no new top-level public packages have been added')
 
   args = parser.parse_args()
 
@@ -649,49 +726,7 @@ def main() -> int:
     with open(abs_path, 'r', encoding='utf-8') as f:
       sql = f.read()
 
-    # Check for banned statements
-    lines = [l.strip() for l in sql.split('\n')]
-    for line in lines:
-      if line.startswith('--'):
-        continue
-      if 'run_metric' in line.casefold():
-        errors.append("RUN_METRIC is banned in standard library.")
-      if 'insert into' in line.casefold():
-        errors.append("INSERT INTO table is not allowed in standard library.")
-
-    # Validate includes
-    package = parsed.package_name.lower() if parsed.package_name else ''
-    for include in parsed.includes:
-      include_package = include.package.lower() if include.package else ''
-
-      if include_package == PKG_COMMON:
-        errors.append(
-            "Common module has been deprecated in the standard library. "
-            "Please check `slices.with_context` for a replacement for "
-            "`common.slices` and `time.conversion` for replacement for "
-            "`common.timestamps`")
-
-      if package != PKG_VIZ and include_package == PKG_VIZ:
-        errors.append(
-            f"No modules can depend on '{PKG_VIZ}' outside '{PKG_VIZ}' package."
-        )
-
-      if package == PKG_CHROME and include_package == PKG_ANDROID:
-        errors.append(
-            f"Modules from package '{PKG_CHROME}' can't include '{include.module}' "
-            f"from package '{PKG_ANDROID}'")
-
-      if package == PKG_ANDROID and include_package == PKG_CHROME:
-        errors.append(
-            f"Modules from package '{PKG_ANDROID}' can't include '{include.module}' "
-            f"from package '{PKG_CHROME}'")
-
-    # Add parsing errors and validation errors
-    errors += [
-        *parsed.errors, *check_banned_words(sql),
-        *check_banned_create_table_as(sql), *check_banned_create_view_as(sql),
-        *check_banned_include_all(sql), *check_banned_drop(sql)
-    ]
+    errors += check_banned_patterns(parsed, sql)
 
     if errors:
       sys.stderr.write(f"\nFound {len(errors)} errors in file "
@@ -721,7 +756,12 @@ def main() -> int:
   if args.check_orphaned_tags:
     orphaned_tag_errors = check_orphaned_tags(modules, quiet=not args.verbose)
 
-  total_errors = all_errors + include_errors + tag_errors + orphaned_tag_errors + invalid_tag_errors + nested_tag_errors
+  # Check for new top-level public packages if requested
+  new_package_errors = 0
+  if args.check_new_packages:
+    new_package_errors = check_new_packages(modules, quiet=not args.verbose)
+
+  total_errors = all_errors + include_errors + tag_errors + orphaned_tag_errors + invalid_tag_errors + nested_tag_errors + new_package_errors
   return 0 if not total_errors else 1
 
 

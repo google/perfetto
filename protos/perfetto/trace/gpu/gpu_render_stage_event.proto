@@ -18,7 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// next id: 15
+// next id: 19
 message GpuRenderStageEvent {
   // required. Unique ID for the event.
   optional uint64 event_id = 1;
@@ -82,6 +82,15 @@ message GpuRenderStageEvent {
   // optional. The Vulkan command buffer handle.
   optional uint64 command_buffer_handle = 12;
 
+  // optional. Custom name for this render stage event. When set, this
+  // provides a name for the stage instead of using the name from the stage
+  // specification.
+  optional string name = 17;
+
+  // Event IDs of other GpuRenderStageEvents that this event
+  // had to wait on before it could run.
+  repeated uint64 event_wait_ids = 18;
+
   // DEPRECATED
 
   // Deprecated.  Use InternedGpuRenderStageSpecification instead.
@@ -133,6 +142,8 @@ message InternedGraphicsContext {
     OPEN_GL = 1;
     VULKAN = 2;
     OPEN_CL = 3;
+    CUDA = 4;
+    HIP = 5;
   }
   optional Api api = 3;
 }

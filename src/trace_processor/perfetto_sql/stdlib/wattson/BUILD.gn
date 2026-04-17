@@ -16,6 +16,7 @@ import("../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("wattson") {
   sources = [
+    "aggregation.sql",
     "cpu/arm_dsu.sql",
     "cpu/estimates.sql",
     "cpu/freq.sql",
@@ -27,20 +28,27 @@ perfetto_sql_source_set("wattson") {
     "curves/cpu_2d.sql",
     "curves/gpu.sql",
     "curves/l3.sql",
+    "curves/mt6897_2d.sql",
     "curves/tg5_cpu_1d.sql",
     "curves/tg5_cpu_2d.sql",
     "curves/tg5_cpu_2d_1.sql",
     "curves/tg5_cpu_2d_2.sql",
     "curves/tg5_l3.sql",
+    "curves/tpu.sql",
     "curves/utils.sql",
     "device_infos.sql",
     "estimates.sql",
     "gpu/estimates.sql",
     "gpu/freq_idle.sql",
     "tasks/attribution.sql",
+    "tasks/gpu_active_regions.sql",
+    "tasks/gpu_tasks.sql",
     "tasks/idle_transitions_attribution.sql",
     "tasks/task_slices.sql",
+    "tpu/estimates.sql",
+    "tpu/freq_idle.sql",
     "ui/continuous_estimates.sql",
     "utils.sql",
+    "windows.sql",
   ]
 }

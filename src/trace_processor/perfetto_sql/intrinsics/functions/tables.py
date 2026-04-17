@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import Table
@@ -27,7 +28,9 @@ TREE_TABLE = Table(
     sql_name="__unused",
     columns=[
         C("node_id", CppUint32()),
-        C("parent_node_id", CppOptional(CppUint32())),
+        C("parent_node_id",
+          CppOptional(CppUint32()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
     ])
 
 DOMINATOR_TREE_TABLE = Table(
@@ -36,7 +39,9 @@ DOMINATOR_TREE_TABLE = Table(
     sql_name="__intrinsic_dominator_tree",
     columns=[
         C("node_id", CppUint32()),
-        C("dominator_node_id", CppOptional(CppUint32())),
+        C("dominator_node_id",
+          CppOptional(CppUint32()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
     ])
 
 STRUCTURAL_TREE_PARTITION_TABLE = Table(
@@ -45,7 +50,9 @@ STRUCTURAL_TREE_PARTITION_TABLE = Table(
     sql_name="__intrinsic_structural_tree_partition",
     columns=[
         C("node_id", CppUint32()),
-        C("parent_node_id", CppOptional(CppUint32())),
+        C("parent_node_id",
+          CppOptional(CppUint32()),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
         C("group_key", CppUint32()),
     ])
 

@@ -240,8 +240,7 @@ std::optional<TraceRectTableId> RectComputation::TryInsertBoundsRect(
     return std::nullopt;
   }
 
-  int32_t layer_stack =
-      layer.has_layer_stack() ? static_cast<int32_t>(layer.layer_stack()) : -1;
+  int32_t layer_stack = static_cast<int32_t>(layer.layer_stack());
   auto absolute_z = current_z_by_layer_stack[layer_stack];
   std::optional<TraceRectTableId> rect_id = std::nullopt;
 
@@ -282,8 +281,7 @@ std::optional<TraceRectTableId> RectComputation::TryInsertInputRect(
 
   protos::pbzero::InputWindowInfoProto::Decoder input_window_info(
       layer.input_window_info());
-  int32_t layer_stack =
-      layer.has_layer_stack() ? static_cast<int32_t>(layer.layer_stack()) : -1;
+  int32_t layer_stack = static_cast<int32_t>(layer.layer_stack());
   auto absolute_z = current_z_by_layer_stack[layer_stack];
 
   auto layer_transform = layer::GetTransformMatrix(layer);
@@ -359,12 +357,20 @@ TraceRectTableId RectComputation::InsertLayerTraceRectRow(
   tables::WinscopeTraceRectTable::Row row;
   auto bounds_rect = layer::GetBounds(layer_decoder);
   row.rect_id = rect_tracker_.GetOrInsertRow(bounds_rect);
-  row.group_id = layer_decoder.has_layer_stack() ? layer_decoder.layer_stack()
-                                                 : static_cast<uint32_t>(-1);
+  row.group_id = layer_decoder.layer_stack();
   row.depth = static_cast<uint32_t>(absolute_z);
   row.is_visible = is_computed_visible;
   if (opacity != std::nullopt) {
     row.opacity = opacity;
+  }
+
+  if (layer_decoder.has_border_settings()) {
+    protos::pbzero::BorderSettings::Decoder border_settings(
+        layer_decoder.border_settings());
+    if (border_settings.stroke_width() > 0) {
+      row.border_width = border_settings.stroke_width();
+      row.border_color = border_settings.color();
+    }
   }
 
   row.transform_id = transform_tracker_.GetOrInsertRow(matrix);

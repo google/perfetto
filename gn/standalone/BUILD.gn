@@ -340,10 +340,7 @@ config("default") {
   }
 
   if (is_wasm) {
-    # As of writing (2023-06-12) WASM 128bit SIMD is supported on
-    # stable Chrome, Safari, and Firefox. See:
-    # - https://webassembly.org/roadmap/
-    # - https://emscripten.org/docs/porting/simd.html
+    # -msimd128 enables WASM SIMD128 and is safe for all WASM targets.
     cflags += [ "-msimd128" ]
   }
 
@@ -460,6 +457,9 @@ config("release") {
     cflags = [ "-O2" ]
   } else if (is_fuzzer) {
     cflags = [ "-O1" ]
+  } else if (is_qnx && current_cpu == "x64") {
+    # -02 on x64 causes on QNX8.0 x86_64 -Wno-error=alloc-size-larger-than
+    cflags = [ "-O1" ]
   } else {
     cflags = [ "-O3" ]
   }
@@ -478,7 +478,7 @@ config("release") {
       "/INCREMENTAL:NO",
       "/FIXED:NO",
     ]
-  } else if (is_mac) {
+  } else if (is_mac && !is_wasm) {
     ldflags = [ "-dead_strip" ]
   } else if (is_qnx) {
     # QNX doesn't support the --icf linker option
@@ -548,4 +548,17 @@ perfetto_check_build_deps("check_build_deps_android") {
     "--no-dev-tools",
     "--android",
   ]
+}
+
+# TODO(https://github.com/google/perfetto/issues/5353): Remove this after
+# updating emscripten.
+config("wasm_avx2") {
+  # Opt-in config for targets that use x86 AVX2 hand-rolled SIMD compiled for
+  # WASM. Apply explicitly via configs += ["//gn/standalone:wasm_avx2"]; do NOT
+  # add to default_configs — third-party code (e.g. Abseil CRC) uses AVX2
+  # intrinsics with types incompatible with Emscripten's strict AVX2 headers.
+  # See https://github.com/emscripten-core/emscripten/issues/24076.
+  if (is_wasm) {
+    cflags = [ "-mavx2" ]
+  }
 }

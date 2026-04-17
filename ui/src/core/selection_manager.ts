@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue, assertUnreachable} from '../base/logging';
+import {assertTrue, assertUnreachable} from '../base/assert';
 import {
   Selection,
   Area,
@@ -59,6 +59,7 @@ export class SelectionManagerImpl implements SelectionManager {
     SelectionDetailsPanel
   >();
   public readonly areaSelectionTabs: AreaSelectionTab[] = [];
+  private _currentSelectionSubTab?: string;
 
   constructor(
     private readonly engine: Engine,
@@ -521,5 +522,13 @@ export class SelectionManagerImpl implements SelectionManager {
 
   registerAreaSelectionTab(tab: AreaSelectionTab): void {
     this.areaSelectionTabs.push(tab);
+  }
+
+  get currentSelectionSubTab(): string | undefined {
+    return this._currentSelectionSubTab;
+  }
+
+  setCurrentSelectionSubTab(id: string | undefined): void {
+    this._currentSelectionSubTab = id;
   }
 }

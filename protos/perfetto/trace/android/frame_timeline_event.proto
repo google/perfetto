@@ -46,6 +46,8 @@ message FrameTimelineEvent {
     JANK_NON_ANIMATING = 2048;
     JANK_APP_RESYNCED_JITTER = 4096;
     JANK_DISPLAY_NOT_ON = 8192;
+    JANK_DISPLAY_MODE_CHANGE_IN_PROGRESS = 16384;
+    JANK_DISPLAY_POWER_MODE_CHANGE_IN_PROGRESS = 32768;
   };
 
   // Specifies the severity of a jank.
@@ -145,6 +147,14 @@ message FrameTimelineEvent {
 
     // jank metadata information (for debug).
     optional float jank_debug_metadata = 18;
+
+    enum LatchedFenceState {
+      LATCHED_UNKNOWN = 0;
+      LATCHED_SIGNALED = 1;
+      LATCHED_UNSIGNALED = 2;
+      LATCHED_DELAYED_LATCH_UNSIGNALED = 3;
+    }
+    optional LatchedFenceState latched_fence_state = 19;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.
@@ -203,6 +213,9 @@ message FrameTimelineEvent {
 
     // jank metadata information (for debug).
     optional float jank_debug_metadata = 14;
+
+    optional int64 latched_unsignaled_count = 15;
+    optional int64 addressable_unsignaled_latch_count = 16;
   };
 
   // FrameEnd just sends the cookie to indicate that the corresponding

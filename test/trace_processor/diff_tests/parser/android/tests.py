@@ -208,6 +208,38 @@ class AndroidParser(TestSuite):
       0
       """))
 
+  def test_android_user_list_dedup(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          trusted_pid: 1
+          user_list {
+            users {
+              type: "android.os.usertype.full.SECONDARY"
+              uid: 10
+            }
+          }
+        }
+        packet {
+          trusted_pid: 2
+          user_list {
+            users {
+              type: "android.os.usertype.full.SECONDARY"
+              uid: 10
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.user_list;
+        SELECT android_user_id, type FROM android_user_list
+        ORDER BY android_user_id;
+        """,
+        out=Csv("""
+        "android_user_id","type"
+        10,"android.os.usertype.full.SECONDARY"
+        """))
+
   # Tests when counter_tack.machine_id is not null.
   def test_android_system_property_counter_machine_id(self):
     return DiffTestBlueprint(

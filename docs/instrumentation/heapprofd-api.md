@@ -108,7 +108,7 @@ https://raw.githubusercontent.com/google/perfetto/main/protos/perfetto/trace/per
 and have recent version of the protoc compiler installed.
 [Learn how to install protoc](https://grpc.io/docs/protoc-installation).
 
-On Linux, you can start a profile using the following pipeline (substitue
+On Linux, you can start a profile using the following pipeline (substitute
 `$APP_NAME` for the name of your app and `$HEAP` for the name of the heap
 you registered using `AHeapProfile_registerHeap`):
 
@@ -120,7 +120,7 @@ heap_profile -n $APP_NAME --heaps $HEAP --print-config | \
 
 On Windows, you will need [python 3.6](https://www.python.org/downloads/) or
 later. You can start a profile using the following pipeline from a command
-prompt (substitue`%APP_NAME%` for the name of your app and `%HEAP%` for
+prompt (substitute`%APP_NAME%` for the name of your app and `%HEAP%` for
 the name of the heap you registered using `AHeapProfile_registerHeap`):
 
 ```
