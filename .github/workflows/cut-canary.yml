@@ -26,7 +26,7 @@
 # Pushes to canary subsequently trigger UI Cloud Build to redeploy the
 # canary channel. See RFC-0022.
 
-name: Cut canary
+name: Cut canary (merge main → canary)
 
 on:
   workflow_dispatch:
