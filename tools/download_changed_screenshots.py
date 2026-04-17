@@ -50,7 +50,8 @@ def sanitize(name):
 
 def handle_report(report: str, run: str):
   m = re.findall(
-      r'playwrightReportBase64 = "data:application/zip;base64,([^"]+)"', report)
+      r'playwrightReportBase64.*?data:application/zip;base64,([^"< ]+)', report,
+      re.DOTALL)
   bin = base64.b64decode(m[0])
   z = zipfile.ZipFile(io.BytesIO(bin))
   report = json.loads(z.open('report.json').read().decode())
@@ -58,7 +59,7 @@ def handle_report(report: str, run: str):
   for f in report['files']:
     test_file = f['fileName'].removeprefix('test/')
     for t in f['tests']:
-      title = sanitize(t['title'])
+      title = sanitize(t['title']).replace('.', '-')
       for r in t['results']:
         for a in r['attachments']:
           png_name = sanitize(a['name'])
