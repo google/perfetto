@@ -47,10 +47,20 @@ where value_picked_from != 'default'
 
 package | name | value | value_picked_from | storage_backend
 --------|------|-------|-------------------|----------------
-com.android.window.flags | enable_multi_window | enabled | server | device_config
-com.android.systemui.flags | new_notification_header | disabled | local | aconfigd
+perfetto.flags | save_all_traces_in_bugreport | enabled | server | device_config
+perfetto.flags | use_lockfree_taskrunner | disabled | local | aconfigd
 
-If the `aflags` tool fails at runtime, a per-trace error is recorded under the stat name `android_aflags_errors` in the `_trace_import_logs` table.
+If the `aflags` tool fails at runtime, a per-trace error is recorded in the `stats` table under the name `android_aflags_errors`:
+
+```sql
+select name, severity, source, value, description
+from stats
+where name = 'android_aflags_errors'
+```
+
+name | severity | source | value | description
+-----|----------|--------|-------|------------
+android_aflags_errors | error | trace | 1 | Errors occurred during the collection of Android aconfig flags by the android.aflags data source. This typically happens if the aflags tool fails or its output is malformed.
 
 ### TraceConfig
 
