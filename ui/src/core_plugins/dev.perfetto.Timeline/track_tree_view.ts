@@ -149,6 +149,9 @@ export interface TrackTreeViewAttrs {
   readonly trackFilter?: (track: TrackNode) => boolean;
 
   readonly filtersApplied?: boolean;
+
+  // Minimum track height in pixels.
+  readonly minTrackHeight: number;
 }
 
 const TRACK_CONTAINER_REF = 'track-container';
@@ -186,6 +189,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
       rootNode,
       trackFilter,
       filtersApplied,
+      minTrackHeight,
     } = attrs;
     const renderedTracks = new Array<TrackView>();
     let top = 0;
@@ -224,7 +228,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         return {vnodes: childNodes, isVisible: atLeastOneChildVisible};
       }
 
-      const trackView = new TrackView(trace, node, top);
+      const trackView = new TrackView(trace, node, top, minTrackHeight);
       renderedTracks.push(trackView);
 
       // Advance the global top position.

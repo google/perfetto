@@ -29,7 +29,6 @@ import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
 import {Icons} from '../../base/semantic_icons';
 import {TimeScale} from '../../base/time_scale';
 import {RequiredField} from '../../base/utils';
-import {AppImpl} from '../../core/app_impl';
 import {PerfStats, runningStatStr} from '../../core/perf_stats';
 import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
@@ -51,30 +50,25 @@ import {CanvasColors} from '../../public/canvas_colors';
 import {CodeSnippet} from '../../widgets/code_snippet';
 import {Renderer} from '../../base/renderer';
 
-export const TRACK_MIN_HEIGHT_SETTING = 'dev.perfetto.TrackMinHeightPx';
-export const DEFAULT_TRACK_MIN_HEIGHT_PX = 18;
-export const MINIMUM_TRACK_MIN_HEIGHT_PX = DEFAULT_TRACK_MIN_HEIGHT_PX;
-
-function getTrackHeight(node: TrackNode, track?: TrackRenderer) {
+function getTrackHeight(
+  node: TrackNode,
+  minTrackHeight: number,
+  track?: TrackRenderer,
+) {
   // Headless tracks have an effective height of 0.
   if (node.headless) return 0;
 
-  const TRACK_HEIGHT_MIN_PX =
-    (AppImpl.instance.settings
-      .get(TRACK_MIN_HEIGHT_SETTING)
-      ?.get() as number) ?? DEFAULT_TRACK_MIN_HEIGHT_PX;
-
   // Expanded summary tracks don't show any data, so make them a little more
   // compact to save space.
-  if (node.isSummary && node.expanded) return TRACK_HEIGHT_MIN_PX;
+  if (node.isSummary && node.expanded) return minTrackHeight;
 
   const trackHeight = track?.getHeight?.();
-  if (trackHeight === undefined) return TRACK_HEIGHT_MIN_PX;
+  if (trackHeight === undefined) return minTrackHeight;
 
   // Limit the minimum height of a track, and also round up to the nearest
   // integer, as sub-integer DOM alignment can cause issues e.g. with sticky
   // positioning.
-  return Math.ceil(Math.max(trackHeight, TRACK_HEIGHT_MIN_PX));
+  return Math.ceil(Math.max(trackHeight, minTrackHeight));
 }
 
 export interface TrackViewAttrs {
@@ -109,7 +103,12 @@ export class TrackView {
   private readonly trace: TraceImpl;
   private readonly descriptor?: Track;
 
-  constructor(trace: TraceImpl, node: TrackNode, top: number) {
+  constructor(
+    trace: TraceImpl,
+    node: TrackNode,
+    top: number,
+    minTrackHeight: number,
+  ) {
     this.trace = trace;
     this.node = node;
 
@@ -118,7 +117,7 @@ export class TrackView {
       this.renderer = this.trace.tracks.getWrappedTrack(node.uri);
     }
 
-    const heightPx = getTrackHeight(node, this.renderer?.track);
+    const heightPx = getTrackHeight(node, minTrackHeight, this.renderer?.track);
     this.height = heightPx;
     this.verticalBounds = {top, bottom: top + heightPx};
   }
