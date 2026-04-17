@@ -78,7 +78,7 @@ import {sleepMs} from '../base/utils';
 //        ├─► main() ───────────────────────────────────────────────────────┐
 //        │    ├─ Setup CSP                                                 │
 //        │    ├─ Init settings & app                                       │
-//        │    ├─ Start CSS load (async) ──────┐                            │
+//        │    ├─ Start CSS load (async) ───────┐                           │
 //        │    ├─ Setup error handlers          │                           │
 //        │    └─ Register window.onload ───────┼──────────┐                │
 //        │                                     │          │                │
@@ -127,6 +127,29 @@ function routeChange(route: Route) {
     }
   });
   maybeOpenTraceFromRoute(route);
+
+  // What we want to do here is to check if the hash route has actually changed
+  // and if it has then schedule a load of that trace.
+
+  // The only problem is that we might be already loading this trace right now
+  // if the user changes pages mid-load, we just haven't loaded the uuid into
+  // the URL bar yet.
+
+  // So we need to be very careful to avoid queueing up another load of the same
+  // trace which will start immediately after the first one finishes and cause a
+  // reload of the same trace.
+
+  // We could just flat out refuse to load a trace while another one is loading,
+  // but that isn't very freiendly.
+
+  // Ideally, whenever the uuid in the hash changes, we just chuck away the previously loading trace (whatever it was) and start loading a new one immeidately. Then, when the trace is loaded enough to know its uuid, we put that in the url.
+
+  // if there was no url in the bar last time then we'll reload the trace, that's the only problem.
+
+  // The only thing I can thnink of is to reserve a special cache entry in the url bar for the pending trace. So when we want to load a trace we put the trace content (trace source) in a special reserved 'cache' and put local_cache_key=pending in the URL.
+  // Then, when the url bar chanegs and this function is called, we look in that special area and react to it by starting to load the trace.
+  // Then when the trace has loaded enough to find out the uuid, we put that in the url bar and clear the pending cache entry. We see that change, but this code will chech against the current UUID of the current trace, see it's the same and ignore the change.
+  // What happens if we start loading multiple pending traces? We can just see the fact that there is already a pending trace and refuse to start loading another one until the first one has finished loading.
 }
 
 function setupContentSecurityPolicy() {
@@ -195,7 +218,60 @@ function main() {
   setupContentSecurityPolicy();
   initAssets();
 
-  // Create settings Manager
+  initAppObject();
+
+  // Secure a reference to the app instance.
+  const app = AppImpl.instance;
+
+  // Load the css. The load is asynchronous and the CSS is not ready by the time
+  // appendChild returns.
+  const cssLoadPromise = loadCss();
+
+  // Fonts can take a long time to load, and we want to avoid showing the UI
+  // with fallback fonts. To avoid that, we add a 'pf-fonts-loading' class to
+  // the body until either the fonts are ready or 15s have passed (whichever
+  // happens first).
+  setFontsLoadingClass();
+
+  // Load the script to detect if this is a Googler (see comments on globals.ts).
+  // This registers macros, SQL packages, and proto descriptors.
+  tryLoadIsInternalUserScript(app);
+
+  // Route errors to both the UI bugreport dialog and Analytics (if enabled).
+  addErrorHandler(maybeShowErrorDialog);
+  addErrorHandler((e) => app.analytics.logError(e));
+
+  // Add Error handlers for JS error and for uncaught exceptions in promises.
+  window.addEventListener('error', (e) => reportError(e));
+  window.addEventListener('unhandledrejection', (e) => reportError(e));
+
+  // Put debug variables in the global scope for better debugging.
+  registerDebugGlobals();
+
+  // Prevent pinch zoom.
+  document.body.addEventListener(
+    'wheel',
+    (e: MouseEvent) => {
+      if (e.ctrlKey) e.preventDefault();
+    },
+    {passive: false},
+  );
+
+  cssLoadPromise.then(() => onCssLoaded(app));
+
+  (window as {} as IdleDetectorWindow).waitForPerfettoIdle = (ms?: number) => {
+    return new IdleDetector().waitForPerfettoIdle(ms);
+  };
+
+  // Keep at the end. Potentially it calls into the next stage (onWindowLoaded).
+  if (document.readyState === 'complete') {
+    onWindowLoaded(app);
+  } else {
+    window.addEventListener('load', () => onWindowLoaded(app));
+  }
+}
+
+function initAppObject() {
   const settingsManager = new SettingsManagerImpl(
     new LocalStorage(PERFETTO_SETTINGS_STORAGE_KEY),
   );
@@ -297,9 +373,9 @@ function main() {
     startupCommandsSetting,
     enforceStartupCommandAllowlistSetting,
   });
+}
 
-  // Load the css. The load is asynchronous and the CSS is not ready by the time
-  // appendChild returns.
+function loadCss() {
   const cssLoadPromise = defer<void>();
   const css = document.createElement('link');
   css.rel = 'stylesheet';
@@ -310,50 +386,15 @@ function main() {
   if (favicon instanceof HTMLLinkElement) {
     favicon.href = assetSrc('assets/favicon.png');
   }
-  document.body.classList.add('pf-fonts-loading');
   document.head.append(css);
+  return cssLoadPromise;
+}
 
+function setFontsLoadingClass() {
+  document.body.classList.add('pf-fonts-loading');
   Promise.race([document.fonts.ready, sleepMs(15000)]).then(() => {
     document.body.classList.remove('pf-fonts-loading');
   });
-
-  // Load the script to detect if this is a Googler (see comments on globals.ts).
-  // This registers macros, SQL packages, and proto descriptors.
-  const app = AppImpl.instance;
-  tryLoadIsInternalUserScript(app);
-
-  // Route errors to both the UI bugreport dialog and Analytics (if enabled).
-  addErrorHandler(maybeShowErrorDialog);
-  addErrorHandler((e) => app.analytics.logError(e));
-
-  // Add Error handlers for JS error and for uncaught exceptions in promises.
-  window.addEventListener('error', (e) => reportError(e));
-  window.addEventListener('unhandledrejection', (e) => reportError(e));
-
-  // Put debug variables in the global scope for better debugging.
-  registerDebugGlobals();
-
-  // Prevent pinch zoom.
-  document.body.addEventListener(
-    'wheel',
-    (e: MouseEvent) => {
-      if (e.ctrlKey) e.preventDefault();
-    },
-    {passive: false},
-  );
-
-  cssLoadPromise.then(() => onCssLoaded(app));
-
-  (window as {} as IdleDetectorWindow).waitForPerfettoIdle = (ms?: number) => {
-    return new IdleDetector().waitForPerfettoIdle(ms);
-  };
-
-  // Keep at the end. Potentially it calls into the next stage (onWindowLoaded).
-  if (document.readyState === 'complete') {
-    onWindowLoaded();
-  } else {
-    window.addEventListener('load', () => onWindowLoaded());
-  }
 }
 
 function onCssLoaded(app: AppImpl) {
@@ -488,9 +529,9 @@ function onCssLoaded(app: AppImpl) {
 
 // This function is called only later after all the sub-resources (fonts,
 // images) have been loaded.
-function onWindowLoaded() {
+function onWindowLoaded(app: AppImpl) {
   // These two functions cause large network fetches and are not load bearing.
-  AppImpl.instance.serviceWorkerController.install();
+  app.serviceWorkerController.install();
   warmupWasmWorker();
 }
 

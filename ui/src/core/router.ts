@@ -49,6 +49,8 @@ export interface Route {
   args: RouteArgs;
 }
 
+type RouteHandler = (route: Route, oldRoute?: Route) => void;
+
 // This router does two things:
 // 1) Maps fragment paths (#!/page/subpage) to Mithril components.
 // The route map is passed to the ctor and is later used when calling the
@@ -74,12 +76,13 @@ export class Router {
 
   // frontend/index.ts calls maybeOpenTraceFromRoute() + redraw here.
   // This event is decoupled for testing and to avoid circular deps.
-  onRouteChanged: (route: Route) => void = () => {};
+  onRouteChanged?: RouteHandler;
 
   constructor() {
-    window.onhashchange = (e: HashChangeEvent) => this.onHashChange(e);
-    const route = Router.parseUrl(window.location.href);
-    this.onRouteChanged(route);
+    window.onhashchange = (e: HashChangeEvent) => {
+      console.log('hashchange', e);
+      m.redraw();
+    };
   }
 
   private onHashChange(e: HashChangeEvent) {
@@ -121,7 +124,7 @@ export class Router {
       return;
     }
 
-    this.onRouteChanged(newRoute);
+    this.onRouteChanged?.(newRoute, oldRoute);
   }
 
   static getCurrentRoute(): Route {

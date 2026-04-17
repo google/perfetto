@@ -45,6 +45,8 @@ export class PageManagerImpl implements PageManager {
   renderPageForCurrentRoute(): m.Children {
     const route = Router.parseFragment(location.hash);
 
+    console.log('Rendering page for route', route);
+
     // Log page changes to analytics
     if (this.currentPage !== route.page) {
       this.currentPage = route.page;

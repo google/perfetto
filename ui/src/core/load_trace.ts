@@ -13,13 +13,15 @@
 // limitations under the License.
 
 import {assertExists, assertTrue} from '../base/assert';
+import {sha1} from '../base/hash';
 import {time, Time, TimeSpan} from '../base/time';
-import {cacheTrace} from './cache_manager';
 import {
-  getEnabledMetatracingCategories,
-  isMetatracingEnabled,
-} from './metatracing';
-import {featureFlags} from './feature_flags';
+  TraceBufferStream,
+  TraceFileStream,
+  TraceHttpStream,
+  TraceMultipleFilesStream,
+} from '../core/trace_stream';
+import {TraceStream} from '../public/stream';
 import {Engine, EngineBase} from '../trace_processor/engine';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {
@@ -30,27 +32,13 @@ import {
   STR,
 } from '../trace_processor/query_result';
 import {WasmEngineProxy} from '../trace_processor/wasm_engine_proxy';
+import {featureFlags} from './feature_flags';
 import {
-  TraceBufferStream,
-  TraceFileStream,
-  TraceHttpStream,
-  TraceMultipleFilesStream,
-} from '../core/trace_stream';
-import {TraceStream} from '../public/stream';
-import {
-  deserializeAppStatePhase1,
-  deserializeAppStatePhase2,
-} from './state_serialization';
-import {AppImpl} from './app_impl';
+  getEnabledMetatracingCategories,
+  isMetatracingEnabled,
+} from './metatracing';
 import {raf} from './raf_scheduler';
-import {TraceImpl} from './trace_impl';
 import {TraceSource} from './trace_source';
-import {Router} from '../core/router';
-import {TraceInfoImpl} from './trace_info_impl';
-import {base64Decode} from '../base/string_utils';
-import {parseUrlCommands} from './command_manager';
-import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
-import {sha1} from '../base/hash';
 
 const ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG = featureFlags.register({
   id: 'enableChromeReliableRangeZoom',
@@ -101,54 +89,125 @@ const FORCE_FULL_SORT_FLAG = featureFlags.register({
   defaultValue: false,
 });
 
-// TODO(stevegolton): Move this into some global "SQL extensions" file and
-// ensure it's only run once.
-async function defineMaxLayoutDepthSqlFunction(engine: Engine): Promise<void> {
-  await engine.query(`
-    create perfetto function __max_layout_depth(track_count INT, track_ids STRING)
-    returns INT AS
-    select iif(
-      $track_count = 1,
-      (
-        select max_depth
-        from _slice_track_summary
-        where id = cast($track_ids AS int)
-      ),
-      (
-        select max(layout_depth)
-        from experimental_slice_layout($track_ids)
-      )
-    );
-  `);
+export interface RawTrace extends Disposable {
+  readonly engine: EngineBase;
+  readonly uuid: string;
+  readonly traceSpan: TimeSpan;
+  readonly reliableRange: TimeSpan;
+  readonly tzOffMin: number;
+  readonly unixOffset: time;
+  readonly traceTypes: string[];
+  readonly hasFtrace: boolean;
+  readonly traceTitle: string;
+  readonly traceUrl: string;
+  readonly downloadable: boolean;
+  readonly importErrors: number;
+}
+
+interface TraceLoadArgs {
+  readonly useHttpIfAvailable?: boolean;
+  readonly extraParsingDescriptors?: readonly Uint8Array[];
 }
 
 let lastEngineId = 0;
 
+// Loads a trace from a given source and returns the loaded trace object
 export async function loadTrace(
-  app: AppImpl,
   traceSource: TraceSource,
-): Promise<TraceImpl> {
-  updateStatus(app, 'Opening trace');
+  opts: TraceLoadArgs = {},
+): Promise<RawTrace> {
+  const {useHttpIfAvailable = false, extraParsingDescriptors = []} = opts;
+
+  traceSource = maybeFixBuffers(traceSource);
   const engineId = `${++lastEngineId}`;
-  const engine = await createEngine(app, engineId);
-  return await loadTraceIntoEngine(app, traceSource, engine);
+  const engine = await createEngine(
+    engineId,
+    useHttpIfAvailable,
+    extraParsingDescriptors,
+  );
+  engine.onResponseReceived = function () {
+    raf.scheduleFullRedraw();
+  };
+
+  await engine.resetTraceProcessor({
+    tokenizeOnly: false,
+    cropTrackEvents: CROP_TRACK_EVENTS_FLAG.get(),
+    ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
+    analyzeTraceProtoContent: ANALYZE_TRACE_PROTO_CONTENT_FLAG.get(),
+    ftraceDropUntilAllCpusValid: FTRACE_DROP_UNTIL_FLAG.get(),
+    forceFullSort: FORCE_FULL_SORT_FLAG.get(),
+  });
+
+  await loadTraceIntoEngine(engine, traceSource);
+
+  const uuid = await getTraceUuid(engine);
+  const traceTypes = await getTraceTypes(engine);
+  const traceSpan = await getTraceSpan(engine);
+  const hasJsonTrace = traceTypes.includes('json');
+  const reliableRange = await computeVisibleTime(
+    engine,
+    traceSpan,
+    hasJsonTrace,
+  );
+  const tzOffMin = await getTzOffset(engine);
+  const unixOffset = await getUnixEpochOffset(engine);
+  const hasFtrace = await getHasFtrace(engine);
+  const {traceTitle, traceUrl} = getTraceTitleAndUrl(traceSource);
+  const downloadable = isDownloadable(traceSource);
+  const importErrors = await getTraceErrors(engine);
+  await includeSummaryTables(engine);
+  await defineMaxLayoutDepthSqlFunction(engine);
+
+  return {
+    engine,
+    uuid,
+    traceSpan,
+    reliableRange,
+    tzOffMin,
+    unixOffset,
+    traceTypes,
+    hasFtrace,
+    traceTitle,
+    traceUrl,
+    downloadable,
+    importErrors,
+    [Symbol.dispose]() {
+      console.log(`Disposing trace: ${uuid}`);
+      engine[Symbol.dispose]();
+    },
+  };
+}
+
+function maybeFixBuffers(src: TraceSource) {
+  if (src.type === 'ARRAY_BUFFER' && src.buffer instanceof Uint8Array) {
+    // Even though the type of `buffer` is ArrayBuffer, it's possible to
+    // accidentally pass a Uint8Array here, because the interface of
+    // Uint8Array is compatible with ArrayBuffer. That can cause subtle bugs
+    // in TraceStream when creating chunks out of it (see b/390473162).
+    // So if we get a Uint8Array in input, convert it into an actual
+    // ArrayBuffer, as various parts of the codebase assume that this is a
+    // pure ArrayBuffer, and not a logical view of it with a byteOffset > 0.
+    const u8 = src.buffer as unknown as Uint8Array;
+    if (u8.byteOffset === 0 && u8.byteLength === u8.buffer.byteLength) {
+      src = {...src, buffer: u8.buffer as ArrayBuffer};
+    } else {
+      src = {...src, buffer: u8.slice().buffer as ArrayBuffer};
+    }
+  }
+  return src;
 }
 
 async function createEngine(
-  app: AppImpl,
   engineId: string,
+  useHttpEngineIfAvailable: boolean,
+  extraParsingDescriptors: readonly Uint8Array[] = [],
 ): Promise<EngineBase> {
   // Check if there is any instance of the trace_processor_shell running in
   // HTTP RPC mode (i.e. trace_processor_shell -D).
-  let useRpc = false;
-  if (app.httpRpc.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE') {
-    useRpc = (await HttpRpcEngine.checkConnection()).connected;
-  }
+  const useRpc =
+    useHttpEngineIfAvailable &&
+    (await HttpRpcEngine.checkConnection()).connected;
 
-  const descriptorBlobs: Uint8Array[] = [];
-  for (const b64Str of await app.protoDescriptors()) {
-    descriptorBlobs.push(base64Decode(b64Str));
-  }
   let engine;
   if (useRpc) {
     console.log('Opening trace using native accelerator over HTTP+RPC');
@@ -162,7 +221,7 @@ async function createEngine(
       ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
       analyzeTraceProtoContent: ANALYZE_TRACE_PROTO_CONTENT_FLAG.get(),
       ftraceDropUntilAllCpusValid: FTRACE_DROP_UNTIL_FLAG.get(),
-      extraParsingDescriptors: descriptorBlobs,
+      extraParsingDescriptors,
       forceFullSort: FORCE_FULL_SORT_FLAG.get(),
     });
   }
@@ -175,27 +234,10 @@ async function createEngine(
 }
 
 async function loadTraceIntoEngine(
-  app: AppImpl,
-  traceSource: TraceSource,
   engine: EngineBase,
-): Promise<TraceImpl> {
-  let traceStream: TraceStream | undefined;
-  const serializedAppState = traceSource.serializedAppState;
-  if (traceSource.type === 'FILE') {
-    traceStream = new TraceFileStream(traceSource.file);
-  } else if (traceSource.type === 'ARRAY_BUFFER') {
-    traceStream = new TraceBufferStream(traceSource.buffer);
-  } else if (traceSource.type === 'URL') {
-    traceStream = new TraceHttpStream(traceSource.url);
-  } else if (traceSource.type === 'STREAM') {
-    traceStream = traceSource.stream;
-  } else if (traceSource.type === 'HTTP_RPC') {
-    traceStream = undefined;
-  } else if (traceSource.type === 'MULTIPLE_FILES') {
-    traceStream = new TraceMultipleFilesStream(traceSource.files);
-  } else {
-    throw new Error(`Unknown source: ${JSON.stringify(traceSource)}`);
-  }
+  traceSource: TraceSource,
+): Promise<void> {
+  const traceStream = createStreamFromSource(traceSource);
 
   // |traceStream| can be undefined in the case when we are using the external
   // HTTP+RPC endpoint and the trace processor instance has already loaded
@@ -216,7 +258,7 @@ async function loadTraceIntoEngine(
         status += `${Math.round(res.bytesRead / 1e6)} MB`;
       }
       status += ` - ${Math.ceil(res.bytesRead / elapsed / 1e6)} MB/s`;
-      updateStatus(app, status);
+      console.log(status);
       if (res.eof) break;
     }
     await engine.notifyEof();
@@ -224,188 +266,107 @@ async function loadTraceIntoEngine(
     assertTrue(engine instanceof HttpRpcEngine);
     await engine.restoreInitialTables();
   }
-
-  for (const p of await app.sqlPackages()) {
-    await engine.registerSqlPackages(p);
-  }
-
-  const traceDetails = await getTraceInfo(engine, app, traceSource);
-  const trace = new TraceImpl(app, engine, traceDetails);
-  app.setActiveTrace(trace);
-
-  const hasJsonTrace = traceDetails.traceTypes.includes('json');
-
-  const visibleTimeSpan = await computeVisibleTime(
-    traceDetails.start,
-    traceDetails.end,
-    hasJsonTrace,
-    engine,
-  );
-
-  const newViewport = HighPrecisionTimeSpan.fromTime(
-    visibleTimeSpan.start,
-    visibleTimeSpan.end,
-  );
-  trace.timeline.setVisibleWindow(newViewport);
-
-  const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';
-  Router.navigate(`#!/viewer?local_cache_key=${cacheUuid}`);
-
-  // Make sure the helper views are available before we start adding tracks.
-  await includeSummaryTables(trace);
-
-  await defineMaxLayoutDepthSqlFunction(engine);
-
-  if (serializedAppState !== undefined) {
-    deserializeAppStatePhase1(serializedAppState, trace);
-  }
-
-  await app.plugins.onTraceLoad(trace, (id) => {
-    updateStatus(app, `Running plugin: ${id}`);
-  });
-
-  decideTabs(trace);
-
-  updateStatus(app, `Loading minimap`);
-  await trace.minimap.load(traceDetails.start, traceDetails.end);
-
-  // Trace Processor doesn't support the reliable range feature for JSON
-  // traces.
-  if (!hasJsonTrace && ENABLE_CHROME_RELIABLE_RANGE_ANNOTATION_FLAG.get()) {
-    const reliableRangeStart = await computeTraceReliableRangeStart(engine);
-    if (reliableRangeStart > 0) {
-      trace.notes.addNote({
-        timestamp: reliableRangeStart,
-        color: '#ff0000',
-        text: 'Reliable Range Start',
-      });
-    }
-  }
-
-  // notify() will await that all listeners' promises have resolved.
-  await trace.onTraceReady.notify();
-
-  if (serializedAppState !== undefined) {
-    // Wait that plugins have completed their actions and then proceed with
-    // the final phase of app state restore.
-    // TODO(primiano): this can probably be removed once we refactor tracks
-    // to be URI based and can deal with non-existing URIs.
-    deserializeAppStatePhase2(serializedAppState, trace);
-  }
-
-  // Execute startup commands as the final step - simulates user actions
-  // after the trace is fully loaded and any saved state has been restored.
-  // This ensures startup commands see the complete, final state of the trace.
-
-  // CRITICAL ORDER: URL commands MUST execute before settings commands!
-  // This ordering has subtle but important implications:
-  // - URL commands are trace-specific and should establish initial state
-  // - Settings commands are user preferences that should override URL defaults
-  // - Changing this order could break trace sharing and user customization
-  // DO NOT REORDER without understanding the full impact!
-  const urlCommands =
-    parseUrlCommands(app.initialRouteArgs.startupCommands) ?? [];
-  const settingsCommands = app.startupCommandsSetting.get();
-
-  // Combine URL and settings commands - runtime allowlist checking will handle filtering
-  const allStartupCommands = [...urlCommands, ...settingsCommands];
-  const enforceAllowlist = app.enforceStartupCommandAllowlistSetting.get();
-
-  if (allStartupCommands.length > 0) {
-    updateStatus(app, 'Running startup commands');
-    using _ = trace.omnibox.disablePrompts();
-
-    // Execute startup commands in trace context after everything is ready.
-    // This simulates user actions taken after trace load is complete,
-    // including any saved app state restoration. At this point:
-    // - All plugins have loaded and registered their commands
-    // - Trace data is fully accessible
-    // - UI state has been restored from any saved workspace
-    // - Commands can safely query trace data and modify UI state
-
-    // Set allowlist checking during startup if enforcement enabled
-    if (enforceAllowlist) {
-      app.commands.setExecutingStartupCommands(true);
-    }
-
-    try {
-      for (const command of allStartupCommands) {
-        try {
-          // Execute through proxy to access both global and trace-specific
-          // commands.
-          await app.commands.runCommand(command.id, ...command.args);
-        } catch (error) {
-          // TODO(stevegolton): Add a mechanism to notify users of startup
-          // command errors. This will involve creating a notification UX
-          // similar to VSCode where there are popups on the bottom right
-          // of the UI.
-          console.warn(`Startup command ${command.id} failed:`, error);
-        }
-      }
-    } finally {
-      // Always restore default (allow all) behavior when done
-      app.commands.setExecutingStartupCommands(false);
-    }
-  }
-
-  return trace;
 }
 
-function decideTabs(trace: TraceImpl) {
-  // Show the list of default tabs, but don't make them active!
-  for (const tabUri of trace.tabs.defaultTabs) {
-    trace.tabs.showTab(tabUri);
+function createStreamFromSource(
+  traceSource: TraceSource,
+): TraceStream | undefined {
+  if (traceSource.type === 'FILE') {
+    return new TraceFileStream(traceSource.file);
+  } else if (traceSource.type === 'ARRAY_BUFFER') {
+    return new TraceBufferStream(traceSource.buffer);
+  } else if (traceSource.type === 'URL') {
+    return new TraceHttpStream(traceSource.url);
+  } else if (traceSource.type === 'STREAM') {
+    return traceSource.stream;
+  } else if (traceSource.type === 'HTTP_RPC') {
+    return undefined;
+  } else if (traceSource.type === 'MULTIPLE_FILES') {
+    return new TraceMultipleFilesStream(traceSource.files);
+  } else {
+    throw new Error(`Unknown source: ${JSON.stringify(traceSource)}`);
   }
 }
 
-async function includeSummaryTables(trace: TraceImpl) {
-  const engine = trace.engine;
-  updateStatus(trace, 'Creating slice summaries');
-  await engine.query(`include perfetto module viz.summary.slices;`);
-
-  updateStatus(trace, 'Creating counter summaries');
-  await engine.query(`include perfetto module viz.summary.counters;`);
-
-  updateStatus(trace, 'Creating thread summaries');
-  await engine.query(`include perfetto module viz.summary.threads;`);
-
-  updateStatus(trace, 'Creating processes summaries');
-  await engine.query(`include perfetto module viz.summary.processes;`);
-}
-
-function updateStatus(traceOrApp: TraceImpl | AppImpl, msg: string): void {
-  const showUntilDismissed = 0;
-  traceOrApp.omnibox.showStatusMessage(msg, showUntilDismissed);
-}
-
-async function computeFtraceBounds(engine: Engine): Promise<TimeSpan | null> {
-  const result = await engine.query(`
-    SELECT min(ts) as start, max(ts) as end FROM ftrace_event;
+// TODO(sashwinbalaji): Move session UUID generation to TraceProcessor.
+// getTraceUuid is a temporary measure to ensure multi-trace sessions have a
+// unique cache key. This prevents collisions where a multi-trace session (e.g.
+// a ZIP) would otherwise reuse the cache entry of its first component trace if
+// that trace was previously opened individually.
+async function getTraceUuid(engine: Engine): Promise<string> {
+  // Each trace in the session contributes to the global cache key. To maintain
+  // stable identifiers, we use the following priority:
+  // 1. Per-trace UUID: e.g. from a TraceUuid packet.
+  // 2. Global session UUID: ONLY used if no trace in the entire session has a
+  //    specific UUID.
+  // 3. Trace ID + Type: e.g. '1-perf'. The last-resort fallback.
+  const uuidRes = await engine.query(`
+    INCLUDE PERFETTO MODULE std.traceinfo.trace;
+    SELECT DISTINCT
+      coalesce(
+        trace_uuid,
+        iif(
+          (SELECT COUNT(trace_uuid) FROM _metadata_by_trace) = 0,
+          extract_metadata('trace_uuid'),
+          NULL
+        ),
+        trace_id || '-' || trace_type
+      ) AS uuid
+    FROM _metadata_by_trace
   `);
-  const {start, end} = result.firstRow({start: LONG_NULL, end: LONG_NULL});
-  if (start !== null && end !== null) {
-    return new TimeSpan(Time.fromRaw(start), Time.fromRaw(end));
+  const uuids: string[] = [];
+  for (
+    const itUuid = uuidRes.iter({uuid: STR});
+    itUuid.valid();
+    itUuid.next()
+  ) {
+    uuids.push(itUuid.uuid);
   }
-  return null;
+
+  if (uuids.length === 0) return '';
+  if (uuids.length === 1) return uuids[0];
+  const sortedUuids = [...uuids].sort();
+  return await sha1(sortedUuids.join(';'));
 }
 
-async function computeTraceReliableRangeStart(engine: Engine): Promise<time> {
-  const result =
-    await engine.query(`SELECT RUN_METRIC('chrome/chrome_reliable_range.sql');
-       SELECT start FROM chrome_reliable_range`);
-  const bounds = result.firstRow({start: LONG});
-  return Time.fromRaw(bounds.start);
+async function getTraceTypes(engine: Engine): Promise<string[]> {
+  const result = await engine.query(`
+    INCLUDE PERFETTO MODULE std.traceinfo.trace;
+    SELECT DISTINCT
+      trace_type AS str_value
+    FROM _metadata_by_trace
+  `);
+
+  const traceTypes: string[] = [];
+  const it = result.iter({str_value: STR});
+  for (; it.valid(); it.next()) {
+    traceTypes.push(it.str_value);
+  }
+  return traceTypes;
+}
+
+async function getTraceSpan(engine: Engine): Promise<TimeSpan> {
+  const result = await engine.query(`
+    SELECT
+      start_ts AS startTs,
+      end_ts AS endTs
+    FROM trace_bounds
+  `);
+  const bounds = result.firstRow({
+    startTs: LONG,
+    endTs: LONG,
+  });
+  return new TimeSpan(Time.fromRaw(bounds.startTs), Time.fromRaw(bounds.endTs));
 }
 
 async function computeVisibleTime(
-  traceStart: time,
-  traceEnd: time,
-  isJsonTrace: boolean,
   engine: Engine,
+  traceSpan: TimeSpan,
+  isJsonTrace: boolean,
 ): Promise<TimeSpan> {
   // initialise visible time to the trace time bounds
-  let visibleStart = traceStart;
-  let visibleEnd = traceEnd;
+  let visibleStart = traceSpan.start;
+  let visibleEnd = traceSpan.end;
 
   // compare start and end with metadata computed by the trace processor
   const mdTime = await getTracingMetadataTimeBounds(engine);
@@ -431,37 +392,81 @@ async function computeVisibleTime(
   return new TimeSpan(visibleStart, visibleEnd);
 }
 
-// TODO(sashwinbalaji): Move session UUID generation to TraceProcessor.
-// computeGlobalUuid is a temporary measure to ensure multi-trace sessions
-// have a unique cache key. This prevents collisions where a multi-trace
-// session (e.g. a ZIP) would otherwise reuse the cache entry of its first
-// component trace if that trace was previously opened individually.
-async function computeGlobalUuid(uuids: string[]): Promise<string> {
-  if (uuids.length === 0) return '';
-  if (uuids.length === 1) return uuids[0];
-  const sortedUuids = [...uuids].sort();
-  return await sha1(sortedUuids.join(';'));
+async function getTracingMetadataTimeBounds(engine: Engine): Promise<TimeSpan> {
+  const queryRes = await engine.query(`
+    SELECT
+      name,
+      int_value AS intValue
+    FROM metadata
+    WHERE
+      name = 'tracing_started_ns' OR
+      name = 'tracing_disabled_ns' OR
+      name = 'all_data_source_started_ns'
+  `);
+  let startBound = Time.MIN;
+  let endBound = Time.MAX;
+  const it = queryRes.iter({name: STR, intValue: LONG_NULL});
+  for (; it.valid(); it.next()) {
+    const columnName = it.name;
+    const timestamp = it.intValue;
+    if (timestamp === null) continue;
+    if (columnName === 'tracing_disabled_ns') {
+      endBound = Time.min(endBound, Time.fromRaw(timestamp));
+    } else {
+      startBound = Time.max(startBound, Time.fromRaw(timestamp));
+    }
+  }
+
+  return new TimeSpan(startBound, endBound);
 }
 
-async function getTraceInfo(
-  engine: Engine,
-  app: AppImpl,
-  traceSource: TraceSource,
-): Promise<TraceInfoImpl> {
-  const traceTime = await getTraceTimeBounds(engine);
+async function computeTraceReliableRangeStart(engine: Engine): Promise<time> {
+  const result = await engine.query(`
+    SELECT RUN_METRIC('chrome/chrome_reliable_range.sql');
+    SELECT start
+    FROM chrome_reliable_range
+  `);
+  const bounds = result.firstRow({start: LONG});
+  return Time.fromRaw(bounds.start);
+}
 
+async function computeFtraceBounds(engine: Engine): Promise<TimeSpan | null> {
+  const result = await engine.query(`
+    SELECT
+      MIN(ts) AS start,
+      MAX(ts) AS end
+    FROM ftrace_event
+  `);
+  const {start, end} = result.firstRow({start: LONG_NULL, end: LONG_NULL});
+  if (start !== null && end !== null) {
+    return new TimeSpan(Time.fromRaw(start), Time.fromRaw(end));
+  }
+  return null;
+}
+
+async function getTzOffset(engine: Engine): Promise<number> {
+  // The max() is so the query returns NULL if the tz info doesn't exist.
+  const result = await engine.query(`
+    SELECT MAX(int_value) AS tzOffMin
+    FROM metadata
+    WHERE name = 'timezone_off_mins'
+  `);
+  return result.firstRow({tzOffMin: NUM_NULL}).tzOffMin ?? 0;
+}
+
+async function getUnixEpochOffset(engine: Engine): Promise<time> {
   // Find the first REALTIME or REALTIME_COARSE clock snapshot.
   // Prioritize REALTIME over REALTIME_COARSE.
-  const query = `select
-          ts,
-          clock_value as clockValue,
-          clock_name as clockName
-        from clock_snapshot
-        where
-          snapshot_id = 0 AND
-          clock_name in ('REALTIME', 'REALTIME_COARSE')
-        `;
-  const result = await engine.query(query);
+  const result = await engine.query(`
+    SELECT
+      ts,
+      clock_value AS clockValue,
+      clock_name AS clockName
+    FROM clock_snapshot
+    WHERE
+      snapshot_id = 0 AND
+      clock_name IN ('REALTIME', 'REALTIME_COARSE')
+  `);
   const it = result.iter({
     ts: LONG,
     clockValue: LONG,
@@ -494,17 +499,25 @@ async function getTraceInfo(
     }
   }
 
-  // The max() is so the query returns NULL if the tz info doesn't exist.
-  const queryTz = `select max(int_value) as tzOffMin from metadata
-        where name = 'timezone_off_mins'`;
-  const resTz = await assertExists(engine).query(queryTz);
-  const tzOffMin = resTz.firstRow({tzOffMin: NUM_NULL}).tzOffMin ?? 0;
-
   // This is the offset between the unix epoch and ts in the ts domain.
   // I.e. the value of ts at the time of the unix epoch - usually some large
   // negative value.
-  const unixOffset = Time.sub(snapshot.ts, snapshot.clockValue);
+  return Time.sub(snapshot.ts, snapshot.clockValue);
+}
 
+async function getHasFtrace(engine: Engine): Promise<boolean> {
+  const result = await engine.query(`
+    SELECT *
+    FROM ftrace_event
+    LIMIT 1
+  `);
+  return result.numRows() > 0;
+}
+
+function getTraceTitleAndUrl(traceSource: TraceSource): {
+  traceTitle: string;
+  traceUrl: string;
+} {
   let traceTitle = '';
   let traceUrl = '';
   switch (traceSource.type) {
@@ -531,117 +544,50 @@ async function getTraceInfo(
       break;
   }
 
-  const traceTypes = await getTraceTypes(engine);
+  return {traceTitle, traceUrl};
+}
 
-  const hasFtrace =
-    (await engine.query(`select * from ftrace_event limit 1`)).numRows() > 0;
-
-  // Each trace in the session contributes to the global cache key. To maintain
-  // stable identifiers, we use the following priority:
-  // 1. Per-trace UUID: e.g. from a TraceUuid packet.
-  // 2. Global session UUID: ONLY used if no trace in the entire session has a
-  //    specific UUID.
-  // 3. Trace ID + Type: e.g. '1-perf'. The last-resort fallback.
-  const uuidRes = await engine.query(`
-    INCLUDE PERFETTO MODULE std.traceinfo.trace;
-    SELECT DISTINCT
-      coalesce(
-        trace_uuid,
-        iif(
-          (SELECT COUNT(trace_uuid) FROM _metadata_by_trace) = 0,
-          extract_metadata('trace_uuid'),
-          NULL
-        ),
-        trace_id || '-' || trace_type
-      ) AS uuid
-    FROM _metadata_by_trace
-  `);
-  const uuids: string[] = [];
-  for (
-    const itUuid = uuidRes.iter({uuid: STR});
-    itUuid.valid();
-    itUuid.next()
-  ) {
-    uuids.push(itUuid.uuid);
-  }
-  const uuid = await computeGlobalUuid(uuids);
-
-  updateStatus(app, 'Caching trace...');
-  const cached = await cacheTrace(traceSource, uuid);
-
-  const downloadable =
+function isDownloadable(traceSource: TraceSource): boolean {
+  return (
     (traceSource.type === 'ARRAY_BUFFER' && !traceSource.localOnly) ||
     traceSource.type === 'FILE' ||
-    traceSource.type === 'URL';
-
-  return {
-    ...traceTime,
-    traceTitle,
-    traceUrl,
-    tzOffMin,
-    unixOffset,
-    importErrors: await getTraceErrors(engine),
-    source: traceSource,
-    traceTypes,
-    hasFtrace,
-    uuid,
-    cached,
-    downloadable,
-  };
-}
-
-async function getTraceTypes(engine: Engine): Promise<string[]> {
-  const result = await engine.query(`
-    INCLUDE PERFETTO MODULE std.traceinfo.trace;
-    select distinct trace_type as str_value
-    from _metadata_by_trace
-  `);
-
-  const traceTypes: string[] = [];
-  const it = result.iter({str_value: STR});
-  for (; it.valid(); it.next()) {
-    traceTypes.push(it.str_value);
-  }
-  return traceTypes;
-}
-
-async function getTraceTimeBounds(engine: Engine): Promise<TimeSpan> {
-  const result = await engine.query(
-    `select start_ts as startTs, end_ts as endTs from trace_bounds`,
+    traceSource.type === 'URL'
   );
-  const bounds = result.firstRow({
-    startTs: LONG,
-    endTs: LONG,
-  });
-  return new TimeSpan(Time.fromRaw(bounds.startTs), Time.fromRaw(bounds.endTs));
 }
 
 async function getTraceErrors(engine: Engine): Promise<number> {
-  const sql = `SELECT sum(value) as errs FROM stats WHERE severity != 'info'`;
-  const result = await engine.query(sql);
+  const result = await engine.query(`
+    SELECT SUM(value) AS errs
+    FROM stats
+    WHERE severity != 'info'
+  `);
   return result.firstRow({errs: NUM}).errs;
 }
 
-async function getTracingMetadataTimeBounds(engine: Engine): Promise<TimeSpan> {
-  const queryRes = await engine.query(`select
-       name,
-       int_value as intValue
-       from metadata
-       where name = 'tracing_started_ns' or name = 'tracing_disabled_ns'
-       or name = 'all_data_source_started_ns'`);
-  let startBound = Time.MIN;
-  let endBound = Time.MAX;
-  const it = queryRes.iter({name: STR, intValue: LONG_NULL});
-  for (; it.valid(); it.next()) {
-    const columnName = it.name;
-    const timestamp = it.intValue;
-    if (timestamp === null) continue;
-    if (columnName === 'tracing_disabled_ns') {
-      endBound = Time.min(endBound, Time.fromRaw(timestamp));
-    } else {
-      startBound = Time.max(startBound, Time.fromRaw(timestamp));
-    }
-  }
+async function includeSummaryTables(engine: Engine): Promise<void> {
+  await engine.query(`INCLUDE PERFETTO MODULE viz.summary.slices;`);
+  await engine.query(`INCLUDE PERFETTO MODULE viz.summary.counters;`);
+  await engine.query(`INCLUDE PERFETTO MODULE viz.summary.threads;`);
+  await engine.query(`INCLUDE PERFETTO MODULE viz.summary.processes;`);
+}
 
-  return new TimeSpan(startBound, endBound);
+// TODO(stevegolton): Move this into some global "SQL extensions" file and
+// ensure it's only run once.
+async function defineMaxLayoutDepthSqlFunction(engine: Engine): Promise<void> {
+  await engine.query(`
+    CREATE PERFETTO FUNCTION __max_layout_depth(track_count INT, track_ids STRING)
+    RETURNS INT AS
+    SELECT iif(
+      $track_count = 1,
+      (
+        SELECT max_depth
+        FROM _slice_track_summary
+        WHERE id = CAST($track_ids AS INT)
+      ),
+      (
+        SELECT MAX(layout_depth)
+        FROM experimental_slice_layout($track_ids)
+      )
+    );
+  `);
 }

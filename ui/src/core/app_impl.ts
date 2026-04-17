@@ -24,11 +24,16 @@ import {RouteArgs} from '../public/route_schema';
 import {Setting} from '../public/settings';
 import {TraceStream} from '../public/stream';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
-import {NewEngineMode} from '../trace_processor/engine';
+import {EngineBase, NewEngineMode} from '../trace_processor/engine';
 import {AnalyticsInternal, initAnalytics} from './analytics_impl';
-import {CommandInvocation, CommandManagerImpl, Macro} from './command_manager';
+import {
+  CommandInvocation,
+  CommandManagerImpl,
+  Macro,
+  parseUrlCommands,
+} from './command_manager';
 import {featureFlags} from './feature_flags';
-import {loadTrace} from './load_trace';
+import {loadTrace, RawTrace} from './load_trace';
 import {OmniboxManagerImpl} from './omnibox_manager';
 import {PageManagerImpl} from './page_manager';
 import {PerfManager} from './perf_manager';
@@ -43,6 +48,14 @@ import {TraceArrayBufferSource, TraceSource} from './trace_source';
 import {TaskTrackerImpl} from '../frontend/task_tracker/task_tracker';
 import {Embedder} from './embedder/embedder';
 import {createEmbedder} from './embedder/create_embedder';
+import {
+  deserializeAppStatePhase1,
+  deserializeAppStatePhase2,
+} from './state_serialization';
+import {cacheTrace} from './cache_manager';
+import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
+import {base64Decode} from '../base/string_utils';
+import {uuidv4} from '../base/uuid';
 
 export type OpenTraceArrayBufArgs = Omit<
   Omit<TraceArrayBufferSource, 'type'>,
@@ -163,6 +176,14 @@ export class AppImpl implements App {
     this.pages = new PageManagerImpl(this.analytics);
   }
 
+  renderPageForCurrentRoute() {
+    if (this.trace) {
+      return this.trace.pages.renderPageForCurrentRoute();
+    } else {
+      return this.pages.renderPageForCurrentRoute();
+    }
+  }
+
   setActiveTrace(trace: TraceImpl) {
     this.closeCurrentTrace();
     this._activeTrace = trace;
@@ -195,7 +216,10 @@ export class AppImpl implements App {
   }
 
   get trace(): TraceImpl | undefined {
-    return this._activeTrace;
+    // Parse the doc out of the location hash
+    const currentRoute = Router.parseFragment(location.hash);
+    const docUuid = currentRoute.args.doc as string;
+    return this.traces.get(docUuid);
   }
 
   get raf(): Raf {
@@ -235,26 +259,15 @@ export class AppImpl implements App {
     return this.openTrace({type: 'HTTP_RPC'});
   }
 
-  private async openTrace(src: TraceSource): Promise<TraceImpl> {
-    if (src.type === 'ARRAY_BUFFER' && src.buffer instanceof Uint8Array) {
-      // Even though the type of `buffer` is ArrayBuffer, it's possible to
-      // accidentally pass a Uint8Array here, because the interface of
-      // Uint8Array is compatible with ArrayBuffer. That can cause subtle bugs
-      // in TraceStream when creating chunks out of it (see b/390473162).
-      // So if we get a Uint8Array in input, convert it into an actual
-      // ArrayBuffer, as various parts of the codebase assume that this is a
-      // pure ArrayBuffer, and not a logical view of it with a byteOffset > 0.
-      if (
-        src.buffer.byteOffset === 0 &&
-        src.buffer.byteLength === src.buffer.buffer.byteLength
-      ) {
-        src = {...src, buffer: src.buffer.buffer};
-      } else {
-        src = {...src, buffer: src.buffer.slice().buffer};
-      }
-    }
+  // A map of loaded traces by document key
+  traces = new Map<string, TraceImpl>();
 
+  private async openTrace(src: TraceSource): Promise<TraceImpl> {
     const result = defer<TraceImpl>();
+    const documentUuid = uuidv4();
+
+    // Update the URL bar to the new document ID
+    document.location.hash = '#!/?doc=' + documentUuid;
 
     // Rationale for asyncLimiter: openTrace takes several seconds and involves
     // a long sequence of async tasks (e.g. invoking plugins' onLoad()). These
@@ -269,6 +282,14 @@ export class AppImpl implements App {
       this.closeCurrentTrace();
       this.isLoadingTrace = true;
       try {
+        const extraParsingDescriptors: Uint8Array[] = [];
+        for (const b64Str of await this.protoDescriptors()) {
+          extraParsingDescriptors.push(base64Decode(b64Str));
+        }
+
+        const useHttpIfAvailable =
+          this.httpRpc.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE';
+
         // loadTrace() in trace_loader.ts will do the following:
         // - Create a new engine.
         // - Pump the data from the TraceSource into the engine.
@@ -276,13 +297,36 @@ export class AppImpl implements App {
         // - Call AppImpl.setActiveTrace(TraceImpl)
         // - Continue with the trace loading logic (track decider, plugins, etc)
         // - Resolve the promise when everything is done.
-        const trace = await loadTrace(this, src);
+        const rawTrace = await loadTrace(src, {
+          useHttpIfAvailable,
+          extraParsingDescriptors,
+        });
+
+        // Try to cache the trace bytes if possible
+        const cached = await cacheTrace(src, rawTrace.uuid);
+
+        const trace = new TraceImpl(this, rawTrace.engine, {
+          source: src,
+          cached: cached,
+          uuid: rawTrace.uuid,
+          start: rawTrace.traceSpan.start,
+          end: rawTrace.traceSpan.end,
+          tzOffMin: rawTrace.tzOffMin,
+          unixOffset: rawTrace.unixOffset,
+          traceTypes: rawTrace.traceTypes,
+          hasFtrace: rawTrace.hasFtrace,
+          traceTitle: rawTrace.traceTitle,
+          traceUrl: rawTrace.traceUrl,
+          downloadable: rawTrace.downloadable,
+          importErrors: rawTrace.importErrors,
+        });
+
+        this.setActiveTrace(trace);
+        await this.initializeTrace(rawTrace, trace, src);
         this.omnibox.reset(/* focus= */ false);
-        // loadTrace() internally will call setActiveTrace() and change our
-        // _currentTrace in the middle of its ececution. We cannot wait for
-        // loadTrace to be finished before setting it because some internal
-        // implementation details of loadTrace() rely on that trace to be current
-        // to work properly (mainly the router hash uuid).
+
+        this.traces.set(documentUuid, trace);
+
         result.resolve(trace);
       } catch (error) {
         result.reject(error);
@@ -333,5 +377,140 @@ export class AppImpl implements App {
   async macros(): Promise<ReadonlyArray<Macro & {source?: string}>> {
     const macrosArray = await Promise.all(this._macrosPromises);
     return macrosArray.flat();
+  }
+
+  async initializeTrace(
+    rawTrace: RawTrace,
+    trace: TraceImpl,
+    traceSource: TraceSource,
+  ): Promise<TraceImpl> {
+    const engine = rawTrace.engine;
+
+    await this.installSqlPackages(engine);
+
+    if (traceSource.serializedAppState !== undefined) {
+      deserializeAppStatePhase1(traceSource.serializedAppState, trace);
+    }
+
+    // Initialize the plugins (call onTraceLoad() on all plugins)
+    await this.plugins.onTraceLoad(trace, (id) => {
+      this.updateStatus(`Running plugin: ${id}`);
+    });
+
+    // Decide which tabls to show on startup
+    this.decideTabs(trace);
+
+    // Load the minimap after pluigns have had a chance to register their loaders
+    this.updateStatus(`Loading minimap`);
+    await trace.minimap.load(rawTrace.traceSpan.start, rawTrace.traceSpan.end);
+
+    // // Trace Processor doesn't support the reliable range feature for JSON
+    // // traces.
+    // if (!hasJsonTrace && ENABLE_CHROME_RELIABLE_RANGE_ANNOTATION_FLAG.get()) {
+    //   const reliableRangeStart = await computeTraceReliableRangeStart(engine);
+    //   if (reliableRangeStart > 0) {
+    //     trace.notes.addNote({
+    //       timestamp: reliableRangeStart,
+    //       color: '#ff0000',
+    //       text: 'Reliable Range Start',
+    //     });
+    //   }
+    // }
+
+    // notify() will await that all listeners' promises have resolved.
+    await trace.onTraceReady.notify();
+
+    if (traceSource.serializedAppState !== undefined) {
+      // Wait that plugins have completed their actions and then proceed with
+      // the final phase of app state restore.
+      // TODO(primiano): this can probably be removed once we refactor tracks
+      // to be URI based and can deal with non-existing URIs.
+      deserializeAppStatePhase2(traceSource.serializedAppState, trace);
+    }
+
+    // Update the timeline to show the reliable range of the trace
+    trace.timeline.setVisibleWindow(
+      HighPrecisionTimeSpan.fromTime(
+        rawTrace.reliableRange.start,
+        rawTrace.reliableRange.end,
+      ),
+    );
+
+    // Execute startup commands as the final step - simulates user actions
+    // after the trace is fully loaded and any saved state has been restored.
+    // This ensures startup commands see the complete, final state of the trace.
+    await this.runStartupCommands(trace);
+
+    return trace;
+  }
+
+  private async runStartupCommands(trace: TraceImpl) {
+    // CRITICAL ORDER: URL commands MUST execute before settings commands!
+    // This ordering has subtle but important implications:
+    // - URL commands are trace-specific and should establish initial state
+    // - Settings commands are user preferences that should override URL defaults
+    // - Changing this order could break trace sharing and user customization
+    // DO NOT REORDER without understanding the full impact!
+    const urlCommands =
+      parseUrlCommands(this.initialRouteArgs.startupCommands) ?? [];
+    const settingsCommands = this.startupCommandsSetting.get();
+
+    // Combine URL and settings commands - runtime allowlist checking will handle filtering
+    const allStartupCommands = [...urlCommands, ...settingsCommands];
+    const enforceAllowlist = this.enforceStartupCommandAllowlistSetting.get();
+
+    if (allStartupCommands.length > 0) {
+      this.updateStatus('Running startup commands');
+      using _ = trace.omnibox.disablePrompts();
+
+      // Execute startup commands in trace context after everything is ready.
+      // This simulates user actions taken after trace load is complete,
+      // including any saved app state restoration. At this point:
+      // - All plugins have loaded and registered their commands
+      // - Trace data is fully accessible
+      // - UI state has been restored from any saved workspace
+      // - Commands can safely query trace data and modify UI state
+      // Set allowlist checking during startup if enforcement enabled
+      if (enforceAllowlist) {
+        this.commands.setExecutingStartupCommands(true);
+      }
+
+      try {
+        for (const command of allStartupCommands) {
+          try {
+            // Execute through proxy to access both global and trace-specific
+            // commands.
+            await this.commands.runCommand(command.id, ...command.args);
+          } catch (error) {
+            // TODO(stevegolton): Add a mechanism to notify users of startup
+            // command errors. This will involve creating a notification UX
+            // similar to VSCode where there are popups on the bottom right
+            // of the UI.
+            console.warn(`Startup command ${command.id} failed:`, error);
+          }
+        }
+      } finally {
+        // Always restore default (allow all) behavior when done
+        this.commands.setExecutingStartupCommands(false);
+      }
+    }
+  }
+
+  private updateStatus(message: string) {
+    this.omnibox.showStatusMessage(message, 0);
+  }
+
+  private async installSqlPackages(engine: EngineBase) {
+    const sqlPackages = await this.sqlPackages();
+    for (const pkg of sqlPackages) {
+      await engine.registerSqlPackages(pkg);
+    }
+  }
+
+  private decideTabs(trace: TraceImpl) {
+    // Show the list of default tabs, but don't make them active!
+    for (const tabUri of trace.tabs.defaultTabs) {
+      trace.tabs.showTab(tabUri);
+    }
   }
 }

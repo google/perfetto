@@ -23,6 +23,10 @@ import {Sidebar} from './sidebar';
 import {renderStatusBar} from './statusbar';
 import {taskTracker} from './task_tracker';
 import {Topbar} from './topbar';
+import {Router} from '../core/router';
+import {Gate} from '../base/mithril_utils';
+import {RouteArgs} from '../public/route_schema';
+import {HomePage} from './home_page';
 
 const showStatusBarFlag = featureFlags.register({
   id: 'Enable status bar',
@@ -32,6 +36,19 @@ const showStatusBarFlag = featureFlags.register({
 // Read the page title set by index.html. This can be overridden at build time
 // via --title (e.g. to distinguish multiple dev server instances).
 const APP_TITLE = document.title || 'Perfetto UI';
+
+interface RouteAttrs {
+  readonly route: string;
+  readonly content: (subpage: string, args: RouteArgs) => m.Children;
+}
+
+const Route: m.Component<RouteAttrs> = {
+  view({attrs}: m.CVnode<RouteAttrs>): m.Children {
+    const route = Router.parseFragment(location.hash);
+    const content = attrs.content(route.subpage, route.args);
+    return m(Gate, {open: route.page === attrs.route}, content);
+  },
+};
 
 // This components gets destroyed and recreated every time the current trace
 // changes. Note that in the beginning the current trace is undefined.
@@ -66,7 +83,7 @@ export class UiMain implements m.ClassComponent {
         className: 'pf-ui-main__loading',
         state: isSomethingLoading ? 'indeterminate' : 'none',
       }),
-      m('.pf-ui-main__page-container', app.pages.renderPageForCurrentRoute()),
+      m('.pf-ui-main__page-container'),
       m(CookieConsent),
       maybeRenderFullscreenModalDialog(),
       showStatusBarFlag.get() && renderStatusBar(app),

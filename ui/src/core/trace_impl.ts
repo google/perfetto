@@ -80,6 +80,7 @@ export class TraceImpl implements Trace, Disposable {
   readonly loadingErrors: string[] = [];
   readonly app: AppImpl;
   readonly store = createStore<Record<string, unknown>>({});
+  readonly pages: PageManager;
 
   // Do we need this?
   readonly pluginSerializableState = createStore<{[key: string]: {}}>({});
@@ -140,47 +141,48 @@ export class TraceImpl implements Trace, Disposable {
     // avoid ending up with duplicate commands.
     this.commandMgrProxy = createProxy(app.commands, {
       registerCommand: (cmd: Command) => {
-        const disposable = app.commands.registerCommand(cmd);
-        this.trash.use(disposable);
-        return disposable;
+        // const disposable = app.commands.registerCommand(cmd);
+        // this.trash.use(disposable);
+        // return disposable;
       },
       registerMacro: (macro, source) => {
-        const disposable = app.commands.registerMacro(macro, source);
-        this.trash.use(disposable);
-        return disposable;
+        // const disposable = app.commands.registerMacro(macro, source);
+        // this.trash.use(disposable);
+        // return disposable;
       },
     });
 
     // Likewise, remove all trace-scoped sidebar entries when the trace unloads.
     this.sidebarProxy = createProxy(app.sidebar, {
       addMenuItem: (menuItem: SidebarMenuItem) => {
-        const disposable = app.sidebar.addMenuItem(menuItem);
-        this.trash.use(disposable);
-        return disposable;
+        // const disposable = app.sidebar.addMenuItem(menuItem);
+        // this.trash.use(disposable);
+        // return disposable;
       },
     });
 
     this.pageMgrProxy = createProxy(app.pages, {
       registerPage: (pageHandler: PageHandler) => {
-        const disposable = app.pages.registerPage(pageHandler);
-        this.trash.use(disposable);
-        return disposable;
+        // const disposable = app.pages.registerPage(pageHandler);
+        // this.trash.use(disposable);
+        // return disposable;
       },
     });
+    this.pages = new PageManagerImpl(app.analytics);
 
     this.settingsProxy = createProxy(app.settings, {
       register: <T>(setting: SettingDescriptor<T>) => {
-        const disposable = app.settings.register(setting);
-        this.trash.use(disposable);
-        return disposable;
+        // const disposable = app.settings.register(setting);
+        // this.trash.use(disposable);
+        // return disposable;
       },
     });
 
     this.omniboxProxy = createProxy(app.omnibox, {
       registerMode: (descriptor: OmniboxModeDescriptor) => {
-        const disposable = app.omnibox.registerMode(descriptor);
-        this.trash.use(disposable);
-        return disposable;
+        // const disposable = app.omnibox.registerMode(descriptor);
+        // this.trash.use(disposable);
+        // return disposable;
       },
     });
   }
@@ -264,10 +266,6 @@ export class TraceImpl implements Trace, Disposable {
 
   get sidebar(): SidebarManagerImpl {
     return this.sidebarProxy;
-  }
-
-  get pages(): PageManager {
-    return this.pageMgrProxy;
   }
 
   get omnibox(): OmniboxManagerImpl {
