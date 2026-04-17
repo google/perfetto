@@ -1,6 +1,11 @@
 # See go/perfetto-ui-autopush for docs on how this works end-to-end.
 # See trigger configs inline YAML in Google Cloud Console > Cloud Build
 # for the project "perfetto-ui" (zone: europe-west2).
+#
+# This config is wired to the triggers that fire on pushes to the
+# long-lived `canary` and `stable` branches. The branch name is passed
+# as the channel name to the entrypoint, so a push to `canary` builds
+# the canary channel and a push to `stable` builds the stable channel.
 steps:
 - name: europe-docker.pkg.dev/perfetto-ui/builder/perfetto-ui-builder
   args:
