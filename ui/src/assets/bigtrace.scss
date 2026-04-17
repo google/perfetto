@@ -12,6 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@import "typefaces";
+@import "common";
+@import "home_page";
+@import "sidebar";
+@import "topbar";
+@import "help_modal";
+@import "theme_provider";
+
+// Components - keep these sorted alphabetically
+@import "components/datagrid";
+@import "components/query_history";
+
+// Widgets
+@import "widgets.scss";
+
+// Auto generated imports
+@import "../gen/all_plugins";
+@import "../gen/all_core_plugins";
+
 // BigTrace-specific styles. Classes use the .pf-bt- prefix to avoid
 // collisions with existing Perfetto UI classes.
 
