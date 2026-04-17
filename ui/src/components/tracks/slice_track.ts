@@ -1089,7 +1089,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
   private onUpdatedSlices(
     slices: readonly SliceOrInstant<T>[],
-  ): ColorVariant[] {
+  ): readonly ColorVariant[] {
     if (this.attrs.onUpdatedSlices) {
       return this.attrs.onUpdatedSlices(slices);
     } else {
@@ -1099,25 +1099,26 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
 
   private highlightHoveredAndSameTitle(
     slices: readonly SliceOrInstant<T>[],
-  ): ColorVariant[] {
-    const highlightedSliceId = this.trace.timeline.highlightedSliceId;
-    const hoveredTitle = this.hoveredSlice?.title;
-    const isHovering =
-      hoveredTitle !== undefined || highlightedSliceId !== undefined;
-    const n = slices.length;
-    const variants = new Array<ColorVariant>(n);
-    for (let i = 0; i < n; i++) {
-      if (!isHovering) {
-        variants[i] = ColorVariant.BASE;
-      } else {
-        const slice = slices[i];
-        const isMatch =
-          highlightedSliceId === slice.id ||
-          (hoveredTitle !== undefined && hoveredTitle === slice.title);
-        variants[i] = isMatch ? ColorVariant.VARIANT : ColorVariant.BASE;
+  ): readonly ColorVariant[] {
+    const variants = new Array<ColorVariant>(slices.length);
+    const hoveredSlice = this.hoveredSlice;
+    if (hoveredSlice) {
+      const hoveredSliceId = hoveredSlice.id;
+      const hoveredTitle = hoveredSlice.title;
+      // Index based iteration is more efficient than .map
+      for (let i = 0; i < slices.length; i++) {
+        const {id, title} = slices[i];
+        variants[i] =
+          id === hoveredSliceId || title === hoveredTitle
+            ? ColorVariant.VARIANT
+            : ColorVariant.BASE;
       }
+      return variants;
+    } else {
+      // No hovered slice, all variants are the same. .fill is more efficient
+      // than iteration.
+      return variants.fill(ColorVariant.BASE);
     }
-    return variants;
   }
 
   renderTooltip(): m.Children {
