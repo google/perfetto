@@ -223,6 +223,32 @@ TEST_F(SliceTrackerTest, Update) {
   EXPECT_EQ(ar0.int_value(), 10);
 }
 
+TEST_F(SliceTrackerTest, UpdateNameMismatch) {
+  SliceTracker tracker(&context_);
+
+  constexpr TrackId track{22u};
+  tracker.Begin(2 /*ts*/, track, kNullStringId /*cat*/,
+                StringId::Raw(1) /*name*/);
+  tracker.Update(5 /*ts*/, track, kNullStringId /*cat*/,
+                 StringId::Raw(2) /*name*/);  // Different name
+  tracker.End(10 /*ts*/, track);
+
+  const auto& slices = context_.storage->slice_table();
+  EXPECT_EQ(slices.row_count(), 2u);
+
+  // First slice should be closed at ts=5
+  auto sr0 = slices[0];
+  EXPECT_EQ(sr0.ts(), 2);
+  EXPECT_EQ(sr0.dur(), 3);  // 5 - 2
+  EXPECT_EQ(sr0.name().value_or(kNullStringId).raw_id(), 1u);
+
+  // Second slice should start at ts=5 and be closed at ts=10
+  auto sr1 = slices[1];
+  EXPECT_EQ(sr1.ts(), 5);
+  EXPECT_EQ(sr1.dur(), 5);  // 10 - 5
+  EXPECT_EQ(sr1.name().value_or(kNullStringId).raw_id(), 2u);
+}
+
 TEST_F(SliceTrackerTest, OneSliceWithArgsWithTranslatedName) {
   SliceTracker tracker(&context_);
 
