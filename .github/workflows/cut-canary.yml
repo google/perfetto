@@ -95,8 +95,9 @@ jobs:
           Merging this PR pushes to \`canary\` and triggers UI Cloud
           Build to redeploy the canary channel. See RFC-0022.
 
-          **Merge strategy:** use "Create a merge commit" (not squash /
-          rebase) so the two-parent merge commit survives.
+          **Merge with "Create a merge commit"** so the two-parent
+          merge commit (parent1=\`canary\`, parent2=\`main\`) survives
+          into \`canary\`'s history.
           EOF
           )"
           echo "::notice::Opened PR from $BRANCH → canary."

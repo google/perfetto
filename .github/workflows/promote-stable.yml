@@ -113,8 +113,9 @@ jobs:
           The tag push also fans out to LUCI and Cloud Build. See
           RFC-0022.
 
-          **Merge strategy:** use "Create a merge commit" (not squash /
-          rebase) so the two-parent merge commit survives.
+          **Merge with "Create a merge commit"** so the two-parent
+          merge commit (parent1=\`stable\`, parent2=\`canary\`) survives
+          into \`stable\`'s history.
           EOF
           )"
           echo "::notice::Opened PR from $BRANCH → stable."
