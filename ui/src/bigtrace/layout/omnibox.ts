@@ -20,7 +20,6 @@ import {assertExists, assertUnreachable} from '../../base/assert';
 import {isString} from '../../base/object_utils';
 import {exists} from '../../base/utils';
 import {OmniboxMode} from '../../core/omnibox_manager';
-import {raf} from '../../core/raf_scheduler';
 import {Chip} from '../../widgets/chip';
 import {HTMLAttrs, Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
@@ -556,7 +555,7 @@ class OmniboxWidget implements m.ClassComponent<OmniboxWidgetAttrs> {
   // Defined as an arrow function to keep `this` bound when used as an event
   // listener that is added/removed manually.
   private onMouseDown = (e: Event) => {
-    raf.scheduleFullRedraw();
+    m.redraw();
 
     if (e.target instanceof Node) {
       if (this.popupElement && this.popupElement.contains(e.target)) {

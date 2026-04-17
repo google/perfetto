@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {raf} from '../core/raf_scheduler';
+import m from 'mithril';
 
 // Simple hash-based router for BigTrace.
 // Uses #! prefix (e.g., #!/query, #!/settings) to match the existing
@@ -38,6 +38,6 @@ export function setRoute(route: string): void {
 
 export function initRouter(): void {
   window.addEventListener('hashchange', () => {
-    raf.scheduleFullRedraw();
+    m.redraw();
   });
 }
