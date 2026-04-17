@@ -214,9 +214,17 @@ class MacroRewriteBuilder {
       auto c = syntaqlite_result_macro_rewrite_at(p_, cidx);
       if (c.body_call_length == SYNTAQLITE_MACRO_BODY_CALL_ARG_INTERNAL)
         continue;
-      items.push_back({c.body_call_offset,
-                       c.body_call_offset + c.body_call_length,
-                       BuildForRewrite(cidx)});
+      // TODO(lalitm): upstream syntaqlite computes body_call_offset /
+      // body_call_length as `max(0, sub_length - body_length)` per segment,
+      // which drops the signed delta whenever a `$param` substitution is
+      // shorter than its authored placeholder (e.g. `$y` (2) → `5` (1)).
+      // That makes the reported fields unusable, so we recompute here from
+      // the parent's arg segments. Once the upstream bug is fixed and the
+      // vendored syntaqlite is re-rolled, delete ComputeBodyRangeFromExpansion
+      // and use `c.body_call_offset` / `c.body_call_length` directly.
+      auto [body_off, body_len] =
+          ComputeBodyRangeFromExpansion(idx, c.call_offset, c.call_length);
+      items.push_back({body_off, body_off + body_len, BuildForRewrite(cidx)});
     }
     uint32_t seg_count = syntaqlite_macro_rewrite_arg_segment_count(p_, idx);
     for (uint32_t si = 0; si < seg_count; si++) {
@@ -242,6 +250,46 @@ class MacroRewriteBuilder {
                 return a.start < b.start;
               });
     return ApplyRewrites(m.sql, std::move(items));
+  }
+
+  // Converts an expansion-coordinate range in `parent_idx`'s expansion back
+  // to parent's authored-body coordinates by inverting the length deltas of
+  // any $param segment that sits before the range (shifts the offset) or
+  // strictly inside it (shrinks/grows the length). This duplicates logic
+  // that syntaqlite already does into its body_call_offset/body_call_length
+  // fields, but those drop the signed delta for substitutions shorter than
+  // the authored body. TODO(lalitm): delete this helper once the upstream
+  // syntaqlite bug is fixed and the vendored copy is re-rolled; then use
+  // the `body_call_offset` / `body_call_length` fields directly in
+  // BuildForUserMacro.
+  std::pair<uint32_t, uint32_t> ComputeBodyRangeFromExpansion(
+      uint32_t parent_idx,
+      uint32_t call_offset,
+      uint32_t call_length) const {
+    int64_t prefix_delta = 0;
+    int64_t inner_delta = 0;
+    uint32_t call_end = call_offset + call_length;
+    uint32_t seg_count =
+        syntaqlite_macro_rewrite_arg_segment_count(p_, parent_idx);
+    for (uint32_t i = 0; i < seg_count; i++) {
+      auto seg = syntaqlite_macro_rewrite_arg_segment_at(p_, parent_idx, i);
+      uint32_t seg_end = seg.expansion_offset + seg.expansion_length;
+      int64_t delta = int64_t{seg.expansion_length} - int64_t{seg.body_length};
+      if (seg_end <= call_offset) {
+        prefix_delta += delta;
+      } else if (seg.expansion_offset >= call_end) {
+        // Fully after — no effect.
+      } else if (seg.expansion_offset >= call_offset && seg_end <= call_end) {
+        inner_delta += delta;
+      }
+      // Arg-internal cases (segment contains call, or partial overlap) are
+      // already signaled by the caller via body_call_length == ARG_INTERNAL.
+    }
+    uint32_t body_offset =
+        static_cast<uint32_t>(int64_t{call_offset} - prefix_delta);
+    uint32_t body_length =
+        static_cast<uint32_t>(int64_t{call_length} - inner_delta);
+    return {body_offset, body_length};
   }
 
   // The SqlSource for one `$param` substitution: the arg's authored text,
