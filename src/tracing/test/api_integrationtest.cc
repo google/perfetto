@@ -619,7 +619,7 @@ std::vector<std::string> ReadSlicesFromTrace(
       case perfetto::protos::gen::TrackEvent::TYPE_INSTANT:
         slice += "I";
         break;
-      case perfetto::protos::gen::TrackEvent::TYPE_SLICE_UPDATE:
+      case perfetto::protos::gen::TrackEvent::TYPE_SLICE_STEP:
         slice += "U";
         break;
       case perfetto::protos::gen::TrackEvent::TYPE_UNSPECIFIED: {
@@ -1516,6 +1516,87 @@ TEST_P(PerfettoApiTest, TrackEvent) {
   // Dummy instantiation of test templates.
   TestTrackEventInsideTemplate(true);
   TestCategoryAsTemplateParameter<kTestCategory>();
+}
+
+TEST_P(PerfettoApiTest, TrackEventStep) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  // Emit one complete track event with a step.
+  TRACE_EVENT_BEGIN("test", "TestEvent");
+  TRACE_EVENT_STEP("test", "TestStep");
+  TRACE_EVENT_END("test");
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->on_stop.Wait();
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  ASSERT_GE(raw_trace.size(), 0u);
+
+  // Read back the trace, maintaining interning tables as we go.
+  perfetto::protos::gen::Trace trace;
+  std::map<uint64_t, std::string> categories;
+  std::map<uint64_t, std::string> event_names;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+
+  bool begin_found = false;
+  bool step_found = false;
+  bool end_found = false;
+  uint32_t sequence_id = 0;
+
+  for (const auto& packet : trace.packet()) {
+    if (packet.sequence_flags() &
+        perfetto::protos::pbzero::TracePacket::SEQ_INCREMENTAL_STATE_CLEARED) {
+      categories.clear();
+      event_names.clear();
+    }
+
+    if (!packet.has_track_event())
+      continue;
+
+    const auto& track_event = packet.track_event();
+
+    // Make sure we only see track events on one sequence.
+    if (packet.trusted_packet_sequence_id()) {
+      if (!sequence_id)
+        sequence_id = packet.trusted_packet_sequence_id();
+      EXPECT_EQ(sequence_id, packet.trusted_packet_sequence_id());
+    }
+
+    // Update incremental state.
+    if (packet.has_interned_data()) {
+      const auto& interned_data = packet.interned_data();
+      for (const auto& it : interned_data.event_categories()) {
+        categories[it.iid()] = it.name();
+      }
+      for (const auto& it : interned_data.event_names()) {
+        event_names[it.iid()] = it.name();
+      }
+    }
+
+    if (track_event.type() ==
+        perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN) {
+      EXPECT_FALSE(begin_found);
+      EXPECT_EQ(track_event.category_iids().size(), 1u);
+      EXPECT_EQ("test", categories[track_event.category_iids()[0]]);
+      EXPECT_EQ("TestEvent", event_names[track_event.name_iid()]);
+      begin_found = true;
+    } else if (track_event.type() ==
+               perfetto::protos::gen::TrackEvent::TYPE_SLICE_STEP) {
+      EXPECT_FALSE(step_found);
+      EXPECT_EQ(track_event.category_iids().size(), 1u);
+      EXPECT_EQ("test", categories[track_event.category_iids()[0]]);
+      EXPECT_EQ("TestStep", event_names[track_event.name_iid()]);
+      step_found = true;
+    } else if (track_event.type() ==
+               perfetto::protos::gen::TrackEvent::TYPE_SLICE_END) {
+      EXPECT_FALSE(end_found);
+      end_found = true;
+    }
+  }
+  EXPECT_TRUE(begin_found);
+  EXPECT_TRUE(step_found);
+  EXPECT_TRUE(end_found);
 }
 
 TEST_P(PerfettoApiTest, TrackEventWithIncrementalTimestamp) {
@@ -2829,7 +2910,7 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrackAndTimestamp) {
       case perfetto::protos::gen::TrackEvent::TYPE_INSTANT:
         EXPECT_EQ(packet.timestamp(), kInstantEventTime);
         break;
-      case perfetto::protos::gen::TrackEvent::TYPE_SLICE_UPDATE:
+      case perfetto::protos::gen::TrackEvent::TYPE_SLICE_STEP:
       case perfetto::protos::gen::TrackEvent::TYPE_COUNTER:
       case perfetto::protos::gen::TrackEvent::TYPE_UNSPECIFIED:
         ADD_FAILURE();
@@ -2864,7 +2945,7 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrackAndTimestampNoLambda) {
       case perfetto::protos::gen::TrackEvent::TYPE_SLICE_END:
         EXPECT_EQ(packet.timestamp(), kEndEventTime);
         break;
-      case perfetto::protos::gen::TrackEvent::TYPE_SLICE_UPDATE:
+      case perfetto::protos::gen::TrackEvent::TYPE_SLICE_STEP:
       case perfetto::protos::gen::TrackEvent::TYPE_INSTANT:
       case perfetto::protos::gen::TrackEvent::TYPE_COUNTER:
       case perfetto::protos::gen::TrackEvent::TYPE_UNSPECIFIED:

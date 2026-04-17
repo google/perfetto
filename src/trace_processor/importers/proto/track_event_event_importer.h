@@ -637,7 +637,7 @@ class TrackEventEventImporter {
         return utid_ ? 'E' : 'e';
       case TrackEvent::TYPE_INSTANT:
         return utid_ ? 'i' : 'n';
-      case TrackEvent::TYPE_SLICE_UPDATE:
+      case TrackEvent::TYPE_SLICE_STEP:
         return 'U';
       default:
         PERFETTO_ELOG("unexpected event type %d", event_.type());
