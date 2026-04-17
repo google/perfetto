@@ -1100,21 +1100,17 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   private highlightHoveredAndSameTitle(
     slices: readonly SliceOrInstant<T>[],
   ): ColorVariant[] {
-    const highlightedSliceId = this.trace.timeline.highlightedSliceId;
-    const hoveredTitle = this.hoveredSlice?.title;
-    const isHovering =
-      hoveredTitle !== undefined || highlightedSliceId !== undefined;
+    const hoveredSliceName = this.trace.timeline.highlightedSliceName;
+    const hoveredSliceId = this.hoveredSlice?.id;
     const n = slices.length;
     const variants = new Array<ColorVariant>(n);
     for (let i = 0; i < n; i++) {
-      if (!isHovering) {
-        variants[i] = ColorVariant.BASE;
+      const sliceId = slices[i].id;
+      const sliceTitle = slices[i].title;
+      if (sliceId === hoveredSliceId || sliceTitle === hoveredSliceName) {
+        variants[i] = ColorVariant.VARIANT;
       } else {
-        const slice = slices[i];
-        const isMatch =
-          highlightedSliceId === slice.id ||
-          (hoveredTitle !== undefined && hoveredTitle === slice.title);
-        variants[i] = isMatch ? ColorVariant.VARIANT : ColorVariant.BASE;
+        variants[i] = ColorVariant.BASE;
       }
     }
     return variants;
@@ -1260,6 +1256,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     this.hoveredSlice = this.findSlice(e);
     if (this.hoverMonitor.ifStateChanged()) {
       this.trace.timeline.highlightedSliceId = this.hoveredSlice?.id;
+      this.trace.timeline.highlightedSliceName = this.hoveredSlice?.title;
       if (this.hoveredSlice === undefined) {
         if (this.attrs.onSliceOut) {
           this.attrs.onSliceOut({slice: assertExists(prevHoveredSlice)});
@@ -1277,7 +1274,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     const prevHoveredSlice = this.hoveredSlice;
     this.hoveredSlice = undefined;
     if (this.hoverMonitor.ifStateChanged()) {
-      this.trace.timeline.highlightedSliceId = undefined;
+      this.trace.timeline.highlightedSliceName = undefined;
       if (this.attrs.onSliceOut && prevHoveredSlice) {
         this.attrs.onSliceOut({slice: prevHoveredSlice});
       }

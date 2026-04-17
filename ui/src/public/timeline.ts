@@ -204,6 +204,7 @@ export interface Timeline {
 
   hoveredNoteTimestamp: time | undefined;
   highlightedSliceId: number | undefined;
+  highlightedSliceName: string | undefined;
 
   hoveredUtid: number | undefined;
   hoveredPid: bigint | undefined;
