@@ -24,6 +24,7 @@ import {
 } from '../adb_tracing_session';
 import {AdbWebsocketDevice} from './adb_websocket_device';
 import {AsyncLazy} from '../../../../base/async_lazy';
+import {RecordTraceV2Settings} from '../../settings';
 
 export class AdbWebsocketTarget implements RecordingTarget {
   readonly kind = 'LIVE_RECORDING';
@@ -36,6 +37,7 @@ export class AdbWebsocketTarget implements RecordingTarget {
     private wsUrl: string,
     private serial: string,
     private model: string,
+    private readonly settings: RecordTraceV2Settings,
   ) {}
 
   get id(): string {
@@ -60,7 +62,7 @@ export class AdbWebsocketTarget implements RecordingTarget {
       })(),
     };
     if (this.adbDevice.value === undefined) return;
-    yield* checkAndroidTarget(this.adbDevice.value);
+    yield* checkAndroidTarget(this.adbDevice.value, this.settings);
   }
 
   private async connectIfNeeded(): Promise<Result<AdbWebsocketDevice>> {
@@ -82,7 +84,7 @@ export class AdbWebsocketTarget implements RecordingTarget {
     if (this.adbDevice.value === undefined) {
       return errResult('WebSocket transport disconnected');
     }
-    return getAdbTracingServiceState(this.adbDevice.value);
+    return getAdbTracingServiceState(this.adbDevice.value, this.settings);
   }
 
   async startTracing(
@@ -90,6 +92,10 @@ export class AdbWebsocketTarget implements RecordingTarget {
   ): Promise<Result<ConsumerIpcTracingSession>> {
     const adbDeviceStatus = await this.connectIfNeeded();
     if (!adbDeviceStatus.ok) return adbDeviceStatus;
-    return await createAdbTracingSession(adbDeviceStatus.value, traceConfig);
+    return await createAdbTracingSession(
+      adbDeviceStatus.value,
+      traceConfig,
+      this.settings,
+    );
   }
 }
