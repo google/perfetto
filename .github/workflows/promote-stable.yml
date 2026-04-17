@@ -12,36 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Promotes canary to stable and tags the release.
+# Opens a PR that merges `canary` into `stable` using the same
+# tree-replacing merge pattern as cut-canary.yml. Manual trigger via
+# the GitHub Actions UI; a maintainer reviews and merges the PR to
+# update stable.
 #
-# Creates a merge commit on `stable` whose tree equals the current tip of
-# `canary` (same tree-replacing merge pattern as cut-canary.yml), reads
-# the target version from the top of CHANGELOG (which must already have
-# been updated from 'Unreleased:' to 'vX.Y - YYYY-MM-DD:' before running),
-# then creates and pushes the vX.Y git tag at the new stable HEAD.
+# Reads the target version from the top of CHANGELOG (which must be
+# a released version header 'vX.Y - YYYY-MM-DD:' before running) and
+# verifies the matching git tag does not already exist. Tag creation
+# is handled by tag-on-stable-push.yml when the PR is merged.
 #
-# The tag push is the single event that fans out to LUCI, Cloud Build,
-# and draft-release.yml. See RFC-0022.
+# Authenticates with the default GITHUB_TOKEN. The repo must have
+# "Allow GitHub Actions to create and approve pull requests" enabled
+# in Settings → Actions → General for `gh pr create` to succeed.
 
-name: Promote to stable (merge canary → stable, tag release)
+name: Promote to stable (open PR merging canary → stable)
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: write  # Required to push stable and the tag
+  contents: write        # Push the PR branch
+  pull-requests: write   # Open the PR
 
 jobs:
   promote-stable:
     runs-on: ubuntu-latest
-    environment: push-to-stable-canary
     steps:
       - name: Checkout stable
         uses: actions/checkout@v4
         with:
           ref: stable
           fetch-depth: 0
-          ssh-key: ${{ secrets.ACTIONS_WRITE_DEPLOY_KEY_DANGEROUS }}
 
       - name: Fetch canary
         run: git fetch origin canary
@@ -90,13 +92,30 @@ jobs:
           git read-tree -m -u origin/canary
           git commit -m "Promote canary to stable (${{ steps.version.outputs.version }}, automated)"
 
-      - name: Push stable
-        run: |
-          git push origin HEAD:stable
-
-      - name: Create and push tag
+      - name: Push branch and open PR
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          git tag -a "$VERSION" HEAD -m "Perfetto $VERSION"
-          git push origin "refs/tags/$VERSION"
-          echo "::notice::Tagged $VERSION at $(git rev-parse HEAD). LUCI, Cloud Build, and draft-release.yml have been triggered."
+          BRANCH="dev/github-bot/promote-stable-${VERSION}-$(date -u +%Y%m%d-%H%M%S)"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          gh pr create \
+            --base stable \
+            --head "$BRANCH" \
+            --title "Promote canary to stable ($VERSION)" \
+            --body "$(cat <<EOF
+          Automated stable promotion for **$VERSION**. Merges the
+          current tip of \`canary\` into \`stable\` using the
+          tree-replacing merge pattern.
+
+          On merge, \`tag-on-stable-push.yml\` automatically pushes
+          the \`$VERSION\` tag and creates the draft GitHub release.
+          The tag push also fans out to LUCI and Cloud Build. See
+          RFC-0022.
+
+          **Merge with "Create a merge commit"** so the two-parent
+          merge commit (parent1=\`stable\`, parent2=\`canary\`) survives
+          into \`stable\`'s history.
+          EOF
+          )"
+          echo "::notice::Opened PR from $BRANCH → stable."
