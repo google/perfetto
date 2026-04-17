@@ -39,7 +39,6 @@ import {
   convertTraceToJson,
   convertTraceToSystrace,
   downloadTrace,
-  openCurrentTraceWithOldUI,
   toggleMetatrace,
 } from './trace_actions';
 import {shareTrace} from './trace_share_utils';
@@ -561,15 +560,6 @@ function getConvertTraceItems(trace: TraceImpl): SidebarMenuItemInternal[] {
   const downloadDisabled = trace.traceInfo.downloadable
     ? false
     : 'Cannot download external trace';
-
-  items.push({
-    id: 'perfetto.LegacyUI',
-    section: 'convert_trace',
-    text: 'Switch to legacy UI',
-    action: async () => await openCurrentTraceWithOldUI(trace),
-    icon: 'filter_none',
-    disabled: downloadDisabled,
-  });
 
   items.push({
     id: 'perfetto.ConvertToJson',

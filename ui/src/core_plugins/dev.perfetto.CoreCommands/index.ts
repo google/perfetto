@@ -32,11 +32,6 @@ import {
 } from '../../core/state_serialization';
 import {TraceImpl} from '../../core/trace_impl';
 import {trackMatchesFilter} from '../../core/track_manager';
-import {
-  isLegacyTrace,
-  openFileWithLegacyTraceViewer,
-  openInOldUIWithSizeCheck,
-} from '../../frontend/legacy_trace_viewer';
 import {shareTrace} from '../../frontend/trace_share_utils';
 import {PerfettoPlugin} from '../../public/plugin';
 import {DurationPrecision, TimestampFormat} from '../../public/timeline';
@@ -114,13 +109,6 @@ group by
  c.name
 order by total_self_size desc
 limit 100;`;
-
-const SHOW_OPEN_WITH_LEGACY_UI_BUTTON = featureFlags.register({
-  id: 'showOpenWithLegacyUiButton',
-  name: 'Show "Open with legacy UI" button',
-  description: 'Show "Open with legacy UI" button in the sidebar',
-  defaultValue: false,
-});
 
 function getOrPromptForTimestamp(tsRaw: unknown): time | undefined {
   if (exists(tsRaw)) {
@@ -246,7 +234,6 @@ export default class CoreCommands implements PerfettoPlugin {
       id: OPEN_TRACE_COMMAND_ID,
       name: 'Open trace file',
       callback: () => {
-        delete input.dataset['useCatapultLegacyUi'];
         input.click();
       },
       defaultHotkey: '!Mod+O',
@@ -257,23 +244,6 @@ export default class CoreCommands implements PerfettoPlugin {
       icon: 'folder_open',
       sortOrder: 1,
     });
-
-    const OPEN_LEGACY_COMMAND_ID = 'dev.perfetto.OpenTraceInLegacyUi';
-    ctx.commands.registerCommand({
-      id: OPEN_LEGACY_COMMAND_ID,
-      name: 'Open with legacy UI',
-      callback: () => {
-        input.dataset['useCatapultLegacyUi'] = '1';
-        input.click();
-      },
-    });
-    if (SHOW_OPEN_WITH_LEGACY_UI_BUTTON.get()) {
-      ctx.sidebar.addMenuItem({
-        commandId: OPEN_LEGACY_COMMAND_ID,
-        section: 'trace_files',
-        icon: 'filter_none',
-      });
-    }
 
     ctx.commands.registerCommand({
       id: 'dev.perfetto.CloseTrace',
@@ -904,23 +874,6 @@ function onInputElementFileSelectionChanged(e: Event) {
   // Reset the value so onchange will be fired with the same file.
   e.target.value = '';
 
-  if (e.target.dataset['useCatapultLegacyUi'] === '1') {
-    openWithLegacyUi(file);
-    return;
-  }
-
   AppImpl.instance.analytics.logEvent('Trace Actions', 'Open trace from file');
   AppImpl.instance.openTraceFromFile(file);
-}
-
-async function openWithLegacyUi(file: File) {
-  // Switch back to the old catapult UI.
-  AppImpl.instance.analytics.logEvent(
-    'Trace Actions',
-    'Open trace in Legacy UI',
-  );
-  if (await isLegacyTrace(file)) {
-    return await openFileWithLegacyTraceViewer(file);
-  }
-  return await openInOldUIWithSizeCheck(file);
 }
