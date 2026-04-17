@@ -95,7 +95,15 @@ class RwProtoCursor {
 
   StatusOr<void> Delete();
 
+  bool IsRepeated() const;
+
  private:
+  struct ParentLink {
+    Node* node;
+    IntrusiveMap* map;
+    Node::MapNode* map_node;
+  };
+
   StatusOr<void> ConvertToMessageIfNeeded(Node* node);
   StatusOr<OwnedPtr<Node>> CreateNodeFromField(protozero::Field field);
   StatusOr<void> ConvertToMappedRepeatedFieldIfNeeded(
@@ -116,7 +124,7 @@ class RwProtoCursor {
   StatusOr<uint64_t> ReadScalarField(const Node& node, uint32_t field_id);
 
   Node* node_ = nullptr;
-  std::pair<IntrusiveMap*, Node::MapNode*> holding_map_and_node_ = {};
+  ParentLink parent_link_ = {};
   Allocator* allocator_ = nullptr;
 };
 
