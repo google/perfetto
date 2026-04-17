@@ -129,12 +129,9 @@ DEPS_ALLOWLIST = [
         '/public/*',
         '/frontend/theme_provider',
         '/core/live_reload',
-        '/core/raf_scheduler',
         '/core/local_storage',
         '/core/omnibox_manager',
         '/core/command_manager',
-        '/plugins/dev.perfetto.QueryPage/table_list',
-        '/plugins/dev.perfetto.SqlModules/sql_modules',
     ]),
 
     # TODO(primiano): misc tech debt.

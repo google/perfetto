@@ -34,7 +34,7 @@ import {DataSource} from '../../components/widgets/datagrid/data_source';
 import {queryHistoryStorage} from '../query/query_history_storage';
 import {QueryHistoryComponent} from '../query/query_history';
 import {sqlTablesLoader} from '../query/sql_tables';
-import {TableList} from '../../plugins/dev.perfetto.QueryPage/table_list';
+import {TableList} from '../query/table_list';
 import {Spinner} from '../../widgets/spinner';
 import {SettingFilter} from '../settings/settings_types';
 import {bigTraceSettingsStorage} from '../settings/bigtrace_settings_storage';

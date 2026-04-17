@@ -22,7 +22,7 @@ import {
   SqlFunction,
   SqlTableFunction,
   SqlMacro,
-} from '../../plugins/dev.perfetto.SqlModules/sql_modules';
+} from './sql_modules';
 import {TableColumn} from '../../components/widgets/sql/table/table_column';
 import {SqlTableDefinition} from '../../components/widgets/sql/table/table_description';
 import {
