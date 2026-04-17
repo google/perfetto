@@ -34,13 +34,14 @@ permissions:
 jobs:
   promote-stable:
     runs-on: ubuntu-latest
-    environment: stable
+    environment: push-to-stable-canary
     steps:
       - name: Checkout stable
         uses: actions/checkout@v4
         with:
           ref: stable
           fetch-depth: 0
+          ssh-key: ${{ secrets.ACTIONS_WRITE_DEPLOY_KEY_DANGEROUS }}
 
       - name: Fetch canary
         run: git fetch origin canary
