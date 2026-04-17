@@ -38,7 +38,6 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
-#include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_window_function.h"
@@ -426,7 +425,7 @@ class PerfettoSqlEngine {
   StaticTableFunctionModule::Context* static_table_fn_context_ = nullptr;
   DataframeModule::Context* dataframe_context_ = nullptr;
   base::FlatHashMap<std::string, sql_modules::RegisteredPackage> packages_;
-  base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro> macros_;
+  base::FlatHashMap<std::string, PerfettoSqlParser::Macro> macros_;
 
   // Registry of intrinsic functions that can be aliased
   // Maps intrinsic_name -> (function_ptr, argc, ctx, deterministic)

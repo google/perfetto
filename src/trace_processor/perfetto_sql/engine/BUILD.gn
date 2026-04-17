@@ -46,7 +46,6 @@ source_set("engine") {
     "../../util:sql_argument",
     "../../util:stdlib",
     "../parser",
-    "../preprocessor",
     "../tokenizer",
   ]
 }
