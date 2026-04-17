@@ -187,6 +187,42 @@ TEST_F(SliceTrackerTest, OneSliceWithArgs) {
   EXPECT_EQ(ar1.int_value(), 20);
 }
 
+TEST_F(SliceTrackerTest, Update) {
+  SliceTracker tracker(&context_);
+
+  constexpr TrackId track{22u};
+  tracker.Begin(2 /*ts*/, track, kNullStringId /*cat*/,
+                StringId::Raw(1) /*name*/);
+  tracker.Update(5 /*ts*/, track, kNullStringId /*cat*/,
+                 StringId::Raw(1) /*name*/,
+                 [](ArgsTracker::BoundInserter* inserter) {
+                   inserter->AddArg(/*flat_key=*/StringId::Raw(1),
+                                    /*key=*/StringId::Raw(2),
+                                    /*v=*/Variadic::Integer(10));
+                 });
+  tracker.End(10 /*ts*/, track, kNullStringId /*cat*/,
+              StringId::Raw(1) /*name*/);
+
+  const auto& slices = context_.storage->slice_table();
+  EXPECT_EQ(slices.row_count(), 1u);
+
+  auto sr = slices[0];
+  EXPECT_EQ(sr.ts(), 2);
+  EXPECT_EQ(sr.dur(), 8);
+  EXPECT_EQ(sr.track_id(), track);
+  EXPECT_EQ(sr.category().value_or(kNullStringId).raw_id(), 0u);
+  EXPECT_EQ(sr.name().value_or(kNullStringId).raw_id(), 1u);
+
+  auto set_id = sr.arg_set_id();
+  const auto& args = context_.storage->arg_table();
+  EXPECT_EQ(args.row_count(), 1u);
+  auto ar0 = args[0];
+  EXPECT_EQ(ar0.arg_set_id(), set_id);
+  EXPECT_EQ(ar0.flat_key().raw_id(), 1u);
+  EXPECT_EQ(ar0.key().raw_id(), 2u);
+  EXPECT_EQ(ar0.int_value(), 10);
+}
+
 TEST_F(SliceTrackerTest, OneSliceWithArgsWithTranslatedName) {
   SliceTracker tracker(&context_);
 
