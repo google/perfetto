@@ -111,10 +111,11 @@
 
     - [Android Data Sources](#)
 
+      - [Android Aflags](data-sources/android-aflags.md)
       - [Atrace](data-sources/atrace.md)
-      - [Logcat](data-sources/android-log.md)
-      - [Frame Timeline](data-sources/frametimeline.md)
       - [Battery counters and rails](data-sources/battery-counters.md)
+      - [Frame Timeline](data-sources/frametimeline.md)
+      - [Logcat](data-sources/android-log.md)
       - [Other data sources](data-sources/android-game-intervention-list.md)
 
   - [Trace Format Reference](#)
