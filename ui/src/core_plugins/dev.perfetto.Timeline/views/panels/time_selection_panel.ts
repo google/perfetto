@@ -13,14 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {canvasClip} from '../../base/canvas_utils';
-import {Size2D} from '../../base/geom';
-import {assertUnreachable} from '../../base/assert';
-import {time, Time} from '../../base/time';
-import {TimeScale} from '../../base/time_scale';
-import {formatDuration} from '../../components/time_utils';
-import {TraceImpl} from '../../core/trace_impl';
-import {TimestampFormat} from '../../public/timeline';
+import {canvasClip} from '../../../../base/canvas_utils';
+import {Size2D} from '../../../../base/geom';
+import {assertUnreachable} from '../../../../base/assert';
+import {time, Time} from '../../../../base/time';
+import {TimeScale} from '../../../../base/time_scale';
+import {formatDuration} from '../../../../components/time_utils';
+import {TraceImpl} from '../../../../core/trace_impl';
+import {TimestampFormat} from '../../../../public/timeline';
 import {
   COLOR_BACKGROUND,
   FONT_COMPACT,
@@ -28,8 +28,8 @@ import {
   COLOR_BORDER,
   TRACK_SHELL_WIDTH,
   COLOR_TEXT,
-} from '../../frontend/css_constants';
-import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
+} from '../../../../frontend/css_constants';
+import {generateTicks, getMaxMajorTicks, TickType} from '../../gridline_helper';
 
 export interface BBox {
   x: number;

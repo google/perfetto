@@ -13,22 +13,22 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {raf} from '../../core/raf_scheduler';
-import {TraceImpl} from '../../core/trace_impl';
-import {DetailsShell} from '../../widgets/details_shell';
-import {EmptyState} from '../../widgets/empty_state';
-import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
-import {Section} from '../../widgets/section';
-import {Tree, TreeNode} from '../../widgets/tree';
+import {raf} from '../../../core/raf_scheduler';
+import {TraceImpl} from '../../../core/trace_impl';
+import {DetailsShell} from '../../../widgets/details_shell';
+import {EmptyState} from '../../../widgets/empty_state';
+import {GridLayout, GridLayoutColumn} from '../../../widgets/grid_layout';
+import {Section} from '../../../widgets/section';
+import {Tree, TreeNode} from '../../../widgets/tree';
 import {
   AreaSelection,
   NoteSelection,
   TrackSelection,
-} from '../../public/selection';
-import {assertUnreachable} from '../../base/assert';
-import {Button, ButtonBar} from '../../widgets/button';
+} from '../../../public/selection';
+import {assertUnreachable} from '../../../base/assert';
+import {Button, ButtonBar} from '../../../widgets/button';
 import {NoteEditor} from './note_editor';
-import {Gate} from '../../base/mithril_utils';
+import {Gate} from '../../../base/mithril_utils';
 
 export interface CurrentSelectionTabAttrs {
   readonly trace: TraceImpl;

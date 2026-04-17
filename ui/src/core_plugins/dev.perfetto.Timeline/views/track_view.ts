@@ -23,53 +23,29 @@
  */
 
 import m from 'mithril';
-import {classNames} from '../../base/classnames';
-import {Bounds2D, Rect2D, Size2D, VerticalBounds} from '../../base/geom';
-import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
-import {Icons} from '../../base/semantic_icons';
-import {TimeScale} from '../../base/time_scale';
-import {RequiredField} from '../../base/utils';
-import {PerfStats, runningStatStr} from '../../core/perf_stats';
-import {raf} from '../../core/raf_scheduler';
-import {TraceImpl} from '../../core/trace_impl';
-import {TrackWrapper} from '../../core/track_manager';
-import {TrackRenderer, Track} from '../../public/track';
-import {TrackNode, Workspace} from '../../public/workspace';
-import {Button} from '../../widgets/button';
-import {MenuDivider, MenuItem, MenuTitle, PopupMenu} from '../../widgets/menu';
-import {renderTrackSettingMenu} from '../../components/track_settings_renderer';
-import {TrackShell} from '../../widgets/track_shell';
-import {Tree, TreeNode} from '../../widgets/tree';
-import {COLOR_ACCENT} from '../../frontend/css_constants';
-import {calculateResolution} from '../../base/resolution';
-import {Trace} from '../../public/trace';
-import {Anchor, linkify} from '../../widgets/anchor';
-import {showModal} from '../../widgets/modal';
-import {Popup} from '../../widgets/popup';
-import {CanvasColors} from '../../public/canvas_colors';
-import {CodeSnippet} from '../../widgets/code_snippet';
-import {Renderer} from '../../base/renderer';
-
-function getTrackHeight(
-  node: TrackNode,
-  minTrackHeight: number,
-  track?: TrackRenderer,
-) {
-  // Headless tracks have an effective height of 0.
-  if (node.headless) return 0;
-
-  // Expanded summary tracks don't show any data, so make them a little more
-  // compact to save space.
-  if (node.isSummary && node.expanded) return minTrackHeight;
-
-  const trackHeight = track?.getHeight?.();
-  if (trackHeight === undefined) return minTrackHeight;
-
-  // Limit the minimum height of a track, and also round up to the nearest
-  // integer, as sub-integer DOM alignment can cause issues e.g. with sticky
-  // positioning.
-  return Math.ceil(Math.max(trackHeight, minTrackHeight));
-}
+import {classNames} from '../../../base/classnames';
+import {Bounds2D, Rect2D, Size2D, VerticalBounds} from '../../../base/geom';
+import {HighPrecisionTimeSpan} from '../../../base/high_precision_time_span';
+import {Icons} from '../../../base/semantic_icons';
+import {TimeScale} from '../../../base/time_scale';
+import {RequiredField} from '../../../base/utils';
+import {PerfStats, runningStatStr} from '../../../core/perf_stats';
+import {raf} from '../../../core/raf_scheduler';
+import {TraceImpl} from '../../../core/trace_impl';
+import {TrackWrapper} from '../../../core/track_manager';
+import {Track} from '../../../public/track';
+import {TrackNode} from '../../../public/workspace';
+import {Button} from '../../../widgets/button';
+import {PopupMenu} from '../../../widgets/menu';
+import {TrackShell} from '../../../widgets/track_shell';
+import {COLOR_ACCENT} from '../../../frontend/css_constants';
+import {calculateResolution} from '../../../base/resolution';
+import {linkify} from '../../../widgets/anchor';
+import {showModal} from '../../../widgets/modal';
+import {Popup} from '../../../widgets/popup';
+import {CanvasColors} from '../../../public/canvas_colors';
+import {Renderer} from '../../../base/renderer';
+import {TrackMenu} from './track_menu';
 
 export interface TrackViewAttrs {
   // Render a lighter version of this track view (for when tracks are offscreen).
@@ -102,6 +78,7 @@ export class TrackView {
 
   private readonly trace: TraceImpl;
   private readonly descriptor?: Track;
+  private readonly minTrackHeight: number;
 
   constructor(
     trace: TraceImpl,
@@ -111,15 +88,15 @@ export class TrackView {
   ) {
     this.trace = trace;
     this.node = node;
+    this.minTrackHeight = minTrackHeight;
 
     if (node.uri) {
       this.descriptor = trace.tracks.getTrack(node.uri);
       this.renderer = this.trace.tracks.getWrappedTrack(node.uri);
     }
 
-    const heightPx = getTrackHeight(node, minTrackHeight, this.renderer?.track);
-    this.height = heightPx;
-    this.verticalBounds = {top, bottom: top + heightPx};
+    this.height = this.calcTrackHeight();
+    this.verticalBounds = {top, bottom: top + this.height};
   }
 
   renderDOM(attrs: TrackViewAttrs, children: m.Children) {
@@ -340,6 +317,27 @@ export class TrackView {
     );
   }
 
+  private calcTrackHeight() {
+    const node = this.node;
+    const minTrackHeight = this.minTrackHeight;
+    const track = this.renderer?.track;
+
+    // Headless tracks have an effective height of 0.
+    if (node.headless) return 0;
+
+    // Expanded summary tracks don't show any data, so make them a little more
+    // compact to save space.
+    if (node.isSummary && node.expanded) return minTrackHeight;
+
+    const trackHeight = track?.getHeight?.();
+    if (trackHeight === undefined) return minTrackHeight;
+
+    // Limit the minimum height of a track, and also round up to the nearest
+    // integer, as sub-integer DOM alignment can cause issues e.g. with sticky
+    // positioning.
+    return Math.ceil(Math.max(trackHeight, minTrackHeight));
+  }
+
   private renderCloseButton() {
     return m(Button, {
       // TODO(stevegolton): It probably makes sense to only show this button
@@ -399,7 +397,7 @@ export class TrackView {
       // Putting these menu items inside a component means that view is only
       // called when the popup is actually open, which can improve DOM
       // render performance when we have thousands of tracks on screen.
-      m(TrackPopupMenu, {
+      m(TrackMenu, {
         trace: this.trace,
         node: this.node,
         descriptor: this.descriptor,
@@ -588,183 +586,4 @@ export class TrackView {
     const statStr = `Track ${this.node.id} | ` + runningStatStr(renderStats);
     ctx.fillText(statStr, size.width - statW, size.height - 10);
   }
-}
-
-interface TrackPopupMenuAttrs {
-  readonly trace: Trace;
-  readonly node: TrackNode;
-  readonly descriptor?: Track;
-}
-
-// This component contains the track menu items which are displayed inside a
-// popup menu on each track. They're in a component to avoid having to render
-// them every single mithril cycle.
-const TrackPopupMenu = {
-  view({attrs}: m.Vnode<TrackPopupMenuAttrs>) {
-    return [
-      m(MenuItem, {
-        label: 'Select track',
-        icon: 'select',
-        disabled: !attrs.node.uri,
-        onclick: () => {
-          attrs.trace.selection.selectTrack(attrs.node.uri!);
-        },
-        title: attrs.node.uri
-          ? 'Select track'
-          : 'Track has no URI and cannot be selected',
-      }),
-      m(
-        MenuItem,
-        {label: 'Track details', icon: 'info'},
-        renderTrackDetailsMenu(attrs.node, attrs.descriptor),
-      ),
-      m(MenuDivider),
-      m(
-        MenuItem,
-        {label: 'Copy to workspace', icon: 'content_copy'},
-        attrs.trace.workspaces.all.map((ws) =>
-          m(MenuItem, {
-            label: ws.title,
-            disabled: !ws.userEditable,
-            onclick: () => copyToWorkspace(attrs.trace, attrs.node, ws),
-          }),
-        ),
-        m(MenuDivider),
-        m(MenuItem, {
-          label: 'New workspace...',
-          icon: 'add',
-          onclick: () => copyToWorkspace(attrs.trace, attrs.node),
-        }),
-      ),
-      m(
-        MenuItem,
-        {label: 'Copy & switch to workspace', icon: 'content_copy'},
-        attrs.trace.workspaces.all.map((ws) =>
-          m(MenuItem, {
-            label: ws.title,
-            disabled: !ws.userEditable,
-            onclick: async () => {
-              copyToWorkspace(attrs.trace, attrs.node, ws);
-              attrs.trace.workspaces.switchWorkspace(ws);
-            },
-          }),
-        ),
-        m(MenuDivider),
-        m(MenuItem, {
-          label: 'New workspace...',
-          icon: 'add',
-          onclick: async () => {
-            const ws = copyToWorkspace(attrs.trace, attrs.node);
-            attrs.trace.workspaces.switchWorkspace(ws);
-          },
-        }),
-      ),
-      m(MenuDivider),
-      m(MenuItem, {
-        label: 'Rename',
-        icon: 'edit',
-        disabled: !attrs.node.workspace?.userEditable,
-        onclick: async () => {
-          const newName = await attrs.trace.omnibox.prompt('New name');
-          if (newName) {
-            attrs.node.name = newName;
-          }
-        },
-      }),
-      m(MenuItem, {
-        label: 'Remove',
-        icon: 'delete',
-        disabled: !attrs.node.workspace?.userEditable,
-        onclick: () => {
-          attrs.node.remove();
-        },
-      }),
-      ...renderTrackSettings(attrs.descriptor),
-    ];
-  },
-};
-
-function renderTrackSettings(descriptor?: Track): m.Children[] {
-  const settings = descriptor?.renderer.settings;
-  if (!settings || settings.length === 0) return [];
-  return [
-    m(MenuDivider),
-    m(MenuTitle, {label: 'Settings'}),
-    ...settings.map((setting) =>
-      renderTrackSettingMenu(setting.descriptor, (v) => setting.update(v), [
-        setting.value,
-      ]),
-    ),
-  ];
-}
-
-function copyToWorkspace(trace: Trace, node: TrackNode, ws?: Workspace) {
-  // If no workspace provided, create a new one.
-  if (!ws) {
-    ws = trace.workspaces.createEmptyWorkspace('Untitled Workspace');
-  }
-  // Deep clone makes sure all group's content is also copied
-  const newNode = node.clone(true);
-  newNode.removable = true;
-  ws.addChildLast(newNode);
-  return ws;
-}
-
-function renderTrackDetailsMenu(node: TrackNode, descriptor?: Track) {
-  const fullPath = node.fullPath.join(' \u2023 ');
-  const query = descriptor?.renderer.getDataset?.()?.query();
-
-  return m(
-    '.pf-track__track-details-popup',
-    m(
-      Tree,
-      m(TreeNode, {left: 'Track Node ID', right: node.id}),
-      m(TreeNode, {left: 'Collapsed', right: `${node.collapsed}`}),
-      m(TreeNode, {left: 'URI', right: node.uri}),
-      m(TreeNode, {
-        left: 'Is Summary Track',
-        right: `${node.isSummary}`,
-      }),
-      m(TreeNode, {
-        left: 'SortOrder',
-        right: node.sortOrder ?? '0 (undefined)',
-      }),
-      m(TreeNode, {left: 'Path', right: fullPath}),
-      m(TreeNode, {left: 'Name', right: node.name}),
-      m(TreeNode, {
-        left: 'Workspace',
-        right: node.workspace?.title ?? '[no workspace]',
-      }),
-      descriptor &&
-        m(TreeNode, {
-          left: 'Plugin ID',
-          right: descriptor.pluginId,
-        }),
-      query &&
-        m(TreeNode, {
-          left: 'Track Query',
-          right: m(
-            Anchor,
-            {
-              onclick: () => {
-                showModal({
-                  title: 'Query for track',
-                  content: () => m(CodeSnippet, {text: query, language: 'SQL'}),
-                });
-              },
-            },
-            'Show query',
-          ),
-        }),
-      descriptor &&
-        m(
-          TreeNode,
-          {left: 'Tags'},
-          descriptor.tags &&
-            Object.entries(descriptor.tags).map(([key, value]) => {
-              return m(TreeNode, {left: key, right: value?.toString()});
-            }),
-        ),
-    ),
-  );
 }

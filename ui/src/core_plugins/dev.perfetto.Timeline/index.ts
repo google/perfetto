@@ -19,7 +19,7 @@ import {TraceImpl} from '../../core/trace_impl';
 import {Flag} from '../../public/feature_flag';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Setting} from '../../public/settings';
-import {TimelinePage} from './timeline_page';
+import {TimelinePage} from './views/timeline_page';
 
 const DEFAULT_TRACK_MIN_HEIGHT_PX = 18;
 const MINIMUM_TRACK_MIN_HEIGHT_PX = 18;

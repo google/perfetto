@@ -13,18 +13,18 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {assertUnreachable} from '../../base/assert';
-import {Icons} from '../../base/semantic_icons';
-import {Timestamp} from '../../components/widgets/timestamp';
-import {TraceImpl} from '../../core/trace_impl';
-import {Note, SpanNote} from '../../public/note';
-import {NoteSelection} from '../../public/selection';
-import {Button} from '../../widgets/button';
-import {TextInput, TextInputAttrs} from '../../widgets/text_input';
-import {Tree, TreeNode} from '../../widgets/tree';
-import {DetailsShell} from '../../widgets/details_shell';
-import {Section} from '../../widgets/section';
-import {GridLayout} from '../../widgets/grid_layout';
+import {assertUnreachable} from '../../../base/assert';
+import {Icons} from '../../../base/semantic_icons';
+import {Timestamp} from '../../../components/widgets/timestamp';
+import {TraceImpl} from '../../../core/trace_impl';
+import {Note, SpanNote} from '../../../public/note';
+import {NoteSelection} from '../../../public/selection';
+import {Button} from '../../../widgets/button';
+import {TextInput, TextInputAttrs} from '../../../widgets/text_input';
+import {Tree, TreeNode} from '../../../widgets/tree';
+import {DetailsShell} from '../../../widgets/details_shell';
+import {Section} from '../../../widgets/section';
+import {GridLayout} from '../../../widgets/grid_layout';
 
 function getStartTimestamp(note: Note | SpanNote) {
   const noteType = note.noteType;

@@ -24,30 +24,30 @@
 
 import {hex} from 'color-convert';
 import m from 'mithril';
-import {classNames} from '../../base/classnames';
-import {DisposableStack} from '../../base/disposable_stack';
-import {findRef, toHTMLElement} from '../../base/dom_utils';
+import {classNames} from '../../../base/classnames';
+import {DisposableStack} from '../../../base/disposable_stack';
+import {findRef, toHTMLElement} from '../../../base/dom_utils';
 import {
   HorizontalBounds,
   Rect2D,
   Size2D,
   Transform1D,
   VerticalBounds,
-} from '../../base/geom';
-import {HighPrecisionTime} from '../../base/high_precision_time';
-import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
-import {assertExists} from '../../base/assert';
-import {Time, TimeSpan} from '../../base/time';
-import {TimeScale} from '../../base/time_scale';
+} from '../../../base/geom';
+import {HighPrecisionTime} from '../../../base/high_precision_time';
+import {HighPrecisionTimeSpan} from '../../../base/high_precision_time_span';
+import {assertExists} from '../../../base/assert';
+import {Time, TimeSpan} from '../../../base/time';
+import {TimeScale} from '../../../base/time_scale';
 import {
   DragEvent,
   ZonedInteractionHandler,
-} from '../../base/zoned_interaction_handler';
-import {PerfStats, runningStatStr} from '../../core/perf_stats';
-import {TraceImpl} from '../../core/trace_impl';
-import {TrackNode} from '../../public/workspace';
-import {SnapPoint} from '../../public/track';
-import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
+} from '../../../base/zoned_interaction_handler';
+import {PerfStats, runningStatStr} from '../../../core/perf_stats';
+import {TraceImpl} from '../../../core/trace_impl';
+import {TrackNode} from '../../../public/workspace';
+import {SnapPoint} from '../../../public/track';
+import {VirtualOverlayCanvas} from '../../../widgets/virtual_overlay_canvas';
 import {
   COLOR_ACCENT,
   COLOR_BACKGROUND,
@@ -59,23 +59,23 @@ import {
   COLOR_TEXT_MUTED,
   COLOR_TIMELINE_OVERLAY,
   TRACK_SHELL_WIDTH,
-} from '../../frontend/css_constants';
-import {renderFlows} from './flow_events_renderer';
-import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
+} from '../../../frontend/css_constants';
+import {renderFlows} from '../flow_events_renderer';
+import {generateTicks, getMaxMajorTicks, TickType} from '../gridline_helper';
 import {
   shiftDragPanInteraction,
   wheelNavigationInteraction,
-} from './timeline_interactions';
+} from '../timeline_interactions';
 import {TrackView} from './track_view';
-import {drawVerticalLineAtTime} from '../../base/vertical_line_helper';
-import {featureFlags} from '../../core/feature_flags';
-import {EmptyState} from '../../widgets/empty_state';
-import {Button, ButtonVariant} from '../../widgets/button';
-import {Intent} from '../../widgets/common';
-import {CursorTooltip} from '../../widgets/cursor_tooltip';
-import {CanvasColors} from '../../public/canvas_colors';
-import {Icons} from '../../base/semantic_icons';
-import {Renderer} from '../../base/renderer';
+import {drawVerticalLineAtTime} from '../../../base/vertical_line_helper';
+import {featureFlags} from '../../../core/feature_flags';
+import {EmptyState} from '../../../widgets/empty_state';
+import {Button, ButtonVariant} from '../../../widgets/button';
+import {Intent} from '../../../widgets/common';
+import {CursorTooltip} from '../../../widgets/cursor_tooltip';
+import {CanvasColors} from '../../../public/canvas_colors';
+import {Icons} from '../../../base/semantic_icons';
+import {Renderer} from '../../../base/renderer';
 
 const VIRTUAL_TRACK_SCROLLING = featureFlags.register({
   id: 'virtualTrackScrolling',
@@ -120,7 +120,7 @@ function cssColorToRgba(cssColor: string): number {
   return packed;
 }
 
-export interface TrackTreeViewAttrs {
+export interface TrackTreeAttrs {
   // Access to the trace, for accessing the track registry / selection manager.
   readonly trace: TraceImpl;
 
@@ -156,7 +156,7 @@ export interface TrackTreeViewAttrs {
 
 const TRACK_CONTAINER_REF = 'track-container';
 
-export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
+export class TrackTree implements m.ClassComponent<TrackTreeAttrs> {
   private readonly trace: TraceImpl;
   private readonly trash = new DisposableStack();
   private interactions?: ZonedInteractionHandler;
@@ -173,13 +173,13 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
   private currentSnapPoint?: SnapPoint;
   private snapEnabled = SNAP_ENABLED_DEFAULT;
 
-  constructor({attrs}: m.Vnode<TrackTreeViewAttrs>) {
+  constructor({attrs}: m.Vnode<TrackTreeAttrs>) {
     this.trace = attrs.trace;
   }
 
   private hoveredTrackNode?: TrackNode;
 
-  view({attrs}: m.Vnode<TrackTreeViewAttrs>): m.Children {
+  view({attrs}: m.Vnode<TrackTreeAttrs>): m.Children {
     const {
       trace,
       scrollToNewTracks,
@@ -373,7 +373,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     return m(CursorTooltip, {className: 'pf-track__tooltip'}, tooltipNodes);
   }
 
-  oncreate(vnode: m.VnodeDOM<TrackTreeViewAttrs>) {
+  oncreate(vnode: m.VnodeDOM<TrackTreeAttrs>) {
     this.trash.use(
       vnode.attrs.trace.perfDebugging.addContainer({
         setPerfStatsEnabled: (enable: boolean) => {
@@ -395,7 +395,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     this.onupdate(vnode);
   }
 
-  onupdate({dom}: m.VnodeDOM<TrackTreeViewAttrs>) {
+  onupdate({dom}: m.VnodeDOM<TrackTreeAttrs>) {
     // Depending on the state of the filter/workspace, we sometimes have a
     // TRACK_CONTAINER_REF element and sometimes we don't (see the view
     // function). This means the DOM element could potentially appear/disappear

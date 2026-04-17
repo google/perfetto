@@ -13,25 +13,25 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {canvasClip} from '../../base/canvas_utils';
-import {Size2D} from '../../base/geom';
-import {assertUnreachable} from '../../base/assert';
-import {Time, time, formatDate} from '../../base/time';
-import {TimeScale} from '../../base/time_scale';
-import {TimestampFormat} from '../../public/timeline';
-import {Trace} from '../../public/trace';
+import {canvasClip} from '../../../../base/canvas_utils';
+import {Size2D} from '../../../../base/geom';
+import {assertUnreachable} from '../../../../base/assert';
+import {Time, time, formatDate} from '../../../../base/time';
+import {TimeScale} from '../../../../base/time_scale';
+import {TimestampFormat} from '../../../../public/timeline';
+import {Trace} from '../../../../public/trace';
 import {
   FONT_COMPACT,
   COLOR_TEXT_MUTED,
   COLOR_BORDER,
   TRACK_SHELL_WIDTH,
-} from '../../frontend/css_constants';
+} from '../../../../frontend/css_constants';
 import {
   generateTicks,
   getMaxMajorTicks,
   MIN_PX_PER_STEP,
   TickType,
-} from './gridline_helper';
+} from '../../gridline_helper';
 
 export class TimeAxisPanel {
   readonly id = 'time-axis-panel';

@@ -13,24 +13,24 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {DisposableStack} from '../../base/disposable_stack';
-import {toHTMLElement} from '../../base/dom_utils';
-import {Rect2D} from '../../base/geom';
-import {TimeScale} from '../../base/time_scale';
-import {AppImpl} from '../../core/app_impl';
-import {raf} from '../../core/raf_scheduler';
-import {TraceImpl} from '../../core/trace_impl';
-import {trackMatchesFilter} from '../../core/track_manager';
-import {ResizeHandle} from '../../widgets/resize_handle';
+import {DisposableStack} from '../../../base/disposable_stack';
+import {toHTMLElement} from '../../../base/dom_utils';
+import {Rect2D} from '../../../base/geom';
+import {TimeScale} from '../../../base/time_scale';
+import {AppImpl} from '../../../core/app_impl';
+import {raf} from '../../../core/raf_scheduler';
+import {TraceImpl} from '../../../core/trace_impl';
+import {trackMatchesFilter} from '../../../core/track_manager';
+import {ResizeHandle} from '../../../widgets/resize_handle';
 import {
   setTrackShellWidth,
   TRACK_SHELL_WIDTH,
-} from '../../frontend/css_constants';
+} from '../../../frontend/css_constants';
 import {Minimap} from './minimap';
 import {TabPanel} from './tab_panel';
 import {TimelineHeader} from './timeline_header';
-import {TrackTreeView} from './track_tree_view';
-import {KeyboardNavigationHandler} from './wasd_navigation_handler';
+import {TrackTree} from './track_tree';
+import {KeyboardNavigationHandler} from '../wasd_navigation_handler';
 
 const MIN_TRACK_SHELL_WIDTH = 100;
 const MAX_TRACK_SHELL_WIDTH = 1000;
@@ -63,7 +63,7 @@ export class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
             // because it's always rendered.
             onTimelineBoundsChange: (rect) => (this.timelineBounds = rect),
           }),
-          AppImpl.instance.isLoadingTrace && [
+          !AppImpl.instance.isLoadingTrace && [
             this.renderPinnedTracks(trace, minTrackHeight),
             this.renderMainTracks(trace, minTrackHeight),
           ],
@@ -104,7 +104,7 @@ export class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
               ? {maxHeight: '40%'}
               : {height: `${this.pinnedTracksHeight}px`},
         },
-        m(TrackTreeView, {
+        m(TrackTree, {
           trace,
           rootNode: trace.currentWorkspace.pinnedTracksNode,
           canReorderNodes: true,
@@ -133,7 +133,7 @@ export class TimelinePage implements m.ClassComponent<TimelinePageAttrs> {
     trace: TraceImpl,
     minTrackHeight: number,
   ): m.Children {
-    return m(TrackTreeView, {
+    return m(TrackTree, {
       trace,
       className: 'pf-timeline-page__scrolling-track-tree',
       rootNode: trace.currentWorkspace.tracks,

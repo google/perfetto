@@ -13,23 +13,23 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Size2D} from '../../base/geom';
-import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
-import {assertExists, assertUnreachable} from '../../base/assert';
-import {Time, time, TimeSpan} from '../../base/time';
-import {TimeScale} from '../../base/time_scale';
-import {colorForCpu} from '../../components/colorizer';
-import {TraceImpl} from '../../core/trace_impl';
-import {TimestampFormat} from '../../public/timeline';
-import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
-import {COLOR_TEXT_MUTED, FONT_COMPACT, COLOR_BORDER} from '../../frontend/css_constants';
+import {Size2D} from '../../../base/geom';
+import {HighPrecisionTimeSpan} from '../../../base/high_precision_time_span';
+import {assertExists, assertUnreachable} from '../../../base/assert';
+import {Time, time, TimeSpan} from '../../../base/time';
+import {TimeScale} from '../../../base/time_scale';
+import {colorForCpu} from '../../../components/colorizer';
+import {TraceImpl} from '../../../core/trace_impl';
+import {TimestampFormat} from '../../../public/timeline';
+import {VirtualOverlayCanvas} from '../../../widgets/virtual_overlay_canvas';
+import {COLOR_TEXT_MUTED, FONT_COMPACT, COLOR_BORDER} from '../../../frontend/css_constants';
 import {
   generateTicks,
   getMaxMajorTicks,
   MIN_PX_PER_STEP,
   TickType,
-} from './gridline_helper';
-import {findRef} from '../../base/dom_utils';
+} from '../gridline_helper';
+import {findRef} from '../../../base/dom_utils';
 
 const HEADER_HEIGHT_PX = 20;
 const HANDLE_SIZE_PX = 5;

@@ -13,14 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {canvasClip} from '../../base/canvas_utils';
-import {Size2D} from '../../base/geom';
-import {TimeScale} from '../../base/time_scale';
-import {getOrCreate} from '../../base/utils';
-import {TraceImpl} from '../../core/trace_impl';
-import {COLOR_BORDER, TRACK_SHELL_WIDTH} from '../../frontend/css_constants';
-import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
-import {SearchOverviewTrack} from './search_overview_track';
+import {canvasClip} from '../../../../base/canvas_utils';
+import {Size2D} from '../../../../base/geom';
+import {TimeScale} from '../../../../base/time_scale';
+import {getOrCreate} from '../../../../base/utils';
+import {TraceImpl} from '../../../../core/trace_impl';
+import {COLOR_BORDER, TRACK_SHELL_WIDTH} from '../../../../frontend/css_constants';
+import {generateTicks, getMaxMajorTicks, TickType} from '../../gridline_helper';
+import {SearchOverviewTrack} from '../../search_overview_track';
 
 // We want to create the overview track only once per trace, but this
 // class can be delete and re-instantiated when switching between pages via

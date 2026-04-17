@@ -13,21 +13,29 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {findRef} from '../../base/dom_utils';
-import {Icons} from '../../base/semantic_icons';
-import {renderTrackSettingMenu} from '../../components/track_settings_renderer';
-import {TraceImpl} from '../../core/trace_impl';
-import {AreaSelection, Selection} from '../../public/selection';
-import {TrackSetting, TrackSettingDescriptor} from '../../public/track';
-import {TrackNode, Workspace} from '../../public/workspace';
-import {Button, ButtonVariant} from '../../widgets/button';
-import {MenuDivider, MenuItem, MenuTitle, PopupMenu} from '../../widgets/menu';
-import {MultiSelectOption, PopupMultiSelect} from '../../widgets/multiselect';
-import {Popup} from '../../widgets/popup';
-import {Stack, StackAuto} from '../../widgets/stack';
-import {TextInput} from '../../widgets/text_input';
-import {Intent} from '../../widgets/common';
-import {Callout} from '../../widgets/callout';
+import {findRef} from '../../../base/dom_utils';
+import {Icons} from '../../../base/semantic_icons';
+import {renderTrackSettingMenu} from '../../../components/track_settings_renderer';
+import {TraceImpl} from '../../../core/trace_impl';
+import {AreaSelection, Selection} from '../../../public/selection';
+import {TrackSetting, TrackSettingDescriptor} from '../../../public/track';
+import {TrackNode, Workspace} from '../../../public/workspace';
+import {Button, ButtonVariant} from '../../../widgets/button';
+import {Callout} from '../../../widgets/callout';
+import {Intent} from '../../../widgets/common';
+import {
+  MenuDivider,
+  MenuItem,
+  MenuTitle,
+  PopupMenu,
+} from '../../../widgets/menu';
+import {
+  MultiSelectOption,
+  PopupMultiSelect,
+} from '../../../widgets/multiselect';
+import {Popup} from '../../../widgets/popup';
+import {Stack, StackAuto} from '../../../widgets/stack';
+import {TextInput} from '../../../widgets/text_input';
 
 const FILTER_TEXT_BOX_REF = 'filter-text-box';
 const COMPACT_BUTTONS = true;

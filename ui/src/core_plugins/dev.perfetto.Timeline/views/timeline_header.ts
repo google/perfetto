@@ -13,27 +13,27 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {canvasSave} from '../../base/canvas_utils';
-import {DisposableStack} from '../../base/disposable_stack';
-import {toHTMLElement} from '../../base/dom_utils';
-import {Rect2D, Size2D} from '../../base/geom';
-import {assertExists} from '../../base/assert';
-import {TimeScale} from '../../base/time_scale';
-import {ZonedInteractionHandler} from '../../base/zoned_interaction_handler';
-import {TraceImpl} from '../../core/trace_impl';
+import {canvasSave} from '../../../base/canvas_utils';
+import {DisposableStack} from '../../../base/disposable_stack';
+import {toHTMLElement} from '../../../base/dom_utils';
+import {Rect2D, Size2D} from '../../../base/geom';
+import {assertExists} from '../../../base/assert';
+import {TimeScale} from '../../../base/time_scale';
+import {ZonedInteractionHandler} from '../../../base/zoned_interaction_handler';
+import {TraceImpl} from '../../../core/trace_impl';
 import {
   VirtualOverlayCanvas,
   VirtualOverlayCanvasDrawContext,
-} from '../../widgets/virtual_overlay_canvas';
-import {TRACK_SHELL_WIDTH} from '../../frontend/css_constants';
-import {NotesPanel} from './notes_panel';
-import {TickmarkPanel} from './tickmark_panel';
-import {TimeAxisPanel} from './time_axis_panel';
-import {TimeSelectionPanel} from './time_selection_panel';
+} from '../../../widgets/virtual_overlay_canvas';
+import {TRACK_SHELL_WIDTH} from '../../../frontend/css_constants';
+import {NotesPanel} from './panels/notes_panel';
+import {TickmarkPanel} from './panels/tickmark_panel';
+import {TimeAxisPanel} from './panels/time_axis_panel';
+import {TimeSelectionPanel} from './panels/time_selection_panel';
 import {
   shiftDragPanInteraction,
   wheelNavigationInteraction,
-} from './timeline_interactions';
+} from '../timeline_interactions';
 
 export interface TimelineHeaderAttrs {
   // The trace to use for timeline access et al.
