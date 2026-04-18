@@ -444,6 +444,11 @@ PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
                   int32_t,
                   implicit_cpu_time_reasons,
                   12);
+PERFETTO_PB_FIELD(perfetto_protos_AndroidProcessStateChangedEvent,
+                  VARINT,
+                  int32_t,
+                  freeze_policy_flags,
+                  13);
 
 PERFETTO_PB_MSG(perfetto_protos_AndroidBinderDiedEvent);
 PERFETTO_PB_FIELD(perfetto_protos_AndroidBinderDiedEvent,
