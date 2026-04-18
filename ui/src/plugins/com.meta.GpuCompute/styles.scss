@@ -1,0 +1,354 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// =============================================================================
+// GpuCompute plugin styles
+// =============================================================================
+
+// Colour tokens – map the old JS getPalette() to Perfetto CSS variables.
+// Dark / light switching is handled automatically.
+.pf-gpu-compute {
+  font-family: "Roboto Condensed", sans-serif;
+  font-size: 14px;
+  font-weight: 300;
+  padding: 20px;
+
+  // ------------------------------------------------------------------
+  // Metric result tables (details.ts – renderMetricResultTable)
+  // ------------------------------------------------------------------
+  &__metric-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  &__metric-table-caption {
+    text-align: left;
+    padding-bottom: 5px;
+    padding-top: 5px;
+  }
+
+  &__metric-col {
+    width: 25%;
+  }
+
+  &__metric-cell {
+    padding: 8px;
+    text-align: left;
+  }
+
+  &__metric-cell--right {
+    padding: 8px;
+    text-align: left;
+    border-left: 1px solid var(--pf-color-border);
+  }
+
+  &__metric-value {
+    padding: 8px;
+    text-align: right;
+  }
+
+  &__metric-row {
+    border-bottom: 1px solid var(--pf-color-border);
+
+    &:nth-child(odd) {
+      background: var(--pf-color-background);
+    }
+
+    &:nth-child(even) {
+      background: var(--pf-color-background-secondary);
+    }
+
+    &:hover {
+      background: var(--pf-color-background-hover);
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Section wrappers (details.ts – renderSectionList / WithAnalysis)
+  // ------------------------------------------------------------------
+  &__section {
+    border-bottom: 1px solid var(--pf-color-border);
+
+    .pf-track {
+      --track-shell-width: 100%;
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Percent bar (details.ts – renderPercentBar)
+  // ------------------------------------------------------------------
+  &__pct-bar {
+    position: relative;
+    height: 18px;
+    border: none;
+    background: transparent;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  &__pct-bar--dual {
+    position: relative;
+    height: 18px;
+    background: transparent;
+    border: none;
+    pointer-events: none;
+  }
+
+  &__pct-bar-track {
+    position: relative;
+    height: 9px;
+    overflow: hidden;
+  }
+
+  &__pct-bar-bg {
+    position: absolute;
+    inset: 0;
+    background: #4ca0dc;
+    opacity: 0.15;
+    z-index: 0;
+  }
+
+  &__pct-bar-fill {
+    position: absolute;
+    inset: 0;
+    background: #4ca0dc;
+    z-index: 1;
+  }
+
+  &__pct-bar-fill--baseline {
+    position: absolute;
+    inset: 0;
+    background: #22c55e;
+    z-index: 1;
+  }
+
+  &__pct-bar-label {
+    position: relative;
+    text-align: right;
+    z-index: 2;
+  }
+
+  &__pct-bar-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    z-index: 3;
+  }
+
+  // ------------------------------------------------------------------
+  // Warn icon popup (details.ts – WarnIconClickPopup)
+  // ------------------------------------------------------------------
+  &__warn-trigger {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+  }
+
+  &__inline-flex {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  // ------------------------------------------------------------------
+  // Empty / loading padding wrapper
+  // ------------------------------------------------------------------
+  &__pad {
+    padding: 20px;
+  }
+
+  // ------------------------------------------------------------------
+  // Summary table (summary.ts)
+  // ------------------------------------------------------------------
+  &__summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    border: 1px solid var(--pf-color-border);
+  }
+
+  &__summary-caption {
+    display: table-caption;
+    caption-side: top;
+    text-align: left;
+    padding: 5px 0;
+  }
+
+  &__summary-caption-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+  }
+
+  &__summary-thead-row {
+    background: var(--pf-color-track-summary-expanded);
+    color: var(--pf-color-track-summary-expanded-text);
+  }
+
+  &__summary-th {
+    padding: 8px;
+    border-right: 1px solid var(--pf-color-border);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  &__summary-th--no-left-border {
+    border-left: none;
+  }
+
+  &__summary-td {
+    padding: 8px;
+    border-left: 1px solid var(--pf-color-border);
+    border-right: 1px solid var(--pf-color-border);
+
+    &--name {
+      max-width: 400px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  &__summary-row {
+    color: var(--pf-color-text);
+    border-bottom: 1px solid var(--pf-color-border);
+
+    &:nth-child(odd) {
+      background: var(--pf-color-background);
+    }
+
+    &:nth-child(even) {
+      background: var(--pf-color-background-secondary);
+    }
+
+    &:hover {
+      background: var(--pf-color-background-hover);
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Toolbar (toolbar.ts)
+  // ------------------------------------------------------------------
+  &__toolbar-card {
+    padding: 20px;
+    display: grid;
+    grid-template-columns: repeat(8, auto);
+    row-gap: 6px;
+    column-gap: 8px;
+    margin: 8px 12px 12px;
+  }
+
+  &__toolbar-header {
+    font-weight: bold;
+  }
+
+  &__toolbar-size {
+    white-space: nowrap;
+  }
+
+  &__toolbar-swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15) inset;
+  }
+
+  &__toolbar-swatch--current {
+    background: #4ca0dc;
+  }
+
+  &__toolbar-swatch--baseline {
+    background: #22c55e;
+  }
+
+  &__toolbar-row-label {
+    justify-self: start;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__toolbar-secondary {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    row-gap: 6px;
+    column-gap: 8px;
+    margin: 8px 12px 0;
+  }
+
+  &__toolbar-divider {
+    border: 0;
+    border-top: 1px solid var(--pf-color-border);
+    margin: 0 0 12px 0;
+  }
+
+  &__toolbar-popup-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  &__toolbar-popup-spacer {
+    height: 8px;
+  }
+
+  &__toolbar-tab-strip {
+    display: flex;
+    align-items: baseline;
+
+    &__tabs {
+      display: flex;
+      overflow: hidden;
+      flex: 1;
+    }
+
+    &__tab {
+      color: var(--pf-color-text-muted);
+      padding: 4px;
+      margin-top: 3px;
+      align-items: center;
+      cursor: pointer;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      display: flex;
+      align-items: baseline;
+      gap: 2px;
+
+      &:hover {
+        background-color: color_hover(transparent);
+      }
+
+      &[active] {
+        color: var(--pf-color-primary);
+        border-bottom: solid 2px var(--pf-color-primary);
+        cursor: default;
+      }
+
+      &:nth-child(1) {
+        margin-left: 3px;
+      }
+    }
+
+    &__tab-title {
+      margin: 0px 4px;
+      overflow: hidden;
+    }
+  }
+}
