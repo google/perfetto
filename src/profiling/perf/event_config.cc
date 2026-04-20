@@ -100,6 +100,25 @@ std::optional<uint32_t> ReadPmuTypeFromSysfs(const std::string& pmu_name) {
   return base::StringToUInt32(base::TrimWhitespace(buf));
 }
 
+std::optional<uint64_t> ReadEventConfigFromSysfs(
+    const std::string& pmu_name,
+    const std::string& event_name) {
+  if (pmu_name.empty() || event_name.empty())
+    return std::nullopt;
+  if (base::Contains(pmu_name, '/') || base::StartsWith(pmu_name, ".."))
+    return std::nullopt;
+  if (base::Contains(event_name, '/') || base::StartsWith(event_name, ".."))
+    return std::nullopt;
+
+  std::string event_path =
+      "/sys/bus/event_source/devices/" + pmu_name + "/events/" + event_name;
+  std::string buf;
+  if (!base::ReadFile(event_path, &buf))
+    return std::nullopt;
+
+  return EventConfig::ParseEventConfigValue(buf);
+}
+
 // |T| is either gen::PerfEventConfig or gen::PerfEventConfig::Scope.
 // Note: the semantics of target_cmdline and exclude_cmdline were changed since
 // their original introduction. They used to be put through a canonicalization
@@ -321,6 +340,10 @@ std::optional<PerfCounter> MakePerfCounter(
         PERFETTO_ELOG("raw_event cannot specify both type and pmu_name.");
         return std::nullopt;
       }
+      if (!raw.event_name().empty() && raw.has_config()) {
+        PERFETTO_ELOG("raw_event cannot specify both config and event_name.");
+        return std::nullopt;
+      }
       std::optional<uint32_t> raw_type =
           raw.has_type() ? std::make_optional(raw.type())
                          : ReadPmuTypeFromSysfs(raw.pmu_name());
@@ -330,8 +353,18 @@ std::optional<PerfCounter> MakePerfCounter(
             "the profiler process has permissions to read from sysfs.");
         return std::nullopt;
       }
-      return PerfCounter::RawEvent(name, *raw_type, raw.config(), raw.config1(),
-                                   raw.config2());
+      std::optional<uint64_t> raw_config =
+          raw.has_config()
+              ? std::make_optional(raw.config())
+              : ReadEventConfigFromSysfs(raw.pmu_name(), raw.event_name());
+      if (!raw_config) {
+        PERFETTO_ELOG(
+            "Failed to resolve raw_event config. Ensure that "
+            "the profiler process has permissions to read from sysfs.");
+        return std::nullopt;
+      }
+      return PerfCounter::RawEvent(name, *raw_type, *raw_config, raw.config1(),
+                                   raw.config2(), raw.pmu_name());
     } else {
       return PerfCounter::BuiltinCounter(
           name, protos::gen::PerfEvents::PerfEvents::SW_CPU_CLOCK,
@@ -361,6 +394,22 @@ bool IsSupportedUnwindMode(
 }
 
 }  // namespace
+
+std::optional<uint64_t> EventConfig::ParseEventConfigValue(
+    const std::string& content) {
+  for (const auto& part : base::SplitString(content, ",")) {
+    std::string trimmed = base::TrimWhitespace(part);
+    if (base::StartsWith(trimmed, "event=")) {
+      return base::StringToUInt64(trimmed.substr(6), 16);
+    }
+    if (base::StartsWith(trimmed, "config=")) {
+      return base::StringToUInt64(trimmed.substr(7), 16);
+    }
+  }
+
+  // Try parsing as a raw number (hex or dec)
+  return base::StringToUInt64(base::TrimWhitespace(content), 0);
+}
 
 // static
 PerfCounter PerfCounter::BuiltinCounter(
@@ -400,7 +449,8 @@ PerfCounter PerfCounter::RawEvent(std::string name,
                                   uint32_t type,
                                   uint64_t config,
                                   uint64_t config1,
-                                  uint64_t config2) {
+                                  uint64_t config2,
+                                  std::string pmu_name) {
   PerfCounter ret;
   ret.type = PerfCounter::Type::kRawEvent;
   ret.name = std::move(name);
@@ -409,6 +459,7 @@ PerfCounter PerfCounter::RawEvent(std::string name,
   ret.attr_config = config;
   ret.attr_config1 = config1;
   ret.attr_config2 = config2;
+  ret.pmu_name = std::move(pmu_name);
   return ret;
 }
 
