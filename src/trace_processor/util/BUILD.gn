@@ -26,6 +26,18 @@ source_set("stdlib") {
   sources = [ "sql_modules.h" ]
 }
 
+source_set("stdlib_doc_parser") {
+  sources = [
+    "stdlib_doc_parser.cc",
+    "stdlib_doc_parser.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+    "../perfetto_sql/syntaqlite",
+  ]
+}
+
 source_set("bump_allocator") {
   sources = [
     "bump_allocator.cc",

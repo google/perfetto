@@ -463,6 +463,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_simple_json_serializer",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stdlib",
+        ":src_trace_processor_util_stdlib_doc_parser",
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_type",
         ":src_trace_processor_util_winscope_proto_mapping",
@@ -684,6 +685,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_simple_json_serializer",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stdlib",
+        ":src_trace_processor_util_stdlib_doc_parser",
         ":src_trace_processor_util_symbolizer_symbolize_database",
         ":src_trace_processor_util_symbolizer_symbolizer",
         ":src_trace_processor_util_tar_writer",
@@ -3442,6 +3444,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/operators/slice_mipmap_operator.h",
         "src/trace_processor/perfetto_sql/intrinsics/operators/span_join_operator.cc",
         "src/trace_processor/perfetto_sql/intrinsics/operators/span_join_operator.h",
+        "src/trace_processor/perfetto_sql/intrinsics/operators/stdlib_docs_operator.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/operators/stdlib_docs_operator.h",
         "src/trace_processor/perfetto_sql/intrinsics/operators/window_operator.cc",
         "src/trace_processor/perfetto_sql/intrinsics/operators/window_operator.h",
     ],
@@ -4665,6 +4669,15 @@ perfetto_filegroup(
     name = "src_trace_processor_util_stdlib",
     srcs = [
         "src/trace_processor/util/sql_modules.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:stdlib_doc_parser
+perfetto_filegroup(
+    name = "src_trace_processor_util_stdlib_doc_parser",
+    srcs = [
+        "src/trace_processor/util/stdlib_doc_parser.cc",
+        "src/trace_processor/util/stdlib_doc_parser.h",
     ],
 )
 
@@ -8886,6 +8899,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_simple_json_serializer",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stdlib",
+        ":src_trace_processor_util_stdlib_doc_parser",
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_type",
         ":src_trace_processor_util_winscope_proto_mapping",
@@ -9133,6 +9147,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_simple_json_serializer",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stdlib",
+        ":src_trace_processor_util_stdlib_doc_parser",
         ":src_trace_processor_util_symbolizer_symbolize_database",
         ":src_trace_processor_util_symbolizer_symbolizer",
         ":src_trace_processor_util_tar_writer",

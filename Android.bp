@@ -3047,6 +3047,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_simple_json_serializer",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_stdlib",
+        ":perfetto_src_trace_processor_util_stdlib_doc_parser",
         ":perfetto_src_trace_processor_util_trace_blob_view_reader",
         ":perfetto_src_trace_processor_util_trace_type",
         ":perfetto_src_trace_processor_util_winscope_proto_mapping",
@@ -16552,6 +16553,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/intrinsics/operators/counter_mipmap_operator.cc",
         "src/trace_processor/perfetto_sql/intrinsics/operators/slice_mipmap_operator.cc",
         "src/trace_processor/perfetto_sql/intrinsics/operators/span_join_operator.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/operators/stdlib_docs_operator.cc",
         "src/trace_processor/perfetto_sql/intrinsics/operators/window_operator.cc",
     ],
 }
@@ -17394,6 +17396,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_simple_json_serializer",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_stdlib",
+        ":perfetto_src_trace_processor_util_stdlib_doc_parser",
         ":perfetto_src_trace_processor_util_symbolizer_symbolize_database",
         ":perfetto_src_trace_processor_util_symbolizer_symbolizer",
         ":perfetto_src_trace_processor_util_tar_writer",
@@ -17859,6 +17862,14 @@ filegroup {
 // GN: //src/trace_processor/util:stdlib
 filegroup {
     name: "perfetto_src_trace_processor_util_stdlib",
+}
+
+// GN: //src/trace_processor/util:stdlib_doc_parser
+filegroup {
+    name: "perfetto_src_trace_processor_util_stdlib_doc_parser",
+    srcs: [
+        "src/trace_processor/util/stdlib_doc_parser.cc",
+    ],
 }
 
 // GN: //src/trace_processor/util/symbolizer:symbolize_database
@@ -19894,6 +19905,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_simple_json_serializer",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_stdlib",
+        ":perfetto_src_trace_processor_util_stdlib_doc_parser",
         ":perfetto_src_trace_processor_util_symbolizer_symbolize_database",
         ":perfetto_src_trace_processor_util_symbolizer_symbolizer",
         ":perfetto_src_trace_processor_util_symbolizer_unittests",
@@ -20823,6 +20835,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_util_simple_json_serializer",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_stdlib",
+        ":perfetto_src_trace_processor_util_stdlib_doc_parser",
         ":perfetto_src_trace_processor_util_trace_blob_view_reader",
         ":perfetto_src_trace_processor_util_trace_type",
         ":perfetto_src_trace_processor_util_winscope_proto_mapping",
@@ -21369,6 +21382,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_simple_json_serializer",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_stdlib",
+        ":perfetto_src_trace_processor_util_stdlib_doc_parser",
         ":perfetto_src_trace_processor_util_symbolizer_symbolize_database",
         ":perfetto_src_trace_processor_util_symbolizer_symbolizer",
         ":perfetto_src_trace_processor_util_tar_writer",
