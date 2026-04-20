@@ -1100,11 +1100,12 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
   private highlightHoveredAndSameTitle(
     slices: readonly SliceOrInstant<T>[],
   ): readonly ColorVariant[] {
-    const variants = new Array<ColorVariant>(slices.length);
     const hoveredSlice = this.hoveredSlice;
-    if (hoveredSlice) {
-      const hoveredSliceId = hoveredSlice.id;
-      const hoveredTitle = hoveredSlice.title;
+    const highlightedSliceName = this.attrs.trace.timeline.highlightedSliceName;
+    const variants = new Array<ColorVariant>(slices.length);
+    if (hoveredSlice || highlightedSliceName !== undefined) {
+      const hoveredSliceId = hoveredSlice?.id;
+      const hoveredTitle = highlightedSliceName;
       // Index based iteration is more efficient than .map
       for (let i = 0; i < slices.length; i++) {
         const {id, title} = slices[i];
@@ -1261,6 +1262,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     this.hoveredSlice = this.findSlice(e);
     if (this.hoverMonitor.ifStateChanged()) {
       this.trace.timeline.highlightedSliceId = this.hoveredSlice?.id;
+      this.trace.timeline.highlightedSliceName = this.hoveredSlice?.title;
       if (this.hoveredSlice === undefined) {
         if (this.attrs.onSliceOut) {
           this.attrs.onSliceOut({slice: assertExists(prevHoveredSlice)});
@@ -1279,6 +1281,7 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
     this.hoveredSlice = undefined;
     if (this.hoverMonitor.ifStateChanged()) {
       this.trace.timeline.highlightedSliceId = undefined;
+      this.trace.timeline.highlightedSliceName = undefined;
       if (this.attrs.onSliceOut && prevHoveredSlice) {
         this.attrs.onSliceOut({slice: prevHoveredSlice});
       }
