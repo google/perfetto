@@ -44,6 +44,9 @@
 namespace perfetto {
 namespace profiling {
 
+// Forward declared for testing.
+std::set<uint32_t> ParseCpuList(const std::string& input);
+
 // TODO(rsavitski): describe the high-level architecture and threading. Rough
 // summary in the mean time: three stages: (1) kernel buffer reader that parses
 // the samples -> (2) callstack unwinder -> (3) interning and serialization of

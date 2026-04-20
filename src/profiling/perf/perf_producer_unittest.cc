@@ -200,3 +200,16 @@ TEST(TargetFilterTest, AdditionalCmdlines) {
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto
+
+TEST(PerfProducerTest, ParseCpuList) {
+  using perfetto::profiling::ParseCpuList;
+  EXPECT_THAT(ParseCpuList("0-3"), testing::UnorderedElementsAre(0, 1, 2, 3));
+  EXPECT_THAT(ParseCpuList("0,2,4"), testing::UnorderedElementsAre(0, 2, 4));
+  EXPECT_THAT(ParseCpuList("0-2,4-5"),
+              testing::UnorderedElementsAre(0, 1, 2, 4, 5));
+  EXPECT_THAT(ParseCpuList(" 0-1, 3 "), testing::UnorderedElementsAre(0, 1, 3));
+  EXPECT_THAT(ParseCpuList("0 - 1, 3"), testing::UnorderedElementsAre(0, 1, 3));
+  EXPECT_THAT(ParseCpuList("5-3"), testing::IsEmpty());
+  EXPECT_THAT(ParseCpuList(""), testing::IsEmpty());
+  EXPECT_THAT(ParseCpuList("invalid"), testing::IsEmpty());
+}
