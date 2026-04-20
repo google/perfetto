@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {Accordion, AccordionItem} from '../../../widgets/accordion';
+import {renderWidgetShowcase} from '../widgets_page_utils';
 
 const DEMO_ITEMS: AccordionItem[] = [
   {
@@ -48,26 +49,27 @@ export function renderAccordion(): m.Children {
       m('h1', 'Accordion'),
       m(
         'p',
-        'A collapsible panel component that displays a list of items where ' +
-          'only one item can be expanded at a time. Supports both controlled ' +
-          'and uncontrolled modes.',
+        'A collapsible panel component that displays a list of items. ' +
+          'In single mode only one item can be expanded at a time. ' +
+          'In multi mode all items can be open simultaneously and default to expanded.',
       ),
     ),
-    m('h2', 'Uncontrolled Mode'),
-    m(
-      'p',
-      'In uncontrolled mode, the accordion manages its own expanded state internally. ' +
-        'All items start collapsed.',
-    ),
-    m(
-      'div',
-      {
-        style: {
-          border: '1px solid var(--pf-color-border)',
-          borderRadius: '4px',
-        },
+
+    renderWidgetShowcase({
+      renderWidget: ({multi}) =>
+        m(
+          'div',
+          {
+            style: {
+              border: '1px solid var(--pf-color-border)',
+              borderRadius: '4px',
+            },
+          },
+          m(Accordion, {items: DEMO_ITEMS, multi}),
+        ),
+      initialOpts: {
+        multi: false,
       },
-      m(Accordion, {items: DEMO_ITEMS}),
-    ),
+    }),
   ];
 }

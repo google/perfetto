@@ -28,7 +28,10 @@ export interface AccordionItem {
 export interface AccordionAttrs {
   // The list of accordion items to display.
   readonly items: AccordionItem[];
-  // Currently expanded item id (controlled mode).
+  // Allow multiple items to be open simultaneously. Defaults all items to
+  // expanded on first render. Incompatible with controlled mode (expanded).
+  readonly multi?: boolean;
+  // Currently expanded item id (controlled single-open mode).
   // If omitted, the accordion manages its own state (uncontrolled mode).
   readonly expanded?: string;
   // Callback when an item is toggled.
@@ -38,15 +41,56 @@ export interface AccordionAttrs {
 }
 
 export class Accordion implements m.ClassComponent<AccordionAttrs> {
-  // Internal state for uncontrolled mode.
+  // Internal state for uncontrolled single-open mode.
   private internalExpanded: string | undefined = undefined;
+  // Internal state for multi-open mode. Undefined until first render,
+  // at which point it is populated with all item ids (all open by default).
+  private internalExpandedSet: Set<string> | undefined = undefined;
   // Track which item should be scrolled into view after render.
   private pendingScrollId: string | undefined = undefined;
 
   view({attrs}: m.CVnode<AccordionAttrs>): m.Children {
-    const {items, onToggle, className} = attrs;
+    const {items, onToggle, className, multi} = attrs;
 
-    const expandedId = this.getExpandedId(attrs);
+    if (multi) {
+      if (this.internalExpandedSet === undefined) {
+        this.internalExpandedSet = new Set(items.map((i) => i.id));
+      }
+
+      return m(
+        '.pf-accordion',
+        {className},
+        items.map((item) => {
+          const isExpanded = this.internalExpandedSet!.has(item.id);
+          return m(
+            '.pf-accordion__item',
+            {key: item.id, className: classNames(isExpanded && 'pf-expanded')},
+            m(
+              '.pf-accordion__header',
+              {
+                onclick: () => {
+                  if (isExpanded) {
+                    this.internalExpandedSet!.delete(item.id);
+                  } else {
+                    this.internalExpandedSet!.add(item.id);
+                  }
+                  onToggle?.(item.id);
+                },
+              },
+              m(
+                '.pf-accordion__toggle',
+                m(Icon, {icon: isExpanded ? 'expand_more' : 'chevron_right'}),
+              ),
+              m('.pf-accordion__header-content', item.header),
+            ),
+            isExpanded && m('.pf-accordion__content', item.content),
+          );
+        }),
+      );
+    }
+
+    const expandedId =
+      attrs.expanded !== undefined ? attrs.expanded : this.internalExpanded;
 
     return m(
       '.pf-accordion',
@@ -64,7 +108,6 @@ export class Accordion implements m.ClassComponent<AccordionAttrs> {
                 this.pendingScrollId = undefined;
                 const header = vnode.dom as HTMLElement;
                 header?.scrollIntoView({behavior: 'instant', block: 'nearest'});
-                console.log('Scrolled accordion item into view', item.id);
               }
             },
           },
@@ -74,7 +117,6 @@ export class Accordion implements m.ClassComponent<AccordionAttrs> {
               onclick: () => {
                 const newExpanded = isExpanded ? undefined : item.id;
                 this.internalExpanded = newExpanded;
-                // Always scroll the toggled item into view (expand or collapse)
                 this.pendingScrollId = item.id;
                 onToggle?.(newExpanded);
               },
@@ -89,14 +131,5 @@ export class Accordion implements m.ClassComponent<AccordionAttrs> {
         );
       }),
     );
-  }
-
-  private getExpandedId(attrs: AccordionAttrs): string | undefined {
-    // If expanded is provided, use controlled mode.
-    // Otherwise use internal state (uncontrolled mode).
-    if (attrs.expanded !== undefined) {
-      return attrs.expanded;
-    }
-    return this.internalExpanded;
   }
 }
