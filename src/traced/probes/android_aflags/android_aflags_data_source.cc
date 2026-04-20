@@ -34,8 +34,9 @@
 
 namespace perfetto {
 namespace {
-constexpr uint32_t kMinPollPeriodMs = 1000;
 constexpr uint32_t kAflagsExitPollMs = 100;
+constexpr uint32_t kMinPollPeriodMs = 1000;
+constexpr uint32_t kAflagsExitTimeoutMs = 10000;
 }  // namespace
 
 // static
@@ -71,14 +72,21 @@ AndroidAflagsDataSource::~AndroidAflagsDataSource() {
   }
   if (aflags_process_) {
     // At this point we want to kill the process to avoid leaking subprocesses
-    // if there is any bug with aflags. But also we don't want to needlessly
-    // block traced_probes' main thread waiting for a process we don't care
-    // about (the kernel might take time to process the SIGKILL).
+    // if there is any bug with aflags.
+    // Send SIGKILL synchronously, then defer the waitpid() by
+    // kAflagsExitTimeoutMs so the child almost certainly has exited by then and
+    // Wait() returns without blocking the task runner.
+    aflags_process_->Kill();
     task_runner_->PostDelayedTask(
-        [process = std::shared_ptr<base::Subprocess>(std::move(
-             aflags_process_))] { process->KillAndWaitForTermination(); },
-        10000);
+        [process = std::shared_ptr<base::Subprocess>(
+             std::move(aflags_process_))] { process->Wait(); },
+        kAflagsExitTimeoutMs);
   }
+
+  // It is theoretically possible that at this point pending_flushes_ will
+  // be non-empty. If it is the case there is nothing we can do. We cannot
+  // flush now because the tracing session has already terminated.
+  // TracingServiceImpl will deal with timeout detection.
 }
 
 void AndroidAflagsDataSource::Start() {
@@ -141,15 +149,16 @@ void AndroidAflagsDataSource::OnAflagsOutput() {
     return;  // Read is blocked, wait for the next notification.
   }
 
-  // If we get here either EOF or read() error out (unlikely, but SELinux).
+  // If we get here either EOF or read() errored out (unlikely, but SELinux).
   task_runner_->RemoveFileDescriptorWatch(*aflags_output_pipe_);
 
   std::string error;
   if (!eof) {
     base::StackString<255> err_str("aflags failed: pipe read (%d, %s)", errno,
                                    strerror(errno));
-    if (aflags_process_)
+    if (aflags_process_) {
       aflags_process_->Kill();
+    }
     error = err_str.ToStdString();
   }
 
@@ -157,7 +166,7 @@ void AndroidAflagsDataSource::OnAflagsOutput() {
 }
 
 // We get to this function if either we read the stdout through EOF or if the
-// stdot.read() failed. In either case the process might have not terminated
+// stdout.read() failed. In either case the process might have not terminated
 // yet (a subprocess usually terminates a bit after closing stdout/err).
 void AndroidAflagsDataSource::FinalizeAflagsCapture(std::string error) {
   if (!aflags_process_) {
@@ -245,10 +254,10 @@ void AndroidAflagsDataSource::Flush(FlushRequestID,
   // If the subprocess takes longer than the flush timeout, we don't do anything
   // special here, as ProbesProducer already has its own timeout to gate the
   // flush of all the various data sources.
-  // What we really want to acheive here is the following: if aflags takes
+  // What we really want to achieve here is the following: if aflags takes
   // time to respond (normally it takes ~350ms) AND if the trace is short
-  // (some heap dump traces has 1s duration) we want to stall the trace
-  // termination to maximize the change we get the aflags output in the trace,
+  // (some heap dump traces have 1s duration) we want to stall the trace
+  // termination to maximize the chance we get the aflags output in the trace,
   // up to ProbesProducer::kFlushTimeoutMs.
   pending_flushes_.emplace_back(std::move(callback));
 }

@@ -19,10 +19,9 @@
 
 #include <functional>
 #include <memory>
-#include <optional>
 #include <string>
+#include <vector>
 
-#include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
