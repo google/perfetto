@@ -299,7 +299,6 @@ export class SortNode implements QueryNode {
     // Only return serializable fields, excluding callbacks and objects
     // that might contain circular references
     return {
-      primaryInputId: this.primaryInput?.nodeId,
       sortCriteria: this.state.sortCriteria,
     };
   }

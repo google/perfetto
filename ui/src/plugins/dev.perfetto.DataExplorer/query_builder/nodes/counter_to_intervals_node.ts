@@ -179,9 +179,7 @@ export class CounterToIntervalsNode implements QueryNode {
   }
 
   serializeState(): object {
-    return {
-      primaryInputId: this.primaryInput?.nodeId,
-    };
+    return {};
   }
 
   static deserializeState(

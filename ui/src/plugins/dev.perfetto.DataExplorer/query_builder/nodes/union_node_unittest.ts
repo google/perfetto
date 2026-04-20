@@ -607,7 +607,6 @@ describe('UnionNode', () => {
 
       const serialized = unionNode.serializeState();
 
-      expect(serialized.unionNodes).toEqual(['node1', 'node2']);
       expect(serialized.selectedColumns.length).toBe(1);
       expect(serialized.selectedColumns[0].column.name).toBe('id');
       expect(serialized.comment).toBe('test comment');
@@ -617,7 +616,6 @@ describe('UnionNode', () => {
   describe('deserializeState', () => {
     it('should deserialize state correctly', () => {
       const serialized = {
-        unionNodes: ['node1', 'node2'],
         selectedColumns: [createColumnInfo('id', 'int')],
         comment: 'test comment',
       };
@@ -627,43 +625,6 @@ describe('UnionNode', () => {
       expect(state.inputNodes).toEqual([]);
       expect(state.selectedColumns.length).toBe(1);
       expect(state.selectedColumns[0].column.name).toBe('id');
-    });
-  });
-
-  describe('deserializeConnections', () => {
-    it('should deserialize connections correctly', () => {
-      const node1 = createMockNodeWithSq('node1', []);
-      const node2 = createMockNodeWithSq('node2', []);
-      const node3 = createMockNodeWithSq('node3', []);
-      const nodes = new Map([
-        ['node1', node1],
-        ['node2', node2],
-        ['node3', node3],
-      ]);
-
-      const connections = UnionNode.deserializeConnections(nodes, {
-        unionNodes: ['node1', 'node2', 'node3'],
-        selectedColumns: [],
-      });
-
-      expect(connections.inputNodes.length).toBe(3);
-      expect(connections.inputNodes[0]).toBe(node1);
-      expect(connections.inputNodes[1]).toBe(node2);
-      expect(connections.inputNodes[2]).toBe(node3);
-    });
-
-    it('should handle missing nodes gracefully', () => {
-      const node1 = createMockNodeWithSq('node1', []);
-      const nodes = new Map([['node1', node1]]);
-
-      const connections = UnionNode.deserializeConnections(nodes, {
-        unionNodes: ['node1', 'missing1', 'node2'],
-        selectedColumns: [],
-      });
-
-      // Should only include node1, filtering out undefined entries
-      expect(connections.inputNodes.length).toBe(1);
-      expect(connections.inputNodes[0]).toBe(node1);
     });
   });
 });

@@ -42,9 +42,7 @@ import {
   buildEmbeddedQueryTree,
 } from '../query_builder_utils';
 
-export interface TraceSummarySerializedState {
-  secondaryInputNodeIds?: string[];
-}
+export interface TraceSummarySerializedState {}
 
 export interface TraceSummaryNodeState extends QueryNodeState {}
 
@@ -349,37 +347,12 @@ export class TraceSummaryNode implements QueryNode {
   }
 
   serializeState(): TraceSummarySerializedState {
-    const secondaryInputNodeIds: string[] = [];
-    for (const [, node] of [...this.secondaryInputs.connections.entries()].sort(
-      ([a], [b]) => a - b,
-    )) {
-      secondaryInputNodeIds.push(node.nodeId);
-    }
-    return {
-      secondaryInputNodeIds:
-        secondaryInputNodeIds.length > 0 ? secondaryInputNodeIds : undefined,
-    };
+    return {};
   }
 
   static deserializeState(
     _state: TraceSummarySerializedState,
   ): TraceSummaryNodeState {
     return {};
-  }
-
-  static deserializeConnections(
-    allNodes: Map<string, QueryNode>,
-    state: {secondaryInputNodeIds?: string[]},
-  ): {secondaryInputNodes: QueryNode[]} {
-    const secondaryInputNodes: QueryNode[] = [];
-    if (state.secondaryInputNodeIds) {
-      for (const id of state.secondaryInputNodeIds) {
-        const node = allNodes.get(id);
-        if (node !== undefined) {
-          secondaryInputNodes.push(node);
-        }
-      }
-    }
-    return {secondaryInputNodes};
   }
 }

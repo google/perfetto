@@ -826,7 +826,6 @@ describe('MetricsNode', () => {
       expect(serialized.valueColumns?.[0].unit).toBe('BYTES');
       expect(serialized.valueColumns?.[0].polarity).toBe('HIGHER_IS_BETTER');
       expect(serialized.dimensionUniqueness).toBe('UNIQUE');
-      expect(serialized.primaryInputId).toBe(inputNode.nodeId);
     });
 
     it('should serialize multiple value columns', () => {
@@ -844,14 +843,6 @@ describe('MetricsNode', () => {
       expect(serialized.valueColumns).toHaveLength(2);
       expect(serialized.valueColumns?.[0].column).toBe('cpu');
       expect(serialized.valueColumns?.[1].column).toBe('mem');
-    });
-
-    it('should handle missing primary input', () => {
-      const node = new MetricsNode(makeState());
-
-      const serialized = node.serializeState();
-
-      expect(serialized.primaryInputId).toBeUndefined();
     });
   });
 
@@ -1333,22 +1324,6 @@ describe('MetricsNode', () => {
       restoredNode.onPrevNodesUpdated();
 
       expect(restoredNode.state.valueColumns).toHaveLength(0);
-    });
-
-    it('should include primaryInputId in serialized state', () => {
-      const inputCols = [createColumnInfo('value', 'int')];
-      const inputNode = createMockNodeWithStructuredQuery(
-        'input-123',
-        inputCols,
-      );
-      (inputNode as {nodeId: string}).nodeId = 'input-123';
-
-      const node = new MetricsNode(makeState());
-      connectNodes(inputNode, node);
-
-      const serialized = node.serializeState();
-
-      expect(serialized.primaryInputId).toBe('input-123');
     });
   });
 });

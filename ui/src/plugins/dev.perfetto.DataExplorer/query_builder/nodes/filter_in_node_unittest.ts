@@ -516,30 +516,6 @@ describe('FilterInNode', () => {
       expect(serialized.baseColumn).toBe('utid');
       expect(serialized.matchColumn).toBe('id');
     });
-
-    it('should serialize secondary input node IDs', () => {
-      const matchNode = createMockNode({nodeId: 'match-123'});
-
-      const node = new FilterInNode({});
-      node.secondaryInputs.connections.set(0, matchNode);
-
-      const serialized = node.serializeState() as {
-        secondaryInputNodeIds: string[];
-      };
-
-      expect(serialized.secondaryInputNodeIds).toEqual(['match-123']);
-    });
-
-    it('should serialize primaryInputId', () => {
-      const primaryNode = createMockNode({nodeId: 'primary-456'});
-
-      const node = new FilterInNode({});
-      node.primaryInput = primaryNode;
-
-      const serialized = node.serializeState() as {primaryInputId: string};
-
-      expect(serialized.primaryInputId).toBe('primary-456');
-    });
   });
 
   describe('deserializeState', () => {
@@ -551,37 +527,6 @@ describe('FilterInNode', () => {
 
       expect(state.baseColumn).toBe('utid');
       expect(state.matchColumn).toBe('id');
-    });
-  });
-
-  describe('deserializeConnections', () => {
-    it('should restore secondary input connections', () => {
-      const mockNode = createMockNode({nodeId: 'match-1'});
-      const nodes = new Map([['match-1', mockNode]]);
-
-      const result = FilterInNode.deserializeConnections(nodes, {
-        secondaryInputNodeIds: ['match-1'],
-      });
-
-      expect(result.secondaryInputNodes).toEqual([mockNode]);
-    });
-
-    it('should handle missing nodes gracefully', () => {
-      const nodes = new Map();
-
-      const result = FilterInNode.deserializeConnections(nodes, {
-        secondaryInputNodeIds: ['nonexistent'],
-      });
-
-      expect(result.secondaryInputNodes).toEqual([]);
-    });
-
-    it('should handle empty secondaryInputNodeIds', () => {
-      const nodes = new Map();
-
-      const result = FilterInNode.deserializeConnections(nodes, {});
-
-      expect(result.secondaryInputNodes).toEqual([]);
     });
   });
 
