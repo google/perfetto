@@ -17,9 +17,11 @@
 #ifndef SRC_TRACED_PROBES_ANDROID_AFLAGS_ANDROID_AFLAGS_DATA_SOURCE_H_
 #define SRC_TRACED_PROBES_ANDROID_AFLAGS_ANDROID_AFLAGS_DATA_SOURCE_H_
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/subprocess.h"
@@ -73,11 +75,22 @@ class AndroidAflagsDataSource : public ProbesDataSource {
   // Emits a trace packet with AndroidAflags.error set to |error_msg|.
   void EmitErrorPacket(const std::string& error_msg);
 
+  // Safety net for a deferred Flush() |flush_request_id|: logs the timeout
+  // and delegates to OnFlushComplete.
+  void OnFlushTimeout(FlushRequestID);
+
+  // Invokes the deferred Flush() callback for |flush_request_id|, if any.
+  void OnFlushComplete(FlushRequestID);
+
   base::TaskRunner* const task_runner_;
   std::unique_ptr<TraceWriter> writer_;
 
   // Polling frequency in ms. 0 means one-shot capture at startup.
   uint32_t poll_period_ms_ = 0;
+
+  // Flush() callbacks deferred while an aflags subprocess is in flight.
+  // Drained when the subprocess completes (or when the flush timeout fires).
+  std::unordered_map<FlushRequestID, std::function<void()>> pending_flushes_;
 
   base::WeakPtrFactory<AndroidAflagsDataSource> weak_factory_;
 };

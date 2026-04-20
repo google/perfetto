@@ -50,7 +50,15 @@ inline constexpr char kFopenReadFlag[] = "re";
 constexpr FileOpenMode kFileModeInvalid = static_cast<FileOpenMode>(-1);
 
 bool ReadPlatformHandle(PlatformHandle, std::string* out);
+
+// Reads from |fd|, appending what is currently available into |*out|.
+// Returns:
+//  True: EOF reached (all writers of |fd| have closed their end).
+//  False: read error. On a non-blocking |fd| this includes EAGAIN (no data
+//    currently available but writers are still alive); callers can check
+//    IsAgain(errno) and retry on the next readability notification.
 bool ReadFileDescriptor(int fd, std::string* out);
+
 bool ReadFileStream(FILE* f, std::string* out);
 bool ReadFile(const std::string& path, std::string* out);
 
