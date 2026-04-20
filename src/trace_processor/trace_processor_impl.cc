@@ -129,6 +129,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flat_slice.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/stdlib_docs_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.h"
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
@@ -1261,6 +1262,15 @@ TraceProcessorImpl::CreateStaticTableFunctions(TraceProcessorContext* context,
   fns.emplace_back(std::make_unique<WinscopeSurfaceFlingerHierarchyPaths>(
       storage->mutable_string_pool(), engine));
 #endif
+
+  fns.emplace_back(std::make_unique<StdlibDocsModules>(
+      storage->mutable_string_pool(), engine));
+  fns.emplace_back(std::make_unique<StdlibDocsTables>(
+      storage->mutable_string_pool(), engine));
+  fns.emplace_back(std::make_unique<StdlibDocsFunctions>(
+      storage->mutable_string_pool(), engine));
+  fns.emplace_back(std::make_unique<StdlibDocsMacros>(
+      storage->mutable_string_pool(), engine));
 
   if (config.enable_dev_features) {
     fns.emplace_back(std::make_unique<DataframeQueryPlanDecoder>(
