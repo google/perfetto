@@ -59,6 +59,8 @@ export interface DashboardChartViewAttrs {
    * consumer charts below dividers.
    */
   isDriverChart?: boolean;
+  /** Grid lines setting passed through to chart widgets. */
+  gridLines?: 'horizontal' | 'vertical' | 'both';
 }
 
 /** Subset of DashboardChartViewAttrs needed by the adapter. */
@@ -320,7 +322,11 @@ export class DashboardChartView
     }
 
     const entry = this.ensureLoader(attrs, config);
-    const ctx = {node: adapter, onFilterChange: () => m.redraw()};
+    const ctx = {
+      node: adapter,
+      onFilterChange: () => m.redraw(),
+      gridLines: attrs.gridLines,
+    };
     return renderChartByType(ctx, config, entry);
   }
 

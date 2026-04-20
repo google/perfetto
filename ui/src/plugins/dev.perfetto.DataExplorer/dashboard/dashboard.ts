@@ -58,6 +58,8 @@ import {
 import {Popup, PopupPosition} from '../../../widgets/popup';
 import {renderChartConfigPopup} from '../query_builder/charts/chart_config_popup';
 import {renderChartTypePickerGrid} from '../query_builder/charts/chart_type_picker';
+import {Switch} from '../../../widgets/switch';
+import {Select} from '../../../widgets/select';
 
 const DEFAULT_DIVIDER_LABEL = 'Filter boundary';
 // CSS selector for elements that should not initiate a card drag.
@@ -117,7 +119,17 @@ export interface DashboardAttrs {
   onBrushFiltersChange: (filters: Map<string, DashboardBrushFilter[]>) => void;
 }
 
-type SidePanelTab = 'add' | 'data' | 'linked' | 'edit';
+type SidePanelTab = 'add' | 'data' | 'linked' | 'edit' | 'settings';
+
+interface DashboardSettings {
+  showGridDots: boolean;
+  chartGridLines?: 'horizontal' | 'vertical' | 'both';
+}
+
+const DEFAULT_SETTINGS: DashboardSettings = {
+  showGridDots: true,
+  chartGridLines: undefined,
+};
 
 interface EditingChartContext {
   readonly itemId: string;
@@ -129,6 +141,8 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
   private expandedInput: string | undefined = undefined;
   private renamingChartId?: string;
   private editingChart?: EditingChartContext;
+  private editPanelRenaming = false;
+  private settings: DashboardSettings = {...DEFAULT_SETTINGS};
   // Incremented when filters are removed from the filter bar, so that
   // chart brush overlays are cleared in sync.
   private brushClearGen = 0;
@@ -151,9 +165,6 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
   // references.
   private latestAttrs?: DashboardAttrs;
 
-  // Whether a resize handle is currently active (shows grid lines).
-  private isResizing = false;
-
   private get cellSize(): number {
     return this.canvasWidth / (GRID_COLUMNS + 2 * GRID_MARGIN);
   }
@@ -168,11 +179,10 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
         m(
           '.pf-dashboard__canvas',
           {
-            style: `--pf-grid-cell-size: ${this.cellSize}px; --pf-grid-margin-px: ${GRID_MARGIN * this.cellSize}px`,
             className: classNames(
-              (this.draggingItemId !== undefined || this.isResizing) &&
-                'pf-dashboard__canvas--grid-visible',
+              !this.settings.showGridDots && 'pf-dashboard__canvas--no-dots',
             ),
+            style: `--pf-grid-cell-size: ${this.cellSize}px; --pf-grid-margin-px: ${GRID_MARGIN * this.cellSize}px`,
             oncreate: (vnode: m.VnodeDOM) => {
               const el = vnode.dom as HTMLElement;
               this.canvasWidth = el.clientWidth;
@@ -197,7 +207,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           },
           [
             items.length > 0
-              ? this.renderItems(attrs, items)
+              ? [this.renderItems(attrs, items), this.renderCanvasSpacer(items)]
               : m(
                   '.pf-dashboard__empty-overlay',
                   attrs.sources.length > 0
@@ -224,6 +234,8 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       this.activePanel === 'edit' &&
         this.editingChart !== undefined &&
         m('.pf-dashboard__content-panel', this.renderEditPanel(attrs)),
+      this.activePanel === 'settings' &&
+        m('.pf-dashboard__content-panel', this.renderSettingsPanel()),
       m('.pf-dashboard__side-panel', [
         m(Button, {
           icon: 'add',
@@ -234,7 +246,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           },
         }),
         m(Button, {
-          icon: 'dataset',
+          icon: 'storage',
           title: 'Data',
           className: classNames(this.activePanel === 'data' && 'pf-active'),
           onclick: () => {
@@ -248,6 +260,15 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           onclick: () => {
             this.activePanel =
               this.activePanel === 'linked' ? undefined : 'linked';
+          },
+        }),
+        m(Button, {
+          icon: 'tune',
+          title: 'Dashboard settings',
+          className: classNames(this.activePanel === 'settings' && 'pf-active'),
+          onclick: () => {
+            this.activePanel =
+              this.activePanel === 'settings' ? undefined : 'settings';
           },
         }),
         this.activePanel === 'edit' &&
@@ -356,7 +377,60 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
 
     return [
       m('.pf-dashboard__panel-section', [
-        m('.pf-dashboard__panel-section-title', headerLabel),
+        this.editPanelRenaming
+          ? m('input.pf-dashboard__edit-panel-title-input', {
+              type: 'text',
+              value: config.name ?? '',
+              placeholder: getDefaultChartLabel(config),
+              oncreate: (vnode: m.VnodeDOM) => {
+                const input = vnode.dom as HTMLInputElement;
+                input.focus();
+                input.select();
+              },
+              onblur: () => {
+                if (!this.editPanelRenaming) return;
+                this.editPanelRenaming = false;
+              },
+              onkeydown: (e: KeyboardEvent) => {
+                if (e.key === 'Escape') {
+                  // Revert to the name before editing.
+                  this.updateChartName(attrs, config.id, config.name);
+                  this.editPanelRenaming = false;
+                  (e.target as HTMLInputElement).blur();
+                } else if (e.key === 'Enter') {
+                  this.editPanelRenaming = false;
+                  (e.target as HTMLInputElement).blur();
+                }
+              },
+              oninput: (e: Event) => {
+                const target = e.target as HTMLInputElement;
+                const name = target.value.trim() || undefined;
+                this.updateChartName(attrs, config.id, name);
+              },
+            })
+          : m(
+              '.pf-dashboard__edit-panel-title',
+              {
+                onclick: () => {
+                  this.editPanelRenaming = true;
+                },
+                title: 'Click to rename',
+              },
+              headerLabel,
+            ),
+        m('.pf-dashboard__panel-section-subtitle', 'Data Source'),
+        m(
+          '.pf-dashboard__edit-panel-row',
+          this.renderSourceChangePopup(
+            attrs,
+            config.id,
+            source,
+            undefined,
+            (s) => {
+              this.editingChart = {itemId: config.id, source: s};
+            },
+          ),
+        ),
         m('.pf-dashboard__panel-section-subtitle', 'Chart Type'),
         renderChartTypePickerGrid((newType) => {
           if (newType === config.chartType) return;
@@ -381,6 +455,100 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
         ),
       ]),
     ];
+  }
+
+  // --- Settings panel ---
+
+  private renderSettingsPanel(): m.Children {
+    return [
+      m('.pf-dashboard__panel-section', [
+        m('.pf-dashboard__panel-section-title', 'Dashboard Settings'),
+        m('.pf-dashboard__panel-section-subtitle', 'Canvas'),
+        m(
+          '.pf-dashboard__settings-row',
+          m(Switch, {
+            label: 'Show grid dots',
+            checked: this.settings.showGridDots,
+            onchange: (e: Event) => {
+              this.settings.showGridDots = (
+                e.target as HTMLInputElement
+              ).checked;
+            },
+          }),
+        ),
+        m('.pf-dashboard__panel-section-subtitle', 'Charts'),
+        m('.pf-dashboard__settings-row', [
+          m('label.pf-dashboard__settings-label', 'Grid lines'),
+          m(
+            Select,
+            {
+              value: this.settings.chartGridLines ?? 'none',
+              onchange: (e: Event) => {
+                const val = (e.target as HTMLSelectElement).value;
+                this.settings.chartGridLines =
+                  val === 'none'
+                    ? undefined
+                    : (val as 'horizontal' | 'vertical' | 'both');
+              },
+            },
+            [
+              m('option', {value: 'none'}, 'None'),
+              m('option', {value: 'horizontal'}, 'Horizontal'),
+              m('option', {value: 'vertical'}, 'Vertical'),
+              m('option', {value: 'both'}, 'Both'),
+            ],
+          ),
+        ]),
+      ]),
+    ];
+  }
+
+  // Invisible spacer that extends 2 grid rows below the lowest item,
+  // ensuring there is always room to scroll past the last chart.
+  private renderCanvasSpacer(items: DashboardItem[]): m.Child {
+    let maxRow = 0;
+    for (const item of items) {
+      const b = getItemBounds(item);
+      maxRow = Math.max(maxRow, b.row + b.rowSpan);
+    }
+    const cs = this.cellSize;
+    const height = (maxRow + 2 + GRID_MARGIN) * cs;
+    return m('.pf-dashboard__canvas-spacer', {
+      style: `height:${height}px`,
+    });
+  }
+
+  /** Reusable source-change popup menu for a chart. */
+  private renderSourceChangePopup(
+    attrs: DashboardAttrs,
+    chartId: string,
+    currentSource: DashboardDataSource,
+    chipOpts?: {compact?: boolean; className?: string},
+    onChanged?: (newSource: DashboardDataSource) => void,
+  ): m.Child {
+    return m(
+      PopupMenu,
+      {
+        trigger: m(Chip, {
+          label: currentSource.name,
+          icon: 'storage',
+          title: 'Change data source',
+          ...chipOpts,
+        }),
+      },
+      ...attrs.sources.map((s) =>
+        m(MenuItem, {
+          label: s.name,
+          icon: s.nodeId === currentSource.nodeId ? 'check' : undefined,
+          onclick: () => {
+            if (s.nodeId !== currentSource.nodeId) {
+              this.changeChartSource(attrs, chartId, s);
+              onChanged?.(s);
+            }
+          },
+        }),
+      ),
+    );
   }
 
   // --- Canvas items ---
@@ -429,33 +597,15 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
         } else {
           this.editingChart = {itemId, source};
           this.activePanel = 'edit';
+          this.editPanelRenaming = false;
         }
       },
     });
 
-    const sourceChip = m(
-      PopupMenu,
-      {
-        trigger: m(Chip, {
-          label: source.name,
-          icon: 'database',
-          compact: true,
-          className: 'pf-dashboard__source-chip',
-          title: 'Change data source',
-        }),
-      },
-      ...attrs.sources.map((s) =>
-        m(MenuItem, {
-          label: s.name,
-          icon: s.nodeId === source.nodeId ? 'check' : undefined,
-          onclick: () => {
-            if (s.nodeId !== source.nodeId) {
-              this.changeChartSource(attrs, itemId, s);
-            }
-          },
-        }),
-      ),
-    );
+    const sourceChip = this.renderSourceChangePopup(attrs, itemId, source, {
+      compact: true,
+      className: classNames('pf-dashboard__source-chip'),
+    });
 
     return this.renderItemCard(attrs, itemId, chart, [
       m('.pf-dashboard__chart-header', [
@@ -531,6 +681,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           onItemsChange: attrs.onItemsChange,
           onBrushFiltersChange: attrs.onBrushFiltersChange,
           isDriverChart: chartIsDriver,
+          gridLines: this.settings.chartGridLines,
         }),
       ),
     ]);
@@ -673,14 +824,8 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
         ...(Array.isArray(children) ? children : [children]),
         m(ResizeHandle, {
           direction: 'horizontal',
-          onResizeStart: () => {
-            this.isResizing = true;
-            m.redraw();
-          },
-          onResizeEnd: () => {
-            this.isResizing = false;
-            m.redraw();
-          },
+          onResizeStart: () => m.redraw(),
+          onResizeEnd: () => m.redraw(),
           onResizeAbsolute: (positionPx: number) => {
             const itemCol = item.col ?? 0;
             const itemRow = item.row ?? 0;
@@ -708,14 +853,8 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
         }),
         m(ResizeHandle, {
           direction: 'vertical',
-          onResizeStart: () => {
-            this.isResizing = true;
-            m.redraw();
-          },
-          onResizeEnd: () => {
-            this.isResizing = false;
-            m.redraw();
-          },
+          onResizeStart: () => m.redraw(),
+          onResizeEnd: () => m.redraw(),
           onResizeAbsolute: (positionPx: number) => {
             const itemCol = item.col ?? 0;
             const itemRow = item.row ?? 0;
@@ -1138,9 +1277,9 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
           m('.pf-dashboard__filter-group', [
             m(Chip, {
               label,
-              icon: 'database',
+              icon: 'storage',
               compact: true,
-              className: 'pf-dashboard__source-chip',
+              className: classNames('pf-dashboard__source-chip'),
             }),
             ...chips,
           ]),
@@ -1173,7 +1312,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     if (allExported.length === 0) {
       return m(
         ResultsPanelEmptyState,
-        {icon: 'dataset', title: 'No exported sources'},
+        {icon: 'storage', title: 'No exported sources'},
         'Use "Export to Dashboard" nodes in the graph builder to make data sources available here.',
       );
     }
@@ -1199,7 +1338,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     if (used.length > 0) {
       sections.push(
         m('.pf-dashboard__panel-section', [
-          m('.pf-dashboard__panel-section-title', 'Used'),
+          m('.pf-dashboard__panel-section-title', 'Used data sources'),
           m(
             '.pf-dashboard__input-list',
             m(Accordion, {
@@ -1216,7 +1355,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     if (unused.length > 0) {
       sections.push(
         m('.pf-dashboard__panel-section', [
-          m('.pf-dashboard__panel-section-title', 'Unused'),
+          m('.pf-dashboard__panel-section-title', 'Unused data sources'),
           m(
             '.pf-dashboard__input-list',
             m(Accordion, {
@@ -1330,7 +1469,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
                 '.pf-dashboard__column',
                 m(Icon, {
                   icon: perfettoSqlTypeIcon(col.type),
-                  className: 'pf-dashboard__column-icon',
+                  className: classNames('pf-dashboard__column-icon'),
                 }),
                 m(
                   '.pf-dashboard__column-info',
@@ -1354,7 +1493,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
             label: 'Add Chart',
             icon: 'bar_chart',
             compact: true,
-            className: 'pf-dashboard__add-chart-btn',
+            className: classNames('pf-dashboard__add-chart-btn'),
           }),
           fitContent: true,
         },
