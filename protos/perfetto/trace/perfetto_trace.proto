@@ -19009,6 +19009,34 @@ message TracePacket {
     // packet with the SEQ_INCREMENTAL_STATE_CLEARED flag has been seen on the
     // current |trusted_packet_sequence_id|.
     SEQ_NEEDS_INCREMENTAL_STATE = 2;
+
+    // This packet requires incremental state to be parsed correctly (like
+    // SEQ_NEEDS_INCREMENTAL_STATE) but the producer guarantees that all
+    // incremental state on this sequence is "stable": once a value is emitted
+    // for any piece of incremental state, that value never changes, even
+    // across SEQ_INCREMENTAL_STATE_CLEARED boundaries. Clears cause
+    // re-emission of the same values, never new ones.
+    //
+    // This means that after packet loss, the trace reader may still process
+    // these packets because any incremental state that *is* present is
+    // guaranteed to be correct, even if incomplete. The consumer must be
+    // prepared to handle missing incremental state lookups.
+    //
+    // "Stable" applies to all forms of incremental state including but not
+    // limited to:
+    //  - Interned data: an iid always maps to the same value. E.g. iid=1 ->
+    //    "malloc" is never re-emitted as iid=1 -> "free" after a clear.
+    //  - TracePacketDefaults: once set, defaults do not change. E.g.
+    //    timestamp_clock_id=6 stays 6 for the entire session.
+    //  - Sequence-scoped clocks: clock snapshots define a clock relationship
+    //    once. After a clear, the same relationship is re-emitted, never a
+    //    new one.
+    //
+    // Sequences using this flag MUST NOT use delta encoding for any values
+    // (e.g. timestamps). Delta encoding is fundamentally incompatible with
+    // stability because losing a single packet breaks the chain for all
+    // subsequent values.
+    SEQ_NEEDS_STABLE_INCREMENTAL_STATE = 4;
   };
   optional uint32 sequence_flags = 13;
 
