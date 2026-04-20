@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {formatFileSize} from '../../base/file_utils';
+import {QuerySlot, SerialTaskQueue} from '../../base/query_slot';
 import {DataGrid} from '../../components/widgets/datagrid/datagrid';
 import {SchemaRegistry} from '../../components/widgets/datagrid/datagrid_schema';
 import {Filter} from '../../components/widgets/datagrid/model';
@@ -22,6 +24,8 @@ import {Tab} from '../../public/tab';
 import {Trace} from '../../public/trace';
 import {NUM, Row, SqlValue, STR} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
+import {Button, ButtonVariant} from '../../widgets/button';
+import {Intent} from '../../widgets/common';
 import {CopyableLink} from '../../widgets/copyable_link';
 import {Editor} from '../../widgets/editor';
 import {EmptyState} from '../../widgets/empty_state';
@@ -30,8 +34,8 @@ import {SplitPanel} from '../../widgets/split_panel';
 import {Tabs} from '../../widgets/tabs';
 import {TextInput} from '../../widgets/text_input';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {formatFileSize} from '../../base/file_utils';
-import {QuerySlot, SerialTaskQueue} from '../../base/query_slot';
+import {PrettyPrintedSource, PrettyPrinter} from './pretty_print_utils';
+import {deferChunkedTask} from '../../base/chunked_task';
 
 interface V8JsScript {
   v8_js_script_id: number;
@@ -42,7 +46,7 @@ interface V8JsScript {
   script_size: number;
 }
 
-interface ScriptResults {
+interface ScriptResult {
   source: string;
   details: V8JsScript;
 }
@@ -106,16 +110,23 @@ const TAB_FUNCTIONS = 'functions';
 
 export class V8SourcesTab implements Tab {
   private currentTab = TAB_SOURCE;
-  private readonly slot = new QuerySlot<ScriptResults | undefined>(
-    new SerialTaskQueue(),
+  private readonly taskQueue = new SerialTaskQueue();
+  private readonly slot = new QuerySlot<ScriptResult | undefined>(
+    this.taskQueue,
   );
-  private selectedScriptId: number | undefined = undefined;
+  private readonly formatSlot = new QuerySlot<PrettyPrintedSource | undefined>(
+    this.taskQueue,
+  );
   private trace: Trace;
   private dataSource: SQLDataSource;
   private filters: readonly Filter[] = [];
   private functionsDataSource: SQLDataSource;
-  private functionsFilters: readonly Filter[] = [];
   private isReady = false;
+
+  private selectedScriptId: number | undefined = undefined;
+
+  private showPrettyPrinted = false;
+  private prettyPrinter: PrettyPrinter = new PrettyPrinter();
 
   constructor(trace: Trace) {
     this.trace = trace;
@@ -152,7 +163,7 @@ export class V8SourcesTab implements Tab {
     return 'V8 Script Sources';
   }
 
-  private async selectScript(id: number | undefined) {
+  private async selectScript(id?: number): Promise<ScriptResult | undefined> {
     if (id === undefined) return undefined;
     const queryResult = await this.trace.engine.query(
       `INCLUDE PERFETTO MODULE v8.jit;
@@ -169,13 +180,6 @@ export class V8SourcesTab implements Tab {
       script_size: NUM,
     });
     if (!it.valid()) return undefined;
-    this.functionsFilters = [
-      {
-        field: 'v8_js_script_id',
-        op: '=',
-        value: id,
-      },
-    ];
     return {
       source: it.source as string,
       details: {
@@ -201,15 +205,57 @@ export class V8SourcesTab implements Tab {
         },
       ];
     }
-    m.redraw();
   }
 
-  private renderSourceTab(source: string) {
-    return m(Editor, {
-      text: source,
-      language: 'javascript',
-      readonly: true,
-    });
+  private togglePrettyPrint() {
+    this.showPrettyPrinted = !this.showPrettyPrinted;
+  }
+
+  private renderSourceTab(
+    source: string,
+    formattedSource?: string,
+    isFormatting?: boolean,
+  ) {
+    const text =
+      this.showPrettyPrinted && formattedSource !== undefined
+        ? formattedSource
+        : source;
+
+    return m(
+      '.pf-v8-source-container',
+      {
+        style: {
+          position: 'relative',
+          height: '100%',
+        },
+      },
+      m(Editor, {
+        text,
+        language: 'javascript',
+        readonly: true,
+        fillHeight: true,
+      }),
+      m(
+        '.pf-v8-floating-toolbar',
+        {
+          style: {
+            position: 'absolute',
+            bottom: '20px',
+            right: '20px',
+            zIndex: 10,
+          },
+        },
+        m(Button, {
+          icon: 'data_object',
+          title: this.showPrettyPrinted ? 'Show Original' : 'Pretty Print',
+          variant: ButtonVariant.Filled,
+          intent: this.showPrettyPrinted ? Intent.Primary : undefined,
+          active: this.showPrettyPrinted,
+          loading: isFormatting,
+          onclick: () => this.togglePrettyPrint(),
+        }),
+      ),
+    );
   }
 
   private renderDetailsTab(scriptDetails?: V8JsScript) {
@@ -256,16 +302,19 @@ export class V8SourcesTab implements Tab {
         col: {title: 'Column'},
       },
     };
+    const filters: Filter[] = [
+      {
+        field: 'v8_js_script_id',
+        op: '=',
+        value: scriptDetails.v8_js_script_id,
+      },
+    ];
     return m(DataGrid, {
       data: this.functionsDataSource,
       schema: v8JsFunctionUiSchema,
       rootSchema: V8_JS_FUNCTION_SCHEMA_NAME,
       fillHeight: true,
-      initialFilters: this.functionsFilters,
-      onFiltersChanged: (filters: readonly Filter[]) => {
-        this.functionsFilters = filters;
-        m.redraw();
-      },
+      initialFilters: filters,
       initialColumns: [
         {field: 'v8_js_function_id', id: 'v8_js_function_id'},
         {field: 'name', id: 'name'},
@@ -283,6 +332,31 @@ export class V8SourcesTab implements Tab {
       retainOn: ['id'],
       queryFn: () => this.selectScript(selectedId),
     });
+
+    const {data: formattedResult, isPending: isFormatting} =
+      this.formatSlot.use({
+        key: {
+          id: selectedId,
+          prettyPrint: this.showPrettyPrinted,
+        },
+        enabled: !!scriptResult,
+        queryFn: async () => {
+          const source = scriptResult!.source;
+          await deferChunkedTask();
+          // if (!this.prettyPrinter.has(source)) {
+          //   // HACK: wait two rAFs to make sure the UI was updated in the meantime
+          //   // and we get a working loading animation.
+          //   await new Promise<void>((resolve) => {
+          //     window.requestAnimationFrame(() => {
+          //       window.requestAnimationFrame(() => {
+          //         resolve();
+          //       });
+          //     });
+          //   });
+          // }
+          return this.prettyPrinter.format(source);
+        },
+      });
 
     const v8JsScriptUiSchema: SchemaRegistry = {
       v8JsScript: {
@@ -351,7 +425,6 @@ export class V8SourcesTab implements Tab {
           filters: this.filters,
           onFiltersChanged: (filters: readonly Filter[]) => {
             this.filters = filters;
-            m.redraw();
           },
           initialColumns: [
             {field: 'v8_js_script_id', id: 'v8_js_script_id'},
@@ -378,7 +451,11 @@ export class V8SourcesTab implements Tab {
                   key: TAB_SOURCE,
                   title: 'Source',
                   leftIcon: 'code',
-                  content: this.renderSourceTab(scriptResult.source),
+                  content: this.renderSourceTab(
+                    scriptResult.source,
+                    formattedResult?.formatted,
+                    isFormatting,
+                  ),
                 },
                 {
                   key: TAB_FUNCTIONS,
@@ -396,7 +473,6 @@ export class V8SourcesTab implements Tab {
               activeTabKey: this.currentTab,
               onTabChange: (key) => {
                 this.currentTab = key;
-                m.redraw();
               },
             }),
       ),
