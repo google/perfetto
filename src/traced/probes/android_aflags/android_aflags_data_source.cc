@@ -35,9 +35,7 @@
 namespace perfetto {
 namespace {
 constexpr uint32_t kMinPollPeriodMs = 1000;
-constexpr uint32_t kAflagsExitTimeoutMs = 100;
-// Should be smaller than ProbesProducer::kFlushTimeoutMs.
-constexpr uint32_t kAflagsFlushTimeoutMs = 800;
+constexpr uint32_t kAflagsExitPollMs = 100;
 }  // namespace
 
 // static
@@ -69,7 +67,17 @@ AndroidAflagsDataSource::AndroidAflagsDataSource(
 
 AndroidAflagsDataSource::~AndroidAflagsDataSource() {
   if (aflags_output_pipe_) {
-    task_runner_->RemoveFileDescriptorWatch(*aflags_output_pipe_->rd);
+    task_runner_->RemoveFileDescriptorWatch(*aflags_output_pipe_);
+  }
+  if (aflags_process_) {
+    // At this point we want to kill the process to avoid leaking subprocesses
+    // if there is any bug with aflags. But also we don't want to needlessly
+    // block traced_probes' main thread waiting for a process we don't care
+    // about (the kernel might take time to process the SIGKILL).
+    task_runner_->PostDelayedTask(
+        [process = std::shared_ptr<base::Subprocess>(std::move(
+             aflags_process_))] { process->KillAndWaitForTermination(); },
+        10000);
   }
 }
 
@@ -101,10 +109,11 @@ void AndroidAflagsDataSource::Tick() {
     return;
   }
 
-  aflags_output_pipe_ = base::Pipe::Create(base::Pipe::kRdNonBlock);
+  auto pipe_pair = base::Pipe::Create(base::Pipe::kRdNonBlock);
+  aflags_output_pipe_ = std::move(pipe_pair.rd);
   // Watch the read end of the pipe for output from the aflags process.
   task_runner_->AddFileDescriptorWatch(
-      *aflags_output_pipe_->rd, [weak_this = weak_factory_.GetWeakPtr()] {
+      *aflags_output_pipe_, [weak_this = weak_factory_.GetWeakPtr()] {
         if (weak_this) {
           weak_this->OnAflagsOutput();
         }
@@ -114,38 +123,43 @@ void AndroidAflagsDataSource::Tick() {
 
   // It returns a base64-encoded binary proto that needs to be decoded before
   // being written to the trace.
-  aflags_process_.emplace(std::initializer_list<std::string>{
-      "/system/bin/aflags", "list", "--format", "proto"});
+  aflags_process_ =
+      std::make_unique<base::Subprocess>(std::initializer_list<std::string>{
+          "/system/bin/aflags", "list", "--format", "proto"});
   aflags_process_->args.stdout_mode = base::Subprocess::OutputMode::kFd;
   aflags_process_->args.stderr_mode = base::Subprocess::OutputMode::kFd;
   // Keeps track of both stdout and stderr in the same pipe.
-  aflags_process_->args.out_fd = std::move(aflags_output_pipe_->wr);
+  aflags_process_->args.out_fd = std::move(pipe_pair.wr);
   aflags_process_->Start();
 }
 
 void AndroidAflagsDataSource::OnAflagsOutput() {
   errno = 0;
-  if (base::ReadFileDescriptor(*aflags_output_pipe_->rd, &aflags_output_)) {
-    task_runner_->RemoveFileDescriptorWatch(*aflags_output_pipe_->rd);
-    FinalizeAflagsCapture();
-    return;
-  }
 
-  if (base::IsAgain(errno)) {
+  bool eof = base::ReadFileDescriptor(*aflags_output_pipe_, &aflags_output_);
+  if (!eof && base::IsAgain(errno)) {
     return;  // Read is blocked, wait for the next notification.
   }
 
-  PERFETTO_PLOG("Error reading from aflags output pipe.");
-  task_runner_->RemoveFileDescriptorWatch(*aflags_output_pipe_->rd);
+  // If we get here either EOF or read() error out (unlikely, but SELinux).
+  task_runner_->RemoveFileDescriptorWatch(*aflags_output_pipe_);
 
-  EmitErrorPacket("Error reading from aflags output pipe: " + aflags_output_);
+  std::string error;
+  if (!eof) {
+    base::StackString<255> err_str("aflags failed: pipe read (%d, %s)", errno,
+                                   strerror(errno));
+    if (aflags_process_)
+      aflags_process_->Kill();
+    error = err_str.ToStdString();
+  }
 
-  aflags_process_.reset();
-  aflags_output_pipe_.reset();
-  aflags_output_.clear();
+  FinalizeAflagsCapture(std::move(error));
 }
 
-void AndroidAflagsDataSource::FinalizeAflagsCapture() {
+// We get to this function if either we read the stdout through EOF or if the
+// stdot.read() failed. In either case the process might have not terminated
+// yet (a subprocess usually terminates a bit after closing stdout/err).
+void AndroidAflagsDataSource::FinalizeAflagsCapture(std::string error) {
   if (!aflags_process_) {
     return;
   }
@@ -155,11 +169,11 @@ void AndroidAflagsDataSource::FinalizeAflagsCapture() {
   if (status == base::Subprocess::kRunning) {
     // Process hasn't finished running yet, reschedule and check later.
     task_runner_->PostDelayedTask(
-        [weak_this = weak_factory_.GetWeakPtr()] {
+        [weak_this = weak_factory_.GetWeakPtr(), error_mv = std::move(error)] {
           if (weak_this)
-            weak_this->FinalizeAflagsCapture();
+            weak_this->FinalizeAflagsCapture(std::move(error_mv));
         },
-        kAflagsExitTimeoutMs);
+        kAflagsExitPollMs);
     return;
   }
 
@@ -167,12 +181,24 @@ void AndroidAflagsDataSource::FinalizeAflagsCapture() {
   aflags_process_.reset();
   aflags_output_pipe_.reset();
 
-  if (status != base::Subprocess::kTerminated || returncode != 0) {
-    PERFETTO_ELOG("aflags failed: status: %d, code: %d", status, returncode);
-    EmitErrorPacket(
+  if (error.empty() &&
+      !(status == base::Subprocess::kTerminated && returncode == 0)) {
+    error =
         "aflags failed: status: " + std::to_string(static_cast<int>(status)) +
-        ", code: " + std::to_string(returncode) +
-        ". Output: " + aflags_output_);
+        ", code: " + std::to_string(returncode) + ". Output: " + aflags_output_;
+  }
+
+  // Whether we error or not, at this point we decided that we are going to
+  // write _something_ in the trace, hence we should ack the pending flushes.
+  auto ack_pending_flushes_on_exit = base::OnScopeExit([&] {
+    // Drain any Flush() callbacks deferred while the subprocess was running.
+    auto pending_flushes_vector = std::move(pending_flushes_);
+    for (auto& flush_callback : pending_flushes_vector)
+      flush_callback();
+  });
+
+  if (!error.empty()) {
+    EmitErrorPacket(error);
     aflags_output_.clear();
     return;
   }
@@ -184,9 +210,8 @@ void AndroidAflagsDataSource::FinalizeAflagsCapture() {
   std::optional<std::string> decoded =
       base::Base64Decode(output.data(), output.size());
   if (!decoded) {
-    PERFETTO_ELOG("Failed to decode aflags output (length: %zu)",
-                  output.size());
-    EmitErrorPacket("Failed to decode aflags output: " + output);
+    EmitErrorPacket("Failed to decode aflags output (len=" +
+                    std::to_string(output.size()) + "): " + output);
     return;
   }
 
@@ -196,14 +221,10 @@ void AndroidAflagsDataSource::FinalizeAflagsCapture() {
   aflags_proto->AppendRawProtoBytes(decoded->data(), decoded->size());
   packet->Finalize();
   writer_->Flush();
-
-  // Drain any Flush() callbacks deferred while the subprocess was running.
-  while (!pending_flushes_.empty()) {
-    OnFlushComplete(pending_flushes_.begin()->first);
-  }
 }
 
 void AndroidAflagsDataSource::EmitErrorPacket(const std::string& error_msg) {
+  PERFETTO_ELOG("%s", error_msg.c_str());
   auto packet = writer_->NewTracePacket();
   packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
   auto* aflags_proto = packet->set_android_aflags();
@@ -212,7 +233,7 @@ void AndroidAflagsDataSource::EmitErrorPacket(const std::string& error_msg) {
   writer_->Flush();
 }
 
-void AndroidAflagsDataSource::Flush(FlushRequestID flush_request_id,
+void AndroidAflagsDataSource::Flush(FlushRequestID,
                                     std::function<void()> callback) {
   // Fast path: no subprocess in flight, flush immediately.
   if (!aflags_process_) {
@@ -220,35 +241,16 @@ void AndroidAflagsDataSource::Flush(FlushRequestID flush_request_id,
     return;
   }
 
-  // Subprocess still running. Defer the callback until FinalizeAflagsCapture()
-  // drains us; if the subprocess takes too long, kAflagsFlushTimeoutMs acts
-  // as safety net.
-  pending_flushes_[flush_request_id] = std::move(callback);
-  task_runner_->PostDelayedTask(
-      [weak_this = weak_factory_.GetWeakPtr(), flush_request_id] {
-        if (weak_this)
-          weak_this->OnFlushTimeout(flush_request_id);
-      },
-      kAflagsFlushTimeoutMs);
-}
-
-void AndroidAflagsDataSource::OnFlushTimeout(FlushRequestID flush_request_id) {
-  if (pending_flushes_.count(flush_request_id) == 0)
-    return;  // Already drained on the successful-completion path.
-
-  PERFETTO_ELOG("android.aflags Flush(%" PRIu64 ") timed out",
-                flush_request_id);
-  OnFlushComplete(flush_request_id);
-}
-
-void AndroidAflagsDataSource::OnFlushComplete(FlushRequestID flush_request_id) {
-  auto it = pending_flushes_.find(flush_request_id);
-  if (it == pending_flushes_.end())
-    return;
-
-  auto callback = std::move(it->second);
-  pending_flushes_.erase(it);
-  writer_->Flush(std::move(callback));
+  // Subprocess still running. Defer the callback until FinalizeAflagsCapture().
+  // If the subprocess takes longer than the flush timeout, we don't do anything
+  // special here, as ProbesProducer already has its own timeout to gate the
+  // flush of all the various data sources.
+  // What we really want to acheive here is the following: if aflags takes
+  // time to respond (normally it takes ~350ms) AND if the trace is short
+  // (some heap dump traces has 1s duration) we want to stall the trace
+  // termination to maximize the change we get the aflags output in the trace,
+  // up to ProbesProducer::kFlushTimeoutMs.
+  pending_flushes_.emplace_back(std::move(callback));
 }
 
 }  // namespace perfetto
