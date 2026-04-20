@@ -36,6 +36,8 @@ namespace perfetto {
 namespace {
 constexpr uint32_t kMinPollPeriodMs = 1000;
 constexpr uint32_t kAflagsExitTimeoutMs = 100;
+// Should be smaller than ProbesProducer::kFlushTimeoutMs.
+constexpr uint32_t kAflagsFlushTimeoutMs = 800;
 }  // namespace
 
 // static
@@ -194,6 +196,11 @@ void AndroidAflagsDataSource::FinalizeAflagsCapture() {
   aflags_proto->AppendRawProtoBytes(decoded->data(), decoded->size());
   packet->Finalize();
   writer_->Flush();
+
+  // Drain any Flush() callbacks deferred while the subprocess was running.
+  while (!pending_flushes_.empty()) {
+    OnFlushComplete(pending_flushes_.begin()->first);
+  }
 }
 
 void AndroidAflagsDataSource::EmitErrorPacket(const std::string& error_msg) {
@@ -205,9 +212,43 @@ void AndroidAflagsDataSource::EmitErrorPacket(const std::string& error_msg) {
   writer_->Flush();
 }
 
-void AndroidAflagsDataSource::Flush(FlushRequestID,
+void AndroidAflagsDataSource::Flush(FlushRequestID flush_request_id,
                                     std::function<void()> callback) {
-  writer_->Flush(callback);
+  // Fast path: no subprocess in flight, flush immediately.
+  if (!aflags_process_) {
+    writer_->Flush(std::move(callback));
+    return;
+  }
+
+  // Subprocess still running. Defer the callback until FinalizeAflagsCapture()
+  // drains us; if the subprocess takes too long, kAflagsFlushTimeoutMs acts
+  // as safety net.
+  pending_flushes_[flush_request_id] = std::move(callback);
+  task_runner_->PostDelayedTask(
+      [weak_this = weak_factory_.GetWeakPtr(), flush_request_id] {
+        if (weak_this)
+          weak_this->OnFlushTimeout(flush_request_id);
+      },
+      kAflagsFlushTimeoutMs);
+}
+
+void AndroidAflagsDataSource::OnFlushTimeout(FlushRequestID flush_request_id) {
+  if (pending_flushes_.count(flush_request_id) == 0)
+    return;  // Already drained on the successful-completion path.
+
+  PERFETTO_ELOG("android.aflags Flush(%" PRIu64 ") timed out",
+                flush_request_id);
+  OnFlushComplete(flush_request_id);
+}
+
+void AndroidAflagsDataSource::OnFlushComplete(FlushRequestID flush_request_id) {
+  auto it = pending_flushes_.find(flush_request_id);
+  if (it == pending_flushes_.end())
+    return;
+
+  auto callback = std::move(it->second);
+  pending_flushes_.erase(it);
+  writer_->Flush(std::move(callback));
 }
 
 }  // namespace perfetto
