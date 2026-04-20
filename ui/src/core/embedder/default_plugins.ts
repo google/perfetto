@@ -38,6 +38,7 @@ export const defaultPlugins = [
   'com.android.CujFrameDebugTrack',
   'com.android.DayExplorer',
   'com.android.GpuWorkPeriod',
+  'com.android.HeapDumpExplorer',
   'com.android.LargeScreensPerf',
   'com.android.PinAndroidPerfMetrics',
   'com.android.PinSysUITracks',
