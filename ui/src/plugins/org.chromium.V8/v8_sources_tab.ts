@@ -31,7 +31,7 @@ import {Tabs} from '../../widgets/tabs';
 import {TextInput} from '../../widgets/text_input';
 import {Tree, TreeNode} from '../../widgets/tree';
 import {formatFileSize} from '../../base/file_utils';
-import {QuerySlot, SerialTaskQueue} from '../../base/query_slot';
+import {QuerySlot} from '../../base/query_slot';
 
 interface V8JsScript {
   v8_js_script_id: number;
@@ -106,9 +106,7 @@ const TAB_FUNCTIONS = 'functions';
 
 export class V8SourcesTab implements Tab {
   private currentTab = TAB_SOURCE;
-  private readonly slot = new QuerySlot<ScriptResults | undefined>(
-    new SerialTaskQueue(),
-  );
+  private readonly slot = new QuerySlot<ScriptResults | undefined>();
   private selectedScriptId: number | undefined = undefined;
   private trace: Trace;
   private dataSource: SQLDataSource;
