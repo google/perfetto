@@ -3,8 +3,7 @@
 ## Overview
 
 Perfetto depends on SQLite internals:
-- Modified SQLite tokenizer (`tokenize.c`) for PerfettoSQL
-- SQLite grammar file (`parse.y`) processing
+- SQLite grammar processing via the syntaqlite library
 - Internal SQLite constants and structures
 
 ## Upgrade Procedure
@@ -18,9 +17,9 @@ Only upgrade when Chrome, Android, and Google3 all support the target SQLite ver
    - `tools/install-build-deps` - update SQLite version/hash
    - `bazel/deps.bzl` - update SQLite version/hash
 
-2. **Run parser update:**
+2. **Regenerate the PerfettoSQL parser:**
    ```bash
-   python3 tools/update_sql_parsers.py
+   python3 tools/gen_syntaqlite_parser
    ```
 
 3. **Build and test:**
@@ -32,16 +31,6 @@ Only upgrade when Chrome, Android, and Google3 all support the target SQLite ver
 
 ## Common Issues
 
-### SQLite Special Tokens Changed
-**Error:** `SQLite special tokens have changed! Expected: %token SPACE COMMENT ILLEGAL.`
-
-**Fix:** Update `EXPECTED_SPECIAL_TOKENS` in `tools/update_sql_parsers.py`
-
-### Missing Token Definitions
-**Error:** `use of undeclared identifier 'TK_COMMENT'` or `'SQLITE_DIGIT_SEPARATOR'`
-
-**Fix:** Add missing constants to `tokenize_internal_helper.h`
-
 ### SQLite Internal API Changes
 **Error:** Compilation errors in `sqlite_utils.h` or `sqlite/bindings/*.h`
 
@@ -52,15 +41,17 @@ Only upgrade when Chrome, Android, and Google3 all support the target SQLite ver
 ### Always Review
 - `tools/install-build-deps` - SQLite version/hash
 - `bazel/deps.bzl` - SQLite version/hash
-- `tools/update_sql_parsers.py` - Parser update script
-- `tokenize_internal_helper.h` - Tokenizer integration
+- `tools/gen_syntaqlite_parser` - Parser regeneration script
 
 ### Generated (Don't Edit)
-- `perfettosql_grammar.*`
-- `perfettosql_keywordhash.h`
-- `tokenize_internal.c`
+- `src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.c`
+- `src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h`
+
+### Grammar Sources (Edit These)
+- `src/trace_processor/perfetto_sql/syntaqlite/perfetto.y` - Perfetto dialect grammar
+- `src/trace_processor/perfetto_sql/syntaqlite/perfetto.synq` - AST node definitions
 
 ## Rollback
 1. Revert version changes in `tools/install-build-deps` and `bazel/deps.bzl`
-2. Re-run `python3 tools/update_sql_parsers.py`
+2. Re-run `python3 tools/gen_syntaqlite_parser`
 3. Rebuild
