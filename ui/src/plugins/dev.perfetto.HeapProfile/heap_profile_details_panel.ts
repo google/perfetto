@@ -542,6 +542,9 @@ function getHeapGraphNodeOptionalActions(
   isDominator: boolean,
   onNodeSelected?: (pathHashes: string, isDominator: boolean) => void,
 ): ReadonlyArray<FlamegraphOptionalAction> {
+  if (!trace.plugins.isPluginEnabled('com.android.HeapDumpExplorer')) {
+    return [];
+  }
   return [
     {
       name: 'Open in Heapdump Explorer',
