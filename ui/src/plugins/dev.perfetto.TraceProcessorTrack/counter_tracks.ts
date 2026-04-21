@@ -344,6 +344,11 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     group: undefined,
   },
   {
+    type: 'slabinfo',
+    topLevelGroup: 'MEMORY',
+    group: 'Slab',
+  },
+  {
     type: 'sysprop_counter',
     topLevelGroup: 'SYSTEM',
     group: undefined,
