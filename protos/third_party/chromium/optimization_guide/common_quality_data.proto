@@ -2109,6 +2109,8 @@ enum AXStringListAttribute {
 // This will be updated when there is a significant change in the parsing logic.
 // Next ID: 3
 enum AnnotatedPageContentVersion {
+  option allow_alias = true;
+
   ANNOTATED_PAGE_CONTENT_VERSION_UNKNOWN = 0;
 
   ANNOTATED_PAGE_CONTENT_VERSION_1_0 = 1;
@@ -2117,6 +2119,10 @@ enum AnnotatedPageContentVersion {
   // TODO(crbug.com/490195093): Maintain both on the client until all users have been
   // switched over.
   ANNOTATED_PAGE_CONTENT_VERSION_ONLY_ACTIONABLE_ELEMENTS_1_0 = 2 [deprecated = true];
+
+  // The maximum valid version of the proto. This value includes deprecated
+  // versions to ensure backward compatibility with older clients.
+  ANNOTATED_PAGE_CONTENT_VERSION_MAX_VALID = 2;
 }
 
 // The extraction on the client can be configured to a specific mode. This
@@ -2415,6 +2421,9 @@ enum RedactionDecision {
   // Is a non-empty field that autofill recognized as an OTP field and so must
   // be redacted.
   REDACTION_DECISION_REDACTED_IS_OTP = 8;
+
+  // Is a empty field that autofill recognized as an OTP field.
+  REDACTION_DECISION_UNREDACTED_EMPTY_OTP_FIELD = 9;
 }
 
 // The type of data that can be autofilled into a form.
@@ -2424,6 +2433,8 @@ enum CoarseAutofillFieldType {
   COARSE_AUTOFILL_FIELD_TYPE_ADDRESS = 1;
 
   COARSE_AUTOFILL_FIELD_TYPE_CREDIT_CARD = 2;
+
+  COARSE_AUTOFILL_FIELD_TYPE_OTP = 3;
 }
 
 // Indicates the type of media in the media data.
