@@ -36,6 +36,7 @@ import type {AnalysisCache} from './analysis';
 import type {GpuComputeContext} from './index';
 import {isTableVisible} from './section';
 import {Accordion, AccordionSection} from '../../widgets/accordion';
+import {Intent} from '../../widgets/common';
 
 // =============================================================================
 // SQL constants
@@ -569,13 +570,8 @@ export async function fetchSelectedKernelMetricData(
 // UI rendering helpers
 // =============================================================================
 
-// Tooltip popup triggered by a warning icon on non-comparable baselines.
-interface WarnIconClickPopupAttrs {
-  label: string;
-}
-
-const WarnIconClickPopup: m.Component<WarnIconClickPopupAttrs> = {
-  view: ({attrs: {label}}) =>
+const WarnIconClickPopup: m.Component = {
+  view: ({children}) =>
     m(
       Popup,
       {
@@ -583,21 +579,10 @@ const WarnIconClickPopup: m.Component<WarnIconClickPopupAttrs> = {
         fitContent: true,
         trigger: m(
           'span.pf-gpu-compute__warn-trigger',
-          m(Icon, {icon: Icons.Warning, className: 'pf-color-warning'}),
+          m(Icon, {icon: Icons.Warning, intent: Intent.Warning}),
         ),
       },
-      m(
-        '.pf-track__tooltip',
-        {
-          style: [
-            'font-size:11px',
-            'padding:2px 2px',
-            'white-space:nowrap',
-            'max-width:280px',
-          ].join(';'),
-        },
-        label,
-      ),
+      children,
     ),
 };
 
@@ -743,7 +728,7 @@ export function renderFormattedCell(
     if (baseline === null) {
       return m('span.pf-gpu-compute__inline-flex', [
         m('span.pf-gpu-compute__inline-flex', [
-          m(WarnIconClickPopup, {label: 'Baseline unit not comparable'}),
+          m(WarnIconClickPopup, 'Baseline unit not comparable'),
           curValue,
         ]),
       ]);
