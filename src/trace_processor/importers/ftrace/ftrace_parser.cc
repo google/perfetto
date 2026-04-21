@@ -542,6 +542,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
       gpu_power_state_off_id_(context->storage->InternString("OFF")),
       gpu_power_state_pg_id_(context->storage->InternString("PG")),
       gpu_power_state_on_id_(context->storage->InternString("ON")),
+      gpu_cmdbatch_slice_name_id_(context->storage->InternString("GPU")),
       ddic_underrun_id_(context_->storage->InternString("ddic_underrun")),
       memcg_reclaim_order_id_(
           context->storage->InternString("memcg_reclaim_order")),
@@ -937,6 +938,18 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kKgslGpuFrequencyFieldNumber: {
         ParseKgslGpuFreq(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kKgslAdrenoCmdbatchQueuedFieldNumber: {
+        ParseKgslAdrenoCmdbatchQueued(pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kKgslAdrenoCmdbatchSyncFieldNumber: {
+        ParseKgslAdrenoCmdbatchSync(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kKgslAdrenoCmdbatchRetiredFieldNumber: {
+        ParseKgslAdrenoCmdbatchRetired(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kCpuIdleFieldNumber: {
@@ -1929,6 +1942,80 @@ void FtraceParser::ParseKgslGpuFreq(int64_t timestamp, ConstBytes blob) {
       tracks::kGpuFrequencyBlueprint,
       tracks::Dimensions(ugpu.value, freq.gpu_id()));
   context_->event_tracker->PushCounter(timestamp, new_freq, track);
+}
+
+void FtraceParser::ParseKgslAdrenoCmdbatchQueued(uint32_t pid,
+                                                 protozero::ConstBytes data) {
+  protos::pbzero::KgslAdrenoCmdbatchQueuedFtraceEvent::Decoder evt(data);
+  adreno_cmdbatch_ctx_tids_.Insert(evt.id(), pid);
+}
+
+void FtraceParser::ParseKgslAdrenoCmdbatchSync(int64_t timestamp,
+                                               protozero::ConstBytes data) {
+  protos::pbzero::KgslAdrenoCmdbatchSyncFtraceEvent::Decoder evt(data);
+  adreno_cmdbatch_sync_points_.Insert(
+      evt.timestamp(), AdrenoCmdbatchSyncPoint{timestamp, evt.ticks()});
+}
+
+void FtraceParser::ParseKgslAdrenoCmdbatchRetired(int64_t,
+                                                  protozero::ConstBytes data) {
+  protos::pbzero::KgslAdrenoCmdbatchRetiredFtraceEvent::Decoder evt(data);
+
+  static constexpr auto kBlueprint = TrackCompressor::SliceBlueprint(
+      "adreno_gpu_cmdbatch",
+      tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("context_id"),
+                                  tracks::UintDimensionBlueprint("prio")),
+      tracks::DynamicNameBlueprint());
+
+  if (evt.retire() < evt.start()) {
+    return;
+  }
+
+  // Adreno GPU ticks run at 19.2 MHz, fixed across all Qualcomm mobile SoCs
+  // (see KGSL_XO_CLK_FREQ in kgsl_pwrctrl.h).
+  constexpr int64_t kAdrenoXoFreqHz = 19200000;
+  const int64_t duration = static_cast<int64_t>(evt.retire() - evt.start()) *
+                           1000000000 / kAdrenoXoFreqHz;
+
+  auto* sync = adreno_cmdbatch_sync_points_.Find(evt.timestamp());
+  if (!sync) {
+    return;
+  }
+  int64_t gpu_start_ts =
+      sync->trace_ts + static_cast<int64_t>(evt.start() - sync->gpu_ticks) *
+                           1000000000 / kAdrenoXoFreqHz;
+  adreno_cmdbatch_sync_points_.Erase(evt.timestamp());
+
+  const uint32_t context_id = evt.id();
+
+  StringId track_name = kNullStringId;
+  auto* queued_tid = adreno_cmdbatch_ctx_tids_.Find(context_id);
+  if (queued_tid) {
+    UniqueTid utid = context_->process_tracker->GetOrCreateThread(*queued_tid);
+    auto upid = context_->storage->thread_table()[utid].upid();
+    if (upid.has_value()) {
+      auto process_name = context_->storage->process_table()[*upid].name();
+      if (process_name.has_value()) {
+        auto pname = context_->storage->GetString(*process_name);
+        base::StackString<256> name(
+            "GPU %.*s (Ctx=%u, Prio=%u)", static_cast<int>(pname.size()),
+            pname.data(), context_id, static_cast<uint32_t>(evt.prio()));
+        track_name = context_->storage->InternString(name.string_view());
+      }
+    }
+  }
+  if (track_name == kNullStringId) {
+    base::StackString<64> name("GPU (Ctx=%u, Prio=%u)", context_id,
+                               static_cast<uint32_t>(evt.prio()));
+    track_name = context_->storage->InternString(name.string_view());
+  }
+
+  TrackId track_id = context_->track_compressor->InternScoped(
+      kBlueprint,
+      tracks::Dimensions(context_id, static_cast<uint32_t>(evt.prio())),
+      gpu_start_ts, duration, tracks::DynamicName(track_name));
+  context_->slice_tracker->Scoped(gpu_start_ts, track_id, kNullStringId,
+                                  gpu_cmdbatch_slice_name_id_, duration);
 }
 
 void FtraceParser::ParseCpuIdle(int64_t timestamp, ConstBytes blob) {
