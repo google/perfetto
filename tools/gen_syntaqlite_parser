@@ -49,6 +49,7 @@ def main():
   cmd = [
       binary,
       'dialect',
+      'generate',
       '--name',
       'perfetto',
       '--actions-dir',
