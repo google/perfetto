@@ -48,6 +48,7 @@ import {
   formatAsJSON,
   formatAsMarkdown,
 } from '../../components/widgets/datagrid/export_utils';
+import {MenuItem} from '../../widgets/menu';
 
 const ROW_H = 24;
 
@@ -230,7 +231,22 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
 
       return [
         m(GridCell, {align: 'right'}, id),
-        m(GridCell, m(Timestamp, {trace: this.trace, ts})),
+        m(
+          GridCell,
+          {
+            menuItems: m(MenuItem, {
+              label: 'Go to event on timeline',
+              icon: Icons.UpdateSelection,
+              onclick: () => {
+                this.trace.selection.selectSqlEvent('ftrace_event', id, {
+                  scrollToSelection: true,
+                  switchToCurrentSelectionTab: true,
+                });
+              },
+            }),
+          },
+          m(Timestamp, {trace: this.trace, ts}),
+        ),
         m(
           GridCell,
           m(
