@@ -52,6 +52,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/ftrace/fwtp_ftrace.pbzero.h"
+#include "protos/perfetto/trace/ftrace/kgsl.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "protos/perfetto/trace/ftrace/thermal_exynos.pbzero.h"
 #include "src/trace_processor/util/clock_synchronizer.h"
@@ -318,6 +319,20 @@ void FtraceTokenizer::TokenizeFtraceEvent(
           protos::pbzero::FtraceEvent::kFwtpPerfettoSliceFieldNumber)) {
     TokenizeFtraceFwtpPerfettoSlice(cpu, raw_ts, std::move(event),
                                     std::move(state));
+    return;
+  }
+  if (PERFETTO_UNLIKELY(
+          event_id ==
+          protos::pbzero::FtraceEvent::kKgslAdrenoCmdbatchSyncFieldNumber)) {
+    TokenizeFtraceAdrenoCmdbatchSync(cpu, raw_ts, std::move(event),
+                                     std::move(state));
+    return;
+  }
+  if (PERFETTO_UNLIKELY(
+          event_id ==
+          protos::pbzero::FtraceEvent::kKgslAdrenoCmdbatchRetiredFieldNumber)) {
+    TokenizeFtraceAdrenoCmdbatchRetired(cpu, raw_ts, std::move(event),
+                                        std::move(state));
     return;
   }
 
@@ -677,6 +692,88 @@ void FtraceTokenizer::TokenizeFtraceFwtpPerfettoSlice(
       cpu, timestamp,
       FtraceData{std::move(event), std::move(state), raw_ts,
                  /*insert_ftrace_event=*/false, /*parse_event=*/true});
+}
+
+void FtraceTokenizer::TokenizeFtraceAdrenoCmdbatchSync(
+    uint32_t cpu,
+    int64_t raw_ts,
+    TraceBlobView event,
+    RefPtr<PacketSequenceStateGeneration> state) {
+  auto field = GetFtraceEventField(
+      protos::pbzero::FtraceEvent::kKgslAdrenoCmdbatchSyncFieldNumber, event);
+  if (!field.has_value())
+    return;
+  protos::pbzero::KgslAdrenoCmdbatchSyncFtraceEvent::Decoder evt(
+      field.value().data(), field.value().size());
+  AdrenoCmdbatchSyncPoint sync{raw_ts, evt.ticks()};
+  adreno_cmdbatch_sync_points_.Insert(evt.timestamp(), sync);
+
+  // Process any retired event that arrived before this sync event.
+  auto* pending = pending_adreno_cmdbatch_retired_.Find(evt.timestamp());
+  if (pending) {
+    constexpr int64_t kAdrenoXoFreqHz = 19200000;
+    int64_t gpu_start_ts =
+        sync.trace_ts + static_cast<int64_t>(pending->start - sync.gpu_ticks) *
+                            1000000000 / kAdrenoXoFreqHz;
+    module_context_->PushFtraceEvent(
+        pending->cpu, pending->raw_ts,
+        FtraceData{pending->event.copy(), pending->state,
+                   FtraceData::kRawTsUnset,
+                   /*insert_ftrace_event=*/true, /*parse_event=*/false});
+    module_context_->PushFtraceEvent(
+        pending->cpu, gpu_start_ts,
+        FtraceData{std::move(pending->event), std::move(pending->state),
+                   pending->raw_ts,
+                   /*insert_ftrace_event=*/false, /*parse_event=*/true});
+    pending_adreno_cmdbatch_retired_.Erase(evt.timestamp());
+    adreno_cmdbatch_sync_points_.Erase(evt.timestamp());
+  }
+
+  module_context_->PushFtraceEvent(
+      cpu, raw_ts, FtraceData{std::move(event), std::move(state)});
+}
+
+void FtraceTokenizer::TokenizeFtraceAdrenoCmdbatchRetired(
+    uint32_t cpu,
+    int64_t raw_ts,
+    TraceBlobView event,
+    RefPtr<PacketSequenceStateGeneration> state) {
+  auto field = GetFtraceEventField(
+      protos::pbzero::FtraceEvent::kKgslAdrenoCmdbatchRetiredFieldNumber,
+      event);
+  if (!field.has_value())
+    return;
+  protos::pbzero::KgslAdrenoCmdbatchRetiredFtraceEvent::Decoder evt(
+      field.value().data(), field.value().size());
+
+  auto* sync = adreno_cmdbatch_sync_points_.Find(evt.timestamp());
+  if (sync) {
+    constexpr int64_t kAdrenoXoFreqHz = 19200000;
+    int64_t gpu_start_ts =
+        sync->trace_ts + static_cast<int64_t>(evt.start() - sync->gpu_ticks) *
+                             1000000000 / kAdrenoXoFreqHz;
+    adreno_cmdbatch_sync_points_.Erase(evt.timestamp());
+    module_context_->PushFtraceEvent(
+        cpu, raw_ts,
+        FtraceData{event.copy(), state, FtraceData::kRawTsUnset,
+                   /*insert_ftrace_event=*/true, /*parse_event=*/false});
+    module_context_->PushFtraceEvent(
+        cpu, gpu_start_ts,
+        FtraceData{std::move(event), std::move(state), raw_ts,
+                   /*insert_ftrace_event=*/false, /*parse_event=*/true});
+    return;
+  }
+
+  // Sync hasn't arrived yet: push raw copy for ftrace_event table now,
+  // buffer the event for the parsing push when sync arrives.
+  module_context_->PushFtraceEvent(
+      cpu, raw_ts,
+      FtraceData{event.copy(), state, FtraceData::kRawTsUnset,
+                 /*insert_ftrace_event=*/true, /*parse_event=*/false});
+  pending_adreno_cmdbatch_retired_.Insert(
+      evt.timestamp(),
+      PendingAdrenoCmdbatchRetired{cpu, raw_ts, evt.start(), std::move(event),
+                                   std::move(state)});
 }
 
 std::optional<protozero::Field> FtraceTokenizer::GetFtraceEventField(
