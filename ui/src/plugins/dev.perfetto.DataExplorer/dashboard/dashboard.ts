@@ -20,7 +20,7 @@ import {
   perfettoSqlTypeIcon,
   perfettoSqlTypeToString,
 } from '../../../trace_processor/perfetto_sql_type';
-import {Accordion, AccordionItem} from '../../../widgets/accordion';
+import {Accordion, AccordionSection} from '../../../widgets/accordion';
 import {Button} from '../../../widgets/button';
 import {Icons} from '../../../base/semantic_icons';
 import {Chip} from '../../../widgets/chip';
@@ -138,7 +138,6 @@ interface EditingChartContext {
 
 export class Dashboard implements m.ClassComponent<DashboardAttrs> {
   private activePanel?: SidePanelTab;
-  private expandedInput: string | undefined = undefined;
   private renamingChartId?: string;
   private editingChart?: EditingChartContext;
   private editPanelRenaming = false;
@@ -1325,30 +1324,29 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
     const used = allExported.filter((s) => usedNodeIds.has(s.nodeId));
     const unused = allExported.filter((s) => !usedNodeIds.has(s.nodeId));
 
-    const makeSourceItems = (srcs: DashboardDataSource[]): AccordionItem[] =>
-      srcs.map((source) => ({
-        id: source.nodeId,
-        header: m('.pf-dashboard__source-row', [
-          m('code.pf-dashboard__input-name', source.name),
-        ]),
-        content: this.renderInputContent(source, attrs),
-      }));
+    const renderSourceAccordion = (srcs: DashboardDataSource[]) =>
+      m(
+        Accordion,
+        srcs.map((source) =>
+          m(
+            AccordionSection,
+            {
+              key: source.nodeId,
+              summary: m('.pf-dashboard__source-row', [
+                m('code.pf-dashboard__input-name', source.name),
+              ]),
+            },
+            this.renderInputContent(source, attrs),
+          ),
+        ),
+      );
 
     const sections: m.Child[] = [];
     if (used.length > 0) {
       sections.push(
         m('.pf-dashboard__panel-section', [
           m('.pf-dashboard__panel-section-title', 'Used data sources'),
-          m(
-            '.pf-dashboard__input-list',
-            m(Accordion, {
-              items: makeSourceItems(used),
-              expanded: this.expandedInput,
-              onToggle: (id) => {
-                this.expandedInput = id;
-              },
-            }),
-          ),
+          m('.pf-dashboard__input-list', renderSourceAccordion(used)),
         ]),
       );
     }
@@ -1356,16 +1354,7 @@ export class Dashboard implements m.ClassComponent<DashboardAttrs> {
       sections.push(
         m('.pf-dashboard__panel-section', [
           m('.pf-dashboard__panel-section-title', 'Unused data sources'),
-          m(
-            '.pf-dashboard__input-list',
-            m(Accordion, {
-              items: makeSourceItems(unused),
-              expanded: this.expandedInput,
-              onToggle: (id) => {
-                this.expandedInput = id;
-              },
-            }),
-          ),
+          m('.pf-dashboard__input-list', renderSourceAccordion(unused)),
         ]),
       );
     }

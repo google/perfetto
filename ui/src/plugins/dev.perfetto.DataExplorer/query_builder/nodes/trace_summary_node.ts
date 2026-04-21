@@ -32,7 +32,7 @@ import {
 } from '../node_styling_widgets';
 import {MetricsNode} from './metrics_node';
 import {TraceSummaryResultsPanel} from './trace_summary_results_panel';
-import {Accordion} from '../../../../widgets/accordion';
+import {Accordion, AccordionSection} from '../../../../widgets/accordion';
 import {enumKeyToLabel} from './metrics_enum_utils';
 import {showModal} from '../../../../widgets/modal';
 import {CodeSnippet} from '../../../../widgets/code_snippet';
@@ -183,13 +183,16 @@ export class TraceSummaryNode implements QueryNode {
       });
     } else {
       sections.push({
-        content: m(Accordion, {
-          items: metricsNodes.map((mn) => ({
-            id: mn.nodeId,
-            header: this.renderMetricHeader(mn),
-            content: this.renderMetricContent(mn),
-          })),
-        }),
+        content: m(
+          Accordion,
+          metricsNodes.map((mn) =>
+            m(
+              AccordionSection,
+              {key: mn.nodeId, summary: this.renderMetricHeader(mn)},
+              this.renderMetricContent(mn),
+            ),
+          ),
+        ),
       });
     }
 
