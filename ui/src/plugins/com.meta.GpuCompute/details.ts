@@ -29,13 +29,13 @@
 
 import m from 'mithril';
 import {convertUnit, humanizeRow, humanizeSections} from './humanize';
-import {TrackShell, type TrackShellAttrs} from '../../widgets/track_shell';
 import {Popup} from '../../widgets/popup';
 import {Icon} from '../../widgets/icon';
 import {Icons} from '../../base/semantic_icons';
 import type {AnalysisCache} from './analysis';
 import type {GpuComputeContext} from './index';
 import {isTableVisible} from './section';
+import {Accordion, AccordionSection} from '../../widgets/accordion';
 
 // =============================================================================
 // SQL constants
@@ -700,44 +700,26 @@ export function renderMetricResultTable(
 export function renderSectionList<TableType>(
   sections: {section: string; tables: TableType[]}[],
   opts: {
-    collapsedKeys: Set<string>;
     keyPrefix: string;
-    onToggleSection?: (key: string, collapsed: boolean) => void;
     renderTable: (table: TableType) => m.Children;
     renderSectionFooter?: (section: {
       section: string;
       tables: TableType[];
     }) => m.Children;
+    isCollapsed?: (sectionName: string) => boolean;
   },
-): m.Children[] {
-  return sections.map((sec) => {
-    const key = `${opts.keyPrefix}${sec.section}`;
-    const collapsed = opts.collapsedKeys.has(key);
-
-    const onCollapsedChanged = (newCollapsed: boolean) => {
-      if (newCollapsed) opts.collapsedKeys.add(key);
-      else opts.collapsedKeys.delete(key);
-      opts.onToggleSection?.(key, newCollapsed);
-    };
-
-    return m(
-      '.pf-gpu-compute__section',
-      m(
-        TrackShell as unknown as m.Component<TrackShellAttrs>,
-        {
-          title: sec.section,
-          collapsible: true,
-          collapsed,
-          summary: true,
-          onCollapsedChanged,
-        } as TrackShellAttrs,
-        !collapsed && [
+): m.Children {
+  return m(Accordion, {multi: true}, [
+    sections.map((sec) => {
+      const defaultOpen = !(opts.isCollapsed?.(sec.section) ?? false);
+      return m(AccordionSection, {summary: sec.section, defaultOpen}, [
+        m('div', [
           ...sec.tables.map(opts.renderTable),
           opts.renderSectionFooter?.(sec),
-        ],
-      ),
-    );
-  });
+        ]),
+      ]);
+    }),
+  ]);
 }
 
 // Returns a cell-renderer function that applies baseline diffs,
@@ -826,7 +808,6 @@ export interface KernelMetricsSectionSettings {
 // Internal state for {@link KernelMetricsSection}.
 type DataState = {
   kernelTableData?: KernelMetricData[];
-  collapsedSections: Set<string>;
   loadedSliceId?: number;
   loadedTerminologyId?: string;
 };
@@ -875,18 +856,6 @@ function loadMetricData(
       data = await findFirstWithMetrics();
     }
     state.kernelTableData = data;
-
-    const registeredSections = attrs.ctx.sectionRegistry.getSections();
-    for (const kernel of state.kernelTableData ?? []) {
-      for (const section of kernel.sections) {
-        const regSection = registeredSections.find(
-          (s) => s.title === section.section,
-        );
-        if (regSection?.collapsedByDefault) {
-          state.collapsedSections.add(`${kernel.id}:${section.section}`);
-        }
-      }
-    }
   };
 
   load();
@@ -903,7 +872,6 @@ export const KernelMetricsSection: m.Component<
   DataState
 > = {
   oninit: ({attrs, state}) => {
-    state.collapsedSections = new Set();
     loadMetricData(attrs, state);
   },
 
@@ -967,11 +935,14 @@ export const KernelMetricsSection: m.Component<
                     analysisCache: attrs.analysisCache!,
                   })
               : undefined;
+          const sections = attrs.ctx.sectionRegistry.getSections();
           return renderSectionList(kernel.sections, {
-            collapsedKeys: state.collapsedSections,
             keyPrefix: `${kernel.id}:`,
             renderTable: renderer,
             renderSectionFooter: renderFooter,
+            isCollapsed: (name) =>
+              sections.find((s) => s.title === name)?.collapsedByDefault ??
+              false,
           });
         })()
       );

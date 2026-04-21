@@ -80,10 +80,6 @@
   // ------------------------------------------------------------------
   &__section {
     border-bottom: 1px solid var(--pf-color-border);
-
-    .pf-track {
-      --track-shell-width: 100%;
-    }
   }
 
   // ------------------------------------------------------------------
@@ -117,27 +113,23 @@
     inset: 0;
     background: #4ca0dc;
     opacity: 0.15;
-    z-index: 0;
   }
 
   &__pct-bar-fill {
     position: absolute;
     inset: 0;
     background: #4ca0dc;
-    z-index: 1;
   }
 
   &__pct-bar-fill--baseline {
     position: absolute;
     inset: 0;
     background: #22c55e;
-    z-index: 1;
   }
 
   &__pct-bar-label {
     position: relative;
     text-align: right;
-    z-index: 2;
   }
 
   &__pct-bar-overlay {
@@ -146,7 +138,6 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    z-index: 3;
   }
 
   // ------------------------------------------------------------------
