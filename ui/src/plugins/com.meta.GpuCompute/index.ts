@@ -362,6 +362,21 @@ export default class GpuComputePlugin implements PerfettoPlugin {
     this.analysisProviderHolder.register(provider);
   }
 
+  getSectionRegistry(): SectionRegistry {
+    return this.sectionRegistry;
+  }
+
+  getContext(): GpuComputeContext {
+    return {
+      humanizeMetrics: true,
+      activeInfoTab: 'details',
+      terminologyId: 'cuda',
+      terminologyRegistry: this.terminologyRegistry,
+      sectionRegistry: this.sectionRegistry,
+      analysisProviderHolder: this.analysisProviderHolder,
+    };
+  }
+
   async onTraceLoad(trace: Trace): Promise<void> {
     const tabUri = `${GpuComputePlugin.id}#Compute`;
     trace.commands.registerCommand({
