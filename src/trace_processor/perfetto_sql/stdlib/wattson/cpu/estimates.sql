@@ -19,6 +19,8 @@ INCLUDE PERFETTO MODULE wattson.curves.utils;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
+INCLUDE PERFETTO MODULE wattson.utils;
+
 -- Get estimates per unique configuration, establishing the 1-to-1 map from CPU
 -- configuration to the config_hash
 CREATE PERFETTO TABLE _unique_estimates_mw AS
@@ -32,11 +34,7 @@ SELECT
   coalesce(base.cpu5_curve, lut5.curve_value) AS cpu5_mw,
   coalesce(base.cpu6_curve, lut6.curve_value) AS cpu6_mw,
   coalesce(base.cpu7_curve, lut7.curve_value) AS cpu7_mw,
-  iif(
-    no_static = 1,
-    0.0,
-    iif(0 IN _device_policies, coalesce(lut0.static, 0), 0) + iif(1 IN _device_policies, coalesce(lut1.static, 0), 0) + iif(2 IN _device_policies, coalesce(lut2.static, 0), 0) + iif(3 IN _device_policies, coalesce(lut3.static, 0), 0) + iif(4 IN _device_policies, coalesce(lut4.static, 0), 0) + iif(5 IN _device_policies, coalesce(lut5.static, 0), 0) + iif(6 IN _device_policies, coalesce(lut6.static, 0), 0) + iif(7 IN _device_policies, coalesce(lut7.static, 0), 0) + static_1d
-  ) AS static_mw,
+  iif(0 IN _device_policies AND _extract_bit!(policy_cpus_on_mask, 0), coalesce(lut0.static, 0), 0) + iif(1 IN _device_policies AND _extract_bit!(policy_cpus_on_mask, 1), coalesce(lut1.static, 0), 0) + iif(2 IN _device_policies AND _extract_bit!(policy_cpus_on_mask, 2), coalesce(lut2.static, 0), 0) + iif(3 IN _device_policies AND _extract_bit!(policy_cpus_on_mask, 3), coalesce(lut3.static, 0), 0) + iif(4 IN _device_policies AND _extract_bit!(policy_cpus_on_mask, 4), coalesce(lut4.static, 0), 0) + iif(5 IN _device_policies AND _extract_bit!(policy_cpus_on_mask, 5), coalesce(lut5.static, 0), 0) + iif(6 IN _device_policies AND _extract_bit!(policy_cpus_on_mask, 6), coalesce(lut6.static, 0), 0) + iif(7 IN _device_policies AND _extract_bit!(policy_cpus_on_mask, 7), coalesce(lut7.static, 0), 0) + static_1d AS static_mw,
   l3_lut.l3_hit,
   l3_lut.l3_miss
 FROM _w_dependent_cpus_unique AS base
