@@ -46,6 +46,7 @@
     - [Concurrent Sessions](concepts/concurrent-tracing-sessions.md) `android linux cpp`
     - [Tracing in Background](learning-more/tracing-in-background.md) `android linux`
     - [More Android Tracing](learning-more/android.md) `android`
+    - [Symbolization and Deobfuscation](learning-more/symbolization.md) `android linux`
 
   - [Tracing SDK](#)
 
