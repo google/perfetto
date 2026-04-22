@@ -549,6 +549,13 @@ class TraceStorage {
     return mutable_table<tables::GpuTable>();
   }
 
+  const tables::InterruptMappingTable& interrupt_mapping_table() const {
+    return table<tables::InterruptMappingTable>();
+  }
+  tables::InterruptMappingTable* mutable_interrupt_mapping_table() {
+    return mutable_table<tables::InterruptMappingTable>();
+  }
+
   const tables::CpuFreqTable& cpu_freq_table() const {
     return table<tables::CpuFreqTable>();
   }

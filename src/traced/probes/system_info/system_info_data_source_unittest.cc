@@ -16,6 +16,7 @@
 
 #include "src/traced/probes/system_info/system_info_data_source.h"
 #include "perfetto/ext/base/cpu_info_features_allowlist.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "src/traced/probes/common/cpu_freq_info_for_testing.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
 #include "test/gtest_and_gmock.h"
@@ -115,11 +116,12 @@ const char* kMockCpuCapacityInfoAndroid[8] = {
 class TestSystemInfoDataSource : public SystemInfoDataSource {
  public:
   TestSystemInfoDataSource(std::unique_ptr<TraceWriter> writer,
-                           std::unique_ptr<CpuFreqInfo> cpu_freq_info)
-      : SystemInfoDataSource(
-            /* session_id */ 0,
-            std::move(writer),
-            std::move(cpu_freq_info)) {}
+                           std::unique_ptr<CpuFreqInfo> cpu_freq_info,
+                           const DataSourceConfig& config)
+      : SystemInfoDataSource(0,
+                             std::move(writer),
+                             std::move(cpu_freq_info),
+                             config) {}
 
   MOCK_METHOD(std::vector<base::CpuInfo>, ReadCpuInfo, (), (override));
   MOCK_METHOD(std::string, ReadFile, (std::string), (override));
@@ -127,13 +129,15 @@ class TestSystemInfoDataSource : public SystemInfoDataSource {
 
 class SystemInfoDataSourceTest : public ::testing::Test {
  protected:
-  std::unique_ptr<TestSystemInfoDataSource> GetSystemInfoDataSource() {
+  std::unique_ptr<TestSystemInfoDataSource> GetSystemInfoDataSource(
+      const DataSourceConfig& config = DataSourceConfig()) {
     auto writer =
         std::unique_ptr<TraceWriterForTesting>(new TraceWriterForTesting());
     writer_raw_ = writer.get();
     auto instance =
         std::unique_ptr<TestSystemInfoDataSource>(new TestSystemInfoDataSource(
-            std::move(writer), cpu_freq_info_for_testing.GetInstance()));
+            std::move(writer), cpu_freq_info_for_testing.GetInstance(),
+            config));
     return instance;
   }
 

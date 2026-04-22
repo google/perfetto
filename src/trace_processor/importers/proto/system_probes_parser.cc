@@ -40,6 +40,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/common/irq_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -1045,6 +1046,17 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
         metadata::system_ram_gb,
         Variadic::Integer(MachineTracker::BytesToGB(system_ram_bytes)));
     machine_tracker->SetSystemRamBytes(system_ram_bytes);
+  }
+
+  if (packet.has_irq_mapping()) {
+    for (auto it = packet.irq_mapping(); it; ++it) {
+      protos::pbzero::SystemInfo::InterruptMapping::Decoder mapping(*it);
+      if (mapping.has_irq_id() && mapping.has_name()) {
+        auto name_id = context_->storage->InternString(mapping.name());
+        context_->irq_tracker->SetIrqName(
+            static_cast<uint32_t>(mapping.irq_id()), name_id);
+      }
+    }
   }
 }
 

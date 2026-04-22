@@ -23,6 +23,8 @@ source_set("system_info") {
     "..:data_source",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/traced",
+    "../../../../protos/perfetto/common:zero",
+    "../../../../protos/perfetto/config/system_info:cpp",
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/system_info:zero",
     "../../../base",
