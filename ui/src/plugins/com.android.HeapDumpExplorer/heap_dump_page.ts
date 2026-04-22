@@ -238,7 +238,12 @@ function buildTabs(
     {
       key: 'classes',
       title: 'Classes',
-      content: m(ClassesView, {engine, navigate: navigateWithTabs}),
+      content: m(ClassesView, {
+        engine,
+        navigate: navigateWithTabs,
+        initialRootClass:
+          state.view === 'classes' ? state.params.rootClass : undefined,
+      }),
     },
     {
       key: 'objects',

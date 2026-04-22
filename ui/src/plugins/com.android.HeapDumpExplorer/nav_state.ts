@@ -18,7 +18,7 @@ import m from 'mithril';
 
 export type NavState =
   | {view: 'overview'; params: Record<string, never>}
-  | {view: 'classes'; params: Record<string, never>}
+  | {view: 'classes'; params: {rootClass?: string}}
   | {view: 'dominators'; params: Record<string, never>}
   | {view: 'objects'; params: {cls?: string}}
   | {view: 'object'; params: {id: number; label?: string}}
@@ -31,8 +31,10 @@ export function stateToSubpage(state: NavState): string {
   switch (state.view) {
     case 'overview':
       return '';
-    case 'classes':
-      return 'classes';
+    case 'classes': {
+      const root = state.params.rootClass;
+      return root ? `classes?root=${encodeURIComponent(root)}` : 'classes';
+    }
     case 'dominators':
       return 'dominators';
     case 'objects': {
@@ -88,8 +90,10 @@ export function subpageToState(subpage: string | undefined): NavState {
     case '':
     case 'overview':
       return {view: 'overview', params: {}};
-    case 'classes':
-      return {view: 'classes', params: {}};
+    case 'classes': {
+      const root = sp.get('root') ?? undefined;
+      return {view: 'classes', params: root ? {rootClass: root} : {}};
+    }
     case 'dominators':
       return {view: 'dominators', params: {}};
     case 'objects': {

@@ -19,16 +19,20 @@ import {DataGrid} from '../../../components/widgets/datagrid/datagrid';
 import {SQLDataSource} from '../../../components/widgets/datagrid/sql_data_source';
 import {createSimpleSchema} from '../../../components/widgets/datagrid/sql_schema';
 import type {SchemaRegistry} from '../../../components/widgets/datagrid/datagrid_schema';
+import type {Filter} from '../../../components/widgets/datagrid/model';
 import {
   type NavFn,
   sizeRenderer,
   countRenderer,
   RowCounter,
 } from '../components';
+import {clearNavParam} from '../nav_state';
+import * as queries from '../queries';
 
 interface ClassesViewAttrs {
   readonly engine: Engine;
   readonly navigate: NavFn;
+  readonly initialRootClass?: string;
 }
 
 const PREAMBLE =
@@ -100,6 +104,17 @@ function makeUiSchema(navigate: NavFn): SchemaRegistry {
 function ClassesView(): m.Component<ClassesViewAttrs> {
   let dataSource: SQLDataSource | null = null;
   const counter = new RowCounter();
+  let filters: Filter[] = [];
+
+  async function applyNavFilter(engine: Engine, root: string | undefined) {
+    if (!root) return;
+    clearNavParam('rootClass');
+    const names = await queries.getSubclassNames(engine, root);
+    if (names.length === 0) return;
+    filters = [{field: 'cls', op: 'in' as const, value: names}];
+    counter.onFiltersChanged(filters);
+    m.redraw();
+  }
 
   return {
     oninit(vnode) {
@@ -111,6 +126,12 @@ function ClassesView(): m.Component<ClassesViewAttrs> {
         preamble: PREAMBLE,
       });
       counter.init(engine, QUERY, PREAMBLE);
+      applyNavFilter(engine, vnode.attrs.initialRootClass).catch(console.error);
+    },
+    onupdate(vnode) {
+      applyNavFilter(vnode.attrs.engine, vnode.attrs.initialRootClass).catch(
+        console.error,
+      );
     },
     view(vnode) {
       const {navigate} = vnode.attrs;
@@ -133,8 +154,12 @@ function ClassesView(): m.Component<ClassesViewAttrs> {
             {id: 'retained_native', field: 'retained_native'},
             {id: 'retained_count', field: 'retained_count'},
           ],
+          filters,
           showExportButton: true,
-          onFiltersChanged: counter.onFiltersChanged,
+          onFiltersChanged: (f) => {
+            filters = [...f];
+            counter.onFiltersChanged(f);
+          },
         }),
       ]);
     },

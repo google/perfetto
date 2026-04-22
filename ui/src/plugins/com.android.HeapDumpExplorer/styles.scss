@@ -338,6 +338,7 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  padding-left: calc(min(var(--ah-depth, 0), 20) * 0.75rem);
 }
 
 .ah-dup-grid-container {
