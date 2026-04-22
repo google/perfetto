@@ -47,6 +47,7 @@
     - [Tracing in Background](learning-more/tracing-in-background.md)
     - [More Android tracing](learning-more/android.md)
     - [Chrome Tracing](getting-started/chrome-tracing.md)
+    - [Symbolization and deobfuscation](learning-more/symbolization.md)
 
   - [Trace Instrumentation](#)
 
