@@ -170,6 +170,8 @@ source_set("integrationtests") {
     "../../gn:gtest_and_gmock",
     "../../include/perfetto/base",
     "../../include/perfetto/ext/base:base",
+    "../../protos/perfetto/trace:cpp",
+    "../../protos/perfetto/trace/profiling:cpp",
     "../../protos/third_party/pprof:cpp",
     "../../protos/third_party/pprof:zero",
     "../../src/base:test_support",
