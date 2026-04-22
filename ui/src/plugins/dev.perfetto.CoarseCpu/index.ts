@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {assertExists} from '../../base/assert';
 import {Icons} from '../../base/semantic_icons';
 import {Cpu} from '../../components/cpu';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
@@ -145,8 +146,7 @@ export default class implements PerfettoPlugin {
     for (; it.valid(); it.next()) {
       const {trackId, cpu, metric, machineId, ucpu} = it;
 
-      const info = METRICS[metric];
-      if (info === undefined) continue;
+      const info = assertExists(METRICS[metric]);
 
       let metricGroup = metricGroups.get(metric);
       if (metricGroup === undefined) {
