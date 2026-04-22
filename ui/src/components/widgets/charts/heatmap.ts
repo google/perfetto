@@ -137,11 +137,7 @@ function buildHeatmapOption(
 
   const option: Record<string, unknown> = {
     animation: false,
-    grid: buildGridOption({
-      top: 10,
-      right: 80,
-      bottom: xAxisLabel ? 40 : 25,
-    }),
+    grid: buildGridOption({right: 80}),
     xAxis: {
       ...buildAxisOption(
         {
