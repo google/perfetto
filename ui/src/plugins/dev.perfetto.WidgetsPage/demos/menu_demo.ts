@@ -30,7 +30,7 @@ export function renderMenu(): m.Children {
       renderWidget: () =>
         m(
           Menu,
-          m(MenuTitle, {label: 'Common Actions'}),
+          m(MenuTitle, 'Common Actions'),
           m(MenuItem, {label: 'New', icon: 'add'}),
           m(MenuItem, {label: 'Open', icon: 'folder_open'}),
           m(MenuItem, {label: 'Save', icon: 'save', disabled: true}),
@@ -42,7 +42,7 @@ export function renderMenu(): m.Children {
             {label: 'Share', icon: 'share'},
             m(MenuItem, {label: 'Everyone', icon: 'public'}),
             m(MenuItem, {label: 'Friends', icon: 'group'}),
-            m(MenuTitle, {label: 'Other'}),
+            m(MenuTitle, 'Other'),
             m(
               MenuItem,
               {label: 'Specific people', icon: 'person_add'},

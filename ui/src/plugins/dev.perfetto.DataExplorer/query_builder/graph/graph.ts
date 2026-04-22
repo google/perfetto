@@ -255,7 +255,7 @@ function buildAddMenuItems(
     if (i > 0) {
       menuItems.push(m(MenuDivider));
     }
-    menuItems.push(m(MenuTitle, {label: sections[i].title}));
+    menuItems.push(m(MenuTitle, sections[i].title));
     menuItems.push(...sections[i].items);
   }
   return menuItems;
@@ -744,7 +744,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       if (i > 0) {
         addNodeMenuItems.push(m(MenuDivider));
       }
-      addNodeMenuItems.push(m(MenuTitle, {label: sections[i].title}));
+      addNodeMenuItems.push(m(MenuTitle, sections[i].title));
       addNodeMenuItems.push(...sections[i].items);
     }
     addNodeMenuItems.push(m(MenuDivider));

@@ -121,15 +121,10 @@ export class MenuDivider implements m.ClassComponent {
   }
 }
 
-export interface MenuTitleAttrs extends HTMLAttrs {
-  // Text to display in the title.
-  readonly label?: string;
-}
-
 // An element which shows a dividing line between menu items.
 export class MenuTitle implements m.ClassComponent {
-  view({attrs}: m.CVnode<MenuTitleAttrs>) {
-    return m('.pf-menu-title', attrs.label);
+  view({children}: m.CVnode) {
+    return m('.pf-menu-title', children);
   }
 }
 

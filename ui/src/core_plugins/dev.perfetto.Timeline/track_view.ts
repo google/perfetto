@@ -690,7 +690,7 @@ function renderTrackSettings(descriptor?: Track): m.Children[] {
   if (!settings || settings.length === 0) return [];
   return [
     m(MenuDivider),
-    m(MenuTitle, {label: 'Settings'}),
+    m(MenuTitle, 'Settings'),
     ...settings.map((setting) =>
       renderTrackSettingMenu(setting.descriptor, (v) => setting.update(v), [
         setting.value,

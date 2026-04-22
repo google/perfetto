@@ -113,9 +113,9 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
           },
           `Changes apply to all selected tracks`,
         ),
-        m(MenuTitle, {label: 'Workspace'}),
+        m(MenuTitle, 'Workspace'),
         this.renderCopySelectedTracksToWorkspace(trace, selection),
-        m(MenuTitle, {label: 'Bulk track settings'}),
+        m(MenuTitle, 'Bulk track settings'),
         settingsMenuItems,
       ],
     );
@@ -135,7 +135,7 @@ export class TimelineToolbar implements m.ClassComponent<TimelineToolbarAttrs> {
         }),
       },
       [
-        m(MenuTitle, {label: 'All workspaces'}),
+        m(MenuTitle, 'All workspaces'),
         workspaces.all.map((ws) => {
           return m(MenuItem, {
             label: ws.title,
