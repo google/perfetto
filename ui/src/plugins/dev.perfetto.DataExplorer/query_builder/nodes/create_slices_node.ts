@@ -45,8 +45,6 @@ const COMPUTED_STARTS_END_TS_COLUMN = 'exp_tmp_starts_computed_end_ts';
 const COMPUTED_ENDS_END_TS_COLUMN = 'exp_tmp_ends_computed_end_ts';
 
 export interface CreateSlicesSerializedState {
-  startsNodeId: string;
-  endsNodeId: string;
   startsMode?: TimestampMode;
   endsMode?: TimestampMode;
   startsTsColumn: string;
@@ -636,8 +634,6 @@ export class CreateSlicesNode implements QueryNode {
 
   serializeState(): CreateSlicesSerializedState {
     return {
-      startsNodeId: this.startsNode?.nodeId ?? '',
-      endsNodeId: this.endsNode?.nodeId ?? '',
       startsMode: this.state.startsMode ?? 'ts',
       endsMode: this.state.endsMode ?? 'ts',
       startsTsColumn: this.state.startsTsColumn,
@@ -657,19 +653,6 @@ export class CreateSlicesNode implements QueryNode {
       endsTsColumn: state.endsTsColumn ?? DEFAULT_TS_COLUMN,
       startsDurColumn: state.startsDurColumn,
       endsDurColumn: state.endsDurColumn,
-    };
-  }
-
-  static deserializeConnections(
-    nodes: Map<string, QueryNode>,
-    state: CreateSlicesSerializedState,
-  ): {
-    startsNode?: QueryNode;
-    endsNode?: QueryNode;
-  } {
-    return {
-      startsNode: nodes.get(state.startsNodeId),
-      endsNode: nodes.get(state.endsNodeId),
     };
   }
 }

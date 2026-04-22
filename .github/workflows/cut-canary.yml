@@ -26,7 +26,7 @@
 # Pushes to canary subsequently trigger UI Cloud Build to redeploy the
 # canary channel. See RFC-0022.
 
-name: Cut canary
+name: Cut canary (merge main → canary)
 
 on:
   workflow_dispatch:
@@ -37,13 +37,14 @@ permissions:
 jobs:
   cut-canary:
     runs-on: ubuntu-latest
-    environment: canary
+    environment: push-to-stable-canary
     steps:
       - name: Checkout canary
         uses: actions/checkout@v4
         with:
           ref: canary
           fetch-depth: 0
+          ssh-key: ${{ secrets.ACTIONS_WRITE_DEPLOY_KEY_DANGEROUS }}
 
       - name: Fetch main
         run: git fetch origin main

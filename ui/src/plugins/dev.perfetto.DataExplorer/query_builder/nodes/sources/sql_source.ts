@@ -39,7 +39,6 @@ import {NodeTitle} from '../../node_styling_widgets';
 export interface SqlSourceSerializedState {
   sql?: string;
   comment?: string;
-  inputNodeIds?: string[];
 }
 
 export interface SqlSourceState extends QueryNodeState {
@@ -233,26 +232,9 @@ export class SqlSourceNode implements QueryNode {
   }
 
   serializeState(): SqlSourceSerializedState {
-    // Serialize input node IDs in port order
-    const inputNodeIds = [...this.secondaryInputs.connections.entries()]
-      .sort(([a], [b]) => a - b)
-      .map(([, node]) => node.nodeId);
-
     return {
       sql: this.state.sql,
-      inputNodeIds: inputNodeIds.length > 0 ? inputNodeIds : undefined,
     };
-  }
-
-  static deserializeConnections(
-    nodes: Map<string, QueryNode>,
-    state: SqlSourceSerializedState,
-  ): {inputNodes: QueryNode[]} {
-    // Resolve input nodes from their IDs
-    const inputNodes = (state.inputNodeIds ?? [])
-      .map((id) => nodes.get(id))
-      .filter((node): node is QueryNode => node !== undefined);
-    return {inputNodes};
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {

@@ -16,11 +16,37 @@
 // Invoked by contrib/rust-sdk/tools/gen_rust_protos
 // DO NOT EDIT.
 
+use crate::pb_enum;
 use crate::pb_msg;
+
+pb_enum!(ActivityNameFilterNameBase {
+    MANGLED_KERNEL_NAME: 0,
+    DEMANGLED_KERNEL_NAME: 1,
+    FUNCTION_NAME: 2,
+});
 
 pb_msg!(GpuCounterConfig {
     counter_period_ns: u64, primitive, 1,
     counter_ids: u32, primitive, 2,
+    counter_names: String, primitive, 6,
     instrumented_sampling: bool, primitive, 3,
+    instrumented_sampling_config: GpuCounterConfigInstrumentedSamplingConfig, msg, 5,
     fix_gpu_clock: bool, primitive, 4,
+});
+
+pb_msg!(GpuCounterConfigInstrumentedSamplingConfig {
+    activity_name_filters: GpuCounterConfigInstrumentedSamplingConfigActivityNameFilter, msg, 3,
+    activity_tx_include_globs: String, primitive, 6,
+    activity_tx_exclude_globs: String, primitive, 7,
+    activity_ranges: GpuCounterConfigInstrumentedSamplingConfigActivityRange, msg, 5,
+});
+
+pb_msg!(GpuCounterConfigInstrumentedSamplingConfigActivityRange {
+    skip: u32, primitive, 1,
+    count: u32, primitive, 2,
+});
+
+pb_msg!(GpuCounterConfigInstrumentedSamplingConfigActivityNameFilter {
+    name_glob: String, primitive, 1,
+    name_base: ActivityNameFilterNameBase, enum, 2,
 });

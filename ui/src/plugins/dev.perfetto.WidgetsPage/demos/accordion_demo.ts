@@ -13,33 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Accordion, AccordionItem} from '../../../widgets/accordion';
-
-const DEMO_ITEMS: AccordionItem[] = [
-  {
-    id: 'section1',
-    header: 'Section 1',
-    content: m(
-      'div',
-      m('p', 'This is the content for section 1.'),
-      m('p', 'The accordion ensures only one section is expanded at a time.'),
-    ),
-  },
-  {
-    id: 'section2',
-    header: 'Section 2',
-    content: m(
-      'div',
-      m('p', 'Content for section 2.'),
-      m('p', 'Click another header to collapse this and expand that one.'),
-    ),
-  },
-  {
-    id: 'section3',
-    header: 'Section 3',
-    content: m('p', 'Content for section 3.'),
-  },
-];
+import {Accordion, AccordionSection} from '../../../widgets/accordion';
+import {renderWidgetShowcase} from '../widgets_page_utils';
 
 export function renderAccordion(): m.Children {
   return [
@@ -48,26 +23,53 @@ export function renderAccordion(): m.Children {
       m('h1', 'Accordion'),
       m(
         'p',
-        'A collapsible panel component that displays a list of items where ' +
-          'only one item can be expanded at a time. Supports both controlled ' +
-          'and uncontrolled modes.',
+        'A collapsible panel component. Each section uses a native ' +
+          '<details> element and manages its own open/closed state.',
       ),
     ),
-    m('h2', 'Uncontrolled Mode'),
-    m(
-      'p',
-      'In uncontrolled mode, the accordion manages its own expanded state internally. ' +
-        'All items start collapsed.',
-    ),
-    m(
-      'div',
-      {
-        style: {
-          border: '1px solid var(--pf-color-border)',
-          borderRadius: '4px',
-        },
-      },
-      m(Accordion, {items: DEMO_ITEMS}),
-    ),
+
+    renderWidgetShowcase({
+      renderWidget: ({defaultOpen, ...rest}) =>
+        m(
+          'div',
+          {
+            style: {
+              border: '1px solid var(--pf-color-border)',
+              borderRadius: '4px',
+            },
+          },
+          m(
+            Accordion,
+            {key: defaultOpen ? 'open' : 'closed', ...rest},
+            m(
+              AccordionSection,
+              {summary: 'Section 1', defaultOpen},
+              m(
+                'div',
+                m('p', 'This is the content for section 1.'),
+                m(
+                  'p',
+                  'Each section independently manages its open/closed state.',
+                ),
+              ),
+            ),
+            m(
+              AccordionSection,
+              {summary: 'Section 2', defaultOpen},
+              m(
+                'div',
+                m('p', 'Content for section 2.'),
+                m('p', 'Multiple sections can be open simultaneously.'),
+              ),
+            ),
+            m(
+              AccordionSection,
+              {summary: 'Section 3', defaultOpen},
+              m('p', 'Content for section 3. This section starts open.'),
+            ),
+          ),
+        ),
+      initialOpts: {multi: false, defaultOpen: false},
+    }),
   ];
 }

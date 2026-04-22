@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACED_PROBES_SYSTEM_INFO_CPU_INFO_FEATURES_ALLOWLIST_H_
-#define SRC_TRACED_PROBES_SYSTEM_INFO_CPU_INFO_FEATURES_ALLOWLIST_H_
+#ifndef INCLUDE_PERFETTO_EXT_BASE_CPU_INFO_FEATURES_ALLOWLIST_H_
+#define INCLUDE_PERFETTO_EXT_BASE_CPU_INFO_FEATURES_ALLOWLIST_H_
 
 namespace perfetto {
+namespace base {
 
 // APPEND ONLY. DO NOT EVER REMOVE ENTRIES FROM THIS ARRAY OR REORDER.
 // This array is used both by traced_probes and trace_processor to index the
@@ -28,6 +29,7 @@ constexpr const char* kCpuInfoFeatures[] = {
     "mte3",  // DO NOT REMOVE/REODER.
 };
 
+}  // namespace base
 }  // namespace perfetto
 
-#endif  // SRC_TRACED_PROBES_SYSTEM_INFO_CPU_INFO_FEATURES_ALLOWLIST_H_
+#endif  // INCLUDE_PERFETTO_EXT_BASE_CPU_INFO_FEATURES_ALLOWLIST_H_

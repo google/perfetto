@@ -47,6 +47,7 @@
     - [Tracing in Background](learning-more/tracing-in-background.md)
     - [More Android tracing](learning-more/android.md)
     - [Chrome Tracing](getting-started/chrome-tracing.md)
+    - [Symbolization and deobfuscation](learning-more/symbolization.md)
 
   - [Trace Instrumentation](#)
 
@@ -111,10 +112,11 @@
 
     - [Android Data Sources](#)
 
+      - [Android Aflags](data-sources/android-aflags.md)
       - [Atrace](data-sources/atrace.md)
-      - [Logcat](data-sources/android-log.md)
-      - [Frame Timeline](data-sources/frametimeline.md)
       - [Battery counters and rails](data-sources/battery-counters.md)
+      - [Frame Timeline](data-sources/frametimeline.md)
+      - [Logcat](data-sources/android-log.md)
       - [Other data sources](data-sources/android-game-intervention-list.md)
 
   - [Trace Format Reference](#)

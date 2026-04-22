@@ -783,7 +783,11 @@ void TraceBufferV2::CopyChunkUntrusted(
     if (overwrite_policy_ == kDiscard)
       return DiscardWrite();
 
-    DeleteNextChunksFor(cached_size_to_end);
+    // Skip the tail cleanup if the previous write landed exactly at the end
+    // of the buffer (|wr_| == |size_|): there is no leftover tail to clear.
+    if (cached_size_to_end > 0)
+      DeleteNextChunksFor(cached_size_to_end);
+
     wr_ = 0;
     stats_.set_write_wrap_count(stats_.write_wrap_count() + 1);
     PERFETTO_DCHECK(size_to_end() >= tbchunk_outer_size);
@@ -880,7 +884,6 @@ void TraceBufferV2::CopyChunkUntrusted(
 
   wr_ += tbchunk_outer_size;
   PERFETTO_DCHECK(wr_ <= size_ && wr_ <= used_size_);
-  wr_ = wr_ >= size_ ? 0 : wr_;
 
   stats_.set_chunks_written(stats_.chunks_written() + 1);
   stats_.set_bytes_written(stats_.bytes_written() + tbchunk_outer_size);

@@ -65,7 +65,7 @@ std::pair<SqlSource, SqlSource> GetPreambleAndSql(const std::string& sql) {
 
   // Skip any leading semicolons.
   SqliteTokenizer::Token first_tok = tokenizer.NextNonWhitespace();
-  while (first_tok.token_type == TK_SEMI) {
+  while (first_tok.token_type == sql_token::kSemi) {
     first_tok = tokenizer.NextNonWhitespace();
   }
 
@@ -90,7 +90,7 @@ std::pair<SqlSource, SqlSource> GetPreambleAndSql(const std::string& sql) {
 
     // Otherwise, find the start of the next statement.
     SqliteTokenizer::Token next_start = tokenizer.NextNonWhitespace();
-    while (next_start.token_type == TK_SEMI) {
+    while (next_start.token_type == sql_token::kSemi) {
       next_start = tokenizer.NextNonWhitespace();
     }
 
@@ -550,7 +550,8 @@ base::StatusOr<std::string> GeneratorImpl::SqlSource(
     SqliteTokenizer tokenizer(final_sql_statement);
     for (auto token = tokenizer.Next(); !token.str.empty();
          token = tokenizer.Next()) {
-      if (token.token_type == TK_VARIABLE && token.str.substr(1) == alias) {
+      if (token.token_type == sql_token::kVariable &&
+          token.str.substr(1) == alias) {
         tokenizer.RewriteToken(
             rewriter, token,
             SqlSource::FromTraceProcessorImplementation(inner_query_name));

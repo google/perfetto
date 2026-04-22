@@ -38,6 +38,17 @@ import {
 } from '../../widgets/grid';
 import {FtraceFilter, FtraceStat} from './common';
 import {Icons} from '../../base/semantic_icons';
+import {Cpu} from '../../components/cpu';
+import {
+  DataGridExportButton,
+  ExportFormat,
+} from '../../components/widgets/datagrid/export_button';
+import {
+  formatAsTSV,
+  formatAsJSON,
+  formatAsMarkdown,
+} from '../../components/widgets/datagrid/export_utils';
+import {MenuItem} from '../../widgets/menu';
 
 const ROW_H = 24;
 
@@ -70,6 +81,7 @@ interface Pagination {
 export interface FtraceExplorerCache {
   state: 'blank' | 'loading' | 'valid';
   counters: FtraceStat[];
+  cpus: Cpu[];
 }
 
 async function getFtraceCounters(engine: Engine): Promise<FtraceStat[]> {
@@ -132,20 +144,21 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
 
   view({attrs}: m.CVnode<FtraceExplorerAttrs>) {
     const {start, end} = attrs.trace.timeline.visibleWindow.toTimeSpan();
-    const excludeList = attrs.filterStore.state.excludeList;
+    const {excludeList, cpuFilter} = attrs.filterStore.state;
     const pagination = this.pagination;
     const engine = attrs.trace.engine;
 
     // Count query - always fresh (no staleOn)
     const {data: numEvents} = this.countSlot.use({
-      key: {viewport: {start, end}, excludeList},
+      key: {viewport: {start, end}, excludeList, cpuFilter},
       retainOn: ['viewport'],
-      queryFn: () => fetchFtraceEventCount(engine, start, end, excludeList),
+      queryFn: () =>
+        fetchFtraceEventCount(engine, start, end, excludeList, cpuFilter),
     });
 
     // Events query - stale on pagination for smooth scrolling
     const {data} = this.eventsSlot.use({
-      key: {viewport: {start, end}, excludeList, pagination},
+      key: {viewport: {start, end}, excludeList, cpuFilter, pagination},
       retainOn: ['pagination', 'viewport'],
       queryFn: () =>
         fetchFtraceEvents(
@@ -155,6 +168,7 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
           start,
           end,
           excludeList,
+          cpuFilter,
         ),
     });
 
@@ -217,7 +231,22 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
 
       return [
         m(GridCell, {align: 'right'}, id),
-        m(GridCell, m(Timestamp, {trace: this.trace, ts})),
+        m(
+          GridCell,
+          {
+            menuItems: m(MenuItem, {
+              label: 'Go to event on timeline',
+              icon: Icons.UpdateSelection,
+              onclick: () => {
+                this.trace.selection.selectSqlEvent('ftrace_event', id, {
+                  scrollToSelection: true,
+                  switchToCurrentSelectionTab: true,
+                });
+              },
+            }),
+          },
+          m(Timestamp, {trace: this.trace, ts}),
+        ),
         m(
           GridCell,
           m(
@@ -234,30 +263,55 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
   }
 
   private renderFilterPanel(attrs: FtraceExplorerAttrs) {
+    const {excludeList, cpuFilter} = attrs.filterStore.state;
+
+    const cpuOptions: MultiSelectOption[] = attrs.cache.cpus.map((cpu) => ({
+      id: String(cpu.cpu),
+      name: cpu.toString(),
+      checked: !cpuFilter.includes(cpu.cpu),
+    }));
+
+    const cpuFilterButton = m(PopupMultiSelect, {
+      label: 'CPU',
+      icon: 'memory',
+      position: PopupPosition.Top,
+      options: cpuOptions,
+      onChange: (diffs: MultiSelectDiff[]) => {
+        const newSet = new Set<number>(cpuFilter);
+        diffs.forEach(({checked, id}) => {
+          const cpu = Number(id);
+          if (checked) {
+            newSet.delete(cpu);
+          } else {
+            newSet.add(cpu);
+          }
+        });
+        attrs.filterStore.edit((draft) => {
+          draft.cpuFilter = Array.from(newSet);
+        });
+      },
+    });
+
     if (attrs.cache.state !== 'valid') {
-      return m(Button, {
-        label: 'Filter',
-        disabled: true,
-        loading: true,
-      });
+      return [
+        cpuFilterButton,
+        m(Button, {label: 'Events', disabled: true, loading: true}),
+      ];
     }
 
-    const excludeList = attrs.filterStore.state.excludeList;
-    const options: MultiSelectOption[] = attrs.cache.counters.map(
-      ({name, count}) => {
-        return {
-          id: name,
-          name: `${name} (${count})`,
-          checked: !excludeList.some((excluded: string) => excluded === name),
-        };
-      },
+    const eventOptions: MultiSelectOption[] = attrs.cache.counters.map(
+      ({name, count}) => ({
+        id: name,
+        name: `${name} (${count})`,
+        checked: !excludeList.some((excluded: string) => excluded === name),
+      }),
     );
 
-    return m(PopupMultiSelect, {
-      label: 'Filter',
+    const eventFilterButton = m(PopupMultiSelect, {
+      label: 'Events',
       icon: Icons.Filter,
       position: PopupPosition.Top,
-      options,
+      options: eventOptions,
       onChange: (diffs: MultiSelectDiff[]) => {
         const newList = new Set<string>(excludeList);
         diffs.forEach(({checked, id}) => {
@@ -272,6 +326,43 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
         });
       },
     });
+
+    const onExportData = async (format: ExportFormat): Promise<string> => {
+      const {start, end} = attrs.trace.timeline.visibleWindow.toTimeSpan();
+      const events = await fetchAllFtraceEvents(
+        attrs.trace.engine,
+        start,
+        end,
+        excludeList,
+        cpuFilter,
+      );
+      const columns = ['id', 'ts', 'name', 'cpu', 'process', 'args'];
+      const columnNames: Record<string, string> = {
+        id: 'ID',
+        ts: 'Timestamp',
+        name: 'Name',
+        cpu: 'CPU',
+        process: 'Process',
+        args: 'Args',
+      };
+      const rows = events.map((e: FtraceEvent) => ({
+        id: String(e.id),
+        ts: String(e.ts),
+        name: e.name,
+        cpu: String(e.cpu),
+        process: e.process ?? '',
+        args: e.args,
+      }));
+      if (format === 'tsv') return formatAsTSV(columns, columnNames, rows);
+      if (format === 'json') return formatAsJSON(columns, columnNames, rows);
+      return formatAsMarkdown(columns, columnNames, rows);
+    };
+
+    return [
+      cpuFilterButton,
+      eventFilterButton,
+      m(DataGridExportButton, {onExportData}),
+    ];
   }
 }
 
@@ -280,28 +371,35 @@ async function fetchFtraceEventCount(
   start: time,
   end: time,
   excludeList: ReadonlyArray<string>,
+  cpuFilter: ReadonlyArray<number>,
 ): Promise<number> {
   const excludeListSql = excludeList.map((s) => `'${s}'`).join(',');
+  const cpuFilterSql = cpuFilter.join(',');
 
   const queryRes = await engine.query(`
     select count(id) as numEvents
     from ftrace_event
     where
       ftrace_event.name not in (${excludeListSql}) and
+      ${cpuFilterSql.length > 0 ? `ftrace_event.cpu not in (${cpuFilterSql}) and` : ''}
       ts >= ${start} and ts <= ${end}
     `);
   return queryRes.firstRow({numEvents: NUM}).numEvents;
 }
 
-async function fetchFtraceEvents(
+async function queryFtraceEvents(
   engine: Engine,
-  offset: number,
-  count: number,
   start: time,
   end: time,
   excludeList: ReadonlyArray<string>,
-): Promise<FtracePanelData> {
+  cpuFilter: ReadonlyArray<number>,
+  pagination?: {offset: number; count: number},
+): Promise<FtraceEvent[]> {
   const excludeListSql = excludeList.map((s) => `'${s}'`).join(',');
+  const cpuFilterSql = cpuFilter.join(',');
+  const limitClause = pagination
+    ? `limit ${pagination.count} offset ${pagination.offset}`
+    : '';
 
   const queryRes = await engine.query(`
     select
@@ -317,9 +415,10 @@ async function fetchFtraceEvents(
     left join process on thread.upid = process.upid
     where
       ftrace_event.name not in (${excludeListSql}) and
+      ${cpuFilterSql.length > 0 ? `ftrace_event.cpu not in (${cpuFilterSql}) and` : ''}
       ts >= ${start} and ts <= ${end}
     order by id
-    limit ${count} offset ${offset};`);
+    ${limitClause};`);
   const events: FtraceEvent[] = [];
   const it = queryRes.iter({
     id: NUM,
@@ -330,7 +429,7 @@ async function fetchFtraceEvents(
     process: STR_NULL,
     args: STR,
   });
-  for (let row = 0; it.valid(); it.next(), row++) {
+  for (; it.valid(); it.next()) {
     events.push({
       id: it.id,
       ts: Time.fromRaw(it.ts),
@@ -341,5 +440,35 @@ async function fetchFtraceEvents(
       args: it.args,
     });
   }
+  return events;
+}
+
+async function fetchFtraceEvents(
+  engine: Engine,
+  offset: number,
+  count: number,
+  start: time,
+  end: time,
+  excludeList: ReadonlyArray<string>,
+  cpuFilter: ReadonlyArray<number>,
+): Promise<FtracePanelData> {
+  const events = await queryFtraceEvents(
+    engine,
+    start,
+    end,
+    excludeList,
+    cpuFilter,
+    {offset, count},
+  );
   return {events, offset};
+}
+
+async function fetchAllFtraceEvents(
+  engine: Engine,
+  start: time,
+  end: time,
+  excludeList: ReadonlyArray<string>,
+  cpuFilter: ReadonlyArray<number>,
+): Promise<FtraceEvent[]> {
+  return queryFtraceEvents(engine, start, end, excludeList, cpuFilter);
 }

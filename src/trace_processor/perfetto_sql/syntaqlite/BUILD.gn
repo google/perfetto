@@ -1,4 +1,4 @@
-# Copyright (C) 2024 The Android Open Source Project
+# Copyright (C) 2026 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,29 +16,16 @@ import("../../../../gn/test.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
-source_set("grammar") {
+# Amalgamated C tokenizer + parser generated from `perfetto.y` (grammar)
+# and `perfetto.synq` (AST node definitions) by `tools/gen_syntaqlite_parser`.
+source_set("syntaqlite") {
   sources = [
-    "perfettosql_grammar.c",
-    "perfettosql_grammar.h",
-    "perfettosql_grammar_interface.h",
-    "perfettosql_keywordhash.h",
-    "perfettosql_keywordhash_helper.h",
+    "syntaqlite_perfetto.c",
+    "syntaqlite_perfetto.h",
   ]
-  deps = [
-    "../../../../gn:default_deps",
-    "../../../base",
-  ]
+  deps = [ "../../../../gn:default_deps" ]
   visibility = [
     "../parser",
     "../tokenizer",
-    "../tokenizer:tokenize_internal",
   ]
-  if (perfetto_build_standalone) {
-    configs -= [ "//gn/standalone:extra_warnings" ]  # nogncheck
-  } else {
-    cflags_c = [
-      "-Wno-unused-parameter",
-      "-Wno-unreachable-code",
-    ]
-  }
 }

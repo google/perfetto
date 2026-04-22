@@ -207,6 +207,10 @@ class Subprocess {
 
   Status Poll();
 
+  // Kills the process (SIGKILL if not specified) but doesn't wait for its
+  // termination.
+  void Kill(int sig_num = 0);
+
   // Sends a signal (SIGKILL if not specified) and wait for process termination.
   void KillAndWaitForTermination(int sig_num = 0);
 

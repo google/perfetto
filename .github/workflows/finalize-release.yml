@@ -19,7 +19,7 @@
 # Manual trigger after LUCI completes. Idempotent — safe to re-run if a
 # previous invocation failed partway. See RFC-0022 "LUCI -> GitHub bridge".
 
-name: Attach release artifacts
+name: Finalize release (attach LUCI artifacts to draft)
 
 on:
   workflow_dispatch:
@@ -59,8 +59,7 @@ jobs:
         run: |
           if ! gh release view "$VERSION" --repo "${{ github.repository }}" \
                > /dev/null 2>&1; then
-            echo "::error::No release found for tag $VERSION. Push the tag \
-first (via promote-stable.yml) to create the draft."
+            echo "::error::No release found for tag $VERSION. Push the tag first (via promote-stable.yml) to create the draft."
             exit 1
           fi
 
@@ -81,6 +80,4 @@ first (via promote-stable.yml) to create the draft."
           STAGING="/tmp/perfetto-${VERSION}-github-release"
           gh release upload "$VERSION" "$STAGING"/*.zip \
             --repo "${{ github.repository }}" --clobber
-          echo "::notice::Artifacts attached. Review the draft release at \
-https://github.com/${{ github.repository }}/releases and publish it \
-manually when ready."
+          echo "::notice::Artifacts attached. Review the draft release at https://github.com/${{ github.repository }}/releases and publish it manually when ready."
