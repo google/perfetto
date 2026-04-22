@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <sys/resource.h>
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
@@ -26,6 +28,14 @@ namespace perfetto::trace_redaction {
 static base::Status Main(std::string_view input,
                          std::string_view output,
                          std::string_view package_name) {
+  // Redaction is a low priority task as users are asynchronously informed
+  // when redaction finishes so we can keep it as a lower priority for now, if
+  // this requirement ever changes, then consider modifying redactor to let
+  // caller specify process level thread priority.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  setpriority(PRIO_PROCESS, 0, 19);
+#endif
+
   TraceRedactor::Config config;
   auto redactor = TraceRedactor::CreateInstance(config);
 
