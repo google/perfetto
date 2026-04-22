@@ -133,7 +133,7 @@ h3 {
   }
   > *:not(:first-child) {
     line-height: calc(var(--site-header-height) - var(--sh-padding-y) * 2);
-    font-family: Roboto, sans-serif;
+    font-family: "Source Sans Pro", sans-serif;
     font-weight: 400;
     font-size: 1.1rem;
     margin: 0 20px;
@@ -324,8 +324,7 @@ h3 {
   color: var(--color-text-muted);
   text-align: left;
   margin: 0 20px;
-  padding: 16px 0;
-  font-size: 13px;
+  padding: 12px 0;
 
   .docs-footer-notice {
     padding: 0;
@@ -374,7 +373,7 @@ h3 {
     h1,
     h2 {
       margin: auto;
-      font-family: Roboto, sans-serif;
+      font-family: "Source Sans Pro", sans-serif;
       text-align: center;
       color: var(--color-text);
       span {
@@ -423,11 +422,11 @@ h3 {
     }
     > a {
       color: var(--color-text);
-      font-size: 20px;
-      font-weight: 500;
+      font-size: 22px;
+      font-weight: 400;
       text-align: center;
       padding: 20px 0;
-      font-family: Roboto, sans-serif;
+      font-family: "Source Sans Pro", sans-serif;
       text-decoration: none;
       transition: background-color ease 0.15s;
       .icon {
@@ -478,7 +477,7 @@ h3 {
       grid-area: content;
     }
     h2 {
-      font-family: Roboto, sans-serif;
+      font-family: "Source Sans Pro", sans-serif;
       font-weight: 600;
       font-size: 2.5rem;
       color: var(--color-text);
@@ -523,9 +522,9 @@ h3 {
         background: var(--color-link);
         font-weight: 500;
         color: #fff;
-        border-radius: 8px;
-        font-size: 16px;
-        padding: 10px 20px;
+        border-radius: 6px;
+        font-size: 18px;
+        padding: 10px 16px;
         transition: background-color ease 0.15s, transform ease 0.15s;
         text-decoration: none;
         &:hover {
@@ -542,7 +541,7 @@ h3 {
       grid-column-gap: 20px;
       padding: 20px 30px;
       margin: 10px 0;
-      font-family: Roboto, sans-serif;
+      font-family: "Source Sans Pro", sans-serif;
       color: var(--color-text);
       transition:
         filter var(--anim-ease) var(--anim-time),
@@ -642,8 +641,6 @@ h3 {
     height: calc(100vh - var(--site-header-height));
     overflow-y: auto;
     @include minimal-scrollbar;
-    font-family: Roboto, sans-serif;
-    font-size: 0.9rem;
 
     // ---- Audience filter (caption + chips) ----
     .audience-filter {
@@ -691,20 +688,22 @@ h3 {
       }
     }
 
-    // Per-leaf tag markers in toc.md (e.g. `android linux`) are parsed by
-    // JS and should not be displayed.
-    code {
-      display: none;
-    }
-
     // ---- Base reset for all lists and links ----
     ul {
       list-style: none;
       margin: 0;
       padding: 0;
       overflow: hidden;
+      li {
+        font-size: 1rem;
+        font-weight: 400;
+        font-family: "Source Sans Pro", sans-serif;
+        color: #4a4a4a;
+        max-width: 100%;
+        margin: 0;
+      }
+      p { margin: 0; }
     }
-    p { margin: 0; }
 
     a {
       display: flex;
@@ -736,7 +735,6 @@ h3 {
 
       > p > a {
         font-weight: 700;
-        font-size: 0.95rem;
         color: var(--color-link);
         padding: 4px 16px;
         letter-spacing: 0.01em;
@@ -749,7 +747,6 @@ h3 {
     .compressible > p > a,
     a:not([href]) {
       font-weight: 600;
-      font-size: 0.85rem;
       color: var(--color-text);
       text-transform: uppercase;
       letter-spacing: 0.03em;
@@ -759,13 +756,13 @@ h3 {
     // ---- Expand/collapse chevron ----
     .compressible {
       > p > a::after {
-        content: "\25B4"; // ▴ small up triangle
+        content: "\25B4";
         font-size: 0.7em;
         flex-shrink: 0;
         width: 20px;
         text-align: center;
         margin-left: auto;
-        color: var(--color-text-muted);
+        color: #666;
         transition: transform var(--anim-ease) var(--anim-time);
       }
       > ul {
@@ -832,8 +829,7 @@ h3 {
           text-decoration: none;
           margin-left: 2px;
           margin-right: 4px;
-          font-size: 0.85em;
-          vertical-align: middle;
+          vertical-align: bottom;
         }
       }
     }
@@ -848,23 +844,19 @@ h3 {
     }
     h1 {
       font-size: 2.25rem;
-      line-height: 1.2;
+      line-height: 2.25rem;
       margin: 0;
       padding: 0;
       margin-bottom: 1.5rem;
-      font-family: Roboto, sans-serif;
-      font-weight: 700;
-      letter-spacing: -0.02em;
+      font-family: "Source Sans Pro", sans-serif;
     }
     h2 {
       font-size: 1.5rem;
-      font-weight: 600;
-      border-bottom: 2px solid var(--color-border-light);
-      padding-bottom: 8px;
+      border-bottom: 1px solid #e8eaed;
+      padding-bottom: 6px;
     }
     h3 {
       font-size: 1.25rem;
-      font-weight: 600;
     }
     * {
       max-width: 100%;
@@ -877,10 +869,9 @@ h3 {
 
     code:not(.code-block) {
       background: #f1f5f9;
-      border: 1px solid var(--color-border);
-      border-radius: 4px;
-      padding: 1px 6px;
-      font-size: 0.88em;
+      border: 1px solid #e8eaed;
+      border-radius: 6px;
+      padding: 1px 4px;
     }
     .code-block {
       overflow-x: auto;
@@ -910,8 +901,8 @@ h3 {
       &::before {
         content: "insert_link";
         font-family: "Material Icons Round";
-        color: var(--color-text-muted);
-        font-size: 22px;
+        color: #333;
+        font-size: 24px;
       }
     }
     *:hover .anchor {
@@ -1010,9 +1001,9 @@ h3 {
       &:before {
         font-family: "Material Icons Round";
         position: absolute;
-        font-size: 1.3rem;
-        margin-left: -2rem;
-        margin-top: 0;
+        font-size: 1.5rem;
+        margin-left: -1.75rem;
+        margin-top: -2px;
       }
 
       &.note {
@@ -1078,9 +1069,8 @@ h3 {
       border: none;
       background: transparent;
       font-family: Roboto, sans-serif;
-      font-size: 0.95rem;
-      padding: 10px 16px;
-      font-weight: 500;
+      font-size: 1rem;
+      padding: 8px;
       color: var(--color-text-secondary);
       transition: color ease 0.1s, border-color ease 0.1s;
       &:hover {
@@ -1113,7 +1103,7 @@ h3 {
     overflow-y: auto;
     @include minimal-scrollbar;
 
-    font-family: Roboto, sans-serif;
+    font-family: "Source Sans Pro", sans-serif;
     word-break: break-word;
     a {
       text-decoration: none;
@@ -1130,7 +1120,7 @@ h3 {
       font-weight: 600;
       color: #b8860b;
     }
-    font-size: 0.85rem;
+    font-size: 0.875rem;
     ul {
       list-style: none;
       margin: 0;

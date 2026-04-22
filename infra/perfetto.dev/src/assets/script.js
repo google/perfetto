@@ -141,17 +141,13 @@ function scrollIntoViewIfNeeded(element, container, margin = 100) {
   }
 }
 
-// Audiences shown in the nav tag bar. Tags here must match the backtick
-// tags attached to leaf entries in docs/toc.md.
-const NAV_AUDIENCES = [
-  { tag: 'android', label: 'Android' },
-  { tag: 'linux', label: 'Linux' },
-  { tag: 'cpp', label: 'C++ dev' },
-  { tag: 'chrome', label: 'Chrome' },
-  { tag: 'perf', label: 'Perf dev' },
-  { tag: 'contrib', label: 'Contributors' },
-];
-const NAV_DEFAULT_TAGS = ['android'];
+const TAG_PREFIX = 'tag-';
+const TAG_LABELS = {cpp: 'C++'};
+const NAV_DEFAULT_TAG = 'android';
+
+function tagLabel(tag) {
+  return TAG_LABELS[tag] || tag.charAt(0).toUpperCase() + tag.slice(1);
+}
 
 // This function needs to be idempotent as it is called more than once (on every
 // resize).
@@ -165,21 +161,30 @@ function updateNav() {
   const rootUl = nav.querySelector(':scope > ul');
   if (!rootUl) return;
 
-  // --- Step 1: Load the set of active audience tags. ---
-  const validTags = new Set(NAV_AUDIENCES.map((a) => a.tag));
-  let activeTags = null;
-  try {
-    const raw = sessionStorage.getItem('docs.nav.activeTags');
-    if (raw) activeTags = JSON.parse(raw).filter((t) => validTags.has(t));
-  } catch (e) {
-    activeTags = null;
+  // --- Step 1: Discover available tags from CSS classes on <li> elements. ---
+  const tagOrder = [];
+  const tagSeen = new Set();
+  for (const li of rootUl.querySelectorAll('li')) {
+    for (const cls of li.classList) {
+      if (cls.startsWith(TAG_PREFIX)) {
+        const tag = cls.slice(TAG_PREFIX.length);
+        if (!tagSeen.has(tag)) {
+          tagSeen.add(tag);
+          tagOrder.push(tag);
+        }
+      }
+    }
   }
-  if (!activeTags) activeTags = NAV_DEFAULT_TAGS.slice();
-  const activeSet = new Set(activeTags);
-  sessionStorage.setItem(
-    'docs.nav.activeTags', JSON.stringify([...activeSet]));
 
-  // --- Step 2: Build/refresh the audience chip bar. ---
+  // --- Step 2: Load single active tag from session ('' = show all). ---
+  let activeTag = sessionStorage.getItem('docs.nav.activeTag');
+  if (activeTag === null) {
+    activeTag = NAV_DEFAULT_TAG;
+  } else if (activeTag !== '' && !tagSeen.has(activeTag)) {
+    activeTag = NAV_DEFAULT_TAG;
+  }
+
+  // --- Step 3: Build/refresh the audience chip bar (single-select + All). ---
   let filterBox = nav.querySelector(':scope > .audience-filter');
   if (!filterBox) {
     filterBox = document.createElement('div');
@@ -195,71 +200,44 @@ function updateNav() {
   }
   const chipBar = filterBox.querySelector(':scope > .audience-tags');
   chipBar.innerHTML = '';
-  for (const a of NAV_AUDIENCES) {
+
+  const makeChip = (label, tag) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'audience-tag';
-    btn.textContent = a.label;
-    if (activeSet.has(a.tag)) btn.classList.add('active');
+    btn.textContent = label;
+    if (tag === activeTag) btn.classList.add('active');
     btn.addEventListener('click', () => {
-      const next = new Set(activeSet);
-      if (next.has(a.tag)) next.delete(a.tag);
-      else next.add(a.tag);
-      sessionStorage.setItem(
-        'docs.nav.activeTags', JSON.stringify([...next]));
+      sessionStorage.setItem('docs.nav.activeTag', tag);
       updateNav();
     });
     chipBar.appendChild(btn);
-  }
-
-  // --- Step 3: Parse per-leaf audience tags from <code> markers. ---
-  // Each leaf's tags come from a trailing `tag1 tag2` in the markdown,
-  // rendered by marked.js as a <code> child of the <li> (or its <p>).
-  const allLis = rootUl.querySelectorAll('li');
-  for (const li of allLis) {
-    if (li.dataset.navTagsParsed) continue;
-    const code = li.querySelector(':scope > code') ||
-                 li.querySelector(':scope > p > code');
-    if (code) {
-      li.dataset.navTags = code.textContent.trim();
-    }
-    li.dataset.navTagsParsed = '1';
-  }
-
-  // --- Step 4: Filter leaves by active audience, then collapse empty
-  // ancestors. Visibility is decided bottom-up. ---
-  const showAll = activeSet.size === 0;
-  const hasTag = (li) => {
-    if (!li.dataset.navTags) return null;
-    if (showAll) return true;
-    return li.dataset.navTags.split(/\s+/).some((t) => activeSet.has(t));
   };
+  for (const tag of tagOrder) makeChip(tagLabel(tag), tag);
+  makeChip('All', '');
 
-  const isVisible = new Map();
-  const setVisible = (li, v) => {
-    isVisible.set(li, v);
-    li.style.display = v ? '' : 'none';
+  // --- Step 4: Filter leaves by active tag, then collapse empty ancestors.
+  // Visibility is decided bottom-up so parents with no visible children hide. ---
+  const activeCls = activeTag ? TAG_PREFIX + activeTag : '';
+  const isTagged = (li) => {
+    for (const c of li.classList) if (c.startsWith(TAG_PREFIX)) return true;
+    return false;
   };
-
-  // Bottom-up pass: leaf visibility from tags; parent visible if any child is.
   const process = (li) => {
     const childUl = li.querySelector(':scope > ul');
     if (!childUl) {
-      // Leaf: visible iff untagged (universal) or tag set includes active tag.
-      const match = hasTag(li);
-      setVisible(li, match === null ? true : match);
-      return isVisible.get(li);
+      const vis = !isTagged(li) || !activeCls || li.classList.contains(activeCls);
+      li.style.display = vis ? '' : 'none';
+      return vis;
     }
-    let anyChildVisible = false;
+    let any = false;
     for (const child of childUl.querySelectorAll(':scope > li')) {
-      if (process(child)) anyChildVisible = true;
+      if (process(child)) any = true;
     }
-    setVisible(li, anyChildVisible);
-    return anyChildVisible;
+    li.style.display = any ? '' : 'none';
+    return any;
   };
-  for (const li of rootUl.querySelectorAll(':scope > li')) {
-    process(li);
-  }
+  for (const li of rootUl.querySelectorAll(':scope > li')) process(li);
 
   // --- Step 5: Make inner sections (categories) compressible. ---
   for (const sec of rootUl.querySelectorAll('li')) {
