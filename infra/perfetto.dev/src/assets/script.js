@@ -141,6 +141,18 @@ function scrollIntoViewIfNeeded(element, container, margin = 100) {
   }
 }
 
+// Audiences shown in the nav tag bar. Tags here must match the backtick
+// tags attached to leaf entries in docs/toc.md.
+const NAV_AUDIENCES = [
+  { tag: 'android', label: 'Android' },
+  { tag: 'linux', label: 'Linux' },
+  { tag: 'cpp', label: 'C++ dev' },
+  { tag: 'chrome', label: 'Chrome' },
+  { tag: 'perf', label: 'Perf dev' },
+  { tag: 'contrib', label: 'Contributors' },
+];
+const NAV_DEFAULT_TAGS = ['android'];
+
 // This function needs to be idempotent as it is called more than once (on every
 // resize).
 function updateNav() {
@@ -153,97 +165,104 @@ function updateNav() {
   const rootUl = nav.querySelector(':scope > ul');
   if (!rootUl) return;
 
-  const topSections = rootUl.querySelectorAll(':scope > li');
+  // --- Step 1: Load the set of active audience tags. ---
+  const validTags = new Set(NAV_AUDIENCES.map((a) => a.tag));
+  let activeTags = null;
+  try {
+    const raw = sessionStorage.getItem('docs.nav.activeTags');
+    if (raw) activeTags = JSON.parse(raw).filter((t) => validTags.has(t));
+  } catch (e) {
+    activeTags = null;
+  }
+  if (!activeTags) activeTags = NAV_DEFAULT_TAGS.slice();
+  const activeSet = new Set(activeTags);
+  sessionStorage.setItem(
+    'docs.nav.activeTags', JSON.stringify([...activeSet]));
 
-  // Helper: get the display name of a top-level section.
-  const getSectionName = (section) => {
-    const link = section.querySelector(':scope > p > a') ||
-                 section.querySelector(':scope > a');
-    return link ? link.textContent.trim() : '';
+  // --- Step 2: Build/refresh the audience chip bar. ---
+  let filterBox = nav.querySelector(':scope > .audience-filter');
+  if (!filterBox) {
+    filterBox = document.createElement('div');
+    filterBox.className = 'audience-filter';
+    const caption = document.createElement('div');
+    caption.className = 'audience-filter-caption';
+    caption.textContent = 'Perfetto for:';
+    const chipBar = document.createElement('div');
+    chipBar.className = 'audience-tags';
+    filterBox.appendChild(caption);
+    filterBox.appendChild(chipBar);
+    nav.insertBefore(filterBox, rootUl);
+  }
+  const chipBar = filterBox.querySelector(':scope > .audience-tags');
+  chipBar.innerHTML = '';
+  for (const a of NAV_AUDIENCES) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'audience-tag';
+    btn.textContent = a.label;
+    if (activeSet.has(a.tag)) btn.classList.add('active');
+    btn.addEventListener('click', () => {
+      const next = new Set(activeSet);
+      if (next.has(a.tag)) next.delete(a.tag);
+      else next.add(a.tag);
+      sessionStorage.setItem(
+        'docs.nav.activeTags', JSON.stringify([...next]));
+      updateNav();
+    });
+    chipBar.appendChild(btn);
+  }
+
+  // --- Step 3: Parse per-leaf audience tags from <code> markers. ---
+  // Each leaf's tags come from a trailing `tag1 tag2` in the markdown,
+  // rendered by marked.js as a <code> child of the <li> (or its <p>).
+  const allLis = rootUl.querySelectorAll('li');
+  for (const li of allLis) {
+    if (li.dataset.navTagsParsed) continue;
+    const code = li.querySelector(':scope > code') ||
+                 li.querySelector(':scope > p > code');
+    if (code) {
+      li.dataset.navTags = code.textContent.trim();
+    }
+    li.dataset.navTagsParsed = '1';
+  }
+
+  // --- Step 4: Filter leaves by active audience, then collapse empty
+  // ancestors. Visibility is decided bottom-up. ---
+  const showAll = activeSet.size === 0;
+  const hasTag = (li) => {
+    if (!li.dataset.navTags) return null;
+    if (showAll) return true;
+    return li.dataset.navTags.split(/\s+/).some((t) => activeSet.has(t));
   };
 
-  // Helper: check if a section contains the current page.
-  const sectionContainsPage = (section) => {
-    const links = section.querySelectorAll('a[href]:not([href="#"])');
-    for (const link of links) {
-      const url = new URL(link.href);
-      if (url.pathname === curFileName ||
-          url.pathname + 'index.html' === curFileName) {
-        return true;
-      }
-    }
-    return false;
+  const isVisible = new Map();
+  const setVisible = (li, v) => {
+    isVisible.set(li, v);
+    li.style.display = v ? '' : 'none';
   };
 
-  // --- Step 1: Find which top-level section contains the current page. ---
-  // When a page appears in multiple sections (e.g. shared tutorials),
-  // prefer the section the user last navigated into (stored in session).
-  const storedSection = sessionStorage.getItem('docs.nav.activeSection');
-  let activeTopSection = null;
-  let fallbackSection = null;
-
-  for (const section of topSections) {
-    if (!sectionContainsPage(section)) continue;
-    // First match as fallback.
-    if (!fallbackSection) fallbackSection = section;
-    // Prefer the stored section if it contains this page.
-    if (getSectionName(section) === storedSection) {
-      activeTopSection = section;
+  // Bottom-up pass: leaf visibility from tags; parent visible if any child is.
+  const process = (li) => {
+    const childUl = li.querySelector(':scope > ul');
+    if (!childUl) {
+      // Leaf: visible iff untagged (universal) or tag set includes active tag.
+      const match = hasTag(li);
+      setVisible(li, match === null ? true : match);
+      return isVisible.get(li);
     }
-  }
-  if (!activeTopSection) activeTopSection = fallbackSection;
-
-  // Store the active section for future page loads.
-  if (activeTopSection) {
-    sessionStorage.setItem(
-      'docs.nav.activeSection', getSectionName(activeTopSection));
-  }
-
-  // --- Step 2: Set up top-level sections. ---
-  // The active section expands fully. All others collapse to a single
-  // clickable line linking to their first page, moved below the active one.
-  for (const section of topSections) {
-    const headerLink = section.querySelector(':scope > p > a') ||
-                       section.querySelector(':scope > a');
-    const childUl = section.querySelector(':scope > ul');
-
-    if (!headerLink || !headerLink.href ||
-        !headerLink.href.endsWith('#')) continue;
-
-    if (activeTopSection && section !== activeTopSection) {
-      // Inactive section: collapse and link to first page.
-      section.classList.add('inactive-section');
-      if (childUl) childUl.style.display = 'none';
-      const firstLink = section.querySelector('a[href]:not([href="#"])');
-      // Capture name before modifying text.
-      const sectionName = getSectionName(section);
-      if (firstLink) {
-        headerLink.href = firstLink.href;
-        headerLink.onclick = null;
-      }
-      // Show full name ("Perfetto for X") when collapsed as a link.
-      const text = headerLink.textContent.trim();
-      if (text.startsWith('For ')) {
-        headerLink.textContent = 'Perfetto ' + text.charAt(0).toLowerCase() + text.slice(1);
-      }
-      headerLink.addEventListener('click', () => {
-        sessionStorage.setItem('docs.nav.activeSection', sectionName);
-      });
-      // Move below the active section.
-      rootUl.appendChild(section);
-    } else {
-      // Active section: show full content.
-      section.classList.remove('inactive-section');
-      if (childUl) childUl.style.display = '';
+    let anyChildVisible = false;
+    for (const child of childUl.querySelectorAll(':scope > li')) {
+      if (process(child)) anyChildVisible = true;
     }
+    setVisible(li, anyChildVisible);
+    return anyChildVisible;
+  };
+  for (const li of rootUl.querySelectorAll(':scope > li')) {
+    process(li);
   }
 
-  // --- Step 3: Make inner sections (categories) compressible. ---
-  // Only process items inside the active section (or all if no active).
-  const scope = activeTopSection || nav;
-  const innerLis = scope.querySelectorAll('li');
-  for (const sec of innerLis) {
-    // Skip top-level sections — they're handled above.
+  // --- Step 5: Make inner sections (categories) compressible. ---
+  for (const sec of rootUl.querySelectorAll('li')) {
     if (sec.parentElement === rootUl) continue;
 
     const childMenu = sec.querySelector(':scope > ul');
@@ -256,9 +275,11 @@ function updateNav() {
     sec.classList.add('compressible');
 
     const memoKey = `docs.nav.compressed[${link.innerHTML}]`;
-    const stored = sessionStorage.getItem(memoKey);
-    if (stored === '1') {
+    const memo = sessionStorage.getItem(memoKey);
+    if (memo === '1') {
       sec.classList.add('compressed');
+    } else if (memo === '0') {
+      sec.classList.remove('compressed');
     }
 
     doAfterLoadEvent(() => {
@@ -276,7 +297,7 @@ function updateNav() {
     };
   }
 
-  // --- Step 4: Highlight the current page. ---
+  // --- Step 6: Highlight the current page. ---
   const allLinks = nav.querySelectorAll('ul a');
   let found = false;
   for (const x of allLinks) {
@@ -285,8 +306,7 @@ function updateNav() {
     if (x.href.endsWith("#")) {
       // Remove href from non-compressible # links.
       const parentLi = x.closest('li');
-      if (parentLi && !parentLi.classList.contains('compressible') &&
-          !parentLi.classList.contains('inactive-section')) {
+      if (parentLi && !parentLi.classList.contains('compressible')) {
         x.removeAttribute("href");
       }
     } else if ((url.pathname === curFileName ||
@@ -313,9 +333,10 @@ function updateNav() {
         scrollIntoViewIfNeeded(x, nav);
       }
       found = true;
+    } else {
+      x.classList.remove('selected');
     }
   }
-
 }
 
 // If the page contains a ```mermaid ``` block, lazily loads the plugin and

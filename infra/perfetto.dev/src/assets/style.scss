@@ -645,6 +645,58 @@ h3 {
     font-family: Roboto, sans-serif;
     font-size: 0.9rem;
 
+    // ---- Audience filter (caption + chips) ----
+    .audience-filter {
+      padding: 10px 12px 10px 16px;
+      border-bottom: 1px solid var(--color-border-light);
+      margin-bottom: 4px;
+
+      .audience-filter-caption {
+        font-size: 0.72rem;
+        line-height: 1.2;
+        color: var(--color-text-muted);
+        margin-bottom: 6px;
+      }
+
+      .audience-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+
+      .audience-tag {
+        font-family: inherit;
+        font-size: 0.75rem;
+        font-weight: 500;
+        line-height: 1;
+        padding: 4px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--color-border);
+        background-color: var(--color-bg-white);
+        color: var(--color-text-secondary);
+        cursor: pointer;
+        transition: background-color 0.12s ease, color 0.12s ease,
+                    border-color 0.12s ease;
+        -webkit-tap-highlight-color: transparent;
+        white-space: nowrap;
+        &:hover {
+          color: var(--color-text);
+          border-color: var(--color-text-muted);
+        }
+        &.active {
+          background-color: var(--color-link);
+          border-color: var(--color-link);
+          color: #fff;
+        }
+      }
+    }
+
+    // Per-leaf tag markers in toc.md (e.g. `android linux`) are parsed by
+    // JS and should not be displayed.
+    code {
+      display: none;
+    }
+
     // ---- Base reset for all lists and links ----
     ul {
       list-style: none;
@@ -675,15 +727,13 @@ h3 {
       }
     }
 
-    // ---- Top-level sections ----
-    // Active section shows full tree; inactive ones collapse to one line.
+    // ---- Top-level sections (Overview, Getting Started, etc.) ----
     > ul > li {
       padding: 10px 0 4px;
       & + li {
         border-top: 1px solid var(--color-border-light);
       }
 
-      // Active section header.
       > p > a {
         font-weight: 700;
         font-size: 0.95rem;
@@ -693,29 +743,6 @@ h3 {
         text-transform: none;
         border-left: 3px solid var(--color-link);
       }
-
-      // Inactive sections: compact one-line links.
-      &.inactive-section {
-        padding: 0;
-        > p > a {
-          font-weight: 400;
-          font-size: 0.9rem;
-          color: var(--color-text-secondary);
-          padding: 4px 16px;
-          &:hover { color: var(--color-link); }
-        }
-        & + li.inactive-section {
-          border-top: none;
-        }
-      }
-
-    }
-
-    // Separator before the first inactive section at the bottom.
-    > ul > li:not(.inactive-section) + li.inactive-section {
-      margin-top: 4px;
-      padding-top: 8px;
-      border-top: 1px solid var(--color-border);
     }
 
     // ---- Category headers (Tutorials, Reference, etc.) ----
