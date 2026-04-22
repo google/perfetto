@@ -595,6 +595,47 @@ TEST(EventConfigTest, GroupFollowerEventPeriod) {
   }
 }
 
+TEST(EventConfigTest, EnableFtraceEvents) {
+  {
+    // no ftrace_events
+    protos::gen::PerfEventConfig cfg;
+    std::optional<EventConfig> event_config = CreateEventConfig(cfg);
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->perf_attr()->sample_type & PERF_SAMPLE_READ);
+    EXPECT_FALSE(event_config->perf_attr()->sample_type & PERF_SAMPLE_RAW);
+  }
+  {
+    // ftrace_events{} - sample raw_data and counter
+    protos::gen::PerfEventConfig cfg;
+    auto ftrace = cfg.mutable_ftrace_events();
+    std::optional<EventConfig> event_config = CreateEventConfig(cfg);
+    ASSERT_FALSE(ftrace->has_read_counter());
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->perf_attr()->sample_type & PERF_SAMPLE_READ);
+    EXPECT_TRUE(event_config->perf_attr()->sample_type & PERF_SAMPLE_RAW);
+  }
+  {
+    // ftrace_events {read_counter: true} - sample raw_data and counter
+    protos::gen::PerfEventConfig cfg;
+    auto ftrace = cfg.mutable_ftrace_events();
+    ftrace->set_read_counter(true);
+    std::optional<EventConfig> event_config = CreateEventConfig(cfg);
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->perf_attr()->sample_type & PERF_SAMPLE_READ);
+    EXPECT_TRUE(event_config->perf_attr()->sample_type & PERF_SAMPLE_RAW);
+  }
+  {
+    // ftrace_events {read_counter: false} - sample raw_data and no counter
+    protos::gen::PerfEventConfig cfg;
+    auto ftrace = cfg.mutable_ftrace_events();
+    ftrace->set_read_counter(false);
+    std::optional<EventConfig> event_config = CreateEventConfig(cfg);
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_FALSE(event_config->perf_attr()->sample_type & PERF_SAMPLE_READ);
+    EXPECT_TRUE(event_config->perf_attr()->sample_type & PERF_SAMPLE_RAW);
+  }
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto

@@ -649,7 +649,20 @@ std::optional<EventConfig> EventConfig::CreateSampling(
   }
 
   // What the samples will contain.
-  pe.sample_type = PERF_SAMPLE_TID | PERF_SAMPLE_TIME | PERF_SAMPLE_READ;
+  pe.sample_type = PERF_SAMPLE_TID | PERF_SAMPLE_TIME;
+
+  // PERF_SAMPLE_READ
+  if (!pb_config.has_ftrace_events() ||
+      !pb_config.ftrace_events().has_read_counter() ||
+      pb_config.ftrace_events().read_counter()) {
+    pe.sample_type |= PERF_SAMPLE_READ;
+  }
+
+  // PERF_SAMPLE_RAW
+  if (pb_config.has_ftrace_events()) {
+    pe.sample_type |= PERF_SAMPLE_RAW;
+  }
+
   // PERF_SAMPLE_TIME:
   pe.clockid = ToClockId(pb_config.timebase().timestamp_clock());
   pe.use_clockid = true;
