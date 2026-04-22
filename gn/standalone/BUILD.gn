@@ -87,6 +87,7 @@ config("extra_warnings") {
     cflags += [
       "-Wno-c++98-compat-pedantic",
       "-Wno-c++98-compat",
+      "-Wno-c2y-extensions",
       "-Wno-disabled-macro-expansion",
       "-Wno-documentation-unknown-command",
       "-Wno-gnu-include-next",
