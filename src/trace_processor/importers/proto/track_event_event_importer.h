@@ -69,6 +69,7 @@
 #include "src/trace_processor/util/debug_annotation_parser.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
+#include "perfetto/ext/base/base64.h"
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_active_processes.pbzero.h"
@@ -1253,25 +1254,25 @@ class TrackEventEventImporter {
                                    BoundInserter* inserter) {
     protos::pbzero::Screenshot::Decoder screenshot(screenshot_bytes);
     if (screenshot.has_jpg_image()) {
-      inserter->AddArg(
-          storage_->InternString("screenshot.jpg_image"),
-          Variadic::String(storage_->InternString(base::StringView(
-              reinterpret_cast<const char*>(screenshot.jpg_image().data),
-              screenshot.jpg_image().size))));
+      std::string base64_jpg = base::Base64Encode(screenshot.jpg_image().data,
+                                                  screenshot.jpg_image().size);
+      inserter->AddArg(storage_->InternString("screenshot.jpg_image"),
+                       Variadic::String(storage_->InternString(
+                           base::StringView(base64_jpg))));
     }
     if (screenshot.has_pam_image()) {
-      inserter->AddArg(
-          storage_->InternString("screenshot.pam_image"),
-          Variadic::String(storage_->InternString(base::StringView(
-              reinterpret_cast<const char*>(screenshot.pam_image().data),
-              screenshot.pam_image().size))));
+      std::string base64_pam = base::Base64Encode(screenshot.pam_image().data,
+                                                  screenshot.pam_image().size);
+      inserter->AddArg(storage_->InternString("screenshot.pam_image"),
+                       Variadic::String(storage_->InternString(
+                           base::StringView(base64_pam))));
     }
     if (screenshot.has_ppm_image()) {
-      inserter->AddArg(
-          storage_->InternString("screenshot.ppm_image"),
-          Variadic::String(storage_->InternString(base::StringView(
-              reinterpret_cast<const char*>(screenshot.ppm_image().data),
-              screenshot.ppm_image().size))));
+      std::string base64_ppm = base::Base64Encode(screenshot.ppm_image().data,
+                                                  screenshot.ppm_image().size);
+      inserter->AddArg(storage_->InternString("screenshot.ppm_image"),
+                       Variadic::String(storage_->InternString(
+                           base::StringView(base64_ppm))));
     }
     return base::OkStatus();
   }
