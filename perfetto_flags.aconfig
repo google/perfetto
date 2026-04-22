@@ -56,3 +56,10 @@ flag {
   bug: "494498282"
   is_fixed_read_only: true
 }
+flag {
+  name: "sys_stats_large_read"
+  namespace: "perfetto"
+  description: "For sys_stats, calls read() until EOF instead of a single pread()"
+  bug: "503864690"
+  is_fixed_read_only: true
+}
