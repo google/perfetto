@@ -14,13 +14,16 @@
  * limitations under the License.
  */
 
-#include <sys/resource.h>
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/trace_redactor.h"
 #include "src/trace_redaction/verify_integrity.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <sys/resource.h>
+#endif
 
 namespace perfetto::trace_redaction {
 
