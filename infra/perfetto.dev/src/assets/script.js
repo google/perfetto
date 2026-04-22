@@ -141,6 +141,14 @@ function scrollIntoViewIfNeeded(element, container, margin = 100) {
   }
 }
 
+const TAG_PREFIX = 'tag-';
+const TAG_LABELS = {cpp: 'C++'};
+const NAV_DEFAULT_TAG = 'android';
+
+function tagLabel(tag) {
+  return TAG_LABELS[tag] || tag.charAt(0).toUpperCase() + tag.slice(1);
+}
+
 // This function needs to be idempotent as it is called more than once (on every
 // resize).
 function updateNav() {
@@ -148,68 +156,163 @@ function updateNav() {
   let curFileName = "";
   if (curDoc) curFileName = curDoc.dataset["mdFile"];
 
-  // First identify all the top-level nav entries (Quickstart, Data Sources,
-  // ...) and make them compressible.
-  const toplevelSections = document.querySelectorAll('.docs .nav > ul > li > ul > li');
-  const toplevelLinks = [];
-  for (const sec of toplevelSections) {
-    const childMenu = sec.querySelector("ul");
-    if (!childMenu) {
-      // Don't make it compressible if it has no children (e.g. the very
-      // first 'Introduction' link).
-      continue;
+  const nav = document.querySelector('.docs .nav');
+  if (!nav) return;
+  const rootUl = nav.querySelector(':scope > ul');
+  if (!rootUl) return;
+
+  // --- Step 1: Discover available tags from CSS classes on <li> elements. ---
+  const tagOrder = [];
+  const tagSeen = new Set();
+  for (const li of rootUl.querySelectorAll('li')) {
+    for (const cls of li.classList) {
+      if (cls.startsWith(TAG_PREFIX)) {
+        const tag = cls.slice(TAG_PREFIX.length);
+        if (!tagSeen.has(tag)) {
+          tagSeen.add(tag);
+          tagOrder.push(tag);
+        }
+      }
     }
+  }
 
-    // Don't make it compressible if the entry has an actual link (e.g. the very
-    // first 'Introduction' link), because otherwise it become ambiguous whether
-    // the link should toggle or open the link.
-    const link = sec.querySelector("a");
-    if (!link || !link.href.endsWith("#")) continue;
+  // --- Step 2: Load single active tag from session ('' = show all). ---
+  let activeTag = sessionStorage.getItem('docs.nav.activeTag');
+  if (activeTag === null) {
+    activeTag = NAV_DEFAULT_TAG;
+  } else if (activeTag !== '' && !tagSeen.has(activeTag)) {
+    activeTag = NAV_DEFAULT_TAG;
+  }
 
-    sec.classList.add("compressible");
+  // --- Step 3: Build/refresh the audience chip bar (single-select + All). ---
+  let filterBox = nav.querySelector(':scope > .audience-filter');
+  if (!filterBox) {
+    filterBox = document.createElement('div');
+    filterBox.className = 'audience-filter';
+    const caption = document.createElement('div');
+    caption.className = 'audience-filter-caption';
+    caption.textContent = 'Perfetto for:';
+    const chipBar = document.createElement('div');
+    chipBar.className = 'audience-tags';
+    filterBox.appendChild(caption);
+    filterBox.appendChild(chipBar);
+    nav.insertBefore(filterBox, rootUl);
+  }
+  const chipBar = filterBox.querySelector(':scope > .audience-tags');
+  chipBar.innerHTML = '';
 
-    // Remember the compressed status as long as the page is opened, so clicking
-    // through links keeps the sidebar in a consistent visual state.
+  const makeChip = (label, tag) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'audience-tag';
+    btn.textContent = label;
+    if (tag === activeTag) btn.classList.add('active');
+    btn.addEventListener('click', () => {
+      sessionStorage.setItem('docs.nav.activeTag', tag);
+      updateNav();
+    });
+    chipBar.appendChild(btn);
+  };
+  for (const tag of tagOrder) makeChip(tagLabel(tag), tag);
+  makeChip('All', '');
+
+  // --- Step 4: Filter leaves by active tag, then collapse empty ancestors.
+  // Visibility is decided bottom-up so parents with no visible children hide. ---
+  const activeCls = activeTag ? TAG_PREFIX + activeTag : '';
+  const isTagged = (li) => {
+    for (const c of li.classList) if (c.startsWith(TAG_PREFIX)) return true;
+    return false;
+  };
+  const process = (li) => {
+    const childUl = li.querySelector(':scope > ul');
+    if (!childUl) {
+      const vis = !isTagged(li) || !activeCls || li.classList.contains(activeCls);
+      li.style.display = vis ? '' : 'none';
+      return vis;
+    }
+    let any = false;
+    for (const child of childUl.querySelectorAll(':scope > li')) {
+      if (process(child)) any = true;
+    }
+    li.style.display = any ? '' : 'none';
+    return any;
+  };
+  for (const li of rootUl.querySelectorAll(':scope > li')) process(li);
+
+  // --- Step 5: Make inner sections (categories) compressible. ---
+  for (const sec of rootUl.querySelectorAll('li')) {
+    if (sec.parentElement === rootUl) continue;
+
+    const childMenu = sec.querySelector(':scope > ul');
+    if (!childMenu) continue;
+
+    const link = sec.querySelector(':scope > p > a') ||
+                 sec.querySelector(':scope > a');
+    if (!link || !link.href || !link.href.endsWith('#')) continue;
+
+    sec.classList.add('compressible');
+
     const memoKey = `docs.nav.compressed[${link.innerHTML}]`;
-
-    if (sessionStorage.getItem(memoKey) === "1") {
-      sec.classList.add("compressed");
+    const memo = sessionStorage.getItem(memoKey);
+    if (memo === '1') {
+      sec.classList.add('compressed');
+    } else if (memo === '0') {
+      sec.classList.remove('compressed');
     }
+
     doAfterLoadEvent(() => {
       childMenu.style.maxHeight = `${childMenu.scrollHeight + 40}px`;
     });
 
-    toplevelLinks.push(link);
     link.onclick = (evt) => {
       evt.preventDefault();
-      sec.classList.toggle("compressed");
-      if (sec.classList.contains("compressed")) {
-        sessionStorage.setItem(memoKey, "1");
+      sec.classList.toggle('compressed');
+      if (sec.classList.contains('compressed')) {
+        sessionStorage.setItem(memoKey, '1');
       } else {
-        sessionStorage.removeItem(memoKey);
+        sessionStorage.setItem(memoKey, '0');
       }
     };
   }
 
-  const nav = document.querySelector(".docs .nav");
-  const exps = document.querySelectorAll(".docs .nav ul a");
+  // --- Step 6: Highlight the current page. ---
+  const allLinks = nav.querySelectorAll('ul a');
   let found = false;
-  for (const x of exps) {
-    // If the url of the entry matches the url of the page, mark the item as
-    // highlighted and expand all its parents.
+  for (const x of allLinks) {
     if (!x.href) continue;
     const url = new URL(x.href);
     if (x.href.endsWith("#")) {
-      // This is a non-leaf link to a menu.
-      if (toplevelLinks.indexOf(x) < 0) {
+      // Remove href from non-compressible # links.
+      const parentLi = x.closest('li');
+      if (parentLi && !parentLi.classList.contains('compressible')) {
         x.removeAttribute("href");
       }
-    } else if ((url.pathname === curFileName || url.pathname + 'index.html' === curFileName) && !found) {
+    } else if ((url.pathname === curFileName ||
+                url.pathname + 'index.html' === curFileName) && !found) {
       x.classList.add('selected');
+
+      // Walk up the DOM to expand all ancestor compressible sections.
+      let el = x.closest('li');
+      while (el) {
+        if (el.classList.contains('compressible') &&
+            el.classList.contains('compressed')) {
+          el.classList.remove('compressed');
+          const elLink = el.querySelector(':scope > p > a') ||
+                         el.querySelector(':scope > a');
+          if (elLink) {
+            sessionStorage.setItem(
+              `docs.nav.compressed[${elLink.innerHTML}]`, '0');
+          }
+        }
+        el = el.parentElement ? el.parentElement.closest('li') : null;
+      }
+
       if (!onloadFired) {
         scrollIntoViewIfNeeded(x, nav);
       }
-      found = true;  // Highlight only the first occurrence.
+      found = true;
+    } else {
+      x.classList.remove('selected');
     }
   }
 }
