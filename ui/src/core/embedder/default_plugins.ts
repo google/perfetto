@@ -49,6 +49,7 @@ export const defaultPlugins = [
   'dev.perfetto.AggregateProfiles',
   'dev.perfetto.AutoPinAndExpandTracks',
   'dev.perfetto.BookmarkletApi',
+  'dev.perfetto.CoarseCpu',
   'dev.perfetto.CoreCommands',
   'dev.perfetto.CpuFreq',
   'dev.perfetto.CpuidleTimeInState',
