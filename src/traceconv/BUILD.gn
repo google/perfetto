@@ -165,6 +165,7 @@ source_set("integrationtests") {
   testonly = true
   deps = [
     ":lib",
+    ":traceconv_lib",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
     "../../include/perfetto/base",
@@ -178,5 +179,6 @@ source_set("integrationtests") {
     "pprof_reader.h",
     "trace_to_pprof_integrationtest.cc",
     "trace_to_text_integrationtest.cc",
+    "traceconv_bundle_integrationtest.cc",
   ]
 }

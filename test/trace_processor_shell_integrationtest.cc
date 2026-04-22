@@ -27,6 +27,7 @@
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
 #include "protos/perfetto/trace_processor/trace_processor.gen.h"
+#include "src/base/test/utils.h"
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
 
@@ -779,6 +780,92 @@ TEST(TraceProcessorShellIntegrationTest, ClassicAddSqlPackageWithStdiod) {
   ASSERT_THAT(stream.msg()[1].query_result().batch(), SizeIs(1));
   EXPECT_THAT(stream.msg()[1].query_result().batch()[0].varint_cells(),
               ElementsAre(99));
+}
+
+// ---------------------------------------------------------------------------
+// Subcommand: convert (wraps traceconv)
+// ---------------------------------------------------------------------------
+
+namespace {
+// Path to a real, small Perfetto trace shipped in test/data.
+std::string HeapprofdTracePath() {
+  return base::GetTestDataPath(
+      "test/data/heapprofd_standalone_client_example-trace");
+}
+}  // namespace
+
+TEST(TraceProcessorShellIntegrationTest, ConvertBundleWithProguardMap) {
+  auto mapping = WriteTempFile("com.example.Foo -> a.a:\n");
+  auto out_dir = base::TempDir::Create();
+  std::string out_path = out_dir.path() + "/bundle.tar";
+
+  auto result = RunShell({"convert", "bundle", "--no-auto-symbol-paths",
+                          "--proguard-map", "com.example=" + mapping.path(),
+                          HeapprofdTracePath(), out_path});
+  EXPECT_EQ(result.exit_code, 0);
+
+  std::string tar_bytes;
+  ASSERT_TRUE(base::ReadFile(out_path, &tar_bytes));
+  // USTAR embeds filenames in 100-byte header fields, so substring matching is
+  // sufficient to check archive membership.
+  EXPECT_THAT(tar_bytes, HasSubstr("trace.perfetto"));
+  EXPECT_THAT(tar_bytes, HasSubstr("deobfuscation.pb"));
+  unlink(out_path.c_str());
+}
+
+TEST(TraceProcessorShellIntegrationTest, ConvertBundleRepeatedProguardMap) {
+  auto m1 = WriteTempFile("com.example.Foo -> a.a:\n");
+  auto m2 = WriteTempFile("com.example.Bar -> b.b:\n");
+  auto out_dir = base::TempDir::Create();
+  std::string out_path = out_dir.path() + "/bundle.tar";
+
+  auto result = RunShell({"convert", "bundle", "--no-auto-symbol-paths",
+                          "--proguard-map", "com.example.one=" + m1.path(),
+                          "--proguard-map", "com.example.two=" + m2.path(),
+                          HeapprofdTracePath(), out_path});
+  EXPECT_EQ(result.exit_code, 0);
+
+  std::string tar_bytes;
+  ASSERT_TRUE(base::ReadFile(out_path, &tar_bytes));
+  EXPECT_THAT(tar_bytes, HasSubstr("deobfuscation.pb"));
+  unlink(out_path.c_str());
+}
+
+TEST(TraceProcessorShellIntegrationTest, ConvertBundleMissingProguardMapFails) {
+  auto out_dir = base::TempDir::Create();
+  std::string out_path = out_dir.path() + "/bundle.tar";
+
+  auto result = RunShell(
+      {"convert", "bundle", "--no-auto-symbol-paths", "--proguard-map",
+       "com.example=/nonexistent/mapping.txt", HeapprofdTracePath(), out_path});
+  EXPECT_NE(result.exit_code, 0);
+  unlink(out_path.c_str());
+}
+
+TEST(TraceProcessorShellIntegrationTest, ConvertHelpShowsProguardMap) {
+  auto result = RunShell({"help", "convert"});
+  EXPECT_EQ(result.exit_code, 0);
+  EXPECT_THAT(result.out, HasSubstr("proguard-map"));
+  EXPECT_THAT(result.out, HasSubstr("symbol-paths"));
+  EXPECT_THAT(result.out, HasSubstr("no-auto-proguard-maps"));
+}
+
+TEST(TraceProcessorShellIntegrationTest, ConvertBundleNoAutoProguardMaps) {
+  auto mapping = WriteTempFile("com.example.Foo -> a.a:\n");
+  auto out_dir = base::TempDir::Create();
+  std::string out_path = out_dir.path() + "/bundle.tar";
+
+  auto result = RunShell({"convert", "bundle", "--no-auto-symbol-paths",
+                          "--no-auto-proguard-maps", "--proguard-map",
+                          "com.example=" + mapping.path(), HeapprofdTracePath(),
+                          out_path});
+  EXPECT_EQ(result.exit_code, 0);
+
+  std::string tar_bytes;
+  ASSERT_TRUE(base::ReadFile(out_path, &tar_bytes));
+  // Explicit --proguard-map still wins when auto-discovery is disabled.
+  EXPECT_THAT(tar_bytes, HasSubstr("deobfuscation.pb"));
+  unlink(out_path.c_str());
 }
 
 // ---------------------------------------------------------------------------
