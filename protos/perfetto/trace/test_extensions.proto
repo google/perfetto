@@ -24,7 +24,7 @@ package perfetto.protos;
 // Extensions for TrackEvent used for integration testing. This proto file is
 // compiled to descriptor and is used in tools/diff_test_trace_processor.py.
 //
-// See docs/design-docs/extensions.md for more details.
+// See docs/instrumentation/extensions.md for more details.
 message TestExtension {
   extend TrackEvent {
     optional string string_extension_for_testing = 9900;
