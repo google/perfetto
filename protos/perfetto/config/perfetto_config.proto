@@ -1733,8 +1733,25 @@ message GpuCounterConfig {
     // and the basis for matching (mangled or demangled kernel name).
     message ActivityNameFilter {
       enum NameBase {
+        // Match against the mangled (compiler-encoded) kernel name.
+        // Example: for a kernel whose demangled name is
+        // "matmul(float*,int,int)", the mangled name might be
+        // "_Z6matmulPfii". The glob pattern is matched against this
+        // mangled form.
         MANGLED_KERNEL_NAME = 0;
+
+        // Match against the fully demangled kernel name, including
+        // parameters, templates, and qualifiers.
+        // Example: "matmul(float*,int,int)". The glob pattern is
+        // matched against this full demangled form.
         DEMANGLED_KERNEL_NAME = 1;
+
+        // Match against only the function name portion of the
+        // demangled kernel name, without parameters, templates,
+        // return types, or namespaces.
+        // Example: "matmul". The glob pattern is matched against
+        // just the bare function name.
+        FUNCTION_NAME = 2;
       }
 
       // required. Glob pattern to use for GPU activity name filtering.
@@ -2435,10 +2452,17 @@ message PerfEvents {
   // struct. Primarily for local use-cases, since the event availability and
   // encoding is hardware-specific.
   message RawEvent {
+    // Either |type| or |pmu_name| can be set.
     optional uint32 type = 1;
     optional uint64 config = 2;
     optional uint64 config1 = 3;
     optional uint64 config2 = 4;
+    // The name of a dynamic PMU under /sys/bus/event_source/devices
+    // (e.g. "armv8_pmuv3").
+    // If set, leave |type| unset.
+    // Android: the relevant sysfs paths are not allowlisted by default, so
+    // this option will require a rooted device with selinux disabled.
+    optional string pmu_name = 5;
   }
 
   // Subset of clocks that is supported by perf timestamping.
