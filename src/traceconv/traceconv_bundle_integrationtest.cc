@@ -16,8 +16,6 @@
 
 #include "perfetto/ext/traceconv/traceconv.h"
 
-#include <unistd.h>
-
 #include <cstdlib>
 #include <cstring>
 #include <map>
@@ -104,7 +102,7 @@ class TraceconvBundleTest : public ::testing::Test {
     output_path_ = temp_dir_.path() + "/bundle.tar";
   }
 
-  void TearDown() override { unlink(output_path_.c_str()); }
+  void TearDown() override { remove(output_path_.c_str()); }
 
   // Collects every package_name found in a deobfuscation.pb proto stream.
   static std::set<std::string> PackageNames(const std::string& deob_bytes) {
