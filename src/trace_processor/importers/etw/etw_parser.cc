@@ -120,13 +120,14 @@ base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
 
 void EtwParser::ParseDiskIo(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::DiskIoEtwEvent::Decoder disk_io(blob);
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(
-      disk_io.issuing_thread_id());
+  UniqueTid utid =
+      context_->process_tracker->GetOrCreateThread(disk_io.issuing_thread_id());
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
 
   base::StackString<32> name("DiskIo(Op:%u)", disk_io.opcode());
-  context_->slice_tracker->Scoped(timestamp, track_id, kNullStringId,
-                                  context_->storage->InternString(name.string_view()), 0);
+  context_->slice_tracker->Scoped(
+      timestamp, track_id, kNullStringId,
+      context_->storage->InternString(name.string_view()), 0);
 }
 
 void EtwParser::ParseCswitch(int64_t timestamp, uint32_t cpu, ConstBytes blob) {

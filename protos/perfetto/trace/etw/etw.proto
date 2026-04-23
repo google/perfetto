@@ -292,4 +292,3 @@ message DiskIoEtwEvent {
   optional uint32 issuing_thread_id = 9;
   optional uint32 opcode = 10;
 }
-

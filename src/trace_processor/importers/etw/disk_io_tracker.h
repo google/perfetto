@@ -65,7 +65,7 @@ class DiskIoTracker {
                              UniqueTid utid,
                              SliceTracker::SetArgsCallback args);
 
-    TraceProcessorContext* context_;
+  TraceProcessorContext* context_;
 
   // Tracks events parsed so far for which a corresponding "operation end" event
   // has not yet been parsed.

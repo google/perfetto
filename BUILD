@@ -2451,10 +2451,10 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_importers_etw_minimal",
     srcs = [
-        "src/trace_processor/importers/etw/etw_module.cc",
-        "src/trace_processor/importers/etw/etw_module.h",
         "src/trace_processor/importers/etw/disk_io_tracker.cc",
         "src/trace_processor/importers/etw/disk_io_tracker.h",
+        "src/trace_processor/importers/etw/etw_module.cc",
+        "src/trace_processor/importers/etw/etw_module.h",
         "src/trace_processor/importers/etw/file_io_tracker.cc",
         "src/trace_processor/importers/etw/file_io_tracker.h",
     ],

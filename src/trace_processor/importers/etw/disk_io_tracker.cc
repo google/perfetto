@@ -84,28 +84,41 @@ void DiskIoTracker::ParseDiskIo(int64_t timestamp, ConstBytes blob) {
   }
   const auto opcode = static_cast<EventType>(decoder.opcode());
   const auto irp = decoder.irp_ptr();
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(
-      decoder.issuing_thread_id());
+  UniqueTid utid =
+      context_->process_tracker->GetOrCreateThread(decoder.issuing_thread_id());
 
-  const auto disk_number = decoder.has_disk_number() ? optional(decoder.disk_number()) : nullopt;
-  const auto irp_flags = decoder.has_irp_flags() ? optional(decoder.irp_flags()) : nullopt;
-  const auto transfer_size = decoder.has_transfer_size() ? optional(decoder.transfer_size()) : nullopt;
-  const auto reserved = decoder.has_reserved() ? optional(decoder.reserved()) : nullopt;
-  const auto byte_offset = decoder.has_byte_offset() ? optional(decoder.byte_offset()) : nullopt;
-  const auto file_object = decoder.has_file_object() ? optional(decoder.file_object()) : nullopt;
-  const auto high_res_response_time = decoder.has_high_res_response_time() ? optional(decoder.high_res_response_time()) : nullopt;
+  const auto disk_number =
+      decoder.has_disk_number() ? optional(decoder.disk_number()) : nullopt;
+  const auto irp_flags =
+      decoder.has_irp_flags() ? optional(decoder.irp_flags()) : nullopt;
+  const auto transfer_size =
+      decoder.has_transfer_size() ? optional(decoder.transfer_size()) : nullopt;
+  const auto reserved =
+      decoder.has_reserved() ? optional(decoder.reserved()) : nullopt;
+  const auto byte_offset =
+      decoder.has_byte_offset() ? optional(decoder.byte_offset()) : nullopt;
+  const auto file_object =
+      decoder.has_file_object() ? optional(decoder.file_object()) : nullopt;
+  const auto high_res_response_time =
+      decoder.has_high_res_response_time()
+          ? optional(decoder.high_res_response_time())
+          : nullopt;
 
   SliceTracker::SetArgsCallback set_args =
-      [this, disk_number, irp_flags, transfer_size, reserved, byte_offset, file_object, irp, high_res_response_time](ArgsTracker::BoundInserter* inserter) {
+      [this, disk_number, irp_flags, transfer_size, reserved, byte_offset,
+       file_object, irp,
+       high_res_response_time](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(irp_ptr_arg_, Variadic::Pointer(irp));
         if (disk_number) {
-          inserter->AddArg(disk_number_arg_, Variadic::UnsignedInteger(*disk_number));
+          inserter->AddArg(disk_number_arg_,
+                           Variadic::UnsignedInteger(*disk_number));
         }
         if (irp_flags) {
           inserter->AddArg(irp_flags_arg_, Variadic::Pointer(*irp_flags));
         }
         if (transfer_size) {
-          inserter->AddArg(transfer_size_arg_, Variadic::UnsignedInteger(*transfer_size));
+          inserter->AddArg(transfer_size_arg_,
+                           Variadic::UnsignedInteger(*transfer_size));
         }
         if (reserved) {
           inserter->AddArg(reserved_arg_, Variadic::UnsignedInteger(*reserved));
@@ -117,7 +130,8 @@ void DiskIoTracker::ParseDiskIo(int64_t timestamp, ConstBytes blob) {
           inserter->AddArg(file_object_arg_, Variadic::Pointer(*file_object));
         }
         if (high_res_response_time) {
-          inserter->AddArg(high_res_response_time_arg_, Variadic::UnsignedInteger(*high_res_response_time));
+          inserter->AddArg(high_res_response_time_arg_,
+                           Variadic::UnsignedInteger(*high_res_response_time));
         }
       };
 
@@ -126,7 +140,8 @@ void DiskIoTracker::ParseDiskIo(int64_t timestamp, ConstBytes blob) {
     case kWriteInit:
     case kFlushInit: {
       const char* event_type = GetEventTypeString(opcode);
-      if (!event_type) return;
+      if (!event_type)
+        return;
       StringId name = context_->storage->InternString(event_type);
       StartEvent(irp, name, timestamp, utid, std::move(set_args));
       break;
@@ -181,14 +196,14 @@ void DiskIoTracker::EndEvent(uint64_t irp,
       "etw_diskio",
       tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint));
 
- const auto event_name = started_event_it->second.name;
+  const auto event_name = started_event_it->second.name;
 
   // End the slice for this event.
   const auto track_id = context_->track_compressor->InternEnd(
       kBlueprint, tracks::Dimensions(utid),
       /*cookie=*/static_cast<int64_t>(irp));
-  context_->slice_tracker->End(end_timestamp, track_id, kNullStringId, event_name,
-                               std::move(args));
+  context_->slice_tracker->End(end_timestamp, track_id, kNullStringId,
+                               event_name, std::move(args));
   started_events_.erase(started_event_it);
 }
 
@@ -205,11 +220,10 @@ void DiskIoTracker::RecordEventWithoutIrp(StringId name,
 
   const auto track_id = context_->track_compressor->InternScoped(
       kBlueprint, tracks::Dimensions(utid), timestamp, duration);
- 
-  context_->slice_tracker->Scoped(timestamp, track_id, category, name,
-                                  duration, std::move(args));
-}
 
+  context_->slice_tracker->Scoped(timestamp, track_id, category, name, duration,
+                                  std::move(args));
+}
 
 void DiskIoTracker::OnEventsFullyExtracted() {
   for (auto& [irp, event] : started_events_) {
