@@ -1329,6 +1329,9 @@ message EtwConfig {
   repeated string file_provider_events = 4;
   // Events for which stacks should be collected.
   repeated string stack_sampling_events = 5;
+  // Provides events relating to disk I/O.
+  repeated string disk_provider_events = 6;
+
 }
 
 // End of protos/perfetto/config/etw/etw_config.proto

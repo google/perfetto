@@ -35,5 +35,6 @@ message EtwTraceEvent {
     FileIoSimpleOpEtwEvent file_io_simple_op = 11;
     FileIoOpEndEtwEvent file_io_op_end = 12;
     StackWalkEtwEvent stack_walk = 13;
+    DiskIoEtwEvent disk_io = 14;
   }
 }

@@ -278,3 +278,18 @@ message StackWalkEtwEvent {
   optional string trigger = 1;
   optional uint64 callstack_iid = 2;
 }
+
+// Proto definition based on the `DiskIo_TypeGroup1` class definition.
+message DiskIoEtwEvent {
+  optional uint32 disk_number = 1;
+  optional uint32 irp_flags = 2;
+  optional uint32 transfer_size = 3;
+  optional uint32 reserved = 4;
+  optional int64 byte_offset = 5;
+  optional uint64 file_object = 6;
+  optional uint64 irp_ptr = 7;
+  optional uint64 high_res_response_time = 8;
+  optional uint32 issuing_thread_id = 9;
+  optional uint32 opcode = 10;
+}
+

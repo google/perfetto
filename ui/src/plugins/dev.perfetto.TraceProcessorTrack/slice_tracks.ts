@@ -332,6 +332,11 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     },
   },
   {
+    type: 'etw_diskio',
+    topLevelGroup: 'IO',
+    group: 'ETW Disk I/O',
+  },
+  {
     type: 'etw_fileio',
     topLevelGroup: 'IO',
     group: 'ETW File I/O',
