@@ -118,6 +118,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/counter_mipmap_operator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/slice_mipmap_operator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/span_join_operator.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/operators/stdlib_docs_operator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/window_operator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/ancestor.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/connected_flow.h"
@@ -1461,6 +1462,14 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   engine->RegisterVirtualTableModule<SliceMipmapOperator>(
       "__intrinsic_slice_mipmap",
       std::make_unique<SliceMipmapOperator::Context>(engine.get()));
+  engine->RegisterVirtualTableModule<StdlibDocsModulesOperator>(
+      "__intrinsic_stdlib_modules", engine.get());
+  engine->RegisterVirtualTableModule<StdlibDocsTablesOperator>(
+      "__intrinsic_stdlib_tables", engine.get());
+  engine->RegisterVirtualTableModule<StdlibDocsFunctionsOperator>(
+      "__intrinsic_stdlib_functions", engine.get());
+  engine->RegisterVirtualTableModule<StdlibDocsMacrosOperator>(
+      "__intrinsic_stdlib_macros", engine.get());
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
   engine->RegisterVirtualTableModule<etm::EtmDecodeChunkVtable>(
       "__intrinsic_etm_decode_chunk", storage);

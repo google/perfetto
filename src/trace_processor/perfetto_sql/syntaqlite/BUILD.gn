@@ -25,6 +25,7 @@ source_set("syntaqlite") {
   ]
   deps = [ "../../../../gn:default_deps" ]
   visibility = [
+    "../../util:stdlib_doc_parser",
     "../parser",
     "../tokenizer",
   ]
