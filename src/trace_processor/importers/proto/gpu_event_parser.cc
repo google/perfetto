@@ -257,6 +257,24 @@ const char* MeasureUnitToString(int32_t unit) {
   }
 }
 
+const char* GraphicsApiToString(int32_t api) {
+  using Api = protos::pbzero::InternedGraphicsContext::Api;
+  switch (api) {
+    case Api::OPEN_GL:
+      return "OPEN_GL";
+    case Api::VULKAN:
+      return "VULKAN";
+    case Api::OPEN_CL:
+      return "OPEN_CL";
+    case Api::CUDA:
+      return "CUDA";
+    case Api::HIP:
+      return "HIP";
+    default:
+      return "UNDEFINED";
+  }
+}
+
 }  // namespace
 
 StringId GpuEventParser::FormatCounterUnit(
@@ -652,6 +670,26 @@ StringId GpuEventParser::ParseRenderSubpasses(
   return context_->storage->InternString(writer.GetStringView());
 }
 
+void GpuEventParser::InternGpuContext(
+    uint64_t context_id,
+    const protos::pbzero::InternedGraphicsContext::Decoder& ctx) {
+  if (gpu_contexts_inserted_.Find(context_id)) {
+    return;
+  }
+  gpu_contexts_inserted_[context_id] = true;
+
+  tables::GpuContextTable::Row row;
+  row.context_id = static_cast<uint32_t>(context_id);
+  if (ctx.has_pid()) {
+    row.pid = static_cast<uint32_t>(ctx.pid());
+  }
+  if (ctx.has_api()) {
+    row.api = context_->storage->InternString(
+        base::StringView(GraphicsApiToString(ctx.api())));
+  }
+  context_->storage->mutable_gpu_context_table()->Insert(row);
+}
+
 void GpuEventParser::ParseGpuRenderStageEvent(
     int64_t ts,
     PacketSequenceStateGeneration* sequence_state,
@@ -692,6 +730,7 @@ void GpuEventParser::ParseGpuRenderStageEvent(
         protos::pbzero::InternedGraphicsContext>(context_id);
     if (decoder) {
       pid = decoder->pid();
+      InternGpuContext(context_id, *decoder);
     }
   }
 
@@ -821,8 +860,6 @@ void GpuEventParser::ParseGpuRenderStageEvent(
             inserter->AddArg(name_id, Variadic::String(value));
           }
 
-          // TODO: Create table for graphics context and lookup
-          // InternedGraphicsContext.
           inserter->AddArg(context_id_id_,
                            Variadic::UnsignedInteger(event.context()));
           inserter->AddArg(

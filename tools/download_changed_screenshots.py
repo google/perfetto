@@ -50,7 +50,8 @@ def sanitize(name):
 
 def handle_report(report: str, run: str):
   m = re.findall(
-      r'playwrightReportBase64 = "data:application/zip;base64,([^"]+)"', report)
+      r'<script id="playwrightReportBase64"[^>]*>data:application/zip;base64,([^<]+)</script>',
+      report)
   bin = base64.b64decode(m[0])
   z = zipfile.ZipFile(io.BytesIO(bin))
   report = json.loads(z.open('report.json').read().decode())
