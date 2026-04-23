@@ -1,4 +1,4 @@
-// Copyright (C) 2018 The Android Open Source Project
+// Copyright (C) 2026 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,20 +17,12 @@
 @import "home_page";
 @import "sidebar";
 @import "topbar";
-@import "details";
-@import "statusbar";
-@import "cookie_consent";
-@import "perf_monitor";
 @import "help_modal";
 @import "theme_provider";
 
 // Components - keep these sorted alphabetically
-@import "components/aggregation_adapter";
 @import "components/datagrid";
-@import "components/json_settings_editor";
-@import "components/pivot_table";
 @import "components/query_history";
-@import "components/query_table";
 
 // Widgets
 @import "widgets.scss";
@@ -38,3 +30,45 @@
 // Auto generated imports
 @import "../gen/all_plugins";
 @import "../gen/all_core_plugins";
+
+// BigTrace-specific styles. Classes use the .pf-bt- prefix to avoid
+// collisions with existing Perfetto UI classes.
+
+// ---------- Settings page ----------
+
+.pf-bt-settings-card-wrapper--disabled {
+  opacity: 0.6;
+}
+
+.pf-bt-settings-controls--disabled {
+  pointer-events: none;
+}
+
+.pf-bt-settings-category-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pf-bt-textarea {
+  width: 100%;
+  min-height: 60px;
+  max-height: 200px;
+  resize: vertical;
+  font-family: var(--pf-font-monospace);
+  font-size: var(--pf-font-size-s);
+  padding: 6px 8px;
+  border: solid 1px var(--pf-color-border-secondary);
+  border-radius: 4px;
+  background: var(--pf-color-void);
+  color: inherit;
+
+  &:hover {
+    border-color: var(--pf-color-border);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--pf-color-primary);
+  }
+}

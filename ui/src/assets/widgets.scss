@@ -1,0 +1,69 @@
+// Copyright (C) 2026 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Widgets - keep these sorted alphabetically
+@import "widgets/accordion";
+@import "widgets/anchor";
+@import "widgets/box";
+@import "widgets/button";
+@import "widgets/callout";
+@import "widgets/card";
+@import "widgets/charts";
+@import "widgets/checkbox";
+@import "widgets/chip";
+@import "widgets/code_snippet";
+@import "widgets/details_shell";
+@import "widgets/drawer_panel";
+@import "widgets/editor";
+@import "widgets/empty_state";
+@import "widgets/error";
+@import "widgets/flamegraph";
+@import "widgets/form";
+@import "widgets/grid_layout";
+@import "widgets/grid";
+@import "widgets/hotkey_context";
+@import "widgets/hotkey";
+@import "widgets/icon";
+@import "widgets/linear_progress";
+@import "widgets/menu";
+@import "widgets/middle_ellipsis";
+@import "widgets/modal";
+@import "widgets/multiselect_input";
+@import "widgets/multiselect";
+@import "widgets/nodegraph";
+@import "widgets/overlay_container";
+@import "widgets/popup";
+@import "widgets/resize_handle";
+@import "widgets/scorecard";
+@import "widgets/section";
+@import "widgets/segmented_buttons";
+@import "widgets/select";
+@import "widgets/settings_shell";
+@import "widgets/spinner";
+@import "widgets/split_panel.scss";
+@import "widgets/sql_table";
+@import "widgets/stack";
+@import "widgets/tab_strip";
+@import "widgets/tabs";
+@import "widgets/task_status";
+@import "widgets/tag_input";
+@import "widgets/text_input";
+@import "widgets/text_paragraph";
+@import "widgets/timestamp";
+@import "widgets/tooltip";
+@import "widgets/track_shell";
+@import "widgets/tree";
+@import "widgets/treetable";
+@import "widgets/ui_main";
+@import "widgets/virtual_overlay_canvas";
