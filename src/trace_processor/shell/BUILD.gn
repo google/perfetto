@@ -87,8 +87,12 @@ source_set("subcommands") {
 
 source_set("unittests") {
   testonly = true
-  sources = [ "find_subcommand_unittest.cc" ]
+  sources = [
+    "convert_subcommand_unittest.cc",
+    "find_subcommand_unittest.cc",
+  ]
   deps = [
+    ":shell",
     ":subcommands",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",

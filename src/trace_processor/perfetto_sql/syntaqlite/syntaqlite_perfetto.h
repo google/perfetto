@@ -41,6 +41,45 @@
 #define SYNTAQLITE_OMIT_SQLITE_API
 #endif
 
+/* ======== begin: syntaqlite/compiler.h ======== */
+#ifndef SYNTAQLITE_COMPILER_H
+#define SYNTAQLITE_COMPILER_H
+// Copyright 2025 The syntaqlite Authors. All rights reserved.
+// Licensed under the Apache License, Version 2.0.
+
+// Compiler abstraction macros.
+//
+// Wrappers for features that differ across compilers and C/C++ dialects,
+// letting the rest of the codebase use a single spelling.
+
+
+// Portable compile-time assertion. Use in file scope.
+//
+// MSVC does not support C's `_Static_assert` keyword in C mode unless built
+// with `/std:c11` or newer, so we need dialect-specific fallbacks:
+//   - C++: `static_assert` is a keyword since C++11.
+//   - C23: `static_assert` is a keyword.
+//   - C11+: `_Static_assert` is the keyword form.
+//   - Older C (including MSVC without /std:c11): typedef a 1- or -1-element
+//     char array, which fails to compile on false.
+#if defined(__cplusplus)
+#define SYNQ_STATIC_ASSERT(cond, msg) static_assert(cond, msg)
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+#define SYNQ_STATIC_ASSERT(cond, msg) static_assert(cond, msg)
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define SYNQ_STATIC_ASSERT(cond, msg) _Static_assert(cond, msg)
+#else
+#define SYNQ_STATIC_ASSERT_CAT_(a, b) a##b
+#define SYNQ_STATIC_ASSERT_CAT(a, b) SYNQ_STATIC_ASSERT_CAT_(a, b)
+#define SYNQ_STATIC_ASSERT(cond, msg)                      \
+  typedef char SYNQ_STATIC_ASSERT_CAT(synq_static_assert_, \
+                                      __LINE__)[(cond) ? 1 : -1]
+#endif
+
+
+#endif  /* SYNTAQLITE_COMPILER_H */
+/* ======== end: syntaqlite/compiler.h ======== */
+
 /* ======== begin: syntaqlite/cflags.h ======== */
 #ifndef SYNTAQLITE_SQLITE_CFLAGS_H
 #define SYNTAQLITE_SQLITE_CFLAGS_H
@@ -56,6 +95,7 @@
 
 #include <stdint.h>
 #include <string.h>
+
 
 // ── Cflag index constants ───────────────────────────────────────────────
 //
@@ -119,6 +159,10 @@ typedef struct SyntaqliteCflags {
   // Padding to 24 bits (3 bytes):
   uint8_t _reserved : 2;
 } SyntaqliteCflags;
+
+SYNQ_STATIC_ASSERT(
+    sizeof(SyntaqliteCflags) == 3,
+    "SyntaqliteCflags layout must match byte-wise accessor assumptions");
 
 #define SYNQ_CFLAGS_DEFAULT {0}
 
@@ -518,55 +562,133 @@ SYNTAQLITE_API void syntaqlite_loaded_dialect_destroy(
 #endif  /* SYNTAQLITE_DIALECT_H */
 /* ======== end: syntaqlite/dialect.h ======== */
 
-/* ======== begin: syntaqlite/incremental.h ======== */
-#ifndef SYNTAQLITE_INCREMENTAL_PARSER_H
-#define SYNTAQLITE_INCREMENTAL_PARSER_H
+/* ======== begin: syntaqlite/types.h ======== */
+#ifndef SYNTAQLITE_TYPES_H
+#define SYNTAQLITE_TYPES_H
 // Copyright 2025 The syntaqlite Authors. All rights reserved.
 // Licensed under the Apache License, Version 2.0.
 
-// Incremental (token-feeding) parser API.
-//
-// An alternative to syntaqlite_parser_next() for embedders that perform their
-// own tokenization — for example, to support macro expansion before parsing.
-// Feed tokens one at a time after calling syntaqlite_parser_reset(); the
-// parser signals statement boundaries as tokens arrive.
-//
-// When feed_token or finish returns SYNTAQLITE_PARSE_OK, read the successful
-// tree via syntaqlite_result_root(). When the status is
-// SYNTAQLITE_PARSE_ERROR, read diagnostics via syntaqlite_result_error_*()
-// and inspect syntaqlite_result_recovery_root() for an optional partial tree
-// (which may include grammar-level error nodes).
-// The result is valid until the next feed_token, finish, reset, or destroy.
-//
-// Usage:
-//   SyntaqliteParser* p = syntaqlite_parser_create(NULL);
-//   // Optional: enable if you need result_tokens/result_comments.
-//   syntaqlite_parser_set_collect_tokens(p, 1);
-//   syntaqlite_parser_reset(p, source, len);
-//   while (has_more_tokens) {
-//     int32_t rc = syntaqlite_parser_feed_token(p, type, text, tlen);
-//     switch (rc) {
-//       case SYNTAQLITE_PARSE_DONE:
-//         break;
-//       case SYNTAQLITE_PARSE_OK: {
-//         uint32_t root = syntaqlite_result_root(p);
-//         // read nodes ...
-//         break;
-//       }
-//       case SYNTAQLITE_PARSE_ERROR:
-//         if (syntaqlite_result_recovery_root(p) == SYNTAQLITE_NULL_NODE)
-//           goto done;
-//         break;
-//     }
-//   }
-//   int32_t rc = syntaqlite_parser_finish(p);
-//   if (rc == SYNTAQLITE_PARSE_OK) { /* final statement complete */ }
-// done:
-//   syntaqlite_parser_destroy(p);
-//
-// Read accumulated macro rewrites via syntaqlite_result_macro_count() /
-// syntaqlite_result_macro_rewrite_at() after parsing.
+// Core types shared between the engine and dialect layers.
 
+
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define SYNTAQLITE_NULL_NODE 0xFFFFFFFFu
+
+// ── Position / length / index typedefs ───────────────────────────────────────
+//
+// These typedefs are documentation aliases over `uint32_t` — they describe
+// what *kind* of value a field or parameter holds (which is essential when
+// reading the API at a glance) without changing the binary layout or
+// imposing any compile-time enforcement.  Mixing them at the call site is
+// not a type error in C.
+//
+// The kinds (all byte-based; UTF-16 positions are LSP-only and live on the
+// Rust side):
+//   - Stmt*       — byte offset/length measured from the start of the
+//                   current statement's source slice
+//                   (`syntaqlite_parser_text`).
+//   - Doc*        — byte offset/length measured from the start of the full
+//                   bound source (`syntaqlite_parser_full_text`).
+//   - Layer*      — byte offset/length measured from the start of an
+//                   expansion layer's internal buffer (e.g.
+//                   `SyntaqliteTextSpan`, `SyntaqliteMacroArgSegment`).
+//                   Resolve via the parser's span accessors; never use
+//                   directly as a source offset.
+//   - TokenIdx    — 0-based index into a statement's token stream.
+//   - LineNumber / ColumnNumber — 1-based, with `0` meaning "unknown".
+
+typedef uint32_t SyntaqliteStmtOffset;
+typedef uint32_t SyntaqliteStmtLen;
+
+typedef uint32_t SyntaqliteDocOffset;
+typedef uint32_t SyntaqliteDocLen;
+
+typedef uint32_t SyntaqliteLayerOffset;
+typedef uint32_t SyntaqliteLayerLen;
+
+typedef uint32_t SyntaqliteTokenIdx;
+
+typedef uint32_t SyntaqliteLineNumber;
+typedef uint32_t SyntaqliteColumnNumber;
+
+typedef uint32_t SyntaqliteCompletionContext;
+#define SYNTAQLITE_COMPLETION_CONTEXT_UNKNOWN ((SyntaqliteCompletionContext)0)
+#define SYNTAQLITE_COMPLETION_CONTEXT_EXPRESSION \
+  ((SyntaqliteCompletionContext)1)
+#define SYNTAQLITE_COMPLETION_CONTEXT_TABLE_REF ((SyntaqliteCompletionContext)2)
+
+// A span field embedded in an AST node.
+//
+// The `offset` / `length` fields are not directly usable: for spans
+// tokenized from a macro expansion they reference an internal expansion
+// layer buffer, not the input source.  Always read a span through the
+// parser's span accessors:
+//
+//   - `syntaqlite_parser_span_text(p, &span, &len)` — authored bytes
+//     (slice of input source); walks through macro call sites and
+//     substituted arg segments.
+//   - `syntaqlite_parser_span_expanded_text(p, &span, &len)` — the
+//     bytes the tokenizer actually saw, which for macro-expanded spans
+//     live in an expansion layer buffer.
+//   - `syntaqlite_parser_traceback(p, &span, ...)` — the full outermost
+//     → innermost expansion chain for diagnostics, with argument-level
+//     drill-through fidelity for spans inside substituted macro args.
+typedef struct SyntaqliteTextSpan {
+  SyntaqliteLayerOffset offset;
+  SyntaqliteLayerLen length;
+  uint32_t flags;
+  uint32_t _layer_id;  // Internal: 0 = source, >0 = macro expansion layer.
+} SyntaqliteTextSpan;
+
+// ── Span flags ───────────────────────────────────────────────────────────────
+
+// Quote character flags on `SyntaqliteTextSpan.flags`.  At most one is
+// set; none means the identifier was unquoted.  Prefer the accessors
+// below over reading these bits directly.
+//
+// The span's offset/length point at the *dequoted* inner text — the
+// surrounding quote bytes are not part of the span.  These flags are
+// the only way to recover which character bracketed the identifier
+// after dequoting.
+#define SYNTAQLITE_SPAN_FLAG_QUOTE_DOUBLE ((uint32_t)1u)    // "..."
+#define SYNTAQLITE_SPAN_FLAG_QUOTE_BACKTICK ((uint32_t)2u)  // `...`
+#define SYNTAQLITE_SPAN_FLAG_QUOTE_BRACKET ((uint32_t)4u)   // [...]
+
+#define SYNTAQLITE_SPAN_QUOTE_MASK                                           \
+  (SYNTAQLITE_SPAN_FLAG_QUOTE_DOUBLE | SYNTAQLITE_SPAN_FLAG_QUOTE_BACKTICK | \
+   SYNTAQLITE_SPAN_FLAG_QUOTE_BRACKET)
+
+// Was this identifier quoted in source?  Returns nonzero if `sp` came
+// from any of `"..."`, `` `...` ``, or `[...]`.
+static inline int syntaqlite_span_is_quoted(SyntaqliteTextSpan sp) {
+  return (sp.flags & SYNTAQLITE_SPAN_QUOTE_MASK) != 0;
+}
+
+// The character that opened this identifier's quotes in source: `"`,
+// `` ` ``, or `[`.  Returns 0 if the span was unquoted.  For `[...]`
+// only the opener is reported; the closer is always `]`.
+static inline char syntaqlite_span_quote_char(SyntaqliteTextSpan sp) {
+  if (sp.flags & SYNTAQLITE_SPAN_FLAG_QUOTE_DOUBLE)
+    return '"';
+  if (sp.flags & SYNTAQLITE_SPAN_FLAG_QUOTE_BACKTICK)
+    return '`';
+  if (sp.flags & SYNTAQLITE_SPAN_FLAG_QUOTE_BRACKET)
+    return '[';
+  return 0;
+}
+
+#ifdef __cplusplus
+}
+#endif
+
+
+#endif  /* SYNTAQLITE_TYPES_H */
+/* ======== end: syntaqlite/types.h ======== */
 
 /* ======== begin: syntaqlite/parser.h ======== */
 #ifndef SYNTAQLITE_PARSER_H
@@ -620,76 +742,6 @@ SYNTAQLITE_API void syntaqlite_loaded_dialect_destroy(
 
 #include <stdint.h>
 #include <stdio.h>
-
-/* ======== begin: syntaqlite/types.h ======== */
-#ifndef SYNTAQLITE_TYPES_H
-#define SYNTAQLITE_TYPES_H
-// Copyright 2025 The syntaqlite Authors. All rights reserved.
-// Licensed under the Apache License, Version 2.0.
-
-// Core types shared between the engine and dialect layers.
-
-
-#include <stdint.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#define SYNTAQLITE_NULL_NODE 0xFFFFFFFFu
-
-typedef uint32_t SyntaqliteCompletionContext;
-#define SYNTAQLITE_COMPLETION_CONTEXT_UNKNOWN ((SyntaqliteCompletionContext)0)
-#define SYNTAQLITE_COMPLETION_CONTEXT_EXPRESSION \
-  ((SyntaqliteCompletionContext)1)
-#define SYNTAQLITE_COMPLETION_CONTEXT_TABLE_REF ((SyntaqliteCompletionContext)2)
-
-// A span field embedded in an AST node.
-//
-// The `offset` / `length` fields are not directly usable: for spans
-// tokenized from a macro expansion they reference an internal expansion
-// layer buffer, not the input source.  Always read a span through the
-// parser's span accessors:
-//
-//   - `syntaqlite_parser_span_text(p, &span, &len)` — authored bytes
-//     (slice of input source); walks through macro call sites and
-//     substituted arg segments.
-//   - `syntaqlite_parser_span_expanded_text(p, &span, &len)` — the
-//     bytes the tokenizer actually saw, which for macro-expanded spans
-//     live in an expansion layer buffer.
-//   - `syntaqlite_parser_traceback(p, &span, ...)` — the full outermost
-//     → innermost expansion chain for diagnostics, with argument-level
-//     drill-through fidelity for spans inside substituted macro args.
-typedef struct SyntaqliteTextSpan {
-  uint32_t offset;
-  uint32_t length;
-  uint32_t flags;
-  uint32_t _layer_id;  // Internal: 0 = source, >0 = macro expansion layer.
-} SyntaqliteTextSpan;
-
-// ── Span flags ───────────────────────────────────────────────────────────────
-
-// Identifier was quoted in source (`"..."`, `` `...` ``, or `[...]`).
-// The span points to the dequoted inner text; the formatter re-wraps in
-// `"..."`.
-#define SYNTAQLITE_SPAN_FLAG_QUOTED ((uint32_t)1u)
-
-static inline int synq_span_is_quoted(SyntaqliteTextSpan sp) {
-  return (sp.flags & SYNTAQLITE_SPAN_FLAG_QUOTED) != 0;
-}
-
-static inline SyntaqliteTextSpan synq_span_set_quoted(SyntaqliteTextSpan sp) {
-  sp.flags |= SYNTAQLITE_SPAN_FLAG_QUOTED;
-  return sp;
-}
-
-#ifdef __cplusplus
-}
-#endif
-
-
-#endif  /* SYNTAQLITE_TYPES_H */
-/* ======== end: syntaqlite/types.h ======== */
 
 
 #ifdef __cplusplus
@@ -746,7 +798,7 @@ SYNTAQLITE_API SyntaqliteParser* syntaqlite_parser_create(
 // new input without reallocating — all previous nodes are invalidated.
 SYNTAQLITE_API void syntaqlite_parser_reset(SyntaqliteParser* p,
                                             const char* source,
-                                            uint32_t len);
+                                            SyntaqliteDocLen len);
 
 // Parse the next SQL statement. Call in a loop until SYNTAQLITE_PARSE_DONE.
 // Bare semicolons between statements are skipped automatically.
@@ -813,17 +865,39 @@ SYNTAQLITE_API uint32_t syntaqlite_result_recovery_root(SyntaqliteParser* p);
 // Human-readable error message, or NULL.
 SYNTAQLITE_API const char* syntaqlite_result_error_msg(SyntaqliteParser* p);
 
-// Byte offset of error token (0xFFFFFFFF = unknown).
-SYNTAQLITE_API uint32_t syntaqlite_result_error_offset(SyntaqliteParser* p);
+// Statement-relative byte offset of error token (0xFFFFFFFF = unknown).
+SYNTAQLITE_API SyntaqliteStmtOffset
+syntaqlite_result_error_offset(SyntaqliteParser* p);
 
 // Byte length of error token (0 = unknown).
-SYNTAQLITE_API uint32_t syntaqlite_result_error_length(SyntaqliteParser* p);
+SYNTAQLITE_API SyntaqliteStmtLen
+syntaqlite_result_error_length(SyntaqliteParser* p);
 
 // A comment captured during parsing.
+//
+// Each comment is bound at parse time to one of the statement's tokens:
+//   - `side == SYNQ_COMMENT_LEADING` and `token_idx == N` means the comment
+//     appears immediately before token N (no significant token between them
+//     in the source) and either token N is the first token of the statement
+//     or the comment is on its own source line.
+//   - `side == SYNQ_COMMENT_TRAILING` and `token_idx == N` means the comment
+//     appears on the same source line as token N's end, with no significant
+//     token between them.
+// `token_idx` indexes into the same per-statement token array returned by
+// `syntaqlite_result_tokens`.  When the comment trails the last token of a
+// statement and no following statement exists, `token_idx` may equal
+// `count` (one past the last token) — consumers should treat that as
+// "statement-trailing with no owner."
+typedef uint8_t SyntaqliteCommentSide;
+#define SYNQ_COMMENT_LEADING ((SyntaqliteCommentSide)0)
+#define SYNQ_COMMENT_TRAILING ((SyntaqliteCommentSide)1)
+
 typedef struct SyntaqliteComment {
-  uint32_t offset;  // Byte offset in source.
-  uint32_t length;  // Byte length.
-  uint8_t kind;     // 0 = line comment (--), 1 = block comment (/* */).
+  SyntaqliteStmtOffset offset;   // Statement-relative byte offset.
+  SyntaqliteStmtLen length;      // Byte length.
+  SyntaqliteTokenIdx token_idx;  // Index of the owning token in p->tokens.
+  uint8_t kind;  // 0 = line comment (--), 1 = block comment (/* */).
+  uint8_t side;  // SYNQ_COMMENT_LEADING or SYNQ_COMMENT_TRAILING.
 } SyntaqliteComment;
 
 // Token-usage flags: set by the parser during disambiguation to record how
@@ -845,9 +919,9 @@ typedef uint32_t SyntaqliteParserTokenFlags;
 // positions should resolve the token's span via the parser's span
 // accessors rather than using `offset` directly.
 typedef struct SyntaqliteParserToken {
-  uint32_t offset;  // Byte offset in the token's layer buffer.
-  uint32_t length;  // Byte length.
-  uint32_t type;    // Original token type from tokenizer (pre-fallback).
+  SyntaqliteLayerOffset offset;  // Byte offset in the token's layer buffer.
+  SyntaqliteLayerLen length;     // Byte length.
+  uint32_t type;  // Original token type from tokenizer (pre-fallback).
   SyntaqliteParserTokenFlags flags;  // Bitmask of SYNQ_TOKEN_FLAG_* values.
   uint32_t _layer_id;  // Internal: 0 = original source, >0 = expansion layer.
 } SyntaqliteParserToken;
@@ -860,6 +934,24 @@ SYNTAQLITE_API const SyntaqliteComment* syntaqlite_result_comments(
     uint32_t* count);
 SYNTAQLITE_API const SyntaqliteParserToken* syntaqlite_result_tokens(
     SyntaqliteParser* p,
+    uint32_t* count);
+
+// Get the comments attached to a specific token.
+//
+// Returns a pointer to the first comment in `p->comments` whose
+// `token_idx == token_idx` and `side == side`, and writes the count of
+// such comments to `*count`.  Comments attached to the same token are
+// contiguous in `p->comments` and recorded in source order.
+//
+// Returns NULL with `*count == 0` when there are no matching comments.
+SYNTAQLITE_API const SyntaqliteComment* syntaqlite_token_leading_comments(
+    SyntaqliteParser* p,
+    SyntaqliteTokenIdx token_idx,
+    uint32_t* count);
+
+SYNTAQLITE_API const SyntaqliteComment* syntaqlite_token_trailing_comments(
+    SyntaqliteParser* p,
+    SyntaqliteTokenIdx token_idx,
     uint32_t* count);
 
 // Sentinel value for `SyntaqliteMacroRewrite::parent_idx` meaning "this
@@ -886,9 +978,10 @@ SYNTAQLITE_API const SyntaqliteParserToken* syntaqlite_result_tokens(
 // in this same flat list (the rewrite replaces a range in that entry's
 // `expansion` buffer).
 //
-// `call_offset` / `call_length` describe the byte range of the macro call
-// inside the parent's text (authored source if `parent_idx` is the
-// sentinel, otherwise the parent entry's `expansion` buffer).
+// `call_offset` / `call_length` describe the byte range of the macro
+// call inside the parent's text: statement-relative when `parent_idx`
+// is the source sentinel, otherwise relative to the parent entry's
+// `expansion` buffer.
 //
 // `expansion` is the replacement text for that range.  It is NOT
 // NUL-terminated; use `expansion_len`.  Nested macro calls appearing
@@ -906,25 +999,46 @@ SYNTAQLITE_API const SyntaqliteParserToken* syntaqlite_result_tokens(
 // `syntaqlite_parser_destroy` call.
 typedef struct SyntaqliteMacroRewrite {
   uint32_t parent_idx;
-  uint32_t call_offset;
-  uint32_t call_length;
+  // Statement-relative when parent_idx == SYNTAQLITE_MACRO_PARENT_SOURCE,
+  // otherwise relative to the parent entry's `expansion` buffer.
+  SyntaqliteLayerOffset call_offset;
+  SyntaqliteLayerLen call_length;
   const char* expansion;
-  uint32_t expansion_len;
+  SyntaqliteLayerLen expansion_len;
   const char* name;
   uint32_t name_len;
-  uint32_t def_line;
-  uint32_t def_col;
+  SyntaqliteLineNumber def_line;
+  SyntaqliteColumnNumber def_col;
   // Position of this call in the *parent's authored body*, computed by
   // inverting the length shifts the parent's $param substitutions
-  // introduced.  body_call_length == 0 means the call was tokenized
-  // from a substituted arg's text (no meaningful body position) and
-  // consumers should descend through the matching arg segment instead.
+  // introduced.  Both fields equal SYNTAQLITE_MACRO_BODY_CALL_ARG_INTERNAL
+  // (UINT32_MAX) when the call was tokenized from a substituted arg's
+  // text (no meaningful body position) and consumers should descend
+  // through the matching arg segment instead.
   //
   // For top-level rewrites (parent_idx == SYNTAQLITE_MACRO_PARENT_SOURCE)
   // the parent is the authored source, so these equal call_offset /
   // call_length.
-  uint32_t body_call_offset;
-  uint32_t body_call_length;
+  SyntaqliteLayerOffset body_call_offset;
+  SyntaqliteLayerLen body_call_length;
+  // The buffer the `call_offset` — and every arg offset returned by
+  // syntaqlite_macro_rewrite_arg_at — indexes into.  For top-level
+  // rewrites (parent_idx == SYNTAQLITE_MACRO_PARENT_SOURCE) this is
+  // the current statement source slice; for nested rewrites it is
+  // the parent entry's `expansion` buffer.  Consumers can slice the
+  // call text as `parent_buffer + call_offset` and the arg texts
+  // likewise, without resolving parent_idx themselves.
+  //
+  // Not NUL-terminated; use `parent_buffer_len`.  Owned by the
+  // parser and valid until the next reset / next / destroy call.
+  const char* parent_buffer;
+  SyntaqliteLayerLen parent_buffer_len;
+  // 1 if this call went down the fallback path (unregistered name!
+  // kept verbatim as a TK_ID, no expansion, no $param substitutions);
+  // 0 if it was expanded by a registered macro.  `expansion_len` is
+  // also a useful tell (0 for fallback), but this flag is the
+  // authoritative signal.
+  uint32_t is_fallback;
 } SyntaqliteMacroRewrite;
 
 // Number of macro rewrites recorded for the current statement.
@@ -951,13 +1065,13 @@ syntaqlite_result_macro_rewrite_at(SyntaqliteParser* p, uint32_t idx);
 // chain of $param substitutions by recursing into the origin rewrite's
 // arg segments.
 typedef struct SyntaqliteMacroArgSegment {
-  uint32_t body_offset;
-  uint32_t body_length;
-  uint32_t expansion_offset;
-  uint32_t expansion_length;
+  SyntaqliteLayerOffset body_offset;
+  SyntaqliteLayerLen body_length;
+  SyntaqliteLayerOffset expansion_offset;
+  SyntaqliteLayerLen expansion_length;
   uint32_t origin_parent_idx;
-  uint32_t origin_offset;
-  uint32_t origin_length;
+  SyntaqliteLayerOffset origin_offset;
+  SyntaqliteLayerLen origin_length;
 } SyntaqliteMacroArgSegment;
 
 // Number of arg segments recorded on the rewrite at `rewrite_idx`.
@@ -974,6 +1088,36 @@ syntaqlite_macro_rewrite_arg_segment_at(SyntaqliteParser* p,
                                         uint32_t rewrite_idx,
                                         uint32_t segment_idx);
 
+// One top-level argument of a macro call, as written at the call
+// site.  Populated for both registered (expanded) and fallback calls:
+// the parser scans `name!(a, b, c)` the same way regardless of
+// whether `name` resolved to a registered macro.
+//
+// `offset` is in the same coordinate system as the enclosing
+// rewrite's `call_offset`, and indexes into the enclosing rewrite's
+// `parent_buffer`.  Slice the arg text as
+// `rewrite.parent_buffer + offset` for `length` bytes.  Leading and
+// trailing whitespace / comments are trimmed from the range.
+typedef struct SyntaqliteMacroCallArg {
+  SyntaqliteLayerOffset offset;
+  SyntaqliteLayerLen length;
+} SyntaqliteMacroCallArg;
+
+// Number of top-level call-site arg spans recorded on the rewrite at
+// `rewrite_idx`.  Returns 0 for `name!()` with no args, calls whose
+// arity exceeded the scan buffer (rare; >64 args), or out-of-range
+// indices.
+SYNTAQLITE_API uint32_t
+syntaqlite_macro_rewrite_arg_count(SyntaqliteParser* p, uint32_t rewrite_idx);
+
+// Returns the call-site arg at `arg_idx` on the rewrite at
+// `rewrite_idx`.  Returns a zero-initialized struct if either index
+// is out of range.
+SYNTAQLITE_API SyntaqliteMacroCallArg
+syntaqlite_macro_rewrite_arg_at(SyntaqliteParser* p,
+                                uint32_t rewrite_idx,
+                                uint32_t arg_idx);
+
 // ---------------------------------------------------------------------------
 // Arena accessors
 // ---------------------------------------------------------------------------
@@ -985,20 +1129,29 @@ syntaqlite_macro_rewrite_arg_segment_at(SyntaqliteParser* p,
 SYNTAQLITE_API const void* syntaqlite_parser_node(SyntaqliteParser* p,
                                                   uint32_t node_id);
 
-// Source text bound by the last reset() call.  Writes the byte length
-// to `*out_len` (optional) and returns a direct pointer into the
-// parser's source buffer.
-SYNTAQLITE_API const char* syntaqlite_parser_text(SyntaqliteParser* p,
-                                                  uint32_t* out_len);
+// Source slice for the last-completed statement.  Writes the
+// statement's document-absolute byte offset within the bound source to
+// `*out_offset` (optional) and its length to `*out_len` (optional).
+// Every offset the parser emits for this statement — tokens, comments,
+// node extents, spans, error offset, macro rewrite call offsets — is
+// measured from the returned pointer.  Returns NULL / 0 / 0 when no
+// statement has been produced yet.
+SYNTAQLITE_API const char* syntaqlite_parser_text(
+    SyntaqliteParser* p,
+    SyntaqliteDocOffset* out_offset,
+    SyntaqliteStmtLen* out_len);
 
-// Post-expansion text for the whole input — the parser-level
-// analogue of `syntaqlite_parser_node_expanded_text`.  Materializes
-// the source with every currently-active macro call replaced by its
-// expansion into a parser-owned scratch buffer and returns a pointer
-// valid until the next call to `syntaqlite_parser_expanded_text` /
-// `syntaqlite_parser_node_expanded_text` on the same parser or until
-// the parser advances to the next statement.  Writes the byte length
-// to `*out_len` (optional).
+// Full SQL source bound by the last reset() call.  For multi-statement
+// input, this is the whole input.
+SYNTAQLITE_API const char* syntaqlite_parser_full_text(
+    SyntaqliteParser* p,
+    SyntaqliteDocLen* out_len);
+
+// Post-expansion text for the current statement — materializes the
+// statement's source with every currently-active macro call replaced
+// by its expansion into a parser-owned scratch buffer.  The returned
+// pointer is valid until the next `*_expanded_text` call on the same
+// parser or until the parser advances to the next statement.
 SYNTAQLITE_API const char* syntaqlite_parser_expanded_text(SyntaqliteParser* p,
                                                            uint32_t* out_len);
 
@@ -1025,12 +1178,12 @@ SYNTAQLITE_API uint32_t syntaqlite_parser_node_count(SyntaqliteParser* p);
 typedef struct SyntaqliteTracebackFrame {
   const char* name;
   uint32_t name_len;
-  uint32_t line;
-  uint32_t col;
+  SyntaqliteLineNumber line;
+  SyntaqliteColumnNumber col;
   const char* snippet;
-  uint32_t snippet_len;
-  uint32_t offset_in_snippet;
-  uint32_t length_in_snippet;
+  SyntaqliteLayerLen snippet_len;
+  SyntaqliteLayerOffset offset_in_snippet;
+  SyntaqliteLayerLen length_in_snippet;
 } SyntaqliteTracebackFrame;
 
 // Build a traceback for a span and return a pointer to a parser-owned
@@ -1338,6 +1491,56 @@ SYNTAQLITE_API SyntaqliteDialect syntaqlite_sqlite_dialect(void);
 
 #endif  /* SYNTAQLITE_TOKENIZER_H */
 /* ======== end: syntaqlite/tokenizer.h ======== */
+
+/* ======== begin: syntaqlite/incremental.h ======== */
+#ifndef SYNTAQLITE_INCREMENTAL_PARSER_H
+#define SYNTAQLITE_INCREMENTAL_PARSER_H
+// Copyright 2025 The syntaqlite Authors. All rights reserved.
+// Licensed under the Apache License, Version 2.0.
+
+// Incremental (token-feeding) parser API.
+//
+// An alternative to syntaqlite_parser_next() for embedders that perform their
+// own tokenization — for example, to support macro expansion before parsing.
+// Feed tokens one at a time after calling syntaqlite_parser_reset(); the
+// parser signals statement boundaries as tokens arrive.
+//
+// When feed_token or finish returns SYNTAQLITE_PARSE_OK, read the successful
+// tree via syntaqlite_result_root(). When the status is
+// SYNTAQLITE_PARSE_ERROR, read diagnostics via syntaqlite_result_error_*()
+// and inspect syntaqlite_result_recovery_root() for an optional partial tree
+// (which may include grammar-level error nodes).
+// The result is valid until the next feed_token, finish, reset, or destroy.
+//
+// Usage:
+//   SyntaqliteParser* p = syntaqlite_parser_create(NULL);
+//   // Optional: enable if you need result_tokens/result_comments.
+//   syntaqlite_parser_set_collect_tokens(p, 1);
+//   syntaqlite_parser_reset(p, source, len);
+//   while (has_more_tokens) {
+//     int32_t rc = syntaqlite_parser_feed_token(p, type, text, tlen);
+//     switch (rc) {
+//       case SYNTAQLITE_PARSE_DONE:
+//         break;
+//       case SYNTAQLITE_PARSE_OK: {
+//         uint32_t root = syntaqlite_result_root(p);
+//         // read nodes ...
+//         break;
+//       }
+//       case SYNTAQLITE_PARSE_ERROR:
+//         if (syntaqlite_result_recovery_root(p) == SYNTAQLITE_NULL_NODE)
+//           goto done;
+//         break;
+//     }
+//   }
+//   int32_t rc = syntaqlite_parser_finish(p);
+//   if (rc == SYNTAQLITE_PARSE_OK) { /* final statement complete */ }
+// done:
+//   syntaqlite_parser_destroy(p);
+//
+// Read accumulated macro rewrites via syntaqlite_result_macro_count() /
+// syntaqlite_result_macro_rewrite_at() after parsing.
+
 
 
 #ifdef __cplusplus
@@ -1908,6 +2111,8 @@ typedef enum SyntaqliteNodeTag {
     SYNTAQLITE_NODE_DROP_PERFETTO_INDEX_STMT = 94,
     SYNTAQLITE_NODE_COUNT
 } SyntaqliteNodeTag;
+SYNQ_STATIC_ASSERT(sizeof(SyntaqliteNodeTag) == sizeof(uint32_t),
+                   "SyntaqliteNodeTag must be 32 bits for FFI compatibility");
 
 // ============ Node Structs ============
 
@@ -2128,6 +2333,8 @@ typedef struct SyntaqliteUpsertClauseList {
 
 typedef struct SyntaqliteDeleteStmt {
     SyntaqliteNodeTag tag;
+    uint32_t with_ctes;
+    SyntaqliteBool with_recursive;
     uint32_t table;
     SyntaqliteIndexHint index_hint;
     SyntaqliteTextSpan index_name;
@@ -2153,6 +2360,8 @@ typedef struct SyntaqliteSetClauseList {
 
 typedef struct SyntaqliteUpdateStmt {
     SyntaqliteNodeTag tag;
+    uint32_t with_ctes;
+    SyntaqliteBool with_recursive;
     SyntaqliteConflictAction conflict_action;
     uint32_t table;
     SyntaqliteIndexHint index_hint;
@@ -2167,6 +2376,8 @@ typedef struct SyntaqliteUpdateStmt {
 
 typedef struct SyntaqliteInsertStmt {
     SyntaqliteNodeTag tag;
+    uint32_t with_ctes;
+    SyntaqliteBool with_recursive;
     SyntaqliteConflictAction conflict_action;
     uint32_t table;
     uint32_t columns;
