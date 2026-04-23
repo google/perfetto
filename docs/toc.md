@@ -93,8 +93,8 @@
     - [Logcat](data-sources/android-log.md) {.tag-android}
     - [Frame Timeline](data-sources/frametimeline.md) {.tag-android}
     - [Memory Counters](data-sources/memory-counters.md) {.tag-android .tag-linux}
-    - [Native Heap Profiler](data-sources/native-heap-profiler.md) {.tag-android .tag-linux}
-    - [Java Heap Dumps](data-sources/java-heap-profiler.md) {.tag-android}
+    - [Allocation Profiling](data-sources/native-heap-profiler.md) {.tag-android .tag-linux}
+    - [ART Heap Dumps](data-sources/java-heap-profiler.md) {.tag-android}
     - [Battery & Power](data-sources/battery-counters.md) {.tag-android}
     - [GPU & Game Data](data-sources/android-game-intervention-list.md) {.tag-android}
     - [Tracing across Reboots](data-sources/previous-boot-trace.md) {.tag-linux}
