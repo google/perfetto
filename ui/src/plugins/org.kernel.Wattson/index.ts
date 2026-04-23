@@ -179,8 +179,8 @@ async function hasCpuIdleCounters(engine: Engine): Promise<boolean> {
 
 async function hasWattsonMarkersSupport(engine: Engine): Promise<boolean> {
   const checkValue = await engine.query(`
-      INCLUDE PERFETTO MODULE wattson.utils;
-      SELECT COUNT(*) as numRows from _wattson_markers_window
+      INCLUDE PERFETTO MODULE wattson.windows;
+      SELECT COUNT(*) as numRows from wattson_window_markers
   `);
   return checkValue.firstRow({numRows: NUM}).numRows > 0;
 }

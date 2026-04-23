@@ -774,8 +774,6 @@ describe('CreateSlicesNode', () => {
 
       const serialized = createSlicesNode.serializeState();
 
-      expect(serialized.startsNodeId).toBe('starts_node_id');
-      expect(serialized.endsNodeId).toBe('ends_node_id');
       expect(serialized.startsTsColumn).toBe('acquire_ts');
       expect(serialized.endsTsColumn).toBe('release_ts');
     });
@@ -790,16 +788,14 @@ describe('CreateSlicesNode', () => {
 
       const serialized = createSlicesNode.serializeState();
 
-      expect(serialized.startsNodeId).toBe('');
-      expect(serialized.endsNodeId).toBe('');
+      expect(serialized.startsTsColumn).toBe('ts');
+      expect(serialized.endsTsColumn).toBe('ts');
     });
   });
 
   describe('deserializeState', () => {
     it('should deserialize state correctly', () => {
       const serialized = {
-        startsNodeId: 'starts_node_id',
-        endsNodeId: 'ends_node_id',
         startsTsColumn: 'acquire_ts',
         endsTsColumn: 'release_ts',
       };
@@ -812,8 +808,6 @@ describe('CreateSlicesNode', () => {
 
     it('should use default values when fields are missing', () => {
       const serialized = {
-        startsNodeId: 'starts',
-        endsNodeId: 'ends',
         startsTsColumn: undefined!,
         endsTsColumn: undefined!,
       };
@@ -822,56 +816,6 @@ describe('CreateSlicesNode', () => {
 
       expect(state.startsTsColumn).toBe('ts');
       expect(state.endsTsColumn).toBe('ts');
-    });
-  });
-
-  describe('deserializeConnections', () => {
-    it('should deserialize connections correctly', () => {
-      const startsNode = createMockPrevNode('starts_id', []);
-      const endsNode = createMockPrevNode('ends_id', []);
-      const nodes = new Map([
-        ['starts_id', startsNode],
-        ['ends_id', endsNode],
-      ]);
-
-      const connections = CreateSlicesNode.deserializeConnections(nodes, {
-        startsNodeId: 'starts_id',
-        endsNodeId: 'ends_id',
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
-
-      expect(connections.startsNode).toBe(startsNode);
-      expect(connections.endsNode).toBe(endsNode);
-    });
-
-    it('should handle missing nodes gracefully', () => {
-      const nodes = new Map<string, QueryNode>();
-
-      const connections = CreateSlicesNode.deserializeConnections(nodes, {
-        startsNodeId: 'missing_starts',
-        endsNodeId: 'missing_ends',
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
-
-      expect(connections.startsNode).toBeUndefined();
-      expect(connections.endsNode).toBeUndefined();
-    });
-
-    it('should handle partially missing nodes', () => {
-      const startsNode = createMockPrevNode('starts_id', []);
-      const nodes = new Map([['starts_id', startsNode]]);
-
-      const connections = CreateSlicesNode.deserializeConnections(nodes, {
-        startsNodeId: 'starts_id',
-        endsNodeId: 'missing_ends',
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
-
-      expect(connections.startsNode).toBe(startsNode);
-      expect(connections.endsNode).toBeUndefined();
     });
   });
 

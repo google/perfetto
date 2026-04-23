@@ -169,10 +169,10 @@ export function renderChartConfigPopup(
           ],
         ),
       ]),
-      // Y column — for line and scatter
+      // Y column — for line, scatter, boxplot, heatmap
       def?.supportsYColumn &&
         m(FormLabel, [
-          m('span', 'Y Column'),
+          m('span', def.yColumnLabel ?? 'Y Column'),
           m(
             Select,
             {

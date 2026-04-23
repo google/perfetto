@@ -13,90 +13,93 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {classNames} from '../base/classnames';
 import {Icon} from './icon';
+import {shortUuid} from '../base/uuid';
+import {createContext} from '../base/mithril_utils';
 
-export interface AccordionItem {
-  // Unique identifier for this item.
-  readonly id: string;
-  // Content to display in the header (always visible).
-  readonly header: m.Children;
-  // Content to display when expanded.
-  readonly content: m.Children;
-}
+const {Consumer, Provider} = createContext<string | undefined>(undefined);
 
 export interface AccordionAttrs {
-  // The list of accordion items to display.
-  readonly items: AccordionItem[];
-  // Currently expanded item id (controlled mode).
-  // If omitted, the accordion manages its own state (uncontrolled mode).
-  readonly expanded?: string;
-  // Callback when an item is toggled.
-  readonly onToggle?: (id: string | undefined) => void;
   // Space delimited class list applied to the accordion element.
   readonly className?: string;
+  readonly key?: string;
+  readonly multi?: boolean;
 }
 
 export class Accordion implements m.ClassComponent<AccordionAttrs> {
-  // Internal state for uncontrolled mode.
-  private internalExpanded: string | undefined = undefined;
-  // Track which item should be scrolled into view after render.
-  private pendingScrollId: string | undefined = undefined;
+  private readonly uuid = shortUuid();
+  view({attrs, children}: m.CVnode<AccordionAttrs>): m.Children {
+    const {multi, className} = attrs;
+    // If multi is false, all sections share the same name and only one can be
+    // open at a time. If multi is true, each section gets a unique name and can
+    // be opened independently.
+    const sharedName = multi ? undefined : this.uuid;
+    return m(Provider, {value: sharedName}, [
+      m('.pf-accordion', {className}, children),
+    ]);
+  }
+}
 
-  view({attrs}: m.CVnode<AccordionAttrs>): m.Children {
-    const {items, onToggle, className} = attrs;
+export interface AccordionSectionAttrs {
+  // Content to display in the summary (always visible).
+  readonly summary: m.Children;
+  // Space delimited class list applied to the details element.
+  readonly className?: string;
+  readonly defaultOpen?: boolean;
+}
 
-    const expandedId = this.getExpandedId(attrs);
+export class AccordionSection
+  implements m.ClassComponent<AccordionSectionAttrs>
+{
+  private isOpen = false;
+  private pendingScrollOpen = false;
 
-    return m(
-      '.pf-accordion',
-      {className},
-      items.map((item) => {
-        const isExpanded = expandedId === item.id;
-        const shouldScroll = this.pendingScrollId === item.id;
-        return m(
-          '.pf-accordion__item',
+  constructor({attrs}: m.Vnode<AccordionSectionAttrs>) {
+    this.isOpen = attrs.defaultOpen ?? false;
+  }
+
+  view({attrs, children}: m.CVnode<AccordionSectionAttrs>): m.Children {
+    const {summary: header, className} = attrs;
+    return m(Consumer, (groupName) => {
+      return m(
+        'details.pf-accordion__item',
+        {
+          className,
+          open: this.isOpen,
+          ...(groupName != null ? {name: groupName} : {}),
+          ontoggle: (e: Event) => {
+            this.isOpen = (e.target as HTMLDetailsElement).open;
+          },
+        },
+        m(
+          'summary.pf-accordion__header',
           {
-            key: item.id,
-            className: classNames(isExpanded && 'pf-expanded'),
-            onupdate: (vnode: m.VnodeDOM) => {
-              if (shouldScroll) {
-                this.pendingScrollId = undefined;
-                const header = vnode.dom as HTMLElement;
-                header?.scrollIntoView({behavior: 'instant', block: 'nearest'});
-                console.log('Scrolled accordion item into view', item.id);
+            onclick: () => {
+              console.log('Clicked header', header);
+              // If we're closing this section manually, scroll it into view
+              if (this.isOpen) {
+                this.pendingScrollOpen = true;
               }
             },
           },
-          m(
-            '.pf-accordion__header',
-            {
-              onclick: () => {
-                const newExpanded = isExpanded ? undefined : item.id;
-                this.internalExpanded = newExpanded;
-                // Always scroll the toggled item into view (expand or collapse)
-                this.pendingScrollId = item.id;
-                onToggle?.(newExpanded);
-              },
-            },
-            m(
-              '.pf-accordion__toggle',
-              m(Icon, {icon: isExpanded ? 'expand_more' : 'chevron_right'}),
-            ),
-            m('.pf-accordion__header-content', item.header),
-          ),
-          isExpanded && m('.pf-accordion__content', item.content),
-        );
-      }),
-    );
+          m('.pf-accordion__toggle', m(Icon, {icon: 'expand_more'})),
+          m('.pf-accordion__header-content', header),
+        ),
+        m('.pf-accordion__content', children),
+      );
+    });
   }
 
-  private getExpandedId(attrs: AccordionAttrs): string | undefined {
-    // If expanded is provided, use controlled mode.
-    // Otherwise use internal state (uncontrolled mode).
-    if (attrs.expanded !== undefined) {
-      return attrs.expanded;
+  onupdate({dom}: m.VnodeDOM<AccordionSectionAttrs>) {
+    if (this.pendingScrollOpen) {
+      this.pendingScrollOpen = false;
+      dom.scrollIntoView({behavior: 'instant', block: 'nearest'});
     }
-    return this.internalExpanded;
+
+    // Mithril uses property assignment to clear DOM attributes, which
+    // stringifies null to "null". Remove it explicitly.
+    if (dom.getAttribute('name') === 'null') {
+      dom.removeAttribute('name');
+    }
   }
 }

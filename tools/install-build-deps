@@ -507,6 +507,44 @@ BIGTRACE_DEPS = [
                '6c3e8482f7b4e3b307bb42afbb85fd8771da86b8', 'all', 'all', True)
 ]
 
+# Syntaqlite CLI prebuilt binaries. Used by tools/gen_syntaqlite_parser to
+# regenerate src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.{c,h}
+# from the canonical perfetto.y + perfetto.synq grammar files. Only needed by
+# contributors editing the grammar; normal builds consume the committed
+# generated output. Gated behind the `--syntaqlite` flag.
+SYNTAQLITE_DEPS = [
+    Dependency(
+        'buildtools/syntaqlite.tgz',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.1/syntaqlite-linux-x64.tar.gz',
+        '052ced33d5b0b6a5a09357030f346f56f75760a5defd3408702de3323c84281a',
+        'linux', 'x64'),
+    Dependency(
+        'buildtools/syntaqlite.tgz',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.1/syntaqlite-linux-arm64.tar.gz',
+        'bcd3bda0382273f0defd3bfbc8340a4b79f68333842d472230d8c1af62a99c5c',
+        'linux', 'arm64'),
+    Dependency(
+        'buildtools/syntaqlite.tgz',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.1/syntaqlite-macos-x64.tar.gz',
+        '39f7ed942bff5daf735a243b03c45a01c4dde23b87693455e000860626a804a4',
+        'darwin', 'x64'),
+    Dependency(
+        'buildtools/syntaqlite.tgz',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.1/syntaqlite-macos-arm64.tar.gz',
+        'c20878eafe40823f8db3e474540d16222e876175d848a1d1424b4d3cfc612ebd',
+        'darwin', 'arm64'),
+    Dependency(
+        'buildtools/syntaqlite.zip',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.1/syntaqlite-windows-x64.zip',
+        '6a8b599fbf8b579707e34b5629144679521863bd7bea5dcd866ce78f4dafe506',
+        'windows', 'x64'),
+    Dependency(
+        'buildtools/syntaqlite.zip',
+        'https://github.com/LalitMaganti/syntaqlite/releases/download/v0.5.1/syntaqlite-windows-arm64.zip',
+        'de41efbf10e38710545445551c3d666ae4cb38a1a457551e3c2f9ea1552b7b76',
+        'windows', 'arm64'),
+]
+
 # Dependencies to build Rust SDK.
 BUILD_DEPS_RUST = [
     Dependency(
@@ -533,7 +571,7 @@ BUILD_DEPS_LINUX_CROSS_SYSROOTS = [
 ALL_DEPS = (
     BUILD_DEPS_HOST + BUILD_DEPS_BAZEL + BUILD_DEPS_ANDROID +
     BUILD_DEPS_LINUX_CROSS_SYSROOTS + TEST_DEPS_ANDROID +
-    EMULATOR_DEPS_ANDROID + UI_DEPS + BUILD_DEPS_RUST)
+    EMULATOR_DEPS_ANDROID + UI_DEPS + BUILD_DEPS_RUST + SYNTAQLITE_DEPS)
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UI_DIR = os.path.join(ROOT_DIR, 'ui')
@@ -907,6 +945,10 @@ def Main():
       help='Override the autodetected build CPU architecture')
   parser.add_argument(
       '--rust', action='store_true', help='Rust toolchain to build Rust SDK')
+  parser.add_argument(
+      '--syntaqlite',
+      action='store_true',
+      help='Prebuilt syntaqlite CLI for regenerating the PerfettoSQL parser')
   args = parser.parse_args()
   if args.verify:
     CheckHashes()
@@ -940,6 +982,8 @@ def Main():
     deps += BIGTRACE_DEPS
   if args.rust:
     deps += BUILD_DEPS_RUST
+  if args.syntaqlite:
+    deps += SYNTAQLITE_DEPS
   deps_updated = False
   nodejs_updated = False
   rustup_updated = False

@@ -242,10 +242,6 @@ function buildLineOption(
   });
 
   const option = buildChartOption({
-    grid: {
-      top: displayLegend ? 30 : 10,
-      bottom: xAxisLabel ? 40 : 25,
-    },
     xAxis: {
       // Nasty ECharts quirk: when stacking, the xAxis must be type 'category'
       // or 'time'. Since we want to support x-values at irregular intervals, we

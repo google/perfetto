@@ -1,205 +1,213 @@
-- [Getting started](#)
+- [Overview](#)
 
   - [What is Perfetto?](README.md)
   - [What is Tracing?](tracing-101.md)
   - [How do I start using Perfetto?](getting-started/start-using-perfetto.md)
 
+- [Getting Started](#)
+
   - [Tutorials](#)
 
-    - [Full-Stack Perfetto](#)
-
-      - [System Tracing](getting-started/system-tracing.md)
-      - [In-App Tracing](getting-started/in-app-tracing.md)
-      - [Memory Profiling](getting-started/memory-profiling.md)
-      - [CPU Profiling](getting-started/cpu-profiling.md)
-
-    - [Adding Tracepoints](#)
-
-      - [Android atrace](getting-started/atrace.md)
-      - [Linux ftrace](getting-started/ftrace.md)
-
-    - [Non-Perfetto Trace Analysis](#)
-
-      - [Supported trace formats](getting-started/other-formats.md)
-      - [Converting to Perfetto](getting-started/converting.md)
+    - [System Tracing](getting-started/system-tracing.md) {.tag-android .tag-linux}
+    - [In-App Tracing](getting-started/in-app-tracing.md) {.tag-cpp}
+    - [Memory Profiling](getting-started/memory-profiling.md) {.tag-android .tag-linux}
+    - [CPU Profiling](getting-started/cpu-profiling.md) {.tag-android .tag-linux}
+    - [Instrumenting with atrace](getting-started/atrace.md) {.tag-android}
+    - [Instrumenting with ftrace](getting-started/ftrace.md) {.tag-linux .tag-android}
+    - [Recording Chrome Traces](getting-started/chrome-tracing.md) {.tag-chrome}
+    - [Importing Other Formats](getting-started/other-formats.md) {.tag-perf}
+    - [Converting Data to Perfetto](getting-started/converting.md) {.tag-perf}
 
   - [Cookbooks](#)
 
-    - [Analysing Android Traces](getting-started/android-trace-analysis.md)
-    - [Periodic Trace Snapshots](getting-started/periodic-trace-snapshots.md)
+    - [Analysing Android Traces](getting-started/android-trace-analysis.md) {.tag-android}
+    - [Periodic Trace Snapshots](getting-started/periodic-trace-snapshots.md) {.tag-android .tag-linux}
+    - [Boot Tracing](case-studies/android-boot-tracing.md) {.tag-android}
+    - [OutOfMemoryError](case-studies/android-outofmemoryerror.md) {.tag-android}
 
   - [Case Studies](#)
 
-    - [Android Memory Usage](case-studies/memory.md)
-    - [Scheduling blockages](case-studies/scheduling-blockages.md)
-
-- [Learning more](#)
-
-  - [Concepts](#)
-
-    - [Trace configuration](concepts/config.md)
-    - [Buffers and dataflow](concepts/buffers.md)
-    - [Service model](concepts/service-model.md)
-    - [Clock synchronization](concepts/clock-sync.md)
-
-  - [Trace Recording](#)
-
-    - [Tracing in Background](learning-more/tracing-in-background.md)
-    - [More Android tracing](learning-more/android.md)
-    - [Chrome Tracing](getting-started/chrome-tracing.md)
-
-  - [Trace Instrumentation](#)
-
-    - [Tracing SDK](instrumentation/tracing-sdk.md)
-    - [Track Event](instrumentation/track-events.md)
-
-  - [Trace Analysis](#)
-
-    - [Getting Started](analysis/getting-started.md)
-    - [PerfettoSQL](#)
-      - [Getting Started](analysis/perfetto-sql-getting-started.md)
-      - [Standard Library](analysis/stdlib-docs.autogen)
-      - [Syntax](analysis/perfetto-sql-syntax.md)
-      - [Style Guide](analysis/style-guide.md)
-      - [Backwards Compatibility](analysis/perfetto-sql-backcompat.md)
-    - [Trace Processor](#)
-      - [Trace Processor (C++)](analysis/trace-processor.md)
-      - [Trace Processor (Python)](analysis/trace-processor-python.md)
-    - [Trace Summarization](analysis/trace-summary.md)
-    - [Converting from Perfetto](quickstart/traceconv.md)
-
-  - [Trace Visualization](#)
-
-    - [Perfetto UI](visualization/perfetto-ui.md)
-    - [Opening large traces](visualization/large-traces.md)
-    - [Deep linking](visualization/deep-linking-to-perfetto-ui.md)
-    - [Debug tracks](analysis/debug-tracks.md)
-
-    - [Extending the UI](#)
-
-      - [Overview](visualization/extending-the-ui.md)
-      - [Commands and Macros](visualization/ui-automation.md)
-      - [Extension Servers](visualization/extension-servers.md)
+    - [Debugging Memory Usage](case-studies/memory.md) {.tag-android}
+    - [Scheduling Blockages](case-studies/scheduling-blockages.md) {.tag-android .tag-linux}
 
   - [Contributing](#)
 
-    - [Getting started](contributing/getting-started.md)
-    - [Common tasks](contributing/common-tasks.md)
-    - [Become a committer](contributing/become-a-committer.md)
-    - [UI](#)
+    - [Getting Started](contributing/getting-started.md) {.tag-contrib}
+    - [Common Tasks](contributing/common-tasks.md) {.tag-contrib}
 
-      - [Getting started](contributing/ui-getting-started.md)
-      - [Plugins](contributing/ui-plugins.md)
+- [Learning More](#)
 
-  - [FAQ](faq.md)
+  - [Concepts](#)
 
-- [Diving deep](#)
+    - [Service Model](concepts/service-model.md) {.tag-android .tag-linux .tag-cpp}
+    - [Buffers and Dataflow](concepts/buffers.md) {.tag-android .tag-linux .tag-cpp .tag-chrome}
+    - [Trace Configuration](concepts/config.md) {.tag-android .tag-linux .tag-cpp .tag-chrome}
+    - [Clock Synchronization](concepts/clock-sync.md) {.tag-android .tag-linux .tag-cpp .tag-chrome}
+    - [Concurrent Sessions](concepts/concurrent-tracing-sessions.md) {.tag-android .tag-linux .tag-cpp}
 
-  - [Data sources](#)
+  - [Recording](#)
 
-    - [Memory Data sources](#)
+    - [Tracing in Background](learning-more/tracing-in-background.md) {.tag-android .tag-linux}
+    - [Advanced Android Tracing](learning-more/android.md) {.tag-android}
+    - [Symbolization and Deobfuscation](learning-more/symbolization.md) {.tag-android .tag-linux}
+    - [Tracing across Reboots](data-sources/previous-boot-trace.md) {.tag-android .tag-linux}
+    - [Custom Proto Extensions](instrumentation/extensions.md) {.tag-cpp .tag-android .tag-perf}
+    - [heapprofd API](instrumentation/heapprofd-api.md) {.tag-cpp}
 
-      - [Native Heap profiler](data-sources/native-heap-profiler.md)
-      - [Java heap dumps](data-sources/java-heap-profiler.md)
-      - [Counters and events](data-sources/memory-counters.md)
+  - [Data Sources](#)
 
-    - [Ftrace Data Sources](#)
+    - [System](#)
 
-      - [Scheduling events](data-sources/cpu-scheduling.md)
-      - [System calls](data-sources/syscalls.md)
-      - [Frequency scaling](data-sources/cpu-freq.md)
+      - [CPU Scheduling](data-sources/cpu-scheduling.md) {.tag-android .tag-linux}
+      - [System Calls](data-sources/syscalls.md) {.tag-android .tag-linux}
+      - [CPU Frequency](data-sources/cpu-freq.md) {.tag-android .tag-linux}
+      - [GPU](data-sources/gpu.md) {.tag-android .tag-linux .tag-perf}
 
-    - [Android Data Sources](#)
+    - [Memory](#)
 
-      - [Android Aflags](data-sources/android-aflags.md)
-      - [Atrace](data-sources/atrace.md)
-      - [Battery counters and rails](data-sources/battery-counters.md)
-      - [Frame Timeline](data-sources/frametimeline.md)
-      - [Logcat](data-sources/android-log.md)
-      - [Other data sources](data-sources/android-game-intervention-list.md)
-
-  - [Trace Format Reference](#)
-
-    - [Trace Packet Proto](reference/trace-packet-proto.autogen)
-    - [Advanced Programmatic Generation](reference/synthetic-track-event.md)
-
-  - [Advanced Trace Recording](#)
-
-    - [Trace Config Proto](reference/trace-config-proto.autogen)
-    - [Concurrent tracing sessions](concepts/concurrent-tracing-sessions.md)
-    - [Detached mode](concepts/detached-mode.md)
+      - [Memory Counters](data-sources/memory-counters.md) {.tag-android .tag-linux}
+      - [Native Heap Profiler](data-sources/native-heap-profiler.md) {.tag-android .tag-linux}
+      - [Java Heap Dumps](data-sources/java-heap-profiler.md) {.tag-android}
 
     - [Android](#)
 
-      - [Boot Tracing](case-studies/android-boot-tracing.md)
-      - [OutOfMemoryError](case-studies/android-outofmemoryerror.md)
-      - [Android Version Notes](reference/android-version-notes.md)
+      - [ATrace](data-sources/atrace.md) {.tag-android}
+      - [Logcat](data-sources/android-log.md) {.tag-android}
+      - [Frame Timeline](data-sources/frametimeline.md) {.tag-android}
+      - [Battery & Power](data-sources/battery-counters.md) {.tag-android}
+      - [Android Game Interventions](data-sources/android-game-intervention-list.md) {.tag-android}
+      - [Android Aflags](data-sources/android-aflags.md) {.tag-android}
 
-    - [Linux](#)
+  - [Tracing SDK](#)
 
-      - [Kernel track events](reference/kernel-track-event.md)
-      - [Tracing across reboots](data-sources/previous-boot-trace.md)
+    - [Tracing SDK](instrumentation/tracing-sdk.md) {.tag-cpp}
+    - [Track Events](instrumentation/track-events.md) {.tag-cpp}
 
-    - [Command Line Reference](#)
+  - [Visualization](#)
 
-      - [perfetto_cmd](reference/perfetto-cli.md)
-      - [traced](reference/traced.md)
-      - [traced_probes](reference/traced_probes.md)
-      - [heap_profile cmdline](reference/heap_profile-cli.md)
-      - [tracebox](reference/tracebox.md)
+    - [Perfetto UI](visualization/perfetto-ui.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
+    - [Opening Large Traces](visualization/large-traces.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
+    - [Deep Linking](visualization/deep-linking-to-perfetto-ui.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
+    - [Debug Tracks](analysis/debug-tracks.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
 
-  - [Advanced Trace Analysis](#)
+    - [Extending the UI](#)
+
+      - [Overview](visualization/extending-the-ui.md) {.tag-android .tag-linux .tag-cpp .tag-perf}
+      - [UI Automation](visualization/ui-automation.md) {.tag-android .tag-linux .tag-cpp .tag-perf}
+      - [Commands Reference](visualization/commands-automation-reference.md) {.tag-android .tag-linux .tag-cpp .tag-perf}
+      - [Extension Servers](visualization/extension-servers.md) {.tag-android .tag-linux .tag-cpp .tag-perf}
+
+  - [Trace Analysis](#)
+
+    - [Getting Started](analysis/getting-started.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
 
     - [PerfettoSQL](#)
 
-      - [Prelude tables](analysis/sql-tables.autogen)
-      - [Built-ins](analysis/builtin.md)
-      - [Stats Table Reference](analysis/sql-stats.autogen)
+      - [Getting Started](analysis/perfetto-sql-getting-started.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
+      - [Syntax](analysis/perfetto-sql-syntax.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
+      - [Standard Library](analysis/stdlib-docs.autogen) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
+      - [Style Guide](analysis/style-guide.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
+      - [Backwards Compatibility](analysis/perfetto-sql-backcompat.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
 
-    - [Single Trace Analysis](#)
+    - [Trace Processor](#)
 
-      - [Legacy (v1) Metrics](analysis/metrics.md)
+      - [C++ Library](analysis/trace-processor.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
+      - [Python Library](analysis/trace-processor-python.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
+      - [Batch Trace Processor](analysis/batch-trace-processor.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
 
-    - [Multi Trace Analysis](#)
+    - [Trace Summarization](analysis/trace-summary.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
+    - [Converting from Perfetto](quickstart/traceconv.md) {.tag-android .tag-linux .tag-cpp .tag-chrome}
 
-      - [Batch Trace Processor](analysis/batch-trace-processor.md)
-      - [Bigtrace](deployment/deploying-bigtrace-on-a-single-machine.md)
-      - [Bigtrace on Kubernetes](deployment/deploying-bigtrace-on-kubernetes.md)
+  - [FAQ](faq.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
 
-  - [Advanced Perfetto SDK](#)
+- [Diving Deep](#)
 
-    - [Interceptors](instrumentation/interceptors.md)
+  - [CLI Tools](#)
 
-  - [Advanced Trace Visualization](#)
+    - [perfetto](reference/perfetto-cli.md) {.tag-android .tag-linux}
+    - [traced](reference/traced.md) {.tag-android .tag-linux}
+    - [traced_probes](reference/traced_probes.md) {.tag-android .tag-linux}
+    - [heap_profile](reference/heap_profile-cli.md) {.tag-android .tag-linux}
+    - [tracebox](reference/tracebox.md) {.tag-android .tag-linux}
 
-    - [Commands Automation Reference](visualization/commands-automation-reference.md)
-    - [Extension Server Protocol](visualization/extension-server-protocol.md)
+  - [Reference](#)
 
-  - [Contributor Reference](#)
+    - [Protos](#)
 
-    - [Building](contributing/build-instructions.md)
-    - [Testing](contributing/testing.md)
-    - [Developer tools](contributing/developer-tools.md)
+      - [Trace Config](reference/trace-config-proto.autogen) {.tag-android .tag-linux .tag-cpp .tag-chrome}
+      - [Trace Packet](reference/trace-packet-proto.autogen) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
 
-  - [Team documentation](#)
+    - [PerfettoSQL](#)
 
-    - [SDK release process](contributing/sdk-releasing.md)
-    - [Python release process](contributing/python-releasing.md)
-    - [UI release process](visualization/perfetto-ui-release-process.md)
-    - [Chrome branches](contributing/chrome-branches.md)
-    - [SQLite upgrade guide](contributing/sqlite-upgrade-guide.md)
+      - [Prelude Tables](analysis/sql-tables.autogen) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
+      - [Built-in Functions](analysis/builtin.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
+      - [Stats Table](analysis/sql-stats.autogen) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
 
-    - [Design documents](#)
-      - [API and ABI surface](design-docs/api-and-abi.md)
-      - [Life of a tracing session](design-docs/life-of-a-tracing-session.md)
-      - [ProtoZero](design-docs/protozero.md)
-      - [Security model](design-docs/security-model.md)
-      - [Statsd Checkpoint Atoms](design-docs/checkpoint-atoms.md)
-      - [Batch Trace Processor](design-docs/batch-trace-processor.md)
-      - [Trace Processor Architecture](design-docs/trace-processor-architecture.md)
-      - [Heapprofd design](design-docs/heapprofd-design.md)
-      - [Heapprofd wire protocol](design-docs/heapprofd-wire-protocol.md)
-      - [Heapprofd sampling](design-docs/heapprofd-sampling.md)
-      - [Perfetto CI](design-docs/continuous-integration.md)
-      - [LockFreeTaskRunner](design-docs/lock-free-task-runner.md)
+    - [Synthetic Track Events](reference/synthetic-track-event.md) {.tag-perf}
+    - [Kernel Track Events](reference/kernel-track-event.md) {.tag-android .tag-linux}
+    - [Extension Server Protocol](visualization/extension-server-protocol.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
+    - [Android Version Notes](reference/android-version-notes.md) {.tag-android}
 
+  - [Advanced Topics](#)
+
+    - [Detached Mode](concepts/detached-mode.md) {.tag-android}
+    - [Interceptors](instrumentation/interceptors.md) {.tag-cpp}
+    - [Legacy (v1) Metrics](analysis/metrics.md) {.tag-android}
+    - [BigTrace (Single Machine)](deployment/deploying-bigtrace-on-a-single-machine.md) {.tag-android .tag-perf}
+    - [BigTrace on Kubernetes](deployment/deploying-bigtrace-on-kubernetes.md) {.tag-android .tag-perf}
+
+  - [Contributing](#)
+
+    - [Building](contributing/build-instructions.md) {.tag-contrib}
+    - [Testing](contributing/testing.md) {.tag-contrib}
+    - [Developer Tools](contributing/developer-tools.md) {.tag-contrib}
+
+    - [UI Development](#)
+
+      - [Getting Started](contributing/ui-getting-started.md) {.tag-contrib}
+      - [Plugins](contributing/ui-plugins.md) {.tag-contrib}
+
+    - [Releases](#)
+
+      - [SDK Release](contributing/sdk-releasing.md) {.tag-contrib}
+      - [Python Release](contributing/python-releasing.md) {.tag-contrib}
+      - [UI Release](visualization/perfetto-ui-release-process.md) {.tag-contrib}
+
+    - [Become a Committer](contributing/become-a-committer.md) {.tag-contrib}
+    - [Chrome Branches](contributing/chrome-branches.md) {.tag-contrib}
+    - [SQLite Upgrade](contributing/sqlite-upgrade-guide.md) {.tag-contrib}
+
+  - [Design Documents](#)
+
+    - [Core](#)
+
+      - [API and ABI Surface](design-docs/api-and-abi.md) {.tag-contrib}
+      - [Life of a Tracing Session](design-docs/life-of-a-tracing-session.md) {.tag-contrib}
+      - [Security Model](design-docs/security-model.md) {.tag-contrib}
+      - [Trace Buffer V2](design-docs/trace-buffer.md) {.tag-contrib}
+
+    - [Infrastructure](#)
+
+      - [ProtoZero](design-docs/protozero.md) {.tag-contrib}
+      - [LockFreeTaskRunner](design-docs/lock-free-task-runner.md) {.tag-contrib}
+
+    - [Trace Processor](#)
+
+      - [Architecture](design-docs/trace-processor-architecture.md) {.tag-contrib}
+      - [Batch Trace Processor](design-docs/batch-trace-processor.md) {.tag-contrib}
+
+    - [UI](#)
+
+      - [Data Explorer Architecture](design-docs/data-explorer-architecture.md) {.tag-contrib}
+
+    - [Profiling](#)
+
+      - [Heapprofd Design](design-docs/heapprofd-design.md) {.tag-contrib}
+      - [Heapprofd Wire Protocol](design-docs/heapprofd-wire-protocol.md) {.tag-contrib}
+      - [Heapprofd Sampling](design-docs/heapprofd-sampling.md) {.tag-contrib}
+      - [pprof Support](design-docs/pprof-support.md) {.tag-contrib}
+
+    - [Other](#)
+
+      - [Statsd Checkpoint Atoms](design-docs/checkpoint-atoms.md) {.tag-contrib}
+      - [Perfetto CI](design-docs/continuous-integration.md) {.tag-contrib}

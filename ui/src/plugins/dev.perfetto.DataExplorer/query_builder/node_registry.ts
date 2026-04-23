@@ -83,8 +83,10 @@ export interface NodeDescriptor {
     sqlModules: SqlModules,
   ) => QueryNode;
 
-  // Restore secondary/backward connections after all nodes are created.
-  // Primary input is restored automatically based on hasPrimaryInput.
+  // Optional hook to restore complex internal connections during
+  // deserialization. Called after all nodes are created and basic connections
+  // (primaryInput, secondaryInputs) are restored. Used by GroupNode to
+  // rebuild its inner node structure from serialized IDs.
   deserializeConnections?: (
     node: QueryNode,
     state: object,
@@ -99,11 +101,6 @@ export interface NodeDescriptor {
   // have run. Used for updating derived state that depends on other nodes being
   // fully resolved (e.g. onPrevNodesUpdated).
   postDeserializeLate?: (node: QueryNode) => void;
-
-  // Whether this node has a primary input (vertical connection from above).
-  // If true, primaryInputId from serialized state will be auto-restored.
-  // Default: true for 'modification' nodes, false for 'source'/'multisource'.
-  hasPrimaryInput?: boolean;
 
   // Optional list of registry IDs that are allowed as children of this node.
   // Controls which nodes appear in the "+" menu and which connections are valid.

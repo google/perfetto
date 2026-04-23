@@ -424,7 +424,7 @@ sql_modules::NameToPackage GetStdlibPackages() {
     std::string module_name = sql_modules::GetIncludeKey(file_to_sql.path);
     std::string package_name = sql_modules::GetPackageName(module_name);
     packages.Insert(package_name, {})
-        .first->push_back({module_name, file_to_sql.sql});
+        .first->emplace_back(module_name, file_to_sql.sql_view());
   }
   return packages;
 }
@@ -669,7 +669,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     for (const auto& file_to_sql : sql_metrics::kFileToSql) {
       if (base::StartsWithAny(file_to_sql.path, sanitized_extension_paths))
         continue;
-      RegisterMetric(file_to_sql.path, file_to_sql.sql);
+      RegisterMetric(file_to_sql.path, std::string(file_to_sql.sql_view()));
     }
   }
 
@@ -1132,6 +1132,7 @@ std::vector<PerfettoSqlEngine::StaticTable> TraceProcessorImpl::GetStaticTables(
   AddStaticTable(tables, storage->mutable_experimental_proto_content_table());
   AddStaticTable(tables, storage->mutable_file_table());
   AddStaticTable(tables, storage->mutable_filedescriptor_table());
+  AddStaticTable(tables, storage->mutable_gpu_context_table());
   AddStaticTable(tables, storage->mutable_gpu_counter_group_table());
   AddStaticTable(tables, storage->mutable_gpu_table());
   AddStaticTable(tables, storage->mutable_instruments_sample_table());
