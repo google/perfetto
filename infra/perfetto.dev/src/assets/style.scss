@@ -744,13 +744,17 @@ h3 {
     }
 
     // ---- Category headers (Tutorials, Reference, etc.) ----
+    // Use individual padding props here so the indentation ladder below can
+    // control padding-left per depth without being masked by the shorthand.
     .compressible > p > a,
     a:not([href]) {
       font-weight: 600;
       color: var(--color-text);
       text-transform: uppercase;
       letter-spacing: 0.03em;
-      padding: 6px 16px 4px;
+      padding-top: 6px;
+      padding-right: 16px;
+      padding-bottom: 4px;
     }
 
     // ---- Expand/collapse chevron ----
@@ -783,11 +787,19 @@ h3 {
       }
     }
 
-    // ---- Indentation ----
+    // ---- Indentation ladder ----
+    // Consistent 12px step per nesting level so categories and their children
+    // read as visually nested. Previously levels 1 and 2 were both at 16px,
+    // which made category headers look coplanar with their parent top section.
+    //   L1: top section link     -> 16px (via > ul > li > p > a above + 3px border)
+    //   L2: category header      -> 28px
+    //   L3: leaf / nested-cat    -> 40px
+    //   L4: leaf in nested cat.  -> 52px
     li a { padding-left: 16px; }
-    li li a { padding-left: 16px; }
-    li li li a { padding-left: 28px; }
-    li li li li a { padding-left: 36px; }
+    li li a { padding-left: 28px; }
+    li li li a { padding-left: 40px; }
+    li li li li a { padding-left: 52px; }
+    li li li li li a { padding-left: 64px; }
   }
   .doc {
     grid-area: doc;
