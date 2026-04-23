@@ -49,11 +49,7 @@ enum class EventType : uint32_t {
   kFilesystemControlEvent = 75,
   kEndOperation = 76,
   kDirectoryNotification = 77,
-  kFltRead = 83,
-  kFltWrite = 84,
-  kFltSetInfo = 85,
-  kFltQueryInfo = 86,
-  kMaxValue = kFltQueryInfo,
+  kMaxValue = kDirectoryNotification,
 };
 
 // Values for the "File Info" argument. Source: `FILE_INFORMATION_CLASS` docs:
