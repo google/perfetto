@@ -40,7 +40,8 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
     return std::nullopt;
   }
 
-  const std::vector<TrackedMessage>& messages = *tracked_messages_vec_ptr;
+  const base::SmallVector<TrackedMessage, 1>& messages =
+      *tracked_messages_vec_ptr;
 
   if (messages.size() == 1) {
     const auto& tracked_message = messages[0];
@@ -56,22 +57,9 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
     return DecodedMessage{tracked_message.level, group->tag, formatted_message,
                           tracked_message.location};
   } else {
-    std::string collision_indicator = "<PROTOLOG COLLISION (id=0x" +
-                                      base::Uint64ToHexString(message_id) +
-                                      "): ";
-    for (size_t i = 0; i < messages.size(); ++i) {
-      auto formatted_message =
-          FormatMessage(messages[i].message, sint64_params, double_params,
-                        boolean_params, string_params);
-      collision_indicator += "'" + formatted_message + "'";
-      if (i < messages.size() - 1) {
-        collision_indicator += "\n ";
-      }
-    }
-    collision_indicator += "'>";
-
-    return DecodedMessage{ProtoLogLevel::WARN, nullptr, collision_indicator,
-                          std::nullopt};
+    return DecodeCollidiongMessageIds(messages, message_id, sint64_params,
+                                      double_params, boolean_params,
+                                      string_params);
   }
 }
 
@@ -90,17 +78,20 @@ void ProtoLogMessageDecoder::TrackMessage(
     uint32_t group_id,
     const std::string& message,
     const std::optional<std::string>& location) {
-  TrackedMessage new_tracked_message{level, group_id, message, location};
+  TrackedMessage new_tracked_message{level, group_id, message, location,
+                                     GetParameterSignature(message)};
 
   auto* existing_messages_ptr = tracked_messages_.Find(message_id);
 
   if (existing_messages_ptr == nullptr) {
-    tracked_messages_.Insert(message_id,
-                             std::vector<TrackedMessage>{new_tracked_message});
+    base::SmallVector<TrackedMessage, 1> single_message_vector;
+    single_message_vector.emplace_back(new_tracked_message);
+    tracked_messages_.Insert(message_id, std::move(single_message_vector));
     return;
   }
 
-  std::vector<TrackedMessage>& existing_messages = *existing_messages_ptr;
+  base::SmallVector<TrackedMessage, 1>& existing_messages =
+      *existing_messages_ptr;
   bool message_already_tracked = false;
 
   for (const auto& existing_msg : existing_messages) {
@@ -115,7 +106,7 @@ void ProtoLogMessageDecoder::TrackMessage(
   if (!message_already_tracked) {
     context_->storage->IncrementStats(
         stats::winscope_protolog_view_config_collision);
-    existing_messages.push_back(new_tracked_message);
+    existing_messages.emplace_back(new_tracked_message);
   }
 }
 
@@ -255,6 +246,101 @@ std::string ProtoLogMessageDecoder::FormatMessage(
   }
 
   return formatted_message;
+}
+
+ProtoLogParamCounts ProtoLogMessageDecoder::GetParameterSignature(
+    const std::string& message) {
+  ProtoLogParamCounts counts;
+  for (size_t i = 0; i < message.length(); ++i) {
+    if (message.at(i) == '%' && i + 1 < message.length()) {
+      switch (message.at(i + 1)) {
+        case 'd':
+        case 'o':
+        case 'x':
+          counts.int64_count++;
+          break;
+        case 'f':
+        case 'e':
+        case 'g':
+          counts.double_count++;
+          break;
+        case 'b':
+          counts.bool_count++;
+          break;
+        case 's':
+          counts.string_count++;
+          break;
+        default:
+          break;
+      }
+      i++;  // Skip the format specifier character
+    }
+  }
+  return counts;
+}
+
+std::optional<DecodedMessage>
+ProtoLogMessageDecoder::DecodeCollidiongMessageIds(
+    const base::SmallVector<TrackedMessage, 1>& messages,
+    uint64_t message_id,
+    const std::vector<int64_t>& sint64_params,
+    const std::vector<double>& double_params,
+    const std::vector<bool>& boolean_params,
+    const std::vector<std::string>& string_params) {
+  base::SmallVector<TrackedMessage, 1> potential_matches;
+  for (size_t i = 0; i < messages.size(); ++i) {
+    ProtoLogParamCounts expected_counts = messages[i].param_counts;
+    if (expected_counts.int64_count == sint64_params.size() &&
+        expected_counts.double_count == double_params.size() &&
+        expected_counts.bool_count == boolean_params.size() &&
+        expected_counts.string_count == string_params.size()) {
+      potential_matches.emplace_back(messages[i]);
+    }
+  }
+
+  std::string collision_message =
+      "<PROTOLOG COLLISION (id=0x" + base::Uint64ToHexString(message_id) + ") ";
+  if (potential_matches.size() == 1) {
+    context_->storage->IncrementStats(
+        stats::winscope_protolog_view_config_collision_resolved);
+
+    collision_message += "RESOLVED: ";
+
+    auto formatted_message =
+        FormatMessage(potential_matches[0].message, sint64_params,
+                      double_params, boolean_params, string_params);
+    collision_message += "'" + formatted_message + "'";
+    collision_message += ">";
+
+    auto group = tracked_groups_.Find(potential_matches[0].group_id);
+    std::string group_tag;
+    if (group == nullptr) {
+      group_tag = "UNKNOWN TAG";
+    } else {
+      group_tag = group->tag;
+    }
+
+    return DecodedMessage{potential_matches[0].level, group_tag,
+                          collision_message, potential_matches[0].location};
+  } else {
+    if (potential_matches.empty()) {
+      collision_message += "NO TYPE MATCH >";
+    } else {
+      collision_message += "MULTIPLE TYPE MATCHES : ";
+      for (size_t i = 0; i < potential_matches.size(); ++i) {
+        auto formatted_message =
+            FormatMessage(potential_matches[i].message, sint64_params,
+                          double_params, boolean_params, string_params);
+        collision_message += "'" + formatted_message + "'";
+        if (i < potential_matches.size() - 1) {
+          collision_message += ",\n ";
+        }
+      }
+      collision_message += ">";
+    }
+    return DecodedMessage{ProtoLogLevel::WARN, nullptr, collision_message,
+                          std::nullopt};
+  }
 }
 
 }  // namespace perfetto::trace_processor::winscope
