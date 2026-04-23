@@ -484,6 +484,89 @@ async function computeFlamegraphTree(
       on: `_flamegraph_merged_${uuid}(parentId)`,
     }),
   );
+  // Trim sub-threshold subtrees, replacing them with a single '(merged)'
+  // placeholder per kept parent. Two thresholds are applied jointly via a
+  // single downward graph scan:
+  //   * a per-parent ratio (TRIM_RATIO_DENOMINATOR) bounds the fan-out a
+  //     subtree can show, preserving zoom-time resolution under any parent.
+  //   * an absolute floor derived from the root total (TRIM_FLOOR_DENOMINATOR)
+  //     prunes long invisible chain tails - critical for chain-shaped data
+  //     where the per-parent ratio alone cannot reduce row count.
+  // The pipeline is split into three materialized perfetto tables so
+  // each lookup hits an indexed table instead of an unindexed CTE.
+  const TRIM_RATIO_DENOMINATOR = 100;
+  const TRIM_FLOOR_DENOMINATOR = 10000;
+  const totalRow = await engine.query(`
+    select sum(cumulativeValue) as v
+    from _flamegraph_merged_${uuid}
+    where parentId is null
+  `);
+  const totalCumulativeValue = totalRow.firstRow({v: NUM_NULL}).v ?? 0;
+  const trimMinValue = totalCumulativeValue / TRIM_FLOOR_DENOMINATOR;
+  disposable.use(
+    await createPerfettoTable({
+      engine,
+      name: `_flamegraph_propagated_${uuid}`,
+      as: `
+        select *
+        from _viz_flamegraph_trim_propagation!(
+          _flamegraph_merged_${uuid},
+          (1.0 / ${TRIM_RATIO_DENOMINATOR}),
+          ${trimMinValue}
+        )
+      `,
+    }),
+  );
+  disposable.use(
+    await createPerfettoIndex({
+      engine,
+      name: `_flamegraph_propagated_${uuid}_index`,
+      on: `_flamegraph_propagated_${uuid}(id)`,
+    }),
+  );
+  disposable.use(
+    await createPerfettoTable({
+      engine,
+      name: `_flamegraph_alive_${uuid}`,
+      as: `
+        select *
+        from _viz_flamegraph_alive_set!(
+          _flamegraph_merged_${uuid},
+          _flamegraph_propagated_${uuid},
+          ${trimMinValue}
+        )
+      `,
+    }),
+  );
+  disposable.use(
+    await createPerfettoIndex({
+      engine,
+      name: `_flamegraph_alive_${uuid}_index`,
+      on: `_flamegraph_alive_${uuid}(id)`,
+    }),
+  );
+  disposable.use(
+    await createPerfettoTable({
+      engine,
+      name: `_flamegraph_trimmed_${uuid}`,
+      as: `
+        select *
+        from _viz_flamegraph_trim_with_placeholder!(
+          _flamegraph_merged_${uuid},
+          _flamegraph_alive_${uuid},
+          ${groupingColumns},
+          ${groupedColumns}
+        )
+      `,
+    }),
+  );
+  disposable.use(
+    await createPerfettoIndex({
+      engine,
+      name: `_flamegraph_trimmed_${uuid}_index`,
+      on: `_flamegraph_trimmed_${uuid}(parentId)`,
+    }),
+  );
   disposable.use(
     await createPerfettoTable({
       engine,
@@ -491,7 +574,7 @@ async function computeFlamegraphTree(
       as: `
         select *
         from _viz_flamegraph_local_layout!(
-          _flamegraph_merged_${uuid}
+          _flamegraph_trimmed_${uuid}
         );
       `,
     }),
@@ -499,7 +582,7 @@ async function computeFlamegraphTree(
   const res = await engine.query(`
     select *
     from _viz_flamegraph_global_layout!(
-      _flamegraph_merged_${uuid},
+      _flamegraph_trimmed_${uuid},
       _flamegraph_layout_${uuid},
       ${groupingColumns},
       ${groupedColumns}
@@ -516,6 +599,7 @@ async function computeFlamegraphTree(
     parentCumulativeValue: NUM_NULL,
     xStart: NUM,
     xEnd: NUM,
+    isPlaceholder: NUM,
     ...Object.fromEntries(unaggCols.map((m) => [m, STR_NULL])),
     ...Object.fromEntries(aggCols.map((m) => [m, UNKNOWN])),
   });
@@ -572,6 +656,7 @@ async function computeFlamegraphTree(
       parentCumulativeValue: it.parentCumulativeValue ?? undefined,
       xStart: it.xStart,
       xEnd: it.xEnd,
+      isPlaceholder: it.isPlaceholder !== 0,
       properties,
       marker,
     });
