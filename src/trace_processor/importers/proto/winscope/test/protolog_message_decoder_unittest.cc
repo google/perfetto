@@ -38,7 +38,8 @@ class ProtologMessageDecoderTest : public ::testing::Test {
 
 TEST_F(ProtologMessageDecoderTest, DecodeSingleMessage) {
   uint64_t msg_id = 100;
-  decoder_->TrackMessage(msg_id, ProtoLogLevel::INFO, default_group_id, "Test %d %s", "Some Location");
+  decoder_->TrackMessage(msg_id, ProtoLogLevel::INFO, default_group_id,
+                         "Test %d %s", "Some Location");
 
   auto decoded = decoder_->Decode(msg_id, {42}, {}, {}, {"hello"});
   ASSERT_TRUE(decoded.has_value());
@@ -46,23 +47,33 @@ TEST_F(ProtologMessageDecoderTest, DecodeSingleMessage) {
   EXPECT_EQ(decoded->group_tag, default_tag);
   EXPECT_EQ(decoded->message, "Test 42 hello");
   EXPECT_EQ(decoded->location, "Some Location");
-  EXPECT_EQ(context_->storage->GetStats(stats::winscope_protolog_view_config_collision), 0);
+  EXPECT_EQ(context_->storage->GetStats(
+                stats::winscope_protolog_view_config_collision),
+            0);
 }
 
 TEST_F(ProtologMessageDecoderTest, DecodeCollidingMessages) {
   uint64_t msg_id = 100;
-  decoder_->TrackMessage(msg_id, ProtoLogLevel::INFO, default_group_id, "Value: %d", "Some Location");
-  decoder_->TrackMessage(msg_id, ProtoLogLevel::WARN, default_group_id, "Name: %s", "Other Location");
+  decoder_->TrackMessage(msg_id, ProtoLogLevel::INFO, default_group_id,
+                         "Value: %d", "Some Location");
+  decoder_->TrackMessage(msg_id, ProtoLogLevel::WARN, default_group_id,
+                         "Name: %s", "Other Location");
 
   auto decoded = decoder_->Decode(msg_id, {123}, {}, {}, {});
   ASSERT_TRUE(decoded.has_value());
   EXPECT_EQ(decoded->log_level, ProtoLogLevel::INFO);
   EXPECT_EQ(decoded->group_tag, default_tag);
-  EXPECT_THAT(decoded->message, testing::HasSubstr("<PROTOLOG COLLISION (id=0x"));
-  EXPECT_THAT(decoded->message, testing::HasSubstr(") RESOLVED: 'Value: 123'>"));
+  EXPECT_THAT(decoded->message,
+              testing::HasSubstr("<PROTOLOG COLLISION (id=0x"));
+  EXPECT_THAT(decoded->message,
+              testing::HasSubstr(") RESOLVED: 'Value: 123'>"));
   EXPECT_EQ(decoded->location, "Some Location");
-  EXPECT_EQ(context_->storage->GetStats(stats::winscope_protolog_view_config_collision), 1);
-  EXPECT_EQ(context_->storage->GetStats(stats::winscope_protolog_view_config_collision_resolved), 1);
+  EXPECT_EQ(context_->storage->GetStats(
+                stats::winscope_protolog_view_config_collision),
+            1);
+  EXPECT_EQ(context_->storage->GetStats(
+                stats::winscope_protolog_view_config_collision_resolved),
+            1);
 
   /* WIP: TESTS TO BE ADDED TOMORROW*/
 }
