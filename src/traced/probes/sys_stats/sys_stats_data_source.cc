@@ -45,7 +45,7 @@ namespace perfetto {
 using protos::pbzero::SysStatsConfig;
 
 namespace {
-constexpr size_t kReadBufSize = 1024 * 16;
+constexpr size_t kReadBufSize = 1024 * 64;
 constexpr uint32_t kMinPeriodMs = 10;
 
 base::ScopedFile OpenReadOnly(const char* path) {
@@ -100,6 +100,7 @@ SysStatsDataSource::SysStatsDataSource(
   psi_cpu_fd_ = open_fn("/proc/pressure/cpu");
   psi_io_fd_ = open_fn("/proc/pressure/io");
   psi_memory_fd_ = open_fn("/proc/pressure/memory");
+  slab_fd_ = open_fn("/proc/slabinfo");
   read_buf_ = base::PagedMemory::Allocate(kReadBufSize);
 
   // Build a lookup map that allows to quickly translate strings like "MemTotal"
@@ -151,8 +152,8 @@ SysStatsDataSource::SysStatsDataSource(
     stat_enabled_fields_ |= 1ul << static_cast<uint32_t>(*counter);
   }
 
-  std::array<uint32_t, 11> periods_ms{};
-  std::array<uint32_t, 11> ticks{};
+  std::array<uint32_t, 12> periods_ms{};
+  std::array<uint32_t, 12> ticks{};
   static_assert(periods_ms.size() == ticks.size(), "must have same size");
 
   periods_ms[0] =
@@ -176,6 +177,8 @@ SysStatsDataSource::SysStatsDataSource(
       ValidateAndClampPeriod(cfg.cpuidle_period_ms(), "cpuidle_period_ms");
   periods_ms[10] =
       ValidateAndClampPeriod(cfg.gpufreq_period_ms(), "gpufreq_period_ms");
+  periods_ms[11] =
+      ValidateAndClampPeriod(cfg.slab_period_ms(), "slab_period_ms");
 
   tick_period_ms_ = 0;
   for (uint32_t ms : periods_ms) {
@@ -205,6 +208,7 @@ SysStatsDataSource::SysStatsDataSource(
   thermal_ticks_ = ticks[8];
   cpuidle_ticks_ = ticks[9];
   gpufreq_ticks_ = ticks[10];
+  slab_ticks_ = ticks[11];
 }
 
 void SysStatsDataSource::Start() {
@@ -270,6 +274,9 @@ void SysStatsDataSource::ReadSysStats() {
 
   if (gpufreq_ticks_ && tick_ % gpufreq_ticks_ == 0)
     ReadGpuFrequency(sys_stats);
+
+  if (slab_ticks_ && tick_ % slab_ticks_ == 0)
+    ReadSlabInfo(sys_stats);
 
   sys_stats->set_collection_end_timestamp(
       static_cast<uint64_t>(base::GetBootTimeNs().count()));
@@ -620,6 +627,39 @@ const char* SysStatsDataSource::ReadDevfreqCurFreq(
   if (!rsize)
     return "";
   return static_cast<char*>(read_buf_.Get());
+}
+
+void SysStatsDataSource::ReadSlabInfo(protos::pbzero::SysStats* sys_stats) {
+  size_t rsize = ReadFile(&slab_fd_, "/proc/slabinfo");
+  if (!rsize)
+    return;
+  char* buf = static_cast<char*>(read_buf_.Get());
+  base::StringSplitter lines(buf, rsize, '\n');
+
+  // Skip the first two lines (header).
+  lines.Next();
+  lines.Next();
+
+  for (; lines.Next();) {
+    base::StringSplitter words(&lines, ' ');
+    uint32_t index = 0;
+    auto* slab_info = sys_stats->add_slab_info();
+    for (; words.Next(); index++) {
+      switch (index) {
+        case 0:  // name
+          slab_info->set_name(words.cur_token());
+          break;
+        case 5:  // pagesperslab
+          slab_info->set_pages_per_slab(
+              base::CStringToUInt32(words.cur_token()).value_or(0u));
+          break;
+        case 14:  // num_slabs
+          slab_info->set_num_slabs(
+              base::CStringToUInt32(words.cur_token()).value_or(0u));
+          break;
+      }
+    }
+  }
 }
 
 void SysStatsDataSource::ReadMeminfo(protos::pbzero::SysStats* sys_stats) {
