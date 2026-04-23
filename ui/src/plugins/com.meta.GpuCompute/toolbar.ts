@@ -26,6 +26,7 @@ import {Card} from '../../widgets/card';
 import {Icons} from '../../base/semantic_icons';
 import {Switch} from '../../widgets/switch';
 import type {GpuComputeContext} from './index';
+import {Select} from '../../widgets/select';
 
 // Maximum label length before truncation.
 const MAX_LABEL_LENGTH = 50;
@@ -145,11 +146,10 @@ export function renderToolbar(opts: {
           m('span', 'Current'),
         ]),
         m(
-          'select.pf-select',
+          Select,
           {
             value,
-            className: 'pf-select',
-            style: 'justify-self:start; width: max-content;',
+            className: 'pf-gpu-compute__toolbar-kernel-select',
             onchange: (e: Event) => {
               const value = (e.target as HTMLSelectElement).value;
               opts.onChange(value === '' ? undefined : Number(value));
@@ -184,11 +184,7 @@ export function renderToolbar(opts: {
                 ),
                 m('span', 'Baseline'),
               ]),
-              m(
-                'div',
-                {style: 'justify-self:start; opacity:.85;'},
-                baselineLabel,
-              ),
+              m('div.pf-gpu-compute__toolbar-baseline-value', baselineLabel),
               m(
                 'span.pf-gpu-compute__toolbar-size',
                 opts.baselineInfo?.sizeText ?? '—',
@@ -222,7 +218,7 @@ export function renderToolbar(opts: {
       }),
 
       m(Button, {
-        style: 'width: 130px; justify-self: start; margin-bottom: 3px',
+        className: 'pf-gpu-compute__toolbar-btn',
         icon: Icons.Change,
         label: opts.baselineEnabled ? 'Clear Baseline' : 'Add Baseline',
         variant: ButtonVariant.Outlined,
@@ -248,7 +244,7 @@ export function renderToolbar(opts: {
           trigger: m(Button, {
             icon: 'visibility',
             label: 'View',
-            style: 'justify-self: start; margin-bottom: 3px;',
+            className: 'pf-gpu-compute__toolbar-btn',
             variant: ButtonVariant.Outlined,
           }),
         },
@@ -280,7 +276,7 @@ export function renderToolbar(opts: {
                   opts.onTerminologyChanged?.();
                   m.redraw();
                 },
-                style: 'max-width: 120px;',
+                className: 'pf-gpu-compute__toolbar-terminology-select',
               },
               terminologyOptions.map((opt) =>
                 m('option', {value: opt.id}, opt.name),

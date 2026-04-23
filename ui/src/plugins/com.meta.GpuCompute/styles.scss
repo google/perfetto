@@ -299,6 +299,25 @@
     height: 8px;
   }
 
+  &__toolbar-kernel-select {
+    justify-self: start;
+    width: max-content;
+  }
+
+  &__toolbar-baseline-value {
+    justify-self: start;
+    opacity: 0.85;
+  }
+
+  &__toolbar-btn {
+    justify-self: start;
+    margin-bottom: 3px;
+  }
+
+  &__toolbar-terminology-select {
+    max-width: 120px;
+  }
+
   &__toolbar-tab-strip {
     display: flex;
     align-items: baseline;
