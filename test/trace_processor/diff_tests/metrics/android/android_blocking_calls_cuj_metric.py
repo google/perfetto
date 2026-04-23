@@ -25,6 +25,8 @@ THIRD_PROCESS_PID = 3000
 
 TOP_LEVEL_SLICES_PID = 4000
 
+NESTED_HANDLER_PID = 5000
+
 # List of blocking calls
 blocking_call_names = [
     'monitor contention with something else', 'SuspendThreadByThreadId 123',
@@ -231,6 +233,49 @@ def add_cuj_with_top_level_slices(trace, cuj_name, pid):
       ts=blocking_call_ts + 1,
       ts_end=blocking_call_ts + blocking_call_dur - 1,
       buf="should.not.be.in.the.output.Handler: not.in.the.output$1",
+      tid=pid,
+      pid=pid)
+
+
+def add_cuj_with_nested_handler(trace, cuj_name, pid):
+  blocking_call_ts = 2_000_000
+  cuj_dur = 20_000_000
+  cuj_end = blocking_call_ts + cuj_dur
+
+  trace.add_atrace_async_begin(
+      ts=blocking_call_ts, tid=pid, pid=pid, buf=cuj_name)
+  trace.add_atrace_async_end(ts=cuj_end, tid=pid, pid=pid, buf=cuj_name)
+
+  # Add frame events to make it a valid CUJ
+  trace.add_atrace_instant(
+      ts=blocking_call_ts + 1, buf=cuj_name + "#UIThread", pid=pid, tid=pid)
+
+  trace.add_atrace_instant_for_track(
+      ts=blocking_call_ts + 2,
+      buf="FT#beginVsync#20",
+      pid=pid,
+      tid=pid,
+      track_name=cuj_name)
+
+  trace.add_atrace_instant_for_track(
+      ts=cuj_end - 1,
+      buf="FT#endVsync#24",
+      pid=pid,
+      tid=pid,
+      track_name=cuj_name)
+
+  # Add "MQ" parent slice
+  trace.add_atrace_for_thread(
+      ts=blocking_call_ts + 1000,
+      ts_end=blocking_call_ts + 10_000_000,
+      buf="message_queue_top_levelg",
+      tid=pid,
+      pid=pid)
+  # Add handler slice inside "MQ"
+  trace.add_atrace_for_thread(
+      ts=blocking_call_ts + 2000,
+      ts_end=blocking_call_ts + 9_000_000,
+      buf="android.os.Handler: com.example.MyHandler$1",
       tid=pid,
       pid=pid)
 
@@ -475,7 +520,13 @@ def setup_trace():
       package_name="com.google.android.top.level.slices",
       uid=10004,
       pid=TOP_LEVEL_SLICES_PID)
+  add_process(
+      trace,
+      package_name="com.google.android.nested.handlers",
+      uid=10005,
+      pid=NESTED_HANDLER_PID)
   trace.add_ftrace_packet(cpu=0)
+
   trace.add_async_atrace_for_thread(
       ts=0, ts_end=5, buf="J<IGNORED>", tid=SYSUI_PID, pid=SYSUI_PID)
   return trace
@@ -496,6 +547,10 @@ add_overlapping_cujs_with_blocking_calls(
 
 add_cuj_with_named_binder_transaction(pid=SYSUI_PID, rx_pid=LAUNCHER_PID)
 
+add_cuj_with_nested_handler(
+    trace, "L<CUJ_WITH_NESTED_HANDLER>", pid=NESTED_HANDLER_PID)
+
 # Note that J<*> events are not tested here.
+
 # See test_android_blocking_calls_on_jank_cujs.
 sys.stdout.buffer.write(trace.trace.SerializeToString())
