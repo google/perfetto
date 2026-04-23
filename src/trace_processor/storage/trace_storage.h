@@ -346,6 +346,13 @@ class TraceStorage {
     return mutable_table<tables::TrackTable>();
   }
 
+  const tables::GpuContextTable& gpu_context_table() const {
+    return table<tables::GpuContextTable>();
+  }
+  tables::GpuContextTable* mutable_gpu_context_table() {
+    return mutable_table<tables::GpuContextTable>();
+  }
+
   const tables::GpuCounterGroupTable& gpu_counter_group_table() const {
     return table<tables::GpuCounterGroupTable>();
   }

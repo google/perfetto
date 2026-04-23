@@ -58,6 +58,7 @@ int TraceToBundle(const std::string& input_file_path,
   trace_processor::util::EnrichmentConfig enrich_config;
   enrich_config.symbol_paths = context.symbol_paths;
   enrich_config.no_auto_symbol_paths = context.no_auto_symbol_paths;
+  enrich_config.no_auto_proguard_maps = context.no_auto_proguard_maps;
   enrich_config.verbose = context.verbose;
   enrich_config.android_product_out = context.android_product_out;
   enrich_config.home_dir = context.home_dir;

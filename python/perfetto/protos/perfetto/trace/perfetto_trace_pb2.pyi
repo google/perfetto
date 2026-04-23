@@ -3045,7 +3045,7 @@ class FtraceDescriptor(_message.Message):
     def __init__(self, atrace_categories: _Optional[_Iterable[_Union[FtraceDescriptor.AtraceCategory, _Mapping]]] = ...) -> None: ...
 
 class GpuCounterDescriptor(_message.Message):
-    __slots__ = ("specs", "blocks", "min_sampling_period_ns", "max_sampling_period_ns", "supports_instrumented_sampling")
+    __slots__ = ("specs", "blocks", "counter_groups", "min_sampling_period_ns", "max_sampling_period_ns", "supports_instrumented_sampling", "supports_counter_names", "supports_counter_name_globs")
     class GpuCounterGroup(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         UNCLASSIFIED: _ClassVar[GpuCounterDescriptor.GpuCounterGroup]
@@ -3182,17 +3182,34 @@ class GpuCounterDescriptor(_message.Message):
         description: str
         counter_ids: _containers.RepeatedScalarFieldContainer[int]
         def __init__(self, block_id: _Optional[int] = ..., block_capacity: _Optional[int] = ..., name: _Optional[str] = ..., description: _Optional[str] = ..., counter_ids: _Optional[_Iterable[int]] = ...) -> None: ...
+    class GpuCounterGroupSpec(_message.Message):
+        __slots__ = ("group_id", "name", "description", "counter_ids")
+        GROUP_ID_FIELD_NUMBER: _ClassVar[int]
+        NAME_FIELD_NUMBER: _ClassVar[int]
+        DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
+        COUNTER_IDS_FIELD_NUMBER: _ClassVar[int]
+        group_id: int
+        name: str
+        description: str
+        counter_ids: _containers.RepeatedScalarFieldContainer[int]
+        def __init__(self, group_id: _Optional[int] = ..., name: _Optional[str] = ..., description: _Optional[str] = ..., counter_ids: _Optional[_Iterable[int]] = ...) -> None: ...
     SPECS_FIELD_NUMBER: _ClassVar[int]
     BLOCKS_FIELD_NUMBER: _ClassVar[int]
+    COUNTER_GROUPS_FIELD_NUMBER: _ClassVar[int]
     MIN_SAMPLING_PERIOD_NS_FIELD_NUMBER: _ClassVar[int]
     MAX_SAMPLING_PERIOD_NS_FIELD_NUMBER: _ClassVar[int]
     SUPPORTS_INSTRUMENTED_SAMPLING_FIELD_NUMBER: _ClassVar[int]
+    SUPPORTS_COUNTER_NAMES_FIELD_NUMBER: _ClassVar[int]
+    SUPPORTS_COUNTER_NAME_GLOBS_FIELD_NUMBER: _ClassVar[int]
     specs: _containers.RepeatedCompositeFieldContainer[GpuCounterDescriptor.GpuCounterSpec]
     blocks: _containers.RepeatedCompositeFieldContainer[GpuCounterDescriptor.GpuCounterBlock]
+    counter_groups: _containers.RepeatedCompositeFieldContainer[GpuCounterDescriptor.GpuCounterGroupSpec]
     min_sampling_period_ns: int
     max_sampling_period_ns: int
     supports_instrumented_sampling: bool
-    def __init__(self, specs: _Optional[_Iterable[_Union[GpuCounterDescriptor.GpuCounterSpec, _Mapping]]] = ..., blocks: _Optional[_Iterable[_Union[GpuCounterDescriptor.GpuCounterBlock, _Mapping]]] = ..., min_sampling_period_ns: _Optional[int] = ..., max_sampling_period_ns: _Optional[int] = ..., supports_instrumented_sampling: bool = ...) -> None: ...
+    supports_counter_names: bool
+    supports_counter_name_globs: bool
+    def __init__(self, specs: _Optional[_Iterable[_Union[GpuCounterDescriptor.GpuCounterSpec, _Mapping]]] = ..., blocks: _Optional[_Iterable[_Union[GpuCounterDescriptor.GpuCounterBlock, _Mapping]]] = ..., counter_groups: _Optional[_Iterable[_Union[GpuCounterDescriptor.GpuCounterGroupSpec, _Mapping]]] = ..., min_sampling_period_ns: _Optional[int] = ..., max_sampling_period_ns: _Optional[int] = ..., supports_instrumented_sampling: bool = ..., supports_counter_names: bool = ..., supports_counter_name_globs: bool = ...) -> None: ...
 
 class TrackEventCategory(_message.Message):
     __slots__ = ("name", "description", "tags")
@@ -3712,7 +3729,7 @@ class V8Config(_message.Message):
     def __init__(self, log_script_sources: bool = ..., log_instructions: bool = ...) -> None: ...
 
 class EtwConfig(_message.Message):
-    __slots__ = ("kernel_flags", "scheduler_provider_events", "memory_provider_events", "file_provider_events")
+    __slots__ = ("kernel_flags", "scheduler_provider_events", "memory_provider_events", "file_provider_events", "stack_sampling_events")
     class KernelFlag(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         CSWITCH: _ClassVar[EtwConfig.KernelFlag]
@@ -3723,11 +3740,13 @@ class EtwConfig(_message.Message):
     SCHEDULER_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
     MEMORY_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
     FILE_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
+    STACK_SAMPLING_EVENTS_FIELD_NUMBER: _ClassVar[int]
     kernel_flags: _containers.RepeatedScalarFieldContainer[EtwConfig.KernelFlag]
     scheduler_provider_events: _containers.RepeatedScalarFieldContainer[str]
     memory_provider_events: _containers.RepeatedScalarFieldContainer[str]
     file_provider_events: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, kernel_flags: _Optional[_Iterable[_Union[EtwConfig.KernelFlag, str]]] = ..., scheduler_provider_events: _Optional[_Iterable[str]] = ..., memory_provider_events: _Optional[_Iterable[str]] = ..., file_provider_events: _Optional[_Iterable[str]] = ...) -> None: ...
+    stack_sampling_events: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, kernel_flags: _Optional[_Iterable[_Union[EtwConfig.KernelFlag, str]]] = ..., scheduler_provider_events: _Optional[_Iterable[str]] = ..., memory_provider_events: _Optional[_Iterable[str]] = ..., file_provider_events: _Optional[_Iterable[str]] = ..., stack_sampling_events: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class FrozenFtraceConfig(_message.Message):
     __slots__ = ("instance_name",)
@@ -3866,16 +3885,53 @@ class FtraceConfig(_message.Message):
     def __init__(self, ftrace_events: _Optional[_Iterable[str]] = ..., atrace_categories: _Optional[_Iterable[str]] = ..., atrace_apps: _Optional[_Iterable[str]] = ..., atrace_categories_prefer_sdk: _Optional[_Iterable[str]] = ..., atrace_userspace_only: bool = ..., buffer_size_kb: _Optional[int] = ..., buffer_size_lower_bound: bool = ..., drain_period_ms: _Optional[int] = ..., drain_buffer_percent: _Optional[int] = ..., compact_sched: _Optional[_Union[FtraceConfig.CompactSchedConfig, _Mapping]] = ..., print_filter: _Optional[_Union[FtraceConfig.PrintFilter, _Mapping]] = ..., symbolize_ksyms: bool = ..., ksyms_mem_policy: _Optional[_Union[FtraceConfig.KsymsMemPolicy, str]] = ..., throttle_rss_stat: bool = ..., denser_generic_event_encoding: bool = ..., disable_generic_events: bool = ..., syscall_events: _Optional[_Iterable[str]] = ..., enable_function_graph: bool = ..., function_filters: _Optional[_Iterable[str]] = ..., function_graph_roots: _Optional[_Iterable[str]] = ..., function_graph_max_depth: _Optional[int] = ..., kprobe_events: _Optional[_Iterable[_Union[FtraceConfig.KprobeEvent, _Mapping]]] = ..., preserve_ftrace_buffer: bool = ..., use_monotonic_raw_clock: bool = ..., instance_name: _Optional[str] = ..., debug_ftrace_abi: bool = ..., tids_to_trace: _Optional[_Iterable[int]] = ..., tracefs_options: _Optional[_Iterable[_Union[FtraceConfig.TracefsOption, _Mapping]]] = ..., tracing_cpumask: _Optional[str] = ..., initialize_ksyms_synchronously_for_testing: bool = ...) -> None: ...
 
 class GpuCounterConfig(_message.Message):
-    __slots__ = ("counter_period_ns", "counter_ids", "instrumented_sampling", "fix_gpu_clock")
+    __slots__ = ("counter_period_ns", "counter_ids", "counter_names", "instrumented_sampling", "instrumented_sampling_config", "fix_gpu_clock")
+    class InstrumentedSamplingConfig(_message.Message):
+        __slots__ = ("activity_name_filters", "activity_tx_include_globs", "activity_tx_exclude_globs", "activity_ranges")
+        class ActivityNameFilter(_message.Message):
+            __slots__ = ("name_glob", "name_base")
+            class NameBase(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+                __slots__ = ()
+                MANGLED_KERNEL_NAME: _ClassVar[GpuCounterConfig.InstrumentedSamplingConfig.ActivityNameFilter.NameBase]
+                DEMANGLED_KERNEL_NAME: _ClassVar[GpuCounterConfig.InstrumentedSamplingConfig.ActivityNameFilter.NameBase]
+                FUNCTION_NAME: _ClassVar[GpuCounterConfig.InstrumentedSamplingConfig.ActivityNameFilter.NameBase]
+            MANGLED_KERNEL_NAME: GpuCounterConfig.InstrumentedSamplingConfig.ActivityNameFilter.NameBase
+            DEMANGLED_KERNEL_NAME: GpuCounterConfig.InstrumentedSamplingConfig.ActivityNameFilter.NameBase
+            FUNCTION_NAME: GpuCounterConfig.InstrumentedSamplingConfig.ActivityNameFilter.NameBase
+            NAME_GLOB_FIELD_NUMBER: _ClassVar[int]
+            NAME_BASE_FIELD_NUMBER: _ClassVar[int]
+            name_glob: str
+            name_base: GpuCounterConfig.InstrumentedSamplingConfig.ActivityNameFilter.NameBase
+            def __init__(self, name_glob: _Optional[str] = ..., name_base: _Optional[_Union[GpuCounterConfig.InstrumentedSamplingConfig.ActivityNameFilter.NameBase, str]] = ...) -> None: ...
+        class ActivityRange(_message.Message):
+            __slots__ = ("skip", "count")
+            SKIP_FIELD_NUMBER: _ClassVar[int]
+            COUNT_FIELD_NUMBER: _ClassVar[int]
+            skip: int
+            count: int
+            def __init__(self, skip: _Optional[int] = ..., count: _Optional[int] = ...) -> None: ...
+        ACTIVITY_NAME_FILTERS_FIELD_NUMBER: _ClassVar[int]
+        ACTIVITY_TX_INCLUDE_GLOBS_FIELD_NUMBER: _ClassVar[int]
+        ACTIVITY_TX_EXCLUDE_GLOBS_FIELD_NUMBER: _ClassVar[int]
+        ACTIVITY_RANGES_FIELD_NUMBER: _ClassVar[int]
+        activity_name_filters: _containers.RepeatedCompositeFieldContainer[GpuCounterConfig.InstrumentedSamplingConfig.ActivityNameFilter]
+        activity_tx_include_globs: _containers.RepeatedScalarFieldContainer[str]
+        activity_tx_exclude_globs: _containers.RepeatedScalarFieldContainer[str]
+        activity_ranges: _containers.RepeatedCompositeFieldContainer[GpuCounterConfig.InstrumentedSamplingConfig.ActivityRange]
+        def __init__(self, activity_name_filters: _Optional[_Iterable[_Union[GpuCounterConfig.InstrumentedSamplingConfig.ActivityNameFilter, _Mapping]]] = ..., activity_tx_include_globs: _Optional[_Iterable[str]] = ..., activity_tx_exclude_globs: _Optional[_Iterable[str]] = ..., activity_ranges: _Optional[_Iterable[_Union[GpuCounterConfig.InstrumentedSamplingConfig.ActivityRange, _Mapping]]] = ...) -> None: ...
     COUNTER_PERIOD_NS_FIELD_NUMBER: _ClassVar[int]
     COUNTER_IDS_FIELD_NUMBER: _ClassVar[int]
+    COUNTER_NAMES_FIELD_NUMBER: _ClassVar[int]
     INSTRUMENTED_SAMPLING_FIELD_NUMBER: _ClassVar[int]
+    INSTRUMENTED_SAMPLING_CONFIG_FIELD_NUMBER: _ClassVar[int]
     FIX_GPU_CLOCK_FIELD_NUMBER: _ClassVar[int]
     counter_period_ns: int
     counter_ids: _containers.RepeatedScalarFieldContainer[int]
+    counter_names: _containers.RepeatedScalarFieldContainer[str]
     instrumented_sampling: bool
+    instrumented_sampling_config: GpuCounterConfig.InstrumentedSamplingConfig
     fix_gpu_clock: bool
-    def __init__(self, counter_period_ns: _Optional[int] = ..., counter_ids: _Optional[_Iterable[int]] = ..., instrumented_sampling: bool = ..., fix_gpu_clock: bool = ...) -> None: ...
+    def __init__(self, counter_period_ns: _Optional[int] = ..., counter_ids: _Optional[_Iterable[int]] = ..., counter_names: _Optional[_Iterable[str]] = ..., instrumented_sampling: bool = ..., instrumented_sampling_config: _Optional[_Union[GpuCounterConfig.InstrumentedSamplingConfig, _Mapping]] = ..., fix_gpu_clock: bool = ...) -> None: ...
 
 class GpuRenderStagesConfig(_message.Message):
     __slots__ = ("full_loadstore", "low_overhead", "trace_metrics")
@@ -4203,16 +4259,18 @@ class PerfEvents(_message.Message):
         filter: str
         def __init__(self, name: _Optional[str] = ..., filter: _Optional[str] = ...) -> None: ...
     class RawEvent(_message.Message):
-        __slots__ = ("type", "config", "config1", "config2")
+        __slots__ = ("type", "config", "config1", "config2", "pmu_name")
         TYPE_FIELD_NUMBER: _ClassVar[int]
         CONFIG_FIELD_NUMBER: _ClassVar[int]
         CONFIG1_FIELD_NUMBER: _ClassVar[int]
         CONFIG2_FIELD_NUMBER: _ClassVar[int]
+        PMU_NAME_FIELD_NUMBER: _ClassVar[int]
         type: int
         config: int
         config1: int
         config2: int
-        def __init__(self, type: _Optional[int] = ..., config: _Optional[int] = ..., config1: _Optional[int] = ..., config2: _Optional[int] = ...) -> None: ...
+        pmu_name: str
+        def __init__(self, type: _Optional[int] = ..., config: _Optional[int] = ..., config1: _Optional[int] = ..., config2: _Optional[int] = ..., pmu_name: _Optional[str] = ...) -> None: ...
     def __init__(self) -> None: ...
 
 class FollowerEvent(_message.Message):
@@ -4230,7 +4288,7 @@ class FollowerEvent(_message.Message):
     def __init__(self, counter: _Optional[_Union[PerfEvents.Counter, str]] = ..., tracepoint: _Optional[_Union[PerfEvents.Tracepoint, _Mapping]] = ..., raw_event: _Optional[_Union[PerfEvents.RawEvent, _Mapping]] = ..., modifiers: _Optional[_Iterable[_Union[PerfEvents.EventModifier, str]]] = ..., name: _Optional[str] = ...) -> None: ...
 
 class PerfEventConfig(_message.Message):
-    __slots__ = ("timebase", "followers", "callstack_sampling", "target_cpu", "ring_buffer_read_period_ms", "ring_buffer_pages", "max_enqueued_footprint_kb", "max_daemon_memory_kb", "remote_descriptor_timeout_ms", "unwind_state_clear_period_ms", "target_installed_by", "all_cpus", "sampling_frequency", "kernel_frames", "target_pid", "target_cmdline", "exclude_pid", "exclude_cmdline", "additional_cmdline_count")
+    __slots__ = ("timebase", "followers", "callstack_sampling", "target_cpu", "ignore_open_failure", "cpuid", "ring_buffer_read_period_ms", "ring_buffer_pages", "max_enqueued_footprint_kb", "max_daemon_memory_kb", "remote_descriptor_timeout_ms", "unwind_state_clear_period_ms", "target_installed_by", "all_cpus", "sampling_frequency", "kernel_frames", "target_pid", "target_cmdline", "exclude_pid", "exclude_cmdline", "additional_cmdline_count")
     class UnwindMode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         UNWIND_UNKNOWN: _ClassVar[PerfEventConfig.UnwindMode]
@@ -4269,6 +4327,8 @@ class PerfEventConfig(_message.Message):
     FOLLOWERS_FIELD_NUMBER: _ClassVar[int]
     CALLSTACK_SAMPLING_FIELD_NUMBER: _ClassVar[int]
     TARGET_CPU_FIELD_NUMBER: _ClassVar[int]
+    IGNORE_OPEN_FAILURE_FIELD_NUMBER: _ClassVar[int]
+    CPUID_FIELD_NUMBER: _ClassVar[int]
     RING_BUFFER_READ_PERIOD_MS_FIELD_NUMBER: _ClassVar[int]
     RING_BUFFER_PAGES_FIELD_NUMBER: _ClassVar[int]
     MAX_ENQUEUED_FOOTPRINT_KB_FIELD_NUMBER: _ClassVar[int]
@@ -4288,6 +4348,8 @@ class PerfEventConfig(_message.Message):
     followers: _containers.RepeatedCompositeFieldContainer[FollowerEvent]
     callstack_sampling: PerfEventConfig.CallstackSampling
     target_cpu: _containers.RepeatedScalarFieldContainer[int]
+    ignore_open_failure: bool
+    cpuid: _containers.RepeatedScalarFieldContainer[str]
     ring_buffer_read_period_ms: int
     ring_buffer_pages: int
     max_enqueued_footprint_kb: int
@@ -4303,7 +4365,7 @@ class PerfEventConfig(_message.Message):
     exclude_pid: _containers.RepeatedScalarFieldContainer[int]
     exclude_cmdline: _containers.RepeatedScalarFieldContainer[str]
     additional_cmdline_count: int
-    def __init__(self, timebase: _Optional[_Union[PerfEvents.Timebase, _Mapping]] = ..., followers: _Optional[_Iterable[_Union[FollowerEvent, _Mapping]]] = ..., callstack_sampling: _Optional[_Union[PerfEventConfig.CallstackSampling, _Mapping]] = ..., target_cpu: _Optional[_Iterable[int]] = ..., ring_buffer_read_period_ms: _Optional[int] = ..., ring_buffer_pages: _Optional[int] = ..., max_enqueued_footprint_kb: _Optional[int] = ..., max_daemon_memory_kb: _Optional[int] = ..., remote_descriptor_timeout_ms: _Optional[int] = ..., unwind_state_clear_period_ms: _Optional[int] = ..., target_installed_by: _Optional[_Iterable[str]] = ..., all_cpus: bool = ..., sampling_frequency: _Optional[int] = ..., kernel_frames: bool = ..., target_pid: _Optional[_Iterable[int]] = ..., target_cmdline: _Optional[_Iterable[str]] = ..., exclude_pid: _Optional[_Iterable[int]] = ..., exclude_cmdline: _Optional[_Iterable[str]] = ..., additional_cmdline_count: _Optional[int] = ...) -> None: ...
+    def __init__(self, timebase: _Optional[_Union[PerfEvents.Timebase, _Mapping]] = ..., followers: _Optional[_Iterable[_Union[FollowerEvent, _Mapping]]] = ..., callstack_sampling: _Optional[_Union[PerfEventConfig.CallstackSampling, _Mapping]] = ..., target_cpu: _Optional[_Iterable[int]] = ..., ignore_open_failure: bool = ..., cpuid: _Optional[_Iterable[str]] = ..., ring_buffer_read_period_ms: _Optional[int] = ..., ring_buffer_pages: _Optional[int] = ..., max_enqueued_footprint_kb: _Optional[int] = ..., max_daemon_memory_kb: _Optional[int] = ..., remote_descriptor_timeout_ms: _Optional[int] = ..., unwind_state_clear_period_ms: _Optional[int] = ..., target_installed_by: _Optional[_Iterable[str]] = ..., all_cpus: bool = ..., sampling_frequency: _Optional[int] = ..., kernel_frames: bool = ..., target_pid: _Optional[_Iterable[int]] = ..., target_cmdline: _Optional[_Iterable[str]] = ..., exclude_pid: _Optional[_Iterable[int]] = ..., exclude_cmdline: _Optional[_Iterable[str]] = ..., additional_cmdline_count: _Optional[int] = ...) -> None: ...
 
 class ProtoVmConfig(_message.Message):
     __slots__ = ("memory_limit_kb",)
@@ -5170,8 +5232,16 @@ class AndroidAflags(_message.Message):
     FLAG_STORAGE_BACKEND_NONE: AndroidAflags.FlagStorageBackend
     FLAG_STORAGE_BACKEND_ACONFIGD: AndroidAflags.FlagStorageBackend
     FLAG_STORAGE_BACKEND_DEVICE_CONFIG: AndroidAflags.FlagStorageBackend
+    class FlagType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        FLAG_TYPE_UNSPECIFIED: _ClassVar[AndroidAflags.FlagType]
+        FLAG_TYPE_BOOLEAN: _ClassVar[AndroidAflags.FlagType]
+        FLAG_TYPE_INTEGER: _ClassVar[AndroidAflags.FlagType]
+    FLAG_TYPE_UNSPECIFIED: AndroidAflags.FlagType
+    FLAG_TYPE_BOOLEAN: AndroidAflags.FlagType
+    FLAG_TYPE_INTEGER: AndroidAflags.FlagType
     class Flag(_message.Message):
-        __slots__ = ("flag_namespace", "name", "pkg", "container", "value", "staged_value", "permission", "value_picked_from", "storage_backend")
+        __slots__ = ("flag_namespace", "name", "pkg", "container", "value", "staged_value", "permission", "value_picked_from", "storage_backend", "type")
         FLAG_NAMESPACE_FIELD_NUMBER: _ClassVar[int]
         NAME_FIELD_NUMBER: _ClassVar[int]
         PKG_FIELD_NUMBER: _ClassVar[int]
@@ -5181,6 +5251,7 @@ class AndroidAflags(_message.Message):
         PERMISSION_FIELD_NUMBER: _ClassVar[int]
         VALUE_PICKED_FROM_FIELD_NUMBER: _ClassVar[int]
         STORAGE_BACKEND_FIELD_NUMBER: _ClassVar[int]
+        TYPE_FIELD_NUMBER: _ClassVar[int]
         flag_namespace: str
         name: str
         pkg: str
@@ -5190,7 +5261,8 @@ class AndroidAflags(_message.Message):
         permission: AndroidAflags.FlagPermission
         value_picked_from: AndroidAflags.ValuePickedFrom
         storage_backend: AndroidAflags.FlagStorageBackend
-        def __init__(self, flag_namespace: _Optional[str] = ..., name: _Optional[str] = ..., pkg: _Optional[str] = ..., container: _Optional[str] = ..., value: _Optional[str] = ..., staged_value: _Optional[str] = ..., permission: _Optional[_Union[AndroidAflags.FlagPermission, str]] = ..., value_picked_from: _Optional[_Union[AndroidAflags.ValuePickedFrom, str]] = ..., storage_backend: _Optional[_Union[AndroidAflags.FlagStorageBackend, str]] = ...) -> None: ...
+        type: AndroidAflags.FlagType
+        def __init__(self, flag_namespace: _Optional[str] = ..., name: _Optional[str] = ..., pkg: _Optional[str] = ..., container: _Optional[str] = ..., value: _Optional[str] = ..., staged_value: _Optional[str] = ..., permission: _Optional[_Union[AndroidAflags.FlagPermission, str]] = ..., value_picked_from: _Optional[_Union[AndroidAflags.ValuePickedFrom, str]] = ..., storage_backend: _Optional[_Union[AndroidAflags.FlagStorageBackend, str]] = ..., type: _Optional[_Union[AndroidAflags.FlagType, str]] = ...) -> None: ...
     FLAGS_FIELD_NUMBER: _ClassVar[int]
     ERROR_FIELD_NUMBER: _ClassVar[int]
     flags: _containers.RepeatedCompositeFieldContainer[AndroidAflags.Flag]
@@ -7866,8 +7938,16 @@ class FileIoOpEndEtwEvent(_message.Message):
     nt_status: int
     def __init__(self, irp_ptr: _Optional[int] = ..., extra_info: _Optional[int] = ..., nt_status: _Optional[int] = ...) -> None: ...
 
+class StackWalkEtwEvent(_message.Message):
+    __slots__ = ("trigger", "callstack_iid")
+    TRIGGER_FIELD_NUMBER: _ClassVar[int]
+    CALLSTACK_IID_FIELD_NUMBER: _ClassVar[int]
+    trigger: str
+    callstack_iid: int
+    def __init__(self, trigger: _Optional[str] = ..., callstack_iid: _Optional[int] = ...) -> None: ...
+
 class EtwTraceEvent(_message.Message):
-    __slots__ = ("timestamp", "cpu", "thread_id", "c_switch", "ready_thread", "mem_info", "file_io_create", "file_io_dir_enum", "file_io_info", "file_io_read_write", "file_io_simple_op", "file_io_op_end")
+    __slots__ = ("timestamp", "cpu", "thread_id", "c_switch", "ready_thread", "mem_info", "file_io_create", "file_io_dir_enum", "file_io_info", "file_io_read_write", "file_io_simple_op", "file_io_op_end", "stack_walk")
     TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     CPU_FIELD_NUMBER: _ClassVar[int]
     THREAD_ID_FIELD_NUMBER: _ClassVar[int]
@@ -7880,6 +7960,7 @@ class EtwTraceEvent(_message.Message):
     FILE_IO_READ_WRITE_FIELD_NUMBER: _ClassVar[int]
     FILE_IO_SIMPLE_OP_FIELD_NUMBER: _ClassVar[int]
     FILE_IO_OP_END_FIELD_NUMBER: _ClassVar[int]
+    STACK_WALK_FIELD_NUMBER: _ClassVar[int]
     timestamp: int
     cpu: int
     thread_id: int
@@ -7892,7 +7973,8 @@ class EtwTraceEvent(_message.Message):
     file_io_read_write: FileIoReadWriteEtwEvent
     file_io_simple_op: FileIoSimpleOpEtwEvent
     file_io_op_end: FileIoOpEndEtwEvent
-    def __init__(self, timestamp: _Optional[int] = ..., cpu: _Optional[int] = ..., thread_id: _Optional[int] = ..., c_switch: _Optional[_Union[CSwitchEtwEvent, _Mapping]] = ..., ready_thread: _Optional[_Union[ReadyThreadEtwEvent, _Mapping]] = ..., mem_info: _Optional[_Union[MemInfoEtwEvent, _Mapping]] = ..., file_io_create: _Optional[_Union[FileIoCreateEtwEvent, _Mapping]] = ..., file_io_dir_enum: _Optional[_Union[FileIoDirEnumEtwEvent, _Mapping]] = ..., file_io_info: _Optional[_Union[FileIoInfoEtwEvent, _Mapping]] = ..., file_io_read_write: _Optional[_Union[FileIoReadWriteEtwEvent, _Mapping]] = ..., file_io_simple_op: _Optional[_Union[FileIoSimpleOpEtwEvent, _Mapping]] = ..., file_io_op_end: _Optional[_Union[FileIoOpEndEtwEvent, _Mapping]] = ...) -> None: ...
+    stack_walk: StackWalkEtwEvent
+    def __init__(self, timestamp: _Optional[int] = ..., cpu: _Optional[int] = ..., thread_id: _Optional[int] = ..., c_switch: _Optional[_Union[CSwitchEtwEvent, _Mapping]] = ..., ready_thread: _Optional[_Union[ReadyThreadEtwEvent, _Mapping]] = ..., mem_info: _Optional[_Union[MemInfoEtwEvent, _Mapping]] = ..., file_io_create: _Optional[_Union[FileIoCreateEtwEvent, _Mapping]] = ..., file_io_dir_enum: _Optional[_Union[FileIoDirEnumEtwEvent, _Mapping]] = ..., file_io_info: _Optional[_Union[FileIoInfoEtwEvent, _Mapping]] = ..., file_io_read_write: _Optional[_Union[FileIoReadWriteEtwEvent, _Mapping]] = ..., file_io_simple_op: _Optional[_Union[FileIoSimpleOpEtwEvent, _Mapping]] = ..., file_io_op_end: _Optional[_Union[FileIoOpEndEtwEvent, _Mapping]] = ..., stack_walk: _Optional[_Union[StackWalkEtwEvent, _Mapping]] = ...) -> None: ...
 
 class EtwTraceEventBundle(_message.Message):
     __slots__ = ("cpu", "event")

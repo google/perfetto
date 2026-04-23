@@ -168,6 +168,17 @@ export default class CoreCommands implements PerfettoPlugin {
       });
     }
 
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.NameTab',
+      name: 'Rename current browser tab',
+      callback: async () => {
+        const name = await ctx.omnibox.prompt('Enter new window title...');
+        if (name !== undefined && name !== '') {
+          document.title = name;
+        }
+      },
+    });
+
     // Register the new macros setting (array format)
     const macroSettingsEditor = new JsonSettingsEditor<MacrosConfig>({
       schema: macrosConfigSchema,
