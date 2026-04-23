@@ -51,13 +51,18 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
       return std::nullopt;
     }
 
-    auto formatted_message = FormatMessage(message, sint64_params, double_params, boolean_params, string_params);
+    auto formatted_message = FormatMessage(
+        message, sint64_params, double_params, boolean_params, string_params);
     return DecodedMessage{tracked_message.level, group->tag, formatted_message,
                           tracked_message.location};
   } else {
-    std::string collision_indicator = "<PROTOLOG COLLISION (id=0x" + base::Uint64ToHexString(message_id) + "): ";
+    std::string collision_indicator = "<PROTOLOG COLLISION (id=0x" +
+                                      base::Uint64ToHexString(message_id) +
+                                      "): ";
     for (size_t i = 0; i < messages.size(); ++i) {
-      auto formatted_message = FormatMessage(messages[i].message, sint64_params, double_params, boolean_params, string_params);
+      auto formatted_message =
+          FormatMessage(messages[i].message, sint64_params, double_params,
+                        boolean_params, string_params);
       collision_indicator += "'" + formatted_message + "'";
       if (i < messages.size() - 1) {
         collision_indicator += "\n ";
@@ -65,7 +70,8 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
     }
     collision_indicator += "'>";
 
-    return DecodedMessage{ProtoLogLevel::WARN, nullptr, collision_indicator, std::nullopt};
+    return DecodedMessage{ProtoLogLevel::WARN, nullptr, collision_indicator,
+                          std::nullopt};
   }
 }
 
@@ -88,8 +94,9 @@ void ProtoLogMessageDecoder::TrackMessage(
 
   auto* existing_messages_ptr = tracked_messages_.Find(message_id);
 
-  if(existing_messages_ptr == nullptr) {
-    tracked_messages_.Insert(message_id, std::vector<TrackedMessage>{new_tracked_message});
+  if (existing_messages_ptr == nullptr) {
+    tracked_messages_.Insert(message_id,
+                             std::vector<TrackedMessage>{new_tracked_message});
     return;
   }
 
@@ -113,11 +120,11 @@ void ProtoLogMessageDecoder::TrackMessage(
 }
 
 std::string ProtoLogMessageDecoder::FormatMessage(
-  const std::string& message,
-  const std::vector<int64_t>& sint64_params,
-  const std::vector<double>& double_params,
-  const std::vector<bool>& boolean_params,
-  const std::vector<std::string>& string_params) {
+    const std::string& message,
+    const std::vector<int64_t>& sint64_params,
+    const std::vector<double>& double_params,
+    const std::vector<bool>& boolean_params,
+    const std::vector<std::string>& string_params) {
   std::string formatted_message;
   formatted_message.reserve(message.size());
 

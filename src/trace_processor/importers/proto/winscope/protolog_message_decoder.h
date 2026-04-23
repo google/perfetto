@@ -76,12 +76,11 @@ class ProtoLogMessageDecoder {
                     const std::optional<std::string>& location);
 
  private:
-  std::string FormatMessage(
-    const std::string& message,
-    const std::vector<int64_t>& sint64_params,
-    const std::vector<double>& double_params,
-    const std::vector<bool>& boolean_params,
-    const std::vector<std::string>& string_params);
+  std::string FormatMessage(const std::string& message,
+                            const std::vector<int64_t>& sint64_params,
+                            const std::vector<double>& double_params,
+                            const std::vector<bool>& boolean_params,
+                            const std::vector<std::string>& string_params);
 
  private:
   TraceProcessorContext* const context_;
