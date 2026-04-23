@@ -7811,6 +7811,30 @@ message AndroidUserList {
 
 // End of protos/perfetto/trace/android/user_list.proto
 
+// Begin of protos/perfetto/trace/android/video_frame.proto
+
+// A captured video frame (screenshot) from the device display.
+// Used by the android.video_frames data source for continuous frame capture.
+message VideoFrame {
+  // Sequential frame number within the capture session.
+  optional uint64 frame_number = 1;
+
+  // JPEG-compressed image data.
+  optional bytes jpg_image = 2;
+
+  // Display name for the track in the UI (e.g. "Front Camera").
+  optional string track_name = 3;
+
+  // Unique identifier for the stream. Frames with the same track_id are
+  // grouped into the same track.
+  optional uint32 track_id = 4;
+
+  // WebP-compressed image data. Used when jpg_image is not set.
+  optional bytes webp_image = 5;
+}
+
+// End of protos/perfetto/trace/android/video_frame.proto
+
 // Begin of protos/perfetto/trace/android/winscope_extensions.proto
 
 message WinscopeExtensions {
@@ -18974,6 +18998,8 @@ message TracePacket {
     EvdevEvent evdev_event = 121;
 
     AndroidUserList user_list = 123;
+
+    VideoFrame video_frame = 129;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

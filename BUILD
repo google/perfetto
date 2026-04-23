@@ -2987,6 +2987,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/track_event_tracker.h",
         "src/trace_processor/importers/proto/user_tracker.cc",
         "src/trace_processor/importers/proto/user_tracker.h",
+        "src/trace_processor/importers/proto/video_frame_module.cc",
+        "src/trace_processor/importers/proto/video_frame_module.h",
     ],
 )
 
@@ -3415,6 +3417,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/functions/type_builders.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/type_builders.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/utils.h",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/video_frame_image.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/video_frame_image.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/window_functions.h",
     ],
 )
@@ -3741,6 +3745,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/thread.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/user_list.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/version.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/video_frames.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/wakeups.sql",
     ],
 )
@@ -7355,6 +7360,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/android/packages_list.proto",
         "protos/perfetto/trace/android/pixel_modem_events.proto",
         "protos/perfetto/trace/android/user_list.proto",
+        "protos/perfetto/trace/android/video_frame.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
