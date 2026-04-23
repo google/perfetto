@@ -35,18 +35,89 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
     const std::vector<double>& double_params,
     const std::vector<bool>& boolean_params,
     const std::vector<std::string>& string_params) {
-  auto tracked_message = tracked_messages_.Find(message_id);
-  if (tracked_message == nullptr) {
+  auto* tracked_messages_vec_ptr = tracked_messages_.Find(message_id);
+  if (tracked_messages_vec_ptr == nullptr) {
     return std::nullopt;
   }
 
-  auto message = tracked_message->message;
+  const std::vector<TrackedMessage>& messages = *tracked_messages_vec_ptr;
 
-  auto group = tracked_groups_.Find(tracked_message->group_id);
-  if (group == nullptr) {
-    return std::nullopt;
+  if (messages.size() == 1) {
+    const auto& tracked_message = messages[0];
+    auto message = tracked_message.message;
+
+    auto group = tracked_groups_.Find(tracked_message.group_id);
+    if (group == nullptr) {
+      return std::nullopt;
+    }
+
+    auto formatted_message = FormatMessage(message, sint64_params, double_params, boolean_params, string_params);
+    return DecodedMessage{tracked_message.level, group->tag, formatted_message,
+                          tracked_message.location};
+  } else {
+    std::string collision_indicator = "<PROTOLOG COLLISION (id=0x" + base::Uint64ToHexString(message_id) + "): ";
+    for (size_t i = 0; i < messages.size(); ++i) {
+      auto formatted_message = FormatMessage(messages[i].message, sint64_params, double_params, boolean_params, string_params);
+      collision_indicator += "'" + formatted_message + "'";
+      if (i < messages.size() - 1) {
+        collision_indicator += "\n ";
+      }
+    }
+    collision_indicator += "'>";
+
+    return DecodedMessage{ProtoLogLevel::WARN, nullptr, collision_indicator, std::nullopt};
+  }
+}
+
+void ProtoLogMessageDecoder::TrackGroup(uint32_t id, const std::string& tag) {
+  auto tracked_group = tracked_groups_.Find(id);
+  if (tracked_group != nullptr && tracked_group->tag != tag) {
+    context_->storage->IncrementStats(
+        stats::winscope_protolog_view_config_collision);
+  }
+  tracked_groups_.Insert(id, TrackedGroup{tag});
+}
+
+void ProtoLogMessageDecoder::TrackMessage(
+    uint64_t message_id,
+    ProtoLogLevel level,
+    uint32_t group_id,
+    const std::string& message,
+    const std::optional<std::string>& location) {
+  TrackedMessage new_tracked_message{level, group_id, message, location};
+
+  auto* existing_messages_ptr = tracked_messages_.Find(message_id);
+
+  if(existing_messages_ptr == nullptr) {
+    tracked_messages_.Insert(message_id, std::vector<TrackedMessage>{new_tracked_message});
+    return;
   }
 
+  std::vector<TrackedMessage>& existing_messages = *existing_messages_ptr;
+  bool message_already_tracked = false;
+
+  for (const auto& existing_msg : existing_messages) {
+    if (existing_msg.message == new_tracked_message.message &&
+        existing_msg.level == new_tracked_message.level &&
+        existing_msg.group_id == new_tracked_message.group_id) {
+      message_already_tracked = true;
+      break;
+    }
+  }
+
+  if (!message_already_tracked) {
+    context_->storage->IncrementStats(
+        stats::winscope_protolog_view_config_collision);
+    existing_messages.push_back(new_tracked_message);
+  }
+}
+
+std::string ProtoLogMessageDecoder::FormatMessage(
+  const std::string& message,
+  const std::vector<int64_t>& sint64_params,
+  const std::vector<double>& double_params,
+  const std::vector<bool>& boolean_params,
+  const std::vector<std::string>& string_params) {
   std::string formatted_message;
   formatted_message.reserve(message.size());
 
@@ -176,32 +247,7 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
     context_->storage->IncrementStats(stats::winscope_protolog_param_mismatch);
   }
 
-  return DecodedMessage{tracked_message->level, group->tag, formatted_message,
-                        tracked_message->location};
-}
-
-void ProtoLogMessageDecoder::TrackGroup(uint32_t id, const std::string& tag) {
-  auto tracked_group = tracked_groups_.Find(id);
-  if (tracked_group != nullptr && tracked_group->tag != tag) {
-    context_->storage->IncrementStats(
-        stats::winscope_protolog_view_config_collision);
-  }
-  tracked_groups_.Insert(id, TrackedGroup{tag});
-}
-
-void ProtoLogMessageDecoder::TrackMessage(
-    uint64_t message_id,
-    ProtoLogLevel level,
-    uint32_t group_id,
-    const std::string& message,
-    const std::optional<std::string>& location) {
-  auto tracked_message = tracked_messages_.Find(message_id);
-  if (tracked_message != nullptr && tracked_message->message != message) {
-    context_->storage->IncrementStats(
-        stats::winscope_protolog_view_config_collision);
-  }
-  tracked_messages_.Insert(message_id,
-                           TrackedMessage{level, group_id, message, location});
+  return formatted_message;
 }
 
 }  // namespace perfetto::trace_processor::winscope
