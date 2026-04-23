@@ -217,16 +217,32 @@ function updateNav() {
   makeChip('All', '');
 
   // --- Step 4: Filter leaves by active tag, then collapse empty ancestors.
-  // Visibility is decided bottom-up so parents with no visible children hide. ---
+  // Visibility is decided bottom-up so parents with no visible children hide.
+  // Exception: the leaf for the currently-viewed page is always kept visible
+  // (and its ancestors stay expanded) so the user never loses their place in
+  // the sidebar when the active chip would otherwise hide it. ---
   const activeCls = activeTag ? TAG_PREFIX + activeTag : '';
   const isTagged = (li) => {
     for (const c of li.classList) if (c.startsWith(TAG_PREFIX)) return true;
     return false;
   };
+  const isCurrentPageLeaf = (li) => {
+    if (!curFileName) return false;
+    if (li.querySelector(':scope > ul')) return false;
+    const a = li.querySelector(':scope a[href]');
+    if (!a) return false;
+    try {
+      const p = new URL(a.href).pathname;
+      return p === curFileName || p + 'index.html' === curFileName;
+    } catch (_) {
+      return false;
+    }
+  };
   const process = (li) => {
     const childUl = li.querySelector(':scope > ul');
     if (!childUl) {
-      const vis = !isTagged(li) || !activeCls || li.classList.contains(activeCls);
+      const vis = !isTagged(li) || !activeCls || li.classList.contains(activeCls)
+                  || isCurrentPageLeaf(li);
       li.style.display = vis ? '' : 'none';
       return vis;
     }
