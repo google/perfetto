@@ -1,0 +1,123 @@
+# Copyright (C) 2026 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Creates and pushes the vX.Y git tag when `stable` advances, and
+# creates the matching draft GitHub release.
+#
+# Triggered by pushes to `stable` (typically the merge of a PR
+# opened by promote-stable.yml). Reads the target version from the
+# top of CHANGELOG, verifies the tag doesn't already exist, then
+# creates and pushes it at the new stable HEAD. The draft release
+# body is pre-populated with the matching CHANGELOG section; a
+# maintainer hand-edits it into full prose release notes before
+# publishing.
+#
+# Authenticates with an installation token minted from the
+# `perfetto-automation` GitHub App so the tag push fans out to
+# other workflow runs (GITHUB_TOKEN pushes do not). LUCI and UI
+# Cloud Build observe the tag push externally and fire regardless
+# of who pushed it.
+#
+# Idempotent: no-ops when the CHANGELOG top is still 'Unreleased:'
+# or when the tag already exists.
+
+name: Tag stable release (on push to stable)
+
+on:
+  push:
+    branches:
+      - stable
+
+permissions: {}
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    environment: perfetto-automation
+    steps:
+      - name: Mint app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.PERFETTO_BOT_APP_ID }}
+          private-key: ${{ secrets.PERFETTO_BOT_PRIVATE_KEY }}
+
+      - name: Checkout stable
+        uses: actions/checkout@v4
+        with:
+          ref: stable
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Extract version from CHANGELOG
+        id: version
+        run: |
+          FIRST=$(grep -m1 -E '^[^[:space:]]' CHANGELOG || true)
+          if ! [[ "$FIRST" =~ ^(v[0-9]+\.[0-9]+)[[:space:]]+-[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}: ]]; then
+            echo "::notice::CHANGELOG top entry is not a released version header (got: '$FIRST'); nothing to tag."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          VERSION="${BASH_REMATCH[1]}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "::notice::Target tag: $VERSION"
+
+      - name: Skip if tag already exists
+        if: steps.version.outputs.skip != '1'
+        id: exists
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if git rev-parse "refs/tags/$VERSION" >/dev/null 2>&1; then
+            echo "::notice::Tag $VERSION already exists; nothing to do."
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure git
+        if: steps.version.outputs.skip != '1' && steps.exists.outputs.skip != '1'
+        run: |
+          # Email must match the CLA-approved address for the automation app.
+          git config user.name "perfetto-automation[bot]"
+          git config user.email "perfetto-automation-github-app@google.com"
+
+      - name: Create and push tag
+        if: steps.version.outputs.skip != '1' && steps.exists.outputs.skip != '1'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git tag -a "$VERSION" HEAD -m "Perfetto $VERSION"
+          git push origin "refs/tags/$VERSION"
+          echo "::notice::Tagged $VERSION at $(git rev-parse HEAD). LUCI and Cloud Build have been triggered."
+
+      - name: Extract CHANGELOG section for draft release
+        if: steps.version.outputs.skip != '1' && steps.exists.outputs.skip != '1'
+        run: |
+          python3 tools/release/extract_changelog_section.py \
+            "${{ steps.version.outputs.version }}" > /tmp/release_body.txt
+          echo "--- Draft release body ---"
+          cat /tmp/release_body.txt
+
+      - name: Create draft release (if missing)
+        if: steps.version.outputs.skip != '1' && steps.exists.outputs.skip != '1'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          TAG="${{ steps.version.outputs.version }}"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG already exists — leaving body untouched."
+          else
+            gh release create "$TAG" \
+              --draft \
+              --title "Perfetto $TAG" \
+              --notes-file /tmp/release_body.txt
+          fi
