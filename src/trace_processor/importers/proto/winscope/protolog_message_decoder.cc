@@ -248,27 +248,27 @@ std::string ProtoLogMessageDecoder::FormatMessage(
   return formatted_message;
 }
 
-ProtoLogParamCounts ProtoLogMessageDecoder::GetParameterSignature(
+base::SmallVector<char, 8> ProtoLogMessageDecoder::GetParameterSignature(
     const std::string& message) {
-  ProtoLogParamCounts counts;
+  base::SmallVector<char, 8> signature;
   for (size_t i = 0; i < message.length(); ++i) {
     if (message.at(i) == '%' && i + 1 < message.length()) {
       switch (message.at(i + 1)) {
         case 'd':
         case 'o':
         case 'x':
-          counts.int64_count++;
+          signature.emplace_back('i');
           break;
         case 'f':
         case 'e':
         case 'g':
-          counts.double_count++;
+          signature.emplace_back('d');
           break;
         case 'b':
-          counts.bool_count++;
+          signature.emplace_back('b');
           break;
         case 's':
-          counts.string_count++;
+          signature.emplace_back('s');
           break;
         default:
           break;
@@ -276,7 +276,49 @@ ProtoLogParamCounts ProtoLogMessageDecoder::GetParameterSignature(
       i++;  // Skip the format specifier character
     }
   }
-  return counts;
+  return signature;
+}
+
+bool ProtoLogMessageDecoder::MatchesParameterSequence(
+    const TrackedMessage& tracked_message,
+    const std::vector<int64_t>& sint64_params,
+    const std::vector<double>& double_params,
+    const std::vector<bool>& boolean_params,
+    const std::vector<std::string>& string_params) {
+  size_t sint64_idx = 0;
+  size_t double_idx = 0;
+  size_t bool_idx = 0;
+  size_t string_idx = 0;
+
+  for (char spec : tracked_message.param_signature) {
+    switch (spec) {
+      case 'i':
+        if (sint64_idx >= sint64_params.size())
+          return false;
+        sint64_idx++;
+        break;
+      case 'd':
+        if (double_idx >= double_params.size())
+          return false;
+        double_idx++;
+        break;
+      case 'b':
+        if (bool_idx >= boolean_params.size())
+          return false;
+        bool_idx++;
+        break;
+      case 's':
+        if (string_idx >= string_params.size())
+          return false;
+        string_idx++;
+        break;
+    }
+  }
+
+  return sint64_idx == sint64_params.size() &&
+         double_idx == double_params.size() &&
+         bool_idx == boolean_params.size() &&
+         string_idx == string_params.size();
 }
 
 std::optional<DecodedMessage>
@@ -289,11 +331,8 @@ ProtoLogMessageDecoder::DecodeCollidiongMessageIds(
     const std::vector<std::string>& string_params) {
   base::SmallVector<TrackedMessage, 1> potential_matches;
   for (size_t i = 0; i < messages.size(); ++i) {
-    ProtoLogParamCounts expected_counts = messages[i].param_counts;
-    if (expected_counts.int64_count == sint64_params.size() &&
-        expected_counts.double_count == double_params.size() &&
-        expected_counts.bool_count == boolean_params.size() &&
-        expected_counts.string_count == string_params.size()) {
+    if (MatchesParameterSequence(messages[i], sint64_params, double_params,
+                                 boolean_params, string_params)) {
       potential_matches.emplace_back(messages[i]);
     }
   }

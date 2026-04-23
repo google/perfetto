@@ -45,13 +45,6 @@ struct DecodedMessage {
   std::optional<std::string> location;
 };
 
-struct ProtoLogParamCounts {
-  size_t int64_count = 0;
-  size_t double_count = 0;
-  size_t bool_count = 0;
-  size_t string_count = 0;
-};
-
 struct TrackedGroup {
   std::string tag;
 };
@@ -61,7 +54,7 @@ struct TrackedMessage {
   uint32_t group_id;
   std::string message;
   std::optional<std::string> location;
-  ProtoLogParamCounts param_counts;
+  base::SmallVector<char, 8> param_signature;
 };
 
 class ProtoLogMessageDecoder {
@@ -90,7 +83,13 @@ class ProtoLogMessageDecoder {
                             const std::vector<bool>& boolean_params,
                             const std::vector<std::string>& string_params);
 
-  ProtoLogParamCounts GetParameterSignature(const std::string& message);
+  base::SmallVector<char, 8> GetParameterSignature(const std::string& message);
+
+  bool MatchesParameterSequence(const TrackedMessage& tracked_message,
+                                const std::vector<int64_t>& sint64_params,
+                                const std::vector<double>& double_params,
+                                const std::vector<bool>& boolean_params,
+                                const std::vector<std::string>& string_params);
 
   std::optional<DecodedMessage> DecodeCollidiongMessageIds(
       const base::SmallVector<TrackedMessage, 1>& messages,
