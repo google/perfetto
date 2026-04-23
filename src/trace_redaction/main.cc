@@ -21,7 +21,8 @@
 #include "src/trace_redaction/trace_redactor.h"
 #include "src/trace_redaction/verify_integrity.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 #include <sys/resource.h>
 #endif
 
@@ -35,7 +36,9 @@ static base::Status Main(std::string_view input,
   // when redaction finishes so we can keep it as a lower priority for now, if
   // this requirement ever changes, then consider modifying redactor to let
   // caller specify process level thread priority.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+  // This will only occur for builds from android repository.
   setpriority(PRIO_PROCESS, 0, 19);
 #endif
 
