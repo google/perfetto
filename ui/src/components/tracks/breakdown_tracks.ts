@@ -518,7 +518,7 @@ function filterToSql(filter: Filter) {
 }
 
 function toSqlValue(input: string | undefined): string | number | bigint {
-  if (input === undefined || !input.trim()) {
+  if (input === undefined) {
     return '';
   }
 

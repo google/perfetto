@@ -18,6 +18,18 @@ package perfetto.protos;
 
 import public "protos/perfetto/trace/track_event/track_event.proto";
 
+// GPU API type for tagging track events.
+// Values intentionally match InternedGraphicsContext.Api in
+// gpu_render_stage_event.proto.
+enum GpuApi {
+  GPU_API_UNDEFINED = 0;
+  GPU_API_OPEN_GL = 1;
+  GPU_API_VULKAN = 2;
+  GPU_API_OPEN_CL = 3;
+  GPU_API_CUDA = 4;
+  GPU_API_HIP = 5;
+}
+
 // Correlates a track event with GPU render stage events.
 message GpuCorrelation {
   // Event IDs of GpuRenderStageEvents that this track event submitted.
@@ -32,5 +44,8 @@ message GpuTrackEvent {
   extend TrackEvent {
     // Correlates this track event with GPU render stage events.
     optional GpuCorrelation gpu_correlation = 3000;
+
+    // GPU API that this track event represents a call to.
+    optional GpuApi gpu_api = 3001;
   }
 }

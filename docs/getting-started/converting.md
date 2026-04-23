@@ -1262,6 +1262,13 @@ you can:
   `TrackEvent` protobuf, refer to the
   [Writing synthetic traces using TrackEvent protobufs](/docs/reference/synthetic-track-event.md)
   reference page.
+- **Attach custom typed fields:** If `debug_annotations` aren't expressive
+  enough and you want your own schema, define a protobuf extension on
+  `TrackEvent` and set those fields alongside the built-ins. The
+  [Advanced Guide section on proto extensions](/docs/reference/synthetic-track-event.md#proto-extensions)
+  walks through the Python workflow; see
+  [Extending TrackEvent with Custom Protos](/docs/instrumentation/extensions.md)
+  for background on the mechanism and how descriptors reach Trace Processor.
 - **Visualize your trace:** Open your generated `.pftrace` file in the
   [Perfetto UI](https://ui.perfetto.dev) to explore your data on an interactive
   timeline.

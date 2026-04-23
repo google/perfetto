@@ -85,28 +85,31 @@ class TestAndroidAflagsDataSource : public AndroidAflagsDataSource {
     }
     std::vector<uint8_t> bytes = msg.SerializeAsArray();
     aflags_output_ = base::Base64Encode(bytes.data(), bytes.size());
-    aflags_process_.emplace(std::initializer_list<std::string>{"/bin/true"});
+    aflags_process_ = std::make_unique<base::Subprocess>(
+        std::initializer_list<std::string>{"/bin/true"});
     aflags_process_->Call();
   }
 
   // Helper to simulate subprocess completion with given flags.
   void FakeSubprocessCompletion(const std::vector<FakeFlag>& flags) {
     SeedCompletedFakeSubprocess(flags);
-    FinalizeAflagsCapture();
+    FinalizeAflagsCapture(/*error=*/"");
   }
 
   void FakeSubprocessError(const std::string& output) {
     aflags_output_ = output;
-    aflags_process_.emplace(std::initializer_list<std::string>{"/bin/false"});
+    aflags_process_ = std::make_unique<base::Subprocess>(
+        std::initializer_list<std::string>{"/bin/false"});
     aflags_process_->Call();
-    FinalizeAflagsCapture();
+    FinalizeAflagsCapture(/*error=*/"");
   }
 
   void FakeInvalidBase64() {
     aflags_output_ = "!!!not-base64!!!";
-    aflags_process_.emplace(std::initializer_list<std::string>{"/bin/true"});
+    aflags_process_ = std::make_unique<base::Subprocess>(
+        std::initializer_list<std::string>{"/bin/true"});
     aflags_process_->Call();
-    FinalizeAflagsCapture();
+    FinalizeAflagsCapture(/*error=*/"");
   }
 };
 
@@ -248,32 +251,12 @@ TEST_F(AndroidAflagsDataSourceTest,
             [&callback_fired] { callback_fired = true; });
   EXPECT_FALSE(callback_fired);
 
-  ds->FinalizeAflagsCapture();
+  ds->FinalizeAflagsCapture(/*error=*/"");
 
   EXPECT_TRUE(callback_fired);
   protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
   ASSERT_TRUE(packet.has_android_aflags());
   EXPECT_EQ(packet.android_aflags().flags().size(), 1u);
-}
-
-TEST_F(AndroidAflagsDataSourceTest,
-       ANDROID_ONLY_TEST(FlushCallbackFiresOnTimeout)) {
-  DataSourceConfig ds_config;
-  ds_config.set_name("android.aflags");
-  auto ds = CreateDataSource(ds_config);
-
-  std::vector<TestAndroidAflagsDataSource::FakeFlag> flags;
-  ds->SeedCompletedFakeSubprocess(flags);
-
-  bool callback_fired = false;
-  ds->Flush(/*flush_request_id=*/1,
-            [&callback_fired] { callback_fired = true; });
-  EXPECT_FALSE(callback_fired);
-
-  // Advance past the 800ms timeout so the scheduled task fires.
-  task_runner_.AdvanceTimeAndRunUntilIdle(/*ms=*/801);
-
-  EXPECT_TRUE(callback_fired);
 }
 
 }  // namespace

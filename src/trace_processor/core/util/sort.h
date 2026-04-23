@@ -259,7 +259,7 @@ T* MsdRadixSort(T* begin,
     for (T* it = scratch_chunk_begin; it != scratch_chunk_begin + item_size;
          ++it) {
       std::string_view key = string_extractor(*it);
-      counts[item.depth < key.size() ? key[item.depth] + 1 : 0]++;
+      counts[item.depth < key.size() ? uint8_t(key[item.depth]) + 1 : 0]++;
     }
 
     // 2. Calculate cumulative counts to determine bucket boundaries.
@@ -275,7 +275,8 @@ T* MsdRadixSort(T* begin,
     for (T* it = scratch_chunk_begin; it != scratch_chunk_begin + item_size;
          ++it) {
       std::string_view key = string_extractor(*it);
-      size_t& pos = counts[item.depth < key.size() ? key[item.depth] + 1 : 0];
+      size_t& pos =
+          counts[item.depth < key.size() ? uint8_t(key[item.depth]) + 1 : 0];
       item.begin[pos++] = *it;
     }
 

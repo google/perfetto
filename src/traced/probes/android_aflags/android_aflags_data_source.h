@@ -19,11 +19,9 @@
 
 #include <functional>
 #include <memory>
-#include <optional>
 #include <string>
-#include <unordered_map>
+#include <vector>
 
-#include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
@@ -53,15 +51,15 @@ class AndroidAflagsDataSource : public ProbesDataSource {
  protected:
   // Finalizes the capture of aflags data. Decodes the collected
   // base64-encoded output and emits it to the trace.
-  void FinalizeAflagsCapture();
+  void FinalizeAflagsCapture(std::string error);
 
   // Non-blocking pipe to asynchronously read the output of `aflags list`.
   // This must be declared before aflags_process_ to ensure the pipe outlives
   // the subprocess.
-  std::optional<base::Pipe> aflags_output_pipe_;
+  base::ScopedPlatformHandle aflags_output_pipe_;
 
   // The running `aflags list` process.
-  std::optional<base::Subprocess> aflags_process_;
+  std::unique_ptr<base::Subprocess> aflags_process_;
 
   // Buffer used to accumulate the base64-encoded output of `aflags list`.
   std::string aflags_output_;
@@ -75,13 +73,6 @@ class AndroidAflagsDataSource : public ProbesDataSource {
   // Emits a trace packet with AndroidAflags.error set to |error_msg|.
   void EmitErrorPacket(const std::string& error_msg);
 
-  // Safety net for a deferred Flush() |flush_request_id|: logs the timeout
-  // and delegates to OnFlushComplete.
-  void OnFlushTimeout(FlushRequestID);
-
-  // Invokes the deferred Flush() callback for |flush_request_id|, if any.
-  void OnFlushComplete(FlushRequestID);
-
   base::TaskRunner* const task_runner_;
   std::unique_ptr<TraceWriter> writer_;
 
@@ -90,7 +81,7 @@ class AndroidAflagsDataSource : public ProbesDataSource {
 
   // Flush() callbacks deferred while an aflags subprocess is in flight.
   // Drained when the subprocess completes (or when the flush timeout fires).
-  std::unordered_map<FlushRequestID, std::function<void()>> pending_flushes_;
+  std::vector<std::function<void()>> pending_flushes_;
 
   base::WeakPtrFactory<AndroidAflagsDataSource> weak_factory_;
 };

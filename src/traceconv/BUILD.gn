@@ -165,10 +165,13 @@ source_set("integrationtests") {
   testonly = true
   deps = [
     ":lib",
+    ":traceconv_lib",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
     "../../include/perfetto/base",
     "../../include/perfetto/ext/base:base",
+    "../../protos/perfetto/trace:cpp",
+    "../../protos/perfetto/trace/profiling:cpp",
     "../../protos/third_party/pprof:cpp",
     "../../protos/third_party/pprof:zero",
     "../../src/base:test_support",
@@ -178,5 +181,6 @@ source_set("integrationtests") {
     "pprof_reader.h",
     "trace_to_pprof_integrationtest.cc",
     "trace_to_text_integrationtest.cc",
+    "traceconv_bundle_integrationtest.cc",
   ]
 }

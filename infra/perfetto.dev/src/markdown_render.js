@@ -142,6 +142,20 @@ function renderImage(originalImgFn, href, title, text) {
   return originalImgFn(href, title, text);
 }
 
+function renderListItem(text) {
+  // Detect a trailing {.class1 .class2} attribute block (used in toc.md to
+  // annotate audience, e.g. {.tag-android .tag-linux}).  Hoist the classes
+  // onto the <li> so the sidebar can filter with pure CSS.
+  const m = text.match(
+    /\s*\{(\.[a-z][a-z0-9-]*(?:\s+\.[a-z][a-z0-9-]*)*)\}(\s*<\/p>)?\s*$/);
+  if (m) {
+    const cls = m[1].split(/\s+/).map(c => c.slice(1)).join(' ');
+    const tail = m[2] || '';
+    return `<li class="${cls}">${text.slice(0, m.index)}${tail}</li>\n`;
+  }
+  return `<li>${text}</li>\n`;
+}
+
 function renderParagraph(text) {
   let cssClass = "";
   if (text.startsWith("NOTE:")) {
@@ -209,6 +223,7 @@ function render(rawMarkdown) {
   renderer.code = renderCode;
   renderer.heading = renderHeading;
   renderer.paragraph = renderParagraph;
+  renderer.listitem = renderListItem;
   const originalHtmlFn = renderer.html.bind(renderer);
   renderer.html = (html) => renderHtml(originalHtmlFn, html);
 

@@ -29,6 +29,7 @@ const DEFAULT_STATE: FtraceFilters = {
   version: VERSION,
   filter: {
     excludeList: [],
+    cpuFilter: [],
   },
 };
 
@@ -100,6 +101,7 @@ export default class implements PerfettoPlugin {
     const cache: FtraceExplorerCache = {
       state: 'blank',
       counters: [],
+      cpus,
     };
 
     ctx.tabs.registerTab({

@@ -129,37 +129,32 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
   {
     type: 'cpu_capacity',
     topLevelGroup: 'CPU',
-    group: 'CPU Capacity',
+    group: 'Capacity',
   },
   {
     type: 'cpu_frequency_throttle',
     topLevelGroup: 'CPU',
-    group: 'CPU Frequency Throttling',
+    group: 'Frequency Throttling',
   },
   {
     type: 'cpu_max_frequency_limit',
     topLevelGroup: 'CPU',
-    group: 'CPU Max Frequency',
+    group: 'Max Frequency',
   },
   {
     type: 'cpu_min_frequency_limit',
     topLevelGroup: 'CPU',
-    group: 'CPU Min Frequency',
+    group: 'Min Frequency',
   },
   {
     type: 'cpu_nr_running',
     topLevelGroup: 'CPU',
-    group: 'CPU Number Running',
+    group: 'Number Running',
   },
   {
     type: 'cpu_utilization',
     topLevelGroup: 'CPU',
-    group: 'CPU Utilization',
-  },
-  {
-    type: 'cpustat',
-    topLevelGroup: 'CPU',
-    group: 'CPU Stat',
+    group: 'Utilization',
   },
   {
     type: 'cros_ec_sensorhub_data',
