@@ -13,7 +13,7 @@
     - [Memory Profiling](getting-started/memory-profiling.md) {.tag-android .tag-linux}
     - [CPU Profiling](getting-started/cpu-profiling.md) {.tag-android .tag-linux}
     - [Instrumenting with atrace](getting-started/atrace.md) {.tag-android}
-    - [Linux ftrace](getting-started/ftrace.md) {.tag-linux}
+    - [Instrumenting with ftrace](getting-started/ftrace.md) {.tag-linux .tag-android}
     - [Recording Chrome Traces](getting-started/chrome-tracing.md) {.tag-chrome}
     - [Importing Other Formats](getting-started/other-formats.md) {.tag-perf}
     - [Converting Data to Perfetto](getting-started/converting.md) {.tag-perf}
@@ -22,13 +22,13 @@
 
     - [Analysing Android Traces](getting-started/android-trace-analysis.md) {.tag-android}
     - [Periodic Trace Snapshots](getting-started/periodic-trace-snapshots.md) {.tag-android .tag-linux}
+    - [Boot Tracing](case-studies/android-boot-tracing.md) {.tag-android}
+    - [OutOfMemoryError](case-studies/android-outofmemoryerror.md) {.tag-android}
 
   - [Case Studies](#)
 
     - [Debugging Memory Usage](case-studies/memory.md) {.tag-android}
     - [Scheduling Blockages](case-studies/scheduling-blockages.md) {.tag-android .tag-linux}
-    - [Boot Tracing](case-studies/android-boot-tracing.md) {.tag-android}
-    - [OutOfMemoryError](case-studies/android-outofmemoryerror.md) {.tag-android}
 
   - [Contributing](#)
 
@@ -40,7 +40,7 @@
   - [Concepts](#)
 
     - [Service Model](concepts/service-model.md) {.tag-android .tag-linux .tag-cpp}
-    - [Buffers and Dataflow](concepts/buffers.md) {.tag-android .tag-linux .tag-cpp}
+    - [Buffers and Dataflow](concepts/buffers.md) {.tag-android .tag-linux .tag-cpp .tag-chrome}
     - [Trace Configuration](concepts/config.md) {.tag-android .tag-linux .tag-cpp .tag-chrome}
     - [Clock Synchronization](concepts/clock-sync.md) {.tag-android .tag-linux .tag-cpp .tag-chrome}
     - [Concurrent Sessions](concepts/concurrent-tracing-sessions.md) {.tag-android .tag-linux .tag-cpp}
@@ -61,7 +61,7 @@
       - [CPU Scheduling](data-sources/cpu-scheduling.md) {.tag-android .tag-linux}
       - [System Calls](data-sources/syscalls.md) {.tag-android .tag-linux}
       - [CPU Frequency](data-sources/cpu-freq.md) {.tag-android .tag-linux}
-      - [GPU](data-sources/gpu.md) {.tag-android .tag-linux}
+      - [GPU](data-sources/gpu.md) {.tag-android .tag-linux .tag-perf}
 
     - [Memory](#)
 
@@ -92,10 +92,10 @@
 
     - [Extending the UI](#)
 
-      - [Overview](visualization/extending-the-ui.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
-      - [UI Automation](visualization/ui-automation.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
-      - [Commands Reference](visualization/commands-automation-reference.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
-      - [Extension Servers](visualization/extension-servers.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
+      - [Overview](visualization/extending-the-ui.md) {.tag-android .tag-linux .tag-cpp .tag-perf}
+      - [UI Automation](visualization/ui-automation.md) {.tag-android .tag-linux .tag-cpp .tag-perf}
+      - [Commands Reference](visualization/commands-automation-reference.md) {.tag-android .tag-linux .tag-cpp .tag-perf}
+      - [Extension Servers](visualization/extension-servers.md) {.tag-android .tag-linux .tag-cpp .tag-perf}
 
   - [Trace Analysis](#)
 
@@ -184,17 +184,20 @@
       - [API and ABI Surface](design-docs/api-and-abi.md) {.tag-contrib}
       - [Life of a Tracing Session](design-docs/life-of-a-tracing-session.md) {.tag-contrib}
       - [Security Model](design-docs/security-model.md) {.tag-contrib}
+      - [Trace Buffer V2](design-docs/trace-buffer.md) {.tag-contrib}
 
     - [Infrastructure](#)
 
       - [ProtoZero](design-docs/protozero.md) {.tag-contrib}
-      - [Trace Buffer V2](design-docs/trace-buffer.md) {.tag-contrib}
       - [LockFreeTaskRunner](design-docs/lock-free-task-runner.md) {.tag-contrib}
 
     - [Trace Processor](#)
 
       - [Architecture](design-docs/trace-processor-architecture.md) {.tag-contrib}
       - [Batch Trace Processor](design-docs/batch-trace-processor.md) {.tag-contrib}
+
+    - [UI](#)
+
       - [Data Explorer Architecture](design-docs/data-explorer-architecture.md) {.tag-contrib}
 
     - [Profiling](#)
