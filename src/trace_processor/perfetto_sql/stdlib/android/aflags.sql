@@ -46,7 +46,9 @@ CREATE PERFETTO VIEW android_aflags (
   -- Where the current value was picked from (e.g. "default", "local", "server").
   value_picked_from STRING,
   -- The underlying storage backend for this flag (e.g. "aconfigd", "device_config").
-  storage_backend STRING
+  storage_backend STRING,
+  -- Value type of the flag (e.g. "boolean", "integer").
+  type STRING
 ) AS
 SELECT
   ts,
@@ -58,5 +60,6 @@ SELECT
   staged_value,
   permission,
   value_picked_from,
-  storage_backend
+  storage_backend,
+  type
 FROM __intrinsic_android_aflags;

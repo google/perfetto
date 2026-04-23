@@ -39,6 +39,7 @@ export class TimelineImpl implements Timeline {
   private _visibleWindow: HighPrecisionTimeSpan;
   private _hoverCursorTimestamp?: time;
   private _highlightedSliceId?: number;
+  private _highlightedSliceName?: string;
   private _hoveredNoteTimestamp?: time;
   private _animationStartTime?: number;
   private _animationStartWindow?: HighPrecisionTimeSpan;
@@ -66,6 +67,16 @@ export class TimelineImpl implements Timeline {
   set highlightedSliceId(x) {
     if (this._highlightedSliceId === x) return;
     this._highlightedSliceId = x;
+    raf.scheduleCanvasRedraw();
+  }
+
+  get highlightedSliceName() {
+    return this._highlightedSliceName;
+  }
+
+  set highlightedSliceName(x) {
+    if (this._highlightedSliceName === x) return;
+    this._highlightedSliceName = x;
     raf.scheduleCanvasRedraw();
   }
 

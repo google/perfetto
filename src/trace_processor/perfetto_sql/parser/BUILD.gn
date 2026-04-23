@@ -30,9 +30,12 @@ source_set("parser") {
     "../../../base",
     "../../sqlite",
     "../../util:sql_argument",
-    "../grammar",
     "../preprocessor",
-    "../tokenizer",
+    "../syntaqlite",
+  ]
+  cflags = [
+    "-Wno-old-style-cast",
+    "-Wno-switch-enum",
   ]
 }
 

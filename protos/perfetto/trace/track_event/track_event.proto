@@ -380,7 +380,7 @@ message TrackEvent {
 
   // Extension range for typed events defined in external projects.
   // See track_event_extensions.json for the allocation registry and
-  // docs/design-docs/extensions.md for more details.
+  // docs/instrumentation/extensions.md for more details.
   extensions 1000 to 10000;
 
   // ---------------------------------------------------------------------------

@@ -833,7 +833,6 @@ export class VisualisationNode implements QueryNode {
 
   serializeState(): object {
     return {
-      primaryInputId: this.primaryInput?.nodeId,
       chartConfigs: this.state.chartConfigs.map((c) => ({
         id: c.id,
         name: c.name,

@@ -353,6 +353,23 @@ message AttemptFormFillingAction {
   repeated FormFillingRequest form_filling_requests = 2;
 }
 
+// Attempts to fill One-Time Password (OTP) /verification codes in the tab. This
+// action is used for OTP filling, which is different from the general form
+// filling action above. Next ID: 4
+message AttemptOtpFillingAction {
+  // The tab ID in which to attempt OTP filling.
+  int32 tab_id = 1 [features = { field_presence: EXPLICIT }];
+
+  // The input field elements where the OTP/verification code should be filled.
+  repeated ActionTarget target_fields = 2;
+
+  // Indicates whether this operation call is needed for a signin.
+  // This field determines whether a user confirmation dialog is shown before
+  // filling the OTP/verification code. A dialog is shown only when
+  // `for_signin` is false.
+  bool for_signin = 3 [features = { field_presence: EXPLICIT }];
+}
+
 // Scrolls the DOM element into viewport.
 // Next ID: 5
 message ScrollToAction {
@@ -426,7 +443,7 @@ message LoadAndExtractContentAction {
 
 // All of the actions that can be taken.
 // Only one of these is allowed per action.
-// Next ID: 24
+// Next ID: 25
 message Action {
 
   oneof action {
@@ -475,6 +492,8 @@ message Action {
     AttemptFormFillingAction attempt_form_filling = 22;
 
     LoadAndExtractContentAction load_and_extract_content = 23;
+
+    AttemptOtpFillingAction attempt_otp_filling = 24;
   }
 }
 

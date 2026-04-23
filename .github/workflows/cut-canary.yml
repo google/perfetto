@@ -12,38 +12,50 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Cuts canary by creating a merge commit on `canary` whose tree equals
-# the current tip of `main`. Manual trigger via the GitHub Actions UI.
+# Opens a PR that merges `main` into `canary` with `canary`'s history
+# preserved and `main`'s tree as the result. Manual trigger via the
+# GitHub Actions UI; a maintainer reviews and merges the PR to update
+# canary.
 #
-# Uses the same tree-replacing merge pattern as merge-main-to-canary.yml
-# (git merge -s ours + git read-tree) so it always moves forward (no
-# force-push), preserves history on both sides, and handles the case of
-# cherry-picks on canary that have different SHAs than their
-# counterparts on main. Convention: every fix goes to main first and is
-# then cherry-picked to canary; anything canary-only would otherwise be
-# silently dropped by this operation.
+# Uses the tree-replacing merge pattern (git merge -s ours + git
+# read-tree) so canary always moves forward, preserves history on
+# both sides, and handles cherry-picks on canary that have different
+# SHAs than their counterparts on main. Convention: every fix goes
+# to main first and is then cherry-picked to canary; anything
+# canary-only is silently dropped by this operation.
 #
-# Pushes to canary subsequently trigger UI Cloud Build to redeploy the
-# canary channel. See RFC-0022.
+# Authenticates with an installation token minted from the
+# `perfetto-automation` GitHub App so the PR open / push events fan
+# out to other workflow runs (GITHUB_TOKEN pushes do not).
+#
+# Merging the PR pushes to canary, which triggers UI Cloud Build to
+# redeploy the canary channel. See RFC-0022.
 
-name: Cut canary
+name: Cut canary (open PR merging main → canary)
 
 on:
   workflow_dispatch:
 
-permissions:
-  contents: write  # Required to push canary
+permissions: {}
 
 jobs:
   cut-canary:
     runs-on: ubuntu-latest
-    environment: canary
+    environment: perfetto-automation
     steps:
+      - name: Mint app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.PERFETTO_BOT_APP_ID }}
+          private-key: ${{ secrets.PERFETTO_BOT_PRIVATE_KEY }}
+
       - name: Checkout canary
         uses: actions/checkout@v4
         with:
           ref: canary
           fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Fetch main
         run: git fetch origin main
@@ -59,8 +71,9 @@ jobs:
       - name: Configure git
         if: env.SKIP != '1'
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Email must match the CLA-approved address for the automation app.
+          git config user.name "perfetto-automation[bot]"
+          git config user.email "perfetto-automation-github-app@google.com"
 
       - name: Merge main into canary (replace tree with main)
         if: env.SKIP != '1'
@@ -69,8 +82,38 @@ jobs:
           git read-tree -m -u origin/main
           git commit -m "Cut canary from main (automated)"
 
-      - name: Push canary
+      # Reuse a stable branch name so stale PRs don't pile up when a
+      # cut is superseded before it's merged. Close any existing PR
+      # and delete the remote branch before pushing the fresh one.
+      - name: Close stale PR and delete stale branch
         if: env.SKIP != '1'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          git push origin HEAD:canary
-          echo "::notice::canary updated to tree of $(git rev-parse origin/main)."
+          BRANCH="dev/github-bot/cut-canary"
+          for N in $(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number'); do
+            echo "Closing stale PR #$N"
+            gh pr close "$N" --comment "Superseded by a newer canary cut."
+          done
+          git push origin --delete "$BRANCH" || true
+
+      - name: Push branch and open PR
+        if: env.SKIP != '1'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          BRANCH="dev/github-bot/cut-canary"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          MAIN_SHA=$(git rev-parse --short origin/main)
+          gh pr create \
+            --base canary \
+            --head "$BRANCH" \
+            --title "Cut canary from main ($MAIN_SHA)" \
+            --body "$(cat <<EOF
+          Automated canary cut from \`main\` (\`$MAIN_SHA\`).
+
+          **Merge with "Create a merge commit"** so the two-parent
+          merge commit survives into \`canary\`'s history.
+          EOF
+          )"
+          echo "::notice::Opened PR from $BRANCH → canary."

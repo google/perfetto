@@ -82,6 +82,12 @@ std::vector<FlagSpec> ConvertSubcommand::GetFlags() {
       BoolFlag("no-auto-symbol-paths", '\0',
                "Disable automatic symbol path discovery.",
                &no_auto_symbol_paths_),
+      FlagSpec{"proguard-map", '\0', true, "[pkg=]PATH",
+               "ProGuard/R8 mapping.txt for deobfuscation (may be repeated).",
+               [this](const char* v) { proguard_maps_.emplace_back(v); }},
+      BoolFlag("no-auto-proguard-maps", '\0',
+               "Disable automatic ProGuard/R8 mapping discovery.",
+               &no_auto_proguard_maps_),
       BoolFlag("verbose", '\0', "Print more detailed output.", &verbose_),
       BoolFlag("skip-unknown", '\0',
                "Skip unknown fields when converting to text.", &skip_unknown_),
@@ -136,6 +142,13 @@ base::Status ConvertSubcommand::Run(const SubcommandContext& ctx) {
   }
   if (no_auto_symbol_paths_) {
     args_storage.push_back("--no-auto-symbol-paths");
+  }
+  for (const auto& map : proguard_maps_) {
+    args_storage.push_back("--proguard-map");
+    args_storage.push_back(map);
+  }
+  if (no_auto_proguard_maps_) {
+    args_storage.push_back("--no-auto-proguard-maps");
   }
   if (verbose_) {
     args_storage.push_back("--verbose");

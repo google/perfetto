@@ -137,6 +137,12 @@ function buildTreemapOption(
       {
         type: 'treemap',
         data: convertNodes(data.nodes),
+        // Series-level insets (NOT grid): treemap has no axes, so fill the
+        // full container instead of leaving axis-placeholder padding.
+        left: 0,
+        right: 0,
+        top: 0,
+        bottom: 0,
         roam: enableDrillDown ? 'move' : false,
         nodeClick: enableDrillDown ? 'zoomToNode' : false,
         visibleMin,

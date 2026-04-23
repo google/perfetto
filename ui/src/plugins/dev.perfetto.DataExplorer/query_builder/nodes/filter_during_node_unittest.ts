@@ -519,8 +519,6 @@ describe('FilterDuringNode', () => {
       const serialized = node.serializeState();
 
       expect(serialized).toEqual({
-        primaryInputId: primaryNode.nodeId,
-        secondaryInputNodeIds: [secondaryNode.nodeId],
         partitionColumns: ['utid'],
         clipToIntervals: false,
       });
@@ -532,8 +530,6 @@ describe('FilterDuringNode', () => {
       const serialized = node.serializeState();
 
       expect(serialized).toEqual({
-        primaryInputId: undefined,
-        secondaryInputNodeIds: [],
         partitionColumns: undefined,
         clipToIntervals: undefined,
       });
@@ -903,8 +899,6 @@ describe('FilterDuringNode', () => {
         const serialized = node.serializeState();
 
         expect(serialized).toEqual({
-          primaryInputId: primaryNode.nodeId,
-          secondaryInputNodeIds: [secondaryNode.nodeId],
           partitionColumns: ['utid'],
           clipToIntervals: undefined,
         });

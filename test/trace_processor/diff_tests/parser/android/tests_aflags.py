@@ -37,18 +37,19 @@ class AndroidAflags(TestSuite):
               permission: FLAG_PERMISSION_READ_WRITE
               value_picked_from: VALUE_PICKED_FROM_LOCAL
               storage_backend: FLAG_STORAGE_BACKEND_ACONFIGD
+              type: FLAG_TYPE_BOOLEAN
             }
           }
         }
         """),
         query="""
         INCLUDE PERFETTO MODULE android.aflags;
-        SELECT ts, package, name, flag_namespace, container, value, staged_value, permission, value_picked_from, storage_backend
+        SELECT ts, package, name, flag_namespace, container, value, staged_value, permission, value_picked_from, storage_backend, type
         FROM android_aflags;
         """,
         out=Csv("""
-        "ts","package","name","flag_namespace","container","value","staged_value","permission","value_picked_from","storage_backend"
-        1000,"com.android.settings","my_flag","settings_ns","system","enabled","disabled","read-write","local","aconfigd"
+        "ts","package","name","flag_namespace","container","value","staged_value","permission","value_picked_from","storage_backend","type"
+        1000,"com.android.settings","my_flag","settings_ns","system","enabled","disabled","read-write","local","aconfigd","boolean"
         """))
 
   def test_android_aflags_error(self):

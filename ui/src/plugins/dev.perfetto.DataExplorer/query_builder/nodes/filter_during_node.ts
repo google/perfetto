@@ -469,10 +469,6 @@ export class FilterDuringNode implements QueryNode {
 
   serializeState(): object {
     return {
-      primaryInputId: this.primaryInput?.nodeId,
-      secondaryInputNodeIds: Array.from(
-        this.secondaryInputs.connections.values(),
-      ).map((node) => node.nodeId),
       partitionColumns: this.state.partitionColumns,
       clipToIntervals: this.state.clipToIntervals,
     };
@@ -484,24 +480,6 @@ export class FilterDuringNode implements QueryNode {
     return {
       partitionColumns: serializedState.partitionColumns,
       clipToIntervals: serializedState.clipToIntervals,
-    };
-  }
-
-  static deserializeConnections(
-    nodes: Map<string, QueryNode>,
-    serializedState: {secondaryInputNodeIds?: string[]},
-  ): {secondaryInputNodes: QueryNode[]} {
-    const secondaryInputNodes: QueryNode[] = [];
-    if (serializedState.secondaryInputNodeIds) {
-      for (const nodeId of serializedState.secondaryInputNodeIds) {
-        const node = nodes.get(nodeId);
-        if (node) {
-          secondaryInputNodes.push(node);
-        }
-      }
-    }
-    return {
-      secondaryInputNodes,
     };
   }
 

@@ -1676,13 +1676,7 @@ export class AddColumnsNode implements QueryNode {
   }
 
   serializeState(): object {
-    // Get the secondary input node ID (the node connected to port 0)
-    const secondaryInputNodeId =
-      this.secondaryInputs.connections.get(0)?.nodeId;
-
     return {
-      primaryInputId: this.primaryInput?.nodeId,
-      secondaryInputNodeId,
       selectedColumns: this.state.selectedColumns,
       leftColumn: this.state.leftColumn,
       rightColumn: this.state.rightColumn,

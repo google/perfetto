@@ -612,9 +612,8 @@ export class AggregationNode implements QueryNode {
     });
   }
 
-  serializeState(): AggregationSerializedState & {primaryInputId?: string} {
+  serializeState(): AggregationSerializedState {
     return {
-      primaryInputId: this.primaryInput?.nodeId,
       groupByColumns: this.state.groupByColumns.map((c) => ({
         name: c.name,
         checked: c.checked,

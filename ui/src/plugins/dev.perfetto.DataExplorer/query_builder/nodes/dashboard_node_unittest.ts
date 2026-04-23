@@ -191,20 +191,6 @@ describe('DashboardNode', () => {
       expect(serialized.exportName).toBeUndefined();
     });
 
-    test('serializes primaryInputId', () => {
-      const source = createMockSourceNode('source-123');
-      const node = makeNode();
-      connectNodes(source, node);
-      const serialized = node.serializeState();
-      expect(serialized.primaryInputId).toBe('source-123');
-    });
-
-    test('primaryInputId is undefined without input', () => {
-      const node = makeNode();
-      const serialized = node.serializeState();
-      expect(serialized.primaryInputId).toBeUndefined();
-    });
-
     test('deserializeState restores exportName', () => {
       const state = DashboardNode.deserializeState({exportName: 'Restored'});
       expect(state.exportName).toBe('Restored');

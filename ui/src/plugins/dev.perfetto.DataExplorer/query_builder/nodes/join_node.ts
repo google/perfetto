@@ -42,8 +42,6 @@ import {JoinConditionSelector, JoinConditionDisplay} from '../join_widgets';
 import {ResizableSqlEditor} from '../widgets';
 
 export interface JoinSerializedState {
-  leftNodeId: string;
-  rightNodeId: string;
   leftQueryAlias: string;
   rightQueryAlias: string;
   conditionType: 'equality' | 'freeform';
@@ -521,8 +519,6 @@ export class JoinNode implements QueryNode {
 
   serializeState(): JoinSerializedState {
     return {
-      leftNodeId: this.leftNode?.nodeId ?? '',
-      rightNodeId: this.rightNode?.nodeId ?? '',
       leftQueryAlias: this.state.leftQueryAlias,
       rightQueryAlias: this.state.rightQueryAlias,
       conditionType: this.state.conditionType,
@@ -576,19 +572,6 @@ export class JoinNode implements QueryNode {
           },
           alias: c.alias,
         })) ?? [],
-    };
-  }
-
-  static deserializeConnections(
-    nodes: Map<string, QueryNode>,
-    state: JoinSerializedState,
-  ): {
-    leftNode?: QueryNode;
-    rightNode?: QueryNode;
-  } {
-    return {
-      leftNode: nodes.get(state.leftNodeId),
-      rightNode: nodes.get(state.rightNodeId),
     };
   }
 }

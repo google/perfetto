@@ -194,17 +194,6 @@ export function registerCoreNodes() {
         ...(state as SqlSourceSerializedState),
         trace,
       }),
-    deserializeConnections: (node, state, allNodes) => {
-      const sqlSourceNode = node as SqlSourceNode;
-      const conns = SqlSourceNode.deserializeConnections(
-        allNodes,
-        state as SqlSourceSerializedState,
-      );
-      sqlSourceNode.secondaryInputs.connections.clear();
-      for (let i = 0; i < conns.inputNodes.length; i++) {
-        sqlSourceNode.secondaryInputs.connections.set(i, conns.inputNodes[i]);
-      }
-    },
   });
 
   nodeRegistry.register('timerange', {
@@ -288,16 +277,6 @@ export function registerCoreNodes() {
           state as AddColumnsNodeState,
         ),
       ),
-    deserializeConnections: (node, state, allNodes) => {
-      const addColumnsNode = node as AddColumnsNode;
-      const s = state as {secondaryInputNodeId?: string};
-      if (s.secondaryInputNodeId) {
-        const secondaryInputNode = allNodes.get(s.secondaryInputNodeId);
-        if (secondaryInputNode) {
-          addColumnsNode.secondaryInputs.connections.set(0, secondaryInputNode);
-        }
-      }
-    },
   });
 
   nodeRegistry.register('modify_columns', {
@@ -358,9 +337,6 @@ export function registerCoreNodes() {
     type: 'modification',
     category: 'Filter',
     nodeType: NodeType.kFilterDuring,
-    // Override: multisource nodes default to no primary input, but
-    // FilterDuring has both a primary input and secondary inputs.
-    hasPrimaryInput: true,
     factory: (state) => {
       return new FilterDuringNode(state as FilterDuringNodeState);
     },
@@ -369,20 +345,6 @@ export function registerCoreNodes() {
         ...FilterDuringNode.deserializeState(state as FilterDuringNodeState),
         sqlModules,
       }),
-    deserializeConnections: (node, state, allNodes) => {
-      const filterDuringNode = node as FilterDuringNode;
-      const conns = FilterDuringNode.deserializeConnections(
-        allNodes,
-        state as {secondaryInputNodeIds?: string[]},
-      );
-      filterDuringNode.secondaryInputs.connections.clear();
-      for (let i = 0; i < conns.secondaryInputNodes.length; i++) {
-        filterDuringNode.secondaryInputs.connections.set(
-          i,
-          conns.secondaryInputNodes[i],
-        );
-      }
-    },
   });
 
   nodeRegistry.register('filter_in', {
@@ -393,9 +355,6 @@ export function registerCoreNodes() {
     type: 'modification',
     category: 'Filter',
     nodeType: NodeType.kFilterIn,
-    // Override: multisource nodes default to no primary input, but
-    // FilterIn has both a primary input and secondary inputs.
-    hasPrimaryInput: true,
     factory: (state) => {
       return new FilterInNode(state as FilterInNodeState);
     },
@@ -403,20 +362,6 @@ export function registerCoreNodes() {
       new FilterInNode(
         FilterInNode.deserializeState(state as FilterInNodeState),
       ),
-    deserializeConnections: (node, state, allNodes) => {
-      const filterInNode = node as FilterInNode;
-      const conns = FilterInNode.deserializeConnections(
-        allNodes,
-        state as {secondaryInputNodeIds?: string[]},
-      );
-      filterInNode.secondaryInputs.connections.clear();
-      for (let i = 0; i < conns.secondaryInputNodes.length; i++) {
-        filterInNode.secondaryInputs.connections.set(
-          i,
-          conns.secondaryInputNodes[i],
-        );
-      }
-    },
   });
 
   nodeRegistry.register('interval_intersect', {
@@ -445,17 +390,6 @@ export function registerCoreNodes() {
         ),
         sqlModules,
       }),
-    deserializeConnections: (node, state, allNodes) => {
-      const intervalNode = node as IntervalIntersectNode;
-      const conns = IntervalIntersectNode.deserializeConnections(
-        allNodes,
-        state as IntervalIntersectSerializedState,
-      );
-      intervalNode.secondaryInputs.connections.clear();
-      for (let i = 0; i < conns.inputNodes.length; i++) {
-        intervalNode.secondaryInputs.connections.set(i, conns.inputNodes[i]);
-      }
-    },
   });
 
   nodeRegistry.register('join', {
@@ -485,19 +419,6 @@ export function registerCoreNodes() {
         ...JoinNode.deserializeState(state as JoinSerializedState),
         sqlModules,
       }),
-    deserializeConnections: (node, state, allNodes) => {
-      const joinNode = node as JoinNode;
-      const conns = JoinNode.deserializeConnections(
-        allNodes,
-        state as JoinSerializedState,
-      );
-      if (conns.leftNode) {
-        joinNode.secondaryInputs.connections.set(0, conns.leftNode);
-      }
-      if (conns.rightNode) {
-        joinNode.secondaryInputs.connections.set(1, conns.rightNode);
-      }
-    },
     postDeserializeLate: (node) => {
       const joinNode = node as JoinNode;
       joinNode.onPrevNodesUpdated();
@@ -530,19 +451,6 @@ export function registerCoreNodes() {
         ),
         sqlModules,
       }),
-    deserializeConnections: (node, state, allNodes) => {
-      const createSlicesNode = node as CreateSlicesNode;
-      const conns = CreateSlicesNode.deserializeConnections(
-        allNodes,
-        state as CreateSlicesSerializedState,
-      );
-      if (conns.startsNode) {
-        createSlicesNode.secondaryInputs.connections.set(0, conns.startsNode);
-      }
-      if (conns.endsNode) {
-        createSlicesNode.secondaryInputs.connections.set(1, conns.endsNode);
-      }
-    },
   });
 
   nodeRegistry.register('sort_node', {
@@ -580,17 +488,6 @@ export function registerCoreNodes() {
         ...UnionNode.deserializeState(state as UnionSerializedState),
         sqlModules,
       }),
-    deserializeConnections: (node, state, allNodes) => {
-      const unionNode = node as UnionNode;
-      const conns = UnionNode.deserializeConnections(
-        allNodes,
-        state as UnionSerializedState,
-      );
-      unionNode.secondaryInputs.connections.clear();
-      for (let i = 0; i < conns.inputNodes.length; i++) {
-        unionNode.secondaryInputs.connections.set(i, conns.inputNodes[i]);
-      }
-    },
   });
 
   nodeRegistry.register('limit_and_offset_node', {
@@ -616,7 +513,6 @@ export function registerCoreNodes() {
       'Define a trace-based metric with value column and dimensions.',
     icon: 'analytics',
     type: 'export',
-    hasPrimaryInput: true,
     nodeType: NodeType.kMetrics,
     allowedChildren: ['trace_summary'],
     factory: (state) => new MetricsNode(state as MetricsNodeState),
@@ -669,7 +565,6 @@ export function registerCoreNodes() {
     icon: 'dashboard',
     type: 'export',
     nodeType: NodeType.kDashboard,
-    hasPrimaryInput: true,
     allowedChildren: [],
     factory: (state) => new DashboardNode(state),
     deserialize: (state) =>
@@ -695,20 +590,6 @@ export function registerCoreNodes() {
         ),
         trace,
       }),
-    deserializeConnections: (node, state, allNodes) => {
-      const traceSummaryNode = node as TraceSummaryNode;
-      const conns = TraceSummaryNode.deserializeConnections(
-        allNodes,
-        state as {secondaryInputNodeIds?: string[]},
-      );
-      traceSummaryNode.secondaryInputs.connections.clear();
-      for (let i = 0; i < conns.secondaryInputNodes.length; i++) {
-        traceSummaryNode.secondaryInputs.connections.set(
-          i,
-          conns.secondaryInputNodes[i],
-        );
-      }
-    },
   });
 
   // Groups use type 'source' because they are root-level nodes in the outer

@@ -12,35 +12,45 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Promotes canary to stable and tags the release.
+# Opens a PR that merges `canary` into `stable` using the same
+# tree-replacing merge pattern as cut-canary.yml. Manual trigger via
+# the GitHub Actions UI; a maintainer reviews and merges the PR to
+# update stable.
 #
-# Creates a merge commit on `stable` whose tree equals the current tip of
-# `canary` (same tree-replacing merge pattern as cut-canary.yml), reads
-# the target version from the top of CHANGELOG (which must already have
-# been updated from 'Unreleased:' to 'vX.Y - YYYY-MM-DD:' before running),
-# then creates and pushes the vX.Y git tag at the new stable HEAD.
+# Reads the target version from the top of CHANGELOG (which must be
+# a released version header 'vX.Y - YYYY-MM-DD:' before running) and
+# verifies the matching git tag does not already exist. Tag creation
+# is handled by tag-on-stable-push.yml when the PR is merged.
 #
-# The tag push is the single event that fans out to LUCI, Cloud Build,
-# and draft-release.yml. See RFC-0022.
+# Authenticates with an installation token minted from the
+# `perfetto-automation` GitHub App so the PR open / push events fan
+# out to other workflow runs (GITHUB_TOKEN pushes do not).
 
-name: Promote canary to stable
+name: Promote to stable (open PR merging canary → stable)
 
 on:
   workflow_dispatch:
 
-permissions:
-  contents: write  # Required to push stable and the tag
+permissions: {}
 
 jobs:
   promote-stable:
     runs-on: ubuntu-latest
-    environment: stable
+    environment: perfetto-automation
     steps:
+      - name: Mint app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.PERFETTO_BOT_APP_ID }}
+          private-key: ${{ secrets.PERFETTO_BOT_PRIVATE_KEY }}
+
       - name: Checkout stable
         uses: actions/checkout@v4
         with:
           ref: stable
           fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Fetch canary
         run: git fetch origin canary
@@ -80,8 +90,9 @@ jobs:
 
       - name: Configure git
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Email must match the CLA-approved address for the automation app.
+          git config user.name "perfetto-automation[bot]"
+          git config user.email "perfetto-automation-github-app@google.com"
 
       - name: Merge canary into stable (replace tree with canary)
         run: |
@@ -89,13 +100,38 @@ jobs:
           git read-tree -m -u origin/canary
           git commit -m "Promote canary to stable (${{ steps.version.outputs.version }}, automated)"
 
-      - name: Push stable
+      # Reuse a stable branch name so stale PRs don't pile up when a
+      # promotion is superseded before it's merged. Close any existing
+      # PR and delete the remote branch before pushing the fresh one.
+      - name: Close stale PR and delete stale branch
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          git push origin HEAD:stable
+          BRANCH="dev/github-bot/promote-stable"
+          for N in $(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number'); do
+            echo "Closing stale PR #$N"
+            gh pr close "$N" --comment "Superseded by a newer stable promotion."
+          done
+          git push origin --delete "$BRANCH" || true
 
-      - name: Create and push tag
+      - name: Push branch and open PR
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          git tag -a "$VERSION" HEAD -m "Perfetto $VERSION"
-          git push origin "refs/tags/$VERSION"
-          echo "::notice::Tagged $VERSION at $(git rev-parse HEAD). LUCI, Cloud Build, and draft-release.yml have been triggered."
+          BRANCH="dev/github-bot/promote-stable"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          gh pr create \
+            --base stable \
+            --head "$BRANCH" \
+            --title "Promote canary to stable ($VERSION)" \
+            --body "$(cat <<EOF
+          Automated stable promotion for **$VERSION** from \`canary\`.
+          On merge, \`tag-on-stable-push.yml\` tags \`$VERSION\` and
+          creates the draft release.
+
+          **Merge with "Create a merge commit"** so the two-parent
+          merge commit survives into \`stable\`'s history.
+          EOF
+          )"
+          echo "::notice::Opened PR from $BRANCH → stable."

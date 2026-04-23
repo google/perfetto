@@ -416,7 +416,7 @@ TEST(QueryResultSerializerTest, ErrorBeforeStartingQuery) {
   EXPECT_EQ(deser.error,
             "Traceback (most recent call last):\n  File \"stdin\" line 1 col "
             "29\n    insert into incomplete_input\n                            "
-            "    ^\nincomplete input");
+            "    ^\nincomplete SQL statement");
   EXPECT_TRUE(deser.eof_reached);
 }
 
