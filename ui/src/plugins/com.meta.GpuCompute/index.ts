@@ -344,7 +344,9 @@ class Compute {
 // Plugin entry point, registers the tab and menu command
 export default class GpuComputePlugin implements PerfettoPlugin {
   static readonly id = 'com.meta.GpuCompute';
-  static readonly description = 'TODO: Description for GPU Compute plugin';
+  static readonly description =
+    'Analyzes GPU compute kernel performance using hardware counters ' +
+    'and launch parameters found in the trace.';
 
   private readonly terminologyRegistry = new TerminologyRegistry();
   private readonly sectionRegistry = new SectionRegistry();
