@@ -415,7 +415,7 @@ Clicking the class name opens **Objects** filtered to
 tab. The _Sample Path from GC Root_ is the chain of field references
 keeping this instance alive:
 
-![Object tab for a leaked ProfileActivity. Sample Path from GC Root: Class<ProfileActivity> → com.heapleak.ProfileActivity.history → ArrayList.elementData → Object[0] → ProfileActivity. Retained 117.6 KiB, 1,604 reachable objects.](../images/heap_docs/12-object-tab-top.png)
+![Object tab for a leaked ProfileActivity. Sample Path from GC Root: Class<ProfileActivity> → com.heapleak.ProfileActivity.history → ArrayList.elementData → Object[0] → ProfileActivity. Retained 117.6 KiB, ~1,600 reachable objects.](../images/heap_docs/12-object-tab-top.png)
 
 Read bottom-up: the runtime keeps the `java.lang.Class<ProfileActivity>`
 alive (as it does for every loaded class); that class has a
@@ -424,7 +424,7 @@ whose element 0 is this `ProfileActivity`. The hop from the class
 object to `history` names the bug — a static list of Activities.
 
 The _Object Size_ block quantifies the cost: one leaked Activity is
-pinning 117.6&nbsp;KiB and 1,604 reachable objects. Multiply by
+pinning 117.6&nbsp;KiB and ~1,600 reachable objects. Multiply by
 five (the `Count`) and the leak is already ~600&nbsp;KiB of Activity
 graphs sitting in the heap. The view-hierarchy breakdown lives lower
 on the same tab:
@@ -464,17 +464,15 @@ class ProfileActivity : Activity() {
 ```
 
 **Verify.** Re-run the same repro, re-dump, re-open. The Classes
-tab now shows `com.heapleak.ProfileActivity` with `Count: 0` — no
-live instances — and the Overview's app-heap _Bytes Retained_ drops
-accordingly:
+tab no longer lists `com.heapleak.ProfileActivity` at all — the
+class has no live instances, so it doesn't appear:
 
-![Overview on the fixed trace. Bytes Retained by Heap: 23.4 MiB total, only 580.2 KiB on the app heap (down from 2.1 MiB). "No duplicate bitmaps found".](../images/heap_docs/16-fixed-overview.png)
+![Classes tab on the fixed trace. com.heapleak.ProfileActivity has been dropped from the list (Count 0); the top rows are framework classes (byte[], java.lang.String, int[]).](../images/heap_docs/16-fixed-classes.png)
 
-This tiny demo saves 1.5&nbsp;MiB of app heap; a real screen with
-live views sees the difference in tens of megabytes. Classes-tab
-_Count_ for any `Activity` subclass is the single-number regression
-signal — wire it into a CI heap-dump diff and catch reintroductions
-before they ship.
+This tiny demo saves ~1.5&nbsp;MiB of app heap; a real screen with a
+live view hierarchy sees the difference in tens of megabytes. Any
+`Activity` subclass showing `Count > 0` in a dump captured after
+the user navigated away is a leak.
 
 The same recipe finds the other common shapes of Activity leak. The
 last hop before the Activity in the reference path always names the
@@ -532,12 +530,16 @@ pixel-buffer hash. Each row shows copy count, total bytes across
 all copies, and wasted bytes — what deduplicating to a single copy
 would save:
 
-![Overview tab. Duplicate Bitmaps card has one 128×128 group: 12 copies, 770.0 KiB total, 705.8 KiB wasted — exactly the shape of the adapter's cache list.](../images/heap_docs/04-overview.png)
+![Overview tab. Duplicate Bitmaps card has one 128×128 group: 12 copies, 770.0 KiB total, 785.8 KiB wasted — exactly the shape of the adapter's cache list.](../images/heap_docs/04-overview.png)
 
-Sort by wasted bytes, not by count — five copies of a 2&nbsp;MB
-image dwarfs five hundred 16&nbsp;px icons. Here the worst row is a
-single group of twelve identical 128×128 bitmaps, matching what the
-adapter had been accumulating.
+The row shows what was accumulated: twelve copies of one 128×128
+asset, all with the same content hash. The _Duplicate Strings_ and
+_Duplicate Primitive Arrays_ cards below work the same way — same
+grouping, same sizing — and are useful when the wasted memory is in
+text (e.g. a config payload duplicated thousands of times) or
+primitive buffers. All three duplicate detectors require HPROF
+because they hash the actual content, which the heap graph format
+doesn't carry.
 
 **Drill into the copies.** Click _Copies_ on that row. **Bitmaps**
 opens pre-filtered to that content-hash group, so only those copies
