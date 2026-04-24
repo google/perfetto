@@ -18,7 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// next id: 20
+// next id: 22
 message GpuRenderStageEvent {
   // required. Unique ID for the event.
   optional uint64 event_id = 1;
@@ -95,6 +95,50 @@ message GpuRenderStageEvent {
   // InternedComputeKernel
   optional uint64 kernel_iid = 19;
 
+  // optional. Interned event name. When set, takes precedence over |name|.
+  // Refers to EventName in InternedData.
+  optional uint64 name_iid = 20;
+
+  // 3D unsigned integer vector for grid and workgroup dimensions.
+  message Dim3 {
+    optional uint32 x = 1;
+    optional uint32 y = 2;
+    optional uint32 z = 3;
+  }
+
+  // Typed key/value argument for extending compute kernel descriptions
+  // and launch parameters with custom data.
+  message ExtraComputeArg {
+    oneof name_field {
+      // Interned InternedComputeArgName.
+      uint64 name_iid = 1;
+      // Non-interned variant.
+      string name = 2;
+    }
+    oneof value {
+      int64 int_value = 3;
+      uint64 uint_value = 4;
+      double double_value = 5;
+      string string_value = 6;
+      // Interned InternedString via debug_annotation_string_values.
+      uint64 string_value_iid = 7;
+    }
+  }
+
+  // Compute kernel launch parameters for a single dispatch.
+  message ComputeKernelLaunch {
+    // Grid dimensions (number of workgroups in each dimension).
+    optional Dim3 grid_size = 1;
+    // Workgroup dimensions (number of threads per workgroup in each dimension).
+    optional Dim3 workgroup_size = 2;
+    // Additional typed launch parameters (e.g. registers_per_thread,
+    // shared_mem_dynamic, shared_mem_static).
+    repeated ExtraComputeArg args = 3;
+  }
+
+  // optional. Compute kernel launch parameters for this event.
+  optional ComputeKernelLaunch launch = 21;
+
   // DEPRECATED
 
   // Deprecated.  Use InternedGpuRenderStageSpecification instead.
@@ -170,4 +214,6 @@ message InternedComputeKernel {
   optional string name = 2;
   optional string demangled_name = 3;
   optional string arch = 4;
+  // Additional typed kernel attributes (e.g. static resource limits).
+  repeated GpuRenderStageEvent.ExtraComputeArg args = 5;
 }
