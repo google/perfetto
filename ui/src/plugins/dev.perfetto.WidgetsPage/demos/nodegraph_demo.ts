@@ -27,6 +27,7 @@ import {
   NodeGraphAttrs,
   NodePort,
 } from '../../../widgets/nodegraph';
+import {Combobox} from '../../../widgets/combobox';
 import {Select} from '../../../widgets/select';
 import {TextInput} from '../../../widgets/text_input';
 import {renderDocSection, renderWidgetShowcase} from '../widgets_page_utils';
@@ -232,25 +233,42 @@ function createResultNode(id: string, x: number, y: number): ResultNodeData {
 }
 
 // Pure render functions for each node type
+const TABLE_SUGGESTIONS = [
+  'slice',
+  'sched_slice',
+  'thread_state',
+  'thread',
+  'process',
+  'counter',
+  'android_logs',
+  'cpu_counter_track',
+  'gpu_slice',
+  'gpu_track',
+  'gpu_counter_track',
+  'heap_graph_object',
+  'heap_profile_allocation',
+  'perf_sample',
+  'stack_profile_frame',
+  'stack_profile_callsite',
+  'ftrace_event',
+  'flow',
+  'args',
+  'raw',
+  'metadata',
+  'trace_stats',
+];
+
 function renderTableNode(
   node: TableNodeData,
   updateNode: (updates: Partial<Omit<TableNodeData, 'type' | 'id'>>) => void,
 ): m.Children {
-  return m(
-    Select,
-    {
-      value: node.table,
-      onchange: (e: Event) => {
-        updateNode({table: (e.target as HTMLSelectElement).value});
-      },
-    },
-    [
-      m('option', {value: 'slice'}, 'slice'),
-      m('option', {value: 'sched'}, 'sched'),
-      m('option', {value: 'thread'}, 'thread'),
-      m('option', {value: 'process'}, 'process'),
-    ],
-  );
+  return m(Combobox, {
+    value: node.table,
+    suggestions: TABLE_SUGGESTIONS,
+    placeholder: 'Table name...',
+    icon: 'table_chart',
+    onChange: (value: string) => updateNode({table: value}),
+  });
 }
 
 function renderSelectNode(
