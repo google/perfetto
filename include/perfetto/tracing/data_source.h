@@ -497,10 +497,12 @@ class DataSource : public DataSourceBase {
         DerivedDataSource::kRequiresCallbacksUnderLock;
     params.supports_multiple_instances =
         DerivedDataSource::kSupportsMultipleInstances;
+    auto rt_policy = Helper::type().default_buffer_exhausted_policy();
     params.default_buffer_exhausted_policy =
-        DerivedDataSource::kBufferExhaustedPolicy;
+        rt_policy.value_or(DerivedDataSource::kBufferExhaustedPolicy);
     params.buffer_exhausted_policy_configurable =
-        DerivedDataSource::kBufferExhaustedPolicyConfigurable;
+        DerivedDataSource::kBufferExhaustedPolicyConfigurable ||
+        Helper::type().buffer_exhausted_policy_configurable();
     return Helper::type().Register(
         descriptor, factory, params, no_flush,
         GetCreateTlsFn(
@@ -518,6 +520,11 @@ class DataSource : public DataSourceBase {
   static void UpdateDescriptor(const DataSourceDescriptor& descriptor) {
     Helper::type().UpdateDescriptor(descriptor);
   }
+
+ protected:
+  // Returns the DataSourceType for this data source. Exposed so that derived
+  // classes can access it without going through the private Helper alias.
+  static internal::DataSourceType& GetType() { return Helper::type(); }
 
  private:
   friend ::perfetto::test::DataSourceInternalForTest;

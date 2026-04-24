@@ -246,6 +246,25 @@ class PERFETTO_EXPORT_COMPONENT TrackEventDataSource
  public:
   static constexpr bool kRequiresCallbacksUnderLock = false;
 
+  // TrackEvent is used in critical system services (e.g., system_server).
+  // Making the buffer exhausted policy universally configurable via a
+  // compile-time constant would mean that a misconfigured trace config
+  // (e.g., accidentally setting kStall) could cause a device soft-reboot.
+  // To prevent this, we provide a per-app opt-in mechanism: apps must
+  // explicitly call this before Register() to enable configurability.
+  // See #1312 and b/384007571.
+  static void SetBufferExhaustedPolicyConfigurable(bool configurable) {
+    Base::GetType().set_buffer_exhausted_policy_configurable(configurable);
+  }
+
+  // Sets the default buffer exhausted policy for TrackEvent. Unlike
+  // SetBufferExhaustedPolicyConfigurable, this does not allow the trace
+  // config to override the policy — it simply changes the default.
+  // Must be called before Register().
+  static void SetBufferExhaustedPolicy(BufferExhaustedPolicy policy) {
+    Base::GetType().set_default_buffer_exhausted_policy(policy);
+  }
+
   // DataSource implementation.
   void OnSetup(const DataSourceBase::SetupArgs& args) override {
     auto config_raw = args.config->track_event_config_raw();
@@ -362,6 +381,8 @@ class PERFETTO_EXPORT_COMPONENT TrackEventDataSource
 
   static void ResetForTesting() {
     TrackEventInternal::GetInstance().ResetRegistriesForTesting();
+    Base::GetType().set_buffer_exhausted_policy_configurable(false);
+    Base::GetType().reset_default_buffer_exhausted_policy();
   }
 
  private:
@@ -373,6 +394,15 @@ template <const TrackEventCategoryRegistry* Registry>
 class TrackEvent {
  public:
   using TraceContext = TrackEventDataSource::TraceContext;
+
+  static void SetBufferExhaustedPolicyConfigurable(bool configurable) {
+    TrackEventDataSource::SetBufferExhaustedPolicyConfigurable(configurable);
+  }
+
+  static void SetBufferExhaustedPolicy(BufferExhaustedPolicy policy) {
+    TrackEventDataSource::SetBufferExhaustedPolicy(policy);
+  }
+
   static bool Register() { return TrackEventDataSource::AddRegistry(Registry); }
 
   // Add or remove a session observer for this track event data source. The
