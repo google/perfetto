@@ -183,13 +183,19 @@ AS (
 CREATE PERFETTO MACRO _viz_flamegraph_s_prefix(col ColumnName)
 RETURNS Expr AS s.$col;
 
--- Propogates the cumulative value of the pivot nodes to the roots
--- and computes the "fingerprint" of the path.
+-- Propagates the cumulative value of the pivot nodes to the roots and
+-- computes the "fingerprint" of the path. Output is intentionally narrow:
+-- it omits name and the |grouping| columns. Those are recovered later in
+-- _viz_flamegraph_resolve_groups via a single per-merged-row JOIN against
+-- |source|, which is far cheaper than the per-walk-row JOIN we'd pay if
+-- we pulled them in here (the walk produces ~4x more rows than the merged
+-- table). |grouped| columns ARE pulled in here because they're aggregated
+-- across the whole hash group and would otherwise need a second source
+-- JOIN over all walk rows just to sum them.
 CREATE PERFETTO MACRO _viz_flamegraph_upwards_hash(
   source TableOrSubquery,
   filtered TableOrSubquery,
   accumulated TableOrSubquery,
-  grouping ColumnNameList,
   grouped ColumnNameList
 )
 RETURNS TableOrSubquery
@@ -216,8 +222,6 @@ AS (
     g.hash,
     g.parentHash,
     g.depth,
-    s.name,
-    __intrinsic_token_apply!(_viz_flamegraph_s_prefix, $grouping),
     __intrinsic_token_apply!(_viz_flamegraph_s_prefix, $grouped),
     f.value,
     g.cumulativeValue
@@ -240,13 +244,13 @@ AS (
   JOIN $filtered f USING (id)
 );
 
--- Computes the "fingerprint" of the path by walking from the laves
--- to the root.
+-- Computes the "fingerprint" of the path by walking from the roots to
+-- the leaves. Output mirrors _viz_flamegraph_upwards_hash (skinny - no
+-- name or |grouping| columns) for the same performance reasons.
 CREATE PERFETTO MACRO _viz_flamegraph_downwards_hash(
   source TableOrSubquery,
   filtered TableOrSubquery,
   accumulated TableOrSubquery,
-  grouping ColumnNameList,
   grouped ColumnNameList,
   showDownward Expr
 )
@@ -273,8 +277,6 @@ AS (
     g.hash,
     g.parentHash,
     g.depth,
-    s.name,
-    __intrinsic_token_apply!(_viz_flamegraph_s_prefix, $grouping),
     __intrinsic_token_apply!(_viz_flamegraph_s_prefix, $grouped),
     f.value,
     a.cumulativeValue
@@ -295,7 +297,6 @@ AS (
   JOIN $source s USING (id)
   JOIN $filtered f USING (id)
   JOIN $accumulated a USING (id)
-  ORDER BY hash
 );
 
 CREATE PERFETTO MACRO _col_list_id(a ColumnName)
@@ -304,35 +305,72 @@ RETURNS Expr AS $a;
 CREATE PERFETTO MACRO _col_list_null(a ColumnName)
 RETURNS _ProjectionFragment AS NULL AS $a;
 
--- Converts a table of hashes and paretn hashes into ids and parent
--- ids, grouping all hashes together.
-CREATE PERFETTO MACRO _viz_flamegraph_merge_hashes(
+CREATE PERFETTO MACRO _viz_flamegraph_g_prefix(col ColumnName)
+RETURNS Expr AS g.$col;
+
+-- Groups the hash table by hash, summing values and aggregating any
+-- |grouped_agged_exprs| (e.g. GROUP_CONCAT) across all walk rows in the
+-- group. Records MIN(c.id) as |rep_id| - any id with this hash will
+-- have the same |grouping| columns in source, so a single representative
+-- is sufficient for the _resolve_groups JOIN.
+--
+-- Caller MUST materialize this into a Perfetto table with an index on
+-- |hash| - _viz_flamegraph_resolve_groups self-joins on hash to compute
+-- parentId and that lookup must be O(log N).
+CREATE PERFETTO MACRO _viz_flamegraph_group_hashes(
   hashed TableOrSubquery,
-  grouping ColumnNameList,
   grouped_agged_exprs ColumnNameList
 )
 RETURNS TableOrSubquery
 AS (
   SELECT
     _auto_id AS id,
-    (
-      SELECT p._auto_id
-      FROM $hashed p
-      WHERE p.hash = c.parentHash
-      LIMIT 1
-    ) AS parentId,
-    depth,
-    name,
-    -- The grouping columns should be passed through as-is because the
-    -- hash took them into account: we would not merged any nodes where
-    -- the grouping columns were different.
-    __intrinsic_token_apply!(_col_list_id, $grouping),
+    MIN(c.id) AS rep_id,
+    c.hash,
+    MIN(c.parentHash) AS parentHash,
+    c.depth,
     __intrinsic_token_apply!(_col_list_id, $grouped_agged_exprs),
-    SUM(value) AS value,
-    SUM(cumulativeValue) AS cumulativeValue,
-    FALSE AS isPlaceholder
+    SUM(c.value) AS value,
+    SUM(c.cumulativeValue) AS cumulativeValue
   FROM $hashed c
-  GROUP BY hash
+  GROUP BY c.hash
+);
+
+-- Resolves a |grouped| table (output of _viz_flamegraph_group_hashes) into
+-- the merged tree. Self-joins on hash to compute parentId, and joins
+-- |source| on rep_id to recover name and the |grouping| columns. This
+-- replaces the per-walk-row source JOIN that the old single-pass
+-- _merge_hashes did - 4x fewer JOIN rows, since |grouped| has one row
+-- per unique hash rather than one per walk visit.
+--
+-- |grouped_cols| are pass-through references to the columns that were
+-- aggregated by _viz_flamegraph_group_hashes (their names, not the agg
+-- expressions).
+CREATE PERFETTO MACRO _viz_flamegraph_resolve_groups(
+  grouped TableOrSubquery,
+  source TableOrSubquery,
+  grouping ColumnNameList,
+  grouped_cols ColumnNameList
+)
+RETURNS TableOrSubquery
+AS (
+  SELECT
+    g.id,
+    p.id AS parentId,
+    g.depth,
+    s.name,
+    __intrinsic_token_apply!(_viz_flamegraph_s_prefix, $grouping),
+    __intrinsic_token_apply!(_viz_flamegraph_g_prefix, $grouped_cols),
+    g.value,
+    g.cumulativeValue,
+    FALSE AS isPlaceholder
+  FROM $grouped g
+  LEFT JOIN $grouped p ON p.hash = g.parentHash
+  JOIN $source s ON s.id = g.rep_id
+  -- Order by id so the resulting Perfetto table is dense in id-order;
+  -- downstream graph_aggregating_scan over (parentId, id) is sensitive
+  -- to non-sequential id storage (~5x slower without).
+  ORDER BY g.id
 );
 
 -- Per-node propagation pass for the trim. For each node in |merged| emits:
