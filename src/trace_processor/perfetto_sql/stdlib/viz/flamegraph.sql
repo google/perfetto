@@ -335,15 +335,20 @@ AS (
   GROUP BY hash
 );
 
--- Per-node propagation pass for the trim. For each node in |merged|,
--- emits |requiredCum|: the cumulativeValue that this node's CHILDREN must
--- clear in order to be kept. Roots emit 0. A node propagates +inf if it
--- itself failed the join thresholds (which kills its whole subtree, since
--- nothing is >= +inf).
+-- Per-node propagation pass for the trim. For each node in |merged| emits:
+--   alive       - whether the node itself survives the join thresholds.
+--   requiredCum - the cumulativeValue this node's CHILDREN must clear.
+-- Roots are always alive and emit requiredCum = 0. A node that itself
+-- failed the thresholds emits requiredCum = +inf, which kills its whole
+-- subtree on the next step (no cumulativeValue can be >= +inf).
+--
+-- Computing |alive| inside the scan rather than via a downstream JOIN of
+-- merged with propagated avoids an N x N pass over the merged tree, which
+-- on WASM-sized inputs (millions of rows) was the dominant cost.
 --
 -- Caller should materialize the result into a Perfetto table with an
--- index on |id|, since _viz_flamegraph_alive_set looks up parentId →
--- requiredCum once per merged row.
+-- index on |id|, since _viz_flamegraph_trim_with_placeholder looks up
+-- parentId -> alive while emitting placeholders.
 CREATE PERFETTO MACRO _viz_flamegraph_trim_propagation(
   merged TableOrSubquery,
   ratio Expr,
@@ -351,15 +356,18 @@ CREATE PERFETTO MACRO _viz_flamegraph_trim_propagation(
 )
 RETURNS TableOrSubquery
 AS (
-  SELECT id, requiredCum
+  SELECT id, requiredCum, alive
   FROM _graph_aggregating_scan!(
     (
       SELECT m.parentId AS source_node_id, m.id AS dest_node_id
       FROM $merged m
       WHERE m.parentId IS NOT NULL
     ),
-    (SELECT id, 0.0 AS requiredCum FROM $merged WHERE parentId IS NULL),
-    (requiredCum),
+    (
+      SELECT id, 0.0 AS requiredCum, TRUE AS alive
+      FROM $merged WHERE parentId IS NULL
+    ),
+    (requiredCum, alive),
     (
       SELECT
         x.id,
@@ -368,7 +376,9 @@ AS (
             AND t.cumulativeValue >= $min_value,
           $ratio * t.cumulativeValue,
           1e308
-        ) AS requiredCum
+        ) AS requiredCum,
+        (t.cumulativeValue >= x.incoming
+            AND t.cumulativeValue >= $min_value) AS alive
       FROM (
         SELECT id, MIN(requiredCum) AS incoming
         FROM $table
@@ -379,31 +389,13 @@ AS (
   )
 );
 
--- Given |merged| and the materialized + id-indexed |propagated| table from
--- _viz_flamegraph_trim_propagation, emits the ids of nodes that survive a
--- per-parent + absolute floor trim. A node is "alive" iff it is reachable
--- from a root through edges where every step satisfies BOTH:
---   child.cumulativeValue >= |ratio| * parent.cumulativeValue   (encoded
---                          in propagated[parent].requiredCum)
---   child.cumulativeValue >= |min_value|
--- Roots are always kept.
---
--- Caller should materialize the result with an index on |id| since
--- _viz_flamegraph_trim_with_placeholder looks it up three times.
+-- Returns the ids of nodes that survive the trim. Just a thin filter over
+-- |propagated| now that |alive| is computed inside the propagation scan.
 CREATE PERFETTO MACRO _viz_flamegraph_alive_set(
-  merged TableOrSubquery,
-  propagated TableOrSubquery,
-  min_value Expr
+  propagated TableOrSubquery
 )
 RETURNS TableOrSubquery
-AS (
-  SELECT m.id
-  FROM $merged m
-  LEFT JOIN $propagated pp ON pp.id = m.parentId
-  WHERE m.parentId IS NULL
-     OR (m.cumulativeValue >= pp.requiredCum
-         AND m.cumulativeValue >= $min_value)
-);
+AS (SELECT id FROM $propagated WHERE alive);
 
 -- Emits the trimmed flamegraph: kept rows from |merged| pass through, plus
 -- one synthetic '(merged)' placeholder per kept parent that has any

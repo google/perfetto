@@ -492,8 +492,10 @@ async function computeFlamegraphTree(
   //   * an absolute floor derived from the root total (TRIM_FLOOR_DENOMINATOR)
   //     prunes long invisible chain tails - critical for chain-shaped data
   //     where the per-parent ratio alone cannot reduce row count.
-  // The pipeline is split into three materialized perfetto tables so
-  // each lookup hits an indexed table instead of an unindexed CTE.
+  // The propagation scan emits an `alive` flag per node so the alive set
+  // is a direct WHERE on propagated rather than a costly LEFT JOIN of the
+  // full merged table - this is the dominant cost on WASM for large
+  // bottom-up trees.
   const TRIM_RATIO_DENOMINATOR = 100;
   const TRIM_FLOOR_DENOMINATOR = 10000;
   const totalRow = await engine.query(`
@@ -518,22 +520,13 @@ async function computeFlamegraphTree(
     }),
   );
   disposable.use(
-    await createPerfettoIndex({
-      engine,
-      name: `_flamegraph_propagated_${uuid}_index`,
-      on: `_flamegraph_propagated_${uuid}(id)`,
-    }),
-  );
-  disposable.use(
     await createPerfettoTable({
       engine,
       name: `_flamegraph_alive_${uuid}`,
       as: `
         select *
         from _viz_flamegraph_alive_set!(
-          _flamegraph_merged_${uuid},
-          _flamegraph_propagated_${uuid},
-          ${trimMinValue}
+          _flamegraph_propagated_${uuid}
         )
       `,
     }),
