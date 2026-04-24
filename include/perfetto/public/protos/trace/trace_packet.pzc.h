@@ -26,6 +26,7 @@
 #include "perfetto/public/pb_macros.h"
 
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidAflags);
+PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidBinderParcelEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidCameraFrameEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidCameraSessionStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidEnergyEstimationBreakdown);
@@ -602,6 +603,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_AndroidUserList,
                   user_list,
+                  130);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_AndroidBinderParcelEvent,
+                  android_binder_parcel,
                   123);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
