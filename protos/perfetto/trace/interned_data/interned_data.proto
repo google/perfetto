@@ -57,7 +57,7 @@ package perfetto.protos;
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 48.
+// Next id: 50.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -160,6 +160,9 @@ message InternedData {
 
   // Description of GPU counters available in a data source.
   repeated InternedGpuCounterDescriptor gpu_counter_descriptors = 47;
+
+  // Names for ExtraComputeArg key fields.
+  repeated InternedComputeArgName compute_arg_names = 49;
 
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;

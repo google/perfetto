@@ -712,8 +712,9 @@ void GpuEventParser::ParseExtraComputeArg(
   StringId name_id = kNullStringId;
   if (arg.has_name_iid()) {
     auto* interned = sequence_state->LookupInternedMessage<
-        protos::pbzero::InternedData::kEventNamesFieldNumber,
-        protos::pbzero::EventName>(static_cast<size_t>(arg.name_iid()));
+        protos::pbzero::InternedData::kComputeArgNamesFieldNumber,
+        protos::pbzero::InternedComputeArgName>(
+        static_cast<size_t>(arg.name_iid()));
     if (interned) {
       name_id = context_->storage->InternString(interned->name());
     }

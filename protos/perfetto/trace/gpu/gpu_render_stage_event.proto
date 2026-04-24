@@ -217,3 +217,8 @@ message InternedComputeKernel {
   // Additional typed kernel attributes (e.g. static resource limits).
   repeated GpuRenderStageEvent.ExtraComputeArg args = 5;
 }
+
+message InternedComputeArgName {
+  optional uint64 iid = 1;
+  optional string name = 2;
+}
