@@ -111,11 +111,12 @@ There are two entry points:
    ![Perfetto UI with a heap dump loaded; the sidebar shows "Heapdump Explorer" under "Current Trace".](../images/heap_docs/01-sidebar.png)
 
 2. **From a heap graph flamegraph.** Click a diamond in a
-   _"Heap Profile"_ track to open the heap graph flamegraph,
-   right-click a node and pick _"Open in Heapdump Explorer"_. This is
-   covered in detail under [Jumping from a flamegraph](#jumping-from-a-flamegraph).
+   _"Heap Profile"_ track to open the heap graph flamegraph, click a
+   node to select it, then click the menu icon in the node's details
+   popup and pick _"Open in Heapdump Explorer"_. This is covered in
+   detail under [Jumping from a flamegraph](#jumping-from-a-flamegraph).
 
-   ![Heap graph flamegraph in the bottom panel.](../images/heap_docs/14-flamegraph-bottom-panel.png)
+   ![Heap graph flamegraph with the `java.lang.String` node selected; the details popup lists its Cumulative size, Root Type and Self Count, and its overflow menu is open with "Open in Heapdump Explorer" visible.](../images/heap_docs/02-flamegraph-menu.png)
 
 The explorer is organized as tabs across the top. _Overview_,
 _Classes_, _Objects_, _Dominators_, _Bitmaps_, _Strings_ and _Arrays_
