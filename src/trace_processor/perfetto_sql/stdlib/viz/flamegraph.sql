@@ -343,6 +343,11 @@ AS (
 -- _merge_hashes did - 4x fewer JOIN rows, since |grouped| has one row
 -- per unique hash rather than one per walk visit.
 --
+-- The parent's cumulativeValue is also carried through as
+-- |parentCumulativeValue|. It piggybacks on the LEFT JOIN already used
+-- for parentId, so it's essentially free here and lets
+-- _viz_flamegraph_global_layout avoid a LEFT JOIN of its own.
+--
 -- |grouped_cols| are pass-through references to the columns that were
 -- aggregated by _viz_flamegraph_group_hashes (their names, not the agg
 -- expressions).
@@ -363,6 +368,7 @@ AS (
     __intrinsic_token_apply!(_viz_flamegraph_g_prefix, $grouped_cols),
     g.value,
     g.cumulativeValue,
+    p.cumulativeValue AS parentCumulativeValue,
     FALSE AS isPlaceholder
   FROM $grouped g
   LEFT JOIN $grouped p ON p.hash = g.parentHash
@@ -373,16 +379,19 @@ AS (
   ORDER BY g.id
 );
 
--- Per-node propagation pass for the trim. For each node in |merged| emits:
---   alive       - whether the node itself survives the join thresholds.
+-- Per-node propagation pass for the trim. For each node visited, emits:
+--   alive       - whether the node survives the join thresholds.
 --   requiredCum - the cumulativeValue this node's CHILDREN must clear.
--- Roots are always alive and emit requiredCum = 0. A node that itself
--- failed the thresholds emits requiredCum = +inf, which kills its whole
--- subtree on the next step (no cumulativeValue can be >= +inf).
+-- Roots are always alive (seeded with requiredCum = 0). A node whose
+-- cumulativeValue < parent's requiredCum emits requiredCum = +inf, which
+-- kills its whole subtree on the next step.
 --
--- Computing |alive| inside the scan rather than via a downstream JOIN of
--- merged with propagated avoids an N x N pass over the merged tree, which
--- on WASM-sized inputs (millions of rows) was the dominant cost.
+-- The floor threshold |min_value| is applied by pre-filtering scan
+-- edges: only dest nodes whose cumulativeValue clears the floor are
+-- propagated. Sub-floor subtrees are naturally dead because scan
+-- output excludes unreachable nodes, which is what alive_set reads.
+-- This is ~12x faster than keeping the floor check inside the scan on
+-- large trees because the scan input shrinks proportionally.
 --
 -- Caller should materialize the result into a Perfetto table with an
 -- index on |id|, since _viz_flamegraph_trim_with_placeholder looks up
@@ -396,11 +405,16 @@ RETURNS TableOrSubquery
 AS (
   SELECT id, requiredCum, alive
   FROM _graph_aggregating_scan!(
+    -- Edge filter is the floor: exclude dest rows below min_value.
+    -- The scan can never reach them, so they end up implicitly dead.
     (
       SELECT m.parentId AS source_node_id, m.id AS dest_node_id
       FROM $merged m
       WHERE m.parentId IS NOT NULL
+        AND m.cumulativeValue >= $min_value
     ),
+    -- Roots stay alive regardless of floor (matches the prior semantic
+    -- where the init always seeded TRUE).
     (
       SELECT id, 0.0 AS requiredCum, TRUE AS alive
       FROM $merged WHERE parentId IS NULL
@@ -410,13 +424,11 @@ AS (
       SELECT
         x.id,
         IIF(
-          t.cumulativeValue >= x.incoming
-            AND t.cumulativeValue >= $min_value,
+          t.cumulativeValue >= x.incoming,
           $ratio * t.cumulativeValue,
           1e308
         ) AS requiredCum,
-        (t.cumulativeValue >= x.incoming
-            AND t.cumulativeValue >= $min_value) AS alive
+        (t.cumulativeValue >= x.incoming) AS alive
       FROM (
         SELECT id, MIN(requiredCum) AS incoming
         FROM $table
@@ -454,38 +466,47 @@ RETURNS TableOrSubquery
 AS (
   WITH _max_id AS (
     SELECT COALESCE(MAX(id), 0) AS v FROM $merged
+  ),
+  _unsorted AS (
+    SELECT
+      m.id, m.parentId, m.depth, m.name,
+      __intrinsic_token_apply!(_col_list_id, $grouping),
+      __intrinsic_token_apply!(_col_list_id, $grouped),
+      m.value, m.cumulativeValue, m.parentCumulativeValue,
+      FALSE AS isPlaceholder
+    FROM $merged m
+    JOIN $alive a USING (id)
+    UNION ALL
+    SELECT
+      (SELECT v FROM _max_id)
+        + ROW_NUMBER() OVER (ORDER BY d.parentId, (d.depth > 0)) AS id,
+      d.parentId,
+      -- All dropped children of one parent on one side of the root share
+      -- the same depth in a tree, so MIN/MAX/ANY are equivalent.
+      MIN(d.depth) AS depth,
+      '(merged)' AS name,
+      __intrinsic_token_apply!(_col_list_null, $grouping),
+      __intrinsic_token_apply!(_col_list_null, $grouped),
+      SUM(d.value) AS value,
+      SUM(d.cumulativeValue) AS cumulativeValue,
+      -- All dropped children of one parent share the same parent, so
+      -- MIN is just "any" here - we use it to stay inside GROUP BY.
+      MIN(d.parentCumulativeValue) AS parentCumulativeValue,
+      TRUE AS isPlaceholder
+    FROM $merged d
+    LEFT JOIN $alive a ON a.id = d.id
+    WHERE
+      a.id IS NULL
+      AND d.parentId IS NOT NULL
+      AND d.parentId IN (SELECT id FROM $alive)
+    -- A root node can have both upward and downward dropped subtrees;
+    -- keep them as separate placeholders since they sit on opposite sides.
+    GROUP BY d.parentId, (d.depth > 0)
   )
-  SELECT
-    m.id, m.parentId, m.depth, m.name,
-    __intrinsic_token_apply!(_col_list_id, $grouping),
-    __intrinsic_token_apply!(_col_list_id, $grouped),
-    m.value, m.cumulativeValue,
-    FALSE AS isPlaceholder
-  FROM $merged m
-  JOIN $alive a USING (id)
-  UNION ALL
-  SELECT
-    (SELECT v FROM _max_id)
-      + ROW_NUMBER() OVER (ORDER BY d.parentId, (d.depth > 0)) AS id,
-    d.parentId,
-    -- All dropped children of one parent on one side of the root share
-    -- the same depth in a tree, so MIN/MAX/ANY are equivalent.
-    MIN(d.depth) AS depth,
-    '(merged)' AS name,
-    __intrinsic_token_apply!(_col_list_null, $grouping),
-    __intrinsic_token_apply!(_col_list_null, $grouped),
-    SUM(d.value) AS value,
-    SUM(d.cumulativeValue) AS cumulativeValue,
-    TRUE AS isPlaceholder
-  FROM $merged d
-  LEFT JOIN $alive a ON a.id = d.id
-  WHERE
-    a.id IS NULL
-    AND d.parentId IS NOT NULL
-    AND d.parentId IN (SELECT id FROM $alive)
-  -- A root node can have both upward and downward dropped subtrees;
-  -- keep them as separate placeholders since they sit on opposite sides.
-  GROUP BY d.parentId, (d.depth > 0)
+  -- Order by id so the resulting Perfetto table is dense in id-order;
+  -- _viz_flamegraph_global_layout's graph_scan over (parentId, id) is
+  -- sensitive to non-sequential id storage (~5x slower without).
+  SELECT * FROM _unsorted ORDER BY id
 );
 
 -- Performs a "layout" of nodes in the flamegraph relative to their
@@ -542,7 +563,7 @@ AS (
     __intrinsic_token_apply!(_viz_flamegraph_s_prefix, $grouped),
     s.value AS selfValue,
     s.cumulativeValue,
-    p.cumulativeValue AS parentCumulativeValue,
+    s.parentCumulativeValue,
     s.depth,
     g.xStart,
     g.xEnd,
@@ -562,6 +583,5 @@ AS (
     )
   ) g
   JOIN $merged s USING (id)
-  LEFT JOIN $merged p ON s.parentId = p.id
   ORDER BY rootDistance, xStart
 );

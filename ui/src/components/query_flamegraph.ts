@@ -441,20 +441,16 @@ async function computeFlamegraphTree(
   // per-merged-row representative, which is ~4x cheaper than joining at
   // every walk row. We deliberately skip ORDER BY here - the grouping
   // step uses a hash index instead.
-  disposable.use(
-    await createPerfettoTable({
-      engine,
-      name: `_flamegraph_hash_${uuid}`,
-      as: `
-        select *
-        from _viz_flamegraph_downwards_hash!(
-          _flamegraph_source_${uuid},
-          _flamegraph_filtered_${uuid},
-          _flamegraph_accumulated_${uuid},
-          ${groupedColumns},
-          ${view.kind === 'BOTTOM_UP' ? 'FALSE' : 'TRUE'}
-        )
-        union all
+  //
+  // Only one of upwards/downwards is non-empty for a given view:
+  //   BOTTOM_UP: upwards_hash has pivot-seeded inits, downwards_hash
+  //              is empty (showDownward=FALSE).
+  //   TOP_DOWN:  downwards_hash has root-seeded inits, upwards_hash is
+  //              empty (no rows match the pivot filter).
+  // So we skip the empty side entirely to avoid its graph_scan setup.
+  const hashWalkSql =
+    view.kind === 'BOTTOM_UP'
+      ? `
         select *
         from _viz_flamegraph_upwards_hash!(
           _flamegraph_source_${uuid},
@@ -462,7 +458,22 @@ async function computeFlamegraphTree(
           _flamegraph_accumulated_${uuid},
           ${groupedColumns}
         )
-      `,
+      `
+      : `
+        select *
+        from _viz_flamegraph_downwards_hash!(
+          _flamegraph_source_${uuid},
+          _flamegraph_filtered_${uuid},
+          _flamegraph_accumulated_${uuid},
+          ${groupedColumns},
+          TRUE
+        )
+      `;
+  disposable.use(
+    await createPerfettoTable({
+      engine,
+      name: `_flamegraph_hash_${uuid}`,
+      as: hashWalkSql,
     }),
   );
   disposable.use(
