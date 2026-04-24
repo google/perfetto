@@ -60,6 +60,9 @@ struct RegisterInit {
   struct IndexVector {};
   struct SmallValueEqBitvector {};
   struct SmallValueEqPopcount {};
+  // Tag for the hashmap companion attached to an Index (see
+  // dataframe.cc BuildIndex). source_index is the index id.
+  struct HashMapEqIndexPtr {};
 
   using Type = TypeSet<Id,
                        Uint32,
@@ -70,7 +73,8 @@ struct RegisterInit {
                        NullBitvector,
                        IndexVector,
                        SmallValueEqBitvector,
-                       SmallValueEqPopcount>;
+                       SmallValueEqPopcount,
+                       HashMapEqIndexPtr>;
   uint32_t dest_register = 0;
   Type kind{Id{}};
   uint16_t source_index = 0;  // col_index or index_id depending on kind
@@ -419,6 +423,12 @@ class QueryPlanBuilder {
   // Returns the SmallValueEq popcount register for the given column.
   interpreter::ReadHandle<Span<const uint32_t>> SmallValueEqPopcountRegisterFor(
       uint32_t col);
+
+  // Returns the register holding the hashmap companion for the given
+  // index. Should only be called when indexes_[index_idx].hashmap() is
+  // non-null (i.e. BuildIndex has produced a hashmap).
+  interpreter::ReadHandle<const core::HashMapEqIndex*> HashMapEqRegisterFor(
+      uint32_t index_idx);
 
   interpreter::ReadHandle<interpreter::CastFilterValueResult> CastFilterValue(
       FilterSpec& c,

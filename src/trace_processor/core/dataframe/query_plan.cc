@@ -66,7 +66,8 @@ enum RegType : uint32_t {
   kSmallValueEqBvReg = 2,
   kSmallValueEqPopcountReg = 3,
   kIndexReg = 4,
-  kRegTypeCount = 5,
+  kHashMapEqReg = 5,
+  kRegTypeCount = 6,
 };
 
 // TypeSet of all possible sparse nullability states.
@@ -339,6 +340,12 @@ i::RegValue QueryPlanImpl::GetRegisterInitValue(const RegisterInit& init,
           sve.prefix_popcount.data(),
           sve.prefix_popcount.data() + sve.prefix_popcount.size());
     }
+    case RegisterInit::Type::GetTypeIndex<RegisterInit::HashMapEqIndexPtr>(): {
+      // source_index is the index id; return a raw pointer to the
+      // hashmap (non-null because the planner only emits this init when
+      // indexes[source_index].hashmap() is set).
+      return indexes[init.source_index].hashmap().get();
+    }
     default:
       PERFETTO_FATAL("Unhandled RegisterInit kind: %u",
                      static_cast<uint32_t>(init.kind.index()));
@@ -366,6 +373,21 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
     auto non_null_op = c.op.TryDowncast<i::NonNullOp>();
     if (!non_null_op) {
       continue;
+    }
+    // Skip Eq on columns that have a hashmap-backed index companion: Phase 2
+    // can serve those in O(1) instead of O(log n) via binary search here.
+    if (c.op.Is<Eq>()) {
+      bool has_hashmap_index = false;
+      for (const Index& index : indexes_) {
+        if (index.hashmap() && index.columns().size() == 1 &&
+            index.columns()[0] == c.col) {
+          has_hashmap_index = true;
+          break;
+        }
+      }
+      if (has_hashmap_index) {
+        continue;
+      }
     }
     const Column& col = GetColumn(c.col);
     if (!TrySortedConstraint(c, col.storage.type(), *non_null_op)) {
@@ -917,7 +939,36 @@ void QueryPlanBuilder::IndexConstraints(
       // Emit IndexedFilterEq for Eq filters.
       auto value_reg = CastFilterValue(fs, column.storage.type(),
                                        *fs.op.TryDowncast<i::NonNullOp>());
-      {
+
+      // If the Index has a hashmap companion AND the column type is
+      // eligible (integer-like, non-null), prefer the O(1) hashmap path
+      // over the O(log n) binary search.
+      auto hm_type = non_id->TryDowncast<i::HashMapEqStorageType>();
+      const bool can_use_hashmap =
+          indexes_[index_idx].hashmap() != nullptr &&
+          column.null_storage.nullability().Is<NonNull>() && hm_type;
+      if (can_use_hashmap) {
+        using B = i::IndexedFilterEqHashMapBase;
+        auto scratch_reg = builder_.AllocateRegister<Slab<uint32_t>>();
+        {
+          using A = i::AllocateIndices;
+          auto& bc = AddOpcode<A>(UnchangedRowCount{});
+          bc.arg<A::size>() = 1;
+          bc.arg<A::dest_slab_register>() = scratch_reg;
+          // Unused Span handle (we only care about the Slab for writing
+          // the one matched row index).
+          bc.arg<A::dest_span_register>() =
+              builder_.AllocateRegister<Span<uint32_t>>();
+        }
+        auto& bc = AddOpcode<B>(
+            i::Index<i::IndexedFilterEqHashMap>(*hm_type),
+            RowCountModifier{EqualityFilterRowCount{column.duplicate_state}});
+        bc.arg<B::hashmap_register>() = HashMapEqRegisterFor(index_idx);
+        bc.arg<B::filter_value_reg>() = value_reg;
+        bc.arg<B::source_register>() = source_reg;
+        bc.arg<B::dest_register>() = dest_reg;
+        bc.arg<B::scratch_register>() = scratch_reg;
+      } else {
         using B = i::IndexedFilterEqBase;
         auto null_bv_reg = EnsurePrefixPopcountFor(fs.col);
         auto& bc = AddOpcode<B>(
@@ -1294,6 +1345,18 @@ i::RwHandle<Span<uint32_t>> QueryPlanBuilder::IndexRegisterFor(uint32_t pos) {
   if (inserted) {
     plan_.register_inits.emplace_back(RegisterInit{
         reg.index, RegisterInit::IndexVector{}, static_cast<uint16_t>(pos)});
+  }
+  return reg;
+}
+
+i::ReadHandle<const HashMapEqIndex*> QueryPlanBuilder::HashMapEqRegisterFor(
+    uint32_t index_idx) {
+  auto [reg, inserted] = cache_.GetOrAllocate<const HashMapEqIndex*>(
+      kHashMapEqReg, &indexes_[index_idx]);
+  if (inserted) {
+    plan_.register_inits.emplace_back(
+        RegisterInit{reg.index, RegisterInit::HashMapEqIndexPtr{},
+                     static_cast<uint16_t>(index_idx)});
   }
   return reg;
 }

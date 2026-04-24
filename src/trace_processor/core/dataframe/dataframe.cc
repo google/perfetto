@@ -18,6 +18,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -151,6 +152,158 @@ void Dataframe::Clear() {
   ++non_column_mutations_;
 }
 
+namespace {
+
+// Returns true if a hashmap companion can be built for a single-column
+// index over |col|. Requires non-null storage and an integer/Double
+// storage type (String has StringPool fast paths; Id is already O(1)).
+//
+// We DON'T check col.duplicate_state here: the Perfetto adhoc builder
+// conservatively marks columns with large integer values (e.g. 64-bit
+// hash columns) as HasDuplicates because its bitvector-based detector
+// bails above a size threshold. Instead, BuildIndex does an exact
+// adjacent-duplicates check over the sorted permutation below.
+bool CanBuildHashMapEqIndex(const Column& col) {
+  if (!col.null_storage.nullability().Is<core::NonNull>()) {
+    return false;
+  }
+  switch (col.storage.type().index()) {
+    case StorageType::GetTypeIndex<core::Uint32>():
+    case StorageType::GetTypeIndex<core::Int32>():
+    case StorageType::GetTypeIndex<core::Int64>():
+    case StorageType::GetTypeIndex<core::Double>():
+      return true;
+    default:
+      return false;
+  }
+}
+
+// Returns true iff no two rows in |permutation| have the same value
+// in |col|. Permutation is assumed sorted ascending by the column, so
+// duplicates appear as adjacent pairs.
+bool IsStrictlyIncreasingUnderPermutation(
+    const Column& col,
+    const std::vector<uint32_t>& permutation) {
+  if (permutation.size() < 2) {
+    return true;
+  }
+  switch (col.storage.type().index()) {
+    case StorageType::GetTypeIndex<core::Uint32>(): {
+      const uint32_t* d = col.storage.unchecked_data<core::Uint32>();
+      for (size_t i = 1; i < permutation.size(); ++i) {
+        if (d[permutation[i - 1]] == d[permutation[i]]) {
+          return false;
+        }
+      }
+      return true;
+    }
+    case StorageType::GetTypeIndex<core::Int32>(): {
+      const int32_t* d = col.storage.unchecked_data<core::Int32>();
+      for (size_t i = 1; i < permutation.size(); ++i) {
+        if (d[permutation[i - 1]] == d[permutation[i]]) {
+          return false;
+        }
+      }
+      return true;
+    }
+    case StorageType::GetTypeIndex<core::Int64>(): {
+      const int64_t* d = col.storage.unchecked_data<core::Int64>();
+      for (size_t i = 1; i < permutation.size(); ++i) {
+        if (d[permutation[i - 1]] == d[permutation[i]]) {
+          return false;
+        }
+      }
+      return true;
+    }
+    case StorageType::GetTypeIndex<core::Double>(): {
+      // Compare bit patterns to sidestep the -Wfloat-equal rule; for
+      // identical uniqueness the bit pattern is what the hashmap uses
+      // as key.
+      const double* d = col.storage.unchecked_data<core::Double>();
+      for (size_t i = 1; i < permutation.size(); ++i) {
+        uint64_t a, b;
+        std::memcpy(&a, &d[permutation[i - 1]], sizeof(a));
+        std::memcpy(&b, &d[permutation[i]], sizeof(b));
+        if (a == b) {
+          return false;
+        }
+      }
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
+// Widens a typed column value into the uint64 key space used by the
+// hashmap companion. Integer values are zero/sign-extended; Double
+// values reinterpret the bit pattern via memcpy so NaNs/etc compare
+// as identical bit patterns.
+template <typename StorageT>
+uint64_t HashMapKeyFromStorage(const Storage& s, uint32_t row) {
+  if constexpr (std::is_same_v<StorageT, core::Uint32>) {
+    return static_cast<uint64_t>(s.unchecked_data<StorageT>()[row]);
+  } else if constexpr (std::is_same_v<StorageT, core::Int32>) {
+    return static_cast<uint64_t>(
+        static_cast<int64_t>(s.unchecked_data<StorageT>()[row]));
+  } else if constexpr (std::is_same_v<StorageT, core::Int64>) {
+    return static_cast<uint64_t>(s.unchecked_data<StorageT>()[row]);
+  } else if constexpr (std::is_same_v<StorageT, core::Double>) {
+    double v = s.unchecked_data<StorageT>()[row];
+    uint64_t bits;
+    std::memcpy(&bits, &v, sizeof(bits));
+    return bits;
+  } else {
+    static_assert(!std::is_same_v<StorageT, StorageT>,
+                  "Unsupported storage type for hashmap key");
+  }
+}
+
+// Populates a hashmap from column values to row indices, iterating in
+// the permutation order so that each key maps to the same row index
+// IndexedFilterEq's binary search would return as lb.
+std::shared_ptr<HashMapEqIndex> BuildHashMapEqIndex(
+    const Column& col,
+    const std::vector<uint32_t>& permutation) {
+  // FlatHashMapV1::Reset DCHECKs the initial capacity is a power of two.
+  // Pick a capacity that, at the default 75% load limit, fits the full
+  // row count without triggering a rehash mid-fill.
+  constexpr size_t kLoadPct = 75;
+  size_t min_capacity =
+      (permutation.size() * 100 + kLoadPct - 1) / kLoadPct + 1;
+  size_t initial_capacity = 1;
+  while (initial_capacity < min_capacity) {
+    initial_capacity <<= 1;
+  }
+  auto hm = std::make_shared<HashMapEqIndex>(initial_capacity);
+  auto fill = [&](auto storage_tag) {
+    using StorageT = decltype(storage_tag);
+    for (uint32_t row : permutation) {
+      uint64_t key = HashMapKeyFromStorage<StorageT>(col.storage, row);
+      hm->Insert(key, row);
+    }
+  };
+  switch (col.storage.type().index()) {
+    case StorageType::GetTypeIndex<core::Uint32>():
+      fill(core::Uint32{});
+      break;
+    case StorageType::GetTypeIndex<core::Int32>():
+      fill(core::Int32{});
+      break;
+    case StorageType::GetTypeIndex<core::Int64>():
+      fill(core::Int64{});
+      break;
+    case StorageType::GetTypeIndex<core::Double>():
+      fill(core::Double{});
+      break;
+    default:
+      PERFETTO_FATAL("CanBuildHashMapEqIndex should have rejected this type");
+  }
+  return hm;
+}
+
+}  // namespace
+
 base::StatusOr<Index> Dataframe::BuildIndex(const uint32_t* columns_start,
                                             const uint32_t* columns_end) const {
   std::vector<uint32_t> cols(columns_start, columns_end);
@@ -171,8 +324,22 @@ base::StatusOr<Index> Dataframe::BuildIndex(const uint32_t* columns_start,
   for (; !c->Eof(); c->Next()) {
     permutation.push_back(c->RowIndex());
   }
+
+  // For single-column integer-like indexes over unique, non-null values,
+  // also build an O(1) hashmap companion. Consumers (e.g. IndexedFilterEq
+  // for Eq ops) can then skip the O(log n) binary search on the
+  // permutation vector entirely.
+  std::shared_ptr<HashMapEqIndex> hashmap;
+  if (cols.size() == 1) {
+    const Column& col = *column_ptrs_[cols[0]];
+    if (CanBuildHashMapEqIndex(col) &&
+        IsStrictlyIncreasingUnderPermutation(col, permutation)) {
+      hashmap = BuildHashMapEqIndex(col, permutation);
+    }
+  }
   return Index(std::move(cols),
-               std::make_shared<std::vector<uint32_t>>(std::move(permutation)));
+               std::make_shared<std::vector<uint32_t>>(std::move(permutation)),
+               std::move(hashmap));
 }
 
 void Dataframe::AddIndex(Index index) {

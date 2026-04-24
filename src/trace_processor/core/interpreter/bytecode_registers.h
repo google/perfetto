@@ -129,7 +129,8 @@ using RegValue = std::variant<Empty,
                               Span<const uint32_t>,
                               BitVector,
                               std::unique_ptr<TreeState>,
-                              NullBitvector>;
+                              NullBitvector,
+                              const core::HashMapEqIndex*>;
 
 }  // namespace perfetto::trace_processor::core::interpreter
 
