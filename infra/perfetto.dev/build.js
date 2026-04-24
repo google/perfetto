@@ -124,7 +124,7 @@ function startServer() {
           res.end(data);
         });
       })
-      .listen(port, 'localhost');
+      .listen(port, '0.0.0.0');
 }
 
 function watchDir(dir) {

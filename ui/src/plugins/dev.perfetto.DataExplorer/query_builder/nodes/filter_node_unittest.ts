@@ -28,26 +28,32 @@ describe('FilterNode', () => {
       const tableNode = createMockSourceNode('mock-table');
 
       // Create a ModifyColumnsNode that aliases 'name' to 'full_name'
-      const modifyNode = new ModifyColumnsNode({
-        selectedColumns: [
-          createColumnInfo('id', 'int'),
-          createColumnInfo('name', 'string', {alias: 'full_name'}),
-          createColumnInfo('value', 'int'),
-        ],
-      });
+      const modifyNode = new ModifyColumnsNode(
+        {
+          selectedColumns: [
+            createColumnInfo('id', 'int'),
+            createColumnInfo('name', 'string', {alias: 'full_name'}),
+            createColumnInfo('value', 'int'),
+          ],
+        },
+        {},
+      );
       connectNodes(tableNode, modifyNode);
 
       // Create a FilterNode that filters on 'name' (the original column name)
-      const filterNode = new FilterNode({
-        filters: [
-          {
-            column: 'name',
-            op: '=',
-            value: 'test',
-            enabled: true,
-          } as UIFilter,
-        ],
-      });
+      const filterNode = new FilterNode(
+        {
+          filters: [
+            {
+              column: 'name',
+              op: '=',
+              value: 'test',
+              enabled: true,
+            } as UIFilter,
+          ],
+        },
+        {},
+      );
       connectNodes(modifyNode, filterNode);
 
       // The filter should be invalid because 'name' doesn't exist in finalCols
@@ -67,7 +73,7 @@ describe('FilterNode', () => {
       // The filter on 'name' should be considered invalid
       // Currently this test will fail because isFilterDefinitionValid
       // doesn't check if the column exists in sourceCols
-      const filter = filterNode.state.filters?.[0];
+      const filter = filterNode.attrs.filters?.[0];
       expect(filter).toBeDefined();
 
       // Check if the column exists in sourceCols
@@ -88,26 +94,32 @@ describe('FilterNode', () => {
       const tableNode = createMockSourceNode('mock-table');
 
       // Create a ModifyColumnsNode that unchecks 'name'
-      const modifyNode = new ModifyColumnsNode({
-        selectedColumns: [
-          createColumnInfo('id', 'int'),
-          createColumnInfo('name', 'string', {checked: false}),
-          createColumnInfo('value', 'int'),
-        ],
-      });
+      const modifyNode = new ModifyColumnsNode(
+        {
+          selectedColumns: [
+            createColumnInfo('id', 'int'),
+            createColumnInfo('name', 'string', {checked: false}),
+            createColumnInfo('value', 'int'),
+          ],
+        },
+        {},
+      );
       connectNodes(tableNode, modifyNode);
 
       // Create a FilterNode that filters on 'name'
-      const filterNode = new FilterNode({
-        filters: [
-          {
-            column: 'name',
-            op: '=',
-            value: 'test',
-            enabled: true,
-          } as UIFilter,
-        ],
-      });
+      const filterNode = new FilterNode(
+        {
+          filters: [
+            {
+              column: 'name',
+              op: '=',
+              value: 'test',
+              enabled: true,
+            } as UIFilter,
+          ],
+        },
+        {},
+      );
       connectNodes(modifyNode, filterNode);
 
       // The filter should be invalid because 'name' doesn't exist in finalCols
@@ -118,7 +130,7 @@ describe('FilterNode', () => {
       expect(hasNameColumn).toBe(false);
 
       // The filter on 'name' should be considered invalid
-      const filter = filterNode.state.filters?.[0];
+      const filter = filterNode.attrs.filters?.[0];
       expect(filter).toBeDefined();
 
       // Check if the column exists in sourceCols
@@ -139,26 +151,32 @@ describe('FilterNode', () => {
       const tableNode = createMockSourceNode('mock-table');
 
       // Create a ModifyColumnsNode that aliases 'name' to 'full_name'
-      const modifyNode = new ModifyColumnsNode({
-        selectedColumns: [
-          createColumnInfo('id', 'int'),
-          createColumnInfo('name', 'string', {alias: 'full_name'}),
-          createColumnInfo('value', 'int'),
-        ],
-      });
+      const modifyNode = new ModifyColumnsNode(
+        {
+          selectedColumns: [
+            createColumnInfo('id', 'int'),
+            createColumnInfo('name', 'string', {alias: 'full_name'}),
+            createColumnInfo('value', 'int'),
+          ],
+        },
+        {},
+      );
       connectNodes(tableNode, modifyNode);
 
       // Create a FilterNode that filters on 'full_name' (the aliased name)
-      const filterNode = new FilterNode({
-        filters: [
-          {
-            column: 'full_name',
-            op: '=',
-            value: 'test',
-            enabled: true,
-          } as UIFilter,
-        ],
-      });
+      const filterNode = new FilterNode(
+        {
+          filters: [
+            {
+              column: 'full_name',
+              op: '=',
+              value: 'test',
+              enabled: true,
+            } as UIFilter,
+          ],
+        },
+        {},
+      );
       connectNodes(modifyNode, filterNode);
 
       // The filter should be valid because 'full_name' exists in finalCols
@@ -171,7 +189,7 @@ describe('FilterNode', () => {
       expect(hasFullNameColumn).toBe(true);
 
       // The filter should be valid
-      const filter = filterNode.state.filters?.[0];
+      const filter = filterNode.attrs.filters?.[0];
       expect(filter).toBeDefined();
 
       // Check if the column exists in sourceCols

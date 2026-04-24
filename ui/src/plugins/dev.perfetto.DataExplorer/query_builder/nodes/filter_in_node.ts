@@ -48,10 +48,10 @@
 
 import {
   QueryNode,
-  QueryNodeState,
   nextNodeId,
   NodeType,
   SecondaryInputSpec,
+  NodeContext,
 } from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
@@ -67,7 +67,8 @@ import {NodeDetailsMessage, ColumnName} from '../node_styling_widgets';
 import {notifyNextNodes} from '../graph_utils';
 import {getCommonColumns} from '../utils';
 
-export interface FilterInNodeState extends QueryNodeState {
+// Serializable node configuration.
+export interface FilterInNodeAttrs {
   baseColumn?: string; // Column name in the primary input to filter on
   matchColumn?: string; // Column name in the match values input to match against
 }
@@ -78,11 +79,13 @@ export class FilterInNode implements QueryNode {
   primaryInput?: QueryNode;
   secondaryInputs: SecondaryInputSpec;
   nextNodes: QueryNode[];
-  readonly state: FilterInNodeState;
+  readonly attrs: FilterInNodeAttrs;
+  readonly context: NodeContext;
 
-  constructor(state: FilterInNodeState) {
+  constructor(attrs: FilterInNodeAttrs, context: NodeContext) {
     this.nodeId = nextNodeId();
-    this.state = state;
+    this.attrs = attrs;
+    this.context = context;
     this.secondaryInputs = {
       connections: new Map(),
       min: 1,
@@ -90,7 +93,6 @@ export class FilterInNode implements QueryNode {
       portNames: ['Input'],
     };
     this.nextNodes = [];
-    this.state.autoExecute = this.state.autoExecute ?? false;
   }
 
   // Get the node connected to the secondary input port (the match values)
@@ -114,11 +116,11 @@ export class FilterInNode implements QueryNode {
     ]);
     if (commonCols.length === 1) {
       const commonCol = commonCols[0];
-      if (!this.state.baseColumn) {
-        this.state.baseColumn = commonCol;
+      if (!this.attrs.baseColumn) {
+        this.attrs.baseColumn = commonCol;
       }
-      if (!this.state.matchColumn) {
-        this.state.matchColumn = commonCol;
+      if (!this.attrs.matchColumn) {
+        this.attrs.matchColumn = commonCol;
       }
     }
   }
@@ -128,8 +130,8 @@ export class FilterInNode implements QueryNode {
   }
 
   nodeDetails(): NodeDetailsAttrs {
-    const baseCol = this.state.baseColumn;
-    const matchCol = this.state.matchColumn;
+    const baseCol = this.attrs.baseColumn;
+    const matchCol = this.attrs.matchColumn;
 
     if (baseCol && matchCol) {
       if (baseCol === matchCol) {
@@ -166,7 +168,7 @@ export class FilterInNode implements QueryNode {
   nodeSpecificModify(): NodeModifyAttrs {
     // Run validation to populate error state
     this.validate();
-    const error = this.state.issues?.queryError;
+    const error = this.context.issues?.queryError;
 
     const matchValuesNode = this.matchValuesNode;
 
@@ -207,10 +209,10 @@ export class FilterInNode implements QueryNode {
           OutlinedField,
           {
             label: 'Base column',
-            value: this.state.baseColumn ?? '',
+            value: this.attrs.baseColumn ?? '',
             onchange: (e: Event) => {
-              this.state.baseColumn = (e.target as HTMLSelectElement).value;
-              this.state.onchange?.();
+              this.attrs.baseColumn = (e.target as HTMLSelectElement).value;
+              this.context.onchange?.();
             },
           },
           [
@@ -224,10 +226,10 @@ export class FilterInNode implements QueryNode {
           OutlinedField,
           {
             label: 'Match column',
-            value: this.state.matchColumn ?? '',
+            value: this.attrs.matchColumn ?? '',
             onchange: (e: Event) => {
-              this.state.matchColumn = (e.target as HTMLSelectElement).value;
-              this.state.onchange?.();
+              this.attrs.matchColumn = (e.target as HTMLSelectElement).value;
+              this.context.onchange?.();
             },
           },
           [
@@ -270,27 +272,27 @@ export class FilterInNode implements QueryNode {
 
   validate(): boolean {
     // Clear any previous errors at the start of validation
-    if (this.state.issues) {
-      this.state.issues.clear();
+    if (this.context.issues) {
+      this.context.issues.clear();
     }
 
     if (this.primaryInput === undefined) {
       setValidationError(
-        this.state,
+        this.context,
         'Connect a node with rows to filter to the top port',
       );
       return false;
     }
 
     if (!this.primaryInput.validate()) {
-      setValidationError(this.state, 'Primary input is invalid');
+      setValidationError(this.context, 'Primary input is invalid');
       return false;
     }
 
     const matchValuesNode = this.matchValuesNode;
     if (matchValuesNode === undefined) {
       setValidationError(
-        this.state,
+        this.context,
         'Connect a node with match values to the port on the left',
       );
       return false;
@@ -299,41 +301,41 @@ export class FilterInNode implements QueryNode {
     // Validate the secondary input
     if (!matchValuesNode.validate()) {
       const childError =
-        matchValuesNode.state.issues?.queryError !== undefined
-          ? `: ${matchValuesNode.state.issues.queryError.message}`
+        matchValuesNode.context.issues?.queryError !== undefined
+          ? `: ${matchValuesNode.context.issues.queryError.message}`
           : '';
-      setValidationError(this.state, `Input node is invalid${childError}`);
+      setValidationError(this.context, `Input node is invalid${childError}`);
       return false;
     }
 
     // Check that base column is specified
-    if (!this.state.baseColumn) {
-      setValidationError(this.state, 'Select a base column to filter on');
+    if (!this.attrs.baseColumn) {
+      setValidationError(this.context, 'Select a base column to filter on');
       return false;
     }
 
     // Check that match column is specified
-    if (!this.state.matchColumn) {
-      setValidationError(this.state, 'Select a match column');
+    if (!this.attrs.matchColumn) {
+      setValidationError(this.context, 'Select a match column');
       return false;
     }
 
     // Check that base column exists in primary input
     const primaryCols = new Set(this.primaryInput.finalCols.map((c) => c.name));
-    if (!primaryCols.has(this.state.baseColumn)) {
+    if (!primaryCols.has(this.attrs.baseColumn)) {
       setValidationError(
-        this.state,
-        `Primary input is missing column: ${this.state.baseColumn}`,
+        this.context,
+        `Primary input is missing column: ${this.attrs.baseColumn}`,
       );
       return false;
     }
 
     // Check that match column exists in match values input
     const matchCols = new Set(matchValuesNode.finalCols.map((c) => c.name));
-    if (!matchCols.has(this.state.matchColumn)) {
+    if (!matchCols.has(this.attrs.matchColumn)) {
       setValidationError(
-        this.state,
-        `Input node is missing column: ${this.state.matchColumn}`,
+        this.context,
+        `Input node is missing column: ${this.attrs.matchColumn}`,
       );
       return false;
     }
@@ -342,14 +344,13 @@ export class FilterInNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    const stateCopy: FilterInNodeState = {
-      baseColumn: this.state.baseColumn,
-      matchColumn: this.state.matchColumn,
-      filters: this.state.filters?.map((f) => ({...f})),
-      filterOperator: this.state.filterOperator,
-      onchange: this.state.onchange,
-    };
-    return new FilterInNode(stateCopy);
+    return new FilterInNode(
+      {
+        baseColumn: this.attrs.baseColumn,
+        matchColumn: this.attrs.matchColumn,
+      },
+      this.context,
+    );
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -359,8 +360,8 @@ export class FilterInNode implements QueryNode {
     const matchValuesNode = this.matchValuesNode;
     if (matchValuesNode === undefined) return undefined;
 
-    const baseColumn = this.state.baseColumn;
-    const matchColumn = this.state.matchColumn;
+    const baseColumn = this.attrs.baseColumn;
+    const matchColumn = this.attrs.matchColumn;
     if (!baseColumn || !matchColumn) return undefined;
 
     return StructuredQueryBuilder.withFilterIn(
@@ -372,59 +373,21 @@ export class FilterInNode implements QueryNode {
     );
   }
 
-  serializeState(): object {
-    return {
-      primaryInputId: this.primaryInput?.nodeId,
-      secondaryInputNodeIds: Array.from(
-        this.secondaryInputs.connections.values(),
-      ).map((node) => node.nodeId),
-      baseColumn: this.state.baseColumn,
-      matchColumn: this.state.matchColumn,
-    };
-  }
-
-  static deserializeState(
-    serializedState: FilterInNodeState,
-  ): FilterInNodeState {
-    return {
-      baseColumn: serializedState.baseColumn,
-      matchColumn: serializedState.matchColumn,
-    };
-  }
-
-  static deserializeConnections(
-    nodes: Map<string, QueryNode>,
-    serializedState: {secondaryInputNodeIds?: string[]},
-  ): {secondaryInputNodes: QueryNode[]} {
-    const secondaryInputNodes: QueryNode[] = [];
-    if (serializedState.secondaryInputNodeIds) {
-      for (const nodeId of serializedState.secondaryInputNodeIds) {
-        const node = nodes.get(nodeId);
-        if (node) {
-          secondaryInputNodes.push(node);
-        }
-      }
-    }
-    return {
-      secondaryInputNodes,
-    };
-  }
-
   private cleanupStaleColumns(): void {
-    if (this.primaryInput !== undefined && this.state.baseColumn) {
+    if (this.primaryInput !== undefined && this.attrs.baseColumn) {
       const primaryCols = new Set(
         this.primaryInput.finalCols.map((c) => c.name),
       );
-      if (!primaryCols.has(this.state.baseColumn)) {
-        this.state.baseColumn = undefined;
+      if (!primaryCols.has(this.attrs.baseColumn)) {
+        this.attrs.baseColumn = undefined;
       }
     }
 
     const matchNode = this.matchValuesNode;
-    if (matchNode !== undefined && this.state.matchColumn) {
+    if (matchNode !== undefined && this.attrs.matchColumn) {
       const matchCols = new Set(matchNode.finalCols.map((c) => c.name));
-      if (!matchCols.has(this.state.matchColumn)) {
-        this.state.matchColumn = undefined;
+      if (!matchCols.has(this.attrs.matchColumn)) {
+        this.attrs.matchColumn = undefined;
       }
     }
   }
@@ -439,7 +402,7 @@ export class FilterInNode implements QueryNode {
 
     // Notify next nodes that our columns may have changed
     notifyNextNodes(this);
-    this.state.onchange?.();
+    this.context.onchange?.();
     m.redraw();
   }
 }

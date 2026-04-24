@@ -68,6 +68,7 @@ ALLOWED_TOPLEVEL_PUBLIC_PACKAGES = frozenset({
     "sched",
     "slices",
     "stacks",
+    "std",
     "time",
     "traced",
     "v8",

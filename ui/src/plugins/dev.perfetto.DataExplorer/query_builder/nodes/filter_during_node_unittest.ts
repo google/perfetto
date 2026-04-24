@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {FilterDuringNode, FilterDuringNodeState} from './filter_during_node';
+import {FilterDuringNode} from './filter_during_node';
 import {QueryNode, NodeType} from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import {
@@ -34,7 +34,7 @@ describe('FilterDuringNode', () => {
       type: NodeType.kTable,
       nextNodes: [],
       finalCols: columns,
-      state: {},
+      context: {},
       validate: () => true,
       getTitle: () => `Mock ${id}`,
       nodeSpecificModify: () => ({sections: []}),
@@ -49,7 +49,7 @@ describe('FilterDuringNode', () => {
         sq.table.columnNames = columns.map((c) => c.name);
         return sq;
       },
-      serializeState: () => ({}),
+      attrs: {},
     } as QueryNode;
   }
 
@@ -78,19 +78,19 @@ describe('FilterDuringNode', () => {
     return {
       name,
       checked,
-      column: {name, type: sqlType},
+      type: sqlType,
     };
   }
 
   describe('constructor', () => {
     it('should have correct node type', () => {
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
 
       expect(node.type).toBe(NodeType.kFilterDuring);
     });
 
     it('should initialize with no secondary input', () => {
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
 
       expect(node.secondaryInputs.connections.get(0)).toBeUndefined();
     });
@@ -98,7 +98,7 @@ describe('FilterDuringNode', () => {
 
   describe('finalCols', () => {
     it('should return empty array when no primary input', () => {
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
 
       expect(node.finalCols).toEqual([]);
     });
@@ -113,7 +113,7 @@ describe('FilterDuringNode', () => {
       ];
       const primaryNode = createMockNode('primary', primaryCols);
 
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
       node.primaryInput = primaryNode;
 
       expect(node.finalCols).toEqual(primaryCols);
@@ -129,7 +129,7 @@ describe('FilterDuringNode', () => {
       ];
       const primaryNode = createMockNode('primary', primaryCols);
 
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
       node.primaryInput = primaryNode;
 
       const finalCols = node.finalCols;
@@ -145,10 +145,10 @@ describe('FilterDuringNode', () => {
 
   describe('validate', () => {
     it('should fail validation when no primary input', () => {
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'Connect a node to be filtered to the top port',
       );
     });
@@ -160,11 +160,11 @@ describe('FilterDuringNode', () => {
         createColumnInfo('dur', 'DURATION'),
       ]);
 
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
       node.primaryInput = primaryNode;
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'Connect a node with intervals to the port on the left',
       );
     });
@@ -179,12 +179,12 @@ describe('FilterDuringNode', () => {
         createColumnInfo('dur', 'DURATION'),
       ]);
 
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'Node to be filtered is invalid',
       );
     });
@@ -199,12 +199,12 @@ describe('FilterDuringNode', () => {
       const secondaryNode = createMockNode('secondary', []);
       secondaryNode.validate = () => false;
 
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'Filter intervals input is invalid',
       );
     });
@@ -220,12 +220,12 @@ describe('FilterDuringNode', () => {
         createColumnInfo('dur', 'DURATION'),
       ]);
 
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'Node to be filtered is missing required columns',
       );
     });
@@ -241,12 +241,12 @@ describe('FilterDuringNode', () => {
         createColumnInfo('name', 'STRING'),
       ]);
 
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'Filter intervals input is missing required columns',
       );
     });
@@ -265,7 +265,7 @@ describe('FilterDuringNode', () => {
         createColumnInfo('dur', 'DURATION'),
       ]);
 
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -285,7 +285,7 @@ describe('FilterDuringNode', () => {
         createColumnInfo('dur', 'DURATION'),
       ]);
 
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -295,7 +295,7 @@ describe('FilterDuringNode', () => {
 
   describe('getStructuredQuery', () => {
     it('should return undefined when validation fails', () => {
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
 
       expect(node.getStructuredQuery()).toBeUndefined();
     });
@@ -314,7 +314,7 @@ describe('FilterDuringNode', () => {
         createColumnInfo('dur', 'DURATION'),
       ]);
 
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -339,7 +339,7 @@ describe('FilterDuringNode', () => {
         createColumnInfo('dur', 'DURATION'),
       ]);
 
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -375,7 +375,7 @@ describe('FilterDuringNode', () => {
       ]);
 
       // Dur filter is always applied
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -402,7 +402,7 @@ describe('FilterDuringNode', () => {
       ]);
 
       // Dur filter is always applied
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -428,7 +428,7 @@ describe('FilterDuringNode', () => {
         createColumnInfo('dur', 'DURATION'),
       ]);
 
-      const node = new FilterDuringNode({clipToIntervals: false});
+      const node = new FilterDuringNode({clipToIntervals: false}, {});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -450,7 +450,7 @@ describe('FilterDuringNode', () => {
         createColumnInfo('dur', 'DURATION'),
       ]);
 
-      const node = new FilterDuringNode({clipToIntervals: true});
+      const node = new FilterDuringNode({clipToIntervals: true}, {});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -484,7 +484,7 @@ describe('FilterDuringNode', () => {
         createColumnInfo('dur', 'DURATION'),
       ]);
 
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -509,61 +509,55 @@ describe('FilterDuringNode', () => {
         createColumnInfo('dur', 'DURATION'),
       ]);
 
-      const node = new FilterDuringNode({
-        partitionColumns: ['utid'],
-        clipToIntervals: false,
-      });
+      const node = new FilterDuringNode(
+        {
+          partitionColumns: ['utid'],
+          clipToIntervals: false,
+        },
+        {},
+      );
       node.primaryInput = primaryNode;
       node.secondaryInputs.connections.set(0, secondaryNode);
 
-      const serialized = node.serializeState();
+      const serialized = node.attrs;
 
       expect(serialized).toEqual({
-        primaryInputId: primaryNode.nodeId,
-        secondaryInputNodeIds: [secondaryNode.nodeId],
         partitionColumns: ['utid'],
         clipToIntervals: false,
       });
     });
 
     it('should handle missing inputs gracefully', () => {
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
 
-      const serialized = node.serializeState();
+      const serialized = node.attrs;
 
-      expect(serialized).toEqual({
-        primaryInputId: undefined,
-        secondaryInputNodeIds: [],
-        partitionColumns: undefined,
-        clipToIntervals: undefined,
-      });
+      expect(serialized).toEqual({});
     });
   });
 
   describe('clone', () => {
     it('should create a new node with same state', () => {
-      const node = new FilterDuringNode({
-        partitionColumns: ['utid', 'cpu'],
-        clipToIntervals: false,
-      });
+      const node = new FilterDuringNode(
+        {
+          partitionColumns: ['utid', 'cpu'],
+          clipToIntervals: false,
+        },
+        {},
+      );
 
       const cloned = node.clone() as FilterDuringNode;
 
       expect(cloned).toBeInstanceOf(FilterDuringNode);
-      expect((cloned.state as FilterDuringNodeState).partitionColumns).toEqual([
-        'utid',
-        'cpu',
-      ]);
-      expect((cloned.state as FilterDuringNodeState).clipToIntervals).toBe(
-        false,
-      );
+      expect(cloned.attrs.partitionColumns).toEqual(['utid', 'cpu']);
+      expect(cloned.attrs.clipToIntervals).toBe(false);
       expect(cloned.nodeId).not.toBe(node.nodeId); // Should have different ID
     });
   });
 
   describe('getTitle', () => {
     it('should return correct title', () => {
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
 
       expect(node.getTitle()).toBe('Filter During');
     });
@@ -571,7 +565,7 @@ describe('FilterDuringNode', () => {
 
   describe('secondaryNodes getter', () => {
     it('should return empty array when no secondary input', () => {
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
 
       expect(node.secondaryNodes).toEqual([]);
     });
@@ -583,7 +577,7 @@ describe('FilterDuringNode', () => {
         createColumnInfo('dur', 'DURATION'),
       ]);
 
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
       node.secondaryInputs.connections.set(0, secondaryNode);
 
       expect(node.secondaryNodes).toEqual([secondaryNode]);
@@ -593,9 +587,7 @@ describe('FilterDuringNode', () => {
   describe('onPrevNodesUpdated', () => {
     it('should trigger onchange callback when called', () => {
       const onchange = jest.fn();
-      const node = new FilterDuringNode({
-        onchange,
-      });
+      const node = new FilterDuringNode({}, {onchange});
 
       node.onPrevNodesUpdated();
 
@@ -603,7 +595,7 @@ describe('FilterDuringNode', () => {
     });
 
     it('should not throw when onchange is not defined', () => {
-      const node = new FilterDuringNode({});
+      const node = new FilterDuringNode({}, {});
 
       expect(() => node.onPrevNodesUpdated()).not.toThrow();
     });
@@ -612,23 +604,31 @@ describe('FilterDuringNode', () => {
   describe('partition columns', () => {
     describe('initialization', () => {
       it('should initialize with empty partition columns by default', () => {
-        const node = new FilterDuringNode({});
+        const node = new FilterDuringNode({}, {});
 
-        expect(node.state.partitionColumns).toBeUndefined();
+        expect(
+          (node as FilterDuringNode).attrs.partitionColumns,
+        ).toBeUndefined();
       });
 
       it('should preserve provided partition columns', () => {
-        const node = new FilterDuringNode({
-          partitionColumns: ['utid', 'cpu'],
-        });
+        const node = new FilterDuringNode(
+          {
+            partitionColumns: ['utid', 'cpu'],
+          },
+          {},
+        );
 
-        expect(node.state.partitionColumns).toEqual(['utid', 'cpu']);
+        expect((node as FilterDuringNode).attrs.partitionColumns).toEqual([
+          'utid',
+          'cpu',
+        ]);
       });
     });
 
     describe('getCommonColumnsForPartition', () => {
       it('should return empty array when no primary input', () => {
-        const node = new FilterDuringNode({});
+        const node = new FilterDuringNode({}, {});
 
         // Access private method for testing
         const commonColumns = (
@@ -646,7 +646,7 @@ describe('FilterDuringNode', () => {
           createColumnInfo('utid', 'INT'),
         ]);
 
-        const node = new FilterDuringNode({});
+        const node = new FilterDuringNode({}, {});
         node.primaryInput = primaryNode;
 
         const commonColumns = (
@@ -674,7 +674,7 @@ describe('FilterDuringNode', () => {
           createColumnInfo('cpu', 'INT'),
         ]);
 
-        const node = new FilterDuringNode({});
+        const node = new FilterDuringNode({}, {});
         node.primaryInput = primaryNode;
         node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -698,7 +698,7 @@ describe('FilterDuringNode', () => {
           createColumnInfo('dur', 'DURATION'),
         ]);
 
-        const node = new FilterDuringNode({});
+        const node = new FilterDuringNode({}, {});
         node.primaryInput = primaryNode;
         node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -728,7 +728,7 @@ describe('FilterDuringNode', () => {
           createColumnInfo('utid', 'INT'),
         ]);
 
-        const node = new FilterDuringNode({});
+        const node = new FilterDuringNode({}, {});
         node.primaryInput = primaryNode;
         node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -758,7 +758,7 @@ describe('FilterDuringNode', () => {
           createColumnInfo('mmm', 'INT'),
         ]);
 
-        const node = new FilterDuringNode({});
+        const node = new FilterDuringNode({}, {});
         node.primaryInput = primaryNode;
         node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -772,7 +772,7 @@ describe('FilterDuringNode', () => {
 
     describe('cleanupPartitionColumns', () => {
       it('should not throw when partitionColumns is undefined', () => {
-        const node = new FilterDuringNode({});
+        const node = new FilterDuringNode({}, {});
 
         expect(() =>
           (
@@ -782,9 +782,12 @@ describe('FilterDuringNode', () => {
       });
 
       it('should not throw when partitionColumns is empty', () => {
-        const node = new FilterDuringNode({
-          partitionColumns: [],
-        });
+        const node = new FilterDuringNode(
+          {
+            partitionColumns: [],
+          },
+          {},
+        );
 
         expect(() =>
           (
@@ -808,9 +811,12 @@ describe('FilterDuringNode', () => {
           createColumnInfo('utid', 'INT'),
         ]);
 
-        const node = new FilterDuringNode({
-          partitionColumns: ['utid', 'cpu'], // 'cpu' doesn't exist
-        });
+        const node = new FilterDuringNode(
+          {
+            partitionColumns: ['utid', 'cpu'], // 'cpu' doesn't exist
+          },
+          {},
+        );
         node.primaryInput = primaryNode;
         node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -818,7 +824,9 @@ describe('FilterDuringNode', () => {
           node as unknown as FilterDuringNodeWithPrivates
         ).cleanupPartitionColumns();
 
-        expect(node.state.partitionColumns).toEqual(['utid']);
+        expect((node as FilterDuringNode).attrs.partitionColumns).toEqual([
+          'utid',
+        ]);
       });
 
       it('should clear all partition columns when none are available', () => {
@@ -834,9 +842,12 @@ describe('FilterDuringNode', () => {
           createColumnInfo('dur', 'DURATION'),
         ]);
 
-        const node = new FilterDuringNode({
-          partitionColumns: ['utid', 'cpu'],
-        });
+        const node = new FilterDuringNode(
+          {
+            partitionColumns: ['utid', 'cpu'],
+          },
+          {},
+        );
         node.primaryInput = primaryNode;
         node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -844,7 +855,7 @@ describe('FilterDuringNode', () => {
           node as unknown as FilterDuringNodeWithPrivates
         ).cleanupPartitionColumns();
 
-        expect(node.state.partitionColumns).toEqual([]);
+        expect((node as FilterDuringNode).attrs.partitionColumns).toEqual([]);
       });
 
       it('should preserve valid partition columns', () => {
@@ -864,9 +875,12 @@ describe('FilterDuringNode', () => {
           createColumnInfo('cpu', 'INT'),
         ]);
 
-        const node = new FilterDuringNode({
-          partitionColumns: ['utid', 'cpu'],
-        });
+        const node = new FilterDuringNode(
+          {
+            partitionColumns: ['utid', 'cpu'],
+          },
+          {},
+        );
         node.primaryInput = primaryNode;
         node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -874,7 +888,10 @@ describe('FilterDuringNode', () => {
           node as unknown as FilterDuringNodeWithPrivates
         ).cleanupPartitionColumns();
 
-        expect(node.state.partitionColumns).toEqual(['utid', 'cpu']);
+        expect((node as FilterDuringNode).attrs.partitionColumns).toEqual([
+          'utid',
+          'cpu',
+        ]);
       });
     });
 
@@ -894,85 +911,99 @@ describe('FilterDuringNode', () => {
           createColumnInfo('utid', 'INT'),
         ]);
 
-        const node = new FilterDuringNode({
-          partitionColumns: ['utid'],
-        });
+        const node = new FilterDuringNode(
+          {
+            partitionColumns: ['utid'],
+          },
+          {},
+        );
         node.primaryInput = primaryNode;
         node.secondaryInputs.connections.set(0, secondaryNode);
 
-        const serialized = node.serializeState();
+        const serialized = node.attrs;
 
         expect(serialized).toEqual({
-          primaryInputId: primaryNode.nodeId,
-          secondaryInputNodeIds: [secondaryNode.nodeId],
           partitionColumns: ['utid'],
           clipToIntervals: undefined,
         });
       });
 
       it('should handle undefined partition columns', () => {
-        const node = new FilterDuringNode({});
+        const node = new FilterDuringNode({}, {});
 
-        const serialized = node.serializeState() as Record<string, unknown>;
+        const serialized = node.attrs;
 
-        expect(serialized).toHaveProperty('partitionColumns');
         expect(serialized.partitionColumns).toBeUndefined();
       });
     });
 
-    describe('deserializeState with partition columns', () => {
-      it('should restore partition columns from serialized state', () => {
-        const state = FilterDuringNode.deserializeState({
-          partitionColumns: ['utid', 'cpu'],
-          clipToIntervals: false,
-        });
+    describe('deserialize with partition columns', () => {
+      it('should restore partition columns via constructor', () => {
+        const node = new FilterDuringNode(
+          {partitionColumns: ['utid', 'cpu'], clipToIntervals: false},
+          {},
+        );
 
-        expect(state.partitionColumns).toEqual(['utid', 'cpu']);
-        expect(state.clipToIntervals).toBe(false);
+        expect(node.attrs.partitionColumns).toEqual(['utid', 'cpu']);
+        expect(node.attrs.clipToIntervals).toBe(false);
       });
 
-      it('should handle missing partition columns in serialized state', () => {
-        const state = FilterDuringNode.deserializeState({
-          clipToIntervals: true,
-        });
+      it('should handle missing partition columns', () => {
+        const node = new FilterDuringNode({clipToIntervals: true}, {});
 
-        expect(state.partitionColumns).toBeUndefined();
-        expect(state.clipToIntervals).toBe(true);
+        expect(node.attrs.partitionColumns).toBeUndefined();
+        expect(node.attrs.clipToIntervals).toBe(true);
       });
     });
 
     describe('clone with partition columns', () => {
       it('should clone partition columns', () => {
-        const node = new FilterDuringNode({
-          partitionColumns: ['utid', 'cpu'],
-        });
+        const node = new FilterDuringNode(
+          {
+            partitionColumns: ['utid', 'cpu'],
+          },
+          {},
+        );
 
         const cloned = node.clone() as FilterDuringNode;
 
-        expect(cloned.state.partitionColumns).toEqual(['utid', 'cpu']);
+        expect((cloned as FilterDuringNode).attrs.partitionColumns).toEqual([
+          'utid',
+          'cpu',
+        ]);
       });
 
       it('should create independent copy of partition columns array', () => {
-        const node = new FilterDuringNode({
-          partitionColumns: ['utid'],
-        });
+        const node = new FilterDuringNode(
+          {
+            partitionColumns: ['utid'],
+          },
+          {},
+        );
 
         const cloned = node.clone() as FilterDuringNode;
 
         // Modify cloned partition columns
-        cloned.state.partitionColumns?.push('cpu');
+        (cloned as FilterDuringNode).attrs.partitionColumns?.push('cpu');
 
         // Original should not be affected
-        expect(node.state.partitionColumns).toEqual(['utid']);
-        expect(cloned.state.partitionColumns).toEqual(['utid', 'cpu']);
+        expect((node as FilterDuringNode).attrs.partitionColumns).toEqual([
+          'utid',
+        ]);
+        expect((cloned as FilterDuringNode).attrs.partitionColumns).toEqual([
+          'utid',
+          'cpu',
+        ]);
       });
 
       it('should handle undefined partition columns', () => {
-        const node = new FilterDuringNode({});
+        const node = new FilterDuringNode({}, {});
 
         const cloned = node.clone() as FilterDuringNode;
 
-        expect(cloned.state.partitionColumns).toBeUndefined();
+        expect(
+          (cloned as FilterDuringNode).attrs.partitionColumns,
+        ).toBeUndefined();
       });
     });
 
@@ -992,9 +1023,12 @@ describe('FilterDuringNode', () => {
           createColumnInfo('utid', 'INT'),
         ]);
 
-        const node = new FilterDuringNode({
-          partitionColumns: ['utid'],
-        });
+        const node = new FilterDuringNode(
+          {
+            partitionColumns: ['utid'],
+          },
+          {},
+        );
         node.primaryInput = primaryNode;
         node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -1023,7 +1057,7 @@ describe('FilterDuringNode', () => {
           createColumnInfo('utid', 'INT'),
         ]);
 
-        const node = new FilterDuringNode({});
+        const node = new FilterDuringNode({}, {});
         node.primaryInput = primaryNode;
         node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -1050,16 +1084,21 @@ describe('FilterDuringNode', () => {
           createColumnInfo('utid', 'INT'),
         ]);
 
-        const node = new FilterDuringNode({
-          partitionColumns: ['utid', 'cpu'], // 'cpu' doesn't exist
-        });
+        const node = new FilterDuringNode(
+          {
+            partitionColumns: ['utid', 'cpu'], // 'cpu' doesn't exist
+          },
+          {},
+        );
         node.primaryInput = primaryNode;
         node.secondaryInputs.connections.set(0, secondaryNode);
 
         node.onPrevNodesUpdated();
 
         // 'cpu' should be removed as it doesn't exist in inputs
-        expect(node.state.partitionColumns).toEqual(['utid']);
+        expect((node as FilterDuringNode).attrs.partitionColumns).toEqual([
+          'utid',
+        ]);
       });
     });
 
@@ -1079,7 +1118,7 @@ describe('FilterDuringNode', () => {
           createColumnInfo('dur', 'DURATION'),
         ]);
 
-        const node = new FilterDuringNode({clipToIntervals: true});
+        const node = new FilterDuringNode({clipToIntervals: true}, {});
         node.primaryInput = primaryNode;
         node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -1115,7 +1154,7 @@ describe('FilterDuringNode', () => {
           createColumnInfo('dur', 'DURATION'),
         ]);
 
-        const node = new FilterDuringNode({clipToIntervals: false});
+        const node = new FilterDuringNode({clipToIntervals: false}, {});
         node.primaryInput = primaryNode;
         node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -1147,7 +1186,7 @@ describe('FilterDuringNode', () => {
           createColumnInfo('dur', 'DURATION'),
         ]);
 
-        const node = new FilterDuringNode({clipToIntervals: true});
+        const node = new FilterDuringNode({clipToIntervals: true}, {});
         node.primaryInput = primaryNode;
         node.secondaryInputs.connections.set(0, secondaryNode);
 
@@ -1180,7 +1219,7 @@ describe('FilterDuringNode', () => {
           createColumnInfo('dur', 'DURATION'),
         ]);
 
-        const node = new FilterDuringNode({clipToIntervals: false});
+        const node = new FilterDuringNode({clipToIntervals: false}, {});
         node.primaryInput = primaryNode;
         node.secondaryInputs.connections.set(0, secondaryNode);
 

@@ -29,11 +29,11 @@ describe('Node Propagation', () => {
 
       // Setup: Source -> Modify -> Aggregation
       const sourceNode = createMockSourceNode();
-      const modifyNode = new ModifyColumnsNode({selectedColumns: []});
-      const aggNode = new AggregationNode({
-        groupByColumns: [],
-        aggregations: [],
-      });
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
+      const aggNode = new AggregationNode(
+        {groupByColumns: [], aggregations: []},
+        {},
+      );
 
       // Connect the nodes
       connectNodes(sourceNode, modifyNode);
@@ -43,21 +43,21 @@ describe('Node Propagation', () => {
       initializeNodeChain([modifyNode, aggNode]);
 
       // Initial state: AggregationNode should have columns: id, name, value
-      expect(aggNode.state.groupByColumns.map((c) => c.name)).toEqual([
+      expect(aggNode.attrs.groupByColumns.map((c) => c.name)).toEqual([
         'id',
         'name',
         'value',
       ]);
 
       // THE BUG: Rename 'name' to 'user_name' in ModifyColumnsNode
-      modifyNode.state.selectedColumns[1].alias = 'user_name';
+      modifyNode.attrs.selectedColumns[1].alias = 'user_name';
 
       // BEFORE FIX: AggregationNode would still show 'id', 'name', 'value'
       // AFTER FIX: We need to call onPrevNodesUpdated to propagate the change
       aggNode.onPrevNodesUpdated?.();
 
       // Verify the fix: AggregationNode should now see the renamed column
-      const columnNames = aggNode.state.groupByColumns.map((c) => c.name);
+      const columnNames = aggNode.attrs.groupByColumns.map((c) => c.name);
       expect(columnNames).toContain('user_name');
       expect(columnNames).not.toContain('name');
       expect(columnNames).toEqual(['id', 'user_name', 'value']);
@@ -66,11 +66,11 @@ describe('Node Propagation', () => {
     it('should propagate renamed columns from ModifyColumnsNode to AggregationNode', () => {
       // Setup: Source -> Modify -> Aggregation
       const sourceNode = createMockSourceNode();
-      const modifyNode = new ModifyColumnsNode({selectedColumns: []});
-      const aggNode = new AggregationNode({
-        groupByColumns: [],
-        aggregations: [],
-      });
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
+      const aggNode = new AggregationNode(
+        {groupByColumns: [], aggregations: []},
+        {},
+      );
 
       // Connect the nodes
       connectNodes(sourceNode, modifyNode);
@@ -80,22 +80,22 @@ describe('Node Propagation', () => {
       modifyNode.onPrevNodesUpdated?.();
 
       // Verify modify node has the original columns
-      expect(modifyNode.state.selectedColumns).toHaveLength(3);
-      expect(modifyNode.state.selectedColumns[0].name).toBe('id');
-      expect(modifyNode.state.selectedColumns[1].name).toBe('name');
-      expect(modifyNode.state.selectedColumns[2].name).toBe('value');
+      expect(modifyNode.attrs.selectedColumns).toHaveLength(3);
+      expect(modifyNode.attrs.selectedColumns[0].name).toBe('id');
+      expect(modifyNode.attrs.selectedColumns[1].name).toBe('name');
+      expect(modifyNode.attrs.selectedColumns[2].name).toBe('value');
 
       // Initialize the aggregation node
       aggNode.onPrevNodesUpdated?.();
 
       // Verify aggregation node has the original columns
-      expect(aggNode.state.groupByColumns).toHaveLength(3);
-      expect(aggNode.state.groupByColumns[0].name).toBe('id');
-      expect(aggNode.state.groupByColumns[1].name).toBe('name');
-      expect(aggNode.state.groupByColumns[2].name).toBe('value');
+      expect(aggNode.attrs.groupByColumns).toHaveLength(3);
+      expect(aggNode.attrs.groupByColumns[0].name).toBe('id');
+      expect(aggNode.attrs.groupByColumns[1].name).toBe('name');
+      expect(aggNode.attrs.groupByColumns[2].name).toBe('value');
 
       // Now rename 'name' to 'user_name' in the modify node
-      modifyNode.state.selectedColumns[1].alias = 'user_name';
+      modifyNode.attrs.selectedColumns[1].alias = 'user_name';
 
       // Verify the finalCols of modify node uses the alias
       const modifyFinalCols = modifyNode.finalCols;
@@ -108,20 +108,20 @@ describe('Node Propagation', () => {
       aggNode.onPrevNodesUpdated?.();
 
       // Verify aggregation node now sees the renamed column
-      expect(aggNode.state.groupByColumns).toHaveLength(3);
-      expect(aggNode.state.groupByColumns[0].name).toBe('id');
-      expect(aggNode.state.groupByColumns[1].name).toBe('user_name'); // Should see the alias
-      expect(aggNode.state.groupByColumns[2].name).toBe('value');
+      expect(aggNode.attrs.groupByColumns).toHaveLength(3);
+      expect(aggNode.attrs.groupByColumns[0].name).toBe('id');
+      expect(aggNode.attrs.groupByColumns[1].name).toBe('user_name'); // Should see the alias
+      expect(aggNode.attrs.groupByColumns[2].name).toBe('value');
     });
 
     it('should preserve checked status when columns are renamed', () => {
       // Setup: Source -> Modify -> Aggregation
       const sourceNode = createMockSourceNode();
-      const modifyNode = new ModifyColumnsNode({selectedColumns: []});
-      const aggNode = new AggregationNode({
-        groupByColumns: [],
-        aggregations: [],
-      });
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
+      const aggNode = new AggregationNode(
+        {groupByColumns: [], aggregations: []},
+        {},
+      );
 
       // Connect the nodes
       connectNodes(sourceNode, modifyNode);
@@ -131,10 +131,10 @@ describe('Node Propagation', () => {
       initializeNodeChain([modifyNode, aggNode]);
 
       // Check a column in the aggregation node
-      aggNode.state.groupByColumns[1].checked = true; // Check 'name'
+      aggNode.attrs.groupByColumns[1].checked = true; // Check 'name'
 
       // Rename the checked column in modify node
-      modifyNode.state.selectedColumns[1].alias = 'user_name';
+      modifyNode.attrs.selectedColumns[1].alias = 'user_name';
 
       // Notify downstream
       aggNode.onPrevNodesUpdated?.();
@@ -142,7 +142,7 @@ describe('Node Propagation', () => {
       // The checked status should be lost because the column name changed
       // This is expected behavior - the aggregation node can't know that
       // 'user_name' is the same as 'name'
-      const userNameCol = aggNode.state.groupByColumns.find(
+      const userNameCol = aggNode.attrs.groupByColumns.find(
         (c) => c.name === 'user_name',
       );
       expect(userNameCol).toBeDefined();
@@ -152,11 +152,11 @@ describe('Node Propagation', () => {
     it('should handle column removal in ModifyColumnsNode', () => {
       // Setup: Source -> Modify -> Aggregation
       const sourceNode = createMockSourceNode();
-      const modifyNode = new ModifyColumnsNode({selectedColumns: []});
-      const aggNode = new AggregationNode({
-        groupByColumns: [],
-        aggregations: [],
-      });
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
+      const aggNode = new AggregationNode(
+        {groupByColumns: [], aggregations: []},
+        {},
+      );
 
       // Connect the nodes
       connectNodes(sourceNode, modifyNode);
@@ -166,10 +166,10 @@ describe('Node Propagation', () => {
       initializeNodeChain([modifyNode, aggNode]);
 
       // Initially should have 3 columns
-      expect(aggNode.state.groupByColumns).toHaveLength(3);
+      expect(aggNode.attrs.groupByColumns).toHaveLength(3);
 
       // Uncheck 'name' column in modify node (removes it from output)
-      modifyNode.state.selectedColumns[1].checked = false;
+      modifyNode.attrs.selectedColumns[1].checked = false;
 
       // Verify modify node's finalCols only has 2 columns now
       expect(modifyNode.finalCols).toHaveLength(2);
@@ -180,19 +180,19 @@ describe('Node Propagation', () => {
       aggNode.onPrevNodesUpdated?.();
 
       // Aggregation node should now only have 2 columns
-      expect(aggNode.state.groupByColumns).toHaveLength(2);
-      expect(aggNode.state.groupByColumns[0].name).toBe('id');
-      expect(aggNode.state.groupByColumns[1].name).toBe('value');
+      expect(aggNode.attrs.groupByColumns).toHaveLength(2);
+      expect(aggNode.attrs.groupByColumns[0].name).toBe('id');
+      expect(aggNode.attrs.groupByColumns[1].name).toBe('value');
     });
 
     it('should handle column reordering in ModifyColumnsNode', () => {
       // Setup: Source -> Modify -> Aggregation
       const sourceNode = createMockSourceNode();
-      const modifyNode = new ModifyColumnsNode({selectedColumns: []});
-      const aggNode = new AggregationNode({
-        groupByColumns: [],
-        aggregations: [],
-      });
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
+      const aggNode = new AggregationNode(
+        {groupByColumns: [], aggregations: []},
+        {},
+      );
 
       // Connect the nodes
       connectNodes(sourceNode, modifyNode);
@@ -205,8 +205,8 @@ describe('Node Propagation', () => {
       expectColumnNames(modifyNode, ['id', 'name', 'value']);
 
       // Reorder: move 'value' to the front
-      const cols = modifyNode.state.selectedColumns;
-      modifyNode.state.selectedColumns = [cols[2], cols[0], cols[1]];
+      const cols = modifyNode.attrs.selectedColumns;
+      modifyNode.attrs.selectedColumns = [cols[2], cols[0], cols[1]];
 
       // Verify modify node's finalCols are reordered
       expectColumnNames(modifyNode, ['value', 'id', 'name']);
@@ -215,9 +215,9 @@ describe('Node Propagation', () => {
       aggNode.onPrevNodesUpdated?.();
 
       // Aggregation node should see the new order
-      expect(aggNode.state.groupByColumns[0].name).toBe('value');
-      expect(aggNode.state.groupByColumns[1].name).toBe('id');
-      expect(aggNode.state.groupByColumns[2].name).toBe('name');
+      expect(aggNode.attrs.groupByColumns[0].name).toBe('value');
+      expect(aggNode.attrs.groupByColumns[1].name).toBe('id');
+      expect(aggNode.attrs.groupByColumns[2].name).toBe('name');
     });
   });
 
@@ -225,9 +225,9 @@ describe('Node Propagation', () => {
     it('should propagate changes through chain: Source -> Modify1 -> Modify2 -> Modify3', () => {
       // Setup: Source -> Modify1 -> Modify2 -> Modify3
       const sourceNode = createMockSourceNode();
-      const modify1 = new ModifyColumnsNode({selectedColumns: []});
-      const modify2 = new ModifyColumnsNode({selectedColumns: []});
-      const modify3 = new ModifyColumnsNode({selectedColumns: []});
+      const modify1 = new ModifyColumnsNode({selectedColumns: []}, {});
+      const modify2 = new ModifyColumnsNode({selectedColumns: []}, {});
+      const modify3 = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect the nodes
       connectNodes(sourceNode, modify1);
@@ -243,7 +243,7 @@ describe('Node Propagation', () => {
       expectColumnNames(modify3, ['id', 'name', 'value']);
 
       // Rename 'name' to 'user_name' in modify1
-      modify1.state.selectedColumns[1].alias = 'user_name';
+      modify1.attrs.selectedColumns[1].alias = 'user_name';
 
       // Notify all downstream nodes (simulating builder's onchange)
       initializeNodeChain([modify2, modify3]);
@@ -257,11 +257,11 @@ describe('Node Propagation', () => {
     it('should propagate changes through 5-node chain with middle node edit', () => {
       // Setup: Source -> Modify1 -> Modify2 -> Modify3 -> Modify4 -> Modify5
       const sourceNode = createMockSourceNode();
-      const modify1 = new ModifyColumnsNode({selectedColumns: []});
-      const modify2 = new ModifyColumnsNode({selectedColumns: []});
-      const modify3 = new ModifyColumnsNode({selectedColumns: []});
-      const modify4 = new ModifyColumnsNode({selectedColumns: []});
-      const modify5 = new ModifyColumnsNode({selectedColumns: []});
+      const modify1 = new ModifyColumnsNode({selectedColumns: []}, {});
+      const modify2 = new ModifyColumnsNode({selectedColumns: []}, {});
+      const modify3 = new ModifyColumnsNode({selectedColumns: []}, {});
+      const modify4 = new ModifyColumnsNode({selectedColumns: []}, {});
+      const modify5 = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect the nodes
       connectNodes(sourceNode, modify1);
@@ -274,7 +274,7 @@ describe('Node Propagation', () => {
       initializeNodeChain([modify1, modify2, modify3, modify4, modify5]);
 
       // Edit the MIDDLE node (modify3) - rename 'value' to 'amount'
-      modify3.state.selectedColumns[2].alias = 'amount';
+      modify3.attrs.selectedColumns[2].alias = 'amount';
 
       // Notify all downstream nodes (simulating builder's onchange)
       initializeNodeChain([modify4, modify5]);
@@ -292,12 +292,12 @@ describe('Node Propagation', () => {
     it('should propagate changes through mixed node types: Modify -> Agg -> Modify', () => {
       // Setup: Source -> Modify1 -> Agg -> Modify2
       const sourceNode = createMockSourceNode();
-      const modify1 = new ModifyColumnsNode({selectedColumns: []});
-      const aggNode = new AggregationNode({
-        groupByColumns: [],
-        aggregations: [],
-      });
-      const modify2 = new ModifyColumnsNode({selectedColumns: []});
+      const modify1 = new ModifyColumnsNode({selectedColumns: []}, {});
+      const aggNode = new AggregationNode(
+        {groupByColumns: [], aggregations: []},
+        {},
+      );
+      const modify2 = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect the nodes
       connectNodes(sourceNode, modify1);
@@ -308,8 +308,8 @@ describe('Node Propagation', () => {
       initializeNodeChain([modify1, aggNode]);
 
       // Check columns BEFORE renaming and BEFORE initializing modify2
-      aggNode.state.groupByColumns[0].checked = true; // Check 'id'
-      aggNode.state.groupByColumns[1].checked = true; // Check 'name'
+      aggNode.attrs.groupByColumns[0].checked = true; // Check 'id'
+      aggNode.attrs.groupByColumns[1].checked = true; // Check 'name'
 
       // Now initialize modify2 after aggNode has checked columns
       modify2.onPrevNodesUpdated?.();
@@ -319,7 +319,7 @@ describe('Node Propagation', () => {
       expect(modify2.finalCols.map((c) => c.name)).toContain('name');
 
       // Rename 'name' to 'user_name' in modify1
-      modify1.state.selectedColumns[1].alias = 'user_name';
+      modify1.attrs.selectedColumns[1].alias = 'user_name';
 
       // Notify all downstream nodes
       initializeNodeChain([aggNode, modify2]);
@@ -327,16 +327,16 @@ describe('Node Propagation', () => {
       // Aggregation should see the renamed column in its available columns
       // Note: The old 'name' column is preserved as a "missing" column
       // because it was checked before the rename (intentional behavior)
-      expect(aggNode.state.groupByColumns.map((c) => c.name)).toContain(
+      expect(aggNode.attrs.groupByColumns.map((c) => c.name)).toContain(
         'user_name',
       );
 
       // The checked status is lost when column is renamed (expected behavior)
       // But we can check it again with the new name
-      const userNameCol = aggNode.state.groupByColumns.find(
+      const userNameCol = aggNode.attrs.groupByColumns.find(
         (c) => c.name === 'user_name',
       );
-      const idCol = aggNode.state.groupByColumns.find((c) => c.name === 'id');
+      const idCol = aggNode.attrs.groupByColumns.find((c) => c.name === 'id');
       if (userNameCol) {
         userNameCol.checked = true;
       }
@@ -355,9 +355,9 @@ describe('Node Propagation', () => {
     it('should handle multiple sequential edits in a chain', () => {
       // Setup: Source -> Modify1 -> Modify2 -> Modify3
       const sourceNode = createMockSourceNode();
-      const modify1 = new ModifyColumnsNode({selectedColumns: []});
-      const modify2 = new ModifyColumnsNode({selectedColumns: []});
-      const modify3 = new ModifyColumnsNode({selectedColumns: []});
+      const modify1 = new ModifyColumnsNode({selectedColumns: []}, {});
+      const modify2 = new ModifyColumnsNode({selectedColumns: []}, {});
+      const modify3 = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect the nodes
       connectNodes(sourceNode, modify1);
@@ -368,19 +368,19 @@ describe('Node Propagation', () => {
       initializeNodeChain([modify1, modify2, modify3]);
 
       // First edit: modify1 renames 'name' to 'user_name'
-      modify1.state.selectedColumns[1].alias = 'user_name';
+      modify1.attrs.selectedColumns[1].alias = 'user_name';
       initializeNodeChain([modify2, modify3]);
 
       expectColumnNames(modify3, ['id', 'user_name', 'value']);
 
       // Second edit: modify2 renames 'user_name' to 'username'
-      modify2.state.selectedColumns[1].alias = 'username';
+      modify2.attrs.selectedColumns[1].alias = 'username';
       modify3.onPrevNodesUpdated?.();
 
       expectColumnNames(modify3, ['id', 'username', 'value']);
 
       // Third edit: modify2 also renames 'id' to 'identifier'
-      modify2.state.selectedColumns[0].alias = 'identifier';
+      modify2.attrs.selectedColumns[0].alias = 'identifier';
       modify3.onPrevNodesUpdated?.();
 
       expectColumnNames(modify3, ['identifier', 'username', 'value']);
@@ -389,10 +389,10 @@ describe('Node Propagation', () => {
     it('should propagate column removal through entire chain', () => {
       // Setup: Source -> Modify1 -> Modify2 -> Modify3 -> Modify4
       const sourceNode = createMockSourceNode();
-      const modify1 = new ModifyColumnsNode({selectedColumns: []});
-      const modify2 = new ModifyColumnsNode({selectedColumns: []});
-      const modify3 = new ModifyColumnsNode({selectedColumns: []});
-      const modify4 = new ModifyColumnsNode({selectedColumns: []});
+      const modify1 = new ModifyColumnsNode({selectedColumns: []}, {});
+      const modify2 = new ModifyColumnsNode({selectedColumns: []}, {});
+      const modify3 = new ModifyColumnsNode({selectedColumns: []}, {});
+      const modify4 = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect the nodes
       connectNodes(sourceNode, modify1);
@@ -407,7 +407,7 @@ describe('Node Propagation', () => {
       expect(modify4.finalCols).toHaveLength(3);
 
       // Remove 'name' column in modify2 (middle of chain)
-      modify2.state.selectedColumns[1].checked = false;
+      modify2.attrs.selectedColumns[1].checked = false;
       initializeNodeChain([modify3, modify4]);
 
       // All downstream nodes should only have 2 columns now
@@ -421,11 +421,11 @@ describe('Node Propagation', () => {
   describe('onPrevNodesUpdated behavior', () => {
     it('should be called on downstream nodes when upstream changes', () => {
       const sourceNode = createMockSourceNode();
-      const modifyNode = new ModifyColumnsNode({selectedColumns: []});
-      const aggNode = new AggregationNode({
-        groupByColumns: [],
-        aggregations: [],
-      });
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
+      const aggNode = new AggregationNode(
+        {groupByColumns: [], aggregations: []},
+        {},
+      );
 
       // Connect the nodes
       connectNodes(sourceNode, modifyNode);
@@ -444,7 +444,7 @@ describe('Node Propagation', () => {
       aggOnPrevNodesUpdatedSpy.mockClear();
 
       // Make a change in modify node and trigger propagation
-      modifyNode.state.selectedColumns[0].alias = 'identifier';
+      modifyNode.attrs.selectedColumns[0].alias = 'identifier';
       aggNode.onPrevNodesUpdated?.();
 
       // Verify it was called
@@ -462,11 +462,11 @@ describe('Node Propagation', () => {
 
       // Setup: Source -> Aggregation -> ModifyColumns
       const sourceNode = createMockSourceNode();
-      const aggNode = new AggregationNode({
-        groupByColumns: [],
-        aggregations: [],
-      });
-      const modifyNode = new ModifyColumnsNode({selectedColumns: []});
+      const aggNode = new AggregationNode(
+        {groupByColumns: [], aggregations: []},
+        {},
+      );
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect the nodes
       connectNodes(sourceNode, aggNode);
@@ -476,26 +476,26 @@ describe('Node Propagation', () => {
       aggNode.onPrevNodesUpdated?.();
 
       // User adds an aggregation: COUNT(*) AS "count"
-      aggNode.state.aggregations.push({
+      aggNode.attrs.aggregations.push({
         aggregationOp: 'COUNT(*)',
         newColumnName: 'count',
       });
 
       // Check a column to include in output
-      aggNode.state.groupByColumns[0].checked = true; // Check 'id'
+      aggNode.attrs.groupByColumns[0].checked = true; // Check 'id'
 
       // User adds a modify columns node below
       // Initialize it - it should see 'id' and 'count' from aggregation
       modifyNode.onPrevNodesUpdated?.();
 
       // Verify modify node initially sees 'id' and 'count'
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).toEqual([
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).toEqual([
         'id',
         'count',
       ]);
 
       // User goes back to aggregation and renames "count" to "my_count"
-      aggNode.state.aggregations[0].newColumnName = 'my_count';
+      aggNode.attrs.aggregations[0].newColumnName = 'my_count';
 
       // Simulate the builder's onchange behavior: notify downstream nodes
       // This is what SHOULD happen automatically when user edits in UI
@@ -505,16 +505,16 @@ describe('Node Propagation', () => {
       // - Old "count" column should be GONE
       // - New "my_count" column should appear
       // - It should be checked by default (all new columns are checked)
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).toEqual([
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).toEqual([
         'id',
         'my_count',
       ]);
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).not.toContain(
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).not.toContain(
         'count',
       );
 
       // Verify the new column is checked by default
-      const myCountCol = modifyNode.state.selectedColumns.find(
+      const myCountCol = modifyNode.attrs.selectedColumns.find(
         (c) => c.name === 'my_count',
       );
       expect(myCountCol?.checked).toBe(true);
@@ -523,11 +523,11 @@ describe('Node Propagation', () => {
     it('should propagate multiple aggregation column name changes', () => {
       // Setup: Source -> Aggregation -> ModifyColumns
       const sourceNode = createMockSourceNode();
-      const aggNode = new AggregationNode({
-        groupByColumns: [],
-        aggregations: [],
-      });
-      const modifyNode = new ModifyColumnsNode({selectedColumns: []});
+      const aggNode = new AggregationNode(
+        {groupByColumns: [], aggregations: []},
+        {},
+      );
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect the nodes
       connectNodes(sourceNode, aggNode);
@@ -537,38 +537,38 @@ describe('Node Propagation', () => {
       aggNode.onPrevNodesUpdated?.();
 
       // Add multiple aggregations
-      aggNode.state.aggregations.push({
+      aggNode.attrs.aggregations.push({
         aggregationOp: 'COUNT(*)',
         newColumnName: 'count',
       });
-      aggNode.state.aggregations.push({
+      aggNode.attrs.aggregations.push({
         aggregationOp: 'SUM',
-        column: aggNode.state.groupByColumns.find((c) => c.name === 'value'),
+        column: aggNode.attrs.groupByColumns.find((c) => c.name === 'value'),
         newColumnName: 'total',
       });
 
       // Check a group by column
-      aggNode.state.groupByColumns[0].checked = true; // Check 'id'
+      aggNode.attrs.groupByColumns[0].checked = true; // Check 'id'
 
       // Initialize the modify node
       modifyNode.onPrevNodesUpdated?.();
 
       // Verify initial state
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).toEqual([
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).toEqual([
         'id',
         'count',
         'total',
       ]);
 
       // Rename both aggregation columns
-      aggNode.state.aggregations[0].newColumnName = 'num_rows';
-      aggNode.state.aggregations[1].newColumnName = 'sum_value';
+      aggNode.attrs.aggregations[0].newColumnName = 'num_rows';
+      aggNode.attrs.aggregations[1].newColumnName = 'sum_value';
 
       // Propagate changes
       modifyNode.onPrevNodesUpdated?.();
 
       // Verify the changes propagated
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).toEqual([
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).toEqual([
         'id',
         'num_rows',
         'sum_value',
@@ -578,12 +578,12 @@ describe('Node Propagation', () => {
     it('should handle propagation through: Source -> Agg -> ModifyColumns1 -> ModifyColumns2', () => {
       // Setup: Source -> Aggregation -> Modify1 -> Modify2
       const sourceNode = createMockSourceNode();
-      const aggNode = new AggregationNode({
-        groupByColumns: [],
-        aggregations: [],
-      });
-      const modify1 = new ModifyColumnsNode({selectedColumns: []});
-      const modify2 = new ModifyColumnsNode({selectedColumns: []});
+      const aggNode = new AggregationNode(
+        {groupByColumns: [], aggregations: []},
+        {},
+      );
+      const modify1 = new ModifyColumnsNode({selectedColumns: []}, {});
+      const modify2 = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect the nodes
       connectNodes(sourceNode, aggNode);
@@ -592,8 +592,8 @@ describe('Node Propagation', () => {
 
       // Initialize
       aggNode.onPrevNodesUpdated?.();
-      aggNode.state.groupByColumns[1].checked = true; // Check 'name'
-      aggNode.state.aggregations.push({
+      aggNode.attrs.groupByColumns[1].checked = true; // Check 'name'
+      aggNode.attrs.aggregations.push({
         aggregationOp: 'COUNT(*)',
         newColumnName: 'count',
       });
@@ -605,7 +605,7 @@ describe('Node Propagation', () => {
       expectColumnNames(modify2, ['name', 'count']);
 
       // Rename aggregation column
-      aggNode.state.aggregations[0].newColumnName = 'total_count';
+      aggNode.attrs.aggregations[0].newColumnName = 'total_count';
 
       // Propagate to both downstream nodes
       initializeNodeChain([modify1, modify2]);
@@ -619,12 +619,12 @@ describe('Node Propagation', () => {
       // This test requires FilterNode, but we'll use ModifyColumns as a proxy
       // to test the general propagation pattern
       const sourceNode = createMockSourceNode();
-      const aggNode = new AggregationNode({
-        groupByColumns: [],
-        aggregations: [],
-      });
-      const middleNode = new ModifyColumnsNode({selectedColumns: []});
-      const modifyNode = new ModifyColumnsNode({selectedColumns: []});
+      const aggNode = new AggregationNode(
+        {groupByColumns: [], aggregations: []},
+        {},
+      );
+      const middleNode = new ModifyColumnsNode({selectedColumns: []}, {});
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect: Source -> Agg -> MiddleNode -> ModifyColumns
       connectNodes(sourceNode, aggNode);
@@ -633,8 +633,8 @@ describe('Node Propagation', () => {
 
       // Initialize
       aggNode.onPrevNodesUpdated?.();
-      aggNode.state.groupByColumns[0].checked = true; // Check 'id'
-      aggNode.state.aggregations.push({
+      aggNode.attrs.groupByColumns[0].checked = true; // Check 'id'
+      aggNode.attrs.aggregations.push({
         aggregationOp: 'COUNT(*)',
         newColumnName: 'count',
       });
@@ -645,7 +645,7 @@ describe('Node Propagation', () => {
       expectColumnNames(modifyNode, ['id', 'count']);
 
       // Rename aggregation column
-      aggNode.state.aggregations[0].newColumnName = 'row_count';
+      aggNode.attrs.aggregations[0].newColumnName = 'row_count';
 
       // Propagate through middle node to modify node
       initializeNodeChain([middleNode, modifyNode]);
@@ -656,15 +656,15 @@ describe('Node Propagation', () => {
 
     it('should handle multiple stacked aggregations: Source -> Agg1 -> Agg2 -> ModifyColumns', () => {
       const sourceNode = createMockSourceNode();
-      const agg1 = new AggregationNode({
-        groupByColumns: [],
-        aggregations: [],
-      });
-      const agg2 = new AggregationNode({
-        groupByColumns: [],
-        aggregations: [],
-      });
-      const modifyNode = new ModifyColumnsNode({selectedColumns: []});
+      const agg1 = new AggregationNode(
+        {groupByColumns: [], aggregations: []},
+        {},
+      );
+      const agg2 = new AggregationNode(
+        {groupByColumns: [], aggregations: []},
+        {},
+      );
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect: Source -> Agg1 -> Agg2 -> ModifyColumns
       connectNodes(sourceNode, agg1);
@@ -673,23 +673,23 @@ describe('Node Propagation', () => {
 
       // Initialize agg1
       agg1.onPrevNodesUpdated?.();
-      agg1.state.groupByColumns[0].checked = true; // Group by 'id'
-      agg1.state.aggregations.push({
+      agg1.attrs.groupByColumns[0].checked = true; // Group by 'id'
+      agg1.attrs.aggregations.push({
         aggregationOp: 'SUM',
-        column: agg1.state.groupByColumns.find((c) => c.name === 'value'),
+        column: agg1.attrs.groupByColumns.find((c) => c.name === 'value'),
         newColumnName: 'total',
       });
 
       // Initialize agg2 - it should see 'id' and 'total' from agg1
       agg2.onPrevNodesUpdated?.();
-      expect(agg2.state.groupByColumns.map((c) => c.name)).toEqual([
+      expect(agg2.attrs.groupByColumns.map((c) => c.name)).toEqual([
         'id',
         'total',
       ]);
 
       // In agg2, do another aggregation
-      agg2.state.groupByColumns[0].checked = true; // Group by 'id'
-      agg2.state.aggregations.push({
+      agg2.attrs.groupByColumns[0].checked = true; // Group by 'id'
+      agg2.attrs.aggregations.push({
         aggregationOp: 'COUNT(*)',
         newColumnName: 'count',
       });
@@ -699,7 +699,7 @@ describe('Node Propagation', () => {
       expectColumnNames(modifyNode, ['id', 'count']);
 
       // Now change column name in FIRST aggregation (agg1)
-      agg1.state.aggregations[0].newColumnName = 'sum_value';
+      agg1.attrs.aggregations[0].newColumnName = 'sum_value';
 
       // Propagate through the chain
       agg2.onPrevNodesUpdated?.();
@@ -712,7 +712,7 @@ describe('Node Propagation', () => {
       expectColumnNames(modifyNode, ['id', 'count']);
 
       // Now also change column name in SECOND aggregation (agg2)
-      agg2.state.aggregations[0].newColumnName = 'num_groups';
+      agg2.attrs.aggregations[0].newColumnName = 'num_groups';
 
       // Propagate to modify node
       modifyNode.onPrevNodesUpdated?.();
@@ -725,11 +725,11 @@ describe('Node Propagation', () => {
       // it should NOT appear in the modify columns node below
 
       const sourceNode = createMockSourceNode();
-      const aggNode = new AggregationNode({
-        groupByColumns: [],
-        aggregations: [],
-      });
-      const modifyNode = new ModifyColumnsNode({selectedColumns: []});
+      const aggNode = new AggregationNode(
+        {groupByColumns: [], aggregations: []},
+        {},
+      );
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect the nodes
       connectNodes(sourceNode, aggNode);
@@ -739,8 +739,8 @@ describe('Node Propagation', () => {
       aggNode.onPrevNodesUpdated?.();
 
       // Add a valid aggregation
-      aggNode.state.groupByColumns[0].checked = true; // Check 'id'
-      aggNode.state.aggregations.push({
+      aggNode.attrs.groupByColumns[0].checked = true; // Check 'id'
+      aggNode.attrs.aggregations.push({
         aggregationOp: 'COUNT(*)',
         newColumnName: 'count',
       });
@@ -749,24 +749,24 @@ describe('Node Propagation', () => {
       modifyNode.onPrevNodesUpdated?.();
 
       // Should see 'id' and 'count'
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).toEqual([
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).toEqual([
         'id',
         'count',
       ]);
 
       // Now make the aggregation INVALID by removing the operation
       // (simulating user deleting the operation while editing)
-      aggNode.state.aggregations[0].aggregationOp = undefined;
+      aggNode.attrs.aggregations[0].aggregationOp = undefined;
 
       // Notify downstream
       modifyNode.onPrevNodesUpdated?.();
 
       // EXPECTED: The invalid aggregation should NOT appear in modify node
       // Should only see 'id', NOT 'count'
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).toEqual([
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).toEqual([
         'id',
       ]);
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).not.toContain(
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).not.toContain(
         'count',
       );
     });
@@ -776,11 +776,11 @@ describe('Node Propagation', () => {
       // it should appear in downstream nodes
 
       const sourceNode = createMockSourceNode();
-      const aggNode = new AggregationNode({
-        groupByColumns: [],
-        aggregations: [],
-      });
-      const modifyNode = new ModifyColumnsNode({selectedColumns: []});
+      const aggNode = new AggregationNode(
+        {groupByColumns: [], aggregations: []},
+        {},
+      );
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect the nodes
       connectNodes(sourceNode, aggNode);
@@ -788,10 +788,10 @@ describe('Node Propagation', () => {
 
       // Initialize
       aggNode.onPrevNodesUpdated?.();
-      aggNode.state.groupByColumns[0].checked = true; // Check 'id'
+      aggNode.attrs.groupByColumns[0].checked = true; // Check 'id'
 
       // Start with an INVALID aggregation (no operation selected)
-      aggNode.state.aggregations.push({
+      aggNode.attrs.aggregations.push({
         aggregationOp: undefined, // Invalid!
         newColumnName: 'my_agg',
       });
@@ -800,18 +800,18 @@ describe('Node Propagation', () => {
       modifyNode.onPrevNodesUpdated?.();
 
       // Should only see 'id', not the invalid aggregation
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).toEqual([
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).toEqual([
         'id',
       ]);
 
       // Now make it valid by adding an operation
-      aggNode.state.aggregations[0].aggregationOp = 'COUNT(*)';
+      aggNode.attrs.aggregations[0].aggregationOp = 'COUNT(*)';
 
       // Notify downstream
       modifyNode.onPrevNodesUpdated?.();
 
       // EXPECTED: Now that it's valid, it should appear
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).toEqual([
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).toEqual([
         'id',
         'my_agg',
       ]);
@@ -821,11 +821,11 @@ describe('Node Propagation', () => {
       // When there are multiple aggregations, only valid ones should propagate
 
       const sourceNode = createMockSourceNode();
-      const aggNode = new AggregationNode({
-        groupByColumns: [],
-        aggregations: [],
-      });
-      const modifyNode = new ModifyColumnsNode({selectedColumns: []});
+      const aggNode = new AggregationNode(
+        {groupByColumns: [], aggregations: []},
+        {},
+      );
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect the nodes
       connectNodes(sourceNode, aggNode);
@@ -833,23 +833,23 @@ describe('Node Propagation', () => {
 
       // Initialize
       aggNode.onPrevNodesUpdated?.();
-      aggNode.state.groupByColumns[0].checked = true; // Check 'id'
+      aggNode.attrs.groupByColumns[0].checked = true; // Check 'id'
 
       // Add multiple aggregations: some valid, some invalid
-      aggNode.state.aggregations.push({
+      aggNode.attrs.aggregations.push({
         aggregationOp: 'COUNT(*)',
         newColumnName: 'count', // VALID
       });
-      aggNode.state.aggregations.push({
+      aggNode.attrs.aggregations.push({
         aggregationOp: undefined, // INVALID - no operation
         newColumnName: 'invalid1',
       });
-      aggNode.state.aggregations.push({
+      aggNode.attrs.aggregations.push({
         aggregationOp: 'SUM',
-        column: aggNode.state.groupByColumns.find((c) => c.name === 'value'),
+        column: aggNode.attrs.groupByColumns.find((c) => c.name === 'value'),
         newColumnName: 'sum_value', // VALID
       });
-      aggNode.state.aggregations.push({
+      aggNode.attrs.aggregations.push({
         aggregationOp: 'SUM',
         column: undefined, // INVALID - SUM requires a column
         newColumnName: 'invalid2',
@@ -859,15 +859,15 @@ describe('Node Propagation', () => {
       modifyNode.onPrevNodesUpdated?.();
 
       // EXPECTED: Should only see 'id' and the two valid aggregations
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).toEqual([
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).toEqual([
         'id',
         'count',
         'sum_value',
       ]);
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).not.toContain(
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).not.toContain(
         'invalid1',
       );
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).not.toContain(
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).not.toContain(
         'invalid2',
       );
     });
@@ -878,11 +878,11 @@ describe('Node Propagation', () => {
 
       // Setup: Source -> Aggregation -> ModifyColumns
       const sourceNode = createMockSourceNode();
-      const aggNode = new AggregationNode({
-        groupByColumns: [],
-        aggregations: [],
-      });
-      const modifyNode = new ModifyColumnsNode({selectedColumns: []});
+      const aggNode = new AggregationNode(
+        {groupByColumns: [], aggregations: []},
+        {},
+      );
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Connect the nodes
       connectNodes(sourceNode, aggNode);
@@ -890,58 +890,58 @@ describe('Node Propagation', () => {
 
       // Initialize
       aggNode.onPrevNodesUpdated?.();
-      aggNode.state.groupByColumns[0].checked = true;
+      aggNode.attrs.groupByColumns[0].checked = true;
 
       // Scenario 1: User creates aggregation WITHOUT manual name (uses placeholder)
-      aggNode.state.aggregations.push({
+      aggNode.attrs.aggregations.push({
         aggregationOp: 'SUM',
-        column: aggNode.state.groupByColumns.find((c) => c.name === 'value'),
+        column: aggNode.attrs.groupByColumns.find((c) => c.name === 'value'),
         // No newColumnName - should use placeholder "sum_value"
       });
 
       modifyNode.onPrevNodesUpdated?.();
 
       // Should see the placeholder name "sum_value"
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).toContain(
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).toContain(
         'sum_value',
       );
 
       // Scenario 2: User manually enters their own name "my_custom_sum"
-      aggNode.state.aggregations[0].newColumnName = 'my_custom_sum';
+      aggNode.attrs.aggregations[0].newColumnName = 'my_custom_sum';
       modifyNode.onPrevNodesUpdated?.();
 
       // Should now see manual name, NOT placeholder
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).toContain(
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).toContain(
         'my_custom_sum',
       );
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).not.toContain(
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).not.toContain(
         'sum_value',
       );
 
       // Scenario 3: User changes manual name to something else
-      aggNode.state.aggregations[0].newColumnName = 'total_amount';
+      aggNode.attrs.aggregations[0].newColumnName = 'total_amount';
       modifyNode.onPrevNodesUpdated?.();
 
       // Should see the new manual name
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).toContain(
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).toContain(
         'total_amount',
       );
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).not.toContain(
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).not.toContain(
         'my_custom_sum',
       );
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).not.toContain(
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).not.toContain(
         'sum_value',
       );
 
       // Scenario 4: User changes the operation (manual name still takes precedence)
-      aggNode.state.aggregations[0].aggregationOp = 'AVG';
+      aggNode.attrs.aggregations[0].aggregationOp = 'AVG';
       modifyNode.onPrevNodesUpdated?.();
 
       // Should STILL see "total_amount" (manual name), NOT "avg_value" (placeholder)
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).toContain(
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).toContain(
         'total_amount',
       );
-      expect(modifyNode.state.selectedColumns.map((c) => c.name)).not.toContain(
+      expect(modifyNode.attrs.selectedColumns.map((c) => c.name)).not.toContain(
         'avg_value',
       );
     });

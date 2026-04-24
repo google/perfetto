@@ -19,18 +19,17 @@ import {
 } from '../../../../dev.perfetto.SqlModules/sql_modules';
 import {
   QueryNode,
-  QueryNodeState,
   NodeType,
   nextNodeId,
+  NodeContext,
 } from '../../../query_node';
 import {StructuredQueryBuilder} from '../../structured_query_builder';
 import {
   ColumnInfo,
   columnInfoFromSqlColumn,
-  newColumnInfoList,
+  newColumnInfo,
 } from '../../column_info';
 import protos from '../../../../../protos';
-import {Trace} from '../../../../../public/trace';
 import {closeModal, showModal} from '../../../../../widgets/modal';
 import {TableList} from '../../table_list';
 import {redrawModal} from '../../../../../widgets/modal';
@@ -40,16 +39,9 @@ import {NodeDetailsAttrs} from '../../../node_types';
 import {loadNodeDoc} from '../../node_doc_loader';
 import {NodeTitle} from '../../node_styling_widgets';
 
-export interface TableSourceSerializedState {
+// Serializable node configuration.
+export interface TableSourceNodeAttrs {
   sqlTable?: string;
-  comment?: string;
-}
-
-export interface TableSourceState extends QueryNodeState {
-  readonly trace: Trace;
-
-  sqlTable?: SqlTable;
-  onchange?: () => void;
 }
 
 interface TableSelectionResult {
@@ -153,20 +145,24 @@ export function modalForTableSelection(
 
 export class TableSourceNode implements QueryNode {
   readonly nodeId: string;
-  readonly state: TableSourceState;
+  readonly attrs: TableSourceNodeAttrs;
+  readonly context: NodeContext;
+  // Runtime-resolved SqlTable object (not serializable).
+  readonly sqlTable?: SqlTable;
   readonly finalCols: ColumnInfo[];
   nextNodes: QueryNode[];
 
-  constructor(attrs: TableSourceState) {
+  constructor(attrs: TableSourceNodeAttrs, context: NodeContext) {
     this.nodeId = nextNodeId();
-    this.state = attrs;
-    this.state.onchange = attrs.onchange;
-    this.finalCols = newColumnInfoList(
-      this.state.sqlTable?.columns.map((c) =>
-        columnInfoFromSqlColumn(c, true),
-      ) ?? [],
-      true,
-    );
+    this.attrs = attrs;
+    this.context = context;
+    // Resolve sqlTable from sqlModules using the table name string.
+    this.sqlTable = attrs.sqlTable
+      ? context.sqlModules?.getTable(attrs.sqlTable)
+      : undefined;
+    this.finalCols = (
+      this.sqlTable?.columns.map((c) => columnInfoFromSqlColumn(c, true)) ?? []
+    ).map((col) => newColumnInfo(col, true));
     this.nextNodes = [];
   }
 
@@ -175,12 +171,7 @@ export class TableSourceNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    const stateCopy: TableSourceState = {
-      trace: this.state.trace,
-      sqlTable: this.state.sqlTable,
-      onchange: this.state.onchange,
-    };
-    return new TableSourceNode(stateCopy);
+    return new TableSourceNode(this.attrs, this.context);
   }
 
   nodeSpecificModify(): m.Child {
@@ -189,12 +180,12 @@ export class TableSourceNode implements QueryNode {
 
   validate(): boolean {
     // Clear any previous errors at the start of validation
-    if (this.state.issues) {
-      this.state.issues.clear();
+    if (this.context.issues) {
+      this.context.issues.clear();
     }
 
-    if (this.state.sqlTable === undefined) {
-      setValidationError(this.state, 'No table selected');
+    if (this.sqlTable === undefined) {
+      setValidationError(this.context, 'No table selected');
       return false;
     }
 
@@ -202,26 +193,26 @@ export class TableSourceNode implements QueryNode {
   }
 
   getTitle(): string {
-    return `${this.state.sqlTable?.name}`;
+    return `${this.sqlTable?.name}`;
   }
 
   nodeDetails(): NodeDetailsAttrs {
     return {
-      content: NodeTitle('Table ' + (this.state.sqlTable?.name ?? '')),
+      content: NodeTitle('Table ' + (this.sqlTable?.name ?? '')),
     };
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
-    if (!this.state.sqlTable) return;
+    if (!this.sqlTable) return;
 
     const columnNames = this.finalCols
       .filter((c) => c.checked)
-      .map((c) => c.column.name);
+      .map((c) => c.name);
 
     const sq = StructuredQueryBuilder.fromTable(
-      this.state.sqlTable.name,
-      this.state.sqlTable.includeKey || undefined,
+      this.sqlTable.name,
+      this.sqlTable.includeKey || undefined,
       columnNames,
       this.nodeId,
     );
@@ -230,44 +221,23 @@ export class TableSourceNode implements QueryNode {
     return sq;
   }
 
-  serializeState(): TableSourceSerializedState {
-    return {
-      sqlTable: this.state.sqlTable?.name,
-    };
-  }
-
   nodeInfo(): m.Children {
     // Show general documentation
     const docContent = loadNodeDoc('table_source');
 
     // If a table is selected, also show table-specific information
-    if (this.state.sqlTable != null) {
+    if (this.sqlTable != null) {
       return m(
         'div',
         docContent,
         m(
           '.pf-table-source-selected',
           m('h2', 'Selected Table'),
-          m(TableDescription, {table: this.state.sqlTable}),
+          m(TableDescription, {table: this.sqlTable}),
         ),
       );
     }
 
     return docContent;
-  }
-
-  static deserializeState(
-    trace: Trace,
-    sqlModules: SqlModules,
-    state: TableSourceSerializedState,
-  ): TableSourceState {
-    const sqlTable = state.sqlTable
-      ? sqlModules.getTable(state.sqlTable)
-      : undefined;
-    return {
-      ...state,
-      trace,
-      sqlTable,
-    };
   }
 }

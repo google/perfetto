@@ -111,7 +111,7 @@ export function getColumnsForArgType(
   const argTypeResult = parsePerfettoSqlTypeFromString({type: argType});
   if (!argTypeResult.ok) {
     // Unknown arg type - show all columns
-    return sourceCols.map((col) => col.column.name);
+    return sourceCols.map((col) => col.name);
   }
   const parsedArgType = argTypeResult.value;
   const argIsQuantitative = isQuantitativeType(parsedArgType);
@@ -119,7 +119,7 @@ export function getColumnsForArgType(
 
   return sourceCols
     .filter((col) => {
-      const colType = col.column.type;
+      const colType = col.type;
       if (colType === undefined) {
         // Unknown column type - include it
         return true;
@@ -133,7 +133,7 @@ export function getColumnsForArgType(
       // For other types (like bytes), show all columns
       return true;
     })
-    .map((col) => col.column.name);
+    .map((col) => col.name);
 }
 
 /**

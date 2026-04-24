@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  ModifyColumnsNode,
-  ModifyColumnsSerializedState,
-  ModifyColumnsState,
-} from './modify_columns_node';
+import {ModifyColumnsNode, ModifyColumnsNodeAttrs} from './modify_columns_node';
 import {QueryNode} from '../../query_node';
 import {
   createMockNode,
@@ -24,7 +20,6 @@ import {
   connectNodes,
 } from '../testing/test_utils';
 import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';
-import {SqlModules} from '../../../dev.perfetto.SqlModules/sql_modules';
 
 describe('ModifyColumnsNode', () => {
   function createMockPrevNode(): QueryNode {
@@ -39,10 +34,10 @@ describe('ModifyColumnsNode', () => {
   }
 
   function createModifyColumnsNodeWithInput(
-    state: ModifyColumnsState,
+    state: ModifyColumnsNodeAttrs,
     inputNode?: QueryNode,
   ): ModifyColumnsNode {
-    const node = new ModifyColumnsNode(state);
+    const node = new ModifyColumnsNode(state, {});
     if (inputNode) {
       // Directly set the connection without triggering onPrevNodesUpdated
       // to preserve the test's explicitly provided selectedColumns
@@ -72,7 +67,7 @@ describe('ModifyColumnsNode', () => {
       );
 
       // Uncheck all auto-populated columns
-      node.state.selectedColumns.forEach((col) => {
+      node.attrs.selectedColumns.forEach((col) => {
         col.checked = false;
       });
 
@@ -127,76 +122,66 @@ describe('ModifyColumnsNode', () => {
       const node = createModifyColumnsNodeWithInput(
         {
           selectedColumns: [
-            createColumnInfo('id', 'int'),
-            createColumnInfo('status', 'string'),
+            {name: 'id', checked: true},
+            {name: 'status', checked: true},
           ],
         },
         createMockPrevNode(),
       );
 
-      const serialized = node.serializeState();
-
-      expect(serialized.selectedColumns).toBeDefined();
-      expect(serialized.selectedColumns.length).toBe(2);
-      expect(serialized.selectedColumns[0].name).toBe('id');
-      expect(serialized.selectedColumns[1].name).toBe('status');
+      expect(node.attrs.selectedColumns).toBeDefined();
+      expect(node.attrs.selectedColumns.length).toBe(2);
+      expect(node.attrs.selectedColumns[0].name).toBe('id');
+      expect(node.attrs.selectedColumns[1].name).toBe('status');
     });
 
     it('should serialize column aliases correctly', () => {
-      const col1 = createColumnInfo('id', 'int');
-      const col2 = createColumnInfo('status', 'string', {
-        alias: 'status_renamed',
-      });
       const node = createModifyColumnsNodeWithInput(
         {
-          selectedColumns: [col1, col2],
+          selectedColumns: [
+            {name: 'id', checked: true},
+            {name: 'status', checked: true, alias: 'status_renamed'},
+          ],
         },
         createMockPrevNode(),
       );
 
-      const serialized = node.serializeState();
-
-      expect(serialized.selectedColumns[0].alias).toBeUndefined();
-      expect(serialized.selectedColumns[1].alias).toBe('status_renamed');
+      expect(node.attrs.selectedColumns[0].alias).toBeUndefined();
+      expect(node.attrs.selectedColumns[1].alias).toBe('status_renamed');
     });
 
     it('should serialize checked status correctly', () => {
-      const col1 = createColumnInfo('id', 'int');
-      const col2 = createColumnInfo('status', 'string', {checked: false});
       const node = createModifyColumnsNodeWithInput(
         {
-          selectedColumns: [col1, col2],
+          selectedColumns: [
+            {name: 'id', checked: true},
+            {name: 'status', checked: false},
+          ],
         },
         createMockPrevNode(),
       );
 
-      const serialized = node.serializeState();
-
-      expect(serialized.selectedColumns[0].checked).toBe(true);
-      expect(serialized.selectedColumns[1].checked).toBe(false);
+      expect(node.attrs.selectedColumns[0].checked).toBe(true);
+      expect(node.attrs.selectedColumns[1].checked).toBe(false);
     });
 
     it('should serialize column types as PerfettoSqlType objects', () => {
-      const col1 = createColumnInfo('id', 'int');
-      const col2 = createColumnInfo('ts', 'timestamp');
       const node = createModifyColumnsNodeWithInput(
-        {selectedColumns: [col1, col2]},
+        {
+          selectedColumns: [
+            {name: 'id', type: {kind: 'int'}, checked: true},
+            {name: 'ts', type: {kind: 'timestamp'}, checked: true},
+          ],
+        },
         createMockPrevNode(),
       );
 
-      const serialized = node.serializeState();
-
-      expect(serialized.selectedColumns[0].type).toEqual({kind: 'int'});
-      expect(serialized.selectedColumns[1].type).toEqual({kind: 'timestamp'});
+      expect(node.attrs.selectedColumns[0].type).toEqual({kind: 'int'});
+      expect(node.attrs.selectedColumns[1].type).toEqual({kind: 'timestamp'});
     });
   });
 
   describe('legacy deserialization', () => {
-    const mockSqlModules = {
-      listTables: () => [],
-      listModules: () => [],
-    } as unknown as SqlModules;
-
     it('should deserialize legacy string types into PerfettoSqlType', () => {
       // Simulate old serialized state where type was a string like "INT"
       const legacyState = {
@@ -205,69 +190,47 @@ describe('ModifyColumnsNode', () => {
           {name: 'name', type: 'STRING', checked: true},
           {name: 'ts', type: 'TIMESTAMP', checked: false},
         ],
-      } as unknown as ModifyColumnsSerializedState;
+      } as unknown as ModifyColumnsNodeAttrs;
 
-      const state = ModifyColumnsNode.deserializeState(
-        mockSqlModules,
-        legacyState,
-      );
+      const state = ModifyColumnsNode.deserializeState(legacyState);
 
-      expect(state.selectedColumns[0].column.type).toEqual(
-        PerfettoSqlTypes.INT,
-      );
-      expect(state.selectedColumns[1].column.type).toEqual(
-        PerfettoSqlTypes.STRING,
-      );
-      expect(state.selectedColumns[2].column.type).toEqual(
-        PerfettoSqlTypes.TIMESTAMP,
-      );
+      expect(state.selectedColumns[0].type).toEqual(PerfettoSqlTypes.INT);
+      expect(state.selectedColumns[1].type).toEqual(PerfettoSqlTypes.STRING);
+      expect(state.selectedColumns[2].type).toEqual(PerfettoSqlTypes.TIMESTAMP);
     });
 
     it('should deserialize new PerfettoSqlType objects correctly', () => {
-      const newState: ModifyColumnsSerializedState = {
+      const newState: ModifyColumnsNodeAttrs = {
         selectedColumns: [
           {name: 'id', type: {kind: 'int'}, checked: true},
           {name: 'dur', type: {kind: 'duration'}, checked: true},
         ],
       };
 
-      const state = ModifyColumnsNode.deserializeState(
-        mockSqlModules,
-        newState,
-      );
+      const state = ModifyColumnsNode.deserializeState(newState);
 
-      expect(state.selectedColumns[0].column.type).toEqual(
-        PerfettoSqlTypes.INT,
-      );
-      expect(state.selectedColumns[1].column.type).toEqual(
-        PerfettoSqlTypes.DURATION,
-      );
+      expect(state.selectedColumns[0].type).toEqual(PerfettoSqlTypes.INT);
+      expect(state.selectedColumns[1].type).toEqual(PerfettoSqlTypes.DURATION);
     });
 
     it('should handle undefined types gracefully', () => {
       const stateWithNoTypes = {
         selectedColumns: [{name: 'col1', checked: true}],
-      } as unknown as ModifyColumnsSerializedState;
+      } as unknown as ModifyColumnsNodeAttrs;
 
-      const state = ModifyColumnsNode.deserializeState(
-        mockSqlModules,
-        stateWithNoTypes,
-      );
+      const state = ModifyColumnsNode.deserializeState(stateWithNoTypes);
 
-      expect(state.selectedColumns[0].column.type).toBeUndefined();
+      expect(state.selectedColumns[0].type).toBeUndefined();
     });
 
     it('should handle unrecognized legacy string types', () => {
       const stateWithUnknown = {
         selectedColumns: [{name: 'col1', type: 'NA', checked: true}],
-      } as unknown as ModifyColumnsSerializedState;
+      } as unknown as ModifyColumnsNodeAttrs;
 
-      const state = ModifyColumnsNode.deserializeState(
-        mockSqlModules,
-        stateWithUnknown,
-      );
+      const state = ModifyColumnsNode.deserializeState(stateWithUnknown);
 
-      expect(state.selectedColumns[0].column.type).toBeUndefined();
+      expect(state.selectedColumns[0].type).toBeUndefined();
     });
   });
 
@@ -319,30 +282,28 @@ describe('ModifyColumnsNode', () => {
       });
 
       // Create modify columns node and connect it
-      const modifyNode = new ModifyColumnsNode({
-        selectedColumns: [],
-      });
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
       connectNodes(sourceNode, modifyNode);
 
       // Initialize the node to populate columns from source
       modifyNode.onPrevNodesUpdated();
 
       // Verify initial state - all columns should be from source
-      expect(modifyNode.state.selectedColumns.length).toBe(3);
-      expect(modifyNode.state.selectedColumns[2].name).toBe('value');
-      expect(modifyNode.state.selectedColumns[2].column.type).toEqual(
+      expect(modifyNode.attrs.selectedColumns.length).toBe(3);
+      expect(modifyNode.attrs.selectedColumns[2].name).toBe('value');
+      expect(modifyNode.attrs.selectedColumns[2].type).toEqual(
         PerfettoSqlTypes.INT,
       );
 
       // User modifies the type of 'value' column to 'duration'
-      modifyNode.state.selectedColumns[2].column = {
-        ...modifyNode.state.selectedColumns[2].column,
+      modifyNode.attrs.selectedColumns[2] = {
+        ...modifyNode.attrs.selectedColumns[2],
         type: {kind: 'duration'},
+        typeUserModified: true,
       };
-      modifyNode.state.selectedColumns[2].typeUserModified = true;
 
       // Verify the type was modified
-      expect(modifyNode.state.selectedColumns[2].column.type).toEqual(
+      expect(modifyNode.attrs.selectedColumns[2].type).toEqual(
         PerfettoSqlTypes.DURATION,
       );
 
@@ -366,8 +327,8 @@ describe('ModifyColumnsNode', () => {
       modifyNode.onPrevNodesUpdated();
 
       // The modified type should be preserved!
-      expect(modifyNode.state.selectedColumns[2].name).toBe('value');
-      expect(modifyNode.state.selectedColumns[2].column.type).toEqual(
+      expect(modifyNode.attrs.selectedColumns[2].name).toBe('value');
+      expect(modifyNode.attrs.selectedColumns[2].type).toEqual(
         PerfettoSqlTypes.DURATION,
       );
     });
@@ -382,15 +343,13 @@ describe('ModifyColumnsNode', () => {
         ],
       });
 
-      const modifyNode = new ModifyColumnsNode({
-        selectedColumns: [],
-      });
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
       connectNodes(sourceNode, modifyNode);
       modifyNode.onPrevNodesUpdated();
 
       // User customizes the node
-      modifyNode.state.selectedColumns[0].checked = false; // Uncheck 'id'
-      modifyNode.state.selectedColumns[1].alias = 'full_name'; // Rename 'name'
+      modifyNode.attrs.selectedColumns[0].checked = false; // Uncheck 'id'
+      modifyNode.attrs.selectedColumns[1].alias = 'full_name'; // Rename 'name'
 
       // Insert intermediate node
       const intermediateNode = createMockNode({
@@ -406,8 +365,8 @@ describe('ModifyColumnsNode', () => {
       modifyNode.onPrevNodesUpdated();
 
       // Customizations should be preserved
-      expect(modifyNode.state.selectedColumns[0].checked).toBe(false);
-      expect(modifyNode.state.selectedColumns[1].alias).toBe('full_name');
+      expect(modifyNode.attrs.selectedColumns[0].checked).toBe(false);
+      expect(modifyNode.attrs.selectedColumns[1].alias).toBe('full_name');
     });
   });
 
@@ -426,9 +385,9 @@ describe('ModifyColumnsNode', () => {
       const clonedNode = node.clone() as ModifyColumnsNode;
 
       // Aliases should be preserved in the cloned node
-      expect(clonedNode.state.selectedColumns[0].alias).toBeUndefined();
-      expect(clonedNode.state.selectedColumns[1].alias).toBe('full_name');
-      expect(clonedNode.state.selectedColumns[2].alias).toBe('amount');
+      expect(clonedNode.attrs.selectedColumns[0].alias).toBeUndefined();
+      expect(clonedNode.attrs.selectedColumns[1].alias).toBe('full_name');
+      expect(clonedNode.attrs.selectedColumns[2].alias).toBe('amount');
     });
 
     it('should preserve checked status when cloning', () => {
@@ -444,18 +403,17 @@ describe('ModifyColumnsNode', () => {
 
       const clonedNode = node.clone() as ModifyColumnsNode;
 
-      expect(clonedNode.state.selectedColumns[0].checked).toBe(true);
-      expect(clonedNode.state.selectedColumns[1].checked).toBe(false);
-      expect(clonedNode.state.selectedColumns[2].checked).toBe(true);
+      expect(clonedNode.attrs.selectedColumns[0].checked).toBe(true);
+      expect(clonedNode.attrs.selectedColumns[1].checked).toBe(false);
+      expect(clonedNode.attrs.selectedColumns[2].checked).toBe(true);
     });
 
     it('should preserve original column names when cloning with aliases', () => {
       // This is a regression test: cloning should NOT apply aliases as new
       // column names. The clone should preserve the exact internal state.
-      const col = createColumnInfo('id', 'int', {alias: 'identifier'});
       const node = createModifyColumnsNodeWithInput(
         {
-          selectedColumns: [col],
+          selectedColumns: [{name: 'id', checked: true, alias: 'identifier'}],
         },
         createMockPrevNode(),
       );
@@ -463,27 +421,31 @@ describe('ModifyColumnsNode', () => {
       const clonedNode = node.clone() as ModifyColumnsNode;
 
       // The original column name should be preserved, NOT the alias
-      expect(clonedNode.state.selectedColumns[0].column.name).toBe('id');
-      expect(clonedNode.state.selectedColumns[0].alias).toBe('identifier');
+      expect(clonedNode.attrs.selectedColumns[0].name).toBe('id');
+      expect(clonedNode.attrs.selectedColumns[0].alias).toBe('identifier');
     });
 
     it('should preserve typeUserModified flag when cloning', () => {
-      const col = createColumnInfo('value', 'int');
-      col.column = {...col.column, type: PerfettoSqlTypes.DURATION};
-      col.typeUserModified = true;
       const node = createModifyColumnsNodeWithInput(
         {
-          selectedColumns: [col],
+          selectedColumns: [
+            {
+              name: 'value',
+              type: PerfettoSqlTypes.DURATION,
+              checked: true,
+              typeUserModified: true,
+            },
+          ],
         },
         createMockPrevNode(),
       );
 
       const clonedNode = node.clone() as ModifyColumnsNode;
 
-      expect(clonedNode.state.selectedColumns[0].column.type).toEqual(
+      expect(clonedNode.attrs.selectedColumns[0].type).toEqual(
         PerfettoSqlTypes.DURATION,
       );
-      expect(clonedNode.state.selectedColumns[0].typeUserModified).toBe(true);
+      expect(clonedNode.attrs.selectedColumns[0].typeUserModified).toBe(true);
     });
 
     it('should create independent copies (mutations do not affect original)', () => {
@@ -498,12 +460,12 @@ describe('ModifyColumnsNode', () => {
       const clonedNode = node.clone() as ModifyColumnsNode;
 
       // Modify the cloned node
-      clonedNode.state.selectedColumns[0].alias = 'modified_alias';
-      clonedNode.state.selectedColumns[0].checked = false;
+      clonedNode.attrs.selectedColumns[0].alias = 'modified_alias';
+      clonedNode.attrs.selectedColumns[0].checked = false;
 
       // Original should be unchanged
-      expect(node.state.selectedColumns[0].alias).toBe('original_alias');
-      expect(node.state.selectedColumns[0].checked).toBe(true);
+      expect(node.attrs.selectedColumns[0].alias).toBe('original_alias');
+      expect(node.attrs.selectedColumns[0].checked).toBe(true);
     });
   });
 });

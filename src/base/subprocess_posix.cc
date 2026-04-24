@@ -441,8 +441,12 @@ void Subprocess::TryReadStdoutAndErr() {
   }
 }
 
-void Subprocess::KillAndWaitForTermination(int sig_num) {
+void Subprocess::Kill(int sig_num) {
   kill(s_->pid, sig_num ? sig_num : SIGKILL);
+}
+
+void Subprocess::KillAndWaitForTermination(int sig_num) {
+  Kill(sig_num);
   Wait();
   // TryReadExitStatus must have joined the thread.
   PERFETTO_DCHECK(!s_->waitpid_thread.joinable());

@@ -17,6 +17,8 @@ export interface FtraceFilter {
   // want to include all events by default but we won't know what names are
   // present initially.
   excludeList: string[];
+  // Exclude list of CPU numbers (logical cpu). Empty means all CPUs included.
+  cpuFilter: number[];
 }
 
 export interface FtracePluginState {

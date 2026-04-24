@@ -15,18 +15,13 @@
 import m from 'mithril';
 import {
   QueryNode,
-  QueryNodeState,
   NodeType,
   nextNodeId,
+  NodeContext,
 } from '../../../query_node';
-import {
-  ColumnInfo,
-  columnInfoFromSqlColumn,
-  newColumnInfoList,
-} from '../../column_info';
+import {ColumnInfo, columnInfoFromSqlColumn} from '../../column_info';
 import {time, TimeSpan, Time} from '../../../../../base/time';
 import {PerfettoSqlTypes} from '../../../../../trace_processor/perfetto_sql_type';
-import {Trace} from '../../../../../public/trace';
 import {Button, ButtonVariant} from '../../../../../widgets/button';
 import {Switch} from '../../../../../widgets/switch';
 import {Anchor} from '../../../../../widgets/anchor';
@@ -42,48 +37,53 @@ import {NodeTitle} from '../../node_styling_widgets';
 // Poll interval for dynamic mode selection updates (in milliseconds)
 const SELECTION_POLL_INTERVAL_MS = 200;
 
-export interface TimeRangeSourceSerializedState {
+// Serializable node configuration.
+export interface TimeRangeSourceNodeAttrs {
   start?: string;
   end?: string;
   isDynamic?: boolean;
-  comment?: string;
-}
-
-export interface TimeRangeSourceState extends QueryNodeState {
-  start?: time;
-  end?: time;
-  isDynamic?: boolean;
-  trace: Trace;
-  onchange?: () => void;
 }
 
 export class TimeRangeSourceNode implements QueryNode {
   readonly nodeId: string;
-  readonly state: TimeRangeSourceState;
+  readonly attrs: TimeRangeSourceNodeAttrs;
+  readonly context: NodeContext;
+  // Runtime state for resolved time values (not serializable as-is).
+  start?: time;
+  end?: time;
+  isDynamic: boolean;
   readonly finalCols: ColumnInfo[];
   nextNodes: QueryNode[] = [];
   private selectionCheckInterval?: number;
 
-  constructor(attrs: TimeRangeSourceState) {
+  constructor(attrs: TimeRangeSourceNodeAttrs, context: NodeContext) {
     this.nodeId = nextNodeId();
-    this.state = {
-      ...attrs,
-      isDynamic: attrs.isDynamic ?? false,
-    };
+    this.attrs = attrs;
+    this.context = context;
+    // Resolve BigInt start/end from serialized string form.
+    this.start = attrs.start ? Time.fromRaw(BigInt(attrs.start)) : undefined;
+    this.end = attrs.end ? Time.fromRaw(BigInt(attrs.end)) : undefined;
+    this.isDynamic = attrs.isDynamic ?? false;
 
     // Initialize columns: id, ts, dur
-    this.finalCols = newColumnInfoList(
-      [
-        columnInfoFromSqlColumn({name: 'id', type: PerfettoSqlTypes.INT}),
-        columnInfoFromSqlColumn({name: 'ts', type: PerfettoSqlTypes.TIMESTAMP}),
-        columnInfoFromSqlColumn({name: 'dur', type: PerfettoSqlTypes.DURATION}),
-      ],
-      true,
-    );
+    this.finalCols = [
+      columnInfoFromSqlColumn({name: 'id', type: PerfettoSqlTypes.INT}, true),
+      columnInfoFromSqlColumn(
+        {name: 'ts', type: PerfettoSqlTypes.TIMESTAMP},
+        true,
+      ),
+      columnInfoFromSqlColumn(
+        {name: 'dur', type: PerfettoSqlTypes.DURATION},
+        true,
+      ),
+    ];
 
     // If dynamic mode is enabled, subscribe to selection changes and
-    // immediately populate from current selection
-    if (this.state.isDynamic) {
+    // immediately populate from current selection.
+    // Clear persisted timestamps — dynamic mode re-syncs from selection.
+    if (this.isDynamic) {
+      this.attrs.start = undefined;
+      this.attrs.end = undefined;
       this.subscribeToSelectionChanges();
       this.updateFromSelection();
     }
@@ -95,20 +95,20 @@ export class TimeRangeSourceNode implements QueryNode {
 
   validate(): boolean {
     // Initialize issues if not present
-    if (!this.state.issues) {
-      this.state.issues = new NodeIssues();
+    if (!this.context.issues) {
+      this.context.issues = new NodeIssues();
     }
-    this.state.issues.queryError = undefined;
+    this.context.issues.queryError = undefined;
 
-    if (this.state.start === undefined || this.state.end === undefined) {
-      this.state.issues.queryError = new Error(
+    if (this.start === undefined || this.end === undefined) {
+      this.context.issues.queryError = new Error(
         'Time range not set. Use "Update from Timeline" or enable Dynamic mode to sync with timeline selection.',
       );
       return false;
     }
 
-    if (this.state.end < this.state.start) {
-      this.state.issues.queryError = new Error(
+    if (this.end < this.start) {
+      this.context.issues.queryError = new Error(
         'End time must be greater than or equal to start time.',
       );
       return false;
@@ -118,18 +118,18 @@ export class TimeRangeSourceNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    const stateCopy: TimeRangeSourceState = {
-      start: this.state.start,
-      end: this.state.end,
-      isDynamic: false, // Clone always creates a static snapshot
-      trace: this.state.trace,
-      onchange: this.state.onchange,
-    };
-    return new TimeRangeSourceNode(stateCopy);
+    return new TimeRangeSourceNode(
+      {
+        start: this.start?.toString(),
+        end: this.end?.toString(),
+        isDynamic: false, // Clone always creates a static snapshot
+      },
+      this.context,
+    );
   }
 
   getTitle(): string {
-    return this.state.isDynamic ? 'Current time range' : 'Time range';
+    return this.isDynamic ? 'Current time range' : 'Time range';
   }
 
   nodeDetails(): NodeDetailsAttrs {
@@ -138,41 +138,12 @@ export class TimeRangeSourceNode implements QueryNode {
     };
   }
 
-  serializeState(): TimeRangeSourceSerializedState {
-    // Don't serialize start/end for dynamic mode - they'll be populated
-    // from the current selection when deserialized
-    if (this.state.isDynamic) {
-      return {
-        isDynamic: true,
-      };
-    }
-    return {
-      start: this.state.start?.toString(),
-      end: this.state.end?.toString(),
-      isDynamic: false,
-    };
-  }
-
-  static deserializeState(
-    trace: Trace,
-    serialized: TimeRangeSourceSerializedState,
-  ): TimeRangeSourceState {
-    return {
-      trace,
-      start: serialized.start
-        ? Time.fromRaw(BigInt(serialized.start))
-        : undefined,
-      end: serialized.end ? Time.fromRaw(BigInt(serialized.end)) : undefined,
-      isDynamic: serialized.isDynamic ?? false,
-    };
-  }
-
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     // For dynamic nodes without start/end set, we can still generate a query
     // that uses trace_start() and trace_end() - the backend handles this.
     // Only validate for static nodes or when we have explicit values.
-    const start = this.state.start;
-    const end = this.state.end;
+    const start = this.start;
+    const end = this.end;
 
     // If both are set, calculate duration
     if (start !== undefined && end !== undefined) {
@@ -210,8 +181,8 @@ export class TimeRangeSourceNode implements QueryNode {
     if (!this.validate()) {
       return undefined;
     }
-    const start = this.state.start;
-    const end = this.state.end;
+    const start = this.start;
+    const end = this.end;
     if (start === undefined || end === undefined) {
       return undefined;
     }
@@ -232,52 +203,61 @@ export class TimeRangeSourceNode implements QueryNode {
   }
 
   private updateFromSelection() {
+    if (!this.context.trace) return;
     // Get selection time span, or fall back to full trace if no selection
-    let timeSpan = this.state.trace.selection.getTimeSpanOfSelection();
+    let timeSpan = this.context.trace.selection.getTimeSpanOfSelection();
     if (!timeSpan) {
       // No selection - use full trace
       timeSpan = new TimeSpan(
-        this.state.trace.traceInfo.start,
-        this.state.trace.traceInfo.end,
+        this.context.trace.traceInfo.start,
+        this.context.trace.traceInfo.end,
       );
     }
 
     // Only update if the values have actually changed to avoid unnecessary redraws
-    if (
-      this.state.start === timeSpan.start &&
-      this.state.end === timeSpan.end
-    ) {
+    if (this.start === timeSpan.start && this.end === timeSpan.end) {
       return; // No change needed
     }
 
-    this.state.start = timeSpan.start;
-    this.state.end = timeSpan.end;
-    this.state.onchange?.();
+    this.start = timeSpan.start;
+    this.end = timeSpan.end;
+    if (!this.isDynamic) {
+      this.attrs.start = timeSpan.start.toString();
+      this.attrs.end = timeSpan.end.toString();
+    }
+    this.context.onchange?.();
     m.redraw();
   }
 
   private toggleDynamicMode() {
-    this.state.isDynamic = !this.state.isDynamic;
+    this.isDynamic = !this.isDynamic;
+    this.attrs.isDynamic = this.isDynamic;
 
-    if (this.state.isDynamic) {
+    if (this.isDynamic) {
+      // Clear persisted timestamps — dynamic mode re-syncs from selection.
+      this.attrs.start = undefined;
+      this.attrs.end = undefined;
       this.subscribeToSelectionChanges();
       this.updateFromSelection(); // Immediately sync with current selection
     } else {
       this.unsubscribeFromSelectionChanges();
+      // Capture current runtime values into attrs.
+      this.attrs.start = this.start?.toString();
+      this.attrs.end = this.end?.toString();
     }
 
-    this.state.onchange?.();
+    this.context.onchange?.();
     m.redraw();
   }
 
   nodeSpecificModify(): NodeModifyAttrs {
-    const isDynamic = this.state.isDynamic ?? false;
+    const isDynamic = this.isDynamic ?? false;
     const isValid = this.validate();
     const dur =
-      isValid && this.state.start !== undefined && this.state.end !== undefined
-        ? this.state.end - this.state.start
+      isValid && this.start !== undefined && this.end !== undefined
+        ? this.end - this.start
         : 0n;
-    const error = this.state.issues?.queryError;
+    const error = this.context.issues?.queryError;
 
     const sections: NodeModifyAttrs['sections'] = [];
 
@@ -313,7 +293,7 @@ export class TimeRangeSourceNode implements QueryNode {
         m(InlineField, {
           label: 'Start (ns)',
           icon: 'start',
-          value: this.state.start?.toString() ?? 'Not set',
+          value: this.start?.toString() ?? 'Not set',
           editable: !isDynamic,
           placeholder: 'Start timestamp (ns)',
           type: 'number',
@@ -330,17 +310,18 @@ export class TimeRangeSourceNode implements QueryNode {
           onchange: (value: string) => {
             try {
               const parsed = BigInt(value.trim());
-              this.state.start = Time.fromRaw(parsed);
+              this.start = Time.fromRaw(parsed);
+              this.attrs.start = value.trim();
             } catch (e) {
               // Keep current value if invalid
             }
-            this.state.onchange?.();
+            this.context.onchange?.();
           },
         }),
         m(InlineField, {
           label: 'End (ns)',
           icon: 'stop',
-          value: this.state.end?.toString() ?? 'Not set',
+          value: this.end?.toString() ?? 'Not set',
           editable: !isDynamic,
           placeholder: 'End timestamp (ns)',
           type: 'number',
@@ -357,11 +338,12 @@ export class TimeRangeSourceNode implements QueryNode {
           onchange: (value: string) => {
             try {
               const parsed = BigInt(value.trim());
-              this.state.end = Time.fromRaw(parsed);
+              this.end = Time.fromRaw(parsed);
+              this.attrs.end = value.trim();
             } catch (e) {
               // Keep current value if invalid
             }
-            this.state.onchange?.();
+            this.context.onchange?.();
           },
         }),
         isValid &&
@@ -384,14 +366,15 @@ export class TimeRangeSourceNode implements QueryNode {
             onchange: (value: string) => {
               try {
                 const parsed = BigInt(value.trim());
-                if (this.state.start !== undefined) {
+                if (this.start !== undefined) {
                   // Keep start fixed, update end based on duration
-                  this.state.end = Time.fromRaw(this.state.start + parsed);
+                  this.end = Time.fromRaw(this.start + parsed);
+                  this.attrs.end = this.end.toString();
                 }
               } catch (e) {
                 // Keep current value if invalid
               }
-              this.state.onchange?.();
+              this.context.onchange?.();
             },
           }),
       ),
@@ -422,11 +405,11 @@ export class TimeRangeSourceNode implements QueryNode {
 
     // If valid, also show current time range data
     if (this.validate()) {
-      const start = this.state.start;
-      const end = this.state.end;
+      const start = this.start;
+      const end = this.end;
       if (start !== undefined && end !== undefined) {
         const dur = end - start;
-        const isDynamic = this.state.isDynamic ?? false;
+        const isDynamic = this.isDynamic ?? false;
         const title = isDynamic ? 'Current time selection' : 'Time selection';
 
         return m(

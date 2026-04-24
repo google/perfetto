@@ -19,6 +19,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/subprocess.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
@@ -51,6 +52,8 @@ class TestAndroidAflagsDataSource : public AndroidAflagsDataSource {
                                 session_id,
                                 std::move(writer)) {}
 
+  using AndroidAflagsDataSource::FinalizeAflagsCapture;
+
   struct FakeFlag {
     std::string pkg;
     std::string name;
@@ -64,9 +67,8 @@ class TestAndroidAflagsDataSource : public AndroidAflagsDataSource {
     uint32_t type;
   };
 
-  // Helper to simulate subprocess completion with given flags.
-  void FakeSubprocessCompletion(const std::vector<FakeFlag>& flags) {
-    // Generate proto binary (using aflags tool's field IDs)
+  // Seeds subprocess state as if a poll completed but did not finalize yet.
+  void SeedCompletedFakeSubprocess(const std::vector<FakeFlag>& flags) {
     protozero::HeapBuffered<protos::pbzero::AndroidAflags> msg;
     for (const auto& f : flags) {
       auto* flag_proto = msg->add_flags();
@@ -83,26 +85,31 @@ class TestAndroidAflagsDataSource : public AndroidAflagsDataSource {
     }
     std::vector<uint8_t> bytes = msg.SerializeAsArray();
     aflags_output_ = base::Base64Encode(bytes.data(), bytes.size());
-    // FinalizeAflagsCapture() expects aflags_process_ to be set because it
-    // calls Poll() and then resets it. We simulate this by using a Subprocess
-    // that has already finished.
-    aflags_process_.emplace(std::initializer_list<std::string>{"/bin/true"});
+    aflags_process_ = std::make_unique<base::Subprocess>(
+        std::initializer_list<std::string>{"/bin/true"});
     aflags_process_->Call();
-    FinalizeAflagsCapture();
+  }
+
+  // Helper to simulate subprocess completion with given flags.
+  void FakeSubprocessCompletion(const std::vector<FakeFlag>& flags) {
+    SeedCompletedFakeSubprocess(flags);
+    FinalizeAflagsCapture(/*error=*/"");
   }
 
   void FakeSubprocessError(const std::string& output) {
     aflags_output_ = output;
-    aflags_process_.emplace(std::initializer_list<std::string>{"/bin/false"});
+    aflags_process_ = std::make_unique<base::Subprocess>(
+        std::initializer_list<std::string>{"/bin/false"});
     aflags_process_->Call();
-    FinalizeAflagsCapture();
+    FinalizeAflagsCapture(/*error=*/"");
   }
 
   void FakeInvalidBase64() {
     aflags_output_ = "!!!not-base64!!!";
-    aflags_process_.emplace(std::initializer_list<std::string>{"/bin/true"});
+    aflags_process_ = std::make_unique<base::Subprocess>(
+        std::initializer_list<std::string>{"/bin/true"});
     aflags_process_->Call();
-    FinalizeAflagsCapture();
+    FinalizeAflagsCapture(/*error=*/"");
   }
 };
 
@@ -200,6 +207,56 @@ TEST_F(AndroidAflagsDataSourceTest,
   const auto& aflags = packet.android_aflags();
   EXPECT_TRUE(aflags.has_error());
   EXPECT_THAT(aflags.error(), HasSubstr("Failed to decode aflags output"));
+}
+
+TEST_F(AndroidAflagsDataSourceTest,
+       ANDROID_ONLY_TEST(FlushCompletesImmediatelyWhenIdle)) {
+  DataSourceConfig ds_config;
+  ds_config.set_name("android.aflags");
+  auto ds = CreateDataSource(ds_config);
+
+  bool callback_fired = false;
+  ds->Flush(/*flush_request_id=*/42,
+            [&callback_fired] { callback_fired = true; });
+
+  EXPECT_TRUE(callback_fired);
+}
+
+TEST_F(AndroidAflagsDataSourceTest,
+       ANDROID_ONLY_TEST(FlushDefersUntilSubprocessCompletes)) {
+  DataSourceConfig ds_config;
+  ds_config.set_name("android.aflags");
+  auto ds = CreateDataSource(ds_config);
+
+  std::vector<TestAndroidAflagsDataSource::FakeFlag> flags;
+  flags.push_back({
+      "com.android.test",
+      "a_flag",
+      "ns",
+      "system",
+      "enabled",
+      "disabled",
+      static_cast<uint32_t>(
+          protos::pbzero::AndroidAflags::FLAG_PERMISSION_READ_ONLY),
+      static_cast<uint32_t>(
+          protos::pbzero::AndroidAflags::VALUE_PICKED_FROM_DEFAULT),
+      static_cast<uint32_t>(
+          protos::pbzero::AndroidAflags::FLAG_STORAGE_BACKEND_ACONFIGD),
+      static_cast<uint32_t>(protos::pbzero::AndroidAflags::FLAG_TYPE_BOOLEAN),
+  });
+  ds->SeedCompletedFakeSubprocess(flags);
+
+  bool callback_fired = false;
+  ds->Flush(/*flush_request_id=*/1,
+            [&callback_fired] { callback_fired = true; });
+  EXPECT_FALSE(callback_fired);
+
+  ds->FinalizeAflagsCapture(/*error=*/"");
+
+  EXPECT_TRUE(callback_fired);
+  protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_android_aflags());
+  EXPECT_EQ(packet.android_aflags().flags().size(), 1u);
 }
 
 }  // namespace

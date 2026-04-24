@@ -16,7 +16,7 @@ import m from 'mithril';
 import protos from '../../../../../protos';
 import {
   QueryNode,
-  QueryNodeState,
+  NodeContext,
   NodeType,
   nextNodeId,
   SecondaryInputSpec,
@@ -28,12 +28,9 @@ import {StructuredQueryBuilder} from '../../structured_query_builder';
 import {InnerGraphPreview} from './inner_graph_preview';
 import {perfettoSqlTypeToString} from '../../../../../trace_processor/perfetto_sql_type';
 
-/**
- * Serialized shape of a GroupNode's state (used for JSON round-tripping).
- */
-export interface GroupSerializedState {
-  readonly name?: string;
-  readonly innerNodeIds?: string[];
+// Serializable node configuration.
+export interface GroupNodeAttrs {
+  name?: string;
 }
 
 /**
@@ -66,7 +63,8 @@ export class GroupNode implements QueryNode {
   readonly type = NodeType.kGroup;
   nextNodes: QueryNode[] = [];
   primaryInput?: QueryNode = undefined;
-  readonly state: QueryNodeState;
+  readonly attrs: GroupNodeAttrs;
+  readonly context: NodeContext;
 
   // The nodes contained inside this group.
   innerNodes: QueryNode[];
@@ -78,26 +76,23 @@ export class GroupNode implements QueryNode {
   // inner node connections.
   externalConnections: ExternalGroupConnection[];
 
-  // User-editable display name for the group.
-  name: string;
-
   // Not readonly because postDeserialize rebuilds it after restoring
   // external connections.
   secondaryInputs: SecondaryInputSpec;
 
   constructor(
-    innerNodes: QueryNode[],
-    endNode: QueryNode | undefined,
-    externalConnections: ExternalGroupConnection[],
-    state: QueryNodeState = {},
-    name = 'Group',
+    attrs: GroupNodeAttrs,
+    context: NodeContext,
+    innerNodes: QueryNode[] = [],
+    endNode: QueryNode | undefined = undefined,
+    externalConnections: ExternalGroupConnection[] = [],
   ) {
     this.nodeId = nextNodeId();
+    this.attrs = {name: attrs.name ?? 'Group'};
+    this.context = context;
     this.innerNodes = innerNodes;
     this.endNode = endNode;
     this.externalConnections = externalConnections;
-    this.state = state;
-    this.name = name;
 
     const connections = new Map<number, QueryNode>();
     for (const conn of externalConnections) {
@@ -168,12 +163,12 @@ export class GroupNode implements QueryNode {
   }
 
   getTitle(): string {
-    return this.name;
+    return this.attrs.name ?? 'Group';
   }
 
   nodeDetails(): NodeDetailsAttrs {
     return {
-      content: this.name,
+      content: this.attrs.name ?? 'Group',
     };
   }
 
@@ -184,10 +179,10 @@ export class GroupNode implements QueryNode {
       {
         title: 'Name',
         content: m(TextInput, {
-          value: this.name,
+          value: this.attrs.name ?? 'Group',
           onInput: (value: string) => {
-            this.name = value;
-            this.state.onchange?.();
+            this.attrs.name = value;
+            this.context.onchange?.();
           },
         }),
       },
@@ -202,10 +197,7 @@ export class GroupNode implements QueryNode {
           cols.map((col) =>
             m('.pf-exp-draggable-item.pf-group-column-readonly', [
               m('span.pf-checkbox-label', col.name),
-              m(
-                'span.pf-column-type',
-                perfettoSqlTypeToString(col.column.type),
-              ),
+              m('span.pf-column-type', perfettoSqlTypeToString(col.type)),
             ]),
           ),
         ),
@@ -269,11 +261,11 @@ export class GroupNode implements QueryNode {
       }));
 
     return new GroupNode(
+      {name: this.attrs.name},
+      this.context,
       clonedInnerNodes,
       clonedEndNode,
       clonedExternalConnections,
-      {...this.state},
-      this.name,
     );
   }
 
@@ -283,12 +275,5 @@ export class GroupNode implements QueryNode {
     // can be looked up by it.
     if (this.endNode === undefined) return undefined;
     return StructuredQueryBuilder.passthrough(this.endNode, this.nodeId);
-  }
-
-  serializeState(): object {
-    return {
-      name: this.name,
-      innerNodeIds: this.innerNodes.map((n) => n.nodeId),
-    };
   }
 }
