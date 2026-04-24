@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <fstream>
+
 #include "src/trace_processor/importers/proto/winscope/winscope_module.h"
 
 #include <cstdint>
@@ -111,6 +113,13 @@ void WinscopeModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
           data.sequence_state.get(), decoder.protolog_message(), timestamp);
       return;
     case TracePacket::kWinscopeExtensionsFieldNumber:
+
+      std::ofstream outFile("state.pb", std::ios::binary);
+      PERFETTO_DCHECK(outFile.is_open());
+      outFile.write(reinterpret_cast<const char*>(decoder.begin()),
+                    static_cast<long>(decoder.end() - decoder.begin()));
+      outFile.close();
+
       ParseWinscopeExtensionsData(decoder.winscope_extensions(), timestamp,
                                   data);
       return;

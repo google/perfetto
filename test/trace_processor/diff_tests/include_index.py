@@ -64,6 +64,7 @@ from diff_tests.parser.android.tests_surfaceflinger_layers import SurfaceFlinger
 from diff_tests.parser.android.tests_surfaceflinger_transactions import SurfaceFlingerTransactions
 from diff_tests.parser.android.tests_viewcapture import ViewCapture
 from diff_tests.parser.android.tests_windowmanager_v1 import WindowManager
+from diff_tests.parser.android.tests_windowmanager_v2 import WindowManagerV2
 from diff_tests.parser.art_hprof.tests import ArtHprofParser
 from diff_tests.parser.art_method.tests import ArtMethodParser
 from diff_tests.parser.atrace.tests import Atrace
@@ -258,6 +259,7 @@ def fetch_all_diff_tests(
       ProtoVmIncrementalTracing,
       ViewCapture,
       WindowManager,
+      WindowManagerV2,
       TrackEvent,
       TranslatedArgs,
       Ufs,

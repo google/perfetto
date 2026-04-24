@@ -119,6 +119,7 @@ perfetto_unittest_source_set("unittests") {
     "surfaceflinger_layers_visibility_computation_unittest.cc",
     "test/windowmanager_hierarchy_walker_unittest.cc",
     "test/windowmanager_sample_protos_v1.h",
+    "test/windowmanager_sample_protos_v2.h",
     "viewcapture_test_utils.h",
     "viewcapture_views_extractor_unittest.cc",
     "viewcapture_visibility_computation_unittest.cc",

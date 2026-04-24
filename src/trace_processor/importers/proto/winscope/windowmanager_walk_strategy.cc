@@ -164,4 +164,142 @@ void DfsWalkStrategy::ParseWindowContainerChildProto(
   }
 }
 
+IterateWalkStrategy::IterateWalkStrategy() = default;
+IterateWalkStrategy::~IterateWalkStrategy() = default;
+
+protos::pbzero::WindowContainerProto::Decoder
+IterateWalkStrategy::GetWindowContainer(
+    const protos::pbzero::WindowContainerChildProto::Decoder& child) const {
+  if (child.has_window_container()) {
+    return protos::pbzero::WindowContainerProto::Decoder(
+        child.window_container());
+  }
+  if (child.has_display_content()) {
+    protos::pbzero::DisplayContentProto::Decoder display_content(
+        child.display_content());
+    protos::pbzero::DisplayAreaProto::Decoder display_area(
+        display_content.root_display_area());
+    return protos::pbzero::WindowContainerProto::Decoder(
+        display_area.window_container());
+  }
+  if (child.has_display_area()) {
+    protos::pbzero::DisplayAreaProto::Decoder display_area(
+        child.display_area());
+    return protos::pbzero::WindowContainerProto::Decoder(
+        display_area.window_container());
+  }
+  if (child.has_task()) {
+    protos::pbzero::TaskProto::Decoder task(child.task());
+    protos::pbzero::TaskFragmentProto::Decoder task_fragment(
+        task.task_fragment());
+    if (task.has_task_fragment() && task_fragment.has_window_container()) {
+      return protos::pbzero::WindowContainerProto::Decoder(
+          task_fragment.window_container());
+    }
+    return protos::pbzero::WindowContainerProto::Decoder(
+        task.window_container());
+  }
+  if (child.has_activity()) {
+    protos::pbzero::ActivityRecordProto::Decoder activity(child.activity());
+    protos::pbzero::WindowTokenProto::Decoder window_token(
+        activity.window_token());
+    return protos::pbzero::WindowContainerProto::Decoder(
+        window_token.window_container());
+  }
+  if (child.has_window_token()) {
+    protos::pbzero::WindowTokenProto::Decoder window_token(
+        child.window_token());
+    return protos::pbzero::WindowContainerProto::Decoder(
+        window_token.window_container());
+  }
+  if (child.has_window()) {
+    protos::pbzero::WindowStateProto::Decoder window_state(child.window());
+    return protos::pbzero::WindowContainerProto::Decoder(
+        window_state.window_container());
+  }
+  if (child.has_task_fragment()) {
+    protos::pbzero::TaskFragmentProto::Decoder task_fragment(
+        child.task_fragment());
+    return protos::pbzero::WindowContainerProto::Decoder(
+        task_fragment.window_container());
+  }
+  return protos::pbzero::WindowContainerProto::Decoder(nullptr, 0);
+}
+
+base::FlatHashMap<int32_t, IterateWalkStrategy::ParentLink>
+IterateWalkStrategy::BuildChildToParentMap(
+    const protos::pbzero::WindowManagerServiceDumpProto::Decoder& service)
+    const {
+  base::FlatHashMap<int32_t, ParentLink> child_to_parent;
+
+  for (auto it = service.window_containers(); it; ++it) {
+    protos::pbzero::WindowContainerChildProto::Decoder child(*it);
+    int32_t token = child.token();
+
+    auto window_container = GetWindowContainer(child);
+    uint32_t index = 0;
+    for (auto cit = window_container.child_tokens(); cit; ++cit) {
+      int32_t child_token = *cit;
+      child_to_parent[child_token] = {token, index++};
+    }
+  }
+  return child_to_parent;
+}
+
+void IterateWalkStrategy::DispatchToCallbacks(
+    const protos::pbzero::WindowManagerServiceDumpProto::Decoder& service,
+    const base::FlatHashMap<int32_t, ParentLink>& child_to_parent,
+    const std::function<
+        void(const protos::pbzero::RootWindowContainerProto::Decoder&,
+             const protos::pbzero::WindowContainerProto::Decoder&)>& onRoot,
+    const std::function<
+        void(const protos::pbzero::WindowContainerChildProto::Decoder&,
+             int32_t parent_token,
+             uint32_t child_index)>& onChild) const {
+  bool root_found = false;
+  for (auto it = service.window_containers(); it; ++it) {
+    protos::pbzero::WindowContainerChildProto::Decoder child(*it);
+    int32_t token = child.token();
+
+    auto* parent_info = child_to_parent.Find(token);
+    if (parent_info) {
+      onChild(child, parent_info->parent_token, parent_info->child_index);
+    } else {
+      // Root candidate
+      root_found = true;
+      auto window_container = GetWindowContainer(child);
+      protos::pbzero::RootWindowContainerProto::Decoder root(
+          service.root_window_container());
+      onRoot(root, window_container);
+    }
+  }
+
+  // TODO(keanmariotti): return base::Status instead
+  //  Fallback for EmptyHierarchy
+  if (!root_found) {
+    protos::pbzero::RootWindowContainerProto::Decoder root(
+        service.root_window_container());
+    protos::pbzero::WindowContainerProto::Decoder empty_window_container(
+        nullptr, 0);
+    onRoot(root, empty_window_container);
+  }
+}
+
+void IterateWalkStrategy::Walk(
+    const protos::pbzero::WindowManagerTraceEntry::Decoder& entry,
+    const std::function<
+        void(const protos::pbzero::RootWindowContainerProto::Decoder&,
+             const protos::pbzero::WindowContainerProto::Decoder&)>& onRoot,
+    const std::function<
+        void(const protos::pbzero::WindowContainerChildProto::Decoder&,
+             int32_t parent_token,
+             uint32_t child_index)>& onChild) {
+  protos::pbzero::WindowManagerServiceDumpProto::Decoder service(
+      entry.window_manager_service());
+
+  auto child_to_parent = BuildChildToParentMap(service);
+
+  DispatchToCallbacks(service, child_to_parent, onRoot, onChild);
+}
+
 }  // namespace perfetto::trace_processor::winscope

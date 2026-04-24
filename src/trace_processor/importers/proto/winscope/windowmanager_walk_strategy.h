@@ -19,6 +19,7 @@
 
 #include <functional>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "protos/perfetto/trace/android/server/windowmanagerservice.pbzero.h"
 #include "protos/perfetto/trace/android/windowmanager.pbzero.h"
 
@@ -69,6 +70,45 @@ class DfsWalkStrategy : public WalkStrategy {
           void(const protos::pbzero::WindowContainerChildProto::Decoder&,
                int32_t parent_token,
                uint32_t child_index)>& onChild);
+};
+
+class IterateWalkStrategy : public WalkStrategy {
+ public:
+  IterateWalkStrategy();
+  ~IterateWalkStrategy() override;
+
+  void Walk(const protos::pbzero::WindowManagerTraceEntry::Decoder& entry,
+            const std::function<void(
+                const protos::pbzero::RootWindowContainerProto::Decoder&,
+                const protos::pbzero::WindowContainerProto::Decoder&)>& onRoot,
+            const std::function<
+                void(const protos::pbzero::WindowContainerChildProto::Decoder&,
+                     int32_t parent_token,
+                     uint32_t child_index)>& onChild) override;
+
+ private:
+  struct ParentLink {
+    int32_t parent_token;
+    uint32_t child_index;
+  };
+
+  protos::pbzero::WindowContainerProto::Decoder GetWindowContainer(
+      const protos::pbzero::WindowContainerChildProto::Decoder& child) const;
+
+  base::FlatHashMap<int32_t, ParentLink> BuildChildToParentMap(
+      const protos::pbzero::WindowManagerServiceDumpProto::Decoder& service)
+      const;
+
+  void DispatchToCallbacks(
+      const protos::pbzero::WindowManagerServiceDumpProto::Decoder& service,
+      const base::FlatHashMap<int32_t, ParentLink>& child_to_parent,
+      const std::function<
+          void(const protos::pbzero::RootWindowContainerProto::Decoder&,
+               const protos::pbzero::WindowContainerProto::Decoder&)>& onRoot,
+      const std::function<
+          void(const protos::pbzero::WindowContainerChildProto::Decoder&,
+               int32_t parent_token,
+               uint32_t child_index)>& onChild) const;
 };
 
 }  // namespace perfetto::trace_processor::winscope

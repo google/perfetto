@@ -19,6 +19,7 @@
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/android/server/windowmanagerservice.pbzero.h"
 #include "src/trace_processor/importers/proto/winscope/test/windowmanager_sample_protos_v1.h"
+#include "src/trace_processor/importers/proto/winscope/test/windowmanager_sample_protos_v2.h"
 #include "src/trace_processor/importers/proto/winscope/windowmanager_hierarchy_walker.h"
 #include "src/trace_processor/importers/proto/winscope/windowmanager_walk_strategy.h"
 #include "test/gtest_and_gmock.h"
@@ -166,7 +167,16 @@ class WindowManagerHierarchyWalkerTest : public ::testing::Test {
       const std::string& blob) {
     protos::pbzero::WindowManagerTraceEntry::Decoder entry(blob);
     DfsWalkStrategy strategy;
-    return walker_.ExtractWindowContainers(strategy, entry);
+    WindowManagerHierarchyWalker walker(&pool_);
+    return walker.ExtractWindowContainers(strategy, entry);
+  }
+
+  WindowManagerHierarchyWalker::ExtractResult ExtractWindowContainersV2(
+      const std::string& blob) {
+    protos::pbzero::WindowManagerTraceEntry::Decoder entry(blob);
+    IterateWalkStrategy strategy;
+    WindowManagerHierarchyWalker walker(&pool_);
+    return walker.ExtractWindowContainers(strategy, entry);
   }
 
   void CheckExtractedWindowContainersV1(
@@ -177,13 +187,23 @@ class WindowManagerHierarchyWalkerTest : public ::testing::Test {
     CheckWindowContainers(result.window_containers, expected);
   }
 
+  void CheckExtractedWindowContainersV2(
+      const std::string& blob,
+      const std::vector<ExpectedWindowContainer>& expected) {
+    auto result = ExtractWindowContainersV2(blob);
+    EXPECT_FALSE(result.has_parse_error);
+    CheckWindowContainers(result.window_containers, expected);
+  }
+
   StringPool pool_;
-  WindowManagerHierarchyWalker walker_{&pool_};
 };
 
 TEST_F(WindowManagerHierarchyWalkerTest, EmptyHierarchy) {
   EXPECT_TRUE(
       ExtractWindowContainersV1(WindowManagerSampleProtosV1::EmptyHierarchy())
+          .has_parse_error);
+  EXPECT_TRUE(
+      ExtractWindowContainersV2(WindowManagerSampleProtosV2::EmptyHierarchy())
           .has_parse_error);
 }
 
@@ -196,6 +216,8 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithRootOnly) {
   };
   CheckExtractedWindowContainersV1(
       WindowManagerSampleProtosV1::HierarchyWithRootOnly(), expected);
+  CheckExtractedWindowContainersV2(
+      WindowManagerSampleProtosV2::HierarchyWithRootOnly(), expected);
 }
 
 // Hierarchy:
@@ -211,6 +233,8 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithWindowContainerProto) {
   };
   CheckExtractedWindowContainersV1(
       WindowManagerSampleProtosV1::HierarchyWithWindowContainer(), expected);
+  CheckExtractedWindowContainersV2(
+      WindowManagerSampleProtosV2::HierarchyWithWindowContainer(), expected);
 }
 
 // Hierarchy:
@@ -237,6 +261,10 @@ TEST_F(WindowManagerHierarchyWalkerTest,
   CheckExtractedWindowContainersV1(
       WindowManagerSampleProtosV1::HierarchyWithDisplayContentAndWindowState(),
       expected);
+  CheckExtractedWindowContainersV2(
+      WindowManagerSampleProtosV2::
+          HierarchyWithDisplayContentProtoAndWindowStateProto(),
+      expected);
 }
 
 // Hierarchy:
@@ -252,6 +280,8 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithDisplayAreaProto) {
   };
   CheckExtractedWindowContainersV1(
       WindowManagerSampleProtosV1::HierarchyWithDisplayArea(), expected);
+  CheckExtractedWindowContainersV2(
+      WindowManagerSampleProtosV2::HierarchyWithDisplayArea(), expected);
 }
 
 // Hierarchy:
@@ -266,6 +296,8 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithTaskProto) {
   };
   CheckExtractedWindowContainersV1(
       WindowManagerSampleProtosV1::HierarchyWithTask(), expected);
+  CheckExtractedWindowContainersV2(
+      WindowManagerSampleProtosV2::HierarchyWithTask(), expected);
 }
 
 // Hierarchy:
@@ -281,6 +313,8 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithActivityRecordProto) {
   };
   CheckExtractedWindowContainersV1(
       WindowManagerSampleProtosV1::HierarchyWithActivityRecord(), expected);
+  CheckExtractedWindowContainersV2(
+      WindowManagerSampleProtosV2::HierarchyWithActivityRecord(), expected);
 }
 
 // Hierarchy:
@@ -295,6 +329,8 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithWindowTokenProto) {
   };
   CheckExtractedWindowContainersV1(
       WindowManagerSampleProtosV1::HierarchyWithWindowToken(), expected);
+  CheckExtractedWindowContainersV2(
+      WindowManagerSampleProtosV2::HierarchyWithWindowToken(), expected);
 }
 
 // Hierarchy:
@@ -310,6 +346,8 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithTaskFragmentProto) {
   };
   CheckExtractedWindowContainersV1(
       WindowManagerSampleProtosV1::HierarchyWithTaskFragment(), expected);
+  CheckExtractedWindowContainersV2(
+      WindowManagerSampleProtosV2::HierarchyWithTaskFragment(), expected);
 }
 
 // Hierarchy:
@@ -330,6 +368,8 @@ TEST_F(WindowManagerHierarchyWalkerTest, HierarchyWithSiblings) {
   };
   CheckExtractedWindowContainersV1(
       WindowManagerSampleProtosV1::HierarchyWithSiblings(), expected);
+  CheckExtractedWindowContainersV2(
+      WindowManagerSampleProtosV2::HierarchyWithSiblings(), expected);
 }
 
 TEST_F(WindowManagerHierarchyWalkerTest, InvalidWindowContainerChildProto) {
@@ -347,6 +387,8 @@ TEST_F(WindowManagerHierarchyWalkerTest, TaskNameOverride) {
   };
   CheckExtractedWindowContainersV1(
       WindowManagerSampleProtosV1::HierarchyWithTaskIdAndName(), expected);
+  CheckExtractedWindowContainersV2(
+      WindowManagerSampleProtosV2::HierarchyWithTaskIdAndName(), expected);
 }
 
 TEST_F(WindowManagerHierarchyWalkerTest, TaskWindowContainerFallback) {
@@ -359,6 +401,9 @@ TEST_F(WindowManagerHierarchyWalkerTest, TaskWindowContainerFallback) {
   };
   CheckExtractedWindowContainersV1(
       WindowManagerSampleProtosV1::HierarchyWithTaskContainerFallback(),
+      expected);
+  CheckExtractedWindowContainersV2(
+      WindowManagerSampleProtosV2::HierarchyWithTaskContainerFallback(),
       expected);
 }
 
@@ -378,6 +423,9 @@ TEST_F(WindowManagerHierarchyWalkerTest, WindowStateNameOverrides) {
   };
   CheckExtractedWindowContainersV1(
       WindowManagerSampleProtosV1::HierarchyWithWindowStateNameOverrides(),
+      expected);
+  CheckExtractedWindowContainersV2(
+      WindowManagerSampleProtosV2::HierarchyWithWindowStateNameOverrides(),
       expected);
 }
 

@@ -90,19 +90,19 @@ std::vector<uint8_t> CloneRootWindowContainerProtoPruningChildren(
   for (auto field = src_root.ReadField(); field; field = src_root.ReadField()) {
     if (field.id() ==
         protos::pbzero::RootWindowContainerProto::kWindowContainerFieldNumber) {
-      auto* dst_window_container =
-          dst_root->BeginNestedMessage<protos::pbzero::WindowContainerProto>(
-              field.id());
-      protozero::ConstBytes window_container_bytes = {
-          window_container.begin(),
-          static_cast<size_t>(window_container.end() -
-                              window_container.begin())};
-      CloneWindowContainerProtoPruningChildren(window_container_bytes,
-                                               dst_window_container);
       continue;
     }
     CloneField(field, dst_root);
   }
+
+  auto* dst_window_container = dst_root->BeginNestedMessage<
+      protos::pbzero::WindowContainerProto>(
+      protos::pbzero::RootWindowContainerProto::kWindowContainerFieldNumber);
+  protozero::ConstBytes window_container_bytes = {
+      window_container.begin(),
+      static_cast<size_t>(window_container.end() - window_container.begin())};
+  CloneWindowContainerProtoPruningChildren(window_container_bytes,
+                                           dst_window_container);
 
   return dst_root_buf.SerializeAsArray();
 }

@@ -85,10 +85,6 @@ base::Status WindowManagerHierarchyWalker::ParseRootWindowContainer(
     const protos::pbzero::RootWindowContainerProto::Decoder& root,
     const protos::pbzero::WindowContainerProto::Decoder& window_container,
     std::vector<ExtractedWindowContainer>* result) {
-  if (!root.has_window_container()) {
-    return base::ErrStatus(kErrorMessageMissingField);
-  }
-
   protos::pbzero::IdentifierProto::Decoder identifier(
       window_container.identifier());
 
@@ -422,11 +418,19 @@ base::Status WindowManagerHierarchyWalker::ParseTaskFragmentProto(
 base::StatusOr<WindowManagerHierarchyWalker::TokenAndTitle>
 WindowManagerHierarchyWalker::ParseIdentifierProto(
     const protos::pbzero::IdentifierProto::Decoder& identifier) {
-  if (!identifier.has_title() || !identifier.has_hash_code()) {
+  // TODO(keanmariotti): uncomment when the IdentifierProto is properly written
+  // on the producer side if (!identifier.has_title() ||
+  // !identifier.has_hash_code()) {
+  //   return base::ErrStatus(kErrorMessageMissingField);
+  // }
+  // int32_t token = identifier.hash_code();
+  // auto title = pool_->InternString(identifier.title());
+  if (!identifier.has_hash_code()) {
     return base::ErrStatus(kErrorMessageMissingField);
   }
   int32_t token = identifier.hash_code();
-  auto title = pool_->InternString(identifier.title());
+  auto title = identifier.has_title() ? pool_->InternString(identifier.title())
+                                      : pool_->InternString("Dummy title");
   return base::StatusOr(TokenAndTitle{token, title});
 }
 

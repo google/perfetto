@@ -1,0 +1,1214 @@
+packet {
+  clock_snapshot {
+    primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
+    clocks { clock_id: 6 timestamp: 558295279732 }
+    clocks { clock_id: 2 timestamp: 1719409456328000272 }
+    clocks { clock_id: 4 timestamp: 558289385119 }
+    clocks { clock_id: 1 timestamp: 1719409456333895007 }
+    clocks { clock_id: 3 timestamp: 558295279935 }
+    clocks { clock_id: 5 timestamp: 558295279976 }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+}
+
+packet {
+  trace_provenance {
+    buffers:
+    [ {
+      sequences:
+      [
+          # sequence from producer ID 10 is processed by the ProtoVM
+          # (see ProtoVM config in packet below)
+          { id: 1 producer_id: 10 }]
+    }]
+  }
+}
+
+# WindowManager ProtoVM program
+#
+# Input (patches): windowmanager_patch packets (WindowManagerServicePatchProto
+# message) Output (full states): windowmanager packets (WindowManagerTraceEntry
+# message)
+packet {
+  protovms {
+    instance:
+    [ {
+      program {
+        instructions:
+        [ {
+          # SRC: winscope_extensions.windowmanager_patch
+          select {
+            relative_path:
+            [ { field_id: 112 }
+              , { field_id: 8 }]
+          }
+          nested_instructions:
+          [ {
+            # DST: winscope_extensions.windowmanager.window_manager_service
+            select {
+              cursor: VM_CURSOR_DST
+              create_if_not_exist: true
+              relative_path:
+              [ { field_id: 112 }
+                , { field_id: 6 }
+                , { field_id: 3 }]
+            }
+            nested_instructions:
+            [
+                #
+                # Process clear_incremental_state_if_present
+                #
+                {
+                  # SRC clear_incremental_state_if_present
+                  select {
+                    relative_path:
+                    [ { field_id: 6 }]
+                  }
+                  nested_instructions:
+                  [ { del {} }]
+                  abort_level: SKIP_CURRENT_INSTRUCTION
+                }
+                ,
+
+                #
+                # Process version
+                #
+                {
+                  # SRC enter version
+                  select {
+                    relative_path:
+                    [ { field_id: 1 }]
+                  }
+                  nested_instructions:
+                  [ {
+                    select {
+                      cursor: VM_CURSOR_DST
+                      create_if_not_exist: true
+                      relative_path:
+                      [ { field_id: 13 }]  # version
+                    }
+                    nested_instructions:
+                    [ { set {} }]
+                  }]
+                  abort_level: ABORT
+                }
+                ,
+
+                #
+                # Process removed_window_container_tokens
+                #
+                {
+                  # SRC removed_window_container_tokens
+                  select {
+                    relative_path:
+                    [ { field_id: 5, is_repeated: true }]
+                  }
+                  nested_instructions:
+                  [ { reg_load { dst_register: 1 } }
+                    ,
+                    # DST window_containers
+                    {
+                      select {
+                        cursor: VM_CURSOR_DST
+                        create_if_not_exist: true
+                        relative_path:
+                        [ { field_id: 14 }
+                          , { map_key_field_id: 10 register_to_match: 1 }]
+                      }
+                      nested_instructions:
+                      [ { del {} }]
+                    }]
+                  abort_level: SKIP_CURRENT_INSTRUCTION
+                }
+                ,
+
+                #
+                # Process policy
+                #
+                {
+                  select {
+                    relative_path:
+                    [ { field_id: 2 }]  # SRC policy
+                  }
+                  nested_instructions:
+                  [ {
+                    select {
+                      cursor: VM_CURSOR_DST
+                      create_if_not_exist: true
+                      relative_path:
+                      [ { field_id: 1 }]  # DST policy
+                    }
+                    nested_instructions:
+                    [ {
+                      merge { skip_submessages: true del_if_src_empty: true }
+                    }]
+                  }]
+                  abort_level: SKIP_CURRENT_INSTRUCTION
+                }
+                ,
+
+                #
+                # Process root_window_container
+                #
+                {
+                  select {
+                    relative_path:
+                    [ { field_id: 3 }]  # SRC root_window_container
+                  }
+                  nested_instructions:
+                  [ {
+                    select {
+                      cursor: VM_CURSOR_DST
+                      create_if_not_exist: true
+                      relative_path:
+                      [ { field_id: 2 }]  # DST root_window_container
+                    }
+                    nested_instructions:
+                    [ {
+                      merge { skip_submessages: true del_if_src_empty: true }
+                    }]
+                  }]
+                  abort_level: SKIP_CURRENT_INSTRUCTION
+                }
+                ,
+
+                #
+                # Process window_containers (WindowContainerChildProto)
+                #
+                {
+                  select {
+                    relative_path:
+                    [ { field_id: 4 is_repeated: true }]  # SRC
+                                                          # window_containers
+                  }
+                  nested_instructions:
+                  [
+                      # SRC token (load)
+                      {
+                        select {
+                          relative_path:
+                          [ { field_id: 10 }]
+                        }
+                        nested_instructions:
+                        [ { reg_load { dst_register: 1 } }]
+                        abort_level: ABORT
+                      }
+                      , {
+                        # DST window_containers
+                        select {
+                          cursor: VM_CURSOR_DST
+                          create_if_not_exist: true
+                          relative_path:
+                          [ { field_id: 14 }
+                            , { map_key_field_id: 10 register_to_match: 1 }]
+                        }
+                        nested_instructions:
+                        [ {
+                          # SRC window_container (WindowContainerProto)
+                          select {
+                            relative_path:
+                            [ { field_id: 2 }]
+                          }
+                          nested_instructions:
+                          [ {
+                            # DST window_container (WindowContainerProto)
+                            select {
+                              cursor: VM_CURSOR_DST
+                              create_if_not_exist: true
+                              relative_path:
+                              [ { field_id: 2 }]
+                            }
+                            nested_instructions:
+                            [
+                                # SRC configuration_container
+                                {
+                                  select {
+                                    relative_path:
+                                    [ { field_id: 1 }]
+                                  }
+                                  nested_instructions:
+                                  [
+                                      # DST configuration_container
+                                      {
+                                        select {
+                                          cursor: VM_CURSOR_DST
+                                          create_if_not_exist: true
+                                          relative_path:
+                                          [ { field_id: 1 }]
+                                        }
+                                        nested_instructions:
+                                        [
+                                            # SRC
+                                            # resolved_override_configuration
+                                            {
+                                              select {
+                                                relative_path:
+                                                [ { field_id: 4 }]
+                                              }
+                                              nested_instructions:
+                                              [
+                                                  # DST
+                                                  # resolved_override_configuration
+                                                  {
+                                                    select {
+                                                      cursor: VM_CURSOR_DST
+                                                      create_if_not_exist: true
+                                                      relative_path:
+                                                      [ { field_id: 4 }]
+                                                    }
+                                                    # MERGE
+                                                    # resolved_override_configuration
+                                                    nested_instructions:
+                                                    [ {
+                                                      merge {
+                                                        skip_submessages: true
+                                                        del_if_src_empty: true
+                                                      }
+                                                    }]
+                                                  }]
+                                              abort_level:
+                                                  SKIP_CURRENT_INSTRUCTION
+                                            }
+                                            ,
+                                            # MERGE configuration_container
+                                            {
+                                              merge {
+                                                skip_submessages: true
+                                                del_if_src_empty: true
+                                              }
+                                            }]
+                                      }]
+                                  abort_level: SKIP_CURRENT_INSTRUCTION
+                                }
+                                ,
+
+                                # SRC surface_animator
+                                {
+                                  select {
+                                    relative_path:
+                                    [ { field_id: 4 }]
+                                  }
+                                  nested_instructions:
+                                  [
+                                      # DST surface_animator
+                                      {
+                                        select {
+                                          cursor: VM_CURSOR_DST
+                                          create_if_not_exist: true
+                                          relative_path:
+                                          [ { field_id: 4 }]
+                                        }
+                                        nested_instructions:
+                                        [
+                                            # SRC leash
+                                            {
+                                              select {
+                                                relative_path:
+                                                [ { field_id: 1 }]
+                                              }
+                                              nested_instructions:
+                                              [ {
+                                                # DST leash
+                                                select {
+                                                  cursor: VM_CURSOR_DST
+                                                  create_if_not_exist: true
+                                                  relative_path:
+                                                  [ { field_id: 1 }]
+                                                }
+                                                nested_instructions:
+                                                [
+                                                    # MERGE leash
+                                                    {
+                                                      merge {
+                                                        skip_submessages: true
+                                                        del_if_src_empty: true
+                                                      }
+                                                    }]
+                                              }]
+                                              abort_level:
+                                                  SKIP_CURRENT_INSTRUCTION
+                                            }
+                                            ,
+                                            # SRC animation_adapter
+                                            {
+                                              select {
+                                                relative_path:
+                                                [ { field_id: 3 }]
+                                              }
+                                              nested_instructions:
+                                              [
+                                                  # DST animator_adapter
+                                                  {
+                                                    select {
+                                                      cursor: VM_CURSOR_DST
+                                                      create_if_not_exist: true
+                                                      relative_path:
+                                                      [ { field_id: 3 }]
+                                                    }
+                                                    nested_instructions:
+                                                    [
+                                                        # SRC local
+                                                        {
+                                                          select {
+                                                            relative_path:
+                                                            [ { field_id: 1 }]
+                                                          }
+                                                          nested_instructions:
+                                                          [
+                                                              # DST local
+                                                              {
+                                                                select {
+                                                                  cursor:
+                                                                      VM_CURSOR_DST
+                                                                  create_if_not_exist:
+                                                                      true
+                                                                  relative_path:
+                                                                  [ {
+                                                                    field_id: 1
+                                                                  }]
+                                                                }
+                                                                nested_instructions:
+                                                                [
+                                                                    # SRC
+                                                                    # animation_spec
+                                                                    {
+                                                                      select {
+                                                                        relative_path:
+                                                                        [ {
+                                                                          field_id:
+                                                                              1
+                                                                        }]
+                                                                      }
+                                                                      nested_instructions:
+                                                                      [
+                                                                          # DST
+                                                                          # animation
+                                                                          # spec
+                                                                          {
+                                                                            select {
+                                                                              cursor:
+                                                                                  VM_CURSOR_DST
+                                                                              create_if_not_exist:
+                                                                                  true
+                                                                              relative_path:
+                                                                              [ {
+                                                                                field_id:
+                                                                                    1
+                                                                              }]
+                                                                            }
+                                                                            nested_instructions:
+                                                                            [
+                                                                                # SRC window
+                                                                                {
+                                                                                  select {
+                                                                                    relative_path:
+                                                                                    [ {
+                                                                                      field_id:
+                                                                                          1
+                                                                                    }]
+                                                                                  }
+                                                                                  nested_instructions:
+                                                                                  [
+                                                                                      # DST WINDOW
+                                                                                      {
+                                                                                        select {
+                                                                                          cursor:
+                                                                                              VM_CURSOR_DST
+                                                                                          create_if_not_exist:
+                                                                                              true
+                                                                                          relative_path:
+                                                                                          [ {
+                                                                                            field_id:
+                                                                                                1
+                                                                                          }]
+                                                                                        }
+                                                                                        nested_instructions:
+                                                                                        [
+                                                                                            # MERGE WINDOW
+                                                                                            {
+                                                                                              merge {
+                                                                                                skip_submessages:
+                                                                                                    true
+                                                                                                del_if_src_empty:
+                                                                                                    true
+                                                                                              }
+                                                                                            }]
+                                                                                      }]
+                                                                                  abort_level:
+                                                                                      SKIP_CURRENT_INSTRUCTION
+                                                                                }
+                                                                                ,
+                                                                                # SRC move
+                                                                                {
+                                                                                  select {
+                                                                                    relative_path:
+                                                                                    [ {
+                                                                                      field_id:
+                                                                                          2
+                                                                                    }]
+                                                                                  }
+                                                                                  nested_instructions:
+                                                                                  [
+                                                                                      # DST move
+                                                                                      {
+                                                                                        select {
+                                                                                          cursor:
+                                                                                              VM_CURSOR_DST
+                                                                                          create_if_not_exist:
+                                                                                              true
+                                                                                          relative_path:
+                                                                                          [ {
+                                                                                            field_id:
+                                                                                                2
+                                                                                          }]
+                                                                                        }
+                                                                                        nested_instructions:
+                                                                                        [
+                                                                                            # MERGE MOVE
+                                                                                            {
+                                                                                              merge {
+                                                                                                skip_submessages:
+                                                                                                    true
+                                                                                                del_if_src_empty:
+                                                                                                    true
+                                                                                              }
+                                                                                            }]
+                                                                                      }]
+                                                                                  abort_level:
+                                                                                      SKIP_CURRENT_INSTRUCTION
+                                                                                }
+                                                                                ,
+                                                                                # MERGE animation spec
+                                                                                {
+                                                                                  merge {
+                                                                                    skip_submessages:
+                                                                                        true
+                                                                                    del_if_src_empty:
+                                                                                        true
+                                                                                  }
+                                                                                }]
+                                                                          }]
+                                                                      abort_level:
+                                                                          SKIP_CURRENT_INSTRUCTION
+                                                                    }
+                                                                    ,
+                                                                    # MERGE
+                                                                    # local
+                                                                    {
+                                                                      merge {
+                                                                        skip_submessages:
+                                                                            true
+                                                                        del_if_src_empty:
+                                                                            true
+                                                                      }
+                                                                    }]
+                                                              }]
+                                                          abort_level:
+                                                              SKIP_CURRENT_INSTRUCTION
+                                                        }
+                                                        ,
+                                                        # MERGE
+                                                        # animation_adapter
+                                                        {
+                                                          merge {
+                                                            skip_submessages:
+                                                                true
+                                                            del_if_src_empty:
+                                                                true
+                                                          }
+                                                        }]
+                                                  }]
+                                              abort_level:
+                                                  SKIP_CURRENT_INSTRUCTION
+                                            }
+                                            ,
+                                            # MERGE surface_animator
+                                            {
+                                              merge {
+                                                skip_submessages: true
+                                                del_if_src_empty: true
+                                              }
+                                            }]
+                                      }]
+                                  abort_level: SKIP_CURRENT_INSTRUCTION
+                                }
+                                ,
+
+                                # SRC surface_control
+                                {
+                                  select {
+                                    relative_path:
+                                    [ { field_id: 7 }]
+                                  }
+                                  nested_instructions:
+                                  [ {
+                                    # DST surface_control
+                                    select {
+                                      cursor: VM_CURSOR_DST
+                                      create_if_not_exist: true
+                                      relative_path:
+                                      [ { field_id: 7 }]
+                                    }
+                                    nested_instructions:
+                                    [
+                                        # MERGE surface_control
+                                        {
+                                          merge {
+                                            skip_submessages: true
+                                            del_if_src_empty: true
+                                          }
+                                        }]
+                                  }]
+                                  abort_level: SKIP_CURRENT_INSTRUCTION
+                                }
+                                ,
+
+                                # MERGE window_container (WindowContainerProto)
+                                {
+                                  merge {
+                                    skip_submessages: true
+                                    del_if_src_empty: true
+                                  }
+                                }]
+                          }]
+                          abort_level: SKIP_CURRENT_INSTRUCTION
+                        }
+                          ,
+
+                          # SRC display_area
+                          {
+                            select {
+                              relative_path:
+                              [ { field_id: 4 }]
+                            }
+                            nested_instructions:
+                            [ {
+                              # DST display_area
+                              select {
+                                cursor: VM_CURSOR_DST
+                                create_if_not_exist: true
+                                relative_path:
+                                [ { field_id: 4 }]
+                              }
+                              nested_instructions:
+                              [
+                                  # MERGE display_area
+                                  {
+                                    merge {
+                                      skip_submessages: true
+                                      del_if_src_empty: true
+                                    }
+                                  }]
+                            }]
+                            abort_level: SKIP_CURRENT_INSTRUCTION
+                          }
+                          ,
+
+                          # SRC task
+                          {
+                            select {
+                              relative_path:
+                              [ { field_id: 5 }]
+                            }
+                            nested_instructions:
+                            [ {
+                              # DST task
+                              select {
+                                cursor: VM_CURSOR_DST
+                                create_if_not_exist: true
+                                relative_path:
+                                [ { field_id: 5 }]
+                              }
+                              nested_instructions:
+                              [
+                                  # SRC last_non_fullscreen_bounds
+                                  {
+                                    select {
+                                      relative_path:
+                                      [ { field_id: 22 }]
+                                    }
+                                    nested_instructions:
+                                    [ {
+                                      # DST last_non_fullscreen_bounds
+                                      select {
+                                        cursor: VM_CURSOR_DST
+                                        create_if_not_exist: true
+                                        relative_path:
+                                        [ { field_id: 22 }]
+                                      }
+                                      nested_instructions:
+                                      [
+                                          # MERGE last_non_fullscreen_bounds
+                                          {
+                                            merge {
+                                              skip_submessages: true
+                                              del_if_src_empty: true
+                                            }
+                                          }]
+                                    }]
+                                    abort_level: SKIP_CURRENT_INSTRUCTION
+                                  }
+                                  ,
+                                  # MERGE task
+                                  {
+                                    merge {
+                                      skip_submessages: true
+                                      del_if_src_empty: true
+                                    }
+                                  }]
+                            }]
+                            abort_level: SKIP_CURRENT_INSTRUCTION
+                          }
+                          ,
+
+                          # SRC activity
+                          {
+                            select {
+                              relative_path:
+                              [ { field_id: 6 }]
+                            }
+                            nested_instructions:
+                            [ {
+                              # DST activity
+                              select {
+                                cursor: VM_CURSOR_DST
+                                create_if_not_exist: true
+                                relative_path:
+                                [ { field_id: 6 }]
+                              }
+                              nested_instructions:
+                              [
+                                  # SRC starting_window
+                                  {
+                                    select {
+                                      relative_path:
+                                      [ { field_id: 19 }]
+                                    }
+                                    nested_instructions:
+                                    [ {
+                                      # DST starting_window
+                                      select {
+                                        cursor: VM_CURSOR_DST
+                                        create_if_not_exist: true
+                                        relative_path:
+                                        [ { field_id: 19 }]
+                                      }
+                                      nested_instructions:
+                                      [
+                                          # MERGE starting_window
+                                          {
+                                            merge {
+                                              skip_submessages: true
+                                              del_if_src_empty: true
+                                            }
+                                          }]
+                                    }]
+                                    abort_level: SKIP_CURRENT_INSTRUCTION
+                                  }
+                                  ,
+                                  # MERGE activity
+                                  {
+                                    merge {
+                                      skip_submessages: true
+                                      del_if_src_empty: true
+                                    }
+                                  }]
+                            }]
+                            abort_level: SKIP_CURRENT_INSTRUCTION
+                          }
+                          ,
+
+                          # SRC window_token
+                          {
+                            select {
+                              relative_path:
+                              [ { field_id: 7 }]
+                            }
+                            nested_instructions:
+                            [ {
+                              # DST window_token
+                              select {
+                                cursor: VM_CURSOR_DST
+                                create_if_not_exist: true
+                                relative_path:
+                                [ { field_id: 7 }]
+                              }
+                              nested_instructions:
+                              [
+                                  # MERGE window_token
+                                  {
+                                    merge {
+                                      skip_submessages: true
+                                      del_if_src_empty: true
+                                    }
+                                  }]
+                            }]
+                            abort_level: SKIP_CURRENT_INSTRUCTION
+                          }
+                          ,
+
+                          # SRC window (WindowStateProto)
+                          {
+                            select {
+                              relative_path:
+                              [ { field_id: 8 }]
+                            }
+                            nested_instructions:
+                            [ {
+                              # DST window
+                              select {
+                                cursor: VM_CURSOR_DST
+                                create_if_not_exist: true
+                                relative_path:
+                                [ { field_id: 8 }]
+                              }
+                              nested_instructions:
+                              [
+                                  # SRC given_content_insets
+                                  {
+                                    select {
+                                      relative_path:
+                                      [ { field_id: 6 }]
+                                    }
+                                    nested_instructions:
+                                    [ {
+                                      # DST given_content_insets
+                                      select {
+                                        cursor: VM_CURSOR_DST
+                                        create_if_not_exist: true
+                                        relative_path:
+                                        [ { field_id: 6 }]
+                                      }
+                                      nested_instructions:
+                                      [
+                                          # MERGE given_content_insets
+                                          {
+                                            merge {
+                                              skip_submessages: true
+                                              del_if_src_empty: true
+                                            }
+                                          }]
+                                    }]
+                                    abort_level: SKIP_CURRENT_INSTRUCTION
+                                  }
+                                  ,
+                                  # SRC animator
+                                  {
+                                    select {
+                                      relative_path:
+                                      [ { field_id: 13 }]
+                                    }
+                                    nested_instructions:
+                                    [ {
+                                      # DST animator
+                                      select {
+                                        cursor: VM_CURSOR_DST
+                                        create_if_not_exist: true
+                                        relative_path:
+                                        [ { field_id: 13 }]
+                                      }
+                                      nested_instructions:
+                                      [
+                                          # MERGE animator
+                                          {
+                                            merge {
+                                              skip_submessages: true
+                                              del_if_src_empty: true
+                                            }
+                                          }]
+                                    }]
+                                    abort_level: SKIP_CURRENT_INSTRUCTION
+                                  }
+                                  ,
+                                  # SRC surface_position
+                                  {
+                                    select {
+                                      relative_path:
+                                      [ { field_id: 16 }]
+                                    }
+                                    nested_instructions:
+                                    [ {
+                                      # DST surface_position
+                                      select {
+                                        cursor: VM_CURSOR_DST
+                                        create_if_not_exist: true
+                                        relative_path:
+                                        [ { field_id: 16 }]
+                                      }
+                                      nested_instructions:
+                                      [
+                                          # MERGE surface_position
+                                          {
+                                            merge {
+                                              skip_submessages: true
+                                              del_if_src_empty: true
+                                            }
+                                          }]
+                                    }]
+                                    abort_level: SKIP_CURRENT_INSTRUCTION
+                                  }
+                                  ,
+                                  # SRC window_frames
+                                  {
+                                    select {
+                                      relative_path:
+                                      [ { field_id: 41 }]
+                                    }
+                                    nested_instructions:
+                                    [ {
+                                      # DST window_frames
+                                      select {
+                                        cursor: VM_CURSOR_DST
+                                        create_if_not_exist: true
+                                        relative_path:
+                                        [ { field_id: 41 }]
+                                      }
+                                      nested_instructions:
+                                      [
+                                          # SRC display_frame
+                                          {
+                                            select {
+                                              relative_path:
+                                              [ { field_id: 4 }]
+                                            }
+                                            nested_instructions:
+                                            [ {
+                                              # DST display_frame
+                                              select {
+                                                cursor: VM_CURSOR_DST
+                                                create_if_not_exist: true
+                                                relative_path:
+                                                [ { field_id: 4 }]
+                                              }
+                                              nested_instructions:
+                                              [
+                                                  # MERGE display_frame
+                                                  {
+                                                    merge {
+                                                      skip_submessages: true
+                                                      del_if_src_empty: true
+                                                    }
+                                                  }]
+                                            }]
+                                            abort_level:
+                                                SKIP_CURRENT_INSTRUCTION
+                                          }
+                                          ,
+                                          # SRC frame
+                                          {
+                                            select {
+                                              relative_path:
+                                              [ { field_id: 5 }]
+                                            }
+                                            nested_instructions:
+                                            [ {
+                                              # DST frame
+                                              select {
+                                                cursor: VM_CURSOR_DST
+                                                create_if_not_exist: true
+                                                relative_path:
+                                                [ { field_id: 5 }]
+                                              }
+                                              nested_instructions:
+                                              [
+                                                  # MERGE frame
+                                                  {
+                                                    merge {
+                                                      skip_submessages: true
+                                                      del_if_src_empty: true
+                                                    }
+                                                  }]
+                                            }]
+                                            abort_level:
+                                                SKIP_CURRENT_INSTRUCTION
+                                          }
+                                          ,
+                                          # SRC parent_frame
+                                          {
+                                            select {
+                                              relative_path:
+                                              [ { field_id: 8 }]
+                                            }
+                                            nested_instructions:
+                                            [ {
+                                              # DST parent_frame
+                                              select {
+                                                cursor: VM_CURSOR_DST
+                                                create_if_not_exist: true
+                                                relative_path:
+                                                [ { field_id: 8 }]
+                                              }
+                                              nested_instructions:
+                                              [
+                                                  # MERGE parent_frame
+                                                  {
+                                                    merge {
+                                                      skip_submessages: true
+                                                      del_if_src_empty: true
+                                                    }
+                                                  }]
+                                            }]
+                                            abort_level:
+                                                SKIP_CURRENT_INSTRUCTION
+                                          }
+                                          ,
+                                          # SRC compat_frame
+                                          {
+                                            select {
+                                              relative_path:
+                                              [ { field_id: 16 }]
+                                            }
+                                            nested_instructions:
+                                            [ {
+                                              # DST compat_frame
+                                              select {
+                                                cursor: VM_CURSOR_DST
+                                                create_if_not_exist: true
+                                                relative_path:
+                                                [ { field_id: 16 }]
+                                              }
+                                              nested_instructions:
+                                              [
+                                                  # MERGE compat_frame
+                                                  {
+                                                    merge {
+                                                      skip_submessages: true
+                                                      del_if_src_empty: true
+                                                    }
+                                                  }]
+                                            }]
+                                            abort_level:
+                                                SKIP_CURRENT_INSTRUCTION
+                                          }
+                                          ,
+                                          # MERGE window_frames
+                                          {
+                                            merge {
+                                              skip_submessages: true
+                                              del_if_src_empty: true
+                                            }
+                                          }]
+                                    }]
+                                    abort_level: SKIP_CURRENT_INSTRUCTION
+                                  }
+                                  ,
+                                  # MERGE window
+                                  {
+                                    merge {
+                                      skip_submessages: true
+                                      del_if_src_empty: true
+                                    }
+                                  }]
+                            }]
+                            abort_level: SKIP_CURRENT_INSTRUCTION
+                          }
+                          ,
+
+                          # SRC task_fragment
+                          {
+                            select {
+                              relative_path:
+                              [ { field_id: 9 }]
+                            }
+                            nested_instructions:
+                            [ {
+                              # DST task_fragment
+                              select {
+                                cursor: VM_CURSOR_DST
+                                create_if_not_exist: true
+                                relative_path:
+                                [ { field_id: 9 }]
+                              }
+                              nested_instructions:
+                              [
+                                  # MERGE task_fragment
+                                  {
+                                    merge {
+                                      skip_submessages: true
+                                      del_if_src_empty: true
+                                    }
+                                  }]
+                            }]
+                            abort_level: SKIP_CURRENT_INSTRUCTION
+                          }
+                          ,
+
+                          # merge WindowContainerChildProto top-level fields
+                          {
+                            merge {
+                              skip_submessages: true
+                              del_if_src_empty: true
+                            }
+                            abort_level: ABORT
+                          }]
+                      }]
+                  abort_level: SKIP_CURRENT_INSTRUCTION
+                }]
+          }]
+          abort_level: SKIP_CURRENT_INSTRUCTION_AND_BREAK_OUTER
+        }
+          ,
+
+          #
+          # Process timestamp
+          #
+          {
+            # SRC: timestamp
+            select {
+              relative_path:
+              [ { field_id: 8 }]
+            }
+            nested_instructions:
+            [ {
+              # DST: timestamp
+              select {
+                cursor: VM_CURSOR_DST
+                create_if_not_exist: true
+                relative_path:
+                [ { field_id: 8 }]
+              }
+              nested_instructions:
+              [ { set {} }]
+            }]
+            abort_level: ABORT
+          }
+          , {
+            # SRC: timestamp_clock_id
+            select {
+              relative_path:
+              [ { field_id: 58 }]
+            }
+            nested_instructions:
+            [ {
+              # DST: timestamp_clock_id
+              select {
+                cursor: VM_CURSOR_DST
+                create_if_not_exist: true
+                relative_path:
+                [ { field_id: 58 }]
+              }
+              nested_instructions:
+              [ { set {} }]
+            }]
+            abort_level: SKIP_CURRENT_INSTRUCTION
+          }]
+      }
+      memory_limit_kb: 128
+      producer_id: [ 10 ]
+      state {
+        winscope_extensions {
+          [perfetto.protos.WinscopeExtensionsImpl.windowmanager] {
+            window_manager_service {
+              policy {
+                keyguard_occluded_pending: true
+                orientation: SCREEN_ORIENTATION_UNSPECIFIED
+                rotation_mode: USER_ROTATION_LOCKED
+                rotation: ROTATION_0
+                screen_on_fully: true
+                keyguard_draw_complete: true
+                window_manager_draw_complete: true
+              }
+              window_containers {
+                token: 109398933
+                window_container {
+                  configuration_container {
+                    resolved_override_configuration {
+                      mcc: 0
+                      mnc: 0
+                      window_configuration {
+                        bounds { left: 0 top: 0 right: 0 bottom: 0 }
+                        max_bounds { left: 0 top: 0 right: 0 bottom: 0 }
+                        windowing_mode: 0
+                        activity_type: 0
+                      }
+                      keyboard: 0
+                      keyboard_hidden: 0
+                    }
+                  }
+                  identifier { hash_code: 109398933 }
+                  child_tokens: 25724336
+                  orientation: -2
+                  surface_control { name: "AppZoomOut:0:0#6" layerId: 6 }
+                  visible_requested: true
+                }
+              }
+
+              window_containers {
+                token: 25724336
+                display_area {
+                  window_container {
+                    configuration_container {
+                      resolved_override_configuration {
+                        mcc: 0
+                        mnc: 0
+                        window_configuration {
+                          bounds { left: 0 top: 0 right: 1080 bottom: 2400 }
+                          windowing_mode: 1
+                          activity_type: 0
+                        }
+                        keyboard: 1
+                        keyboard_hidden: 1
+                      }
+                    }
+                    identifier { hash_code: 25724336 }
+                    # child_tokens: 16697185
+                    orientation: -2
+                    surface_control {
+                      name: "Display 0 name=\"Built-in Screen\"#39"
+                      layerId: 39
+                    }
+                    visible_requested: true
+                  }
+                  name: "DisplayContent"
+                  feature_id: 0
+                  is_ignoring_orientation_request: true
+                }
+              }
+
+            }
+          }
+        }
+      }
+    }]
+  }
+}
+
+# Patch 1
+packet {
+  first_packet_on_sequence: true
+  timestamp: 558296470731
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.windowmanager_patch] {
+      version: 2
+      policy { keyguard_occluded_pending: false }
+      window_containers {
+        token: 109398933
+        window_container {
+          configuration_container {
+            resolved_override_configuration {
+              mcc: 1
+              window_configuration {
+                bounds { left: 1 }
+                max_bounds { left: 2 }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  trusted_packet_sequence_id: 1
+  previous_packet_dropped: true
+}
+
+# Patch 2
+packet {
+  first_packet_on_sequence: true
+  timestamp: 558884171862
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.windowmanager_patch] { version: 2 }
+  }
+  trusted_packet_sequence_id: 1
+  previous_packet_dropped: true
+}
