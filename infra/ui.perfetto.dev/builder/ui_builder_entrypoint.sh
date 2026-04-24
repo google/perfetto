@@ -16,10 +16,14 @@
 # ENTRYPOINT for the perfetto-ui-builder Docker image, invoked from
 # infra/ui.perfetto.dev/cloudbuild*.yaml.
 #
-# $1 must be the channel name to build: autopush | canary | stable.
-# Cloud Build has already placed us on the SHA that fired the trigger
-# (main HEAD for autopush, canary HEAD for canary, stable HEAD for
-# stable), so we build from HEAD without any explicit checkout.
+# $1 is the branch name (or 'autopush' literal from cloudbuild.yaml).
+# Cloud Build has already placed us on the SHA that fired the trigger,
+# so we build from HEAD without any explicit checkout.
+#
+# Branches autopush/canary/stable map 1:1 to channels of the same name.
+# Any other branch (i.e. a release branch) maps to the 'release' mode,
+# which uploads /v<version>/ only and does NOT touch the shared root
+# index.html or service_worker.
 #
 # See go/perfetto-ui-autopush for end-to-end docs.
 
@@ -31,5 +35,8 @@ git config --global init.defaultBranch main
 git fetch --unshallow
 git rev-parse HEAD
 
-CHANNEL="$1"
+case "$1" in
+  autopush|canary|stable) CHANNEL="$1" ;;
+  *)                      CHANNEL="release" ;;
+esac
 python3 -u ui/release/build_channel.py --channel="$CHANNEL" --upload
