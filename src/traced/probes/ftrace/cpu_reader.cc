@@ -596,21 +596,22 @@ std::optional<CpuReader::PageHeader> CpuReader::ParsePageHeader(
 
   uint32_t size_and_flags;
 
-  // On little endian, we can just read a uint32_t and reject the rest of the
-  // number later.
-  if (!CpuReader::ReadAndAdvance<uint32_t>(
-          ptr, end_of_page, base::AssumeLittleEndian(&size_and_flags)))
+  // Read the low 32 bits of the host-endian commit field and skip the rest.
+  PERFETTO_DCHECK(page_header_size_len >= 4);
+  const size_t rest_len = page_header_size_len - 4u;
+#if !PERFETTO_IS_LITTLE_ENDIAN()
+  *ptr += rest_len;
+#endif
+  if (!CpuReader::ReadAndAdvance<uint32_t>(ptr, end_of_page, &size_and_flags))
     return std::nullopt;
 
   page_header.size = size_and_flags & kDataSizeMask;
   page_header.lost_events = bool(size_and_flags & kMissedEventsFlag);
   PERFETTO_DCHECK(page_header.size <= base::GetSysPageSize());
 
-  // Reject rest of the number, if applicable. On 32-bit, size_bytes - 4 will
-  // evaluate to 0 and this will be a no-op. On 64-bit, this will advance by 4
-  // bytes.
-  PERFETTO_DCHECK(page_header_size_len >= 4);
-  *ptr += page_header_size_len - 4;
+#if PERFETTO_IS_LITTLE_ENDIAN()
+  *ptr += rest_len;
+#endif
 
   return std::make_optional(page_header);
 }
@@ -938,8 +939,12 @@ bool CpuReader::ParseField(const Field& field,
       // should avoid making things worse by corrupting the stack but we
       // don't need to handle it correctly.
       size_t size = std::min<size_t>(field.ftrace_size, sizeof(n));
-      memcpy(base::AssumeLittleEndian(&n),
+#if PERFETTO_IS_LITTLE_ENDIAN()
+      memcpy(&n, reinterpret_cast<const void*>(field_start), size);
+#else
+      memcpy(reinterpret_cast<uint8_t*>(&n) + sizeof(n) - size,
              reinterpret_cast<const void*>(field_start), size);
+#endif
       // Look up the address in the printk format map and write it into the
       // proto.
       base::StringView name = table->LookupTraceString(n);
