@@ -285,7 +285,7 @@ The object tab contains everything known about the instance:
 - **Immediately dominated objects** — what would be freed if this
   instance became unreachable.
 
-![Object tab (top) for `ProfileActivity 0x00032f52`: Reference Path from GC Root goes `Class<ProfileActivity> → com.heapleak.ProfileActivity.last → ProfileActivity`; retained 116.5 KiB across 1,560 objects.](../images/heap_docs/12-object-tab-top.png)
+![Object tab (top) for `ProfileActivity 0x0004f1ae`: Sample Path from GC Root goes `Class<ProfileActivity> → com.heapleak.ProfileActivity.history → ArrayList → Object[0] → ProfileActivity`; retained 117.6 KiB across 1,604 objects.](../images/heap_docs/12-object-tab-top.png)
 
 ![Object tab (bottom): instance fields from `android.app.Activity`, "Objects with References to this Object" (reverse references from views and context wrappers), and "Immediately Dominated Objects" — the view hierarchy that would be freed if this instance became unreachable.](../images/heap_docs/13-object-tab-bottom.png)
 
@@ -358,28 +358,29 @@ down. The screen is unremarkable — an `Activity`, a view hierarchy,
 one avatar — and rotating _should_ destroy the old instance. It
 doesn't.
 
-A quick grep turns up what looks suspicious. The avatar is cached on
-a companion object so it survives rotation:
+A quick grep turns up a "breadcrumb" list the team added a while
+ago for crash reporting. It stores every `ProfileActivity` instance
+created, and is never cleared:
 
 ```kotlin
 class ProfileActivity : Activity() {
     companion object {
-        var last: ProfileActivity? = null   // survives rotation
+        val history = mutableListOf<ProfileActivity>()   // never cleared
     }
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         setContentView(R.layout.profile)
-        last = this                         // <-- the bug
+        history += this                                   // <-- the bug
     }
 }
 ```
 
-The intent was to keep the decoded avatar across configuration
-changes. What this code actually does is pin every `ProfileActivity`
-ever created: each rotation overwrites `last`, but the previous
-value — a fully destroyed `Activity`, along with its entire view
-hierarchy — is still reachable through the class's static state.
+The intent was to keep a lightweight trail of recent screens for
+crash reports. What it actually does is pin every `ProfileActivity`
+ever created: `onDestroy` runs on the old one, but the class's
+static `history` list keeps a strong reference — along with the old
+Activity's entire view hierarchy.
 
 **Capturing.** The heap graph format is enough to chase an Activity
 leak; it carries the full object graph and GC roots, and captures in
@@ -392,31 +393,39 @@ Dumping Java Heap.
 Wrote profile to /tmp/profile.pftrace
 ```
 
-Rotate the device ten times first so the leak is obvious. Drag the
-file onto [ui.perfetto.dev](https://ui.perfetto.dev) and click
-_Heapdump Explorer_ in the sidebar.
+Rotate the device a handful of times first so multiple instances
+accumulate. Drag the file onto
+[ui.perfetto.dev](https://ui.perfetto.dev) and click _Heapdump
+Explorer_ in the sidebar.
 
 **Confirming the leak.** Open **Classes** and find
-`ProfileActivity`. `Count` &gt;&nbsp;1 is the leak: a healthy app
-only ever has the currently-resumed instance alive. Clicking the
-class name opens **Objects** filtered to `ProfileActivity`, where
-every row is one live instance. Sorting by _Retained_ desc puts the
-worst offender on top.
+`com.heapleak.ProfileActivity`. `Count` should be 0 after the user
+has navigated away; here it's 5, one per rotation:
+
+![Classes tab. com.heapleak.ProfileActivity has Count 5 — one instance per rotation, none collected.](../images/heap_docs/05-classes.png)
+
+Clicking the class name opens **Objects** filtered to
+`ProfileActivity`. Every row is one live instance:
+
+![Objects tab filtered to com.heapleak.ProfileActivity: five instances, each retaining ~116.6 KiB and 1,566 reachable objects.](../images/heap_docs/12a-objects-profile-activity.png)
 
 **Reading the reference path.** Click the top row to open its object
-tab. The _Reference Path from GC Root_ is the chain of field
-references keeping this instance alive:
+tab. The _Sample Path from GC Root_ is the chain of field references
+keeping this instance alive:
 
-![Object tab for the leaked Activity. Reference path: Class&lt;ProfileActivity&gt; 0x00031121 → com.heapleak.ProfileActivity.last → ProfileActivity 0x00032f52. Retained 116.5 KiB, 1,560 reachable objects.](../images/heap_docs/12-object-tab-top.png)
+![Object tab for a leaked ProfileActivity. Sample Path from GC Root: Class<ProfileActivity> → com.heapleak.ProfileActivity.history → ArrayList.elementData → Object[0] → ProfileActivity. Retained 117.6 KiB, 1,604 reachable objects.](../images/heap_docs/12-object-tab-top.png)
 
 Read bottom-up: the runtime keeps the `java.lang.Class<ProfileActivity>`
-object alive (as it does for every loaded class); that class has a
-companion-object field `last`; that field points at a
-`ProfileActivity` whose `onDestroy` has already run. The last hop
-before the Activity — `last` — names the bug. That's the fix site.
+alive (as it does for every loaded class); that class has a
+companion-object field `history`; that field points at an `ArrayList`
+whose element 0 is this `ProfileActivity`. The hop from the class
+object to `history` names the bug — a static list of Activities.
 
 The _Object Size_ block quantifies the cost: one leaked Activity is
-pinning 116.5&nbsp;KiB and 1,560 reachable objects. The breakdown
+pinning 117.6&nbsp;KiB and 1,604 reachable objects. Multiply by
+five (the `Count`) and the leak is already ~600&nbsp;KiB of Activity
+graphs sitting in the heap. The view-hierarchy breakdown lives lower
+on the same tab:
 lives lower on the same tab:
 
 ![Bottom of the object tab. Instance fields from android.app.Activity, "Objects with References to this Object", and "Immediately Dominated Objects".](../images/heap_docs/13-object-tab-bottom.png)
@@ -425,36 +434,45 @@ The _Immediately Dominated Objects_ list is the view hierarchy:
 `DecorView` at the top, the inflated drawables below, the
 `ContextImpl`, every `ViewGroup` the layout contains. All of them
 are unreachable by intent and reachable in practice, because one
-companion-object field is holding their root.
+companion-object list is holding their root.
 
-**Fix.** Don't put an `Activity` in companion-object state. If what
-you wanted was the avatar, cache the avatar:
+**Fix.** Never store an `Activity` in a `static` or companion-object
+container. If you want a breadcrumb trail for crash reports, store
+strings with a bounded capacity instead:
 
 ```kotlin
-class ProfileActivity : Activity() {
-    companion object {
-        private var cachedAvatar: Bitmap? = null
-    }
+object Breadcrumbs {
+    private const val CAPACITY = 16
+    private val trail = ArrayDeque<String>(CAPACITY)
 
+    @Synchronized
+    fun record(event: String) {
+        while (trail.size >= CAPACITY) trail.removeFirst()
+        trail.addLast("${System.currentTimeMillis()} $event")
+    }
+}
+
+class ProfileActivity : Activity() {
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         setContentView(R.layout.profile)
-        val avatar = cachedAvatar ?: loadAvatar().also { cachedAvatar = it }
-        findViewById<ImageView>(R.id.avatar).setImageBitmap(avatar)
+        Breadcrumbs.record("ProfileActivity.onCreate")
     }
 }
 ```
 
-**Verify.** Rotate ten times again, re-dump, open the new trace.
-Under **Classes** the `ProfileActivity` row should now show
-`Count: 1` — a single live instance, the current one — or `Count: 0`
-if the check happens between Activities. _Count_ growing across
-dumps is the single-number regression signal.
+**Verify.** Re-run the same repro, re-dump, re-open. The Classes
+tab now shows `com.heapleak.ProfileActivity` with `Count: 0` — no
+live instances — and the Overview's app-heap _Bytes Retained_ drops
+accordingly:
 
-On the Overview, the app-heap _Bytes Retained_ drops from 1.5 MiB
-to around 580 KiB once the leak is closed, even though this is a
-tiny demo — a real app with a live view hierarchy sees the
-difference in tens of megabytes.
+![Overview on the fixed trace. Bytes Retained by Heap: 23.4 MiB total, only 580.2 KiB on the app heap (down from 2.1 MiB). "No duplicate bitmaps found".](../images/heap_docs/16-fixed-overview.png)
+
+This tiny demo saves 1.5&nbsp;MiB of app heap; a real screen with
+live views sees the difference in tens of megabytes. Classes-tab
+_Count_ for any `Activity` subclass is the single-number regression
+signal — wire it into a CI heap-dump diff and catch reintroductions
+before they ship.
 
 The same recipe finds the other common shapes of Activity leak. The
 last hop before the Activity in the reference path always names the
@@ -565,9 +583,10 @@ class FeedAdapter(private val res: Resources) : RecyclerView.Adapter<VH>() {
 ```
 
 **Verify.** Scroll the feed the same distance, re-dump, re-open.
-The Overview should declare `No duplicate bitmaps found`:
+The Overview should declare `No duplicate bitmaps found`, and the
+app-heap retained bytes should drop accordingly:
 
-![Overview tab on the fixed trace. The Duplicate Bitmaps card now reads "No duplicate bitmaps found" and app-heap retained memory has dropped from 1.5 MiB to 580.3 KiB.](../images/heap_docs/15-fixed-overview.png)
+![Overview tab on the fixed trace. The Duplicate Bitmaps card now reads "No duplicate bitmaps found" and app-heap retained memory has dropped from 2.1 MiB to 580.2 KiB.](../images/heap_docs/16-fixed-overview.png)
 
 The _wasted bytes_ total across all groups on the Overview is the
 cleanest single-number scorecard — watching it drop from dump to
