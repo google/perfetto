@@ -1,21 +1,26 @@
-# Memory: Java heap dumps
+# Memory: ART Heap Dumps for Java/Kotlin Heap
 
-NOTE: Capturing Java heap dumps requires Android 11 or higher
+NOTE: Capturing Heap dumps requires Android 11 or higher
+
+NOTE: Perfetto ART Heap Dumps are distinct from standard JVM / HPROF heap
+dumps. Unlike HPROF dumps, these only contain the reference graph - not the
+data within objects.
 
 See the [Memory Guide](/docs/case-studies/memory.md#java-hprof) for getting
-started with Java heap dumps.
+started with ART (Android RunTime) heap dumps.
 
-Conversely from [Native heap profiles](native-heap-profiler.md), Java heap dumps
-report full retention graphs of managed objects but not call-stacks. The
-information recorded in a Java heap dump is of the form: _Object X retains
+Conversely from [heap profiles](native-heap-profiler.md), heap dumps report
+full retention graphs of Java objects but not call-stacks. The information
+recorded in a heap dump is of the form: _Object X retains
 object Y, which is N bytes large, through its class member named Z_.
 
-Java heap dumps are not to be confused with profiles taken by the
-[Java heap sampler](native-heap-profiler.md#java-heap-sampling)
+Heap dumps are not to be confused with profiles taken by the
+[Java Allocation Profiling](native-heap-profiler.md#java-heap-sampling), which
+records allocation events / call stacks.
 
 ## UI
 
-Heap graph dumps are shown as flamegraphs in the UI after clicking on the
+Heap dumps are shown as flamegraphs in the UI after clicking on the
 diamond in the _"Heap Profile"_ track of a process. Each diamond corresponds to
 a heap dump.
 
