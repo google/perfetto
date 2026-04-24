@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_TEST_WINDOWMANAGER_SAMPLE_PROTOS_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_TEST_WINDOWMANAGER_SAMPLE_PROTOS_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_TEST_WINDOWMANAGER_SAMPLE_PROTOS_V1_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_TEST_WINDOWMANAGER_SAMPLE_PROTOS_V1_H_
 
 #include <cstdint>
 #include <string>
@@ -29,7 +29,9 @@
 
 namespace perfetto::trace_processor::winscope {
 
-class WindowManagerSampleProtos {
+// Provides windowmanager sample protos with format v1
+// (hierarchy of nested WindowContainerChildProto messages)
+class WindowManagerSampleProtosV1 {
  public:
   static std::string EmptyHierarchy() {
     protozero::HeapBuffered<protos::pbzero::WindowManagerTraceEntry> entry;
@@ -294,4 +296,4 @@ class WindowManagerSampleProtos {
 
 }  // namespace perfetto::trace_processor::winscope
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_TEST_WINDOWMANAGER_SAMPLE_PROTOS_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_TEST_WINDOWMANAGER_SAMPLE_PROTOS_V1_H_

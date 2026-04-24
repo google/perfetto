@@ -78,7 +78,8 @@ std::vector<uint8_t> CloneEntryProtoPruningChildren(
 }
 
 std::vector<uint8_t> CloneRootWindowContainerProtoPruningChildren(
-    const protos::pbzero::RootWindowContainerProto::Decoder& root) {
+    const protos::pbzero::RootWindowContainerProto::Decoder& root,
+    const protos::pbzero::WindowContainerProto::Decoder& window_container) {
   protozero::ConstBytes bytes{root.begin(),
                               static_cast<size_t>(root.end() - root.begin())};
   protozero::ProtoDecoder src_root(bytes);
@@ -92,7 +93,11 @@ std::vector<uint8_t> CloneRootWindowContainerProtoPruningChildren(
       auto* dst_window_container =
           dst_root->BeginNestedMessage<protos::pbzero::WindowContainerProto>(
               field.id());
-      CloneWindowContainerProtoPruningChildren(field.as_bytes(),
+      protozero::ConstBytes window_container_bytes = {
+          window_container.begin(),
+          static_cast<size_t>(window_container.end() -
+                              window_container.begin())};
+      CloneWindowContainerProtoPruningChildren(window_container_bytes,
                                                dst_window_container);
       continue;
     }

@@ -22,6 +22,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/proto/winscope/windowmanager_hierarchy_walker.h"
 #include "src/trace_processor/importers/proto/winscope/windowmanager_proto_clone.h"
+#include "src/trace_processor/importers/proto/winscope/windowmanager_walk_strategy.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/winscope_proto_mapping.h"
@@ -39,7 +40,8 @@ void WindowManagerParser::Parse(int64_t timestamp, protozero::ConstBytes blob) {
 
   auto snapshot_id = InsertSnapshotRow(timestamp, entry_decoder);
 
-  auto result = hierarchy_walker_.ExtractWindowContainers(entry_decoder);
+  auto result =
+      hierarchy_walker_.ExtractWindowContainers(strategy_, entry_decoder);
   if (result.has_parse_error) {
     context_->trace_processor_context_->storage->IncrementStats(
         stats::winscope_windowmanager_parse_errors);

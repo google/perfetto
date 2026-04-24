@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_WINDOWMANAGER_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_WINDOWMANAGER_PARSER_H_
 
+#include "protos/perfetto/trace/android/windowmanager.pbzero.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/winscope/windowmanager_hierarchy_walker.h"
 #include "src/trace_processor/importers/proto/winscope/winscope_context.h"
@@ -51,6 +52,7 @@ class WindowManagerParser {
 
   WinscopeContext* const context_;
   WindowManagerHierarchyWalker hierarchy_walker_;
+  DfsWalkStrategy strategy_;
   util::ProtoToArgsParser args_parser_;
   std::optional<tables::WinscopeTransformTable::Id> transform_id_;
 };

@@ -23,8 +23,8 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "protos/perfetto/trace/android/server/windowmanagerservice.pbzero.h"
-#include "protos/perfetto/trace/android/windowmanager.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/proto/winscope/windowmanager_walk_strategy.h"
 
 namespace perfetto::trace_processor::winscope {
 
@@ -65,6 +65,7 @@ class WindowManagerHierarchyWalker {
   explicit WindowManagerHierarchyWalker(StringPool* pool);
 
   ExtractResult ExtractWindowContainers(
+      WalkStrategy& strategy,
       const protos::pbzero::WindowManagerTraceEntry::Decoder& entry);
 
  private:
@@ -75,11 +76,7 @@ class WindowManagerHierarchyWalker {
 
   base::Status ParseRootWindowContainer(
       const protos::pbzero::RootWindowContainerProto::Decoder& root,
-      std::vector<ExtractedWindowContainer>* result);
-
-  base::Status ParseWindowContainerChildren(
       const protos::pbzero::WindowContainerProto::Decoder& window_container,
-      int32_t parent_token,
       std::vector<ExtractedWindowContainer>* result);
 
   base::Status ParseWindowContainerChildProto(

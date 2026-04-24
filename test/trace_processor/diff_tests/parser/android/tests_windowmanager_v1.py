@@ -91,7 +91,7 @@ class WindowManager(TestSuite):
         70
         """))
 
-  def test_windowcontainer_has_expected_args(self):
+  def test_rootwindowcontainer_has_expected_args(self):
     return DiffTestBlueprint(
         trace=Path('windowmanager.textproto'),
         query="""
@@ -111,6 +111,31 @@ class WindowManager(TestSuite):
         "window_container.identifier.title","WindowContainer"
         "keyguard_controller.keyguard_per_display[0]","[NULL]"
         "is_home_recents_component","true"
+        """))
+
+  def test_windowcontainer_has_expected_args(self):
+    return DiffTestBlueprint(
+        trace=Path('windowmanager.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.winscope.windowmanager;
+        SELECT args.key, args.display_value
+        FROM android_windowmanager_windowcontainer wc
+        INNER JOIN args ON wc.arg_set_id = args.arg_set_id
+        WHERE snapshot_id = 0 AND wc.id = 2;
+        """,
+        out=Csv("""
+        "key","display_value"
+        "display_area.window_container.configuration_container.full_configuration.window_configuration.windowing_mode","1"
+        "display_area.window_container.orientation","-2"
+        "display_area.window_container.visible","true"
+        "display_area.window_container.identifier.hash_code","201937930"
+        "display_area.window_container.identifier.user_id","-10000"
+        "display_area.window_container.identifier.title","WindowContainer"
+        "display_area.window_container.surface_control.hash_code","177197394"
+        "display_area.window_container.surface_control.name","WindowedMagnification:0:31"
+        "display_area.window_container.surface_control.layerId","3"
+        "display_area.name","WindowedMagnification:0:31"
+        "display_area.feature_id","4"
         """))
 
   def test_windowcontainer_has_rects(self):

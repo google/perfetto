@@ -63,7 +63,7 @@ from diff_tests.parser.android.tests_shell_transitions import ShellTransitions
 from diff_tests.parser.android.tests_surfaceflinger_layers import SurfaceFlingerLayers
 from diff_tests.parser.android.tests_surfaceflinger_transactions import SurfaceFlingerTransactions
 from diff_tests.parser.android.tests_viewcapture import ViewCapture
-from diff_tests.parser.android.tests_windowmanager import WindowManager
+from diff_tests.parser.android.tests_windowmanager_v1 import WindowManager
 from diff_tests.parser.art_hprof.tests import ArtHprofParser
 from diff_tests.parser.art_method.tests import ArtMethodParser
 from diff_tests.parser.atrace.tests import Atrace

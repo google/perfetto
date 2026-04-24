@@ -2799,6 +2799,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/winscope/windowmanager_parser.h",
         "src/trace_processor/importers/proto/winscope/windowmanager_proto_clone.cc",
         "src/trace_processor/importers/proto/winscope/windowmanager_proto_clone.h",
+        "src/trace_processor/importers/proto/winscope/windowmanager_walk_strategy.cc",
+        "src/trace_processor/importers/proto/winscope/windowmanager_walk_strategy.h",
         "src/trace_processor/importers/proto/winscope/winscope_context.h",
         "src/trace_processor/importers/proto/winscope/winscope_geometry.cc",
         "src/trace_processor/importers/proto/winscope/winscope_geometry.h",
