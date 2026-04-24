@@ -14,7 +14,8 @@ Three channels are served from `gs://ui.perfetto.dev/`:
 | stable   | `stable`      | push to `stable`           |
 
 Each Cloud Build trigger invokes `ui_builder_entrypoint.sh` with the
-channel name as `$1`. The entrypoint runs `ui/release/build_channel.py
+branch name as `$1`. The entrypoint maps `autopush`/`canary`/`stable` to
+the channel of the same name and runs `ui/release/build_channel.py
 --channel=<name> --upload`, which builds the UI from the branch HEAD
 and uploads `/v<version>/**` to GCS.
 
@@ -28,6 +29,16 @@ The stable channel additionally owns the HTML body itself (it is the
 only channel that overwrites the body) and the shared `/service_worker.*`
 files. Canary and autopush never write the body or service_worker, so
 canary instability cannot break stable users.
+
+### Release branches
+
+Pushes to long-lived release branches (anything other than
+`main`/`canary`/`stable`) are wired to the same `cloudbuild_release.yaml`
+trigger, which passes `$BRANCH_NAME`. The entrypoint normalises any such
+branch to `--channel=release`. The release mode uploads `/v<version>/`
+only and does NOT modify the root index.html map or `/service_worker.*`,
+so the build is reachable by direct URL but no channel points to it until
+the branch is eventually merged into `stable`.
 
 ## /appengine : GAE <> GCS proxy
 

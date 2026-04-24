@@ -29,6 +29,13 @@ channels' map entries) and uploads the shared /service_worker.* files.
 Canary and autopush never write the HTML body or service_worker --
 preserves the invariant that canary instability cannot break stable users.
 
+There is also a fourth mode, 'release', used for pushes to long-lived
+release branches. It builds and uploads the /v<version>/ artifacts so
+the version is reachable by direct URL, but it does NOT touch the root
+index.html map or any shared loose files. No channel points to it
+until someone explicitly promotes the version (typically by merging
+into the stable branch, which then runs this script in stable mode).
+
 See go/perfetto-ui-autopush for end-to-end docs.
 """
 
@@ -46,7 +53,11 @@ from os.path import dirname
 pjoin = os.path.join
 
 BUCKET_NAME = 'ui.perfetto.dev'
-CHANNELS = ('autopush', 'canary', 'stable')
+# Channels that own a slot in the root /index.html data-perfetto_version map.
+INDEX_CHANNELS = ('autopush', 'canary', 'stable')
+# 'release' uploads /v<version>/ only and never touches the index / service
+# worker, so it is valid as a --channel value but does not appear in the map.
+CHANNELS = INDEX_CHANNELS + ('release',)
 CUR_DIR = dirname(os.path.abspath(__file__))
 ROOT_DIR = dirname(dirname(CUR_DIR))
 CAS_MAX_RETRIES = 10
@@ -241,8 +252,15 @@ def make_other_channel_updater(channel, new_version):
 
 def upload_loose_files(channel, version, dist_dir):
   """Iterate the loose files in dist_dir (HTML files + service_worker.*).
-  HTML files get CAS-updated by every channel. Non-HTML files are uploaded
-  plain by the stable channel only and ignored by other channels."""
+  HTML files get CAS-updated by every index channel. Non-HTML files are
+  uploaded plain by the stable channel only and ignored by other index
+  channels. The 'release' mode skips loose files entirely -- a release-branch
+  deploy publishes only the /v<version>/ artifacts and must not mutate any
+  shared state."""
+  if channel == 'release':
+    print('Skipping loose-file upload for release mode (index / '
+          'service_worker are left untouched).')
+    return
   for fname in sorted(os.listdir(dist_dir)):
     fpath = pjoin(dist_dir, fname)
     if not os.path.isfile(fpath):
