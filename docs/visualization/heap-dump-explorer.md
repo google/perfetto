@@ -122,7 +122,7 @@ _Classes_, _Objects_, _Dominators_, _Bitmaps_, _Strings_ and _Arrays_
 are fixed. Tabs you open by drilling into a specific object or
 flamegraph selection are appended on the right and can be closed.
 
-![Tab bar with the seven fixed tabs and a dynamic object tab opened for `LeakedActivity 0x00009233`.](../images/heap_docs/03-tab-bar.png)
+![Tab bar with the seven fixed tabs and a dynamic object tab opened for `ProfileActivity 0x00032f52`.](../images/heap_docs/03-tab-bar.png)
 
 All tabs share the underlying `heap_graph_*` tables. Blue links — a
 class name, an object id, a _Copies_ count — navigate to the
@@ -144,7 +144,7 @@ The Overview is the default landing page and summarizes the dump:
   and the wasted bytes; clicking _Copies_ opens the relevant tab
   filtered to that group.
 
-![Overview tab: General Information, Bytes Retained by Heap, and a Duplicate Bitmaps group wasting 785.8 KiB across 12 copies of the same 128×128 image.](../images/heap_docs/04-overview.png)
+![Overview tab: General Information (437,681 reachable instances across app/image/zygote heaps), Bytes Retained by Heap (24.4 MiB total, 1.5 MiB on the app heap), and a Duplicate Bitmaps group wasting 785.8 KiB across 12 copies of the same 128×128 image.](../images/heap_docs/04-overview.png)
 
 NOTE: The duplicate sections _require HPROF_.
 
@@ -159,7 +159,7 @@ descending:
   became unreachable.
 - **Retained #** — the number of objects that would go with them.
 
-![Classes tab sorted by Retained; `byte[]` at 131,573 retained instances followed by `java.lang.String`, `int[]`, and application classes further down.](../images/heap_docs/05-classes.png)
+![Classes tab sorted by Retained; `byte[]` and `java.lang.String` at the top, `com.heapleak.ProfileActivity` further down with Count 1.](../images/heap_docs/05-classes.png)
 
 Use this tab when you have a suspect class, or want a top-down view
 of which classes own the most memory. Clicking a class name opens
@@ -189,7 +189,7 @@ exclusively retain the largest subgraphs of the heap. An object `a`
 dominates `b` if every path from a GC root to `b` passes through `a`,
 so freeing `a` also frees `b`.
 
-![Dominators tab sorted by Retained; `Class<LeakedActivity>` (root type `STATIC`) and `LeakedActivity 0x00009233` near the top, each retaining a large subgraph.](../images/heap_docs/07-dominators.png)
+![Dominators tab sorted by Retained; `Class<ProfileActivity>` (root type `STATIC`) and a `ProfileActivity` instance near the top, each retaining a large subgraph.](../images/heap_docs/07-dominators.png)
 
 _Root Type_ (e.g. `THREAD`, `STATIC`, `JNI_GLOBAL`) identifies how each
 dominator is itself kept alive. Click a row to open its object tab and
@@ -214,7 +214,7 @@ The _Show Paths_ toggle adds the reference path from the GC root to
 each card — the fastest way to spot an `Activity`, `Fragment` or
 `Handler` holding leaked bitmaps.
 
-![Bitmaps gallery with "Show Paths" enabled; the reference chain below each card points back through `MainActivity.DUPLICATE_BITMAPS` to the static holder.](../images/heap_docs/09-bitmaps-show-paths.png)
+![Bitmaps gallery with "Show Paths" enabled; the reference chain below each card runs `Class<FeedAdapter>.cache → ArrayList → Bitmap`, showing the single static holder.](../images/heap_docs/09-bitmaps-show-paths.png)
 
 Two tables at the bottom list bitmaps with and without pixel data,
 with filter, sort and export controls. Arriving via _Copies_ on
@@ -285,9 +285,9 @@ The object tab contains everything known about the instance:
 - **Immediately dominated objects** — what would be freed if this
   instance became unreachable.
 
-![Object tab (top) for `LeakedActivity 0x00009233`: Reference Path from GC Root goes `Class<LeakedActivity> → com.heapleak.LeakedActivity.sLeakedInstance → LeakedActivity`; retained 116.7 KiB across 1,562 objects.](../images/heap_docs/12-object-tab-top.png)
+![Object tab (top) for `ProfileActivity 0x00032f52`: Reference Path from GC Root goes `Class<ProfileActivity> → com.heapleak.ProfileActivity.last → ProfileActivity`; retained 116.5 KiB across 1,560 objects.](../images/heap_docs/12-object-tab-top.png)
 
-![Object tab (bottom): instance fields from `android.app.Activity`, "Objects with References to this Object" (48 reverse references from views and context wrappers), and "Immediately Dominated Objects" (60 — the view hierarchy that would be freed if this instance became unreachable).](../images/heap_docs/13-object-tab-bottom.png)
+![Object tab (bottom): instance fields from `android.app.Activity`, "Objects with References to this Object" (reverse references from views and context wrappers), and "Immediately Dominated Objects" — the view hierarchy that would be freed if this instance became unreachable.](../images/heap_docs/13-object-tab-bottom.png)
 
 The reference path and the reverse references are the two sections
 that resolve most investigations: the reference path shows who is
@@ -407,7 +407,7 @@ worst offender on top.
 tab. The _Reference Path from GC Root_ is the chain of field
 references keeping this instance alive:
 
-![Object tab for the leaked Activity. Reference path reads Class&lt;ProfileActivity&gt; → ProfileActivity.last → ProfileActivity. Object info, 116.7 KiB retained, 1,562 reachable objects.](../images/heap_docs/12-object-tab-top.png)
+![Object tab for the leaked Activity. Reference path: Class&lt;ProfileActivity&gt; 0x00031121 → com.heapleak.ProfileActivity.last → ProfileActivity 0x00032f52. Retained 116.5 KiB, 1,560 reachable objects.](../images/heap_docs/12-object-tab-top.png)
 
 Read bottom-up: the runtime keeps the `java.lang.Class<ProfileActivity>`
 object alive (as it does for every loaded class); that class has a
@@ -416,16 +416,16 @@ companion-object field `last`; that field points at a
 before the Activity — `last` — names the bug. That's the fix site.
 
 The _Object Size_ block quantifies the cost: one leaked Activity is
-pinning 116.7&nbsp;KiB and 1,562 reachable objects. The breakdown
+pinning 116.5&nbsp;KiB and 1,560 reachable objects. The breakdown
 lives lower on the same tab:
 
-![Bottom of the object tab. Instance fields from android.app.Activity, "Objects with References to this Object" (48 reverse references), and "Immediately Dominated Objects" (60 — the retained view hierarchy).](../images/heap_docs/13-object-tab-bottom.png)
+![Bottom of the object tab. Instance fields from android.app.Activity, "Objects with References to this Object", and "Immediately Dominated Objects".](../images/heap_docs/13-object-tab-bottom.png)
 
-Sixty dominated objects is the view hierarchy: `DecorView` at the
-top, the inflated drawables below, the `ContextImpl`, every
-`ViewGroup` the layout contains. All of them are unreachable by
-intent and reachable in practice, because one companion-object
-field is holding their root.
+The _Immediately Dominated Objects_ list is the view hierarchy:
+`DecorView` at the top, the inflated drawables below, the
+`ContextImpl`, every `ViewGroup` the layout contains. All of them
+are unreachable by intent and reachable in practice, because one
+companion-object field is holding their root.
 
 **Fix.** Don't put an `Activity` in companion-object state. If what
 you wanted was the avatar, cache the avatar:
@@ -450,6 +450,11 @@ Under **Classes** the `ProfileActivity` row should now show
 `Count: 1` — a single live instance, the current one — or `Count: 0`
 if the check happens between Activities. _Count_ growing across
 dumps is the single-number regression signal.
+
+On the Overview, the app-heap _Bytes Retained_ drops from 1.5 MiB
+to around 580 KiB once the leak is closed, even though this is a
+tiny demo — a real app with a live view hierarchy sees the
+difference in tens of megabytes.
 
 The same recipe finds the other common shapes of Activity leak. The
 last hop before the Activity in the reference path always names the
@@ -507,7 +512,7 @@ pixel-buffer hash. Each row shows copy count, total bytes across
 all copies, and wasted bytes — what deduplicating to a single copy
 would save:
 
-![Overview tab. Duplicate Bitmaps card has one 128×128 group with 12 copies, 770.0 KiB total, 705.8 KiB wasted — exactly the shape of the adapter's cache list.](../images/heap_docs/04-overview.png)
+![Overview tab. Duplicate Bitmaps card has one 128×128 group: 12 copies, 770.0 KiB total, 705.8 KiB wasted — exactly the shape of the adapter's cache list.](../images/heap_docs/04-overview.png)
 
 Sort by wasted bytes, not by count — five copies of a 2&nbsp;MB
 image dwarfs five hundred 16&nbsp;px icons. Here the worst row is a
@@ -523,7 +528,7 @@ render as cards:
 **Find the holder.** Toggle _Show Paths_. The reference chain below
 each card is the fields keeping that bitmap alive:
 
-![Bitmaps gallery with Show Paths on. Every card's chain ends at FeedAdapter.cache — the companion-object list is the single holder.](../images/heap_docs/09-bitmaps-show-paths.png)
+![Bitmaps gallery with Show Paths on. Every card's chain reads Class&lt;FeedAdapter&gt;.cache → ArrayList → Bitmap — the companion-object list is the single holder.](../images/heap_docs/09-bitmaps-show-paths.png)
 
 What the chains look like tells you what kind of bug this is:
 
@@ -560,11 +565,13 @@ class FeedAdapter(private val res: Resources) : RecyclerView.Adapter<VH>() {
 ```
 
 **Verify.** Scroll the feed the same distance, re-dump, re-open.
-The 128×128 group should be gone from the Overview, or shrunk to a
-single copy. The most reliable scorecard is the _wasted bytes_
-total across all groups on the Overview — watching it drop from
-dump to dump is the cleanest way to confirm each fix and catch
-regressions.
+The Overview should declare `No duplicate bitmaps found`:
+
+![Overview tab on the fixed trace. The Duplicate Bitmaps card now reads "No duplicate bitmaps found" and app-heap retained memory has dropped from 1.5 MiB to 580.3 KiB.](../images/heap_docs/15-fixed-overview.png)
+
+The _wasted bytes_ total across all groups on the Overview is the
+cleanest single-number scorecard — watching it drop from dump to
+dump is how you confirm each fix and catch regressions.
 
 ## See also
 
