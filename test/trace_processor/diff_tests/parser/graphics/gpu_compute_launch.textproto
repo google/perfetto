@@ -25,13 +25,17 @@ packet {
       iid: 1
       name: "vectorAdd"
     }
+    compute_arg_names {
+      iid: 1
+      name: "registers_per_thread"
+    }
     compute_kernels {
       iid: 1
       name: "_Z9vectorAddPfS_S_i"
       demangled_name: "vectorAdd(float*, float*, float*, int)"
       arch: "sm_80"
       args {
-        name: "registers_per_thread"
+        name_iid: 1
         uint_value: 32
       }
     }
