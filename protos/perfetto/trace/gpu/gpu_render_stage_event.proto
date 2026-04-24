@@ -85,7 +85,11 @@ message GpuRenderStageEvent {
   // optional. Custom name for this render stage event. When set, this
   // provides a name for the stage instead of using the name from the stage
   // specification.
-  optional string name = 17;
+  oneof name_field {
+    string name = 17;
+    // Interned event name. Refers to EventName in InternedData.
+    uint64 name_iid = 20;
+  }
 
   // Event IDs of other GpuRenderStageEvents that this event
   // had to wait on before it could run.
@@ -94,10 +98,6 @@ message GpuRenderStageEvent {
   // optional. ID to a compute kernel description in the interned data.
   // InternedComputeKernel
   optional uint64 kernel_iid = 19;
-
-  // optional. Interned event name. When set, takes precedence over |name|.
-  // Refers to EventName in InternedData.
-  optional uint64 name_iid = 20;
 
   // 3D unsigned integer vector for grid and workgroup dimensions.
   message Dim3 {
