@@ -579,3 +579,20 @@ class GraphicsGpuTrace(TestSuite):
           "softmax","cudaEventWait"
           "softmax","matmul"
         '''))
+
+  def test_gpu_api_arg(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_api_slice.textproto'),
+        query='''
+          SELECT
+            s.name AS slice_name,
+            extract_arg(s.arg_set_id, 'gpu_api') AS gpu_api
+          FROM slice s
+          WHERE extract_arg(s.arg_set_id, 'gpu_api') IS NOT NULL
+          ORDER BY s.ts;
+        ''',
+        out=Csv('''
+          "slice_name","gpu_api"
+          "cuLaunchKernel","GPU_API_CUDA"
+          "vkCmdDispatch","GPU_API_VULKAN"
+        '''))
