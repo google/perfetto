@@ -22,6 +22,7 @@ import {
 import {ChartAggregation} from '../../../../components/widgets/charts/chart_utils';
 import {Select} from '../../../../widgets/select';
 import {Form, FormLabel} from '../../../../widgets/form';
+import {Checkbox} from '../../../../widgets/checkbox';
 import {ChartColumnProvider} from './chart_renderers';
 
 interface ColumnInfo {
@@ -352,6 +353,18 @@ export function renderChartConfigPopup(
             },
           }),
         ]),
+      m(FormLabel, [
+        m(Checkbox, {
+          label: 'Show truncation warning',
+          checked: config.showTruncationWarning ?? true,
+          onchange: (e: Event) => {
+            const target = e.target as HTMLInputElement;
+            ctx.node.updateChart(config.id, {
+              showTruncationWarning: target.checked,
+            });
+          },
+        }),
+      ]),
     ],
   );
 }

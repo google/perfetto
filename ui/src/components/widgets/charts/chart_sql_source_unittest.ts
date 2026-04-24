@@ -12,7 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ChartSource, ColumnSchema, QueryConfig} from './chart_sql_source';
+import {
+  ChartSource,
+  ColumnSchema,
+  OTHER_LABEL,
+  QueryConfig,
+  countDistinctPieSlices,
+} from './chart_sql_source';
 
 const QUERY = 'SELECT name, dur, ts, cpu, size, category FROM slice';
 const SCHEMA: ColumnSchema = {
@@ -382,7 +388,7 @@ test('points: maxPointsPerSeries with breakdown', () => {
   expect(norm).toContain('COUNT(*) OVER (PARTITION BY CAST(cpu AS TEXT))');
   expect(norm).toContain('(_cnt + 500 - 1) / 500');
   expect(norm).toContain('WHERE (_rn - 1) %');
-  expect(norm).toContain('SELECT _x, _y, _series FROM');
+  expect(norm).toContain('SELECT _x, _y, _series, _total_count FROM');
 });
 
 test('points: maxPointsPerSeries without breakdown', () => {
@@ -397,7 +403,7 @@ test('points: maxPointsPerSeries without breakdown', () => {
   const norm = normalizeWhitespace(sql);
   expect(norm).toContain('PARTITION BY 1');
   expect(norm).toContain('(_cnt + 1000 - 1) / 1000');
-  expect(norm).toContain('SELECT _x, _y FROM');
+  expect(norm).toContain('SELECT _x, _y, _total_count FROM');
 });
 
 test('points: maxPointsPerSeries with filters', () => {
@@ -504,4 +510,86 @@ test('aggregated: empty filters array produces no WHERE clause', () => {
     filters: [],
   });
   expect(normalizeWhitespace(sql)).not.toContain('WHERE');
+});
+
+// ---------------------------------------------------------------------------
+// Total count (_total_count) — used to drive the truncation warning
+// ---------------------------------------------------------------------------
+
+test('aggregated with limit emits _total_count', () => {
+  const sql = build({
+    type: 'aggregated',
+    dimensions: [{column: 'name'}],
+    measures: [{column: 'dur', aggregation: 'SUM'}],
+    limit: 10,
+  });
+  const norm = normalizeWhitespace(sql);
+  expect(norm).toContain('WITH _agg AS');
+  expect(norm).toContain('(SELECT COUNT(*) FROM _agg) AS _total_count');
+  expect(norm).toContain('LIMIT 10');
+});
+
+test('aggregated without limit has no _total_count', () => {
+  const sql = build({
+    type: 'aggregated',
+    dimensions: [{column: 'name'}],
+    measures: [{column: 'dur', aggregation: 'SUM'}],
+  });
+  expect(normalizeWhitespace(sql)).not.toContain('_total_count');
+});
+
+test('aggregated top-N with Other emits _total_count once', () => {
+  const sql = build({
+    type: 'aggregated',
+    dimensions: [{column: 'name'}],
+    measures: [{column: 'dur', aggregation: 'SUM'}],
+    limit: 5,
+    includeOther: true,
+  });
+  const norm = normalizeWhitespace(sql);
+  expect(norm).toContain('(SELECT COUNT(*) FROM _agg) AS _total_count');
+  // Only one _total_count projection — the inner UNION shouldn't duplicate it.
+  const matches = norm.match(/_total_count/g) ?? [];
+  expect(matches.length).toBe(1);
+});
+
+test('aggregated hierarchical emits _total_count', () => {
+  const sql = build({
+    type: 'aggregated',
+    dimensions: [{column: 'category'}, {column: 'name'}],
+    measures: [{column: 'size', aggregation: 'SUM'}],
+    limitPerGroup: 10,
+  });
+  expect(normalizeWhitespace(sql)).toContain(
+    '(SELECT COUNT(*) FROM _agg) AS _total_count',
+  );
+});
+
+test('histogram has no _total_count', () => {
+  const sql = build({
+    type: 'histogram',
+    valueColumn: 'dur',
+    bucketCount: 20,
+  });
+  expect(normalizeWhitespace(sql)).not.toContain('_total_count');
+});
+
+// ---------------------------------------------------------------------------
+// countDistinctPieSlices
+// ---------------------------------------------------------------------------
+
+test('countDistinctPieSlices: handles undefined', () => {
+  expect(countDistinctPieSlices(undefined)).toBe(0);
+});
+
+test('countDistinctPieSlices: counts all slices when no (Other) present', () => {
+  expect(
+    countDistinctPieSlices([{label: 'a'}, {label: 'b'}, {label: 'c'}]),
+  ).toBe(3);
+});
+
+test('countDistinctPieSlices: excludes the (Other) slice', () => {
+  expect(
+    countDistinctPieSlices([{label: 'a'}, {label: 'b'}, {label: OTHER_LABEL}]),
+  ).toBe(2);
 });

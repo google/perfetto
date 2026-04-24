@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {assertUnreachable} from '../../../../base/assert';
+import {classNames} from '../../../../base/classnames';
 import {
   ChartConfig,
   ChartType,
@@ -27,6 +29,7 @@ import {PieChart} from '../../../../components/widgets/charts/pie_chart';
 import {
   Treemap,
   TreemapNode,
+  countTreemapLeaves,
 } from '../../../../components/widgets/charts/treemap';
 import {BoxplotChart} from '../../../../components/widgets/charts/boxplot';
 import {HeatmapChart} from '../../../../components/widgets/charts/heatmap';
@@ -41,11 +44,26 @@ import {SQLHeatmapLoader} from '../../../../components/widgets/charts/heatmap_lo
 import {SQLCdfLoader} from '../../../../components/widgets/charts/cdf_loader';
 import {SQLSingleValueLoader} from '../../../../components/widgets/charts/single_value_loader';
 import {Scorecard} from '../../../../components/widgets/charts/scorecard';
+import {Icon} from '../../../../widgets/icon';
+import {Tooltip} from '../../../../widgets/tooltip';
+import {PopupPosition} from '../../../../widgets/popup';
 import {EmptyState} from '../../../../widgets/empty_state';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {Engine} from '../../../../trace_processor/engine';
 import {isIntegerColumn, getNumericFormatter} from './chart_column_formatters';
 import {ChartAggregation} from '../../../../components/widgets/charts/chart_utils';
+import {countDistinctPieSlices} from '../../../../components/widgets/charts/chart_sql_source';
+
+// shown + total must be set together to prevent half-populated truncation state.
+interface TruncationInfo {
+  readonly shown: number;
+  readonly total: number;
+}
+
+interface ChartRenderResult {
+  readonly content: m.Child;
+  readonly truncation?: TruncationInfo;
+}
 
 /**
  * Formats a human-readable measure label for chart axes.
@@ -249,47 +267,114 @@ export function createChartLoaders(
   }
 }
 
-/** Render the appropriate chart widget for a config + loader entry. */
+/**
+ * Render the appropriate chart widget for a config + loader entry.
+ *
+ * `globalShowTruncationWarning` is a dashboard-level override: when false it
+ * suppresses the warning for all charts regardless of their per-chart config.
+ */
 export function renderChartByType(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
+  globalShowTruncationWarning?: boolean,
 ): m.Child {
+  let result: ChartRenderResult;
   switch (config.chartType) {
     case 'bar':
-      return renderBarChart(ctx, config, entry);
+      result = renderBarChart(ctx, config, entry);
+      break;
     case 'histogram':
-      return renderHistogram(ctx, config, entry);
+      result = renderHistogram(ctx, config, entry);
+      break;
     case 'line':
-      return renderLineChart(ctx, config, entry);
+      result = renderLineChart(ctx, config, entry);
+      break;
     case 'scatter':
-      return renderScatterChart(ctx, config, entry);
+      result = renderScatterChart(ctx, config, entry);
+      break;
     case 'pie':
-      return renderPieChart(ctx, config, entry);
+      result = renderPieChart(ctx, config, entry);
+      break;
     case 'treemap':
-      return renderTreemap(ctx, config, entry);
+      result = renderTreemap(ctx, config, entry);
+      break;
     case 'boxplot':
-      return renderBoxplot(ctx, config, entry);
+      result = renderBoxplot(ctx, config, entry);
+      break;
     case 'heatmap':
-      return renderHeatmap(ctx, config, entry);
+      result = renderHeatmap(ctx, config, entry);
+      break;
     case 'cdf':
-      return renderCdf(ctx, config, entry);
+      result = renderCdf(ctx, config, entry);
+      break;
     case 'scorecard':
-      return renderScorecard(ctx, config, entry);
+      result = renderScorecard(ctx, config, entry);
+      break;
+    default:
+      assertUnreachable(config.chartType);
   }
+  const showWarning =
+    (globalShowTruncationWarning ?? true) &&
+    config.showTruncationWarning !== false;
+  return wrapWithTruncationWarning(showWarning, result);
 }
 
-export function renderBarChart(
+// Overlays a warning icon+tooltip if the chart data is truncated and warnings
+// are enabled. `showWarning` is the resolved effective flag (per-chart &&
+// global dashboard setting).
+function wrapWithTruncationWarning(
+  showWarning: boolean,
+  result: ChartRenderResult,
+): m.Child {
+  const trunc = result.truncation;
+  if (!showWarning || trunc === undefined || trunc.total <= trunc.shown) {
+    return result.content;
+  }
+  const tooltipText = `Showing ${trunc.shown} of ${trunc.total} items`;
+  return m('.pf-chart-truncation-wrapper', [
+    result.content,
+    m(
+      Tooltip,
+      {
+        trigger: m(Icon, {
+          className: classNames('pf-chart-truncation-warning'),
+          icon: 'warning',
+          filled: true,
+        }),
+        position: PopupPosition.BottomEnd,
+        showArrow: false,
+      },
+      tooltipText,
+    ),
+  ]);
+}
+
+// Returns undefined when totalCount is absent (query had no LIMIT), so the
+// warning overlay is skipped entirely for unlimited queries.
+function truncationInfo(
+  shown: number,
+  total: number | undefined,
+): TruncationInfo | undefined {
+  return total === undefined ? undefined : {shown, total};
+}
+
+function renderBarChart(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
-): m.Child {
+): ChartRenderResult {
   if (!entry.barLoader) {
-    return m(EmptyState, {icon: 'bar_chart', title: 'No data to display'});
+    return {
+      content: m(EmptyState, {icon: 'bar_chart', title: 'No data to display'}),
+    };
   }
 
   const agg = config.aggregation ?? 'COUNT';
-  const {data} = entry.barLoader.use({aggregation: agg, limit: 100});
+  const {data, totalCount} = entry.barLoader.use({
+    aggregation: agg,
+    limit: 100,
+  });
 
   const measureLabel = formatMeasureLabel(agg, config);
 
@@ -304,27 +389,35 @@ export function renderBarChart(
     ? getNumericFormatter(ctx.node, config.measureColumn ?? config.column)
     : undefined;
 
-  return m(BarChart, {
-    data,
-    height: 250,
-    dimensionLabel: config.column,
-    measureLabel,
-    orientation: config.orientation ?? 'vertical',
-    fillParent: true,
-    formatDimension,
-    formatMeasure,
-    gridLines: ctx.gridLines,
-    onBrush: (labels) => handleBarBrush(ctx, config, labels),
-  });
+  return {
+    content: m(BarChart, {
+      data,
+      height: 250,
+      dimensionLabel: config.column,
+      measureLabel,
+      orientation: config.orientation ?? 'vertical',
+      fillParent: true,
+      formatDimension,
+      formatMeasure,
+      gridLines: ctx.gridLines,
+      onBrush: (labels) => handleBarBrush(ctx, config, labels),
+    }),
+    truncation: truncationInfo(data?.items.length ?? 0, totalCount),
+  };
 }
 
-export function renderHistogram(
+function renderHistogram(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
-): m.Child {
+): ChartRenderResult {
   if (!entry.histogramLoader) {
-    return m(EmptyState, {icon: 'ssid_chart', title: 'No data to display'});
+    return {
+      content: m(EmptyState, {
+        icon: 'ssid_chart',
+        title: 'No data to display',
+      }),
+    };
   }
 
   const isInteger = isIntegerColumn(ctx.node, config.column);
@@ -335,174 +428,222 @@ export function renderHistogram(
 
   const formatXValue = getNumericFormatter(ctx.node, config.column);
 
-  return m(Histogram, {
-    data,
-    height: 250,
-    xAxisLabel: config.column,
-    integerDimension: isInteger,
-    fillParent: true,
-    formatXValue,
-    onBrush: (range) =>
-      handleHistogramBrush(ctx, config, range.start, range.end),
-  });
+  return {
+    content: m(Histogram, {
+      data,
+      height: 250,
+      xAxisLabel: config.column,
+      integerDimension: isInteger,
+      fillParent: true,
+      formatXValue,
+      onBrush: (range) =>
+        handleHistogramBrush(ctx, config, range.start, range.end),
+    }),
+  };
 }
 
-export function renderLineChart(
+function renderLineChart(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
-): m.Child {
+): ChartRenderResult {
   if (!entry.lineLoader) {
-    return m(EmptyState, {icon: 'show_chart', title: 'No data to display'});
+    return {
+      content: m(EmptyState, {icon: 'show_chart', title: 'No data to display'}),
+    };
   }
 
-  const {data} = entry.lineLoader.use({});
+  const {data, totalCount} = entry.lineLoader.use({});
 
   const formatXValue = getNumericFormatter(ctx.node, config.column);
   const formatYValue = config.yColumn
     ? getNumericFormatter(ctx.node, config.yColumn)
     : undefined;
 
-  return m(LineChart, {
-    data,
-    height: 250,
-    xAxisLabel: config.column,
-    yAxisLabel: config.yColumn,
-    fillParent: true,
-    scaleAxes: true,
-    formatXValue,
-    formatYValue,
-    gridLines: ctx.gridLines,
-    onBrush: (range) =>
-      handleHistogramBrush(ctx, config, range.start, range.end),
-  });
+  return {
+    content: m(LineChart, {
+      data,
+      height: 250,
+      xAxisLabel: config.column,
+      yAxisLabel: config.yColumn,
+      fillParent: true,
+      scaleAxes: true,
+      formatXValue,
+      formatYValue,
+      gridLines: ctx.gridLines,
+      onBrush: (range) =>
+        handleHistogramBrush(ctx, config, range.start, range.end),
+    }),
+    // `shown` counts sampled points across all series; `totalCount` is source
+    // rows before the per-series stride-sampling. The warning correctly fires
+    // whenever sampled points < total rows.
+    truncation: truncationInfo(
+      data?.series.reduce((sum, s) => sum + s.points.length, 0) ?? 0,
+      totalCount,
+    ),
+  };
 }
 
-export function renderScatterChart(
+function renderScatterChart(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
-): m.Child {
+): ChartRenderResult {
   if (!entry.scatterLoader) {
-    return m(EmptyState, {icon: 'scatter_plot', title: 'No data to display'});
+    return {
+      content: m(EmptyState, {
+        icon: 'scatter_plot',
+        title: 'No data to display',
+      }),
+    };
   }
 
-  const {data} = entry.scatterLoader.use({maxPoints: 2000});
+  const {data, totalCount} = entry.scatterLoader.use({maxPoints: 2000});
 
   const formatXValue = getNumericFormatter(ctx.node, config.column);
   const formatYValue = config.yColumn
     ? getNumericFormatter(ctx.node, config.yColumn)
     : undefined;
 
-  return m(Scatterplot, {
-    data,
-    height: 250,
-    xAxisLabel: config.column,
-    yAxisLabel: config.yColumn,
-    fillParent: true,
-    scaleAxes: true,
-    formatXValue,
-    formatYValue,
-    gridLines: ctx.gridLines,
-  });
+  return {
+    content: m(Scatterplot, {
+      data,
+      height: 250,
+      xAxisLabel: config.column,
+      yAxisLabel: config.yColumn,
+      fillParent: true,
+      scaleAxes: true,
+      formatXValue,
+      formatYValue,
+      gridLines: ctx.gridLines,
+    }),
+    // Same sampling semantics as renderLineChart above.
+    truncation: truncationInfo(
+      data?.series.reduce((sum, s) => sum + s.points.length, 0) ?? 0,
+      totalCount,
+    ),
+  };
 }
 
-export function renderPieChart(
+function renderPieChart(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
-): m.Child {
+): ChartRenderResult {
   if (!entry.pieLoader) {
-    return m(EmptyState, {icon: 'pie_chart', title: 'No data to display'});
+    return {
+      content: m(EmptyState, {icon: 'pie_chart', title: 'No data to display'}),
+    };
   }
 
   const agg = config.aggregation ?? 'COUNT';
-  const {data} = entry.pieLoader.use({aggregation: agg, limit: 20});
+  const {data, totalCount} = entry.pieLoader.use({aggregation: agg, limit: 20});
 
   const formatValue =
     agg !== 'COUNT' && agg !== 'COUNT_DISTINCT'
       ? getNumericFormatter(ctx.node, config.measureColumn ?? config.column)
       : undefined;
 
-  return m(PieChart, {
-    data,
-    height: 250,
-    fillParent: true,
-    formatValue,
-    onSliceClick: (slice) => {
-      ctx.node.clearChartFiltersForColumn(config.column);
-      ctx.node.setBrushSelection(config.column, [slice.label]);
-      ctx.onFilterChange?.();
-    },
-  });
+  return {
+    content: m(PieChart, {
+      data,
+      height: 250,
+      fillParent: true,
+      formatValue,
+      onSliceClick: (slice) => {
+        ctx.node.clearChartFiltersForColumn(config.column);
+        ctx.node.setBrushSelection(config.column, [slice.label]);
+        ctx.onFilterChange?.();
+      },
+    }),
+    truncation: truncationInfo(
+      countDistinctPieSlices(data?.slices),
+      totalCount,
+    ),
+  };
 }
 
-export function renderTreemap(
+function renderTreemap(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
-): m.Child {
+): ChartRenderResult {
   if (!entry.treemapLoader) {
-    return m(EmptyState, {icon: 'grid_view', title: 'No data to display'});
+    return {
+      content: m(EmptyState, {icon: 'grid_view', title: 'No data to display'}),
+    };
   }
 
   const agg = config.aggregation ?? 'SUM';
-  const {data} = entry.treemapLoader.use({aggregation: agg, limit: 50});
+  const {data, totalCount} = entry.treemapLoader.use({
+    aggregation: agg,
+    limit: 50,
+  });
 
   const formatValue = getNumericFormatter(
     ctx.node,
     config.measureColumn ?? config.column,
   );
 
-  return m(Treemap, {
-    data,
-    height: 250,
-    fillParent: true,
-    formatValue,
-    onNodeClick: (node: TreemapNode) => {
-      ctx.node.clearChartFiltersForColumn(config.column);
-      ctx.node.setBrushSelection(config.column, [node.name]);
-      ctx.onFilterChange?.();
-    },
-  });
+  return {
+    content: m(Treemap, {
+      data,
+      height: 250,
+      fillParent: true,
+      formatValue,
+      onNodeClick: (node: TreemapNode) => {
+        ctx.node.clearChartFiltersForColumn(config.column);
+        ctx.node.setBrushSelection(config.column, [node.name]);
+        ctx.onFilterChange?.();
+      },
+    }),
+    truncation: truncationInfo(countTreemapLeaves(data?.nodes), totalCount),
+  };
 }
 
-export function renderBoxplot(
+function renderBoxplot(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
-): m.Child {
+): ChartRenderResult {
   if (!entry.boxplotLoader) {
-    return m(EmptyState, {
-      icon: 'candlestick_chart',
-      title: 'No data to display',
-    });
+    return {
+      content: m(EmptyState, {
+        icon: 'candlestick_chart',
+        title: 'No data to display',
+      }),
+    };
   }
 
-  const {data} = entry.boxplotLoader.use({limit: 30});
+  const {data, totalCount} = entry.boxplotLoader.use({limit: 30});
 
   const formatValue = config.yColumn
     ? getNumericFormatter(ctx.node, config.yColumn)
     : undefined;
 
-  return m(BoxplotChart, {
-    data,
-    height: 250,
-    categoryLabel: config.column,
-    valueLabel: config.yColumn,
-    fillParent: true,
-    formatValue,
-    gridLines: ctx.gridLines,
-  });
+  return {
+    content: m(BoxplotChart, {
+      data,
+      height: 250,
+      categoryLabel: config.column,
+      valueLabel: config.yColumn,
+      fillParent: true,
+      formatValue,
+      gridLines: ctx.gridLines,
+    }),
+    truncation: truncationInfo(data?.items.length ?? 0, totalCount),
+  };
 }
 
-export function renderHeatmap(
+function renderHeatmap(
   _ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
-): m.Child {
+): ChartRenderResult {
   if (!entry.heatmapLoader) {
-    return m(EmptyState, {icon: 'grid_on', title: 'No data to display'});
+    return {
+      content: m(EmptyState, {icon: 'grid_on', title: 'No data to display'}),
+    };
   }
 
   // Heatmap uses AggregateFunction (SUM/AVG/MIN/MAX) not ChartAggregation.
@@ -514,48 +655,64 @@ export function renderHeatmap(
       : 'SUM';
   const {data} = entry.heatmapLoader.use({aggregation: agg});
 
-  return m(HeatmapChart, {
-    data,
-    height: 250,
-    xAxisLabel: config.column,
-    yAxisLabel: config.yColumn,
-    fillParent: true,
-  });
+  return {
+    content: m(HeatmapChart, {
+      data,
+      height: 250,
+      xAxisLabel: config.column,
+      yAxisLabel: config.yColumn,
+      fillParent: true,
+    }),
+  };
 }
 
-export function renderCdf(
+function renderCdf(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
-): m.Child {
+): ChartRenderResult {
   if (!entry.cdfLoader) {
-    return m(EmptyState, {icon: 'trending_up', title: 'No data to display'});
+    return {
+      content: m(EmptyState, {
+        icon: 'trending_up',
+        title: 'No data to display',
+      }),
+    };
   }
 
-  const {data} = entry.cdfLoader.use({maxPoints: 500});
+  const {data, totalCount} = entry.cdfLoader.use({maxPoints: 500});
 
   const formatXValue = getNumericFormatter(ctx.node, config.column);
 
-  return m(LineChart, {
-    data,
-    height: 250,
-    xAxisLabel: config.column,
-    yAxisLabel: 'Cumulative %',
-    fillParent: true,
-    scaleAxes: true,
-    formatXValue,
-    onBrush: (range) =>
-      handleHistogramBrush(ctx, config, range.start, range.end),
-  });
+  return {
+    content: m(LineChart, {
+      data,
+      height: 250,
+      xAxisLabel: config.column,
+      yAxisLabel: 'Cumulative %',
+      fillParent: true,
+      scaleAxes: true,
+      formatXValue,
+      onBrush: (range) =>
+        handleHistogramBrush(ctx, config, range.start, range.end),
+    }),
+    // Same sampling semantics as renderLineChart above.
+    truncation: truncationInfo(
+      data?.series.reduce((sum, s) => sum + s.points.length, 0) ?? 0,
+      totalCount,
+    ),
+  };
 }
 
-export function renderScorecard(
+function renderScorecard(
   ctx: ChartRenderContext,
   config: ChartConfig,
   entry: ChartLoaderEntry,
-): m.Child {
+): ChartRenderResult {
   if (!entry.singleValueLoader) {
-    return m(EmptyState, {icon: 'numbers', title: 'No data to display'});
+    return {
+      content: m(EmptyState, {icon: 'numbers', title: 'No data to display'}),
+    };
   }
 
   const agg = config.aggregation ?? 'COUNT_DISTINCT';
@@ -566,13 +723,15 @@ export function renderScorecard(
     config.measureColumn ?? config.column,
   );
 
-  return m(Scorecard, {
-    label: getDefaultChartLabel(config),
-    value: data?.value,
-    isPending,
-    fillParent: true,
-    formatValue,
-  });
+  return {
+    content: m(Scorecard, {
+      label: getDefaultChartLabel(config),
+      value: data?.value,
+      isPending,
+      fillParent: true,
+      formatValue,
+    }),
+  };
 }
 
 function handleBarBrush(

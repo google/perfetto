@@ -61,6 +61,12 @@ export interface DashboardChartViewAttrs {
   isDriverChart?: boolean;
   /** Grid lines setting passed through to chart widgets. */
   gridLines?: 'horizontal' | 'vertical' | 'both';
+  /**
+   * Global dashboard-level toggle for truncation warnings.
+   * When false, all charts suppress the warning regardless of per-chart config.
+   * Defaults to true.
+   */
+  showTruncationWarning?: boolean;
 }
 
 /** Subset of DashboardChartViewAttrs needed by the adapter. */
@@ -327,7 +333,7 @@ export class DashboardChartView
       onFilterChange: () => m.redraw(),
       gridLines: attrs.gridLines,
     };
-    return renderChartByType(ctx, config, entry);
+    return renderChartByType(ctx, config, entry, attrs.showTruncationWarning);
   }
 
   private ensureLoader(
