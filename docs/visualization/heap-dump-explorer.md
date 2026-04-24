@@ -306,16 +306,17 @@ allocation path. Use it to inspect a flamegraph node object-by-object:
 
    ![Timeline on top, heap graph flamegraph in the bottom panel after clicking the heap dump diamond on the process track.](../images/heap_docs/14-flamegraph-bottom-panel.png)
 
-2. Right-click a node and pick _"Open in Heapdump Explorer"_. This
-   opens a new closable tab in the explorer listing every object
-   allocated along that path. Dominator flamegraph nodes produce a
-   dominator-based selection; regular nodes produce a path-based
-   selection.
+2. Click a node to select it, then click the menu icon in the node's
+   details popup. Pick _"Open in Heapdump Explorer"_.
 
-   <!-- Screenshot pending: "Open in Heapdump Explorer" produces a
-        dynamic tab showing every object on the selected allocation
-        path. Capture from a trace with a large heap dump flamegraph
-        whose node labels read clearly at 1080p. -->
+   ![Flamegraph with `java.lang.String` selected. Its details popup lists Cumulative size (2.48 MiB, 10.48%), Root Type (`ROOT_INTERNED_STRING`), Heap Type and Self Count (53,546). The popup's overflow menu is open and "Open in Heapdump Explorer" is visible below "Copy Stack" and "Copy Stack With Details".](../images/heap_docs/02-flamegraph-menu.png)
+
+   This opens a new closable _Flamegraph Objects_ tab listing every
+   object allocated along the selected path. Dominator flamegraph
+   nodes produce a dominator-based selection; regular nodes produce
+   a path-based selection.
+
+   ![Flamegraph Objects tab opened after picking "Open in Heapdump Explorer" on `java.lang.String`: 53,546 rows, each with class, shallow/retained sizes and heap. The tab is appended to the right of the fixed seven-tab bar, with a "Back to Timeline" link at the top right.](../images/heap_docs/15-flamegraph-objects-tab.png)
 
 
 3. From there, click any object to open its
