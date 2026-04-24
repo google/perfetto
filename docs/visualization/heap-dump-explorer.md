@@ -352,50 +352,219 @@ dashboard.
 
 ### Finding a leaked Activity
 
-**Symptom:** after navigating away from `MyActivity` and forcing a GC,
-`dumpsys meminfo` still shows the old instance alive.
+A developer on a Kotlin app reports that rotating their profile
+screen a few times drives the Java heap upward and never comes back
+down. The screen is unremarkable — an `Activity`, a view hierarchy,
+one avatar — and rotating _should_ destroy the old instance. It
+doesn't.
 
-1. Capture a heap dump: `tools/java_heap_dump -n com.example.app`. Open
-   the trace and click _Heapdump Explorer_ in the sidebar.
-2. In **Classes**, filter to `MyActivity`. _Count_ should be ≥&nbsp;1
-   if the leak is real.
-3. Click the class name to open **Objects** filtered to `MyActivity`.
-   The stale instance is usually the one with the highest _Retained_.
-4. Open its **object tab** and read the _Reference path from GC root_.
-   The last hop before `MyActivity` identifies the holder: a static
-   field, a `Handler`, a listener list, an anonymous inner class
-   capturing `this`.
-5. Check _Immediately dominated objects_ to see what is being held
-   alongside the Activity — typically a view hierarchy, a bitmap
-   cache, or a cursor.
+A quick grep turns up what looks suspicious. The avatar is cached on
+a companion object so it survives rotation:
 
-The fix is typically to clear the offending reference in the
-appropriate lifecycle callback, or switch to a weak reference.
+```kotlin
+class ProfileActivity : Activity() {
+    companion object {
+        var last: ProfileActivity? = null   // survives rotation
+    }
+
+    override fun onCreate(state: Bundle?) {
+        super.onCreate(state)
+        setContentView(R.layout.profile)
+        last = this                         // <-- the bug
+    }
+}
+```
+
+The intent was to keep the decoded avatar across configuration
+changes. What this code actually does is pin every `ProfileActivity`
+ever created: each rotation overwrites `last`, but the previous
+value — a fully destroyed `Activity`, along with its entire view
+hierarchy — is still reachable through the class's static state.
+
+**Capturing.** The heap graph format is enough to chase an Activity
+leak; it carries the full object graph and GC roots, and captures in
+a second or two:
+
+```bash
+$ tools/java_heap_dump -n com.example.app -o /tmp/profile.pftrace
+
+Dumping Java Heap.
+Wrote profile to /tmp/profile.pftrace
+```
+
+Rotate the device ten times first so the leak is obvious. Drag the
+file onto [ui.perfetto.dev](https://ui.perfetto.dev) and click
+_Heapdump Explorer_ in the sidebar.
+
+**Confirming the leak.** Open **Classes** and find
+`ProfileActivity`. `Count` &gt;&nbsp;1 is the leak: a healthy app
+only ever has the currently-resumed instance alive. Clicking the
+class name opens **Objects** filtered to `ProfileActivity`, where
+every row is one live instance. Sorting by _Retained_ desc puts the
+worst offender on top.
+
+**Reading the reference path.** Click the top row to open its object
+tab. The _Reference Path from GC Root_ is the chain of field
+references keeping this instance alive:
+
+![Object tab for the leaked Activity. Reference path reads Class&lt;ProfileActivity&gt; → ProfileActivity.last → ProfileActivity. Object info, 116.7 KiB retained, 1,562 reachable objects.](../images/heap_docs/12-object-tab-top.png)
+
+Read bottom-up: the runtime keeps the `java.lang.Class<ProfileActivity>`
+object alive (as it does for every loaded class); that class has a
+companion-object field `last`; that field points at a
+`ProfileActivity` whose `onDestroy` has already run. The last hop
+before the Activity — `last` — names the bug. That's the fix site.
+
+The _Object Size_ block quantifies the cost: one leaked Activity is
+pinning 116.7&nbsp;KiB and 1,562 reachable objects. The breakdown
+lives lower on the same tab:
+
+![Bottom of the object tab. Instance fields from android.app.Activity, "Objects with References to this Object" (48 reverse references), and "Immediately Dominated Objects" (60 — the retained view hierarchy).](../images/heap_docs/13-object-tab-bottom.png)
+
+Sixty dominated objects is the view hierarchy: `DecorView` at the
+top, the inflated drawables below, the `ContextImpl`, every
+`ViewGroup` the layout contains. All of them are unreachable by
+intent and reachable in practice, because one companion-object
+field is holding their root.
+
+**Fix.** Don't put an `Activity` in companion-object state. If what
+you wanted was the avatar, cache the avatar:
+
+```kotlin
+class ProfileActivity : Activity() {
+    companion object {
+        private var cachedAvatar: Bitmap? = null
+    }
+
+    override fun onCreate(state: Bundle?) {
+        super.onCreate(state)
+        setContentView(R.layout.profile)
+        val avatar = cachedAvatar ?: loadAvatar().also { cachedAvatar = it }
+        findViewById<ImageView>(R.id.avatar).setImageBitmap(avatar)
+    }
+}
+```
+
+**Verify.** Rotate ten times again, re-dump, open the new trace.
+Under **Classes** the `ProfileActivity` row should now show
+`Count: 1` — a single live instance, the current one — or `Count: 0`
+if the check happens between Activities. _Count_ growing across
+dumps is the single-number regression signal.
+
+The same recipe finds the other common shapes of Activity leak. The
+last hop before the Activity in the reference path always names the
+holder: `Handler.mQueue → Message.target → MyActivity` for a
+delayed-message `Handler`, `SensorManager.mListeners → MyActivity`
+for an unregistered listener, a path through a `StandaloneCoroutine`
+for a coroutine that outlived its scope. The fix is to clear the
+field the path points at, at the right lifecycle callback.
 
 ### Tracking down duplicate bitmaps
 
-**Symptom:** bitmap memory is unexpectedly high. In-app caches look
-small, but the graphics heap in `dumpsys meminfo` is large.
+A Kotlin feed app is running out of memory on long scrolls. `dumpsys
+meminfo com.example.feed` reports a `Graphics:` line several times
+bigger than the pixels actually on screen, and the in-app image
+cache looks small. Something else is holding pixels.
 
-1. Capture an **HPROF** so bitmap pixel buffers are included. Open the
-   trace and click _Heapdump Explorer_ in the sidebar.
-2. On the **Overview**, look at _Duplicate bitmaps_. Each row groups
-   visually identical bitmaps by content hash and shows the wasted
-   bytes.
-3. Click _Copies_ on the most expensive row. **Bitmaps** opens
-   pre-filtered to that group — every card is a copy of the same
-   image.
-4. Toggle _Show Paths_. If every copy shares a holder near the GC
-   root (e.g. one image-loading library instance), the duplication
-   is in the caching layer. If each copy has a different holder
-   (different `Fragment`s or `ViewModel`s), the duplication is at
-   the call site.
-5. Click _Details_ on a representative copy to open the **object
-   tab** and inspect the full reference chain.
+The suspect turns out to be a `RecyclerView` adapter that decodes
+each row's thumbnail from resources on every bind, and appends the
+result to a companion-object list:
 
-The fix depends on where the duplication originates: centralize
-loading behind one cache, key the cache correctly, or drop references
-in `onDestroy`.
+```kotlin
+class FeedAdapter(private val res: Resources) : RecyclerView.Adapter<VH>() {
+    companion object {
+        val cache = mutableListOf<Bitmap>()     // grows without bound
+    }
+
+    override fun onBindViewHolder(holder: VH, position: Int) {
+        val bmp = BitmapFactory.decodeResource(res, R.drawable.thumb)
+        cache += bmp                            // "cache" — actually just accumulates
+        holder.image.setImageBitmap(bmp)
+    }
+    // ...
+}
+```
+
+Every bind decodes a fresh copy of the same PNG. Every copy is then
+held forever by `cache`. The pixels all hash to the same value, but
+they're different `Bitmap` instances with different backing
+`byte[]`s.
+
+**Capturing.** Duplicate detection needs the hash of each bitmap's
+pixel buffer, which only the HPROF format carries. `-b png` encodes
+the pixels so the Bitmaps gallery can render previews:
+
+```bash
+$ adb shell am dumpheap -g -b png com.example.feed /data/local/tmp/feed.hprof
+$ adb pull /data/local/tmp/feed.hprof
+```
+
+Scroll the feed long enough to reproduce the bloat before dumping —
+the adapter's `cache` only grows on bind.
+
+**Triage on the Overview.** The Overview groups bitmaps by
+pixel-buffer hash. Each row shows copy count, total bytes across
+all copies, and wasted bytes — what deduplicating to a single copy
+would save:
+
+![Overview tab. Duplicate Bitmaps card has one 128×128 group with 12 copies, 770.0 KiB total, 705.8 KiB wasted — exactly the shape of the adapter's cache list.](../images/heap_docs/04-overview.png)
+
+Sort by wasted bytes, not by count — five copies of a 2&nbsp;MB
+image dwarfs five hundred 16&nbsp;px icons. Here the worst row is a
+single group of twelve identical 128×128 bitmaps, matching what the
+adapter had been accumulating.
+
+**Drill into the copies.** Click _Copies_ on that row. **Bitmaps**
+opens pre-filtered to that content-hash group, so only those copies
+render as cards:
+
+![Bitmaps gallery filtered to the 128×128 group. Twelve copies at 64.2 KiB each, 971.2 KiB retained across the tab.](../images/heap_docs/08-bitmaps-gallery.png)
+
+**Find the holder.** Toggle _Show Paths_. The reference chain below
+each card is the fields keeping that bitmap alive:
+
+![Bitmaps gallery with Show Paths on. Every card's chain ends at FeedAdapter.cache — the companion-object list is the single holder.](../images/heap_docs/09-bitmaps-show-paths.png)
+
+What the chains look like tells you what kind of bug this is:
+
+- Every copy shares the same chain ending at one holder →
+  *cache-layer bug.* One field is storing N copies.
+- Each copy has a different chain → *call-site bug.* There's no
+  cache, or callers are bypassing it.
+- The chain passes through an `Activity` → fix the Activity leak
+  first ([previous case study](#finding-a-leaked-activity)); the
+  bitmaps will follow.
+
+Here every chain ends at `FeedAdapter.cache`. Cache-layer bug, one
+field to fix.
+
+**Fix.** There's no real reason to keep a side list of `Bitmap`s at
+all — Android already has a `LruCache<K, Bitmap>`, scoped to the
+application, with eviction you control:
+
+```kotlin
+class FeedAdapter(private val res: Resources) : RecyclerView.Adapter<VH>() {
+    companion object {
+        private val cache = object : LruCache<Int, Bitmap>(4) {
+            override fun sizeOf(key: Int, value: Bitmap) = 1
+        }
+    }
+
+    override fun onBindViewHolder(holder: VH, position: Int) {
+        val key = R.drawable.thumb
+        val bmp = cache[key] ?: BitmapFactory.decodeResource(res, key).also { cache.put(key, it) }
+        holder.image.setImageBitmap(bmp)
+    }
+    // ...
+}
+```
+
+**Verify.** Scroll the feed the same distance, re-dump, re-open.
+The 128×128 group should be gone from the Overview, or shrunk to a
+single copy. The most reliable scorecard is the _wasted bytes_
+total across all groups on the Overview — watching it drop from
+dump to dump is the cleanest way to confirm each fix and catch
+regressions.
 
 ## See also
 
