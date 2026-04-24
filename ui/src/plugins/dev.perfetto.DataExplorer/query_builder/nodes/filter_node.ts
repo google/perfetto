@@ -13,12 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  QueryNode,
-  QueryNodeState,
-  nextNodeId,
-  NodeType,
-} from '../../query_node';
+import {QueryNode, nextNodeId, NodeType, NodeContext} from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import {
@@ -46,9 +41,12 @@ import {SqlValue} from '../../../../trace_processor/query_result';
 // Maximum length for truncated SQL display
 const SQL_TRUNCATE_LENGTH = 50;
 
-export interface FilterNodeState extends QueryNodeState {
+// Serializable node configuration.
+export interface FilterNodeAttrs {
   filterMode?: 'structured' | 'freeform';
   sqlExpression?: string;
+  filters?: Partial<UIFilter>[];
+  filterOperator?: 'AND' | 'OR';
 }
 
 export class FilterNode implements QueryNode {
@@ -57,14 +55,30 @@ export class FilterNode implements QueryNode {
   primaryInput?: QueryNode;
   secondaryInputs?: undefined; // FilterNode doesn't support secondary inputs
   nextNodes: QueryNode[];
-  readonly state: FilterNodeState;
+  readonly attrs: FilterNodeAttrs;
+  readonly context: NodeContext;
 
-  constructor(state: FilterNodeState) {
+  constructor(attrs: FilterNodeAttrs, context: NodeContext) {
     this.nodeId = nextNodeId();
-    this.state = {
-      ...state,
-      filters: state.filters ?? [],
+    // Migrate filter values from strings back to numbers when appropriate.
+    // This is needed because JSON serialization converts BigInt to string,
+    // and we want numeric values to be stored as numbers for proper filtering.
+    const filters = attrs.filters?.map((f): Partial<UIFilter> => {
+      if ('value' in f && typeof f.value === 'string') {
+        if (!Array.isArray(f.value)) {
+          const parsed = parseFilterValue(f.value);
+          if (parsed !== undefined && parsed !== f.value) {
+            return {...f, value: parsed} as Partial<UIFilter>;
+          }
+        }
+      }
+      return f;
+    });
+    this.attrs = {
+      ...attrs,
+      filters: filters ?? [],
     };
+    this.context = context;
     this.nextNodes = [];
   }
 
@@ -100,20 +114,20 @@ export class FilterNode implements QueryNode {
   }
 
   private setValidationError(message: string): void {
-    if (!this.state.issues) {
-      this.state.issues = new NodeIssues();
+    if (!this.context.issues) {
+      this.context.issues = new NodeIssues();
     }
-    this.state.issues.queryError = new Error(message);
+    this.context.issues.queryError = new Error(message);
   }
 
   nodeDetails(): NodeDetailsAttrs {
     this.validate();
 
-    const mode = this.state.filterMode ?? 'structured';
+    const mode = this.attrs.filterMode ?? 'structured';
 
     // Freeform SQL mode
     if (mode === 'freeform') {
-      const sql = this.state.sqlExpression?.trim();
+      const sql = this.attrs.sqlExpression?.trim();
       if (!sql) {
         return {
           content: NodeDetailsMessage('No filter clause'),
@@ -133,7 +147,7 @@ export class FilterNode implements QueryNode {
 
     // Structured mode - only show valid filters in nodeDetails
     const validFilters =
-      this.state.filters?.filter((f) => this.isFilterValid(f)) ?? [];
+      this.attrs.filters?.filter((f) => this.isFilterValid(f)) ?? [];
 
     if (validFilters.length === 0) {
       return {
@@ -144,8 +158,8 @@ export class FilterNode implements QueryNode {
     return {
       content: formatFilterDetails(
         validFilters,
-        this.state.filterOperator,
-        this.state, // Pass state for interactive toggling and removal
+        this.attrs.filterOperator,
+        {filters: this.attrs.filters, onchange: this.context.onchange},
         undefined, // onRemove - handled internally by formatFilterDetails
         true, // compact mode for smaller font
         undefined, // No edit callback - editing happens in nodeSpecificModify
@@ -156,12 +170,12 @@ export class FilterNode implements QueryNode {
   nodeSpecificModify(): NodeModifyAttrs {
     this.validate();
 
-    const mode = this.state.filterMode ?? 'structured';
-    const filters = this.state.filters ?? [];
-    const operator = this.state.filterOperator ?? 'AND';
+    const mode = this.attrs.filterMode ?? 'structured';
+    const filters = this.attrs.filters ?? [];
+    const operator = this.attrs.filterOperator ?? 'AND';
 
     // Set autoExecute based on mode
-    this.state.autoExecute = mode === 'structured';
+    this.context.autoExecute = mode === 'structured';
 
     // Build bottom buttons
     const bottomLeftButtons: NodeModifyAttrs['bottomLeftButtons'] = [];
@@ -173,8 +187,8 @@ export class FilterNode implements QueryNode {
         label: operator === 'OR' ? 'OR' : 'AND',
         icon: operator === 'OR' ? 'alt_route' : 'join',
         onclick: () => {
-          this.state.filterOperator = operator === 'OR' ? 'AND' : 'OR';
-          this.state.onchange?.();
+          this.attrs.filterOperator = operator === 'OR' ? 'AND' : 'OR';
+          this.context.onchange?.();
         },
       });
     }
@@ -223,10 +237,10 @@ export class FilterNode implements QueryNode {
   }
 
   private renderFiltersList(): m.Child {
-    const mode = this.state.filterMode ?? 'structured';
+    const mode = this.attrs.filterMode ?? 'structured';
     const hasSqlExpression =
-      this.state.sqlExpression !== undefined &&
-      this.state.sqlExpression.trim() !== '';
+      this.attrs.sqlExpression !== undefined &&
+      this.attrs.sqlExpression.trim() !== '';
 
     if (mode === 'freeform') {
       if (!hasSqlExpression) {
@@ -240,7 +254,7 @@ export class FilterNode implements QueryNode {
         m(ListItem, {
           icon: 'code',
           name: 'WHERE clause',
-          description: this.truncateSql(this.state.sqlExpression ?? ''),
+          description: this.truncateSql(this.attrs.sqlExpression ?? ''),
           actions: [
             {
               label: 'Edit',
@@ -249,9 +263,9 @@ export class FilterNode implements QueryNode {
             },
           ],
           onRemove: () => {
-            this.state.sqlExpression = '';
-            this.state.filterMode = 'structured';
-            this.state.onchange?.();
+            this.attrs.sqlExpression = '';
+            this.attrs.filterMode = 'structured';
+            this.context.onchange?.();
           },
         }),
       );
@@ -259,15 +273,15 @@ export class FilterNode implements QueryNode {
 
     // Structured mode - use InlineEditList widget
     return m(InlineEditList<Partial<UIFilter>>, {
-      items: this.state.filters ?? [],
+      items: this.attrs.filters ?? [],
       validate: (filter) => this.isFilterValid(filter),
       renderControls: (filter, _index, onUpdate) =>
         this.renderFilterFormControls(filter, onUpdate),
       onUpdate: (filters) => {
-        this.state.filters = filters;
+        this.attrs.filters = filters;
       },
       onValidChange: () => {
-        this.state.onchange?.();
+        this.context.onchange?.();
       },
       addButtonLabel: 'Add filter',
       addButtonIcon: 'add',
@@ -360,23 +374,23 @@ export class FilterNode implements QueryNode {
     if (currentMode === 'structured') {
       // Switching to freeform: if no SQL expression yet, open modal first
       const hasExpression =
-        this.state.sqlExpression !== undefined &&
-        this.state.sqlExpression.trim() !== '';
+        this.attrs.sqlExpression !== undefined &&
+        this.attrs.sqlExpression.trim() !== '';
       if (hasExpression) {
-        this.state.filterMode = 'freeform';
-        this.state.onchange?.();
+        this.attrs.filterMode = 'freeform';
+        this.context.onchange?.();
       } else {
         this.showSqlExpressionModal();
       }
     } else {
       // Switching to structured
-      this.state.filterMode = 'structured';
-      this.state.onchange?.();
+      this.attrs.filterMode = 'structured';
+      this.context.onchange?.();
     }
   }
 
   private showSqlExpressionModal(): void {
-    let tempExpression = this.state.sqlExpression ?? '';
+    let tempExpression = this.attrs.sqlExpression ?? '';
 
     showModal({
       title: 'SQL Filter Expression',
@@ -401,11 +415,11 @@ export class FilterNode implements QueryNode {
           text: 'Apply',
           primary: true,
           action: () => {
-            this.state.sqlExpression = tempExpression;
+            this.attrs.sqlExpression = tempExpression;
             if (tempExpression.trim() !== '') {
-              this.state.filterMode = 'freeform';
+              this.attrs.filterMode = 'freeform';
             }
-            this.state.onchange?.();
+            this.context.onchange?.();
           },
         },
       ],
@@ -426,8 +440,8 @@ export class FilterNode implements QueryNode {
 
   validate(): boolean {
     // Clear any previous errors at the start of validation
-    if (this.state.issues) {
-      this.state.issues.clear();
+    if (this.context.issues) {
+      this.context.issues.clear();
     }
 
     if (this.primaryInput === undefined) {
@@ -452,24 +466,25 @@ export class FilterNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    const stateCopy: FilterNodeState = {
-      filterMode: this.state.filterMode,
-      sqlExpression: this.state.sqlExpression,
-      filters: this.state.filters?.map((f) => ({...f})),
-      filterOperator: this.state.filterOperator,
-      onchange: this.state.onchange,
-    };
-    return new FilterNode(stateCopy);
+    return new FilterNode(
+      {
+        filterMode: this.attrs.filterMode,
+        sqlExpression: this.attrs.sqlExpression,
+        filters: this.attrs.filters?.map((f) => ({...f})),
+        filterOperator: this.attrs.filterOperator,
+      },
+      this.context,
+    );
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (this.primaryInput === undefined) return undefined;
 
-    const mode = this.state.filterMode ?? 'structured';
+    const mode = this.attrs.filterMode ?? 'structured';
 
     if (mode === 'freeform') {
       // Use SQL expression for freeform filtering
-      if (!this.state.sqlExpression || this.state.sqlExpression.trim() === '') {
+      if (!this.attrs.sqlExpression || this.attrs.sqlExpression.trim() === '') {
         // No filter expression - return passthrough to maintain reference chain
         return StructuredQueryBuilder.passthrough(
           this.primaryInput,
@@ -482,7 +497,7 @@ export class FilterNode implements QueryNode {
         new protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup({
           op: protos.PerfettoSqlStructuredQuery.ExperimentalFilterGroup.Operator
             .AND,
-          sqlExpressions: [this.state.sqlExpression],
+          sqlExpressions: [this.attrs.sqlExpression],
         });
 
       return StructuredQueryBuilder.withFilter(
@@ -494,7 +509,7 @@ export class FilterNode implements QueryNode {
 
     // Structured mode - only use valid filters for query building
     const validFilters =
-      this.state.filters?.filter((f) => this.isFilterValid(f)) ?? [];
+      this.attrs.filters?.filter((f) => this.isFilterValid(f)) ?? [];
 
     if (validFilters.length === 0) {
       // No valid filters - return passthrough to maintain reference chain
@@ -504,7 +519,7 @@ export class FilterNode implements QueryNode {
     const filtersProto = createExperimentalFiltersProto(
       validFilters,
       this.sourceCols,
-      this.state.filterOperator,
+      this.attrs.filterOperator,
     );
 
     if (filtersProto === undefined) {
@@ -517,60 +532,5 @@ export class FilterNode implements QueryNode {
       filtersProto,
       this.nodeId,
     );
-  }
-
-  serializeState(): object {
-    return {
-      filters: this.state.filters?.map((f) => {
-        if ('value' in f) {
-          return {
-            column: f.column,
-            op: f.op,
-            value: f.value,
-            enabled: f.enabled,
-          };
-        } else {
-          return {
-            column: f.column,
-            op: f.op,
-            enabled: f.enabled,
-          };
-        }
-      }),
-      filterOperator: this.state.filterOperator,
-      filterMode: this.state.filterMode,
-      sqlExpression: this.state.sqlExpression,
-    };
-  }
-
-  /**
-   * Deserializes a FilterNodeState from JSON.
-   *
-   * IMPORTANT: This method returns a state with primaryInput set to undefined.
-   * The caller (typically json_handler.ts) is responsible for:
-   * 1. Creating all nodes first with undefined primaryInput references
-   * 2. Reconnecting the graph by setting primaryInput references based on serialized node IDs
-   * 3. Calling validate() on each node after reconnection to ensure graph integrity
-   *
-   * @param state The serialized state
-   * @returns A FilterNodeState ready for construction
-   */
-  static deserializeState(state: FilterNodeState): FilterNodeState {
-    // Convert filter values from strings back to numbers when appropriate.
-    // This is needed because JSON serialization converts BigInt to string,
-    // and we want numeric values to be stored as numbers for proper filtering.
-    const filters = state.filters?.map((f): Partial<UIFilter> => {
-      if ('value' in f && typeof f.value === 'string') {
-        // Only convert single string values, not arrays (for 'in' / 'not in')
-        if (!Array.isArray(f.value)) {
-          const parsed = parseFilterValue(f.value);
-          if (parsed !== undefined && parsed !== f.value) {
-            return {...f, value: parsed} as Partial<UIFilter>;
-          }
-        }
-      }
-      return f;
-    });
-    return {...state, filters};
   }
 }

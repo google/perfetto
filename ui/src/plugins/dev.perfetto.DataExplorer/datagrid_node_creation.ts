@@ -48,9 +48,10 @@ function setFiltersOnNode(
   filters: UIFilter[],
   filterOperator?: 'AND' | 'OR',
 ): void {
-  node.state.filters = filters;
+  const filterNode = node as FilterNode;
+  filterNode.attrs.filters = filters;
   if (filterOperator) {
-    node.state.filterOperator = filterOperator;
+    filterNode.attrs.filterOperator = filterOperator;
   }
 }
 
@@ -84,7 +85,7 @@ export function parseJoinidColumnField(
 
   if (
     joinidColumnInfo === undefined ||
-    joinidColumnInfo.column.type?.kind !== 'joinid'
+    joinidColumnInfo.type?.kind !== 'joinid'
   ) {
     return undefined;
   }
@@ -92,8 +93,8 @@ export function parseJoinidColumnField(
   return {
     joinidColumnName,
     targetColumnName,
-    targetTable: joinidColumnInfo.column.type.source.table,
-    targetJoinColumn: joinidColumnInfo.column.type.source.column,
+    targetTable: joinidColumnInfo.type.source.table,
+    targetJoinColumn: joinidColumnInfo.type.source.column,
   };
 }
 
@@ -108,8 +109,8 @@ export function findMatchingAddColumnsNode(
   if (sourceNode.type === NodeType.kAddColumns) {
     const addColumnsNode = sourceNode as AddColumnsNode;
     if (
-      addColumnsNode.state.leftColumn === joinidColumnName &&
-      addColumnsNode.state.rightColumn === targetJoinColumn
+      addColumnsNode.attrs.leftColumn === joinidColumnName &&
+      addColumnsNode.attrs.rightColumn === targetJoinColumn
     ) {
       return addColumnsNode;
     }
@@ -122,8 +123,8 @@ export function findMatchingAddColumnsNode(
   ) {
     const existingAddColumnsNode = sourceNode.nextNodes[0] as AddColumnsNode;
     if (
-      existingAddColumnsNode.state.leftColumn === joinidColumnName &&
-      existingAddColumnsNode.state.rightColumn === targetJoinColumn
+      existingAddColumnsNode.attrs.leftColumn === joinidColumnName &&
+      existingAddColumnsNode.attrs.rightColumn === targetJoinColumn
     ) {
       return existingAddColumnsNode;
     }
@@ -145,7 +146,10 @@ export async function addFilter(
   if (sourceNode.type === NodeType.kFilter) {
     setFiltersOnNode(
       sourceNode,
-      [...(sourceNode.state.filters ?? []), ...filters] as UIFilter[],
+      [
+        ...((sourceNode as FilterNode).attrs.filters ?? []),
+        ...filters,
+      ] as UIFilter[],
       filterOperator,
     );
     deps.onStateUpdate((currentState) => ({...currentState}));
@@ -160,7 +164,10 @@ export async function addFilter(
     const existingFilterNode = sourceNode.nextNodes[0];
     setFiltersOnNode(
       existingFilterNode,
-      [...(existingFilterNode.state.filters ?? []), ...filters] as UIFilter[],
+      [
+        ...((existingFilterNode as FilterNode).attrs.filters ?? []),
+        ...filters,
+      ] as UIFilter[],
       filterOperator,
     );
     deps.onStateUpdate((currentState) => ({
@@ -172,11 +179,10 @@ export async function addFilter(
 
   // Otherwise, create a new FilterNode after the source node
   // Create it with filters already configured to avoid multiple undo points
-  const newFilterNode = new FilterNode({
-    filters,
-    filterOperator,
-    sqlModules: deps.sqlModules,
-  });
+  const newFilterNode = new FilterNode(
+    {filters, filterOperator},
+    {sqlModules: deps.sqlModules},
+  );
 
   // Mark as initialized
   deps.initializedNodes.add(newFilterNode.nodeId);
@@ -229,17 +235,17 @@ export function addColumnFromJoinid(
 
   if (existingNode !== undefined) {
     // Check if the column is already added
-    if (existingNode.state.selectedColumns?.includes(targetColumnName)) {
+    if (existingNode.attrs.selectedColumns?.includes(targetColumnName)) {
       console.warn(`Cannot add column: "${targetColumnName}" is already added`);
       return;
     }
 
     // Add the column to the existing AddColumnsNode
-    existingNode.state.selectedColumns = [
-      ...(existingNode.state.selectedColumns ?? []),
+    existingNode.attrs.selectedColumns = [
+      ...(existingNode.attrs.selectedColumns ?? []),
       targetColumnName,
     ];
-    existingNode.state.onchange?.();
+    existingNode.context.onchange?.();
     if (existingNode !== sourceNode) {
       deps.onStateUpdate((currentState) => ({
         ...currentState,
@@ -252,16 +258,17 @@ export function addColumnFromJoinid(
   // Create a new AddColumnsNode with the join configuration
   // Note: selectedColumns is set after connecting the table node because
   // onPrevNodesUpdated() resets selectedColumns when rightNode is not connected
-  const newAddColumnsNode = new AddColumnsNode({
-    leftColumn: joinidColumnName,
-    rightColumn: targetJoinColumn,
-    isGuidedConnection: true,
-    sqlModules: deps.sqlModules,
-    trace: deps.trace,
-  });
+  const newAddColumnsNode = new AddColumnsNode(
+    {
+      leftColumn: joinidColumnName,
+      rightColumn: targetJoinColumn,
+      isGuidedConnection: true,
+    },
+    {sqlModules: deps.sqlModules, trace: deps.trace},
+  );
 
   // Set actions now that the node is created
-  newAddColumnsNode.state.actions = createNodeActions(
+  newAddColumnsNode.context.actions = createNodeActions(
     newAddColumnsNode,
     deps.nodeActionHandlers,
   );
@@ -307,7 +314,7 @@ export function addColumnFromJoinid(
 
   // Now that rightNode is connected, set the selected column
   // (must be done after connection because onPrevNodesUpdated resets it otherwise)
-  newAddColumnsNode.state.selectedColumns = [targetColumnName];
+  newAddColumnsNode.attrs.selectedColumns = [targetColumnName];
 
   // Update state with both new nodes
   deps.onStateUpdate((currentState) => ({

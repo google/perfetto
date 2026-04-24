@@ -37,10 +37,7 @@ import {
 } from './dashboard_registry';
 import {ResultsPanelEmptyState} from '../query_builder/widgets';
 import {SqlValue} from '../../../trace_processor/query_result';
-import {
-  isQuantitativeType,
-  perfettoSqlTypeToString,
-} from '../../../trace_processor/perfetto_sql_type';
+import {isQuantitativeType} from '../../../trace_processor/perfetto_sql_type';
 
 export interface DashboardChartViewAttrs {
   trace: Trace;
@@ -103,9 +100,8 @@ class DashboardChartAdapter implements ChartColumnProvider {
     this.filters = [...(callbacks.brushFilters.get(source.nodeId) ?? [])];
     this.cols = source.columns.map((col) => ({
       name: col.name,
-      type: perfettoSqlTypeToString(col.type),
       checked: false,
-      column: {name: col.name, type: col.type},
+      type: col.type,
     }));
   }
 
@@ -128,8 +124,7 @@ class DashboardChartAdapter implements ChartColumnProvider {
       chartType === 'cdf'
     ) {
       return this.cols.filter(
-        (col) =>
-          col.column.type !== undefined && isQuantitativeType(col.column.type),
+        (col) => col.type !== undefined && isQuantitativeType(col.type),
       );
     }
     return this.cols;
@@ -225,7 +220,7 @@ class DashboardChartAdapter implements ChartColumnProvider {
     this.callbacks.onItemsChange(items);
   }
 
-  get state() {
+  get attrs() {
     return {chartConfigs: [this.config]};
   }
 }

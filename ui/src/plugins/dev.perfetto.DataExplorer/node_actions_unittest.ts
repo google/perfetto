@@ -155,8 +155,8 @@ describe('node_actions', () => {
 
       ensureAllNodeActions([node1, node2], initializedNodes, handlers);
 
-      expect(node1.state.actions).toBeDefined();
-      expect(node2.state.actions).toBeDefined();
+      expect(node1.context.actions).toBeDefined();
+      expect(node2.context.actions).toBeDefined();
       expect(initializedNodes.has('n1')).toBe(true);
       expect(initializedNodes.has('n2')).toBe(true);
     });
@@ -168,7 +168,7 @@ describe('node_actions', () => {
       ensureAllNodeActions([node], initializedNodes, handlers);
 
       // Actions should not be set because the node was already tracked
-      expect(node.state.actions).toBeUndefined();
+      expect(node.context.actions).toBeUndefined();
     });
 
     it('should preserve existing actions on nodes', () => {
@@ -177,14 +177,14 @@ describe('node_actions', () => {
       };
       const node = createMockNode({
         nodeId: 'n1',
-        state: {actions: existingActions},
+        context: {actions: existingActions},
       });
       const initializedNodes = new Set<string>();
 
       ensureAllNodeActions([node], initializedNodes, handlers);
 
       // Existing actions should be preserved (not overwritten)
-      expect(node.state.actions).toBe(existingActions);
+      expect(node.context.actions).toBe(existingActions);
       // But node should still be marked as initialized
       expect(initializedNodes.has('n1')).toBe(true);
     });
@@ -202,7 +202,7 @@ describe('node_actions', () => {
       ensureAllNodeActions([node], initializedNodes, handlers);
 
       // The created actions should actually work
-      node.state.actions?.onAddAndConnectTable?.('test_table', 0);
+      node.context.actions?.onAddAndConnectTable?.('test_table', 0);
 
       expect(addAndConnectTableCalls).toHaveLength(1);
       expect(addAndConnectTableCalls[0].tableName).toBe('test_table');

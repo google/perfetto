@@ -18,15 +18,9 @@ import {
   singleNodeOperation,
   Query,
   QueryNode,
-  QueryNodeState,
 } from './query_node';
 import {queryToRun, isAQuery} from './query_builder/query_builder_utils';
 import {notifyNextNodes} from './query_builder/graph_utils';
-import {ColumnInfo, newColumnInfoList} from './query_builder/column_info';
-import {
-  PerfettoSqlType,
-  PerfettoSqlTypes,
-} from '../../trace_processor/perfetto_sql_type';
 
 describe('query_node utilities', () => {
   describe('nextNodeId', () => {
@@ -65,49 +59,6 @@ describe('query_node utilities', () => {
     });
   });
 
-  describe('createFinalColumns', () => {
-    const stringType: PerfettoSqlType = {kind: 'string'};
-
-    it('should create final columns with all checked', () => {
-      const sourceCols: ColumnInfo[] = [
-        {
-          name: 'id',
-          checked: false,
-          column: {name: 'id', type: stringType},
-        },
-        {
-          name: 'name',
-          checked: false,
-          column: {name: 'name', type: stringType},
-        },
-      ];
-
-      const result = newColumnInfoList(sourceCols, true);
-
-      expect(result.length).toBe(2);
-      expect(result[0].checked).toBe(true);
-      expect(result[1].checked).toBe(true);
-    });
-
-    it('should preserve column information', () => {
-      const sourceCols: ColumnInfo[] = [
-        {
-          name: 'id',
-          checked: false,
-          column: {name: 'id', type: stringType},
-          alias: 'identifier',
-        },
-      ];
-
-      const result = newColumnInfoList(sourceCols, true);
-
-      expect(result[0].name).toBe('identifier');
-      expect(result[0].column.type).toEqual(PerfettoSqlTypes.STRING);
-      // column.name should also be replaced with the alias so child nodes see the aliased name
-      expect(result[0].column.name).toBe('identifier');
-    });
-  });
-
   describe('queryToRun', () => {
     it('should handle undefined query', () => {
       const result = queryToRun(undefined);
@@ -125,65 +76,60 @@ describe('query_node utilities', () => {
   });
 
   describe('setOperationChanged', () => {
-    function createMockNode(
-      nodeId: string,
-      state: QueryNodeState = {},
-    ): QueryNode {
+    function createMockNode(nodeId: string): QueryNode {
       return {
         nodeId,
         type: NodeType.kTable,
         nextNodes: [],
         finalCols: [],
-        state,
+        context: {},
         validate: () => true,
         getTitle: () => 'Test',
         nodeSpecificModify: () => null,
         nodeDetails: () => ({content: null}),
         nodeInfo: () => null,
-        clone: () => createMockNode(nodeId, state),
+        clone: () => createMockNode(nodeId),
         getStructuredQuery: () => undefined,
-        serializeState: () => ({}),
+        attrs: {},
       } as QueryNode;
     }
 
     it('should mark node as changed', () => {
-      const state: QueryNodeState = {hasOperationChanged: false};
-      const node = createMockNode('node1', state);
+      const node = createMockNode('node1');
+      node.context.hasOperationChanged = false;
 
-      node.state.hasOperationChanged = true;
+      node.context.hasOperationChanged = true;
 
-      expect(state.hasOperationChanged).toBe(true);
+      expect(node.context.hasOperationChanged).toBe(true);
     });
 
     it('should mark node as changed', () => {
-      const state1: QueryNodeState = {hasOperationChanged: false};
-      const state2: QueryNodeState = {hasOperationChanged: false};
-      const state3: QueryNodeState = {hasOperationChanged: false};
-
-      const node1 = createMockNode('node1', state1);
-      const node2 = createMockNode('node2', state2);
-      const node3 = createMockNode('node3', state3);
+      const node1 = createMockNode('node1');
+      const node2 = createMockNode('node2');
+      const node3 = createMockNode('node3');
+      node1.context.hasOperationChanged = false;
+      node2.context.hasOperationChanged = false;
+      node3.context.hasOperationChanged = false;
 
       node1.nextNodes = [node2];
       node2.nextNodes = [node3];
 
-      node1.state.hasOperationChanged = true;
+      node1.context.hasOperationChanged = true;
 
       // Only the node itself should be marked, not children
       // (propagation is handled by QueryExecutionService.invalidateNode)
-      expect(state1.hasOperationChanged).toBe(true);
-      expect(state2.hasOperationChanged).toBe(false);
-      expect(state3.hasOperationChanged).toBe(false);
+      expect(node1.context.hasOperationChanged).toBe(true);
+      expect(node2.context.hasOperationChanged).toBe(false);
+      expect(node3.context.hasOperationChanged).toBe(false);
     });
 
     it('should mark node as changed even if already changed', () => {
-      const state1: QueryNodeState = {hasOperationChanged: true};
+      const node1 = createMockNode('node1');
+      node1.context.hasOperationChanged = true;
 
-      const node1 = createMockNode('node1', state1);
+      node1.context.hasOperationChanged = true;
 
-      node1.state.hasOperationChanged = true;
-
-      expect(state1.hasOperationChanged).toBe(true);
+      expect(node1.context.hasOperationChanged).toBe(true);
     });
   });
 
@@ -225,7 +171,8 @@ describe('query_node utilities', () => {
         type: NodeType.kTable,
         nextNodes: [],
         finalCols: [],
-        state: {},
+        attrs: {},
+        context: {},
         validate: () => true,
         getTitle: () => 'Test',
         nodeSpecificModify: () => null,
@@ -233,7 +180,6 @@ describe('query_node utilities', () => {
         nodeInfo: () => null,
         clone: () => createPartialNode(nodeId, onPrevNodesUpdated),
         getStructuredQuery: () => undefined,
-        serializeState: () => ({}),
         onPrevNodesUpdated,
       } as QueryNode;
     }
@@ -250,7 +196,8 @@ describe('query_node utilities', () => {
           createPartialNode('node3', mockCallback2),
         ],
         finalCols: [],
-        state: {},
+        attrs: {},
+        context: {},
         validate: () => true,
         getTitle: () => 'Test',
         nodeSpecificModify: () => null,
@@ -258,7 +205,6 @@ describe('query_node utilities', () => {
         nodeInfo: () => null,
         clone: () => node,
         getStructuredQuery: () => undefined,
-        serializeState: () => ({}),
       } as QueryNode;
 
       notifyNextNodes(node);
@@ -273,7 +219,8 @@ describe('query_node utilities', () => {
         type: NodeType.kTable,
         nextNodes: [createPartialNode('node2')],
         finalCols: [],
-        state: {},
+        attrs: {},
+        context: {},
         validate: () => true,
         getTitle: () => 'Test',
         nodeSpecificModify: () => null,
@@ -281,7 +228,6 @@ describe('query_node utilities', () => {
         nodeInfo: () => null,
         clone: () => node,
         getStructuredQuery: () => undefined,
-        serializeState: () => ({}),
       } as QueryNode;
 
       expect(() => notifyNextNodes(node)).not.toThrow();
@@ -293,7 +239,8 @@ describe('query_node utilities', () => {
         type: NodeType.kTable,
         nextNodes: [],
         finalCols: [],
-        state: {},
+        attrs: {},
+        context: {},
         validate: () => true,
         getTitle: () => 'Test',
         nodeSpecificModify: () => null,
@@ -301,7 +248,6 @@ describe('query_node utilities', () => {
         nodeInfo: () => null,
         clone: () => node,
         getStructuredQuery: () => undefined,
-        serializeState: () => ({}),
       } as QueryNode;
 
       expect(() => notifyNextNodes(node)).not.toThrow();

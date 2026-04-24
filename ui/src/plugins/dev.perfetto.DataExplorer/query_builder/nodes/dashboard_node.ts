@@ -14,12 +14,7 @@
 
 import m from 'mithril';
 import protos from '../../../../protos';
-import {
-  QueryNode,
-  QueryNodeState,
-  nextNodeId,
-  NodeType,
-} from '../../query_node';
+import {QueryNode, nextNodeId, NodeType, NodeContext} from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import {NodeIssues} from '../node_issues';
 import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
@@ -31,15 +26,9 @@ import {
   DashboardDataSource,
 } from '../../dashboard/dashboard_registry';
 
-export interface DashboardSerializedState {
+// Serializable node configuration.
+export interface DashboardNodeAttrs {
   exportName?: string;
-}
-
-export interface DashboardNodeState extends QueryNodeState {
-  // User-assigned name for this exported data source.
-  exportName?: string;
-  // Stable ID of the graph tab that owns this node (set by DataExplorer).
-  graphId?: string;
 }
 
 /** Type guard: returns true if the given node is a DashboardNode. */
@@ -52,29 +41,35 @@ export class DashboardNode implements QueryNode {
   readonly type = NodeType.kDashboard;
   nextNodes: QueryNode[];
   primaryInput?: QueryNode;
-  readonly state: DashboardNodeState;
+  readonly attrs: DashboardNodeAttrs;
+  readonly context: NodeContext;
+
+  // Stable ID of the graph tab that owns this node (set by DataExplorer).
+  // Runtime-only — not serialized.
+  graphId?: string;
 
   get finalCols(): ColumnInfo[] {
     return this.primaryInput?.finalCols ?? [];
   }
 
-  constructor(state: DashboardNodeState) {
+  constructor(attrs: DashboardNodeAttrs, context: NodeContext) {
     this.nodeId = nextNodeId();
-    this.state = state;
+    this.attrs = attrs;
+    this.context = context;
     this.nextNodes = [];
   }
 
   private getExportName(): string {
     return (
-      this.state.exportName?.trim() ||
+      this.attrs.exportName?.trim() ||
       this.primaryInput?.getTitle() ||
       'Unnamed export'
     );
   }
 
   validate(): boolean {
-    if (this.state.issues) {
-      this.state.issues.clear();
+    if (this.context.issues) {
+      this.context.issues.clear();
     }
 
     if (this.primaryInput === undefined) {
@@ -93,10 +88,10 @@ export class DashboardNode implements QueryNode {
   }
 
   private setValidationError(message: string): void {
-    if (!this.state.issues) {
-      this.state.issues = new NodeIssues();
+    if (!this.context.issues) {
+      this.context.issues = new NodeIssues();
     }
-    this.state.issues.queryError = new Error(message);
+    this.context.issues.queryError = new Error(message);
   }
 
   getTitle(): string {
@@ -116,13 +111,13 @@ export class DashboardNode implements QueryNode {
         {
           content: m(InlineField, {
             label: 'Export name',
-            value: this.state.exportName ?? '',
+            value: this.attrs.exportName ?? '',
             placeholder:
               this.primaryInput?.getTitle() ?? 'Name for this data source',
             onchange: (value: string) => {
-              this.state.exportName = value.trim() || undefined;
+              this.attrs.exportName = value.trim() || undefined;
               this.publishExportedSource();
-              this.state.onchange?.();
+              this.context.onchange?.();
             },
           }),
         },
@@ -142,10 +137,7 @@ export class DashboardNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    return new DashboardNode({
-      exportName: this.state.exportName,
-      onchange: this.state.onchange,
-    });
+    return new DashboardNode({exportName: this.attrs.exportName}, this.context);
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -162,10 +154,10 @@ export class DashboardNode implements QueryNode {
     const source: DashboardDataSource = {
       name: this.getExportName(),
       nodeId: this.nodeId,
-      columns: this.finalCols.map((c) => ({name: c.name, type: c.column.type})),
-      graphId: this.state.graphId ?? '',
+      columns: this.finalCols.map((c) => ({name: c.name, type: c.type})),
+      graphId: this.graphId ?? '',
       requestExecution: async () => {
-        await this.state.requestNodeExecution?.(parentNodeId);
+        await this.context.requestNodeExecution?.(parentNodeId);
         // After execution, resolve the table name so the chart can render.
         await this.resolveTableName(source, parentNodeId);
       },
@@ -177,7 +169,7 @@ export class DashboardNode implements QueryNode {
     source: DashboardDataSource,
     parentNodeId: string,
   ): Promise<void> {
-    const tableName = await this.state.getTableNameForNode?.(parentNodeId);
+    const tableName = await this.context.getTableNameForNode?.(parentNodeId);
     if (tableName !== undefined) {
       source.tableName = tableName;
       dashboardRegistry.setExportedSource(source);
@@ -186,16 +178,6 @@ export class DashboardNode implements QueryNode {
 
   onPrevNodesUpdated(): void {
     this.publishExportedSource();
-    this.state.onchange?.();
-  }
-
-  serializeState(): DashboardSerializedState {
-    return {
-      exportName: this.state.exportName,
-    };
-  }
-
-  static deserializeState(state: DashboardSerializedState): DashboardNodeState {
-    return {exportName: state.exportName};
+    this.context.onchange?.();
   }
 }

@@ -55,10 +55,10 @@
 
 import {
   QueryNode,
-  QueryNodeState,
   nextNodeId,
   NodeType,
   SecondaryInputSpec,
+  NodeContext,
 } from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
@@ -82,7 +82,8 @@ import {notifyNextNodes} from '../graph_utils';
 import {getCommonColumns} from '../utils';
 import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
 
-export interface FilterDuringNodeState extends QueryNodeState {
+// Serializable node configuration.
+export interface FilterDuringNodeAttrs {
   partitionColumns?: string[]; // Columns to partition by during interval intersection
   clipToIntervals?: boolean; // When true (default), use intersected ts/dur; when false, use original ts/dur from primary
 }
@@ -93,11 +94,13 @@ export class FilterDuringNode implements QueryNode {
   primaryInput?: QueryNode;
   secondaryInputs: SecondaryInputSpec;
   nextNodes: QueryNode[];
-  readonly state: FilterDuringNodeState;
+  readonly attrs: FilterDuringNodeAttrs;
+  readonly context: NodeContext;
 
-  constructor(state: FilterDuringNodeState) {
+  constructor(attrs: FilterDuringNodeAttrs, context: NodeContext) {
     this.nodeId = nextNodeId();
-    this.state = state;
+    this.attrs = attrs;
+    this.context = context;
     this.secondaryInputs = {
       connections: new Map(),
       min: 1,
@@ -105,7 +108,6 @@ export class FilterDuringNode implements QueryNode {
       portNames: ['Filter intervals'],
     };
     this.nextNodes = [];
-    this.state.autoExecute = this.state.autoExecute ?? false;
   }
 
   // Get the node connected to the secondary input port (the intervals to filter during)
@@ -125,7 +127,7 @@ export class FilterDuringNode implements QueryNode {
 
   nodeDetails(): NodeDetailsAttrs {
     const details: m.Child[] = [
-      this.state.clipToIntervals
+      this.attrs.clipToIntervals
         ? NodeDetailsMessage(
             'Filters time to intervals that occurred during input intervals.',
           )
@@ -135,14 +137,14 @@ export class FilterDuringNode implements QueryNode {
     ];
 
     // Display partition columns (read-only)
-    if (this.state.partitionColumns && this.state.partitionColumns.length > 0) {
+    if (this.attrs.partitionColumns && this.attrs.partitionColumns.length > 0) {
       details.push(
         m(
           'div',
           'Partition by: ',
-          this.state.partitionColumns.map((col, index) => [
+          this.attrs.partitionColumns.map((col, index) => [
             ColumnName(col),
-            index < this.state.partitionColumns!.length - 1 ? ', ' : '',
+            index < this.attrs.partitionColumns!.length - 1 ? ', ' : '',
           ]),
         ),
       );
@@ -169,8 +171,8 @@ export class FilterDuringNode implements QueryNode {
 
   private cleanupPartitionColumns(): void {
     if (
-      !this.state.partitionColumns ||
-      this.state.partitionColumns.length === 0
+      !this.attrs.partitionColumns ||
+      this.attrs.partitionColumns.length === 0
     ) {
       return;
     }
@@ -178,25 +180,25 @@ export class FilterDuringNode implements QueryNode {
     const commonColumns = new Set(this.getCommonColumnsForPartition());
 
     // Remove partition columns that no longer exist in all inputs
-    const validPartitionCols = this.state.partitionColumns.filter((colName) =>
+    const validPartitionCols = this.attrs.partitionColumns.filter((colName) =>
       commonColumns.has(colName),
     );
 
-    if (validPartitionCols.length !== this.state.partitionColumns.length) {
-      const removed = this.state.partitionColumns.filter(
+    if (validPartitionCols.length !== this.attrs.partitionColumns.length) {
+      const removed = this.attrs.partitionColumns.filter(
         (c) => !validPartitionCols.includes(c),
       );
       console.warn(
         `[FilterDuring] Removing partition columns no longer available in all inputs: ${removed.join(', ')}`,
       );
-      this.state.partitionColumns = validPartitionCols;
+      this.attrs.partitionColumns = validPartitionCols;
     }
   }
 
   private renderPartitionSelector(): m.Child {
     // Initialize partition columns if needed
-    if (!this.state.partitionColumns) {
-      this.state.partitionColumns = [];
+    if (!this.attrs.partitionColumns) {
+      this.attrs.partitionColumns = [];
     }
 
     // Get common columns for partition selection
@@ -208,12 +210,12 @@ export class FilterDuringNode implements QueryNode {
     const partitionOptions: MultiSelectOption[] = commonColumns.map((col) => ({
       id: col,
       name: col,
-      checked: this.state.partitionColumns?.includes(col) ?? false,
+      checked: this.attrs.partitionColumns?.includes(col) ?? false,
     }));
 
     const label =
-      this.state.partitionColumns.length > 0
-        ? this.state.partitionColumns.join(', ')
+      this.attrs.partitionColumns.length > 0
+        ? this.attrs.partitionColumns.join(', ')
         : 'None';
 
     return m(
@@ -224,24 +226,24 @@ export class FilterDuringNode implements QueryNode {
         options: partitionOptions,
         showNumSelected: false,
         onChange: (diffs: MultiSelectDiff[]) => {
-          if (!this.state.partitionColumns) {
-            this.state.partitionColumns = [];
+          if (!this.attrs.partitionColumns) {
+            this.attrs.partitionColumns = [];
           }
           for (const diff of diffs) {
             if (diff.checked) {
-              if (!this.state.partitionColumns.includes(diff.id)) {
-                this.state.partitionColumns.push(diff.id);
+              if (!this.attrs.partitionColumns.includes(diff.id)) {
+                this.attrs.partitionColumns.push(diff.id);
               }
             } else {
-              const index = this.state.partitionColumns.indexOf(diff.id);
+              const index = this.attrs.partitionColumns.indexOf(diff.id);
               if (index !== -1) {
-                this.state.partitionColumns.splice(index, 1);
+                this.attrs.partitionColumns.splice(index, 1);
               }
             }
           }
           // Notify downstream nodes about the column change
           notifyNextNodes(this);
-          this.state.onchange?.();
+          this.context.onchange?.();
         },
       }),
     );
@@ -250,7 +252,7 @@ export class FilterDuringNode implements QueryNode {
   nodeSpecificModify(): NodeModifyAttrs {
     // Run validation to populate error state
     this.validate();
-    const error = this.state.issues?.queryError;
+    const error = this.context.issues?.queryError;
 
     const secondaryNodes = this.secondaryNodes;
 
@@ -285,7 +287,7 @@ export class FilterDuringNode implements QueryNode {
       'Filters the primary input to only show intervals that occurred during the intervals from the secondary input.';
 
     // Get clipToIntervals for use in switch below
-    const clipToIntervals = this.state.clipToIntervals ?? true;
+    const clipToIntervals = this.attrs.clipToIntervals ?? true;
 
     // Add partition selector
     const partitionSelector = this.renderPartitionSelector();
@@ -305,8 +307,8 @@ export class FilterDuringNode implements QueryNode {
             ? 'Clip to intervals (use intersected ts/dur)'
             : 'Use original timestamps (from primary input)',
           onchange: () => {
-            this.state.clipToIntervals = !clipToIntervals;
-            this.state.onchange?.();
+            this.attrs.clipToIntervals = !clipToIntervals;
+            this.context.onchange?.();
           },
         }),
       ),
@@ -344,27 +346,27 @@ export class FilterDuringNode implements QueryNode {
 
   validate(): boolean {
     // Clear any previous errors at the start of validation
-    if (this.state.issues) {
-      this.state.issues.clear();
+    if (this.context.issues) {
+      this.context.issues.clear();
     }
 
     if (this.primaryInput === undefined) {
       setValidationError(
-        this.state,
+        this.context,
         'Connect a node to be filtered to the top port',
       );
       return false;
     }
 
     if (!this.primaryInput.validate()) {
-      setValidationError(this.state, 'Node to be filtered is invalid');
+      setValidationError(this.context, 'Node to be filtered is invalid');
       return false;
     }
 
     const secondaryInput = this.secondaryInputs.connections.get(0);
     if (secondaryInput === undefined) {
       setValidationError(
-        this.state,
+        this.context,
         'Connect a node with intervals to the port on the left',
       );
       return false;
@@ -373,11 +375,11 @@ export class FilterDuringNode implements QueryNode {
     // Validate the secondary input
     if (!secondaryInput.validate()) {
       const childError =
-        secondaryInput.state.issues?.queryError !== undefined
-          ? `: ${secondaryInput.state.issues.queryError.message}`
+        secondaryInput.context.issues?.queryError !== undefined
+          ? `: ${secondaryInput.context.issues.queryError.message}`
           : '';
       setValidationError(
-        this.state,
+        this.context,
         `Filter intervals input is invalid${childError}`,
       );
       return false;
@@ -389,7 +391,7 @@ export class FilterDuringNode implements QueryNode {
     const missingPrimary = requiredCols.filter((c) => !primaryCols.has(c));
     if (missingPrimary.length > 0) {
       setValidationError(
-        this.state,
+        this.context,
         `Node to be filtered is missing required columns: ${missingPrimary.join(', ')}`,
       );
       return false;
@@ -403,7 +405,7 @@ export class FilterDuringNode implements QueryNode {
     );
     if (missingSecondary.length > 0) {
       setValidationError(
-        this.state,
+        this.context,
         `Filter intervals input is missing required columns: ${missingSecondary.join(', ')}`,
       );
       return false;
@@ -413,16 +415,15 @@ export class FilterDuringNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    const stateCopy: FilterDuringNodeState = {
-      partitionColumns: this.state.partitionColumns
-        ? [...this.state.partitionColumns]
-        : undefined,
-      clipToIntervals: this.state.clipToIntervals,
-      filters: this.state.filters?.map((f) => ({...f})),
-      filterOperator: this.state.filterOperator,
-      onchange: this.state.onchange,
-    };
-    return new FilterDuringNode(stateCopy);
+    return new FilterDuringNode(
+      {
+        partitionColumns: this.attrs.partitionColumns
+          ? [...this.attrs.partitionColumns]
+          : undefined,
+        clipToIntervals: this.attrs.clipToIntervals,
+      },
+      this.context,
+    );
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -437,7 +438,7 @@ export class FilterDuringNode implements QueryNode {
     // can prepend clipped ts/dur and append original_ts/original_dur at the end.
     // When clip_to_intervals is false, the order doesn't matter as much, but
     // we still put ts and dur first for consistency.
-    const clipToIntervals = this.state.clipToIntervals ?? true;
+    const clipToIntervals = this.attrs.clipToIntervals ?? true;
     const allColumns = this.primaryInput.finalCols.map((c) => c.name);
 
     let selectColumns: string[];
@@ -460,27 +461,11 @@ export class FilterDuringNode implements QueryNode {
     return StructuredQueryBuilder.withFilterToIntervals(
       this.primaryInput,
       secondaryInput,
-      this.state.partitionColumns,
-      this.state.clipToIntervals ?? true,
+      this.attrs.partitionColumns,
+      this.attrs.clipToIntervals ?? true,
       this.nodeId,
       selectColumns,
     );
-  }
-
-  serializeState(): object {
-    return {
-      partitionColumns: this.state.partitionColumns,
-      clipToIntervals: this.state.clipToIntervals,
-    };
-  }
-
-  static deserializeState(
-    serializedState: FilterDuringNodeState,
-  ): FilterDuringNodeState {
-    return {
-      partitionColumns: serializedState.partitionColumns,
-      clipToIntervals: serializedState.clipToIntervals,
-    };
   }
 
   // Called when a node is connected/disconnected to secondary inputs
@@ -490,7 +475,7 @@ export class FilterDuringNode implements QueryNode {
 
     // Notify next nodes that our columns have changed
     notifyNextNodes(this);
-    this.state.onchange?.();
+    this.context.onchange?.();
     m.redraw();
   }
 }

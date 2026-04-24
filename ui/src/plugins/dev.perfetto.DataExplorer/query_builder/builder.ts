@@ -481,7 +481,8 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
                   },
                   m(
                     '.pf-error-details',
-                    selectedNode.state.issues?.getTitle() ?? 'No error details',
+                    selectedNode.context.issues?.getTitle() ??
+                      'No error details',
                   ),
                 ),
             ),
@@ -760,16 +761,16 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         : undefined;
 
     if (error || warning || noDataWarning) {
-      if (!node.state.issues) {
-        node.state.issues = new NodeIssues();
+      if (!node.context.issues) {
+        node.context.issues = new NodeIssues();
       }
-      node.state.issues.queryError = error;
-      node.state.issues.responseError = warning;
-      node.state.issues.dataError = noDataWarning;
+      node.context.issues.queryError = error;
+      node.context.issues.responseError = warning;
+      node.context.issues.dataError = noDataWarning;
       // Clear any previous execution error since we got a successful response
-      node.state.issues.clearExecutionError();
+      node.context.issues.clearExecutionError();
     } else {
-      node.state.issues = undefined;
+      node.context.issues = undefined;
     }
   }
 
@@ -790,12 +791,12 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     // Clear response and data source but keep query so Retry can re-execute
     this.dataSource = undefined;
     this.response = undefined;
-    if (!node.state.issues) {
-      node.state.issues = new NodeIssues();
+    if (!node.context.issues) {
+      node.context.issues = new NodeIssues();
     }
     // Use executionError (not queryError) so error persists across re-renders
     // that trigger validate() - queryError gets cleared during validation
-    node.state.issues.executionError =
+    node.context.issues.executionError =
       e instanceof Error ? e : new Error(String(e));
   }
 }

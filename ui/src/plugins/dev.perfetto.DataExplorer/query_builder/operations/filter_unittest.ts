@@ -39,22 +39,22 @@ describe('filter operations', () => {
       {
         name: 'id',
         checked: false,
-        column: {name: 'id', type: {kind: 'int'}},
+        type: {kind: 'int'},
       },
       {
         name: 'name',
         checked: false,
-        column: {name: 'name', type: {kind: 'string'}},
+        type: {kind: 'string'},
       },
       {
         name: 'age',
         checked: false,
-        column: {name: 'age', type: {kind: 'int'}},
+        type: {kind: 'int'},
       },
       {
         name: 'status',
         checked: false,
-        column: {name: 'status', type: {kind: 'string'}},
+        type: {kind: 'string'},
       },
     ];
 

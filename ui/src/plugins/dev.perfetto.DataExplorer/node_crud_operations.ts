@@ -17,12 +17,7 @@ import type {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 import type {CleanupManager} from './query_builder/cleanup_manager';
 import type {NodeActionHandlers} from './node_actions';
 import {createDeferredNodeActions} from './node_actions';
-import {
-  QueryNode,
-  QueryNodeState,
-  NodeType,
-  singleNodeOperation,
-} from './query_node';
+import {QueryNode, NodeType, singleNodeOperation} from './query_node';
 import {nodeRegistry, type PreCreateState} from './query_builder/node_registry';
 import {
   getAllNodes,
@@ -119,17 +114,13 @@ export async function addOperationNode(
     // Use a wrapper object to hold the node reference (allows mutation without 'let')
     const nodeRef: {current?: QueryNode} = {};
 
-    const nodeState: QueryNodeState = {
-      ...(initialState as Partial<QueryNodeState>),
-      sqlModules: deps.sqlModules,
-      trace: deps.trace,
-      // Provide actions for nodes that need to interact with the graph
-      // We use a deferred pattern because the node doesn't exist yet
-      actions: createDeferredNodeActions(nodeRef, deps.nodeActionHandlers),
-    };
-
-    const newNode = descriptor.factory(nodeState, {
+    const newNode = descriptor.factory(initialState, {
       allNodes: state.rootNodes,
+      context: {
+        sqlModules: deps.sqlModules,
+        trace: deps.trace,
+        actions: createDeferredNodeActions(nodeRef, deps.nodeActionHandlers),
+      },
     });
 
     // Set the reference so the callback can use it
@@ -241,14 +232,10 @@ export async function addSourceNode(
   const newNodes: QueryNode[] = [];
   for (const stateItem of statesToCreate) {
     try {
-      const newNode = descriptor.factory(
-        {
-          ...stateItem,
-          trace: deps.trace,
-          sqlModules: deps.sqlModules,
-        } as QueryNodeState,
-        {allNodes: state.rootNodes},
-      );
+      const newNode = descriptor.factory(stateItem, {
+        allNodes: state.rootNodes,
+        context: {trace: deps.trace, sqlModules: deps.sqlModules},
+      });
       newNodes.push(newNode);
     } catch (error) {
       console.error('Failed to create node:', error);
