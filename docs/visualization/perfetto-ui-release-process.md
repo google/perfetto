@@ -1,21 +1,23 @@
 # Perfetto UI Release Process
 
-The UI has three release channels which are configured by the
-[channels.json](/ui/release/channels.json) file. The channels are:
+The UI has three release channels. Each channel is served from the HEAD of a
+long-lived branch:
 
 - `stable`, the version served by default on ui.perfetto.dev.
-  Updated every four weeks.
+  Served from the `stable` branch and updated every four weeks.
 - `canary`, a less stable but fresher release. Updated every 1-2 weeks.
-- `autopush`, the current HEAD version of the UI. Unstable.
+  Served from the `canary` branch.
+- `autopush`, the current HEAD version of the UI. Unstable. Served from the
+  `main` branch.
 
 The release process is based around a four week cycle.
 
-- Week 1: Update `canary` to `HEAD`.
-- Week 2: Update `canary` to `HEAD`.
+- Week 1: Cut `canary` from `main`.
+- Week 2: Cut `canary` from `main`.
   Canary stabilization week 1/2 starts here.
   Only critical bug fixes can be cherry-picked onto `canary`.
 - Week 3: Canary stabilization week 2/2.
-- Week 4: Update `stable` to current `canary`, update `canary` to `HEAD`.
+- Week 4: Promote current `canary` to `stable`, then cut `canary` from `main`.
 
 After the fourth week the cycle repeats from week one.
 This is so that:
@@ -60,45 +62,24 @@ following:
 
 ```bash
 git fetch origin
-git co -b ui-canary -t origin/ui-canary
+git checkout -b cherry-pick-canary origin/canary
 git cherry-pick -x $SHA1_OF_ORIGINAL_CL
 git cl upload
 
-# Repeat for origin/ui-stable branch if needed.
+# Repeat from origin/stable if needed.
 ```
 
-Once the cherry-picks are landed, send out a CL to update the
-[channels.json](/ui/release/channels.json) in the `main` branch. See
-[r.android.com/1726101](https://r.android.com/1726101) for an example.
+Once the cherry-pick lands on `canary` or `stable`, the push to that branch
+triggers Cloud Build for the corresponding UI channel. There is no separate
+channel pinning file to update.
 
-```json
-{
-  "channels": [
-    {
-      "name": "stable",
-      "rev": "6dd6756ffbdff4f845c4db28e1fd5aed9ba77b56"
-      //     ^ This should point to the HEAD of origin/ui-stable.
-    },
-    {
-      "name": "canary",
-      "rev": "3e21f613f20779c04b0bcc937f2605b9b05556ad"
-      //     ^ This should point to the HEAD of origin/ui-canary.
-    },
-    {
-      "name": "autopush",
-      "rev": "HEAD"
-      //     ^ Don't touch this one.
-    }
-  ]
-}
-```
+To do the normal release-channel moves, use the GitHub Actions workflows:
 
-The state of `channels.json` in the other branches is irrelevant, the release
-infrastructure only looks at the `main` branch to determine the pinning of
-each channel.
-
-After the `channels.json` CL lands, the build infrastructure will pick it up
-and update ui.perfetto.dev within ~30 mins.
+- `Cut canary (open PR merging main -> canary)` opens a PR against `canary`.
+  When that PR is merged, Cloud Build redeploys the canary channel.
+- `Promote to stable (open PR merging canary -> stable)` opens a PR against
+  `stable`. When that PR is merged, Cloud Build redeploys the stable channel
+  and `tag-on-stable-push.yml` creates the release tag and draft release.
 
 Googlers: You can check build progress and logs on
 [go/perfetto-ui-build-status](http://go/perfetto-ui-build-status). See also
