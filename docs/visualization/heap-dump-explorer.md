@@ -463,16 +463,14 @@ class ProfileActivity : Activity() {
 }
 ```
 
-**Verify.** Re-run the same repro, re-dump, re-open. The Classes
-tab no longer lists `com.heapleak.ProfileActivity` at all — the
-class has no live instances, so it doesn't appear:
-
-![Classes tab on the fixed trace. com.heapleak.ProfileActivity has been dropped from the list (Count 0); the top rows are framework classes (byte[], java.lang.String, int[]).](../images/heap_docs/16-fixed-classes.png)
-
-This tiny demo saves ~1.5&nbsp;MiB of app heap; a real screen with a
-live view hierarchy sees the difference in tens of megabytes. Any
-`Activity` subclass showing `Count > 0` in a dump captured after
-the user navigated away is a leak.
+**Verify.** Re-run the same repro, re-dump, re-open. Under
+**Classes**, `com.heapleak.ProfileActivity` is no longer in the
+list — the class has no live instances, so it drops out entirely.
+The regression signal is simple: any `Activity` subclass that
+appears in a dump captured after the user has navigated away is a
+leak. This tiny demo saves ~1.5&nbsp;MiB of app heap; a real screen
+with a live view hierarchy sees the difference in tens of
+megabytes.
 
 The same recipe finds the other common shapes of Activity leak. The
 last hop before the Activity in the reference path always names the
