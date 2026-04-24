@@ -78,7 +78,7 @@ export interface Section {
 
   // Launch metrics this section needs (extracted from slice args via
   // EXTRACT_ARG).
-  // Example: ['launch__block_size', 'launch__grid_size', 'arch']
+  // Example: ['block_size', 'grid_size', 'arch']
   readonly launchMetrics: readonly string[];
 
   // Counter metrics this section needs (from gpu_counter_track).
