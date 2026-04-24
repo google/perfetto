@@ -66,8 +66,8 @@
     - [Memory](#)
 
       - [Memory Counters](data-sources/memory-counters.md) {.tag-android .tag-linux}
-      - [Native Heap Profiler](data-sources/native-heap-profiler.md) {.tag-android .tag-linux}
-      - [Java Heap Dumps](data-sources/java-heap-profiler.md) {.tag-android}
+      - [Allocation Profiler](data-sources/native-heap-profiler.md) {.tag-android .tag-linux}
+      - [ART Heap Dumps](data-sources/java-heap-profiler.md) {.tag-android}
 
     - [Android](#)
 
