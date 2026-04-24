@@ -82,8 +82,6 @@ export class NodePanel implements m.ClassComponent<NodePanelAttrs> {
   }
 
   private updateQuery(node: QueryNode, attrs: NodePanelAttrs) {
-    // TODO: Re-implement WITH statement dependencies for SqlSourceNode
-    // This was removed during the connection model migration
     if (node instanceof SqlSourceNode && node.attrs.sql) {
       // Validate that the node doesn't reference itself
       const nodeIds = node.findDependencies();

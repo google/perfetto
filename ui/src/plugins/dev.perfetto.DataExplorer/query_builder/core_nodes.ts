@@ -626,6 +626,8 @@ export function registerCoreNodes() {
     'union_node',
     'dashboard',
     'group',
+    // Source nodes that accept secondary inputs (SQL can reference them as $input_N)
+    'sql',
   ]);
 
   // Validate that all allowedChildren references point to registered nodes.
