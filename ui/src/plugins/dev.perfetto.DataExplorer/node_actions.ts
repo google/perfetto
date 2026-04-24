@@ -90,8 +90,8 @@ export function ensureAllNodeActions(
     if (initializedNodes.has(node.nodeId)) {
       continue;
     }
-    if (!node.state.actions) {
-      node.state.actions = createNodeActions(node, handlers);
+    if (!node.context.actions) {
+      node.context.actions = createNodeActions(node, handlers);
     }
     initializedNodes.add(node.nodeId);
   }

@@ -51,31 +51,37 @@ describe('CreateSlicesNode', () => {
         createCol('ts', 'timestamp'),
       ]);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
-      expect(createSlicesNode.state.startsTsColumn).toBe('ts');
-      expect(createSlicesNode.state.endsTsColumn).toBe('ts');
-      expect(createSlicesNode.state.autoExecute).toBe(false);
+      expect(createSlicesNode.attrs.startsTsColumn).toBe('ts');
+      expect(createSlicesNode.attrs.endsTsColumn).toBe('ts');
+      expect(createSlicesNode.context.autoExecute).toBeUndefined();
     });
 
     it('should use default timestamp columns when not provided', () => {
       const startsNode = createMockPrevNode('starts', []);
       const endsNode = createMockPrevNode('ends', []);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: undefined!,
-        endsTsColumn: undefined!,
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: undefined!,
+          endsTsColumn: undefined!,
+        },
+        {},
+      );
 
-      expect(createSlicesNode.state.startsTsColumn).toBe('ts');
-      expect(createSlicesNode.state.endsTsColumn).toBe('ts');
+      expect(createSlicesNode.attrs.startsTsColumn).toBe('ts');
+      expect(createSlicesNode.attrs.endsTsColumn).toBe('ts');
     });
 
     it('should accept custom timestamp column names', () => {
@@ -86,15 +92,18 @@ describe('CreateSlicesNode', () => {
         createCol('release_ts', 'timestamp'),
       ]);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'acquire_ts',
-        endsTsColumn: 'release_ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'acquire_ts',
+          endsTsColumn: 'release_ts',
+        },
+        {},
+      );
 
-      expect(createSlicesNode.state.startsTsColumn).toBe('acquire_ts');
-      expect(createSlicesNode.state.endsTsColumn).toBe('release_ts');
+      expect(createSlicesNode.attrs.startsTsColumn).toBe('acquire_ts');
+      expect(createSlicesNode.attrs.endsTsColumn).toBe('release_ts');
     });
   });
 
@@ -104,12 +113,15 @@ describe('CreateSlicesNode', () => {
         createCol('ts', 'timestamp'),
       ]);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode: undefined,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode: undefined,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       expect(createSlicesNode.finalCols).toEqual([]);
     });
@@ -119,12 +131,15 @@ describe('CreateSlicesNode', () => {
         createCol('ts', 'timestamp'),
       ]);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode: undefined,
-        endsNode,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode: undefined,
+          endsNode,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       expect(createSlicesNode.finalCols).toEqual([]);
     });
@@ -137,21 +152,24 @@ describe('CreateSlicesNode', () => {
         createCol('ts', 'timestamp'),
       ]);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       const finalCols = createSlicesNode.finalCols;
 
       expect(finalCols.length).toBe(2);
       expect(finalCols[0].name).toBe('ts');
-      expect(finalCols[0].column.type).toEqual({kind: 'timestamp'});
+      expect(finalCols[0].type).toEqual({kind: 'timestamp'});
       expect(finalCols[0].checked).toBe(true);
       expect(finalCols[1].name).toBe('dur');
-      expect(finalCols[1].column.type).toEqual({kind: 'duration'});
+      expect(finalCols[1].type).toEqual({kind: 'duration'});
       expect(finalCols[1].checked).toBe(true);
     });
 
@@ -166,12 +184,15 @@ describe('CreateSlicesNode', () => {
         createCol('lock_id', 'int'),
       ]);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'acquire_ts',
-        endsTsColumn: 'release_ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'acquire_ts',
+          endsTsColumn: 'release_ts',
+        },
+        {},
+      );
 
       const finalCols = createSlicesNode.finalCols;
 
@@ -184,15 +205,18 @@ describe('CreateSlicesNode', () => {
     it('should fail when only starts node is provided', () => {
       const startsNode = createMockPrevNode('starts', []);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode: undefined,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode: undefined,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       expect(createSlicesNode.validate()).toBe(false);
-      expect(createSlicesNode.state.issues?.queryError?.message).toContain(
+      expect(createSlicesNode.context.issues?.queryError?.message).toContain(
         'exactly two sources',
       );
     });
@@ -200,15 +224,18 @@ describe('CreateSlicesNode', () => {
     it('should fail when only ends node is provided', () => {
       const endsNode = createMockPrevNode('ends', []);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode: undefined,
-        endsNode,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode: undefined,
+          endsNode,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       expect(createSlicesNode.validate()).toBe(false);
-      expect(createSlicesNode.state.issues?.queryError?.message).toContain(
+      expect(createSlicesNode.context.issues?.queryError?.message).toContain(
         'exactly two sources',
       );
     });
@@ -217,15 +244,18 @@ describe('CreateSlicesNode', () => {
       const startsNode = createMockPrevNode('starts', []);
       const endsNode = createMockPrevNode('ends', []);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: '',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: '',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       expect(createSlicesNode.validate()).toBe(false);
-      expect(createSlicesNode.state.issues?.queryError?.message).toContain(
+      expect(createSlicesNode.context.issues?.queryError?.message).toContain(
         'Starts timestamp column is required',
       );
     });
@@ -236,15 +266,18 @@ describe('CreateSlicesNode', () => {
       ]);
       const endsNode = createMockPrevNode('ends', []);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'ts',
-        endsTsColumn: '',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'ts',
+          endsTsColumn: '',
+        },
+        {},
+      );
 
       expect(createSlicesNode.validate()).toBe(false);
-      expect(createSlicesNode.state.issues?.queryError?.message).toContain(
+      expect(createSlicesNode.context.issues?.queryError?.message).toContain(
         'Ends timestamp column is required',
       );
     });
@@ -254,7 +287,7 @@ describe('CreateSlicesNode', () => {
         nodeId: 'starts',
         columns: [createCol('ts', 'timestamp')],
         validate: () => false,
-        state: {
+        context: {
           issues: createNodeIssuesWithQueryError('Starts node has errors'),
         },
       });
@@ -262,15 +295,18 @@ describe('CreateSlicesNode', () => {
         createCol('ts', 'timestamp'),
       ]);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       expect(createSlicesNode.validate()).toBe(false);
-      expect(createSlicesNode.state.issues?.queryError?.message).toContain(
+      expect(createSlicesNode.context.issues?.queryError?.message).toContain(
         'Starts node has errors',
       );
     });
@@ -283,20 +319,23 @@ describe('CreateSlicesNode', () => {
         nodeId: 'ends',
         columns: [createCol('ts', 'timestamp')],
         validate: () => false,
-        state: {
+        context: {
           issues: createNodeIssuesWithQueryError('Ends node has errors'),
         },
       });
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       expect(createSlicesNode.validate()).toBe(false);
-      expect(createSlicesNode.state.issues?.queryError?.message).toContain(
+      expect(createSlicesNode.context.issues?.queryError?.message).toContain(
         'Ends node has errors',
       );
     });
@@ -309,15 +348,18 @@ describe('CreateSlicesNode', () => {
         createCol('ts', 'timestamp'),
       ]);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       expect(createSlicesNode.validate()).toBe(false);
-      expect(createSlicesNode.state.issues?.queryError?.message).toContain(
+      expect(createSlicesNode.context.issues?.queryError?.message).toContain(
         "Starts timestamp column 'ts' not found",
       );
     });
@@ -330,15 +372,18 @@ describe('CreateSlicesNode', () => {
         createCol('other_column', 'int'),
       ]);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       expect(createSlicesNode.validate()).toBe(false);
-      expect(createSlicesNode.state.issues?.queryError?.message).toContain(
+      expect(createSlicesNode.context.issues?.queryError?.message).toContain(
         "Ends timestamp column 'ts' not found",
       );
     });
@@ -351,12 +396,15 @@ describe('CreateSlicesNode', () => {
         createCol('ts', 'timestamp'),
       ]);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       expect(createSlicesNode.validate()).toBe(true);
     });
@@ -371,12 +419,15 @@ describe('CreateSlicesNode', () => {
         createCol('lock_id', 'int'),
       ]);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'acquire_ts',
-        endsTsColumn: 'release_ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'acquire_ts',
+          endsTsColumn: 'release_ts',
+        },
+        {},
+      );
 
       expect(createSlicesNode.validate()).toBe(true);
     });
@@ -387,12 +438,15 @@ describe('CreateSlicesNode', () => {
       const startsNode = createMockPrevNode('starts', []);
       const endsNode = createMockPrevNode('ends', []);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       expect(createSlicesNode.getTitle()).toBe('Create Slices');
     });
@@ -403,12 +457,15 @@ describe('CreateSlicesNode', () => {
       const startsNode = createMockPrevNode('starts', []);
       const endsNode = createMockPrevNode('ends', []);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       expect(createSlicesNode.getInputLabels()).toEqual(['Starts', 'Ends']);
     });
@@ -419,50 +476,59 @@ describe('CreateSlicesNode', () => {
       const startsNode = createMockPrevNode('starts', []);
       const endsNode = createMockPrevNode('ends', []);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'acquire_ts',
-        endsTsColumn: 'release_ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'acquire_ts',
+          endsTsColumn: 'release_ts',
+        },
+        {},
+      );
 
       const cloned = createSlicesNode.clone() as CreateSlicesNode;
 
       expect(cloned).not.toBe(createSlicesNode);
-      expect(cloned.state.startsTsColumn).toBe('acquire_ts');
-      expect(cloned.state.endsTsColumn).toBe('release_ts');
+      expect(cloned.attrs.startsTsColumn).toBe('acquire_ts');
+      expect(cloned.attrs.endsTsColumn).toBe('release_ts');
     });
 
     it('should not share state with original', () => {
       const startsNode = createMockPrevNode('starts', []);
       const endsNode = createMockPrevNode('ends', []);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       const cloned = createSlicesNode.clone() as CreateSlicesNode;
 
       // Modify the cloned state
-      cloned.state.startsTsColumn = 'modified';
+      cloned.attrs.startsTsColumn = 'modified';
 
       // Original should not be affected
-      expect(createSlicesNode.state.startsTsColumn).toBe('ts');
+      expect(createSlicesNode.attrs.startsTsColumn).toBe('ts');
     });
 
     it('should not share connections with original', () => {
       const startsNode = createMockPrevNode('starts', []);
       const endsNode = createMockPrevNode('ends', []);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       const cloned = createSlicesNode.clone() as CreateSlicesNode;
 
@@ -482,12 +548,15 @@ describe('CreateSlicesNode', () => {
     it('should return undefined if validation fails', () => {
       const startsNode = createMockPrevNode('starts', []);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode: undefined,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode: undefined,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       expect(createSlicesNode.getStructuredQuery()).toBeUndefined();
     });
@@ -502,12 +571,15 @@ describe('CreateSlicesNode', () => {
         getStructuredQuery: () => new protos.PerfettoSqlStructuredQuery(),
       });
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       expect(createSlicesNode.getStructuredQuery()).toBeUndefined();
     });
@@ -522,12 +594,15 @@ describe('CreateSlicesNode', () => {
         createCol('ts', 'timestamp'),
       ]);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       expect(createSlicesNode.getStructuredQuery()).toBeUndefined();
     });
@@ -548,12 +623,15 @@ describe('CreateSlicesNode', () => {
         getStructuredQuery: () => mockSq2,
       });
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       const sq = createSlicesNode.getStructuredQuery();
 
@@ -581,12 +659,15 @@ describe('CreateSlicesNode', () => {
         getStructuredQuery: () => mockSq2,
       });
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'acquire_ts',
-        endsTsColumn: 'release_ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'acquire_ts',
+          endsTsColumn: 'release_ts',
+        },
+        {},
+      );
 
       const sq = createSlicesNode.getStructuredQuery();
 
@@ -611,12 +692,15 @@ describe('CreateSlicesNode', () => {
         getStructuredQuery: () => mockSq2,
       });
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       const sq = createSlicesNode.getStructuredQuery();
 
@@ -640,15 +724,18 @@ describe('CreateSlicesNode', () => {
         getStructuredQuery: () => mockSq2,
       });
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsMode: 'ts_dur',
-        endsMode: 'ts',
-        startsTsColumn: 'ts',
-        startsDurColumn: 'dur',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsMode: 'ts_dur',
+          endsMode: 'ts',
+          startsTsColumn: 'ts',
+          startsDurColumn: 'dur',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
       const sq = createSlicesNode.getStructuredQuery();
 
@@ -684,15 +771,18 @@ describe('CreateSlicesNode', () => {
         getStructuredQuery: () => mockSq2,
       });
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsMode: 'ts',
-        endsMode: 'ts_dur',
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-        endsDurColumn: 'dur',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsMode: 'ts',
+          endsMode: 'ts_dur',
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+          endsDurColumn: 'dur',
+        },
+        {},
+      );
 
       const sq = createSlicesNode.getStructuredQuery();
 
@@ -728,16 +818,19 @@ describe('CreateSlicesNode', () => {
         getStructuredQuery: () => mockSq2,
       });
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsMode: 'ts_dur',
-        endsMode: 'ts_dur',
-        startsTsColumn: 'ts',
-        startsDurColumn: 'dur',
-        endsTsColumn: 'ts',
-        endsDurColumn: 'dur',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsMode: 'ts_dur',
+          endsMode: 'ts_dur',
+          startsTsColumn: 'ts',
+          startsDurColumn: 'dur',
+          endsTsColumn: 'ts',
+          endsDurColumn: 'dur',
+        },
+        {},
+      );
 
       const sq = createSlicesNode.getStructuredQuery();
 
@@ -765,113 +858,59 @@ describe('CreateSlicesNode', () => {
       const startsNode = createMockPrevNode('starts_node_id', []);
       const endsNode = createMockPrevNode('ends_node_id', []);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: 'acquire_ts',
-        endsTsColumn: 'release_ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: 'acquire_ts',
+          endsTsColumn: 'release_ts',
+        },
+        {},
+      );
 
-      const serialized = createSlicesNode.serializeState();
+      const serialized = createSlicesNode.attrs;
 
-      expect(serialized.startsNodeId).toBe('starts_node_id');
-      expect(serialized.endsNodeId).toBe('ends_node_id');
       expect(serialized.startsTsColumn).toBe('acquire_ts');
       expect(serialized.endsTsColumn).toBe('release_ts');
     });
 
     it('should handle empty node IDs', () => {
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode: undefined,
-        endsNode: undefined,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode: undefined,
+          endsNode: undefined,
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+        },
+        {},
+      );
 
-      const serialized = createSlicesNode.serializeState();
+      const serialized = createSlicesNode.attrs;
 
-      expect(serialized.startsNodeId).toBe('');
-      expect(serialized.endsNodeId).toBe('');
+      expect(serialized.startsTsColumn).toBe('ts');
+      expect(serialized.endsTsColumn).toBe('ts');
     });
   });
 
-  describe('deserializeState', () => {
-    it('should deserialize state correctly', () => {
-      const serialized = {
-        startsNodeId: 'starts_node_id',
-        endsNodeId: 'ends_node_id',
-        startsTsColumn: 'acquire_ts',
-        endsTsColumn: 'release_ts',
-      };
+  describe('deserialize', () => {
+    it('should restore state via constructor', () => {
+      const node = new CreateSlicesNode(
+        {startsTsColumn: 'acquire_ts', endsTsColumn: 'release_ts'},
+        {},
+      );
 
-      const state = CreateSlicesNode.deserializeState(serialized);
-
-      expect(state.startsTsColumn).toBe('acquire_ts');
-      expect(state.endsTsColumn).toBe('release_ts');
+      expect(node.attrs.startsTsColumn).toBe('acquire_ts');
+      expect(node.attrs.endsTsColumn).toBe('release_ts');
     });
 
     it('should use default values when fields are missing', () => {
-      const serialized = {
-        startsNodeId: 'starts',
-        endsNodeId: 'ends',
-        startsTsColumn: undefined!,
-        endsTsColumn: undefined!,
-      };
+      const node = new CreateSlicesNode(
+        {startsTsColumn: undefined!, endsTsColumn: undefined!},
+        {},
+      );
 
-      const state = CreateSlicesNode.deserializeState(serialized);
-
-      expect(state.startsTsColumn).toBe('ts');
-      expect(state.endsTsColumn).toBe('ts');
-    });
-  });
-
-  describe('deserializeConnections', () => {
-    it('should deserialize connections correctly', () => {
-      const startsNode = createMockPrevNode('starts_id', []);
-      const endsNode = createMockPrevNode('ends_id', []);
-      const nodes = new Map([
-        ['starts_id', startsNode],
-        ['ends_id', endsNode],
-      ]);
-
-      const connections = CreateSlicesNode.deserializeConnections(nodes, {
-        startsNodeId: 'starts_id',
-        endsNodeId: 'ends_id',
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
-
-      expect(connections.startsNode).toBe(startsNode);
-      expect(connections.endsNode).toBe(endsNode);
-    });
-
-    it('should handle missing nodes gracefully', () => {
-      const nodes = new Map<string, QueryNode>();
-
-      const connections = CreateSlicesNode.deserializeConnections(nodes, {
-        startsNodeId: 'missing_starts',
-        endsNodeId: 'missing_ends',
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
-
-      expect(connections.startsNode).toBeUndefined();
-      expect(connections.endsNode).toBeUndefined();
-    });
-
-    it('should handle partially missing nodes', () => {
-      const startsNode = createMockPrevNode('starts_id', []);
-      const nodes = new Map([['starts_id', startsNode]]);
-
-      const connections = CreateSlicesNode.deserializeConnections(nodes, {
-        startsNodeId: 'starts_id',
-        endsNodeId: 'missing_ends',
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      });
-
-      expect(connections.startsNode).toBe(startsNode);
-      expect(connections.endsNode).toBeUndefined();
+      expect(node.attrs.startsTsColumn).toBe('ts');
+      expect(node.attrs.endsTsColumn).toBe('ts');
     });
   });
 
@@ -886,18 +925,21 @@ describe('CreateSlicesNode', () => {
         createCol('another_ts_name', 'timestamp'),
       ]);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsTsColumn: '', // Empty to trigger auto-selection
-        endsTsColumn: '', // Empty to trigger auto-selection
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsTsColumn: '', // Empty to trigger auto-selection
+          endsTsColumn: '', // Empty to trigger auto-selection
+        },
+        {},
+      );
 
       // Validation should pass because there's only one timestamp column
       // and it should be auto-selected based on TYPE, not name
       expect(createSlicesNode.validate()).toBe(true);
-      expect(createSlicesNode.state.startsTsColumn).toBe('custom_timestamp');
-      expect(createSlicesNode.state.endsTsColumn).toBe('another_ts_name');
+      expect(createSlicesNode.attrs.startsTsColumn).toBe('custom_timestamp');
+      expect(createSlicesNode.attrs.endsTsColumn).toBe('another_ts_name');
     });
 
     it('should auto-select duration column based on type, not name', () => {
@@ -910,23 +952,26 @@ describe('CreateSlicesNode', () => {
         createCol('end_duration', 'duration'),
       ]);
 
-      const createSlicesNode = new CreateSlicesNode({
-        startsNode,
-        endsNode,
-        startsMode: 'ts_dur',
-        endsMode: 'ts_dur',
-        startsTsColumn: '', // Empty to trigger auto-selection
-        endsTsColumn: '', // Empty to trigger auto-selection
-        startsDurColumn: '', // Empty to trigger auto-selection
-        endsDurColumn: '', // Empty to trigger auto-selection
-      });
+      const createSlicesNode = new CreateSlicesNode(
+        {
+          startsNode,
+          endsNode,
+          startsMode: 'ts_dur',
+          endsMode: 'ts_dur',
+          startsTsColumn: '', // Empty to trigger auto-selection
+          endsTsColumn: '', // Empty to trigger auto-selection
+          startsDurColumn: '', // Empty to trigger auto-selection
+          endsDurColumn: '', // Empty to trigger auto-selection
+        },
+        {},
+      );
 
       // Validation should pass and auto-select based on type
       expect(createSlicesNode.validate()).toBe(true);
-      expect(createSlicesNode.state.startsTsColumn).toBe('my_ts');
-      expect(createSlicesNode.state.endsTsColumn).toBe('end_ts');
-      expect(createSlicesNode.state.startsDurColumn).toBe('my_duration');
-      expect(createSlicesNode.state.endsDurColumn).toBe('end_duration');
+      expect(createSlicesNode.attrs.startsTsColumn).toBe('my_ts');
+      expect(createSlicesNode.attrs.endsTsColumn).toBe('end_ts');
+      expect(createSlicesNode.attrs.startsDurColumn).toBe('my_duration');
+      expect(createSlicesNode.attrs.endsDurColumn).toBe('end_duration');
     });
   });
 });

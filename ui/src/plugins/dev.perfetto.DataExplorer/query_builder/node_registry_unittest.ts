@@ -12,8 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NodeRegistry, NodeDescriptor, PreCreateContext} from './node_registry';
-import {QueryNode, NodeType, QueryNodeState} from '../query_node';
+import {
+  NodeRegistry,
+  NodeDescriptor,
+  PreCreateContext,
+  PreCreateState,
+} from './node_registry';
+import {QueryNode, NodeType} from '../query_node';
 
 describe('NodeRegistry', () => {
   function createMockNode(nodeId: string): QueryNode {
@@ -22,7 +27,8 @@ describe('NodeRegistry', () => {
       type: NodeType.kTable,
       nextNodes: [],
       finalCols: [],
-      state: {},
+      attrs: {},
+      context: {},
       validate: () => true,
       getTitle: () => 'Test',
       nodeSpecificModify: () => null,
@@ -30,7 +36,6 @@ describe('NodeRegistry', () => {
       nodeInfo: () => null,
       clone: () => createMockNode(nodeId),
       getStructuredQuery: () => undefined,
-      serializeState: () => ({}),
     } as QueryNode;
   }
 
@@ -49,7 +54,7 @@ describe('NodeRegistry', () => {
         description: 'A test node',
         icon: 'test-icon',
         type: 'source',
-        factory: (_state: QueryNodeState) => createMockNode('test'),
+        factory: (_state: PreCreateState) => createMockNode('test'),
       };
 
       registry.register('test-node', descriptor);
@@ -66,7 +71,7 @@ describe('NodeRegistry', () => {
         description: 'First node',
         icon: 'icon1',
         type: 'source',
-        factory: (_state: QueryNodeState) => createMockNode('node1'),
+        factory: (_state: PreCreateState) => createMockNode('node1'),
       };
       const descriptor2: NodeDescriptor = {
         ...defaults,
@@ -74,7 +79,7 @@ describe('NodeRegistry', () => {
         description: 'Second node',
         icon: 'icon2',
         type: 'modification',
-        factory: (_state: QueryNodeState) => createMockNode('node2'),
+        factory: (_state: PreCreateState) => createMockNode('node2'),
       };
 
       registry.register('node1', descriptor1);
@@ -92,7 +97,7 @@ describe('NodeRegistry', () => {
         description: 'First node',
         icon: 'icon1',
         type: 'source',
-        factory: (_state: QueryNodeState) => createMockNode('node1'),
+        factory: (_state: PreCreateState) => createMockNode('node1'),
       };
       const descriptor2: NodeDescriptor = {
         ...defaults,
@@ -100,7 +105,7 @@ describe('NodeRegistry', () => {
         description: 'Updated node',
         icon: 'icon1-updated',
         type: 'source',
-        factory: (_state: QueryNodeState) => createMockNode('node1-updated'),
+        factory: (_state: PreCreateState) => createMockNode('node1-updated'),
       };
 
       registry.register('node1', descriptor1);
@@ -122,7 +127,7 @@ describe('NodeRegistry', () => {
         type: 'multisource',
         hotkey: 'ctrl+a',
         preCreate,
-        factory: (_state: QueryNodeState) => createMockNode('advanced'),
+        factory: (_state: PreCreateState) => createMockNode('advanced'),
       };
 
       registry.register('advanced-node', descriptor);
@@ -150,7 +155,7 @@ describe('NodeRegistry', () => {
         description: 'A test node',
         icon: 'test-icon',
         type: 'source',
-        factory: (_state: QueryNodeState) => createMockNode('test'),
+        factory: (_state: PreCreateState) => createMockNode('test'),
       };
 
       registry.register('test-node', descriptor);
@@ -168,7 +173,7 @@ describe('NodeRegistry', () => {
         description: 'Node with special id',
         icon: 'special-icon',
         type: 'source',
-        factory: (_state: QueryNodeState) => createMockNode('special'),
+        factory: (_state: PreCreateState) => createMockNode('special'),
       };
 
       registry.register('node:with:special-chars_123', descriptor);
@@ -195,7 +200,7 @@ describe('NodeRegistry', () => {
         description: 'First node',
         icon: 'icon1',
         type: 'source',
-        factory: (_state: QueryNodeState) => createMockNode('node1'),
+        factory: (_state: PreCreateState) => createMockNode('node1'),
       };
       const descriptor2: NodeDescriptor = {
         ...defaults,
@@ -203,7 +208,7 @@ describe('NodeRegistry', () => {
         description: 'Second node',
         icon: 'icon2',
         type: 'modification',
-        factory: (_state: QueryNodeState) => createMockNode('node2'),
+        factory: (_state: PreCreateState) => createMockNode('node2'),
       };
       const descriptor3: NodeDescriptor = {
         ...defaults,
@@ -211,7 +216,7 @@ describe('NodeRegistry', () => {
         description: 'Third node',
         icon: 'icon3',
         type: 'multisource',
-        factory: (_state: QueryNodeState) => createMockNode('node3'),
+        factory: (_state: PreCreateState) => createMockNode('node3'),
       };
 
       registry.register('node1', descriptor1);
@@ -234,7 +239,7 @@ describe('NodeRegistry', () => {
         description: 'A test node',
         icon: 'test-icon',
         type: 'source',
-        factory: (_state: QueryNodeState) => createMockNode('test'),
+        factory: (_state: PreCreateState) => createMockNode('test'),
       };
 
       registry.register('test-node', descriptor);
@@ -254,7 +259,7 @@ describe('NodeRegistry', () => {
         description: 'First node',
         icon: 'icon1',
         type: 'source',
-        factory: (_state: QueryNodeState) => createMockNode('node1'),
+        factory: (_state: PreCreateState) => createMockNode('node1'),
       };
       const descriptor2: NodeDescriptor = {
         ...defaults,
@@ -262,7 +267,7 @@ describe('NodeRegistry', () => {
         description: 'Updated node',
         icon: 'icon1-updated',
         type: 'source',
-        factory: (_state: QueryNodeState) => createMockNode('node1-updated'),
+        factory: (_state: PreCreateState) => createMockNode('node1-updated'),
       };
 
       registry.register('node1', descriptor1);
@@ -542,7 +547,7 @@ describe('NodeRegistry', () => {
         description: 'A source node',
         icon: 'source-icon',
         type: 'source',
-        factory: (_state: QueryNodeState) => createMockNode('source'),
+        factory: (_state: PreCreateState) => createMockNode('source'),
       };
       registry.register('source-node', descriptor1);
       expect(registry.list().length).toBe(1);
@@ -555,7 +560,7 @@ describe('NodeRegistry', () => {
         description: 'A modification node',
         icon: 'modify-icon',
         type: 'modification',
-        factory: (_state: QueryNodeState) => createMockNode('modify'),
+        factory: (_state: PreCreateState) => createMockNode('modify'),
       };
       registry.register('modify-node', descriptor2);
       expect(registry.list().length).toBe(2);
@@ -568,7 +573,7 @@ describe('NodeRegistry', () => {
         description: 'Updated source node',
         icon: 'source-icon-updated',
         type: 'source',
-        factory: (_state: QueryNodeState) => createMockNode('source-updated'),
+        factory: (_state: PreCreateState) => createMockNode('source-updated'),
       };
       registry.register('source-node', descriptor1Updated);
       expect(registry.list().length).toBe(2);

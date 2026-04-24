@@ -25,18 +25,18 @@ import {unwrapResult} from '../../../../../base/result';
 describe('GroupNode', () => {
   describe('constructor', () => {
     it('should set type to kGroup', () => {
-      const group = new GroupNode([], undefined, []);
+      const group = new GroupNode({}, {}, [], undefined, []);
       expect(group.type).toBe(NodeType.kGroup);
     });
 
     it('should use default name "Group"', () => {
-      const group = new GroupNode([], undefined, []);
-      expect(group.name).toBe('Group');
+      const group = new GroupNode({}, {}, [], undefined, []);
+      expect(group.attrs.name).toBe('Group');
     });
 
     it('should accept a custom name', () => {
-      const group = new GroupNode([], undefined, [], {}, 'My Group');
-      expect(group.name).toBe('My Group');
+      const group = new GroupNode({name: 'My Group'}, {}, [], undefined, []);
+      expect(group.attrs.name).toBe('My Group');
     });
 
     it('should populate secondaryInputs from external connections', () => {
@@ -52,7 +52,7 @@ describe('GroupNode', () => {
         },
       ];
 
-      const group = new GroupNode([inner], inner, conns);
+      const group = new GroupNode({}, {}, [inner], inner, conns);
       expect(group.secondaryInputs.connections.size).toBe(1);
       expect(group.secondaryInputs.connections.get(0)).toBe(ext);
     });
@@ -62,75 +62,86 @@ describe('GroupNode', () => {
     it('should delegate to endNode finalCols', () => {
       const cols = STANDARD_TABLE_COLUMNS();
       const endNode = createMockNode({nodeId: 'end', columns: cols});
-      const group = new GroupNode([endNode], endNode, []);
+      const group = new GroupNode({}, {}, [endNode], endNode, []);
 
       expect(group.finalCols).toEqual(cols);
     });
 
     it('should return empty array when endNode is undefined', () => {
-      const group = new GroupNode([], undefined, []);
+      const group = new GroupNode({}, {}, [], undefined, []);
       expect(group.finalCols).toEqual([]);
     });
   });
 
   describe('validate', () => {
     it('should return false when innerNodes is empty', () => {
-      const group = new GroupNode([], createMockNode({nodeId: 'end'}), []);
+      const group = new GroupNode(
+        {},
+        {},
+        [],
+        createMockNode({nodeId: 'end'}),
+        [],
+      );
       expect(group.validate()).toBe(false);
     });
 
     it('should return false when endNode is undefined', () => {
       const inner = createMockNode({nodeId: 'a'});
-      const group = new GroupNode([inner], undefined, []);
+      const group = new GroupNode({}, {}, [inner], undefined, []);
       expect(group.validate()).toBe(false);
     });
 
     it('should return true when all inner nodes validate', () => {
       const a = createMockNode({nodeId: 'a', validate: () => true});
       const b = createMockNode({nodeId: 'b', validate: () => true});
-      const group = new GroupNode([a, b], b, []);
+      const group = new GroupNode({}, {}, [a, b], b, []);
       expect(group.validate()).toBe(true);
     });
 
     it('should return false when any inner node fails validation', () => {
       const a = createMockNode({nodeId: 'a', validate: () => true});
       const b = createMockNode({nodeId: 'b', validate: () => false});
-      const group = new GroupNode([a, b], b, []);
+      const group = new GroupNode({}, {}, [a, b], b, []);
       expect(group.validate()).toBe(false);
     });
   });
 
   describe('getTitle', () => {
     it('should return the group name', () => {
-      const group = new GroupNode([], undefined, [], {}, 'Test Group');
+      const group = new GroupNode({name: 'Test Group'}, {}, [], undefined, []);
       expect(group.getTitle()).toBe('Test Group');
     });
 
     it('should reflect name changes', () => {
-      const group = new GroupNode([], undefined, []);
-      group.name = 'Renamed';
+      const group = new GroupNode({}, {}, [], undefined, []);
+      group.attrs.name = 'Renamed';
       expect(group.getTitle()).toBe('Renamed');
     });
   });
 
-  describe('serializeState', () => {
-    it('should serialize name and innerNodeIds', () => {
+  describe('attrs', () => {
+    it('should store name in attrs', () => {
       const inner = createMockNode({nodeId: 'a'});
-      const group = new GroupNode([inner], inner, [], {}, 'Custom Name');
-      const serialized = group.serializeState();
-      expect(serialized).toEqual({name: 'Custom Name', innerNodeIds: ['a']});
+      const group = new GroupNode(
+        {name: 'Custom Name'},
+        {},
+        [inner],
+        inner,
+        [],
+      );
+      expect(group.attrs).toEqual({name: 'Custom Name'});
     });
   });
 
   describe('getStructuredQuery', () => {
     it('should return undefined when endNode is undefined', () => {
-      const group = new GroupNode([], undefined, []);
+      const group = new GroupNode({}, {}, [], undefined, []);
       expect(group.getStructuredQuery()).toBeUndefined();
     });
 
     it('should return passthrough query referencing endNode', () => {
       const endNode = createMockNode({nodeId: 'end'});
-      const group = new GroupNode([endNode], endNode, []);
+      const group = new GroupNode({}, {}, [endNode], endNode, []);
       const sq = group.getStructuredQuery();
       expect(sq).toBeDefined();
       if (sq !== undefined) {
@@ -163,10 +174,10 @@ describe('GroupNode', () => {
       const group = unwrapResult(
         createGroupFromSelection(new Set(['a', 'b']), [a, b]),
       );
-      group.name = 'My Custom Group';
+      group.attrs.name = 'My Custom Group';
       const cloned = group.clone();
 
-      expect(cloned.name).toBe('My Custom Group');
+      expect(cloned.attrs.name).toBe('My Custom Group');
     });
 
     it('should deep clone inner nodes', () => {
@@ -237,14 +248,14 @@ describe('GroupNode', () => {
       cloned.innerNodes.pop();
       expect(group.innerNodes).toHaveLength(2);
 
-      cloned.name = 'Changed';
-      expect(group.name).toBe('Group');
+      cloned.attrs.name = 'Changed';
+      expect(group.attrs.name).toBe('Group');
     });
   });
 
   describe('secondaryInputs port names', () => {
     it('should generate port names based on index', () => {
-      const group = new GroupNode([], undefined, []);
+      const group = new GroupNode({}, {}, [], undefined, []);
       const portNames = group.secondaryInputs.portNames;
       if (typeof portNames === 'function') {
         expect(portNames(0)).toBe('Input 1');

@@ -48,6 +48,7 @@ class SystemProbesParser {
   void ParseDiskStats(int64_t ts, ConstBytes blob);
   void ParseProcessFds(int64_t ts, uint32_t pid, ConstBytes);
   void ParseCpuIdleStats(int64_t ts, ConstBytes);
+  void ParseSlabInfo(int64_t ts, ConstBytes);
 
   TraceProcessorContext* const context_;
 
@@ -60,6 +61,9 @@ class SystemProbesParser {
   const StringId arm_cpu_variant;
   const StringId arm_cpu_part;
   const StringId arm_cpu_revision;
+
+  const StringId pages_per_slab_id_;
+  const StringId num_slabs_id_;
 
   std::vector<const char*> meminfo_strs_;
   std::vector<const char*> vmstat_strs_;

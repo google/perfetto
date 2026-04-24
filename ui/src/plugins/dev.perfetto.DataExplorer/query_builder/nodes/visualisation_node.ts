@@ -13,12 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  QueryNode,
-  QueryNodeState,
-  nextNodeId,
-  NodeType,
-} from '../../query_node';
+import {QueryNode, nextNodeId, NodeType, NodeContext} from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import {isQuantitativeType} from '../../../../trace_processor/perfetto_sql_type';
@@ -187,7 +182,8 @@ export function getDefaultChartLabel(config: ChartConfig): string {
   }
 }
 
-export interface VisualisationNodeState extends QueryNodeState {
+// Serializable node configuration.
+export interface VisualisationNodeAttrs {
   /** Array of chart configurations - multiple charts per node */
   chartConfigs: ChartConfig[];
   /** Shared filters applied to all charts */
@@ -200,20 +196,36 @@ export class VisualisationNode implements QueryNode {
   primaryInput?: QueryNode;
   secondaryInputs?: undefined;
   nextNodes: QueryNode[];
-  readonly state: VisualisationNodeState;
+  readonly attrs: VisualisationNodeAttrs;
+  readonly context: NodeContext;
 
   // UI-only state for tracking collapsed charts (not persisted)
   private collapsedCharts: Set<string> = new Set();
   // UI-only state for tracking which chart title is being edited
   private editingChartId?: string;
 
-  constructor(state: Partial<VisualisationNodeState>) {
+  constructor(attrs: VisualisationNodeAttrs, context: NodeContext) {
     this.nodeId = nextNodeId();
-    this.state = {
-      ...state,
-      chartConfigs: state.chartConfigs ?? [],
-      chartFilters: state.chartFilters ?? [],
+    // Migrate filter values from strings back to numbers when appropriate.
+    // JSON serialization converts BigInt to string, and we need numeric
+    // values for proper filtering (same logic as FilterNode).
+    const chartFilters = attrs.chartFilters?.map((f): Partial<UIFilter> => {
+      if ('value' in f && typeof f.value === 'string') {
+        if (!Array.isArray(f.value)) {
+          const parsed = parseFilterValue(f.value);
+          if (parsed !== undefined && parsed !== f.value) {
+            return {...f, value: parsed} as Partial<UIFilter>;
+          }
+        }
+      }
+      return f;
+    });
+    this.attrs = {
+      ...attrs,
+      chartConfigs: attrs.chartConfigs ?? [],
+      chartFilters: chartFilters ?? [],
     };
+    this.context = context;
     this.nextNodes = [];
   }
 
@@ -239,7 +251,7 @@ export class VisualisationNode implements QueryNode {
       chartType === 'cdf'
     ) {
       return this.sourceCols.filter((col) => {
-        const type = col.column.type;
+        const type = col.type;
         return type !== undefined && isQuantitativeType(type);
       });
     }
@@ -265,21 +277,21 @@ export class VisualisationNode implements QueryNode {
 
   /** Number of charts that have a column selected. */
   private configuredChartCount(): number {
-    return this.state.chartConfigs.filter((c) => c.column).length;
+    return this.attrs.chartConfigs.filter((c) => c.column).length;
   }
 
   private setValidationError(message: string): void {
-    if (!this.state.issues) {
-      this.state.issues = new NodeIssues();
+    if (!this.context.issues) {
+      this.context.issues = new NodeIssues();
     }
-    this.state.issues.queryError = new Error(message);
+    this.context.issues.queryError = new Error(message);
   }
 
   nodeDetails(): NodeDetailsAttrs {
     this.validate();
 
     const validFilters =
-      this.state.chartFilters?.filter((f) => this.isFilterValid(f)) ?? [];
+      this.attrs.chartFilters?.filter((f) => this.isFilterValid(f)) ?? [];
 
     const configuredCount = this.configuredChartCount();
     if (configuredCount === 0) {
@@ -324,13 +336,13 @@ export class VisualisationNode implements QueryNode {
     const sections: NodeModifyAttrs['sections'] = [];
 
     // Chart cards container
-    const chartCards = this.state.chartConfigs.map((config) => {
+    const chartCards = this.attrs.chartConfigs.map((config) => {
       const chartTypeIcon =
         config.chartType === 'bar' ? 'bar_chart' : 'ssid_chart';
       const defaultLabel = getDefaultChartLabel(config);
 
       // Filters matching this chart's column
-      const chartFilters = (this.state.chartFilters?.filter(
+      const chartFilters = (this.attrs.chartFilters?.filter(
         (f) => this.isFilterValid(f) && f.column === config.column,
       ) ?? []) as UIFilter[];
       const hasFilters = chartFilters.length > 0;
@@ -429,7 +441,7 @@ export class VisualisationNode implements QueryNode {
                         onclick: (e: Event) => {
                           e.stopPropagation();
                           this.clearChartFiltersForColumn(config.column);
-                          this.state.onchange?.();
+                          this.context.onchange?.();
                         },
                         title: 'Clear filters for this chart',
                       },
@@ -438,7 +450,7 @@ export class VisualisationNode implements QueryNode {
                   ],
                 ),
               // Remove button (only show if more than one chart)
-              this.state.chartConfigs.length > 1 &&
+              this.attrs.chartConfigs.length > 1 &&
                 m(Button, {
                   icon: 'close',
                   compact: true,
@@ -471,7 +483,7 @@ export class VisualisationNode implements QueryNode {
                     onRemove: () => {
                       // Find the index in the full filters array
                       const fullIndex =
-                        this.state.chartFilters?.indexOf(filter) ?? -1;
+                        this.attrs.chartFilters?.indexOf(filter) ?? -1;
                       if (fullIndex >= 0) {
                         this.removeChartFilter(fullIndex);
                       }
@@ -540,7 +552,7 @@ export class VisualisationNode implements QueryNode {
   addChart(chartType: ChartType = 'bar'): void {
     // Get columns already used by existing charts
     const usedColumns = new Set(
-      this.state.chartConfigs.map((c) => c.column).filter(Boolean),
+      this.attrs.chartConfigs.map((c) => c.column).filter(Boolean),
     );
 
     // Find a good default column:
@@ -553,7 +565,7 @@ export class VisualisationNode implements QueryNode {
 
     // Prefer string/categorical columns for aggregation charts
     const stringCol = colsToCheck.find(
-      (c) => c.column.type === undefined || !isQuantitativeType(c.column.type),
+      (c) => c.type === undefined || !isQuantitativeType(c.type),
     );
     const defaultColumn = stringCol?.name ?? colsToCheck[0]?.name ?? '';
 
@@ -562,8 +574,8 @@ export class VisualisationNode implements QueryNode {
       column: defaultColumn,
       chartType,
     };
-    this.state.chartConfigs.push(newChart);
-    this.state.onchange?.();
+    this.attrs.chartConfigs.push(newChart);
+    this.context.onchange?.();
   }
 
   /**
@@ -573,27 +585,27 @@ export class VisualisationNode implements QueryNode {
     chartId: string,
     updates: Partial<Omit<ChartConfig, 'id'>>,
   ): void {
-    const chartIndex = this.state.chartConfigs.findIndex(
+    const chartIndex = this.attrs.chartConfigs.findIndex(
       (c) => c.id === chartId,
     );
     if (chartIndex === -1) return;
 
-    const config = this.state.chartConfigs[chartIndex];
-    this.state.chartConfigs[chartIndex] = {
+    const config = this.attrs.chartConfigs[chartIndex];
+    this.attrs.chartConfigs[chartIndex] = {
       ...config,
       ...updates,
     };
-    this.state.onchange?.();
+    this.context.onchange?.();
   }
 
   /**
    * Remove a chart configuration by ID.
    */
   removeChart(chartId: string): void {
-    this.state.chartConfigs = this.state.chartConfigs.filter(
+    this.attrs.chartConfigs = this.attrs.chartConfigs.filter(
       (c) => c.id !== chartId,
     );
-    this.state.onchange?.();
+    this.context.onchange?.();
   }
 
   /**
@@ -601,12 +613,12 @@ export class VisualisationNode implements QueryNode {
    * Creates a copy with a new ID placed after the original.
    */
   duplicateChart(chartId: string): void {
-    const chartIndex = this.state.chartConfigs.findIndex(
+    const chartIndex = this.attrs.chartConfigs.findIndex(
       (c) => c.id === chartId,
     );
     if (chartIndex === -1) return;
 
-    const original = this.state.chartConfigs[chartIndex];
+    const original = this.attrs.chartConfigs[chartIndex];
     const duplicate: ChartConfig = {
       ...original,
       id: generateChartId(),
@@ -614,8 +626,8 @@ export class VisualisationNode implements QueryNode {
     };
 
     // Insert after the original
-    this.state.chartConfigs.splice(chartIndex + 1, 0, duplicate);
-    this.state.onchange?.();
+    this.attrs.chartConfigs.splice(chartIndex + 1, 0, duplicate);
+    this.context.onchange?.();
   }
 
   /**
@@ -624,7 +636,7 @@ export class VisualisationNode implements QueryNode {
    * @param targetId The ID of the chart to drop before
    */
   reorderChart(draggedId: string, targetId: string): void {
-    const configs = this.state.chartConfigs;
+    const configs = this.attrs.chartConfigs;
     const draggedIndex = configs.findIndex((c) => c.id === draggedId);
     const targetIndex = configs.findIndex((c) => c.id === targetId);
 
@@ -641,7 +653,7 @@ export class VisualisationNode implements QueryNode {
     // Insert at new position
     configs.splice(newTargetIndex, 0, draggedItem);
 
-    this.state.onchange?.();
+    this.context.onchange?.();
   }
 
   nodeInfo(): m.Children {
@@ -649,8 +661,8 @@ export class VisualisationNode implements QueryNode {
   }
 
   validate(): boolean {
-    if (this.state.issues) {
-      this.state.issues.clear();
+    if (this.context.issues) {
+      this.context.issues.clear();
     }
 
     if (this.primaryInput === undefined) {
@@ -674,12 +686,13 @@ export class VisualisationNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    const stateCopy: Partial<VisualisationNodeState> = {
-      chartConfigs: this.state.chartConfigs.map((c) => ({...c})),
-      chartFilters: this.state.chartFilters?.map((f) => ({...f})),
-      onchange: this.state.onchange,
-    };
-    return new VisualisationNode(stateCopy);
+    return new VisualisationNode(
+      {
+        chartConfigs: this.attrs.chartConfigs.map((c) => ({...c})),
+        chartFilters: this.attrs.chartFilters?.map((f) => ({...f})),
+      },
+      this.context,
+    );
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -687,7 +700,7 @@ export class VisualisationNode implements QueryNode {
 
     // Get valid filters
     const validFilters =
-      this.state.chartFilters?.filter((f) => this.isFilterValid(f)) ?? [];
+      this.attrs.chartFilters?.filter((f) => this.isFilterValid(f)) ?? [];
 
     if (validFilters.length === 0) {
       // No filters - return passthrough
@@ -715,11 +728,11 @@ export class VisualisationNode implements QueryNode {
    * This is called by the chart component when a user clicks on a bar/bin.
    */
   addChartFilter(filter: UIFilter): void {
-    if (!this.state.chartFilters) {
-      this.state.chartFilters = [];
+    if (!this.attrs.chartFilters) {
+      this.attrs.chartFilters = [];
     }
-    this.state.chartFilters.push({...filter, enabled: true});
-    this.state.onchange?.();
+    this.attrs.chartFilters.push({...filter, enabled: true});
+    this.context.onchange?.();
   }
 
   /**
@@ -727,32 +740,32 @@ export class VisualisationNode implements QueryNode {
    * Creates two filters: column >= min AND column < max
    */
   addRangeFilter(column: string, min: number, max: number): void {
-    if (!this.state.chartFilters) {
-      this.state.chartFilters = [];
+    if (!this.attrs.chartFilters) {
+      this.attrs.chartFilters = [];
     }
     // Add >= min filter
-    this.state.chartFilters.push({
+    this.attrs.chartFilters.push({
       column,
       op: '>=',
       value: min,
       enabled: true,
     });
     // Add < max filter
-    this.state.chartFilters.push({
+    this.attrs.chartFilters.push({
       column,
       op: '<',
       value: max,
       enabled: true,
     });
-    this.state.onchange?.();
+    this.context.onchange?.();
   }
 
   /**
    * Clear all chart filters.
    */
   clearChartFilters(): void {
-    this.state.chartFilters = [];
-    this.state.onchange?.();
+    this.attrs.chartFilters = [];
+    this.context.onchange?.();
   }
 
   /**
@@ -762,12 +775,12 @@ export class VisualisationNode implements QueryNode {
    * Does NOT call `onchange`. Use this when immediately followed by a method
    * that adds replacement filters and calls `onchange` (e.g. `setBrushSelection`,
    * `addRangeFilter`). If clearing filters is the final operation, callers must
-   * call `this.state.onchange?.()` themselves — or use `clearChartFilters()`
+   * call `this.context.onchange?.()` themselves — or use `clearChartFilters()`
    * which handles it automatically.
    */
   clearChartFiltersForColumn(column: string): void {
-    if (!this.state.chartFilters) return;
-    this.state.chartFilters = this.state.chartFilters.filter(
+    if (!this.attrs.chartFilters) return;
+    this.attrs.chartFilters = this.attrs.chartFilters.filter(
       (f) => f.column !== column,
     );
   }
@@ -777,15 +790,15 @@ export class VisualisationNode implements QueryNode {
    * Calls onchange to rebuild query so child nodes see filtered data.
    */
   toggleChartFilter(index: number): void {
-    if (!this.state.chartFilters || index >= this.state.chartFilters.length) {
+    if (!this.attrs.chartFilters || index >= this.attrs.chartFilters.length) {
       return;
     }
-    const filter = this.state.chartFilters[index];
-    this.state.chartFilters[index] = {
+    const filter = this.attrs.chartFilters[index];
+    this.attrs.chartFilters[index] = {
       ...filter,
       enabled: !(filter.enabled ?? true),
     };
-    this.state.onchange?.();
+    this.context.onchange?.();
   }
 
   /**
@@ -793,13 +806,13 @@ export class VisualisationNode implements QueryNode {
    * Calls onchange to rebuild query so child nodes see filtered data.
    */
   removeChartFilter(index: number): void {
-    if (!this.state.chartFilters || index >= this.state.chartFilters.length) {
+    if (!this.attrs.chartFilters || index >= this.attrs.chartFilters.length) {
       return;
     }
-    this.state.chartFilters = this.state.chartFilters.filter(
+    this.attrs.chartFilters = this.attrs.chartFilters.filter(
       (_, i) => i !== index,
     );
-    this.state.onchange?.();
+    this.context.onchange?.();
   }
 
   /**
@@ -808,18 +821,18 @@ export class VisualisationNode implements QueryNode {
    * Note: Caller should call clearChartFiltersForColumn() first if needed.
    */
   setBrushSelection(column: string, values: SqlValue[]): void {
-    if (!this.state.chartFilters) {
-      this.state.chartFilters = [];
+    if (!this.attrs.chartFilters) {
+      this.attrs.chartFilters = [];
     }
     for (const value of values) {
       if (value === null) {
-        this.state.chartFilters.push({
+        this.attrs.chartFilters.push({
           column,
           op: 'is null',
           enabled: true,
         });
       } else {
-        this.state.chartFilters.push({
+        this.attrs.chartFilters.push({
           column,
           op: '=',
           value,
@@ -828,66 +841,6 @@ export class VisualisationNode implements QueryNode {
       }
     }
 
-    this.state.onchange?.();
-  }
-
-  serializeState(): object {
-    return {
-      primaryInputId: this.primaryInput?.nodeId,
-      chartConfigs: this.state.chartConfigs.map((c) => ({
-        id: c.id,
-        name: c.name,
-        column: c.column,
-        chartType: c.chartType,
-        binCount: c.binCount,
-        orientation: c.orientation,
-        widthPx: c.widthPx,
-        aggregation: c.aggregation,
-        measureColumn: c.measureColumn,
-        yColumn: c.yColumn,
-        groupColumn: c.groupColumn,
-        sizeColumn: c.sizeColumn,
-      })),
-      chartFilters: this.state.chartFilters?.map((f) => {
-        if ('value' in f) {
-          return {
-            column: f.column,
-            op: f.op,
-            value: f.value,
-            enabled: f.enabled,
-          };
-        } else {
-          return {
-            column: f.column,
-            op: f.op,
-            enabled: f.enabled,
-          };
-        }
-      }),
-    };
-  }
-
-  static deserializeState(
-    state: Partial<VisualisationNodeState>,
-  ): Partial<VisualisationNodeState> {
-    // Convert filter values from strings back to numbers when appropriate.
-    // JSON serialization converts BigInt to string, and we need numeric
-    // values for proper filtering (same logic as FilterNode).
-    const chartFilters = state.chartFilters?.map((f): Partial<UIFilter> => {
-      if ('value' in f && typeof f.value === 'string') {
-        if (!Array.isArray(f.value)) {
-          const parsed = parseFilterValue(f.value);
-          if (parsed !== undefined && parsed !== f.value) {
-            return {...f, value: parsed} as Partial<UIFilter>;
-          }
-        }
-      }
-      return {...f};
-    });
-    return {
-      ...state,
-      chartConfigs: state.chartConfigs?.map((c) => ({...c})) ?? [],
-      chartFilters,
-    };
+    this.context.onchange?.();
   }
 }

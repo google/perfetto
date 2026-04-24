@@ -816,10 +816,10 @@ export async function getInstance(
   const objRes = await engine.query(`
     SELECT
       o.id,
+      o.type_id,
       c.name AS cls,
       c.deobfuscated_name AS deob,
       c.kind AS class_kind,
-      sc.name AS super_cls,
       o.self_size,
       o.native_size,
       o.heap_type,
@@ -834,7 +834,6 @@ export async function getInstance(
       d.dominated_obj_count
     FROM heap_graph_object o
     JOIN heap_graph_class c ON o.type_id = c.id
-    LEFT JOIN heap_graph_class sc ON c.superclass_id = sc.id
     LEFT JOIN heap_graph_dominator_tree d ON d.id = o.id
     LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
     WHERE o.id = ${id}
@@ -842,10 +841,10 @@ export async function getInstance(
 
   const oit = objRes.iter({
     id: NUM,
+    type_id: NUM,
     cls: STR,
     deob: STR_NULL,
     class_kind: STR,
-    super_cls: STR_NULL,
     self_size: NUM,
     native_size: NUM,
     heap_type: STR_NULL,
@@ -863,7 +862,7 @@ export async function getInstance(
 
   const fullClassName = className(oit.cls, oit.deob);
   const classKind = oit.class_kind;
-  const superClassName = oit.super_cls;
+  const typeId = oit.type_id;
   const refSetId = oit.reference_set_id;
   const fieldSetId = oit.field_set_id;
   const arrayDataId = oit.array_data_id;
@@ -1084,31 +1083,7 @@ export async function getInstance(
     }
   }
 
-  // Resolve superclass object id (the java.lang.Class<Super> heap object).
-  let superClassObjId: number | null = null;
-  if (superClassName !== null) {
-    const superObjName = `java.lang.Class<${superClassName}>`.replace(
-      /'/g,
-      "''",
-    );
-    const superRes = await engine.query(`
-      SELECT o.id
-      FROM heap_graph_object o
-      JOIN heap_graph_class c ON o.type_id = c.id
-      WHERE (c.name = '${superObjName}'
-        OR c.deobfuscated_name = '${superObjName}')
-
-    `);
-    const sit = superRes.iter({id: NUM});
-    if (sit.valid()) superClassObjId = sit.id;
-  }
-
-  // Extract forClassName for class objects: "java.lang.Class<Foo>" → "Foo"
-  let forClassName: string | null = null;
-  if (isClassObj) {
-    const match = fullClassName.match(/^java\.lang\.Class<(.+)>$/);
-    forClassName = match ? match[1] : fullClassName;
-  }
+  const classHierarchy = await getClassHierarchy(engine, typeId);
 
   return {
     row,
@@ -1116,9 +1091,8 @@ export async function getInstance(
     isArrayInstance,
     isClassInstance: !isClassObj && !isArrayInstance,
     classObjRow,
-    forClassName,
-    superClassObjId,
     instanceSize: row.shallowJava,
+    classHierarchy,
     staticFields,
     instanceFields,
     elemTypeName,
@@ -1129,6 +1103,88 @@ export async function getInstance(
     dominated,
     pathFromRoot,
   };
+}
+
+/**
+ * Superclass chain of `startClassId`, ordered starting-class first. The DFS
+ * over `id → superclass_id` is a linear chain under single inheritance, so
+ * we walk it by following each row's `parent_node_id` (the DFS predecessor,
+ * i.e. the subclass that discovered this ancestor).
+ */
+export async function getClassHierarchy(
+  engine: Engine,
+  startClassId: number,
+): Promise<string[]> {
+  const res = await engine.query(`
+    INCLUDE PERFETTO MODULE graphs.search;
+
+    SELECT
+      dfs.node_id AS class_id,
+      dfs.parent_node_id AS child_class_id,
+      coalesce(c.deobfuscated_name, c.name) AS name
+    FROM graph_reachable_dfs!(
+      (SELECT id AS source_node_id, superclass_id AS dest_node_id
+       FROM heap_graph_class WHERE superclass_id IS NOT NULL),
+      (SELECT ${startClassId} AS node_id)
+    ) AS dfs
+    JOIN heap_graph_class c ON c.id = dfs.node_id
+  `);
+
+  type Row = {classId: number; childClassId: number | null; className: string};
+  const rows: Row[] = [];
+  for (
+    const it = res.iter({
+      class_id: NUM,
+      child_class_id: NUM_NULL,
+      name: STR,
+    });
+    it.valid();
+    it.next()
+  ) {
+    rows.push({
+      classId: it.class_id,
+      childClassId: it.child_class_id,
+      className: it.name,
+    });
+  }
+
+  const byChildId = new Map<number, Row>();
+  let start: Row | undefined;
+  for (const r of rows) {
+    if (r.classId === startClassId) start = r;
+    else if (r.childClassId !== null) byChildId.set(r.childClassId, r);
+  }
+
+  const chain: string[] = [];
+  for (let cur = start; cur !== undefined; cur = byChildId.get(cur.classId)) {
+    chain.push(cur.className);
+  }
+  return chain;
+}
+
+/** Transitive subclass names of `rootName` (including the root itself). */
+export async function getSubclassNames(
+  engine: Engine,
+  rootName: string,
+): Promise<string[]> {
+  const res = await engine.query(`
+    INCLUDE PERFETTO MODULE graphs.search;
+
+    SELECT coalesce(c.deobfuscated_name, c.name) AS name
+    FROM graph_reachable_dfs!(
+      (SELECT superclass_id AS source_node_id, id AS dest_node_id
+       FROM heap_graph_class WHERE superclass_id IS NOT NULL),
+      (SELECT id AS node_id FROM heap_graph_class
+       WHERE coalesce(deobfuscated_name, name) = '${sqlEsc(rootName)}'
+       LIMIT 1)
+    ) AS dfs
+    JOIN heap_graph_class c ON c.id = dfs.node_id
+  `);
+  const names: string[] = [];
+  for (const it = res.iter({name: STR}); it.valid(); it.next()) {
+    names.push(it.name);
+  }
+  return names;
 }
 
 export async function getRawArrayBlob(

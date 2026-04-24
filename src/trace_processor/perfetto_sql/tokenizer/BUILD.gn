@@ -22,35 +22,11 @@ source_set("tokenizer") {
     "sqlite_tokenizer.h",
   ]
   deps = [
-    ":tokenize_internal",
     "../../../../gn:default_deps",
-    "../../../../gn:sqlite",
     "../../../base",
     "../../sqlite",
-    "../grammar",
+    "../syntaqlite",
   ]
-}
-
-source_set("tokenize_internal") {
-  sources = [
-    "tokenize_internal.c",
-    "tokenize_internal_helper.h",
-  ]
-  deps = [
-    "../../../../gn:default_deps",
-    "../grammar",
-  ]
-  visibility = [ ":tokenizer" ]
-  if (perfetto_build_standalone) {
-    configs -= [ "//gn/standalone:extra_warnings" ]  # nogncheck
-  } else {
-    cflags_c = [
-      "-Wno-implicit-fallthrough",
-      "-Wno-unused-function",
-      "-Wno-unused-parameter",
-      "-Wno-unreachable-code",
-    ]
-  }
 }
 
 perfetto_unittest_source_set("unittests") {

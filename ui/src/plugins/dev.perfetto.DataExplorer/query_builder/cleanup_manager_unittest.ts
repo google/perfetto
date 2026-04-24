@@ -52,10 +52,10 @@ describe('CleanupManager', () => {
   });
 
   function createTestNode(id: string): QueryNode {
-    const node = new TableSourceNode({
-      trace: mockTrace,
-      sqlModules: mockSqlModules,
-    }) as QueryNode;
+    const node = new TableSourceNode(
+      {},
+      {trace: mockTrace, sqlModules: mockSqlModules},
+    ) as QueryNode;
     // Use Object.defineProperty to set nodeId since it's readonly
     Object.defineProperty(node, 'nodeId', {value: id, writable: false});
     return node;

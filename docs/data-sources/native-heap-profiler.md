@@ -309,88 +309,13 @@ This dump will show up in addition to the dump at the end of the profile that is
 always produced. You can create multiple of these dumps, and they will be
 enumerated in the output directory.
 
-## Symbolization
+## Symbolization and deobfuscation
 
-### Set up llvm-symbolizer
-
-You only need to do this once.
-
-To use symbolization, your system must have llvm-symbolizer installed and
-accessible from `$PATH` as `llvm-symbolizer`. On Debian, you can install it
-using `sudo apt install llvm`.
-
-### Symbolize your profile
-
-If the profiled binary or libraries do not have symbol names, you can
-symbolize profiles offline. Even if they do, you might want to symbolize in
-order to get inlined function and line number information. All tools
-(traceconv, trace_processor_shell, the heap_profile script) support specifying
-the `PERFETTO_BINARY_PATH` as an environment variable.
-
-```
-PERFETTO_BINARY_PATH=somedir tools/heap_profile --name ${NAME}
-```
-
-You can persist symbols for a trace by running
-`PERFETTO_BINARY_PATH=somedir tools/traceconv symbolize raw-trace > symbols`.
-You can then concatenate the symbols to the trace (
-`cat raw-trace symbols > symbolized-trace`) and the symbols will part of
-`symbolized-trace`. The `tools/heap_profile` script will also generate this
-file in your output directory, if `PERFETTO_BINARY_PATH` is used.
-
-The symbol file is the first with matching Build ID in the following order:
-
-1. absolute path of library file relative to binary path.
-2. absolute path of library file relative to binary path, but with base.apk!
-    removed from filename.
-3. basename of library file relative to binary path.
-4. basename of library file relative to binary path, but with base.apk!
-    removed from filename.
-5. in the subdirectory .build-id: the first two hex digits of the build-id
-    as subdirectory, then the rest of the hex digits, with ".debug" appended.
-    See
-    https://fedoraproject.org/wiki/RolandMcGrath/BuildID#Find_files_by_build_ID
-
-For example, "/system/lib/base.apk!foo.so" with build id abcd1234,
-is looked for at:
-
-1. $PERFETTO_BINARY_PATH/system/lib/base.apk!foo.so
-2. $PERFETTO_BINARY_PATH/system/lib/foo.so
-3. $PERFETTO_BINARY_PATH/base.apk!foo.so
-4. $PERFETTO_BINARY_PATH/foo.so
-5. $PERFETTO_BINARY_PATH/.build-id/ab/cd1234.debug
-
-Alternatively, you can set the `PERFETTO_SYMBOLIZER_MODE` environment variable
-to `index`, and the symbolizer will recursively search the given directory for
-an ELF file with the given build id. This way, you will not have to worry
-about correct filenames.
-
-## Deobfuscation
-
-If your profile contains obfuscated Java methods (like `fsd.a`), you can
-provide a deobfuscation map to turn them back into human readable.
-To do so, use the `PERFETTO_PROGUARD_MAP` environment variable, using the
-format `packagename=map_filename[:packagename=map_filename...]`, e.g.
-`PERFETTO_PROGUARD_MAP=com.example.pkg1=foo.txt:com.example.pkg2=bar.txt`.
-All tools (traceconv, trace_processor_shell, the heap_profile script) support
-specifying the `PERFETTO_PROGUARD_MAP` as an environment variable.
-
-```
-PERFETTO_PROGUARD_MAP=com.example.pkg1=proguard_map1.txt:com.example.pkg2=proguard_map2.txt ./tools/heap_profile -n com.example.app
-```
-
-You can get a deobfuscation map for the trace you already collected using
-`tools/traceconv deobfuscate`. Then concatenate the resulting file to your
-trace to get a deobfuscated version of it (the input trace should be in the
-perfetto format, otherwise concatenation will not produce a reasonable output).
-
-```
-PERFETTO_PROGUARD_MAP=com.example.pkg=proguard_map.txt tools/traceconv deobfuscate ${TRACE} > deobfuscation_map
-cat ${TRACE} deobfuscation_map > deobfuscated_trace
-```
-
-`deobfuscated_trace` can be viewed in the
-[Perfetto UI](https://ui.perfetto.dev).
+If your profile shows raw addresses or obfuscated Java/Kotlin names, run
+`traceconv bundle` against the collected trace to produce an enriched
+archive. See [Symbolization and deobfuscation](/docs/learning-more/symbolization.md)
+for the full workflow, including the legacy `PERFETTO_BINARY_PATH` /
+`PERFETTO_PROGUARD_MAP` approach.
 
 ## Troubleshooting
 
@@ -420,45 +345,11 @@ Also, if your code is linked using _Identical Code Folding_
 constructors and destructors, can be aliased to binary-equivalent operators
 of completely unrelated classes.
 
-### Symbolization: Could not find library
+### Symbolization issues
 
-When symbolizing a profile, you might come across messages like this:
-
-```bash
-Could not find /data/app/invalid.app-wFgo3GRaod02wSvPZQ==/lib/arm64/somelib.so
-(Build ID: 44b7138abd5957b8d0a56ce86216d478).
-```
-
-Check whether your library (in this example somelib.so) exists in
-`PERFETTO_BINARY_PATH`. Then compare the Build ID to the one in your
-symbol file, which you can get by running
-`readelf -n /path/in/binary/path/somelib.so`. If it does not match, the
-symbolized file has a different version than the one on device, and cannot
-be used for symbolization.
-If it does, try moving somelib.so to the root of `PERFETTO_BINARY_PATH` and
-try again.
-
-### Only one frame shown
-If you only see a single frame for functions in a specific library, make sure
-that the library has unwind information. We need one of
-
-* `.gnu_debugdata`
-* `.eh_frame` (+ preferably `.eh_frame_hdr`)
-* `.debug_frame`.
-
-Frame-pointer unwinding is *not supported*.
-
-To check if an ELF file has any of those, run
-
-```console
-$ readelf -S file.so | grep "gnu_debugdata\|eh_frame\|debug_frame"
-  [12] .eh_frame_hdr     PROGBITS         000000000000c2b0  0000c2b0
-  [13] .eh_frame         PROGBITS         0000000000011000  00011000
-  [24] .gnu_debugdata    PROGBITS         0000000000000000  000f7292
-```
-
-If this does not show one or more of the sections, change your build system
-to not strip them.
+For "could not find library", Build ID mismatches and "only one frame shown"
+problems, see the troubleshooting section in
+[Symbolization and deobfuscation](/docs/learning-more/symbolization.md#troubleshooting).
 
 ## (non-Android) Linux support
 
@@ -533,7 +424,8 @@ be correctly tracked.
 
 ### {#known-issues-android10} Android 10
 * Function names in libraries with load bias might be incorrect. Use
-  [offline symbolization](#symbolization) to resolve this issue.
+  [offline symbolization](/docs/learning-more/symbolization.md) to resolve this
+  issue.
 * For startup profiles, some frame names might be missing. This will be
   resolved in Android 12.
 * 32-bit programs cannot be targeted on 64-bit devices.

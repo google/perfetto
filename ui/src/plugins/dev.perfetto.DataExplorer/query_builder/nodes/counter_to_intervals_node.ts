@@ -12,12 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  QueryNode,
-  nextNodeId,
-  NodeType,
-  QueryNodeState,
-} from '../../query_node';
+import {QueryNode, nextNodeId, NodeType, NodeContext} from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import m from 'mithril';
@@ -28,23 +23,29 @@ import {NodeDetailsMessage} from '../node_styling_widgets';
 import {loadNodeDoc} from '../node_doc_loader';
 import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';
 
-export interface CounterToIntervalsNodeState extends QueryNodeState {}
+// Serializable node configuration (empty — no config fields).
+export interface CounterToIntervalsNodeAttrs {}
 
 export class CounterToIntervalsNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kCounterToIntervals;
   primaryInput?: QueryNode;
   nextNodes: QueryNode[];
-  readonly state: CounterToIntervalsNodeState;
+  readonly attrs: CounterToIntervalsNodeAttrs;
+  readonly context: NodeContext;
 
-  constructor(state: CounterToIntervalsNodeState = {}) {
+  constructor(
+    attrs: CounterToIntervalsNodeAttrs = {},
+    context: NodeContext = {},
+  ) {
     this.nodeId = nextNodeId();
-    this.state = state;
+    this.attrs = {...attrs};
+    this.context = context;
     this.nextNodes = [];
   }
 
   onPrevNodesUpdated(): void {
-    this.state.onchange?.();
+    this.context.onchange?.();
   }
 
   get sourceCols(): ColumnInfo[] {
@@ -68,21 +69,21 @@ export class CounterToIntervalsNode implements QueryNode {
     cols.push({
       name: 'dur',
       checked: true,
-      column: {name: 'dur', type: PerfettoSqlTypes.DURATION},
+      type: PerfettoSqlTypes.DURATION,
     });
 
     // next_value: the value of the next counter
     cols.push({
       name: 'next_value',
       checked: true,
-      column: {name: 'next_value', type: PerfettoSqlTypes.DOUBLE},
+      type: PerfettoSqlTypes.DOUBLE,
     });
 
     // delta_value: the change in value (next_value - value)
     cols.push({
       name: 'delta_value',
       checked: true,
-      column: {name: 'delta_value', type: PerfettoSqlTypes.DOUBLE},
+      type: PerfettoSqlTypes.DOUBLE,
     });
 
     return cols;
@@ -104,30 +105,30 @@ export class CounterToIntervalsNode implements QueryNode {
 
   validate(): boolean {
     // Clear any previous errors
-    if (this.state.issues) {
-      this.state.issues.clear();
+    if (this.context.issues) {
+      this.context.issues.clear();
     }
 
     if (this.primaryInput === undefined) {
-      setValidationError(this.state, 'No input node connected');
+      setValidationError(this.context, 'No input node connected');
       return false;
     }
 
     if (!this.primaryInput.validate()) {
-      setValidationError(this.state, 'Previous node is invalid');
+      setValidationError(this.context, 'Previous node is invalid');
       return false;
     }
 
     // Verify that source has at least one row of data (not empty)
     if (this.sourceCols.length === 0) {
-      setValidationError(this.state, 'Input has no columns');
+      setValidationError(this.context, 'Input has no columns');
       return false;
     }
 
     // Check that input has required columns for counter data
     if (!this.hasRequiredColumns()) {
       setValidationError(
-        this.state,
+        this.context,
         'Input must have id, ts, track_id, and value columns',
       );
       return false;
@@ -136,7 +137,7 @@ export class CounterToIntervalsNode implements QueryNode {
     // Check that input does NOT already have dur (it's counter data, not interval data)
     if (this.hasDurColumn()) {
       setValidationError(
-        this.state,
+        this.context,
         'Input already has dur column (already interval data)',
       );
       return false;
@@ -162,10 +163,7 @@ export class CounterToIntervalsNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    const stateCopy: CounterToIntervalsNodeState = {
-      onchange: this.state.onchange,
-    };
-    return new CounterToIntervalsNode(stateCopy);
+    return new CounterToIntervalsNode({}, this.context);
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -176,17 +174,5 @@ export class CounterToIntervalsNode implements QueryNode {
       this.primaryInput,
       this.nodeId,
     );
-  }
-
-  serializeState(): object {
-    return {
-      primaryInputId: this.primaryInput?.nodeId,
-    };
-  }
-
-  static deserializeState(
-    _serializedState: CounterToIntervalsNodeState,
-  ): CounterToIntervalsNodeState {
-    return {};
   }
 }

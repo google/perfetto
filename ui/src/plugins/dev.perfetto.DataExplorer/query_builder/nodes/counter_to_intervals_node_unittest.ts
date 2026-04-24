@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  CounterToIntervalsNode,
-  CounterToIntervalsNodeState,
-} from './counter_to_intervals_node';
+import {CounterToIntervalsNode} from './counter_to_intervals_node';
 import {QueryNode, NodeType} from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import {
@@ -31,7 +28,8 @@ describe('CounterToIntervalsNode', () => {
       type: NodeType.kTable,
       nextNodes: [],
       finalCols: columns,
-      state: {},
+      attrs: {},
+      context: {},
       validate: () => true,
       getTitle: () => `Mock ${id}`,
       nodeSpecificModify: () => ({sections: []}),
@@ -46,7 +44,6 @@ describe('CounterToIntervalsNode', () => {
         sq.table.columnNames = columns.map((c) => c.name);
         return sq;
       },
-      serializeState: () => ({}),
     } as QueryNode;
   }
 
@@ -73,7 +70,7 @@ describe('CounterToIntervalsNode', () => {
     return {
       name,
       checked,
-      column: {name, type: sqlType},
+      type: sqlType,
     };
   }
 
@@ -81,7 +78,7 @@ describe('CounterToIntervalsNode', () => {
     it('should initialize with empty state', () => {
       const node = new CounterToIntervalsNode({});
 
-      expect(node.state).toBeDefined();
+      expect(node.attrs).toBeDefined();
     });
 
     it('should have correct node type', () => {
@@ -154,9 +151,9 @@ describe('CounterToIntervalsNode', () => {
       const nextValueCol = finalCols.find((c) => c.name === 'next_value');
       const deltaValueCol = finalCols.find((c) => c.name === 'delta_value');
 
-      expect(durCol?.column.type).toEqual({kind: 'duration'});
-      expect(nextValueCol?.column.type).toEqual({kind: 'double'});
-      expect(deltaValueCol?.column.type).toEqual({kind: 'double'});
+      expect(durCol?.type).toEqual({kind: 'duration'});
+      expect(nextValueCol?.type).toEqual({kind: 'double'});
+      expect(deltaValueCol?.type).toEqual({kind: 'double'});
     });
 
     it('should preserve input column order', () => {
@@ -187,7 +184,7 @@ describe('CounterToIntervalsNode', () => {
       const node = new CounterToIntervalsNode({});
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'No input node connected',
       );
     });
@@ -200,7 +197,7 @@ describe('CounterToIntervalsNode', () => {
       node.primaryInput = inputNode;
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'Previous node is invalid',
       );
     });
@@ -217,7 +214,7 @@ describe('CounterToIntervalsNode', () => {
       node.primaryInput = inputNode;
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'Input must have id, ts, track_id, and value columns',
       );
     });
@@ -234,7 +231,7 @@ describe('CounterToIntervalsNode', () => {
       node.primaryInput = inputNode;
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'Input must have id, ts, track_id, and value columns',
       );
     });
@@ -251,7 +248,7 @@ describe('CounterToIntervalsNode', () => {
       node.primaryInput = inputNode;
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'Input must have id, ts, track_id, and value columns',
       );
     });
@@ -268,7 +265,7 @@ describe('CounterToIntervalsNode', () => {
       node.primaryInput = inputNode;
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'Input must have id, ts, track_id, and value columns',
       );
     });
@@ -287,7 +284,7 @@ describe('CounterToIntervalsNode', () => {
       node.primaryInput = inputNode;
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'Input already has dur column',
       );
     });
@@ -299,7 +296,7 @@ describe('CounterToIntervalsNode', () => {
       node.primaryInput = inputNode;
 
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'Input has no columns',
       );
     });
@@ -354,7 +351,7 @@ describe('CounterToIntervalsNode', () => {
       expect(node.validate()).toBe(true);
 
       // Issues should be cleared
-      expect(node.state.issues?.queryError).toBeUndefined();
+      expect(node.context.issues?.queryError).toBeUndefined();
     });
   });
 
@@ -433,37 +430,17 @@ describe('CounterToIntervalsNode', () => {
       const node = new CounterToIntervalsNode({});
       node.primaryInput = inputNode;
 
-      const serialized = node.serializeState();
+      const serialized = node.attrs;
 
-      expect(serialized).toEqual({
-        primaryInputId: inputNode.nodeId,
-      });
+      expect(serialized).toEqual({});
     });
 
     it('should handle missing input gracefully', () => {
       const node = new CounterToIntervalsNode({});
 
-      const serialized = node.serializeState();
+      const serialized = node.attrs;
 
-      expect(serialized).toEqual({
-        primaryInputId: undefined,
-      });
-    });
-  });
-
-  describe('deserializeState', () => {
-    it('should return empty state', () => {
-      const state = CounterToIntervalsNode.deserializeState({});
-
-      expect(state).toEqual({});
-    });
-
-    it('should ignore unknown properties', () => {
-      const state = CounterToIntervalsNode.deserializeState({
-        unknownProp: 'value',
-      } as CounterToIntervalsNodeState);
-
-      expect(state).toEqual({});
+      expect(serialized).toEqual({});
     });
   });
 
@@ -479,11 +456,11 @@ describe('CounterToIntervalsNode', () => {
 
     it('should preserve onchange callback', () => {
       const onchange = jest.fn();
-      const node = new CounterToIntervalsNode({onchange});
+      const node = new CounterToIntervalsNode({}, {onchange});
 
       const cloned = node.clone() as CounterToIntervalsNode;
 
-      expect(cloned.state.onchange).toBe(onchange);
+      expect(cloned.context.onchange).toBe(onchange);
     });
   });
 
@@ -498,7 +475,7 @@ describe('CounterToIntervalsNode', () => {
   describe('onPrevNodesUpdated', () => {
     it('should trigger onchange callback when called', () => {
       const onchange = jest.fn();
-      const node = new CounterToIntervalsNode({onchange});
+      const node = new CounterToIntervalsNode({}, {onchange});
 
       node.onPrevNodesUpdated();
 
@@ -567,7 +544,7 @@ describe('CounterToIntervalsNode', () => {
 
       // Should fail validation because it already has dur
       expect(node.validate()).toBe(false);
-      expect(node.state.issues?.queryError?.message).toContain(
+      expect(node.context.issues?.queryError?.message).toContain(
         'already interval data',
       );
     });
@@ -584,15 +561,10 @@ describe('CounterToIntervalsNode', () => {
       node.primaryInput = inputNode;
 
       // Serialize
-      const serialized = node.serializeState();
+      const serialized = node.attrs;
 
-      // Deserialize
-      const restoredState = CounterToIntervalsNode.deserializeState(
-        serialized as CounterToIntervalsNodeState,
-      );
-
-      // Create new node with restored state
-      const restoredNode = new CounterToIntervalsNode(restoredState);
+      // Create new node with restored attrs
+      const restoredNode = new CounterToIntervalsNode(serialized);
 
       // Should have same structure (but no input node since that's reconnected separately)
       expect(restoredNode.type).toBe(node.type);

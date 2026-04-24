@@ -42,12 +42,9 @@ describe('datagrid_node_creation', () => {
     return {
       name,
       checked: true,
-      column: {
-        name,
-        type: {
-          kind: 'joinid',
-          source: {table: targetTable, column: targetColumn},
-        },
+      type: {
+        kind: 'joinid',
+        source: {table: targetTable, column: targetColumn},
       },
     };
   }
@@ -136,12 +133,13 @@ describe('datagrid_node_creation', () => {
     });
 
     it('should return the source node when it is an AddColumnsNode with matching join', () => {
-      const addColumnsNode = new AddColumnsNode({
-        leftColumn: 'track_id',
-        rightColumn: 'id',
-        sqlModules: mockSqlModules,
-        trace: mockTrace,
-      });
+      const addColumnsNode = new AddColumnsNode(
+        {
+          leftColumn: 'track_id',
+          rightColumn: 'id',
+        },
+        {sqlModules: mockSqlModules, trace: mockTrace},
+      );
 
       const result = findMatchingAddColumnsNode(
         addColumnsNode,
@@ -152,12 +150,13 @@ describe('datagrid_node_creation', () => {
     });
 
     it('should return undefined when source AddColumnsNode has different join columns', () => {
-      const addColumnsNode = new AddColumnsNode({
-        leftColumn: 'other_column',
-        rightColumn: 'pk',
-        sqlModules: mockSqlModules,
-        trace: mockTrace,
-      });
+      const addColumnsNode = new AddColumnsNode(
+        {
+          leftColumn: 'other_column',
+          rightColumn: 'pk',
+        },
+        {sqlModules: mockSqlModules, trace: mockTrace},
+      );
 
       const result = findMatchingAddColumnsNode(
         addColumnsNode,
@@ -169,12 +168,13 @@ describe('datagrid_node_creation', () => {
 
     it('should find matching AddColumnsNode in immediate child', () => {
       const parent = createMockNode({nodeId: 'parent', type: NodeType.kTable});
-      const addColumnsChild = new AddColumnsNode({
-        leftColumn: 'track_id',
-        rightColumn: 'id',
-        sqlModules: mockSqlModules,
-        trace: mockTrace,
-      });
+      const addColumnsChild = new AddColumnsNode(
+        {
+          leftColumn: 'track_id',
+          rightColumn: 'id',
+        },
+        {sqlModules: mockSqlModules, trace: mockTrace},
+      );
 
       parent.nextNodes = [addColumnsChild as QueryNode];
 
@@ -184,12 +184,13 @@ describe('datagrid_node_creation', () => {
 
     it('should return undefined when child AddColumnsNode has different join', () => {
       const parent = createMockNode({nodeId: 'parent', type: NodeType.kTable});
-      const addColumnsChild = new AddColumnsNode({
-        leftColumn: 'other',
-        rightColumn: 'pk',
-        sqlModules: mockSqlModules,
-        trace: mockTrace,
-      });
+      const addColumnsChild = new AddColumnsNode(
+        {
+          leftColumn: 'other',
+          rightColumn: 'pk',
+        },
+        {sqlModules: mockSqlModules, trace: mockTrace},
+      );
 
       parent.nextNodes = [addColumnsChild as QueryNode];
 
@@ -199,12 +200,13 @@ describe('datagrid_node_creation', () => {
 
     it('should not check children when parent has multiple children', () => {
       const parent = createMockNode({nodeId: 'parent', type: NodeType.kTable});
-      const child1 = new AddColumnsNode({
-        leftColumn: 'track_id',
-        rightColumn: 'id',
-        sqlModules: mockSqlModules,
-        trace: mockTrace,
-      });
+      const child1 = new AddColumnsNode(
+        {
+          leftColumn: 'track_id',
+          rightColumn: 'id',
+        },
+        {sqlModules: mockSqlModules, trace: mockTrace},
+      );
       const child2 = createMockNode({nodeId: 'c2', type: NodeType.kFilter});
 
       parent.nextNodes = [child1 as QueryNode, child2];
@@ -249,17 +251,17 @@ describe('datagrid_node_creation', () => {
     }
 
     it('should add filters to a FilterNode source directly', async () => {
-      const filterNode = new FilterNode({filters: []});
+      const filterNode = new FilterNode({filters: []}, {});
       const newFilter = createTestFilter('name', 'alice');
 
       await addFilter(deps, filterNode, newFilter);
 
-      expect(filterNode.state.filters).toHaveLength(1);
+      expect(filterNode.attrs.filters).toHaveLength(1);
       expect(stateUpdates).toHaveLength(1);
     });
 
     it('should add multiple filters at once to a FilterNode source', async () => {
-      const filterNode = new FilterNode({filters: []});
+      const filterNode = new FilterNode({filters: []}, {});
       const filters = [
         createTestFilter('name', 'alice'),
         createTestFilter('name', 'bob'),
@@ -267,27 +269,27 @@ describe('datagrid_node_creation', () => {
 
       await addFilter(deps, filterNode, filters);
 
-      expect(filterNode.state.filters).toHaveLength(2);
+      expect(filterNode.attrs.filters).toHaveLength(2);
     });
 
     it('should set filter operator on a FilterNode source', async () => {
-      const filterNode = new FilterNode({filters: []});
+      const filterNode = new FilterNode({filters: []}, {});
       const newFilter = createTestFilter('name', 'alice');
 
       await addFilter(deps, filterNode, newFilter, 'OR');
 
-      expect(filterNode.state.filterOperator).toBe('OR');
+      expect(filterNode.attrs.filterOperator).toBe('OR');
     });
 
     it('should add filters to child FilterNode when source has one', async () => {
       const source = createMockNode({nodeId: 'src', type: NodeType.kTable});
-      const existingFilter = new FilterNode({filters: []});
+      const existingFilter = new FilterNode({filters: []}, {});
       connectNodes(source, existingFilter as QueryNode);
 
       const newFilter = createTestFilter('name', 'alice');
       await addFilter(deps, source, newFilter);
 
-      expect(existingFilter.state.filters).toHaveLength(1);
+      expect(existingFilter.attrs.filters).toHaveLength(1);
       // Should select the existing filter node
       expect(stateUpdates).toHaveLength(1);
     });
@@ -312,7 +314,7 @@ describe('datagrid_node_creation', () => {
       await addFilter(deps, source, newFilter, 'OR');
 
       const createdFilter = source.nextNodes[0] as FilterNode;
-      expect(createdFilter.state.filterOperator).toBe('OR');
+      expect(createdFilter.attrs.filterOperator).toBe('OR');
     });
 
     it('should not create new FilterNode when source has non-filter child', async () => {

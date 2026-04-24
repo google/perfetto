@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {Icons} from '../../../base/semantic_icons';
 import {Tabs, TabsTab} from '../../../widgets/tabs';
+import {Button} from '../../../widgets/button';
 import {MenuItem} from '../../../widgets/menu';
 import {renderWidgetShowcase} from '../widgets_page_utils';
 import {shortUuid} from '../../../base/uuid';
@@ -159,6 +160,9 @@ export function renderTabs(): m.Children {
                   activeTabKey = id;
                 }
               : undefined,
+            rightContent: opts.rightButton
+              ? m(Button, {icon: Icons.Filter, label: 'Filter'})
+              : undefined,
           }),
         );
       },
@@ -169,6 +173,7 @@ export function renderTabs(): m.Children {
         renamable: true,
         reorderable: true,
         menuItems: true,
+        rightButton: false,
       },
     }),
   ];

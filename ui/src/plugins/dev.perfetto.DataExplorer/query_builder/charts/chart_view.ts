@@ -162,8 +162,8 @@ export class ChartView implements m.ClassComponent<ChartViewAttrs> {
   }
 
   view({attrs}: m.CVnode<ChartViewAttrs>) {
-    const configs = attrs.node.state.chartConfigs;
-    const filters = attrs.node.state.chartFilters ?? [];
+    const configs = attrs.node.attrs.chartConfigs;
+    const filters = attrs.node.attrs.chartFilters ?? [];
     const hasFilters = filters.some((f) => f.enabled !== false);
 
     if (configs.length === 0) {
@@ -391,7 +391,7 @@ export class ChartView implements m.ClassComponent<ChartViewAttrs> {
       onResize: (deltaPx: number) => {
         const currentWidth =
           config.widthPx ??
-          this.getDefaultChartWidth(attrs.node.state.chartConfigs.length);
+          this.getDefaultChartWidth(attrs.node.attrs.chartConfigs.length);
         const newWidth = Math.max(200, currentWidth + deltaPx);
         attrs.node.updateChart(config.id, {widthPx: newWidth});
       },

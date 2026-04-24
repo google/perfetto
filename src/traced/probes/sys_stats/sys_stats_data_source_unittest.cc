@@ -210,6 +210,11 @@ const char kMockPsi[] = R"(
 some avg10=23.10 avg60=5.06 avg300=15.10 total=417963
 full avg10=9.00 avg60=19.20 avg300=3.23 total=205933)";
 
+const char kMockSlabinfo[] = R"(slabinfo - version: 2.1
+# name            <active_objs> <num_objs> <objsize> <objperslab> <pagesperslab> : tunables <limit> <batchcount> <sharedfactor> : slabdata <active_slabs> <num_slabs> <sharedavail>
+nf_conntrack          12     12    320   12    1 : tunables   32   16    8 : slabdata      1      1      0
+kmalloc-64          100    100     64   64    1 : tunables   32   16    8 : slabdata      2      2      0)";
+
 const uint64_t kMockThermalTemp = 25000;
 const char kMockThermalType[] = "TSR0";
 const uint64_t kMockCpuIdleStateTime = 10000;
@@ -274,6 +279,8 @@ base::ScopedFile MockOpenReadOnly(const char* path) {
     EXPECT_GT(pwrite(tmp_.fd(), kMockDiskStat, strlen(kMockDiskStat), 0), 0);
   } else if (base::StartsWith(path, "/proc/pressure/")) {
     EXPECT_GT(pwrite(tmp_.fd(), kMockPsi, strlen(kMockPsi), 0), 0);
+  } else if (!strcmp(path, "/proc/slabinfo")) {
+    EXPECT_GT(pwrite(tmp_.fd(), kMockSlabinfo, strlen(kMockSlabinfo), 0), 0);
   } else {
     PERFETTO_FATAL("Unexpected file opened %s", path);
   }
@@ -928,6 +935,29 @@ TEST_F(SysStatsDataSourceTest, HandlesLargePeriodModuloCorrectly) {
   // Verify tick_period_ms is set correctly and no crash or infinite loop
   WaitTick(data_source.get());
   EXPECT_GT(data_source->tick_for_testing(), 0u);
+}
+
+TEST_F(SysStatsDataSourceTest, Slabinfo) {
+  DataSourceConfig config;
+  protos::gen::SysStatsConfig sys_cfg;
+  sys_cfg.set_slab_period_ms(10);
+  config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
+  auto data_source = GetSysStatsDataSource(config);
+
+  WaitTick(data_source.get());
+
+  protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_sys_stats());
+  const auto& sys_stats = packet.sys_stats();
+  ASSERT_EQ(sys_stats.slab_info_size(), 2);
+
+  EXPECT_EQ(sys_stats.slab_info()[0].name(), "nf_conntrack");
+  EXPECT_EQ(sys_stats.slab_info()[0].pages_per_slab(), 1u);
+  EXPECT_EQ(sys_stats.slab_info()[0].num_slabs(), 1u);
+
+  EXPECT_EQ(sys_stats.slab_info()[1].name(), "kmalloc-64");
+  EXPECT_EQ(sys_stats.slab_info()[1].pages_per_slab(), 1u);
+  EXPECT_EQ(sys_stats.slab_info()[1].num_slabs(), 2u);
 }
 
 }  // namespace

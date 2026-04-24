@@ -91,4 +91,8 @@ message SysStatsConfig {
   // Polls device-specific GPU frequency info every X ms, if non-zero.
   // This is required to be > 10ms to avoid excessive CPU usage.
   optional uint32 gpufreq_period_ms = 14;
+
+  // Polls /proc/slabinfo every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  optional uint32 slab_period_ms = 15;
 }

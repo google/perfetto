@@ -156,7 +156,6 @@ function buildOption(
   }
 
   const option = buildChartOption({
-    grid: {bottom: xAxisLabel ? 40 : 25},
     xAxis: {
       type: 'category',
       data: categories,

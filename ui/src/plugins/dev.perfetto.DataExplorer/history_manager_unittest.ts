@@ -87,11 +87,10 @@ describe('HistoryManager', () => {
 
   test('should track node addition', () => {
     // Create a table node
-    const tableNode = new TableSourceNode({
-      trace,
-      sqlModules,
-      sqlTable: sqlModules.getTable('test_table')!,
-    });
+    const tableNode = new TableSourceNode(
+      {sqlTable: 'test_table'},
+      {trace, sqlModules},
+    );
 
     // Initial state with table node
     const state1: DataExplorerState = {
@@ -103,10 +102,10 @@ describe('HistoryManager', () => {
     historyManager.pushState(state1);
 
     // Add an aggregation node
-    const aggNode = new AggregationNode({
-      groupByColumns: [],
-      aggregations: [],
-    });
+    const aggNode = new AggregationNode(
+      {groupByColumns: [], aggregations: []},
+      {},
+    );
     addConnection(tableNode, aggNode);
 
     const state2: DataExplorerState = {
@@ -127,11 +126,10 @@ describe('HistoryManager', () => {
   });
 
   test('should ignore layout-only changes', () => {
-    const tableNode = new TableSourceNode({
-      trace,
-      sqlModules,
-      sqlTable: sqlModules.getTable('test_table')!,
-    });
+    const tableNode = new TableSourceNode(
+      {sqlTable: 'test_table'},
+      {trace, sqlModules},
+    );
 
     const state1: DataExplorerState = {
       rootNodes: [tableNode],
@@ -155,16 +153,18 @@ describe('HistoryManager', () => {
   });
 
   test('should ignore selectedNode changes', () => {
-    const tableNode = new TableSourceNode({
-      trace,
-      sqlModules,
-      sqlTable: sqlModules.getTable('test_table')!,
-    });
+    const tableNode = new TableSourceNode(
+      {sqlTable: 'test_table'},
+      {trace, sqlModules},
+    );
 
-    const aggNode = new AggregationNode({
-      groupByColumns: [],
-      aggregations: [],
-    });
+    const aggNode = new AggregationNode(
+      {
+        groupByColumns: [],
+        aggregations: [],
+      },
+      {},
+    );
     addConnection(tableNode, aggNode);
 
     const state1: DataExplorerState = {
@@ -209,11 +209,10 @@ describe('HistoryManager', () => {
     };
     historyManager.pushState(state1);
 
-    const tableNode = new TableSourceNode({
-      trace,
-      sqlModules,
-      sqlTable: sqlModules.getTable('test_table')!,
-    });
+    const tableNode = new TableSourceNode(
+      {sqlTable: 'test_table'},
+      {trace, sqlModules},
+    );
 
     const state2: DataExplorerState = {
       rootNodes: [tableNode],
@@ -242,11 +241,10 @@ describe('HistoryManager', () => {
     };
     historyManager.pushState(state1);
 
-    const tableNode = new TableSourceNode({
-      trace,
-      sqlModules,
-      sqlTable: sqlModules.getTable('test_table')!,
-    });
+    const tableNode = new TableSourceNode(
+      {sqlTable: 'test_table'},
+      {trace, sqlModules},
+    );
 
     const state2: DataExplorerState = {
       rootNodes: [tableNode],
@@ -280,11 +278,7 @@ describe('HistoryManager', () => {
       // Create i nodes to make each state unique
       for (let j = 0; j <= i; j++) {
         nodes.push(
-          new TableSourceNode({
-            trace,
-            sqlModules,
-            sqlTable: sqlModules.getTable('test_table')!,
-          }),
+          new TableSourceNode({sqlTable: 'test_table'}, {trace, sqlModules}),
         );
       }
       const state: DataExplorerState = {
@@ -311,16 +305,18 @@ describe('HistoryManager', () => {
   // ========================================
 
   test('should track connection removal', () => {
-    const tableNode = new TableSourceNode({
-      trace,
-      sqlModules,
-      sqlTable: sqlModules.getTable('test_table')!,
-    });
+    const tableNode = new TableSourceNode(
+      {sqlTable: 'test_table'},
+      {trace, sqlModules},
+    );
 
-    const aggNode = new AggregationNode({
-      groupByColumns: [],
-      aggregations: [],
-    });
+    const aggNode = new AggregationNode(
+      {
+        groupByColumns: [],
+        aggregations: [],
+      },
+      {},
+    );
 
     // State 1: Table node connected to aggregation node
     addConnection(tableNode, aggNode);
@@ -357,21 +353,26 @@ describe('HistoryManager', () => {
   });
 
   test('should track multiple connection changes', () => {
-    const tableNode = new TableSourceNode({
-      trace,
-      sqlModules,
-      sqlTable: sqlModules.getTable('test_table')!,
-    });
+    const tableNode = new TableSourceNode(
+      {sqlTable: 'test_table'},
+      {trace, sqlModules},
+    );
 
-    const aggNode1 = new AggregationNode({
-      groupByColumns: [],
-      aggregations: [],
-    });
+    const aggNode1 = new AggregationNode(
+      {
+        groupByColumns: [],
+        aggregations: [],
+      },
+      {},
+    );
 
-    const aggNode2 = new AggregationNode({
-      groupByColumns: [],
-      aggregations: [],
-    });
+    const aggNode2 = new AggregationNode(
+      {
+        groupByColumns: [],
+        aggregations: [],
+      },
+      {},
+    );
 
     // State 1: No connections
     const state1: DataExplorerState = {
@@ -421,15 +422,17 @@ describe('HistoryManager', () => {
   // ========================================
 
   test('should track filter additions to FilterNode', () => {
-    const tableNode = new TableSourceNode({
-      trace,
-      sqlModules,
-      sqlTable: sqlModules.getTable('test_table')!,
-    });
+    const tableNode = new TableSourceNode(
+      {sqlTable: 'test_table'},
+      {trace, sqlModules},
+    );
 
-    const filterNode = new FilterNode({
-      filters: [],
-    });
+    const filterNode = new FilterNode(
+      {
+        filters: [],
+      },
+      {},
+    );
     addConnection(tableNode, filterNode);
 
     // State 1: Filter node with no filters
@@ -447,7 +450,7 @@ describe('HistoryManager', () => {
       op: '=',
       value: '123',
     };
-    filterNode.state.filters = [filter1];
+    filterNode.attrs.filters = [filter1];
     const state2: DataExplorerState = {
       rootNodes: [tableNode],
       selectedNodes: new Set(),
@@ -463,15 +466,15 @@ describe('HistoryManager', () => {
     expect(undoneState).not.toBeNull();
     const restoredFilterNode = undoneState!.rootNodes[0]
       .nextNodes[0] as FilterNode;
-    expect(restoredFilterNode.state.filters?.length ?? 0).toBe(0);
+    expect(restoredFilterNode.attrs.filters?.length ?? 0).toBe(0);
 
     // Redo: filter should be back
     const redoneState = historyManager.redo();
     expect(redoneState).not.toBeNull();
     const redoneFilterNode = redoneState!.rootNodes[0]
       .nextNodes[0] as FilterNode;
-    expect(redoneFilterNode.state.filters?.length ?? 0).toBe(1);
-    const redoneFilter = redoneFilterNode.state.filters?.[0];
+    expect(redoneFilterNode.attrs.filters?.length ?? 0).toBe(1);
+    const redoneFilter = redoneFilterNode.attrs.filters?.[0];
     if (redoneFilter && 'value' in redoneFilter) {
       // Numeric strings are converted to numbers during deserialization
       expect(redoneFilter.value).toBe(123);
@@ -479,15 +482,17 @@ describe('HistoryManager', () => {
   });
 
   test('should track multiple filter additions', () => {
-    const tableNode = new TableSourceNode({
-      trace,
-      sqlModules,
-      sqlTable: sqlModules.getTable('test_table')!,
-    });
+    const tableNode = new TableSourceNode(
+      {sqlTable: 'test_table'},
+      {trace, sqlModules},
+    );
 
-    const filterNode = new FilterNode({
-      filters: [],
-    });
+    const filterNode = new FilterNode(
+      {
+        filters: [],
+      },
+      {},
+    );
     addConnection(tableNode, filterNode);
 
     // State 1: No filters
@@ -505,7 +510,7 @@ describe('HistoryManager', () => {
       op: '=',
       value: '123',
     };
-    filterNode.state.filters = [filter1];
+    filterNode.attrs.filters = [filter1];
     const state2: DataExplorerState = {
       rootNodes: [tableNode],
       selectedNodes: new Set(),
@@ -520,7 +525,7 @@ describe('HistoryManager', () => {
       op: '=',
       value: 'test',
     };
-    filterNode.state.filters = [filter1, filter2];
+    filterNode.attrs.filters = [filter1, filter2];
     const state3: DataExplorerState = {
       rootNodes: [tableNode],
       selectedNodes: new Set(),
@@ -530,14 +535,14 @@ describe('HistoryManager', () => {
     historyManager.pushState(state3);
 
     // Should have 2 filters
-    expect(filterNode.state.filters?.length).toBe(2);
+    expect(filterNode.attrs.filters?.length).toBe(2);
 
     // Undo once: should have 1 filter
     const undoneState1 = historyManager.undo();
     expect(undoneState1).not.toBeNull();
     const filterNode1 = undoneState1!.rootNodes[0].nextNodes[0] as FilterNode;
-    expect(filterNode1.state.filters?.length ?? 0).toBe(1);
-    const undoneFilter1 = filterNode1.state.filters?.[0];
+    expect(filterNode1.attrs.filters?.length ?? 0).toBe(1);
+    const undoneFilter1 = filterNode1.attrs.filters?.[0];
     if (undoneFilter1 && 'value' in undoneFilter1) {
       // Numeric strings are converted to numbers during deserialization
       expect(undoneFilter1.value).toBe(123);
@@ -547,27 +552,29 @@ describe('HistoryManager', () => {
     const undoneState2 = historyManager.undo();
     expect(undoneState2).not.toBeNull();
     const filterNode2 = undoneState2!.rootNodes[0].nextNodes[0] as FilterNode;
-    expect(filterNode2.state.filters?.length ?? 0).toBe(0);
+    expect(filterNode2.attrs.filters?.length ?? 0).toBe(0);
 
     // Redo twice: should have 2 filters back
     historyManager.redo();
     const redoneState = historyManager.redo();
     expect(redoneState).not.toBeNull();
     const filterNode3 = redoneState!.rootNodes[0].nextNodes[0] as FilterNode;
-    expect(filterNode3.state.filters?.length ?? 0).toBe(2);
+    expect(filterNode3.attrs.filters?.length ?? 0).toBe(2);
   });
 
   test('should track aggregation node property changes', () => {
-    const tableNode = new TableSourceNode({
-      trace,
-      sqlModules,
-      sqlTable: sqlModules.getTable('test_table')!,
-    });
+    const tableNode = new TableSourceNode(
+      {sqlTable: 'test_table'},
+      {trace, sqlModules},
+    );
 
-    const aggNode = new AggregationNode({
-      groupByColumns: [],
-      aggregations: [],
-    });
+    const aggNode = new AggregationNode(
+      {
+        groupByColumns: [],
+        aggregations: [],
+      },
+      {},
+    );
     addConnection(tableNode, aggNode);
 
     // After addConnection, onPrevNodesUpdated populates columns from input (all unchecked)
@@ -581,7 +588,7 @@ describe('HistoryManager', () => {
     historyManager.pushState(state1);
 
     // State 2: Check the 'id' column for grouping
-    aggNode.state.groupByColumns = aggNode.state.groupByColumns.map((c) => ({
+    aggNode.attrs.groupByColumns = aggNode.attrs.groupByColumns.map((c) => ({
       ...c,
       checked: c.name === 'id',
     }));
@@ -600,7 +607,7 @@ describe('HistoryManager', () => {
     expect(undoneState).not.toBeNull();
     const restoredAggNode = undoneState!.rootNodes[0]
       .nextNodes[0] as AggregationNode;
-    const uncheckedCols = restoredAggNode.state.groupByColumns?.filter(
+    const uncheckedCols = restoredAggNode.attrs.groupByColumns?.filter(
       (c) => c.checked,
     );
     expect(uncheckedCols?.length ?? 0).toBe(0);
@@ -610,7 +617,7 @@ describe('HistoryManager', () => {
     expect(redoneState).not.toBeNull();
     const redoneAggNode = redoneState!.rootNodes[0]
       .nextNodes[0] as AggregationNode;
-    const checkedCols = redoneAggNode.state.groupByColumns?.filter(
+    const checkedCols = redoneAggNode.attrs.groupByColumns?.filter(
       (c) => c.checked,
     );
     expect(checkedCols?.length ?? 0).toBe(1);
@@ -622,17 +629,15 @@ describe('HistoryManager', () => {
   // ========================================
 
   test('should track node deletion from root', () => {
-    const tableNode1 = new TableSourceNode({
-      trace,
-      sqlModules,
-      sqlTable: sqlModules.getTable('test_table')!,
-    });
+    const tableNode1 = new TableSourceNode(
+      {sqlTable: 'test_table'},
+      {trace, sqlModules},
+    );
 
-    const tableNode2 = new TableSourceNode({
-      trace,
-      sqlModules,
-      sqlTable: sqlModules.getTable('test_table')!,
-    });
+    const tableNode2 = new TableSourceNode(
+      {sqlTable: 'test_table'},
+      {trace, sqlModules},
+    );
 
     // State 1: Two root nodes
     const state1: DataExplorerState = {
@@ -666,16 +671,18 @@ describe('HistoryManager', () => {
   });
 
   test('should track deletion of connected node', () => {
-    const tableNode = new TableSourceNode({
-      trace,
-      sqlModules,
-      sqlTable: sqlModules.getTable('test_table')!,
-    });
+    const tableNode = new TableSourceNode(
+      {sqlTable: 'test_table'},
+      {trace, sqlModules},
+    );
 
-    const aggNode = new AggregationNode({
-      groupByColumns: [],
-      aggregations: [],
-    });
+    const aggNode = new AggregationNode(
+      {
+        groupByColumns: [],
+        aggregations: [],
+      },
+      {},
+    );
     addConnection(tableNode, aggNode);
 
     // State 1: Table with aggregation
@@ -715,11 +722,10 @@ describe('HistoryManager', () => {
 
   test('should handle complex multi-step operation', () => {
     // This test simulates: add table -> add filter -> modify filter -> add aggregation
-    const tableNode = new TableSourceNode({
-      trace,
-      sqlModules,
-      sqlTable: sqlModules.getTable('test_table')!,
-    });
+    const tableNode = new TableSourceNode(
+      {sqlTable: 'test_table'},
+      {trace, sqlModules},
+    );
 
     // State 1: Just table
     const state1: DataExplorerState = {
@@ -731,9 +737,12 @@ describe('HistoryManager', () => {
     historyManager.pushState(state1);
 
     // State 2: Add filter node
-    const filterNode = new FilterNode({
-      filters: [],
-    });
+    const filterNode = new FilterNode(
+      {
+        filters: [],
+      },
+      {},
+    );
     addConnection(tableNode, filterNode);
     const state2: DataExplorerState = {
       rootNodes: [tableNode],
@@ -749,7 +758,7 @@ describe('HistoryManager', () => {
       op: '=',
       value: '123',
     };
-    filterNode.state.filters = [filter];
+    filterNode.attrs.filters = [filter];
     const state3: DataExplorerState = {
       rootNodes: [tableNode],
       selectedNodes: new Set(),
@@ -762,12 +771,15 @@ describe('HistoryManager', () => {
     const groupByColumn: ColumnInfo = {
       name: 'id',
       checked: true,
-      column: {name: 'id', type: {kind: 'string'}},
+      type: {kind: 'string'},
     };
-    const aggNode = new AggregationNode({
-      groupByColumns: [groupByColumn],
-      aggregations: [],
-    });
+    const aggNode = new AggregationNode(
+      {
+        groupByColumns: [groupByColumn],
+        aggregations: [],
+      },
+      {},
+    );
     addConnection(filterNode, aggNode);
     const state4: DataExplorerState = {
       rootNodes: [tableNode],
@@ -788,13 +800,13 @@ describe('HistoryManager', () => {
     expect(state3Restored).not.toBeNull();
     const filterNode3 = state3Restored!.rootNodes[0].nextNodes[0] as FilterNode;
     expect(filterNode3.nextNodes.length).toBe(0);
-    expect(filterNode3.state.filters?.length).toBe(1);
+    expect(filterNode3.attrs.filters?.length).toBe(1);
 
     // Undo to state 2: filter should be empty
     const state2Restored = historyManager.undo();
     expect(state2Restored).not.toBeNull();
     const filterNode2 = state2Restored!.rootNodes[0].nextNodes[0] as FilterNode;
-    expect(filterNode2.state.filters?.length ?? 0).toBe(0);
+    expect(filterNode2.attrs.filters?.length ?? 0).toBe(0);
 
     // Undo to state 1: no filter node
     const state1Restored = historyManager.undo();
@@ -816,11 +828,10 @@ describe('HistoryManager', () => {
   test('should create single undo point when operation is atomic', () => {
     // This test shows the CORRECT pattern: multiple mutations with single state update
 
-    const tableNode = new TableSourceNode({
-      trace,
-      sqlModules,
-      sqlTable: sqlModules.getTable('test_table')!,
-    });
+    const tableNode = new TableSourceNode(
+      {sqlTable: 'test_table'},
+      {trace, sqlModules},
+    );
 
     // State 1: Just table
     const state1: DataExplorerState = {
@@ -832,9 +843,12 @@ describe('HistoryManager', () => {
     historyManager.pushState(state1);
 
     // Perform multiple mutations THEN single state update (correct pattern)
-    const filterNode = new FilterNode({
-      filters: [],
-    });
+    const filterNode = new FilterNode(
+      {
+        filters: [],
+      },
+      {},
+    );
     addConnection(tableNode, filterNode);
 
     const filter: UIFilter = {
@@ -842,7 +856,7 @@ describe('HistoryManager', () => {
       op: '=',
       value: '123',
     };
-    filterNode.state.filters = [filter];
+    filterNode.attrs.filters = [filter];
 
     // Single state update captures all mutations
     const state2: DataExplorerState = {
