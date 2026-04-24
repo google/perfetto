@@ -80,16 +80,19 @@ contents, string values and bitmap pixel buffers. Required for the
 Strings, Arrays and Bitmaps tabs and for the duplicate-content
 detection on the Overview tab.
 
-<!-- TODO: replace this block with the exact capture command the team
-     uses in practice. Confirm the tool (`am dumpheap`,
-     `tools/java_heap_dump`, or a newer HPROF helper) and the full
-     flag list — including `-b png` for bitmap PNG encoding — before
-     landing the doc. -->
-
 ```bash
-# TODO: HPROF capture command, including the flag that encodes bitmap
-# pixel buffers as PNG (`-b png`).
+$ adb shell am dumpheap -g -b png com.example.app /data/local/tmp/heap.hprof
+$ adb pull /data/local/tmp/heap.hprof
+
+File: /data/local/tmp/heap.hprof
 ```
+
+`-b` encodes bitmap pixel buffers as the given format (`png`, `jpg`,
+or `webp`) and is required for the Bitmaps gallery to render pixels.
+`-g` forces a GC before the dump, so unreachable instances don't
+appear in the result — use it when hunting a suspected leak. The
+target process must be `debuggable` (a `userdebug`/`eng` build, or an
+APK with `android:debuggable="true"`).
 
 NOTE: Sections marked _requires HPROF_ below are hidden on traces
 captured with the heap graph format.
@@ -105,33 +108,21 @@ There are two entry points:
 1. **Sidebar.** Click _"Heapdump Explorer"_ under the current trace.
    The entry only appears when the trace contains a heap dump.
 
-   <!-- TODO screenshot
-        Capture: the Perfetto UI sidebar with the trace loaded, showing
-        the "Heapdump Explorer" menu item under "Current Trace". Crop
-        to just the sidebar so the entry is easy to find.
-   -->
+   ![Perfetto UI with a heap dump loaded; the sidebar shows "Heapdump Explorer" under "Current Trace".](../images/heap_docs/01-sidebar.png)
 
 2. **From a heap graph flamegraph.** Click a diamond in a
    _"Heap Profile"_ track to open the heap graph flamegraph,
    right-click a node and pick _"Open in Heapdump Explorer"_. This is
    covered in detail under [Jumping from a flamegraph](#jumping-from-a-flamegraph).
 
-   <!-- TODO screenshot
-        Capture: the heap graph flamegraph open in the bottom panel
-        with the right-click context menu showing, "Open in Heapdump
-        Explorer" visible. Highlight the menu item.
-   -->
+   ![Heap graph flamegraph in the bottom panel.](../images/heap_docs/14-flamegraph-bottom-panel.png)
 
 The explorer is organized as tabs across the top. _Overview_,
 _Classes_, _Objects_, _Dominators_, _Bitmaps_, _Strings_ and _Arrays_
 are fixed. Tabs you open by drilling into a specific object or
 flamegraph selection are appended on the right and can be closed.
 
-<!-- TODO screenshot
-     Capture: the full explorer tab bar after opening one object tab
-     and one flamegraph tab, so the reader can see both the fixed and
-     the dynamic tabs in the same shot. Annotate the two categories.
--->
+![Tab bar with the seven fixed tabs and a dynamic object tab opened for `LeakedActivity 0x00009233`.](../images/heap_docs/03-tab-bar.png)
 
 All tabs share the underlying `heap_graph_*` tables. Blue links — a
 class name, an object id, a _Copies_ count — navigate to the
@@ -153,12 +144,7 @@ The Overview is the default landing page and summarizes the dump:
   and the wasted bytes; clicking _Copies_ opens the relevant tab
   filtered to that group.
 
-<!-- TODO screenshot
-     Capture: the Overview tab with all four cards visible: General
-     Information, Bytes Retained by Heap, and at least one populated
-     Duplicate section (bitmaps ideally, since that's the most
-     visually obvious). Pick a trace where the numbers are meaningful.
--->
+![Overview tab: General Information, Bytes Retained by Heap, and a Duplicate Bitmaps group wasting 785.8 KiB across 12 copies of the same 128×128 image.](../images/heap_docs/04-overview.png)
 
 NOTE: The duplicate sections _require HPROF_.
 
@@ -173,12 +159,7 @@ descending:
   became unreachable.
 - **Retained #** — the number of objects that would go with them.
 
-<!-- TODO screenshot
-     Capture: the Classes tab sorted by Retained descending, showing
-     the top ~10 rows. Pick a trace where one or two classes obviously
-     dominate so the reader can see what an interesting sort looks
-     like. Arrow/callout on a blue class name link.
--->
+![Classes tab sorted by Retained; `byte[]` at 131,573 retained instances followed by `java.lang.String`, `int[]`, and application classes further down.](../images/heap_docs/05-classes.png)
 
 Use this tab when you have a suspect class, or want a top-down view
 of which classes own the most memory. Clicking a class name opens
@@ -195,11 +176,7 @@ class, shallow and retained size, and its heap. `java.lang.String`
 rows carry a badge with a preview of the value, so strings can be
 scanned at a glance.
 
-<!-- TODO screenshot
-     Capture: the Objects tab filtered to `java.lang.String` so the
-     string preview badges are visible, sorted by Retained descending.
-     Show a row or two expanded/selected.
--->
+![Objects tab filtered to `java.lang.String`; 106,474 instances of 437,681 total, sorted by retained bytes.](../images/heap_docs/06-objects-string.png)
 
 Clicking an object opens its [object tab](#inspecting-a-single-object).
 Typical uses: identifying a stale `Activity` after a leak, or the
@@ -212,12 +189,7 @@ exclusively retain the largest subgraphs of the heap. An object `a`
 dominates `b` if every path from a GC root to `b` passes through `a`,
 so freeing `a` also frees `b`.
 
-<!-- TODO screenshot
-     Capture: the Dominators tab sorted by Retained descending. The
-     Root Type column should be visible with some variety
-     (`THREAD`/`STATIC`/etc.) so the reader can see what it looks
-     like.
--->
+![Dominators tab sorted by Retained; `Class<LeakedActivity>` (root type `STATIC`) and `LeakedActivity 0x00009233` near the top, each retaining a large subgraph.](../images/heap_docs/07-dominators.png)
 
 _Root Type_ (e.g. `THREAD`, `STATIC`, `JNI_GLOBAL`) identifies how each
 dominator is itself kept alive. Click a row to open its object tab and
@@ -231,12 +203,7 @@ simply where the memory has gone.
 The Bitmaps tab is a gallery of every `android.graphics.Bitmap` in the
 dump. With an HPROF, each bitmap's pixels are rendered inline.
 
-<!-- TODO screenshot
-     Capture: the Bitmaps gallery with the summary card at the top and
-     a grid of ~6 bitmap cards rendered, each showing pixels,
-     dimensions, DPI and retained memory. Ideally include at least
-     one obviously large bitmap so the sizes tell a story.
--->
+![Bitmaps gallery: 15 bitmaps, 971.2 KiB retained. Twelve 128×128 copies of the same image are rendered inline, each at 64.2 KiB.](../images/heap_docs/08-bitmaps-gallery.png)
 
 Each card shows the rendered pixels, dimensions (px and dp), DPI,
 retained memory and a _Details_ button that opens the object tab.
@@ -247,11 +214,7 @@ The _Show Paths_ toggle adds the reference path from the GC root to
 each card — the fastest way to spot an `Activity`, `Fragment` or
 `Handler` holding leaked bitmaps.
 
-<!-- TODO screenshot
-     Capture: the same gallery with "Show Paths" enabled, so the
-     reference chain is visible under each bitmap card. Crop to one
-     or two cards so the path text is readable.
--->
+![Bitmaps gallery with "Show Paths" enabled; the reference chain below each card points back through `MainActivity.DUPLICATE_BITMAPS` to the static holder.](../images/heap_docs/09-bitmaps-show-paths.png)
 
 Two tables at the bottom list bitmaps with and without pixel data,
 with filter, sort and export controls. Arriving via _Copies_ on
@@ -267,12 +230,7 @@ summary card reports the total number of strings, the number of
 distinct values and the total retained memory. The gap between total
 and distinct is memory spent on duplicates.
 
-<!-- TODO screenshot
-     Capture: the Strings tab with the summary card visible and a few
-     rows of string values. If possible, pick a trace with an
-     obviously duplicated string (e.g. a repeated config value or
-     error message) so the "unique vs total" distinction is visible.
--->
+![Strings tab: 105,868 total strings, 71,176 unique, 4.9 MiB retained. The gap between total and distinct (≈30k duplicates) is memory spent on duplicated values.](../images/heap_docs/10-strings.png)
 
 Filter by value to find data that was expected to be unique: a user
 id, a serialized config payload, an error message repeated thousands
@@ -288,11 +246,7 @@ The Arrays tab lists primitive arrays (`byte[]`, `int[]`, `long[]`,
 returns every array with the same bytes; this is how the Overview
 detects duplicate arrays.
 
-<!-- TODO screenshot
-     Capture: the Arrays tab sorted by Shallow descending, with the
-     Content Hash column visible. Arrow/callout on the Content Hash
-     column.
--->
+![Arrays tab sorted by Shallow with the Content Hash column visible; filtering by hash returns every array sharing the same bytes.](../images/heap_docs/11-arrays.png)
 
 Two common uses: finding a large duplicated `byte[]` that backs an
 image or serialized buffer, and jumping from a container object to
@@ -331,20 +285,9 @@ The object tab contains everything known about the instance:
 - **Immediately dominated objects** — what would be freed if this
   instance became unreachable.
 
-<!-- TODO screenshot
-     Capture: the top half of an object tab for a non-trivial object,
-     showing the header, the reference path from GC root (at least
-     three hops), Object Info and the Object Size table. This is the
-     money shot for the doc — prefer an object from one of the case
-     studies below.
--->
+![Object tab (top) for `LeakedActivity 0x00009233`: Reference Path from GC Root goes `Class<LeakedActivity> → com.heapleak.LeakedActivity.sLeakedInstance → LeakedActivity`; retained 116.7 KiB across 1,562 objects.](../images/heap_docs/12-object-tab-top.png)
 
-<!-- TODO screenshot
-     Capture: the bottom half of the same object tab — instance
-     fields or array elements, the reverse references section and the
-     immediately dominated section. Crop to show both tables even if
-     it means shrinking each.
--->
+![Object tab (bottom): instance fields from `android.app.Activity`, "Objects with References to this Object" (48 reverse references from views and context wrappers), and "Immediately Dominated Objects" (60 — the view hierarchy that would be freed if this instance became unreachable).](../images/heap_docs/13-object-tab-bottom.png)
 
 The reference path and the reverse references are the two sections
 that resolve most investigations: the reference path shows who is
@@ -360,11 +303,7 @@ allocation path. Use it to inspect a flamegraph node object-by-object:
 
 1. Click a diamond in a _"Heap Profile"_ track to open the flamegraph.
 
-   <!-- TODO screenshot
-        Capture: the heap graph flamegraph visible in the bottom
-        panel of the UI after clicking a diamond. Show both the
-        timeline on top and the flamegraph below.
-   -->
+   ![Timeline on top, heap graph flamegraph in the bottom panel after clicking the heap dump diamond on the process track.](../images/heap_docs/14-flamegraph-bottom-panel.png)
 
 2. Right-click a node and pick _"Open in Heapdump Explorer"_. This
    opens a new closable tab in the explorer listing every object
@@ -372,12 +311,11 @@ allocation path. Use it to inspect a flamegraph node object-by-object:
    dominator-based selection; regular nodes produce a path-based
    selection.
 
-   <!-- TODO screenshot
-        Capture: the Flamegraph Objects tab immediately after invoking
-        "Open in Heapdump Explorer" — the tab title should carry the
-        selected node's name, and the table should show matching
-        objects.
-   -->
+   <!-- Screenshot pending: "Open in Heapdump Explorer" produces a
+        dynamic tab showing every object on the selected allocation
+        path. Capture from a trace with a large heap dump flamegraph
+        whose node labels read clearly at 1080p. -->
+
 
 3. From there, click any object to open its
    [object tab](#inspecting-a-single-object), or use _Back to Timeline_
