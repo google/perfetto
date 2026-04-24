@@ -461,24 +461,20 @@ class ProfileActivity : Activity() {
 }
 ```
 
-**Verify.** Re-run the same repro, re-dump, re-open. The Classes
-tab no longer lists `com.heapleak.ProfileActivity` at all — the
-class has no live instances, so it doesn't appear:
-
-![Classes tab on the fixed trace. com.heapleak.ProfileActivity has been dropped from the list (Count 0); the top rows are framework classes (byte[], java.lang.String, int[]).](../images/heap_docs/16-fixed-classes.png)
+Re-run the same repro and re-dump. The Classes tab now shows
+exactly one `ProfileActivity` — the currently visible screen —
+instead of one per rotation.
 
 This tiny demo saves ~1.5&nbsp;MiB of app heap; a real screen with a
 live view hierarchy sees the difference in tens of megabytes. Any
 `Activity` subclass showing `Count > 0` in a dump captured after
 the user navigated away is a leak.
 
-The same recipe finds the other common shapes of Activity leak. The
-last hop before the Activity in the reference path always names the
-holder: `Handler.mQueue → Message.target → MyActivity` for a
-delayed-message `Handler`, `SensorManager.mListeners → MyActivity`
-for an unregistered listener, a path through a `StandaloneCoroutine`
-for a coroutine that outlived its scope. The fix is to clear the
-field the path points at, at the right lifecycle callback.
+The same recipe finds the other common shapes of Activity leak —
+delayed-message `Handler`s, unregistered listeners, coroutines that
+outlived their scope. The last hop before the Activity in the
+reference path always names the holder; the fix is to clear that
+field at the right lifecycle callback.
 
 ### Tracking down duplicate bitmaps
 
