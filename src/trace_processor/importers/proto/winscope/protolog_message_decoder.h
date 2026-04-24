@@ -29,6 +29,8 @@
 
 namespace perfetto::trace_processor::winscope {
 
+inline constexpr char kCollisionGroupTag[] = "COLLISION_GROUP";
+
 enum ProtoLogLevel : int32_t {
   DEBUG = 1,
   VERBOSE = 2,

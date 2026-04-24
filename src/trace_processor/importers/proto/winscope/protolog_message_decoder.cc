@@ -377,8 +377,8 @@ ProtoLogMessageDecoder::DecodeCollidiongMessageIds(
       }
       collision_message += ">";
     }
-    return DecodedMessage{ProtoLogLevel::WARN, nullptr, collision_message,
-                          std::nullopt};
+    return DecodedMessage{ProtoLogLevel::WARN, kCollisionGroupTag,
+                          collision_message, std::nullopt};
   }
 }
 

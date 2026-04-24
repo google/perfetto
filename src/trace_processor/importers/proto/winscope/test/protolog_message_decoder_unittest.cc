@@ -50,9 +50,13 @@ TEST_F(ProtologMessageDecoderTest, DecodeSingleMessage) {
   EXPECT_EQ(context_->storage->GetStats(
                 stats::winscope_protolog_view_config_collision),
             0);
+  EXPECT_EQ(context_->storage->GetStats(
+                stats::winscope_protolog_view_config_collision_resolved),
+            0);
 }
 
-TEST_F(ProtologMessageDecoderTest, DecodeCollidingMessages) {
+TEST_F(ProtologMessageDecoderTest,
+       DecodeCollidingMessagesWithDifferentParameters) {
   uint64_t msg_id = 100;
   decoder_->TrackMessage(msg_id, ProtoLogLevel::INFO, default_group_id,
                          "Value: %d", "Some Location");
@@ -74,7 +78,54 @@ TEST_F(ProtologMessageDecoderTest, DecodeCollidingMessages) {
   EXPECT_EQ(context_->storage->GetStats(
                 stats::winscope_protolog_view_config_collision_resolved),
             1);
+}
 
-  /* WIP: TESTS TO BE ADDED TOMORROW*/
+TEST_F(ProtologMessageDecoderTest, DecodeCollidingMessagesWithSameParameters) {
+  uint64_t msg_id = 100;
+  decoder_->TrackMessage(msg_id, ProtoLogLevel::INFO, default_group_id,
+                         "Value: %d", "Some Location");
+  decoder_->TrackMessage(msg_id, ProtoLogLevel::WARN, default_group_id,
+                         "Other Value: %d", "Other Location");
+
+  auto decoded = decoder_->Decode(msg_id, {123}, {}, {}, {});
+  ASSERT_TRUE(decoded.has_value());
+  EXPECT_EQ(decoded->log_level, ProtoLogLevel::WARN);
+  EXPECT_EQ(decoded->group_tag, kCollisionGroupTag);
+  EXPECT_THAT(decoded->message,
+              testing::HasSubstr("<PROTOLOG COLLISION (id=0x"));
+  EXPECT_THAT(
+      decoded->message,
+      testing::HasSubstr(
+          ") MULTIPLE TYPE MATCHES : 'Value: 123',\n 'Other Value: 123'>"));
+  EXPECT_EQ(decoded->location, std::nullopt);
+  EXPECT_EQ(context_->storage->GetStats(
+                stats::winscope_protolog_view_config_collision),
+            1);
+  EXPECT_EQ(context_->storage->GetStats(
+                stats::winscope_protolog_view_config_collision_resolved),
+            0);
+}
+
+TEST_F(ProtologMessageDecoderTest, DecodeCollidingMessagesWithNoMatch) {
+  uint64_t msg_id = 100;
+  decoder_->TrackMessage(msg_id, ProtoLogLevel::INFO, default_group_id,
+                         "Value: %d", "Some Location");
+  decoder_->TrackMessage(msg_id, ProtoLogLevel::WARN, default_group_id,
+                         "Other Value: %d", "Other Location");
+
+  auto decoded = decoder_->Decode(msg_id, {}, {}, {true}, {});
+  ASSERT_TRUE(decoded.has_value());
+  EXPECT_EQ(decoded->log_level, ProtoLogLevel::WARN);
+  EXPECT_EQ(decoded->group_tag, kCollisionGroupTag);
+  EXPECT_THAT(decoded->message,
+              testing::HasSubstr("<PROTOLOG COLLISION (id=0x"));
+  EXPECT_THAT(decoded->message, testing::HasSubstr(") NO TYPE MATCH >"));
+  EXPECT_EQ(decoded->location, std::nullopt);
+  EXPECT_EQ(context_->storage->GetStats(
+                stats::winscope_protolog_view_config_collision),
+            1);
+  EXPECT_EQ(context_->storage->GetStats(
+                stats::winscope_protolog_view_config_collision_resolved),
+            0);
 }
 }  // namespace perfetto::trace_processor::winscope
