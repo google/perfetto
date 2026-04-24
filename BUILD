@@ -4815,8 +4815,6 @@ perfetto_filegroup(
         "src/traceconv/trace_to_bundle.h",
         "src/traceconv/trace_to_firefox.cc",
         "src/traceconv/trace_to_firefox.h",
-        "src/traceconv/trace_to_hprof.cc",
-        "src/traceconv/trace_to_hprof.h",
         "src/traceconv/trace_to_json.cc",
         "src/traceconv/trace_to_json.h",
         "src/traceconv/trace_to_profile.cc",

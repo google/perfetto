@@ -39,7 +39,6 @@
 #include "src/traceconv/trace.descriptor.h"
 #include "src/traceconv/trace_to_bundle.h"
 #include "src/traceconv/trace_to_firefox.h"
-#include "src/traceconv/trace_to_hprof.h"
 #include "src/traceconv/trace_to_json.h"
 #include "src/traceconv/trace_to_profile.h"
 #include "src/traceconv/trace_to_systrace.h"
@@ -89,10 +88,6 @@ CONVERSION MODES AND THEIR SUPPORTED OPTIONS:
    --output-dir DIR                   Output directory for profiles (default: random tmp)
 
  java_heap_profile                    Legacy alias for "profile --java-heap"
-
- hprof                                Converts heap profile to hprof format
-   --timestamps T1,T2,...             Generate profiles for specific timestamps
-   --pid PID                          Generate profiles for specific process
 
  symbolize                            Symbolizes addresses in profiles
    (no additional options)
@@ -291,11 +286,10 @@ int Main(int argc, char** argv) {
 
   std::string format(positional_args[0]);
 
-  if ((format != "profile" && format != "hprof" &&
-       format != "java_heap_profile") &&
+  if ((format != "profile" && format != "java_heap_profile") &&
       (pid != 0 || !timestamps.empty())) {
     PERFETTO_ELOG(
-        "--pid and --timestamps are supported only for profile, hprof, "
+        "--pid and --timestamps are supported only for profile "
         "and java_heap_profile formats.");
     return 1;
   }
@@ -366,10 +360,6 @@ int Main(int argc, char** argv) {
         input_stream, pid, timestamps, !profile_no_annotations, output_dir,
         trace_to_text::ConversionMode::kJavaHeapProfile, verbose);
   }
-
-  if (format == "hprof")
-    return trace_to_text::TraceToHprof(input_stream, output_stream, pid,
-                                       timestamps);
 
   if (format == "symbolize")
     return trace_to_text::SymbolizeProfile(input_stream, output_stream,
