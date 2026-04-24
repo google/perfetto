@@ -436,31 +436,73 @@ async function computeFlamegraphTree(
       `,
     }),
   );
-  disposable.use(
-    await createPerfettoTable({
-      engine,
-      name: `_flamegraph_hash_${uuid}`,
-      as: `
-        select *
-        from _viz_flamegraph_downwards_hash!(
-          _flamegraph_source_${uuid},
-          _flamegraph_filtered_${uuid},
-          _flamegraph_accumulated_${uuid},
-          ${groupingColumns},
-          ${groupedColumns},
-          ${view.kind === 'BOTTOM_UP' ? 'FALSE' : 'TRUE'}
-        )
-        union all
+  // The hash macros now emit a skinny output (no name / |grouping|
+  // columns). Those are filled in later in resolve_groups against the
+  // per-merged-row representative, which is ~4x cheaper than joining at
+  // every walk row. We deliberately skip ORDER BY here - the grouping
+  // step uses a hash index instead.
+  //
+  // Only one of upwards/downwards is non-empty for a given view:
+  //   BOTTOM_UP: upwards_hash has pivot-seeded inits, downwards_hash
+  //              is empty (showDownward=FALSE).
+  //   TOP_DOWN:  downwards_hash has root-seeded inits, upwards_hash is
+  //              empty (no rows match the pivot filter).
+  // So we skip the empty side entirely to avoid its graph_scan setup.
+  const hashWalkSql =
+    view.kind === 'BOTTOM_UP'
+      ? `
         select *
         from _viz_flamegraph_upwards_hash!(
           _flamegraph_source_${uuid},
           _flamegraph_filtered_${uuid},
           _flamegraph_accumulated_${uuid},
-          ${groupingColumns},
           ${groupedColumns}
         )
-        order by hash
+      `
+      : `
+        select *
+        from _viz_flamegraph_downwards_hash!(
+          _flamegraph_source_${uuid},
+          _flamegraph_filtered_${uuid},
+          _flamegraph_accumulated_${uuid},
+          ${groupedColumns},
+          TRUE
+        )
+      `;
+  disposable.use(
+    await createPerfettoTable({
+      engine,
+      name: `_flamegraph_hash_${uuid}`,
+      as: hashWalkSql,
+    }),
+  );
+  disposable.use(
+    await createPerfettoIndex({
+      engine,
+      name: `_flamegraph_hash_${uuid}_index`,
+      on: `_flamegraph_hash_${uuid}(hash)`,
+    }),
+  );
+  // Group hashes into one row per unique hash. Index on hash so that
+  // resolve_groups can self-join in O(N log N) for parentId resolution.
+  disposable.use(
+    await createPerfettoTable({
+      engine,
+      name: `_flamegraph_grouped_${uuid}`,
+      as: `
+        select *
+        from _viz_flamegraph_group_hashes!(
+          _flamegraph_hash_${uuid},
+          ${computeGroupedAggExprs(agg)}
+        )
       `,
+    }),
+  );
+  disposable.use(
+    await createPerfettoIndex({
+      engine,
+      name: `_flamegraph_grouped_${uuid}_index`,
+      on: `_flamegraph_grouped_${uuid}(hash)`,
     }),
   );
   disposable.use(
@@ -469,10 +511,11 @@ async function computeFlamegraphTree(
       name: `_flamegraph_merged_${uuid}`,
       as: `
         select *
-        from _viz_flamegraph_merge_hashes!(
-          _flamegraph_hash_${uuid},
+        from _viz_flamegraph_resolve_groups!(
+          _flamegraph_grouped_${uuid},
+          _flamegraph_source_${uuid},
           ${groupingColumns},
-          ${computeGroupedAggExprs(agg)}
+          ${groupedColumns}
         )
       `,
     }),
