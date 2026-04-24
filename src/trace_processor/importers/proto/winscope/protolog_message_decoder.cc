@@ -57,9 +57,9 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
     return DecodedMessage{tracked_message.level, group->tag, formatted_message,
                           tracked_message.location};
   } else {
-    return DecodeCollidiongMessageIds(messages, message_id, sint64_params,
-                                      double_params, boolean_params,
-                                      string_params);
+    return DecodeCollidingMessageIds(messages, message_id, sint64_params,
+                                     double_params, boolean_params,
+                                     string_params);
   }
 }
 
@@ -321,8 +321,7 @@ bool ProtoLogMessageDecoder::MatchesParameterSequence(
          string_idx == string_params.size();
 }
 
-std::optional<DecodedMessage>
-ProtoLogMessageDecoder::DecodeCollidiongMessageIds(
+std::optional<DecodedMessage> ProtoLogMessageDecoder::DecodeCollidingMessageIds(
     const base::SmallVector<TrackedMessage, 1>& messages,
     uint64_t message_id,
     const std::vector<int64_t>& sint64_params,

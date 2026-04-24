@@ -93,7 +93,7 @@ class ProtoLogMessageDecoder {
                                 const std::vector<bool>& boolean_params,
                                 const std::vector<std::string>& string_params);
 
-  std::optional<DecodedMessage> DecodeCollidiongMessageIds(
+  std::optional<DecodedMessage> DecodeCollidingMessageIds(
       const base::SmallVector<TrackedMessage, 1>& messages,
       uint64_t message_id,
       const std::vector<int64_t>& sint64_params,
