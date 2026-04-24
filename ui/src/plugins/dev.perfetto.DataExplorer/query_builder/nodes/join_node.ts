@@ -22,7 +22,7 @@ import {
 } from '../../query_node';
 import {getSecondaryInput} from '../graph_utils';
 import protos from '../../../../protos';
-import {ColumnInfo, legacyDeserializeType} from '../column_info';
+import {ColumnInfo} from '../column_info';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
 import {Switch} from '../../../../widgets/switch';
@@ -438,34 +438,5 @@ export class JoinNode implements QueryNode {
     });
 
     return sq;
-  }
-
-  static deserializeState(attrs: JoinNodeAttrs): JoinNodeAttrs {
-    // Migrate legacy columnName field and string types
-    const migrateColumns = (
-      cols?: (ColumnInfo & {columnName?: string})[],
-    ): ColumnInfo[] =>
-      (cols ?? []).map((c) => ({
-        name: c.columnName ?? c.name,
-        type: legacyDeserializeType(c.type),
-        checked: c.checked,
-        alias: c.alias,
-        typeUserModified: c.typeUserModified,
-      }));
-
-    return {
-      ...attrs,
-      conditionType: attrs.conditionType ?? 'equality',
-      joinType: attrs.joinType ?? 'INNER',
-      leftColumn: attrs.leftColumn ?? '',
-      rightColumn: attrs.rightColumn ?? '',
-      sqlExpression: attrs.sqlExpression ?? '',
-      leftColumns: migrateColumns(
-        attrs.leftColumns as (ColumnInfo & {columnName?: string})[],
-      ),
-      rightColumns: migrateColumns(
-        attrs.rightColumns as (ColumnInfo & {columnName?: string})[],
-      ),
-    };
   }
 }
