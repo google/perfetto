@@ -19,6 +19,7 @@
 
 #include <cstdint>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/util/type_set.h"
 
@@ -85,6 +86,17 @@ template <>
 struct TypeTagFor<StringPool::Id> {
   using type = String;
 };
+
+// An optional hashmap companion to an Index, providing O(1) Eq lookup
+// for single-column indexes over integer-like columns. The key is the
+// raw column value widened to uint64_t (int32/uint32/int64 are
+// zero/sign-extended; double keys use bit-level reinterpret). The value
+// is the row index in the storage.
+// Use MurmurHash (FlatHashMapV2's default) rather than AlreadyHashed so
+// sequential/small-range integer keys (e.g. id columns) don't cluster
+// catastrophically. MurmurHash is ~2ns/key so it costs nothing when keys
+// are already well-distributed hashes.
+using HashMapEqIndex = base::FlatHashMapV2<uint64_t, uint32_t>;
 
 }  // namespace perfetto::trace_processor::core
 

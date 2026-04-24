@@ -118,6 +118,11 @@ using MinMaxOp = TypeSet<MinOp, MaxOp>;
 // TypeSet containing all the non-id storage types.
 using NonIdStorageType = TypeSet<Uint32, Int32, Int64, Double, String>;
 
+// TypeSet of storage types eligible for the hashmap-index O(1) Eq
+// filter. Excludes String (handled via the StringPool fast paths) and
+// Id (handled as row index without any index lookup).
+using HashMapEqStorageType = TypeSet<Uint32, Int32, Int64, Double>;
+
 // TypeSet which collapses all of the sparse nullability types into a single
 // type.
 using SparseNullCollapsedNullability = TypeSet<NonNull, SparseNull, DenseNull>;

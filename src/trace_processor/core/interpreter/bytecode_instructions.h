@@ -473,6 +473,38 @@ struct IndexedFilterEq : IndexedFilterEqBase {
   static_assert(TS2::Contains<N>());
 };
 
+// O(1) equality filter backed by a hashmap companion of an Index.
+// The hashmap is attached to single-column non-null no-duplicate
+// integer-like indexes at BuildIndex time (see dataframe.cc). When
+// present, the planner emits this opcode instead of IndexedFilterEq
+// for Eq constraints to avoid the O(log n) binary search.
+//
+// |hashmap_register| holds a `const HashMapEqIndex*`. |source_register|
+// is the input span from the sorted index's permutation vector (unused
+// on a hit, needed only so the fallback binary-search semantics are
+// preserved; we treat the hashmap as authoritative for presence).
+// |dest_register| gets either an empty span (miss) or a one-element
+// span pointing at the row index inside a scratch slot the interpreter
+// owns.
+struct IndexedFilterEqHashMapBase : TemplatedBytecode1<HashMapEqStorageType> {
+  static constexpr Cost kCost = FixedCost{5};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_5(ReadHandle<const core::HashMapEqIndex*>,
+                                     hashmap_register,
+                                     ReadHandle<CastFilterValueResult>,
+                                     filter_value_reg,
+                                     ReadHandle<Span<uint32_t>>,
+                                     source_register,
+                                     WriteHandle<Span<uint32_t>>,
+                                     dest_register,
+                                     RwHandle<Slab<uint32_t>>,
+                                     scratch_register);
+};
+template <typename T>
+struct IndexedFilterEqHashMap : IndexedFilterEqHashMapBase {
+  static_assert(TS1::Contains<T>());
+};
+
 // Given a source span and a source range, copies all indices in the span which
 // are in bounds in then range to the destiation span. The destination span must
 // be large enough to hold all the indices in the source span.
@@ -791,6 +823,10 @@ struct PropagateTreeDown : Bytecode {
   X(IndexedFilterEq<String, NonNull>)                  \
   X(IndexedFilterEq<String, SparseNull>)               \
   X(IndexedFilterEq<String, DenseNull>)                \
+  X(IndexedFilterEqHashMap<Uint32>)                    \
+  X(IndexedFilterEqHashMap<Int32>)                     \
+  X(IndexedFilterEqHashMap<Int64>)                     \
+  X(IndexedFilterEqHashMap<Double>)                    \
   X(FilterIn<Id, NonNull>)                             \
   X(FilterIn<Id, SparseNull>)                          \
   X(FilterIn<Id, DenseNull>)                           \

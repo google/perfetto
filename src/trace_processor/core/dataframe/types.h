@@ -10,6 +10,8 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/common/duplicate_types.h"
@@ -22,6 +24,11 @@
 
 namespace perfetto::trace_processor::core::dataframe {
 
+// HashMapEqIndex type alias lives in storage_types.h so both the
+// dataframe and the bytecode interpreter can reference it as a first-
+// class value type without creating a circular dependency.
+using core::HashMapEqIndex;
+
 // Represents an index to speed up operations on the dataframe.
 struct Index {
  public:
@@ -29,6 +36,13 @@ struct Index {
         std::shared_ptr<std::vector<uint32_t>> _permutation_vector)
       : columns_(std::move(_columns)),
         permutation_vector_(std::move(_permutation_vector)) {}
+
+  Index(std::vector<uint32_t> _columns,
+        std::shared_ptr<std::vector<uint32_t>> _permutation_vector,
+        std::shared_ptr<HashMapEqIndex> _hashmap)
+      : columns_(std::move(_columns)),
+        permutation_vector_(std::move(_permutation_vector)),
+        hashmap_(std::move(_hashmap)) {}
 
   // Returns a copy of this index.
   Index Copy() const { return *this; }
@@ -42,9 +56,15 @@ struct Index {
     return permutation_vector_;
   }
 
+  // Optional O(1) hashmap companion. Non-null iff built at BuildIndex time
+  // (single column, non-null, no duplicates, integer-like type). Consumers
+  // should fall back to the permutation vector when nullptr.
+  const std::shared_ptr<HashMapEqIndex>& hashmap() const { return hashmap_; }
+
  private:
   std::vector<uint32_t> columns_;
   std::shared_ptr<std::vector<uint32_t>> permutation_vector_;
+  std::shared_ptr<HashMapEqIndex> hashmap_;
 };
 
 // Tag type for Id column data pointers. Id columns don't have backing storage

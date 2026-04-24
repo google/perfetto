@@ -1082,6 +1082,60 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
   state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
 }
 
+// O(1) Eq lookup using the hashmap companion of an Index. On a hit,
+// the scratch register receives a single-element array holding the
+// matched row index, and the dest span points at that element. On a
+// miss (or an invalid cast), the dest span is empty.
+template <typename T>
+inline PERFETTO_ALWAYS_INLINE void IndexedFilterEqHashMap(
+    InterpreterState& state,
+    const IndexedFilterEqHashMapBase& bytecode) {
+  using B = IndexedFilterEqHashMapBase;
+  const auto& filter_value =
+      state.ReadFromRegister(bytecode.arg<B::filter_value_reg>());
+  const auto& source =
+      state.ReadFromRegister(bytecode.arg<B::source_register>());
+  Span<uint32_t> dest(source.b, source.e);
+  if (!HandleInvalidCastFilterValueResult(filter_value.validity, dest)) {
+    state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
+    return;
+  }
+
+  // Widen the cast filter value into the uint64 key space used by the
+  // hashmap. These casts must mirror HashMapKeyFromStorage() in
+  // dataframe.cc so we find entries put there by BuildIndex.
+  using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
+  const auto& typed_value = base::unchecked_get<M>(filter_value.value);
+  uint64_t key;
+  if constexpr (std::is_same_v<T, Uint32>) {
+    key = static_cast<uint64_t>(typed_value);
+  } else if constexpr (std::is_same_v<T, Int32>) {
+    key = static_cast<uint64_t>(static_cast<int64_t>(typed_value));
+  } else if constexpr (std::is_same_v<T, Int64>) {
+    key = static_cast<uint64_t>(typed_value);
+  } else if constexpr (std::is_same_v<T, Double>) {
+    double v = typed_value;
+    std::memcpy(&key, &v, sizeof(key));
+  } else {
+    static_assert(!std::is_same_v<T, T>, "Unsupported type for hashmap filter");
+  }
+
+  const auto* hashmap =
+      state.ReadFromRegister(bytecode.arg<B::hashmap_register>());
+  const uint32_t* row_ptr = hashmap->Find(key);
+  auto& scratch = state.ReadFromRegister(bytecode.arg<B::scratch_register>());
+  PERFETTO_DCHECK(scratch.size() >= 1);
+  if (row_ptr == nullptr) {
+    dest.b = scratch.begin();
+    dest.e = scratch.begin();
+  } else {
+    scratch[0] = *row_ptr;
+    dest.b = scratch.begin();
+    dest.e = scratch.begin() + 1;
+  }
+  state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
+}
+
 // ============================================================================
 // FilterIn: IN-clause filtering
 //
