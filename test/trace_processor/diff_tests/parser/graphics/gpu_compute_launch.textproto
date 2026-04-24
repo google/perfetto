@@ -1,0 +1,73 @@
+# Test name_iid, ComputeKernelLaunch, and ExtraComputeArg on
+# GpuRenderStageEvent and InternedComputeKernel.
+
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  interned_data {
+    graphics_contexts {
+      iid: 1
+      pid: 100
+      api: CUDA
+    }
+    gpu_specifications {
+      iid: 1
+      name: "Compute Queue"
+      category: COMPUTE
+    }
+    gpu_specifications {
+      iid: 2
+      name: "Kernel"
+      category: COMPUTE
+    }
+    event_names {
+      iid: 1
+      name: "vectorAdd"
+    }
+    compute_kernels {
+      iid: 1
+      name: "_Z9vectorAddPfS_S_i"
+      demangled_name: "vectorAdd(float*, float*, float*, int)"
+      arch: "sm_80"
+      args {
+        name: "registers_per_thread"
+        uint_value: 32
+      }
+    }
+  }
+  sequence_flags: 1  # SEQ_INCREMENTAL_STATE_CLEARED
+}
+
+# Kernel launch with structured launch parameters and name_iid.
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 100
+  gpu_render_stage_event {
+    event_id: 0
+    duration: 50
+    hw_queue_iid: 1
+    stage_iid: 2
+    context: 1
+    kernel_iid: 1
+    name_iid: 1
+    launch {
+      grid_size {
+        x: 256
+        y: 1
+        z: 1
+      }
+      workgroup_size {
+        x: 128
+        y: 1
+        z: 1
+      }
+      args {
+        name: "shared_mem_dynamic"
+        uint_value: 4096
+      }
+    }
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
