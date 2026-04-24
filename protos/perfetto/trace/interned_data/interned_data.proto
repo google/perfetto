@@ -103,6 +103,9 @@ message InternedData {
   // Description of a GPU hardware queue or render stage.
   repeated InternedGpuRenderStageSpecification gpu_specifications = 24;
 
+  // Description of a compute kernel (name, demangled name, architecture).
+  repeated InternedComputeKernel compute_kernels = 48;
+
   // This is set when FtraceConfig.symbolize_ksyms = true.
   // The id of each symbol the number that will be reported in ftrace events
   // like sched_block_reason.caller and is obtained from a monotonic counter.

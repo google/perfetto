@@ -1,0 +1,86 @@
+# Test InternedComputeKernel referenced from GpuRenderStageEvent via kernel_iid.
+
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  interned_data {
+    graphics_contexts {
+      iid: 1
+      pid: 100
+      api: CUDA
+    }
+    gpu_specifications {
+      iid: 1
+      name: "Compute Queue"
+      category: COMPUTE
+    }
+    gpu_specifications {
+      iid: 2
+      name: "Kernel"
+      description: "GPU kernel stage"
+      category: COMPUTE
+    }
+    compute_kernels {
+      iid: 1
+      name: "_Z9vectorAddPfS_S_i"
+      demangled_name: "vectorAdd(float*, float*, float*, int)"
+      arch: "sm_80"
+    }
+    compute_kernels {
+      iid: 2
+      name: "_Z6matMulPfS_S_ii"
+      demangled_name: "matMul(float*, float*, float*, int, int)"
+      arch: "sm_80"
+    }
+  }
+  sequence_flags: 1  # SEQ_INCREMENTAL_STATE_CLEARED
+}
+
+# First launch of vectorAdd kernel.
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 100
+  gpu_render_stage_event {
+    event_id: 0
+    duration: 50
+    hw_queue_iid: 1
+    stage_iid: 2
+    context: 1
+    kernel_iid: 1
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+
+# Launch of matMul kernel.
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 200
+  gpu_render_stage_event {
+    event_id: 1
+    duration: 100
+    hw_queue_iid: 1
+    stage_iid: 2
+    context: 1
+    kernel_iid: 2
+  }
+  sequence_flags: 2
+}
+
+# Second launch of vectorAdd kernel (reuses same kernel_iid).
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 400
+  gpu_render_stage_event {
+    event_id: 2
+    duration: 50
+    hw_queue_iid: 1
+    stage_iid: 2
+    context: 1
+    kernel_iid: 1
+  }
+  sequence_flags: 2
+}

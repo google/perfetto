@@ -149,6 +149,10 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
       pid_id_(context_->storage->InternString("pid")),
       tid_id_(context_->storage->InternString("tid")),
       category_id_(context->storage->InternString("render_stage_category")),
+      kernel_name_id_(context->storage->InternString("kernel_name")),
+      kernel_demangled_name_id_(
+          context->storage->InternString("kernel_demangled_name")),
+      arch_id_(context->storage->InternString("arch")),
       description_id_(context->storage->InternString("description")),
       correlation_id_(context->storage->InternString("correlation_id")),
       counter_id_key_id_(context->storage->InternString("counter_id")),
@@ -840,6 +844,32 @@ void GpuEventParser::ParseGpuRenderStageEvent(
               if (description != kNullStringId) {
                 inserter->AddArg(description_id_,
                                  Variadic::String(description));
+              }
+            }
+          }
+
+          if (event.has_kernel_iid()) {
+            auto kernel_iid = static_cast<size_t>(event.kernel_iid());
+            auto* kernel = sequence_state->LookupInternedMessage<
+                protos::pbzero::InternedData::kComputeKernelsFieldNumber,
+                protos::pbzero::InternedComputeKernel>(kernel_iid);
+            if (kernel) {
+              if (kernel->has_name()) {
+                inserter->AddArg(
+                    kernel_name_id_,
+                    Variadic::String(
+                        context_->storage->InternString(kernel->name())));
+              }
+              if (kernel->has_demangled_name()) {
+                inserter->AddArg(
+                    kernel_demangled_name_id_,
+                    Variadic::String(context_->storage->InternString(
+                        kernel->demangled_name())));
+              }
+              if (kernel->has_arch()) {
+                inserter->AddArg(
+                    arch_id_, Variadic::String(context_->storage->InternString(
+                                  kernel->arch())));
               }
             }
           }

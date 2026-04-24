@@ -18,7 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// next id: 19
+// next id: 20
 message GpuRenderStageEvent {
   // required. Unique ID for the event.
   optional uint64 event_id = 1;
@@ -91,6 +91,10 @@ message GpuRenderStageEvent {
   // had to wait on before it could run.
   repeated uint64 event_wait_ids = 18;
 
+  // optional. ID to a compute kernel description in the interned data.
+  // InternedComputeKernel
+  optional uint64 kernel_iid = 19;
+
   // DEPRECATED
 
   // Deprecated.  Use InternedGpuRenderStageSpecification instead.
@@ -159,4 +163,11 @@ message InternedGpuRenderStageSpecification {
     COMPUTE = 2;
   }
   optional RenderStageCategory category = 4;
+}
+
+message InternedComputeKernel {
+  optional uint64 iid = 1;
+  optional string name = 2;
+  optional string demangled_name = 3;
+  optional string arch = 4;
 }
