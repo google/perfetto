@@ -596,3 +596,24 @@ class GraphicsGpuTrace(TestSuite):
           "cuLaunchKernel","GPU_API_CUDA"
           "vkCmdDispatch","GPU_API_VULKAN"
         '''))
+
+  def test_gpu_compute_kernel(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_compute_kernel.textproto'),
+        query='''
+          SELECT
+            s.name AS slice_name,
+            extract_arg(s.arg_set_id, 'kernel_name') AS kernel_name,
+            extract_arg(s.arg_set_id, 'kernel_demangled_name')
+              AS kernel_demangled_name,
+            extract_arg(s.arg_set_id, 'arch') AS arch
+          FROM gpu_slice s
+          WHERE extract_arg(s.arg_set_id, 'kernel_name') IS NOT NULL
+          ORDER BY s.ts;
+        ''',
+        out=Csv('''
+          "slice_name","kernel_name","kernel_demangled_name","arch"
+          "Kernel","_Z9vectorAddPfS_S_i","vectorAdd(float*, float*, float*, int)","sm_80"
+          "Kernel","_Z6matMulPfS_S_ii","matMul(float*, float*, float*, int, int)","sm_80"
+          "Kernel","_Z9vectorAddPfS_S_i","vectorAdd(float*, float*, float*, int)","sm_80"
+        '''))
