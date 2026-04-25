@@ -66,7 +66,7 @@ class V8SequenceState final
 };
 
 template <>
-struct PacketSequenceStateGeneration::CustomStateTraits<V8SequenceState> {
+struct CustomStateTraits<V8SequenceState> {
   using Tracker = V8Tracker;
 };
 
