@@ -32,6 +32,7 @@ source_set("minimal") {
     "chrome_system_probes_parser.h",
     "default_modules.cc",
     "default_modules.h",
+    "incremental_state.cc",
     "memory_tracker_snapshot_module.cc",
     "memory_tracker_snapshot_module.h",
     "memory_tracker_snapshot_parser.cc",
@@ -262,6 +263,7 @@ source_set("proto_importer_module") {
 
 source_set("packet_sequence_state_generation_hdr") {
   sources = [
+    "incremental_state.h",
     "packet_sequence_state_generation.h",
     "track_event_sequence_state.h",
     "track_event_thread_descriptor.h",
@@ -319,6 +321,7 @@ source_set("unittests") {
     "heap_graph_tracker_unittest.cc",
     "jit_tracker_unittest.cc",
     "network_trace_module_unittest.cc",
+    "packet_sequence_state_generation_unittest.cc",
     "perf_sample_tracker_unittest.cc",
     "profile_packet_sequence_state_unittest.cc",
     "proto_trace_parser_impl_unittest.cc",

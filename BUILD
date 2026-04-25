@@ -2947,6 +2947,7 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/chrome_system_probes_parser.h",
         "src/trace_processor/importers/proto/default_modules.cc",
         "src/trace_processor/importers/proto/default_modules.h",
+        "src/trace_processor/importers/proto/incremental_state.cc",
         "src/trace_processor/importers/proto/memory_tracker_snapshot_module.cc",
         "src/trace_processor/importers/proto/memory_tracker_snapshot_module.h",
         "src/trace_processor/importers/proto/memory_tracker_snapshot_parser.cc",
@@ -2994,6 +2995,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
     srcs = [
+        "src/trace_processor/importers/proto/incremental_state.h",
         "src/trace_processor/importers/proto/packet_sequence_state_generation.h",
         "src/trace_processor/importers/proto/track_event_sequence_state.h",
         "src/trace_processor/importers/proto/track_event_thread_descriptor.h",
