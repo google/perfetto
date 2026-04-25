@@ -28,6 +28,58 @@ import {Switch} from '../../widgets/switch';
 import type {GpuComputeContext} from './index';
 import {Select} from '../../widgets/select';
 
+// Memoized kernel selector that skips vdom diffing when the options
+// list and selected value haven't changed. Without this, mithril
+// rebuilds and diffs thousands of <option> vnodes on every redraw.
+interface KernelSelectAttrs {
+  options: KernelLaunchOption[];
+  value: string;
+  onChange: (id: number | undefined) => void;
+}
+
+class KernelSelect implements m.ClassComponent<KernelSelectAttrs> {
+  private prevValue = '';
+  private prevOptionsLength = -1;
+  private prevFirstId = -1;
+  private prevLastId = -1;
+
+  onbeforeupdate({attrs}: m.CVnode<KernelSelectAttrs>): boolean {
+    const opts = attrs.options;
+    const same =
+      attrs.value === this.prevValue &&
+      opts.length === this.prevOptionsLength &&
+      (opts[0]?.id ?? -1) === this.prevFirstId &&
+      (opts[opts.length - 1]?.id ?? -1) === this.prevLastId;
+    if (same) return false;
+    this.prevValue = attrs.value;
+    this.prevOptionsLength = opts.length;
+    this.prevFirstId = opts[0]?.id ?? -1;
+    this.prevLastId = opts[opts.length - 1]?.id ?? -1;
+    return true;
+  }
+
+  view({attrs}: m.CVnode<KernelSelectAttrs>): m.Children {
+    this.prevValue = attrs.value;
+    this.prevOptionsLength = attrs.options.length;
+    this.prevFirstId = attrs.options[0]?.id ?? -1;
+    this.prevLastId = attrs.options[attrs.options.length - 1]?.id ?? -1;
+    return m(
+      Select,
+      {
+        value: attrs.value,
+        className: 'pf-gpu-compute__toolbar-kernel-select',
+        onchange: (e: Event) => {
+          const v = (e.target as HTMLSelectElement).value;
+          attrs.onChange(v === '' ? undefined : Number(v));
+        },
+      },
+      attrs.options.map((o, i) =>
+        m('option', {value: String(o.id)}, `${i} - ${trunc(o.label)}`),
+      ),
+    );
+  }
+}
+
 // Maximum label length before truncation.
 const MAX_LABEL_LENGTH = 50;
 
@@ -145,22 +197,11 @@ export function renderToolbar(opts: {
           ),
           m('span', 'Current'),
         ]),
-        m(
-          Select,
-          {
-            value,
-            className: 'pf-gpu-compute__toolbar-kernel-select',
-            onchange: (e: Event) => {
-              const value = (e.target as HTMLSelectElement).value;
-              opts.onChange(value === '' ? undefined : Number(value));
-            },
-          },
-          [
-            ...opts.options.map((o, i) =>
-              m('option', {value: String(o.id)}, `${i} - ${trunc(o.label)}`),
-            ),
-          ],
-        ),
+        m(KernelSelect, {
+          options: opts.options,
+          value,
+          onChange: opts.onChange,
+        }),
         m(
           'span.pf-gpu-compute__toolbar-size',
           opts.toolbarInfo?.sizeText ?? '—',
