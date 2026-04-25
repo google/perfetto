@@ -262,8 +262,12 @@ function kernelQueryBody(ctx: GpuComputeContext): string {
     FROM gpu_slice s
     INNER JOIN gpu_track tr ON tr.id = s.track_id
     LEFT JOIN counter c ON c.ts >= s.ts AND c.ts < s.ts + s.dur
+      AND c.track_id IN (
+        SELECT gc_tc.id FROM gpu_counter_track gc_tc
+        INNER JOIN gpu_counter_group gc ON gc.track_id = gc_tc.id
+          AND gc.group_id = ${COMPUTE_COUNTER_GROUP_ID}
+      )
     LEFT JOIN gpu_counter_track tc ON tc.id = c.track_id
-    LEFT JOIN gpu_counter_group gc ON gc.track_id = tc.id AND gc.group_id = ${COMPUTE_COUNTER_GROUP_ID}
   `;
 }
 
@@ -275,7 +279,6 @@ export function buildKernelQuery(
   const whereFilter = `
     WHERE s.render_stage_category = ${COMPUTE_RENDER_STAGE_CATEGORY}
       AND s.id = ${sliceIdFilter}
-      AND (gc.group_id IS NOT NULL OR c.id IS NULL)
     GROUP BY kernel_id, metric_label
   `;
 
@@ -810,8 +813,11 @@ function loadMetricData(
       FROM gpu_slice s
       INNER JOIN gpu_track tr ON tr.id = s.track_id
       INNER JOIN counter c ON c.ts >= s.ts AND c.ts < s.ts + s.dur
-      INNER JOIN gpu_counter_track tc ON tc.id = c.track_id
-      INNER JOIN gpu_counter_group gc ON gc.track_id = tc.id AND gc.group_id = ${COMPUTE_COUNTER_GROUP_ID}
+        AND c.track_id IN (
+          SELECT gc_tc.id FROM gpu_counter_track gc_tc
+          INNER JOIN gpu_counter_group gc ON gc.track_id = gc_tc.id
+            AND gc.group_id = ${COMPUTE_COUNTER_GROUP_ID}
+        )
       WHERE s.render_stage_category = ${COMPUTE_RENDER_STAGE_CATEGORY}
       LIMIT 1;
     `;
@@ -899,10 +905,11 @@ export const KernelMetricsSection: m.Component<
           baselineLookup,
         });
 
-      // Built-in sections are always registered, so this should never
-      // be empty. Assert rather than showing a placeholder.
       if (kernel.sections.length === 0) {
-        throw new Error('GpuCompute: no sections registered');
+        return m(
+          '.pf-gpu-compute__pad',
+          m('p', 'No detailed metrics available for this kernel.'),
+        );
       }
 
       return (
