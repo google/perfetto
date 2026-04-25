@@ -28,6 +28,43 @@ import {Switch} from '../../widgets/switch';
 import type {GpuComputeContext} from './index';
 import {Select} from '../../widgets/select';
 
+// Memoized kernel selector that skips vdom diffing when the options
+// list and selected value haven't changed. Without this, mithril
+// rebuilds and diffs thousands of <option> vnodes on every redraw.
+interface KernelSelectAttrs {
+  readonly options: readonly KernelLaunchOption[];
+  readonly value: string;
+  onChange: (id: number | undefined) => void;
+}
+
+class KernelSelect implements m.ClassComponent<KernelSelectAttrs> {
+  onbeforeupdate(
+    {attrs}: m.CVnode<KernelSelectAttrs>,
+    old: m.CVnode<KernelSelectAttrs>,
+  ): boolean {
+    return (
+      attrs.value !== old.attrs.value || attrs.options !== old.attrs.options
+    );
+  }
+
+  view({attrs}: m.CVnode<KernelSelectAttrs>): m.Children {
+    return m(
+      Select,
+      {
+        value: attrs.value,
+        className: 'pf-gpu-compute__toolbar-kernel-select',
+        onchange: (e: Event) => {
+          const v = (e.target as HTMLSelectElement).value;
+          attrs.onChange(v === '' ? undefined : Number(v));
+        },
+      },
+      attrs.options.map((o, i) =>
+        m('option', {value: String(o.id)}, `${i} - ${trunc(o.label)}`),
+      ),
+    );
+  }
+}
+
 // Maximum label length before truncation.
 const MAX_LABEL_LENGTH = 50;
 
@@ -145,22 +182,11 @@ export function renderToolbar(opts: {
           ),
           m('span', 'Current'),
         ]),
-        m(
-          Select,
-          {
-            value,
-            className: 'pf-gpu-compute__toolbar-kernel-select',
-            onchange: (e: Event) => {
-              const value = (e.target as HTMLSelectElement).value;
-              opts.onChange(value === '' ? undefined : Number(value));
-            },
-          },
-          [
-            ...opts.options.map((o, i) =>
-              m('option', {value: String(o.id)}, `${i} - ${trunc(o.label)}`),
-            ),
-          ],
-        ),
+        m(KernelSelect, {
+          options: opts.options,
+          value,
+          onChange: opts.onChange,
+        }),
         m(
           'span.pf-gpu-compute__toolbar-size',
           opts.toolbarInfo?.sizeText ?? '—',
