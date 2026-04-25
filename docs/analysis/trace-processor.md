@@ -16,22 +16,50 @@ library, providing a convenient way to interactively analyze traces.
 
 ### Downloading the shell
 
-The shell can be downloaded from the Perfetto website:
+The shell can be downloaded from the Perfetto website. The download is a thin
+Python wrapper that fetches and caches the correct native binary for your
+platform (including `trace_processor_shell.exe` on Windows) under
+`~/.local/share/perfetto/prebuilts` on first use.
+
+<?tabs>
+
+TAB: Linux / macOS
 
 ```bash
-# Download prebuilts (Linux and Mac only)
 curl -LO https://get.perfetto.dev/trace_processor
 chmod +x ./trace_processor
 ```
+
+TAB: Windows
+
+```powershell
+curl.exe -LO https://get.perfetto.dev/trace_processor
+```
+
+Python 3 is required to run the wrapper script. `curl` ships with Windows 10
+and later.
+
+</tabs?>
 
 ### Running the shell
 
 Once downloaded, you can immediately use it to open a trace file:
 
+<?tabs>
+
+TAB: Linux / macOS
+
 ```bash
-# Start the interactive shell
 ./trace_processor trace.perfetto-trace
 ```
+
+TAB: Windows
+
+```powershell
+python trace_processor trace.perfetto-trace
+```
+
+</tabs?>
 
 This will open an interactive SQL shell where you can query the trace. For
 more information on how to write queries, see the
