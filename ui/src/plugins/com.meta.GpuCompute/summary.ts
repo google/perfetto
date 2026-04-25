@@ -53,6 +53,7 @@ type SummaryState = {
   launchIndexBySliceId: Map<number, number>;
   sortKey: SortKey | null;
   sortDescending: boolean;
+  dirty: boolean;
 };
 
 // Renders a bar whose width is proportional to `val / max`.
@@ -256,6 +257,17 @@ export const KernelSummarySection: m.Component<
   SummarySectionAttrs,
   SummaryState
 > = {
+  onbeforeupdate({state}) {
+    // Skip vdom diffing when nothing has changed. The view is only
+    // invalidated by oninit (data load) and onSort (sort change),
+    // both of which set dirty=true before calling m.redraw().
+    if (state.dirty) {
+      state.dirty = false;
+      return true;
+    }
+    return false;
+  },
+
   async oninit({attrs, state}) {
     state.launchIndexBySliceId = new Map();
     state.sortKey = 'id';
@@ -293,6 +305,7 @@ export const KernelSummarySection: m.Component<
     );
     state.maxGridSize = finiteMax(rows.map((r) => Number(r.gridSize)));
 
+    state.dirty = true;
     m.redraw();
   },
 
@@ -346,6 +359,7 @@ export const KernelSummarySection: m.Component<
         state.sortKey = key;
         state.sortDescending = true;
       }
+      state.dirty = true;
       m.redraw();
     };
 
