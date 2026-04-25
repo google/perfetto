@@ -21,7 +21,6 @@
 // optional baseline comparison and per-section analysis.
 //
 // Key exports:
-// - {@link fetchKernelLaunchList} — populates the toolbar's Results dropdown
 // - {@link fetchSelectedKernelMetricData} — loads full metric data for a slice
 // - {@link KernelMetricsSection} — top-level Mithril component for the tab
 // - {@link renderPercentBar}, {@link renderMetricResultTable},
@@ -292,37 +291,6 @@ export function buildKernelQuery(
 // =============================================================================
 // Data fetching
 // =============================================================================
-
-// Fetches the list of compute kernel launches for the Results dropdown.
-// Returns one entry per launch, ordered by timestamp.
-export async function fetchKernelLaunchList(
-  engine: QueryCapable,
-): Promise<KernelLaunchOption[]> {
-  const sql = `
-    SELECT
-      s.id AS id,
-      COALESCE(
-        EXTRACT_ARG(s.arg_set_id, 'kernel_demangled_name'),
-        EXTRACT_ARG(s.arg_set_id, 'kernel_name'),
-        s.name
-      ) AS kname
-    FROM gpu_slice s
-    INNER JOIN gpu_track tr ON tr.id = s.track_id
-    WHERE s.render_stage_category = ${COMPUTE_RENDER_STAGE_CATEGORY}
-    ORDER BY s.ts ASC;
-  `;
-  const result = await engine.query(sql);
-  const iter = result.iter({});
-  const list: KernelLaunchOption[] = [];
-  while (iter.valid()) {
-    list.push({
-      id: Number(iter.get('id')),
-      label: String(iter.get('kname')),
-    });
-    iter.next();
-  }
-  return list;
-}
 
 // =============================================================================
 // Row reduction — SQL iterator → KernelGroup map

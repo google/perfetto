@@ -33,7 +33,7 @@ import type {GpuComputeContext} from './index';
 import {adjustSeconds} from './humanize';
 
 // Per-kernel row returned by {@link fetchKernelSummaryRows}.
-type SummaryRow = {
+export type SummaryRow = {
   id: number;
   demangledName: string;
   durationNSecNum: number | string | null;
@@ -179,6 +179,7 @@ export interface SummarySectionAttrs extends m.Attributes {
   engine: Engine;
   sliceId?: number;
   openSliceInDetail?: (sliceId: number) => void;
+  prefetchedRows?: SummaryRow[];
 }
 
 // Column keys that the table can be sorted by.
@@ -278,7 +279,9 @@ export const KernelSummarySection: m.Component<
     state.sortDescending = false;
     state.pageOffset = 0;
 
-    const rows = await fetchKernelSummaryRows(attrs.ctx, attrs.engine);
+    const rows =
+      attrs.prefetchedRows ??
+      (await fetchKernelSummaryRows(attrs.ctx, attrs.engine));
 
     // Build launch-order map so the ID column shows 0, 1, 2, …
     rows.forEach((opt, zeroBasedIndex) =>

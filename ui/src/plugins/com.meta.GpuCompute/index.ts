@@ -16,11 +16,7 @@ import m from 'mithril';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {Engine} from '../../trace_processor/engine';
-import {
-  KernelMetricsSection,
-  fetchKernelLaunchList,
-  fetchSelectedKernelMetricData,
-} from './details';
+import {KernelMetricsSection, fetchSelectedKernelMetricData} from './details';
 import {TrackEventSelection} from '../../public/selection';
 import {renderToolbar} from './toolbar';
 import type {InfoTab} from './toolbar';
@@ -29,7 +25,8 @@ import type {
   KernelMetricData,
   ToolbarInfo,
 } from './details';
-import {KernelSummarySection} from './summary';
+import {KernelSummarySection, fetchKernelSummaryRows} from './summary';
+import type {SummaryRow} from './summary';
 import {registerSpeedOfLightSection} from './section/speed_of_light';
 import {registerLaunchStatisticsSection} from './section/launch_statistics';
 import {registerOccupancySection} from './section/occupancy';
@@ -78,6 +75,7 @@ class Compute {
 
   private sliceId: number | undefined = -1;
   private options: KernelLaunchOption[] = [];
+  private summaryRows: SummaryRow[] = [];
 
   // Selection-driven metric fetching via QuerySlot. Selection changes
   // trigger mithril redraws; render() reads the current selection and
@@ -224,6 +222,10 @@ class Compute {
     this.options = opts;
   }
 
+  public setSummaryRows(rows: SummaryRow[]) {
+    this.summaryRows = rows;
+  }
+
   // Populating the toolbar with the correct kernel's launch info
   private toolbarInfo?: ToolbarInfo;
   public setToolbarInfo(info?: ToolbarInfo) {
@@ -314,6 +316,7 @@ class Compute {
         engine: this.engine,
         sliceId: effectiveSliceId,
         openSliceInDetail: (id: number) => this.setSliceId(id),
+        prefetchedRows: this.summaryRows,
       });
     } else if (this.ctx.activeInfoTab === 'analysis') {
       const provider = this.ctx.analysisProviderHolder.get();
@@ -403,9 +406,13 @@ export default class GpuComputePlugin implements PerfettoPlugin {
     });
 
     try {
-      const list = await fetchKernelLaunchList(trace.engine);
-      content.setOptions(list);
-      if (list.length > 0) {
+      const rows = await fetchKernelSummaryRows(
+        this.getContext(),
+        trace.engine,
+      );
+      content.setSummaryRows(rows);
+      content.setOptions(rows.map((r) => ({id: r.id, label: r.demangledName})));
+      if (rows.length > 0) {
         trace.tabs.showTab(tabUri);
       }
     } catch (e) {
