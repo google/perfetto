@@ -649,10 +649,12 @@ void TrackEventDataSource::OnStart(const DataSourceBase::StartArgs& args) {
 }
 
 }  // namespace internal
+}  // namespace perfetto
 
+// Must be at global scope to match the matching DECLARE in
+// track_event_data_source.h. MSVC otherwise fails to link the explicit
+// specialization (issue #5591).
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS_WITH_ATTRS(
     PERFETTO_EXPORT_COMPONENT,
     perfetto::internal::TrackEventDataSource,
     perfetto::internal::TrackEventDataSourceTraits);
-
-}  // namespace perfetto
