@@ -30,18 +30,24 @@ utilities.
 
 To use the latest binaries:
 
+<?tabs>
+
+TAB: Linux / macOS
+
 ```bash
-# Linux / macOS
 curl -LO https://get.perfetto.dev/traceconv
 chmod +x traceconv
 ./traceconv MODE [OPTIONS] [input_file] [output_file]
 ```
 
+TAB: Windows
+
 ```powershell
-# Windows
 curl.exe -LO https://get.perfetto.dev/traceconv
 python traceconv MODE [OPTIONS] [input_file] [output_file]
 ```
+
+</tabs?>
 
 The `traceconv` script is a thin Python wrapper that downloads and caches
 the correct native binary for your platform (including `traceconv.exe` on
