@@ -24,6 +24,7 @@
 #include <string>
 #include <type_traits>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -256,8 +257,17 @@ class ProtoToArgsParser {
   void AddParsingOverrideForType(const std::string& message_type,
                                  ParsingOverrideForType parsing_override);
 
- private:
+  // Forward-declared here so the variant alias below can name it. The
+  // definition lives in the .cc; do not reference it from outside the
+  // parser implementation.
   struct WorkItem;
+  using WorkItemVariant = std::variant<WorkItem>;
+
+  ~ProtoToArgsParser();
+
+ private:
+  base::Status RunWorkLoop(Delegate& delegate);
+  base::Status StepProtoMessage(WorkItem& item, Delegate& delegate, bool& done);
 
   base::Status ParsePackedField(
       const FieldDescriptor& field_descriptor,
@@ -290,6 +300,14 @@ class ProtoToArgsParser {
   std::unordered_map<std::string, ParsingOverrideForType> type_overrides_;
   const DescriptorPool& pool_;
   Key key_prefix_;
+  // Parameters to ParseMessage that apply uniformly to every WorkItem on
+  // the stack. Set by ParseMessage; read by StepProtoMessage.
+  const std::vector<uint32_t>* allowed_fields_ = nullptr;
+  int* unknown_extensions_ = nullptr;
+  bool add_defaults_ = false;
+  // Iterative work stack. ParseMessage pushes the initial item and runs
+  // RunWorkLoop, which calls StepProtoMessage on the top until empty.
+  std::vector<WorkItemVariant> work_stack_;
 };
 
 }  // namespace util
