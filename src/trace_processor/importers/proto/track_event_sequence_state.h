@@ -32,11 +32,17 @@ class TrackEventSequenceState {
     return TrackEventSequenceState(PersistentState());
   }
 
-  TrackEventSequenceState OnIncrementalStateCleared() {
+  // Returns a successor for use after packet loss. Persistent state (pid/tid)
+  // is preserved; delta-encoded state (running reference timestamps,
+  // incremental counter values, the timestamps_valid flag) is reset because
+  // those values are tied to the run of packets that we just lost.
+  TrackEventSequenceState OnPacketLoss() const {
     return TrackEventSequenceState(persistent_state_);
   }
 
-  void OnPacketLoss() { timestamps_valid_ = false; }
+  TrackEventSequenceState OnIncrementalStateCleared() {
+    return TrackEventSequenceState(persistent_state_);
+  }
 
   bool pid_and_tid_valid() const { return persistent_state_.pid_and_tid_valid; }
 
