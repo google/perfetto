@@ -29,6 +29,8 @@
 
     - [Debugging Memory Usage](case-studies/memory.md) {.tag-android}
     - [Scheduling Blockages](case-studies/scheduling-blockages.md) {.tag-android .tag-linux}
+    - [Android Performance Tutorials](case-studies/perf-tutorial-series.md) {.tag-android}
+    - [Frame Jank](case-studies/frame-jank.md) {.tag-android}
 
   - [Contributing](#)
 
