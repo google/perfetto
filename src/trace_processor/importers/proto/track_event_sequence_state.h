@@ -17,44 +17,55 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_SEQUENCE_STATE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_SEQUENCE_STATE_H_
 
-#include <utility>
+#include <cstdint>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
-#include "src/trace_processor/importers/common/synthetic_tid.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
-class TrackEventSequenceState {
+class TraceProcessorContext;
+
+// Track-event delta state for one packet sequence: the running reference
+// timestamps used to resolve delta-encoded TrackEvent fields, and per-counter
+// running values for incremental counters.
+//
+// Held as a CustomState — i.e. shared across `trace_packet_defaults`
+// transitions and reset on `SEQ_INCREMENTAL_STATE_CLEARED`. Surviving
+// trace_packet_defaults is the right thing: incremental counter values are
+// keyed by track_uuid (stable across defaults), and timestamp deltas remain
+// valid as long as the producer doesn't change `timestamp_clock_id` (which it
+// is allowed to do but is expected to re-emit a ThreadDescriptor afterwards).
+//
+// The persistent half (pid/tid) lives in TrackEventThreadDescriptor, which is
+// a direct member of `PacketSequenceStateGeneration` because it must survive
+// SEQ_INCREMENTAL_STATE_CLEARED too.
+class TrackEventSequenceState final
+    : public PacketSequenceStateGeneration::CustomState {
  public:
-  static TrackEventSequenceState CreateFirst() {
-    return TrackEventSequenceState(PersistentState());
-  }
+  explicit TrackEventSequenceState(TraceProcessorContext*) {}
 
-  // Returns a successor for use after packet loss. Persistent state (pid/tid)
-  // is preserved; delta-encoded state (running reference timestamps,
-  // incremental counter values, the timestamps_valid flag) is reset because
-  // those values are tied to the run of packets that we just lost.
-  TrackEventSequenceState OnPacketLoss() const {
-    return TrackEventSequenceState(persistent_state_);
-  }
+  ~TrackEventSequenceState() override;
 
-  TrackEventSequenceState OnIncrementalStateCleared() {
-    return TrackEventSequenceState(persistent_state_);
-  }
-
-  bool pid_and_tid_valid() const { return persistent_state_.pid_and_tid_valid; }
-
-  int32_t pid() const { return persistent_state_.pid; }
-  int64_t tid() const {
-    return persistent_state_.use_synthetic_tid
-               ? CreateSyntheticTid(persistent_state_.tid,
-                                    persistent_state_.pid)
-               : persistent_state_.tid;
-  }
+  // Delta-encoded values (running reference timestamps and incremental
+  // counter values) are tied to the run of packets that just got lost; the
+  // contract is that the producer re-establishes state before resuming
+  // incremental data. Discard our state so the next ThreadDescriptor (or
+  // SEQ_INCREMENTAL_STATE_CLEARED) starts from a clean slate.
+  bool ClearOnPacketLoss() const override { return true; }
 
   bool timestamps_valid() const { return timestamps_valid_; }
+
+  // Sets the running reference timestamps from a ThreadDescriptor packet.
+  void SetReferenceTimestamps(int64_t timestamp_ns,
+                              int64_t thread_timestamp_ns,
+                              int64_t thread_instruction_count) {
+    timestamps_valid_ = true;
+    timestamp_ns_ = timestamp_ns;
+    thread_timestamp_ns_ = thread_timestamp_ns;
+    thread_instruction_count_ = thread_instruction_count;
+  }
 
   int64_t IncrementAndGetTrackEventTimeNs(int64_t delta_ns) {
     PERFETTO_DCHECK(timestamps_valid());
@@ -82,28 +93,7 @@ class TrackEventSequenceState {
     return *it;
   }
 
-  void SetThreadDescriptor(const protos::pbzero::ThreadDescriptor::Decoder&,
-                           bool use_synthetic_tid);
-
  private:
-  // State that is never cleared.
-  struct PersistentState {
-    // |pid_| and |tid_| are only valid after we parsed at least one
-    // ThreadDescriptor packet on the sequence.
-    bool pid_and_tid_valid = false;
-
-    // Process/thread ID of the packet sequence set by a ThreadDescriptor
-    // packet. Used as default values for TrackEvents that don't specify a
-    // pid/tid override. Only valid after |pid_and_tid_valid_| is set to true.
-    int32_t pid = 0;
-    int64_t tid = 0;
-
-    bool use_synthetic_tid = false;
-  };
-
-  explicit TrackEventSequenceState(PersistentState persistent_state)
-      : persistent_state_(std::move(persistent_state)) {}
-
   // We can only consider TrackEvent delta timestamps to be correct after we
   // have observed a thread descriptor (since the last packet loss).
   bool timestamps_valid_ = false;
@@ -116,11 +106,8 @@ class TrackEventSequenceState {
 
   base::FlatHashMap<uint64_t /* uuid */, double /* value */>
       incremental_counter_values_;
-
-  PersistentState persistent_state_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_SEQUENCE_STATE_H_

@@ -41,6 +41,7 @@
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
+#include "src/trace_processor/importers/proto/track_event_sequence_state.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -149,8 +150,8 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
   // pid/tid are resolved correctly during parsing), we forward the packet as a
   // whole through the sorter, using the "root" timestamp of the packet, i.e.
   // the current timestamp of the packet sequence.
-  auto packet_ts =
-      sequence_state->IncrementAndGetTrackEventTimeNs(/*delta_ns=*/0);
+  auto* track_event = sequence_state->GetCustomState<TrackEventSequenceState>();
+  auto packet_ts = track_event->IncrementAndGetTrackEventTimeNs(/*delta_ns=*/0);
   std::optional<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
       ClockId::Machine(protos::pbzero::BUILTIN_CLOCK_MONOTONIC), packet_ts);
   if (trace_ts)
@@ -159,7 +160,7 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
   // Increment the sequence's timestamp by all deltas.
   for (auto timestamp_it = decoder.timestamp_delta_us(); timestamp_it;
        ++timestamp_it) {
-    sequence_state->IncrementAndGetTrackEventTimeNs(*timestamp_it * 1000);
+    track_event->IncrementAndGetTrackEventTimeNs(*timestamp_it * 1000);
   }
 
   module_context_->trace_packet_stream->Push(
@@ -180,8 +181,9 @@ void ProfileModule::ParseStreamingProfilePacket(
   StackProfileSequenceState& stack_profile_sequence_state =
       *sequence_state->GetCustomState<StackProfileSequenceState>();
 
-  uint32_t pid = static_cast<uint32_t>(sequence_state->pid());
-  uint32_t tid = static_cast<uint32_t>(sequence_state->tid());
+  const auto& thread = sequence_state->thread_descriptor();
+  uint32_t pid = static_cast<uint32_t>(thread.pid());
+  uint32_t tid = static_cast<uint32_t>(thread.tid());
   const UniqueTid utid = procs->UpdateThread(tid, pid);
   const UniquePid upid = procs->GetOrCreateProcess(pid);
 

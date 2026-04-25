@@ -325,6 +325,7 @@ class TrackEventEventImporter {
 
   base::Status ParseInitialTrackAssociation() {
     ProcessTracker* procs = context_->process_tracker.get();
+    const auto& thread = sequence_state_->thread_descriptor();
 
     // Consider track_uuid from the packet and TrackEventDefaults, fall back to
     // the default descriptor track (uuid 0).
@@ -358,9 +359,9 @@ class TrackEventEventImporter {
           upid_ = resolved->upid();
           // TODO: b/175152326 - Should pid namespace translation also be done
           // here?
-          if (sequence_state_->pid_and_tid_valid()) {
-            auto pid = static_cast<uint32_t>(sequence_state_->pid());
-            auto tid = static_cast<uint32_t>(sequence_state_->tid());
+          if (thread.valid()) {
+            auto pid = static_cast<uint32_t>(thread.pid());
+            auto tid = static_cast<uint32_t>(thread.tid());
             UniqueTid utid_candidate = procs->UpdateThread(tid, pid);
             if (storage_->thread_table()[utid_candidate].upid() == upid_) {
               legacy_passthrough_utid_ = utid_candidate;
@@ -370,15 +371,15 @@ class TrackEventEventImporter {
         case TrackEventTracker::ResolvedDescriptorTrack::Scope::kGlobal:
           // TODO: b/175152326 - Should pid namespace translation also be done
           // here?
-          if (sequence_state_->pid_and_tid_valid()) {
-            auto pid = static_cast<uint32_t>(sequence_state_->pid());
-            auto tid = static_cast<uint32_t>(sequence_state_->tid());
+          if (thread.valid()) {
+            auto pid = static_cast<uint32_t>(thread.pid());
+            auto tid = static_cast<uint32_t>(thread.tid());
             legacy_passthrough_utid_ = procs->UpdateThread(tid, pid);
           }
           break;
       }
     } else {
-      bool pid_tid_state_valid = sequence_state_->pid_and_tid_valid();
+      bool pid_tid_state_valid = thread.valid();
 
       // We have a 0-value |track_uuid|. Nevertheless, we should only fall back
       // if we have either no |track_uuid| specified at all or |track_uuid| was
@@ -399,8 +400,8 @@ class TrackEventEventImporter {
       if (fallback_to_legacy_pid_tid_tracks_) {
         // TODO: b/175152326 - Should pid namespace translation also be done
         // here?
-        auto pid = static_cast<uint32_t>(sequence_state_->pid());
-        auto tid = sequence_state_->tid();
+        auto pid = static_cast<uint32_t>(thread.pid());
+        auto tid = thread.tid();
         if (legacy_event_.has_pid_override()) {
           pid = static_cast<uint32_t>(legacy_event_.pid_override());
           // Create a synthetic tid while avoiding using the exact same tid in
@@ -409,7 +410,7 @@ class TrackEventEventImporter {
         }
         if (legacy_event_.has_tid_override()) {
           tid = static_cast<uint32_t>(legacy_event_.tid_override());
-          if (IsSyntheticTid(sequence_state_->tid())) {
+          if (IsSyntheticTid(thread.tid())) {
             tid = CreateSyntheticTid(tid, pid);
           }
         }

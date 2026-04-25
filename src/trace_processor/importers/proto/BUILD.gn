@@ -264,6 +264,7 @@ source_set("packet_sequence_state_generation_hdr") {
   sources = [
     "packet_sequence_state_generation.h",
     "track_event_sequence_state.h",
+    "track_event_thread_descriptor.h",
   ]
   deps = [
     "../../../../gn:default_deps",
