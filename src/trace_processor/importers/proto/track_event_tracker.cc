@@ -39,6 +39,7 @@
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/track_event_sequence_state.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -591,8 +592,8 @@ std::optional<double> TrackEventTracker::ConvertToAbsoluteCounterValue(
     value *= static_cast<double>(c_details.unit_multiplier);
   }
   if (c_details.is_incremental) {
-    value = packet_sequence_state->IncrementAndGetCounterValue(
-        counter_track_uuid, value);
+    value = packet_sequence_state->GetCustomState<TrackEventSequenceState>()
+                ->IncrementAndGetCounterValue(counter_track_uuid, value);
   }
   return value;
 }

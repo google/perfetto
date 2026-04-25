@@ -18,6 +18,7 @@
 #include <cstddef>
 
 #include "src/trace_processor/importers/proto/track_event_sequence_state.h"
+#include "src/trace_processor/importers/proto/track_event_thread_descriptor.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -30,20 +31,20 @@ PacketSequenceStateGeneration::CustomState::~CustomState() = default;
 RefPtr<PacketSequenceStateGeneration>
 PacketSequenceStateGeneration::CreateFirst(TraceProcessorContext* context) {
   return RefPtr<PacketSequenceStateGeneration>(
-      new PacketSequenceStateGeneration(
-          context, TrackEventSequenceState::CreateFirst(), false));
+      new PacketSequenceStateGeneration(context, TrackEventThreadDescriptor(),
+                                        false));
 }
 
 PacketSequenceStateGeneration::PacketSequenceStateGeneration(
     TraceProcessorContext* context,
     InternedFieldMap interned_data,
-    TrackEventSequenceState track_event_sequence_state,
+    TrackEventThreadDescriptor thread_descriptor,
     CustomStateArray custom_state,
     std::optional<InternedMessageView> trace_packet_defaults,
     bool is_incremental_state_valid)
     : context_(context),
       interned_data_(std::move(interned_data)),
-      track_event_sequence_state_(std::move(track_event_sequence_state)),
+      track_event_thread_descriptor_(std::move(thread_descriptor)),
       custom_state_(std::move(custom_state)),
       trace_packet_defaults_(std::move(trace_packet_defaults)),
       is_incremental_state_valid_(is_incremental_state_valid) {
@@ -60,22 +61,29 @@ PacketSequenceStateGeneration::OnPacketLoss() {
   // packets that were tokenized while the sequence was valid. Mutating in
   // place would retroactively flip their view on those buffered packets.
   // Instead, return a new generation that shares the per-interval state
-  // (interned data, custom state, persistent thread descriptor) but resets
-  // delta-encoded track-event state, since incremental values cannot be
-  // safely carried across the lost run of packets.
+  // (interned data, persistent thread descriptor, surviving CustomStates)
+  // but with the validity bits cleared. Each CustomState chooses for itself
+  // via `CustomState::ClearOnPacketLoss()` whether its contents survive the
+  // lost run of packets — e.g. delta-encoded track-event state opts in to
+  // being cleared since incremental values lose meaning across packet loss.
+  CustomStateArray new_custom_state = custom_state_;
+  for (auto& s : new_custom_state) {
+    if (s.get() != nullptr && s->ClearOnPacketLoss()) {
+      s.reset();
+    }
+  }
   return RefPtr<PacketSequenceStateGeneration>(
       new PacketSequenceStateGeneration(
-          context_, interned_data_, track_event_sequence_state_.OnPacketLoss(),
-          custom_state_, trace_packet_defaults_,
+          context_, interned_data_, track_event_thread_descriptor_,
+          std::move(new_custom_state), trace_packet_defaults_,
           /* is_incremental_state_valid */ false));
 }
 
 RefPtr<PacketSequenceStateGeneration>
 PacketSequenceStateGeneration::OnIncrementalStateCleared() {
   return RefPtr<PacketSequenceStateGeneration>(
-      new PacketSequenceStateGeneration(
-          context_, track_event_sequence_state_.OnIncrementalStateCleared(),
-          true));
+      new PacketSequenceStateGeneration(context_,
+                                        track_event_thread_descriptor_, true));
 }
 
 RefPtr<PacketSequenceStateGeneration>
@@ -83,8 +91,7 @@ PacketSequenceStateGeneration::OnNewTracePacketDefaults(
     TraceBlobView trace_packet_defaults) {
   return RefPtr<PacketSequenceStateGeneration>(
       new PacketSequenceStateGeneration(
-          context_, interned_data_,
-          track_event_sequence_state_.OnIncrementalStateCleared(),
+          context_, interned_data_, track_event_thread_descriptor_,
           custom_state_, InternedMessageView(std::move(trace_packet_defaults)),
           is_incremental_state_valid_));
 }
