@@ -158,8 +158,6 @@ source_set("descriptors") {
 
 source_set("proto_to_args_parser") {
   sources = [
-    "debug_annotation_parser.cc",
-    "debug_annotation_parser.h",
     "proto_to_args_parser.cc",
     "proto_to_args_parser.h",
   ]

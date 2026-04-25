@@ -66,7 +66,6 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/debug_annotation_parser.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
 #include "perfetto/ext/base/base64.h"
@@ -1350,9 +1349,9 @@ class TrackEventEventImporter {
 
     {
       auto key = parser_->args_parser_.EnterDictionary("debug");
-      util::DebugAnnotationParser parser(parser_->args_parser_);
       for (auto it = event_.debug_annotations(); it; ++it) {
-        log_errors(parser.Parse(*it, args_writer));
+        log_errors(
+            parser_->args_parser_.ParseDebugAnnotation(*it, args_writer));
       }
     }
 
