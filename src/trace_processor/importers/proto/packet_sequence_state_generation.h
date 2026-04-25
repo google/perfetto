@@ -17,166 +17,75 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PACKET_SEQUENCE_STATE_GENERATION_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PACKET_SEQUENCE_STATE_GENERATION_H_
 
-#include <array>
-#include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <tuple>
 #include <type_traits>
-#include <unordered_map>
 #include <utility>
 
-#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/proto/incremental_state.h"
 #include "src/trace_processor/importers/proto/track_event_thread_descriptor.h"
 #include "src/trace_processor/util/interned_message_view.h"
 
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
-#include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto::trace_processor {
 
-using InternedMessageMap =
-    std::unordered_map<uint64_t /*iid*/, InternedMessageView>;
-using InternedFieldMap =
-    std::unordered_map<uint32_t /*field_id*/, InternedMessageMap>;
-
 class TraceProcessorContext;
 
-class StackProfileSequenceState;
-class ProfilePacketSequenceState;
-class V8SequenceState;
-struct AndroidKernelWakelockState;
-struct AndroidCpuPerUidState;
-class TrackEventSequenceState;
-
-using CustomStateClasses = std::tuple<StackProfileSequenceState,
-                                      ProfilePacketSequenceState,
-                                      V8SequenceState,
-                                      AndroidKernelWakelockState,
-                                      AndroidCpuPerUidState,
-                                      TrackEventSequenceState>;
-
-// This is the public API exposed to packet tokenizers and parsers to access
-// state attached to a packet sequence. This state evolves as packets are
-// processed in sequence order. A packet that requires sequence state to be
-// properly parsed should snapshot this state by taking a copy of the RefPtr to
-// the currently active generation and passing it along with parsing specific
-// data to the sorting stage.
+// Snapshot of per-sequence state at the granularity of one
+// `trace_packet_defaults` slice. RefCounted: the TraceSorter pins one of
+// these per buffered packet so that, when the packet is later parsed in
+// timestamp order, lookups (interned data, custom states, defaults) resolve
+// to the state that was current at tokenization time.
+//
+// The interval-scoped state (interned data, CustomStates, persistent thread
+// descriptor) lives in `IncrementalState`, which is shared by RefPtr across
+// every Generation produced from the same SEQ_INCREMENTAL_STATE_CLEARED
+// interval. A new `IncrementalState` is constructed when the interval
+// resets; a new Generation (sharing the same `IncrementalState`) is
+// constructed on `trace_packet_defaults` changes.
 class PacketSequenceStateGeneration : public RefCounted {
  public:
-  // Base class to attach custom state to the sequence state. This state is keep
-  // per sequence and per incremental state interval, that is, each time
-  // incremental state is reset a new instance is created but not each time
-  // `TracePacketDefaults` are updated. Note that this means that different
-  // `PacketSequenceStateGeneration` instances might point to the same
-  // `CustomState` (because they only differ in their `TracePacketDefaults`).
-  //
-  // ATTENTION: You should not create instances of these classes yourself but
-  // use the `PacketSequenceStateGeneration::GetCustomState<>' method instead.
-  class CustomState : public RefCounted {
-   public:
-    virtual ~CustomState();
-
-    // Hook called when the packet sequence experiences packet loss. Override
-    // to return true if this CustomState's contents should be discarded — the
-    // entry in the new generation's CustomStateArray will be cleared, and the
-    // next caller of `GetCustomState<T>` will lazy-create a fresh instance.
-    // The default keeps the state across packet loss.
-    virtual bool ClearOnPacketLoss() const { return false; }
-
-   protected:
-    template <uint32_t FieldId, typename MessageType>
-    typename MessageType::Decoder* LookupInternedMessage(uint64_t iid) {
-      return generation_->LookupInternedMessage<FieldId, MessageType>(iid);
-    }
-
-    InternedMessageView* GetInternedMessageView(uint32_t field_id,
-                                                uint64_t iid) {
-      return generation_->GetInternedMessageView(field_id, iid);
-    }
-
-    template <typename T, typename... Args>
-    std::remove_cv_t<T>* GetCustomState(Args... args) {
-      return generation_->GetCustomState<T>(std::forward<Args>(args)...);
-    }
-
-    const TrackEventThreadDescriptor& thread_descriptor() const {
-      return generation_->thread_descriptor();
-    }
-
-   private:
-    friend PacketSequenceStateGeneration;
-    // Called when the a new generation is created as a result of
-    // `TracePacketDefaults` being updated.
-    void set_generation(PacketSequenceStateGeneration* generation) {
-      generation_ = generation;
-    }
-
-    // Note: A `InternedDataTracker` instance can be linked to multiple
-    // `PacketSequenceStateGeneration` instances (when there are multiple
-    // `TracePacketDefaults` in the same interning context). `generation_` will
-    // point to the latest one. We keep this member private to prevent misuse /
-    // confusion around this fact. Instead subclasses should access the public
-    // methods of this class to get any interned data.
-    // TODO(carlscab): Given that CustomState is ref counted this pointer might
-    // become invalid. CustomState should not be ref pointed and instead be
-    // owned by the `PacketSequenceStateGeneration` instance pointed at by
-    // `generation_`.
-    PacketSequenceStateGeneration* generation_ = nullptr;
-  };
-
-  // Defines an optional dependency for a `CustomState` class, which will be
-  // passed as an argument to its constructor.
-  template <typename T>
-  struct CustomStateTraits {
-    // The type of an optional second argument to the CustomState constructor.
-    // If `void`, the CustomState is constructed with only
-    // `TraceProcessorContext*`.
-    // Otherwise, it is constructed with `TraceProcessorContext*` and a pointer
-    // to the specified `Tracker` type.
-    using Tracker = void;
-  };
+  // Re-export `CustomState` and the traits machinery so existing call sites
+  // (e.g. `state->GetCustomState<T>()`) keep working. The actual ownership
+  // and definitions live in `incremental_state.h`.
+  using CustomState = ::perfetto::trace_processor::CustomState;
 
   static RefPtr<PacketSequenceStateGeneration> CreateFirst(
       TraceProcessorContext* context);
 
   RefPtr<PacketSequenceStateGeneration> OnPacketLoss();
-
   RefPtr<PacketSequenceStateGeneration> OnIncrementalStateCleared();
-
   RefPtr<PacketSequenceStateGeneration> OnNewTracePacketDefaults(
       TraceBlobView trace_packet_defaults);
 
   // Persistent pid/tid for this packet sequence (set by ThreadDescriptor).
   // Carried across every transition (including SEQ_INCREMENTAL_STATE_CLEARED).
   TrackEventThreadDescriptor& thread_descriptor() {
-    return track_event_thread_descriptor_;
+    return incremental_state_->thread_descriptor();
   }
   const TrackEventThreadDescriptor& thread_descriptor() const {
-    return track_event_thread_descriptor_;
+    return incremental_state_->thread_descriptor();
   }
 
   // Returns |nullptr| if the message with the given |iid| was not found (also
   // records a stat in this case).
   template <uint32_t FieldId, typename MessageType>
   typename MessageType::Decoder* LookupInternedMessage(uint64_t iid) {
-    auto* interned_message_view = GetInternedMessageView(FieldId, iid);
-    if (!interned_message_view)
-      return nullptr;
-
-    return interned_message_view->template GetOrCreateDecoder<MessageType>();
+    return incremental_state_->LookupInternedMessage<FieldId, MessageType>(iid);
+  }
+  InternedMessageView* GetInternedMessageView(uint32_t field_id, uint64_t iid) {
+    return incremental_state_->GetInternedMessageView(field_id, iid);
   }
 
-  InternedMessageView* GetInternedMessageView(uint32_t field_id, uint64_t iid);
   // Returns |nullptr| if no defaults were set.
   InternedMessageView* GetTracePacketDefaultsView() {
     if (!trace_packet_defaults_.has_value()) {
       return nullptr;
     }
-
     return &*trace_packet_defaults_;
   }
 
@@ -206,23 +115,12 @@ class PacketSequenceStateGeneration : public RefCounted {
     return nullptr;
   }
 
-  // Extension point for custom incremental state. Custom state classes need to
-  // inherit from `CustomState`.
-  //
-  // A common use case for this custom state is to store cache mappings between
-  // interning ids (iid) and TraceProcessor objects (e.g. table row). When we
-  // see an iid we need to access the InternedMessageView for that iid, and
-  // possibly do some computations, the result of all of this could then be
-  // cached so that next time we encounter the same iid we could reuse this
-  // cached value. This caching is only valid until incremental state is
-  // cleared, from then on subsequent iid values on the sequence will no longer
-  // refer to the same entities as the iid values before the clear. Custom state
-  // classes no not need to explicitly handle this: they are attached to an
-  // `IncrementalState` instance, and a new one is created when the state is
-  // cleared, so iid values after the clear will be processed by a new (empty)
-  // custom state instance.
+  // Extension point for custom incremental state. Custom state classes need
+  // to inherit from `CustomState` and be listed in `CustomStateClasses`.
   template <typename T, typename... Args>
-  std::remove_cv_t<T>* GetCustomState(Args... args);
+  std::remove_cv_t<T>* GetCustomState(Args... args) {
+    return incremental_state_->GetCustomState<T>(std::forward<Args>(args)...);
+  }
 
   // TODO(carlscab): Nobody other than `ProtoTraceReader` should care about
   // this. Remove.
@@ -231,90 +129,33 @@ class PacketSequenceStateGeneration : public RefCounted {
  private:
   friend class PacketSequenceStateBuilder;
 
-  using CustomStateArray =
-      std::array<RefPtr<CustomState>, std::tuple_size_v<CustomStateClasses>>;
-
-  // Helper to find the index in a tuple of a given type. Lookups are done
-  // ignoring cv qualifiers. If no index is found size of the tuple is returned.
-  //
-  // ATTENTION: Duplicate types in the tuple will trigger a compiler error.
-  template <typename Tuple, typename Type, size_t index = 0>
-  static constexpr size_t FindUniqueType() {
-    constexpr size_t kSize = std::tuple_size_v<Tuple>;
-    if constexpr (index < kSize) {
-      using TypeAtIndex = typename std::tuple_element<index, Tuple>::type;
-      if constexpr (std::is_same_v<std::remove_cv_t<Type>,
-                                   std::remove_cv_t<TypeAtIndex>>) {
-        static_assert(FindUniqueType<Tuple, Type, index + 1>() == kSize,
-                      "Duplicate types.");
-        return index;
-      } else {
-        return FindUniqueType<Tuple, Type, index + 1>();
-      }
-    } else {
-      return kSize;
-    }
-  }
-
-  PacketSequenceStateGeneration(TraceProcessorContext* context,
-                                TrackEventThreadDescriptor thread_descriptor,
-                                bool is_incremental_state_valid)
-      : context_(context),
-        track_event_thread_descriptor_(std::move(thread_descriptor)),
+  PacketSequenceStateGeneration(
+      RefPtr<IncrementalState> incremental_state,
+      std::optional<InternedMessageView> trace_packet_defaults,
+      bool is_incremental_state_valid)
+      : incremental_state_(std::move(incremental_state)),
+        trace_packet_defaults_(std::move(trace_packet_defaults)),
         is_incremental_state_valid_(is_incremental_state_valid) {}
 
-  PacketSequenceStateGeneration(
-      TraceProcessorContext* context,
-      InternedFieldMap interned_data,
-      TrackEventThreadDescriptor thread_descriptor,
-      CustomStateArray custom_state,
-      std::optional<InternedMessageView> trace_packet_defaults,
-      bool is_incremental_state_valid);
-
-  // Add an interned message to this incremental state view. This can only be
-  // called by `PacketSequenceStateBuilder' (which is a friend) as packet
+  // Add an interned message to the underlying IncrementalState. Only callable
+  // by `PacketSequenceStateBuilder` (which is a friend) since packet
   // tokenizers and parsers should never deal directly with reading interned
   // data out of trace packets.
-  void InternMessage(uint32_t field_id, TraceBlobView message);
+  void InternMessage(uint32_t field_id, TraceBlobView message) {
+    incremental_state_->InternMessage(field_id, std::move(message));
+  }
 
-  TraceProcessorContext* const context_;
-  InternedFieldMap interned_data_;
-  TrackEventThreadDescriptor track_event_thread_descriptor_;
-  CustomStateArray custom_state_;
+  // Shared with sibling generations within the same incremental-state
+  // interval (one new IncrementalState is constructed on
+  // SEQ_INCREMENTAL_STATE_CLEARED).
+  RefPtr<IncrementalState> incremental_state_;
+
+  // Per-slice state.
   std::optional<InternedMessageView> trace_packet_defaults_;
   // TODO(carlscab): Should not be needed as clients of this class should not
   // care about validity.
   bool is_incremental_state_valid_ = true;
 };
-
-template <typename T, typename... Args>
-std::remove_cv_t<T>* PacketSequenceStateGeneration::GetCustomState(
-    Args... args) {
-  constexpr size_t index = FindUniqueType<CustomStateClasses, T>();
-  static_assert(index < std::tuple_size_v<CustomStateClasses>, "Not found");
-  auto& ptr = custom_state_[index];
-  if (PERFETTO_UNLIKELY(ptr.get() == nullptr)) {
-    if constexpr (std::is_void_v<typename CustomStateTraits<T>::Tracker>) {
-      static_assert(sizeof...(args) == 0,
-                    "This custom state does not take any arguments.");
-      ptr.reset(new T(context_));
-    } else {
-      static_assert(sizeof...(args) == 1,
-                    "This custom state takes exactly one argument.");
-      // The argument type is now derived from the external trait.
-      using ArgType =
-          std::decay_t<std::tuple_element_t<0, std::tuple<Args...>>>;
-      using ExpectedType = typename CustomStateTraits<T>::Tracker*;
-      static_assert(std::is_same_v<ArgType, ExpectedType>,
-                    "Argument must be a pointer to the Tracker defined in "
-                    "CustomStateTraits.");
-      ptr.reset(new T(context_, std::forward<Args>(args)...));
-    }
-    ptr->set_generation(this);
-  }
-
-  return static_cast<std::remove_cv_t<T>*>(ptr.get());
-}
 
 }  // namespace perfetto::trace_processor
 
