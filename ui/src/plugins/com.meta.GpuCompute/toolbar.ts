@@ -156,12 +156,8 @@ export function renderToolbar(opts: {
             },
           },
           [
-            ...opts.options.map((o) =>
-              m(
-                'option',
-                {value: String(o.id)},
-                `${opts.options.indexOf(o)} - ${trunc(o.label)}`,
-              ),
+            ...opts.options.map((o, i) =>
+              m('option', {value: String(o.id)}, `${i} - ${trunc(o.label)}`),
             ),
           ],
         ),
