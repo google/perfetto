@@ -247,11 +247,27 @@ struct DefaultDataSourceTraits {
 template <typename DerivedDataSource,
           typename DataSourceTraits = DefaultDataSourceTraits>
 struct DataSourceHelper {
-  static internal::DataSourceType& type() {
-    static perfetto::internal::DataSourceType type_;
-    return type_;
-  }
+  // NOTE: type() is intentionally declared here and defined out-of-line below.
+  // Defining it inside the class body would make it implicitly inline
+  // ([dcl.fct.spec]/4), and MSVC propagates that inline attribute to every
+  // explicit specialization defined out-of-line by
+  // PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS in a .cc. The specialization's
+  // body then ends up not being emitted (cf. C4506 "no definition for inline
+  // function"), causing LNK2019 in any TU that calls Helper::type() without
+  // seeing the body -- e.g. user code that uses
+  // PERFETTO_TRACK_EVENT_STATIC_STORAGE. See issue #5591. GCC/Clang treat the
+  // out-of-line specialization as a regular non-inline function and are
+  // unaffected, but defining the primary template's member out-of-line keeps
+  // every compiler happy.
+  static internal::DataSourceType& type();
 };
+
+template <typename DerivedDataSource, typename DataSourceTraits>
+internal::DataSourceType&
+DataSourceHelper<DerivedDataSource, DataSourceTraits>::type() {
+  static perfetto::internal::DataSourceType type_;
+  return type_;
+}
 
 // Templated base class meant to be derived by embedders to create a custom data
 // source. DerivedDataSource must be the type of the derived class itself, e.g.:
