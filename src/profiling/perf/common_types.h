@@ -52,6 +52,7 @@ struct ParsedSample {
   ParsedSample& operator=(ParsedSample&&) noexcept = default;
 
   CommonSampleData common;
+  std::vector<uint8_t> raw_data;
   std::unique_ptr<unwindstack::Regs> regs;
   std::vector<char> stack;
   bool stack_maxed = false;
@@ -88,6 +89,7 @@ struct CompletedSample {
   std::vector<unwindstack::FrameData> frames;
   std::vector<std::string> build_ids;
   unwindstack::ErrorCode unwind_error = unwindstack::ERROR_NONE;
+  std::vector<uint8_t> raw_data;
 };
 
 }  // namespace profiling

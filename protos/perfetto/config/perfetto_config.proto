@@ -2501,6 +2501,10 @@ message FollowerEvent {
   // trace. Does *not* affect the profiling itself. If unset, the trace
   // parser will choose a suitable name.
   optional string name = 4;
+  oneof interval {
+    uint64 frequency = 6;
+    uint64 period = 7;
+  }
 }
 
 // End of protos/perfetto/common/perf_events.proto
@@ -2523,7 +2527,7 @@ message FollowerEvent {
 //     }
 //   }
 //
-// Next id: 23
+// Next id: 24
 message PerfEventConfig {
   // What event to sample on, and how often.
   // Defined in common/perf_events.proto.
@@ -2716,6 +2720,21 @@ message PerfEventConfig {
     // it to the same value. The profiler will choose one bin for all those data
     // sources.
     optional uint32 process_shard_count = 6;
+  }
+
+  // If set, the profiler enables PERF_SAMPLE_RAW for the configured
+  // tracepoint events. The collected raw samples contain the ftrace
+  // payload, which is later parsed and converted into ftrace event packets.
+  optional FtraceSettings ftrace_events = 23;
+
+  message FtraceSettings {
+    // If true, reads the perf counter value in addition to
+    // PERF_SAMPLE_RAW for each tracepoint sample. Default value is true.
+    optional bool read_counter = 1;
+
+    // If true, uses a compact encoding for relevant scheduler ftrace events
+    // (e.g. sched_switch, sched_wakeup). Default value is true.
+    optional bool compact_sched = 2;
   }
 
   // Userspace unwinding mode. A possible future addition is kernel-unwound
