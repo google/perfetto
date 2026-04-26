@@ -127,6 +127,8 @@ source_set("full") {
   sources = [
     "additional_modules.cc",
     "additional_modules.h",
+    "android_binder_parcel_module.cc",
+    "android_binder_parcel_module.h",
     "android_camera_event_module.cc",
     "android_camera_event_module.h",
     "android_cpu_per_uid_module.cc",

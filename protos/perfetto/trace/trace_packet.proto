@@ -23,6 +23,7 @@ import "protos/perfetto/config/trace_config.proto";
 import "protos/perfetto/protovm/vm_program.proto";
 import "protos/perfetto/trace/extension_descriptor.proto";
 import "protos/perfetto/trace/android/android_aflags.proto";
+import "protos/perfetto/trace/android/android_binder_parcel.proto";
 import "protos/perfetto/trace/android/android_game_intervention_list.proto";
 import "protos/perfetto/trace/android/android_log.proto";
 import "protos/perfetto/trace/android/android_system_property.proto";
@@ -294,7 +295,27 @@ message TracePacket {
 
     EvdevEvent evdev_event = 121;
 
-    AndroidUserList user_list = 123;
+    // PROTOTYPE ONLY - TODO(zezeozue) AS-IS.
+    //
+    // user_list was shipped upstream at field 123 (commit eb7b8885e6,
+    // Nov 2025). We renumber it locally to 130 to free 123 for the
+    // AIDL binder-parcel prototype, because the prototype producer
+    // (libbinder_parcel_tracing.so) was built against a pzc.h that
+    // baked 123 into the emitted bytes, and trace captures already
+    // exist in that form.
+    //
+    // Before submitting upstream:
+    //   1. Revert this hunk: restore `AndroidUserList user_list = 123;`.
+    //   2. Assign android_binder_parcel a fresh, unused field id
+    //      (e.g. 129 or the next free slot at submission time) and
+    //      update this proto, tools/gen_c_protos output, and rebuild
+    //      the producer so its pzc.h emits the new id.
+    //   3. Re-capture any reference traces with the rebuilt producer.
+    AndroidUserList user_list = 130;
+
+    // One half of an AIDL binder transaction with field-level, AIDL-typed
+    // annotations. Four halves pair via txn_id into one logical RPC.
+    AndroidBinderParcelEvent android_binder_parcel = 123;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
