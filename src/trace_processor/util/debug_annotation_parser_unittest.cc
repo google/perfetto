@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/util/debug_annotation_parser.h"
+#include "src/trace_processor/util/proto_to_args_parser.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -39,7 +39,6 @@
 #include "src/trace_processor/test_messages.descriptor.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/interned_message_view.h"
-#include "src/trace_processor/util/proto_to_args_parser.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
@@ -51,12 +50,12 @@ namespace perfetto::trace_processor::util {
 namespace {
 
 base::Status ParseDebugAnnotation(
-    DebugAnnotationParser& parser,
+    ProtoToArgsParser& parser,
     protozero::HeapBuffered<protos::pbzero::DebugAnnotation>& msg,
     ProtoToArgsParser::Delegate& delegate) {
   std::vector<uint8_t> data = msg.SerializeAsArray();
-  return parser.Parse(protozero::ConstBytes{data.data(), data.size()},
-                      delegate);
+  return parser.ParseDebugAnnotation(
+      protozero::ConstBytes{data.data(), data.size()}, delegate);
 }
 
 class DebugAnnotationParserTest : public ::testing::Test,
@@ -181,10 +180,9 @@ TEST_F(DebugAnnotationParserTest, DeeplyNestedDictsAndArrays) {
                            << status.message();
 
   ProtoToArgsParser args_parser(pool);
-  DebugAnnotationParser parser(args_parser);
 
-  status = ParseDebugAnnotation(parser, msg, *this);
-  EXPECT_TRUE(status.ok()) << "DebugAnnotationParser::Parse failed with error: "
+  status = ParseDebugAnnotation(args_parser, msg, *this);
+  EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
                            << status.message();
 
   EXPECT_THAT(args(), testing::ElementsAre("root.k1.k2 root.k1[0].k2[0] 42"));
@@ -204,14 +202,13 @@ TEST_F(DebugAnnotationParserTest, MergeArrays) {
 
   DescriptorPool pool;
   ProtoToArgsParser args_parser(pool);
-  DebugAnnotationParser parser(args_parser);
 
-  base::Status status = ParseDebugAnnotation(parser, msg1, *this);
-  EXPECT_TRUE(status.ok()) << "DebugAnnotationParser::Parse failed with error: "
+  base::Status status = ParseDebugAnnotation(args_parser, msg1, *this);
+  EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
                            << status.message();
 
-  status = ParseDebugAnnotation(parser, msg2, *this);
-  EXPECT_TRUE(status.ok()) << "DebugAnnotationParser::Parse failed with error: "
+  status = ParseDebugAnnotation(args_parser, msg2, *this);
+  EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
                            << status.message();
 
   EXPECT_THAT(args(), testing::ElementsAre("root root[0] 1", "root root[1] 2"));
@@ -241,10 +238,9 @@ TEST_F(DebugAnnotationParserTest, EmptyArrayIndexIsSkipped) {
 
   DescriptorPool pool;
   ProtoToArgsParser args_parser(pool);
-  DebugAnnotationParser parser(args_parser);
 
-  base::Status status = ParseDebugAnnotation(parser, msg, *this);
-  EXPECT_TRUE(status.ok()) << "DebugAnnotationParser::Parse failed with error: "
+  base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
+  EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
                            << status.message();
 
   EXPECT_THAT(args(), testing::ElementsAre("root root[0] 1", "root root[1] 3",
@@ -264,10 +260,9 @@ TEST_F(DebugAnnotationParserTest, NestedArrays) {
 
   DescriptorPool pool;
   ProtoToArgsParser args_parser(pool);
-  DebugAnnotationParser parser(args_parser);
 
-  base::Status status = ParseDebugAnnotation(parser, msg, *this);
-  EXPECT_TRUE(status.ok()) << "DebugAnnotationParser::Parse failed with error: "
+  base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
+  EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
                            << status.message();
 
   EXPECT_THAT(args(),
@@ -292,14 +287,58 @@ TEST_F(DebugAnnotationParserTest, TypedMessageInsideUntyped) {
                            << status.message();
 
   ProtoToArgsParser args_parser(pool);
-  DebugAnnotationParser parser(args_parser);
 
-  status = ParseDebugAnnotation(parser, msg, *this);
-  EXPECT_TRUE(status.ok()) << "DebugAnnotationParser::Parse failed with error: "
+  status = ParseDebugAnnotation(args_parser, msg, *this);
+  EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
                            << status.message();
 
   EXPECT_THAT(args(), testing::ElementsAre(
                           "root.field_string root.field_string value"));
+}
+
+// Verifies that a DebugAnnotation whose proto_value is itself a
+// DebugAnnotation (an arbitrarily deep cycle) is parsed iteratively without
+// consuming C++ stack per level.
+TEST_F(DebugAnnotationParserTest, DeeplyNestedProtoValueCycle) {
+  // Build N nested DebugAnnotation messages, each carrying the next as a
+  // proto_value with proto_type_name = ".perfetto.protos.DebugAnnotation".
+  // The innermost annotation has a leaf int_value so we can verify the cycle
+  // was traversed end-to-end.
+  constexpr int kDepth = 1000;
+  std::vector<std::vector<uint8_t>> serialized;
+  serialized.reserve(kDepth);
+
+  // Innermost annotation: just a name + int value.
+  {
+    protozero::HeapBuffered<protos::pbzero::DebugAnnotation> inner;
+    inner->set_name("leaf");
+    inner->set_int_value(42);
+    serialized.push_back(inner.SerializeAsArray());
+  }
+
+  // Wrap it kDepth-1 times, each wrapper has proto_value = the previous.
+  for (int i = 1; i < kDepth; ++i) {
+    protozero::HeapBuffered<protos::pbzero::DebugAnnotation> outer;
+    outer->set_name("wrap");
+    outer->set_proto_type_name(".perfetto.protos.DebugAnnotation");
+    const std::vector<uint8_t>& prev = serialized.back();
+    outer->set_proto_value(prev.data(), prev.size());
+    serialized.push_back(outer.SerializeAsArray());
+  }
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  ProtoToArgsParser args_parser(pool);
+
+  const std::vector<uint8_t>& outermost = serialized.back();
+  status = args_parser.ParseDebugAnnotation(
+      protozero::ConstBytes{outermost.data(), outermost.size()}, *this);
+  EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error: "
+                           << status.message();
 }
 
 TEST_F(DebugAnnotationParserTest, NestedValueDictMismatchedKeysAndValues) {
@@ -315,9 +354,8 @@ TEST_F(DebugAnnotationParserTest, NestedValueDictMismatchedKeysAndValues) {
 
   DescriptorPool pool;
   ProtoToArgsParser args_parser(pool);
-  DebugAnnotationParser parser(args_parser);
 
-  base::Status status = ParseDebugAnnotation(parser, msg, *this);
+  base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
   EXPECT_FALSE(status.ok());
 }
 
@@ -334,9 +372,8 @@ TEST_F(DebugAnnotationParserTest, NestedValueDictMoreValuesThanKeys) {
 
   DescriptorPool pool;
   ProtoToArgsParser args_parser(pool);
-  DebugAnnotationParser parser(args_parser);
 
-  base::Status status = ParseDebugAnnotation(parser, msg, *this);
+  base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
   EXPECT_FALSE(status.ok());
 }
 
@@ -354,9 +391,8 @@ TEST_F(DebugAnnotationParserTest, NestedValueDictMatchedKeysAndValues) {
 
   DescriptorPool pool;
   ProtoToArgsParser args_parser(pool);
-  DebugAnnotationParser parser(args_parser);
 
-  base::Status status = ParseDebugAnnotation(parser, msg, *this);
+  base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
   EXPECT_TRUE(status.ok()) << status.message();
   EXPECT_THAT(args(),
               testing::ElementsAre("root.k1 root.k1 1", "root.k2 root.k2 2"));
@@ -380,10 +416,9 @@ TEST_F(DebugAnnotationParserTest, InternedString) {
 
   DescriptorPool pool;
   ProtoToArgsParser args_parser(pool);
-  DebugAnnotationParser parser(args_parser);
 
-  auto status = ParseDebugAnnotation(parser, msg, *this);
-  EXPECT_TRUE(status.ok()) << "DebugAnnotationParser::Parse failed with error: "
+  auto status = ParseDebugAnnotation(args_parser, msg, *this);
+  EXPECT_TRUE(status.ok()) << "ParseDebugAnnotation failed with error:"
                            << status.message();
 
   EXPECT_THAT(args(), testing::ElementsAre("root root foo"));

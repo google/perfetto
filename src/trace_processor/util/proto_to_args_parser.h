@@ -138,12 +138,26 @@ class ProtoToArgsParser {
                                                         uint64_t iid) = 0;
   };
 
+  // Parses a DebugAnnotation proto and emits args via the delegate. Uses the
+  // same iterative work-stack as ParseMessage, so DebugAnnotation ->
+  // proto_value -> DebugAnnotation cycles are processed by pushing further
+  // work items onto the same stack rather than recursing.
+  base::Status ParseDebugAnnotation(protozero::ConstBytes data,
+                                    Delegate& delegate);
+
+  // Opts this parser into DebugAnnotation-aware handling for ParseMessage:
+  // ParseMessage routes ".perfetto.protos.DebugAnnotation" sub-fields and
+  // top-level parses to ParseDebugAnnotation. When disabled (the default),
+  // DebugAnnotation is parsed via generic descriptor reflection.
+  void EnableDebugAnnotationParsing() { debug_annotation_enabled_ = true; }
+
   // This class is responsible for resetting the current key prefix to the old
   // value when deleted or reset.
   struct ScopedNestedKeyContext {
    public:
     ~ScopedNestedKeyContext();
     ScopedNestedKeyContext(ScopedNestedKeyContext&&) noexcept;
+    ScopedNestedKeyContext& operator=(ScopedNestedKeyContext&&) noexcept;
     ScopedNestedKeyContext(const ScopedNestedKeyContext&) = delete;
     ScopedNestedKeyContext& operator=(const ScopedNestedKeyContext&) = delete;
 
@@ -259,14 +273,41 @@ class ProtoToArgsParser {
                                  ParsingOverrideForType parsing_override);
 
  private:
-  // Forward-declared here so the variant alias below can name it. The
-  // definition lives in the .cc; do not reference it from outside the
+  // Forward-declared here so the variant alias below can name them. The
+  // definitions live in the .cc; do not reference them from outside the
   // parser implementation.
   struct WorkItem;
-  using WorkItemVariant = std::variant<WorkItem>;
+  struct DebugAnnotationWorkItem;
+  struct NestedValueWorkItem;
+  using WorkItemVariant =
+      std::variant<WorkItem, DebugAnnotationWorkItem, NestedValueWorkItem>;
 
   base::Status RunWorkLoop(Delegate& delegate);
   base::Status StepProtoMessage(WorkItem& item, Delegate& delegate, bool& done);
+  base::Status PushDebugAnnotation(protozero::ConstBytes data,
+                                   Delegate& delegate);
+  base::Status StepDebugAnnotation(DebugAnnotationWorkItem& item,
+                                   Delegate& delegate,
+                                   bool& done);
+  base::Status StepNestedValue(NestedValueWorkItem& item,
+                               size_t self_index,
+                               Delegate& delegate,
+                               bool& done);
+
+  // Returns the effective key for the NestedValueWorkItem at `nv_index`:
+  // its own key if present, otherwise the key of the DebugAnnotationWorkItem
+  // immediately below it (the one that pushed the root NestedValue).
+  // Looking the parent up by index keeps this safe across `work_stack_`
+  // reallocations; a stored pointer would not be.
+  const Key& EffectiveNestedValueKey(size_t nv_index) const;
+
+  // Folds the result of a finished NestedValueWorkItem at `child_index` into
+  // its parent on the work stack. The parent is either an enclosing
+  // NestedValueWorkItem (intermediate nesting) or the DebugAnnotationWorkItem
+  // that originally pushed the root NestedValue.
+  void PropagateNestedValueResult(size_t child_index,
+                                  bool added_entry,
+                                  Delegate& delegate);
 
   base::Status ParsePackedField(
       const FieldDescriptor& field_descriptor,
@@ -299,14 +340,25 @@ class ProtoToArgsParser {
   std::unordered_map<std::string, ParsingOverrideForType> type_overrides_;
   const DescriptorPool& pool_;
   Key key_prefix_;
-  // Parameters to ParseMessage that apply uniformly to every WorkItem on
-  // the stack. Set by ParseMessage; read by StepProtoMessage.
+  // Parameters to ParseMessage that apply uniformly to every ProtoMessage
+  // WorkItem on the stack. Set by ParseMessage; read by StepProtoMessage.
   const std::vector<uint32_t>* allowed_fields_ = nullptr;
   int* unknown_extensions_ = nullptr;
   bool add_defaults_ = false;
-  // Iterative work stack. ParseMessage pushes the initial item and runs
-  // RunWorkLoop, which calls StepProtoMessage on the top until empty.
+  // Shared work stack used by ParseMessage / ParseDebugAnnotation. Each
+  // public entry pushes its initial item; RunWorkLoop drains the stack,
+  // dispatching by variant type.
   std::vector<WorkItemVariant> work_stack_;
+  // Scratch storage for DebugAnnotation / NestedValue child enumeration.
+  // Each node records a [first, first+count) range here while iterating its
+  // dict_entries / array_values, and pops the entries back off when done.
+  std::vector<protozero::ConstBytes> da_nested_storage_;
+  struct NestedKeyValue {
+    std::string key;
+    protozero::ConstBytes nested_value;
+  };
+  std::vector<NestedKeyValue> nv_nested_storage_;
+  bool debug_annotation_enabled_ = false;
 };
 
 }  // namespace util
