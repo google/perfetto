@@ -273,6 +273,31 @@ class NamedTrackImpl : public Track {
                    nullptr, key);
   }
 
+  protos::gen::TrackDescriptor Serialize() const {
+    auto desc = Track::Serialize();
+    if (static_name_) {
+      desc.set_static_name(static_name_.value);
+    } else {
+      desc.set_name(dynamic_name_.value);
+    }
+    if (sibling_merge_behavior_ != perfetto::protos::gen::TrackDescriptor::
+                                       SIBLING_MERGE_BEHAVIOR_UNSPECIFIED) {
+      desc.set_sibling_merge_behavior(sibling_merge_behavior_);
+    }
+    if (sibling_merge_key_) {
+      desc.set_sibling_merge_key(sibling_merge_key_);
+    } else if (sibling_merge_key_int_.has_value()) {
+      desc.set_sibling_merge_key_int(*sibling_merge_key_int_);
+    }
+    return desc;
+  }
+
+  void Serialize(protos::pbzero::TrackDescriptor* desc) const {
+    auto bytes =
+        static_cast<const Derived*>(this)->Serialize().SerializeAsString();
+    desc->AppendRawProtoBytes(bytes.data(), bytes.size());
+  }
+
  protected:
   constexpr NamedTrackImpl(
       const NamedTrackImpl& other,
@@ -303,44 +328,24 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack
     : public internal::NamedTrackImpl<NamedTrack, 0xCD571EC5EAD37024ul> {
  public:
   using NamedTrackImpl::NamedTrackImpl;
+  using NamedTrackImpl::Serialize;
 
-  void Serialize(protos::pbzero::TrackDescriptor*) const;
   protos::gen::TrackDescriptor Serialize() const;
 
  private:
   friend class internal::NamedTrackImpl<NamedTrack, 0xCD571EC5EAD37024ul>;
-  constexpr NamedTrack(
-      const NamedTrack& other,
-      perfetto::protos::gen::TrackDescriptor::SiblingMergeBehavior
-          sibling_merge_behavior,
-      const char* sibling_merge_key,
-      std::optional<uint64_t> sibling_merge_key_int)
-      : NamedTrackImpl(other,
-                       sibling_merge_behavior,
-                       sibling_merge_key,
-                       sibling_merge_key_int) {}
 };
 
 class PERFETTO_EXPORT_COMPONENT StateTrack
     : public internal::NamedTrackImpl<StateTrack, 0x57417374617465ul> {
  public:
   using NamedTrackImpl::NamedTrackImpl;
+  using NamedTrackImpl::Serialize;
 
-  void Serialize(protos::pbzero::TrackDescriptor*) const;
   protos::gen::TrackDescriptor Serialize() const;
 
  private:
   friend class internal::NamedTrackImpl<StateTrack, 0x57417374617465ul>;
-  constexpr StateTrack(
-      const StateTrack& other,
-      perfetto::protos::gen::TrackDescriptor::SiblingMergeBehavior
-          sibling_merge_behavior,
-      const char* sibling_merge_key,
-      std::optional<uint64_t> sibling_merge_key_int)
-      : NamedTrackImpl(other,
-                       sibling_merge_behavior,
-                       sibling_merge_key,
-                       sibling_merge_key_int) {}
 };
 
 // A track for recording counter values with the TRACE_COUNTER macro. Counter

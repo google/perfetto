@@ -155,7 +155,7 @@ std::optional<SliceId> SliceTracker::UpdateState(int64_t timestamp,
                                                  TrackId track_id,
                                                  StringId state_id) {
   auto& track_info = stacks_[track_id];
-  SlicesStack& stack = track_info.slice_stack;
+  auto& stack = track_info.slice_stack;
 
   auto* slices = context_->storage->mutable_slice_table();
 
