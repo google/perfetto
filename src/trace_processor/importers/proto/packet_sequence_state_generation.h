@@ -288,7 +288,7 @@ class PacketSequenceStateGeneration : public RefCounted {
       InternedFieldMap interned_data,
       TrackEventSequenceState track_event_sequence_state,
       CustomStateArray custom_state,
-      TraceBlobView trace_packet_defaults,
+      std::optional<InternedMessageView> trace_packet_defaults,
       bool is_incremental_state_valid);
 
   // Add an interned message to this incremental state view. This can only be
