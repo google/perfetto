@@ -112,6 +112,10 @@ export interface FlamegraphNode {
   readonly marker?: string;
   readonly xStart: number;
   readonly xEnd: number;
+  // True when the node was emitted by trace_processor as a synthetic
+  // '(merged)' bucket absorbing a sub-threshold subtree. The render path
+  // treats these identically to UI-time merged rectangles (kind: 'MERGED').
+  readonly isPlaceholder?: boolean;
 }
 
 export interface FlamegraphQueryData {
@@ -1276,7 +1280,14 @@ function computeRenderNodes(
 
   const zoomQueryWidth = zoomRegion.queryXEnd - zoomRegion.queryXStart;
   for (let i = 0; i < nodes.length; i++) {
-    const {id, parentId, depth, xStart: qXStart, xEnd: qXEnd} = nodes[i];
+    const {
+      id,
+      parentId,
+      depth,
+      xStart: qXStart,
+      xEnd: qXEnd,
+      isPlaceholder,
+    } = nodes[i];
     assertTrue(depth !== 0);
 
     const depthMatchingZoom = isDepthMatchingZoom(depth, zoomRegion);
@@ -1304,7 +1315,7 @@ function computeRenderNodes(
       : relativeWidth / queryXPerPx;
     const state = computeState(qXStart, qXEnd, zoomRegion, depthMatchingZoom);
 
-    if (width < MIN_PIXEL_DISPLAYED) {
+    if (width < MIN_PIXEL_DISPLAYED || isPlaceholder) {
       // Check if parent was merged - if so, use x-position-based key so that
       // children of different parents that were merged together also merge.
       // This enables recursive merging: if parents A and B merged into the

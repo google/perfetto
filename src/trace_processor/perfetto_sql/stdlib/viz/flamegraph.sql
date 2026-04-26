@@ -301,6 +301,9 @@ AS (
 CREATE PERFETTO MACRO _col_list_id(a ColumnName)
 RETURNS Expr AS $a;
 
+CREATE PERFETTO MACRO _col_list_null(a ColumnName)
+RETURNS _ProjectionFragment AS NULL AS $a;
+
 -- Converts a table of hashes and paretn hashes into ids and parent
 -- ids, grouping all hashes together.
 CREATE PERFETTO MACRO _viz_flamegraph_merge_hashes(
@@ -326,9 +329,125 @@ AS (
     __intrinsic_token_apply!(_col_list_id, $grouping),
     __intrinsic_token_apply!(_col_list_id, $grouped_agged_exprs),
     SUM(value) AS value,
-    SUM(cumulativeValue) AS cumulativeValue
+    SUM(cumulativeValue) AS cumulativeValue,
+    FALSE AS isPlaceholder
   FROM $hashed c
   GROUP BY hash
+);
+
+-- Per-node propagation pass for the trim. For each node in |merged| emits:
+--   alive       - whether the node itself survives the join thresholds.
+--   requiredCum - the cumulativeValue this node's CHILDREN must clear.
+-- Roots are always alive and emit requiredCum = 0. A node that itself
+-- failed the thresholds emits requiredCum = +inf, which kills its whole
+-- subtree on the next step (no cumulativeValue can be >= +inf).
+--
+-- Computing |alive| inside the scan rather than via a downstream JOIN of
+-- merged with propagated avoids an N x N pass over the merged tree, which
+-- on WASM-sized inputs (millions of rows) was the dominant cost.
+--
+-- Caller should materialize the result into a Perfetto table with an
+-- index on |id|, since _viz_flamegraph_trim_with_placeholder looks up
+-- parentId -> alive while emitting placeholders.
+CREATE PERFETTO MACRO _viz_flamegraph_trim_propagation(
+  merged TableOrSubquery,
+  ratio Expr,
+  min_value Expr
+)
+RETURNS TableOrSubquery
+AS (
+  SELECT id, requiredCum, alive
+  FROM _graph_aggregating_scan!(
+    (
+      SELECT m.parentId AS source_node_id, m.id AS dest_node_id
+      FROM $merged m
+      WHERE m.parentId IS NOT NULL
+    ),
+    (
+      SELECT id, 0.0 AS requiredCum, TRUE AS alive
+      FROM $merged WHERE parentId IS NULL
+    ),
+    (requiredCum, alive),
+    (
+      SELECT
+        x.id,
+        IIF(
+          t.cumulativeValue >= x.incoming
+            AND t.cumulativeValue >= $min_value,
+          $ratio * t.cumulativeValue,
+          1e308
+        ) AS requiredCum,
+        (t.cumulativeValue >= x.incoming
+            AND t.cumulativeValue >= $min_value) AS alive
+      FROM (
+        SELECT id, MIN(requiredCum) AS incoming
+        FROM $table
+        GROUP BY id
+      ) x
+      JOIN $merged t USING (id)
+    )
+  )
+);
+
+-- Returns the ids of nodes that survive the trim. Just a thin filter over
+-- |propagated| now that |alive| is computed inside the propagation scan.
+CREATE PERFETTO MACRO _viz_flamegraph_alive_set(
+  propagated TableOrSubquery
+)
+RETURNS TableOrSubquery
+AS (SELECT id FROM $propagated WHERE alive);
+
+-- Emits the trimmed flamegraph: kept rows from |merged| pass through, plus
+-- one synthetic '(merged)' placeholder per kept parent that has any
+-- dropped direct children (split by depth-sign so a root with both
+-- upward and downward dropped subtrees gets one placeholder per side).
+--
+-- |alive| must be a Perfetto table containing the kept ids (the output of
+-- _viz_flamegraph_alive_set materialized with an index on id). Caller is
+-- responsible for that materialization so the three references to |alive|
+-- below all hit an indexed lookup.
+CREATE PERFETTO MACRO _viz_flamegraph_trim_with_placeholder(
+  merged TableOrSubquery,
+  alive TableOrSubquery,
+  grouping ColumnNameList,
+  grouped ColumnNameList
+)
+RETURNS TableOrSubquery
+AS (
+  WITH _max_id AS (
+    SELECT COALESCE(MAX(id), 0) AS v FROM $merged
+  )
+  SELECT
+    m.id, m.parentId, m.depth, m.name,
+    __intrinsic_token_apply!(_col_list_id, $grouping),
+    __intrinsic_token_apply!(_col_list_id, $grouped),
+    m.value, m.cumulativeValue,
+    FALSE AS isPlaceholder
+  FROM $merged m
+  JOIN $alive a USING (id)
+  UNION ALL
+  SELECT
+    (SELECT v FROM _max_id)
+      + ROW_NUMBER() OVER (ORDER BY d.parentId, (d.depth > 0)) AS id,
+    d.parentId,
+    -- All dropped children of one parent on one side of the root share
+    -- the same depth in a tree, so MIN/MAX/ANY are equivalent.
+    MIN(d.depth) AS depth,
+    '(merged)' AS name,
+    __intrinsic_token_apply!(_col_list_null, $grouping),
+    __intrinsic_token_apply!(_col_list_null, $grouped),
+    SUM(d.value) AS value,
+    SUM(d.cumulativeValue) AS cumulativeValue,
+    TRUE AS isPlaceholder
+  FROM $merged d
+  LEFT JOIN $alive a ON a.id = d.id
+  WHERE
+    a.id IS NULL
+    AND d.parentId IS NOT NULL
+    AND d.parentId IN (SELECT id FROM $alive)
+  -- A root node can have both upward and downward dropped subtrees;
+  -- keep them as separate placeholders since they sit on opposite sides.
+  GROUP BY d.parentId, (d.depth > 0)
 );
 
 -- Performs a "layout" of nodes in the flamegraph relative to their
@@ -388,7 +507,8 @@ AS (
     p.cumulativeValue AS parentCumulativeValue,
     s.depth,
     g.xStart,
-    g.xEnd
+    g.xEnd,
+    s.isPlaceholder
   FROM _graph_scan!(
     edges,
     inits,
