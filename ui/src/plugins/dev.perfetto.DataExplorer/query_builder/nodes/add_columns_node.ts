@@ -69,7 +69,7 @@ import {
 } from './add_columns_function_modal';
 
 // Re-export types for backwards compatibility
-export {NewColumn, AddColumnsNodeState} from './add_columns_types';
+export type {NewColumn, AddColumnsNodeState} from './add_columns_types';
 
 export class AddColumnsNode implements QueryNode {
   readonly nodeId: string;

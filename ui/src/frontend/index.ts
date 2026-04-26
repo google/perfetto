@@ -22,7 +22,6 @@ import m from 'mithril';
 import {defer} from '../base/deferred';
 import {addErrorHandler, reportError} from '../base/logging';
 import {featureFlags} from '../core/feature_flags';
-import {initLiveReload} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
 import {warmupWasmWorker} from '../trace_processor/wasm_engine_proxy';
 import {UiMain} from './ui_main';
@@ -435,15 +434,6 @@ function onCssLoaded(app: AppImpl) {
       ]);
     },
   });
-
-  if (
-    (location.origin.startsWith('http://localhost:') ||
-      location.origin.startsWith('http://127.0.0.1:')) &&
-    !app.embeddedMode &&
-    !app.testingMode
-  ) {
-    initLiveReload();
-  }
 
   // Will update the chip on the sidebar footer that notifies that the RPC is
   // connected. Has no effect on the controller (which will repeat this check

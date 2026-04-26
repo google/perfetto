@@ -17,7 +17,6 @@ import '../base/static_initializers';
 import m from 'mithril';
 import {defer} from '../base/deferred';
 import {reportError, addErrorHandler, ErrorDetails} from '../base/logging';
-import {initLiveReload} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
 
 function getRoot() {
@@ -96,8 +95,6 @@ function onCssLoaded() {
   document.body.innerHTML = '';
 
   raf.mount(document.body, {view: () => m('div')});
-
-  initLiveReload();
 }
 
 main();

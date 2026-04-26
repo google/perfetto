@@ -74,6 +74,14 @@ export function fetchWithProgress(
  * @returns the directory where the app is served from, e.g. 'v46.0-a2082649b'
  */
 export function getServingRoot() {
+  // In Vite dev-server mode the frontend is loaded as an ES module, for
+  // which `document.currentScript` is always null. The dev-server bootstrap
+  // sets this global before loading the module so we can still locate the
+  // versioned subdir where worker bundles + wasm live.
+  const override = (globalThis as {__PERFETTO_ASSET_ROOT__?: string})
+    .__PERFETTO_ASSET_ROOT__;
+  if (typeof override === 'string') return override;
+
   // Works out the root directory where the content should be served from
   // e.g. `http://origin/v1.2.3/`.
   const script = document.currentScript as HTMLScriptElement;

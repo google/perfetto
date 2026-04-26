@@ -16,16 +16,21 @@ import m from 'mithril';
 import type {EChartsCoreOption} from 'echarts/core';
 import {extractBrushRange, formatNumber} from './chart_utils';
 import {
-  HistogramBucket,
-  HistogramData,
-  HistogramConfig,
+  type HistogramBucket,
+  type HistogramData,
+  type HistogramConfig,
   computeHistogram,
 } from './histogram_loader';
-import {EChartView, EChartEventHandler} from './echart_view';
+import {EChartView, type EChartEventHandler} from './echart_view';
 import {buildChartOption, SELECTION_COLOR} from './chart_option_builder';
 
 // Re-export data types for convenience
-export {HistogramBucket, HistogramData, HistogramConfig, computeHistogram};
+export {
+  type HistogramBucket,
+  type HistogramData,
+  type HistogramConfig,
+  computeHistogram,
+};
 
 export interface HistogramAttrs {
   /**

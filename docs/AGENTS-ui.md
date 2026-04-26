@@ -50,10 +50,71 @@ The UI uses:
 
 - **TypeScript** for type safety
 - **Mithril** as the UI framework
-- **Rollup** for bundling
+- **Vite** for bundling (and dev serving)
 - **pnpm** for package management
 - **ESLint** for linting (based on Google style)
 - **Playwright** for integration tests
+
+## Build & dev architecture
+
+`ui/build` runs `scripts/build.mjs` for production builds; `ui/run-dev-server`
+runs `scripts/dev.mjs` for development. Both share `vite/config.mjs`, which
+defines the per-bundle Vite config. Source code under `ui/scripts/` and
+`ui/vite/`; everything else is unchanged.
+
+### Production (`ui/build`)
+
+Sequentially: codegen (protos, version, plugin index, stdlib docs) → wasm
+build + stage → static asset copy → SCSS → `vite.build()` once per IIFE
+bundle (`frontend`, `engine`, `traceconv`, `chrome_extension`,
+`service_worker`, optional `bigtrace`, optional `open_perfetto_trace`) →
+post-build (sha256 `manifest.json` + duplicated/patched `index.html` at
+`dist/`).
+
+Output layout matches the previous rollup-driven build verbatim — the
+service worker still finds its sub-resources at `/v<ver>/*` and validates
+them by sha256 from `manifest.json`.
+
+### Dev (`ui/run-dev-server`)
+
+The frontend is served by **Vite's dev server** as native ES modules
+transformed on-demand by esbuild. A browser refresh after editing a
+`.ts` file completes in ~2s — no bundling step.
+
+The four worker / aux bundles still need to exist as classic-script
+IIFE files (`new Worker('engine_bundle.js')` semantics, no
+`type:'module'`). They are produced by:
+
+* **One-shot** `vite.build()` at startup for `traceconv` and
+  `chrome_extension` (rarely edited, ~3s).
+* **`vite.build()` with `watch:{}`** for `engine` and `service_worker`
+  (small, sometimes edited, rebuild in <2s).
+
+Vite's `publicDir` points at `dist/`, so the workers/wasm/css are served
+at their production URLs (`/v<ver>/*`, `/service_worker.js`). A custom
+middleware reads `ui/src/assets/index.html` and serves a copy at `/`
+with one line rewritten — the bootstrap that would load
+`<ver>/frontend_bundle.js` is swapped to load `/src/frontend/index.ts`
+as a module. The production HTML is **not** modified on disk.
+
+When a worker bundle is rebuilt, the dev server pushes a Vite
+`{type:'full-reload'}` over its HMR websocket so the browser refreshes
+automatically.
+
+### Type checking in dev
+
+`vite-plugin-checker` runs `tsc --noEmit` over the whole project in a
+worker — errors land both in the terminal and as a clickable browser
+overlay. This catches type errors in files that *aren't* currently in
+the import graph (a disabled plugin, a new file you started editing
+but haven't wired up yet) which Vite's lazy per-file transform would
+otherwise miss.
+
+For an explicit one-shot type check (no bundling):
+
+```sh
+ui/build --typecheck
+```
 
 ## Type checking when a build is already running
 

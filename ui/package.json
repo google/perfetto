@@ -20,7 +20,6 @@
     "@popperjs/core": "^2.11.8",
     "@protobufjs/base64": "^1.1.2",
     "@protobufjs/utf8": "^1.1.0",
-    "@rollup/plugin-json": "^6.1.0",
     "@types/chrome": "0.0.268",
     "@types/color-convert": "^2.0.3",
     "@types/filesystem": "^0.0.36",
@@ -53,9 +52,6 @@
     "@eslint/eslintrc": "^3.1.0",
     "@eslint/js": "^9.6.0",
     "@playwright/test": "^1.58.2",
-    "@rollup/plugin-commonjs": "^28.0.2",
-    "@rollup/plugin-node-resolve": "^16.0.0",
-    "@rollup/plugin-terser": "^0.4.4",
     "@types/jest": "^29.5.12",
     "@typescript-eslint/eslint-plugin": "^7.14.1",
     "@typescript-eslint/parser": "^7.14.1",
@@ -72,17 +68,16 @@
     "pngjs": "^7.0.0",
     "prettier": "^3.3.2",
     "puppeteer": "^22.15.0",
-    "rollup": "^4.60.1",
-    "rollup-plugin-re": "^1.0.7",
-    "rollup-plugin-sourcemaps2": "^0.5.6",
     "sass": "^1.77.6",
-    "source-map": "^0.7.6",
+    "terser": "^5.36.0",
     "tslib": "^2.6.3",
-    "typescript": "5.5.2"
+    "typescript": "5.5.2",
+    "vite": "^6.0.7",
+    "vite-plugin-checker": "^0.8.0"
   },
   "scripts": {
-    "build": "node build.js",
-    "test": "node build.js --run-unittests",
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/build.mjs --run-unittests",
     "lint": "npx eslint . --ext .js,.ts"
   }
 }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {McpServer} from '@modelcontextprotocol/sdk/server/mcp';
+import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 import {z} from 'zod';
 import {Trace} from '../../public/trace';
 import QueryPagePlugin from '../dev.perfetto.QueryPage';

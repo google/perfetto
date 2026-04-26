@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {McpServer} from '@modelcontextprotocol/sdk/server/mcp';
+import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 import {Engine} from 'src/trace_processor/engine';
 import {z} from 'zod';
 import {runQueryForMcp} from './query';
