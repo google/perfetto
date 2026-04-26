@@ -29,6 +29,8 @@
 
 namespace perfetto::trace_processor::winscope {
 
+inline constexpr char kCollisionGroupTag[] = "COLLISION_GROUP";
+
 enum ProtoLogLevel : int32_t {
   DEBUG = 1,
   VERBOSE = 2,
@@ -54,6 +56,7 @@ struct TrackedMessage {
   uint32_t group_id;
   std::string message;
   std::optional<std::string> location;
+  base::SmallVector<char, 8> param_signature;
 };
 
 class ProtoLogMessageDecoder {
@@ -76,9 +79,33 @@ class ProtoLogMessageDecoder {
                     const std::optional<std::string>& location);
 
  private:
+  std::string FormatMessage(const std::string& message,
+                            const std::vector<int64_t>& sint64_params,
+                            const std::vector<double>& double_params,
+                            const std::vector<bool>& boolean_params,
+                            const std::vector<std::string>& string_params);
+
+  base::SmallVector<char, 8> GetParameterSignature(const std::string& message);
+
+  bool MatchesParameterSequence(const TrackedMessage& tracked_message,
+                                const std::vector<int64_t>& sint64_params,
+                                const std::vector<double>& double_params,
+                                const std::vector<bool>& boolean_params,
+                                const std::vector<std::string>& string_params);
+
+  std::optional<DecodedMessage> DecodeCollidingMessageIds(
+      const base::SmallVector<TrackedMessage, 1>& messages,
+      uint64_t message_id,
+      const std::vector<int64_t>& sint64_params,
+      const std::vector<double>& double_params,
+      const std::vector<bool>& boolean_params,
+      const std::vector<std::string>& string_params);
+
+ private:
   TraceProcessorContext* const context_;
   base::FlatHashMap<uint64_t, TrackedGroup> tracked_groups_;
-  base::FlatHashMap<uint64_t, TrackedMessage> tracked_messages_;
+  base::FlatHashMap<uint64_t, base::SmallVector<TrackedMessage, 1>>
+      tracked_messages_;
 };
 
 }  // namespace perfetto::trace_processor::winscope

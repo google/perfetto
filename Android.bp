@@ -16096,6 +16096,7 @@ filegroup {
         "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_extractor_unittest.cc",
         "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_utils_unittest.cc",
         "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_visibility_computation_unittest.cc",
+        "src/trace_processor/importers/proto/winscope/test/protolog_message_decoder_unittest.cc",
         "src/trace_processor/importers/proto/winscope/test/windowmanager_hierarchy_walker_unittest.cc",
         "src/trace_processor/importers/proto/winscope/viewcapture_views_extractor_unittest.cc",
         "src/trace_processor/importers/proto/winscope/viewcapture_visibility_computation_unittest.cc",
