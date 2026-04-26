@@ -341,6 +341,63 @@ TEST_F(DebugAnnotationParserTest, DeeplyNestedProtoValueCycle) {
                            << status.message();
 }
 
+TEST_F(DebugAnnotationParserTest, NestedValueDictMismatchedKeysAndValues) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg;
+  msg->set_name("root");
+  auto* nested = msg->set_nested_value();
+  nested->set_nested_type(protos::pbzero::DebugAnnotation::NestedValue::DICT);
+  nested->add_dict_keys("k1");
+  nested->add_dict_keys("k2");
+  nested->add_dict_keys("k3");
+  auto* v1 = nested->add_dict_values();
+  v1->set_int_value(1);
+
+  DescriptorPool pool;
+  ProtoToArgsParser args_parser(pool);
+
+  base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
+  EXPECT_FALSE(status.ok());
+}
+
+TEST_F(DebugAnnotationParserTest, NestedValueDictMoreValuesThanKeys) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg;
+  msg->set_name("root");
+  auto* nested = msg->set_nested_value();
+  nested->set_nested_type(protos::pbzero::DebugAnnotation::NestedValue::DICT);
+  nested->add_dict_keys("k1");
+  auto* v1 = nested->add_dict_values();
+  v1->set_int_value(1);
+  auto* v2 = nested->add_dict_values();
+  v2->set_int_value(2);
+
+  DescriptorPool pool;
+  ProtoToArgsParser args_parser(pool);
+
+  base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
+  EXPECT_FALSE(status.ok());
+}
+
+TEST_F(DebugAnnotationParserTest, NestedValueDictMatchedKeysAndValues) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg;
+  msg->set_name("root");
+  auto* nested = msg->set_nested_value();
+  nested->set_nested_type(protos::pbzero::DebugAnnotation::NestedValue::DICT);
+  nested->add_dict_keys("k1");
+  nested->add_dict_keys("k2");
+  auto* v1 = nested->add_dict_values();
+  v1->set_int_value(1);
+  auto* v2 = nested->add_dict_values();
+  v2->set_int_value(2);
+
+  DescriptorPool pool;
+  ProtoToArgsParser args_parser(pool);
+
+  base::Status status = ParseDebugAnnotation(args_parser, msg, *this);
+  EXPECT_TRUE(status.ok()) << status.message();
+  EXPECT_THAT(args(),
+              testing::ElementsAre("root.k1 root.k1 1", "root.k2 root.k2 2"));
+}
+
 TEST_F(DebugAnnotationParserTest, InternedString) {
   protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg;
   msg->set_name("root");

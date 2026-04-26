@@ -907,11 +907,18 @@ base::Status ProtoToArgsParser::StepNestedValue(NestedValueWorkItem& item,
         uint32_t count = 0;
         auto keys = item.decoder.dict_keys();
         auto values = item.decoder.dict_values();
-        for (; keys; ++keys, ++values, ++count) {
-          PERFETTO_DCHECK(values);
+        // Gate on both iterators: a malformed NestedValue with mismatched
+        // dict_keys / dict_values would otherwise advance the shorter one
+        // past end_, triggering an unbounded scan in the next dereference.
+        for (; keys && values; ++keys, ++values, ++count) {
           protozero::ConstChars k = *keys;
           nv_nested_storage_.push_back(
               {SanitizeDebugAnnotationName(k.ToStdStringView()), *values});
+        }
+        if (keys || values) {
+          return base::ErrStatus(
+              "Nested debug annotation DICT has mismatched dict_keys and "
+              "dict_values counts");
         }
         item.nested_count = count;
         item.first_pass_done = true;

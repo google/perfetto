@@ -73,8 +73,6 @@ namespace util {
 //     /* fields */, /* delegate */);
 class ProtoToArgsParser {
  public:
-  explicit ProtoToArgsParser(const DescriptorPool& descriptor_pool);
-
   struct Key {
     Key(const std::string& flat_key, const std::string& key);
     explicit Key(const std::string& key);
@@ -140,28 +138,6 @@ class ProtoToArgsParser {
                                                         uint64_t iid) = 0;
   };
 
-  // Given a view of bytes that represent a serialized protozero message of
-  // |type| we will parse each field.
-  //
-  // Returns on any error with a status describing the problem. However any
-  // added values before encountering the error will be parsed and forwarded to
-  // the delegate.
-  //
-  // Fields with ids given in |fields| are parsed using reflection, as well
-  // as known (previously registered) extension fields. If |allowed_fields| is a
-  // nullptr, all fields are going to be parsed.
-  //
-  // Note:
-  // |type| must be the fully qualified name, but with a '.' added to the
-  // beginning. I.E. ".perfetto.protos.TrackEvent". And must match one of the
-  // descriptors already added through |AddProtoFileDescriptor|.
-  base::Status ParseMessage(const protozero::ConstBytes& cb,
-                            const std::string& type,
-                            const std::vector<uint32_t>* allowed_fields,
-                            Delegate& delegate,
-                            int* unknown_extensions = nullptr,
-                            bool add_defaults = false);
-
   // Parses a DebugAnnotation proto and emits args via the delegate. Uses the
   // same iterative work-stack as ParseMessage, so DebugAnnotation ->
   // proto_value -> DebugAnnotation cycles are processed by pushing further
@@ -203,15 +179,40 @@ class ProtoToArgsParser {
     std::optional<size_t> old_key_length_ = std::nullopt;
   };
 
+  using ParsingOverrideForField =
+      std::function<std::optional<base::Status>(const protozero::Field&,
+                                                Delegate& delegate)>;
+
+  explicit ProtoToArgsParser(const DescriptorPool& descriptor_pool);
+  ~ProtoToArgsParser();
+
+  // Given a view of bytes that represent a serialized protozero message of
+  // |type| we will parse each field.
+  //
+  // Returns on any error with a status describing the problem. However any
+  // added values before encountering the error will be parsed and forwarded to
+  // the delegate.
+  //
+  // Fields with ids given in |fields| are parsed using reflection, as well
+  // as known (previously registered) extension fields. If |allowed_fields| is a
+  // nullptr, all fields are going to be parsed.
+  //
+  // Note:
+  // |type| must be the fully qualified name, but with a '.' added to the
+  // beginning. I.E. ".perfetto.protos.TrackEvent". And must match one of the
+  // descriptors already added through |AddProtoFileDescriptor|.
+  base::Status ParseMessage(const protozero::ConstBytes& cb,
+                            const std::string& type,
+                            const std::vector<uint32_t>* allowed_fields,
+                            Delegate& delegate,
+                            int* unknown_extensions = nullptr,
+                            bool add_defaults = false);
+
   // These methods can be called from parsing overrides to enter nested
   // contexts. The contexts are left when the returned scope is destroyed or
   // RemoveFieldSuffix() is called.
   ScopedNestedKeyContext EnterDictionary(const std::string& key);
   ScopedNestedKeyContext EnterArray(size_t index);
-
-  using ParsingOverrideForField =
-      std::function<std::optional<base::Status>(const protozero::Field&,
-                                                Delegate& delegate)>;
 
   // Installs an override for the field at the specified path. We will invoke
   // |parsing_override| when the field is encountered.
@@ -272,19 +273,15 @@ class ProtoToArgsParser {
                                  ParsingOverrideForType parsing_override);
 
  private:
- public:
-  // Variants on the shared iterative work stack. Public so the variant alias
-  // below can name them; not part of the parser's API. Definitions live in
-  // the .cc file so this header doesn't pull in DebugAnnotation pbzero.
+  // Forward-declared here so the variant alias below can name them. The
+  // definitions live in the .cc; do not reference them from outside the
+  // parser implementation.
   struct WorkItem;
   struct DebugAnnotationWorkItem;
   struct NestedValueWorkItem;
   using WorkItemVariant =
       std::variant<WorkItem, DebugAnnotationWorkItem, NestedValueWorkItem>;
 
-  ~ProtoToArgsParser();
-
- private:
   base::Status RunWorkLoop(Delegate& delegate);
   base::Status StepProtoMessage(WorkItem& item, Delegate& delegate, bool& done);
   base::Status PushDebugAnnotation(protozero::ConstBytes data,
@@ -344,7 +341,7 @@ class ProtoToArgsParser {
   const DescriptorPool& pool_;
   Key key_prefix_;
   // Parameters to ParseMessage that apply uniformly to every ProtoMessage
-  // WorkItem on the stack. Set by ParseMessage; read by WorkItem::Step.
+  // WorkItem on the stack. Set by ParseMessage; read by StepProtoMessage.
   const std::vector<uint32_t>* allowed_fields_ = nullptr;
   int* unknown_extensions_ = nullptr;
   bool add_defaults_ = false;
