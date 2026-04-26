@@ -353,6 +353,10 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     return ModuleResult::Ignored();
   }
 
+  if (track.has_state()) {
+    reservation.is_state = true;
+  }
+
   track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
 
   // Let ProtoTraceReader forward the packet to the parser.
@@ -540,6 +544,28 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     }
 
     data.counter_value = *value;
+  }
+
+  if (event.type() == protos::pbzero::TrackEvent::TYPE_STATE) {
+    // Consider track_uuid from the packet and TrackEventDefaults.
+    uint64_t track_uuid;
+    if (event.has_track_uuid()) {
+      track_uuid = event.track_uuid();
+    } else if (defaults && defaults->has_track_uuid()) {
+      track_uuid = defaults->track_uuid();
+    } else {
+      RecordTokenizationError(stats::track_event_state_missing_track_uuid,
+                              &data.trace_packet_data.packet);
+      return ModuleResult::Handled();
+    }
+
+    auto resolved = track_event_tracker_->ResolveDescriptorTrack(track_uuid);
+    if (!resolved || !resolved->is_state()) {
+      RecordTokenizationErrorWithTrackUuid(
+          stats::track_event_state_invalid_track_uuid, track_uuid,
+          &data.trace_packet_data.packet);
+      return ModuleResult::Handled();
+    }
   }
 
   size_t index = 0;

@@ -630,6 +630,9 @@ std::vector<std::string> ReadSlicesFromTrace(
       case perfetto::protos::gen::TrackEvent::TYPE_COUNTER:
         slice += "C";
         break;
+      case perfetto::protos::gen::TrackEvent::TYPE_STATE:
+        slice += "S";
+        break;
       default:
         ADD_FAILURE();
     }
@@ -2827,6 +2830,7 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrackAndTimestamp) {
         EXPECT_EQ(packet.timestamp(), kInstantEventTime);
         break;
       case perfetto::protos::gen::TrackEvent::TYPE_COUNTER:
+      case perfetto::protos::gen::TrackEvent::TYPE_STATE:
       case perfetto::protos::gen::TrackEvent::TYPE_UNSPECIFIED:
         ADD_FAILURE();
     }
@@ -2862,6 +2866,7 @@ TEST_P(PerfettoApiTest, TrackEventCustomTrackAndTimestampNoLambda) {
         break;
       case perfetto::protos::gen::TrackEvent::TYPE_INSTANT:
       case perfetto::protos::gen::TrackEvent::TYPE_COUNTER:
+      case perfetto::protos::gen::TrackEvent::TYPE_STATE:
       case perfetto::protos::gen::TrackEvent::TYPE_UNSPECIFIED:
         ADD_FAILURE();
     }
@@ -3780,6 +3785,61 @@ TEST_P(PerfettoApiTest, TrackEventInstant) {
   TRACE_EVENT_INSTANT("test", "AnotherEvent");
   auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
   EXPECT_THAT(slices, ElementsAre("I:test.TestEvent", "I:test.AnotherEvent"));
+}
+
+TEST_P(PerfettoApiTest, TrackEventState) {
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  perfetto::StateTrack track("MyState");
+  TRACE_STATE("test", track, "state1");
+  TRACE_STATE("test", track, "state2");
+  TRACE_STATE("test", track, nullptr);
+
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
+  
+  EXPECT_THAT(slices, testing::ElementsAre(
+    testing::MatchesRegex("\\[track=.*\\]S:test.state1"),
+    testing::MatchesRegex("\\[track=.*\\]S:test.state2"),
+    testing::MatchesRegex("\\[track=.*\\]S:test")
+  ));
+}
+
+TEST_P(PerfettoApiTest, TrackEventStateDescriptor) {
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  perfetto::StateTrack track("MyState");
+  TRACE_STATE("test", track, "state1");
+
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+
+  bool found_state_descriptor = false;
+  uint64_t expected_uuid = track.uuid;
+
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_track_descriptor()) {
+      const auto& desc = packet.track_descriptor();
+      if (desc.uuid() == expected_uuid) {
+        EXPECT_TRUE(desc.has_state());
+        found_state_descriptor = true;
+      }
+    }
+  }
+
+  EXPECT_TRUE(found_state_descriptor);
 }
 
 TEST_P(PerfettoApiTest, TrackEventDefaultGlobalTrack) {

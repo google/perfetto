@@ -768,6 +768,14 @@ namespace perfetto::trace_processor::stats {
       "A TrackEvent with TYPE_COUNTER specified a track_uuid that could not "  \
       "be resolved or converted to an absolute counter value. The event is "   \
       "dropped. This is a bug in the trace producer."),                        \
+  F(track_event_state_missing_track_uuid,     kSingle,  kError,  kAnalysis,  \
+      "A TrackEvent with TYPE_STATE was received without a track_uuid. "       \
+      "State events require a track_uuid to identify which state track to "     \
+      "use. The event is dropped. This is a bug in the trace producer."),       \
+  F(track_event_state_invalid_track_uuid,     kSingle,  kError,  kAnalysis,  \
+      "A TrackEvent with TYPE_STATE specified a track_uuid that was not "      \
+      "declared as a state track. The event is dropped. This is a bug in the " \
+      "trace producer."),                                                      \
   F(track_event_extra_counter_missing_track_uuids, kSingle, kError, kAnalysis, \
       "A TrackEvent specified extra counter values but did not provide the "   \
       "corresponding extra_counter_track_uuids (neither in the event nor in "  \

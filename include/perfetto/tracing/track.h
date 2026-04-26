@@ -193,103 +193,88 @@ struct PERFETTO_EXPORT_COMPONENT ThreadTrack : public Track {
             disallow_merging_with_system_tracks_) {}
 };
 
-// A track that's identified by an explcit name, id and its parent.
-class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
-  // A random value mixed into named track uuids to avoid collisions with
-  // other types of tracks.
-  static constexpr uint64_t kNamedTrackMagic = 0xCD571EC5EAD37024ul;
+namespace internal {
 
+// A helper to share functionality between NamedTrack and StateTrack.
+template <typename Derived, uint64_t Magic>
+class NamedTrackImpl : public Track {
  public:
-  // `name` is hashed to get a uuid identifying the track. Optionally specify
-  // `id` to differentiate between multiple tracks with the same `name` and
-  // `parent`.
-  NamedTrack(DynamicString name,
-             uint64_t id = 0,
-             Track parent = MakeProcessTrack())
-      : Track(id ^ internal::Fnv1a(name.value, name.length) ^ kNamedTrackMagic,
-              parent),
+  NamedTrackImpl(DynamicString name,
+                 uint64_t id = 0,
+                 Track parent = MakeProcessTrack())
+      : Track(id ^ internal::Fnv1a(name.value, name.length) ^ Magic, parent),
         static_name_(nullptr),
         dynamic_name_(name) {}
 
-  constexpr NamedTrack(StaticString name,
-                       uint64_t id = 0,
-                       Track parent = MakeProcessTrack())
-      : Track(id ^ internal::Fnv1a(name.value) ^ kNamedTrackMagic, parent),
+  constexpr NamedTrackImpl(StaticString name,
+                           uint64_t id = 0,
+                           Track parent = MakeProcessTrack())
+      : Track(id ^ internal::Fnv1a(name.value) ^ Magic, parent),
         static_name_(name) {}
 
   // Construct a track using `name` and `ptr` as identifier.
   template <class TrackEventName>
-  static NamedTrack FromPointer(TrackEventName&& name,
-                                const void* ptr,
-                                Track parent = MakeProcessTrack()) {
-    // Using pointers as global TrackIds isn't supported as pointers are
-    // per-proccess and the same pointer value can be used in different
-    // processes. If you hit this check but are providing no |parent| track,
-    // verify that Tracing::Initialize() was called for the current process.
+  static Derived FromPointer(TrackEventName&& name,
+                             const void* ptr,
+                             Track parent = MakeProcessTrack()) {
     PERFETTO_DCHECK(parent.uuid != Track().uuid);
-
-    return NamedTrack(std::forward<TrackEventName>(name),
-                      static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ptr)),
-                      parent);
+    return Derived(std::forward<TrackEventName>(name),
+                    static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ptr)),
+                    parent);
   }
 
   // Construct a track using `name` and `id` as identifier within thread-scope.
-  // Shorthand for `Track::NamedTrack("name", id, ThreadTrack::Current())`
-  // Usage: TRACE_EVENT_BEGIN("...", "...",
-  // perfetto::NamedTrack::ThreadScoped("rendering"))
   template <class TrackEventName>
-  static NamedTrack ThreadScoped(TrackEventName&& name,
-                                 uint64_t id = 0,
-                                 Track parent = Track()) {
+  static Derived ThreadScoped(TrackEventName&& name,
+                              uint64_t id = 0,
+                              Track parent = Track()) {
     if (parent.uuid == 0)
-      return NamedTrack(std::forward<TrackEventName>(name), id,
-                        ThreadTrack::Current());
-    return NamedTrack(std::forward<TrackEventName>(name), id, parent);
+      return Derived(std::forward<TrackEventName>(name), id,
+                     ThreadTrack::Current());
+    return Derived(std::forward<TrackEventName>(name), id, parent);
   }
 
   // Same as above using `name` and `ptr` as identifier within thread-scope.
   template <class TrackEventName>
-  static NamedTrack ThreadScoped(TrackEventName&& name,
-                                 const void* ptr,
-                                 Track parent = Track()) {
+  static Derived ThreadScoped(TrackEventName&& name,
+                              const void* ptr,
+                              Track parent = Track()) {
     if (parent.uuid == 0) {
-      return NamedTrack::FromPointer(std::forward<TrackEventName>(name), ptr,
+      return Derived::FromPointer(std::forward<TrackEventName>(name), ptr,
                                      ThreadTrack::Current());
     }
-    return NamedTrack::FromPointer(std::forward<TrackEventName>(name), ptr,
+    return Derived::FromPointer(std::forward<TrackEventName>(name), ptr,
                                    parent);
   }
 
   template <class TrackEventName>
-  static NamedTrack Global(TrackEventName&& name, uint64_t id = 0) {
-    return NamedTrack(std::forward<TrackEventName>(name), id, Track());
+  static Derived Global(TrackEventName&& name, uint64_t id = 0) {
+    return Derived(std::forward<TrackEventName>(name), id, Track());
   }
 
-  constexpr NamedTrack disable_sibling_merge() const {
-    return NamedTrack(
-        *this,
-        perfetto::protos::gen::TrackDescriptor::SIBLING_MERGE_BEHAVIOR_NONE,
-        nullptr, std::nullopt);
-  }
-  constexpr NamedTrack set_sibling_merge_key(const char* key) {
-    return NamedTrack(*this,
-                      perfetto::protos::gen::TrackDescriptor::
-                          SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY,
-                      key, std::nullopt);
-  }
-  constexpr NamedTrack set_sibling_merge_key(uint64_t key) {
-    return NamedTrack(*this,
-                      perfetto::protos::gen::TrackDescriptor::
-                          SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY,
-                      nullptr, key);
+  constexpr Derived disable_sibling_merge() const {
+    return Derived(*static_cast<const Derived*>(this),
+                   perfetto::protos::gen::TrackDescriptor::SIBLING_MERGE_BEHAVIOR_NONE,
+                   nullptr, std::nullopt);
   }
 
-  void Serialize(protos::pbzero::TrackDescriptor*) const;
-  protos::gen::TrackDescriptor Serialize() const;
+  constexpr Derived set_sibling_merge_key(const char* key) {
+    return Derived(*static_cast<const Derived*>(this),
+                   perfetto::protos::gen::TrackDescriptor::
+                       SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY,
+                   key, std::nullopt);
+  }
 
- private:
-  constexpr NamedTrack(
-      const NamedTrack& other,
+  constexpr Derived set_sibling_merge_key(uint64_t key) {
+    return Derived(*static_cast<const Derived*>(this),
+                   perfetto::protos::gen::TrackDescriptor::
+                       SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY,
+                   nullptr, key);
+  }
+
+ protected:
+  constexpr NamedTrackImpl(
+      const NamedTrackImpl& other,
       perfetto::protos::gen::TrackDescriptor::SiblingMergeBehavior
           sibling_merge_behavior,
       const char* sibling_merge_key,
@@ -308,6 +293,43 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
                                   SIBLING_MERGE_BEHAVIOR_UNSPECIFIED};
   const char* sibling_merge_key_{nullptr};
   std::optional<uint64_t> sibling_merge_key_int_ = std::nullopt;
+};
+
+}  // namespace internal
+
+// A track that's identified by an explcit name, id and its parent.
+class PERFETTO_EXPORT_COMPONENT NamedTrack : public internal::NamedTrackImpl<NamedTrack, 0xCD571EC5EAD37024ul> {
+ public:
+  using NamedTrackImpl::NamedTrackImpl;
+
+  void Serialize(protos::pbzero::TrackDescriptor*) const;
+  protos::gen::TrackDescriptor Serialize() const;
+
+ private:
+  friend class internal::NamedTrackImpl<NamedTrack, 0xCD571EC5EAD37024ul>;
+  constexpr NamedTrack(
+      const NamedTrack& other,
+      perfetto::protos::gen::TrackDescriptor::SiblingMergeBehavior sibling_merge_behavior,
+      const char* sibling_merge_key,
+      std::optional<uint64_t> sibling_merge_key_int)
+      : NamedTrackImpl(other, sibling_merge_behavior, sibling_merge_key, sibling_merge_key_int) {}
+};
+
+class PERFETTO_EXPORT_COMPONENT StateTrack : public internal::NamedTrackImpl<StateTrack, 0x57417374617465ul> {
+ public:
+  using NamedTrackImpl::NamedTrackImpl;
+
+  void Serialize(protos::pbzero::TrackDescriptor*) const;
+  protos::gen::TrackDescriptor Serialize() const;
+
+ private:
+  friend class internal::NamedTrackImpl<StateTrack, 0x57417374617465ul>;
+  constexpr StateTrack(
+      const StateTrack& other,
+      perfetto::protos::gen::TrackDescriptor::SiblingMergeBehavior sibling_merge_behavior,
+      const char* sibling_merge_key,
+      std::optional<uint64_t> sibling_merge_key_int)
+      : NamedTrackImpl(other, sibling_merge_behavior, sibling_merge_key, sibling_merge_key_int) {}
 };
 
 // A track for recording counter values with the TRACE_COUNTER macro. Counter

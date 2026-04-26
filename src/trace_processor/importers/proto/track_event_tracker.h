@@ -80,6 +80,7 @@ class TrackEventTracker {
     bool use_separate_track = false;
     bool is_counter = false;
     bool use_synthetic_tid = false;
+    bool is_state = false;
 
     // For counter tracks.
     std::optional<CounterDetails> counter_details;
@@ -102,9 +103,9 @@ class TrackEventTracker {
           !counter_details->IsForSameTrack(*other.counter_details)) {
         return false;
       }
-      return std::tie(parent_uuid, pid, tid, is_counter, sibling_merge_behavior,
+      return std::tie(parent_uuid, pid, tid, is_counter, is_state, sibling_merge_behavior,
                       sibling_merge_key) ==
-             std::tie(other.parent_uuid, other.pid, other.tid, other.is_counter,
+             std::tie(other.parent_uuid, other.pid, other.tid, other.is_counter, other.is_state,
                       other.sibling_merge_behavior, other.sibling_merge_key);
     }
   };
@@ -126,20 +127,25 @@ class TrackEventTracker {
     // Creates a process-scoped resolved descriptor track.
     static ResolvedDescriptorTrack Process(UniquePid upid,
                                            bool is_counter,
+                                           bool is_state,
                                            bool is_root);
     // Creates a thread-scoped resolved descriptor track.
     static ResolvedDescriptorTrack Thread(UniqueTid utid,
                                           bool is_counter,
+                                          bool is_state,
                                           bool is_root);
 
     // Creates a global-scoped resolved descriptor track.
-    static ResolvedDescriptorTrack Global(bool is_counter);
+    static ResolvedDescriptorTrack Global(bool is_counter, bool is_state);
 
     // The scope of the resolved track.
     Scope scope() const { return scope_; }
 
     // Whether the resolved track is a counter track.
     bool is_counter() const { return is_counter_; }
+
+    // Whether the resolved track is a state track.
+    bool is_state() const { return is_state_; }
 
     // The UTID of the thread this track is associated with. Only valid when
     // |scope| == |Scope::kThread|.
@@ -167,6 +173,7 @@ class TrackEventTracker {
 
     Scope scope_;
     bool is_counter_;
+    bool is_state_;
     bool is_root_;
 
     // Only set when |scope| == |Scope::kThread|.
@@ -264,6 +271,21 @@ class TrackEventTracker {
   // This is similar to the other |InternDescriptorTrack*| functions but is
   // specifically for counters.
   std::optional<TrackId> InternDescriptorTrackCounter(
+      uint64_t uuid,
+      StringId event_name,
+      std::optional<uint32_t> packet_sequence_id) {
+    State* s =
+        EnsureDescriptorTrackInterned(uuid, event_name, packet_sequence_id);
+    if (!s) {
+      return std::nullopt;
+    }
+    auto* track_id = std::get_if<TrackId>(&*s->track_id_or_factory);
+    PERFETTO_CHECK(track_id);
+    return *track_id;
+  }
+
+  // Interns a descriptor track for a state event.
+  std::optional<TrackId> InternDescriptorTrackState(
       uint64_t uuid,
       StringId event_name,
       std::optional<uint32_t> packet_sequence_id) {

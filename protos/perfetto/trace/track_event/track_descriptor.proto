@@ -169,6 +169,10 @@ message TrackDescriptor {
   // |extra_counter_values|).
   optional CounterDescriptor counter = 8;
 
+  // Descriptor for a state track. If set, the track will support
+  // TYPE_STATE TrackEvents.
+  optional StateDescriptor state = 18;
+
   // If true, forces Trace Processor to use separate tracks for track events
   // and system events for the same thread.
   //
@@ -339,4 +343,9 @@ message TrackDescriptor {
     string sibling_merge_key = 16;
     uint64 sibling_merge_key_int = 17;
   }
+}
+
+// Descriptor for a state track.
+message StateDescriptor {
+  // For now, this message is empty. It is used to identify a track as a state track.
 }

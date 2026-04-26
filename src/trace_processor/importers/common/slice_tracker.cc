@@ -151,6 +151,39 @@ std::optional<uint32_t> SliceTracker::AddArgs(TrackId track_id,
   return num.row_number();
 }
 
+std::optional<SliceId> SliceTracker::UpdateState(int64_t timestamp,
+                                                 TrackId track_id,
+                                                 StringId state_id) {
+  auto& track_info = stacks_[track_id];
+  SlicesStack& stack = track_info.slice_stack;
+
+  auto* slices = context_->storage->mutable_slice_table();
+
+  if (!stack.empty()) {
+    const auto& top_slice_info = stack.back();
+    auto ref = top_slice_info.row.ToRowReference(slices);
+    
+    if (ref.name() == state_id) {
+      return ref.id();
+    }
+    
+    ref.set_dur(timestamp - ref.ts());
+    StackPop(track_id);
+  }
+
+  if (!state_id.is_null()) {
+    return StartSlice(timestamp, kPendingDuration, track_id, nullptr, [&]() {
+      tables::SliceTable::Row row;
+      row.ts = timestamp;
+      row.track_id = track_id;
+      row.name = state_id;
+      return slices->Insert(row).id;
+    });
+  }
+
+  return std::nullopt;
+}
+
 std::optional<SliceId> SliceTracker::StartSlice(
     int64_t timestamp,
     int64_t duration,
