@@ -347,5 +347,6 @@ message TrackDescriptor {
 
 // Descriptor for a state track.
 message StateDescriptor {
-  // For now, this message is empty. It is used to identify a track as a state track.
+  // For now, this message is empty. It is used to identify a track as a state
+  // track.
 }

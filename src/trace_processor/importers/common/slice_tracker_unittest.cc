@@ -243,7 +243,7 @@ TEST_F(SliceTrackerTest, UpdateState) {
 
   // 1. Start state1
   tracker.UpdateState(2 /*ts*/, track, state1);
-  
+
   // 2. Update with same state
   tracker.UpdateState(5 /*ts*/, track, state1);
 
@@ -259,13 +259,13 @@ TEST_F(SliceTrackerTest, UpdateState) {
   // First slice (state1) should be closed at ts=10
   auto sr0 = slices[0];
   EXPECT_EQ(sr0.ts(), 2);
-  EXPECT_EQ(sr0.dur(), 8); // 10 - 2
+  EXPECT_EQ(sr0.dur(), 8);  // 10 - 2
   EXPECT_EQ(sr0.name().value_or(kNullStringId).raw_id(), state1.raw_id());
 
   // Second slice (state2) should start at ts=10 and be closed at ts=15
   auto sr1 = slices[1];
   EXPECT_EQ(sr1.ts(), 10);
-  EXPECT_EQ(sr1.dur(), 5); // 15 - 10
+  EXPECT_EQ(sr1.dur(), 5);  // 15 - 10
   EXPECT_EQ(sr1.name().value_or(kNullStringId).raw_id(), state2.raw_id());
 }
 

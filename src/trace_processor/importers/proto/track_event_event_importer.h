@@ -689,7 +689,7 @@ class TrackEventEventImporter {
     }
 
     context_->slice_tracker->UpdateState(ts_, track_id, state_id);
-    
+
     return base::OkStatus();
   }
 

@@ -3797,12 +3797,11 @@ TEST_P(PerfettoApiTest, TrackEventState) {
   TRACE_STATE("test", track, nullptr);
 
   auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
-  
+
   EXPECT_THAT(slices, testing::ElementsAre(
-    testing::MatchesRegex("\\[track=.*\\]S:test.state1"),
-    testing::MatchesRegex("\\[track=.*\\]S:test.state2"),
-    testing::MatchesRegex("\\[track=.*\\]S:test")
-  ));
+                          testing::MatchesRegex("\\[track=.*\\]S:test.state1"),
+                          testing::MatchesRegex("\\[track=.*\\]S:test.state2"),
+                          testing::MatchesRegex("\\[track=.*\\]S:test")));
 }
 
 TEST_P(PerfettoApiTest, TrackEventStateDescriptor) {

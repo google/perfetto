@@ -162,11 +162,11 @@ std::optional<SliceId> SliceTracker::UpdateState(int64_t timestamp,
   if (!stack.empty()) {
     const auto& top_slice_info = stack.back();
     auto ref = top_slice_info.row.ToRowReference(slices);
-    
+
     if (ref.name() == state_id) {
       return ref.id();
     }
-    
+
     ref.set_dur(timestamp - ref.ts());
     StackPop(track_id);
   }

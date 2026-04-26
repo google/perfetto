@@ -103,10 +103,11 @@ class TrackEventTracker {
           !counter_details->IsForSameTrack(*other.counter_details)) {
         return false;
       }
-      return std::tie(parent_uuid, pid, tid, is_counter, is_state, sibling_merge_behavior,
-                      sibling_merge_key) ==
-             std::tie(other.parent_uuid, other.pid, other.tid, other.is_counter, other.is_state,
-                      other.sibling_merge_behavior, other.sibling_merge_key);
+      return std::tie(parent_uuid, pid, tid, is_counter, is_state,
+                      sibling_merge_behavior, sibling_merge_key) ==
+             std::tie(other.parent_uuid, other.pid, other.tid, other.is_counter,
+                      other.is_state, other.sibling_merge_behavior,
+                      other.sibling_merge_key);
     }
   };
 

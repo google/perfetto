@@ -219,8 +219,8 @@ class NamedTrackImpl : public Track {
                              Track parent = MakeProcessTrack()) {
     PERFETTO_DCHECK(parent.uuid != Track().uuid);
     return Derived(std::forward<TrackEventName>(name),
-                    static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ptr)),
-                    parent);
+                   static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ptr)),
+                   parent);
   }
 
   // Construct a track using `name` and `id` as identifier within thread-scope.
@@ -241,10 +241,10 @@ class NamedTrackImpl : public Track {
                               Track parent = Track()) {
     if (parent.uuid == 0) {
       return Derived::FromPointer(std::forward<TrackEventName>(name), ptr,
-                                     ThreadTrack::Current());
+                                  ThreadTrack::Current());
     }
     return Derived::FromPointer(std::forward<TrackEventName>(name), ptr,
-                                   parent);
+                                parent);
   }
 
   template <class TrackEventName>
@@ -253,9 +253,10 @@ class NamedTrackImpl : public Track {
   }
 
   constexpr Derived disable_sibling_merge() const {
-    return Derived(*static_cast<const Derived*>(this),
-                   perfetto::protos::gen::TrackDescriptor::SIBLING_MERGE_BEHAVIOR_NONE,
-                   nullptr, std::nullopt);
+    return Derived(
+        *static_cast<const Derived*>(this),
+        perfetto::protos::gen::TrackDescriptor::SIBLING_MERGE_BEHAVIOR_NONE,
+        nullptr, std::nullopt);
   }
 
   constexpr Derived set_sibling_merge_key(const char* key) {
@@ -298,7 +299,8 @@ class NamedTrackImpl : public Track {
 }  // namespace internal
 
 // A track that's identified by an explcit name, id and its parent.
-class PERFETTO_EXPORT_COMPONENT NamedTrack : public internal::NamedTrackImpl<NamedTrack, 0xCD571EC5EAD37024ul> {
+class PERFETTO_EXPORT_COMPONENT NamedTrack
+    : public internal::NamedTrackImpl<NamedTrack, 0xCD571EC5EAD37024ul> {
  public:
   using NamedTrackImpl::NamedTrackImpl;
 
@@ -309,13 +311,18 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public internal::NamedTrackImpl<Nam
   friend class internal::NamedTrackImpl<NamedTrack, 0xCD571EC5EAD37024ul>;
   constexpr NamedTrack(
       const NamedTrack& other,
-      perfetto::protos::gen::TrackDescriptor::SiblingMergeBehavior sibling_merge_behavior,
+      perfetto::protos::gen::TrackDescriptor::SiblingMergeBehavior
+          sibling_merge_behavior,
       const char* sibling_merge_key,
       std::optional<uint64_t> sibling_merge_key_int)
-      : NamedTrackImpl(other, sibling_merge_behavior, sibling_merge_key, sibling_merge_key_int) {}
+      : NamedTrackImpl(other,
+                       sibling_merge_behavior,
+                       sibling_merge_key,
+                       sibling_merge_key_int) {}
 };
 
-class PERFETTO_EXPORT_COMPONENT StateTrack : public internal::NamedTrackImpl<StateTrack, 0x57417374617465ul> {
+class PERFETTO_EXPORT_COMPONENT StateTrack
+    : public internal::NamedTrackImpl<StateTrack, 0x57417374617465ul> {
  public:
   using NamedTrackImpl::NamedTrackImpl;
 
@@ -326,10 +333,14 @@ class PERFETTO_EXPORT_COMPONENT StateTrack : public internal::NamedTrackImpl<Sta
   friend class internal::NamedTrackImpl<StateTrack, 0x57417374617465ul>;
   constexpr StateTrack(
       const StateTrack& other,
-      perfetto::protos::gen::TrackDescriptor::SiblingMergeBehavior sibling_merge_behavior,
+      perfetto::protos::gen::TrackDescriptor::SiblingMergeBehavior
+          sibling_merge_behavior,
       const char* sibling_merge_key,
       std::optional<uint64_t> sibling_merge_key_int)
-      : NamedTrackImpl(other, sibling_merge_behavior, sibling_merge_key, sibling_merge_key_int) {}
+      : NamedTrackImpl(other,
+                       sibling_merge_behavior,
+                       sibling_merge_key,
+                       sibling_merge_key_int) {}
 };
 
 // A track for recording counter values with the TRACE_COUNTER macro. Counter
