@@ -86,6 +86,7 @@
   - [Visualization](#)
 
     - [Perfetto UI](visualization/perfetto-ui.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
+    - [Data Explorer](visualization/data-explorer.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
     - [Opening Large Traces](visualization/large-traces.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
     - [Deep Linking](visualization/deep-linking-to-perfetto-ui.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
     - [Debug Tracks](analysis/debug-tracks.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
