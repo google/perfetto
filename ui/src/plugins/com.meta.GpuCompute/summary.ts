@@ -27,12 +27,13 @@ import {
   COMPUTE_RENDER_STAGE_CATEGORY,
 } from './details';
 import {Icons} from '../../base/semantic_icons';
+import {Button} from '../../widgets/button';
 import {Icon} from '../../widgets/icon';
 import type {GpuComputeContext} from './index';
 import {adjustSeconds} from './humanize';
 
 // Per-kernel row returned by {@link fetchKernelSummaryRows}.
-type SummaryRow = {
+export type SummaryRow = {
   id: number;
   demangledName: string;
   durationNSecNum: number | string | null;
@@ -41,6 +42,8 @@ type SummaryRow = {
   registersPerThread: number | string | null;
   gridSize: number | string | null;
 };
+
+const PAGE_SIZE = 100;
 
 // Component state holding the fetched rows and per-column max values.
 type SummaryState = {
@@ -53,6 +56,8 @@ type SummaryState = {
   launchIndexBySliceId: Map<number, number>;
   sortKey: SortKey | null;
   sortDescending: boolean;
+  dirty: boolean;
+  pageOffset: number;
 };
 
 // Renders a bar whose width is proportional to `val / max`.
@@ -174,6 +179,7 @@ export interface SummarySectionAttrs extends m.Attributes {
   engine: Engine;
   sliceId?: number;
   openSliceInDetail?: (sliceId: number) => void;
+  prefetchedRows?: SummaryRow[];
 }
 
 // Column keys that the table can be sorted by.
@@ -256,12 +262,26 @@ export const KernelSummarySection: m.Component<
   SummarySectionAttrs,
   SummaryState
 > = {
+  onbeforeupdate({state}) {
+    // Skip vdom diffing when nothing has changed. The view is only
+    // invalidated by oninit (data load) and onSort (sort change),
+    // both of which set dirty=true before calling m.redraw().
+    if (state.dirty) {
+      state.dirty = false;
+      return true;
+    }
+    return false;
+  },
+
   async oninit({attrs, state}) {
     state.launchIndexBySliceId = new Map();
     state.sortKey = 'id';
     state.sortDescending = false;
+    state.pageOffset = 0;
 
-    const rows = await fetchKernelSummaryRows(attrs.ctx, attrs.engine);
+    const rows =
+      attrs.prefetchedRows ??
+      (await fetchKernelSummaryRows(attrs.ctx, attrs.engine));
 
     // Build launch-order map so the ID column shows 0, 1, 2, …
     rows.forEach((opt, zeroBasedIndex) =>
@@ -293,6 +313,7 @@ export const KernelSummarySection: m.Component<
     );
     state.maxGridSize = finiteMax(rows.map((r) => Number(r.gridSize)));
 
+    state.dirty = true;
     m.redraw();
   },
 
@@ -346,6 +367,8 @@ export const KernelSummarySection: m.Component<
         state.sortKey = key;
         state.sortDescending = true;
       }
+      state.pageOffset = 0;
+      state.dirty = true;
       m.redraw();
     };
 
@@ -412,67 +435,97 @@ export const KernelSummarySection: m.Component<
 
         m(
           'tbody',
-          sortedRows.map((r) =>
-            m(
-              'tr.pf-gpu-compute__summary-row',
-              {
-                ondblclick: () => attrs.openSliceInDetail?.(r.id),
-              },
-              [
-                m(
-                  'td.pf-gpu-compute__summary-td',
-                  String(launchIndexBySliceId.get(r.id) ?? r.id),
-                ),
-                m(
-                  'td.pf-gpu-compute__summary-td.pf-gpu-compute__summary-td--name',
-                  {title: r.demangledName},
-                  r.demangledName,
-                ),
-                m(
-                  'td.pf-gpu-compute__summary-td',
-                  renderRelPercentBar(
-                    Number(r.durationNSecNum),
-                    state.maxDurationNSec,
-                    label(Number(r.durationNSecNum), 'nsecond'),
+          sortedRows
+            .slice(state.pageOffset, state.pageOffset + PAGE_SIZE)
+            .map((r) =>
+              m(
+                'tr.pf-gpu-compute__summary-row',
+                {
+                  ondblclick: () => attrs.openSliceInDetail?.(r.id),
+                },
+                [
+                  m(
+                    'td.pf-gpu-compute__summary-td',
+                    String(launchIndexBySliceId.get(r.id) ?? r.id),
                   ),
-                ),
-                m(
-                  'td.pf-gpu-compute__summary-td',
-                  renderRelPercentBar(
-                    Number(r.computePct),
-                    state.maxComputePct,
-                    label(r.computePct),
+                  m(
+                    'td.pf-gpu-compute__summary-td.pf-gpu-compute__summary-td--name',
+                    {title: r.demangledName},
+                    r.demangledName,
                   ),
-                ),
-                m(
-                  'td.pf-gpu-compute__summary-td',
-                  renderRelPercentBar(
-                    Number(r.memoryPct),
-                    state.maxMemoryPct,
-                    label(r.memoryPct),
+                  m(
+                    'td.pf-gpu-compute__summary-td',
+                    renderRelPercentBar(
+                      Number(r.durationNSecNum),
+                      state.maxDurationNSec,
+                      label(Number(r.durationNSecNum), 'nsecond'),
+                    ),
                   ),
-                ),
-                m(
-                  'td.pf-gpu-compute__summary-td',
-                  renderRelPercentBar(
-                    Number(r.registersPerThread),
-                    state.maxRegisters,
-                    label(r.registersPerThread),
+                  m(
+                    'td.pf-gpu-compute__summary-td',
+                    renderRelPercentBar(
+                      Number(r.computePct),
+                      state.maxComputePct,
+                      label(r.computePct),
+                    ),
                   ),
-                ),
-                m(
-                  'td.pf-gpu-compute__summary-td',
-                  renderRelPercentBar(
-                    Number(r.gridSize),
-                    state.maxGridSize,
-                    label(r.gridSize),
+                  m(
+                    'td.pf-gpu-compute__summary-td',
+                    renderRelPercentBar(
+                      Number(r.memoryPct),
+                      state.maxMemoryPct,
+                      label(r.memoryPct),
+                    ),
                   ),
-                ),
-              ],
+                  m(
+                    'td.pf-gpu-compute__summary-td',
+                    renderRelPercentBar(
+                      Number(r.registersPerThread),
+                      state.maxRegisters,
+                      label(r.registersPerThread),
+                    ),
+                  ),
+                  m(
+                    'td.pf-gpu-compute__summary-td',
+                    renderRelPercentBar(
+                      Number(r.gridSize),
+                      state.maxGridSize,
+                      label(r.gridSize),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
         ),
       ]),
+      sortedRows.length > PAGE_SIZE &&
+        m('.pf-gpu-compute__summary-pagination', [
+          m(Button, {
+            icon: Icons.PrevPage,
+            disabled: state.pageOffset === 0,
+            onclick: () => {
+              state.pageOffset = Math.max(0, state.pageOffset - PAGE_SIZE);
+              state.dirty = true;
+              m.redraw();
+            },
+          }),
+          m(
+            'span',
+            `${state.pageOffset + 1}–${Math.min(state.pageOffset + PAGE_SIZE, sortedRows.length)} of ${sortedRows.length}`,
+          ),
+          m(Button, {
+            icon: Icons.NextPage,
+            disabled: state.pageOffset + PAGE_SIZE >= sortedRows.length,
+            onclick: () => {
+              state.pageOffset = Math.min(
+                state.pageOffset + PAGE_SIZE,
+                sortedRows.length - PAGE_SIZE,
+              );
+              state.dirty = true;
+              m.redraw();
+            },
+          }),
+        ]),
     );
   },
 };
