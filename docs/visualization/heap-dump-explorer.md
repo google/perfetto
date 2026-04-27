@@ -425,16 +425,17 @@ object to `history` names the bug — a static list of Activities.
 The _Object Size_ block quantifies the cost: one leaked Activity is
 pinning 117.6&nbsp;KiB and ~1,600 reachable objects. Multiply by
 five (the `Count`) and the leak is already ~600&nbsp;KiB of Activity
-graphs sitting in the heap. The view-hierarchy breakdown lives lower
-on the same tab:
+graphs sitting in the heap. Further down the same tab are the
+_Objects with References to this Object_ and _Immediately Dominated
+Objects_ sections:
 
 ![Bottom of the object tab. Instance fields from android.app.Activity, "Objects with References to this Object", and "Immediately Dominated Objects".](../images/heap_docs/13-object-tab-bottom.png)
 
-The _Immediately Dominated Objects_ list is the view hierarchy:
-`DecorView` at the top, the inflated drawables below, the
-`ContextImpl`, every `ViewGroup` the layout contains. All of them
-are unreachable by intent and reachable in practice, because one
-companion-object list is holding their root.
+Expanding _Immediately Dominated Objects_ shows everything going
+down with the leak — the `Activity`'s view hierarchy and the rest
+of the state it transitively retains. None of it is supposed to
+outlive the Activity; all of it does, because one companion-object
+list is holding the root.
 
 **Fix.** Never store an `Activity` in a `static` or companion-object
 container. If you want a breadcrumb trail for crash reports, store
@@ -546,18 +547,18 @@ each card is the fields keeping that bitmap alive:
 
 ![Bitmaps gallery with Show Paths on. Every card's chain reads Class&lt;FeedAdapter&gt;.cache → ArrayList → Bitmap — the companion-object list is the single holder.](../images/heap_docs/09-bitmaps-show-paths.png)
 
-What the chains look like tells you what kind of bug this is:
+Every chain in the gallery is identical: `Class<FeedAdapter>.cache →
+ArrayList → Bitmap`. All twelve copies share one holder — a
+cache-layer bug, one field to fix.
 
-- Every copy shares the same chain ending at one holder →
-  *cache-layer bug.* One field is storing N copies.
-- Each copy has a different chain → *call-site bug.* There's no
+The shape of the chains is the diagnostic. Two other patterns to
+recognize on future investigations:
+
+- _Each copy has a different chain_ → call-site bug. There's no
   cache, or callers are bypassing it.
-- The chain passes through an `Activity` → fix the Activity leak
+- _The chain passes through an `Activity`_ → fix the Activity leak
   first ([previous case study](#finding-a-leaked-activity)); the
   bitmaps will follow.
-
-Here every chain ends at `FeedAdapter.cache`. Cache-layer bug, one
-field to fix.
 
 **Fix.** There's no real reason to keep a side list of `Bitmap`s at
 all — Android already has a `LruCache<K, Bitmap>`, scoped to the
