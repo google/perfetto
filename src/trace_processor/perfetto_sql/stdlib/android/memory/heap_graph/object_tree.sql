@@ -27,31 +27,31 @@ SELECT
   max(cumulative_native_size) AS cumulative_native_size,
   max(cumulative_count) AS cumulative_count
 FROM _graph_aggregating_scan!(
-      (
-        SELECT id AS source_node_id, parent_id AS dest_node_id
-        FROM _heap_graph_object_min_depth_tree
-        WHERE parent_id IS NOT NULL
-      ),
-      (
-        SELECT
-          id,
-          self_size AS cumulative_size,
-          native_size AS cumulative_native_size,
-          1 AS cumulative_count
-        FROM heap_graph_object
-      ),
-      (cumulative_size, cumulative_native_size, cumulative_count),
-      (
-        SELECT
-          t.id,
-          SUM(t.cumulative_size) AS cumulative_size,
-          SUM(t.cumulative_native_size) AS cumulative_native_size,
-          SUM(t.cumulative_count) AS cumulative_count
-        FROM $table t
-        JOIN heap_graph_object o
-          ON t.id = o.id
-        GROUP BY t.id
-      ))
+  (
+    SELECT id AS source_node_id, parent_id AS dest_node_id
+    FROM _heap_graph_object_min_depth_tree
+    WHERE parent_id IS NOT NULL
+  ),
+  (
+    SELECT
+    id,
+    self_size AS cumulative_size,
+    native_size AS cumulative_native_size,
+    1 AS cumulative_count
+    FROM heap_graph_object
+  ),
+  (cumulative_size, cumulative_native_size, cumulative_count),
+  (
+    SELECT
+    t.id,
+    SUM(t.cumulative_size) AS cumulative_size,
+    SUM(t.cumulative_native_size) AS cumulative_native_size,
+    SUM(t.cumulative_count) AS cumulative_count
+    FROM $table t
+    JOIN heap_graph_object o
+    ON t.id = o.id
+    GROUP BY t.id
+))
 GROUP BY
   id
 ORDER BY
@@ -59,11 +59,11 @@ ORDER BY
 
 -- Returns object references with cumulative size information.
 CREATE PERFETTO MACRO _heap_graph_object_references_agg(
-    path_hashes TableOrSubquery,
-    path_hash_values TableOrSubquery
+  path_hashes TableOrSubquery,
+  path_hash_values TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   WITH
     _path_hashes AS (
       SELECT
@@ -98,11 +98,11 @@ RETURNS TableOrSubquery AS
 
 -- Returns incoming references with cumulative size information.
 CREATE PERFETTO MACRO _heap_graph_incoming_references_agg(
-    path_hashes TableOrSubquery,
-    path_hash_values TableOrSubquery
+  path_hashes TableOrSubquery,
+  path_hash_values TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   WITH
     _path_hashes AS (
       SELECT
@@ -138,11 +138,11 @@ RETURNS TableOrSubquery AS
 
 -- Returns outgoing references with cumulative size information.
 CREATE PERFETTO MACRO _heap_graph_outgoing_references_agg(
-    path_hashes TableOrSubquery,
-    path_hash_values TableOrSubquery
+  path_hashes TableOrSubquery,
+  path_hash_values TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   WITH
     _path_hashes AS (
       SELECT

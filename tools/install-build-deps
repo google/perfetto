@@ -507,11 +507,10 @@ BIGTRACE_DEPS = [
                '6c3e8482f7b4e3b307bb42afbb85fd8771da86b8', 'all', 'all', True)
 ]
 
-# Syntaqlite CLI prebuilt binaries. Used by tools/gen_syntaqlite_parser to
+# Syntaqlite CLI prebuilt binaries. Used by tools/format-sql-sources to format
+# `.sql` files (via `syntaqlite fmt`) and by tools/gen_syntaqlite_parser to
 # regenerate src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.{c,h}
-# from the canonical perfetto.y + perfetto.synq grammar files. Only needed by
-# contributors editing the grammar; normal builds consume the committed
-# generated output. Gated behind the `--syntaqlite` flag.
+# from the canonical perfetto.y + perfetto.synq grammar files.
 SYNTAQLITE_DEPS = [
     Dependency(
         'buildtools/syntaqlite.tgz',
@@ -945,10 +944,6 @@ def Main():
       help='Override the autodetected build CPU architecture')
   parser.add_argument(
       '--rust', action='store_true', help='Rust toolchain to build Rust SDK')
-  parser.add_argument(
-      '--syntaqlite',
-      action='store_true',
-      help='Prebuilt syntaqlite CLI for regenerating the PerfettoSQL parser')
   args = parser.parse_args()
   if args.verify:
     CheckHashes()
@@ -982,8 +977,7 @@ def Main():
     deps += BIGTRACE_DEPS
   if args.rust:
     deps += BUILD_DEPS_RUST
-  if args.syntaqlite:
-    deps += SYNTAQLITE_DEPS
+  deps += SYNTAQLITE_DEPS
   deps_updated = False
   nodejs_updated = False
   rustup_updated = False

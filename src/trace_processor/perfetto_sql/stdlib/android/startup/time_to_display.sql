@@ -22,22 +22,14 @@ INCLUDE PERFETTO MODULE slices.with_context;
 CREATE PERFETTO VIEW _startups_with_upid AS
 WITH
   joined_with_processes AS (
-    SELECT
-      s.*,
-      p.upid
+    SELECT s.*, p.upid
     FROM android_startups AS s
-    LEFT JOIN android_startup_processes AS p
-      USING (startup_id)
+    LEFT JOIN android_startup_processes AS p USING (startup_id)
   ),
   fallback AS (
-    SELECT
-      s.*,
-      upid
+    SELECT s.*, upid
     FROM android_startups AS s
-    JOIN process AS p
-      ON (
-        p.name GLOB s.package
-      )
+    JOIN process AS p ON (p.name GLOB s.package)
   )
 SELECT
   j.startup_id,
@@ -48,10 +40,7 @@ SELECT
   j.startup_type,
   coalesce(j.upid, f.upid) AS upid
 FROM joined_with_processes AS j
-LEFT JOIN fallback AS f
-  ON (
-    j.upid IS NULL AND j.startup_id = f.startup_id
-  );
+LEFT JOIN fallback AS f ON (j.upid IS NULL AND j.startup_id = f.startup_id);
 
 -- Get Time To Initial Display of the startup calculated as time between the
 -- startup started and the first frame that was started by Choreographer on the
@@ -61,44 +50,27 @@ LEFT JOIN fallback AS f
 CREATE PERFETTO TABLE _ttid AS
 WITH
   frames_with_upid AS (
-    SELECT
-      f.*
+    SELECT f.*
     FROM android_frames AS f
     JOIN thread AS t
-      ON (
-        f.ui_thread_utid = t.utid
-      )
+      ON (f.ui_thread_utid = t.utid)
   ),
   -- First `DrawFrame` on Render Thread after the startup.
   first_frame_for_startup AS (
-    SELECT
-      startup_id,
-      frame_id,
-      s.ts AS startup_ts,
-      draw_frame_id,
-      s.upid
+    SELECT startup_id, frame_id, s.ts AS startup_ts, draw_frame_id, s.upid
     FROM _startups_with_upid AS s
     JOIN frames_with_upid AS f
-      ON (
-        s.upid = f.upid AND s.ts <= f.ts
-      )
+      ON (s.upid = f.upid AND s.ts <= f.ts)
     GROUP BY
       startup_id
     ORDER BY
       startup_id,
       f.ts
   )
-SELECT
-  startup_id,
-  frame_id,
-  draw_frame_id,
-  ts + dur - startup_ts AS ttid,
-  upid
+SELECT startup_id, frame_id, draw_frame_id, ts + dur - startup_ts AS ttid, upid
 FROM first_frame_for_startup
 JOIN slice
-  ON (
-    slice.id = draw_frame_id
-  );
+  ON (slice.id = draw_frame_id);
 
 -- Get Time To Full Display of the startup calculated as time between the
 -- startup started and the first frame that was started by Choreographer after
@@ -118,11 +90,10 @@ WITH
       s.upid
     FROM _startups_with_upid AS s
     JOIN thread_slice AS t
-      ON (
-        s.upid = t.upid AND t.ts >= s.ts
-      )
+      ON (s.upid = t.upid AND t.ts >= s.ts)
     WHERE
-      name GLOB "reportFullyDrawn*" AND t.is_main_thread = 1
+      name GLOB "reportFullyDrawn*"
+      AND t.is_main_thread = 1
     GROUP BY
       startup_id
     ORDER BY
@@ -132,27 +103,18 @@ WITH
   -- After the first `reportFullyDrawn` find the first `Choreographer#DoFrame` on
   -- the UI thread and it's first `DrawFrame` on Render Thread.
   first_frame_after_report_for_startup AS (
-    SELECT
-      startup_id,
-      frame_id,
-      startup_ts,
-      draw_frame_id,
-      s.upid
+    SELECT startup_id, frame_id, startup_ts, draw_frame_id, s.upid
     FROM first_report_fully_drawn_for_startup AS s
     JOIN android_frames AS f
-      ON (
-        s.utid = f.ui_thread_utid
-        -- We are looking for the first DrawFrame that was started by the first
-        -- "Choreographer#DoFrame" on UI thread after or containing
-        -- reportFullyDrawn. In Android UIs, it's common to have UI code happen
-        -- either before a frame, or during it, and generally non-trivial amounts
-        -- of "update UI model" code doesn't try to differentiate these. We account
-        -- for both of these by looking for the first UI slice that ends after the
-        -- "reportFullyDrawnSlice" begins.
-        AND report_fully_drawn_ts < (
-          f.ts + f.dur
-        )
-      )
+      ON (s.utid = f.ui_thread_utid
+      -- We are looking for the first DrawFrame that was started by the first
+      -- "Choreographer#DoFrame" on UI thread after or containing
+      -- reportFullyDrawn. In Android UIs, it's common to have UI code happen
+      -- either before a frame, or during it, and generally non-trivial amounts
+      -- of "update UI model" code doesn't try to differentiate these. We account
+      -- for both of these by looking for the first UI slice that ends after the
+      -- "reportFullyDrawnSlice" begins.
+      AND report_fully_drawn_ts < (f.ts + f.dur))
     GROUP BY
       startup_id
     ORDER BY
@@ -161,17 +123,10 @@ WITH
   )
 -- Get TTFD as the difference between the start of the startup and the end of
 -- `DrawFrame` slice we previously found.
-SELECT
-  startup_id,
-  frame_id,
-  draw_frame_id,
-  ts + dur - startup_ts AS ttfd,
-  upid
+SELECT startup_id, frame_id, draw_frame_id, ts + dur - startup_ts AS ttfd, upid
 FROM first_frame_after_report_for_startup
 JOIN slice
-  ON (
-    slice.id = draw_frame_id
-  );
+  ON (slice.id = draw_frame_id);
 
 -- Startup metric defintions, which focus on the observable time range:
 -- TTID - Time To Initial Display
@@ -181,7 +136,7 @@ JOIN slice
 -- * https://developer.android.com/topic/performance/vitals/launch-time#retrieve-TTFD
 -- * end of next RT.DrawFrame, after reportFullyDrawn called - bindApplication
 -- Googlers: see go/android-performance-metrics-glossary for details.
-CREATE PERFETTO TABLE android_startup_time_to_display (
+CREATE PERFETTO TABLE android_startup_time_to_display(
   -- Startup id.
   startup_id LONG,
   -- Time to initial display (TTID)
@@ -194,7 +149,8 @@ CREATE PERFETTO TABLE android_startup_time_to_display (
   ttfd_frame_id LONG,
   -- `process.upid` of the startup
   upid JOINID(process.id)
-) AS
+)
+AS
 SELECT
   startup_id,
   ttid AS time_to_initial_display,
@@ -203,7 +159,5 @@ SELECT
   _ttfd.frame_id AS ttfd_frame_id,
   _ttid.upid
 FROM android_startups
-LEFT JOIN _ttid
-  USING (startup_id)
-LEFT JOIN _ttfd
-  USING (startup_id);
+LEFT JOIN _ttid USING (startup_id)
+LEFT JOIN _ttfd USING (startup_id);
