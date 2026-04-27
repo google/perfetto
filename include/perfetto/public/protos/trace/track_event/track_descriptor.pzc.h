@@ -29,6 +29,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeProcessDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeThreadDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_CounterDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessDescriptor);
+PERFETTO_PB_MSG_DECL(perfetto_protos_StateDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ThreadDescriptor);
 
 PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TrackDescriptor, ChildTracksOrdering){
@@ -52,6 +53,8 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TrackDescriptor, SiblingMergeBehavior){
                                   SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY) =
         3,
 };
+
+PERFETTO_PB_MSG(perfetto_protos_StateDescriptor);
 
 PERFETTO_PB_MSG(perfetto_protos_TrackDescriptor);
 PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor, VARINT, uint64_t, uuid, 1);
@@ -105,6 +108,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
                   perfetto_protos_CounterDescriptor,
                   counter,
                   8);
+PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
+                  MSG,
+                  perfetto_protos_StateDescriptor,
+                  state,
+                  18);
 PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
                   VARINT,
                   bool,
