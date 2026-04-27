@@ -26,9 +26,9 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/tracing/core/data_source_config.h"
 
-#include "protos/perfetto/common/system_info.pbzero.h"
 #include "protos/perfetto/config/system_info/system_info_config.gen.h"
 #include "protos/perfetto/trace/system_info/cpu_info.pbzero.h"
+#include "protos/perfetto/trace/system_info/interrupt_info.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
@@ -207,22 +207,25 @@ void SystemInfoDataSource::Start() {
     }
   }
 
+  packet->Finalize();
+
   if (include_irq_mapping_) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     auto mappings = ReadInterruptMappings();
     if (!mappings.empty()) {
-      auto* info_proto = packet->set_system_info();
+      auto irq_packet = writer_->NewTracePacket();
+      irq_packet->set_timestamp(
+          static_cast<uint64_t>(base::GetBootTimeNs().count()));
+      auto* interrupt_info = irq_packet->set_interrupt_info();
       for (const auto& mapping : mappings) {
-        auto* irq_proto = info_proto->add_irq_mapping();
+        auto* irq_proto = interrupt_info->add_irq_mapping();
         irq_proto->set_irq_id(mapping.irq_id);
         irq_proto->set_name(mapping.name);
       }
     }
 #endif
   }
-
-  packet->Finalize();
   writer_->Flush();
 }
 

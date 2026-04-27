@@ -25,7 +25,7 @@ message Utsname {
   optional string machine = 4;
 }
 
-// Next id: 18
+// Next id: 17
 message SystemInfo {
   optional Utsname utsname = 1;
   optional string android_build_fingerprint = 2;
@@ -90,12 +90,4 @@ message SystemInfo {
   //
   // Introduced in perfetto v54 / Android 26Q1+.
   optional uint64 system_ram_bytes = 16;
-
-  // Information about hardware interrupts (IRQs) on the system.
-  // This allows mapping numeric IRQ IDs to human-readable names.
-  message InterruptMapping {
-    optional int32 irq_id = 1;
-    optional string name = 2;
-  }
-  repeated InterruptMapping irq_mapping = 17;
 }
