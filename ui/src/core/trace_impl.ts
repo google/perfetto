@@ -15,7 +15,7 @@
 import {DisposableStack} from '../base/disposable_stack';
 import {createStore, Migrate, Store} from '../base/store';
 import {TimelineImpl} from './timeline';
-import {Command} from '../public/command';
+import {Command} from '../public/commands';
 import {Trace} from '../public/trace';
 import {ScrollToArgs} from '../public/scroll_helper';
 import {Engine, EngineBase} from '../trace_processor/engine';

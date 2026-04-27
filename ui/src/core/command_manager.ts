@@ -14,7 +14,7 @@
 
 import {z} from 'zod';
 import {Registry} from '../base/registry';
-import {Command, CommandManager} from '../public/command';
+import {Command, CommandManager} from '../public/commands';
 import {raf} from './raf_scheduler';
 import {OmniboxManagerImpl} from './omnibox_manager';
 import {STARTUP_COMMAND_ALLOWLIST_SET} from './startup_command_allowlist';
@@ -87,16 +87,16 @@ export class CommandManagerImpl implements CommandManager {
 
   constructor(private omnibox: OmniboxManagerImpl) {}
 
-  getCommand(commandId: string): Command {
-    return this.registry.get(commandId);
+  getCommand(commandId: string): Command | undefined {
+    return this.registry.tryGet(commandId);
   }
 
   hasCommand(commandId: string): boolean {
     return this.registry.has(commandId);
   }
 
-  get commands(): Command[] {
-    return Array.from(this.registry.values());
+  getCommands(): readonly Command[] {
+    return this.registry.valuesAsArray();
   }
 
   registerCommand(cmd: Command): Disposable {
@@ -113,6 +113,8 @@ export class CommandManagerImpl implements CommandManager {
     Promise.resolve(res).finally(() => raf.scheduleFullRedraw());
     return res;
   }
+
+  // Internal API: not part of the public CommandManager interface.
 
   registerMacro({id, name, run}: Macro, source?: string) {
     const stack = new DisposableStack();

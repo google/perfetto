@@ -14,14 +14,6 @@
 
 import {Hotkey} from '../base/hotkeys';
 
-export interface CommandManager {
-  registerCommand(command: Command): void;
-
-  hasCommand(commandId: string): boolean;
-
-  runCommand(id: string, ...args: unknown[]): unknown;
-}
-
 export interface Command {
   // A unique id for this command.
   id: string;
@@ -40,4 +32,20 @@ export interface Command {
   // A human-readable label shown as a left-side chip in the command palette,
   // indicating where this command came from (e.g. extension module name).
   source?: string;
+}
+
+export interface CommandManager {
+  // Register a command. Throws if a command with the same id already exists.
+  // Dispose the returned handle to unregister.
+  registerCommand(command: Command): Disposable;
+  // Returns true if a command with the given id is registered.
+  hasCommand(commandId: string): boolean;
+  // Look up a registered command by id. Returns the command, or undefined if
+  // not found.
+  getCommand(commandId: string): Command | undefined;
+  // Returns all registered commands.
+  getCommands(): readonly Command[];
+  // Invoke a registered command by id, forwarding any extra args to its
+  // callback. Returns whatever the callback returns.
+  runCommand(id: string, ...args: unknown[]): unknown;
 }
