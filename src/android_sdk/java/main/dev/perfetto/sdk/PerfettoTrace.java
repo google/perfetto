@@ -46,6 +46,7 @@ public final class PerfettoTrace {
   private static final PerfettoNativeMemoryCleaner sNativeMemoryCleaner =
       new PerfettoNativeMemoryCleaner();
 
+  private static final AtomicBoolean sAttemptedRegistration = new AtomicBoolean(false);
   private static final AtomicBoolean sAttemptedSystemRegistration = new AtomicBoolean(false);
 
   /** For fetching the next flow event id in a process. */
@@ -302,17 +303,26 @@ public final class PerfettoTrace {
     return native_get_thread_track_uuid(tid);
   }
 
-  /** Activates a trigger by name {@code triggerName} with expiry in {@code ttlMs}. */
-  public static void activateTrigger(String triggerName, int ttlMs) {
+  /**
+   * Activates a trigger by name {@code triggerName} with expiry in {@code ttlMs}. Returns
+   * {@code true} iff the trigger was forwarded to the system backend; on {@code false} the
+   * caller should fall back to {@code trigger_perfetto}.
+   */
+  public static boolean activateTrigger(String triggerName, int ttlMs) {
+    if (!sAttemptedRegistration.get()) {
+      return false;
+    }
     native_activate_trigger(triggerName, ttlMs);
+    return sAttemptedSystemRegistration.get();
   }
 
   /** Registers the process with Perfetto. */
   public static void register(boolean isBackendInProcess) {
+    native_register(isBackendInProcess);
+    sAttemptedRegistration.set(true);
     if (!isBackendInProcess) {
         sAttemptedSystemRegistration.set(true);
     }
-    native_register(isBackendInProcess);
   }
 
   /** Registers the process with Perfetto and enable additional debug checks on the Java side. */

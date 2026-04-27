@@ -729,29 +729,27 @@ public class PerfettoTraceTest {
   @Test
   public void testActivateTrigger() throws Exception {
     TraceConfig traceConfig = getTriggerTraceConfig(FOO, FOO);
-
     PerfettoTrace.Session session = new PerfettoTrace.Session(true, traceConfig.toByteArray());
 
     PerfettoTrace.instant(FOO_CATEGORY, "event_trigger").emit();
 
-    PerfettoTrace.activateTrigger(FOO, 1000);
+    // setUp() registered with isBackendInProcess=true: the trigger fires against
+    // the in-process session but the return is false (system not registered).
+    assertThat(PerfettoTrace.activateTrigger(FOO, 1000)).isFalse();
 
     byte[] traceBytes = session.close();
 
     Trace trace = Trace.parseFrom(traceBytes);
 
-    boolean hasTrackEvent = false;
-    boolean hasChromeLatencyInfo = false;
-
+    boolean hasTrigger = false;
     for (TracePacket packet : trace.getPacketList()) {
-      TrackEvent event;
-      if (packet.hasTrackEvent()) {
-        hasTrackEvent = true;
+      if (packet.hasTrigger() && FOO.equals(packet.getTrigger().getTriggerName())) {
+        hasTrigger = true;
       }
-
       collectInternedData(packet);
     }
 
+    assertThat(hasTrigger).isTrue();
     assertThat(mCategoryNames).contains(FOO);
   }
 
