@@ -303,7 +303,7 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
     const ids = bitmaps.map((b) => b.row.id);
     if (ids.length === 0) return;
     queries
-      .fetchPathsFromRoot(engine, ids)
+      .fetchDominatorPaths(engine, ids)
       .then((paths) => {
         if (!alive) return;
         for (const id of ids) {

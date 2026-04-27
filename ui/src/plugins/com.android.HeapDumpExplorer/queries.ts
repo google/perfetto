@@ -589,10 +589,10 @@ async function fetchFieldValues(
 }
 
 /** Fetch dominator-tree path from GC root to the given object. */
-export async function fetchPathFromRoot(
+export async function fetchDominatorPath(
   engine: Engine,
   id: number,
-): Promise<InstanceDetail['pathFromRoot']> {
+): Promise<InstanceDetail['dominatorPath']> {
   const pathRes = await engine.query(`
     WITH RECURSIVE path(obj_id, depth) AS (
       SELECT ${id}, 0
@@ -640,7 +640,7 @@ export async function fetchPathFromRoot(
     entries.push({row: rowFromIter(pit), objId: pit.id});
   }
 
-  const result: NonNullable<InstanceDetail['pathFromRoot']> = [];
+  const result: NonNullable<InstanceDetail['dominatorPath']> = [];
   for (let i = 0; i < entries.length; i++) {
     let field = '';
     if (i < entries.length - 1) {
@@ -667,8 +667,122 @@ export async function fetchPathFromRoot(
   return result.length > 0 ? result : null;
 }
 
+/**
+ * Fetch shortest reference path from a GC root to the given object,
+ * using the BFS-based min-depth tree from the stdlib.
+ */
+export async function fetchShortestPathFromRoot(
+  engine: Engine,
+  id: number,
+): Promise<InstanceDetail['shortestPath']> {
+  const pathRes = await engine.query(`
+    INCLUDE PERFETTO MODULE graphs.hierarchy;
+
+    SELECT
+      o.id, t.parent_id,
+      c.name AS cls, c.deobfuscated_name AS deob,
+      o.self_size, o.native_size, o.heap_type, o.root_type,
+      dt.dominated_size_bytes AS dominated_size,
+      dt.dominated_native_size_bytes AS dominated_native,
+      dt.dominated_obj_count,
+      od.value_string, c.kind AS class_kind
+    FROM _tree_reachable_ancestors_or_self!(
+      _heap_graph_object_min_depth_tree,
+      (SELECT ${id} AS id)
+    ) a
+    JOIN _heap_graph_object_min_depth_tree t ON t.id = a.id
+    JOIN heap_graph_object o ON o.id = a.id
+    JOIN heap_graph_class c ON o.type_id = c.id
+    LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
+    LEFT JOIN heap_graph_dominator_tree dt ON dt.id = o.id
+  `);
+
+  // Collect unordered entries keyed by id.
+  const byId = new Map<
+    number,
+    {row: InstanceRow; objId: number; parentId: number | null}
+  >();
+  const parentToChild = new Map<number, number>();
+  let rootId: number | null = null;
+
+  for (
+    const pit = pathRes.iter({
+      id: NUM,
+      parent_id: NUM_NULL,
+      cls: STR,
+      deob: STR_NULL,
+      self_size: NUM,
+      native_size: NUM,
+      heap_type: STR_NULL,
+      root_type: STR_NULL,
+      dominated_size: NUM_NULL,
+      dominated_native: NUM_NULL,
+      dominated_obj_count: NUM_NULL,
+      value_string: STR_NULL,
+      class_kind: STR,
+    });
+    pit.valid();
+    pit.next()
+  ) {
+    byId.set(pit.id, {
+      row: rowFromIter(pit),
+      objId: pit.id,
+      parentId: pit.parent_id,
+    });
+  }
+  if (byId.size === 0) return null;
+
+  // Build parent→child map and find the root (parent outside the set).
+  for (const [objId, entry] of byId) {
+    if (entry.parentId === null || !byId.has(entry.parentId)) {
+      rootId = objId;
+    } else {
+      parentToChild.set(entry.parentId, objId);
+    }
+  }
+
+  // Walk root → target.
+  const entries: {row: InstanceRow; objId: number}[] = [];
+  for (
+    let cur: number | null = rootId;
+    cur !== null;
+    cur = parentToChild.get(cur) ?? null
+  ) {
+    const e = byId.get(cur);
+    if (!e) break;
+    entries.push({row: e.row, objId: e.objId});
+  }
+
+  // Resolve field names between consecutive entries.
+  const result: NonNullable<InstanceDetail['shortestPath']> = [];
+  for (let i = 0; i < entries.length; i++) {
+    let field = '';
+    if (i < entries.length - 1) {
+      const parentId = entries[i].objId;
+      const childId = entries[i + 1].objId;
+      const fRes = await engine.query(`
+        SELECT ifnull(r.deobfuscated_field_name, r.field_name) AS fname
+        FROM heap_graph_reference r
+        JOIN heap_graph_object o ON r.reference_set_id = o.reference_set_id
+        WHERE o.id = ${parentId} AND r.owned_id = ${childId}
+        LIMIT 1
+      `);
+      const fit = fRes.iter({fname: STR});
+      if (fit.valid()) {
+        field = '.' + fit.fname;
+      }
+    }
+    result.push({
+      row: entries[i].row,
+      field,
+      isDominator: false,
+    });
+  }
+  return result.length > 0 ? result : null;
+}
+
 /** Batch-fetch dominator-tree paths for multiple objects. */
-export async function fetchPathsFromRoot(
+export async function fetchDominatorPaths(
   engine: Engine,
   ids: number[],
 ): Promise<Map<number, PathEntry[]>> {
@@ -1066,7 +1180,8 @@ export async function getInstance(
   `);
   const dominated = collectRows(domRes);
 
-  const pathFromRoot = await fetchPathFromRoot(engine, id);
+  const dominatorPath = await fetchDominatorPath(engine, id);
+  const shortestPath = await fetchShortestPathFromRoot(engine, id);
 
   const staticFields = isClassObj
     ? await fetchFieldValues(engine, refSetId, fieldSetId)
@@ -1101,7 +1216,8 @@ export async function getInstance(
     bitmap,
     reverseRefs,
     dominated,
-    pathFromRoot,
+    dominatorPath,
+    shortestPath,
   };
 }
 
