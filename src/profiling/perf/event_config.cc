@@ -436,6 +436,11 @@ std::optional<EventConfig> EventConfig::Create(
     if (!maybe_follower_counter) {
       return std::nullopt;
     }
+    if (event.has_period()) {
+      maybe_follower_counter->period = event.period();
+    } else if (event.has_frequency()) {
+      maybe_follower_counter->frequency = event.frequency();
+    }
     followers.push_back(std::move(*maybe_follower_counter));
   }
 
@@ -687,9 +692,16 @@ std::optional<EventConfig> EventConfig::CreateSampling(
     pe_follower.exclude_hv = e.attr_exclude_hv;
     // Some arguments must match the timebase:
     pe_follower.sample_type = pe.sample_type;
+    pe_follower.read_format = pe.read_format;
     pe_follower.clockid = pe.clockid;
     pe_follower.use_clockid = pe.use_clockid;
-
+    // Set the period/frequency
+    if (e.period.has_value()) {
+      pe_follower.sample_period = e.period.value();
+    } else if (e.frequency.has_value()) {
+      pe_follower.freq = true;
+      pe_follower.sample_freq = e.frequency.value();
+    }
     pe_followers.push_back(pe_follower);
   }
 
