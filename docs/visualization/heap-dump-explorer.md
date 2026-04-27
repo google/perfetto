@@ -243,10 +243,12 @@ instance of a data class holding the largest subgraph.
 
 ## Inspecting a single object
 
-**The _Sample Path from GC Root_ and _Objects with References to this
-Object_ are the two sections that resolve most investigations.** The
-path from GC root shows who is keeping the object alive; the reverse
-references list every object holding a field pointer to it.
+**The _Shortest Path from GC Root_, _Dominator Tree Path_ and _Objects
+with References to this Object_ are the key sections for most
+investigations.** The shortest path shows the fewest reference hops
+keeping the object alive; the dominator tree path shows the chain of
+objects that exclusively retain it; the reverse references list every
+object holding a field pointer to it.
 
 Clicking any object in any tab opens a closable tab for that instance.
 Multiple object tabs can be open at once.
@@ -256,10 +258,10 @@ The object tab contains everything known about the instance:
 - **Header** with the object id, plus an _Open in Classes_ shortcut
   when the object is itself a `Class`.
 - **Bitmap preview** for bitmap instances, with a download button.
-- **Reference path from GC root** — the chain of references keeping
-  this object alive, one step per row with the holder and the field
-  name. Dominator hops along the path are bold. If the object is
-  unreachable, a sample path is shown instead.
+- **Shortest Path from GC Root** — the shortest chain of references
+  from a GC root to this object.
+- **Dominator Tree Path** — the chain of dominators keeping this
+  object alive, one step per row with the holder and the field name.
 - **Object info** — class, heap, root type.
 - **Object size** — shallow, retained and reachable sizes split by
   Java / native / count.

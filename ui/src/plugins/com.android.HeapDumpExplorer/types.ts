@@ -118,8 +118,8 @@ export interface InstanceDetail {
   } | null;
   reverseRefs: InstanceRow[];
   dominated: InstanceRow[];
-  pathFromRoot: PathEntry[] | null;
-  isUnreachablePath?: boolean;
+  dominatorPath: PathEntry[] | null;
+  shortestPath: PathEntry[] | null;
 }
 
 export interface ClassRow {
