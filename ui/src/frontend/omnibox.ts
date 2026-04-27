@@ -30,7 +30,7 @@ import {EmptyState} from '../widgets/empty_state';
 import {HotkeyGlyphs, KeycapGlyph} from '../widgets/hotkey_glyphs';
 import {Popup} from '../widgets/popup';
 import {Spinner} from '../widgets/spinner';
-import {Command} from '../public/command';
+import {Command} from '../public/commands';
 
 const OMNIBOX_INPUT_REF = 'omnibox';
 const RECENT_COMMANDS_LIMIT = 6;
@@ -123,8 +123,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
 
   private fuzzyFilterCommands(searchTerm: string): CommandWithMatchInfo[] {
     const app = AppImpl.instance;
-    const allCommands = app.commands.commands;
-
+    const allCommands = app.commands.getCommands();
     const finder = new FuzzyFinder(allCommands, ({name}) => name);
     return finder.find(searchTerm).map((result) => {
       return {segments: result.segments, ...result.item};
