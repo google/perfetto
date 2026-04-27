@@ -131,8 +131,10 @@ export async function fetchKernelSummaryRows(
         EXTRACT_ARG(cs.arg_set_id, 'kernel_name'),
         cs.name
       ) AS demangledName,
-      CAST(EXTRACT_ARG(cs.arg_set_id, 'launch__registers_per_thread') AS REAL) AS launch__registers_per_thread,
-      CAST(EXTRACT_ARG(cs.arg_set_id, 'launch__grid_size') AS REAL) AS launch__grid_size,
+      CAST(EXTRACT_ARG(cs.arg_set_id, 'registers_per_thread') AS REAL) AS registers_per_thread,
+      CAST(EXTRACT_ARG(cs.arg_set_id, 'launch.grid_size.x') AS REAL)
+        * CAST(COALESCE(EXTRACT_ARG(cs.arg_set_id, 'launch.grid_size.y'), 1) AS REAL)
+        * CAST(COALESCE(EXTRACT_ARG(cs.arg_set_id, 'launch.grid_size.z'), 1) AS REAL) AS grid_size,
       COALESCE(
         ${coalesceExpr(durationNames)},
         CAST(cs.dur AS REAL)
@@ -154,10 +156,8 @@ export async function fetchKernelSummaryRows(
       computePct: (iter.get('computePct') as number | string | null) ?? null,
       memoryPct: (iter.get('memoryPct') as number | string | null) ?? null,
       registersPerThread:
-        (iter.get('launch__registers_per_thread') as number | string | null) ??
-        null,
-      gridSize:
-        (iter.get('launch__grid_size') as number | string | null) ?? null,
+        (iter.get('registers_per_thread') as number | string | null) ?? null,
+      gridSize: (iter.get('grid_size') as number | string | null) ?? null,
     });
     iter.next();
   }

@@ -57,7 +57,7 @@ package perfetto.protos;
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 48.
+// Next id: 50.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -102,6 +102,9 @@ message InternedData {
 
   // Description of a GPU hardware queue or render stage.
   repeated InternedGpuRenderStageSpecification gpu_specifications = 24;
+
+  // Description of a compute kernel (name, demangled name, architecture).
+  repeated InternedComputeKernel compute_kernels = 48;
 
   // This is set when FtraceConfig.symbolize_ksyms = true.
   // The id of each symbol the number that will be reported in ftrace events
@@ -157,6 +160,9 @@ message InternedData {
 
   // Description of GPU counters available in a data source.
   repeated InternedGpuCounterDescriptor gpu_counter_descriptors = 47;
+
+  // Names for ExtraComputeArg key fields.
+  repeated InternedComputeArgName compute_arg_names = 49;
 
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;

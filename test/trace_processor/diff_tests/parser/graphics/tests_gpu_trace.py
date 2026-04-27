@@ -596,3 +596,47 @@ class GraphicsGpuTrace(TestSuite):
           "cuLaunchKernel","GPU_API_CUDA"
           "vkCmdDispatch","GPU_API_VULKAN"
         '''))
+
+  def test_gpu_compute_kernel(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_compute_kernel.textproto'),
+        query='''
+          SELECT
+            s.name AS slice_name,
+            extract_arg(s.arg_set_id, 'kernel_name') AS kernel_name,
+            extract_arg(s.arg_set_id, 'kernel_demangled_name')
+              AS kernel_demangled_name,
+            extract_arg(s.arg_set_id, 'arch') AS arch
+          FROM gpu_slice s
+          WHERE extract_arg(s.arg_set_id, 'kernel_name') IS NOT NULL
+          ORDER BY s.ts;
+        ''',
+        out=Csv('''
+          "slice_name","kernel_name","kernel_demangled_name","arch"
+          "Kernel","_Z9vectorAddPfS_S_i","vectorAdd(float*, float*, float*, int)","sm_80"
+          "Kernel","_Z6matMulPfS_S_ii","matMul(float*, float*, float*, int, int)","sm_80"
+          "Kernel","_Z9vectorAddPfS_S_i","vectorAdd(float*, float*, float*, int)","sm_80"
+        '''))
+
+  def test_gpu_compute_launch(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_compute_launch.textproto'),
+        query='''
+          SELECT
+            s.name AS slice_name,
+            extract_arg(s.arg_set_id, 'kernel_name') AS kernel_name,
+            extract_arg(s.arg_set_id, 'launch.grid_size.x') AS grid_x,
+            extract_arg(s.arg_set_id, 'launch.grid_size.y') AS grid_y,
+            extract_arg(s.arg_set_id, 'launch.grid_size.z') AS grid_z,
+            extract_arg(s.arg_set_id, 'launch.workgroup_size.x') AS wg_x,
+            extract_arg(s.arg_set_id, 'launch.workgroup_size.y') AS wg_y,
+            extract_arg(s.arg_set_id, 'launch.workgroup_size.z') AS wg_z,
+            extract_arg(s.arg_set_id, 'registers_per_thread') AS regs,
+            extract_arg(s.arg_set_id, 'shared_mem_dynamic') AS shmem
+          FROM gpu_slice s
+          ORDER BY s.ts;
+        ''',
+        out=Csv('''
+          "slice_name","kernel_name","grid_x","grid_y","grid_z","wg_x","wg_y","wg_z","regs","shmem"
+          "vectorAdd","_Z9vectorAddPfS_S_i",256,1,1,128,1,1,32,4096
+        '''))
