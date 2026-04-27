@@ -28,32 +28,35 @@ INCLUDE PERFETTO MODULE stacks.cpu_profiling;
 -- See also https://source.chromium.org/chromium/chromium/src/+/main:services/tracing/public/cpp/stack_sampling/tracing_sampler_profiler.cc;l=603;drc=cba00174ca338153b9c4f0c31ddbabaac7dd38c7
 -- Note that in SQL SUBSTR() indexes are 1-based, not 0 based.
 CREATE PERFETTO FUNCTION _to_breakpad_module(
-    -- mapping name
-    mapping STRING,
-    -- linker build ID
-    build_id STRING
+  -- mapping name
+  mapping STRING,
+  -- linker build ID
+  build_id STRING
 )
-RETURNS STRING AS
+RETURNS STRING
+AS
 SELECT
   CASE
-    WHEN (
-      (
-        $mapping GLOB '*libmonochrome_64.so'
-        OR $mapping GLOB '*libchrome.so'
-        OR $mapping GLOB '*libmonochrome.so'
-        OR $mapping GLOB '*libwebviewchromium.so'
-        OR $mapping GLOB '*libchromium_android_linker.so'
-      )
-      AND length($build_id) >= 40
-    )
-    THEN (
-      substr($build_id, 7, 2) || substr($build_id, 5, 2) || substr($build_id, 3, 2) || substr($build_id, 1, 2) || substr($build_id, 11, 2) || substr($build_id, 9, 2) || substr($build_id, 15, 2) || substr($build_id, 13, 2) || substr($build_id, 17, 16) || '0'
-    )
+    WHEN (($mapping GLOB '*libmonochrome_64.so'
+    OR $mapping GLOB '*libchrome.so'
+    OR $mapping GLOB '*libmonochrome.so'
+    OR $mapping GLOB '*libwebviewchromium.so'
+    OR $mapping GLOB '*libchromium_android_linker.so')
+    AND length($build_id) >= 40) THEN (substr($build_id, 7, 2)
+    || substr($build_id, 5, 2)
+    || substr($build_id, 3, 2)
+    || substr($build_id, 1, 2)
+    || substr($build_id, 11, 2)
+    || substr($build_id, 9, 2)
+    || substr($build_id, 15, 2)
+    || substr($build_id, 13, 2)
+    || substr($build_id, 17, 16)
+    || '0')
     ELSE NULL
   END;
 
 -- Enumerates modules and rel_pcs that have no associated symbol information, broken down by caller process.
-CREATE PERFETTO TABLE _stacks_symbolization_candidates (
+CREATE PERFETTO TABLE _stacks_symbolization_candidates(
   -- The process which is using this module
   upid JOINID(process.id),
   -- The module mapping (usually path)
@@ -65,58 +68,40 @@ CREATE PERFETTO TABLE _stacks_symbolization_candidates (
   -- For chrome / webview .so, the breakpad module id derived from the build_id.
   -- This is only populated for chrome-like modules.
   breakpad_module_id STRING
-) AS
+)
+AS
 WITH
   perf_callsites AS (
-    SELECT DISTINCT
-      upid,
-      callsite_id
+    SELECT DISTINCT upid, callsite_id
     FROM cpu_profiling_samples
-    JOIN thread
-      USING (utid)
+    JOIN thread USING (utid)
   ),
   hprof_callsites AS (
-    SELECT DISTINCT
-      upid,
-      callsite_id
-    FROM heap_profile_allocation
+    SELECT DISTINCT upid, callsite_id FROM heap_profile_allocation
   ),
   all_callsites AS (
-    SELECT
-      *
-    FROM perf_callsites
+    SELECT * FROM perf_callsites
     UNION ALL
-    SELECT
-      *
-    FROM hprof_callsites
+    SELECT * FROM hprof_callsites
   ),
   ancestor_frames AS (
-    SELECT
-      all_callsites.upid,
-      frame_id
-    FROM all_callsites, experimental_ancestor_stack_profile_callsite(all_callsites.callsite_id)
+    SELECT all_callsites.upid, frame_id
+    FROM all_callsites, experimental_ancestor_stack_profile_callsite(
+      all_callsites.callsite_id
+    )
   ),
   self_frames AS (
-    SELECT
-      all_callsites.upid,
-      frame_id
+    SELECT all_callsites.upid, frame_id
     FROM all_callsites
     JOIN stack_profile_callsite
       ON stack_profile_callsite.id = all_callsites.callsite_id
   ),
   all_frames AS (
-    SELECT DISTINCT
-      upid,
-      spf.mapping AS mapping_id,
-      spf.rel_pc
+    SELECT DISTINCT upid, spf.mapping AS mapping_id, spf.rel_pc
     FROM (
-      SELECT
-        *
-      FROM ancestor_frames
+      SELECT * FROM ancestor_frames
       UNION ALL
-      SELECT
-        *
-      FROM self_frames
+      SELECT * FROM self_frames
     ) AS joined_frames
     JOIN stack_profile_frame AS spf
       ON joined_frames.frame_id = spf.id
@@ -124,11 +109,7 @@ WITH
       spf.symbol_set_id IS NULL
   ),
   symbolization_candidates AS (
-    SELECT
-      all_frames.upid,
-      spm.name AS module,
-      spm.build_id,
-      all_frames.rel_pc
+    SELECT all_frames.upid, spm.name AS module, spm.build_id, all_frames.rel_pc
     FROM all_frames
     JOIN stack_profile_mapping AS spm
       ON all_frames.mapping_id = spm.id

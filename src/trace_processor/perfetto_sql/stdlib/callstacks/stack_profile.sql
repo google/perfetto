@@ -24,8 +24,7 @@ SELECT
   id,
   symbol_set_id,
   (
-    SELECT
-      id
+    SELECT id
     FROM stack_profile_symbol AS s
     WHERE
       s.symbol_set_id = f.symbol_set_id
@@ -34,8 +33,7 @@ SELECT
     LIMIT 1
   ) AS min_symbol_id,
   (
-    SELECT
-      id
+    SELECT id
     FROM stack_profile_symbol AS s
     WHERE
       s.symbol_set_id = f.symbol_set_id
@@ -57,16 +55,11 @@ SELECT
   jf.jit_code_id AS jit_code_id,
   s.id IS f.min_symbol_id AS is_leaf
 FROM stack_profile_callsite AS c
-JOIN _callstack_spf_summary AS f
-  ON c.frame_id = f.id
-LEFT JOIN __intrinsic_jit_frame AS jf
-  ON jf.frame_id = f.id
-LEFT JOIN stack_profile_symbol AS s
-  USING (symbol_set_id)
-LEFT JOIN stack_profile_callsite AS p
-  ON c.parent_id = p.id
-LEFT JOIN _callstack_spf_summary AS pf
-  ON p.frame_id = pf.id
+JOIN _callstack_spf_summary AS f ON c.frame_id = f.id
+LEFT JOIN __intrinsic_jit_frame AS jf ON jf.frame_id = f.id
+LEFT JOIN stack_profile_symbol AS s USING (symbol_set_id)
+LEFT JOIN stack_profile_callsite AS p ON c.parent_id = p.id
+LEFT JOIN _callstack_spf_summary AS pf ON p.frame_id = pf.id
 ORDER BY
   c.id;
 
@@ -78,7 +71,12 @@ SELECT
   -- demangling is suprisingly inefficient and is taking a
   -- significant fraction of the runtime on big traces.
   coalesce(
-    'JS: ' || iif(jsf.name = "", "(anonymous)", jsf.name) || ':' || jsf.line || ':' || jsf.col || ' [' || lower(jsc.tier) || ']',
+    'JS: ' || iif(jsf.name = "", "(anonymous)", jsf.name) || ':' || jsf.line
+    || ':'
+    || jsf.col
+    || ' ['
+    || lower(jsc.tier)
+    || ']',
     'WASM: ' || wc.function_name || ' [' || lower(wc.tier) || ']',
     'REGEXP: ' || rc.pattern,
     'V8: ' || v8c.function_name,
@@ -96,22 +94,18 @@ SELECT
 FROM _callstack_spc_raw_forest AS c
 JOIN stack_profile_frame AS f
   ON c.frame_id = f.id
-LEFT JOIN _v8_js_code AS jsc
-  USING (jit_code_id)
-LEFT JOIN v8_js_function AS jsf
-  USING (v8_js_function_id)
-LEFT JOIN _v8_internal_code AS v8c
-  USING (jit_code_id)
-LEFT JOIN _v8_wasm_code AS wc
-  USING (jit_code_id)
-LEFT JOIN _v8_regexp_code AS rc
-  USING (jit_code_id)
+LEFT JOIN _v8_js_code AS jsc USING (jit_code_id)
+LEFT JOIN v8_js_function AS jsf USING (v8_js_function_id)
+LEFT JOIN _v8_internal_code AS v8c USING (jit_code_id)
+LEFT JOIN _v8_wasm_code AS wc USING (jit_code_id)
+LEFT JOIN _v8_regexp_code AS rc USING (jit_code_id)
 LEFT JOIN __intrinsic_jit_code AS jc
   ON c.jit_code_id = jc.id
 LEFT JOIN stack_profile_symbol AS s
   ON c.symbol_id = s.id
 LEFT JOIN _callstack_spc_raw_forest AS p
-  ON p.callsite_id = c.parent_callsite_id AND p.symbol_id IS c.parent_symbol_id
+  ON p.callsite_id = c.parent_callsite_id
+  AND p.symbol_id IS c.parent_symbol_id
 ORDER BY
   c._auto_id;
 
@@ -123,13 +117,15 @@ CREATE PERFETTO INDEX _callstack_spc_index ON _callstack_spc_forest(callsite_id)
 -- This index is necessary to optimize the leaf-finding query in
 -- _callstacks_self_to_cumulative. Without this index, the anti-join on
 -- parent_id can be very slow on large traces.
-CREATE PERFETTO INDEX _callstack_spc_parent_index ON _callstack_spc_forest(parent_id);
+CREATE PERFETTO INDEX _callstack_spc_parent_index ON _callstack_spc_forest(
+  parent_id
+);
 
 CREATE PERFETTO MACRO _callstacks_for_stack_profile_samples(
-    spc_samples TableOrSubquery
+  spc_samples TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
     f.id,
     f.parent_id,
@@ -155,11 +151,9 @@ RETURNS TableOrSubquery AS
     ON f.mapping_id = m.id
 );
 
-CREATE PERFETTO MACRO _callstacks_for_callsites(
-    samples TableOrSubquery
-)
-RETURNS TableOrSubquery AS
-(
+CREATE PERFETTO MACRO _callstacks_for_callsites(samples TableOrSubquery)
+RETURNS TableOrSubquery
+AS (
   WITH
     metrics AS MATERIALIZED (
       SELECT
@@ -187,10 +181,10 @@ RETURNS TableOrSubquery AS
 -- Input: subquery with (callsite_id, value) columns
 -- Output: callstacks with self_value (SUM of value)
 CREATE PERFETTO MACRO _callstacks_for_callsites_weighted(
-    samples TableOrSubquery
+  samples TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   WITH
     metrics AS MATERIALIZED (
       SELECT
@@ -213,11 +207,9 @@ RETURNS TableOrSubquery AS
     USING (callsite_id)
 );
 
-CREATE PERFETTO MACRO _callstacks_self_to_cumulative(
-    callstacks TableOrSubquery
-)
-RETURNS TableOrSubquery AS
-(
+CREATE PERFETTO MACRO _callstacks_self_to_cumulative(callstacks TableOrSubquery)
+RETURNS TableOrSubquery
+AS (
   SELECT
     a.*
   FROM _graph_aggregating_scan!(

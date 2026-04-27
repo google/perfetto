@@ -19,22 +19,15 @@ INCLUDE PERFETTO MODULE graphs.partition;
 
 CREATE PERFETTO FUNCTION _partition_tree_super_root_fn()
 -- The assigned id of the "super root".
-RETURNS LONG AS
-SELECT
-  id + 1
-FROM heap_graph_object
-ORDER BY
-  id DESC
-LIMIT 1;
+RETURNS LONG
+AS
+SELECT id + 1 FROM heap_graph_object ORDER BY id DESC LIMIT 1;
 
-CREATE PERFETTO FUNCTION _is_libcore_or_array(
-    obj_name STRING
-)
-RETURNS BOOL AS
+CREATE PERFETTO FUNCTION _is_libcore_or_array(obj_name STRING)
+RETURNS BOOL
+AS
 SELECT
-  (
-    $obj_name GLOB 'java.*' AND NOT $obj_name GLOB 'java.lang.Class<*>'
-  )
+  ($obj_name GLOB 'java.*' AND NOT ($obj_name GLOB 'java.lang.Class<*>'))
   OR $obj_name GLOB 'j$.*'
   OR $obj_name GLOB 'int[[]*'
   OR $obj_name GLOB 'long[[]*'
@@ -54,35 +47,25 @@ SELECT
   coalesce(tree.idom_id, _partition_tree_super_root_fn()) AS parent_id,
   obj.type_id AS group_key
 FROM heap_graph_dominator_tree AS tree
-JOIN heap_graph_object AS obj
-  USING (id)
+JOIN heap_graph_object AS obj USING (id)
 UNION ALL
 -- provide a single root required by tree partition if heap graph exists.
 SELECT
   _partition_tree_super_root_fn() AS id,
   NULL AS parent_id,
-  (
-    SELECT
-      id + 1
-    FROM heap_graph_class
-    ORDER BY
-      id DESC
-    LIMIT 1
-  ) AS group_key
+  (SELECT id + 1 FROM heap_graph_class ORDER BY id DESC LIMIT 1) AS group_key
 WHERE
   _partition_tree_super_root_fn() IS NOT NULL;
 
 CREATE PERFETTO TABLE _heap_object_marked_for_dominated_stats AS
-SELECT
-  id,
-  iif(parent_id IS NULL, 1, 0) AS marked
+SELECT id, iif(parent_id IS NULL, 1, 0) AS marked
 FROM tree_structural_partition_by_group!(_heap_graph_dominator_tree_for_partition)
 ORDER BY
   id;
 
 -- Class-level breakdown of the java heap.
 -- Per type name aggregates the object stats and the dominator tree stats.
-CREATE PERFETTO TABLE android_heap_graph_class_aggregation (
+CREATE PERFETTO TABLE android_heap_graph_class_aggregation(
   -- Process upid
   upid JOINID(process.id),
   -- Heap dump timestamp
@@ -114,7 +97,8 @@ CREATE PERFETTO TABLE android_heap_graph_class_aggregation (
   -- Native size of all objects dominated by instances of this class
   -- Only applies to reachable objects
   dominated_native_size_bytes LONG
-) AS
+)
+AS
 WITH
   base AS (
     -- First level aggregation to avoid joining with class for every object
@@ -133,10 +117,8 @@ WITH
       sum(iif(marked, dominated_native_size_bytes, 0)) AS dominated_native_size_bytes
     FROM heap_graph_object AS obj
     -- Left joins to preserve unreachable objects.
-    LEFT JOIN _heap_object_marked_for_dominated_stats
-      USING (id)
-    LEFT JOIN heap_graph_dominator_tree
-      USING (id)
+    LEFT JOIN _heap_object_marked_for_dominated_stats USING (id)
+    LEFT JOIN heap_graph_dominator_tree USING (id)
     GROUP BY
       1,
       2,

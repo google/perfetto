@@ -46,11 +46,12 @@ WITH
       fr.layer_id,
       -- Calculate the first doFrame start that occurs AFTER the current frame ends
       (
-        SELECT
-          min(ts)
+        SELECT min(ts)
         FROM _android_jank_cuj_do_frames
         WHERE
-          utid = fr.ui_thread_utid AND ts >= fr.ts_end AND ts <= fr.next_frame_start
+          utid = fr.ui_thread_utid
+          AND ts >= fr.ts_end
+          AND ts <= fr.next_frame_start
       ) AS next_do_slice_after_frame,
       fr.next_frame_start,
       fr.ts_end AS original_ts_end
@@ -96,11 +97,6 @@ JOIN _extended_frame_boundary AS frame
 -- frame.
 WHERE
   (
-    -- Blocking call starts within the frame.
-    (
-      bc.ts >= frame.ts AND bc.ts <= frame.ts_end
-    )
-    OR (
-      bc.ts_end >= frame.ts AND bc.ts_end <= frame.ts_end
-    )
-  );
+  -- Blocking call starts within the frame.
+  (bc.ts >= frame.ts AND bc.ts <= frame.ts_end)
+  OR (bc.ts_end >= frame.ts AND bc.ts_end <= frame.ts_end));

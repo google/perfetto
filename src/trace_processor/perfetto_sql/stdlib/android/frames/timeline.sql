@@ -21,10 +21,10 @@ INCLUDE PERFETTO MODULE android.frames.timeline_maxsdk28;
 -- Use with caution. Slice names are a flaky source of ids and the resulting
 -- table might require some further operations.
 CREATE PERFETTO FUNCTION _get_frame_table_with_id(
-    -- String just before id.
-    glob_str STRING
+  -- String just before id.
+  glob_str STRING
 )
-RETURNS TABLE (
+RETURNS TABLE(
   -- Frame slice.
   id ID(slice.id),
   -- Parsed frame id.
@@ -35,31 +35,27 @@ RETURNS TABLE (
   upid JOINID(process.id),
   -- Timestamp of the frame slice.
   ts TIMESTAMP
-) AS
+)
+AS
 WITH
   all_found AS (
-    SELECT
-      id,
-      cast_int!(STR_SPLIT(name, ' ', 1)) AS frame_id,
-      utid,
-      upid,
-      ts
+    SELECT id, cast_int!(STR_SPLIT(name, ' ', 1)) AS frame_id, utid, upid, ts
     FROM thread_slice
     WHERE
       name GLOB $glob_str
   )
-SELECT
-  *
+SELECT *
 FROM all_found
 -- Casting string to int returns 0 if the string can't be cast. This eliminates the Choreographer resynced slices
 -- with the format "Choreographer#doFrame - resynced to 1234 in 20.0ms". The stdlib table is to only list the top
 -- level Choreographer#doFrame slices, hence the 'resynced' slices are ignored.
 -- frame_id is -1 indicating an invalid vsync id.
 WHERE
-  frame_id != 0 AND frame_id != -1;
+  frame_id != 0
+  AND frame_id != -1;
 
 -- All of the `Choreographer#doFrame` slices with their frame id.
-CREATE PERFETTO TABLE android_frames_choreographer_do_frame (
+CREATE PERFETTO TABLE android_frames_choreographer_do_frame(
   -- Choreographer#doFrame slice. Slice with the name "Choreographer#doFrame
   -- {frame id}".
   id ID(slice.id),
@@ -72,13 +68,9 @@ CREATE PERFETTO TABLE android_frames_choreographer_do_frame (
   upid JOINID(process.id),
   -- Timestamp of the slice.
   ts TIMESTAMP
-) AS
-SELECT
-  id,
-  frame_id,
-  utid AS ui_thread_utid,
-  upid,
-  ts
+)
+AS
+SELECT id, frame_id, utid AS ui_thread_utid, upid, ts
 -- Some OEMs have customized `doFrame` to add more information, but we've only
 -- observed it added after the frame ID (b/303823815).
 FROM _get_frame_table_with_id('Choreographer#doFrame*');
@@ -87,7 +79,7 @@ FROM _get_frame_table_with_id('Choreographer#doFrame*');
 -- There might be multiple DrawFrames slices for a single vsync (frame id).
 -- This happens when we are drawing multiple layers (e.g. status bar and
 -- notifications).
-CREATE PERFETTO TABLE android_frames_draw_frame (
+CREATE PERFETTO TABLE android_frames_draw_frame(
   -- DrawFrame slice. Slice with the name "DrawFrame {frame id}".
   id ID(slice.id),
   -- Frame id. Taken as the value behind "DrawFrame" in slice
@@ -97,12 +89,9 @@ CREATE PERFETTO TABLE android_frames_draw_frame (
   render_thread_utid JOINID(thread.id),
   -- Upid of application process
   upid JOINID(process.id)
-) AS
-SELECT
-  id,
-  frame_id,
-  utid AS render_thread_utid,
-  upid
+)
+AS
+SELECT id, frame_id, utid AS render_thread_utid, upid
 FROM _get_frame_table_with_id('DrawFrame*');
 
 -- Fetch distinct actual frames per layer per process.
@@ -119,11 +108,7 @@ FROM actual_frame_timeline_slice;
 
 -- Fetch distinct expected frames per process.
 CREATE PERFETTO TABLE _distinct_from_expected_timeline_slice_per_process AS
-SELECT
-  cast_int!(name) AS frame_id,
-  upid,
-  id
-FROM expected_frame_timeline_slice;
+SELECT cast_int!(name) AS frame_id, upid, id FROM expected_frame_timeline_slice;
 
 -- Contains frames with missed SF or HWUI callbacks.
 CREATE PERFETTO TABLE _vsync_missed_callback AS
@@ -142,7 +127,7 @@ GROUP BY
 -- `actual_frame_timeline_slice` and `expected_frame_timeline_slice` slices.
 -- This table differs slightly from the android_frames table, as it
 -- captures the layer_id for each actual timeline slice too.
-CREATE PERFETTO TABLE android_frames_layers (
+CREATE PERFETTO TABLE android_frames_layers(
   -- Frame id.
   frame_id LONG,
   -- Timestamp of the frame. Start of the frame as defined by the start of
@@ -177,26 +162,20 @@ CREATE PERFETTO TABLE android_frames_layers (
   upid JOINID(process.id),
   -- process name.
   process_name STRING
-) AS
+)
+AS
 WITH
   fallback AS MATERIALIZED (
     SELECT
       frame_id,
       do_frame_slice.ts AS ts,
-      (
-        draw_frame_slice.ts + draw_frame_slice.dur
-      ) - do_frame_slice.ts AS dur
+      (draw_frame_slice.ts + draw_frame_slice.dur) - do_frame_slice.ts AS dur
     FROM android_frames_choreographer_do_frame AS do_frame
-    JOIN android_frames_draw_frame AS draw_frame
-      USING (frame_id, upid)
+    JOIN android_frames_draw_frame AS draw_frame USING (frame_id, upid)
     JOIN slice AS do_frame_slice
-      ON (
-        do_frame.id = do_frame_slice.id
-      )
+      ON (do_frame.id = do_frame_slice.id)
     JOIN slice AS draw_frame_slice
-      ON (
-        draw_frame.id = draw_frame_slice.id
-      )
+      ON (draw_frame.id = draw_frame_slice.id)
   ),
   frames_sdk_after_28 AS (
     SELECT
@@ -215,23 +194,22 @@ WITH
       act.layer_id AS layer_id,
       act.layer_name AS layer_name
     FROM android_frames_choreographer_do_frame AS do_frame
-    JOIN android_frames_draw_frame AS draw_frame
-      USING (frame_id, upid)
-    JOIN fallback
-      USING (frame_id)
-    JOIN process
-      USING (upid)
-    LEFT JOIN _distinct_layer_actual_timeline_slice_per_process AS act
-      USING (frame_id, upid)
-    LEFT JOIN _distinct_from_expected_timeline_slice_per_process AS exp
-      USING (frame_id, upid)
+    JOIN android_frames_draw_frame AS draw_frame USING (frame_id, upid)
+    JOIN fallback USING (frame_id)
+    JOIN process USING (upid)
+    LEFT JOIN _distinct_layer_actual_timeline_slice_per_process AS act USING (
+      frame_id,
+      upid
+    )
+    LEFT JOIN _distinct_from_expected_timeline_slice_per_process AS exp USING (
+      frame_id,
+      upid
+    )
     ORDER BY
       frame_id
   ),
   all_frames AS (
-    SELECT
-      *
-    FROM frames_sdk_after_28
+    SELECT * FROM frames_sdk_after_28
     UNION
     SELECT
       *,
@@ -245,9 +223,7 @@ SELECT
   frame_id,
   ts,
   dur,
-  (
-    ts + dur
-  ) AS ts_end,
+  (ts + dur) AS ts_end,
   do_frame_id,
   draw_frame_id,
   actual_frame_timeline_id,
@@ -260,19 +236,16 @@ SELECT
   process_name
 FROM all_frames
 WHERE
-  sdk = iif(
-    (
-      SELECT
-        count(1)
-      FROM actual_frame_timeline_slice
-    ) > 0,
+  sdk
+  = iif(
+    (SELECT count(1) FROM actual_frame_timeline_slice) > 0,
     "after_28",
     "maxsdk28"
   );
 
 -- Table based on the android_frames_layers table. It aggregates time, duration and counts
 -- information across different layers for a given frame_id in a given process.
-CREATE PERFETTO TABLE android_frames (
+CREATE PERFETTO TABLE android_frames(
   -- Frame id.
   frame_id LONG,
   -- Timestamp of the frame. Start of the frame as defined by the start of
@@ -306,7 +279,8 @@ CREATE PERFETTO TABLE android_frames (
   upid JOINID(process.id),
   -- process name.
   process_name STRING
-) AS
+)
+AS
 SELECT
   frame_id,
   min(frames_layers.ts) AS ts,
@@ -331,10 +305,10 @@ GROUP BY
 -- Returns first frame after the provided timestamp. The returning table has at
 -- most one row.
 CREATE PERFETTO FUNCTION android_first_frame_after(
-    -- Timestamp.
-    ts TIMESTAMP
+  -- Timestamp.
+  ts TIMESTAMP
 )
-RETURNS TABLE (
+RETURNS TABLE(
   -- Frame id.
   frame_id LONG,
   -- Start of the frame, the timestamp of the "Choreographer#doFrame" slice.
@@ -355,7 +329,8 @@ RETURNS TABLE (
   render_thread_utid JOINID(thread.id),
   -- `utid` of the UI thread.
   ui_thread_utid JOINID(thread.id)
-) AS
+)
+AS
 SELECT
   frame_id,
   ts,

@@ -23,13 +23,13 @@ INCLUDE PERFETTO MODULE android.memory.dmabuf_spans;
 -- Returns either the value for the span matching ts exactly, or a data point
 -- up to 500ms in the future.
 CREATE PERFETTO MACRO _closest_value(
-    upid Expr,
-    ts Expr,
-    t TableOrSubquery,
-    value ColumnName
+  upid Expr,
+  ts Expr,
+  t TableOrSubquery,
+  value ColumnName
 )
-RETURNS Expr AS
-(
+RETURNS Expr
+AS (
   SELECT
     result
   FROM (
@@ -54,7 +54,7 @@ RETURNS Expr AS
 -- Table summarizing java heap graphs collected with the ART perfetto module.
 -- Contains one row per heap graph, with summary statistics (e.g. total / reachable objects)
 -- and memory stats for the corresponding process at the time of the heap dump.
-CREATE PERFETTO TABLE android_heap_graph_stats (
+CREATE PERFETTO TABLE android_heap_graph_stats(
   -- The upid of the process.
   upid JOINID(process.id),
   -- The timestamp the heap graph was dumped at.
@@ -80,7 +80,8 @@ CREATE PERFETTO TABLE android_heap_graph_stats (
   anon_rss_and_swap_size LONG,
   -- The dmabuf size of the process (in bytes) at the time of the heap graph dump.
   dmabuf_rss_size LONG
-) AS
+)
+AS
 WITH
   base_stats AS (
     SELECT
@@ -111,5 +112,4 @@ SELECT
   _closest_value!(base_stats.upid, graph_sample_ts, memory_rss_and_swap_per_process, anon_rss_and_swap) AS anon_rss_and_swap_size,
   _closest_value!(base_stats.upid, graph_sample_ts, _dmabuf_spans, dmabuf_rss) AS dmabuf_rss_size
 FROM base_stats
-JOIN process
-  USING (upid);
+JOIN process USING (upid);

@@ -18,8 +18,7 @@ INCLUDE PERFETTO MODULE android.memory.heap_graph.class_tree;
 INCLUDE PERFETTO MODULE graphs.scan;
 
 CREATE PERFETTO TABLE _heap_graph_class_tree_cumulatives AS
-SELECT
-  *
+SELECT *
 FROM _graph_aggregating_scan!(
   (
     SELECT id AS source_node_id, parent_id AS dest_node_id
@@ -61,7 +60,7 @@ ORDER BY
 --
 -- This table contains a "flamegraph-like" representation of the contents of the
 -- heap graph.
-CREATE PERFETTO TABLE android_heap_graph_class_summary_tree (
+CREATE PERFETTO TABLE android_heap_graph_class_summary_tree(
   -- The timestamp the heap graph was dumped at.
   graph_sample_ts TIMESTAMP,
   -- The upid of the process.
@@ -85,7 +84,8 @@ CREATE PERFETTO TABLE android_heap_graph_class_summary_tree (
   cumulative_count LONG,
   -- The sum of `self_size` of this node and all descendants of this node.
   cumulative_size LONG
-) AS
+)
+AS
 SELECT
   t.graph_sample_ts,
   t.upid,
@@ -98,5 +98,4 @@ SELECT
   c.cumulative_count,
   c.cumulative_size
 FROM _heap_graph_class_tree AS t
-JOIN _heap_graph_class_tree_cumulatives AS c
-  USING (id);
+JOIN _heap_graph_class_tree_cumulatives AS c USING (id);

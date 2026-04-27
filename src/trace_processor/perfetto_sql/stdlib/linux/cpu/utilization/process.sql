@@ -26,12 +26,12 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 -- period, which is defined as a multiply of |interval|. For this reason
 -- first and last period might have lower then real utilization.
 CREATE PERFETTO FUNCTION cpu_process_utilization_per_period(
-    -- Length of the period on which utilization should be averaged.
-    interval LONG,
-    -- Upid of the process.
-    upid JOINID(process.id)
+  -- Length of the period on which utilization should be averaged.
+  interval LONG,
+  -- Upid of the process.
+  upid JOINID(process.id)
 )
-RETURNS TABLE (
+RETURNS TABLE(
   -- Timestamp of start of a second.
   ts TIMESTAMP,
   -- Sum of average utilization over period.
@@ -42,34 +42,29 @@ RETURNS TABLE (
   -- Note: as the data is unnormalized, the values will be in the
   -- [0, cpu_count] range.
   unnormalized_utilization DOUBLE
-) AS
+)
+AS
 WITH
   sched_for_upid AS (
-    SELECT
-      ts,
-      ts_end,
-      utid
+    SELECT ts, ts_end, utid
     FROM sched
-    JOIN thread
-      USING (utid)
-    JOIN process
-      USING (upid)
+    JOIN thread USING (utid)
+    JOIN process USING (upid)
     WHERE
-      upid = $upid AND NOT is_idle
+      upid = $upid
+      AND NOT is_idle
   )
-SELECT
-  *
-FROM _cpu_avg_utilization_per_period!($interval, sched_for_upid);
+SELECT * FROM _cpu_avg_utilization_per_period!($interval, sched_for_upid);
 
 -- Returns a table of process utilization per second.
 -- Utilization is calculated as sum of average utilization of each CPU in each
 -- period, which is defined as a multiply of |interval|. For this reason
 -- first and last period might have lower then real utilization.
 CREATE PERFETTO FUNCTION cpu_process_utilization_per_second(
-    -- Upid of the process.
-    upid JOINID(process.id)
+  -- Upid of the process.
+  upid JOINID(process.id)
 )
-RETURNS TABLE (
+RETURNS TABLE(
   -- Timestamp of start of a second.
   ts TIMESTAMP,
   -- Sum of average utilization over period.
@@ -80,13 +75,12 @@ RETURNS TABLE (
   -- Note: as the data is unnormalized, the values will be in the
   -- [0, cpu_count] range.
   unnormalized_utilization DOUBLE
-) AS
-SELECT
-  *
-FROM cpu_process_utilization_per_period(time_from_s(1), $upid);
+)
+AS
+SELECT * FROM cpu_process_utilization_per_period(time_from_s(1), $upid);
 
 -- Aggregated CPU statistics for each process.
-CREATE PERFETTO TABLE cpu_cycles_per_process (
+CREATE PERFETTO TABLE cpu_cycles_per_process(
   -- Unique process id
   upid JOINID(process.id),
   -- Sum of CPU millicycles
@@ -101,7 +95,8 @@ CREATE PERFETTO TABLE cpu_cycles_per_process (
   max_freq LONG,
   -- Average CPU frequency in kHz
   avg_freq LONG
-) AS
+)
+AS
 SELECT
   upid,
   sum(millicycles) AS millicycles,
@@ -111,8 +106,7 @@ SELECT
   max(max_freq) AS max_freq,
   cast_int!(SUM(millicycles) / (SUM(runtime) / 1000)) AS avg_freq
 FROM cpu_cycles_per_thread_per_cpu
-JOIN thread
-  USING (utid)
+JOIN thread USING (utid)
 WHERE
   upid IS NOT NULL
 GROUP BY
@@ -123,12 +117,12 @@ GROUP BY
 -- This function is only designed to run over a small number of intervals
 -- (10-100 at most). It will be *very slow* for large sets of intervals.
 CREATE PERFETTO FUNCTION cpu_cycles_per_process_in_interval(
-    -- Start of the interval.
-    ts TIMESTAMP,
-    -- Duration of the interval.
-    dur LONG
+  -- Start of the interval.
+  ts TIMESTAMP,
+  -- Duration of the interval.
+  dur LONG
 )
-RETURNS TABLE (
+RETURNS TABLE(
   -- Unique process id.
   upid JOINID(process.id),
   -- Sum of CPU millicycles
@@ -145,18 +139,13 @@ RETURNS TABLE (
   max_freq LONG,
   -- Average CPU frequency in kHz
   avg_freq LONG
-) AS
+)
+AS
 WITH
   threads_counters AS (
-    SELECT
-      c.id,
-      c.ts,
-      c.dur,
-      c.freq,
-      upid
+    SELECT c.id, c.ts, c.dur, c.freq, upid
     FROM _cpu_freq_per_thread AS c
-    JOIN thread
-      USING (utid)
+    JOIN thread USING (utid)
   )
 SELECT
   upid,
@@ -166,10 +155,10 @@ SELECT
   sum(to_monotonic(ii.ts + ii.dur) - to_monotonic(ii.ts)) AS awake_runtime,
   min(freq) AS min_freq,
   max(freq) AS max_freq,
-  cast_int!(SUM((ii.dur * freq / 1000)) / (SUM(CASE WHEN freq IS NOT NULL THEN ii.dur END) / 1000)) AS avg_freq
+  cast_int!(SUM((ii.dur * freq / 1000))
+    / (SUM(CASE WHEN freq IS NOT NULL THEN ii.dur END) / 1000)) AS avg_freq
 FROM _interval_intersect_single!($ts, $dur, threads_counters) AS ii
-JOIN threads_counters
-  USING (id)
+JOIN threads_counters USING (id)
 GROUP BY
   upid;
 
@@ -181,12 +170,12 @@ GROUP BY
 -- This function is only designed to run over a small number of intervals
 -- (10-100 at most). It will be *very slow* for large sets of intervals.
 CREATE PERFETTO FUNCTION cpu_process_utilization_in_interval(
-    -- Start of the interval.
-    ts TIMESTAMP,
-    -- Duration of the interval.
-    dur LONG
+  -- Start of the interval.
+  ts TIMESTAMP,
+  -- Duration of the interval.
+  dur LONG
 )
-RETURNS TABLE (
+RETURNS TABLE(
   -- Unique process id.
   upid JOINID(process.id),
   -- The name of the process.
@@ -199,26 +188,22 @@ RETURNS TABLE (
   -- Percentage of 'awake_dur' over the 'awake' duration of the interval, unnormalized.
   -- Values in [0.0, 100.0 * <number_of_cpus>]
   awake_unnormalized_utilization DOUBLE
-) AS
+)
+AS
 SELECT
   upid,
   process.name AS process_name,
   sum(awake_runtime) AS awake_dur,
   round(
-    sum(awake_runtime) * 100.0 / (
-      to_monotonic($ts + $dur) - to_monotonic($ts)
-    ) / (
-      SELECT
-        max(cpu) + 1
-      FROM cpu
-    ),
+    sum(awake_runtime) * 100.0 / (to_monotonic($ts + $dur) - to_monotonic($ts))
+    / (SELECT max(cpu) + 1 FROM cpu),
     6
   ) AS awake_utilization,
-  round(sum(awake_runtime) * 100.0 / (
-    to_monotonic($ts + $dur) - to_monotonic($ts)
-  ), 6) AS awake_unnormalized_utilization
+  round(
+    sum(awake_runtime) * 100.0 / (to_monotonic($ts + $dur) - to_monotonic($ts)),
+    6
+  ) AS awake_unnormalized_utilization
 FROM cpu_cycles_per_process_in_interval($ts, $dur)
-JOIN process
-  USING (upid)
+JOIN process USING (upid)
 GROUP BY
   upid;

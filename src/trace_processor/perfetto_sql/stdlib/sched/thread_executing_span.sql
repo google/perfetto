@@ -47,34 +47,30 @@ SELECT
   thread_state.waker_id,
   thread_state.waker_utid,
   iif(
-    thread_state.irq_context = 0 OR thread_state.irq_context IS NULL,
+    thread_state.irq_context = 0
+    OR thread_state.irq_context IS NULL,
     coalesce(thread_state.io_wait, 0),
     1
   ) AS is_irq
 FROM thread_state
 WHERE
-  thread_state.dur != -1 AND thread_state.waker_id IS NOT NULL;
+  thread_state.dur != -1
+  AND thread_state.waker_id IS NOT NULL;
 
 -- Defines if the trace is a Fuchsia trace.
 CREATE PERFETTO TABLE _is_fuchsia AS
 SELECT
-  EXISTS(
-    SELECT
-      1
-    FROM metadata
-    WHERE
-      name = 'trace_type' AND str_value = 'fuchsia'
+  EXISTS (
+    SELECT 1 FROM metadata WHERE name = 'trace_type' AND str_value = 'fuchsia'
   ) AS is_fuchsia;
 
 -- Check whether a given scheduler event is for a task becoming runnable.
 -- Linux always has a Waking duration *and* Runnable before each Running duration.
 -- Fuchsia only has a Waking duration before the first Running duration, Runnable durations
 -- are used if the initial activation's timeslice expires or is interrupted.
-CREATE PERFETTO MACRO _is_runnable_state(
-    state Expr
-)
-RETURNS Expr AS
-$state = 'R'
+CREATE PERFETTO MACRO _is_runnable_state(state Expr)
+RETURNS Expr
+AS $state = 'R'
 OR (
   $state = 'W' AND (
     SELECT
@@ -87,11 +83,7 @@ OR (
 CREATE PERFETTO TABLE _first_runnable_state AS
 WITH
   first_state AS (
-    SELECT
-      min(thread_state.id) AS id
-    FROM thread_state
-    GROUP BY
-      utid
+    SELECT min(thread_state.id) AS id FROM thread_state GROUP BY utid
   )
 SELECT
   thread_state.id,
@@ -102,15 +94,16 @@ SELECT
   thread_state.waker_id,
   thread_state.waker_utid,
   iif(
-    thread_state.irq_context = 0 OR thread_state.irq_context IS NULL,
+    thread_state.irq_context = 0
+    OR thread_state.irq_context IS NULL,
     coalesce(thread_state.io_wait, 0),
     1
   ) AS is_irq
 FROM thread_state
-JOIN first_state
-  USING (id)
+JOIN first_state USING (id)
 WHERE
-  thread_state.dur != -1 AND _is_runnable_state!(thread_state.state);
+  thread_state.dur != -1
+  AND _is_runnable_state!(thread_state.state);
 
 --
 -- Finds all sleep states including interruptible (S) and uninterruptible (D).
@@ -124,17 +117,14 @@ SELECT
   thread_state.utid
 FROM thread_state
 WHERE
-  dur != -1 AND (
-    state = 'S' OR state = 'D' OR state = 'I'
-  );
+  dur != -1
+  AND (state = 'S' OR state = 'D' OR state = 'I');
 
 --
 -- Finds the last execution for every thread to end executing_spans without a Sleep.
 --
 CREATE PERFETTO TABLE _thread_end_ts AS
-SELECT
-  max(ts) + dur AS end_ts,
-  utid
+SELECT max(ts) + dur AS end_ts, utid
 FROM thread_state
 WHERE
   dur != -1
@@ -143,18 +133,11 @@ GROUP BY
 
 -- Similar to |_sleep_state| but finds the first sleep state in a thread.
 CREATE PERFETTO TABLE _first_sleep_state AS
-SELECT
-  min(s.id) AS id,
-  s.ts,
-  s.dur,
-  s.state,
-  s.blocked_function,
-  s.utid
+SELECT min(s.id) AS id, s.ts, s.dur, s.state, s.blocked_function, s.utid
 FROM _sleep_state AS s
 JOIN _runnable_state AS r
-  ON s.utid = r.utid AND (
-    s.ts + s.dur = r.ts
-  )
+  ON s.utid = r.utid
+  AND (s.ts + s.dur = r.ts)
 GROUP BY
   s.utid;
 
@@ -200,9 +183,8 @@ WITH
       is_irq
     FROM _runnable_state AS r
     JOIN _sleep_state AS s
-      ON s.utid = r.utid AND (
-        s.ts + s.dur = r.ts
-      )
+      ON s.utid = r.utid
+      AND (s.ts + s.dur = r.ts)
     UNION ALL
     SELECT
       NULL AS state,
@@ -218,57 +200,37 @@ WITH
     LEFT JOIN _first_sleep_state AS s
       ON s.utid = r.utid
   )
-SELECT
-  all_wakeups.*,
-  thread_end.end_ts AS thread_end_ts
+SELECT all_wakeups.*, thread_end.end_ts AS thread_end_ts
 FROM all_wakeups
-LEFT JOIN _thread_end_ts AS thread_end
-  USING (utid);
+LEFT JOIN _thread_end_ts AS thread_end USING (utid);
 
 -- Mapping from running thread state to runnable
 -- TODO(zezeozue): Switch to use `sched_previous_runnable_on_thread`.
 CREATE PERFETTO TABLE _wakeup_map AS
 WITH
   x AS (
-    SELECT
-      id,
-      waker_id,
-      utid,
-      state
+    SELECT id, waker_id, utid, state
     FROM thread_state
     WHERE
-      state = 'Running' AND dur != -1
+      state = 'Running'
+      AND dur != -1
     UNION ALL
-    SELECT
-      id,
-      waker_id,
-      utid,
-      state
-    FROM _first_runnable_state
+    SELECT id, waker_id, utid, state FROM _first_runnable_state
     UNION ALL
-    SELECT
-      id,
-      waker_id,
-      utid,
-      state
-    FROM _runnable_state
+    SELECT id, waker_id, utid, state FROM _runnable_state
   ),
   y AS (
     SELECT
       id AS waker_id,
       state,
-      max(id) FILTER(WHERE
-        _is_runnable_state!(state)) OVER (PARTITION BY utid ORDER BY id) AS id
+      max(id) FILTER (WHERE _is_runnable_state!(state)) OVER (
+        PARTITION BY
+          utid
+        ORDER BY id
+      ) AS id
     FROM x
   )
-SELECT
-  id,
-  waker_id
-FROM y
-WHERE
-  state = 'Running'
-ORDER BY
-  waker_id;
+SELECT id, waker_id FROM y WHERE state = 'Running' ORDER BY waker_id;
 
 --
 -- Builds the waker and prev relationships for all thread_executing_spans.
@@ -285,12 +247,15 @@ WITH
       iif(is_irq, NULL, _wakeup_map.id) AS waker_id,
       _wakeup.ts,
       prev_end_ts AS idle_ts,
-      iif(is_irq OR _wakeup_map.id IS NULL OR (
-        NOT state IS NULL AND state != 'S'
-      ), 1, 0) AS is_idle_reason_self
+      iif(
+        is_irq
+        OR _wakeup_map.id IS NULL
+        OR (NOT (state IS NULL) AND state != 'S'),
+        1,
+        0
+      ) AS is_idle_reason_self
     FROM _wakeup
-    LEFT JOIN _wakeup_map
-      USING (waker_id)
+    LEFT JOIN _wakeup_map USING (waker_id)
   )
 SELECT
   utid,
@@ -303,7 +268,8 @@ SELECT
   is_idle_reason_self,
   lag(id) OVER (PARTITION BY utid ORDER BY ts) AS prev_id,
   lead(id) OVER (PARTITION BY utid ORDER BY ts) AS next_id,
-  coalesce(lead(idle_ts) OVER (PARTITION BY utid ORDER BY ts), thread_end_ts) - ts AS dur,
+  coalesce(lead(idle_ts) OVER (PARTITION BY utid ORDER BY ts), thread_end_ts)
+  - ts AS dur,
   lead(is_idle_reason_self) OVER (PARTITION BY utid ORDER BY ts) AS is_next_idle_reason_self
 FROM _wakeup_events
 ORDER BY
@@ -327,21 +293,16 @@ FROM _wakeup_graph;
 
 -- View of the relevant timestamp and intervals for all nodes in the critical path.
 CREATE PERFETTO VIEW _wakeup_intervals AS
-SELECT
-  id,
-  ts,
-  dur,
-  idle_dur
-FROM _wakeup_graph;
+SELECT id, ts, dur, idle_dur FROM _wakeup_graph;
 
 -- Converts a table with <ts, dur, utid> columns to a unique set of wakeup roots <id> that
 -- completely cover the time intervals.
 CREATE PERFETTO MACRO _intervals_to_roots(
-    _source_table TableOrSubQuery,
-    _node_table TableOrSubQuery
+  _source_table TableOrSubQuery,
+  _node_table TableOrSubQuery
 )
-RETURNS TableOrSubQuery AS
-(
+RETURNS TableOrSubQuery
+AS (
   WITH
     _interval_to_root_nodes AS (
       SELECT
@@ -421,11 +382,11 @@ RETURNS TableOrSubQuery AS
 -- step associates the userspace critical path and kernel critical path on the same interval
 -- correctly.
 CREATE PERFETTO MACRO _critical_path_userspace_adjusted(
-    _critical_path_table TableOrSubQuery,
-    _node_table TableOrSubQuery
+  _critical_path_table TableOrSubQuery,
+  _node_table TableOrSubQuery
 )
-RETURNS TableOrSubQuery AS
-(
+RETURNS TableOrSubQuery
+AS (
   SELECT
     cr.root_id,
     cr.root_id AS parent_id,
@@ -444,12 +405,12 @@ RETURNS TableOrSubQuery AS
 -- Adjusts the start and end of the kernel critical path such that it is completely bounded within
 -- its corresponding userspace critical path.
 CREATE PERFETTO MACRO _critical_path_kernel_adjusted(
-    _userspace_critical_path_table TableOrSubQuery,
-    _kernel_critical_path_table TableOrSubQuery,
-    _node_table TableOrSubQuery
+  _userspace_critical_path_table TableOrSubQuery,
+  _kernel_critical_path_table TableOrSubQuery,
+  _node_table TableOrSubQuery
 )
-RETURNS TableOrSubQuery AS
-(
+RETURNS TableOrSubQuery
+AS (
   SELECT
     kernel_cr.root_id,
     kernel_cr.root_id AS parent_id,
@@ -467,12 +428,12 @@ RETURNS TableOrSubQuery AS
 -- Merge the kernel and userspace critical path such that the corresponding kernel critical path
 -- has priority over userpsace critical path it overlaps.
 CREATE PERFETTO MACRO _critical_path_merged(
-    _userspace_critical_path_table TableOrSubQuery,
-    _kernel_critical_path_table TableOrSubQuery,
-    _node_table TableOrSubQuery
+  _userspace_critical_path_table TableOrSubQuery,
+  _kernel_critical_path_table TableOrSubQuery,
+  _node_table TableOrSubQuery
 )
-RETURNS TableOrSubQuery AS
-(
+RETURNS TableOrSubQuery
+AS (
   WITH
     _userspace_critical_path AS (
       SELECT DISTINCT
@@ -537,11 +498,11 @@ RETURNS TableOrSubQuery AS
 -- for the entire trace, see _thread_executing_span_critical_path_all, but for a
 -- per-process susbset of binder txns for instance, this is likely faster.
 CREATE PERFETTO MACRO _critical_path_by_roots(
-    _roots_table TableOrSubQuery,
-    _node_table TableOrSubQuery
+  _roots_table TableOrSubQuery,
+  _node_table TableOrSubQuery
 )
-RETURNS TableOrSubQuery AS
-(
+RETURNS TableOrSubQuery
+AS (
   WITH
     _userspace_critical_path_by_roots AS (
       SELECT
@@ -592,11 +553,11 @@ RETURNS TableOrSubQuery AS
 -- Prefer _critical_paths_by_roots for performance. This is useful for a small
 -- set of intervals, e.g app startups in a trace.
 CREATE PERFETTO MACRO _critical_path_by_intervals(
-    _intervals_table TableOrSubQuery,
-    _node_table TableOrSubQuery
+  _intervals_table TableOrSubQuery,
+  _node_table TableOrSubQuery
 )
-RETURNS TableOrSubQuery AS
-(
+RETURNS TableOrSubQuery
+AS (
   WITH
     _nodes AS (
       SELECT
@@ -657,14 +618,14 @@ RETURNS TableOrSubQuery AS
 -- The duration of a thread executing span in the critical path is the range between the
 -- start of the thread_executing_span and the start of the next span in the critical path.
 CREATE PERFETTO FUNCTION _thread_executing_span_critical_path(
-    -- Utid of the thread to compute the critical path for.
-    root_utid JOINID(thread.id),
-    -- Timestamp.
-    ts TIMESTAMP,
-    -- Duration.
-    dur DURATION
+  -- Utid of the thread to compute the critical path for.
+  root_utid JOINID(thread.id),
+  -- Timestamp.
+  ts TIMESTAMP,
+  -- Duration.
+  dur DURATION
 )
-RETURNS TABLE (
+RETURNS TABLE(
   -- Thread Utid the critical path was filtered to.
   root_utid JOINID(thread.id),
   -- Id of thread executing span following the sleeping thread state for which the critical path is
@@ -678,14 +639,9 @@ RETURNS TABLE (
   dur DURATION,
   -- Utid of thread with thread_state.
   utid JOINID(thread.id)
-) AS
-SELECT
-  root_utid,
-  root_id,
-  id,
-  ts,
-  dur,
-  utid
-FROM _critical_path_by_intervals!(
-  (SELECT $root_utid AS utid, $ts as ts, $dur AS dur),
-  _wakeup_graph);
+)
+AS
+SELECT root_utid, root_id, id, ts, dur, utid
+FROM _critical_path_by_intervals!((
+    SELECT $root_utid AS utid, $ts AS ts, $dur AS dur
+  ), _wakeup_graph);

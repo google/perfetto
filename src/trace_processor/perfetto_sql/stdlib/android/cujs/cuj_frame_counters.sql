@@ -35,27 +35,25 @@ WHERE
 
 -- Extract count of a given missed callback for a specific CUJ.
 CREATE PERFETTO FUNCTION _android_cuj_missed_vsyncs_for_callback(
-    -- name of the cuj slice.
-    cuj_slice_name STRING,
-    -- Min timestamp after which the missed callback value should be considered.
-    ts_min TIMESTAMP,
-    -- Max timestamp before which the missed callback value should be considered.
-    ts_max TIMESTAMP,
-    -- missed callback.
-    callback_missed STRING
+  -- name of the cuj slice.
+  cuj_slice_name STRING,
+  -- Min timestamp after which the missed callback value should be considered.
+  ts_min TIMESTAMP,
+  -- Max timestamp before which the missed callback value should be considered.
+  ts_max TIMESTAMP,
+  -- missed callback.
+  callback_missed STRING
 )
-RETURNS LONG AS
-SELECT
-  coalesce(sum(marker_name GLOB $callback_missed), 0)
+RETURNS LONG
+AS
+SELECT coalesce(sum(marker_name GLOB $callback_missed), 0)
 FROM _marker_missed_callback
 WHERE
   cuj_slice_name = $cuj_slice_name
   AND ts >= $ts_min
-  AND (
-    $ts_max IS NULL OR ts <= $ts_max
-  )
+  AND ($ts_max IS NULL OR ts <= $ts_max)
 ORDER BY
-  ts ASC
+  ts
 LIMIT 1;
 
 -- Extract all counters for Jank CUJ tracks.
@@ -70,41 +68,33 @@ WITH
       -- take the name of the counter after #
       str_split(track.name, '#', 1) AS counter_name
     FROM process_counter_track AS track
-    JOIN android_jank_cuj
-      USING (upid)
+    JOIN android_jank_cuj USING (upid)
     WHERE
       track.name GLOB 'J<*>#*'
   )
-SELECT
-  ts,
-  upid,
-  cuj_name,
-  counter_name,
-  CAST(value AS INTEGER) AS value
+SELECT ts, upid, cuj_name, counter_name, CAST(value AS INTEGER) AS value
 FROM counter
 JOIN cuj_counter_track
   ON counter.track_id = cuj_counter_track.track_id;
 
 -- Returns the counter value for the given CUJ name and counter name.
 CREATE PERFETTO FUNCTION _android_jank_cuj_counter_value(
-    cuj_name STRING,
-    counter_name STRING,
-    -- Min timestamp after which the CUJ counter value should be considered.
-    ts_min TIMESTAMP,
-    -- Max timestamp before which the CUJ counter value should be considered.
-    ts_max TIMESTAMP
+  cuj_name STRING,
+  counter_name STRING,
+  -- Min timestamp after which the CUJ counter value should be considered.
+  ts_min TIMESTAMP,
+  -- Max timestamp before which the CUJ counter value should be considered.
+  ts_max TIMESTAMP
 )
-RETURNS LONG AS
-SELECT
-  value
+RETURNS LONG
+AS
+SELECT value
 FROM _android_jank_cuj_counter
 WHERE
   cuj_name = $cuj_name
   AND counter_name = $counter_name
   AND ts >= $ts_min
-  AND (
-    $ts_max IS NULL OR ts <= $ts_max
-  )
+  AND ($ts_max IS NULL OR ts <= $ts_max)
 ORDER BY
-  ts ASC
+  ts
 LIMIT 1;

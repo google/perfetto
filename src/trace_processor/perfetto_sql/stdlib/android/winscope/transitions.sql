@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- Android transition participants (from com.android.wm.shell.transition data source).
-CREATE PERFETTO VIEW android_window_manager_shell_transition_participants (
+CREATE PERFETTO VIEW android_window_manager_shell_transition_participants(
   -- Transition id
   transition_id LONG,
   -- Layer participant
@@ -37,7 +37,8 @@ CREATE PERFETTO VIEW android_window_manager_shell_transition_participants (
   start_abs_bounds_rect_id LONG,
   -- Absolute screen bounds of the change after the transition
   end_abs_bounds_rect_id LONG
-) AS
+)
+AS
 SELECT
   transition_id,
   layer_id,
@@ -53,13 +54,12 @@ SELECT
 FROM __intrinsic_window_manager_shell_transition_participants;
 
 -- Android transition protos (from com.android.wm.shell.transition data source).
-CREATE PERFETTO VIEW android_window_manager_shell_transition_protos (
+CREATE PERFETTO VIEW android_window_manager_shell_transition_protos(
   -- Transition id
   transition_id LONG,
   -- Base64 proto id
   base64_proto_id LONG
-) AS
-SELECT
-  transition_id,
-  base64_proto_id
+)
+AS
+SELECT transition_id, base64_proto_id
 FROM __intrinsic_window_manager_shell_transition_protos;

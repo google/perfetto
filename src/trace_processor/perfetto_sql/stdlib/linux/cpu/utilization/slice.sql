@@ -20,7 +20,7 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 INCLUDE PERFETTO MODULE slices.with_context;
 
 -- CPU cycles per each slice.
-CREATE PERFETTO TABLE cpu_cycles_per_thread_slice (
+CREATE PERFETTO TABLE cpu_cycles_per_thread_slice(
   -- Id of a slice.
   id JOINID(slice.id),
   -- Name of the slice.
@@ -39,7 +39,8 @@ CREATE PERFETTO TABLE cpu_cycles_per_thread_slice (
   -- Sum of CPU megacycles. Null if frequency couldn't be fetched for any
   -- period during the runtime of the slice.
   megacycles LONG
-) AS
+)
+AS
 WITH
   intersected AS (
     SELECT
@@ -69,19 +70,20 @@ SELECT
   megacycles
 FROM thread_slice AS ts
 LEFT JOIN intersected
-  ON slice_id = ts.id AND ts.dur = intersected.dur;
+  ON slice_id = ts.id
+  AND ts.dur = intersected.dur;
 
 -- CPU cycles per each slice in interval.
 --
 -- This function is only designed to run over a small number of intervals
 -- (10-100 at most). It will be *very slow* for large sets of intervals.
 CREATE PERFETTO FUNCTION cpu_cycles_per_thread_slice_in_interval(
-    -- Start of the interval.
-    ts TIMESTAMP,
-    -- Duration of the interval.
-    dur DURATION
+  -- Start of the interval.
+  ts TIMESTAMP,
+  -- Duration of the interval.
+  dur DURATION
 )
-RETURNS TABLE (
+RETURNS TABLE(
   -- Thread slice.
   id JOINID(slice.id),
   -- Name of the slice.
@@ -100,19 +102,15 @@ RETURNS TABLE (
   -- Sum of CPU megacycles. Null if frequency couldn't be fetched for any
   -- period during the runtime of the slice.
   megacycles LONG
-) AS
+)
+AS
 WITH
   cut_thread_slice AS (
-    SELECT
-      id,
-      ii.ts,
-      ii.dur,
-      thread_slice.*
+    SELECT id, ii.ts, ii.dur, thread_slice.*
     FROM _interval_intersect_single!(
     $ts, $dur,
     (SELECT * FROM thread_slice WHERE dur > 0 AND utid > 0)) AS ii
-    JOIN thread_slice
-      USING (id)
+    JOIN thread_slice USING (id)
   ),
   intersected AS (
     SELECT
@@ -141,4 +139,5 @@ SELECT
   megacycles
 FROM cut_thread_slice AS ts
 LEFT JOIN intersected
-  ON slice_id = ts.id AND ts.dur = intersected.dur;
+  ON slice_id = ts.id
+  AND ts.dur = intersected.dur;

@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- Battery charge at timestamp.
-CREATE PERFETTO VIEW android_battery_charge (
+CREATE PERFETTO VIEW android_battery_charge(
   -- Timestamp.
   ts TIMESTAMP,
   -- Current average micro ampers.
@@ -31,7 +31,8 @@ CREATE PERFETTO VIEW android_battery_charge (
   energy_counter_uwh DOUBLE,
   -- Current power in milliwatts.
   power_mw DOUBLE
-) AS
+)
+AS
 SELECT
   all_ts.ts,
   current_avg_ua,
@@ -42,10 +43,7 @@ SELECT
   energy_counter_uwh,
   power_mw
 FROM (
-  SELECT DISTINCT
-    (
-      ts
-    ) AS ts
+  SELECT DISTINCT (ts) AS ts
   FROM counter AS c
   JOIN counter_track AS t
     ON c.track_id = t.id
@@ -53,81 +51,60 @@ FROM (
     name GLOB 'batt.*'
 ) AS all_ts
 LEFT JOIN (
-  SELECT
-    ts,
-    value AS current_avg_ua
+  SELECT ts, value AS current_avg_ua
   FROM counter AS c
   JOIN counter_track AS t
     ON c.track_id = t.id
   WHERE
     name = 'batt.current.avg_ua'
-)
-  USING (ts)
+) USING (ts)
 LEFT JOIN (
-  SELECT
-    ts,
-    value AS capacity_percent
+  SELECT ts, value AS capacity_percent
   FROM counter AS c
   JOIN counter_track AS t
     ON c.track_id = t.id
   WHERE
     name = 'batt.capacity_pct'
-)
-  USING (ts)
+) USING (ts)
 LEFT JOIN (
-  SELECT
-    ts,
-    value AS charge_uah
+  SELECT ts, value AS charge_uah
   FROM counter AS c
   JOIN counter_track AS t
     ON c.track_id = t.id
   WHERE
     name = 'batt.charge_uah'
-)
-  USING (ts)
+) USING (ts)
 LEFT JOIN (
-  SELECT
-    ts,
-    value AS current_ua
+  SELECT ts, value AS current_ua
   FROM counter AS c
   JOIN counter_track AS t
     ON c.track_id = t.id
   WHERE
     name = 'batt.current_ua'
-)
-  USING (ts)
+) USING (ts)
 LEFT JOIN (
-  SELECT
-    ts,
-    value AS voltage_uv
+  SELECT ts, value AS voltage_uv
   FROM counter AS c
   JOIN counter_track AS t
     ON c.track_id = t.id
   WHERE
     name = 'batt.voltage_uv'
-)
-  USING (ts)
+) USING (ts)
 LEFT JOIN (
-  SELECT
-    ts,
-    value AS energy_counter_uwh
+  SELECT ts, value AS energy_counter_uwh
   FROM counter AS c
   JOIN counter_track AS t
     ON c.track_id = t.id
   WHERE
     name = 'batt.energy_counter_uwh'
-)
-  USING (ts)
+) USING (ts)
 LEFT JOIN (
-  SELECT
-    ts,
-    value AS power_mw
+  SELECT ts, value AS power_mw
   FROM counter AS c
   JOIN counter_track AS t
     ON c.track_id = t.id
   WHERE
     name = 'batt.power_mw'
-)
-  USING (ts)
+) USING (ts)
 ORDER BY
   ts;

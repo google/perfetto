@@ -18,44 +18,32 @@ INCLUDE PERFETTO MODULE android.user_list;
 
 -- Count packages by package UID.
 CREATE PERFETTO TABLE _uid_package_count AS
-SELECT
-  uid,
-  count(1) AS cnt
-FROM package_list
-GROUP BY
-  1;
+SELECT uid, count(1) AS cnt FROM package_list GROUP BY 1;
 
 -- Account for android-specific functionality (sdk sandbox, pcc) that is not encoded in
 -- the canonical app_id concept but is still required to understand the package
 -- see system/core/libcutils/include/private/android_filesystem_config.h
-CREATE PERFETTO FUNCTION _app_id_to_base_package(
-    app_id LONG
-)
-RETURNS LONG AS
+CREATE PERFETTO FUNCTION _app_id_to_base_package(app_id LONG)
+RETURNS LONG
+AS
 SELECT
   CASE
     -- regular app_id [10000, 20000)
-    WHEN $app_id < 20000
-    THEN $app_id
+    WHEN $app_id < 20000 THEN $app_id
     -- sdk sandbox [20000, 30000)
-    WHEN $app_id < 30000
-    THEN $app_id - 10000
+    WHEN $app_id < 30000 THEN $app_id - 10000
     -- pcc [30000, 40000)
-    WHEN $app_id < 40000
-    THEN $app_id - 20000
+    WHEN $app_id < 40000 THEN $app_id - 20000
     ELSE $app_id
   END;
 
 CREATE PERFETTO FUNCTION _android_package_for_process(
-    uid LONG,
-    uid_count LONG,
-    process_name STRING
+  uid LONG,
+  uid_count LONG,
+  process_name STRING
 )
-RETURNS TABLE (
-  package_name STRING,
-  version_code LONG,
-  debuggable BOOL
-) AS
+RETURNS TABLE(package_name STRING, version_code LONG, debuggable BOOL)
+AS
 WITH
   min_distance AS (
     SELECT
@@ -67,62 +55,48 @@ WITH
       debuggable
     FROM package_list
     WHERE
-      (
-        (
-          $uid = uid
-          AND (
-            -- Either a unique match or process name is a prefix the package name
-            $uid_count = 1
-            OR $process_name GLOB package_name || '*'
-          )
-        )
-        OR (
-          -- isolated processes can only be matched based on the name
-          $uid >= 90000
-          AND $uid < 100000
-          AND str_split($process_name, ':', 0) GLOB package_name || '*'
-        )
-      )
+      (($uid = uid
+      AND (
+      -- Either a unique match or process name is a prefix the package name
+      $uid_count = 1
+      OR $process_name GLOB package_name || '*'))
+      OR (
+      -- isolated processes can only be matched based on the name
+      $uid >= 90000
+      AND $uid < 100000
+      AND str_split($process_name, ':', 0) GLOB package_name || '*'))
   )
-SELECT
-  package_name,
-  version_code,
-  debuggable
-FROM min_distance;
+SELECT package_name, version_code, debuggable FROM min_distance;
 
 -- Table containing the upids of all kernel tasks.
-CREATE PERFETTO TABLE _android_kernel_tasks (
+CREATE PERFETTO TABLE _android_kernel_tasks(
   -- upid of the kernel task
   upid LONG
-) AS
-SELECT
-  a.upid
+)
+AS
+SELECT a.upid
 FROM process AS a
 LEFT JOIN process AS b
   ON a.parent_upid = b.upid
 WHERE
-  b.name = 'kthreadd' OR a.pid = 0 OR b.pid = 0
+  b.name = 'kthreadd'
+  OR a.pid = 0
+  OR b.pid = 0
 ORDER BY
   1;
 
 -- Returns true if the process is a kernel task.
 CREATE PERFETTO FUNCTION android_is_kernel_task(
-    -- Queried process
-    upid LONG
+  -- Queried process
+  upid LONG
 )
 -- True for kernel tasks
-RETURNS BOOL AS
-SELECT
-  EXISTS(
-    SELECT
-      TRUE
-    FROM _android_kernel_tasks
-    WHERE
-      upid = $upid
-  );
+RETURNS BOOL
+AS
+SELECT EXISTS (SELECT TRUE FROM _android_kernel_tasks WHERE upid = $upid);
 
 -- Data about packages running on the process.
-CREATE PERFETTO TABLE android_process_metadata (
+CREATE PERFETTO TABLE android_process_metadata(
   -- Process upid.
   upid JOINID(process.id),
   -- Process pid.
@@ -145,7 +119,8 @@ CREATE PERFETTO TABLE android_process_metadata (
   debuggable LONG,
   -- Whether the task is kernel or not
   is_kernel_task BOOL
-) AS
+)
+AS
 SELECT
   process.upid,
   process.pid,
@@ -155,11 +130,8 @@ SELECT
     -- cmdline gets rewritten after fork, if these are still there we must
     -- have seen a racy capture.
     WHEN length(process.name) = 15
-    AND (
-      process.cmdline IN ('zygote', 'zygote64', '<pre-initialized>')
-      OR process.cmdline GLOB '*' || process.name
-    )
-    THEN process.cmdline
+    AND (process.cmdline IN ('zygote', 'zygote64', '<pre-initialized>')
+    OR process.cmdline GLOB '*' || process.name) THEN process.cmdline
     ELSE process.name
   END AS process_name,
   process.android_appid AS uid,
@@ -173,7 +145,11 @@ SELECT
 FROM process
 LEFT JOIN _uid_package_count
   ON _app_id_to_base_package(process.android_appid) = _uid_package_count.uid
-LEFT JOIN _android_package_for_process(_app_id_to_base_package(process.android_appid), _uid_package_count.cnt, process.name) AS plist
+LEFT JOIN _android_package_for_process(
+  _app_id_to_base_package(process.android_appid),
+  _uid_package_count.cnt,
+  process.name
+) AS plist
 LEFT JOIN android_user_list AS user
   ON process.android_user_id = user.android_user_id
 ORDER BY

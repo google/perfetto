@@ -33,12 +33,12 @@ INCLUDE PERFETTO MODULE wattson.utils;
 -- Low-level macro to calculate energy and power attribution per thread/process.
 -- ========================================================
 CREATE PERFETTO MACRO _wattson_threads_aggregation(
-    tasks_table TableOrSubquery,
-    window_table TableOrSubquery,
-    cpus_table TableOrSubquery
+  tasks_table TableOrSubquery,
+  window_table TableOrSubquery,
+  cpus_table TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   WITH
     active_summary AS (
       SELECT
@@ -117,12 +117,12 @@ RETURNS TableOrSubquery AS
 --     estimated_mws, estimated_mw, idle_transitions_mws, total_mws
 -- ========================================================
 CREATE PERFETTO MACRO wattson_threads_aggregation(
-    -- Intereseted window table with columns:
-    -- (ts, dur, period_id).
-    window_table TableOrSubquery
+  -- Intereseted window table with columns:
+  -- (ts, dur, period_id).
+  window_table TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   WITH
     windowed_active_state AS (
       SELECT
@@ -179,10 +179,10 @@ RETURNS TableOrSubquery AS
 --   Wide table with CPU policy, average power per core, DSU, and GPU.
 -- ========================================================
 CREATE PERFETTO MACRO _wattson_base_components_avg_mw(
-    window_table TableOrSubquery
+  window_table TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
     (
       SELECT
@@ -278,12 +278,12 @@ RETURNS TableOrSubquery AS
 --   Flat breakdown including CORE, POLICY, DSU and SUBSYSTEM TOTAL.
 -- ========================================================
 CREATE PERFETTO MACRO wattson_rails_aggregation(
-    -- Intereseted window table with columns:
-    -- (ts, dur, period_id).
-    window_table TableOrSubquery
+  -- Intereseted window table with columns:
+  -- (ts, dur, period_id).
+  window_table TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   -- 1. Cache base components
   WITH
     base_components AS (
@@ -483,7 +483,7 @@ RETURNS TableOrSubquery AS
 --
 -- Shared metadata for all Wattson metrics.
 -- ========================================================
-CREATE PERFETTO VIEW wattson_metric_metadata (
+CREATE PERFETTO VIEW wattson_metric_metadata(
   -- Wattson metric version
   metric_version LONG,
   -- Wattson power curve version
@@ -491,12 +491,9 @@ CREATE PERFETTO VIEW wattson_metric_metadata (
   -- Wattson estimation will be crude
   -- if missing cpu/idle counter
   is_crude_estimate BOOL
-) AS
+)
+AS
 SELECT
   4 AS metric_version,
   1 AS power_model_version,
-  CAST(NOT EXISTS(
-    SELECT
-      1
-    FROM _wattson_cpuidle_counters_exist
-  ) AS INTEGER) AS is_crude_estimate;
+  CAST(NOT EXISTS (SELECT 1 FROM _wattson_cpuidle_counters_exist) AS INTEGER) AS is_crude_estimate;

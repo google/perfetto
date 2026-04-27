@@ -18,7 +18,7 @@
 -- Each row represents a unique graphics context seen in the trace,
 -- populated from InternedGraphicsContext data attached to
 -- GpuRenderStageEvent packets.
-CREATE PERFETTO VIEW gpu_context (
+CREATE PERFETTO VIEW gpu_context(
   -- The id of the row.
   id ID,
   -- The graphics context handle (GL context, VkDevice, CUDA context, etc.).
@@ -27,7 +27,6 @@ CREATE PERFETTO VIEW gpu_context (
   pid LONG,
   -- Graphics API type (OPEN_GL, VULKAN, OPEN_CL, CUDA, HIP, or UNDEFINED).
   api STRING
-) AS
-SELECT
-  *
-FROM __intrinsic_gpu_context;
+)
+AS
+SELECT * FROM __intrinsic_gpu_context;

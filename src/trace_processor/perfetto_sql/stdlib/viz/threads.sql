@@ -21,11 +21,7 @@ INCLUDE PERFETTO MODULE viz.summary.trace;
 -- Right now this table only supports linux traces. On all other traces the
 -- resultant table will be empty.
 CREATE PERFETTO TABLE _kernel_threads AS
-SELECT
-  utid
-FROM linux_kernel_threads
-WHERE
-  _is_linux_machine(machine_id) = 1;
+SELECT utid FROM linux_kernel_threads WHERE _is_linux_machine(machine_id) = 1;
 
 CREATE PERFETTO TABLE _threads_with_kernel_flag AS
 SELECT
@@ -37,9 +33,5 @@ SELECT
   is_main_thread,
   is_idle,
   machine_id,
-  utid IN (
-    SELECT
-      utid
-    FROM _kernel_threads
-  ) AS is_kernel_thread
+  utid IN (SELECT utid FROM _kernel_threads) AS is_kernel_thread
 FROM thread;

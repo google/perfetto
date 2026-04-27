@@ -16,7 +16,7 @@
 -- TODO(b/329344794): Rewrite to fetch data from other tables than `raw`.
 
 -- Aggregates f2fs IO and latency stats by counter name.
-CREATE PERFETTO VIEW _android_io_f2fs_counter_stats (
+CREATE PERFETTO VIEW _android_io_f2fs_counter_stats(
   -- Counter name on which all the other values are aggregated on.
   name STRING,
   -- Sum of all counter values for the counter name.
@@ -31,7 +31,8 @@ CREATE PERFETTO VIEW _android_io_f2fs_counter_stats (
   count LONG,
   -- Avergate of all the counter values for the counter name.
   avg DOUBLE
-) AS
+)
+AS
 SELECT
   str_split(counter_track.name, '].', 1) AS name,
   sum(counter.value) AS sum,
@@ -42,14 +43,15 @@ SELECT
   avg(counter.value) AS avg
 FROM counter
 JOIN counter_track
-  ON counter_track.id = counter.track_id AND counter_track.name GLOB '*f2fs*'
+  ON counter_track.id = counter.track_id
+  AND counter_track.name GLOB '*f2fs*'
 GROUP BY
   name
 ORDER BY
   sum DESC;
 
 -- Aggregates f2fs_write stats by inode and thread.
-CREATE PERFETTO VIEW _android_io_f2fs_write_stats (
+CREATE PERFETTO VIEW _android_io_f2fs_write_stats(
   -- Utid of the thread.
   utid JOINID(thread.id),
   -- Tid of the thread.
@@ -70,7 +72,8 @@ CREATE PERFETTO VIEW _android_io_f2fs_write_stats (
   bytes LONG,
   -- Total count of write requests for this file.
   write_count LONG
-) AS
+)
+AS
 WITH
   f2fs_write_end AS (
     SELECT
@@ -95,10 +98,8 @@ SELECT
   sum(copied) AS bytes,
   count(len) AS write_count
 FROM f2fs_write_end AS f
-JOIN thread
-  USING (utid)
-JOIN process
-  USING (upid)
+JOIN thread USING (utid)
+JOIN process USING (upid)
 GROUP BY
   utid,
   ino,
@@ -108,7 +109,7 @@ ORDER BY
 
 -- Aggregates f2fs write stats. Counts distinct datapoints, total write operations,
 -- and bytes written
-CREATE PERFETTO VIEW _android_io_f2fs_aggregate_write_stats (
+CREATE PERFETTO VIEW _android_io_f2fs_aggregate_write_stats(
   -- Total number of writes in the trace.
   total_write_count LONG,
   -- Number of distinct processes.
@@ -121,7 +122,8 @@ CREATE PERFETTO VIEW _android_io_f2fs_aggregate_write_stats (
   distinct_inode_count LONG,
   -- Count of distinct threads writing.
   distinct_thread_count LONG
-) AS
+)
+AS
 SELECT
   sum(write_count) AS total_write_count,
   count(DISTINCT pid) AS distinct_processes,

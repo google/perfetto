@@ -18,10 +18,7 @@ INCLUDE PERFETTO MODULE counters.intervals;
 INCLUDE PERFETTO MODULE android.suspend;
 
 CREATE PERFETTO TABLE _kernel_wakelock_track AS
-SELECT
-  id,
-  name,
-  extract_arg(dimension_arg_set_id, 'wakelock_type') AS type
+SELECT id, name, extract_arg(dimension_arg_set_id, 'wakelock_type') AS type
 FROM track AS t
 WHERE
   type = 'android_kernel_wakelock';
@@ -29,17 +26,13 @@ WHERE
 CREATE PERFETTO TABLE _android_kernel_wakelocks_base AS
 WITH
   kernel_wakelock_counter AS (
-    SELECT
-      *
+    SELECT *
     FROM counter_leading_intervals!((
-        SELECT
-          id,
-          ts,
-          track_id,
-          value
+        SELECT id, ts, track_id, value
         FROM counter
-        WHERE track_id IN (SELECT id FROM _kernel_wakelock_track)
-    ))
+        WHERE
+          track_id IN (SELECT id FROM _kernel_wakelock_track)
+      ))
   )
 SELECT
   ts,
@@ -53,13 +46,13 @@ FROM kernel_wakelock_counter AS c
 JOIN _kernel_wakelock_track AS t
   ON t.id = c.track_id;
 
-CREATE VIRTUAL TABLE _android_kernel_wakelocks_joined USING span_join (_android_kernel_wakelocks_base partitioned name_int, android_suspend_state);
+CREATE VIRTUAL TABLE _android_kernel_wakelocks_joined USING span_join(_android_kernel_wakelocks_base partitioned name_int, android_suspend_state);
 
 -- Table of kernel (or native) wakelocks with held duration.
 --
 -- Subtracts suspended time from each period to calculate the
 -- fraction of awake time for which the wakelock was held.
-CREATE PERFETTO TABLE android_kernel_wakelocks (
+CREATE PERFETTO TABLE android_kernel_wakelocks(
   -- Timestamp.
   ts TIMESTAMP,
   -- Duration.
@@ -74,7 +67,8 @@ CREATE PERFETTO TABLE android_kernel_wakelocks (
   held_dur DURATION,
   -- Fraction of awake (not suspended) time the wakelock was held.
   held_ratio DOUBLE
-) AS
+)
+AS
 WITH
   base AS (
     SELECT

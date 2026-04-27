@@ -20,7 +20,8 @@
 INCLUDE PERFETTO MODULE graphs.scan;
 
 CREATE PERFETTO MACRO _viz_flamegraph_hash_coalesce(col ColumnName)
-RETURNS Expr AS IFNULL($col, 0);
+RETURNS Expr
+AS IFNULL($col, 0);
 
 -- For each frame in |tab|, returns a row containing the result of running
 -- all the filtering operations over that frame's name.
@@ -181,7 +182,8 @@ AS (
 );
 
 CREATE PERFETTO MACRO _viz_flamegraph_s_prefix(col ColumnName)
-RETURNS Expr AS s.$col;
+RETURNS Expr
+AS s.$col;
 
 -- Propogates the cumulative value of the pivot nodes to the roots
 -- and computes the "fingerprint" of the path.
@@ -299,7 +301,8 @@ AS (
 );
 
 CREATE PERFETTO MACRO _col_list_id(a ColumnName)
-RETURNS Expr AS $a;
+RETURNS Expr
+AS $a;
 
 -- Converts a table of hashes and paretn hashes into ids and parent
 -- ids, grouping all hashes together.
@@ -333,9 +336,7 @@ AS (
 
 -- Performs a "layout" of nodes in the flamegraph relative to their
 -- siblings.
-CREATE PERFETTO MACRO _viz_flamegraph_local_layout(
-  merged TableOrSubquery
-)
+CREATE PERFETTO MACRO _viz_flamegraph_local_layout(merged TableOrSubquery)
 RETURNS TableOrSubquery
 AS (
   WITH partial_layout AS (

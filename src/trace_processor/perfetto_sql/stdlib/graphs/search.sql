@@ -38,27 +38,27 @@
 -- );
 -- ```
 CREATE PERFETTO MACRO graph_reachable_dfs(
-    -- A table/view/subquery corresponding to a directed graph on which the
-    -- reachability search should be performed. This table must have the columns
-    -- "source_node_id" and "dest_node_id" corresponding to the two nodes on
-    -- either end of the edges in the graph.
-    --
-    -- Note: the columns must contain uint32 similar to ids in trace processor
-    -- tables (i.e. the values should be relatively dense and close to zero). The
-    -- implementation makes assumptions on this for performance reasons and, if
-    -- this criteria is not, can lead to enormous amounts of memory being
-    -- allocated.
-    graph_table TableOrSubquery,
-    -- A table/view/subquery corresponding to the list of start nodes for
-    -- the BFS. This table must have a single column "node_id".
-    start_nodes TableOrSubquery
+  -- A table/view/subquery corresponding to a directed graph on which the
+  -- reachability search should be performed. This table must have the columns
+  -- "source_node_id" and "dest_node_id" corresponding to the two nodes on
+  -- either end of the edges in the graph.
+  --
+  -- Note: the columns must contain uint32 similar to ids in trace processor
+  -- tables (i.e. the values should be relatively dense and close to zero). The
+  -- implementation makes assumptions on this for performance reasons and, if
+  -- this criteria is not, can lead to enormous amounts of memory being
+  -- allocated.
+  graph_table TableOrSubquery,
+  -- A table/view/subquery corresponding to the list of start nodes for
+  -- the BFS. This table must have a single column "node_id".
+  start_nodes TableOrSubquery
 )
 -- The returned table has the schema (node_id LONG, parent_node_id LONG).
 -- |node_id| is the id of the node from the input graph and |parent_node_id|
 -- is the id of the node which was the first encountered predecessor in a DFS
 -- search of the graph.
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   -- Rename the generic columns of __intrinsic_table_ptr to the actual columns.
   SELECT
     c0 AS node_id,
@@ -109,27 +109,27 @@ RETURNS TableOrSubquery AS
 -- );
 -- ```
 CREATE PERFETTO MACRO graph_reachable_bfs(
-    -- A table/view/subquery corresponding to a directed graph on which the
-    -- reachability search should be performed. This table must have the columns
-    -- "source_node_id" and "dest_node_id" corresponding to the two nodes on
-    -- either end of the edges in the graph.
-    --
-    -- Note: the columns must contain uint32 similar to ids in trace processor
-    -- tables (i.e. the values should be relatively dense and close to zero). The
-    -- implementation makes assumptions on this for performance reasons and, if
-    -- this criteria is not, can lead to enormous amounts of memory being
-    -- allocated.
-    graph_table TableOrSubquery,
-    -- A table/view/subquery corresponding to the list of start nodes for
-    -- the BFS. This table must have a single column "node_id".
-    start_nodes TableOrSubquery
+  -- A table/view/subquery corresponding to a directed graph on which the
+  -- reachability search should be performed. This table must have the columns
+  -- "source_node_id" and "dest_node_id" corresponding to the two nodes on
+  -- either end of the edges in the graph.
+  --
+  -- Note: the columns must contain uint32 similar to ids in trace processor
+  -- tables (i.e. the values should be relatively dense and close to zero). The
+  -- implementation makes assumptions on this for performance reasons and, if
+  -- this criteria is not, can lead to enormous amounts of memory being
+  -- allocated.
+  graph_table TableOrSubquery,
+  -- A table/view/subquery corresponding to the list of start nodes for
+  -- the BFS. This table must have a single column "node_id".
+  start_nodes TableOrSubquery
 )
 -- The returned table has the schema (node_id LONG, parent_node_id LONG).
 -- |node_id| is the id of the node from the input graph and |parent_node_id|
 -- is the id of the node which was the first encountered predecessor in a BFS
 -- search of the graph.
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   -- Rename the generic columns of __intrinsic_table_ptr to the actual columns.
   SELECT
     c0 AS node_id,
@@ -174,15 +174,15 @@ RETURNS TableOrSubquery AS
 -- );
 -- ```
 CREATE PERFETTO MACRO graph_next_sibling(
-    -- A table/view/subquery corresponding to a directed graph for which to find the next sibling.
-    -- This table must have the columns "node_id", "node_parent_id" and "sort_key".
-    graph_table TableOrSubquery
+  -- A table/view/subquery corresponding to a directed graph for which to find the next sibling.
+  -- This table must have the columns "node_id", "node_parent_id" and "sort_key".
+  graph_table TableOrSubquery
 )
 -- The returned table has the schema (node_id LONG, next_node_id LONG).
 -- |node_id| is the id of the node from the input graph and |next_node_id|
 -- is the id of the node which is its next sibling.
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
     node_id,
     lead(node_id) OVER (PARTITION BY node_parent_id ORDER BY sort_key) AS next_node_id
@@ -225,43 +225,43 @@ RETURNS TableOrSubquery AS
 --      ));
 -- ```
 CREATE PERFETTO MACRO graph_reachable_weight_bounded_dfs(
-    -- A table/view/subquery corresponding to a directed graph on which the
-    -- reachability search should be performed. This table must have the columns
-    -- "source_node_id" and "dest_node_id" corresponding to the two nodes on
-    -- either end of the edges in the graph and an "edge_weight" corresponding to the
-    -- weight of the edge between the node.
-    --
-    -- Note: the columns must contain uint32 similar to ids in trace processor
-    -- tables (i.e. the values should be relatively dense and close to zero). The
-    -- implementation makes assumptions on this for performance reasons and, if
-    -- this criteria is not, can lead to enormous amounts of memory being
-    -- allocated.
-    graph_table TableOrSubquery,
-    -- A table/view/subquery corresponding to start nodes to |graph_table| which will be the
-    -- roots of the reachability trees. This table must have the columns
-    -- "root_node_id" and "root_target_weight" corresponding to the starting node id and the max
-    -- weight allowed on the tree.
-    --
-    -- Note: the columns must contain uint32 similar to ids in trace processor
-    -- tables (i.e. the values should be relatively dense and close to zero). The
-    -- implementation makes assumptions on this for performance reasons and, if
-    -- this criteria is not, can lead to enormous amounts of memory being
-    -- allocated.
-    root_table TableOrSubquery,
-    -- Whether the target_weight is a floor weight or ceiling weight.
-    -- If it's floor, the search stops right after we exceed the target weight, and we
-    -- include the node that pushed just passed the target. If ceiling, the search stops
-    -- right before the target weight and the node that would have pushed us passed the
-    -- target is not included.
-    is_target_weight_floor Expr
+  -- A table/view/subquery corresponding to a directed graph on which the
+  -- reachability search should be performed. This table must have the columns
+  -- "source_node_id" and "dest_node_id" corresponding to the two nodes on
+  -- either end of the edges in the graph and an "edge_weight" corresponding to the
+  -- weight of the edge between the node.
+  --
+  -- Note: the columns must contain uint32 similar to ids in trace processor
+  -- tables (i.e. the values should be relatively dense and close to zero). The
+  -- implementation makes assumptions on this for performance reasons and, if
+  -- this criteria is not, can lead to enormous amounts of memory being
+  -- allocated.
+  graph_table TableOrSubquery,
+  -- A table/view/subquery corresponding to start nodes to |graph_table| which will be the
+  -- roots of the reachability trees. This table must have the columns
+  -- "root_node_id" and "root_target_weight" corresponding to the starting node id and the max
+  -- weight allowed on the tree.
+  --
+  -- Note: the columns must contain uint32 similar to ids in trace processor
+  -- tables (i.e. the values should be relatively dense and close to zero). The
+  -- implementation makes assumptions on this for performance reasons and, if
+  -- this criteria is not, can lead to enormous amounts of memory being
+  -- allocated.
+  root_table TableOrSubquery,
+  -- Whether the target_weight is a floor weight or ceiling weight.
+  -- If it's floor, the search stops right after we exceed the target weight, and we
+  -- include the node that pushed just passed the target. If ceiling, the search stops
+  -- right before the target weight and the node that would have pushed us passed the
+  -- target is not included.
+  is_target_weight_floor Expr
 )
 -- The returned table has the schema (root_node_id, node_id LONG, parent_node_id LONG).
 -- |root_node_id| is the id of the starting node under which this edge was encountered.
 -- |node_id| is the id of the node from the input graph and |parent_node_id|
 -- is the id of the node which was the first encountered predecessor in a DFS
 -- search of the graph.
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   WITH
     __temp_graph_table AS (
       SELECT

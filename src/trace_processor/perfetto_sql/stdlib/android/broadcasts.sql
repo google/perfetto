@@ -16,27 +16,17 @@
 
 INCLUDE PERFETTO MODULE android.freezer;
 
-CREATE PERFETTO FUNCTION _extract_broadcast_process_name(
-    name STRING
-)
-RETURNS LONG AS
+CREATE PERFETTO FUNCTION _extract_broadcast_process_name(name STRING)
+RETURNS LONG
+AS
 WITH
-  pid_and_name AS (
-    SELECT
-      str_split(str_split($name, '/', 0), ' ', 1) AS value
-  ),
-  start AS (
-    SELECT
-      cast_int!(INSTR(value, ':')) + 1 AS value
-    FROM pid_and_name
-  )
-SELECT
-  substr(pid_and_name.value, start.value)
-FROM pid_and_name, start;
+  pid_and_name AS (SELECT str_split(str_split($name, '/', 0), ' ', 1) AS value),
+  start AS (SELECT cast_int!(INSTR(value, ':')) + 1 AS value FROM pid_and_name)
+SELECT substr(pid_and_name.value, start.value) FROM pid_and_name, start;
 
 -- Provides a list of broadcast names and processes they were sent to by the
 -- system_server process on U+ devices.
-CREATE PERFETTO TABLE _android_broadcasts_minsdk_u (
+CREATE PERFETTO TABLE _android_broadcasts_minsdk_u(
   -- Broadcast record id.
   record_id STRING,
   -- Intent action of the broadcast.
@@ -59,15 +49,15 @@ CREATE PERFETTO TABLE _android_broadcasts_minsdk_u (
   dur DURATION,
   -- Track id the broadcast was dispatched from.
   track_id JOINID(track.id)
-) AS
+)
+AS
 WITH
   broadcast_queues AS (
     SELECT
       process_track.id,
       cast_int!(replace(str_split(process_track.name, '[', 1), ']', '')) AS queue_id
     FROM process_track
-    JOIN process
-      USING (upid)
+    JOIN process USING (upid)
     WHERE
       process_track.name GLOB 'BroadcastQueue.mRunning*'
       AND process.name = 'system_server'
@@ -80,7 +70,11 @@ WITH
       str_split(slice.name, ' ', 0) AS process_queue_id,
       broadcast_queues.queue_id,
       _extract_broadcast_process_name(slice.name) AS process_name,
-      cast_int!(str_split(str_split(str_split(slice.name, '/', 0), ' ', 1), ':', 0)) AS pid,
+      cast_int!(str_split(
+          str_split(str_split(slice.name, '/', 0), ' ', 1),
+          ':',
+          0
+        )) AS pid,
       queue_id
     FROM slice
     JOIN broadcast_queues

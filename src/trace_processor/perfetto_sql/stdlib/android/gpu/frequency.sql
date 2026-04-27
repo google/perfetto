@@ -17,7 +17,7 @@
 INCLUDE PERFETTO MODULE counters.intervals;
 
 -- GPU frequency counter per GPU.
-CREATE PERFETTO TABLE android_gpu_frequency (
+CREATE PERFETTO TABLE android_gpu_frequency(
   -- Timestamp
   ts TIMESTAMP,
   -- Duration
@@ -30,7 +30,8 @@ CREATE PERFETTO TABLE android_gpu_frequency (
   prev_gpu_freq LONG,
   -- GPU frequency from next slice
   next_gpu_freq LONG
-) AS
+)
+AS
 SELECT
   ts,
   dur,
@@ -40,10 +41,10 @@ SELECT
   cast_int!(next_value) AS next_gpu_freq
 FROM counter_leading_intervals!((
     SELECT c.*
-    FROM counter c
-    JOIN gpu_counter_track t
-    ON t.id = c.track_id AND t.name = 'gpufreq'
-    WHERE gpu_id IS NOT NULL
-))
+    FROM counter AS c
+    JOIN gpu_counter_track AS t ON t.id = c.track_id AND t.name = 'gpufreq'
+    WHERE
+      gpu_id IS NOT NULL
+  ))
 JOIN gpu_counter_track AS t
   ON t.id = track_id;

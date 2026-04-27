@@ -17,6 +17,7 @@
 -- This file is case-sensitive.
 
 INCLUDE PERFETTO MODULE graphs.scan;
+
 INCLUDE PERFETTO MODULE slices.with_context;
 
 CREATE PERFETTO MACRO _viz_slice_ancestor_agg(
@@ -24,8 +25,7 @@ CREATE PERFETTO MACRO _viz_slice_ancestor_agg(
   nodes TableOrSubquery
 )
 RETURNS TableOrSubquery
-AS
-(
+AS (
   SELECT
     id,
     parent_id AS parentId,
@@ -77,5 +77,6 @@ SELECT
   slice.arg_set_id
 FROM slice
 JOIN track ON slice.track_id = track.id
-WHERE NOT (slice.track_id IN (SELECT id FROM process_track))
+WHERE
+  NOT (slice.track_id IN (SELECT id FROM process_track))
   AND NOT (slice.track_id IN (SELECT id FROM thread_track));

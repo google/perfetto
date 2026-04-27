@@ -16,17 +16,14 @@
 INCLUDE PERFETTO MODULE sched.runnable;
 
 CREATE PERFETTO VIEW _sched_with_thread_state_join AS
-SELECT
-  thread_state.id AS thread_state_id,
-  sched.id AS sched_id
+SELECT thread_state.id AS thread_state_id, sched.id AS sched_id
 FROM sched
-JOIN thread_state
-  USING (utid, ts, dur);
+JOIN thread_state USING (utid, ts, dur);
 
 -- Scheduling latency of running thread states.
 -- For each time the thread was running, returns the duration of the runnable
 -- state directly before.
-CREATE PERFETTO TABLE sched_latency_for_running_interval (
+CREATE PERFETTO TABLE sched_latency_for_running_interval(
   -- Running state of the thread.
   thread_state_id JOINID(thread_state.id),
   -- Id of a corresponding slice in a `sched` table.
@@ -39,7 +36,8 @@ CREATE PERFETTO TABLE sched_latency_for_running_interval (
   -- Scheduling latency of thread state. Duration of thread state with
   -- `runnable_latency_id`.
   latency_dur LONG
-) AS
+)
+AS
 SELECT
   r.id AS thread_state_id,
   sched_id,

@@ -35,7 +35,15 @@ SELECT
   iif(
     no_static = 1,
     0.0,
-    iif(0 IN _device_policies, coalesce(lut0.static, 0), 0) + iif(1 IN _device_policies, coalesce(lut1.static, 0), 0) + iif(2 IN _device_policies, coalesce(lut2.static, 0), 0) + iif(3 IN _device_policies, coalesce(lut3.static, 0), 0) + iif(4 IN _device_policies, coalesce(lut4.static, 0), 0) + iif(5 IN _device_policies, coalesce(lut5.static, 0), 0) + iif(6 IN _device_policies, coalesce(lut6.static, 0), 0) + iif(7 IN _device_policies, coalesce(lut7.static, 0), 0) + static_1d
+    iif(0 IN _device_policies, coalesce(lut0.static, 0), 0)
+    + iif(1 IN _device_policies, coalesce(lut1.static, 0), 0)
+    + iif(2 IN _device_policies, coalesce(lut2.static, 0), 0)
+    + iif(3 IN _device_policies, coalesce(lut3.static, 0), 0)
+    + iif(4 IN _device_policies, coalesce(lut4.static, 0), 0)
+    + iif(5 IN _device_policies, coalesce(lut5.static, 0), 0)
+    + iif(6 IN _device_policies, coalesce(lut6.static, 0), 0)
+    + iif(7 IN _device_policies, coalesce(lut7.static, 0), 0)
+    + static_1d
   ) AS static_mw,
   l3_lut.l3_hit,
   l3_lut.l3_miss
@@ -100,11 +108,12 @@ SELECT
   base.cpu5_mw,
   base.cpu6_mw,
   base.cpu7_mw,
-  base.static_mw + (
-    coalesce(slices.l3_hit_count * base.l3_hit, 0) + coalesce(slices.l3_miss_count * base.l3_miss, 0)
-  ) * 1000 / slices.dur AS dsu_scu_mw
+  base.static_mw
+  + (coalesce(slices.l3_hit_count * base.l3_hit, 0)
+  + coalesce(slices.l3_miss_count * base.l3_miss, 0))
+  * 1000
+  / slices.dur AS dsu_scu_mw
 FROM _w_independent_cpus_calc AS slices
-JOIN _unique_estimates_mw AS base
-  USING (config_hash)
+JOIN _unique_estimates_mw AS base USING (config_hash)
 WHERE
   slices.dur > 0;

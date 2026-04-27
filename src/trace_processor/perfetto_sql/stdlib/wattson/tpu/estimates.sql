@@ -23,12 +23,7 @@ INCLUDE PERFETTO MODULE wattson.utils;
 
 -- TPU frequency and parallel requests combined states
 CREATE PERFETTO TABLE _tpu_combined_state AS
-SELECT
-  ii.ts,
-  ii.dur,
-  tf.freq,
-  tf.cluster,
-  tr.requests
+SELECT ii.ts, ii.dur, tf.freq, tf.cluster, tr.requests
 FROM _interval_intersect!(
   (
     _ii_subquery!(_tpu_freq),
@@ -43,12 +38,11 @@ JOIN _tpu_requests_count AS tr
 
 -- TPU power estimates in mW
 CREATE PERFETTO TABLE _tpu_estimates_mw AS
-SELECT
-  t.ts,
-  t.dur,
-  coalesce(c.active, 0) AS tpu_mw
+SELECT t.ts, t.dur, coalesce(c.active, 0) AS tpu_mw
 FROM _tpu_combined_state AS t
 JOIN _tpu_filtered_curves AS c
-  ON c.freq = t.freq AND c.cluster = t.cluster AND c.requests = min(t.requests, 8)
+  ON c.freq = t.freq
+  AND c.cluster = t.cluster
+  AND c.requests = min(t.requests, 8)
 ORDER BY
-  ts ASC;
+  ts;

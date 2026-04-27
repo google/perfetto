@@ -20,24 +20,14 @@ INCLUDE PERFETTO MODULE wattson.device_infos;
 CREATE PERFETTO TABLE _adjusted_cpu_freq AS
 WITH
   _cpu_freq AS (
-    SELECT
-      ts,
-      dur,
-      freq,
-      cf.ucpu AS cpu,
-      d_map.policy
+    SELECT ts, dur, freq, cf.ucpu AS cpu, d_map.policy
     FROM cpu_frequency_counters AS cf
     JOIN _dev_cpu_policy_map AS d_map
       ON cf.ucpu = d_map.cpu
   ),
   -- Get first freq transition per CPU
   first_cpu_freq_slices AS (
-    SELECT
-      min(ts) AS ts,
-      cpu
-    FROM _cpu_freq
-    GROUP BY
-      cpu
+    SELECT min(ts) AS ts, cpu FROM _cpu_freq GROUP BY cpu
   )
 -- Prepend NULL slices up to first freq events on a per CPU basis
 SELECT
@@ -51,13 +41,7 @@ FROM first_cpu_freq_slices AS first_slices
 JOIN _dev_cpu_policy_map AS d_map
   ON first_slices.cpu = d_map.cpu
 UNION ALL
-SELECT
-  ts,
-  dur,
-  freq,
-  cpu,
-  policy
-FROM _cpu_freq
+SELECT ts, dur, freq, cpu, policy FROM _cpu_freq
 UNION ALL
 -- Add empty cpu freq counters for CPUs that are physically present, but did not
 -- have a single freq event register. The time region needs to be defined so
@@ -70,8 +54,4 @@ SELECT
   NULL AS policy
 FROM _dev_cpu_policy_map
 WHERE
-  NOT cpu IN (
-    SELECT
-      cpu
-    FROM first_cpu_freq_slices
-  );
+  NOT (cpu IN (SELECT cpu FROM first_cpu_freq_slices));

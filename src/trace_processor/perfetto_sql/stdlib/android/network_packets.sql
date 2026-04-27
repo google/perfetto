@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- Android network packet events (from android.network_packets data source).
-CREATE PERFETTO VIEW android_network_packets (
+CREATE PERFETTO VIEW android_network_packets(
   -- Id of the slice.
   id ID,
   -- Timestamp.
@@ -53,7 +53,8 @@ CREATE PERFETTO VIEW android_network_packets (
   packet_tcp_flags_int LONG,
   -- Packet's socket tag as an integer.
   socket_tag_int LONG
-) AS
+)
+AS
 SELECT
   id,
   ts,
@@ -77,17 +78,14 @@ SELECT
   packet_icmp_type,
   packet_icmp_code
 FROM __intrinsic_android_network_packets
-JOIN slice
-  USING (id);
+JOIN slice USING (id);
 
 -- This helper is used to unparenthesize a column list expression. Currently,
 -- the the pre-processor is unable to do both steps in one macro, so this macro
 -- must be passed to __intrinsic_token_apply at the callsite.
-CREATE PERFETTO MACRO _np_identity(
-    x Expr
-)
-RETURNS Expr AS
-$x;
+CREATE PERFETTO MACRO _np_identity(x Expr)
+RETURNS Expr
+AS $x;
 
 -- Finds groups of overlapping slices and assigns them group ids.
 --
@@ -105,11 +103,11 @@ $x;
 -- * max_end_so_far: the maximum end timestamp observed so far, useful for
 --   determining the time since the last group or event (per partition_columns)
 CREATE PERFETTO MACRO _add_overlap_group_id(
-    src TableOrSubquery,
-    partition_columns ColumnNameList
+  src TableOrSubquery,
+  partition_columns ColumnNameList
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   WITH
     _max_endpoint AS (
       SELECT
@@ -130,17 +128,17 @@ RETURNS TableOrSubquery AS
 -- after the last packet is sent or received. This macro simulates this timeout
 -- and returns spans that approximate the underlying connected regions.
 CREATE PERFETTO MACRO android_network_uptime_spans(
-    -- A table/view/subquery containing the network events to apply the idle
-    -- timeout model to. The table must contain all partition_columns, ts, dur,
-    -- packet_count, and packet_length.
-    src TableOrSubquery,
-    -- A parenthesized set of columns to partition the analysis by.
-    partition_columns ColumnNameList,
-    -- The idle timeout, expressed in nanoseconds.
-    timeout Expr
+  -- A table/view/subquery containing the network events to apply the idle
+  -- timeout model to. The table must contain all partition_columns, ts, dur,
+  -- packet_count, and packet_length.
+  src TableOrSubquery,
+  -- A parenthesized set of columns to partition the analysis by.
+  partition_columns ColumnNameList,
+  -- The idle timeout, expressed in nanoseconds.
+  timeout Expr
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   -- This query applies the timeout as additional duration per item and performs
   -- pre-aggregation to speed up the overlap group detection below.
   WITH
@@ -203,17 +201,17 @@ RETURNS TableOrSubquery AS
 -- The returned table schema is (id ID, uptime_cost INT64) where uptime cost is
 -- in nanoseconds.
 CREATE PERFETTO MACRO android_network_uptime_cost(
-    -- A table/view/subquery containing the network events to apply the idle
-    -- timeout model to. The table must contain all partition_columns, id, ts,
-    -- dur, and packet_count.
-    src TableOrSubquery,
-    -- A parenthesized set of columns to partition the analysis by.
-    partition_columns ColumnNameList,
-    -- The idle timeout, expressed in nanoseconds.
-    timeout Expr
+  -- A table/view/subquery containing the network events to apply the idle
+  -- timeout model to. The table must contain all partition_columns, id, ts,
+  -- dur, and packet_count.
+  src TableOrSubquery,
+  -- A parenthesized set of columns to partition the analysis by.
+  partition_columns ColumnNameList,
+  -- The idle timeout, expressed in nanoseconds.
+  timeout Expr
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   WITH
     _group_metrics AS (
       SELECT

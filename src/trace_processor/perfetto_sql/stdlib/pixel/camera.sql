@@ -19,7 +19,7 @@ INCLUDE PERFETTO MODULE slices.with_context;
 -- Break down camera Camera graph execution slices per node, port group, and frame.
 -- This table extracts key identifiers from Camera graph execution slice names and
 -- provides timing information for each processing stage.
-CREATE PERFETTO TABLE pixel_camera_frames (
+CREATE PERFETTO TABLE pixel_camera_frames(
   -- Unique identifier for this slice.
   id ID(slice.id),
   -- Start timestamp of the slice.
@@ -40,7 +40,8 @@ CREATE PERFETTO TABLE pixel_camera_frames (
   frame_number LONG,
   -- Camera ID associated with this slice.
   cam_id LONG
-) AS
+)
+AS
 SELECT
   id,
   ts,
@@ -57,4 +58,5 @@ SELECT
 FROM thread_slice
 -- Only include slices matching the Camera graph pattern and with valid durations
 WHERE
-  name GLOB 'cam*_*:* (frame *)' AND dur != -1;
+  name GLOB 'cam*_*:* (frame *)'
+  AND dur != -1;

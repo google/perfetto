@@ -22,153 +22,145 @@
 -- 3. track_group_order - Orders track groups within each SVG
 
 -- Escape XML special characters for safe embedding in SVG.
-CREATE PERFETTO FUNCTION _escape_xml(
-    text STRING
-)
-RETURNS STRING AS
-SELECT
-  replace(replace(replace($text, '&', '&amp;'), '<', '&lt;'), '>', '&gt;');
+CREATE PERFETTO FUNCTION _escape_xml(text STRING)
+RETURNS STRING
+AS
+SELECT replace(replace(replace($text, '&', '&amp;'), '<', '&lt;'), '>', '&gt;');
 
 -- Format nanosecond duration as human-readable string (ns/μs/ms/s).
-CREATE PERFETTO FUNCTION _format_duration(
-    dur LONG
-)
-RETURNS STRING AS
+CREATE PERFETTO FUNCTION _format_duration(dur LONG)
+RETURNS STRING
+AS
 SELECT
   CASE
-    WHEN $dur >= 1000000000
-    THEN printf('%.1fs', CAST($dur AS DOUBLE) / 1000000000.0)
-    WHEN $dur >= 1000000
-    THEN printf('%.1fms', CAST($dur AS DOUBLE) / 1000000.0)
-    WHEN $dur >= 1000
-    THEN printf('%.1fμs', CAST($dur AS DOUBLE) / 1000.0)
+    WHEN $dur >= 1000000000 THEN printf(
+      '%.1fs',
+      CAST($dur AS DOUBLE) / 1000000000.0
+    )
+    WHEN $dur >= 1000000 THEN printf('%.1fms', CAST($dur AS DOUBLE) / 1000000.0)
+    WHEN $dur >= 1000 THEN printf('%.1fμs', CAST($dur AS DOUBLE) / 1000.0)
     ELSE printf('%dns', $dur)
   END;
 
 -- Format large numbers with K, M, G, T suffixes to 2 decimal places.
-CREATE PERFETTO FUNCTION _format_large_number(
-    value DOUBLE
-)
-RETURNS STRING AS
+CREATE PERFETTO FUNCTION _format_large_number(value DOUBLE)
+RETURNS STRING
+AS
 SELECT
   CASE
-    WHEN abs($value) >= 1000000000000
-    THEN printf('%.2fT', $value / 1000000000000.0)
-    WHEN abs($value) >= 1000000000
-    THEN printf('%.2fG', $value / 1000000000.0)
-    WHEN abs($value) >= 1000000
-    THEN printf('%.2fM', $value / 1000000.0)
-    WHEN abs($value) >= 1000
-    THEN printf('%.2fK', $value / 1000.0)
+    WHEN abs($value) >= 1000000000000 THEN printf(
+      '%.2fT',
+      $value / 1000000000000.0
+    )
+    WHEN abs($value) >= 1000000000 THEN printf('%.2fG', $value / 1000000000.0)
+    WHEN abs($value) >= 1000000 THEN printf('%.2fM', $value / 1000000.0)
+    WHEN abs($value) >= 1000 THEN printf('%.2fK', $value / 1000.0)
     ELSE printf('%.2f', $value)
   END;
 
 -- Calculate pixels per nanosecond scaling factor for time-to-pixel conversion.
 CREATE PERFETTO FUNCTION _pixels_per_ns(
-    total_width LONG,
-    ts_min LONG,
-    ts_max LONG
+  total_width LONG,
+  ts_min LONG,
+  ts_max LONG
 )
-RETURNS DOUBLE AS
-SELECT
-  CAST($total_width AS DOUBLE) / CAST($ts_max - $ts_min AS DOUBLE);
+RETURNS DOUBLE
+AS
+SELECT CAST($total_width AS DOUBLE) / CAST($ts_max - $ts_min AS DOUBLE);
 
 -- Calculate optimal row height based on viewport width (minimum 2px).
-CREATE PERFETTO FUNCTION _row_height(
-    max_width LONG
-)
-RETURNS LONG AS
-SELECT
-  max(2, CAST($max_width * 0.008 AS INTEGER));
+CREATE PERFETTO FUNCTION _row_height(max_width LONG)
+RETURNS LONG
+AS
+SELECT max(2, CAST($max_width * 0.008 AS INTEGER));
 
 -- Calculate counter track height (between slice height and double).
-CREATE PERFETTO FUNCTION _counter_height(
-    max_width LONG
-)
-RETURNS LONG AS
-SELECT
-  CAST(_row_height($max_width) * 1.5 AS INTEGER);
+CREATE PERFETTO FUNCTION _counter_height(max_width LONG)
+RETURNS LONG
+AS
+SELECT CAST(_row_height($max_width) * 1.5 AS INTEGER);
 
 -- Generate deterministic color from slice name hash.
-CREATE PERFETTO FUNCTION _slice_color(
-    name STRING
-)
-RETURNS STRING AS
-SELECT
-  'hsl(' || (
-    abs(hash($name)) % 12 * 30
-  ) || ',45%,78%)';
+CREATE PERFETTO FUNCTION _slice_color(name STRING)
+RETURNS STRING
+AS
+SELECT 'hsl(' || (abs(hash($name)) % 12 * 30) || ',45%,78%)';
 
 -- Map thread state to semantic color (running=green, blocked=orange, etc.).
-CREATE PERFETTO FUNCTION _state_color(
-    state STRING,
-    io_wait LONG
-)
-RETURNS STRING AS
+CREATE PERFETTO FUNCTION _state_color(state STRING, io_wait LONG)
+RETURNS STRING
+AS
 SELECT
   CASE
-    WHEN lower($state) = 'running'
-    THEN '#2f7d31'
-    WHEN lower($state) IN ('r', 'r+')
-    THEN '#99ba34'
-    WHEN CAST($io_wait AS INTEGER) = 1
-    THEN '#ff9800'
-    WHEN lower($state) = 's'
-    THEN '#a0a0a0'
-    WHEN lower($state) = 'd'
-    THEN '#a35b58'
-    WHEN lower($state) = 'z'
-    THEN '#8b5cf6'
-    WHEN lower($state) = 't'
-    THEN '#f97316'
+    WHEN lower($state) = 'running' THEN '#2f7d31'
+    WHEN lower($state) IN ('r', 'r+') THEN '#99ba34'
+    WHEN CAST($io_wait AS INTEGER) = 1 THEN '#ff9800'
+    WHEN lower($state) = 's' THEN '#a0a0a0'
+    WHEN lower($state) = 'd' THEN '#a35b58'
+    WHEN lower($state) = 'z' THEN '#8b5cf6'
+    WHEN lower($state) = 't' THEN '#f97316'
     ELSE '#9ca3af'
   END;
 
 -- Truncate text with ellipsis to fit available pixel width.
-CREATE PERFETTO FUNCTION _fit_text(
-    text STRING,
-    available_width LONG
-)
-RETURNS STRING AS
+CREATE PERFETTO FUNCTION _fit_text(text STRING, available_width LONG)
+RETURNS STRING
+AS
 SELECT
   CASE
-    WHEN $available_width < 12
-    THEN ''
-    WHEN length($text) * 6.5 <= $available_width
-    THEN $text
-    WHEN $available_width >= 25
-    THEN substr($text, 1, CAST((
-      $available_width - 18
-    ) / 6.5 AS INTEGER)) || '...'
+    WHEN $available_width < 12 THEN ''
+    WHEN length($text) * 6.5 <= $available_width THEN $text
+    WHEN $available_width >= 25 THEN substr(
+      $text,
+      1,
+      CAST(($available_width - 18) / 6.5 AS INTEGER)
+    )
+    || '...'
     ELSE substr($text, 1, CAST($available_width / 6.5 AS INTEGER))
   END;
 
 -- Generate simple SVG rect element with optional hyperlink and text.
 CREATE PERFETTO FUNCTION _svg_rect(
-    x DOUBLE,
-    y DOUBLE,
-    width DOUBLE,
-    height DOUBLE,
-    fill STRING,
-    title STRING,
-    href STRING,
-    text_content STRING
+  x DOUBLE,
+  y DOUBLE,
+  width DOUBLE,
+  height DOUBLE,
+  fill STRING,
+  title STRING,
+  href STRING,
+  text_content STRING
 )
-RETURNS STRING AS
+RETURNS STRING
+AS
 SELECT
   CASE
-    WHEN $href IS NOT NULL
-    THEN '<a href="' || _escape_xml($href) || '" target="_blank">'
+    WHEN $href IS NOT NULL THEN '<a href="' || _escape_xml($href)
+    || '" target="_blank">'
     ELSE ''
-  END || '<rect x="' || $x || '" y="' || $y || '" width="' || $width || '" height="' || $height || '" fill="' || $fill || '">' || CASE
-    WHEN $title IS NOT NULL
-    THEN '<title>' || _escape_xml($title) || '</title>'
+  END
+  || '<rect x="'
+  || $x
+  || '" y="'
+  || $y
+  || '" width="'
+  || $width
+  || '" height="'
+  || $height
+  || '" fill="'
+  || $fill
+  || '">'
+  || CASE
+    WHEN $title IS NOT NULL THEN '<title>' || _escape_xml($title) || '</title>'
     ELSE ''
-  END || '</rect>' || coalesce($text_content, '') || CASE WHEN $href IS NOT NULL THEN '</a>' ELSE '' END;
+  END
+  || '</rect>'
+  || coalesce($text_content, '')
+  || CASE WHEN $href IS NOT NULL THEN '</a>' ELSE '' END;
 
 -- Generate minimal CSS styles.
 CREATE PERFETTO FUNCTION _svg_styles()
-RETURNS STRING AS
+RETURNS STRING
+AS
 SELECT
   '<style>
     rect { cursor: pointer; }
@@ -183,16 +175,16 @@ SELECT
 -- track_group_key: related tracks within SVG.
 -- track_group_order: vertical ordering within track groups.
 CREATE PERFETTO MACRO _intervals_to_positions(
-    intervals_table TableOrSubquery,
-    svg_group_key_col ColumnName,
-    track_group_key_col ColumnName,
-    track_group_order_col ColumnName,
-    max_width Expr,
-    min_width Expr,
-    use_shared_counter_scale Expr
+  intervals_table TableOrSubquery,
+  svg_group_key_col ColumnName,
+  track_group_key_col ColumnName,
+  track_group_order_col ColumnName,
+  max_width Expr,
+  min_width Expr,
+  use_shared_counter_scale Expr
 )
-RETURNS Expr AS
-(
+RETURNS Expr
+AS (
   WITH
     -- Calculate bounds per SVG group
     bounds AS (
@@ -316,20 +308,20 @@ RETURNS Expr AS
 
 -- Render slice interval as simple SVG rect with text overlay when space permits.
 CREATE PERFETTO FUNCTION _slice_to_svg(
-    x_pixel DOUBLE,
-    y_pixel DOUBLE,
-    width_pixel DOUBLE,
-    height_pixel DOUBLE,
-    name STRING,
-    dur LONG,
-    href STRING,
-    min_pixel_width LONG
+  x_pixel DOUBLE,
+  y_pixel DOUBLE,
+  width_pixel DOUBLE,
+  height_pixel DOUBLE,
+  name STRING,
+  dur LONG,
+  href STRING,
+  min_pixel_width LONG
 )
-RETURNS STRING AS
+RETURNS STRING
+AS
 SELECT
   CASE
-    WHEN $width_pixel < $min_pixel_width
-    THEN ''
+    WHEN $width_pixel < $min_pixel_width THEN ''
     ELSE _svg_rect(
       $x_pixel,
       $y_pixel,
@@ -339,12 +331,13 @@ SELECT
       $name || ' (' || _format_duration($dur) || ')',
       $href,
       CASE
-        WHEN $width_pixel >= 15
-        THEN '<text x="' || (
-          $x_pixel + $width_pixel / 2
-        ) || '" y="' || (
-          $y_pixel + $height_pixel / 2
-        ) || '" text-anchor="middle" font-size="11" fill="#333">' || _escape_xml(_fit_text($name, CAST($width_pixel AS INTEGER) - 4)) || '</text>'
+        WHEN $width_pixel >= 15 THEN '<text x="'
+        || ($x_pixel + $width_pixel / 2)
+        || '" y="'
+        || ($y_pixel + $height_pixel / 2)
+        || '" text-anchor="middle" font-size="11" fill="#333">'
+        || _escape_xml(_fit_text($name, CAST($width_pixel AS INTEGER) - 4))
+        || '</text>'
         ELSE ''
       END
     )
@@ -352,31 +345,34 @@ SELECT
 
 -- Render thread state interval as simple SVG rect.
 CREATE PERFETTO FUNCTION _thread_state_to_svg(
-    x_pixel DOUBLE,
-    y_pixel DOUBLE,
-    width_pixel DOUBLE,
-    height_pixel DOUBLE,
-    state STRING,
-    io_wait LONG,
-    blocked_function STRING,
-    dur LONG,
-    href STRING,
-    min_pixel_width LONG
+  x_pixel DOUBLE,
+  y_pixel DOUBLE,
+  width_pixel DOUBLE,
+  height_pixel DOUBLE,
+  state STRING,
+  io_wait LONG,
+  blocked_function STRING,
+  dur LONG,
+  href STRING,
+  min_pixel_width LONG
 )
-RETURNS STRING AS
+RETURNS STRING
+AS
 SELECT
   CASE
-    WHEN $width_pixel < $min_pixel_width
-    THEN ''
+    WHEN $width_pixel < $min_pixel_width THEN ''
     ELSE _svg_rect(
       $x_pixel,
       $y_pixel,
       $width_pixel,
       $height_pixel,
       _state_color($state, $io_wait),
-      'Thread State: ' || $state || ' (' || _format_duration($dur) || ')' ||
-      CASE WHEN $blocked_function IS NOT NULL THEN
-      ', blocked by ' || $blocked_function ELSE '' END,
+      'Thread State: ' || $state || ' (' || _format_duration($dur) || ')'
+      || CASE
+        WHEN $blocked_function IS NOT NULL THEN ', blocked by '
+        || $blocked_function
+        ELSE ''
+      END,
       $href,
       NULL
     )
@@ -384,81 +380,65 @@ SELECT
 
 -- Render counter value as step in filled area chart with proper negative value handling.
 CREATE PERFETTO FUNCTION _counter_to_svg(
-    x_pixel DOUBLE,
-    y_pixel DOUBLE,
-    width_pixel DOUBLE,
-    height_pixel DOUBLE,
-    value DOUBLE,
-    max_value DOUBLE,
-    min_value DOUBLE,
-    name STRING,
-    href STRING,
-    min_pixel_width LONG
+  x_pixel DOUBLE,
+  y_pixel DOUBLE,
+  width_pixel DOUBLE,
+  height_pixel DOUBLE,
+  value DOUBLE,
+  max_value DOUBLE,
+  min_value DOUBLE,
+  name STRING,
+  href STRING,
+  min_pixel_width LONG
 )
-RETURNS STRING AS
+RETURNS STRING
+AS
 SELECT
   CASE
-    WHEN $width_pixel < $min_pixel_width
-    THEN ''
+    WHEN $width_pixel < $min_pixel_width THEN ''
     ELSE CASE
-      WHEN $href IS NOT NULL
-      THEN '<a href="' || _escape_xml($href) || '" target="_blank">'
+      WHEN $href IS NOT NULL THEN '<a href="' || _escape_xml($href)
+      || '" target="_blank">'
       ELSE ''
-    END || '<rect x="' || $x_pixel || '" y="' || CASE
-      WHEN $value >= 0
-      THEN CASE
-        WHEN $min_value >= 0
-        THEN $y_pixel + $height_pixel - (
-          $height_pixel * (
-            $value - $min_value
-          ) / (
-            $max_value - $min_value
-          )
-        )
-        ELSE $y_pixel + $height_pixel * (
-          $max_value / (
-            $max_value - $min_value
-          )
-        ) - (
-          $height_pixel * $value / (
-            $max_value - $min_value
-          )
-        )
+    END
+    || '<rect x="'
+    || $x_pixel
+    || '" y="'
+    || CASE
+      WHEN $value >= 0 THEN CASE
+        WHEN $min_value >= 0 THEN $y_pixel + $height_pixel
+        - ($height_pixel * ($value - $min_value) / ($max_value - $min_value))
+        ELSE $y_pixel + $height_pixel * ($max_value / ($max_value - $min_value))
+        - ($height_pixel * $value / ($max_value - $min_value))
       END
       ELSE CASE
-        WHEN $max_value <= 0
-        THEN $y_pixel
-        ELSE $y_pixel + $height_pixel * (
-          $max_value / (
-            $max_value - $min_value
-          )
-        )
+        WHEN $max_value <= 0 THEN $y_pixel
+        ELSE $y_pixel + $height_pixel * ($max_value / ($max_value - $min_value))
       END
-    END || '" width="' || $width_pixel || '" height="' || CASE
-      WHEN $value >= 0
-      THEN CASE
-        WHEN $min_value >= 0
-        THEN $height_pixel * (
-          $value - $min_value
-        ) / (
-          $max_value - $min_value
-        )
-        ELSE $height_pixel * $value / (
-          $max_value - $min_value
-        )
+    END
+    || '" width="'
+    || $width_pixel
+    || '" height="'
+    || CASE
+      WHEN $value >= 0 THEN CASE
+        WHEN $min_value >= 0 THEN $height_pixel * ($value - $min_value)
+        / ($max_value - $min_value)
+        ELSE $height_pixel * $value / ($max_value - $min_value)
       END
       ELSE CASE
-        WHEN $max_value <= 0
-        THEN $height_pixel * (
-          $value - $max_value
-        ) / (
-          $max_value - $min_value
-        )
-        ELSE $height_pixel * abs($value) / (
-          $max_value - $min_value
-        )
+        WHEN $max_value <= 0 THEN $height_pixel * ($value - $max_value)
+        / ($max_value - $min_value)
+        ELSE $height_pixel * abs($value) / ($max_value - $min_value)
       END
-    END || '" fill="' || CASE WHEN $value >= 0 THEN 'steelblue' ELSE 'coral' END || '">' || '<title>' || _escape_xml($name || ': ' || printf('%.1f', $value)) || '</title>' || '</rect>' || CASE WHEN $href IS NOT NULL THEN '</a>' ELSE '' END
+    END
+    || '" fill="'
+    || CASE WHEN $value >= 0 THEN 'steelblue' ELSE 'coral' END
+    || '">'
+    || '<title>'
+    || _escape_xml($name || ': ' || printf('%.1f', $value))
+    || '</title>'
+    || '</rect>'
+    || CASE WHEN $href IS NOT NULL THEN '</a>' ELSE '' END
   END;
 
 -- Generate track SVG from positioned elements without labels.
@@ -466,13 +446,13 @@ SELECT
 -- track_group_key: related tracks within SVG.
 -- track_group_order: vertical ordering within track groups.
 CREATE PERFETTO MACRO _svg_from_positions(
-    positions_table TableOrSubquery,
-    svg_group_key_col ColumnName,
-    track_group_key_col ColumnName,
-    top_margin Expr
+  positions_table TableOrSubquery,
+  svg_group_key_col ColumnName,
+  track_group_key_col ColumnName,
+  top_margin Expr
 )
-RETURNS Expr AS
-(
+RETURNS Expr
+AS (
   WITH
     track_params AS (
       SELECT
@@ -547,15 +527,15 @@ RETURNS Expr AS
 -- track_group_key: related tracks within SVG.
 -- track_group_order: vertical ordering within track groups.
 CREATE PERFETTO MACRO _svg_from_positions_with_label(
-    positions_table TableOrSubquery,
-    svg_group_key_col ColumnName,
-    track_group_key_col ColumnName,
-    label_text ColumnName,
-    label_top_margin Expr,
-    label_gap Expr
+  positions_table TableOrSubquery,
+  svg_group_key_col ColumnName,
+  track_group_key_col ColumnName,
+  label_text ColumnName,
+  label_top_margin Expr,
+  label_gap Expr
 )
-RETURNS Expr AS
-(
+RETURNS Expr
+AS (
   WITH
     track_params AS (
       SELECT
@@ -729,16 +709,16 @@ RETURNS Expr AS
 -- track_group_key: related tracks within SVG.
 -- track_group_order: vertical ordering within track groups.
 CREATE PERFETTO MACRO _generate_tracks_by_group(
-    positions_table TableOrSubquery,
-    svg_group_key_col ColumnName,
-    track_group_key_col ColumnName,
-    track_group_order_col ColumnName,
-    start_order Expr,
-    order_step Expr,
-    top_margin Expr
+  positions_table TableOrSubquery,
+  svg_group_key_col ColumnName,
+  track_group_key_col ColumnName,
+  track_group_order_col ColumnName,
+  start_order Expr,
+  order_step Expr,
+  top_margin Expr
 )
-RETURNS Expr AS
-(
+RETURNS Expr
+AS (
   WITH
     grouped_keys AS (
       SELECT
@@ -786,18 +766,18 @@ RETURNS Expr AS
 -- track_group_key: related tracks within SVG.
 -- track_group_order: vertical ordering within track groups.
 CREATE PERFETTO MACRO _generate_tracks_by_group_with_label(
-    positions_table TableOrSubquery,
-    svg_group_key_col ColumnName,
-    track_group_key_col ColumnName,
-    track_group_order_col ColumnName,
-    start_order Expr,
-    order_step Expr,
-    top_margin Expr,
-    label_text ColumnName,
-    label_gap Expr
+  positions_table TableOrSubquery,
+  svg_group_key_col ColumnName,
+  track_group_key_col ColumnName,
+  track_group_order_col ColumnName,
+  start_order Expr,
+  order_step Expr,
+  top_margin Expr,
+  label_text ColumnName,
+  label_gap Expr
 )
-RETURNS Expr AS
-(
+RETURNS Expr
+AS (
   WITH
     grouped_keys AS (
       SELECT
@@ -844,13 +824,13 @@ RETURNS Expr AS
 -- Combine track SVGs into complete SVG documents with layout and styling.
 -- svg_group_key: separate SVG documents.
 CREATE PERFETTO MACRO _combine_track_svgs(
-    track_svgs_table TableOrSubquery,
-    svg_group_key_col ColumnName,
-    total_width Expr,
-    left_margin Expr
+  track_svgs_table TableOrSubquery,
+  svg_group_key_col ColumnName,
+  total_width Expr,
+  left_margin Expr
 )
-RETURNS Expr AS
-(
+RETURNS Expr
+AS (
   WITH
     ordered_tracks AS (
       SELECT
@@ -908,15 +888,15 @@ RETURNS Expr AS
 -- track_group_key: related tracks within SVG.
 -- track_group_order: vertical ordering within track groups.
 CREATE PERFETTO MACRO _slice_intervals_to_positions(
-    slice_table TableOrSubquery,
-    svg_group_key_col ColumnName,
-    track_group_key_col ColumnName,
-    track_group_order_col ColumnName,
-    max_width Expr,
-    min_width Expr
+  slice_table TableOrSubquery,
+  svg_group_key_col ColumnName,
+  track_group_key_col ColumnName,
+  track_group_order_col ColumnName,
+  max_width Expr,
+  min_width Expr
 )
-RETURNS Expr AS
-(
+RETURNS Expr
+AS (
   WITH
     intervals_with_type AS (
       SELECT
@@ -951,15 +931,15 @@ RETURNS Expr AS
 -- track_group_key: related tracks within SVG.
 -- track_group_order: vertical ordering within track groups.
 CREATE PERFETTO MACRO _thread_state_intervals_to_positions(
-    thread_state_table TableOrSubquery,
-    svg_group_key_col ColumnName,
-    track_group_key_col ColumnName,
-    track_group_order_col ColumnName,
-    max_width Expr,
-    min_width Expr
+  thread_state_table TableOrSubquery,
+  svg_group_key_col ColumnName,
+  track_group_key_col ColumnName,
+  track_group_order_col ColumnName,
+  max_width Expr,
+  min_width Expr
 )
-RETURNS Expr AS
-(
+RETURNS Expr
+AS (
   WITH
     intervals_with_type AS (
       SELECT
@@ -994,16 +974,16 @@ RETURNS Expr AS
 -- track_group_key: related tracks within SVG.
 -- track_group_order: vertical ordering within track groups.
 CREATE PERFETTO MACRO _counter_intervals_to_positions(
-    counter_table TableOrSubquery,
-    svg_group_key_col ColumnName,
-    track_group_key_col ColumnName,
-    track_group_order_col ColumnName,
-    max_width Expr,
-    min_width Expr,
-    use_shared_counter_scale Expr
+  counter_table TableOrSubquery,
+  svg_group_key_col ColumnName,
+  track_group_key_col ColumnName,
+  track_group_order_col ColumnName,
+  max_width Expr,
+  min_width Expr,
+  use_shared_counter_scale Expr
 )
-RETURNS Expr AS
-(
+RETURNS Expr
+AS (
   WITH
     intervals_with_type AS (
       SELECT
@@ -1038,16 +1018,16 @@ RETURNS Expr AS
 -- track_group_key: related tracks within SVG.
 -- track_group_order: vertical ordering within track groups.
 CREATE PERFETTO MACRO _svg_timeline(
-    slice_table TableOrSubquery,
-    thread_state_table TableOrSubquery,
-    svg_group_key_col ColumnName,
-    track_group_key_col ColumnName,
-    track_group_order_col ColumnName,
-    max_width Expr,
-    left_margin Expr
+  slice_table TableOrSubquery,
+  thread_state_table TableOrSubquery,
+  svg_group_key_col ColumnName,
+  track_group_key_col ColumnName,
+  track_group_order_col ColumnName,
+  max_width Expr,
+  left_margin Expr
 )
-RETURNS Expr AS
-(
+RETURNS Expr
+AS (
   WITH
     slice_positions AS (
       SELECT
@@ -1100,18 +1080,18 @@ RETURNS Expr AS
 -- track_group_key: related tracks within SVG.
 -- track_group_order: vertical ordering within track groups.
 CREATE PERFETTO MACRO _svg_timeline_with_counters(
-    slice_table TableOrSubquery,
-    thread_state_table TableOrSubquery,
-    counter_table TableOrSubquery,
-    svg_group_key_col ColumnName,
-    track_group_key_col ColumnName,
-    track_group_order_col ColumnName,
-    max_width Expr,
-    left_margin Expr,
-    use_shared_counter_scale Expr
+  slice_table TableOrSubquery,
+  thread_state_table TableOrSubquery,
+  counter_table TableOrSubquery,
+  svg_group_key_col ColumnName,
+  track_group_key_col ColumnName,
+  track_group_order_col ColumnName,
+  max_width Expr,
+  left_margin Expr,
+  use_shared_counter_scale Expr
 )
-RETURNS Expr AS
-(
+RETURNS Expr
+AS (
   WITH
     slice_positions AS (
       SELECT
