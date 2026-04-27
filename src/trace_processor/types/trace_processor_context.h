@@ -40,6 +40,7 @@ class CpuTracker;
 class GpuTracker;
 class UserTracker;
 class DescriptorPool;
+class DiskIoTracker;
 class EventTracker;
 class FileIoTracker;
 class FlowTracker;
@@ -223,6 +224,7 @@ class TraceProcessorContext {
   PerTraceAndMachinePtr<TrackTracker> track_tracker;
   PerTraceAndMachinePtr<TrackCompressor> track_compressor;
   PerTraceAndMachinePtr<SliceTracker> slice_tracker;
+  PerTraceAndMachinePtr<DiskIoTracker> disk_io_tracker;
   PerTraceAndMachinePtr<FileIoTracker> file_io_tracker;
   PerTraceAndMachinePtr<FlowTracker> flow_tracker;
   PerTraceAndMachinePtr<EventTracker> event_tracker;
