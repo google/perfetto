@@ -12,11 +12,17 @@ This guide covers:
   to use which.
 - [Capturing a heap dump](#capturing-a-heap-dump), both the lightweight
   Perfetto heap graph and the fuller ART HPROF formats.
-- How to use each tab of the explorer.
+- How to use each tab of the explorer, starting with
+  [inspecting a single object](#inspecting-a-single-object) — the view
+  most investigations end up at.
 - Worked [case studies](#case-studies): a leaked `Activity` and
   duplicate bitmaps.
 
 ## Heap dumps vs. heap profiles
+
+<!-- TODO(zezeozue): Move this explanation into the memory guide
+     (docs/case-studies/memory.md or docs/getting-started/memory-profiling.md)
+     and cross-link from here instead of duplicating. -->
 
 - A **Java heap profile** samples _allocations over time_ as a
   flamegraph of call stacks. It answers which code paths are
@@ -49,6 +55,18 @@ allocation call-path analysis.
 - **Class breakdowns.** Which classes own the largest share of
   retained memory.
 
+### What heap dumps are not good for
+
+- **Allocation call paths.** A heap dump is a snapshot, not a
+  recording — it doesn't tell you _which code_ allocated an object.
+  Use a [Java heap profile](/docs/data-sources/native-heap-profiler.md#java-heap-sampling)
+  for that.
+- **Native-only memory.** The dump covers the Java heap. For native
+  allocations use the
+  [native heap profiler](/docs/data-sources/native-heap-profiler.md).
+- **Timing and performance.** Heap dumps say nothing about when
+  objects were created or how long operations took.
+
 ## Capturing a heap dump
 
 Two formats are supported.
@@ -58,6 +76,26 @@ Two formats are supported.
 Captures the object graph — classes, references, sizes, GC roots — but
 not field values, strings, primitive array bytes or bitmap pixels.
 Enough for retention, dominator and class-breakdown analysis.
+
+**Pros:**
+
+- Privacy-safe — no string values, pixel buffers or field contents
+  leave the device, so it can be captured from real users in the field
+  without leaking sensitive data.
+- Does not require a `debuggable` process.
+- Integrates with the rest of the Perfetto tooling: you can capture a
+  heap graph alongside heap profiles, memory counters and other data
+  sources in a single trace.
+
+**Cons:**
+
+- No content-based analysis — the Strings, Arrays and Bitmaps tabs and
+  the duplicate-content detection on the Overview are unavailable.
+- Cannot be exported to other tools like Android Studio.
+
+Choose this format for leak investigations, dominator analysis and
+class breakdowns, especially when capturing from non-debuggable
+production builds.
 
 ```bash
 $ tools/java_heap_dump -n com.example.app -o heap.pftrace
@@ -79,6 +117,26 @@ Everything the heap graph has, plus field values, primitive array
 contents, string values and bitmap pixel buffers. Required for the
 Strings, Arrays and Bitmaps tabs and for the duplicate-content
 detection on the Overview tab.
+
+**Pros:**
+
+- Full visibility — field values, string contents, bitmap pixels and
+  primitive array bytes are all available.
+- Enables duplicate-content detection and the Bitmaps gallery.
+- The HPROF format is also understood by other tools such as Android
+  Studio.
+
+**Cons:**
+
+- Produces larger files.
+- Contains the full contents of the heap, so it is not suitable for
+  capturing from real users — it will contain any sensitive data in
+  memory.
+- Requires a `debuggable` process.
+
+Choose this format when you need content-level detail: hunting
+duplicate bitmaps, inspecting string values, or exporting to other
+tools.
 
 ```bash
 $ adb shell am dumpheap -g -b png com.example.app /data/local/tmp/heap.hprof
@@ -127,11 +185,11 @@ flamegraph selection are appended on the right and can be closed.
 
 All tabs share the underlying `heap_graph_*` tables. Blue links — a
 class name, an object id, a _Copies_ count — navigate to the
-corresponding tab pre-filtered. Every navigation updates
-`window.location.hash`, so the browser back button works and any view
-is bookmarkable (see [Deep linking](#deep-linking)).
+corresponding tab pre-filtered.
 
 ## Overview
+
+NOTE: The duplicate sections _require HPROF_.
 
 The Overview is the default landing page and summarizes the dump:
 
@@ -146,8 +204,6 @@ The Overview is the default landing page and summarizes the dump:
   filtered to that group.
 
 ![Overview tab: General Information (437,681 reachable instances across app/image/zygote heaps), Bytes Retained by Heap (24.4 MiB total, 1.5 MiB on the app heap), and a Duplicate Bitmaps group wasting 785.8 KiB across 12 copies of the same 128×128 image.](../images/heap_docs/04-overview.png)
-
-NOTE: The duplicate sections _require HPROF_.
 
 ## Classes
 
@@ -183,83 +239,15 @@ Clicking an object opens its [object tab](#inspecting-a-single-object).
 Typical uses: identifying a stale `Activity` after a leak, or the
 instance of a data class holding the largest subgraph.
 
-## Dominators
-
-The Dominators tab shows the roots of the dominator tree: objects that
-exclusively retain the largest subgraphs of the heap. An object `a`
-dominates `b` if every path from a GC root to `b` passes through `a`,
-so freeing `a` also frees `b`.
-
-![Dominators tab sorted by Retained; `Class<ProfileActivity>` (root type `STATIC`) and a `ProfileActivity` instance near the top, each retaining a large subgraph.](../images/heap_docs/07-dominators.png)
-
-_Root Type_ (e.g. `THREAD`, `STATIC`, `JNI_GLOBAL`) identifies how each
-dominator is itself kept alive. Click a row to open its object tab and
-walk the reference path.
-
-Use this tab when there is no specific suspect and the question is
-simply where the memory has gone.
-
-## Bitmaps
-
-The Bitmaps tab is a gallery of every `android.graphics.Bitmap` in the
-dump. With an HPROF, each bitmap's pixels are rendered inline.
-
-![Bitmaps gallery: 15 bitmaps, 971.2 KiB retained. Twelve 128×128 copies of the same image are rendered inline, each at 64.2 KiB.](../images/heap_docs/08-bitmaps-gallery.png)
-
-Each card shows the rendered pixels, dimensions (px and dp), DPI,
-retained memory and a _Details_ button that opens the object tab.
-Pixel buffers may be RGBA, PNG, JPEG or WebP depending on how they
-were stored.
-
-The _Show Paths_ toggle adds the reference path from the GC root to
-each card — the fastest way to spot an `Activity`, `Fragment` or
-`Handler` holding leaked bitmaps.
-
-![Bitmaps gallery with "Show Paths" enabled; the reference chain below each card runs `Class<FeedAdapter>.cache → ArrayList → Bitmap`, showing the single static holder.](../images/heap_docs/09-bitmaps-show-paths.png)
-
-Two tables at the bottom list bitmaps with and without pixel data,
-with filter, sort and export controls. Arriving via _Copies_ on
-Overview pre-filters the tab by buffer content hash, leaving only the
-visually identical bitmaps in that group.
-
-NOTE: Pixel previews and duplicate detection _require HPROF_.
-
-## Strings
-
-The Strings tab lists every `java.lang.String` with its value. The
-summary card reports the total number of strings, the number of
-distinct values and the total retained memory. The gap between total
-and distinct is memory spent on duplicates.
-
-![Strings tab: 105,868 total strings, 71,176 unique, 4.9 MiB retained. The gap between total and distinct (≈30k duplicates) is memory spent on duplicated values.](../images/heap_docs/10-strings.png)
-
-Filter by value to find data that was expected to be unique: a user
-id, a serialized config payload, an error message repeated thousands
-of times. Clicking a row opens its object tab, where the
-reverse-references section lists every object holding that string.
-
-NOTE: The Strings tab _requires HPROF_.
-
-## Arrays
-
-The Arrays tab lists primitive arrays (`byte[]`, `int[]`, `long[]`,
-...) together with a stable content hash. Filtering by _Content Hash_
-returns every array with the same bytes; this is how the Overview
-detects duplicate arrays.
-
-![Arrays tab sorted by Shallow with the Content Hash column visible; filtering by hash returns every array sharing the same bytes.](../images/heap_docs/11-arrays.png)
-
-Two common uses: finding a large duplicated `byte[]` that backs an
-image or serialized buffer, and jumping from a container object to
-the primitive array holding its data.
-
-NOTE: The Arrays tab _requires HPROF_.
-
 ## Inspecting a single object
 
-Clicking any object opens a closable tab for that instance. Multiple
-object tabs can be open at once. The URL hash is
-`#!/heapdump/object_0x<hex>`, so objects are shareable.
+**The _Sample Path from GC Root_ and _Objects with References to this
+Object_ are the two sections that resolve most investigations.** The
+path from GC root shows who is keeping the object alive; the reverse
+references list every object holding a field pointer to it.
+
+Clicking any object in any tab opens a closable tab for that instance.
+Multiple object tabs can be open at once.
 
 The object tab contains everything known about the instance:
 
@@ -290,11 +278,84 @@ The object tab contains everything known about the instance:
 
 ![Object tab (bottom): instance fields from `android.app.Activity`, "Objects with References to this Object" (reverse references from views and context wrappers), and "Immediately Dominated Objects" — the view hierarchy that would be freed if this instance became unreachable.](../images/heap_docs/13-object-tab-bottom.png)
 
-The reference path and the reverse references are the two sections
-that resolve most investigations: the reference path shows who is
-keeping the object alive; the reverse references list every object
-holding a field pointer to it. Both auto-collapse on large objects —
-click the header to expand.
+Both sections auto-collapse on large objects — click the header to
+expand.
+
+## Dominators
+
+The Dominators tab shows the
+[dominator tree](https://en.wikipedia.org/wiki/Dominator_(graph_theory))
+of the heap. In a directed graph, node `a` _dominates_ node `b` when
+every path from a root to `b` must pass through `a`. Applied to a heap:
+if you free `a`, everything it dominates — every object reachable
+_only_ through `a` — is also freed. The dominator tree groups the heap
+into these "freed-together" subtrees, making it easy to see which
+single objects gate the largest chunks of retained memory.
+
+![Dominators tab sorted by Retained; `Class<ProfileActivity>` (root type `STATIC`) and a `ProfileActivity` instance near the top, each retaining a large subgraph.](../images/heap_docs/07-dominators.png)
+
+_Root Type_ (e.g. `THREAD`, `STATIC`, `JNI_GLOBAL`) identifies how each
+dominator is itself kept alive. Click a row to open its object tab and
+walk the reference path.
+
+Use this tab when there is no specific suspect and the question is
+simply where the memory has gone.
+
+## Bitmaps
+
+NOTE: Pixel previews and duplicate detection _require HPROF_.
+
+The Bitmaps tab is a gallery of every `android.graphics.Bitmap` in the
+dump. With an HPROF, each bitmap's pixels are rendered inline.
+
+![Bitmaps gallery: 15 bitmaps, 971.2 KiB retained. Twelve 128×128 copies of the same image are rendered inline, each at 64.2 KiB.](../images/heap_docs/08-bitmaps-gallery.png)
+
+Each card shows the rendered pixels, dimensions (px and dp), DPI,
+retained memory and a _Details_ button that opens the object tab.
+Pixel buffers may be RGBA, PNG, JPEG or WebP depending on how they
+were stored.
+
+The _Show Paths_ toggle adds the reference path from the GC root to
+each card — the fastest way to spot an `Activity`, `Fragment` or
+`Handler` holding leaked bitmaps.
+
+![Bitmaps gallery with "Show Paths" enabled; the reference chain below each card runs `Class<FeedAdapter>.cache → ArrayList → Bitmap`, showing the single static holder.](../images/heap_docs/09-bitmaps-show-paths.png)
+
+Two tables at the bottom list bitmaps with and without pixel data,
+with filter, sort and export controls. Arriving via _Copies_ on
+Overview pre-filters the tab by buffer content hash, leaving only the
+visually identical bitmaps in that group.
+
+## Strings
+
+NOTE: The Strings tab _requires HPROF_.
+
+The Strings tab lists every `java.lang.String` with its value. The
+summary card reports the total number of strings, the number of
+distinct values and the total retained memory. The gap between total
+and distinct is memory spent on duplicates.
+
+![Strings tab: 105,868 total strings, 71,176 unique, 4.9 MiB retained. The gap between total and distinct (≈30k duplicates) is memory spent on duplicated values.](../images/heap_docs/10-strings.png)
+
+Filter by value to find data that was expected to be unique: a user
+id, a serialized config payload, an error message repeated thousands
+of times. Clicking a row opens its object tab, where the
+reverse-references section lists every object holding that string.
+
+## Arrays
+
+NOTE: The Arrays tab _requires HPROF_.
+
+The Arrays tab lists primitive arrays (`byte[]`, `int[]`, `long[]`,
+...) together with a stable content hash. Filtering by _Content Hash_
+returns every array with the same bytes; this is how the Overview
+detects duplicate arrays.
+
+![Arrays tab sorted by Shallow with the Content Hash column visible; filtering by hash returns every array sharing the same bytes.](../images/heap_docs/11-arrays.png)
+
+Two common uses: finding a large duplicated `byte[]` that backs an
+image or serialized buffer, and jumping from a container object to
+the primitive array holding its data.
 
 ## Jumping from a flamegraph
 
@@ -325,31 +386,11 @@ allocation path. Use it to inspect a flamegraph node object-by-object:
 Multiple flamegraph selections can be open at once, each as its own
 tab — useful for comparing two call stacks side by side.
 
-## Deep linking
-
-Every navigation updates `window.location.hash`, so any selection is
-bookmarkable. Common patterns:
-
-| URL hash                                    | View                             |
-| ------------------------------------------- | -------------------------------- |
-| `#!/heapdump`                               | Overview                         |
-| `#!/heapdump/classes`                       | Classes                          |
-| `#!/heapdump/classes?root=<class>`          | Classes rooted at a class and its subclasses |
-| `#!/heapdump/objects`                       | All objects                      |
-| `#!/heapdump/objects?cls=<class>`           | Objects filtered to a class      |
-| `#!/heapdump/dominators`                    | Dominators                       |
-| `#!/heapdump/bitmaps`                       | Bitmaps gallery                  |
-| `#!/heapdump/bitmaps?fk=<hash>`             | Bitmaps filtered by content hash |
-| `#!/heapdump/strings?q=<value>`             | Strings filtered to exact value  |
-| `#!/heapdump/arrays?ah=<hash>`              | Arrays filtered to a content hash|
-| `#!/heapdump/object_0x<hex>`                | A specific object tab            |
-| `#!/heapdump/flamegraph_objects_<name>`     | A flamegraph selection tab       |
-
-See [Deep linking](/docs/visualization/deep-linking-to-perfetto-ui.md)
-for how to open the Perfetto UI at a specific URL from an external
-dashboard.
-
 ## Case studies
+
+<!-- TODO(zezeozue): Break these case studies out and integrate them into
+     the existing memory guides (docs/case-studies/memory.md). Rationalize
+     the material so it isn't duplicated across docs. -->
 
 ### Finding a leaked Activity
 
@@ -384,8 +425,7 @@ static `history` list keeps a strong reference — along with the old
 Activity's entire view hierarchy.
 
 **Capturing.** The heap graph format is enough to chase an Activity
-leak; it carries the full object graph and GC roots, and captures in
-a second or two:
+leak; it carries the full object graph and GC roots:
 
 ```bash
 $ tools/java_heap_dump -n com.example.app -o /tmp/profile.pftrace
