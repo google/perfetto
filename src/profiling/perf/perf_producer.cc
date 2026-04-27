@@ -101,15 +101,61 @@ bool IsCpuOnline(uint32_t cpu) {
   return base::StartsWith(res, "1");
 }
 
-// TODO(rsavitski): one thing that perf tool does is consult the cpumask
-// from the sysfs pmu description (/sys/bus/event_source/.../cpumask) to
-// automatically downscope events to the cpus that they're present on (matters
-// for heterogeneous cores and ppmu/uncore events).
-// This lets users use "perf record -a" without worrying about cpu scopes.
-std::vector<uint32_t> CreateCpuMask(const protos::gen::PerfEventConfig& cfg) {
-  const auto& target_cpus_raw = cfg.target_cpu();
-  std::set<uint32_t> target_cpus(target_cpus_raw.begin(),
-                                 target_cpus_raw.end());
+}  // namespace
+
+std::set<uint32_t> ParseCpuList(const std::string& input) {
+  std::set<uint32_t> ret;
+  for (const auto& part : base::SplitString(input, ",")) {
+    std::string trimmed_part = base::TrimWhitespace(part);
+    auto range = base::SplitString(trimmed_part, "-");
+    if (range.size() == 1) {
+      std::optional<uint32_t> cpu =
+          base::StringToUInt32(base::TrimWhitespace(range[0]));
+      if (cpu)
+        ret.insert(*cpu);
+    } else if (range.size() == 2) {
+      std::optional<uint32_t> start =
+          base::StringToUInt32(base::TrimWhitespace(range[0]));
+      std::optional<uint32_t> end =
+          base::StringToUInt32(base::TrimWhitespace(range[1]));
+      if (start && end) {
+        for (uint32_t i = *start; i <= *end; ++i) {
+          ret.insert(i);
+        }
+      }
+    }
+  }
+  return ret;
+}
+
+namespace {
+std::vector<uint32_t> CreateCpuMask(const protos::gen::PerfEventConfig& cfg,
+                                    const EventConfig& event_config) {
+  std::set<uint32_t> target_cpus;
+  for (uint32_t cpu : cfg.target_cpu()) {
+    target_cpus.insert(cpu);
+  }
+
+  // If no CPUs were specified in the config, and we have PMU events,
+  // consult the PMUs' cpumasks.
+  if (target_cpus.empty()) {
+    auto add_pmu_cpus = [&](const std::string& pmu_name) {
+      if (pmu_name.empty())
+        return;
+      std::string path =
+          "/sys/bus/event_source/devices/" + pmu_name + "/cpumask";
+      std::string buf;
+      if (base::ReadFile(path, &buf)) {
+        auto pmu_cpus = ParseCpuList(base::TrimWhitespace(buf));
+        target_cpus.insert(pmu_cpus.begin(), pmu_cpus.end());
+      }
+    };
+
+    add_pmu_cpus(event_config.timebase_event().pmu_name);
+    for (const auto& follower : event_config.follower_events()) {
+      add_pmu_cpus(follower.pmu_name);
+    }
+  }
 
   std::vector<uint32_t> ret;
   uint32_t num_cpus = NumberOfCpus();
@@ -474,7 +520,8 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
     return;
   }
 
-  std::vector<uint32_t> target_cpus = CreateCpuMask(event_config_pb);
+  std::vector<uint32_t> target_cpus =
+      CreateCpuMask(event_config_pb, event_config.value());
   if (target_cpus.empty()) {
     PERFETTO_ELOG("No valid cpus.");
     return;

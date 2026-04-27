@@ -89,6 +89,9 @@ struct PerfCounter {
   bool attr_exclude_kernel = false;
   bool attr_exclude_hv = false;
 
+  // The name of the PMU if this is a raw event.
+  std::string pmu_name;
+
   Type event_type() const { return type; }
 
   static PerfCounter BuiltinCounter(std::string name,
@@ -105,7 +108,8 @@ struct PerfCounter {
                               uint32_t type,
                               uint64_t config,
                               uint64_t config1,
-                              uint64_t config2);
+                              uint64_t config2,
+                              std::string pmu_name = "");
 };
 
 // Describes a single profiling configuration. Bridges the gap between the data
@@ -143,6 +147,10 @@ class EventConfig {
   bool user_frames() const { return IsUserFramesEnabled(unwind_mode_); }
   bool kernel_frames() const { return kernel_frames_; }
   // clang-format on
+
+  // Public for testing.
+  static std::optional<uint64_t> ParseEventConfigValue(
+      const std::string& content);
 
  private:
   static bool IsUserFramesEnabled(

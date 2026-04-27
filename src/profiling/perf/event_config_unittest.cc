@@ -544,6 +544,18 @@ TEST(EventConfigTest, EventModifiers) {
   EXPECT_TRUE(follower_attr.exclude_hv);
 }
 
+TEST(EventConfigTest, ParseEventConfigValue) {
+  EXPECT_EQ(EventConfig::ParseEventConfigValue("0x43"), 0x43u);
+  EXPECT_EQ(EventConfig::ParseEventConfigValue("event=0x43"), 0x43u);
+  EXPECT_EQ(EventConfig::ParseEventConfigValue("event=0x43,umask=0x1"), 0x43u);
+  EXPECT_EQ(EventConfig::ParseEventConfigValue("umask=0x1,event=0x43"), 0x43u);
+  EXPECT_EQ(EventConfig::ParseEventConfigValue("config=0x123"), 0x123u);
+  EXPECT_EQ(EventConfig::ParseEventConfigValue(" 0x43 "), 0x43u);
+  EXPECT_EQ(EventConfig::ParseEventConfigValue(" event=0x43 "), 0x43u);
+  EXPECT_FALSE(EventConfig::ParseEventConfigValue("").has_value());
+  EXPECT_FALSE(EventConfig::ParseEventConfigValue("not_a_number").has_value());
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto
