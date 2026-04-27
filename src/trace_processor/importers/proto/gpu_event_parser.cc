@@ -52,6 +52,7 @@
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/android/gpu_mem_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h"
+#include "protos/perfetto/trace/gpu/gpu_interned_data.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_log.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/vulkan_api_event.pbzero.h"
@@ -712,7 +713,7 @@ void GpuEventParser::ParseExtraComputeArg(
   StringId name_id = kNullStringId;
   if (arg.has_name_iid()) {
     auto* interned = sequence_state->LookupInternedMessage<
-        protos::pbzero::InternedData::kComputeArgNamesFieldNumber,
+        protos::pbzero::GpuInternedData::kComputeArgNamesFieldNumber,
         protos::pbzero::InternedComputeArgName>(
         static_cast<size_t>(arg.name_iid()));
     if (interned) {
@@ -756,7 +757,7 @@ void GpuEventParser::ParseComputeKernel(
     uint64_t kernel_iid,
     ArgsTracker::BoundInserter* inserter) {
   auto* kernel = sequence_state->LookupInternedMessage<
-      protos::pbzero::InternedData::kComputeKernelsFieldNumber,
+      protos::pbzero::GpuInternedData::kComputeKernelsFieldNumber,
       protos::pbzero::InternedComputeKernel>(static_cast<size_t>(kernel_iid));
   if (!kernel) {
     return;
