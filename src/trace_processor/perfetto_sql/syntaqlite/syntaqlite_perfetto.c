@@ -23,12 +23,16 @@
 #ifndef __cplusplus
 #pragma GCC diagnostic ignored "-Wdeclaration-after-statement"
 #pragma GCC diagnostic ignored "-Wmissing-prototypes"
+#else
+#pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"
 #endif
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wextra-semi-stmt"
 #pragma clang diagnostic ignored "-Wold-style-cast"
 #pragma clang diagnostic ignored "-Wmissing-variable-declarations"
 #pragma clang diagnostic ignored "-Wimplicit-int-conversion"
+#pragma clang diagnostic ignored "-Wimplicit-int-enum-cast"
+#pragma clang diagnostic ignored "-Wimplicit-void-ptr-cast"
 #pragma clang diagnostic ignored "-Wshorten-64-to-32"
 #elif defined(__GNUC__) && !defined(__cplusplus)
 #pragma GCC diagnostic ignored "-Wold-style-declaration"
@@ -419,6 +423,7 @@ static const SyntaqliteFieldMeta field_meta_exists_expr[] = {
 
 static const SyntaqliteFieldMeta field_meta_in_expr[] = {
     {offsetof(SyntaqliteInExpr, negated), SYNTAQLITE_FIELD_BOOL, "negated", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
+    {offsetof(SyntaqliteInExpr, bare_source), SYNTAQLITE_FIELD_BOOL, "bare_source", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
     {offsetof(SyntaqliteInExpr, operand), SYNTAQLITE_FIELD_NODE_ID, "operand", NULL, 0},
     {offsetof(SyntaqliteInExpr, source), SYNTAQLITE_FIELD_NODE_ID, "source", NULL, 0},
 };
@@ -586,6 +591,10 @@ static const SyntaqliteFieldMeta field_meta_literal[] = {
     {offsetof(SyntaqliteLiteral, source), SYNTAQLITE_FIELD_SPAN, "source", NULL, 0},
 };
 
+static const SyntaqliteFieldMeta field_meta_paren_expr[] = {
+    {offsetof(SyntaqliteParenExpr, expr), SYNTAQLITE_FIELD_NODE_ID, "expr", NULL, 0},
+};
+
 static const SyntaqliteFieldMeta field_meta_ident_name[] = {
     {offsetof(SyntaqliteIdentName, source), SYNTAQLITE_FIELD_SPAN, "source", NULL, 0},
 };
@@ -676,6 +685,7 @@ static const SyntaqliteFieldMeta field_meta_limit_clause[] = {
 static const SyntaqliteFieldMeta field_meta_table_ref[] = {
     {offsetof(SyntaqliteTableRef, table_name), SYNTAQLITE_FIELD_SPAN, "table_name", NULL, 0},
     {offsetof(SyntaqliteTableRef, schema), SYNTAQLITE_FIELD_SPAN, "schema", NULL, 0},
+    {offsetof(SyntaqliteTableRef, has_parens), SYNTAQLITE_FIELD_BOOL, "has_parens", display_bool, sizeof(display_bool) / sizeof(display_bool[0])},
     {offsetof(SyntaqliteTableRef, alias), SYNTAQLITE_FIELD_NODE_ID, "alias", NULL, 0},
     {offsetof(SyntaqliteTableRef, args), SYNTAQLITE_FIELD_NODE_ID, "args", NULL, 0},
 };
@@ -1127,6 +1137,7 @@ static const char* const ast_meta_node_names[] = {
     "BinaryExpr",
     "UnaryExpr",
     "Literal",
+    "ParenExpr",
     "IdentName",
     "Error",
     "ExprList",
@@ -1227,6 +1238,7 @@ static const SyntaqliteFieldMeta* const ast_meta_field_meta[] = {
     field_meta_binary_expr, /* BinaryExpr */
     field_meta_unary_expr, /* UnaryExpr */
     field_meta_literal, /* Literal */
+    field_meta_paren_expr, /* ParenExpr */
     field_meta_ident_name, /* IdentName */
     field_meta_error, /* Error */
     NULL, /* ExprList */
@@ -1297,7 +1309,7 @@ static const uint8_t ast_meta_field_meta_counts[] = {
     3, /* CompoundSelect */
     1, /* SubqueryExpr */
     1, /* ExistsExpr */
-    3, /* InExpr */
+    4, /* InExpr */
     3, /* IsExpr */
     4, /* BetweenExpr */
     5, /* LikeExpr */
@@ -1325,6 +1337,7 @@ static const uint8_t ast_meta_field_meta_counts[] = {
     3, /* BinaryExpr */
     2, /* UnaryExpr */
     2, /* Literal */
+    1, /* ParenExpr */
     1, /* IdentName */
     1, /* Error */
     0, /* ExprList */
@@ -1343,7 +1356,7 @@ static const uint8_t ast_meta_field_meta_counts[] = {
     3, /* OrderingTerm */
     0, /* OrderByList */
     2, /* LimitClause */
-    4, /* TableRef */
+    5, /* TableRef */
     2, /* SubqueryTableSource */
     5, /* JoinClause */
     2, /* JoinPrefix */
@@ -1425,6 +1438,7 @@ static const uint8_t ast_meta_list_tags[] = {
     0, /* BinaryExpr */
     0, /* UnaryExpr */
     0, /* Literal */
+    0, /* ParenExpr */
     0, /* IdentName */
     0, /* Error */
     1, /* ExprList */
@@ -1525,6 +1539,7 @@ static const SyntaqliteRangeMetaEntry ast_meta_range_meta[] = {
     {NULL, 0}, /* BinaryExpr */
     {NULL, 0}, /* UnaryExpr */
     {range_meta_literal, 1}, /* Literal */
+    {NULL, 0}, /* ParenExpr */
     {range_meta_ident_name, 1}, /* IdentName */
     {range_meta_error, 1}, /* Error */
     {NULL, 0}, /* ExprList */
@@ -1846,11 +1861,27 @@ typedef struct SynqListDesc {
   uint32_t tag;
 } SynqListDesc;
 
-// Half-open byte range in the authored source, used by per-node extent
-// tracking.  Sentinel `(UINT32_MAX, 0)` marks an unrecorded/empty range.
+// Per-node extent: half-open byte range in the authored source plus an
+// inclusive token-index range into `p->tokens`.  Both ranges are
+// maintained by the extent hooks on one shadow stack and merged
+// together on reduce.
+//
+// Sentinels:
+//   `root_start == UINT32_MAX && root_end == 0` — no byte range recorded
+//       (pure epsilon reduction, neutral under min/max merging).
+//   `first_tok == UINT32_MAX` — no tokens recorded (layer-N shift with
+//       UINT32_MAX token_idx, or pure epsilon).  `last_tok` is then
+//       also UINT32_MAX.
+//
+// The two sentinels are independent: a macro-expansion-only node can
+// have a valid byte range (the call site's root coordinates) but no
+// layer-0 tokens — or have tokens in `p->tokens` after the token-stream
+// unification.  Consumers check the specific sentinel they care about.
 typedef struct SynqExtentRange {
   uint32_t root_start;
   uint32_t root_end;
+  uint32_t first_tok;
+  uint32_t last_tok;
 } SynqExtentRange;
 
 // Layer-local byte range used by per-node *expanded*-text tracking —
@@ -1917,7 +1948,7 @@ typedef struct SynqParseCtx {
 
   // Byte offset of the token Lemon is currently processing (in
   // root-source coordinates).  Set at the start of
-  // `synq_parser_record_and_feed` *before* `feed_one_token` runs, so
+  // `synq_parser_shift_token` *before* `SYNQ_PARSER_FEED` runs, so
   // empty-rule reductions firing inside the feed observe the offset of
   // the token they're about to be shifted alongside.  BEFORE-style
   // markers use this to capture the start position of a non-terminal
@@ -1927,7 +1958,7 @@ typedef struct SynqParseCtx {
 
   // Byte offset just past the end of the most recently shifted terminal
   // (in root-source coordinates).  Updated in
-  // `synq_parser_record_and_feed` *after* `feed_one_token` returns, so
+  // `synq_parser_shift_token` *after* `SYNQ_PARSER_FEED` returns, so
   // that empty-rule reductions firing inside the feed see the end of
   // the *previous* shifted terminal, not the current one.  AFTER-style
   // markers use this to capture the end position of a non-terminal.
@@ -2539,46 +2570,46 @@ static const uint8_t perfetto_fmt_string_data[] = {
     0x53,0x54,0x49,0x4e,0x43,0x54,0x53,0x45,0x4c,0x45,0x43,0x54,0x47,0x52,0x4f,0x55,
     0x50,0x20,0x42,0x59,0x48,0x41,0x56,0x49,0x4e,0x47,0x57,0x49,0x4e,0x44,0x4f,0x57,
     0x20,0x4e,0x55,0x4c,0x4c,0x53,0x20,0x46,0x49,0x52,0x53,0x54,0x20,0x4e,0x55,0x4c,
-    0x4c,0x53,0x20,0x4c,0x41,0x53,0x54,0x20,0x4f,0x46,0x46,0x53,0x45,0x54,0x20,0x4f,
-    0x4e,0x20,0x20,0x55,0x53,0x49,0x4e,0x47,0x20,0x28,0x4a,0x4f,0x49,0x4e,0x4c,0x45,
-    0x46,0x54,0x20,0x4a,0x4f,0x49,0x4e,0x52,0x49,0x47,0x48,0x54,0x20,0x4a,0x4f,0x49,
-    0x4e,0x46,0x55,0x4c,0x4c,0x20,0x4a,0x4f,0x49,0x4e,0x43,0x52,0x4f,0x53,0x53,0x20,
-    0x4a,0x4f,0x49,0x4e,0x4e,0x41,0x54,0x55,0x52,0x41,0x4c,0x20,0x4a,0x4f,0x49,0x4e,
-    0x4e,0x41,0x54,0x55,0x52,0x41,0x4c,0x20,0x4c,0x45,0x46,0x54,0x20,0x4a,0x4f,0x49,
-    0x4e,0x4e,0x41,0x54,0x55,0x52,0x41,0x4c,0x20,0x52,0x49,0x47,0x48,0x54,0x20,0x4a,
-    0x4f,0x49,0x4e,0x4e,0x41,0x54,0x55,0x52,0x41,0x4c,0x20,0x46,0x55,0x4c,0x4c,0x20,
-    0x4a,0x4f,0x49,0x4e,0x44,0x45,0x4c,0x45,0x54,0x45,0x20,0x4f,0x46,0x20,0x3b,0x20,
-    0x54,0x52,0x49,0x47,0x47,0x45,0x52,0x42,0x45,0x46,0x4f,0x52,0x45,0x41,0x46,0x54,
-    0x45,0x52,0x49,0x4e,0x53,0x54,0x45,0x41,0x44,0x20,0x4f,0x46,0x20,0x4f,0x4e,0x20,
-    0x43,0x52,0x45,0x41,0x54,0x45,0x20,0x56,0x49,0x52,0x54,0x55,0x41,0x4c,0x20,0x54,
-    0x41,0x42,0x4c,0x45,0x20,0x55,0x53,0x49,0x4e,0x47,0x20,0x50,0x52,0x41,0x47,0x4d,
-    0x41,0x20,0x52,0x45,0x49,0x4e,0x44,0x45,0x58,0x41,0x4e,0x41,0x4c,0x59,0x5a,0x45,
-    0x41,0x54,0x54,0x41,0x43,0x48,0x20,0x20,0x4b,0x45,0x59,0x20,0x44,0x45,0x54,0x41,
-    0x43,0x48,0x20,0x56,0x41,0x43,0x55,0x55,0x4d,0x45,0x58,0x50,0x4c,0x41,0x49,0x4e,
-    0x20,0x51,0x55,0x45,0x52,0x59,0x20,0x50,0x4c,0x41,0x4e,0x45,0x58,0x50,0x4c,0x41,
-    0x49,0x4e,0x20,0x55,0x4e,0x49,0x51,0x55,0x45,0x20,0x49,0x4e,0x44,0x45,0x58,0x20,
-    0x56,0x49,0x45,0x57,0x56,0x41,0x4c,0x55,0x45,0x53,0x55,0x4e,0x42,0x4f,0x55,0x4e,
-    0x44,0x45,0x44,0x20,0x50,0x52,0x45,0x43,0x45,0x44,0x49,0x4e,0x47,0x20,0x50,0x52,
-    0x45,0x43,0x45,0x44,0x49,0x4e,0x47,0x43,0x55,0x52,0x52,0x45,0x4e,0x54,0x20,0x52,
-    0x4f,0x57,0x20,0x46,0x4f,0x4c,0x4c,0x4f,0x57,0x49,0x4e,0x47,0x55,0x4e,0x42,0x4f,
-    0x55,0x4e,0x44,0x45,0x44,0x20,0x46,0x4f,0x4c,0x4c,0x4f,0x57,0x49,0x4e,0x47,0x52,
-    0x41,0x4e,0x47,0x45,0x52,0x4f,0x57,0x53,0x47,0x52,0x4f,0x55,0x50,0x53,0x20,0x45,
-    0x58,0x43,0x4c,0x55,0x44,0x45,0x20,0x4e,0x4f,0x20,0x4f,0x54,0x48,0x45,0x52,0x53,
-    0x20,0x45,0x58,0x43,0x4c,0x55,0x44,0x45,0x20,0x43,0x55,0x52,0x52,0x45,0x4e,0x54,
-    0x20,0x52,0x4f,0x57,0x20,0x45,0x58,0x43,0x4c,0x55,0x44,0x45,0x20,0x47,0x52,0x4f,
-    0x55,0x50,0x20,0x45,0x58,0x43,0x4c,0x55,0x44,0x45,0x20,0x54,0x49,0x45,0x53,0x50,
-    0x41,0x52,0x54,0x49,0x54,0x49,0x4f,0x4e,0x20,0x42,0x59,0x46,0x49,0x4c,0x54,0x45,
-    0x52,0x20,0x28,0x2e,0x2e,0x2e,0x54,0x41,0x42,0x4c,0x45,0x28,0x20,0x50,0x45,0x52,
-    0x46,0x45,0x54,0x54,0x4f,0x20,0x54,0x41,0x42,0x4c,0x45,0x20,0x20,0x50,0x45,0x52,
-    0x46,0x45,0x54,0x54,0x4f,0x20,0x56,0x49,0x45,0x57,0x20,0x20,0x50,0x45,0x52,0x46,
-    0x45,0x54,0x54,0x4f,0x20,0x46,0x55,0x4e,0x43,0x54,0x49,0x4f,0x4e,0x20,0x52,0x45,
-    0x54,0x55,0x52,0x4e,0x53,0x20,0x44,0x45,0x4c,0x45,0x47,0x41,0x54,0x45,0x53,0x20,
-    0x54,0x4f,0x20,0x20,0x50,0x45,0x52,0x46,0x45,0x54,0x54,0x4f,0x20,0x49,0x4e,0x44,
-    0x45,0x58,0x20,0x20,0x50,0x45,0x52,0x46,0x45,0x54,0x54,0x4f,0x20,0x4d,0x41,0x43,
-    0x52,0x4f,0x20,0x41,0x53,0x20,0x49,0x4e,0x43,0x4c,0x55,0x44,0x45,0x20,0x50,0x45,
-    0x52,0x46,0x45,0x54,0x54,0x4f,0x20,0x4d,0x4f,0x44,0x55,0x4c,0x45,0x20,0x44,0x52,
-    0x4f,0x50,0x20,0x50,0x45,0x52,0x46,0x45,0x54,0x54,0x4f,0x20,0x49,0x4e,0x44,0x45,
-    0x58,0x20,
+    0x4c,0x53,0x20,0x4c,0x41,0x53,0x54,0x20,0x4f,0x46,0x46,0x53,0x45,0x54,0x20,0x28,
+    0x29,0x4f,0x4e,0x20,0x20,0x55,0x53,0x49,0x4e,0x47,0x20,0x28,0x4a,0x4f,0x49,0x4e,
+    0x4c,0x45,0x46,0x54,0x20,0x4a,0x4f,0x49,0x4e,0x52,0x49,0x47,0x48,0x54,0x20,0x4a,
+    0x4f,0x49,0x4e,0x46,0x55,0x4c,0x4c,0x20,0x4a,0x4f,0x49,0x4e,0x43,0x52,0x4f,0x53,
+    0x53,0x20,0x4a,0x4f,0x49,0x4e,0x4e,0x41,0x54,0x55,0x52,0x41,0x4c,0x20,0x4a,0x4f,
+    0x49,0x4e,0x4e,0x41,0x54,0x55,0x52,0x41,0x4c,0x20,0x4c,0x45,0x46,0x54,0x20,0x4a,
+    0x4f,0x49,0x4e,0x4e,0x41,0x54,0x55,0x52,0x41,0x4c,0x20,0x52,0x49,0x47,0x48,0x54,
+    0x20,0x4a,0x4f,0x49,0x4e,0x4e,0x41,0x54,0x55,0x52,0x41,0x4c,0x20,0x46,0x55,0x4c,
+    0x4c,0x20,0x4a,0x4f,0x49,0x4e,0x44,0x45,0x4c,0x45,0x54,0x45,0x20,0x4f,0x46,0x20,
+    0x3b,0x20,0x54,0x52,0x49,0x47,0x47,0x45,0x52,0x42,0x45,0x46,0x4f,0x52,0x45,0x41,
+    0x46,0x54,0x45,0x52,0x49,0x4e,0x53,0x54,0x45,0x41,0x44,0x20,0x4f,0x46,0x20,0x4f,
+    0x4e,0x20,0x43,0x52,0x45,0x41,0x54,0x45,0x20,0x56,0x49,0x52,0x54,0x55,0x41,0x4c,
+    0x20,0x54,0x41,0x42,0x4c,0x45,0x20,0x55,0x53,0x49,0x4e,0x47,0x20,0x50,0x52,0x41,
+    0x47,0x4d,0x41,0x20,0x52,0x45,0x49,0x4e,0x44,0x45,0x58,0x41,0x4e,0x41,0x4c,0x59,
+    0x5a,0x45,0x41,0x54,0x54,0x41,0x43,0x48,0x20,0x20,0x4b,0x45,0x59,0x20,0x44,0x45,
+    0x54,0x41,0x43,0x48,0x20,0x56,0x41,0x43,0x55,0x55,0x4d,0x45,0x58,0x50,0x4c,0x41,
+    0x49,0x4e,0x20,0x51,0x55,0x45,0x52,0x59,0x20,0x50,0x4c,0x41,0x4e,0x45,0x58,0x50,
+    0x4c,0x41,0x49,0x4e,0x20,0x55,0x4e,0x49,0x51,0x55,0x45,0x20,0x49,0x4e,0x44,0x45,
+    0x58,0x20,0x56,0x49,0x45,0x57,0x56,0x41,0x4c,0x55,0x45,0x53,0x55,0x4e,0x42,0x4f,
+    0x55,0x4e,0x44,0x45,0x44,0x20,0x50,0x52,0x45,0x43,0x45,0x44,0x49,0x4e,0x47,0x20,
+    0x50,0x52,0x45,0x43,0x45,0x44,0x49,0x4e,0x47,0x43,0x55,0x52,0x52,0x45,0x4e,0x54,
+    0x20,0x52,0x4f,0x57,0x20,0x46,0x4f,0x4c,0x4c,0x4f,0x57,0x49,0x4e,0x47,0x55,0x4e,
+    0x42,0x4f,0x55,0x4e,0x44,0x45,0x44,0x20,0x46,0x4f,0x4c,0x4c,0x4f,0x57,0x49,0x4e,
+    0x47,0x52,0x41,0x4e,0x47,0x45,0x52,0x4f,0x57,0x53,0x47,0x52,0x4f,0x55,0x50,0x53,
+    0x20,0x45,0x58,0x43,0x4c,0x55,0x44,0x45,0x20,0x4e,0x4f,0x20,0x4f,0x54,0x48,0x45,
+    0x52,0x53,0x20,0x45,0x58,0x43,0x4c,0x55,0x44,0x45,0x20,0x43,0x55,0x52,0x52,0x45,
+    0x4e,0x54,0x20,0x52,0x4f,0x57,0x20,0x45,0x58,0x43,0x4c,0x55,0x44,0x45,0x20,0x47,
+    0x52,0x4f,0x55,0x50,0x20,0x45,0x58,0x43,0x4c,0x55,0x44,0x45,0x20,0x54,0x49,0x45,
+    0x53,0x50,0x41,0x52,0x54,0x49,0x54,0x49,0x4f,0x4e,0x20,0x42,0x59,0x46,0x49,0x4c,
+    0x54,0x45,0x52,0x20,0x28,0x2e,0x2e,0x2e,0x54,0x41,0x42,0x4c,0x45,0x28,0x20,0x50,
+    0x45,0x52,0x46,0x45,0x54,0x54,0x4f,0x20,0x54,0x41,0x42,0x4c,0x45,0x20,0x20,0x50,
+    0x45,0x52,0x46,0x45,0x54,0x54,0x4f,0x20,0x56,0x49,0x45,0x57,0x20,0x20,0x50,0x45,
+    0x52,0x46,0x45,0x54,0x54,0x4f,0x20,0x46,0x55,0x4e,0x43,0x54,0x49,0x4f,0x4e,0x20,
+    0x52,0x45,0x54,0x55,0x52,0x4e,0x53,0x20,0x44,0x45,0x4c,0x45,0x47,0x41,0x54,0x45,
+    0x53,0x20,0x54,0x4f,0x20,0x20,0x50,0x45,0x52,0x46,0x45,0x54,0x54,0x4f,0x20,0x49,
+    0x4e,0x44,0x45,0x58,0x20,0x20,0x50,0x45,0x52,0x46,0x45,0x54,0x54,0x4f,0x20,0x4d,
+    0x41,0x43,0x52,0x4f,0x20,0x41,0x53,0x20,0x49,0x4e,0x43,0x4c,0x55,0x44,0x45,0x20,
+    0x50,0x45,0x52,0x46,0x45,0x54,0x54,0x4f,0x20,0x4d,0x4f,0x44,0x55,0x4c,0x45,0x20,
+    0x44,0x52,0x4f,0x50,0x20,0x50,0x45,0x52,0x46,0x45,0x54,0x54,0x4f,0x20,0x49,0x4e,
+    0x44,0x45,0x58,0x20,
 };
 
 static const uint32_t perfetto_fmt_string_offsets[] = {
@@ -2592,19 +2623,19 @@ static const uint32_t perfetto_fmt_string_offsets[] = {
     1007,1008,1009,1010,1011,1012,1014,1016,1017,1019,1022,1024,1025,1026,1028,1030,
     1032,1034,1037,1038,1042,1049,1058,1064,1070,1078,1083,1087,1089,1094,1099,1104,
     1108,1115,1125,1137,1147,1161,1165,1177,1188,1193,1203,1213,1219,1229,1247,1269,
-    1271,1286,1292,1300,1306,1312,1324,1335,1343,1346,1354,1358,1367,1377,1386,1396,
-    1408,1425,1443,1460,1466,1470,1471,1479,1485,1490,1500,1504,1524,1531,1538,1545,
-    1552,1559,1564,1571,1577,1595,1602,1609,1615,1620,1626,1645,1655,1666,1676,1695,
-    1700,1704,1710,1728,1748,1762,1775,1787,1795,1798,1804,1820,1835,1854,1862,1875,
-    1891,1907,1910,1934,1954,
+    1271,1286,1292,1300,1306,1312,1324,1335,1343,1345,1348,1356,1360,1369,1379,1388,
+    1398,1410,1427,1445,1462,1468,1472,1473,1481,1487,1492,1502,1506,1526,1533,1540,
+    1547,1554,1561,1566,1573,1579,1597,1604,1611,1617,1622,1628,1647,1657,1668,1678,
+    1697,1702,1706,1712,1730,1750,1764,1777,1789,1797,1800,1806,1822,1837,1856,1864,
+    1877,1893,1909,1912,1936,1956,
 };
 
-static const uint32_t perfetto_fmt_string_count = 228;
+static const uint32_t perfetto_fmt_string_count = 229;
 
 static const uint16_t perfetto_fmt_enum_display[] = {
     12,13,14,15,110,111,112,113,114,115,116,117,118,119,120,121,
     122,123,124,125,126,127,128,129,111,110,130,131,141,142,143,144,
-    67,153,154,68,170,171,172,173,174,175,176,177,178,
+    67,153,154,68,171,172,173,174,175,176,177,178,179,
 };
 
 static const uint32_t perfetto_fmt_enum_display_count = 45;
@@ -2724,21 +2755,25 @@ static const uint8_t perfetto_fmt_ops[] = {
     4,0,0,0,0,0,
     0,0,3,0,0,0,
     7,0,0,0,0,0,
-    25,1,0,3,0,0,
+    25,2,0,3,0,0,
     17,0,0,0,2,0,
     0,0,17,0,0,0,
     11,0,0,0,2,0,
     0,0,18,0,0,0,
     12,0,0,0,0,0,
+    17,1,0,0,2,0,
+    2,3,0,0,0,0,
+    11,0,0,0,10,0,
     6,0,0,0,0,0,
     0,0,0,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
-    2,2,0,0,0,0,
+    2,3,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
     0,0,3,0,0,0,
     7,0,0,0,0,0,
+    12,0,0,0,0,0,
     19,0,2,0,3,0,
     25,1,0,3,0,0,
     0,0,19,0,0,0,
@@ -3536,6 +3571,11 @@ static const uint8_t perfetto_fmt_ops[] = {
     21,0,24,0,0,0,
     23,1,20,0,0,0,
     1,1,0,0,0,0,
+    6,0,0,0,0,0,
+    0,0,0,0,0,0,
+    2,0,0,0,0,0,
+    0,0,3,0,0,0,
+    7,0,0,0,0,0,
     1,0,0,0,0,0,
     20,0,0,0,2,0,
     1,0,0,0,0,0,
@@ -3780,20 +3820,24 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,11,0,0,0,
     12,0,0,0,0,0,
     1,0,0,0,0,0,
-    10,3,0,0,10,0,
+    10,4,0,0,10,0,
     6,0,0,0,0,0,
     0,0,0,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
-    2,3,0,0,0,0,
+    2,4,0,0,0,0,
     9,0,0,0,0,0,
     4,0,0,0,0,0,
     0,0,3,0,0,0,
     7,0,0,0,0,0,
+    11,0,0,0,4,0,
+    17,2,0,0,2,0,
+    0,0,168,0,0,0,
     12,0,0,0,0,0,
-    10,2,0,0,3,0,
+    12,0,0,0,0,0,
+    10,3,0,0,3,0,
     0,0,10,0,0,0,
-    2,2,0,0,0,0,
+    2,3,0,0,0,0,
     12,0,0,0,0,0,
     6,0,0,0,0,0,
     0,0,0,0,0,0,
@@ -3814,12 +3858,12 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,2,0,0,0,0,
     10,3,0,0,4,0,
     5,0,0,0,0,0,
-    0,0,168,0,0,0,
+    0,0,169,0,0,0,
     2,3,0,0,0,0,
     12,0,0,0,0,0,
     10,4,0,0,10,0,
     6,0,0,0,0,0,
-    0,0,169,0,0,0,
+    0,0,170,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
     2,4,0,0,0,0,
@@ -3838,13 +3882,13 @@ static const uint8_t perfetto_fmt_ops[] = {
     10,3,0,0,6,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
-    0,0,168,0,0,0,
+    0,0,169,0,0,0,
     2,3,0,0,0,0,
     9,0,0,0,0,0,
     12,0,0,0,0,0,
     10,4,0,0,10,0,
     6,0,0,0,0,0,
-    0,0,169,0,0,0,
+    0,0,170,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
     2,4,0,0,0,0,
@@ -3857,7 +3901,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     2,0,0,0,0,0,
     19,0,0,0,2,0,
-    0,0,179,0,0,0,
+    0,0,180,0,0,0,
     11,0,0,0,14,0,
     19,0,1,0,2,0,
     0,0,105,0,0,0,
@@ -3866,7 +3910,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,97,0,0,0,
     10,1,0,0,5,0,
     6,0,0,0,0,0,
-    0,0,180,0,0,0,
+    0,0,181,0,0,0,
     2,1,0,0,0,0,
     7,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -3875,7 +3919,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
-    0,0,181,0,0,0,
+    0,0,182,0,0,0,
     15,0,67,0,0,0,
     5,0,0,0,0,0,
     16,0,0,0,0,0,
@@ -3883,7 +3927,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     17,2,0,0,2,0,
     0,0,73,0,0,0,
     12,0,0,0,0,0,
-    0,0,182,0,0,0,
+    0,0,183,0,0,0,
     17,3,0,0,2,0,
     0,0,75,0,0,0,
     12,0,0,0,0,0,
@@ -3895,19 +3939,19 @@ static const uint8_t perfetto_fmt_ops[] = {
     1,0,0,0,0,0,
     0,0,29,0,0,0,
     19,4,0,0,2,0,
-    0,0,183,0,0,0,
+    0,0,184,0,0,0,
     11,0,0,0,8,0,
     19,4,1,0,2,0,
-    0,0,184,0,0,0,
+    0,0,185,0,0,0,
     11,0,0,0,4,0,
     19,4,2,0,2,0,
-    0,0,185,0,0,0,
+    0,0,186,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     0,0,29,0,0,0,
     2,5,0,0,0,0,
-    0,0,186,0,0,0,
+    0,0,187,0,0,0,
     2,6,0,0,0,0,
     10,7,0,0,4,0,
     5,0,0,0,0,0,
@@ -3924,7 +3968,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     5,0,0,0,0,0,
     0,0,37,0,0,0,
-    0,0,187,0,0,0,
+    0,0,188,0,0,0,
     17,3,0,0,2,0,
     0,0,75,0,0,0,
     12,0,0,0,0,0,
@@ -3934,14 +3978,14 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,11,0,0,0,
     12,0,0,0,0,0,
     1,0,0,0,0,0,
-    0,0,188,0,0,0,
+    0,0,189,0,0,0,
     1,2,0,0,0,0,
     20,4,0,0,4,0,
     0,0,0,0,0,0,
     1,4,0,0,0,0,
     0,0,3,0,0,0,
     12,0,0,0,0,0,
-    0,0,189,0,0,0,
+    0,0,190,0,0,0,
     20,1,0,0,3,0,
     1,1,0,0,0,0,
     0,0,11,0,0,0,
@@ -3958,9 +4002,9 @@ static const uint8_t perfetto_fmt_ops[] = {
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     19,2,1,0,2,0,
-    0,0,190,0,0,0,
-    11,0,0,0,2,0,
     0,0,191,0,0,0,
+    11,0,0,0,2,0,
+    0,0,192,0,0,0,
     12,0,0,0,0,0,
     20,1,0,0,5,0,
     0,0,29,0,0,0,
@@ -3973,17 +4017,17 @@ static const uint8_t perfetto_fmt_ops[] = {
     1,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
-    0,0,192,0,0,0,
+    0,0,193,0,0,0,
     2,0,0,0,0,0,
     0,0,10,0,0,0,
     2,1,0,0,0,0,
     10,2,0,0,3,0,
-    0,0,193,0,0,0,
+    0,0,194,0,0,0,
     2,2,0,0,0,0,
     12,0,0,0,0,0,
-    0,0,194,0,0,0,
-    2,0,0,0,0,0,
     0,0,195,0,0,0,
+    2,0,0,0,0,0,
+    0,0,196,0,0,0,
     20,0,0,0,3,0,
     0,0,29,0,0,0,
     1,0,0,0,0,0,
@@ -3993,18 +4037,18 @@ static const uint8_t perfetto_fmt_ops[] = {
     2,1,0,0,0,0,
     12,0,0,0,0,0,
     19,0,1,0,2,0,
-    0,0,196,0,0,0,
-    11,0,0,0,2,0,
     0,0,197,0,0,0,
+    11,0,0,0,2,0,
+    0,0,198,0,0,0,
     12,0,0,0,0,0,
     5,0,0,0,0,0,
     2,1,0,0,0,0,
     6,0,0,0,0,0,
     0,0,72,0,0,0,
     17,3,0,0,2,0,
-    0,0,198,0,0,0,
-    12,0,0,0,0,0,
     0,0,199,0,0,0,
+    12,0,0,0,0,0,
+    0,0,200,0,0,0,
     17,4,0,0,2,0,
     0,0,75,0,0,0,
     12,0,0,0,0,0,
@@ -4014,7 +4058,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,11,0,0,0,
     12,0,0,0,0,0,
     1,0,0,0,0,0,
-    0,0,186,0,0,0,
+    0,0,187,0,0,0,
     1,2,0,0,0,0,
     6,0,0,0,0,0,
     0,0,84,0,0,0,
@@ -4039,7 +4083,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     17,2,0,0,2,0,
     0,0,73,0,0,0,
     12,0,0,0,0,0,
-    0,0,200,0,0,0,
+    0,0,201,0,0,0,
     17,3,0,0,2,0,
     0,0,75,0,0,0,
     12,0,0,0,0,0,
@@ -4077,41 +4121,41 @@ static const uint8_t perfetto_fmt_ops[] = {
     3,0,0,0,0,0,
     16,0,0,0,0,0,
     6,0,0,0,0,0,
-    0,0,201,0,0,0,
+    0,0,202,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
     2,0,0,0,0,0,
     9,0,0,0,0,0,
     7,0,0,0,0,0,
     19,0,0,0,2,0,
-    0,0,202,0,0,0,
+    0,0,203,0,0,0,
     11,0,0,0,18,0,
     19,0,1,0,3,0,
     24,1,0,0,0,0,
-    0,0,203,0,0,0,
+    0,0,204,0,0,0,
     11,0,0,0,13,0,
     19,0,2,0,2,0,
-    0,0,204,0,0,0,
+    0,0,205,0,0,0,
     11,0,0,0,9,0,
     19,0,3,0,3,0,
     24,1,0,0,0,0,
-    0,0,205,0,0,0,
+    0,0,206,0,0,0,
     11,0,0,0,4,0,
     19,0,4,0,2,0,
-    0,0,206,0,0,0,
+    0,0,207,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     19,0,1,0,2,0,
-    0,0,207,0,0,0,
+    0,0,208,0,0,0,
     11,0,0,0,8,0,
     19,0,2,0,2,0,
-    0,0,208,0,0,0,
+    0,0,209,0,0,0,
     11,0,0,0,4,0,
     19,0,3,0,2,0,
-    0,0,209,0,0,0,
+    0,0,210,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -4120,16 +4164,16 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,27,0,0,0,
     2,3,0,0,0,0,
     19,1,1,0,2,0,
-    0,0,210,0,0,0,
+    0,0,211,0,0,0,
     11,0,0,0,12,0,
     19,1,2,0,2,0,
-    0,0,211,0,0,0,
+    0,0,212,0,0,0,
     11,0,0,0,8,0,
     19,1,3,0,2,0,
-    0,0,212,0,0,0,
+    0,0,213,0,0,0,
     11,0,0,0,4,0,
     19,1,4,0,2,0,
-    0,0,213,0,0,0,
+    0,0,214,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
     12,0,0,0,0,0,
@@ -4142,7 +4186,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     8,0,0,0,0,0,
     4,0,0,0,0,0,
     10,1,0,0,6,0,
-    0,0,214,0,0,0,
+    0,0,215,0,0,0,
     8,0,0,0,0,0,
     3,0,0,0,0,0,
     2,1,0,0,0,0,
@@ -4190,7 +4234,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     16,0,0,0,0,0,
     10,0,0,0,11,0,
     6,0,0,0,0,0,
-    0,0,215,0,0,0,
+    0,0,216,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
     0,0,5,0,0,0,
@@ -4212,7 +4256,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,29,0,0,0,
     1,1,0,0,0,0,
     17,2,0,0,2,0,
-    0,0,216,0,0,0,
+    0,0,217,0,0,0,
     12,0,0,0,0,0,
     22,0,0,0,0,0,
     14,0,0,0,0,0,
@@ -4238,7 +4282,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     11,0,0,0,12,0,
     19,0,1,0,10,0,
     6,0,0,0,0,0,
-    0,0,217,0,0,0,
+    0,0,218,0,0,0,
     8,0,0,0,0,0,
     4,0,0,0,0,0,
     2,2,0,0,0,0,
@@ -4254,10 +4298,10 @@ static const uint8_t perfetto_fmt_ops[] = {
     17,1,0,0,2,0,
     0,0,102,0,0,0,
     12,0,0,0,0,0,
-    0,0,218,0,0,0,
+    0,0,219,0,0,0,
     1,0,0,0,0,0,
     10,2,0,0,3,0,
-    0,0,188,0,0,0,
+    0,0,189,0,0,0,
     2,2,0,0,0,0,
     12,0,0,0,0,0,
     10,3,0,0,8,0,
@@ -4283,7 +4327,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     17,1,0,0,2,0,
     0,0,102,0,0,0,
     12,0,0,0,0,0,
-    0,0,219,0,0,0,
+    0,0,220,0,0,0,
     1,0,0,0,0,0,
     10,2,0,0,8,0,
     0,0,0,0,0,0,
@@ -4304,7 +4348,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     17,1,0,0,2,0,
     0,0,102,0,0,0,
     12,0,0,0,0,0,
-    0,0,220,0,0,0,
+    0,0,221,0,0,0,
     1,0,0,0,0,0,
     0,0,0,0,0,0,
     10,2,0,0,6,0,
@@ -4317,7 +4361,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,3,0,0,0,
     7,0,0,0,0,0,
     5,0,0,0,0,0,
-    0,0,221,0,0,0,
+    0,0,222,0,0,0,
     2,3,0,0,0,0,
     5,0,0,0,0,0,
     0,0,76,0,0,0,
@@ -4328,7 +4372,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     17,1,0,0,2,0,
     0,0,102,0,0,0,
     12,0,0,0,0,0,
-    0,0,220,0,0,0,
+    0,0,221,0,0,0,
     1,0,0,0,0,0,
     0,0,0,0,0,0,
     10,2,0,0,6,0,
@@ -4341,19 +4385,19 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,3,0,0,0,
     7,0,0,0,0,0,
     5,0,0,0,0,0,
-    0,0,221,0,0,0,
+    0,0,222,0,0,0,
     2,3,0,0,0,0,
     5,0,0,0,0,0,
-    0,0,222,0,0,0,
+    0,0,223,0,0,0,
     1,4,0,0,0,0,
     6,0,0,0,0,0,
     0,0,72,0,0,0,
     17,1,0,0,2,0,
     0,0,102,0,0,0,
     12,0,0,0,0,0,
-    0,0,223,0,0,0,
+    0,0,224,0,0,0,
     1,0,0,0,0,0,
-    0,0,186,0,0,0,
+    0,0,187,0,0,0,
     1,2,0,0,0,0,
     0,0,0,0,0,0,
     8,0,0,0,0,0,
@@ -4368,7 +4412,7 @@ static const uint8_t perfetto_fmt_ops[] = {
     17,1,0,0,2,0,
     0,0,102,0,0,0,
     12,0,0,0,0,0,
-    0,0,224,0,0,0,
+    0,0,225,0,0,0,
     1,0,0,0,0,0,
     0,0,0,0,0,0,
     10,4,0,0,6,0,
@@ -4381,46 +4425,46 @@ static const uint8_t perfetto_fmt_ops[] = {
     0,0,3,0,0,0,
     7,0,0,0,0,0,
     5,0,0,0,0,0,
-    0,0,221,0,0,0,
+    0,0,222,0,0,0,
     1,2,0,0,0,0,
     5,0,0,0,0,0,
-    0,0,225,0,0,0,
-    1,3,0,0,0,0,
     0,0,226,0,0,0,
-    1,0,0,0,0,0,
+    1,3,0,0,0,0,
     0,0,227,0,0,0,
     1,0,0,0,0,0,
-    0,0,186,0,0,0,
+    0,0,228,0,0,0,
+    1,0,0,0,0,0,
+    0,0,187,0,0,0,
     1,1,0,0,0,0,
 };
 
-static const uint32_t perfetto_fmt_ops_count = 10692;
+static const uint32_t perfetto_fmt_ops_count = 10770;
 
 static const uint32_t perfetto_fmt_dispatch[] = {
     0xffff0000,0x00000023,0x00230029,0x004c0005,0x00510009,0x005a0005,0x005f0009,0x0068000a,
-    0x0072000f,0x00810021,0x00a20009,0x00ab001b,0x00c60013,0x00d90005,0x00de0003,0x00e10033,
-    0x01140083,0x01970005,0x019c000d,0x01a90005,0x01ae005c,0x020a0005,0x020f002f,0x023e001c,
-    0x025a0005,0x025f000f,0x026e0025,0x02930005,0x02980039,0x02d10011,0x02e20005,0x02e7005a,
-    0x03410045,0x03860015,0x039b0002,0x039d0001,0x039e0001,0x039f0005,0x03a40005,0x03a90023,
-    0x03cc0001,0x03cd0003,0x03d00015,0x03e50005,0x03ea0007,0x03f1001a,0x040b000c,0x0417000e,
-    0x0425000e,0x04330005,0x04380041,0x0479000a,0x04830005,0x04880005,0x048d0014,0x04a1000d,
-    0x04ae002f,0x04dd0001,0x04de0011,0x04ef0006,0x04f5002d,0x05220011,0x05330010,0x05430010,
-    0x05530008,0x055b0002,0x055d0009,0x05660007,0x056d0023,0x0590001d,0x05ad000d,0x05ba0007,
-    0x05c10015,0x05d6001e,0x05f40029,0x061d0005,0x06220003,0x06250005,0x062a0014,0x063e0006,
-    0x06440005,0x06490003,0x064c0005,0x06510001,0x06520005,0x0657000f,0x06660001,0x0667001d,
-    0x06840015,0x06990018,0x06b10017,0x06c80011,0x06d90017,0x06f00002,0x06f20004,
+    0x00720013,0x00850021,0x00a60009,0x00af001b,0x00ca0013,0x00dd0005,0x00e20003,0x00e50033,
+    0x01180083,0x019b0005,0x01a0000d,0x01ad0005,0x01b2005c,0x020e0005,0x0213002f,0x0242001c,
+    0x025e0005,0x0263000f,0x02720025,0x02970005,0x029c0039,0x02d50011,0x02e60005,0x02eb005a,
+    0x03450045,0x038a0015,0x039f0002,0x03a10001,0x03a20005,0x03a70001,0x03a80005,0x03ad0005,
+    0x03b20023,0x03d50001,0x03d60003,0x03d90015,0x03ee0005,0x03f30007,0x03fa001a,0x0414000c,
+    0x0420000e,0x042e000e,0x043c0005,0x04410041,0x0482000a,0x048c0005,0x04910005,0x04960018,
+    0x04ae000d,0x04bb002f,0x04ea0001,0x04eb0011,0x04fc0006,0x0502002d,0x052f0011,0x05400010,
+    0x05500010,0x05600008,0x05680002,0x056a0009,0x05730007,0x057a0023,0x059d001d,0x05ba000d,
+    0x05c70007,0x05ce0015,0x05e3001e,0x06010029,0x062a0005,0x062f0003,0x06320005,0x06370014,
+    0x064b0006,0x06510005,0x06560003,0x06590005,0x065e0001,0x065f0005,0x0664000f,0x06730001,
+    0x0674001d,0x06910015,0x06a60018,0x06be0017,0x06d50011,0x06e60017,0x06fd0002,0x06ff0004,
 };
 
-static const uint32_t perfetto_fmt_dispatch_count = 95;
+static const uint32_t perfetto_fmt_dispatch_count = 96;
 
 static const uint8_t perfetto_fmt_prec_table[] = {
     6,0,6,0,7,0,7,0,7,0,4,0,4,0,4,0,
     4,0,3,0,3,0,2,128,1,0,5,1,5,1,5,1,
     5,1,8,0,8,0,8,0,0,127,0,127,0,127,255,127,
-    3,0,3,0,3,0,3,0,9,0,
+    3,0,3,0,3,0,3,0,255,127,9,0,
 };
 
-static const uint32_t perfetto_fmt_prec_table_count = 58;
+static const uint32_t perfetto_fmt_prec_table_count = 60;
 
 static const uint32_t perfetto_fmt_expr_meta[] = {
     0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
@@ -4428,16 +4472,16 @@ static const uint32_t perfetto_fmt_expr_meta[] = {
     0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
     0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
     0xffffffff,0x00000000,0x00001400,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
-    0xffffffff,0x00001cff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
+    0xffffffff,0xffffffff,0x00001dff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
     0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
     0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
     0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
     0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
     0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
-    0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
+    0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,0xffffffff,
 };
 
-static const uint32_t perfetto_fmt_expr_meta_count = 95;
+static const uint32_t perfetto_fmt_expr_meta_count = 96;
 
 
 #endif  /* SYNTAQLITE_PERFETTO_DIALECT_FMT_H */
@@ -4497,6 +4541,7 @@ static const uint8_t perfetto_roles_data[] = {
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+    0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x07,0x00,0x02,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
@@ -4512,7 +4557,7 @@ static const uint8_t perfetto_roles_data[] = {
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x09,0x00,0x00,0x02,0x00,0x00,0x00,0x00,
+    0x09,0x00,0x00,0x03,0x00,0x00,0x00,0x00,
     0x0a,0x00,0x01,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
@@ -4555,13 +4600,13 @@ static const uint8_t perfetto_roles_data[] = {
     0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
 };
 
-static const uint32_t perfetto_roles_count = 95;
+static const uint32_t perfetto_roles_count = 96;
 
 /* Macro definition metadata for the perfetto dialect. */
 /* Each entry is 8 bytes: node_tag(u16) + 4 field indices + 2 pad. */
 
 static const uint8_t perfetto_macro_defs_data[] = {
-    0x5c,0x00,0x00,0x03,0x04,0x00,0x00,0x00,
+    0x5d,0x00,0x00,0x03,0x04,0x00,0x00,0x00,
 };
 
 static const uint32_t perfetto_macro_defs_count = 1;
@@ -4624,7 +4669,7 @@ static const SyntaqliteDialectTemplate PERFETTO_DIALECT = {
     // Token metadata
     .token_categories = token_categories,
     .token_type_count = TOKEN_TYPE_COUNT,
-    .macro_style = SYNQ_MACRO_STYLE_NONE,
+    .macro_style = SYNQ_MACRO_STYLE_RUST,
 
     .fmt_str_data = perfetto_fmt_string_data,
     .fmt_str_offsets = perfetto_fmt_string_offsets,
@@ -4779,6 +4824,19 @@ extern "C" {
 // ── Tunables ────────────────────────────────────────────────────────────────
 
 #define SYNQ_MAX_MACRO_DEPTH 16
+
+// Per-token comment index entry.  Each entry records where the owning
+// token's leading / trailing comments live in `p->comments`.  Used by
+// `syntaqlite_token_{leading,trailing}_comments` for O(1) lookup.
+typedef struct SynqTokenComments {
+  uint32_t leading_first;  // Index into p->comments; UINT32_MAX if count==0.
+  uint32_t leading_count;
+  uint32_t trailing_first;  // Index into p->comments; UINT32_MAX if count==0.
+  uint32_t trailing_count;
+} SynqTokenComments;
+
+#define SYNQ_TOKEN_COMMENTS_EMPTY \
+  ((SynqTokenComments){UINT32_MAX, 0, UINT32_MAX, 0})
 
 #if defined(__GNUC__) || defined(__clang__)
 #define SYNQ_NOINLINE __attribute__((noinline))
@@ -4963,12 +5021,15 @@ struct SyntaqliteParser {
   uint32_t last_token_type;  // Last non-whitespace token fed to Lemon.
   uint32_t finished;         // 1 after EOF has been sent to Lemon.
   uint32_t had_comment;      // 1 if any comment token was seen this stmt.
-  // End offset (in p->source) of the most recent layer-0 significant
-  // token recorded into p->tokens this statement, or UINT32_MAX if none.
-  // Used to classify a recorded comment as TRAILING (same source line as
-  // the preceding token) vs LEADING (its own line / before any token).
-  uint32_t last_layer0_token_end;
-  int32_t last_status;  // Last SYNTAQLITE_PARSE_* status returned.
+  // End offset (in `p->ctx.source` coordinates) of the most recent
+  // token recorded into `p->tokens` this statement, or `UINT32_MAX`
+  // if none.  Used by `synq_parser_record_comment` to classify a
+  // comment as TRAILING (same line as the preceding token, in the
+  // same layer buffer) vs LEADING (its own line, before any token, or
+  // in a different layer from the last push).
+  uint32_t last_pushed_token_ctx_end;
+  uint32_t last_pushed_token_layer;  // Layer of that token; UINT32_MAX if none.
+  int32_t last_status;               // Last SYNTAQLITE_PARSE_* status returned.
   uint32_t trace;
   uint32_t collect_tokens;
   uint32_t sealed;
@@ -4976,6 +5037,24 @@ struct SyntaqliteParser {
                            // cleared on next feed_token call.
   SYNQ_VEC(SyntaqliteComment) comments;
   SYNQ_VEC(SyntaqliteParserToken) tokens;
+
+  // Per-token comment index, parallel to `tokens` (one entry per
+  // shifted terminal).  Populated incrementally by
+  // `synq_parser_record_comment` and seeded at token-push in
+  // `synq_parser_shift_token` from `pending_orphan_leading`.  Lets
+  // `syntaqlite_token_{leading,trailing}_comments` answer in O(1)
+  // without a separate build step.  `leading_first` / `trailing_first`
+  // are `UINT32_MAX` when the corresponding count is zero.
+  SYNQ_VEC(SynqTokenComments) token_comments;
+
+  // Orphan bucket for leading comments whose predicted owner token
+  // has not been pushed yet.  On the next token push this gets copied
+  // into the new `token_comments` entry and reset to empty.  If the
+  // statement ends with this still populated, it's the "statement-
+  // trailing with no owner" case and is surfaced via
+  // `token_leading_comments(ntokens)`.  Only `leading_*` is ever
+  // non-empty: trailing comments always have a previous token.
+  SynqTokenComments pending_orphan_leading;
 
   // ── Macro expansion state (compiled out with SYNTAQLITE_OMIT_MACROS) ───
 #ifndef SYNTAQLITE_OMIT_MACROS
@@ -5007,18 +5086,25 @@ void synq_parser_record_comment(SyntaqliteParser* p,
 // parser_macros.c as a convenient exit helper).
 int32_t synq_parser_set_result_status(SyntaqliteParser* p, int32_t rc);
 
-// Feed one token to Lemon. Returns 0/1/-1 (see parser.c for semantics).
-int synq_parser_feed_one_token(SyntaqliteParser* p,
-                               uint32_t token_type,
-                               const char* text,
-                               uint32_t len,
-                               uint32_t token_idx);
-
-// Record a token into p->tokens (if enabled) and feed it to Lemon.
-int synq_parser_record_and_feed(SyntaqliteParser* p,
-                                uint32_t cur_type,
-                                uint32_t cur_offset,
-                                uint32_t cur_len);
+// Unified token shift — the sole path that terminals take into Lemon.
+// Pushes to p->tokens (if collect_tokens is on and text is non-null),
+// builds the SynqParseToken with a real token_idx, feeds Lemon, and
+// updates per-layer parser bookkeeping.
+//
+// `layer_offset` is interpreted layer-locally:
+//   - layer 0: statement-relative
+//   - layer N: buffer-local (offset into the expansion layer)
+// `p->ctx.layer_id` must already reflect the token's layer.
+//
+// Returns 1 if Lemon flagged `stmt_completed`, 0 otherwise.  Layer-N
+// callers (macro expansion) handle their own error messages and clear
+// `p->ctx.error` themselves — this function sets `p->had_error` but
+// leaves `p->ctx.error` intact when layer_id != 0.
+int synq_parser_shift_token(SyntaqliteParser* p,
+                            uint32_t token_type,
+                            const char* text,
+                            uint32_t len,
+                            uint32_t layer_offset);
 
 #ifndef SYNTAQLITE_OMIT_MACROS
 
@@ -5164,6 +5250,8 @@ static void reset_stmt(SyntaqliteParser* p) {
   synq_parse_ctx_clear(&p->ctx);
   syntaqlite_vec_clear(&p->comments);
   syntaqlite_vec_clear(&p->tokens);
+  syntaqlite_vec_clear(&p->token_comments);
+  p->pending_orphan_leading = SYNQ_TOKEN_COMMENTS_EMPTY;
 #ifndef SYNTAQLITE_OMIT_MACROS
   syntaqlite_vec_clear(&p->macro.traceback_buf);
   syntaqlite_vec_clear(&p->macro.node_expanded_buf);
@@ -5184,7 +5272,8 @@ static void reset_stmt(SyntaqliteParser* p) {
   p->ctx.saw_subquery = 0;
   p->ctx.saw_update_delete_limit = 0;
   p->had_comment = 0;
-  p->last_layer0_token_end = UINT32_MAX;
+  p->last_pushed_token_ctx_end = UINT32_MAX;
+  p->last_pushed_token_layer = UINT32_MAX;
   p->had_error = 0;
   p->error_msg[0] = '\0';
   p->ctx.error_offset = 0xFFFFFFFF;
@@ -5195,7 +5284,7 @@ static void reset_stmt(SyntaqliteParser* p) {
   p->stmt_source = p->source;
 }
 
-// Handle a statement boundary after feed_one_token returns 1.
+// Handle a statement boundary after shift_token returns 1.
 // Reinitializes Lemon and classifies the completed statement:
 //   SYNTAQLITE_PARSE_OK    — successful statement (root is set)
 //   SYNTAQLITE_PARSE_ERROR — statement with syntax error(s)
@@ -5235,6 +5324,8 @@ SYNTAQLITE_API SyntaqliteParser* syntaqlite_parser_create_with_dialect(
   synq_parse_ctx_init(&p->ctx, m);
   syntaqlite_vec_init(&p->comments);
   syntaqlite_vec_init(&p->tokens);
+  syntaqlite_vec_init(&p->token_comments);
+  p->pending_orphan_leading = SYNQ_TOKEN_COMMENTS_EMPTY;
 #ifndef SYNTAQLITE_OMIT_MACROS
   synq_macro_state_init(&p->macro);
 #endif
@@ -5282,6 +5373,7 @@ SYNTAQLITE_API void syntaqlite_parser_destroy(SyntaqliteParser* p) {
     SYNQ_PARSER_FREE(p->dialect.tmpl, p->lemon, p->mem.xFree);
     synq_parse_ctx_free(&p->ctx);
     syntaqlite_vec_free(&p->comments, p->mem);
+    syntaqlite_vec_free(&p->token_comments, p->mem);
     syntaqlite_vec_free(&p->tokens, p->mem);
 #ifndef SYNTAQLITE_OMIT_MACROS
     synq_macro_state_free(&p->macro, p->mem);
@@ -5295,39 +5387,101 @@ SYNTAQLITE_API void syntaqlite_parser_destroy(SyntaqliteParser* p) {
 // Returns: 0 = keep going, 1 = statement completed, -1 = unrecoverable error.
 // ---------------------------------------------------------------------------
 
-int synq_parser_feed_one_token(SyntaqliteParser* p,
-                               uint32_t token_type,
-                               const char* text,
-                               uint32_t len,
-                               uint32_t token_idx) {
-  // Only called from layer-0 paths — macro expansion bypasses this —
-  // so the offset Lemon stores into TextSpans is statement-relative.
-  uint32_t tok_offset = text ? (uint32_t)(text - p->stmt_source) : 0;
+// Unified token shift: push the token to `p->tokens` (when
+// `collect_tokens` is on and `text` is non-null), build the
+// `SynqParseToken` with a real `token_idx`, feed Lemon, and maintain
+// per-layer parser bookkeeping.  The sole path that terminals take
+// into Lemon — called by the main tokenizer loop, by the macro
+// expansion loop, by the fallback-macro consolidator, and by the
+// low-level incremental feed API.
+//
+// `text` points to the token bytes in their owning buffer (the source
+// for layer 0, an expansion layer's buffer for layer N).  May be NULL
+// for synthesized tokens (SEMI/EOF at end-of-input); in that case no
+// vec entry is pushed and the shift markers do not advance.
+//
+// `layer_offset` is the token's offset within its owning buffer:
+//   - for layer 0: statement-relative (identical to `text - stmt_source`)
+//   - for layer N: position within the expansion buffer
+// `p->ctx.layer_id` must already reflect the token's layer.
+//
+// Returns 1 if Lemon flagged the statement as completed, 0 otherwise.
+// Layer-N callers (macro expansion) handle their own error messages
+// and clear `p->ctx.error` themselves; for them, this function sets
+// `p->had_error` but leaves the error flag intact.
+int synq_parser_shift_token(SyntaqliteParser* p,
+                            uint32_t token_type,
+                            const char* text,
+                            uint32_t len,
+                            uint32_t layer_offset) {
+  uint32_t layer_id = p->ctx.layer_id;
+  uint32_t tidx = 0xFFFFFFFF;
+
+  if (p->collect_tokens && text) {
+    SyntaqliteParserToken tp = {layer_offset, len, token_type, 0, layer_id};
+    syntaqlite_vec_push(&p->tokens, tp, p->mem);
+    tidx = syntaqlite_vec_len(&p->tokens) - 1;
+    // Pair the new token with its comment-index entry.  Seed from
+    // `pending_orphan_leading` so comments whose predicted owner was
+    // this about-to-be-pushed token land at the right slot, then
+    // reset the orphan bucket.
+    syntaqlite_vec_push(&p->token_comments, p->pending_orphan_leading, p->mem);
+    p->pending_orphan_leading = SYNQ_TOKEN_COMMENTS_EMPTY;
+    // Remember this token's end in `p->ctx.source` coordinates so
+    // `synq_parser_record_comment` can decide same-line trailing
+    // attachment within whichever buffer it is tokenizing.  For
+    // layer 0, `ctx.source == p->source` so the end is source-
+    // absolute; for layer N, `ctx.source` is the expansion buffer so
+    // the end is layer-local.  `layer_id` alongside lets record_comment
+    // reject prev-ends from a different layer than the current one.
+    p->last_pushed_token_ctx_end =
+        layer_id == 0 ? p->stmt_start_offset + layer_offset + len
+                      : layer_offset + len;
+    p->last_pushed_token_layer = layer_id;
+  }
+
+  // BEFORE-style empty-rule markers (ast_builder.h:117) are documented
+  // as valid for layer-0 shifts only.  Publish cur_shift_start before
+  // SYNQ_PARSER_FEED so reductions firing inside the feed observe it.
+  if (layer_id == 0) {
+    p->ctx.cur_shift_start = layer_offset;
+  }
+
   SynqParseToken minor = {
       .z = text,
       .n = len,
       .type = token_type,
-      .token_idx = token_idx,
-      .offset = tok_offset,
-      .layer_id = p->ctx.layer_id,
+      .token_idx = tidx,
+      .offset = layer_offset,
+      .layer_id = layer_id,
   };
   SYNQ_PARSER_FEED(p->dialect.tmpl, p->lemon, (int)token_type, minor);
   p->last_token_type = token_type;
 
+  // AFTER-style markers: also layer-0.  Advance after feed so reductions
+  // inside feed saw the previous terminal's end.
+  if (layer_id == 0) {
+    p->ctx.last_shifted_end = layer_offset + len;
+  }
+
   if (p->ctx.error) {
     p->had_error = 1;
-    if (p->error_msg[0] == '\0') {
-      if (text) {
-        p->ctx.error_offset = (uint32_t)(text - p->stmt_source);
-        p->ctx.error_length = (uint32_t)len;
-        snprintf(p->error_msg, sizeof(p->error_msg), "syntax error near '%.*s'",
-                 len, text);
-      } else {
-        snprintf(p->error_msg, sizeof(p->error_msg),
-                 "incomplete SQL statement");
+    if (layer_id == 0) {
+      if (p->error_msg[0] == '\0') {
+        if (text) {
+          p->ctx.error_offset = layer_offset;
+          p->ctx.error_length = len;
+          snprintf(p->error_msg, sizeof(p->error_msg),
+                   "syntax error near '%.*s'", len, text);
+        } else {
+          snprintf(p->error_msg, sizeof(p->error_msg),
+                   "incomplete SQL statement");
+        }
       }
+      p->ctx.error = 0;  // Lemon is now driving recovery.
     }
-    p->ctx.error = 0;  // Lemon is now driving recovery.
+    // Layer-N: leave p->ctx.error set; expand_and_feed builds a
+    // macro-specific message and clears the flag.
     return 0;
   }
 
@@ -5340,7 +5494,7 @@ int synq_parser_feed_one_token(SyntaqliteParser* p,
 }
 
 // Local shorthand for the cross-file helper.
-#define feed_one_token synq_parser_feed_one_token
+#define shift_token synq_parser_shift_token
 
 // ---------------------------------------------------------------------------
 // Internal: synthesize SEMI + EOF to finish parsing.
@@ -5362,7 +5516,7 @@ static int finish_input(SyntaqliteParser* p) {
 
   // Synthesize SEMI if the last token wasn't one.
   if (p->last_token_type != SYNTAQLITE_TK_SEMI) {
-    int rc = feed_one_token(p, SYNTAQLITE_TK_SEMI, NULL, 0, 0xFFFFFFFF);
+    int rc = shift_token(p, SYNTAQLITE_TK_SEMI, NULL, 0, 0);
     if (rc == 1) {
       int32_t status = stmt_boundary(p);
       if (status != SYNTAQLITE_PARSE_DONE) {
@@ -5413,72 +5567,129 @@ static int finish_input(SyntaqliteParser* p) {
 // Internal: token recording and feeding
 // ---------------------------------------------------------------------------
 
-// Record a token and feed it to Lemon.  Returns 1 if a real statement
-// boundary was reached (caller should return stmt_boundary()), 0 otherwise.
-// Always called at layer 0; stores offsets relative to stmt_source.
-int synq_parser_record_and_feed(SyntaqliteParser* p,
-                                uint32_t cur_type,
-                                uint32_t cur_offset,
-                                uint32_t cur_len) {
-  uint32_t tidx = 0xFFFFFFFF;
-  uint32_t cur_offset_rel = cur_offset - p->stmt_start_offset;
-  if (p->collect_tokens) {
-    SyntaqliteParserToken tp = {cur_offset_rel, cur_len, cur_type, 0,
-                                p->ctx.layer_id};
-    syntaqlite_vec_push(&p->tokens, tp, p->mem);
-    tidx = syntaqlite_vec_len(&p->tokens) - 1;
-    p->last_layer0_token_end = cur_offset + cur_len;
-  }
-  // Publish the upcoming token's start *before* Lemon processes it so
-  // that BEFORE-style empty-marker reductions firing inside feed_one_token
-  // see the start of the token about to be shifted (whitespace between
-  // the previous terminal and this one is excluded).
-  p->ctx.cur_shift_start = cur_offset_rel;
-  int rc = feed_one_token(p, cur_type, p->source + cur_offset, cur_len, tidx);
-  // Advance the "last shifted terminal end" cursor *after* Lemon finishes
-  // processing `cur`, so that any empty-rule reductions that fired inside
-  // feed_one_token observed the previous shifted token's end.  AFTER-style
-  // markers use this to capture the end position of a non-terminal.
-  p->ctx.last_shifted_end = cur_offset_rel + cur_len;
-  // After parse_failure, Lemon stops reducing — force a boundary on SEMI
-  // so errors don't bleed into subsequent statements.
-  if (p->had_error && rc == 0 && cur_type == SYNTAQLITE_TK_SEMI)
-    rc = 1;
-  if (rc == 1 && (p->ctx.root != SYNTAQLITE_NULL_NODE || p->had_error))
-    return 1;
-  return 0;
-}
-
 // Record a comment token (outlined from the hot loop).
 //
-// Computes attachment from the parser's current state: a comment is
-// TRAILING the previous layer-0 token when there is no '\n' in the source
-// gap between that token's end and the comment's start; otherwise LEADING
-// the next token to be pushed. The predicted owner index for LEADING
-// comments equals `vec_len(p->tokens)` — the index the next push will
-// land on.
+// `offset` is interpreted in `p->ctx.source` coordinates:
+//   - layer 0: source-absolute (ctx.source == p->source).
+//   - layer N: layer-local (ctx.source is the expansion buffer).
+//
+// Classification:
+//   - Same-line with prev token + something else on the line after this
+//     comment → LEADING on the next token (block "between two tokens").
+//   - Same-line with prev + rest of line empty (whitespace/comments only)
+//     → TRAILING on prev token.  Line comments (`-- ...`) always hit this
+//     branch because they consume the rest of their line.
+//   - Not same-line with prev → LEADING on the next token.
+//
+// Same-line-with-prev is computed in the prev token's buffer (same-layer
+// case) or, for a source comment after a macro expansion, against the
+// call's end position in source (cross-layer case).  Same-line-with-
+// follower is a forward scan in the comment's own buffer; it sees past
+// whitespace and adjacent comments.
+
+// Offset of the next real (non-whitespace, non-comment) token in `buf`
+// starting at `pos`, or `buf_len` if the rest of the buffer is
+// whitespace and comments only.
+static uint32_t synq_next_token_offset(SyntaqliteParser* p,
+                                       const char* buf,
+                                       uint32_t pos,
+                                       uint32_t buf_len) {
+  while (pos < buf_len && buf[pos] != '\0') {
+    uint32_t tt = 0;
+    int64_t tl = SynqSqliteGetTokenVersionWrapped(
+        &p->dialect, 0, (const unsigned char*)buf + pos, &tt);
+    if (tl <= 0)
+      return buf_len;
+    if (!synq_token_is_skip(tt))
+      return pos;
+    pos += (uint32_t)tl;
+  }
+  return buf_len;
+}
+
 SYNQ_NOINLINE
 void synq_parser_record_comment(SyntaqliteParser* p,
                                 uint32_t offset,
                                 uint32_t len) {
-  const unsigned char* z = (const unsigned char*)p->source;
+  uint32_t layer = p->ctx.layer_id;
+  const unsigned char* z = (const unsigned char*)p->ctx.source;
+  int is_block = (z[offset] != '-');
 
-  uint8_t side = SYNQ_COMMENT_LEADING;
-  uint32_t owner_idx = syntaqlite_vec_len(&p->tokens);
-  uint32_t prev_end = p->last_layer0_token_end;
-  if (prev_end != UINT32_MAX && prev_end <= offset &&
-      memchr(z + prev_end, '\n', offset - prev_end) == NULL) {
-    side = SYNQ_COMMENT_TRAILING;
-    owner_idx = syntaqlite_vec_len(&p->tokens) - 1;
+  // ── Same-line with previous token? ───────────────────────────────────────
+  int same_line_with_prev = 0;
+  if (p->last_pushed_token_layer == layer &&
+      p->last_pushed_token_ctx_end != UINT32_MAX &&
+      p->last_pushed_token_ctx_end <= offset) {
+    same_line_with_prev = memchr(z + p->last_pushed_token_ctx_end, '\n',
+                                 offset - p->last_pushed_token_ctx_end) == NULL;
+  }
+#ifndef SYNTAQLITE_OMIT_MACROS
+  else if (layer == 0 && p->last_pushed_token_layer != UINT32_MAX &&
+           p->last_pushed_token_layer > 0 &&
+           p->last_pushed_token_layer < syntaqlite_vec_len(&p->macro.layers)) {
+    // Prev token was inside an expansion; comment is in source.  Compare
+    // against the end of the topmost ancestor macro call in source.
+    uint32_t L = p->last_pushed_token_layer;
+    while (L > 0 && p->macro.layers.data[L].parent_layer_id != 0)
+      L = p->macro.layers.data[L].parent_layer_id;
+    if (L > 0) {
+      const SynqExpansionLayer* lyr = &p->macro.layers.data[L];
+      uint32_t call_end =
+          p->stmt_start_offset + lyr->call_offset + lyr->call_length;
+      if (call_end <= offset)
+        same_line_with_prev = memchr((const unsigned char*)p->source + call_end,
+                                     '\n', offset - call_end) == NULL;
+    }
+  }
+#endif
+
+  // ── Trailing on prev iff same-line-with-prev AND next token (if any)
+  //    is on a different line.  Line comments always satisfy the latter
+  //    (they consume the rest of their line).
+  int is_trailing = 0;
+  if (same_line_with_prev) {
+    if (!is_block) {
+      is_trailing = 1;
+    } else {
+      uint32_t buf_len = layer == 0 ? p->source_len
+#ifndef SYNTAQLITE_OMIT_MACROS
+                                    : p->macro.layers.data[layer].expansion_len
+#else
+                                    : 0
+#endif
+          ;
+      uint32_t next =
+          synq_next_token_offset(p, (const char*)z, offset + len, buf_len);
+      is_trailing = (next >= buf_len) || memchr(z + offset + len, '\n',
+                                                next - (offset + len)) != NULL;
+    }
   }
 
+  // ── Record the comment ───────────────────────────────────────────────────
   SyntaqliteComment t = {
-      .offset = offset - p->stmt_start_offset,
+      .offset = layer == 0 ? offset - p->stmt_start_offset : offset,
       .length = len,
-      .token_idx = owner_idx,
-      .kind = z[offset] == '-' ? (uint8_t)0 : (uint8_t)1,
-      .side = side,
+      .token_idx = 0,  // filled below
+      .kind = is_block ? (uint8_t)1 : (uint8_t)0,
+      .side = is_trailing ? SYNQ_COMMENT_TRAILING : SYNQ_COMMENT_LEADING,
+      .layer_id = (uint8_t)(layer > 0xFF ? 0xFF : layer),
+      ._pad = 0,
   };
+  uint32_t comment_idx = syntaqlite_vec_len(&p->comments);
+  if (is_trailing) {
+    uint32_t tok_idx = syntaqlite_vec_len(&p->tokens) - 1;
+    t.token_idx = tok_idx;
+    SynqTokenComments* tc = &syntaqlite_vec_at(&p->token_comments, tok_idx);
+    if (tc->trailing_count == 0)
+      tc->trailing_first = comment_idx;
+    tc->trailing_count++;
+  } else {
+    t.token_idx = syntaqlite_vec_len(&p->tokens);  // predicted next token
+    SynqTokenComments* tc = &p->pending_orphan_leading;
+    if (tc->leading_count == 0)
+      tc->leading_first = comment_idx;
+    tc->leading_count++;
+  }
   syntaqlite_vec_push(&p->comments, t, p->mem);
 }
 
@@ -5654,9 +5865,17 @@ SYNTAQLITE_API int32_t syntaqlite_parser_next(SyntaqliteParser* p) {
     }
 #endif
 
-    // Normal token (or macro fallthrough): record + feed to Lemon.
-    if (synq_parser_record_and_feed(p, cur_type, cur_offset,
-                                    (uint32_t)cur_len)) {
+    // Normal token (or macro fallthrough): shift into Lemon.
+    // After parse_failure Lemon stops reducing — force a boundary on
+    // SEMI so errors don't bleed into the next statement.  And filter
+    // bare-semicolon rc==1 (no root, no error) so the main loop keeps
+    // tokenizing instead of closing an empty statement.
+    uint32_t main_layer_offset = cur_offset - p->stmt_start_offset;
+    int main_rc = shift_token(p, cur_type, p->source + cur_offset,
+                              (uint32_t)cur_len, main_layer_offset);
+    if (p->had_error && main_rc == 0 && cur_type == SYNTAQLITE_TK_SEMI)
+      main_rc = 1;
+    if (main_rc == 1 && (p->ctx.root != SYNTAQLITE_NULL_NODE || p->had_error)) {
       // Eagerly consume same-line trailing comments after the statement
       // terminator so they attach to this statement's last token instead
       // of the next statement's first.  Stop at the first newline or
@@ -5740,29 +5959,34 @@ SYNTAQLITE_API const SyntaqliteParserToken* syntaqlite_result_tokens(
   return p->tokens.data;
 }
 
-// Locate the contiguous run of comments owned by `token_idx` with the
-// requested side. Comments for a given (token_idx, side) are recorded in
-// source order and live as a contiguous slice within p->comments because
-// each is emitted at the moment the owning token is being processed.
+// O(1) lookup, backed by the per-token comment index that
+// `synq_parser_record_comment` maintains incrementally.  `token_idx ==
+// ntokens` targets the orphan bucket in `pending_orphan_leading` —
+// the "statement-trailing comment with no owner" case.
 static const SyntaqliteComment* token_side_comments(SyntaqliteParser* p,
                                                     uint32_t token_idx,
                                                     uint8_t side,
                                                     uint32_t* count) {
-  uint32_t total = syntaqlite_vec_len(&p->comments);
-  const SyntaqliteComment* base = NULL;
-  uint32_t found = 0;
-  for (uint32_t i = 0; i < total; i++) {
-    const SyntaqliteComment* c = &p->comments.data[i];
-    if (c->token_idx == token_idx && c->side == side) {
-      if (base == NULL)
-        base = c;
-      found++;
-    } else if (base != NULL) {
-      break;
-    }
+  uint32_t ntokens = syntaqlite_vec_len(&p->tokens);
+  SynqTokenComments tc;
+  if (token_idx < ntokens) {
+    tc = syntaqlite_vec_at(&p->token_comments, token_idx);
+  } else if (token_idx == ntokens) {
+    tc = p->pending_orphan_leading;
+  } else {
+    *count = 0;
+    return NULL;
   }
-  *count = found;
-  return base;
+  uint32_t start =
+      side == SYNQ_COMMENT_LEADING ? tc.leading_first : tc.trailing_first;
+  uint32_t cnt =
+      side == SYNQ_COMMENT_LEADING ? tc.leading_count : tc.trailing_count;
+  if (cnt == 0) {
+    *count = 0;
+    return NULL;
+  }
+  *count = cnt;
+  return &p->comments.data[start];
 }
 
 SYNTAQLITE_API const SyntaqliteComment* syntaqlite_token_leading_comments(
@@ -5777,6 +6001,63 @@ SYNTAQLITE_API const SyntaqliteComment* syntaqlite_token_trailing_comments(
     uint32_t token_idx,
     uint32_t* count) {
   return token_side_comments(p, token_idx, SYNQ_COMMENT_TRAILING, count);
+}
+
+// Resolve `node_id` to the inclusive token range `[*first_tok, *last_tok]`
+// of entries in `p->tokens` that the parser fed to Lemon while reducing
+// this node.  O(1): the range is carried alongside the byte extent on
+// a single shadow stack and committed per node on reduction.
+//
+// Works across macro boundaries: since the token-stream unification,
+// every shifted terminal (including macro-expansion tokens) has a real
+// `token_idx` into `p->tokens` regardless of layer.
+SYNTAQLITE_API int32_t
+syntaqlite_node_token_range(SyntaqliteParser* p,
+                            uint32_t node_id,
+                            SyntaqliteTokenIdx* first_tok,
+                            SyntaqliteTokenIdx* last_tok) {
+  if (!p->ctx.collect_node_extents) {
+    return 0;
+  }
+  if (node_id == SYNTAQLITE_NULL_NODE) {
+    return 0;
+  }
+  if (node_id >= syntaqlite_vec_len(&p->ctx.node_extents)) {
+    return 0;
+  }
+  SynqExtentRange r = syntaqlite_vec_at(&p->ctx.node_extents, node_id);
+  if (r.first_tok == UINT32_MAX) {
+    return 0;
+  }
+  *first_tok = r.first_tok;
+  *last_tok = r.last_tok;
+  return 1;
+}
+
+SYNTAQLITE_API const SyntaqliteComment* syntaqlite_node_leading_comments(
+    SyntaqliteParser* p,
+    uint32_t node_id,
+    uint32_t* count) {
+  SyntaqliteTokenIdx first = 0;
+  SyntaqliteTokenIdx last = 0;
+  if (!syntaqlite_node_token_range(p, node_id, &first, &last)) {
+    *count = 0;
+    return NULL;
+  }
+  return token_side_comments(p, first, SYNQ_COMMENT_LEADING, count);
+}
+
+SYNTAQLITE_API const SyntaqliteComment* syntaqlite_node_trailing_comments(
+    SyntaqliteParser* p,
+    uint32_t node_id,
+    uint32_t* count) {
+  SyntaqliteTokenIdx first = 0;
+  SyntaqliteTokenIdx last = 0;
+  if (!syntaqlite_node_token_range(p, node_id, &first, &last)) {
+    *count = 0;
+    return NULL;
+  }
+  return token_side_comments(p, last, SYNQ_COMMENT_TRAILING, count);
 }
 
 #ifdef SYNTAQLITE_OMIT_MACROS
@@ -5990,6 +6271,41 @@ SYNTAQLITE_API const char* syntaqlite_parser_text(SyntaqliteParser* p,
   return p->stmt_source;
 }
 
+SYNTAQLITE_API const char* syntaqlite_parser_layer_text(
+    SyntaqliteParser* p,
+    uint32_t layer_id,
+    SyntaqliteLength* out_len) {
+  if (out_len) {
+    *out_len = 0;
+  }
+  if (layer_id == 0) {
+    // Authored source for the current statement.  Identical to
+    // `syntaqlite_parser_text` but typed for the layer-indexed API.
+    if (p->stmt_start_offset == UINT32_MAX ||
+        p->stmt_end_offset <= p->stmt_start_offset ||
+        p->stmt_end_offset > p->source_len) {
+      return NULL;
+    }
+    if (out_len) {
+      *out_len = p->stmt_end_offset - p->stmt_start_offset;
+    }
+    return p->stmt_source;
+  }
+#ifdef SYNTAQLITE_OMIT_MACROS
+  (void)layer_id;
+  return NULL;
+#else
+  if (layer_id >= syntaqlite_vec_len(&p->macro.layers)) {
+    return NULL;
+  }
+  const SynqExpansionLayer* lyr = &p->macro.layers.data[layer_id];
+  if (out_len) {
+    *out_len = lyr->expansion_len;
+  }
+  return lyr->expansion_data;
+#endif
+}
+
 SYNTAQLITE_API const char* syntaqlite_parser_expanded_text(SyntaqliteParser* p,
                                                            uint32_t* out_len) {
 #ifdef SYNTAQLITE_OMIT_MACROS
@@ -6055,17 +6371,8 @@ SYNTAQLITE_API int32_t syntaqlite_parser_feed_token(SyntaqliteParser* p,
     return set_result_status(p, SYNTAQLITE_PARSE_DONE);
   }
 
-  // Capture non-whitespace, non-comment token positions.
-  uint32_t tidx = 0xFFFFFFFF;
-  if (p->collect_tokens && text) {
-    SyntaqliteParserToken tp = {(uint32_t)(text - p->stmt_source), len,
-                                token_type, 0, p->ctx.layer_id};
-    syntaqlite_vec_push(&p->tokens, tp, p->mem);
-    tidx = syntaqlite_vec_len(&p->tokens) - 1;
-    p->last_layer0_token_end = (uint32_t)(text - p->source) + len;
-  }
-
-  int rc = feed_one_token(p, token_type, text, len, tidx);
+  uint32_t layer_offset = text ? (uint32_t)(text - p->stmt_source) : 0;
+  int rc = shift_token(p, token_type, text, len, layer_offset);
   if (rc < 0)
     return set_result_status(p, SYNTAQLITE_PARSE_ERROR);
 
@@ -6642,11 +6949,15 @@ SYNTAQLITE_DIALECT_API void synq_extent_on_reduce(SynqParseCtx* pCtx,
 //
 // When enabled, two parallel shadow stacks mirror Lemon's symbol stack:
 //
-//   * `extent_stack` tracks the merged *authored* range in root-source
-//     coordinates — used by `syntaqlite_parser_node_text`.  Macro
-//     tokens push the outermost call-site range stashed in
-//     `begin_macro_expansion`.  Epsilon pushes the sentinel
-//     `(UINT32_MAX, 0)`, which is neutral under min/max merging.
+//   * `extent_stack` carries both the merged *authored* byte range in
+//     root-source coordinates (used by `syntaqlite_parser_node_text`)
+//     and the inclusive token-index range into `p->tokens` (used by
+//     `syntaqlite_node_token_range`).  Macro tokens push the outermost
+//     call-site byte range stashed in `begin_macro_expansion` with
+//     their real `token_idx` (since the token-stream unification,
+//     every shifted terminal has an index regardless of layer).
+//     Epsilon pushes a sentinel that is neutral under min/max merging
+//     for both ranges.
 //
 //   * `expanded_stack` tracks the merged *expanded* range in the
 //     tokens' own layer — used by
@@ -6684,6 +6995,17 @@ void synq_extent_on_shift(SynqParseCtx* pCtx,
   } else {
     r.root_start = pCtx->macro_root_start;
     r.root_end = pCtx->macro_root_end;
+  }
+  // Token-index range: valid when the shifted token has a real index
+  // in `p->tokens` (all shifted terminals since the token-stream
+  // unification, regardless of layer).  UINT32_MAX means "no token
+  // recorded" (collect_tokens off, or layer-N shift with no index).
+  if (token->token_idx == 0xFFFFFFFFu) {
+    r.first_tok = UINT32_MAX;
+    r.last_tok = UINT32_MAX;
+  } else {
+    r.first_tok = token->token_idx;
+    r.last_tok = token->token_idx;
   }
   syntaqlite_vec_push(&pCtx->extent_stack, r, pCtx->mem);
 
@@ -6726,7 +7048,13 @@ void synq_extent_on_reduce(SynqParseCtx* pCtx, unsigned int nrhs) {
   }
   uint32_t len = syntaqlite_vec_len(&pCtx->extent_stack);
 
-  SynqExtentRange merged = {UINT32_MAX, 0};
+  // Merge both the authored byte range and the token-index range in a
+  // single pass.  Each is tracked with its own sentinel
+  // (byte: root_start==UINT32_MAX && root_end==0; token: first_tok==UINT32_MAX)
+  // so a node that reduced over macro-expansion-only tokens keeps its
+  // byte range (from the call site) even when token indices are absent,
+  // and vice versa.
+  SynqExtentRange merged = {UINT32_MAX, 0, UINT32_MAX, UINT32_MAX};
   for (uint32_t i = len - nrhs; i < len; i++) {
     SynqExtentRange e = syntaqlite_vec_at(&pCtx->extent_stack, i);
     if (e.root_start < merged.root_start) {
@@ -6734,6 +7062,14 @@ void synq_extent_on_reduce(SynqParseCtx* pCtx, unsigned int nrhs) {
     }
     if (e.root_end > merged.root_end) {
       merged.root_end = e.root_end;
+    }
+    if (e.first_tok != UINT32_MAX) {
+      if (merged.first_tok == UINT32_MAX || e.first_tok < merged.first_tok) {
+        merged.first_tok = e.first_tok;
+      }
+      if (merged.last_tok == UINT32_MAX || e.last_tok > merged.last_tok) {
+        merged.last_tok = e.last_tok;
+      }
     }
   }
   syntaqlite_vec_truncate(&pCtx->extent_stack, len - nrhs);
@@ -6843,9 +7179,13 @@ static void synq_end_macro(SyntaqliteParser* p);
 // Forward-scan an expansion buffer past whitespace and comments and return
 // the next significant token. `*out_pos` is updated to that token's offset;
 // `*out_type` and the return value give its type and length. Returns 0
-// (with *out_type == 0) at end-of-buffer or tokenizer failure. Comments
-// inside expansion buffers are intentionally not recorded — only source
-// comments are kept on p->comments.
+// (with *out_type == 0) at end-of-buffer or tokenizer failure.
+//
+// Comments inside expansion buffers are recorded to `p->comments` with
+// `layer_id = p->ctx.layer_id` (> 0) so consumers that want every
+// comment anywhere in the tree — e.g. authored-source + expansion-body
+// — can find them via `syntaqlite_token_leading_comments`.  Callers
+// filtering to user-authored comments check `Comment.layer_id == 0`.
 static int64_t synq_macro_skip(SyntaqliteParser* p,
                                const unsigned char* z,
                                uint32_t buf_len,
@@ -6862,6 +7202,9 @@ static int64_t synq_macro_skip(SyntaqliteParser* p,
       *out_pos = pos;
       *out_type = ttype;
       return tlen;
+    }
+    if (ttype == SYNTAQLITE_TK_COMMENT && p->collect_tokens) {
+      synq_parser_record_comment(p, pos, (uint32_t)tlen);
     }
     pos += (uint32_t)tlen;
   }
@@ -6918,6 +7261,16 @@ uint32_t synq_parser_scan_macro_args(SyntaqliteParser* p,
       return 0;
 
     int is_skip = synq_token_is_skip(ttype);
+
+    // The fallback-macro path stores the whole call as a single
+    // TK_ID, so the main token loop in parser.c never sees tokens
+    // inside the call and never calls `synq_parser_record_comment`
+    // for them. Record them here instead so consumers that ask
+    // "are there any comments in byte range [call_off, call_end)?"
+    // (notably the formatter's structured-args bail) see the truth.
+    if (ttype == SYNTAQLITE_TK_COMMENT && p->collect_tokens) {
+      synq_parser_record_comment(p, pos, (uint32_t)tlen);
+    }
 
     if (ttype == SYNTAQLITE_TK_LP) {
       depth++;
@@ -7148,17 +7501,15 @@ static int expand_and_feed(SyntaqliteParser* p,
       }
     }
 
-    // Feed token to Lemon.  `pos` is the offset within the expansion
-    // layer; `p->ctx.layer_id` was set to the current expansion's index
-    // before expand_and_feed was called.
-    SynqParseToken minor = {.z = buf + pos,
-                            .n = (uint32_t)tlen,
-                            .type = ttype,
-                            .token_idx = 0xFFFFFFFF,
-                            .offset = pos,
-                            .layer_id = p->ctx.layer_id};
-    SYNQ_PARSER_FEED(p->dialect.tmpl, p->lemon, (int)ttype, minor);
-    p->last_token_type = ttype;
+    // Feed the token through the unified shift path: it pushes to
+    // `p->tokens` with a real `token_idx` (tagged with the current
+    // expansion layer) and then feeds Lemon.  `pos` is the token's
+    // offset within the expansion buffer; `p->ctx.layer_id` was set
+    // to the current expansion's index before expand_and_feed was
+    // called.  For layer-N the shift function leaves `p->ctx.error`
+    // intact so we can attach a macro-specific error message here.
+    int frc = synq_parser_shift_token(p, ttype, buf + pos, (uint32_t)tlen,
+                                      (uint32_t)pos);
 
     if (p->ctx.error) {
       p->had_error = 1;
@@ -7170,7 +7521,7 @@ static int expand_and_feed(SyntaqliteParser* p,
       p->ctx.error = 0;
     }
 
-    if (p->ctx.stmt_completed) {
+    if (frc == 1 || p->ctx.stmt_completed) {
       p->ctx.stmt_completed = 0;
       p->ctx.source = saved_source;
       return 1;
@@ -7507,11 +7858,15 @@ int synq_parser_try_macro_call(SyntaqliteParser* p,
 
   synq_end_macro(p);
 
-  // Feed the whole name!(args) span as a single TK_ID to Lemon.
-  int rc =
-      synq_parser_record_and_feed(p, SYNTAQLITE_TK_ID, id_offset, call_length);
+  // Feed the whole name!(args) span as a single TK_ID to Lemon.  A
+  // TK_ID shift mid-statement cannot complete a statement, so the
+  // shift's return value is always 0 and we don't need the main-loop's
+  // boundary filter here.
+  uint32_t layer_offset = id_offset - p->stmt_start_offset;
+  synq_parser_shift_token(p, SYNTAQLITE_TK_ID, p->source + id_offset,
+                          call_length, layer_offset);
   p->offset = end_offset;
-  return rc;
+  return 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -7780,10 +8135,17 @@ SYNTAQLITE_API const char* syntaqlite_parser_span_text(
     uint32_t* out_offset) {
   if (out_offset)
     *out_offset = 0;
-  if (!span || span->length == 0) {
+  if (!span) {
     *out_len = 0;
     return NULL;
   }
+  // A span's offset is positional metadata that is always meaningful for
+  // an in-range span, independent of length.  A zero-length span can be
+  // either an absent field (zero-initialized `{0,0,0,0}` — offset 0 is
+  // the sentinel) or a genuine empty-but-quoted token like `""`
+  // (non-zero offset + quote flag set).  Callers distinguish the two via
+  // `TextSpan::is_quoted`; our job here is to surface the real offset in
+  // both cases rather than collapsing to 0.
   uint32_t stmt_len = p->stmt_end_offset > p->stmt_start_offset
                           ? p->stmt_end_offset - p->stmt_start_offset
                           : 0;
@@ -8758,6 +9120,7 @@ static inline uint32_t synq_parse_exists_expr(
 static inline uint32_t synq_parse_in_expr(
     SynqParseCtx *ctx,
     SyntaqliteBool negated,
+    SyntaqliteBool bare_source,
     uint32_t operand,
     uint32_t source
 ) {
@@ -8765,6 +9128,7 @@ static inline uint32_t synq_parse_in_expr(
         &(SyntaqliteInExpr){
             .tag = SYNTAQLITE_NODE_IN_EXPR,
             .negated = negated,
+            .bare_source = bare_source,
             .operand = operand,
             .source = source
         }, (uint32_t)sizeof(SyntaqliteInExpr));
@@ -9156,6 +9520,14 @@ static inline uint32_t synq_parse_literal(
         }, (uint32_t)sizeof(SyntaqliteLiteral));
 }
 
+static inline uint32_t synq_parse_paren_expr(SynqParseCtx *ctx, uint32_t expr) {
+    return synq_parse_build(ctx,
+        &(SyntaqliteParenExpr){
+            .tag = SYNTAQLITE_NODE_PAREN_EXPR,
+            .expr = expr
+        }, (uint32_t)sizeof(SyntaqliteParenExpr));
+}
+
 static inline uint32_t synq_parse_ident_name(
     SynqParseCtx *ctx,
     SyntaqliteTextSpan source
@@ -9379,6 +9751,7 @@ static inline uint32_t synq_parse_table_ref(
     SynqParseCtx *ctx,
     SyntaqliteTextSpan table_name,
     SyntaqliteTextSpan schema,
+    SyntaqliteBool has_parens,
     uint32_t alias,
     uint32_t args
 ) {
@@ -9387,6 +9760,7 @@ static inline uint32_t synq_parse_table_ref(
             .tag = SYNTAQLITE_NODE_TABLE_REF,
             .table_name = table_name,
             .schema = schema,
+            .has_parens = has_parens,
             .alias = alias,
             .args = args
         }, (uint32_t)sizeof(SyntaqliteTableRef));
@@ -10142,6 +10516,16 @@ typedef struct SynqUpsertValue {
   uint32_t clauses;
   uint32_t returning;
 } SynqUpsertValue;
+
+// paren_exprlist: optional `LP exprlist RP` tail. Tracks whether the
+// parens were present so callers can distinguish `foo` (has_parens=0)
+// from `foo()` (has_parens=1, args=NULL_NODE) — relevant for table /
+// table-valued function references where the two forms are distinct
+// productions in the SQLite grammar.
+typedef struct SynqParenExprlistValue {
+  uint32_t args;
+  SyntaqliteBool has_parens;
+} SynqParenExprlistValue;
 /* END GRAMMAR_TYPES */
 
 #define YYPARSEFREENEVERNULL 1
@@ -10426,6 +10810,7 @@ static inline SyntaqliteTextSpan synq_error_span(SynqParseCtx* pCtx) {
 typedef union {
   int yyinit;
   SynqPerfettoParseTOKENTYPE yy0;
+  SynqParenExprlistValue yy126;
   SynqConstraintValue yy344;
   SynqColumnNameValue yy358;
   int yy390;
@@ -13972,7 +14357,8 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 30: /* expr ::= expr in_op LP exprlist RP */
 {
-    yymsp[-4].minor.yy639 = synq_parse_in_expr(pCtx, (SyntaqliteBool)yymsp[-3].minor.yy390, yymsp[-4].minor.yy639, yymsp[-1].minor.yy639);
+    yymsp[-4].minor.yy639 = synq_parse_in_expr(pCtx, (SyntaqliteBool)yymsp[-3].minor.yy390,
+                           SYNTAQLITE_BOOL_FALSE, yymsp[-4].minor.yy639, yymsp[-1].minor.yy639);
 }
         break;
       case 31: /* expr ::= expr in_op LP select RP */
@@ -13980,14 +14366,26 @@ static YYACTIONTYPE yy_reduce(
     pCtx->saw_subquery = 1;
     // Pass the raw select node directly — InExpr's fmt block already adds
     // the surrounding parens, so wrapping in SubqueryExpr would double them.
-    yymsp[-4].minor.yy639 = synq_parse_in_expr(pCtx, (SyntaqliteBool)yymsp[-3].minor.yy390, yymsp[-4].minor.yy639, yymsp[-1].minor.yy639);
+    yymsp[-4].minor.yy639 = synq_parse_in_expr(pCtx, (SyntaqliteBool)yymsp[-3].minor.yy390,
+                           SYNTAQLITE_BOOL_FALSE, yymsp[-4].minor.yy639, yymsp[-1].minor.yy639);
 }
         break;
       case 32: /* expr ::= expr in_op nm dbnm paren_exprlist */
 {
-    // Table-valued function IN expression - stub for now
-    (void)yymsp[-2].minor.yy0; (void)yymsp[-1].minor.yy0; (void)yymsp[0].minor.yy639;
-    yymsp[-4].minor.yy639 = synq_parse_in_expr(pCtx, (SyntaqliteBool)yymsp[-3].minor.yy390, yymsp[-4].minor.yy639, SYNTAQLITE_NULL_NODE);
+    SyntaqliteTextSpan table_name;
+    SyntaqliteTextSpan schema;
+    if (yymsp[-1].minor.yy0.z != NULL) {
+        table_name = synq_span_dequote(pCtx, yymsp[-1].minor.yy0);
+        schema = synq_span_dequote(pCtx, yymsp[-2].minor.yy0);
+    } else {
+        table_name = synq_span_dequote(pCtx, yymsp[-2].minor.yy0);
+        schema = SYNQ_NO_SPAN;
+    }
+    uint32_t tref = synq_parse_table_ref(pCtx, table_name, schema,
+                                         yymsp[0].minor.yy126.has_parens,
+                                         SYNTAQLITE_NULL_NODE, yymsp[0].minor.yy126.args);
+    yymsp[-4].minor.yy639 = synq_parse_in_expr(pCtx, (SyntaqliteBool)yymsp[-3].minor.yy390,
+                           SYNTAQLITE_BOOL_TRUE, yymsp[-4].minor.yy639, tref);
 }
         break;
       case 33: /* dbnm ::= */
@@ -13997,14 +14395,16 @@ static YYACTIONTYPE yy_reduce(
 { yymsp[-1].minor.yy0 = yymsp[0].minor.yy0; }
         break;
       case 35: /* paren_exprlist ::= */
-      case 419: /* perfetto_arg_def_list ::= */ yytestcase(yyruleno==419);
-      case 425: /* perfetto_table_schema ::= */ yytestcase(yyruleno==425);
-      case 427: /* perfetto_table_impl ::= */ yytestcase(yyruleno==427);
-      case 433: /* perfetto_macro_arg_list ::= */ yytestcase(yyruleno==433);
-{ yymsp[1].minor.yy639 = SYNTAQLITE_NULL_NODE; }
+{
+    yymsp[1].minor.yy126.args = SYNTAQLITE_NULL_NODE;
+    yymsp[1].minor.yy126.has_parens = SYNTAQLITE_BOOL_FALSE;
+}
         break;
       case 36: /* paren_exprlist ::= LP exprlist RP */
-{ yymsp[-2].minor.yy639 = synq_pass(pCtx, yymsp[-1].minor.yy639); }
+{
+    yymsp[-2].minor.yy126.args = synq_pass(pCtx, yymsp[-1].minor.yy639);
+    yymsp[-2].minor.yy126.has_parens = SYNTAQLITE_BOOL_TRUE;
+}
         break;
       case 37: /* expr ::= expr ISNULL|NOTNULL */
 {
@@ -14756,7 +15156,6 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 132: /* eidlist_opt ::= LP eidlist RP */
       case 166: /* idlist_opt ::= LP idlist RP */ yytestcase(yyruleno==166);
-      case 177: /* expr ::= LP expr RP */ yytestcase(yyruleno==177);
       case 324: /* trigger_cmd ::= scanpt select scanpt */ yytestcase(yyruleno==324);
 {
     yymsp[-2].minor.yy639 = synq_pass(pCtx, yymsp[-1].minor.yy639);
@@ -14877,14 +15276,18 @@ static YYACTIONTYPE yy_reduce(
       case 151: /* xfullname ::= nm */
 {
     yylhsminor.yy639 = synq_parse_table_ref(pCtx,
-        synq_span_dequote(pCtx, yymsp[0].minor.yy0), SYNQ_NO_SPAN, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
+        synq_span_dequote(pCtx, yymsp[0].minor.yy0), SYNQ_NO_SPAN,
+        SYNTAQLITE_BOOL_FALSE,
+        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
 }
   yymsp[0].minor.yy639 = yylhsminor.yy639;
         break;
       case 152: /* xfullname ::= nm DOT nm */
 {
     yylhsminor.yy639 = synq_parse_table_ref(pCtx,
-        synq_span_dequote(pCtx, yymsp[0].minor.yy0), synq_span_dequote(pCtx, yymsp[-2].minor.yy0), SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
+        synq_span_dequote(pCtx, yymsp[0].minor.yy0), synq_span_dequote(pCtx, yymsp[-2].minor.yy0),
+        SYNTAQLITE_BOOL_FALSE,
+        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
 }
   yymsp[-2].minor.yy639 = yylhsminor.yy639;
         break;
@@ -14892,7 +15295,9 @@ static YYACTIONTYPE yy_reduce(
 {
     uint32_t alias = synq_parse_ident_name(pCtx, synq_span_dequote(pCtx, yymsp[0].minor.yy0));
     yylhsminor.yy639 = synq_parse_table_ref(pCtx,
-        synq_span_dequote(pCtx, yymsp[-2].minor.yy0), synq_span_dequote(pCtx, yymsp[-4].minor.yy0), alias, SYNTAQLITE_NULL_NODE);
+        synq_span_dequote(pCtx, yymsp[-2].minor.yy0), synq_span_dequote(pCtx, yymsp[-4].minor.yy0),
+        SYNTAQLITE_BOOL_FALSE,
+        alias, SYNTAQLITE_NULL_NODE);
 }
   yymsp[-4].minor.yy639 = yylhsminor.yy639;
         break;
@@ -14900,7 +15305,9 @@ static YYACTIONTYPE yy_reduce(
 {
     uint32_t alias = synq_parse_ident_name(pCtx, synq_span_dequote(pCtx, yymsp[0].minor.yy0));
     yylhsminor.yy639 = synq_parse_table_ref(pCtx,
-        synq_span_dequote(pCtx, yymsp[-2].minor.yy0), SYNQ_NO_SPAN, alias, SYNTAQLITE_NULL_NODE);
+        synq_span_dequote(pCtx, yymsp[-2].minor.yy0), SYNQ_NO_SPAN,
+        SYNTAQLITE_BOOL_FALSE,
+        alias, SYNTAQLITE_NULL_NODE);
 }
   yymsp[-2].minor.yy639 = yylhsminor.yy639;
         break;
@@ -15018,6 +15425,11 @@ static YYACTIONTYPE yy_reduce(
       case 202: /* nmorerr ::= error */ yytestcase(yyruleno==202);
 {
     yymsp[0].minor.yy639 = synq_parse_error(pCtx, synq_error_span(pCtx));
+}
+        break;
+      case 177: /* expr ::= LP expr RP */
+{
+    yymsp[-2].minor.yy639 = synq_parse_paren_expr(pCtx, yymsp[-1].minor.yy639);
 }
         break;
       case 178: /* expr ::= expr PLUS|MINUS expr */
@@ -15500,7 +15912,9 @@ static YYACTIONTYPE yy_reduce(
         table_name = synq_span_dequote(pCtx, yymsp[-3].minor.yy0);
         schema = SYNQ_NO_SPAN;
     }
-    uint32_t tref = synq_parse_table_ref(pCtx, table_name, schema, alias, SYNTAQLITE_NULL_NODE);
+    uint32_t tref = synq_parse_table_ref(pCtx, table_name, schema,
+                                         SYNTAQLITE_BOOL_FALSE,
+                                         alias, SYNTAQLITE_NULL_NODE);
     if (yymsp[-4].minor.yy639 == SYNTAQLITE_NULL_NODE) {
         yymsp[-4].minor.yy639 = tref;
     } else {
@@ -15525,7 +15939,9 @@ static YYACTIONTYPE yy_reduce(
         table_name = synq_span_dequote(pCtx, yymsp[-4].minor.yy0);
         schema = SYNQ_NO_SPAN;
     }
-    uint32_t tref = synq_parse_table_ref(pCtx, table_name, schema, alias, SYNTAQLITE_NULL_NODE);
+    uint32_t tref = synq_parse_table_ref(pCtx, table_name, schema,
+                                         SYNTAQLITE_BOOL_FALSE,
+                                         alias, SYNTAQLITE_NULL_NODE);
     if (yymsp[-5].minor.yy639 == SYNTAQLITE_NULL_NODE) {
         yymsp[-5].minor.yy639 = tref;
     } else {
@@ -15549,7 +15965,9 @@ static YYACTIONTYPE yy_reduce(
         table_name = synq_span_dequote(pCtx, yymsp[-6].minor.yy0);
         schema = SYNQ_NO_SPAN;
     }
-    uint32_t tref = synq_parse_table_ref(pCtx, table_name, schema, alias, yymsp[-3].minor.yy639);
+    uint32_t tref = synq_parse_table_ref(pCtx, table_name, schema,
+                                         SYNTAQLITE_BOOL_TRUE,
+                                         alias, yymsp[-3].minor.yy639);
     if (yymsp[-7].minor.yy639 == SYNTAQLITE_NULL_NODE) {
         yymsp[-7].minor.yy639 = tref;
     } else {
@@ -15833,7 +16251,9 @@ static YYACTIONTYPE yy_reduce(
       case 321: /* trigger_cmd ::= UPDATE orconf trnm tridxby SET setlist from where_opt scanpt */
 {
     uint32_t tbl = synq_parse_table_ref(pCtx,
-        synq_span(pCtx, yymsp[-6].minor.yy0), SYNQ_NO_SPAN, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
+        synq_span(pCtx, yymsp[-6].minor.yy0), SYNQ_NO_SPAN,
+        SYNTAQLITE_BOOL_FALSE,
+        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
     yymsp[-8].minor.yy639 = synq_parse_update_stmt(pCtx,
         SYNTAQLITE_NULL_NODE, SYNTAQLITE_BOOL_FALSE,
         (SyntaqliteConflictAction)yymsp[-7].minor.yy390, tbl,
@@ -15844,7 +16264,9 @@ static YYACTIONTYPE yy_reduce(
       case 322: /* trigger_cmd ::= scanpt insert_cmd INTO trnm idlist_opt select upsert scanpt */
 {
     uint32_t tbl = synq_parse_table_ref(pCtx,
-        synq_span(pCtx, yymsp[-4].minor.yy0), SYNQ_NO_SPAN, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
+        synq_span(pCtx, yymsp[-4].minor.yy0), SYNQ_NO_SPAN,
+        SYNTAQLITE_BOOL_FALSE,
+        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
     yymsp[-7].minor.yy639 = synq_parse_insert_stmt(pCtx,
         SYNTAQLITE_NULL_NODE, SYNTAQLITE_BOOL_FALSE,
         (SyntaqliteConflictAction)yymsp[-6].minor.yy390, tbl, yymsp[-3].minor.yy639, yymsp[-2].minor.yy639,
@@ -15854,7 +16276,9 @@ static YYACTIONTYPE yy_reduce(
       case 323: /* trigger_cmd ::= DELETE FROM trnm tridxby where_opt scanpt */
 {
     uint32_t tbl = synq_parse_table_ref(pCtx,
-        synq_span(pCtx, yymsp[-3].minor.yy0), SYNQ_NO_SPAN, SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
+        synq_span(pCtx, yymsp[-3].minor.yy0), SYNQ_NO_SPAN,
+        SYNTAQLITE_BOOL_FALSE,
+        SYNTAQLITE_NULL_NODE, SYNTAQLITE_NULL_NODE);
     yymsp[-5].minor.yy639 = synq_parse_delete_stmt(pCtx,
         SYNTAQLITE_NULL_NODE, SYNTAQLITE_BOOL_FALSE,
         tbl,
@@ -16289,6 +16713,12 @@ static YYACTIONTYPE yy_reduce(
     };
 }
   yymsp[-5].minor.yy0 = yylhsminor.yy0;
+        break;
+      case 419: /* perfetto_arg_def_list ::= */
+      case 425: /* perfetto_table_schema ::= */ yytestcase(yyruleno==425);
+      case 427: /* perfetto_table_impl ::= */ yytestcase(yyruleno==427);
+      case 433: /* perfetto_macro_arg_list ::= */ yytestcase(yyruleno==433);
+{ yymsp[1].minor.yy639 = SYNTAQLITE_NULL_NODE; }
         break;
       case 420: /* perfetto_arg_def_list ::= perfetto_arg_def_list_ne */
       case 434: /* perfetto_macro_arg_list ::= perfetto_macro_arg_list_ne */ yytestcase(yyruleno==434);

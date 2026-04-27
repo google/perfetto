@@ -25,12 +25,16 @@
 #ifndef __cplusplus
 #pragma GCC diagnostic ignored "-Wdeclaration-after-statement"
 #pragma GCC diagnostic ignored "-Wmissing-prototypes"
+#else
+#pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"
 #endif
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wextra-semi-stmt"
 #pragma clang diagnostic ignored "-Wold-style-cast"
 #pragma clang diagnostic ignored "-Wmissing-variable-declarations"
 #pragma clang diagnostic ignored "-Wimplicit-int-conversion"
+#pragma clang diagnostic ignored "-Wimplicit-int-enum-cast"
+#pragma clang diagnostic ignored "-Wimplicit-void-ptr-cast"
 #pragma clang diagnostic ignored "-Wshorten-64-to-32"
 #elif defined(__GNUC__) && !defined(__cplusplus)
 #pragma GCC diagnostic ignored "-Wold-style-declaration"
@@ -341,6 +345,137 @@ typedef struct SyntaqliteMemMethods {
 #endif  /* SYNTAQLITE_CONFIG_H */
 /* ======== end: syntaqlite/config.h ======== */
 
+/* ======== begin: syntaqlite/types.h ======== */
+#ifndef SYNTAQLITE_TYPES_H
+#define SYNTAQLITE_TYPES_H
+// Copyright 2025 The syntaqlite Authors. All rights reserved.
+// Licensed under the Apache License, Version 2.0.
+
+// Core types shared between the engine and dialect layers.
+
+
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define SYNTAQLITE_NULL_NODE 0xFFFFFFFFu
+
+// ── Position / length / index typedefs ───────────────────────────────────────
+//
+// These typedefs are documentation aliases over `uint32_t` — they describe
+// what *kind* of value a field or parameter holds (which is essential when
+// reading the API at a glance) without changing the binary layout or
+// imposing any compile-time enforcement.  Mixing them at the call site is
+// not a type error in C.
+//
+// Offsets describe a *position within a specific buffer*, so they are
+// split by the buffer they index into.  All are byte-based:
+//   - StmtOffset   — byte offset from the start of the current
+//                    statement's source slice (`syntaqlite_parser_text`).
+//   - DocOffset    — byte offset from the start of the full bound
+//                    source (`syntaqlite_parser_full_text`).
+//   - LayerOffset  — byte offset into an expansion layer's internal
+//                    buffer (e.g. `SyntaqliteTextSpan`,
+//                    `SyntaqliteMacroArgSegment`).  Resolve via the
+//                    parser's span accessors; never use directly as a
+//                    source offset.
+//
+// Lengths are unitless byte counts — a length of 5 means "5 bytes",
+// regardless of which buffer those bytes come from.  A single typedef
+// (`SyntaqliteLength`) flags a value as "byte count" rather than an
+// opaque id / flag / ordinal.
+//
+// Indices and numeric positions:
+//   - TokenIdx     — 0-based index into a statement's token stream.
+//   - LineNumber / ColumnNumber — 1-based, with `0` meaning "unknown".
+
+typedef uint32_t SyntaqliteStmtOffset;
+typedef uint32_t SyntaqliteDocOffset;
+typedef uint32_t SyntaqliteLayerOffset;
+
+typedef uint32_t SyntaqliteLength;
+
+typedef uint32_t SyntaqliteTokenIdx;
+
+typedef uint32_t SyntaqliteLineNumber;
+typedef uint32_t SyntaqliteColumnNumber;
+
+typedef uint32_t SyntaqliteCompletionContext;
+#define SYNTAQLITE_COMPLETION_CONTEXT_UNKNOWN ((SyntaqliteCompletionContext)0)
+#define SYNTAQLITE_COMPLETION_CONTEXT_EXPRESSION \
+  ((SyntaqliteCompletionContext)1)
+#define SYNTAQLITE_COMPLETION_CONTEXT_TABLE_REF ((SyntaqliteCompletionContext)2)
+
+// A span field embedded in an AST node.
+//
+// The `offset` / `length` fields are not directly usable: for spans
+// tokenized from a macro expansion they reference an internal expansion
+// layer buffer, not the input source.  Always read a span through the
+// parser's span accessors:
+//
+//   - `syntaqlite_parser_span_text(p, &span, &len)` — authored bytes
+//     (slice of input source); walks through macro call sites and
+//     substituted arg segments.
+//   - `syntaqlite_parser_span_expanded_text(p, &span, &len)` — the
+//     bytes the tokenizer actually saw, which for macro-expanded spans
+//     live in an expansion layer buffer.
+//   - `syntaqlite_parser_traceback(p, &span, ...)` — the full outermost
+//     → innermost expansion chain for diagnostics, with argument-level
+//     drill-through fidelity for spans inside substituted macro args.
+typedef struct SyntaqliteTextSpan {
+  SyntaqliteLayerOffset offset;
+  SyntaqliteLength length;
+  uint32_t flags;
+  uint32_t _layer_id;  // Internal: 0 = source, >0 = macro expansion layer.
+} SyntaqliteTextSpan;
+
+// ── Span flags ───────────────────────────────────────────────────────────────
+
+// Quote character flags on `SyntaqliteTextSpan.flags`.  At most one is
+// set; none means the identifier was unquoted.  Prefer the accessors
+// below over reading these bits directly.
+//
+// The span's offset/length point at the *dequoted* inner text — the
+// surrounding quote bytes are not part of the span.  These flags are
+// the only way to recover which character bracketed the identifier
+// after dequoting.
+#define SYNTAQLITE_SPAN_FLAG_QUOTE_DOUBLE ((uint32_t)1u)    // "..."
+#define SYNTAQLITE_SPAN_FLAG_QUOTE_BACKTICK ((uint32_t)2u)  // `...`
+#define SYNTAQLITE_SPAN_FLAG_QUOTE_BRACKET ((uint32_t)4u)   // [...]
+
+#define SYNTAQLITE_SPAN_QUOTE_MASK                                           \
+  (SYNTAQLITE_SPAN_FLAG_QUOTE_DOUBLE | SYNTAQLITE_SPAN_FLAG_QUOTE_BACKTICK | \
+   SYNTAQLITE_SPAN_FLAG_QUOTE_BRACKET)
+
+// Was this identifier quoted in source?  Returns nonzero if `sp` came
+// from any of `"..."`, `` `...` ``, or `[...]`.
+static inline int syntaqlite_span_is_quoted(SyntaqliteTextSpan sp) {
+  return (sp.flags & SYNTAQLITE_SPAN_QUOTE_MASK) != 0;
+}
+
+// The character that opened this identifier's quotes in source: `"`,
+// `` ` ``, or `[`.  Returns 0 if the span was unquoted.  For `[...]`
+// only the opener is reported; the closer is always `]`.
+static inline char syntaqlite_span_quote_char(SyntaqliteTextSpan sp) {
+  if (sp.flags & SYNTAQLITE_SPAN_FLAG_QUOTE_DOUBLE)
+    return '"';
+  if (sp.flags & SYNTAQLITE_SPAN_FLAG_QUOTE_BACKTICK)
+    return '`';
+  if (sp.flags & SYNTAQLITE_SPAN_FLAG_QUOTE_BRACKET)
+    return '[';
+  return 0;
+}
+
+#ifdef __cplusplus
+}
+#endif
+
+
+#endif  /* SYNTAQLITE_TYPES_H */
+/* ======== end: syntaqlite/types.h ======== */
+
 /* ======== begin: syntaqlite/dialect.h ======== */
 #ifndef SYNTAQLITE_DIALECT_H
 #define SYNTAQLITE_DIALECT_H
@@ -414,16 +549,18 @@ typedef enum {
 typedef struct SynqParseCtx SynqParseCtx;
 
 typedef struct SynqParseToken {
-  const char* z;       // pointer to start of token in its buffer
-  uint32_t n;          // byte length of token
-  uint32_t type;       // token type ID (SYNTAQLITE_TK_*)
-  uint32_t token_idx;  // index into parser's token vec (0xFFFFFFFF if not
-                       // collecting)
-  uint32_t offset;     // byte offset within the token's buffer; set at
-                       // shift time so reductions don't depend on
-                       // ctx->source which may have been swapped back
-                       // after a macro expansion
-  uint32_t layer_id;   // 0 = original source, 1+ = expansion layer index
+  const char* z;                 // pointer to start of token in its buffer
+  SyntaqliteLength n;            // byte length of token
+  uint32_t type;                 // token type ID (SYNTAQLITE_TK_*)
+  SyntaqliteTokenIdx token_idx;  // index into parser's token vec
+                                 // (0xFFFFFFFF if not collecting)
+  SyntaqliteLayerOffset offset;  // byte offset within the token's buffer;
+                                 // set at shift time so reductions don't
+                                 // depend on ctx->source which may have
+                                 // been swapped back after a macro
+                                 // expansion
+  uint32_t layer_id;             // 0 = original source,
+                                 // 1+ = expansion layer index
 } SynqParseToken;
 
 typedef struct SyntaqliteFieldRangeMeta SyntaqliteFieldRangeMeta;
@@ -562,134 +699,6 @@ SYNTAQLITE_API void syntaqlite_loaded_dialect_destroy(
 #endif  /* SYNTAQLITE_DIALECT_H */
 /* ======== end: syntaqlite/dialect.h ======== */
 
-/* ======== begin: syntaqlite/types.h ======== */
-#ifndef SYNTAQLITE_TYPES_H
-#define SYNTAQLITE_TYPES_H
-// Copyright 2025 The syntaqlite Authors. All rights reserved.
-// Licensed under the Apache License, Version 2.0.
-
-// Core types shared between the engine and dialect layers.
-
-
-#include <stdint.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#define SYNTAQLITE_NULL_NODE 0xFFFFFFFFu
-
-// ── Position / length / index typedefs ───────────────────────────────────────
-//
-// These typedefs are documentation aliases over `uint32_t` — they describe
-// what *kind* of value a field or parameter holds (which is essential when
-// reading the API at a glance) without changing the binary layout or
-// imposing any compile-time enforcement.  Mixing them at the call site is
-// not a type error in C.
-//
-// The kinds (all byte-based; UTF-16 positions are LSP-only and live on the
-// Rust side):
-//   - Stmt*       — byte offset/length measured from the start of the
-//                   current statement's source slice
-//                   (`syntaqlite_parser_text`).
-//   - Doc*        — byte offset/length measured from the start of the full
-//                   bound source (`syntaqlite_parser_full_text`).
-//   - Layer*      — byte offset/length measured from the start of an
-//                   expansion layer's internal buffer (e.g.
-//                   `SyntaqliteTextSpan`, `SyntaqliteMacroArgSegment`).
-//                   Resolve via the parser's span accessors; never use
-//                   directly as a source offset.
-//   - TokenIdx    — 0-based index into a statement's token stream.
-//   - LineNumber / ColumnNumber — 1-based, with `0` meaning "unknown".
-
-typedef uint32_t SyntaqliteStmtOffset;
-typedef uint32_t SyntaqliteStmtLen;
-
-typedef uint32_t SyntaqliteDocOffset;
-typedef uint32_t SyntaqliteDocLen;
-
-typedef uint32_t SyntaqliteLayerOffset;
-typedef uint32_t SyntaqliteLayerLen;
-
-typedef uint32_t SyntaqliteTokenIdx;
-
-typedef uint32_t SyntaqliteLineNumber;
-typedef uint32_t SyntaqliteColumnNumber;
-
-typedef uint32_t SyntaqliteCompletionContext;
-#define SYNTAQLITE_COMPLETION_CONTEXT_UNKNOWN ((SyntaqliteCompletionContext)0)
-#define SYNTAQLITE_COMPLETION_CONTEXT_EXPRESSION \
-  ((SyntaqliteCompletionContext)1)
-#define SYNTAQLITE_COMPLETION_CONTEXT_TABLE_REF ((SyntaqliteCompletionContext)2)
-
-// A span field embedded in an AST node.
-//
-// The `offset` / `length` fields are not directly usable: for spans
-// tokenized from a macro expansion they reference an internal expansion
-// layer buffer, not the input source.  Always read a span through the
-// parser's span accessors:
-//
-//   - `syntaqlite_parser_span_text(p, &span, &len)` — authored bytes
-//     (slice of input source); walks through macro call sites and
-//     substituted arg segments.
-//   - `syntaqlite_parser_span_expanded_text(p, &span, &len)` — the
-//     bytes the tokenizer actually saw, which for macro-expanded spans
-//     live in an expansion layer buffer.
-//   - `syntaqlite_parser_traceback(p, &span, ...)` — the full outermost
-//     → innermost expansion chain for diagnostics, with argument-level
-//     drill-through fidelity for spans inside substituted macro args.
-typedef struct SyntaqliteTextSpan {
-  SyntaqliteLayerOffset offset;
-  SyntaqliteLayerLen length;
-  uint32_t flags;
-  uint32_t _layer_id;  // Internal: 0 = source, >0 = macro expansion layer.
-} SyntaqliteTextSpan;
-
-// ── Span flags ───────────────────────────────────────────────────────────────
-
-// Quote character flags on `SyntaqliteTextSpan.flags`.  At most one is
-// set; none means the identifier was unquoted.  Prefer the accessors
-// below over reading these bits directly.
-//
-// The span's offset/length point at the *dequoted* inner text — the
-// surrounding quote bytes are not part of the span.  These flags are
-// the only way to recover which character bracketed the identifier
-// after dequoting.
-#define SYNTAQLITE_SPAN_FLAG_QUOTE_DOUBLE ((uint32_t)1u)    // "..."
-#define SYNTAQLITE_SPAN_FLAG_QUOTE_BACKTICK ((uint32_t)2u)  // `...`
-#define SYNTAQLITE_SPAN_FLAG_QUOTE_BRACKET ((uint32_t)4u)   // [...]
-
-#define SYNTAQLITE_SPAN_QUOTE_MASK                                           \
-  (SYNTAQLITE_SPAN_FLAG_QUOTE_DOUBLE | SYNTAQLITE_SPAN_FLAG_QUOTE_BACKTICK | \
-   SYNTAQLITE_SPAN_FLAG_QUOTE_BRACKET)
-
-// Was this identifier quoted in source?  Returns nonzero if `sp` came
-// from any of `"..."`, `` `...` ``, or `[...]`.
-static inline int syntaqlite_span_is_quoted(SyntaqliteTextSpan sp) {
-  return (sp.flags & SYNTAQLITE_SPAN_QUOTE_MASK) != 0;
-}
-
-// The character that opened this identifier's quotes in source: `"`,
-// `` ` ``, or `[`.  Returns 0 if the span was unquoted.  For `[...]`
-// only the opener is reported; the closer is always `]`.
-static inline char syntaqlite_span_quote_char(SyntaqliteTextSpan sp) {
-  if (sp.flags & SYNTAQLITE_SPAN_FLAG_QUOTE_DOUBLE)
-    return '"';
-  if (sp.flags & SYNTAQLITE_SPAN_FLAG_QUOTE_BACKTICK)
-    return '`';
-  if (sp.flags & SYNTAQLITE_SPAN_FLAG_QUOTE_BRACKET)
-    return '[';
-  return 0;
-}
-
-#ifdef __cplusplus
-}
-#endif
-
-
-#endif  /* SYNTAQLITE_TYPES_H */
-/* ======== end: syntaqlite/types.h ======== */
-
 /* ======== begin: syntaqlite/parser.h ======== */
 #ifndef SYNTAQLITE_PARSER_H
 #define SYNTAQLITE_PARSER_H
@@ -798,7 +807,7 @@ SYNTAQLITE_API SyntaqliteParser* syntaqlite_parser_create(
 // new input without reallocating — all previous nodes are invalidated.
 SYNTAQLITE_API void syntaqlite_parser_reset(SyntaqliteParser* p,
                                             const char* source,
-                                            SyntaqliteDocLen len);
+                                            SyntaqliteLength len);
 
 // Parse the next SQL statement. Call in a loop until SYNTAQLITE_PARSE_DONE.
 // Bare semicolons between statements are skipped automatically.
@@ -870,7 +879,7 @@ SYNTAQLITE_API SyntaqliteStmtOffset
 syntaqlite_result_error_offset(SyntaqliteParser* p);
 
 // Byte length of error token (0 = unknown).
-SYNTAQLITE_API SyntaqliteStmtLen
+SYNTAQLITE_API SyntaqliteLength
 syntaqlite_result_error_length(SyntaqliteParser* p);
 
 // A comment captured during parsing.
@@ -893,11 +902,19 @@ typedef uint8_t SyntaqliteCommentSide;
 #define SYNQ_COMMENT_TRAILING ((SyntaqliteCommentSide)1)
 
 typedef struct SyntaqliteComment {
-  SyntaqliteStmtOffset offset;   // Statement-relative byte offset.
-  SyntaqliteStmtLen length;      // Byte length.
+  SyntaqliteStmtOffset offset;
+  SyntaqliteLength length;
   SyntaqliteTokenIdx token_idx;  // Index of the owning token in p->tokens.
-  uint8_t kind;  // 0 = line comment (--), 1 = block comment (/* */).
-  uint8_t side;  // SYNQ_COMMENT_LEADING or SYNQ_COMMENT_TRAILING.
+  uint8_t kind;      // 0 = line comment (--), 1 = block comment (/* */).
+  uint8_t side;      // SYNQ_COMMENT_LEADING or SYNQ_COMMENT_TRAILING.
+  uint8_t layer_id;  // Layer the comment was tokenized from.
+                     // Currently always 0 (authored source): the main
+                     // tokenizer only records comments from layer 0.
+                     // The field is ABI-stable so future versions can
+                     // expose expansion-layer comments without a
+                     // breaking change; callers that only want authored
+                     // source comments should filter on `layer_id == 0`.
+  uint8_t _pad;      // reserved for future use; zero-initialized.
 } SyntaqliteComment;
 
 // Token-usage flags: set by the parser during disambiguation to record how
@@ -919,8 +936,8 @@ typedef uint32_t SyntaqliteParserTokenFlags;
 // positions should resolve the token's span via the parser's span
 // accessors rather than using `offset` directly.
 typedef struct SyntaqliteParserToken {
-  SyntaqliteLayerOffset offset;  // Byte offset in the token's layer buffer.
-  SyntaqliteLayerLen length;     // Byte length.
+  SyntaqliteLayerOffset offset;
+  SyntaqliteLength length;
   uint32_t type;  // Original token type from tokenizer (pre-fallback).
   SyntaqliteParserTokenFlags flags;  // Bitmask of SYNQ_TOKEN_FLAG_* values.
   uint32_t _layer_id;  // Internal: 0 = original source, >0 = expansion layer.
@@ -952,6 +969,49 @@ SYNTAQLITE_API const SyntaqliteComment* syntaqlite_token_leading_comments(
 SYNTAQLITE_API const SyntaqliteComment* syntaqlite_token_trailing_comments(
     SyntaqliteParser* p,
     SyntaqliteTokenIdx token_idx,
+    uint32_t* count);
+
+// Get the inclusive range of `p->tokens` indices the parser shifted
+// while reducing AST node `node_id`.  Since the token-stream
+// unification, every shifted terminal — authored source and macro-
+// expansion alike — carries a real `token_idx`, so the returned range
+// spans all layers the node reduced over.  O(1): the range is
+// maintained alongside the byte extent on one shadow stack.
+//
+// Returns 1 and writes `*first_tok` / `*last_tok` on success.
+// Returns 0 when collect_node_extents was not enabled, `node_id` is
+// out of range or the null sentinel, or the node reduced over zero
+// tokens (pure epsilon).
+//
+// Typical use is composed with the `syntaqlite_token_{leading,trailing}
+// _comments` primitives, or with the `syntaqlite_node_{leading,trailing}
+// _comments` helpers below for the boundary-comment case.  Walk the
+// full `[first_tok, last_tok]` range when interior comments (on
+// keywords, between children) are needed.
+SYNTAQLITE_API int32_t
+syntaqlite_node_token_range(SyntaqliteParser* p,
+                            uint32_t node_id,
+                            SyntaqliteTokenIdx* first_tok,
+                            SyntaqliteTokenIdx* last_tok);
+
+// Get the comments attached to the boundary tokens of AST node
+// `node_id`.  Thin wrappers over
+// `syntaqlite_token_leading_comments(first_tok)` and
+// `syntaqlite_token_trailing_comments(last_tok)` respectively, where
+// (first_tok, last_tok) come from `syntaqlite_node_token_range`.
+// Returns NULL with `*count == 0` when the node has no token range
+// or no comments on the boundary.  Interior comments (attached to a
+// keyword or an intermediate token inside the node) are NOT surfaced
+// here — iterate `syntaqlite_token_*_comments` across
+// `node_token_range` for those.
+SYNTAQLITE_API const SyntaqliteComment* syntaqlite_node_leading_comments(
+    SyntaqliteParser* p,
+    uint32_t node_id,
+    uint32_t* count);
+
+SYNTAQLITE_API const SyntaqliteComment* syntaqlite_node_trailing_comments(
+    SyntaqliteParser* p,
+    uint32_t node_id,
     uint32_t* count);
 
 // Sentinel value for `SyntaqliteMacroRewrite::parent_idx` meaning "this
@@ -1002,11 +1062,11 @@ typedef struct SyntaqliteMacroRewrite {
   // Statement-relative when parent_idx == SYNTAQLITE_MACRO_PARENT_SOURCE,
   // otherwise relative to the parent entry's `expansion` buffer.
   SyntaqliteLayerOffset call_offset;
-  SyntaqliteLayerLen call_length;
+  SyntaqliteLength call_length;
   const char* expansion;
-  SyntaqliteLayerLen expansion_len;
+  SyntaqliteLength expansion_len;
   const char* name;
-  uint32_t name_len;
+  SyntaqliteLength name_len;
   SyntaqliteLineNumber def_line;
   SyntaqliteColumnNumber def_col;
   // Position of this call in the *parent's authored body*, computed by
@@ -1020,7 +1080,7 @@ typedef struct SyntaqliteMacroRewrite {
   // the parent is the authored source, so these equal call_offset /
   // call_length.
   SyntaqliteLayerOffset body_call_offset;
-  SyntaqliteLayerLen body_call_length;
+  SyntaqliteLength body_call_length;
   // The buffer the `call_offset` — and every arg offset returned by
   // syntaqlite_macro_rewrite_arg_at — indexes into.  For top-level
   // rewrites (parent_idx == SYNTAQLITE_MACRO_PARENT_SOURCE) this is
@@ -1032,7 +1092,7 @@ typedef struct SyntaqliteMacroRewrite {
   // Not NUL-terminated; use `parent_buffer_len`.  Owned by the
   // parser and valid until the next reset / next / destroy call.
   const char* parent_buffer;
-  SyntaqliteLayerLen parent_buffer_len;
+  SyntaqliteLength parent_buffer_len;
   // 1 if this call went down the fallback path (unregistered name!
   // kept verbatim as a TK_ID, no expansion, no $param substitutions);
   // 0 if it was expanded by a registered macro.  `expansion_len` is
@@ -1066,12 +1126,12 @@ syntaqlite_result_macro_rewrite_at(SyntaqliteParser* p, uint32_t idx);
 // arg segments.
 typedef struct SyntaqliteMacroArgSegment {
   SyntaqliteLayerOffset body_offset;
-  SyntaqliteLayerLen body_length;
+  SyntaqliteLength body_length;
   SyntaqliteLayerOffset expansion_offset;
-  SyntaqliteLayerLen expansion_length;
+  SyntaqliteLength expansion_length;
   uint32_t origin_parent_idx;
   SyntaqliteLayerOffset origin_offset;
-  SyntaqliteLayerLen origin_length;
+  SyntaqliteLength origin_length;
 } SyntaqliteMacroArgSegment;
 
 // Number of arg segments recorded on the rewrite at `rewrite_idx`.
@@ -1100,7 +1160,7 @@ syntaqlite_macro_rewrite_arg_segment_at(SyntaqliteParser* p,
 // trailing whitespace / comments are trimmed from the range.
 typedef struct SyntaqliteMacroCallArg {
   SyntaqliteLayerOffset offset;
-  SyntaqliteLayerLen length;
+  SyntaqliteLength length;
 } SyntaqliteMacroCallArg;
 
 // Number of top-level call-site arg spans recorded on the rewrite at
@@ -1139,21 +1199,25 @@ SYNTAQLITE_API const void* syntaqlite_parser_node(SyntaqliteParser* p,
 SYNTAQLITE_API const char* syntaqlite_parser_text(
     SyntaqliteParser* p,
     SyntaqliteDocOffset* out_offset,
-    SyntaqliteStmtLen* out_len);
+    SyntaqliteLength* out_len);
 
 // Full SQL source bound by the last reset() call.  For multi-statement
 // input, this is the whole input.
 SYNTAQLITE_API const char* syntaqlite_parser_full_text(
     SyntaqliteParser* p,
-    SyntaqliteDocLen* out_len);
+    SyntaqliteLength* out_len);
 
 // Post-expansion text for the current statement — materializes the
 // statement's source with every currently-active macro call replaced
 // by its expansion into a parser-owned scratch buffer.  The returned
 // pointer is valid until the next `*_expanded_text` call on the same
 // parser or until the parser advances to the next statement.
-SYNTAQLITE_API const char* syntaqlite_parser_expanded_text(SyntaqliteParser* p,
-                                                           uint32_t* out_len);
+//
+// `*out_len` receives the byte length of the materialized buffer,
+// which may differ from the authored statement length.
+SYNTAQLITE_API const char* syntaqlite_parser_expanded_text(
+    SyntaqliteParser* p,
+    SyntaqliteLength* out_len);
 
 // Return the number of nodes currently in the arena.
 SYNTAQLITE_API uint32_t syntaqlite_parser_node_count(SyntaqliteParser* p);
@@ -1177,13 +1241,13 @@ SYNTAQLITE_API uint32_t syntaqlite_parser_node_count(SyntaqliteParser* p);
 // within `snippet`.
 typedef struct SyntaqliteTracebackFrame {
   const char* name;
-  uint32_t name_len;
+  SyntaqliteLength name_len;
   SyntaqliteLineNumber line;
   SyntaqliteColumnNumber col;
   const char* snippet;
-  SyntaqliteLayerLen snippet_len;
+  SyntaqliteLength snippet_len;
   SyntaqliteLayerOffset offset_in_snippet;
-  SyntaqliteLayerLen length_in_snippet;
+  SyntaqliteLength length_in_snippet;
 } SyntaqliteTracebackFrame;
 
 // Build a traceback for a span and return a pointer to a parser-owned
@@ -1213,15 +1277,17 @@ SYNTAQLITE_API const SyntaqliteTracebackFrame* syntaqlite_parser_traceback(
 // Post-expansion text for `span` — the bytes the tokenizer actually saw.
 // For macro-free spans, a slice of the input source.  For spans inside a
 // macro expansion, a slice of the expansion layer's buffer.  Writes the
-// byte length to `*out_len`.  Always a direct slice — no allocation.
+// slice's byte length to `*out_len`.  Always a direct slice — no
+// allocation.
 //
 // Returns NULL (and writes 0 to `*out_len`) for empty or invalid spans.
 SYNTAQLITE_API const char* syntaqlite_parser_span_expanded_text(
     SyntaqliteParser* p,
     const SyntaqliteTextSpan* span,
-    uint32_t* out_len);
+    SyntaqliteLength* out_len);
 
-// Authored text for `span` — always a slice of the input source.
+// Authored text for `span` — always a slice of the current statement's
+// source (the same buffer `syntaqlite_parser_text` returns).
 //
 // For macro-free spans, identical to `span_expanded_text`.  For spans
 // inside a macro expansion, walks the expansion-layer chain:
@@ -1229,35 +1295,37 @@ SYNTAQLITE_API const char* syntaqlite_parser_span_expanded_text(
 //     to the arg's origin text in the caller's layer (recursively).
 //   - Otherwise, collapses to the outermost `name!(...)` call site.
 //
-// Always a direct slice of the source — no allocation.  Returns NULL
-// (and writes 0 to `*out_len`) for empty or invalid spans.
+// Always a direct slice of the statement source — no allocation.
+// Returns NULL (and writes 0 to `*out_len`) for empty or invalid spans.
 //
-// `out_offset` is optional; when non-NULL it receives the byte offset
-// in the input source where the returned slice begins (so callers can
-// compute source-relative positions without pointer arithmetic).
+// `out_offset` is optional; when non-NULL it receives the
+// statement-relative byte offset where the returned slice begins.
+// To convert to a document-absolute offset, add the offset
+// `syntaqlite_parser_text` writes to its own `out_offset`.
 // Written 0 for empty or invalid spans.
 SYNTAQLITE_API const char* syntaqlite_parser_span_text(
     SyntaqliteParser* p,
     const SyntaqliteTextSpan* span,
-    uint32_t* out_len,
-    uint32_t* out_offset);
+    SyntaqliteLength* out_len,
+    SyntaqliteStmtOffset* out_offset);
 
 // Authored source text for AST node `node_id` — the analogue of
 // `syntaqlite_parser_span_text` for whole nodes rather than spans.
+// Offsets are statement-relative, same as `syntaqlite_parser_span_text`.
 //
 // Requires per-node extent tracking to be enabled via
 // `syntaqlite_parser_set_collect_node_extents` before the first
-// `reset()`.  On success writes the slice length to `*out_len` and
-// its byte offset in the source to `*out_offset` (both optional) and
-// returns a direct slice of the input source — no allocation.
+// `reset()`.  Returns a direct slice of the current statement's
+// source — no allocation.
 //
 // Returns NULL (and writes 0 to `*out_len` / `*out_offset`) when
 // extent tracking is disabled, the node id is unknown, or no extent
 // was recorded for it.
-SYNTAQLITE_API const char* syntaqlite_parser_node_text(SyntaqliteParser* p,
-                                                       uint32_t node_id,
-                                                       uint32_t* out_len,
-                                                       uint32_t* out_offset);
+SYNTAQLITE_API const char* syntaqlite_parser_node_text(
+    SyntaqliteParser* p,
+    uint32_t node_id,
+    SyntaqliteLength* out_len,
+    SyntaqliteStmtOffset* out_offset);
 
 // Post-expansion text for AST node `node_id` — the analogue of
 // `syntaqlite_parser_span_expanded_text` for whole nodes.
@@ -1281,7 +1349,7 @@ SYNTAQLITE_API const char* syntaqlite_parser_node_text(SyntaqliteParser* p,
 SYNTAQLITE_API const char* syntaqlite_parser_node_expanded_text(
     SyntaqliteParser* p,
     uint32_t node_id,
-    uint32_t* out_len);
+    SyntaqliteLength* out_len);
 
 // ---------------------------------------------------------------------------
 // Macro-expansion queries
@@ -1438,9 +1506,9 @@ typedef struct SyntaqliteTokenizer SyntaqliteTokenizer;
 // the source buffer bound by the last reset() call, so it is only valid
 // while that buffer is alive. The text is NOT null-terminated.
 typedef struct SyntaqliteToken {
-  const char* text;  // Pointer into source text.
-  uint32_t length;   // Token length in bytes.
-  uint32_t type;     // Token type ordinal.
+  const char* text;         // Pointer into source text.
+  SyntaqliteLength length;  // Token length in bytes.
+  uint32_t type;            // Token type ordinal.
 } SyntaqliteToken;
 
 // ---------------------------------------------------------------------------
@@ -1460,7 +1528,7 @@ SYNTAQLITE_API SyntaqliteTokenizer* syntaqlite_tokenizer_create_with_dialect(
 // again to tokenize a new input without reallocating.
 SYNTAQLITE_API void syntaqlite_tokenizer_reset(SyntaqliteTokenizer* tok,
                                                const char* source,
-                                               uint32_t len);
+                                               SyntaqliteLength len);
 
 // Advance to the next token. Returns 1 if a token was written to *out,
 // 0 at end-of-input. Every token is returned, including whitespace and
@@ -1562,7 +1630,7 @@ extern "C" {
 SYNTAQLITE_API int32_t syntaqlite_parser_feed_token(SyntaqliteParser* p,
                                                     uint32_t token_type,
                                                     const char* text,
-                                                    uint32_t len);
+                                                    SyntaqliteLength len);
 
 // Signal end-of-input. Synthesizes a SEMI if needed and sends EOF to the
 // parser. Returns a SYNTAQLITE_PARSE_* code.
@@ -1602,7 +1670,7 @@ syntaqlite_parser_completion_context(SyntaqliteParser* p);
 typedef int (*SyntaqliteMacroLookupFn)(void* user_data,
                                        SyntaqliteParser* parser,
                                        const char* name,
-                                       uint32_t name_len,
+                                       SyntaqliteLength name_len,
                                        const SyntaqliteToken* args,
                                        uint32_t arg_count);
 
@@ -1620,18 +1688,20 @@ syntaqlite_parser_set_macro_lookup(SyntaqliteParser* p,
 // Set the expanded body for the current macro invocation.
 // `def_line` / `def_col` are 1-based definition position for tracebacks
 // (pass 0/0 if unknown).
-SYNTAQLITE_API void syntaqlite_macro_expansion_set_result(SyntaqliteParser* p,
-                                                          const char* body,
-                                                          uint32_t body_len,
-                                                          uint32_t def_line,
-                                                          uint32_t def_col);
+SYNTAQLITE_API void syntaqlite_macro_expansion_set_result(
+    SyntaqliteParser* p,
+    const char* body,
+    SyntaqliteLength body_len,
+    SyntaqliteLineNumber def_line,
+    SyntaqliteColumnNumber def_col);
 
 // Describes where one macro argument was pasted into the expansion body.
 // Used by set_result_with_arg_map to enable span drilling through
 // $param substitutions.
 typedef struct SyntaqliteArgMapping {
-  uint32_t body_offset;  // Byte offset in `body` where arg text starts.
-  uint32_t arg_index;    // Index into the args array passed to the callback.
+  SyntaqliteLayerOffset body_offset;  // Byte offset in `body` where arg
+                                      // text starts.
+  uint32_t arg_index;  // Index into the args array passed to the callback.
 } SyntaqliteArgMapping;
 
 // Like set_result, but with arg-mapping metadata for span drilling.
@@ -1641,9 +1711,9 @@ typedef struct SyntaqliteArgMapping {
 SYNTAQLITE_API void syntaqlite_macro_expansion_set_result_with_arg_map(
     SyntaqliteParser* p,
     const char* body,
-    uint32_t body_len,
-    uint32_t def_line,
-    uint32_t def_col,
+    SyntaqliteLength body_len,
+    SyntaqliteLineNumber def_line,
+    SyntaqliteColumnNumber def_col,
     const SyntaqliteArgMapping* mappings,
     uint32_t mapping_count);
 
@@ -1662,9 +1732,9 @@ SYNTAQLITE_API void syntaqlite_macro_expansion_set_result_with_arg_map(
 SYNTAQLITE_API int syntaqlite_macro_expansion_expand_and_set_result(
     SyntaqliteParser* p,
     const char* body,
-    uint32_t body_len,
+    SyntaqliteLength body_len,
     const char* const* param_names,
-    const uint32_t* param_name_lens,
+    const SyntaqliteLength* param_name_lens,
     uint32_t param_count,
     uint32_t flags);
 
@@ -2050,65 +2120,66 @@ typedef enum SyntaqliteNodeTag {
     SYNTAQLITE_NODE_BINARY_EXPR = 33,
     SYNTAQLITE_NODE_UNARY_EXPR = 34,
     SYNTAQLITE_NODE_LITERAL = 35,
-    SYNTAQLITE_NODE_IDENT_NAME = 36,
-    SYNTAQLITE_NODE_ERROR = 37,
-    SYNTAQLITE_NODE_EXPR_LIST = 38,
-    SYNTAQLITE_NODE_FUNCTION_CALL = 39,
-    SYNTAQLITE_NODE_VARIABLE = 40,
-    SYNTAQLITE_NODE_COLLATE_EXPR = 41,
-    SYNTAQLITE_NODE_RAISE_EXPR = 42,
-    SYNTAQLITE_NODE_QUALIFIED_NAME = 43,
-    SYNTAQLITE_NODE_DROP_STMT = 44,
-    SYNTAQLITE_NODE_ALTER_TABLE_STMT = 45,
-    SYNTAQLITE_NODE_TRANSACTION_STMT = 46,
-    SYNTAQLITE_NODE_SAVEPOINT_STMT = 47,
-    SYNTAQLITE_NODE_RESULT_COLUMN = 48,
-    SYNTAQLITE_NODE_RESULT_COLUMN_LIST = 49,
-    SYNTAQLITE_NODE_SELECT_STMT = 50,
-    SYNTAQLITE_NODE_ORDERING_TERM = 51,
-    SYNTAQLITE_NODE_ORDER_BY_LIST = 52,
-    SYNTAQLITE_NODE_LIMIT_CLAUSE = 53,
-    SYNTAQLITE_NODE_TABLE_REF = 54,
-    SYNTAQLITE_NODE_SUBQUERY_TABLE_SOURCE = 55,
-    SYNTAQLITE_NODE_JOIN_CLAUSE = 56,
-    SYNTAQLITE_NODE_JOIN_PREFIX = 57,
-    SYNTAQLITE_NODE_TRIGGER_EVENT = 58,
-    SYNTAQLITE_NODE_TRIGGER_CMD_LIST = 59,
-    SYNTAQLITE_NODE_CREATE_TRIGGER_STMT = 60,
-    SYNTAQLITE_NODE_CREATE_VIRTUAL_TABLE_STMT = 61,
-    SYNTAQLITE_NODE_PRAGMA_STMT = 62,
-    SYNTAQLITE_NODE_ANALYZE_OR_REINDEX_STMT = 63,
-    SYNTAQLITE_NODE_ATTACH_STMT = 64,
-    SYNTAQLITE_NODE_DETACH_STMT = 65,
-    SYNTAQLITE_NODE_VACUUM_STMT = 66,
-    SYNTAQLITE_NODE_EXPLAIN_STMT = 67,
-    SYNTAQLITE_NODE_CREATE_INDEX_STMT = 68,
-    SYNTAQLITE_NODE_CREATE_VIEW_STMT = 69,
-    SYNTAQLITE_NODE_VALUES_ROW_LIST = 70,
-    SYNTAQLITE_NODE_VALUES_CLAUSE = 71,
-    SYNTAQLITE_NODE_FRAME_BOUND = 72,
-    SYNTAQLITE_NODE_FRAME_SPEC = 73,
-    SYNTAQLITE_NODE_WINDOW_DEF = 74,
-    SYNTAQLITE_NODE_WINDOW_DEF_LIST = 75,
-    SYNTAQLITE_NODE_NAMED_WINDOW_DEF = 76,
-    SYNTAQLITE_NODE_NAMED_WINDOW_DEF_LIST = 77,
-    SYNTAQLITE_NODE_FILTER_OVER = 78,
-    SYNTAQLITE_NODE_PERFETTO_ARG_DEF = 79,
-    SYNTAQLITE_NODE_PERFETTO_ARG_DEF_LIST = 80,
-    SYNTAQLITE_NODE_PERFETTO_MACRO_ARG = 81,
-    SYNTAQLITE_NODE_PERFETTO_MACRO_ARG_LIST = 82,
-    SYNTAQLITE_NODE_PERFETTO_INDEXED_COLUMN = 83,
-    SYNTAQLITE_NODE_PERFETTO_INDEXED_COLUMN_LIST = 84,
-    SYNTAQLITE_NODE_PERFETTO_RETURN_TYPE = 85,
-    SYNTAQLITE_NODE_PERFETTO_TABLE_IMPL = 86,
-    SYNTAQLITE_NODE_CREATE_PERFETTO_TABLE_STMT = 87,
-    SYNTAQLITE_NODE_CREATE_PERFETTO_VIEW_STMT = 88,
-    SYNTAQLITE_NODE_CREATE_PERFETTO_FUNCTION_STMT = 89,
-    SYNTAQLITE_NODE_CREATE_PERFETTO_DELEGATING_FUNCTION_STMT = 90,
-    SYNTAQLITE_NODE_CREATE_PERFETTO_INDEX_STMT = 91,
-    SYNTAQLITE_NODE_CREATE_PERFETTO_MACRO_STMT = 92,
-    SYNTAQLITE_NODE_INCLUDE_PERFETTO_MODULE_STMT = 93,
-    SYNTAQLITE_NODE_DROP_PERFETTO_INDEX_STMT = 94,
+    SYNTAQLITE_NODE_PAREN_EXPR = 36,
+    SYNTAQLITE_NODE_IDENT_NAME = 37,
+    SYNTAQLITE_NODE_ERROR = 38,
+    SYNTAQLITE_NODE_EXPR_LIST = 39,
+    SYNTAQLITE_NODE_FUNCTION_CALL = 40,
+    SYNTAQLITE_NODE_VARIABLE = 41,
+    SYNTAQLITE_NODE_COLLATE_EXPR = 42,
+    SYNTAQLITE_NODE_RAISE_EXPR = 43,
+    SYNTAQLITE_NODE_QUALIFIED_NAME = 44,
+    SYNTAQLITE_NODE_DROP_STMT = 45,
+    SYNTAQLITE_NODE_ALTER_TABLE_STMT = 46,
+    SYNTAQLITE_NODE_TRANSACTION_STMT = 47,
+    SYNTAQLITE_NODE_SAVEPOINT_STMT = 48,
+    SYNTAQLITE_NODE_RESULT_COLUMN = 49,
+    SYNTAQLITE_NODE_RESULT_COLUMN_LIST = 50,
+    SYNTAQLITE_NODE_SELECT_STMT = 51,
+    SYNTAQLITE_NODE_ORDERING_TERM = 52,
+    SYNTAQLITE_NODE_ORDER_BY_LIST = 53,
+    SYNTAQLITE_NODE_LIMIT_CLAUSE = 54,
+    SYNTAQLITE_NODE_TABLE_REF = 55,
+    SYNTAQLITE_NODE_SUBQUERY_TABLE_SOURCE = 56,
+    SYNTAQLITE_NODE_JOIN_CLAUSE = 57,
+    SYNTAQLITE_NODE_JOIN_PREFIX = 58,
+    SYNTAQLITE_NODE_TRIGGER_EVENT = 59,
+    SYNTAQLITE_NODE_TRIGGER_CMD_LIST = 60,
+    SYNTAQLITE_NODE_CREATE_TRIGGER_STMT = 61,
+    SYNTAQLITE_NODE_CREATE_VIRTUAL_TABLE_STMT = 62,
+    SYNTAQLITE_NODE_PRAGMA_STMT = 63,
+    SYNTAQLITE_NODE_ANALYZE_OR_REINDEX_STMT = 64,
+    SYNTAQLITE_NODE_ATTACH_STMT = 65,
+    SYNTAQLITE_NODE_DETACH_STMT = 66,
+    SYNTAQLITE_NODE_VACUUM_STMT = 67,
+    SYNTAQLITE_NODE_EXPLAIN_STMT = 68,
+    SYNTAQLITE_NODE_CREATE_INDEX_STMT = 69,
+    SYNTAQLITE_NODE_CREATE_VIEW_STMT = 70,
+    SYNTAQLITE_NODE_VALUES_ROW_LIST = 71,
+    SYNTAQLITE_NODE_VALUES_CLAUSE = 72,
+    SYNTAQLITE_NODE_FRAME_BOUND = 73,
+    SYNTAQLITE_NODE_FRAME_SPEC = 74,
+    SYNTAQLITE_NODE_WINDOW_DEF = 75,
+    SYNTAQLITE_NODE_WINDOW_DEF_LIST = 76,
+    SYNTAQLITE_NODE_NAMED_WINDOW_DEF = 77,
+    SYNTAQLITE_NODE_NAMED_WINDOW_DEF_LIST = 78,
+    SYNTAQLITE_NODE_FILTER_OVER = 79,
+    SYNTAQLITE_NODE_PERFETTO_ARG_DEF = 80,
+    SYNTAQLITE_NODE_PERFETTO_ARG_DEF_LIST = 81,
+    SYNTAQLITE_NODE_PERFETTO_MACRO_ARG = 82,
+    SYNTAQLITE_NODE_PERFETTO_MACRO_ARG_LIST = 83,
+    SYNTAQLITE_NODE_PERFETTO_INDEXED_COLUMN = 84,
+    SYNTAQLITE_NODE_PERFETTO_INDEXED_COLUMN_LIST = 85,
+    SYNTAQLITE_NODE_PERFETTO_RETURN_TYPE = 86,
+    SYNTAQLITE_NODE_PERFETTO_TABLE_IMPL = 87,
+    SYNTAQLITE_NODE_CREATE_PERFETTO_TABLE_STMT = 88,
+    SYNTAQLITE_NODE_CREATE_PERFETTO_VIEW_STMT = 89,
+    SYNTAQLITE_NODE_CREATE_PERFETTO_FUNCTION_STMT = 90,
+    SYNTAQLITE_NODE_CREATE_PERFETTO_DELEGATING_FUNCTION_STMT = 91,
+    SYNTAQLITE_NODE_CREATE_PERFETTO_INDEX_STMT = 92,
+    SYNTAQLITE_NODE_CREATE_PERFETTO_MACRO_STMT = 93,
+    SYNTAQLITE_NODE_INCLUDE_PERFETTO_MODULE_STMT = 94,
+    SYNTAQLITE_NODE_DROP_PERFETTO_INDEX_STMT = 95,
     SYNTAQLITE_NODE_COUNT
 } SyntaqliteNodeTag;
 SYNQ_STATIC_ASSERT(sizeof(SyntaqliteNodeTag) == sizeof(uint32_t),
@@ -2169,6 +2240,7 @@ typedef struct SyntaqliteExistsExpr {
 typedef struct SyntaqliteInExpr {
     SyntaqliteNodeTag tag;
     SyntaqliteBool negated;
+    SyntaqliteBool bare_source;
     uint32_t operand;
     uint32_t source;
 } SyntaqliteInExpr;
@@ -2405,6 +2477,11 @@ typedef struct SyntaqliteLiteral {
     SyntaqliteTextSpan source;
 } SyntaqliteLiteral;
 
+typedef struct SyntaqliteParenExpr {
+    SyntaqliteNodeTag tag;
+    uint32_t expr;
+} SyntaqliteParenExpr;
+
 typedef struct SyntaqliteIdentName {
     SyntaqliteNodeTag tag;
     SyntaqliteTextSpan source;
@@ -2532,6 +2609,7 @@ typedef struct SyntaqliteTableRef {
     SyntaqliteNodeTag tag;
     SyntaqliteTextSpan table_name;
     SyntaqliteTextSpan schema;
+    SyntaqliteBool has_parens;
     uint32_t alias;
     uint32_t args;
 } SyntaqliteTableRef;
@@ -2869,6 +2947,7 @@ typedef union SyntaqliteNode {
     SyntaqliteBinaryExpr binary_expr;
     SyntaqliteUnaryExpr unary_expr;
     SyntaqliteLiteral literal;
+    SyntaqliteParenExpr paren_expr;
     SyntaqliteIdentName ident_name;
     SyntaqliteError error;
     SyntaqliteExprList expr_list;
@@ -2976,6 +3055,7 @@ typedef union SyntaqliteInExprSource {
     SyntaqliteCompoundSelect compound_select;
     SyntaqliteWithClause with_clause;
     SyntaqliteValuesClause values_clause;
+    SyntaqliteTableRef table_ref;
 } SyntaqliteInExprSource;
 
 static inline int syntaqlite_is_in_expr_source(SyntaqliteNodeTag tag) {
@@ -2986,6 +3066,7 @@ static inline int syntaqlite_is_in_expr_source(SyntaqliteNodeTag tag) {
         case SYNTAQLITE_NODE_COMPOUND_SELECT: return 1;
         case SYNTAQLITE_NODE_WITH_CLAUSE: return 1;
         case SYNTAQLITE_NODE_VALUES_CLAUSE: return 1;
+        case SYNTAQLITE_NODE_TABLE_REF: return 1;
         default: return 0;
     }
 }
@@ -3012,6 +3093,10 @@ static inline const SyntaqliteWithClause* syntaqlite_in_expr_source_as_with_clau
 
 static inline const SyntaqliteValuesClause* syntaqlite_in_expr_source_as_values_clause(const SyntaqliteInExprSource* node) {
     return node->tag == SYNTAQLITE_NODE_VALUES_CLAUSE ? &node->values_clause : NULL;
+}
+
+static inline const SyntaqliteTableRef* syntaqlite_in_expr_source_as_table_ref(const SyntaqliteInExprSource* node) {
+    return node->tag == SYNTAQLITE_NODE_TABLE_REF ? &node->table_ref : NULL;
 }
 
 // ============ Abstract Type: Name ============
@@ -3044,6 +3129,7 @@ typedef union SyntaqliteExpr {
     SyntaqliteNodeTag tag;
     SyntaqliteBinaryExpr binary_expr;
     SyntaqliteUnaryExpr unary_expr;
+    SyntaqliteParenExpr paren_expr;
     SyntaqliteLiteral literal;
     SyntaqliteColumnRef column_ref;
     SyntaqliteVariable variable;
@@ -3067,6 +3153,7 @@ static inline int syntaqlite_is_expr(SyntaqliteNodeTag tag) {
     switch (tag) {
         case SYNTAQLITE_NODE_BINARY_EXPR: return 1;
         case SYNTAQLITE_NODE_UNARY_EXPR: return 1;
+        case SYNTAQLITE_NODE_PAREN_EXPR: return 1;
         case SYNTAQLITE_NODE_LITERAL: return 1;
         case SYNTAQLITE_NODE_COLUMN_REF: return 1;
         case SYNTAQLITE_NODE_VARIABLE: return 1;
@@ -3094,6 +3181,10 @@ static inline const SyntaqliteBinaryExpr* syntaqlite_expr_as_binary_expr(const S
 
 static inline const SyntaqliteUnaryExpr* syntaqlite_expr_as_unary_expr(const SyntaqliteExpr* node) {
     return node->tag == SYNTAQLITE_NODE_UNARY_EXPR ? &node->unary_expr : NULL;
+}
+
+static inline const SyntaqliteParenExpr* syntaqlite_expr_as_paren_expr(const SyntaqliteExpr* node) {
+    return node->tag == SYNTAQLITE_NODE_PAREN_EXPR ? &node->paren_expr : NULL;
 }
 
 static inline const SyntaqliteLiteral* syntaqlite_expr_as_literal(const SyntaqliteExpr* node) {
@@ -3493,6 +3584,10 @@ template <> struct NodeTag<SyntaqliteUnaryExpr> {
 template <> struct NodeTag<SyntaqliteLiteral> {
   static constexpr bool kHasTag = true;
   static constexpr uint32_t kValue = SYNTAQLITE_NODE_LITERAL;
+};
+template <> struct NodeTag<SyntaqliteParenExpr> {
+  static constexpr bool kHasTag = true;
+  static constexpr uint32_t kValue = SYNTAQLITE_NODE_PAREN_EXPR;
 };
 template <> struct NodeTag<SyntaqliteIdentName> {
   static constexpr bool kHasTag = true;

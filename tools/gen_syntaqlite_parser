@@ -60,6 +60,8 @@ def main():
       'full',
       '--output-dir',
       SYNTAQLITE_DIR,
+      '--macro-style',
+      'rust',
   ]
   print('Running:', ' '.join(cmd))
   subprocess.check_call(cmd)
