@@ -15,10 +15,10 @@
 
 -- Similar to `ancestor_slice`, but returns the slice itself in addition to strict ancestors.
 CREATE PERFETTO FUNCTION _slice_ancestor_and_self(
-    -- Id of the slice.
-    slice_id JOINID(slice.id)
+  -- Id of the slice.
+  slice_id JOINID(slice.id)
 )
-RETURNS TABLE (
+RETURNS TABLE(
   -- Slice
   id JOINID(slice.id),
   -- Alias of `slice.ts`.
@@ -41,7 +41,8 @@ RETURNS TABLE (
   thread_ts TIMESTAMP,
   -- Alias of `slice.thread_dur`.
   thread_dur LONG
-) AS
+)
+AS
 SELECT
   id,
   ts,
@@ -74,10 +75,10 @@ FROM ancestor_slice($slice_id);
 
 -- Similar to `descendant_slice`, but returns the slice itself in addition to strict descendants.
 CREATE PERFETTO FUNCTION _slice_descendant_and_self(
-    -- Id of the slice.
-    slice_id JOINID(slice.id)
+  -- Id of the slice.
+  slice_id JOINID(slice.id)
 )
-RETURNS TABLE (
+RETURNS TABLE(
   -- Slice
   id JOINID(slice.id),
   -- Alias of `slice.ts`.
@@ -100,7 +101,8 @@ RETURNS TABLE (
   thread_ts TIMESTAMP,
   -- Alias of `slice.thread_dur`.
   thread_dur LONG
-) AS
+)
+AS
 SELECT
   id,
   ts,
@@ -137,15 +139,15 @@ FROM descendant_slice($slice_id);
 -- ancestor remaining. This keeps the trees as connected as possible,
 -- allowing further graph analysis.
 CREATE PERFETTO MACRO _slice_remove_nulls_and_reparent(
-    -- Table or subquery containing a subset of the slice table. Required columns are
-    -- (id LONG, parent_id LONG, depth LONG, <column_name>).
-    slice_table TableOrSubQuery,
-    -- Column name for which a NULL value indicates the row will be deleted.
-    column_name ColumnName
+  -- Table or subquery containing a subset of the slice table. Required columns are
+  -- (id LONG, parent_id LONG, depth LONG, <column_name>).
+  slice_table TableOrSubQuery,
+  -- Column name for which a NULL value indicates the row will be deleted.
+  column_name ColumnName
 )
 -- The returned table has the schema (id LONG, parent_id LONG, depth LONG, <column_name>).
-RETURNS TableOrSubQuery AS
-(
+RETURNS TableOrSubQuery
+AS (
   WITH
     _slice AS (
       SELECT

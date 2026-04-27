@@ -21,11 +21,9 @@ INCLUDE PERFETTO MODULE wattson.estimates;
 -- slices. This macro recombines all the slices such that adjacent slices will
 -- always have different values. This means less slices to process, and from the
 -- UI perspective, the counter track will be displayed cleaner.
-CREATE PERFETTO MACRO _get_continuous_estimates(
-    rail ColumnName
-)
-RETURNS TableOrSubquery AS
-(
+CREATE PERFETTO MACRO _get_continuous_estimates(rail ColumnName)
+RETURNS TableOrSubquery
+AS (
   SELECT
     ts,
     dur,
@@ -42,64 +40,34 @@ RETURNS TableOrSubquery AS
 );
 
 CREATE PERFETTO TABLE _system_state_cpu0_mw AS
-SELECT
-  *,
-  0 AS cpu
-FROM _get_continuous_estimates!(cpu0_mw);
+SELECT *, 0 AS cpu FROM _get_continuous_estimates!(cpu0_mw);
 
 CREATE PERFETTO TABLE _system_state_cpu1_mw AS
-SELECT
-  *,
-  1 AS cpu
-FROM _get_continuous_estimates!(cpu1_mw);
+SELECT *, 1 AS cpu FROM _get_continuous_estimates!(cpu1_mw);
 
 CREATE PERFETTO TABLE _system_state_cpu2_mw AS
-SELECT
-  *,
-  2 AS cpu
-FROM _get_continuous_estimates!(cpu2_mw);
+SELECT *, 2 AS cpu FROM _get_continuous_estimates!(cpu2_mw);
 
 CREATE PERFETTO TABLE _system_state_cpu3_mw AS
-SELECT
-  *,
-  3 AS cpu
-FROM _get_continuous_estimates!(cpu3_mw);
+SELECT *, 3 AS cpu FROM _get_continuous_estimates!(cpu3_mw);
 
 CREATE PERFETTO TABLE _system_state_cpu4_mw AS
-SELECT
-  *,
-  4 AS cpu
-FROM _get_continuous_estimates!(cpu4_mw);
+SELECT *, 4 AS cpu FROM _get_continuous_estimates!(cpu4_mw);
 
 CREATE PERFETTO TABLE _system_state_cpu5_mw AS
-SELECT
-  *,
-  5 AS cpu
-FROM _get_continuous_estimates!(cpu5_mw);
+SELECT *, 5 AS cpu FROM _get_continuous_estimates!(cpu5_mw);
 
 CREATE PERFETTO TABLE _system_state_cpu6_mw AS
-SELECT
-  *,
-  6 AS cpu
-FROM _get_continuous_estimates!(cpu6_mw);
+SELECT *, 6 AS cpu FROM _get_continuous_estimates!(cpu6_mw);
 
 CREATE PERFETTO TABLE _system_state_cpu7_mw AS
-SELECT
-  *,
-  7 AS cpu
-FROM _get_continuous_estimates!(cpu7_mw);
+SELECT *, 7 AS cpu FROM _get_continuous_estimates!(cpu7_mw);
 
 CREATE PERFETTO TABLE _system_state_dsu_scu_mw AS
-SELECT
-  *
-FROM _get_continuous_estimates!(dsu_scu_mw);
+SELECT * FROM _get_continuous_estimates!(dsu_scu_mw);
 
 CREATE PERFETTO TABLE _system_state_gpu_mw AS
-SELECT
-  *
-FROM _get_continuous_estimates!(gpu_mw);
+SELECT * FROM _get_continuous_estimates!(gpu_mw);
 
 CREATE PERFETTO TABLE _system_state_tpu_mw AS
-SELECT
-  *
-FROM _get_continuous_estimates!(tpu_mw);
+SELECT * FROM _get_continuous_estimates!(tpu_mw);

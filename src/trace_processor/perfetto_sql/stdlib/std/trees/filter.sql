@@ -19,12 +19,12 @@
 --
 -- Example: _tree_constraint('name', '!=', 'skip')
 CREATE PERFETTO FUNCTION _tree_constraint(
-    -- Column name to filter on
-    column STRING,
-    -- Operator: '=', '!=', '<', '>', '<=', '>=', 'GLOB', etc.
-    op STRING,
-    -- Value to compare against (can be any type)
-    value ANY
+  -- Column name to filter on
+  column STRING,
+  -- Operator: '=', '!=', '<', '>', '<=', '>=', 'GLOB', etc.
+  op STRING,
+  -- Value to compare against (can be any type)
+  value ANY
 )
 -- Returns a constraint pointer
 RETURNS ANY
@@ -34,8 +34,8 @@ DELEGATES TO __intrinsic_tree_constraint;
 --
 -- Example: _tree_where(_tree_constraint('x', '>', 10), _tree_constraint('y', '<', 100))
 CREATE PERFETTO FUNCTION _tree_where(
-    -- Constraints from _tree_constraint (variadic)
-    constraints ANY...
+  -- Constraints from _tree_constraint (variadic)
+  constraints ANY...
 )
 -- Returns a combined constraint pointer
 RETURNS ANY
@@ -59,10 +59,10 @@ DELEGATES TO __intrinsic_tree_where_and;
 -- );
 -- ```
 CREATE PERFETTO FUNCTION _tree_filter(
-    -- A TREE pointer from _tree_from_table or another tree operation.
-    tree_ptr ANY,
-    -- Filter constraints from _tree_where or _tree_where_or
-    where_clause ANY
+  -- A TREE pointer from _tree_from_table or another tree operation.
+  tree_ptr ANY,
+  -- Filter constraints from _tree_where or _tree_where_or
+  where_clause ANY
 )
 -- Returns a filtered TREE pointer
 RETURNS ANY

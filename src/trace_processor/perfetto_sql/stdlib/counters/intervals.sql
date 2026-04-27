@@ -45,10 +45,10 @@
 -- ts=10, dur=30, value=20, track_id=2
 -- ```
 CREATE PERFETTO MACRO counter_leading_intervals(
-    -- A table/view/subquery corresponding to a "counter-like" table.
-    -- This table must have the columns "id" and "ts" and "track_id" and "value" corresponding
-    -- to an id, timestamp, counter track_id and associated counter value.
-    counter_table TableOrSubquery
+  -- A table/view/subquery corresponding to a "counter-like" table.
+  -- This table must have the columns "id" and "ts" and "track_id" and "value" corresponding
+  -- to an id, timestamp, counter track_id and associated counter value.
+  counter_table TableOrSubquery
 )
 -- Table with the schema:
 -- id LONG,
@@ -65,8 +65,8 @@ CREATE PERFETTO MACRO counter_leading_intervals(
 --     Value for the leading row.
 -- delta_value DOUBLE
 --     Delta to the *lagging* row - note that this is not the same thing as (next_value - value).
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
     c0 AS id,
     c1 AS ts,

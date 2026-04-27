@@ -14,9 +14,9 @@
 -- limitations under the License.
 
 CREATE PERFETTO FUNCTION _android_sdk_version()
-RETURNS LONG AS
-SELECT
-  int_value AS sdk_version
+RETURNS LONG
+AS
+SELECT int_value AS sdk_version
 FROM metadata
 WHERE
   name = 'android_sdk_version'

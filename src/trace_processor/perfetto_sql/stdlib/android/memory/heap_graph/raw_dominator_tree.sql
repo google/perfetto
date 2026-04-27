@@ -23,41 +23,36 @@ INCLUDE PERFETTO MODULE graphs.dominator_tree;
 -- connected component, so that the dominator tree algorithm can be performed.
 CREATE PERFETTO FUNCTION _heap_graph_super_root_fn()
 -- The assigned id of the "super root".
-RETURNS LONG AS
-SELECT
-  id + 1
-FROM heap_graph_object
-ORDER BY
-  id DESC
-LIMIT 1;
+RETURNS LONG
+AS
+SELECT id + 1 FROM heap_graph_object ORDER BY id DESC LIMIT 1;
 
 CREATE PERFETTO TABLE _raw_heap_graph_dominator_tree AS
 SELECT
   node_id AS id,
   iif(dominator_node_id = _heap_graph_super_root_fn(), NULL, dominator_node_id) AS idom_id
-FROM graph_dominator_tree!(
-  (
-    SELECT
-      ref.owner_id AS source_node_id,
-      ref.owned_id AS dest_node_id
-    FROM heap_graph_reference ref
-    JOIN heap_graph_object source_node ON ref.owner_id = source_node.id
-    WHERE source_node.reachable
+FROM graph_dominator_tree!((
+    SELECT ref.owner_id AS source_node_id, ref.owned_id AS dest_node_id
+    FROM heap_graph_reference AS ref
+    JOIN heap_graph_object AS source_node ON ref.owner_id = source_node.id
+    WHERE
+      source_node.reachable
       AND ref.id NOT IN _excluded_refs
       AND ref.owned_id IS NOT NULL
     UNION ALL
     SELECT
-      (SELECT _heap_graph_super_root_fn()) as source_node_id,
+      (SELECT _heap_graph_super_root_fn()) AS source_node_id,
       id AS dest_node_id
     FROM heap_graph_object
-    WHERE root_type IS NOT NULL
-  ),
-  (SELECT _heap_graph_super_root_fn())
-)
+    WHERE
+      root_type IS NOT NULL
+  ), (SELECT _heap_graph_super_root_fn()))
 -- Excluding the imaginary root.
 WHERE
   dominator_node_id IS NOT NULL
 ORDER BY
   id;
 
-CREATE PERFETTO INDEX _raw_heap_graph_dominator_tree_idom_id_idx ON _raw_heap_graph_dominator_tree(idom_id);
+CREATE PERFETTO INDEX _raw_heap_graph_dominator_tree_idom_id_idx ON _raw_heap_graph_dominator_tree(
+  idom_id
+);

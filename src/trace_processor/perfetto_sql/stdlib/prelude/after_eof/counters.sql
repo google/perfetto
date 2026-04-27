@@ -25,7 +25,7 @@ INCLUDE PERFETTO MODULE prelude.after_eof.indexes;
 INCLUDE PERFETTO MODULE prelude.after_eof.views;
 
 -- Tracks containing counter-like events.
-CREATE PERFETTO VIEW counter_track (
+CREATE PERFETTO VIEW counter_track(
   -- Unique identifier for this cpu counter track.
   id ID(track.id),
   -- Name of the track.
@@ -53,7 +53,8 @@ CREATE PERFETTO VIEW counter_track (
   unit STRING,
   -- The description for this track. For debugging purposes only.
   description STRING
-) AS
+)
+AS
 SELECT
   id,
   name,
@@ -69,7 +70,7 @@ WHERE
   event_type = 'counter';
 
 -- Tracks containing counter-like events associated to a CPU.
-CREATE PERFETTO TABLE cpu_counter_track (
+CREATE PERFETTO TABLE cpu_counter_track(
   -- Unique identifier for this cpu counter track.
   id ID(track.id),
   -- Name of the track.
@@ -96,7 +97,8 @@ CREATE PERFETTO TABLE cpu_counter_track (
   description STRING,
   -- The CPU that the track is associated with.
   cpu LONG
-) AS
+)
+AS
 SELECT
   ct.id,
   ct.name,
@@ -114,7 +116,7 @@ WHERE
   args.key = 'cpu';
 
 -- Tracks containing counter-like events associated to a GPU.
-CREATE PERFETTO TABLE gpu_counter_track (
+CREATE PERFETTO TABLE gpu_counter_track(
   -- Unique identifier for this gpu counter track.
   id ID(track.id),
   -- Name of the track.
@@ -143,7 +145,8 @@ CREATE PERFETTO TABLE gpu_counter_track (
   ugpu LONG,
   -- The raw GPU number.
   gpu_id LONG
-) AS
+)
+AS
 SELECT
   ct.id,
   ct.name,
@@ -162,7 +165,7 @@ WHERE
   args.key = 'ugpu';
 
 -- Tracks containing counter-like events associated to a process.
-CREATE PERFETTO TABLE process_counter_track (
+CREATE PERFETTO TABLE process_counter_track(
   -- Unique identifier for this process counter track.
   id ID(track.id),
   -- Name of the track.
@@ -189,7 +192,8 @@ CREATE PERFETTO TABLE process_counter_track (
   description STRING,
   -- The upid of the process that the track is associated with.
   upid LONG
-) AS
+)
+AS
 SELECT
   ct.id,
   ct.name,
@@ -207,7 +211,7 @@ WHERE
   args.key = 'upid';
 
 -- Tracks containing counter-like events associated to a thread.
-CREATE PERFETTO TABLE thread_counter_track (
+CREATE PERFETTO TABLE thread_counter_track(
   -- Unique identifier for this thread counter track.
   id ID(track.id),
   -- Name of the track.
@@ -234,7 +238,8 @@ CREATE PERFETTO TABLE thread_counter_track (
   description STRING,
   -- The utid of the thread that the track is associated with.
   utid LONG
-) AS
+)
+AS
 SELECT
   ct.id,
   ct.name,
@@ -252,7 +257,7 @@ WHERE
   args.key = 'utid';
 
 -- Tracks containing counter-like events collected from Linux perf.
-CREATE PERFETTO TABLE perf_counter_track (
+CREATE PERFETTO TABLE perf_counter_track(
   -- Unique identifier for this thread counter track.
   id ID(track.id),
   -- Name of the track.
@@ -284,7 +289,8 @@ CREATE PERFETTO TABLE perf_counter_track (
   cpu LONG,
   -- Whether this counter is the sampling timebase for the session.
   is_timebase BOOL
-) AS
+)
+AS
 SELECT
   ct.id,
   ct.name,
@@ -302,7 +308,7 @@ WHERE
   ct.type IN ('perf_cpu_counter', 'perf_global_counter');
 
 -- Alias of the `counter` table.
-CREATE PERFETTO VIEW counters (
+CREATE PERFETTO VIEW counters(
   -- Alias of `counter.id`.
   id ID,
   -- Alias of `counter.ts`.
@@ -317,11 +323,9 @@ CREATE PERFETTO VIEW counters (
   name STRING,
   -- Legacy column, should no longer be used.
   unit STRING
-) AS
-SELECT
-  v.*,
-  t.name,
-  t.unit
+)
+AS
+SELECT v.*, t.name, t.unit
 FROM counter AS v
 JOIN counter_track AS t
   ON v.track_id = t.id

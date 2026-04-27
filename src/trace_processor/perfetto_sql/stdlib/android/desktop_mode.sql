@@ -17,7 +17,7 @@
 INCLUDE PERFETTO MODULE android.statsd;
 
 -- Desktop Windows with durations they were open.
-CREATE PERFETTO TABLE android_desktop_mode_windows (
+CREATE PERFETTO TABLE android_desktop_mode_windows(
   -- Window add timestamp; NULL if no add event in the trace.
   raw_add_ts TIMESTAMP,
   -- Window remove timestamp; NULL if no remove event in the trace.
@@ -30,7 +30,8 @@ CREATE PERFETTO TABLE android_desktop_mode_windows (
   instance_id LONG,
   -- UID of the app running in the window.
   uid LONG
-) AS
+)
+AS
 WITH
   atoms AS (
     SELECT
@@ -43,25 +44,10 @@ WITH
     WHERE
       name = 'desktop_mode_session_task_update'
   ),
-  dw_statsd_events_add AS (
-    SELECT
-      *
-    FROM atoms
-    WHERE
-      type = 'TASK_ADDED'
-  ),
-  dw_statsd_events_remove AS (
-    SELECT
-      *
-    FROM atoms
-    WHERE
-      type = 'TASK_REMOVED'
-  ),
+  dw_statsd_events_add AS (SELECT * FROM atoms WHERE type = 'TASK_ADDED'),
+  dw_statsd_events_remove AS (SELECT * FROM atoms WHERE type = 'TASK_REMOVED'),
   dw_statsd_events_update_by_instance AS (
-    SELECT
-      instance_id,
-      session_id,
-      min(uid) AS uid
+    SELECT instance_id, session_id, min(uid) AS uid
     FROM atoms
     WHERE
       type = 'TASK_INFO_CHANGED'
@@ -70,14 +56,9 @@ WITH
       session_id
   ),
   dw_statsd_reset_event AS (
-    SELECT
-      ts
-    FROM atoms
-    WHERE
-      type = 'TASK_INIT_STATSD'
+    SELECT ts FROM atoms WHERE type = 'TASK_INIT_STATSD'
     UNION
-    SELECT
-      trace_end()
+    SELECT trace_end()
   ),
   dw_windows AS (
     SELECT
@@ -89,24 +70,21 @@ WITH
       coalesce(
         r.ts,
         (
-          SELECT
-            min(ts)
+          SELECT min(ts)
           FROM dw_statsd_reset_event
           WHERE
             ts > coalesce(a.ts, trace_start())
         )
-      ) - coalesce(a.ts, trace_start()) AS dur,
+      )
+      - coalesce(a.ts, trace_start()) AS dur,
       coalesce(a.instance_id, r.instance_id) AS instance_id,
       coalesce(a.uid, r.uid) AS uid
     FROM dw_statsd_events_add AS a
-    FULL JOIN dw_statsd_events_remove AS r
-      USING (instance_id, session_id)
+    FULL JOIN dw_statsd_events_remove AS r USING (instance_id, session_id)
   ),
   -- Assume window was open for the entire trace if we only see change events for the instance ID.
   dw_windows_with_update_events AS (
-    SELECT
-      *
-    FROM dw_windows
+    SELECT * FROM dw_windows
     UNION
     SELECT
       NULL,
@@ -117,12 +95,6 @@ WITH
       uid
     FROM dw_statsd_events_update_by_instance
     WHERE
-      NOT instance_id IN (
-        SELECT
-          instance_id
-        FROM dw_windows
-      )
+      NOT (instance_id IN (SELECT instance_id FROM dw_windows))
   )
-SELECT
-  *
-FROM dw_windows_with_update_events;
+SELECT * FROM dw_windows_with_update_events;

@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import os
+import platform
 import sys
 
 from code_format_utils import CodeFormatterBase, run_code_formatters
@@ -26,33 +27,89 @@ IGNORE_DIRS = [
     'src/trace_processor/perfetto_sql/stdlib/chrome/',
 ]
 
+DIALECT_TARGET = 'perfetto_fmt_dialect'
 
-class SqlGlot(CodeFormatterBase):
+
+def _syntaqlite_binary(repo_root: str) -> str:
+  suffix = '.exe' if platform.system() == 'Windows' else ''
+  return os.path.join(repo_root, 'buildtools', 'syntaqlite',
+                      f'syntaqlite{suffix}')
+
+
+def _dialect_library(out_dir: str) -> str:
+  # GN's shared_library emits `libperfetto_fmt_dialect.so` on Linux/macOS and
+  # `perfetto_fmt_dialect.dll` on Windows.
+  if platform.system() == 'Windows':
+    return os.path.join(out_dir, f'{DIALECT_TARGET}.dll')
+  return os.path.join(out_dir, f'lib{DIALECT_TARGET}.so')
+
+
+def _resolve_out_dir(repo_root: str) -> str:
+  env_out = os.environ.get('OUT')
+  if env_out:
+    return env_out if os.path.isabs(env_out) else os.path.join(
+        repo_root, env_out)
+  out_root = os.path.join(repo_root, 'out')
+  if not os.path.isdir(out_root):
+    return ''
+  candidates = [
+      os.path.join(out_root, d)
+      for d in os.listdir(out_root)
+      if os.path.isfile(os.path.join(out_root, d, 'build.ninja'))
+  ]
+  if not candidates:
+    return ''
+  return max(candidates, key=os.path.getmtime)
+
+
+class SyntaqliteFmt(CodeFormatterBase):
 
   def __init__(self):
-    super().__init__(name='sqlglot', exts=['.sql'])
+    super().__init__(name='syntaqlite', exts=['.sql'])
 
   def filter_files(self, files):
-    # Filter based on extension first.
     filtered = super().filter_files(files)
-    # Apply ignore list.
     filtered = [
         f for f in filtered if not any(f.startswith(i) for i in IGNORE_DIRS)
     ]
     return filtered
 
   def run_formatter(self, repo_root: str, check_only: bool, files: list[str]):
-    if sys.platform != 'win32':
-      venv_py = '.venv/bin/python3'
-    else:
-      venv_py = '.venv/Scripts/python3.exe'
-    fmt_script = 'python/tools/format_sql.py'
-    if not os.path.exists(venv_py):
-      err = f'Cannot find ${venv_py}\nRun tools/install-build-deps'
-      print(err, file=sys.stderr)
+    binary = _syntaqlite_binary(repo_root)
+    if not os.path.isfile(binary):
+      print(
+          f'syntaqlite binary not found at {binary}\n'
+          'Run `tools/install-build-deps` to fetch it.',
+          file=sys.stderr)
       return 127
-    cmd = [venv_py, fmt_script]
-    cmd += (['--check-only'] if check_only else ['--in-place'])
+
+    out_dir = _resolve_out_dir(repo_root)
+    if not out_dir:
+      print(
+          'No GN out/ directory found. Run `tools/gn gen out/<config>` first.',
+          file=sys.stderr)
+      return 127
+
+    # Keep the dialect library in sync with perfetto.y / perfetto.synq.
+    ninja = os.path.join(repo_root, 'tools', 'ninja')
+    rc = self.check_call([ninja, '-C', out_dir, DIALECT_TARGET])
+    if rc != 0:
+      return rc
+
+    lib = _dialect_library(out_dir)
+    if not os.path.isfile(lib):
+      print(f'Dialect library not found at {lib}', file=sys.stderr)
+      return 127
+
+    cmd = [
+        binary,
+        'fmt',
+        '--dialect',
+        lib,
+        '--dialect-name',
+        'perfetto',
+    ]
+    cmd.append('--check' if check_only else '--in-place')
     cmd += files
     return self.check_call(cmd)
 
@@ -61,4 +118,4 @@ class SqlGlot(CodeFormatterBase):
 
 
 if __name__ == '__main__':
-  sys.exit(run_code_formatters([SqlGlot()]))
+  sys.exit(run_code_formatters([SyntaqliteFmt()]))

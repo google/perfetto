@@ -18,8 +18,7 @@ INCLUDE PERFETTO MODULE android.startup.startup_events;
 -- Marks the beginning of the trace and is equivalent to when the statsd startup
 -- logging begins.
 CREATE PERFETTO VIEW _activity_intent_received AS
-SELECT
-  ts
+SELECT ts
 FROM slice
 WHERE
   name = 'MetricsLogger:launchObserverNotifyIntentStarted';
@@ -28,9 +27,7 @@ WHERE
 -- We will refine these progressively in the next steps to only encompass
 -- activity starts.
 CREATE PERFETTO TABLE _activity_intent_recv_spans AS
-SELECT
-  ts,
-  lead(ts, 1, trace_end()) OVER (ORDER BY ts) - ts AS dur
+SELECT ts, lead(ts, 1, trace_end()) OVER (ORDER BY ts) - ts AS dur
 FROM _activity_intent_received
 ORDER BY
   ts;
@@ -38,13 +35,12 @@ ORDER BY
 -- Filter activity_intent_recv_spans, keeping only the ones that triggered
 -- a startup.
 CREATE PERFETTO VIEW _startup_partitions AS
-SELECT
-  *
+SELECT *
 FROM _activity_intent_recv_spans AS spans
 WHERE
-  1 = (
-    SELECT
-      count(1)
+  1
+  = (
+    SELECT count(1)
     FROM _startup_events
     WHERE
       _startup_events.ts BETWEEN spans.ts AND spans.ts + spans.dur
@@ -53,8 +49,7 @@ WHERE
 -- Successful activity startup. The end of the 'launching' event is not related
 -- to whether it actually succeeded or not.
 CREATE PERFETTO VIEW _activity_intent_startup_successful AS
-SELECT
-  ts
+SELECT ts
 FROM slice
 WHERE
   name = 'MetricsLogger:launchObserverNotifyActivityLaunchFinished';
@@ -70,19 +65,15 @@ SELECT
   NULL AS startup_type
 FROM _startup_partitions AS lpart
 JOIN _startup_events AS le
-  ON (
-    le.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur
-  )
-  AND (
-    le.ts_end BETWEEN lpart.ts AND lpart.ts + lpart.dur
-  )
+  ON (le.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur)
+  AND (le.ts_end BETWEEN lpart.ts AND lpart.ts + lpart.dur)
 WHERE
   (
-    SELECT
-      count(1)
+    SELECT count(1)
     FROM _activity_intent_startup_successful AS successful
     WHERE
       successful.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur
-  ) > 0
+  )
+  > 0
 ORDER BY
   lpart.ts;

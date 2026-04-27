@@ -32,35 +32,35 @@ INCLUDE PERFETTO MODULE graphs.search;
 --   (SELECT id AS root_node_id, prev_id - id FROM _wakeup_graph WHERE prev_id IS NOT NULL));
 -- ```
 CREATE PERFETTO MACRO _critical_path(
-    -- A table/view/subquery corresponding to a directed graph on which the
-    -- reachability search should be performed. This table must have the columns
-    -- "source_node_id", "dest_node_id" and "edge_weight" corresponding to the two nodes on
-    -- either end of the edges in the graph and the edge weight.
-    --
-    -- Note: the columns must contain uint32 similar to ids in trace processor
-    -- tables (i.e. the values should be relatively dense and close to zero). The
-    -- implementation makes assumptions on this for performance reasons and, if
-    -- this criteria is not, can lead to enormous amounts of memory being
-    -- allocated.
-    -- An edge weight is the absolute difference between the node ids forming the edge.
-    graph_table TableOrSubQuery,
-    -- A table/view/subquery corresponding to start nodes to |graph_table| which will be the
-    -- roots of the reachability trees. This table must have the columns
-    -- "root_node_id" and "capacity" corresponding to the starting node id and the capacity
-    -- of the root node to contain edge weights.
-    --
-    -- Note: the columns must contain uint32 similar to ids in trace processor
-    -- tables (i.e. the values should be relatively dense and close to zero). The
-    -- implementation makes assumptions on this for performance reasons and, if
-    -- this criteria is not, can lead to enormous amounts of memory being
-    -- allocated.
-    root_table TableOrSubQuery
+  -- A table/view/subquery corresponding to a directed graph on which the
+  -- reachability search should be performed. This table must have the columns
+  -- "source_node_id", "dest_node_id" and "edge_weight" corresponding to the two nodes on
+  -- either end of the edges in the graph and the edge weight.
+  --
+  -- Note: the columns must contain uint32 similar to ids in trace processor
+  -- tables (i.e. the values should be relatively dense and close to zero). The
+  -- implementation makes assumptions on this for performance reasons and, if
+  -- this criteria is not, can lead to enormous amounts of memory being
+  -- allocated.
+  -- An edge weight is the absolute difference between the node ids forming the edge.
+  graph_table TableOrSubQuery,
+  -- A table/view/subquery corresponding to start nodes to |graph_table| which will be the
+  -- roots of the reachability trees. This table must have the columns
+  -- "root_node_id" and "capacity" corresponding to the starting node id and the capacity
+  -- of the root node to contain edge weights.
+  --
+  -- Note: the columns must contain uint32 similar to ids in trace processor
+  -- tables (i.e. the values should be relatively dense and close to zero). The
+  -- implementation makes assumptions on this for performance reasons and, if
+  -- this criteria is not, can lead to enormous amounts of memory being
+  -- allocated.
+  root_table TableOrSubQuery
 )
 -- The returned table has the schema (root_id LONG, id LONG, parent_id LONG).
 -- |root_id| is the id of the root where the critical path computation started.
 -- |id| is the id of a node in the critical path and |parent_id| is the predecessor of |id|.
-RETURNS TableOrSubQuery AS
-(
+RETURNS TableOrSubQuery
+AS (
   WITH
     _edges AS (
       SELECT
@@ -99,11 +99,11 @@ RETURNS TableOrSubQuery AS
 
 -- Flattens overlapping tasks within a critical path and flattens overlapping critical paths.
 CREATE PERFETTO MACRO _critical_path_to_intervals(
-    critical_path_table TableOrSubquery,
-    node_table TableOrSubquery
+  critical_path_table TableOrSubquery,
+  node_table TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   WITH
     flat_tasks AS (
       SELECT
@@ -150,49 +150,49 @@ RETURNS TableOrSubquery AS
 --  _wakeup_intervals);
 -- ```
 CREATE PERFETTO MACRO _critical_path_intervals(
-    -- A table/view/subquery corresponding to a directed graph on which the
-    -- reachability search should be performed. This table must have the columns
-    -- "source_node_id", "dest_node_id" and "edge_weight" corresponding to the two nodes on
-    -- either end of the edges in the graph and the edge weight.
-    --
-    -- Note: the columns must contain uint32 similar to ids in trace processor
-    -- tables (i.e. the values should be relatively dense and close to zero). The
-    -- implementation makes assumptions on this for performance reasons and, if
-    -- this criteria is not, can lead to enormous amounts of memory being
-    -- allocated.
-    -- An edge weight is the absolute difference between the node ids forming the edge.
-    graph_table TableOrSubQuery,
-    -- A table/view/subquery corresponding to start nodes to |graph_table| which will be the
-    -- roots of the reachability trees. This table must have the columns
-    -- "root_node_id" and "capacity" corresponding to the starting node id and the capacity
-    -- of the root node to contain edge weights.
-    --
-    -- Note: the columns must contain uint32 similar to ids in trace processor
-    -- tables (i.e. the values should be relatively dense and close to zero). The
-    -- implementation makes assumptions on this for performance reasons and, if
-    -- this criteria is not, can lead to enormous amounts of memory being
-    -- allocated.
-    root_table TableOrSubQuery,
-    -- A table/view/subquery corresponding to the idle to active transition points on a task.
-    -- This table must have the columns, "id", "ts", "dur" and "idle_dur". ts and dur is the
-    -- timestamp when the task became active and how long it was active for respectively. idle_dur
-    -- is the duration it was idle for before it became active at "ts".
-    --
-    -- Note: the columns must contain uint32 similar to ids in trace processor
-    -- tables (i.e. the values should be relatively dense and close to zero). The
-    -- implementation makes assumptions on this for performance reasons and, if
-    -- this criteria is not, can lead to enormous amounts of memory being
-    -- allocated.
-    -- There should be one row for every node id encountered in the |graph_table|.
-    interval_table TableOrSubQuery
+  -- A table/view/subquery corresponding to a directed graph on which the
+  -- reachability search should be performed. This table must have the columns
+  -- "source_node_id", "dest_node_id" and "edge_weight" corresponding to the two nodes on
+  -- either end of the edges in the graph and the edge weight.
+  --
+  -- Note: the columns must contain uint32 similar to ids in trace processor
+  -- tables (i.e. the values should be relatively dense and close to zero). The
+  -- implementation makes assumptions on this for performance reasons and, if
+  -- this criteria is not, can lead to enormous amounts of memory being
+  -- allocated.
+  -- An edge weight is the absolute difference between the node ids forming the edge.
+  graph_table TableOrSubQuery,
+  -- A table/view/subquery corresponding to start nodes to |graph_table| which will be the
+  -- roots of the reachability trees. This table must have the columns
+  -- "root_node_id" and "capacity" corresponding to the starting node id and the capacity
+  -- of the root node to contain edge weights.
+  --
+  -- Note: the columns must contain uint32 similar to ids in trace processor
+  -- tables (i.e. the values should be relatively dense and close to zero). The
+  -- implementation makes assumptions on this for performance reasons and, if
+  -- this criteria is not, can lead to enormous amounts of memory being
+  -- allocated.
+  root_table TableOrSubQuery,
+  -- A table/view/subquery corresponding to the idle to active transition points on a task.
+  -- This table must have the columns, "id", "ts", "dur" and "idle_dur". ts and dur is the
+  -- timestamp when the task became active and how long it was active for respectively. idle_dur
+  -- is the duration it was idle for before it became active at "ts".
+  --
+  -- Note: the columns must contain uint32 similar to ids in trace processor
+  -- tables (i.e. the values should be relatively dense and close to zero). The
+  -- implementation makes assumptions on this for performance reasons and, if
+  -- this criteria is not, can lead to enormous amounts of memory being
+  -- allocated.
+  -- There should be one row for every node id encountered in the |graph_table|.
+  interval_table TableOrSubQuery
 )
 -- The returned table has the schema (id LONG, ts TIMESTAMP, dur DURATION, idle_dur LONG).
 -- |root_node_id| is the id of the starting node under which this edge was encountered.
 -- |node_id| is the id of the node from the input graph and |parent_node_id|
 -- is the id of the node which was the first encountered predecessor in a DFS
 -- search of the graph.
-RETURNS TableOrSubQuery AS
-(
+RETURNS TableOrSubQuery
+AS (
   WITH
     _critical_path_nodes AS (
       SELECT

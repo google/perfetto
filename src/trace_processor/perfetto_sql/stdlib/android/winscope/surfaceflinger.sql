@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- Android surfaceflinger transactions (from android.surfaceflinger.transactions data source).
-CREATE PERFETTO VIEW android_surfaceflinger_transaction (
+CREATE PERFETTO VIEW android_surfaceflinger_transaction(
   -- Row id
   id LONG,
   -- Snapshot id
@@ -35,7 +35,8 @@ CREATE PERFETTO VIEW android_surfaceflinger_transaction (
   flags_id LONG,
   -- Transaction type
   transaction_type STRING
-) AS
+)
+AS
 SELECT
   id,
   snapshot_id,
@@ -50,19 +51,17 @@ SELECT
 FROM __intrinsic_surfaceflinger_transaction;
 
 -- Android surfaceflinger transaction flags.
-CREATE PERFETTO VIEW android_surfaceflinger_transaction_flag (
+CREATE PERFETTO VIEW android_surfaceflinger_transaction_flag(
   -- Flags id
   flags_id LONG,
   -- Flag
   flag STRING
-) AS
-SELECT
-  flags_id,
-  flag
-FROM __intrinsic_surfaceflinger_transaction_flag;
+)
+AS
+SELECT flags_id, flag FROM __intrinsic_surfaceflinger_transaction_flag;
 
 -- Android surfaceflinger displays (from android.surfaceflinger.layers data source).
-CREATE PERFETTO VIEW android_surfaceflinger_display (
+CREATE PERFETTO VIEW android_surfaceflinger_display(
   -- Id
   id LONG,
   -- Snapshot id
@@ -77,20 +76,18 @@ CREATE PERFETTO VIEW android_surfaceflinger_display (
   display_id LONG,
   -- Display name
   display_name STRING
-) AS
-SELECT
-  *
-FROM __intrinsic_surfaceflinger_display;
+)
+AS
+SELECT * FROM __intrinsic_surfaceflinger_display;
 
 -- Android surfaceflinger input rect fill regions (from android.surfaceflinger.layers data source).
-CREATE PERFETTO VIEW android_winscope_fill_region (
+CREATE PERFETTO VIEW android_winscope_fill_region(
   -- Fill region id
   id LONG,
   -- Trace rect id
   trace_rect_id LONG,
   -- Rect id
   rect_id LONG
-) AS
-SELECT
-  *
-FROM __intrinsic_winscope_fill_region;
+)
+AS
+SELECT * FROM __intrinsic_winscope_fill_region;

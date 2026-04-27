@@ -29,7 +29,8 @@ WITH
       s.ts,
       s.dur,
       extract_arg(t.dimension_arg_set_id, 'cpu') AS hp_cpu,
-      extract_arg(t.dimension_arg_set_id, 'cpu') != extract_arg(s.arg_set_id, 'action_cpu') AS is_different_cpu
+      extract_arg(t.dimension_arg_set_id, 'cpu')
+      != extract_arg(s.arg_set_id, 'action_cpu') AS is_different_cpu
     FROM slice AS s
     JOIN track AS t
       ON t.id = s.track_id
@@ -85,46 +86,21 @@ WITH
     UNION ALL
     -- All online and offline regions as defined by cpuhp. This will have
     -- continuous slices from somewhere in the middle to the end of the trace.
-    SELECT
-      cpu,
-      ts,
-      dur,
-      is_different_cpu AS offline
-    FROM _cpu_hotplug_offline
+    SELECT cpu, ts, dur, is_different_cpu AS offline FROM _cpu_hotplug_offline
     UNION ALL
     -- Creates a single online slice spanning the entire trace for CPUs that are
     -- never offline. This is needed for interval_intersect() to not delete
     -- undefined time periods
-    SELECT
-      cpu,
-      trace_start() AS ts,
-      trace_dur() AS dur,
-      FALSE AS offline
+    SELECT cpu, trace_start() AS ts, trace_dur() AS dur, FALSE AS offline
     FROM _dev_cpu_policy_map
     WHERE
-      NOT cpu IN (
-        SELECT
-          cpu
-        FROM _cpu_hotplug_offline
-      )
+      NOT (cpu IN (SELECT cpu FROM _cpu_hotplug_offline))
   )
-SELECT
-  ts,
-  dur,
-  cpu,
-  offline
-FROM filled_gaps
-ORDER BY
-  cpu,
-  ts;
+SELECT ts, dur, cpu, offline FROM filled_gaps ORDER BY cpu, ts;
 
 -- Copies suspend state to each CPU defined, so that the suspend state can be
 -- partitioned by cpu during interval_intersect()
 CREATE PERFETTO TABLE _gapless_suspend_slices AS
-SELECT
-  cpu,
-  ts,
-  dur,
-  iif(power_state = 'suspended', TRUE, FALSE) AS suspended
+SELECT cpu, ts, dur, iif(power_state = 'suspended', TRUE, FALSE) AS suspended
 FROM _dev_cpu_policy_map
 CROSS JOIN android_suspend_state;

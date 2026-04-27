@@ -16,23 +16,27 @@
 -- sqlformat file off
 
 CREATE PERFETTO MACRO _ii_df_agg(x ColumnName, y ColumnName)
-RETURNS _ProjectionFragment AS __intrinsic_stringify!($x), input.$y;
+RETURNS _ProjectionFragment
+AS __intrinsic_stringify!($x), input.$y;
 
 CREATE PERFETTO MACRO _ii_df_bind(x Expr, y Expr)
-RETURNS Expr AS __intrinsic_table_ptr_bind($x, __intrinsic_stringify!($y));
+RETURNS Expr
+AS __intrinsic_table_ptr_bind($x, __intrinsic_stringify!($y));
 
 CREATE PERFETTO MACRO _ii_df_select(x ColumnName, y Expr)
-RETURNS _ProjectionFragment AS $x AS $y;
+RETURNS _ProjectionFragment
+AS $x AS $y;
 
 CREATE PERFETTO MACRO __first_arg(x Expr, y Expr)
-RETURNS Expr AS $x;
+RETURNS Expr
+AS $x;
 
 CREATE PERFETTO MACRO _interval_agg(
   tab TableOrSubquery,
   agg_columns ColumnNameList
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT __intrinsic_interval_tree_intervals_agg(
     input.id,
     input.ts,
@@ -53,8 +57,8 @@ CREATE PERFETTO MACRO _interval_agg_with_col_names(
   ts_col ColumnName,
   dur_col ColumnName
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT __intrinsic_interval_tree_intervals_agg(
     input.$id_col,
     input.$ts_col,
@@ -72,8 +76,8 @@ CREATE PERFETTO MACRO _interval_intersect(
   tabs _TableNameList,
   agg_columns ColumnNameList
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
     c0 AS ts,
     c1 AS dur,
@@ -138,8 +142,8 @@ CREATE PERFETTO MACRO _interval_rename_cols(
   ts_col ColumnName,
   dur_col ColumnName
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT $id_col AS id, $ts_col AS ts, $dur_col AS dur
   __intrinsic_token_apply_prefix!(_ii_df_select, $agg_columns, $agg_columns)
   FROM $tab
@@ -150,8 +154,8 @@ CREATE PERFETTO MACRO _interval_intersect_single(
   dur Expr,
   t TableOrSubquery
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   SELECT
   id_0 AS id,
   ts,
@@ -192,8 +196,8 @@ CREATE PERFETTO MACRO _interval_intersect_with_col_names(
   -- List of partition columns (can be empty with ()).
   agg_columns ColumnNameList
 )
-RETURNS TableOrSubquery AS
-(
+RETURNS TableOrSubquery
+AS (
   _interval_intersect!(
     (
       _interval_rename_cols!($tab1, $agg_columns, $id_col1, $ts_col1, $dur_col1),
@@ -231,8 +235,7 @@ CREATE PERFETTO MACRO interval_self_intersect(
   intervals TableOrSubquery
 )
 RETURNS TableOrSubquery
-AS
-(
+AS (
   WITH
     _all_endpoints AS (
       SELECT id, ts, TRUE as is_start FROM $intervals

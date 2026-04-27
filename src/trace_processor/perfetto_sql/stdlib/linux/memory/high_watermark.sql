@@ -38,16 +38,12 @@ WITH
       0 AS id
     FROM with_rss
   )
-SELECT
-  ts,
-  dur,
-  track_id AS upid,
-  cast_int!(value) AS rss_high_watermark
+SELECT ts, dur, track_id AS upid, cast_int!(value) AS rss_high_watermark
 FROM counter_leading_intervals!(high_watermark_as_counter);
 
 -- For each process fetches the memory high watermark until or during
 -- timestamp.
-CREATE PERFETTO VIEW memory_rss_high_watermark_per_process (
+CREATE PERFETTO VIEW memory_rss_high_watermark_per_process(
   -- Timestamp
   ts TIMESTAMP,
   -- Duration
@@ -60,14 +56,8 @@ CREATE PERFETTO VIEW memory_rss_high_watermark_per_process (
   process_name STRING,
   -- Maximum `rss` value until now
   rss_high_watermark LONG
-) AS
-SELECT
-  ts,
-  dur,
-  upid,
-  pid,
-  name AS process_name,
-  rss_high_watermark
+)
+AS
+SELECT ts, dur, upid, pid, name AS process_name, rss_high_watermark
 FROM _memory_rss_high_watermark_per_process_table
-JOIN process
-  USING (upid);
+JOIN process USING (upid);

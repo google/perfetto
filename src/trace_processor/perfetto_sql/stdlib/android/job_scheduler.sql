@@ -27,7 +27,7 @@
 -- `ATOM_SCHEDULED_JOB_STATE_CHANGED` is available in the trace since
 -- it includes the constraint, screen, or charging state changes for
 -- each job in a trace.
-CREATE PERFETTO TABLE android_job_scheduler_events (
+CREATE PERFETTO TABLE android_job_scheduler_events(
   -- Id of the scheduled job assigned by the app developer.
   job_id LONG,
   -- Uid of the process running the scheduled job.
@@ -44,7 +44,8 @@ CREATE PERFETTO TABLE android_job_scheduler_events (
   ts TIMESTAMP,
   -- Duration of the scheduled job.
   dur DURATION
-) AS
+)
+AS
 SELECT
   cast_int!(STR_SPLIT(slice.name, '#', 1)) AS job_id,
   cast_int!(STR_SPLIT(STR_SPLIT(slice.name, '<', 1), '>', 0)) AS uid,

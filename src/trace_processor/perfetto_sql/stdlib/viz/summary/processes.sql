@@ -18,30 +18,20 @@ INCLUDE PERFETTO MODULE viz.summary.slices;
 INCLUDE PERFETTO MODULE viz.summary.threads;
 
 CREATE PERFETTO TABLE _process_track_summary AS
-SELECT
-  upid,
-  sum(cnt) AS slice_count
+SELECT upid, sum(cnt) AS slice_count
 FROM process_track
-JOIN _slice_track_summary
-  USING (id)
+JOIN _slice_track_summary USING (id)
 GROUP BY
   upid;
 
 CREATE PERFETTO TABLE _heap_profile_allocation_summary AS
-SELECT
-  upid,
-  count() AS allocation_count
+SELECT upid, count() AS allocation_count
 FROM heap_profile_allocation
 GROUP BY
   upid;
 
 CREATE PERFETTO TABLE _heap_profile_graph_summary AS
-SELECT
-  upid,
-  count() AS graph_object_count
-FROM heap_graph_object
-GROUP BY
-  upid;
+SELECT upid, count() AS graph_object_count FROM heap_graph_object GROUP BY upid;
 
 CREATE PERFETTO TABLE _thread_process_grouped_summary AS
 SELECT
@@ -53,8 +43,7 @@ SELECT
   sum(perf_sample_count) AS perf_sample_count,
   sum(instruments_sample_count) AS instruments_sample_count
 FROM _thread_available_info_summary
-JOIN thread
-  USING (utid)
+JOIN thread USING (utid)
 WHERE
   upid IS NOT NULL
 GROUP BY
@@ -72,30 +61,21 @@ WITH
       t_summary.slice_count AS thread_slice_count,
       t_summary.perf_sample_count AS perf_sample_count,
       t_summary.instruments_sample_count AS instruments_sample_count,
+      (SELECT slice_count FROM _process_track_summary WHERE upid = p.upid) AS process_slice_count,
       (
-        SELECT
-          slice_count
-        FROM _process_track_summary
-        WHERE
-          upid = p.upid
-      ) AS process_slice_count,
-      (
-        SELECT
-          allocation_count
+        SELECT allocation_count
         FROM _heap_profile_allocation_summary
         WHERE
           upid = p.upid
       ) AS allocation_count,
       (
-        SELECT
-          graph_object_count
+        SELECT graph_object_count
         FROM _heap_profile_graph_summary
         WHERE
           upid = p.upid
       ) AS graph_object_count
     FROM process AS p
-    LEFT JOIN _thread_process_grouped_summary AS t_summary
-      USING (upid)
+    LEFT JOIN _thread_process_grouped_summary AS t_summary USING (upid)
   )
 SELECT
   upid,
@@ -110,12 +90,8 @@ SELECT
   coalesce(graph_object_count, 0) AS graph_object_count
 FROM r
 WHERE
-  NOT (
-    r.summary_upid IS NULL
-    AND process_slice_count IS NULL AND allocation_count IS NULL AND graph_object_count IS NULL
-  )
-  OR upid IN (
-    SELECT
-      upid
-    FROM process_counter_track
-  );
+  NOT (r.summary_upid IS NULL
+  AND process_slice_count IS NULL
+  AND allocation_count IS NULL
+  AND graph_object_count IS NULL)
+  OR upid IN (SELECT upid FROM process_counter_track);

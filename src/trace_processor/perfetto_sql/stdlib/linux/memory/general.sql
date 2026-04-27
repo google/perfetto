@@ -20,13 +20,14 @@ SELECT
     ts,
     1,
     (
-      SELECT
-        coalesce(end_ts, trace_end())
+      SELECT coalesce(end_ts, trace_end())
       FROM process AS p
       WHERE
         p.upid = t.upid
-    ) + 1
-  ) OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur,
+    )
+    + 1
+  ) OVER (PARTITION BY track_id ORDER BY ts)
+  - ts AS dur,
   upid,
   value,
   track_id,

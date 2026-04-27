@@ -19,7 +19,7 @@ INCLUDE PERFETTO MODULE android.startup.startups;
 -- Time elapsed between the latest user start
 -- and the specific end event
 -- like package startup(ex carlauncher) or previous user stop.
-CREATE PERFETTO TABLE android_auto_multiuser_timing (
+CREATE PERFETTO TABLE android_auto_multiuser_timing(
   -- Id of the started android user
   event_start_user_id STRING,
   -- Start event time
@@ -33,7 +33,8 @@ CREATE PERFETTO TABLE android_auto_multiuser_timing (
   -- User switch duration from start event
   -- to end event
   duration LONG
-) AS
+)
+AS
 -- The last ts for user switch event.
 WITH
   auto_multiuser_user_start AS (
@@ -45,10 +46,8 @@ WITH
       substr(name, instr(name, '-') + 1, 2) AS started_user_id
     FROM slice
     WHERE
-      (
-        slice.name GLOB "UserController.startUser*"
-        AND NOT slice.name GLOB "UserController.startUser-10*"
-      )
+      (slice.name GLOB "UserController.startUser*"
+      AND NOT (slice.name GLOB "UserController.startUser-10*"))
     ORDER BY
       ts DESC
     LIMIT 1
@@ -59,18 +58,12 @@ SELECT
   event_end_time,
   event_end_name,
   event_start_name,
-  (
-    event_end_time - user_start_time
-  ) AS duration
+  (event_end_time - user_start_time) AS duration
 FROM (
-  SELECT
-    ts_end AS event_end_time,
-    package AS event_end_name
+  SELECT ts_end AS event_end_time, package AS event_end_name
   FROM android_startups
   UNION
-  SELECT
-    slice.ts + slice.dur AS event_end_time,
-    slice.name AS event_end_name
+  SELECT slice.ts + slice.dur AS event_end_time, slice.name AS event_end_name
   FROM slice
   WHERE
     slice.name GLOB "finishUserStopped-10*"
@@ -82,15 +75,11 @@ JOIN auto_multiuser_user_start AS b
 CREATE PERFETTO VIEW _android_auto_user_10_total_cpu_time AS
 SELECT
   sum(dur) AS total_cpu_time,
-  (
-    uid - android_appid
-  ) / 100000 AS user_id,
+  (uid - android_appid) / 100000 AS user_id,
   event_end_name
 FROM sched_slice
-JOIN thread
-  USING (utid)
-JOIN process
-  USING (upid), android_auto_multiuser_timing
+JOIN thread USING (utid)
+JOIN process USING (upid), android_auto_multiuser_timing
 WHERE
   user_id = 10
   AND ts >= android_auto_multiuser_timing.event_start_time
@@ -106,15 +95,12 @@ WITH
       c.ts,
       c.value,
       p.name AS proc_name,
-      (
-        uid - android_appid
-      ) / 100000 AS user_id,
+      (uid - android_appid) / 100000 AS user_id,
       event_end_name
     FROM counter AS c
     LEFT JOIN process_counter_track AS t
       ON c.track_id = t.id
-    LEFT JOIN process AS p
-      USING (upid), android_auto_multiuser_timing
+    LEFT JOIN process AS p USING (upid), android_auto_multiuser_timing
     WHERE
       t.name GLOB "mem.rss"
       AND user_id = 10
@@ -124,7 +110,10 @@ WITH
   process_rss AS (
     SELECT
       *,
-      coalesce(lag(value) OVER (PARTITION BY proc_name, event_end_name ORDER BY ts), value) AS prev_value
+      coalesce(
+        lag(value) OVER (PARTITION BY proc_name, event_end_name ORDER BY ts),
+        value
+      ) AS prev_value
     FROM filtered_process
   ),
   per_process_allocations AS (
@@ -151,7 +140,7 @@ GROUP BY
   event_end_name;
 
 -- This table extends `android_auto_multiuser_timing` table with previous user resource usage.
-CREATE PERFETTO VIEW android_auto_multiuser_timing_with_previous_user_resource_usage (
+CREATE PERFETTO VIEW android_auto_multiuser_timing_with_previous_user_resource_usage(
   -- Start user id
   event_start_user_id STRING,
   -- Start event time
@@ -171,7 +160,8 @@ CREATE PERFETTO VIEW android_auto_multiuser_timing_with_previous_user_resource_u
   total_cpu_time LONG,
   -- Total memory user for a user
   total_memory_usage_kb LONG
-) AS
+)
+AS
 SELECT
   a.event_start_user_id,
   a.event_start_time,

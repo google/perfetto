@@ -20,21 +20,24 @@
 
 -- Casts |value| to INT.
 CREATE PERFETTO MACRO cast_int(
-    -- Query or subquery that will be cast.
-    value Expr
-) RETURNS Expr AS
-CAST($value AS INT);
+  -- Query or subquery that will be cast.
+  value Expr
+)
+RETURNS Expr
+AS CAST($value AS INT);
 
 -- Casts |value| to DOUBLE.
 CREATE PERFETTO MACRO cast_double(
-    -- Query or subquery that will be cast.
-    value Expr
-) RETURNS Expr AS
-CAST($value AS REAL);
+  -- Query or subquery that will be cast.
+  value Expr
+)
+RETURNS Expr
+AS CAST($value AS REAL);
 
 -- Casts |value| to STRING.
 CREATE PERFETTO MACRO cast_string(
-    -- Query or subquery that will be cast.
-    value Expr
-) RETURNS Expr AS
-CAST($value AS TEXT);
+  -- Query or subquery that will be cast.
+  value Expr
+)
+RETURNS Expr
+AS CAST($value AS TEXT);

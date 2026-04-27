@@ -23,7 +23,11 @@ SELECT
   -- space with a comma. This is sufficient to reduce the the variable number of spaces to
   -- CSV.
   replace(
-    replace(replace(replace(replace(trim(line), '  ', ' '), '  ', ' '), '  ', ' '), '  ', ' '),
+    replace(
+      replace(replace(replace(trim(line), '  ', ' '), '  ', ' '), '  ', ' '),
+      '  ',
+      ' '
+    ),
     ' ',
     ','
   ) AS line,
@@ -45,17 +49,13 @@ GROUP BY
   section;
 
 CREATE PERFETTO TABLE _show_maps_process_boundary AS
-SELECT
-  s.*,
-  process_name,
-  pid
+SELECT s.*, process_name, pid
 FROM _show_maps AS s
-JOIN _show_maps_process AS p
-  ON s.id BETWEEN p.id AND p.next_id;
+JOIN _show_maps_process AS p ON s.id BETWEEN p.id AND p.next_id;
 
 -- This table represents memory mapping information from /proc/[pid]/smaps
 -- All memory values are in kilobytes (KB)
-CREATE PERFETTO TABLE android_dumpsys_show_map (
+CREATE PERFETTO TABLE android_dumpsys_show_map(
   -- Name of the process.
   process_name STRING,
   -- Process ID.
@@ -94,7 +94,8 @@ CREATE PERFETTO TABLE android_dumpsys_show_map (
   mapping_count LONG,
   -- Path to the mapped object (file, library, etc.).
   mapped_object STRING
-) AS
+)
+AS
 SELECT
   process_name,
   pid,

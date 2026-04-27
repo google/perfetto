@@ -16,7 +16,7 @@
 INCLUDE PERFETTO MODULE slices.flat_slices;
 
 -- Create a table which joins the thread state across the flattened slices.
-CREATE VIRTUAL TABLE __span_joined_thread USING SPAN_JOIN (_slice_flattened PARTITIONED utid, thread_state PARTITIONED utid);
+CREATE VIRTUAL TABLE __span_joined_thread USING SPAN_JOIN(_slice_flattened PARTITIONED utid, thread_state PARTITIONED utid);
 
 -- Get the thread state breakdown of a flattened slice from its slice id.
 -- This table pivoted and summed for better visualization and aggregation.
@@ -24,12 +24,12 @@ CREATE VIRTUAL TABLE __span_joined_thread USING SPAN_JOIN (_slice_flattened PART
 -- remove all notion of nesting. For more information, read the description
 -- of _slice_flattened.
 CREATE PERFETTO FUNCTION _get_flattened_thread_state(
-    -- Id of the slice of interest.
-    slice_id JOINID(slice.id),
-    -- Utid.
-    utid JOINID(thread.id)
+  -- Id of the slice of interest.
+  slice_id JOINID(slice.id),
+  -- Utid.
+  utid JOINID(thread.id)
 )
-RETURNS TABLE (
+RETURNS TABLE(
   -- Timestamp.
   ts TIMESTAMP,
   -- Duration.
@@ -56,33 +56,19 @@ RETURNS TABLE (
   waker_utid JOINID(thread.id),
   -- Thread state's IRQ context.
   irq_context LONG
-) AS
+)
+AS
 WITH
   interesting_slice AS (
-    SELECT
-      ts,
-      dur,
-      slice.track_id AS track_id
+    SELECT ts, dur, slice.track_id AS track_id
     FROM slice
     JOIN thread_track
       ON slice.track_id = thread_track.id
-    JOIN thread
-      USING (utid)
+    JOIN thread USING (utid)
     WHERE
-      (
-        (
-          NOT $slice_id IS NULL AND slice.id = $slice_id
-        ) OR (
-          $slice_id IS NULL
-        )
-      )
-      AND (
-        (
-          NOT $utid IS NULL AND utid = $utid
-        ) OR (
-          $utid IS NULL
-        )
-      )
+      ((NOT ($slice_id IS NULL) AND slice.id = $slice_id)
+      OR ($slice_id IS NULL))
+      AND ((NOT ($utid IS NULL) AND utid = $utid) OR ($utid IS NULL))
   )
 SELECT
   ts,
@@ -100,21 +86,9 @@ SELECT
   irq_context
 FROM __span_joined_thread
 WHERE
-  track_id = (
-    SELECT
-      track_id
-    FROM interesting_slice
-  )
-  AND ts >= (
-    SELECT
-      ts
-    FROM interesting_slice
-  )
-  AND ts < (
-    SELECT
-      ts + dur
-    FROM interesting_slice
-  );
+  track_id = (SELECT track_id FROM interesting_slice)
+  AND ts >= (SELECT ts FROM interesting_slice)
+  AND ts < (SELECT ts + dur FROM interesting_slice);
 
 -- Get the thread state breakdown of a flattened slice from slice id.
 -- This table pivoted and summed for better visualization and aggragation.
@@ -122,12 +96,12 @@ WHERE
 -- remove all notion of nesting. For more information, read the description
 -- of _slice_flattened.
 CREATE PERFETTO FUNCTION _get_flattened_thread_state_aggregated(
-    -- Slice id.
-    slice_id JOINID(slice.id),
-    -- Utid.
-    utid JOINID(thread.id)
+  -- Slice id.
+  slice_id JOINID(slice.id),
+  -- Utid.
+  utid JOINID(thread.id)
 )
-RETURNS TABLE (
+RETURNS TABLE(
   -- Id of a slice.
   slice_id JOINID(slice.id),
   -- Name of the slice.
@@ -168,13 +142,10 @@ RETURNS TABLE (
   dur DURATION,
   -- Depth of the slice in Perfetto
   depth LONG
-) AS
+)
+AS
 WITH
-  final_table AS (
-    SELECT
-      *
-    FROM _get_flattened_thread_state($slice_id, $utid)
-  )
+  final_table AS (SELECT * FROM _get_flattened_thread_state($slice_id, $utid))
 SELECT
   fs.slice_id,
   fs.name AS slice_name,

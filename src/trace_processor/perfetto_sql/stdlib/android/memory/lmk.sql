@@ -16,34 +16,25 @@
 INCLUDE PERFETTO MODULE android.oom_adjuster;
 
 CREATE PERFETTO FUNCTION _android_lmk_kill_reason_string(
-    -- kill reason enum value
-    kill_reason LONG
+  -- kill reason enum value
+  kill_reason LONG
 )
-RETURNS STRING AS
+RETURNS STRING
+AS
 SELECT
   CASE
-    WHEN $kill_reason = 0
-    THEN 'PRESSURE_AFTER_KILL'
-    WHEN $kill_reason = 1
-    THEN 'NOT_RESPONDING'
-    WHEN $kill_reason = 2
-    THEN 'LOW_SWAP_AND_THRASHING'
-    WHEN $kill_reason = 3
-    THEN 'LOW_MEM_AND_SWAP'
-    WHEN $kill_reason = 4
-    THEN 'LOW_MEM_AND_THRASHING'
-    WHEN $kill_reason = 5
-    THEN 'DIRECT_RECL_AND_THRASHING'
-    WHEN $kill_reason = 6
-    THEN 'LOW_MEM_AND_SWAP_UTIL'
-    WHEN $kill_reason = 7
-    THEN 'LOW_FILECACHE_AFTER_THRASHING'
-    WHEN $kill_reason = 8
-    THEN 'LOW_MEM'
-    WHEN $kill_reason = 9
-    THEN 'DIRECT_RECL_STUCK'
-    WHEN $kill_reason >= 1000 AND $kill_reason < 2000
-    THEN 'VENDOR_REASON'
+    WHEN $kill_reason = 0 THEN 'PRESSURE_AFTER_KILL'
+    WHEN $kill_reason = 1 THEN 'NOT_RESPONDING'
+    WHEN $kill_reason = 2 THEN 'LOW_SWAP_AND_THRASHING'
+    WHEN $kill_reason = 3 THEN 'LOW_MEM_AND_SWAP'
+    WHEN $kill_reason = 4 THEN 'LOW_MEM_AND_THRASHING'
+    WHEN $kill_reason = 5 THEN 'DIRECT_RECL_AND_THRASHING'
+    WHEN $kill_reason = 6 THEN 'LOW_MEM_AND_SWAP_UTIL'
+    WHEN $kill_reason = 7 THEN 'LOW_FILECACHE_AFTER_THRASHING'
+    WHEN $kill_reason = 8 THEN 'LOW_MEM'
+    WHEN $kill_reason = 9 THEN 'DIRECT_RECL_STUCK'
+    WHEN $kill_reason >= 1000
+    AND $kill_reason < 2000 THEN 'VENDOR_REASON'
     ELSE 'UNKNOWN'
   END;
 
@@ -59,7 +50,9 @@ FROM slice
 JOIN process_track AS pt
   ON slice.track_id = pt.id
 WHERE
-  pt.name = 'lowmemorykiller' AND slice.name GLOB 'lmk,*' AND dur = 0;
+  pt.name = 'lowmemorykiller'
+  AND slice.name GLOB 'lmk,*'
+  AND dur = 0;
 
 -- LMK events based on the slice atrace event (legacy)
 -- Introduced with aosp/1782391 (Aug 2021)
@@ -71,92 +64,60 @@ SELECT
   CAST(str_split(slice.name, ',', 3) AS LONG) AS oom_score_adj
 FROM slice
 WHERE
-  slice.name GLOB 'lmk,*' AND dur > 0;
+  slice.name GLOB 'lmk,*'
+  AND dur > 0;
 
 -- The original lmkd trace events, deprecated in 2022
 CREATE PERFETTO TABLE _kill_one_process_events AS
 WITH
   kills AS (
-    SELECT
-      c.ts,
-      c.value AS pid
+    SELECT c.ts, c.value AS pid
     FROM counter AS c
     JOIN counter_track AS ct
       ON c.track_id = ct.id
     WHERE
-      ct.name = 'kill_one_process' AND c.value > 0
+      ct.name = 'kill_one_process'
+      AND c.value > 0
   ),
   si AS (
-    SELECT
-      si.ts,
-      si.dur,
-      si.score,
-      process.pid
+    SELECT si.ts, si.dur, si.score, process.pid
     FROM android_oom_adj_intervals AS si
-    JOIN process
-      USING (upid)
+    JOIN process USING (upid)
   )
-SELECT
-  kills.ts,
-  kills.pid,
-  NULL AS kill_reason_raw,
-  si.score AS oom_score_adj
+SELECT kills.ts, kills.pid, NULL AS kill_reason_raw, si.score AS oom_score_adj
 FROM kills
 LEFT JOIN si
-  ON kills.pid = si.pid AND kills.ts >= si.ts AND kills.ts < si.ts + si.dur;
+  ON kills.pid = si.pid
+  AND kills.ts >= si.ts
+  AND kills.ts < si.ts + si.dur;
 
 CREATE PERFETTO VIEW _android_lmk_events AS
 WITH
   selector AS (
     SELECT
       CASE
-        WHEN (
-          SELECT
-            count(1)
-          FROM _lmk_instant_events
-        ) > 0
-        THEN '_lmk_instant_events'
-        WHEN (
-          SELECT
-            count(1)
-          FROM _legacy_lmk_events
-        ) > 0
-        THEN '_legacy_lmk_events'
+        WHEN (SELECT count(1) FROM _lmk_instant_events) > 0 THEN '_lmk_instant_events'
+        WHEN (SELECT count(1) FROM _legacy_lmk_events) > 0 THEN '_legacy_lmk_events'
         ELSE '_kill_one_process_events'
       END AS s
   )
-SELECT
-  *
+SELECT *
 FROM _lmk_instant_events
 WHERE
-  (
-    SELECT
-      s
-    FROM selector
-  ) = '_lmk_instant_events'
+  (SELECT s FROM selector) = '_lmk_instant_events'
 UNION ALL
-SELECT
-  *
+SELECT *
 FROM _legacy_lmk_events
 WHERE
-  (
-    SELECT
-      s
-    FROM selector
-  ) = '_legacy_lmk_events'
+  (SELECT s FROM selector) = '_legacy_lmk_events'
 UNION ALL
-SELECT
-  *
+SELECT *
 FROM _kill_one_process_events
 WHERE
-  (
-    SELECT
-      s
-    FROM selector
-  ) = '_kill_one_process_events';
+  (SELECT s FROM selector) = '_kill_one_process_events';
 
 -- Android Low-Memory Kill (LMK) events
-CREATE PERFETTO TABLE android_lmk_events (
+CREATE PERFETTO TABLE android_lmk_events(
   -- timestamp of the kill being requested by lmkd
   ts TIMESTAMP,
   -- upid of the process being killed
@@ -171,7 +132,8 @@ CREATE PERFETTO TABLE android_lmk_events (
   kill_reason STRING,
   -- lmkd kill_reason enum value
   kill_reason_raw LONG
-) AS
+)
+AS
 SELECT
   ts,
   process.pid,
@@ -182,8 +144,6 @@ SELECT
   kill_reason_raw
 FROM _android_lmk_events AS evt
 LEFT JOIN process
-  ON (
-    evt.pid = process.pid
-    AND evt.ts >= coalesce(process.start_ts, trace_start())
-    AND evt.ts <= coalesce(process.end_ts, trace_end())
-  );
+  ON (evt.pid = process.pid
+  AND evt.ts >= coalesce(process.start_ts, trace_start())
+  AND evt.ts <= coalesce(process.end_ts, trace_end()));

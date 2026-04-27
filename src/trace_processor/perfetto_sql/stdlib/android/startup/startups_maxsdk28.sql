@@ -48,9 +48,8 @@ WITH
       AND sl.is_main_thread
       -- Remove any launches here where the activityResume slices happens during
       -- a warm/cold startup.
-      AND NOT EXISTS(
-        SELECT
-          1
+      AND NOT EXISTS (
+        SELECT 1
         FROM warm_and_cold AS wac
         WHERE
           sl.ts BETWEEN wac.ts AND wac.ts_end
@@ -58,20 +57,11 @@ WITH
       )
   ),
   cold_warm_hot AS (
-    SELECT
-      *
-    FROM warm_and_cold
+    SELECT * FROM warm_and_cold
     UNION ALL
-    SELECT
-      *
-    FROM maybe_hot
+    SELECT * FROM maybe_hot
   )
-SELECT
-  ts,
-  ts_end,
-  ts_end - ts AS dur,
-  package,
-  startup_type
+SELECT ts, ts_end, ts_end - ts AS dur, package, startup_type
 FROM cold_warm_hot
 ORDER BY
   ts;

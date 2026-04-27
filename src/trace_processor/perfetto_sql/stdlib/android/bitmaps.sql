@@ -18,11 +18,9 @@ INCLUDE PERFETTO MODULE counters.intervals;
 
 INCLUDE PERFETTO MODULE intervals.intersect;
 
-CREATE PERFETTO MACRO _android_bitmap_counter_macro(
-    name Expr
-)
-RETURNS TableOrSubquery AS
-(
+CREATE PERFETTO MACRO _android_bitmap_counter_macro(name Expr)
+RETURNS TableOrSubquery
+AS (
   SELECT
     id,
     track_id,
@@ -47,7 +45,7 @@ JOIN process_counter_track AS pct ON pct.id = c.track_id
 --
 -- To populate this table, tracing must be enabled with the "view" atrace
 -- category.
-CREATE PERFETTO TABLE android_bitmap_memory (
+CREATE PERFETTO TABLE android_bitmap_memory(
   -- ID of the row in the underlying counter table.
   id ID(counter.id),
   -- Upid of the process.
@@ -60,14 +58,9 @@ CREATE PERFETTO TABLE android_bitmap_memory (
   track_id JOINID(counter.track_id),
   -- Memory consumed by bitmaps in bytes.
   value LONG
-) AS
-SELECT
-  c.id,
-  upid,
-  ts,
-  dur,
-  track_id,
-  value
+)
+AS
+SELECT c.id, upid, ts, dur, track_id, value
 FROM _android_bitmap_counter_macro!('Bitmap Memory') AS c
 JOIN process_counter_track AS pct
   ON pct.id = c.track_id
@@ -79,7 +72,7 @@ ORDER BY
 --
 -- To populate this table, tracing must be enabled with the "view" atrace
 -- category.
-CREATE PERFETTO TABLE android_bitmap_count (
+CREATE PERFETTO TABLE android_bitmap_count(
   -- ID of the row in the underlying counter table.
   id ID(counter.id),
   -- Upid of the process.
@@ -92,14 +85,9 @@ CREATE PERFETTO TABLE android_bitmap_count (
   track_id JOINID(counter.track_id),
   -- Number of allocated bitmaps.
   value LONG
-) AS
-SELECT
-  c.id,
-  upid,
-  ts,
-  dur,
-  track_id,
-  value
+)
+AS
+SELECT c.id, upid, ts, dur, track_id, value
 FROM _android_bitmap_counter_macro!('Bitmap Count') AS c
 JOIN process_counter_track AS pct
   ON pct.id = c.track_id
@@ -111,7 +99,7 @@ ORDER BY
 --
 -- To populate this table, tracing must be enabled with the "view" atrace
 -- category.
-CREATE PERFETTO TABLE android_bitmap_counters_per_process (
+CREATE PERFETTO TABLE android_bitmap_counters_per_process(
   -- Upid of the process.
   upid JOINID(process.upid),
   -- Name of the process.
@@ -128,7 +116,8 @@ CREATE PERFETTO TABLE android_bitmap_counters_per_process (
   bitmap_memory_id JOINID(counter.id),
   -- ID of the row in the underlying counter table.
   bitmap_count_id JOINID(counter.id)
-) AS
+)
+AS
 SELECT
   p.upid,
   p.name AS process_name,
@@ -157,5 +146,4 @@ JOIN android_bitmap_memory AS abm
   ON c.id_0 = abm.id
 JOIN android_bitmap_count AS abc
   ON c.id_1 = abc.id
-JOIN process AS p
-  USING (upid);
+JOIN process AS p USING (upid);

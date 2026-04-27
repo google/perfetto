@@ -18,8 +18,7 @@ INCLUDE PERFETTO MODULE graphs.scan;
 INCLUDE PERFETTO MODULE android.memory.heap_graph.raw_dominator_tree;
 
 CREATE PERFETTO TABLE _heap_graph_dominator_tree_bottom_up_scan AS
-SELECT
-  *
+SELECT *
 FROM _graph_aggregating_scan!(
   (
     SELECT id AS source_node_id, idom_id AS dest_node_id
@@ -28,10 +27,10 @@ FROM _graph_aggregating_scan!(
   ),
   (
     SELECT
-      p.id,
-      1 AS subtree_count,
-      o.self_size AS subtree_size_bytes,
-      o.native_size AS subtree_native_size_bytes
+    p.id,
+    1 AS subtree_count,
+    o.self_size AS subtree_size_bytes,
+    o.native_size AS subtree_native_size_bytes
     FROM _raw_heap_graph_dominator_tree p
     JOIN heap_graph_object o USING (id)
     LEFT JOIN _raw_heap_graph_dominator_tree c ON p.id = c.idom_id
@@ -41,18 +40,18 @@ FROM _graph_aggregating_scan!(
   (
     WITH children_agg AS (
       SELECT
-        t.id,
-        SUM(t.subtree_count) AS subtree_count,
-        SUM(t.subtree_size_bytes) AS subtree_size_bytes,
-        SUM(t.subtree_native_size_bytes) AS subtree_native_size_bytes
+      t.id,
+      SUM(t.subtree_count) AS subtree_count,
+      SUM(t.subtree_size_bytes) AS subtree_size_bytes,
+      SUM(t.subtree_native_size_bytes) AS subtree_native_size_bytes
       FROM $table t
       GROUP BY t.id
     )
     SELECT
-      c.id,
-      c.subtree_count + 1 AS subtree_count,
-      c.subtree_size_bytes + self_size AS subtree_size_bytes,
-      c.subtree_native_size_bytes + native_size AS subtree_native_size_bytes
+    c.id,
+    c.subtree_count + 1 AS subtree_count,
+    c.subtree_size_bytes + self_size AS subtree_size_bytes,
+    c.subtree_native_size_bytes + native_size AS subtree_native_size_bytes
     FROM children_agg c
     JOIN heap_graph_object o USING (id)
   )
@@ -61,8 +60,7 @@ ORDER BY
   id;
 
 CREATE PERFETTO TABLE _heap_graph_dominator_tree_top_down_scan AS
-SELECT
-  *
+SELECT *
 FROM _graph_scan!(
   (
     SELECT idom_id AS source_node_id, id AS dest_node_id
@@ -87,7 +85,7 @@ ORDER BY
 -- dominator is their parent node in the tree, and their dominated set is all
 -- their descendants in the tree. All size information come from the
 -- heap_graph_object prelude table.
-CREATE PERFETTO TABLE heap_graph_dominator_tree (
+CREATE PERFETTO TABLE heap_graph_dominator_tree(
   -- Heap graph object id.
   id LONG,
   -- Immediate dominator object id of the object. If the immediate dominator
@@ -102,7 +100,8 @@ CREATE PERFETTO TABLE heap_graph_dominator_tree (
   dominated_native_size_bytes LONG,
   -- Depth of the object in the dominator tree. Depth of root objects are 1.
   depth LONG
-) AS
+)
+AS
 SELECT
   r.id,
   r.idom_id AS idom_id,
@@ -111,10 +110,8 @@ SELECT
   d.subtree_native_size_bytes AS dominated_native_size_bytes,
   t.depth
 FROM _raw_heap_graph_dominator_tree AS r
-JOIN _heap_graph_dominator_tree_bottom_up_scan AS d
-  USING (id)
-JOIN _heap_graph_dominator_tree_top_down_scan AS t
-  USING (id)
+JOIN _heap_graph_dominator_tree_bottom_up_scan AS d USING (id)
+JOIN _heap_graph_dominator_tree_top_down_scan AS t USING (id)
 WHERE
   r.id IS NOT NULL
 ORDER BY

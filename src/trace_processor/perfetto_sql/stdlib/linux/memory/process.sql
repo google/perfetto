@@ -18,57 +18,41 @@ INCLUDE PERFETTO MODULE linux.memory.general;
 -- All memory counters tables.
 
 CREATE PERFETTO VIEW _anon_rss AS
-SELECT
-  ts,
-  dur,
-  upid,
-  value AS anon_rss_val
+SELECT ts, dur, upid, value AS anon_rss_val
 FROM _all_counters_per_process
 WHERE
   name = 'mem.rss.anon';
 
 CREATE PERFETTO VIEW _file_rss AS
-SELECT
-  ts,
-  dur,
-  upid,
-  value AS file_rss_val
+SELECT ts, dur, upid, value AS file_rss_val
 FROM _all_counters_per_process
 WHERE
   name = 'mem.rss.file';
 
 CREATE PERFETTO VIEW _shmem_rss AS
-SELECT
-  ts,
-  dur,
-  upid,
-  value AS shmem_rss_val
+SELECT ts, dur, upid, value AS shmem_rss_val
 FROM _all_counters_per_process
 WHERE
   name = 'mem.rss.shmem';
 
 CREATE PERFETTO VIEW _swap AS
-SELECT
-  ts,
-  dur,
-  upid,
-  value AS swap_val
+SELECT ts, dur, upid, value AS swap_val
 FROM _all_counters_per_process
 WHERE
   name = 'mem.swap';
 
 -- Span joins
 
-CREATE VIRTUAL TABLE _anon_swap_sj USING SPAN_OUTER_JOIN (
+CREATE VIRTUAL TABLE _anon_swap_sj USING SPAN_OUTER_JOIN(
   _anon_rss PARTITIONED upid,
   _swap PARTITIONED upid);
 
-CREATE VIRTUAL TABLE _anon_swap_file_sj USING SPAN_OUTER_JOIN (
+CREATE VIRTUAL TABLE _anon_swap_file_sj USING SPAN_OUTER_JOIN(
   _anon_swap_sj PARTITIONED upid,
   _file_rss PARTITIONED upid
 );
 
-CREATE VIRTUAL TABLE _rss_swap_sj USING SPAN_OUTER_JOIN (
+CREATE VIRTUAL TABLE _rss_swap_sj USING SPAN_OUTER_JOIN(
   _anon_swap_file_sj PARTITIONED upid,
   _shmem_rss PARTITIONED upid
 );
@@ -85,7 +69,7 @@ SELECT
 FROM _rss_swap_sj;
 
 -- Memory metrics timeline for each process.
-CREATE PERFETTO VIEW memory_rss_and_swap_per_process (
+CREATE PERFETTO VIEW memory_rss_and_swap_per_process(
   -- Timestamp
   ts TIMESTAMP,
   -- Duration
@@ -112,7 +96,8 @@ CREATE PERFETTO VIEW memory_rss_and_swap_per_process (
   anon_rss_and_swap LONG,
   -- Sum or `rss` and `swap`. Returns value even if one of the values is NULL.
   rss_and_swap LONG
-) AS
+)
+AS
 SELECT
   ts,
   dur,
@@ -133,5 +118,4 @@ SELECT
   anon_rss + coalesce(swap, 0) AS anon_rss_and_swap,
   anon_rss + file_rss + coalesce(shmem_rss, 0) + coalesce(swap, 0) AS rss_and_swap
 FROM _memory_rss_and_swap_per_process_table
-JOIN process
-  USING (upid);
+JOIN process USING (upid);
