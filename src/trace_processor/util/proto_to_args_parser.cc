@@ -96,17 +96,6 @@ void ProtoToArgsParser::ScopedNestedKeyContext::RemoveFieldSuffix() {
 
 ProtoToArgsParser::Delegate::~Delegate() = default;
 
-ProtoToArgsParser::ProtoToArgsParser(const DescriptorPool& pool) : pool_(pool) {
-  constexpr int kDefaultSize = 64;
-  key_prefix_.key.reserve(kDefaultSize);
-  key_prefix_.flat_key.reserve(kDefaultSize);
-}
-
-// Out-of-line so the std::variant destructor (which needs all alternatives
-// complete) is instantiated in this translation unit, after WorkItem is
-// defined.
-ProtoToArgsParser::~ProtoToArgsParser() = default;
-
 struct ProtoToArgsParser::WorkItem {
   // The serialized data for the current message.
   protozero::ConstBytes data;
@@ -132,6 +121,17 @@ struct ProtoToArgsParser::WorkItem {
   // Set to false as soon as any field is parsed for this message.
   bool empty_message = true;
 };
+
+ProtoToArgsParser::ProtoToArgsParser(const DescriptorPool& pool) : pool_(pool) {
+  constexpr int kDefaultSize = 64;
+  key_prefix_.key.reserve(kDefaultSize);
+  key_prefix_.flat_key.reserve(kDefaultSize);
+}
+
+// Out-of-line so the std::variant destructor (which needs all alternatives
+// complete) is instantiated in this translation unit, after WorkItem is
+// defined.
+ProtoToArgsParser::~ProtoToArgsParser() = default;
 
 base::Status ProtoToArgsParser::ParseMessage(
     const protozero::ConstBytes& cb,
