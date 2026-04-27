@@ -14384,12 +14384,12 @@ genrule {
     srcs: [
         ":perfetto_protos_perfetto_config_descriptor",
     ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/proto_utils/config.descriptor.h",
     ],
     tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
+        "python/tools/cpp_blob_emitter.py",
     ],
 }
 
@@ -14399,12 +14399,12 @@ genrule {
     srcs: [
         ":perfetto_protos_perfetto_trace_summary_descriptor",
     ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/proto_utils/trace_summary.descriptor.h",
     ],
     tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
+        "python/tools/cpp_blob_emitter.py",
     ],
 }
 
@@ -14604,12 +14604,12 @@ genrule {
     srcs: [
         ":perfetto_src_protozero_filtering_filter_util_test_messages_descriptor",
     ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/protozero/filtering/filter_util_test_messages.descriptor.h",
     ],
     tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
+        "python/tools/cpp_blob_emitter.py",
     ],
 }
 
@@ -15422,12 +15422,12 @@ genrule {
     srcs: [
         ":perfetto_src_protozero_testing_messages_descriptor",
     ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/trace_processor/test_messages.descriptor.h",
     ],
     tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
+        "python/tools/cpp_blob_emitter.py",
     ],
 }
 
@@ -15894,12 +15894,12 @@ genrule {
     srcs: [
         ":perfetto_protos_perfetto_trace_android_android_track_event_descriptor",
     ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/trace_processor/importers/proto/android_track_event.descriptor.h",
     ],
     tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
+        "python/tools/cpp_blob_emitter.py",
     ],
 }
 
@@ -15909,12 +15909,12 @@ genrule {
     srcs: [
         ":perfetto_protos_third_party_chromium_extension_descriptor",
     ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/trace_processor/importers/proto/chrome_track_event_extension.descriptor.h",
     ],
     tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
+        "python/tools/cpp_blob_emitter.py",
     ],
 }
 
@@ -15924,12 +15924,12 @@ genrule {
     srcs: [
         ":perfetto_protos_perfetto_trace_gpu_gpu_track_event_descriptor",
     ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/trace_processor/importers/proto/gpu_track_event.descriptor.h",
     ],
     tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
+        "python/tools/cpp_blob_emitter.py",
     ],
 }
 
@@ -15939,12 +15939,12 @@ genrule {
     srcs: [
         "src/trace_processor/importers/proto/atoms.descriptor",
     ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/trace_processor/importers/proto/atoms.descriptor.h",
     ],
     tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
+        "python/tools/cpp_blob_emitter.py",
     ],
 }
 
@@ -15954,12 +15954,12 @@ genrule {
     srcs: [
         ":perfetto_protos_perfetto_trace_descriptor",
     ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/trace_processor/importers/proto/trace.descriptor.h",
     ],
     tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
+        "python/tools/cpp_blob_emitter.py",
     ],
 }
 
@@ -15969,12 +15969,12 @@ genrule {
     srcs: [
         ":perfetto_protos_perfetto_trace_track_event_descriptor",
     ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/trace_processor/importers/proto/track_event.descriptor.h",
     ],
     tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
+        "python/tools/cpp_blob_emitter.py",
     ],
 }
 
@@ -16080,12 +16080,12 @@ genrule {
     srcs: [
         ":perfetto_protos_perfetto_trace_android_winscope_descriptor",
     ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/trace_processor/importers/proto/winscope/winscope.descriptor.h",
     ],
     tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
+        "python/tools/cpp_blob_emitter.py",
     ],
 }
 
@@ -16185,12 +16185,12 @@ genrule {
     srcs: [
         ":perfetto_protos_perfetto_metrics_chrome_descriptor",
     ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/trace_processor/metrics/all_chrome_metrics.descriptor.h",
     ],
     tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
+        "python/tools/cpp_blob_emitter.py",
     ],
 }
 
@@ -16200,12 +16200,12 @@ genrule {
     srcs: [
         ":perfetto_protos_perfetto_metrics_webview_descriptor",
     ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/trace_processor/metrics/all_webview_metrics.descriptor.h",
     ],
     tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
+        "python/tools/cpp_blob_emitter.py",
     ],
 }
 
@@ -16215,12 +16215,12 @@ genrule {
     srcs: [
         ":perfetto_protos_perfetto_metrics_descriptor",
     ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/trace_processor/metrics/metrics.descriptor.h",
     ],
     tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
+        "python/tools/cpp_blob_emitter.py",
     ],
 }
 
@@ -16439,12 +16439,12 @@ genrule {
     srcs: [
         ":perfetto_protos_perfetto_perfetto_sql_descriptor",
     ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/trace_processor/perfetto_sql/generator/perfettosql.descriptor.h",
     ],
     tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
+        "python/tools/cpp_blob_emitter.py",
     ],
 }
 
@@ -17608,12 +17608,12 @@ genrule {
     srcs: [
         ":perfetto_protos_perfetto_trace_summary_descriptor",
     ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/trace_processor/trace_summary/trace_summary.descriptor.h",
     ],
     tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
+        "python/tools/cpp_blob_emitter.py",
     ],
 }
 
@@ -18023,12 +18023,12 @@ genrule {
     srcs: [
         ":perfetto_protos_perfetto_trace_descriptor",
     ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/traceconv/trace.descriptor.h",
     ],
     tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
+        "python/tools/cpp_blob_emitter.py",
     ],
 }
 
@@ -18038,12 +18038,12 @@ genrule {
     srcs: [
         ":perfetto_protos_perfetto_trace_android_winscope_descriptor",
     ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/traceconv/winscope.descriptor.h",
     ],
     tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
+        "python/tools/cpp_blob_emitter.py",
     ],
 }
 
