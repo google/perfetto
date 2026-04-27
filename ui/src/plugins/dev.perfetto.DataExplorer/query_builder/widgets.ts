@@ -347,18 +347,18 @@ export class InfoBox implements m.ClassComponent {
 }
 
 /**
- * Automatically creates error/warning sections from node.state.issues
+ * Automatically creates error/warning sections from node.context.issues
  * Returns sections to prepend to the node's modify view
  */
 export function createErrorSections(node: QueryNode): NodeModifySection[] {
   const sections: NodeModifySection[] = [];
 
-  if (node.state.issues?.queryError) {
+  if (node.context.issues?.queryError) {
     sections.push({
       content: m(
         Callout,
         {icon: 'error'},
-        node.state.issues.queryError.message,
+        node.context.issues.queryError.message,
       ),
     });
   }

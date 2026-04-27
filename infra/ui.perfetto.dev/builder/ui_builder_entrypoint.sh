@@ -13,32 +13,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# See go/perfetto-ui-autopush for docs on how this works end-to-end.
+# ENTRYPOINT for the perfetto-ui-builder Docker image, invoked from
+# infra/ui.perfetto.dev/cloudbuild*.yaml.
+#
+# $1 is the branch name (or 'autopush' literal from cloudbuild.yaml).
+# Cloud Build has already placed us on the SHA that fired the trigger,
+# so we build from HEAD without any explicit checkout.
+#
+# Branches autopush/canary/stable map 1:1 to channels of the same name.
+# Any other branch (i.e. a release branch) maps to the 'release' mode,
+# which uploads /v<version>/ only and does NOT touch the shared root
+# index.html or service_worker.
+#
+# See go/perfetto-ui-autopush for end-to-end docs.
 
 set -exu
 
-env
-pwd
-mount
-
-# This script will be run in /workspace after the Cloud Build environment has
-# pulled the GitHub repo in shallow mode.
-
 cd /workspace/
-mkdir /workspace/tmp
 
-git config --global init.defaultBranch main;
+git config --global init.defaultBranch main
 git fetch --unshallow
-
-# infra/ui.perfetto.dev/cloudbuild_release.yaml sets $1 to the branch
-# name when triggering from a release branch. Otherwise $1 is "" when triggering
-# from main.
-EXTRA_ARGS=""
-if [[ ! -z $1 ]]; then
-  git checkout $1
-  EXTRA_ARGS="--branch_only=$1"
-fi
-
 git rev-parse HEAD
-python3 -u "ui/release/build_all_channels.py" \
-        --upload --tmp=/workspace/tmp $EXTRA_ARGS
+
+case "$1" in
+  autopush|canary|stable) CHANNEL="$1" ;;
+  *)                      CHANNEL="release" ;;
+esac
+python3 -u ui/release/build_channel.py --channel="$CHANNEL" --upload

@@ -59,8 +59,8 @@ function createMockPrevNode(id: string, columns: ColumnInfo[]): QueryNode {
     finalCols: columns,
     getTitle: () => id,
     validate: () => true,
-    state: {},
-    serializeState: () => ({}),
+    context: {},
+    attrs: {},
     nodeSpecificModify: () => null,
     nodeDetails: () => ({content: null, message: ''}),
     nodeInfo: () => null,
@@ -80,7 +80,7 @@ function createColumnInfo(
   return {
     name,
     checked,
-    column: {name, type: sqlType},
+    type: sqlType,
   };
 }
 
@@ -108,7 +108,7 @@ function createColumnInfoWithSqlType(
   return {
     name,
     checked,
-    column: {name, type: sqlType},
+    type: sqlType,
   };
 }
 
@@ -132,9 +132,12 @@ describe('Connection Management', () => {
         createColumnInfo('extra', 'STRING'),
       ]);
 
-      const intervalNode = new IntervalIntersectNode({
-        inputNodes: [node1, node2],
-      });
+      const intervalNode = new IntervalIntersectNode(
+        {
+          inputNodes: [node1, node2],
+        },
+        {},
+      );
       node1.nextNodes.push(intervalNode);
       node2.nextNodes.push(intervalNode);
 
@@ -168,9 +171,12 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const intervalNode = new IntervalIntersectNode({
-        inputNodes: [node1, node2, node3],
-      });
+      const intervalNode = new IntervalIntersectNode(
+        {
+          inputNodes: [node1, node2, node3],
+        },
+        {},
+      );
       node1.nextNodes.push(intervalNode);
       node2.nextNodes.push(intervalNode);
       node3.nextNodes.push(intervalNode);
@@ -196,9 +202,12 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const intervalNode = new IntervalIntersectNode({
-        inputNodes: [node1, node2],
-      });
+      const intervalNode = new IntervalIntersectNode(
+        {
+          inputNodes: [node1, node2],
+        },
+        {},
+      );
       node1.nextNodes.push(intervalNode);
       node2.nextNodes.push(intervalNode);
 
@@ -228,26 +237,29 @@ describe('Connection Management', () => {
         createColumnInfo('unique_col', 'STRING'),
       ]);
 
-      const intervalNode = new IntervalIntersectNode({
-        inputNodes: [node1, node2],
-      });
+      const intervalNode = new IntervalIntersectNode(
+        {
+          inputNodes: [node1, node2],
+        },
+        {},
+      );
       node1.nextNodes.push(intervalNode);
       node2.nextNodes.push(intervalNode);
 
-      const modifyNode = new ModifyColumnsNode({selectedColumns: []});
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
       modifyNode.primaryInput = intervalNode;
       intervalNode.nextNodes.push(modifyNode);
       modifyNode.onPrevNodesUpdated();
 
       expect(
-        modifyNode.state.selectedColumns.find((c) => c.name === 'unique_col'),
+        modifyNode.attrs.selectedColumns.find((c) => c.name === 'unique_col'),
       ).toBeUndefined();
 
       addConnection(node3, intervalNode);
       notifyNextNodes(intervalNode);
 
       expect(
-        modifyNode.state.selectedColumns.find((c) => c.name === 'unique_col'),
+        modifyNode.attrs.selectedColumns.find((c) => c.name === 'unique_col'),
       ).toBeDefined();
     });
 
@@ -268,9 +280,12 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const intervalNode = new IntervalIntersectNode({
-        inputNodes: [node1, node2],
-      });
+      const intervalNode = new IntervalIntersectNode(
+        {
+          inputNodes: [node1, node2],
+        },
+        {},
+      );
       node1.nextNodes.push(intervalNode);
       node2.nextNodes.push(intervalNode);
 
@@ -302,9 +317,12 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const intervalNode = new IntervalIntersectNode({
-        inputNodes: [node1, node2],
-      });
+      const intervalNode = new IntervalIntersectNode(
+        {
+          inputNodes: [node1, node2],
+        },
+        {},
+      );
       node1.nextNodes.push(intervalNode);
       node2.nextNodes.push(intervalNode);
 
@@ -361,32 +379,35 @@ describe('Connection Management', () => {
         ),
       ]);
 
-      const intervalNode = new IntervalIntersectNode({
-        inputNodes: [node1, node2],
-      });
+      const intervalNode = new IntervalIntersectNode(
+        {
+          inputNodes: [node1, node2],
+        },
+        {},
+      );
       node1.nextNodes.push(intervalNode);
       node2.nextNodes.push(intervalNode);
 
-      const modifyNode = new ModifyColumnsNode({selectedColumns: []});
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
       modifyNode.primaryInput = intervalNode;
       intervalNode.nextNodes.push(modifyNode);
       modifyNode.onPrevNodesUpdated();
 
       expect(
-        modifyNode.state.selectedColumns.find((c) => c.name === 'unique_col1'),
+        modifyNode.attrs.selectedColumns.find((c) => c.name === 'unique_col1'),
       ).toBeDefined();
       expect(
-        modifyNode.state.selectedColumns.find((c) => c.name === 'unique_col2'),
+        modifyNode.attrs.selectedColumns.find((c) => c.name === 'unique_col2'),
       ).toBeDefined();
 
       removeConnection(node2, intervalNode);
       notifyNextNodes(intervalNode);
 
       expect(
-        modifyNode.state.selectedColumns.find((c) => c.name === 'unique_col1'),
+        modifyNode.attrs.selectedColumns.find((c) => c.name === 'unique_col1'),
       ).toBeDefined();
       expect(
-        modifyNode.state.selectedColumns.find((c) => c.name === 'unique_col2'),
+        modifyNode.attrs.selectedColumns.find((c) => c.name === 'unique_col2'),
       ).toBeUndefined();
     });
   });
@@ -398,7 +419,7 @@ describe('Connection Management', () => {
         createColumnInfo('name', 'STRING'),
       ]);
 
-      const addColsNode = new AddColumnsNode({});
+      const addColsNode = new AddColumnsNode({}, {});
 
       addConnection(primaryNode, addColsNode);
 
@@ -416,7 +437,7 @@ describe('Connection Management', () => {
         createColumnInfo('extra_col', 'STRING'),
       ]);
 
-      const addColsNode = new AddColumnsNode({});
+      const addColsNode = new AddColumnsNode({}, {});
 
       // Connect primary first
       addConnection(primaryNode, addColsNode);
@@ -434,7 +455,7 @@ describe('Connection Management', () => {
         createColumnInfo('name', 'STRING'),
       ]);
 
-      const addColsNode = new AddColumnsNode({});
+      const addColsNode = new AddColumnsNode({}, {});
       addConnection(primaryNode, addColsNode);
 
       expect(addColsNode.primaryInput).toBe(primaryNode);
@@ -455,7 +476,7 @@ describe('Connection Management', () => {
         createColumnInfo('extra_col', 'STRING'),
       ]);
 
-      const addColsNode = new AddColumnsNode({});
+      const addColsNode = new AddColumnsNode({}, {});
       addConnection(primaryNode, addColsNode);
       addConnection(lookupNode, addColsNode, 0);
 
@@ -479,15 +500,15 @@ describe('Connection Management', () => {
         createColumnInfo('another_col', 'INT'),
       ]);
 
-      const addColsNode = new AddColumnsNode({});
+      const addColsNode = new AddColumnsNode({}, {});
       addConnection(primaryNode, addColsNode);
       addConnection(lookupNode, addColsNode, 0);
 
       // Set selected columns AFTER connection (simulating user selection)
-      addColsNode.state.selectedColumns = ['extra_col', 'another_col'];
+      addColsNode.attrs.selectedColumns = ['extra_col', 'another_col'];
 
       // Verify columns are selected
-      expect(addColsNode.state.selectedColumns).toEqual([
+      expect(addColsNode.attrs.selectedColumns).toEqual([
         'extra_col',
         'another_col',
       ]);
@@ -496,7 +517,7 @@ describe('Connection Management', () => {
       removeConnection(lookupNode, addColsNode);
 
       // Verify selectedColumns were reset
-      expect(addColsNode.state.selectedColumns).toEqual([]);
+      expect(addColsNode.attrs.selectedColumns).toEqual([]);
     });
 
     it('should have correct finalCols with both inputs connected', () => {
@@ -509,15 +530,18 @@ describe('Connection Management', () => {
         createColumnInfo('extra_col', 'STRING'),
       ]);
 
-      const addColsNode = new AddColumnsNode({
-        leftColumn: 'id',
-        rightColumn: 'lookup_id',
-      });
+      const addColsNode = new AddColumnsNode(
+        {
+          leftColumn: 'id',
+          rightColumn: 'lookup_id',
+        },
+        {},
+      );
       addConnection(primaryNode, addColsNode);
       addConnection(lookupNode, addColsNode, 0);
 
       // Set selected columns AFTER connection (simulating user selection)
-      addColsNode.state.selectedColumns = ['extra_col'];
+      addColsNode.attrs.selectedColumns = ['extra_col'];
 
       const cols = addColsNode.finalCols;
 
@@ -538,9 +562,12 @@ describe('Connection Management', () => {
         createColumnInfo('extra_col', 'STRING'),
       ]);
 
-      const addColsNode = new AddColumnsNode({
-        selectedColumns: ['extra_col'],
-      });
+      const addColsNode = new AddColumnsNode(
+        {
+          selectedColumns: ['extra_col'],
+        },
+        {},
+      );
       addConnection(primaryNode, addColsNode);
       addConnection(lookupNode, addColsNode, 0);
 
@@ -562,7 +589,7 @@ describe('Connection Management', () => {
         createColumnInfo('name', 'STRING'),
       ]);
 
-      const addColsNode = new AddColumnsNode({});
+      const addColsNode = new AddColumnsNode({}, {});
       addConnection(primaryNode, addColsNode);
 
       expect(addColsNode.finalCols.length).toBeGreaterThan(0);
@@ -582,22 +609,22 @@ describe('Connection Management', () => {
         createColumnInfo('extra_col', 'STRING'),
       ]);
 
-      const addColsNode = new AddColumnsNode({});
+      const addColsNode = new AddColumnsNode({}, {});
       addConnection(primaryNode, addColsNode);
       addConnection(lookupNode, addColsNode, 0);
 
       // Set selected columns AFTER connection (simulating user selection)
-      addColsNode.state.selectedColumns = ['extra_col'];
+      addColsNode.attrs.selectedColumns = ['extra_col'];
 
       // Create downstream ModifyColumnsNode
-      const modifyNode = new ModifyColumnsNode({selectedColumns: []});
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
       modifyNode.primaryInput = addColsNode;
       addColsNode.nextNodes.push(modifyNode);
       modifyNode.onPrevNodesUpdated();
 
       // Initially should have extra_col
       expect(
-        modifyNode.state.selectedColumns.find((c) => c.name === 'extra_col'),
+        modifyNode.attrs.selectedColumns.find((c) => c.name === 'extra_col'),
       ).toBeDefined();
 
       // Disconnect lookup table
@@ -606,7 +633,7 @@ describe('Connection Management', () => {
 
       // After disconnection, extra_col should be gone
       expect(
-        modifyNode.state.selectedColumns.find((c) => c.name === 'extra_col'),
+        modifyNode.attrs.selectedColumns.find((c) => c.name === 'extra_col'),
       ).toBeUndefined();
     });
   });
@@ -619,7 +646,7 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const filterNode = new FilterDuringNode({});
+      const filterNode = new FilterDuringNode({}, {});
 
       addConnection(primaryNode, filterNode);
 
@@ -639,7 +666,7 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const filterNode = new FilterDuringNode({});
+      const filterNode = new FilterDuringNode({}, {});
       addConnection(primaryNode, filterNode);
       addConnection(intervalNode, filterNode, 0);
 
@@ -655,7 +682,7 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const filterNode = new FilterDuringNode({});
+      const filterNode = new FilterDuringNode({}, {});
       addConnection(primaryNode, filterNode);
 
       expect(filterNode.primaryInput).toBe(primaryNode);
@@ -678,7 +705,7 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const filterNode = new FilterDuringNode({});
+      const filterNode = new FilterDuringNode({}, {});
       addConnection(primaryNode, filterNode);
       addConnection(intervalNode, filterNode, 0);
 
@@ -703,7 +730,7 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const filterNode = new FilterDuringNode({});
+      const filterNode = new FilterDuringNode({}, {});
       addConnection(primaryNode, filterNode);
       addConnection(intervalNode, filterNode, 0);
 
@@ -723,7 +750,7 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const filterNode = new FilterDuringNode({});
+      const filterNode = new FilterDuringNode({}, {});
       addConnection(primaryNode, filterNode);
 
       expect(filterNode.finalCols.length).toBeGreaterThan(0);
@@ -745,7 +772,7 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const filterNode = new FilterDuringNode({});
+      const filterNode = new FilterDuringNode({}, {});
       addConnection(primaryNode, filterNode);
       addConnection(intervalNode, filterNode, 0);
 
@@ -769,19 +796,19 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const filterNode = new FilterDuringNode({});
+      const filterNode = new FilterDuringNode({}, {});
       addConnection(primaryNode, filterNode);
       addConnection(intervalNode, filterNode, 0);
 
       // Create downstream ModifyColumnsNode
-      const modifyNode = new ModifyColumnsNode({selectedColumns: []});
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
       modifyNode.primaryInput = filterNode;
       filterNode.nextNodes.push(modifyNode);
       modifyNode.onPrevNodesUpdated();
 
       // Initially should have unique_col
       expect(
-        modifyNode.state.selectedColumns.find((c) => c.name === 'unique_col'),
+        modifyNode.attrs.selectedColumns.find((c) => c.name === 'unique_col'),
       ).toBeDefined();
 
       // Disconnect primary
@@ -789,7 +816,7 @@ describe('Connection Management', () => {
       notifyNextNodes(filterNode);
 
       // After disconnection, all columns should be gone
-      expect(modifyNode.state.selectedColumns.length).toBe(0);
+      expect(modifyNode.attrs.selectedColumns.length).toBe(0);
     });
   });
 
@@ -817,18 +844,21 @@ describe('Connection Management', () => {
       ]);
 
       // Create nodes
-      const addColsNode = new AddColumnsNode({
-        leftColumn: 'id',
-        rightColumn: 'id',
-      });
-      const filterNode = new FilterDuringNode({});
+      const addColsNode = new AddColumnsNode(
+        {
+          leftColumn: 'id',
+          rightColumn: 'id',
+        },
+        {},
+      );
+      const filterNode = new FilterDuringNode({}, {});
 
       // Build chain: table -> addCols -> filter
       addConnection(tableNode, addColsNode);
       addConnection(lookupNode, addColsNode, 0);
 
       // Set selected columns AFTER connection (simulating user selection)
-      addColsNode.state.selectedColumns = ['extra_data'];
+      addColsNode.attrs.selectedColumns = ['extra_data'];
 
       addConnection(addColsNode, filterNode);
       addConnection(intervalSource, filterNode, 0);
@@ -864,22 +894,22 @@ describe('Connection Management', () => {
         createColumnInfo('extra', 'STRING'),
       ]);
 
-      const addColsNode = new AddColumnsNode({});
-      const modifyNode = new ModifyColumnsNode({selectedColumns: []});
+      const addColsNode = new AddColumnsNode({}, {});
+      const modifyNode = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Build chain: table -> addCols -> modify
       addConnection(tableNode, addColsNode);
       addConnection(lookupNode, addColsNode, 0);
 
       // Set selected columns AFTER connection (simulating user selection)
-      addColsNode.state.selectedColumns = ['extra'];
+      addColsNode.attrs.selectedColumns = ['extra'];
 
       addConnection(addColsNode, modifyNode);
       modifyNode.onPrevNodesUpdated();
 
       // Verify initial state
       expect(
-        modifyNode.state.selectedColumns.find((c) => c.name === 'extra'),
+        modifyNode.attrs.selectedColumns.find((c) => c.name === 'extra'),
       ).toBeDefined();
 
       // Disconnect lookup from addCols
@@ -888,7 +918,7 @@ describe('Connection Management', () => {
 
       // Verify downstream is updated
       expect(
-        modifyNode.state.selectedColumns.find((c) => c.name === 'extra'),
+        modifyNode.attrs.selectedColumns.find((c) => c.name === 'extra'),
       ).toBeUndefined();
     });
 
@@ -900,8 +930,8 @@ describe('Connection Management', () => {
         createColumnInfo('value', 'INT'),
       ]);
 
-      const intervalNode1 = new IntervalIntersectNode({inputNodes: []});
-      const intervalNode2 = new IntervalIntersectNode({inputNodes: []});
+      const intervalNode1 = new IntervalIntersectNode({inputNodes: []}, {});
+      const intervalNode2 = new IntervalIntersectNode({inputNodes: []}, {});
 
       // Connect table to both interval nodes as input
       addConnection(tableNode, intervalNode1, 0);
@@ -934,7 +964,7 @@ describe('Connection Management', () => {
         createColumnInfo('state', 'STRING'),
       ]);
 
-      const filterDuringNode = new FilterDuringNode({});
+      const filterDuringNode = new FilterDuringNode({}, {});
 
       // Connect slices to FilterDuring's primary input
       addConnection(slicesNode, filterDuringNode);
@@ -948,7 +978,7 @@ describe('Connection Management', () => {
       );
 
       // Create a filter node to insert between thread_state and FilterDuring
-      const filterNode = new FilterNode({});
+      const filterNode = new FilterNode({}, {});
 
       // Insert filter between thread_state and FilterDuring
       insertNodeBetween(
@@ -994,9 +1024,12 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const intervalNode = new IntervalIntersectNode({
-        inputNodes: [node1, node2, node3],
-      });
+      const intervalNode = new IntervalIntersectNode(
+        {
+          inputNodes: [node1, node2, node3],
+        },
+        {},
+      );
       node1.nextNodes.push(intervalNode);
       node2.nextNodes.push(intervalNode);
       node3.nextNodes.push(intervalNode);
@@ -1007,7 +1040,7 @@ describe('Connection Management', () => {
       expect(intervalNode.secondaryInputs.connections.get(2)).toBe(node3);
 
       // Create a filter node to insert between node2 (port 1) and IntervalIntersect
-      const filterNode = new FilterNode({});
+      const filterNode = new FilterNode({}, {});
 
       // Insert filter between node2 and IntervalIntersect
       insertNodeBetween(node2, filterNode, addConnection, removeConnection);
@@ -1035,7 +1068,7 @@ describe('Connection Management', () => {
         createColumnInfo('extra_col', 'STRING'),
       ]);
 
-      const addColsNode = new AddColumnsNode({});
+      const addColsNode = new AddColumnsNode({}, {});
 
       // Connect primary to AddColumns primary input
       addConnection(primaryNode, addColsNode);
@@ -1048,7 +1081,7 @@ describe('Connection Management', () => {
       expect(addColsNode.rightNode).toBe(lookupNode);
 
       // Create a filter node to insert between lookup and AddColumns
-      const filterNode = new FilterNode({});
+      const filterNode = new FilterNode({}, {});
 
       // Insert filter between lookup and AddColumns
       insertNodeBetween(
@@ -1080,7 +1113,7 @@ describe('Connection Management', () => {
       ]);
 
       // Create a child to make nextNodes non-empty
-      const childNode = new FilterNode({});
+      const childNode = new FilterNode({}, {});
       addConnection(node, childNode);
 
       // Attempting to insert the same node between itself should throw
@@ -1100,7 +1133,7 @@ describe('Connection Management', () => {
         createColumnInfo('value', 'INT'),
       ]);
 
-      const existingFilterNode = new FilterNode({});
+      const existingFilterNode = new FilterNode({}, {});
 
       // Connect source to existing filter's primary input
       addConnection(sourceNode, existingFilterNode);
@@ -1110,7 +1143,7 @@ describe('Connection Management', () => {
       expect(sourceNode.nextNodes).toContain(existingFilterNode);
 
       // Create a new filter node to insert between source and existing filter
-      const newFilterNode = new FilterNode({});
+      const newFilterNode = new FilterNode({}, {});
 
       // Insert new filter between source and existing filter
       insertNodeBetween(
@@ -1146,9 +1179,9 @@ describe('Connection Management', () => {
       ]);
 
       // child1 receives parent as primary input
-      const child1 = new FilterNode({});
+      const child1 = new FilterNode({}, {});
       // child2 (FilterDuring) receives parent as secondary input
-      const child2 = new FilterDuringNode({});
+      const child2 = new FilterDuringNode({}, {});
 
       // Set up another node as primary for child2
       const otherPrimaryNode = createMockPrevNode('otherPrimary', [
@@ -1169,7 +1202,7 @@ describe('Connection Management', () => {
       expect(parentNode.nextNodes).toContain(child2);
 
       // Create new node to insert
-      const newNode = new FilterNode({});
+      const newNode = new FilterNode({}, {});
 
       // Insert between parent and both children
       insertNodeBetween(parentNode, newNode, addConnection, removeConnection);
@@ -1199,7 +1232,7 @@ describe('Connection Management', () => {
         createColumnInfo('name', 'STRING'),
       ]);
 
-      const childNode = new FilterNode({});
+      const childNode = new FilterNode({}, {});
       addConnection(sourceNode, childNode);
 
       // Create newNode that already has a connection
@@ -1207,7 +1240,7 @@ describe('Connection Management', () => {
         createColumnInfo('id', 'INT'),
         createColumnInfo('value', 'INT'),
       ]);
-      const newNode = new FilterNode({});
+      const newNode = new FilterNode({}, {});
       addConnection(existingParent, newNode);
 
       // Verify newNode already has a primaryInput
@@ -1237,7 +1270,7 @@ describe('Connection Management', () => {
       // Verify parent has no children
       expect(parentNode.nextNodes.length).toBe(0);
 
-      const newNode = new FilterNode({});
+      const newNode = new FilterNode({}, {});
 
       // Insert newNode (but parent has no children to reconnect)
       insertNodeBetween(parentNode, newNode, addConnection, removeConnection);
@@ -1277,8 +1310,8 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const nodeX = new FilterDuringNode({});
-      const childZ = new ModifyColumnsNode({selectedColumns: []});
+      const nodeX = new FilterDuringNode({}, {});
+      const childZ = new ModifyColumnsNode({selectedColumns: []}, {});
 
       // Set up connections:
       // nodeA -> nodeX (primary)
@@ -1361,9 +1394,9 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const nodeY = new FilterNode({});
+      const nodeY = new FilterNode({}, {});
 
-      const nodeZ = new FilterDuringNode({});
+      const nodeZ = new FilterDuringNode({}, {});
 
       // Set up another node as primary input for nodeZ
       const primaryNode = createMockPrevNode('primary', [
@@ -1465,7 +1498,7 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const filterDuringNode = new FilterDuringNode({});
+      const filterDuringNode = new FilterDuringNode({}, {});
 
       // Connect sliceSource to FilterDuring's primary input
       addConnection(sliceSource, filterDuringNode);
@@ -1473,7 +1506,7 @@ describe('Connection Management', () => {
       addConnection(intervalsSource, filterDuringNode, 0);
 
       // Add a child node downstream of FilterDuring
-      const childNode = new ModifyColumnsNode({selectedColumns: []});
+      const childNode = new ModifyColumnsNode({selectedColumns: []}, {});
       addConnection(filterDuringNode, childNode);
 
       // Verify initial state
@@ -1526,14 +1559,17 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const intervalNode = new IntervalIntersectNode({
-        inputNodes: [node1, node2],
-      });
+      const intervalNode = new IntervalIntersectNode(
+        {
+          inputNodes: [node1, node2],
+        },
+        {},
+      );
       node1.nextNodes.push(intervalNode);
       node2.nextNodes.push(intervalNode);
 
       // Add a child downstream
-      const childNode = new ModifyColumnsNode({selectedColumns: []});
+      const childNode = new ModifyColumnsNode({selectedColumns: []}, {});
       addConnection(intervalNode, childNode);
 
       // Verify initial state
@@ -1577,10 +1613,10 @@ describe('Connection Management', () => {
         createColumnInfo('ts', 'INT64'),
       ]);
 
-      const nodeB = new FilterNode({});
+      const nodeB = new FilterNode({}, {});
       addConnection(nodeA, nodeB); // A → B
 
-      const nodeC = new FilterNode({});
+      const nodeC = new FilterNode({}, {});
       addConnection(nodeB, nodeC); // B → C (C.primaryInput = B)
 
       // Simulate the edge case: A is already connected to C directly
@@ -1648,10 +1684,10 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const nodeB = new FilterNode({});
+      const nodeB = new FilterNode({}, {});
       addConnection(nodeA, nodeB); // A → B
 
-      const nodeC = new FilterDuringNode({});
+      const nodeC = new FilterDuringNode({}, {});
       const primary = createMockPrevNode('primary', [
         createColumnInfo('id', 'INT'),
         createColumnInfo('ts', 'INT64'),
@@ -1758,10 +1794,10 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const nodeB = new FilterNode({});
+      const nodeB = new FilterNode({}, {});
       addConnection(nodeA, nodeB); // A → B (primary)
 
-      const nodeD = new FilterDuringNode({});
+      const nodeD = new FilterDuringNode({}, {});
       const primary = createMockPrevNode('primary', [
         createColumnInfo('id', 'INT'),
         createColumnInfo('ts', 'INT64'),
@@ -1837,7 +1873,7 @@ describe('Connection Management', () => {
         createColumnInfo('ts', 'INT64'),
         createColumnInfo('dur', 'INT64'),
       ]);
-      const filterDuring = new FilterDuringNode({});
+      const filterDuring = new FilterDuringNode({}, {});
 
       // Connect: TableSource → FilterDuring (primary)
       addConnection(tableSource, filterDuring);
@@ -1910,15 +1946,18 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const intervalIntersect = new IntervalIntersectNode({
-        inputNodes: [source1, source2],
-      });
+      const intervalIntersect = new IntervalIntersectNode(
+        {
+          inputNodes: [source1, source2],
+        },
+        {},
+      );
 
       // IntervalIntersectNode only has secondary inputs (no primary)
       addConnection(source1, intervalIntersect, 0); // secondary port 0
       addConnection(source2, intervalIntersect, 1); // secondary port 1
 
-      const childNode = new FilterNode({});
+      const childNode = new FilterNode({}, {});
       addConnection(intervalIntersect, childNode); // primary connection
 
       // Verify initial state
@@ -2009,13 +2048,13 @@ describe('Connection Management', () => {
         createColumnInfo('ts', 'INT64'),
       ]);
 
-      const nodeB = new FilterNode({});
+      const nodeB = new FilterNode({}, {});
       addConnection(nodeA, nodeB); // A → B
 
-      const nodeC = new FilterNode({});
+      const nodeC = new FilterNode({}, {});
       addConnection(nodeA, nodeC); // A → C
 
-      const nodeD = new FilterNode({});
+      const nodeD = new FilterNode({}, {});
       addConnection(nodeB, nodeD); // B → D
 
       // Simulate nodeLayouts map
@@ -2102,9 +2141,9 @@ describe('Connection Management', () => {
       // - B should inherit A's layout (appear at A's position)
       // - B should become a root node
 
-      const nodeA = new FilterNode({});
+      const nodeA = new FilterNode({}, {});
 
-      const nodeB = new FilterNode({});
+      const nodeB = new FilterNode({}, {});
       addConnection(nodeA, nodeB); // A → B
 
       // Simulate nodeLayouts map
@@ -2175,12 +2214,12 @@ describe('Connection Management', () => {
         createColumnInfo('ts', 'INT64'),
       ]);
 
-      const nodeB = new FilterNode({});
+      const nodeB = new FilterNode({}, {});
       addConnection(nodeA, nodeB); // A → B
 
-      const nodeC = new FilterNode({});
-      const nodeD = new FilterNode({});
-      const nodeE = new FilterNode({});
+      const nodeC = new FilterNode({}, {});
+      const nodeD = new FilterNode({}, {});
+      const nodeE = new FilterNode({}, {});
 
       addConnection(nodeB, nodeC); // B → C
       addConnection(nodeB, nodeD); // B → D
@@ -2281,10 +2320,10 @@ describe('Connection Management', () => {
         createColumnInfo('dur', 'INT64'),
       ]);
 
-      const nodeB = new FilterDuringNode({});
+      const nodeB = new FilterDuringNode({}, {});
       addConnection(nodeA, nodeB); // A → B (primary)
 
-      const nodeC = new FilterNode({});
+      const nodeC = new FilterNode({}, {});
       addConnection(nodeB, nodeC); // B → C
 
       // Add a secondary input that will become orphaned
@@ -2486,9 +2525,10 @@ describe('Connection Management', () => {
       ]);
 
       // SETUP: Create node B (filter, docked to A)
-      const nodeB = new FilterNode({
-        filters: [{column: 'id', op: '=', value: '1'}],
-      });
+      const nodeB = new FilterNode(
+        {filters: [{column: 'id', op: '=', value: '1'}]},
+        {},
+      );
       // Connect A → B (B becomes docked since it's a modification node)
       addConnection(nodeA, nodeB);
 
@@ -2523,7 +2563,7 @@ describe('Connection Management', () => {
       }
 
       // STEP 3: Now add the multi-source node
-      const nodeC = new IntervalIntersectNode({inputNodes: []});
+      const nodeC = new IntervalIntersectNode({inputNodes: []}, {});
       addConnection(nodeA, nodeC);
       // Give C a layout (it's a root node)
       nodeLayouts.set(nodeC.nodeId, {x: 550, y: 100});
@@ -2579,15 +2619,17 @@ describe('Connection Management', () => {
       ]);
 
       // SETUP: Create node B (filter, docked to A)
-      const nodeB = new FilterNode({
-        filters: [{column: 'id', op: '=', value: '1'}],
-      });
+      const nodeB = new FilterNode(
+        {filters: [{column: 'id', op: '=', value: '1'}]},
+        {},
+      );
       addConnection(nodeA, nodeB);
 
       // SETUP: Create node C (filter, docked to B)
-      const nodeC = new FilterNode({
-        filters: [{column: 'name', op: '=', value: "'test'"}],
-      });
+      const nodeC = new FilterNode(
+        {filters: [{column: 'name', op: '=', value: "'test'"}]},
+        {},
+      );
       addConnection(nodeB, nodeC);
 
       // SETUP: nodeLayouts - ONLY A has layout, B and C are docked (no layouts)
@@ -2627,7 +2669,7 @@ describe('Connection Management', () => {
       }
 
       // STEP 4: Now add the multi-source node
-      const nodeD = new IntervalIntersectNode({inputNodes: []});
+      const nodeD = new IntervalIntersectNode({inputNodes: []}, {});
       addConnection(nodeB, nodeD);
       nodeLayouts.set(nodeD.nodeId, {x: 550, y: 100});
 
@@ -2675,7 +2717,7 @@ describe('Connection Management', () => {
       ]);
 
       // SETUP: Create node B (FilterDuring, docked to A)
-      const nodeB = new FilterDuringNode({});
+      const nodeB = new FilterDuringNode({}, {});
       addConnection(nodeA, nodeB); // B's primaryInput = A
 
       // SETUP: Create node C (source for intervals) with layout
@@ -2803,7 +2845,7 @@ describe('Connection Management', () => {
       expect(nodeA.nextNodes.length).toBe(0);
 
       // ACT: Create AddColumns and connect it to A
-      const addColsNode = new AddColumnsNode({});
+      const addColsNode = new AddColumnsNode({}, {});
       addConnection(nodeA, addColsNode);
 
       // VERIFY: AddColumns is a single-node operation
@@ -2832,7 +2874,7 @@ describe('Connection Management', () => {
     it('should get secondary input at specified port', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
-      const intervalNode = new IntervalIntersectNode({inputNodes: []});
+      const intervalNode = new IntervalIntersectNode({inputNodes: []}, {});
 
       addConnection(node1, intervalNode, 0);
       addConnection(node2, intervalNode, 1);
@@ -2844,7 +2886,7 @@ describe('Connection Management', () => {
 
     it('should set secondary input at specified port', () => {
       const node1 = createMockPrevNode('node1', []);
-      const intervalNode = new IntervalIntersectNode({inputNodes: []});
+      const intervalNode = new IntervalIntersectNode({inputNodes: []}, {});
 
       setSecondaryInput(intervalNode, 0, node1);
 
@@ -2853,7 +2895,7 @@ describe('Connection Management', () => {
 
     it('should throw when setting secondary input on node without support', () => {
       const node1 = createMockPrevNode('node1', []);
-      const filterNode = new FilterNode({});
+      const filterNode = new FilterNode({}, {});
 
       expect(() => {
         setSecondaryInput(filterNode, 0, node1);
@@ -2862,7 +2904,7 @@ describe('Connection Management', () => {
 
     it('should remove secondary input at specified port', () => {
       const node1 = createMockPrevNode('node1', []);
-      const intervalNode = new IntervalIntersectNode({inputNodes: []});
+      const intervalNode = new IntervalIntersectNode({inputNodes: []}, {});
 
       addConnection(node1, intervalNode, 0);
       expect(getSecondaryInput(intervalNode, 0)).toBe(node1);
@@ -2872,14 +2914,14 @@ describe('Connection Management', () => {
     });
 
     it('should handle removing non-existent secondary input', () => {
-      const intervalNode = new IntervalIntersectNode({inputNodes: []});
+      const intervalNode = new IntervalIntersectNode({inputNodes: []}, {});
 
       // Should not throw
       removeSecondaryInput(intervalNode, 5);
     });
 
     it('should handle removing secondary input from node without support', () => {
-      const filterNode = new FilterNode({});
+      const filterNode = new FilterNode({}, {});
 
       // Should not throw
       removeSecondaryInput(filterNode, 0);
@@ -2887,7 +2929,7 @@ describe('Connection Management', () => {
 
     it('should validate secondary inputs meet minimum cardinality', () => {
       const node1 = createMockPrevNode('node1', []);
-      const intervalNode = new IntervalIntersectNode({inputNodes: []});
+      const intervalNode = new IntervalIntersectNode({inputNodes: []}, {});
 
       // IntervalIntersect requires min 2 inputs
       const error1 = validateSecondaryInputs(intervalNode);
@@ -2900,7 +2942,7 @@ describe('Connection Management', () => {
     });
 
     it('should validate secondary inputs meet maximum cardinality', () => {
-      const addColsNode = new AddColumnsNode({});
+      const addColsNode = new AddColumnsNode({}, {});
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
@@ -2915,7 +2957,10 @@ describe('Connection Management', () => {
     });
 
     it('should validate unbounded maximum cardinality', () => {
-      const unionNode = new UnionNode({inputNodes: [], selectedColumns: []});
+      const unionNode = new UnionNode(
+        {inputNodes: [], selectedColumns: []},
+        {},
+      );
       const nodes = Array.from({length: 10}, (_, i) =>
         createMockPrevNode(`node${i}`, []),
       );
@@ -2931,7 +2976,10 @@ describe('Connection Management', () => {
     });
 
     it('should return undefined when validation passes', () => {
-      const unionNode = new UnionNode({inputNodes: [], selectedColumns: []});
+      const unionNode = new UnionNode(
+        {inputNodes: [], selectedColumns: []},
+        {},
+      );
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
@@ -2943,7 +2991,7 @@ describe('Connection Management', () => {
     });
 
     it('should return undefined for nodes without secondary inputs', () => {
-      const filterNode = new FilterNode({});
+      const filterNode = new FilterNode({}, {});
       const error = validateSecondaryInputs(filterNode);
       expect(error).toBeUndefined();
     });

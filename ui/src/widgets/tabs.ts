@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
-import {Gate} from '../base/mithril_utils';
+import {Gate, isEmptyVnodes} from '../base/mithril_utils';
 import {Button} from './button';
 import {Icon} from './icon';
 import {Icons} from '../base/semantic_icons';
@@ -64,6 +64,8 @@ export interface TabsAttrs {
   // Custom content to render in place of the default "+" button. When set,
   // onNewTab is ignored and this content is rendered instead.
   readonly newTabContent?: m.Children;
+  // Content to render on the right side of the tab bar.
+  readonly rightContent?: m.Children;
   // Additional class name for the container.
   readonly className?: string;
 }
@@ -247,6 +249,7 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
       onTabReorder,
       onNewTab,
       newTabContent,
+      rightContent,
       className,
     } = attrs;
 
@@ -381,6 +384,8 @@ export class Tabs implements m.ClassComponent<TabsAttrs> {
               className: 'pf-tabs__new-tab-btn',
               onclick: () => onNewTab(),
             })),
+        !isEmptyVnodes(rightContent) &&
+          m('.pf-tabs__right-content', rightContent),
       ),
       m(
         '.pf-tabs__content',

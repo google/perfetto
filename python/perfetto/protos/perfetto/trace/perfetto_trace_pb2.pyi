@@ -4412,7 +4412,7 @@ class StatsdPullAtomConfig(_message.Message):
     def __init__(self, pull_atom_id: _Optional[_Iterable[_Union[AtomId, str]]] = ..., raw_pull_atom_id: _Optional[_Iterable[int]] = ..., pull_frequency_ms: _Optional[int] = ..., packages: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class SysStatsConfig(_message.Message):
-    __slots__ = ("meminfo_period_ms", "meminfo_counters", "vmstat_period_ms", "vmstat_counters", "stat_period_ms", "stat_counters", "devfreq_period_ms", "cpufreq_period_ms", "buddyinfo_period_ms", "diskstat_period_ms", "psi_period_ms", "thermal_period_ms", "cpuidle_period_ms", "gpufreq_period_ms")
+    __slots__ = ("meminfo_period_ms", "meminfo_counters", "vmstat_period_ms", "vmstat_counters", "stat_period_ms", "stat_counters", "devfreq_period_ms", "cpufreq_period_ms", "buddyinfo_period_ms", "diskstat_period_ms", "psi_period_ms", "thermal_period_ms", "cpuidle_period_ms", "gpufreq_period_ms", "slab_period_ms")
     class StatCounters(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         STAT_UNSPECIFIED: _ClassVar[SysStatsConfig.StatCounters]
@@ -4439,6 +4439,7 @@ class SysStatsConfig(_message.Message):
     THERMAL_PERIOD_MS_FIELD_NUMBER: _ClassVar[int]
     CPUIDLE_PERIOD_MS_FIELD_NUMBER: _ClassVar[int]
     GPUFREQ_PERIOD_MS_FIELD_NUMBER: _ClassVar[int]
+    SLAB_PERIOD_MS_FIELD_NUMBER: _ClassVar[int]
     meminfo_period_ms: int
     meminfo_counters: _containers.RepeatedScalarFieldContainer[MeminfoCounters]
     vmstat_period_ms: int
@@ -4453,7 +4454,8 @@ class SysStatsConfig(_message.Message):
     thermal_period_ms: int
     cpuidle_period_ms: int
     gpufreq_period_ms: int
-    def __init__(self, meminfo_period_ms: _Optional[int] = ..., meminfo_counters: _Optional[_Iterable[_Union[MeminfoCounters, str]]] = ..., vmstat_period_ms: _Optional[int] = ..., vmstat_counters: _Optional[_Iterable[_Union[VmstatCounters, str]]] = ..., stat_period_ms: _Optional[int] = ..., stat_counters: _Optional[_Iterable[_Union[SysStatsConfig.StatCounters, str]]] = ..., devfreq_period_ms: _Optional[int] = ..., cpufreq_period_ms: _Optional[int] = ..., buddyinfo_period_ms: _Optional[int] = ..., diskstat_period_ms: _Optional[int] = ..., psi_period_ms: _Optional[int] = ..., thermal_period_ms: _Optional[int] = ..., cpuidle_period_ms: _Optional[int] = ..., gpufreq_period_ms: _Optional[int] = ...) -> None: ...
+    slab_period_ms: int
+    def __init__(self, meminfo_period_ms: _Optional[int] = ..., meminfo_counters: _Optional[_Iterable[_Union[MeminfoCounters, str]]] = ..., vmstat_period_ms: _Optional[int] = ..., vmstat_counters: _Optional[_Iterable[_Union[VmstatCounters, str]]] = ..., stat_period_ms: _Optional[int] = ..., stat_counters: _Optional[_Iterable[_Union[SysStatsConfig.StatCounters, str]]] = ..., devfreq_period_ms: _Optional[int] = ..., cpufreq_period_ms: _Optional[int] = ..., buddyinfo_period_ms: _Optional[int] = ..., diskstat_period_ms: _Optional[int] = ..., psi_period_ms: _Optional[int] = ..., thermal_period_ms: _Optional[int] = ..., cpuidle_period_ms: _Optional[int] = ..., gpufreq_period_ms: _Optional[int] = ..., slab_period_ms: _Optional[int] = ...) -> None: ...
 
 class SystemInfoConfig(_message.Message):
     __slots__ = ()
@@ -19780,7 +19782,7 @@ class StatsdAtom(_message.Message):
     def __init__(self, atom: _Optional[_Iterable[_Union[Atom, _Mapping]]] = ..., timestamp_nanos: _Optional[_Iterable[int]] = ...) -> None: ...
 
 class SysStats(_message.Message):
-    __slots__ = ("meminfo", "vmstat", "cpu_stat", "num_forks", "num_irq_total", "num_irq", "num_softirq_total", "num_softirq", "collection_end_timestamp", "devfreq", "cpufreq_khz", "buddy_info", "disk_stat", "psi", "thermal_zone", "cpuidle_state", "gpufreq_mhz")
+    __slots__ = ("meminfo", "vmstat", "cpu_stat", "num_forks", "num_irq_total", "num_irq", "num_softirq_total", "num_softirq", "collection_end_timestamp", "devfreq", "cpufreq_khz", "buddy_info", "disk_stat", "psi", "thermal_zone", "cpuidle_state", "gpufreq_mhz", "slab_info")
     class MeminfoValue(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -19906,6 +19908,15 @@ class SysStats(_message.Message):
         cpu_id: int
         cpuidle_state_entry: _containers.RepeatedCompositeFieldContainer[SysStats.CpuIdleStateEntry]
         def __init__(self, cpu_id: _Optional[int] = ..., cpuidle_state_entry: _Optional[_Iterable[_Union[SysStats.CpuIdleStateEntry, _Mapping]]] = ...) -> None: ...
+    class SlabInfo(_message.Message):
+        __slots__ = ("name", "pages_per_slab", "num_slabs")
+        NAME_FIELD_NUMBER: _ClassVar[int]
+        PAGES_PER_SLAB_FIELD_NUMBER: _ClassVar[int]
+        NUM_SLABS_FIELD_NUMBER: _ClassVar[int]
+        name: str
+        pages_per_slab: int
+        num_slabs: int
+        def __init__(self, name: _Optional[str] = ..., pages_per_slab: _Optional[int] = ..., num_slabs: _Optional[int] = ...) -> None: ...
     MEMINFO_FIELD_NUMBER: _ClassVar[int]
     VMSTAT_FIELD_NUMBER: _ClassVar[int]
     CPU_STAT_FIELD_NUMBER: _ClassVar[int]
@@ -19923,6 +19934,7 @@ class SysStats(_message.Message):
     THERMAL_ZONE_FIELD_NUMBER: _ClassVar[int]
     CPUIDLE_STATE_FIELD_NUMBER: _ClassVar[int]
     GPUFREQ_MHZ_FIELD_NUMBER: _ClassVar[int]
+    SLAB_INFO_FIELD_NUMBER: _ClassVar[int]
     meminfo: _containers.RepeatedCompositeFieldContainer[SysStats.MeminfoValue]
     vmstat: _containers.RepeatedCompositeFieldContainer[SysStats.VmstatValue]
     cpu_stat: _containers.RepeatedCompositeFieldContainer[SysStats.CpuTimes]
@@ -19940,7 +19952,8 @@ class SysStats(_message.Message):
     thermal_zone: _containers.RepeatedCompositeFieldContainer[SysStats.ThermalZone]
     cpuidle_state: _containers.RepeatedCompositeFieldContainer[SysStats.CpuIdleState]
     gpufreq_mhz: _containers.RepeatedScalarFieldContainer[int]
-    def __init__(self, meminfo: _Optional[_Iterable[_Union[SysStats.MeminfoValue, _Mapping]]] = ..., vmstat: _Optional[_Iterable[_Union[SysStats.VmstatValue, _Mapping]]] = ..., cpu_stat: _Optional[_Iterable[_Union[SysStats.CpuTimes, _Mapping]]] = ..., num_forks: _Optional[int] = ..., num_irq_total: _Optional[int] = ..., num_irq: _Optional[_Iterable[_Union[SysStats.InterruptCount, _Mapping]]] = ..., num_softirq_total: _Optional[int] = ..., num_softirq: _Optional[_Iterable[_Union[SysStats.InterruptCount, _Mapping]]] = ..., collection_end_timestamp: _Optional[int] = ..., devfreq: _Optional[_Iterable[_Union[SysStats.DevfreqValue, _Mapping]]] = ..., cpufreq_khz: _Optional[_Iterable[int]] = ..., buddy_info: _Optional[_Iterable[_Union[SysStats.BuddyInfo, _Mapping]]] = ..., disk_stat: _Optional[_Iterable[_Union[SysStats.DiskStat, _Mapping]]] = ..., psi: _Optional[_Iterable[_Union[SysStats.PsiSample, _Mapping]]] = ..., thermal_zone: _Optional[_Iterable[_Union[SysStats.ThermalZone, _Mapping]]] = ..., cpuidle_state: _Optional[_Iterable[_Union[SysStats.CpuIdleState, _Mapping]]] = ..., gpufreq_mhz: _Optional[_Iterable[int]] = ...) -> None: ...
+    slab_info: _containers.RepeatedCompositeFieldContainer[SysStats.SlabInfo]
+    def __init__(self, meminfo: _Optional[_Iterable[_Union[SysStats.MeminfoValue, _Mapping]]] = ..., vmstat: _Optional[_Iterable[_Union[SysStats.VmstatValue, _Mapping]]] = ..., cpu_stat: _Optional[_Iterable[_Union[SysStats.CpuTimes, _Mapping]]] = ..., num_forks: _Optional[int] = ..., num_irq_total: _Optional[int] = ..., num_irq: _Optional[_Iterable[_Union[SysStats.InterruptCount, _Mapping]]] = ..., num_softirq_total: _Optional[int] = ..., num_softirq: _Optional[_Iterable[_Union[SysStats.InterruptCount, _Mapping]]] = ..., collection_end_timestamp: _Optional[int] = ..., devfreq: _Optional[_Iterable[_Union[SysStats.DevfreqValue, _Mapping]]] = ..., cpufreq_khz: _Optional[_Iterable[int]] = ..., buddy_info: _Optional[_Iterable[_Union[SysStats.BuddyInfo, _Mapping]]] = ..., disk_stat: _Optional[_Iterable[_Union[SysStats.DiskStat, _Mapping]]] = ..., psi: _Optional[_Iterable[_Union[SysStats.PsiSample, _Mapping]]] = ..., thermal_zone: _Optional[_Iterable[_Union[SysStats.ThermalZone, _Mapping]]] = ..., cpuidle_state: _Optional[_Iterable[_Union[SysStats.CpuIdleState, _Mapping]]] = ..., gpufreq_mhz: _Optional[_Iterable[int]] = ..., slab_info: _Optional[_Iterable[_Union[SysStats.SlabInfo, _Mapping]]] = ...) -> None: ...
 
 class CpuInfo(_message.Message):
     __slots__ = ("cpus",)

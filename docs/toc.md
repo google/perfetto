@@ -66,8 +66,8 @@
     - [Memory](#)
 
       - [Memory Counters](data-sources/memory-counters.md) {.tag-android .tag-linux}
-      - [Native Heap Profiler](data-sources/native-heap-profiler.md) {.tag-android .tag-linux}
-      - [Java Heap Dumps](data-sources/java-heap-profiler.md) {.tag-android}
+      - [Allocation Profiler](data-sources/native-heap-profiler.md) {.tag-android .tag-linux}
+      - [ART Heap Dumps](data-sources/java-heap-profiler.md) {.tag-android}
 
     - [Android](#)
 
@@ -89,6 +89,7 @@
     - [Opening Large Traces](visualization/large-traces.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
     - [Deep Linking](visualization/deep-linking-to-perfetto-ui.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
     - [Debug Tracks](analysis/debug-tracks.md) {.tag-android .tag-linux .tag-cpp .tag-chrome .tag-perf}
+    - [Heap Dump Explorer](visualization/heap-dump-explorer.md) {.tag-android}
 
     - [Extending the UI](#)
 

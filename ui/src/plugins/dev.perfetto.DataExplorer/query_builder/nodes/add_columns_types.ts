@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
-import {QueryNodeState} from '../../query_node';
 
 /**
  * Represents an IF clause for conditional column expressions.
@@ -68,30 +67,30 @@ export interface NewColumn {
 }
 
 /**
- * State interface for the AddColumnsNode.
+ * Serializable node configuration for AddColumnsNode.
  */
-export interface AddColumnsNodeState extends QueryNodeState {
+export interface AddColumnsNodeAttrs {
   selectedColumns?: string[];
   leftColumn?: string;
   rightColumn?: string;
 
   // Pre-selected columns for each suggested table (before connecting)
-  suggestionSelections?: Map<string, string[]>;
+  suggestionSelections?: Record<string, string[]>;
 
   // Track which suggestions are expanded to show column selection
-  expandedSuggestions?: Set<string>;
+  expandedSuggestions?: string[];
 
   // Currently selected suggestion table (for single-selection UI)
   selectedSuggestionTable?: string;
 
   // Map from column name to its alias (for renaming added columns)
-  columnAliases?: Map<string, string>;
+  columnAliases?: Record<string, string>;
 
   // Map from column name to its alias for suggestion mode (before applying)
-  suggestionAliases?: Map<string, string>;
+  suggestionAliases?: Record<string, string>;
 
   // Map from column name to its type (for type casting added columns)
-  columnTypes?: Map<string, PerfettoSqlType>;
+  columnTypes?: Record<string, PerfettoSqlType>;
 
   // Track if connection was made through guided suggestion
   isGuidedConnection?: boolean;

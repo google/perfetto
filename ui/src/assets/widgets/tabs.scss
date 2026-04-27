@@ -118,6 +118,12 @@
     margin-left: 2px;
   }
 
+  &__right-content {
+    margin-left: auto;
+    display: flex;
+    align-items: baseline;
+  }
+
   &__content {
     flex: 1;
     overflow: auto;

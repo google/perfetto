@@ -27,6 +27,7 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
@@ -44,7 +45,7 @@ namespace perfetto {
 using protos::pbzero::SysStatsConfig;
 
 namespace {
-constexpr size_t kReadBufSize = 1024 * 16;
+constexpr size_t kReadBufSize = 1024 * 64;
 constexpr uint32_t kMinPeriodMs = 10;
 
 base::ScopedFile OpenReadOnly(const char* path) {
@@ -99,6 +100,7 @@ SysStatsDataSource::SysStatsDataSource(
   psi_cpu_fd_ = open_fn("/proc/pressure/cpu");
   psi_io_fd_ = open_fn("/proc/pressure/io");
   psi_memory_fd_ = open_fn("/proc/pressure/memory");
+  slab_fd_ = open_fn("/proc/slabinfo");
   read_buf_ = base::PagedMemory::Allocate(kReadBufSize);
 
   // Build a lookup map that allows to quickly translate strings like "MemTotal"
@@ -150,8 +152,8 @@ SysStatsDataSource::SysStatsDataSource(
     stat_enabled_fields_ |= 1ul << static_cast<uint32_t>(*counter);
   }
 
-  std::array<uint32_t, 11> periods_ms{};
-  std::array<uint32_t, 11> ticks{};
+  std::array<uint32_t, 12> periods_ms{};
+  std::array<uint32_t, 12> ticks{};
   static_assert(periods_ms.size() == ticks.size(), "must have same size");
 
   periods_ms[0] =
@@ -175,6 +177,8 @@ SysStatsDataSource::SysStatsDataSource(
       ValidateAndClampPeriod(cfg.cpuidle_period_ms(), "cpuidle_period_ms");
   periods_ms[10] =
       ValidateAndClampPeriod(cfg.gpufreq_period_ms(), "gpufreq_period_ms");
+  periods_ms[11] =
+      ValidateAndClampPeriod(cfg.slab_period_ms(), "slab_period_ms");
 
   tick_period_ms_ = 0;
   for (uint32_t ms : periods_ms) {
@@ -204,6 +208,7 @@ SysStatsDataSource::SysStatsDataSource(
   thermal_ticks_ = ticks[8];
   cpuidle_ticks_ = ticks[9];
   gpufreq_ticks_ = ticks[10];
+  slab_ticks_ = ticks[11];
 }
 
 void SysStatsDataSource::Start() {
@@ -269,6 +274,9 @@ void SysStatsDataSource::ReadSysStats() {
 
   if (gpufreq_ticks_ && tick_ % gpufreq_ticks_ == 0)
     ReadGpuFrequency(sys_stats);
+
+  if (slab_ticks_ && tick_ % slab_ticks_ == 0)
+    ReadSlabInfo(sys_stats);
 
   sys_stats->set_collection_end_timestamp(
       static_cast<uint64_t>(base::GetBootTimeNs().count()));
@@ -621,6 +629,39 @@ const char* SysStatsDataSource::ReadDevfreqCurFreq(
   return static_cast<char*>(read_buf_.Get());
 }
 
+void SysStatsDataSource::ReadSlabInfo(protos::pbzero::SysStats* sys_stats) {
+  size_t rsize = ReadFile(&slab_fd_, "/proc/slabinfo");
+  if (!rsize)
+    return;
+  char* buf = static_cast<char*>(read_buf_.Get());
+  base::StringSplitter lines(buf, rsize, '\n');
+
+  // Skip the first two lines (header).
+  lines.Next();
+  lines.Next();
+
+  for (; lines.Next();) {
+    base::StringSplitter words(&lines, ' ');
+    uint32_t index = 0;
+    auto* slab_info = sys_stats->add_slab_info();
+    for (; words.Next(); index++) {
+      switch (index) {
+        case 0:  // name
+          slab_info->set_name(words.cur_token());
+          break;
+        case 5:  // pagesperslab
+          slab_info->set_pages_per_slab(
+              base::CStringToUInt32(words.cur_token()).value_or(0u));
+          break;
+        case 14:  // num_slabs
+          slab_info->set_num_slabs(
+              base::CStringToUInt32(words.cur_token()).value_or(0u));
+          break;
+      }
+    }
+  }
+}
+
 void SysStatsDataSource::ReadMeminfo(protos::pbzero::SysStats* sys_stats) {
   size_t rsize = ReadFile(&meminfo_fd_, "/proc/meminfo");
   if (!rsize)
@@ -749,6 +790,36 @@ void SysStatsDataSource::Flush(FlushRequestID, std::function<void()> callback) {
 size_t SysStatsDataSource::ReadFile(base::ScopedFile* fd, const char* path) {
   if (!*fd)
     return 0;
+
+  if constexpr (PERFETTO_FLAGS_SYS_STATS_LARGE_READ) {
+    if (lseek(**fd, 0, SEEK_SET) == static_cast<off_t>(-1)) {
+      PERFETTO_PLOG("Failed lseek %s", path);
+      fd->reset();
+      return 0;
+    }
+
+    char* buf = static_cast<char*>(read_buf_.Get());
+    size_t total_read = 0;
+    ssize_t res = 0;
+    while (total_read < kReadBufSize - 1) {
+      // read() is not guaranteed to return the same number of bytes requested,
+      // so continuously call read() until it returns 0, indicating EOF.
+      size_t remaining_buf_size = kReadBufSize - 1 - total_read;
+      res = PERFETTO_EINTR(read(**fd, buf + total_read, remaining_buf_size));
+      if (res <= 0)
+        break;
+      total_read += static_cast<size_t>(res);
+    }
+    if (total_read == 0 || res < 0) {
+      PERFETTO_PLOG("Failed reading %s after %zu bytes", path, total_read);
+      fd->reset();
+      return 0;
+    }
+    buf[total_read] = '\0';
+    return total_read + 1;  // Include null terminator in the count.
+  }
+
+  // Legacy behavior: single pread.
   ssize_t res = pread(**fd, read_buf_.Get(), kReadBufSize - 1, 0);
   if (res <= 0) {
     PERFETTO_PLOG("Failed reading %s", path);

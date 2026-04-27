@@ -334,7 +334,7 @@ export function renderPath(path: PathEntry[], navigate: NavFn): m.Children {
         {
           key: i,
           class: `ah-path-entry${pe.isDominator ? ' ah-semibold' : ''}`,
-          style: {paddingLeft: Math.min(i, 20) * 12},
+          style: {'--ah-depth': String(i)},
         },
         [
           m('span', {class: 'ah-path-arrow'}, i === 0 ? '' : '\u2192'),

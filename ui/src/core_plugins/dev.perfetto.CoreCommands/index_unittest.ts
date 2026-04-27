@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import {legacyMacrosConfigSchema} from './index';
+import CoreCommands from './index';
+import {AppImpl} from '../../core/app_impl';
 
 describe('legacyMacrosConfigSchema', () => {
   it('parses a valid legacy macros config', () => {
@@ -62,5 +64,80 @@ describe('legacyMacrosConfigSchema', () => {
     };
 
     expect(() => legacyMacrosConfigSchema.parse(input)).toThrow();
+  });
+});
+
+describe('CoreCommands', () => {
+  it('registers NameTab command', () => {
+    const mockRegisterCommand = jest.fn();
+    const mockPrompt = jest.fn();
+
+    const mockCtx = {
+      commands: {
+        registerCommand: mockRegisterCommand,
+      },
+      omnibox: {
+        prompt: mockPrompt,
+      },
+      sidebar: {
+        enabled: false,
+        addMenuItem: jest.fn(),
+      },
+      settings: {
+        register: jest.fn().mockReturnValue({
+          get: jest.fn().mockReturnValue([]),
+          set: jest.fn(),
+        }),
+      },
+    };
+
+    CoreCommands.onActivate(mockCtx as unknown as AppImpl);
+
+    const nameTabCall = mockRegisterCommand.mock.calls.find(
+      (call) => call[0].id === 'dev.perfetto.NameTab',
+    );
+
+    expect(nameTabCall).toBeTruthy();
+    expect(nameTabCall[0].name).toBe('Rename current browser tab');
+  });
+
+  it('NameTab command updates document title', async () => {
+    const mockRegisterCommand = jest.fn();
+    const mockPrompt = jest.fn().mockResolvedValue('New Title');
+
+    const mockCtx = {
+      commands: {
+        registerCommand: mockRegisterCommand,
+      },
+      omnibox: {
+        prompt: mockPrompt,
+      },
+      sidebar: {
+        enabled: false,
+        addMenuItem: jest.fn(),
+      },
+      settings: {
+        register: jest.fn().mockReturnValue({
+          get: jest.fn().mockReturnValue([]),
+          set: jest.fn(),
+        }),
+      },
+    };
+
+    CoreCommands.onActivate(mockCtx as unknown as AppImpl);
+
+    const nameTabCall = mockRegisterCommand.mock.calls.find(
+      (call) => call[0].id === 'dev.perfetto.NameTab',
+    );
+
+    const callback = nameTabCall[0].callback;
+
+    const oldTitle = document.title;
+    await callback();
+
+    expect(mockPrompt).toHaveBeenCalledWith('Enter new window title...');
+    expect(document.title).toBe('New Title');
+
+    document.title = oldTitle;
   });
 });

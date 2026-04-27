@@ -21,6 +21,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
 #include "protos/perfetto/trace/ftrace/sched.gen.h"
+#include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "test/gtest_and_gmock.h"
@@ -194,6 +195,16 @@ TEST(PacketStreamValidatorTest, SimplePacketWithMachineID) {
 TEST(PacketStreamValidatorTest, SimplePacketWithZeroMachineID) {
   protos::gen::TracePacket proto;
   proto.set_machine_id(0);
+  std::string ser_buf = proto.SerializeAsString();
+
+  Slices seq;
+  seq.emplace_back(&ser_buf[0], ser_buf.size());
+  EXPECT_FALSE(PacketStreamValidator::Validate(seq));
+}
+
+TEST(PacketStreamValidatorTest, SimplePacketWithServiceEvent) {
+  protos::gen::TracePacket proto;
+  proto.mutable_service_event()->set_flush_started(true);
   std::string ser_buf = proto.SerializeAsString();
 
   Slices seq;

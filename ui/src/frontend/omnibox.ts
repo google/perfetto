@@ -30,6 +30,7 @@ import {EmptyState} from '../widgets/empty_state';
 import {HotkeyGlyphs, KeycapGlyph} from '../widgets/hotkey_glyphs';
 import {Popup} from '../widgets/popup';
 import {Spinner} from '../widgets/spinner';
+import {Command} from '../public/command';
 
 const OMNIBOX_INPUT_REF = 'omnibox';
 const RECENT_COMMANDS_LIMIT = 6;
@@ -37,6 +38,10 @@ const RECENT_COMMANDS_LIMIT = 6;
 // Omnibox attrs - simplified to just what's needed from outside
 export interface OmniboxAttrs {
   readonly trace?: TraceImpl;
+}
+
+interface CommandWithMatchInfo extends Command {
+  readonly segments: FuzzySegment[];
 }
 
 // Omnibox: Smart component that contains all omnibox business logic
@@ -116,10 +121,20 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     });
   }
 
+  private fuzzyFilterCommands(searchTerm: string): CommandWithMatchInfo[] {
+    const app = AppImpl.instance;
+    const allCommands = app.commands.commands;
+
+    const finder = new FuzzyFinder(allCommands, ({name}) => name);
+    return finder.find(searchTerm).map((result) => {
+      return {segments: result.segments, ...result.item};
+    });
+  }
+
   private renderCommandOmnibox(): m.Children {
     // Fuzzy-filter commands by the filter string.
     const {commands, omnibox} = AppImpl.instance;
-    const filteredCmds = commands.fuzzyFilterCommands(omnibox.text);
+    const filteredCmds = this.fuzzyFilterCommands(omnibox.text);
 
     // Create an array of commands with attached heuristics from the recent
     // command register.
