@@ -18,6 +18,7 @@ import {
   createMockNode,
   createColumnInfo,
   connectNodes,
+  expectValidationSuccess,
 } from '../testing/test_utils';
 import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';
 
@@ -55,7 +56,7 @@ describe('ModifyColumnsNode', () => {
         createMockPrevNode(),
       );
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
 
     it('should fail validation when no columns selected', () => {
@@ -85,7 +86,7 @@ describe('ModifyColumnsNode', () => {
       );
 
       // Empty alias is allowed - it just means use the original column name
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
 
     it('should fail validation for duplicate column names', () => {
@@ -113,7 +114,7 @@ describe('ModifyColumnsNode', () => {
         createMockPrevNode(),
       );
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
   });
 

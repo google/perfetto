@@ -18,6 +18,7 @@ import {
 } from './timerange_source';
 import {Trace} from '../../../../../public/trace';
 import {Time, TimeSpan} from '../../../../../base/time';
+import {expectValidationSuccess} from '../../testing/test_utils';
 
 describe('TimeRangeSourceNode', () => {
   function createMockTrace(): Trace {
@@ -32,16 +33,17 @@ describe('TimeRangeSourceNode', () => {
     } as unknown as Trace;
   }
 
+  function makeNode(attrs: TimeRangeSourceNodeAttrs): TimeRangeSourceNode {
+    return new TimeRangeSourceNode(attrs, {trace: createMockTrace()});
+  }
+
   describe('constructor', () => {
     it('should create node with start and end', () => {
-      const node = new TimeRangeSourceNode(
-        {
-          start: '100',
-          end: '500',
-          isDynamic: false,
-        },
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({
+        start: '100',
+        end: '500',
+        isDynamic: false,
+      });
 
       expect(node.start).toEqual(Time.fromRaw(100n));
       expect(node.end).toEqual(Time.fromRaw(500n));
@@ -49,29 +51,20 @@ describe('TimeRangeSourceNode', () => {
     });
 
     it('should create node with undefined start/end', () => {
-      const node = new TimeRangeSourceNode(
-        {isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({isDynamic: false});
 
       expect(node.start).toBeUndefined();
       expect(node.end).toBeUndefined();
     });
 
     it('should default isDynamic to false', () => {
-      const node = new TimeRangeSourceNode(
-        {start: '100', end: '500'},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({start: '100', end: '500'});
 
       expect(node.isDynamic).toBe(false);
     });
 
     it('should create node in dynamic mode and update from selection', () => {
-      const node = new TimeRangeSourceNode(
-        {start: '100', end: '500', isDynamic: true},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({start: '100', end: '500', isDynamic: true});
 
       expect(node.isDynamic).toBe(true);
       // Dynamic mode immediately updates from selection (falls back to full trace)
@@ -82,66 +75,45 @@ describe('TimeRangeSourceNode', () => {
 
   describe('validation', () => {
     it('should validate when start and end are set', () => {
-      const node = new TimeRangeSourceNode(
-        {start: '100', end: '500', isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({start: '100', end: '500', isDynamic: false});
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
 
     it('should invalidate when start is missing', () => {
-      const node = new TimeRangeSourceNode(
-        {end: '500', isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({end: '500', isDynamic: false});
 
       expect(node.validate()).toBe(false);
     });
 
     it('should invalidate when end is missing', () => {
-      const node = new TimeRangeSourceNode(
-        {start: '100', isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({start: '100', isDynamic: false});
 
       expect(node.validate()).toBe(false);
     });
 
     it('should invalidate when both start and end are missing', () => {
-      const node = new TimeRangeSourceNode(
-        {isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({isDynamic: false});
 
       expect(node.validate()).toBe(false);
     });
 
     it('should invalidate when end is before start', () => {
-      const node = new TimeRangeSourceNode(
-        {start: '500', end: '100', isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({start: '500', end: '100', isDynamic: false});
 
       expect(node.validate()).toBe(false);
     });
 
     it('should validate when end equals start (zero duration)', () => {
-      const node = new TimeRangeSourceNode(
-        {start: '100', end: '100', isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({start: '100', end: '100', isDynamic: false});
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
     });
   });
 
   describe('getTimeRange', () => {
     it('should return TimeSpan when valid', () => {
-      const node = new TimeRangeSourceNode(
-        {start: '100', end: '500', isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({start: '100', end: '500', isDynamic: false});
 
       const timeRange = node.getTimeRange();
 
@@ -151,10 +123,7 @@ describe('TimeRangeSourceNode', () => {
     });
 
     it('should return undefined when invalid', () => {
-      const node = new TimeRangeSourceNode(
-        {isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({isDynamic: false});
 
       const timeRange = node.getTimeRange();
 
@@ -164,10 +133,7 @@ describe('TimeRangeSourceNode', () => {
 
   describe('getStructuredQuery', () => {
     it('should generate SQL with single row for valid time range', () => {
-      const node = new TimeRangeSourceNode(
-        {start: '100', end: '500', isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({start: '100', end: '500', isDynamic: false});
 
       const query = node.getStructuredQuery();
 
@@ -179,10 +145,7 @@ describe('TimeRangeSourceNode', () => {
     });
 
     it('should return query with unset ts/dur for node without start/end', () => {
-      const node = new TimeRangeSourceNode(
-        {isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({isDynamic: false});
 
       const query = node.getStructuredQuery();
 
@@ -193,10 +156,7 @@ describe('TimeRangeSourceNode', () => {
     });
 
     it('should handle zero duration', () => {
-      const node = new TimeRangeSourceNode(
-        {start: '100', end: '100', isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({start: '100', end: '100', isDynamic: false});
 
       const query = node.getStructuredQuery();
 
@@ -207,10 +167,7 @@ describe('TimeRangeSourceNode', () => {
     });
 
     it('should return undefined when only end is set without start', () => {
-      const node = new TimeRangeSourceNode(
-        {end: '500', isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({end: '500', isDynamic: false});
 
       const query = node.getStructuredQuery();
 
@@ -221,10 +178,7 @@ describe('TimeRangeSourceNode', () => {
 
   describe('serialization', () => {
     it('should have start and end in attrs for static node', () => {
-      const node = new TimeRangeSourceNode(
-        {start: '100', end: '500', isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({start: '100', end: '500', isDynamic: false});
 
       expect(node.attrs.start).toBe('100');
       expect(node.attrs.end).toBe('500');
@@ -232,10 +186,7 @@ describe('TimeRangeSourceNode', () => {
     });
 
     it('should not have start/end in attrs for dynamic node', () => {
-      const node = new TimeRangeSourceNode(
-        {start: '200', end: '800', isDynamic: true},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({start: '200', end: '800', isDynamic: true});
 
       // Dynamic nodes don't persist start/end - they're populated from selection on load
       expect(node.attrs.start).toBeUndefined();
@@ -244,10 +195,7 @@ describe('TimeRangeSourceNode', () => {
     });
 
     it('should have undefined start/end in attrs when not set', () => {
-      const node = new TimeRangeSourceNode(
-        {isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({isDynamic: false});
 
       expect(node.attrs.start).toBeUndefined();
       expect(node.attrs.end).toBeUndefined();
@@ -255,10 +203,7 @@ describe('TimeRangeSourceNode', () => {
     });
 
     it('attrs should be defined', () => {
-      const node = new TimeRangeSourceNode(
-        {start: '100', end: '500', isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({start: '100', end: '500', isDynamic: false});
 
       expect(node.attrs).toBeDefined();
     });
@@ -272,9 +217,7 @@ describe('TimeRangeSourceNode', () => {
         isDynamic: false,
       };
 
-      const node = new TimeRangeSourceNode(serialized, {
-        trace: createMockTrace(),
-      });
+      const node = makeNode(serialized);
 
       expect(node.start).toEqual(Time.fromRaw(100n));
       expect(node.end).toEqual(Time.fromRaw(500n));
@@ -287,9 +230,7 @@ describe('TimeRangeSourceNode', () => {
         isDynamic: true,
       };
 
-      const node = new TimeRangeSourceNode(serialized, {
-        trace: createMockTrace(),
-      });
+      const node = makeNode(serialized);
 
       // Dynamic node populates from selection/trace on construction
       expect(node.isDynamic).toBe(true);
@@ -300,9 +241,7 @@ describe('TimeRangeSourceNode', () => {
         isDynamic: false,
       };
 
-      const node = new TimeRangeSourceNode(serialized, {
-        trace: createMockTrace(),
-      });
+      const node = makeNode(serialized);
 
       expect(node.start).toBeUndefined();
       expect(node.end).toBeUndefined();
@@ -315,9 +254,7 @@ describe('TimeRangeSourceNode', () => {
         end: '500',
       };
 
-      const node = new TimeRangeSourceNode(serialized, {
-        trace: createMockTrace(),
-      });
+      const node = makeNode(serialized);
 
       expect(node.isDynamic).toBe(false);
     });
@@ -329,9 +266,7 @@ describe('TimeRangeSourceNode', () => {
         isDynamic: false,
       };
 
-      const node = new TimeRangeSourceNode(serialized, {
-        trace: createMockTrace(),
-      });
+      const node = makeNode(serialized);
       expect(node).toBeDefined();
     });
 
@@ -351,10 +286,11 @@ describe('TimeRangeSourceNode', () => {
 
   describe('clone', () => {
     it('should clone node as static snapshot', () => {
-      const originalNode = new TimeRangeSourceNode(
-        {start: '100', end: '500', isDynamic: true},
-        {trace: createMockTrace()},
-      );
+      const originalNode = makeNode({
+        start: '100',
+        end: '500',
+        isDynamic: true,
+      });
 
       const clonedNode = originalNode.clone() as TimeRangeSourceNode;
 
@@ -368,10 +304,11 @@ describe('TimeRangeSourceNode', () => {
     });
 
     it('should clone successfully', () => {
-      const originalNode = new TimeRangeSourceNode(
-        {start: '100', end: '500', isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const originalNode = makeNode({
+        start: '100',
+        end: '500',
+        isDynamic: false,
+      });
 
       const clonedNode = originalNode.clone() as TimeRangeSourceNode;
       expect(clonedNode).toBeDefined();
@@ -380,19 +317,13 @@ describe('TimeRangeSourceNode', () => {
 
   describe('getTitle', () => {
     it('should return "Time range" for static mode', () => {
-      const node = new TimeRangeSourceNode(
-        {start: '100', end: '500', isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({start: '100', end: '500', isDynamic: false});
 
       expect(node.getTitle()).toBe('Time range');
     });
 
     it('should return "Current time range" for dynamic mode', () => {
-      const node = new TimeRangeSourceNode(
-        {isDynamic: true},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({isDynamic: true});
 
       expect(node.getTitle()).toBe('Current time range');
     });
@@ -400,10 +331,7 @@ describe('TimeRangeSourceNode', () => {
 
   describe('finalCols', () => {
     it('should have id, ts, and dur columns', () => {
-      const node = new TimeRangeSourceNode(
-        {start: '100', end: '500', isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({start: '100', end: '500', isDynamic: false});
 
       expect(node.finalCols.length).toBe(3);
       expect(node.finalCols[0].name).toBe('id');
@@ -412,10 +340,7 @@ describe('TimeRangeSourceNode', () => {
     });
 
     it('should have correct column types', () => {
-      const node = new TimeRangeSourceNode(
-        {start: '100', end: '500', isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({start: '100', end: '500', isDynamic: false});
 
       expect(node.finalCols.length).toBe(3);
       expect(node.finalCols[0].name).toBe('id');
@@ -432,37 +357,34 @@ describe('TimeRangeSourceNode', () => {
       const largeStart = '9223372036854775000';
       const largeEnd = '9223372036854775807'; // Near max int64
 
-      const node = new TimeRangeSourceNode(
-        {start: largeStart, end: largeEnd, isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({
+        start: largeStart,
+        end: largeEnd,
+        isDynamic: false,
+      });
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
       expect(node.attrs.start).toBe('9223372036854775000');
       expect(node.attrs.end).toBe('9223372036854775807');
     });
 
     it('should handle timestamp at zero', () => {
-      const node = new TimeRangeSourceNode(
-        {start: '0', end: '1000', isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({start: '0', end: '1000', isDynamic: false});
 
-      expect(node.validate()).toBe(true);
+      expectValidationSuccess(node);
       const query = node.getStructuredQuery();
       expect(query?.experimentalTimeRange?.ts).toBe(0);
       expect(query?.experimentalTimeRange?.dur).toBe(1000);
     });
 
     it('should serialize and deserialize round-trip correctly for static node', () => {
-      const originalNode = new TimeRangeSourceNode(
-        {start: '12345', end: '67890', isDynamic: false},
-        {trace: createMockTrace()},
-      );
-
-      const newNode = new TimeRangeSourceNode(originalNode.attrs, {
-        trace: createMockTrace(),
+      const originalNode = makeNode({
+        start: '12345',
+        end: '67890',
+        isDynamic: false,
       });
+
+      const newNode = makeNode(originalNode.attrs);
 
       expect(newNode.start).toEqual(originalNode.start);
       expect(newNode.end).toEqual(originalNode.end);
@@ -470,14 +392,9 @@ describe('TimeRangeSourceNode', () => {
     });
 
     it('should serialize and deserialize round-trip for dynamic node', () => {
-      const originalNode = new TimeRangeSourceNode(
-        {isDynamic: true},
-        {trace: createMockTrace()},
-      );
+      const originalNode = makeNode({isDynamic: true});
 
-      const newNode = new TimeRangeSourceNode(originalNode.attrs, {
-        trace: createMockTrace(),
-      });
+      const newNode = makeNode(originalNode.attrs);
 
       // Dynamic nodes get their start/end from trace selection, not serialized state
       expect(newNode.start).toEqual(originalNode.start);
@@ -496,10 +413,7 @@ describe('TimeRangeSourceNode', () => {
     });
 
     it('should clean up interval when dispose is called on dynamic node', () => {
-      const node = new TimeRangeSourceNode(
-        {start: '100', end: '500', isDynamic: true},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({start: '100', end: '500', isDynamic: true});
 
       // Verify interval is set up
       expect(jest.getTimerCount()).toBeGreaterThan(0);
@@ -511,19 +425,13 @@ describe('TimeRangeSourceNode', () => {
     });
 
     it('should not throw when dispose is called on static node', () => {
-      const node = new TimeRangeSourceNode(
-        {start: '100', end: '500', isDynamic: false},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({start: '100', end: '500', isDynamic: false});
 
       expect(() => node.dispose()).not.toThrow();
     });
 
     it('should allow multiple calls to dispose', () => {
-      const node = new TimeRangeSourceNode(
-        {start: '100', end: '500', isDynamic: true},
-        {trace: createMockTrace()},
-      );
+      const node = makeNode({start: '100', end: '500', isDynamic: true});
 
       node.dispose();
       expect(() => node.dispose()).not.toThrow();
