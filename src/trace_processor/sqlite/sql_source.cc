@@ -125,6 +125,11 @@ SqlSource SqlSource::FromTraceProcessorImplementation(std::string sql) {
   return {std::move(sql), "Trace Processor Internal", false};
 }
 
+SqlSource SqlSource::FromMacroExpansion(std::string sql,
+                                        const std::string& macro) {
+  return {std::move(sql), "Macro \"" + macro + "\"", false};
+}
+
 std::string SqlSource::AsTraceback(uint32_t offset) const {
   return root_.AsTraceback(offset);
 }

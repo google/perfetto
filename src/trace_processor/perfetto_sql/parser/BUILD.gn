@@ -20,6 +20,8 @@ source_set("parser") {
   sources = [
     "function_util.cc",
     "function_util.h",
+    "intrinsic_macro_expansion.cc",
+    "intrinsic_macro_expansion.h",
     "perfetto_sql_parser.cc",
     "perfetto_sql_parser.h",
   ]
@@ -30,7 +32,6 @@ source_set("parser") {
     "../../../base",
     "../../sqlite",
     "../../util:sql_argument",
-    "../preprocessor",
     "../syntaqlite",
   ]
   cflags = [
@@ -51,7 +52,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../base",
     "../../sqlite",
     "../../util:sql_argument",
-    "../preprocessor",
+    "../syntaqlite",
   ]
 }
 
