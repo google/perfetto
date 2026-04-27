@@ -2362,6 +2362,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/gpu_tracker.h",
         "src/trace_processor/importers/common/import_logs_tracker.cc",
         "src/trace_processor/importers/common/import_logs_tracker.h",
+        "src/trace_processor/importers/common/irq_tracker.cc",
+        "src/trace_processor/importers/common/irq_tracker.h",
         "src/trace_processor/importers/common/jit_cache.cc",
         "src/trace_processor/importers/common/jit_cache.h",
         "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.cc",
@@ -8305,6 +8307,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/trace/system_info/cpu_info.proto",
         "protos/perfetto/trace/system_info/gpu_info.proto",
+        "protos/perfetto/trace/system_info/interrupt_info.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,

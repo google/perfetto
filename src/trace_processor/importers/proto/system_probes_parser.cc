@@ -40,6 +40,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/gpu_tracker.h"
 #include "src/trace_processor/importers/common/import_logs_tracker.h"
+#include "src/trace_processor/importers/common/irq_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -64,6 +65,7 @@
 #include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
 #include "protos/perfetto/trace/system_info/cpu_info.pbzero.h"
 #include "protos/perfetto/trace/system_info/gpu_info.pbzero.h"
+#include "protos/perfetto/trace/system_info/interrupt_info.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -1228,6 +1230,18 @@ void SystemProbesParser::ParseGpuInfo(ConstBytes blob) {
         auto val_id = context_->storage->InternString(kv.value());
         inserter.AddArg(key_id, Variadic::String(val_id));
       }
+    }
+  }
+}
+
+void SystemProbesParser::ParseInterruptInfo(ConstBytes blob) {
+  protos::pbzero::InterruptInfo::Decoder packet(blob);
+  for (auto it = packet.irq_mapping(); it; ++it) {
+    protos::pbzero::InterruptInfo::InterruptMapping::Decoder mapping(*it);
+    if (mapping.has_irq_id() && mapping.has_name()) {
+      auto name_id = context_->storage->InternString(mapping.name());
+      context_->irq_tracker->SetIrqName(static_cast<uint32_t>(mapping.irq_id()),
+                                        name_id);
     }
   }
 }

@@ -42,6 +42,7 @@ class SystemProbesParser {
   void ParseSystemInfo(ConstBytes);
   void ParseCpuInfo(ConstBytes);
   void ParseGpuInfo(ConstBytes);
+  void ParseInterruptInfo(ConstBytes);
 
  private:
   void ParseThreadStats(int64_t timestamp, uint32_t pid, ConstBytes);

@@ -523,6 +523,27 @@ GPU_TABLE = Table(
                 '''Extra args associated with the GPU''',
         }))
 
+INTERRUPT_MAPPING_TABLE = Table(
+    python_module=__file__,
+    class_name='InterruptMappingTable',
+    sql_name='__intrinsic_interrupt_mapping',
+    columns=[
+        C('irq_id', CppUint32()),
+        C('name', CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C('machine_id', CppTableId(MACHINE_TABLE)),
+    ],
+    wrapping_sql_view=WrappingSqlView('interrupt_mapping'),
+    tabledoc=TableDoc(
+        doc='''
+          Contains information for IRQ mappings seen during the trace.
+        ''',
+        group='Misc',
+        columns={
+            'irq_id': '''The IRQ ID.''',
+            'name': '''The name of the IRQ.''',
+            'machine_id': '''The machine that emitted the IRQ.''',
+        }))
+
 CHROME_RAW_TABLE = Table(
     python_module=__file__,
     class_name='ChromeRawTable',
@@ -984,6 +1005,7 @@ ALL_TABLES = [
     FILEDESCRIPTOR_TABLE,
     FTRACE_EVENT_TABLE,
     GPU_TABLE,
+    INTERRUPT_MAPPING_TABLE,
     TRACE_IMPORT_LOGS_TABLE,
     MACHINE_TABLE,
     METADATA_TABLE,

@@ -83,6 +83,7 @@ import "protos/perfetto/trace/remote_clock_sync.proto";
 import "protos/perfetto/trace/sys_stats/sys_stats.proto";
 import "protos/perfetto/trace/system_info/cpu_info.proto";
 import "protos/perfetto/trace/system_info/gpu_info.proto";
+import "protos/perfetto/trace/system_info/interrupt_info.proto";
 import "protos/perfetto/trace/trace_packet_defaults.proto";
 import "protos/perfetto/trace/track_event/process_descriptor.proto";
 import "protos/perfetto/trace/track_event/range_of_interest.proto";
@@ -117,7 +118,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 128.
+// Next id: 130.
 message TracePacket {
   // Encapsulates the state and configuration of the ProtoVM instances running
   // when the trace was snapshotted. This allows TP to re-instantiate the VMs
@@ -208,6 +209,7 @@ message TracePacket {
     TraceAttributes trace_attributes = 126;
     AndroidAflags android_aflags = 127;
     GpuInfo gpu_info = 128;
+    InterruptInfo interrupt_info = 129;
 
     // Only used in profile packets.
     ModuleSymbols module_symbols = 61;

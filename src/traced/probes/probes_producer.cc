@@ -310,7 +310,7 @@ ProbesProducer::CreateDSInstance<SystemInfoDataSource>(
   return std::make_unique<SystemInfoDataSource>(
       session_id,
       endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall),
-      std::make_unique<CpuFreqInfo>());
+      std::make_unique<CpuFreqInfo>(), config);
 }
 
 template <>

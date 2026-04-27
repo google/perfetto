@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 The Android Open Source Project
+ * Copyright (C) 2026 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,17 +15,20 @@
  */
 
 syntax = "proto2";
-
 package perfetto.protos;
 
-// This data-source does a one-off recording of system information when
-// the trace starts.
-// Currently this includes:
-// - Values of
-// /sys/devices/system/cpu/cpu*/cpufreq/scaling_available_frequencies This
-// datasource has no configuration options at present.
-message SystemInfoConfig {
-  // If true, records hardware interrupt ID-to-name mappings from
-  // /proc/interrupts.
-  optional bool irq_names = 1;
+// Hardware interrupt (IRQ) ID-to-name mappings collected from
+// /proc/interrupts at the start of a trace.
+// Emitted by the linux.system_info data source when irq_names: true is set
+// in SystemInfoConfig.
+message InterruptInfo {
+  message InterruptMapping {
+    // Numeric IRQ identifier.
+    optional int32 irq_id = 1;
+    // Human-readable name for the IRQ (e.g. "arch_timer", "arm-pmu").
+    optional string name = 2;
+  }
+
+  // One entry per hardware IRQ found in /proc/interrupts.
+  repeated InterruptMapping irq_mapping = 1;
 }
