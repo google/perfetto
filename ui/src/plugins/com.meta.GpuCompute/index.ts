@@ -76,6 +76,7 @@ class Compute {
   private sliceId: number | undefined = -1;
   private options: KernelLaunchOption[] = [];
   private summaryRows: SummaryRow[] = [];
+  private knownKernelIds = new Set<number>();
 
   // Selection-driven metric fetching via QuerySlot. Selection changes
   // trigger mithril redraws; render() reads the current selection and
@@ -141,6 +142,7 @@ class Compute {
   public async setSliceId(sliceId: number, suppressAutoDetails = false) {
     const firstId = this.options[0]?.id ?? -1;
     this.sliceId = sliceId !== -1 ? sliceId : firstId;
+    const requestedSliceId = this.sliceId;
 
     if (this.sliceId === -1) {
       this.setToolbarInfo(undefined);
@@ -154,6 +156,9 @@ class Compute {
         this.engine,
         this.sliceId,
       );
+      // Guard against stale async completions: if the sliceId changed
+      // while the query was in flight, discard the result.
+      if (this.sliceId !== requestedSliceId) return;
       const hasMetrics = Array.isArray(data) && data.length > 0;
       this.setToolbarInfo(hasMetrics ? data[0].toolbar : undefined);
       if (!hasMetrics) {
@@ -220,6 +225,7 @@ class Compute {
   // Updates the "Results" dropdown with new launch options
   public setOptions(opts: KernelLaunchOption[]) {
     this.options = opts;
+    this.knownKernelIds = new Set(opts.map((o) => o.id));
   }
 
   public setSummaryRows(rows: SummaryRow[]) {
@@ -256,6 +262,17 @@ class Compute {
     if (selSliceId !== undefined) {
       this.hadSelection = true;
       const id = selSliceId;
+      const isKnownKernel = this.knownKernelIds.has(id);
+
+      // Show the tab immediately for known kernels so the user doesn't
+      // see a flicker to the "Current Selection" tab while the async
+      // metric query is in flight.
+      if (isKnownKernel && this.appliedSelectionSliceId !== selSliceId) {
+        this.sliceId = selSliceId;
+        this.ctx.activeInfoTab = 'details';
+        this.trace.tabs.showTab(this.tabUri);
+      }
+
       const result = this.selectionSlot.use({
         key: {sliceId: id},
         queryFn: async () => {
@@ -277,9 +294,7 @@ class Compute {
         if (result.data.hasMetrics) {
           this.sliceId = selSliceId;
           this.setToolbarInfo(result.data.toolbar);
-          this.ctx.activeInfoTab = 'details';
-          this.trace.tabs.showTab(this.tabUri);
-        } else {
+        } else if (!isKnownKernel) {
           this.sliceId = this.options[0]?.id ?? -1;
           this.setToolbarInfo(undefined);
           this.ctx.activeInfoTab = 'summary';
@@ -288,9 +303,6 @@ class Compute {
     } else if (this.hadSelection) {
       this.hadSelection = false;
       this.appliedSelectionSliceId = undefined;
-      this.sliceId = this.options[0]?.id ?? -1;
-      this.setToolbarInfo(undefined);
-      this.ctx.activeInfoTab = 'summary';
     }
 
     const toolbar = renderToolbar({
@@ -339,7 +351,6 @@ class Compute {
       });
     }
 
-    // Rendering view
     return m('div', [toolbar, body]);
   }
 }
