@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {z} from 'zod';
-import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
 import {Registry} from '../base/registry';
 import {Command, CommandManager} from '../public/command';
 import {raf} from './raf_scheduler';
@@ -81,10 +80,6 @@ export function parseUrlCommands(
   }
 }
 
-export interface CommandWithMatchInfo extends Command {
-  segments: FuzzySegment[];
-}
-
 export class CommandManagerImpl implements CommandManager {
   private readonly registry = new Registry<Command>((cmd) => cmd.id);
   private readonly macros = new Registry<string>((macroId) => macroId);
@@ -139,16 +134,6 @@ export class CommandManagerImpl implements CommandManager {
       }),
     );
     return stack;
-  }
-
-  // Returns a list of commands that match the search term, along with a list
-  // of segments which describe which parts of the command name match and
-  // which don't.
-  fuzzyFilterCommands(searchTerm: string): CommandWithMatchInfo[] {
-    const finder = new FuzzyFinder(this.commands, ({name}) => name);
-    return finder.find(searchTerm).map((result) => {
-      return {segments: result.segments, ...result.item};
-    });
   }
 
   setExecutingStartupCommands(isExecuting: boolean) {
