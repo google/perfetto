@@ -399,41 +399,6 @@ def perfetto_protozero_descriptor_diff(name, minuend, subtrahend, outs, **kwargs
         **kwargs
     )
 
-def perfetto_cc_amalgamated_sql(name, deps, outs, namespace, **kwargs):
-    if PERFETTO_CONFIG.root[:2] != "//":
-        fail("Expected PERFETTO_CONFIG.root to start with //")
-
-    genrule_tool = kwargs.pop("genrule_tool", ":gen_amalgamated_sql_py")
-    cmd = [
-        "$(location " + genrule_tool + ")",
-        "--namespace",
-        namespace,
-        "--cpp-out=$@",
-        "$(SRCS)",
-    ]
-
-    root_dir = kwargs.pop("root_dir", None)
-    if root_dir:
-        cmd += [
-            "--root-dir",
-            root_dir,
-        ]
-
-    perfetto_genrule(
-        name = name + "_gen",
-        cmd = " ".join(cmd),
-        tools = [
-            genrule_tool,
-        ],
-        srcs = deps,
-        outs = outs,
-    )
-    perfetto_cc_library(
-        name = name,
-        hdrs = [":" + name + "_gen"],
-        **kwargs
-    )
-
 def perfetto_cc_tp_tables(name, srcs, outs, deps = [], **kwargs):
     if PERFETTO_CONFIG.root[:2] != "//":
         fail("Expected PERFETTO_CONFIG.root to start with //")

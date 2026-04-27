@@ -26,6 +26,14 @@ source_set("stdlib") {
   sources = [ "sql_modules.h" ]
 }
 
+source_set("sql_bundle") {
+  sources = [ "sql_bundle.h" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+  ]
+}
+
 source_set("bump_allocator") {
   sources = [
     "bump_allocator.cc",
