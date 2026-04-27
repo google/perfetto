@@ -39,22 +39,22 @@ describe('SqlSourceNode', () => {
 
   describe('constructor', () => {
     it('should initialize with default values', () => {
-      const node = new SqlSourceNode({
-        sql: 'SELECT * FROM slice',
-        trace: mockTrace,
-      });
+      const node = new SqlSourceNode(
+        {sql: 'SELECT * FROM slice'},
+        {trace: mockTrace},
+      );
 
-      expect(node.state.sql).toBe('SELECT * FROM slice');
-      expect(node.state.autoExecute).toBe(false);
+      expect(node.attrs.sql).toBe('SELECT * FROM slice');
+      expect(node.context.autoExecute).toBe(false);
       expect(node.finalCols).toEqual([]);
       expect(node.nextNodes).toEqual([]);
     });
 
     it('should initialize secondaryInputs with correct configuration', () => {
-      const node = new SqlSourceNode({
-        sql: 'SELECT * FROM $input_0',
-        trace: mockTrace,
-      });
+      const node = new SqlSourceNode(
+        {sql: 'SELECT * FROM $input_0'},
+        {trace: mockTrace},
+      );
 
       expect(node.secondaryInputs).toBeDefined();
       expect(node.secondaryInputs.min).toBe(0);
@@ -63,10 +63,7 @@ describe('SqlSourceNode', () => {
     });
 
     it('should have port names following $input_N pattern', () => {
-      const node = new SqlSourceNode({
-        sql: '',
-        trace: mockTrace,
-      });
+      const node = new SqlSourceNode({sql: ''}, {trace: mockTrace});
 
       const portNames = node.secondaryInputs.portNames;
       expect(typeof portNames).toBe('function');
@@ -80,19 +77,16 @@ describe('SqlSourceNode', () => {
 
   describe('inputNodesList', () => {
     it('should return empty array when no inputs connected', () => {
-      const node = new SqlSourceNode({
-        sql: '',
-        trace: mockTrace,
-      });
+      const node = new SqlSourceNode({sql: ''}, {trace: mockTrace});
 
       expect(node.inputNodesList).toEqual([]);
     });
 
     it('should return connected nodes sorted by port index', () => {
-      const node = new SqlSourceNode({
-        sql: 'SELECT * FROM $input_0 JOIN $input_1',
-        trace: mockTrace,
-      });
+      const node = new SqlSourceNode(
+        {sql: 'SELECT * FROM $input_0 JOIN $input_1'},
+        {trace: mockTrace},
+      );
 
       const input0 = createMockNodeWithSq('node0', []);
       const input1 = createMockNodeWithSq('node1', []);
@@ -113,10 +107,10 @@ describe('SqlSourceNode', () => {
 
   describe('getStructuredQuery', () => {
     it('should return structured query without dependencies when no inputs', () => {
-      const node = new SqlSourceNode({
-        sql: 'SELECT * FROM slice',
-        trace: mockTrace,
-      });
+      const node = new SqlSourceNode(
+        {sql: 'SELECT * FROM slice'},
+        {trace: mockTrace},
+      );
 
       const sq = node.getStructuredQuery();
       expect(sq).toBeDefined();
@@ -124,10 +118,10 @@ describe('SqlSourceNode', () => {
     });
 
     it('should include dependencies for connected inputs', () => {
-      const node = new SqlSourceNode({
-        sql: 'SELECT * FROM $input_0',
-        trace: mockTrace,
-      });
+      const node = new SqlSourceNode(
+        {sql: 'SELECT * FROM $input_0'},
+        {trace: mockTrace},
+      );
 
       const input0 = createMockNodeWithSq('node0', [
         createColumnInfo('id', 'int'),
@@ -141,10 +135,10 @@ describe('SqlSourceNode', () => {
     });
 
     it('should include multiple dependencies with correct aliases', () => {
-      const node = new SqlSourceNode({
-        sql: 'SELECT a.*, b.* FROM $input_0 a JOIN $input_1 b ON a.id = b.id',
-        trace: mockTrace,
-      });
+      const node = new SqlSourceNode(
+        {sql: 'SELECT a.*, b.* FROM $input_0 a JOIN $input_1 b ON a.id = b.id'},
+        {trace: mockTrace},
+      );
 
       const input0 = createMockNodeWithSq('node0', [
         createColumnInfo('id', 'int'),
@@ -167,10 +161,10 @@ describe('SqlSourceNode', () => {
     });
 
     it('should return undefined when any input has invalid query', () => {
-      const node = new SqlSourceNode({
-        sql: 'SELECT * FROM $input_0',
-        trace: mockTrace,
-      });
+      const node = new SqlSourceNode(
+        {sql: 'SELECT * FROM $input_0'},
+        {trace: mockTrace},
+      );
 
       // Create a mock node that returns undefined for getStructuredQuery
       const invalidInput = createMockNode({
@@ -188,29 +182,26 @@ describe('SqlSourceNode', () => {
 
   describe('validate', () => {
     it('should fail validation with empty SQL', () => {
-      const node = new SqlSourceNode({
-        sql: '',
-        trace: mockTrace,
-      });
+      const node = new SqlSourceNode({sql: ''}, {trace: mockTrace});
 
       // Empty SQL fails validation
       expect(node.validate()).toBe(false);
     });
 
     it('should pass validation with valid SQL', () => {
-      const node = new SqlSourceNode({
-        sql: 'SELECT * FROM slice',
-        trace: mockTrace,
-      });
+      const node = new SqlSourceNode(
+        {sql: 'SELECT * FROM slice'},
+        {trace: mockTrace},
+      );
 
       expect(node.validate()).toBe(true);
     });
 
     it('should pass validation with connected inputs', () => {
-      const node = new SqlSourceNode({
-        sql: 'SELECT * FROM $input_0',
-        trace: mockTrace,
-      });
+      const node = new SqlSourceNode(
+        {sql: 'SELECT * FROM $input_0'},
+        {trace: mockTrace},
+      );
 
       const input0 = createMockNodeWithSq('node0', [
         createColumnInfo('id', 'int'),
@@ -222,176 +213,180 @@ describe('SqlSourceNode', () => {
 
     describe('statement structure validation', () => {
       it('should reject statements that do not start with SELECT', () => {
-        const node = new SqlSourceNode({
-          sql: 'CREATE TABLE foo AS SELECT * FROM slice',
-          trace: mockTrace,
-        });
+        const node = new SqlSourceNode(
+          {sql: 'CREATE TABLE foo AS SELECT * FROM slice'},
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(false);
-        expect(node.state.issues?.queryError?.message).toContain('SELECT');
+        expect(node.context.issues?.queryError?.message).toContain('SELECT');
       });
 
       it('should reject multiple SELECT statements', () => {
-        const node = new SqlSourceNode({
-          sql: 'SELECT * FROM slice; SELECT * FROM thread',
-          trace: mockTrace,
-        });
+        const node = new SqlSourceNode(
+          {sql: 'SELECT * FROM slice; SELECT * FROM thread'},
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(false);
-        expect(node.state.issues?.queryError?.message).toContain(
+        expect(node.context.issues?.queryError?.message).toContain(
           'INCLUDE PERFETTO MODULE',
         );
       });
 
       it('should allow subqueries', () => {
-        const node = new SqlSourceNode({
-          sql: 'SELECT * FROM (SELECT * FROM slice) AS sub',
-          trace: mockTrace,
-        });
+        const node = new SqlSourceNode(
+          {sql: 'SELECT * FROM (SELECT * FROM slice) AS sub'},
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(true);
       });
 
       it('should allow CTEs', () => {
-        const node = new SqlSourceNode({
-          sql: 'WITH cte AS (SELECT * FROM slice) SELECT * FROM cte',
-          trace: mockTrace,
-        });
+        const node = new SqlSourceNode(
+          {sql: 'WITH cte AS (SELECT * FROM slice) SELECT * FROM cte'},
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(true);
       });
 
       it('should allow nested subqueries', () => {
-        const node = new SqlSourceNode({
-          sql: `SELECT * FROM (
+        const node = new SqlSourceNode(
+          {
+            sql: `SELECT * FROM (
             SELECT id FROM (
               SELECT id FROM slice
             ) AS inner_sub
           ) AS outer_sub`,
-          trace: mockTrace,
-        });
+          },
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(true);
       });
 
       it('should allow SELECT in WHERE subquery', () => {
-        const node = new SqlSourceNode({
-          sql: 'SELECT * FROM slice WHERE id IN (SELECT id FROM thread)',
-          trace: mockTrace,
-        });
+        const node = new SqlSourceNode(
+          {sql: 'SELECT * FROM slice WHERE id IN (SELECT id FROM thread)'},
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(true);
       });
 
       it('should allow SELECT in comments', () => {
-        const node = new SqlSourceNode({
-          sql: '-- SELECT * FROM thread\nSELECT * FROM slice',
-          trace: mockTrace,
-        });
+        const node = new SqlSourceNode(
+          {sql: '-- SELECT * FROM thread\nSELECT * FROM slice'},
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(true);
       });
 
       it('should allow SELECT in string literals', () => {
-        const node = new SqlSourceNode({
-          sql: "SELECT 'SELECT * FROM thread' AS query FROM slice",
-          trace: mockTrace,
-        });
+        const node = new SqlSourceNode(
+          {sql: "SELECT 'SELECT * FROM thread' AS query FROM slice"},
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(true);
       });
 
       it('should allow SELECT in multi-line comments', () => {
-        const node = new SqlSourceNode({
-          sql: '/* SELECT * FROM thread */ SELECT * FROM slice',
-          trace: mockTrace,
-        });
+        const node = new SqlSourceNode(
+          {sql: '/* SELECT * FROM thread */ SELECT * FROM slice'},
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(true);
       });
 
       it('should allow UNION queries', () => {
-        const node = new SqlSourceNode({
-          sql: 'SELECT * FROM slice UNION SELECT * FROM thread',
-          trace: mockTrace,
-        });
+        const node = new SqlSourceNode(
+          {sql: 'SELECT * FROM slice UNION SELECT * FROM thread'},
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(true);
       });
 
       it('should allow UNION ALL queries', () => {
-        const node = new SqlSourceNode({
-          sql: 'SELECT * FROM slice UNION ALL SELECT * FROM thread',
-          trace: mockTrace,
-        });
+        const node = new SqlSourceNode(
+          {sql: 'SELECT * FROM slice UNION ALL SELECT * FROM thread'},
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(true);
       });
 
       it('should allow INTERSECT queries', () => {
-        const node = new SqlSourceNode({
-          sql: 'SELECT id FROM slice INTERSECT SELECT id FROM thread',
-          trace: mockTrace,
-        });
+        const node = new SqlSourceNode(
+          {sql: 'SELECT id FROM slice INTERSECT SELECT id FROM thread'},
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(true);
       });
 
       it('should allow EXCEPT queries', () => {
-        const node = new SqlSourceNode({
-          sql: 'SELECT id FROM slice EXCEPT SELECT id FROM thread',
-          trace: mockTrace,
-        });
+        const node = new SqlSourceNode(
+          {sql: 'SELECT id FROM slice EXCEPT SELECT id FROM thread'},
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(true);
       });
 
       it('should allow INCLUDE PERFETTO MODULE before SELECT', () => {
-        const node = new SqlSourceNode({
-          sql: 'INCLUDE PERFETTO MODULE slices.slices; SELECT * FROM slice',
-          trace: mockTrace,
-        });
+        const node = new SqlSourceNode(
+          {sql: 'INCLUDE PERFETTO MODULE slices.slices; SELECT * FROM slice'},
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(true);
       });
 
       it('should allow multiple INCLUDE PERFETTO MODULE before SELECT', () => {
-        const node = new SqlSourceNode({
-          sql: `INCLUDE PERFETTO MODULE slices.slices;
+        const node = new SqlSourceNode(
+          {
+            sql: `INCLUDE PERFETTO MODULE slices.slices;
                 INCLUDE PERFETTO MODULE android.startup;
                 SELECT * FROM slice`,
-          trace: mockTrace,
-        });
+          },
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(true);
       });
 
       it('should reject non-INCLUDE statements before SELECT', () => {
-        const node = new SqlSourceNode({
-          sql: 'DROP TABLE foo; SELECT * FROM slice',
-          trace: mockTrace,
-        });
+        const node = new SqlSourceNode(
+          {sql: 'DROP TABLE foo; SELECT * FROM slice'},
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(false);
-        expect(node.state.issues?.queryError?.message).toContain(
+        expect(node.context.issues?.queryError?.message).toContain(
           'INCLUDE PERFETTO MODULE',
         );
       });
 
       it('should reject INCLUDE PERFETTO MODULE after SELECT', () => {
-        const node = new SqlSourceNode({
-          sql: 'SELECT * FROM slice; INCLUDE PERFETTO MODULE slices.slices',
-          trace: mockTrace,
-        });
+        const node = new SqlSourceNode(
+          {sql: 'SELECT * FROM slice; INCLUDE PERFETTO MODULE slices.slices'},
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(false);
       });
 
       it('should reject query without SELECT', () => {
-        const node = new SqlSourceNode({
-          sql: 'INCLUDE PERFETTO MODULE slices.slices',
-          trace: mockTrace,
-        });
+        const node = new SqlSourceNode(
+          {sql: 'INCLUDE PERFETTO MODULE slices.slices'},
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(false);
-        expect(node.state.issues?.queryError?.message).toContain('SELECT');
+        expect(node.context.issues?.queryError?.message).toContain('SELECT');
       });
 
       it('should allow trailing semicolon', () => {
-        const node = new SqlSourceNode({
-          sql: 'SELECT * FROM slice;',
-          trace: mockTrace,
-        });
+        const node = new SqlSourceNode(
+          {sql: 'SELECT * FROM slice;'},
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(true);
       });
 
       it('should allow INCLUDE with trailing semicolon', () => {
-        const node = new SqlSourceNode({
-          sql: 'INCLUDE PERFETTO MODULE foo; SELECT * FROM slice;',
-          trace: mockTrace,
-        });
+        const node = new SqlSourceNode(
+          {sql: 'INCLUDE PERFETTO MODULE foo; SELECT * FROM slice;'},
+          {trace: mockTrace},
+        );
         expect(node.validate()).toBe(true);
       });
     });
@@ -399,10 +394,10 @@ describe('SqlSourceNode', () => {
 
   describe('getTitle', () => {
     it('should return "Sql source" as title', () => {
-      const node = new SqlSourceNode({
-        sql: 'SELECT * FROM slice',
-        trace: mockTrace,
-      });
+      const node = new SqlSourceNode(
+        {sql: 'SELECT * FROM slice'},
+        {trace: mockTrace},
+      );
 
       expect(node.getTitle()).toBe('Sql source');
     });
@@ -410,122 +405,50 @@ describe('SqlSourceNode', () => {
 
   describe('clone', () => {
     it('should create a new node with same SQL', () => {
-      const original = new SqlSourceNode({
-        sql: 'SELECT * FROM slice',
-        trace: mockTrace,
-      });
+      const original = new SqlSourceNode(
+        {sql: 'SELECT * FROM slice'},
+        {trace: mockTrace},
+      );
 
       const cloned = original.clone() as SqlSourceNode;
 
       expect(cloned).not.toBe(original);
-      expect(cloned.state.sql).toBe(original.state.sql);
+      expect(cloned.attrs.sql).toBe(original.attrs.sql);
       expect(cloned.nodeId).not.toBe(original.nodeId);
     });
 
     it('should not share state with original', () => {
-      const original = new SqlSourceNode({
-        sql: 'SELECT * FROM slice',
-        trace: mockTrace,
-      });
+      const original = new SqlSourceNode(
+        {sql: 'SELECT * FROM slice'},
+        {trace: mockTrace},
+      );
 
       const cloned = original.clone() as SqlSourceNode;
-      cloned.state.sql = 'SELECT * FROM thread';
+      cloned.attrs.sql = 'SELECT * FROM thread';
 
-      expect(original.state.sql).toBe('SELECT * FROM slice');
+      expect(original.attrs.sql).toBe('SELECT * FROM slice');
     });
   });
 
   describe('serializeState', () => {
     it('should serialize SQL', () => {
-      const node = new SqlSourceNode({
-        sql: 'SELECT * FROM slice',
-        trace: mockTrace,
-      });
+      const node = new SqlSourceNode(
+        {sql: 'SELECT * FROM slice'},
+        {trace: mockTrace},
+      );
 
-      const serialized = node.serializeState();
+      const serialized = node.attrs;
 
       expect(serialized.sql).toBe('SELECT * FROM slice');
-    });
-
-    it('should not include inputNodeIds when no inputs connected', () => {
-      const node = new SqlSourceNode({
-        sql: 'SELECT * FROM slice',
-        trace: mockTrace,
-      });
-
-      const serialized = node.serializeState();
-
-      expect(serialized.inputNodeIds).toBeUndefined();
-    });
-
-    it('should serialize input node IDs in port order', () => {
-      const node = new SqlSourceNode({
-        sql: 'SELECT * FROM $input_0 JOIN $input_1',
-        trace: mockTrace,
-      });
-
-      const input0 = createMockNodeWithSq('node0', []);
-      const input1 = createMockNodeWithSq('node1', []);
-
-      // Connect in reverse order
-      connectSecondary(input1, node, 1);
-      connectSecondary(input0, node, 0);
-
-      const serialized = node.serializeState();
-
-      expect(serialized.inputNodeIds).toEqual(['node0', 'node1']);
-    });
-  });
-
-  describe('deserializeConnections', () => {
-    it('should return empty inputNodes when no inputNodeIds', () => {
-      const nodes = new Map<string, QueryNode>();
-
-      const connections = SqlSourceNode.deserializeConnections(nodes, {
-        sql: 'SELECT * FROM slice',
-      });
-
-      expect(connections.inputNodes).toEqual([]);
-    });
-
-    it('should resolve input nodes from IDs', () => {
-      const node0 = createMockNodeWithSq('node0', []);
-      const node1 = createMockNodeWithSq('node1', []);
-      const nodes = new Map<string, QueryNode>([
-        ['node0', node0],
-        ['node1', node1],
-      ]);
-
-      const connections = SqlSourceNode.deserializeConnections(nodes, {
-        sql: 'SELECT * FROM $input_0 JOIN $input_1',
-        inputNodeIds: ['node0', 'node1'],
-      });
-
-      expect(connections.inputNodes.length).toBe(2);
-      expect(connections.inputNodes[0]).toBe(node0);
-      expect(connections.inputNodes[1]).toBe(node1);
-    });
-
-    it('should filter out missing nodes gracefully', () => {
-      const node0 = createMockNodeWithSq('node0', []);
-      const nodes = new Map<string, QueryNode>([['node0', node0]]);
-
-      const connections = SqlSourceNode.deserializeConnections(nodes, {
-        sql: 'SELECT * FROM $input_0',
-        inputNodeIds: ['node0', 'missing_node'],
-      });
-
-      expect(connections.inputNodes.length).toBe(1);
-      expect(connections.inputNodes[0]).toBe(node0);
     });
   });
 
   describe('nodeSpecificModify', () => {
     it('should render SQL editor component', () => {
-      const node = new SqlSourceNode({
-        sql: 'SELECT * FROM slice',
-        trace: mockTrace,
-      });
+      const node = new SqlSourceNode(
+        {sql: 'SELECT * FROM slice'},
+        {trace: mockTrace},
+      );
 
       const result = node.nodeSpecificModify();
 

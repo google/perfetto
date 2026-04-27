@@ -15,19 +15,14 @@
 import m from 'mithril';
 import {
   QueryNode,
-  QueryNodeState,
   nextNodeId,
   NodeType,
   SecondaryInputSpec,
+  NodeContext,
 } from '../../query_node';
 import {getSecondaryInput} from '../graph_utils';
 import protos from '../../../../protos';
-import {
-  ColumnInfo,
-  legacyDeserializeType,
-  newColumnInfoList,
-} from '../column_info';
-import {PerfettoSqlType} from '../../../../trace_processor/perfetto_sql_type';
+import {ColumnInfo, legacyDeserializeType} from '../column_info';
 import {Callout} from '../../../../widgets/callout';
 import {NodeIssues} from '../node_issues';
 import {Switch} from '../../../../widgets/switch';
@@ -41,36 +36,8 @@ import {NodeTitle} from '../node_styling_widgets';
 import {JoinConditionSelector, JoinConditionDisplay} from '../join_widgets';
 import {ResizableSqlEditor} from '../widgets';
 
-export interface JoinSerializedState {
-  leftNodeId: string;
-  rightNodeId: string;
-  leftQueryAlias: string;
-  rightQueryAlias: string;
-  conditionType: 'equality' | 'freeform';
-  joinType?: 'INNER' | 'LEFT';
-  leftColumn?: string;
-  rightColumn?: string;
-  sqlExpression?: string;
-  comment?: string;
-  leftColumns?: {
-    name: string;
-    type?: PerfettoSqlType;
-    checked: boolean;
-    alias?: string;
-    columnName: string; // Original source column name
-  }[];
-  rightColumns?: {
-    name: string;
-    type?: PerfettoSqlType;
-    checked: boolean;
-    alias?: string;
-    columnName: string; // Original source column name
-  }[];
-}
-
-export interface JoinNodeState extends QueryNodeState {
-  leftNode?: QueryNode;
-  rightNode?: QueryNode;
+// Serializable node configuration.
+export interface JoinNodeAttrs {
   leftQueryAlias: string;
   rightQueryAlias: string;
   conditionType: 'equality' | 'freeform';
@@ -88,7 +55,8 @@ export class JoinNode implements QueryNode {
   readonly type = NodeType.kJoin;
   secondaryInputs: SecondaryInputSpec;
   nextNodes: QueryNode[];
-  readonly state: JoinNodeState;
+  readonly attrs: JoinNodeAttrs;
+  readonly context: NodeContext;
 
   get leftNode(): QueryNode | undefined {
     return getSecondaryInput(this, 0);
@@ -99,40 +67,33 @@ export class JoinNode implements QueryNode {
   }
 
   get finalCols(): ColumnInfo[] {
-    // Return only checked columns from both left and right sources
     const result: ColumnInfo[] = [];
-
-    // Add checked columns from left
-    for (const col of this.state.leftColumns ?? []) {
-      if (col.checked) {
-        result.push(col);
-      }
+    for (const col of this.attrs.leftColumns ?? []) {
+      if (col.checked) result.push(col);
     }
-
-    // Add checked columns from right
-    for (const col of this.state.rightColumns ?? []) {
-      if (col.checked) {
-        result.push(col);
-      }
+    for (const col of this.attrs.rightColumns ?? []) {
+      if (col.checked) result.push(col);
     }
-
     return result;
   }
 
-  constructor(state: JoinNodeState) {
+  constructor(attrs: JoinNodeAttrs, context: NodeContext) {
     this.nodeId = nextNodeId();
-    this.state = {
-      ...state,
-      autoExecute: state.autoExecute ?? false,
-      leftQueryAlias: state.leftQueryAlias ?? 'left',
-      rightQueryAlias: state.rightQueryAlias ?? 'right',
-      conditionType: state.conditionType ?? 'equality',
-      joinType: state.joinType ?? 'INNER',
-      leftColumn: state.leftColumn ?? '',
-      rightColumn: state.rightColumn ?? '',
-      sqlExpression: state.sqlExpression ?? '',
-      leftColumns: state.leftColumns ?? [],
-      rightColumns: state.rightColumns ?? [],
+    this.attrs = {
+      ...attrs,
+      leftQueryAlias: attrs.leftQueryAlias ?? 'left',
+      rightQueryAlias: attrs.rightQueryAlias ?? 'right',
+      conditionType: attrs.conditionType ?? 'equality',
+      joinType: attrs.joinType ?? 'INNER',
+      leftColumn: attrs.leftColumn ?? '',
+      rightColumn: attrs.rightColumn ?? '',
+      sqlExpression: attrs.sqlExpression ?? '',
+      leftColumns: attrs.leftColumns ?? [],
+      rightColumns: attrs.rightColumns ?? [],
+    };
+    this.context = {
+      ...context,
+      autoExecute: context.autoExecute ?? false,
     };
     this.secondaryInputs = {
       connections: new Map(),
@@ -140,16 +101,9 @@ export class JoinNode implements QueryNode {
       max: 2,
       portNames: (portIndex: number) =>
         portIndex === 0
-          ? this.state.leftQueryAlias
-          : this.state.rightQueryAlias,
+          ? this.attrs.leftQueryAlias
+          : this.attrs.rightQueryAlias,
     };
-    // Initialize connections from state
-    if (state.leftNode) {
-      this.secondaryInputs.connections.set(0, state.leftNode);
-    }
-    if (state.rightNode) {
-      this.secondaryInputs.connections.set(1, state.rightNode);
-    }
     this.nextNodes = [];
 
     // Initialize column arrays from connected nodes if empty
@@ -158,8 +112,8 @@ export class JoinNode implements QueryNode {
     // we should preserve them. updateColumnArrays() will be called later
     // when connections are restored via onPrevNodesUpdated()
     if (
-      (!this.state.leftColumns || this.state.leftColumns.length === 0) &&
-      (!this.state.rightColumns || this.state.rightColumns.length === 0)
+      (!this.attrs.leftColumns || this.attrs.leftColumns.length === 0) &&
+      (!this.attrs.rightColumns || this.attrs.rightColumns.length === 0)
     ) {
       this.updateColumnArrays();
     }
@@ -172,69 +126,47 @@ export class JoinNode implements QueryNode {
 
   // Update column arrays when nodes change or on initialization
   private updateColumnArrays() {
-    // Update left columns if left node is connected
+    const buildDescriptors = (
+      sourceCols: ColumnInfo[],
+      existing: ColumnInfo[],
+    ): ColumnInfo[] => {
+      const isFirstInit = existing.length === 0;
+      return sourceCols.map((col) => {
+        const oldCol = existing.find((c) => c.name === col.name);
+        return {
+          name: col.name,
+          type: col.type,
+          description: col.description,
+          checked: isFirstInit ? false : oldCol?.checked ?? false,
+          alias: oldCol?.alias,
+          typeUserModified: oldCol?.typeUserModified,
+        };
+      });
+    };
+
     if (this.leftNode) {
-      const sourceCols = this.leftNode.finalCols;
-      const newLeftColumns = newColumnInfoList(sourceCols);
-
-      // Preserve checked status and aliases for columns that still exist
-      const existingLeftColumns = this.state.leftColumns ?? [];
-      for (const oldCol of existingLeftColumns) {
-        const newCol = newLeftColumns.find(
-          (c) => c.column.name === oldCol.column.name,
-        );
-        if (newCol) {
-          newCol.checked = oldCol.checked;
-          newCol.alias = oldCol.alias;
-        }
-      }
-
-      // Default all to unchecked if this is first initialization
-      if (existingLeftColumns.length === 0) {
-        for (const col of newLeftColumns) {
-          col.checked = false;
-        }
-      }
-
-      this.state.leftColumns = newLeftColumns;
+      this.attrs.leftColumns = buildDescriptors(
+        this.leftNode.finalCols,
+        this.attrs.leftColumns ?? [],
+      );
     } else {
-      this.state.leftColumns = [];
+      this.attrs.leftColumns = [];
     }
 
-    // Update right columns if right node is connected
     if (this.rightNode) {
-      const sourceCols = this.rightNode.finalCols;
-      const newRightColumns = newColumnInfoList(sourceCols);
-
-      // Preserve checked status and aliases for columns that still exist
-      const existingRightColumns = this.state.rightColumns ?? [];
-      for (const oldCol of existingRightColumns) {
-        const newCol = newRightColumns.find(
-          (c) => c.column.name === oldCol.column.name,
-        );
-        if (newCol) {
-          newCol.checked = oldCol.checked;
-          newCol.alias = oldCol.alias;
-        }
-      }
-
-      // Default all to unchecked if this is first initialization
-      if (existingRightColumns.length === 0) {
-        for (const col of newRightColumns) {
-          col.checked = false;
-        }
-      }
-
-      this.state.rightColumns = newRightColumns;
+      this.attrs.rightColumns = buildDescriptors(
+        this.rightNode.finalCols,
+        this.attrs.rightColumns ?? [],
+      );
     } else {
-      this.state.rightColumns = [];
+      this.attrs.rightColumns = [];
     }
   }
 
   validate(): boolean {
     // Clear any previous errors at the start of validation
-    if (this.state.issues) {
-      this.state.issues.clear();
+    if (this.context.issues) {
+      this.context.issues.clear();
     }
 
     if (
@@ -248,22 +180,22 @@ export class JoinNode implements QueryNode {
       return false;
     }
 
-    if (!this.state.leftQueryAlias || !this.state.rightQueryAlias) {
+    if (!this.attrs.leftQueryAlias || !this.attrs.rightQueryAlias) {
       this.setValidationError(
         'Both left and right query aliases are required.',
       );
       return false;
     }
 
-    if (this.state.conditionType === 'equality') {
-      if (!this.state.leftColumn || !this.state.rightColumn) {
+    if (this.attrs.conditionType === 'equality') {
+      if (!this.attrs.leftColumn || !this.attrs.rightColumn) {
         this.setValidationError(
           'Both left and right columns are required for equality join.',
         );
         return false;
       }
     } else {
-      if (!this.state.sqlExpression) {
+      if (!this.attrs.sqlExpression) {
         this.setValidationError(
           'SQL expression for join condition is required.',
         );
@@ -273,7 +205,7 @@ export class JoinNode implements QueryNode {
 
     if (!this.leftNode.validate()) {
       this.setValidationError(
-        this.leftNode.state.issues?.queryError?.message ??
+        this.leftNode.context.issues?.queryError?.message ??
           `Left node '${this.leftNode.getTitle()}' is invalid`,
       );
       return false;
@@ -281,15 +213,15 @@ export class JoinNode implements QueryNode {
 
     if (!this.rightNode.validate()) {
       this.setValidationError(
-        this.rightNode.state.issues?.queryError?.message ??
+        this.rightNode.context.issues?.queryError?.message ??
           `Right node '${this.rightNode.getTitle()}' is invalid`,
       );
       return false;
     }
 
     // Check if there are any columns selected
-    const leftColumns = this.state.leftColumns ?? [];
-    const rightColumns = this.state.rightColumns ?? [];
+    const leftColumns = this.attrs.leftColumns ?? [];
+    const rightColumns = this.attrs.rightColumns ?? [];
     const hasCheckedColumns =
       leftColumns.some((c) => c.checked) || rightColumns.some((c) => c.checked);
 
@@ -304,10 +236,10 @@ export class JoinNode implements QueryNode {
   }
 
   private setValidationError(message: string): void {
-    if (!this.state.issues) {
-      this.state.issues = new NodeIssues();
+    if (!this.context.issues) {
+      this.context.issues = new NodeIssues();
     }
-    this.state.issues.queryError = new Error(message);
+    this.context.issues.queryError = new Error(message);
   }
 
   getTitle(): string {
@@ -321,20 +253,20 @@ export class JoinNode implements QueryNode {
   nodeDetails(): NodeDetailsAttrs {
     let content: m.Children;
 
-    if (this.state.conditionType === 'equality') {
-      if (this.state.leftColumn && this.state.rightColumn) {
+    if (this.attrs.conditionType === 'equality') {
+      if (this.attrs.leftColumn && this.attrs.rightColumn) {
         content = m(JoinConditionDisplay, {
-          leftAlias: this.state.leftQueryAlias,
-          rightAlias: this.state.rightQueryAlias,
-          leftColumn: this.state.leftColumn,
-          rightColumn: this.state.rightColumn,
+          leftAlias: this.attrs.leftQueryAlias,
+          rightAlias: this.attrs.rightQueryAlias,
+          leftColumn: this.attrs.leftColumn,
+          rightColumn: this.attrs.rightColumn,
         });
       } else {
         content = m('.pf-exp-node-details-message', 'No condition set');
       }
     } else {
-      if (this.state.sqlExpression) {
-        content = m('code.pf-exp-sql-expression', this.state.sqlExpression);
+      if (this.attrs.sqlExpression) {
+        content = m('code.pf-exp-sql-expression', this.attrs.sqlExpression);
       } else {
         content = m('.pf-exp-node-details-message', 'No condition set');
       }
@@ -347,7 +279,7 @@ export class JoinNode implements QueryNode {
 
   nodeSpecificModify(): NodeModifyAttrs {
     this.validate();
-    const error = this.state.issues?.queryError;
+    const error = this.context.issues?.queryError;
 
     const sections: NodeModifyAttrs['sections'] = [];
     const bottomRightButtons: NodeModifyAttrs['bottomRightButtons'] = [];
@@ -363,12 +295,12 @@ export class JoinNode implements QueryNode {
     sections.push({
       title: 'Join Type',
       content: m(Switch, {
-        checked: this.state.joinType === 'LEFT',
+        checked: this.attrs.joinType === 'LEFT',
         label: 'Left Join',
         onchange: (e: Event) => {
           const target = e.target as HTMLInputElement;
-          this.state.joinType = target.checked ? 'LEFT' : 'INNER';
-          this.state.onchange?.();
+          this.attrs.joinType = target.checked ? 'LEFT' : 'INNER';
+          this.context.onchange?.();
         },
       }),
     });
@@ -376,57 +308,57 @@ export class JoinNode implements QueryNode {
     // Join condition section with integrated column selection
     sections.push({
       content:
-        this.state.conditionType === 'equality'
+        this.attrs.conditionType === 'equality'
           ? m(JoinConditionSelector, {
               leftLabel: 'Left',
               rightLabel: 'Right',
-              leftColumns: this.state.leftColumns ?? [],
-              rightColumns: this.state.rightColumns ?? [],
-              leftColumn: this.state.leftColumn,
-              rightColumn: this.state.rightColumn,
+              leftColumns: this.attrs.leftColumns ?? [],
+              rightColumns: this.attrs.rightColumns ?? [],
+              leftColumn: this.attrs.leftColumn,
+              rightColumn: this.attrs.rightColumn,
               onLeftColumnChange: (columnName: string) => {
-                this.state.leftColumn = columnName;
-                this.state.onchange?.();
+                this.attrs.leftColumn = columnName;
+                this.context.onchange?.();
               },
               onRightColumnChange: (columnName: string) => {
-                this.state.rightColumn = columnName;
-                this.state.onchange?.();
+                this.attrs.rightColumn = columnName;
+                this.context.onchange?.();
               },
               onLeftColumnToggle: (index: number, checked: boolean) => {
-                if (this.state.leftColumns) {
-                  this.state.leftColumns[index].checked = checked;
-                  this.state.onchange?.();
+                if (this.attrs.leftColumns) {
+                  this.attrs.leftColumns[index].checked = checked;
+                  this.context.onchange?.();
                 }
               },
               onRightColumnToggle: (index: number, checked: boolean) => {
-                if (this.state.rightColumns) {
-                  this.state.rightColumns[index].checked = checked;
-                  this.state.onchange?.();
+                if (this.attrs.rightColumns) {
+                  this.attrs.rightColumns[index].checked = checked;
+                  this.context.onchange?.();
                 }
               },
               onLeftColumnAlias: (index: number, alias: string) => {
-                if (this.state.leftColumns) {
-                  this.state.leftColumns[index].alias =
+                if (this.attrs.leftColumns) {
+                  this.attrs.leftColumns[index].alias =
                     alias.trim() === '' ? undefined : alias;
-                  this.state.onchange?.();
+                  this.context.onchange?.();
                 }
               },
               onRightColumnAlias: (index: number, alias: string) => {
-                if (this.state.rightColumns) {
-                  this.state.rightColumns[index].alias =
+                if (this.attrs.rightColumns) {
+                  this.attrs.rightColumns[index].alias =
                     alias.trim() === '' ? undefined : alias;
-                  this.state.onchange?.();
+                  this.context.onchange?.();
                 }
               },
             })
           : m(ResizableSqlEditor, {
-              sql: this.state.sqlExpression,
+              sql: this.attrs.sqlExpression,
               onUpdate: (text: string) => {
-                this.state.sqlExpression = text;
+                this.attrs.sqlExpression = text;
                 m.redraw();
               },
               onExecute: (text: string) => {
-                this.state.sqlExpression = text.trim();
+                this.attrs.sqlExpression = text.trim();
                 m.redraw();
               },
             }),
@@ -435,16 +367,16 @@ export class JoinNode implements QueryNode {
     // Mode switch button
     bottomRightButtons.push({
       label:
-        this.state.conditionType === 'equality'
+        this.attrs.conditionType === 'equality'
           ? 'Switch to freeform SQL'
           : 'Switch to equality',
-      icon: this.state.conditionType === 'equality' ? 'code' : 'view_column',
+      icon: this.attrs.conditionType === 'equality' ? 'code' : 'view_column',
       onclick: () => {
-        this.state.conditionType =
-          this.state.conditionType === 'equality' ? 'freeform' : 'equality';
+        this.attrs.conditionType =
+          this.attrs.conditionType === 'equality' ? 'freeform' : 'equality';
         // Disable auto-execute in freeform SQL mode
-        this.state.autoExecute = this.state.conditionType === 'equality';
-        this.state.onchange?.();
+        this.context.autoExecute = this.attrs.conditionType === 'equality';
+        this.context.onchange?.();
       },
       compact: true,
     });
@@ -457,48 +389,37 @@ export class JoinNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    const stateCopy: JoinNodeState = {
-      leftNode: this.leftNode,
-      rightNode: this.rightNode,
-      onchange: this.state.onchange,
-      leftQueryAlias: this.state.leftQueryAlias,
-      rightQueryAlias: this.state.rightQueryAlias,
-      conditionType: this.state.conditionType,
-      joinType: this.state.joinType,
-      leftColumn: this.state.leftColumn,
-      rightColumn: this.state.rightColumn,
-      sqlExpression: this.state.sqlExpression,
-      leftColumns: this.state.leftColumns
-        ? newColumnInfoList(this.state.leftColumns)
-        : undefined,
-      rightColumns: this.state.rightColumns
-        ? newColumnInfoList(this.state.rightColumns)
-        : undefined,
-    };
-    return new JoinNode(stateCopy);
+    return new JoinNode(
+      {
+        ...this.attrs,
+        leftColumns: this.attrs.leftColumns?.map((c) => ({...c})),
+        rightColumns: this.attrs.rightColumns?.map((c) => ({...c})),
+      },
+      this.context,
+    );
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate() || !this.leftNode || !this.rightNode) return;
 
     const condition: JoinCondition =
-      this.state.conditionType === 'equality'
+      this.attrs.conditionType === 'equality'
         ? {
             type: 'equality',
-            leftColumn: this.state.leftColumn,
-            rightColumn: this.state.rightColumn,
+            leftColumn: this.attrs.leftColumn,
+            rightColumn: this.attrs.rightColumn,
           }
         : {
             type: 'freeform',
-            leftQueryAlias: this.state.leftQueryAlias,
-            rightQueryAlias: this.state.rightQueryAlias,
-            sqlExpression: this.state.sqlExpression,
+            leftQueryAlias: this.attrs.leftQueryAlias,
+            rightQueryAlias: this.attrs.rightQueryAlias,
+            sqlExpression: this.attrs.sqlExpression,
           };
 
     const sq = StructuredQueryBuilder.withJoin(
       this.leftNode,
       this.rightNode,
-      this.state.joinType,
+      this.attrs.joinType,
       condition,
       this.nodeId,
     );
@@ -509,7 +430,7 @@ export class JoinNode implements QueryNode {
     // Include aliases if specified
     sq.selectColumns = this.finalCols.map((col) => {
       const selectCol = new protos.PerfettoSqlStructuredQuery.SelectColumn();
-      selectCol.columnNameOrExpression = col.column.name;
+      selectCol.columnNameOrExpression = col.name;
       if (col.alias) {
         selectCol.alias = col.alias;
       }
@@ -519,76 +440,32 @@ export class JoinNode implements QueryNode {
     return sq;
   }
 
-  serializeState(): JoinSerializedState {
-    return {
-      leftNodeId: this.leftNode?.nodeId ?? '',
-      rightNodeId: this.rightNode?.nodeId ?? '',
-      leftQueryAlias: this.state.leftQueryAlias,
-      rightQueryAlias: this.state.rightQueryAlias,
-      conditionType: this.state.conditionType,
-      joinType: this.state.joinType,
-      leftColumn: this.state.leftColumn,
-      rightColumn: this.state.rightColumn,
-      sqlExpression: this.state.sqlExpression,
-      leftColumns: (this.state.leftColumns ?? []).map((c) => ({
-        name: c.name,
-        type: c.column.type,
+  static deserializeState(attrs: JoinNodeAttrs): JoinNodeAttrs {
+    // Migrate legacy columnName field and string types
+    const migrateColumns = (
+      cols?: (ColumnInfo & {columnName?: string})[],
+    ): ColumnInfo[] =>
+      (cols ?? []).map((c) => ({
+        name: c.columnName ?? c.name,
+        type: legacyDeserializeType(c.type),
         checked: c.checked,
         alias: c.alias,
-        columnName: c.column.name, // Save original source column name
-      })),
-      rightColumns: (this.state.rightColumns ?? []).map((c) => ({
-        name: c.name,
-        type: c.column.type,
-        checked: c.checked,
-        alias: c.alias,
-        columnName: c.column.name, // Save original source column name
-      })),
-    };
-  }
+        typeUserModified: c.typeUserModified,
+      }));
 
-  static deserializeState(state: JoinSerializedState): JoinNodeState {
     return {
-      leftQueryAlias: state.leftQueryAlias,
-      rightQueryAlias: state.rightQueryAlias,
-      conditionType: state.conditionType ?? 'equality',
-      joinType: state.joinType ?? 'INNER',
-      leftColumn: state.leftColumn ?? '',
-      rightColumn: state.rightColumn ?? '',
-      sqlExpression: state.sqlExpression ?? '',
-      leftColumns:
-        state.leftColumns?.map((c) => ({
-          name: c.name,
-          checked: c.checked,
-          column: {
-            name: c.columnName ?? c.name,
-            type: legacyDeserializeType(c.type),
-          },
-          alias: c.alias,
-        })) ?? [],
-      rightColumns:
-        state.rightColumns?.map((c) => ({
-          name: c.name,
-          checked: c.checked,
-          column: {
-            name: c.columnName ?? c.name,
-            type: legacyDeserializeType(c.type),
-          },
-          alias: c.alias,
-        })) ?? [],
-    };
-  }
-
-  static deserializeConnections(
-    nodes: Map<string, QueryNode>,
-    state: JoinSerializedState,
-  ): {
-    leftNode?: QueryNode;
-    rightNode?: QueryNode;
-  } {
-    return {
-      leftNode: nodes.get(state.leftNodeId),
-      rightNode: nodes.get(state.rightNodeId),
+      ...attrs,
+      conditionType: attrs.conditionType ?? 'equality',
+      joinType: attrs.joinType ?? 'INNER',
+      leftColumn: attrs.leftColumn ?? '',
+      rightColumn: attrs.rightColumn ?? '',
+      sqlExpression: attrs.sqlExpression ?? '',
+      leftColumns: migrateColumns(
+        attrs.leftColumns as (ColumnInfo & {columnName?: string})[],
+      ),
+      rightColumns: migrateColumns(
+        attrs.rightColumns as (ColumnInfo & {columnName?: string})[],
+      ),
     };
   }
 }

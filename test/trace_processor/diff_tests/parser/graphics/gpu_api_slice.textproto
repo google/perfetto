@@ -1,0 +1,62 @@
+# Test gpu_api_call table populated from GpuTrackEvent.gpu_api extension.
+
+# Interned data for track event sequences.
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  interned_data {
+    event_categories { iid: 1 name: "gpu" }
+    event_names { iid: 1 name: "cuLaunchKernel" }
+    event_names { iid: 2 name: "vkCmdDispatch" }
+  }
+  sequence_flags: 1  # SEQ_INCREMENTAL_STATE_CLEARED
+}
+
+# CUDA API call slice.
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 100
+  track_event {
+    type: TYPE_SLICE_BEGIN
+    category_iids: 1
+    name_iid: 1
+    [perfetto.protos.GpuTrackEvent.gpu_api]: GPU_API_CUDA
+  }
+  sequence_flags: 2  # SEQ_NEEDS_INCREMENTAL_STATE
+}
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 200
+  track_event {
+    type: TYPE_SLICE_END
+    category_iids: 1
+  }
+  sequence_flags: 2
+}
+
+# Vulkan API call slice.
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 300
+  track_event {
+    type: TYPE_SLICE_BEGIN
+    category_iids: 1
+    name_iid: 2
+    [perfetto.protos.GpuTrackEvent.gpu_api]: GPU_API_VULKAN
+  }
+  sequence_flags: 2
+}
+packet {
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+  timestamp: 400
+  track_event {
+    type: TYPE_SLICE_END
+    category_iids: 1
+  }
+  sequence_flags: 2
+}

@@ -177,7 +177,7 @@ export class TraceSummaryResultsPanel
 
   view({attrs}: m.CVnode<TraceSummaryResultsPanelAttrs>) {
     const {node} = attrs;
-    const autoExecute = node.state.autoExecute ?? true;
+    const autoExecute = node.context.autoExecute ?? true;
 
     // Auto-execute when spec changes.
     if (autoExecute && node.validate()) {
@@ -202,17 +202,17 @@ export class TraceSummaryResultsPanel
   private computeSpecHash(node: TraceSummaryNode): string {
     const metricsNodes = node.getAllMetricsNodes();
     const parts = metricsNodes.map((mn) => {
-      const values = mn.state.valueColumns
+      const values = mn.attrs.valueColumns
         .map((v) => `${v.column}/${v.unit}/${v.customUnit ?? ''}/${v.polarity}`)
         .join(',');
       const dims = mn.getDimensions().join(',');
-      return `${mn.nodeId}:${mn.state.metricIdPrefix}:${mn.state.dimensionUniqueness}:${dims}:${values}`;
+      return `${mn.nodeId}:${mn.attrs.metricIdPrefix}:${mn.attrs.dimensionUniqueness}:${dims}:${values}`;
     });
     return parts.join('|');
   }
 
   private renderMenu(attrs: TraceSummaryResultsPanelAttrs): m.Children {
-    const autoExecute = attrs.node.state.autoExecute ?? true;
+    const autoExecute = attrs.node.context.autoExecute ?? true;
     const isLoading = this.executionState.kind === 'loading';
     const isStale = this.prevSpecHash !== this.computeSpecHash(attrs.node);
 
@@ -238,7 +238,7 @@ export class TraceSummaryResultsPanel
       checked: autoExecute,
       onchange: (e: Event) => {
         const target = e.target as HTMLInputElement;
-        attrs.node.state.autoExecute = target.checked;
+        attrs.node.context.autoExecute = target.checked;
         attrs.onchange?.();
         if (target.checked && attrs.node.validate()) {
           this.prevSpecHash = this.computeSpecHash(attrs.node);
@@ -285,7 +285,7 @@ export class TraceSummaryResultsPanel
       return m(ResultsPanelEmptyState, {
         icon: 'warning',
         title:
-          attrs.node.state.issues?.queryError?.message ??
+          attrs.node.context.issues?.queryError?.message ??
           'Node validation failed',
       });
     }
@@ -347,7 +347,7 @@ export class TraceSummaryResultsPanel
     // Guard against concurrent executions (e.g. re-renders during loading).
     if (this.executionState.kind === 'loading') return;
 
-    const engine = node.state.trace?.engine;
+    const engine = node.context.trace?.engine;
     if (engine === undefined) {
       this.executionState = {
         kind: 'error',

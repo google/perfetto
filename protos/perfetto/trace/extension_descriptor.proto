@@ -23,7 +23,7 @@ import "protos/perfetto/common/descriptor.proto";
 // This message contains descriptors used to parse extension fields of
 // TrackEvent.
 //
-// See docs/design-docs/extensions.md for more details.
+// See docs/instrumentation/extensions.md for more details.
 message ExtensionDescriptor {
   oneof descriptor {
     FileDescriptorSet extension_set = 1;

@@ -15,16 +15,11 @@
 .pf-accordion {
   display: flex;
   flex-direction: column;
+}
 
-  &__item {
-    &.pf-expanded {
-      .pf-accordion__header {
-        background: var(--pf-color-background-tertiary);
-      }
-    }
-  }
-
-  &__header {
+.pf-accordion__item {
+  > summary {
+    list-style: none;
     display: flex;
     align-items: center;
     gap: 4px;
@@ -38,24 +33,48 @@
     &:hover {
       background: color_hover(transparent);
     }
+
+    // Remove the default WebKit disclosure triangle.
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &:focus-visible {
+      outline: 2px solid #1a73e8;
+      outline-offset: -2px;
+    }
   }
 
-  &__toggle {
-    color: var(--pf-color-text-muted);
-    display: flex;
-    align-items: center;
+  &[open] > summary {
+    background: var(--pf-color-background-tertiary);
+
+    .pf-accordion__toggle {
+      transform: rotate(0deg);
+    }
   }
 
-  &__header-content {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  &:not([open]) > summary {
+    .pf-accordion__toggle {
+      transform: rotate(-90deg);
+    }
   }
+}
 
-  &__content {
-    padding: 8px 16px 16px 16px;
-    background: var(--pf-color-background);
-  }
+.pf-accordion__toggle {
+  color: var(--pf-color-text-muted);
+  display: flex;
+  align-items: center;
+}
+
+.pf-accordion__header-content {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pf-accordion__content {
+  padding: 8px 16px 16px 16px;
+  background: var(--pf-color-background);
 }

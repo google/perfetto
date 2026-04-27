@@ -324,7 +324,7 @@ export class QueryExecutionService {
     // Store allNodes for use by buildAllStructuredQueries()
     this.allNodes = allNodes;
 
-    const autoExecute = node.state.autoExecute ?? true;
+    const autoExecute = node.context.autoExecute ?? true;
 
     // For autoExecute=false and not manual: either handle locally (skip path)
     // or perform the initial TP sync (first time this node is selected).

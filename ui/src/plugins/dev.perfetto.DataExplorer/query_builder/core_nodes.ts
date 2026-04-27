@@ -17,89 +17,67 @@ import {SlicesSourceNode} from './nodes/sources/slices_source';
 import {
   modalForTableSelection,
   TableSourceNode,
-  TableSourceState,
-  TableSourceSerializedState,
+  TableSourceNodeAttrs,
 } from './nodes/sources/table_source';
-import {
-  SqlSourceNode,
-  SqlSourceState,
-  SqlSourceSerializedState,
-} from './nodes/sources/sql_source';
+import {SqlSourceNode, SqlSourceNodeAttrs} from './nodes/sources/sql_source';
 import {
   TimeRangeSourceNode,
-  TimeRangeSourceState,
-  TimeRangeSourceSerializedState,
+  TimeRangeSourceNodeAttrs,
 } from './nodes/sources/timerange_source';
-import {
-  AggregationNode,
-  AggregationNodeState,
-  AggregationSerializedState,
-} from './nodes/aggregation_node';
+import {AggregationNode, AggregationNodeAttrs} from './nodes/aggregation_node';
 import {
   ModifyColumnsNode,
-  ModifyColumnsState,
-  ModifyColumnsSerializedState,
+  ModifyColumnsNodeAttrs,
 } from './nodes/modify_columns_node';
-import {AddColumnsNode, AddColumnsNodeState} from './nodes/add_columns_node';
+import {AddColumnsNode, AddColumnsNodeAttrs} from './nodes/add_columns_node';
 import {
   FilterDuringNode,
-  FilterDuringNodeState,
+  FilterDuringNodeAttrs,
 } from './nodes/filter_during_node';
-import {FilterInNode, FilterInNodeState} from './nodes/filter_in_node';
+import {FilterInNode, FilterInNodeAttrs} from './nodes/filter_in_node';
 import {
   IntervalIntersectNode,
-  IntervalIntersectNodeState,
-  IntervalIntersectSerializedState,
+  IntervalIntersectNodeAttrs,
 } from './nodes/interval_intersect_node';
-import {JoinNode, JoinNodeState, JoinSerializedState} from './nodes/join_node';
+import {JoinNode, JoinNodeAttrs} from './nodes/join_node';
 import {
   CreateSlicesNode,
-  CreateSlicesNodeState,
-  CreateSlicesSerializedState,
+  CreateSlicesNodeAttrs,
 } from './nodes/create_slices_node';
-import {SortNode, SortNodeState} from './nodes/sort_node';
-import {FilterNode, FilterNodeState} from './nodes/filter_node';
-import {
-  UnionNode,
-  UnionNodeState,
-  UnionSerializedState,
-} from './nodes/union_node';
+import {SortNode, SortNodeAttrs} from './nodes/sort_node';
+import {FilterNode, FilterNodeAttrs} from './nodes/filter_node';
+import {UnionNode, UnionNodeAttrs} from './nodes/union_node';
 import {
   LimitAndOffsetNode,
-  LimitAndOffsetNodeState,
+  LimitAndOffsetNodeAttrs,
 } from './nodes/limit_and_offset_node';
 import {
   CounterToIntervalsNode,
-  CounterToIntervalsNodeState,
+  CounterToIntervalsNodeAttrs,
 } from './nodes/counter_to_intervals_node';
-import {
-  MetricsNode,
-  MetricsNodeState,
-  MetricsSerializedState,
-} from './nodes/metrics_node';
+import {MetricsNode, MetricsNodeAttrs} from './nodes/metrics_node';
 import {
   TraceSummaryNode,
-  TraceSummaryNodeState,
-  TraceSummarySerializedState,
+  TraceSummaryNodeAttrs,
 } from './nodes/trace_summary_node';
 import {
   VisualisationNode,
-  VisualisationNodeState,
+  VisualisationNodeAttrs,
 } from './nodes/visualisation_node';
-import {DashboardNode, DashboardSerializedState} from './nodes/dashboard_node';
+import {DashboardNode, DashboardNodeAttrs} from './nodes/dashboard_node';
 import {Icons} from '../../../base/semantic_icons';
 import {NodeType, QueryNode} from '../query_node';
-import {GroupNode, GroupSerializedState} from './nodes/group_node';
+import {GroupNode} from './nodes/group_node';
 
 // After JoinNode.onPrevNodesUpdated() defaults all columns to unchecked on
 // first initialization, check the columns that the downstream ModifyColumns
 // node needs. For JSON import this is a no-op because columns are restored
-// from serialized state (already have checked values).
+// from serialized _attrs (already have checked values).
 function applyJoinColumnDefaults(joinNode: JoinNode): void {
-  const leftCols = joinNode.state.leftColumns ?? [];
-  const rightCols = joinNode.state.rightColumns ?? [];
+  const leftCols = joinNode.attrs.leftColumns ?? [];
+  const rightCols = joinNode.attrs.rightColumns ?? [];
 
-  // If any columns are already checked, the serialized state was restored
+  // If any columns are already checked, the serialized _attrs was restored
   // correctly (JSON import path) — nothing to do.
   if (leftCols.some((c) => c.checked) || rightCols.some((c) => c.checked)) {
     return;
@@ -109,7 +87,7 @@ function applyJoinColumnDefaults(joinNode: JoinNode): void {
   // Check only columns needed by the downstream ModifyColumns node.
   const mc = joinNode.nextNodes.find((n) => n.type === NodeType.kModifyColumns);
   if (mc !== undefined) {
-    const mcState = mc.state as {
+    const mcState = (mc as {attrs?: object}).attrs as {
       selectedColumns?: Array<{name: string; checked: boolean}>;
     };
     const needed = new Set(
@@ -145,9 +123,10 @@ export function registerCoreNodes() {
     type: 'source',
     showOnLandingPage: true,
     nodeType: NodeType.kSimpleSlices,
-    factory: (state) => new SlicesSourceNode(state),
+    factory: (_attrs, factoryCtx) =>
+      new SlicesSourceNode({}, factoryCtx?.context ?? {}),
     deserialize: (_state, trace, sqlModules) =>
-      new SlicesSourceNode({trace, sqlModules}),
+      new SlicesSourceNode({}, {trace, sqlModules}),
   });
 
   nodeRegistry.register('table', {
@@ -163,20 +142,15 @@ export function registerCoreNodes() {
       if (selections && selections.length > 0) {
         // Return an array of states, one for each selected table
         return selections.map((selection) => ({
-          sqlTable: selection.sqlTable,
+          sqlTable: selection.sqlTable.name,
         }));
       }
       return null;
     },
-    factory: (state) => new TableSourceNode(state as TableSourceState),
-    deserialize: (state, trace, sqlModules) =>
-      new TableSourceNode(
-        TableSourceNode.deserializeState(
-          trace,
-          sqlModules,
-          state as TableSourceSerializedState,
-        ),
-      ),
+    factory: (_attrs) =>
+      new TableSourceNode(_attrs as TableSourceNodeAttrs, {}),
+    deserialize: (_attrs, trace, sqlModules) =>
+      new TableSourceNode(_attrs as TableSourceNodeAttrs, {trace, sqlModules}),
   });
 
   nodeRegistry.register('sql', {
@@ -188,23 +162,13 @@ export function registerCoreNodes() {
     type: 'source',
     showOnLandingPage: true,
     nodeType: NodeType.kSqlSource,
-    factory: (state) => new SqlSourceNode(state as SqlSourceState),
-    deserialize: (state, trace) =>
-      new SqlSourceNode({
-        ...(state as SqlSourceSerializedState),
-        trace,
-      }),
-    deserializeConnections: (node, state, allNodes) => {
-      const sqlSourceNode = node as SqlSourceNode;
-      const conns = SqlSourceNode.deserializeConnections(
-        allNodes,
-        state as SqlSourceSerializedState,
-      );
-      sqlSourceNode.secondaryInputs.connections.clear();
-      for (let i = 0; i < conns.inputNodes.length; i++) {
-        sqlSourceNode.secondaryInputs.connections.set(i, conns.inputNodes[i]);
-      }
-    },
+    factory: (_attrs, factoryCtx) =>
+      new SqlSourceNode(
+        _attrs as SqlSourceNodeAttrs,
+        factoryCtx?.context ?? {},
+      ),
+    deserialize: (_attrs, trace) =>
+      new SqlSourceNode(_attrs as SqlSourceNodeAttrs, {trace}),
   });
 
   nodeRegistry.register('timerange', {
@@ -215,52 +179,47 @@ export function registerCoreNodes() {
     type: 'source',
     showOnLandingPage: false, // Available in menus but not on landing page
     nodeType: NodeType.kTimeRangeSource,
-    factory: (state) => {
+    factory: (_attrs, factoryCtx) => {
       // If start/end are already set, this is being restored from serialization
       // or created programmatically - use those values
       if (
-        'start' in state &&
-        state.start !== undefined &&
-        'end' in state &&
-        state.end !== undefined
+        'start' in _attrs &&
+        _attrs.start !== undefined &&
+        'end' in _attrs &&
+        _attrs.end !== undefined
       ) {
-        if (!state.trace) {
+        if (!factoryCtx?.context?.trace) {
           throw new Error('TimeRange node requires a trace instance');
         }
-        return new TimeRangeSourceNode({
-          ...state,
-          trace: state.trace,
+        const attrs: TimeRangeSourceNodeAttrs = {
+          start: String(_attrs.start),
+          end: String(_attrs.end),
           isDynamic:
-            'isDynamic' in state && state.isDynamic === true ? true : false,
-        } as TimeRangeSourceState);
+            'isDynamic' in _attrs && _attrs.isDynamic === true ? true : false,
+        };
+        return new TimeRangeSourceNode(attrs, factoryCtx?.context ?? {});
       }
 
       // New node - initialize from current selection
-      if (!state.trace) {
+      if (!factoryCtx?.context?.trace) {
         throw new Error('TimeRange node requires a trace instance');
       }
 
-      const timeRange = state.trace.selection.getTimeSpanOfSelection();
+      const timeRange =
+        factoryCtx!.context!.trace!.selection.getTimeSpanOfSelection();
       // Note: If there's no selection, start/end will be undefined and the node
-      // will be in an invalid state (validate() will return false and show error).
+      // will be in an invalid _attrs (validate() will return false and show error).
       // This is intentional - the user can fix it by clicking "Update from Selection"
       // or by entering times manually.
-      const fullState: TimeRangeSourceState = {
-        ...state,
-        start: timeRange?.start,
-        end: timeRange?.end,
+      const attrs: TimeRangeSourceNodeAttrs = {
+        start: timeRange?.start?.toString(),
+        end: timeRange?.end?.toString(),
         isDynamic: false, // Default to static mode
-        trace: state.trace,
       };
-      return new TimeRangeSourceNode(fullState);
+      return new TimeRangeSourceNode(attrs, factoryCtx?.context ?? {});
     },
-    deserialize: (state, trace) =>
-      new TimeRangeSourceNode(
-        TimeRangeSourceNode.deserializeState(
-          trace,
-          state as TimeRangeSourceSerializedState,
-        ),
-      ),
+    deserialize: (_attrs, trace) =>
+      new TimeRangeSourceNode(_attrs as TimeRangeSourceNodeAttrs, {trace}),
   });
 
   nodeRegistry.register('add_columns', {
@@ -271,33 +230,16 @@ export function registerCoreNodes() {
     type: 'modification',
     category: 'Columns',
     nodeType: NodeType.kAddColumns,
-    factory: (state) => {
-      const fullState: AddColumnsNodeState = {
-        ...state,
-        selectedColumns: (state as AddColumnsNodeState).selectedColumns ?? [],
-        leftColumn: (state as AddColumnsNodeState).leftColumn ?? 'id',
-        rightColumn: (state as AddColumnsNodeState).rightColumn ?? 'id',
-      };
-      return new AddColumnsNode(fullState);
-    },
-    deserialize: (state, trace, sqlModules) =>
+    factory: (_attrs, factoryCtx) =>
       new AddColumnsNode(
-        AddColumnsNode.deserializeState(
-          trace,
-          sqlModules,
-          state as AddColumnsNodeState,
-        ),
+        _attrs as AddColumnsNodeAttrs,
+        factoryCtx?.context ?? {},
       ),
-    deserializeConnections: (node, state, allNodes) => {
-      const addColumnsNode = node as AddColumnsNode;
-      const s = state as {secondaryInputNodeId?: string};
-      if (s.secondaryInputNodeId) {
-        const secondaryInputNode = allNodes.get(s.secondaryInputNodeId);
-        if (secondaryInputNode) {
-          addColumnsNode.secondaryInputs.connections.set(0, secondaryInputNode);
-        }
-      }
-    },
+    deserialize: (_attrs, trace, sqlModules) =>
+      new AddColumnsNode(
+        AddColumnsNode.deserializeState(_attrs as AddColumnsNodeAttrs),
+        {trace, sqlModules},
+      ),
   });
 
   nodeRegistry.register('modify_columns', {
@@ -307,15 +249,13 @@ export function registerCoreNodes() {
     type: 'modification',
     category: 'Columns',
     nodeType: NodeType.kModifyColumns,
-    factory: (state) => new ModifyColumnsNode(state as ModifyColumnsState),
-    deserialize: (state, _trace, sqlModules) =>
+    factory: (_attrs) =>
+      new ModifyColumnsNode(_attrs as unknown as ModifyColumnsNodeAttrs, {}),
+    deserialize: (_attrs, _trace, _sqlModules) =>
       new ModifyColumnsNode(
-        ModifyColumnsNode.deserializeState(
-          sqlModules,
-          state as ModifyColumnsSerializedState,
-        ),
+        ModifyColumnsNode.deserializeState(_attrs as ModifyColumnsNodeAttrs),
+        {},
       ),
-    postDeserializeLate: (node) => (node as ModifyColumnsNode).resolveColumns(),
   });
 
   nodeRegistry.register('aggregation', {
@@ -324,15 +264,13 @@ export function registerCoreNodes() {
     icon: 'functions',
     type: 'modification',
     nodeType: NodeType.kAggregation,
-    factory: (state) => new AggregationNode(state as AggregationNodeState),
-    deserialize: (state, _trace, sqlModules) =>
-      new AggregationNode({
-        ...AggregationNode.deserializeState(
-          state as AggregationSerializedState,
-        ),
-        sqlModules,
-      }),
-    postDeserializeLate: (node) => (node as AggregationNode).resolveColumns(),
+    factory: (_attrs) =>
+      new AggregationNode(_attrs as unknown as AggregationNodeAttrs, {}),
+    deserialize: (_attrs, _trace, sqlModules) =>
+      new AggregationNode(
+        AggregationNode.deserializeState(_attrs as AggregationNodeAttrs),
+        {sqlModules},
+      ),
   });
 
   nodeRegistry.register('filter_node', {
@@ -342,12 +280,10 @@ export function registerCoreNodes() {
     type: 'modification',
     category: 'Filter',
     nodeType: NodeType.kFilter,
-    factory: (state) => new FilterNode(state as FilterNodeState),
-    deserialize: (state, _trace, sqlModules) =>
-      new FilterNode({
-        ...FilterNode.deserializeState(state as FilterNodeState),
-        sqlModules,
-      }),
+    factory: (_attrs, factoryCtx) =>
+      new FilterNode(_attrs as FilterNodeAttrs, factoryCtx?.context ?? {}),
+    deserialize: (_attrs, _trace, sqlModules) =>
+      new FilterNode(_attrs as FilterNodeAttrs, {sqlModules}),
   });
 
   nodeRegistry.register('filter_during', {
@@ -358,31 +294,10 @@ export function registerCoreNodes() {
     type: 'modification',
     category: 'Filter',
     nodeType: NodeType.kFilterDuring,
-    // Override: multisource nodes default to no primary input, but
-    // FilterDuring has both a primary input and secondary inputs.
-    hasPrimaryInput: true,
-    factory: (state) => {
-      return new FilterDuringNode(state as FilterDuringNodeState);
-    },
-    deserialize: (state, _trace, sqlModules) =>
-      new FilterDuringNode({
-        ...FilterDuringNode.deserializeState(state as FilterDuringNodeState),
-        sqlModules,
-      }),
-    deserializeConnections: (node, state, allNodes) => {
-      const filterDuringNode = node as FilterDuringNode;
-      const conns = FilterDuringNode.deserializeConnections(
-        allNodes,
-        state as {secondaryInputNodeIds?: string[]},
-      );
-      filterDuringNode.secondaryInputs.connections.clear();
-      for (let i = 0; i < conns.secondaryInputNodes.length; i++) {
-        filterDuringNode.secondaryInputs.connections.set(
-          i,
-          conns.secondaryInputNodes[i],
-        );
-      }
-    },
+    factory: (_attrs) =>
+      new FilterDuringNode(_attrs as FilterDuringNodeAttrs, {}),
+    deserialize: (_attrs, _trace, sqlModules) =>
+      new FilterDuringNode(_attrs as FilterDuringNodeAttrs, {sqlModules}),
   });
 
   nodeRegistry.register('filter_in', {
@@ -393,30 +308,10 @@ export function registerCoreNodes() {
     type: 'modification',
     category: 'Filter',
     nodeType: NodeType.kFilterIn,
-    // Override: multisource nodes default to no primary input, but
-    // FilterIn has both a primary input and secondary inputs.
-    hasPrimaryInput: true,
-    factory: (state) => {
-      return new FilterInNode(state as FilterInNodeState);
-    },
-    deserialize: (state) =>
-      new FilterInNode(
-        FilterInNode.deserializeState(state as FilterInNodeState),
-      ),
-    deserializeConnections: (node, state, allNodes) => {
-      const filterInNode = node as FilterInNode;
-      const conns = FilterInNode.deserializeConnections(
-        allNodes,
-        state as {secondaryInputNodeIds?: string[]},
-      );
-      filterInNode.secondaryInputs.connections.clear();
-      for (let i = 0; i < conns.secondaryInputNodes.length; i++) {
-        filterInNode.secondaryInputs.connections.set(
-          i,
-          conns.secondaryInputNodes[i],
-        );
-      }
-    },
+    factory: (_attrs, factoryCtx) =>
+      new FilterInNode(_attrs as FilterInNodeAttrs, factoryCtx?.context ?? {}),
+    deserialize: (_attrs, _trace, sqlModules) =>
+      new FilterInNode(_attrs as FilterInNodeAttrs, {sqlModules}),
   });
 
   nodeRegistry.register('interval_intersect', {
@@ -426,36 +321,12 @@ export function registerCoreNodes() {
     type: 'multisource',
     category: 'Time',
     nodeType: NodeType.kIntervalIntersect,
-    factory: (state, context) => {
-      if (!context) {
-        throw new Error(
-          'NodeFactoryContext is required for IntervalIntersectNode',
-        );
-      }
-      const fullState: IntervalIntersectNodeState = {
-        ...state,
-        inputNodes: [],
-      };
-      return new IntervalIntersectNode(fullState);
-    },
-    deserialize: (state, _trace, sqlModules) =>
-      new IntervalIntersectNode({
-        ...IntervalIntersectNode.deserializeState(
-          state as IntervalIntersectSerializedState,
-        ),
+    factory: (_attrs) =>
+      new IntervalIntersectNode(_attrs as IntervalIntersectNodeAttrs, {}),
+    deserialize: (_attrs, _trace, sqlModules) =>
+      new IntervalIntersectNode(_attrs as IntervalIntersectNodeAttrs, {
         sqlModules,
       }),
-    deserializeConnections: (node, state, allNodes) => {
-      const intervalNode = node as IntervalIntersectNode;
-      const conns = IntervalIntersectNode.deserializeConnections(
-        allNodes,
-        state as IntervalIntersectSerializedState,
-      );
-      intervalNode.secondaryInputs.connections.clear();
-      for (let i = 0; i < conns.inputNodes.length; i++) {
-        intervalNode.secondaryInputs.connections.set(i, conns.inputNodes[i]);
-      }
-    },
   });
 
   nodeRegistry.register('join', {
@@ -465,9 +336,8 @@ export function registerCoreNodes() {
     icon: 'merge',
     type: 'multisource',
     nodeType: NodeType.kJoin,
-    factory: (state) => {
-      const fullState: JoinNodeState = {
-        ...state,
+    factory: (_attrs, factoryCtx) => {
+      const attrs: JoinNodeAttrs = {
         leftQueryAlias: 'left',
         rightQueryAlias: 'right',
         conditionType: 'equality',
@@ -478,26 +348,12 @@ export function registerCoreNodes() {
         leftColumns: undefined,
         rightColumns: undefined,
       };
-      return new JoinNode(fullState);
+      return new JoinNode(attrs, factoryCtx?.context ?? {});
     },
-    deserialize: (state, _trace, sqlModules) =>
-      new JoinNode({
-        ...JoinNode.deserializeState(state as JoinSerializedState),
+    deserialize: (_attrs, _trace, sqlModules) =>
+      new JoinNode(JoinNode.deserializeState(_attrs as JoinNodeAttrs), {
         sqlModules,
       }),
-    deserializeConnections: (node, state, allNodes) => {
-      const joinNode = node as JoinNode;
-      const conns = JoinNode.deserializeConnections(
-        allNodes,
-        state as JoinSerializedState,
-      );
-      if (conns.leftNode) {
-        joinNode.secondaryInputs.connections.set(0, conns.leftNode);
-      }
-      if (conns.rightNode) {
-        joinNode.secondaryInputs.connections.set(1, conns.rightNode);
-      }
-    },
     postDeserializeLate: (node) => {
       const joinNode = node as JoinNode;
       joinNode.onPrevNodesUpdated();
@@ -515,34 +371,17 @@ export function registerCoreNodes() {
     type: 'multisource',
     category: 'Time',
     nodeType: NodeType.kCreateSlices,
-    factory: (state) => {
-      const fullState: CreateSlicesNodeState = {
-        ...state,
-        startsTsColumn: 'ts',
-        endsTsColumn: 'ts',
-      };
-      return new CreateSlicesNode(fullState);
-    },
-    deserialize: (state, _trace, sqlModules) =>
-      new CreateSlicesNode({
-        ...CreateSlicesNode.deserializeState(
-          state as CreateSlicesSerializedState,
-        ),
-        sqlModules,
-      }),
-    deserializeConnections: (node, state, allNodes) => {
-      const createSlicesNode = node as CreateSlicesNode;
-      const conns = CreateSlicesNode.deserializeConnections(
-        allNodes,
-        state as CreateSlicesSerializedState,
-      );
-      if (conns.startsNode) {
-        createSlicesNode.secondaryInputs.connections.set(0, conns.startsNode);
-      }
-      if (conns.endsNode) {
-        createSlicesNode.secondaryInputs.connections.set(1, conns.endsNode);
-      }
-    },
+    factory: (_attrs) =>
+      new CreateSlicesNode(
+        {
+          startsTsColumn: 'ts',
+          endsTsColumn: 'ts',
+          ..._attrs,
+        } as CreateSlicesNodeAttrs,
+        _attrs,
+      ),
+    deserialize: (_attrs, _trace, sqlModules) =>
+      new CreateSlicesNode(_attrs as CreateSlicesNodeAttrs, {sqlModules}),
   });
 
   nodeRegistry.register('sort_node', {
@@ -551,12 +390,10 @@ export function registerCoreNodes() {
     icon: 'sort',
     type: 'modification',
     nodeType: NodeType.kSort,
-    factory: (state) => new SortNode(state as SortNodeState),
-    deserialize: (state, _trace, sqlModules) =>
-      new SortNode({
-        ...SortNode.deserializeState(state as SortNodeState),
-        sqlModules,
-      }),
+    factory: (_attrs, factoryCtx) =>
+      new SortNode(_attrs as SortNodeAttrs, factoryCtx?.context ?? {}),
+    deserialize: (_attrs, _trace, sqlModules) =>
+      new SortNode(_attrs as SortNodeAttrs, {sqlModules}),
   });
 
   nodeRegistry.register('union_node', {
@@ -565,32 +402,16 @@ export function registerCoreNodes() {
     icon: 'merge_type',
     type: 'multisource',
     nodeType: NodeType.kUnion,
-    factory: (state) => {
-      const fullState: UnionNodeState = {
-        ...state,
-        inputNodes: [],
-        selectedColumns: [],
-      };
-      const node = new UnionNode(fullState);
+    factory: (_attrs, factoryCtx) => {
+      const node = new UnionNode(
+        {selectedColumns: [], ..._attrs} as UnionNodeAttrs,
+        factoryCtx?.context ?? {},
+      );
       node.onPrevNodesUpdated();
       return node;
     },
-    deserialize: (state, _trace, sqlModules) =>
-      new UnionNode({
-        ...UnionNode.deserializeState(state as UnionSerializedState),
-        sqlModules,
-      }),
-    deserializeConnections: (node, state, allNodes) => {
-      const unionNode = node as UnionNode;
-      const conns = UnionNode.deserializeConnections(
-        allNodes,
-        state as UnionSerializedState,
-      );
-      unionNode.secondaryInputs.connections.clear();
-      for (let i = 0; i < conns.inputNodes.length; i++) {
-        unionNode.secondaryInputs.connections.set(i, conns.inputNodes[i]);
-      }
-    },
+    deserialize: (_attrs, _trace, sqlModules) =>
+      new UnionNode(_attrs as UnionNodeAttrs, {sqlModules}),
   });
 
   nodeRegistry.register('limit_and_offset_node', {
@@ -599,15 +420,10 @@ export function registerCoreNodes() {
     icon: Icons.Filter,
     type: 'modification',
     nodeType: NodeType.kLimitAndOffset,
-    factory: (state) =>
-      new LimitAndOffsetNode(state as LimitAndOffsetNodeState),
-    deserialize: (state, _trace, sqlModules) =>
-      new LimitAndOffsetNode({
-        ...LimitAndOffsetNode.deserializeState(
-          state as LimitAndOffsetNodeState,
-        ),
-        sqlModules,
-      }),
+    factory: (_attrs) =>
+      new LimitAndOffsetNode(_attrs as LimitAndOffsetNodeAttrs, {}),
+    deserialize: (_attrs, _trace, sqlModules) =>
+      new LimitAndOffsetNode(_attrs as LimitAndOffsetNodeAttrs, {sqlModules}),
   });
 
   nodeRegistry.register('metrics', {
@@ -616,16 +432,18 @@ export function registerCoreNodes() {
       'Define a trace-based metric with value column and dimensions.',
     icon: 'analytics',
     type: 'export',
-    hasPrimaryInput: true,
     nodeType: NodeType.kMetrics,
     allowedChildren: ['trace_summary'],
-    factory: (state) => new MetricsNode(state as MetricsNodeState),
-    deserialize: (state, trace, sqlModules) =>
-      new MetricsNode({
-        ...MetricsNode.deserializeState(state as MetricsSerializedState),
-        trace,
-        sqlModules,
-      }),
+    factory: (_attrs, factoryCtx) =>
+      new MetricsNode(
+        _attrs as unknown as MetricsNodeAttrs,
+        factoryCtx?.context ?? {},
+      ),
+    deserialize: (_attrs, trace, sqlModules) =>
+      new MetricsNode(
+        MetricsNode.deserializeState(_attrs as MetricsNodeAttrs),
+        {trace, sqlModules},
+      ),
     postDeserializeLate: (node) => (node as MetricsNode).onPrevNodesUpdated(),
   });
 
@@ -636,10 +454,10 @@ export function registerCoreNodes() {
     icon: 'bar_chart',
     type: 'modification',
     nodeType: NodeType.kVisualisation,
-    factory: (state) => new VisualisationNode(state as VisualisationNodeState),
-    deserialize: (state, _trace, sqlModules) =>
-      new VisualisationNode({
-        ...VisualisationNode.deserializeState(state as VisualisationNodeState),
+    factory: (_attrs) =>
+      new VisualisationNode(_attrs as unknown as VisualisationNodeAttrs, {}),
+    deserialize: (_attrs, _trace, sqlModules) =>
+      new VisualisationNode(_attrs as unknown as VisualisationNodeAttrs, {
         sqlModules,
       }),
   });
@@ -652,13 +470,10 @@ export function registerCoreNodes() {
     type: 'modification',
     category: 'Advanced',
     nodeType: NodeType.kCounterToIntervals,
-    factory: (state) =>
-      new CounterToIntervalsNode(state as CounterToIntervalsNodeState),
-    deserialize: (state, _trace, sqlModules) =>
-      new CounterToIntervalsNode({
-        ...CounterToIntervalsNode.deserializeState(
-          state as CounterToIntervalsNodeState,
-        ),
+    factory: (_attrs) =>
+      new CounterToIntervalsNode(_attrs as CounterToIntervalsNodeAttrs, {}),
+    deserialize: (_attrs, _trace, sqlModules) =>
+      new CounterToIntervalsNode(_attrs as CounterToIntervalsNodeAttrs, {
         sqlModules,
       }),
   });
@@ -669,13 +484,14 @@ export function registerCoreNodes() {
     icon: 'dashboard',
     type: 'export',
     nodeType: NodeType.kDashboard,
-    hasPrimaryInput: true,
     allowedChildren: [],
-    factory: (state) => new DashboardNode(state),
-    deserialize: (state) =>
+    factory: (_attrs, factoryCtx) =>
       new DashboardNode(
-        DashboardNode.deserializeState(state as DashboardSerializedState),
+        _attrs as DashboardNodeAttrs,
+        factoryCtx?.context ?? {},
       ),
+    deserialize: (_attrs) =>
+      new DashboardNode(_attrs as DashboardNodeAttrs, {}),
     postDeserializeLate: (node) => (node as DashboardNode).onPrevNodesUpdated(),
   });
 
@@ -687,28 +503,10 @@ export function registerCoreNodes() {
     type: 'export',
     nodeType: NodeType.kTraceSummary,
     allowedChildren: [],
-    factory: (state) => new TraceSummaryNode(state as TraceSummaryNodeState),
-    deserialize: (state, trace) =>
-      new TraceSummaryNode({
-        ...TraceSummaryNode.deserializeState(
-          state as TraceSummarySerializedState,
-        ),
-        trace,
-      }),
-    deserializeConnections: (node, state, allNodes) => {
-      const traceSummaryNode = node as TraceSummaryNode;
-      const conns = TraceSummaryNode.deserializeConnections(
-        allNodes,
-        state as {secondaryInputNodeIds?: string[]},
-      );
-      traceSummaryNode.secondaryInputs.connections.clear();
-      for (let i = 0; i < conns.secondaryInputNodes.length; i++) {
-        traceSummaryNode.secondaryInputs.connections.set(
-          i,
-          conns.secondaryInputNodes[i],
-        );
-      }
-    },
+    factory: (_attrs) =>
+      new TraceSummaryNode(_attrs as TraceSummaryNodeAttrs, {}),
+    deserialize: (_attrs, trace) =>
+      new TraceSummaryNode(_attrs as TraceSummaryNodeAttrs, {trace}),
   });
 
   // Groups use type 'source' because they are root-level nodes in the outer
@@ -721,22 +519,23 @@ export function registerCoreNodes() {
     type: 'source',
     showOnLandingPage: false,
     nodeType: NodeType.kGroup,
-    factory: () => new GroupNode([], undefined, []),
-    deserialize: (state) => {
-      const s = state as GroupSerializedState;
+    factory: () => new GroupNode({name: 'Group'}, {}),
+    deserialize: (_attrs) => {
+      const s = _attrs as {name?: string};
       // Create a placeholder GroupNode; inner nodes are restored in
       // deserializeConnections once all nodes are available.
-      return new GroupNode([], undefined, [], {}, s.name ?? 'Group');
+      return new GroupNode({name: s.name ?? 'Group'}, {});
     },
-    deserializeConnections: (node, state, allNodes) => {
+    deserializeConnections: (node, _attrs, allNodes, innerNodeIds) => {
       if (!(node instanceof GroupNode)) return;
-      const s = state as GroupSerializedState;
 
-      // Inner nodes are identified by the innerNodeIds list stored in the
-      // group's own serialized state.
-      const innerNodeIds = Array.isArray(s.innerNodeIds) ? s.innerNodeIds : [];
+      // Prefer graph-level innerNodeIds (new format); fall back to the old
+      // format where they were stored inside the node's state blob.
+      const s = _attrs as {innerNodeIds?: string[]};
+      const ids =
+        innerNodeIds ?? (Array.isArray(s.innerNodeIds) ? s.innerNodeIds : []);
       const innerNodes: QueryNode[] = [];
-      for (const id of innerNodeIds) {
+      for (const id of ids) {
         const n = allNodes.get(id);
         if (n !== undefined) {
           innerNodes.push(n);
@@ -827,6 +626,8 @@ export function registerCoreNodes() {
     'union_node',
     'dashboard',
     'group',
+    // Source nodes that accept secondary inputs (SQL can reference them as $input_N)
+    'sql',
   ]);
 
   // Validate that all allowedChildren references point to registered nodes.

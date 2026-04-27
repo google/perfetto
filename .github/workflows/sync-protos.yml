@@ -20,35 +20,46 @@ on:
     - cron: '0 2 * * *'
   workflow_dispatch:  # Allow manual triggering
 
-permissions:
-  contents: write  # Needed to push branch for PR
-  pull-requests: write  # Needed to create PR
+permissions: {}
 
 jobs:
   sync-protos:
     runs-on: self-hosted
+    environment: perfetto-automation
     timeout-minutes: 60
     steps:
+      - name: Mint app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.PERFETTO_BOT_APP_ID }}
+          private-key: ${{ secrets.PERFETTO_BOT_PRIVATE_KEY }}
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: main  # Always use main branch
+          ref: main
           fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
 
       - uses: ./.github/actions/install-build-deps
 
       - name: Install GitHub CLI
         run: |
           if ! command -v gh >/dev/null 2>&1; then
-            (type -p wget >/dev/null || sudo apt-get install -y wget)
-            sudo mkdir -p -m 755 /etc/apt/keyrings
-            wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-              | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
-            sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
-              | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-            sudo apt-get update
-            sudo apt-get install -y gh
+            # When bumping, re-verify GH_SHA256 against the upstream checksums:
+            # https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_checksums.txt
+            GH_VERSION=2.90.0
+            GH_SHA256=b2aef7b23ec6899bf27f37a32c57a7935d0a178568ac33dc9bb03842f724195a
+            GH_TARBALL="gh_${GH_VERSION}_linux_amd64.tar.gz"
+            mkdir -p "$HOME/.local/bin"
+            curl -fsSLO "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${GH_TARBALL}"
+            echo "${GH_SHA256}  ${GH_TARBALL}" | sha256sum --check --status
+            tar -xzf "${GH_TARBALL}" --strip-components=2 -C "$HOME/.local/bin" \
+              "gh_${GH_VERSION}_linux_amd64/bin/gh"
+            rm "${GH_TARBALL}"
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.local/bin:$PATH"
           fi
           gh --version
 
@@ -63,7 +74,6 @@ jobs:
       - name: Check for changes
         id: check_changes
         run: |
-          # Check if there are any changes in generated proto files
           if [ -n "$(git status --porcelain)" ]; then
             echo "has_changes=true" >> $GITHUB_OUTPUT
           else
@@ -73,9 +83,8 @@ jobs:
       - name: Close existing proto sync PRs
         if: steps.check_changes.outputs.has_changes == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          # Find and close any existing open PRs from the sync-protos branch
           EXISTING_PRS=$(gh pr list --head dev/github-bot/sync-protos --json number --jq '.[].number')
           if [ -n "$EXISTING_PRS" ]; then
             for PR_NUMBER in $EXISTING_PRS; do
@@ -84,10 +93,21 @@ jobs:
             done
           fi
 
+      # Delete any stale remote branch so peter-evans can push cleanly.
+      # `|| true` covers the case where the branch doesn't exist.
+      - name: Delete stale sync-protos branch
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          git push origin --delete dev/github-bot/sync-protos || true
+
       - name: Create Pull Request
         if: steps.check_changes.outputs.has_changes == 'true'
         uses: peter-evans/create-pull-request@v7
         with:
+          token: ${{ steps.app-token.outputs.token }}
+          # Email must match the CLA-approved address for the automation app.
+          committer: perfetto-automation[bot] <perfetto-automation-github-app@google.com>
+          author: perfetto-automation[bot] <perfetto-automation-github-app@google.com>
           commit-message: |
             Sync generated proto files
 

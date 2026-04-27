@@ -626,7 +626,7 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
                     {
                       key: i,
                       class: `ah-path-entry${pe.isDominator ? ' ah-semibold' : ''}`,
-                      style: {paddingLeft: Math.min(i, 20) * 12},
+                      style: {'--ah-depth': String(i)},
                     },
                     [
                       m(
@@ -715,23 +715,18 @@ function ObjectView(): m.Component<ObjectViewAttrs> {
         detail.isClassObj
           ? m(Section, {title: 'Class Info'}, [
               m('div', {class: 'ah-info-grid ah-mb-3'}, [
-                m('span', {class: 'ah-info-grid__label'}, 'Super Class:'),
-                m(
-                  'span',
-                  detail.superClassObjId != null
-                    ? m(InstanceLink, {
-                        row: {
-                          id: detail.superClassObjId,
-                          display: fmtHex(detail.superClassObjId),
-                        },
-                        navigate,
-                      })
-                    : 'none',
-                ),
                 m('span', {class: 'ah-info-grid__label'}, 'Instance Size:'),
                 m('span', {class: 'ah-mono'}, String(detail.instanceSize)),
               ]),
             ])
+          : null,
+
+        detail.classHierarchy.length > 0
+          ? m(
+              Section,
+              {title: 'Class Hierarchy'},
+              renderClassHierarchy(detail.classHierarchy, navigate),
+            )
           : null,
 
         detail.isClassObj
@@ -934,6 +929,54 @@ function renderArrayGrid(
       showExportButton: true,
     }),
   ]);
+}
+
+// `java.lang.Class<Foo>` has no useful subclasses in heap_graph_class; the
+// meaningful filter target is `Foo`.
+const CLASS_OBJ_PREFIX = 'java.lang.Class<';
+function subclassFilterTarget(className: string): string {
+  if (className.startsWith(CLASS_OBJ_PREFIX) && className.endsWith('>')) {
+    return className.slice(CLASS_OBJ_PREFIX.length, -1);
+  }
+  return className;
+}
+
+function classFilterLink(className: string, navigate: NavFn): m.Child {
+  return m(
+    'button',
+    {
+      class: 'ah-link',
+      title: 'Open subclasses of this class',
+      onclick: () =>
+        navigate('classes', {rootClass: subclassFilterTarget(className)}),
+    },
+    className,
+  );
+}
+
+function renderClassHierarchy(
+  hierarchy: string[],
+  navigate: NavFn,
+): m.Children {
+  const topDown = hierarchy.slice().reverse();
+  return m(
+    'div',
+    {class: 'ah-view-stack--tight'},
+    topDown.map((className, i) =>
+      m(
+        'div',
+        {
+          key: className,
+          class: `ah-path-entry${i === topDown.length - 1 ? ' ah-semibold' : ''}`,
+          style: {'--ah-depth': String(i)},
+        },
+        [
+          m('span', {class: 'ah-path-arrow'}, i === 0 ? '' : '→'),
+          classFilterLink(className, navigate),
+        ],
+      ),
+    ),
+  );
 }
 
 export default ObjectView;

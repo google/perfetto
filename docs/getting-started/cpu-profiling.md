@@ -303,10 +303,9 @@ output conversion.
 
 If your profiles are missing native libraries' function names, but you have
 access to the debug version of the libraries (with symbol data), you can
-instruct the `cpu_profile` script to symbolise the profile on the host by
-following [these
-instructions](/docs/data-sources/native-heap-profiler#symbolization), while
-substituting the script name.
+symbolise the profile on the host by following the
+[symbolization and deobfuscation guide](/docs/learning-more/symbolization.md).
+`traceconv bundle` is the recommended entry point.
 
 
 TAB: Linux (command line)
@@ -350,10 +349,9 @@ python3 traceconv profile --perf /tmp/trace.pb
 
 If your profiles are missing native libraries' function names, but you have
 access to the debug version of the libraries (with symbol data), you can
-symbolise the profile after the fact by following [these
-instructions](/docs/data-sources/native-heap-profiler#symbolization), skipping
-the heap profiling script and instead using the `traceconv symbolize` script
-command directly.
+symbolise the profile after the fact by following the
+[symbolization and deobfuscation guide](/docs/learning-more/symbolization.md).
+`traceconv bundle` is the recommended entry point.
 
 </tabs?>
 

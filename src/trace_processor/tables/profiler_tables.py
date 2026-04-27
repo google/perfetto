@@ -1247,6 +1247,34 @@ GPU_COUNTER_GROUP_TABLE = Table(
                 '''Group description. NULL for legacy enum-based groups.''',
         }))
 
+GPU_CONTEXT_TABLE = Table(
+    python_module=__file__,
+    class_name='GpuContextTable',
+    sql_name='__intrinsic_gpu_context',
+    wrapping_sql_view=WrappingSqlView('gpu_context'),
+    columns=[
+        C('context_id', CppUint32()),
+        C('pid', CppOptional(CppUint32())),
+        C('api', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='''Maps GPU graphics context IDs to process and API type.
+
+Each row represents a unique graphics context seen in the trace,
+populated from InternedGraphicsContext data attached to
+GpuRenderStageEvent packets.''',
+        group='Misc',
+        columns={
+            'context_id':
+                '''The graphics context handle (GL context, VkDevice,
+                CUDA context, etc.).''',
+            'pid':
+                '''Process ID associated with this context.''',
+            'api':
+                '''Graphics API type (OPEN_GL, VULKAN, OPEN_CL, CUDA,
+                HIP, or UNDEFINED).''',
+        }))
+
 # TODO(lalitm): delete this once we have proper tree functions.
 EXPERIMENTAL_FLAMEGRAPH_TABLE = Table(
     python_module=__file__,
@@ -1370,6 +1398,7 @@ ALL_TABLES = [
     AGGREGATE_SAMPLE_TABLE,
     CPU_PROFILE_STACK_SAMPLE_TABLE,
     EXPERIMENTAL_FLAMEGRAPH_TABLE,
+    GPU_CONTEXT_TABLE,
     GPU_COUNTER_GROUP_TABLE,
     HEAP_GRAPH_CLASS_TABLE,
     HEAP_GRAPH_OBJECT_DATA_TABLE,

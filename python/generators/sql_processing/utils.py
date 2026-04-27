@@ -38,6 +38,7 @@ ALLOWED_PREFIXES = {
     ],
     'linux': ['cpu', 'memory'],
     'stacks': ['cpu_profiling'],
+    'std/gpu': ['gpu'],
 }
 
 # Allows for nonstandard object names.

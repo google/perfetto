@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {FuzzyFinder, FuzzySegment} from '../../base/fuzzy';
-import {Accordion, AccordionItem} from '../../widgets/accordion';
+import {Accordion, AccordionSection} from '../../widgets/accordion';
 import {Button} from '../../widgets/button';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Icon} from '../../widgets/icon';
@@ -45,7 +45,6 @@ export interface TableListAttrs {
 
 export class TableList implements m.ClassComponent<TableListAttrs> {
   private searchQuery = '';
-  private expandedTable: string | undefined = undefined;
 
   view({attrs}: m.CVnode<TableListAttrs>): m.Children {
     const tables = attrs.sqlModules.listTables();
@@ -66,15 +65,6 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
       }));
     }
 
-    const items: AccordionItem[] = filteredTables.map(({table, segments}) => ({
-      id: table.name,
-      header: m(
-        'code.pf-simple-table-list__item-name',
-        renderHighlightedName(segments),
-      ),
-      content: this.renderTableContent(table, attrs.onQueryTable),
-    }));
-
     return m(
       '.pf-simple-table-list',
       m(TextInput, {
@@ -86,16 +76,25 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
           this.searchQuery = value;
         },
       }),
-      items.length > 0
+      filteredTables.length > 0
         ? m(
             '.pf-simple-table-list__items',
-            m(Accordion, {
-              items,
-              expanded: this.expandedTable,
-              onToggle: (id) => {
-                this.expandedTable = id;
-              },
-            }),
+            m(
+              Accordion,
+              filteredTables.map(({table, segments}) =>
+                m(
+                  AccordionSection,
+                  {
+                    key: table.name,
+                    summary: m(
+                      'code.pf-simple-table-list__item-name',
+                      renderHighlightedName(segments),
+                    ),
+                  },
+                  this.renderTableContent(table, attrs.onQueryTable),
+                ),
+              ),
+            ),
           )
         : m(EmptyState, {
             title: 'No matching tables found',

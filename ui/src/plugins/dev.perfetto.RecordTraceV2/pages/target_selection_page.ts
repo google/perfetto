@@ -36,6 +36,7 @@ import {Card} from '../../../widgets/card';
 import {showModal} from '../../../widgets/modal';
 import {traceConfigToPb} from '../../../base/proto_utils_wasm';
 import protos from '../../../protos';
+import {ImportConfigDialog} from '../views/import_config';
 
 type RecMgrAttrs = {recMgr: RecordingManager};
 
@@ -358,7 +359,7 @@ class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
       Card,
       {
         className: 'pf-preset-card pf-preset-card--dashed',
-        onclick: () => this.openImportDialog(recMgr),
+        onclick: () => this.openRawTextProtoModal(recMgr),
         tabindex: 0,
       },
       m(Icon, {icon: 'upload_file'}),
@@ -367,25 +368,44 @@ class RecordConfigSelector implements m.ClassComponent<RecMgrAttrs> {
     );
   }
 
-  private openImportDialog(recMgr: RecordingManager) {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      const text = await file.text();
-      const res = await traceConfigToPb(text);
-      if (!res.ok) {
-        showModal({
-          title: 'Import error',
-          content: `Failed to parse config: ${res.error}`,
-        });
-        return;
-      }
-      const config = protos.TraceConfig.decode(res.value);
-      recMgr.setCustomTraceConfig(config, file.name);
-    };
-    input.click();
+  private openRawTextProtoModal(recMgr: RecordingManager) {
+    let config = '';
+    return showModal({
+      title: 'Import trace config from textproto',
+      content: () =>
+        m(ImportConfigDialog, {
+          config,
+          onUpdate: (x) => {
+            config = x;
+          },
+        }),
+      buttons: [
+        {
+          text: 'Add config',
+          primary: true,
+          action: async () => {
+            await this.addCustomConfig(recMgr, config, 'textproto');
+          },
+        },
+      ],
+    });
+  }
+
+  private async addCustomConfig(
+    recMgr: RecordingManager,
+    text: string,
+    name: string,
+  ) {
+    const res = await traceConfigToPb(text);
+    if (!res.ok) {
+      showModal({
+        title: 'Import error',
+        content: `Failed to parse config: ${res.error}`,
+      });
+      return;
+    }
+    const config = protos.TraceConfig.decode(res.value);
+    recMgr.setCustomTraceConfig(config, name);
   }
 
   private renderCard(

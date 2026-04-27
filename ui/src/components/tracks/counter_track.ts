@@ -613,10 +613,11 @@ export class CounterTrack implements TrackRenderer {
 
   renderTooltip(): m.Children {
     if (!this.hover) return undefined;
-    return m(
-      '.pf-track__tooltip',
-      this.formatYValue(this.hover.lastDisplayValue),
+    const text = this.formatYValue(
+      this.hover.lastDisplayValue,
+      (v, unit) => `${v.toLocaleString()}${unit}`,
     );
+    return m('.pf-track__tooltip', text);
   }
 
   // -- Private methods --
@@ -808,18 +809,20 @@ export class CounterTrack implements TrackRenderer {
     ctx.fillText(text, x + leftPad, y);
   }
 
-  private formatYValue(value: number): string {
-    const unit = this._unit;
+  private formatYValue(
+    value: number,
+    fmt: (v: number, unit: string) => string = formatNumber,
+  ): string {
     const {yMode, yDisplay} = this;
     const v = yDisplay === 'log' ? Math.exp(value) : value;
 
     switch (yMode) {
       case 'value':
-        return formatNumber(v, unit);
+        return fmt(v, this.unit);
       case 'delta':
-        return `\u0394${formatNumber(v, unit)}`;
+        return `\u0394${fmt(v, this.unit)}`;
       case 'rate':
-        return formatNumber(v, this.rateUnit);
+        return fmt(v, this.rateUnit);
       default:
         assertUnreachable(yMode);
     }

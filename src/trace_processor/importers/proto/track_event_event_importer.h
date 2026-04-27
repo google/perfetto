@@ -69,6 +69,7 @@
 #include "src/trace_processor/util/debug_annotation_parser.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
+#include "perfetto/ext/base/base64.h"
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_active_processes.pbzero.h"
@@ -76,6 +77,7 @@
 #include "protos/perfetto/trace/track_event/chrome_histogram_sample.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "protos/perfetto/trace/track_event/log_message.pbzero.h"
+#include "protos/perfetto/trace/track_event/screenshot.pbzero.h"
 #include "protos/perfetto/trace/track_event/source_location.pbzero.h"
 #include "protos/perfetto/trace/track_event/task_execution.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
@@ -1248,6 +1250,33 @@ class TrackEventEventImporter {
     return base::OkStatus();
   }
 
+  base::Status ParseScreenshotArgs(ConstBytes screenshot_bytes,
+                                   BoundInserter* inserter) {
+    protos::pbzero::Screenshot::Decoder screenshot(screenshot_bytes);
+    if (screenshot.has_jpg_image()) {
+      std::string base64_jpg = base::Base64Encode(screenshot.jpg_image().data,
+                                                  screenshot.jpg_image().size);
+      inserter->AddArg(storage_->InternString("screenshot.jpg_image"),
+                       Variadic::String(storage_->InternString(
+                           base::StringView(base64_jpg))));
+    }
+    if (screenshot.has_pam_image()) {
+      std::string base64_pam = base::Base64Encode(screenshot.pam_image().data,
+                                                  screenshot.pam_image().size);
+      inserter->AddArg(storage_->InternString("screenshot.pam_image"),
+                       Variadic::String(storage_->InternString(
+                           base::StringView(base64_pam))));
+    }
+    if (screenshot.has_ppm_image()) {
+      std::string base64_ppm = base::Base64Encode(screenshot.ppm_image().data,
+                                                  screenshot.ppm_image().size);
+      inserter->AddArg(storage_->InternString("screenshot.ppm_image"),
+                       Variadic::String(storage_->InternString(
+                           base::StringView(base64_ppm))));
+    }
+    return base::OkStatus();
+  }
+
   void ParseTrackEventArgs(BoundInserter* inserter) {
     auto log_errors = [this](const base::Status& status) {
       if (status.ok())
@@ -1266,6 +1295,9 @@ class TrackEventEventImporter {
     }
     if (event_.has_log_message()) {
       log_errors(ParseLogMessage(event_.log_message(), inserter));
+    }
+    if (event_.has_screenshot()) {
+      log_errors(ParseScreenshotArgs(event_.screenshot(), inserter));
     }
     if (event_.has_chrome_histogram_sample()) {
       log_errors(

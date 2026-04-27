@@ -284,10 +284,10 @@ describe('clipboard_operations', () => {
         listTables: () => [],
         getTable: () => undefined,
       } as unknown as SqlModules;
-      const realNode = new TableSourceNode({
-        trace: mockTrace,
-        sqlModules: mockSqlModules,
-      });
+      const realNode = new TableSourceNode(
+        {},
+        {trace: mockTrace, sqlModules: mockSqlModules},
+      );
 
       const clipboard = {
         clipboardNodes: [

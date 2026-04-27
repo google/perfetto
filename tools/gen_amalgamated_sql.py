@@ -42,7 +42,9 @@ REPLACEMENT_HEADER = '''/*
  *******************************************************************************
  */
 
- #include <string.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <string_view>
 '''
 
 NAMESPACE_BEGIN = '''
@@ -60,7 +62,11 @@ NAMESPACE_END = '''
 FILE_TO_SQL_STRUCT = '''
 struct FileToSql {
   const char* path;
-  const char* sql;
+  const uint8_t* sql;
+  size_t sql_size;
+  std::string_view sql_view() const {
+    return {reinterpret_cast<const char*>(sql), sql_size};
+  }
 };
 '''
 
@@ -116,21 +122,21 @@ def main():
     output.write(NAMESPACE_BEGIN.format(args.namespace))
 
     # Create the C++ variable for each SQL file.
+    # We emit the SQL as a uint8_t byte array rather than a string literal:
+    # string literals (even when chunked and concatenated) push MSVC and other
+    # compilers to their limits on very large SQL modules, whereas raw byte
+    # array initializers compile reliably.
     for path, sql in sql_outputs.items():
       variable = filename_to_variable(os.path.splitext(path)[0])
-      output.write('\nconst char {}[] = '.format(variable))
-      # MSVC doesn't like string literals that are individually longer than 16k.
-      # However it's still fine "if" "we" "concatenate" "many" "of" "them".
-      # This code splits the sql in string literals of ~1000 chars each.
-      line_groups = ['']
-      for line in sql.split('\n'):
-        line_groups[-1] += line + '\n'
-        if len(line_groups[-1]) > 1000:
-          line_groups.append('')
-
-      for line in line_groups:
-        output.write('R"_d3l1m1t3r_({})_d3l1m1t3r_"\n'.format(line))
-      output.write(';\n')
+      encoded = sql.encode('utf-8')
+      output.write('\nconst uint8_t {}[] = {{'.format(variable))
+      for i, byte in enumerate(encoded):
+        if i % 16 == 0:
+          output.write('\n  ')
+        output.write('0x{:02x},'.format(byte))
+        if i % 16 != 15 and i != len(encoded) - 1:
+          output.write(' ')
+      output.write('\n};\n')
 
     output.write(FILE_TO_SQL_STRUCT)
 
@@ -141,7 +147,8 @@ def main():
 
       # This is for Windows which has \ as a path separator.
       path = path.replace("\\", "/")
-      output.write('\n  {{"{}", {}}},\n'.format(path, variable))
+      output.write('\n  {{"{}", {}, sizeof({})}},\n'.format(
+          path, variable, variable))
     output.write("};\n")
 
     output.write(NAMESPACE_END.format(args.namespace))

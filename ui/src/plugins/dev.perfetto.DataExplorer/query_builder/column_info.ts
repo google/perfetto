@@ -20,8 +20,9 @@ import {SqlColumn} from '../../dev.perfetto.SqlModules/sql_modules';
 
 export interface ColumnInfo {
   name: string;
+  type?: PerfettoSqlType;
+  description?: string;
   checked: boolean;
-  column: SqlColumn;
   alias?: string;
   // When true, the type was explicitly modified by the user and should be
   // preserved even when upstream columns change.
@@ -34,19 +35,9 @@ export function columnInfoFromSqlColumn(
 ): ColumnInfo {
   return {
     name: column.name,
+    type: column.type,
+    description: column.description,
     checked,
-    column: column,
-  };
-}
-
-export function columnInfoFromName(
-  name: string,
-  checked: boolean = false,
-): ColumnInfo {
-  return {
-    name,
-    checked,
-    column: {name},
   };
 }
 
@@ -54,10 +45,11 @@ export function newColumnInfo(
   col: ColumnInfo,
   checked?: boolean | undefined,
 ): ColumnInfo {
-  const finalName = col.alias ?? col.column.name;
+  const finalName = col.alias ?? col.name;
   return {
     name: finalName,
-    column: {...col.column, name: finalName},
+    type: col.type,
+    description: col.description,
     alias: undefined,
     checked: checked ?? col.checked,
     typeUserModified: col.typeUserModified,
@@ -77,11 +69,4 @@ export function legacyDeserializeType(
   // Already a proper PerfettoSqlType object
   if (type.kind !== undefined) return type;
   return undefined;
-}
-
-export function newColumnInfoList(
-  oldCols: ColumnInfo[],
-  checked?: boolean | undefined,
-): ColumnInfo[] {
-  return oldCols.map((col) => newColumnInfo(col, checked));
 }
