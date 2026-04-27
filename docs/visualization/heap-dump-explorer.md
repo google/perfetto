@@ -91,7 +91,6 @@ Enough for retention, dominator and class-breakdown analysis.
 
 - No content-based analysis — the Strings, Arrays and Bitmaps tabs and
   the duplicate-content detection on the Overview are unavailable.
-- Cannot be exported to other tools like Android Studio.
 
 Choose this format for leak investigations, dominator analysis and
 class breakdowns, especially when capturing from non-debuggable
@@ -128,6 +127,9 @@ detection on the Overview tab.
 
 **Cons:**
 
+- Much slower to capture and freezes the target process for several
+  seconds (Perfetto works on a forked copy so the main process is
+  unaffected).
 - Produces larger files.
 - Contains the full contents of the heap, so it is not suitable for
   capturing from real users — it will contain any sensitive data in
