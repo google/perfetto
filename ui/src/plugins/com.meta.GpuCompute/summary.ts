@@ -300,8 +300,6 @@ export const KernelSummarySection: m.Component<
       rows.map((r) => Number(r.registersPerThread)),
     );
     state.maxGridSize = finiteMax(rows.map((r) => Number(r.gridSize)));
-
-    m.redraw();
   },
 
   view({state, attrs}) {
@@ -355,7 +353,6 @@ export const KernelSummarySection: m.Component<
         state.sortDescending = true;
       }
       state.pageOffset = 0;
-      m.redraw();
     };
 
     // Up/down arrow indicator for the active sort column
@@ -491,8 +488,6 @@ export const KernelSummarySection: m.Component<
             disabled: state.pageOffset === 0,
             onclick: () => {
               state.pageOffset = Math.max(0, state.pageOffset - PAGE_SIZE);
-
-              m.redraw();
             },
           }),
           m(
@@ -507,8 +502,6 @@ export const KernelSummarySection: m.Component<
                 state.pageOffset + PAGE_SIZE,
                 sortedRows.length - PAGE_SIZE,
               );
-
-              m.redraw();
             },
           }),
         ]),

@@ -235,7 +235,6 @@ export function renderToolbar(opts: {
         currentTabKey: ctx.activeInfoTab,
         onTabChange: (key: string) => {
           ctx.activeInfoTab = key as InfoTab;
-          m.redraw();
         },
       }),
 
@@ -252,7 +251,6 @@ export function renderToolbar(opts: {
           // Auto focusing to 'Details' tab
           if (enable) {
             ctx.activeInfoTab = 'details';
-            m.redraw();
           }
         },
       }),
@@ -279,7 +277,6 @@ export function renderToolbar(opts: {
               checked: ctx.humanizeMetrics,
               onchange: (e: Event) => {
                 ctx.humanizeMetrics = (e.target as HTMLInputElement).checked;
-                m.redraw();
                 opts.onHumanizeChanged?.();
               },
             }),
@@ -296,7 +293,6 @@ export function renderToolbar(opts: {
                 onchange: (e: Event) => {
                   ctx.terminologyId = (e.target as HTMLSelectElement).value;
                   opts.onTerminologyChanged?.();
-                  m.redraw();
                 },
                 className: 'pf-gpu-compute__toolbar-terminology-select',
               },
