@@ -26,6 +26,7 @@ import {EmptyState} from '../../widgets/empty_state';
 import {HotkeyGlyphs, KeycapGlyph} from '../../widgets/hotkey_glyphs';
 import {Popup} from '../../widgets/popup';
 import {BigTraceApp} from '../bigtrace_app';
+import {Command} from '../../public/commands';
 
 const OMNIBOX_INPUT_REF = 'omnibox';
 const RECENT_COMMANDS_LIMIT = 6;
@@ -107,7 +108,8 @@ export class Omnibox implements m.ClassComponent {
 
   private renderCommandOmnibox(): m.Children {
     const {commands, omnibox} = BigTraceApp.instance;
-    const filteredCmds = commands.fuzzyFilterCommands(omnibox.text);
+    const allCmds = commands.getCommands();
+    const filteredCmds = fuzzyFilterCommands(allCmds, omnibox.text);
 
     const commandsWithHeuristics = filteredCmds.map((cmd) => {
       return {
@@ -587,4 +589,11 @@ class OmniboxWidget implements m.ClassComponent<OmniboxWidgetAttrs> {
     const max = options.length - 1;
     onSelectedOptionChanged(Math.min(max, selectedOptionIndex + 1));
   }
+}
+
+function fuzzyFilterCommands(commands: readonly Command[], searchTerm: string) {
+  const finder = new FuzzyFinder(commands, ({name}) => name);
+  return finder.find(searchTerm).map((result) => {
+    return {segments: result.segments, ...result.item};
+  });
 }

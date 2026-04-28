@@ -59,7 +59,8 @@ class BigTraceHelpContent implements m.ClassComponent {
       m('h2', 'Command Hotkeys'),
       m(
         'table',
-        BigTraceApp.instance.commands.commands
+        BigTraceApp.instance.commands
+          .getCommands()
           .filter(({defaultHotkey}) => defaultHotkey)
           .sort((a, b) => a.name.localeCompare(b.name))
           .map(({defaultHotkey, name}) => {
