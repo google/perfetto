@@ -1133,17 +1133,43 @@ def create_amalgamated_sql_module(blueprint: Blueprint, gn: GnParser,
   return module
 
 
-def create_cc_proto_descriptor_module(blueprint: Blueprint,
-                                      target: GnParser.Target):
+def create_cpp_blob_header_module(blueprint: Blueprint,
+                                  target: GnParser.Target):
   bp_module_name = label_to_module_name(target.name)
   module = Module('genrule', bp_module_name, target.name)
-  module.tool_files = [
-      'tools/gen_cc_proto_descriptor.py',
-  ]
-  module.cmd = ' '.join([
-      '$(location tools/gen_cc_proto_descriptor.py)', '--gen_dir=$(genDir)',
-      '--cpp_out=$(out)', '$(in)'
-  ])
+  script_path = gn_utils.label_to_path(target.script)
+  module.tool_files = [script_path]
+
+  # The GN template invokes the script as:
+  #   <script> --output <output> \
+  #            [--gen-dir <gen_dir>] \
+  #            [<extra_args>...] \
+  #            <inputs>...
+  # Strip the leading --output/output pair and the trailing input paths so
+  # only the script-specific flags remain to thread into the genrule cmd.
+  # Substitute the rebased --gen-dir value with `$(genDir)`, which Soong
+  # expands to the genrule's gen dir at build time.
+  args = list(target.args)
+  if len(args) >= 2 and args[0] == '--output':
+    args = args[2:]
+  if len(target.inputs) > 0:
+    args = args[:-len(target.inputs)]
+
+  extra_args = []
+  i = 0
+  while i < len(args):
+    if args[i] == '--gen-dir' and i + 1 < len(args):
+      extra_args.append('--gen-dir=$(genDir)')
+      i += 2
+    else:
+      extra_args.append(args[i])
+      i += 1
+
+  cmd_parts = [
+      '$(location %s)' % script_path,
+      '--output=$(out)',
+  ] + extra_args + ['$(in)']
+  module.cmd = ' '.join(cmd_parts)
   module.genrule_headers.add(module.name)
   module.srcs.update(
       ':' + label_to_module_name(dep.name) for dep in target.deps)
@@ -1477,8 +1503,8 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
     if target.custom_action_type == 'protozero_descriptor_diff':
       return create_protozero_descriptor_diff_module(blueprint, gn, target)
 
-    if target.custom_action_type == 'cc_proto_descriptor':
-      module = create_cc_proto_descriptor_module(blueprint, target)
+    if target.custom_action_type == 'cpp_blob_header':
+      module = create_cpp_blob_header_module(blueprint, target)
     elif name_without_toolchain == gn_utils.GEN_VERSION_TARGET:
       module = create_gen_version_module(blueprint, target, bp_module_name)
     else:

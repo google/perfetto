@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {Icon} from './icon';
 import {shortUuid} from '../base/uuid';
-import {createContext} from '../base/mithril_utils';
+import {createContext, Gate} from '../base/mithril_utils';
 
 const {Consumer, Provider} = createContext<string | undefined>(undefined);
 
@@ -75,8 +75,12 @@ export class AccordionSection
           'summary.pf-accordion__header',
           {
             onclick: () => {
-              console.log('Clicked header', header);
-              // If we're closing this section manually, scroll it into view
+              // If we're closing this section manually, scroll it into view.
+              // This is because section headers are sticky, so clicking on it
+              // when it's floating means that collapsing the section can scroll
+              // it out of view. It's much less disorienting to scroll it back
+              // into view immediately so the section header you just clicked on
+              // doesn't disappear.
               if (this.isOpen) {
                 this.pendingScrollOpen = true;
               }
@@ -85,7 +89,9 @@ export class AccordionSection
           m('.pf-accordion__toggle', m(Icon, {icon: 'expand_more'})),
           m('.pf-accordion__header-content', header),
         ),
-        m('.pf-accordion__content', children),
+        // Performance optimization to avoid re-rendering sections that are not
+        // visible.
+        m(Gate, {open: this.isOpen}, m('.pf-accordion__content', children)),
       );
     });
   }
