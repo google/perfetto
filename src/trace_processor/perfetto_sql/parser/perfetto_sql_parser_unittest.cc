@@ -660,13 +660,6 @@ TEST_F(PerfettoSqlParserTest, ExpandsStringifyIntrinsic) {
 }
 
 TEST_F(PerfettoSqlParserTest, ExpandsTokenApplyIntrinsic) {
-  // The legacy preprocessor emits `WRAP(1) , WRAP(2) , WRAP(3)` here -
-  // logically equivalent but with extra whitespace around the commas.
-  // Skip on the legacy path; the assertion below pins the syntaqlite-path
-  // formatting once the cutover lands.
-  if constexpr (!PerfettoSqlParser::kUsesSyntaqliteMacros) {
-    GTEST_SKIP() << "Legacy preprocessor formats this intrinsic differently.";
-  }
   // token_apply!(m, (a, b, c)) -> m!(a), m!(b), m!(c)
   RegisterMacro("wrap", {"x"}, "WRAP($x)");
   SqlSource out = ParseOne(SqlSource::FromExecuteQuery(

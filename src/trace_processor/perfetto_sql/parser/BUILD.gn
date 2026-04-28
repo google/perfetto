@@ -32,7 +32,6 @@ source_set("parser") {
     "../../../base",
     "../../sqlite",
     "../../util:sql_argument",
-    "../preprocessor",
     "../syntaqlite",
   ]
   cflags = [
@@ -53,7 +52,6 @@ perfetto_unittest_source_set("unittests") {
     "../../../base",
     "../../sqlite",
     "../../util:sql_argument",
-    "../preprocessor",
     "../syntaqlite",
   ]
 }
