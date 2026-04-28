@@ -77,10 +77,12 @@ export class HeapProfileFlamegraphDetailsPanel
     private readonly tsEnd: time,
     private state: FlamegraphState | undefined,
     private readonly onStateChange: (state: FlamegraphState) => void,
-    private readonly onNodeSelected?: (
-      pathHashes: string,
-      isDominator: boolean,
-    ) => void,
+    onNodeSelected?: (args: {
+      pathHashes: string;
+      isDominator: boolean;
+      upid: number;
+      ts: time;
+    }) => void,
   ) {
     this.props = {ts, type: profileDescriptor.type};
     this.flamegraph = new QueryFlamegraph(trace);
@@ -90,7 +92,10 @@ export class HeapProfileFlamegraphDetailsPanel
       this.ts,
       this.tsEnd,
       this.upid,
-      this.onNodeSelected,
+      onNodeSelected
+        ? (pathHashes, isDominator) =>
+            onNodeSelected({pathHashes, isDominator, upid, ts})
+        : undefined,
     );
     if (this.state === undefined) {
       this.state = Flamegraph.createDefaultState(this.metrics);
