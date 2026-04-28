@@ -41,6 +41,7 @@
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
+#include "src/trace_processor/core/util/page_store.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/all_tables_fwd.h"
 #include "src/trace_processor/types/destructible.h"
@@ -1163,6 +1164,25 @@ class TraceStorage {
   // One entry for each unique string in the trace.
   StringPool string_pool_;
 
+<<<<<<< HEAD
+=======
+  // Backing store for column PagedVectors. Spills evicted pages to a temp
+  // file when the global resident-byte budget is exceeded. Declared before
+  // tables_storage_ so the body of ~TraceStorage destroys all Dataframes
+  // (and therefore all PagedVectors registered with the store) before
+  // page_store_'s implicit destructor runs.
+  core::PageStore page_store_{std::make_unique<core::TempFilePageStorage>()};
+
+ public:
+  // Borrowed accessor for the session's PageStore. Used by SQL functions
+  // and importers that need to construct PagedVector-backed tables.
+  core::PageStore* mutable_page_store() { return &page_store_; }
+
+ private:
+
+  // Stats about parsing the trace.
+  StatsMap stats_{};
+>>>>>>> eec9b9b511 (f)
   VirtualTrackSlices virtual_track_slices_;
   SqlStats sql_stats_;
 

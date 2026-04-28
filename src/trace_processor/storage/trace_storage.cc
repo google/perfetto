@@ -85,7 +85,7 @@ TraceStorage::TraceStorage(const Config&) {
   for (size_t i = 0; i < tables::kTableCount; ++i) {
     const auto& params = kTableInitParams[i];
     new (&tables_storage_[i * sizeof(dataframe::Dataframe)])
-        dataframe::Dataframe(&string_pool_, params.column_count,
+        dataframe::Dataframe(&string_pool_, &page_store_, params.column_count,
                              params.column_names, params.column_specs);
   }
   for (uint32_t i = 0; i < variadic_type_ids_.size(); ++i) {

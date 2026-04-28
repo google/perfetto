@@ -77,13 +77,14 @@ uint32_t EstimateDistinct(base::FlatHashMap<int64_t, uint32_t>& counts,
 }  // namespace
 
 Dataframe::Dataframe(StringPool* string_pool,
+                     core::PageStore* page_store,
                      uint32_t column_count,
                      const char* const* column_names,
                      const ColumnSpec* column_specs)
     : Dataframe(
           false,
           std::vector<std::string>(column_names, column_names + column_count),
-          CreateColumnVector(column_specs, column_count),
+          CreateColumnVector(column_specs, column_count, page_store),
           0,
           string_pool) {}
 
@@ -299,21 +300,23 @@ DataframeSpec Dataframe::CreateSpec() const {
 
 std::vector<std::shared_ptr<Column>> Dataframe::CreateColumnVector(
     const ColumnSpec* column_specs,
-    uint32_t column_count) {
-  auto make_storage = [](const ColumnSpec& spec) {
+    uint32_t column_count,
+    core::PageStore* page_store) {
+  PERFETTO_CHECK(page_store != nullptr);
+  auto make_storage = [page_store](const ColumnSpec& spec) {
     switch (spec.type.index()) {
       case StorageType::GetTypeIndex<Id>():
         return Storage(Storage::Id{});
       case StorageType::GetTypeIndex<Uint32>():
-        return Storage(Storage::Uint32{});
+        return Storage(Storage::Uint32{page_store});
       case StorageType::GetTypeIndex<Int32>():
-        return Storage(Storage::Int32{});
+        return Storage(Storage::Int32{page_store});
       case StorageType::GetTypeIndex<Int64>():
-        return Storage(Storage::Int64{});
+        return Storage(Storage::Int64{page_store});
       case StorageType::GetTypeIndex<Double>():
-        return Storage(Storage::Double{});
+        return Storage(Storage::Double{page_store});
       case StorageType::GetTypeIndex<String>():
-        return Storage(Storage::String{});
+        return Storage(Storage::String{page_store});
       default:
         PERFETTO_FATAL("Invalid storage type");
     }

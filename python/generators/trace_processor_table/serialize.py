@@ -594,9 +594,11 @@ class {self.table_name} {{
   }};
   {self.row_struct()}
 
-  explicit {self.table_name}(StringPool* pool)
+  explicit {self.table_name}(
+      StringPool* pool,
+      core::PageStore* page_store = core::PageStore::TestingSingleton())
       : dataframe_(
-        dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {{}}
+        dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool, page_store)) {{}}
 
   template <typename = void>
   IdAndRow Insert(const Row& row) {{

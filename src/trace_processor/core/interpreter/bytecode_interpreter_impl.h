@@ -48,6 +48,7 @@
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/paged_vector.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/span.h"
@@ -113,7 +114,7 @@ void FinalizeRanksInMapImpl(
 // Outlined implementation of glob filtering for strings.
 // Returns pointer past last written output index.
 uint32_t* StringFilterGlobImpl(const StringPool* string_pool,
-                               const StringPool::Id* data,
+                               core::PagedVector<StringPool::Id>& vec,
                                const char* pattern,
                                const uint32_t* begin,
                                const uint32_t* end,
@@ -122,7 +123,7 @@ uint32_t* StringFilterGlobImpl(const StringPool* string_pool,
 // Outlined implementation of regex filtering for strings.
 // Returns pointer past last written output index.
 uint32_t* StringFilterRegexImpl(const StringPool* string_pool,
-                                const StringPool::Id* data,
+                                core::PagedVector<StringPool::Id>& vec,
                                 const char* pattern,
                                 const uint32_t* begin,
                                 const uint32_t* end,
@@ -187,9 +188,12 @@ PERFETTO_ALWAYS_INLINE bool HandleInvalidCastFilterValueResult(
 //
 // Returns:
 //   A pointer one past the last index written to the destination buffer.
-template <typename Comparator, typename ValueType, typename DataType>
+// `Data` may be any object with `operator[](uint64_t)` returning the column
+// value at that index — typically `PagedVector<T>&`, whose operator[]
+// transparently restores evicted pages via the AtSlow path.
+template <typename Comparator, typename ValueType, typename Data>
 [[nodiscard]] PERFETTO_ALWAYS_INLINE uint32_t* Filter(
-    const DataType* data,
+    Data& data,
     const uint32_t* begin,
     const uint32_t* end,
     uint32_t* output,
@@ -723,9 +727,9 @@ inline PERFETTO_ALWAYS_INLINE void NonStringFilter(
         source.b, source.e, update.b, base::unchecked_get<M>(value.value).value,
         comparators::IntegerOrDoubleComparator<uint32_t, Op>());
   } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
-    const auto* data = state.ReadStorageFromRegister<T>(
+    auto* vec = state.ReadStorageFromRegister<T>(
         nf.template arg<B::storage_register>());
-    update.e = Filter(data, source.b, source.e, update.b,
+    update.e = Filter(*vec, source.b, source.e, update.b,
                       base::unchecked_get<M>(value.value),
                       comparators::IntegerOrDoubleComparator<M, Op>());
   } else {
@@ -735,7 +739,7 @@ inline PERFETTO_ALWAYS_INLINE void NonStringFilter(
 
 inline PERFETTO_ALWAYS_INLINE uint32_t* StringFilterEq(
     const InterpreterState& state,
-    const StringPool::Id* data,
+    core::PagedVector<StringPool::Id>* vec,
     const uint32_t* begin,
     const uint32_t* end,
     uint32_t* output,
@@ -746,13 +750,16 @@ inline PERFETTO_ALWAYS_INLINE uint32_t* StringFilterEq(
     return output;
   }
   static_assert(sizeof(StringPool::Id) == 4, "Id should be 4 bytes");
-  return Filter(reinterpret_cast<const uint32_t*>(data), begin, end, output,
-                id->raw_id(), std::equal_to<>());
+  // PagedVector<StringPool::Id> and PagedVector<uint32_t> have identical
+  // layout (storage is type-erased bytes); reinterpret to compare against
+  // the raw uint32_t id without a per-element conversion.
+  auto* as_u32 = reinterpret_cast<core::PagedVector<uint32_t>*>(vec);
+  return Filter(*as_u32, begin, end, output, id->raw_id(), std::equal_to<>());
 }
 
 inline PERFETTO_ALWAYS_INLINE uint32_t* StringFilterNe(
     const InterpreterState& state,
-    const StringPool::Id* data,
+    core::PagedVector<StringPool::Id>* vec,
     const uint32_t* begin,
     const uint32_t* end,
     uint32_t* output,
@@ -763,30 +770,31 @@ inline PERFETTO_ALWAYS_INLINE uint32_t* StringFilterNe(
     return output + (end - begin);
   }
   static_assert(sizeof(StringPool::Id) == 4, "Id should be 4 bytes");
-  return Filter(reinterpret_cast<const uint32_t*>(data), begin, end, output,
-                id->raw_id(), std::not_equal_to<>());
+  auto* as_u32 = reinterpret_cast<core::PagedVector<uint32_t>*>(vec);
+  return Filter(*as_u32, begin, end, output, id->raw_id(),
+                std::not_equal_to<>());
 }
 
 template <typename Op>
 inline PERFETTO_ALWAYS_INLINE uint32_t* FilterStringOp(
     const InterpreterState& state,
-    const StringPool::Id* data,
+    core::PagedVector<StringPool::Id>* vec,
     const uint32_t* begin,
     const uint32_t* end,
     uint32_t* output,
     const char* val) {
   if constexpr (std::is_same_v<Op, Eq>) {
-    return StringFilterEq(state, data, begin, end, output, val);
+    return StringFilterEq(state, vec, begin, end, output, val);
   } else if constexpr (std::is_same_v<Op, Ne>) {
-    return StringFilterNe(state, data, begin, end, output, val);
+    return StringFilterNe(state, vec, begin, end, output, val);
   } else if constexpr (std::is_same_v<Op, Glob>) {
-    return StringFilterGlobImpl(state.string_pool, data, val, begin, end,
+    return StringFilterGlobImpl(state.string_pool, *vec, val, begin, end,
                                 output);
   } else if constexpr (std::is_same_v<Op, Regex>) {
-    return StringFilterRegexImpl(state.string_pool, data, val, begin, end,
+    return StringFilterRegexImpl(state.string_pool, *vec, val, begin, end,
                                  output);
   } else {
-    return Filter(data, begin, end, output, NullTermStringView(val),
+    return Filter(*vec, begin, end, output, NullTermStringView(val),
                   comparators::StringComparator<Op>{state.string_pool});
   }
 }
@@ -802,9 +810,8 @@ inline PERFETTO_ALWAYS_INLINE void StringFilter(InterpreterState& state,
   }
   const char* val = base::unchecked_get<const char*>(filter_value.value);
   const auto& source = state.ReadFromRegister(sf.arg<B::source_register>());
-  const StringPool::Id* ptr =
-      state.ReadStorageFromRegister<String>(sf.arg<B::storage_register>());
-  update.e = FilterStringOp<Op>(state, ptr, source.b, source.e, update.b, val);
+  auto* vec = state.ReadStorageFromRegister<String>(sf.arg<B::storage_register>());
+  update.e = FilterStringOp<Op>(state, vec, source.b, source.e, update.b, val);
 }
 
 template <typename DataType>
@@ -825,15 +832,138 @@ inline auto GetUbComparator(const InterpreterState& state) {
   }
 }
 
+// Index-based binary search for `target` in the sorted range
+// `data[lo..hi)`. `cmp` is the strict-weak-ordering predicate. Returns the
+// first index in [lo, hi) for which !cmp(data[i], target) (lower_bound).
+template <typename Data, typename ValueType, typename Compare>
+inline PERFETTO_ALWAYS_INLINE uint32_t IndexLowerBound(Data& data,
+                                                       uint32_t lo,
+                                                       uint32_t hi,
+                                                       const ValueType& target,
+                                                       Compare cmp) {
+  uint32_t count = hi - lo;
+  while (count > 0) {
+    uint32_t step = count / 2;
+    uint32_t mid = lo + step;
+    if (cmp(data[mid], target)) {
+      lo = mid + 1;
+      count -= step + 1;
+    } else {
+      count = step;
+    }
+  }
+  return lo;
+}
+
+// Index-based upper_bound: first index in [lo, hi) for which
+// cmp(target, data[i]) is true.
+template <typename Data, typename ValueType, typename Compare>
+inline PERFETTO_ALWAYS_INLINE uint32_t IndexUpperBound(Data& data,
+                                                       uint32_t lo,
+                                                       uint32_t hi,
+                                                       const ValueType& target,
+                                                       Compare cmp) {
+  uint32_t count = hi - lo;
+  while (count > 0) {
+    uint32_t step = count / 2;
+    uint32_t mid = lo + step;
+    if (!cmp(target, data[mid])) {
+      lo = mid + 1;
+      count -= step + 1;
+    } else {
+      count = step;
+    }
+  }
+  return lo;
+}
+
+// Page-aware lower_bound for a `core::PagedVector<DataType>`. Walks pages
+// using their (first, last) endpoint metadata to skip pages whose range
+// can't contain the target — only the page that does contain the answer
+// is restored. Falls back to a contiguous IndexLowerBound when the column
+// is single-page (the common case).
+template <typename DataType, typename ValueType, typename Compare>
+inline PERFETTO_ALWAYS_INLINE uint32_t
+PagedLowerBound(core::PagedVector<DataType>& data,
+                uint32_t lo,
+                uint32_t hi,
+                const ValueType& target,
+                Compare cmp) {
+  if (PERFETTO_LIKELY(data.IsSinglePage())) {
+    return IndexLowerBound(data, lo, hi, target, cmp);
+  }
+  const uint32_t num_pages = data.num_pages();
+  for (uint32_t p = 0; p < num_pages; ++p) {
+    auto page_b = static_cast<uint32_t>(data.page_base(p));
+    auto page_e = static_cast<uint32_t>(page_b + data.page_size(p));
+    if (page_e <= lo) {
+      continue;
+    }
+    if (page_b >= hi) {
+      break;
+    }
+    // For frozen pages, peek at the page's last element via metadata. If
+    // it's already < target, the answer is past this page — skip without
+    // restoring. The tail (last logical page) is always resident and has
+    // no endpoint metadata, so always search it.
+    if (p + 1 < num_pages) {
+      DataType page_last = data.template page_last_value<DataType>(p);
+      if (cmp(page_last, target)) {
+        continue;
+      }
+    }
+    uint32_t search_lo = std::max<uint32_t>(lo, page_b);
+    uint32_t search_hi = std::min<uint32_t>(hi, page_e);
+    data.EnsureResident(p);
+    return IndexLowerBound(data, search_lo, search_hi, target, cmp);
+  }
+  return hi;
+}
+
+// Page-aware upper_bound; mirror of PagedLowerBound. A page is skippable
+// when target >= page.last (no element in the page strictly exceeds
+// target). Otherwise the answer is within that page.
+template <typename DataType, typename ValueType, typename Compare>
+inline PERFETTO_ALWAYS_INLINE uint32_t
+PagedUpperBound(core::PagedVector<DataType>& data,
+                uint32_t lo,
+                uint32_t hi,
+                const ValueType& target,
+                Compare cmp) {
+  if (PERFETTO_LIKELY(data.IsSinglePage())) {
+    return IndexUpperBound(data, lo, hi, target, cmp);
+  }
+  const uint32_t num_pages = data.num_pages();
+  for (uint32_t p = 0; p < num_pages; ++p) {
+    auto page_b = static_cast<uint32_t>(data.page_base(p));
+    auto page_e = static_cast<uint32_t>(page_b + data.page_size(p));
+    if (page_e <= lo) {
+      continue;
+    }
+    if (page_b >= hi) {
+      break;
+    }
+    if (p + 1 < num_pages) {
+      DataType page_last = data.template page_last_value<DataType>(p);
+      if (!cmp(target, page_last)) {
+        continue;
+      }
+    }
+    uint32_t search_lo = std::max<uint32_t>(lo, page_b);
+    uint32_t search_hi = std::min<uint32_t>(hi, page_e);
+    data.EnsureResident(p);
+    return IndexUpperBound(data, search_lo, search_hi, target, cmp);
+  }
+  return hi;
+}
+
 template <typename RangeOp, typename DataType, typename ValueType>
 inline PERFETTO_ALWAYS_INLINE void NonIdSortedFilter(
     const InterpreterState& state,
-    const DataType* data,
+    core::PagedVector<DataType>& data,
     ValueType val,
     BoundModifier bound_modifier,
     Range& update) {
-  auto* begin = data + update.b;
-  auto* end = data + update.e;
   if constexpr (std::is_same_v<RangeOp, EqualRange>) {
     PERFETTO_DCHECK(bound_modifier.Is<BothBounds>());
     DataType cmp_value;
@@ -848,38 +978,37 @@ inline PERFETTO_ALWAYS_INLINE void NonIdSortedFilter(
     } else {
       cmp_value = val;
     }
-    const DataType* eq_start =
-        std::lower_bound(begin, end, val, GetLbComprarator<DataType>(state));
-    const DataType* eq_end = eq_start;
+    uint32_t eq_start =
+        PagedLowerBound(data, update.b, update.e, val,
+                        GetLbComprarator<DataType>(state));
+    uint32_t eq_end = eq_start;
 
     // Scan 16 rows: it's often the case that we have just a very small number
     // of equal rows, so we can avoid a binary search.
-    const DataType* eq_end_limit = eq_start + 16;
+    uint32_t eq_end_limit = eq_start + 16;
     for (;; ++eq_end) {
-      if (eq_end == end) {
+      if (eq_end == update.e) {
         break;
       }
       if (eq_end == eq_end_limit) {
-        eq_end = std::upper_bound(eq_start, end, val,
-                                  GetUbComparator<DataType>(state));
+        eq_end = PagedUpperBound(data, eq_start, update.e, val,
+                                 GetUbComparator<DataType>(state));
         break;
       }
-      if (std::not_equal_to<>()(*eq_end, cmp_value)) {
+      if (std::not_equal_to<>()(data[eq_end], cmp_value)) {
         break;
       }
     }
-    update.b = static_cast<uint32_t>(eq_start - data);
-    update.e = static_cast<uint32_t>(eq_end - data);
+    update.b = eq_start;
+    update.e = eq_end;
   } else if constexpr (std::is_same_v<RangeOp, LowerBound>) {
     auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
-    res = static_cast<uint32_t>(
-        std::lower_bound(begin, end, val, GetLbComprarator<DataType>(state)) -
-        data);
+    res = PagedLowerBound(data, update.b, update.e, val,
+                          GetLbComprarator<DataType>(state));
   } else if constexpr (std::is_same_v<RangeOp, UpperBound>) {
     auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
-    res = static_cast<uint32_t>(
-        std::upper_bound(begin, end, val, GetUbComparator<DataType>(state)) -
-        data);
+    res = PagedUpperBound(data, update.b, update.e, val,
+                          GetUbComparator<DataType>(state));
   } else {
     static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
   }
@@ -926,9 +1055,9 @@ inline PERFETTO_ALWAYS_INLINE void SortedFilter(
     }
   } else {
     BoundModifier bound_modifier = f.template arg<B::write_result_to>();
-    const auto* data =
+    auto* vec =
         state.ReadStorageFromRegister<T>(f.template arg<B::storage_register>());
-    NonIdSortedFilter<RangeOp>(state, data, val, bound_modifier, update);
+    NonIdSortedFilter<RangeOp>(state, *vec, val, bound_modifier, update);
   }
 }
 
@@ -952,10 +1081,8 @@ inline PERFETTO_ALWAYS_INLINE void LinearFilterEq(
     return;
   }
 
-  const auto* data =
-      state.ReadStorageFromRegister<T>(leq.template arg<B::storage_register>());
-
-  using Compare = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
+  using CppT = typename T::cpp_type;
+  using Compare = CppT;
   using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
   const auto& value = base::unchecked_get<M>(res.value);
   Compare to_compare;
@@ -970,15 +1097,33 @@ inline PERFETTO_ALWAYS_INLINE void LinearFilterEq(
     to_compare = value;
   }
 
+  uint32_t* o_write = span.b;
+
+  // Walk pages overlapping [range.b, range.e). For single-page columns this
+  // collapses to a single callback invocation with the full column as the
+  // page view, so the inner loop is byte-identical to the pre-paging path.
+  // For multi-page columns the outer loop runs once per overlapping page,
+  // ensuring residency on demand. Pages outside [range.b, range.e) are not
+  // touched, so an evicted-cold-page stays evicted.
+  //
   // Note to future readers: this can be optimized further with explicit SIMD
   // but the compiler does a pretty good job even without it. For context,
   // we're talking about query changing from 2s -> 1.6s on a 12m row table.
-  uint32_t* o_write = span.b;
-  for (uint32_t i = range.b; i < range.e; ++i) {
-    if (std::equal_to<>()(data[i], to_compare)) {
-      *o_write++ = i;
-    }
-  }
+  auto* vec = state.ReadStorageFromRegister<T>(
+      leq.template arg<B::storage_register>());
+  core::WalkPages(*vec, range.b, range.e,
+                  [&](const typename core::PagedVector<CppT>::PageView& view) {
+                    uint64_t lo =
+                        std::max<uint64_t>(view.base_index, range.b);
+                    uint64_t hi = std::min<uint64_t>(
+                        view.base_index + view.length, range.e);
+                    for (uint64_t i = lo; i < hi; ++i) {
+                      if (std::equal_to<>()(view.data[i - view.base_index],
+                                            to_compare)) {
+                        *o_write++ = static_cast<uint32_t>(i);
+                      }
+                    }
+                  });
   span.e = o_write;
 }
 
@@ -1015,7 +1160,7 @@ inline PERFETTO_ALWAYS_INLINE std::pair<uint32_t*, uint32_t*> IndexEqualRange(
     uint32_t* begin,
     uint32_t* end,
     const Resolved& target,
-    const typename T::cpp_type* data,
+    core::PagedVector<typename T::cpp_type>& data,
     const NullBitvector* nbv,
     const StringPool* string_pool) {
   auto* lb =
@@ -1059,13 +1204,13 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
   }
   using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
   const auto& value = base::unchecked_get<M>(filter_value.value);
-  const auto* data =
+  auto* vec =
       state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
   const NullBitvector* nbv =
       state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
 
   std::tie(dest.b, dest.e) = IndexEqualRange<T, N>(
-      source.b, source.e, value, data, nbv, state.string_pool);
+      source.b, source.e, value, *vec, nbv, state.string_pool);
   state.WriteToRegister(bytecode.arg<B::dest_register>(), dest);
 }
 
@@ -1252,9 +1397,9 @@ inline PERFETTO_ALWAYS_INLINE void CastFilterValueList(
 
 // BitVector membership filter for FilterIn. O(1) per row.
 // Only applicable to Id/Uint32 columns with dense value ranges.
-template <typename T, typename DataType>
+template <typename T, typename DataType, typename Data>
 [[nodiscard]] inline PERFETTO_ALWAYS_INLINE uint32_t* FilterInBitVector(
-    const DataType* data,
+    Data data,
     const uint32_t* source_begin,
     const uint32_t* source_end,
     uint32_t* dest,
@@ -1269,15 +1414,15 @@ template <typename T, typename DataType>
     base::ignore_result(data);
     return IdentityFilter(source_begin, source_end, dest, bv, Cmp());
   } else {
-    return Filter(data, source_begin, source_end, dest, bv, Cmp());
+    return Filter(*data, source_begin, source_end, dest, bv, Cmp());
   }
 }
 
 // Linear scan membership filter for FilterIn. Iterates over a small sorted
 // value list for each row. Avoids HashMap hashing overhead for small lists.
-template <typename T, typename DataType, typename VL>
+template <typename T, typename DataType, typename Data, typename VL>
 [[nodiscard]] inline PERFETTO_ALWAYS_INLINE uint32_t* FilterInLinearScan(
-    const DataType* data,
+    Data data,
     const uint32_t* source_begin,
     const uint32_t* source_end,
     uint32_t* dest,
@@ -1285,6 +1430,7 @@ template <typename T, typename DataType, typename VL>
   using ValElem =
       StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>;
   if constexpr (std::is_same_v<T, Id>) {
+    base::ignore_result(data);
     struct Cmp {
       PERFETTO_ALWAYS_INLINE bool operator()(
           uint32_t lhs,
@@ -1298,7 +1444,7 @@ template <typename T, typename DataType, typename VL>
     };
     return IdentityFilter(source_begin, source_end, dest, vl, Cmp());
   } else {
-    using D = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
+    using D = DataType;
     struct Cmp {
       PERFETTO_ALWAYS_INLINE bool operator()(
           D lhs,
@@ -1310,19 +1456,20 @@ template <typename T, typename DataType, typename VL>
         return false;
       }
     };
-    return Filter(data, source_begin, source_end, dest, vl, Cmp());
+    return Filter(*data, source_begin, source_end, dest, vl, Cmp());
   }
 }
 
 // HashMap membership filter for FilterIn. O(1) per row via hash lookup.
-template <typename T, typename DataType, typename HM>
+template <typename T, typename DataType, typename Data, typename HM>
 [[nodiscard]] inline PERFETTO_ALWAYS_INLINE uint32_t* FilterInHashMap(
-    const DataType* data,
+    Data data,
     const uint32_t* source_begin,
     const uint32_t* source_end,
     uint32_t* dest,
     const HM& hm) {
   if constexpr (std::is_same_v<T, Id>) {
+    base::ignore_result(data);
     struct Cmp {
       PERFETTO_ALWAYS_INLINE bool operator()(uint32_t lhs, const HM& h) const {
         return h.Find(CastFilterValueResult::Id{lhs}) != nullptr;
@@ -1330,13 +1477,13 @@ template <typename T, typename DataType, typename HM>
     };
     return IdentityFilter(source_begin, source_end, dest, hm, Cmp());
   } else {
-    using D = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
+    using D = DataType;
     struct Cmp {
       PERFETTO_ALWAYS_INLINE bool operator()(D lhs, const HM& h) const {
         return h.Find(lhs) != nullptr;
       }
     };
-    return Filter(data, source_begin, source_end, dest, hm, Cmp());
+    return Filter(*data, source_begin, source_end, dest, hm, Cmp());
   }
 }
 
@@ -1374,7 +1521,7 @@ inline PERFETTO_ALWAYS_INLINE bool TryIndexedFilterInBinarySearch(
       return false;
     }
 
-    const auto* data =
+    auto* vec =
         state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
     const NullBitvector* nbv =
         state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
@@ -1387,10 +1534,10 @@ inline PERFETTO_ALWAYS_INLINE bool TryIndexedFilterInBinarySearch(
       std::pair<uint32_t*, uint32_t*> range;
       if constexpr (std::is_same_v<T, String>) {
         auto target = string_pool->Get(cmp_val);
-        range = IndexEqualRange<T, N>(index->b, index->e, target, data, nbv,
+        range = IndexEqualRange<T, N>(index->b, index->e, target, *vec, nbv,
                                       string_pool);
       } else {
-        range = IndexEqualRange<T, N>(index->b, index->e, cmp_val, data, nbv,
+        range = IndexEqualRange<T, N>(index->b, index->e, cmp_val, *vec, nbv,
                                       string_pool);
       }
       auto n = static_cast<size_t>(range.second - range.first);
@@ -1408,10 +1555,10 @@ inline PERFETTO_ALWAYS_INLINE bool TryIndexedFilterInBinarySearch(
 // Scan path for FilterIn when no index is present. The source span and dest
 // span are walked in lockstep: source[i] is the storage index for dest[i].
 // Matching dest entries are compacted in-place.
-template <typename T, typename DataType>
+template <typename T, typename DataType, typename Data>
 inline PERFETTO_ALWAYS_INLINE void NonIndexedFilterInScan(
     const CastFilterValueListResult& cast_result,
-    const DataType* data,
+    Data data,
     const Span<uint32_t>& source,
     Span<uint32_t>& dest) {
   using HM =
@@ -1421,18 +1568,19 @@ inline PERFETTO_ALWAYS_INLINE void NonIndexedFilterInScan(
       StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::ValueList>;
   if constexpr (std::is_same_v<T, Id> || std::is_same_v<T, Uint32>) {
     if (cast_result.bit_vector.size() > 0) {
-      dest.e = FilterInBitVector<T>(data, source.b, source.e, dest.b,
-                                    cast_result.bit_vector);
+      dest.e = FilterInBitVector<T, DataType>(data, source.b, source.e, dest.b,
+                                              cast_result.bit_vector);
       return;
     }
   }
   const auto& vl = base::unchecked_get<VL>(cast_result.value_list);
   if (!vl.empty() && vl.size() <= kFilterInKeyScanThreshold) {
-    dest.e = FilterInLinearScan<T>(data, source.b, source.e, dest.b, vl);
+    dest.e =
+        FilterInLinearScan<T, DataType>(data, source.b, source.e, dest.b, vl);
     return;
   }
   const auto& hm = base::unchecked_get<HM>(cast_result.hash_map);
-  dest.e = FilterInHashMap<T>(data, source.b, source.e, dest.b, hm);
+  dest.e = FilterInHashMap<T, DataType>(data, source.b, source.e, dest.b, hm);
 }
 
 // Scan path for FilterIn when an index is present but the IN list is too
@@ -1449,9 +1597,9 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterInRangeScan(
   using HM =
       StorageType::VariantTypeAtIndex<T,
                                       CastFilterValueListResult::ValueHashMap>;
-  const auto* data =
+  auto* data =
       state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
-  // |data| is unused for Id columns (the storage index IS the value).
+  // |data| is null/unused for Id columns (the storage index IS the value).
   base::ignore_result(data);
   const NullBitvector* nbv =
       state.MaybeReadFromRegister(bytecode.arg<B::null_bv_register>());
@@ -1470,7 +1618,7 @@ inline PERFETTO_ALWAYS_INLINE void IndexedFilterInRangeScan(
         *write++ = i;
       }
     } else {
-      if (hm.Find(data[si]) != nullptr) {
+      if (hm.Find((*data)[si]) != nullptr) {
         *write++ = i;
       }
     }
@@ -1507,11 +1655,13 @@ inline PERFETTO_ALWAYS_INLINE void FilterIn(InterpreterState& state,
     return;
   }
   // Non-indexed path: scan source span with in-place compaction of dest.
-  const auto* data =
+  using DataType = std::conditional_t<std::is_same_v<T, Id>, uint32_t,
+                                      typename T::cpp_type>;
+  auto* data =
       state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
   const Span<uint32_t>& source =
       state.ReadFromRegister(bytecode.arg<B::source_register>());
-  NonIndexedFilterInScan<T>(cast_result, data, source, dest);
+  NonIndexedFilterInScan<T, DataType>(cast_result, data, source, dest);
 }
 
 // ============================================================================
@@ -1532,19 +1682,19 @@ inline PERFETTO_ALWAYS_INLINE void Uint32SetIdSortedEq(
   using ValueType =
       StorageType::VariantTypeAtIndex<Uint32, CastFilterValueResult::Value>;
   auto val = base::unchecked_get<ValueType>(cast_result.value);
-  const auto* storage = state.ReadStorageFromRegister<Uint32>(
+  auto* vec = state.ReadStorageFromRegister<Uint32>(
       bytecode.arg<B::storage_register>());
-  const auto* start =
-      std::clamp(storage + val, storage + update.b, storage + update.e);
-
-  update.b = static_cast<uint32_t>(start - storage);
-  const auto* it = start;
-  for (; it != storage + update.e; ++it) {
-    if (*it != val) {
+  // SetIdSorted: a sorted column where the id at row i appears as a run
+  // starting at storage[id]. Find the run for `val`.
+  uint32_t start = std::clamp<uint32_t>(val, update.b, update.e);
+  update.b = start;
+  uint32_t it = start;
+  for (; it != update.e; ++it) {
+    if ((*vec)[it] != val) {
       break;
     }
   }
-  update.e = static_cast<uint32_t>(it - storage);
+  update.e = it;
 }
 
 inline PERFETTO_ALWAYS_INLINE void SpecializedStorageSmallValueEq(
@@ -1591,8 +1741,18 @@ inline PERFETTO_ALWAYS_INLINE void CopyToRowLayout(
   uint8_t* dest = dest_buffer.data() + bytecode.arg<B::row_layout_offset>();
   uint32_t stride = bytecode.arg<B::row_layout_stride>();
 
-  const auto* data =
-      state.ReadStorageFromRegister<T>(bytecode.arg<B::storage_register>());
+  // Resolves to nullptr for Id columns (no backing storage) and to the
+  // typed PagedVector pointer otherwise. `auto` return avoids instantiating
+  // PagedVector<void> for Id.
+  auto* vec = [&]() {
+    if constexpr (std::is_same_v<T, Id>) {
+      return static_cast<void*>(nullptr);
+    } else {
+      return state.template ReadStorageFromRegister<T>(
+          bytecode.template arg<B::storage_register>());
+    }
+  }();
+  (void)vec;
 
   // GCC complains that these variables are not used in the NonNull branches.
   [[maybe_unused]] const StringIdToRankMap* rank_map_ptr =
@@ -1639,13 +1799,14 @@ inline PERFETTO_ALWAYS_INLINE void CopyToRowLayout(
       }
     } else if constexpr (std::is_same_v<T, String>) {
       if (is_non_null) {
+        StringPool::Id sid = (*vec)[storage_index];
         uint32_t res;
         if (rank_map_ptr) {
-          auto* rank = (*rank_map_ptr)->Find(data[storage_index]);
+          auto* rank = (*rank_map_ptr)->Find(sid);
           PERFETTO_DCHECK(rank);
           res = GetComparableRowLayoutRepr(*rank);
         } else {
-          res = GetComparableRowLayoutRepr(data[storage_index].raw_id());
+          res = GetComparableRowLayoutRepr(sid.raw_id());
         }
         res = invert ? ~res : res;
         memcpy(dest + offset, &res, sizeof(uint32_t));
@@ -1654,11 +1815,11 @@ inline PERFETTO_ALWAYS_INLINE void CopyToRowLayout(
       }
     } else {
       if (is_non_null) {
-        auto res = GetComparableRowLayoutRepr(data[storage_index]);
+        auto res = GetComparableRowLayoutRepr((*vec)[storage_index]);
         res = invert ? ~res : res;
         memcpy(dest + offset, &res, sizeof(res));
       } else {
-        memset(dest + offset, 0, sizeof(decltype(*data)));
+        memset(dest + offset, 0, sizeof(typename T::cpp_type));
       }
     }
     dest += stride;
@@ -1676,16 +1837,21 @@ inline PERFETTO_ALWAYS_INLINE void FindMinMaxIndex(
     return;
   }
 
-  const auto* data = state.ReadStorageFromRegister<T>(
-      bytecode.template arg<B::storage_register>());
+  auto* vec = [&]() {
+    if constexpr (std::is_same_v<T, Id>) {
+      return static_cast<void*>(nullptr);
+    } else {
+      return state.template ReadStorageFromRegister<T>(
+          bytecode.template arg<B::storage_register>());
+    }
+  }();
   auto get_value = [&](uint32_t idx) {
     if constexpr (std::is_same_v<T, Id>) {
-      base::ignore_result(data);
       return idx;
     } else if constexpr (std::is_same_v<T, String>) {
-      return state.string_pool->Get(data[idx]);
+      return state.string_pool->Get((*vec)[idx]);
     } else {
-      return data[idx];
+      return (*vec)[idx];
     }
   };
   uint32_t best_idx = *indices.b;

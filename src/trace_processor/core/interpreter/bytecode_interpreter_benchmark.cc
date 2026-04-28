@@ -34,7 +34,7 @@
 #include "src/trace_processor/core/interpreter/bytecode_interpreter_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/core/interpreter/bytecode_interpreter_test_utils.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
-#include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/paged_vector.h"
 #include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/span.h"
 
@@ -45,7 +45,7 @@ void BM_BytecodeInterpreter_LinearFilterEqUint32(benchmark::State& state) {
   constexpr uint32_t kTableSize = 1024 * 1024;
 
   // Setup column
-  FlexVector<uint32_t> col_data_vec;
+  PagedVector<uint32_t> col_data_vec;
   for (uint32_t i = 0; i < kTableSize; ++i) {
     col_data_vec.push_back(i % 256);
   }
@@ -72,7 +72,9 @@ void BM_BytecodeInterpreter_LinearFilterEqUint32(benchmark::State& state) {
   interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
 
   // Set up storage pointer in register
-  StoragePtr storage_ptr{col.storage.unchecked_data<Uint32>(), Uint32{}};
+  StoragePtr storage_ptr{col.storage.unchecked_data<Uint32>(),
+                         col.storage.unchecked_paged_vector<Uint32>(),
+                         Uint32{}};
   interpreter.SetRegisterValue(WriteHandle<StoragePtr>(4), storage_ptr);
 
   Fetcher fetcher;
@@ -90,7 +92,7 @@ void BM_BytecodeInterpreter_LinearFilterEqString(benchmark::State& state) {
 
   // Setup column
   StringPool spool;
-  FlexVector<StringPool::Id> col_data_vec;
+  PagedVector<StringPool::Id> col_data_vec;
   std::vector<std::string> string_values;
   for (uint32_t i = 0; i < 256; ++i) {
     string_values.push_back("string_" + std::to_string(i));
@@ -121,7 +123,9 @@ void BM_BytecodeInterpreter_LinearFilterEqString(benchmark::State& state) {
   interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
 
   // Set up storage pointer in register
-  StoragePtr storage_ptr{col.storage.unchecked_data<String>(), String{}};
+  StoragePtr storage_ptr{col.storage.unchecked_data<String>(),
+                         col.storage.unchecked_paged_vector<String>(),
+                         String{}};
   interpreter.SetRegisterValue(WriteHandle<StoragePtr>(4), storage_ptr);
 
   Fetcher fetcher;
@@ -141,7 +145,7 @@ void BM_BytecodeInterpreter_InUint32(benchmark::State& state) {
   constexpr uint32_t kTableSize = 1024 * 1024;
 
   // Setup column with values 0..1023 repeating.
-  FlexVector<uint32_t> col_data_vec;
+  PagedVector<uint32_t> col_data_vec;
   for (uint32_t i = 0; i < kTableSize; ++i) {
     col_data_vec.push_back(i % 1024);
   }
@@ -167,7 +171,9 @@ void BM_BytecodeInterpreter_InUint32(benchmark::State& state) {
   Interpreter<Fetcher> interpreter;
   interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
 
-  StoragePtr storage_ptr{col.storage.unchecked_data<Uint32>(), Uint32{}};
+  StoragePtr storage_ptr{col.storage.unchecked_data<Uint32>(),
+                         col.storage.unchecked_paged_vector<Uint32>(),
+                         Uint32{}};
   interpreter.SetRegisterValue(WriteHandle<StoragePtr>(4), storage_ptr);
 
   // Build fetcher with list_size values spread across 0..1023.
@@ -210,7 +216,7 @@ void BM_BytecodeInterpreter_InId(benchmark::State& state) {
   Interpreter<Fetcher> interpreter;
   interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
 
-  StoragePtr storage_ptr{nullptr, Id{}};
+  StoragePtr storage_ptr{nullptr, nullptr, Id{}};
   interpreter.SetRegisterValue(WriteHandle<StoragePtr>(4), storage_ptr);
 
   Fetcher fetcher;
@@ -256,18 +262,18 @@ static void FilterInConstantSweepingArgs(benchmark::internal::Benchmark* b) {
 // Helper: builds column data and a sorted permutation vector for the indexed
 // FilterIn benchmarks.
 struct IndexedFilterInSetup {
-  FlexVector<uint32_t> col_data_vec;
+  PagedVector<uint32_t> col_data_vec;
   std::vector<uint32_t> perm;
   dataframe::Column col;
   Slab<uint32_t> perm_slab;
 
   static IndexedFilterInSetup Create(uint32_t n) {
-    FlexVector<uint32_t> col_data;
+    PagedVector<uint32_t> col_data;
     for (uint32_t i = 0; i < n; ++i) {
       col_data.push_back(i % 1024);
     }
-    // Build a second copy for the column (FlexVector is non-copyable).
-    FlexVector<uint32_t> col_data_copy;
+    // Build a second copy for the column (PagedVector is non-copyable).
+    PagedVector<uint32_t> col_data_copy;
     for (uint32_t i = 0; i < n; ++i) {
       col_data_copy.push_back(i % 1024);
     }
@@ -317,7 +323,9 @@ void BM_FilterIn_IndexedBinarySearch(benchmark::State& state) {
   Interpreter<Fetcher> interpreter;
   interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
 
-  StoragePtr storage_ptr{setup.col.storage.unchecked_data<Uint32>(), Uint32{}};
+  StoragePtr storage_ptr{setup.col.storage.unchecked_data<Uint32>(),
+                         setup.col.storage.unchecked_paged_vector<Uint32>(),
+                         Uint32{}};
   interpreter.SetRegisterValue(WriteHandle<StoragePtr>(3), storage_ptr);
 
   Span<uint32_t> perm_span(setup.perm_slab.data(), setup.perm_slab.data() + n);
@@ -366,7 +374,9 @@ void BM_FilterIn_IndexedLinearScan(benchmark::State& state) {
   Interpreter<Fetcher> interpreter;
   interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
 
-  StoragePtr storage_ptr{setup.col.storage.unchecked_data<Uint32>(), Uint32{}};
+  StoragePtr storage_ptr{setup.col.storage.unchecked_data<Uint32>(),
+                         setup.col.storage.unchecked_paged_vector<Uint32>(),
+                         Uint32{}};
   interpreter.SetRegisterValue(WriteHandle<StoragePtr>(3), storage_ptr);
 
   Fetcher fetcher;
@@ -387,7 +397,7 @@ static void BM_BytecodeInterpreter_SortUint32(benchmark::State& state) {
   constexpr uint32_t kTableSize = 1024 * 1024;
 
   // Setup column
-  FlexVector<uint32_t> col_data_vec;
+  PagedVector<uint32_t> col_data_vec;
   std::minstd_rand0 rnd(0);
   for (uint32_t i = 0; i < kTableSize; ++i) {
     col_data_vec.push_back(static_cast<uint32_t>(rnd()));
@@ -417,7 +427,9 @@ static void BM_BytecodeInterpreter_SortUint32(benchmark::State& state) {
   interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 5, &spool);
 
   // Set up storage pointer in register
-  StoragePtr storage_ptr{col.storage.unchecked_data<Uint32>(), Uint32{}};
+  StoragePtr storage_ptr{col.storage.unchecked_data<Uint32>(),
+                         col.storage.unchecked_paged_vector<Uint32>(),
+                         Uint32{}};
   interpreter.SetRegisterValue(WriteHandle<StoragePtr>(4), storage_ptr);
 
   Fetcher fetcher;
@@ -433,7 +445,7 @@ static void BM_BytecodeInterpreter_SortString(benchmark::State& state) {
 
   // Setup column
   StringPool spool;
-  FlexVector<StringPool::Id> col_data_vec;
+  PagedVector<StringPool::Id> col_data_vec;
   std::minstd_rand0 rnd(0);
   for (uint32_t i = 0; i < kTableSize; ++i) {
     uint32_t len = 5 + (rnd() % (32 - 6));
@@ -471,7 +483,9 @@ static void BM_BytecodeInterpreter_SortString(benchmark::State& state) {
   interpreter.Initialize(ParseBytecodeToVec(bytecode_str), 6, &spool);
 
   // Set up storage pointer in register
-  StoragePtr storage_ptr{col.storage.unchecked_data<String>(), String{}};
+  StoragePtr storage_ptr{col.storage.unchecked_data<String>(),
+                         col.storage.unchecked_paged_vector<String>(),
+                         String{}};
   interpreter.SetRegisterValue(WriteHandle<StoragePtr>(5), storage_ptr);
 
   Fetcher fetcher;

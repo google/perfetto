@@ -38,6 +38,7 @@
 #include "src/trace_processor/core/dataframe/specs.h"
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
+#include "src/trace_processor/core/util/page_store.h"
 
 namespace perfetto::trace_processor::util {
 class TraceBlobViewReader;
@@ -103,7 +104,10 @@ class Dataframe {
   };
 
   // Constructs a Dataframe with the specified column names and types.
+  // `page_store` (must be non-null) is the backing store for the columns'
+  // PagedVectors and must outlive the Dataframe.
   Dataframe(StringPool* string_pool,
+            core::PageStore* page_store,
             uint32_t column_count,
             const char* const* column_names,
             const ColumnSpec* column_specs);
@@ -111,12 +115,18 @@ class Dataframe {
   // Creates a dataframe from a typed spec object.
   //
   // The spec specifies the column names and types of the dataframe.
+  // `page_store` defaults to the test singleton so unittests don't need
+  // to plumb one through; production callers (TraceStorage and the
+  // generated table types) pass a real session-level store.
   template <typename S>
-  static Dataframe CreateFromTypedSpec(const S& spec, StringPool* pool) {
+  static Dataframe CreateFromTypedSpec(
+      const S& spec,
+      StringPool* pool,
+      core::PageStore* page_store = core::PageStore::TestingSingleton()) {
     static_assert(S::kColumnCount > 0,
                   "Dataframe must have at least one column type");
-    return Dataframe(pool, S::kColumnCount, spec.column_names.data(),
-                     spec.column_specs.data());
+    return Dataframe(pool, page_store, S::kColumnCount,
+                     spec.column_names.data(), spec.column_specs.data());
   }
 
   // Movable
@@ -368,20 +378,20 @@ class Dataframe {
         callback.OnCell(storage_idx);
         break;
       case StorageType::GetTypeIndex<Uint32>():
-        callback.OnCell(Storage::CastDataPtr<Uint32>(data_ptr)[storage_idx]);
+        callback.OnCell((*Storage::CastDataPtr<Uint32>(data_ptr))[storage_idx]);
         break;
       case StorageType::GetTypeIndex<Int32>():
-        callback.OnCell(Storage::CastDataPtr<Int32>(data_ptr)[storage_idx]);
+        callback.OnCell((*Storage::CastDataPtr<Int32>(data_ptr))[storage_idx]);
         break;
       case StorageType::GetTypeIndex<Int64>():
-        callback.OnCell(Storage::CastDataPtr<Int64>(data_ptr)[storage_idx]);
+        callback.OnCell((*Storage::CastDataPtr<Int64>(data_ptr))[storage_idx]);
         break;
       case StorageType::GetTypeIndex<Double>():
-        callback.OnCell(Storage::CastDataPtr<Double>(data_ptr)[storage_idx]);
+        callback.OnCell((*Storage::CastDataPtr<Double>(data_ptr))[storage_idx]);
         break;
       case StorageType::GetTypeIndex<String>(): {
         // See kStringNullLegacy in InsertUncheckedColumn.
-        auto id = Storage::CastDataPtr<String>(data_ptr)[storage_idx];
+        auto id = (*Storage::CastDataPtr<String>(data_ptr))[storage_idx];
         PERFETTO_DCHECK(!id.is_null());
         callback.OnCell(string_pool_->Get(id));
         break;
@@ -708,7 +718,8 @@ class Dataframe {
 
   static std::vector<std::shared_ptr<Column>> CreateColumnVector(
       const ColumnSpec*,
-      uint32_t);
+      uint32_t,
+      core::PageStore* page_store);
 
   // Private copy constructor for special methods.
   Dataframe(const Dataframe&) = default;

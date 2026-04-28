@@ -95,11 +95,13 @@ class RuntimeDataframeBuilder {
   //         of the columns. If empty, types are inferred from the first
   //         non-null value added to each column. If provided, must match
   //         the size of `names`.
-  RuntimeDataframeBuilder(std::vector<std::string> names,
-                          StringPool* pool,
-                          const Options& options = {})
+  RuntimeDataframeBuilder(
+      std::vector<std::string> names,
+      StringPool* pool,
+      const Options& options = {},
+      core::PageStore* page_store = core::PageStore::TestingSingleton())
       : coulumn_count_(static_cast<uint32_t>(names.size())),
-        builder_(std::move(names), pool, options),
+        builder_(std::move(names), pool, options, page_store),
         pool_(pool) {}
   ~RuntimeDataframeBuilder() = default;
 

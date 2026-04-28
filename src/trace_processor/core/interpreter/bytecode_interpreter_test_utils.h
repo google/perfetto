@@ -45,6 +45,7 @@
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/paged_vector.h"
 #include "src/trace_processor/core/util/span.h"
 
 namespace perfetto::trace_processor::core::interpreter {
@@ -268,7 +269,7 @@ template <typename T, typename U>
 inline dataframe::Column CreateNonNullColumn(std::initializer_list<U> data,
                                              SortState sort_state,
                                              DuplicateState duplicate_state) {
-  core::FlexVector<T> vec;
+  core::PagedVector<T> vec{core::PageStore::TestingSingleton()};
   for (const U& val : data) {
     vec.push_back(val);
   }
@@ -284,7 +285,7 @@ inline dataframe::Column CreateNonNullStringColumn(
     DuplicateState duplicate_state,
     StringPool* pool) {
   PERFETTO_CHECK(pool);
-  core::FlexVector<StringPool::Id> vec;
+  core::PagedVector<StringPool::Id> vec{core::PageStore::TestingSingleton()};
   for (const auto& str_like : data) {
     vec.push_back(pool->InternString(str_like));
   }
@@ -294,9 +295,9 @@ inline dataframe::Column CreateNonNullStringColumn(
 }
 
 template <typename T>
-inline FlexVector<T> CreateFlexVectorForTesting(
+inline PagedVector<T> CreatePagedVectorForTesting(
     std::initializer_list<T> values) {
-  FlexVector<T> vec;
+  PagedVector<T> vec{core::PageStore::TestingSingleton()};
   for (const auto& value : values) {
     vec.push_back(value);
   }
@@ -304,8 +305,9 @@ inline FlexVector<T> CreateFlexVectorForTesting(
 }
 
 template <typename T>
-inline FlexVector<T> CreateFlexVectorForTesting(const std::vector<T>& values) {
-  FlexVector<T> vec;
+inline PagedVector<T> CreatePagedVectorForTesting(
+    const std::vector<T>& values) {
+  PagedVector<T> vec{core::PageStore::TestingSingleton()};
   for (const auto& value : values) {
     vec.push_back(value);
   }
@@ -316,7 +318,7 @@ template <typename T, typename U>
 inline dataframe::Column CreateNonNullColumn(const std::vector<U>& data,
                                              SortState sort_state,
                                              DuplicateState duplicate_state) {
-  core::FlexVector<T> vec;
+  core::PagedVector<T> vec{core::PageStore::TestingSingleton()};
   for (const U& val : data) {
     vec.push_back(val);
   }
@@ -331,7 +333,8 @@ inline dataframe::Column CreateSparseNullableColumn(
     SortState sort_state,
     DuplicateState duplicate_state) {
   auto num_rows = static_cast<uint32_t>(data_with_nulls.size());
-  auto data_vec = FlexVector<T>::CreateWithCapacity(num_rows);
+  auto data_vec = PagedVector<T>::CreateWithCapacity(
+      num_rows, core::PageStore::TestingSingleton());
   auto bv = BitVector::CreateWithSize(num_rows);
   for (uint32_t i = 0; i < num_rows; ++i) {
     if (data_with_nulls[i].has_value()) {
@@ -351,7 +354,8 @@ inline dataframe::Column CreateSparseNullableStringColumn(
     SortState sort_state,
     DuplicateState duplicate_state) {
   auto num_rows = static_cast<uint32_t>(data_with_nulls.size());
-  auto data_vec = FlexVector<StringPool::Id>::CreateWithCapacity(num_rows);
+  auto data_vec = PagedVector<StringPool::Id>::CreateWithCapacity(
+      num_rows, core::PageStore::TestingSingleton());
   auto bv = BitVector::CreateWithSize(num_rows);
   for (uint32_t i = 0; i < num_rows; ++i) {
     if (data_with_nulls[i].has_value()) {
@@ -371,7 +375,8 @@ inline dataframe::Column CreateDenseNullableColumn(
     SortState sort_state,
     DuplicateState duplicate_state) {
   auto num_rows = static_cast<uint32_t>(data_with_nulls.size());
-  auto data_vec = FlexVector<T>::CreateWithSize(num_rows);
+  auto data_vec = PagedVector<T>::CreateWithSize(
+      num_rows, core::PageStore::TestingSingleton());
   auto bv = BitVector::CreateWithSize(num_rows);
 
   for (uint32_t i = 0; i < num_rows; ++i) {
@@ -393,7 +398,8 @@ inline dataframe::Column CreateDenseNullableStringColumn(
     SortState sort_state,
     DuplicateState duplicate_state) {
   auto num_rows = static_cast<uint32_t>(data_with_nulls.size());
-  auto data_vec = FlexVector<StringPool::Id>::CreateWithSize(num_rows);
+  auto data_vec = PagedVector<StringPool::Id>::CreateWithSize(
+      num_rows, core::PageStore::TestingSingleton());
   auto bv = BitVector::CreateWithSize(num_rows);
 
   for (uint32_t i = 0; i < num_rows; ++i) {

@@ -18,8 +18,13 @@ source_set("util") {
   sources = [
     "bit_vector.h",
     "flex_vector.h",
+<<<<<<< HEAD
     "ops.cc",
     "ops.h",
+=======
+    "page_store.h",
+    "paged_vector.h",
+>>>>>>> eec9b9b511 (f)
     "range.h",
     "slab.h",
     "sort.h",
@@ -38,7 +43,11 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "bit_vector_unittest.cc",
     "flex_vector_unittest.cc",
+<<<<<<< HEAD
     "ops_unittest.cc",
+=======
+    "paged_vector_unittest.cc",
+>>>>>>> eec9b9b511 (f)
     "slab_unittest.cc",
     "sort_unittest.cc",
     "span_unittest.cc",

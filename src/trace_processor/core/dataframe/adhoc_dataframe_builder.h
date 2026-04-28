@@ -39,6 +39,7 @@
 #include "src/trace_processor/core/dataframe/types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/page_store.h"
 
 namespace perfetto::trace_processor::core::dataframe {
 
@@ -133,11 +134,16 @@ class AdhocDataframeBuilder {
   //         string values encountered during row addition. Must remain
   //         valid for the lifetime of the builder and the resulting
   //         Dataframe.
+  //   page_store: PageStore for the columns built by this builder. Must be
+  //               non-null and outlive the resulting Dataframe (every
+  //               column inside it registers as a participant).
   //  options: Options to configure the builder. See `Options` struct for
   //           details.
-  AdhocDataframeBuilder(std::vector<std::string> names,
-                        StringPool* pool,
-                        const Options& options = Options{});
+  AdhocDataframeBuilder(
+      std::vector<std::string> names,
+      StringPool* pool,
+      const Options& options = Options{},
+      core::PageStore* page_store = core::PageStore::TestingSingleton());
   ~AdhocDataframeBuilder() = default;
 
   // Movable but not copyable
@@ -300,12 +306,12 @@ class AdhocDataframeBuilder {
   PERFETTO_ALWAYS_INLINE bool PushNonNullInternal(uint32_t col,
                                                   T value,
                                                   uint32_t count = 1) {
-    using FlexVec = core::FlexVector<T>;
+    using PagedVec = core::PagedVector<T>;
     using TypeTag = typename core::TypeTagFor<T>::type;
     auto& state = column_states_[col];
     if (!state.storage) {
       // No storage yet - create appropriate storage for this type.
-      state.storage = Storage{FlexVec{}};
+      state.storage = Storage{PagedVec{page_store_}};
       // For DenseNull, if there were prior nulls pushed before we knew the
       // type, we need to add placeholder values for them now.
       if (state.null_overlay &&
@@ -322,7 +328,7 @@ class AdhocDataframeBuilder {
       if constexpr (std::is_same_v<T, double>) {
         if (state.storage->type().Is<Int64>()) {
           auto& vec = state.storage->unchecked_get<Int64>();
-          auto res = Storage::Double::CreateWithSize(vec.size());
+          auto res = Storage::Double::CreateWithSize(vec.size(), page_store_);
           for (uint32_t i = 0; i < vec.size(); ++i) {
             int64_t v = vec[i];
             if (!IsPerfectlyRepresentableAsDouble(v)) {
@@ -394,8 +400,9 @@ class AdhocDataframeBuilder {
     return false;
   }
 
-  static Storage CreateIntegerStorage(core::FlexVector<int64_t> data,
-                                      const IntegerColumnSummary& summary);
+  static Storage CreateIntegerStorage(core::PagedVector<int64_t> data,
+                                      const IntegerColumnSummary& summary,
+                                      core::PageStore* page_store);
 
   static NullStorage CreateNullStorageFromBitvector(
       std::optional<core::BitVector> bit_vector,
@@ -411,9 +418,10 @@ class AdhocDataframeBuilder {
   }
 
   template <typename T>
-  PERFETTO_NO_INLINE static core::FlexVector<T> DowncastFromInt64(
-      const core::FlexVector<int64_t>& data) {
-    auto res = core::FlexVector<T>::CreateWithSize(data.size());
+  PERFETTO_NO_INLINE static core::PagedVector<T> DowncastFromInt64(
+      const core::PagedVector<int64_t>& data,
+      core::PageStore* page_store) {
+    auto res = core::PagedVector<T>::CreateWithSize(data.size(), page_store);
     for (uint32_t i = 0; i < data.size(); ++i) {
       PERFETTO_DCHECK(IsRangeFullyRepresentableByType<T>(data[i], data[i]));
       res[i] = static_cast<T>(data[i]);
@@ -429,7 +437,7 @@ class AdhocDataframeBuilder {
       const IntegerColumnSummary& summary);
 
   static SpecializedStorage::SmallValueEq BuildSmallValueEq(
-      const core::FlexVector<uint32_t>& data);
+      const core::PagedVector<uint32_t>& data);
 
   static void EnsureNullOverlayExists(ColumnState& state);
 
@@ -470,6 +478,7 @@ class AdhocDataframeBuilder {
   }
 
   StringPool* string_pool_;
+  core::PageStore* page_store_;
   std::vector<std::string> column_names_;
   std::vector<ColumnState> column_states_;
   bool did_declare_types_ = false;

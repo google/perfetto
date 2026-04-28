@@ -130,20 +130,20 @@ class Cursor {
         cell_callback_impl.OnCell(idx);
         break;
       case StorageType::GetTypeIndex<Uint32>():
-        cell_callback_impl.OnCell(Storage::CastDataPtr<Uint32>(p)[idx]);
+        cell_callback_impl.OnCell((*Storage::CastDataPtr<Uint32>(p))[idx]);
         break;
       case StorageType::GetTypeIndex<Int32>():
-        cell_callback_impl.OnCell(Storage::CastDataPtr<Int32>(p)[idx]);
+        cell_callback_impl.OnCell((*Storage::CastDataPtr<Int32>(p))[idx]);
         break;
       case StorageType::GetTypeIndex<Int64>():
-        cell_callback_impl.OnCell(Storage::CastDataPtr<Int64>(p)[idx]);
+        cell_callback_impl.OnCell((*Storage::CastDataPtr<Int64>(p))[idx]);
         break;
       case StorageType::GetTypeIndex<Double>():
-        cell_callback_impl.OnCell(Storage::CastDataPtr<Double>(p)[idx]);
+        cell_callback_impl.OnCell((*Storage::CastDataPtr<Double>(p))[idx]);
         break;
       case StorageType::GetTypeIndex<String>():
         cell_callback_impl.OnCell(
-            pool_->Get(Storage::CastDataPtr<String>(p)[idx]));
+            pool_->Get((*Storage::CastDataPtr<String>(p))[idx]));
         break;
       default:
         PERFETTO_FATAL("Invalid storage spec");

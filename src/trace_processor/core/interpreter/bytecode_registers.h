@@ -97,9 +97,17 @@ struct Empty {};
 using StringIdToRankMap =
     std::unique_ptr<base::FlatHashMap<StringPool::Id, uint32_t>>;
 
-// Pointer to storage data along with its type.
+// Pointer to a column's storage along with its type.
+//
+// `paged_vector` is a type-erased `PagedVector<T::cpp_type>*` covering the
+// column. All storage access flows through it — instructions iterate the
+// vector via `WalkPages` for scans and `operator[]` for random access; both
+// transparently restore evicted pages on demand.
+//
+// For Id columns there's no backing storage (the row index IS the value);
+// `paged_vector` is null and `type` is `Id{}`.
 struct StoragePtr {
-  const void* ptr;
+  void* paged_vector;
   StorageType type;
 };
 

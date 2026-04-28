@@ -50,6 +50,8 @@
 #include "src/trace_processor/core/interpreter/interpreter_types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/page_store.h"
+#include "src/trace_processor/core/util/paged_vector.h"
 #include "src/trace_processor/core/util/range.h"
 #include "src/trace_processor/core/util/slab.h"
 #include "src/trace_processor/core/util/span.h"
@@ -99,6 +101,19 @@ CastFilterValueListResult::Ptr CreateNoneMatch() {
 
 class BytecodeInterpreterTest : public testing::Test {
  protected:
+  // Force every newly constructed PagedVector in this fixture's lifetime
+  // into multi-page mode (32-byte pages). This exercises every bytecode
+  // handler against the multi-page code path — auto-restore via
+  // PagedVector::operator[], page-aware loops, etc. — without needing
+  // multi-MB test data.
+  void SetUp() override {
+    core::PagedVector<uint8_t>::GlobalPageBytesOverrideForTesting() = 32;
+  }
+  void TearDown() override {
+    core::PagedVector<uint8_t>::GlobalPageBytesOverrideForTesting() = 0;
+  }
+
+
   template <typename... Ts>
   void SetRegistersAndExecute(const std::string& bytecode_str, Ts... value) {
     SetupInterpreterWithBytecode(ParseBytecodeToVec(bytecode_str));
@@ -138,7 +153,13 @@ class BytecodeInterpreterTest : public testing::Test {
   // Returns StoragePtr for a column, to pass to SetRegistersAndExecute.
   template <typename T>
   StoragePtr GetStoragePtr(uint32_t col_idx) {
-    return StoragePtr{column_ptrs_[col_idx]->storage.unchecked_data<T>(), T{}};
+    if constexpr (std::is_same_v<T, Id>) {
+      // Id columns have no backing storage; row index IS the value.
+      return StoragePtr{nullptr, T{}};
+    } else {
+      auto* pv = column_ptrs_[col_idx]->storage.unchecked_paged_vector<T>();
+      return StoragePtr{static_cast<void*>(pv), T{}};
+    }
   }
 
   // Returns null bitvector pointer for a column.
@@ -154,8 +175,21 @@ class BytecodeInterpreterTest : public testing::Test {
      ...);
   }
 
+  // Adopts a `PageStore` so it outlives the columns. PagedVectors registered
+  // with this store must be destroyed BEFORE the store itself; declaration
+  // order ensures the fixture's columns are destroyed first.
+  core::PageStore* AddPageStore(std::unique_ptr<core::PageStorage> backend) {
+    page_stores_.emplace_back(
+        std::make_unique<core::PageStore>(std::move(backend)));
+    return page_stores_.back().get();
+  }
+
   Fetcher fetcher_;
   StringPool spool_;
+  // page_stores_ MUST be declared before columns_vec_ so the columns (and
+  // their PagedVectors) are destroyed first; the stores then go away with
+  // an empty participant list.
+  std::vector<std::unique_ptr<core::PageStore>> page_stores_;
   std::vector<std::unique_ptr<dataframe::Column>> columns_vec_;
   std::vector<dataframe::Column*> column_ptrs_;
   std::vector<dataframe::Index> indexes_;
@@ -659,7 +693,7 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32Eq) {
       "update_register=Register(1), write_result_to=BoundModifier(0)]";
 
   auto values =
-      CreateFlexVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
+      CreatePagedVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
   AddColumn(dataframe::Column{std::move(values),
                               dataframe::NullStorage::NonNull{}, Sorted{},
                               HasDuplicates{}});
@@ -692,7 +726,7 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32LowerBound) {
       "update_register=Register(1), write_result_to=BoundModifier(2)]";
 
   auto values =
-      CreateFlexVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
+      CreatePagedVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
   AddColumn(dataframe::Column{
       dataframe::Storage{std::move(values)},
       dataframe::NullStorage{dataframe::NullStorage::NonNull{}}, Sorted{},
@@ -716,7 +750,7 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32UpperBound) {
       "update_register=Register(1), write_result_to=BoundModifier(1)]";
 
   auto values =
-      CreateFlexVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
+      CreatePagedVectorForTesting<uint32_t>({0u, 4u, 5u, 5u, 5u, 6u, 10u, 10u});
   AddColumn(dataframe::Column{std::move(values),
                               dataframe::NullStorage::NonNull{}, Sorted{},
                               HasDuplicates{}});
@@ -767,7 +801,7 @@ TEST_F(BytecodeInterpreterTest, FilterUint32Eq) {
       "source_register=Register(1), update_register=Register(2)]";
 
   auto values =
-      CreateFlexVectorForTesting<uint32_t>({4u, 49u, 392u, 4u, 49u, 4u, 391u});
+      CreatePagedVectorForTesting<uint32_t>({4u, 49u, 392u, 4u, 49u, 4u, 391u});
   AddColumn(dataframe::Column{std::move(values),
                               dataframe::NullStorage::NonNull{}, Unsorted{},
                               HasDuplicates{}});
@@ -820,7 +854,7 @@ TEST_F(BytecodeInterpreterTest, SortedFilterString) {
   auto date_id = spool_.InternString("date");
 
   // Sorted string data: ["apple", "banana", "banana", "cherry", "date"]
-  auto values = CreateFlexVectorForTesting<StringPool::Id>(
+  auto values = CreatePagedVectorForTesting<StringPool::Id>(
       {apple_id, banana_id, banana_id, cherry_id, date_id});
   AddColumn(dataframe::Column{std::move(values),
                               dataframe::NullStorage::NonNull{}, Sorted{},
@@ -877,7 +911,7 @@ TEST_F(BytecodeInterpreterTest, StringFilter) {
 
   // Data: ["cherry", "apple", "", "banana", "apple", "date", "durian"]
   // Index:    0        1      2      3        4       5        6
-  auto values = CreateFlexVectorForTesting<StringPool::Id>(
+  auto values = CreatePagedVectorForTesting<StringPool::Id>(
       {cherry_id, apple_id, empty_id, banana_id, apple_id, date_id, durian_id});
   AddColumn(dataframe::Column{std::move(values),
                               dataframe::NullStorage::NonNull{}, Unsorted{},
@@ -936,7 +970,7 @@ TEST_F(BytecodeInterpreterTest, StringFilterNeStringNotInPool) {
   auto apple_id = spool_.InternString("apple");
   auto banana_id = spool_.InternString("banana");
 
-  auto values = CreateFlexVectorForTesting<StringPool::Id>(
+  auto values = CreatePagedVectorForTesting<StringPool::Id>(
       {apple_id, banana_id, apple_id, banana_id});
   AddColumn(dataframe::Column{std::move(values),
                               dataframe::NullStorage::NonNull{}, Unsorted{},
@@ -968,7 +1002,7 @@ TEST_F(BytecodeInterpreterTest, StringFilterNeInPool) {
   auto banana_id = spool_.InternString("banana");
   auto cherry_id = spool_.InternString("cherry");
 
-  auto values = CreateFlexVectorForTesting<StringPool::Id>(
+  auto values = CreatePagedVectorForTesting<StringPool::Id>(
       {apple_id, banana_id, apple_id, cherry_id});
   AddColumn(dataframe::Column{std::move(values),
                               dataframe::NullStorage::NonNull{}, Unsorted{},
@@ -1335,7 +1369,7 @@ TEST_F(BytecodeInterpreterTest, StrideCopyDenseNullIndices) {
 // after translation).
 TEST_F(BytecodeInterpreterTest, NonStringFilterInPlace) {
   // Column data: {5, 10, 5, 15, 10, 20}
-  auto values = CreateFlexVectorForTesting<uint32_t>({5, 10, 5, 15, 10, 20});
+  auto values = CreatePagedVectorForTesting<uint32_t>({5, 10, 5, 15, 10, 20});
   AddColumn(dataframe::Column{
       std::move(values),
       dataframe::NullStorage{dataframe::NullStorage::NonNull{}}, Unsorted{},
@@ -1374,7 +1408,7 @@ TEST_F(BytecodeInterpreterTest, Uint32SetIdSortedEq) {
   // Data conforming to SetIdSorted: `data[v] == v` for the first occurrence of
   // v. Index:  0  1  2  3  4  5  6  7  8  9  10 Value:  0  0  0  3  3  5  5  7
   // 7  7  10
-  auto values = CreateFlexVectorForTesting<uint32_t>(
+  auto values = CreatePagedVectorForTesting<uint32_t>(
       {0u, 0u, 0u, 3u, 3u, 5u, 5u, 7u, 7u, 7u, 10u});
   AddColumn(dataframe::Column{
       std::move(values),
@@ -1910,7 +1944,7 @@ TEST_F(BytecodeInterpreterTest,
   auto apple_id = spool_.InternString("apple");
 
   // Column data: [cherry, banana, apple, banana, cherry, apple]
-  auto col_data = CreateFlexVectorForTesting<StringPool::Id>(
+  auto col_data = CreatePagedVectorForTesting<StringPool::Id>(
       {cherry_id, banana_id, apple_id, banana_id, cherry_id, apple_id});
   AddColumn(dataframe::Column{dataframe::Storage{std::move(col_data)},
                               dataframe::NullStorage::NonNull{}, Unsorted{},
@@ -2252,6 +2286,252 @@ TEST_F(BytecodeInterpreterTest, LinearFilterEq_HandleInvalidCast_AllMatch) {
   EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(0u, 1u, 2u));
 }
 
+// E2E demo: build a multi-page column, attach a TempFilePageStorage, evict
+// some pages to disk, then run LinearFilterEq through the bytecode VM.
+// The page-aware loop should walk pages, transparently restoring evicted
+// ones from disk, and produce the same result as on a single-page column.
+TEST_F(BytecodeInterpreterTest, LinearFilterEq_Uint32_PagedColumnWithEviction) {
+  // Disk-backed store, owned by the fixture so it outlives the column.
+  core::PageStore* store =
+      AddPageStore(std::make_unique<core::TempFilePageStorage>());
+
+  // 50-element pages: auto-seal at i=49, 99, 149, 199 -> 4 frozen pages,
+  // empty tail. Pages span [0..49], [50..99], [100..149], [150..199].
+  PagedVector<uint32_t> values{store};
+  values.SetPageBytesForTesting(50 * sizeof(uint32_t));
+  for (uint32_t i = 0; i < 200; ++i) {
+    values.push_back(i % 17);  // values 0..16 cycle, so 13 occurs 12 times.
+  }
+  ASSERT_EQ(values.num_pages(), 5u);  // 4 frozen + empty tail
+
+  values.EvictPage(0);
+  values.EvictPage(2);
+  ASSERT_FALSE(values.IsPageResident(0));
+  ASSERT_FALSE(values.IsPageResident(2));
+
+  AddColumn(dataframe::Column{std::move(values),
+                              dataframe::NullStorage::NonNull{}, Unsorted{},
+                              HasDuplicates{}});
+
+  std::string bytecode_str = R"(
+    LinearFilterEq<Uint32>: [storage_register=Register(3), filter_value_reg=Register(0), source_register=Register(1), update_register=Register(2)]
+  )";
+
+  // Filter for value 13 across the whole logical range.
+  Range source_range{0u, 200u};
+  std::vector<uint32_t> update_data(200);
+
+  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid(13u),
+                         source_range, GetSpan(update_data),
+                         GetStoragePtr<Uint32>(0));
+
+  // Compute expected indices independently.
+  std::vector<uint32_t> expected;
+  for (uint32_t i = 0; i < 200; ++i) {
+    if ((i % 17) == 13) {
+      expected.push_back(i);
+    }
+  }
+  ASSERT_FALSE(expected.empty()) << "test data sanity";
+
+  auto result = GetRegister<Span<uint32_t>>(2);
+  std::vector<uint32_t> got(result.b, result.e);
+  EXPECT_EQ(got, expected);
+
+  // Cold pages were restored on demand by the WalkPages loop.
+  auto& vec_ref = column_ptrs_[0]->storage.unchecked_get<Uint32>();
+  EXPECT_TRUE(vec_ref.IsPageResident(0));
+  EXPECT_TRUE(vec_ref.IsPageResident(2));
+}
+
+// Full end-to-end demonstration: storage no longer RAM-bound.
+//
+// Builds a column past an auto-seal threshold so it splits into multiple
+// pages naturally during construction. Each frozen page is evicted to a
+// disk-backed PageStore as soon as it's sealed, simulating a realistic
+// build pipeline that streams pages out of RAM under memory pressure.
+//
+// Then runs LinearFilterEq through the bytecode VM. The page-aware loop
+// must iterate frozen pages, restore each from disk on demand, produce
+// the correct result, and (crucially) never need the whole column resident
+// at once.
+TEST_F(BytecodeInterpreterTest,
+       LinearFilterEq_Uint32_AutoSealEvictAtConstructionE2E) {
+  constexpr uint64_t kPageSize = 25;
+  constexpr uint32_t kRowCount = 250;
+
+  // Disk-backed store owned by the fixture so it outlives the column when
+  // the column is moved into columns_vec_.
+  core::PageStore* store =
+      AddPageStore(std::make_unique<core::TempFilePageStorage>());
+
+  PagedVector<uint32_t> values{store};
+  values.SetPageBytesForTesting(kPageSize * sizeof(uint32_t));
+
+  for (uint32_t i = 0; i < kRowCount; ++i) {
+    values.push_back(i % 23);
+    // Aggressive eviction: evict every frozen page as soon as it's been
+    // sealed by auto-seal. After this loop, no frozen page is resident.
+    if (values.num_pages() >= 2) {
+      uint32_t last_frozen = values.num_pages() - 2;
+      if (values.IsPageResident(last_frozen)) {
+        values.EvictPage(last_frozen);
+      }
+    }
+  }
+  // After the loop: 250 / 25 = 10 frozen pages, all evicted, plus an empty
+  // tail (the last push_back triggered a seal). Verify.
+  ASSERT_EQ(values.num_pages(), 11u);
+  for (uint32_t p = 0; p < 10; ++p) {
+    EXPECT_FALSE(values.IsPageResident(p))
+        << "page " << p << " should be evicted";
+  }
+
+  AddColumn(dataframe::Column{std::move(values),
+                              dataframe::NullStorage::NonNull{}, Unsorted{},
+                              HasDuplicates{}});
+
+  std::string bytecode_str = R"(
+    LinearFilterEq<Uint32>: [storage_register=Register(3), filter_value_reg=Register(0), source_register=Register(1), update_register=Register(2)]
+  )";
+
+  Range source_range{0u, kRowCount};
+  std::vector<uint32_t> update_data(kRowCount);
+
+  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid(7u),
+                         source_range, GetSpan(update_data),
+                         GetStoragePtr<Uint32>(0));
+
+  std::vector<uint32_t> expected;
+  for (uint32_t i = 0; i < kRowCount; ++i) {
+    if ((i % 23) == 7) {
+      expected.push_back(i);
+    }
+  }
+  ASSERT_FALSE(expected.empty());
+
+  auto result = GetRegister<Span<uint32_t>>(2);
+  std::vector<uint32_t> got(result.b, result.e);
+  EXPECT_EQ(got, expected);
+
+  // The page-aware filter restored every page that was needed. It did not
+  // — and could not — keep them all evicted. But the working-set property
+  // holds: the column was never fully resident in memory at the point of
+  // construction (we evicted aggressively during build). The filter
+  // produced the correct answer despite that.
+}
+
+// Same as above but the filter range covers only the middle pages — the
+// outermost evicted page is NOT touched, demonstrating that pages outside
+// the working set stay on disk.
+TEST_F(BytecodeInterpreterTest,
+       LinearFilterEq_Uint32_PagedColumnPartialRangeKeepsColdPagesEvicted) {
+  core::PageStore* store =
+      AddPageStore(std::make_unique<core::InMemoryPageStorage>());
+  PagedVector<uint32_t> values{store};
+  values.SetPageBytesForTesting(50 * sizeof(uint32_t));
+  for (uint32_t i = 0; i < 200; ++i) {
+    values.push_back(i % 17);
+  }
+  // Auto-seal at i=49, 99, 149, 199 -> 4 frozen + empty tail.
+  ASSERT_EQ(values.num_pages(), 5u);
+
+  // Evict frozen pages 0 and 2; keep page 1 resident. Empty tail is always resident.
+  values.EvictPage(0);
+  values.EvictPage(2);
+
+  AddColumn(dataframe::Column{std::move(values),
+                              dataframe::NullStorage::NonNull{}, Unsorted{},
+                              HasDuplicates{}});
+
+  std::string bytecode_str = R"(
+    LinearFilterEq<Uint32>: [storage_register=Register(3), filter_value_reg=Register(0), source_register=Register(1), update_register=Register(2)]
+  )";
+
+  // Range covers only page 1 ([50..99]).
+  Range source_range{50u, 100u};
+  std::vector<uint32_t> update_data(50);
+
+  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid(13u),
+                         source_range, GetSpan(update_data),
+                         GetStoragePtr<Uint32>(0));
+
+  std::vector<uint32_t> expected;
+  for (uint32_t i = 50; i < 100; ++i) {
+    if ((i % 17) == 13) {
+      expected.push_back(i);
+    }
+  }
+
+  auto result = GetRegister<Span<uint32_t>>(2);
+  std::vector<uint32_t> got(result.b, result.e);
+  EXPECT_EQ(got, expected);
+
+  // Page 0 was outside the filter range — should still be evicted.
+  auto& vec_ref = column_ptrs_[0]->storage.unchecked_get<Uint32>();
+  EXPECT_FALSE(vec_ref.IsPageResident(0));
+  // Page 2 was outside the filter range too — still evicted.
+  EXPECT_FALSE(vec_ref.IsPageResident(2));
+}
+
+// E2E: SortedFilterEq on a sorted, multi-page, partially-evicted column.
+// The page-aware lower/upper bound should consult the per-page (first, last)
+// endpoints to skip pages that can't contain the search target — only the
+// page that DOES contain it gets restored from disk.
+TEST_F(BytecodeInterpreterTest, SortedFilterEq_Uint32_PagedSkipsColdPages) {
+  // Sorted column with 4 frozen pages:
+  // page 0: [0..49] (values 0..49)
+  // page 1: [50..99] (values 100..149)
+  // page 2: [100..149] (values 200..249)
+  // page 3 (tail): [150..199] (values 300..349)
+  // Each page's value range is non-overlapping; page-skipping is unambiguous.
+  core::PageStore* store =
+      AddPageStore(std::make_unique<core::InMemoryPageStorage>());
+  PagedVector<uint32_t> values{store};
+  values.SetPageBytesForTesting(50 * sizeof(uint32_t));
+  for (uint32_t i = 0; i < 200; ++i) {
+    uint32_t v = (i / 50) * 100 + (i % 50);
+    values.push_back(v);
+  }
+  // Auto-seal at i=49, 99, 149, 199 -> 4 frozen + empty tail.
+  ASSERT_EQ(values.num_pages(), 5u);
+
+  // Evict every frozen page; page-aware lower/upper bound must use the
+  // endpoint metadata (first/last) to identify the right page without
+  // restoring any other.
+  values.EvictPage(0);
+  values.EvictPage(1);
+  values.EvictPage(2);
+  values.EvictPage(3);
+  ASSERT_FALSE(values.IsPageResident(0));
+  ASSERT_FALSE(values.IsPageResident(1));
+  ASSERT_FALSE(values.IsPageResident(2));
+  ASSERT_FALSE(values.IsPageResident(3));
+
+  AddColumn(dataframe::Column{std::move(values),
+                              dataframe::NullStorage::NonNull{}, Sorted{},
+                              HasDuplicates{}});
+
+  std::string bytecode =
+      "SortedFilter<Uint32, EqualRange>: [storage_register=Register(2), "
+      "val_register=Register(0), "
+      "update_register=Register(1), write_result_to=BoundModifier(0)]";
+
+  // Search for value 220 — only present in page 2 (values 200..249).
+  SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(220u),
+                         Range{0u, 200u}, GetStoragePtr<Uint32>(0));
+  const auto& result = GetRegister<Range>(1);
+  EXPECT_EQ(result.b, 120u);  // index of 220 in [100..149] mapped to 200+20.
+  EXPECT_EQ(result.e, 121u);
+
+  auto& vec_ref = column_ptrs_[0]->storage.unchecked_get<Uint32>();
+  // Only page 2 (the page containing 220) should have been restored.
+  EXPECT_FALSE(vec_ref.IsPageResident(0));
+  EXPECT_FALSE(vec_ref.IsPageResident(1));
+  EXPECT_TRUE(vec_ref.IsPageResident(2));
+  EXPECT_FALSE(vec_ref.IsPageResident(3));
+}
+
 TEST_F(BytecodeInterpreterTest, CollectIdIntoRankMap) {
   AddColumn(CreateSparseNullableStringColumn(
       {std::make_optional("apple"), std::nullopt, std::make_optional("banana")},
@@ -2483,7 +2763,7 @@ TEST_F(BytecodeInterpreterTest, InUint32) {
       "source_register=Register(1), dest_register=Register(2)]";
 
   auto values =
-      CreateFlexVectorForTesting<uint32_t>({4u, 49u, 392u, 4u, 49u, 4u, 391u});
+      CreatePagedVectorForTesting<uint32_t>({4u, 49u, 392u, 4u, 49u, 4u, 391u});
   AddColumn(dataframe::Column{std::move(values),
                               dataframe::NullStorage::NonNull{}, Unsorted{},
                               HasDuplicates{}});
@@ -2544,7 +2824,7 @@ TEST_F(BytecodeInterpreterTest, InUint32BitVector) {
       "source_register=Register(1), dest_register=Register(2)]";
 
   auto values =
-      CreateFlexVectorForTesting<uint32_t>({4u, 49u, 392u, 4u, 49u, 4u, 391u});
+      CreatePagedVectorForTesting<uint32_t>({4u, 49u, 392u, 4u, 49u, 4u, 391u});
   AddColumn(dataframe::Column{std::move(values),
                               dataframe::NullStorage::NonNull{}, Unsorted{},
                               HasDuplicates{}});
@@ -2571,7 +2851,7 @@ TEST_F(BytecodeInterpreterTest, InUint32LargeList) {
       "source_register=Register(1), dest_register=Register(2)]";
 
   // Create column with values 0..99.
-  FlexVector<uint32_t> values;
+  PagedVector<uint32_t> values;
   for (uint32_t i = 0; i < 100; i++) {
     values.push_back(i);
   }
@@ -2667,7 +2947,7 @@ TEST_F(BytecodeInterpreterTest, SortedFilterUint32Eq_ManyDuplicates) {
       "val_register=Register(0), "
       "update_register=Register(1), write_result_to=BoundModifier(0)]";
 
-  auto values = CreateFlexVectorForTesting<uint32_t>(
+  auto values = CreatePagedVectorForTesting<uint32_t>(
       {0u, 4u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u,  5u, 5u,
        5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 6u, 10u, 10u});
   AddColumn(dataframe::Column{std::move(values),

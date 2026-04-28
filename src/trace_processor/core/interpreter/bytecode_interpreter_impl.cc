@@ -104,7 +104,7 @@ void FinalizeRanksInMapImpl(
 }
 
 uint32_t* StringFilterGlobImpl(const StringPool* string_pool,
-                               const StringPool::Id* data,
+                               core::PagedVector<StringPool::Id>& vec,
                                const char* pattern,
                                const uint32_t* begin,
                                const uint32_t* end,
@@ -122,7 +122,7 @@ uint32_t* StringFilterGlobImpl(const StringPool* string_pool,
     uint32_t* o_write = output;
     uint32_t id_raw = id->raw_id();
     for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
-      if (data[*it].raw_id() == id_raw) {
+      if (vec[*it].raw_id() == id_raw) {
         *o_write++ = *o_read;
       }
     }
@@ -133,7 +133,7 @@ uint32_t* StringFilterGlobImpl(const StringPool* string_pool,
   // strings run a standard glob function.
   if (size_t(end - begin) < string_pool->size() ||
       string_pool->HasLargeString()) {
-    return ops::Filter(data, begin, end, output, matcher,
+    return ops::Filter(vec, begin, end, output, matcher,
                        GlobComparator{string_pool});
   }
 
@@ -147,11 +147,11 @@ uint32_t* StringFilterGlobImpl(const StringPool* string_pool,
                                 matcher.Matches(string_pool->Get(id)));
   }
 
-  return ops::Filter(data, begin, end, output, matches, BitVectorComparator{});
+  return ops::Filter(vec, begin, end, output, matches, BitVectorComparator{});
 }
 
 uint32_t* StringFilterRegexImpl(const StringPool* string_pool,
-                                const StringPool::Id* data,
+                                core::PagedVector<StringPool::Id>& vec,
                                 const char* pattern,
                                 const uint32_t* begin,
                                 const uint32_t* end,
@@ -160,7 +160,7 @@ uint32_t* StringFilterRegexImpl(const StringPool* string_pool,
   if (!regex.ok()) {
     return output;
   }
-  return ops::Filter(data, begin, end, output, regex.value(),
+  return ops::Filter(vec, begin, end, output, regex.value(),
                      RegexComparator{string_pool});
 }
 
@@ -290,12 +290,12 @@ void CollectIdIntoRankMap(InterpreterState& state,
   PERFETTO_DCHECK(rank_map_ptr);
   auto& rank_map = *rank_map_ptr;
 
-  const StringPool::Id* data = state.ReadStorageFromRegister<String>(
+  auto* vec = state.ReadStorageFromRegister<String>(
       bytecode.arg<B::storage_register>());
   const auto& source =
       state.ReadFromRegister(bytecode.arg<B::source_register>());
   for (const uint32_t* it = source.b; it != source.e; ++it) {
-    rank_map.Insert(data[*it], 0);
+    rank_map.Insert((*vec)[*it], 0);
   }
 }
 

@@ -69,6 +69,7 @@ class Slab {
 
   // Allocates a new slab with the specified number of elements.
   //
+<<<<<<< HEAD
   // size: Number of elements to allocate space for.
   // Returns a new Slab object with the requested capacity.
   static Slab<T> Alloc(uint64_t size) {
@@ -92,6 +93,21 @@ class Slab {
     static_assert(std::is_trivially_copyable_v<T>);
     uint64_t bytes = size_ * sizeof(T);
     return Slab<uint8_t>(reinterpret_cast<uint8_t*>(data_.release()), bytes);
+=======
+  // size:           Number of elements to allocate space for.
+  // min_alignment:  Minimum alignment in bytes. The actual alignment is the
+  //                 max of `alignof(T)` and this value. Defaults to
+  //                 `alignof(T)` so existing call sites are unaffected. This
+  //                 hook lets `PagedVector<uint8_t>` allocate its byte-typed
+  //                 storage with the alignment any `T` it might be cast to
+  //                 needs (e.g. 8 bytes for int64/double).
+  static Slab<T> Alloc(uint64_t size, size_t min_alignment = alignof(T)) {
+    const size_t alignment =
+        min_alignment > alignof(T) ? min_alignment : alignof(T);
+    return Slab(
+        static_cast<T*>(base::AlignedAlloc(alignment, size * sizeof(T))),
+        size);
+>>>>>>> eec9b9b511 (f)
   }
 
   // Returns a pointer to the underlying data.

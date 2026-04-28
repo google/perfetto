@@ -18,6 +18,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/util/bit_vector.h"
 #include "src/trace_processor/core/util/flex_vector.h"
+#include "src/trace_processor/core/util/paged_vector.h"
 #include "src/trace_processor/core/util/slab.h"
 
 namespace perfetto::trace_processor::core::dataframe {
@@ -62,18 +63,22 @@ class Storage {
 
     static const IdDataTag* data() { return nullptr; }
   };
-  using Uint32 = FlexVector<uint32_t>;
-  using Int32 = FlexVector<int32_t>;
-  using Int64 = FlexVector<int64_t>;
-  using Double = FlexVector<double>;
-  using String = FlexVector<StringPool::Id>;
+  using Uint32 = PagedVector<uint32_t>;
+  using Int32 = PagedVector<int32_t>;
+  using Int64 = PagedVector<int64_t>;
+  using Double = PagedVector<double>;
+  using String = PagedVector<StringPool::Id>;
 
+  // Variant of pointers to a column's PagedVector. Used by random-access
+  // call sites (cursor materialization, dataframe::CellByRowAndColumn) to
+  // read individual cells. Access via `(*p)[idx]` — the PagedVector's
+  // operator[] transparently restores evicted pages on demand.
   using DataPointer = std::variant<const IdDataTag*,
-                                   const uint32_t*,
-                                   const int32_t*,
-                                   const int64_t*,
-                                   const double*,
-                                   const StringPool::Id*>;
+                                   PagedVector<uint32_t>*,
+                                   PagedVector<int32_t>*,
+                                   PagedVector<int64_t>*,
+                                   PagedVector<double>*,
+                                   PagedVector<StringPool::Id>*>;
 
   Storage(Storage::Id data) : type_(core::Id{}), data_(data) {}
   Storage(Storage::Uint32 data)
@@ -100,34 +105,47 @@ class Storage {
     return base::unchecked_get<U>(data_);
   }
 
-  // Get raw pointer to storage data for a specific type.
+  // Returns a pointer to the underlying PagedVector for the specified type.
+  // All access goes through the PagedVector — instructions iterate via
+  // WalkPages (scans) or operator[] (random access), both of which
+  // transparently restore evicted pages.
   template <typename T>
-  auto* unchecked_data() {
-    return unchecked_get<T>().data();
+  auto* unchecked_paged_vector() {
+    return &unchecked_get<T>();
   }
 
   template <typename T>
-  const auto* unchecked_data() const {
-    return unchecked_get<T>().data();
+  const auto* unchecked_paged_vector() const {
+    return &unchecked_get<T>();
   }
 
-  // Returns a variant containing pointer to the underlying data.
-  // Returns nullptr (as IdDataTag*) if the storage type is Id (which has no
-  // buffer).
+  // Returns a variant pointing at the column's PagedVector. Returns nullptr
+  // (as IdDataTag*) if the storage type is Id (which has no buffer).
+  //
+  // The pointer is non-const (despite this being a `const` method) because
+  // the PagedVector's eviction-state is logically mutable: reading an evicted
+  // page transparently restores it. The const_cast captures that the bytes
+  // of the column are immutable post-build, but the residency-state
+  // bookkeeping isn't.
   DataPointer data() const {
     switch (type_.index()) {
       case StorageType::GetTypeIndex<core::Id>():
         return static_cast<const IdDataTag*>(nullptr);
       case StorageType::GetTypeIndex<core::Uint32>():
-        return base::unchecked_get<Storage::Uint32>(data_).data();
+        return const_cast<Storage::Uint32*>(
+            &base::unchecked_get<Storage::Uint32>(data_));
       case StorageType::GetTypeIndex<core::Int32>():
-        return base::unchecked_get<Storage::Int32>(data_).data();
+        return const_cast<Storage::Int32*>(
+            &base::unchecked_get<Storage::Int32>(data_));
       case StorageType::GetTypeIndex<core::Int64>():
-        return base::unchecked_get<Storage::Int64>(data_).data();
+        return const_cast<Storage::Int64*>(
+            &base::unchecked_get<Storage::Int64>(data_));
       case StorageType::GetTypeIndex<core::Double>():
-        return base::unchecked_get<Storage::Double>(data_).data();
+        return const_cast<Storage::Double*>(
+            &base::unchecked_get<Storage::Double>(data_));
       case StorageType::GetTypeIndex<core::String>():
-        return base::unchecked_get<Storage::String>(data_).data();
+        return const_cast<Storage::String*>(
+            &base::unchecked_get<Storage::String>(data_));
       default:
         PERFETTO_FATAL("Should not reach here");
     }

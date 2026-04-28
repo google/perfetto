@@ -33,6 +33,7 @@
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/core/dataframe/dataframe_test_utils.h"
 #include "src/trace_processor/core/dataframe/specs.h"
+#include "src/trace_processor/core/util/paged_vector.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::core::dataframe {
@@ -61,6 +62,16 @@ using testing::SizeIs;
 
 class DataframeBuilderTest : public ::testing::Test {
  protected:
+  // Force every PagedVector built by RuntimeDataframeBuilder into multi-page
+  // mode so query-side handlers are exercised against the multi-page code
+  // path without needing 4 MiB of test data.
+  void SetUp() override {
+    core::PagedVector<uint8_t>::GlobalPageBytesOverrideForTesting() = 32;
+  }
+  void TearDown() override {
+    core::PagedVector<uint8_t>::GlobalPageBytesOverrideForTesting() = 0;
+  }
+
   base::StatusOr<Dataframe> BuildDf(
       const std::vector<std::string>& names,
       const std::vector<std::vector<TestRowFetcher::Value>>& rows) {

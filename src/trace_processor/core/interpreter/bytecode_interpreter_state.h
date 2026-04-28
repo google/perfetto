@@ -31,6 +31,7 @@
 #include "src/trace_processor/core/common/storage_types.h"
 #include "src/trace_processor/core/interpreter/bytecode_core.h"
 #include "src/trace_processor/core/interpreter/bytecode_registers.h"
+#include "src/trace_processor/core/util/paged_vector.h"
 
 namespace perfetto::trace_processor::core::interpreter {
 
@@ -93,12 +94,29 @@ struct InterpreterState {
     return nullptr;
   }
 
+  // Returns a pointer to the underlying PagedVector for the column. All
+  // storage access goes through this — instructions iterate via operator[]
+  // or WalkPages (which transparently restore evicted pages on demand).
+  //
+  // For storage types with a concrete `cpp_type` (Uint32, Int32, Int64,
+  // Double, String), returns `core::PagedVector<T::cpp_type>*`.
+  //
+  // For Id columns there's no backing storage (the row index IS the value),
+  // so this returns `void*` (always null) — handlers that template on T
+  // and may be instantiated with `T = Id` use an `if constexpr` guard to
+  // skip storage access on the Id path.
+  // The pointer is non-const because EnsureResident may need to mutate the
+  // page residency state during iteration.
   template <typename T>
-  PERFETTO_ALWAYS_INLINE const auto* ReadStorageFromRegister(
+  PERFETTO_ALWAYS_INLINE auto* ReadStorageFromRegister(
       ReadHandle<StoragePtr> reg) {
-    // For Id columns, the register contains a StoragePtr with nullptr.
-    // The caller is expected to handle this case (the row index IS the value).
-    return static_cast<const typename T::cpp_type*>(ReadFromRegister(reg).ptr);
+    if constexpr (std::is_void_v<typename T::cpp_type>) {
+      base::ignore_result(reg);
+      return static_cast<void*>(nullptr);
+    } else {
+      return static_cast<core::PagedVector<typename T::cpp_type>*>(
+          ReadFromRegister(reg).paged_vector);
+    }
   }
 
   // Writes a value to the specified register, handling type safety through

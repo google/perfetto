@@ -37,27 +37,37 @@ i::RegValue QueryPlanImpl::GetRegisterInitValue(const RegisterInit& init,
       return i::StoragePtr{nullptr, Id{}};
     case RegisterInit::Type::GetTypeIndex<Uint32>():
       return i::StoragePtr{
-          columns[init.source_index]->storage.unchecked_data<Uint32>(),
+          const_cast<core::PagedVector<uint32_t>*>(
+              columns[init.source_index]
+                  ->storage.unchecked_paged_vector<Uint32>()),
           Uint32{},
       };
     case RegisterInit::Type::GetTypeIndex<Int32>():
       return i::StoragePtr{
-          columns[init.source_index]->storage.unchecked_data<Int32>(),
+          const_cast<core::PagedVector<int32_t>*>(
+              columns[init.source_index]
+                  ->storage.unchecked_paged_vector<Int32>()),
           Int32{},
       };
     case RegisterInit::Type::GetTypeIndex<Int64>():
       return i::StoragePtr{
-          columns[init.source_index]->storage.unchecked_data<Int64>(),
+          const_cast<core::PagedVector<int64_t>*>(
+              columns[init.source_index]
+                  ->storage.unchecked_paged_vector<Int64>()),
           Int64{},
       };
     case RegisterInit::Type::GetTypeIndex<Double>():
       return i::StoragePtr{
-          columns[init.source_index]->storage.unchecked_data<Double>(),
+          const_cast<core::PagedVector<double>*>(
+              columns[init.source_index]
+                  ->storage.unchecked_paged_vector<Double>()),
           Double{},
       };
     case RegisterInit::Type::GetTypeIndex<String>():
       return i::StoragePtr{
-          columns[init.source_index]->storage.unchecked_data<String>(),
+          const_cast<core::PagedVector<StringPool::Id>*>(
+              columns[init.source_index]
+                  ->storage.unchecked_paged_vector<String>()),
           String{},
       };
     case RegisterInit::Type::GetTypeIndex<RegisterInit::NullBitvector>(): {

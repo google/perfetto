@@ -45,10 +45,19 @@ namespace perfetto::trace_processor::core::dataframe {
 
 AdhocDataframeBuilder::AdhocDataframeBuilder(std::vector<std::string> names,
                                              StringPool* pool,
+<<<<<<< HEAD
                                              const Options& options)
     : string_pool_(pool),
       did_declare_types_(!options.types.empty()),
       emit_auto_id_(options.emit_auto_id) {
+=======
+                                             const Options& options,
+                                             core::PageStore* page_store)
+    : string_pool_(pool),
+      page_store_(page_store),
+      did_declare_types_(!options.types.empty()) {
+  PERFETTO_CHECK(page_store_ != nullptr);
+>>>>>>> eec9b9b511 (f)
   PERFETTO_DCHECK(options.types.empty() ||
                   options.types.size() == names.size());
   for (uint32_t i = 0; i < names.size(); ++i) {
@@ -57,13 +66,14 @@ AdhocDataframeBuilder::AdhocDataframeBuilder(std::vector<std::string> names,
     if (!options.types.empty()) {
       switch (options.types[i]) {
         case ColumnType::kInt64:
-          state.storage = Storage{core::FlexVector<int64_t>()};
+          state.storage = Storage{core::PagedVector<int64_t>(page_store_)};
           break;
         case ColumnType::kDouble:
-          state.storage = Storage{core::FlexVector<double>()};
+          state.storage = Storage{core::PagedVector<double>(page_store_)};
           break;
         case ColumnType::kString:
-          state.storage = Storage{core::FlexVector<StringPool::Id>()};
+          state.storage =
+              Storage{core::PagedVector<StringPool::Id>(page_store_)};
           break;
       }
     }
@@ -119,7 +129,7 @@ base::StatusOr<Dataframe> AdhocDataframeBuilder::Build() && {
     if (!state.storage) {
       non_null_row_count = 0;
       columns.emplace_back(std::make_shared<Column>(Column{
-          Storage{core::FlexVector<uint32_t>()},
+          Storage{core::PagedVector<uint32_t>(page_store_)},
           CreateNullStorageFromBitvector(std::move(state.null_overlay),
                                          state.nullability_type),
           Unsorted{},
@@ -149,7 +159,8 @@ base::StatusOr<Dataframe> AdhocDataframeBuilder::Build() && {
         summary.has_duplicates =
             summary.has_duplicates || CheckDuplicate(data[j], data.size());
       }
-      auto integer = CreateIntegerStorage(std::move(data), summary);
+      auto integer =
+          CreateIntegerStorage(std::move(data), summary, page_store_);
       SpecializedStorage specialized_storage =
           GetSpecializedStorage(integer, summary);
       columns.emplace_back(std::make_shared<Column>(Column{
@@ -232,8 +243,9 @@ base::StatusOr<Dataframe> AdhocDataframeBuilder::Build() && {
 }
 
 Storage AdhocDataframeBuilder::CreateIntegerStorage(
-    core::FlexVector<int64_t> data,
-    const IntegerColumnSummary& summary) {
+    core::PagedVector<int64_t> data,
+    const IntegerColumnSummary& summary,
+    core::PageStore* page_store) {
   // TODO(lalitm): `!summary.is_nullable` is an unnecesarily strong condition
   // but we impose it as query planning assumes that id columns never have an
   // index added to them.
@@ -241,10 +253,12 @@ Storage AdhocDataframeBuilder::CreateIntegerStorage(
     return Storage{Storage::Id{static_cast<uint32_t>(data.size())}};
   }
   if (IsRangeFullyRepresentableByType<uint32_t>(summary.min, summary.max)) {
-    return Storage{Storage::Uint32{DowncastFromInt64<uint32_t>(data)}};
+    return Storage{
+        Storage::Uint32{DowncastFromInt64<uint32_t>(data, page_store)}};
   }
   if (IsRangeFullyRepresentableByType<int32_t>(summary.min, summary.max)) {
-    return Storage{Storage::Int32{DowncastFromInt64<int32_t>(data)}};
+    return Storage{
+        Storage::Int32{DowncastFromInt64<int32_t>(data, page_store)}};
   }
   return Storage{Storage::Int64{std::move(data)}};
 }
@@ -320,7 +334,7 @@ SpecializedStorage AdhocDataframeBuilder::GetSpecializedStorage(
 }
 
 SpecializedStorage::SmallValueEq AdhocDataframeBuilder::BuildSmallValueEq(
-    const core::FlexVector<uint32_t>& data) {
+    const core::PagedVector<uint32_t>& data) {
   SpecializedStorage::SmallValueEq offset_bv{
       core::BitVector::CreateWithSize(data.empty() ? 0 : data.back() + 1,
                                       false),
