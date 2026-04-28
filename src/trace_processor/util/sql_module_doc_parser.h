@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_UTIL_STDLIB_DOC_PARSER_H_
-#define SRC_TRACE_PROCESSOR_UTIL_STDLIB_DOC_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_SQL_MODULE_DOC_PARSER_H_
+#define SRC_TRACE_PROCESSOR_UTIL_SQL_MODULE_DOC_PARSER_H_
 
 #include <string>
 #include <vector>
@@ -91,4 +91,4 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len);
 
 }  // namespace perfetto::trace_processor::stdlib_doc
 
-#endif  // SRC_TRACE_PROCESSOR_UTIL_STDLIB_DOC_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_SQL_MODULE_DOC_PARSER_H_

@@ -72,8 +72,8 @@ source_set("table_functions") {
     "../../../util:descriptors",
     "../../../util:proto_to_args_parser",
     "../../../util:simple_json_serializer",
+    "../../../util:sql_module_doc_parser",
     "../../../util:stdlib",
-    "../../../util:stdlib_doc_parser",
     "../../engine",
   ]
   if (enable_perfetto_winscope) {

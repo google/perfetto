@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/util/stdlib_doc_parser.h"
+#include "src/trace_processor/util/sql_module_doc_parser.h"
 
 #include <cstdint>
 #include <memory>
@@ -25,31 +25,20 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.h"
+#include "src/trace_processor/perfetto_sql/syntaqlite/utils.h"
 
 namespace perfetto::trace_processor::stdlib_doc {
 
 namespace {
 
-// Returns the authored source text for a span as a string_view into the
-// original input — no allocation. Uses span_text (not expanded_text) so
-// macro-expanded names resolve back to the call-site source, not the
-// internal expansion buffer.
-std::string_view SpanText(SyntaqliteParser* p, SyntaqliteTextSpan span) {
-  uint32_t len = 0;
-  const char* text = syntaqlite_parser_span_text(p, &span, &len, nullptr);
-  if (!text) {
-    return {};
-  }
-  return {text, len};
-}
-
-// Strips leading "-- " or "--" from a single comment line.
-std::string StripCommentPrefix(const char* text, uint32_t len) {
-  std::string_view s = base::TrimWhitespace(std::string_view(text, len));
+// Strips leading "-- " or "--" from a single comment line. Returns a
+// string_view into the original source buffer — no allocation.
+std::string_view StripCommentPrefix(std::string_view s) {
+  s = base::TrimWhitespace(s);
   if (s.size() >= 2 && s[0] == '-' && s[1] == '-') {
     s.remove_prefix(2);
   }
-  return std::string(base::TrimWhitespace(s));
+  return base::TrimWhitespace(s);
 }
 
 // Joins all line comments (kind == 0) from |comments| into a single string,
@@ -57,73 +46,46 @@ std::string StripCommentPrefix(const char* text, uint32_t len) {
 std::string JoinLineComments(const char* stmt_ptr,
                              const SyntaqliteComment* comments,
                              uint32_t count) {
-  std::vector<std::string> parts;
+  std::string result;
   for (uint32_t i = 0; i < count; i++) {
     if (comments[i].kind != 0) {
       continue;
     }
-    std::string s =
-        StripCommentPrefix(stmt_ptr + comments[i].offset, comments[i].length);
+    std::string_view s = StripCommentPrefix(
+        {stmt_ptr + comments[i].offset, comments[i].length});
     if (!s.empty()) {
-      parts.push_back(std::move(s));
+      if (!result.empty()) {
+        result += ' ';
+      }
+      result.append(s);
     }
   }
-  return base::Join(parts, " ");
+  return result;
 }
 
-// Returns the last contiguous block of line comments (no blank line between
-// consecutive comments). Used for statement descriptions so that a license
-// header separated from the doc comment by a blank line is excluded.
-std::string LastContiguousLineComments(const char* stmt_ptr,
-                                       const SyntaqliteComment* comments,
-                                       uint32_t count) {
-  if (count == 0) {
-    return {};
-  }
-  // Walk forward, recording where each new "block" starts (a block is broken
-  // by a blank line or a block comment).
-  uint32_t block_start = 0;
-  for (uint32_t i = 1; i < count; i++) {
-    if (comments[i - 1].kind != 0 || comments[i].kind != 0) {
-      block_start = i;
+// Returns the index of the first comment in the last contiguous block of line
+// comments. Two or more newlines between consecutive line comments (i.e. a
+// blank line) breaks the block, which is used to skip license headers.
+uint32_t LastBlockStart(const char* stmt_ptr,
+                        const SyntaqliteComment* comments,
+                        uint32_t count) {
+  uint32_t start = 0;
+  for (uint32_t i = 0; i + 1 < count; i++) {
+    if (comments[i].kind != 0 || comments[i + 1].kind != 0) {
+      start = i + 1;
       continue;
     }
-    // Count newlines in the gap between end of comments[i-1] and start of
-    // comments[i]. Two or more newlines mean there is a blank line between
-    // them.
-    uint32_t gap_start = comments[i - 1].offset + comments[i - 1].length;
-    uint32_t gap_end = comments[i].offset;
+    uint32_t gap_begin = comments[i].offset + comments[i].length;
+    uint32_t gap_end = comments[i + 1].offset;
     int newlines = 0;
-    for (uint32_t j = gap_start; j < gap_end; j++) {
+    for (uint32_t j = gap_begin; j < gap_end; j++) {
       if (stmt_ptr[j] == '\n' && ++newlines >= 2) {
-        block_start = i;
+        start = i + 1;
         break;
       }
     }
   }
-  return JoinLineComments(stmt_ptr, comments + block_start,
-                          count - block_start);
-}
-
-// Maps a source pointer (returned by a syntaqlite span/node accessor) to the
-// index of the corresponding token in the per-statement token array. Returns
-// UINT32_MAX if not found.
-// O(token_count) per call. Stdlib modules are small (hundreds of tokens), so
-// this is acceptable even when called once per arg.
-SyntaqliteTokenIdx SpanToTokenIdx(const char* span_ptr,
-                                  const char* stmt_ptr,
-                                  const SyntaqliteParserToken* tokens,
-                                  uint32_t count) {
-  if (!span_ptr || !stmt_ptr || span_ptr < stmt_ptr) {
-    return UINT32_MAX;
-  }
-  uint32_t stmt_rel = static_cast<uint32_t>(span_ptr - stmt_ptr);
-  for (uint32_t i = 0; i < count; i++) {
-    if (tokens[i]._layer_id == 0 && tokens[i].offset == stmt_rel) {
-      return i;
-    }
-  }
-  return UINT32_MAX;
+  return start;
 }
 
 // Checks if a name is internal (starts with _).
@@ -136,9 +98,7 @@ bool IsInternal(const std::string& name) {
 template <typename Entry>
 std::vector<Entry> ExtractArgDefList(SyntaqliteParser* p,
                                      uint32_t list_id,
-                                     const char* stmt_ptr,
-                                     const SyntaqliteParserToken* tokens,
-                                     uint32_t token_count) {
+                                     const char* stmt_ptr) {
   std::vector<Entry> result;
   if (!syntaqlite_node_is_present(list_id)) {
     return result;
@@ -147,8 +107,9 @@ std::vector<Entry> ExtractArgDefList(SyntaqliteParser* p,
       syntaqlite_parser_node(p, list_id));
   uint32_t count = syntaqlite_list_count(list);
   for (uint32_t i = 0; i < count; i++) {
+    uint32_t item_id = syntaqlite_list_child_id(list, i);
     const auto* item = static_cast<const SyntaqlitePerfettoArgDef*>(
-        syntaqlite_list_child(p, list, i));
+        syntaqlite_parser_node(p, item_id));
     if (!item) {
       continue;
     }
@@ -156,19 +117,13 @@ std::vector<Entry> ExtractArgDefList(SyntaqliteParser* p,
         syntaqlite_parser_node(p, item->arg_name));
 
     Entry entry;
-    entry.name = SpanText(p, name_node->ident_name.source);
-    entry.type = SpanText(p, item->arg_type);
+    entry.name = SyntaqliteSpanText(p, name_node->ident_name.source);
+    entry.type = SyntaqliteSpanText(p, item->arg_type);
 
-    uint32_t name_len = 0;
-    const char* name_ptr = syntaqlite_parser_span_text(
-        p, &name_node->ident_name.source, &name_len, nullptr);
-    SyntaqliteTokenIdx tok_idx =
-        SpanToTokenIdx(name_ptr, stmt_ptr, tokens, token_count);
-    if (tok_idx != UINT32_MAX) {
-      uint32_t c_count = 0;
-      const auto* cs = syntaqlite_token_leading_comments(p, tok_idx, &c_count);
-      entry.description = JoinLineComments(stmt_ptr, cs, c_count);
-    }
+    uint32_t c_count = 0;
+    const auto* cs =
+        syntaqlite_node_leading_comments(p, item->arg_name, &c_count);
+    entry.description = JoinLineComments(stmt_ptr, cs, c_count);
 
     result.push_back(std::move(entry));
   }
@@ -177,26 +132,20 @@ std::vector<Entry> ExtractArgDefList(SyntaqliteParser* p,
 
 std::vector<Column> ExtractColumns(SyntaqliteParser* p,
                                    uint32_t list_id,
-                                   const char* stmt_ptr,
-                                   const SyntaqliteParserToken* tokens,
-                                   uint32_t token_count) {
-  return ExtractArgDefList<Column>(p, list_id, stmt_ptr, tokens, token_count);
+                                   const char* stmt_ptr) {
+  return ExtractArgDefList<Column>(p, list_id, stmt_ptr);
 }
 
 std::vector<Arg> ExtractArgs(SyntaqliteParser* p,
                              uint32_t list_id,
-                             const char* stmt_ptr,
-                             const SyntaqliteParserToken* tokens,
-                             uint32_t token_count) {
-  return ExtractArgDefList<Arg>(p, list_id, stmt_ptr, tokens, token_count);
+                             const char* stmt_ptr) {
+  return ExtractArgDefList<Arg>(p, list_id, stmt_ptr);
 }
 
 // Extracts macro args from a PerfettoMacroArgList node.
 std::vector<Arg> ExtractMacroArgs(SyntaqliteParser* p,
                                   uint32_t list_id,
-                                  const char* stmt_ptr,
-                                  const SyntaqliteParserToken* tokens,
-                                  uint32_t token_count) {
+                                  const char* stmt_ptr) {
   std::vector<Arg> result;
   if (!syntaqlite_node_is_present(list_id)) {
     return result;
@@ -205,26 +154,20 @@ std::vector<Arg> ExtractMacroArgs(SyntaqliteParser* p,
       syntaqlite_parser_node(p, list_id));
   uint32_t count = syntaqlite_list_count(list);
   for (uint32_t i = 0; i < count; i++) {
+    uint32_t item_id = syntaqlite_list_child_id(list, i);
     const auto* item = static_cast<const SyntaqlitePerfettoMacroArg*>(
-        syntaqlite_list_child(p, list, i));
+        syntaqlite_parser_node(p, item_id));
     if (!item) {
       continue;
     }
 
     Arg arg;
-    arg.name = SpanText(p, item->arg_name);
-    arg.type = SpanText(p, item->arg_type);
+    arg.name = SyntaqliteSpanText(p, item->arg_name);
+    arg.type = SyntaqliteSpanText(p, item->arg_type);
 
-    uint32_t name_len = 0;
-    const char* name_ptr =
-        syntaqlite_parser_span_text(p, &item->arg_name, &name_len, nullptr);
-    SyntaqliteTokenIdx tok_idx =
-        SpanToTokenIdx(name_ptr, stmt_ptr, tokens, token_count);
-    if (tok_idx != UINT32_MAX) {
-      uint32_t c_count = 0;
-      const auto* cs = syntaqlite_token_leading_comments(p, tok_idx, &c_count);
-      arg.description = JoinLineComments(stmt_ptr, cs, c_count);
-    }
+    uint32_t c_count = 0;
+    const auto* cs = syntaqlite_node_leading_comments(p, item_id, &c_count);
+    arg.description = JoinLineComments(stmt_ptr, cs, c_count);
 
     result.push_back(std::move(arg));
   }
@@ -232,34 +175,24 @@ std::vector<Arg> ExtractMacroArgs(SyntaqliteParser* p,
 }
 
 // Returns the return description for a function: the leading line comments on
-// the RETURNS keyword. The return type node's first token is found via the
-// token array; RETURNS immediately precedes it.
+// the RETURNS keyword. Uses syntaqlite_node_token_range to find the first
+// token of the return type node, then checks that token and the one before it
+// (covering both cases: node starts at RETURNS vs. after RETURNS).
 std::string GetReturnDescription(SyntaqliteParser* p,
                                  uint32_t return_type_node_id,
-                                 const char* stmt_ptr,
-                                 const SyntaqliteParserToken* tokens,
-                                 uint32_t token_count) {
+                                 const char* stmt_ptr) {
   if (!syntaqlite_node_is_present(return_type_node_id)) {
     return {};
   }
-  uint32_t rt_len = 0;
-  const char* rt_ptr =
-      syntaqlite_parser_node_text(p, return_type_node_id, &rt_len, nullptr);
-  if (!rt_ptr) {
+  SyntaqliteTokenIdx first_tok = 0, last_tok = 0;
+  if (!syntaqlite_node_token_range(p, return_type_node_id, &first_tok,
+                                   &last_tok)) {
     return {};
   }
-  SyntaqliteTokenIdx rt_tok_idx =
-      SpanToTokenIdx(rt_ptr, stmt_ptr, tokens, token_count);
-  if (rt_tok_idx == UINT32_MAX) {
-    return {};
-  }
-  // Try leading comments on the return type's first token (covers the case
-  // where the node extent begins at RETURNS). If empty, try the preceding
-  // token (covers the case where the node extent begins after RETURNS).
   uint32_t c_count = 0;
-  const auto* cs = syntaqlite_token_leading_comments(p, rt_tok_idx, &c_count);
-  if (c_count == 0 && rt_tok_idx > 0) {
-    cs = syntaqlite_token_leading_comments(p, rt_tok_idx - 1, &c_count);
+  const auto* cs = syntaqlite_token_leading_comments(p, first_tok, &c_count);
+  if (c_count == 0 && first_tok > 0) {
+    cs = syntaqlite_token_leading_comments(p, first_tok - 1, &c_count);
   }
   return JoinLineComments(stmt_ptr, cs, c_count);
 }
@@ -312,28 +245,25 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
     const char* stmt_ptr = syntaqlite_parser_text(p, nullptr, nullptr);
     PERFETTO_DCHECK(stmt_ptr != nullptr);
 
-    uint32_t token_count = 0;
-    const SyntaqliteParserToken* tokens =
-        syntaqlite_result_tokens(p, &token_count);
-
     // Statement-level description: last contiguous block of leading line
     // comments on token 0 (the CREATE keyword), skipping license headers
     // separated by a blank line.
     auto get_stmt_desc = [&]() -> std::string {
       uint32_t count = 0;
       const auto* cs = syntaqlite_token_leading_comments(p, 0, &count);
-      return LastContiguousLineComments(stmt_ptr, cs, count);
+      uint32_t start = LastBlockStart(stmt_ptr, cs, count);
+      return JoinLineComments(stmt_ptr, cs + start, count - start);
     };
 
     switch (static_cast<int>(node->tag)) {
       case SYNTAQLITE_NODE_CREATE_PERFETTO_TABLE_STMT: {
         const auto& n = node->create_perfetto_table_stmt;
         TableOrView tv;
-        tv.name = SpanText(p, n.table_name);
+        tv.name = SyntaqliteSpanText(p, n.table_name);
         tv.type = "TABLE";
         tv.exposed = !IsInternal(tv.name);
         tv.description = get_stmt_desc();
-        tv.columns = ExtractColumns(p, n.schema, stmt_ptr, tokens, token_count);
+        tv.columns = ExtractColumns(p, n.schema, stmt_ptr);
         result.table_views.push_back(std::move(tv));
         break;
       }
@@ -341,11 +271,11 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
       case SYNTAQLITE_NODE_CREATE_PERFETTO_VIEW_STMT: {
         const auto& n = node->create_perfetto_view_stmt;
         TableOrView tv;
-        tv.name = SpanText(p, n.view_name);
+        tv.name = SyntaqliteSpanText(p, n.view_name);
         tv.type = "VIEW";
         tv.exposed = !IsInternal(tv.name);
         tv.description = get_stmt_desc();
-        tv.columns = ExtractColumns(p, n.schema, stmt_ptr, tokens, token_count);
+        tv.columns = ExtractColumns(p, n.schema, stmt_ptr);
         result.table_views.push_back(std::move(tv));
         break;
       }
@@ -368,7 +298,7 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
         }
 
         Function fn;
-        fn.name = SpanText(p, fn_name_span);
+        fn.name = SyntaqliteSpanText(p, fn_name_span);
         fn.exposed = !IsInternal(fn.name);
         fn.description = get_stmt_desc();
         fn.args = ExtractArgs(p, args_list_id, stmt_ptr, tokens, token_count);
@@ -382,7 +312,7 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
             fn.columns = ExtractColumns(p, rt->table_columns, stmt_ptr, tokens,
                                         token_count);
           } else {
-            fn.return_type = SpanText(p, rt->scalar_type);
+            fn.return_type = SyntaqliteSpanText(p, rt->scalar_type);
           }
           fn.return_description = GetReturnDescription(
               p, return_type_id, stmt_ptr, tokens, token_count);
@@ -395,26 +325,27 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
       case SYNTAQLITE_NODE_CREATE_PERFETTO_MACRO_STMT: {
         const auto& n = node->create_perfetto_macro_stmt;
         Macro macro;
-        macro.name = SpanText(p, n.macro_name);
+        macro.name = SyntaqliteSpanText(p, n.macro_name);
         macro.exposed = !IsInternal(macro.name);
         macro.description = get_stmt_desc();
-        macro.return_type = SpanText(p, n.return_type);
+        macro.return_type = SyntaqliteSpanText(p, n.return_type);
         macro.args = ExtractMacroArgs(p, n.args, stmt_ptr, tokens, token_count);
 
         // Return description: leading comments on the RETURNS keyword.
         // GetReturnDescription() is not reused here because macros expose
         // the return type as a SyntaqliteTextSpan (not a node id), so we
         // must use span_text instead of node_text to locate the token.
-        uint32_t ret_len = 0;
-        const char* ret_ptr =
-            syntaqlite_parser_span_text(p, &n.return_type, &ret_len, nullptr);
-        SyntaqliteTokenIdx ret_tok_idx =
-            SpanToTokenIdx(ret_ptr, stmt_ptr, tokens, token_count);
-        if (ret_tok_idx != UINT32_MAX && ret_tok_idx > 0) {
-          uint32_t c_count = 0;
-          const auto* cs =
-              syntaqlite_token_leading_comments(p, ret_tok_idx - 1, &c_count);
-          macro.return_description = JoinLineComments(stmt_ptr, cs, c_count);
+        uint32_t ret_len = 0, ret_off = 0;
+        if (syntaqlite_parser_span_text(p, &n.return_type, &ret_len,
+                                        &ret_off)) {
+          SyntaqliteTokenIdx ret_tok_idx =
+              SpanToTokenIdx(ret_off, tokens, token_count);
+          if (ret_tok_idx != UINT32_MAX && ret_tok_idx > 0) {
+            uint32_t c_count = 0;
+            const auto* cs =
+                syntaqlite_token_leading_comments(p, ret_tok_idx - 1, &c_count);
+            macro.return_description = JoinLineComments(stmt_ptr, cs, c_count);
+          }
         }
 
         result.macros.push_back(std::move(macro));

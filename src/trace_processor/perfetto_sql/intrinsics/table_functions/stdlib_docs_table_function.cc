@@ -33,8 +33,8 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 #include "src/trace_processor/util/simple_json_serializer.h"
+#include "src/trace_processor/util/sql_module_doc_parser.h"
 #include "src/trace_processor/util/sql_modules.h"
-#include "src/trace_processor/util/stdlib_doc_parser.h"
 
 namespace perfetto::trace_processor {
 
@@ -42,17 +42,6 @@ namespace {
 
 StringPool::Id Intern(StringPool* pool, const std::string& s) {
   return pool->InternString(base::StringView(s));
-}
-
-const std::string* FindModuleSql(const PerfettoSqlEngine* engine,
-                                 const std::string& module_key) {
-  std::string pkg = sql_modules::GetPackageName(module_key);
-  const auto* package = engine->FindPackage(pkg);
-  if (!package) {
-    return nullptr;
-  }
-  auto* mod = package->modules.Find(module_key);
-  return mod ? &mod->sql : nullptr;
 }
 
 template <typename Entry>
@@ -73,13 +62,18 @@ std::string SerializeEntries(const std::vector<Entry>& entries) {
 base::StatusOr<stdlib_doc::ParsedModule> ParseModule(
     const PerfettoSqlEngine* engine,
     const std::string& module_key) {
-  const std::string* sql = FindModuleSql(engine, module_key);
-  if (!sql) {
+  const auto* package =
+      engine->FindPackage(sql_modules::GetPackageName(module_key));
+  if (!package) {
     return base::ErrStatus("Module not found: %s", module_key.c_str());
   }
-  PERFETTO_DCHECK(sql->size() <= std::numeric_limits<uint32_t>::max());
+  const auto* mod = package->modules.Find(module_key);
+  if (!mod) {
+    return base::ErrStatus("Module not found: %s", module_key.c_str());
+  }
+  PERFETTO_DCHECK(mod->sql.size() <= std::numeric_limits<uint32_t>::max());
   auto parsed = stdlib_doc::ParseStdlibModule(
-      sql->c_str(), static_cast<uint32_t>(sql->size()));
+      mod->sql.c_str(), static_cast<uint32_t>(mod->sql.size()));
   for (const auto& err : parsed.errors) {
     PERFETTO_DLOG("stdlib docs: parse error in '%s': %s", module_key.c_str(),
                   err.c_str());
@@ -100,12 +94,12 @@ StdlibDocsModules::Cursor::Cursor(StringPool* pool,
 bool StdlibDocsModules::Cursor::Run(const std::vector<SqlValue>& arguments) {
   PERFETTO_DCHECK(arguments.empty());
   table_.Clear();
-  engine_->ForEachModule([&](const std::string& pkg, const std::string& mod) {
+  for (const auto& [pkg, mod] : engine_->GetModules()) {
     tables::StdlibDocsModulesTable::Row row;
     row.module = Intern(string_pool_, mod);
     row.package = Intern(string_pool_, pkg);
     table_.Insert(row);
-  });
+  }
   return OnSuccess(&table_.dataframe());
 }
 

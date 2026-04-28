@@ -22,10 +22,11 @@ source_set("syntaqlite") {
   sources = [
     "syntaqlite_perfetto.c",
     "syntaqlite_perfetto.h",
+    "utils.h",
   ]
   deps = [ "../../../../gn:default_deps" ]
   visibility = [
-    "../../util:stdlib_doc_parser",
+    "../../util:sql_module_doc_parser",
     "../parser:*",
     "../tokenizer",
   ]

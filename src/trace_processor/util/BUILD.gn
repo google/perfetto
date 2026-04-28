@@ -36,10 +36,10 @@ source_set("sql_bundle") {
 }
 
 if (enable_perfetto_trace_processor_sqlite) {
-  source_set("stdlib_doc_parser") {
+  source_set("sql_module_doc_parser") {
     sources = [
-      "stdlib_doc_parser.cc",
-      "stdlib_doc_parser.h",
+      "sql_module_doc_parser.cc",
+      "sql_module_doc_parser.h",
     ]
     deps = [
       "../../../gn:default_deps",
@@ -506,8 +506,8 @@ source_set("unittests") {
     deps += [ "../../../gn:zlib" ]
   }
   if (enable_perfetto_trace_processor_sqlite) {
-    sources += [ "stdlib_doc_parser_unittest.cc" ]
-    deps += [ ":stdlib_doc_parser" ]
+    sources += [ "sql_module_doc_parser_unittest.cc" ]
+    deps += [ ":sql_module_doc_parser" ]
   }
 }
 

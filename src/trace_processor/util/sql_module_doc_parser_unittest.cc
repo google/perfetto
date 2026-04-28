@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/util/stdlib_doc_parser.h"
+#include "src/trace_processor/util/sql_module_doc_parser.h"
 
 #include <string>
 #include <string_view>
@@ -28,7 +28,7 @@ ParsedModule Parse(std::string_view sql) {
   return ParseStdlibModule(sql.data(), static_cast<uint32_t>(sql.size()));
 }
 
-TEST(StdlibDocParserTest, Table) {
+TEST(SqlModuleDocParserTest, Table) {
   auto m = Parse(R"(
 -- A sample table.
 CREATE PERFETTO TABLE my_table(
@@ -54,7 +54,7 @@ CREATE PERFETTO TABLE my_table(
   EXPECT_EQ(tv.columns[1].description, "The name.");
 }
 
-TEST(StdlibDocParserTest, View) {
+TEST(SqlModuleDocParserTest, View) {
   auto m = Parse(R"(
 -- A sample view.
 CREATE PERFETTO VIEW my_view(
@@ -69,7 +69,7 @@ CREATE PERFETTO VIEW my_view(
   EXPECT_EQ(m.table_views[0].description, "A sample view.");
 }
 
-TEST(StdlibDocParserTest, ScalarFunction) {
+TEST(SqlModuleDocParserTest, ScalarFunction) {
   auto m = Parse(R"(
 -- Computes the sum.
 CREATE PERFETTO FUNCTION my_fn(
@@ -100,7 +100,7 @@ SELECT $x + $y;
   EXPECT_EQ(fn.args[1].description, "Second value.");
 }
 
-TEST(StdlibDocParserTest, TableFunction) {
+TEST(SqlModuleDocParserTest, TableFunction) {
   auto m = Parse(R"(
 -- Returns rows.
 CREATE PERFETTO FUNCTION my_table_fn(
@@ -133,7 +133,7 @@ SELECT 1, 'a';
   EXPECT_EQ(fn.columns[1].description, "Row value.");
 }
 
-TEST(StdlibDocParserTest, Macro) {
+TEST(SqlModuleDocParserTest, Macro) {
   auto m = Parse(R"(
 -- Wraps an expression.
 CREATE PERFETTO MACRO my_macro(
@@ -158,7 +158,7 @@ $x;
   EXPECT_EQ(macro.args[0].description, "The expression.");
 }
 
-TEST(StdlibDocParserTest, InternalNamesNotExposed) {
+TEST(SqlModuleDocParserTest, InternalNamesNotExposed) {
   auto m = Parse(R"(
 CREATE PERFETTO TABLE _internal_table(id LONG) AS SELECT 1;
 CREATE PERFETTO FUNCTION _internal_fn(x LONG) RETURNS LONG AS SELECT $x;
@@ -173,7 +173,7 @@ CREATE PERFETTO MACRO _internal_macro(x Expr) RETURNS Expr AS $x;
   EXPECT_FALSE(m.macros[0].exposed);
 }
 
-TEST(StdlibDocParserTest, LicenseHeaderExcluded) {
+TEST(SqlModuleDocParserTest, LicenseHeaderExcluded) {
   // A blank line between the license block and the doc comment means only
   // the doc comment should be used as the description.
   auto m = Parse(R"(
@@ -188,7 +188,7 @@ CREATE PERFETTO TABLE t(id LONG) AS SELECT 1;
   EXPECT_EQ(m.table_views[0].description, "The real description.");
 }
 
-TEST(StdlibDocParserTest, MultiLineDescription) {
+TEST(SqlModuleDocParserTest, MultiLineDescription) {
   auto m = Parse(R"(
 -- First line.
 -- Second line.
@@ -199,7 +199,7 @@ CREATE PERFETTO TABLE t(id LONG) AS SELECT 1;
   EXPECT_EQ(m.table_views[0].description, "First line. Second line.");
 }
 
-TEST(StdlibDocParserTest, MultipleObjects) {
+TEST(SqlModuleDocParserTest, MultipleObjects) {
   auto m = Parse(R"(
 -- Table one.
 CREATE PERFETTO TABLE t1(id LONG) AS SELECT 1;
@@ -218,7 +218,7 @@ CREATE PERFETTO FUNCTION f1(x LONG) RETURNS LONG AS SELECT $x;
   EXPECT_EQ(m.functions[0].description, "Function one.");
 }
 
-TEST(StdlibDocParserTest, NoDescriptionIsEmpty) {
+TEST(SqlModuleDocParserTest, NoDescriptionIsEmpty) {
   auto m = Parse(R"(
 CREATE PERFETTO TABLE t(id LONG) AS SELECT 1;
 )");
@@ -227,7 +227,7 @@ CREATE PERFETTO TABLE t(id LONG) AS SELECT 1;
   EXPECT_EQ(m.table_views[0].description, "");
 }
 
-TEST(StdlibDocParserTest, DelegatingFunction) {
+TEST(SqlModuleDocParserTest, DelegatingFunction) {
   auto m = Parse(R"(
 -- Alias for my_fn.
 CREATE PERFETTO FUNCTION my_alias(
@@ -250,7 +250,7 @@ DELEGATES TO my_fn;
   EXPECT_EQ(fn.args[0].description, "The value.");
 }
 
-TEST(StdlibDocParserTest, NoArgDescriptionIsEmpty) {
+TEST(SqlModuleDocParserTest, NoArgDescriptionIsEmpty) {
   auto m = Parse(R"(
 CREATE PERFETTO FUNCTION f(x LONG) RETURNS LONG AS SELECT $x;
 )");
@@ -260,7 +260,7 @@ CREATE PERFETTO FUNCTION f(x LONG) RETURNS LONG AS SELECT $x;
   EXPECT_EQ(m.functions[0].args[0].description, "");
 }
 
-TEST(StdlibDocParserTest, EmptyInput) {
+TEST(SqlModuleDocParserTest, EmptyInput) {
   auto m = Parse("");
   EXPECT_TRUE(m.errors.empty());
   EXPECT_TRUE(m.table_views.empty());
@@ -268,7 +268,7 @@ TEST(StdlibDocParserTest, EmptyInput) {
   EXPECT_TRUE(m.macros.empty());
 }
 
-TEST(StdlibDocParserTest, CommentOnlyInput) {
+TEST(SqlModuleDocParserTest, CommentOnlyInput) {
   auto m = Parse("-- Just a comment, no statements.");
   EXPECT_TRUE(m.errors.empty());
   EXPECT_TRUE(m.table_views.empty());
@@ -276,7 +276,7 @@ TEST(StdlibDocParserTest, CommentOnlyInput) {
   EXPECT_TRUE(m.macros.empty());
 }
 
-TEST(StdlibDocParserTest, ParseErrorRecorded) {
+TEST(SqlModuleDocParserTest, ParseErrorRecorded) {
   auto m = Parse("THIS IS NOT VALID SQL @@@@;");
   EXPECT_FALSE(m.errors.empty());
 }
