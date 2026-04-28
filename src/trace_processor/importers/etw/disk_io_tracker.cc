@@ -69,7 +69,6 @@ DiskIoTracker::DiskIoTracker(TraceProcessorContext* context)
       disk_number_arg_(context_->storage->InternString("Disk Number")),
       irp_flags_arg_(context_->storage->InternString("Irp Flags")),
       transfer_size_arg_(context_->storage->InternString("Transfer Size")),
-      reserved_arg_(context_->storage->InternString("Reserved")),
       byte_offset_arg_(context_->storage->InternString("Byte Offset")),
       file_object_arg_(context_->storage->InternString("File Object")),
       irp_ptr_arg_(context_->storage->InternString("Irp Ptr")),
@@ -93,8 +92,6 @@ void DiskIoTracker::ParseDiskIo(int64_t timestamp, ConstBytes blob) {
       decoder.has_irp_flags() ? optional(decoder.irp_flags()) : nullopt;
   const auto transfer_size =
       decoder.has_transfer_size() ? optional(decoder.transfer_size()) : nullopt;
-  const auto reserved =
-      decoder.has_reserved() ? optional(decoder.reserved()) : nullopt;
   const auto byte_offset =
       decoder.has_byte_offset() ? optional(decoder.byte_offset()) : nullopt;
   const auto file_object =
@@ -105,7 +102,7 @@ void DiskIoTracker::ParseDiskIo(int64_t timestamp, ConstBytes blob) {
           : nullopt;
 
   SliceTracker::SetArgsCallback set_args =
-      [this, disk_number, irp_flags, transfer_size, reserved, byte_offset,
+      [this, disk_number, irp_flags, transfer_size, byte_offset,
        file_object, irp,
        high_res_response_time](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(irp_ptr_arg_, Variadic::Pointer(irp));
@@ -119,9 +116,6 @@ void DiskIoTracker::ParseDiskIo(int64_t timestamp, ConstBytes blob) {
         if (transfer_size) {
           inserter->AddArg(transfer_size_arg_,
                            Variadic::UnsignedInteger(*transfer_size));
-        }
-        if (reserved) {
-          inserter->AddArg(reserved_arg_, Variadic::UnsignedInteger(*reserved));
         }
         if (byte_offset) {
           inserter->AddArg(byte_offset_arg_, Variadic::Integer(*byte_offset));

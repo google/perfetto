@@ -75,7 +75,6 @@ class DiskIoTracker {
   const StringId disk_number_arg_;
   const StringId irp_flags_arg_;
   const StringId transfer_size_arg_;
-  const StringId reserved_arg_;
   const StringId byte_offset_arg_;
   const StringId file_object_arg_;
   const StringId irp_ptr_arg_;
