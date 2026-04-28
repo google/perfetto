@@ -4,6 +4,16 @@
 Phase 1: refactor + memdb/WAL with no behavioural change
 
 ## Recent activity (newest first)
+- 2026-04-29 [iter 2]: sqlite-build-flags done. Flipped
+  `SQLITE_THREADSAFE=0`→`=2` and removed `-DSQLITE_OMIT_SHARED_CACHE`
+  in `buildtools/BUILD.gn`. Audited remaining flags — all compatible
+  with multi-conn. URI parsing not enabled globally; will rely on
+  `SQLITE_OPEN_URI` per-open in next chunk. Builds + 1743 TP unittests
+  + 122 TP integration tests + 1355 diff tests all pass on macOS.
+  (Two unrelated pre-existing macOS failures observed:
+  `HttpServerTest.Websocket` framing bug, and a tracing-service
+  integration test that needs `@traced_relay` abstract socket — both
+  pre-date this change and are independent of SQLite.)
 - 2026-04-29 [iter 1]: scaffolded loop status doc, surveyed TP
   architecture, created branch `dev/lalitm/multi-conn-tp`. No code
   changes. Discovered SQLite is currently built with
@@ -15,10 +25,6 @@ Phase 1: refactor + memdb/WAL with no behavioural change
   a custom VFS.
 
 ## Next chunks (Phase 1)
-- [ ] sqlite-build-flags — flip `SQLITE_THREADSAFE=2`, drop
-      `SQLITE_OMIT_SHARED_CACHE`, audit other flags in
-      `buildtools/BUILD.gn` (lines 1664-1685) for multi-conn
-      compatibility. Verify all unit + integration tests still pass.
 - [ ] memdb-vfs-open — change `SqliteEngine` ctor (sqlite_engine.cc:115)
       to open `file:/perfetto-<unique>?vfs=memdb&cache=shared` with
       `SQLITE_OPEN_URI | SQLITE_OPEN_NOMUTEX` instead of
