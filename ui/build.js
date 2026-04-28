@@ -548,7 +548,13 @@ function compileScss() {
   }
   addTask(execModule, ['sass', args, {noErrCheck}]);
   if (cfg.bigtrace) {
-    addTask(cp, [dst, pjoin(cfg.outBigtraceDistDir, 'perfetto.css')]);
+    const srcBt = pjoin(ROOT_DIR, 'ui/src/assets/bigtrace.scss');
+    const dstBt = pjoin(cfg.outBigtraceDistDir, 'bigtrace.css');
+    const argsBt = [srcBt, dstBt];
+    if (!cfg.verbose) {
+      argsBt.unshift('--quiet');
+    }
+    addTask(execModule, ['sass', argsBt, {noErrCheck}]);
   }
 }
 
