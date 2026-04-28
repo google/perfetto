@@ -4608,8 +4608,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_util_proto_to_args_parser",
     srcs = [
-        "src/trace_processor/util/debug_annotation_parser.cc",
-        "src/trace_processor/util/debug_annotation_parser.h",
         "src/trace_processor/util/proto_to_args_parser.cc",
         "src/trace_processor/util/proto_to_args_parser.h",
     ],
