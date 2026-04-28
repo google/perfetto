@@ -43,16 +43,19 @@ describe('UnionNode', () => {
         createColumnInfo('name', 'string'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1, node2],
-        selectedColumns: [
-          createColumnInfo('id', 'int'),
-          createColumnInfo('name', 'string'),
-        ],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1, node2],
+          selectedColumns: [
+            createColumnInfo('id', 'int'),
+            createColumnInfo('name', 'string'),
+          ],
+        },
+        {},
+      );
 
-      expect(unionNode.state.autoExecute).toBe(false);
-      expect(unionNode.state.selectedColumns.length).toBe(2);
+      expect(unionNode.context.autoExecute).toBeUndefined();
+      expect(unionNode.attrs.selectedColumns.length).toBe(2);
       expect(unionNode.secondaryInputs.min).toBe(2);
       expect(unionNode.secondaryInputs.max).toBe('unbounded');
     });
@@ -62,10 +65,13 @@ describe('UnionNode', () => {
       const node2 = createMockNodeWithSq('node2', []);
       const node3 = createMockNodeWithSq('node3', []);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1, node2, node3],
-        selectedColumns: [],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1, node2, node3],
+          selectedColumns: [],
+        },
+        {},
+      );
 
       expect(unionNode.secondaryInputs.connections.size).toBe(3);
       expect(unionNode.secondaryInputs.connections.get(0)).toBe(node1);
@@ -76,10 +82,13 @@ describe('UnionNode', () => {
 
   describe('getCommonColumns', () => {
     it('should return empty array when there are no input nodes', () => {
-      const unionNode = new UnionNode({
-        inputNodes: [],
-        selectedColumns: [],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [],
+          selectedColumns: [],
+        },
+        {},
+      );
 
       expect(unionNode['getCommonColumns']()).toEqual([]);
     });
@@ -90,14 +99,17 @@ describe('UnionNode', () => {
         createColumnInfo('name', 'string'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1],
-        selectedColumns: [],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1],
+          selectedColumns: [],
+        },
+        {},
+      );
 
       const commonCols = unionNode['getCommonColumns']();
       expect(commonCols.length).toBe(2);
-      expect(commonCols.map((c) => c.column.name)).toEqual(['id', 'name']);
+      expect(commonCols.map((c) => c.name)).toEqual(['id', 'name']);
     });
 
     it('should return only common columns between two inputs', () => {
@@ -112,14 +124,17 @@ describe('UnionNode', () => {
         createColumnInfo('value', 'int'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1, node2],
-        selectedColumns: [],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1, node2],
+          selectedColumns: [],
+        },
+        {},
+      );
 
       const commonCols = unionNode['getCommonColumns']();
       expect(commonCols.length).toBe(2);
-      expect(commonCols.map((c) => c.column.name)).toEqual(['id', 'name']);
+      expect(commonCols.map((c) => c.name)).toEqual(['id', 'name']);
     });
 
     it('should return only columns present in all inputs', () => {
@@ -138,14 +153,17 @@ describe('UnionNode', () => {
         createColumnInfo('other', 'string'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1, node2, node3],
-        selectedColumns: [],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1, node2, node3],
+          selectedColumns: [],
+        },
+        {},
+      );
 
       const commonCols = unionNode['getCommonColumns']();
       expect(commonCols.length).toBe(1);
-      expect(commonCols.map((c) => c.column.name)).toEqual(['id']);
+      expect(commonCols.map((c) => c.name)).toEqual(['id']);
     });
 
     it('should return empty array when there are no common columns', () => {
@@ -158,10 +176,13 @@ describe('UnionNode', () => {
         createColumnInfo('ts', 'int'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1, node2],
-        selectedColumns: [],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1, node2],
+          selectedColumns: [],
+        },
+        {},
+      );
 
       const commonCols = unionNode['getCommonColumns']();
       expect(commonCols.length).toBe(0);
@@ -177,10 +198,13 @@ describe('UnionNode', () => {
         createColumnInfo('name', 'string'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1, node2],
-        selectedColumns: [],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1, node2],
+          selectedColumns: [],
+        },
+        {},
+      );
 
       const commonCols = unionNode['getCommonColumns']();
       expect(commonCols.every((c) => c.checked === true)).toBe(true);
@@ -198,17 +222,20 @@ describe('UnionNode', () => {
         createColumnInfo('name', 'string'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1, node2],
-        selectedColumns: [
-          createColumnInfo('id', 'int'),
-          {...createColumnInfo('name', 'string'), checked: false},
-        ],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1, node2],
+          selectedColumns: [
+            createColumnInfo('id', 'int'),
+            {...createColumnInfo('name', 'string'), checked: false},
+          ],
+        },
+        {},
+      );
 
       const finalCols = unionNode.finalCols;
       expect(finalCols.length).toBe(1);
-      expect(finalCols[0].column.name).toBe('id');
+      expect(finalCols[0].name).toBe('id');
     });
 
     it('should return empty array when no columns are checked', () => {
@@ -219,10 +246,13 @@ describe('UnionNode', () => {
         createColumnInfo('id', 'int'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1, node2],
-        selectedColumns: [{...createColumnInfo('id', 'int'), checked: false}],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1, node2],
+          selectedColumns: [{...createColumnInfo('id', 'int'), checked: false}],
+        },
+        {},
+      );
 
       expect(unionNode.finalCols).toEqual([]);
     });
@@ -239,13 +269,16 @@ describe('UnionNode', () => {
         createColumnInfo('name', 'string'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1, node2],
-        selectedColumns: [
-          createColumnInfo('id', 'int'),
-          {...createColumnInfo('name', 'string'), checked: false},
-        ],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1, node2],
+          selectedColumns: [
+            createColumnInfo('id', 'int'),
+            {...createColumnInfo('name', 'string'), checked: false},
+          ],
+        },
+        {},
+      );
 
       // Update node2 to remove 'name'
       const updatedNode2 = createMockNodeWithSq('node2', [
@@ -257,10 +290,10 @@ describe('UnionNode', () => {
       unionNode.onPrevNodesUpdated();
 
       // Only 'id' should remain as it's the only common column
-      expect(unionNode.state.selectedColumns.length).toBe(1);
-      expect(unionNode.state.selectedColumns[0].column.name).toBe('id');
+      expect(unionNode.attrs.selectedColumns.length).toBe(1);
+      expect(unionNode.attrs.selectedColumns[0].name).toBe('id');
       // 'id' should preserve its checked status (true)
-      expect(unionNode.state.selectedColumns[0].checked).toBe(true);
+      expect(unionNode.attrs.selectedColumns[0].checked).toBe(true);
     });
 
     it('should preserve checked status for columns that still exist', () => {
@@ -275,29 +308,32 @@ describe('UnionNode', () => {
         createColumnInfo('ts', 'int'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1, node2],
-        selectedColumns: [
-          createColumnInfo('id', 'int'),
-          {...createColumnInfo('name', 'string'), checked: false},
-          createColumnInfo('ts', 'int'),
-        ],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1, node2],
+          selectedColumns: [
+            createColumnInfo('id', 'int'),
+            {...createColumnInfo('name', 'string'), checked: false},
+            createColumnInfo('ts', 'int'),
+          ],
+        },
+        {},
+      );
 
       unionNode.onPrevNodesUpdated();
 
       // All columns should still exist
-      expect(unionNode.state.selectedColumns.length).toBe(3);
+      expect(unionNode.attrs.selectedColumns.length).toBe(3);
 
       // Check that checked status is preserved
-      const idCol = unionNode.state.selectedColumns.find(
-        (c) => c.column.name === 'id',
+      const idCol = unionNode.attrs.selectedColumns.find(
+        (c) => c.name === 'id',
       );
-      const nameCol = unionNode.state.selectedColumns.find(
-        (c) => c.column.name === 'name',
+      const nameCol = unionNode.attrs.selectedColumns.find(
+        (c) => c.name === 'name',
       );
-      const tsCol = unionNode.state.selectedColumns.find(
-        (c) => c.column.name === 'ts',
+      const tsCol = unionNode.attrs.selectedColumns.find(
+        (c) => c.name === 'ts',
       );
 
       expect(idCol?.checked).toBe(true);
@@ -312,13 +348,16 @@ describe('UnionNode', () => {
         createColumnInfo('id', 'int'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1],
-        selectedColumns: [],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1],
+          selectedColumns: [],
+        },
+        {},
+      );
 
       expect(unionNode.validate()).toBe(false);
-      expect(unionNode.state.issues?.queryError?.message).toContain(
+      expect(unionNode.context.issues?.queryError?.message).toContain(
         'at least two sources',
       );
     });
@@ -331,13 +370,16 @@ describe('UnionNode', () => {
         createColumnInfo('value', 'int'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1, node2],
-        selectedColumns: [],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1, node2],
+          selectedColumns: [],
+        },
+        {},
+      );
 
       expect(unionNode.validate()).toBe(false);
-      expect(unionNode.state.issues?.queryError?.message).toContain(
+      expect(unionNode.context.issues?.queryError?.message).toContain(
         'common columns',
       );
     });
@@ -347,10 +389,13 @@ describe('UnionNode', () => {
         createColumnInfo('id', 'int'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1],
-        selectedColumns: [],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1],
+          selectedColumns: [],
+        },
+        {},
+      );
 
       // Manually add undefined to connections
       unionNode.secondaryInputs.connections.set(
@@ -359,7 +404,7 @@ describe('UnionNode', () => {
       );
 
       expect(unionNode.validate()).toBe(false);
-      expect(unionNode.state.issues?.queryError?.message).toContain(
+      expect(unionNode.context.issues?.queryError?.message).toContain(
         'disconnected inputs',
       );
     });
@@ -374,13 +419,16 @@ describe('UnionNode', () => {
         createColumnInfo('name', 'string'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1, node2],
-        selectedColumns: [
-          createColumnInfo('id', 'int'),
-          createColumnInfo('name', 'string'),
-        ],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1, node2],
+          selectedColumns: [
+            createColumnInfo('id', 'int'),
+            createColumnInfo('name', 'string'),
+          ],
+        },
+        {},
+      );
 
       expect(unionNode.validate()).toBe(true);
     });
@@ -393,30 +441,36 @@ describe('UnionNode', () => {
         createColumnInfo('id', 'int'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1, node2],
-        selectedColumns: [createColumnInfo('id', 'int')],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1, node2],
+          selectedColumns: [createColumnInfo('id', 'int')],
+        },
+        {},
+      );
 
       // First validate with error
       unionNode.secondaryInputs.connections.clear();
       expect(unionNode.validate()).toBe(false);
-      expect(unionNode.state.issues?.queryError).toBeDefined();
+      expect(unionNode.context.issues?.queryError).toBeDefined();
 
       // Restore connections and validate again
       unionNode.secondaryInputs.connections.set(0, node1);
       unionNode.secondaryInputs.connections.set(1, node2);
       expect(unionNode.validate()).toBe(true);
-      expect(unionNode.state.issues?.queryError).toBeUndefined();
+      expect(unionNode.context.issues?.queryError).toBeUndefined();
     });
   });
 
   describe('getTitle', () => {
     it('should return "Union"', () => {
-      const unionNode = new UnionNode({
-        inputNodes: [],
-        selectedColumns: [],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [],
+          selectedColumns: [],
+        },
+        {},
+      );
 
       expect(unionNode.getTitle()).toBe('Union');
     });
@@ -431,18 +485,18 @@ describe('UnionNode', () => {
         createColumnInfo('id', 'int'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1, node2],
-        selectedColumns: [createColumnInfo('id', 'int')],
-      });
-      unionNode.comment = 'test comment';
-
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1, node2],
+          selectedColumns: [createColumnInfo('id', 'int')],
+        },
+        {},
+      );
       const cloned = unionNode.clone() as UnionNode;
 
       expect(cloned).not.toBe(unionNode);
-      expect(cloned.state.inputNodes).toEqual(unionNode.state.inputNodes);
-      expect(cloned.state.selectedColumns.length).toBe(1);
-      expect(cloned.comment).toBe('test comment');
+      // Clone doesn't copy input connections (those are graph topology)
+      expect((cloned as UnionNode).attrs.selectedColumns.length).toBe(1);
     });
 
     it('should not share state with original', () => {
@@ -453,18 +507,21 @@ describe('UnionNode', () => {
         createColumnInfo('id', 'int'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1, node2],
-        selectedColumns: [createColumnInfo('id', 'int')],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1, node2],
+          selectedColumns: [createColumnInfo('id', 'int')],
+        },
+        {},
+      );
 
       const cloned = unionNode.clone() as UnionNode;
 
       // Modify the cloned state
-      cloned.state.selectedColumns[0].checked = false;
+      (cloned as UnionNode).attrs.selectedColumns[0].checked = false;
 
       // Original should not be affected
-      expect(unionNode.state.selectedColumns[0].checked).toBe(true);
+      expect(unionNode.attrs.selectedColumns[0].checked).toBe(true);
     });
   });
 
@@ -474,10 +531,13 @@ describe('UnionNode', () => {
         createColumnInfo('id', 'int'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1],
-        selectedColumns: [],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1],
+          selectedColumns: [],
+        },
+        {},
+      );
 
       expect(unionNode.getStructuredQuery()).toBeUndefined();
     });
@@ -490,10 +550,13 @@ describe('UnionNode', () => {
         createColumnInfo('id', 'int'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1, node2],
-        selectedColumns: [{...createColumnInfo('id', 'int'), checked: false}],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1, node2],
+          selectedColumns: [{...createColumnInfo('id', 'int'), checked: false}],
+        },
+        {},
+      );
 
       expect(unionNode.getStructuredQuery()).toBeUndefined();
     });
@@ -503,10 +566,13 @@ describe('UnionNode', () => {
         createColumnInfo('id', 'int'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1],
-        selectedColumns: [createColumnInfo('id', 'int')],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1],
+          selectedColumns: [createColumnInfo('id', 'int')],
+        },
+        {},
+      );
 
       unionNode.secondaryInputs.connections.set(
         1,
@@ -528,13 +594,16 @@ describe('UnionNode', () => {
         createColumnInfo('value', 'int'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1, node2],
-        selectedColumns: [
-          createColumnInfo('id', 'int'),
-          createColumnInfo('name', 'string'),
-        ],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1, node2],
+          selectedColumns: [
+            createColumnInfo('id', 'int'),
+            createColumnInfo('name', 'string'),
+          ],
+        },
+        {},
+      );
 
       const sq = unionNode.getStructuredQuery();
 
@@ -556,14 +625,17 @@ describe('UnionNode', () => {
         createColumnInfo('ts', 'int'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1, node2],
-        selectedColumns: [
-          createColumnInfo('id', 'int'),
-          {...createColumnInfo('name', 'string'), checked: false}, // unchecked
-          createColumnInfo('ts', 'int'),
-        ],
-      });
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1, node2],
+          selectedColumns: [
+            createColumnInfo('id', 'int'),
+            {...createColumnInfo('name', 'string'), checked: false}, // unchecked
+            createColumnInfo('ts', 'int'),
+          ],
+        },
+        {},
+      );
 
       const sq = unionNode.getStructuredQuery();
 
@@ -599,32 +671,27 @@ describe('UnionNode', () => {
         createColumnInfo('id', 'int'),
       ]);
 
-      const unionNode = new UnionNode({
-        inputNodes: [node1, node2],
-        selectedColumns: [createColumnInfo('id', 'int')],
-      });
-      unionNode.comment = 'test comment';
-
-      const serialized = unionNode.serializeState();
-
-      expect(serialized.selectedColumns.length).toBe(1);
-      expect(serialized.selectedColumns[0].column.name).toBe('id');
-      expect(serialized.comment).toBe('test comment');
+      const unionNode = new UnionNode(
+        {
+          inputNodes: [node1, node2],
+          selectedColumns: [createColumnInfo('id', 'int')],
+        },
+        {},
+      );
+      expect(unionNode.attrs.selectedColumns.length).toBe(1);
+      expect(unionNode.attrs.selectedColumns[0].name).toBe('id');
     });
   });
 
-  describe('deserializeState', () => {
-    it('should deserialize state correctly', () => {
-      const serialized = {
-        selectedColumns: [createColumnInfo('id', 'int')],
-        comment: 'test comment',
-      };
+  describe('deserialize', () => {
+    it('should restore state via constructor', () => {
+      const node = new UnionNode(
+        {selectedColumns: [createColumnInfo('id', 'int')]},
+        {},
+      );
 
-      const state = UnionNode.deserializeState(serialized);
-
-      expect(state.inputNodes).toEqual([]);
-      expect(state.selectedColumns.length).toBe(1);
-      expect(state.selectedColumns[0].column.name).toBe('id');
+      expect(node.attrs.selectedColumns.length).toBe(1);
+      expect(node.attrs.selectedColumns[0].name).toBe('id');
     });
   });
 });

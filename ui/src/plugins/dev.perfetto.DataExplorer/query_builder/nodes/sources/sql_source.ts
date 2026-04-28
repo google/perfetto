@@ -15,35 +15,27 @@
 import m from 'mithril';
 import {
   QueryNode,
-  QueryNodeState,
   NodeType,
   nextNodeId,
   SecondaryInputSpec,
+  NodeContext,
 } from '../../../query_node';
 import {notifyNextNodes} from '../../graph_utils';
-import {columnInfoFromName, newColumnInfoList} from '../../column_info';
 import protos from '../../../../../protos';
 import {Editor} from '../../../../../widgets/editor';
 import {
   StructuredQueryBuilder,
   SqlDependency,
 } from '../../structured_query_builder';
-import {Trace} from '../../../../../public/trace';
-
 import {ColumnInfo} from '../../column_info';
 import {setValidationError} from '../../node_issues';
 import {NodeDetailsAttrs} from '../../../node_types';
 import {loadNodeDoc} from '../../node_doc_loader';
 import {NodeTitle} from '../../node_styling_widgets';
 
-export interface SqlSourceSerializedState {
+// Serializable node configuration.
+export interface SqlSourceNodeAttrs {
   sql?: string;
-  comment?: string;
-}
-
-export interface SqlSourceState extends QueryNodeState {
-  sql?: string;
-  trace: Trace;
 }
 
 interface SqlEditorAttrs {
@@ -140,17 +132,19 @@ function validateStatementStructure(sql: string): string | undefined {
 
 export class SqlSourceNode implements QueryNode {
   readonly nodeId: string;
-  readonly state: SqlSourceState;
+  readonly attrs: SqlSourceNodeAttrs;
+  readonly context: NodeContext;
   finalCols: ColumnInfo[];
   nextNodes: QueryNode[];
   secondaryInputs: SecondaryInputSpec;
 
-  constructor(attrs: SqlSourceState) {
+  constructor(attrs: SqlSourceNodeAttrs, context: NodeContext) {
     this.nodeId = nextNodeId();
-    this.state = {
-      ...attrs,
+    this.attrs = attrs;
+    this.context = {
+      ...context,
       // SQL source nodes require manual execution since users write SQL
-      autoExecute: attrs.autoExecute ?? false,
+      autoExecute: context.autoExecute ?? false,
     };
     this.finalCols = [];
     this.nextNodes = [];
@@ -168,10 +162,7 @@ export class SqlSourceNode implements QueryNode {
   }
 
   setSourceColumns(columns: string[]) {
-    this.finalCols = newColumnInfoList(
-      columns.map((c) => columnInfoFromName(c)),
-      true,
-    );
+    this.finalCols = columns.map((c) => ({name: c, checked: true}));
     m.redraw();
   }
 
@@ -193,28 +184,23 @@ export class SqlSourceNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    const stateCopy: SqlSourceState = {
-      sql: this.state.sql,
-      issues: this.state.issues,
-      trace: this.state.trace,
-    };
-    return new SqlSourceNode(stateCopy);
+    return new SqlSourceNode({sql: this.attrs.sql}, this.context);
   }
 
   validate(): boolean {
     // Clear any previous errors at the start of validation
-    if (this.state.issues) {
-      this.state.issues.clear();
+    if (this.context.issues) {
+      this.context.issues.clear();
     }
 
-    if (this.state.sql === undefined || this.state.sql.trim() === '') {
-      setValidationError(this.state, 'SQL query is empty');
+    if (this.attrs.sql === undefined || this.attrs.sql.trim() === '') {
+      setValidationError(this.context, 'SQL query is empty');
       return false;
     }
 
-    const structureError = validateStatementStructure(this.state.sql);
+    const structureError = validateStatementStructure(this.attrs.sql);
     if (structureError !== undefined) {
-      setValidationError(this.state, structureError);
+      setValidationError(this.context, structureError);
       return false;
     }
 
@@ -228,12 +214,6 @@ export class SqlSourceNode implements QueryNode {
   nodeDetails(): NodeDetailsAttrs {
     return {
       content: NodeTitle(this.getTitle()),
-    };
-  }
-
-  serializeState(): SqlSourceSerializedState {
-    return {
-      sql: this.state.sql,
     };
   }
 
@@ -257,10 +237,10 @@ export class SqlSourceNode implements QueryNode {
     // Use columns from the last successful execution. These are populated
     // by onQueryExecuted() and are cleared when SQL changes (to prevent
     // stale columns from being used with a different query).
-    const columnNames: string[] = this.finalCols.map((c) => c.column.name);
+    const columnNames: string[] = this.finalCols.map((c) => c.name);
 
     const sq = StructuredQueryBuilder.fromSql(
-      this.state.sql || '',
+      this.attrs.sql || '',
       dependencies,
       columnNames,
       this.nodeId,
@@ -272,24 +252,24 @@ export class SqlSourceNode implements QueryNode {
 
   nodeSpecificModify(): m.Child {
     return m(SqlEditor, {
-      sql: this.state.sql ?? '',
+      sql: this.attrs.sql ?? '',
       onUpdate: (text: string) => {
-        if (this.state.sql === text) {
+        if (this.attrs.sql === text) {
           return;
         }
-        this.state.sql = text;
+        this.attrs.sql = text;
         // Clear columns when SQL changes to prevent stale column usage
         this.finalCols = [];
         // Notify that the query has changed so stale results are cleared
-        this.state.onchange?.();
+        this.context.onchange?.();
         m.redraw();
       },
       onExecute: (text: string) => {
-        this.state.sql = text.trim();
+        this.attrs.sql = text.trim();
         // Clear columns when SQL changes to prevent stale column usage
         this.finalCols = [];
         // Notify that the query has changed so stale results are cleared
-        this.state.onchange?.();
+        this.context.onchange?.();
         m.redraw();
       },
     });
@@ -303,9 +283,8 @@ export class SqlSourceNode implements QueryNode {
     const regex = /\$([A-Za-z0-9_]*)/g;
     let match: RegExpExecArray | null;
     const dependencies: string[] = [];
-    const node = this;
-    if (node.state.sql) {
-      while ((match = regex.exec(node.state.sql)) !== null) {
+    if (this.attrs.sql) {
+      while ((match = regex.exec(this.attrs.sql)) !== null) {
         dependencies.push(match[1]);
       }
     }

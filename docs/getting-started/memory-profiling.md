@@ -1,10 +1,10 @@
-# Recording memory profiles with Perfetto
+# Profiling memory usage and allocations with Perfetto
 
 In this guide, you'll learn how to:
 
-- Record native and Java heap profiles with Perfetto.
-- Visualize and analyze heap profiles in the Perfetto UI.
 - Understand the different memory profiling modes and when to use them.
+- Record native and Java heap profiles with Perfetto.
+- Visualize and analyze allocation profiles in the Perfetto UI.
 
 The memory use of a process plays a key role in the performance of processes and
 impact on overall system stability. Understanding where and how your process is
@@ -14,7 +14,7 @@ running slower than you expect or just help make your program more efficient.
 When it comes to apps and memory, there are mainly two ways a process can use
 memory:
 
-- **Native C/C++/Rust processes**: typically allocate memory via libc's
+- **Native C/C++/Rust code**: typically allocate memory via libc's
   malloc/free (or wrappers on top of it like C++'s new/delete). Note that native
   allocations are still possible (and quite frequent) when using Java APIs that
   are backed by JNI counterparts. A canonical example is
@@ -22,21 +22,19 @@ memory:
   Java heap and **native memory** due to the underlying use of native regex
   libraries.
 
-- **Java/KT Apps**: a good portion of the memory footprint of an app lives in
+- **Java/KT code**: a good portion of the memory footprint of an app lives in
   the **managed heap** (in the case of Android, managed by ART's garbage
   collector). This is where every `new X()` object lives.
 
-Perfetto offers two complementary techniques for debugging the above:
+Perfetto offers multiple complementary techniques for debugging the above:
 
-- [**heap profiling**](#native-c-c-rust-heap-profling) for native code: this is
-  based on sampling callstacks when a malloc/free happens and showing aggregated
-  flamegraphs to break down memory usage by call site.
+Tool | Language | What is instrumented | Usage
+-----|----------|----------------------|------
+[ART Heap Dumps](#java-managed-heap-dumps) | Java/Kotlin | Reference graph of all allocated objects | Breakdown memory usage, and find leaks.
+[Native Allocation Profiling](#native-c-c-rust-heap-profiling) | Native C/C++/Rust | `malloc` + `free` | Reduce native allocation churn, breakdown memory usage and find leaks **after profiling started**.
+[ART Allocation Profiling](/docs/data-sources/native-heap-profiler.md#java-heap-sampling) | Java/Kotlin | Object allocations | Reduce Java/Kotlin allocation churn
 
-- [**heap dumps**](#java-managed-heap-dumps) for Java/managed code: this is
-  based on creating heap retention graphs that show retention dependencies
-  between objects (but no call-sites).
-
-## Native (C/C++/Rust) Heap Profiling
+## Native (C/C++/Rust) Allocation Profiling (aka native heap profiling)
 
 Native languages like C/C++/Rust commonly allocate and deallocate memory at the
 lowest level by using the libc family of `malloc`/`free` functions. Native heap
@@ -63,7 +61,7 @@ anecdotal experience is that if you are chasing a memory leak, there is a good
 chance that the leak will keep happening over time and hence you will be able to
 see future increments.
 
-### Collecting your first heap profile
+### Collecting your first Native Allocation Profile
 
 <?tabs>
 
@@ -102,8 +100,8 @@ implementation.
 
 TAB: Android (Command line)
 
-On Android Perfetto heap profiling hooks are seamlessly integrated into the libc
-implementation.
+On Android Perfetto native heap profiling hooks are seamlessly integrated into
+the libc implementation.
 
 #### Prerequisites
 
@@ -294,7 +292,7 @@ FROM android_heap_graph_class_aggregation;
 
 you can see a summary of the reachable aggregate object sizes and object counts.
 
-## Java/Managed Heap Dumps
+## ART Heap Dumps
 
 Java—and managed languages built on top of it, like Kotlin—use a runtime
 environment to handle memory management and garbage collection. In these
@@ -303,9 +301,9 @@ object references: objects retain other objects, and memory is automatically
 reclaimed by the garbage collector once objects become unreachable. There is no
 free() call as in manual memory management.
 
-As a result, most profiling tools for managed languages work by capturing and
-analyzing a complete heap dump, which includes all live objects and their
-retaining relationships—a full object graph.
+As a result, most profiling tools for the heap of a managed languages work by
+capturing and analyzing a complete heap dump, which includes all live objects
+and their retaining relationships—a full object graph.
 
 This approach has the advantage of retroactive analysis: it provides a
 consistent snapshot of the entire heap without requiring prior instrumentation.
@@ -314,7 +312,7 @@ others alive, you typically cannot see the exact call sites where those objects
 were allocated. This can make it harder to reason about memory usage, especially
 when the same type of object is allocated from multiple locations in the code.
 
-NOTE: Java heap dumps with Perfetto only works on Android. This is due to the
+NOTE: ART heap dumps with Perfetto only works on Android. This is due to the
 deep integration with the JVM (Android Runtime - ART) required to efficiently
 capture a heap dump without impacting the performance of the process.
 
@@ -402,7 +400,7 @@ This can be viewed using https://ui.perfetto.dev.
 ```
 </tabs?>
 
-### Visualizing your first heap dump
+### Visualizing your first ART heap dump
 
 Open the `/tmp/xxxx` file in the Perfetto UI and click on the chevron marker in
 the UI track labeled "Heap profile".

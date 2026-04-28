@@ -13,7 +13,14 @@
 # limitations under the License.
 
 import("perfetto.gni")
+import("perfetto_cpp_blob_header.gni")
 
+# Thin wrapper around perfetto_cpp_blob_header that emits a
+# {descriptor_name}.h header containing the bytes of a proto descriptor file
+# (file produced by protoc, or a path on disk) as a constexpr std::array.
+#
+# The C++ symbol name is derived from the descriptor file basename: e.g.
+# 'test_messages.descriptor' produces a `kTestMessagesDescriptor` array.
 template("perfetto_cc_proto_descriptor") {
   is_target = defined(invoker.descriptor_target)
   is_path = defined(invoker.descriptor_path)
@@ -23,47 +30,38 @@ template("perfetto_cc_proto_descriptor") {
   # descriptor_path
   assert((is_target || is_path) && !(is_target && is_path))
 
-  config("${target_name}_config") {
-    include_dirs = [ "${root_gen_dir}/${perfetto_root_path}" ]
+  if (is_target) {
+    descriptor_file_path =
+        get_label_info(invoker.descriptor_target, "target_gen_dir") +
+        "/${invoker.descriptor_name}"
+    if (build_with_chromium ||
+        (perfetto_build_with_embedder && !is_perfetto_build_generator)) {
+      _deps = [ "${invoker.descriptor_target}_gen" ]
+    } else {
+      _deps = [ invoker.descriptor_target ]
+    }
+  } else {
+    descriptor_file_path = invoker.descriptor_path
+    _deps = []
   }
 
-  action(target_name) {
-    forward_variables_from(invoker, [ "testonly" ])
-    generated_header = "${target_gen_dir}/${invoker.descriptor_name}.h"
-    if (is_target) {
-      descriptor_file_path =
-          get_label_info(invoker.descriptor_target, "target_gen_dir") +
-          "/${invoker.descriptor_name}"
-      if (build_with_chromium ||
-          (perfetto_build_with_embedder && !is_perfetto_build_generator)) {
-        deps = [ "${invoker.descriptor_target}_gen" ]
-      } else {
-        deps = [ invoker.descriptor_target ]
-      }
-    } else {
-      descriptor_file_path = invoker.descriptor_path
-      deps = []
-    }
+  _namespace = "perfetto"
+  if (defined(invoker.namespace)) {
+    _namespace = invoker.namespace
+  }
 
-    script = "$perfetto_root_path/tools/gen_cc_proto_descriptor.py"
-    args = [
-      "--gen_dir",
-      rebase_path(root_gen_dir, root_build_dir),
-      "--cpp_out",
-      rebase_path(generated_header, root_build_dir),
+  perfetto_cpp_blob_header(target_name) {
+    forward_variables_from(invoker, [ "testonly" ])
+    script = "$perfetto_root_path/python/tools/cpp_blob_emitter.py"
+    sources = [ descriptor_file_path ]
+    generated_header = "${target_gen_dir}/${invoker.descriptor_name}.h"
+    pass_gen_dir = true
+    extra_args = [
+      "--namespace",
+      _namespace,
+      "--symbol-suffix",
+      "Descriptor",
     ]
-    if (defined(invoker.namespace)) {
-      args += [
-        "--namespace",
-        invoker.namespace,
-      ]
-    }
-    args += [ rebase_path(descriptor_file_path, root_build_dir) ]
-    inputs = [ descriptor_file_path ]
-    outputs = [ generated_header ]
-    public_configs = [ ":${target_name}_config" ]
-    metadata = {
-      perfetto_action_type_for_generator = [ "cc_proto_descriptor" ]
-    }
+    deps = _deps
   }
 }

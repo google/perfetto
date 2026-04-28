@@ -16,8 +16,6 @@
 
 #include "perfetto/ext/traceconv/traceconv.h"
 
-#include <unistd.h>
-
 #include <cstdlib>
 #include <cstring>
 #include <map>
@@ -93,18 +91,18 @@ std::map<std::string, std::string> ReadTarMembers(const std::string& path) {
 class TraceconvBundleTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    input_trace_ = base::GetTestDataPath(
+        "test/data/heapprofd_standalone_client_example-trace");
+    output_path_ = temp_dir_.path() + "/bundle.tar";
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     GTEST_SKIP() << "do not run traceconv tests on Android target";
 #endif
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
     GTEST_SKIP() << "TarWriter is not supported on Windows";
 #endif
-    input_trace_ = base::GetTestDataPath(
-        "test/data/heapprofd_standalone_client_example-trace");
-    output_path_ = temp_dir_.path() + "/bundle.tar";
   }
 
-  void TearDown() override { unlink(output_path_.c_str()); }
+  void TearDown() override { remove(output_path_.c_str()); }
 
   // Collects every package_name found in a deobfuscation.pb proto stream.
   static std::set<std::string> PackageNames(const std::string& deob_bytes) {

@@ -213,7 +213,7 @@ export async function createDataExplorerGraph(
 
   // Create slices source node (right side), only if slice data exists
   if (!isTableEffectivelyDisabled(sqlModules, 'slice')) {
-    const slicesNode = new SlicesSourceNode({sqlModules, trace});
+    const slicesNode = new SlicesSourceNode({}, {sqlModules, trace});
     rightNodes.push(slicesNode);
   }
 

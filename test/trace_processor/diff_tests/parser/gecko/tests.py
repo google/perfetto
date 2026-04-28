@@ -94,3 +94,29 @@ class GeckoParser(TestSuite):
           "dav1d_decode_tile_sbrow","gecko",32,40172
           "decode_sb","gecko",13,40088
         '''))
+
+  def test_gecko_shared_resources(self):
+    return DiffTestBlueprint(
+        trace=DataPath('gecko_shared_resources.json.gz'),
+        query="""
+          INCLUDE PERFETTO MODULE stacks.cpu_profiling;
+
+          SELECT
+            t.name as thread_name,
+            count(*) as sample_count
+          FROM cpu_profile_stack_sample s
+          JOIN thread t USING(utid)
+          GROUP BY t.name
+          ORDER BY sample_count desc
+        """,
+        out=Csv('''
+          "thread_name","sample_count"
+          "benches",863
+          "cargo",56
+          "tokio-runtime-worker",16
+          "Thread <27885288>",5
+          "Thread <27885276>",3
+          "Thread <27885290>",2
+          "Thread <27885289>",2
+          "Thread <27885277>",2
+        '''))

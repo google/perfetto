@@ -40,7 +40,7 @@
     }
 
     &:focus-visible {
-      outline: 2px solid #1a73e8;
+      outline: 2px solid var(--pf-color-accent);
       outline-offset: -2px;
     }
   }
@@ -58,12 +58,32 @@
       transform: rotate(-90deg);
     }
   }
+
+  &::details-content {
+    opacity: 0;
+    height: 0;
+    overflow: hidden;
+    transition:
+      height 0.2s ease,
+      opacity 0.2s ease,
+      content-visibility 0.2s allow-discrete;
+  }
+
+  &[open]::details-content {
+    opacity: 1;
+    height: auto;
+  }
+}
+
+:root {
+  interpolate-size: allow-keywords;
 }
 
 .pf-accordion__toggle {
   color: var(--pf-color-text-muted);
   display: flex;
   align-items: center;
+  transition: transform 0.2s ease;
 }
 
 .pf-accordion__header-content {

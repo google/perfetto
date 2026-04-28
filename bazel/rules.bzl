@@ -335,20 +335,38 @@ def perfetto_proto_descriptor(name, deps, outs, **kwargs):
     if not _rule_override("proto_descriptor_gen", **args):
         proto_descriptor_gen(**args)
 
-# Generator .descriptor.h from protos
-def perfetto_cc_proto_descriptor(name, deps, outs, **kwargs):
+# Generic codegen: run `script` over `deps` to emit a single C++ header file.
+# The script is expected to accept `--output <path>` followed by optional
+# script-specific flags (passed via `args`) and the input files. It writes a
+# `constexpr std::array<uint8_t, N>` (typically by calling
+# python/tools/cpp_blob_emitter.py).
+def perfetto_label(label):
+    """Resolves a perfetto-relative label against PERFETTO_CONFIG.root.
+
+    Pass labels in either `"package:target"` (for sub-packages) or
+    `":target"` (for the perfetto root package) form. Handles the slash
+    handling for standalone (`root = "//"`) vs embedded
+    (`root = "//path/to/perfetto"`, no trailing slash) builds.
+    """
+    if PERFETTO_CONFIG.root[:2] != "//":
+        fail("Expected PERFETTO_CONFIG.root to start with //")
+    if label.startswith(":") or PERFETTO_CONFIG.root == "//":
+        return PERFETTO_CONFIG.root + label
+    return PERFETTO_CONFIG.root + "/" + label
+
+def perfetto_cpp_blob_header(name, script, deps, outs, args = [], **kwargs):
+    # `script` is a relative perfetto label resolved via `perfetto_label` so
+    # the rule works in standalone and embedded builds.
+    resolved_script = perfetto_label(script)
+
     cmd = [
-        "$(location gen_cc_proto_descriptor_py)",
-        "--cpp_out=$@",
-        "--gen_dir=$(GENDIR)",
-        "$<",
-    ]
+        "$(location " + resolved_script + ")",
+        "--output=$@",
+    ] + args + ["$(SRCS)"]
     perfetto_genrule(
         name = name + "_gen",
         cmd = " ".join(cmd),
-        tools = [
-            ":gen_cc_proto_descriptor_py",
-        ],
+        tools = [resolved_script],
         srcs = deps,
         outs = outs,
     )

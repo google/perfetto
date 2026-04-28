@@ -105,8 +105,6 @@ source_set("lib") {
     "trace_to_bundle.h",
     "trace_to_firefox.cc",
     "trace_to_firefox.h",
-    "trace_to_hprof.cc",
-    "trace_to_hprof.h",
     "trace_to_json.cc",
     "trace_to_json.h",
     "trace_to_profile.cc",

@@ -22,7 +22,7 @@ load(
     "perfetto_cc_binary",
     "perfetto_cc_ipc_library",
     "perfetto_cc_library",
-    "perfetto_cc_proto_descriptor",
+    "perfetto_cpp_blob_header",
     "perfetto_cc_proto_library",
     "perfetto_cc_protocpp_library",
     "perfetto_cc_protozero_library",
@@ -39,6 +39,7 @@ load(
     "perfetto_py_library",
     "perfetto_py_proto_library",
     "perfetto_jspb_proto_library",
+    "perfetto_label",
     "perfetto_android_binary",
     "perfetto_android_jni_library",
     "perfetto_android_library",
@@ -1878,24 +1879,40 @@ perfetto_filegroup(
 )
 
 # GN target: //src/proto_utils:gen_cc_config_descriptor
-perfetto_cc_proto_descriptor(
+perfetto_cpp_blob_header(
     name = "src_proto_utils_gen_cc_config_descriptor",
+    script = "python:cpp_blob_emitter_bin",
     deps = [
         ":protos_perfetto_config_descriptor",
     ],
     outs = [
         "src/proto_utils/config.descriptor.h",
     ],
+    args = [
+        "--gen-dir=$(GENDIR)",
+        "--namespace",
+        "perfetto",
+        "--symbol-suffix",
+        "Descriptor",
+    ],
 )
 
 # GN target: //src/proto_utils:gen_cc_trace_summary_descriptor
-perfetto_cc_proto_descriptor(
+perfetto_cpp_blob_header(
     name = "src_proto_utils_gen_cc_trace_summary_descriptor",
+    script = "python:cpp_blob_emitter_bin",
     deps = [
         ":protos_perfetto_trace_summary_descriptor",
     ],
     outs = [
         "src/proto_utils/trace_summary.descriptor.h",
+    ],
+    args = [
+        "--gen-dir=$(GENDIR)",
+        "--namespace",
+        "perfetto",
+        "--symbol-suffix",
+        "Descriptor",
     ],
 )
 
@@ -2778,13 +2795,21 @@ perfetto_filegroup(
 )
 
 # GN target: //src/trace_processor/importers/proto/winscope:gen_cc_winscope_descriptor
-perfetto_cc_proto_descriptor(
+perfetto_cpp_blob_header(
     name = "src_trace_processor_importers_proto_winscope_gen_cc_winscope_descriptor",
+    script = "python:cpp_blob_emitter_bin",
     deps = [
         ":protos_perfetto_trace_android_winscope_descriptor",
     ],
     outs = [
         "src/trace_processor/importers/proto/winscope/winscope.descriptor.h",
+    ],
+    args = [
+        "--gen-dir=$(GENDIR)",
+        "--namespace",
+        "perfetto",
+        "--symbol-suffix",
+        "Descriptor",
     ],
 )
 
@@ -2862,68 +2887,116 @@ perfetto_filegroup(
 )
 
 # GN target: //src/trace_processor/importers/proto:gen_cc_android_track_event_descriptor
-perfetto_cc_proto_descriptor(
+perfetto_cpp_blob_header(
     name = "src_trace_processor_importers_proto_gen_cc_android_track_event_descriptor",
+    script = "python:cpp_blob_emitter_bin",
     deps = [
         ":protos_perfetto_trace_android_android_track_event_descriptor",
     ],
     outs = [
         "src/trace_processor/importers/proto/android_track_event.descriptor.h",
     ],
+    args = [
+        "--gen-dir=$(GENDIR)",
+        "--namespace",
+        "perfetto",
+        "--symbol-suffix",
+        "Descriptor",
+    ],
 )
 
 # GN target: //src/trace_processor/importers/proto:gen_cc_chrome_track_event_descriptor
-perfetto_cc_proto_descriptor(
+perfetto_cpp_blob_header(
     name = "src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
+    script = "python:cpp_blob_emitter_bin",
     deps = [
         ":protos_third_party_chromium_extension_descriptor",
     ],
     outs = [
         "src/trace_processor/importers/proto/chrome_track_event_extension.descriptor.h",
     ],
+    args = [
+        "--gen-dir=$(GENDIR)",
+        "--namespace",
+        "perfetto",
+        "--symbol-suffix",
+        "Descriptor",
+    ],
 )
 
 # GN target: //src/trace_processor/importers/proto:gen_cc_gpu_track_event_descriptor
-perfetto_cc_proto_descriptor(
+perfetto_cpp_blob_header(
     name = "src_trace_processor_importers_proto_gen_cc_gpu_track_event_descriptor",
+    script = "python:cpp_blob_emitter_bin",
     deps = [
         ":protos_perfetto_trace_gpu_gpu_track_event_descriptor",
     ],
     outs = [
         "src/trace_processor/importers/proto/gpu_track_event.descriptor.h",
     ],
+    args = [
+        "--gen-dir=$(GENDIR)",
+        "--namespace",
+        "perfetto",
+        "--symbol-suffix",
+        "Descriptor",
+    ],
 )
 
 # GN target: //src/trace_processor/importers/proto:gen_cc_statsd_atoms_descriptor
-perfetto_cc_proto_descriptor(
+perfetto_cpp_blob_header(
     name = "src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
+    script = "python:cpp_blob_emitter_bin",
     deps = [
         "src/trace_processor/importers/proto/atoms.descriptor",
     ],
     outs = [
         "src/trace_processor/importers/proto/atoms.descriptor.h",
     ],
+    args = [
+        "--gen-dir=$(GENDIR)",
+        "--namespace",
+        "perfetto",
+        "--symbol-suffix",
+        "Descriptor",
+    ],
 )
 
 # GN target: //src/trace_processor/importers/proto:gen_cc_trace_descriptor
-perfetto_cc_proto_descriptor(
+perfetto_cpp_blob_header(
     name = "src_trace_processor_importers_proto_gen_cc_trace_descriptor",
+    script = "python:cpp_blob_emitter_bin",
     deps = [
         ":protos_perfetto_trace_descriptor",
     ],
     outs = [
         "src/trace_processor/importers/proto/trace.descriptor.h",
     ],
+    args = [
+        "--gen-dir=$(GENDIR)",
+        "--namespace",
+        "perfetto",
+        "--symbol-suffix",
+        "Descriptor",
+    ],
 )
 
 # GN target: //src/trace_processor/importers/proto:gen_cc_track_event_descriptor
-perfetto_cc_proto_descriptor(
+perfetto_cpp_blob_header(
     name = "src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
+    script = "python:cpp_blob_emitter_bin",
     deps = [
         ":protos_perfetto_trace_track_event_descriptor",
     ],
     outs = [
         "src/trace_processor/importers/proto/track_event.descriptor.h",
+    ],
+    args = [
+        "--gen-dir=$(GENDIR)",
+        "--namespace",
+        "perfetto",
+        "--symbol-suffix",
+        "Descriptor",
     ],
 )
 
@@ -3278,35 +3351,59 @@ perfetto_filegroup(
 )
 
 # GN target: //src/trace_processor/metrics:gen_cc_all_chrome_metrics_descriptor
-perfetto_cc_proto_descriptor(
+perfetto_cpp_blob_header(
     name = "src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
+    script = "python:cpp_blob_emitter_bin",
     deps = [
         ":protos_perfetto_metrics_chrome_descriptor",
     ],
     outs = [
         "src/trace_processor/metrics/all_chrome_metrics.descriptor.h",
     ],
+    args = [
+        "--gen-dir=$(GENDIR)",
+        "--namespace",
+        "perfetto",
+        "--symbol-suffix",
+        "Descriptor",
+    ],
 )
 
 # GN target: //src/trace_processor/metrics:gen_cc_all_webview_metrics_descriptor
-perfetto_cc_proto_descriptor(
+perfetto_cpp_blob_header(
     name = "src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
+    script = "python:cpp_blob_emitter_bin",
     deps = [
         ":protos_perfetto_metrics_webview_descriptor",
     ],
     outs = [
         "src/trace_processor/metrics/all_webview_metrics.descriptor.h",
     ],
+    args = [
+        "--gen-dir=$(GENDIR)",
+        "--namespace",
+        "perfetto",
+        "--symbol-suffix",
+        "Descriptor",
+    ],
 )
 
 # GN target: //src/trace_processor/metrics:gen_cc_metrics_descriptor
-perfetto_cc_proto_descriptor(
+perfetto_cpp_blob_header(
     name = "src_trace_processor_metrics_gen_cc_metrics_descriptor",
+    script = "python:cpp_blob_emitter_bin",
     deps = [
         ":protos_perfetto_metrics_descriptor",
     ],
     outs = [
         "src/trace_processor/metrics/metrics.descriptor.h",
+    ],
+    args = [
+        "--gen-dir=$(GENDIR)",
+        "--namespace",
+        "perfetto",
+        "--symbol-suffix",
+        "Descriptor",
     ],
 )
 
@@ -4356,13 +4453,21 @@ perfetto_cc_tp_tables(
 )
 
 # GN target: //src/trace_processor/trace_summary:gen_cc_trace_summary_descriptor
-perfetto_cc_proto_descriptor(
+perfetto_cpp_blob_header(
     name = "src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
+    script = "python:cpp_blob_emitter_bin",
     deps = [
         ":protos_perfetto_trace_summary_descriptor",
     ],
     outs = [
         "src/trace_processor/trace_summary/trace_summary.descriptor.h",
+    ],
+    args = [
+        "--gen-dir=$(GENDIR)",
+        "--namespace",
+        "perfetto",
+        "--symbol-suffix",
+        "Descriptor",
     ],
 )
 
@@ -4609,8 +4714,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_util_proto_to_args_parser",
     srcs = [
-        "src/trace_processor/util/debug_annotation_parser.cc",
-        "src/trace_processor/util/debug_annotation_parser.h",
         "src/trace_processor/util/proto_to_args_parser.cc",
         "src/trace_processor/util/proto_to_args_parser.h",
     ],
@@ -4783,24 +4886,40 @@ perfetto_filegroup(
 )
 
 # GN target: //src/traceconv:gen_cc_trace_descriptor
-perfetto_cc_proto_descriptor(
+perfetto_cpp_blob_header(
     name = "src_traceconv_gen_cc_trace_descriptor",
+    script = "python:cpp_blob_emitter_bin",
     deps = [
         ":protos_perfetto_trace_descriptor",
     ],
     outs = [
         "src/traceconv/trace.descriptor.h",
     ],
+    args = [
+        "--gen-dir=$(GENDIR)",
+        "--namespace",
+        "perfetto",
+        "--symbol-suffix",
+        "Descriptor",
+    ],
 )
 
 # GN target: //src/traceconv:gen_cc_winscope_descriptor
-perfetto_cc_proto_descriptor(
+perfetto_cpp_blob_header(
     name = "src_traceconv_gen_cc_winscope_descriptor",
+    script = "python:cpp_blob_emitter_bin",
     deps = [
         ":protos_perfetto_trace_android_winscope_descriptor",
     ],
     outs = [
         "src/traceconv/winscope.descriptor.h",
+    ],
+    args = [
+        "--gen-dir=$(GENDIR)",
+        "--namespace",
+        "perfetto",
+        "--symbol-suffix",
+        "Descriptor",
     ],
 )
 
@@ -4816,8 +4935,6 @@ perfetto_filegroup(
         "src/traceconv/trace_to_bundle.h",
         "src/traceconv/trace_to_firefox.cc",
         "src/traceconv/trace_to_firefox.h",
-        "src/traceconv/trace_to_hprof.cc",
-        "src/traceconv/trace_to_hprof.h",
         "src/traceconv/trace_to_json.cc",
         "src/traceconv/trace_to_json.h",
         "src/traceconv/trace_to_profile.cc",
@@ -9281,15 +9398,6 @@ perfetto_py_binary(
         "tools/gen_amalgamated_sql.py",
     ],
     main = "tools/gen_amalgamated_sql.py",
-    python_version = "PY3",
-)
-
-perfetto_py_binary(
-    name = "gen_cc_proto_descriptor_py",
-    srcs = [
-        "tools/gen_cc_proto_descriptor.py",
-    ],
-    main = "tools/gen_cc_proto_descriptor.py",
     python_version = "PY3",
 )
 
