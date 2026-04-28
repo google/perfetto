@@ -182,7 +182,8 @@ void ProfilePacketSequenceState::AddAllocation(
     const SourceAllocation& alloc) {
   const UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(alloc.pid));
-  auto opt_callstack_id = FindOrInsertCallstack(state, upid, alloc.callstack_id);
+  auto opt_callstack_id =
+      FindOrInsertCallstack(state, upid, alloc.callstack_id);
   if (!opt_callstack_id)
     return;
 

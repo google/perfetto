@@ -222,8 +222,8 @@ std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
     return *id;
   }
   auto* decoder = state->LookupInternedMessage<
-      protos::pbzero::InternedData::kFramesFieldNumber,
-      protos::pbzero::Frame>(iid);
+      protos::pbzero::InternedData::kFramesFieldNumber, protos::pbzero::Frame>(
+      iid);
   if (!decoder) {
     context_->storage->IncrementStats(stats::stackprofile_invalid_frame_id);
     return std::nullopt;

@@ -155,8 +155,8 @@ void V8Module::ParseV8JsCode(protozero::ConstBytes bytes,
 
   V8JsCode::Decoder code(bytes);
 
-  auto v8_isolate_id =
-      state.GetOrInsertIsolate(data.sequence_state.get(), code.v8_isolate_iid());
+  auto v8_isolate_id = state.GetOrInsertIsolate(data.sequence_state.get(),
+                                                code.v8_isolate_iid());
   if (!v8_isolate_id) {
     return;
   }
@@ -184,8 +184,8 @@ void V8Module::ParseV8InternalCode(protozero::ConstBytes bytes,
 
   V8InternalCode::Decoder code(bytes);
 
-  auto v8_isolate_id =
-      state.GetOrInsertIsolate(data.sequence_state.get(), code.v8_isolate_iid());
+  auto v8_isolate_id = state.GetOrInsertIsolate(data.sequence_state.get(),
+                                                code.v8_isolate_iid());
   if (!v8_isolate_id) {
     return;
   }
@@ -207,8 +207,8 @@ void V8Module::ParseV8WasmCode(protozero::ConstBytes bytes,
 
   V8WasmCode::Decoder code(bytes);
 
-  auto v8_isolate_id =
-      state.GetOrInsertIsolate(data.sequence_state.get(), code.v8_isolate_iid());
+  auto v8_isolate_id = state.GetOrInsertIsolate(data.sequence_state.get(),
+                                                code.v8_isolate_iid());
   if (!v8_isolate_id) {
     return;
   }
@@ -236,8 +236,8 @@ void V8Module::ParseV8RegExpCode(protozero::ConstBytes bytes,
 
   V8RegExpCode::Decoder code(bytes);
 
-  auto v8_isolate_id =
-      state.GetOrInsertIsolate(data.sequence_state.get(), code.v8_isolate_iid());
+  auto v8_isolate_id = state.GetOrInsertIsolate(data.sequence_state.get(),
+                                                code.v8_isolate_iid());
   if (!v8_isolate_id) {
     return;
   }
@@ -258,9 +258,8 @@ void V8Module::ParseV8CodeMove(protozero::ConstBytes bytes,
       *data.sequence_state->GetCustomState<V8SequenceState>(v8_tracker_.get());
   protos::pbzero::V8CodeMove::Decoder v8_code_move(bytes);
 
-  std::optional<IsolateId> isolate_id =
-      state.GetOrInsertIsolate(data.sequence_state.get(),
-                               v8_code_move.isolate_iid());
+  std::optional<IsolateId> isolate_id = state.GetOrInsertIsolate(
+      data.sequence_state.get(), v8_code_move.isolate_iid());
   if (!isolate_id) {
     return;
   }
