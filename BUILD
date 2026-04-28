@@ -2930,13 +2930,21 @@ perfetto_cpp_blob_header(
 )
 
 # GN target: //src/trace_processor/importers/proto:gen_cc_gpu_interned_data_descriptor
-perfetto_cc_proto_descriptor(
+perfetto_cpp_blob_header(
     name = "src_trace_processor_importers_proto_gen_cc_gpu_interned_data_descriptor",
+    script = "python:cpp_blob_emitter_bin",
     deps = [
         ":protos_perfetto_trace_gpu_gpu_interned_data_descriptor",
     ],
     outs = [
         "src/trace_processor/importers/proto/gpu_interned_data.descriptor.h",
+    ],
+    args = [
+        "--gen-dir=$(GENDIR)",
+        "--namespace",
+        "perfetto",
+        "--symbol-suffix",
+        "Descriptor",
     ],
 )
 

@@ -16097,12 +16097,12 @@ genrule {
     srcs: [
         ":perfetto_protos_perfetto_trace_gpu_gpu_interned_data_descriptor",
     ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
     out: [
         "src/trace_processor/importers/proto/gpu_interned_data.descriptor.h",
     ],
     tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
+        "python/tools/cpp_blob_emitter.py",
     ],
 }
 
