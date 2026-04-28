@@ -76,5 +76,56 @@ TEST(ProtoProfiler, TestMessage) {
   EXPECT_THAT(got, UnorderedElementsAreArray(expected));
 }
 
+TEST(ProtoProfiler, TestMessageSurvivesPoolDestruction) {
+  protozero::HeapBuffered<protozero::test::protos::pbzero::NestedA> message;
+  message->add_repeated_a()->set_value_b()->set_value_c(1);
+  message->add_repeated_a()->set_value_b()->set_value_c(2);
+  message->set_super_nested()->set_value_c(3);
+  const std::vector<uint8_t> bytes = message.SerializeAsArray();
+
+  std::vector<std::pair<SizeProfileComputer::FieldPath, size_t>> samples;
+  {
+    DescriptorPool pool;
+    pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                  kTestMessagesDescriptor.size());
+    SizeProfileComputer computer(&pool, ".protozero.test.protos.NestedA");
+    computer.Reset(bytes.data(), bytes.size());
+
+    for (auto sample = computer.GetNext(); sample;
+         sample = computer.GetNext()) {
+      samples.push_back({computer.GetPath(), *sample});
+    }
+  }
+
+  // Convert to vector for test matcher *after* pool destruction.
+  using Item = std::pair<std::vector<std::string>, size_t>;
+  std::vector<Item> got;
+  for (const auto& [sample_path, sample_size] : samples) {
+    std::vector<std::string> path;
+    for (const auto& field : sample_path.fields) {
+      if (field.has_field_name())
+        path.push_back(field.field_name());
+      path.push_back(field.type_name());
+    }
+    got.emplace_back(path, sample_size);
+  }
+  std::vector<Item> expected{
+      {{"NestedA"}, 6},
+      {{"NestedA", "#repeated_a", "NestedB"}, 2},
+      {{"NestedA", "#repeated_a", "NestedB"}, 2},
+      {{"NestedA", "#repeated_a", "NestedB", "#value_b", "NestedC"}, 1},
+      {{"NestedA", "#repeated_a", "NestedB", "#value_b", "NestedC"}, 1},
+      {{"NestedA", "#repeated_a", "NestedB", "#value_b", "NestedC", "#value_c",
+        "int32"},
+       1},
+      {{"NestedA", "#repeated_a", "NestedB", "#value_b", "NestedC", "#value_c",
+        "int32"},
+       1},
+      {{"NestedA", "#super_nested", "NestedC"}, 1},
+      {{"NestedA", "#super_nested", "NestedC", "#value_c", "int32"}, 1}};
+
+  EXPECT_THAT(got, UnorderedElementsAreArray(expected));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::util

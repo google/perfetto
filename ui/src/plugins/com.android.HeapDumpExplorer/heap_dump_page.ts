@@ -15,18 +15,20 @@
 import m from 'mithril';
 import type {Engine} from '../../trace_processor/engine';
 import type {Trace} from '../../public/trace';
+import {Time} from '../../base/time';
 import {Spinner} from '../../widgets/spinner';
 import {EmptyState} from '../../widgets/empty_state';
+import {Button, ButtonVariant} from '../../widgets/button';
+import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Tabs} from '../../widgets/tabs';
 import type {TabsTab} from '../../widgets/tabs';
-interface HeapdumpSelection {
-  pathHashes: string;
-  isDominator: boolean;
-}
+import {formatDuration} from '../../components/time_utils';
+import {NUM} from '../../trace_processor/query_result';
 import type {NavState} from './nav_state';
 import type {OverviewData} from './types';
 import {nav, navigate, syncFromSubpage, setNavigateCallback} from './nav_state';
 import * as queries from './queries';
+import {SQL_PREAMBLE} from './components';
 import OverviewView from './views/overview_view';
 import DominatorsView from './views/dominators_view';
 import ObjectView from './views/object_view';
@@ -38,10 +40,12 @@ import ArraysView from './views/arrays_view';
 import FlamegraphObjectsView, {
   flamegraphQuery,
 } from './views/flamegraph_objects_view';
-import {SQL_PREAMBLE} from './components';
-import {NUM} from '../../trace_processor/query_result';
 
-// Each "Open in Heapdump Explorer" creates a closable flamegraph tab.
+interface HeapdumpSelection {
+  pathHashes: string;
+  isDominator: boolean;
+}
+
 let nextFgId = 0;
 const flamegraphTabs: Array<
   {id: number; count: number | null} & HeapdumpSelection
@@ -83,10 +87,19 @@ export function resetFlamegraphSelection(): void {
 let cachedOverview: OverviewData | null = null;
 let overviewLoading = false;
 
-/** Reset cached overview on trace change. */
 export function resetCachedOverview(): void {
   cachedOverview = null;
   overviewLoading = false;
+}
+
+function onDumpChanged(): void {
+  resetCachedOverview();
+  resetFlamegraphSelection();
+  resetInstanceTabs();
+  queries.resetBitmapDumpDataCache();
+  if (nav.view === 'object' || nav.view === 'flamegraph-objects') {
+    navigate('overview');
+  }
 }
 
 // Closable object tabs — clicking an object anywhere opens a new tab.
@@ -332,6 +345,49 @@ function buildTabs(
   return tabs;
 }
 
+function processLabel(d: queries.HeapDump): string {
+  return d.processName !== null
+    ? `${d.processName} (pid ${d.pid})`
+    : `pid ${d.pid}`;
+}
+
+function renderDumpSelector(): m.Children {
+  const trace = HeapDumpPage.trace;
+  if (!trace) return null;
+  const allDumps = queries.getDumps();
+  const active = queries.getActiveDump();
+  if (allDumps.length <= 1 || active === null) return null;
+
+  return m(
+    'div',
+    {class: 'ah-dump-selector'},
+    m('span', {class: 'ah-dump-selector__label'}, 'Heap dump:'),
+    m(
+      PopupMenu,
+      {
+        trigger: m(Button, {
+          label: processLabel(active),
+          icon: 'memory',
+          rightIcon: 'arrow_drop_down',
+          variant: ButtonVariant.Outlined,
+          compact: true,
+        }),
+      },
+      allDumps.map((d) => {
+        const offset = Time.diff(Time.fromRaw(d.ts), trace.traceInfo.start);
+        return m(MenuItem, {
+          label: `${processLabel(d)} — ${formatDuration(trace, offset)}`,
+          active: d === active,
+          onclick: () => {
+            queries.setActiveDump(d);
+            onDumpChanged();
+          },
+        });
+      }),
+    ),
+  );
+}
+
 interface HeapDumpPageAttrs {
   readonly subpage: string | undefined;
 }
@@ -384,20 +440,30 @@ export class HeapDumpPage implements m.ClassComponent<HeapDumpPageAttrs> {
     }
 
     if (!cachedOverview) {
+      if (!overviewLoading) {
+        this.loadOverview();
+      }
       return m(
         'div',
         {class: 'ah-page'},
+        renderDumpSelector(),
         m('div', {class: 'ah-loading'}, m(Spinner, {easing: true})),
       );
     }
 
+    // Keyed so Mithril remounts views (and their SQLDataSources) on dump switch.
+    const active = queries.getActiveDump();
+    const tabsKey = active ? `${active.upid}:${active.ts}` : 'none';
+
     return m(
       'div',
       {class: 'ah-page'},
+      renderDumpSelector(),
       m(
         'main',
         {class: 'ah-main'},
         m(Tabs, {
+          key: tabsKey,
           tabs: buildTabs(nav, HeapDumpPage.engine, cachedOverview),
           activeTabKey: getActiveTabKey(),
           onTabChange: handleTabChange,
