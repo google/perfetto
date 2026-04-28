@@ -33,6 +33,7 @@
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
+#include "src/trace_processor/importers/proto/track_event_thread_descriptor.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -64,10 +65,11 @@ StackProfileSequenceState::~StackProfileSequenceState() = default;
 
 VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMapping(
     uint64_t iid) {
-  if (pid_and_tid_valid()) {
+  const auto& thread = thread_descriptor();
+  if (thread.valid()) {
     return FindOrInsertMappingImpl(
         context_->process_tracker->GetOrCreateProcess(
-            static_cast<uint32_t>(pid())),
+            static_cast<uint32_t>(thread.pid())),
         iid);
   }
 

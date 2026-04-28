@@ -113,7 +113,7 @@ On Linux, you can start a profile using the following pipeline (substitute
 you registered using `AHeapProfile_registerHeap`):
 
 ```
-heap_profile -n $APP_NAME --heaps $HEAP --print-config | \
+heap_profile android -n $APP_NAME --heaps $HEAP --print-config | \
  path/to/protoc --encode=perfetto.protos.TraceConfig perfetto_trace.proto | \
  adb shell perfetto -c - -o /data/misc/perfetto-traces/profile
 ```
@@ -124,7 +124,7 @@ prompt (substitute`%APP_NAME%` for the name of your app and `%HEAP%` for
 the name of the heap you registered using `AHeapProfile_registerHeap`):
 
 ```
-python /path/to/heap_profile -n %APP_NAME% --heaps %HEAP% --print-config | ^
+python /path/to/heap_profile android -n %APP_NAME% --heaps %HEAP% --print-config | ^
  path/to/protoc --encode=perfetto.protos.TraceConfig perfetto_trace.proto | ^
  adb shell perfetto -c - -o /data/misc/perfetto-traces/profile
 ```

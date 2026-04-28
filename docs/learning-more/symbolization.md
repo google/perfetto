@@ -116,7 +116,7 @@ All tools (`traceconv`, `trace_processor_shell`, the `heap_profile` script)
 honour the `PERFETTO_BINARY_PATH` environment variable:
 
 ```bash
-PERFETTO_BINARY_PATH=somedir tools/heap_profile --name ${NAME}
+PERFETTO_BINARY_PATH=somedir tools/heap_profile android --name ${NAME}
 ```
 
 To produce a standalone symbol file for a trace you already collected:
@@ -136,7 +136,7 @@ Provide ProGuard/R8 maps via `PERFETTO_PROGUARD_MAP`, using the format
 
 ```bash
 PERFETTO_PROGUARD_MAP=com.example.pkg1=foo.txt:com.example.pkg2=bar.txt \
-  ./tools/heap_profile -n com.example.app
+  ./tools/heap_profile android -n com.example.app
 ```
 
 To produce a standalone deobfuscation file for an existing trace:
