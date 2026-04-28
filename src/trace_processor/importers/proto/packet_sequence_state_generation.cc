@@ -39,7 +39,7 @@ PacketSequenceStateGeneration::PacketSequenceStateGeneration(
     InternedFieldMap interned_data,
     TrackEventSequenceState track_event_sequence_state,
     CustomStateArray custom_state,
-    TraceBlobView trace_packet_defaults,
+    std::optional<InternedMessageView> trace_packet_defaults,
     bool is_incremental_state_valid)
     : context_(context),
       interned_data_(std::move(interned_data)),
@@ -56,15 +56,18 @@ PacketSequenceStateGeneration::PacketSequenceStateGeneration(
 
 RefPtr<PacketSequenceStateGeneration>
 PacketSequenceStateGeneration::OnPacketLoss() {
-  // No need to increment the generation. If any future packet depends on
-  // previous messages to update the incremental state its packet (if the
-  // DataSource is behaving correctly) would have the
-  // SEQ_NEEDS_INCREMENTAL_STATE bit set and such a packet will be dropped by
-  // the ProtoTraceReader and never make it far enough to update any incremental
-  // state.
-  track_event_sequence_state_.OnPacketLoss();
-  is_incremental_state_valid_ = false;
-  return RefPtr<PacketSequenceStateGeneration>(this);
+  // Don't mutate `this`: it may be held by the TraceSorter for buffered
+  // packets that were tokenized while the sequence was valid. Mutating in
+  // place would retroactively flip their view on those buffered packets.
+  // Instead, return a new generation that shares the per-interval state
+  // (interned data, custom state, persistent thread descriptor) but resets
+  // delta-encoded track-event state, since incremental values cannot be
+  // safely carried across the lost run of packets.
+  return RefPtr<PacketSequenceStateGeneration>(
+      new PacketSequenceStateGeneration(
+          context_, interned_data_, track_event_sequence_state_.OnPacketLoss(),
+          custom_state_, trace_packet_defaults_,
+          /* is_incremental_state_valid */ false));
 }
 
 RefPtr<PacketSequenceStateGeneration>
@@ -82,7 +85,7 @@ PacketSequenceStateGeneration::OnNewTracePacketDefaults(
       new PacketSequenceStateGeneration(
           context_, interned_data_,
           track_event_sequence_state_.OnIncrementalStateCleared(),
-          custom_state_, std::move(trace_packet_defaults),
+          custom_state_, InternedMessageView(std::move(trace_packet_defaults)),
           is_incremental_state_valid_));
 }
 

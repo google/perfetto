@@ -220,6 +220,8 @@ public_python_targets = [
 # These are Python targets which are exposed by default.
 default_python_targets = [
     '//python:batch_trace_processor',
+    '//python:cpp_blob_emitter',
+    '//python:cpp_blob_emitter_bin',
     '//python:experimental_slice_breakdown_bin',
     '//python:trace_processor_table_generator',
     '//python:trace_processor_py_example',
@@ -441,6 +443,8 @@ class BazelLabel(object):
     self.app: Optional[str] = None
     self.test_app: Optional[str] = None
     self.testonly: Optional[bool] = None
+    self.script: Optional[str] = None
+    self.args: List[str] = []
 
   def __lt__(self, other):
     if isinstance(other, self.__class__):
@@ -456,9 +460,10 @@ class BazelLabel(object):
     res += '%s(\n' % self.type
     any_deps = len(self.deps) + len(self.external_deps) > 0
     ORD = [
-        'name', 'testonly', 'srcs', 'binary_name', 'linkopts', 'manifest',
-        'resource_files', 'instruments', 'hdrs', 'defines', 'visibility',
-        'data', 'deps', 'outs', 'cmd', 'tools', 'exports', 'main'
+        'name', 'testonly', 'script', 'srcs', 'binary_name', 'linkopts',
+        'manifest', 'resource_files', 'instruments', 'hdrs', 'defines',
+        'visibility', 'data', 'deps', 'outs', 'args', 'cmd', 'tools', 'exports',
+        'main'
     ]
     hasher = lambda x: sum((99,) + tuple(ord(c) for c in x))
     key_sorter = lambda kv: ORD.index(kv[0]) if kv[0] in ORD else hasher(kv[0])
@@ -486,7 +491,11 @@ class BazelLabel(object):
         if k == "srcs" and self.win_srcs is not None:
           non_win_srcs = sorted(set(self.srcs) - set(self.win_srcs))
 
-        for entry in sorted(v):
+        # `args` is positional and must preserve insertion order. Other
+        # list-valued attributes are unordered to Bazel, so we sort them for
+        # stable output.
+        entries = v if k == 'args' else sorted(v)
+        for entry in entries:
           if entry in non_win_srcs:
             continue
           if entry.startswith('PERFETTO_CONFIG.'):
@@ -688,18 +697,57 @@ def gen_proto_group_target(gn: GnParser, name: str, desc: Dict[str, Any]):
   ]
 
 
-def gen_cc_proto_descriptor(target: GnParser.Target):
+def gen_cpp_blob_header(target: GnParser.Target):
+  # Maps a Python script's repo path to a relative `package:target` label
+  # for the py_binary that wraps it. The `perfetto_cpp_blob_header` rule in
+  # bazel/rules.bzl prepends `PERFETTO_CONFIG.root` to make the label work in
+  # both standalone and embedded builds.
+  script_to_bazel_label = {
+      'python/tools/cpp_blob_emitter.py': 'python:cpp_blob_emitter_bin',
+  }
+
   label = BazelLabel(
-      get_bazel_label_name(target.name), 'perfetto_cc_proto_descriptor')
+      get_bazel_label_name(target.name), 'perfetto_cpp_blob_header')
   label.comment = target.name
+  script_path = re.sub(r'^//', '', target.script)
+  bazel_script_label = script_to_bazel_label.get(script_path)
+  assert bazel_script_label, (
+      'No Bazel py_binary mapping found for %s. Add an entry to '
+      'script_to_bazel_label in gen_cpp_blob_header.' % script_path)
+  label.script = bazel_script_label
   label.deps += [':' + get_bazel_label_name(x.name) for x in target.deps]
   label.deps += [
       gn_utils.label_to_path(src)
       for src in target.inputs
       if "tmp.gn_utils" not in src
   ]
-
   label.outs += target.outputs
+
+  # The GN template invokes the script as:
+  #   <script> --output <output> \
+  #            [--gen-dir <gen_dir>] \
+  #            [<extra_args>...] \
+  #            <inputs>...
+  # Strip the leading --output/output pair and the trailing input paths so
+  # only the script-specific flags remain for the Bazel rule's `args`.
+  # Substitute the rebased --gen-dir value with `$(GENDIR)`, which Bazel
+  # expands to the genrule's gen dir at build time.
+  args = list(target.args)
+  if len(args) >= 2 and args[0] == '--output':
+    args = args[2:]
+  if len(target.inputs) > 0:
+    args = args[:-len(target.inputs)]
+
+  out = []
+  i = 0
+  while i < len(args):
+    if args[i] == '--gen-dir' and i + 1 < len(args):
+      out.append('--gen-dir=$(GENDIR)')
+      i += 2
+    else:
+      out.append(args[i])
+      i += 1
+  label.args = out
   return [label]
 
 
@@ -818,8 +866,8 @@ def gen_target_helper(gn_target: GnParser.Target,
       return gen_cc_amalgamated_sql(gn_target)
     if gn_target.custom_action_type == 'sql_source_set':
       return gen_sql_source_set(gn_target)
-    if gn_target.custom_action_type == 'cc_proto_descriptor':
-      return gen_cc_proto_descriptor(gn_target)
+    if gn_target.custom_action_type == 'cpp_blob_header':
+      return gen_cpp_blob_header(gn_target)
     if gn_target.custom_action_type == 'tp_tables':
       return gen_cc_tp_tables(gn_target)
     if gn_target.custom_action_type == 'perfetto_android_library':
@@ -1031,7 +1079,7 @@ load(
     "perfetto_cc_binary",
     "perfetto_cc_ipc_library",
     "perfetto_cc_library",
-    "perfetto_cc_proto_descriptor",
+    "perfetto_cpp_blob_header",
     "perfetto_cc_proto_library",
     "perfetto_cc_protocpp_library",
     "perfetto_cc_protozero_library",
@@ -1048,6 +1096,7 @@ load(
     "perfetto_py_library",
     "perfetto_py_proto_library",
     "perfetto_jspb_proto_library",
+    "perfetto_label",
     "perfetto_android_binary",
     "perfetto_android_jni_library",
     "perfetto_android_library",

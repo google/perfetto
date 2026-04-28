@@ -149,8 +149,10 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
         );
         if (!regex) return;
 
-        const matchingTracks = ctx.currentWorkspace.flatTracks.filter((track) =>
-          testTrackWithRegex(track, regex, nameOrPath),
+        const matchingTracks = findTracksMatchingRegex(
+          ctx.currentWorkspace,
+          regex,
+          nameOrPath,
         );
         matchingTracks.forEach((track) => track.pin());
       },
@@ -189,8 +191,10 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
         );
         if (!regex) return;
 
-        const matchingTracks = ctx.currentWorkspace.flatTracks.filter((track) =>
-          testTrackWithRegex(track, regex, nameOrPath),
+        const matchingTracks = findTracksMatchingRegex(
+          ctx.currentWorkspace,
+          regex,
+          nameOrPath,
         );
         matchingTracks.forEach((track) => track.expand());
       },
@@ -213,8 +217,10 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
         );
         if (!regex) return;
 
-        const matchingTracks = ctx.currentWorkspace.flatTracks.filter((track) =>
-          testTrackWithRegex(track, regex, nameOrPath),
+        const matchingTracks = findTracksMatchingRegex(
+          ctx.currentWorkspace,
+          regex,
+          nameOrPath,
         );
         matchingTracks.forEach((track) => track.collapse());
       },
@@ -253,8 +259,10 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
           ctx.workspaces.createEmptyWorkspace(workspaceName);
 
         // Find matching tracks from current workspace
-        const matchingTracks = ctx.currentWorkspace.flatTracks.filter((track) =>
-          testTrackWithRegex(track, regex, nameOrPath),
+        const matchingTracks = findTracksMatchingRegex(
+          ctx.currentWorkspace,
+          regex,
+          nameOrPath,
         );
 
         // Copy matching tracks to target workspace
@@ -329,8 +337,10 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
           ctx.workspaces.createEmptyWorkspace(workspaceName);
 
         // Find matching tracks from current workspace
-        const matchingTracks = ctx.currentWorkspace.flatTracks.filter((track) =>
-          testTrackWithRegex(track, regex, nameOrPath),
+        const matchingTracks = findTracksMatchingRegex(
+          ctx.currentWorkspace,
+          regex,
+          nameOrPath,
         );
 
         // Copy matching tracks with their ancestors to target workspace
@@ -557,17 +567,28 @@ async function getQueryFromArgOrPrompt(
   return queryStr || null;
 }
 
-// Tests if a track matches the given regex pattern based on nameOrPath setting.
-// Returns true if the track name (when nameOrPath is 'name') or full path
-// (when nameOrPath is 'path') matches the regex pattern.
-function testTrackWithRegex(
-  track: TrackNode,
+// DFS the workspace, returning all tracks matching the regex against `name` or
+// full `path`. When a headless node matches, its subtree is skipped: a
+// headless node has no header in the rendered tree, so its `fullPath` is
+// identical to its children's, and a deep clone of the headless node already
+// covers them — recursing further would yield duplicate matches.
+function findTracksMatchingRegex(
+  workspace: Workspace,
   regex: RegExp,
   nameOrPath: 'name' | 'path',
-): boolean {
-  const testString =
-    nameOrPath === 'path' ? track.fullPath.join(' > ') : track.name;
-  return regex.test(testString);
+): TrackNode[] {
+  const matches: TrackNode[] = [];
+  const visit = (node: TrackNode): void => {
+    const target =
+      nameOrPath === 'path' ? node.fullPath.join(' > ') : node.name;
+    if (regex.test(target)) {
+      matches.push(node);
+      if (node.headless) return;
+    }
+    node.children.forEach(visit);
+  };
+  workspace.tracks.children.forEach(visit);
+  return matches;
 }
 
 // Copy tracks with their ancestor hierarchy preserved

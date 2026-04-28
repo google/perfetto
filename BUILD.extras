@@ -17,15 +17,6 @@ perfetto_py_binary(
     python_version = "PY3",
 )
 
-perfetto_py_binary(
-    name = "gen_cc_proto_descriptor_py",
-    srcs = [
-        "tools/gen_cc_proto_descriptor.py",
-    ],
-    main = "tools/gen_cc_proto_descriptor.py",
-    python_version = "PY3",
-)
-
 perfetto_go_proto_library(
     name = "protos_perfetto_config_protos_go_proto",
     visibility = PERFETTO_CONFIG.go_proto_library_visibility,
