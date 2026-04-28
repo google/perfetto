@@ -203,7 +203,7 @@ class BigTraceRoot implements m.ClassComponent {
 
     const commands = BigTraceAppSingleton.instance.commands;
     const hotkeys: HotkeyConfig[] = [];
-    for (const {id, defaultHotkey} of commands.commands) {
+    for (const {id, defaultHotkey} of commands.getCommands()) {
       if (defaultHotkey) {
         hotkeys.push({
           callback: () => commands.runCommand(id),

@@ -20,6 +20,7 @@ import {assertExists, assertUnreachable} from '../../base/assert';
 import {isString} from '../../base/object_utils';
 import {exists} from '../../base/utils';
 import {OmniboxMode} from '../../core/omnibox_manager';
+import {Command} from '../../public/commands';
 import {Chip} from '../../widgets/chip';
 import {HTMLAttrs, Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
@@ -29,6 +30,10 @@ import {BigTraceApp} from '../bigtrace_app';
 
 const OMNIBOX_INPUT_REF = 'omnibox';
 const RECENT_COMMANDS_LIMIT = 6;
+
+interface CommandWithMatchInfo extends Command {
+  readonly segments: FuzzySegment[];
+}
 
 // Smart omnibox component for BigTrace. Mirrors ui/src/frontend/omnibox.ts but
 // uses BigTraceApp instead of AppImpl and omits trace-search step-through.
@@ -105,9 +110,17 @@ export class Omnibox implements m.ClassComponent {
     });
   }
 
+  private fuzzyFilterCommands(searchTerm: string): CommandWithMatchInfo[] {
+    const allCommands = BigTraceApp.instance.commands.getCommands();
+    const finder = new FuzzyFinder(allCommands, ({name}) => name);
+    return finder.find(searchTerm).map((result) => {
+      return {segments: result.segments, ...result.item};
+    });
+  }
+
   private renderCommandOmnibox(): m.Children {
     const {commands, omnibox} = BigTraceApp.instance;
-    const filteredCmds = commands.fuzzyFilterCommands(omnibox.text);
+    const filteredCmds = this.fuzzyFilterCommands(omnibox.text);
 
     const commandsWithHeuristics = filteredCmds.map((cmd) => {
       return {
