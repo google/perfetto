@@ -31,13 +31,31 @@ namespace perfetto::trace_processor {
 
 CustomState::~CustomState() = default;
 
-InternedMessageView* CustomState::GetInternedMessageView(uint32_t field_id,
-                                                         uint64_t iid) {
-  return incremental_->GetInternedMessageView(field_id, iid);
+// static
+RefPtr<IncrementalState> IncrementalState::CreateSuccessor(
+    TraceProcessorContext* context,
+    TrackEventThreadDescriptor thread_descriptor) {
+  auto incr = RefPtr<IncrementalState>(new IncrementalState(context));
+  incr->thread_descriptor_ = std::move(thread_descriptor);
+  return incr;
 }
 
-const TrackEventThreadDescriptor& CustomState::thread_descriptor() const {
-  return incremental_->thread_descriptor();
+// static
+RefPtr<IncrementalState> IncrementalState::CreateAfterPacketLoss(
+    const IncrementalState& prev) {
+  auto incr = RefPtr<IncrementalState>(new IncrementalState(prev.context_));
+  incr->interned_data_ = prev.interned_data_;
+  incr->thread_descriptor_ = prev.thread_descriptor_;
+  // Share non-opt-in CustomStates with |prev| (RefPtr copy). Opt-in slots
+  // (ClearOnPacketLoss() == true) start empty in the new IS and will be
+  // lazy-recreated; the original stays in |prev| for buffered pre-loss
+  // packets.
+  incr->custom_state_ = prev.custom_state_;
+  for (auto& cs : incr->custom_state_) {
+    if (cs && cs->ClearOnPacketLoss())
+      cs.reset();
+  }
+  return incr;
 }
 
 InternedMessageView* IncrementalState::GetInternedMessageView(uint32_t field_id,

@@ -66,50 +66,43 @@ struct CustomStateTraits {
 };
 
 // Base class for extension state attached to a packet sequence's incremental
-// state interval. One instance per CustomState subclass per
-// `IncrementalState`; owned uniquely by the IncrementalState (NOT
-// RefCounted). The back-pointer to its owning IncrementalState is set once at
-// construction and is stable for the entire lifetime of the CustomState,
-// since the IncrementalState owns it.
+// state interval. RefCounted: a single instance is shared between every
+// `IncrementalState` that survives a packet-loss boundary, so that buffered
+// packets pinning an older IncrementalState and current packets pinning a
+// newer one continue to see the same accumulated state.
+//
+// CustomState carries no pointer back to its owning IncrementalState (or
+// `PacketSequenceStateGeneration`). Subclass methods that need to look up
+// interned data, the thread descriptor, or another CustomState take the
+// active `PacketSequenceStateGeneration*` as a parameter — supplied by the
+// caller, which already has it. This keeps a single CustomState instance
+// usable from multiple sibling generations (e.g. pre/post-loss) without
+// any mutable back-pointer to manage.
 //
 // ATTENTION: do not create instances directly — use
 // `IncrementalState::GetCustomState<>` or
 // `PacketSequenceStateGeneration::GetCustomState<>`.
-class CustomState {
+class CustomState : public RefCounted {
  public:
   virtual ~CustomState();
 
-  // Hook called when the packet sequence experiences packet loss. Override to
-  // return true if this CustomState's contents should be discarded — the slot
-  // in the IncrementalState's array is cleared, and the next call to
-  // `GetCustomState<T>` will lazy-create a fresh instance.
+  // Hook called when the packet sequence experiences packet loss. Override
+  // to return true if this CustomState's contents should be discarded — the
+  // slot in the post-loss IncrementalState's array starts empty, and the
+  // next call to `GetCustomState<T>` lazy-creates a fresh instance there.
+  // The default keeps the state alive across packet loss (shared with the
+  // pre-loss IncrementalState).
   virtual bool ClearOnPacketLoss() const { return false; }
-
- protected:
-  template <uint32_t FieldId, typename MessageType>
-  typename MessageType::Decoder* LookupInternedMessage(uint64_t iid);
-  InternedMessageView* GetInternedMessageView(uint32_t field_id, uint64_t iid);
-
-  template <typename T, typename... Args>
-  std::remove_cv_t<T>* GetCustomState(Args... args);
-
-  const TrackEventThreadDescriptor& thread_descriptor() const;
-
- private:
-  friend class IncrementalState;
-  void set_incremental(IncrementalState* incremental) {
-    incremental_ = incremental;
-  }
-
-  IncrementalState* incremental_ = nullptr;
 };
 
 // Holds the per-incremental-state-interval state for one packet sequence: the
 // interned-data table, the persistent thread descriptor, and the array of
 // `CustomState` extensions. RefCounted because a single `IncrementalState` is
-// shared across all `PacketSequenceStateGeneration` instances within the same
-// interval (one per `trace_packet_defaults` slice). A new `IncrementalState`
-// is constructed when `SEQ_INCREMENTAL_STATE_CLEARED` arrives.
+// shared across all `PacketSequenceStateGeneration` instances produced within
+// the same `trace_packet_defaults` slice; a new `IncrementalState` is
+// constructed at packet-loss boundaries (carrying surviving CustomStates
+// forward, see `CreateAfterPacketLoss`) and at SEQ_INCREMENTAL_STATE_CLEARED
+// (starting fresh, see `CreateSuccessor`).
 class IncrementalState : public RefCounted {
  public:
   explicit IncrementalState(TraceProcessorContext* context)
@@ -119,11 +112,20 @@ class IncrementalState : public RefCounted {
   // inherits the persistent thread descriptor from the previous interval.
   static RefPtr<IncrementalState> CreateSuccessor(
       TraceProcessorContext* context,
-      TrackEventThreadDescriptor thread_descriptor) {
-    auto incr = RefPtr<IncrementalState>(new IncrementalState(context));
-    incr->thread_descriptor_ = std::move(thread_descriptor);
-    return incr;
-  }
+      TrackEventThreadDescriptor thread_descriptor);
+
+  // Helper for `OnPacketLoss`: construct a successor IncrementalState that
+  // (a) copies the previous interval's interned data and persistent thread
+  // descriptor forward (so post-loss tokenization can still resolve
+  // already-interned IIDs and post-loss writes don't leak back into pre-loss
+  // buffered packets), and (b) shares non-opt-in CustomStates with |prev|
+  // via RefPtr — the same instance is held by both ISes, so accumulated
+  // state survives the loss. Opt-in CustomStates (those whose
+  // `ClearOnPacketLoss()` returns true) are left empty in the new IS and
+  // will be lazy-recreated; the original instance stays in |prev| for
+  // buffered pre-loss packets that still expect it.
+  static RefPtr<IncrementalState> CreateAfterPacketLoss(
+      const IncrementalState& prev);
 
   TrackEventThreadDescriptor& thread_descriptor() { return thread_descriptor_; }
   const TrackEventThreadDescriptor& thread_descriptor() const {
@@ -149,8 +151,8 @@ class IncrementalState : public RefCounted {
  private:
   friend class PacketSequenceStateGeneration;
 
-  using CustomStateArray = std::array<std::unique_ptr<CustomState>,
-                                      std::tuple_size_v<CustomStateClasses>>;
+  using CustomStateArray =
+      std::array<RefPtr<CustomState>, std::tuple_size_v<CustomStateClasses>>;
 
   // Helper to find the index in a tuple of a given type. Lookups are done
   // ignoring cv qualifiers. If no index is found, the size of the tuple is
@@ -179,15 +181,6 @@ class IncrementalState : public RefCounted {
   // `PacketSequenceStateBuilder` (via `PacketSequenceStateGeneration`).
   void InternMessage(uint32_t field_id, TraceBlobView message);
 
-  // Called from `PacketSequenceStateGeneration::OnPacketLoss` to clear any
-  // CustomState whose `ClearOnPacketLoss()` opts in.
-  void ClearCustomStatesForPacketLoss() {
-    for (auto& cs : custom_state_) {
-      if (cs && cs->ClearOnPacketLoss())
-        cs.reset();
-    }
-  }
-
   TraceProcessorContext* const context_;
   InternedFieldMap interned_data_;
   TrackEventThreadDescriptor thread_descriptor_;
@@ -215,20 +208,8 @@ std::remove_cv_t<T>* IncrementalState::GetCustomState(Args... args) {
                     "CustomStateTraits.");
       ptr.reset(new T(context_, std::forward<Args>(args)...));
     }
-    ptr->set_incremental(this);
   }
   return static_cast<std::remove_cv_t<T>*>(ptr.get());
-}
-
-template <uint32_t FieldId, typename MessageType>
-typename MessageType::Decoder* CustomState::LookupInternedMessage(
-    uint64_t iid) {
-  return incremental_->LookupInternedMessage<FieldId, MessageType>(iid);
-}
-
-template <typename T, typename... Args>
-std::remove_cv_t<T>* CustomState::GetCustomState(Args... args) {
-  return incremental_->GetCustomState<T>(std::forward<Args>(args)...);
 }
 
 }  // namespace perfetto::trace_processor

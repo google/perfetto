@@ -19,6 +19,7 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
+#include "src/trace_processor/importers/proto/profile_packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/track_event_sequence_state.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -123,6 +124,56 @@ TEST_F(PacketSequenceStateGenerationTest,
   // packet) — must keep its validity at the value it had at tokenization
   // time.
   EXPECT_TRUE(g2->IsIncrementalStateValid());
+}
+
+// `OnPacketLoss` must not destroy or replace opt-in CustomStates on the
+// pinned pre-loss generation. The pre-loss CustomState must remain
+// reachable, with its accumulated state intact, for buffered packets that
+// were tokenized while it was the live state.
+TEST_F(PacketSequenceStateGenerationTest,
+       OnPacketLossPreservesPinnedOptInCustomState) {
+  RefPtr<PacketSequenceStateGeneration> g1 =
+      PacketSequenceStateGeneration::CreateFirst(&context_);
+  TrackEventSequenceState* s_pre =
+      g1->GetCustomState<TrackEventSequenceState>();
+  ASSERT_NE(s_pre, nullptr);
+  s_pre->SetReferenceTimestamps(/*timestamp_ns=*/100,
+                                /*thread_timestamp_ns=*/200,
+                                /*thread_instruction_count=*/300);
+  ASSERT_TRUE(s_pre->timestamps_valid());
+
+  RefPtr<PacketSequenceStateGeneration> g2 = g1->OnPacketLoss();
+
+  // Post-loss generation gets a fresh opt-in CustomState (different
+  // instance, cleared state).
+  TrackEventSequenceState* s_post =
+      g2->GetCustomState<TrackEventSequenceState>();
+  EXPECT_NE(s_post, s_pre);
+  EXPECT_FALSE(s_post->timestamps_valid());
+
+  // Pre-loss G1 — pinned via our local `g1` RefPtr (mirroring a buffered
+  // packet) — must still see the original CustomState with its state
+  // intact. Pre-fix this would fail because `OnPacketLoss` cleared the
+  // shared IncrementalState's slot, retroactively replacing what G1 saw.
+  EXPECT_EQ(g1->GetCustomState<TrackEventSequenceState>(), s_pre);
+  EXPECT_TRUE(s_pre->timestamps_valid());
+}
+
+// Non-opt-in CustomStates must be SHARED across `OnPacketLoss` so that
+// state accumulated before the loss continues to be visible to packets
+// tokenized after the loss (matches the original pre-refactor semantic).
+TEST_F(PacketSequenceStateGenerationTest,
+       OnPacketLossSharesNonOptInCustomState) {
+  RefPtr<PacketSequenceStateGeneration> g1 =
+      PacketSequenceStateGeneration::CreateFirst(&context_);
+  // ProfilePacketSequenceState does not opt into ClearOnPacketLoss.
+  ProfilePacketSequenceState* s =
+      g1->GetCustomState<ProfilePacketSequenceState>();
+  ASSERT_NE(s, nullptr);
+
+  RefPtr<PacketSequenceStateGeneration> g2 = g1->OnPacketLoss();
+  EXPECT_EQ(g2->GetCustomState<ProfilePacketSequenceState>(), s);
+  EXPECT_EQ(g1->GetCustomState<ProfilePacketSequenceState>(), s);
 }
 
 }  // namespace

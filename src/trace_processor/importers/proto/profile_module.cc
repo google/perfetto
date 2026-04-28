@@ -198,8 +198,8 @@ void ProfileModule::ParseStreamingProfilePacket(
       break;
     }
 
-    auto opt_cs_id =
-        stack_profile_sequence_state.FindOrInsertCallstack(upid, *callstack_it);
+    auto opt_cs_id = stack_profile_sequence_state.FindOrInsertCallstack(
+        sequence_state, upid, *callstack_it);
     if (!opt_cs_id) {
       context_->storage->IncrementStats(stats::stackprofile_parser_error);
       continue;
@@ -314,8 +314,8 @@ void ProfileModule::ParsePerfSample(
       *sequence_state->GetCustomState<StackProfileSequenceState>();
   if (sample.has_callstack_iid()) {
     uint64_t callstack_iid = sample.callstack_iid();
-    cs_id =
-        stack_profile_sequence_state.FindOrInsertCallstack(upid, callstack_iid);
+    cs_id = stack_profile_sequence_state.FindOrInsertCallstack(
+        sequence_state, upid, callstack_iid);
   }
 
   using protos::pbzero::Profiling;
@@ -465,7 +465,7 @@ void ProfileModule::ParseProfilePacket(
     }
   }
   if (!packet.continued()) {
-    profile_packet_sequence_state.FinalizeProfile();
+    profile_packet_sequence_state.FinalizeProfile(sequence_state);
   }
 }
 

@@ -79,7 +79,8 @@ std::optional<base::Status> MaybeParseUnsymbolizedSourceLocation(
   // to get an id from stack_profile_mapping table.
   auto* mapping = delegate.seq_state()
                       ->GetCustomState<StackProfileSequenceState>()
-                      ->FindOrInsertMapping(decoder->mapping_id());
+                      ->FindOrInsertMapping(delegate.seq_state(),
+                                            decoder->mapping_id());
   if (!mapping) {
     return std::nullopt;
   }

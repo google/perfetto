@@ -33,17 +33,15 @@ PacketSequenceStateGeneration::CreateFirst(TraceProcessorContext* context) {
 
 RefPtr<PacketSequenceStateGeneration>
 PacketSequenceStateGeneration::OnPacketLoss() {
-  // Don't mutate `this`: it may be held by the TraceSorter for buffered
-  // packets that were tokenized while the sequence was valid. Instead,
-  // return a new generation that shares the same `IncrementalState` (so
-  // CustomState back-pointers remain valid) but with the validity bit
-  // cleared. Each CustomState chooses for itself whether its contents
-  // survive the lost run of packets, via `CustomState::ClearOnPacketLoss()`;
-  // opted-in slots are nulled out and will be lazy-recreated on demand.
-  incremental_state_->ClearCustomStatesForPacketLoss();
+  // Don't mutate `this` or its `IncrementalState`: both may be held by the
+  // TraceSorter for buffered packets that were tokenized while the sequence
+  // was valid. Build a fresh `IncrementalState` (see `CreateAfterPacketLoss`
+  // for what it carries forward vs. resets) and clear the validity bit on
+  // the new generation.
   return RefPtr<PacketSequenceStateGeneration>(
       new PacketSequenceStateGeneration(
-          incremental_state_, trace_packet_defaults_,
+          IncrementalState::CreateAfterPacketLoss(*incremental_state_),
+          trace_packet_defaults_,
           /* is_incremental_state_valid */ false));
 }
 

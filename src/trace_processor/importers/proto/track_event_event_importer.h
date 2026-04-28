@@ -1539,7 +1539,7 @@ class TrackEventEventImporter {
       }
       // Pass upid as optional - will work with or without process association
       auto callsite_id = stack_profile_state->FindOrInsertCallstack(
-          upid_, event_.callstack_iid());
+          sequence_state_, upid_, event_.callstack_iid());
       if (!callsite_id) {
         return base::ErrStatus("Failed to intern callstack");
       }
