@@ -66,53 +66,6 @@ bool IsFieldAllowed(const FieldDescriptor& field,
 
 }  // namespace
 
-ProtoToArgsParser::Key::Key() = default;
-ProtoToArgsParser::Key::Key(const std::string& k) : flat_key(k), key(k) {}
-ProtoToArgsParser::Key::Key(const std::string& fk, const std::string& k)
-    : flat_key(fk), key(k) {}
-ProtoToArgsParser::Key::~Key() = default;
-
-ProtoToArgsParser::ScopedNestedKeyContext::ScopedNestedKeyContext(Key& key)
-    : key_(key),
-      old_flat_key_length_(key.flat_key.length()),
-      old_key_length_(key.key.length()) {}
-
-ProtoToArgsParser::ScopedNestedKeyContext::ScopedNestedKeyContext(
-    ProtoToArgsParser::ScopedNestedKeyContext&& other) noexcept
-    : key_(other.key_),
-      old_flat_key_length_(other.old_flat_key_length_),
-      old_key_length_(other.old_key_length_) {
-  other.old_flat_key_length_ = std::nullopt;
-  other.old_key_length_ = std::nullopt;
-}
-
-ProtoToArgsParser::ScopedNestedKeyContext&
-ProtoToArgsParser::ScopedNestedKeyContext::operator=(
-    ScopedNestedKeyContext&& other) noexcept {
-  PERFETTO_DCHECK(&key_ == &other.key_);
-  RemoveFieldSuffix();
-  old_flat_key_length_ = other.old_flat_key_length_;
-  old_key_length_ = other.old_key_length_;
-  other.old_flat_key_length_ = std::nullopt;
-  other.old_key_length_ = std::nullopt;
-  return *this;
-}
-
-ProtoToArgsParser::ScopedNestedKeyContext::~ScopedNestedKeyContext() {
-  RemoveFieldSuffix();
-}
-
-void ProtoToArgsParser::ScopedNestedKeyContext::RemoveFieldSuffix() {
-  if (old_flat_key_length_)
-    key_.flat_key.resize(old_flat_key_length_.value());
-  if (old_key_length_)
-    key_.key.resize(old_key_length_.value());
-  old_flat_key_length_ = std::nullopt;
-  old_key_length_ = std::nullopt;
-}
-
-ProtoToArgsParser::Delegate::~Delegate() = default;
-
 struct ProtoToArgsParser::WorkItem {
   // The serialized data for the current message.
   protozero::ConstBytes data;
@@ -173,6 +126,53 @@ struct ProtoToArgsParser::NestedValueWorkItem {
   bool added_entry = false;
   bool first_pass_done = false;
 };
+
+ProtoToArgsParser::Key::Key() = default;
+ProtoToArgsParser::Key::Key(const std::string& k) : flat_key(k), key(k) {}
+ProtoToArgsParser::Key::Key(const std::string& fk, const std::string& k)
+    : flat_key(fk), key(k) {}
+ProtoToArgsParser::Key::~Key() = default;
+
+ProtoToArgsParser::ScopedNestedKeyContext::ScopedNestedKeyContext(Key& key)
+    : key_(key),
+      old_flat_key_length_(key.flat_key.length()),
+      old_key_length_(key.key.length()) {}
+
+ProtoToArgsParser::ScopedNestedKeyContext::ScopedNestedKeyContext(
+    ProtoToArgsParser::ScopedNestedKeyContext&& other) noexcept
+    : key_(other.key_),
+      old_flat_key_length_(other.old_flat_key_length_),
+      old_key_length_(other.old_key_length_) {
+  other.old_flat_key_length_ = std::nullopt;
+  other.old_key_length_ = std::nullopt;
+}
+
+ProtoToArgsParser::ScopedNestedKeyContext&
+ProtoToArgsParser::ScopedNestedKeyContext::operator=(
+    ScopedNestedKeyContext&& other) noexcept {
+  PERFETTO_DCHECK(&key_ == &other.key_);
+  RemoveFieldSuffix();
+  old_flat_key_length_ = other.old_flat_key_length_;
+  old_key_length_ = other.old_key_length_;
+  other.old_flat_key_length_ = std::nullopt;
+  other.old_key_length_ = std::nullopt;
+  return *this;
+}
+
+ProtoToArgsParser::ScopedNestedKeyContext::~ScopedNestedKeyContext() {
+  RemoveFieldSuffix();
+}
+
+void ProtoToArgsParser::ScopedNestedKeyContext::RemoveFieldSuffix() {
+  if (old_flat_key_length_)
+    key_.flat_key.resize(old_flat_key_length_.value());
+  if (old_key_length_)
+    key_.key.resize(old_key_length_.value());
+  old_flat_key_length_ = std::nullopt;
+  old_key_length_ = std::nullopt;
+}
+
+ProtoToArgsParser::Delegate::~Delegate() = default;
 
 // Out-of-line and placed after the WorkItem struct definitions so the
 // std::vector<std::variant<...>> members' constructors and destructors (which
