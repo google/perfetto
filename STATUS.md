@@ -4,6 +4,15 @@
 Phase 1: refactor + memdb/WAL with no behavioural change
 
 ## Recent activity (newest first)
+- 2026-04-29 [iter 3]: memdb-vfs-open done. `SqliteEngine` ctor now
+  opens `file:/perfetto-<N>?vfs=memdb&cache=shared` (N from a static
+  `std::atomic<uint64_t>` counter, monotonically incremented per
+  instance) with flags `READWRITE|CREATE|NOMUTEX|URI`. Filename stored
+  as `std::string filename_` on `SqliteEngine` for later second-
+  connection use; not exposed publicly. 3216 unittests pass (only
+  pre-existing `HttpServerTest.Websocket` failure on macOS, ignored),
+  122 TP integrationtests pass, 1355 diff tests pass. No behaviour
+  change.
 - 2026-04-29 [iter 2]: sqlite-build-flags done. Flipped
   `SQLITE_THREADSAFE=0`→`=2` and removed `-DSQLITE_OMIT_SHARED_CACHE`
   in `buildtools/BUILD.gn`. Audited remaining flags — all compatible
@@ -25,12 +34,6 @@ Phase 1: refactor + memdb/WAL with no behavioural change
   a custom VFS.
 
 ## Next chunks (Phase 1)
-- [ ] memdb-vfs-open — change `SqliteEngine` ctor (sqlite_engine.cc:115)
-      to open `file:/perfetto-<unique>?vfs=memdb&cache=shared` with
-      `SQLITE_OPEN_URI | SQLITE_OPEN_NOMUTEX` instead of
-      `:memory:`. No behaviour change expected; trace-bounds vtab and
-      all existing flows must still work. Prove with full unittest +
-      integrationtest + diff-test runs.
 - [ ] wal-mode-pragma — execute `PRAGMA journal_mode=WAL;` and
       `PRAGMA synchronous=NORMAL;` in `InitializeSqlite` after open.
       WAL is required for cross-connection isolation later. Confirm

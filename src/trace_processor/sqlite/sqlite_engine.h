@@ -158,6 +158,9 @@ class SqliteEngine {
                     void*,
                     base::MurmurHash<std::pair<std::string, int>>>
       fn_ctx_;
+  // URI-style filename used to open |db_|. Stored so future code can open
+  // additional connections against the same shared in-memory database.
+  std::string filename_;
   ScopedDb db_;
 };
 

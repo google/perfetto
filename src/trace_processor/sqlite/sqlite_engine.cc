@@ -17,7 +17,10 @@
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 
 #include <sqlite3.h>
+#include <atomic>
+#include <cinttypes>
 #include <cstdint>
+#include <cstdio>
 #include <optional>
 #include <string>
 #include <utility>
@@ -106,14 +109,29 @@ SqliteEngine::SqliteEngine() {
   sqlite3* db = nullptr;
   EnsureSqliteInitialized();
 
+  // Build a unique URI-style filename pointing at the in-tree |memdb| VFS so
+  // that, in the future, additional connections can be opened against the same
+  // in-memory database via |cache=shared|. The leading slash on the name is
+  // mandatory for memdb URIs. The atomic counter guarantees that two
+  // independent SqliteEngine instances in the same process do not collide on
+  // the shared cache.
+  static std::atomic<uint64_t> kUniqueIdCounter{0};
+  uint64_t unique_id = kUniqueIdCounter.fetch_add(1, std::memory_order_relaxed);
+  char filename_buf[64];
+  snprintf(filename_buf, sizeof(filename_buf),
+           "file:/perfetto-%" PRIu64 "?vfs=memdb&cache=shared", unique_id);
+  filename_ = filename_buf;
+
   // Ensure that we open the database with mutexes disabled: this is because
   // trace processor as a whole cannot be used from multiple threads so there is
   // no point paying the (potentially significant) cost of mutexes at the SQLite
-  // level.
-  static constexpr int kSqliteOpenFlags =
-      SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX;
-  PERFETTO_CHECK(sqlite3_open_v2(":memory:", &db, kSqliteOpenFlags, nullptr) ==
-                 SQLITE_OK);
+  // level. SQLITE_OPEN_URI is required because URI parsing is not enabled
+  // globally.
+  static constexpr int kSqliteOpenFlags = SQLITE_OPEN_READWRITE |
+                                          SQLITE_OPEN_CREATE |
+                                          SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_URI;
+  PERFETTO_CHECK(sqlite3_open_v2(filename_.c_str(), &db, kSqliteOpenFlags,
+                                 nullptr) == SQLITE_OK);
   InitializeSqlite(db);
   db_.reset(db);
 }
