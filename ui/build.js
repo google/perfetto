@@ -380,6 +380,7 @@ Env-var overrides:
     updateSymlinks();  // Links //ui/out -> //out/xxx/ui/
 
     buildWasm(args.no_wasm);
+    copySyntaqliteRuntime();
     generateImports('ui/src/core_plugins', 'all_core_plugins');
     generateImports('ui/src/plugins', 'all_plugins');
     scanDir('ui/src/assets');
@@ -687,6 +688,48 @@ function buildWasm(skipWasmBuild) {
       const fname = `${wasmMod}${ext}`;
       addTask(cp, [pjoin(wasmOutDir, fname), pjoin(cfg.outGenDir, fname)]);
     }
+  }
+}
+
+function copySyntaqliteRuntime() {
+  const srcDir = pjoin(ROOT_DIR, 'ui/node_modules/syntaqlite/wasm');
+  const dstDir = pjoin(cfg.outDistRootDir, 'assets');
+  for (const fname of [
+    'syntaqlite-runtime.js',
+    'syntaqlite-runtime.wasm',
+    'syntaqlite-sqlite.wasm',
+  ]) {
+    addTask(cp, [pjoin(srcDir, fname), pjoin(dstDir, fname)]);
+  }
+  addTask(buildSyntaqlitePerfettoDialect, []);
+}
+
+function buildSyntaqlitePerfettoDialect() {
+  const emcc = pjoin(ROOT_DIR, 'buildtools/linux64/emsdk/emscripten/emcc');
+  const src = pjoin(
+      ROOT_DIR,
+      'src/trace_processor/perfetto_sql/syntaqlite/syntaqlite_perfetto.c');
+  const dst = pjoin(cfg.outDistRootDir, 'assets', 'syntaqlite-perfetto.wasm');
+  try {
+    const srcMtime = fs.statSync(src).mtimeMs;
+    const dstMtime = fs.statSync(dst).mtimeMs;
+    if (dstMtime >= srcMtime) return;
+  } catch (e) { /* dst missing → rebuild */ }
+  ensureDir(path.dirname(dst));
+  const emConfig = pjoin(ROOT_DIR, 'gn/standalone/.emscripten');
+  const prevEmConfig = process.env.EM_CONFIG;
+  process.env.EM_CONFIG = emConfig;
+  try {
+    exec(emcc, [
+      '-O2',
+      '-sSIDE_MODULE=2',
+      '-sEXPORTED_FUNCTIONS=_syntaqlite_perfetto_dialect_template',
+      '-o', dst,
+      src,
+    ]);
+  } finally {
+    if (prevEmConfig === undefined) delete process.env.EM_CONFIG;
+    else process.env.EM_CONFIG = prevEmConfig;
   }
 }
 
