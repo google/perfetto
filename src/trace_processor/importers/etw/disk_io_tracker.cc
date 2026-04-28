@@ -102,9 +102,8 @@ void DiskIoTracker::ParseDiskIo(int64_t timestamp, ConstBytes blob) {
           : nullopt;
 
   SliceTracker::SetArgsCallback set_args =
-      [this, disk_number, irp_flags, transfer_size, byte_offset,
-       file_object, irp,
-       high_res_response_time](ArgsTracker::BoundInserter* inserter) {
+      [this, disk_number, irp_flags, transfer_size, byte_offset, file_object,
+       irp, high_res_response_time](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(irp_ptr_arg_, Variadic::Pointer(irp));
         if (disk_number) {
           inserter->AddArg(disk_number_arg_,
