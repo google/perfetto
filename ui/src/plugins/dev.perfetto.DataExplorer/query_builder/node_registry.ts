@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryNode, QueryNodeState, NodeType} from '../query_node';
+import {QueryNode, NodeType} from '../query_node';
 import {SqlModules} from '../../../plugins/dev.perfetto.SqlModules/sql_modules';
 import {Trace} from '../../../public/trace';
 
@@ -24,6 +24,8 @@ export interface PreCreateContext {
 // The context provided to the node factory.
 export interface NodeFactoryContext {
   allNodes: QueryNode[];
+  // Runtime context (trace, sqlModules, actions) provided by the caller.
+  context?: import('../query_node').NodeContext;
 }
 
 // The initial state returned by preCreate, which will be merged with
@@ -60,7 +62,7 @@ export interface NodeDescriptor {
   ) => Promise<PreCreateState | PreCreateState[] | null>;
 
   // A function that creates a new instance of the node.
-  factory: (state: QueryNodeState, context?: NodeFactoryContext) => QueryNode;
+  factory: (attrs: PreCreateState, context?: NodeFactoryContext) => QueryNode;
 
   /**
    * Whether this node should be shown on the landing page.
@@ -83,12 +85,15 @@ export interface NodeDescriptor {
     sqlModules: SqlModules,
   ) => QueryNode;
 
-  // Restore secondary/backward connections after all nodes are created.
-  // Primary input is restored automatically based on hasPrimaryInput.
+  // Optional hook to restore complex internal connections during
+  // deserialization. Called after all nodes are created and basic connections
+  // (primaryInput, secondaryInputs) are restored. Used by GroupNode to
+  // rebuild its inner node structure from serialized IDs.
   deserializeConnections?: (
     node: QueryNode,
     state: object,
     allNodes: Map<string, QueryNode>,
+    innerNodeIds?: string[],
   ) => void;
 
   // Post-deserialization hook (phase 1). Called after all connections are
@@ -99,11 +104,6 @@ export interface NodeDescriptor {
   // have run. Used for updating derived state that depends on other nodes being
   // fully resolved (e.g. onPrevNodesUpdated).
   postDeserializeLate?: (node: QueryNode) => void;
-
-  // Whether this node has a primary input (vertical connection from above).
-  // If true, primaryInputId from serialized state will be auto-restored.
-  // Default: true for 'modification' nodes, false for 'source'/'multisource'.
-  hasPrimaryInput?: boolean;
 
   // Optional list of registry IDs that are allowed as children of this node.
   // Controls which nodes appear in the "+" menu and which connections are valid.

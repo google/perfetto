@@ -81,6 +81,8 @@ const DEFAULT_PORT = 10000;
 
 const cfg = {
   minifyJs: '',
+  noSourceMaps: false,
+  noTreeshake: false,
   watch: false,
   verbose: false,
   debug: false,
@@ -194,6 +196,14 @@ Env-var overrides:
     help: 'Minify js files',
     choices: ['preserve_comments', 'all'],
   });
+  parser.add_argument('--no-source-maps', {
+    action: 'store_true',
+    help: 'Skip source map generation entirely',
+  });
+  parser.add_argument('--no-treeshake', {
+    action: 'store_true',
+    help: 'Disable rollup tree-shaking (much faster incremental rebuilds)',
+  });
   parser.add_argument('--watch', '-w', {action: 'store_true'});
   parser.add_argument('--serve', '-s', {action: 'store_true'});
   parser.add_argument('--serve-host', {help: '--serve bind host'});
@@ -272,6 +282,8 @@ Env-var overrides:
   if (args.minify_js) {
     cfg.minifyJs = args.minify_js;
   }
+  cfg.noSourceMaps = !!args.no_source_maps;
+  cfg.noTreeshake = !!args.no_treeshake;
   if (args.bigtrace) {
     cfg.outBigtraceDistDir = ensureDir(pjoin(cfg.outDistDir, 'bigtrace'));
   }
@@ -536,7 +548,13 @@ function compileScss() {
   }
   addTask(execModule, ['sass', args, {noErrCheck}]);
   if (cfg.bigtrace) {
-    addTask(cp, [dst, pjoin(cfg.outBigtraceDistDir, 'perfetto.css')]);
+    const srcBt = pjoin(ROOT_DIR, 'ui/src/assets/bigtrace.scss');
+    const dstBt = pjoin(cfg.outBigtraceDistDir, 'bigtrace.css');
+    const argsBt = [srcBt, dstBt];
+    if (!cfg.verbose) {
+      argsBt.unshift('--quiet');
+    }
+    addTask(execModule, ['sass', argsBt, {noErrCheck}]);
   }
 }
 
@@ -703,6 +721,12 @@ function bundleJs(cfgName) {
   }
   if (cfg.minifyJs) {
     args.push('--environment', `MINIFY_JS:${cfg.minifyJs}`);
+  }
+  if (cfg.noSourceMaps) {
+    args.push('--environment', 'NO_SOURCE_MAPS:true');
+  }
+  if (cfg.noTreeshake) {
+    args.push('--environment', 'NO_TREESHAKE:true');
   }
   if (cfg.onlyWasmMemory64) {
     args.push('--environment', `IS_MEMORY64_ONLY:${cfg.onlyWasmMemory64}`);

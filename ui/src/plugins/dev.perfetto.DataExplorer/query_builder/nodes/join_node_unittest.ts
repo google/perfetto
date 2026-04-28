@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {JoinNode, JoinSerializedState} from './join_node';
+import {JoinNode} from './join_node';
 import {QueryNode, NodeType} from '../../query_node';
 import {ColumnInfo} from '../column_info';
-import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';
 import protos from '../../../../protos';
 
 describe('JoinNode', () => {
@@ -25,7 +24,8 @@ describe('JoinNode', () => {
       type: NodeType.kTable,
       nextNodes: [],
       finalCols: columns,
-      state: {},
+      attrs: {},
+      context: {},
       validate: () => true,
       getTitle: () => `Mock ${id}`,
       nodeSpecificModify: () => null,
@@ -33,7 +33,6 @@ describe('JoinNode', () => {
       nodeInfo: () => null,
       clone: () => createMockPrevNode(id, columns),
       getStructuredQuery: () => undefined,
-      serializeState: () => ({}),
     } as QueryNode;
   }
 
@@ -45,19 +44,62 @@ describe('JoinNode', () => {
     return {
       name,
       checked,
-      column: {name},
     };
   }
 
   // Helper to create pre-checked column arrays for join node state
   function createCheckedColumns(
-    columns: Array<{name: string; type: string; checked?: boolean}>,
+    columns: Array<{name: string; type?: string; checked?: boolean}>,
   ): ColumnInfo[] {
     return columns.map((c) => ({
       name: c.name,
       checked: c.checked ?? true,
-      column: {name: c.name},
     }));
+  }
+
+  // Helper to create a JoinNode and connect left/right secondary inputs
+  function createJoinNodeWithInputs(
+    leftNode: QueryNode | undefined,
+    rightNode: QueryNode | undefined,
+    attrs: Partial<{
+      leftQueryAlias: string;
+      rightQueryAlias: string;
+      conditionType: 'equality' | 'freeform';
+      joinType: 'INNER' | 'LEFT';
+      leftColumn: string;
+      rightColumn: string;
+      sqlExpression: string;
+      leftColumns: ColumnInfo[] | undefined;
+      rightColumns: ColumnInfo[] | undefined;
+    }>,
+    context: Record<string, unknown> = {},
+  ): JoinNode {
+    const node = new JoinNode(
+      {
+        leftQueryAlias: attrs.leftQueryAlias ?? 'left',
+        rightQueryAlias: attrs.rightQueryAlias ?? 'right',
+        conditionType: attrs.conditionType ?? 'equality',
+        joinType: attrs.joinType ?? 'INNER',
+        leftColumn: attrs.leftColumn ?? '',
+        rightColumn: attrs.rightColumn ?? '',
+        sqlExpression: attrs.sqlExpression ?? '',
+        leftColumns: attrs.leftColumns,
+        rightColumns: attrs.rightColumns,
+      },
+      context,
+    );
+    if (leftNode) {
+      node.secondaryInputs.connections.set(0, leftNode);
+      leftNode.nextNodes.push(node);
+    }
+    if (rightNode) {
+      node.secondaryInputs.connections.set(1, rightNode);
+      rightNode.nextNodes.push(node);
+    }
+    if (leftNode || rightNode) {
+      node.onPrevNodesUpdated?.();
+    }
+    return node;
   }
 
   describe('constructor', () => {
@@ -71,48 +113,54 @@ describe('JoinNode', () => {
         createColumnInfo('value', 'INT'),
       ]);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'id',
+          sqlExpression: '',
+          leftColumns: undefined,
+          rightColumns: undefined,
+        },
+        {},
+      );
 
-      expect(joinNode.state.leftQueryAlias).toBe('left');
-      expect(joinNode.state.rightQueryAlias).toBe('right');
-      expect(joinNode.state.conditionType).toBe('equality');
-      expect(joinNode.state.leftColumn).toBe('id');
-      expect(joinNode.state.rightColumn).toBe('id');
-      expect(joinNode.state.autoExecute).toBe(false);
+      expect(joinNode.attrs.leftQueryAlias).toBe('left');
+      expect(joinNode.attrs.rightQueryAlias).toBe('right');
+      expect(joinNode.attrs.conditionType).toBe('equality');
+      expect(joinNode.attrs.leftColumn).toBe('id');
+      expect(joinNode.attrs.rightColumn).toBe('id');
+      expect(joinNode.context.autoExecute).toBe(false);
     });
 
     it('should use default aliases when not provided', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: undefined!,
-        rightQueryAlias: undefined!,
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: '',
-        rightColumn: '',
-        sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: undefined!,
+          rightQueryAlias: undefined!,
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: '',
+          rightColumn: '',
+          sqlExpression: '',
+          leftColumns: undefined,
+          rightColumns: undefined,
+        },
+        {},
+      );
 
-      expect(joinNode.state.leftQueryAlias).toBe('left');
-      expect(joinNode.state.rightQueryAlias).toBe('right');
+      expect(joinNode.attrs.leftQueryAlias).toBe('left');
+      expect(joinNode.attrs.rightQueryAlias).toBe('right');
     });
   });
 
@@ -122,19 +170,22 @@ describe('JoinNode', () => {
         createColumnInfo('id', 'INT'),
       ]);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: undefined,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        undefined,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'id',
+          sqlExpression: '',
+          leftColumns: undefined,
+          rightColumns: undefined,
+        },
+        {},
+      );
 
       expect(joinNode.finalCols).toEqual([]);
     });
@@ -151,19 +202,22 @@ describe('JoinNode', () => {
 
       // When leftColumns/rightColumns are undefined, updateColumnArrays()
       // initializes all columns with checked: false
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'id',
+          sqlExpression: '',
+          leftColumns: undefined,
+          rightColumns: undefined,
+        },
+        {},
+      );
 
       // All columns default to unchecked, so finalCols should be empty
       expect(joinNode.finalCols).toEqual([]);
@@ -178,25 +232,27 @@ describe('JoinNode', () => {
         createColumnInfo('value', 'INT'),
       ]);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'value',
-        sqlExpression: '',
-        // Pre-set leftColumns with only 'id' checked
-        leftColumns: createCheckedColumns([
-          {name: 'id', type: 'INT', checked: true},
-          {name: 'name', type: 'STRING', checked: false},
-        ]),
-        rightColumns: createCheckedColumns([
-          {name: 'value', type: 'INT', checked: false},
-        ]),
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'value',
+          sqlExpression: '', // Pre-set leftColumns with only 'id' checked
+          leftColumns: createCheckedColumns([
+            {name: 'id', type: 'INT', checked: true},
+            {name: 'name', type: 'STRING', checked: false},
+          ]),
+          rightColumns: createCheckedColumns([
+            {name: 'value', type: 'INT', checked: false},
+          ]),
+        },
+        {},
+      );
 
       const finalCols = joinNode.finalCols;
       expect(finalCols.length).toBe(1);
@@ -212,24 +268,27 @@ describe('JoinNode', () => {
         createColumnInfo('value', 'INT'),
       ]);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'parent_id',
-        sqlExpression: '',
-        leftColumns: createCheckedColumns([
-          {name: 'id', type: 'INT', checked: false},
-        ]),
-        rightColumns: createCheckedColumns([
-          {name: 'parent_id', type: 'INT', checked: true},
-          {name: 'value', type: 'INT', checked: true},
-        ]),
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'parent_id',
+          sqlExpression: '',
+          leftColumns: createCheckedColumns([
+            {name: 'id', type: 'INT', checked: false},
+          ]),
+          rightColumns: createCheckedColumns([
+            {name: 'parent_id', type: 'INT', checked: true},
+            {name: 'value', type: 'INT', checked: true},
+          ]),
+        },
+        {},
+      );
 
       const finalCols = joinNode.finalCols;
       const colNames = finalCols.map((c: ColumnInfo) => c.name);
@@ -250,26 +309,29 @@ describe('JoinNode', () => {
         createColumnInfo('value', 'INT'),
       ]);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'parent_id',
-        sqlExpression: '',
-        leftColumns: createCheckedColumns([
-          {name: 'id', type: 'INT', checked: true},
-          {name: 'name', type: 'STRING', checked: false},
-          {name: 'ts', type: 'INT64', checked: true},
-        ]),
-        rightColumns: createCheckedColumns([
-          {name: 'parent_id', type: 'INT', checked: false},
-          {name: 'value', type: 'INT', checked: true},
-        ]),
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'parent_id',
+          sqlExpression: '',
+          leftColumns: createCheckedColumns([
+            {name: 'id', type: 'INT', checked: true},
+            {name: 'name', type: 'STRING', checked: false},
+            {name: 'ts', type: 'INT64', checked: true},
+          ]),
+          rightColumns: createCheckedColumns([
+            {name: 'parent_id', type: 'INT', checked: false},
+            {name: 'value', type: 'INT', checked: true},
+          ]),
+        },
+        {},
+      );
 
       const finalCols = joinNode.finalCols;
       const colNames = finalCols.map((c: ColumnInfo) => c.name);
@@ -286,19 +348,22 @@ describe('JoinNode', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: '',
-        rightColumn: '',
-        sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: '',
+          rightColumn: '',
+          sqlExpression: '',
+          leftColumns: undefined,
+          rightColumns: undefined,
+        },
+        {},
+      );
 
       expect(joinNode.finalCols).toEqual([]);
     });
@@ -312,24 +377,27 @@ describe('JoinNode', () => {
         createColumnInfo('value', 'INT'),
       ]);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'value',
-        sqlExpression: '',
-        leftColumns: createCheckedColumns([
-          {name: 'id', type: 'INT', checked: true},
-          {name: 'name', type: 'STRING', checked: true},
-        ]),
-        rightColumns: createCheckedColumns([
-          {name: 'value', type: 'INT', checked: true},
-        ]),
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'value',
+          sqlExpression: '',
+          leftColumns: createCheckedColumns([
+            {name: 'id', type: 'INT', checked: true},
+            {name: 'name', type: 'STRING', checked: true},
+          ]),
+          rightColumns: createCheckedColumns([
+            {name: 'value', type: 'INT', checked: true},
+          ]),
+        },
+        {},
+      );
 
       const finalCols = joinNode.finalCols;
 
@@ -354,19 +422,22 @@ describe('JoinNode', () => {
       ]);
       rightCols[0].alias = 'right_id';
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        leftColumns: leftCols,
-        rightColumns: rightCols,
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'id',
+          sqlExpression: '',
+          leftColumns: leftCols,
+          rightColumns: rightCols,
+        },
+        {},
+      );
 
       const finalCols = joinNode.finalCols;
 
@@ -380,22 +451,25 @@ describe('JoinNode', () => {
     it('should fail when only one node is provided', () => {
       const node1 = createMockPrevNode('node1', []);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: undefined,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        undefined,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'id',
+          sqlExpression: '',
+          leftColumns: undefined,
+          rightColumns: undefined,
+        },
+        {},
+      );
 
       expect(joinNode.validate()).toBe(false);
-      expect(joinNode.state.issues?.queryError?.message).toContain(
+      expect(joinNode.context.issues?.queryError?.message).toContain(
         'exactly two sources',
       );
     });
@@ -408,24 +482,26 @@ describe('JoinNode', () => {
         createColumnInfo('id', 'INT'),
       ]);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: undefined!,
-        rightQueryAlias: undefined!,
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        // Provide checked columns for validation to pass
-        leftColumns: createCheckedColumns([
-          {name: 'id', type: 'INT', checked: true},
-        ]),
-        rightColumns: createCheckedColumns([
-          {name: 'id', type: 'INT', checked: false},
-        ]),
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: undefined!,
+          rightQueryAlias: undefined!,
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'id',
+          sqlExpression: '', // Provide checked columns for validation to pass
+          leftColumns: createCheckedColumns([
+            {name: 'id', type: 'INT', checked: true},
+          ]),
+          rightColumns: createCheckedColumns([
+            {name: 'id', type: 'INT', checked: false},
+          ]),
+        },
+        {},
+      );
 
       // Constructor sets default aliases to 'left' and 'right', so this should pass
       expect(joinNode.validate()).toBe(true);
@@ -435,22 +511,25 @@ describe('JoinNode', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: '',
-        rightColumn: '',
-        sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: '',
+          rightColumn: '',
+          sqlExpression: '',
+          leftColumns: undefined,
+          rightColumns: undefined,
+        },
+        {},
+      );
 
       expect(joinNode.validate()).toBe(false);
-      expect(joinNode.state.issues?.queryError?.message).toContain(
+      expect(joinNode.context.issues?.queryError?.message).toContain(
         'Both left and right columns are required',
       );
     });
@@ -459,22 +538,25 @@ describe('JoinNode', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'freeform',
-        joinType: 'INNER',
-        leftColumn: '',
-        rightColumn: '',
-        sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'freeform',
+          joinType: 'INNER',
+          leftColumn: '',
+          rightColumn: '',
+          sqlExpression: '',
+          leftColumns: undefined,
+          rightColumns: undefined,
+        },
+        {},
+      );
 
       expect(joinNode.validate()).toBe(false);
-      expect(joinNode.state.issues?.queryError?.message).toContain(
+      expect(joinNode.context.issues?.queryError?.message).toContain(
         'SQL expression',
       );
     });
@@ -487,24 +569,26 @@ describe('JoinNode', () => {
         createColumnInfo('id', 'INT'),
       ]);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        // Provide at least one checked column
-        leftColumns: createCheckedColumns([
-          {name: 'id', type: 'INT', checked: true},
-        ]),
-        rightColumns: createCheckedColumns([
-          {name: 'id', type: 'INT', checked: false},
-        ]),
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'id',
+          sqlExpression: '', // Provide at least one checked column
+          leftColumns: createCheckedColumns([
+            {name: 'id', type: 'INT', checked: true},
+          ]),
+          rightColumns: createCheckedColumns([
+            {name: 'id', type: 'INT', checked: false},
+          ]),
+        },
+        {},
+      );
 
       expect(joinNode.validate()).toBe(true);
     });
@@ -519,29 +603,31 @@ describe('JoinNode', () => {
         createColumnInfo('value', 'INT'),
       ]);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        // All columns unchecked
-        leftColumns: createCheckedColumns([
-          {name: 'id', type: 'INT', checked: false},
-          {name: 'name', type: 'STRING', checked: false},
-        ]),
-        rightColumns: createCheckedColumns([
-          {name: 'id', type: 'INT', checked: false},
-          {name: 'value', type: 'INT', checked: false},
-        ]),
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'id',
+          sqlExpression: '', // All columns unchecked
+          leftColumns: createCheckedColumns([
+            {name: 'id', type: 'INT', checked: false},
+            {name: 'name', type: 'STRING', checked: false},
+          ]),
+          rightColumns: createCheckedColumns([
+            {name: 'id', type: 'INT', checked: false},
+            {name: 'value', type: 'INT', checked: false},
+          ]),
+        },
+        {},
+      );
 
       expect(joinNode.validate()).toBe(false);
-      expect(joinNode.state.issues?.queryError?.message).toContain(
+      expect(joinNode.context.issues?.queryError?.message).toContain(
         'No columns selected',
       );
     });
@@ -557,22 +643,25 @@ describe('JoinNode', () => {
         createColumnInfo('value', 'INT'),
       ]);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'id',
+          sqlExpression: '',
+          leftColumns: undefined,
+          rightColumns: undefined,
+        },
+        {},
+      );
 
       expect(joinNode.validate()).toBe(false);
-      expect(joinNode.state.issues?.queryError?.message).toContain(
+      expect(joinNode.context.issues?.queryError?.message).toContain(
         'No columns selected',
       );
     });
@@ -585,24 +674,26 @@ describe('JoinNode', () => {
         createColumnInfo('parent_id', 'INT'),
       ]);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 't1',
-        rightQueryAlias: 't2',
-        conditionType: 'freeform',
-        joinType: 'INNER',
-        leftColumn: '',
-        rightColumn: '',
-        sqlExpression: 't1.id = t2.parent_id',
-        // Provide at least one checked column
-        leftColumns: createCheckedColumns([
-          {name: 'id', type: 'INT', checked: true},
-        ]),
-        rightColumns: createCheckedColumns([
-          {name: 'parent_id', type: 'INT', checked: true},
-        ]),
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 't1',
+          rightQueryAlias: 't2',
+          conditionType: 'freeform',
+          joinType: 'INNER',
+          leftColumn: '',
+          rightColumn: '',
+          sqlExpression: 't1.id = t2.parent_id', // Provide at least one checked column
+          leftColumns: createCheckedColumns([
+            {name: 'id', type: 'INT', checked: true},
+          ]),
+          rightColumns: createCheckedColumns([
+            {name: 'parent_id', type: 'INT', checked: true},
+          ]),
+        },
+        {},
+      );
 
       expect(joinNode.validate()).toBe(true);
     });
@@ -613,19 +704,22 @@ describe('JoinNode', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: '',
-        rightColumn: '',
-        sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: '',
+          rightColumn: '',
+          sqlExpression: '',
+          leftColumns: undefined,
+          rightColumns: undefined,
+        },
+        {},
+      );
 
       expect(joinNode.getTitle()).toBe('Join');
     });
@@ -636,19 +730,22 @@ describe('JoinNode', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'foo',
-        rightQueryAlias: 'bar',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: '',
-        rightColumn: '',
-        sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'foo',
+          rightQueryAlias: 'bar',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: '',
+          rightColumn: '',
+          sqlExpression: '',
+          leftColumns: undefined,
+          rightColumns: undefined,
+        },
+        {},
+      );
 
       const portNames = joinNode.secondaryInputs.portNames;
       expect(typeof portNames).toBe('function');
@@ -664,55 +761,61 @@ describe('JoinNode', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'id',
+          sqlExpression: '',
+          leftColumns: undefined,
+          rightColumns: undefined,
+        },
+        {},
+      );
 
       const cloned = joinNode.clone() as JoinNode;
 
       expect(cloned).not.toBe(joinNode);
-      expect(cloned.state.leftQueryAlias).toBe('left');
-      expect(cloned.state.rightQueryAlias).toBe('right');
-      expect(cloned.state.conditionType).toBe('equality');
-      expect(cloned.state.leftColumn).toBe('id');
-      expect(cloned.state.rightColumn).toBe('id');
+      expect(cloned.attrs.leftQueryAlias).toBe('left');
+      expect(cloned.attrs.rightQueryAlias).toBe('right');
+      expect(cloned.attrs.conditionType).toBe('equality');
+      expect(cloned.attrs.leftColumn).toBe('id');
+      expect(cloned.attrs.rightColumn).toBe('id');
     });
 
     it('should not share state with original', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'id',
+          sqlExpression: '',
+          leftColumns: undefined,
+          rightColumns: undefined,
+        },
+        {},
+      );
 
       const cloned = joinNode.clone() as JoinNode;
 
       // Modify the cloned state
-      cloned.state.leftQueryAlias = 'modified';
+      cloned.attrs.leftQueryAlias = 'modified';
 
       // Original should not be affected
-      expect(joinNode.state.leftQueryAlias).toBe('left');
+      expect(joinNode.attrs.leftQueryAlias).toBe('left');
     });
   });
 
@@ -720,19 +823,22 @@ describe('JoinNode', () => {
     it('should return undefined if validation fails', () => {
       const node1 = createMockPrevNode('node1', []);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: undefined,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: '',
-        rightColumn: '',
-        sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        undefined,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: '',
+          rightColumn: '',
+          sqlExpression: '',
+          leftColumns: undefined,
+          rightColumns: undefined,
+        },
+        {},
+      );
 
       expect(joinNode.getStructuredQuery()).toBeUndefined();
     });
@@ -758,26 +864,28 @@ describe('JoinNode', () => {
         getStructuredQuery: () => mockSq2,
       } as QueryNode;
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        // Provide checked columns
-        leftColumns: createCheckedColumns([
-          {name: 'id', type: 'INT', checked: true},
-          {name: 'name', type: 'STRING', checked: true},
-        ]),
-        rightColumns: createCheckedColumns([
-          {name: 'id', type: 'INT', checked: false},
-          {name: 'value', type: 'INT', checked: true},
-        ]),
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'id',
+          sqlExpression: '', // Provide checked columns
+          leftColumns: createCheckedColumns([
+            {name: 'id', type: 'INT', checked: true},
+            {name: 'name', type: 'STRING', checked: true},
+          ]),
+          rightColumns: createCheckedColumns([
+            {name: 'id', type: 'INT', checked: false},
+            {name: 'value', type: 'INT', checked: true},
+          ]),
+        },
+        {},
+      );
 
       const sq = joinNode.getStructuredQuery();
 
@@ -808,24 +916,26 @@ describe('JoinNode', () => {
         getStructuredQuery: () => mockSq2,
       } as QueryNode;
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        // Provide checked columns
-        leftColumns: createCheckedColumns([
-          {name: 'id', type: 'INT', checked: true},
-        ]),
-        rightColumns: createCheckedColumns([
-          {name: 'id', type: 'INT', checked: false},
-        ]),
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'id',
+          sqlExpression: '', // Provide checked columns
+          leftColumns: createCheckedColumns([
+            {name: 'id', type: 'INT', checked: true},
+          ]),
+          rightColumns: createCheckedColumns([
+            {name: 'id', type: 'INT', checked: false},
+          ]),
+        },
+        {},
+      );
 
       const sq = joinNode.getStructuredQuery();
 
@@ -851,24 +961,26 @@ describe('JoinNode', () => {
         getStructuredQuery: () => mockSq2,
       } as QueryNode;
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 't1',
-        rightQueryAlias: 't2',
-        conditionType: 'freeform',
-        joinType: 'INNER',
-        leftColumn: '',
-        rightColumn: '',
-        sqlExpression: 't1.id = t2.parent_id',
-        // Provide checked columns
-        leftColumns: createCheckedColumns([
-          {name: 'id', type: 'INT', checked: true},
-        ]),
-        rightColumns: createCheckedColumns([
-          {name: 'parent_id', type: 'INT', checked: true},
-        ]),
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 't1',
+          rightQueryAlias: 't2',
+          conditionType: 'freeform',
+          joinType: 'INNER',
+          leftColumn: '',
+          rightColumn: '',
+          sqlExpression: 't1.id = t2.parent_id', // Provide checked columns
+          leftColumns: createCheckedColumns([
+            {name: 'id', type: 'INT', checked: true},
+          ]),
+          rightColumns: createCheckedColumns([
+            {name: 'parent_id', type: 'INT', checked: true},
+          ]),
+        },
+        {},
+      );
 
       const sq = joinNode.getStructuredQuery();
 
@@ -887,168 +999,33 @@ describe('JoinNode', () => {
     });
   });
 
-  describe('serializeState', () => {
-    it('should serialize all state fields', () => {
+  describe('attrs serialization', () => {
+    it('should have all state fields in attrs', () => {
       const node1 = createMockPrevNode('node1', []);
       const node2 = createMockPrevNode('node2', []);
 
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
-      });
-
-      const serialized = joinNode.serializeState();
-
-      expect(serialized.leftNodeId).toBe('node1');
-      expect(serialized.rightNodeId).toBe('node2');
-      expect(serialized.leftQueryAlias).toBe('left');
-      expect(serialized.rightQueryAlias).toBe('right');
-      expect(serialized.conditionType).toBe('equality');
-      expect(serialized.leftColumn).toBe('id');
-      expect(serialized.rightColumn).toBe('id');
-    });
-  });
-
-  describe('deserializeState', () => {
-    it('should deserialize state correctly', () => {
-      const serialized = {
-        leftNodeId: 'node1',
-        rightNodeId: 'node2',
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality' as const,
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
-      };
-
-      const state = JoinNode.deserializeState(serialized);
-
-      expect(state.leftQueryAlias).toBe('left');
-      expect(state.rightQueryAlias).toBe('right');
-      expect(state.conditionType).toBe('equality');
-      expect(state.leftColumn).toBe('id');
-      expect(state.rightColumn).toBe('id');
-    });
-
-    it('should deserialize legacy string types into PerfettoSqlType', () => {
-      const legacySerialized = {
-        leftNodeId: 'node1',
-        rightNodeId: 'node2',
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality' as const,
-        leftColumn: 'id',
-        rightColumn: 'id',
-        leftColumns: [
-          {name: 'id', type: 'INT', checked: true, columnName: 'id'},
-          {name: 'ts', type: 'TIMESTAMP', checked: false, columnName: 'ts'},
-        ],
-        rightColumns: [
-          {name: 'val', type: 'DOUBLE', checked: true, columnName: 'val'},
-        ],
-      } as unknown as JoinSerializedState;
-
-      const state = JoinNode.deserializeState(legacySerialized);
-
-      expect(state.leftColumns?.[0].column.type).toEqual(PerfettoSqlTypes.INT);
-      expect(state.leftColumns?.[1].column.type).toEqual(
-        PerfettoSqlTypes.TIMESTAMP,
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'id',
+          sqlExpression: '',
+          leftColumns: undefined,
+          rightColumns: undefined,
+        },
+        {},
       );
-      expect(state.rightColumns?.[0].column.type).toEqual(
-        PerfettoSqlTypes.DOUBLE,
-      );
-    });
 
-    it('should deserialize new PerfettoSqlType objects correctly', () => {
-      const newSerialized: JoinSerializedState = {
-        leftNodeId: 'node1',
-        rightNodeId: 'node2',
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        leftColumns: [
-          {
-            name: 'id',
-            type: {kind: 'int'},
-            checked: true,
-            columnName: 'id',
-          },
-        ],
-        rightColumns: [
-          {
-            name: 'dur',
-            type: {kind: 'duration'},
-            checked: true,
-            columnName: 'dur',
-          },
-        ],
-      };
-
-      const state = JoinNode.deserializeState(newSerialized);
-
-      expect(state.leftColumns?.[0].column.type).toEqual(PerfettoSqlTypes.INT);
-      expect(state.rightColumns?.[0].column.type).toEqual(
-        PerfettoSqlTypes.DURATION,
-      );
-    });
-  });
-
-  describe('deserializeConnections', () => {
-    it('should deserialize connections correctly', () => {
-      const node1 = createMockPrevNode('node1', []);
-      const node2 = createMockPrevNode('node2', []);
-      const nodes = new Map([
-        ['node1', node1],
-        ['node2', node2],
-      ]);
-
-      const connections = JoinNode.deserializeConnections(nodes, {
-        leftNodeId: 'node1',
-        rightNodeId: 'node2',
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-      });
-
-      expect(connections.leftNode).toBe(node1);
-      expect(connections.rightNode).toBe(node2);
-    });
-
-    it('should handle missing nodes gracefully', () => {
-      const nodes = new Map<string, QueryNode>();
-
-      const connections = JoinNode.deserializeConnections(nodes, {
-        leftNodeId: 'missing1',
-        rightNodeId: 'missing2',
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-      });
-
-      expect(connections.leftNode).toBeUndefined();
-      expect(connections.rightNode).toBeUndefined();
+      expect(joinNode.attrs.leftQueryAlias).toBe('left');
+      expect(joinNode.attrs.rightQueryAlias).toBe('right');
+      expect(joinNode.attrs.conditionType).toBe('equality');
+      expect(joinNode.attrs.leftColumn).toBe('id');
+      expect(joinNode.attrs.rightColumn).toBe('id');
     });
   });
 
@@ -1064,60 +1041,51 @@ describe('JoinNode', () => {
       ]);
 
       // Create a join node with specific columns checked
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'value',
-        sqlExpression: '',
-        leftColumns: createCheckedColumns([
-          {name: 'id', type: 'INT', checked: true},
-          {name: 'name', type: 'STRING', checked: false},
-        ]),
-        rightColumns: createCheckedColumns([
-          {name: 'value', type: 'INT', checked: true},
-        ]),
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'value',
+          sqlExpression: '',
+          leftColumns: createCheckedColumns([
+            {name: 'id', type: 'INT', checked: true},
+            {name: 'name', type: 'STRING', checked: false},
+          ]),
+          rightColumns: createCheckedColumns([
+            {name: 'value', type: 'INT', checked: true},
+          ]),
+        },
+        {},
+      );
 
       // Verify initial state
-      expect(joinNode.state.leftColumns?.[0].checked).toBe(true);
-      expect(joinNode.state.leftColumns?.[1].checked).toBe(false);
-      expect(joinNode.state.rightColumns?.[0].checked).toBe(true);
+      expect(joinNode.attrs.leftColumns?.[0].checked).toBe(true);
+      expect(joinNode.attrs.leftColumns?.[1].checked).toBe(false);
+      expect(joinNode.attrs.rightColumns?.[0].checked).toBe(true);
 
-      // Serialize the state
-      const serialized = joinNode.serializeState();
+      // Serialize the state via attrs
+      const serialized = joinNode.attrs;
 
-      // Deserialize the state
-      const deserializedState = JoinNode.deserializeState(serialized);
+      // Create a new join node from serialized state (connections restored at
+      // the graph level by json_handler; constructor handles defaults).
+      const restoredNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {...serialized},
+        {},
+      );
 
-      // Create nodes map for connection deserialization
-      const nodes = new Map([
-        ['node1', node1],
-        ['node2', node2],
-      ]);
-      const connections = JoinNode.deserializeConnections(nodes, serialized);
+      expect(restoredNode.attrs.leftColumns?.length).toBe(2);
+      expect(restoredNode.attrs.rightColumns?.length).toBe(1);
 
-      // Create a new join node from deserialized state
-      // This simulates what happens when loading from saved state
-      const restoredNode = new JoinNode({
-        ...deserializedState,
-        leftNode: connections.leftNode,
-        rightNode: connections.rightNode,
-      });
-
-      // BUG: After deserialization and reconstruction, checked status is lost
-      // because updateColumnArrays() can't match columns properly
-      expect(restoredNode.state.leftColumns?.length).toBe(2);
-      expect(restoredNode.state.rightColumns?.length).toBe(1);
-
-      // These should pass but currently fail:
-      expect(restoredNode.state.leftColumns?.[0].checked).toBe(true);
-      expect(restoredNode.state.leftColumns?.[1].checked).toBe(false);
-      expect(restoredNode.state.rightColumns?.[0].checked).toBe(true);
+      expect(restoredNode.attrs.leftColumns?.[0].checked).toBe(true);
+      expect(restoredNode.attrs.leftColumns?.[1].checked).toBe(false);
+      expect(restoredNode.attrs.rightColumns?.[0].checked).toBe(true);
     });
 
     it('should preserve column aliases after serialization and deserialization', () => {
@@ -1141,49 +1109,42 @@ describe('JoinNode', () => {
       rightCols[0].alias = 'right_id';
 
       // Create a join node with aliases
-      const joinNode = new JoinNode({
-        leftNode: node1,
-        rightNode: node2,
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        leftColumns: leftCols,
-        rightColumns: rightCols,
-      });
+      const joinNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {
+          leftQueryAlias: 'left',
+          rightQueryAlias: 'right',
+          conditionType: 'equality',
+          joinType: 'INNER',
+          leftColumn: 'id',
+          rightColumn: 'id',
+          sqlExpression: '',
+          leftColumns: leftCols,
+          rightColumns: rightCols,
+        },
+        {},
+      );
 
       // Verify initial state has aliases
-      expect(joinNode.state.leftColumns?.[0].alias).toBe('left_id');
-      expect(joinNode.state.rightColumns?.[0].alias).toBe('right_id');
+      expect(joinNode.attrs.leftColumns?.[0].alias).toBe('left_id');
+      expect(joinNode.attrs.rightColumns?.[0].alias).toBe('right_id');
 
-      // Serialize the state
-      const serialized = joinNode.serializeState();
+      // Serialize the state via attrs
+      const serialized = joinNode.attrs;
 
-      // Deserialize the state
-      const deserializedState = JoinNode.deserializeState(serialized);
+      // Create a new join node from serialized state.
+      const restoredNode = createJoinNodeWithInputs(
+        node1,
+        node2,
+        {...serialized},
+        {},
+      );
 
-      // Create nodes map for connection deserialization
-      const nodes = new Map([
-        ['node1', node1],
-        ['node2', node2],
-      ]);
-      const connections = JoinNode.deserializeConnections(nodes, serialized);
-
-      // Create a new join node from deserialized state
-      const restoredNode = new JoinNode({
-        ...deserializedState,
-        leftNode: connections.leftNode,
-        rightNode: connections.rightNode,
-      });
-
-      // BUG: Aliases and checked status are both lost after deserialization
-      expect(restoredNode.state.leftColumns?.[0].alias).toBe('left_id');
-      expect(restoredNode.state.rightColumns?.[0].alias).toBe('right_id');
-      expect(restoredNode.state.leftColumns?.[0].checked).toBe(true);
-      expect(restoredNode.state.rightColumns?.[0].checked).toBe(true);
+      expect(restoredNode.attrs.leftColumns?.[0].alias).toBe('left_id');
+      expect(restoredNode.attrs.rightColumns?.[0].alias).toBe('right_id');
+      expect(restoredNode.attrs.leftColumns?.[0].checked).toBe(true);
+      expect(restoredNode.attrs.rightColumns?.[0].checked).toBe(true);
     });
   });
 });

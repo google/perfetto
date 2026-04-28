@@ -13,19 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  QueryNode,
-  QueryNodeState,
-  nextNodeId,
-  NodeType,
-} from '../../query_node';
+import {QueryNode, nextNodeId, NodeType, NodeContext} from '../../query_node';
 import protos from '../../../../protos';
-import {
-  ColumnInfo,
-  columnInfoFromName,
-  columnInfoFromSqlColumn,
-  newColumnInfoList,
-} from '../column_info';
+import {ColumnInfo, columnInfoFromSqlColumn} from '../column_info';
 import {
   PerfettoSqlTypes,
   PerfettoSqlType,
@@ -48,25 +38,14 @@ import {NodeModifyAttrs, NodeDetailsAttrs} from '../../node_types';
 import {loadNodeDoc} from '../node_doc_loader';
 import {ColumnName, NodeDetailsSpacer} from '../node_styling_widgets';
 
-export interface AggregationSerializedState {
-  groupByColumns: {name: string; checked: boolean}[];
-  aggregations: {
-    column?: ColumnInfo;
-    aggregationOp?: string;
-    newColumnName?: string;
-    percentile?: number;
-    isValid?: boolean;
-  }[];
-  comment?: string;
-}
-
-export interface AggregationNodeState extends QueryNodeState {
+// Serializable node configuration.
+export interface AggregationNodeAttrs {
   groupByColumns: ColumnInfo[];
   aggregations: Aggregation[];
 }
 
 export interface Aggregation {
-  column?: ColumnInfo;
+  column?: {name: string; type?: PerfettoSqlType};
   aggregationOp?: string;
   newColumnName?: string;
   percentile?: number;
@@ -78,40 +57,38 @@ export class AggregationNode implements QueryNode {
   readonly type = NodeType.kAggregation;
   primaryInput?: QueryNode;
   nextNodes: QueryNode[];
-  readonly state: AggregationNodeState;
+  readonly attrs: AggregationNodeAttrs;
+  readonly context: NodeContext;
 
   get finalCols(): ColumnInfo[] {
-    // When there's no primaryInput, aggregation doesn't make sense
-    // Return empty array to indicate no output columns
     if (this.primaryInput === undefined) {
       return [];
     }
-    const selected = this.state.groupByColumns.filter((c) => c.checked);
+    const cols: ColumnInfo[] = this.attrs.groupByColumns
+      .filter((c) => c.checked)
+      .map((d) => ({
+        name: d.name,
+        type: d.type,
+        checked: true,
+      }));
     // IMPORTANT: Only include VALID aggregations in output
-    // This prevents incomplete/invalid aggregations from propagating downstream
-    for (const agg of this.state.aggregations) {
-      if (!validateAggregation(agg)) {
-        continue; // Skip invalid aggregations
-      }
+    for (const agg of this.attrs.aggregations) {
+      if (!validateAggregation(agg)) continue;
       const resultType = getAggregationResultType(agg);
       const resultName = agg.newColumnName ?? placeholderNewColumnName(agg);
-      selected.push(
-        columnInfoFromSqlColumn({
-          name: resultName,
-          type: resultType,
-        }),
-      );
+      cols.push(columnInfoFromSqlColumn({name: resultName, type: resultType}));
     }
-    return newColumnInfoList(selected, true);
+    return cols;
   }
 
-  constructor(state: AggregationNodeState) {
+  constructor(attrs: AggregationNodeAttrs, context: NodeContext) {
     this.nodeId = nextNodeId();
-    this.state = {
-      ...state,
-      groupByColumns: state.groupByColumns ?? [],
-      aggregations: state.aggregations ?? [],
+    this.attrs = {
+      ...attrs,
+      groupByColumns: attrs.groupByColumns ?? [],
+      aggregations: attrs.aggregations ?? [],
     };
+    this.context = context;
     this.nextNodes = [];
   }
 
@@ -123,29 +100,30 @@ export class AggregationNode implements QueryNode {
     if (this.primaryInput === undefined) {
       return;
     }
-    const newGroupByColumns = newColumnInfoList(
-      this.primaryInput.finalCols ?? [],
-      false,
-    );
-    for (const oldCol of this.state.groupByColumns) {
+    const newGroupByColumns: ColumnInfo[] = (
+      this.primaryInput.finalCols ?? []
+    ).map((col) => ({
+      name: col.name,
+      type: col.type,
+      checked: false,
+    }));
+    for (const oldCol of this.attrs.groupByColumns) {
       if (oldCol.checked) {
         const newCol = newGroupByColumns.find((c) => c.name === oldCol.name);
         if (newCol) {
           newCol.checked = true;
         } else {
-          const missingCol = columnInfoFromName(oldCol.name);
-          missingCol.checked = true;
-          newGroupByColumns.push(missingCol);
+          newGroupByColumns.push({name: oldCol.name, checked: true});
         }
       }
     }
-    this.state.groupByColumns = newGroupByColumns;
+    this.attrs.groupByColumns = newGroupByColumns;
   }
 
   validate(): boolean {
     // Clear any previous errors at the start of validation
-    if (this.state.issues) {
-      this.state.issues.clear();
+    if (this.context.issues) {
+      this.context.issues.clear();
     }
 
     if (this.primaryInput === undefined) {
@@ -160,7 +138,7 @@ export class AggregationNode implements QueryNode {
       (this.primaryInput.finalCols ?? []).map((c) => c.name),
     );
     const missingCols: string[] = [];
-    for (const col of this.state.groupByColumns) {
+    for (const col of this.attrs.groupByColumns) {
       if (col.checked && !sourceColNames.has(col.name)) {
         missingCols.push(col.name);
       }
@@ -174,14 +152,14 @@ export class AggregationNode implements QueryNode {
     }
 
     // Must have at least one of: group by columns OR aggregation functions
-    const hasGroupBy = this.state.groupByColumns.find((c) => c.checked);
+    const hasGroupBy = this.attrs.groupByColumns.find((c) => c.checked);
 
     // Validate aggregations first
-    for (const agg of this.state.aggregations) {
+    for (const agg of this.attrs.aggregations) {
       agg.isValid = validateAggregation(agg);
     }
     const hasAggregations =
-      this.state.aggregations.filter((a) => a.isValid).length > 0;
+      this.attrs.aggregations.filter((a) => a.isValid).length > 0;
 
     if (!hasGroupBy && !hasAggregations) {
       this.setValidationError(
@@ -191,7 +169,7 @@ export class AggregationNode implements QueryNode {
     }
 
     // Check for duplicate column names
-    const selectedGroupBy = this.state.groupByColumns.filter((c) => c.checked);
+    const selectedGroupBy = this.attrs.groupByColumns.filter((c) => c.checked);
     const columnNames = new Set<string>();
 
     // Add group-by column names
@@ -200,7 +178,7 @@ export class AggregationNode implements QueryNode {
     }
 
     // Check aggregation result column names for duplicates
-    for (const agg of this.state.aggregations) {
+    for (const agg of this.attrs.aggregations) {
       if (!agg.isValid) continue;
       const resultName = agg.newColumnName ?? placeholderNewColumnName(agg);
       if (columnNames.has(resultName)) {
@@ -216,10 +194,10 @@ export class AggregationNode implements QueryNode {
   }
 
   private setValidationError(message: string): void {
-    if (!this.state.issues) {
-      this.state.issues = new NodeIssues();
+    if (!this.context.issues) {
+      this.context.issues = new NodeIssues();
     }
-    this.state.issues.queryError = new Error(message);
+    this.context.issues.queryError = new Error(message);
   }
 
   getTitle(): string {
@@ -227,7 +205,7 @@ export class AggregationNode implements QueryNode {
   }
 
   nodeDetails(): NodeDetailsAttrs {
-    const selectedGroupBy = this.state.groupByColumns.filter((c) => c.checked);
+    const selectedGroupBy = this.attrs.groupByColumns.filter((c) => c.checked);
 
     const details: m.Child[] = [];
 
@@ -247,7 +225,7 @@ export class AggregationNode implements QueryNode {
       details.push(m('div', 'Group by: None'));
     }
 
-    const validAggregations = this.state.aggregations.filter(
+    const validAggregations = this.attrs.aggregations.filter(
       (agg) => agg.isValid,
     );
 
@@ -326,7 +304,7 @@ export class AggregationNode implements QueryNode {
   }
 
   private renderGroupBySection(): m.Child {
-    const groupByOptions: MultiSelectOption[] = this.state.groupByColumns.map(
+    const groupByOptions: MultiSelectOption[] = this.attrs.groupByColumns.map(
       (col) => ({
         id: col.name,
         name: col.name,
@@ -334,7 +312,7 @@ export class AggregationNode implements QueryNode {
       }),
     );
 
-    const selectedGroupBy = this.state.groupByColumns.filter((c) => c.checked);
+    const selectedGroupBy = this.attrs.groupByColumns.filter((c) => c.checked);
     const label =
       selectedGroupBy.length > 0
         ? selectedGroupBy.map((c) => c.name).join(', ')
@@ -349,14 +327,14 @@ export class AggregationNode implements QueryNode {
         showNumSelected: false,
         onChange: (diffs: MultiSelectDiff[]) => {
           for (const diff of diffs) {
-            const column = this.state.groupByColumns.find(
+            const column = this.attrs.groupByColumns.find(
               (c) => c.name === diff.id,
             );
             if (column) {
               column.checked = diff.checked;
             }
           }
-          this.state.onchange?.();
+          this.context.onchange?.();
         },
       }),
     );
@@ -364,17 +342,17 @@ export class AggregationNode implements QueryNode {
 
   private renderAggregationsList(): m.Child {
     return m(InlineEditList<Aggregation>, {
-      items: this.state.aggregations,
+      items: this.attrs.aggregations,
       validate: validateAggregation,
       renderControls: (agg, _index, onUpdate) =>
         this.renderAggregationFormControls(agg, onUpdate),
       onUpdate: (aggregations) => {
-        this.state.aggregations = aggregations;
-        this.state.onchange?.();
+        this.attrs.aggregations = aggregations;
+        this.context.onchange?.();
       },
       onValidChange: () => {
         // Also trigger when validation state changes (invalid -> valid)
-        this.state.onchange?.();
+        this.context.onchange?.();
       },
       addButtonLabel: 'Add aggregation',
       addButtonIcon: 'add',
@@ -390,8 +368,11 @@ export class AggregationNode implements QueryNode {
     agg: Aggregation,
     onUpdate: (updated: Aggregation) => void,
   ): m.Children {
-    const columnOptions = this.state.groupByColumns.map((col) => {
-      const isValid = isColumnValidForAggregation(col, agg.aggregationOp);
+    const columnOptions = this.attrs.groupByColumns.map((col) => {
+      const isValid = isColumnValidForAggregation(
+        {type: col.type},
+        agg.aggregationOp,
+      );
       return m(
         'option',
         {
@@ -458,12 +439,12 @@ export class AggregationNode implements QueryNode {
               value: agg.column?.name ?? '',
               onchange: (e: Event) => {
                 const value = (e.target as HTMLSelectElement).value;
-                const column = this.state.groupByColumns.find(
+                const col = this.attrs.groupByColumns.find(
                   (c) => c.name === value,
                 );
                 onUpdate({
                   ...agg,
-                  column,
+                  column: col ? {name: col.name, type: col.type} : undefined,
                 });
               },
             },
@@ -509,13 +490,13 @@ export class AggregationNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    const stateCopy: AggregationNodeState = {
-      groupByColumns: newColumnInfoList(this.state.groupByColumns),
-      aggregations: this.state.aggregations.map((a) => ({...a})),
-      onchange: this.state.onchange,
-      issues: this.state.issues,
-    };
-    return new AggregationNode(stateCopy);
+    return new AggregationNode(
+      {
+        groupByColumns: this.attrs.groupByColumns.map((c) => ({...c})),
+        aggregations: this.attrs.aggregations.map((a) => ({...a})),
+      },
+      this.context,
+    );
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -525,20 +506,20 @@ export class AggregationNode implements QueryNode {
     if (this.primaryInput === undefined) return undefined;
 
     // Prepare groupByColumns
-    const groupByColumns = this.state.groupByColumns
+    const groupByColumns = this.attrs.groupByColumns
       .filter((c) => c.checked)
-      .map((c) => c.column.name);
+      .map((c) => c.name);
 
     // Prepare aggregations
     const aggregations: AggregationSpec[] = [];
-    for (const agg of this.state.aggregations) {
+    for (const agg of this.attrs.aggregations) {
       agg.isValid = validateAggregation(agg);
       if (agg.isValid && agg.aggregationOp) {
         // Map COUNT(*) to COUNT for the proto (COUNT(*) is UI-only)
         const protoOp = isCountAll(agg) ? 'COUNT' : agg.aggregationOp;
 
         const aggSpec: AggregationSpec = {
-          columnName: agg.column?.column.name, // Optional for COUNT(*)
+          columnName: agg.column?.name, // Optional for COUNT(*)
           op: protoOp,
           resultColumnName: agg.newColumnName ?? placeholderNewColumnName(agg),
         };
@@ -591,68 +572,15 @@ export class AggregationNode implements QueryNode {
     return sq;
   }
 
-  resolveColumns() {
-    if (this.primaryInput === undefined) {
-      return;
-    }
-    const sourceCols = this.primaryInput.finalCols ?? [];
-    this.state.groupByColumns.forEach((c) => {
-      const sourceCol = sourceCols.find((s) => s.name === c.name);
-      if (sourceCol) {
-        c.column = sourceCol.column;
-      }
-    });
-    this.state.aggregations.forEach((a) => {
-      if (a.column) {
-        const sourceCol = sourceCols.find((s) => s.name === a.column?.name);
-        if (sourceCol) {
-          a.column = sourceCol;
-        }
-      }
-    });
-  }
-
-  serializeState(): AggregationSerializedState & {primaryInputId?: string} {
+  static deserializeState(state: AggregationNodeAttrs): AggregationNodeAttrs {
     return {
-      primaryInputId: this.primaryInput?.nodeId,
-      groupByColumns: this.state.groupByColumns.map((c) => ({
-        name: c.name,
-        checked: c.checked,
+      groupByColumns: state.groupByColumns.map((c) => ({...c})),
+      aggregations: state.aggregations.map((a) => ({
+        ...a,
+        // Migrate old COUNT_ALL to COUNT(*) for backward compatibility
+        aggregationOp:
+          a.aggregationOp === 'COUNT_ALL' ? 'COUNT(*)' : a.aggregationOp,
       })),
-      aggregations: this.state.aggregations.map((a) => ({
-        column: a.column,
-        aggregationOp: a.aggregationOp,
-        newColumnName: a.newColumnName,
-        percentile: a.percentile,
-        isValid: a.isValid,
-      })),
-    };
-  }
-
-  static deserializeState(
-    state: AggregationSerializedState,
-  ): AggregationNodeState {
-    const groupByColumns = state.groupByColumns.map((c) => {
-      const col = columnInfoFromName(c.name);
-      col.checked = c.checked;
-      return col;
-    });
-    const aggregations = state.aggregations.map((a) => {
-      // Migrate old COUNT_ALL to COUNT(*) for backward compatibility
-      const aggregationOp =
-        a.aggregationOp === 'COUNT_ALL' ? 'COUNT(*)' : a.aggregationOp;
-      return {
-        column: a.column,
-        aggregationOp,
-        newColumnName: a.newColumnName,
-        percentile: a.percentile,
-        isValid: a.isValid,
-      };
-    });
-    return {
-      ...state,
-      groupByColumns,
-      aggregations,
     };
   }
 }
@@ -665,7 +593,7 @@ export function createGroupByProto(
   const groupByProto = new protos.PerfettoSqlStructuredQuery.GroupBy();
   groupByProto.columnNames = groupByColumns
     .filter((c) => c.checked)
-    .map((c) => c.column.name);
+    .map((c) => c.name);
 
   for (const agg of aggregations) {
     agg.isValid = validateAggregation(agg);
@@ -719,7 +647,7 @@ export function GroupByAggregationAttrsToProto(
 
   // COUNT(*) doesn't have a column; all other operations do
   if (agg.column) {
-    newAgg.columnName = agg.column.column.name;
+    newAgg.columnName = agg.column.name;
   }
 
   newAgg.op = stringToAggregateOp(agg.aggregationOp!);
@@ -784,12 +712,12 @@ function getAggregationResultType(agg: Aggregation): PerfettoSqlType {
     case 'MIN':
     case 'MAX':
       // Preserve the input column type for SUM, MIN, MAX
-      if (!agg.column?.column.type) {
+      if (!agg.column?.type) {
         console.warn(
           `${agg.aggregationOp} aggregation missing column type information, defaulting to INT`,
         );
       }
-      return agg.column?.column.type ?? PerfettoSqlTypes.INT;
+      return agg.column?.type ?? PerfettoSqlTypes.INT;
 
     case 'MEAN':
     case 'MEDIAN':

@@ -18,20 +18,44 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_TOKENIZER_SQLITE_TOKENIZER_H_
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 #include <utility>
 
-#include "src/trace_processor/perfetto_sql/grammar/perfettosql_grammar.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 
+// Forward-declare the opaque syntaqlite tokenizer handle so that callers of
+// SqliteTokenizer don't need to pull in the large generated C amalgamation
+// header.
+struct SyntaqliteTokenizer;
+
 namespace perfetto::trace_processor {
+
+// Token type constants re-exported from syntaqlite so callers don't need the
+// full header.  Values must match SYNTAQLITE_TK_* in syntaqlite_perfetto.h.
+// These are verified with static_asserts in the .cc file.
+namespace sql_token {
+inline constexpr int kId = 40;
+inline constexpr int kSemi = 112;
+inline constexpr int kLp = 113;
+inline constexpr int kRp = 115;
+inline constexpr int kComma = 118;
+inline constexpr int kVariable = 153;
+inline constexpr int kSelect = 161;
+inline constexpr int kFrom = 127;
+inline constexpr int kStar = 99;
+inline constexpr int kSpace = 185;
+inline constexpr int kComment = 186;
+inline constexpr int kIllegal = 187;
+}  // namespace sql_token
 
 // Tokenizes SQL statements according to SQLite SQL language specification:
 // https://www2.sqlite.org/hlr40000.html
 //
 // Usage of this class:
 // SqliteTokenizer tzr(std::move(my_sql_source));
-// for (auto t = tzr.Next(); t.token_type != TK_SEMI; t = tzr.Next()) {
+// for (auto t = tzr.Next(); t.token_type != sql_token::kSemi;
+//      t = tzr.Next()) {
 //   // Handle t here
 // }
 class SqliteTokenizer {
@@ -41,15 +65,17 @@ class SqliteTokenizer {
     // The string contents of the token.
     std::string_view str;
 
-    // The type of the token.
-    int token_type = TK_ILLEGAL;
+    // The type of the token (sql_token::k* constant).
+    int token_type = sql_token::kIllegal;
 
     bool operator==(const Token& o) const {
       return str == o.str && token_type == o.token_type;
     }
 
     // Returns if the token is empty or semicolon.
-    bool IsTerminal() const { return token_type == TK_SEMI || str.empty(); }
+    bool IsTerminal() const {
+      return token_type == sql_token::kSemi || str.empty();
+    }
   };
 
   enum class EndToken {
@@ -60,6 +86,8 @@ class SqliteTokenizer {
   // Creates a tokenizer which tokenizes |sql|.
   explicit SqliteTokenizer(SqlSource sql);
 
+  ~SqliteTokenizer();
+
   SqliteTokenizer(const SqliteTokenizer&) = delete;
   SqliteTokenizer& operator=(const SqliteTokenizer&) = delete;
 
@@ -69,7 +97,7 @@ class SqliteTokenizer {
   // Returns the next SQL token.
   Token Next();
 
-  // Returns the next SQL token which is not of type TK_SPACE or TK_COMMENT.
+  // Returns the next SQL token which is not whitespace or a comment.
   Token NextNonWhitespace();
 
   // Returns the next SQL token which is terminal.
@@ -113,16 +141,11 @@ class SqliteTokenizer {
 
   // Resets this tokenizer to tokenize |source|. Any previous returned tokens
   // are invalidated.
-  void Reset(SqlSource source) {
-    source_ = std::move(source);
-    offset_ = 0;
-    last_non_space_token_ = 0;
-  }
+  void Reset(SqlSource source);
 
  private:
   SqlSource source_;
-  uint32_t offset_ = 0;
-  int last_non_space_token_ = 0;
+  SyntaqliteTokenizer* tok_ = nullptr;
 };
 
 }  // namespace perfetto::trace_processor

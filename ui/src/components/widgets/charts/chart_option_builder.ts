@@ -22,6 +22,9 @@
 
 import type {EChartsCoreOption} from 'echarts/core';
 
+/** Font size used for axis tick labels across all charts. */
+export const AXIS_LABEL_FONT_SIZE = 10;
+
 /**
  * Configuration for an axis in a chart.
  */
@@ -56,19 +59,24 @@ export interface BrushConfig {
 /**
  * Build an axis option from config.
  * Theme colors are applied by EChartView, so we omit color settings here.
+ *
+ * Only X-axis gets a default `nameGap`. Y-axis `nameGap` is intentionally
+ * left unset when the caller doesn't provide one, so that EChartView's
+ * auto-spacing can measure tick-label width and set it dynamically.
  */
 export function buildAxisOption(
   config: AxisConfig,
   isXAxis: boolean,
 ): Record<string, unknown> {
+  const nameGap = config.nameGap ?? (isXAxis ? 25 : undefined);
   const axis: Record<string, unknown> = {
     type: config.type,
     name: config.name,
-    nameLocation: isXAxis ? ('middle' as const) : ('end' as const),
-    nameGap: config.nameGap ?? (isXAxis ? 25 : 10),
+    nameLocation: 'middle' as const,
+    ...(nameGap !== undefined && {nameGap}),
     nameTextStyle: {fontSize: 11},
     axisLabel: {
-      fontSize: 10,
+      fontSize: AXIS_LABEL_FONT_SIZE,
       ...(config.formatter !== undefined && {formatter: config.formatter}),
       ...(config.labelOverflow !== undefined && {
         overflow: config.labelOverflow,
@@ -100,7 +108,8 @@ export function buildAxisOption(
 }
 
 /**
- * Build a grid option.
+ * Build a grid option. Spacing is auto-computed by EChartView; only pass
+ * explicit overrides for non-standard needs (e.g. heatmap color legend).
  */
 export function buildGridOption(opts?: {
   top?: number;
@@ -110,10 +119,10 @@ export function buildGridOption(opts?: {
   containLabel?: boolean;
 }): Record<string, unknown> {
   return {
-    top: opts?.top ?? 20,
-    right: opts?.right ?? 10,
-    bottom: opts?.bottom ?? 25,
-    left: opts?.left ?? 10,
+    ...(opts?.top !== undefined && {top: opts.top}),
+    ...(opts?.right !== undefined && {right: opts.right}),
+    ...(opts?.bottom !== undefined && {bottom: opts.bottom}),
+    ...(opts?.left !== undefined && {left: opts.left}),
     containLabel: opts?.containLabel ?? true,
   };
 }
@@ -244,4 +253,104 @@ export function buildChartOption(config: {
   }
 
   return option as EChartsCoreOption;
+}
+
+export type LabelFormatter = (value: number | string) => string;
+
+/** Format a label value using an ECharts formatter (function or string). */
+export function formatLabel(
+  value: number | string,
+  formatter: LabelFormatter | string | undefined,
+): string {
+  if (typeof formatter === 'function') return formatter(value);
+  if (typeof formatter === 'string') {
+    return formatter.replace('{value}', String(value));
+  }
+  return String(value);
+}
+
+/** Extract representative Y-axis label values for width measurement. */
+export function collectYAxisLabels(
+  opt: Record<string, unknown>,
+): Array<number | string> {
+  if (Array.isArray(opt.yAxis)) return [];
+  const yAxis = opt.yAxis as Record<string, unknown> | undefined;
+  if (yAxis === undefined) return [];
+  const axisType = (yAxis.type as string) ?? 'value';
+
+  if (axisType === 'category') {
+    const data = yAxis.data;
+    if (Array.isArray(data)) return data as string[];
+    return [];
+  }
+
+  const series = opt.series;
+  if (!Array.isArray(series)) return [];
+
+  let min = Infinity;
+  let max = -Infinity;
+  for (const s of series as Array<Record<string, unknown>>) {
+    const data = s.data;
+    if (!Array.isArray(data)) continue;
+    for (const d of data) {
+      if (typeof d === 'number') {
+        if (isFinite(d)) {
+          if (d < min) min = d;
+          if (d > max) max = d;
+        }
+      } else if (Array.isArray(d)) {
+        // Handles [x, y] pairs and boxplot [min, Q1, median, Q3, max].
+        for (const el of d) {
+          if (typeof el === 'number' && isFinite(el)) {
+            if (el < min) min = el;
+            if (el > max) max = el;
+          }
+        }
+      } else if (typeof d === 'object' && d !== null) {
+        const v = (d as {value?: unknown}).value;
+        if (typeof v === 'number' && isFinite(v)) {
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
+      }
+    }
+  }
+
+  if (!isFinite(min) || !isFinite(max)) return [];
+
+  return generateNiceTicks(min, max, axisType === 'log');
+}
+
+/** Generate ~5 nice tick values for a range (approximate, for width estimation). */
+export function generateNiceTicks(
+  min: number,
+  max: number,
+  isLog: boolean,
+): number[] {
+  if (isLog) {
+    const minExp = Math.floor(Math.log10(Math.max(min, 1)));
+    const maxExp = Math.ceil(Math.log10(Math.max(max, 1)));
+    const ticks: number[] = [];
+    for (let e = minExp; e <= maxExp; e++) {
+      ticks.push(Math.pow(10, e));
+    }
+    return ticks;
+  }
+
+  const range = max - min;
+  if (range <= 0) return [min];
+
+  const roughInterval = range / 5;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(roughInterval)));
+  const residual = roughInterval / magnitude;
+  const niceMultiplier =
+    residual <= 1.5 ? 1 : residual <= 3 ? 2 : residual <= 7 ? 5 : 10;
+  const interval = niceMultiplier * magnitude;
+
+  const ticks: number[] = [];
+  const start = Math.floor(min / interval) * interval;
+  for (let v = start; v <= max + interval * 0.5; v += interval) {
+    ticks.push(v);
+  }
+  return ticks;
 }

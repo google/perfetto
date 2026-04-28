@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryResult, QuerySlot, SerialTaskQueue} from '../../base/query_slot';
+import {QueryResult, QuerySlot} from '../../base/query_slot';
 import {duration, Duration, time, Time} from '../../base/time';
 import {getTrackUriForTrackId} from '../../components/related_events/utils';
 import {Trace} from '../../public/trace';
@@ -77,10 +77,7 @@ export interface LockContentionDetails {
 }
 
 export class AndroidLockContentionEventSource {
-  private readonly queue = new SerialTaskQueue();
-  private readonly dataSlot = new QuerySlot<LockContentionDetails | null>(
-    this.queue,
-  );
+  private readonly dataSlot = new QuerySlot<LockContentionDetails | null>();
 
   constructor(private readonly trace: Trace) {}
 

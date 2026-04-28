@@ -32,6 +32,7 @@ export function createFtraceTrack(
   return SliceTrack.create({
     trace,
     uri,
+    rootTableName: 'ftrace_event',
     dataset: () => {
       // This dataset can change depending on the filter settings, so we pass a
       // function in here instead of a static dataset. This function is called

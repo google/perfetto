@@ -171,8 +171,15 @@ class GpuEventParser {
   std::vector<std::optional<HwQueueInfo>> gpu_hw_queue_ids_;
   base::FlatHashMap<uint64_t, bool> gpu_hw_queue_ids_name_to_set_;
 
+  void InternGpuContext(
+      uint64_t context_id,
+      const protos::pbzero::InternedGraphicsContext::Decoder& ctx);
+
   // Map of stage ID -> pair(stage name, stage description)
   std::vector<std::pair<StringId, StringId>> gpu_render_stage_ids_;
+
+  // Graphics contexts already inserted into gpu_context table.
+  base::FlatHashMap<uint64_t, bool> gpu_contexts_inserted_;
 
   // For VulkanMemoryEvent
   std::unordered_map<protos::pbzero::VulkanMemoryEvent::AllocationScope,

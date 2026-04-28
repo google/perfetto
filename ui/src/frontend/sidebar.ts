@@ -26,7 +26,7 @@ import {Router} from '../core/router';
 import {SidebarMenuItemInternal} from '../core/sidebar_manager';
 import {OptionalTraceImplAttrs, TraceImpl} from '../core/trace_impl';
 import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
-import {Command} from '../public/command';
+import {Command} from '../public/commands';
 import {SIDEBAR_SECTIONS, SidebarSections} from '../public/sidebar';
 import {EngineMode} from '../trace_processor/engine';
 import {Icon} from '../widgets/icon';
@@ -39,7 +39,6 @@ import {
   convertTraceToJson,
   convertTraceToSystrace,
   downloadTrace,
-  openCurrentTraceWithOldUI,
   toggleMetatrace,
 } from './trace_actions';
 import {shareTrace} from './trace_share_utils';
@@ -561,15 +560,6 @@ function getConvertTraceItems(trace: TraceImpl): SidebarMenuItemInternal[] {
   const downloadDisabled = trace.traceInfo.downloadable
     ? false
     : 'Cannot download external trace';
-
-  items.push({
-    id: 'perfetto.LegacyUI',
-    section: 'convert_trace',
-    text: 'Switch to legacy UI',
-    action: async () => await openCurrentTraceWithOldUI(trace),
-    icon: 'filter_none',
-    disabled: downloadDisabled,
-  });
 
   items.push({
     id: 'perfetto.ConvertToJson',

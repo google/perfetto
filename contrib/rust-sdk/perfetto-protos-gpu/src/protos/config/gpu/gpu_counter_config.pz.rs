@@ -22,6 +22,7 @@ use crate::pb_msg;
 pb_enum!(ActivityNameFilterNameBase {
     MANGLED_KERNEL_NAME: 0,
     DEMANGLED_KERNEL_NAME: 1,
+    FUNCTION_NAME: 2,
 });
 
 pb_msg!(GpuCounterConfig {

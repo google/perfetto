@@ -323,9 +323,13 @@ bool Subprocess::Wait(int timeout_ms) {
   return true;
 }
 
-void Subprocess::KillAndWaitForTermination(int exit_code) {
+void Subprocess::Kill(int exit_code) {
   auto code = exit_code ? static_cast<DWORD>(exit_code) : STATUS_CONTROL_C_EXIT;
   ::TerminateProcess(*s_->win_proc_handle, code);
+}
+
+void Subprocess::KillAndWaitForTermination(int exit_code) {
+  Kill(exit_code);
   Wait();
   // TryReadExitStatus must have joined the threads.
   PERFETTO_DCHECK(!s_->stdin_thread.joinable());

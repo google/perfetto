@@ -155,48 +155,28 @@ export class WattsonCpuPackageSelectionAggregator extends WattsonBasePackageSele
 
   protected getQuery(
     _area: AreaSelection,
-    duration: bigint,
+    _duration: bigint,
     _probeResult: unknown,
   ): string {
     // Prerequisite tables might need to be generated if thread_aggregator didn't run,
     // but assuming it runs for now as per original code.
     return `
-      INCLUDE PERFETTO MODULE wattson.estimates;
-      INCLUDE PERFETTO MODULE wattson.tasks.idle_transitions_attribution;
-
-      -- Group idle attribution by package
-      CREATE OR REPLACE PERFETTO TABLE
-      wattson_plugin_per_package_idle_attribution AS
-      SELECT
-        SUM(idle_cost_mws) as idle_cost_mws,
-        uid
-      FROM wattson_plugin_idle_attribution
-      JOIN thread USING(utid)
-      JOIN process USING(upid)
-      GROUP BY uid;
-
       -- Grouped by UID and made CPU agnostic
       CREATE PERFETTO VIEW ${this.id} AS
       WITH base AS (
         SELECT
-          ROUND(SUM(total_pws) / ${duration}, 3) as active_mw,
-          ROUND(SUM(total_pws) / 1000000000, 3) as active_mws,
-          ROUND(COALESCE(idle_cost_mws, 0), 3) as idle_cost_mws,
-          ROUND(
-            COALESCE(idle_cost_mws, 0) + SUM(total_pws) / 1000000000,
-            3
-          ) as total_mws,
-          wattson_plugin_unioned_per_cpu_total.uid AS uid,
-          package_name
-        FROM wattson_plugin_unioned_per_cpu_total
-        LEFT JOIN wattson_plugin_per_package_idle_attribution
-          ON wattson_plugin_unioned_per_cpu_total.uid IS
-          wattson_plugin_per_package_idle_attribution.uid
-        GROUP BY wattson_plugin_unioned_per_cpu_total.uid, package_name
+          ROUND(SUM(estimated_mw), 3) AS active_mw,
+          ROUND(SUM(estimated_mws), 3) AS active_mws,
+          ROUND(SUM(idle_transitions_mws), 3) AS idle_cost_mws,
+          ROUND(SUM(total_mws), 3) AS total_mws,
+          package_name,
+          uid
+        FROM wattson_plugin_thread_summary
+        GROUP BY uid, package_name
       )
-      select *,
+      SELECT *,
         total_mws / (SUM(total_mws) OVER()) AS percent_of_total_energy
-        from base;
+      FROM base;
     `;
   }
 

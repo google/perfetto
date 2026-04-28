@@ -162,6 +162,8 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context,
       aflags_none_id_(context->storage->InternString("none")),
       aflags_aconfigd_id_(context->storage->InternString("aconfigd")),
       aflags_device_config_id_(context->storage->InternString("device_config")),
+      aflags_boolean_id_(context->storage->InternString("boolean")),
+      aflags_integer_id_(context->storage->InternString("integer")),
       aflags_unspecified_id_(context->storage->InternString("unspecified")) {}
 
 void AndroidProbesParser::ParseRailDescriptor(
@@ -747,6 +749,18 @@ StringId AndroidProbesParser::ToStorageBackendId(int32_t backend) {
   }
 }
 
+StringId AndroidProbesParser::ToFlagTypeId(int32_t type) {
+  switch (type) {
+    case protos::pbzero::AndroidAflags::FLAG_TYPE_BOOLEAN:
+      return aflags_boolean_id_;
+    case protos::pbzero::AndroidAflags::FLAG_TYPE_INTEGER:
+      return aflags_integer_id_;
+    case protos::pbzero::AndroidAflags::FLAG_TYPE_UNSPECIFIED:
+    default:
+      return aflags_unspecified_id_;
+  }
+}
+
 void AndroidProbesParser::ParseAndroidAflags(int64_t ts, ConstBytes blob) {
   protos::pbzero::AndroidAflags::Decoder decoder(blob.data, blob.size);
   if (decoder.has_error()) {
@@ -776,6 +790,7 @@ void AndroidProbesParser::ParseAndroidAflags(int64_t ts, ConstBytes blob) {
     row.permission = ToPermissionId(flag.permission());
     row.value_picked_from = ToValuePickedFromId(flag.value_picked_from());
     row.storage_backend = ToStorageBackendId(flag.storage_backend());
+    row.type = ToFlagTypeId(flag.type());
 
     context_->storage->mutable_android_aflags_table()->Insert(row);
   }

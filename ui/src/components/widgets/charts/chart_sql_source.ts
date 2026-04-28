@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertUnreachable} from '../../../base/assert';
-import {QuerySlot, SerialTaskQueue} from '../../../base/query_slot';
+import {QuerySlot} from '../../../base/query_slot';
 import type {Engine} from '../../../trace_processor/engine';
 import type {QueryResult as TPQueryResult} from '../../../trace_processor/query_result';
 import {Filter} from '../datagrid/model';
@@ -657,8 +657,7 @@ export interface ChartLoaderResult<TData> {
 export abstract class SQLChartLoader<TConfig, TData> {
   private readonly engine: Engine;
   protected readonly source: ChartSource;
-  private readonly taskQueue = new SerialTaskQueue();
-  private readonly querySlot = new QuerySlot<TData>(this.taskQueue);
+  private readonly querySlot = new QuerySlot<TData>();
 
   constructor(engine: Engine, source: ChartSource) {
     this.engine = engine;

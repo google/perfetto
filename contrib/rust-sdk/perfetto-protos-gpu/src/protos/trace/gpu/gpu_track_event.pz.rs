@@ -16,9 +16,19 @@
 // Invoked by contrib/rust-sdk/tools/gen_rust_protos
 // DO NOT EDIT.
 
+use crate::pb_enum;
 use crate::pb_msg;
 use crate::pb_msg_ext;
 use perfetto_sdk::protos::trace::track_event::track_event::*;
+
+pb_enum!(GpuApi {
+    GPU_API_UNDEFINED: 0,
+    GPU_API_OPEN_GL: 1,
+    GPU_API_VULKAN: 2,
+    GPU_API_OPEN_CL: 3,
+    GPU_API_CUDA: 4,
+    GPU_API_HIP: 5,
+});
 
 pb_msg!(GpuCorrelation {
     render_stage_submission_event_ids: u64, primitive, 1,
@@ -27,4 +37,5 @@ pb_msg!(GpuCorrelation {
 
 pb_msg_ext!(TrackEvent {
     gpu_correlation: GpuCorrelation, msg, 3000,
+    gpu_api: GpuApi, enum, 3001,
 });

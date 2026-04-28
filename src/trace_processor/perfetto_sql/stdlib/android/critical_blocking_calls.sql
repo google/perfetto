@@ -49,9 +49,7 @@ SELECT
   OR $name GLOB 'Compose:*'
   OR $name GLOB 'draw-VRI*'
   OR (
-    -- Some top level handler slices
-    $depth = 0
-    AND NOT $name GLOB '*Choreographer*'
+    NOT $name GLOB '*Choreographer*'
     AND NOT $name GLOB '*Input*'
     AND NOT $name GLOB '*input*'
     AND NOT $name GLOB 'android.os.Handler: #*'

@@ -25,6 +25,7 @@ import {
   buildAxisOption,
   buildGridOption,
   buildBrushOption,
+  buildLegendOption,
   buildTooltipOption,
   SELECTION_COLOR,
 } from './chart_option_builder';
@@ -40,11 +41,26 @@ export interface BarChartItem {
 }
 
 /**
+ * A named series of bars (used for stacked/grouped bar charts).
+ */
+export interface BarChartSeries {
+  /** Display name for this series (shown in legend). */
+  readonly name: string;
+  /** Bars in this series. */
+  readonly items: readonly BarChartItem[];
+}
+
+/**
  * Data provided to a BarChart.
+ *
+ * Use `items` for a simple single-series bar chart, or `series` for
+ * stacked/grouped bar charts. When `series` is provided, `items` is ignored.
  */
 export interface BarChartData {
-  /** The bars to display. */
+  /** The bars to display (single series). */
   readonly items: readonly BarChartItem[];
+  /** Multiple named series for stacked bar charts. */
+  readonly series?: readonly BarChartSeries[];
 }
 
 export interface BarChartAttrs {
@@ -145,7 +161,8 @@ export class BarChart implements m.ClassComponent<BarChartAttrs> {
     const {data, height, fillParent, className, onBrush, orientation} = attrs;
     const horizontal = orientation === 'horizontal';
 
-    const isEmpty = data !== undefined && data.items.length === 0;
+    const isStacked = data?.series !== undefined && data.series.length > 0;
+    const isEmpty = data !== undefined && !isStacked && data.items.length === 0;
     const option =
       data !== undefined && !isEmpty ? buildBarOption(attrs, data) : undefined;
 
@@ -181,7 +198,13 @@ function buildBarOption(
   const fmtDimension = formatDimension ?? String;
   const fmtMeasure = formatMeasure ?? formatNumber;
   const horizontal = orientation === 'horizontal';
-  const labels = data.items.map((item) => fmtDimension(item.label));
+
+  const isStacked = data.series !== undefined && data.series.length > 0;
+
+  // Collect unique dimension labels across all series.
+  const labels = isStacked
+    ? collectStackedLabels(data.series, fmtDimension)
+    : data.items.map((item) => fmtDimension(item.label));
 
   // Map visual grid line direction to axis splitLine settings.
   // Horizontal visual lines come from the Y axis; vertical from the X axis.
@@ -217,40 +240,29 @@ function buildBarOption(
     horizontal,
   );
 
+  // Build ECharts series — one per named series for stacked charts, or a
+  // single series for simple bar charts.
+  const echartsSeries = isStacked
+    ? buildStackedSeries(data.series, labels, fmtDimension)
+    : [buildSingleSeries(data, attrs, barColor, barHoverColor)];
+
   const option: Record<string, unknown> = {
     animation: false,
-    grid: buildGridOption({
-      bottom: dimensionLabel && !horizontal ? 45 : 25,
-    }),
+    grid: buildGridOption(),
     tooltip: buildTooltipOption({
       trigger: 'axis' as const,
       axisPointer: {type: 'shadow' as const},
-      formatter: (params: Array<{name?: string; value?: number}>) => {
-        const p = Array.isArray(params) ? params[0] : params;
-        return `${p.name ?? ''}<br>${measureLabel}: ${fmtMeasure(p.value ?? 0)}`;
-      },
+      formatter: isStacked
+        ? undefined
+        : (params: Array<{name?: string; value?: number}>) => {
+            const p = Array.isArray(params) ? params[0] : params;
+            return `${p.name ?? ''}<br>${measureLabel}: ${fmtMeasure(p.value ?? 0)}`;
+          },
     }),
     xAxis: horizontal ? valueAxis : categoryAxis,
     yAxis: horizontal ? categoryAxis : valueAxis,
-    series: [
-      {
-        type: 'bar',
-        data: data.items.map((item) => {
-          const selected =
-            attrs.selection !== undefined &&
-            attrs.selection.includes(item.label);
-          return {
-            value: item.value,
-            ...(selected ? {itemStyle: {color: SELECTION_COLOR}} : {}),
-          };
-        }),
-        itemStyle: barColor !== undefined ? {color: barColor} : undefined,
-        emphasis:
-          barHoverColor !== undefined
-            ? {itemStyle: {color: barHoverColor}}
-            : undefined,
-      },
-    ],
+    legend: isStacked ? buildLegendOption() : {show: false},
+    series: echartsSeries,
   };
 
   if (attrs.onBrush) {
@@ -266,15 +278,113 @@ function buildBarOption(
   return option;
 }
 
+/** Build a single ECharts bar series (non-stacked). */
+function buildSingleSeries(
+  data: BarChartData,
+  attrs: BarChartAttrs,
+  barColor: string | undefined,
+  barHoverColor: string | undefined,
+): Record<string, unknown> {
+  return {
+    type: 'bar',
+    data: data.items.map((item) => {
+      const selected =
+        attrs.selection !== undefined && attrs.selection.includes(item.label);
+      return {
+        value: item.value,
+        ...(selected ? {itemStyle: {color: SELECTION_COLOR}} : {}),
+      };
+    }),
+    itemStyle: barColor !== undefined ? {color: barColor} : undefined,
+    emphasis:
+      barHoverColor !== undefined
+        ? {itemStyle: {color: barHoverColor}}
+        : undefined,
+  };
+}
+
+/**
+ * Collect unique dimension labels across all series, preserving the order
+ * from the first series they appear in.
+ */
+function collectStackedLabels(
+  series: readonly BarChartSeries[],
+  fmtDimension: (v: string | number) => string,
+): string[] {
+  const seen = new Set<string>();
+  const labels: string[] = [];
+  for (const s of series) {
+    for (const item of s.items) {
+      const label = fmtDimension(item.label);
+      if (!seen.has(label)) {
+        seen.add(label);
+        labels.push(label);
+      }
+    }
+  }
+  return labels;
+}
+
+/**
+ * Collect unique items (by label) across all series, preserving order.
+ * Used so brush handlers have a flat item list for stacked charts.
+ */
+function collectAllStackedItems(
+  series: readonly BarChartSeries[],
+): BarChartItem[] {
+  const seen = new Set<string | number>();
+  const items: BarChartItem[] = [];
+  for (const s of series) {
+    for (const item of s.items) {
+      if (!seen.has(item.label)) {
+        seen.add(item.label);
+        items.push(item);
+      }
+    }
+  }
+  return items;
+}
+
+/** Build ECharts series array for stacked bar charts. */
+function buildStackedSeries(
+  series: readonly BarChartSeries[],
+  labels: readonly string[],
+  fmtDimension: (v: string | number) => string,
+): Array<Record<string, unknown>> {
+  return series.map((s) => {
+    // Build a lookup from formatted label → value for this series.
+    const valueByLabel = new Map<string, number>();
+    for (const item of s.items) {
+      valueByLabel.set(fmtDimension(item.label), item.value);
+    }
+    return {
+      type: 'bar',
+      name: s.name,
+      stack: 'total',
+      data: labels.map((label) => valueByLabel.get(label) ?? 0),
+      emphasis: {focus: 'series' as const},
+    };
+  });
+}
+
 function buildBarEventHandlers(
   attrs: BarChartAttrs,
   data: BarChartData | undefined,
 ): ReadonlyArray<EChartEventHandler> {
-  if (!attrs.onBrush || data === undefined || data.items.length === 0) {
+  const isStacked = data?.series !== undefined && data.series.length > 0;
+  if (
+    !attrs.onBrush ||
+    data === undefined ||
+    (!isStacked && data.items.length === 0)
+  ) {
     return [];
   }
   const onBrush = attrs.onBrush;
-  const items = data.items;
+  // For stacked charts, collect all unique labels from all series;
+  // for single-series charts, use items directly.
+  const items: readonly BarChartItem[] = isStacked
+    ? collectAllStackedItems(data.series)
+    : data.items;
 
   return [
     {

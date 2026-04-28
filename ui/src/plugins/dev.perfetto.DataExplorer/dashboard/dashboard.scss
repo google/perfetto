@@ -50,25 +50,26 @@
   // (24 columns + 2 × 0.5-cell margin).
   background-size: var(--pf-grid-cell-size, 100px)
     var(--pf-grid-cell-size, 100px);
-  // Offset dots to align with the grid margin.
-  background-position: var(--pf-grid-margin-px, 0) var(--pf-grid-margin-px, 0);
+  // The radial-gradient dot is centred within each tile, so shift back by
+  // half a cell so that dots land on grid-line intersections (where item
+  // corners snap to).
+  background-position: calc(
+      var(--pf-grid-margin-px, 0px) - (var(--pf-grid-cell-size, 100px) / 2)
+    )
+    calc(var(--pf-grid-margin-px, 0px) - (var(--pf-grid-cell-size, 100px) / 2));
 
-  // Show grid lines while dragging or resizing items.
-  &.pf-dashboard__canvas--grid-visible {
-    background-image: repeating-linear-gradient(
-        to right,
-        color-mix(in srgb, var(--pf-color-border-secondary) 50%, transparent) 0
-          1px,
-        transparent 1px var(--pf-grid-cell-size)
-      ),
-      repeating-linear-gradient(
-        to bottom,
-        color-mix(in srgb, var(--pf-color-border-secondary) 50%, transparent) 0
-          1px,
-        transparent 1px var(--pf-grid-cell-size)
-      );
-    background-size: auto;
+  &--no-dots {
+    background-image: none;
   }
+}
+
+// Invisible spacer that extends the canvas scroll area below the last item.
+.pf-dashboard__canvas-spacer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  pointer-events: none;
 }
 
 // Centered overlay for the empty state.
@@ -563,6 +564,40 @@
   white-space: nowrap;
 }
 
+// Editable title in the edit panel.
+.pf-dashboard__edit-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 16px 12px 8px;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+    text-decoration-style: dotted;
+  }
+}
+
+// Inline rename input for the edit panel title.
+.pf-dashboard__edit-panel-title-input {
+  display: block;
+  width: calc(100% - 24px);
+  margin: 16px 12px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  border-bottom: 1px solid var(--pf-color-accent);
+}
+
+// Generic padded row inside the edit panel.
+.pf-dashboard__edit-panel-row {
+  padding: 0 12px;
+}
+
 // Side panel matching the builder's .pf-qb-side-panel style.
 .pf-dashboard__side-panel {
   width: 60px;
@@ -587,4 +622,17 @@
       color: var(--pf-color-text-on-primary);
     }
   }
+}
+
+// Row inside the settings panel.
+.pf-dashboard__settings-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+}
+
+.pf-dashboard__settings-label {
+  font-size: 12px;
+  white-space: nowrap;
 }

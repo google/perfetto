@@ -23,7 +23,7 @@ import {
   getTrackUriForTrackId,
   enrichDepths,
 } from '../../components/related_events/utils';
-import {QuerySlot, QueryResult, SerialTaskQueue} from '../../base/query_slot';
+import {QuerySlot, QueryResult} from '../../base/query_slot';
 
 export interface NavTarget {
   id: number;
@@ -54,8 +54,7 @@ export interface InputChainRow {
 }
 
 export class AndroidInputEventSource {
-  private readonly queue = new SerialTaskQueue();
-  private readonly dataSlot = new QuerySlot<InputChainRow[]>(this.queue);
+  private readonly dataSlot = new QuerySlot<InputChainRow[]>();
 
   constructor(private readonly trace: Trace) {}
 

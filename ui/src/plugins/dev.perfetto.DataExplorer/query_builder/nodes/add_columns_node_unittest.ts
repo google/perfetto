@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AddColumnsNode, AddColumnsNodeState} from './add_columns_node';
+import {AddColumnsNode, AddColumnsNodeAttrs} from './add_columns_node';
 import {QueryNode} from '../../query_node';
 import protos from '../../../../protos';
 import {createMockNode, createColumnInfo} from '../testing/test_utils';
@@ -59,11 +59,11 @@ describe('AddColumnsNode', () => {
   }
 
   function createAddColumnsNodeWithInputs(
-    state: AddColumnsNodeState,
+    state: AddColumnsNodeAttrs,
     primaryNode?: QueryNode,
     secondaryNode?: QueryNode,
   ): AddColumnsNode {
-    const node = new AddColumnsNode(state);
+    const node = new AddColumnsNode(state, {});
     if (primaryNode) {
       primaryNode.nextNodes.push(node);
       node.primaryInput = primaryNode;

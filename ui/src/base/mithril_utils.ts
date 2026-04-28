@@ -161,3 +161,119 @@ export function isEmptyVnodes(children: m.Children): boolean {
   }
   return false;
 }
+
+/**
+ * Creates a React-style context for passing data through the component tree
+ * without having to drill props manually through every level.
+ *
+ * Wrap content that needs access to context values in a Consumer vnode. The
+ * Consumer takes a function that receives the current context value and returns
+ * mithril vnodes.
+ *
+ * @template T The type of value stored in the context
+ * @param initialValue Optional default value when no Provider is present
+ * @returns An object with Provider and Consumer components
+ *
+ * @example
+ * // Basic usage - create a context and use it
+ * const ThemeContext = createContext('light');
+ *
+ * // Provider sets the context value for its children
+ * m(ThemeContext.Provider, {value: 'dark'}, [
+ *   m(Header),
+ *   m(Content),
+ * ]);
+ *
+ * // Consumer wraps content that needs the context value.
+ * m(ThemeContext.Consumer, (theme) => {
+ *   return m('.pf-button', {
+ *     class: theme === 'dark' ? 'pf-dark' : 'pf-light',
+ *   }, 'Click me');
+ * });
+ *
+ * @example
+ * // Using Consumer within a component
+ * class Button implements m.ClassComponent {
+ *   view() {
+ *     return m(ThemeContext.Consumer, (theme) => {
+ *       return m('.pf-button', {
+ *         class: theme === 'dark' ? 'pf-dark' : 'pf-light',
+ *       }, 'Click me');
+ *     });
+ *   }
+ * }
+ *
+ * @example
+ * // Using Consumer inline within a vnode tree
+ * m('.page', [
+ *   m('h1', 'My App'),
+ *   m(ThemeContext.Consumer, (theme) =>
+ *     m('.content', {class: theme}, 'Content')
+ *   ),
+ *   m(Footer),
+ * ]);
+ *
+ * @example
+ * // Context without a default value
+ * interface User {
+ *   name: string;
+ *   id: number;
+ * }
+ * const UserContext = createContext<User>();
+ *
+ * // Consumer receives undefined when no Provider is present
+ * m(UserContext.Consumer, (user) => {
+ *   if (!user) return m('.pf-greeting', 'Not logged in');
+ *   return m('.pf-greeting', `Welcome ${user.name}`);
+ * });
+ *
+ * @example
+ * // Nesting Providers creates scoped context values
+ * m(ThemeContext.Provider, {value: 'light'}, [
+ *   m(ThemeContext.Consumer, (theme) => m('div', theme)), // 'light'
+ *   m(ThemeContext.Provider, {value: 'dark'}, [
+ *     m(ThemeContext.Consumer, (theme) => m('div', theme)), // 'dark'
+ *   ]),
+ *   m(ThemeContext.Consumer, (theme) => m('div', theme)), // 'light' again
+ * ]);
+ */
+export function createContext<T>(initialValue: T): {
+  Provider: m.Component<{value: T}>;
+  Consumer: m.Component<(value: T) => m.Children | void>;
+};
+export function createContext<T>(): {
+  Provider: m.Component<{value: T}>;
+  Consumer: m.Component<(value: T | undefined) => m.Children | void>;
+};
+export function createContext<T>(initialValue?: T): {
+  Provider: m.Component<{value: T}>;
+  Consumer: m.Component<(value: T | undefined) => m.Children | void>;
+} {
+  let currentContext: T | undefined = initialValue;
+
+  return {
+    Provider: {
+      view({attrs, children}: m.Vnode<{value: T}>): m.Children {
+        const previousContext = currentContext;
+        currentContext = attrs.value;
+        return [
+          children,
+          m({
+            view() {
+              currentContext = previousContext;
+            },
+          }),
+        ];
+      },
+    },
+    Consumer: {
+      view({children}: m.Vnode<(value: T | undefined) => m.Children | void>) {
+        const viewFn: (context: T | undefined) => m.Children | void =
+          Array.isArray(children) && typeof children[0] === 'function'
+            ? children[0]
+            : () => null;
+        return viewFn(currentContext);
+      },
+    },
+  };
+}
