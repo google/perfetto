@@ -29,7 +29,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/importers/proto/track_event_sequence_state.h"
+#include "src/trace_processor/importers/proto/track_event_thread_descriptor.h"
 #include "src/trace_processor/util/interned_message_view.h"
 
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
@@ -50,12 +50,14 @@ class ProfilePacketSequenceState;
 class V8SequenceState;
 struct AndroidKernelWakelockState;
 struct AndroidCpuPerUidState;
+class TrackEventSequenceState;
 
 using CustomStateClasses = std::tuple<StackProfileSequenceState,
                                       ProfilePacketSequenceState,
                                       V8SequenceState,
                                       AndroidKernelWakelockState,
-                                      AndroidCpuPerUidState>;
+                                      AndroidCpuPerUidState,
+                                      TrackEventSequenceState>;
 
 // This is the public API exposed to packet tokenizers and parsers to access
 // state attached to a packet sequence. This state evolves as packets are
@@ -78,6 +80,13 @@ class PacketSequenceStateGeneration : public RefCounted {
    public:
     virtual ~CustomState();
 
+    // Hook called when the packet sequence experiences packet loss. Override
+    // to return true if this CustomState's contents should be discarded — the
+    // entry in the new generation's CustomStateArray will be cleared, and the
+    // next caller of `GetCustomState<T>` will lazy-create a fresh instance.
+    // The default keeps the state across packet loss.
+    virtual bool ClearOnPacketLoss() const { return false; }
+
    protected:
     template <uint32_t FieldId, typename MessageType>
     typename MessageType::Decoder* LookupInternedMessage(uint64_t iid) {
@@ -94,9 +103,9 @@ class PacketSequenceStateGeneration : public RefCounted {
       return generation_->GetCustomState<T>(std::forward<Args>(args)...);
     }
 
-    bool pid_and_tid_valid() const { return generation_->pid_and_tid_valid(); }
-    int32_t pid() const { return generation_->pid(); }
-    int64_t tid() const { return generation_->tid(); }
+    const TrackEventThreadDescriptor& thread_descriptor() const {
+      return generation_->thread_descriptor();
+    }
 
    private:
     friend PacketSequenceStateGeneration;
@@ -141,11 +150,14 @@ class PacketSequenceStateGeneration : public RefCounted {
   RefPtr<PacketSequenceStateGeneration> OnNewTracePacketDefaults(
       TraceBlobView trace_packet_defaults);
 
-  bool pid_and_tid_valid() const {
-    return track_event_sequence_state_.pid_and_tid_valid();
+  // Persistent pid/tid for this packet sequence (set by ThreadDescriptor).
+  // Carried across every transition (including SEQ_INCREMENTAL_STATE_CLEARED).
+  TrackEventThreadDescriptor& thread_descriptor() {
+    return track_event_thread_descriptor_;
   }
-  int32_t pid() const { return track_event_sequence_state_.pid(); }
-  int64_t tid() const { return track_event_sequence_state_.tid(); }
+  const TrackEventThreadDescriptor& thread_descriptor() const {
+    return track_event_thread_descriptor_;
+  }
 
   // Returns |nullptr| if the message with the given |iid| was not found (also
   // records a stat in this case).
@@ -212,38 +224,6 @@ class PacketSequenceStateGeneration : public RefCounted {
   template <typename T, typename... Args>
   std::remove_cv_t<T>* GetCustomState(Args... args);
 
-  int64_t IncrementAndGetTrackEventTimeNs(int64_t delta_ns) {
-    return track_event_sequence_state_.IncrementAndGetTrackEventTimeNs(
-        delta_ns);
-  }
-
-  int64_t IncrementAndGetTrackEventThreadTimeNs(int64_t delta_ns) {
-    return track_event_sequence_state_.IncrementAndGetTrackEventThreadTimeNs(
-        delta_ns);
-  }
-
-  int64_t IncrementAndGetTrackEventThreadInstructionCount(int64_t delta) {
-    return track_event_sequence_state_
-        .IncrementAndGetTrackEventThreadInstructionCount(delta);
-  }
-
-  double IncrementAndGetCounterValue(uint64_t counter_track_uuid,
-                                     double value) {
-    return track_event_sequence_state_.IncrementAndGetCounterValue(
-        counter_track_uuid, value);
-  }
-
-  bool track_event_timestamps_valid() const {
-    return track_event_sequence_state_.timestamps_valid();
-  }
-
-  void SetThreadDescriptor(
-      const protos::pbzero::ThreadDescriptor::Decoder& descriptor,
-      bool use_synthetic_tid) {
-    track_event_sequence_state_.SetThreadDescriptor(descriptor,
-                                                    use_synthetic_tid);
-  }
-
   // TODO(carlscab): Nobody other than `ProtoTraceReader` should care about
   // this. Remove.
   bool IsIncrementalStateValid() const { return is_incremental_state_valid_; }
@@ -277,16 +257,16 @@ class PacketSequenceStateGeneration : public RefCounted {
   }
 
   PacketSequenceStateGeneration(TraceProcessorContext* context,
-                                TrackEventSequenceState track_state,
+                                TrackEventThreadDescriptor thread_descriptor,
                                 bool is_incremental_state_valid)
       : context_(context),
-        track_event_sequence_state_(std::move(track_state)),
+        track_event_thread_descriptor_(std::move(thread_descriptor)),
         is_incremental_state_valid_(is_incremental_state_valid) {}
 
   PacketSequenceStateGeneration(
       TraceProcessorContext* context,
       InternedFieldMap interned_data,
-      TrackEventSequenceState track_event_sequence_state,
+      TrackEventThreadDescriptor thread_descriptor,
       CustomStateArray custom_state,
       std::optional<InternedMessageView> trace_packet_defaults,
       bool is_incremental_state_valid);
@@ -299,7 +279,7 @@ class PacketSequenceStateGeneration : public RefCounted {
 
   TraceProcessorContext* const context_;
   InternedFieldMap interned_data_;
-  TrackEventSequenceState track_event_sequence_state_;
+  TrackEventThreadDescriptor track_event_thread_descriptor_;
   CustomStateArray custom_state_;
   std::optional<InternedMessageView> trace_packet_defaults_;
   // TODO(carlscab): Should not be needed as clients of this class should not

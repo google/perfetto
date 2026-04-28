@@ -28,6 +28,7 @@ import {
 } from '../components';
 import {clearNavParam} from '../nav_state';
 import * as queries from '../queries';
+import {dumpFilterSql} from '../queries';
 
 interface ClassesViewAttrs {
   readonly engine: Engine;
@@ -38,18 +39,20 @@ interface ClassesViewAttrs {
 const PREAMBLE =
   'INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_class_aggregation';
 
-const QUERY = `
-  SELECT
-    type_name AS cls,
-    reachable_obj_count AS cnt,
-    reachable_size_bytes AS shallow,
-    reachable_native_size_bytes AS native_shallow,
-    dominated_size_bytes AS retained,
-    dominated_native_size_bytes AS retained_native,
-    dominated_obj_count AS retained_count
-  FROM android_heap_graph_class_aggregation
-  WHERE reachable_obj_count > 0
-`;
+function buildQuery(): string {
+  return `
+    SELECT
+      type_name AS cls,
+      reachable_obj_count AS cnt,
+      reachable_size_bytes AS shallow,
+      reachable_native_size_bytes AS native_shallow,
+      dominated_size_bytes AS retained,
+      dominated_native_size_bytes AS retained_native,
+      dominated_obj_count AS retained_count
+    FROM android_heap_graph_class_aggregation a
+    WHERE a.reachable_obj_count > 0 AND ${dumpFilterSql('a')}
+  `;
+}
 
 function makeUiSchema(navigate: NavFn): SchemaRegistry {
   return {
@@ -119,13 +122,14 @@ function ClassesView(): m.Component<ClassesViewAttrs> {
   return {
     oninit(vnode) {
       const {engine} = vnode.attrs;
+      const query = buildQuery();
       dataSource = new SQLDataSource({
         engine,
-        sqlSchema: createSimpleSchema(QUERY),
+        sqlSchema: createSimpleSchema(query),
         rootSchemaName: 'query',
         preamble: PREAMBLE,
       });
-      counter.init(engine, QUERY, PREAMBLE);
+      counter.init(engine, query, PREAMBLE);
       applyNavFilter(engine, vnode.attrs.initialRootClass).catch(console.error);
     },
     onupdate(vnode) {
