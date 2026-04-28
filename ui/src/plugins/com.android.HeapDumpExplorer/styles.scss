@@ -68,6 +68,20 @@
   }
 }
 
+// Inline label+control (e.g. "Path: <select>") sitting at the right edge
+// of an .ah-heading-row.
+.ah-heading-control {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+
+  &__label {
+    color: var(--pf-color-text-hint);
+  }
+}
+
 // Flex-growing wrapper for view content with a DataGrid that fills height.
 .ah-view-content {
   flex: 1;
