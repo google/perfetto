@@ -101,6 +101,241 @@ ts                   value
 ...
 ```
 
+### {#subcommands} Subcommand interface
+
+In addition to launching an interactive REPL, `trace_processor` exposes a
+subcommand-based CLI for non-interactive workflows: running a SQL query,
+computing trace summaries, exporting to SQLite, starting an RPC server, and
+converting between trace formats. The general invocation is:
+
+```text
+trace_processor <command> [flags] [positional args]
+```
+
+Run `trace_processor --help` for the top-level summary, or
+`trace_processor help <command>` (equivalently `trace_processor <command> --help`)
+for the flags accepted by a specific subcommand. The top-level help looks
+like this:
+
+```text
+Perfetto Trace Processor.
+Usage: trace_processor [command] [flags] [trace_file]
+
+If no command is given, opens an interactive SQL shell on the trace file.
+
+Commands:
+  query         Load a trace and run a SQL query.
+  interactive   Interactive SQL shell (default if no command is given).
+  server        Start an RPC server (http or stdio).
+  summarize     Compute a trace summary from specs and/or built-in metrics.
+  export        Export a trace to a database file.
+  metrics       Run v1 metrics (deprecated; use 'summarize --metrics-v2').
+  convert       Convert trace format.
+
+Common flags (apply to all commands):
+  -h, --help                  Show help (per-command if after a command).
+  -v, --version               Print version.
+      --full-sort             Force full sort ignoring windowing.
+      --no-ftrace-raw         Prevent ingestion of typed ftrace into raw table.
+      --add-sql-package PATH  Register SQL files from a directory as a package.
+  -m, --metatrace FILE        Enable metatracing, write to FILE.
+```
+
+> **Backwards compatibility.** The previous flat-flag interface (e.g. `-q`,
+> `-Q`, `--httpd`, `--summary`, `--run-metrics`, `-e`, `--stdiod`) is fully
+> supported via an internal translation layer; existing scripts and
+> integrations continue to work unchanged. Run
+> `trace_processor --help-classic` to see the full classic flag reference.
+
+#### {#subcommand-query} `query` — run SQL and exit
+
+Loads a trace, runs one or more `;`-separated SQL statements, prints the
+result to stdout, and exits. SQL can be supplied as an inline positional
+argument, read from a file with `-f/--query-file`, or piped on stdin
+(either by passing `-` to `--query-file` or by piping when no SQL was
+specified):
+
+```bash
+# 1. Inline query.
+trace_processor query trace.pftrace "SELECT ts, dur, name FROM slice LIMIT 5"
+
+# 2. From a file.
+trace_processor query -f queries.sql trace.pftrace
+
+# 3. From stdin.
+cat queries.sql | trace_processor query trace.pftrace
+```
+
+Useful flags:
+
+- `-f, --query-file FILE` — read SQL from `FILE` (or `-` for stdin).
+- `-i, --interactive` — drop into the interactive REPL after the queries
+  finish.
+- `-W, --wide` — double-width columns when printing results.
+- `--perf-file FILE` — write trace-load and query timings to `FILE`.
+- `--structured-query-id ID` + `--summary-spec FILE` _(advanced)_ — execute
+  a single structured query by ID from one or more
+  [TraceSummarySpec](trace-summary.md) files. The spec(s) replace the
+  inline/file/stdin SQL source.
+
+#### {#subcommand-interactive} `interactive` — REPL
+
+Opens the same interactive PerfettoSQL prompt shown in the previous
+section. This is the default subcommand when none is specified, so
+`trace_processor trace.pftrace` and
+`trace_processor interactive trace.pftrace` are equivalent. The only
+subcommand-specific flag is `-W, --wide`.
+
+#### {#subcommand-server} `server` — HTTP / stdio RPC
+
+Exposes trace processor over a remote-procedure-call protocol.
+
+```bash
+# HTTP server (used by ui.perfetto.dev). Listens on 9001 by default.
+trace_processor server http
+
+# Pre-load a trace and serve it over HTTP.
+trace_processor server http trace.pftrace
+
+# stdio server (length-prefixed RPC; used by tooling that embeds
+# trace_processor as a subprocess).
+trace_processor server stdio
+```
+
+Server-specific flags:
+
+- `--port PORT` — HTTP port (default 9001).
+- `--ip-address IP` — HTTP bind address.
+- `--additional-cors-origins O1,O2,...` — extra CORS-allowed origins on
+  top of the defaults (`https://ui.perfetto.dev`, `http://localhost:10000`,
+  `http://127.0.0.1:10000`).
+
+The trace file is optional in `http` mode: clients can also load traces
+remotely.
+
+#### {#subcommand-summarize} `summarize` — trace summaries and v2 metrics
+
+Computes a [trace summary](trace-summary.md). Spec files are passed as
+extra positional arguments after the trace file; built-in v2 metrics are
+selected with `--metrics-v2`:
+
+```bash
+# Run all available v2 metrics.
+trace_processor summarize --metrics-v2 all trace.pftrace
+
+# Run two specific metric ids defined in spec.textproto.
+trace_processor summarize \
+  --metrics-v2 startup_metric,memory_metric \
+  trace.pftrace spec.textproto
+```
+
+Subcommand flags:
+
+- `--metrics-v2 IDS` — comma-separated metric ids, or the literal `all`.
+- `--metadata-query ID` — query id used to populate the summary's
+  `metadata` field.
+- `--format text|binary` — output format for the `TraceSummary` proto
+  (default: `text`).
+- `--post-query FILE` — SQL file run after summarization. When set, the
+  summary proto is _not_ printed; the SQL output is printed instead.
+- `--perf-file FILE` — write load/query timings to `FILE`.
+- `-i, --interactive` — drop into the REPL after summarization finishes.
+
+Spec files are auto-detected as binary or text based on extension
+(`.pb` → binary, `.textproto` → text) with a content-sniffing fallback.
+
+#### {#subcommand-export} `export` — write all tables to a database file
+
+Loads the trace and exports the contents of all trace processor tables to
+a SQLite database, suitable for offline analysis with any SQLite client.
+
+```bash
+trace_processor export sqlite -o trace.db trace.pftrace
+```
+
+`sqlite` is currently the only supported format. `-o/--output FILE` is
+required.
+
+#### {#subcommand-metrics} `metrics` — v1 metrics (deprecated)
+
+> The v1 trace-based metrics system has been **soft-deprecated**. Existing
+> metrics keep working, but no new ones will be added. Prefer
+> `summarize --metrics-v2` for new work — see
+> [Trace Summarization](trace-summary.md).
+
+```bash
+trace_processor metrics --run android_startup,android_mem trace.pftrace
+```
+
+Subcommand flags:
+
+- `--run NAMES` — comma-separated metric names (built-in or `--metric-extension`-loaded).
+- `--pre FILE` — SQL run _before_ metrics (no output).
+- `--post-query FILE` — SQL run _after_ metrics; its output replaces the
+  metric proto on stdout.
+- `--output binary|text|json` — format of the `TraceMetrics` proto
+  (default: `text`).
+- `--perf-file FILE` — write load/query timings to `FILE`.
+- `-i, --interactive` — drop into the REPL after metrics finish.
+
+External metric protos and SQL are loaded with the global
+`--metric-extension DISK_PATH@VIRTUAL_PATH` flag.
+
+#### {#subcommand-convert} `convert` — change trace format
+
+Wraps the [`traceconv`](/docs/getting-started/converting.md) tool, so the
+`trace_processor` binary can be used directly to translate traces between
+formats. Reads from stdin if `[input]` is omitted; writes to stdout if
+`[output]` is omitted.
+
+```bash
+trace_processor convert <format> [input] [output]
+```
+
+Supported formats (from `trace_processor help convert`):
+
+```text
+systrace              Convert to systrace HTML format
+json                  Convert to Chrome JSON format
+ctrace                Convert to compressed systrace format
+text                  Convert to human-readable text format
+profile               Convert profile data to pprof format
+java_heap_profile     Legacy alias for "profile --java-heap"
+hprof                 Convert heap profile to hprof format
+symbolize             Symbolize addresses in profiles
+deobfuscate           Deobfuscate obfuscated profiles
+firefox               Convert to Firefox profiler format
+decompress_packets    Decompress compressed trace packets
+bundle                Create bundle with trace + debug data
+binary                Convert text proto to binary format
+```
+
+Common subcommand flags include `-t, --truncate start|end`,
+`--full-sort`, `--pid PID`, `--timestamps T1,T2,...`, `--alloc`,
+`--perf`, `--java-heap`, `--no-annotations`, `--output-dir DIR`,
+`--symbol-paths PATH1,PATH2,...`, `--no-auto-symbol-paths`,
+`--proguard-map [pkg=]PATH` (repeatable), `--no-auto-proguard-maps`,
+`--verbose`, and `--skip-unknown`.
+
+#### {#global-flags} Global flags (apply to every subcommand)
+
+These flags are accepted in addition to the subcommand-specific flags
+above and behave identically across subcommands:
+
+- **Trace ingestion:** `--full-sort`, `--no-ftrace-raw`,
+  `--analyze-trace-proto-content`, `--crop-track-events`.
+- **PerfettoSQL packages:** `--add-sql-package PATH[@PKG]`,
+  `--override-sql-package PATH[@PKG]`, `--override-stdlib PATH`
+  (requires `--dev`).
+- **Metric extensions:** `--metric-extension DISK_PATH@VIRTUAL_PATH`.
+- **Auxiliary file content:** `--register-files-dir PATH` — exposes the
+  contents of files under `PATH` to importers (e.g. ETM decoders).
+- **Development:** `--dev`, `--dev-flag KEY=VALUE`, `--extra-checks`.
+- **Metatracing:** `-m, --metatrace FILE`,
+  `--metatrace-buffer-capacity N`, `--metatrace-categories CATEGORIES` —
+  produces a Perfetto trace of trace processor itself, which can be
+  loaded back into the UI for performance debugging.
+
 ## {#embedding} Embedding the C++ library
 
 The public API is centered on the `TraceProcessor` class defined in

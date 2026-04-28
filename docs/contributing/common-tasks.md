@@ -122,12 +122,13 @@ WHERE launch_id = $launch_id AND slice_name GLOB $slice_name;
 
 Generally you do not have to worry about version skew between the UI
 and the `trace_processor` since they are built together at the same
-commit. However version skew can occur when using the `--httpd` mode
-which allows a native `trace_processor` instance to be used with the UI.
+commit. However version skew can occur when running `trace_processor`
+in HTTP RPC mode (`trace_processor server http`), which allows a
+native `trace_processor` instance to be used with the UI.
 
 A common case is when the UI is more recent than `trace_processor`
 and depends on a new table definition. With older versions of
-`trace_processor` in `--httpd` mode the UI crashes attempting to query
+`trace_processor` in HTTP RPC mode the UI crashes attempting to query
 a non-existant table. To avoid this we use a version number. If the
 version number `trace_processor` reports is older than the one the UI
 was built with we prompt the user to update.
