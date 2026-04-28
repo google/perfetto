@@ -48,15 +48,14 @@ v55.0 - 2026-04-28:
     * Java SDK: added support for `@CompileTimeConstant` and static track
       names.
   Tools:
-    * `heap_profile`: split into `host` (local Linux) and `android`
-      subcommands.
+    * `heap_profile`: added a `host` subcommand for memory profiling local
+      Linux processes. The existing Android workflow is preserved under the
+      `android` subcommand.
   Docs:
-    * Major refresh of the documentation site: reorganized the TOC, added
-      filter chips, and refreshed the visual language across pages.
-    * Rewrote the PerfettoSQL getting-started guide.
-    * Overhauled the GPU data source documentation.
-    * Added documentation for symbolization and deobfuscation.
-    * Added a Heap Dump Explorer user guide.
+    * Major site refresh: reorganized TOC, filter chips, refreshed visuals.
+    * New or rewritten guides: PerfettoSQL getting-started, GPU data source,
+      symbolization and deobfuscation, Heap Dump Explorer, and `heap_profile`
+      `host`/`android` subcommands.
 
 
 v54.0 - 2026-02-27:
