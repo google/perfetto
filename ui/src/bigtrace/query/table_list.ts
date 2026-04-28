@@ -19,7 +19,7 @@ import {Button} from '../../widgets/button';
 import {CopyToClipboardButton} from '../../widgets/copy_to_clipboard_button';
 import {Icon} from '../../widgets/icon';
 import {TextInput} from '../../widgets/text_input';
-import {SqlModules, SqlTable} from '../dev.perfetto.SqlModules/sql_modules';
+import {SqlModules, SqlTable} from './sql_modules';
 import {
   perfettoSqlTypeIcon,
   perfettoSqlTypeToString,
@@ -81,6 +81,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
             '.pf-simple-table-list__items',
             m(
               Accordion,
+              {multi: false},
               filteredTables.map(({table, segments}) =>
                 m(
                   AccordionSection,
@@ -91,10 +92,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
                       renderHighlightedName(segments),
                     ),
                   },
-                  m(TableContent, {
-                    table,
-                    onQueryTable: attrs.onQueryTable,
-                  }),
+                  this.renderTableContent(table, attrs.onQueryTable),
                 ),
               ),
             ),
@@ -104,16 +102,34 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
           }),
     );
   }
-}
 
-interface TableContentAttrs {
-  readonly table: SqlTable;
-  onQueryTable?(tableName: string, query: string): void;
-}
+  private generateQuery(table: SqlTable): string {
+    const lines: string[] = [];
 
-const TableContent: m.Component<TableContentAttrs> = {
-  view({attrs}: m.CVnode<TableContentAttrs>): m.Children {
-    const {table, onQueryTable} = attrs;
+    // Add INCLUDE statement if needed
+    if (table.includeKey) {
+      lines.push(`INCLUDE PERFETTO MODULE ${table.includeKey};`);
+      lines.push('');
+    }
+
+    // Build SELECT with all columns
+    const columns =
+      table.columns.length > 0
+        ? table.columns.map((c) => c.name).join(',\n  ')
+        : '*';
+
+    lines.push('SELECT');
+    lines.push(`  ${columns}`);
+    lines.push(`FROM ${table.name}`);
+    lines.push('LIMIT 1000');
+
+    return lines.join('\n');
+  }
+
+  private renderTableContent(
+    table: SqlTable,
+    onQueryTable?: (tableName: string, query: string) => void,
+  ): m.Children {
     return [
       // Description
       table.description &&
@@ -134,7 +150,7 @@ const TableContent: m.Component<TableContentAttrs> = {
             icon: 'play_arrow',
             compact: true,
             tooltip: `SELECT * FROM ${table.name} in a new tab`,
-            onclick: () => onQueryTable(table.name, generateQuery(table)),
+            onclick: () => onQueryTable(table.name, this.generateQuery(table)),
           }),
       ),
       // Module
@@ -193,28 +209,5 @@ const TableContent: m.Component<TableContentAttrs> = {
           ),
         ),
     ];
-  },
-};
-
-function generateQuery(table: SqlTable): string {
-  const lines: string[] = [];
-
-  // Add INCLUDE statement if needed
-  if (table.includeKey) {
-    lines.push(`INCLUDE PERFETTO MODULE ${table.includeKey};`);
-    lines.push('');
   }
-
-  // Build SELECT with all columns
-  const columns =
-    table.columns.length > 0
-      ? table.columns.map((c) => c.name).join(',\n  ')
-      : '*';
-
-  lines.push('SELECT');
-  lines.push(`  ${columns}`);
-  lines.push(`FROM ${table.name}`);
-  lines.push('LIMIT 1000');
-
-  return lines.join('\n');
 }
