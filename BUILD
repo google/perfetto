@@ -9504,8 +9504,8 @@ perfetto_py_binary(
     srcs = [
         "tools/gen_amalgamated_sql.py",
     ],
-    deps = [perfetto_label("python:cpp_blob_emitter")],
     main = "tools/gen_amalgamated_sql.py",
+    deps = [perfetto_label("python:cpp_blob_emitter")],
     python_version = "PY3",
 )
 
