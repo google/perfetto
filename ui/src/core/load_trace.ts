@@ -48,9 +48,14 @@ import {TraceSource} from './trace_source';
 import {Router} from '../core/router';
 import {TraceInfoImpl} from './trace_info_impl';
 import {base64Decode} from '../base/string_utils';
-import {parseUrlCommands} from './command_manager';
+import {
+  parseUrlCommands,
+  StartupCommandNotAllowedError,
+} from './command_manager';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {sha1} from '../base/hash';
+import {showModal} from '../widgets/modal';
+import m from 'mithril';
 
 const ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG = featureFlags.register({
   id: 'enableChromeReliableRangeZoom',
@@ -328,6 +333,8 @@ async function loadTraceIntoEngine(
       app.commands.setExecutingStartupCommands(true);
     }
 
+    const blocked: string[] = [];
+    const failed: Array<{id: string; error: unknown}> = [];
     try {
       for (const command of allStartupCommands) {
         try {
@@ -335,20 +342,64 @@ async function loadTraceIntoEngine(
           // commands.
           await app.commands.runCommand(command.id, ...command.args);
         } catch (error) {
-          // TODO(stevegolton): Add a mechanism to notify users of startup
-          // command errors. This will involve creating a notification UX
-          // similar to VSCode where there are popups on the bottom right
-          // of the UI.
-          console.warn(`Startup command ${command.id} failed:`, error);
+          if (error instanceof StartupCommandNotAllowedError) {
+            blocked.push(error.commandId);
+          } else {
+            failed.push({id: command.id, error});
+          }
         }
       }
     } finally {
       // Always restore default (allow all) behavior when done
       app.commands.setExecutingStartupCommands(false);
     }
+
+    if (blocked.length > 0 || failed.length > 0) {
+      showStartupCommandIssuesDialog(blocked, failed);
+    }
   }
 
   return trace;
+}
+
+function showStartupCommandIssuesDialog(
+  blocked: ReadonlyArray<string>,
+  failed: ReadonlyArray<{id: string; error: unknown}>,
+) {
+  const uniqueBlocked = Array.from(new Set(blocked));
+  showModal({
+    title: 'Some startup commands did not run',
+    content: () =>
+      m(
+        '.pf-startup-command-issues',
+        uniqueBlocked.length > 0 &&
+          m(
+            'section',
+            m(
+              'p',
+              'These commands were blocked because they are not on the ',
+              "allowlist. Disable 'Enforce startup command allowlist' in ",
+              'settings to run them anyway.',
+            ),
+            m(
+              'ul',
+              uniqueBlocked.map((id) => m('li', m('code', id))),
+            ),
+          ),
+        failed.length > 0 &&
+          m(
+            'section',
+            m('p', 'These commands threw an error while executing:'),
+            m(
+              'ul',
+              failed.map(({id, error}) =>
+                m('li', m('code', id), ': ', String(error)),
+              ),
+            ),
+          ),
+      ),
+    buttons: [{text: 'Dismiss', primary: true}],
+  });
 }
 
 function decideTabs(trace: TraceImpl) {
