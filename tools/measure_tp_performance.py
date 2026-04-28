@@ -93,7 +93,8 @@ def heap_profile_run(args, dump_at_max: bool):
   env = {
       'LD_PRELOAD': os.path.join(args.out, 'libheapprofd_glibc_preload.so'),
       'TRACE_PROCESSOR_NO_MMAP': '1',
-      'PERFETTO_HEAPPROFD_BLOCKING_INIT': '1'
+      'PERFETTO_HEAPPROFD_BLOCKING_INIT': '1',
+      'PERFETTO_HEAPPROFD_BLOCKING_EXIT': '1'
   }
   (tp, fail, _) = run_tp_until_ingestion(args, env)
 

@@ -32,6 +32,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
@@ -278,6 +279,30 @@ void AtForkChild() {
   // allocate, which should be the case for all implementations as the
   // constructor has to be noexcept.
   new (g_client_arr) std::shared_ptr<perfetto::profiling::Client>();
+}
+
+// Atexit handler that waits for heapprofd to finish reading and unwinding all
+// pending stacks from the shared ring buffer. Without this, short-lived
+// processes can exit before heapprofd finishes unwinding, causing
+// ERROR MEMORY_INVALID in the resulting trace.
+void AtExitDrain() {
+  std::shared_ptr<perfetto::profiling::Client> client;
+  {
+    ScopedSpinlock s(&g_client_lock, ScopedSpinlock::Mode::Try);
+    if (PERFETTO_UNLIKELY(!s.locked()))
+      return;
+    client = *GetClientLocked();
+  }
+  if (!client)
+    return;
+
+  constexpr uint32_t kTimeoutUs = 10000 * 1000;
+  constexpr uint32_t kSleepUs = 10 * 1000;
+  uint32_t elapsed_us = 0;
+  while (client->read_avail() > 0 && elapsed_us < kTimeoutUs) {
+    perfetto::base::SleepMicroseconds(kSleepUs);
+    elapsed_us += kSleepUs;
+  }
 }
 
 }  // namespace
@@ -585,4 +610,13 @@ __attribute__((visibility("default"))) bool AHeapProfile_initSession(
   }
 
   return true;
+}
+
+bool AHeapProfile_initSessionWithBlockingExit(void* (*malloc_fn)(size_t),
+                                              void (*free_fn)(void*)) {
+  static std::atomic<bool> registered{false};
+  if (!registered.exchange(true)) {
+    atexit(AtExitDrain);
+  }
+  return AHeapProfile_initSession(malloc_fn, free_fn);
 }

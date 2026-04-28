@@ -39,6 +39,13 @@ extern "C" {
 bool AHeapProfile_initSession(void* _Nullable (*_Nonnull malloc_fn)(size_t),
                               void (*_Nonnull free_fn)(void* _Nullable));
 
+// Like AHeapProfile_initSession, but also registers an atexit handler that
+// waits for heapprofd to drain pending stacks before the process exits.
+// Not part of the public ABI; only used by the standalone client.
+bool AHeapProfile_initSessionWithBlockingExit(
+    void* _Nullable (*_Nonnull malloc_fn)(size_t),
+    void (*_Nonnull free_fn)(void* _Nullable));
+
 #ifdef __cplusplus
 }
 #endif
