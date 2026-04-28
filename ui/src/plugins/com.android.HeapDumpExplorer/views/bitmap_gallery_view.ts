@@ -280,8 +280,8 @@ function BitmapCard(): m.Component<BitmapCardAttrs> {
           ),
         ),
         vnode.attrs.pathMode !== 'none' &&
-        vnode.attrs.pathData !== undefined &&
-        vnode.attrs.pathData !== null
+          vnode.attrs.pathData !== undefined &&
+          vnode.attrs.pathData !== null
           ? m(
               'div',
               {class: 'ah-bitmap-card__path'},
@@ -315,11 +315,13 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
     shortest: false,
     dominator: false,
   };
-  const pathMaps: Record<Exclude<PathMode, 'none'>, Map<number, PathEntry[]>> =
-    {
-      shortest: new Map(),
-      dominator: new Map(),
-    };
+  const pathMaps: Record<
+    Exclude<PathMode, 'none'>,
+    Map<number, PathEntry[]>
+  > = {
+    shortest: new Map(),
+    dominator: new Map(),
+  };
   let filters: Filter[] = [];
 
   function fetchPaths(
@@ -330,7 +332,9 @@ function BitmapGalleryView(): m.Component<BitmapGalleryViewAttrs> {
     const ids = bitmaps.map((b) => b.row.id);
     if (ids.length === 0) return;
     const fetcher =
-      mode === 'shortest' ? queries.fetchShortestPaths : queries.fetchDominatorPaths;
+      mode === 'shortest'
+        ? queries.fetchShortestPaths
+        : queries.fetchDominatorPaths;
     fetcher(engine, ids)
       .then((paths) => {
         if (!alive) return;
