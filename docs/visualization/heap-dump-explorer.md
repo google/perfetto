@@ -319,8 +319,10 @@ retained memory and a _Details_ button that opens the object tab.
 Pixel buffers may be RGBA, PNG, JPEG or WebP depending on how they
 were stored.
 
-The _Show Paths_ toggle adds the reference path from the GC root to
-each card — the fastest way to spot an `Activity`, `Fragment` or
+The path dropdown above the gallery picks which reference path to
+overlay on each card: _Shortest path_ (fewest edges from a GC root),
+_Dominator path_ (the chain of dominators), or _No path_. Showing a
+path is the fastest way to spot an `Activity`, `Fragment` or
 `Handler` holding leaked bitmaps.
 
 ![Bitmaps gallery with "Show Paths" enabled; the reference chain below each card runs `Class<FeedAdapter>.cache → ArrayList → Bitmap`, showing the single static holder.](../images/heap_docs/09-bitmaps-show-paths.png)
@@ -586,8 +588,9 @@ render as cards:
 
 ![Bitmaps gallery filtered to the 128×128 group. Twelve copies at 64.2 KiB each, 971.2 KiB retained across the tab.](../images/heap_docs/08-bitmaps-gallery.png)
 
-**Find the holder.** Toggle _Show Paths_. The reference chain below
-each card is the fields keeping that bitmap alive:
+**Find the holder.** Set the path dropdown to _Shortest path_. The
+reference chain below each card is the fields keeping that bitmap
+alive:
 
 ![Bitmaps gallery with Show Paths on. Every card's chain reads Class&lt;FeedAdapter&gt;.cache → ArrayList → Bitmap — the companion-object list is the single holder.](../images/heap_docs/09-bitmaps-show-paths.png)
 

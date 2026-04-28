@@ -704,6 +704,7 @@ def gen_cpp_blob_header(target: GnParser.Target):
   # both standalone and embedded builds.
   script_to_bazel_label = {
       'python/tools/cpp_blob_emitter.py': 'python:cpp_blob_emitter_bin',
+      'tools/gen_amalgamated_sql.py': ':gen_amalgamated_sql_py',
   }
 
   label = BazelLabel(
@@ -751,28 +752,14 @@ def gen_cpp_blob_header(target: GnParser.Target):
   return [label]
 
 
-def gen_cc_amalgamated_sql(target: GnParser.Target):
-  label = BazelLabel(
-      get_bazel_label_name(target.name), 'perfetto_cc_amalgamated_sql')
-
-  def find_arg(name):
-    for i, arg in enumerate(target.args):
-      if arg.startswith(f'--{name}'):
-        return target.args[i + 1]
-
-  label.comment = target.name
-  label.namespace = find_arg('namespace')
-
-  label.deps += sorted(
-      ':' + get_bazel_label_name(x.name) for x in target.transitive_deps)
-  label.outs += target.outputs
-  return [label]
-
-
 def gen_sql_source_set(target: GnParser.Target):
   label = BazelLabel(get_bazel_label_name(target.name), 'perfetto_filegroup')
   label.comment = target.name
   label.srcs += (gn_utils.label_to_path(x) for x in target.inputs)
+  # Include dependent filegroups so Bazel resolves the SQL source set
+  # transitively. Consumers of the amalgamation rule then only need a
+  # direct dep on each top-level filegroup.
+  label.srcs += (':' + get_bazel_label_name(x.name) for x in target.deps)
   return [label]
 
 
@@ -862,8 +849,6 @@ def gen_target_helper(gn_target: GnParser.Target,
   elif gn_target.type == 'action':
     if gn_target.name in custom_actions:
       return custom_actions[gn_target.name](gn_target)
-    if gn_target.custom_action_type == 'sql_amalgamation':
-      return gen_cc_amalgamated_sql(gn_target)
     if gn_target.custom_action_type == 'sql_source_set':
       return gen_sql_source_set(gn_target)
     if gn_target.custom_action_type == 'cpp_blob_header':
@@ -1075,7 +1060,6 @@ load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
 load(
     "@perfetto//bazel:rules.bzl",
     "perfetto_build_config_cc_library",
-    "perfetto_cc_amalgamated_sql",
     "perfetto_cc_binary",
     "perfetto_cc_ipc_library",
     "perfetto_cc_library",

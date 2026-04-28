@@ -1096,39 +1096,20 @@ def create_tp_tables_module(blueprint: Blueprint, gn: GnParser,
   return module
 
 
-def create_amalgamated_sql_module(blueprint: Blueprint, gn: GnParser,
-                                  target: GnParser.Target):
-  bp_module_name = label_to_module_name(target.name)
-
-  def find_arg(name):
-    for i, arg in enumerate(target.args):
-      if arg.startswith(f'--{name}'):
-        return target.args[i + 1]
-
-  namespace = find_arg('namespace')
-
-  module = Module('genrule', bp_module_name, target.name)
-  module.tool_files = [
-      'tools/gen_amalgamated_sql.py',
-  ]
-  module.cmd = ' '.join([
-      '$(location tools/gen_amalgamated_sql.py)',
-      f'--namespace={namespace}',
-      '--cpp-out=$(out)',
-      '$(in)',
-  ])
-  module.genrule_headers.add(module.name)
-  module.out.update(target.outputs)
-
-  for dep in target.transitive_deps:
-    # Use globs for the chrome stdlib so the file does not need to be
-    # regenerated in autoroll CLs.
-    if dep.name.startswith(
-        '//src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql'):
-      module.srcs.add('src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql')
-      continue
-    module.srcs.update(
-        [gn_utils.label_to_path(src) for src in gn.get_target(dep.name).inputs])
+def create_sql_source_set_module(blueprint: Blueprint, target: GnParser.Target):
+  # Emit a Soong filegroup for each `perfetto_sql_source_set`. Filegroups
+  # nest, so the cpp_blob_header genrule (the SQL amalgamation) can pull
+  # them in via its direct deps and Soong resolves transitively.
+  module = Module('filegroup', label_to_module_name(target.name), target.name)
+  # The chrome stdlib SQL list is autorolled from Chromium. Use a glob so
+  # the filegroup does not need to be regenerated on every roll. This
+  # mirrors the `target_overrides` for `:chrome_sql` in tools/gen_bazel.
+  if target.name.startswith(
+      '//src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql'):
+    module.srcs.add('src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql')
+  else:
+    module.srcs.update(gn_utils.label_to_path(s) for s in target.inputs)
+  module.srcs.update(':' + label_to_module_name(d.name) for d in target.deps)
   blueprint.add_module(module)
   return module
 
@@ -1139,6 +1120,10 @@ def create_cpp_blob_header_module(blueprint: Blueprint,
   module = Module('genrule', bp_module_name, target.name)
   script_path = gn_utils.label_to_path(target.script)
   module.tool_files = [script_path]
+  # Scripts other than cpp_blob_emitter typically `import` it via sys.path
+  # manipulation, so make the helper available alongside them in Soong.
+  if script_path != 'python/tools/cpp_blob_emitter.py':
+    module.tool_files.append('python/tools/cpp_blob_emitter.py')
 
   # The GN template invokes the script as:
   #   <script> --output <output> \
@@ -1484,8 +1469,8 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
     if module is None:
       return None
   elif target.type == 'action':
-    if target.custom_action_type == 'sql_amalgamation':
-      return create_amalgamated_sql_module(blueprint, gn, target)
+    if target.custom_action_type == 'sql_source_set':
+      return create_sql_source_set_module(blueprint, target)
     if target.custom_action_type == 'tp_tables':
       return create_tp_tables_module(blueprint, gn, target)
     if target.custom_action_type == 'perfetto_android_library':

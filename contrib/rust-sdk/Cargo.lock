@@ -344,7 +344,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "perfetto-sdk"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "bitflags",
  "paste",
@@ -364,7 +364,7 @@ dependencies = [
 
 [[package]]
 name = "perfetto-sdk-protos-gpu"
-version = "0.3.6"
+version = "0.3.7"
 dependencies = [
  "paste",
  "perfetto-sdk",
@@ -381,7 +381,7 @@ dependencies = [
 
 [[package]]
 name = "perfetto-sdk-sys"
-version = "0.2.4"
+version = "0.3.0"
 dependencies = [
  "bindgen",
  "cc",

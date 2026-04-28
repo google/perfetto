@@ -329,20 +329,21 @@ allocations done before will not be shown.
 
 ### {#capture-profile-native} Capturing the profile
 
-Use the `tools/heap_profile` script to profile a process. If you are having
-trouble make sure you are using the
+Use the `tools/heap_profile` script with the `android` subcommand to profile
+a process on a connected Android device. If you are having trouble make sure
+you are using the
 [latest version](https://raw.githubusercontent.com/google/perfetto/main/tools/heap_profile).
-See all the arguments using `tools/heap_profile -h`, or use the defaults and
-just profile a process (e.g. `system_server`):
+See all the arguments using `tools/heap_profile android -h`, or use the
+defaults and just profile a process (e.g. `system_server`):
 
 ```bash
-$ tools/heap_profile -n system_server
+$ tools/heap_profile android -n system_server
 
 Profiling active. Press Ctrl+C to terminate.
 You may disconnect your device.
 
 Wrote profiles to /tmp/profile-1283e247-2170-4f92-8181-683763e17445 (symlink /tmp/heap_profile-latest)
-These can be viewed using pprof. Googlers: head to pprof/ and upload them.
+The raw-trace and heap_dump.* (pprof) files can be visualized with https://ui.perfetto.dev.
 ```
 
 When you see _Profiling active_, play around with the phone a bit. When you are
