@@ -3014,6 +3014,7 @@ cc_test {
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_preprocessor",
         ":perfetto_src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
         ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
+        ":perfetto_src_trace_processor_plugins_wattson_wattson",
         ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_bindings_bindings",
         ":perfetto_src_trace_processor_sqlite_sqlite",
@@ -3275,6 +3276,11 @@ cc_test {
         "perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_tables",
         "perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
+        "perfetto_src_trace_processor_plugins_wattson_gen_cpu_1d_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_cpu_2d_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_gpu_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_l3_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_tpu_curves",
         "perfetto_src_trace_processor_tables_tables_python",
         "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
     ],
@@ -16901,12 +16907,6 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/cpu_2d.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/gpu.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/l3.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/mt6897_2d.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_1d.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_2d.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_2d_1.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_cpu_2d_2.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tg5_l3.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/tpu.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/utils.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/device_infos.sql",
@@ -16954,6 +16954,108 @@ filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_tokenizer_unittests",
     srcs: [
         "src/trace_processor/perfetto_sql/tokenizer/sqlite_tokenizer_unittest.cc",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/wattson:gen_cpu_1d_curves
+genrule {
+    name: "perfetto_src_trace_processor_plugins_wattson_gen_cpu_1d_curves",
+    srcs: [
+        "src/trace_processor/plugins/wattson/data/MT6897/cpu_1d.csv",
+        "src/trace_processor/plugins/wattson/data/SXR2230P/cpu_1d.csv",
+        "src/trace_processor/plugins/wattson/data/Tensor/cpu_1d.csv",
+        "src/trace_processor/plugins/wattson/data/Tensor_G4/cpu_1d.csv",
+        "src/trace_processor/plugins/wattson/data/Tensor_G5/cpu_1d.csv",
+        "src/trace_processor/plugins/wattson/data/monaco/cpu_1d.csv",
+        "src/trace_processor/plugins/wattson/data/neo/cpu_1d.csv",
+    ],
+    cmd: "$(location src/trace_processor/plugins/wattson/gen_wattson_curves.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto::trace_processor::wattson --curve-type cpu_1d $(in)",
+    out: [
+        "src/trace_processor/plugins/wattson/cpu_1d_curves.h",
+    ],
+    tool_files: [
+        "python/tools/cpp_blob_emitter.py",
+        "src/trace_processor/plugins/wattson/gen_wattson_curves.py",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/wattson:gen_cpu_2d_curves
+genrule {
+    name: "perfetto_src_trace_processor_plugins_wattson_gen_cpu_2d_curves",
+    srcs: [
+        "src/trace_processor/plugins/wattson/data/MT6897/cpu_2d.csv",
+        "src/trace_processor/plugins/wattson/data/SXR2230P/cpu_2d.csv",
+        "src/trace_processor/plugins/wattson/data/Tensor/cpu_2d.csv",
+        "src/trace_processor/plugins/wattson/data/Tensor_G4/cpu_2d.csv",
+        "src/trace_processor/plugins/wattson/data/Tensor_G5/cpu_2d.csv",
+    ],
+    cmd: "$(location src/trace_processor/plugins/wattson/gen_wattson_curves.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto::trace_processor::wattson --curve-type cpu_2d $(in)",
+    out: [
+        "src/trace_processor/plugins/wattson/cpu_2d_curves.h",
+    ],
+    tool_files: [
+        "python/tools/cpp_blob_emitter.py",
+        "src/trace_processor/plugins/wattson/gen_wattson_curves.py",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/wattson:gen_gpu_curves
+genrule {
+    name: "perfetto_src_trace_processor_plugins_wattson_gen_gpu_curves",
+    srcs: [
+        "src/trace_processor/plugins/wattson/data/Tensor/gpu.csv",
+        "src/trace_processor/plugins/wattson/data/Tensor_G5/gpu.csv",
+    ],
+    cmd: "$(location src/trace_processor/plugins/wattson/gen_wattson_curves.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto::trace_processor::wattson --curve-type gpu $(in)",
+    out: [
+        "src/trace_processor/plugins/wattson/gpu_curves.h",
+    ],
+    tool_files: [
+        "python/tools/cpp_blob_emitter.py",
+        "src/trace_processor/plugins/wattson/gen_wattson_curves.py",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/wattson:gen_l3_curves
+genrule {
+    name: "perfetto_src_trace_processor_plugins_wattson_gen_l3_curves",
+    srcs: [
+        "src/trace_processor/plugins/wattson/data/Tensor/l3.csv",
+        "src/trace_processor/plugins/wattson/data/Tensor_G4/l3.csv",
+        "src/trace_processor/plugins/wattson/data/Tensor_G5/l3.csv",
+    ],
+    cmd: "$(location src/trace_processor/plugins/wattson/gen_wattson_curves.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto::trace_processor::wattson --curve-type l3 $(in)",
+    out: [
+        "src/trace_processor/plugins/wattson/l3_curves.h",
+    ],
+    tool_files: [
+        "python/tools/cpp_blob_emitter.py",
+        "src/trace_processor/plugins/wattson/gen_wattson_curves.py",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/wattson:gen_tpu_curves
+genrule {
+    name: "perfetto_src_trace_processor_plugins_wattson_gen_tpu_curves",
+    srcs: [
+        "src/trace_processor/plugins/wattson/data/Tensor_G5/tpu.csv",
+    ],
+    cmd: "$(location src/trace_processor/plugins/wattson/gen_wattson_curves.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto::trace_processor::wattson --curve-type tpu $(in)",
+    out: [
+        "src/trace_processor/plugins/wattson/tpu_curves.h",
+    ],
+    tool_files: [
+        "python/tools/cpp_blob_emitter.py",
+        "src/trace_processor/plugins/wattson/gen_wattson_curves.py",
+    ],
+}
+
+// GN: //src/trace_processor/plugins/wattson:wattson
+filegroup {
+    name: "perfetto_src_trace_processor_plugins_wattson_wattson",
+    srcs: [
+        "src/trace_processor/plugins/wattson/plugin.cc",
+        "src/trace_processor/plugins/wattson/table_function.cc",
     ],
 }
 
@@ -17354,6 +17456,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_preprocessor",
         ":perfetto_src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
         ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
+        ":perfetto_src_trace_processor_plugins_wattson_wattson",
         ":perfetto_src_trace_processor_rpc_httpd",
         ":perfetto_src_trace_processor_rpc_rpc",
         ":perfetto_src_trace_processor_rpc_stdiod",
@@ -17480,6 +17583,11 @@ cc_library_static {
         "perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_tables",
         "perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
+        "perfetto_src_trace_processor_plugins_wattson_gen_cpu_1d_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_cpu_2d_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_gpu_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_l3_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_tpu_curves",
         "perfetto_src_trace_processor_tables_tables_python",
         "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
         "perfetto_src_traceconv_gen_cc_trace_descriptor",
@@ -17554,6 +17662,11 @@ cc_library_static {
         "perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_tables",
         "perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
+        "perfetto_src_trace_processor_plugins_wattson_gen_cpu_1d_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_cpu_2d_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_gpu_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_l3_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_tpu_curves",
         "perfetto_src_trace_processor_tables_tables_python",
         "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
         "perfetto_src_traceconv_gen_cc_trace_descriptor",
@@ -19841,6 +19954,7 @@ cc_test {
         ":perfetto_src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
         ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
         ":perfetto_src_trace_processor_perfetto_sql_tokenizer_unittests",
+        ":perfetto_src_trace_processor_plugins_wattson_wattson",
         ":perfetto_src_trace_processor_rpc_rpc",
         ":perfetto_src_trace_processor_rpc_unittests",
         ":perfetto_src_trace_processor_shell_subcommands",
@@ -20161,6 +20275,11 @@ cc_test {
         "perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_tables",
         "perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
+        "perfetto_src_trace_processor_plugins_wattson_gen_cpu_1d_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_cpu_2d_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_gpu_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_l3_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_tpu_curves",
         "perfetto_src_trace_processor_tables_tables_python",
         "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
         "perfetto_src_traced_probes_ftrace_test_messages_cpp_gen_headers",
@@ -20774,6 +20893,7 @@ cc_library_static {
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_preprocessor",
         ":perfetto_src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
         ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
+        ":perfetto_src_trace_processor_plugins_wattson_wattson",
         ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_bindings_bindings",
         ":perfetto_src_trace_processor_sqlite_sqlite",
@@ -20888,6 +21008,11 @@ cc_library_static {
         "perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_tables",
         "perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
+        "perfetto_src_trace_processor_plugins_wattson_gen_cpu_1d_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_cpu_2d_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_gpu_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_l3_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_tpu_curves",
         "perfetto_src_trace_processor_tables_tables_python",
         "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
     ],
@@ -20959,6 +21084,11 @@ cc_library_static {
         "perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_tables",
         "perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
+        "perfetto_src_trace_processor_plugins_wattson_gen_cpu_1d_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_cpu_2d_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_gpu_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_l3_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_tpu_curves",
         "perfetto_src_trace_processor_tables_tables_python",
         "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
     ],
@@ -21319,6 +21449,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_perfetto_sql_preprocessor_preprocessor",
         ":perfetto_src_trace_processor_perfetto_sql_syntaqlite_syntaqlite",
         ":perfetto_src_trace_processor_perfetto_sql_tokenizer_tokenizer",
+        ":perfetto_src_trace_processor_plugins_wattson_wattson",
         ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_bindings_bindings",
         ":perfetto_src_trace_processor_sqlite_sqlite",
@@ -21443,6 +21574,11 @@ cc_binary_host {
         "perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_tables",
         "perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
         "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
+        "perfetto_src_trace_processor_plugins_wattson_gen_cpu_1d_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_cpu_2d_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_gpu_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_l3_curves",
+        "perfetto_src_trace_processor_plugins_wattson_gen_tpu_curves",
         "perfetto_src_trace_processor_tables_tables_python",
         "perfetto_src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
         "perfetto_src_traceconv_gen_cc_trace_descriptor",

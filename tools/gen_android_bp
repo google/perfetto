@@ -1139,6 +1139,10 @@ def create_cpp_blob_header_module(blueprint: Blueprint,
   module = Module('genrule', bp_module_name, target.name)
   script_path = gn_utils.label_to_path(target.script)
   module.tool_files = [script_path]
+  # Scripts other than cpp_blob_emitter typically `import` it via sys.path
+  # manipulation, so make the helper available alongside them in Soong.
+  if script_path != 'python/tools/cpp_blob_emitter.py':
+    module.tool_files.append('python/tools/cpp_blob_emitter.py')
 
   # The GN template invokes the script as:
   #   <script> --output <output> \
