@@ -343,12 +343,8 @@ Profiling active. Press Ctrl+C to terminate.
 You may disconnect your device.
 
 Wrote profiles to /tmp/profile-1283e247-2170-4f92-8181-683763e17445 (symlink /tmp/heap_profile-latest)
-These can be viewed using pprof. Googlers: head to pprof/ and upload them.
+The raw-trace and heap_dump.* (pprof) files can be visualized with https://ui.perfetto.dev.
 ```
-
-NOTE: For local Linux processes (no device required), use the
-[`host` subcommand](/docs/data-sources/native-heap-profiler.md#non-android-linux-support)
-instead.
 
 When you see _Profiling active_, play around with the phone a bit. When you are
 done, press Ctrl-C to end the profile. For this tutorial, I opened a couple of

@@ -47,7 +47,7 @@ usage: heap_profile android [-h] [-i INTERVAL] [-d DURATION] [--no-start]
 
 ```
 usage: heap_profile host [-h] [-i INTERVAL] [-d DURATION] [--no-start]
-                         [-p PIDS] [-n NAMES] [-c CONTINUOUS_DUMP]
+                         [-n NAMES] [-c CONTINUOUS_DUMP]
                          [--heaps HEAPS] [--all-heaps]
                          [--shmem-size SHMEM_SIZE] [--block-client]
                          [--block-client-timeout BLOCK_CLIENT_TIMEOUT]
@@ -67,9 +67,6 @@ These flags apply to both `android` and `host` subcommands.
 `-n`, `--name` _NAMES_
 :    Comma-separated list of process names to profile. On `host`, if omitted,
      the basename of the command after `--` is used.
-
-`-p`, `--pid` _PIDS_
-:    Comma-separated list of PIDs to profile.
 
 `-i`, `--interval`
 :    Sampling interval. Default 4096 (4KiB).
@@ -135,6 +132,9 @@ These flags apply to both `android` and `host` subcommands.
 
 These flags are gated on `args.subcommand == 'android'` in the script and
 have no effect when passed to `host`.
+
+`-p`, `--pid` _PIDS_
+:    Comma-separated list of PIDs to profile.
 
 `--disable-selinux`
 :    Disable SELinux enforcement for duration of profile.

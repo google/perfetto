@@ -202,9 +202,7 @@ $ ./heap_profile host -- ./my_binary
 [762.190] approfd_producer.cc:346 Shutting down child heapprofd (status 0).
 Waiting for profiler shutdown...
 Wrote profiles to /tmp/f8f102 (symlink /tmp/heap_profile-latest)
-The raw-trace file can be viewed using https://ui.perfetto.dev.
-The heap_dump.* files can be viewed using pprof/ (Googlers only) or https://www.speedscope.app/.
-The two above are equivalent. The raw-trace contains the union of all the heap dumps.
+The raw-trace and heap_dump.* (pprof) files can be visualized with https://ui.perfetto.dev.
 ```
 
 The output directory contains a `raw-trace` file (the binary Perfetto trace)

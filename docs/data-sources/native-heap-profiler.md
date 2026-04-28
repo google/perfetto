@@ -84,9 +84,6 @@ You can use the [Perfetto UI](https://ui.perfetto.dev) to visualize heap dumps.
 Upload the `raw-trace` file in your output directory. You will see all heap
 dumps as diamonds on the timeline, click any of them to get a flamegraph.
 
-Alternatively [Speedscope](https://speedscope.app) can be used to visualize
-the gzipped protos, but will only show the "Unreleased malloc size" view.
-
 #### Using the Recording page of Perfetto UI
 
 You can also use the [Perfetto UI](https://ui.perfetto.dev/#!/record/memory)
@@ -113,8 +110,6 @@ The resulting profile proto contains four views on the data, for each diamond.
 * **Total malloc count**: how many allocations (including ones with matching
   frees) were done at this callstack, from the moment the recording was started
   started until the timestamp of the diamond.
-
-_(Googlers: You can also open the gzipped protos using http://pprof/)_
 
 TIP: you might want to put `libart.so` as a "Hide regex" when profiling apps.
 
@@ -363,11 +358,6 @@ problems, see the troubleshooting section in
 
 ## {#non-android-linux-support} (non-Android) Linux support
 
-NOTE: Do not use this for production purposes.
-
-Use the `host` subcommand of `tools/heap_profile` to profile a local Linux
-process - no Android device required:
-
 ```bash
 tools/heap_profile host -- ./my_binary --some-flag
 ```
@@ -393,8 +383,7 @@ When the run completes the script prints the output directory:
 
 ```text
 Wrote profiles to /tmp/heap_profile-XXXXXX (symlink /tmp/heap_profile-latest)
-The raw-trace file can be viewed using https://ui.perfetto.dev.
-The heap_dump.* files can be viewed using pprof/ (Googlers only) or https://www.speedscope.app/.
+The raw-trace and heap_dump.* (pprof) files can be visualized with https://ui.perfetto.dev.
 ```
 
 Upload the `raw-trace` file to the [Perfetto UI](https://ui.perfetto.dev).
@@ -512,10 +501,8 @@ you might be hitting some pathological fragmentation problem in the allocator.
 
 ## Convert to pprof
 
-<!-- You can use [traceconv](/docs/quickstart/traceconv.md) to convert the heap dumps
-in a trace into the [pprof](https://github.com/google/pprof) format. These can
-then be viewed using the pprof CLI or a UI (e.g. Speedscope, or Google-internal
-pprof/). -->
+You can use [traceconv](/docs/quickstart/traceconv.md) to convert the heap
+dumps in a trace into the [pprof](https://github.com/google/pprof) format:
 
 ```bash
 tools/traceconv profile /tmp/profile
