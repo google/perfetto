@@ -606,7 +606,16 @@ async function fetchFieldValues(
   }
 
   if (refSetId !== null) {
+    // heap_graph_class is not dump-scoped; restrict and dedup by name to
+    // avoid cross-dump row multiplication when deobfuscating field_type_name.
     const rRes = await engine.query(`
+      WITH class_in_dump AS (
+        SELECT c.name, MIN(c.deobfuscated_name) AS deobfuscated_name
+        FROM heap_graph_class c
+        JOIN heap_graph_object o ON o.type_id = c.id
+        WHERE ${dumpFilterSql('o')}
+        GROUP BY c.name
+      )
       SELECT
         ifnull(r.deobfuscated_field_name, r.field_name) AS fname,
         ifnull(ct.deobfuscated_name, r.field_type_name) AS ftype,
@@ -619,7 +628,7 @@ async function fetchFieldValues(
         d2.dominated_size_bytes AS ref_dominated_size,
         d2.dominated_native_size_bytes AS ref_dominated_native
       FROM heap_graph_reference r
-      LEFT JOIN heap_graph_class ct ON r.field_type_name = ct.name
+      LEFT JOIN class_in_dump ct ON r.field_type_name = ct.name
       LEFT JOIN heap_graph_object o2 ON r.owned_id = o2.id
       LEFT JOIN heap_graph_class c2 ON o2.type_id = c2.id
       LEFT JOIN heap_graph_object_data od2 ON o2.object_data_id = od2.id
@@ -1335,18 +1344,25 @@ export async function getSubclassNames(
   engine: Engine,
   rootName: string,
 ): Promise<string[]> {
+  // Scope to the active dump so we don't walk another dump's class hierarchy.
   const res = await engine.query(`
     INCLUDE PERFETTO MODULE graphs.search;
 
+    WITH dump_classes AS (
+      SELECT DISTINCT c.id, c.name, c.deobfuscated_name, c.superclass_id
+      FROM heap_graph_class c
+      JOIN heap_graph_object o ON o.type_id = c.id
+      WHERE ${dumpFilterSql('o')}
+    )
     SELECT coalesce(c.deobfuscated_name, c.name) AS name
     FROM graph_reachable_dfs!(
       (SELECT superclass_id AS source_node_id, id AS dest_node_id
-       FROM heap_graph_class WHERE superclass_id IS NOT NULL),
-      (SELECT id AS node_id FROM heap_graph_class
+       FROM dump_classes WHERE superclass_id IS NOT NULL),
+      (SELECT id AS node_id FROM dump_classes
        WHERE coalesce(deobfuscated_name, name) = '${sqlEsc(rootName)}'
        LIMIT 1)
     ) AS dfs
-    JOIN heap_graph_class c ON c.id = dfs.node_id
+    JOIN dump_classes c ON c.id = dfs.node_id
   `);
   const names: string[] = [];
   for (const it = res.iter({name: STR}); it.valid(); it.next()) {
@@ -1925,27 +1941,16 @@ function primFieldValue(it: {
 // The _heap_graph_object_tree_aggregation table computes cumulative reachable
 // sizes via a BFS tree.  The table materialisation is expensive on first access,
 // so we load it asynchronously and fill in reachable columns after the initial
-// render.  The module INCLUDE is cached per-engine via a WeakMap.
-
-const objectTreeReady = new WeakMap<Engine, Promise<void>>();
-
-function ensureObjectTree(engine: Engine): Promise<void> {
-  let p = objectTreeReady.get(engine);
-  if (!p) {
-    p = engine
-      .query(`INCLUDE PERFETTO MODULE android.memory.heap_graph.object_tree`)
-      .then(() => {});
-    objectTreeReady.set(engine, p);
-  }
-  return p;
-}
+// render.
 
 /** Fetch reachable (cumulative) sizes for a set of object IDs. */
 async function getReachableSizes(
   engine: Engine,
   ids: number[],
 ): Promise<Map<number, {size: number; native: number; count: number}>> {
-  await ensureObjectTree(engine);
+  await engine.query(
+    `INCLUDE PERFETTO MODULE android.memory.heap_graph.object_tree`,
+  );
   if (ids.length === 0) return new Map();
   const res = await engine.query(`
     SELECT id,
@@ -1983,59 +1988,6 @@ export async function enrichWithReachable(
     row.reachableSize = s?.size ?? 0;
     row.reachableNative = s?.native ?? 0;
     row.reachableCount = s?.count ?? 0;
-  }
-}
-
-/**
- * Enrich ClassRow[] with reachable sizes (summed per class+heap group).
- */
-export async function enrichClassRowsWithReachable(
-  engine: Engine,
-  rows: ClassRow[],
-  heap: string | null,
-): Promise<void> {
-  await ensureObjectTree(engine);
-  const hf = heapFilter(heap);
-  const res = await engine.query(`
-    SELECT
-      ifnull(c.deobfuscated_name, c.name) AS cls,
-      SUM(a.cumulative_size) AS reachable,
-      SUM(a.cumulative_native_size) AS reachable_native,
-      SUM(a.cumulative_count) AS reachable_count,
-      ifnull(o.heap_type, 'default') AS heap
-    FROM heap_graph_object o
-    JOIN heap_graph_class c ON o.type_id = c.id
-    JOIN _heap_graph_object_tree_aggregation a ON a.id = o.id
-    WHERE o.reachable != 0
-      ${hf}
-    GROUP BY cls, heap
-  `);
-  const map = new Map<
-    string,
-    {reachable: number; reachableNative: number; reachableCount: number}
-  >();
-  for (
-    const it = res.iter({
-      cls: STR,
-      reachable: NUM,
-      reachable_native: NUM,
-      reachable_count: NUM,
-      heap: STR,
-    });
-    it.valid();
-    it.next()
-  ) {
-    map.set(`${it.cls}\0${it.heap}`, {
-      reachable: it.reachable,
-      reachableNative: it.reachable_native,
-      reachableCount: it.reachable_count,
-    });
-  }
-  for (const row of rows) {
-    const s = map.get(`${row.className}\0${row.heap}`);
-    row.reachableSize = s?.reachable ?? 0;
-    row.reachableNativeSize = s?.reachableNative ?? 0;
-    row.reachableCount = s?.reachableCount ?? 0;
   }
 }
 
