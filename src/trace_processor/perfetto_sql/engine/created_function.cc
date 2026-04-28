@@ -423,8 +423,8 @@ class RecursiveCallUnroller {
   base::StatusOr<std::optional<int64_t>> Evaluate(Memoizer::MemoizedArgs args) {
     RETURN_IF_ERROR(MaybeBindIntArgument(stmt_, prototype_.function_name,
                                          prototype_.arguments[0], args));
-    base::StatusOr<SqlValue> result = EvaluateScalarStatement(
-        stmt_, engine_->sqlite_engine()->db(), prototype_);
+    base::StatusOr<SqlValue> result =
+        EvaluateScalarStatement(stmt_, engine_->db(), prototype_);
     sqlite3_reset(stmt_);
     sqlite3_clear_bindings(stmt_);
     RETURN_IF_ERROR(result.status());
@@ -567,8 +567,7 @@ class State : public CreatedFunction::UserData {
     while (!empty_stmts_to_validate_.empty()) {
       sqlite3_stmt* stmt = empty_stmts_to_validate_.back();
       empty_stmts_to_validate_.pop_back();
-      RETURN_IF_ERROR(
-          CheckNoMoreRows(stmt, engine_->sqlite_engine()->db(), prototype_));
+      RETURN_IF_ERROR(CheckNoMoreRows(stmt, engine_->db(), prototype_));
     }
     return base::OkStatus();
   }
@@ -725,9 +724,9 @@ void CreatedFunction::Step(sqlite3_context* ctx,
     return sqlite::utils::SetError(ctx, status.c_message());
   }
 
-  auto result = EvaluateScalarStatement(state->CurrentStatement(),
-                                        state->engine()->sqlite_engine()->db(),
-                                        state->prototype());
+  auto result =
+      EvaluateScalarStatement(state->CurrentStatement(),
+                              state->engine()->db(), state->prototype());
   if (!result.ok()) {
     return sqlite::utils::SetError(ctx, result.status().c_message());
   }

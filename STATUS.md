@@ -4,6 +4,24 @@
 Phase 1: refactor + memdb/WAL with no behavioural change
 
 ## Recent activity (newest first)
+- 2026-04-29 [iter 5]: sqlite-handle-encapsulation done. Added
+  `sqlite3* PerfettoSqlEngine::db()` (one-line accessor returning
+  `engine_->db()` today; doc-commented as the Phase 2 swap point).
+  Migrated 9 external callsites away from
+  `engine_->sqlite_engine()->db()` to `engine_->db()`:
+  `trace_processor_impl.cc` (4 sites: lines 762, 957, 960, 1044,
+  1314), `perfetto_sql/intrinsics/operators/span_join_operator.cc`
+  (1: line 230), `perfetto_sql/engine/created_function.cc`
+  (3: lines 427, 571, 729), and
+  `perfetto_sql/intrinsics/operators/span_join_operator_unittest.cc`
+  (1: line 49). Internal `sqlite_engine()->db()` callers inside
+  `perfetto_sql_engine.cc` were intentionally left as
+  `engine_->db()` (already direct on the unique_ptr<SqliteEngine>
+  member) — those *are* the engine internals. Verified: no remaining
+  `sqlite_engine()->db()` callsites outside the docstring on the new
+  accessor. 3216 unittests pass (only pre-existing
+  `HttpServerTest.Websocket` failure on macOS, ignored), 122 TP
+  integrationtests pass, 1355 diff tests pass. No behaviour change.
 - 2026-04-29 [iter 4]: wal-mode-pragma **BLOCKED** — discovered the
   in-tree `memdb` VFS does not implement shared-memory hooks
   (`xShmMap`/`xShmLock`/`xShmBarrier`/`xShmUnmap` are all `0` in
@@ -62,12 +80,9 @@ Phase 1: refactor + memdb/WAL with no behavioural change
       + `cache=shared`, which is sufficient for single-threaded
       multi-conn. Replaced by a Phase 3 chunk: see *custom-shm-vfs*
       below.
-- [ ] sqlite-handle-encapsulation — audit every direct
-      `engine_->sqlite_engine()->db()` callsite in
-      `trace_processor_impl.cc` (lines 762, 957, 960, 1044, ...) and
-      `perfetto_sql_engine.cc`. Funnel raw-handle access through a
-      single accessor on `PerfettoSqlEngine` so Phase 2 can swap the
-      backing handle behind it without touching every callsite.
+- [x] sqlite-handle-encapsulation — done iter 5. Accessor:
+      `sqlite3* PerfettoSqlEngine::db()`. 9 external callsites
+      migrated. See iter 5 activity entry.
 - [ ] connection-handle-struct — introduce a small
       `SqliteConnection` value-type wrapping `ScopedDb` plus the
       shared filename, used by `SqliteEngine`. Single-handle for now;
@@ -160,6 +175,21 @@ Phase 1: refactor + memdb/WAL with no behavioural change
   `Parse`, `NotifyEndOfFile`, `RegisterSqlPackage`,
   `RegisterFileContent`, `RestoreInitialTables`, the v1/v2 metric
   registration functions, and the summarizer create path.
+- Phase 2 raw-handle dispatch (`PerfettoSqlEngine::db()`) — most of
+  the 9 funneled callsites are connection-scoped (one connection,
+  one handle) and trivially work with per-connection dispatch. Two
+  warrant attention:
+  - `TraceProcessorImpl::InterruptQuery` (line 957/960) calls
+    `sqlite3_interrupt` on the default connection's handle. With
+    multi-conn, "interrupt" semantics need to fan out across all
+    connections (or the API needs a connection-id param). For now
+    the funneled accessor returns the default conn's handle, which
+    matches today's semantics.
+  - `TraceProcessorImpl::CreateEngine` line 1314
+    (`sqlite3_str_split_init(engine->db())`) registers a SQLite
+    function on the handle. In multi-conn this needs to be per-
+    connection (or hoisted to the function pool). The funneled
+    accessor preserves today's "register on default conn" behaviour.
 
 ## Phase plan
 - **Phase 1 (current): refactor + memdb (no WAL), no behaviour

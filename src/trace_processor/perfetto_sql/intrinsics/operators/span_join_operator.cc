@@ -226,8 +226,8 @@ base::Status SpanJoinOperatorModule::TableDefinition::Create(
   }
 
   std::vector<std::pair<SqlValue::Type, std::string>> cols;
-  RETURN_IF_ERROR(sqlite::utils::GetColumnsForTable(
-      engine->sqlite_engine()->db(), desc.name, cols));
+  RETURN_IF_ERROR(
+      sqlite::utils::GetColumnsForTable(engine->db(), desc.name, cols));
 
   uint32_t required_columns_found = 0;
   uint32_t ts_idx = std::numeric_limits<uint32_t>::max();

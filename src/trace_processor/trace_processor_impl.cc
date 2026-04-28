@@ -759,7 +759,7 @@ void TraceProcessorImpl::CacheBoundsAndBuildTable() {
   }
   bounds_tables_mutations_ = mutations;
   cached_trace_bounds_ = GetTraceTimestampBoundsNs(*context()->storage);
-  BuildBoundsTable(engine_->sqlite_engine()->db(), cached_trace_bounds_);
+  BuildBoundsTable(engine_->db(), cached_trace_bounds_);
 }
 
 // =================================================================
@@ -954,10 +954,10 @@ base::Status TraceProcessorImpl::RegisterFileContent(const std::string& path,
 }
 
 void TraceProcessorImpl::InterruptQuery() {
-  if (!engine_->sqlite_engine()->db())
+  if (!engine_->db())
     return;
   query_interrupted_.store(true);
-  sqlite3_interrupt(engine_->sqlite_engine()->db());
+  sqlite3_interrupt(engine_->db());
 }
 
 size_t TraceProcessorImpl::RestoreInitialTables() {
@@ -1041,8 +1041,7 @@ base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
   }
 
   if (metric.proto_field_name) {
-    InsertIntoTraceMetricsTable(engine_->sqlite_engine()->db(),
-                                *metric.proto_field_name);
+    InsertIntoTraceMetricsTable(engine_->db(), *metric.proto_field_name);
   }
   sql_metrics_.emplace_back(metric);
   return base::OkStatus();
@@ -1311,7 +1310,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
                                           reg.is_state_manager);
   }
 
-  sqlite3* db = engine->sqlite_engine()->db();
+  sqlite3* db = engine->db();
   sqlite3_str_split_init(db);
 
   // Register SQL functions only used in local development instances.

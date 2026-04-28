@@ -230,6 +230,11 @@ class PerfettoSqlEngine {
 
   SqliteEngine* sqlite_engine() { return engine_.get(); }
 
+  // Returns the raw |sqlite3*| handle backing this engine. This is the
+  // canonical accessor for callers outside the engine internals; prefer it
+  // over `sqlite_engine()->db()`.
+  sqlite3* db() { return engine_->db(); }
+
   // Makes new SQL package available to include.
   void RegisterPackage(const std::string& name,
                        sql_modules::RegisteredPackage package) {
