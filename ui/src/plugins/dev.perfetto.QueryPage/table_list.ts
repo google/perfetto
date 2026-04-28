@@ -91,7 +91,10 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
                       renderHighlightedName(segments),
                     ),
                   },
-                  this.renderTableContent(table, attrs.onQueryTable),
+                  m(TableContent, {
+                    table,
+                    onQueryTable: attrs.onQueryTable,
+                  }),
                 ),
               ),
             ),
@@ -101,34 +104,16 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
           }),
     );
   }
+}
 
-  private generateQuery(table: SqlTable): string {
-    const lines: string[] = [];
+interface TableContentAttrs {
+  readonly table: SqlTable;
+  onQueryTable?(tableName: string, query: string): void;
+}
 
-    // Add INCLUDE statement if needed
-    if (table.includeKey) {
-      lines.push(`INCLUDE PERFETTO MODULE ${table.includeKey};`);
-      lines.push('');
-    }
-
-    // Build SELECT with all columns
-    const columns =
-      table.columns.length > 0
-        ? table.columns.map((c) => c.name).join(',\n  ')
-        : '*';
-
-    lines.push('SELECT');
-    lines.push(`  ${columns}`);
-    lines.push(`FROM ${table.name}`);
-    lines.push('LIMIT 1000');
-
-    return lines.join('\n');
-  }
-
-  private renderTableContent(
-    table: SqlTable,
-    onQueryTable?: (tableName: string, query: string) => void,
-  ): m.Children {
+const TableContent: m.Component<TableContentAttrs> = {
+  view({attrs}: m.CVnode<TableContentAttrs>): m.Children {
+    const {table, onQueryTable} = attrs;
     return [
       // Description
       table.description &&
@@ -149,7 +134,7 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
             icon: 'play_arrow',
             compact: true,
             tooltip: `SELECT * FROM ${table.name} in a new tab`,
-            onclick: () => onQueryTable(table.name, this.generateQuery(table)),
+            onclick: () => onQueryTable(table.name, generateQuery(table)),
           }),
       ),
       // Module
@@ -208,5 +193,28 @@ export class TableList implements m.ClassComponent<TableListAttrs> {
           ),
         ),
     ];
+  },
+};
+
+function generateQuery(table: SqlTable): string {
+  const lines: string[] = [];
+
+  // Add INCLUDE statement if needed
+  if (table.includeKey) {
+    lines.push(`INCLUDE PERFETTO MODULE ${table.includeKey};`);
+    lines.push('');
   }
+
+  // Build SELECT with all columns
+  const columns =
+    table.columns.length > 0
+      ? table.columns.map((c) => c.name).join(',\n  ')
+      : '*';
+
+  lines.push('SELECT');
+  lines.push(`  ${columns}`);
+  lines.push(`FROM ${table.name}`);
+  lines.push('LIMIT 1000');
+
+  return lines.join('\n');
 }
