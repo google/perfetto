@@ -26,7 +26,7 @@ import {Router} from '../core/router';
 import {SidebarMenuItemInternal} from '../core/sidebar_manager';
 import {OptionalTraceImplAttrs, TraceImpl} from '../core/trace_impl';
 import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
-import {Command} from '../public/command';
+import {Command} from '../public/commands';
 import {SIDEBAR_SECTIONS, SidebarSections} from '../public/sidebar';
 import {EngineMode} from '../trace_processor/engine';
 import {Icon} from '../widgets/icon';

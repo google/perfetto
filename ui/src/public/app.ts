@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {RouteArgs} from './route_schema';
-import {CommandManager} from './command';
+import {CommandManager} from './commands';
 import {OmniboxManager} from './omnibox';
 import {SidebarManager} from './sidebar';
 import {Analytics} from './analytics';

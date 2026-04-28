@@ -25,6 +25,7 @@ import {Button, ButtonVariant} from '../../../widgets/button';
 import {Spinner} from '../../../widgets/spinner';
 import {Switch} from '../../../widgets/switch';
 import {Query, QueryNode} from '../query_node';
+import {FilterNode} from './nodes/filter_node';
 import {Intent} from '../../../widgets/common';
 import {Icons} from '../../../base/semantic_icons';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
@@ -187,7 +188,7 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
   }
 
   private renderMenu(attrs: ResultsPanelAttrs): m.Children {
-    const autoExecute = attrs.node.state.autoExecute ?? true;
+    const autoExecute = attrs.node.context.autoExecute ?? true;
 
     // Only show "Run Query" button when autoExecute is off AND node is stale
     const runButton =
@@ -216,7 +217,7 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
       checked: autoExecute,
       onchange: (e: Event) => {
         const target = e.target as HTMLInputElement;
-        attrs.node.state.autoExecute = target.checked;
+        attrs.node.context.autoExecute = target.checked;
         attrs.onchange?.();
         // Execute the query when auto-execute is toggled on
         // Analysis will happen automatically in node_panel when autoExecute becomes true
@@ -317,20 +318,20 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
     // Show validation errors first (queryError is set by validate() methods).
     // Validation errors take priority over execution errors because if validation
     // fails, we should not execute the query at all.
-    if (!attrs.node.validate() && attrs.node.state.issues?.queryError) {
+    if (!attrs.node.validate() && attrs.node.context.issues?.queryError) {
       // Clear any stale execution error when validation fails
-      attrs.node.state.issues.clearExecutionError();
+      attrs.node.context.issues.clearExecutionError();
       return m(ResultsPanelEmptyState, {
         icon: 'warning',
         variant: 'warning',
-        title: attrs.node.state.issues.queryError.message,
+        title: attrs.node.context.issues.queryError.message,
       });
     }
 
     // Show execution errors (e.g., when materialization fails due to
     // invalid column names). These are stored separately from validation errors
     // so they survive validate() calls during rendering.
-    if (attrs.node.state.issues?.executionError) {
+    if (attrs.node.context.issues?.executionError) {
       // Get the SQL that caused the error (query is preserved during error)
       const failingSql = isAQuery(attrs.query) ? attrs.query.sql : undefined;
 
@@ -339,7 +340,7 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
         {
           icon: 'warning',
           variant: 'warning',
-          title: attrs.node.state.issues.executionError.message,
+          title: attrs.node.context.issues.executionError.message,
         },
         [
           // Show the failing SQL if available
@@ -364,7 +365,7 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
             intent: Intent.Primary,
             onclick: () => {
               // Clear the execution error and re-run the query
-              attrs.node.state.issues?.clearExecutionError();
+              attrs.node.context.issues?.clearExecutionError();
               attrs.onExecute();
             },
           }),
@@ -382,20 +383,20 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
     }
 
     // Show response warnings with centered warning icon
-    if (attrs.node.state.issues?.responseError) {
+    if (attrs.node.context.issues?.responseError) {
       return m(ResultsPanelEmptyState, {
         icon: 'warning',
         variant: 'warning',
-        title: attrs.node.state.issues.responseError.message,
+        title: attrs.node.context.issues.responseError.message,
       });
     }
 
     // Show data errors (like "no rows returned") with centered warning icon
-    if (attrs.node.state.issues?.dataError) {
+    if (attrs.node.context.issues?.dataError) {
       return m(ResultsPanelEmptyState, {
         icon: 'warning',
         variant: 'warning',
-        title: attrs.node.state.issues.dataError.message,
+        title: attrs.node.context.issues.dataError.message,
       });
     }
 
@@ -449,27 +450,27 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
         const columnInfo = getColumnInfo(attrs.node, c);
         if (columnInfo) {
           // Set columnType based on the SQL type
-          if (columnInfo.column.type) {
-            columnType = getColumnType(columnInfo.column.type);
+          if (columnInfo.type) {
+            columnType = getColumnType(columnInfo.type);
           }
 
           // Check if this is a timestamp column
-          if (columnInfo.column.type?.kind === 'timestamp') {
+          if (columnInfo.type?.kind === 'timestamp') {
             cellRenderer = createTimestampCellRenderer(attrs.trace);
           }
           // Check if this is a duration column
-          else if (columnInfo.column.type?.kind === 'duration') {
+          else if (columnInfo.type?.kind === 'duration') {
             cellRenderer = createDurationCellRenderer(attrs.trace);
           }
           // Check if this is an ID column that links to a navigable table
           else if (
-            columnInfo.column.type !== undefined &&
-            isIdType(columnInfo.column.type) &&
-            NAVIGABLE_TABLES.has(columnInfo.column.type.source.table)
+            columnInfo.type !== undefined &&
+            isIdType(columnInfo.type) &&
+            NAVIGABLE_TABLES.has(columnInfo.type.source.table)
           ) {
             cellRenderer = createIdCellRenderer(
               attrs.trace,
-              columnInfo.column.type.source.table,
+              columnInfo.type.source.table,
               c,
             );
           }
@@ -495,8 +496,8 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
 
         for (const c of responseColumns) {
           const columnInfo = getColumnInfo(attrs.node, c);
-          if (columnInfo?.column.type?.kind === 'joinid') {
-            const targetTableName = columnInfo.column.type.source.table;
+          if (columnInfo?.type?.kind === 'joinid') {
+            const targetTableName = columnInfo.type.source.table;
             if (!tableToJoinidColumns.has(targetTableName)) {
               tableToJoinidColumns.set(targetTableName, []);
             }
@@ -622,13 +623,14 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
                 operator,
               );
             } else {
-              // Legacy: add filters directly to node state
-              attrs.node.state.filters = [
-                ...(attrs.node.state.filters ?? []),
+              // Legacy: add filters directly to node attrs
+              const filterNode = attrs.node as FilterNode;
+              filterNode.attrs.filters = [
+                ...(filterNode.attrs.filters ?? []),
                 ...normalizedFilters,
               ];
               if (normalizedFilters.length > 1) {
-                attrs.node.state.filterOperator =
+                filterNode.attrs.filterOperator =
                   filter.op === 'not in' ? 'AND' : 'OR';
               }
             }
@@ -650,7 +652,7 @@ export class ResultsPanel implements m.ClassComponent<ResultsPanelAttrs> {
     }
 
     // Show a prominent execute button when autoExecute is false and node is stale
-    const autoExecute = attrs.node.state.autoExecute ?? true;
+    const autoExecute = attrs.node.context.autoExecute ?? true;
     if (
       !autoExecute &&
       attrs.isStale &&

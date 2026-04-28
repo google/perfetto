@@ -14,9 +14,10 @@
 # limitations under the License.
 """Extracts a specific vX.Y section from the CHANGELOG to stdout.
 
-Used by the draft-release GitHub Actions workflow to pre-populate the
-release body with the matching CHANGELOG entry. The body is then
-expected to be hand-edited into full release notes before publishing.
+Used by the tag-on-stable-push GitHub Actions workflow to
+pre-populate the draft release body with the matching CHANGELOG
+entry. The body is then expected to be hand-edited into full
+release notes before publishing.
 """
 
 import argparse

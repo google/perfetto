@@ -258,6 +258,8 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       arm_cpu_variant(context->storage->InternString("arm_cpu_variant")),
       arm_cpu_part(context->storage->InternString("arm_cpu_part")),
       arm_cpu_revision(context->storage->InternString("arm_cpu_revision")),
+      pages_per_slab_id_(context->storage->InternString("pages_per_slab")),
+      num_slabs_id_(context->storage->InternString("num_slabs")),
       meminfo_strs_(BuildMeminfoCounterNames()),
       vmstat_strs_(BuildVmstatCounterNames()) {}
 
@@ -592,6 +594,10 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
         tracks::Dimensions(ugpu.value, uint32_t{0}));
     context_->event_tracker->PushCounter(ts, static_cast<double>(*it), track);
   }
+
+  for (auto it = sys_stats.slab_info(); it; ++it) {
+    ParseSlabInfo(ts, *it);
+  }
 }
 
 void SystemProbesParser::ParseCpuIdleStats(int64_t ts, ConstBytes blob) {
@@ -616,6 +622,35 @@ void SystemProbesParser::ParseCpuIdleStats(int64_t ts, ConstBytes blob) {
 
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(idle.duration_us()), track);
+  }
+}
+
+void SystemProbesParser::ParseSlabInfo(int64_t ts, ConstBytes blob) {
+  protos::pbzero::SysStats::SlabInfo::Decoder slab(blob);
+
+  static constexpr auto kSlabBlueprint = tracks::CounterBlueprint(
+      "slabinfo", tracks::kBytesUnitBlueprint,
+      tracks::DimensionBlueprints(
+          tracks::StringDimensionBlueprint("slab_name")),
+      tracks::FnNameBlueprint([](base::StringView name) {
+        return base::StackString<1024>("mem.slab.%.*s", int(name.size()),
+                                       name.data());
+      }));
+
+  TrackId track = context_->track_tracker->InternTrack(
+      kSlabBlueprint, tracks::Dimensions(slab.name()));
+
+  double size_bytes = static_cast<double>(slab.pages_per_slab()) *
+                      static_cast<double>(slab.num_slabs()) *
+                      static_cast<double>(page_size_);
+
+  auto id = context_->event_tracker->PushCounter(ts, size_bytes, track);
+  if (id) {
+    ArgsTracker tracker(context_);
+    tracker.AddArgsTo(*id)
+        .AddArg(pages_per_slab_id_,
+                Variadic::UnsignedInteger(slab.pages_per_slab()))
+        .AddArg(num_slabs_id_, Variadic::UnsignedInteger(slab.num_slabs()));
   }
 }
 

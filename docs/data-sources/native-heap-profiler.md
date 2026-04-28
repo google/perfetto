@@ -1,4 +1,4 @@
-# Heap profiler
+# Memory: Callstack-based Allocation Profiling
 
 NOTE: **heapprofd requires Android 10 or higher**
 
@@ -254,11 +254,11 @@ the `<application>` section of the app manifest.
 </manifest>
 ```
 
-## {#java-heap-sampling} Java heap sampling
+## {#java-heap-sampling} Java Allocation Profiling (Churn Profiling)
 
-NOTE: **Java heap sampling is available on Android 12 or higher**
+NOTE: **Java allocation profiling is available on Android 12 or higher**
 
-NOTE: **Java heap sampling is not to be confused with [Java heap
+NOTE: **Java allocation profiling is not to be confused with [Heap
 dumps](/docs/data-sources/java-heap-profiler.md)**
 
 Heapprofd can be configured to track Java allocations instead of native ones.

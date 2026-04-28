@@ -15,10 +15,10 @@
 import m from 'mithril';
 import {
   QueryNode,
-  QueryNodeState,
   nextNodeId,
   NodeType,
   SecondaryInputSpec,
+  NodeContext,
 } from '../../query_node';
 import {getSecondaryInput} from '../graph_utils';
 import protos from '../../../../protos';
@@ -44,19 +44,8 @@ const DEFAULT_TS_COLUMN = 'ts';
 const COMPUTED_STARTS_END_TS_COLUMN = 'exp_tmp_starts_computed_end_ts';
 const COMPUTED_ENDS_END_TS_COLUMN = 'exp_tmp_ends_computed_end_ts';
 
-export interface CreateSlicesSerializedState {
-  startsMode?: TimestampMode;
-  endsMode?: TimestampMode;
-  startsTsColumn: string;
-  endsTsColumn: string;
-  startsDurColumn?: string;
-  endsDurColumn?: string;
-  comment?: string;
-}
-
-export interface CreateSlicesNodeState extends QueryNodeState {
-  startsNode?: QueryNode;
-  endsNode?: QueryNode;
+// Serializable node configuration.
+export interface CreateSlicesNodeAttrs {
   startsMode?: TimestampMode;
   endsMode?: TimestampMode;
   startsTsColumn: string;
@@ -70,7 +59,8 @@ export class CreateSlicesNode implements QueryNode {
   readonly type = NodeType.kCreateSlices;
   secondaryInputs: SecondaryInputSpec;
   nextNodes: QueryNode[];
-  readonly state: CreateSlicesNodeState;
+  readonly attrs: CreateSlicesNodeAttrs;
+  readonly context: NodeContext;
 
   get startsNode(): QueryNode | undefined {
     return getSecondaryInput(this, 0);
@@ -98,38 +88,45 @@ export class CreateSlicesNode implements QueryNode {
     ];
   }
 
-  constructor(state: CreateSlicesNodeState) {
+  constructor(
+    attrs: CreateSlicesNodeAttrs & {
+      startsNode?: QueryNode;
+      endsNode?: QueryNode;
+    },
+    context: NodeContext,
+  ) {
     this.nodeId = nextNodeId();
-    this.state = {
-      ...state,
-      autoExecute: state.autoExecute ?? false,
-      startsMode: state.startsMode ?? 'ts',
-      endsMode: state.endsMode ?? 'ts',
-      startsTsColumn: state.startsTsColumn ?? DEFAULT_TS_COLUMN,
-      endsTsColumn: state.endsTsColumn ?? DEFAULT_TS_COLUMN,
-      startsDurColumn: state.startsDurColumn,
-      endsDurColumn: state.endsDurColumn,
+    const {startsNode, endsNode, ...rest} = attrs;
+    this.attrs = {
+      ...rest,
+      startsMode: rest.startsMode ?? 'ts',
+      endsMode: rest.endsMode ?? 'ts',
+      startsTsColumn: rest.startsTsColumn ?? DEFAULT_TS_COLUMN,
+      endsTsColumn: rest.endsTsColumn ?? DEFAULT_TS_COLUMN,
+      startsDurColumn: rest.startsDurColumn,
+      endsDurColumn: rest.endsDurColumn,
     };
+    this.context = context;
     this.secondaryInputs = {
       connections: new Map(),
       min: 2,
       max: 2,
       portNames: ['Starts', 'Ends'],
     };
-    // Initialize connections from state
-    if (state.startsNode) {
-      this.secondaryInputs.connections.set(0, state.startsNode);
+    // Initialize connections from startsNode/endsNode
+    if (startsNode) {
+      this.secondaryInputs.connections.set(0, startsNode);
     }
-    if (state.endsNode) {
-      this.secondaryInputs.connections.set(1, state.endsNode);
+    if (endsNode) {
+      this.secondaryInputs.connections.set(1, endsNode);
     }
     this.nextNodes = [];
   }
 
   validate(): boolean {
     // Clear any previous errors at the start of validation
-    if (this.state.issues) {
-      this.state.issues.clear();
+    if (this.context.issues) {
+      this.context.issues.clear();
     }
 
     if (
@@ -157,9 +154,9 @@ export class CreateSlicesNode implements QueryNode {
     // Validate starts input based on mode
     if (
       !this.validateInputSource(
-        this.state.startsMode ?? 'ts',
-        this.state.startsTsColumn,
-        this.state.startsDurColumn,
+        this.attrs.startsMode ?? 'ts',
+        this.attrs.startsTsColumn,
+        this.attrs.startsDurColumn,
         this.startsNode,
         'Starts',
       )
@@ -170,9 +167,9 @@ export class CreateSlicesNode implements QueryNode {
     // Validate ends input based on mode
     if (
       !this.validateInputSource(
-        this.state.endsMode ?? 'ts',
-        this.state.endsTsColumn,
-        this.state.endsDurColumn,
+        this.attrs.endsMode ?? 'ts',
+        this.attrs.endsTsColumn,
+        this.attrs.endsDurColumn,
         this.endsNode,
         'Ends',
       )
@@ -188,42 +185,38 @@ export class CreateSlicesNode implements QueryNode {
 
     // Auto-select timestamp columns based on type only
     const startsTimestampCols = this.startsNode.finalCols.filter(
-      (c) =>
-        c.column.type && typesEqual(c.column.type, PerfettoSqlTypes.TIMESTAMP),
+      (c) => c.type && typesEqual(c.type, PerfettoSqlTypes.TIMESTAMP),
     );
     const endsTimestampCols = this.endsNode.finalCols.filter(
-      (c) =>
-        c.column.type && typesEqual(c.column.type, PerfettoSqlTypes.TIMESTAMP),
+      (c) => c.type && typesEqual(c.type, PerfettoSqlTypes.TIMESTAMP),
     );
 
     // Auto-select starts timestamp if there's only one option
-    if (startsTimestampCols.length === 1 && !this.state.startsTsColumn) {
-      this.state.startsTsColumn = startsTimestampCols[0].name;
+    if (startsTimestampCols.length === 1 && !this.attrs.startsTsColumn) {
+      this.attrs.startsTsColumn = startsTimestampCols[0].name;
     }
 
     // Auto-select ends timestamp if there's only one option
-    if (endsTimestampCols.length === 1 && !this.state.endsTsColumn) {
-      this.state.endsTsColumn = endsTimestampCols[0].name;
+    if (endsTimestampCols.length === 1 && !this.attrs.endsTsColumn) {
+      this.attrs.endsTsColumn = endsTimestampCols[0].name;
     }
 
     // Auto-select duration columns in ts_dur mode
-    if (this.state.startsMode === 'ts_dur') {
+    if (this.attrs.startsMode === 'ts_dur') {
       const startsDurationCols = this.startsNode.finalCols.filter(
-        (c) =>
-          c.column.type && typesEqual(c.column.type, PerfettoSqlTypes.DURATION),
+        (c) => c.type && typesEqual(c.type, PerfettoSqlTypes.DURATION),
       );
-      if (startsDurationCols.length === 1 && !this.state.startsDurColumn) {
-        this.state.startsDurColumn = startsDurationCols[0].name;
+      if (startsDurationCols.length === 1 && !this.attrs.startsDurColumn) {
+        this.attrs.startsDurColumn = startsDurationCols[0].name;
       }
     }
 
-    if (this.state.endsMode === 'ts_dur') {
+    if (this.attrs.endsMode === 'ts_dur') {
       const endsDurationCols = this.endsNode.finalCols.filter(
-        (c) =>
-          c.column.type && typesEqual(c.column.type, PerfettoSqlTypes.DURATION),
+        (c) => c.type && typesEqual(c.type, PerfettoSqlTypes.DURATION),
       );
-      if (endsDurationCols.length === 1 && !this.state.endsDurColumn) {
-        this.state.endsDurColumn = endsDurationCols[0].name;
+      if (endsDurationCols.length === 1 && !this.attrs.endsDurColumn) {
+        this.attrs.endsDurColumn = endsDurationCols[0].name;
       }
     }
   }
@@ -231,7 +224,7 @@ export class CreateSlicesNode implements QueryNode {
   private validateSourceNode(node: QueryNode, nodeName: string): boolean {
     if (!node.validate()) {
       this.setValidationError(
-        node.state.issues?.queryError?.message ??
+        node.context.issues?.queryError?.message ??
           `${nodeName} node '${node.getTitle()}' is invalid`,
       );
       return false;
@@ -286,10 +279,10 @@ export class CreateSlicesNode implements QueryNode {
   }
 
   private setValidationError(message: string): void {
-    if (!this.state.issues) {
-      this.state.issues = new NodeIssues();
+    if (!this.context.issues) {
+      this.context.issues = new NodeIssues();
     }
-    this.state.issues.queryError = new Error(message);
+    this.context.issues.queryError = new Error(message);
   }
 
   getTitle(): string {
@@ -307,15 +300,15 @@ export class CreateSlicesNode implements QueryNode {
   nodeDetails(): NodeDetailsAttrs {
     const content: m.Children[] = [NodeTitle(this.getTitle())];
 
-    if (this.state.startsTsColumn && this.state.endsTsColumn) {
+    if (this.attrs.startsTsColumn && this.attrs.endsTsColumn) {
       content.push(
         m(
           '.pf-exp-create-slices-details',
           m('div', [
             m('span', 'Start: '),
-            ColumnName(this.state.startsTsColumn),
+            ColumnName(this.attrs.startsTsColumn),
           ]),
-          m('div', [m('span', 'End: '), ColumnName(this.state.endsTsColumn)]),
+          m('div', [m('span', 'End: '), ColumnName(this.attrs.endsTsColumn)]),
         ),
       );
     }
@@ -327,7 +320,7 @@ export class CreateSlicesNode implements QueryNode {
 
   nodeSpecificModify(): NodeModifyAttrs {
     this.validate();
-    const error = this.state.issues?.queryError;
+    const error = this.context.issues?.queryError;
 
     const sections: NodeModifyAttrs['sections'] = [];
 
@@ -340,12 +333,12 @@ export class CreateSlicesNode implements QueryNode {
 
     // Add starts input section
     if (this.startsNode) {
-      const startsMode = this.state.startsMode ?? 'ts';
+      const startsMode = this.attrs.startsMode ?? 'ts';
       const startsValid = this.validateInputConfig(
         this.startsNode,
         startsMode,
-        this.state.startsTsColumn,
-        this.state.startsDurColumn,
+        this.attrs.startsTsColumn,
+        this.attrs.startsDurColumn,
       );
 
       sections.push({
@@ -357,18 +350,18 @@ export class CreateSlicesNode implements QueryNode {
           children: this.renderInputDetails(
             this.startsNode,
             startsMode,
-            this.state.startsTsColumn,
-            this.state.startsDurColumn,
+            this.attrs.startsTsColumn,
+            this.attrs.startsDurColumn,
             (mode) => {
-              this.state.startsMode = mode;
-              this.state.onchange?.();
+              this.attrs.startsMode = mode;
+              this.context.onchange?.();
             },
             (ts, dur) => {
-              this.state.startsTsColumn = ts;
+              this.attrs.startsTsColumn = ts;
               if (dur !== undefined) {
-                this.state.startsDurColumn = dur;
+                this.attrs.startsDurColumn = dur;
               }
-              this.state.onchange?.();
+              this.context.onchange?.();
             },
           ),
         }),
@@ -377,12 +370,12 @@ export class CreateSlicesNode implements QueryNode {
 
     // Add ends input section
     if (this.endsNode) {
-      const endsMode = this.state.endsMode ?? 'ts';
+      const endsMode = this.attrs.endsMode ?? 'ts';
       const endsValid = this.validateInputConfig(
         this.endsNode,
         endsMode,
-        this.state.endsTsColumn,
-        this.state.endsDurColumn,
+        this.attrs.endsTsColumn,
+        this.attrs.endsDurColumn,
       );
 
       sections.push({
@@ -394,18 +387,18 @@ export class CreateSlicesNode implements QueryNode {
           children: this.renderInputDetails(
             this.endsNode,
             endsMode,
-            this.state.endsTsColumn,
-            this.state.endsDurColumn,
+            this.attrs.endsTsColumn,
+            this.attrs.endsDurColumn,
             (mode) => {
-              this.state.endsMode = mode;
-              this.state.onchange?.();
+              this.attrs.endsMode = mode;
+              this.context.onchange?.();
             },
             (ts, dur) => {
-              this.state.endsTsColumn = ts;
+              this.attrs.endsTsColumn = ts;
               if (dur !== undefined) {
-                this.state.endsDurColumn = dur;
+                this.attrs.endsDurColumn = dur;
               }
-              this.state.onchange?.();
+              this.context.onchange?.();
             },
           ),
         }),
@@ -452,12 +445,10 @@ export class CreateSlicesNode implements QueryNode {
   ): m.Children {
     const cols = node.finalCols;
     const timestampCols = cols.filter(
-      (c) =>
-        c.column.type && typesEqual(c.column.type, PerfettoSqlTypes.TIMESTAMP),
+      (c) => c.type && typesEqual(c.type, PerfettoSqlTypes.TIMESTAMP),
     );
     const durationCols = cols.filter(
-      (c) =>
-        c.column.type && typesEqual(c.column.type, PerfettoSqlTypes.DURATION),
+      (c) => c.type && typesEqual(c.type, PerfettoSqlTypes.DURATION),
     );
 
     // Display the auto-selected column if there's only one option
@@ -537,16 +528,17 @@ export class CreateSlicesNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    const stateCopy: CreateSlicesNodeState = {
-      onchange: this.state.onchange,
-      startsMode: this.state.startsMode ?? 'ts',
-      endsMode: this.state.endsMode ?? 'ts',
-      startsTsColumn: this.state.startsTsColumn,
-      endsTsColumn: this.state.endsTsColumn,
-      startsDurColumn: this.state.startsDurColumn,
-      endsDurColumn: this.state.endsDurColumn,
-    };
-    return new CreateSlicesNode(stateCopy);
+    return new CreateSlicesNode(
+      {
+        startsMode: this.attrs.startsMode ?? 'ts',
+        endsMode: this.attrs.endsMode ?? 'ts',
+        startsTsColumn: this.attrs.startsTsColumn,
+        endsTsColumn: this.attrs.endsTsColumn,
+        startsDurColumn: this.attrs.startsDurColumn,
+        endsDurColumn: this.attrs.endsDurColumn,
+      },
+      this.context,
+    );
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -560,9 +552,9 @@ export class CreateSlicesNode implements QueryNode {
     // Process starts input
     const startsResult = this.processInputQuery(
       startsQuery,
-      this.state.startsMode ?? 'ts',
-      this.state.startsTsColumn,
-      this.state.startsDurColumn,
+      this.attrs.startsMode ?? 'ts',
+      this.attrs.startsTsColumn,
+      this.attrs.startsDurColumn,
       this.startsNode.finalCols,
       'starts',
       COMPUTED_STARTS_END_TS_COLUMN,
@@ -571,9 +563,9 @@ export class CreateSlicesNode implements QueryNode {
     // Process ends input
     const endsResult = this.processInputQuery(
       endsQuery,
-      this.state.endsMode ?? 'ts',
-      this.state.endsTsColumn,
-      this.state.endsDurColumn,
+      this.attrs.endsMode ?? 'ts',
+      this.attrs.endsTsColumn,
+      this.attrs.endsDurColumn,
       this.endsNode.finalCols,
       'ends',
       COMPUTED_ENDS_END_TS_COLUMN,
@@ -630,29 +622,5 @@ export class CreateSlicesNode implements QueryNode {
       ) ?? query;
 
     return {query: processedQuery, tsColumnName: computedColName};
-  }
-
-  serializeState(): CreateSlicesSerializedState {
-    return {
-      startsMode: this.state.startsMode ?? 'ts',
-      endsMode: this.state.endsMode ?? 'ts',
-      startsTsColumn: this.state.startsTsColumn,
-      endsTsColumn: this.state.endsTsColumn,
-      startsDurColumn: this.state.startsDurColumn,
-      endsDurColumn: this.state.endsDurColumn,
-    };
-  }
-
-  static deserializeState(
-    state: CreateSlicesSerializedState,
-  ): CreateSlicesNodeState {
-    return {
-      startsMode: state.startsMode ?? 'ts',
-      endsMode: state.endsMode ?? 'ts',
-      startsTsColumn: state.startsTsColumn ?? DEFAULT_TS_COLUMN,
-      endsTsColumn: state.endsTsColumn ?? DEFAULT_TS_COLUMN,
-      startsDurColumn: state.startsDurColumn,
-      endsDurColumn: state.endsDurColumn,
-    };
   }
 }

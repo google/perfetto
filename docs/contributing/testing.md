@@ -97,13 +97,19 @@ run integration tests on Linux and MacOS.
 
 ## Trace Processor diff tests
 
-Trace processor is mainly tested using so called "diff tests".
+Trace Processor is mainly tested using so called "diff tests" rather than
+unit tests. Unit tests have proven too brittle when dealing with code that
+parses traces — they require painful mechanical updates whenever the
+parsing logic is refactored — so they are reserved for the low-level
+building blocks the rest of Trace Processor is built on. Everything else
+(parsing events, table schemas, stdlib modules, dynamic tables) is covered
+by diff tests.
 
-For these tests, trace processor parses a known trace and executes a query
-string or file. The output of these queries is then compared (i.e. "diff"ed) against
-an expected output file and discrepencies are highlighted.
+For these tests, Trace Processor parses a known trace and executes a query
+string or file. The output of these queries is then compared (i.e. "diff"ed)
+against an expected output file and discrepancies are highlighted.
 
-Similar diff tests are also available when writing metrics - instead of a
+Similar diff tests are also available when writing metrics — instead of a
 query, the metric name is used and the expected output string contains
 the expected result of computing the metric.
 
@@ -121,6 +127,68 @@ generates some hidden output. To address this issue, if a query only has
 column is named `suppress_query_output`, even if it has output, this will
 be ignored (for example,
 `SELECT RUN_METRIC('metric file') as suppress_query_output`)
+
+### Adding a new diff test
+
+All diff tests live under [`test/trace_processor`](/test/trace_processor) in
+`tests{_category_name}.py` files as methods of a class. To add a new test,
+add a new method starting with `test_` in the suitable Python file.
+
+Methods cannot take arguments and have to return a `DiffTestBlueprint`:
+
+```python
+class DiffTestBlueprint:
+  trace: Union[Path, Json, Systrace, TextProto]
+  query: Union[str, Path, Metric]
+  out: Union[Path, Json, Csv, TextProto]
+```
+
+_Trace_ and _Out_: For every type apart from `Path`, contents of the object
+will be treated as file contents so it has to follow the same rules.
+
+_Query_: For metric tests it is enough to provide the metric name. For query
+tests there can be a raw SQL statement, for example `"SELECT * FROM SLICE"`,
+or a path to an `.sql` file.
+
+NOTE: `trace_processor_shell` and the associated proto descriptors need to
+be built before running `tools/diff_test_trace_processor.py`. The easiest
+way to do this is to run `tools/ninja -C <out directory>` both initially
+and on every change to Trace Processor code.
+
+#### Choosing where to add diff tests
+
+`diff_tests/` contains directories corresponding to different areas of
+Trace Processor:
+
+1. **stdlib**: Tests focusing on the PerfettoSQL Standard Library, both the
+   prelude and the regular modules. The subdirectories generally correspond
+   to directories in `perfetto_sql/stdlib`.
+2. **parser**: Tests focusing on ensuring different trace formats are
+   parsed correctly and the corresponding built-in tables are populated.
+3. **syntax**: Tests focusing on the core syntax of PerfettoSQL (e.g.
+   `CREATE PERFETTO TABLE`, `CREATE PERFETTO FUNCTION`).
+
+**Scenario**: A new stdlib module `foo/bar.sql` is being added.
+
+_Answer_: Add the test to `stdlib/foo/bar_tests.py`.
+
+**Scenario**: A new event is being parsed and the focus of the test is to
+ensure the event is parsed correctly.
+
+_Answer_: Add the test in one of the `parser` subdirectories. Prefer
+adding the test to an existing related directory (e.g. `sched`, `power`)
+if one exists.
+
+**Scenario**: A new dynamic table is being added and the focus of the test
+is to ensure the dynamic table is correctly computed.
+
+_Answer_: Add the test to `stdlib/dynamic_tables`.
+
+**Scenario**: The internals of Trace Processor are being modified and the
+test is to ensure Trace Processor is correctly filtering/sorting important
+built-in tables.
+
+_Answer_: Add the test to `parser/core_tables`.
 
 ## UI pixel diff tests
 

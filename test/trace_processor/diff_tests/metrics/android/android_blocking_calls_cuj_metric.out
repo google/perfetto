@@ -5,8 +5,8 @@ android_blocking_calls_cuj_metric {
     process {
       name: "com.android.systemui"
       uid: 10001
-      pid: 1000
       android_user_id: 0
+      pid: 1000
       is_kernel_task: false
     }
     ts: 2000000
@@ -28,8 +28,8 @@ android_blocking_calls_cuj_metric {
     process {
       name: "com.google.android.apps.nexuslauncher"
       uid: 10002
-      pid: 2000
       android_user_id: 0
+      pid: 2000
       is_kernel_task: false
     }
     ts: 2000000
@@ -47,12 +47,75 @@ android_blocking_calls_cuj_metric {
   }
   cuj {
     id: 3
+    name: "CUJ_WITH_TOP_LEVEL_SLICES"
+    process {
+      name: "com.google.android.top.level.slices"
+      uid: 10004
+      android_user_id: 0
+      pid: 4000
+      is_kernel_task: false
+    }
+    ts: 2000000
+    dur: 70000000
+    blocking_calls {
+      name: "Handler: android.os.AsyncTask"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+    blocking_calls {
+      name: "Handler: android.view.View"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+    blocking_calls {
+      name: "Handler: com.android.keyguard.KeyguardUpdateMonitor"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+    blocking_calls {
+      name: "Handler: com.android.systemui.broadcast.ActionReceiver"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+    blocking_calls {
+      name: "Handler: com.android.systemui.qs.external.TileServiceManager"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+  }
+  cuj {
+    id: 4
     name: "CUJ_WITH_MANY_BLOCKING_CALLS"
     process {
       name: "com.google.android.third.process"
       uid: 10003
-      pid: 3000
       android_user_id: 0
+      pid: 3000
       is_kernel_task: false
     }
     ts: 2000000
@@ -339,76 +402,36 @@ android_blocking_calls_cuj_metric {
     }
   }
   cuj {
-    id: 4
-    name: "CUJ_WITH_TOP_LEVEL_SLICES"
+    id: 5
+    name: "CUJ_WITH_NESTED_HANDLER"
     process {
-      name: "com.google.android.top.level.slices"
-      uid: 10004
-      pid: 4000
+      name: "com.google.android.nested.handlers"
+      uid: 10005
       android_user_id: 0
+      pid: 5000
       is_kernel_task: false
     }
     ts: 2000000
-    dur: 70000000
+    dur: 20000000
     blocking_calls {
-      name: "Handler: android.os.AsyncTask"
+      name: "Handler: com.example.MyHandler"
       cnt: 1
-      total_dur_ms: 10
-      max_dur_ms: 10
-      min_dur_ms: 10
-      total_dur_ns: 10000000
-      max_dur_ns: 10000000
-      min_dur_ns: 10000000
-    }
-    blocking_calls {
-      name: "Handler: android.view.View"
-      cnt: 1
-      total_dur_ms: 10
-      max_dur_ms: 10
-      min_dur_ms: 10
-      total_dur_ns: 10000000
-      max_dur_ns: 10000000
-      min_dur_ns: 10000000
-    }
-    blocking_calls {
-      name: "Handler: com.android.keyguard.KeyguardUpdateMonitor"
-      cnt: 1
-      total_dur_ms: 10
-      max_dur_ms: 10
-      min_dur_ms: 10
-      total_dur_ns: 10000000
-      max_dur_ns: 10000000
-      min_dur_ns: 10000000
-    }
-    blocking_calls {
-      name: "Handler: com.android.systemui.broadcast.ActionReceiver"
-      cnt: 1
-      total_dur_ms: 10
-      max_dur_ms: 10
-      min_dur_ms: 10
-      total_dur_ns: 10000000
-      max_dur_ns: 10000000
-      min_dur_ns: 10000000
-    }
-    blocking_calls {
-      name: "Handler: com.android.systemui.qs.external.TileServiceManager"
-      cnt: 1
-      total_dur_ms: 10
-      max_dur_ms: 10
-      min_dur_ms: 10
-      total_dur_ns: 10000000
-      max_dur_ns: 10000000
-      min_dur_ns: 10000000
+      total_dur_ms: 8
+      max_dur_ms: 8
+      min_dur_ms: 8
+      total_dur_ns: 8998000
+      max_dur_ns: 8998000
+      min_dur_ns: 8998000
     }
   }
   cuj {
-    id: 5
+    id: 6
     name: "OVERLAPPING_CUJ_1"
     process {
       name: "com.android.systemui"
       uid: 10001
-      pid: 1000
       android_user_id: 0
+      pid: 1000
       is_kernel_task: false
     }
     ts: 20000000
@@ -425,13 +448,13 @@ android_blocking_calls_cuj_metric {
     }
   }
   cuj {
-    id: 6
+    id: 7
     name: "OVERLAPPING_CUJ_2"
     process {
       name: "com.android.systemui"
       uid: 10001
-      pid: 1000
       android_user_id: 0
+      pid: 1000
       is_kernel_task: false
     }
     ts: 22000000
@@ -448,13 +471,13 @@ android_blocking_calls_cuj_metric {
     }
   }
   cuj {
-    id: 7
+    id: 8
     name: "WITH_NAMED_BINDER_TRANSACTION"
     process {
       name: "com.android.systemui"
       uid: 10001
-      pid: 1000
       android_user_id: 0
+      pid: 1000
       is_kernel_task: false
     }
     ts: 40000000

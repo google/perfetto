@@ -28,7 +28,7 @@ export function isIntegerColumn(
   columnName: string,
 ): boolean {
   const columnInfo = node.sourceCols.find((col) => col.name === columnName);
-  const columnType = columnInfo?.column.type;
+  const columnType = columnInfo?.type;
   return (
     columnType !== undefined && underlyingSqlType(columnType) === 'INTEGER'
   );
@@ -42,7 +42,7 @@ export function getColumnTypeKind(
   columnName: string,
 ): PerfettoSqlType['kind'] | undefined {
   const columnInfo = node.sourceCols.find((col) => col.name === columnName);
-  return columnInfo?.column.type?.kind;
+  return columnInfo?.type?.kind;
 }
 
 /**

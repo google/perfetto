@@ -13,12 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  QueryNode,
-  QueryNodeState,
-  nextNodeId,
-  NodeType,
-} from '../../query_node';
+import {QueryNode, nextNodeId, NodeType, NodeContext} from '../../query_node';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
 import {StructuredQueryBuilder} from '../structured_query_builder';
@@ -28,23 +23,29 @@ import {NodeDetailsAttrs, NodeModifyAttrs} from '../../node_types';
 import {createErrorSections} from '../widgets';
 import {loadNodeDoc} from '../node_doc_loader';
 
-export interface LimitAndOffsetNodeState extends QueryNodeState {
+// Serializable node configuration.
+export interface LimitAndOffsetNodeAttrs {
   limit?: number;
   offset?: number;
 }
+
 export class LimitAndOffsetNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kLimitAndOffset;
   primaryInput?: QueryNode;
   nextNodes: QueryNode[];
-  readonly state: LimitAndOffsetNodeState;
+  readonly attrs: LimitAndOffsetNodeAttrs;
+  readonly context: NodeContext;
 
-  constructor(state: LimitAndOffsetNodeState) {
+  constructor(attrs: LimitAndOffsetNodeAttrs, context: NodeContext) {
     this.nodeId = nextNodeId();
-    this.state = state;
+    this.attrs = {
+      ...attrs,
+      limit: attrs.limit ?? 10,
+      offset: attrs.offset ?? 0,
+    };
+    this.context = context;
     this.nextNodes = [];
-    this.state.limit = this.state.limit ?? 10;
-    this.state.offset = this.state.offset ?? 0;
   }
 
   get sourceCols(): ColumnInfo[] {
@@ -60,9 +61,9 @@ export class LimitAndOffsetNode implements QueryNode {
   }
 
   nodeDetails(): NodeDetailsAttrs {
-    const hasOffset = this.state.offset !== undefined && this.state.offset > 0;
-    const limitText = `Limit: ${this.state.limit ?? 10}`;
-    const offsetText = hasOffset ? `, Offset: ${this.state.offset}` : '';
+    const hasOffset = this.attrs.offset !== undefined && this.attrs.offset > 0;
+    const limitText = `Limit: ${this.attrs.limit ?? 10}`;
+    const offsetText = hasOffset ? `, Offset: ${this.attrs.offset}` : '';
 
     return {
       content: m('div', limitText + offsetText),
@@ -81,7 +82,7 @@ export class LimitAndOffsetNode implements QueryNode {
         m(InlineField, {
           label: 'Limit',
           icon: 'filter_list',
-          value: this.state.limit?.toString() ?? '10',
+          value: this.attrs.limit?.toString() ?? '10',
           placeholder: 'Number of rows',
           type: 'number',
           validate: (value: string) => {
@@ -92,15 +93,15 @@ export class LimitAndOffsetNode implements QueryNode {
           onchange: (value: string) => {
             const parsed = parseInt(value.trim(), 10);
             // Save the parsed value if valid, otherwise keep current value
-            this.state.limit =
-              !isNaN(parsed) && parsed >= 0 ? parsed : this.state.limit;
-            this.state.onchange?.();
+            this.attrs.limit =
+              !isNaN(parsed) && parsed >= 0 ? parsed : this.attrs.limit;
+            this.context.onchange?.();
           },
         }),
         m(InlineField, {
           label: 'Offset',
           icon: 'skip_next',
-          value: this.state.offset?.toString() ?? '0',
+          value: this.attrs.offset?.toString() ?? '0',
           placeholder: 'Number of rows to skip',
           type: 'number',
           validate: (value: string) => {
@@ -111,9 +112,9 @@ export class LimitAndOffsetNode implements QueryNode {
           onchange: (value: string) => {
             const parsed = parseInt(value.trim(), 10);
             // Save the parsed value if valid, otherwise keep current value
-            this.state.offset =
-              !isNaN(parsed) && parsed >= 0 ? parsed : this.state.offset;
-            this.state.onchange?.();
+            this.attrs.offset =
+              !isNaN(parsed) && parsed >= 0 ? parsed : this.attrs.offset;
+            this.context.onchange?.();
           },
         }),
       ),
@@ -131,17 +132,17 @@ export class LimitAndOffsetNode implements QueryNode {
 
   validate(): boolean {
     // Clear any previous errors at the start of validation
-    if (this.state.issues) {
-      this.state.issues.clear();
+    if (this.context.issues) {
+      this.context.issues.clear();
     }
 
     if (this.primaryInput === undefined) {
-      setValidationError(this.state, 'No input node connected');
+      setValidationError(this.context, 'No input node connected');
       return false;
     }
 
     if (!this.primaryInput.validate()) {
-      setValidationError(this.state, 'Previous node is invalid');
+      setValidationError(this.context, 'Previous node is invalid');
       return false;
     }
 
@@ -149,21 +150,20 @@ export class LimitAndOffsetNode implements QueryNode {
   }
 
   clone(): QueryNode {
-    const stateCopy: LimitAndOffsetNodeState = {
-      limit: this.state.limit,
-      offset: this.state.offset,
-      filters: this.state.filters?.map((f) => ({...f})),
-      filterOperator: this.state.filterOperator,
-      onchange: this.state.onchange,
-    };
-    return new LimitAndOffsetNode(stateCopy);
+    return new LimitAndOffsetNode(
+      {
+        limit: this.attrs.limit,
+        offset: this.attrs.offset,
+      },
+      this.context,
+    );
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (this.primaryInput === undefined) return undefined;
 
-    const hasLimit = this.state.limit !== undefined && this.state.limit >= 0;
-    const hasOffset = this.state.offset !== undefined && this.state.offset > 0;
+    const hasLimit = this.attrs.limit !== undefined && this.attrs.limit >= 0;
+    const hasOffset = this.attrs.offset !== undefined && this.attrs.offset > 0;
 
     if (!hasLimit && !hasOffset) {
       // No limit/offset - return passthrough to maintain reference chain
@@ -172,24 +172,9 @@ export class LimitAndOffsetNode implements QueryNode {
 
     return StructuredQueryBuilder.withLimitOffset(
       this.primaryInput,
-      this.state.limit,
-      this.state.offset,
+      this.attrs.limit,
+      this.attrs.offset,
       this.nodeId,
     );
-  }
-
-  serializeState(): object {
-    // Only return serializable fields, excluding callbacks and objects
-    // that might contain circular references
-    return {
-      limit: this.state.limit,
-      offset: this.state.offset,
-    };
-  }
-
-  static deserializeState(
-    state: LimitAndOffsetNodeState,
-  ): LimitAndOffsetNodeState {
-    return {...state};
   }
 }

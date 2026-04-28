@@ -389,7 +389,7 @@ function onCssLoaded(app: AppImpl) {
     view: () => {
       const commands = app.commands;
       const hotkeys: HotkeyConfig[] = [];
-      for (const {id, defaultHotkey} of commands.commands) {
+      for (const {id, defaultHotkey} of commands.getCommands()) {
         if (defaultHotkey) {
           hotkeys.push({
             callback: () => commands.runCommand(id),
