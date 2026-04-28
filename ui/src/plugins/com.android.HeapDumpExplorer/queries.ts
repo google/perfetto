@@ -593,122 +593,101 @@ export async function fetchDominatorPath(
   engine: Engine,
   id: number,
 ): Promise<InstanceDetail['dominatorPath']> {
-  const pathRes = await engine.query(`
-    WITH RECURSIVE path(obj_id, depth) AS (
-      SELECT ${id}, 0
-      UNION ALL
-      SELECT d.idom_id, p.depth + 1
-      FROM path p
-      JOIN heap_graph_dominator_tree d ON d.id = p.obj_id
-      WHERE d.idom_id IS NOT NULL AND p.depth < 100
-    )
-    SELECT
-      p.obj_id AS id, p.depth,
-      c.name AS cls, c.deobfuscated_name AS deob,
-      o.self_size, o.native_size, o.heap_type, o.root_type,
-      dt.dominated_size_bytes AS dominated_size,
-      dt.dominated_native_size_bytes AS dominated_native,
-      dt.dominated_obj_count,
-      od.value_string, c.kind AS class_kind
-    FROM path p
-    JOIN heap_graph_object o ON o.id = p.obj_id
-    JOIN heap_graph_class c ON o.type_id = c.id
-    LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
-    LEFT JOIN heap_graph_dominator_tree dt ON dt.id = o.id
-    ORDER BY p.depth DESC
-  `);
-  const entries: {row: InstanceRow; objId: number}[] = [];
-  for (
-    const pit = pathRes.iter({
-      id: NUM,
-      depth: NUM,
-      cls: STR,
-      deob: STR_NULL,
-      self_size: NUM,
-      native_size: NUM,
-      heap_type: STR_NULL,
-      root_type: STR_NULL,
-      dominated_size: NUM_NULL,
-      dominated_native: NUM_NULL,
-      dominated_obj_count: NUM_NULL,
-      value_string: STR_NULL,
-      class_kind: STR,
-    });
-    pit.valid();
-    pit.next()
-  ) {
-    entries.push({row: rowFromIter(pit), objId: pit.id});
-  }
-
-  const result: NonNullable<InstanceDetail['dominatorPath']> = [];
-  for (let i = 0; i < entries.length; i++) {
-    let field = '';
-    if (i < entries.length - 1) {
-      const parentId = entries[i].objId;
-      const childId = entries[i + 1].objId;
-      const fRes = await engine.query(`
-        SELECT ifnull(r.deobfuscated_field_name, r.field_name) AS fname
-        FROM heap_graph_reference r
-        JOIN heap_graph_object o ON r.reference_set_id = o.reference_set_id
-        WHERE o.id = ${parentId} AND r.owned_id = ${childId}
-        LIMIT 1
-      `);
-      const fit = fRes.iter({fname: STR});
-      if (fit.valid()) {
-        field = '.' + fit.fname;
-      }
-    }
-    result.push({
-      row: entries[i].row,
-      field,
-      isDominator: true,
-    });
-  }
-  return result.length > 0 ? result : null;
+  return (await fetchDominatorPaths(engine, [id])).get(id) ?? null;
 }
 
-/**
- * Fetch shortest reference path from a GC root to the given object,
- * using the BFS-based min-depth tree from the stdlib.
- */
+/** Fetch shortest reference path from a GC root to the given object. */
 export async function fetchShortestPathFromRoot(
   engine: Engine,
   id: number,
 ): Promise<InstanceDetail['shortestPath']> {
-  const pathRes = await engine.query(`
-    INCLUDE PERFETTO MODULE graphs.hierarchy;
+  return (await fetchShortestPaths(engine, [id])).get(id) ?? null;
+}
 
+/** Batch-fetch shortest reference paths for multiple objects. */
+export async function fetchShortestPaths(
+  engine: Engine,
+  ids: number[],
+): Promise<Map<number, PathEntry[]>> {
+  const result = new Map<number, PathEntry[]>();
+  if (ids.length === 0) return result;
+
+  await requireDominatorTree(engine);
+
+  // Walk UP the BFS tree (id→parent_id) from each target.
+  const seeds = ids
+    .map((id) => `SELECT ${id} AS root_node_id, 1 AS root_target_weight`)
+    .join(' UNION ALL ');
+  const dfsRes = await engine.query(`
+    INCLUDE PERFETTO MODULE graphs.search;
+    SELECT root_node_id, node_id
+    FROM graph_reachable_weight_bounded_dfs!(
+      (
+        SELECT id AS source_node_id, parent_id AS dest_node_id,
+          0 AS edge_weight
+        FROM _heap_graph_object_min_depth_tree
+        WHERE parent_id IS NOT NULL
+      ),
+      (${seeds}),
+      1
+    )
+  `);
+
+  const allNodeIds = new Set<number>();
+  for (const it = dfsRes.iter({node_id: NUM}); it.valid(); it.next()) {
+    allNodeIds.add(it.node_id);
+  }
+  if (allNodeIds.size === 0) return result;
+
+  // Fetch parent_id links to reconstruct ordered chains.
+  const parentRes = await engine.query(`
+    SELECT id, parent_id
+    FROM _heap_graph_object_min_depth_tree
+    WHERE id IN (${Array.from(allNodeIds).join(',')})
+  `);
+  const parentMap = new Map<number, number | null>();
+  for (
+    const it = parentRes.iter({id: NUM, parent_id: NUM_NULL});
+    it.valid();
+    it.next()
+  ) {
+    parentMap.set(it.id, it.parent_id ?? null);
+  }
+
+  // Reconstruct ordered chains: walk parent_id from each target up, reverse.
+  const pathChains = new Map<number, number[]>();
+  for (const id of ids) {
+    const chain: number[] = [];
+    let cur: number | null = id;
+    while (cur !== null && parentMap.has(cur)) {
+      chain.push(cur);
+      cur = parentMap.get(cur) ?? null;
+    }
+    if (chain.length === 0) continue;
+    chain.reverse();
+    pathChains.set(id, chain);
+  }
+  if (pathChains.size === 0) return result;
+
+  // Batch-fetch node metadata.
+  const nodeRes = await engine.query(`
     SELECT
-      o.id, t.parent_id,
-      c.name AS cls, c.deobfuscated_name AS deob,
+      o.id, c.name AS cls, c.deobfuscated_name AS deob,
       o.self_size, o.native_size, o.heap_type, o.root_type,
       dt.dominated_size_bytes AS dominated_size,
       dt.dominated_native_size_bytes AS dominated_native,
       dt.dominated_obj_count,
       od.value_string, c.kind AS class_kind
-    FROM _tree_reachable_ancestors_or_self!(
-      _heap_graph_object_min_depth_tree,
-      (SELECT ${id} AS id)
-    ) a
-    JOIN _heap_graph_object_min_depth_tree t ON t.id = a.id
-    JOIN heap_graph_object o ON o.id = a.id
+    FROM heap_graph_object o
     JOIN heap_graph_class c ON o.type_id = c.id
     LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
     LEFT JOIN heap_graph_dominator_tree dt ON dt.id = o.id
+    WHERE o.id IN (${Array.from(allNodeIds).join(',')})
   `);
-
-  // Collect unordered entries keyed by id.
-  const byId = new Map<
-    number,
-    {row: InstanceRow; objId: number; parentId: number | null}
-  >();
-  const parentToChild = new Map<number, number>();
-  let rootId: number | null = null;
-
+  const nodeMap = new Map<number, InstanceRow>();
   for (
-    const pit = pathRes.iter({
+    const it = nodeRes.iter({
       id: NUM,
-      parent_id: NUM_NULL,
       cls: STR,
       deob: STR_NULL,
       self_size: NUM,
@@ -721,64 +700,52 @@ export async function fetchShortestPathFromRoot(
       value_string: STR_NULL,
       class_kind: STR,
     });
-    pit.valid();
-    pit.next()
+    it.valid();
+    it.next()
   ) {
-    byId.set(pit.id, {
-      row: rowFromIter(pit),
-      objId: pit.id,
-      parentId: pit.parent_id,
-    });
+    nodeMap.set(it.id, rowFromIter(it));
   }
-  if (byId.size === 0) return null;
 
-  // Build parent→child map and find the root (parent outside the set).
-  for (const [objId, entry] of byId) {
-    if (entry.parentId === null || !byId.has(entry.parentId)) {
-      rootId = objId;
-    } else {
-      parentToChild.set(entry.parentId, objId);
+  // Batch-resolve field names for all parent→child edges.
+  const edgePairs: string[] = [];
+  for (const chain of pathChains.values()) {
+    for (let i = 0; i < chain.length - 1; i++) {
+      edgePairs.push(`SELECT ${chain[i]} AS pid, ${chain[i + 1]} AS cid`);
+    }
+  }
+  const fieldMap = new Map<string, string>();
+  if (edgePairs.length > 0) {
+    const fRes = await engine.query(`
+      SELECT e.pid, e.cid,
+        ifnull(r.deobfuscated_field_name, r.field_name) AS fname
+      FROM (${edgePairs.join(' UNION ALL ')}) e
+      JOIN heap_graph_object o ON o.id = e.pid
+      JOIN heap_graph_reference r
+        ON r.reference_set_id = o.reference_set_id AND r.owned_id = e.cid
+    `);
+    for (
+      const it = fRes.iter({pid: NUM, cid: NUM, fname: STR});
+      it.valid();
+      it.next()
+    ) {
+      fieldMap.set(`${it.pid}:${it.cid}`, '.' + it.fname);
     }
   }
 
-  // Walk root → target.
-  const entries: {row: InstanceRow; objId: number}[] = [];
-  for (
-    let cur: number | null = rootId;
-    cur !== null;
-    cur = parentToChild.get(cur) ?? null
-  ) {
-    const e = byId.get(cur);
-    if (!e) break;
-    entries.push({row: e.row, objId: e.objId});
-  }
-
-  // Resolve field names between consecutive entries.
-  const result: NonNullable<InstanceDetail['shortestPath']> = [];
-  for (let i = 0; i < entries.length; i++) {
-    let field = '';
-    if (i < entries.length - 1) {
-      const parentId = entries[i].objId;
-      const childId = entries[i + 1].objId;
-      const fRes = await engine.query(`
-        SELECT ifnull(r.deobfuscated_field_name, r.field_name) AS fname
-        FROM heap_graph_reference r
-        JOIN heap_graph_object o ON r.reference_set_id = o.reference_set_id
-        WHERE o.id = ${parentId} AND r.owned_id = ${childId}
-        LIMIT 1
-      `);
-      const fit = fRes.iter({fname: STR});
-      if (fit.valid()) {
-        field = '.' + fit.fname;
-      }
+  for (const [targetId, chain] of pathChains) {
+    const path: PathEntry[] = [];
+    for (let i = 0; i < chain.length; i++) {
+      const row = nodeMap.get(chain[i]);
+      if (!row) continue;
+      const field =
+        i < chain.length - 1
+          ? fieldMap.get(`${chain[i]}:${chain[i + 1]}`) ?? ''
+          : '';
+      path.push({row, field, isDominator: false});
     }
-    result.push({
-      row: entries[i].row,
-      field,
-      isDominator: false,
-    });
+    if (path.length > 0) result.set(targetId, path);
   }
-  return result.length > 0 ? result : null;
+  return result;
 }
 
 /** Batch-fetch dominator-tree paths for multiple objects. */
