@@ -257,9 +257,6 @@ target_overrides = {
         'srcs':
             'glob(["src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql"])'
     },
-    '//src/trace_processor/plugins/wattson:wattson': {
-        'alwayslink': True,
-    },
 }
 
 # Defines required for Bazel.
@@ -930,6 +927,9 @@ def gen_target_helper(gn_target: GnParser.Target,
     label.__dict__['linkstatic'] = True
   else:
     label.srcs = raw_srcs
+
+  if gn_target.force_alwayslink:
+    label.__dict__['alwayslink'] = True
 
   if win_target:
     label.win_srcs = list(
