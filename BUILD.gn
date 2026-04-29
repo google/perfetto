@@ -76,6 +76,10 @@ if (enable_perfetto_traceconv) {
   }
 }
 
+if (enable_perfetto_protovm_compiler) {
+  all_targets += [ "src/protovm/compiler:protovm_compiler" ]
+}
+
 if (enable_perfetto_heapprofd) {
   all_targets += [ "src/profiling/memory:heapprofd" ]
 

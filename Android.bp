@@ -7439,6 +7439,65 @@ genrule {
     ],
 }
 
+// GN: //protos/perfetto/protovm:compile_config_descriptor
+genrule {
+    name: "perfetto_protos_perfetto_protovm_compile_config_descriptor",
+    srcs: [
+        "protos/perfetto/protovm/compile_config.proto",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --descriptor_set_out=$(out) $(in)",
+    out: [
+        "perfetto_protos_perfetto_protovm_compile_config_descriptor.bin",
+    ],
+}
+
+// GN: //protos/perfetto/protovm:compile_config_zero
+filegroup {
+    name: "perfetto_protos_perfetto_protovm_compile_config_zero",
+    srcs: [
+        "protos/perfetto/protovm/compile_config.proto",
+    ],
+}
+
+// GN: //protos/perfetto/protovm:compile_config_zero
+genrule {
+    name: "perfetto_protos_perfetto_protovm_compile_config_zero_gen",
+    srcs: [
+        ":perfetto_protos_perfetto_protovm_compile_config_zero",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_protovm_compile_config_zero)",
+    out: [
+        "external/perfetto/protos/perfetto/protovm/compile_config.pbzero.cc",
+    ],
+}
+
+// GN: //protos/perfetto/protovm:compile_config_zero
+genrule {
+    name: "perfetto_protos_perfetto_protovm_compile_config_zero_gen_headers",
+    srcs: [
+        ":perfetto_protos_perfetto_protovm_compile_config_zero",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_protovm_compile_config_zero)",
+    out: [
+        "external/perfetto/protos/perfetto/protovm/compile_config.pbzero.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
 // GN: //protos/perfetto/protovm:cpp
 filegroup {
     name: "perfetto_protos_perfetto_protovm_cpp",
@@ -7480,6 +7539,21 @@ genrule {
     export_include_dirs: [
         ".",
         "protos",
+    ],
+}
+
+// GN: //protos/perfetto/protovm:descriptor
+genrule {
+    name: "perfetto_protos_perfetto_protovm_descriptor",
+    srcs: [
+        "protos/perfetto/protovm/vm_program.proto",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --descriptor_set_out=$(out) $(in)",
+    out: [
+        "perfetto_protos_perfetto_protovm_descriptor.bin",
     ],
 }
 
@@ -14625,6 +14699,83 @@ filegroup {
     ],
 }
 
+// GN: //src/protovm/compiler:compiler
+filegroup {
+    name: "perfetto_src_protovm_compiler_compiler",
+    srcs: [
+        "src/protovm/compiler/compiler.cc",
+        "src/protovm/compiler/instruction_emitter.cc",
+    ],
+}
+
+// GN: //src/protovm/compiler:gen_cc_compile_config_descriptor
+genrule {
+    name: "perfetto_src_protovm_compiler_gen_cc_compile_config_descriptor",
+    srcs: [
+        ":perfetto_protos_perfetto_protovm_compile_config_descriptor",
+    ],
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    out: [
+        "src/protovm/compiler/compile_config.descriptor.h",
+    ],
+    tool_files: [
+        "python/tools/cpp_blob_emitter.py",
+    ],
+}
+
+// GN: //src/protovm/compiler:gen_cc_trace_descriptor
+genrule {
+    name: "perfetto_src_protovm_compiler_gen_cc_trace_descriptor",
+    srcs: [
+        ":perfetto_protos_perfetto_trace_descriptor",
+    ],
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    out: [
+        "src/protovm/compiler/trace.descriptor.h",
+    ],
+    tool_files: [
+        "python/tools/cpp_blob_emitter.py",
+    ],
+}
+
+// GN: //src/protovm/compiler:gen_cc_vm_program_descriptor
+genrule {
+    name: "perfetto_src_protovm_compiler_gen_cc_vm_program_descriptor",
+    srcs: [
+        ":perfetto_protos_perfetto_protovm_descriptor",
+    ],
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    out: [
+        "src/protovm/compiler/vm_program.descriptor.h",
+    ],
+    tool_files: [
+        "python/tools/cpp_blob_emitter.py",
+    ],
+}
+
+// GN: //src/protovm/compiler:gen_cc_winscope_descriptor
+genrule {
+    name: "perfetto_src_protovm_compiler_gen_cc_winscope_descriptor",
+    srcs: [
+        ":perfetto_protos_perfetto_trace_android_winscope_descriptor",
+    ],
+    cmd: "$(location python/tools/cpp_blob_emitter.py) --output=$(out) --gen-dir=$(genDir) --namespace perfetto --symbol-suffix Descriptor $(in)",
+    out: [
+        "src/protovm/compiler/winscope.descriptor.h",
+    ],
+    tool_files: [
+        "python/tools/cpp_blob_emitter.py",
+    ],
+}
+
+// GN: //src/protovm/compiler:unittests
+filegroup {
+    name: "perfetto_src_protovm_compiler_unittests",
+    srcs: [
+        "src/protovm/compiler/compiler_unittest.cc",
+    ],
+}
+
 // GN: //src/protovm:protovm
 filegroup {
     name: "perfetto_src_protovm_protovm",
@@ -20178,6 +20329,7 @@ cc_test {
         ":perfetto_protos_perfetto_perfetto_sql_cpp_gen",
         ":perfetto_protos_perfetto_perfetto_sql_zero_gen",
         ":perfetto_protos_perfetto_proto_filtering_lite_gen",
+        ":perfetto_protos_perfetto_protovm_compile_config_zero_gen",
         ":perfetto_protos_perfetto_protovm_cpp_gen",
         ":perfetto_protos_perfetto_protovm_lite_gen",
         ":perfetto_protos_perfetto_protovm_zero_gen",
@@ -20317,6 +20469,8 @@ cc_test {
         ":perfetto_src_proto_utils_pb_to_txt",
         ":perfetto_src_proto_utils_txt_to_pb",
         ":perfetto_src_proto_utils_unittests",
+        ":perfetto_src_protovm_compiler_compiler",
+        ":perfetto_src_protovm_compiler_unittests",
         ":perfetto_src_protovm_protovm",
         ":perfetto_src_protovm_test_messages_lite_gen",
         ":perfetto_src_protovm_unittests",
@@ -20659,6 +20813,7 @@ cc_test {
         "perfetto_protos_perfetto_perfetto_sql_cpp_gen_headers",
         "perfetto_protos_perfetto_perfetto_sql_zero_gen_headers",
         "perfetto_protos_perfetto_proto_filtering_lite_gen_headers",
+        "perfetto_protos_perfetto_protovm_compile_config_zero_gen_headers",
         "perfetto_protos_perfetto_protovm_cpp_gen_headers",
         "perfetto_protos_perfetto_protovm_lite_gen_headers",
         "perfetto_protos_perfetto_protovm_zero_gen_headers",
@@ -20744,6 +20899,10 @@ cc_test {
         "perfetto_src_perfetto_cmd_protos_cpp_gen_headers",
         "perfetto_src_proto_utils_gen_cc_config_descriptor",
         "perfetto_src_proto_utils_gen_cc_trace_summary_descriptor",
+        "perfetto_src_protovm_compiler_gen_cc_compile_config_descriptor",
+        "perfetto_src_protovm_compiler_gen_cc_trace_descriptor",
+        "perfetto_src_protovm_compiler_gen_cc_vm_program_descriptor",
+        "perfetto_src_protovm_compiler_gen_cc_winscope_descriptor",
         "perfetto_src_protovm_test_messages_lite_gen_headers",
         "perfetto_src_protozero_filtering_gen_cc_filter_util_test_descriptor",
         "perfetto_src_protozero_testing_messages_cpp_gen_headers",
