@@ -159,6 +159,12 @@ export abstract class EngineBase implements Engine, Disposable {
   private pendingParses = new Array<Deferred<void>>();
   private pendingEOFs = new Array<Deferred<void>>();
   private pendingResetTraceProcessors = new Array<Deferred<void>>();
+  // FIFO of in-flight `streamingQuery` results. `streamingQuery` pushes
+  // here and immediately fires the RPC (no client-side serialisation
+  // between concurrent `query()` calls). `TPM_QUERY_STREAMING` responses
+  // are matched to `pendingQueries[0]` in arrival order, so this relies
+  // on the trace_processor RPC server emitting all chunks of one query
+  // contiguously on the byte pipe before starting the next.
   private pendingQueries = new Array<WritableQueryResult>();
   private pendingRestoreTables = new Array<Deferred<void>>();
   private pendingComputeMetrics = new Array<Deferred<string | Uint8Array>>();

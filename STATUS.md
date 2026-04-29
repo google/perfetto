@@ -23,6 +23,90 @@ Phase 4 in progress (RPC pool + UI fan-out + WASM pthreads).
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [Phase 4 iter 2]: ui-engine-fan-out closed as audit-only.
+  Set out to lift client-side serialisation in `engine.ts`; the audit
+  found there is no client-side serialisation to lift. `streamingQuery`
+  already pushes onto `pendingQueries` and fires `rpcSendRequestBytes`
+  synchronously, with no mutex / promise-chain. Concurrent
+  `engine.query()` calls from JS issue their TraceProcessorRpc
+  messages back-to-back on the websocket. The single FIFO match
+  point — `pendingQueries[0]` consuming `TPM_QUERY_STREAMING`
+  responses in onRpcResponseMessage — only requires that the
+  trace_processor RPC server emit all chunks of one query
+  contiguously before starting the next, which `Rpc::Query` already
+  honours per-call.
+  
+  **The bottleneck is in C++, not in `engine.ts`.** Two findings
+  from tracing the websocket path end-to-end:
+  
+  1. `Httpd::OnWebsocketMessage` → `Rpc::OnRpcRequest` →
+     `Rpc::ParseRpcRequest` (`src/trace_processor/rpc/rpc.cc:227`)
+     handles `TPM_QUERY_STREAMING` inline at lines 278-331, calling
+     `trace_processor_->ExecuteQuery(sql)` on the writer engine
+     directly. It does **not** go through `Rpc::Query`, which is
+     the only path wired to the iter-1 worker pool. Today the
+     only `Rpc::Query` caller from a real transport is the
+     `/query` HTTP POST endpoint in `httpd.cc:228` (a chunked-
+     transfer endpoint that predates the websocket path and the
+     UI no longer uses by default).
+  2. Even if (1) were fixed, `Httpd` runs a single
+     `base::MaybeLockFreeTaskRunner` (`httpd.cc:69`) and
+     `Rpc::Query` blocks its caller on `done_fut.wait()`
+     (`rpc.cc:827`). N concurrent websocket messages still
+     serialise on the task-runner thread regardless of how many
+     pool workers exist.
+     
+  Net effect: the iter-1 worker pool is currently dormant for the
+  UI's primary transport. UI-side fan-out (this iter) is a
+  prerequisite for, but not sufficient for, an HTTP-RPC speedup.
+  
+  **WASM-pthreads question.** Same shape as HTTP-RPC: the wasm
+  bridge in `engine_bundle.js` (worker thread) marshals
+  `TraceProcessorRpc` bytes through the synchronous `OnRpcRequest`
+  path, not `Rpc::Query`. Even with pthreads enabled in wasm,
+  only one query at a time would dispatch onto the pool — same
+  limitation as httpd. So `wasm-pthreads` is not a hard
+  prerequisite for this iter (the iter is a no-op regardless),
+  but the chunk's value depends on `httpd-pool-dispatch` (new
+  chunk) landing alongside it.
+  
+  **Change made.** Added a comment block above
+  `pendingQueries` in `engine.ts` documenting the audit
+  conclusion: client side is already concurrent, FIFO matching
+  is contractually safe as long as the C++ side emits chunks
+  for one query contiguously, and the gating chunk is
+  `httpd-pool-dispatch`. No functional change.
+  
+  **Validation.**
+  - `ui/build --typecheck --no-depscheck`: clean
+    (`tsc --project ../../ui --noEmit` + service_worker tsc).
+  - `npx eslint src/trace_processor/`: clean (no errors / warnings).
+  - `ui/run-unittests --no-depscheck`: 125 suites, 2249 PASSED,
+    1 SKIPPED, 0 FAILED — matches the iter-1 baseline shape, no
+    regressions introduced by the comment change.
+  - Visual / UI dev-server validation: deferred. Without the
+    `httpd-pool-dispatch` chunk landed there is nothing visually
+    different to observe — the network panel already shows
+    concurrent in-flight WebSocket frames today, the C++ side
+    just answers them one at a time.
+  - Perf measurement: deferred to `e2e-perf-validation`. A
+    headline number requires `httpd-pool-dispatch` first;
+    measuring the no-op change in isolation would just produce
+    noise.
+  
+  **Files touched.**
+  - `ui/src/trace_processor/engine.ts` — comment-only change
+    above `pendingQueries`.
+  - `STATUS.md` — this entry, plus the chunk-list re-prioritisation
+    below (added new `httpd-pool-dispatch` chunk, swapped its
+    order with `wasm-pthreads`).
+  
+  **Recommendation.** Next chunk should be `httpd-pool-dispatch`,
+  not `wasm-pthreads`: the websocket path is the actual UI
+  transport in production today, and the iter-1 pool is dormant
+  until queries dispatched via websocket actually land on a
+  worker.
+
 - 2026-04-29 [Phase 4 iter 1]: rpc-thread-pool done. `Rpc` now fans
   query RPCs across a `base::ThreadPool` sized to
   `min(hardware_concurrency, 8)` (capped because TP queries are
@@ -1783,14 +1867,38 @@ and the temp-then-promote breakthrough above before sequencing them.
       `StringPool::should_acquire_mutex_` (single-producer
       contract for the bool flip). 4 new tests under
       `RpcTest.*`. See Phase 4 iter 1 activity entry.
-- [ ] ui-engine-fan-out — UI's `engine.ts` fans queries across the
-      pool. The C++ side is now thread-safe under `Rpc::Query`;
-      the next step is to teach the UI's TS-side engine to issue
-      multiple in-flight queries concurrently (currently the
-      engine.ts `query()` path serialises). Likely needs a small
-      `WorkerPool` of dedicated `MessageChannel`s into the wasm
-      bridge (or, with pthreads, multiple `Rpc::Query` calls
-      from JS workers). Measure trace-load wall time before/after.
+- [x] ui-engine-fan-out — done Phase 4 iter 2 (audit-only). The UI
+      already does NOT serialise `query()` calls: `streamingQuery`
+      pushes a `WritableQueryResult` onto `pendingQueries` and
+      immediately calls `rpcSendRequestBytes`, with no client-side
+      mutex / promise-chain in between. The bottleneck for
+      HTTP-RPC parallelism is in C++, not in `engine.ts`: the
+      websocket path routes through
+      `Rpc::OnRpcRequest → ParseRpcRequest → TPM_QUERY_STREAMING`
+      (rpc.cc:278-331), which calls `trace_processor_->ExecuteQuery`
+      directly on the writer engine. It does **not** go through
+      `Rpc::Query` — the only path wired to the iter-1 worker pool.
+      Even if it did, `httpd.cc`'s `task_runner_` is single-threaded
+      (one `MaybeLockFreeTaskRunner` per `Httpd`) and `Rpc::Query`
+      blocks the caller via `done_fut.wait()`, so concurrent UI
+      queries would still serialise on the task-runner thread.
+      Added a comment to `engine.ts` documenting the FIFO
+      response-matching contract (the sole dependency the UI has
+      on the C++-side ordering — chunks for one query must be
+      emitted contiguously on the wire, which `Rpc::Query` already
+      honours per-call). No functional change. See the Phase 4
+      iter 2 activity entry for the full audit.
+- [ ] httpd-pool-dispatch — **new chunk**, surfaced by ui-engine-fan-out
+      audit. Route the websocket `TPM_QUERY_STREAMING` path through
+      `Rpc::Query` (or extract `RunQueryOnPoolWorker` so both paths
+      share it), and either (a) make `httpd.cc`'s task_runner
+      multi-threaded so concurrent websocket messages can dispatch
+      in parallel, or (b) rework `Rpc::Query` to be fully async
+      (post the task and don't block; let the callback run on the
+      pool thread directly into `SendWebsocketMessage`). Without
+      this the rpc-thread-pool from iter 1 is dormant for the
+      UI's primary transport (websocket). Strict prerequisite for
+      any HTTP-RPC speedup measurement in `e2e-perf-validation`.
 - [ ] wasm-pthreads — flip the WASM build to use pthreads when
       COOP+COEP is available; fallback to single-thread. The
       wasm bridge currently funnels all `Rpc` calls onto the main
@@ -1799,10 +1907,16 @@ and the temp-then-promote breakthrough above before sequencing them.
       `enable_perfetto_wasm_pthreads` GN arg + a runtime check
       for cross-origin isolation; gracefully degrade to
       hardware_concurrency=1 when pthreads aren't available.
+      Note: the wasm bridge in the worker thread *also* uses the
+      synchronous `OnRpcRequest → ParseRpcRequest` path, so it
+      shares the httpd-pool-dispatch precondition above. Even
+      with pthreads, until the wasm-side message handler routes
+      through `Rpc::Query`, only one query at a time runs on the
+      pool.
 - [ ] e2e-perf-validation — measure trace-load wall-time on a
       representative trace (Android frame-drop or Chrome trace,
       pick something that the UI loads regularly) before and
-      after rpc-thread-pool + ui-engine-fan-out + wasm-pthreads
+      after rpc-thread-pool + httpd-pool-dispatch + wasm-pthreads
       land. Goal is a visible parallelism win on the UI's
       post-EOF query flurry; the project memo's "headline target"
       is end-to-end. Cache the baseline before iter-2 starts so
