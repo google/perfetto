@@ -52,10 +52,15 @@ def _resolve_out_dir(repo_root: str) -> str:
   out_root = os.path.join(repo_root, 'out')
   if not os.path.isdir(out_root):
     return ''
+  # Skip transient `tmp.*` dirs created by `tools/gn_utils.py` (used by
+  # `gen_android_bp` / `gen_bazel`). They contain a `build.ninja` but are
+  # configured without `perfetto_build_standalone=true`, so they don't
+  # define `perfetto_fmt_dialect`.
   candidates = [
       os.path.join(out_root, d)
       for d in os.listdir(out_root)
-      if os.path.isfile(os.path.join(out_root, d, 'build.ninja'))
+      if not d.startswith('tmp.') and
+      os.path.isfile(os.path.join(out_root, d, 'build.ninja'))
   ]
   if not candidates:
     return ''
