@@ -28,6 +28,8 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/winscope_proto_mapping.h"
 
+#include <fstream>
+
 namespace perfetto::trace_processor::winscope {
 
 WindowManagerParser::WindowManagerParser(WinscopeContext* context)
@@ -37,6 +39,12 @@ WindowManagerParser::WindowManagerParser(WinscopeContext* context)
       args_parser_{*context->trace_processor_context_->descriptor_pool_} {}
 
 void WindowManagerParser::Parse(int64_t timestamp, protozero::ConstBytes blob) {
+  std::ofstream outFile("trace_packet.pb", std::ios::binary);
+  PERFETTO_DCHECK(outFile.is_open());
+  outFile.write(reinterpret_cast<const char*>(blob.data),
+                static_cast<long>(blob.size));
+  outFile.close();
+
   protos::pbzero::WindowManagerTraceEntry::Decoder entry_decoder(blob);
   protos::pbzero::WindowManagerServiceDumpProto::Decoder service_decoder(
       entry_decoder.window_manager_service());

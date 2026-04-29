@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/proto/winscope/windowmanager_walk_strategy.h"
+#include "protos/perfetto/trace/android/server/windowmanagerservice.pbzero.h"
 
 namespace perfetto::trace_processor::winscope {
 
@@ -232,18 +233,37 @@ IterateWalkStrategy::BuildChildToParentMap(
     const {
   base::FlatHashMap<int32_t, ParentLink> child_to_parent;
 
+  // TODO: adapt unit test (RootWindowContainerProto info entirely contained in
+  // root_window_container field, no longer partially in window_containers flat
+  // list (element without parent))
+  protos::pbzero::RootWindowContainerProto::Decoder root(
+      service.root_window_container());
+  CollectParentLinks(
+      protos::pbzero::WindowContainerProto::Decoder(root.window_container()),
+      &child_to_parent);
+
   for (auto it = service.window_containers(); it; ++it) {
     protos::pbzero::WindowContainerChildProto::Decoder child(*it);
-    int32_t token = child.token();
-
-    auto window_container = GetWindowContainer(child);
-    uint32_t index = 0;
-    for (auto cit = window_container.child_tokens(); cit; ++cit) {
-      int32_t child_token = *cit;
-      child_to_parent[child_token] = {token, index++};
-    }
+    CollectParentLinks(GetWindowContainer(child), &child_to_parent);
   }
   return child_to_parent;
+}
+
+void IterateWalkStrategy::CollectParentLinks(
+    const protos::pbzero::WindowContainerProto::Decoder& window_container,
+    base::FlatHashMap<int32_t, ParentLink>* child_to_parent) const {
+  protos::pbzero::IdentifierProto::Decoder identifier(
+      window_container.identifier());
+  if (!identifier.has_hash_code()) {
+    PERFETTO_DCHECK(false);  // TODO(keanmariotti): return
+                             // base::ErrStatus(kErrorMessageMissingField);
+  }
+  int32_t token = identifier.hash_code();
+  uint32_t index = 0;
+  for (auto cit = window_container.child_tokens(); cit; ++cit) {
+    int32_t child_token = *cit;
+    (*child_to_parent)[child_token] = {token, index++};
+  }
 }
 
 void IterateWalkStrategy::DispatchToCallbacks(
@@ -256,32 +276,23 @@ void IterateWalkStrategy::DispatchToCallbacks(
         void(const protos::pbzero::WindowContainerChildProto::Decoder&,
              int32_t parent_token,
              uint32_t child_index)>& onChild) const {
-  bool root_found = false;
+  // Root
+  protos::pbzero::RootWindowContainerProto::Decoder root(
+      service.root_window_container());
+  // TODO(keanmariotti): get rid of second argument
+  onRoot(root, protos::pbzero::WindowContainerProto::Decoder(
+                   root.window_container()));
+
+  // Children
   for (auto it = service.window_containers(); it; ++it) {
     protos::pbzero::WindowContainerChildProto::Decoder child(*it);
     int32_t token = child.token();
 
     auto* parent_info = child_to_parent.Find(token);
-    if (parent_info) {
-      onChild(child, parent_info->parent_token, parent_info->child_index);
-    } else {
-      // Root candidate
-      root_found = true;
-      auto window_container = GetWindowContainer(child);
-      protos::pbzero::RootWindowContainerProto::Decoder root(
-          service.root_window_container());
-      onRoot(root, window_container);
+    if (!parent_info) {
+      PERFETTO_DCHECK(false);  // TODO(keanmariotti): return error instead
     }
-  }
-
-  // TODO(keanmariotti): return base::Status instead
-  //  Fallback for EmptyHierarchy
-  if (!root_found) {
-    protos::pbzero::RootWindowContainerProto::Decoder root(
-        service.root_window_container());
-    protos::pbzero::WindowContainerProto::Decoder empty_window_container(
-        nullptr, 0);
-    onRoot(root, empty_window_container);
+    onChild(child, parent_info->parent_token, parent_info->child_index);
   }
 }
 

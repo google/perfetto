@@ -99,6 +99,10 @@ class IterateWalkStrategy : public WalkStrategy {
       const protos::pbzero::WindowManagerServiceDumpProto::Decoder& service)
       const;
 
+  void CollectParentLinks(
+      const protos::pbzero::WindowContainerProto::Decoder& window_container,
+      base::FlatHashMap<int32_t, ParentLink>* child_to_parent) const;
+
   void DispatchToCallbacks(
       const protos::pbzero::WindowManagerServiceDumpProto::Decoder& service,
       const base::FlatHashMap<int32_t, ParentLink>& child_to_parent,
