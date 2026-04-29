@@ -854,5 +854,74 @@ TEST(TraceProcessorConnectionTest, ConcurrentIncludesOfSameModuleSerialise) {
   ASSERT_EQ(errors.load(), 0) << "logs:\n" << log_dump;
 }
 
+// Phase 3 iter 3 stress test for the SqlStats recording path. Each
+// `ExecuteQuery` records `RecordQueryBegin` (from
+// `TraceProcessorImpl::ExecuteQuery` or `ConnectionImpl::ExecuteQuery`),
+// `RecordQueryFirstNext`, and `RecordQueryEnd` against the parent's
+// shared `TraceStorage::SqlStats`. With multiple connections each on
+// their own thread, those mutations race on the same `std::deque`s.
+// This test fires four threads each running 100 trivial queries on a
+// dedicated connection; under ASan the previous container-overflow
+// abort would surface within a few iterations. Post-fix the run is
+// clean and `SELECT count(*) FROM sqlstats` returns the bounded log
+// size (`kMaxLogEntries == 100`).
+TEST(TraceProcessorConnectionTest, ConcurrentRecordingIntoSqlStats) {
+  auto tp = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(tp->NotifyEndOfFile());
+
+  constexpr int kThreads = 4;
+  constexpr int kItersPerThread = 100;
+
+  std::vector<std::unique_ptr<TraceProcessor::Connection>> conns;
+  for (int i = 0; i < kThreads; ++i) {
+    auto conn = tp->CreateConnection();
+    ASSERT_NE(conn, nullptr);
+    conns.push_back(std::move(conn));
+  }
+
+  std::atomic<int> errors{0};
+  auto worker = [&](std::unique_ptr<TraceProcessor::Connection> conn,
+                    int tag) {
+    for (int i = 0; i < kItersPerThread; ++i) {
+      // Distinct query text per (thread, iter) so the SqlStats deque
+      // observes a steady stream of writes rather than dedup-able
+      // identical strings — exercises the push_back path on every
+      // iteration.
+      auto it = conn->ExecuteQuery(
+          "SELECT " + std::to_string(tag * kItersPerThread + i));
+      if (!it.Next()) {
+        errors.fetch_add(1, std::memory_order_relaxed);
+        return;
+      }
+      // Drive the iterator to completion to fire RecordQueryFirstNext
+      // and (on ~Iterator) RecordQueryEnd.
+      while (it.Next()) {
+      }
+      if (!it.Status().ok()) {
+        errors.fetch_add(1, std::memory_order_relaxed);
+        return;
+      }
+    }
+  };
+
+  std::vector<std::thread> threads;
+  for (size_t i = 0; i < conns.size(); ++i) {
+    threads.emplace_back(worker, std::move(conns[i]), static_cast<int>(i));
+  }
+  for (auto& t : threads) {
+    t.join();
+  }
+  ASSERT_EQ(errors.load(), 0);
+
+  // SqlStats caps at kMaxLogEntries = 100. After 400 inserts the log
+  // is at its cap; the count query itself is also recorded so we just
+  // assert the upper bound is respected (no underflow / no overflow).
+  auto count_it = tp->ExecuteQuery("SELECT count(*) FROM sqlstats;");
+  ASSERT_TRUE(count_it.Next()) << count_it.Status().c_message();
+  ASSERT_GT(count_it.Get(0).long_value, 0);
+  ASSERT_LE(count_it.Get(0).long_value, 100);
+  ASSERT_OK(count_it.Status());
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor

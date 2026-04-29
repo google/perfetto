@@ -20,11 +20,11 @@
 #include <cstddef>
 
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto::trace_processor {
 
 class QueryConstraints;
-class TraceStorage;
 
 // A virtual table that allows to introspect performances of the SQL engine
 // for the kMaxLogEntries queries.
@@ -35,8 +35,11 @@ struct SqlStatsModule : sqlite::Module<SqlStatsModule> {
   };
   struct Cursor : sqlite::Module<SqlStatsModule>::Cursor {
     const TraceStorage* storage = nullptr;
+    // Point-in-time snapshot of the parent's `SqlStats` taken at `Filter`
+    // time. Iterating this rather than the live deques keeps the cursor safe
+    // against concurrent recording from other connections.
+    TraceStorage::SqlStats::Snapshot snapshot;
     size_t row = 0;
-    size_t num_rows = 0;
   };
   enum Column {
     kQuery = 0,

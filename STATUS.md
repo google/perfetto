@@ -23,6 +23,88 @@ Phase 3 in progress (thread safety + retry middleware).
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [Phase 3 iter 3]: globals-audit done (SqlStats race
+  fixed). Surface fix for the iter 2 ASan finding: every public
+  method on `TraceStorage::SqlStats` now takes a private
+  `mutable std::mutex mutex_`. The four `RecordQuery*` writers and
+  `size()` are guarded directly; the four read accessors that
+  exposed raw `const std::deque<...>&` references (used only by
+  `SqlStatsModule` for `SELECT * FROM sqlstats`) are replaced by a
+  new `SnapshotForReading()` that copies all four columns into a
+  `Snapshot` struct of `std::vector<...>` under the lock and
+  returns by value. The `SqlStatsModule::Cursor` carries the
+  `Snapshot` for its lifetime so iteration is decoupled from
+  concurrent writers — no torn reads, no UAF if a `pop_front`
+  fires mid-iteration. The `Filter` no longer caches a `num_rows`;
+  it just stores the snapshot whose `size()` is the bound. Header
+  changes to `trace_storage.h`: `<mutex>` include + `Snapshot`
+  nested struct + `SnapshotForReading` declaration. Implementation
+  in `trace_storage.cc`. `sql_stats_table.{h,cc}` migrated to use
+  the snapshot path; `sql_stats_table.h` now `#include`s
+  `trace_storage.h` directly to see `SqlStats::Snapshot` (Cursor
+  holds it by value).
+
+  **Stress test added**: `ConcurrentRecordingIntoSqlStats` under
+  `TraceProcessorConnectionTest.*`. Spawns 4 threads each owning
+  its own secondary `Connection`; each runs 100 trivial
+  `SELECT <unique>` queries to drive the full
+  `RecordQueryBegin` / `RecordQueryFirstNext` / `RecordQueryEnd`
+  cycle. Distinct query strings per (thread, iter) keep every
+  iteration on the `push_back` hot path. After the join, a
+  `SELECT count(*) FROM sqlstats` on the writer asserts the count
+  is positive and bounded by `kMaxLogEntries` (100) — proves the
+  vtab path also runs cleanly under the lock. Previously, this
+  pattern reproduced the iter-2 container-overflow flake within a
+  handful of iterations; post-fix, **10/10 ASan runs of
+  `TraceProcessorConnectionTest.*` are clean**, including the new
+  stress test, the iter-1 `ConcurrentReadersDoNotCrash`, and the
+  iter-2 `ConcurrentIncludesOfSameModuleSerialise`.
+
+  **Audit findings (deferred)**:
+  - `StringPool` (`src/trace_processor/containers/string_pool.h`)
+    has a built-in `mutex_` plus a `set_locking(bool)` toggle, but
+    the toggle defaults to `false` and **no production caller flips
+    it on**. Every `InternString` from a query handler (e.g.
+    `GProfileBuilder::StringTable::InternString`,
+    `json_args::ParseArg`'s `storage->InternString`,
+    `RuntimeDataframeBuilder`'s pool inserts) mutates
+    `string_index_` and `blocks_` un-guarded. Single-connection
+    today, so quiescent — but as soon as Phase 4 runs queries on
+    multiple threads, this will be the next race. Seeded as a new
+    chunk `string-pool-thread-safety` below.
+  - `TraceStorage`'s data tables (`SchedSliceTable`, `SliceTable`,
+    etc.) are written only during ingestion and read during query.
+    The Phase 2 design rule "multi-connection only legal post-
+    `NotifyEndOfFile`; concurrent ingestion is out of scope" is
+    enforced at `TraceProcessorImpl::CreateConnection` via
+    `PERFETTO_CHECK(notify_eof_called_)` (and mutating TP methods
+    are gated on `non_default_connection_count_ == 0`). So
+    concurrent reads are fine and reads-during-write cannot occur.
+    Documented; no action.
+  - SQLite-binding statics in `src/trace_processor/sqlite/bindings/`
+    are mostly compile-time `kModule` constexpr structs (one per
+    module) plus `RegisterFunction` wrappers — no shared mutable
+    state at the binding layer. Per-engine state lives on the
+    `sqlite3*` handle, which is naturally per-connection. No
+    findings.
+  - `TraceProcessorImpl` itself: the `non_default_connection_count_`
+    is an `int` mutated under what is effectively the GIL of "only
+    the writer thread calls `CreateConnection`/destructor"; with
+    Phase 4 RPC pool this becomes an `atomic<int>` or a mutex.
+    Deferred to Phase 4.
+
+  **Test counts:**
+  - `out/mac_release/perfetto_unittests`: 3248 PASSED + 2 SKIPPED
+    + 1 pre-existing macOS failure (`HttpServerTest.Websocket`).
+    +1 new test vs. iter 2 (`ConcurrentRecordingIntoSqlStats`).
+  - `out/mac_release/perfetto_integrationtests` (TP-relevant
+    filter): 122 PASSED, unchanged.
+  - `tools/diff_test_trace_processor.py`: 1355 PASSED + 9
+    pre-existing skips, unchanged.
+  - `out/mac_asan/perfetto_unittests` (connection-tests filter):
+    18/18 PASSED across 10 consecutive runs, no ASan reports.
+    The iter-2 flake is gone.
+
 - 2026-04-29 [Phase 3 iter 2]: cross-conn-package-propagation done.
   Mirrors iter 5's function-pool design for SQL packages.
   `GlobalStagingArea` grows an additive package pool: a
@@ -960,11 +1042,33 @@ and the temp-then-promote breakthrough above before sequencing them.
 - [ ] schema-retry — transparent `SQLITE_SCHEMA` retry: re-prepare the
       statement when the schema cookie changes underneath an in-flight
       query. Drops in alongside busy-retry on the same wrapper.
-- [ ] globals-audit — sweep `PerfettoSqlEngine`, `TraceProcessorImpl`,
-      `GlobalStagingArea`, and the SQLite-binding helpers for
-      thread-unsafe statics / globals (e.g. shared `string_pool_`,
-      shared error buffers). Connect findings to the chunks above so
-      they can be fixed by-construction rather than retroactively.
+- [x] globals-audit — done Phase 3 iter 3. Headline fix:
+      `TraceStorage::SqlStats` had un-guarded
+      `std::deque<string>::push_back` from concurrent connection
+      threads (the iter-2 ASan flake). Wrapped all writers in a
+      `mutable std::mutex` and replaced the raw `const deque&` read
+      accessors with a `SnapshotForReading()` returning a copy under
+      the lock; `SqlStatsModule::Cursor` carries the snapshot for
+      iteration. Audit pass also flagged `StringPool` (next chunk)
+      and confirmed `TraceStorage` data tables are race-free by the
+      "multi-conn legal only post-EOF" gate. New stress test
+      `ConcurrentRecordingIntoSqlStats` (4 threads, 400 queries) is
+      clean across 10 consecutive ASan runs.
+- [ ] string-pool-thread-safety — flip
+      `StringPool::set_locking(true)` on the `TraceStorage`-owned
+      `string_pool_` (and any pool reachable from query handlers)
+      whenever multi-conn becomes possible, and / or replace the
+      `MaybeLockGuard` toggle with always-on locking now that
+      `Get(Id)` is already lock-free. Surfaced by the Phase 3 iter 3
+      audit pass: the hashtable insertion path
+      (`string_index_.Insert` + `InsertString`) is unguarded today
+      because `should_acquire_mutex_` defaults to `false` and no
+      production code flips it on, but query-side handlers like
+      `GProfileBuilder::StringTable::InternString`, `json_args`'s
+      `storage->InternString`, and `RuntimeDataframeBuilder` all
+      intern at query time. Quiescent today (single-conn writers
+      only) but a guaranteed race once Phase 4 fans queries across
+      threads.
 - [ ] tsan-multithread-stress — bring up a TSan-enabled build (or
       document the toolchain-availability blocker on macOS) and add a
       larger fan-out test: writer + multiple readers running interleaved

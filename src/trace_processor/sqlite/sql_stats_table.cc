@@ -77,7 +77,7 @@ int SqlStatsModule::Filter(sqlite3_vtab_cursor* cursor,
                            sqlite3_value**) {
   auto* c = GetCursor(cursor);
   c->row = 0;
-  c->num_rows = c->storage->sql_stats().size();
+  c->snapshot = c->storage->sql_stats().SnapshotForReading();
   return SQLITE_OK;
 }
 
@@ -88,26 +88,26 @@ int SqlStatsModule::Next(sqlite3_vtab_cursor* cursor) {
 
 int SqlStatsModule::Eof(sqlite3_vtab_cursor* cursor) {
   auto* c = GetCursor(cursor);
-  return c->row >= c->num_rows;
+  return c->row >= c->snapshot.size();
 }
 
 int SqlStatsModule::Column(sqlite3_vtab_cursor* cursor,
                            sqlite3_context* ctx,
                            int N) {
   auto* c = GetCursor(cursor);
-  const TraceStorage::SqlStats& stats = c->storage->sql_stats();
+  const auto& snapshot = c->snapshot;
   switch (N) {
     case Column::kQuery:
-      sqlite::result::StaticString(ctx, stats.queries()[c->row].c_str());
+      sqlite::result::StaticString(ctx, snapshot.queries[c->row].c_str());
       break;
     case Column::kTimeStarted:
-      sqlite::result::Long(ctx, stats.times_started()[c->row]);
+      sqlite::result::Long(ctx, snapshot.times_started[c->row]);
       break;
     case Column::kTimeFirstNext:
-      sqlite::result::Long(ctx, stats.times_first_next()[c->row]);
+      sqlite::result::Long(ctx, snapshot.times_first_next[c->row]);
       break;
     case Column::kTimeEnded:
-      sqlite::result::Long(ctx, stats.times_ended()[c->row]);
+      sqlite::result::Long(ctx, snapshot.times_ended[c->row]);
       break;
     default:
       PERFETTO_FATAL("Unknown column %d", N);

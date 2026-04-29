@@ -102,6 +102,7 @@ TraceStorage::~TraceStorage() {
 
 uint32_t TraceStorage::SqlStats::RecordQueryBegin(const std::string& query,
                                                   int64_t time_started) {
+  std::lock_guard<std::mutex> lock(mutex_);
   if (queries_.size() >= kMaxLogEntries) {
     queries_.pop_front();
     times_started_.pop_front();
@@ -118,6 +119,7 @@ uint32_t TraceStorage::SqlStats::RecordQueryBegin(const std::string& query,
 
 void TraceStorage::SqlStats::RecordQueryFirstNext(uint32_t row,
                                                   int64_t time_first_next) {
+  std::lock_guard<std::mutex> lock(mutex_);
   // This means we've popped this query off the queue of queries before it had
   // a chance to finish. Just silently drop this number.
   if (popped_queries_ > row)
@@ -128,6 +130,7 @@ void TraceStorage::SqlStats::RecordQueryFirstNext(uint32_t row,
 }
 
 void TraceStorage::SqlStats::RecordQueryEnd(uint32_t row, int64_t time_ended) {
+  std::lock_guard<std::mutex> lock(mutex_);
   // This means we've popped this query off the queue of queries before it had
   // a chance to finish. Just silently drop this number.
   if (popped_queries_ > row)
@@ -135,6 +138,18 @@ void TraceStorage::SqlStats::RecordQueryEnd(uint32_t row, int64_t time_ended) {
   uint32_t queue_row = row - popped_queries_;
   PERFETTO_DCHECK(queue_row < queries_.size());
   times_ended_[queue_row] = time_ended;
+}
+
+TraceStorage::SqlStats::Snapshot TraceStorage::SqlStats::SnapshotForReading()
+    const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  Snapshot snapshot;
+  snapshot.queries.assign(queries_.begin(), queries_.end());
+  snapshot.times_started.assign(times_started_.begin(), times_started_.end());
+  snapshot.times_first_next.assign(times_first_next_.begin(),
+                                   times_first_next_.end());
+  snapshot.times_ended.assign(times_ended_.begin(), times_ended_.end());
+  return snapshot;
 }
 
 }  // namespace perfetto::trace_processor
