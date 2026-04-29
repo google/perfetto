@@ -1,8 +1,7 @@
 # Multi-connection TraceProcessor — Loop Status
 
 ## Current Phase
-Phase 1: refactor + memdb (serialized transactions, no WAL) with no
-behavioural change. **Almost done — only `phase1-validation` remains.**
+Phase 1 complete. Next: Phase 2 (multi-conn single-threaded).
 
 ## Design pivots (2026-04-29, mid-Phase-1)
 - **WAL abandoned.** Switching to serialized transactions with
@@ -24,6 +23,20 @@ behavioural change. **Almost done — only `phase1-validation` remains.**
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [iter 10]: phase1-validation done. Final clean sweep on
+  `out/mac_release`: 3216 unittests pass + 1 skipped (only pre-existing
+  `HttpServerTest.Websocket` failure on macOS, ignored), 122 TP
+  integrationtests pass (filter
+  `TraceProcessor*:*Sqlite*:ReadTrace*`), 1355 diff tests pass + 9
+  skipped (etm + llvm_symbolizer modules absent — pre-existing). ASan
+  pass on `out/mac_asan` (`is_clang=true is_asan=true is_debug=false`):
+  built `perfetto_unittests` from scratch under ASan, then ran the
+  TP/SQL-scoped filter
+  `*Sql*:*Sqlite*:*Trace*Processor*:-HttpServerTest.Websocket` —
+  123/123 tests pass with zero ASan reports (no leak / use-after-free /
+  stack-use-after-scope). No source changes this iteration; only
+  STATUS.md and the project memory file updated to record Phase 1
+  completion. **Phase 1 closes here.**
 - 2026-04-29 [iter 9]: phase1-pragmas done. `SqliteConnection`
   constructor now applies `journal_mode=MEMORY`, `temp_store=MEMORY`,
   and `locking_mode=NORMAL` after `InitializeSqlite`, then re-reads
@@ -130,6 +143,48 @@ behavioural change. **Almost done — only `phase1-validation` remains.**
   `buildtools/sqlite_src/src/memdb.c`); a shared in-memory database is
   obtainable via `file:/<name>?vfs=memdb&cache=shared` without writing
   a custom VFS.
+
+## Phase 1 wrap-up
+
+Branch: `dev/lalitm/multi-conn-tp` — 10 commits ahead of `main` (9 code
++ this validation commit).
+
+What shipped:
+- SQLite build flags flipped: `SQLITE_THREADSAFE=0`→`=2`,
+  `-DSQLITE_OMIT_SHARED_CACHE` removed (`buildtools/BUILD.gn`).
+- SQLite handle now opens via `file:/perfetto-<N>?vfs=memdb&cache=
+  shared` instead of `:memory:` — same in-memory backing, but with a
+  named URI so a future second connection can attach via shared cache.
+- WAL deferred indefinitely after empirical confirmation that the
+  in-tree `memdb` VFS lacks SHM hooks; replaced with serialized
+  transactions (see pragmas below). Project memory and design pivots
+  reflect this.
+- `sqlite3*` access funneled through `PerfettoSqlEngine::db()` —
+  9 external callsites migrated; raw `engine_->sqlite_engine()->db()`
+  no longer leaks past the engine boundary.
+- `SqliteConnection` value-type extracted from `SqliteEngine`,
+  bundling `ScopedDb` + per-handle `fn_ctx_` map. `SqliteEngine` now
+  holds `filename_` (per-engine) + one `SqliteConnection`; public API
+  unchanged.
+- `GlobalStagingArea` skeleton added at
+  `src/trace_processor/perfetto_sql/engine/global_staging_area.{h,cc}`
+  and owned by `TraceProcessorImpl` via `unique_ptr`. No state, no
+  callers yet — fillable in Phase 2.
+- `SqliteConnection` ctor now applies and read-back-verifies three
+  pragmas: `journal_mode=MEMORY`, `temp_store=MEMORY`,
+  `locking_mode=NORMAL`. Verifier accepts both `"2"` and `"memory"`
+  for `temp_store` (SQLite reports the integer encoding). Silent
+  fallbacks would `PERFETTO_CHECK`-crash; none observed across the
+  full test suite.
+
+No behaviour change observable to existing callers: `TraceProcessor`
+public API is byte-identical, single-connection externally, all
+3216 unittests + 122 TP integrationtests + 1355 diff tests green
+(plus pre-existing macOS-only failure ignored), and the same set of
+files passes ASan.
+
+Phase 2 starts at the existing "Next chunks (Phase 2 — first cut...)"
+section below: `tp-public-api-create-conn` is the first chunk.
 
 ## Next chunks (Phase 1)
 - [x] sqlite-handle-encapsulation — done iter 5. Accessor:
