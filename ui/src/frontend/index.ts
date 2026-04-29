@@ -29,7 +29,6 @@ import {UiMain} from './ui_main';
 import {registerDebugGlobals} from './debug';
 import {maybeShowErrorDialog} from './error_dialog';
 import {installFileDropHandler} from './file_drop_handler';
-import {tryLoadIsInternalUserScript} from './is_internal_user_script_loader';
 import {HomePage} from './home_page';
 import {postMessageHandler} from './post_message_handler';
 import {Route, Router} from '../core/router';
@@ -317,10 +316,7 @@ function main() {
     document.body.classList.remove('pf-fonts-loading');
   });
 
-  // Load the script to detect if this is a Googler (see comments on globals.ts).
-  // This registers macros, SQL packages, and proto descriptors.
   const app = AppImpl.instance;
-  tryLoadIsInternalUserScript(app);
 
   // Route errors to both the UI bugreport dialog and Analytics (if enabled).
   addErrorHandler(maybeShowErrorDialog);

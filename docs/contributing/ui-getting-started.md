@@ -71,7 +71,7 @@ located in the `ui` folder.
 
 For VSCode users, we recommend using the eslint & prettier extensions to handle
 this entirely from within the IDE. See the
-[Useful Extensions](#useful-extensions) section on how to set this up.
+[Formatting & Linting](#formatting-linting) section below on how to set this up.
 
 ### Formatting & Linting
 

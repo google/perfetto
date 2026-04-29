@@ -44,14 +44,16 @@ function mockErrorResponse(status = 404) {
   } as Response);
 }
 
+type MacroWithSource = Macro & {source?: string};
+
 // Mock AppImpl for testing initializeExtensions
 function createMockAppImpl() {
-  const macrosAdded: Array<Promise<ReadonlyArray<Macro>>> = [];
+  const macrosAdded: Array<Promise<ReadonlyArray<MacroWithSource>>> = [];
   const sqlPackagesAdded: Array<Promise<ReadonlyArray<SqlPackage>>> = [];
   const protoDescriptorsAdded: Array<Promise<ReadonlyArray<string>>> = [];
 
   return {
-    addMacros: jest.fn((p: Promise<ReadonlyArray<Macro>>) => {
+    addMacros: jest.fn((p: Promise<ReadonlyArray<MacroWithSource>>) => {
       macrosAdded.push(p);
     }),
     addSqlPackages: jest.fn((p: Promise<ReadonlyArray<SqlPackage>>) => {
@@ -311,7 +313,7 @@ describe('extension_server', () => {
       expect(protos).toEqual([]);
     });
 
-    test('processes multiple modules from same server', async () => {
+    test('coalesces multiple modules from same server', async () => {
       const manifest = {
         name: 'Test',
         namespace: 'test',
@@ -344,10 +346,66 @@ describe('extension_server', () => {
         testExtServer({enabledModules: ['default', 'android']}),
       ]);
 
-      // Should be called twice (once per module)
-      expect(mockApp.addMacros).toHaveBeenCalledTimes(2);
-      expect(mockApp.addSqlPackages).toHaveBeenCalledTimes(2);
-      expect(mockApp.addProtoDescriptors).toHaveBeenCalledTimes(2);
+      // One aggregated call per server, regardless of module count.
+      expect(mockApp.addMacros).toHaveBeenCalledTimes(1);
+      expect(mockApp.addSqlPackages).toHaveBeenCalledTimes(1);
+      expect(mockApp.addProtoDescriptors).toHaveBeenCalledTimes(1);
+
+      const macros = await mockApp.getMacrosAdded()[0];
+      expect(macros.map((m) => m.id).sort()).toEqual([
+        'test.android1',
+        'test.default1',
+      ]);
+      expect(macros.find((m) => m.id === 'test.default1')?.source).toBe('Test');
+      expect(macros.find((m) => m.id === 'test.android1')?.source).toBe(
+        'Test: Android',
+      );
+    });
+
+    test('merges sql_modules from multiple modules into one package', async () => {
+      // Regression test: prior to coalescing, each module on the same server
+      // produced a SqlPackage keyed by the server's namespace. The backend
+      // (registerSqlPackages with allow_override=true) silently overwrote
+      // earlier registrations, so only the last module's modules survived.
+      const manifest = {
+        name: 'Test',
+        namespace: 'test',
+        features: [{name: 'sql_modules'}],
+        modules: [
+          {id: 'default', name: 'Default'},
+          {id: 'android', name: 'Android'},
+        ],
+      };
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.endsWith('/manifest')) {
+          return mockJsonResponse(manifest);
+        }
+        if (url.includes('/default/sql_modules')) {
+          return mockJsonResponse({
+            sql_modules: [{name: 'test.default_helpers', sql: 'SELECT 1'}],
+          });
+        }
+        if (url.includes('/android/sql_modules')) {
+          return mockJsonResponse({
+            sql_modules: [{name: 'test.android_helpers', sql: 'SELECT 2'}],
+          });
+        }
+        return mockErrorResponse(404);
+      });
+
+      const mockApp = createMockAppImpl();
+      initializeServers(mockApp as unknown as AppImpl, [
+        testExtServer({enabledModules: ['default', 'android']}),
+      ]);
+
+      const sqlPackages = await mockApp.getSqlPackagesAdded()[0];
+      expect(sqlPackages).toHaveLength(1);
+      expect(sqlPackages[0]?.name).toBe('test');
+      expect(sqlPackages[0]?.modules.map((m) => m.name).sort()).toEqual([
+        'test.android_helpers',
+        'test.default_helpers',
+      ]);
     });
 
     test('loads sql packages with correct structure', async () => {

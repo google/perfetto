@@ -44,6 +44,8 @@ import FlamegraphObjectsView, {
 interface HeapdumpSelection {
   pathHashes: string;
   isDominator: boolean;
+  upid: number;
+  ts: bigint;
 }
 
 let nextFgId = 0;
@@ -56,6 +58,13 @@ export function setFlamegraphSelection(
   sel: HeapdumpSelection,
   engine: Engine,
 ): void {
+  const target = queries
+    .getDumps()
+    .find((d) => d.upid === sel.upid && d.ts === sel.ts);
+  if (target && target !== queries.getActiveDump()) {
+    queries.setActiveDump(target);
+    resetDumpScopedState();
+  }
   const existing = flamegraphTabs.find(
     (t) => t.pathHashes === sel.pathHashes && t.isDominator === sel.isDominator,
   );
@@ -68,6 +77,7 @@ export function setFlamegraphSelection(
   const tab = {id, count: null as number | null, ...sel};
   flamegraphTabs.push(tab);
   activeFgId = id;
+  navigate('flamegraph-objects');
   const q = flamegraphQuery(sel.pathHashes, sel.isDominator);
   engine
     .query(`${SQL_PREAMBLE}; SELECT COUNT(*) AS c FROM (${q})`)
@@ -92,11 +102,15 @@ export function resetCachedOverview(): void {
   overviewLoading = false;
 }
 
-function onDumpChanged(): void {
+function resetDumpScopedState(): void {
   resetCachedOverview();
   resetFlamegraphSelection();
   resetInstanceTabs();
   queries.resetBitmapDumpDataCache();
+}
+
+function onDumpChanged(): void {
+  resetDumpScopedState();
   if (nav.view === 'object' || nav.view === 'flamegraph-objects') {
     navigate('overview');
   }

@@ -66,7 +66,7 @@ with BatchTraceProcessor('foo:bar=1,baz=abc', config=config) as btp:
 
 ## Writing queries
 Writing queries with batch trace processor works very similarly to the
-[Python API](/docs/analysis/batch-trace-processor#python-api).
+[Python API](/docs/analysis/trace-processor-python.md).
 
 For example, to get a count of the number of userspace slices:
 ```python

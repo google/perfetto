@@ -58,8 +58,8 @@ export default class implements PerfettoPlugin {
 
     ctx.plugins
       .getPlugin(HeapProfilePlugin)
-      .registerOnNodeSelectedListener(({pathHashes, isDominator}) =>
-        setFlamegraphSelection({pathHashes, isDominator}, ctx.engine),
+      .registerOnNodeSelectedListener(({pathHashes, isDominator, upid, ts}) =>
+        setFlamegraphSelection({pathHashes, isDominator, upid, ts}, ctx.engine),
       );
 
     ctx.sidebar.addMenuItem({
