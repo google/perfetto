@@ -20,11 +20,7 @@ import {
   NodeContext,
 } from '../../query_node';
 import {getSecondaryInput} from '../graph_utils';
-import {
-  ColumnInfo,
-  columnInfoFromSqlColumn,
-  legacyDeserializeType,
-} from '../column_info';
+import {ColumnInfo, columnInfoFromSqlColumn} from '../column_info';
 import {
   PerfettoSqlType,
   PerfettoSqlTypes,
@@ -1674,19 +1670,5 @@ export class AddColumnsNode implements QueryNode {
         : undefined,
       this.nodeId,
     );
-  }
-
-  static deserializeState(
-    serializedState: AddColumnsNodeAttrs,
-  ): AddColumnsNodeAttrs {
-    // Migrate columnTypes: apply legacyDeserializeType to each value.
-    const columnTypes = serializedState.columnTypes
-      ? Object.fromEntries(
-          Object.entries(serializedState.columnTypes)
-            .map(([k, v]) => [k, legacyDeserializeType(v)] as const)
-            .filter((e): e is [string, PerfettoSqlType] => e[1] !== undefined),
-        )
-      : undefined;
-    return {...serializedState, columnTypes};
   }
 }

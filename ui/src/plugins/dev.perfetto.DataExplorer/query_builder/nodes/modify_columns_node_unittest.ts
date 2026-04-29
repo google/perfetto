@@ -181,59 +181,6 @@ describe('ModifyColumnsNode', () => {
     });
   });
 
-  describe('legacy deserialization', () => {
-    it('should deserialize legacy string types into PerfettoSqlType', () => {
-      // Simulate old serialized state where type was a string like "INT"
-      const legacyState = {
-        selectedColumns: [
-          {name: 'id', type: 'INT', checked: true},
-          {name: 'name', type: 'STRING', checked: true},
-          {name: 'ts', type: 'TIMESTAMP', checked: false},
-        ],
-      } as unknown as ModifyColumnsNodeAttrs;
-
-      const state = ModifyColumnsNode.deserializeState(legacyState);
-
-      expect(state.selectedColumns[0].type).toEqual(PerfettoSqlTypes.INT);
-      expect(state.selectedColumns[1].type).toEqual(PerfettoSqlTypes.STRING);
-      expect(state.selectedColumns[2].type).toEqual(PerfettoSqlTypes.TIMESTAMP);
-    });
-
-    it('should deserialize new PerfettoSqlType objects correctly', () => {
-      const newState: ModifyColumnsNodeAttrs = {
-        selectedColumns: [
-          {name: 'id', type: {kind: 'int'}, checked: true},
-          {name: 'dur', type: {kind: 'duration'}, checked: true},
-        ],
-      };
-
-      const state = ModifyColumnsNode.deserializeState(newState);
-
-      expect(state.selectedColumns[0].type).toEqual(PerfettoSqlTypes.INT);
-      expect(state.selectedColumns[1].type).toEqual(PerfettoSqlTypes.DURATION);
-    });
-
-    it('should handle undefined types gracefully', () => {
-      const stateWithNoTypes = {
-        selectedColumns: [{name: 'col1', checked: true}],
-      } as unknown as ModifyColumnsNodeAttrs;
-
-      const state = ModifyColumnsNode.deserializeState(stateWithNoTypes);
-
-      expect(state.selectedColumns[0].type).toBeUndefined();
-    });
-
-    it('should handle unrecognized legacy string types', () => {
-      const stateWithUnknown = {
-        selectedColumns: [{name: 'col1', type: 'NA', checked: true}],
-      } as unknown as ModifyColumnsNodeAttrs;
-
-      const state = ModifyColumnsNode.deserializeState(stateWithUnknown);
-
-      expect(state.selectedColumns[0].type).toBeUndefined();
-    });
-  });
-
   describe('finalCols computation', () => {
     it('should include only checked columns', () => {
       const col1 = createColumnInfo('id', 'int');

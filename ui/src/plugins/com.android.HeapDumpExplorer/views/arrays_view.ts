@@ -30,22 +30,26 @@ import {
   RowCounter,
 } from '../components';
 import {clearNavParam} from '../nav_state';
+import {dumpFilterSql} from '../queries';
 
-const QUERY = `
-  SELECT
-    o.id,
-    ifnull(c.deobfuscated_name, c.name) AS cls,
-    o.self_size,
-    o.native_size,
-    od.array_element_count AS element_count,
-    ifnull(o.heap_type, 'default') AS heap,
-    CAST(od.array_data_hash AS TEXT) AS array_hash
-  FROM heap_graph_object o
-  JOIN heap_graph_class c ON o.type_id = c.id
-  LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
-  WHERE o.reachable != 0
-    AND od.array_data_hash IS NOT NULL
-`;
+function buildQuery(): string {
+  return `
+    SELECT
+      o.id,
+      ifnull(c.deobfuscated_name, c.name) AS cls,
+      o.self_size,
+      o.native_size,
+      od.array_element_count AS element_count,
+      ifnull(o.heap_type, 'default') AS heap,
+      CAST(od.array_data_hash AS TEXT) AS array_hash
+    FROM heap_graph_object o
+    JOIN heap_graph_class c ON o.type_id = c.id
+    LEFT JOIN heap_graph_object_data od ON o.object_data_id = od.id
+    WHERE o.reachable != 0
+      AND ${dumpFilterSql('o')}
+      AND od.array_data_hash IS NOT NULL
+  `;
+}
 
 function makeUiSchema(navigate: NavFn): SchemaRegistry {
   return {
@@ -120,12 +124,13 @@ function ArraysView(): m.Component<ArraysViewAttrs> {
   return {
     oninit(vnode) {
       const {engine} = vnode.attrs;
+      const query = buildQuery();
       dataSource = new SQLDataSource({
         engine,
-        sqlSchema: createSimpleSchema(QUERY),
+        sqlSchema: createSimpleSchema(query),
         rootSchemaName: 'query',
       });
-      counter.init(engine, QUERY);
+      counter.init(engine, query);
       applyNavFilter(vnode.attrs.initialArrayHash);
     },
     onupdate(vnode) {

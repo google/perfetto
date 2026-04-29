@@ -34,6 +34,19 @@ pb_enum!(InternedGraphicsContextApi {
     HIP: 5,
 });
 
+pb_msg!(InternedComputeArgName {
+    iid: u64, primitive, 1,
+    name: String, primitive, 2,
+});
+
+pb_msg!(InternedComputeKernel {
+    iid: u64, primitive, 1,
+    name: String, primitive, 2,
+    demangled_name: String, primitive, 3,
+    arch: String, primitive, 4,
+    args: GpuRenderStageEventExtraComputeArg, msg, 5,
+});
+
 pb_msg!(InternedGpuRenderStageSpecification {
     iid: u64, primitive, 1,
     name: String, primitive, 2,
@@ -62,7 +75,10 @@ pb_msg!(GpuRenderStageEvent {
     render_subpass_index_mask: u64, primitive, 15,
     command_buffer_handle: u64, primitive, 12,
     name: String, primitive, 17,
+    name_iid: u64, primitive, 20,
     event_wait_ids: u64, primitive, 18,
+    kernel_iid: u64, primitive, 19,
+    launch: GpuRenderStageEventComputeKernelLaunch, msg, 21,
     specifications: GpuRenderStageEventSpecifications, msg, 7,
     hw_queue_id: i32, primitive, 3,
     stage_id: i32, primitive, 4,
@@ -82,6 +98,28 @@ pb_msg!(GpuRenderStageEventSpecificationsDescription {
 pb_msg!(GpuRenderStageEventSpecificationsContextSpec {
     context: u64, primitive, 1,
     pid: i32, primitive, 2,
+});
+
+pb_msg!(GpuRenderStageEventComputeKernelLaunch {
+    grid_size: GpuRenderStageEventDim3, msg, 1,
+    workgroup_size: GpuRenderStageEventDim3, msg, 2,
+    args: GpuRenderStageEventExtraComputeArg, msg, 3,
+});
+
+pb_msg!(GpuRenderStageEventExtraComputeArg {
+    name_iid: u64, primitive, 1,
+    name: String, primitive, 2,
+    int_value: i64, primitive, 3,
+    uint_value: u64, primitive, 4,
+    double_value: f64, primitive, 5,
+    string_value: String, primitive, 6,
+    string_value_iid: u64, primitive, 7,
+});
+
+pb_msg!(GpuRenderStageEventDim3 {
+    x: u32, primitive, 1,
+    y: u32, primitive, 2,
+    z: u32, primitive, 3,
 });
 
 pb_msg!(GpuRenderStageEventExtraData {

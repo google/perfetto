@@ -236,10 +236,7 @@ export function registerCoreNodes() {
         factoryCtx?.context ?? {},
       ),
     deserialize: (_attrs, trace, sqlModules) =>
-      new AddColumnsNode(
-        AddColumnsNode.deserializeState(_attrs as AddColumnsNodeAttrs),
-        {trace, sqlModules},
-      ),
+      new AddColumnsNode(_attrs as AddColumnsNodeAttrs, {trace, sqlModules}),
   });
 
   nodeRegistry.register('modify_columns', {
@@ -252,10 +249,7 @@ export function registerCoreNodes() {
     factory: (_attrs) =>
       new ModifyColumnsNode(_attrs as unknown as ModifyColumnsNodeAttrs, {}),
     deserialize: (_attrs, _trace, _sqlModules) =>
-      new ModifyColumnsNode(
-        ModifyColumnsNode.deserializeState(_attrs as ModifyColumnsNodeAttrs),
-        {},
-      ),
+      new ModifyColumnsNode(_attrs as ModifyColumnsNodeAttrs, {}),
   });
 
   nodeRegistry.register('aggregation', {
@@ -351,9 +345,7 @@ export function registerCoreNodes() {
       return new JoinNode(attrs, factoryCtx?.context ?? {});
     },
     deserialize: (_attrs, _trace, sqlModules) =>
-      new JoinNode(JoinNode.deserializeState(_attrs as JoinNodeAttrs), {
-        sqlModules,
-      }),
+      new JoinNode(_attrs as JoinNodeAttrs, {sqlModules}),
     postDeserializeLate: (node) => {
       const joinNode = node as JoinNode;
       joinNode.onPrevNodesUpdated();

@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {JoinNode, JoinNodeAttrs} from './join_node';
+import {JoinNode} from './join_node';
 import {QueryNode, NodeType} from '../../query_node';
 import {ColumnInfo} from '../column_info';
-import {PerfettoSqlTypes} from '../../../../trace_processor/perfetto_sql_type';
 import protos from '../../../../protos';
 
 describe('JoinNode', () => {
@@ -1030,72 +1029,6 @@ describe('JoinNode', () => {
     });
   });
 
-  describe('deserializeState', () => {
-    it('should deserialize state correctly', () => {
-      const serialized = {
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality' as const,
-        joinType: 'INNER' as const,
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        leftColumns: undefined,
-        rightColumns: undefined,
-      };
-
-      const state = JoinNode.deserializeState(serialized);
-
-      expect(state.leftQueryAlias).toBe('left');
-      expect(state.rightQueryAlias).toBe('right');
-      expect(state.conditionType).toBe('equality');
-      expect(state.leftColumn).toBe('id');
-      expect(state.rightColumn).toBe('id');
-    });
-
-    it('should deserialize legacy string types into PerfettoSqlType', () => {
-      const legacySerialized = {
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality' as const,
-        leftColumn: 'id',
-        rightColumn: 'id',
-        leftColumns: [
-          {name: 'id', type: 'INT', checked: true, columnName: 'id'},
-          {name: 'ts', type: 'TIMESTAMP', checked: false, columnName: 'ts'},
-        ],
-        rightColumns: [
-          {name: 'val', type: 'DOUBLE', checked: true, columnName: 'val'},
-        ],
-      } as unknown as JoinNodeAttrs;
-
-      const state = JoinNode.deserializeState(legacySerialized);
-
-      expect(state.leftColumns?.[0].type).toEqual(PerfettoSqlTypes.INT);
-      expect(state.leftColumns?.[1].type).toEqual(PerfettoSqlTypes.TIMESTAMP);
-      expect(state.rightColumns?.[0].type).toEqual(PerfettoSqlTypes.DOUBLE);
-    });
-
-    it('should deserialize new PerfettoSqlType objects correctly', () => {
-      const newSerialized: JoinNodeAttrs = {
-        leftQueryAlias: 'left',
-        rightQueryAlias: 'right',
-        conditionType: 'equality',
-        joinType: 'INNER',
-        leftColumn: 'id',
-        rightColumn: 'id',
-        sqlExpression: '',
-        leftColumns: [{name: 'id', type: {kind: 'int'}, checked: true}],
-        rightColumns: [{name: 'dur', type: {kind: 'duration'}, checked: true}],
-      };
-
-      const state = JoinNode.deserializeState(newSerialized);
-
-      expect(state.leftColumns?.[0].type).toEqual(PerfettoSqlTypes.INT);
-      expect(state.rightColumns?.[0].type).toEqual(PerfettoSqlTypes.DURATION);
-    });
-  });
-
   describe('serialize/deserialize round-trip', () => {
     it('should preserve checked columns after serialization and deserialization', () => {
       // Create mock source nodes with columns
@@ -1138,15 +1071,12 @@ describe('JoinNode', () => {
       // Serialize the state via attrs
       const serialized = joinNode.attrs;
 
-      // Deserialize the state
-      const deserializedState = JoinNode.deserializeState(serialized);
-
-      // Create a new join node from deserialized state
-      // Connections are now restored at the graph level by json_handler
+      // Create a new join node from serialized state (connections restored at
+      // the graph level by json_handler; constructor handles defaults).
       const restoredNode = createJoinNodeWithInputs(
         node1,
         node2,
-        {...deserializedState},
+        {...serialized},
         {},
       );
 
@@ -1203,15 +1133,11 @@ describe('JoinNode', () => {
       // Serialize the state via attrs
       const serialized = joinNode.attrs;
 
-      // Deserialize the state
-      const deserializedState = JoinNode.deserializeState(serialized);
-
-      // Create a new join node from deserialized state
-      // Connections are now restored at the graph level by json_handler
+      // Create a new join node from serialized state.
       const restoredNode = createJoinNodeWithInputs(
         node1,
         node2,
-        {...deserializedState},
+        {...serialized},
         {},
       );
 

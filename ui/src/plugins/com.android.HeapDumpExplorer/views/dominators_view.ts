@@ -28,32 +28,36 @@ import {
   SQL_PREAMBLE,
   RowCounter,
 } from '../components';
+import {dumpFilterSql} from '../queries';
 
 interface DominatorsViewAttrs {
   readonly engine: Engine;
   readonly navigate: NavFn;
 }
 
-const QUERY = `
-  SELECT
-    o.id,
-    ifnull(c.deobfuscated_name, c.name) AS cls,
-    o.self_size,
-    o.native_size,
-    ifnull(d.dominated_size_bytes, o.self_size) AS retained,
-    ifnull(d.dominated_native_size_bytes, o.native_size) AS retained_native,
-    d.dominated_obj_count AS retained_count,
-    ifnull(o.heap_type, 'default') AS heap,
-    o.root_type,
-    a.cumulative_size AS reachable_size,
-    a.cumulative_native_size AS reachable_native,
-    a.cumulative_count AS reachable_count
-  FROM heap_graph_dominator_tree d
-  JOIN heap_graph_object o ON d.id = o.id
-  JOIN heap_graph_class c ON o.type_id = c.id
-  LEFT JOIN _heap_graph_object_tree_aggregation a ON a.id = o.id
-  WHERE d.idom_id IS NULL
-`;
+function buildQuery(): string {
+  return `
+    SELECT
+      o.id,
+      ifnull(c.deobfuscated_name, c.name) AS cls,
+      o.self_size,
+      o.native_size,
+      ifnull(d.dominated_size_bytes, o.self_size) AS retained,
+      ifnull(d.dominated_native_size_bytes, o.native_size) AS retained_native,
+      d.dominated_obj_count AS retained_count,
+      ifnull(o.heap_type, 'default') AS heap,
+      o.root_type,
+      a.cumulative_size AS reachable_size,
+      a.cumulative_native_size AS reachable_native,
+      a.cumulative_count AS reachable_count
+    FROM heap_graph_dominator_tree d
+    JOIN heap_graph_object o ON d.id = o.id
+    JOIN heap_graph_class c ON o.type_id = c.id
+    LEFT JOIN _heap_graph_object_tree_aggregation a ON a.id = o.id
+    WHERE d.idom_id IS NULL
+      AND ${dumpFilterSql('o')}
+  `;
+}
 
 function makeUiSchema(navigate: NavFn): SchemaRegistry {
   return {
@@ -138,13 +142,14 @@ function DominatorsView(): m.Component<DominatorsViewAttrs> {
   return {
     oninit(vnode) {
       const {engine} = vnode.attrs;
+      const query = buildQuery();
       dataSource = new SQLDataSource({
         engine,
-        sqlSchema: createSimpleSchema(QUERY),
+        sqlSchema: createSimpleSchema(query),
         rootSchemaName: 'query',
         preamble: SQL_PREAMBLE,
       });
-      counter.init(engine, QUERY, SQL_PREAMBLE);
+      counter.init(engine, query, SQL_PREAMBLE);
     },
     view(vnode) {
       const {navigate} = vnode.attrs;
