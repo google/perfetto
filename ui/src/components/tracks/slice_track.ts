@@ -756,8 +756,9 @@ export class SliceTrack<T extends RowSchema> implements TrackRenderer {
           SELECT inner.ts
           FROM (${sqlSource}) inner
           WHERE inner.ts > outer.ts AND outer.depth = inner.depth
+          ORDER BY inner.ts
           LIMIT 1
-        ) AS Nexft_ts
+        ) AS next_ts
         FROM (${sqlSource}) outer
         WHERE dur = -1
       `,
