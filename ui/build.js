@@ -312,6 +312,11 @@ Env-var overrides:
   cfg.wasmModules = ['traceconv', 'proto_utils', 'trace_processor_memory64'];
   if (!cfg.onlyWasmMemory64) {
     cfg.wasmModules.push('trace_processor');
+    // The pthreads variant is selected at runtime by wasm_bridge.ts when
+    // the host page is cross-origin isolated (COOP+COEP). It carries
+    // SharedArrayBuffer-dependent code, so legacy hosts must keep the
+    // single-thread variant above.
+    cfg.wasmModules.push('trace_processor_pthreads');
   }
 
   function terminateChildProcesses() {
@@ -677,7 +682,11 @@ function buildWasm(skipWasmBuild) {
 
   for (const wasmMod of cfg.wasmModules) {
     const isMem64 = wasmMod.endsWith('_memory64');
-    const wasmOutDir = pjoin(cfg.outDir, isMem64 ? 'wasm_memory64' : 'wasm');
+    const isPthreads = wasmMod.endsWith('_pthreads');
+    let wasmSubdir = 'wasm';
+    if (isMem64) wasmSubdir = 'wasm_memory64';
+    else if (isPthreads) wasmSubdir = 'wasm_pthreads';
+    const wasmOutDir = pjoin(cfg.outDir, wasmSubdir);
     // The .wasm file goes directly into the dist dir (also .map in debug)
     for (const ext of ['.wasm'].concat(cfg.debug ? ['.wasm.map'] : [])) {
       const src = `${wasmOutDir}/${wasmMod}${ext}`;

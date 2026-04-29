@@ -49,6 +49,17 @@ if (enable_perfetto_ui) {
     is_memory64 = true
     deps = trace_processor_wasm_deps
   }
+
+  # Pthreads-enabled variant. Used by hosts that serve the UI with
+  # COOP+COEP (crossOriginIsolated); the runtime fall-back in
+  # ui/src/engine/wasm_bridge.ts picks this module over the
+  # single-thread one when SharedArrayBuffer is available, letting
+  # base::ThreadPool spawn workers inside the wasm sandbox.
+  wasm_lib("trace_processor_pthreads_wasm") {
+    name = "trace_processor_pthreads"
+    enable_pthreads = true
+    deps = trace_processor_wasm_deps
+  }
 }
 
 # Depended upon by Chrome to do proto -> JSON conversion of traces.

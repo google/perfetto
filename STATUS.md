@@ -23,6 +23,178 @@ Phase 4 in progress (RPC pool + UI fan-out + WASM pthreads).
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [Phase 4 iter 5]: wasm-pthreads done. The wasm
+  trace_processor build now ships a pthreads-enabled variant
+  alongside the existing single-thread one, and the UI's
+  `wasm_bridge.ts` runtime-selects between them based on
+  `crossOriginIsolated`. Both Pieces (build infrastructure and
+  runtime fallback) landed cleanly. **Caveat: speedup is gated on
+  the iter-4 BtShared finding** — the pool *can* now spawn worker
+  threads inside the wasm sandbox, but the post-EOF query flurry
+  in the UI still hits SQLite's shared-cache btree mutex on
+  trace-table reads. This iter lands the infrastructure; the
+  realised speedup on real trace loads remains 1.02x until the
+  shared-cache bottleneck is addressed (Phase 5 candidate).
+
+  **Piece A — pthreads wasm build.**
+  - `gn/wasm_vars.gni`, `gn/standalone/toolchain/BUILD.gn`: a
+    new `wasm_pthreads` toolchain mirrors the existing
+    `wasm`/`wasm_memory64` pattern. `is_wasm_pthreads` is true
+    iff the current toolchain is `wasm_pthreads`.
+  - `gn/standalone/BUILD.gn`: when `is_wasm_pthreads`, the
+    standalone config injects `-pthread` into the compiler
+    cflags. This is required at compile time so the .o files
+    are emitted with the wasm `atomics` + `bulk-memory`
+    features that the `--shared-memory` link flag needs.
+  - `gn/standalone/wasm.gni`: `wasm_lib` gains an
+    `enable_pthreads` parameter. When set, the executable
+    target is routed to the new toolchain (so the dependency
+    `:lib` is rebuilt with `-pthread`) and the link line picks
+    up `-pthread -s PTHREAD_POOL_SIZE=8`. PTHREAD_POOL_SIZE
+    pre-spawns 8 worker threads at module init so the
+    base::ThreadPool dispatch in `rpc.cc` doesn't pay a
+    cold-start round trip per task. Asserted that
+    `is_memory64 + enable_pthreads` is rejected — emscripten
+    doesn't support that combination today.
+  - `src/trace_processor/BUILD.gn`: a third `wasm_lib`
+    invocation (`trace_processor_pthreads_wasm`, output name
+    `trace_processor_pthreads`) sits alongside
+    `trace_processor_wasm` and `trace_processor_memory64_wasm`.
+    All three share the same `trace_processor_wasm_deps` list.
+  - **Artifact verified.** `tools/ninja -C out/ui
+    trace_processor_pthreads_wasm` produces
+    `out/ui/wasm_pthreads/trace_processor_pthreads.{js,wasm,d.ts}`.
+    `.wasm` size is ~12.8 MB (matches the single-thread
+    variant; same C++ payload, different wasm feature set).
+    `.js` is 212 KB (vs 174 KB for the single-thread; the
+    delta is emscripten's pthread bootstrap code that
+    initialises a worker pool from a Blob URL). Emscripten's
+    `MODULARIZE=1 + -pthread` combination embeds the worker
+    script as a base64 Blob inside the .js, so there's no
+    separate `.worker.mjs` file to chase through the build
+    pipeline. Single-thread build (`trace_processor_wasm`) and
+    memory64 build (`trace_processor_memory64_wasm`) still
+    work — both rebuild cleanly after the gn changes.
+
+  **Piece B — runtime fallback in the UI.**
+  - `ui/src/engine/trace_processor_pthreads_stub.ts`: new
+    stub file that throws if reached. Mirrors the existing
+    `trace_processor_32_stub.ts` pattern.
+  - `ui/config/rollup.config.js`: when not building
+    `--only-wasm-memory64`, rollup rewrites the
+    `./trace_processor_pthreads_stub` import to
+    `../gen/trace_processor_pthreads`, the same way it
+    handles the 32-bit stub. The replace pattern fires on
+    every bundle (frontend, engine, traceconv,
+    chrome_extension) — engine is the only one that uses the
+    stub, but unconditionally rewriting is harmless and
+    matches precedent.
+  - `ui/src/engine/wasm_bridge.ts`: the constructor's module
+    selector is now a 3-way branch — memory64 → 64-bit
+    module; else, if `hasPthreadsSupport()` →
+    `TraceProcessorPthreads`; else →
+    `TraceProcessor32`. The new `hasPthreadsSupport()` helper
+    returns `true` iff `self.crossOriginIsolated === true`
+    *and* `typeof SharedArrayBuffer === 'function'`. The
+    `crossOriginIsolated` global is propagated from the
+    document into dedicated workers (which is where
+    `engine/index.ts` runs), so this check works without an
+    explicit message from the main thread. Memory64 hosts
+    keep the single-thread path because emscripten doesn't
+    support memory64+pthreads (the gn assert above fires at
+    build time too).
+  - `ui/build.js`: `cfg.wasmModules` now includes
+    `trace_processor_pthreads` when not in
+    `--only-wasm-memory64` mode. The wasm-output-dir
+    selector grew a third arm: a module name ending in
+    `_pthreads` reads from `wasm_pthreads/` in the gn out
+    dir. The .js / .d.ts go to `out/ui/tsc/gen/` for the
+    bundler; the .wasm goes to `out/ui/dist_version/`.
+
+  **Deployment dependency.**
+  - `ui.perfetto.dev` does **not** currently set COOP+COEP.
+    Verified by reading
+    `infra/ui.perfetto.dev/appengine/main.py`: the response
+    headers passed through from GCS are `Content-Type`,
+    `Content-Encoding`, `Content-Length`, `Cache-Control`,
+    `Date`, `ETag`, `Last-Modified`, `Expires` — no
+    `Cross-Origin-Opener-Policy` or
+    `Cross-Origin-Embedder-Policy`. So in production today,
+    `crossOriginIsolated` is `false`, and `wasm_bridge.ts`
+    falls through to the single-thread variant. The pthreads
+    module is built and shipped but never loaded.
+  - Activating the pthreads path requires a separate
+    deployment-side change to the appengine flask handler:
+    add `Cross-Origin-Opener-Policy: same-origin` and
+    `Cross-Origin-Embedder-Policy: require-corp` to the
+    response. Note that flipping COEP requires every
+    cross-origin subresource to carry `Cross-Origin-Resource-
+    Policy: cross-origin`, so it's a non-trivial deployment
+    change that's deliberately not bundled here.
+  - The dev server (`ui/build`) already has a
+    `--cross-origin-isolation` flag (build.js:306) that adds
+    the headers; engineers can use it to manually exercise
+    the pthreads path locally without deployment changes.
+
+  **Validation.**
+  - `tools/gn gen --check out/ui`: clean (1999 → 2416
+    targets; the +417 is the new `wasm_pthreads` toolchain's
+    targets).
+  - `tools/gn check out/mac_release`: clean (host-side, no
+    regression).
+  - `tools/ninja -C out/ui trace_processor_pthreads_wasm`:
+    builds clean. `tools/ninja -C out/ui trace_processor_wasm`
+    and `trace_processor_memory64_wasm`: still build clean.
+    Full `ui/build --typecheck` triggers all three wasm
+    builds + the copy step into `dist_version/` and finishes
+    without error.
+  - `tools/ninja -C out/mac_release perfetto_unittests`: no
+    rebuild required (the gn changes only affect the wasm
+    toolchain).
+  - `out/mac_release/perfetto_unittests --gtest_brief=1`:
+    3269 PASSED, 2 SKIPPED, 1 pre-existing failure
+    (`HttpServerTest.Websocket`, matches iter 4 baseline).
+  - `ui/build --typecheck --no-depscheck`: clean (`tsc
+    --project ../../ui --noEmit` exits 0; same for the
+    service_worker project).
+  - `ui/run-unittests --no-depscheck`: 125 suites, 2249
+    passed, 1 skipped. Matches baseline.
+
+  **Files touched.**
+  - `gn/wasm_vars.gni` — declare `wasm_pthreads_toolchain`
+    + `is_wasm_pthreads`; widen `is_wasm` and
+    `is_wasm_memory32` to include the new toolchain.
+  - `gn/standalone/toolchain/BUILD.gn` — instantiate the
+    `wasm_pthreads` toolchain.
+  - `gn/standalone/BUILD.gn` — add `cflags += [ "-pthread"
+    ]` under `is_wasm_pthreads`.
+  - `gn/standalone/wasm.gni` — `wasm_lib` gains
+    `enable_pthreads`; pthreads ldflags + toolchain
+    routing in the `group()` step.
+  - `src/trace_processor/BUILD.gn` — third `wasm_lib`
+    invocation for the pthreads variant.
+  - `ui/build.js` — wire `trace_processor_pthreads` into
+    `cfg.wasmModules` and the wasm-out-dir selector.
+  - `ui/config/rollup.config.js` — rollup rewrite for
+    `./trace_processor_pthreads_stub`.
+  - `ui/src/engine/trace_processor_pthreads_stub.ts` — new
+    stub file.
+  - `ui/src/engine/wasm_bridge.ts` — 3-way module selector
+    + `hasPthreadsSupport()` helper.
+  - `STATUS.md` — this entry, ticking `wasm-pthreads`.
+
+  **Recommendation.** Phase 4 is now feature-complete on
+  the infrastructure axis: rpc-thread-pool (iter 1) +
+  ui-engine-fan-out audit (iter 2) + httpd-pool-dispatch
+  (iter 3) + e2e-perf-validation (iter 4) +
+  wasm-pthreads (iter 5). Next: a Phase 4 wrap entry that
+  consolidates the BtShared finding as the v1 ceiling, lists
+  the deferred items (deployment-side COOP+COEP flip,
+  dataframe-only post-EOF query path as a Phase 5
+  candidate, RuntimeTableFunctionModule cross-conn,
+  static-built-in fn replication, TSan-on-Linux), and ties
+  the loop off. No further code chunks before the wrap.
+
 - 2026-04-29 [Phase 4 iter 4]: e2e-perf-validation done. Built a
   Google-Benchmark harness that drives an end-to-end RPC-streaming
   query workload through `Rpc::OnRpcRequest` and measures wall-time
@@ -2219,20 +2391,26 @@ and the temp-then-promote breakthrough above before sequencing them.
       (wasm doesn't set a dispatcher; `/rpc` swaps the dispatcher
       out around its `OnRpcRequest` because its chunked-transfer
       trailer is sent immediately after `OnRpcRequest` returns).
-- [ ] wasm-pthreads — flip the WASM build to use pthreads when
-      COOP+COEP is available; fallback to single-thread. The
-      wasm bridge currently funnels all `Rpc` calls onto the main
-      worker; pthreads lets `base::ThreadPool` actually spawn
-      worker threads inside the wasm sandbox. Will need a
-      `enable_perfetto_wasm_pthreads` GN arg + a runtime check
-      for cross-origin isolation; gracefully degrade to
-      hardware_concurrency=1 when pthreads aren't available.
-      Note: the wasm bridge in the worker thread *also* uses the
-      synchronous `OnRpcRequest → ParseRpcRequest` path, so it
-      shares the httpd-pool-dispatch precondition above. Even
-      with pthreads, until the wasm-side message handler routes
-      through `Rpc::Query`, only one query at a time runs on the
-      pool.
+- [x] wasm-pthreads — done Phase 4 iter 5. Build infrastructure:
+      a new `wasm_pthreads` gn toolchain compiles the trace
+      processor with `-pthread` and links with `-s
+      PTHREAD_POOL_SIZE=8`, producing a third wasm artifact
+      (`trace_processor_pthreads.{js,wasm,d.ts}`) alongside the
+      existing single-thread and memory64 builds. Runtime fallback:
+      `ui/src/engine/wasm_bridge.ts` picks the pthreads module iff
+      `self.crossOriginIsolated === true` and SharedArrayBuffer is
+      reachable, else falls through to the single-thread module
+      unchanged. Deployment dependency: `ui.perfetto.dev` does NOT
+      currently set COOP+COEP (verified in
+      `infra/ui.perfetto.dev/appengine/main.py`), so production
+      stays on the single-thread variant; the pthreads bundle ships
+      but is dormant until a separate deployment-side flip lands.
+      Caveat: speedup remains capped by the iter-4 BtShared finding
+      (1.02x on real trace-table workloads) — this iter lands the
+      infrastructure that gates the future shared-cache fix on a
+      working multi-thread sandbox, not the speedup itself. A
+      separate Phase 4 wrap entry should follow that closes the
+      loop without further code chunks.
 - [x] e2e-perf-validation — done Phase 4 iter 4. Synthetic
       Google-Benchmark harness (`rpc_perf_benchmark.cc`) drives
       `Rpc::OnRpcRequest` with vs. without the iter-3 dispatcher.
