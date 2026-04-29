@@ -85,5 +85,57 @@ TEST(BusyRetryHelperTest, PassesThroughOtherErrors) {
   EXPECT_FALSE(retry.ShouldRetry(SQLITE_MISUSE));
 }
 
+TEST(SchemaRetryHelperTest, RetriesUntilSuccess) {
+  SchemaRetryHelper retry;
+
+  // Three SCHEMA responses — all should request a retry.
+  EXPECT_TRUE(retry.ShouldRetry(SQLITE_SCHEMA));
+  EXPECT_TRUE(retry.ShouldRetry(SQLITE_SCHEMA));
+  EXPECT_TRUE(retry.ShouldRetry(SQLITE_SCHEMA));
+
+  // SQLITE_OK is not a retry trigger; the helper signals "stop".
+  EXPECT_FALSE(retry.ShouldRetry(SQLITE_OK));
+}
+
+TEST(SchemaRetryHelperTest, PassesThroughOtherErrors) {
+  SchemaRetryHelper retry;
+
+  // SCHEMA is the only retry trigger; BUSY/LOCKED are handled by a
+  // different helper, real SQLite errors must propagate immediately.
+  EXPECT_FALSE(retry.ShouldRetry(SQLITE_BUSY));
+  EXPECT_FALSE(retry.ShouldRetry(SQLITE_LOCKED));
+  EXPECT_FALSE(retry.ShouldRetry(SQLITE_ERROR));
+  EXPECT_FALSE(retry.ShouldRetry(SQLITE_CONSTRAINT));
+}
+
+TEST(SchemaRetryHelperTest, GivesUpAtCountCap) {
+  // Use a generous deadline so the count cap is what trips. The helper
+  // does not sleep, so this loop runs quickly.
+  SchemaRetryHelper retry(base::TimeMillis(60000));
+
+  for (uint32_t i = 0; i < SchemaRetryHelper::kMaxAttempts; ++i) {
+    ASSERT_TRUE(retry.ShouldRetry(SQLITE_SCHEMA))
+        << "should still retry at attempt " << i;
+  }
+  // After kMaxAttempts retries, the cap fires.
+  EXPECT_FALSE(retry.ShouldRetry(SQLITE_SCHEMA));
+  EXPECT_EQ(retry.attempt(), SchemaRetryHelper::kMaxAttempts);
+}
+
+TEST(SchemaRetryHelperTest, BothBoundsApplyIndependently) {
+  // The helper has two independent termination conditions: the deadline
+  // and the count cap. With no sleeps, 100 |ShouldRetry| calls happen far
+  // faster than 1ms, so for a 1s deadline the count cap is what fires.
+  SchemaRetryHelper retry(base::TimeMillis(1000));
+  uint32_t retries = 0;
+  while (retry.ShouldRetry(SQLITE_SCHEMA)) {
+    retries++;
+    ASSERT_LT(retries, 1000u) << "should have hit count cap at "
+                              << SchemaRetryHelper::kMaxAttempts;
+  }
+  // The cap, not the deadline, terminated this run.
+  EXPECT_EQ(retries, SchemaRetryHelper::kMaxAttempts);
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor

@@ -75,6 +75,46 @@ class BusyRetryHelper {
   SleepFn* sleep_fn_;
 };
 
+// Helper that converts SQLite's |SQLITE_SCHEMA| into a transparent
+// re-prepare loop. SQLite returns |SQLITE_SCHEMA| from |sqlite3_step| (and
+// occasionally |sqlite3_prepare_v2|) when the database schema cookie has
+// been bumped since the statement was prepared (some other connection
+// committed a CREATE/DROP/ALTER). The compiled bytecode is stale; the only
+// safe recovery is to finalize the statement and re-prepare it from its
+// |SqlSource|.
+//
+// Distinct from |BusyRetryHelper| because the recovery shape differs:
+// BUSY/LOCKED retries the same statement after |sqlite3_reset|; SCHEMA
+// invalidates the prepared statement and re-prepares from source. The
+// caller is responsible for issuing the re-prepare; this helper just
+// administers the budget.
+//
+// Budget: deadline-based (matches BUSY's 1s default) plus a hard count
+// cap (|kMaxAttempts|, default 100) to guard against pathological
+// "schema bumps every prepare" loops. In practice schema storms are
+// short-lived; either bound usually fires first depending on whether
+// the system is contended (deadline) or churning (count).
+class SchemaRetryHelper {
+ public:
+  static constexpr base::TimeMillis kDefaultTimeout = base::TimeMillis(1000);
+  static constexpr uint32_t kMaxAttempts = 100;
+
+  explicit SchemaRetryHelper(base::TimeMillis timeout = kDefaultTimeout);
+
+  // Returns true if |sqlite_status| is |SQLITE_SCHEMA|, the deadline has
+  // not elapsed, and the attempt count has not exceeded |kMaxAttempts|.
+  // Unlike |BusyRetryHelper|, does not sleep — schema bumps are typically
+  // serialised by the prior writer's commit so the next |sqlite3_prepare_v2|
+  // will see a stable cookie immediately.
+  bool ShouldRetry(int sqlite_status);
+
+  uint32_t attempt() const { return attempt_; }
+
+ private:
+  base::TimeMillis deadline_;
+  uint32_t attempt_ = 0;
+};
+
 // A single open handle into a SQLite database, plus the per-handle bookkeeping
 // that has to live alongside it (the function-context map). One
 // |SqliteConnection| corresponds to one |sqlite3*|.
@@ -151,13 +191,32 @@ class SqliteEngine {
    private:
     friend class SqliteEngine;
 
-    PreparedStatement(ScopedStmt, SqlSource, base::TimeMillis busy_timeout);
+    PreparedStatement(ScopedStmt,
+                      SqlSource,
+                      sqlite3* db,
+                      base::TimeMillis retry_timeout);
+
+    // Re-prepares |stmt_| from |sql_source_| against |db_|, replacing the
+    // current |sqlite3_stmt*| and |expanded_sql_|. Used by |Step| as the
+    // recovery path for |SQLITE_SCHEMA|: the schema cookie has changed and
+    // the bytecode is stale. Returns the SQLite return code from
+    // |sqlite3_prepare_v2|.
+    int ReprepareFromSource();
 
     ScopedStmt stmt_;
     ScopedSqliteString expanded_sql_;
     SqlSource sql_source_;
     base::Status status_ = base::OkStatus();
-    base::TimeMillis busy_timeout_;
+    // The SQLite handle this statement was prepared against. Stored so that
+    // |ReprepareFromSource| can re-issue |sqlite3_prepare_v2| against the
+    // same connection. Not owning — outlives the |PreparedStatement|.
+    sqlite3* db_ = nullptr;
+    base::TimeMillis retry_timeout_;
+    // Whether |sqlite3_step| has ever returned |SQLITE_ROW| for the current
+    // prepared statement. If true, a subsequent |SQLITE_SCHEMA| cannot be
+    // safely auto-recovered (re-preparing would lose the cursor position),
+    // and the error is surfaced to the caller instead.
+    bool rows_seen_ = false;
   };
 
   // Default ctor: mints a fresh memdb URI (see |BuildMemdbUri|) and opens a
@@ -182,6 +241,15 @@ class SqliteEngine {
 
   // Prepares a SQLite statement for the given SQL.
   PreparedStatement PrepareStatement(SqlSource);
+
+  // Runs |sql| via |sqlite3_exec| with the same transparent BUSY/LOCKED and
+  // SCHEMA retry semantics as |PrepareStatement|. |sql| should not contain
+  // bound parameters; it is intended for short literal statements like
+  // |SAVEPOINT name|, |RELEASE name|, |ROLLBACK TO name; RELEASE name|.
+  // On failure, returns an error containing the SQLite errmsg. Used by
+  // engine-level transactional plumbing (savepoint open/release/rollback)
+  // that goes around |PreparedStatement|.
+  base::Status ExecWithRetry(const char* sql);
 
   // Registers a C++ function to be runnable from SQL.
   base::Status RegisterFunction(const char* name,

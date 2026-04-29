@@ -23,6 +23,160 @@ Phase 3 in progress (thread safety + retry middleware).
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [Phase 3 iter 6]: schema-retry done. Transparent
+  `SQLITE_SCHEMA` recovery now wraps both
+  `SqliteEngine::PrepareStatement` (around `sqlite3_prepare_v2`) and
+  `SqliteEngine::PreparedStatement::Step` (around `sqlite3_step`) in
+  `src/trace_processor/sqlite/sqlite_engine.{h,cc}`. The recovery
+  shape differs from BUSY/LOCKED:
+
+  - **BUSY/LOCKED** (iter 5): `sqlite3_reset` + sleep + retry the
+    *same* statement — the bytecode is still valid, just a lock
+    held it back.
+  - **SCHEMA** (this iter): finalize + re-prepare from the saved
+    `SqlSource`. SQLite returns SCHEMA when the
+    `sqlite_schema_cookie` has been bumped (some other connection
+    committed a CREATE / DROP / ALTER) and the compiled bytecode is
+    stale; the only safe fix is to re-walk the parser against the
+    new schema.
+
+  **New helper `SchemaRetryHelper` in `sqlite_engine.{h,cc}`:**
+
+  ```cpp
+  class SchemaRetryHelper {
+   public:
+    static constexpr base::TimeMillis kDefaultTimeout = base::TimeMillis(1000);
+    static constexpr uint32_t kMaxAttempts = 100;
+    explicit SchemaRetryHelper(base::TimeMillis timeout = kDefaultTimeout);
+    bool ShouldRetry(int sqlite_status);  // bumps attempt
+    uint32_t attempt() const;
+  };
+  ```
+
+  Two independent termination conditions: a 1-second wall-clock
+  deadline (matches BUSY's default) **and** a hard count cap of
+  100 attempts. The count cap is the tighter bound under unsleep'd
+  retries and guards against pathological "schema bumps every
+  prepare" loops where the deadline never fires because each
+  iteration is microseconds. The helper does *not* sleep — schema
+  bumps are typically serialised by the prior writer's commit so
+  the next prepare sees a stable cookie immediately; sleeping
+  would just slow down the common case.
+
+  **Re-prepare path:** `PreparedStatement` already carried
+  `sql_source_`. Iter 6 added `db_` (non-owning sqlite3*),
+  `retry_timeout_`, and `rows_seen_`. The new private
+  `ReprepareFromSource()` finalizes the old stmt, re-issues
+  `sqlite3_prepare_v2(db_, sql_source_.sql().c_str(), ...)`, and
+  re-snapshots `expanded_sql_`. The constructor now takes a
+  `sqlite3*` arg so re-prepare can target the same connection
+  even after `stmt_` is reset (post-finalize, `sqlite3_db_handle`
+  is unsafe).
+
+  **Wrap pattern at PrepareStatement** (sqlite_engine.cc:248-271):
+  for-loop dispatching on three branches — OK breaks, BUSY/LOCKED
+  goes through `busy_retry.ShouldRetry`, SCHEMA goes through
+  `schema_retry.ShouldRetry`. No re-prepare needed at this layer
+  because `sqlite3_prepare_v2` is itself the retry — just call it
+  again.
+
+  **Wrap pattern at Step** (sqlite_engine.cc:457-500): the SCHEMA
+  branch is the new code path:
+
+  ```cpp
+  if (err == SQLITE_SCHEMA) {
+    if (rows_seen_) break;            // mid-iter, surface error
+    if (!schema_retry.ShouldRetry(err)) break;
+    int rc = ReprepareFromSource();
+    while (rc != SQLITE_OK) {
+      if (rc == SQLITE_SCHEMA && schema_retry.ShouldRetry(rc)) {
+        rc = ReprepareFromSource(); continue;
+      }
+      if ((rc == SQLITE_BUSY || rc == SQLITE_LOCKED) &&
+          busy_retry.ShouldRetry(rc)) {
+        rc = ReprepareFromSource(); continue;
+      }
+      break;
+    }
+    if (rc != SQLITE_OK) { err = rc; break; }
+    continue;  // re-issue sqlite3_step on freshly-prepared stmt
+  }
+  ```
+
+  **`rows_seen_` guard:** the `SQLITE_ROW` branch sets
+  `rows_seen_ = true`. If a subsequent step ever returns SCHEMA,
+  we surface the error rather than silently re-prepare — the
+  cursor cannot be safely restarted because the caller has
+  already consumed rows. SQLite's documented contract is that
+  SCHEMA only fires on the *first* step after prepare, so this is
+  defence-in-depth rather than a frequent path; but if a custom
+  vtab module's `xNext` ever returns SCHEMA mid-iter (rare, would
+  require a write through a virtual table that bumps the cookie),
+  we fail loud rather than silently re-emit rows.
+
+  **`ExecWithRetry` (new public method on `SqliteEngine`)**: the
+  `sqlite3_exec`-based savepoint plumbing in `PerfettoSqlEngine`
+  goes around `PreparedStatement` entirely, so the iter-5 retry
+  middleware did not cover it. The first ASan stress run of
+  `ConcurrentDDLDoesNotBreakReaders` surfaced this as
+  "EXECUTE: failed to open savepoint 'perfetto_execute_0':
+  database schema is locked: main" (a `SQLITE_LOCKED_SHAREDCACHE`
+  on the savepoint open while a sibling DDL was committing).
+  Fix: a new `SqliteEngine::ExecWithRetry(const char* sql)` that
+  wraps `sqlite3_exec` in the same BUSY/LOCKED + SCHEMA retry
+  shape. Migrated all six savepoint sites (open/release/rollback
+  for both Execute- and Include-savepoints, plus the wildcard-
+  expansion include path) — the only remaining `sqlite3_exec`
+  call is the writer's `CREATE TABLE perfetto_tables` at engine
+  init, which is single-threaded and pre-NotifyEndOfFile.
+
+  **Direct unit tests for the helper** under
+  `src/trace_processor/sqlite/sqlite_engine_unittest.cc`:
+  - `SchemaRetryHelperTest.RetriesUntilSuccess`: feed SCHEMA × 3
+    then OK — verify three retries, then stop.
+  - `SchemaRetryHelperTest.PassesThroughOtherErrors`: feed
+    `SQLITE_BUSY` / `SQLITE_LOCKED` / `SQLITE_ERROR` /
+    `SQLITE_CONSTRAINT` and verify the schema helper does *not*
+    retry — those are BUSY's territory.
+  - `SchemaRetryHelperTest.GivesUpAtCountCap`: feed SCHEMA 100×
+    successfully, verify the 101st returns false and `attempt()`
+    is exactly `kMaxAttempts`.
+  - `SchemaRetryHelperTest.BothBoundsApplyIndependently`: with a
+    1000ms deadline and no sleeps, the count cap fires first
+    (100 unsleep'd retries are fast). Documents which bound
+    typically wins.
+
+  **End-to-end tests** under `TraceProcessorConnectionTest.*` in
+  `src/trace_processor/trace_processor_connection_unittest.cc`:
+  - `SchemaRetryRePreparesOnSchemaChange`: writer creates a table,
+    secondary mints, writer creates *another* table (bumps the
+    cookie under the secondary), secondary's first SELECT must
+    succeed. Repeats: another DDL, another SELECT — proves the
+    re-prepare path is re-entrant.
+  - `ConcurrentDDLDoesNotBreakReaders`: writer thread does
+    100×(CREATE + DROP) DDL, reader thread on a sibling
+    connection does 200×(SELECT 1). Without the SCHEMA retry +
+    `ExecWithRetry`, the reader saw "database schema is locked
+    main" within a handful of iterations on ASan; with both,
+    10/10 stress runs are clean.
+
+  **Test counts:**
+  - `out/mac_release/perfetto_unittests`: 3262 PASSED + 2 SKIPPED
+    + 1 pre-existing macOS failure (`HttpServerTest.Websocket`).
+    +6 new tests vs. iter 5 (4 `SchemaRetryHelperTest.*` + 2
+    `TraceProcessorConnectionTest.{SchemaRetryRePreparesOnSchema
+    Change, ConcurrentDDLDoesNotBreakReaders}`).
+  - `out/mac_release/perfetto_integrationtests` (TP-relevant
+    filter): 122 PASSED, unchanged.
+  - `tools/diff_test_trace_processor.py`: 1355 PASSED + 9
+    pre-existing skips, unchanged.
+  - `out/mac_asan/perfetto_unittests` filtered to
+    `TraceProcessorConnectionTest.*`: 23/23 PASSED across **10
+    consecutive runs**, no ASan reports. The
+    `ConcurrentDDLDoesNotBreakReaders` stress (the test that
+    initially exposed the savepoint-`sqlite3_exec` gap) is in
+    this set and is now reliable.
+
 - 2026-04-29 [Phase 3 iter 5]: busy-retry done. Transparent
   `SQLITE_BUSY` / `SQLITE_LOCKED` retry middleware now wraps both
   `SqliteEngine::PrepareStatement` (around `sqlite3_prepare_v2`) and
@@ -1250,9 +1404,23 @@ and the temp-then-promote breakthrough above before sequencing them.
       orchestration. 4 direct `BusyRetryHelperTest.*` unit tests
       cover the helper. 25/25 ASan-clean across 10 consecutive runs.
       See Phase 3 iter 5 activity entry.
-- [ ] schema-retry — transparent `SQLITE_SCHEMA` retry: re-prepare the
-      statement when the schema cookie changes underneath an in-flight
-      query. Drops in alongside busy-retry on the same wrapper.
+- [x] schema-retry — done Phase 3 iter 6. Transparent `SQLITE_SCHEMA`
+      recovery in both `SqliteEngine::PrepareStatement` and
+      `PreparedStatement::Step`: SCHEMA triggers a finalize +
+      `sqlite3_prepare_v2` re-issue from the saved `SqlSource`. New
+      `SchemaRetryHelper` (deadline + hard count cap of 100) lives
+      next to `BusyRetryHelper` in `sqlite_engine.{h,cc}`. The Step
+      path tracks `rows_seen_` and refuses to auto-recover from a
+      mid-iteration SCHEMA (cursor cannot be safely restarted). New
+      `SqliteEngine::ExecWithRetry` wraps `sqlite3_exec` with the
+      same BUSY/LOCKED + SCHEMA semantics and is now used by all six
+      savepoint open/release/rollback sites in `PerfettoSqlEngine`,
+      so cross-connection DDL no longer leaks "database schema is
+      locked: main" through the savepoint boundary either. New
+      stress test `ConcurrentDDLDoesNotBreakReaders` (writer churns
+      100 CREATE/DROP pairs, reader does 200 SELECTs on a sibling)
+      is clean across 10 consecutive ASan runs. See Phase 3 iter 6
+      activity entry.
 - [x] globals-audit — done Phase 3 iter 3. Headline fix:
       `TraceStorage::SqlStats` had un-guarded
       `std::deque<string>::push_back` from concurrent connection

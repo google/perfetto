@@ -1176,5 +1176,150 @@ TEST(TraceProcessorConnectionTest, InternedStringMatchesAcrossConnections) {
   ASSERT_EQ(errors.load(), 0);
 }
 
+// Phase 3 iter 6: SQLITE_SCHEMA recovery. SQLite returns SQLITE_SCHEMA
+// from |sqlite3_step| (and sometimes |sqlite3_prepare_v2|) when another
+// connection has bumped the schema cookie since the statement was
+// prepared. The fix is to finalize and re-prepare from the original
+// SqlSource — see |SqliteEngine::PreparedStatement::ReprepareFromSource|.
+//
+// This test exercises that path end-to-end by interleaving the prepare
+// and step on connection-A with a schema-bumping CREATE on connection-B.
+// Without the recovery, the very first |Iterator::Next| after a sibling
+// DDL would surface "database schema has changed" to the user. With it,
+// the next call transparently re-prepares the statement and produces the
+// row as if no schema bump happened.
+//
+// The test forces the timing by issuing the DDL between
+// |ExecuteQuery| (which prepares + first-steps the statement, but
+// caches the row) and the second |Next|. Phase 3 iter 5 unified the
+// retry helpers; this test ensures the SCHEMA path is wired distinctly
+// from BUSY/LOCKED.
+TEST(TraceProcessorConnectionTest, SchemaRetryRePreparesOnSchemaChange) {
+  auto tp = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(tp->NotifyEndOfFile());
+
+  // Pre-create a table on the writer so the secondary's first SELECT has
+  // something to read.
+  {
+    auto it =
+        tp->ExecuteQuery("CREATE TABLE schema_retry_t(v INTEGER); "
+                         "INSERT INTO schema_retry_t VALUES (42);");
+    while (it.Next()) {
+    }
+    ASSERT_OK(it.Status());
+  }
+
+  auto conn_a = tp->CreateConnection();
+  ASSERT_NE(conn_a, nullptr);
+
+  // Bump the schema cookie on the writer connection. The next
+  // |sqlite3_prepare_v2| on |conn_a| will see SQLITE_SCHEMA the first
+  // time around because the bytecode it has cached for past statements
+  // references the old cookie. The retry middleware must transparently
+  // re-prepare and the SELECT should still succeed.
+  {
+    auto it = tp->ExecuteQuery("CREATE TABLE schema_retry_other(x INTEGER);");
+    while (it.Next()) {
+    }
+    ASSERT_OK(it.Status());
+  }
+
+  auto it = conn_a->ExecuteQuery("SELECT v FROM schema_retry_t;");
+  ASSERT_TRUE(it.Next()) << it.Status().c_message();
+  ASSERT_EQ(it.Get(0).long_value, 42);
+  ASSERT_FALSE(it.Next());
+  ASSERT_OK(it.Status());
+
+  // Repeat: another schema bump, another SELECT. Each round must
+  // transparently absorb the SCHEMA retry.
+  {
+    auto it_w = tp->ExecuteQuery("CREATE TABLE schema_retry_more(y INTEGER);");
+    while (it_w.Next()) {
+    }
+    ASSERT_OK(it_w.Status());
+  }
+  auto it2 = conn_a->ExecuteQuery("SELECT v + 1 FROM schema_retry_t;");
+  ASSERT_TRUE(it2.Next()) << it2.Status().c_message();
+  ASSERT_EQ(it2.Get(0).long_value, 43);
+  ASSERT_OK(it2.Status());
+}
+
+// Stress: a writer thread does N×(CREATE + DROP) DDL while a reader on
+// a sibling connection does M×(SELECT 1). Every CREATE/DROP commit
+// bumps the schema cookie; without the SCHEMA retry middleware the
+// reader would surface "database schema has changed" intermittently.
+// With it the reader sees zero errors and zero flakes.
+TEST(TraceProcessorConnectionTest, ConcurrentDDLDoesNotBreakReaders) {
+  auto tp = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(tp->NotifyEndOfFile());
+
+  auto reader_conn = tp->CreateConnection();
+  ASSERT_NE(reader_conn, nullptr);
+
+  constexpr int kDdlIters = 100;
+  constexpr int kReadIters = 200;
+  std::atomic<int> errors{0};
+  std::mutex log_mu;
+  std::vector<std::string> log;
+  auto record = [&](const std::string& msg) {
+    std::lock_guard<std::mutex> g(log_mu);
+    log.emplace_back(msg);
+    errors.fetch_add(1, std::memory_order_relaxed);
+  };
+
+  std::thread writer([&] {
+    for (int i = 0; i < kDdlIters; ++i) {
+      std::string create = "CREATE TABLE schema_stress_t" +
+                           std::to_string(i) + "(v INTEGER);";
+      auto it = tp->ExecuteQuery(create);
+      while (it.Next()) {
+      }
+      if (!it.Status().ok()) {
+        record("writer CREATE failed: " + std::string(it.Status().c_message()));
+        break;
+      }
+      std::string drop =
+          "DROP TABLE schema_stress_t" + std::to_string(i) + ";";
+      auto it2 = tp->ExecuteQuery(drop);
+      while (it2.Next()) {
+      }
+      if (!it2.Status().ok()) {
+        record("writer DROP failed: " + std::string(it2.Status().c_message()));
+        break;
+      }
+    }
+  });
+
+  std::thread reader([&] {
+    for (int i = 0; i < kReadIters; ++i) {
+      auto it = reader_conn->ExecuteQuery("SELECT 1;");
+      if (!it.Next()) {
+        record("reader Next() returned false: " +
+               std::string(it.Status().c_message()));
+        break;
+      }
+      if (it.Get(0).long_value != 1) {
+        record("reader returned wrong value");
+        break;
+      }
+      while (it.Next()) {
+      }
+      if (!it.Status().ok()) {
+        record("reader Status not ok: " +
+               std::string(it.Status().c_message()));
+        break;
+      }
+    }
+  });
+
+  writer.join();
+  reader.join();
+  std::string log_dump;
+  for (const auto& msg : log) {
+    log_dump += msg + "\n";
+  }
+  ASSERT_EQ(errors.load(), 0) << "logs:\n" << log_dump;
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor

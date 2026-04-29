@@ -657,15 +657,10 @@ base::Status PerfettoSqlEngine::ReleaseIncludeSavepoint(
     return base::OkStatus();
   }
   base::StackString<256> sql("RELEASE %s", frame.include_savepoint.c_str());
-  char* errmsg_raw = nullptr;
-  int err =
-      sqlite3_exec(engine_->db(), sql.c_str(), nullptr, nullptr, &errmsg_raw);
-  ScopedSqliteString errmsg(errmsg_raw);
-  if (err != SQLITE_OK) {
-    return base::ErrStatus(
-        "INCLUDE: failed to release savepoint '%s': %s",
-        frame.include_savepoint.c_str(),
-        errmsg_raw ? errmsg_raw : "unknown");
+  base::Status st = engine_->ExecWithRetry(sql.c_str());
+  if (!st.ok()) {
+    return base::ErrStatus("INCLUDE: failed to release savepoint '%s': %s",
+                           frame.include_savepoint.c_str(), st.c_message());
   }
   return base::OkStatus();
 }
@@ -677,17 +672,12 @@ void PerfettoSqlEngine::RollbackIncludeSavepoint(const ExecutionFrame& frame) {
   base::StackString<512> sql("ROLLBACK TO %s; RELEASE %s;",
                              frame.include_savepoint.c_str(),
                              frame.include_savepoint.c_str());
-  char* errmsg_raw = nullptr;
-  int err =
-      sqlite3_exec(engine_->db(), sql.c_str(), nullptr, nullptr, &errmsg_raw);
-  ScopedSqliteString errmsg(errmsg_raw);
-  if (err != SQLITE_OK) {
+  base::Status st = engine_->ExecWithRetry(sql.c_str());
+  if (!st.ok()) {
     // Best-effort cleanup: a failure here is non-recoverable but we already
     // have a primary error to surface, so just log.
-    PERFETTO_ELOG(
-        "INCLUDE: failed to rollback savepoint '%s': %s",
-        frame.include_savepoint.c_str(),
-        errmsg_raw ? errmsg_raw : "unknown");
+    PERFETTO_ELOG("INCLUDE: failed to rollback savepoint '%s': %s",
+                  frame.include_savepoint.c_str(), st.c_message());
   }
 }
 
@@ -695,14 +685,10 @@ base::StatusOr<std::string> PerfettoSqlEngine::OpenExecuteSavepoint() {
   std::string name =
       "perfetto_execute_" + std::to_string(execute_savepoint_counter_++);
   base::StackString<256> sql("SAVEPOINT %s", name.c_str());
-  char* errmsg_raw = nullptr;
-  int err =
-      sqlite3_exec(engine_->db(), sql.c_str(), nullptr, nullptr, &errmsg_raw);
-  ScopedSqliteString errmsg(errmsg_raw);
-  if (err != SQLITE_OK) {
+  base::Status st = engine_->ExecWithRetry(sql.c_str());
+  if (!st.ok()) {
     return base::ErrStatus("EXECUTE: failed to open savepoint '%s': %s",
-                           name.c_str(),
-                           errmsg_raw ? errmsg_raw : "unknown");
+                           name.c_str(), st.c_message());
   }
   return name;
 }
@@ -713,14 +699,10 @@ base::Status PerfettoSqlEngine::ReleaseExecuteSavepoint(
     return base::OkStatus();
   }
   base::StackString<256> sql("RELEASE %s", name.c_str());
-  char* errmsg_raw = nullptr;
-  int err =
-      sqlite3_exec(engine_->db(), sql.c_str(), nullptr, nullptr, &errmsg_raw);
-  ScopedSqliteString errmsg(errmsg_raw);
-  if (err != SQLITE_OK) {
+  base::Status st = engine_->ExecWithRetry(sql.c_str());
+  if (!st.ok()) {
     return base::ErrStatus("EXECUTE: failed to release savepoint '%s': %s",
-                           name.c_str(),
-                           errmsg_raw ? errmsg_raw : "unknown");
+                           name.c_str(), st.c_message());
   }
   return base::OkStatus();
 }
@@ -731,15 +713,12 @@ void PerfettoSqlEngine::RollbackExecuteSavepoint(const std::string& name) {
   }
   base::StackString<512> sql("ROLLBACK TO %s; RELEASE %s;", name.c_str(),
                              name.c_str());
-  char* errmsg_raw = nullptr;
-  int err =
-      sqlite3_exec(engine_->db(), sql.c_str(), nullptr, nullptr, &errmsg_raw);
-  ScopedSqliteString errmsg(errmsg_raw);
-  if (err != SQLITE_OK) {
+  base::Status st = engine_->ExecWithRetry(sql.c_str());
+  if (!st.ok()) {
     // Best-effort cleanup: a failure here is non-recoverable but we already
     // have a primary error to surface, so just log.
     PERFETTO_ELOG("EXECUTE: failed to rollback savepoint '%s': %s",
-                  name.c_str(), errmsg_raw ? errmsg_raw : "unknown");
+                  name.c_str(), st.c_message());
   }
 }
 
@@ -787,14 +766,11 @@ base::StatusOr<PerfettoSqlEngine::FrameResult> PerfettoSqlEngine::ProcessFrame(
             "perfetto_include_" + std::to_string(include_savepoint_counter_++);
         base::StackString<256> savepoint_sql("SAVEPOINT %s",
                                              savepoint_name.c_str());
-        char* errmsg_raw = nullptr;
-        int err = sqlite3_exec(engine_->db(), savepoint_sql.c_str(), nullptr,
-                               nullptr, &errmsg_raw);
-        ScopedSqliteString errmsg(errmsg_raw);
-        if (err != SQLITE_OK) {
+        if (auto st = engine_->ExecWithRetry(savepoint_sql.c_str());
+            !st.ok()) {
           return base::ErrStatus(
               "INCLUDE: failed to open savepoint for '%s': %s", key.c_str(),
-              errmsg_raw ? errmsg_raw : "unknown");
+              st.c_message());
         }
 
         // Push include frame for this module
@@ -1542,13 +1518,9 @@ base::Status PerfettoSqlEngine::IncludeModuleImpl(
   std::string savepoint_name = "perfetto_include_" +
                                std::to_string(include_savepoint_counter_++);
   base::StackString<256> savepoint_sql("SAVEPOINT %s", savepoint_name.c_str());
-  char* errmsg_raw = nullptr;
-  int err = sqlite3_exec(engine_->db(), savepoint_sql.c_str(), nullptr,
-                         nullptr, &errmsg_raw);
-  ScopedSqliteString errmsg(errmsg_raw);
-  if (err != SQLITE_OK) {
+  if (auto st = engine_->ExecWithRetry(savepoint_sql.c_str()); !st.ok()) {
     return base::ErrStatus("INCLUDE: failed to open savepoint for '%s': %s",
-                           key.c_str(), errmsg_raw ? errmsg_raw : "unknown");
+                           key.c_str(), st.c_message());
   }
 
   // Push include frame onto execution stack. The main loop will process it.
