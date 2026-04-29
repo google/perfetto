@@ -21,6 +21,7 @@
 #include <cinttypes>
 #include <cstdint>
 #include <cstdio>
+#include <initializer_list>
 #include <optional>
 #include <string>
 #include <utility>
@@ -82,19 +83,64 @@ void EnsureSqliteInitialized() {
 }
 
 void InitializeSqlite(sqlite3* db) {
-  char* error = nullptr;
-  sqlite3_exec(db, "PRAGMA temp_store=2", nullptr, nullptr, &error);
-  if (error) {
-    PERFETTO_FATAL("Error setting pragma temp_store: %s", error);
-  }
 // In Android tree builds, we don't have the percentile module.
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_PERCENTILE)
+  char* error = nullptr;
   sqlite3_percentile_init(db, &error, nullptr);
   if (error) {
     PERFETTO_ELOG("Error initializing: %s", error);
     sqlite3_free(error);
   }
+#else
+  (void)db;
 #endif
+}
+
+// Reads the value of |pragma| (e.g. "journal_mode") on |db| and returns it as
+// a lowercase string. PERFETTO_CHECKs on any SQLite error so a silently broken
+// pragma can never go unnoticed.
+std::string ReadPragma(sqlite3* db, const char* pragma) {
+  std::string sql = std::string("PRAGMA ") + pragma;
+  sqlite3_stmt* stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+  PERFETTO_CHECK(rc == SQLITE_OK);
+  rc = sqlite3_step(stmt);
+  PERFETTO_CHECK(rc == SQLITE_ROW);
+  const unsigned char* text = sqlite3_column_text(stmt, 0);
+  std::string out = text ? reinterpret_cast<const char*>(text) : "";
+  for (char& c : out) {
+    if (c >= 'A' && c <= 'Z') {
+      c = static_cast<char>(c - 'A' + 'a');
+    }
+  }
+  sqlite3_finalize(stmt);
+  return out;
+}
+
+// Applies |pragma_sql| (e.g. "PRAGMA journal_mode=MEMORY"), then re-reads
+// |pragma_name| and PERFETTO_CHECKs that the result matches one of
+// |expected_values|. SQLite is allowed to silently fall back when a pragma
+// can't be honoured (e.g. journal_mode=WAL on a backend without SHM hooks
+// returns 'memory'); failing loudly here ensures future regressions surface
+// at construction time rather than as subtle correctness bugs.
+void ApplyAndVerifyPragma(sqlite3* db,
+                          const char* pragma_sql,
+                          const char* pragma_name,
+                          std::initializer_list<const char*> expected_values) {
+  char* error = nullptr;
+  int rc = sqlite3_exec(db, pragma_sql, nullptr, nullptr, &error);
+  if (rc != SQLITE_OK) {
+    PERFETTO_FATAL("Error executing '%s': %s", pragma_sql,
+                   error ? error : "<no message>");
+  }
+  std::string actual = ReadPragma(db, pragma_name);
+  for (const char* expected : expected_values) {
+    if (actual == expected) {
+      return;
+    }
+  }
+  PERFETTO_FATAL("Pragma '%s' silently fell back: got '%s', expected one of",
+                 pragma_sql, actual.c_str());
 }
 
 std::optional<uint32_t> GetErrorOffsetDb(sqlite3* db) {
@@ -135,6 +181,27 @@ SqliteConnection::SqliteConnection(const std::string& filename) {
   PERFETTO_CHECK(sqlite3_open_v2(filename.c_str(), &db, kSqliteOpenFlags,
                                  nullptr) == SQLITE_OK);
   InitializeSqlite(db);
+
+  // Pragmas required for the multi-connection design:
+  //  - journal_mode=MEMORY: keep rollback journal in memory (we never want
+  //    disk I/O for the in-memory database, and the |memdb| VFS lacks SHM
+  //    hooks so WAL is not an option anyway).
+  //  - temp_store=MEMORY: keep all temp tables/indices in memory. This is
+  //    a per-connection setting and is the substrate for the Phase 2
+  //    temp-then-promote include pattern. SQLite stores this as an integer,
+  //    so the read-back returns "2", not "memory".
+  //  - locking_mode=NORMAL: explicitly set so it can't drift to EXCLUSIVE,
+  //    which would break |cache=shared| across connections.
+  // Each pragma is applied and then verified by re-reading: SQLite silently
+  // falls back when a pragma can't be honoured, and we want that to crash
+  // loudly rather than corrupt the multi-conn invariants.
+  ApplyAndVerifyPragma(db, "PRAGMA journal_mode=MEMORY", "journal_mode",
+                       {"memory"});
+  ApplyAndVerifyPragma(db, "PRAGMA temp_store=MEMORY", "temp_store",
+                       {"2", "memory"});
+  ApplyAndVerifyPragma(db, "PRAGMA locking_mode=NORMAL", "locking_mode",
+                       {"normal"});
+
   db_.reset(db);
 }
 

@@ -2,8 +2,7 @@
 
 ## Current Phase
 Phase 1: refactor + memdb (serialized transactions, no WAL) with no
-behavioural change. **Almost done — only `phase1-pragmas` and
-`phase1-validation` remain.**
+behavioural change. **Almost done — only `phase1-validation` remains.**
 
 ## Design pivots (2026-04-29, mid-Phase-1)
 - **WAL abandoned.** Switching to serialized transactions with
@@ -25,6 +24,21 @@ behavioural change. **Almost done — only `phase1-pragmas` and
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [iter 9]: phase1-pragmas done. `SqliteConnection`
+  constructor now applies `journal_mode=MEMORY`, `temp_store=MEMORY`,
+  and `locking_mode=NORMAL` after `InitializeSqlite`, then re-reads
+  each pragma and `PERFETTO_CHECK`s the result so silent fallbacks
+  crash loudly. Helpers `ReadPragma` and `ApplyAndVerifyPragma` live
+  in the anonymous namespace in `sqlite_engine.cc`. Note:
+  `PRAGMA temp_store` reads back as `2` (the integer encoding of
+  `MEMORY`), so the verifier accepts both `"2"` and `"memory"` to be
+  robust across SQLite versions; verified empirically on this build
+  (no fallback CHECK fired across 3216 unittests + 122 TP integration
+  tests + 1355 diff tests). `journal_mode` and `locking_mode` came
+  back as the expected `memory`/`normal` strings — no surprises. The
+  pre-existing `temp_store=2` exec inside `InitializeSqlite` was
+  removed (subsumed by the new `temp_store=MEMORY` apply-and-verify).
+  No behaviour change.
 - 2026-04-29 [iter 7]: global-staging-area-skeleton done. Added
   `src/trace_processor/perfetto_sql/engine/global_staging_area.{h,cc}`
   declaring an empty `GlobalStagingArea` class (no state, copy/move
@@ -129,18 +143,11 @@ behavioural change. **Almost done — only `phase1-pragmas` and
       `GlobalStagingArea` class added; `TraceProcessorImpl` owns it
       via `std::unique_ptr`. No callsites yet. See iter 7 activity
       entry.
-- [ ] phase1-pragmas — set `PRAGMA journal_mode=MEMORY`,
-      `PRAGMA temp_store=MEMORY`, `PRAGMA locking_mode=NORMAL` after
-      open. Verify each pragma read-back returns the expected value
-      (`memory`/`memory`/`normal`) — silent fallbacks must trigger a
-      CHECK so future regressions are caught. Replaces the
-      now-superseded `wal-mode-pragma` chunk. The pragmas should be
-      applied inside `SqliteConnection`'s constructor so every minted
-      connection gets them, not just the first. (`temp_store=MEMORY` is
-      arguably moot since memdb is in-memory anyway, but it's defensive
-      and cheap. `locking_mode=NORMAL` is the SQLite default; we set it
-      explicitly so the intent is clear and it can't drift to
-      `EXCLUSIVE` later — `EXCLUSIVE` would break `cache=shared`.)
+- [x] phase1-pragmas — done iter 9. Three pragmas applied inside
+      `SqliteConnection` ctor with read-back verification via
+      `ApplyAndVerifyPragma` helper. `temp_store` reads back as `2`
+      (integer form), other two as `memory`/`normal`. See iter 9
+      activity entry.
 - [ ] phase1-validation — run unittests, integrationtests,
       diff_test_trace_processor.py, and an ASan unittests pass. No
       regressions and no behaviour change vs. main. Mark Phase 1 done
