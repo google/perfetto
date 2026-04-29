@@ -15,7 +15,11 @@
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {findRef} from '../base/dom_utils';
-import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
+import {
+  FuzzyFinder,
+  FuzzySegment,
+  computeHighlightSegments,
+} from '../base/fuzzy';
 import {assertExists, assertUnreachable} from '../base/assert';
 import {isString} from '../base/object_utils';
 import {exists} from '../base/utils';
@@ -124,9 +128,17 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
   private fuzzyFilterCommands(searchTerm: string): CommandWithMatchInfo[] {
     const app = AppImpl.instance;
     const allCommands = app.commands.getCommands();
-    const finder = new FuzzyFinder(allCommands, ({name}) => name);
+    // Index name + source so users can filter by either. Highlight segments
+    // are recomputed per-field at render time so each piece (title chip /
+    // source chip) gets its own match highlighting.
+    const finder = new FuzzyFinder(allCommands, ({name, source}) =>
+      source ? `${source} ${name}` : name,
+    );
     return finder.find(searchTerm).map((result) => {
-      return {segments: result.segments, ...result.item};
+      return {
+        segments: computeHighlightSegments(searchTerm, result.item.name),
+        ...result.item,
+      };
     });
   }
 
@@ -160,7 +172,10 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
         key: id,
         displayName: segments,
         tag: recentsIndex !== -1 ? 'recently used' : undefined,
-        source,
+        source:
+          source !== undefined
+            ? computeHighlightSegments(omnibox.text, source)
+            : undefined,
         rightContent: defaultHotkey && m(HotkeyGlyphs, {hotkey: defaultHotkey}),
       };
     });
@@ -371,7 +386,8 @@ interface OmniboxOptionRowAttrs extends HTMLAttrs {
   readonly label?: string;
 
   // Source label to show as a left-side chip (e.g. extension module name).
-  readonly source?: string;
+  // Either a plain string or fuzzy segments to enable match highlighting.
+  readonly source?: FuzzySegment[] | string;
 }
 
 class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
@@ -392,25 +408,25 @@ class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
         class: classNames(highlighted && 'pf-highlighted'),
         ...htmlAttrs,
       },
-      source &&
+      exists(source) &&
         m(Chip, {
           className: 'pf-omnibox__source',
-          label: source,
+          label: this.renderSegments(source),
           rounded: true,
           compact: true,
           intent: Intent.Primary,
         }),
-      m('span.pf-title', this.renderTitle(displayName)),
+      m('span.pf-title', this.renderSegments(displayName)),
       label && m(Chip, {className: 'pf-omnibox__tag', label, rounded: true}),
       rightContent,
     );
   }
 
-  private renderTitle(title: FuzzySegment[] | string): m.Children {
-    if (isString(title)) {
-      return title;
+  private renderSegments(text: FuzzySegment[] | string): m.Children {
+    if (isString(text)) {
+      return text;
     } else {
-      return title.map(({matching, value}) => {
+      return text.map(({matching, value}) => {
         return matching ? m('b', value) : value;
       });
     }
@@ -439,7 +455,8 @@ interface OmniboxOption {
   readonly tag?: string;
 
   // Source label to show as a left-side chip (e.g. extension module name).
-  readonly source?: string;
+  // Either a plain string or fuzzy segments to enable match highlighting.
+  readonly source?: FuzzySegment[] | string;
 
   // Arbitrary components to put on the right hand side of the option.
   readonly rightContent?: m.Children;
