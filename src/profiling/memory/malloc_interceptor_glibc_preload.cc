@@ -55,16 +55,21 @@ class ScopedReentrancyPreventer {
 
 extern "C" {
 
-// Prototypes for new C23 functions that might not be present yet.
+// Prototypes for the C23 size-aware deallocation entry points. <stdlib.h>
+// only declares them on glibc >= 2.41 and we may compile against older SDK
+// headers, so we declare them ourselves.
 void free_sized(void*, size_t);
 void free_aligned_sized(void*, size_t, size_t);
 
 // These are exported by GLibc to be used by functions overwriting malloc
-// to call back to the real implementation.
+// to call back to the real implementation. Note: glibc does not export
+// `__libc_free_sized` / `__libc_free_aligned_sized` aliases for the C23
+// size-aware free functions - the `__libc_*` naming convention is only used
+// for the legacy entry points listed below. See
+// https://elixir.bootlin.com/glibc/glibc-2.43/source/malloc/Versions for the
+// canonical exported-symbol list.
 extern void* __libc_malloc(size_t);
 extern void __libc_free(void*);
-extern void __libc_free_sized(void*, size_t);
-extern void __libc_free_aligned_sized(void*, size_t, size_t);
 extern void* __libc_calloc(size_t, size_t);
 extern void* __libc_realloc(void*, size_t);
 extern void* __libc_memalign(size_t, size_t);
@@ -92,24 +97,18 @@ void free(void* ptr) {
   return perfetto::profiling::wrap_free(g_heap_id, __libc_free, ptr);
 }
 
-void free_sized(void* ptr, size_t size) {
-  if (PERFETTO_UNLIKELY(ScopedReentrancyPreventer::is_inside())) {
-    return __libc_free_sized(ptr, size);
-  }
-  ScopedReentrancyPreventer p;
-
-  return perfetto::profiling::wrap_free_sized(g_heap_id, __libc_free_sized, ptr,
-                                              size);
+// C23 size-aware free entry points. Per the spec the size/alignment hints
+// are informational; upstream glibc itself ignores them and just forwards to
+// free() - see
+// https://elixir.bootlin.com/glibc/glibc-2.43/source/malloc/malloc.c#L3550.
+// Calling free() from here resolves back to our own free() override above
+// via the LD_PRELOAD chain, so the deallocation is still reported.
+void free_sized(void* ptr, size_t /*size*/) {
+  free(ptr);
 }
 
-void free_aligned_sized(void* ptr, size_t alignment, size_t size) {
-  if (PERFETTO_UNLIKELY(ScopedReentrancyPreventer::is_inside())) {
-    return __libc_free_aligned_sized(ptr, alignment, size);
-  }
-  ScopedReentrancyPreventer p;
-
-  return perfetto::profiling::wrap_free_aligned_sized(
-      g_heap_id, __libc_free_aligned_sized, ptr, alignment, size);
+void free_aligned_sized(void* ptr, size_t /*alignment*/, size_t /*size*/) {
+  free(ptr);
 }
 
 void* calloc(size_t nmemb, size_t size) {

@@ -31,7 +31,10 @@ import {SortNode} from './query_builder/nodes/sort_node';
 import {FilterNode} from './query_builder/nodes/filter_node';
 import {JoinNode} from './query_builder/nodes/join_node';
 import {UnionNode} from './query_builder/nodes/union_node';
-import {PerfettoSqlType} from '../../trace_processor/perfetto_sql_type';
+import {
+  PerfettoSqlType,
+  PerfettoSqlTypes,
+} from '../../trace_processor/perfetto_sql_type';
 import {NodeType} from './query_node';
 import {
   addConnection,
@@ -3092,5 +3095,255 @@ describe('JSON serialization/deserialization', () => {
     ) as FilterNode;
     expect(deserializedFilter).toBeDefined();
     expect(deserializedFilter.primaryInput).toBeDefined();
+  });
+
+  describe('legacy string type migration', () => {
+    function deserializeRaw(serializedGraph: object): DataExplorerState {
+      return deserializeState(
+        JSON.stringify(serializedGraph),
+        trace,
+        sqlModules,
+      );
+    }
+
+    it('migrates legacy columnName field in JoinNode columns, preserving checked state', () => {
+      // columnName→name migration matters because buildDescriptors() looks up
+      // existing columns by name to preserve user customizations (checked, alias).
+      // Without migration, the lookup fails and checked resets to false.
+      //
+      // The test uses connected TableSourceNodes (slice table: name, ts, dur)
+      // so that postDeserializeLate/updateColumnArrays() can actually run.
+      const graph = {
+        nodes: [
+          {
+            nodeId: 'src1',
+            type: NodeType.kTable,
+            nextNodes: ['join1'],
+            state: {sqlTable: 'slice'},
+          },
+          {
+            nodeId: 'src2',
+            type: NodeType.kTable,
+            nextNodes: ['join1'],
+            state: {sqlTable: 'slice'},
+          },
+          {
+            nodeId: 'join1',
+            type: NodeType.kJoin,
+            nextNodes: [],
+            secondaryInputIds: {'0': 'src1', '1': 'src2'},
+            state: {
+              leftQueryAlias: 'left',
+              rightQueryAlias: 'right',
+              conditionType: 'equality',
+              joinType: 'INNER',
+              leftColumn: 'name',
+              rightColumn: 'name',
+              sqlExpression: '',
+              // Legacy format: 'columnName' instead of 'name'. After migration,
+              // buildDescriptors can match this to the 'name' column from src1
+              // and preserve checked: true.
+              leftColumns: [
+                {columnName: 'name', type: {kind: 'string'}, checked: true},
+              ],
+              rightColumns: [],
+            },
+          },
+        ],
+        rootNodeIds: ['src1', 'src2'],
+        nodeLayouts: {},
+        labels: [],
+      };
+      const state = deserializeRaw(graph);
+      const src1 = state.rootNodes[0];
+      const joinNode = src1.nextNodes[0] as JoinNode;
+      // After migration, 'name' column should be found and checked: true preserved.
+      const nameCol = joinNode.attrs.leftColumns?.find(
+        (c) => c.name === 'name',
+      );
+      expect(nameCol).toBeDefined();
+      expect(nameCol?.checked).toBe(true);
+    });
+
+    it('applies JoinNode defaults for absent conditionType/joinType/column/sqlExpression fields', () => {
+      const graph = {
+        nodes: [
+          {
+            nodeId: 'join1',
+            type: NodeType.kJoin,
+            nextNodes: [],
+            state: {
+              leftQueryAlias: 'left',
+              rightQueryAlias: 'right',
+              // conditionType, joinType, leftColumn, rightColumn, sqlExpression
+              // are all absent — must default to their canonical values.
+            },
+          },
+        ],
+        rootNodeIds: ['join1'],
+        nodeLayouts: {},
+        labels: [],
+      };
+      const state = deserializeRaw(graph);
+      const joinNode = state.rootNodes[0] as JoinNode;
+      expect(joinNode.attrs.conditionType).toBe('equality');
+      expect(joinNode.attrs.joinType).toBe('INNER');
+      expect(joinNode.attrs.leftColumn).toBe('');
+      expect(joinNode.attrs.rightColumn).toBe('');
+      expect(joinNode.attrs.sqlExpression).toBe('');
+    });
+
+    it('migrates legacy string types in ModifyColumnsNode selectedColumns', () => {
+      const graph = {
+        nodes: [
+          {
+            nodeId: 'mod1',
+            type: NodeType.kModifyColumns,
+            nextNodes: [],
+            state: {
+              selectedColumns: [
+                {name: 'id', type: 'INT', checked: true},
+                {name: 'name', type: 'STRING', checked: true},
+                {name: 'ts', type: 'UNKNOWN_LEGACY', checked: false},
+              ],
+            },
+          },
+        ],
+        rootNodeIds: ['mod1'],
+        nodeLayouts: {},
+        labels: [],
+      };
+      const state = deserializeRaw(graph);
+      const modNode = state.rootNodes[0] as ModifyColumnsNode;
+      expect(modNode.attrs.selectedColumns[0].type).toEqual(
+        PerfettoSqlTypes.INT,
+      );
+      expect(modNode.attrs.selectedColumns[1].type).toEqual(
+        PerfettoSqlTypes.STRING,
+      );
+      expect(modNode.attrs.selectedColumns[2].type).toBeUndefined();
+    });
+
+    it('migrates legacy string types in AggregationNode groupByColumns', () => {
+      // groupByColumns flow directly into finalCols, so unmigrated string types
+      // would crash downstream nodes (e.g. renderTypeSelector).
+      const graph = {
+        nodes: [
+          {
+            nodeId: 'agg1',
+            type: NodeType.kAggregation,
+            nextNodes: [],
+            state: {
+              groupByColumns: [
+                {name: 'ts', type: 'TIMESTAMP', checked: true},
+                {name: 'name', type: 'STRING', checked: true},
+              ],
+              aggregations: [],
+            },
+          },
+        ],
+        rootNodeIds: ['agg1'],
+        nodeLayouts: {},
+        labels: [],
+      };
+      const state = deserializeRaw(graph);
+      const aggNode = state.rootNodes[0] as AggregationNode;
+      expect(aggNode.attrs.groupByColumns[0].type).toEqual(
+        PerfettoSqlTypes.TIMESTAMP,
+      );
+      expect(aggNode.attrs.groupByColumns[1].type).toEqual(
+        PerfettoSqlTypes.STRING,
+      );
+    });
+
+    it('migrates legacy string types in AggregationNode aggregations[].column.type', () => {
+      // aggregations[].column.type flows into finalCols via getAggregationResultType
+      // for SUM/MIN/MAX ops, so a string type there would crash renderTypeSelector.
+      const graph = {
+        nodes: [
+          {
+            nodeId: 'agg1',
+            type: NodeType.kAggregation,
+            nextNodes: [],
+            state: {
+              groupByColumns: [],
+              aggregations: [
+                {
+                  column: {name: 'dur', type: 'DURATION'},
+                  aggregationOp: 'SUM',
+                  newColumnName: 'total_dur',
+                },
+              ],
+            },
+          },
+        ],
+        rootNodeIds: ['agg1'],
+        nodeLayouts: {},
+        labels: [],
+      };
+      const state = deserializeRaw(graph);
+      const aggNode = state.rootNodes[0] as AggregationNode;
+      expect(aggNode.attrs.aggregations[0].column?.type).toEqual(
+        PerfettoSqlTypes.DURATION,
+      );
+    });
+
+    it('migrates legacy string types in UnionNode selectedColumns', () => {
+      // selectedColumns flow directly into finalCols, so unmigrated string types
+      // would crash downstream nodes (e.g. renderTypeSelector).
+      const graph = {
+        nodes: [
+          {
+            nodeId: 'union1',
+            type: NodeType.kUnion,
+            nextNodes: [],
+            state: {
+              selectedColumns: [
+                {name: 'id', type: 'INT', checked: true},
+                {name: 'ts', type: 'TIMESTAMP', checked: true},
+              ],
+            },
+          },
+        ],
+        rootNodeIds: ['union1'],
+        nodeLayouts: {},
+        labels: [],
+      };
+      const state = deserializeRaw(graph);
+      const unionNode = state.rootNodes[0] as UnionNode;
+      expect(unionNode.attrs.selectedColumns[0].type).toEqual(
+        PerfettoSqlTypes.INT,
+      );
+      expect(unionNode.attrs.selectedColumns[1].type).toEqual(
+        PerfettoSqlTypes.TIMESTAMP,
+      );
+    });
+
+    it('migrates legacy string types in AddColumnsNode columnTypes', () => {
+      const graph = {
+        nodes: [
+          {
+            nodeId: 'add1',
+            type: NodeType.kAddColumns,
+            nextNodes: [],
+            state: {
+              sql: 'SELECT 1 AS val',
+              columnTypes: {val: 'DOUBLE', count: 'INT'},
+            },
+          },
+        ],
+        rootNodeIds: ['add1'],
+        nodeLayouts: {},
+        labels: [],
+      };
+      const state = deserializeRaw(graph);
+      const addNode = state.rootNodes[0] as AddColumnsNode;
+      expect(addNode.attrs.columnTypes?.['val']).toEqual(
+        PerfettoSqlTypes.DOUBLE,
+      );
+      expect(addNode.attrs.columnTypes?.['count']).toEqual(
+        PerfettoSqlTypes.INT,
+      );
+    });
   });
 });

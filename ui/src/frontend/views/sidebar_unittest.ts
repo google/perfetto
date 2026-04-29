@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {pageMatchesHref} from './sidebar';
+import {pageMatchesHref} from './sidebar_item';
 
 describe('pageMatchesHref', () => {
   test('direct match', () => {

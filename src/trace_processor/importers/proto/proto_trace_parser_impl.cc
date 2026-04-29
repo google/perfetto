@@ -175,18 +175,18 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
       StringId name_id = storage->InternString(metadata.name());
       args.AddArgsTo(id).AddArg(name_id, value);
 
-      char buffer[2048];
-      base::FixedStringWriter writer(buffer, sizeof(buffer));
-      writer.AppendString("cr-");
+      // metadata.name() comes from the trace and is untrusted/unbounded,
+      // so we build the key on the heap rather than a fixed stack buffer.
+      std::string key = "cr-";
       // If we have data from multiple Chrome instances, append a suffix
       // to differentiate them.
       if (bundle_index > 1) {
-        writer.AppendUnsignedInt(bundle_index);
-        writer.AppendChar('-');
+        key += std::to_string(bundle_index);
+        key += '-';
       }
-      writer.AppendString(metadata.name());
+      key.append(metadata.name().data, metadata.name().size);
 
-      auto metadata_id = storage->InternString(writer.GetStringView());
+      auto metadata_id = storage->InternString(base::StringView(key));
       context_->metadata_tracker->SetDynamicMetadata(metadata_id, value);
     }
   }

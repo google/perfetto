@@ -64,6 +64,7 @@ def main():
   parser.add_argument('--test-extensions', type=str, default=None)
   parser.add_argument('--winscope-extensions', type=str, default=None)
   parser.add_argument('--gpu-extensions', type=str, default=None)
+  parser.add_argument('--gpu-interned-data-extensions', type=str, default=None)
   parser.add_argument('--simpleperf-descriptor', type=str, default=None)
   parser.add_argument('--perf-file', type=str)
   parser.add_argument(
@@ -110,6 +111,9 @@ def main():
   if args.gpu_extensions is None:
     args.gpu_extensions = os.path.join(protos_path, 'perfetto', 'trace', 'gpu',
                                        'gpu_track_event.descriptor')
+  if args.gpu_interned_data_extensions is None:
+    args.gpu_interned_data_extensions = os.path.join(
+        protos_path, 'perfetto', 'trace', 'gpu', 'gpu_interned_data.descriptor')
   if args.simpleperf_descriptor is None:
     args.simpleperf_descriptor = os.path.join(protos_path, 'third_party',
                                               'simpleperf',
@@ -133,6 +137,7 @@ def main():
       test_extensions=args.test_extensions,
       winscope_extensions=args.winscope_extensions,
       gpu_extensions=args.gpu_extensions,
+      gpu_interned_data_extensions=args.gpu_interned_data_extensions,
       simpleperf_descriptor=args.simpleperf_descriptor,
       keep_input=args.keep_input,
       print_slowest_tests=args.print_slowest_tests,

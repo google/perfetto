@@ -250,7 +250,7 @@ const url = `https://ui.perfetto.dev/#!/?startupCommands=${encodeURIComponent(
 ```
 
 The startup commands use the same JSON format as described in the
-[UI automation documentation](/docs/visualization/perfetto-ui.md#startup-commands),
+[UI automation documentation](/docs/visualization/ui-automation.md#setting-up-startup-commands),
 but must be URL-encoded when passed as a parameter. For the list of stable
 commands with backwards compatibility guarantees, see the
 [Commands Automation Reference](/docs/visualization/commands-automation-reference.md).

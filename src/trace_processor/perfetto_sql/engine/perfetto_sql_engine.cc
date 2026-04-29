@@ -51,7 +51,6 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/perfetto_sql/parser/perfetto_sql_parser.h"
-#include "src/trace_processor/perfetto_sql/preprocessor/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_column.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
@@ -1370,7 +1369,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateMacro(
   for (const auto& arg : create_macro.args) {
     args.push_back(arg.first.sql());
   }
-  PerfettoSqlPreprocessor::Macro macro{
+  PerfettoSqlParser::Macro macro{
       create_macro.replace,
       create_macro.name.sql(),
       std::move(args),

@@ -124,6 +124,11 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
       );
     };
 
+    const nextSortDirection: SortDirection = (() => {
+      if (!sort) return hintSortDirection || 'ASC';
+      return sort === 'ASC' ? 'DESC' : 'ASC';
+    })();
+
     return m(
       '.pf-grid-header-cell',
       {
@@ -135,6 +140,15 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
           '.pf-grid-header-cell__main-content',
           m(
             '.pf-grid-header-cell__title',
+            {
+              onclick: onSort
+                ? (e: MouseEvent) => {
+                    onSort(nextSortDirection);
+                    e.stopPropagation();
+                  }
+                : undefined,
+              style: onSort ? {cursor: 'pointer'} : undefined,
+            },
             m('.pf-grid-header-cell__title-wrapper', children),
             renderSortButton(),
           ),

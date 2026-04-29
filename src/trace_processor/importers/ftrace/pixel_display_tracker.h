@@ -33,6 +33,8 @@ class PixelDisplayTracker {
 
   void ParseDpuDispFrameStartTimeout(int64_t timestamp, protozero::ConstBytes);
   void ParseDpuDispFrameDoneTimeout(int64_t timestamp, protozero::ConstBytes);
+  void ParseDpuDispFrameStartMissing(int64_t timestamp, protozero::ConstBytes);
+  void ParseDpuDispFrameDoneMissing(int64_t timestamp, protozero::ConstBytes);
   void ParseDpuDispVblankIrqEnable(int64_t timestamp, protozero::ConstBytes);
 
  private:
@@ -40,6 +42,8 @@ class PixelDisplayTracker {
   // track names
   const StringId frame_start_timeout_name_;
   const StringId frame_done_timeout_name_;
+  const StringId frame_start_missing_name_;
+  const StringId frame_done_missing_name_;
   const StringId vblank_irq_enable_name_;
 
   // event arguments

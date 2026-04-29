@@ -3,9 +3,11 @@
 # for the project "perfetto-ui" (zone: europe-west2).
 #
 # This config is wired to the triggers that fire on pushes to the
-# long-lived `canary` and `stable` branches. The branch name is passed
-# as the channel name to the entrypoint, so a push to `canary` builds
-# the canary channel and a push to `stable` builds the stable channel.
+# long-lived `canary` / `stable` branches and to release branches. The
+# branch name is passed to the entrypoint, which maps canary/stable to
+# the channel of the same name and any other branch (i.e. a release
+# branch) to the 'release' mode -- uploads /v<version>/ only, no index
+# or service_worker mutation.
 steps:
 - name: europe-docker.pkg.dev/perfetto-ui/builder/perfetto-ui-builder
   args:
