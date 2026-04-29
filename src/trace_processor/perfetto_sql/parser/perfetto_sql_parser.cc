@@ -141,8 +141,12 @@ base::StatusOr<PerfettoSqlParser::CreateFunction::Returns> BuildReturnType(
 // without disturbing the public PerfettoSqlParser surface.
 
 struct LegacyImpl {
-  LegacyImpl(SqlSource source,
-             const base::FlatHashMap<std::string, Macro>& macros)
+  // [[maybe_unused]]: only one of LegacyImpl / SyntaqliteMacroImpl is reached
+  // through the `if constexpr (kUseSyntaqliteMacros)` switch in Impl, so the
+  // unreached side has no in-TU callers for its constructor or `Next`.
+  [[maybe_unused]] LegacyImpl(
+      SqlSource source,
+      const base::FlatHashMap<std::string, Macro>& macros)
       : preprocessor(std::move(source), macros) {
     synq = syntaqlite_parser_create_with_dialect(nullptr,
                                                  syntaqlite_perfetto_dialect());
@@ -156,7 +160,7 @@ struct LegacyImpl {
   LegacyImpl(LegacyImpl&&) = delete;
   LegacyImpl& operator=(LegacyImpl&&) = delete;
 
-  bool Next(std::optional<SqlSource>& out_statement_sql);
+  [[maybe_unused]] bool Next(std::optional<SqlSource>& out_statement_sql);
 
   SyntaqliteParser* synq;
   PerfettoSqlPreprocessor preprocessor;
@@ -833,8 +837,13 @@ base::StatusOr<Statement> ParseStatement(SyntaqliteParser* p,
 // (preprocessor-compat shims) and the engine-owned user macro registry.
 
 struct SyntaqliteMacroImpl {
-  SyntaqliteMacroImpl(SqlSource src,
-                      const base::FlatHashMap<std::string, Macro>& m)
+  // [[maybe_unused]]: when `kUseSyntaqliteMacros` is false, the
+  // `if constexpr` branches that call this constructor and `Next` below are
+  // discarded, leaving them with no in-TU callers. The class still needs to
+  // be defined because `std::optional<SyntaqliteMacroImpl>` is held by Impl.
+  [[maybe_unused]] SyntaqliteMacroImpl(
+      SqlSource src,
+      const base::FlatHashMap<std::string, Macro>& m)
       : source(std::move(src)), macros(m) {
     synq = syntaqlite_parser_create_with_dialect(nullptr,
                                                  syntaqlite_perfetto_dialect());
@@ -853,7 +862,7 @@ struct SyntaqliteMacroImpl {
   SyntaqliteMacroImpl(SyntaqliteMacroImpl&&) = delete;
   SyntaqliteMacroImpl& operator=(SyntaqliteMacroImpl&&) = delete;
 
-  bool Next(std::optional<SqlSource>& out_statement_sql);
+  [[maybe_unused]] bool Next(std::optional<SqlSource>& out_statement_sql);
 
   // Bridges syntaqlite's macro-lookup callback to our intrinsic expander
   // and user macro registry. Return codes are defined by syntaqlite:
