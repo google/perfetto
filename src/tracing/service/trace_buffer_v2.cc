@@ -971,18 +971,21 @@ void TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
       has_cleared_unconsumed_fragments = true;
     }
 
-    // In future this branch should become "&& !protovm_has_consumed_packet"
-    // We shouldn't report a data loss if ProtoVM merged the outgoing packet.
-    if (has_cleared_unconsumed_fragments) {
-      csr.seq()->data_loss = true;
-    }
-
     // ChunkSeqReader(kEraseMode) must delete the chunk once
     // ReadNextPacketInSeqOrder() returns false.
     PERFETTO_DCHECK(chunk->is_padding());
 
-    stats_.set_chunks_overwritten(stats_.chunks_overwritten() + 1);
-    stats_.set_bytes_overwritten(stats_.bytes_overwritten() + chunk_outer_size);
+    // A chunk that the reader already drained but hadn't yet "stepped past"
+    // is still non-padding until the next ReadNextTracePacket() call would
+    // erase it; clearing it here is not a real overwrite.
+    // In future this branch should become "&& !protovm_has_consumed_packet"
+    // We shouldn't report a data loss if ProtoVM merged the outgoing packet.
+    if (has_cleared_unconsumed_fragments) {
+      csr.seq()->data_loss = true;
+      stats_.set_chunks_overwritten(stats_.chunks_overwritten() + 1);
+      stats_.set_bytes_overwritten(stats_.bytes_overwritten() +
+                                   chunk_outer_size);
+    }
   }
 
   // Having consumed the packets above, this loop wipes out the contents of the

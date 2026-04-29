@@ -1691,6 +1691,56 @@ TEST_F(TraceBufferV2Test, NoDataLossIfReaderCatchesUp) {
   }
 }
 
+// chunks_overwritten / bytes_overwritten must not be incremented for a chunk
+// that the reader already drained but hadn't yet "stepped past". The
+// kFragWholePacket branch in ReadNextPacketInSeqOrder() decrements
+// payload_avail to 0 and returns the packet to the consumer without erasing
+// the chunk; the chunk only becomes a padding chunk on the next read call,
+// when NextFragmentInChunk() returns nullopt and EraseCurrentChunk() runs.
+// If a write forces a wrap in that gap, DeleteNextChunksFor() encounters a
+// non-padding chunk and (incorrectly) bumps the overwrite counters, even
+// though there is nothing left to lose. Mirrors NoDataLossIfReaderCatchesUp
+// above, which exercises the same pattern but doesn't assert on the stats.
+TEST_F(TraceBufferV2Test, NoOverwriteCountIfReaderCatchesUp) {
+  ResetBuffer(4096);
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(2000, 'a')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(1000, 'b')
+      .CopyIntoTraceBuffer();
+
+  // Read 'a' with a single ReadPacket(). Crucially, do not call ReadPacket()
+  // again — that follow-up call is what would turn ChunkID(0) into a padding
+  // chunk via EraseCurrentChunk().
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(2000, 'a')));
+
+  // ChunkID(2) doesn't fit in the tail, so wr_ wraps to 0 and
+  // DeleteNextChunksFor() walks ChunkID(0). ChunkID(0) has no unread bytes,
+  // so this is not an overwrite.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(2000, 'c')
+      .CopyIntoTraceBuffer();
+
+  EXPECT_EQ(0u, trace_buffer()->stats().chunks_overwritten());
+  EXPECT_EQ(0u, trace_buffer()->stats().bytes_overwritten());
+
+  // Sanity check: the surviving packets are still readable and the consumer
+  // is not signalled any data loss — confirming that the increment above (if
+  // it fires) is bogus rather than a real overwrite reported elsewhere.
+  trace_buffer()->BeginRead();
+  bool dropped = false;
+  ASSERT_THAT(ReadPacket(nullptr, &dropped),
+              ElementsAre(FakePacketFragment(1000, 'b')));
+  EXPECT_FALSE(dropped);
+  ASSERT_THAT(ReadPacket(nullptr, &dropped),
+              ElementsAre(FakePacketFragment(2000, 'c')));
+  EXPECT_FALSE(dropped);
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
 TEST_F(TraceBufferV2Test, PacketDropOnOverwrite) {
   ResetBuffer(4096);
   SuppressClientDchecksForTesting();
