@@ -238,5 +238,98 @@ TEST(TraceProcessorConnectionTest, SequentialIncludesPromoteToOtherConnection) {
   ASSERT_OK(it.Status());
 }
 
+// Phase 2 iter 4 smoke test: a `CREATE PERFETTO TABLE` on connection-0
+// installs a dataframe-backed virtual table. The secondary connection must
+// be able to `SELECT` from it and observe the same rows, which exercises:
+//  - dataframe vtab module registration on the secondary engine
+//  - cross-connection vtab-state publishing via `GlobalStagingArea`
+//    (writer publishes its committed `PerVtabState::committed_state`
+//    on every `OnCommit`)
+//  - cold xConnect resolution on the secondary engine consulting staging
+//    via `DataframeModule::Context::ResolveMissingStateOnConnect`
+//  - re-resolution at cursor creation time (`DataframeModule::Filter` /
+//    `BestIndex` look up the State from staging rather than caching it
+//    in `PerVtabState`).
+TEST(TraceProcessorConnectionTest,
+     SecondaryConnectionReadsDataframeVtabFromPrimary) {
+  auto tp = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(tp->NotifyEndOfFile());
+
+  // CREATE PERFETTO TABLE goes through DataframeModule (vs. plain CREATE
+  // TABLE which is a regular sqlite btree).
+  {
+    auto it = tp->ExecuteQuery(
+        "CREATE PERFETTO TABLE conn_df_test AS "
+        "SELECT 1 AS id, 'first' AS name UNION ALL "
+        "SELECT 2 AS id, 'second' AS name UNION ALL "
+        "SELECT 3 AS id, 'third' AS name;");
+    while (it.Next()) {
+    }
+    ASSERT_OK(it.Status());
+  }
+
+  // Verify the writer connection sees the rows.
+  {
+    auto it =
+        tp->ExecuteQuery("SELECT id, name FROM conn_df_test ORDER BY id;");
+    ASSERT_TRUE(it.Next()) << it.Status().c_message();
+    ASSERT_EQ(it.Get(0).long_value, 1);
+    ASSERT_TRUE(it.Next()) << it.Status().c_message();
+    ASSERT_TRUE(it.Next()) << it.Status().c_message();
+    ASSERT_FALSE(it.Next());
+    ASSERT_OK(it.Status());
+  }
+
+  // Now mint a secondary connection and run the same query through it.
+  auto conn = tp->CreateConnection();
+  ASSERT_NE(conn, nullptr);
+
+  auto it =
+      conn->ExecuteQuery("SELECT id, name FROM conn_df_test ORDER BY id;");
+  ASSERT_TRUE(it.Next()) << it.Status().c_message();
+  ASSERT_EQ(it.Get(0).long_value, 1);
+  ASSERT_STREQ(it.Get(1).string_value, "first");
+  ASSERT_TRUE(it.Next()) << it.Status().c_message();
+  ASSERT_EQ(it.Get(0).long_value, 2);
+  ASSERT_STREQ(it.Get(1).string_value, "second");
+  ASSERT_TRUE(it.Next()) << it.Status().c_message();
+  ASSERT_EQ(it.Get(0).long_value, 3);
+  ASSERT_STREQ(it.Get(1).string_value, "third");
+  ASSERT_FALSE(it.Next());
+  ASSERT_OK(it.Status());
+}
+
+// Verifies that secondary connections see static dataframe-backed tables
+// (e.g. `thread`, `process`) registered via `RegisterStaticTable` during
+// engine init. These are the bread-and-butter tables that any real
+// `SELECT * FROM thread` query would hit.
+TEST(TraceProcessorConnectionTest,
+     SecondaryConnectionReadsStaticDataframeTable) {
+  auto tp = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(tp->NotifyEndOfFile());
+
+  // Pick `thread` as the canonical static dataframe-backed table. It has
+  // an `_auto_id` PK column plus several user-facing columns; an empty
+  // trace yields zero rows but the vtab must still be discoverable and
+  // queryable on the secondary connection.
+  int primary_thread_count = -1;
+  {
+    auto it = tp->ExecuteQuery("SELECT COUNT(*) FROM thread;");
+    ASSERT_TRUE(it.Next()) << it.Status().c_message();
+    primary_thread_count = static_cast<int>(it.Get(0).long_value);
+    ASSERT_FALSE(it.Next());
+    ASSERT_OK(it.Status());
+  }
+
+  auto conn = tp->CreateConnection();
+  ASSERT_NE(conn, nullptr);
+
+  auto it = conn->ExecuteQuery("SELECT COUNT(*) FROM thread;");
+  ASSERT_TRUE(it.Next()) << it.Status().c_message();
+  ASSERT_EQ(static_cast<int>(it.Get(0).long_value), primary_thread_count);
+  ASSERT_FALSE(it.Next());
+  ASSERT_OK(it.Status());
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor

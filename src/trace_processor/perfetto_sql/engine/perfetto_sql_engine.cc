@@ -398,19 +398,43 @@ GetTypesFromSelectStatement(
 
 PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
                                      bool enable_extra_checks,
-                                     const std::string& shared_filename)
+                                     const std::string& shared_filename,
+                                     GlobalStagingArea* staging_area)
     : pool_(pool),
       enable_extra_checks_(enable_extra_checks),
+      staging_area_(staging_area),
       engine_(new SqliteEngine(shared_filename)) {
-  // Intentionally minimal: secondary engines piggyback on storage created by
-  // the primary. See the header doc-comment on this ctor for the full list
-  // of intentional omissions (vtab modules, function registrations,
-  // perfetto_tables creation, commit/rollback hooks).
+  // Secondary engines: minimal setup, piggybacking on storage created by the
+  // primary via `cache=shared`. We register only the dataframe vtab module
+  // here so reader connections can resolve `__intrinsic_dataframe`-backed
+  // tables (the dominant table type). See header doc-comment for the full
+  // list of intentional omissions.
+  PERFETTO_CHECK(staging_area_);
+
+  engine_->SetCommitCallback(
+      [](void* ctx) {
+        return static_cast<PerfettoSqlEngine*>(ctx)->OnCommit();
+      },
+      this);
+  engine_->SetRollbackCallback(
+      [](void* ctx) { static_cast<PerfettoSqlEngine*>(ctx)->OnRollback(); },
+      this);
+
+  auto ctx = std::make_unique<DataframeModule::Context>();
+  ctx->staging_area = staging_area_;
+  ctx->is_writer = false;
+  ctx->module_name = "__intrinsic_dataframe";
+  dataframe_context_ = ctx.get();
+  RegisterVirtualTableModule<DataframeModule>("__intrinsic_dataframe",
+                                              std::move(ctx));
 }
 
-PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool, bool enable_extra_checks)
+PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
+                                     bool enable_extra_checks,
+                                     GlobalStagingArea* staging_area)
     : pool_(pool),
       enable_extra_checks_(enable_extra_checks),
+      staging_area_(staging_area),
       engine_(new SqliteEngine()) {
   // Initialize `perfetto_tables` table, which will contain the names of all of
   // the registered tables.
@@ -447,6 +471,13 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool, bool enable_extra_checks)
   }
   {
     auto ctx = std::make_unique<DataframeModule::Context>();
+    // The dataframe module on the primary engine acts as the writer for
+    // cross-connection vtab-state publishing. Readers (secondary engines)
+    // consult the same `staging_area`; the writer publishes its committed
+    // state on every `OnCommit`.
+    ctx->staging_area = staging_area_;
+    ctx->is_writer = staging_area_ != nullptr;
+    ctx->module_name = "__intrinsic_dataframe";
     dataframe_context_ = ctx.get();
     RegisterVirtualTableModule<DataframeModule>("__intrinsic_dataframe",
                                                 std::move(ctx));

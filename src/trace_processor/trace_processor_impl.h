@@ -174,6 +174,7 @@ class TraceProcessorImpl : public TraceProcessor,
     bool notify_eof_called;
     std::pair<int64_t, int64_t> cached_trace_bounds;
     std::vector<std::unique_ptr<PluginBase>>& plugins;
+    GlobalStagingArea* staging_area;
   };
 
   static std::unique_ptr<PerfettoSqlEngine> InitPerfettoSqlEngine(

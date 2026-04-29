@@ -23,6 +23,98 @@ Phase 1 complete. Next: Phase 2 (multi-conn single-threaded).
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [Phase 2 iter 4]: vtab-state-staging-publish done
+  (dataframe module wired; runtime/static-table-function modules
+  deferred). Cross-connection vtab-state plumbing now lets a
+  secondary connection observe DataframeModule-backed virtual tables
+  created on the primary connection.
+  Data shape: `GlobalStagingArea` gained an internally-locked
+  `flat_hash_map<std::string, std::shared_ptr<void>>` keyed by
+  `(module_name + "\0" + vtab_name)`. The stored value is an opaque
+  `shared_ptr<void>` aliasing the writer's
+  `PerVtabState::committed_state` (which is the
+  `std::shared_ptr<DataframeModule::State>` carrying the
+  `Dataframe*` and `named_indexes`). API: `PublishVtabState`,
+  `LookupVtabState`, `RemoveVtabState`. Mutex-guarded inside the
+  staging area; Phase 2 is single-threaded so contention is
+  impossible today, but the lock is documented as the Phase 3 hook.
+  Publish path: `ModuleStateManagerBase::OnCommit` and `OnRollback`
+  are now `virtual`. `DataframeModule::Context` overrides `OnCommit`
+  to (1) run the base bookkeeping and (2) iterate
+  `state_by_name_` and republish each surviving entry's
+  `committed_state` via
+  `PublishVtabState("__intrinsic_dataframe", name, …)`. Only the
+  writer (primary engine) publishes — secondary engines have
+  `is_writer = false` and skip the publish step. `OnRollback` is a
+  pure passthrough since rolled-back state was never published.
+  Cold xConnect path: `ModuleStateManagerBase::OnConnect` now falls
+  back to a virtual `ResolveMissingStateOnConnect(name)` hook on
+  miss instead of `PERFETTO_CHECK`-crashing. The default returns
+  null (preserves the legacy "missing state is a bug" semantics for
+  the writer engine and any subclass that doesn't override).
+  `DataframeModule::Context::ResolveMissingStateOnConnect` returns
+  the shared_ptr looked up from staging on reader engines; the
+  base then materialises a fresh local `PerVtabState` whose
+  `committed_state` and `active_state` both share ownership with
+  the published value.
+  Re-resolve at cursor time: `DataframeModule::BestIndex` and
+  `Filter` now call a new file-local `ResolveState(Vtab*)` helper
+  instead of `ModuleStateManager::GetState(v->state)`. When the
+  context has a staging area, the helper fetches the latest
+  shared_ptr from staging; otherwise (legacy single-conn) it falls
+  back to the local PerVtabState. This honours the design rule
+  "no caching in PerVtabState; CREATE INDEX produces a new
+  dataframe sharing internal shared_ptr columns/indexes" — even
+  though today's `dataframe::Dataframe::AddIndex` mutates in place
+  rather than spawning a new dataframe, the indirection is in
+  place for when that flips.
+  Wiring: `PerfettoSqlEngine`'s primary ctor gained an optional
+  `GlobalStagingArea*` arg (default null for legacy callers);
+  the secondary (shared-filename) ctor takes one as a required
+  arg. The primary engine sets `dataframe_context_->is_writer = true`
+  and `staging_area = staging_area`; the secondary engine
+  registers only the `__intrinsic_dataframe` module with
+  `is_writer = false` plus the same staging area, and installs the
+  commit/rollback callbacks (so its local state_by_name_ stays
+  consistent on rollback). `TraceProcessorImpl` now passes
+  `staging_area_.get()` into both `InitPerfettoSqlEngine` (via a
+  new `staging_area` field on `InitPerfettoSqlEngineArgs`) and
+  `CreateConnection`.
+  Modules deferred to a follow-on chunk:
+  - `RuntimeTableFunctionModule` (used by `CREATE PERFETTO
+    FUNCTION foo(...) RETURNS TABLE`). Its `State` carries a
+    `PerfettoSqlEngine*` plus a `temporary_create_stmt`; sharing
+    the engine pointer cross-connection is incoherent for v1
+    (executes on the wrong engine's prepared-statement cache).
+    Needs design work — out of scope here.
+  - `StaticTableFunctionModule` (used by `experimental_*` and the
+    `__intrinsic_*` table functions). Mechanically straightforward
+    (mirror the dataframe pattern) but defers because the State
+    holds a `unique_ptr<StaticTableFunction>` whose Cursor objects
+    aren't yet reasoned about for cross-connection sharing.
+  Tests added under `TraceProcessorConnectionTest.*` in
+  `src/trace_processor/trace_processor_connection_unittest.cc`:
+  - `SecondaryConnectionReadsDataframeVtabFromPrimary`: conn-0
+    runs `CREATE PERFETTO TABLE conn_df_test AS SELECT … UNION
+    ALL …` (which goes through DataframeModule), then a fresh
+    secondary connection runs `SELECT … FROM conn_df_test ORDER
+    BY id` and gets back the same three rows. Exercises the full
+    publish → cold-xConnect → re-resolve loop.
+  - `SecondaryConnectionReadsStaticDataframeTable`: verifies the
+    static dataframe-backed `thread` table (registered via
+    `RegisterStaticTable` during engine init) is queryable from
+    a secondary connection and returns the same row count as the
+    primary. Empty trace → 0 rows on both, but the vtab discovery
+    + resolve path is exercised.
+  Build/test results on `out/mac_release`: gn check clean. 3224
+  unittests pass + 1 pre-existing skip
+  (`HttpServerTest.Websocket`); +5 new tests vs. iter 3 (the 2
+  new ones above plus 3 pre-existing connection tests now also
+  exercise the dataframe path). 122 TP integrationtests pass.
+  1355 diff tests pass + 9 pre-existing skips. No behaviour
+  change for existing single-connection callers — the legacy
+  `PerfettoSqlEngine(pool, enable_extra_checks)` ctor still works
+  via the new optional staging-area argument defaulting to null.
 - 2026-04-29 [Phase 2 iter 3]: include-temp-then-promote done.
   Implemented the include-atomicity half of the temp-then-promote
   pattern via SAVEPOINT (Option C from the chunk plan). Each
@@ -440,13 +532,19 @@ and the temp-then-promote breakthrough above before sequencing them.
       `TraceProcessorConnectionTest.*` cover promotion,
       atomicity-on-failure, and sequential includes. See
       Phase 2 iter 3 activity entry for deferred TODOs.
-- [ ] vtab-state-staging-publish — vtab `OnCommit` writes
-      committed state into `GlobalStagingArea`'s vtab-state map;
-      `OnRollback` discards. Cold xConnect on conn B pulls from
-      global. Dataframe vtab re-resolves dataframe at cursor
-      creation; no caching/invalidation in `PerVtabState`. (May
-      partially overlap with include-temp-then-promote — sequence
-      after that lands so we can see what's still load-bearing.)
+- [x] vtab-state-staging-publish — done Phase 2 iter 4. Dataframe
+      vtab module is wired: `OnCommit` publishes to staging, cold
+      xConnect on a reader connection reads from staging,
+      `BestIndex`/`Filter` re-resolve from staging at query time
+      (no caching in `PerVtabState`). Two new tests under
+      `TraceProcessorConnectionTest.*` verify a secondary
+      connection can SELECT both a CREATE-PERFETTO-TABLE-defined
+      vtab and a static dataframe (`thread`) registered during
+      engine init. **Deferred**:
+      `RuntimeTableFunctionModule` (engine pointer in State is
+      cross-conn incoherent — needs design work) and
+      `StaticTableFunctionModule` (mechanical follow-on, just
+      not done in this chunk). See Phase 2 iter 4 activity entry.
 - [ ] function-pool-per-conn-diff — `GlobalStagingArea` holds an
       additive-only function pool. Each conn tracks
       `last_synced_version_`; at `Execute` start, diff against pool

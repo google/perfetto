@@ -42,4 +42,40 @@ GlobalStagingArea::IncludeLockGuard GlobalStagingArea::AcquireIncludeLock(
   return IncludeLockGuard(std::unique_lock<std::mutex>(*module_mutex));
 }
 
+std::string GlobalStagingArea::MakeVtabKey(const std::string& module_name,
+                                           const std::string& vtab_name) {
+  std::string key;
+  key.reserve(module_name.size() + 1 + vtab_name.size());
+  key.append(module_name);
+  key.push_back('\0');
+  key.append(vtab_name);
+  return key;
+}
+
+void GlobalStagingArea::PublishVtabState(const std::string& module_name,
+                                         const std::string& vtab_name,
+                                         std::shared_ptr<void> state) {
+  std::lock_guard<std::mutex> guard(vtab_state_mutex_);
+  std::string key = MakeVtabKey(module_name, vtab_name);
+  vtab_state_.Erase(key);
+  vtab_state_.Insert(std::move(key), std::move(state));
+}
+
+void GlobalStagingArea::RemoveVtabState(const std::string& module_name,
+                                        const std::string& vtab_name) {
+  std::lock_guard<std::mutex> guard(vtab_state_mutex_);
+  vtab_state_.Erase(MakeVtabKey(module_name, vtab_name));
+}
+
+std::shared_ptr<void> GlobalStagingArea::LookupVtabState(
+    const std::string& module_name,
+    const std::string& vtab_name) const {
+  std::lock_guard<std::mutex> guard(vtab_state_mutex_);
+  auto* found = vtab_state_.Find(MakeVtabKey(module_name, vtab_name));
+  if (!found) {
+    return nullptr;
+  }
+  return *found;
+}
+
 }  // namespace perfetto::trace_processor

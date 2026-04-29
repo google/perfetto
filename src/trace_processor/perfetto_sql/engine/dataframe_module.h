@@ -37,6 +37,8 @@
 
 namespace perfetto::trace_processor {
 
+class GlobalStagingArea;
+
 // Adapter class between SQLite and the Dataframe API. Allows SQLite to query
 // and iterate over the results of a dataframe query.
 struct DataframeModule : sqlite::Module<DataframeModule> {
@@ -56,6 +58,31 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   };
   struct Context : sqlite::ModuleStateManager<DataframeModule> {
     std::unique_ptr<State> temporary_create_state;
+
+    // Cross-connection staging area. Set on every engine that participates
+    // in multi-connection sharing (both the writer and any reader). Null for
+    // legacy single-connection setups; in that case `OnCommit`/`OnRollback`
+    // behave exactly as the base class.
+    GlobalStagingArea* staging_area = nullptr;
+
+    // True for the writer engine (i.e. `TraceProcessorImpl`'s primary
+    // engine): publishes its committed `PerVtabState::committed_state` into
+    // the staging area on `OnCommit`. False for reader (secondary)
+    // connections: only consults staging on cold xConnect via
+    // `ResolveMissingStateOnConnect`.
+    bool is_writer = false;
+
+    // Module name to key vtab-state entries by in the staging area. Must be
+    // unique across all module types so reader connections looking up the
+    // same vtab-name on different modules don't collide.
+    std::string module_name;
+
+    void OnCommit() override;
+    void OnRollback() override;
+
+   protected:
+    std::shared_ptr<void> ResolveMissingStateOnConnect(
+        const std::string& vtab_name) override;
   };
   struct SqliteValueFetcher : dataframe::ValueFetcher {
     using Type = sqlite::Type;
@@ -98,6 +125,14 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   };
   struct Vtab : sqlite::Module<DataframeModule>::Vtab {
     sqlite::ModuleStateManager<DataframeModule>::PerVtabState* state;
+    // Owning Context, captured during Create/Connect so Filter can
+    // optionally re-resolve the State from the cross-connection staging
+    // area at cursor creation time. Per the design rule, the dataframe
+    // vtab module does not cache the dataframe pointer in PerVtabState
+    // (CREATE INDEX may produce a new dataframe sharing internal
+    // shared_ptr columns/indexes; readers must observe the latest
+    // committed state).
+    Context* context = nullptr;
     std::string name;
     int best_idx_num = 0;
     uint32_t id_col_idx = 0;

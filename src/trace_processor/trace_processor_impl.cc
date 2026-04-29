@@ -661,6 +661,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       notify_eof_called_,
       cached_trace_bounds_,
       plugins_,
+      staging_area_.get(),
   });
 
   sqlite_objects_post_prelude_ = engine_->SqliteRegisteredObjectCount();
@@ -743,11 +744,15 @@ TraceProcessorImpl::CreateConnection() {
   // ingestion is out of scope.
   PERFETTO_CHECK(notify_eof_called_);
   // Mint a fresh engine pointing at the same memdb URI as the primary so
-  // `cache=shared` propagates DDL across handles. See `PerfettoSqlEngine`
+  // `cache=shared` propagates DDL across handles. The shared
+  // `GlobalStagingArea` is what wires cross-connection vtab-state
+  // resolution: the primary engine published its committed dataframe
+  // states there on every OnCommit, and this fresh secondary engine
+  // looks them up on cold xConnect. See `PerfettoSqlEngine`
   // shared-filename ctor for the (intentionally minimal) per-engine setup.
   auto engine = std::make_unique<PerfettoSqlEngine>(
       context()->storage->mutable_string_pool(), config_.enable_extra_checks,
-      engine_->sqlite_engine()->filename());
+      engine_->sqlite_engine()->filename(), staging_area_.get());
   ++non_default_connection_count_;
   return std::make_unique<ConnectionImpl>(this, std::move(engine));
 }
@@ -1059,6 +1064,7 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
       notify_eof_called_,
       cached_trace_bounds_,
       plugins_,
+      staging_area_.get(),
   });
 
   // The registered count should now be the same as it was in the constructor.
@@ -1364,7 +1370,8 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   const auto& plugins = args.plugins;
 
   auto engine = std::make_unique<PerfettoSqlEngine>(
-      storage->mutable_string_pool(), config.enable_extra_checks);
+      storage->mutable_string_pool(), config.enable_extra_checks,
+      args.staging_area);
 
   auto functions =
       CreateStaticTableFunctions(context, storage, config, engine.get());

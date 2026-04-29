@@ -22,6 +22,8 @@
 #include <string>
 #include <unordered_map>
 
+#include "perfetto/ext/base/flat_hash_map.h"
+
 namespace perfetto::trace_processor {
 
 // Cross-connection state shared by every PerfettoSqlEngine attached to the
@@ -78,9 +80,48 @@ class GlobalStagingArea {
   // destruction.
   IncludeLockGuard AcquireIncludeLock(const std::string& module_name);
 
+  // Cross-connection vtab-state map. Keyed by `(module_name, vtab_name)`.
+  //
+  // The "writer" connection (today: only the default connection) publishes
+  // its committed `PerVtabState::committed_state` via `PublishVtabState` from
+  // its `OnCommit` hook. Other connections, on cold xConnect for a vtab they
+  // haven't seen before, look up the same shared state via `LookupVtabState`
+  // and materialise a local `PerVtabState` from it.
+  //
+  // The stored value is an opaque `shared_ptr<void>` so different vtab
+  // modules can store different state types (e.g. `DataframeModule::State`).
+  // Producers and consumers must agree on the type; `static_pointer_cast` at
+  // the call site keeps the API minimal.
+  //
+  // Phase 2 is single-threaded so an internal mutex is enough; a cross-thread
+  // safe variant is a Phase 3 concern. The shared state itself must remain
+  // immutable / append-only after publish (per the dataframe-vtab design
+  // rule: dataframes share `shared_ptr` columns/indexes; CREATE INDEX
+  // produces a new dataframe rather than mutating in place).
+  void PublishVtabState(const std::string& module_name,
+                        const std::string& vtab_name,
+                        std::shared_ptr<void> state);
+
+  // Removes a previously-published vtab state. No-op if the entry does not
+  // exist. Called from the writer's `OnCommit` when a vtab has been
+  // dropped.
+  void RemoveVtabState(const std::string& module_name,
+                       const std::string& vtab_name);
+
+  // Looks up a previously-published vtab state. Returns null if no entry
+  // for the given key exists.
+  std::shared_ptr<void> LookupVtabState(const std::string& module_name,
+                                        const std::string& vtab_name) const;
+
  private:
+  static std::string MakeVtabKey(const std::string& module_name,
+                                 const std::string& vtab_name);
+
   std::mutex map_mutex_;
   std::unordered_map<std::string, std::unique_ptr<std::mutex>> module_locks_;
+
+  mutable std::mutex vtab_state_mutex_;
+  base::FlatHashMap<std::string, std::shared_ptr<void>> vtab_state_;
 };
 
 }  // namespace perfetto::trace_processor

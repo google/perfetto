@@ -33,6 +33,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/core/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
+#include "src/trace_processor/perfetto_sql/engine/global_staging_area.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/engine/static_table_function_module.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
@@ -67,7 +68,9 @@ class PerfettoSqlEngine {
     dataframe::Dataframe* dataframe;
     std::string name;
   };
-  PerfettoSqlEngine(StringPool* pool, bool enable_extra_checks);
+  PerfettoSqlEngine(StringPool* pool,
+                    bool enable_extra_checks,
+                    GlobalStagingArea* staging_area = nullptr);
 
   // Phase 2 ctor: mints a secondary engine sharing storage with a primary
   // engine via |cache=shared|. |shared_filename| should come from
@@ -75,24 +78,30 @@ class PerfettoSqlEngine {
   // attaches to the same in-memory database, so plain SQL/DDL committed on
   // the main schema by the primary is visible here.
   //
+  // |staging_area| is the same `GlobalStagingArea*` passed to the primary
+  // engine. The secondary engine reads vtab state from staging on cold
+  // xConnect for tables it has never seen before; the primary engine
+  // continues to be the sole writer.
+  //
   // Caveats (intentional limitations of this chunk):
-  //  - Vtab modules are NOT registered. Queries that resolve to a vtab
-  //    (runtime_table_function, __intrinsic_dataframe, etc.) will fail.
-  //    Replicating vtab modules + per-vtab state is the work of the next
-  //    chunks (vtab-state-staging-publish).
+  //  - Only the dataframe vtab module is registered on secondary engines.
+  //    Tables backed by `runtime_table_function` (CREATE PERFETTO FUNCTION
+  //    returning a TABLE) or `__intrinsic_static_table_function` (e.g.
+  //    `experimental_*` tables) are NOT yet visible to secondary
+  //    connections. Adding those is straightforward (mirror what's done
+  //    for DataframeModule) but deferred to keep this chunk focused.
   //  - PerfettoSQL functions are NOT registered. The function pool will be
   //    diff-and-registered per connection in function-pool-per-conn-diff.
   //  - The |perfetto_tables| housekeeping table is NOT created here; it
   //    already exists in the shared cache (the primary engine created it).
-  //  - Commit/rollback callbacks are NOT installed: this engine has no
-  //    state managers to notify.
-  //
-  // For this chunk the secondary engine supports only basic SQL against
-  // tables/views visible via |cache=shared| (e.g. |SELECT 1|,
-  // |SELECT name FROM sqlite_master|).
+  //  - Commit/rollback callbacks ARE installed for the dataframe module
+  //    so the secondary's local PerVtabState bookkeeping stays consistent
+  //    on rollbacks (publish-to-staging only happens on the writer/primary
+  //    engine; readers never publish).
   PerfettoSqlEngine(StringPool* pool,
                     bool enable_extra_checks,
-                    const std::string& shared_filename);
+                    const std::string& shared_filename,
+                    GlobalStagingArea* staging_area);
 
   // Initializes the static tables and functions in the engine.
   base::Status InitializeStaticTablesAndFunctions(
@@ -455,6 +464,12 @@ class PerfettoSqlEngine {
   // If true, engine will perform additional consistency checks when e.g.
   // creating tables and views.
   const bool enable_extra_checks_;
+
+  // Cross-connection staging area shared with the parent
+  // `TraceProcessorImpl` and any sibling engines. Null for legacy
+  // single-connection setups (the default-arg ctor with no staging
+  // area). Owned by the parent `TraceProcessorImpl`.
+  GlobalStagingArea* staging_area_ = nullptr;
 
   // Execution stack for iterative (non-recursive) processing of SQL sources.
   // When an INCLUDE statement is encountered, the included module's SQL is

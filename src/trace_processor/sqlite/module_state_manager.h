@@ -61,14 +61,19 @@ class ModuleStateManagerBase {
   // Called by the engine when a transaction is committed.
   //
   // This is used to finalize all the destroys performed since a previous
-  // rollback or commit.
-  void OnCommit();
+  // rollback or commit. Virtual: subclasses (e.g. `DataframeModule::Context`
+  // in the multi-connection world) override this to publish the
+  // freshly-committed `committed_state` of each tracked vtab into a
+  // cross-connection staging area before/after the base class's bookkeeping.
+  virtual void OnCommit();
 
   // Called by the engine when a transaction is rolled back.
   //
   // This is used to undo the effects of all the destroys performed since a
-  // previous rollback or commit.
-  void OnRollback();
+  // previous rollback or commit. Virtual: see `OnCommit` above.
+  virtual void OnRollback();
+
+  virtual ~ModuleStateManagerBase() = default;
 
  protected:
   // Enforce that anyone who wants to use this class inherits from it.
@@ -89,6 +94,25 @@ class ModuleStateManagerBase {
 
   static void* GetState(PerVtabState* s);
   void* GetStateByName(const std::string& name);
+
+  // Hook called by `OnConnect` when `state_by_name_` does not contain an
+  // entry for the given vtab name. Default: returns null (causing
+  // `OnConnect` to `PERFETTO_CHECK`-crash on the missing entry).
+  //
+  // Subclasses can override this to consult cross-connection state (e.g.
+  // `GlobalStagingArea::LookupVtabState`). Returning a non-null shared_ptr
+  // causes `OnConnect` to materialise a fresh `PerVtabState` locally
+  // populated from the returned state and treat the connection as cold-
+  // attached to a vtab created on another connection.
+  virtual std::shared_ptr<void> ResolveMissingStateOnConnect(
+      const std::string& vtab_name);
+
+  // Returns the shared_ptr<void> backing `committed_state` for the named
+  // vtab, or null if the vtab is not tracked. Used by subclasses to
+  // republish committed state to a cross-connection staging area inside
+  // their `OnCommit` override.
+  std::shared_ptr<void> GetCommittedStateSharedByName(
+      const std::string& name) const;
 
   using StateMap =
       base::FlatHashMap<std::string, std::unique_ptr<PerVtabState>>;
