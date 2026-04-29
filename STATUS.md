@@ -1,7 +1,7 @@
 # Multi-connection TraceProcessor — Loop Status
 
 ## Current Phase
-Phase 2 complete. Next: Phase 3 (thread safety + retry middleware).
+Phase 3 in progress (thread safety + retry middleware).
 
 ## Design pivots (2026-04-29, mid-Phase-1)
 - **WAL abandoned.** Switching to serialized transactions with
@@ -23,6 +23,82 @@ Phase 2 complete. Next: Phase 3 (thread safety + retry middleware).
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [Phase 3 iter 1]: include-lock-wire-and-mt-smoke done.
+  **Part A** — wired `GlobalStagingArea::AcquireIncludeLock` (added in
+  Phase 2 iter 3 but unused) into `PerfettoSqlEngine`'s include path. Both
+  `IncludeModuleImpl` (single-key INCLUDE) and the wildcard expansion in
+  `ProcessFrame` now acquire the per-module lock *before* opening the
+  per-include `SAVEPOINT perfetto_include_<n>` and ride the
+  `IncludeLockGuard` along on the `ExecutionFrame` as a new
+  `std::optional<GlobalStagingArea::IncludeLockGuard> include_lock` field
+  (sibling of `include_savepoint`). The guard's destructor releases the
+  lock when the frame is popped — covering both success
+  (`ProcessFrame` returns `kFrameDone` after `RELEASE`) and failure
+  (the unwind path in `ExecuteUntilLastStatement` calls
+  `RollbackIncludeSavepoint` before `pop_back()`, and the destructor
+  handles the lock release as part of the `pop_back()`). Legacy
+  single-connection callers (`staging_area_ == nullptr`) skip the lock
+  acquisition entirely (no-op). Re-entrant include of the same module
+  name does *not* self-deadlock because the per-module mutex is now
+  `std::recursive_mutex` (changed in `global_staging_area.{h,cc}` along
+  with the matching `unique_lock<>` template arg in `IncludeLockGuard`).
+  This was the chunk-recommended path: the existing `IncludeLockGuard`
+  API stays unchanged and we don't need to track ownership ourselves.
+  All four `ExecutionFrame` construction sites in
+  `perfetto_sql_engine.cc` (root frame, wildcard frame, single-key
+  include frame, wildcard-expanded include frame) updated to pass the
+  new `include_lock` aggregate field.
+
+  **Part B** — added two tests under `TraceProcessorConnectionTest.*` in
+  `src/trace_processor/trace_processor_connection_unittest.cc`:
+  - `ConcurrentReadersDoNotCrash`: spawns two `std::thread`s, each
+    owning its own `Connection` (moved into the closure — connections
+    are thread-compatible, not thread-safe per design), and runs ~50
+    `SELECT 1` / `SELECT 2` iterations on its connection. Establishes
+    a clean MT baseline for the read path. Passes both under the
+    regular release build and ASan with no errors / no spurious data
+    races flagged.
+  - `IncludeLockAcquisitionDoesNotDeadlock`: single-thread sanity test
+    for the lock plumbing — includes a single module, then a
+    wildcard-expanded set, then re-issues the original include
+    (which short-circuits via `file.included == true` before acquiring
+    the lock). Exercises the lock acquire/release path on every
+    `INCLUDE` and confirms re-entry doesn't deadlock under the
+    recursive mutex.
+
+  **Surfaced finding (work for iter 2 or later):** the natural
+  `ConcurrentIncludesOfSameModuleSerialise` test — two secondary
+  connections each calling `INCLUDE PERFETTO MODULE <name>` from
+  separate threads — *cannot* be written today because secondary
+  connections do not yet inherit the writer's `packages_` registry.
+  `PerfettoSqlEngine::ExecuteInclude` (`perfetto_sql_engine.cc:1242`)
+  fails with `INCLUDE: Package '<name>' not found` on a secondary because
+  `packages_` is per-engine and only populated on the writer (the
+  `RegisterPackage` calls in `trace_processor_impl.cc:911` and the
+  prelude re-import at `:1614` both target only `engine_`, the writer).
+  This is a pre-existing package-propagation gap, *not* a thread-safety
+  race: it would fail single-threaded too. Closing it (cross-connection
+  `packages_` propagation, likely via a shared snapshot in
+  `GlobalStagingArea` mirroring the function pool design) is the
+  natural follow-on so the include-lock plumbing can be exercised
+  end-to-end against contended access. This is now seeded as a
+  Phase 3 chunk.
+
+  **Test counts (all green):**
+  - `out/mac_release/perfetto_unittests`: 3230 PASSED + 1 SKIPPED + 1
+    pre-existing macOS failure (`HttpServerTest.Websocket`,
+    stack-buffer-overflow in `http_server.cc::ParseOneWebsocketFrame`,
+    flagged identically before this iter's changes). +2 vs. Phase 2
+    close (3228).
+  - `out/mac_release/perfetto_integrationtests` (TP-relevant filter):
+    122 PASSED, unchanged.
+  - `tools/diff_test_trace_processor.py`: 1355 PASSED + 9 pre-existing
+    skips (etm + llvm_symbolizer modules absent), unchanged.
+  - `out/mac_asan/perfetto_unittests` (excluding pre-existing
+    `HttpServerTest.Websocket`): 3230 PASSED + 1 SKIPPED. ASan flagged
+    no new errors against either of the new tests, including the
+    multi-threaded `ConcurrentReadersDoNotCrash`.
+
 - 2026-04-29 [Phase 2 iter 6]: execute-savepoint-wrap done. Every
   top-level (non-re-entrant) `PerfettoSqlEngine::ExecuteUntilLastStatement`
   now opens `SAVEPOINT perfetto_execute_<n>` (counter
@@ -749,6 +825,42 @@ and the temp-then-promote breakthrough above before sequencing them.
       wrap. Two tests verify rollback-on-failure (including
       cross-connection visibility check) and commit-on-success. See
       Phase 2 iter 6 activity entry.
+
+## Next chunks (Phase 3 — first cut, refine on /loop restart)
+
+- [x] include-lock-wire-and-mt-smoke — done Phase 3 iter 1.
+      `GlobalStagingArea::AcquireIncludeLock` is now wired into the
+      include path on the `ExecutionFrame`; per-module mutex switched to
+      `std::recursive_mutex` so re-entrant include of the same module
+      doesn't self-deadlock. Two tests added under
+      `TraceProcessorConnectionTest.*`: a multi-thread reader smoke and
+      a single-thread include-lock-acquire-without-deadlock. See
+      Phase 3 iter 1 activity entry.
+- [ ] cross-conn-package-propagation — secondary connections currently
+      cannot do `INCLUDE PERFETTO MODULE <key>` because `packages_` is
+      writer-only. Likely shape: a snapshot in `GlobalStagingArea` (a
+      `vector<RegisteredPackage>` mirroring the function pool) that
+      readers diff at `Execute` start. Surfaced by Phase 3 iter 1; needs
+      to land before a true multi-thread concurrent-include test can be
+      written.
+- [ ] busy-retry — transparent `SQLITE_BUSY` retry middleware with
+      bounded retry count + configurable timeout (default 1s). Wraps
+      `PrepareStatement` / `Step`. Required once concurrent writers
+      become possible (today's secondary connections are read-only in
+      practice).
+- [ ] schema-retry — transparent `SQLITE_SCHEMA` retry: re-prepare the
+      statement when the schema cookie changes underneath an in-flight
+      query. Drops in alongside busy-retry on the same wrapper.
+- [ ] globals-audit — sweep `PerfettoSqlEngine`, `TraceProcessorImpl`,
+      `GlobalStagingArea`, and the SQLite-binding helpers for
+      thread-unsafe statics / globals (e.g. shared `string_pool_`,
+      shared error buffers). Connect findings to the chunks above so
+      they can be fixed by-construction rather than retroactively.
+- [ ] tsan-multithread-stress — bring up a TSan-enabled build (or
+      document the toolchain-availability blocker on macOS) and add a
+      larger fan-out test: writer + multiple readers running interleaved
+      DDL + SELECT. Goal: prove the data-race-free invariant under
+      stress, not just the smoke baseline from iter 1.
 
 ## Architecture notes (for future iterations)
 - Public API:

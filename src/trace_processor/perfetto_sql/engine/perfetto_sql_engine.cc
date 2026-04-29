@@ -761,6 +761,14 @@ base::StatusOr<PerfettoSqlEngine::FrameResult> PerfettoSqlEngine::ProcessFrame(
         // Copy traceback before push_back which may invalidate frame ref
         SqlSource traceback = frame.wildcard_traceback_sql;
 
+        // Acquire the per-module include lock for this individual wildcard
+        // expansion (one lock per module, dropped when the frame is popped).
+        // See IncludeModuleImpl for design rationale.
+        std::optional<GlobalStagingArea::IncludeLockGuard> include_lock;
+        if (staging_area_) {
+          include_lock = staging_area_->AcquireIncludeLock(key);
+        }
+
         // Open a savepoint so the wildcard-expanded include is atomic at
         // module granularity (see IncludeModuleImpl for the design rationale).
         std::string savepoint_name =
@@ -787,7 +795,8 @@ base::StatusOr<PerfettoSqlEngine::FrameResult> PerfettoSqlEngine::ProcessFrame(
              /*wildcard_index=*/0,
              /*wildcard_traceback_sql=*/
              SqlSource::FromTraceProcessorImplementation(""),
-             /*include_savepoint=*/std::move(savepoint_name)});
+             /*include_savepoint=*/std::move(savepoint_name),
+             /*include_lock=*/std::move(include_lock)});
         return FrameResult::kContinue;
       }
     }
@@ -970,7 +979,8 @@ PerfettoSqlEngine::ExecuteUntilLastStatementImpl(SqlSource sql_source) {
        /*wildcard_modules=*/{}, /*wildcard_index=*/0,
        /*wildcard_traceback_sql=*/
        SqlSource::FromTraceProcessorImplementation(""),
-       /*include_savepoint=*/{}});
+       /*include_savepoint=*/{},
+       /*include_lock=*/std::nullopt});
 
   // Main loop - process frames from the stack.
   while (!execution_stack_.empty()) {
@@ -1378,7 +1388,8 @@ base::Status PerfettoSqlEngine::IncludePackageImpl(
          /*traceback_sql=*/SqlSource::FromTraceProcessorImplementation(""),
          std::move(matching_modules), /*wildcard_index=*/0,
          /*wildcard_traceback_sql=*/parser.statement_sql(),
-         /*include_savepoint=*/{}});
+         /*include_savepoint=*/{},
+         /*include_lock=*/std::nullopt});
     return base::OkStatus();
   }
   auto* module_file = package.modules.Find(include_key);
@@ -1397,6 +1408,17 @@ base::Status PerfettoSqlEngine::IncludeModuleImpl(
     return base::OkStatus();
   }
 
+  // Acquire the per-module include lock *before* opening the savepoint so
+  // two connections importing the same module name serialise on this lock
+  // for the duration of the SAVEPOINT/RELEASE cycle. The guard rides on the
+  // ExecutionFrame and is released automatically when the frame is popped
+  // (success or error). Different modules don't contend; legacy
+  // single-connection callers (no staging area) skip the lock entirely.
+  std::optional<GlobalStagingArea::IncludeLockGuard> include_lock;
+  if (staging_area_) {
+    include_lock = staging_area_->AcquireIncludeLock(key);
+  }
+
   // Open a SAVEPOINT before pushing the include frame so the entire body of
   // the include runs against a sandbox: on success we RELEASE so the DDL
   // promotes to `main` (and `cache=shared` propagates the new objects to
@@ -1411,8 +1433,7 @@ base::Status PerfettoSqlEngine::IncludeModuleImpl(
   // explicit "temp schema" buffer adds no observable behaviour for plain
   // SQL. Vtab DDL inside an include is partially handled here: the
   // ROLLBACK callback is invoked which lets `ModuleStateManagerBase`
-  // discard staged state. Cross-connection vtab visibility (the data
-  // side) is the next chunk (`vtab-state-staging-publish`).
+  // discard staged state.
   std::string savepoint_name = "perfetto_include_" +
                                std::to_string(include_savepoint_counter_++);
   base::StackString<256> savepoint_sql("SAVEPOINT %s", savepoint_name.c_str());
@@ -1434,7 +1455,8 @@ base::Status PerfettoSqlEngine::IncludeModuleImpl(
                        /*wildcard_modules=*/{}, /*wildcard_index=*/0,
                        /*wildcard_traceback_sql=*/
                        SqlSource::FromTraceProcessorImplementation(""),
-                       /*include_savepoint=*/std::move(savepoint_name)};
+                       /*include_savepoint=*/std::move(savepoint_name),
+                       /*include_lock=*/std::move(include_lock)};
   execution_stack_.push_back(std::move(frame));
   return base::OkStatus();
 }

@@ -364,6 +364,14 @@ class PerfettoSqlEngine {
     // connections via `cache=shared`); on failure the savepoint is rolled
     // back so partially-installed objects do not leak.
     std::string include_savepoint;
+
+    // For include frames: the per-module include lock acquired before the
+    // savepoint was opened. Held for the entire SAVEPOINT/RELEASE cycle so
+    // two connections importing the same module name serialise here.
+    // Released automatically when the frame is popped (success path) or
+    // unwound on error. Empty on root/wildcard frames and on legacy
+    // single-connection callers where `staging_area_` is null.
+    std::optional<GlobalStagingArea::IncludeLockGuard> include_lock;
   };
 
   void RegisterStaticTable(dataframe::Dataframe*, const std::string&);

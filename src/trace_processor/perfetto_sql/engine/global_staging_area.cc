@@ -28,18 +28,19 @@ GlobalStagingArea::~GlobalStagingArea() = default;
 
 GlobalStagingArea::IncludeLockGuard GlobalStagingArea::AcquireIncludeLock(
     const std::string& module_name) {
-  std::mutex* module_mutex;
+  std::recursive_mutex* module_mutex;
   {
     std::lock_guard<std::mutex> guard(map_mutex_);
     auto it = module_locks_.find(module_name);
     if (it == module_locks_.end()) {
       auto inserted = module_locks_.emplace(
-          module_name, std::make_unique<std::mutex>());
+          module_name, std::make_unique<std::recursive_mutex>());
       it = inserted.first;
     }
     module_mutex = it->second.get();
   }
-  return IncludeLockGuard(std::unique_lock<std::mutex>(*module_mutex));
+  return IncludeLockGuard(
+      std::unique_lock<std::recursive_mutex>(*module_mutex));
 }
 
 std::string GlobalStagingArea::MakeVtabKey(const std::string& module_name,

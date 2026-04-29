@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
+#include <atomic>
 #include <memory>
 #include <string>
+#include <thread>
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -507,6 +509,121 @@ TEST(TraceProcessorConnectionTest, DynamicFunctionPickedUpIncrementally) {
     ASSERT_EQ(it.Get(0).long_value, 1005);
     ASSERT_OK(it.Status());
   }
+}
+
+// Phase 3 iter 1 multi-thread smoke test: two secondary connections, each
+// owned and used exclusively by its own thread, run a tight loop of trivial
+// queries concurrently. Connections are thread-compatible (not thread-safe)
+// per the multi-connection design, so each std::thread takes ownership of
+// its own `Connection` via move into the closure. The test asserts no
+// crashes / data races / wrong results across the fan-out — establishing a
+// baseline for subsequent Phase 3 retry / stress work.
+TEST(TraceProcessorConnectionTest, ConcurrentReadersDoNotCrash) {
+  auto tp = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(tp->NotifyEndOfFile());
+
+  auto conn_a = tp->CreateConnection();
+  auto conn_b = tp->CreateConnection();
+  ASSERT_NE(conn_a, nullptr);
+  ASSERT_NE(conn_b, nullptr);
+
+  constexpr int kIters = 50;
+  std::atomic<int> errors{0};
+
+  auto worker = [&](std::unique_ptr<TraceProcessor::Connection> conn,
+                    int64_t expected) {
+    for (int i = 0; i < kIters; ++i) {
+      auto it = conn->ExecuteQuery("SELECT " + std::to_string(expected));
+      if (!it.Next()) {
+        errors.fetch_add(1, std::memory_order_relaxed);
+        return;
+      }
+      if (it.Get(0).long_value != expected) {
+        errors.fetch_add(1, std::memory_order_relaxed);
+        return;
+      }
+      if (it.Next()) {
+        errors.fetch_add(1, std::memory_order_relaxed);
+        return;
+      }
+      if (!it.Status().ok()) {
+        errors.fetch_add(1, std::memory_order_relaxed);
+        return;
+      }
+    }
+  };
+
+  std::thread t1(worker, std::move(conn_a), 1);
+  std::thread t2(worker, std::move(conn_b), 2);
+  t1.join();
+  t2.join();
+
+  ASSERT_EQ(errors.load(), 0);
+}
+
+// Phase 3 iter 1 single-thread sanity test for the include-lock plumbing
+// added in Part A. The per-module recursive mutex must be acquired/released
+// for every `INCLUDE PERFETTO MODULE <name>` (and every individual module
+// produced by wildcard expansion) without crashing or deadlocking. Re-issuing
+// an include of an already-included module must be a no-op and must not
+// re-acquire the lock (the file.included check short-circuits before the
+// lock acquisition path).
+//
+// A true concurrent-includes-from-secondaries test is blocked today because
+// secondary connections do not yet inherit the writer's `packages_` registry
+// (separate gap, not a thread-safety issue). Once package propagation lands,
+// this test should grow into a true multi-threaded include test.
+TEST(TraceProcessorConnectionTest, IncludeLockAcquisitionDoesNotDeadlock) {
+  auto tp = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(tp->NotifyEndOfFile());
+
+  // Register a small package with two modules so that wildcard expansion
+  // also exercises the per-module lock (one acquisition per individual
+  // module).
+  SqlPackage pkg;
+  pkg.name = "include_lock_test";
+  pkg.modules.emplace_back("include_lock_test.first",
+                           "CREATE TABLE include_lock_first(x INTEGER);\n");
+  pkg.modules.emplace_back("include_lock_test.second",
+                           "CREATE TABLE include_lock_second(y INTEGER);\n");
+  ASSERT_OK(tp->RegisterSqlPackage(pkg));
+
+  // Single-key include: one lock acquire/release.
+  {
+    auto it = tp->ExecuteQuery(
+        "INCLUDE PERFETTO MODULE include_lock_test.first;");
+    while (it.Next()) {
+    }
+    ASSERT_OK(it.Status());
+  }
+
+  // Wildcard include over the rest: one lock acquire/release per
+  // not-yet-included module.
+  {
+    auto it = tp->ExecuteQuery("INCLUDE PERFETTO MODULE include_lock_test.*;");
+    while (it.Next()) {
+    }
+    ASSERT_OK(it.Status());
+  }
+
+  // Re-issuing the same include should short-circuit (file.included == true)
+  // and must not deadlock or re-acquire the lock.
+  {
+    auto it = tp->ExecuteQuery(
+        "INCLUDE PERFETTO MODULE include_lock_test.first;");
+    while (it.Next()) {
+    }
+    ASSERT_OK(it.Status());
+  }
+
+  // Verify both tables are visible on a secondary.
+  auto conn = tp->CreateConnection();
+  ASSERT_NE(conn, nullptr);
+  auto it = conn->ExecuteQuery(
+      "SELECT count(*) FROM sqlite_master "
+      "WHERE name IN ('include_lock_first', 'include_lock_second');");
+  ASSERT_TRUE(it.Next()) << it.Status().c_message();
+  ASSERT_EQ(it.Get(0).long_value, 2);
 }
 
 }  // namespace

@@ -44,21 +44,19 @@ namespace perfetto::trace_processor {
 //     connection at the start of `Execute` (no DROP, ever);
 //   - per-module include locks that serialise concurrent
 //     `INCLUDE PERFETTO MODULE` invocations against the same module name.
-//
-// Phase 2 iter 3 fills in the per-module include lock map. The vtab-state
-// map and function pool remain TODOs for later chunks.
 class GlobalStagingArea {
  public:
   // RAII guard returned by `AcquireIncludeLock`. Holds a `std::unique_lock`
-  // on the per-module mutex; the lock is released on destruction.
+  // on the per-module recursive mutex; the lock is released on destruction.
   //
-  // Concurrency note: Phase 2 is single-threaded so contention is not yet
-  // possible. The API exists now so Phase 3 (thread safety) can wire
-  // multi-threaded RPC fan-out without re-plumbing include processing.
+  // The underlying mutex is `std::recursive_mutex` so that an include of a
+  // module that recursively includes itself (or another module that depends
+  // back on it) does not self-deadlock when both lock acquisitions happen on
+  // the same thread.
   class IncludeLockGuard {
    public:
     IncludeLockGuard() = default;
-    explicit IncludeLockGuard(std::unique_lock<std::mutex> lock)
+    explicit IncludeLockGuard(std::unique_lock<std::recursive_mutex> lock)
         : lock_(std::move(lock)) {}
 
     IncludeLockGuard(IncludeLockGuard&&) = default;
@@ -68,7 +66,7 @@ class GlobalStagingArea {
     IncludeLockGuard& operator=(const IncludeLockGuard&) = delete;
 
    private:
-    std::unique_lock<std::mutex> lock_;
+    std::unique_lock<std::recursive_mutex> lock_;
   };
 
   GlobalStagingArea();
@@ -200,7 +198,8 @@ class GlobalStagingArea {
                                  const std::string& vtab_name);
 
   std::mutex map_mutex_;
-  std::unordered_map<std::string, std::unique_ptr<std::mutex>> module_locks_;
+  std::unordered_map<std::string, std::unique_ptr<std::recursive_mutex>>
+      module_locks_;
 
   mutable std::mutex vtab_state_mutex_;
   base::FlatHashMap<std::string, std::shared_ptr<void>> vtab_state_;
