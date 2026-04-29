@@ -147,7 +147,7 @@ Common flags (apply to all commands):
 > integrations continue to work unchanged. Run
 > `trace_processor --help-classic` to see the full classic flag reference.
 
-#### {#subcommand-query} `query` — run SQL and exit
+#### {#subcommand-query} `query` — run SQL
 
 Loads a trace, runs one or more `;`-separated SQL statements, prints the
 result to stdout, and exits. SQL can be supplied as an inline positional
@@ -211,7 +211,12 @@ Server-specific flags:
   `http://127.0.0.1:10000`).
 
 The trace file is optional in `http` mode: clients can also load traces
-remotely.
+remotely. The most common client is the Perfetto UI, which auto-detects a
+local server and offloads trace parsing to it; see
+[Visualising large traces](/docs/visualization/large-traces.md) for the
+end-user flow, or
+[trace_processor.proto](/protos/perfetto/trace_processor/trace_processor.proto)
+for the RPC wire schema.
 
 #### {#subcommand-summarize} `summarize` — trace summaries and v2 metrics
 
@@ -243,79 +248,6 @@ Subcommand flags:
 
 Spec files are auto-detected as binary or text based on extension
 (`.pb` → binary, `.textproto` → text) with a content-sniffing fallback.
-
-#### {#subcommand-export} `export` — write all tables to a database file
-
-Loads the trace and exports the contents of all trace processor tables to
-a SQLite database, suitable for offline analysis with any SQLite client.
-
-```bash
-trace_processor export sqlite -o trace.db trace.pftrace
-```
-
-`sqlite` is currently the only supported format. `-o/--output FILE` is
-required.
-
-#### {#subcommand-metrics} `metrics` — v1 metrics (deprecated)
-
-> The v1 trace-based metrics system has been **soft-deprecated**. Existing
-> metrics keep working, but no new ones will be added. Prefer
-> `summarize --metrics-v2` for new work — see
-> [Trace Summarization](trace-summary.md).
-
-```bash
-trace_processor metrics --run android_startup,android_mem trace.pftrace
-```
-
-Subcommand flags:
-
-- `--run NAMES` — comma-separated metric names (built-in or `--metric-extension`-loaded).
-- `--pre FILE` — SQL run _before_ metrics (no output).
-- `--post-query FILE` — SQL run _after_ metrics; its output replaces the
-  metric proto on stdout.
-- `--output binary|text|json` — format of the `TraceMetrics` proto
-  (default: `text`).
-- `--perf-file FILE` — write load/query timings to `FILE`.
-- `-i, --interactive` — drop into the REPL after metrics finish.
-
-External metric protos and SQL are loaded with the global
-`--metric-extension DISK_PATH@VIRTUAL_PATH` flag.
-
-#### {#subcommand-convert} `convert` — change trace format
-
-Wraps the [`traceconv`](/docs/getting-started/converting.md) tool, so the
-`trace_processor` binary can be used directly to translate traces between
-formats. Reads from stdin if `[input]` is omitted; writes to stdout if
-`[output]` is omitted.
-
-```bash
-trace_processor convert <format> [input] [output]
-```
-
-Supported formats (from `trace_processor help convert`):
-
-```text
-systrace              Convert to systrace HTML format
-json                  Convert to Chrome JSON format
-ctrace                Convert to compressed systrace format
-text                  Convert to human-readable text format
-profile               Convert profile data to pprof format
-java_heap_profile     Legacy alias for "profile --java-heap"
-hprof                 Convert heap profile to hprof format
-symbolize             Symbolize addresses in profiles
-deobfuscate           Deobfuscate obfuscated profiles
-firefox               Convert to Firefox profiler format
-decompress_packets    Decompress compressed trace packets
-bundle                Create bundle with trace + debug data
-binary                Convert text proto to binary format
-```
-
-Common subcommand flags include `-t, --truncate start|end`,
-`--full-sort`, `--pid PID`, `--timestamps T1,T2,...`, `--alloc`,
-`--perf`, `--java-heap`, `--no-annotations`, `--output-dir DIR`,
-`--symbol-paths PATH1,PATH2,...`, `--no-auto-symbol-paths`,
-`--proguard-map [pkg=]PATH` (repeatable), `--no-auto-proguard-maps`,
-`--verbose`, and `--skip-unknown`.
 
 #### {#global-flags} Global flags (apply to every subcommand)
 
