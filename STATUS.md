@@ -23,6 +23,43 @@ Phase 1 complete. Next: Phase 2 (multi-conn single-threaded).
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [Phase 2 iter 1]: tp-public-api-create-conn done.
+  Public API surface added in
+  `include/perfetto/trace_processor/trace_processor.h`:
+  nested abstract `class TraceProcessor::Connection` (movable-via-
+  pointer through `unique_ptr`, non-copyable; pure-virtual
+  `Iterator ExecuteQuery(const std::string&)` matching the parent
+  signature; out-of-line ctor/dtor in
+  `src/trace_processor/trace_processor.cc`) and a new
+  `virtual std::unique_ptr<Connection> CreateConnection() = 0;` on
+  `TraceProcessor`. Connection-0 (`TraceProcessor::ExecuteQuery`
+  directly) is preserved exactly.
+  `TraceProcessorImpl::ConnectionImpl` is the Phase 2 iter 1
+  scaffold: it stores a back-pointer and forwards `ExecuteQuery`
+  to `TraceProcessorImpl::ExecuteQuery` (i.e. connection-0). It is
+  NOT yet a real per-connection engine — that's the next chunk
+  (`perfetto-sql-engine-per-conn`). The dtor calls
+  `TraceProcessorImpl::ReleaseConnection` to decrement the live
+  counter.
+  Strict-v1 mutating-method gating via
+  `PERFETTO_CHECK(non_default_connection_count_ == 0)` near the
+  top of: `Parse`
+  (`src/trace_processor/trace_processor_impl.cc:737`),
+  `NotifyEndOfFile` (line ~748), `RegisterSqlPackage` (line ~833),
+  `RegisterFileContent` (line ~999), `RestoreInitialTables`
+  (line ~1011), `RegisterMetric` (line ~1043),
+  `ExtendMetricsProto(skip_prefixes)` (line ~1103),
+  `CreateSummarizer` (line ~1611). `CreateConnection` itself
+  also `PERFETTO_CHECK`s `notify_eof_called_` (concurrent
+  ingestion is out of scope per design rule). The
+  `~TraceProcessorImpl` dtor `PERFETTO_CHECK`s the counter is 0.
+  Note: `Flush`, `Summarize`, and `ComputeMetric*` are *not* gated
+  — they are query-execution paths, not registration. If a future
+  chunk discovers `Flush` mutates schema, gate it then.
+  3216 unittests pass + 1 skipped (pre-existing
+  `HttpServerTest.Websocket`), 122 TP integrationtests pass, 1355
+  diff tests pass + 9 pre-existing skips. No behaviour change for
+  existing callers.
 - 2026-04-29 [iter 10]: phase1-validation done. Final clean sweep on
   `out/mac_release`: 3216 unittests pass + 1 skipped (only pre-existing
   `HttpServerTest.Websocket` failure on macOS, ignored), 122 TP
@@ -217,16 +254,17 @@ section below: `tp-public-api-create-conn` is the first chunk.
 These are **draft** — the orchestrator should re-read the design memo
 and the temp-then-promote breakthrough above before sequencing them.
 
-- [ ] tp-public-api-create-conn — extend the `TraceProcessor`
-      public API with `CreateConnection` / `DestroyConnection` (or
-      pick the names from the design memo). Connection-0 stays the
-      default and preserves `ExecuteQuery(sql)` behaviour exactly.
-      Returns a `Connection` handle wrapping a per-conn
-      `PerfettoSqlEngine`. Mutating TP methods (`Parse`,
-      `NotifyEndOfFile`, `RegisterSqlPackage`,
-      `RegisterFileContent`, `RestoreInitialTables`, metric/
-      summarizer registration) should `PERFETTO_CHECK` that no
-      non-default conn is alive — strict for v1 per design rule.
+- [x] tp-public-api-create-conn — done Phase 2 iter 1. Public
+      API surface (`TraceProcessor::Connection` + `CreateConnection`)
+      added; mutating TP-level methods (`Parse`, `NotifyEndOfFile`,
+      `RegisterSqlPackage`, `RegisterFileContent`,
+      `RestoreInitialTables`, `RegisterMetric`,
+      `ExtendMetricsProto`, `CreateSummarizer`) gated via
+      `PERFETTO_CHECK(non_default_connection_count_ == 0)`. The
+      Connection impl is currently a connection-0-shallow stub
+      (forwards `ExecuteQuery` to `TraceProcessorImpl::ExecuteQuery`).
+      Replacing the stub with a real per-conn engine is the next
+      chunk. See Phase 2 iter 1 activity entry.
 - [ ] perfetto-sql-engine-per-conn — the second connection mints a
       fresh `PerfettoSqlEngine` (and its own `SqliteEngine` /
       `SqliteConnection`) but reuses the existing `filename_` so

@@ -683,13 +683,57 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
                          context()->storage->mutable_string_pool());
 }
 
-TraceProcessorImpl::~TraceProcessorImpl() = default;
+TraceProcessorImpl::~TraceProcessorImpl() {
+  // All connections must have been destroyed before the parent
+  // TraceProcessor — releasing a connection later would dereference a
+  // destroyed `TraceProcessorImpl`.
+  PERFETTO_CHECK(non_default_connection_count_ == 0);
+}
+
+// Phase 2 iter 1 scaffolding: this `Connection` impl forwards every
+// `ExecuteQuery` call back to `TraceProcessorImpl::ExecuteQuery`, i.e.
+// onto connection-0. The next chunk (`perfetto-sql-engine-per-conn`)
+// will give each non-default `Connection` its own `PerfettoSqlEngine`
+// + `sqlite3*` against the same `cache=shared` memdb URI, at which
+// point this class will forward to its own engine instead.
+class TraceProcessorImpl::ConnectionImpl : public TraceProcessor::Connection {
+ public:
+  explicit ConnectionImpl(TraceProcessorImpl* parent) : parent_(parent) {}
+  ~ConnectionImpl() override {
+    if (parent_ != nullptr) {
+      parent_->ReleaseConnection(this);
+    }
+  }
+
+  Iterator ExecuteQuery(const std::string& sql) override {
+    PERFETTO_DCHECK(parent_ != nullptr);
+    return parent_->ExecuteQuery(sql);
+  }
+
+ private:
+  TraceProcessorImpl* parent_;
+};
+
+std::unique_ptr<TraceProcessor::Connection>
+TraceProcessorImpl::CreateConnection() {
+  // Strict-v1: connections are only legal post-NotifyEndOfFile. Concurrent
+  // ingestion is out of scope.
+  PERFETTO_CHECK(notify_eof_called_);
+  ++non_default_connection_count_;
+  return std::make_unique<ConnectionImpl>(this);
+}
+
+void TraceProcessorImpl::ReleaseConnection(ConnectionImpl*) {
+  PERFETTO_CHECK(non_default_connection_count_ > 0);
+  --non_default_connection_count_;
+}
 
 // =================================================================
 // |        TraceProcessorStorage implementation starts here       |
 // =================================================================
 
 base::Status TraceProcessorImpl::Parse(TraceBlobView blob) {
+  PERFETTO_CHECK(non_default_connection_count_ == 0);
   bytes_parsed_ += blob.size();
   return TraceProcessorStorageImpl::Parse(std::move(blob));
 }
@@ -700,6 +744,7 @@ void TraceProcessorImpl::Flush() {
 }
 
 base::Status TraceProcessorImpl::NotifyEndOfFile() {
+  PERFETTO_CHECK(non_default_connection_count_ == 0);
   if (notify_eof_called_) {
     constexpr char kMessage[] =
         "NotifyEndOfFile should only be called once. Try calling Flush instead "
@@ -785,6 +830,7 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
 }
 
 base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
+  PERFETTO_CHECK(non_default_connection_count_ == 0);
   const std::string& name = sql_package.name;
 
   // Check for prefix clashes with existing packages
@@ -952,6 +998,7 @@ void TraceProcessorImpl::SetCurrentTraceName(const std::string& name) {
 
 base::Status TraceProcessorImpl::RegisterFileContent(const std::string& path,
                                                      TraceBlob content) {
+  PERFETTO_CHECK(non_default_connection_count_ == 0);
   return context_.registered_file_tracker->AddFile(path, std::move(content));
 }
 
@@ -963,6 +1010,7 @@ void TraceProcessorImpl::InterruptQuery() {
 }
 
 size_t TraceProcessorImpl::RestoreInitialTables() {
+  PERFETTO_CHECK(non_default_connection_count_ == 0);
   // We should always have at least as many objects now as we did in the
   // constructor.
   uint64_t registered_count_before = engine_->SqliteRegisteredObjectCount();
@@ -996,6 +1044,7 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
 
 base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
                                                 const std::string& sql) {
+  PERFETTO_CHECK(non_default_connection_count_ == 0);
   // Check if the metric with the given path already exists and if it does,
   // just update the SQL associated with it.
   auto it = std::find_if(
@@ -1058,6 +1107,7 @@ base::Status TraceProcessorImpl::ExtendMetricsProto(
     const uint8_t* data,
     size_t size,
     const std::vector<std::string>& skip_prefixes) {
+  PERFETTO_CHECK(non_default_connection_count_ == 0);
   RETURN_IF_ERROR(metrics_descriptor_pool_.AddFromFileDescriptorSet(
       data, size, skip_prefixes));
   RETURN_IF_ERROR(RegisterAllProtoBuilderFunctions(
@@ -1564,6 +1614,7 @@ bool TraceProcessorImpl::IsRootMetricField(const std::string& metric_name) {
 
 base::Status TraceProcessorImpl::CreateSummarizer(
     std::unique_ptr<Summarizer>* out) {
+  PERFETTO_CHECK(non_default_connection_count_ == 0);
   // Lazily initialize the descriptor pool for textproto generation.
   auto opt_idx = metrics_descriptor_pool_.FindDescriptorIdx(
       ".perfetto.protos.TraceSummarySpec");

@@ -42,10 +42,61 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // clients depends on it at this point.
   using Iterator = ::perfetto::trace_processor::Iterator;
 
+  // A handle to a logical SQL connection against this `TraceProcessor`.
+  //
+  // Each `Connection` returned by `CreateConnection` is logically a fresh
+  // SQL session that shares the underlying trace data with all other
+  // connections (and with the implicit "connection-0" used by
+  // `TraceProcessor::ExecuteQuery`). This is the entry point for running
+  // queries concurrently against one trace.
+  //
+  // Threading: connections are *thread-compatible* (movable, not concurrent).
+  // A given `Connection` may be used from any single thread at a time, but
+  // its methods must not be called concurrently from multiple threads.
+  // Different `Connection`s, however, may be used concurrently from
+  // different threads.
+  //
+  // Lifetime: the embedder owns the `Connection`. Destroying the
+  // `Connection` releases its resources back to the parent `TraceProcessor`.
+  // The `Connection` must be destroyed before the parent `TraceProcessor`.
+  //
+  // Strict-v1 rule: while *any* non-default `Connection` is alive, mutating
+  // methods on the parent `TraceProcessor` (Parse, NotifyEndOfFile,
+  // RegisterSqlPackage, RegisterFileContent, RestoreInitialTables, metric/
+  // summarizer registration, ...) are illegal and will `PERFETTO_CHECK`.
+  class PERFETTO_EXPORT_COMPONENT Connection {
+   public:
+    virtual ~Connection();
+
+    Connection(const Connection&) = delete;
+    Connection& operator=(const Connection&) = delete;
+
+    // Executes the SQL on the connection. Same shape as
+    // `TraceProcessor::ExecuteQuery`.
+    virtual Iterator ExecuteQuery(const std::string& sql) = 0;
+
+   protected:
+    Connection();
+  };
+
   // Creates a new instance of TraceProcessor.
   static std::unique_ptr<TraceProcessor> CreateInstance(const Config&);
 
   ~TraceProcessor() override;
+
+  // Mints a new `Connection` against this `TraceProcessor`. The returned
+  // handle is owned by the caller; destroying it releases resources back
+  // to this `TraceProcessor`.
+  //
+  // Connection-0 (i.e. `TraceProcessor::ExecuteQuery` directly) is always
+  // available regardless of how many `Connection`s are minted.
+  //
+  // Strict-v1: must be called only after `NotifyEndOfFile`. While at least
+  // one `Connection` is alive, mutating methods on this `TraceProcessor`
+  // (Parse, NotifyEndOfFile, RegisterSqlPackage, RegisterFileContent,
+  // RestoreInitialTables, metric/summarizer registration, ...) will
+  // `PERFETTO_CHECK`.
+  virtual std::unique_ptr<Connection> CreateConnection() = 0;
 
   // =================================================================
   // |        Trace loading related functionality starts here         |

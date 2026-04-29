@@ -78,6 +78,8 @@ class TraceProcessorImpl : public TraceProcessor,
 
   Iterator ExecuteQuery(const std::string& sql) override;
 
+  std::unique_ptr<Connection> CreateConnection() override;
+
   base::Status RegisterSqlPackage(SqlPackage) override;
 
   // =================================================================
@@ -142,6 +144,18 @@ class TraceProcessorImpl : public TraceProcessor,
  private:
   // Needed for iterators to be able to access the context.
   friend class IteratorImpl;
+
+  // Phase 2 iter 1 scaffolding: a `Connection` impl that forwards to
+  // connection-0 (i.e. `TraceProcessorImpl::ExecuteQuery`). The next
+  // chunk (`perfetto-sql-engine-per-conn`) will replace this with a
+  // per-connection `PerfettoSqlEngine` + `SqliteConnection` that
+  // attaches to the same `cache=shared` memdb URI.
+  class ConnectionImpl;
+  friend class ConnectionImpl;
+
+  // Called by `ConnectionImpl::~ConnectionImpl` to release a connection
+  // back to this TraceProcessor. Decrements `non_default_connection_count_`.
+  void ReleaseConnection(ConnectionImpl* conn);
 
   bool IsRootMetricField(const std::string& metric_name);
 
@@ -220,6 +234,13 @@ class TraceProcessorImpl : public TraceProcessor,
 
   // Auto-incrementing counter for generating unique summarizer ids.
   uint32_t next_summarizer_id_ = 0;
+
+  // Number of currently-alive non-default `Connection`s minted by
+  // `CreateConnection`. While > 0, mutating TP-level methods are
+  // illegal (strict-v1 — see design rules). Maintained on a single
+  // thread: `CreateConnection` + connection destructors are required
+  // to be called on the thread that owns this `TraceProcessor`.
+  int non_default_connection_count_ = 0;
 };
 
 }  // namespace perfetto::trace_processor
