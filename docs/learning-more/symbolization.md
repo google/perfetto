@@ -27,7 +27,7 @@ Two definitions used throughout:
 You do **not** need to re-record to get symbols or deobfuscated names, as long
 as you still have the matching binaries and mapping files.
 
-## Option 1: `traceconv bundle` (recommended)
+## {#option-1-traceconv-bundle} Option 1: `traceconv bundle` (recommended)
 
 `traceconv bundle` is a one-shot command that takes a trace and produces an
 **enriched trace**: the original trace plus all the symbol and deobfuscation
@@ -59,7 +59,7 @@ format transparently, so you normally don't need to unpack it yourself.
 ### Automatic path discovery
 
 The main advantage over
-[Option 2](#option-2-legacy-traceconv-symbolize--deobfuscate) is that `bundle`
+[Option 2](#option-2-legacy-traceconv-symbolize-deobfuscate) is that `bundle`
 looks for symbols and mapping files in all the obvious places without
 configuration. It searches:
 
@@ -98,11 +98,11 @@ The properties of the `bundle` flags are:
 - `--verbose`: print every path tried and every library looked up &mdash; useful
   when debugging "could not find" errors.
 
-## Option 2: Legacy `traceconv symbolize` / `deobfuscate`
+## {#option-2-legacy-traceconv-symbolize-deobfuscate} Option 2: Legacy `traceconv symbolize` / `deobfuscate`
 
 NOTE: This flow is kept for backwards compatibility with existing scripts and
 CI pipelines that already depend on it. For new usage, always prefer
-[Option 1](#option-1-traceconv-bundle-recommended) &mdash; it is simpler, has
+[Option 1](#option-1-traceconv-bundle) &mdash; it is simpler, has
 auto-discovery, and works on non-Perfetto trace formats.
 
 The older `traceconv symbolize` and `traceconv deobfuscate` subcommands
@@ -166,7 +166,7 @@ when `PERFETTO_BINARY_PATH` is set.
 - The concatenation trick **only works for Perfetto protobuf traces**. Other
   trace formats (Chrome JSON, systrace, Firefox profile, etc.) cannot have
   `TracePacket` bytes appended this way. For those formats, use
-  [Option 1](#option-1-traceconv-bundle-recommended) and load the symbols via
+  [Option 1](#option-1-traceconv-bundle) and load the symbols via
   `trace_processor_shell`.
 - You must manage `PERFETTO_BINARY_PATH` / `PERFETTO_PROGUARD_MAP` by hand; none
   of the auto-discovery from Option 1 applies.

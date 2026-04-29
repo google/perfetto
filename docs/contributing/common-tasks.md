@@ -20,7 +20,7 @@ Files inside the standard library have to be formatted in a very specific way, a
 - Running the file cannot generate any data. There can be only `CREATE PERFETTO {FUNCTION|TABLE|VIEW|MACRO}` statements inside.
 - The name of each standard library object needs to start with `{module_name}_` or be prefixed with an underscore(`_`) for internal objects.
   The names must only contain lower and upper case letters and underscores. When a module is included (using the `INCLUDE PERFETTO MODULE`) the internal objects should not be treated as an API.
-- Every table or view should have [a schema](/docs/analysis/perfetto-sql-syntax.md#tableview-schema).
+- Every table or view should have [a schema](/docs/analysis/perfetto-sql-syntax.md#schema).
 
 #### Documentation
 
