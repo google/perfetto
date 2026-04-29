@@ -588,6 +588,9 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
   // we get here, so the writer's own re-entrant calls don't need a sync.
   std::string execute_savepoint;
   if (stack_base == 0) {
+    if (auto sync_status = SyncPackagesFromPool(); !sync_status.ok()) {
+      return sync_status;
+    }
     if (auto sync_status = SyncFunctionsFromPool(); !sync_status.ok()) {
       return sync_status;
     }
@@ -767,6 +770,15 @@ base::StatusOr<PerfettoSqlEngine::FrameResult> PerfettoSqlEngine::ProcessFrame(
         std::optional<GlobalStagingArea::IncludeLockGuard> include_lock;
         if (staging_area_) {
           include_lock = staging_area_->AcquireIncludeLock(key);
+          // Cross-connection short-circuit: if the module body has already
+          // been promoted by some other engine, mark our local copy
+          // included and continue with the next wildcard slot — re-running
+          // the body would conflict with the shared schema. See
+          // IncludeModuleImpl for the same check on the single-key path.
+          if (staging_area_->IsModuleIncluded(key)) {
+            file_ptr->included = true;
+            continue;
+          }
         }
 
         // Open a savepoint so the wildcard-expanded include is atomic at
@@ -942,6 +954,16 @@ base::StatusOr<PerfettoSqlEngine::FrameResult> PerfettoSqlEngine::ProcessFrame(
   // exists if a later frame errors out.
   frame.include_savepoint.clear();
   frame.file_ptr->included = true;
+  // Publish the per-module "included" bit cross-connection: any other
+  // engine that subsequently tries to include the same module name will
+  // see this and short-circuit before re-running the body (whose CREATE
+  // statements would conflict with the now-promoted shared schema).
+  // We're still holding the per-module include lock at this point (the
+  // guard lives on `frame.include_lock` and is dropped at frame pop) so
+  // mark+release is one atomic step from the perspective of any waiter.
+  if (staging_area_) {
+    staging_area_->MarkModuleIncluded(frame.include_key);
+  }
   return FrameResult::kFrameDone;
 }
 
@@ -1067,6 +1089,78 @@ base::Status PerfettoSqlEngine::RegisterLegacyRuntimeFunction(
         staging_area_->AppendFunction(GlobalStagingArea::FunctionPoolEntry{
             replace, prototype, return_type, std::move(sql_for_pool)});
   }
+  return base::OkStatus();
+}
+
+void PerfettoSqlEngine::RegisterPackageLocal(
+    const std::string& name,
+    sql_modules::RegisteredPackage package) {
+  packages_.Erase(name);
+  packages_.Insert(name, std::move(package));
+}
+
+void PerfettoSqlEngine::RegisterPackage(
+    const std::string& name,
+    sql_modules::RegisteredPackage package,
+    std::shared_ptr<const std::vector<std::pair<std::string, std::string>>>
+        pool_modules,
+    bool allow_replace) {
+  RegisterPackageLocal(name, std::move(package));
+  // Append-after-success: only land in the pool once the local register
+  // above is in place. RegisterPackageLocal has no failure mode but we
+  // still order the publication after it so readers observe the same
+  // sequence the writer did. Skip if the caller did not provide the
+  // raw modules — they don't need cross-connection propagation.
+  if (is_writer_ && staging_area_ && pool_modules) {
+    last_synced_package_version_ = staging_area_->AppendPackage(
+        GlobalStagingArea::PackagePoolEntry{name, allow_replace,
+                                            std::move(pool_modules)});
+  }
+}
+
+namespace {
+
+// Reconstructs a fresh `RegisteredPackage` from raw (module-name, sql)
+// pairs. Mirrors the conversion `TraceProcessorImpl::ToRegisteredPackage`
+// performs on the writer; replicated here so readers can rebuild the
+// package on their own engine without depending on TP-impl internals.
+sql_modules::RegisteredPackage RegisteredPackageFromModules(
+    const std::vector<std::pair<std::string, std::string>>& modules) {
+  sql_modules::RegisteredPackage package;
+  for (const auto& m : modules) {
+    package.modules.Insert(m.first, {m.second, false});
+  }
+  return package;
+}
+
+}  // namespace
+
+base::Status PerfettoSqlEngine::SyncPackagesFromPool() {
+  if (!staging_area_) {
+    return base::OkStatus();
+  }
+  // Writer engines never need to sync — they are the source of truth.
+  // Snap `last_synced_package_version_` to the latest version so the
+  // version-equality short-circuit stays cheap on subsequent calls.
+  if (is_writer_) {
+    last_synced_package_version_ = staging_area_->LatestPackageVersion();
+    return base::OkStatus();
+  }
+  if (staging_area_->LatestPackageVersion() == last_synced_package_version_) {
+    return base::OkStatus();
+  }
+
+  auto snapshot =
+      staging_area_->SnapshotPackagesSince(last_synced_package_version_);
+  for (const auto& entry : snapshot.entries) {
+    // Use the *local* path so we don't re-publish back into the pool. Each
+    // reader gets its own copy of the converted `RegisteredPackage`: the
+    // per-reader `included` bookkeeping evolves independently as that
+    // reader's `Execute` calls run INCLUDE statements.
+    RegisterPackageLocal(entry.name,
+                         RegisteredPackageFromModules(*entry.modules));
+  }
+  last_synced_package_version_ = snapshot.latest_version;
   return base::OkStatus();
 }
 
@@ -1417,6 +1511,17 @@ base::Status PerfettoSqlEngine::IncludeModuleImpl(
   std::optional<GlobalStagingArea::IncludeLockGuard> include_lock;
   if (staging_area_) {
     include_lock = staging_area_->AcquireIncludeLock(key);
+    // While holding the lock, consult the cross-connection "already
+    // included" set: if some other connection has run this module's body
+    // to RELEASE already, the module's CREATE statements are on shared
+    // `main`. Re-running the body would conflict with `cache=shared`-
+    // visible objects, so short-circuit. Update the local
+    // RegisteredPackage's `included` flag too so subsequent calls on
+    // this engine don't re-acquire the lock.
+    if (staging_area_->IsModuleIncluded(key)) {
+      file.included = true;
+      return base::OkStatus();
+    }
   }
 
   // Open a SAVEPOINT before pushing the include frame so the entire body of

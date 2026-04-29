@@ -905,10 +905,19 @@ base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
     engine_->ErasePackage(name);
   }
 
-  // Save the name before moving sql_package
+  // Save the name + raw module list before moving sql_package. The raw
+  // (module-name, sql) pairs are wrapped in a `shared_ptr` and handed to
+  // the engine so the staging-area package pool can publish them for
+  // sibling reader connections to replay locally on their next
+  // `Execute`.
   std::string pkg_name = name;
+  bool allow_replace = sql_package.allow_override;
+  auto pool_modules = std::make_shared<
+      const std::vector<std::pair<std::string, std::string>>>(
+      sql_package.modules);
   registered_sql_packages_.emplace_back(std::move(sql_package));
-  engine_->RegisterPackage(pkg_name, std::move(new_package));
+  engine_->RegisterPackage(pkg_name, std::move(new_package),
+                           std::move(pool_modules), allow_replace);
   return base::OkStatus();
 }
 
@@ -1053,11 +1062,16 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   // Drop any pool entries accumulated by the previous engine: the new
   // engine has fresh storage (its own memdb URI, no shared cache) and the
   // prelude include below will re-create everything from scratch. Calling
-  // `ResetFunctionPool` before the new engine boots ensures the writer's
-  // own re-registration of prelude functions does not collide with stale
-  // pool entries. Safe because `non_default_connection_count_ == 0` is
-  // CHECK'd above so no reader engine is observing the pool.
+  // `ResetFunctionPool` / `ResetPackagePool` before the new engine boots
+  // ensures the writer's own re-registration of prelude functions and
+  // packages does not collide with stale pool entries. The included-modules
+  // set is also wiped so the new engine's prelude re-import isn't
+  // short-circuited by stale entries from the previous engine. Safe
+  // because `non_default_connection_count_ == 0` is CHECK'd above so no
+  // reader engine is observing any of these.
   staging_area_->ResetFunctionPool();
+  staging_area_->ResetPackagePool();
+  staging_area_->ResetIncludedModules();
 
   // Reset the engine to its initial state. Pass cached bounds to avoid
   // recomputing them.
@@ -1605,13 +1619,20 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
     }
   }
 
-  // Reregister manually added stdlib packages.
+  // Reregister manually added stdlib packages. We re-publish them into
+  // the staging-area package pool too so a freshly-minted secondary
+  // connection (after `RestoreInitialTables`) sees the writer's full
+  // current registration set on its first sync.
   for (const auto& package : packages) {
     auto new_package = ToRegisteredPackage(package);
     if (!new_package.ok()) {
       PERFETTO_FATAL("%s", new_package.status().c_message());
     }
-    engine->RegisterPackage(package.name, std::move(*new_package));
+    auto pool_modules = std::make_shared<
+        const std::vector<std::pair<std::string, std::string>>>(
+        package.modules);
+    engine->RegisterPackage(package.name, std::move(*new_package),
+                            std::move(pool_modules), package.allow_override);
   }
 
   // Import prelude package.

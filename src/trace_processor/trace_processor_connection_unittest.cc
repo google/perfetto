@@ -568,11 +568,6 @@ TEST(TraceProcessorConnectionTest, ConcurrentReadersDoNotCrash) {
 // an include of an already-included module must be a no-op and must not
 // re-acquire the lock (the file.included check short-circuits before the
 // lock acquisition path).
-//
-// A true concurrent-includes-from-secondaries test is blocked today because
-// secondary connections do not yet inherit the writer's `packages_` registry
-// (separate gap, not a thread-safety issue). Once package propagation lands,
-// this test should grow into a true multi-threaded include test.
 TEST(TraceProcessorConnectionTest, IncludeLockAcquisitionDoesNotDeadlock) {
   auto tp = TraceProcessor::CreateInstance(Config());
   ASSERT_OK(tp->NotifyEndOfFile());
@@ -624,6 +619,239 @@ TEST(TraceProcessorConnectionTest, IncludeLockAcquisitionDoesNotDeadlock) {
       "WHERE name IN ('include_lock_first', 'include_lock_second');");
   ASSERT_TRUE(it.Next()) << it.Status().c_message();
   ASSERT_EQ(it.Get(0).long_value, 2);
+}
+
+// Phase 3 iter 2: a SQL package registered via `RegisterSqlPackage` on the
+// primary connection must be observable on a freshly-minted secondary via
+// `INCLUDE PERFETTO MODULE <name>`. The secondary's `packages_` is
+// populated by `SyncPackagesFromPool` at the top of every top-level
+// `Execute`. Verifies the include actually creates the module's tables on
+// the secondary (resolving via shared memdb, since the writer never ran
+// the include).
+TEST(TraceProcessorConnectionTest,
+     IncludeOnSecondaryConnectionWorksAfterPackageRegister) {
+  auto tp = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(tp->NotifyEndOfFile());
+
+  SqlPackage pkg;
+  pkg.name = "pkg_propagate_test";
+  pkg.modules.emplace_back(
+      "pkg_propagate_test.tables",
+      "CREATE TABLE pkg_propagate_t(id INTEGER, label TEXT);\n"
+      "INSERT INTO pkg_propagate_t VALUES (1, 'foo'), (2, 'bar');\n");
+  ASSERT_OK(tp->RegisterSqlPackage(pkg));
+
+  // Mint a secondary connection AFTER the package was registered. Issuing
+  // the include here exercises the package-pool sync at the top of the
+  // secondary's first `Execute`.
+  auto conn = tp->CreateConnection();
+  ASSERT_NE(conn, nullptr);
+
+  {
+    auto it = conn->ExecuteQuery(
+        "INCLUDE PERFETTO MODULE pkg_propagate_test.tables;");
+    while (it.Next()) {
+    }
+    ASSERT_OK(it.Status());
+  }
+
+  // The module's CREATE TABLE was promoted onto `main` by the include's
+  // savepoint release; the rows should be visible on the secondary.
+  {
+    auto it = conn->ExecuteQuery(
+        "SELECT id, label FROM pkg_propagate_t ORDER BY id;");
+    ASSERT_TRUE(it.Next()) << it.Status().c_message();
+    ASSERT_EQ(it.Get(0).long_value, 1);
+    ASSERT_STREQ(it.Get(1).string_value, "foo");
+    ASSERT_TRUE(it.Next()) << it.Status().c_message();
+    ASSERT_EQ(it.Get(0).long_value, 2);
+    ASSERT_STREQ(it.Get(1).string_value, "bar");
+    ASSERT_FALSE(it.Next());
+    ASSERT_OK(it.Status());
+  }
+}
+
+// Phase 3 iter 2: the package-pool diff is incremental — entries appended
+// after the writer registers them flow to subsequently-minted secondaries.
+// The TP-level `RegisterSqlPackage` is gated on
+// `non_default_connection_count_ == 0` (Phase 1 design rule) so this test
+// interleaves register-and-mint cycles. Round 1: register pkg_a, mint and
+// use a secondary, drop it. Round 2: register pkg_b (now pool version 2),
+// mint a fresh secondary; that secondary's first `SyncPackagesFromPool`
+// picks up *both* pkg_a and pkg_b — i.e. the pool retains pkg_a across
+// the second append, the diff is purely additive. The new secondary then
+// includes pkg_b (which the first secondary never included so the table
+// doesn't pre-exist on `main`) and SELECTs from pkg_a's table (which the
+// first secondary's include promoted onto `main` via temp-then-promote
+// during round 1) — exercising both pool entries.
+TEST(TraceProcessorConnectionTest,
+     IncrementalPackageRegistrationFlowsToSecondary) {
+  auto tp = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(tp->NotifyEndOfFile());
+
+  SqlPackage pkg_a;
+  pkg_a.name = "pkg_inc_a";
+  pkg_a.modules.emplace_back(
+      "pkg_inc_a.tables",
+      "CREATE TABLE pkg_inc_a_t(x INTEGER);\n"
+      "INSERT INTO pkg_inc_a_t VALUES (101);\n");
+  ASSERT_OK(tp->RegisterSqlPackage(pkg_a));
+
+  // Round 1: secondary picks up pkg_a via initial sync, includes it
+  // (promoting the table onto shared `main`), then is dropped. The
+  // include's temp-then-promote leaves `pkg_inc_a_t` on `main` so a
+  // later connection can SELECT from it without re-issuing the include.
+  {
+    auto conn1 = tp->CreateConnection();
+    ASSERT_NE(conn1, nullptr);
+    {
+      auto it = conn1->ExecuteQuery(
+          "INCLUDE PERFETTO MODULE pkg_inc_a.tables;");
+      while (it.Next()) {
+      }
+      ASSERT_OK(it.Status());
+    }
+    auto it = conn1->ExecuteQuery("SELECT x FROM pkg_inc_a_t;");
+    ASSERT_TRUE(it.Next()) << it.Status().c_message();
+    ASSERT_EQ(it.Get(0).long_value, 101);
+    ASSERT_OK(it.Status());
+  }
+  // conn1 destructor decrements non_default_connection_count_ back to 0.
+
+  // Round 2: register a second package and verify the pool diff picks it
+  // up on a fresh secondary. The fresh secondary also implicitly inherits
+  // pkg_a in its `packages_` (proven by being able to query against
+  // pkg_a's promoted table — but more directly, the pool's version is
+  // now 2 entries deep, and the new secondary's `last_synced_package_
+  // version_=0` -> `=2` sweep registers BOTH entries on its engine).
+  SqlPackage pkg_b;
+  pkg_b.name = "pkg_inc_b";
+  pkg_b.modules.emplace_back(
+      "pkg_inc_b.tables",
+      "CREATE TABLE pkg_inc_b_t(y INTEGER);\n"
+      "INSERT INTO pkg_inc_b_t VALUES (202);\n");
+  ASSERT_OK(tp->RegisterSqlPackage(pkg_b));
+
+  auto conn2 = tp->CreateConnection();
+  ASSERT_NE(conn2, nullptr);
+
+  // Including pkg_b on the new secondary exercises the package-pool
+  // diff: pkg_b was appended *after* conn2's prior connections did
+  // their syncs, but conn2's first Execute hits the diff and registers
+  // it before the include resolution.
+  {
+    auto it = conn2->ExecuteQuery("INCLUDE PERFETTO MODULE pkg_inc_b.tables;");
+    while (it.Next()) {
+    }
+    ASSERT_OK(it.Status());
+  }
+  // Read pkg_a's table (round-1 promoted) and pkg_b's (just included)
+  // in a single query. Both must be reachable from conn2.
+  {
+    auto it = conn2->ExecuteQuery(
+        "SELECT (SELECT x FROM pkg_inc_a_t) + (SELECT y FROM pkg_inc_b_t);");
+    ASSERT_TRUE(it.Next()) << it.Status().c_message();
+    ASSERT_EQ(it.Get(0).long_value, 303);
+    ASSERT_OK(it.Status());
+  }
+}
+
+// Phase 3 iter 2 (promoted from iter 1's deferred test): exercises the
+// include-lock plumbing from iter 1 plus the cross-connection package
+// propagation from this iter, end-to-end under concurrency. The flow:
+//   1. Writer registers a package with TWO modules.
+//   2. Writer includes one module (m1) — its tables are now on shared
+//      `main` and `MarkModuleIncluded("...m1")` was published.
+//   3. Two secondary connections are minted, each owned by its own
+//      thread. From their threads they concurrently:
+//      - INCLUDE PERFETTO MODULE m1 (already-included on writer; the
+//        cross-connection `IsModuleIncluded` short-circuit must trigger
+//        on each secondary, no body re-runs)
+//      - SELECT from m1's table (proves the table is visible via
+//        cache=shared on every secondary)
+// This validates both the per-module include lock (no deadlocks under
+// contention) and the package-pool sync (each secondary's `packages_`
+// is populated from the pool before resolving the include key).
+//
+// Concurrent INCLUDE of a module that has *not* been pre-included by
+// any connection is deferred: it requires SQLITE_LOCKED retry handling
+// for shared-cache schema lock contention between the two writer-side
+// transactions, which is the busy-retry chunk's territory.
+TEST(TraceProcessorConnectionTest, ConcurrentIncludesOfSameModuleSerialise) {
+  auto tp = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(tp->NotifyEndOfFile());
+
+  SqlPackage pkg;
+  pkg.name = "concurrent_include_test";
+  pkg.modules.emplace_back(
+      "concurrent_include_test.tables",
+      "CREATE TABLE concurrent_include_t(id INTEGER, val TEXT);\n"
+      "INSERT INTO concurrent_include_t VALUES (1, 'a'), (2, 'b');\n");
+  ASSERT_OK(tp->RegisterSqlPackage(pkg));
+
+  // Writer pre-includes the module so its CREATE TABLE is on shared
+  // `main` and the cross-connection `included_modules_` set is marked.
+  {
+    auto it = tp->ExecuteQuery(
+        "INCLUDE PERFETTO MODULE concurrent_include_test.tables;");
+    while (it.Next()) {
+    }
+    ASSERT_OK(it.Status());
+  }
+
+  auto conn_a = tp->CreateConnection();
+  auto conn_b = tp->CreateConnection();
+  ASSERT_NE(conn_a, nullptr);
+  ASSERT_NE(conn_b, nullptr);
+
+  std::atomic<int> errors{0};
+  std::mutex log_mu;
+  std::vector<std::string> log;
+  auto worker = [&](std::unique_ptr<TraceProcessor::Connection> conn) {
+    // Re-include the same module from this secondary. The package-pool
+    // sync at the top of Execute populates `packages_` so `INCLUDE`
+    // finds the package; the include lock is acquired (testing the
+    // recursive-mutex acquire/release path under MT); and
+    // `IsModuleIncluded` short-circuits before the SAVEPOINT/body so
+    // no schema-write conflict on shared `main`.
+    {
+      auto it = conn->ExecuteQuery(
+          "INCLUDE PERFETTO MODULE concurrent_include_test.tables;");
+      while (it.Next()) {
+      }
+      if (!it.Status().ok()) {
+        std::lock_guard<std::mutex> g(log_mu);
+        log.emplace_back(std::string("INCLUDE failed: ") +
+                         it.Status().c_message());
+        errors.fetch_add(1, std::memory_order_relaxed);
+        return;
+      }
+    }
+    auto it = conn->ExecuteQuery(
+        "SELECT count(*) FROM concurrent_include_t;");
+    if (!it.Next()) {
+      errors.fetch_add(1, std::memory_order_relaxed);
+      return;
+    }
+    if (it.Get(0).long_value != 2) {
+      errors.fetch_add(1, std::memory_order_relaxed);
+      return;
+    }
+    if (!it.Status().ok()) {
+      errors.fetch_add(1, std::memory_order_relaxed);
+    }
+  };
+
+  std::thread t1(worker, std::move(conn_a));
+  std::thread t2(worker, std::move(conn_b));
+  t1.join();
+  t2.join();
+
+  std::string log_dump;
+  for (const auto& msg : log) {
+    log_dump += msg + "\n";
+  }
+  ASSERT_EQ(errors.load(), 0) << "logs:\n" << log_dump;
 }
 
 }  // namespace

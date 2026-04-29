@@ -269,12 +269,27 @@ class PerfettoSqlEngine {
   // over `sqlite_engine()->db()`.
   sqlite3* db() { return engine_->db(); }
 
-  // Makes new SQL package available to include.
-  void RegisterPackage(const std::string& name,
-                       sql_modules::RegisteredPackage package) {
-    packages_.Erase(name);
-    packages_.Insert(name, std::move(package));
-  }
+  // Makes new SQL package available to include. On the writer engine the
+  // package is also appended to the staging-area package pool so that
+  // sibling reader connections can replicate it locally on their next
+  // top-level `Execute` (via `SyncPackagesFromPool`). `pool_modules`, if
+  // non-null, supplies the original (module-name, sql) pairs the writer
+  // consumed to build `package`; readers replay these to construct an
+  // equivalent local `RegisteredPackage`. Pass null for callers that have
+  // no need for cross-connection propagation (e.g. tests using the legacy
+  // single-engine setup); the pool is touched only when the engine is the
+  // writer *and* `pool_modules` is provided.
+  //
+  // `allow_replace` is propagated verbatim into the pool entry so readers
+  // can mirror the writer's intent. The local (writer-side) state is
+  // unconditionally replaced — this matches the existing pre-multi-conn
+  // semantics.
+  void RegisterPackage(
+      const std::string& name,
+      sql_modules::RegisteredPackage package,
+      std::shared_ptr<const std::vector<std::pair<std::string, std::string>>>
+          pool_modules = nullptr,
+      bool allow_replace = false);
 
   // Removes a SQL package.
   void ErasePackage(const std::string& name) { packages_.Erase(name); }
@@ -449,6 +464,14 @@ class PerfettoSqlEngine {
       sql_argument::Type return_type,
       SqlSource sql);
 
+  // Internal helper: registers a SQL package on this engine's local
+  // `packages_` map without publishing to the staging-area package pool.
+  // Used both by the public `RegisterPackage` (which then publishes on the
+  // writer) and by `SyncPackagesFromPool` (which only consumes from the
+  // pool — readers must never publish).
+  void RegisterPackageLocal(const std::string& name,
+                            sql_modules::RegisteredPackage package);
+
   // Diffs `last_synced_function_version_` against the staging-area function
   // pool and registers any missing entries on this engine's own `sqlite3*`
   // handle. Cheap fast-path: if the version already matches the pool's
@@ -456,6 +479,15 @@ class PerfettoSqlEngine {
   // Called at the top of `ExecuteUntilLastStatement` for top-level
   // (non-re-entrant) invocations only.
   base::Status SyncFunctionsFromPool();
+
+  // Diffs `last_synced_package_version_` against the staging-area package
+  // pool and registers any missing entries on this engine's own `packages_`
+  // map. Cheap fast-path: if the version already matches the pool's latest
+  // version, returns immediately without taking the pool's mutex. Called at
+  // the top of `ExecuteUntilLastStatement` for top-level (non-re-entrant)
+  // invocations only. Writer engines short-circuit (they're the source of
+  // truth and append directly via `RegisterSqlPackage`).
+  base::Status SyncPackagesFromPool();
 
   // Processes a single iteration of the frame at the given index.
   // May push new frames onto the stack (for includes/wildcards).
@@ -530,6 +562,13 @@ class PerfettoSqlEngine {
   // also bumps this each time it appends so it doesn't pointlessly try to
   // re-register its own functions on its own handle.
   uint64_t last_synced_function_version_ = 0;
+
+  // Package-pool version of the most recent successful sync against
+  // `staging_area_->SnapshotPackagesSince`. Same shape as
+  // `last_synced_function_version_`; the writer bumps this eagerly inside
+  // `RegisterSqlPackage` to avoid re-registering its own packages back into
+  // its own engine.
+  uint64_t last_synced_package_version_ = 0;
 
   // Execution stack for iterative (non-recursive) processing of SQL sources.
   // When an INCLUDE statement is encountered, the included module's SQL is

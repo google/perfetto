@@ -193,6 +193,99 @@ class GlobalStagingArea {
   // it had registered all entries when in fact the new pool is empty.
   void ResetFunctionPool();
 
+  // ===========================================================================
+  // Package pool (additive only — no DROP).
+  // ===========================================================================
+  //
+  // Records SQL packages registered via `RegisterSqlPackage`. Mirrors the
+  // function pool: each connection's `PerfettoSqlEngine` tracks
+  // `last_synced_package_version_` and, at every top-level `Execute` start,
+  // diffs against this pool and locally registers any newly-appended
+  // packages on its own engine via `RegisterPackage`. This makes
+  // `INCLUDE PERFETTO MODULE <key>` work on any connection — writer or
+  // reader — for any package the writer has registered.
+  //
+  // Only the writer connection appends; readers consume only. Phase 2 is
+  // single-threaded so contention against the internal mutex is impossible
+  // today; the lock is documented as the Phase 3 hook.
+  //
+  // The pool stores the original (name, sql) module pairs rather than the
+  // already-converted `sql_modules::RegisteredPackage`: the latter is
+  // move-only (its inner `base::FlatHashMap` deletes copy), and readers need
+  // to be able to pull a snapshot and rebuild a fresh `RegisteredPackage`
+  // on their own engine. Each pool entry holds a `shared_ptr` to a vector
+  // of (module-name, sql) pairs so multiple readers can observe the same
+  // payload without duplicating the strings.
+  struct PackagePoolEntry {
+    using Modules = std::vector<std::pair<std::string, std::string>>;
+
+    PackagePoolEntry(std::string _name,
+                     bool _allow_replace,
+                     std::shared_ptr<const Modules> _modules)
+        : name(std::move(_name)),
+          allow_replace(_allow_replace),
+          modules(std::move(_modules)) {}
+
+    std::string name;
+    bool allow_replace = false;
+    std::shared_ptr<const Modules> modules;
+  };
+
+  // Snapshot returned by `SnapshotPackagesSince`. Same contract as
+  // `FunctionPoolSnapshot`: caller passes its `since_version`, gets all
+  // entries strictly newer than that, plus the new latest version it should
+  // record after registering all entries on its handle.
+  struct PackagePoolSnapshot {
+    std::vector<PackagePoolEntry> entries;
+    uint64_t latest_version = 0;
+  };
+
+  // Append a package to the pool. Returns the new latest version
+  // (== old latest version + 1). Callers must invoke this *after* the
+  // package has been successfully registered on the writer's own
+  // `PerfettoSqlEngine` so that an early-failed registration does not leak
+  // a stale entry into the pool.
+  uint64_t AppendPackage(PackagePoolEntry entry);
+
+  // Returns all entries appended after `since_version` together with the
+  // latest version after the snapshot. Cheap fast-path: returns an empty
+  // entries list and `latest_version == since_version` when the caller is
+  // already up-to-date.
+  PackagePoolSnapshot SnapshotPackagesSince(uint64_t since_version) const;
+
+  // Cheap peek of the latest version. Used by readers to short-circuit the
+  // diff scan when no new packages have been appended since the last sync.
+  uint64_t LatestPackageVersion() const;
+
+  // Drops every entry from the package pool and resets the version counter.
+  // Mirrors `ResetFunctionPool`; called from `RestoreInitialTables` before
+  // the writer's fresh engine boots and re-runs the prelude. Safe only when
+  // no reader engine is observing the pool (the
+  // `non_default_connection_count_ == 0` CHECK in `RestoreInitialTables`
+  // guarantees this).
+  void ResetPackagePool();
+
+  // ===========================================================================
+  // Cross-connection "module already included" tracking.
+  // ===========================================================================
+  //
+  // When an `INCLUDE PERFETTO MODULE <key>` runs to RELEASE on any
+  // connection, the temp-then-promote pattern lands the module's CREATE
+  // statements on shared `main`. From that point on, *no other connection
+  // should re-run the same module's body* — the second attempt would hit
+  // "table X already exists" from the shared schema. This set tracks
+  // include keys that have been committed by some connection so the
+  // `IncludeModuleImpl` short-circuit covers cross-connection visibility,
+  // not just the per-engine `RegisteredPackage::ModuleFile::included`
+  // flag.
+  //
+  // Marked under the per-module include lock by the connection that
+  // successfully RELEASEd. Reset to empty by `RestoreInitialTables` (via
+  // `ResetIncludedModules`).
+  void MarkModuleIncluded(const std::string& key);
+  bool IsModuleIncluded(const std::string& key) const;
+  void ResetIncludedModules();
+
  private:
   static std::string MakeVtabKey(const std::string& module_name,
                                  const std::string& vtab_name);
@@ -210,6 +303,21 @@ class GlobalStagingArea {
   mutable std::mutex function_pool_mutex_;
   std::vector<FunctionPoolEntry> function_pool_;
   std::atomic<uint64_t> function_pool_version_{0};
+
+  // Package pool. Same shape as the function pool: latest version equals
+  // `package_pool_.size()`, exposed via an atomic for cheap lock-free peeks.
+  // Separate mutex from the function pool — there's no invariant that ties
+  // the two, and a reader catching up on functions shouldn't block a writer
+  // appending a package (or vice versa).
+  mutable std::mutex package_pool_mutex_;
+  std::vector<PackagePoolEntry> package_pool_;
+  std::atomic<uint64_t> package_pool_version_{0};
+
+  // Set of include keys that have been successfully RELEASEd by some
+  // connection. Updated under the per-module include lock so a writer
+  // mark and a reader check on the same key are serialised by that lock.
+  mutable std::mutex included_modules_mutex_;
+  base::FlatHashMap<std::string, bool> included_modules_;
 };
 
 }  // namespace perfetto::trace_processor

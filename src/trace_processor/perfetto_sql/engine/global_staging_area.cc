@@ -126,4 +126,64 @@ void GlobalStagingArea::ResetFunctionPool() {
   function_pool_version_.store(0, std::memory_order_release);
 }
 
+uint64_t GlobalStagingArea::AppendPackage(PackagePoolEntry entry) {
+  std::lock_guard<std::mutex> guard(package_pool_mutex_);
+  package_pool_.push_back(std::move(entry));
+  uint64_t new_version = package_pool_.size();
+  // Publish after the entry is in the vector — same release-after-write
+  // ordering as the function pool.
+  package_pool_version_.store(new_version, std::memory_order_release);
+  return new_version;
+}
+
+GlobalStagingArea::PackagePoolSnapshot GlobalStagingArea::SnapshotPackagesSince(
+    uint64_t since_version) const {
+  // Fast-path peek of the atomic; no lock needed if the caller is already
+  // up-to-date.
+  if (package_pool_version_.load(std::memory_order_acquire) <= since_version) {
+    return {{}, since_version};
+  }
+
+  std::lock_guard<std::mutex> guard(package_pool_mutex_);
+  PackagePoolSnapshot snapshot;
+  snapshot.latest_version = package_pool_.size();
+  if (since_version >= snapshot.latest_version) {
+    return snapshot;
+  }
+  snapshot.entries.reserve(snapshot.latest_version - since_version);
+  for (size_t i = since_version; i < package_pool_.size(); ++i) {
+    // PackagePoolEntry is cheaply copyable: `package` is a `shared_ptr` so
+    // the underlying RegisteredPackage payload is reference-counted and not
+    // duplicated.
+    snapshot.entries.push_back(package_pool_[i]);
+  }
+  return snapshot;
+}
+
+uint64_t GlobalStagingArea::LatestPackageVersion() const {
+  return package_pool_version_.load(std::memory_order_acquire);
+}
+
+void GlobalStagingArea::ResetPackagePool() {
+  std::lock_guard<std::mutex> guard(package_pool_mutex_);
+  package_pool_.clear();
+  package_pool_version_.store(0, std::memory_order_release);
+}
+
+void GlobalStagingArea::MarkModuleIncluded(const std::string& key) {
+  std::lock_guard<std::mutex> guard(included_modules_mutex_);
+  included_modules_.Erase(key);
+  included_modules_.Insert(key, true);
+}
+
+bool GlobalStagingArea::IsModuleIncluded(const std::string& key) const {
+  std::lock_guard<std::mutex> guard(included_modules_mutex_);
+  return included_modules_.Find(key) != nullptr;
+}
+
+void GlobalStagingArea::ResetIncludedModules() {
+  std::lock_guard<std::mutex> guard(included_modules_mutex_);
+  included_modules_.Clear();
+}
+
 }  // namespace perfetto::trace_processor

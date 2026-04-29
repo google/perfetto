@@ -23,6 +23,107 @@ Phase 3 in progress (thread safety + retry middleware).
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [Phase 3 iter 2]: cross-conn-package-propagation done.
+  Mirrors iter 5's function-pool design for SQL packages.
+  `GlobalStagingArea` grows an additive package pool: a
+  `vector<PackagePoolEntry>` (each entry owns a `shared_ptr<const
+  vector<pair<string,string>>>` of raw module-name/sql pairs plus the
+  `allow_replace` flag) guarded by `package_pool_mutex_`, with an
+  `atomic<uint64_t> package_pool_version_` for cheap fast-path peeks.
+  New API: `AppendPackage` (writer-only), `SnapshotPackagesSince`,
+  `LatestPackageVersion`, `ResetPackagePool`. Stored as raw module
+  pairs (not the converted `RegisteredPackage`) because
+  `RegisteredPackage` contains a `base::FlatHashMap` which is
+  move-only — readers re-construct a fresh `RegisteredPackage` per
+  sync via the new helper `RegisteredPackageFromModules`. Each
+  reader gets its own copy because `packages_["X"].modules["Y"]
+  .included` is a per-reader bookkeeping flag.
+
+  `PerfettoSqlEngine::RegisterPackage` is now defined out-of-line
+  with an extra `pool_modules` arg (a `shared_ptr` to the raw module
+  pairs) plus the `allow_replace` flag; on the writer it calls the
+  internal `RegisterPackageLocal` (just touches the local
+  `packages_` map) then append-after-success `AppendPackage`s on
+  `staging_area_`. `last_synced_package_version_` is bumped eagerly
+  on the writer so its own no-op syncs short-circuit. Readers run
+  `SyncPackagesFromPool` at the top of every top-level
+  `ExecuteUntilLastStatement` (placed *before*
+  `SyncFunctionsFromPool`, though they don't currently depend on
+  ordering); the diff is fast-path-skipped via the atomic version
+  peek when there are no new entries.
+
+  `RestoreInitialTables` adds `staging_area_->ResetPackagePool()`
+  alongside the existing `ResetFunctionPool` so a
+  `non_default_connection_count_ == 0` reset wipes both pools
+  before the new writer engine boots and re-publishes them via the
+  prelude path (`InitPerfettoSqlEngine` now also passes the raw
+  modules to `engine->RegisterPackage` so writer-side init goes
+  through the same publish path).
+
+  Also added a small adjacent piece needed to make concurrent
+  includes of the same module work cross-connection: a
+  `included_modules_` set in `GlobalStagingArea` (with
+  `MarkModuleIncluded` / `IsModuleIncluded` / `ResetIncludedModules`)
+  is consulted under the per-module include lock at the start of
+  `IncludeModuleImpl` and the wildcard-expansion include path; if
+  another connection has already promoted the module, the local
+  `RegisteredPackage::ModuleFile::included` flag is set and the
+  body is short-circuited instead of being re-run (which would
+  collide with the now-shared-`main` schema). The mark happens
+  under the include lock right after `ReleaseIncludeSavepoint`
+  succeeds so the cross-connection bit is published atomically with
+  the lock release.
+
+  **Three new tests** under `TraceProcessorConnectionTest.*` in
+  `src/trace_processor/trace_processor_connection_unittest.cc`:
+  - `IncludeOnSecondaryConnectionWorksAfterPackageRegister`: writer
+    registers a package, secondary minted afterwards runs
+    `INCLUDE PERFETTO MODULE` and queries the included table.
+  - `IncrementalPackageRegistrationFlowsToSecondary`: writer
+    registers pkg_a, mints+uses+drops a secondary, registers pkg_b
+    (the gate `non_default_connection_count_ == 0` requires the
+    drop), mints a fresh secondary, verifies *both* pkg_a and
+    pkg_b flow through on the new secondary's first sync. Tests
+    that the pool retains earlier entries across appends and the
+    diff is purely additive.
+  - `ConcurrentIncludesOfSameModuleSerialise` (promoted from iter
+    1's deferred test): writer pre-includes a module, two
+    secondaries from separate threads each re-issue the include +
+    SELECT. Validates the include lock acquire/release path is
+    deadlock-free under MT and the cross-connection
+    `IsModuleIncluded` short-circuits the body so no
+    schema-write conflict occurs on shared `main`. The
+    naive variant (no pre-include, two secondaries race the
+    body) currently fails with "database schema is locked: main"
+    on shared-cache contention — that's the busy-retry chunk's
+    territory and is documented in the test's docstring.
+
+  **ASan finding (pre-existing, surfaced more clearly here):**
+  the new MT include test (and iter 1's `ConcurrentReadersDoNotCrash`
+  on re-runs) flakily aborts under ASan in
+  `TraceStorage::SqlStats::RecordQueryBegin` —
+  `std::deque<string>::push_back` from two connection threads
+  concurrently (shared `parent_->context()->storage->mutable_sql_stats()`
+  in both `TraceProcessorImpl::ExecuteQuery` and
+  `ConnectionImpl::ExecuteQuery`). Container-overflow shadow byte
+  `fc`. Pre-existing race exposed by MT secondary connections;
+  not caused by this iter's changes. This is squarely in the
+  globals-audit chunk's scope. The release-mode test passes
+  reliably (~50 consecutive successful runs); the ASan flake
+  probability is ~30-40% per run.
+
+  **Test counts:**
+  - `out/mac_release/perfetto_unittests`: 3247 PASSED + 2
+    SKIPPED + 1 pre-existing macOS failure
+    (`HttpServerTest.Websocket`). +3 new tests vs. iter 1.
+  - `out/mac_release/perfetto_integrationtests` (TP-relevant
+    filter): 122 PASSED, unchanged.
+  - `tools/diff_test_trace_processor.py`: 1355 PASSED + 9
+    pre-existing skips, unchanged.
+  - `out/mac_asan/perfetto_unittests` (connection-tests filter):
+    16/17 or 17/17 PASSED depending on the
+    `TraceStorage::SqlStats` race window (see ASan finding above).
+
 - 2026-04-29 [Phase 3 iter 1]: include-lock-wire-and-mt-smoke done.
   **Part A** — wired `GlobalStagingArea::AcquireIncludeLock` (added in
   Phase 2 iter 3 but unused) into `PerfettoSqlEngine`'s include path. Both
@@ -836,13 +937,21 @@ and the temp-then-promote breakthrough above before sequencing them.
       `TraceProcessorConnectionTest.*`: a multi-thread reader smoke and
       a single-thread include-lock-acquire-without-deadlock. See
       Phase 3 iter 1 activity entry.
-- [ ] cross-conn-package-propagation — secondary connections currently
-      cannot do `INCLUDE PERFETTO MODULE <key>` because `packages_` is
-      writer-only. Likely shape: a snapshot in `GlobalStagingArea` (a
-      `vector<RegisteredPackage>` mirroring the function pool) that
-      readers diff at `Execute` start. Surfaced by Phase 3 iter 1; needs
-      to land before a true multi-thread concurrent-include test can be
-      written.
+- [x] cross-conn-package-propagation — done Phase 3 iter 2.
+      `GlobalStagingArea` grows an additive package pool mirroring the
+      function pool from iter 5; writer's `RegisterSqlPackage` appends
+      after successful local register, readers diff
+      `last_synced_package_version_` at the top of every top-level
+      `ExecuteUntilLastStatement` and locally `RegisterPackageLocal`
+      missing entries. Pool entries store raw (module-name, sql) pairs
+      in a `shared_ptr` because `RegisteredPackage` is move-only.
+      `RestoreInitialTables` resets the pool. Also wired a
+      cross-connection `IsModuleIncluded` set so the second connection
+      to include the same module short-circuits before the body
+      (previous attempt would collide with shared-`main` schema).
+      Three new tests; the naive concurrent-include variant (without
+      pre-include) fails on SQLITE_LOCKED — that's busy-retry
+      territory.
 - [ ] busy-retry — transparent `SQLITE_BUSY` retry middleware with
       bounded retry count + configurable timeout (default 1s). Wraps
       `PrepareStatement` / `Step`. Required once concurrent writers
