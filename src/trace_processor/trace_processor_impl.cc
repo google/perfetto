@@ -510,7 +510,9 @@ std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
 }  // namespace
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
-    : TraceProcessorStorageImpl(cfg), config_(cfg) {
+    : TraceProcessorStorageImpl(cfg),
+      config_(cfg),
+      staging_area_(std::make_unique<GlobalStagingArea>()) {
   // Initialize plugins using the statically pre-computed PluginSet.
   // Dep indices are resolved once at static init time; here we just
   // instantiate, resolve dep pointers, and register importers.

@@ -4,6 +4,17 @@
 Phase 1: refactor + memdb/WAL with no behavioural change
 
 ## Recent activity (newest first)
+- 2026-04-29 [iter 7]: global-staging-area-skeleton done. Added
+  `src/trace_processor/perfetto_sql/engine/global_staging_area.{h,cc}`
+  declaring an empty `GlobalStagingArea` class (no state, copy/move
+  deleted, ctor/dtor out-of-line so Phase 2 can add private members
+  without rebuilds). Wired a `std::unique_ptr<GlobalStagingArea>
+  staging_area_` member into `TraceProcessorImpl`, initialised in
+  the constructor; no callsites yet. Added the new sources to the
+  `engine` source set in `src/trace_processor/perfetto_sql/engine/
+  BUILD.gn`. `gn check` clean. 3216 unittests pass (only pre-existing
+  `HttpServerTest.Websocket` failure on macOS, ignored), 122 TP
+  integrationtests pass, 1355 diff tests pass. No behaviour change.
 - 2026-04-29 [iter 6]: connection-handle-struct done. Extracted
   `SqliteConnection` value-type (declared in `sqlite_engine.h` next
   to `SqliteEngine`) wrapping `ScopedDb db_` + the per-handle
@@ -99,12 +110,10 @@ Phase 1: refactor + memdb/WAL with no behavioural change
       bundles `ScopedDb` + per-handle `fn_ctx_`; `SqliteEngine` keeps
       `filename_` and owns one `SqliteConnection` by value. See iter 6
       activity entry.
-- [ ] global-staging-area-skeleton — add
-      `src/trace_processor/perfetto_sql/engine/global_staging_area.{h,cc}`
-      as an empty class owned by `TraceProcessorImpl`. No state yet,
-      no behaviour change, no callsites yet. Pure scaffolding so
-      Phase 2 can fill in vtab-state map + function pool + per-module
-      include locks.
+- [x] global-staging-area-skeleton — done iter 7. Empty
+      `GlobalStagingArea` class added; `TraceProcessorImpl` owns it
+      via `std::unique_ptr`. No callsites yet. See iter 7 activity
+      entry.
 - [ ] phase1-validation — run unittests, integrationtests,
       diff_test_trace_processor.py, and an ASan unittests pass. No
       regressions and no behaviour change vs. main.

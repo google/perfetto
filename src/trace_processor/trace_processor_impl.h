@@ -37,6 +37,7 @@
 #include "src/trace_processor/core/plugin/plugin.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/metrics.h"
+#include "src/trace_processor/perfetto_sql/engine/global_staging_area.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
@@ -178,6 +179,11 @@ class TraceProcessorImpl : public TraceProcessor,
 
   // Registered plugins, topologically sorted by dependency order.
   std::vector<std::unique_ptr<PluginBase>> plugins_;
+
+  // Cross-connection state (vtab-state map, function pool, per-module
+  // include locks). Phase 1 skeleton: empty. Phase 2 fills it in and
+  // wires it through `PerfettoSqlEngine`.
+  std::unique_ptr<GlobalStagingArea> staging_area_;
 
   std::unique_ptr<PerfettoSqlEngine> engine_;
 
