@@ -7639,7 +7639,6 @@ perfetto_proto_library(
         "protos/perfetto/trace/android/camera_event.proto",
         "protos/perfetto/trace/android/cpu_per_uid_data.proto",
         "protos/perfetto/trace/android/frame_timeline_event.proto",
-        "protos/perfetto/trace/android/gpu_mem_event.proto",
         "protos/perfetto/trace/android/graphics_frame_event.proto",
         "protos/perfetto/trace/android/initial_display_state.proto",
         "protos/perfetto/trace/android/kernel_wakelock_data.proto",
@@ -8006,6 +8005,7 @@ perfetto_cc_protozero_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_generic_kernel_protos",
     srcs = [
+        "protos/perfetto/trace/generic_kernel/generic_gpu_frequency.proto",
         "protos/perfetto/trace/generic_kernel/generic_power.proto",
         "protos/perfetto/trace/generic_kernel/generic_task.proto",
     ],
@@ -8120,6 +8120,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/trace/gpu/gpu_counter_event.proto",
         "protos/perfetto/trace/gpu/gpu_log.proto",
+        "protos/perfetto/trace/gpu/gpu_mem_event.proto",
         "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
         "protos/perfetto/trace/gpu/vulkan_api_event.proto",
         "protos/perfetto/trace/gpu/vulkan_memory_event.proto",
