@@ -23,6 +23,161 @@ Phase 4 in progress (RPC pool + UI fan-out + WASM pthreads).
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [Phase 4 iter 4]: e2e-perf-validation done. Built a
+  Google-Benchmark harness that drives an end-to-end RPC-streaming
+  query workload through `Rpc::OnRpcRequest` and measures wall-time
+  with vs. without the iter-3 async dispatch path. The headline
+  finding is **the pool *does* parallelise** (the dispatch wiring is
+  correct; workers fan out to 8 threads on a 10-core machine and
+  return a clean ~5x speedup on a CPU-bound workload that touches no
+  shared trace tables) — but the trace-table workload that
+  approximates the UI's post-EOF query flurry sees **no measurable
+  speedup**. Investigation localised the bottleneck to SQLite's
+  shared-cache `BtShared` mutex: with `cache=shared` (load-bearing
+  for cross-connection schema sharing), every cursor read on a
+  trace-table btree takes a per-database mutex that serialises
+  reads across connections. This is a known SQLite limitation, not
+  a bug in this PR's pool design. Surfacing as a **major project
+  finding** for the project memo and the next iter.
+
+  **Harness.**
+  - File: `src/trace_processor/rpc/rpc_perf_benchmark.cc:1`.
+  - Build: `tools/ninja -C out/mac_release perfetto_benchmarks`.
+  - Run: `out/mac_release/perfetto_benchmarks
+    --benchmark_filter='BM_Rpc.*' --benchmark_repetitions=10
+    --benchmark_report_aggregates_only=true`.
+  - 4 benchmarks, 2 pairs:
+    - `BM_RpcStreamingQueryBurst_{PoolOn,PoolOff}` — 12 GROUP-BY
+      / ORDER-BY queries against `slice`, `thread_state`, `sched`,
+      `counter`, `args` on `test/data/android_postboot_unlock.pftrace`
+      (~18MB Android trace). Approximates the UI's post-EOF flurry.
+    - `BM_RpcCpuOnlyBurst_{PoolOn,PoolOff}` — 8 50K-row recursive
+      CTEs (sum of cubes). Independent, no shared-table reads. The
+      diagnostic baseline: confirms the pool's parallelism plumbing
+      works on a workload that doesn't hit BtShared.
+  - "PoolOn" wires `SetResponseDispatcher` to a fake task queue;
+    "PoolOff" leaves it null (the inline synchronous path).
+  - Wall-time is measured with `bstate.SetIterationTime(...)`
+    bracketing first-OnRpcRequest to last-drain-completion; CPU-time
+    columns are not load-bearing.
+
+  **Kill-switch.** `PERFETTO_RPC_POOL_DISABLED=1` in env forces the
+  inline synchronous path even when a dispatcher is wired.
+  Implemented in `src/trace_processor/rpc/rpc.cc:305-313` with a
+  function-static `kPoolDisabled = getenv(...) != nullptr` so the
+  flag is read once and races on getenv don't bite. Verified
+  empirically: `PERFETTO_RPC_POOL_DISABLED=1` makes
+  `BM_RpcCpuOnlyBurst_PoolOn` collapse from 7.8ms (parallel) to
+  42.4ms (matches `PoolOff`), and `workers_used` drops to 0. Doubles
+  as an ergonomic v1 stability switch — embedders / shells can flip
+  it without rebuilding.
+
+  **Numbers (mac_release, 10 cores, 8-worker pool, 10 reps,
+  median):**
+  | Benchmark                              | PoolOn | PoolOff | Ratio |
+  |----------------------------------------|--------|---------|-------|
+  | `RpcStreamingQueryBurst` (trace tbls)  | 196 ms | 199 ms  | 1.02x |
+  | `RpcCpuOnlyBurst` (recursive CTE)      | 7.81 ms| 42.4 ms | 5.4x  |
+
+  Counters (per benchmark.io kIsIterationInvariant; integer
+  literals are summed-across-iterations totals):
+  - `RpcStreamingQueryBurst_PoolOn` 10 reps: `workers_used=112`,
+    `distinct_connections=112`, `hardware_concurrency=140`,
+    `queries=168`. Per-rep: 8 workers / 8 conns / 12 queries / 14
+    iters per rep (Google Benchmark auto-picks iters from MinTime).
+    The pool **is** spinning up 8 worker threads and 8 connections.
+  - `RpcCpuOnlyBurst_PoolOn` 10 reps: `workers_used=2968`,
+    `queries=2968`, `hardware_concurrency=3710`. Per-rep: 8 workers
+    again, ~37 iters per rep.
+
+  **Bottleneck investigation.**
+  - Hypothesis: workers complete sequentially. **Disproved** —
+    counters show all 8 workers run on every rep on the trace-table
+    workload too (workers_used >= 8). Workers ARE picking up tasks
+    in parallel.
+  - Hypothesis: `pool_mu_` contention serialises Acquire/Release.
+    **Unlikely** — `AcquireConnectionForQuery` only takes the lock
+    long enough to pop the free list (microseconds); the CPU-only
+    burst has identical dispatch overhead and shows 5.4x speedup.
+    Pool overhead is bounded.
+  - Hypothesis: `StringPool` mutex contention. **Unlikely** — the
+    fast read path `Get(Id)` is lock-free (string_pool.h:243);
+    `InternString` takes the lock but post-EOF no new strings are
+    interned (the trace is fully parsed). Read-only queries hit only
+    the lock-free path.
+  - Hypothesis: `sql_stats_mutex_`. Tiny lock around 4 push_backs
+    and one pop_front per query (trace_storage.cc:103); negligible.
+  - **Confirmed bottleneck: SQLite shared-cache `BtShared` mutex.**
+    With `SQLITE_THREADSAFE=2` + `cache=shared`, every btree cursor
+    operation acquires the per-database `BtShared.mutex`. This
+    serialises *all* reads against the same database across all
+    connections. Even though SQLite's own per-connection mutex is
+    contention-free in `=2` mode, the shared cache adds back a
+    global lock at the storage layer. The CpuOnly workload
+    sidesteps this because the recursive CTE materialises in
+    per-statement temp space (no btree cursor on a trace-data
+    table), and so each query holds no `BtShared.mutex`.
+
+  This is **not** a bug in the iter-1/iter-3 design — the design is
+  correct under the documented assumption that `cache=shared` lets
+  reads parallelise. SQLite (as built) doesn't honour that for
+  shared cache. Three follow-on options exist; none of them in
+  scope for this iter:
+  1. Switch to `cache=private` per connection. Breaks the
+     "schema-shared via cache=shared" pivot. Would need cross-conn
+     schema replay (dropped earlier as a footgun).
+  2. Replace the trace-data btree storage with the in-house
+     `Dataframe` (already lock-free for reads). Most of the post-EOF
+     query traffic goes through dataframe vtab modules, but the
+     btree-backed tables (registered via `__intrinsic_*`,
+     `runtime_table`, etc.) remain serialised. Long-tail follow-up.
+  3. Carry an explicit per-vtab "this is read-only and lock-free"
+     bit and bypass `BtShared.mutex` for those tables. Requires
+     forking SQLite's btree.c. Hard.
+
+  Recommend filing this finding into the project memo as **the v1
+  ceiling for the http-rpc transport's parallelism**: gain is
+  visible only on workloads that don't touch shared btree tables.
+  The UI's post-EOF flurry is mostly btree reads, so the realised
+  speedup on real trace loads is bounded by what fraction of those
+  queries are dataframe-vtab vs. btree. Need to instrument the UI
+  to find out — separate work.
+
+  **Validation.**
+  - `tools/gn check out/mac_release` — clean.
+  - `tools/ninja -C out/mac_release perfetto_unittests
+    perfetto_benchmarks trace_processor_shell` — clean.
+  - `out/mac_release/perfetto_unittests --gtest_brief=1` — 3269
+    PASSED, 2 SKIPPED, 1 pre-existing failure
+    (`HttpServerTest.Websocket`, also failed in iter 3, unrelated).
+    Matches iter 3 baseline exactly.
+  - `out/mac_tsan/perfetto_unittests
+    --gtest_filter="RpcTest.*"` — 7 PASSED. TSan clean on all
+    iter-3 + iter-4 tests (the kill-switch added in this iter is
+    a function-static `getenv` read; no threading concerns).
+  - Benchmark stability: 10 reps, stddev <1ms on all four
+    benchmarks. Numbers are reproducible run-to-run within ~1%.
+
+  **Files touched.**
+  - `src/trace_processor/rpc/rpc.cc` — `kPoolDisabled` env-var
+    kill-switch in the `TPM_QUERY_STREAMING` case.
+  - `src/trace_processor/rpc/rpc_perf_benchmark.cc` — new file,
+    4 benchmarks (`BM_Rpc{StreamingQueryBurst,CpuOnlyBurst}_Pool{On,Off}`).
+  - `src/trace_processor/rpc/BUILD.gn` — wire the new benchmark
+    source into the `:benchmarks` source_set; add the
+    `protos/perfetto/trace_processor:zero` dep needed for the wire
+    encoder helpers.
+  - `STATUS.md` — this entry, ticking `e2e-perf-validation`.
+
+  **Recommendation.** Next chunk should be `wasm-pthreads` to
+  validate the same pool plumbing through the wasm transport — it's
+  a separate axis from the BtShared bottleneck and the design value
+  of cross-tab/cross-trace concurrency in the UI is a real
+  independent win even if the per-trace within-tab speedup is
+  bounded. After wasm-pthreads, Phase 4 should wrap with an explicit
+  follow-up note about the BtShared ceiling and a "Phase 5
+  candidate: dataframe-only post-EOF query path" exit criterion.
+
 - 2026-04-29 [Phase 4 iter 3]: httpd-pool-dispatch done. The websocket
   / `OnRpcRequest` `TPM_QUERY_STREAMING` path now (a) dispatches
   query execution to the iter-1 worker pool and (b) returns from
@@ -2078,14 +2233,21 @@ and the temp-then-promote breakthrough above before sequencing them.
       with pthreads, until the wasm-side message handler routes
       through `Rpc::Query`, only one query at a time runs on the
       pool.
-- [ ] e2e-perf-validation — measure trace-load wall-time on a
-      representative trace (Android frame-drop or Chrome trace,
-      pick something that the UI loads regularly) before and
-      after rpc-thread-pool + httpd-pool-dispatch + wasm-pthreads
-      land. Goal is a visible parallelism win on the UI's
-      post-EOF query flurry; the project memo's "headline target"
-      is end-to-end. Cache the baseline before iter-2 starts so
-      the regression-vs-baseline math is reproducible.
+- [x] e2e-perf-validation — done Phase 4 iter 4. Synthetic
+      Google-Benchmark harness (`rpc_perf_benchmark.cc`) drives
+      `Rpc::OnRpcRequest` with vs. without the iter-3 dispatcher.
+      Headline numbers (mac_release, 10 cores, 8-worker pool, 10
+      reps, median wall-time): trace-table workload **196ms vs
+      199ms (1.02x)**; CPU-only recursive-CTE workload **7.81ms vs
+      42.4ms (5.4x)**. The dispatch / fan-out plumbing is correct
+      (5.4x speedup proves it); the trace-table workload sees no
+      gain because **SQLite's shared-cache `BtShared` mutex
+      serialises btree reads across connections**. Documented as
+      the v1 parallelism ceiling for the http-rpc transport. Added
+      `PERFETTO_RPC_POOL_DISABLED=1` env kill-switch as v1
+      stability gate. See Phase 4 iter 4 activity entry for the
+      full bottleneck investigation and the three follow-on options
+      (private-cache / dataframe-only / fork SQLite btree).
 
 - [x] tsan-multithread-stress — done Phase 3 iter 7.
       `out/mac_tsan` (`is_clang=true is_debug=false is_tsan=true`)

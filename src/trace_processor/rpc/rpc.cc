@@ -301,8 +301,13 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       // pre-EOF) and only when the transport has wired a dispatcher.
       // Otherwise fall through to the synchronous inline path so the
       // wasm bridge / `/rpc` chunked HTTP / Python API behave exactly
-      // as before.
-      if (eof_ && response_dispatcher_) {
+      // as before. The `PERFETTO_RPC_POOL_DISABLED` env var also forces
+      // the synchronous path; it acts as a v1 stability kill-switch and
+      // is read once on first reach to avoid `getenv` thread-safety
+      // surprises.
+      static const bool kPoolDisabled =
+          getenv("PERFETTO_RPC_POOL_DISABLED") != nullptr;
+      if (eof_ && response_dispatcher_ && !kPoolDisabled) {
         DispatchStreamingQueryAsync(std::move(sql), t_start, req_type);
         break;
       }
