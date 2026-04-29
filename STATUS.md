@@ -1,7 +1,9 @@
 # Multi-connection TraceProcessor — Loop Status
 
 ## Current Phase
-Phase 4 in progress (RPC pool + UI fan-out + WASM pthreads).
+Phase 4 complete (with caveats — see wrap-up). Initiative is
+feature-complete; visible parallelism is gated on a BtShared
+follow-on (Phase 5 candidate: dataframe-only post-EOF query path).
 
 ## Design pivots (2026-04-29, mid-Phase-1)
 - **WAL abandoned.** Switching to serialized transactions with
@@ -23,6 +25,20 @@ Phase 4 in progress (RPC pool + UI fan-out + WASM pthreads).
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [Phase 4 iter 6 — wrap-up]: closing the loop.
+  Documentation-only iter. Re-ran the full validation pass at
+  branch tip (counts recorded in the new "Phase 4 wrap-up"
+  section at the bottom of this file) and re-ran the ASan +
+  TSan stress sweeps on `TraceProcessorConnectionTest.*` +
+  `RpcTest.*` (clean). Phase 4 is feature-complete on the
+  infrastructure axis but realised UI speedup is capped at
+  ~1.02x by the iter-4 BtShared finding; see "Phase 4 wrap-up"
+  below for the headline numbers, the three follow-on options,
+  and the recommended Phase 5 entry point (dataframe-only
+  post-EOF query path). No further code chunks in this iter —
+  the only artifact is this entry, the new wrap-up section,
+  and the updated project memory.
+
 - 2026-04-29 [Phase 4 iter 5]: wasm-pthreads done. The wasm
   trace_processor build now ships a pthreads-enabled variant
   alongside the existing single-thread one, and the UI's
@@ -2144,6 +2160,170 @@ round-robin) so ingestion-thread queries don't serialise behind
 each other. The TP-side primitives are now all in place — every
 chunk in this phase exercised them under stress, so Phase 4 is
 "plumbing higher in the stack" rather than core TP work.
+
+## Phase 4 wrap-up
+
+Branch: `dev/lalitm/multi-conn-tp` — 30 commits ahead of `main` (29
+code + this iter-6 wrap-up commit). Phase 4 closes here. The
+**multi-connection TraceProcessor initiative is feature-complete**
+on the infrastructure axis but the originally stated end-to-end
+target — *"visible parallelism in the UI when loading a large
+trace"* — is **not met by Phase 4 as shipped**: the realistic
+post-EOF UI workload sees a 1.02x speedup. See the headline below
+and the three follow-on options.
+
+What shipped across iters 1-5:
+- **RPC thread pool** (`rpc-thread-pool`, iter 1): `Rpc::Query`
+  fans queries across a `base::ThreadPool` sized to
+  `min(hardware_concurrency, 8)`; per-query worker acquires a
+  pre-minted `TraceProcessor::Connection` from a free-list pool
+  and `DrainConnectionPoolForMutation` drains the pool around any
+  writer-side mutation so the
+  `non_default_connection_count_ == 0` `PERFETTO_CHECK` cannot
+  fire. 4 new `RpcTest.*` tests; TSan + ASan stress clean.
+- **UI engine.ts fan-out audit** (`ui-engine-fan-out`, iter 2 —
+  **audit-only**): the UI's `streamingQuery` was already not
+  serialising at the client level. Audit instead surfaced two
+  C++-side gating issues: (a) the websocket transport's
+  `TPM_QUERY_STREAMING` case in `Rpc::ParseRpcRequest` called
+  `trace_processor_->ExecuteQuery` on the writer engine
+  directly — bypassing the iter-1 pool; (b) `MaybeLockFreeTask
+  Runner` was single-threaded and `Rpc::Query` blocks via
+  `done_fut.wait()`, so even concurrent websocket messages
+  serialised on the task-runner thread. Recommended (and
+  promoted to ahead of `wasm-pthreads`) the new
+  `httpd-pool-dispatch` chunk to unblock both.
+- **Httpd pool dispatch** (`httpd-pool-dispatch`, iter 3): `Rpc`
+  exposes `SetResponseDispatcher`; httpd wires it at
+  construction. `TPM_QUERY_STREAMING` post-EOF queries now
+  dispatch onto the iter-1 pool, materialise on a worker, and
+  post a single send-all-chunks-for-this-slot closure back via
+  the dispatcher. The closure runs on the task-runner thread,
+  drains slots in dispatch order (preserving the UI's
+  `pendingQueries[0]` FIFO contract), and assigns `tx_seq_id_`s
+  in send order. `OnRpcRequest` returns immediately, so
+  concurrent websocket messages no longer serialise behind one
+  in-flight query. Wasm bridge and `/rpc` HTTP endpoint
+  deliberately bypass the async path.
+- **End-to-end perf validation** (`e2e-perf-validation`, iter
+  4): synthetic Google-Benchmark harness drives
+  `Rpc::OnRpcRequest` with vs. without the iter-3 dispatcher.
+  Surfaced the BtShared bottleneck (see headline number). Added
+  `PERFETTO_RPC_POOL_DISABLED=1` env kill-switch as a v1
+  stability gate.
+- **WASM pthreads** (`wasm-pthreads`, iter 5): a third
+  `wasm_pthreads` gn toolchain emits
+  `trace_processor_pthreads.{js,wasm}` alongside the existing
+  single-thread + memory64 builds; `wasm_bridge.ts`
+  runtime-selects via `self.crossOriginIsolated`. Production
+  `ui.perfetto.dev` does NOT currently set COOP+COEP, so the
+  pthreads bundle ships but is dormant until a deployment-side
+  flip lands.
+
+### Headline performance number
+
+**1.02x on a realistic post-EOF UI query workload; 5.4x on a
+CPU-only diagnostic** (`out/mac_release`, 10 cores, 8-worker
+pool, `test/data/android_postboot_unlock.pftrace`, median
+wall-time over 10 reps). The dispatch / fan-out plumbing is
+correct (the 5.4x speedup on a CPU-bound recursive-CTE
+workload proves it). The realistic workload sees no gain
+because **SQLite's per-`BtShared` mutex serialises btree reads
+across connections**: every `Connection` shares the same
+`BtShared` because `cache=shared` is on, and the post-EOF UI
+query flurry is dominated by btree-backed table reads.
+
+The bottleneck has moved from "no concurrency in TP" to
+"BtShared serialisation in SQLite". The Phase 4 ceiling is a
+SQLite library constraint, not a Perfetto design defect.
+
+### Three options for unblocking (per iter 4)
+
+1. **Per-connection private cache** — drop `cache=shared`,
+   replicate schema some other way (e.g. each connection runs
+   its own DDL replay from a shared canonical script). Each
+   connection gets its own `BtShared` and the mutex stops
+   serialising. Cost: schema replication needs a new mechanism
+   (today `cache=shared` carries it for free), and any
+   per-`BtShared` page caches are now unique per connection
+   (memory grows linearly with connection count).
+2. **Dataframe-only post-EOF query path** — many UI queries
+   don't need SQLite's planner; the project already has
+   `DataframeModule` infra. Bypass SQLite for queries that hit
+   only dataframe-backed tables, leaving SQLite for the
+   complex cases. Connections never enter btree code, the
+   `BtShared` mutex is never taken, and the worker pool gets
+   real parallelism.
+3. **Fork SQLite's btree to add reader-writer concurrency**
+   — invasive, library-level change. Largest engineering cost,
+   smallest isolation around the change.
+
+### Recommended Phase 5 entry point
+
+**Option 2 — dataframe-only post-EOF query path.** Lowest risk
+(no SQLite library changes; `cache=shared` semantics
+preserved for the SQLite path), highest leverage (the UI's
+post-EOF query flurry is dominated by table-scan-shaped reads
+that the dataframe layer already serves). The project has
+`DataframeModule` infra in place. Concretely the Phase 5
+entry chunk is: detect at parse / prepare time whether a query
+touches only dataframe-backed tables; if so, route it into a
+SQLite-bypassing executor that runs against the dataframes
+directly under the worker pool. Queries that touch a
+non-dataframe vtab fall through to the existing path. Seeded
+here as a **Phase 5 candidate**, not a Phase 4 chunk.
+
+### Other deferred items still in scope
+
+Carry-over from earlier phases plus new items surfaced in
+Phase 4:
+- `RuntimeTableFunctionModule` cross-conn — engine pointer in
+  State; needed to enable `CREATE PERFETTO FUNCTION ...
+  RETURNS TABLE` on secondary connections. Carry-over from
+  Phase 2 iter 4.
+- `StaticTableFunctionModule` cross-conn — mechanical
+  follow-on. Carry-over from Phase 2 iter 4.
+- Static built-in function replication — writer-side
+  `InitPerfettoSqlEngine`'s post-init lazy registers don't
+  propagate today (only dynamic CREATE-PERFETTO-FUNCTION
+  entries land in the function pool). Carry-over from
+  Phase 2 iter 5.
+- COOP+COEP deployment-side flip
+  (`infra/ui.perfetto.dev/appengine/main.py`) to actually
+  activate the Phase 4 iter-5 pthreads bundle in production.
+- TSan on Linux (currently macOS arm64 only). Carry-over from
+  Phase 3 iter 7. The `out/linux_tsan` config exists in
+  `tools/setup_all_configs.py` but a Linux build hasn't been
+  validated in this checkout.
+
+### Validation at Phase 4 close (re-run on branch tip)
+
+- `out/mac_release/perfetto_unittests`: **3269 PASSED + 2
+  SKIPPED + 1 pre-existing macOS failure** (`HttpServerTest.
+  Websocket`, matches every previous Phase). 3272 tests across
+  352 suites.
+- `out/mac_release/perfetto_integrationtests` (TP filter
+  `TraceProcessor*:*Sqlite*:ReadTrace*`): **122 PASSED**,
+  unchanged.
+- `tools/diff_test_trace_processor.py`: **1355 PASSED + 9
+  pre-existing skips** (etm + llvm_symbolizer modules absent),
+  unchanged.
+- `out/mac_asan/perfetto_unittests --gtest_filter=Trace
+  ProcessorConnectionTest.*:RpcTest.*`: 30/30 across **10
+  consecutive runs**, no ASan reports.
+- `out/mac_tsan/perfetto_unittests --gtest_filter=Trace
+  ProcessorConnectionTest.*:RpcTest.*`: 30/30 across **5
+  consecutive runs**, no `WARNING: ThreadSanitizer:` output.
+- `ui/build --typecheck --no-depscheck`: clean.
+- `ui/run-unittests --no-depscheck`: clean (matches iter-5
+  baseline of 125 suites / 2249 passed / 1 skipped).
+
+The four-phase initiative — phase 1 refactor + memdb, phase 2
+multi-conn single-threaded, phase 3 thread safety + retry,
+phase 4 RPC pool + UI fan-out + WASM pthreads — is now
+infrastructure-complete. A Phase 5 (BtShared bypass via
+dataframe-only post-EOF path) can deliver the realised UI
+speedup on top of this infrastructure.
 
 ## Next chunks (Phase 1)
 - [x] sqlite-handle-encapsulation — done iter 5. Accessor:
