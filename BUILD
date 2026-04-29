@@ -4423,6 +4423,7 @@ perfetto_filegroup(
         "src/trace_processor/plugins/wattson/table_function.cc",
         "src/trace_processor/plugins/wattson/table_function.h",
     ],
+    alwayslink = True,
 )
 
 # GN target: //src/trace_processor/rpc:httpd

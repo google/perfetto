@@ -256,7 +256,10 @@ target_overrides = {
     '//src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql': {
         'srcs':
             'glob(["src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql"])'
-    }
+    },
+    '//src/trace_processor/plugins/wattson:wattson': {
+        'alwayslink': True,
+    },
 }
 
 # Defines required for Bazel.
