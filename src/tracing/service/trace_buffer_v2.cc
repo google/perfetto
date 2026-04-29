@@ -289,9 +289,18 @@ ChunkSeqReader::ChunkSeqReader(TraceBufferV2* buf,
                            : 0,
                        iter_->chunk_id, end_->chunk_id);
 
-  if (seq_->last_chunk_consumed.has_value() &&
-      iter_->chunk_id != seq_->last_chunk_consumed->chunk_id + 1) {
-    seq_->data_loss = true;
+  if (seq_->last_chunk_consumed.has_value()) {
+    const auto& last = *seq_->last_chunk_consumed;
+    // Re-admit: an incomplete chunk that was evicted has been re-committed
+    // with strictly more payload. The chunk_id is unchanged, so the +1
+    // successor check below would fire spuriously even though the re-admit
+    // recovered the deferred fragments without losing data. Keep this
+    // predicate in sync with the re-admit acceptance check in
+    // TraceBufferV2::CopyChunkUntrusted.
+    bool readmit = last.was_incomplete && iter_->chunk_id == last.chunk_id;
+    if (!readmit && iter_->chunk_id != last.chunk_id + 1) {
+      seq_->data_loss = true;
+    }
   }
 }
 
@@ -754,7 +763,8 @@ void TraceBufferV2::CopyChunkUntrusted(
   // Don't allow re-commit of chunks that have been consumed already, unless
   // the chunk was evicted while incomplete (scraped) and the new commit has
   // strictly more payload. In that case we re-admit it so the previously-
-  // dropped fragments can be recovered.
+  // dropped fragments can be recovered. Keep this acceptance condition in
+  // sync with the re-admit branch of the gap check in ChunkSeqReader's ctor.
   //
   // When re-admitting, |previously_consumed_payload| records how many payload
   // bytes were already consumed before eviction, so we can skip them below.

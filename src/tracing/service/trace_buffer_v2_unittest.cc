@@ -2441,13 +2441,20 @@ TEST_F(TraceBufferV2Test, RescrapeAfterEviction_FullyRead) {
       .PadTo(512)
       .CopyIntoTraceBuffer(/*chunk_complete=*/false);
 
-  // Drain and verify: 'b' recovered, 'a' not duplicated.
+  // Drain and verify: 'b' recovered, 'a' not duplicated. The recovered 'b'
+  // must not be flagged with previous_packet_dropped — the re-admit landed
+  // on the same chunk_id as last_consumed, and the gap check in
+  // ChunkSeqReader must treat that as gapless rather than firing spuriously.
   trace_buffer()->BeginRead();
   std::vector<std::vector<FakePacketFragment>> packets;
+  bool b_dropped = false;
   for (;;) {
-    auto p = ReadPacket();
+    bool dropped = false;
+    auto p = ReadPacket(/*sequence_properties=*/nullptr, &dropped);
     if (p.empty())
       break;
+    if (p.size() == 1 && p[0] == FakePacketFragment(30, 'b'))
+      b_dropped = dropped;
     packets.push_back(std::move(p));
   }
 
@@ -2461,6 +2468,8 @@ TEST_F(TraceBufferV2Test, RescrapeAfterEviction_FullyRead) {
       found_c = true;
   }
   EXPECT_TRUE(found_b) << "Packet 'b' not found after rescrape re-admission";
+  EXPECT_FALSE(b_dropped) << "Re-admitted 'b' falsely flagged as dropped — "
+                             "ChunkSeqReader gap check fired on re-admit.";
   EXPECT_FALSE(found_a) << "Packet 'a' duplicated after rescrape re-admission";
   EXPECT_FALSE(found_c)
       << "Packet 'c' should still be dropped (chunk incomplete)";
