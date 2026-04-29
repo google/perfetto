@@ -84,7 +84,12 @@ CREATE PERFETTO VIEW heap_graph_object (
   -- Distance from the root object.
   root_distance LONG,
   -- Optional ID into heap_graph_object_data for HPROF data.
-  object_data_id LONG
+  object_data_id LONG,
+  -- For ROOT_JAVA_FRAME objects: kernel TID of the thread whose stack frame
+  -- retains this object. NULL when the producer did not emit per-Java-frame
+  -- attribution. Joinable to thread.tid; the thread's full call stack at
+  -- heap-dump time lives in perf_sample at the same (ts, upid).
+  root_thread_tid LONG
 ) AS
 SELECT
   id,
@@ -98,7 +103,8 @@ SELECT
   type_id,
   root_type,
   root_distance,
-  object_data_id
+  object_data_id,
+  root_thread_tid
 FROM __intrinsic_heap_graph_object;
 
 -- HPROF-specific data for heap graph objects.

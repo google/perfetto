@@ -244,6 +244,18 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
     }
     heap_graph_tracker->AddRoot(seq_id, upid, ts, std::move(src_root));
   }
+  // Per-Java-frame root attribution. Disjoint from `roots` for
+  // ROOT_JAVA_FRAME entries. The wire frame_iid is intentionally not
+  // surfaced through trace_processor — consumers navigate to the holding
+  // thread via root_thread_tid and read its full call stack from the
+  // perf_sample row at the same (ts, upid).
+  for (auto it = heap_graph.frame_roots(); it; ++it) {
+    protos::pbzero::HeapGraphFrameRoot::Decoder entry(*it);
+    HeapGraphTracker::SourceFrameRoot src_fr;
+    src_fr.object_id = entry.object_id();
+    src_fr.thread_tid = entry.thread_id();
+    heap_graph_tracker->AddFrameRoot(seq_id, upid, ts, src_fr);
+  }
   if (!heap_graph.continued()) {
     heap_graph_tracker->FinalizeProfile(seq_id);
   }

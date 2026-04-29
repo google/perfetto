@@ -145,6 +145,34 @@ message HeapGraphObject {
   optional uint32 bitmap_height_field = 14;
 }
 
+// Per-object attribution for ROOT_JAVA_FRAME GC roots: identifies the
+// thread whose Java stack retains the object. Only emitted for
+// ROOT_JAVA_FRAME — other root kinds (sticky class, VM internal, JNI
+// global, etc.) are not associated with a specific live thread frame and
+// continue to use HeapGraphRoot.
+//
+// The thread's full call stack at heap-dump time is available via
+// PerfSample on the same trace at the same (timestamp, upid) — so a
+// consumer can join from the heap dominator straight to the holding
+// thread's stack with one trace_processor query. The retaining frame
+// itself is not surfaced here on purpose: a single Java thread typically
+// has only one or a handful of frames holding GC roots, and the consumer
+// reads them off the perf_sample stack visually.
+message HeapGraphFrameRoot {
+  // Object retained by this Java-frame root.
+  optional uint64 object_id = 1;
+  // Kernel TID of the thread whose frame holds the reference. Producers
+  // are expected to convert any internal/runtime thread id (e.g. ART's
+  // RootInfo::GetThreadId()) to the kernel TID before emission so that
+  // consumers can join directly to the `thread` table on tid.
+  optional uint32 thread_id = 2;
+  // Reserved for a future per-frame attribution field (e.g. interning
+  // key into InternedData.frames). Not emitted by current producers and
+  // not consumed by trace_processor — see PerfSample for the holding
+  // thread's call stack.
+  reserved 3;
+}
+
 message HeapGraph {
   optional int32 pid = 1;
 
@@ -160,6 +188,13 @@ message HeapGraph {
   // All live objects are reachable from the roots. All other objects are
   // garbage.
   repeated HeapGraphRoot roots = 7;
+
+  // Java-frame roots with per-object attribution to the retaining thread and
+  // stack frame. Disjoint from `roots` for ROOT_JAVA_FRAME entries: when this
+  // field is populated, ROOT_JAVA_FRAME objects appear here instead of in
+  // `roots`. Older producers that don't emit this still populate
+  // ROOT_JAVA_FRAME via `roots`; consumers should accept either.
+  repeated HeapGraphFrameRoot frame_roots = 11;
 
   // Types used in HeapGraphObjects.
   repeated HeapGraphType types = 9;

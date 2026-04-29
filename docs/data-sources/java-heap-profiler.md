@@ -87,6 +87,63 @@ FROM android_heap_graph_class_summary_tree;
 |java.util.Collections$SynchronizedMap|1063376|
 |java.util.HashMap|1063292|
 
+## Java thread call stacks
+
+NOTE: Capturing Java thread call stacks alongside the heap graph requires
+Android 16 (Baklava) or higher.
+
+Each Java heap dump is paired with one call-stack sample per Java thread,
+captured at the same instant the heap graph was snapshotted. The intent is
+to answer "*who* was holding all this memory?" — the heap graph alone tells
+you what is on the heap, the per-thread stacks tell you what code path
+each thread was running when the heap was sampled.
+
+The stack data lands in the standard perfetto stack-profiling tables, so
+the existing call-tree / top-frame SQL recipes work as-is:
+
+* [`stack_profile_frame`](/docs/analysis/sql-tables.autogen#stack_profile_frame) —
+  one row per `(ArtMethod*, dex_pc)`. The `name` column is the method's
+  `PrettyMethod()` (`"void android.os.Looper.loop()"`).
+* [`stack_profile_callsite`](/docs/analysis/sql-tables.autogen#stack_profile_callsite) —
+  parent-child chain of frames per call stack.
+* [`perf_sample`](/docs/analysis/sql-tables.autogen#perf_sample) —
+  one sample per Java thread per heap dump, joinable to `thread` /
+  `process` via `utid` / `upid`. Threads with no Java frames (Signal
+  Catcher, JIT pool, binder threads, etc.) appear with `callsite_id`
+  NULL.
+
+Each sample's `(ts, upid)` matches the heap dump's `(graph_sample_ts,
+upid)` exactly, so a join lines them up cleanly:
+
+```sql
+SELECT
+  hgo.graph_sample_ts AS dump_ts,
+  thread.name AS thread_name,
+  ps.callsite_id
+FROM heap_graph_object hgo
+JOIN perf_sample ps
+  ON ps.ts = hgo.graph_sample_ts AND ps.upid = hgo.upid
+LEFT JOIN thread USING(utid)
+GROUP BY 1, 2, 3
+ORDER BY 1, 2;
+```
+
+In `ui.perfetto.dev` the heap graph still appears as a diamond on the
+"Heap Profile" track; the Java stack samples appear as additional
+markers on each thread track at the same timestamp.
+
+### Implementation note
+
+The dumper runs in a forked child whose only kernel thread is the
+perfetto producer — every other pthread is gone (POSIX semantics). The
+parent's pre-fork `ScopedSuspendAll` snapshot, including each
+`art::Thread*`'s `ManagedStack` / `top_quick_frame_` / `top_shadow_frame_`,
+is preserved byte-for-byte in the child's address space. We walk those
+in-memory fields with `art::StackVisitor` (`check_suspended=false`,
+`kIncludeInlinedFrames`) — no kernel-state probes, no `/proc` reads —
+to reconstruct each Java thread's stack. Source:
+[`art/perfetto_hprof/perfetto_hprof.cc`](https://cs.android.com/android/platform/superproject/main/+/main:art/perfetto_hprof/perfetto_hprof.cc).
+
 ## TraceConfig
 
 The Java heap dump data source is configured through the
