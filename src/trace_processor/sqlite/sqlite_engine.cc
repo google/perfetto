@@ -103,43 +103,46 @@ std::optional<uint32_t> GetErrorOffsetDb(sqlite3* db) {
                       : std::make_optional(static_cast<uint32_t>(offset));
 }
 
-}  // namespace
-
-SqliteEngine::SqliteEngine() {
-  sqlite3* db = nullptr;
-  EnsureSqliteInitialized();
-
-  // Build a unique URI-style filename pointing at the in-tree |memdb| VFS so
-  // that, in the future, additional connections can be opened against the same
-  // in-memory database via |cache=shared|. The leading slash on the name is
-  // mandatory for memdb URIs. The atomic counter guarantees that two
-  // independent SqliteEngine instances in the same process do not collide on
-  // the shared cache.
+// Build a unique URI-style filename pointing at the in-tree |memdb| VFS so
+// that, in the future, additional connections can be opened against the same
+// in-memory database via |cache=shared|. The leading slash on the name is
+// mandatory for memdb URIs. The atomic counter guarantees that two
+// independent SqliteEngine instances in the same process do not collide on
+// the shared cache.
+std::string BuildMemdbUri() {
   static std::atomic<uint64_t> kUniqueIdCounter{0};
   uint64_t unique_id = kUniqueIdCounter.fetch_add(1, std::memory_order_relaxed);
   char filename_buf[64];
   snprintf(filename_buf, sizeof(filename_buf),
            "file:/perfetto-%" PRIu64 "?vfs=memdb&cache=shared", unique_id);
-  filename_ = filename_buf;
+  return filename_buf;
+}
+
+}  // namespace
+
+SqliteConnection::SqliteConnection(const std::string& filename) {
+  EnsureSqliteInitialized();
 
   // Ensure that we open the database with mutexes disabled: this is because
-  // trace processor as a whole cannot be used from multiple threads so there is
-  // no point paying the (potentially significant) cost of mutexes at the SQLite
-  // level. SQLITE_OPEN_URI is required because URI parsing is not enabled
-  // globally.
+  // trace processor as a whole cannot be used from multiple threads so there
+  // is no point paying the (potentially significant) cost of mutexes at the
+  // SQLite level. SQLITE_OPEN_URI is required because URI parsing is not
+  // enabled globally.
   static constexpr int kSqliteOpenFlags = SQLITE_OPEN_READWRITE |
                                           SQLITE_OPEN_CREATE |
                                           SQLITE_OPEN_NOMUTEX | SQLITE_OPEN_URI;
-  PERFETTO_CHECK(sqlite3_open_v2(filename_.c_str(), &db, kSqliteOpenFlags,
+  sqlite3* db = nullptr;
+  PERFETTO_CHECK(sqlite3_open_v2(filename.c_str(), &db, kSqliteOpenFlags,
                                  nullptr) == SQLITE_OK);
   InitializeSqlite(db);
   db_.reset(db);
 }
 
-SqliteEngine::~SqliteEngine() {
-  // It is important to unregister any functions that have been registered with
-  // the database before destroying it. This is because functions can hold onto
-  // prepared statements, which must be finalized before database destruction.
+SqliteConnection::~SqliteConnection() {
+  // It is important to unregister any functions that have been registered
+  // with the database before destroying it. This is because functions can
+  // hold onto prepared statements, which must be finalized before database
+  // destruction.
   for (auto it = fn_ctx_.GetIterator(); it; ++it) {
     int ret = sqlite3_create_function_v2(db_.get(), it.key().first.c_str(),
                                          it.key().second, SQLITE_UTF8, nullptr,
@@ -151,14 +154,20 @@ SqliteEngine::~SqliteEngine() {
   fn_ctx_.Clear();
 }
 
+SqliteEngine::SqliteEngine()
+    : filename_(BuildMemdbUri()), connection_(filename_) {}
+
+SqliteEngine::~SqliteEngine() = default;
+
 SqliteEngine::PreparedStatement SqliteEngine::PrepareStatement(SqlSource sql) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED, "QUERY_PREPARE");
+  sqlite3* db = connection_.db();
   sqlite3_stmt* raw_stmt = nullptr;
   int err =
-      sqlite3_prepare_v2(db_.get(), sql.sql().c_str(), -1, &raw_stmt, nullptr);
+      sqlite3_prepare_v2(db, sql.sql().c_str(), -1, &raw_stmt, nullptr);
   PreparedStatement statement{ScopedStmt(raw_stmt), std::move(sql)};
   if (err != SQLITE_OK) {
-    const char* errmsg = sqlite3_errmsg(db_.get());
+    const char* errmsg = sqlite3_errmsg(db);
     std::string frame =
         statement.sql_source_.AsTracebackForSqliteOffset(GetErrorOffset());
     base::Status status = base::ErrStatus("%s%s", frame.c_str(), errmsg);
@@ -179,16 +188,17 @@ base::Status SqliteEngine::RegisterFunction(const char* name,
                                             void* ctx,
                                             FnCtxDestructor* destructor,
                                             bool deterministic) {
+  sqlite3* db = connection_.db();
   int flags = SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0);
   int ret =
-      sqlite3_create_function_v2(db_.get(), name, static_cast<int>(argc), flags,
+      sqlite3_create_function_v2(db, name, static_cast<int>(argc), flags,
                                  ctx, fn, nullptr, nullptr, destructor);
   if (ret != SQLITE_OK) {
     return base::ErrStatus(
         "Unable to register function with name %s: %s (SQLite error code: %d)",
-        name, sqlite3_errmsg(db_.get()), ret);
+        name, sqlite3_errmsg(db), ret);
   }
-  *fn_ctx_.Insert(std::make_pair(name, argc), ctx).first = ctx;
+  *connection_.fn_ctx().Insert(std::make_pair(name, argc), ctx).first = ctx;
   return base::OkStatus();
 }
 
@@ -200,15 +210,16 @@ base::Status SqliteEngine::RegisterAggregateFunction(
     void* ctx,
     FnCtxDestructor* destructor,
     bool deterministic) {
+  sqlite3* db = connection_.db();
   int flags = SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0);
   int ret =
-      sqlite3_create_function_v2(db_.get(), name, static_cast<int>(argc), flags,
+      sqlite3_create_function_v2(db, name, static_cast<int>(argc), flags,
                                  ctx, nullptr, step, final, destructor);
   if (ret != SQLITE_OK) {
     return base::ErrStatus(
         "Unable to register aggregate function with name %s: %s (SQLite error "
         "code: %d)",
-        name, sqlite3_errmsg(db_.get()), ret);
+        name, sqlite3_errmsg(db), ret);
   }
   return base::OkStatus();
 }
@@ -222,30 +233,32 @@ base::Status SqliteEngine::RegisterWindowFunction(const char* name,
                                                   void* ctx,
                                                   FnCtxDestructor* destructor,
                                                   bool deterministic) {
+  sqlite3* db = connection_.db();
   int flags = SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0);
   int ret = sqlite3_create_window_function(
-      db_.get(), name, static_cast<int>(argc), flags, ctx, step, final, value,
+      db, name, static_cast<int>(argc), flags, ctx, step, final, value,
       inverse, destructor);
   if (ret != SQLITE_OK) {
     return base::ErrStatus(
         "Unable to register window function with name %s: %s (SQLite error "
         "code: %d)",
-        name, sqlite3_errmsg(db_.get()), ret);
+        name, sqlite3_errmsg(db), ret);
   }
   return base::OkStatus();
 }
 
 base::Status SqliteEngine::UnregisterFunction(const char* name, int argc) {
-  int ret = sqlite3_create_function_v2(db_.get(), name, static_cast<int>(argc),
+  sqlite3* db = connection_.db();
+  int ret = sqlite3_create_function_v2(db, name, static_cast<int>(argc),
                                        SQLITE_UTF8, nullptr, nullptr, nullptr,
                                        nullptr, nullptr);
   if (ret != SQLITE_OK) {
     return base::ErrStatus(
         "Unable to unregister function with name %s: %s (SQLite error code: "
         "%d)",
-        name, sqlite3_errmsg(db_.get()), ret);
+        name, sqlite3_errmsg(db), ret);
   }
-  fn_ctx_.Erase({name, argc});
+  connection_.fn_ctx().Erase({name, argc});
   return base::OkStatus();
 }
 
@@ -254,26 +267,26 @@ void SqliteEngine::RegisterVirtualTableModule(
     const sqlite3_module* module,
     void* ctx,
     ModuleContextDestructor destructor) {
-  int res = sqlite3_create_module_v2(db_.get(), module_name.c_str(), module,
-                                     ctx, destructor);
+  int res = sqlite3_create_module_v2(connection_.db(), module_name.c_str(),
+                                     module, ctx, destructor);
   PERFETTO_CHECK(res == SQLITE_OK);
 }
 
 void* SqliteEngine::GetFunctionContext(const std::string& name, int argc) {
-  auto* res = fn_ctx_.Find(std::make_pair(name, argc));
+  auto* res = connection_.fn_ctx().Find(std::make_pair(name, argc));
   return res ? *res : nullptr;
 }
 
 std::optional<uint32_t> SqliteEngine::GetErrorOffset() const {
-  return GetErrorOffsetDb(db_.get());
+  return GetErrorOffsetDb(connection_.db());
 }
 
 void* SqliteEngine::SetCommitCallback(CommitCallback callback, void* ctx) {
-  return sqlite3_commit_hook(db_.get(), callback, ctx);
+  return sqlite3_commit_hook(connection_.db(), callback, ctx);
 }
 
 void* SqliteEngine::SetRollbackCallback(RollbackCallback callback, void* ctx) {
-  return sqlite3_rollback_hook(db_.get(), callback, ctx);
+  return sqlite3_rollback_hook(connection_.db(), callback, ctx);
 }
 
 SqliteEngine::PreparedStatement::PreparedStatement(ScopedStmt stmt,

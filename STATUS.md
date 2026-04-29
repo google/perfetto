@@ -4,6 +4,18 @@
 Phase 1: refactor + memdb/WAL with no behavioural change
 
 ## Recent activity (newest first)
+- 2026-04-29 [iter 6]: connection-handle-struct done. Extracted
+  `SqliteConnection` value-type (declared in `sqlite_engine.h` next
+  to `SqliteEngine`) wrapping `ScopedDb db_` + the per-handle
+  `fn_ctx_` map. Constructor takes the URI filename and opens the
+  handle (calls `EnsureSqliteInitialized`, `sqlite3_open_v2`,
+  `InitializeSqlite`); destructor drops registered functions before
+  closing. `SqliteEngine` now holds `std::string filename_` (per-
+  engine, shared) + a single `SqliteConnection connection_` value
+  member; all public methods forward to `connection_`. Public API
+  unchanged. 3216 unittests pass (only pre-existing
+  `HttpServerTest.Websocket` failure on macOS, ignored), 122 TP
+  integrationtests pass, 1355 diff tests pass. No behaviour change.
 - 2026-04-29 [iter 5]: sqlite-handle-encapsulation done. Added
   `sqlite3* PerfettoSqlEngine::db()` (one-line accessor returning
   `engine_->db()` today; doc-commented as the Phase 2 swap point).
@@ -83,10 +95,10 @@ Phase 1: refactor + memdb/WAL with no behavioural change
 - [x] sqlite-handle-encapsulation — done iter 5. Accessor:
       `sqlite3* PerfettoSqlEngine::db()`. 9 external callsites
       migrated. See iter 5 activity entry.
-- [ ] connection-handle-struct — introduce a small
-      `SqliteConnection` value-type wrapping `ScopedDb` plus the
-      shared filename, used by `SqliteEngine`. Single-handle for now;
-      sets up Phase 2 where multiple are minted from the same VFS.
+- [x] connection-handle-struct — done iter 6. `SqliteConnection`
+      bundles `ScopedDb` + per-handle `fn_ctx_`; `SqliteEngine` keeps
+      `filename_` and owns one `SqliteConnection` by value. See iter 6
+      activity entry.
 - [ ] global-staging-area-skeleton — add
       `src/trace_processor/perfetto_sql/engine/global_staging_area.{h,cc}`
       as an empty class owned by `TraceProcessorImpl`. No state yet,

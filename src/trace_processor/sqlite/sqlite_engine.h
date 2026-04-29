@@ -33,6 +33,42 @@
 
 namespace perfetto::trace_processor {
 
+// A single open handle into a SQLite database, plus the per-handle bookkeeping
+// that has to live alongside it (the function-context map). One
+// |SqliteConnection| corresponds to one |sqlite3*|.
+//
+// In Phase 1 there is exactly one |SqliteConnection| owned by the
+// |SqliteEngine|. In Phase 2 the same VFS-level in-memory database may back
+// multiple |SqliteConnection|s, each with its own function registrations.
+class SqliteConnection {
+ public:
+  using FnCtxMap = base::FlatHashMap<std::pair<std::string, int>,
+                                     void*,
+                                     base::MurmurHash<std::pair<std::string,
+                                                                int>>>;
+
+  // Opens a new SQLite handle against |filename|. |filename| is expected to be
+  // a URI-form name pointing at the in-tree |memdb| VFS (see |SqliteEngine|).
+  // Crashes (PERFETTO_CHECK) if the open fails.
+  explicit SqliteConnection(const std::string& filename);
+  ~SqliteConnection();
+
+  SqliteConnection(SqliteConnection&&) noexcept = delete;
+  SqliteConnection& operator=(SqliteConnection&&) = delete;
+  SqliteConnection(const SqliteConnection&) = delete;
+  SqliteConnection& operator=(const SqliteConnection&) = delete;
+
+  sqlite3* db() const { return db_.get(); }
+  FnCtxMap& fn_ctx() { return fn_ctx_; }
+  const FnCtxMap& fn_ctx() const { return fn_ctx_; }
+
+ private:
+  // Per-handle map: function registrations are scoped to a single |sqlite3*|,
+  // so this lives next to |db_|.
+  FnCtxMap fn_ctx_;
+  ScopedDb db_;
+};
+
 // Wrapper class around SQLite C API.
 //
 // The goal of this class is to provide a one-stop-shop mechanism to use SQLite.
@@ -149,19 +185,18 @@ class SqliteEngine {
   using RollbackCallback = void(void*);
   void* SetRollbackCallback(RollbackCallback callback, void* ctx);
 
-  sqlite3* db() const { return db_.get(); }
+  sqlite3* db() const { return connection_.db(); }
 
  private:
   std::optional<uint32_t> GetErrorOffset() const;
 
-  base::FlatHashMap<std::pair<std::string, int>,
-                    void*,
-                    base::MurmurHash<std::pair<std::string, int>>>
-      fn_ctx_;
-  // URI-style filename used to open |db_|. Stored so future code can open
-  // additional connections against the same shared in-memory database.
+  // URI-style filename used to open all connections against this engine. Stored
+  // so that future code can mint additional |SqliteConnection|s pointing at
+  // the same shared in-memory database.
   std::string filename_;
-  ScopedDb db_;
+  // The single connection owned by this engine today. Phase 2 will introduce
+  // additional connections sharing the same |filename_|.
+  SqliteConnection connection_;
 };
 
 }  // namespace perfetto::trace_processor
