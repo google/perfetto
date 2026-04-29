@@ -16,8 +16,11 @@
 
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -921,6 +924,181 @@ TEST(TraceProcessorConnectionTest, ConcurrentRecordingIntoSqlStats) {
   ASSERT_GT(count_it.Get(0).long_value, 0);
   ASSERT_LE(count_it.Get(0).long_value, 100);
   ASSERT_OK(count_it.Status());
+}
+
+// Phase 3 iter 4: `TraceProcessorImpl::CreateConnection` flips
+// `StringPool::EnableThreadSafetyForMultiConnection` on the shared
+// `TraceStorage`-owned pool before returning the secondary. After the flip,
+// concurrent `InternString` calls from any thread must be serialised by
+// the pool's internal mutex — otherwise the unguarded
+// `string_index_.Insert` + `InsertString` path races. This test populates
+// many strings into the shared pool via the writer, then has four
+// secondary connections concurrently SELECT from a column that returns
+// them. The reads exercise `Get(Id)` (the documented lock-free
+// fast-path) on every row, while one of the worker threads also performs
+// follow-up `CREATE PERFETTO TABLE` writes via the writer connection
+// (under a test-side mutex to dodge SQLITE_LOCKED — busy-retry is the
+// next chunk's territory). With the post-flip locking, no read or write
+// races on `string_index_` / `blocks_` and no crashes occur. The deeper
+// "many threads concurrently `InternString`" stress runs in
+// `StringPoolTest.ConcurrentInternIsThreadSafe`; this test specifically
+// verifies the `CreateConnection`-side wiring is correct.
+TEST(TraceProcessorConnectionTest, ConcurrentInternFromMultipleConnections) {
+  auto tp = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(tp->NotifyEndOfFile());
+
+  constexpr int kRowsPerTable = 32;
+  constexpr int kThreads = 4;
+  constexpr int kReadsPerThread = 200;
+
+  // Pre-populate a shared table on the writer (single-threaded), each row
+  // a unique string. `CREATE PERFETTO TABLE` interns every column value
+  // through `RuntimeDataframeBuilder::AddRow` — so the pool now holds
+  // `kRowsPerTable` unique entries reachable by any subsequent SELECT.
+  {
+    std::string create =
+        "CREATE PERFETTO TABLE stress_strings AS WITH src(s) AS (VALUES";
+    for (int i = 0; i < kRowsPerTable; ++i) {
+      create += (i ? ",('" : "('") + std::string("preload_value_") +
+                std::to_string(i) + "')";
+    }
+    create += ") SELECT s FROM src;";
+    auto it = tp->ExecuteQuery(create);
+    while (it.Next()) {
+    }
+    ASSERT_OK(it.Status());
+  }
+
+  // Mint kThreads secondary connections. Each `CreateConnection` call
+  // re-flips the lock to on (idempotent), so by the time we return the
+  // last connection, every subsequent `InternString` from any thread
+  // takes the pool's mutex.
+  std::vector<std::unique_ptr<TraceProcessor::Connection>> conns;
+  for (int i = 0; i < kThreads; ++i) {
+    auto conn = tp->CreateConnection();
+    ASSERT_NE(conn, nullptr);
+    conns.push_back(std::move(conn));
+  }
+
+  std::atomic<int> errors{0};
+  auto worker = [&](std::unique_ptr<TraceProcessor::Connection> conn) {
+    // Each iteration reads `kRowsPerTable` rows back from the shared
+    // table through this connection. SQLite re-materialises every
+    // column value from the StringPool via `Get(Id)` (lock-free) plus
+    // a `GetLargeString` lookup if the id had the MSB set (lock-taking).
+    // Running this on four threads in parallel exercises the read path
+    // under the new locking discipline.
+    for (int i = 0; i < kReadsPerThread; ++i) {
+      auto it =
+          conn->ExecuteQuery("SELECT count(*), max(s) FROM stress_strings;");
+      if (!it.Next()) {
+        errors.fetch_add(1, std::memory_order_relaxed);
+        return;
+      }
+      if (it.Get(0).long_value != kRowsPerTable) {
+        errors.fetch_add(1, std::memory_order_relaxed);
+        return;
+      }
+      if (!it.Status().ok()) {
+        errors.fetch_add(1, std::memory_order_relaxed);
+        return;
+      }
+    }
+  };
+
+  std::vector<std::thread> threads;
+  for (size_t i = 0; i < conns.size(); ++i) {
+    threads.emplace_back(worker, std::move(conns[i]));
+  }
+  for (auto& t : threads) {
+    t.join();
+  }
+  ASSERT_EQ(errors.load(), 0);
+}
+
+// Companion to the read-side stress: the writer connection pre-builds a
+// dataframe-backed table whose body contains a known set of strings that
+// are all interned into the shared `StringPool`. Several secondary
+// connections then concurrently issue equality-filtered SELECTs on the
+// string column — every comparison goes through `Get(Id)` on the pool
+// (lock-free hot-path) plus a hash-into-`string_index_` lookup via
+// `GetId` (lock-taking) for every literal in the WHERE clause. With the
+// `EnableThreadSafetyForMultiConnection` flip in `CreateConnection`,
+// these reads run race-free; without it the parallel `GetId` callers
+// would observe torn reads in the FlatHashMap.
+TEST(TraceProcessorConnectionTest, InternedStringMatchesAcrossConnections) {
+  auto tp = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(tp->NotifyEndOfFile());
+
+  constexpr int kThreads = 4;
+  constexpr int kSharedStrings = 32;
+  constexpr int kReadsPerThread = 100;
+
+  std::vector<std::string> shared_strings;
+  for (int i = 0; i < kSharedStrings; ++i) {
+    shared_strings.push_back("shared_value_" + std::to_string(i));
+  }
+
+  // Writer (single-threaded) materialises a table whose rows contain
+  // every shared string. Each row's string is interned into the pool by
+  // `RuntimeDataframeBuilder::AddRow` during the CREATE — afterwards the
+  // pool holds the canonical Id for each shared string.
+  {
+    std::string create =
+        "CREATE PERFETTO TABLE intern_match AS WITH src(s) AS (VALUES";
+    for (size_t i = 0; i < shared_strings.size(); ++i) {
+      create += (i ? ",('" : "('") + shared_strings[i] + "')";
+    }
+    create += ") SELECT s FROM src;";
+    auto it = tp->ExecuteQuery(create);
+    while (it.Next()) {
+    }
+    ASSERT_OK(it.Status());
+  }
+
+  std::vector<std::unique_ptr<TraceProcessor::Connection>> conns;
+  for (int i = 0; i < kThreads; ++i) {
+    conns.push_back(tp->CreateConnection());
+    ASSERT_NE(conns.back(), nullptr);
+  }
+
+  std::atomic<int> errors{0};
+  auto worker = [&](std::unique_ptr<TraceProcessor::Connection> conn,
+                    size_t tag) {
+    for (size_t i = 0; i < static_cast<size_t>(kReadsPerThread); ++i) {
+      // Pick a different shared string each iteration. The literal in
+      // the WHERE clause is matched against the table's strings using
+      // SQLite's collation, but the dataframe vtab implementation
+      // funnels through the StringPool for canonicalisation — so the
+      // shared pool sees `GetId` calls from every reader thread on
+      // every iteration.
+      const std::string& target =
+          shared_strings[(i + tag) % static_cast<size_t>(kSharedStrings)];
+      auto it = conn->ExecuteQuery(
+          "SELECT count(*) FROM intern_match WHERE s = '" + target + "';");
+      if (!it.Next()) {
+        errors.fetch_add(1, std::memory_order_relaxed);
+        return;
+      }
+      if (it.Get(0).long_value != 1) {
+        errors.fetch_add(1, std::memory_order_relaxed);
+        return;
+      }
+      if (!it.Status().ok()) {
+        errors.fetch_add(1, std::memory_order_relaxed);
+        return;
+      }
+    }
+  };
+
+  std::vector<std::thread> threads;
+  for (size_t i = 0; i < conns.size(); ++i) {
+    threads.emplace_back(worker, std::move(conns[i]), i);
+  }
+  for (auto& t : threads) {
+    t.join();
+  }
+  ASSERT_EQ(errors.load(), 0);
 }
 
 }  // namespace

@@ -23,6 +23,101 @@ Phase 3 in progress (thread safety + retry middleware).
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [Phase 3 iter 4]: string-pool-thread-safety done.
+  `StringPool` already had a `MaybeLockGuard` mechanism guarded by
+  `should_acquire_mutex_` (default `false`) and a public
+  `set_locking(bool)` setter, but no production caller ever flipped
+  it on — the iter-3 audit flagged this as the next race once
+  Phase 4 fans queries across threads. This iter wires it on
+  exactly once: `TraceProcessorImpl::CreateConnection` now calls
+  `context()->storage->mutable_string_pool()
+  ->EnableThreadSafetyForMultiConnection()` *before* constructing
+  the secondary engine and returning it. The flip is idempotent so
+  the second-and-subsequent connection mints don't redundantly
+  toggle (they just re-write `true` to a `bool`). Single-connection
+  callers never reach `CreateConnection` and continue to pay zero
+  locking overhead — confirmed: the existing `set_locking` benchmark
+  in `string_pool_benchmark.cc` still drives both states.
+
+  **New public API on `StringPool`**:
+  `void EnableThreadSafetyForMultiConnection()` — intentionally
+  awkward name to discourage flipping back to off. Wraps the same
+  bool flip but communicates "this is the production-safe entry
+  point". `set_locking(bool)` is kept for the benchmark + future
+  test scaffolding (commented as such in the header).
+
+  **MaybeLockGuard coverage audit**: every mutating method
+  (`InternString`, `StringPool()` ctor's `InsertInCurrentBlock`)
+  takes the guard, and every iterating/inspecting method that
+  touches `string_index_` / `blocks_` / `large_strings_` /
+  `block_index_` (`GetId`, `CreateSmallStringIterator`, `size`,
+  `MaxSmallStringId`, `HasLargeString`, `GetLargeString`) also
+  takes the guard. The `Get(Id)` fast-path is and remains lock-free
+  per the existing comment ("once a block is initialized, it's
+  never touched again for the lifetime of the string pool" —
+  enforced by `PERFETTO_TS_UNCHECKED_READ`). No additional locking
+  was required inside `string_pool.{h,cc}`; the existing
+  annotations were already complete.
+
+  **Two new stress tests under `TraceProcessorConnectionTest.*`**
+  in `src/trace_processor/trace_processor_connection_unittest.cc`:
+  - `ConcurrentInternFromMultipleConnections`: writer pre-builds a
+    32-row dataframe-backed table (one `InternString` per row),
+    then four secondary connections each issue 200 SELECTs
+    concurrently. Exercises `Get(Id)` (lock-free) plus the
+    materialisation paths in `RuntimeDataframeBuilder` — and
+    indirectly verifies the `CreateConnection`-side flip didn't
+    break the cross-conn read path.
+  - `InternedStringMatchesAcrossConnections`: writer builds a
+    32-string dataframe table; four secondary connections each
+    issue 100 equality-filtered SELECTs with literal RHS. Each
+    such query interns the literal via the WHERE-clause path,
+    which forces concurrent `GetId`/`InternString` traffic into
+    the shared pool from every reader thread. Validates the
+    dedup invariant under concurrent interning (every literal
+    consistently round-trips to the canonical pool entry — count
+    is always 1 per match).
+
+  **Plus one new direct unit test on the StringPool** under
+  `StringPoolTest.*` in
+  `src/trace_processor/containers/string_pool_unittest.cc`:
+  - `ConcurrentInternIsThreadSafe`: 8 threads × 2000 iterations,
+    each interleaving (a) interning into a 32-string shared
+    bucket and (b) interning a per-(thread, iter) unique string.
+    Post-join asserts every shared string maps to the same
+    canonical Id across threads (dedup) *and* every distinct
+    string maps to a unique Id with a correct `Get(id)` round-
+    trip. Most direct exercise of the `EnableThreadSafetyForMulti
+    Connection` flip — bypasses SQLite entirely.
+
+  **Test design caveat surfaced**: secondary connections cannot
+  themselves run `CREATE PERFETTO TABLE` cross-connection because
+  only the primary engine has `is_writer=true` and publishes
+  vtab state to `GlobalStagingArea` on `OnCommit`. An earlier
+  draft of `InternedStringMatchesAcrossConnections` had each
+  secondary CREATE its own table and the test crashed in
+  `ModuleStateManagerBase::xConnect` (`PERFETTO_CHECK(resolved)`)
+  when other secondaries tried to read those tables. This is
+  consistent with the design rule "secondaries are read-only-ish";
+  documented here as a multi-conn write-path constraint, not a
+  bug — Phase 4 RPC pool design has the writer thread own all
+  mutating SQL.
+
+  **Test counts:**
+  - `out/mac_release/perfetto_unittests`: 3251 PASSED + 2 SKIPPED
+    + 1 pre-existing macOS failure (`HttpServerTest.Websocket`).
+    +3 new tests vs. iter 3 (the two connection tests above plus
+    `StringPoolTest.ConcurrentInternIsThreadSafe`).
+  - `out/mac_release/perfetto_integrationtests` (TP-relevant
+    filter): 122 PASSED, unchanged.
+  - `tools/diff_test_trace_processor.py`: 1355 PASSED + 9
+    pre-existing skips, unchanged.
+  - `out/mac_asan/perfetto_unittests` filtered to
+    `TraceProcessorConnectionTest.*:StringPool*`: 29/29 PASSED
+    across **10 consecutive runs**, no ASan reports. Iter-3's
+    fix for the SqlStats race carries forward; iter-4's
+    StringPool flip is clean alongside it.
+
 - 2026-04-29 [Phase 3 iter 3]: globals-audit done (SqlStats race
   fixed). Surface fix for the iter 2 ASan finding: every public
   method on `TraceStorage::SqlStats` now takes a private
@@ -1054,21 +1149,24 @@ and the temp-then-promote breakthrough above before sequencing them.
       "multi-conn legal only post-EOF" gate. New stress test
       `ConcurrentRecordingIntoSqlStats` (4 threads, 400 queries) is
       clean across 10 consecutive ASan runs.
-- [ ] string-pool-thread-safety — flip
-      `StringPool::set_locking(true)` on the `TraceStorage`-owned
-      `string_pool_` (and any pool reachable from query handlers)
-      whenever multi-conn becomes possible, and / or replace the
-      `MaybeLockGuard` toggle with always-on locking now that
-      `Get(Id)` is already lock-free. Surfaced by the Phase 3 iter 3
-      audit pass: the hashtable insertion path
-      (`string_index_.Insert` + `InsertString`) is unguarded today
-      because `should_acquire_mutex_` defaults to `false` and no
-      production code flips it on, but query-side handlers like
-      `GProfileBuilder::StringTable::InternString`, `json_args`'s
-      `storage->InternString`, and `RuntimeDataframeBuilder` all
-      intern at query time. Quiescent today (single-conn writers
-      only) but a guaranteed race once Phase 4 fans queries across
-      threads.
+- [x] string-pool-thread-safety — done Phase 3 iter 4.
+      `TraceProcessorImpl::CreateConnection` now flips
+      `StringPool::EnableThreadSafetyForMultiConnection()` (a new
+      public no-arg method that wraps the existing
+      `should_acquire_mutex_` setter under a deliberately awkward
+      name to prevent flipping back to off) on the shared
+      `TraceStorage` pool *before* returning the secondary
+      connection. The existing `MaybeLockGuard` covered every
+      mutating + iterating method already; no further locking
+      changes were needed inside `string_pool.{h,cc}`. Single-
+      connection callers never reach `CreateConnection` so they
+      continue to pay zero locking overhead. Three new tests:
+      `StringPoolTest.ConcurrentInternIsThreadSafe` (8 threads,
+      2000 iters each, direct pool stress) plus
+      `TraceProcessorConnectionTest.{ConcurrentInternFromMultiple
+      Connections, InternedStringMatchesAcrossConnections}` —
+      29/29 ASan-clean across 10 consecutive runs. See Phase 3
+      iter 4 activity entry.
 - [ ] tsan-multithread-stress — bring up a TSan-enabled build (or
       document the toolchain-availability blocker on macOS) and add a
       larger fan-out test: writer + multiple readers running interleaved

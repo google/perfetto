@@ -743,6 +743,15 @@ TraceProcessorImpl::CreateConnection() {
   // Strict-v1: connections are only legal post-NotifyEndOfFile. Concurrent
   // ingestion is out of scope.
   PERFETTO_CHECK(notify_eof_called_);
+  // Once a secondary connection exists, the shared `StringPool` (and any
+  // other singleton in `TraceStorage`) becomes reachable from multiple
+  // threads. Flip the pool's internal locking on *before* the secondary's
+  // engine can be returned to the caller — `CreateConnection` runs
+  // synchronously on the writer thread, and the new engine has no way to
+  // intern strings until this function returns, so this ordering is safe
+  // without an additional barrier. Single-connection callers never reach
+  // here and continue to pay zero locking overhead.
+  context()->storage->mutable_string_pool()->EnableThreadSafetyForMultiConnection();
   // Mint a fresh engine pointing at the same memdb URI as the primary so
   // `cache=shared` propagates DDL across handles. The shared
   // `GlobalStagingArea` is what wires cross-connection vtab-state
