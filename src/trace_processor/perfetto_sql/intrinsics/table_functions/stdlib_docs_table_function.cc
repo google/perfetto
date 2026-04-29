@@ -40,10 +40,6 @@ namespace perfetto::trace_processor {
 
 namespace {
 
-StringPool::Id Intern(StringPool* pool, const std::string& s) {
-  return pool->InternString(base::StringView(s));
-}
-
 template <typename Entry>
 std::string SerializeEntries(const std::vector<Entry>& entries) {
   return json::SerializeJson([&](json::JsonValueSerializer&& writer) {
@@ -96,8 +92,8 @@ bool StdlibDocsModules::Cursor::Run(const std::vector<SqlValue>& arguments) {
   table_.Clear();
   for (const auto& [pkg, mod] : engine_->GetModules()) {
     tables::StdlibDocsModulesTable::Row row;
-    row.module = Intern(string_pool_, mod);
-    row.package = Intern(string_pool_, pkg);
+    row.module = string_pool_->InternString(base::StringView(mod));
+    row.package = string_pool_->InternString(base::StringView(pkg));
     table_.Insert(row);
   }
   return OnSuccess(&table_.dataframe());
@@ -148,11 +144,13 @@ bool StdlibDocsTables::Cursor::Run(const std::vector<SqlValue>& arguments) {
   }
   for (const auto& tv : parsed_or->table_views) {
     tables::StdlibDocsTablesTable::Row row;
-    row.name = Intern(string_pool_, tv.name);
-    row.type = Intern(string_pool_, tv.type);
-    row.description = Intern(string_pool_, tv.description);
+    row.name = string_pool_->InternString(base::StringView(tv.name));
+    row.type = string_pool_->InternString(base::StringView(tv.type));
+    row.description =
+        string_pool_->InternString(base::StringView(tv.description));
     row.exposed = tv.exposed ? 1 : 0;
-    row.cols = Intern(string_pool_, SerializeEntries(tv.columns));
+    row.cols = string_pool_->InternString(
+        base::StringView(SerializeEntries(tv.columns)));
     table_.Insert(row);
   }
   return OnSuccess(&table_.dataframe());
@@ -203,14 +201,19 @@ bool StdlibDocsFunctions::Cursor::Run(const std::vector<SqlValue>& arguments) {
   }
   for (const auto& fn : parsed_or->functions) {
     tables::StdlibDocsFunctionsTable::Row row;
-    row.name = Intern(string_pool_, fn.name);
-    row.description = Intern(string_pool_, fn.description);
+    row.name = string_pool_->InternString(base::StringView(fn.name));
+    row.description =
+        string_pool_->InternString(base::StringView(fn.description));
     row.exposed = fn.exposed ? 1 : 0;
     row.is_table_function = fn.is_table_function ? 1 : 0;
-    row.return_type = Intern(string_pool_, fn.return_type);
-    row.return_description = Intern(string_pool_, fn.return_description);
-    row.args = Intern(string_pool_, SerializeEntries(fn.args));
-    row.cols = Intern(string_pool_, SerializeEntries(fn.columns));
+    row.return_type =
+        string_pool_->InternString(base::StringView(fn.return_type));
+    row.return_description =
+        string_pool_->InternString(base::StringView(fn.return_description));
+    row.args =
+        string_pool_->InternString(base::StringView(SerializeEntries(fn.args)));
+    row.cols = string_pool_->InternString(
+        base::StringView(SerializeEntries(fn.columns)));
     table_.Insert(row);
   }
   return OnSuccess(&table_.dataframe());
@@ -261,12 +264,16 @@ bool StdlibDocsMacros::Cursor::Run(const std::vector<SqlValue>& arguments) {
   }
   for (const auto& macro : parsed_or->macros) {
     tables::StdlibDocsMacrosTable::Row row;
-    row.name = Intern(string_pool_, macro.name);
-    row.description = Intern(string_pool_, macro.description);
+    row.name = string_pool_->InternString(base::StringView(macro.name));
+    row.description =
+        string_pool_->InternString(base::StringView(macro.description));
     row.exposed = macro.exposed ? 1 : 0;
-    row.return_type = Intern(string_pool_, macro.return_type);
-    row.return_description = Intern(string_pool_, macro.return_description);
-    row.args = Intern(string_pool_, SerializeEntries(macro.args));
+    row.return_type =
+        string_pool_->InternString(base::StringView(macro.return_type));
+    row.return_description =
+        string_pool_->InternString(base::StringView(macro.return_description));
+    row.args = string_pool_->InternString(
+        base::StringView(SerializeEntries(macro.args)));
     table_.Insert(row);
   }
   return OnSuccess(&table_.dataframe());

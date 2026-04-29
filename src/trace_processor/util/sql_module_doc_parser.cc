@@ -51,8 +51,8 @@ std::string JoinLineComments(const char* stmt_ptr,
     if (comments[i].kind != 0) {
       continue;
     }
-    std::string_view s = StripCommentPrefix(
-        {stmt_ptr + comments[i].offset, comments[i].length});
+    std::string_view s =
+        StripCommentPrefix({stmt_ptr + comments[i].offset, comments[i].length});
     if (!s.empty()) {
       if (!result.empty()) {
         result += ' ';
@@ -103,6 +103,10 @@ std::vector<Entry> ExtractArgDefList(SyntaqliteParser* p,
   if (!syntaqlite_node_is_present(list_id)) {
     return result;
   }
+
+  uint32_t tok_count = 0;
+  const SyntaqliteParserToken* toks = syntaqlite_result_tokens(p, &tok_count);
+
   const auto* list = static_cast<const SyntaqlitePerfettoArgDefList*>(
       syntaqlite_parser_node(p, list_id));
   uint32_t count = syntaqlite_list_count(list);
@@ -120,10 +124,20 @@ std::vector<Entry> ExtractArgDefList(SyntaqliteParser* p,
     entry.name = SyntaqliteSpanText(p, name_node->ident_name.source);
     entry.type = SyntaqliteSpanText(p, item->arg_type);
 
-    uint32_t c_count = 0;
-    const auto* cs =
-        syntaqlite_node_leading_comments(p, item->arg_name, &c_count);
-    entry.description = JoinLineComments(stmt_ptr, cs, c_count);
+    // Locate the token for the arg name by its source offset, then fetch
+    // the leading comments attached to that token.
+    uint32_t name_len = 0, name_off = 0;
+    if (syntaqlite_parser_span_text(p, &name_node->ident_name.source, &name_len,
+                                    &name_off)) {
+      for (uint32_t ti = 0; ti < tok_count; ti++) {
+        if (toks[ti]._layer_id == 0 && toks[ti].offset == name_off) {
+          uint32_t c_count = 0;
+          const auto* cs = syntaqlite_token_leading_comments(p, ti, &c_count);
+          entry.description = JoinLineComments(stmt_ptr, cs, c_count);
+          break;
+        }
+      }
+    }
 
     result.push_back(std::move(entry));
   }
@@ -301,7 +315,7 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
         fn.name = SyntaqliteSpanText(p, fn_name_span);
         fn.exposed = !IsInternal(fn.name);
         fn.description = get_stmt_desc();
-        fn.args = ExtractArgs(p, args_list_id, stmt_ptr, tokens, token_count);
+        fn.args = ExtractArgs(p, args_list_id, stmt_ptr);
 
         if (syntaqlite_node_is_present(return_type_id)) {
           const auto* rt = static_cast<const SyntaqlitePerfettoReturnType*>(
@@ -309,13 +323,12 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
           if (rt->kind == SYNTAQLITE_PERFETTO_RETURN_KIND_TABLE) {
             fn.is_table_function = true;
             fn.return_type = "TABLE";
-            fn.columns = ExtractColumns(p, rt->table_columns, stmt_ptr, tokens,
-                                        token_count);
+            fn.columns = ExtractColumns(p, rt->table_columns, stmt_ptr);
           } else {
             fn.return_type = SyntaqliteSpanText(p, rt->scalar_type);
           }
-          fn.return_description = GetReturnDescription(
-              p, return_type_id, stmt_ptr, tokens, token_count);
+          fn.return_description =
+              GetReturnDescription(p, return_type_id, stmt_ptr);
         }
 
         result.functions.push_back(std::move(fn));
@@ -329,22 +342,28 @@ ParsedModule ParseStdlibModule(const char* sql, uint32_t sql_len) {
         macro.exposed = !IsInternal(macro.name);
         macro.description = get_stmt_desc();
         macro.return_type = SyntaqliteSpanText(p, n.return_type);
-        macro.args = ExtractMacroArgs(p, n.args, stmt_ptr, tokens, token_count);
+        macro.args = ExtractMacroArgs(p, n.args, stmt_ptr);
 
         // Return description: leading comments on the RETURNS keyword.
-        // GetReturnDescription() is not reused here because macros expose
-        // the return type as a SyntaqliteTextSpan (not a node id), so we
-        // must use span_text instead of node_text to locate the token.
+        // The macro return type is a SyntaqliteTextSpan (no node_id), so we
+        // locate its token by scanning the statement's token array and look at
+        // the preceding token's leading comments.
         uint32_t ret_len = 0, ret_off = 0;
         if (syntaqlite_parser_span_text(p, &n.return_type, &ret_len,
                                         &ret_off)) {
-          SyntaqliteTokenIdx ret_tok_idx =
-              SpanToTokenIdx(ret_off, tokens, token_count);
-          if (ret_tok_idx != UINT32_MAX && ret_tok_idx > 0) {
-            uint32_t c_count = 0;
-            const auto* cs =
-                syntaqlite_token_leading_comments(p, ret_tok_idx - 1, &c_count);
-            macro.return_description = JoinLineComments(stmt_ptr, cs, c_count);
+          uint32_t tok_count = 0;
+          const SyntaqliteParserToken* toks =
+              syntaqlite_result_tokens(p, &tok_count);
+          for (uint32_t ti = 0; ti < tok_count; ti++) {
+            if (toks[ti]._layer_id == 0 && toks[ti].offset == ret_off &&
+                ti > 0) {
+              uint32_t c_count = 0;
+              const auto* cs =
+                  syntaqlite_token_leading_comments(p, ti - 1, &c_count);
+              macro.return_description =
+                  JoinLineComments(stmt_ptr, cs, c_count);
+              break;
+            }
           }
         }
 
