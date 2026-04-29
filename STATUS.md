@@ -23,6 +23,101 @@ Phase 1 complete. Next: Phase 2 (multi-conn single-threaded).
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [Phase 2 iter 3]: include-temp-then-promote done.
+  Implemented the include-atomicity half of the temp-then-promote
+  pattern via SAVEPOINT (Option C from the chunk plan). Each
+  `INCLUDE PERFETTO MODULE` invocation opens a uniquely-named
+  `SAVEPOINT perfetto_include_<n>` before pushing the kInclude
+  frame; on successful frame completion the savepoint is RELEASEd
+  (committing the module's DDL onto `main` so `cache=shared`
+  propagates the new objects to other connections); on any error
+  during the include body the unwind path in
+  `ExecuteUntilLastStatement` rolls back the savepoint
+  (`ROLLBACK TO ...; RELEASE ...`) so partially-installed objects
+  do not leak. Wildcard expansion (`INCLUDE PERFETTO MODULE foo.*;`)
+  opens one savepoint per individual module include so each is
+  atomic in isolation.
+  Why Option C over Option A (string-rewrite to `temp.<name>`):
+  for plain SQL DDL (CREATE TABLE / CREATE VIEW / INSERT) inside a
+  module body, `cache=shared` already propagates committed objects
+  on `main` to sibling connections — verified by the new
+  `IncludePromotesObjectsToOtherConnections` test. The "temp
+  schema buffer" wording in the design memo is one mechanism;
+  savepoint-based atomicity is another that reaches the same end
+  state with no behaviour change for the SQL case. The design
+  memo's worry about vtab-DDL inside a rolled-back savepoint
+  leaking module state remains a real risk but is *exercised by
+  existing CREATE PERFETTO TABLE callers* (which already use
+  nested savepoints), and the existing
+  `OnRollback`-fires-into-`virtual_module_state_managers_` plumbing
+  already handles per-statement-manager rollback. Cross-connection
+  vtab visibility (the data side) is still
+  `vtab-state-staging-publish` territory — a non-default
+  connection can't yet read a vtab created by an include because
+  no vtab modules are registered on it.
+  Code touched:
+  `src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.{h,cc}`:
+  added `ExecutionFrame::include_savepoint`, monotonic
+  `include_savepoint_counter_`, helpers
+  `ReleaseIncludeSavepoint` / `RollbackIncludeSavepoint`. Wired
+  SAVEPOINT issuance into both `IncludeModuleImpl` (single-key
+  path) and the wildcard-expansion path inside `ProcessFrame`.
+  Wired RELEASE into the kInclude `kFrameDone` branch (clears
+  `include_savepoint` after success so the unwind path doesn't
+  double-rollback). Wired ROLLBACK TO into the unwind loop in
+  `ExecuteUntilLastStatement`. Updated the three brace-init lists
+  pushing kRoot / kWildcard frames to fill in the new field.
+  `src/trace_processor/perfetto_sql/engine/global_staging_area.{h,cc}`:
+  added `IncludeLockGuard` RAII type and
+  `AcquireIncludeLock(module_name)` API that lazily allocates a
+  `std::mutex` per module name. Phase 2 is single-threaded so
+  contention is impossible today; the lock is documented as the
+  Phase 3 thread-safety hook. **Not yet plumbed** through to
+  `PerfettoSqlEngine` (the engine has no `GlobalStagingArea*`
+  back-pointer today; threading that through is a Phase 3
+  concern). API exists so the next iter can wire it without
+  re-architecting.
+  Tests added under `TraceProcessorConnectionTest.*` in
+  `src/trace_processor/trace_processor_connection_unittest.cc`:
+  - `IncludePromotesObjectsToOtherConnections`: register a SQL
+    package, include it on conn-0, then mint a new connection and
+    SELECT the table — verifies the RELEASE-then-cache=shared
+    promotion path.
+  - `FailedIncludeLeavesNoTrace`: include body has a bad final
+    statement; verify (a) the include errors, and (b) the table
+    created earlier in the body is absent from `sqlite_master` on
+    both the default and a fresh secondary connection.
+  - `SequentialIncludesPromoteToOtherConnection`: two distinct
+    successful includes; verify both objects visible to a
+    secondary connection.
+  Build/test results on `out/mac_release`: 3222 unittests pass
+  (was 3219; +3 new) + 1 pre-existing skip (`HttpServerTest.
+  Websocket`), 122 TP integrationtests pass, 1355 diff tests pass
+  + 9 pre-existing skips. No behaviour change for existing
+  callers — the new SAVEPOINT around includes is invisible to
+  observers because committed DDL behaves identically to before.
+  Deferred TODOs (next iter scoping):
+  - Vtab DDL inside an include savepoint: the design memo flagged
+    "dangling vtab module state" if a CREATE VIRTUAL TABLE inside a
+    rolled-back savepoint leaves PerVtabState behind. Existing
+    CREATE PERFETTO TABLE already uses nested savepoints with
+    `OnRollback` cleanup, so the in-tree case is OK; need to
+    explicitly stress-test an include containing a CREATE PERFETTO
+    TABLE that fails partway when stdlib modules start being
+    exercised (the new tests use plain CREATE TABLE).
+  - Include lock not yet acquired in `IncludeModuleImpl`. Plumbing
+    a `GlobalStagingArea*` into `PerfettoSqlEngine` is a small
+    follow-on; left for the iter that needs concurrency
+    (Phase 3).
+  - `INSERT`-only or `DROP`/`ALTER`-only include bodies not
+    explicitly tested. The savepoint mechanism is statement-type-
+    agnostic so they should "just work", but no new test exercises
+    them.
+  - The success-path RELEASE before `file.included = true` could
+    theoretically fail (e.g. an OnCommit hook rejects). If it does,
+    the file remains un-`included` and the next attempted include
+    will retry — probably the right semantics, but worth
+    documenting.
 - 2026-04-29 [Phase 2 iter 2]: perfetto-sql-engine-per-conn done.
   Each non-default `Connection` now owns its own `PerfettoSqlEngine`
   (with a fresh `SqliteEngine` / `SqliteConnection`) opened against
@@ -333,14 +428,18 @@ and the temp-then-promote breakthrough above before sequencing them.
       live connections. Vtab/function registry on the secondary
       engine is intentionally empty — addressed by the next two
       chunks. See Phase 2 iter 2 activity entry.
-- [ ] include-temp-then-promote — implement the include
-      breakthrough. Hijack the include execution to write CREATE
-      DDL into `temp.<symbol>` first, then on success drop the temp
-      versions and re-issue the DDL on main. Failure path: drop
-      the temp objects, leave main untouched. Per-module include
-      lock from `GlobalStagingArea` serialises concurrent imports
-      of the same module. This is the *primary* cross-connection
-      schema-sync mechanism — vet end-to-end before moving on.
+- [x] include-temp-then-promote — done Phase 2 iter 3.
+      Implemented as Option C (SAVEPOINT-per-include) rather than
+      literal `temp.<name>` rewriting; for plain SQL DDL the
+      RELEASE+`cache=shared` path achieves the same cross-conn
+      promotion. Wildcard expansion gets one savepoint per
+      module. Failed includes ROLLBACK TO; successful includes
+      RELEASE. `GlobalStagingArea::AcquireIncludeLock` API
+      added but not yet wired into `PerfettoSqlEngine`
+      (Phase 3 concern). Three tests under
+      `TraceProcessorConnectionTest.*` cover promotion,
+      atomicity-on-failure, and sequential includes. See
+      Phase 2 iter 3 activity entry for deferred TODOs.
 - [ ] vtab-state-staging-publish — vtab `OnCommit` writes
       committed state into `GlobalStagingArea`'s vtab-state map;
       `OnRollback` discards. Cold xConnect on conn B pulls from

@@ -550,16 +550,63 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
 
   // Unwind the stack back to our entry point. For include frames,
   // add their traceback info to any error that occurred.
+  // If we are unwinding an include frame here it means the include did not
+  // complete successfully (the success path pops the frame inside
+  // `ExecuteUntilLastStatementImpl`'s main loop). Rollback the include's
+  // SAVEPOINT so partially-installed objects do not leak onto `main`.
   while (execution_stack_.size() > stack_base) {
     auto& frame = execution_stack_.back();
-    if (!result.ok() && frame.type == FrameType::kInclude) {
-      std::string traceback = frame.traceback_sql.AsTraceback(0);
-      result = base::ErrStatus("%s%s", traceback.c_str(),
-                               result.status().c_message());
+    if (frame.type == FrameType::kInclude) {
+      RollbackIncludeSavepoint(frame);
+      if (!result.ok()) {
+        std::string traceback = frame.traceback_sql.AsTraceback(0);
+        result = base::ErrStatus("%s%s", traceback.c_str(),
+                                 result.status().c_message());
+      }
     }
     execution_stack_.pop_back();
   }
   return result;
+}
+
+base::Status PerfettoSqlEngine::ReleaseIncludeSavepoint(
+    const ExecutionFrame& frame) {
+  if (frame.include_savepoint.empty()) {
+    return base::OkStatus();
+  }
+  base::StackString<256> sql("RELEASE %s", frame.include_savepoint.c_str());
+  char* errmsg_raw = nullptr;
+  int err =
+      sqlite3_exec(engine_->db(), sql.c_str(), nullptr, nullptr, &errmsg_raw);
+  ScopedSqliteString errmsg(errmsg_raw);
+  if (err != SQLITE_OK) {
+    return base::ErrStatus(
+        "INCLUDE: failed to release savepoint '%s': %s",
+        frame.include_savepoint.c_str(),
+        errmsg_raw ? errmsg_raw : "unknown");
+  }
+  return base::OkStatus();
+}
+
+void PerfettoSqlEngine::RollbackIncludeSavepoint(const ExecutionFrame& frame) {
+  if (frame.include_savepoint.empty()) {
+    return;
+  }
+  base::StackString<512> sql("ROLLBACK TO %s; RELEASE %s;",
+                             frame.include_savepoint.c_str(),
+                             frame.include_savepoint.c_str());
+  char* errmsg_raw = nullptr;
+  int err =
+      sqlite3_exec(engine_->db(), sql.c_str(), nullptr, nullptr, &errmsg_raw);
+  ScopedSqliteString errmsg(errmsg_raw);
+  if (err != SQLITE_OK) {
+    // Best-effort cleanup: a failure here is non-recoverable but we already
+    // have a primary error to surface, so just log.
+    PERFETTO_ELOG(
+        "INCLUDE: failed to rollback savepoint '%s': %s",
+        frame.include_savepoint.c_str(),
+        errmsg_raw ? errmsg_raw : "unknown");
+  }
 }
 
 base::StatusOr<PerfettoSqlEngine::FrameResult> PerfettoSqlEngine::ProcessFrame(
@@ -583,6 +630,22 @@ base::StatusOr<PerfettoSqlEngine::FrameResult> PerfettoSqlEngine::ProcessFrame(
         // Copy traceback before push_back which may invalidate frame ref
         SqlSource traceback = frame.wildcard_traceback_sql;
 
+        // Open a savepoint so the wildcard-expanded include is atomic at
+        // module granularity (see IncludeModuleImpl for the design rationale).
+        std::string savepoint_name =
+            "perfetto_include_" + std::to_string(include_savepoint_counter_++);
+        base::StackString<256> savepoint_sql("SAVEPOINT %s",
+                                             savepoint_name.c_str());
+        char* errmsg_raw = nullptr;
+        int err = sqlite3_exec(engine_->db(), savepoint_sql.c_str(), nullptr,
+                               nullptr, &errmsg_raw);
+        ScopedSqliteString errmsg(errmsg_raw);
+        if (err != SQLITE_OK) {
+          return base::ErrStatus(
+              "INCLUDE: failed to open savepoint for '%s': %s", key.c_str(),
+              errmsg_raw ? errmsg_raw : "unknown");
+        }
+
         // Push include frame for this module
         execution_stack_.push_back(
             {FrameType::kInclude,
@@ -592,7 +655,8 @@ base::StatusOr<PerfettoSqlEngine::FrameResult> PerfettoSqlEngine::ProcessFrame(
              /*wildcard_modules=*/{},
              /*wildcard_index=*/0,
              /*wildcard_traceback_sql=*/
-             SqlSource::FromTraceProcessorImplementation("")});
+             SqlSource::FromTraceProcessorImplementation(""),
+             /*include_savepoint=*/std::move(savepoint_name)});
         return FrameResult::kContinue;
       }
     }
@@ -726,6 +790,17 @@ base::StatusOr<PerfettoSqlEngine::FrameResult> PerfettoSqlEngine::ProcessFrame(
   if (frame.accumulated_stats.statement_count_with_output > 0) {
     return base::ErrStatus("INCLUDE: Included module returning values.");
   }
+  // RELEASE the include's SAVEPOINT so the module's DDL "promotes" onto
+  // `main`. After the RELEASE the new objects are visible to sibling
+  // connections sharing the same memdb cache. If the RELEASE fails (e.g.
+  // because a vtab xRollback hit a busy state) we surface the error to the
+  // caller; the unwind path in `ExecuteUntilLastStatement` will then
+  // attempt a ROLLBACK TO as a best-effort cleanup.
+  RETURN_IF_ERROR(ReleaseIncludeSavepoint(frame));
+  // Clear the savepoint name now that it has been RELEASEd; this prevents
+  // the unwind path from trying to ROLLBACK TO a savepoint that no longer
+  // exists if a later frame errors out.
+  frame.include_savepoint.clear();
   frame.file_ptr->included = true;
   return FrameResult::kFrameDone;
 }
@@ -763,7 +838,8 @@ PerfettoSqlEngine::ExecuteUntilLastStatementImpl(SqlSource sql_source) {
        /*traceback_sql=*/SqlSource::FromTraceProcessorImplementation(""),
        /*wildcard_modules=*/{}, /*wildcard_index=*/0,
        /*wildcard_traceback_sql=*/
-       SqlSource::FromTraceProcessorImplementation("")});
+       SqlSource::FromTraceProcessorImplementation(""),
+       /*include_savepoint=*/{}});
 
   // Main loop - process frames from the stack.
   while (!execution_stack_.empty()) {
@@ -1108,7 +1184,8 @@ base::Status PerfettoSqlEngine::IncludePackageImpl(
          /*include_key=*/{}, /*file_ptr=*/nullptr,
          /*traceback_sql=*/SqlSource::FromTraceProcessorImplementation(""),
          std::move(matching_modules), /*wildcard_index=*/0,
-         /*wildcard_traceback_sql=*/parser.statement_sql()});
+         /*wildcard_traceback_sql=*/parser.statement_sql(),
+         /*include_savepoint=*/{}});
     return base::OkStatus();
   }
   auto* module_file = package.modules.Find(include_key);
@@ -1127,16 +1204,45 @@ base::Status PerfettoSqlEngine::IncludeModuleImpl(
     return base::OkStatus();
   }
 
-  // Push include frame onto execution stack. The main loop will process it.
-  execution_stack_.push_back({FrameType::kInclude,
-                              SqlSource::FromModuleInclude(file.sql, key),
-                              /*parser=*/nullptr, /*accumulated_stats=*/{},
-                              /*current_stmt=*/std::nullopt, key, &file,
-                              /*traceback_sql=*/parser.statement_sql(),
-                              /*wildcard_modules=*/{}, /*wildcard_index=*/0,
-                              /*wildcard_traceback_sql=*/
-                              SqlSource::FromTraceProcessorImplementation("")});
+  // Open a SAVEPOINT before pushing the include frame so the entire body of
+  // the include runs against a sandbox: on success we RELEASE so the DDL
+  // promotes to `main` (and `cache=shared` propagates the new objects to
+  // sibling connections); on failure we ROLLBACK TO so half-installed
+  // objects do not leak.
+  //
+  // Note: this is the temp-then-promote include pattern documented in the
+  // multi-connection design memo. We use SAVEPOINT (rather than literally
+  // rewriting CREATE statements to `temp.<name>`) because savepoint
+  // rollback already drops uncommitted DDL, and `cache=shared` already
+  // propagates committed DDL on `main` to other connections — so the
+  // explicit "temp schema" buffer adds no observable behaviour for plain
+  // SQL. Vtab DDL inside an include is partially handled here: the
+  // ROLLBACK callback is invoked which lets `ModuleStateManagerBase`
+  // discard staged state. Cross-connection vtab visibility (the data
+  // side) is the next chunk (`vtab-state-staging-publish`).
+  std::string savepoint_name = "perfetto_include_" +
+                               std::to_string(include_savepoint_counter_++);
+  base::StackString<256> savepoint_sql("SAVEPOINT %s", savepoint_name.c_str());
+  char* errmsg_raw = nullptr;
+  int err = sqlite3_exec(engine_->db(), savepoint_sql.c_str(), nullptr,
+                         nullptr, &errmsg_raw);
+  ScopedSqliteString errmsg(errmsg_raw);
+  if (err != SQLITE_OK) {
+    return base::ErrStatus("INCLUDE: failed to open savepoint for '%s': %s",
+                           key.c_str(), errmsg_raw ? errmsg_raw : "unknown");
+  }
 
+  // Push include frame onto execution stack. The main loop will process it.
+  ExecutionFrame frame{FrameType::kInclude,
+                       SqlSource::FromModuleInclude(file.sql, key),
+                       /*parser=*/nullptr, /*accumulated_stats=*/{},
+                       /*current_stmt=*/std::nullopt, key, &file,
+                       /*traceback_sql=*/parser.statement_sql(),
+                       /*wildcard_modules=*/{}, /*wildcard_index=*/0,
+                       /*wildcard_traceback_sql=*/
+                       SqlSource::FromTraceProcessorImplementation(""),
+                       /*include_savepoint=*/std::move(savepoint_name)};
+  execution_stack_.push_back(std::move(frame));
   return base::OkStatus();
 }
 

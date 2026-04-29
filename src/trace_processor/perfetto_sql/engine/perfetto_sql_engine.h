@@ -347,6 +347,14 @@ class PerfettoSqlEngine {
         wildcard_modules;
     size_t wildcard_index = 0;
     SqlSource wildcard_traceback_sql;
+
+    // For include frames: the savepoint name created when the frame was
+    // pushed. Empty if no savepoint was opened (e.g. nested-include savepoint
+    // creation failed). On successful completion the savepoint is RELEASEd
+    // so its DDL becomes visible on `main` (and propagates to other
+    // connections via `cache=shared`); on failure the savepoint is rolled
+    // back so partially-installed objects do not leak.
+    std::string include_savepoint;
   };
 
   void RegisterStaticTable(dataframe::Dataframe*, const std::string&);
@@ -416,6 +424,16 @@ class PerfettoSqlEngine {
   // May push new frames onto the stack (for includes/wildcards).
   base::StatusOr<FrameResult> ProcessFrame(size_t frame_idx);
 
+  // Releases the savepoint opened by `IncludeModuleImpl` for the given
+  // include frame on success. No-op if the frame did not open a savepoint
+  // (e.g. wildcard / root frames). Returns the status of the RELEASE.
+  base::Status ReleaseIncludeSavepoint(const ExecutionFrame& frame);
+
+  // Rolls back and releases the savepoint opened by `IncludeModuleImpl` on
+  // failure. Best-effort: failures here are logged but not propagated, on
+  // the basis that the caller already has an error to report.
+  void RollbackIncludeSavepoint(const ExecutionFrame& frame);
+
   // Called when a transaction is committed by SQLite; that is, the result of
   // running some SQL is considered "perm".
   //
@@ -446,6 +464,10 @@ class PerfettoSqlEngine {
   uint64_t function_count_ = 0;
   uint64_t aggregate_function_count_ = 0;
   uint64_t window_function_count_ = 0;
+
+  // Monotonically increasing counter used to generate unique SAVEPOINT names
+  // for the temp-then-promote include pattern.
+  uint64_t include_savepoint_counter_ = 0;
 
   // Contains the pointers for all registered virtual table modules where the
   // context class of the module inherits from ModuleStateManagerBase.

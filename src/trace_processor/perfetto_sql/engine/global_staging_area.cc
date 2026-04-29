@@ -16,9 +16,30 @@
 
 #include "src/trace_processor/perfetto_sql/engine/global_staging_area.h"
 
+#include <memory>
+#include <mutex>
+#include <string>
+#include <utility>
+
 namespace perfetto::trace_processor {
 
 GlobalStagingArea::GlobalStagingArea() = default;
 GlobalStagingArea::~GlobalStagingArea() = default;
+
+GlobalStagingArea::IncludeLockGuard GlobalStagingArea::AcquireIncludeLock(
+    const std::string& module_name) {
+  std::mutex* module_mutex;
+  {
+    std::lock_guard<std::mutex> guard(map_mutex_);
+    auto it = module_locks_.find(module_name);
+    if (it == module_locks_.end()) {
+      auto inserted = module_locks_.emplace(
+          module_name, std::make_unique<std::mutex>());
+      it = inserted.first;
+    }
+    module_mutex = it->second.get();
+  }
+  return IncludeLockGuard(std::unique_lock<std::mutex>(*module_mutex));
+}
 
 }  // namespace perfetto::trace_processor
