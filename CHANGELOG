@@ -1,4 +1,4 @@
-v55.0 - 2026-04-28:
+v55.0 - 2026-04-29:
   Tracing service and probes:
     * Breaking change: Renamed the `TraceMetadata` proto to `TraceAttributes`.
     * Extended `tid` field in `thread_descriptor.proto` to `int64` to support
@@ -24,6 +24,8 @@ v55.0 - 2026-04-28:
   UI:
     * WebGL rendering for GPU-accelerated visualization of slice and counter
       tracks with significant performance improvements on large traces.
+    * Virtual track scrolling, only rendering visible tracks for smoother
+      navigation on traces with many tracks.
     * Breaking: legacy trace actions have been moved to the `dev.perfetto.Catapult`
       plugin, disabled by default.
     * Added the Heap Dump Explorer plugin with object view, class hierarchy,
