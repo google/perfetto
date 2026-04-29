@@ -1943,6 +1943,23 @@ function primFieldValue(it: {
 // so we load it asynchronously and fill in reachable columns after the initial
 // render.
 
+/** path_hash for an object's position in the (non-dominator) class tree. */
+export async function getObjectPathHash(
+  engine: Engine,
+  objectId: number,
+): Promise<string | null> {
+  await engine.query(
+    `INCLUDE PERFETTO MODULE android.memory.heap_graph.class_tree`,
+  );
+  const res = await engine.query(`
+    SELECT CAST(path_hash AS TEXT) AS path_hash
+    FROM _heap_graph_path_hashes
+    WHERE id = ${objectId}
+  `);
+  const row = res.maybeFirstRow({path_hash: STR_NULL});
+  return row?.path_hash ?? null;
+}
+
 /** Fetch reachable (cumulative) sizes for a set of object IDs. */
 async function getReachableSizes(
   engine: Engine,

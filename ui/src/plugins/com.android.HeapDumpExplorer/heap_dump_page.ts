@@ -27,6 +27,7 @@ import {NUM} from '../../trace_processor/query_result';
 import type {NavState} from './nav_state';
 import type {OverviewData} from './types';
 import {nav, navigate, syncFromSubpage, setNavigateCallback} from './nav_state';
+import HeapProfilePlugin from '../dev.perfetto.HeapProfile';
 import * as queries from './queries';
 import {SQL_PREAMBLE} from './components';
 import OverviewView from './views/overview_view';
@@ -342,6 +343,9 @@ function buildTabs(
   }
 
   // Append closable object instance tabs.
+  const onViewInTimeline = trace
+    ? makeViewInTimelineCallback(trace, engine)
+    : undefined;
   for (const obj of instanceTabs) {
     tabs.push({
       key: instanceTabKey(obj.id),
@@ -352,11 +356,31 @@ function buildTabs(
         heaps: overview.heaps,
         navigate: navigateWithTabs,
         params: {id: obj.objId},
+        onViewInTimeline,
       }),
     });
   }
 
   return tabs;
+}
+
+function makeViewInTimelineCallback(
+  trace: Trace,
+  engine: Engine,
+): ((objectId: number) => void) | undefined {
+  const active = queries.getActiveDump();
+  if (!active) return undefined;
+  const hp = trace.plugins.getPlugin(HeapProfilePlugin);
+  return async (objectId: number) => {
+    const pathHash = await queries.getObjectPathHash(engine, objectId);
+    if (pathHash === null) return;
+    hp.navigateToHeapGraph(
+      trace,
+      active.upid,
+      Time.fromRaw(active.ts),
+      pathHash,
+    );
+  };
 }
 
 function processLabel(d: queries.HeapDump): string {

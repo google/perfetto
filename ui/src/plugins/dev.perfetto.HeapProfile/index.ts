@@ -83,6 +83,40 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
     return this.nodeSelectedEvt.addListener(cb);
   }
 
+  /**
+   * Selects the java heap graph slice for (upid, ts) and pivots the
+   * flamegraph around `pivot` (matched as `^pivot$`).
+   */
+  async navigateToHeapGraph(
+    trace: Trace,
+    upid: number,
+    ts: time,
+    pivot: string,
+  ): Promise<void> {
+    const res = await trace.engine.query(`
+      SELECT id FROM ${EVENT_TABLE_NAME}
+      WHERE upid = ${upid} AND ts = ${ts} AND type = 'java_heap_graph'
+    `);
+    const row = res.maybeFirstRow({id: NUM});
+    if (!row) {
+      console.warn(
+        `navigateToHeapGraph: no java_heap_graph slice for upid=${upid} ts=${ts}`,
+      );
+      return;
+    }
+    assertExists(this.store).edit((draft) => {
+      const slot = draft[ProfileType.JAVA_HEAP_GRAPH];
+      const view = {kind: 'PIVOT' as const, pivot: `^${pivot}$`};
+      slot.trackFlamegraphState = slot.trackFlamegraphState
+        ? {...slot.trackFlamegraphState, view}
+        : {selectedMetricName: '', filters: [], view};
+    });
+    const uri = trackUri(upid, 'java_heap_graph');
+    trace.navigate('#!/viewer');
+    trace.selection.selectTrackEvent(uri, row.id);
+    trace.scrollTo({track: {uri, expandGroup: true}});
+  }
+
   private migrateHeapProfilePluginState(init: unknown): HeapProfilePluginState {
     const result = HEAP_PROFILE_PLUGIN_STATE_SCHEMA.safeParse(init);
     return (
@@ -229,7 +263,7 @@ export default class HeapProfilePlugin implements PerfettoPlugin {
             viewName,
             upid,
             incomplete,
-            store.state[descriptor.type].trackFlamegraphState,
+            () => store.state[descriptor.type].trackFlamegraphState,
             (state) => {
               store.edit((draft) => {
                 draft[descriptor.type].trackFlamegraphState = state;

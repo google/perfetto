@@ -572,12 +572,9 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   }
 
   /**
-   * Updates a FlamegraphState with new metrics, preserving filters where possible.
-   *
-   * If the current state has no metric selected (empty string), this will
-   * initialize it with the first metric. Otherwise, it preserves the selected
-   * metric if it still exists in the new metrics array, or falls back to the
-   * first metric if it doesn't.
+   * Repairs `state` against `metrics`: defaults if undefined; falls back to
+   * the first metric if `selectedMetricName` is unknown. Returns the input
+   * unchanged when no repair is needed.
    */
   static updateState(
     state: FlamegraphState | undefined,
@@ -586,15 +583,13 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     if (state === undefined) {
       return Flamegraph.createDefaultState(metrics);
     }
-    const metricStillExists = metrics.some(
-      (m) => m.name === state.selectedMetricName,
-    );
+    if (metrics.some((m) => m.name === state.selectedMetricName)) {
+      return state;
+    }
     return {
       filters: state.filters,
       view: state.view,
-      selectedMetricName: metricStillExists
-        ? state.selectedMetricName
-        : metrics[0].name,
+      selectedMetricName: metrics[0].name,
     };
   }
 

@@ -97,8 +97,9 @@ export class HeapProfileFlamegraphDetailsPanel
             onNodeSelected({pathHashes, isDominator, upid, ts})
         : undefined,
     );
-    if (this.state === undefined) {
-      this.state = Flamegraph.createDefaultState(this.metrics);
+    const newState = Flamegraph.updateState(this.state, this.metrics);
+    if (newState !== this.state) {
+      this.state = newState;
       onStateChange(this.state);
     }
   }
