@@ -130,7 +130,7 @@ function showLegacyMacroDeprecatedModal(name: string): void {
         m(
           Anchor,
           {
-            href: 'go/perfetto-ui-macro-migration',
+            href: 'http://go/perfetto-ui-macro-migration',
             target: '_blank',
           },
           'See this page for more information about this migration',
