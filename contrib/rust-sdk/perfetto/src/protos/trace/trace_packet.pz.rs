@@ -20,6 +20,7 @@ use crate::pb_msg;
 use crate::protos::trace::clock_snapshot::*;
 use crate::protos::trace::interned_data::interned_data::*;
 use crate::protos::trace::test_event::*;
+use crate::protos::trace::track_event::track_descriptor::*;
 use crate::protos::trace::track_event::track_event::*;
 
 pb_enum!(TracePacketSequenceFlags {
@@ -31,8 +32,11 @@ pb_enum!(TracePacketSequenceFlags {
 pb_msg!(TracePacket {
     timestamp: u64, primitive, 8,
     timestamp_clock_id: u32, primitive, 58,
+    trusted_packet_sequence_id: u32, primitive, 10,
+    first_packet_on_sequence: bool, primitive, 87,
     clock_snapshot: ClockSnapshot, msg, 6,
     track_event: TrackEvent, msg, 11,
+    track_descriptor: TrackDescriptor, msg, 60,
     for_testing: TestEvent, msg, 900,
     interned_data: InternedData, msg, 12,
     sequence_flags: u32, primitive, 13,
