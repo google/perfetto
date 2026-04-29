@@ -15,7 +15,12 @@
 import {AddColumnsNode, AddColumnsNodeAttrs} from './add_columns_node';
 import {QueryNode} from '../../query_node';
 import protos from '../../../../protos';
-import {createMockNode, createColumnInfo} from '../testing/test_utils';
+import {
+  createMockNode,
+  createColumnInfo,
+  connectNodes,
+  connectSecondary,
+} from '../testing/test_utils';
 
 describe('AddColumnsNode', () => {
   function createMockPrimaryNode(): QueryNode {
@@ -64,15 +69,8 @@ describe('AddColumnsNode', () => {
     secondaryNode?: QueryNode,
   ): AddColumnsNode {
     const node = new AddColumnsNode(state, {});
-    if (primaryNode) {
-      primaryNode.nextNodes.push(node);
-      node.primaryInput = primaryNode;
-    }
-    if (secondaryNode) {
-      // Set the secondary input connection at port 0
-      secondaryNode.nextNodes.push(node);
-      node.secondaryInputs.connections.set(0, secondaryNode);
-    }
+    if (primaryNode) connectNodes(primaryNode, node);
+    if (secondaryNode) connectSecondary(secondaryNode, node, 0);
     return node;
   }
 

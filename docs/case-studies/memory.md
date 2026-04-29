@@ -221,7 +221,7 @@ While it is running, take a photo if you are following along.
 
 Pull the file using `adb pull /data/misc/perfetto-traces/trace ~/mem-trace` and
 upload to the [Perfetto UI](https://ui.perfetto.dev). This will show overall
-stats about system [ION](#ion) usage, and per-process stats to expand. Scroll
+stats about system ION usage, and per-process stats to expand. Scroll
 down (or Ctrl-F for) to `com.google.android.GoogleCamera` and expand. This will
 show a timeline for various memory stats for camera.
 

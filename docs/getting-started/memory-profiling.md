@@ -30,11 +30,11 @@ Perfetto offers multiple complementary techniques for debugging the above:
 
 Tool | Language | What is instrumented | Usage
 -----|----------|----------------------|------
-[ART Heap Dumps](#java-managed-heap-dumps) | Java/Kotlin | Reference graph of all allocated objects | Breakdown memory usage, and find leaks.
-[Native Allocation Profiling](#native-c-c-rust-heap-profiling) | Native C/C++/Rust | `malloc` + `free` | Reduce native allocation churn, breakdown memory usage and find leaks **after profiling started**.
+[ART Heap Dumps](#art-heap-dumps) | Java/Kotlin | Reference graph of all allocated objects | Breakdown memory usage, and find leaks.
+[Native Allocation Profiling](#native-heap-profiling) | Native C/C++/Rust | `malloc` + `free` | Reduce native allocation churn, breakdown memory usage and find leaks **after profiling started**.
 [ART Allocation Profiling](/docs/data-sources/native-heap-profiler.md#java-heap-sampling) | Java/Kotlin | Object allocations | Reduce Java/Kotlin allocation churn
 
-## Native (C/C++/Rust) Allocation Profiling (aka native heap profiling)
+## {#native-heap-profiling} Native (C/C++/Rust) Allocation Profiling (aka native heap profiling)
 
 Native languages like C/C++/Rust commonly allocate and deallocate memory at the
 lowest level by using the libc family of `malloc`/`free` functions. Native heap
