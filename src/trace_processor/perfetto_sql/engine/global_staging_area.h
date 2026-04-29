@@ -17,12 +17,19 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_GLOBAL_STAGING_AREA_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_GLOBAL_STAGING_AREA_H_
 
+#include <atomic>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "src/trace_processor/perfetto_sql/parser/function_util.h"
+#include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/util/sql_argument.h"
 
 namespace perfetto::trace_processor {
 
@@ -113,6 +120,81 @@ class GlobalStagingArea {
   std::shared_ptr<void> LookupVtabState(const std::string& module_name,
                                         const std::string& vtab_name) const;
 
+  // ===========================================================================
+  // Function pool (additive only — no DROP).
+  // ===========================================================================
+  //
+  // Records dynamic PerfettoSQL function definitions created via
+  // `CREATE PERFETTO FUNCTION`. Each connection's `PerfettoSqlEngine` tracks a
+  // `last_synced_version_` and at every top-level `Execute` start diffs
+  // against this pool, registering missing entries on its own `sqlite3*`.
+  // The pool is append-only: function "replacement" via
+  // `CREATE OR REPLACE PERFETTO FUNCTION` shows up as a fresh entry whose
+  // `replace` flag is true; the consuming engine handles the in-engine
+  // overwrite via SQLite's normal function-registration semantics.
+  //
+  // Only the writer (default) connection appends; all other connections only
+  // consume. Phase 2 is single-threaded so contention against the internal
+  // mutex is impossible today; the lock is documented as the Phase 3 hook.
+  //
+  // Scope of v1: scalar dynamic functions only (i.e. those backed by the
+  // `CreatedFunction` user-data path; `RETURNS INT/STRING/...`). Functions
+  // returning a TABLE go through `RuntimeTableFunctionModule` whose state
+  // carries an engine pointer and is not yet cross-connection coherent —
+  // see the iter 4 STATUS deferrals. Static built-in functions (e.g. those
+  // registered during engine construction in `InitPerfettoSqlEngine`) are
+  // *not* in this pool: replicating them is a separate follow-on chunk.
+  struct FunctionPoolEntry {
+    FunctionPoolEntry(bool _replace,
+                      FunctionPrototype _prototype,
+                      sql_argument::Type _return_type,
+                      SqlSource _sql)
+        : replace(_replace),
+          prototype(std::move(_prototype)),
+          return_type(_return_type),
+          sql(std::move(_sql)) {}
+
+    bool replace = false;
+    FunctionPrototype prototype;
+    sql_argument::Type return_type = sql_argument::Type::kLong;
+    SqlSource sql;
+  };
+
+  // Snapshot returned by `SnapshotSince`. `entries` are the pool entries
+  // strictly newer than the caller-provided `since_version` (i.e. with index
+  // >= since_version under the additive-only invariant). `latest_version`
+  // is the new version the caller should record after registering all
+  // entries on its handle.
+  struct FunctionPoolSnapshot {
+    std::vector<FunctionPoolEntry> entries;
+    uint64_t latest_version = 0;
+  };
+
+  // Append a function definition to the pool. Returns the new latest version
+  // (== old latest version + 1). Callers must invoke this *after* the
+  // function has been successfully registered on the writer's own
+  // `sqlite3*` handle so that an early-failed registration does not leak a
+  // stale entry into the pool.
+  uint64_t AppendFunction(FunctionPoolEntry entry);
+
+  // Returns all entries appended after `since_version` together with the
+  // latest version after the snapshot. Cheap fast-path: returns an empty
+  // entries list and `latest_version == since_version` when the caller is
+  // already up-to-date.
+  FunctionPoolSnapshot SnapshotSince(uint64_t since_version) const;
+
+  // Cheap peek of the latest version. Used by readers to short-circuit the
+  // diff scan when no new functions have been appended since the last sync.
+  uint64_t LatestFunctionVersion() const;
+
+  // Drops every entry from the function pool and resets the version counter.
+  // Used by `RestoreInitialTables` (which already requires that no secondary
+  // connections are alive) to wipe stale entries before the writer's fresh
+  // engine re-runs the prelude. Calling this while any reader engine has
+  // a non-zero `last_synced_version_` is unsafe — the reader would think
+  // it had registered all entries when in fact the new pool is empty.
+  void ResetFunctionPool();
+
  private:
   static std::string MakeVtabKey(const std::string& module_name,
                                  const std::string& vtab_name);
@@ -122,6 +204,13 @@ class GlobalStagingArea {
 
   mutable std::mutex vtab_state_mutex_;
   base::FlatHashMap<std::string, std::shared_ptr<void>> vtab_state_;
+
+  // Function pool. The latest version equals `function_pool_.size()` under
+  // the additive-only invariant; we expose it via an atomic for cheap
+  // lock-free peeks from the diff fast-path.
+  mutable std::mutex function_pool_mutex_;
+  std::vector<FunctionPoolEntry> function_pool_;
+  std::atomic<uint64_t> function_pool_version_{0};
 };
 
 }  // namespace perfetto::trace_processor

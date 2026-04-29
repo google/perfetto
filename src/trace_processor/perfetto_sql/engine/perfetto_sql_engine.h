@@ -429,6 +429,26 @@ class PerfettoSqlEngine {
   // re-entrant Execute() calls from statement handlers.
   base::StatusOr<ExecutionResult> ExecuteUntilLastStatementImpl(SqlSource);
 
+  // Internal helper: registers a CREATE-PERFETTO-FUNCTION-style runtime
+  // function on this engine's own `sqlite3*` handle without publishing to
+  // the staging-area function pool. Used both by the public
+  // `RegisterLegacyRuntimeFunction` (which then publishes on success on the
+  // writer) and by `SyncFunctionsFromPool` (which only consumes from the
+  // pool — readers must never publish).
+  base::Status RegisterLegacyRuntimeFunctionLocal(
+      bool replace,
+      const FunctionPrototype& prototype,
+      sql_argument::Type return_type,
+      SqlSource sql);
+
+  // Diffs `last_synced_function_version_` against the staging-area function
+  // pool and registers any missing entries on this engine's own `sqlite3*`
+  // handle. Cheap fast-path: if the version already matches the pool's
+  // latest version, returns immediately without taking the pool's mutex.
+  // Called at the top of `ExecuteUntilLastStatement` for top-level
+  // (non-re-entrant) invocations only.
+  base::Status SyncFunctionsFromPool();
+
   // Processes a single iteration of the frame at the given index.
   // May push new frames onto the stack (for includes/wildcards).
   base::StatusOr<FrameResult> ProcessFrame(size_t frame_idx);
@@ -470,6 +490,20 @@ class PerfettoSqlEngine {
   // single-connection setups (the default-arg ctor with no staging
   // area). Owned by the parent `TraceProcessorImpl`.
   GlobalStagingArea* staging_area_ = nullptr;
+
+  // True if this engine is the canonical writer for the parent
+  // `TraceProcessorImpl` (i.e. the default/connection-0 engine). The
+  // writer publishes vtab state to staging on `OnCommit` and appends
+  // dynamically-created functions (CREATE PERFETTO FUNCTION) to the
+  // staging area's function pool. Reader engines (secondary connections)
+  // never publish or append; they only consume.
+  bool is_writer_ = false;
+
+  // Function-pool version of the most recent successful sync against
+  // `staging_area_->SnapshotSince`. 0 == "no sync yet"; the writer engine
+  // also bumps this each time it appends so it doesn't pointlessly try to
+  // re-register its own functions on its own handle.
+  uint64_t last_synced_function_version_ = 0;
 
   // Execution stack for iterative (non-recursive) processing of SQL sources.
   // When an INCLUDE statement is encountered, the included module's SQL is

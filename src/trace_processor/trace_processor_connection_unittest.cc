@@ -331,5 +331,111 @@ TEST(TraceProcessorConnectionTest,
   ASSERT_OK(it.Status());
 }
 
+// Phase 2 iter 5 smoke test: a `CREATE PERFETTO FUNCTION` issued on
+// connection-0 is propagated to a freshly-minted secondary connection via
+// the staging-area function pool. The secondary connection's engine diffs
+// `last_synced_function_version_` against the pool at the start of every
+// `Execute` and re-registers any missing entries on its own `sqlite3*`.
+TEST(TraceProcessorConnectionTest, DynamicFunctionPropagatesToSecondary) {
+  auto tp = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(tp->NotifyEndOfFile());
+
+  // Define a scalar function on the primary (writer) connection.
+  {
+    auto it = tp->ExecuteQuery(
+        "CREATE PERFETTO FUNCTION conn_double(x INT) RETURNS INT "
+        "AS SELECT $x * 2;");
+    while (it.Next()) {
+    }
+    ASSERT_OK(it.Status());
+  }
+
+  // Verify the writer can call it.
+  {
+    auto it = tp->ExecuteQuery("SELECT conn_double(21);");
+    ASSERT_TRUE(it.Next()) << it.Status().c_message();
+    ASSERT_EQ(it.Get(0).long_value, 42);
+    ASSERT_OK(it.Status());
+  }
+
+  // A secondary connection minted *after* the function was created should
+  // pick it up via the function-pool sync at the top of ExecuteUntilLast.
+  auto conn = tp->CreateConnection();
+  ASSERT_NE(conn, nullptr);
+  auto it = conn->ExecuteQuery("SELECT conn_double(7);");
+  ASSERT_TRUE(it.Next()) << it.Status().c_message();
+  ASSERT_EQ(it.Get(0).long_value, 14);
+  ASSERT_FALSE(it.Next());
+  ASSERT_OK(it.Status());
+}
+
+// Verifies the version-diff mechanism is incremental: a function created
+// on connection-0 *after* a secondary connection has been minted (and
+// possibly already used for unrelated queries) must still be visible on
+// the secondary's next `Execute`. This is the core invariant that makes
+// the function pool a "diff at every Execute start" rather than a
+// "snapshot at connection-mint time".
+TEST(TraceProcessorConnectionTest, DynamicFunctionPickedUpIncrementally) {
+  auto tp = TraceProcessor::CreateInstance(Config());
+  ASSERT_OK(tp->NotifyEndOfFile());
+
+  // Mint conn-1 *first*, before any dynamic function exists.
+  auto conn = tp->CreateConnection();
+  ASSERT_NE(conn, nullptr);
+
+  // Run an unrelated query on conn-1 to advance its `last_synced_version_`
+  // through one Execute cycle (pool is empty so this is a no-op sync).
+  {
+    auto it = conn->ExecuteQuery("SELECT 1;");
+    ASSERT_TRUE(it.Next()) << it.Status().c_message();
+    ASSERT_EQ(it.Get(0).long_value, 1);
+    ASSERT_FALSE(it.Next());
+    ASSERT_OK(it.Status());
+  }
+
+  // Now, on conn-0, create two functions in succession.
+  {
+    auto it = tp->ExecuteQuery(
+        "CREATE PERFETTO FUNCTION conn_inc_a(x INT) RETURNS INT "
+        "AS SELECT $x + 100;");
+    while (it.Next()) {
+    }
+    ASSERT_OK(it.Status());
+  }
+  {
+    auto it = tp->ExecuteQuery(
+        "CREATE PERFETTO FUNCTION conn_inc_b(x INT) RETURNS INT "
+        "AS SELECT $x + 200;");
+    while (it.Next()) {
+    }
+    ASSERT_OK(it.Status());
+  }
+
+  // Conn-1's next `Execute` should pick up *both* via the version diff.
+  {
+    auto it = conn->ExecuteQuery("SELECT conn_inc_a(1) + conn_inc_b(2);");
+    ASSERT_TRUE(it.Next()) << it.Status().c_message();
+    ASSERT_EQ(it.Get(0).long_value, 1 + 100 + 2 + 200);
+    ASSERT_OK(it.Status());
+  }
+
+  // And a *third* function added now should also flow through on the
+  // subsequent `Execute` (the diff is truly per-Execute, not one-shot).
+  {
+    auto it = tp->ExecuteQuery(
+        "CREATE PERFETTO FUNCTION conn_inc_c(x INT) RETURNS INT "
+        "AS SELECT $x + 1000;");
+    while (it.Next()) {
+    }
+    ASSERT_OK(it.Status());
+  }
+  {
+    auto it = conn->ExecuteQuery("SELECT conn_inc_c(5);");
+    ASSERT_TRUE(it.Next()) << it.Status().c_message();
+    ASSERT_EQ(it.Get(0).long_value, 1005);
+    ASSERT_OK(it.Status());
+  }
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor

@@ -403,6 +403,7 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
     : pool_(pool),
       enable_extra_checks_(enable_extra_checks),
       staging_area_(staging_area),
+      is_writer_(false),
       engine_(new SqliteEngine(shared_filename)) {
   // Secondary engines: minimal setup, piggybacking on storage created by the
   // primary via `cache=shared`. We register only the dataframe vtab module
@@ -435,6 +436,7 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
     : pool_(pool),
       enable_extra_checks_(enable_extra_checks),
       staging_area_(staging_area),
+      is_writer_(staging_area != nullptr),
       engine_(new SqliteEngine()) {
   // Initialize `perfetto_tables` table, which will contain the names of all of
   // the registered tables.
@@ -576,6 +578,19 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
   // Statement handlers like ExecuteCreateFunction may call Execute()
   // recursively, which would otherwise corrupt our stack state.
   size_t stack_base = execution_stack_.size();
+
+  // Top-level only: diff this engine's last-synced version against the
+  // staging-area function pool and register any newly-appended functions
+  // on this engine's own `sqlite3*` handle. Re-entrant `Execute` calls (e.g.
+  // from `ExecuteCreateFunction` calling `Execute` to issue a generated
+  // CREATE VIRTUAL TABLE) skip the sync — the writer is the only one that
+  // appends and a newly-appended entry is always installed locally before
+  // we get here, so the writer's own re-entrant calls don't need a sync.
+  if (stack_base == 0) {
+    if (auto sync_status = SyncFunctionsFromPool(); !sync_status.ok()) {
+      return sync_status;
+    }
+  }
 
   auto result = ExecuteUntilLastStatementImpl(std::move(sql_source));
 
@@ -904,7 +919,7 @@ const dataframe::Dataframe* PerfettoSqlEngine::GetDataframeOrNull(
   return state ? state->dataframe : nullptr;
 }
 
-base::Status PerfettoSqlEngine::RegisterLegacyRuntimeFunction(
+base::Status PerfettoSqlEngine::RegisterLegacyRuntimeFunctionLocal(
     bool replace,
     const FunctionPrototype& prototype,
     sql_argument::Type return_type,
@@ -933,6 +948,68 @@ base::Status PerfettoSqlEngine::RegisterLegacyRuntimeFunction(
                              static_cast<int>(prototype.arguments.size()))));
   }
   return CreatedFunction::Prepare(ctx, prototype, return_type, std::move(sql));
+}
+
+base::Status PerfettoSqlEngine::RegisterLegacyRuntimeFunction(
+    bool replace,
+    const FunctionPrototype& prototype,
+    sql_argument::Type return_type,
+    SqlSource sql) {
+  // Keep a copy of `sql` for publishing to the function pool below so that
+  // sibling connections can re-prepare an equivalent statement on their own
+  // engines. The local register path consumes the original `sql` value;
+  // only the writer publishes (appends-after-success) to keep the pool
+  // authoritative.
+  SqlSource sql_for_pool = sql;
+  RETURN_IF_ERROR(RegisterLegacyRuntimeFunctionLocal(replace, prototype,
+                                                    return_type, std::move(sql)));
+
+  // Append-after-success: only land in the pool once we've actually
+  // registered + prepared on the writer's own handle. This guarantees a
+  // reader catching up via `SnapshotSince` will not see a half-baked entry.
+  if (is_writer_ && staging_area_) {
+    last_synced_function_version_ =
+        staging_area_->AppendFunction(GlobalStagingArea::FunctionPoolEntry{
+            replace, prototype, return_type, std::move(sql_for_pool)});
+  }
+  return base::OkStatus();
+}
+
+base::Status PerfettoSqlEngine::SyncFunctionsFromPool() {
+  // Fast-path: no staging area (legacy single-conn) or no new entries.
+  if (!staging_area_) {
+    return base::OkStatus();
+  }
+  // Writer engines never need to sync — they are the source of truth and
+  // append directly via `RegisterLegacyRuntimeFunction`. Importantly, the
+  // writer must *not* re-register pool entries on a fresh engine handle
+  // produced by `RestoreInitialTables`: pool entries may reference tables
+  // (e.g. `_trace_bounds`) that haven't been recreated yet by the new
+  // engine's prelude include.
+  if (is_writer_) {
+    last_synced_function_version_ = staging_area_->LatestFunctionVersion();
+    return base::OkStatus();
+  }
+  if (staging_area_->LatestFunctionVersion() ==
+      last_synced_function_version_) {
+    return base::OkStatus();
+  }
+
+  auto snapshot = staging_area_->SnapshotSince(last_synced_function_version_);
+  for (auto& entry : snapshot.entries) {
+    // Use the *local* path so we don't re-publish back into the pool. On the
+    // writer this loop never runs because `RegisterLegacyRuntimeFunction`
+    // bumps `last_synced_function_version_` eagerly each append; the
+    // version-equality fast-path above short-circuits. On readers, this is
+    // the only path that registers dynamic functions on their handles.
+    RETURN_IF_ERROR(RegisterLegacyRuntimeFunctionLocal(
+        entry.replace, entry.prototype, entry.return_type,
+        std::move(entry.sql)));
+  }
+  // Update to the snapshot's latest version even if `entries` is empty, so
+  // the fast-path stays cheap on subsequent calls.
+  last_synced_function_version_ = snapshot.latest_version;
+  return base::OkStatus();
 }
 
 base::Status PerfettoSqlEngine::ExecuteCreateTable(

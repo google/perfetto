@@ -78,4 +78,51 @@ std::shared_ptr<void> GlobalStagingArea::LookupVtabState(
   return *found;
 }
 
+uint64_t GlobalStagingArea::AppendFunction(FunctionPoolEntry entry) {
+  std::lock_guard<std::mutex> guard(function_pool_mutex_);
+  function_pool_.push_back(std::move(entry));
+  uint64_t new_version = function_pool_.size();
+  // Publish the new version *after* the entry is in the vector so a reader
+  // that observes `LatestFunctionVersion() >= new_version` is guaranteed to
+  // see the entry at index `new_version - 1` once it acquires the mutex.
+  function_pool_version_.store(new_version, std::memory_order_release);
+  return new_version;
+}
+
+GlobalStagingArea::FunctionPoolSnapshot GlobalStagingArea::SnapshotSince(
+    uint64_t since_version) const {
+  // Fast-path: peek the atomic; if the caller is already up-to-date we
+  // don't even need to take the lock. This makes `Execute` start cheap on
+  // connections that have already caught up.
+  if (function_pool_version_.load(std::memory_order_acquire) <= since_version) {
+    return {{}, since_version};
+  }
+
+  std::lock_guard<std::mutex> guard(function_pool_mutex_);
+  FunctionPoolSnapshot snapshot;
+  snapshot.latest_version = function_pool_.size();
+  if (since_version >= snapshot.latest_version) {
+    return snapshot;
+  }
+  snapshot.entries.reserve(snapshot.latest_version - since_version);
+  for (size_t i = since_version; i < function_pool_.size(); ++i) {
+    // FunctionPoolEntry is copy-constructible (FunctionPrototype + SqlSource
+    // are value types). We deliberately copy here rather than move-out: the
+    // pool is additive and must keep its entries for future readers that
+    // catch up later.
+    snapshot.entries.push_back(function_pool_[i]);
+  }
+  return snapshot;
+}
+
+uint64_t GlobalStagingArea::LatestFunctionVersion() const {
+  return function_pool_version_.load(std::memory_order_acquire);
+}
+
+void GlobalStagingArea::ResetFunctionPool() {
+  std::lock_guard<std::mutex> guard(function_pool_mutex_);
+  function_pool_.clear();
+  function_pool_version_.store(0, std::memory_order_release);
+}
+
 }  // namespace perfetto::trace_processor

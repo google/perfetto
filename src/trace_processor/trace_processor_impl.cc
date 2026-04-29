@@ -1050,6 +1050,15 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   uint64_t registered_count_before = engine_->SqliteRegisteredObjectCount();
   PERFETTO_CHECK(registered_count_before >= sqlite_objects_post_prelude_);
 
+  // Drop any pool entries accumulated by the previous engine: the new
+  // engine has fresh storage (its own memdb URI, no shared cache) and the
+  // prelude include below will re-create everything from scratch. Calling
+  // `ResetFunctionPool` before the new engine boots ensures the writer's
+  // own re-registration of prelude functions does not collide with stale
+  // pool entries. Safe because `non_default_connection_count_ == 0` is
+  // CHECK'd above so no reader engine is observing the pool.
+  staging_area_->ResetFunctionPool();
+
   // Reset the engine to its initial state. Pass cached bounds to avoid
   // recomputing them.
   engine_ = InitPerfettoSqlEngine({

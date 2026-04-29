@@ -23,6 +23,68 @@ Phase 1 complete. Next: Phase 2 (multi-conn single-threaded).
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [Phase 2 iter 5]: function-pool-per-conn-diff done.
+  `GlobalStagingArea` now owns an additive function pool keyed by
+  insertion order: a `std::vector<FunctionPoolEntry>` guarded by
+  `function_pool_mutex_` plus an `std::atomic<uint64_t>
+  function_pool_version_` for cheap lock-free peeks. API:
+  `AppendFunction` (writer-only), `SnapshotSince(since_version)` (any
+  reader), `LatestFunctionVersion`, and `ResetFunctionPool`.
+  `FunctionPoolEntry` carries `{replace, FunctionPrototype,
+  sql_argument::Type, SqlSource}` — the same four args
+  `RegisterLegacyRuntimeFunction` already takes. Functions are
+  stateless (no fn-pointer or context state), so a reader can re-create
+  one on its own handle by replaying the appended args verbatim.
+  `PerfettoSqlEngine` gained `is_writer_` and
+  `last_synced_function_version_` members; the public
+  `RegisterLegacyRuntimeFunction` was split into a `Local` helper
+  (registers on the engine's own `sqlite3*`) and a writer-side wrapper
+  that appends to the staging pool *only after* the local register
+  succeeds (so a half-baked entry never lands in the pool). New
+  `SyncFunctionsFromPool` runs at the top of `ExecuteUntilLastStatement`
+  but only when `stack_base == 0` (re-entrant `Execute` calls from
+  statement handlers skip — the writer is the only one that appends
+  and it always installs locally first). Writer engines short-circuit
+  the sync (they're the source of truth) and just bump
+  `last_synced_function_version_` to the latest. Reader engines
+  iterate `snapshot.entries` and call the local register helper for
+  each, then update to `snapshot.latest_version`.
+  `RestoreInitialTables` now calls `staging_area_->ResetFunctionPool()`
+  before tearing down the writer engine; the existing
+  `non_default_connection_count_ == 0` CHECK at function entry
+  guarantees no reader engine observes the wipe. Reset is needed
+  because the new engine boots with fresh storage (its own memdb URI,
+  `cache=shared` not yet wired across the reset boundary) and the
+  prelude include re-creates everything from scratch — stale pool
+  entries would otherwise be replayed against a half-built schema on
+  a future reader connection.
+  Tests added under `TraceProcessorConnectionTest.*`:
+  - `DynamicFunctionPropagatesToSecondary`: define `conn_double` on
+    conn-0, verify a freshly-minted secondary picks it up via the
+    `Execute`-time sync.
+  - `DynamicFunctionPickedUpIncrementally`: mint conn-1 first (with
+    empty pool), then create two functions on conn-0, then a third —
+    verifies all three flow through on subsequent secondary
+    `Execute`s, exercising the "diff at every Execute, not snapshot
+    at mint time" invariant.
+  Build/test results on `out/mac_release`: gn check clean (no BUILD.gn
+  changes needed — `function_util.h` lives under the existing
+  `../parser` dep). 3226 unittests pass + 1 pre-existing skip
+  (`HttpServerTest.Websocket`); +2 new tests vs. iter 4. 122 TP
+  integrationtests pass. 1355 diff tests pass + 9 pre-existing skips.
+  No behaviour change for existing single-connection callers — the
+  writer publishes only when `staging_area_ != nullptr` and
+  `is_writer_ == true`, both of which are wired exclusively by
+  `TraceProcessorImpl`'s primary engine.
+  Deferred / next-iter: `execute-savepoint-wrap` (multi-statement
+  atomicity for top-level `Execute`); replicating *static* built-in
+  functions registered during engine construction (the pool only
+  carries dynamic CREATE-PERFETTO-FUNCTION entries today — built-ins
+  registered via `InitPerfettoSqlEngine` are re-installed by each
+  engine's own constructor, so this works for stdlib usage but a
+  query like `SELECT my_static_fn(...)` on a secondary that the
+  primary registered post-init would miss); `RuntimeTableFunctionModule`
+  cross-conn (engine-pointer-in-State problem from iter 4).
 - 2026-04-29 [Phase 2 iter 4]: vtab-state-staging-publish done
   (dataframe module wired; runtime/static-table-function modules
   deferred). Cross-connection vtab-state plumbing now lets a
@@ -545,12 +607,20 @@ and the temp-then-promote breakthrough above before sequencing them.
       cross-conn incoherent — needs design work) and
       `StaticTableFunctionModule` (mechanical follow-on, just
       not done in this chunk). See Phase 2 iter 4 activity entry.
-- [ ] function-pool-per-conn-diff — `GlobalStagingArea` holds an
-      additive-only function pool. Each conn tracks
-      `last_synced_version_`; at `Execute` start, diff against pool
-      and register missing entries on its own `sqlite3*`. No
-      cross-thread sqlite mutation. Functions are stateless
-      (SQL/fn pointer + signature) — no DROP semantics.
+- [x] function-pool-per-conn-diff — done Phase 2 iter 5.
+      `GlobalStagingArea` carries an additive `vector<FunctionPoolEntry>`
+      keyed by insertion order, with `AppendFunction` (writer-only) /
+      `SnapshotSince` / `LatestFunctionVersion` / `ResetFunctionPool`.
+      `PerfettoSqlEngine` split `RegisterLegacyRuntimeFunction` into
+      a local helper + writer-side wrapper that appends after the
+      local register succeeds; `SyncFunctionsFromPool` runs at the
+      top of every top-level `ExecuteUntilLastStatement`. Writers
+      short-circuit (they're the source of truth); readers iterate
+      `snapshot.entries` and replay via the local helper.
+      `RestoreInitialTables` calls `ResetFunctionPool` before
+      rebuilding the writer engine. Two tests cover propagation and
+      incremental pickup. See Phase 2 iter 5 activity entry for
+      deferred follow-ons (static built-ins, runtime table functions).
 - [ ] execute-savepoint-wrap — every top-level
       `Execute(sql)` wraps in a savepoint for multi-statement
       atomicity. Fits naturally with the temp-then-promote include
