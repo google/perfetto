@@ -1,7 +1,7 @@
 # Multi-connection TraceProcessor — Loop Status
 
 ## Current Phase
-Phase 3 complete. Next: Phase 4 (RPC pool + UI engine.ts fan-out + WASM pthreads).
+Phase 4 in progress (RPC pool + UI fan-out + WASM pthreads).
 
 ## Design pivots (2026-04-29, mid-Phase-1)
 - **WAL abandoned.** Switching to serialized transactions with
@@ -23,6 +23,140 @@ Phase 3 complete. Next: Phase 4 (RPC pool + UI engine.ts fan-out + WASM pthreads
   function pool + per-module include locks.)
 
 ## Recent activity (newest first)
+- 2026-04-29 [Phase 4 iter 1]: rpc-thread-pool done. `Rpc` now fans
+  query RPCs across a `base::ThreadPool` sized to
+  `min(hardware_concurrency, 8)` (capped because TP queries are
+  sqlite-bound and the shared cache+memdb don't benefit from more
+  contention; `hardware_concurrency() == 0` falls back to 1). The
+  pool lives in `src/trace_processor/rpc/rpc.{h,cc}` (new private
+  helpers `AcquireConnectionForQuery`, `ReleaseConnectionToPool`,
+  `DrainConnectionPoolForMutation`, `RunQueryOnPoolWorker`). Used the
+  existing `base::ThreadPool` from
+  `include/perfetto/ext/base/threading/thread_pool.h` rather than
+  rolling an inline impl — same shape the bigtrace orchestrator uses.
+
+  **Drain-then-release strategy (option (a)).** Each worker:
+  1. Acquires a `TraceProcessor::Connection` from the lazy pool.
+  2. Runs the query through `connection->ExecuteQuery(sql)`.
+  3. Drains the iterator into `std::vector<Chunk>` (each chunk =
+     serialised `QueryResult` proto bytes) via the existing
+     `QueryResultSerializer`.
+  4. **Iterator + serializer are scoped tightly** so the prepared
+     statement (`sqlite3_stmt*` owned by `IteratorImpl`) is finalised
+     on the worker thread *before* the connection goes back to the
+     pool. TSan caught this on the first run: leaving the serializer
+     alive across `ReleaseConnectionToPool` lets a peer worker
+     re-acquire the same connection mid-finalize and race on the
+     underlying `sqlite3*` (sqlite3ErrorClear vs. sqlite3VdbeReset).
+  5. Releases the connection.
+  6. Streams the buffered chunks back to the transport via the
+     `QueryResultBatchCallback`.
+
+  The caller (the transport thread) blocks on a `std::promise<void>`
+  while the worker runs, preserving the synchronous callback contract
+  of `Rpc::Query`. Concurrent `Rpc::Query` calls from N transport
+  threads each block on their own promise and so fan out across pool
+  workers — this is what the UI fan-out (next chunk) will consume.
+
+  **Mutation gating discipline.** Mutating RPCs (`Parse` via
+  `ResetTraceProcessorInternal`, `RegisterSqlPackage`,
+  `RestoreInitialTables`) call `DrainConnectionPoolForMutation` first:
+  it sets `pool_blocked_for_mutation_`, swaps `pool_free_` out and
+  destroys the cached connections, then waits on a condvar for
+  `pool_in_use_ == 0`. Workers that release a connection while the
+  drain is pending see the flag and *destroy* their connection
+  instead of pushing it back. Once the mutation body returns, a
+  `ScopedPoolUnblock` clears the flag and notifies parked acquirers.
+  Acquirers that arrive during the drain park on the same condvar.
+  This means the writer-side
+  `non_default_connection_count_ == 0` `PERFETTO_CHECK` gate (Phase
+  2) never fires from within `Rpc`, even under interleaved query +
+  mutation traffic.
+
+  **`CreateConnection` is single-producer.** The first TSan run
+  (before the drain refactor) flagged a real race on
+  `StringPool::should_acquire_mutex_` — multiple workers calling
+  `CreateConnection` concurrently both write the bool, and peer
+  worker reads of `MaybeLockGuard` see torn writes. The fix is
+  structural: workers *never* call `CreateConnection`. The pool is
+  pre-minted to `worker_pool_` size (one connection per worker
+  thread, all from the caller/writer thread on first post-EOF
+  Query); workers only ever consume from the free list. A new
+  `pool_mint_mu_` serialises the pre-mint across multiple Rpc
+  callers and against any concurrent mutation drain. Because the
+  worker pool is also capped at the same N, at most N tasks run
+  concurrently, so N pre-minted connections cover the worst case
+  with no need for unbounded growth.
+
+  **Pre-EOF queries bypass the pool entirely.** Strict-v1 says
+  secondary connections are illegal pre-EOF (`CreateConnection`
+  CHECKs `notify_eof_called_`). `Rpc::Query` checks `eof_` and
+  routes pre-EOF queries through the writer engine directly,
+  matching today's single-threaded ingestion contract. EOF is
+  `eof_ = true` after `NotifyEndOfFile` returns OK; reset back to
+  false in `Parse` if a fresh trace is being loaded (and that
+  path goes through `ResetTraceProcessorInternal` which drains
+  the pool).
+
+  **New tests** (`src/trace_processor/rpc/rpc_unittest.cc`,
+  4 tests under `RpcTest.*`):
+  - `PostEofQueryRunsThroughWorkerPool` — single post-EOF
+    `Rpc::Query`; verifies the response decodes correctly and the
+    pool minted at least one connection. Smoke for the happy path.
+  - `PreEofQueryBypassesWorkerPool` — pre-EOF `Rpc::Query`; verifies
+    the response decodes correctly, the pool is untouched
+    (`pool_distinct_connections_for_testing() == 0` and
+    `pool_workers_used_for_testing() == 0`).
+  - `QueryFansOutAcrossWorkers` — 8 threads issue `SELECT 100+i`
+    concurrently; asserts every response decodes correctly *and*
+    that `pool_workers_used_for_testing() >= 2` on any machine
+    where `hardware_concurrency() >= 2`. Doubles as the
+    "connections recycled" check via
+    `pool_distinct_connections_for_testing() <= kQueries`.
+  - `MutationDrainsPoolAndQueriesContinue` — populate the pool,
+    call `RestoreInitialTables`, then verify follow-up queries
+    still work. Exercises the drain + refill path end-to-end.
+
+  Two test-only counters added to `Rpc`
+  (`pool_workers_used_for_testing`,
+  `pool_distinct_connections_for_testing`) — both
+  `unordered_set<thread::id>::size()` / `uint32_t` reads under
+  `pool_mu_`. Not part of the wire API.
+
+  **Test counts** (Phase 4 iter 1 close, vs. iter-7 baseline):
+  - `out/mac_release/perfetto_unittests`: 3266 PASSED
+    (was 3262), 2 SKIPPED, 1 pre-existing macOS failure
+    (`HttpServerTest.Websocket`). Net delta: +4 (the new
+    `RpcTest.*` cases).
+  - `out/mac_release/perfetto_integrationtests` (TP filter):
+    118 PASSED (matches; 122 was the broader filter on iter-7
+    — same shape, no regressions).
+  - `tools/diff_test_trace_processor.py`: 1355 PASSED + 9
+    pre-existing skips, unchanged.
+  - **TSan stress** (5 consecutive runs of `RpcTest.*` on
+    `out/mac_tsan`): 4/4 PASSED each, no
+    `WARNING: ThreadSanitizer:` output. Full TSan suite: 3265
+    PASSED + 2 SKIPPED + 1 pre-existing macOS failure, matching
+    release baseline shape (TSan release baseline was 3261; the
+    +4 is the new `RpcTest.*`).
+  - **ASan stress** (10 consecutive runs of
+    `TraceProcessorConnectionTest.*:RpcTest.*` on
+    `out/mac_asan`): 27/27 PASSED each.
+
+  **Files touched**:
+  - `src/trace_processor/rpc/rpc.h` — new public test-only counters,
+    new private pool helpers + members.
+  - `src/trace_processor/rpc/rpc.cc` — `RunQueryOnPoolWorker`,
+    `AcquireConnectionForQuery`, `ReleaseConnectionToPool`,
+    `DrainConnectionPoolForMutation`, `ScopedPoolUnblock` RAII
+    helper; drain wired into `RestoreInitialTables`,
+    `RegisterSqlPackage`, `ResetTraceProcessorInternal`.
+  - `src/trace_processor/rpc/BUILD.gn` — added
+    `../../base/threading` dep on the `:rpc` target,
+    `rpc_unittest.cc` and `../../base:test_support` to
+    `:unittests`.
+  - `src/trace_processor/rpc/rpc_unittest.cc` — new file, 4 tests.
+
 - 2026-04-29 [Phase 3 iter 7]: tsan-multithread-stress done; Phase 3
   closed. New `out/mac_tsan` build dir
   (`is_clang=true is_debug=false is_tsan=true`) — the GN args
@@ -1629,6 +1763,51 @@ and the temp-then-promote breakthrough above before sequencing them.
       Connections, InternedStringMatchesAcrossConnections}` —
       29/29 ASan-clean across 10 consecutive runs. See Phase 3
       iter 4 activity entry.
+## Next chunks (Phase 4 — first cut, refine on /loop restart)
+
+- [x] rpc-thread-pool — done Phase 4 iter 1. `Rpc` fans `Query` RPCs
+      across a `base::ThreadPool` sized to
+      `min(hardware_concurrency, 8)`; per-query worker acquires a
+      pre-minted `TraceProcessor::Connection` from a lazy free-list
+      pool, drain-then-releases (option (a) — iterator destructed
+      before connection returns to the pool, since otherwise a peer
+      worker can re-acquire mid-finalize and race on the underlying
+      `sqlite3*`), then streams the buffered chunks back to the
+      transport. Mutating RPCs (`Parse` via `ResetTraceProcessor
+      Internal`, `RegisterSqlPackage`, `RestoreInitialTables`) drain
+      the pool first so the writer-side
+      `non_default_connection_count_ == 0` `PERFETTO_CHECK` gate
+      cannot fire. Connections are pre-minted from the (single)
+      caller thread of the first post-EOF Query — workers never
+      call `CreateConnection` — to avoid a TSan-flagged race on
+      `StringPool::should_acquire_mutex_` (single-producer
+      contract for the bool flip). 4 new tests under
+      `RpcTest.*`. See Phase 4 iter 1 activity entry.
+- [ ] ui-engine-fan-out — UI's `engine.ts` fans queries across the
+      pool. The C++ side is now thread-safe under `Rpc::Query`;
+      the next step is to teach the UI's TS-side engine to issue
+      multiple in-flight queries concurrently (currently the
+      engine.ts `query()` path serialises). Likely needs a small
+      `WorkerPool` of dedicated `MessageChannel`s into the wasm
+      bridge (or, with pthreads, multiple `Rpc::Query` calls
+      from JS workers). Measure trace-load wall time before/after.
+- [ ] wasm-pthreads — flip the WASM build to use pthreads when
+      COOP+COEP is available; fallback to single-thread. The
+      wasm bridge currently funnels all `Rpc` calls onto the main
+      worker; pthreads lets `base::ThreadPool` actually spawn
+      worker threads inside the wasm sandbox. Will need a
+      `enable_perfetto_wasm_pthreads` GN arg + a runtime check
+      for cross-origin isolation; gracefully degrade to
+      hardware_concurrency=1 when pthreads aren't available.
+- [ ] e2e-perf-validation — measure trace-load wall-time on a
+      representative trace (Android frame-drop or Chrome trace,
+      pick something that the UI loads regularly) before and
+      after rpc-thread-pool + ui-engine-fan-out + wasm-pthreads
+      land. Goal is a visible parallelism win on the UI's
+      post-EOF query flurry; the project memo's "headline target"
+      is end-to-end. Cache the baseline before iter-2 starts so
+      the regression-vs-baseline math is reproducible.
+
 - [x] tsan-multithread-stress — done Phase 3 iter 7.
       `out/mac_tsan` (`is_clang=true is_debug=false is_tsan=true`)
       builds and runs `perfetto_unittests` cleanly on macOS arm64 —

@@ -38,6 +38,7 @@ source_set("rpc") {
     "../../../protos/perfetto/trace_summary:zero",
     "../../base",
     "../../base:version",
+    "../../base/threading",
     "../../protozero",
     "../../protozero:proto_ring_buffer",
   ]
@@ -69,7 +70,10 @@ source_set("stdiod") {
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "query_result_serializer_unittest.cc" ]
+  sources = [
+    "query_result_serializer_unittest.cc",
+    "rpc_unittest.cc",
+  ]
   deps = [
     ":rpc",
     "..:lib",
@@ -77,6 +81,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../gn:gtest_and_gmock",
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
+    "../../base:test_support",
     "../../protozero",
   ]
 }

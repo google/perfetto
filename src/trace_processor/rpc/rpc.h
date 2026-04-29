@@ -17,20 +17,27 @@
 #ifndef SRC_TRACE_PROCESSOR_RPC_RPC_H_
 #define SRC_TRACE_PROCESSOR_RPC_RPC_H_
 
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/threading/thread_pool.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/summarizer.h"
+#include "perfetto/trace_processor/trace_processor.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
 namespace perfetto {
@@ -43,7 +50,6 @@ class DisableAndReadMetatraceResult;
 namespace trace_processor {
 
 class Iterator;
-class TraceProcessor;
 
 // This class handles the binary {,un}marshalling for the Trace Processor RPC
 // API (see protos/perfetto/trace_processor/trace_processor.proto).
@@ -137,6 +143,16 @@ class Rpc {
 
   TraceProcessor* trace_processor() const { return trace_processor_.get(); }
 
+  // Test-only counters exposing pool behaviour. Not part of the wire API.
+  uint32_t pool_workers_used_for_testing() const {
+    std::lock_guard<std::mutex> g(pool_mu_);
+    return static_cast<uint32_t>(distinct_worker_thread_ids_.size());
+  }
+  uint32_t pool_distinct_connections_for_testing() const {
+    std::lock_guard<std::mutex> g(pool_mu_);
+    return distinct_connections_minted_;
+  }
+
  private:
   void ParseRpcRequest(const uint8_t*, size_t);
   void ResetTraceProcessor(const uint8_t*, size_t);
@@ -152,6 +168,21 @@ class Rpc {
                                    protos::pbzero::TraceSummaryResult*);
   void DisableAndReadMetatraceInternal(
       protos::pbzero::DisableAndReadMetatraceResult*);
+
+  // Worker-pool plumbing for `Query` fan-out. The pool is only used after
+  // `NotifyEndOfFile` (strict-v1: secondary connections are illegal pre-EOF).
+  // Mutating RPCs (`Parse`, `NotifyEndOfFile`, `RegisterSqlPackage`,
+  // `RestoreInitialTables`, `ResetTraceProcessor`, ...) drain the pool
+  // (destroy all pooled connections, wait for in-flight workers to release
+  // theirs) before touching the underlying `TraceProcessor` so the
+  // `non_default_connection_count_ == 0` mutation gate never trips.
+  std::unique_ptr<TraceProcessor::Connection> AcquireConnectionForQuery();
+  void ReleaseConnectionToPool(
+      std::unique_ptr<TraceProcessor::Connection> conn);
+  void DrainConnectionPoolForMutation();
+  void RunQueryOnPoolWorker(std::string sql,
+                            base::TimeNanos t_start,
+                            const QueryResultBatchCallback& result_callback);
 
   Config default_config_;
   std::function<void(TraceProcessor*)> on_trace_processor_created_;
@@ -169,6 +200,29 @@ class Rpc {
 
   // Manages Summarizer instances keyed by caller-provided ID.
   base::FlatHashMap<std::string, std::unique_ptr<Summarizer>> summarizers_;
+
+  // Connection pool + worker pool. The worker pool is sized to
+  // `min(hardware_concurrency, 8)` (or 1 if `hardware_concurrency` is 0)
+  // and is created lazily on first post-EOF `Query`. The connection pool
+  // is unbounded; idle connections live on `pool_free_`. While a mutation
+  // is pending, `pool_blocked_for_mutation_` is set and acquirers block
+  // (or fall through to the default connection if the pool is empty and
+  // we're servicing the same thread that requested the mutation).
+  mutable std::mutex pool_mu_;
+  std::condition_variable pool_cv_;
+  std::vector<std::unique_ptr<TraceProcessor::Connection>> pool_free_;
+  uint32_t pool_in_use_ = 0;
+  uint32_t distinct_connections_minted_ = 0;
+  bool pool_blocked_for_mutation_ = false;
+  std::unordered_set<std::thread::id> distinct_worker_thread_ids_;
+  // Serialises calls to `TraceProcessor::CreateConnection`. Any thread
+  // can post a Query, but only one of them at a time may mint
+  // connections (and only ever from outside the worker pool's threads),
+  // because `CreateConnection` is the single writer of
+  // `StringPool::should_acquire_mutex_`. Concurrent `CreateConnection`
+  // calls from multiple Query callers would otherwise race.
+  std::mutex pool_mint_mu_;
+  std::unique_ptr<base::ThreadPool> worker_pool_;
 };
 
 }  // namespace trace_processor

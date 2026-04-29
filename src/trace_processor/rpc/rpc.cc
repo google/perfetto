@@ -16,14 +16,19 @@
 
 #include "src/trace_processor/rpc/rpc.h"
 
+#include <algorithm>
 #include <cinttypes>
+#include <condition_variable>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <functional>
+#include <future>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -31,6 +36,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/threading/thread_pool.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/ext/trace_processor/rpc/query_result_serializer.h"
@@ -57,6 +63,32 @@ using RpcProto = protos::pbzero::TraceProcessorRpc;
 // avoid extra heap allocations for the nominal case.
 constexpr auto kSliceSize =
     QueryResultSerializer::kDefaultBatchSplitThreshold + 4096;
+
+// RAII helper: clears the `pool_blocked_for_mutation_` flag and notifies
+// waiters when a mutating RPC's body returns. Constructed *after*
+// `Rpc::DrainConnectionPoolForMutation`, so the destructor only runs once
+// the pool is quiesced and the writer-side mutation has completed.
+class ScopedPoolUnblock {
+ public:
+  ScopedPoolUnblock(std::mutex* mu,
+                    std::condition_variable* cv,
+                    bool* flag)
+      : mu_(mu), cv_(cv), flag_(flag) {}
+  ~ScopedPoolUnblock() {
+    {
+      std::lock_guard<std::mutex> g(*mu_);
+      *flag_ = false;
+    }
+    cv_->notify_all();
+  }
+  ScopedPoolUnblock(const ScopedPoolUnblock&) = delete;
+  ScopedPoolUnblock& operator=(const ScopedPoolUnblock&) = delete;
+
+ private:
+  std::mutex* mu_;
+  std::condition_variable* cv_;
+  bool* flag_;
+};
 
 // Holds a trace_processor::TraceProcessorRpc pbzero message. Avoids extra
 // copies by doing direct scattered calls from the fragmented heap buffer onto
@@ -116,6 +148,12 @@ Rpc::Rpc() : Rpc(nullptr, false, Config(), {}) {}
 Rpc::~Rpc() = default;
 
 void Rpc::ResetTraceProcessorInternal(const Config& config) {
+  // The new TraceProcessor will be a brand new ingestion target. Drain
+  // the pool now so all secondary connections are released before we
+  // tear down the old TP instance.
+  DrainConnectionPoolForMutation();
+  ScopedPoolUnblock unblock(&pool_mu_, &pool_cv_, &pool_blocked_for_mutation_);
+
   current_config_ = config;
   bytes_parsed_ = bytes_last_progress_ = 0;
   t_parse_started_ = base::GetWallTimeNs().count();
@@ -579,6 +617,12 @@ void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
 }
 
 base::Status Rpc::RegisterSqlPackage(protozero::ConstBytes bytes) {
+  // Mutating: drop all pooled connections and wait for in-flight workers
+  // before touching the writer engine. The Phase 2 mutation gate
+  // (`non_default_connection_count_ == 0`) would CHECK-fail otherwise.
+  DrainConnectionPoolForMutation();
+  ScopedPoolUnblock unblock(&pool_mu_, &pool_cv_, &pool_blocked_for_mutation_);
+
   protos::pbzero::RegisterSqlPackageArgs::Decoder args(bytes);
   SqlPackage package;
   package.name = args.package_name().ToStdString();
@@ -604,6 +648,185 @@ void Rpc::MaybePrintProgress() {
   }
 }
 
+std::unique_ptr<TraceProcessor::Connection>
+Rpc::AcquireConnectionForQuery() {
+  std::unique_lock<std::mutex> lock(pool_mu_);
+  // Wait until any in-flight mutation drain has completed AND a connection
+  // is available. The pool is pre-populated to `worker_pool_`'s thread
+  // count, so a worker that finds the free list empty just parks until a
+  // peer releases. CreateConnection is *never* invoked from a worker
+  // thread: the StringPool's first `EnableThreadSafetyForMultiConnection`
+  // write must observe a single-producer happens-before with all reads.
+  pool_cv_.wait(lock, [&] {
+    return !pool_blocked_for_mutation_ && !pool_free_.empty();
+  });
+  std::unique_ptr<TraceProcessor::Connection> conn = std::move(pool_free_.back());
+  pool_free_.pop_back();
+  pool_in_use_++;
+  return conn;
+}
+
+void Rpc::ReleaseConnectionToPool(
+    std::unique_ptr<TraceProcessor::Connection> conn) {
+  std::unique_lock<std::mutex> lock(pool_mu_);
+  PERFETTO_DCHECK(pool_in_use_ > 0);
+  pool_in_use_--;
+  if (pool_blocked_for_mutation_) {
+    // A mutation is waiting for us to drain. Drop the connection now so
+    // `non_default_connection_count_` decrements before the writer
+    // re-checks its CHECK gate.
+    lock.unlock();
+    conn.reset();
+    {
+      std::lock_guard<std::mutex> g(pool_mu_);
+    }
+    pool_cv_.notify_all();
+    return;
+  }
+  pool_free_.push_back(std::move(conn));
+  pool_cv_.notify_all();
+}
+
+void Rpc::DrainConnectionPoolForMutation() {
+  // Take the mint mutex so any in-flight Query refilling the pool
+  // finishes before we start tearing connections down. New
+  // mint attempts after this point will park on this same mutex.
+  std::lock_guard<std::mutex> mint_guard(pool_mint_mu_);
+  std::vector<std::unique_ptr<TraceProcessor::Connection>> to_destroy;
+  {
+    std::unique_lock<std::mutex> lock(pool_mu_);
+    pool_blocked_for_mutation_ = true;
+    // Move the free list out so we can destroy the connections without
+    // holding the lock (destruction touches `non_default_connection_count_`
+    // and other TP-side state; keep the pool lock scope tight).
+    to_destroy.swap(pool_free_);
+    // Release the lock so the destructors above can run; reacquire to
+    // wait on the condvar.
+  }
+  to_destroy.clear();
+  std::unique_lock<std::mutex> lock(pool_mu_);
+  // Workers that still hold a connection will see
+  // `pool_blocked_for_mutation_` on release and drop the connection
+  // before notifying us. Wait for `pool_in_use_` to hit zero.
+  pool_cv_.wait(lock, [&] { return pool_in_use_ == 0; });
+  // The pool is now empty and no workers are running. Leave
+  // `pool_blocked_for_mutation_` set: callers who arrive during the
+  // mutation should also park. The mutating RPC clears it once the
+  // mutation is done by re-entering this function's tail (see helper
+  // below).
+}
+
+void Rpc::RunQueryOnPoolWorker(
+    std::string sql,
+    base::TimeNanos t_start,
+    const QueryResultBatchCallback& result_callback) {
+  // Ensure the worker pool exists and has at least one connection on the
+  // free list before we hand work off. Both the creation of the pool and
+  // the minting of connections happen on the caller's (writer) thread:
+  // `TraceProcessor::CreateConnection` is the single writer of
+  // `StringPool::should_acquire_mutex_`, and minting from worker threads
+  // would produce a TSan-flaggable race on that flag with peer workers.
+  // Worker-thread `Acquire` is read-only (consumes from the free list)
+  // and is fed by `Release` only.
+  // `pool_mint_mu_` serialises CreateConnection across all Rpc callers.
+  // Held only on the (rare) refill path, so contention is negligible.
+  {
+    std::lock_guard<std::mutex> mint_guard(pool_mint_mu_);
+    uint32_t threads_to_mint = 0;
+    {
+      std::lock_guard<std::mutex> g(pool_mu_);
+      if (!worker_pool_) {
+        uint32_t hw = std::thread::hardware_concurrency();
+        threads_to_mint = std::min<uint32_t>(hw == 0 ? 1u : hw, 8u);
+      } else if (pool_free_.empty() && pool_in_use_ == 0 &&
+                 !pool_blocked_for_mutation_) {
+        // The pool was drained for a mutation and is now idle; refill
+        // to worker-pool size on this thread.
+        threads_to_mint = static_cast<uint32_t>(std::min<uint32_t>(
+            8u,
+            std::max<uint32_t>(1u, std::thread::hardware_concurrency())));
+      }
+    }
+    if (threads_to_mint > 0) {
+      std::vector<std::unique_ptr<TraceProcessor::Connection>> fresh;
+      fresh.reserve(threads_to_mint);
+      for (uint32_t i = 0; i < threads_to_mint; ++i) {
+        fresh.push_back(trace_processor_->CreateConnection());
+      }
+      std::lock_guard<std::mutex> g(pool_mu_);
+      if (!worker_pool_) {
+        worker_pool_ = std::make_unique<base::ThreadPool>(threads_to_mint);
+      }
+      for (auto& c : fresh) {
+        pool_free_.push_back(std::move(c));
+        distinct_connections_minted_++;
+      }
+      pool_cv_.notify_all();
+    }
+  }
+
+  // Run the work on a pool thread; block the caller on a promise so the
+  // synchronous `Query` callback contract (responses delivered before
+  // `Query` returns) is preserved. Concurrent callers from different
+  // threads each block on their own promise and so fan out across pool
+  // workers.
+  std::promise<void> done;
+  std::future<void> done_fut = done.get_future();
+  worker_pool_->PostTask([this, sql = std::move(sql), t_start,
+                          &result_callback, &done]() mutable {
+    {
+      std::lock_guard<std::mutex> g(pool_mu_);
+      distinct_worker_thread_ids_.insert(std::this_thread::get_id());
+    }
+    auto conn = AcquireConnectionForQuery();
+    // Drain the iterator fully into a vector of buffered slices before
+    // releasing the connection. Strategy (a) from the design memo:
+    // "bulk-materialise rows, release connection, stream buffer back".
+    struct Chunk {
+      std::vector<uint8_t> bytes;
+      bool has_more_after;
+    };
+    std::vector<Chunk> chunks;
+    {
+      // Iterator + serializer scoped tightly so the prepared statement
+      // (`sqlite3_stmt*` owned by the IteratorImpl) is finalised on the
+      // worker thread *before* the connection goes back to the pool.
+      // Otherwise a peer worker could pick the connection up mid-
+      // finalize and race on the underlying `sqlite3*` handle (TSan
+      // catches this as a sqlite3ErrorClear vs. sqlite3VdbeReset race).
+      auto it = conn->ExecuteQuery(sql);
+      QueryResultSerializer serializer(std::move(it), t_start);
+      protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(kSliceSize,
+                                                                    kSliceSize);
+      for (bool has_more = true; has_more;) {
+        has_more = serializer.Serialize(buffered.get());
+        const auto& res = buffered.GetSlices();
+        for (uint32_t i = 0; i < res.size(); ++i) {
+          auto used = res[i].GetUsedRange();
+          Chunk c;
+          c.bytes.assign(used.begin, used.begin + used.size());
+          c.has_more_after = has_more || i < res.size() - 1;
+          chunks.push_back(std::move(c));
+        }
+        if (res.size() == 0 && !has_more) {
+          chunks.push_back(Chunk{{}, false});
+        }
+        buffered.Reset();
+      }
+    }
+    ReleaseConnectionToPool(std::move(conn));
+    // Connection is back in the pool; emit the buffered chunks back to
+    // the transport. The caller is still parked on `done_fut`, so
+    // `result_callback` is safe to invoke from this thread.
+    for (const auto& c : chunks) {
+      result_callback(c.bytes.empty() ? nullptr : c.bytes.data(),
+                      c.bytes.size(), c.has_more_after);
+    }
+    done.set_value();
+  });
+  done_fut.wait();
+}
+
 void Rpc::Query(const uint8_t* args,
                 size_t len,
                 const QueryResultBatchCallback& result_callback) {
@@ -618,27 +841,38 @@ void Rpc::Query(const uint8_t* args,
                     });
 
   const auto t_start = base::GetWallTimeNs();
-  auto it = trace_processor_->ExecuteQuery(sql);
 
-  QueryResultSerializer serializer(std::move(it), t_start);
-
-  protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(kSliceSize,
-                                                                kSliceSize);
-  for (bool has_more = true; has_more;) {
-    has_more = serializer.Serialize(buffered.get());
-    const auto& res = buffered.GetSlices();
-    for (uint32_t i = 0; i < res.size(); ++i) {
-      auto used = res[i].GetUsedRange();
-      result_callback(used.begin, used.size(), has_more || i < res.size() - 1);
+  // Pre-EOF queries (and queries issued while a mutation is being
+  // serviced — `eof_` flips back off in `Parse` if a fresh trace is
+  // being loaded) go through the writer engine directly: secondary
+  // connections are illegal until `NotifyEndOfFile`.
+  if (!eof_) {
+    auto it = trace_processor_->ExecuteQuery(sql);
+    QueryResultSerializer serializer(std::move(it), t_start);
+    protozero::HeapBuffered<protos::pbzero::QueryResult> buffered(kSliceSize,
+                                                                  kSliceSize);
+    for (bool has_more = true; has_more;) {
+      has_more = serializer.Serialize(buffered.get());
+      const auto& res = buffered.GetSlices();
+      for (uint32_t i = 0; i < res.size(); ++i) {
+        auto used = res[i].GetUsedRange();
+        result_callback(used.begin, used.size(),
+                        has_more || i < res.size() - 1);
+      }
+      if (res.size() == 0 && !has_more) {
+        result_callback(nullptr, 0, false);
+      }
+      buffered.Reset();
     }
-    if (res.size() == 0 && !has_more) {
-      result_callback(nullptr, 0, false);
-    }
-    buffered.Reset();
+    return;
   }
+  RunQueryOnPoolWorker(std::move(sql), t_start, result_callback);
 }
 
 void Rpc::RestoreInitialTables() {
+  // Mutating: drop all pooled connections and wait for in-flight workers.
+  DrainConnectionPoolForMutation();
+  ScopedPoolUnblock unblock(&pool_mu_, &pool_cv_, &pool_blocked_for_mutation_);
   trace_processor_->RestoreInitialTables();
 }
 
