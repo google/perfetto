@@ -72,7 +72,7 @@ DiskIoTracker::DiskIoTracker(TraceProcessorContext* context)
           context_->storage->InternString("High Res Response Time")),
       thread_id_arg_(context_->storage->InternString("Thread ID")) {}
 
-void DiskIoTracker::ParseDiskIo(int64_t timestamp,  protozero::ConstBytes blob) {
+void DiskIoTracker::ParseDiskIo(int64_t timestamp, protozero::ConstBytes blob) {
   protos::pbzero::DiskIoEtwEvent::Decoder decoder(blob);
   if (!decoder.has_opcode() || !decoder.has_irp_ptr()) {
     return;
@@ -82,20 +82,25 @@ void DiskIoTracker::ParseDiskIo(int64_t timestamp,  protozero::ConstBytes blob) 
   UniqueTid utid =
       context_->process_tracker->GetOrCreateThread(decoder.issuing_thread_id());
 
-  const auto disk_number =
-      decoder.has_disk_number() ? std::optional(decoder.disk_number()) : std::nullopt;
-  const auto irp_flags =
-      decoder.has_irp_flags() ? std::optional(decoder.irp_flags()) : std::nullopt;
-  const auto transfer_size =
-      decoder.has_transfer_size() ? std::optional(decoder.transfer_size()) : std::nullopt;
-  const auto byte_offset =
-      decoder.has_byte_offset() ? std::optional(decoder.byte_offset()) : std::nullopt;
-  const auto file_object =
-      decoder.has_file_object() ? std::optional(decoder.file_object()) : std::nullopt;
+  const auto disk_number = decoder.has_disk_number()
+                               ? std::optional(decoder.disk_number())
+                               : std::nullopt;
+  const auto irp_flags = decoder.has_irp_flags()
+                             ? std::optional(decoder.irp_flags())
+                             : std::nullopt;
+  const auto transfer_size = decoder.has_transfer_size()
+                                 ? std::optional(decoder.transfer_size())
+                                 : std::nullopt;
+  const auto byte_offset = decoder.has_byte_offset()
+                               ? std::optional(decoder.byte_offset())
+                               : std::nullopt;
+  const auto file_object = decoder.has_file_object()
+                               ? std::optional(decoder.file_object())
+                               : std::nullopt;
   const auto high_res_response_time =
       decoder.has_high_res_response_time()
-      ? std::optional(decoder.high_res_response_time())
-      : std::nullopt;
+          ? std::optional(decoder.high_res_response_time())
+          : std::nullopt;
 
   SliceTracker::SetArgsCallback set_args =
       [this, disk_number, irp_flags, transfer_size, byte_offset, file_object,
