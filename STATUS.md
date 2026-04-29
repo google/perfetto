@@ -1,7 +1,28 @@
 # Multi-connection TraceProcessor — Loop Status
 
 ## Current Phase
-Phase 1: refactor + memdb/WAL with no behavioural change
+Phase 1: refactor + memdb (serialized transactions, no WAL) with no
+behavioural change. **Almost done — only `phase1-pragmas` and
+`phase1-validation` remain.**
+
+## Design pivots (2026-04-29, mid-Phase-1)
+- **WAL abandoned.** Switching to serialized transactions with
+  `journal_mode=MEMORY` + `temp_store=MEMORY` + `locking_mode=NORMAL`.
+  No custom SHM-capable VFS needed — multi-conn concurrency comes from
+  serializing writes per connection, not from WAL. Drops the deferred
+  `custom-shm-vfs` Phase 3 chunk entirely.
+- **Includes use a temp-then-promote pattern.** During an include's
+  execution, all CREATE statements land in `temp.<name>` (per-connection
+  temp schema, private). At successful end-of-include, drop the temp
+  versions and re-issue them as DDL on main schema so `cache=shared`
+  propagates to other connections. Vtabs are recreated at the SQL level
+  (DDL), not via direct C++ vtab module callbacks. If the include
+  fails, temp objects are dropped and main is untouched — atomic at
+  module granularity. This is the Phase 2 mechanism for cross-conn
+  schema visibility; replaces the earlier "OnCommit publishes to
+  GlobalStagingArea, cold xConnect on conn B reads from global" path
+  for include-time schema sync. (GlobalStagingArea still owns the
+  function pool + per-module include locks.)
 
 ## Recent activity (newest first)
 - 2026-04-29 [iter 7]: global-staging-area-skeleton done. Added
@@ -97,12 +118,6 @@ Phase 1: refactor + memdb/WAL with no behavioural change
   a custom VFS.
 
 ## Next chunks (Phase 1)
-- [~] wal-mode-pragma — **BLOCKED, deferred to Phase 3.** memdb VFS
-      lacks SHM hooks; WAL silently falls back to `memory`. See iter 4
-      activity entry. Phase 1+2 will operate with `journal_mode=memory`
-      + `cache=shared`, which is sufficient for single-threaded
-      multi-conn. Replaced by a Phase 3 chunk: see *custom-shm-vfs*
-      below.
 - [x] sqlite-handle-encapsulation — done iter 5. Accessor:
       `sqlite3* PerfettoSqlEngine::db()`. 9 external callsites
       migrated. See iter 5 activity entry.
@@ -114,18 +129,72 @@ Phase 1: refactor + memdb/WAL with no behavioural change
       `GlobalStagingArea` class added; `TraceProcessorImpl` owns it
       via `std::unique_ptr`. No callsites yet. See iter 7 activity
       entry.
+- [ ] phase1-pragmas — set `PRAGMA journal_mode=MEMORY`,
+      `PRAGMA temp_store=MEMORY`, `PRAGMA locking_mode=NORMAL` after
+      open. Verify each pragma read-back returns the expected value
+      (`memory`/`memory`/`normal`) — silent fallbacks must trigger a
+      CHECK so future regressions are caught. Replaces the
+      now-superseded `wal-mode-pragma` chunk. The pragmas should be
+      applied inside `SqliteConnection`'s constructor so every minted
+      connection gets them, not just the first. (`temp_store=MEMORY` is
+      arguably moot since memdb is in-memory anyway, but it's defensive
+      and cheap. `locking_mode=NORMAL` is the SQLite default; we set it
+      explicitly so the intent is clear and it can't drift to
+      `EXCLUSIVE` later — `EXCLUSIVE` would break `cache=shared`.)
 - [ ] phase1-validation — run unittests, integrationtests,
       diff_test_trace_processor.py, and an ASan unittests pass. No
-      regressions and no behaviour change vs. main.
+      regressions and no behaviour change vs. main. Mark Phase 1 done
+      and append a Phase 1 wrap-up section to this file. Update the
+      project memory file at
+      `/Users/lalitm/.claude/projects/-Users-lalitm-perfetto/memory/project_multi_connection_tp.md`
+      to record Phase 1 completion (note: design pivots already landed
+      in memory file — verify those are consistent with what shipped).
 
-## Phase 3 chunks (forward-deferred from Phase 1)
-- [ ] custom-shm-vfs — write a small in-memory VFS that implements
-      `xShmMap`/`xShmLock`/`xShmBarrier`/`xShmUnmap` so that WAL mode
-      can be enabled. Without this, multi-threaded reads will serialise
-      against any writer (table-level locks via `cache=shared` only).
-      Reference: `buildtools/sqlite_src/src/memdb.c` (no SHM impl) and
-      SQLite's `os_unix.c` SHM code as precedent. Likely ~300-500 LOC.
-      Only needed once Phase 3 brings real concurrency.
+## Next chunks (Phase 2 — first cut, refine on /loop restart)
+
+These are **draft** — the orchestrator should re-read the design memo
+and the temp-then-promote breakthrough above before sequencing them.
+
+- [ ] tp-public-api-create-conn — extend the `TraceProcessor`
+      public API with `CreateConnection` / `DestroyConnection` (or
+      pick the names from the design memo). Connection-0 stays the
+      default and preserves `ExecuteQuery(sql)` behaviour exactly.
+      Returns a `Connection` handle wrapping a per-conn
+      `PerfettoSqlEngine`. Mutating TP methods (`Parse`,
+      `NotifyEndOfFile`, `RegisterSqlPackage`,
+      `RegisterFileContent`, `RestoreInitialTables`, metric/
+      summarizer registration) should `PERFETTO_CHECK` that no
+      non-default conn is alive — strict for v1 per design rule.
+- [ ] perfetto-sql-engine-per-conn — the second connection mints a
+      fresh `PerfettoSqlEngine` (and its own `SqliteEngine` /
+      `SqliteConnection`) but reuses the existing `filename_` so
+      `cache=shared` ties them together. Verify trivial query on
+      conn 1 sees tables created on conn 0.
+- [ ] include-temp-then-promote — implement the include
+      breakthrough. Hijack the include execution to write CREATE
+      DDL into `temp.<symbol>` first, then on success drop the temp
+      versions and re-issue the DDL on main. Failure path: drop
+      the temp objects, leave main untouched. Per-module include
+      lock from `GlobalStagingArea` serialises concurrent imports
+      of the same module. This is the *primary* cross-connection
+      schema-sync mechanism — vet end-to-end before moving on.
+- [ ] vtab-state-staging-publish — vtab `OnCommit` writes
+      committed state into `GlobalStagingArea`'s vtab-state map;
+      `OnRollback` discards. Cold xConnect on conn B pulls from
+      global. Dataframe vtab re-resolves dataframe at cursor
+      creation; no caching/invalidation in `PerVtabState`. (May
+      partially overlap with include-temp-then-promote — sequence
+      after that lands so we can see what's still load-bearing.)
+- [ ] function-pool-per-conn-diff — `GlobalStagingArea` holds an
+      additive-only function pool. Each conn tracks
+      `last_synced_version_`; at `Execute` start, diff against pool
+      and register missing entries on its own `sqlite3*`. No
+      cross-thread sqlite mutation. Functions are stateless
+      (SQL/fn pointer + signature) — no DROP semantics.
+- [ ] execute-savepoint-wrap — every top-level
+      `Execute(sql)` wraps in a savepoint for multi-statement
+      atomicity. Fits naturally with the temp-then-promote include
+      pattern.
 
 ## Architecture notes (for future iterations)
 - Public API:
@@ -154,17 +223,14 @@ Phase 1: refactor + memdb/WAL with no behavioural change
   (gated on `!SQLITE_OMIT_DESERIALIZE`, which is not defined). Shared
   memdb files use URIs of the form `file:/<name>?vfs=memdb`; first
   char of name must be `/`.
-- **memdb does NOT support WAL.** `buildtools/sqlite_src/src/memdb.c`
-  registers `xShmMap=0, xShmLock=0, xShmBarrier=0, xShmUnmap=0`
-  (lines 176-179). SQLite's `pager_open_journal` requires shared-memory
-  for WAL, so `PRAGMA journal_mode=WAL` against a memdb handle returns
-  `memory` (silent fallback). Cross-connection schema sharing via
-  `cache=shared` still works without WAL — multiple handles see the
-  same tables — but writes serialise against readers (table-level
-  shared-cache locks). For Phase 1-2 (single-threaded multi-conn) this
-  is acceptable. For Phase 3 (true concurrent reads with a writer) we
-  must either ship a custom SHM-capable VFS (see *custom-shm-vfs*) or
-  accept that writes block readers via shared-cache locks.
+- **memdb does NOT support WAL** (kept here for the next person who
+  tries). `buildtools/sqlite_src/src/memdb.c` registers `xShmMap=0,
+  xShmLock=0, xShmBarrier=0, xShmUnmap=0` (lines 176-179). SQLite's
+  `pager_open_journal` requires shared-memory for WAL, so `PRAGMA
+  journal_mode=WAL` against a memdb handle returns `memory` (silent
+  fallback). **The project no longer needs WAL** — see Design pivots
+  above; concurrency comes from serialized writes, not WAL. Don't
+  reopen this rabbit hole.
 - SQLite compile flags in `buildtools/BUILD.gn:1664-1685`. Two are
   load-bearing for this project:
   - `-DSQLITE_THREADSAFE=0` — must move to `=2` (multi-thread, no
@@ -176,13 +242,17 @@ Phase 1: refactor + memdb/WAL with no behavioural change
 - `PerfettoSqlEngine` already tracks
   `std::vector<sqlite::ModuleStateManagerBase*> virtual_module_state_managers_`
   (perfetto_sql_engine.h:422) and calls `OnCommit`/`OnRollback`
-  on each (perfetto_sql_engine.cc:1394, 1401). This is the hook the
-  `GlobalStagingArea` will plug into in Phase 2: `OnCommit` publishes
-  to global, cold xConnect on connection B reads from global.
+  on each (perfetto_sql_engine.cc:1394, 1401). With the
+  temp-then-promote pivot, this is now mostly relevant for
+  *runtime* state (data) rather than schema: schema lands in main
+  via DDL re-issue, and `cache=shared` propagates it. Vtab state
+  staging via `GlobalStagingArea` still applies for data (e.g.
+  dataframe handles).
 - `ModuleStateManagerBase::PerVtabState`
   (`src/trace_processor/sqlite/module_state_manager.h:35`) already has
   separate `active_state` / `committed_state` / `savepoint_states`
-  fields — perfect shape for cross-connection publishing.
+  fields — perfect shape for cross-connection publishing of vtab
+  *data* (the schema side is handled by temp-then-promote DDL).
 - `DataframeModule::State` (`dataframe_module.h:48`) holds a raw
   `dataframe::Dataframe*` plus `std::unique_ptr<dataframe::Dataframe>
   owned_dataframe`. Per the design rule, the dataframe vtab will
@@ -213,28 +283,33 @@ Phase 1: refactor + memdb/WAL with no behavioural change
     accessor preserves today's "register on default conn" behaviour.
 
 ## Phase plan
-- **Phase 1 (current): refactor + memdb (no WAL), no behaviour
-  change.** See "Next chunks" above. Outcome: TP still presents a
-  single connection externally, but internally is opened via
-  shared-memdb (journal_mode=memory; WAL deferred — see iter 4) and
-  the raw `sqlite3*` handle is encapsulated behind a small surface,
-  with an empty `GlobalStagingArea` ready to be filled.
+- **Phase 1 (current, almost done): refactor + memdb (serialized
+  transactions, no WAL), no behaviour change.** See "Next chunks"
+  above. Outcome: TP still presents a single connection externally,
+  but internally is opened via shared-memdb with
+  `journal_mode=MEMORY` + `temp_store=MEMORY` +
+  `locking_mode=NORMAL`, and the raw `sqlite3*` handle is
+  encapsulated behind a small surface, with an empty
+  `GlobalStagingArea` ready to be filled.
 - **Phase 2: multi-conn single-threaded.** Add
   `CreateConnection`/`DestroyConnection` to `TraceProcessor`.
   Implement the connection class as
   `{PerfettoSqlEngine, ModuleStateManager, last_synced_version_}`.
-  Wire `GlobalStagingArea` for vtab state (publish on `OnCommit`,
+  Implement the temp-then-promote include pattern as the primary
+  cross-connection schema-sync mechanism. Wire
+  `GlobalStagingArea` for vtab *data* state (publish on `OnCommit`,
   read on cold xConnect) and the function pool (per-conn diff-and-
   register at `Execute` start). Add per-module include locks.
   Connection-0 keeps the existing API untouched. Gate mutating
   TP-level methods. Add savepoint-wrapping to `Execute`.
-- **Phase 3: thread safety + retry middleware.** Bump
-  `SQLITE_THREADSAFE=2` if not already done. Land *custom-shm-vfs*
-  (or accept shared-cache table locks if measurements show it's good
-  enough). Add transparent `SQLITE_BUSY` and `SQLITE_SCHEMA` retry
-  with configurable timeout (default 1s). Audit all globals for
+- **Phase 3: thread safety + retry middleware.** Verify
+  `SQLITE_THREADSAFE=2` (already flipped in iter 2). Add
+  transparent `SQLITE_BUSY` and `SQLITE_SCHEMA` retry with
+  configurable timeout (default 1s). Audit all globals for
   thread-safety. Stress-test multi-thread fan-out with sanitizers
-  (TSan, ASan).
+  (TSan, ASan). **WAL is no longer in scope** — concurrency comes
+  from serialized writes per connection (one writer at a time
+  across the shared cache, but multiple readers fine).
 - **Phase 4: RPC pool + UI fan-out + WASM pthreads.** Add
   work-stealing thread pool sized to `#cpus` in the RPC layer.
   Connection pool is unbounded; each query: acquire conn, run, bulk
