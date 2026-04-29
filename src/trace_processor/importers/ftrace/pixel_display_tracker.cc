@@ -36,6 +36,10 @@ PixelDisplayTracker::PixelDisplayTracker(TraceProcessorContext* context)
           context->storage->InternString("frame_start_timeout")),
       frame_done_timeout_name_(
           context->storage->InternString("frame_done_timeout")),
+      frame_start_missing_name_(
+          context->storage->InternString("frame_start_missing")),
+      frame_done_missing_name_(
+          context->storage->InternString("frame_done_missing")),
 
       vblank_irq_enable_name_(
           context_->storage->InternString("disp_vblank_irq_enable")),
@@ -99,6 +103,60 @@ void PixelDisplayTracker::ParseDpuDispFrameDoneTimeout(
         inserter->AddArg(te_count_arg_, Variadic::Integer(ex.te_count()));
         inserter->AddArg(during_disable_arg_,
                          Variadic::Integer(ex.during_disable()));
+      });
+}
+
+void PixelDisplayTracker::ParseDpuDispFrameStartMissing(
+    int64_t timestamp,
+    protozero::ConstBytes blob) {
+  protos::pbzero::DpuDispFrameStartMissingFtraceEvent::Decoder ex(blob);
+  static constexpr auto kBluePrint = tracks::SliceBlueprint(
+      "disp_frame_start_missing",
+      tracks::DimensionBlueprints(
+          tracks::UintDimensionBlueprint("panel_index")),
+      tracks::FnNameBlueprint([](uint32_t panel_index) {
+        return base::StackString<256>("frame_start_missing[%u]", panel_index);
+      }));
+
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kBluePrint, tracks::Dimensions(ex.output_id()));
+  StringId slice_name_id = frame_start_missing_name_;
+
+  context_->slice_tracker->Scoped(
+      timestamp, track_id, kNullStringId, slice_name_id, 0,
+      [&](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(display_id_arg_, Variadic::Integer(ex.display_id()));
+        inserter->AddArg(output_id_arg_, Variadic::Integer(ex.output_id()));
+        inserter->AddArg(frames_pending_arg_,
+                         Variadic::Integer(ex.frames_pending()));
+        inserter->AddArg(te_count_arg_, Variadic::Integer(ex.te_count()));
+      });
+}
+
+void PixelDisplayTracker::ParseDpuDispFrameDoneMissing(
+    int64_t timestamp,
+    protozero::ConstBytes blob) {
+  protos::pbzero::DpuDispFrameDoneMissingFtraceEvent::Decoder ex(blob);
+  static constexpr auto kBluePrint = tracks::SliceBlueprint(
+      "disp_frame_done_missing",
+      tracks::DimensionBlueprints(
+          tracks::UintDimensionBlueprint("panel_index")),
+      tracks::FnNameBlueprint([](uint32_t panel_index) {
+        return base::StackString<256>("frame_done_missing[%u]", panel_index);
+      }));
+
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kBluePrint, tracks::Dimensions(ex.output_id()));
+  StringId slice_name_id = frame_done_missing_name_;
+
+  context_->slice_tracker->Scoped(
+      timestamp, track_id, kNullStringId, slice_name_id, 0,
+      [&](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(display_id_arg_, Variadic::Integer(ex.display_id()));
+        inserter->AddArg(output_id_arg_, Variadic::Integer(ex.output_id()));
+        inserter->AddArg(frames_pending_arg_,
+                         Variadic::Integer(ex.frames_pending()));
+        inserter->AddArg(te_count_arg_, Variadic::Integer(ex.te_count()));
       });
 }
 

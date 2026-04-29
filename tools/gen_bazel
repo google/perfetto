@@ -703,8 +703,12 @@ def gen_cpp_blob_header(target: GnParser.Target):
   # bazel/rules.bzl prepends `PERFETTO_CONFIG.root` to make the label work in
   # both standalone and embedded builds.
   script_to_bazel_label = {
-      'python/tools/cpp_blob_emitter.py': 'python:cpp_blob_emitter_bin',
-      'tools/gen_amalgamated_sql.py': ':gen_amalgamated_sql_py',
+      'python/tools/cpp_blob_emitter.py':
+          'python:cpp_blob_emitter_bin',
+      'src/trace_processor/plugins/wattson/gen_wattson_curves.py':
+          ':src_trace_processor_plugins_wattson_gen_wattson_curves_py',
+      'tools/gen_amalgamated_sql.py':
+          ':gen_amalgamated_sql_py',
   }
 
   label = BazelLabel(

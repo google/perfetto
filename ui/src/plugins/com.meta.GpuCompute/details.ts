@@ -218,22 +218,21 @@ type QueryCapable = {
 // SQL query building
 // =============================================================================
 
+function sqlAlias(id: string): string {
+  return id.replace(/\./g, '_');
+}
+
 // Launch metrics required for display and toolbar regardless of which
 // section plugins are loaded.
-//
-// TODO: These arg names are hardcoded to the current trace format. Consider
-// adding generic protobuf fields for kernel name, grid/block dimensions, etc.
-// or extending the well-known metric registry to cover launch args so plugins
-// can provide alternative argument names for different vendors.
 const INFRASTRUCTURE_LAUNCH_METRICS = [
   'kernel_name',
   'kernel_demangled_name',
-  'launch__block_size_x',
-  'launch__block_size_y',
-  'launch__block_size_z',
-  'launch__grid_size_x',
-  'launch__grid_size_y',
-  'launch__grid_size_z',
+  'launch.workgroup_size.x',
+  'launch.workgroup_size.y',
+  'launch.workgroup_size.z',
+  'launch.grid_size.x',
+  'launch.grid_size.y',
+  'launch.grid_size.z',
   'arch',
   'process_name',
   'process_id',
@@ -250,8 +249,9 @@ function kernelQueryBody(ctx: GpuComputeContext): string {
   ]);
 
   // Build EXTRACT_ARG lines for each launch metric.
+  // Dots in metric IDs are replaced with underscores for SQL aliases.
   const extractArgs = Array.from(allLaunchMetrics)
-    .map((id) => `EXTRACT_ARG(s.arg_set_id, '${id}') as ${id}`)
+    .map((id) => `EXTRACT_ARG(s.arg_set_id, '${id}') as ${sqlAlias(id)}`)
     .join(',\n      ');
 
   return `
@@ -333,7 +333,7 @@ function reduceKernelRows(
       // First row for this kernel — read all launch-arg columns
       const metricsKV: Record<string, number | string> = {};
       for (const col of launchArgColumns) {
-        const v = iter.get(col);
+        const v = iter.get(sqlAlias(col));
         metricsKV[col] = v != null ? (v as number | string) : 'n/a';
       }
 
@@ -403,8 +403,8 @@ function buildMetricSectionData(
     getMetric('kernel_demangled_name') !== 'n/a'
       ? getMetric('kernel_demangled_name')
       : kernelFallbackName;
-  const gridSize = `(${getMetric('launch__grid_size_x')}, ${getMetric('launch__grid_size_y')}, ${getMetric('launch__grid_size_z')})`;
-  const blockSize = `(${getMetric('launch__block_size_x')}, ${getMetric('launch__block_size_y')}, ${getMetric('launch__block_size_z')})`;
+  const gridSize = `(${getMetric('launch.grid_size.x')}, ${getMetric('launch.grid_size.y')}, ${getMetric('launch.grid_size.z')})`;
+  const blockSize = `(${getMetric('launch.workgroup_size.x')}, ${getMetric('launch.workgroup_size.y')}, ${getMetric('launch.workgroup_size.z')})`;
   const launchConfig = `${gridSize}x${blockSize}`;
 
   // Build the set of available (non-n/a) metric IDs for visibility checks.

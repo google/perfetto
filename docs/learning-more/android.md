@@ -6,9 +6,9 @@ concepts introduced in the
 
 Before you continue, you should be familiar with the basics of recording a
 system trace using either the
-[Perfetto UI](/docs/getting-started/system-tracing.md#android-perfetto-ui) or
+[Perfetto UI](/docs/getting-started/system-tracing.md#recording-your-first-system-trace) or
 the
-[`record_android_trace`](/docs/getting-started/system-tracing.md#android-command-line)
+[`record_android_trace`](/docs/getting-started/system-tracing.md#recording-your-first-system-trace)
 script.
 
 This guide covers the lower-level details that these tools abstract away,
@@ -34,7 +34,7 @@ adb shell setprop persist.traced.enable 1
 
 NOTE: If you are using a version of Android older than 9 (P), the on-device
 tools will not work. You must use the
-[`record_android_trace`](/docs/getting-started/system-tracing.md#android-command-line)
+[`record_android_trace`](/docs/getting-started/system-tracing.md#recording-your-first-system-trace)
 script.
 
 ## Recording using the on-device /system/bin/perfetto command

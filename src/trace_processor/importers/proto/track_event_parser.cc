@@ -77,9 +77,10 @@ std::optional<base::Status> MaybeParseUnsymbolizedSourceLocation(
   }
   // Interned mapping_id loses it's meaning when the sequence ends. So we need
   // to get an id from stack_profile_mapping table.
-  auto* mapping = delegate.seq_state()
-                      ->GetCustomState<StackProfileSequenceState>()
-                      ->FindOrInsertMapping(decoder->mapping_id());
+  auto* mapping =
+      delegate.seq_state()
+          ->GetCustomState<StackProfileSequenceState>()
+          ->FindOrInsertMapping(delegate.seq_state(), decoder->mapping_id());
   if (!mapping) {
     return std::nullopt;
   }

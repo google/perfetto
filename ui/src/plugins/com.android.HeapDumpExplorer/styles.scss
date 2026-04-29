@@ -106,6 +106,21 @@
   flex: 1;
 }
 
+.ah-dump-selector {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--pf-color-background);
+  border-bottom: 1px solid var(--pf-color-border);
+  font-size: 0.875rem;
+}
+
+.ah-dump-selector__label {
+  color: var(--pf-color-text-hint);
+}
+
 .ah-error-text {
   color: var(--pf-color-danger);
   padding: 1rem;

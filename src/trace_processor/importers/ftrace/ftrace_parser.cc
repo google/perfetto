@@ -1171,6 +1171,14 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         pixel_display_tracker_.ParseDpuDispFrameDoneTimeout(ts, fld_bytes);
         break;
       }
+      case FtraceEvent::kDpuDispFrameStartMissingFieldNumber: {
+        pixel_display_tracker_.ParseDpuDispFrameStartMissing(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kDpuDispFrameDoneMissingFieldNumber: {
+        pixel_display_tracker_.ParseDpuDispFrameDoneMissing(ts, fld_bytes);
+        break;
+      }
       case FtraceEvent::kGramCollisionFieldNumber: {
         ParseGramCollision(ts, fld_bytes);
         break;
